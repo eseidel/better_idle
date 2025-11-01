@@ -13,7 +13,9 @@ If this ever actually works well, the Melvor folks are welcome to take it and us
 
 ### MVP
 
-- Saves progress (somewhere) and reloads on open.
-- Keeps track of time since start and updates automatically on load.
-- Show a toast on activity completion.
 - Support more than one activity subtype (e.g. maple, oak) and keep separate progress.
+- Track gold as a resource.
+- Make it possible to inspect items and sell them.
+- Make inventory fixed-size
+- Add a store to purchase inventory slots.
+- Show a toast on activity completion.
