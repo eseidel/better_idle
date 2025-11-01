@@ -3,6 +3,8 @@ import 'dart:math';
 import 'package:async_redux/async_redux.dart';
 import 'package:flutter/material.dart';
 
+import 'activities.dart';
+
 export 'package:async_redux/async_redux.dart';
 
 extension BuildContextExtension on BuildContext {
@@ -13,6 +15,14 @@ typedef Tick = int;
 final Duration tickDuration = const Duration(milliseconds: 100);
 
 class Inventory {
+  Inventory.fromJson(Map<String, dynamic> json)
+    : _counts = Map<String, int>.from(json['counts']),
+      _orderedItems = List<String>.from(json['orderedItems']);
+
+  Map<String, dynamic> toJson() {
+    return {'counts': _counts, 'orderedItems': _orderedItems};
+  }
+
   Inventory.fromItems(List<ItemStack> items)
     : _counts = {},
       _orderedItems = [] {
@@ -78,61 +88,104 @@ class ItemStack {
   }
 }
 
+typedef ActivityState = int;
+
 class Activity {
-  const Activity({
-    required this.name,
-    required this.maxValue,
-    this.value = 0,
-    this.onComplete,
-  });
+  const Activity({required this.name, required this.maxValue, this.onComplete});
   final String name;
-  final Tick value;
   final Tick maxValue;
   final GlobalState Function(GlobalState state)? onComplete;
+}
 
-  double get progress => value.toDouble() / maxValue.toDouble();
-  Tick get remainingTicks => maxValue - value;
+class ActivityView {
+  const ActivityView({required this.activity, required this.state});
 
-  Activity copyWith({int? value}) {
-    return Activity(
-      name: name,
-      maxValue: maxValue,
-      value: value ?? this.value,
-      onComplete: onComplete,
-    );
-  }
+  final Activity activity;
+  final ActivityState state;
+
+  double get progress => state.toDouble() / activity.maxValue.toDouble();
+  Tick get remainingTicks => activity.maxValue - state;
 }
 
 class GlobalState {
   const GlobalState({
     required this.inventory,
-    required this.currentActivity,
+    required this.currentActivityName,
+    required this.activities,
     required this.updatedAt,
   });
 
   GlobalState.empty()
     : this(
         inventory: Inventory.empty(),
-        currentActivity: null,
+        currentActivityName: null,
+        activities: {},
         updatedAt: DateTime.timestamp(),
       );
 
+  GlobalState.fromJson(Map<String, dynamic> json)
+    : updatedAt = DateTime.parse(json['updatedAt']),
+      inventory = Inventory.fromJson(json['inventory']),
+      currentActivityName = json['currentActivityName'],
+      activities = Map<String, int>.from(json['activities']);
+
+  Map<String, dynamic> toJson() {
+    return {
+      'updatedAt': updatedAt.toIso8601String(),
+      'inventory': inventory.toJson(),
+      'currentActivityName': currentActivityName,
+      'activities': activities.map((key, value) => MapEntry(key, value)),
+    };
+  }
+
   final DateTime updatedAt;
   final Inventory inventory;
-  final Activity? currentActivity;
+  final String? currentActivityName;
+
+  bool get isActive => currentActivityName != null;
+
+  ActivityView? get currentActivity {
+    final name = currentActivityName;
+    if (name == null) {
+      return null;
+    }
+    final state = activities[name] ?? 0;
+    return ActivityView(activity: getActivity(name), state: state);
+  }
+
+  final Map<String, ActivityState> activities;
+
+  GlobalState startActivity(String activityName) {
+    final activities = Map<String, ActivityState>.from(this.activities);
+    activities[activityName] = 0;
+    return copyWith(currentActivityName: activityName, activities: activities);
+  }
 
   GlobalState clearActivity() {
     return GlobalState(
       inventory: inventory,
-      currentActivity: null,
+      currentActivityName: null,
+      activities: activities,
       updatedAt: DateTime.timestamp(),
     );
   }
 
-  GlobalState copyWith({Inventory? inventory, Activity? currentActivity}) {
+  GlobalState updateActivity(String activityName, ActivityState value) {
+    final activities = Map<String, ActivityState>.from(this.activities);
+    activities[activityName] = value;
+    return copyWith(activities: activities);
+  }
+
+  GlobalState copyWith({
+    Inventory? inventory,
+    String? currentActivityName,
+    Map<String, ActivityState>? activities,
+  }) {
     return GlobalState(
       inventory: inventory ?? this.inventory,
-      currentActivity: currentActivity ?? this.currentActivity,
+      currentActivityName: currentActivityName ?? this.currentActivityName,
+      // Shallow copy, might not be enough if state is deeply nested.
+      activities: Map.from(activities ?? this.activities),
       updatedAt: DateTime.timestamp(),
     );
   }
@@ -140,33 +193,38 @@ class GlobalState {
 
 GlobalState consumeTicks(GlobalState startingState, Tick ticks) {
   GlobalState state = startingState;
-  final startingActivity = state.currentActivity;
-  if (startingActivity == null) {
+  final startingActivityName = state.currentActivityName;
+  if (startingActivityName == null) {
     return state;
   }
-  Activity activity = startingActivity;
+  String? activityName = startingActivityName;
   while (ticks > 0) {
-    final ticksToApply = min(ticks, activity.remainingTicks);
-    activity = activity.copyWith(value: activity.value + ticksToApply);
+    final activity = getActivity(activityName);
+    ActivityState activityState = state.activities[activityName] ?? 0;
+    final beforeUpdate = ActivityView(activity: activity, state: activityState);
+    final ticksToApply = min(ticks, beforeUpdate.remainingTicks);
+    activityState += ticksToApply;
     ticks -= ticksToApply;
-    if (activity.remainingTicks <= 0) {
+    final afterUpdate = ActivityView(activity: activity, state: activityState);
+    if (afterUpdate.remainingTicks <= 0) {
       // This activity is complete, so we need to call the onComplete callback
       // and start the next activity
       state = activity.onComplete?.call(state) ?? state;
-      activity = activity.copyWith(value: 0);
+      // This will reset the activity to 0, will not change which activity is currently active.
+      activityState = 0;
     }
-    state = state.copyWith(currentActivity: activity);
+    state = state.updateActivity(activityName, activityState);
   }
   return state;
 }
 
 class StartActivityAction extends ReduxAction<GlobalState> {
-  StartActivityAction({required this.activity});
-  final Activity activity;
+  StartActivityAction({required this.activityName});
+  final String activityName;
   @override
   GlobalState reduce() {
     // We need to stop the current activity or wait for it to finish?
-    return store.state.copyWith(currentActivity: activity);
+    return store.state.startActivity(activityName);
   }
 }
 

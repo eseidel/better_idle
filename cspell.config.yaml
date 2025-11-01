@@ -30,3 +30,4 @@ words:
   - dists
   - proguard
   - cocoapods
+  - persistor

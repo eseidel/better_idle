@@ -15,3 +15,5 @@ If this ever actually works well, the Melvor folks are welcome to take it and us
 
 - Saves progress (somewhere) and reloads on open.
 - Keeps track of time since start and updates automatically on load.
+- Show a toast on activity completion.
+- Support more than one activity subtype (e.g. maple, oak) and keep separate progress.

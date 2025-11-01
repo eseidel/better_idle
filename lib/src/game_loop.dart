@@ -12,10 +12,10 @@ class GameLoop {
   }
 
   void _onStateChange(GlobalState state) {
-    if (state.currentActivity != null) {
+    if (state.isActive) {
       start();
     }
-    if (state.currentActivity == null) {
+    if (!state.isActive) {
       pause();
     }
   }
@@ -67,8 +67,7 @@ class GameLoop {
     }
     _lastUpdate = now;
 
-    final activity = _store.state.currentActivity;
-    if (activity == null) {
+    if (!_store.state.isActive) {
       // Safety check - should not happen when loop is managed correctly
       return;
     }

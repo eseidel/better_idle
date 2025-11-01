@@ -23,7 +23,9 @@ class WoodcuttingPage extends StatelessWidget {
             child: Text(currentActivity == null ? 'Start' : 'Stop'),
             onPressed: () {
               if (currentActivity == null) {
-                context.dispatch(StartActivityAction(activity: woodcutting));
+                context.dispatch(
+                  StartActivityAction(activityName: woodcutting.name),
+                );
               } else {
                 context.dispatch(StopActivityAction());
               }
