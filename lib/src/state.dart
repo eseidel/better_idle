@@ -91,7 +91,13 @@ class ItemStack {
 typedef ActivityState = int;
 
 class Activity {
-  const Activity({required this.name, required this.maxValue, this.onComplete});
+  Activity({
+    required this.category,
+    required this.name,
+    required Duration duration,
+    this.onComplete,
+  }) : maxValue = duration.inMilliseconds ~/ tickDuration.inMilliseconds;
+  final Category category;
   final String name;
   final Tick maxValue;
   final GlobalState Function(GlobalState state)? onComplete;

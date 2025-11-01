@@ -17,6 +17,8 @@ use it.
 
 ### MVP
 
+- Add experience as separate from per-unit progress, per-unit progress should
+  reset when switching units.
 - Support more than one activity subtype (e.g. maple, oak) and keep separate
   progress.
 - Track gold as a resource.
@@ -25,3 +27,5 @@ use it.
 - Add a store to purchase inventory slots.
 - Show a toast on activity completion.
 - Track per-item experience and levels.
+- Show offline progression dialog on load.
+- Allow buying of skill upgrades (e.g. faster axe)
