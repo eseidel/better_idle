@@ -9,6 +9,7 @@ class GameLoop {
   GameLoop(this._tickerProvider, this._store) {
     _ticker = _tickerProvider.createTicker(_onTick);
     _subscription = _store.onChange.listen(_onStateChange);
+    _onStateChange(_store.state);
   }
 
   void _onStateChange(GlobalState state) {

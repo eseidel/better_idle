@@ -15,8 +15,7 @@ class MyPersistor extends Persistor<GlobalState> {
   final LocalPersist _persist = LocalPersist("better_idle");
   @override
   Future<GlobalState> readState() async {
-    final state = await _persist.loadAsObj();
-    print('readState: $state');
+    final state = await _persist.loadJson() as Map<String, dynamic>?;
     return state == null ? GlobalState.empty() : GlobalState.fromJson(state);
   }
 
@@ -25,7 +24,6 @@ class MyPersistor extends Persistor<GlobalState> {
     required GlobalState? lastPersistedState,
     required GlobalState newState,
   }) async {
-    print('persistDifference: $lastPersistedState -> $newState');
     await _persist.saveJson(newState);
   }
 
@@ -35,14 +33,10 @@ class MyPersistor extends Persistor<GlobalState> {
   }
 }
 
-final store = Store<GlobalState>(
-  initialState: GlobalState.empty(),
-  persistor: MyPersistor(),
-);
-
 class _AppLifecycleManager extends StatefulWidget {
   final Widget child;
-  const _AppLifecycleManager({required this.child});
+  final Store<GlobalState> store;
+  const _AppLifecycleManager({required this.child, required this.store});
   @override
   _AppLifecycleManagerState createState() => _AppLifecycleManagerState();
 }
@@ -63,15 +57,18 @@ class _AppLifecycleManagerState extends State<_AppLifecycleManager>
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState lifecycle) {
-    print('didChangeAppLifecycleState: $lifecycle');
     switch (lifecycle) {
       case AppLifecycleState.resumed:
       case AppLifecycleState.inactive:
-        store.dispatch(ProcessLifecycleChangeAction(LifecycleChange.resume));
+        widget.store.dispatch(
+          ProcessLifecycleChangeAction(LifecycleChange.resume),
+        );
         break;
       case AppLifecycleState.paused:
       case AppLifecycleState.detached:
-        store.dispatch(ProcessLifecycleChangeAction(LifecycleChange.pause));
+        widget.store.dispatch(
+          ProcessLifecycleChangeAction(LifecycleChange.pause),
+        );
         break;
       default:
     }
@@ -111,13 +108,26 @@ class MyApp extends StatefulWidget {
 }
 
 class _MyAppState extends State<MyApp> with SingleTickerProviderStateMixin {
+  late final MyPersistor _persistor;
+  bool _isInitialized = false;
+  late final Store<GlobalState> _store;
   late final GameLoop _gameLoop;
 
   @override
   void initState() {
     super.initState();
-    _gameLoop = GameLoop(this, store);
-    _gameLoop.updateInterval = const Duration(milliseconds: 100);
+    _persistor = MyPersistor();
+    _persistor.readState().then((initialState) {
+      setState(() {
+        _store = Store<GlobalState>(
+          initialState: initialState,
+          persistor: _persistor,
+        );
+        _gameLoop = GameLoop(this, _store);
+        _gameLoop.updateInterval = const Duration(milliseconds: 100);
+        _isInitialized = true;
+      });
+    });
   }
 
   @override
@@ -128,9 +138,13 @@ class _MyAppState extends State<MyApp> with SingleTickerProviderStateMixin {
 
   @override
   Widget build(BuildContext context) {
+    if (!_isInitialized) {
+      return const SizedBox.shrink();
+    }
     return StoreProvider<GlobalState>(
-      store: store,
+      store: _store,
       child: _AppLifecycleManager(
+        store: _store,
         child: StoreConnector<GlobalState, ActivityView?>(
           converter: (store) => store.state.currentActivity,
           builder: (context, currentActivity) {
