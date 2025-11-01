@@ -1,4 +1,32 @@
 $schema: https://raw.githubusercontent.com/streetsidesoftware/cspell/main/cspell.schema.json
 version: "0.2"
+ignorePaths:
+  - "*.xcconfig"
+  - "*.xcodeproj"
+  - "*.xib"
+  - "*.storyboard"
+  - "build"
+  - "ephemeral"
+  - "Podfile"
+  - "gradlew"
+  - "gradlew.bat"
+  - "build.gradle.kts"
+  - "*.iml"
+  - "gradle.properties"
+  - "*.plist"
 words:
   - melvor
+  - cupertino
+  - xcconfig
+  - xcodeproj
+  - eseidel
+  - xcworkspace
+  - xcassets
+  - podfile
+  - gradlew
+  - fluttercommunity
+  - pathprovider
+  - APPL
+  - dists
+  - proguard
+  - cocoapods

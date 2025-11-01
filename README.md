@@ -13,9 +13,5 @@ If this ever actually works well, the Melvor folks are welcome to take it and us
 
 ### MVP
 
-- Two screens, Inventory and Forestry
-- Click on a button to start chopping.
-- Has a progress bar fill up repeatedly.
-- Every time bar fills, one wood is added to inventory.
 - Saves progress (somewhere) and reloads on open.
 - Keeps track of time since start and updates automatically on load.
