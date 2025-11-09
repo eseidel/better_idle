@@ -9,9 +9,9 @@ class WoodcuttingPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final category = Category.woodcutting;
+    final skill = Skill.woodcutting;
     final activities = allActivities
-        .where((activity) => activity.category == category)
+        .where((activity) => activity.skill == skill)
         .toList();
     return Scaffold(
       appBar: AppBar(

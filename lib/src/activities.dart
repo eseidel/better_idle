@@ -2,7 +2,7 @@ import 'state.dart';
 
 typedef OnComplete = GlobalState Function(GlobalState state);
 
-enum Category { woodcutting }
+enum Skill { woodcutting }
 
 OnComplete add(String itemName, int count) =>
     (state) => state.copyWith(
@@ -13,13 +13,13 @@ OnComplete add(String itemName, int count) =>
 
 final allActivities = [
   Activity(
-    category: Category.woodcutting,
+    skill: Skill.woodcutting,
     name: 'Normal Tree',
     duration: Duration(seconds: 3),
     onComplete: add('Normal Logs', 1),
   ),
   Activity(
-    category: Category.woodcutting,
+    skill: Skill.woodcutting,
     name: 'Oak Tree',
     duration: Duration(seconds: 3),
     onComplete: add('Oak Logs', 1),

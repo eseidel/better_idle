@@ -92,12 +92,12 @@ typedef ActivityState = int;
 
 class Activity {
   Activity({
-    required this.category,
+    required this.skill,
     required this.name,
     required Duration duration,
     this.onComplete,
   }) : maxValue = duration.inMilliseconds ~/ tickDuration.inMilliseconds;
-  final Category category;
+  final Skill skill;
   final String name;
   final Tick maxValue;
   final GlobalState Function(GlobalState state)? onComplete;
