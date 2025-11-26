@@ -256,11 +256,46 @@ abstract class GameActionBuilder {
   void addXp(Skill skill, int amount);
 }
 
+class Changes {
+  const Changes({required this.inventoryChanges, required this.xpChanges});
+  final Map<String, int> inventoryChanges;
+  final Map<String, int> xpChanges;
+
+  factory Changes.empty() {
+    return const Changes(inventoryChanges: {}, xpChanges: {});
+  }
+
+  Changes merge(Changes other) {
+    return Changes(
+      inventoryChanges: Map<String, int>.from(inventoryChanges)
+        ..addAll(other.inventoryChanges),
+      xpChanges: Map<String, int>.from(xpChanges)..addAll(other.xpChanges),
+    );
+  }
+
+  bool get isEmpty => inventoryChanges.isEmpty && xpChanges.isEmpty;
+
+  Changes adding(ItemStack item) {
+    return Changes(
+      inventoryChanges: Map<String, int>.from(inventoryChanges)
+        ..addAll({item.name: item.count}),
+      xpChanges: xpChanges,
+    );
+  }
+
+  Changes addingXp(Skill skill, int amount) {
+    return Changes(
+      inventoryChanges: inventoryChanges,
+      xpChanges: Map<String, int>.from(xpChanges)..addAll({skill.name: amount}),
+    );
+  }
+}
+
 class StateUpdateBuilder implements GameActionBuilder {
   StateUpdateBuilder(this._state);
 
   GlobalState _state;
-  final List<String> _toasts = [];
+  Changes _changes = Changes.empty();
 
   @override
   GlobalState get state => _state;
@@ -273,20 +308,20 @@ class StateUpdateBuilder implements GameActionBuilder {
   @override
   void addInventory(ItemStack item) {
     _state = _state.copyWith(inventory: _state.inventory.adding(item));
-    _toasts.add('+${item.count} ${item.name}');
+    _changes = _changes.adding(item);
   }
 
   @override
   void addXp(Skill skill, int amount) {
     _state = _state.addXp(skill, amount);
-    _toasts.add('+${amount}xp');
+    _changes = _changes.addingXp(skill, amount);
   }
 
   GlobalState build() {
     return _state;
   }
 
-  List<String> get toasts => _toasts;
+  Changes get changes => _changes;
 }
 
 void consumeTicks(GameActionBuilder builder, Tick ticks) {
@@ -354,8 +389,9 @@ class UpdateActivityProgressAction extends ReduxAction<GlobalState> {
     final ticks = ticksSince(state.updatedAt);
     final builder = StateUpdateBuilder(state);
     consumeTicks(builder, ticks);
-    for (final toast in builder.toasts) {
-      toastService.showToast(toast);
+    final changes = builder.changes;
+    if (!changes.isEmpty) {
+      toastService.showToast(changes);
     }
     return builder.build();
   }

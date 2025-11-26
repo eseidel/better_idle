@@ -27,10 +27,5 @@ void main() {
 
     // Verify XP
     expect(state.xp[activity.skill], activity.xp);
-
-    // Verify Toast
-    expect(builder.toasts.length, 2);
-    expect(builder.toasts.first, contains('+1 Normal Logs'));
-    expect(builder.toasts.last, contains('+10xp'));
   });
 }
