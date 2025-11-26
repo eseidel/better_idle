@@ -19,7 +19,7 @@ dependencies:
       path: packages/scoped_deps
   meta: ^1.16.0
   equatable: ^2.0.7
-  fluttertoast: ^9.0.0
+
 
 dev_dependencies:
   flutter_test:

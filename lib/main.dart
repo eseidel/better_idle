@@ -7,6 +7,7 @@ import 'src/logger.dart';
 import 'src/router.dart';
 import 'src/services/toast_service.dart';
 import 'src/state.dart';
+import 'src/widgets/toast_overlay.dart';
 
 void main() {
   runScoped(() => runApp(const MyApp()), values: {loggerRef, toastServiceRef});
@@ -153,7 +154,12 @@ class _MyAppState extends State<MyApp> with SingleTickerProviderStateMixin {
         store: _store,
         child: MaterialApp.router(
           routerConfig: router,
-          builder: FToastBuilder(),
+          builder: (context, child) {
+            return ToastOverlay(
+              service: toastService,
+              child: child ?? const SizedBox.shrink(),
+            );
+          },
         ),
       ),
     );
