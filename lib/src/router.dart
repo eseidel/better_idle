@@ -5,7 +5,10 @@ import 'screens/inventory.dart';
 import 'screens/title.dart';
 import 'screens/woodcutting.dart';
 
+final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
+
 final GoRouter router = GoRouter(
+  navigatorKey: navigatorKey,
   routes: <RouteBase>[
     GoRoute(
       path: '/',
