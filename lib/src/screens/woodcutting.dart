@@ -32,13 +32,14 @@ class WoodcuttingPage extends StatelessWidget {
                     if (index >= activities.length) {
                       return Container();
                     }
-                    final state =
-                        context.state.activities[activities[index].name] ?? 0;
+                    final activity = activities[index];
+                    final isCurrent =
+                        context.state.currentActivityName == activity.name;
+                    final state = isCurrent
+                        ? (context.state.activeActivity?.progress ?? 0)
+                        : 0;
                     return ActivityCell(
-                      activity: ActivityView(
-                        activity: activities[index],
-                        state: state,
-                      ),
+                      activity: ActivityView(activity: activity, state: state),
                     );
                   },
                 ),

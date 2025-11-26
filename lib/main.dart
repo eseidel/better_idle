@@ -5,18 +5,24 @@ import 'package:scoped_deps/scoped_deps.dart';
 import 'src/game_loop.dart';
 import 'src/logger.dart';
 import 'src/router.dart';
+import 'src/services/toast_service.dart';
 import 'src/state.dart';
 
 void main() {
-  runScoped(() => runApp(const MyApp()), values: {loggerRef});
+  runScoped(() => runApp(const MyApp()), values: {loggerRef, toastServiceRef});
 }
 
 class MyPersistor extends Persistor<GlobalState> {
   final LocalPersist _persist = LocalPersist("better_idle");
   @override
   Future<GlobalState> readState() async {
-    final state = await _persist.loadJson() as Map<String, dynamic>?;
-    return state == null ? GlobalState.empty() : GlobalState.fromJson(state);
+    try {
+      final state = await _persist.loadJson() as Map<String, dynamic>?;
+      return state == null ? GlobalState.empty() : GlobalState.fromJson(state);
+    } catch (e) {
+      logger.err("Failed to load state: $e");
+      return GlobalState.empty();
+    }
   }
 
   @override
@@ -145,11 +151,9 @@ class _MyAppState extends State<MyApp> with SingleTickerProviderStateMixin {
       store: _store,
       child: _AppLifecycleManager(
         store: _store,
-        child: StoreConnector<GlobalState, ActivityView?>(
-          converter: (store) => store.state.currentActivity,
-          builder: (context, currentActivity) {
-            return MaterialApp.router(routerConfig: router);
-          },
+        child: MaterialApp.router(
+          routerConfig: router,
+          builder: FToastBuilder(),
         ),
       ),
     );

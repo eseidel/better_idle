@@ -1,9 +1,11 @@
 import 'dart:math';
 
 import 'package:async_redux/async_redux.dart';
+import 'package:equatable/equatable.dart';
 import 'package:flutter/material.dart';
 
 import 'activities.dart';
+import 'services/toast_service.dart';
 
 export 'package:async_redux/async_redux.dart';
 
@@ -88,6 +90,36 @@ class ItemStack {
   }
 }
 
+class CurrentActivity {
+  const CurrentActivity({required this.name, required this.progress});
+  final String name;
+  final int progress;
+
+  CurrentActivity copyWith({String? name, int? progress}) {
+    return CurrentActivity(
+      name: name ?? this.name,
+      progress: progress ?? this.progress,
+    );
+  }
+
+  Map<String, dynamic> toJson() => {'name': name, 'progress': progress};
+
+  factory CurrentActivity.fromJson(Map<String, dynamic> json) {
+    return CurrentActivity(name: json['name'], progress: json['progress']);
+  }
+}
+
+class ToastMessage extends Equatable {
+  const ToastMessage(this.message);
+  final String message;
+
+  @override
+  String toString() => message;
+
+  @override
+  List<Object?> get props => [message];
+}
+
 typedef ActivityState = int;
 
 class Activity {
@@ -95,12 +127,14 @@ class Activity {
     required this.skill,
     required this.name,
     required Duration duration,
-    this.onComplete,
+    required this.xp,
+    required this.rewards,
   }) : maxValue = duration.inMilliseconds ~/ tickDuration.inMilliseconds;
   final Skill skill;
   final String name;
+  final int xp;
   final Tick maxValue;
-  final GlobalState Function(GlobalState state)? onComplete;
+  final List<ItemStack> rewards;
 }
 
 class ActivityView {
@@ -116,112 +150,185 @@ class ActivityView {
 class GlobalState {
   const GlobalState({
     required this.inventory,
-    required this.currentActivityName,
-    required this.activities,
+    required this.activeActivity,
+    required this.xp,
     required this.updatedAt,
   });
 
   GlobalState.empty()
     : this(
         inventory: Inventory.empty(),
-        currentActivityName: null,
-        activities: {},
+        activeActivity: null,
+        xp: {},
         updatedAt: DateTime.timestamp(),
       );
 
   GlobalState.fromJson(Map<String, dynamic> json)
     : updatedAt = DateTime.parse(json['updatedAt']),
       inventory = Inventory.fromJson(json['inventory']),
-      currentActivityName = json['currentActivityName'],
-      activities = Map<String, int>.from(json['activities']);
+      activeActivity = json['activeActivity'] != null
+          ? CurrentActivity.fromJson(json['activeActivity'])
+          : null,
+      xp =
+          (json['xp'] as Map<String, dynamic>?)?.map(
+            (key, value) => MapEntry(
+              Skill.values.firstWhere((e) => e.name == key),
+              value as int,
+            ),
+          ) ??
+          {};
 
   Map<String, dynamic> toJson() {
     return {
       'updatedAt': updatedAt.toIso8601String(),
       'inventory': inventory.toJson(),
-      'currentActivityName': currentActivityName,
-      'activities': activities.map((key, value) => MapEntry(key, value)),
+      'activeActivity': activeActivity?.toJson(),
+      'xp': xp.map((key, value) => MapEntry(key.name, value)),
     };
   }
 
   final DateTime updatedAt;
   final Inventory inventory;
-  final String? currentActivityName;
+  final CurrentActivity? activeActivity;
+  String? get currentActivityName => activeActivity?.name;
 
-  bool get isActive => currentActivityName != null;
+  bool get isActive => activeActivity != null;
 
   ActivityView? get currentActivity {
-    final name = currentActivityName;
-    if (name == null) {
+    final activity = activeActivity;
+    if (activity == null) {
       return null;
     }
-    final state = activities[name] ?? 0;
-    return ActivityView(activity: getActivity(name), state: state);
+    return ActivityView(
+      activity: getActivity(activity.name),
+      state: activity.progress,
+    );
   }
 
-  final Map<String, ActivityState> activities;
+  final Map<Skill, int> xp;
 
   GlobalState startActivity(String activityName) {
-    final activities = Map<String, ActivityState>.from(this.activities);
-    activities[activityName] = 0;
-    return copyWith(currentActivityName: activityName, activities: activities);
+    return copyWith(
+      activeActivity: CurrentActivity(name: activityName, progress: 0),
+    );
   }
 
   GlobalState clearActivity() {
     return GlobalState(
       inventory: inventory,
-      currentActivityName: null,
-      activities: activities,
+      activeActivity: null,
+      xp: xp,
       updatedAt: DateTime.timestamp(),
     );
   }
 
   GlobalState updateActivity(String activityName, ActivityState value) {
-    final activities = Map<String, ActivityState>.from(this.activities);
-    activities[activityName] = value;
-    return copyWith(activities: activities);
+    if (activeActivity?.name != activityName) {
+      return this;
+    }
+    return copyWith(activeActivity: activeActivity!.copyWith(progress: value));
+  }
+
+  GlobalState addXp(Skill skill, int amount) {
+    final newXp = Map<Skill, int>.from(xp);
+    newXp[skill] = (newXp[skill] ?? 0) + amount;
+    return copyWith(xp: newXp);
   }
 
   GlobalState copyWith({
     Inventory? inventory,
-    String? currentActivityName,
-    Map<String, ActivityState>? activities,
+    CurrentActivity? activeActivity,
+    Map<Skill, int>? xp,
   }) {
     return GlobalState(
       inventory: inventory ?? this.inventory,
-      currentActivityName: currentActivityName ?? this.currentActivityName,
-      // Shallow copy, might not be enough if state is deeply nested.
-      activities: Map.from(activities ?? this.activities),
+      activeActivity: activeActivity ?? this.activeActivity,
+      xp: Map.from(xp ?? this.xp),
       updatedAt: DateTime.timestamp(),
     );
   }
 }
 
-GlobalState consumeTicks(GlobalState startingState, Tick ticks) {
-  GlobalState state = startingState;
-  final startingActivityName = state.currentActivityName;
-  if (startingActivityName == null) {
-    return state;
+abstract class GameActionBuilder {
+  GlobalState get state;
+  void setActivityProgress(String activityName, ActivityState progress);
+  void addInventory(ItemStack item);
+  void addXp(Skill skill, int amount);
+}
+
+class StateUpdateBuilder implements GameActionBuilder {
+  StateUpdateBuilder(this._state);
+
+  GlobalState _state;
+  final List<String> _toasts = [];
+
+  @override
+  GlobalState get state => _state;
+
+  @override
+  void setActivityProgress(String activityName, ActivityState progress) {
+    _state = _state.updateActivity(activityName, progress);
   }
-  String? activityName = startingActivityName;
+
+  @override
+  void addInventory(ItemStack item) {
+    _state = _state.copyWith(inventory: _state.inventory.adding(item));
+    _toasts.add('+${item.count} ${item.name}');
+  }
+
+  @override
+  void addXp(Skill skill, int amount) {
+    _state = _state.addXp(skill, amount);
+    _toasts.add('+${amount}xp');
+  }
+
+  GlobalState build() {
+    return _state;
+  }
+
+  List<String> get toasts => _toasts;
+}
+
+void consumeTicks(GameActionBuilder builder, Tick ticks) {
+  GlobalState state = builder.state;
+  final startingActivity = state.activeActivity;
+  if (startingActivity == null) {
+    return;
+  }
+  String activityName = startingActivity.name;
   while (ticks > 0) {
+    final currentActivity = builder.state.activeActivity;
+    if (currentActivity == null) {
+      break;
+    }
+    activityName = currentActivity.name;
+
     final activity = getActivity(activityName);
-    ActivityState activityState = state.activities[activityName] ?? 0;
+    ActivityState activityState = currentActivity.progress;
     final beforeUpdate = ActivityView(activity: activity, state: activityState);
     final ticksToApply = min(ticks, beforeUpdate.remainingTicks);
     activityState += ticksToApply;
     ticks -= ticksToApply;
     final afterUpdate = ActivityView(activity: activity, state: activityState);
+
+    builder.setActivityProgress(activityName, activityState);
+
     if (afterUpdate.remainingTicks <= 0) {
-      // This activity is complete, so we need to call the onComplete callback
-      // and start the next activity
-      state = activity.onComplete?.call(state) ?? state;
-      // This will reset the activity to 0, will not change which activity is currently active.
-      activityState = 0;
+      // This activity is complete
+      // Add rewards
+      for (final reward in activity.rewards) {
+        builder.addInventory(reward);
+      }
+
+      // Add XP
+      builder.addXp(activity.skill, activity.xp);
+
+      // Reset progress for the *current* activity if it's still the same
+      if (builder.state.activeActivity?.name == activityName) {
+        builder.setActivityProgress(activityName, 0);
+      }
     }
-    state = state.updateActivity(activityName, activityState);
   }
-  return state;
 }
 
 class StartActivityAction extends ReduxAction<GlobalState> {
@@ -245,8 +352,12 @@ class UpdateActivityProgressAction extends ReduxAction<GlobalState> {
       throw Exception('No activity to update progress for');
     }
     final ticks = ticksSince(state.updatedAt);
-    final newState = consumeTicks(state, ticks);
-    return newState;
+    final builder = StateUpdateBuilder(state);
+    consumeTicks(builder, ticks);
+    for (final toast in builder.toasts) {
+      toastService.showToast(toast);
+    }
+    return builder.build();
   }
 }
 
