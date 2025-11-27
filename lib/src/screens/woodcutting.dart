@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../activities.dart';
 import '../router.dart';
 import '../state.dart';
+import '../widgets/skill_progress.dart';
 
 class WoodcuttingPage extends StatelessWidget {
   const WoodcuttingPage({super.key});
@@ -13,6 +14,7 @@ class WoodcuttingPage extends StatelessWidget {
     final activities = allActivities
         .where((activity) => activity.skill == skill)
         .toList();
+
     return Scaffold(
       appBar: AppBar(
         leading: BackButton(onPressed: () => router.pop(context)),
@@ -20,7 +22,7 @@ class WoodcuttingPage extends StatelessWidget {
       ),
       body: Column(
         children: [
-          const Text('Woodcutting'),
+          SkillProgress(xp: context.state.skillXp(skill)),
           Expanded(
             child:
                 // Grid view of all activities, 2x wide

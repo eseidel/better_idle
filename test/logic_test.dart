@@ -26,6 +26,6 @@ void main() {
     expect(state.inventory.items.first.count, 1);
 
     // Verify XP
-    expect(state.xp[activity.skill], activity.xp);
+    expect(state.skillXp(activity.skill), activity.xp);
   });
 }

@@ -151,15 +151,15 @@ class GlobalState {
   const GlobalState({
     required this.inventory,
     required this.activeActivity,
-    required this.xp,
+    required Map<Skill, int> skillXp,
     required this.updatedAt,
-  });
+  }) : _skillXp = skillXp;
 
   GlobalState.empty()
     : this(
         inventory: Inventory.empty(),
         activeActivity: null,
-        xp: {},
+        skillXp: {},
         updatedAt: DateTime.timestamp(),
       );
 
@@ -169,7 +169,7 @@ class GlobalState {
       activeActivity = json['activeActivity'] != null
           ? CurrentActivity.fromJson(json['activeActivity'])
           : null,
-      xp =
+      _skillXp =
           (json['xp'] as Map<String, dynamic>?)?.map(
             (key, value) => MapEntry(
               Skill.values.firstWhere((e) => e.name == key),
@@ -183,13 +183,15 @@ class GlobalState {
       'updatedAt': updatedAt.toIso8601String(),
       'inventory': inventory.toJson(),
       'activeActivity': activeActivity?.toJson(),
-      'xp': xp.map((key, value) => MapEntry(key.name, value)),
+      'xp': _skillXp.map((key, value) => MapEntry(key.name, value)),
     };
   }
 
   final DateTime updatedAt;
   final Inventory inventory;
   final CurrentActivity? activeActivity;
+  final Map<Skill, int> _skillXp;
+
   String? get currentActivityName => activeActivity?.name;
 
   bool get isActive => activeActivity != null;
@@ -205,8 +207,6 @@ class GlobalState {
     );
   }
 
-  final Map<Skill, int> xp;
-
   GlobalState startActivity(String activityName) {
     return copyWith(
       activeActivity: CurrentActivity(name: activityName, progress: 0),
@@ -217,10 +217,12 @@ class GlobalState {
     return GlobalState(
       inventory: inventory,
       activeActivity: null,
-      xp: xp,
+      skillXp: _skillXp,
       updatedAt: DateTime.timestamp(),
     );
   }
+
+  int skillXp(Skill skill) => _skillXp[skill] ?? 0;
 
   GlobalState updateActivity(String activityName, ActivityState value) {
     if (activeActivity?.name != activityName) {
@@ -230,7 +232,7 @@ class GlobalState {
   }
 
   GlobalState addXp(Skill skill, int amount) {
-    final newXp = Map<Skill, int>.from(xp);
+    final newXp = Map<Skill, int>.from(_skillXp);
     newXp[skill] = (newXp[skill] ?? 0) + amount;
     return copyWith(xp: newXp);
   }
@@ -243,7 +245,7 @@ class GlobalState {
     return GlobalState(
       inventory: inventory ?? this.inventory,
       activeActivity: activeActivity ?? this.activeActivity,
-      xp: Map.from(xp ?? this.xp),
+      skillXp: Map.from(_skillXp)..addAll(xp ?? {}),
       updatedAt: DateTime.timestamp(),
     );
   }
