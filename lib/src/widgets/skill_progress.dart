@@ -31,10 +31,7 @@ class SkillProgress extends StatelessWidget {
               children: [
                 Text('Skill Level', style: labelStyle),
                 const SizedBox(width: 8),
-                Text(
-                  '${xpProgress.level} / ${xpProgress.level + 1}',
-                  style: valueStyle,
-                ),
+                Text('${xpProgress.level} / $maxLevel', style: valueStyle),
                 const SizedBox(width: 8),
                 Text('Skill XP', style: labelStyle),
                 const SizedBox(width: 8),

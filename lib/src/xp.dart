@@ -123,6 +123,8 @@ final _xpTable = <int>[
   104273167,
 ];
 
+final maxLevel = _xpTable.length;
+
 class XpProgress {
   const XpProgress({
     required this.level,
