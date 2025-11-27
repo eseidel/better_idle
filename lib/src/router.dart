@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
+import 'screens/debug.dart';
 import 'screens/inventory.dart';
 import 'screens/woodcutting.dart';
 
@@ -20,6 +21,11 @@ final GoRouter router = GoRouter(
       path: '/woodcutting',
       name: 'woodcutting',
       builder: (context, _) => const WoodcuttingPage(),
+    ),
+    GoRoute(
+      path: '/debug',
+      name: 'debug',
+      builder: (context, _) => const DebugPage(),
     ),
   ],
 );

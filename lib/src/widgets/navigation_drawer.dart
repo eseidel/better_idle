@@ -41,6 +41,15 @@ class AppNavigationDrawer extends StatelessWidget {
               router.goNamed('woodcutting');
             },
           ),
+          ListTile(
+            leading: const Icon(Icons.bug_report),
+            title: const Text('Debug'),
+            selected: currentLocation == '/debug',
+            onTap: () {
+              Navigator.pop(context);
+              router.goNamed('debug');
+            },
+          ),
         ],
       ),
     );
