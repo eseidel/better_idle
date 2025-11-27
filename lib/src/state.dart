@@ -282,20 +282,15 @@ class Changes {
 
   Changes adding(ItemStack item) {
     final newInventoryChanges = Map<String, int>.from(inventoryChanges);
-    newInventoryChanges[item.name] = (newInventoryChanges[item.name] ?? 0) + item.count;
-    return Changes(
-      inventoryChanges: newInventoryChanges,
-      xpChanges: xpChanges,
-    );
+    newInventoryChanges[item.name] =
+        (newInventoryChanges[item.name] ?? 0) + item.count;
+    return Changes(inventoryChanges: newInventoryChanges, xpChanges: xpChanges);
   }
 
   Changes addingXp(Skill skill, int amount) {
     final newXpChanges = Map<String, int>.from(xpChanges);
     newXpChanges[skill.name] = (newXpChanges[skill.name] ?? 0) + amount;
-    return Changes(
-      inventoryChanges: inventoryChanges,
-      xpChanges: newXpChanges,
-    );
+    return Changes(inventoryChanges: inventoryChanges, xpChanges: newXpChanges);
   }
 }
 
