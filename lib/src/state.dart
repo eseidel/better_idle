@@ -281,17 +281,20 @@ class Changes {
   bool get isEmpty => inventoryChanges.isEmpty && xpChanges.isEmpty;
 
   Changes adding(ItemStack item) {
+    final newInventoryChanges = Map<String, int>.from(inventoryChanges);
+    newInventoryChanges[item.name] = (newInventoryChanges[item.name] ?? 0) + item.count;
     return Changes(
-      inventoryChanges: Map<String, int>.from(inventoryChanges)
-        ..addAll({item.name: item.count}),
+      inventoryChanges: newInventoryChanges,
       xpChanges: xpChanges,
     );
   }
 
   Changes addingXp(Skill skill, int amount) {
+    final newXpChanges = Map<String, int>.from(xpChanges);
+    newXpChanges[skill.name] = (newXpChanges[skill.name] ?? 0) + amount;
     return Changes(
       inventoryChanges: inventoryChanges,
-      xpChanges: Map<String, int>.from(xpChanges)..addAll({skill.name: amount}),
+      xpChanges: newXpChanges,
     );
   }
 }
