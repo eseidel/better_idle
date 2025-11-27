@@ -93,13 +93,13 @@ class ItemStack {
   }
 }
 
-class CurrentActivity {
-  const CurrentActivity({required this.name, required this.progress});
+class ActiveAction {
+  const ActiveAction({required this.name, required this.progress});
   final String name;
   final int progress;
 
-  CurrentActivity copyWith({String? name, int? progress}) {
-    return CurrentActivity(
+  ActiveAction copyWith({String? name, int? progress}) {
+    return ActiveAction(
       name: name ?? this.name,
       progress: progress ?? this.progress,
     );
@@ -107,8 +107,8 @@ class CurrentActivity {
 
   Map<String, dynamic> toJson() => {'name': name, 'progress': progress};
 
-  factory CurrentActivity.fromJson(Map<String, dynamic> json) {
-    return CurrentActivity(name: json['name'], progress: json['progress']);
+  factory ActiveAction.fromJson(Map<String, dynamic> json) {
+    return ActiveAction(name: json['name'], progress: json['progress']);
   }
 }
 
@@ -123,61 +123,70 @@ class ToastMessage extends Equatable {
   List<Object?> get props => [message];
 }
 
-typedef ActivityState = int;
+typedef ActionState = int;
 
-class Activity {
-  Activity({
+class Action {
+  const Action({
     required this.skill,
     required this.name,
-    required Duration duration,
+    required this.duration,
     required this.xp,
     required this.rewards,
-  }) : maxValue = duration.inMilliseconds ~/ tickDuration.inMilliseconds;
+  });
   final Skill skill;
   final String name;
   final int xp;
-  final Tick maxValue;
   final List<ItemStack> rewards;
+  final Duration duration;
+  Tick get maxValue => duration.inMilliseconds ~/ tickDuration.inMilliseconds;
 }
 
-class ActivityView {
-  const ActivityView({required this.activity, required this.state});
+class ActionView {
+  const ActionView({required this.action, required this.state});
 
-  final Activity activity;
-  final ActivityState state;
+  final Action action;
+  final int state;
 
-  double get progress => state.toDouble() / activity.maxValue.toDouble();
-  Tick get remainingTicks => activity.maxValue - state;
+  double get progress => state.toDouble() / action.maxValue.toDouble();
+  Tick get remainingTicks => action.maxValue - state;
 }
 
 class GlobalState {
   const GlobalState({
     required this.inventory,
-    required this.activeActivity,
+    required this.activeAction,
     required Map<Skill, int> skillXp,
+    required Map<String, int> masteryXp,
     required this.updatedAt,
-  }) : _skillXp = skillXp;
+  }) : _skillXp = skillXp,
+       _masteryXp = masteryXp;
 
   GlobalState.empty()
     : this(
         inventory: Inventory.empty(),
-        activeActivity: null,
+        activeAction: null,
         skillXp: {},
+        masteryXp: {},
         updatedAt: DateTime.timestamp(),
       );
 
   GlobalState.fromJson(Map<String, dynamic> json)
     : updatedAt = DateTime.parse(json['updatedAt']),
       inventory = Inventory.fromJson(json['inventory']),
-      activeActivity = json['activeActivity'] != null
-          ? CurrentActivity.fromJson(json['activeActivity'])
+      activeAction = json['activeAction'] != null
+          ? ActiveAction.fromJson(json['activeAction'])
           : null,
       _skillXp =
-          (json['xp'] as Map<String, dynamic>?)?.map(
+          (json['skillXp'] as Map<String, dynamic>?)?.map(
             (key, value) => MapEntry(
               Skill.values.firstWhere((e) => e.name == key),
               value as int,
             ),
+          ) ??
+          {},
+      _masteryXp =
+          (json['masteryXp'] as Map<String, dynamic>?)?.map(
+            (key, value) => MapEntry(key, value as int),
           ) ??
           {};
 
@@ -185,78 +194,111 @@ class GlobalState {
     return {
       'updatedAt': updatedAt.toIso8601String(),
       'inventory': inventory.toJson(),
-      'activeActivity': activeActivity?.toJson(),
-      'xp': _skillXp.map((key, value) => MapEntry(key.name, value)),
+      'activeAction': activeAction?.toJson(),
+      'skillXp': _skillXp.map((key, value) => MapEntry(key.name, value)),
+      'masteryXp': _masteryXp,
     };
   }
 
   final DateTime updatedAt;
   final Inventory inventory;
-  final CurrentActivity? activeActivity;
+  final ActiveAction? activeAction;
   final Map<Skill, int> _skillXp;
+  final Map<String, int> _masteryXp;
 
-  String? get currentActivityName => activeActivity?.name;
+  String? get activeActionName => activeAction?.name;
 
-  bool get isActive => activeActivity != null;
+  bool get isActive => activeAction != null;
 
-  ActivityView? get currentActivity {
-    final activity = activeActivity;
-    if (activity == null) {
+  ActionView? get activeActionView {
+    final active = activeAction;
+    if (active == null) {
       return null;
     }
-    return ActivityView(
-      activity: getActivity(activity.name),
-      state: activity.progress,
-    );
+    final action = actionRegistry.byName(active.name);
+    return ActionView(action: action, state: active.progress);
   }
 
-  GlobalState startActivity(String activityName) {
-    return copyWith(
-      activeActivity: CurrentActivity(name: activityName, progress: 0),
-    );
+  Skill? get activeSkill => activeActionView?.action.skill;
+
+  GlobalState startAction(Action action) {
+    return copyWith(activeAction: ActiveAction(name: action.name, progress: 0));
   }
 
-  GlobalState clearActivity() {
+  GlobalState clearAction() {
     return GlobalState(
       inventory: inventory,
-      activeActivity: null,
+      activeAction: null,
       skillXp: _skillXp,
+      masteryXp: _masteryXp,
       updatedAt: DateTime.timestamp(),
     );
   }
 
   int skillXp(Skill skill) => _skillXp[skill] ?? 0;
 
-  GlobalState updateActivity(String activityName, ActivityState value) {
-    if (activeActivity?.name != activityName) {
+  int masteryXp(String action) => _masteryXp[action] ?? 0;
+
+  GlobalState updateAction(String actionName, int value) {
+    if (activeAction?.name != actionName) {
       return this;
     }
-    return copyWith(activeActivity: activeActivity!.copyWith(progress: value));
+    return copyWith(activeAction: activeAction!.copyWith(progress: value));
   }
 
-  GlobalState addXp(Skill skill, int amount) {
+  GlobalState addSkillXp(Skill skill, int amount) {
     final newXp = Map<Skill, int>.from(_skillXp);
     newXp[skill] = (newXp[skill] ?? 0) + amount;
-    return copyWith(xp: newXp);
+    return copyWith(skillXp: newXp);
   }
 
   GlobalState copyWith({
     Inventory? inventory,
-    CurrentActivity? activeActivity,
-    Map<Skill, int>? xp,
+    ActiveAction? activeAction,
+    Map<Skill, int>? skillXp,
+    Map<String, int>? masteryXp,
   }) {
     return GlobalState(
       inventory: inventory ?? this.inventory,
-      activeActivity: activeActivity ?? this.activeActivity,
-      skillXp: Map.from(_skillXp)..addAll(xp ?? {}),
+      activeAction: activeAction ?? this.activeAction,
+      skillXp: Map.from(_skillXp)..addAll(skillXp ?? {}),
+      masteryXp: Map.from(_masteryXp)..addAll(masteryXp ?? {}),
       updatedAt: DateTime.timestamp(),
     );
   }
 }
 
+int calculateMasteryXp({
+  required int unlockedActions,
+  required int playerTotalMasteryForSkill,
+  required int totalMasteryForSkill,
+  required int itemMasteryLevel,
+  required int totalItemsInSkill,
+  required double actionSeconds, // In seconds
+  required double bonus, // e.g. 0.1 for +10%
+}) {
+  final masteryPortion =
+      unlockedActions * (playerTotalMasteryForSkill / totalMasteryForSkill);
+  final itemPortion = itemMasteryLevel * (totalItemsInSkill / 10);
+  final baseValue = masteryPortion + itemPortion;
+  return max(1, baseValue * actionSeconds * 0.5 * (1 + bonus)).toInt();
+}
+
+int masteryXpForAction(GlobalState state, Action action) {
+  return calculateMasteryXp(
+    unlockedActions: 1,
+    actionSeconds: action.duration.inSeconds.toDouble(),
+    playerTotalMasteryForSkill: state.skillXp(action.skill),
+    totalMasteryForSkill: 1000,
+    itemMasteryLevel: 1,
+    totalItemsInSkill: 100,
+    bonus: 0.0,
+  );
+}
+
 abstract class GameActionBuilder {
   GlobalState get state;
-  void setActivityProgress(String activityName, ActivityState progress);
+  void setActionProgress(Action action, int progress);
   void addInventory(ItemStack item);
   void addXp(Skill skill, int amount);
 }
@@ -350,8 +392,8 @@ class StateUpdateBuilder implements GameActionBuilder {
   GlobalState get state => _state;
 
   @override
-  void setActivityProgress(String activityName, ActivityState progress) {
-    _state = _state.updateActivity(activityName, progress);
+  void setActionProgress(Action action, int progress) {
+    _state = _state.updateAction(action.name, progress);
   }
 
   @override
@@ -362,7 +404,7 @@ class StateUpdateBuilder implements GameActionBuilder {
 
   @override
   void addXp(Skill skill, int amount) {
-    _state = _state.addXp(skill, amount);
+    _state = _state.addSkillXp(skill, amount);
     _changes = _changes.addingXp(skill, amount);
   }
 
@@ -375,53 +417,53 @@ class StateUpdateBuilder implements GameActionBuilder {
 
 void consumeTicks(GameActionBuilder builder, Tick ticks) {
   GlobalState state = builder.state;
-  final startingActivity = state.activeActivity;
-  if (startingActivity == null) {
+  final startingAction = state.activeAction;
+  if (startingAction == null) {
     return;
   }
-  String activityName = startingActivity.name;
+  String actionName = startingAction.name;
   while (ticks > 0) {
-    final currentActivity = builder.state.activeActivity;
-    if (currentActivity == null) {
+    final activeAction = builder.state.activeAction;
+    if (activeAction == null) {
       break;
     }
-    activityName = currentActivity.name;
+    actionName = activeAction.name;
 
-    final activity = getActivity(activityName);
-    ActivityState activityState = currentActivity.progress;
-    final beforeUpdate = ActivityView(activity: activity, state: activityState);
+    final action = actionRegistry.byName(actionName);
+    ActionState actionState = activeAction.progress;
+    final beforeUpdate = ActionView(action: action, state: actionState);
     final ticksToApply = min(ticks, beforeUpdate.remainingTicks);
-    activityState += ticksToApply;
+    actionState += ticksToApply;
     ticks -= ticksToApply;
-    final afterUpdate = ActivityView(activity: activity, state: activityState);
+    final afterUpdate = ActionView(action: action, state: actionState);
 
-    builder.setActivityProgress(activityName, activityState);
+    builder.setActionProgress(action, actionState);
 
     if (afterUpdate.remainingTicks <= 0) {
       // This activity is complete
       // Add rewards
-      for (final reward in activity.rewards) {
+      for (final reward in action.rewards) {
         builder.addInventory(reward);
       }
 
       // Add XP
-      builder.addXp(activity.skill, activity.xp);
+      builder.addXp(action.skill, action.xp);
 
       // Reset progress for the *current* activity if it's still the same
-      if (builder.state.activeActivity?.name == activityName) {
-        builder.setActivityProgress(activityName, 0);
+      if (builder.state.activeAction?.name == actionName) {
+        builder.setActionProgress(action, 0);
       }
     }
   }
 }
 
-class StartActivityAction extends ReduxAction<GlobalState> {
-  StartActivityAction({required this.activityName});
-  final String activityName;
+class StartActionAction extends ReduxAction<GlobalState> {
+  StartActionAction({required this.action});
+  final Action action;
   @override
   GlobalState reduce() {
     // We need to stop the current activity or wait for it to finish?
-    return store.state.startActivity(activityName);
+    return store.state.startAction(action);
   }
 }
 
@@ -431,7 +473,7 @@ class UpdateActivityProgressAction extends ReduxAction<GlobalState> {
 
   @override
   GlobalState reduce() {
-    final activity = state.currentActivity;
+    final activity = state.activeAction;
     if (activity == null) {
       throw Exception('No activity to update progress for');
     }
@@ -446,16 +488,16 @@ class UpdateActivityProgressAction extends ReduxAction<GlobalState> {
   }
 }
 
-class StopActivityAction extends ReduxAction<GlobalState> {
+class StopActionAction extends ReduxAction<GlobalState> {
   @override
   GlobalState reduce() {
     // This might need to either wait for the activity to finish, or cancel it?
-    return state.clearActivity();
+    return state.clearAction();
   }
 }
 
 /// Advances the game by a specified number of ticks and returns the changes.
-/// Unlike UpdateActivityProgressAction, this does not show toasts.
+/// Unlike UpdateActionProgressAction, this does not show toasts.
 class AdvanceTicksAction extends ReduxAction<GlobalState> {
   AdvanceTicksAction({required this.ticks});
   final Tick ticks;
@@ -465,8 +507,8 @@ class AdvanceTicksAction extends ReduxAction<GlobalState> {
 
   @override
   GlobalState reduce() {
-    final activity = state.currentActivity;
-    if (activity == null) {
+    final action = state.activeAction;
+    if (action == null) {
       // No activity active, return empty changes
       timeAway = TimeAway.empty();
       return state;
@@ -475,7 +517,7 @@ class AdvanceTicksAction extends ReduxAction<GlobalState> {
     consumeTicks(builder, ticks);
     timeAway = TimeAway(
       duration: Duration(milliseconds: ticks * tickDuration.inMilliseconds),
-      activeSkill: state.currentActivity?.activity.skill,
+      activeSkill: state.activeActionView?.action.skill,
       changes: builder.changes,
     );
     return builder.build();

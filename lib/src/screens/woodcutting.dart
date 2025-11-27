@@ -13,9 +13,7 @@ class WoodcuttingPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final skill = Skill.woodcutting;
-    final activities = allActivities
-        .where((activity) => activity.skill == skill)
-        .toList();
+    final actions = actionRegistry.forSkill(skill).toList();
 
     return Scaffold(
       appBar: AppBar(title: const Text('Woodcutting')),
@@ -31,17 +29,17 @@ class WoodcuttingPage extends StatelessWidget {
                     crossAxisCount: 2,
                   ),
                   itemBuilder: (context, index) {
-                    if (index >= activities.length) {
+                    if (index >= actions.length) {
                       return Container();
                     }
-                    final activity = activities[index];
+                    final action = actions[index];
                     final isCurrent =
-                        context.state.currentActivityName == activity.name;
+                        context.state.activeActionName == action.name;
                     final state = isCurrent
-                        ? (context.state.activeActivity?.progress ?? 0)
+                        ? (context.state.activeAction?.progress ?? 0)
                         : 0;
-                    return ActivityCell(
-                      activity: ActivityView(activity: activity, state: state),
+                    return ActionCell(
+                      action: ActionView(action: action, state: state),
                     );
                   },
                 ),
@@ -52,45 +50,21 @@ class WoodcuttingPage extends StatelessWidget {
   }
 }
 
-int calculateMasteryXp({
-  required int unlockedActions,
-  required int playerTotalMasteryForSkill,
-  required int totalMasteryForSkill,
-  required int itemMasteryLevel,
-  required int totalItemsInSkill,
-  required double actionTime, // In seconds, or ticks as appropriate
-  required double bonus, // e.g. 0.1 for +10%
-}) {
-  final masteryPortion =
-      unlockedActions * (playerTotalMasteryForSkill / totalMasteryForSkill);
-  final itemPortion = itemMasteryLevel * (totalItemsInSkill / 10);
-  final baseValue = masteryPortion + itemPortion;
-  return max(1, baseValue * actionTime * 0.5 * (1 + bonus)).toInt();
-}
+class ActionCell extends StatelessWidget {
+  const ActionCell({required this.action, super.key});
 
-class ActivityCell extends StatelessWidget {
-  const ActivityCell({required this.activity, super.key});
-
-  final ActivityView activity;
+  final ActionView action;
 
   @override
   Widget build(BuildContext context) {
-    final activityName = activity.activity.name;
-    final skillXp = activity.activity.xp;
-    final masteryXp = calculateMasteryXp(
-      unlockedActions: 1,
-      playerTotalMasteryForSkill: 100,
-      totalMasteryForSkill: 1000,
-      itemMasteryLevel: 1,
-      totalItemsInSkill: 100,
-      actionTime: 1,
-      bonus: 0.1,
-    );
+    final actionName = action.action.name;
+    final skillXp = action.action.xp;
+    final masteryXp = masteryXpForAction(context.state, action.action);
     final masteryPoolXp = max(1, 0.25 * masteryXp).toInt();
 
     return GestureDetector(
       onTap: () {
-        context.dispatch(StartActivityAction(activityName: activityName));
+        context.dispatch(StartActionAction(action: action.action));
       },
       child: Container(
         padding: const EdgeInsets.all(16),
@@ -101,8 +75,8 @@ class ActivityCell extends StatelessWidget {
         ),
         child: Column(
           children: [
-            Text(activityName),
-            LinearProgressIndicator(value: activity.progress),
+            Text(actionName),
+            LinearProgressIndicator(value: action.progress),
             Text('XP: $skillXp'),
             Text('Mastery XP: $masteryXp'),
             Text('Mastery Pool XP: $masteryPoolXp'),

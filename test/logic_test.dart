@@ -4,11 +4,11 @@ import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   test('consumeTicks completes activity and adds toast', () {
-    final activity = allActivities.first; // Normal Tree (3s)
+    final normalTree = actionRegistry.byName('Normal Tree'); // Normal Tree (3s)
     var state = GlobalState.empty();
 
     // Start activity
-    state = state.startActivity(activity.name);
+    state = state.startAction(normalTree);
 
     // Advance time by 3 seconds (30 ticks)
     // consumeTicks takes state and ticks
@@ -18,7 +18,7 @@ void main() {
     state = builder.build();
 
     // Verify activity completed (progress reset or activity cleared? logic says reset)
-    expect(state.activeActivity?.progress, 0);
+    expect(state.activeAction?.progress, 0);
 
     // Verify rewards
     expect(state.inventory.items.length, 1);
@@ -26,6 +26,6 @@ void main() {
     expect(state.inventory.items.first.count, 1);
 
     // Verify XP
-    expect(state.skillXp(activity.skill), activity.xp);
+    expect(state.skillXp(normalTree.skill), normalTree.xp);
   });
 }
