@@ -1,6 +1,16 @@
 import 'state.dart';
 
-enum Skill { woodcutting }
+enum Skill {
+  woodcutting('Woodcutting');
+
+  const Skill(this.name);
+
+  final String name;
+
+  factory Skill.fromName(String name) {
+    return Skill.values.firstWhere((e) => e.name == name);
+  }
+}
 
 final _all = [
   Action(

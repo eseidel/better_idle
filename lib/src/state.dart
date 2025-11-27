@@ -1,7 +1,6 @@
 import 'dart:math';
 
 import 'package:async_redux/async_redux.dart';
-import 'package:equatable/equatable.dart';
 import 'package:flutter/material.dart';
 
 import 'activities.dart';
@@ -94,36 +93,29 @@ class ItemStack {
 }
 
 class ActiveAction {
-  const ActiveAction({required this.name, required this.progress});
+  const ActiveAction({required this.name, required this.progressTicks});
   final String name;
-  final int progress;
+  final int progressTicks;
 
-  ActiveAction copyWith({String? name, int? progress}) {
+  ActiveAction copyWith({String? name, int? progressTicks}) {
     return ActiveAction(
       name: name ?? this.name,
-      progress: progress ?? this.progress,
+      progressTicks: progressTicks ?? this.progressTicks,
     );
   }
 
-  Map<String, dynamic> toJson() => {'name': name, 'progress': progress};
+  Map<String, dynamic> toJson() => {
+    'name': name,
+    'progressTicks': progressTicks,
+  };
 
   factory ActiveAction.fromJson(Map<String, dynamic> json) {
-    return ActiveAction(name: json['name'], progress: json['progress']);
+    return ActiveAction(
+      name: json['name'],
+      progressTicks: json['progressTicks'],
+    );
   }
 }
-
-class ToastMessage extends Equatable {
-  const ToastMessage(this.message);
-  final String message;
-
-  @override
-  String toString() => message;
-
-  @override
-  List<Object?> get props => [message];
-}
-
-typedef ActionState = int;
 
 class Action {
   const Action({
@@ -141,32 +133,73 @@ class Action {
   Tick get maxValue => duration.inMilliseconds ~/ tickDuration.inMilliseconds;
 }
 
-class ActionView {
-  const ActionView({required this.action, required this.state});
+class ActiveActionView {
+  const ActiveActionView({required this.action, required this.progressTicks});
 
   final Action action;
-  final int state;
+  final int progressTicks;
 
-  double get progress => state.toDouble() / action.maxValue.toDouble();
-  Tick get remainingTicks => action.maxValue - state;
+  double get progress => progressTicks.toDouble() / action.maxValue.toDouble();
+  Tick get remainingTicks => action.maxValue - progressTicks;
+}
+
+class SkillState {
+  const SkillState({required this.xp, required this.masteryXp});
+  final int xp;
+  final int masteryXp;
+
+  SkillState.empty() : this(xp: 0, masteryXp: 0);
+
+  SkillState copyWith({int? xp, int? masteryXp}) {
+    return SkillState(
+      xp: xp ?? this.xp,
+      masteryXp: masteryXp ?? this.masteryXp,
+    );
+  }
+
+  SkillState.fromJson(Map<String, dynamic> json)
+    : xp = json['xp'],
+      masteryXp = json['masteryXp'];
+
+  Map<String, dynamic> toJson() {
+    return {'xp': xp, 'masteryXp': masteryXp};
+  }
+}
+
+class ActionState {
+  const ActionState({required this.masteryXp});
+  final int masteryXp;
+
+  const ActionState.empty() : this(masteryXp: 0);
+
+  ActionState copyWith({int? masteryXp}) {
+    return ActionState(masteryXp: masteryXp ?? this.masteryXp);
+  }
+
+  Map<String, dynamic> toJson() {
+    return {'masteryXp': masteryXp};
+  }
+
+  factory ActionState.fromJson(Map<String, dynamic> json) {
+    return ActionState(masteryXp: json['masteryXp']);
+  }
 }
 
 class GlobalState {
   const GlobalState({
     required this.inventory,
     required this.activeAction,
-    required Map<Skill, int> skillXp,
-    required Map<String, int> masteryXp,
+    required this.skillStates,
+    required this.actionStates,
     required this.updatedAt,
-  }) : _skillXp = skillXp,
-       _masteryXp = masteryXp;
+  });
 
   GlobalState.empty()
     : this(
         inventory: Inventory.empty(),
         activeAction: null,
-        skillXp: {},
-        masteryXp: {},
+        skillStates: {},
+        actionStates: {},
         updatedAt: DateTime.timestamp(),
       );
 
@@ -176,93 +209,111 @@ class GlobalState {
       activeAction = json['activeAction'] != null
           ? ActiveAction.fromJson(json['activeAction'])
           : null,
-      _skillXp =
-          (json['skillXp'] as Map<String, dynamic>?)?.map(
+      skillStates =
+          (json['skillStates'] as Map<String, dynamic>?)?.map(
             (key, value) => MapEntry(
-              Skill.values.firstWhere((e) => e.name == key),
-              value as int,
+              Skill.fromName(key),
+              SkillState.fromJson(value as Map<String, dynamic>),
             ),
           ) ??
           {},
-      _masteryXp =
-          (json['masteryXp'] as Map<String, dynamic>?)?.map(
-            (key, value) => MapEntry(key, value as int),
+      actionStates =
+          (json['actionStates'] as Map<String, dynamic>?)?.map(
+            (key, value) => MapEntry(
+              key,
+              ActionState.fromJson(value as Map<String, dynamic>),
+            ),
           ) ??
           {};
-
   Map<String, dynamic> toJson() {
     return {
       'updatedAt': updatedAt.toIso8601String(),
       'inventory': inventory.toJson(),
       'activeAction': activeAction?.toJson(),
-      'skillXp': _skillXp.map((key, value) => MapEntry(key.name, value)),
-      'masteryXp': _masteryXp,
+      'skillStates': skillStates.map(
+        (key, value) => MapEntry(key.name, value.toJson()),
+      ),
+      'actionStates': actionStates.map(
+        (key, value) => MapEntry(key, value.toJson()),
+      ),
     };
   }
 
   final DateTime updatedAt;
   final Inventory inventory;
   final ActiveAction? activeAction;
-  final Map<Skill, int> _skillXp;
-  final Map<String, int> _masteryXp;
+  final Map<Skill, SkillState> skillStates;
+  final Map<String, ActionState> actionStates;
 
   String? get activeActionName => activeAction?.name;
 
   bool get isActive => activeAction != null;
 
-  ActionView? get activeActionView {
+  ActiveActionView? get activeActionView {
     final active = activeAction;
     if (active == null) {
       return null;
     }
     final action = actionRegistry.byName(active.name);
-    return ActionView(action: action, state: active.progress);
+    return ActiveActionView(
+      action: action,
+      progressTicks: active.progressTicks,
+    );
   }
 
   Skill? get activeSkill => activeActionView?.action.skill;
 
   GlobalState startAction(Action action) {
-    return copyWith(activeAction: ActiveAction(name: action.name, progress: 0));
+    return copyWith(
+      activeAction: ActiveAction(name: action.name, progressTicks: 0),
+    );
   }
 
   GlobalState clearAction() {
     return GlobalState(
       inventory: inventory,
       activeAction: null,
-      skillXp: _skillXp,
-      masteryXp: _masteryXp,
+      skillStates: skillStates,
+      actionStates: actionStates,
       updatedAt: DateTime.timestamp(),
     );
   }
 
-  int skillXp(Skill skill) => _skillXp[skill] ?? 0;
+  SkillState skillState(Skill skill) =>
+      skillStates[skill] ?? SkillState.empty();
 
-  int masteryXp(String action) => _masteryXp[action] ?? 0;
+  ActionState actionState(String action) =>
+      actionStates[action] ?? ActionState.empty();
 
-  GlobalState updateAction(String actionName, int value) {
+  GlobalState updateAction(String actionName, int progressTicks) {
     if (activeAction?.name != actionName) {
       return this;
     }
-    return copyWith(activeAction: activeAction!.copyWith(progress: value));
+    return copyWith(
+      activeAction: activeAction!.copyWith(progressTicks: progressTicks),
+    );
   }
 
   GlobalState addSkillXp(Skill skill, int amount) {
-    final newXp = Map<Skill, int>.from(_skillXp);
-    newXp[skill] = (newXp[skill] ?? 0) + amount;
-    return copyWith(skillXp: newXp);
+    final newState = skillState(
+      skill,
+    ).copyWith(xp: skillState(skill).xp + amount);
+    final newSkillStates = Map<Skill, SkillState>.from(skillStates);
+    newSkillStates[skill] = newState;
+    return copyWith(skillStates: newSkillStates);
   }
 
   GlobalState copyWith({
     Inventory? inventory,
     ActiveAction? activeAction,
-    Map<Skill, int>? skillXp,
-    Map<String, int>? masteryXp,
+    Map<Skill, SkillState>? skillStates,
+    Map<String, ActionState>? actionStates,
   }) {
     return GlobalState(
       inventory: inventory ?? this.inventory,
       activeAction: activeAction ?? this.activeAction,
-      skillXp: Map.from(_skillXp)..addAll(skillXp ?? {}),
-      masteryXp: Map.from(_masteryXp)..addAll(masteryXp ?? {}),
+      skillStates: skillStates ?? this.skillStates,
+      actionStates: actionStates ?? this.actionStates,
       updatedAt: DateTime.timestamp(),
     );
   }
@@ -288,7 +339,7 @@ int masteryXpForAction(GlobalState state, Action action) {
   return calculateMasteryXp(
     unlockedActions: 1,
     actionSeconds: action.duration.inSeconds.toDouble(),
-    playerTotalMasteryForSkill: state.skillXp(action.skill),
+    playerTotalMasteryForSkill: state.skillState(action.skill).xp,
     totalMasteryForSkill: 1000,
     itemMasteryLevel: 1,
     totalItemsInSkill: 100,
@@ -421,23 +472,24 @@ void consumeTicks(GameActionBuilder builder, Tick ticks) {
   if (startingAction == null) {
     return;
   }
-  String actionName = startingAction.name;
+  // The active action can never change during this loop other than to
+  // be cleared. So we can just use the starting action name.
+  final actionName = startingAction.name;
   while (ticks > 0) {
-    final activeAction = builder.state.activeAction;
-    if (activeAction == null) {
-      break;
-    }
-    actionName = activeAction.name;
-
     final action = actionRegistry.byName(actionName);
-    ActionState actionState = activeAction.progress;
-    final beforeUpdate = ActionView(action: action, state: actionState);
+    final beforeUpdate = state.activeActionView;
+    if (beforeUpdate == null) {
+      return;
+    }
     final ticksToApply = min(ticks, beforeUpdate.remainingTicks);
-    actionState += ticksToApply;
+    final progressTicks = beforeUpdate.progressTicks + ticksToApply;
     ticks -= ticksToApply;
-    final afterUpdate = ActionView(action: action, state: actionState);
+    final afterUpdate = ActiveActionView(
+      action: action,
+      progressTicks: progressTicks,
+    );
 
-    builder.setActionProgress(action, actionState);
+    builder.setActionProgress(action, progressTicks);
 
     if (afterUpdate.remainingTicks <= 0) {
       // This activity is complete

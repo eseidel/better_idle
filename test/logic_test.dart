@@ -18,7 +18,7 @@ void main() {
     state = builder.build();
 
     // Verify activity completed (progress reset or activity cleared? logic says reset)
-    expect(state.activeAction?.progress, 0);
+    expect(state.activeAction?.progressTicks, 0);
 
     // Verify rewards
     expect(state.inventory.items.length, 1);
@@ -26,6 +26,6 @@ void main() {
     expect(state.inventory.items.first.count, 1);
 
     // Verify XP
-    expect(state.skillXp(normalTree.skill), normalTree.xp);
+    expect(state.skillState(normalTree.skill).xp, normalTree.xp);
   });
 }

@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 
 import '../activities.dart';
 import '../state.dart';
+import '../widgets/mastery_pool.dart';
 import '../widgets/navigation_drawer.dart';
 import '../widgets/skill_progress.dart';
 
@@ -14,13 +15,15 @@ class WoodcuttingPage extends StatelessWidget {
   Widget build(BuildContext context) {
     final skill = Skill.woodcutting;
     final actions = actionRegistry.forSkill(skill).toList();
+    final skillState = context.state.skillState(skill);
 
     return Scaffold(
       appBar: AppBar(title: const Text('Woodcutting')),
       drawer: const AppNavigationDrawer(),
       body: Column(
         children: [
-          SkillProgress(xp: context.state.skillXp(skill)),
+          SkillProgress(xp: skillState.xp),
+          MasteryPoolProgress(xp: skillState.masteryXp),
           Expanded(
             child:
                 // Grid view of all activities, 2x wide
@@ -35,11 +38,14 @@ class WoodcuttingPage extends StatelessWidget {
                     final action = actions[index];
                     final isCurrent =
                         context.state.activeActionName == action.name;
-                    final state = isCurrent
-                        ? (context.state.activeAction?.progress ?? 0)
+                    final progressTicks = isCurrent
+                        ? (context.state.activeActionView?.progressTicks ?? 0)
                         : 0;
                     return ActionCell(
-                      action: ActionView(action: action, state: state),
+                      action: ActiveActionView(
+                        action: action,
+                        progressTicks: progressTicks,
+                      ),
                     );
                   },
                 ),
@@ -53,7 +59,7 @@ class WoodcuttingPage extends StatelessWidget {
 class ActionCell extends StatelessWidget {
   const ActionCell({required this.action, super.key});
 
-  final ActionView action;
+  final ActiveActionView action;
 
   @override
   Widget build(BuildContext context) {
