@@ -1,3 +1,5 @@
+import 'dart:math';
+
 import 'package:flutter/material.dart';
 
 import '../activities.dart';
@@ -50,6 +52,22 @@ class WoodcuttingPage extends StatelessWidget {
   }
 }
 
+int calculateMasteryXp({
+  required int unlockedActions,
+  required int playerTotalMasteryForSkill,
+  required int totalMasteryForSkill,
+  required int itemMasteryLevel,
+  required int totalItemsInSkill,
+  required double actionTime, // In seconds, or ticks as appropriate
+  required double bonus, // e.g. 0.1 for +10%
+}) {
+  final masteryPortion =
+      unlockedActions * (playerTotalMasteryForSkill / totalMasteryForSkill);
+  final itemPortion = itemMasteryLevel * (totalItemsInSkill / 10);
+  final baseValue = masteryPortion + itemPortion;
+  return max(1, baseValue * actionTime * 0.5 * (1 + bonus)).toInt();
+}
+
 class ActivityCell extends StatelessWidget {
   const ActivityCell({required this.activity, super.key});
 
@@ -58,6 +76,18 @@ class ActivityCell extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final activityName = activity.activity.name;
+    final skillXp = activity.activity.xp;
+    final masteryXp = calculateMasteryXp(
+      unlockedActions: 1,
+      playerTotalMasteryForSkill: 100,
+      totalMasteryForSkill: 1000,
+      itemMasteryLevel: 1,
+      totalItemsInSkill: 100,
+      actionTime: 1,
+      bonus: 0.1,
+    );
+    final masteryPoolXp = max(1, 0.25 * masteryXp).toInt();
+
     return GestureDetector(
       onTap: () {
         context.dispatch(StartActivityAction(activityName: activityName));
@@ -73,6 +103,9 @@ class ActivityCell extends StatelessWidget {
           children: [
             Text(activityName),
             LinearProgressIndicator(value: activity.progress),
+            Text('XP: $skillXp'),
+            Text('Mastery XP: $masteryXp'),
+            Text('Mastery Pool XP: $masteryPoolXp'),
           ],
         ),
       ),
