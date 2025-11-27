@@ -9,7 +9,7 @@ class DebugPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final duration = const Duration(seconds: 10);
+    final duration = const Duration(seconds: 30);
     return Scaffold(
       appBar: AppBar(title: const Text('Debug')),
       drawer: const AppNavigationDrawer(),
