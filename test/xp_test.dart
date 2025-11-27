@@ -110,12 +110,14 @@ void main() {
         expect(
           progress.progress,
           greaterThanOrEqualTo(0.0),
-          reason: 'Progress should not be negative for XP $xp (level ${progress.level})',
+          reason:
+              'Progress should not be negative for XP $xp (level ${progress.level})',
         );
         expect(
           progress.progress,
           lessThanOrEqualTo(1.0),
-          reason: 'Progress should not exceed 1.0 for XP $xp (level ${progress.level})',
+          reason:
+              'Progress should not exceed 1.0 for XP $xp (level ${progress.level})',
         );
       }
     });
@@ -130,4 +132,3 @@ void main() {
     });
   });
 }
-
