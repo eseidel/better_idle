@@ -5,51 +5,55 @@ import '../state.dart';
 /// A dialog shown when returning to the app after being away.
 /// Displays the changes (inventory and XP) that occurred while away.
 class WelcomeBackDialog extends StatelessWidget {
-  const WelcomeBackDialog({required this.changes, super.key});
+  const WelcomeBackDialog({required this.timeAway, super.key});
 
-  final Changes changes;
+  final TimeAway timeAway;
 
   @override
   Widget build(BuildContext context) {
+    final activeSkill = timeAway.activeSkill;
+    final duration = timeAway.duration;
+    final changes = timeAway.changes;
     return AlertDialog(
-      title: const Text('Welcome Back!'),
+      title: Column(
+        children: [
+          if (activeSkill != null)
+            // This will eventually be an icon instead.
+            Text(
+              activeSkill.name,
+              style: TextStyle(fontWeight: FontWeight.bold),
+            ),
+          const Text('Welcome Back!'),
+        ],
+      ),
       content: SingleChildScrollView(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text('While you were away, you gained:'),
+            Text(
+              'You were away for ${duration.inSeconds} seconds.',
+              style: TextStyle(fontWeight: FontWeight.bold),
+            ),
             const SizedBox(height: 16),
-            if (changes.inventoryChanges.isNotEmpty) ...[
-              const Text(
-                'Items:',
-                style: TextStyle(fontWeight: FontWeight.bold),
+            if (changes.xpChanges.isNotEmpty) ...[
+              ...changes.xpChanges.entries.map(
+                (entry) => Padding(
+                  padding: const EdgeInsets.only(left: 16, bottom: 4),
+                  child: Text('+${entry.value} ${entry.key.name} xp'),
+                ),
               ),
-              const SizedBox(height: 8),
+            ],
+            if (changes.inventoryChanges.isNotEmpty) ...[
               ...changes.inventoryChanges.entries.map(
                 (entry) => Padding(
                   padding: const EdgeInsets.only(left: 16, bottom: 4),
                   child: Text('+${entry.value} ${entry.key}'),
                 ),
               ),
-              const SizedBox(height: 16),
             ],
-            if (changes.xpChanges.isNotEmpty) ...[
-              const Text(
-                'Experience:',
-                style: TextStyle(fontWeight: FontWeight.bold),
-              ),
-              const SizedBox(height: 8),
-              ...changes.xpChanges.entries.map(
-                (entry) => Padding(
-                  padding: const EdgeInsets.only(left: 16, bottom: 4),
-                  child: Text('+${entry.value} ${entry.key} xp'),
-                ),
-              ),
-            ],
-            if (changes.isEmpty) ...[
-              const Text('Nothing new happened while you were away.'),
-            ],
+            // This dialog shouldn't be shown if there are no changes.
+            if (changes.isEmpty) ...[const Text('Nothing new happened.')],
           ],
         ),
       ),

@@ -261,36 +261,82 @@ abstract class GameActionBuilder {
   void addXp(Skill skill, int amount);
 }
 
+class TimeAway {
+  const TimeAway({
+    required this.duration,
+    required this.activeSkill,
+    required this.changes,
+  });
+  final Duration duration;
+  final Skill? activeSkill;
+  final Changes changes;
+
+  const TimeAway.empty()
+    : this(
+        duration: Duration.zero,
+        activeSkill: null,
+        changes: const Changes.empty(),
+      );
+}
+
+class Counts<T> {
+  const Counts({required this.counts});
+  final Map<T, int> counts;
+
+  const Counts.empty() : this(counts: const {});
+
+  Counts<T> add(Counts<T> other) {
+    for (final entry in other.counts.entries) {
+      counts[entry.key] = (counts[entry.key] ?? 0) + entry.value;
+    }
+    return Counts(counts: counts);
+  }
+
+  Counts<T> addCount(T key, int value) {
+    final newCounts = Map<T, int>.from(counts);
+    newCounts[key] = (newCounts[key] ?? 0) + value;
+    return Counts(counts: newCounts);
+  }
+
+  Iterable<MapEntry<T, int>> get entries => counts.entries;
+
+  bool get isEmpty => counts.isEmpty;
+
+  bool get isNotEmpty => counts.isNotEmpty;
+}
+
 class Changes {
   const Changes({required this.inventoryChanges, required this.xpChanges});
-  final Map<String, int> inventoryChanges;
-  final Map<String, int> xpChanges;
+  final Counts<String> inventoryChanges;
+  final Counts<Skill> xpChanges;
 
-  factory Changes.empty() {
-    return const Changes(inventoryChanges: {}, xpChanges: {});
-  }
+  const Changes.empty()
+    : this(
+        inventoryChanges: const Counts<String>.empty(),
+        xpChanges: const Counts<Skill>.empty(),
+      );
 
   Changes merge(Changes other) {
     return Changes(
-      inventoryChanges: Map<String, int>.from(inventoryChanges)
-        ..addAll(other.inventoryChanges),
-      xpChanges: Map<String, int>.from(xpChanges)..addAll(other.xpChanges),
+      inventoryChanges: inventoryChanges.add(other.inventoryChanges),
+      xpChanges: xpChanges.add(other.xpChanges),
     );
   }
 
   bool get isEmpty => inventoryChanges.isEmpty && xpChanges.isEmpty;
 
   Changes adding(ItemStack item) {
-    final newInventoryChanges = Map<String, int>.from(inventoryChanges);
-    newInventoryChanges[item.name] =
-        (newInventoryChanges[item.name] ?? 0) + item.count;
-    return Changes(inventoryChanges: newInventoryChanges, xpChanges: xpChanges);
+    return Changes(
+      inventoryChanges: inventoryChanges.addCount(item.name, item.count),
+      xpChanges: xpChanges,
+    );
   }
 
   Changes addingXp(Skill skill, int amount) {
-    final newXpChanges = Map<String, int>.from(xpChanges);
-    newXpChanges[skill.name] = (newXpChanges[skill.name] ?? 0) + amount;
-    return Changes(inventoryChanges: inventoryChanges, xpChanges: newXpChanges);
+    return Changes(
+      inventoryChanges: inventoryChanges,
+      xpChanges: xpChanges.addCount(skill, amount),
+    );
   }
 }
 
@@ -414,20 +460,24 @@ class AdvanceTicksAction extends ReduxAction<GlobalState> {
   AdvanceTicksAction({required this.ticks});
   final Tick ticks;
 
-  /// The changes that occurred during this advancement.
-  Changes? changes;
+  /// The time away that occurred during this advancement.
+  late TimeAway timeAway;
 
   @override
   GlobalState reduce() {
     final activity = state.currentActivity;
     if (activity == null) {
       // No activity active, return empty changes
-      changes = Changes.empty();
+      timeAway = TimeAway.empty();
       return state;
     }
     final builder = StateUpdateBuilder(state);
     consumeTicks(builder, ticks);
-    changes = builder.changes;
+    timeAway = TimeAway(
+      duration: Duration(milliseconds: ticks * tickDuration.inMilliseconds),
+      activeSkill: state.currentActivity?.activity.skill,
+      changes: builder.changes,
+    );
     return builder.build();
   }
 }

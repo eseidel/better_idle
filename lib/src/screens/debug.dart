@@ -38,11 +38,11 @@ class DebugPage extends StatelessWidget {
     final ticks = ticksFromDuration(duration);
     final action = AdvanceTicksAction(ticks: ticks);
     await StoreProvider.dispatch<GlobalState>(context, action);
-    final changes = action.changes ?? Changes.empty();
+    final timeAway = action.timeAway;
     if (context.mounted) {
       showDialog(
         context: context,
-        builder: (context) => WelcomeBackDialog(changes: changes),
+        builder: (context) => WelcomeBackDialog(timeAway: timeAway),
       );
     }
   }
