@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 
 import '../activities.dart';
-import '../router.dart';
 import '../state.dart';
+import '../widgets/navigation_drawer.dart';
 import '../widgets/skill_progress.dart';
 
 class WoodcuttingPage extends StatelessWidget {
@@ -17,9 +17,9 @@ class WoodcuttingPage extends StatelessWidget {
 
     return Scaffold(
       appBar: AppBar(
-        leading: BackButton(onPressed: () => router.pop(context)),
         title: const Text('Woodcutting'),
       ),
+      drawer: const AppNavigationDrawer(),
       body: Column(
         children: [
           SkillProgress(xp: context.state.skillXp(skill)),
