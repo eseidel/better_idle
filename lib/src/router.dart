@@ -10,10 +10,7 @@ final GoRouter router = GoRouter(
   navigatorKey: navigatorKey,
   initialLocation: '/inventory',
   routes: <RouteBase>[
-    GoRoute(
-      path: '/',
-      redirect: (context, state) => '/inventory',
-    ),
+    GoRoute(path: '/', redirect: (context, state) => '/inventory'),
     GoRoute(
       path: '/inventory',
       name: 'inventory',

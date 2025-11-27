@@ -11,21 +11,16 @@ class AppNavigationDrawer extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final currentLocation = GoRouterState.of(context).uri.path;
-    
+
     return Drawer(
       child: ListView(
         padding: EdgeInsets.zero,
         children: <Widget>[
           const DrawerHeader(
-            decoration: BoxDecoration(
-              color: Colors.blue,
-            ),
+            decoration: BoxDecoration(color: Colors.blue),
             child: Text(
               'Better Idle',
-              style: TextStyle(
-                color: Colors.white,
-                fontSize: 24,
-              ),
+              style: TextStyle(color: Colors.white, fontSize: 24),
             ),
           ),
           ListTile(
@@ -51,4 +46,3 @@ class AppNavigationDrawer extends StatelessWidget {
     );
   }
 }
-

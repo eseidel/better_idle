@@ -9,9 +9,7 @@ class InventoryPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Inventory'),
-      ),
+      appBar: AppBar(title: const Text('Inventory')),
       drawer: const AppNavigationDrawer(),
       body: Column(
         children: [

@@ -16,9 +16,7 @@ class WoodcuttingPage extends StatelessWidget {
         .toList();
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Woodcutting'),
-      ),
+      appBar: AppBar(title: const Text('Woodcutting')),
       drawer: const AppNavigationDrawer(),
       body: Column(
         children: [
