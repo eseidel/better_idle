@@ -133,16 +133,6 @@ class Action {
   Tick get maxValue => duration.inMilliseconds ~/ tickDuration.inMilliseconds;
 }
 
-class ActiveActionView {
-  const ActiveActionView({required this.action, required this.progressTicks});
-
-  final Action action;
-  final int progressTicks;
-
-  double get progress => progressTicks.toDouble() / action.maxValue.toDouble();
-  Tick get remainingTicks => action.maxValue - progressTicks;
-}
-
 class SkillState {
   const SkillState({required this.xp, required this.masteryXp});
   final int xp;
@@ -249,19 +239,9 @@ class GlobalState {
 
   bool get isActive => activeAction != null;
 
-  ActiveActionView? get activeActionView {
-    final active = activeAction;
-    if (active == null) {
-      return null;
-    }
-    final action = actionRegistry.byName(active.name);
-    return ActiveActionView(
-      action: action,
-      progressTicks: active.progressTicks,
-    );
-  }
-
-  Skill? get activeSkill => activeActionView?.action.skill;
+  Skill? get activeSkill => activeAction != null
+      ? actionRegistry.byName(activeAction!.name).skill
+      : null;
 
   GlobalState startAction(Action action) {
     return copyWith(
@@ -284,6 +264,13 @@ class GlobalState {
 
   ActionState actionState(String action) =>
       actionStates[action] ?? ActionState.empty();
+
+  int activeProgress(Action action) {
+    if (activeAction?.name != action.name) {
+      return 0;
+    }
+    return activeAction!.progressTicks;
+  }
 
   GlobalState updateAction(String actionName, int progressTicks) {
     if (activeAction?.name != actionName) {
@@ -466,6 +453,14 @@ class StateUpdateBuilder implements GameActionBuilder {
   Changes get changes => _changes;
 }
 
+class _Progress {
+  const _Progress(this.action, this.progressTicks);
+  final Action action;
+  final int progressTicks;
+
+  int get remainingTicks => action.maxValue - progressTicks;
+}
+
 void consumeTicks(GameActionBuilder builder, Tick ticks) {
   GlobalState state = builder.state;
   final startingAction = state.activeAction;
@@ -474,37 +469,27 @@ void consumeTicks(GameActionBuilder builder, Tick ticks) {
   }
   // The active action can never change during this loop other than to
   // be cleared. So we can just use the starting action name.
-  final actionName = startingAction.name;
+  final action = actionRegistry.byName(startingAction.name);
   while (ticks > 0) {
-    final action = actionRegistry.byName(actionName);
-    final beforeUpdate = state.activeActionView;
-    if (beforeUpdate == null) {
-      return;
-    }
-    final ticksToApply = min(ticks, beforeUpdate.remainingTicks);
-    final progressTicks = beforeUpdate.progressTicks + ticksToApply;
+    final before = _Progress(action, state.activeProgress(action));
+    final ticksToApply = min(ticks, before.remainingTicks);
+    final progressTicks = before.progressTicks + ticksToApply;
     ticks -= ticksToApply;
-    final afterUpdate = ActiveActionView(
-      action: action,
-      progressTicks: progressTicks,
-    );
-
     builder.setActionProgress(action, progressTicks);
 
-    if (afterUpdate.remainingTicks <= 0) {
+    final after = _Progress(action, progressTicks);
+    if (after.remainingTicks <= 0) {
       // This activity is complete
-      // Add rewards
       for (final reward in action.rewards) {
         builder.addInventory(reward);
       }
-
-      // Add XP
       builder.addXp(action.skill, action.xp);
 
-      // Reset progress for the *current* activity if it's still the same
-      if (builder.state.activeAction?.name == actionName) {
-        builder.setActionProgress(action, 0);
+      // Reset progress for the *current* activity.
+      if (builder.state.activeAction?.name != startingAction.name) {
+        throw Exception('Active action changed during consumption?');
       }
+      builder.setActionProgress(action, 0);
     }
   }
 }
@@ -569,7 +554,7 @@ class AdvanceTicksAction extends ReduxAction<GlobalState> {
     consumeTicks(builder, ticks);
     timeAway = TimeAway(
       duration: Duration(milliseconds: ticks * tickDuration.inMilliseconds),
-      activeSkill: state.activeActionView?.action.skill,
+      activeSkill: state.activeSkill,
       changes: builder.changes,
     );
     return builder.build();

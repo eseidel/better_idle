@@ -1,6 +1,6 @@
 import 'dart:math';
 
-import 'package:flutter/material.dart';
+import 'package:flutter/material.dart' hide Action;
 
 import '../activities.dart';
 import '../state.dart';
@@ -36,16 +36,12 @@ class WoodcuttingPage extends StatelessWidget {
                       return Container();
                     }
                     final action = actions[index];
-                    final isCurrent =
-                        context.state.activeActionName == action.name;
-                    final progressTicks = isCurrent
-                        ? (context.state.activeActionView?.progressTicks ?? 0)
-                        : 0;
+                    final progressTicks = context.state.activeProgress(action);
+                    final actionState = context.state.actionState(action.name);
                     return ActionCell(
-                      action: ActiveActionView(
-                        action: action,
-                        progressTicks: progressTicks,
-                      ),
+                      action: action,
+                      actionState: actionState,
+                      progressTicks: progressTicks,
                     );
                   },
                 ),
@@ -57,20 +53,33 @@ class WoodcuttingPage extends StatelessWidget {
 }
 
 class ActionCell extends StatelessWidget {
-  const ActionCell({required this.action, super.key});
+  const ActionCell({
+    required this.action,
+    required this.actionState,
+    required this.progressTicks,
+    super.key,
+  });
 
-  final ActiveActionView action;
+  final Action action;
+  final ActionState actionState;
+  final int? progressTicks;
 
   @override
   Widget build(BuildContext context) {
-    final actionName = action.action.name;
-    final skillXp = action.action.xp;
-    final masteryXp = masteryXpForAction(context.state, action.action);
+    final actionName = action.name;
+    final skillXp = action.xp;
+    final masteryXp = masteryXpForAction(context.state, action);
     final masteryPoolXp = max(1, 0.25 * masteryXp).toInt();
+    final labelStyle = Theme.of(
+      context,
+    ).textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.bold);
+    final progress = progressTicks != null
+        ? progressTicks! / action.maxValue
+        : 0.0;
 
     return GestureDetector(
       onTap: () {
-        context.dispatch(StartActionAction(action: action.action));
+        context.dispatch(StartActionAction(action: action));
       },
       child: Container(
         padding: const EdgeInsets.all(16),
@@ -81,9 +90,10 @@ class ActionCell extends StatelessWidget {
         ),
         child: Column(
           children: [
-            Text(actionName),
-            LinearProgressIndicator(value: action.progress),
-            Text('XP: $skillXp'),
+            Text('Cut'),
+            Text(actionName, style: labelStyle),
+            Text('$skillXp Skill XP / ${action.duration.inSeconds} seconds'),
+            LinearProgressIndicator(value: progress),
             Text('Mastery XP: $masteryXp'),
             Text('Mastery Pool XP: $masteryPoolXp'),
           ],
