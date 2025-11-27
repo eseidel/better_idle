@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
-import '../router.dart';
 import '../state.dart';
+import '../widgets/navigation_drawer.dart';
 
 class InventoryPage extends StatelessWidget {
   const InventoryPage({super.key});
@@ -9,14 +9,8 @@ class InventoryPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        leading: BackButton(
-          onPressed: () {
-            router.pop(context);
-          },
-        ),
-        title: const Text('Inventory'),
-      ),
+      appBar: AppBar(title: const Text('Inventory')),
+      drawer: const AppNavigationDrawer(),
       body: Column(
         children: [
           const Text('Inventory'),
