@@ -62,9 +62,12 @@ class Inventory {
   }
 }
 
+Tick ticksFromDuration(Duration duration) {
+  return duration.inMilliseconds ~/ tickDuration.inMilliseconds;
+}
+
 Tick ticksSince(DateTime start) {
-  final difference = DateTime.timestamp().difference(start);
-  return difference.inMilliseconds ~/ tickDuration.inMilliseconds;
+  return ticksFromDuration(DateTime.timestamp().difference(start));
 }
 
 class Recipe {
@@ -404,5 +407,29 @@ class StopActivityAction extends ReduxAction<GlobalState> {
   GlobalState reduce() {
     // This might need to either wait for the activity to finish, or cancel it?
     return state.clearActivity();
+  }
+}
+
+/// Advances the game by a specified number of ticks and returns the changes.
+/// Unlike UpdateActivityProgressAction, this does not show toasts.
+class AdvanceTicksAction extends ReduxAction<GlobalState> {
+  AdvanceTicksAction({required this.ticks});
+  final Tick ticks;
+
+  /// The changes that occurred during this advancement.
+  Changes? changes;
+
+  @override
+  GlobalState reduce() {
+    final activity = state.currentActivity;
+    if (activity == null) {
+      // No activity active, return empty changes
+      changes = Changes.empty();
+      return state;
+    }
+    final builder = StateUpdateBuilder(state);
+    consumeTicks(builder, ticks);
+    changes = builder.changes;
+    return builder.build();
   }
 }
