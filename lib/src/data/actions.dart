@@ -1,4 +1,4 @@
-import 'state.dart';
+import '../state.dart';
 
 enum Skill {
   woodcutting('Woodcutting');

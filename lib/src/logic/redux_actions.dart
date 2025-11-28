@@ -1,6 +1,6 @@
-import 'consume_ticks.dart';
-import 'services/toast_service.dart';
-import 'state.dart';
+import '../consume_ticks.dart';
+import '../services/toast_service.dart';
+import '../state.dart';
 
 export 'package:async_redux/async_redux.dart';
 

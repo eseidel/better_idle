@@ -1,4 +1,4 @@
-import 'activities.dart';
+import 'data/actions.dart';
 import 'consume_ticks.dart';
 
 export 'package:async_redux/async_redux.dart';

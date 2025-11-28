@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
-import 'screens/debug.dart';
-import 'screens/inventory.dart';
-import 'screens/woodcutting.dart';
+import '../screens/debug.dart';
+import '../screens/inventory.dart';
+import '../screens/woodcutting.dart';
 
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
