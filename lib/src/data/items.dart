@@ -1,13 +1,13 @@
 final _all = [
-  Item(name: 'Normal Logs', goldValue: 5),
-  Item(name: 'Oak Logs', goldValue: 10),
+  Item(name: 'Normal Logs', sellsFor: 1),
+  Item(name: 'Oak Logs', sellsFor: 5),
 ];
 
 class Item {
-  const Item({required this.name, required this.goldValue});
+  const Item({required this.name, required this.sellsFor});
 
   final String name;
-  final int goldValue;
+  final int sellsFor;
 }
 
 class ItemRegistry {

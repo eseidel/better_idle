@@ -6,11 +6,11 @@ import 'package:scoped_deps/scoped_deps.dart';
 
 import 'src/logic/consume_ticks.dart';
 import 'src/logic/game_loop.dart';
-import 'src/services/logger.dart';
 import 'src/logic/redux_actions.dart';
-import 'src/widgets/router.dart';
+import 'src/services/logger.dart';
 import 'src/services/toast_service.dart';
 import 'src/state.dart';
+import 'src/widgets/router.dart';
 import 'src/widgets/toast_overlay.dart';
 import 'src/widgets/welcome_back_dialog.dart';
 

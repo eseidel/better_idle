@@ -1,4 +1,6 @@
+import 'package:better_idle/src/data/items.dart';
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 
 import '../state.dart';
 import '../widgets/context_extensions.dart';
@@ -9,6 +11,13 @@ class InventoryPage extends StatefulWidget {
 
   @override
   State<InventoryPage> createState() => _InventoryPageState();
+}
+
+int totalSellValue(Inventory inventory) {
+  return inventory.items.fold(
+    0,
+    (sum, item) => sum + itemRegistry.byName(item.name).sellsFor * item.count,
+  );
 }
 
 class _InventoryPageState extends State<InventoryPage> {
@@ -24,6 +33,8 @@ class _InventoryPageState extends State<InventoryPage> {
 
   @override
   Widget build(BuildContext context) {
+    final sellValue = totalSellValue(context.state.inventory);
+    final formatter = NumberFormat('#,##0');
     return Scaffold(
       key: _scaffoldKey,
       appBar: AppBar(title: const Text('Inventory')),
@@ -33,8 +44,7 @@ class _InventoryPageState extends State<InventoryPage> {
           : null,
       body: Column(
         children: [
-          const Text('Inventory'),
-          const SizedBox(height: 16),
+          Text('Bank: ${formatter.format(sellValue)} GP'),
           Expanded(
             child: ItemGrid(
               stacks: context.state.inventory.items,
@@ -85,13 +95,16 @@ class StackCell extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final formatter = NumberFormat('#,##0');
     return InkWell(
       onTap: onTap,
       child: Container(
         width: 30,
         height: 30,
         color: Colors.green,
-        child: Center(child: Text('${stack.count} ${stack.name}')),
+        child: Center(
+          child: Text('${formatter.format(stack.count)} ${stack.name}'),
+        ),
       ),
     );
   }
