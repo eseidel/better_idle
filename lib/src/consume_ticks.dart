@@ -44,14 +44,6 @@ int masteryXpPerAction(GlobalState state, Action action) {
   );
 }
 
-abstract class GameActionBuilder {
-  GlobalState get state;
-  void setActionProgress(Action action, int progress);
-  void addInventory(ItemStack item);
-  void addSkillXp(Skill skill, int amount);
-  void addMasteryXp(Skill skill, int amount);
-}
-
 class TimeAway {
   const TimeAway({
     required this.duration,
@@ -131,33 +123,28 @@ class Changes {
   }
 }
 
-class StateUpdateBuilder implements GameActionBuilder {
+class StateUpdateBuilder {
   StateUpdateBuilder(this._state);
 
   GlobalState _state;
   Changes _changes = Changes.empty();
 
-  @override
   GlobalState get state => _state;
 
-  @override
   void setActionProgress(Action action, int progress) {
     _state = _state.updateAction(action.name, progress);
   }
 
-  @override
   void addInventory(ItemStack item) {
     _state = _state.copyWith(inventory: _state.inventory.adding(item));
     _changes = _changes.adding(item);
   }
 
-  @override
   void addSkillXp(Skill skill, int amount) {
     _state = _state.addSkillXp(skill, amount);
     _changes = _changes.addingXp(skill, amount);
   }
 
-  @override
   void addMasteryXp(Skill skill, int amount) {
     _state = _state.addMasteryXp(skill, amount);
     _changes = _changes.addingXp(skill, amount);
@@ -178,7 +165,7 @@ class _Progress {
   int get remainingTicks => action.maxValue - progressTicks;
 }
 
-void completeAction(GameActionBuilder builder, Action action) {
+void completeAction(StateUpdateBuilder builder, Action action) {
   for (final reward in action.rewards) {
     builder.addInventory(reward);
   }
@@ -186,7 +173,7 @@ void completeAction(GameActionBuilder builder, Action action) {
   builder.addMasteryXp(action.skill, masteryXpPerAction(builder.state, action));
 }
 
-void consumeTicks(GameActionBuilder builder, Tick ticks) {
+void consumeTicks(StateUpdateBuilder builder, Tick ticks) {
   GlobalState state = builder.state;
   final startingAction = state.activeAction;
   if (startingAction == null) {
