@@ -1,4 +1,4 @@
-import '../consume_ticks.dart';
+import 'consume_ticks.dart';
 import '../services/toast_service.dart';
 import '../state.dart';
 

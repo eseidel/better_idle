@@ -2,7 +2,7 @@ import 'dart:math';
 
 import '../data/actions.dart';
 import '../state.dart';
-import '../xp.dart';
+import '../data/xp.dart';
 
 export 'package:async_redux/async_redux.dart';
 

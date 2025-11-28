@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
-import '../xp.dart';
+import '../data/xp.dart';
 
 class SkillProgress extends StatelessWidget {
   const SkillProgress({required this.xp, super.key});

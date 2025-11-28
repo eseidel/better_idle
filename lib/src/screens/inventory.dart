@@ -48,11 +48,7 @@ class _InventoryPageState extends State<InventoryPage> {
 }
 
 class ItemGrid extends StatelessWidget {
-  const ItemGrid({
-    required this.stacks,
-    required this.onItemTap,
-    super.key,
-  });
+  const ItemGrid({required this.stacks, required this.onItemTap, super.key});
 
   final List<ItemStack> stacks;
   final void Function(ItemStack) onItemTap;
@@ -82,11 +78,7 @@ class ItemGrid extends StatelessWidget {
 }
 
 class StackCell extends StatelessWidget {
-  const StackCell({
-    required this.stack,
-    required this.onTap,
-    super.key,
-  });
+  const StackCell({required this.stack, required this.onTap, super.key});
 
   final ItemStack stack;
   final VoidCallback onTap;
@@ -99,9 +91,7 @@ class StackCell extends StatelessWidget {
         width: 30,
         height: 30,
         color: Colors.green,
-        child: Center(
-          child: Text('${stack.count} ${stack.name}'),
-        ),
+        child: Center(child: Text('${stack.count} ${stack.name}')),
       ),
     );
   }
@@ -129,10 +119,7 @@ class ItemDetailsDrawer extends StatelessWidget {
                 children: [
                   const Text(
                     'Item Details',
-                    style: TextStyle(
-                      fontSize: 24,
-                      fontWeight: FontWeight.bold,
-                    ),
+                    style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
                   ),
                   IconButton(
                     icon: const Icon(Icons.close),
@@ -142,25 +129,16 @@ class ItemDetailsDrawer extends StatelessWidget {
               ),
               const Divider(),
               const SizedBox(height: 16),
-              Text(
-                'Name:',
-                style: Theme.of(context).textTheme.titleMedium,
-              ),
+              Text('Name:', style: Theme.of(context).textTheme.titleMedium),
               const SizedBox(height: 8),
-              Text(
-                item.name,
-                style: Theme.of(context).textTheme.bodyLarge,
-              ),
+              Text(item.name, style: Theme.of(context).textTheme.bodyLarge),
               const SizedBox(height: 24),
               Text(
                 'Gold Value:',
                 style: Theme.of(context).textTheme.titleMedium,
               ),
               const SizedBox(height: 8),
-              Text(
-                '$goldValue',
-                style: Theme.of(context).textTheme.bodyLarge,
-              ),
+              Text('$goldValue', style: Theme.of(context).textTheme.bodyLarge),
             ],
           ),
         ),

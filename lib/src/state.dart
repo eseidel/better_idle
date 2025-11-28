@@ -1,5 +1,5 @@
 import 'data/actions.dart';
-import 'consume_ticks.dart';
+import 'logic/consume_ticks.dart';
 
 export 'package:async_redux/async_redux.dart';
 

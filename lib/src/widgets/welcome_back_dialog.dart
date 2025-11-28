@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
-import '../consume_ticks.dart';
-import '../redux_actions.dart';
+import '../logic/consume_ticks.dart';
+import '../logic/redux_actions.dart';
 
 /// A dialog shown when returning to the app after being away.
 /// Displays the changes (inventory and XP) that occurred while away.

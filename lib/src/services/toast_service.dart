@@ -2,7 +2,7 @@ import 'dart:async';
 
 import 'package:scoped_deps/scoped_deps.dart';
 
-import '../consume_ticks.dart';
+import '../logic/consume_ticks.dart';
 
 class ToastService {
   final _toastController = StreamController<Changes>.broadcast();

@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
-import '../router.dart';
+import 'router.dart';
 
 /// A navigation drawer for the game that provides navigation to different screens.
 class AppNavigationDrawer extends StatelessWidget {

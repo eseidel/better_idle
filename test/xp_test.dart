@@ -1,4 +1,4 @@
-import 'package:better_idle/src/xp.dart';
+import 'package:better_idle/src/data/xp.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {

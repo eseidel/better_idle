@@ -1,4 +1,4 @@
-import 'package:better_idle/src/xp.dart';
+import 'package:better_idle/src/data/xp.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 

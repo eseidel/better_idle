@@ -4,11 +4,11 @@ import 'package:async_redux/local_persist.dart';
 import 'package:flutter/material.dart';
 import 'package:scoped_deps/scoped_deps.dart';
 
-import 'src/consume_ticks.dart';
-import 'src/game_loop.dart';
-import 'src/logger.dart';
-import 'src/redux_actions.dart';
-import 'src/router.dart';
+import 'src/logic/consume_ticks.dart';
+import 'src/logic/game_loop.dart';
+import 'src/services/logger.dart';
+import 'src/logic/redux_actions.dart';
+import 'src/widgets/router.dart';
 import 'src/services/toast_service.dart';
 import 'src/state.dart';
 import 'src/widgets/toast_overlay.dart';

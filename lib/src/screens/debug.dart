@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import '../redux_actions.dart';
+import '../logic/redux_actions.dart';
 import '../state.dart';
 import '../widgets/navigation_drawer.dart';
 import '../widgets/welcome_back_dialog.dart';

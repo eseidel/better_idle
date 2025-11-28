@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart' hide Action;
 
-import '../activities.dart';
-import '../redux_actions.dart';
+import '../data/actions.dart';
+import '../logic/redux_actions.dart';
 import '../state.dart';
 import '../widgets/context_extensions.dart';
 import '../widgets/mastery_pool.dart';
