@@ -40,7 +40,7 @@ class UpdateActivityProgressAction extends ReduxAction<GlobalState> {
       // Don't show toast - dialog shows changes
       return newState.copyWith(timeAway: timeAway);
     } else {
-      // No dialog open - show toast
+      // Otherwise, no dialog open - show toast
       toastService.showToast(changes);
       return newState;
     }
@@ -87,17 +87,6 @@ class AdvanceTicksAction extends ReduxAction<GlobalState> {
   }
 }
 
-TimeAway mergeTimeAway(TimeAway? previousTimeAway, TimeAway newTimeAway) {
-  if (previousTimeAway == null) {
-    return newTimeAway;
-  }
-  return TimeAway(
-    duration: previousTimeAway.duration, // Keep original duration
-    activeSkill: previousTimeAway.activeSkill,
-    changes: previousTimeAway.changes.merge(newTimeAway.changes),
-  );
-}
-
 /// Calculates time away from pause and processes it, merging with existing timeAway if present.
 class ResumeFromPauseAction extends ReduxAction<GlobalState> {
   @override
@@ -105,7 +94,7 @@ class ResumeFromPauseAction extends ReduxAction<GlobalState> {
     final duration = DateTime.timestamp().difference(state.updatedAt);
     final ticks = ticksFromDuration(duration);
     final (newTimeAway, newState) = consumeManyTicks(state, ticks);
-    final timeAway = mergeTimeAway(state.timeAway, newTimeAway);
+    final timeAway = newTimeAway.maybeMergeInto(state.timeAway);
     return newState.copyWith(timeAway: timeAway);
   }
 }

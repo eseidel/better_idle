@@ -25,8 +25,8 @@ class MyPersistor extends Persistor<GlobalState> {
     try {
       final state = await _persist.loadJson() as Map<String, dynamic>?;
       return state == null ? GlobalState.empty() : GlobalState.fromJson(state);
-    } catch (e) {
-      logger.err("Failed to load state: $e");
+    } catch (e, stackTrace) {
+      logger.err("Failed to load state: $e, stackTrace: $stackTrace");
       return GlobalState.empty();
     }
   }

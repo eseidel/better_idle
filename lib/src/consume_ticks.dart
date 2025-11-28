@@ -76,6 +76,31 @@ class TimeAway {
   TimeAway mergeChanges(Changes changes) {
     return copyWith(changes: this.changes.merge(changes));
   }
+
+  TimeAway maybeMergeInto(TimeAway? other) {
+    if (other == null) {
+      return this;
+    }
+    return mergeChanges(other.changes);
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'duration': duration.inMilliseconds,
+      'activeSkill': activeSkill?.name,
+      'changes': changes.toJson(),
+    };
+  }
+
+  factory TimeAway.fromJson(Map<String, dynamic> json) {
+    return TimeAway(
+      duration: Duration(milliseconds: json['duration']),
+      activeSkill: json['activeSkill'] != null
+          ? Skill.fromName(json['activeSkill'])
+          : null,
+      changes: Changes.fromJson(json['changes']),
+    );
+  }
 }
 
 class Counts<T> {
@@ -85,10 +110,11 @@ class Counts<T> {
   const Counts.empty() : this(counts: const {});
 
   Counts<T> add(Counts<T> other) {
+    final newCounts = Map<T, int>.from(counts);
     for (final entry in other.counts.entries) {
-      counts[entry.key] = (counts[entry.key] ?? 0) + entry.value;
+      newCounts[entry.key] = (newCounts[entry.key] ?? 0) + entry.value;
     }
-    return Counts(counts: counts);
+    return Counts(counts: newCounts);
   }
 
   Counts<T> addCount(T key, int value) {
@@ -102,6 +128,19 @@ class Counts<T> {
   bool get isEmpty => counts.isEmpty;
 
   bool get isNotEmpty => counts.isNotEmpty;
+
+  Map<String, dynamic> toJson() {
+    // For Skill enums, use the name property instead of toString()
+    // For other types, use toString()
+    return {
+      'counts': counts.map(
+        (key, value) => MapEntry(
+          key is Skill ? (key as Skill).name : key.toString(),
+          value,
+        ),
+      ),
+    };
+  }
 }
 
 class Changes {
@@ -137,6 +176,40 @@ class Changes {
     return Changes(
       inventoryChanges: inventoryChanges,
       skillXpChanges: skillXpChanges.addCount(skill, amount),
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'inventoryChanges': inventoryChanges.toJson(),
+      'skillXpChanges': skillXpChanges.toJson(),
+    };
+  }
+
+  factory Changes.fromJson(Map<String, dynamic> json) {
+    // Counts.toJson() returns {'counts': {...}}, so we need to extract the inner map
+    final inventoryChangesJson =
+        json['inventoryChanges'] as Map<String, dynamic>;
+    final inventoryCountsJson =
+        inventoryChangesJson['counts'] as Map<String, dynamic>;
+
+    final skillXpChangesJson = json['skillXpChanges'] as Map<String, dynamic>;
+    final skillXpCountsJson =
+        skillXpChangesJson['counts'] as Map<String, dynamic>;
+
+    return Changes(
+      inventoryChanges: Counts<String>(
+        counts: Map<String, int>.from(
+          inventoryCountsJson.map((key, value) => MapEntry(key, value as int)),
+        ),
+      ),
+      skillXpChanges: Counts<Skill>(
+        counts: Map<Skill, int>.from(
+          skillXpCountsJson.map(
+            (key, value) => MapEntry(Skill.fromName(key), value as int),
+          ),
+        ),
+      ),
     );
   }
 }

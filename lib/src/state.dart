@@ -195,8 +195,9 @@ class GlobalState {
             ),
           ) ??
           {},
-      // timeAway is transient UI state, not persisted
-      timeAway = null;
+      timeAway = json['timeAway'] != null
+          ? TimeAway.fromJson(json['timeAway'])
+          : null;
   Map<String, dynamic> toJson() {
     return {
       'updatedAt': updatedAt.toIso8601String(),
@@ -208,23 +209,34 @@ class GlobalState {
       'actionStates': actionStates.map(
         (key, value) => MapEntry(key, value.toJson()),
       ),
-      // timeAway is transient UI state, not persisted
+      'timeAway': timeAway?.toJson(),
     };
   }
 
+  /// The last time the state was updated (created since it's immutable).
   final DateTime updatedAt;
-  final Inventory inventory;
-  final ActiveAction? activeAction;
-  final Map<Skill, SkillState> skillStates;
-  final Map<String, ActionState> actionStates;
-  final TimeAway? timeAway;
 
-  String? get activeActionName => activeAction?.name;
+  /// The inventory of items.
+  final Inventory inventory;
+
+  /// The active action.
+  final ActiveAction? activeAction;
+
+  /// The accumulated skill states.
+  final Map<Skill, SkillState> skillStates;
+
+  /// The accumulated action states.
+  final Map<String, ActionState> actionStates;
+
+  /// Time away represents the accumulated changes since the last time the
+  /// user interacted with the app.  It is persisted to disk, for the case in
+  /// which the user kills the app with the "welcome back" dialog open.
+  final TimeAway? timeAway;
 
   bool get isActive => activeAction != null;
 
   Skill? get activeSkill {
-    final name = activeActionName;
+    final name = activeAction?.name;
     if (name == null) {
       return null;
     }
