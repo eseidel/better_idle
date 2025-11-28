@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 
 import 'activities.dart';
 import 'services/toast_service.dart';
+import 'xp.dart';
 
 export 'package:async_redux/async_redux.dart';
 
@@ -262,6 +263,9 @@ class GlobalState {
   SkillState skillState(Skill skill) =>
       skillStates[skill] ?? SkillState.empty();
 
+  /// TODO(eseidel): Implement this.
+  int unlockedActionsCount(Skill skill) => 1;
+
   ActionState actionState(String action) =>
       actionStates[action] ?? ActionState.empty();
 
@@ -290,6 +294,15 @@ class GlobalState {
     return copyWith(skillStates: newSkillStates);
   }
 
+  GlobalState addMasteryXp(Skill skill, int amount) {
+    final newState = skillState(
+      skill,
+    ).copyWith(masteryXp: skillState(skill).masteryXp + amount);
+    final newSkillStates = Map<Skill, SkillState>.from(skillStates);
+    newSkillStates[skill] = newState;
+    return copyWith(skillStates: newSkillStates);
+  }
+
   GlobalState copyWith({
     Inventory? inventory,
     ActiveAction? activeAction,
@@ -306,7 +319,9 @@ class GlobalState {
   }
 }
 
-int calculateMasteryXp({
+/// Calculates the amount of mastery XP gained per action from raw values.
+/// Derived from https://wiki.melvoridle.com/w/Mastery.
+int calculateMasteryXpPerAction({
   required int unlockedActions,
   required int playerTotalMasteryForSkill,
   required int totalMasteryForSkill,
@@ -315,21 +330,29 @@ int calculateMasteryXp({
   required double actionSeconds, // In seconds
   required double bonus, // e.g. 0.1 for +10%
 }) {
-  final masteryPortion =
-      unlockedActions * (playerTotalMasteryForSkill / totalMasteryForSkill);
+  // We don't currently have a way to get the "total mastery for skill" value,
+  // so we're not using the mastery portion of the formula.
+  // final masteryPortion =
+  //     unlockedActions * (playerTotalMasteryForSkill / totalMasteryForSkill);
   final itemPortion = itemMasteryLevel * (totalItemsInSkill / 10);
-  final baseValue = masteryPortion + itemPortion;
+  // final baseValue = masteryPortion + itemPortion;
+  final baseValue = itemPortion;
   return max(1, baseValue * actionSeconds * 0.5 * (1 + bonus)).toInt();
 }
 
-int masteryXpForAction(GlobalState state, Action action) {
-  return calculateMasteryXp(
-    unlockedActions: 1,
+/// Returns the amount of mastery XP gained per action.
+int masteryXpPerAction(GlobalState state, Action action) {
+  final skillState = state.skillState(action.skill);
+  final actionState = state.actionState(action.name);
+  final actionMasteryLevel = levelForXp(actionState.masteryXp);
+  final itemsInSkill = actionRegistry.forSkill(action.skill).length;
+  return calculateMasteryXpPerAction(
+    unlockedActions: state.unlockedActionsCount(action.skill),
     actionSeconds: action.duration.inSeconds.toDouble(),
-    playerTotalMasteryForSkill: state.skillState(action.skill).xp,
-    totalMasteryForSkill: 1000,
-    itemMasteryLevel: 1,
-    totalItemsInSkill: 100,
+    playerTotalMasteryForSkill: skillState.xp,
+    totalMasteryForSkill: skillState.masteryXp,
+    itemMasteryLevel: actionMasteryLevel,
+    totalItemsInSkill: itemsInSkill,
     bonus: 0.0,
   );
 }
@@ -338,7 +361,8 @@ abstract class GameActionBuilder {
   GlobalState get state;
   void setActionProgress(Action action, int progress);
   void addInventory(ItemStack item);
-  void addXp(Skill skill, int amount);
+  void addSkillXp(Skill skill, int amount);
+  void addMasteryXp(Skill skill, int amount);
 }
 
 class TimeAway {
@@ -441,8 +465,14 @@ class StateUpdateBuilder implements GameActionBuilder {
   }
 
   @override
-  void addXp(Skill skill, int amount) {
+  void addSkillXp(Skill skill, int amount) {
     _state = _state.addSkillXp(skill, amount);
+    _changes = _changes.addingXp(skill, amount);
+  }
+
+  @override
+  void addMasteryXp(Skill skill, int amount) {
+    _state = _state.addMasteryXp(skill, amount);
     _changes = _changes.addingXp(skill, amount);
   }
 
@@ -459,6 +489,14 @@ class _Progress {
   final int progressTicks;
 
   int get remainingTicks => action.maxValue - progressTicks;
+}
+
+void completeAction(GameActionBuilder builder, Action action) {
+  for (final reward in action.rewards) {
+    builder.addInventory(reward);
+  }
+  builder.addSkillXp(action.skill, action.xp);
+  builder.addMasteryXp(action.skill, masteryXpPerAction(builder.state, action));
 }
 
 void consumeTicks(GameActionBuilder builder, Tick ticks) {
@@ -479,11 +517,7 @@ void consumeTicks(GameActionBuilder builder, Tick ticks) {
 
     final after = _Progress(action, progressTicks);
     if (after.remainingTicks <= 0) {
-      // This activity is complete
-      for (final reward in action.rewards) {
-        builder.addInventory(reward);
-      }
-      builder.addXp(action.skill, action.xp);
+      completeAction(builder, action);
 
       // Reset progress for the *current* activity.
       if (builder.state.activeAction?.name != startingAction.name) {

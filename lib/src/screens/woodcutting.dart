@@ -1,5 +1,3 @@
-import 'dart:math';
-
 import 'package:flutter/material.dart' hide Action;
 
 import '../activities.dart';
@@ -67,15 +65,11 @@ class ActionCell extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final actionName = action.name;
-    final skillXp = action.xp;
-    final masteryXp = masteryXpForAction(context.state, action);
-    final masteryPoolXp = max(1, 0.25 * masteryXp).toInt();
     final labelStyle = Theme.of(
       context,
     ).textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.bold);
-    final progress = progressTicks != null
-        ? progressTicks! / action.maxValue
-        : 0.0;
+    final progress = (progressTicks ?? 0) / action.maxValue;
+    final actionState = context.state.actionState(actionName);
 
     return GestureDetector(
       onTap: () {
@@ -92,10 +86,9 @@ class ActionCell extends StatelessWidget {
           children: [
             Text('Cut'),
             Text(actionName, style: labelStyle),
-            Text('$skillXp Skill XP / ${action.duration.inSeconds} seconds'),
+            Text('${action.xp} Skill XP, ${action.duration.inSeconds} seconds'),
             LinearProgressIndicator(value: progress),
-            Text('Mastery XP: $masteryXp'),
-            Text('Mastery Pool XP: $masteryPoolXp'),
+            MasteryProgressCell(masteryXp: actionState.masteryXp),
           ],
         ),
       ),

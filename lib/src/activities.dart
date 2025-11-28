@@ -23,7 +23,7 @@ final _all = [
   Action(
     skill: Skill.woodcutting,
     name: 'Oak Tree',
-    duration: Duration(seconds: 3),
+    duration: Duration(seconds: 4),
     xp: 15,
     rewards: [ItemStack(name: 'Oak Logs', count: 1)],
   ),
