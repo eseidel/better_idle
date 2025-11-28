@@ -1,4 +1,5 @@
 import 'activities.dart';
+import 'consume_ticks.dart';
 
 export 'package:async_redux/async_redux.dart';
 
@@ -159,6 +160,7 @@ class GlobalState {
     required this.skillStates,
     required this.actionStates,
     required this.updatedAt,
+    this.timeAway,
   });
 
   GlobalState.empty()
@@ -168,6 +170,7 @@ class GlobalState {
         skillStates: {},
         actionStates: {},
         updatedAt: DateTime.timestamp(),
+        timeAway: null,
       );
 
   GlobalState.fromJson(Map<String, dynamic> json)
@@ -191,7 +194,9 @@ class GlobalState {
               ActionState.fromJson(value as Map<String, dynamic>),
             ),
           ) ??
-          {};
+          {},
+      // timeAway is transient UI state, not persisted
+      timeAway = null;
   Map<String, dynamic> toJson() {
     return {
       'updatedAt': updatedAt.toIso8601String(),
@@ -203,6 +208,7 @@ class GlobalState {
       'actionStates': actionStates.map(
         (key, value) => MapEntry(key, value.toJson()),
       ),
+      // timeAway is transient UI state, not persisted
     };
   }
 
@@ -211,6 +217,7 @@ class GlobalState {
   final ActiveAction? activeAction;
   final Map<Skill, SkillState> skillStates;
   final Map<String, ActionState> actionStates;
+  final TimeAway? timeAway;
 
   String? get activeActionName => activeAction?.name;
 
@@ -296,6 +303,7 @@ class GlobalState {
     ActiveAction? activeAction,
     Map<Skill, SkillState>? skillStates,
     Map<String, ActionState>? actionStates,
+    TimeAway? timeAway,
   }) {
     return GlobalState(
       inventory: inventory ?? this.inventory,
@@ -303,6 +311,7 @@ class GlobalState {
       skillStates: skillStates ?? this.skillStates,
       actionStates: actionStates ?? this.actionStates,
       updatedAt: DateTime.timestamp(),
+      timeAway: timeAway ?? this.timeAway,
     );
   }
 }

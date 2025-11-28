@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../consume_ticks.dart';
+import '../redux_actions.dart';
 
 /// A dialog shown when returning to the app after being away.
 /// Displays the changes (inventory and XP) that occurred while away.
@@ -59,7 +60,12 @@ class WelcomeBackDialog extends StatelessWidget {
       ),
       actions: [
         TextButton(
-          onPressed: () => Navigator.of(context).pop(),
+          onPressed: () {
+            // Dispatch action to clear timeAway
+            context.dispatchSync(DismissWelcomeBackDialogAction());
+            // Pop the dialog
+            Navigator.of(context).pop();
+          },
           child: const Text('OK'),
         ),
       ],

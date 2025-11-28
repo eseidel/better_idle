@@ -28,10 +28,25 @@ class UpdateActivityProgressAction extends ReduxAction<GlobalState> {
     final builder = StateUpdateBuilder(state);
     consumeTicks(builder, ticks);
     final changes = builder.changes;
-    if (!changes.isEmpty) {
-      toastService.showToast(changes);
+    final newState = builder.build();
+
+    // If dialog is open, accumulate changes into timeAway
+    if (state.timeAway != null && !changes.isEmpty) {
+      final mergedChanges = state.timeAway!.changes.merge(changes);
+      final updatedTimeAway = TimeAway(
+        duration: state.timeAway!.duration,
+        activeSkill: state.timeAway!.activeSkill,
+        changes: mergedChanges,
+      );
+      // Don't show toast - dialog shows changes
+      return newState.copyWith(timeAway: updatedTimeAway);
+    } else {
+      // No dialog open - show toast as before
+      if (!changes.isEmpty) {
+        toastService.showToast(changes);
+      }
+      return newState;
     }
-    return builder.build();
   }
 }
 
@@ -68,5 +83,58 @@ class AdvanceTicksAction extends ReduxAction<GlobalState> {
       changes: builder.changes,
     );
     return builder.build();
+  }
+}
+
+/// Calculates time away from pause and processes it, merging with existing timeAway if present.
+class ResumeFromPauseAction extends ReduxAction<GlobalState> {
+  @override
+  GlobalState reduce() {
+    // IMPORTANT: Calculate duration at the very start, before any state changes
+    final duration = DateTime.timestamp().difference(state.updatedAt);
+    final ticks = ticksFromDuration(duration);
+
+    // Process the ticks (inline AdvanceTicksAction logic)
+    final action = state.activeAction;
+    TimeAway newTimeAway;
+    GlobalState newState;
+
+    if (action == null) {
+      // No activity active, return empty changes
+      newTimeAway = TimeAway.empty();
+      newState = state;
+    } else {
+      final builder = StateUpdateBuilder(state);
+      consumeTicks(builder, ticks);
+      newTimeAway = TimeAway(
+        duration: Duration(milliseconds: ticks * tickDuration.inMilliseconds),
+        activeSkill: state.activeSkill,
+        changes: builder.changes,
+      );
+      newState = builder.build();
+    }
+
+    // Merge with existing timeAway if present
+    if (state.timeAway == null) {
+      // First resume - store new TimeAway
+      return newState.copyWith(timeAway: newTimeAway);
+    } else {
+      // Dialog still open - merge changes, keep original duration and activeSkill
+      final mergedChanges = state.timeAway!.changes.merge(newTimeAway.changes);
+      final mergedTimeAway = TimeAway(
+        duration: state.timeAway!.duration, // Keep original duration
+        activeSkill: state.timeAway!.activeSkill, // Keep original activeSkill
+        changes: mergedChanges,
+      );
+      return newState.copyWith(timeAway: mergedTimeAway);
+    }
+  }
+}
+
+/// Clears the welcome back dialog by removing timeAway from state.
+class DismissWelcomeBackDialogAction extends ReduxAction<GlobalState> {
+  @override
+  GlobalState reduce() {
+    return state.copyWith(timeAway: null);
   }
 }
