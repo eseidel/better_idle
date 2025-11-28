@@ -117,8 +117,8 @@ class ItemDetailsDrawer extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Hardcoded gold value to 1 for all items
-    const int goldValue = 1;
+    final itemData = itemRegistry.byName(item.name);
+    final formatter = NumberFormat('#,##0');
 
     return Drawer(
       child: SafeArea(
@@ -151,7 +151,10 @@ class ItemDetailsDrawer extends StatelessWidget {
                 style: Theme.of(context).textTheme.titleMedium,
               ),
               const SizedBox(height: 8),
-              Text('$goldValue', style: Theme.of(context).textTheme.bodyLarge),
+              Text(
+                '${formatter.format(itemData.sellsFor)} GP',
+                style: Theme.of(context).textTheme.bodyLarge,
+              ),
             ],
           ),
         ),
