@@ -259,6 +259,18 @@ class GlobalState {
     );
   }
 
+  GlobalState clearTimeAway() {
+    // This can't be copyWith since null means no-update.
+    return GlobalState(
+      inventory: inventory,
+      activeAction: activeAction,
+      skillStates: skillStates,
+      actionStates: actionStates,
+      updatedAt: DateTime.timestamp(),
+      timeAway: null,
+    );
+  }
+
   SkillState skillState(Skill skill) =>
       skillStates[skill] ?? SkillState.empty();
 

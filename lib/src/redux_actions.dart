@@ -103,6 +103,6 @@ class ResumeFromPauseAction extends ReduxAction<GlobalState> {
 class DismissWelcomeBackDialogAction extends ReduxAction<GlobalState> {
   @override
   GlobalState reduce() {
-    return state.copyWith(timeAway: null);
+    return state.clearTimeAway();
   }
 }
