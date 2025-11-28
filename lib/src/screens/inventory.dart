@@ -2,6 +2,7 @@ import 'package:better_idle/src/data/items.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
+import '../logic/redux_actions.dart';
 import '../state.dart';
 import '../widgets/context_extensions.dart';
 import '../widgets/navigation_drawer.dart';
@@ -110,15 +111,48 @@ class StackCell extends StatelessWidget {
   }
 }
 
-class ItemDetailsDrawer extends StatelessWidget {
+class ItemDetailsDrawer extends StatefulWidget {
   const ItemDetailsDrawer({required this.item, super.key});
 
   final ItemStack item;
 
   @override
+  State<ItemDetailsDrawer> createState() => _ItemDetailsDrawerState();
+}
+
+class _ItemDetailsDrawerState extends State<ItemDetailsDrawer> {
+  double _sellCount = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _sellCount = widget.item.count.toDouble();
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final itemData = itemRegistry.byName(item.name);
+    // Get current item count from state (may have changed after selling)
+    final currentItem = context.state.inventory.items.firstWhere(
+      (i) => i.name == widget.item.name,
+      orElse: () => widget.item,
+    );
+    final maxCount = currentItem.count;
+
+    // Update sell count if it exceeds current count or if item was removed
+    if (_sellCount > maxCount || maxCount == 0) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          setState(() {
+            _sellCount = maxCount > 0 ? maxCount.toDouble() : 0;
+          });
+        }
+      });
+    }
+
+    final itemData = itemRegistry.byName(widget.item.name);
     final formatter = NumberFormat('#,##0');
+    final sellCountInt = _sellCount.round();
+    final totalGpValue = itemData.sellsFor * sellCountInt;
 
     return Drawer(
       child: SafeArea(
@@ -144,7 +178,10 @@ class ItemDetailsDrawer extends StatelessWidget {
               const SizedBox(height: 16),
               Text('Name:', style: Theme.of(context).textTheme.titleMedium),
               const SizedBox(height: 8),
-              Text(item.name, style: Theme.of(context).textTheme.bodyLarge),
+              Text(
+                widget.item.name,
+                style: Theme.of(context).textTheme.bodyLarge,
+              ),
               const SizedBox(height: 24),
               Text(
                 'Gold Value:',
@@ -154,6 +191,55 @@ class ItemDetailsDrawer extends StatelessWidget {
               Text(
                 '${formatter.format(itemData.sellsFor)} GP',
                 style: Theme.of(context).textTheme.bodyLarge,
+              ),
+              const SizedBox(height: 32),
+              const Divider(),
+              const SizedBox(height: 16),
+              Text('Sell Item', style: Theme.of(context).textTheme.titleMedium),
+              const SizedBox(height: 16),
+              Text(
+                'Quantity: ${formatter.format(sellCountInt)}',
+                style: Theme.of(context).textTheme.bodyMedium,
+              ),
+              const SizedBox(height: 8),
+              Slider(
+                value: _sellCount,
+                min: 0,
+                max: maxCount > 0 ? maxCount.toDouble() : 1.0,
+                divisions: maxCount > 0 ? maxCount : null,
+                label: formatter.format(sellCountInt),
+                onChanged: maxCount > 0
+                    ? (value) {
+                        setState(() {
+                          _sellCount = value;
+                        });
+                      }
+                    : null,
+              ),
+              const SizedBox(height: 16),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: sellCountInt > 0
+                      ? () {
+                          context.dispatch(
+                            SellItemAction(
+                              itemName: widget.item.name,
+                              count: sellCountInt,
+                            ),
+                          );
+                          Navigator.of(context).pop();
+                        }
+                      : null,
+                  child: const Text('Sell'),
+                ),
+              ),
+              const SizedBox(height: 16),
+              Text(
+                'Total Value: ${formatter.format(totalGpValue)} GP',
+                style: Theme.of(
+                  context,
+                ).textTheme.bodyLarge?.copyWith(fontWeight: FontWeight.bold),
               ),
             ],
           ),

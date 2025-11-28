@@ -1,4 +1,5 @@
 import 'data/actions.dart';
+import 'data/items.dart';
 import 'logic/consume_ticks.dart';
 
 export 'package:async_redux/async_redux.dart';
@@ -47,6 +48,23 @@ class Inventory {
       orderedItems.add(item.name);
     } else {
       counts[item.name] = existingCount + item.count;
+    }
+    return Inventory._(counts: counts, orderedItems: orderedItems);
+  }
+
+  Inventory removing(ItemStack item) {
+    final counts = Map<String, int>.from(_counts);
+    final orderedItems = List<String>.from(_orderedItems);
+    final existingCount = counts[item.name];
+    if (existingCount == null) {
+      return this; // Item not in inventory, return unchanged
+    }
+    final newCount = existingCount - item.count;
+    if (newCount <= 0) {
+      counts.remove(item.name);
+      orderedItems.remove(item.name);
+    } else {
+      counts[item.name] = newCount;
     }
     return Inventory._(counts: counts, orderedItems: orderedItems);
   }
@@ -329,6 +347,15 @@ class GlobalState {
     final newActionStates = Map<String, ActionState>.from(actionStates);
     newActionStates[actionName] = newState;
     return copyWith(actionStates: newActionStates);
+  }
+
+  GlobalState sellItem(String itemName, int count) {
+    final itemStack = ItemStack(name: itemName, count: count);
+    final newInventory = inventory.removing(itemStack);
+    // Calculate GP value from items.dart
+    final itemData = itemRegistry.byName(itemName);
+    final gpEarned = itemData.sellsFor * count;
+    return copyWith(inventory: newInventory, gp: gp + gpEarned);
   }
 
   GlobalState copyWith({
