@@ -60,6 +60,22 @@ class TimeAway {
         activeSkill: null,
         changes: const Changes.empty(),
       );
+
+  TimeAway copyWith({
+    Duration? duration,
+    Skill? activeSkill,
+    Changes? changes,
+  }) {
+    return TimeAway(
+      duration: duration ?? this.duration,
+      activeSkill: activeSkill ?? this.activeSkill,
+      changes: changes ?? this.changes,
+    );
+  }
+
+  TimeAway mergeChanges(Changes changes) {
+    return copyWith(changes: this.changes.merge(changes));
+  }
 }
 
 class Counts<T> {

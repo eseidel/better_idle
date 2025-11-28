@@ -29,22 +29,19 @@ class UpdateActivityProgressAction extends ReduxAction<GlobalState> {
     consumeTicks(builder, ticks);
     final changes = builder.changes;
     final newState = builder.build();
+    if (changes.isEmpty) {
+      return newState;
+    }
 
     // If dialog is open, accumulate changes into timeAway
-    if (state.timeAway != null && !changes.isEmpty) {
-      final mergedChanges = state.timeAway!.changes.merge(changes);
-      final updatedTimeAway = TimeAway(
-        duration: state.timeAway!.duration,
-        activeSkill: state.timeAway!.activeSkill,
-        changes: mergedChanges,
-      );
+    final existingTimeAway = state.timeAway;
+    if (existingTimeAway != null && !changes.isEmpty) {
+      final timeAway = existingTimeAway.mergeChanges(changes);
       // Don't show toast - dialog shows changes
-      return newState.copyWith(timeAway: updatedTimeAway);
+      return newState.copyWith(timeAway: timeAway);
     } else {
-      // No dialog open - show toast as before
-      if (!changes.isEmpty) {
-        toastService.showToast(changes);
-      }
+      // No dialog open - show toast
+      toastService.showToast(changes);
       return newState;
     }
   }
