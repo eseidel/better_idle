@@ -17,10 +17,12 @@ use it.
 
 ### MVP
 
+- Fix TimeAway to track start/end time and update end time.
 - Track per-item mastery and levels.
 - Show offline progression dialog on load.
 - Track gold as a resource.
 - Make it possible to inspect items and sell them.
+- Add a shop.
 - Make inventory fixed-size
 - Add a store to purchase inventory slots.
 - Allow buying of skill upgrades (e.g. faster axe)
