@@ -18,6 +18,7 @@ void main() {
         'Oak Tree': ActionState(masteryXp: 10),
       },
       updatedAt: DateTime(2024, 1, 1, 12, 0, 0),
+      gp: 0,
       timeAway: TimeAway(
         duration: Duration(seconds: 30),
         activeSkill: Skill.woodcutting,
@@ -93,6 +94,7 @@ void main() {
       skillStates: {Skill.woodcutting: SkillState(xp: 100, masteryXp: 50)},
       actionStates: {'Normal Tree': ActionState(masteryXp: 25)},
       updatedAt: DateTime(2024, 1, 1, 12, 0, 0),
+      gp: 0,
       timeAway: null,
     );
 
@@ -113,6 +115,7 @@ void main() {
       skillStates: {Skill.woodcutting: SkillState(xp: 100, masteryXp: 50)},
       actionStates: {'Normal Tree': ActionState(masteryXp: 25)},
       updatedAt: DateTime(2024, 1, 1, 12, 0, 0),
+      gp: 0,
       timeAway: TimeAway(
         duration: Duration(seconds: 30),
         activeSkill: Skill.woodcutting,

@@ -160,6 +160,7 @@ class GlobalState {
     required this.skillStates,
     required this.actionStates,
     required this.updatedAt,
+    required this.gp,
     this.timeAway,
   });
 
@@ -170,6 +171,7 @@ class GlobalState {
         skillStates: {},
         actionStates: {},
         updatedAt: DateTime.timestamp(),
+        gp: 0,
         timeAway: null,
       );
 
@@ -195,6 +197,7 @@ class GlobalState {
             ),
           ) ??
           {},
+      gp = json['gp'] as int? ?? 0,
       timeAway = json['timeAway'] != null
           ? TimeAway.fromJson(json['timeAway'])
           : null;
@@ -209,6 +212,7 @@ class GlobalState {
       'actionStates': actionStates.map(
         (key, value) => MapEntry(key, value.toJson()),
       ),
+      'gp': gp,
       'timeAway': timeAway?.toJson(),
     };
   }
@@ -227,6 +231,9 @@ class GlobalState {
 
   /// The accumulated action states.
   final Map<String, ActionState> actionStates;
+
+  /// The current gold pieces (GP) the player has.
+  final int gp;
 
   /// Time away represents the accumulated changes since the last time the
   /// user interacted with the app.  It is persisted to disk, for the case in
@@ -256,6 +263,7 @@ class GlobalState {
       skillStates: skillStates,
       actionStates: actionStates,
       updatedAt: DateTime.timestamp(),
+      gp: gp,
     );
   }
 
@@ -267,6 +275,7 @@ class GlobalState {
       skillStates: skillStates,
       actionStates: actionStates,
       updatedAt: DateTime.timestamp(),
+      gp: gp,
       timeAway: null,
     );
   }
@@ -327,6 +336,7 @@ class GlobalState {
     ActiveAction? activeAction,
     Map<Skill, SkillState>? skillStates,
     Map<String, ActionState>? actionStates,
+    int? gp,
     TimeAway? timeAway,
   }) {
     return GlobalState(
@@ -335,6 +345,7 @@ class GlobalState {
       skillStates: skillStates ?? this.skillStates,
       actionStates: actionStates ?? this.actionStates,
       updatedAt: DateTime.timestamp(),
+      gp: gp ?? this.gp,
       timeAway: timeAway ?? this.timeAway,
     );
   }
