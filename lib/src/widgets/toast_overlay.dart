@@ -2,8 +2,8 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
+import '../consume_ticks.dart';
 import '../services/toast_service.dart';
-import '../state.dart';
 
 class ToastOverlay extends StatefulWidget {
   const ToastOverlay({required this.child, required this.service, super.key});

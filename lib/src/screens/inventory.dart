@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../state.dart';
+import '../widgets/context_extensions.dart';
 import '../widgets/navigation_drawer.dart';
 
 class InventoryPage extends StatelessWidget {

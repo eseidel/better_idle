@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import '../state.dart';
+import '../consume_ticks.dart';
 
 /// A dialog shown when returning to the app after being away.
 /// Displays the changes (inventory and XP) that occurred while away.

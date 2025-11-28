@@ -1,4 +1,5 @@
 import 'package:better_idle/src/activities.dart';
+import 'package:better_idle/src/consume_ticks.dart';
 import 'package:better_idle/src/state.dart';
 import 'package:flutter_test/flutter_test.dart';
 
