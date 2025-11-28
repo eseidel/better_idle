@@ -58,6 +58,22 @@ class StopActionAction extends ReduxAction<GlobalState> {
   }
 }
 
+(TimeAway, GlobalState) consumeManyTicks(GlobalState state, Tick ticks) {
+  final action = state.activeAction;
+  if (action == null) {
+    // No activity active, return empty changes
+    return (TimeAway.empty(), state);
+  }
+  final builder = StateUpdateBuilder(state);
+  consumeTicks(builder, ticks);
+  final timeAway = TimeAway(
+    duration: Duration(milliseconds: ticks * tickDuration.inMilliseconds),
+    activeSkill: state.activeSkill,
+    changes: builder.changes,
+  );
+  return (timeAway, builder.build());
+}
+
 /// Advances the game by a specified number of ticks and returns the changes.
 /// Unlike UpdateActionProgressAction, this does not show toasts.
 class AdvanceTicksAction extends ReduxAction<GlobalState> {
@@ -69,65 +85,31 @@ class AdvanceTicksAction extends ReduxAction<GlobalState> {
 
   @override
   GlobalState reduce() {
-    final action = state.activeAction;
-    if (action == null) {
-      // No activity active, return empty changes
-      timeAway = TimeAway.empty();
-      return state;
-    }
-    final builder = StateUpdateBuilder(state);
-    consumeTicks(builder, ticks);
-    timeAway = TimeAway(
-      duration: Duration(milliseconds: ticks * tickDuration.inMilliseconds),
-      activeSkill: state.activeSkill,
-      changes: builder.changes,
-    );
-    return builder.build();
+    final (timeAway, newState) = consumeManyTicks(state, ticks);
+    return newState;
   }
+}
+
+TimeAway mergeTimeAway(TimeAway? previousTimeAway, TimeAway newTimeAway) {
+  if (previousTimeAway == null) {
+    return newTimeAway;
+  }
+  return TimeAway(
+    duration: previousTimeAway.duration, // Keep original duration
+    activeSkill: previousTimeAway.activeSkill,
+    changes: previousTimeAway.changes.merge(newTimeAway.changes),
+  );
 }
 
 /// Calculates time away from pause and processes it, merging with existing timeAway if present.
 class ResumeFromPauseAction extends ReduxAction<GlobalState> {
   @override
   GlobalState reduce() {
-    // IMPORTANT: Calculate duration at the very start, before any state changes
     final duration = DateTime.timestamp().difference(state.updatedAt);
     final ticks = ticksFromDuration(duration);
-
-    // Process the ticks (inline AdvanceTicksAction logic)
-    final action = state.activeAction;
-    TimeAway newTimeAway;
-    GlobalState newState;
-
-    if (action == null) {
-      // No activity active, return empty changes
-      newTimeAway = TimeAway.empty();
-      newState = state;
-    } else {
-      final builder = StateUpdateBuilder(state);
-      consumeTicks(builder, ticks);
-      newTimeAway = TimeAway(
-        duration: Duration(milliseconds: ticks * tickDuration.inMilliseconds),
-        activeSkill: state.activeSkill,
-        changes: builder.changes,
-      );
-      newState = builder.build();
-    }
-
-    // Merge with existing timeAway if present
-    if (state.timeAway == null) {
-      // First resume - store new TimeAway
-      return newState.copyWith(timeAway: newTimeAway);
-    } else {
-      // Dialog still open - merge changes, keep original duration and activeSkill
-      final mergedChanges = state.timeAway!.changes.merge(newTimeAway.changes);
-      final mergedTimeAway = TimeAway(
-        duration: state.timeAway!.duration, // Keep original duration
-        activeSkill: state.timeAway!.activeSkill, // Keep original activeSkill
-        changes: mergedChanges,
-      );
-      return newState.copyWith(timeAway: mergedTimeAway);
-    }
+    final (newTimeAway, newState) = consumeManyTicks(state, ticks);
+    final timeAway = mergeTimeAway(state.timeAway, newTimeAway);
+    return newState.copyWith(timeAway: timeAway);
   }
 }
 
