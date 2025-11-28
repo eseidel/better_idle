@@ -107,6 +107,22 @@ class Counts<T> {
   const Counts({required this.counts});
   final Map<T, int> counts;
 
+  // There must be a better way to do this in Dart?
+  static dynamic toJsonKey<T>(T key) {
+    if (key is Skill) {
+      return key.name;
+    }
+    return key;
+  }
+
+  // There must be a better way to do this in Dart?
+  static T fromJsonKey<T>(dynamic key) {
+    if (T == Skill) {
+      return Skill.fromName(key as String) as T;
+    }
+    return key as T;
+  }
+
   const Counts.empty() : this(counts: const {});
 
   Counts<T> add(Counts<T> other) {
@@ -130,16 +146,17 @@ class Counts<T> {
   bool get isNotEmpty => counts.isNotEmpty;
 
   Map<String, dynamic> toJson() {
-    // For Skill enums, use the name property instead of toString()
-    // For other types, use toString()
-    return {
-      'counts': counts.map(
-        (key, value) => MapEntry(
-          key is Skill ? (key as Skill).name : key.toString(),
-          value,
+    return counts.map((key, value) => MapEntry(Counts.toJsonKey(key), value));
+  }
+
+  factory Counts.fromJson(Map<String, dynamic> json) {
+    return Counts<T>(
+      counts: Map<T, int>.from(
+        json.map(
+          (key, value) => MapEntry(Counts.fromJsonKey<T>(key), value as int),
         ),
       ),
-    };
+    );
   }
 }
 
@@ -187,29 +204,13 @@ class Changes {
   }
 
   factory Changes.fromJson(Map<String, dynamic> json) {
-    // Counts.toJson() returns {'counts': {...}}, so we need to extract the inner map
-    final inventoryChangesJson =
-        json['inventoryChanges'] as Map<String, dynamic>;
-    final inventoryCountsJson =
-        inventoryChangesJson['counts'] as Map<String, dynamic>;
-
-    final skillXpChangesJson = json['skillXpChanges'] as Map<String, dynamic>;
-    final skillXpCountsJson =
-        skillXpChangesJson['counts'] as Map<String, dynamic>;
-
+    final inventoryCountsJson = Counts<String>.fromJson(
+      json['inventoryChanges'],
+    );
+    final skillXpCountsJson = Counts<Skill>.fromJson(json['skillXpChanges']);
     return Changes(
-      inventoryChanges: Counts<String>(
-        counts: Map<String, int>.from(
-          inventoryCountsJson.map((key, value) => MapEntry(key, value as int)),
-        ),
-      ),
-      skillXpChanges: Counts<Skill>(
-        counts: Map<Skill, int>.from(
-          skillXpCountsJson.map(
-            (key, value) => MapEntry(Skill.fromName(key), value as int),
-          ),
-        ),
-      ),
+      inventoryChanges: inventoryCountsJson,
+      skillXpChanges: skillXpCountsJson,
     );
   }
 }
