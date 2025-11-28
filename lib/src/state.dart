@@ -1,4 +1,5 @@
 import 'activities.dart';
+import 'consume_ticks.dart';
 
 export 'package:async_redux/async_redux.dart';
 
@@ -159,6 +160,7 @@ class GlobalState {
     required this.skillStates,
     required this.actionStates,
     required this.updatedAt,
+    this.timeAway,
   });
 
   GlobalState.empty()
@@ -168,6 +170,7 @@ class GlobalState {
         skillStates: {},
         actionStates: {},
         updatedAt: DateTime.timestamp(),
+        timeAway: null,
       );
 
   GlobalState.fromJson(Map<String, dynamic> json)
@@ -191,7 +194,10 @@ class GlobalState {
               ActionState.fromJson(value as Map<String, dynamic>),
             ),
           ) ??
-          {};
+          {},
+      timeAway = json['timeAway'] != null
+          ? TimeAway.fromJson(json['timeAway'])
+          : null;
   Map<String, dynamic> toJson() {
     return {
       'updatedAt': updatedAt.toIso8601String(),
@@ -203,21 +209,34 @@ class GlobalState {
       'actionStates': actionStates.map(
         (key, value) => MapEntry(key, value.toJson()),
       ),
+      'timeAway': timeAway?.toJson(),
     };
   }
 
+  /// The last time the state was updated (created since it's immutable).
   final DateTime updatedAt;
+
+  /// The inventory of items.
   final Inventory inventory;
+
+  /// The active action.
   final ActiveAction? activeAction;
+
+  /// The accumulated skill states.
   final Map<Skill, SkillState> skillStates;
+
+  /// The accumulated action states.
   final Map<String, ActionState> actionStates;
 
-  String? get activeActionName => activeAction?.name;
+  /// Time away represents the accumulated changes since the last time the
+  /// user interacted with the app.  It is persisted to disk, for the case in
+  /// which the user kills the app with the "welcome back" dialog open.
+  final TimeAway? timeAway;
 
   bool get isActive => activeAction != null;
 
   Skill? get activeSkill {
-    final name = activeActionName;
+    final name = activeAction?.name;
     if (name == null) {
       return null;
     }
@@ -237,6 +256,18 @@ class GlobalState {
       skillStates: skillStates,
       actionStates: actionStates,
       updatedAt: DateTime.timestamp(),
+    );
+  }
+
+  GlobalState clearTimeAway() {
+    // This can't be copyWith since null means no-update.
+    return GlobalState(
+      inventory: inventory,
+      activeAction: activeAction,
+      skillStates: skillStates,
+      actionStates: actionStates,
+      updatedAt: DateTime.timestamp(),
+      timeAway: null,
     );
   }
 
@@ -296,6 +327,7 @@ class GlobalState {
     ActiveAction? activeAction,
     Map<Skill, SkillState>? skillStates,
     Map<String, ActionState>? actionStates,
+    TimeAway? timeAway,
   }) {
     return GlobalState(
       inventory: inventory ?? this.inventory,
@@ -303,6 +335,7 @@ class GlobalState {
       skillStates: skillStates ?? this.skillStates,
       actionStates: actionStates ?? this.actionStates,
       updatedAt: DateTime.timestamp(),
+      timeAway: timeAway ?? this.timeAway,
     );
   }
 }

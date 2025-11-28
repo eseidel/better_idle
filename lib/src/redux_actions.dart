@@ -28,10 +28,22 @@ class UpdateActivityProgressAction extends ReduxAction<GlobalState> {
     final builder = StateUpdateBuilder(state);
     consumeTicks(builder, ticks);
     final changes = builder.changes;
-    if (!changes.isEmpty) {
-      toastService.showToast(changes);
+    final newState = builder.build();
+    if (changes.isEmpty) {
+      return newState;
     }
-    return builder.build();
+
+    // If dialog is open, accumulate changes into timeAway
+    final existingTimeAway = state.timeAway;
+    if (existingTimeAway != null && !changes.isEmpty) {
+      final timeAway = existingTimeAway.mergeChanges(changes);
+      // Don't show toast - dialog shows changes
+      return newState.copyWith(timeAway: timeAway);
+    } else {
+      // Otherwise, no dialog open - show toast
+      toastService.showToast(changes);
+      return newState;
+    }
   }
 }
 
@@ -41,6 +53,22 @@ class StopActionAction extends ReduxAction<GlobalState> {
     // This might need to either wait for the activity to finish, or cancel it?
     return state.clearAction();
   }
+}
+
+(TimeAway, GlobalState) consumeManyTicks(GlobalState state, Tick ticks) {
+  final action = state.activeAction;
+  if (action == null) {
+    // No activity active, return empty changes
+    return (TimeAway.empty(), state);
+  }
+  final builder = StateUpdateBuilder(state);
+  consumeTicks(builder, ticks);
+  final timeAway = TimeAway(
+    duration: Duration(milliseconds: ticks * tickDuration.inMilliseconds),
+    activeSkill: state.activeSkill,
+    changes: builder.changes,
+  );
+  return (timeAway, builder.build());
 }
 
 /// Advances the game by a specified number of ticks and returns the changes.
@@ -54,19 +82,27 @@ class AdvanceTicksAction extends ReduxAction<GlobalState> {
 
   @override
   GlobalState reduce() {
-    final action = state.activeAction;
-    if (action == null) {
-      // No activity active, return empty changes
-      timeAway = TimeAway.empty();
-      return state;
-    }
-    final builder = StateUpdateBuilder(state);
-    consumeTicks(builder, ticks);
-    timeAway = TimeAway(
-      duration: Duration(milliseconds: ticks * tickDuration.inMilliseconds),
-      activeSkill: state.activeSkill,
-      changes: builder.changes,
-    );
-    return builder.build();
+    final (timeAway, newState) = consumeManyTicks(state, ticks);
+    return newState;
+  }
+}
+
+/// Calculates time away from pause and processes it, merging with existing timeAway if present.
+class ResumeFromPauseAction extends ReduxAction<GlobalState> {
+  @override
+  GlobalState reduce() {
+    final duration = DateTime.timestamp().difference(state.updatedAt);
+    final ticks = ticksFromDuration(duration);
+    final (newTimeAway, newState) = consumeManyTicks(state, ticks);
+    final timeAway = newTimeAway.maybeMergeInto(state.timeAway);
+    return newState.copyWith(timeAway: timeAway);
+  }
+}
+
+/// Clears the welcome back dialog by removing timeAway from state.
+class DismissWelcomeBackDialogAction extends ReduxAction<GlobalState> {
+  @override
+  GlobalState reduce() {
+    return state.clearTimeAway();
   }
 }
