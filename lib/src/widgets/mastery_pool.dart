@@ -49,12 +49,14 @@ class MasteryPoolProgress extends StatelessWidget {
 class MasteryProgressCell extends StatelessWidget {
   const MasteryProgressCell({super.key, required this.masteryXp});
   final int masteryXp;
+
   @override
   Widget build(BuildContext context) {
     final progress = xpProgressForXp(masteryXp);
     return Row(
       children: [
         Text('🏆 ${progress.level}'),
+        SizedBox(width: 8),
         Column(
           children: [
             Text('$masteryXp / ${progress.nextLevelXp}'),

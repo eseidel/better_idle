@@ -271,7 +271,7 @@ class GlobalState {
     return _updateSkillState(skill, newState);
   }
 
-  GlobalState addMasteryXp(Skill skill, int amount) {
+  GlobalState addSkillMasteryXp(Skill skill, int amount) {
     final oldState = skillState(skill);
     final newState = oldState.copyWith(masteryXp: oldState.masteryXp + amount);
     return _updateSkillState(skill, newState);
@@ -281,6 +281,14 @@ class GlobalState {
     final newSkillStates = Map<Skill, SkillState>.from(skillStates);
     newSkillStates[skill] = state;
     return copyWith(skillStates: newSkillStates);
+  }
+
+  GlobalState addActionMasteryXp(String actionName, int amount) {
+    final oldState = actionState(actionName);
+    final newState = oldState.copyWith(masteryXp: oldState.masteryXp + amount);
+    final newActionStates = Map<String, ActionState>.from(actionStates);
+    newActionStates[actionName] = newState;
+    return copyWith(actionStates: newActionStates);
   }
 
   GlobalState copyWith({

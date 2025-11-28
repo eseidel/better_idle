@@ -147,14 +147,18 @@ class StateUpdateBuilder {
     _changes = _changes.addingSkillXp(skill, amount);
   }
 
-  void addMasteryXp(Skill skill, int amount) {
-    _state = _state.addMasteryXp(skill, amount);
-    // Mastery XP is not tracked in the changes object.
+  void addSkillMasteryXp(Skill skill, int amount) {
+    _state = _state.addSkillMasteryXp(skill, amount);
+    // Skill Mastery XP is not tracked in the changes object.
   }
 
-  GlobalState build() {
-    return _state;
+  void addActionMasteryXp(String actionName, int amount) {
+    _state = _state.addActionMasteryXp(actionName, amount);
+    // Action Mastery XP is not tracked in the changes object.
+    // Probably getting to 99 is?
   }
+
+  GlobalState build() => _state;
 
   Changes get changes => _changes;
 }
@@ -172,7 +176,10 @@ void completeAction(StateUpdateBuilder builder, Action action) {
     builder.addInventory(reward);
   }
   builder.addSkillXp(action.skill, action.xp);
-  builder.addMasteryXp(action.skill, masteryXpPerAction(builder.state, action));
+  final masteryXpToAdd = masteryXpPerAction(builder.state, action);
+  builder.addActionMasteryXp(action.name, masteryXpToAdd);
+  final skillMasteryXp = max(1, (0.25 * masteryXpToAdd).toInt());
+  builder.addSkillMasteryXp(action.skill, skillMasteryXp);
 }
 
 void consumeTicks(StateUpdateBuilder builder, Tick ticks) {
