@@ -1,6 +1,6 @@
-import 'consume_ticks.dart';
 import '../services/toast_service.dart';
 import '../state.dart';
+import 'consume_ticks.dart';
 
 export 'package:async_redux/async_redux.dart';
 
@@ -104,5 +104,17 @@ class DismissWelcomeBackDialogAction extends ReduxAction<GlobalState> {
   @override
   GlobalState reduce() {
     return state.clearTimeAway();
+  }
+}
+
+/// Sells a specified quantity of an item.
+class SellItemAction extends ReduxAction<GlobalState> {
+  SellItemAction({required this.itemName, required this.count});
+  final String itemName;
+  final int count;
+
+  @override
+  GlobalState reduce() {
+    return state.sellItem(itemName, count);
   }
 }
