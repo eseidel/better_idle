@@ -216,17 +216,21 @@ class GlobalState {
 
   bool get isActive => activeAction != null;
 
-  Skill? get activeSkill => activeAction != null
-      ? actionRegistry.byName(activeAction!.name).skill
-      : null;
+  Skill? get activeSkill {
+    final name = activeActionName;
+    if (name == null) {
+      return null;
+    }
+    return actionRegistry.byName(name).skill;
+  }
 
   GlobalState startAction(Action action) {
-    return copyWith(
-      activeAction: ActiveAction(name: action.name, progressTicks: 0),
-    );
+    final name = action.name;
+    return copyWith(activeAction: ActiveAction(name: name, progressTicks: 0));
   }
 
   GlobalState clearAction() {
+    // This can't be copyWith since null means no-update.
     return GlobalState(
       inventory: inventory,
       activeAction: null,
@@ -252,30 +256,30 @@ class GlobalState {
     return activeAction!.progressTicks;
   }
 
-  GlobalState updateAction(String actionName, int progressTicks) {
-    if (activeAction?.name != actionName) {
-      return this;
+  GlobalState updateActiveAction(String actionName, int progressTicks) {
+    final activeAction = this.activeAction;
+    if (activeAction == null || activeAction.name != actionName) {
+      throw Exception('Active action is not $actionName');
     }
-    return copyWith(
-      activeAction: activeAction!.copyWith(progressTicks: progressTicks),
-    );
+    final newActiveAction = activeAction.copyWith(progressTicks: progressTicks);
+    return copyWith(activeAction: newActiveAction);
   }
 
   GlobalState addSkillXp(Skill skill, int amount) {
-    final newState = skillState(
-      skill,
-    ).copyWith(xp: skillState(skill).xp + amount);
-    final newSkillStates = Map<Skill, SkillState>.from(skillStates);
-    newSkillStates[skill] = newState;
-    return copyWith(skillStates: newSkillStates);
+    final oldState = skillState(skill);
+    final newState = oldState.copyWith(xp: oldState.xp + amount);
+    return _updateSkillState(skill, newState);
   }
 
   GlobalState addMasteryXp(Skill skill, int amount) {
-    final newState = skillState(
-      skill,
-    ).copyWith(masteryXp: skillState(skill).masteryXp + amount);
+    final oldState = skillState(skill);
+    final newState = oldState.copyWith(masteryXp: oldState.masteryXp + amount);
+    return _updateSkillState(skill, newState);
+  }
+
+  GlobalState _updateSkillState(Skill skill, SkillState state) {
     final newSkillStates = Map<Skill, SkillState>.from(skillStates);
-    newSkillStates[skill] = newState;
+    newSkillStates[skill] = state;
     return copyWith(skillStates: newSkillStates);
   }
 

@@ -132,7 +132,7 @@ class StateUpdateBuilder {
   GlobalState get state => _state;
 
   void setActionProgress(Action action, int progress) {
-    _state = _state.updateAction(action.name, progress);
+    _state = _state.updateActiveAction(action.name, progress);
   }
 
   void addInventory(ItemStack item) {
