@@ -78,7 +78,7 @@ class _ToastOverlayState extends State<ToastOverlay>
     }
 
     // Add xp change bubbles
-    for (final entry in _currentData!.xpChanges.entries) {
+    for (final entry in _currentData!.skillXpChanges.entries) {
       bubbles.add(_buildBubble('+${entry.value} ${entry.key} xp'));
     }
 

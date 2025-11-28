@@ -36,8 +36,8 @@ class WelcomeBackDialog extends StatelessWidget {
               style: TextStyle(fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 16),
-            if (changes.xpChanges.isNotEmpty) ...[
-              ...changes.xpChanges.entries.map(
+            if (changes.skillXpChanges.isNotEmpty) ...[
+              ...changes.skillXpChanges.entries.map(
                 (entry) => Padding(
                   padding: const EdgeInsets.only(left: 16, bottom: 4),
                   child: Text('+${entry.value} ${entry.key.name} xp'),

@@ -32,7 +32,7 @@ void main() {
 
       // Also validate that builder.changes contains the expected inventory and xp changes.
       expect(builder.changes.inventoryChanges.counts, {'Normal Logs': 1});
-      expect(builder.changes.xpChanges.counts, {
+      expect(builder.changes.skillXpChanges.counts, {
         normalTree.skill: normalTree.xp,
       });
     });
@@ -62,7 +62,7 @@ void main() {
 
       // Also validate that builder.changes contains the expected inventory and xp changes.
       expect(builder.changes.inventoryChanges.counts, {'Normal Logs': 5});
-      expect(builder.changes.xpChanges.counts, {
+      expect(builder.changes.skillXpChanges.counts, {
         normalTree.skill: normalTree.xp * 5,
       });
     });
@@ -119,9 +119,9 @@ void main() {
       // Start action
       state = state.startAction(oakTree);
 
-      // Advance time by exactly 2 completions (60 ticks = 6 seconds)
+      // Advance time by exactly 2 completions (80 ticks = 8 seconds, since Oak Tree takes 4 seconds per completion)
       final builder = StateUpdateBuilder(state);
-      consumeTicks(builder, 60);
+      consumeTicks(builder, 80);
       state = builder.build();
 
       // Verify activity progress reset to 0
@@ -185,6 +185,34 @@ void main() {
       // Normal Tree has 1 reward, so we should have 3 of that item
       expect(state.inventory.items.length, 1);
       expect(state.inventory.items.first.count, 3);
+    });
+
+    test('consuming ticks for 1 completion adds mastery XP', () {
+      var state = GlobalState.empty();
+
+      // Start action
+      state = state.startAction(normalTree);
+
+      // Verify initial mastery XP is 0
+      expect(state.skillState(normalTree.skill).masteryXp, 0);
+
+      // Advance time by exactly 1 completion (30 ticks = 3 seconds)
+      final builder = StateUpdateBuilder(state);
+      consumeTicks(builder, 30);
+      state = builder.build();
+
+      // Verify mastery XP increased
+      final masteryXpAfterFirst = state.skillState(normalTree.skill).masteryXp;
+      expect(masteryXpAfterFirst, greaterThan(0));
+
+      // Advance time by exactly 1 more completion
+      final builder2 = StateUpdateBuilder(state);
+      consumeTicks(builder2, 30);
+      state = builder2.build();
+
+      // Verify mastery XP increased again
+      final masteryXpAfterSecond = state.skillState(normalTree.skill).masteryXp;
+      expect(masteryXpAfterSecond, greaterThan(masteryXpAfterFirst));
     });
   });
 }

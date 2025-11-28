@@ -89,36 +89,38 @@ class Counts<T> {
 }
 
 class Changes {
-  const Changes({required this.inventoryChanges, required this.xpChanges});
+  const Changes({required this.inventoryChanges, required this.skillXpChanges});
   final Counts<String> inventoryChanges;
-  final Counts<Skill> xpChanges;
+  final Counts<Skill> skillXpChanges;
+  // We don't bother tracking mastery XP changes since they're not displayed
+  // in the welcome back dialog.
 
   const Changes.empty()
     : this(
         inventoryChanges: const Counts<String>.empty(),
-        xpChanges: const Counts<Skill>.empty(),
+        skillXpChanges: const Counts<Skill>.empty(),
       );
 
   Changes merge(Changes other) {
     return Changes(
       inventoryChanges: inventoryChanges.add(other.inventoryChanges),
-      xpChanges: xpChanges.add(other.xpChanges),
+      skillXpChanges: skillXpChanges.add(other.skillXpChanges),
     );
   }
 
-  bool get isEmpty => inventoryChanges.isEmpty && xpChanges.isEmpty;
+  bool get isEmpty => inventoryChanges.isEmpty && skillXpChanges.isEmpty;
 
   Changes adding(ItemStack item) {
     return Changes(
       inventoryChanges: inventoryChanges.addCount(item.name, item.count),
-      xpChanges: xpChanges,
+      skillXpChanges: skillXpChanges,
     );
   }
 
-  Changes addingXp(Skill skill, int amount) {
+  Changes addingSkillXp(Skill skill, int amount) {
     return Changes(
       inventoryChanges: inventoryChanges,
-      xpChanges: xpChanges.addCount(skill, amount),
+      skillXpChanges: skillXpChanges.addCount(skill, amount),
     );
   }
 }
@@ -142,12 +144,12 @@ class StateUpdateBuilder {
 
   void addSkillXp(Skill skill, int amount) {
     _state = _state.addSkillXp(skill, amount);
-    _changes = _changes.addingXp(skill, amount);
+    _changes = _changes.addingSkillXp(skill, amount);
   }
 
   void addMasteryXp(Skill skill, int amount) {
     _state = _state.addMasteryXp(skill, amount);
-    _changes = _changes.addingXp(skill, amount);
+    // Mastery XP is not tracked in the changes object.
   }
 
   GlobalState build() {
