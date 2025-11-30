@@ -26,3 +26,5 @@ use it.
 - Make inventory fixed-size
 - Add a store to purchase inventory slots.
 - Allow buying of skill upgrades (e.g. faster axe)
+- Welcome back should show levels gained.
+- Welcome back should show items lost to full inventory.
