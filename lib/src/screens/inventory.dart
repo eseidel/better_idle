@@ -37,6 +37,9 @@ class _InventoryPageState extends State<InventoryPage> {
   Widget build(BuildContext context) {
     final sellValue = totalSellValue(context.state.inventory);
     final formatter = NumberFormat('#,##0');
+    final state = context.state;
+    final inventoryUsed = state.inventoryUsed;
+    final inventoryCapacity = state.inventoryCapacity;
     return Scaffold(
       key: _scaffoldKey,
       appBar: AppBar(title: const Text('Inventory')),
@@ -46,7 +49,13 @@ class _InventoryPageState extends State<InventoryPage> {
           : null,
       body: Column(
         children: [
-          Text('Bank: ${formatter.format(sellValue)} GP'),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+            children: [
+              Text('Bank: ${formatter.format(sellValue)} GP'),
+              Text('Capacity: $inventoryUsed/$inventoryCapacity'),
+            ],
+          ),
           Expanded(
             child: ItemGrid(
               stacks: context.state.inventory.items,
@@ -75,15 +84,12 @@ class ItemGrid extends StatelessWidget {
         mainAxisSpacing: 12,
         childAspectRatio: 1,
       ),
-      itemCount: 16, // Fixed number of slots for illustration
+      itemCount: stacks.length, // Only show actual items, no empty cells
       itemBuilder: (context, index) {
-        if (index < stacks.length) {
-          return StackCell(
-            stack: stacks[index],
-            onTap: () => onItemTap(stacks[index]),
-          );
-        }
-        return Container();
+        return StackCell(
+          stack: stacks[index],
+          onTap: () => onItemTap(stacks[index]),
+        );
       },
     );
   }
