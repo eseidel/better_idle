@@ -1,7 +1,6 @@
+import 'package:better_idle/src/data/xp.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
-
-import '../data/xp.dart';
 
 class SkillProgress extends StatelessWidget {
   const SkillProgress({required this.xp, super.key});
@@ -20,9 +19,8 @@ class SkillProgress extends StatelessWidget {
     final valueStyle = Theme.of(context).textTheme.bodyMedium;
 
     return Padding(
-      padding: const EdgeInsets.all(16.0),
+      padding: const EdgeInsets.all(16),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
           LinearProgressIndicator(value: xpProgress.progress),
           const SizedBox(height: 8),

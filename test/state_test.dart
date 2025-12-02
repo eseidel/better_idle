@@ -10,18 +10,20 @@ void main() {
     // Create a state with TimeAway data
     final originalState = GlobalState(
       inventory: Inventory.fromItems([
-        ItemStack(name: 'Normal Logs', count: 5),
-        ItemStack(name: 'Oak Logs', count: 3),
+        const ItemStack(name: 'Normal Logs', count: 5),
+        const ItemStack(name: 'Oak Logs', count: 3),
       ]),
-      activeAction: ActiveAction(name: 'Normal Tree', progressTicks: 15),
-      skillStates: {Skill.woodcutting: SkillState(xp: 100, masteryXp: 50)},
-      actionStates: {
-        'Normal Tree': ActionState(masteryXp: 25),
-        'Oak Tree': ActionState(masteryXp: 10),
+      activeAction: const ActiveAction(name: 'Normal Tree', progressTicks: 15),
+      skillStates: {
+        Skill.woodcutting: const SkillState(xp: 100, masteryXp: 50),
       },
-      updatedAt: DateTime(2024, 1, 1, 12, 0, 0),
+      actionStates: {
+        'Normal Tree': const ActionState(masteryXp: 25),
+        'Oak Tree': const ActionState(masteryXp: 10),
+      },
+      updatedAt: DateTime(2024, 1, 1, 12),
       gp: 0,
-      timeAway: TimeAway(
+      timeAway: const TimeAway(
         duration: Duration(seconds: 30),
         activeSkill: Skill.woodcutting,
         changes: Changes(
@@ -60,7 +62,7 @@ void main() {
 
     // Verify TimeAway data
     expect(roundTrippedState.timeAway, isNotNull);
-    expect(roundTrippedState.timeAway!.duration, Duration(seconds: 30));
+    expect(roundTrippedState.timeAway!.duration, const Duration(seconds: 30));
     expect(roundTrippedState.timeAway!.activeSkill, Skill.woodcutting);
     expect(
       roundTrippedState.timeAway!.changes.inventoryChanges.counts.length,
@@ -90,14 +92,15 @@ void main() {
     // Create a state with an activeAction
     final stateWithAction = GlobalState(
       inventory: Inventory.fromItems([
-        ItemStack(name: 'Normal Logs', count: 5),
+        const ItemStack(name: 'Normal Logs', count: 5),
       ]),
-      activeAction: ActiveAction(name: 'Normal Tree', progressTicks: 15),
-      skillStates: {Skill.woodcutting: SkillState(xp: 100, masteryXp: 50)},
-      actionStates: {'Normal Tree': ActionState(masteryXp: 25)},
-      updatedAt: DateTime(2024, 1, 1, 12, 0, 0),
+      activeAction: const ActiveAction(name: 'Normal Tree', progressTicks: 15),
+      skillStates: {
+        Skill.woodcutting: const SkillState(xp: 100, masteryXp: 50),
+      },
+      actionStates: {'Normal Tree': const ActionState(masteryXp: 25)},
+      updatedAt: DateTime(2024, 1, 1, 12),
       gp: 0,
-      timeAway: null,
     );
 
     // Clear the action
@@ -111,14 +114,16 @@ void main() {
     // Create a state with timeAway
     final stateWithTimeAway = GlobalState(
       inventory: Inventory.fromItems([
-        ItemStack(name: 'Normal Logs', count: 5),
+        const ItemStack(name: 'Normal Logs', count: 5),
       ]),
-      activeAction: ActiveAction(name: 'Normal Tree', progressTicks: 15),
-      skillStates: {Skill.woodcutting: SkillState(xp: 100, masteryXp: 50)},
-      actionStates: {'Normal Tree': ActionState(masteryXp: 25)},
-      updatedAt: DateTime(2024, 1, 1, 12, 0, 0),
+      activeAction: const ActiveAction(name: 'Normal Tree', progressTicks: 15),
+      skillStates: {
+        Skill.woodcutting: const SkillState(xp: 100, masteryXp: 50),
+      },
+      actionStates: {'Normal Tree': const ActionState(masteryXp: 25)},
+      updatedAt: DateTime(2024, 1, 1, 12),
       gp: 0,
-      timeAway: TimeAway(
+      timeAway: const TimeAway(
         duration: Duration(seconds: 30),
         activeSkill: Skill.woodcutting,
         changes: Changes(

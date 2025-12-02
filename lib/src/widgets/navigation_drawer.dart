@@ -1,11 +1,10 @@
+import 'package:better_idle/src/widgets/context_extensions.dart';
+import 'package:better_idle/src/widgets/router.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
-import 'context_extensions.dart';
-import 'router.dart';
-
-/// A navigation drawer for the game that provides navigation to different screens.
+/// A navigation drawer that provides navigation to different screens.
 class AppNavigationDrawer extends StatelessWidget {
   /// Constructs an [AppNavigationDrawer]
   const AppNavigationDrawer({super.key});

@@ -105,26 +105,28 @@ void main() {
     });
 
     test('progress is never negative', () {
-      for (int xp = 0; xp < 100000; xp += 100) {
+      for (var xp = 0; xp < 100000; xp += 100) {
         final progress = xpProgressForXp(xp);
         expect(
           progress.progress,
           greaterThanOrEqualTo(0.0),
           reason:
-              'Progress should not be negative for XP $xp (level ${progress.level})',
+              'Progress should not be negative for XP $xp '
+              '(level ${progress.level})',
         );
         expect(
           progress.progress,
           lessThanOrEqualTo(1.0),
           reason:
-              'Progress should not exceed 1.0 for XP $xp (level ${progress.level})',
+              'Progress should not exceed 1.0 for XP $xp '
+              '(level ${progress.level})',
         );
       }
     });
 
     test('progress is 1.0 at max level (or close to next level)', () {
       // Test at the last level in the table
-      final maxXpInTable = 104273167;
+      const maxXpInTable = 104273167;
       final progress = xpProgressForXp(maxXpInTable);
       // At max XP, we might be at max level, so nextLevelXp might not exist
       // But progress should still be valid

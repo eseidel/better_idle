@@ -9,18 +9,10 @@ class ItemStack {
 }
 
 class Inventory {
-  Inventory.fromJson(Map<String, dynamic> json)
-    : _counts = Map<String, int>.from(json['counts']),
-      _orderedItems = List<String>.from(json['orderedItems']);
-
-  Map<String, dynamic> toJson() {
-    return {'counts': _counts, 'orderedItems': _orderedItems};
-  }
-
   Inventory.fromItems(List<ItemStack> items)
     : _counts = {},
       _orderedItems = [] {
-    for (var item in items) {
+    for (final item in items) {
       _counts[item.name] = item.count;
       _orderedItems.add(item.name);
     }
@@ -33,6 +25,14 @@ class Inventory {
     required List<String> orderedItems,
   }) : _counts = counts,
        _orderedItems = orderedItems;
+
+  Inventory.fromJson(Map<String, dynamic> json)
+    : _counts = Map<String, int>.from(json['counts'] as Map<String, int>),
+      _orderedItems = List<String>.from(json['orderedItems'] as List<String>);
+
+  Map<String, dynamic> toJson() {
+    return {'counts': _counts, 'orderedItems': _orderedItems};
+  }
 
   final Map<String, int> _counts;
   final List<String> _orderedItems;

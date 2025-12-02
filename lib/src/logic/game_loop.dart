@@ -1,9 +1,8 @@
 import 'dart:async';
 
+import 'package:better_idle/src/logic/redux_actions.dart';
+import 'package:better_idle/src/state.dart';
 import 'package:flutter/scheduler.dart';
-
-import 'redux_actions.dart';
-import '../state.dart';
 
 /// Converts Ticker updates into onTick calls, throttled to the updateInterval.
 class GameLoop {
@@ -57,8 +56,9 @@ class GameLoop {
 
   /// Stop and dispose the game loop
   void dispose() {
-    _ticker.stop();
-    _ticker.dispose();
+    _ticker
+      ..stop()
+      ..dispose();
     _subscription.cancel();
   }
 

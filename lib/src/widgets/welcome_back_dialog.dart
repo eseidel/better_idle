@@ -1,8 +1,7 @@
+import 'package:better_idle/src/logic/consume_ticks.dart';
+import 'package:better_idle/src/logic/redux_actions.dart';
+import 'package:better_idle/src/widgets/duration.dart';
 import 'package:flutter/material.dart';
-
-import '../logic/consume_ticks.dart';
-import '../logic/redux_actions.dart';
-import 'duration.dart';
 
 /// A dialog shown when returning to the app after being away.
 /// Displays the changes (inventory and XP) that occurred while away.
@@ -23,7 +22,7 @@ class WelcomeBackDialog extends StatelessWidget {
             // This will eventually be an icon instead.
             Text(
               activeSkill.name,
-              style: TextStyle(fontWeight: FontWeight.bold),
+              style: const TextStyle(fontWeight: FontWeight.bold),
             ),
           const Text('Welcome Back!'),
         ],
@@ -35,7 +34,7 @@ class WelcomeBackDialog extends StatelessWidget {
           children: [
             Text(
               'You were away for ${approximateDuration(duration)}.',
-              style: TextStyle(fontWeight: FontWeight.bold),
+              style: const TextStyle(fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 16),
             if (changes.skillXpChanges.isNotEmpty) ...[

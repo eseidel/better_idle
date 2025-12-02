@@ -1,3 +1,4 @@
+// This is just a tool to generate the xpTable.dart file.
 // ignore_for_file: avoid_print
 import 'dart:io';
 
@@ -8,13 +9,13 @@ void main() {
   final table = tableFile.readAsStringSync();
   final lines = table.split('\n');
   final levelToXp = <int, int>{};
-  for (var line in lines) {
+  for (final line in lines) {
     final parts = line.split(RegExp(r'\s+'));
     if (parts.length % 3 != 0) {
       throw Exception('Invalid line: $line');
     }
     final groups = parts.slices(3);
-    for (var group in groups) {
+    for (final group in groups) {
       final level = int.parse(group[0]);
       final xp = int.parse(group[1].replaceAll(',', ''));
       levelToXp[level] = xp;
@@ -28,9 +29,9 @@ void main() {
   //   print('$level: $xp, $xpFromPreviousLevel');
   // }
 
-  print("final xpTable = <int>[");
+  print('final xpTable = <int>[');
   for (var level = 1; level <= topLevel; level++) {
-    final xp = levelToXp[level] as int;
+    final xp = levelToXp[level]!;
     print(' $xp,');
   }
   print('];');

@@ -5,22 +5,25 @@ import 'package:scoped_deps/scoped_deps.dart';
 class Logger {
   /// Create a new logger.
   void info(String message) {
+    // Write to stdout.
     print(message); // ignore: avoid_print
   }
 
   /// Log an error message.
   void err(String message) {
+    // Write to stdout.
     print('ERROR: $message'); // ignore: avoid_print
   }
 
   /// Log a warning message.
   void warn(String message) {
+    // Write to stdout.
     print('WARNING: $message'); // ignore: avoid_print
   }
 }
 
 /// A reference to the global logger using package:scoped to create.
-final loggerRef = create(Logger.new);
+final ScopedRef<Logger> loggerRef = create(Logger.new);
 
 /// A getter for the global logger using package:scoped to read.
 /// This is a getter so that it cannot be replaced directly, if you wish

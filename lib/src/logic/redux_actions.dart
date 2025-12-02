@@ -1,6 +1,6 @@
-import '../services/toast_service.dart';
-import '../state.dart';
-import 'consume_ticks.dart';
+import 'package:better_idle/src/logic/consume_ticks.dart';
+import 'package:better_idle/src/services/toast_service.dart';
+import 'package:better_idle/src/state.dart';
 
 export 'package:async_redux/async_redux.dart';
 
@@ -59,7 +59,7 @@ class StopActionAction extends ReduxAction<GlobalState> {
   final action = state.activeAction;
   if (action == null) {
     // No activity active, return empty changes
-    return (TimeAway.empty(), state);
+    return (const TimeAway.empty(), state);
   }
   final builder = StateUpdateBuilder(state);
   consumeTicks(builder, ticks);
@@ -87,7 +87,8 @@ class AdvanceTicksAction extends ReduxAction<GlobalState> {
   }
 }
 
-/// Calculates time away from pause and processes it, merging with existing timeAway if present.
+/// Calculates time away from pause and processes it,
+/// merging with existing timeAway if present.
 class ResumeFromPauseAction extends ReduxAction<GlobalState> {
   @override
   GlobalState reduce() {

@@ -1,16 +1,15 @@
+import 'package:better_idle/src/logic/redux_actions.dart';
+import 'package:better_idle/src/state.dart';
+import 'package:better_idle/src/widgets/navigation_drawer.dart';
+import 'package:better_idle/src/widgets/welcome_back_dialog.dart';
 import 'package:flutter/material.dart';
-
-import '../logic/redux_actions.dart';
-import '../state.dart';
-import '../widgets/navigation_drawer.dart';
-import '../widgets/welcome_back_dialog.dart';
 
 class DebugPage extends StatelessWidget {
   const DebugPage({super.key});
 
   @override
   Widget build(BuildContext context) {
-    final duration = const Duration(seconds: 30);
+    const duration = Duration(seconds: 30);
     return Scaffold(
       appBar: AppBar(title: const Text('Debug')),
       drawer: const AppNavigationDrawer(),
@@ -41,7 +40,7 @@ class DebugPage extends StatelessWidget {
     await StoreProvider.dispatch<GlobalState>(context, action);
     final timeAway = action.timeAway;
     if (context.mounted) {
-      showDialog(
+      await showDialog<void>(
         context: context,
         builder: (context) => WelcomeBackDialog(timeAway: timeAway),
       );

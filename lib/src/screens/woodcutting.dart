@@ -1,19 +1,18 @@
+import 'package:better_idle/src/data/actions.dart';
+import 'package:better_idle/src/logic/redux_actions.dart';
+import 'package:better_idle/src/state.dart';
+import 'package:better_idle/src/widgets/context_extensions.dart';
+import 'package:better_idle/src/widgets/mastery_pool.dart';
+import 'package:better_idle/src/widgets/navigation_drawer.dart';
+import 'package:better_idle/src/widgets/skill_progress.dart';
 import 'package:flutter/material.dart' hide Action;
-
-import '../data/actions.dart';
-import '../logic/redux_actions.dart';
-import '../state.dart';
-import '../widgets/context_extensions.dart';
-import '../widgets/mastery_pool.dart';
-import '../widgets/navigation_drawer.dart';
-import '../widgets/skill_progress.dart';
 
 class WoodcuttingPage extends StatelessWidget {
   const WoodcuttingPage({super.key});
 
   @override
   Widget build(BuildContext context) {
-    final skill = Skill.woodcutting;
+    const skill = Skill.woodcutting;
     final actions = actionRegistry.forSkill(skill).toList();
     final skillState = context.state.skillState(skill);
 
@@ -86,7 +85,7 @@ class ActionCell extends StatelessWidget {
         ),
         child: Column(
           children: [
-            Text('Cut'),
+            const Text('Cut'),
             Text(actionName, style: labelStyle),
             Text('${action.xp} Skill XP, ${action.duration.inSeconds} seconds'),
             LinearProgressIndicator(value: progress),

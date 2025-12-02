@@ -15,14 +15,13 @@ class MasteryPoolProgress extends StatelessWidget {
     final numberFormat = NumberFormat.decimalPattern();
 
     return Padding(
-      padding: const EdgeInsets.all(16.0),
+      padding: const EdgeInsets.all(16),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Text('🏆'),
+          const Text('🏆'),
           Expanded(
             child: Column(
-              crossAxisAlignment: CrossAxisAlignment.center,
               children: [
                 LinearProgressIndicator(value: xpProgress.progress),
                 const SizedBox(height: 8),
@@ -47,7 +46,7 @@ class MasteryPoolProgress extends StatelessWidget {
 }
 
 class MasteryProgressCell extends StatelessWidget {
-  const MasteryProgressCell({super.key, required this.masteryXp});
+  const MasteryProgressCell({required this.masteryXp, super.key});
   final int masteryXp;
 
   @override
@@ -56,7 +55,7 @@ class MasteryProgressCell extends StatelessWidget {
     return Row(
       children: [
         Text('🏆 ${progress.level}'),
-        SizedBox(width: 8),
+        const SizedBox(width: 8),
         Column(
           children: [
             Text('$masteryXp / ${progress.nextLevelXp}'),
