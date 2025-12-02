@@ -1,3 +1,5 @@
+import 'dart:math';
+
 import 'package:better_idle/src/data/actions.dart';
 import 'package:better_idle/src/logic/consume_ticks.dart';
 import 'package:better_idle/src/state.dart';
@@ -214,6 +216,33 @@ void main() {
       // Verify mastery XP increased again
       final masteryXpAfterSecond = state.skillState(normalTree.skill).masteryXp;
       expect(masteryXpAfterSecond, greaterThan(masteryXpAfterFirst));
+    });
+
+    test('skill-level drops are processed on action completion', () {
+      // Use seeded random to test drop rates deterministically
+      final rng = Random(12345);
+      var state = GlobalState.empty();
+      state = state.startAction(normalTree);
+
+      // Consume enough ticks to drop at least one Bird Nest
+      // With rate 0.005, we expect ~0.5 drops per 100 actions
+      final builder = StateUpdateBuilder(state);
+      consumeTicks(builder, 3000, random: rng); // 100 completions
+      state = builder.build();
+
+      // Verify action-level drop (Normal Logs) is present
+      expect(state.inventory.items.any((i) => i.name == 'Normal Logs'), true);
+      final normalLogsCount = state.inventory.items
+          .firstWhere((i) => i.name == 'Normal Logs')
+          .count;
+      expect(normalLogsCount, 100);
+
+      // Verify skill-level drop (Bird Nest) may have dropped
+      final birdNestCount = state.inventory.items
+          .where((i) => i.name == 'Bird Nest')
+          .fold(0, (sum, item) => sum + item.count);
+      // With seeded random, we know it will always drop 1.
+      expect(birdNestCount, greaterThanOrEqualTo(1));
     });
   });
 }

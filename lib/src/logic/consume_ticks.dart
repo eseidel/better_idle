@@ -1,6 +1,7 @@
 import 'dart:math';
 
 import 'package:better_idle/src/data/actions.dart';
+import 'package:better_idle/src/data/drops.dart';
 import 'package:better_idle/src/data/xp.dart';
 import 'package:better_idle/src/state.dart';
 import 'package:better_idle/src/types/inventory.dart';
@@ -100,7 +101,8 @@ void completeAction(
   Random? random,
 }) {
   final rng = random ?? Random();
-  for (final drop in action.rewards) {
+  // Process all drops (action-level, skill-level, and global)
+  for (final drop in dropsRegistry.allDropsForAction(action)) {
     if (drop.rate >= 1.0 || rng.nextDouble() < drop.rate) {
       builder.addInventory(drop.toItemStack());
     }

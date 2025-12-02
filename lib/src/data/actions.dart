@@ -20,10 +20,7 @@ final _all = [
     unlockLevel: 1,
     duration: Duration(seconds: 3),
     xp: 10,
-    rewards: [
-      Drop(name: 'Normal Logs'),
-      Drop(name: 'Bird Nest', rate: 0.005),
-    ],
+    rewards: [Drop('Normal Logs')],
   ),
   const Action(
     skill: Skill.woodcutting,
@@ -31,10 +28,7 @@ final _all = [
     unlockLevel: 10,
     duration: Duration(seconds: 4),
     xp: 15,
-    rewards: [
-      Drop(name: 'Oak Logs'),
-      Drop(name: 'Bird Nest', rate: 0.005),
-    ],
+    rewards: [Drop('Oak Logs')],
   ),
   const Action(
     skill: Skill.woodcutting,
@@ -42,10 +36,7 @@ final _all = [
     unlockLevel: 20,
     duration: Duration(seconds: 5),
     xp: 22,
-    rewards: [
-      Drop(name: 'Willow Logs'),
-      Drop(name: 'Bird Nest', rate: 0.005),
-    ],
+    rewards: [Drop('Willow Logs')],
   ),
   const Action(
     skill: Skill.woodcutting,
@@ -53,11 +44,23 @@ final _all = [
     unlockLevel: 35,
     duration: Duration(seconds: 6),
     xp: 30,
-    rewards: [
-      Drop(name: 'Teak Logs'),
-      Drop(name: 'Bird Nest', rate: 0.005),
-    ],
+    rewards: [Drop('Teak Logs')],
   ),
+];
+
+// Skill-level drops: shared across all actions in a skill
+final _skillDrops = <Skill, List<Drop>>{
+  Skill.woodcutting: [
+    const Drop('Bird Nest', rate: 0.005),
+    // Add other woodcutting skill-level drops here
+  ],
+  // Add other skills as they're added
+};
+
+// Global drops: shared across all skills/actions
+final _globalDrops = <Drop>[
+  // Add global drops here as needed
+  // Example: Drop(name: 'Lucky Coin', rate: 0.0001),
 ];
 
 class ActionRegistry {
@@ -75,3 +78,31 @@ class ActionRegistry {
 }
 
 final actionRegistry = ActionRegistry(_all);
+
+class DropsRegistry {
+  DropsRegistry(this._skillDrops, this._globalDrops);
+
+  final Map<Skill, List<Drop>> _skillDrops;
+  final List<Drop> _globalDrops;
+
+  /// Returns all skill-level drops for a given skill.
+  List<Drop> forSkill(Skill skill) {
+    return _skillDrops[skill] ?? [];
+  }
+
+  /// Returns all global drops.
+  List<Drop> get global => _globalDrops;
+
+  /// Returns all drops that should be processed when an action completes.
+  /// This combines action-level drops (from the action), skill-level drops,
+  /// and global drops into a single list.
+  List<Drop> allDropsForAction(Action action) {
+    return [
+      ...action.rewards, // Action-level drops
+      ...forSkill(action.skill), // Skill-level drops
+      ...global, // Global drops
+    ];
+  }
+}
+
+final dropsRegistry = DropsRegistry(_skillDrops, _globalDrops);
