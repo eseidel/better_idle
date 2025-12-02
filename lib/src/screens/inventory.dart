@@ -3,9 +3,9 @@ import 'package:better_idle/src/logic/redux_actions.dart';
 import 'package:better_idle/src/types/inventory.dart';
 import 'package:better_idle/src/widgets/context_extensions.dart';
 import 'package:better_idle/src/widgets/navigation_drawer.dart';
+import 'package:better_idle/src/widgets/strings.dart';
 import 'package:collection/collection.dart';
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
 
 class InventoryPage extends StatefulWidget {
   const InventoryPage({super.key});
@@ -35,7 +35,6 @@ class _InventoryPageState extends State<InventoryPage> {
   @override
   Widget build(BuildContext context) {
     final sellValue = totalSellValue(context.state.inventory);
-    final formatter = NumberFormat('#,##0');
     final state = context.state;
     final inventoryUsed = state.inventoryUsed;
     final inventoryCapacity = state.inventoryCapacity;
@@ -51,7 +50,7 @@ class _InventoryPageState extends State<InventoryPage> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceEvenly,
             children: [
-              Text('Bank: ${formatter.format(sellValue)} GP'),
+              Text('Bank: ${approximateCreditString(sellValue)} GP'),
               Text('Capacity: $inventoryUsed/$inventoryCapacity'),
             ],
           ),
@@ -101,7 +100,6 @@ class StackCell extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final formatter = NumberFormat('#,##0');
     return InkWell(
       onTap: onTap,
       child: Container(
@@ -133,7 +131,7 @@ class StackCell extends StatelessWidget {
                 ),
                 padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
                 child: Text(
-                  formatter.format(stack.count),
+                  approximateCountString(stack.count),
                   style: const TextStyle(
                     color: Colors.white,
                     fontSize: 10,
@@ -255,7 +253,6 @@ class _ItemDetailsDrawerState extends State<ItemDetailsDrawer> {
     final maxCount = currentItem.count;
 
     final itemData = itemRegistry.byName(widget.item.name);
-    final formatter = NumberFormat('#,##0');
     final sellCountInt = _sellCount.round();
     final totalGpValue = itemData.sellsFor * sellCountInt;
 
@@ -294,7 +291,7 @@ class _ItemDetailsDrawerState extends State<ItemDetailsDrawer> {
               ),
               const SizedBox(height: 8),
               Text(
-                '${formatter.format(itemData.sellsFor)} GP',
+                '${approximateCreditString(itemData.sellsFor)} GP',
                 style: Theme.of(context).textTheme.bodyLarge,
               ),
               const SizedBox(height: 32),
@@ -303,7 +300,7 @@ class _ItemDetailsDrawerState extends State<ItemDetailsDrawer> {
               Text('Sell Item', style: Theme.of(context).textTheme.titleMedium),
               const SizedBox(height: 16),
               Text(
-                'Quantity: ${formatter.format(sellCountInt)}',
+                'Quantity: ${approximateCountString(sellCountInt)}',
                 style: Theme.of(context).textTheme.bodyMedium,
               ),
               const SizedBox(height: 8),
@@ -311,7 +308,7 @@ class _ItemDetailsDrawerState extends State<ItemDetailsDrawer> {
                 value: _sellCount,
                 max: maxCount > 0 ? maxCount.toDouble() : 1.0,
                 divisions: maxCount > 0 ? maxCount : null,
-                label: formatter.format(sellCountInt),
+                label: preciseNumberString(sellCountInt),
                 onChanged: maxCount > 0
                     ? (value) {
                         setState(() {
@@ -340,7 +337,7 @@ class _ItemDetailsDrawerState extends State<ItemDetailsDrawer> {
               ),
               const SizedBox(height: 16),
               Text(
-                'Total Value: ${formatter.format(totalGpValue)} GP',
+                'Total Value: ${approximateCreditString(totalGpValue)} GP',
                 style: Theme.of(
                   context,
                 ).textTheme.bodyLarge?.copyWith(fontWeight: FontWeight.bold),

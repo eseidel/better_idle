@@ -1,6 +1,6 @@
 import 'package:better_idle/src/data/xp.dart';
+import 'package:better_idle/src/widgets/strings.dart';
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
 
 class MasteryPoolProgress extends StatelessWidget {
   const MasteryPoolProgress({required this.xp, super.key});
@@ -12,7 +12,6 @@ class MasteryPoolProgress extends StatelessWidget {
     final nextLevelXpNeeded = xpProgress.nextLevelXp != null
         ? xpProgress.nextLevelXp! - xpProgress.lastLevelXp
         : null;
-    final numberFormat = NumberFormat.decimalPattern();
 
     return Padding(
       padding: const EdgeInsets.all(16),
@@ -27,7 +26,7 @@ class MasteryPoolProgress extends StatelessWidget {
                 const SizedBox(height: 8),
                 if (nextLevelXpNeeded != null)
                   Text(
-                    '${numberFormat.format(currentXp)} / ${numberFormat.format(nextLevelXpNeeded)} '
+                    '${preciseNumberString(currentXp)} / ${preciseNumberString(nextLevelXpNeeded)} '
                     '(${(xpProgress.progress * 100).toStringAsFixed(1)}%) XP',
                     style: Theme.of(context).textTheme.bodyMedium,
                   )

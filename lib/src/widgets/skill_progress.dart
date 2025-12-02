@@ -1,6 +1,6 @@
 import 'package:better_idle/src/data/xp.dart';
+import 'package:better_idle/src/widgets/strings.dart';
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
 
 class SkillProgress extends StatelessWidget {
   const SkillProgress({required this.xp, super.key});
@@ -12,7 +12,6 @@ class SkillProgress extends StatelessWidget {
     final nextLevelXpNeeded = xpProgress.nextLevelXp != null
         ? xpProgress.nextLevelXp! - xpProgress.lastLevelXp
         : null;
-    final numberFormat = NumberFormat.decimalPattern();
     final labelStyle = Theme.of(
       context,
     ).textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.bold);
@@ -34,7 +33,7 @@ class SkillProgress extends StatelessWidget {
                 Text('Skill XP', style: labelStyle),
                 const SizedBox(width: 8),
                 Text(
-                  '${numberFormat.format(currentXp)} / ${numberFormat.format(nextLevelXpNeeded)}',
+                  '${preciseNumberString(currentXp)} / ${preciseNumberString(nextLevelXpNeeded)}',
                   style: valueStyle,
                 ),
               ],

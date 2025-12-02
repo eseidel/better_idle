@@ -1,3 +1,5 @@
+import 'package:intl/intl.dart';
+
 String _rounded(int whole, int part, int units, String unitName) {
   var absWhole = whole.abs();
   final partial = part / units;
@@ -28,3 +30,25 @@ String approximateDuration(Duration duration) {
     return _rounded(d.inSeconds, absMilliseconds, 1000, 'second');
   }
 }
+
+/// The correct string for a credit value.  Does not include the "GP" suffix.
+String approximateCreditString(int value) {
+  // For now these are identical, but they may diverge in the future.
+  return approximateCountString(value);
+}
+
+/// The correct string for a count value.
+String approximateCountString(int value) {
+  final formatter = NumberFormat('#,###');
+  if (value >= 1000000) {
+    final millions = value ~/ 1000000;
+    return '${formatter.format(millions)}M';
+  } else if (value >= 10000) {
+    final thousands = value ~/ 1000;
+    return '${formatter.format(thousands)}K';
+  }
+  return formatter.format(value);
+}
+
+/// The correct string for a precise number value.
+String preciseNumberString(int value) => NumberFormat('#,##0').format(value);

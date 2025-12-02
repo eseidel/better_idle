@@ -1,6 +1,6 @@
 import 'package:better_idle/src/logic/consume_ticks.dart';
 import 'package:better_idle/src/logic/redux_actions.dart';
-import 'package:better_idle/src/widgets/duration.dart';
+import 'package:better_idle/src/widgets/strings.dart';
 import 'package:flutter/material.dart';
 
 /// A dialog shown when returning to the app after being away.

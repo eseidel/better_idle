@@ -1,8 +1,8 @@
 import 'package:better_idle/src/widgets/context_extensions.dart';
 import 'package:better_idle/src/widgets/router.dart';
+import 'package:better_idle/src/widgets/strings.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import 'package:intl/intl.dart';
 
 /// A navigation drawer that provides navigation to different screens.
 class AppNavigationDrawer extends StatelessWidget {
@@ -13,7 +13,6 @@ class AppNavigationDrawer extends StatelessWidget {
   Widget build(BuildContext context) {
     final currentLocation = GoRouterState.of(context).uri.path;
     final gp = context.state.gp;
-    final formatter = NumberFormat('#,##0');
 
     return Drawer(
       child: ListView(
@@ -31,7 +30,7 @@ class AppNavigationDrawer extends StatelessWidget {
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  '${formatter.format(gp)} GP',
+                  '${approximateCreditString(gp)} GP',
                   style: const TextStyle(color: Colors.white, fontSize: 16),
                 ),
               ],
