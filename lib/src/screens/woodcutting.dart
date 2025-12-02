@@ -104,10 +104,7 @@ class ActionCell extends StatelessWidget {
         borderRadius: BorderRadius.circular(8),
       ),
       child: Column(
-        children: [
-          const Text('Locked'),
-          Text('Level ${action.unlockLevel}'),
-        ],
+        children: [const Text('Locked'), Text('Level ${action.unlockLevel}')],
       ),
     );
   }

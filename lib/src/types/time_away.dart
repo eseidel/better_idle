@@ -134,9 +134,7 @@ class Counts<T> {
   bool get isNotEmpty => counts.isNotEmpty;
 
   Map<String, dynamic> toJson() {
-    return counts.map(
-      (key, value) => MapEntry(Counts.toJsonKey(key), value),
-    );
+    return counts.map((key, value) => MapEntry(Counts.toJsonKey(key), value));
   }
 }
 

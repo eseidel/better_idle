@@ -5,3 +5,6 @@ linter:
     public_member_api_docs: false
     # TODO(eseidel): Remove this and fix all discarded futures.
     discarded_futures: false
+
+formatter:
+  trailing_commas: automate

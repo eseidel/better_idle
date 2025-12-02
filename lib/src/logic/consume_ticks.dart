@@ -1,7 +1,6 @@
 import 'dart:math';
 
 import 'package:better_idle/src/data/actions.dart';
-import 'package:better_idle/src/data/drops.dart';
 import 'package:better_idle/src/data/xp.dart';
 import 'package:better_idle/src/state.dart';
 import 'package:better_idle/src/types/inventory.dart';
