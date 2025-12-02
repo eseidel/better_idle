@@ -1,32 +1,38 @@
-import '../state.dart';
-import '../types/inventory.dart';
+import 'package:better_idle/src/state.dart';
+import 'package:better_idle/src/types/drop.dart';
 
 enum Skill {
   woodcutting('Woodcutting');
 
   const Skill(this.name);
 
-  final String name;
-
   factory Skill.fromName(String name) {
     return Skill.values.firstWhere((e) => e.name == name);
   }
+
+  final String name;
 }
 
 final _all = [
-  Action(
+  const Action(
     skill: Skill.woodcutting,
     name: 'Normal Tree',
     duration: Duration(seconds: 3),
     xp: 10,
-    rewards: [ItemStack(name: 'Normal Logs', count: 1)],
+    rewards: [
+      Drop(name: 'Normal Logs'),
+      Drop(name: 'Bird Nest', rate: 0.005),
+    ],
   ),
-  Action(
+  const Action(
     skill: Skill.woodcutting,
     name: 'Oak Tree',
     duration: Duration(seconds: 4),
     xp: 15,
-    rewards: [ItemStack(name: 'Oak Logs', count: 1)],
+    rewards: [
+      Drop(name: 'Oak Logs'),
+      Drop(name: 'Bird Nest', rate: 0.005),
+    ],
   ),
 ];
 

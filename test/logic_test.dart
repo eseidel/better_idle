@@ -18,7 +18,7 @@ void main() {
     consumeTicks(builder, 30);
     state = builder.build();
 
-    // Verify activity completed (progress reset or activity cleared? logic says reset)
+    // Verify activity completed (progress resets on completion)
     expect(state.activeAction?.progressTicks, 0);
 
     // Verify rewards

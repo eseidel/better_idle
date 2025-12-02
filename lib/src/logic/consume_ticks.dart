@@ -1,10 +1,10 @@
 import 'dart:math';
 
-import '../data/actions.dart';
-import '../data/xp.dart';
-import '../state.dart';
-import '../types/inventory.dart';
-import '../types/time_away.dart';
+import 'package:better_idle/src/data/actions.dart';
+import 'package:better_idle/src/data/xp.dart';
+import 'package:better_idle/src/state.dart';
+import 'package:better_idle/src/types/inventory.dart';
+import 'package:better_idle/src/types/time_away.dart';
 
 export 'package:async_redux/async_redux.dart';
 
@@ -44,7 +44,7 @@ int masteryXpPerAction(GlobalState state, Action action) {
     totalMasteryForSkill: skillState.masteryXp,
     itemMasteryLevel: actionMasteryLevel,
     totalItemsInSkill: itemsInSkill,
-    bonus: 0.0,
+    bonus: 0,
   );
 }
 
@@ -52,7 +52,7 @@ class StateUpdateBuilder {
   StateUpdateBuilder(this._state);
 
   GlobalState _state;
-  Changes _changes = Changes.empty();
+  Changes _changes = const Changes.empty();
 
   GlobalState get state => _state;
 
@@ -94,9 +94,16 @@ class _Progress {
   int get remainingTicks => action.maxValue - progressTicks;
 }
 
-void completeAction(StateUpdateBuilder builder, Action action) {
-  for (final reward in action.rewards) {
-    builder.addInventory(reward);
+void completeAction(
+  StateUpdateBuilder builder,
+  Action action, {
+  Random? random,
+}) {
+  final rng = random ?? Random();
+  for (final drop in action.rewards) {
+    if (drop.rate >= 1.0 || rng.nextDouble() < drop.rate) {
+      builder.addInventory(drop.toItemStack());
+    }
   }
   builder.addSkillXp(action.skill, action.xp);
   final masteryXpToAdd = masteryXpPerAction(builder.state, action);
@@ -105,8 +112,8 @@ void completeAction(StateUpdateBuilder builder, Action action) {
   builder.addSkillMasteryXp(action.skill, skillMasteryXp);
 }
 
-void consumeTicks(StateUpdateBuilder builder, Tick ticks) {
-  GlobalState state = builder.state;
+void consumeTicks(StateUpdateBuilder builder, Tick ticks, {Random? random}) {
+  final state = builder.state;
   final startingAction = state.activeAction;
   if (startingAction == null) {
     return;
@@ -114,16 +121,17 @@ void consumeTicks(StateUpdateBuilder builder, Tick ticks) {
   // The active action can never change during this loop other than to
   // be cleared. So we can just use the starting action name.
   final action = actionRegistry.byName(startingAction.name);
-  while (ticks > 0) {
+  var remainingTicks = ticks;
+  while (remainingTicks > 0) {
     final before = _Progress(action, state.activeProgress(action));
-    final ticksToApply = min(ticks, before.remainingTicks);
+    final ticksToApply = min(remainingTicks, before.remainingTicks);
     final progressTicks = before.progressTicks + ticksToApply;
-    ticks -= ticksToApply;
+    remainingTicks -= ticksToApply;
     builder.setActionProgress(action, progressTicks);
 
     final after = _Progress(action, progressTicks);
     if (after.remainingTicks <= 0) {
-      completeAction(builder, action);
+      completeAction(builder, action, random: random);
 
       // Reset progress for the *current* activity.
       if (builder.state.activeAction?.name != startingAction.name) {

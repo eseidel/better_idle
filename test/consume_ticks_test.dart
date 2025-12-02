@@ -30,7 +30,7 @@ void main() {
       // Verify 1x XP
       expect(state.skillState(normalTree.skill).xp, normalTree.xp);
 
-      // Also validate that builder.changes contains the expected inventory and xp changes.
+      // validate that builder.changes contains inventory and xp changes.
       expect(builder.changes.inventoryChanges.counts, {'Normal Logs': 1});
       expect(builder.changes.skillXpChanges.counts, {
         normalTree.skill: normalTree.xp,
@@ -60,7 +60,7 @@ void main() {
       // Verify 5x XP
       expect(state.skillState(normalTree.skill).xp, normalTree.xp * 5);
 
-      // Also validate that builder.changes contains the expected inventory and xp changes.
+      // validate that builder.changes contains inventory and xp changes.
       expect(builder.changes.inventoryChanges.counts, {'Normal Logs': 5});
       expect(builder.changes.skillXpChanges.counts, {
         normalTree.skill: normalTree.xp * 5,
@@ -119,7 +119,8 @@ void main() {
       // Start action
       state = state.startAction(oakTree);
 
-      // Advance time by exactly 2 completions (80 ticks = 8 seconds, since Oak Tree takes 4 seconds per completion)
+      // Advance time by exactly 2 completions (80 ticks = 8 seconds,
+      // since Oak Tree takes 4 seconds per completion)
       final builder = StateUpdateBuilder(state);
       consumeTicks(builder, 80);
       state = builder.build();
@@ -169,7 +170,7 @@ void main() {
     });
 
     test('consuming ticks handles activity with multiple rewards', () {
-      // This test assumes we might have activities with multiple rewards in the future
+      // This test assumes we might have activities with multiple rewards
       // For now, we'll test that the rewards list is properly processed
       var state = GlobalState.empty();
 

@@ -1,12 +1,11 @@
 import 'package:better_idle/src/data/items.dart';
+import 'package:better_idle/src/logic/redux_actions.dart';
+import 'package:better_idle/src/types/inventory.dart';
+import 'package:better_idle/src/widgets/context_extensions.dart';
+import 'package:better_idle/src/widgets/navigation_drawer.dart';
 import 'package:collection/collection.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
-
-import '../logic/redux_actions.dart';
-import '../types/inventory.dart';
-import '../widgets/context_extensions.dart';
-import '../widgets/navigation_drawer.dart';
 
 class InventoryPage extends StatefulWidget {
   const InventoryPage({super.key});
@@ -82,7 +81,6 @@ class ItemGrid extends StatelessWidget {
         crossAxisCount: 4,
         crossAxisSpacing: 12,
         mainAxisSpacing: 12,
-        childAspectRatio: 1,
       ),
       itemCount: stacks.length, // Only show actual items, no empty cells
       itemBuilder: (context, index) {
@@ -170,7 +168,8 @@ class _ItemDetailsDrawerState extends State<ItemDetailsDrawer> {
     }
 
     // Clamp based on current state (may have changed from external actions)
-    // Use post-frame callback since we need context which isn't available in didUpdateWidget
+    // Use post-frame callback since we need context which isn't available
+    // in didUpdateWidget
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       final currentMaxCount = _getCurrentMaxCount(context);
@@ -198,7 +197,8 @@ class _ItemDetailsDrawerState extends State<ItemDetailsDrawer> {
         _lastKnownMaxCount = currentMaxCount;
       });
     } else if (currentMaxCount != _lastKnownMaxCount) {
-      // Update tracking even if we don't need to clamp (no setState needed for internal tracking)
+      // Update tracking even if we don't need to clamp
+      // (no setState needed for internal tracking)
       _lastKnownMaxCount = currentMaxCount;
     }
   }
@@ -226,7 +226,7 @@ class _ItemDetailsDrawerState extends State<ItemDetailsDrawer> {
     return Drawer(
       child: SafeArea(
         child: Padding(
-          padding: const EdgeInsets.all(16.0),
+          padding: const EdgeInsets.all(16),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -273,7 +273,6 @@ class _ItemDetailsDrawerState extends State<ItemDetailsDrawer> {
               const SizedBox(height: 8),
               Slider(
                 value: _sellCount,
-                min: 0,
                 max: maxCount > 0 ? maxCount.toDouble() : 1.0,
                 divisions: maxCount > 0 ? maxCount : null,
                 label: formatter.format(sellCountInt),

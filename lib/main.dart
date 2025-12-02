@@ -1,32 +1,31 @@
 import 'dart:async';
 
 import 'package:async_redux/local_persist.dart';
+import 'package:better_idle/src/logic/consume_ticks.dart';
+import 'package:better_idle/src/logic/game_loop.dart';
+import 'package:better_idle/src/logic/redux_actions.dart';
+import 'package:better_idle/src/services/logger.dart';
+import 'package:better_idle/src/services/toast_service.dart';
+import 'package:better_idle/src/state.dart';
+import 'package:better_idle/src/widgets/router.dart';
+import 'package:better_idle/src/widgets/toast_overlay.dart';
+import 'package:better_idle/src/widgets/welcome_back_dialog.dart';
 import 'package:flutter/material.dart';
 import 'package:scoped_deps/scoped_deps.dart';
-
-import 'src/logic/consume_ticks.dart';
-import 'src/logic/game_loop.dart';
-import 'src/logic/redux_actions.dart';
-import 'src/services/logger.dart';
-import 'src/services/toast_service.dart';
-import 'src/state.dart';
-import 'src/widgets/router.dart';
-import 'src/widgets/toast_overlay.dart';
-import 'src/widgets/welcome_back_dialog.dart';
 
 void main() {
   runScoped(() => runApp(const MyApp()), values: {loggerRef, toastServiceRef});
 }
 
 class MyPersistor extends Persistor<GlobalState> {
-  final LocalPersist _persist = LocalPersist("better_idle");
+  final LocalPersist _persist = LocalPersist('better_idle');
   @override
   Future<GlobalState> readState() async {
     try {
       final state = await _persist.loadJson() as Map<String, dynamic>?;
       return state == null ? GlobalState.empty() : GlobalState.fromJson(state);
-    } catch (e, stackTrace) {
-      logger.err("Failed to load state: $e, stackTrace: $stackTrace");
+    } on Exception catch (e, stackTrace) {
+      logger.err('Failed to load state: $e, stackTrace: $stackTrace');
       return GlobalState.empty();
     }
   }
@@ -46,14 +45,14 @@ class MyPersistor extends Persistor<GlobalState> {
 }
 
 class _AppLifecycleManager extends StatefulWidget {
-  final Widget child;
-  final Store<GlobalState> store;
-  final GameLoop gameLoop;
   const _AppLifecycleManager({
     required this.child,
     required this.store,
     required this.gameLoop,
   });
+  final Widget child;
+  final Store<GlobalState> store;
+  final GameLoop gameLoop;
   @override
   _AppLifecycleManagerState createState() => _AppLifecycleManagerState();
 }
@@ -68,21 +67,21 @@ class _AppLifecycleManagerState extends State<_AppLifecycleManager>
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    // Check if we should process time away on first launch (app restart scenario)
+    // Check if we should process time away on first launch (app restart)
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final state = widget.store.state;
       _wasTimeAwayNull = state.timeAway == null;
-      // If timeAway is null but we should show dialog (app restart scenario),
+      // If timeAway is null but we should show dialog (app restart),
       // process it first
       if (state.timeAway == null) {
         final timeSinceUpdate = DateTime.timestamp().difference(
           state.updatedAt,
         );
-        // Only process if there was an active action and significant time passed (> 1 second)
+        // Only process if there was an active action and > 1s time passed
         if (state.isActive && timeSinceUpdate.inSeconds > 1) {
           widget.store.dispatch(ResumeFromPauseAction());
           // Check for dialog after action completes
-          Future.microtask(() => _checkAndShowDialog());
+          Future.microtask(_checkAndShowDialog);
         }
       } else {
         // timeAway already exists, check if we should show dialog
@@ -90,7 +89,8 @@ class _AppLifecycleManagerState extends State<_AppLifecycleManager>
       }
     });
 
-    // Listen to store changes, but only show dialog when timeAway transitions from null to non-null
+    // Listen to store changes, but only show dialog when timeAway transitions
+    // from null to non-null
     _storeSubscription = widget.store.onChange.listen((state) {
       if (mounted) {
         final currentTimeAway = state.timeAway;
@@ -99,7 +99,7 @@ class _AppLifecycleManagerState extends State<_AppLifecycleManager>
         // Only show dialog if timeAway transitioned from null to non-null
         if (_wasTimeAwayNull && !isTimeAwayNull) {
           _wasTimeAwayNull = false;
-          // currentTimeAway is guaranteed to be non-null here because !isTimeAwayNull
+          // currentTimeAway is non-null here because !isTimeAwayNull
           if (!currentTimeAway.changes.isEmpty && !_isDialogShowing) {
             _checkAndShowDialog();
           }
@@ -110,8 +110,8 @@ class _AppLifecycleManagerState extends State<_AppLifecycleManager>
             _isDialogShowing = false;
           }
         }
-        // If timeAway is non-null and was non-null before, it's just being updated
-        // (accumulating changes) - don't show dialog again
+        // If timeAway is non-null and was non-null before, it's just being
+        // updated (accumulating changes) so don't show dialog again
       }
     });
   }
@@ -127,7 +127,7 @@ class _AppLifecycleManagerState extends State<_AppLifecycleManager>
     final state = widget.store.state;
     final timeAway = state.timeAway;
 
-    // Show dialog if timeAway exists, has changes, and we're not already showing one
+    // Show dialog if timeAway exists, has changes, and it's not already showing
     if (timeAway != null && !timeAway.changes.isEmpty && !_isDialogShowing) {
       _showDialogIfNeeded(timeAway);
     } else if (timeAway == null && _isDialogShowing) {
@@ -166,7 +166,7 @@ class _AppLifecycleManagerState extends State<_AppLifecycleManager>
     }
 
     _isDialogShowing = true;
-    showDialog(
+    showDialog<void>(
       context: navigatorContext,
       barrierDismissible: false,
       builder: (context) => StoreConnector<GlobalState, TimeAway>(
@@ -174,7 +174,7 @@ class _AppLifecycleManagerState extends State<_AppLifecycleManager>
           final ta = store.state.timeAway;
           if (ta == null) {
             // This shouldn't happen, but handle it gracefully
-            return TimeAway.empty();
+            return const TimeAway.empty();
           }
           return ta;
         },
@@ -200,7 +200,6 @@ class _AppLifecycleManagerState extends State<_AppLifecycleManager>
         widget.store.dispatch(
           ProcessLifecycleChangeAction(LifecycleChange.pause),
         );
-        break;
       case AppLifecycleState.resumed:
         // Calculate time away and process it
         widget.store.dispatch(ResumeFromPauseAction());
@@ -215,14 +214,13 @@ class _AppLifecycleManagerState extends State<_AppLifecycleManager>
         widget.store.dispatch(
           ProcessLifecycleChangeAction(LifecycleChange.resume),
         );
-        break;
       case AppLifecycleState.inactive:
-        // Just resume persistor, don't process time away (app might be transitioning)
+        // Just resume, don't process time away (app might be transitioning)
         widget.store.dispatch(
           ProcessLifecycleChangeAction(LifecycleChange.resume),
         );
-        break;
-      default:
+      case AppLifecycleState.hidden:
+      // ignored for now.
     }
   }
 
@@ -233,18 +231,16 @@ class _AppLifecycleManagerState extends State<_AppLifecycleManager>
 enum LifecycleChange { resume, pause }
 
 class ProcessLifecycleChangeAction extends ReduxAction<GlobalState> {
-  final LifecycleChange lifecycle;
   ProcessLifecycleChangeAction(this.lifecycle);
+  final LifecycleChange lifecycle;
 
   @override
   Future<GlobalState?> reduce() async {
     switch (lifecycle) {
       case LifecycleChange.resume:
         store.resumePersistor();
-        break;
       case LifecycleChange.pause:
         store.persistAndPausePersistor();
-        break;
     }
     return null;
   }

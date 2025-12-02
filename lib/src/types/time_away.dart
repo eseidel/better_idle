@@ -1,5 +1,5 @@
-import '../data/actions.dart';
-import 'inventory.dart';
+import 'package:better_idle/src/data/actions.dart';
+import 'package:better_idle/src/types/inventory.dart';
 
 class TimeAway {
   const TimeAway({
@@ -7,9 +7,6 @@ class TimeAway {
     required this.activeSkill,
     required this.changes,
   });
-  final Duration duration;
-  final Skill? activeSkill;
-  final Changes changes;
 
   const TimeAway.empty()
     : this(
@@ -17,6 +14,19 @@ class TimeAway {
         activeSkill: null,
         changes: const Changes.empty(),
       );
+
+  factory TimeAway.fromJson(Map<String, dynamic> json) {
+    return TimeAway(
+      duration: Duration(milliseconds: json['duration'] as int),
+      activeSkill: json['activeSkill'] != null
+          ? Skill.fromName(json['activeSkill'] as String)
+          : null,
+      changes: Changes.fromJson(json['changes'] as Map<String, dynamic>),
+    );
+  }
+  final Duration duration;
+  final Skill? activeSkill;
+  final Changes changes;
 
   TimeAway copyWith({
     Duration? duration,
@@ -48,28 +58,30 @@ class TimeAway {
       'changes': changes.toJson(),
     };
   }
-
-  factory TimeAway.fromJson(Map<String, dynamic> json) {
-    return TimeAway(
-      duration: Duration(milliseconds: json['duration']),
-      activeSkill: json['activeSkill'] != null
-          ? Skill.fromName(json['activeSkill'])
-          : null,
-      changes: Changes.fromJson(json['changes']),
-    );
-  }
 }
 
 class Counts<T> {
   const Counts({required this.counts});
+
+  const Counts.empty() : this(counts: const {});
+
+  factory Counts.fromJson(Map<String, dynamic> json) {
+    return Counts<T>(
+      counts: Map<T, int>.from(
+        json.map(
+          (key, value) => MapEntry(Counts.fromJsonKey<T>(key), value as int),
+        ),
+      ),
+    );
+  }
   final Map<T, int> counts;
 
   // There must be a better way to do this in Dart?
-  static dynamic toJsonKey<T>(T key) {
+  static String toJsonKey<T>(T key) {
     if (key is Skill) {
       return key.name;
     }
-    return key;
+    return key.toString();
   }
 
   // There must be a better way to do this in Dart?
@@ -79,8 +91,6 @@ class Counts<T> {
     }
     return key as T;
   }
-
-  const Counts.empty() : this(counts: const {});
 
   Counts<T> add(Counts<T> other) {
     final newCounts = Map<T, int>.from(counts);
@@ -103,24 +113,14 @@ class Counts<T> {
   bool get isNotEmpty => counts.isNotEmpty;
 
   Map<String, dynamic> toJson() {
-    return counts.map((key, value) => MapEntry(Counts.toJsonKey(key), value));
-  }
-
-  factory Counts.fromJson(Map<String, dynamic> json) {
-    return Counts<T>(
-      counts: Map<T, int>.from(
-        json.map(
-          (key, value) => MapEntry(Counts.fromJsonKey<T>(key), value as int),
-        ),
-      ),
+    return counts.map(
+      (key, value) => MapEntry(Counts.toJsonKey(key), value),
     );
   }
 }
 
 class Changes {
   const Changes({required this.inventoryChanges, required this.skillXpChanges});
-  final Counts<String> inventoryChanges;
-  final Counts<Skill> skillXpChanges;
   // We don't bother tracking mastery XP changes since they're not displayed
   // in the welcome back dialog.
 
@@ -129,6 +129,19 @@ class Changes {
         inventoryChanges: const Counts<String>.empty(),
         skillXpChanges: const Counts<Skill>.empty(),
       );
+
+  factory Changes.fromJson(Map<String, dynamic> json) {
+    return Changes(
+      inventoryChanges: Counts<String>.fromJson(
+        json['inventoryChanges'] as Map<String, dynamic>,
+      ),
+      skillXpChanges: Counts<Skill>.fromJson(
+        json['skillXpChanges'] as Map<String, dynamic>,
+      ),
+    );
+  }
+  final Counts<String> inventoryChanges;
+  final Counts<Skill> skillXpChanges;
 
   Changes merge(Changes other) {
     return Changes(
@@ -158,12 +171,5 @@ class Changes {
       'inventoryChanges': inventoryChanges.toJson(),
       'skillXpChanges': skillXpChanges.toJson(),
     };
-  }
-
-  factory Changes.fromJson(Map<String, dynamic> json) {
-    return Changes(
-      inventoryChanges: Counts<String>.fromJson(json['inventoryChanges']),
-      skillXpChanges: Counts<Skill>.fromJson(json['skillXpChanges']),
-    );
   }
 }

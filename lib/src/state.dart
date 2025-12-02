@@ -1,12 +1,13 @@
-import 'data/actions.dart';
-import 'data/items.dart';
-import 'logic/consume_ticks.dart';
-import 'types/inventory.dart';
+import 'package:better_idle/src/data/actions.dart';
+import 'package:better_idle/src/data/items.dart';
+import 'package:better_idle/src/logic/consume_ticks.dart';
+import 'package:better_idle/src/types/drop.dart';
+import 'package:better_idle/src/types/inventory.dart';
 
 export 'package:async_redux/async_redux.dart';
 
 typedef Tick = int;
-final Duration tickDuration = const Duration(milliseconds: 100);
+const Duration tickDuration = Duration(milliseconds: 100);
 
 /// Exception thrown when attempting to add an item to a full inventory.
 class InventoryFullException implements Exception {
@@ -20,7 +21,8 @@ class InventoryFullException implements Exception {
 
   @override
   String toString() =>
-      'InventoryFullException: Cannot add $attemptedItem - inventory is full (capacity: $currentCapacity)';
+      'InventoryFullException: Cannot add $attemptedItem - '
+      'inventory is full (capacity: $currentCapacity)';
 }
 
 Tick ticksFromDuration(Duration duration) {
@@ -33,6 +35,13 @@ Tick ticksSince(DateTime start) {
 
 class ActiveAction {
   const ActiveAction({required this.name, required this.progressTicks});
+
+  factory ActiveAction.fromJson(Map<String, dynamic> json) {
+    return ActiveAction(
+      name: json['name'] as String,
+      progressTicks: json['progressTicks'] as int,
+    );
+  }
   final String name;
   final int progressTicks;
 
@@ -47,13 +56,6 @@ class ActiveAction {
     'name': name,
     'progressTicks': progressTicks,
   };
-
-  factory ActiveAction.fromJson(Map<String, dynamic> json) {
-    return ActiveAction(
-      name: json['name'],
-      progressTicks: json['progressTicks'],
-    );
-  }
 }
 
 class Action {
@@ -67,17 +69,21 @@ class Action {
   final Skill skill;
   final String name;
   final int xp;
-  final List<ItemStack> rewards;
+  final List<Drop> rewards;
   final Duration duration;
   Tick get maxValue => duration.inMilliseconds ~/ tickDuration.inMilliseconds;
 }
 
 class SkillState {
   const SkillState({required this.xp, required this.masteryXp});
-  final int xp;
-  final int masteryXp;
 
   SkillState.empty() : this(xp: 0, masteryXp: 0);
+
+  SkillState.fromJson(Map<String, dynamic> json)
+    : xp = json['xp'] as int,
+      masteryXp = json['masteryXp'] as int;
+  final int xp;
+  final int masteryXp;
 
   SkillState copyWith({int? xp, int? masteryXp}) {
     return SkillState(
@@ -86,10 +92,6 @@ class SkillState {
     );
   }
 
-  SkillState.fromJson(Map<String, dynamic> json)
-    : xp = json['xp'],
-      masteryXp = json['masteryXp'];
-
   Map<String, dynamic> toJson() {
     return {'xp': xp, 'masteryXp': masteryXp};
   }
@@ -97,9 +99,13 @@ class SkillState {
 
 class ActionState {
   const ActionState({required this.masteryXp});
-  final int masteryXp;
 
   const ActionState.empty() : this(masteryXp: 0);
+
+  factory ActionState.fromJson(Map<String, dynamic> json) {
+    return ActionState(masteryXp: json['masteryXp'] as int);
+  }
+  final int masteryXp;
 
   ActionState copyWith({int? masteryXp}) {
     return ActionState(masteryXp: masteryXp ?? this.masteryXp);
@@ -107,10 +113,6 @@ class ActionState {
 
   Map<String, dynamic> toJson() {
     return {'masteryXp': masteryXp};
-  }
-
-  factory ActionState.fromJson(Map<String, dynamic> json) {
-    return ActionState(masteryXp: json['masteryXp']);
   }
 }
 
@@ -139,10 +141,10 @@ class GlobalState {
       );
 
   GlobalState.fromJson(Map<String, dynamic> json)
-    : updatedAt = DateTime.parse(json['updatedAt']),
-      inventory = Inventory.fromJson(json['inventory']),
+    : updatedAt = DateTime.parse(json['updatedAt'] as String),
+      inventory = Inventory.fromJson(json['inventory'] as Map<String, dynamic>),
       activeAction = json['activeAction'] != null
-          ? ActiveAction.fromJson(json['activeAction'])
+          ? ActiveAction.fromJson(json['activeAction'] as Map<String, dynamic>)
           : null,
       skillStates =
           (json['skillStates'] as Map<String, dynamic>?)?.map(
@@ -162,7 +164,7 @@ class GlobalState {
           {},
       gp = json['gp'] as int? ?? 0,
       timeAway = json['timeAway'] != null
-          ? TimeAway.fromJson(json['timeAway'])
+          ? TimeAway.fromJson(json['timeAway'] as Map<String, dynamic>)
           : null,
       inventoryCapacity = json['inventoryCapacity'] as int? ?? 10;
   Map<String, dynamic> toJson() {
@@ -219,7 +221,7 @@ class GlobalState {
     return actionRegistry.byName(name).skill;
   }
 
-  /// Returns the number of unique item types (slots) currently used in inventory.
+  /// Returns the number of unique item types (slots) used in inventory.
   int get inventoryUsed => inventory.items.length;
 
   /// Returns the number of available inventory slots remaining.
@@ -268,7 +270,6 @@ class GlobalState {
       actionStates: actionStates,
       updatedAt: DateTime.timestamp(),
       gp: gp,
-      timeAway: null,
       inventoryCapacity: inventoryCapacity,
     );
   }
@@ -276,11 +277,11 @@ class GlobalState {
   SkillState skillState(Skill skill) =>
       skillStates[skill] ?? SkillState.empty();
 
-  /// TODO(eseidel): Implement this.
+  // TODO(eseidel): Implement this.
   int unlockedActionsCount(Skill skill) => 1;
 
   ActionState actionState(String action) =>
-      actionStates[action] ?? ActionState.empty();
+      actionStates[action] ?? const ActionState.empty();
 
   int activeProgress(Action action) {
     if (activeAction?.name != action.name) {

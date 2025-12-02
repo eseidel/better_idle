@@ -1,9 +1,8 @@
 import 'dart:async';
 
+import 'package:better_idle/src/logic/consume_ticks.dart';
+import 'package:better_idle/src/services/toast_service.dart';
 import 'package:flutter/material.dart';
-
-import '../logic/consume_ticks.dart';
-import '../services/toast_service.dart';
 
 class ToastOverlay extends StatefulWidget {
   const ToastOverlay({required this.child, required this.service, super.key});
@@ -109,10 +108,10 @@ class _ToastOverlayState extends State<ToastOverlay>
     return Material(
       color: Colors.transparent,
       child: Container(
-        margin: const EdgeInsets.only(bottom: 8.0),
-        padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 12.0),
+        margin: const EdgeInsets.only(bottom: 8),
+        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
         decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(25.0),
+          borderRadius: BorderRadius.circular(25),
           color: Colors.black87,
         ),
         child: Text(

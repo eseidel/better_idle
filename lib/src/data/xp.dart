@@ -123,7 +123,7 @@ final _xpTable = <int>[
   104273167,
 ];
 
-final maxLevel = _xpTable.length;
+final int maxLevel = _xpTable.length;
 
 class XpProgress {
   const XpProgress({
@@ -141,16 +141,18 @@ class XpProgress {
 int levelForXp(int xp) {
   // Find the last index where _xpTable[index] <= xp
   // This represents the level the player has reached
-  for (int i = _xpTable.length - 1; i >= 0; i--) {
+  for (var i = _xpTable.length - 1; i >= 0; i--) {
     if (_xpTable[i] <= xp) {
       return i + 1;
     }
   }
-  // If xp is less than all values (shouldn't happen since first is 0), return level 1
-  return 1;
+  throw StateError('XP is less than all values in table');
 }
 
 int startXpForLevel(int level) {
+  if (level < 1 || level > maxLevel) {
+    throw StateError('Invalid level: $level');
+  }
   return _xpTable[level - 1];
 }
 
@@ -164,7 +166,7 @@ XpProgress xpProgressForXp(int xp) {
     // At max level, progress is 1.0 (or we could cap it)
     return XpProgress(
       level: maxLevel,
-      progress: 1.0,
+      progress: 1,
       lastLevelXp: startXp,
       nextLevelXp: null,
     );
