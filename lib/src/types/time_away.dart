@@ -3,38 +3,46 @@ import 'package:better_idle/src/types/inventory.dart';
 
 class TimeAway {
   const TimeAway({
-    required this.duration,
+    required this.startTime,
+    required this.endTime,
     required this.activeSkill,
     required this.changes,
   });
 
-  const TimeAway.empty()
+  TimeAway.empty()
     : this(
-        duration: Duration.zero,
+        startTime: DateTime.fromMillisecondsSinceEpoch(0),
+        endTime: DateTime.fromMillisecondsSinceEpoch(0),
         activeSkill: null,
         changes: const Changes.empty(),
       );
 
   factory TimeAway.fromJson(Map<String, dynamic> json) {
     return TimeAway(
-      duration: Duration(milliseconds: json['duration'] as int),
+      startTime: DateTime.fromMillisecondsSinceEpoch(json['startTime'] as int),
+      endTime: DateTime.fromMillisecondsSinceEpoch(json['endTime'] as int),
       activeSkill: json['activeSkill'] != null
           ? Skill.fromName(json['activeSkill'] as String)
           : null,
       changes: Changes.fromJson(json['changes'] as Map<String, dynamic>),
     );
   }
-  final Duration duration;
+  final DateTime startTime;
+  final DateTime endTime;
   final Skill? activeSkill;
   final Changes changes;
 
+  Duration get duration => endTime.difference(startTime);
+
   TimeAway copyWith({
-    Duration? duration,
+    DateTime? startTime,
+    DateTime? endTime,
     Skill? activeSkill,
     Changes? changes,
   }) {
     return TimeAway(
-      duration: duration ?? this.duration,
+      startTime: startTime ?? this.startTime,
+      endTime: endTime ?? this.endTime,
       activeSkill: activeSkill ?? this.activeSkill,
       changes: changes ?? this.changes,
     );
@@ -48,12 +56,23 @@ class TimeAway {
     if (other == null) {
       return this;
     }
-    return mergeChanges(other.changes);
+    // When merging, take the earliest startTime and the latest endTime
+    final mergedStartTime = startTime.isBefore(other.startTime)
+        ? startTime
+        : other.startTime;
+    final mergedEndTime = endTime.isAfter(other.endTime) ? endTime : other.endTime;
+    return TimeAway(
+      startTime: mergedStartTime,
+      endTime: mergedEndTime,
+      activeSkill: activeSkill ?? other.activeSkill,
+      changes: changes.merge(other.changes),
+    );
   }
 
   Map<String, dynamic> toJson() {
     return {
-      'duration': duration.inMilliseconds,
+      'startTime': startTime.millisecondsSinceEpoch,
+      'endTime': endTime.millisecondsSinceEpoch,
       'activeSkill': activeSkill?.name,
       'changes': changes.toJson(),
     };

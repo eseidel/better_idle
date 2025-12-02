@@ -55,16 +55,24 @@ class StopActionAction extends ReduxAction<GlobalState> {
   }
 }
 
-(TimeAway, GlobalState) consumeManyTicks(GlobalState state, Tick ticks) {
+(TimeAway, GlobalState) consumeManyTicks(
+  GlobalState state,
+  Tick ticks, {
+  DateTime? endTime,
+}) {
   final action = state.activeAction;
   if (action == null) {
     // No activity active, return empty changes
-    return (const TimeAway.empty(), state);
+    return (TimeAway.empty(), state);
   }
   final builder = StateUpdateBuilder(state);
   consumeTicks(builder, ticks);
+  final startTime = state.updatedAt;
+  final calculatedEndTime = endTime ??
+      startTime.add(Duration(milliseconds: ticks * tickDuration.inMilliseconds));
   final timeAway = TimeAway(
-    duration: Duration(milliseconds: ticks * tickDuration.inMilliseconds),
+    startTime: startTime,
+    endTime: calculatedEndTime,
     activeSkill: state.activeSkill,
     changes: builder.changes,
   );
@@ -92,9 +100,10 @@ class AdvanceTicksAction extends ReduxAction<GlobalState> {
 class ResumeFromPauseAction extends ReduxAction<GlobalState> {
   @override
   GlobalState reduce() {
-    final duration = DateTime.timestamp().difference(state.updatedAt);
+    final now = DateTime.timestamp();
+    final duration = now.difference(state.updatedAt);
     final ticks = ticksFromDuration(duration);
-    final (newTimeAway, newState) = consumeManyTicks(state, ticks);
+    final (newTimeAway, newState) = consumeManyTicks(state, ticks, endTime: now);
     final timeAway = newTimeAway.maybeMergeInto(state.timeAway);
     return newState.copyWith(timeAway: timeAway);
   }
