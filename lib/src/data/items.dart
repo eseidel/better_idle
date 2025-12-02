@@ -1,7 +1,7 @@
 const _all = [
   Item(name: 'Normal Logs', sellsFor: 1),
   Item(name: 'Oak Logs', sellsFor: 5),
-  Item(name: 'Bird Nest', sellsFor: 10),
+  Item(name: 'Bird Nest', sellsFor: 350),
 ];
 
 class Item {
