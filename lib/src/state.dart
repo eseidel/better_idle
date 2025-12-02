@@ -7,6 +7,21 @@ export 'package:async_redux/async_redux.dart';
 typedef Tick = int;
 final Duration tickDuration = const Duration(milliseconds: 100);
 
+/// Exception thrown when attempting to add an item to a full inventory.
+class InventoryFullException implements Exception {
+  const InventoryFullException({
+    required this.currentCapacity,
+    required this.attemptedItem,
+  });
+
+  final int currentCapacity;
+  final String attemptedItem;
+
+  @override
+  String toString() =>
+      'InventoryFullException: Cannot add $attemptedItem - inventory is full (capacity: $currentCapacity)';
+}
+
 class Inventory {
   Inventory.fromJson(Map<String, dynamic> json)
     : _counts = Map<String, int>.from(json['counts']),
@@ -180,6 +195,7 @@ class GlobalState {
     required this.updatedAt,
     required this.gp,
     this.timeAway,
+    this.inventoryCapacity = 10,
   });
 
   GlobalState.empty()
@@ -191,6 +207,7 @@ class GlobalState {
         updatedAt: DateTime.timestamp(),
         gp: 0,
         timeAway: null,
+        inventoryCapacity: 10,
       );
 
   GlobalState.fromJson(Map<String, dynamic> json)
@@ -218,7 +235,8 @@ class GlobalState {
       gp = json['gp'] as int? ?? 0,
       timeAway = json['timeAway'] != null
           ? TimeAway.fromJson(json['timeAway'])
-          : null;
+          : null,
+      inventoryCapacity = json['inventoryCapacity'] as int? ?? 10;
   Map<String, dynamic> toJson() {
     return {
       'updatedAt': updatedAt.toIso8601String(),
@@ -232,6 +250,7 @@ class GlobalState {
       ),
       'gp': gp,
       'timeAway': timeAway?.toJson(),
+      'inventoryCapacity': inventoryCapacity,
     };
   }
 
@@ -258,6 +277,10 @@ class GlobalState {
   /// which the user kills the app with the "welcome back" dialog open.
   final TimeAway? timeAway;
 
+  /// The maximum number of unique item types (slots) the inventory can hold.
+  /// Items stack unlimited within their slot.
+  final int inventoryCapacity;
+
   bool get isActive => activeAction != null;
 
   Skill? get activeSkill {
@@ -266,6 +289,28 @@ class GlobalState {
       return null;
     }
     return actionRegistry.byName(name).skill;
+  }
+
+  /// Returns the number of unique item types (slots) currently used in inventory.
+  int get inventoryUsed => inventory.items.length;
+
+  /// Returns the number of available inventory slots remaining.
+  int get inventoryRemaining => inventoryCapacity - inventoryUsed;
+
+  /// Returns true if the inventory is at capacity (no more slots available).
+  bool get isInventoryFull => inventoryUsed >= inventoryCapacity;
+
+  /// Checks if an item can be added to the inventory.
+  /// Returns true if the item can be added, false if it would exceed capacity.
+  /// Items that already exist in inventory can always be added (stacking).
+  bool canAddItem(ItemStack item) {
+    // If item already exists, we can always stack more
+    final itemExists = inventory.items.any((i) => i.name == item.name);
+    if (itemExists) {
+      return true; // Can always stack existing items
+    }
+    // If item is new, check if we have space for another slot
+    return inventoryUsed < inventoryCapacity;
   }
 
   GlobalState startAction(Action action) {
@@ -282,6 +327,7 @@ class GlobalState {
       actionStates: actionStates,
       updatedAt: DateTime.timestamp(),
       gp: gp,
+      inventoryCapacity: inventoryCapacity,
     );
   }
 
@@ -295,6 +341,7 @@ class GlobalState {
       updatedAt: DateTime.timestamp(),
       gp: gp,
       timeAway: null,
+      inventoryCapacity: inventoryCapacity,
     );
   }
 
@@ -365,6 +412,7 @@ class GlobalState {
     Map<String, ActionState>? actionStates,
     int? gp,
     TimeAway? timeAway,
+    int? inventoryCapacity,
   }) {
     return GlobalState(
       inventory: inventory ?? this.inventory,
@@ -374,6 +422,7 @@ class GlobalState {
       updatedAt: DateTime.timestamp(),
       gp: gp ?? this.gp,
       timeAway: timeAway ?? this.timeAway,
+      inventoryCapacity: inventoryCapacity ?? this.inventoryCapacity,
     );
   }
 }
