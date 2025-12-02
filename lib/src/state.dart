@@ -1,6 +1,7 @@
 import 'data/actions.dart';
 import 'data/items.dart';
 import 'logic/consume_ticks.dart';
+import 'types/inventory.dart';
 
 export 'package:async_redux/async_redux.dart';
 
@@ -22,85 +23,12 @@ class InventoryFullException implements Exception {
       'InventoryFullException: Cannot add $attemptedItem - inventory is full (capacity: $currentCapacity)';
 }
 
-class Inventory {
-  Inventory.fromJson(Map<String, dynamic> json)
-    : _counts = Map<String, int>.from(json['counts']),
-      _orderedItems = List<String>.from(json['orderedItems']);
-
-  Map<String, dynamic> toJson() {
-    return {'counts': _counts, 'orderedItems': _orderedItems};
-  }
-
-  Inventory.fromItems(List<ItemStack> items)
-    : _counts = {},
-      _orderedItems = [] {
-    for (var item in items) {
-      _counts[item.name] = item.count;
-      _orderedItems.add(item.name);
-    }
-  }
-
-  Inventory.empty() : this.fromItems([]);
-
-  Inventory._({
-    required Map<String, int> counts,
-    required List<String> orderedItems,
-  }) : _counts = counts,
-       _orderedItems = orderedItems;
-
-  final Map<String, int> _counts;
-  final List<String> _orderedItems;
-
-  List<ItemStack> get items =>
-      _orderedItems.map((e) => ItemStack(name: e, count: _counts[e]!)).toList();
-
-  Inventory adding(ItemStack item) {
-    final counts = Map<String, int>.from(_counts);
-    final orderedItems = List<String>.from(_orderedItems);
-    final existingCount = counts[item.name];
-    if (existingCount == null) {
-      counts[item.name] = item.count;
-      orderedItems.add(item.name);
-    } else {
-      counts[item.name] = existingCount + item.count;
-    }
-    return Inventory._(counts: counts, orderedItems: orderedItems);
-  }
-
-  Inventory removing(ItemStack item) {
-    final counts = Map<String, int>.from(_counts);
-    final orderedItems = List<String>.from(_orderedItems);
-    final existingCount = counts[item.name];
-    if (existingCount == null) {
-      return this; // Item not in inventory, return unchanged
-    }
-    final newCount = existingCount - item.count;
-    if (newCount <= 0) {
-      counts.remove(item.name);
-      orderedItems.remove(item.name);
-    } else {
-      counts[item.name] = newCount;
-    }
-    return Inventory._(counts: counts, orderedItems: orderedItems);
-  }
-}
-
 Tick ticksFromDuration(Duration duration) {
   return duration.inMilliseconds ~/ tickDuration.inMilliseconds;
 }
 
 Tick ticksSince(DateTime start) {
   return ticksFromDuration(DateTime.timestamp().difference(start));
-}
-
-class ItemStack {
-  const ItemStack({required this.name, required this.count});
-  final String name;
-  final int count;
-
-  ItemStack copyWith({int? count}) {
-    return ItemStack(name: name, count: count ?? this.count);
-  }
 }
 
 class ActiveAction {

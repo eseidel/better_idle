@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../logic/consume_ticks.dart';
 import '../logic/redux_actions.dart';
+import 'duration.dart';
 
 /// A dialog shown when returning to the app after being away.
 /// Displays the changes (inventory and XP) that occurred while away.
@@ -33,7 +34,7 @@ class WelcomeBackDialog extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              'You were away for ${duration.inSeconds} seconds.',
+              'You were away for ${approximateDuration(duration)}.',
               style: TextStyle(fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 16),

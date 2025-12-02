@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:scoped_deps/scoped_deps.dart';
 
 import '../logic/consume_ticks.dart';
+import '../types/time_away.dart';
 
 class ToastService {
   final _toastController = StreamController<Changes>.broadcast();

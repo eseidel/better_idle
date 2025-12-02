@@ -4,7 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
 import '../logic/redux_actions.dart';
-import '../state.dart';
+import '../types/inventory.dart';
 import '../widgets/context_extensions.dart';
 import '../widgets/navigation_drawer.dart';
 

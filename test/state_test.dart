@@ -1,6 +1,8 @@
 import 'package:better_idle/src/data/actions.dart';
 import 'package:better_idle/src/logic/consume_ticks.dart';
 import 'package:better_idle/src/state.dart';
+import 'package:better_idle/src/types/inventory.dart';
+import 'package:better_idle/src/types/time_away.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
