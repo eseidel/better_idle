@@ -23,10 +23,11 @@ void main() {
       },
       updatedAt: DateTime(2024, 1, 1, 12),
       gp: 0,
-      timeAway: const TimeAway(
-        duration: Duration(seconds: 30),
+      timeAway: TimeAway(
+        startTime: DateTime(2024, 1, 1, 11, 59, 30),
+        endTime: DateTime(2024, 1, 1, 12),
         activeSkill: Skill.woodcutting,
-        changes: Changes(
+        changes: const Changes(
           inventoryChanges: Counts<String>(
             counts: {'Normal Logs': 10, 'Oak Logs': 5},
           ),
@@ -123,10 +124,11 @@ void main() {
       actionStates: {'Normal Tree': const ActionState(masteryXp: 25)},
       updatedAt: DateTime(2024, 1, 1, 12),
       gp: 0,
-      timeAway: const TimeAway(
-        duration: Duration(seconds: 30),
+      timeAway: TimeAway(
+        startTime: DateTime(2024, 1, 1, 11, 59, 30),
+        endTime: DateTime(2024, 1, 1, 12),
         activeSkill: Skill.woodcutting,
-        changes: Changes(
+        changes: const Changes(
           inventoryChanges: Counts<String>(counts: {'Normal Logs': 10}),
           skillXpChanges: Counts<Skill>(counts: {Skill.woodcutting: 50}),
         ),

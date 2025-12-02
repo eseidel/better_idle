@@ -24,7 +24,7 @@ class MyPersistor extends Persistor<GlobalState> {
     try {
       final state = await _persist.loadJson() as Map<String, dynamic>?;
       return state == null ? GlobalState.empty() : GlobalState.fromJson(state);
-    } on Exception catch (e, stackTrace) {
+    } on Object catch (e, stackTrace) {
       logger.err('Failed to load state: $e, stackTrace: $stackTrace');
       return GlobalState.empty();
     }
@@ -174,7 +174,7 @@ class _AppLifecycleManagerState extends State<_AppLifecycleManager>
           final ta = store.state.timeAway;
           if (ta == null) {
             // This shouldn't happen, but handle it gracefully
-            return const TimeAway.empty();
+            return TimeAway.empty();
           }
           return ta;
         },
