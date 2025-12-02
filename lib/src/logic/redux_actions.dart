@@ -68,8 +68,11 @@ class StopActionAction extends ReduxAction<GlobalState> {
   final builder = StateUpdateBuilder(state);
   consumeTicks(builder, ticks);
   final startTime = state.updatedAt;
-  final calculatedEndTime = endTime ??
-      startTime.add(Duration(milliseconds: ticks * tickDuration.inMilliseconds));
+  final calculatedEndTime =
+      endTime ??
+      startTime.add(
+        Duration(milliseconds: ticks * tickDuration.inMilliseconds),
+      );
   final timeAway = TimeAway(
     startTime: startTime,
     endTime: calculatedEndTime,
@@ -103,7 +106,11 @@ class ResumeFromPauseAction extends ReduxAction<GlobalState> {
     final now = DateTime.timestamp();
     final duration = now.difference(state.updatedAt);
     final ticks = ticksFromDuration(duration);
-    final (newTimeAway, newState) = consumeManyTicks(state, ticks, endTime: now);
+    final (newTimeAway, newState) = consumeManyTicks(
+      state,
+      ticks,
+      endTime: now,
+    );
     final timeAway = newTimeAway.maybeMergeInto(state.timeAway);
     return newState.copyWith(timeAway: timeAway);
   }

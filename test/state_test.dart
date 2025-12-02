@@ -25,9 +25,9 @@ void main() {
       gp: 0,
       timeAway: TimeAway(
         startTime: DateTime(2024, 1, 1, 11, 59, 30),
-        endTime: DateTime(2024, 1, 1, 12, 0, 0),
+        endTime: DateTime(2024, 1, 1, 12),
         activeSkill: Skill.woodcutting,
-        changes: Changes(
+        changes: const Changes(
           inventoryChanges: Counts<String>(
             counts: {'Normal Logs': 10, 'Oak Logs': 5},
           ),
@@ -126,9 +126,9 @@ void main() {
       gp: 0,
       timeAway: TimeAway(
         startTime: DateTime(2024, 1, 1, 11, 59, 30),
-        endTime: DateTime(2024, 1, 1, 12, 0, 0),
+        endTime: DateTime(2024, 1, 1, 12),
         activeSkill: Skill.woodcutting,
-        changes: Changes(
+        changes: const Changes(
           inventoryChanges: Counts<String>(counts: {'Normal Logs': 10}),
           skillXpChanges: Counts<Skill>(counts: {Skill.woodcutting: 50}),
         ),

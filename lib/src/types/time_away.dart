@@ -60,7 +60,9 @@ class TimeAway {
     final mergedStartTime = startTime.isBefore(other.startTime)
         ? startTime
         : other.startTime;
-    final mergedEndTime = endTime.isAfter(other.endTime) ? endTime : other.endTime;
+    final mergedEndTime = endTime.isAfter(other.endTime)
+        ? endTime
+        : other.endTime;
     return TimeAway(
       startTime: mergedStartTime,
       endTime: mergedEndTime,
