@@ -1,1 +1,3 @@
 # Added to cause Shorebird CI to run coverage.
+codecov: 
+ token: 23aa30e2-c969-4deb-a659-5affc5892245
