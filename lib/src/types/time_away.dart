@@ -133,10 +133,10 @@ class Changes {
   factory Changes.fromJson(Map<String, dynamic> json) {
     return Changes(
       inventoryChanges: Counts<String>.fromJson(
-        json['inventoryChanges'] as Map<String, int>,
+        json['inventoryChanges'] as Map<String, dynamic>,
       ),
       skillXpChanges: Counts<Skill>.fromJson(
-        json['skillXpChanges'] as Map<String, int>,
+        json['skillXpChanges'] as Map<String, dynamic>,
       ),
     );
   }

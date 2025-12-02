@@ -27,8 +27,8 @@ class Inventory {
        _orderedItems = orderedItems;
 
   Inventory.fromJson(Map<String, dynamic> json)
-    : _counts = Map<String, int>.from(json['counts'] as Map<String, int>),
-      _orderedItems = List<String>.from(json['orderedItems'] as List<String>);
+    : _counts = Map<String, int>.from(json['counts'] as Map<String, dynamic>),
+      _orderedItems = List<String>.from(json['orderedItems'] as List<dynamic>);
 
   Map<String, dynamic> toJson() {
     return {'counts': _counts, 'orderedItems': _orderedItems};
