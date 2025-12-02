@@ -65,10 +65,12 @@ class Action {
     required this.duration,
     required this.xp,
     required this.rewards,
+    required this.unlockLevel,
   });
   final Skill skill;
   final String name;
   final int xp;
+  final int unlockLevel;
   final List<Drop> rewards;
   final Duration duration;
   Tick get maxValue => duration.inMilliseconds ~/ tickDuration.inMilliseconds;

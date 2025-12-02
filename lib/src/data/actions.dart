@@ -17,6 +17,7 @@ final _all = [
   const Action(
     skill: Skill.woodcutting,
     name: 'Normal Tree',
+    unlockLevel: 1,
     duration: Duration(seconds: 3),
     xp: 10,
     rewards: [
@@ -27,10 +28,33 @@ final _all = [
   const Action(
     skill: Skill.woodcutting,
     name: 'Oak Tree',
+    unlockLevel: 10,
     duration: Duration(seconds: 4),
     xp: 15,
     rewards: [
       Drop(name: 'Oak Logs'),
+      Drop(name: 'Bird Nest', rate: 0.005),
+    ],
+  ),
+  const Action(
+    skill: Skill.woodcutting,
+    name: 'Willow Tree',
+    unlockLevel: 20,
+    duration: Duration(seconds: 5),
+    xp: 22,
+    rewards: [
+      Drop(name: 'Willow Logs'),
+      Drop(name: 'Bird Nest', rate: 0.005),
+    ],
+  ),
+  const Action(
+    skill: Skill.woodcutting,
+    name: 'Teak Tree',
+    unlockLevel: 35,
+    duration: Duration(seconds: 6),
+    xp: 30,
+    rewards: [
+      Drop(name: 'Teak Logs'),
       Drop(name: 'Bird Nest', rate: 0.005),
     ],
   ),

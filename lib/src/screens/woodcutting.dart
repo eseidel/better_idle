@@ -1,4 +1,5 @@
 import 'package:better_idle/src/data/actions.dart';
+import 'package:better_idle/src/data/xp.dart';
 import 'package:better_idle/src/logic/redux_actions.dart';
 import 'package:better_idle/src/state.dart';
 import 'package:better_idle/src/widgets/context_extensions.dart';
@@ -63,15 +64,13 @@ class ActionCell extends StatelessWidget {
   final ActionState actionState;
   final int? progressTicks;
 
-  @override
-  Widget build(BuildContext context) {
+  Widget _buildUnlocked(BuildContext context) {
     final actionName = action.name;
     final labelStyle = Theme.of(
       context,
     ).textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.bold);
     final progress = (progressTicks ?? 0) / action.maxValue;
     final actionState = context.state.actionState(actionName);
-
     return GestureDetector(
       onTap: () {
         context.dispatch(StartActionAction(action: action));
@@ -94,5 +93,34 @@ class ActionCell extends StatelessWidget {
         ),
       ),
     );
+  }
+
+  Widget _buildLocked(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        border: Border.all(color: Colors.grey),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Column(
+        children: [
+          const Text('Locked'),
+          Text('Level ${action.unlockLevel}'),
+        ],
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final skillState = context.state.skillState(action.skill);
+    final skillLevel = levelForXp(skillState.xp);
+    final isUnlocked = skillLevel >= action.unlockLevel;
+    if (isUnlocked) {
+      return _buildUnlocked(context);
+    } else {
+      return _buildLocked(context);
+    }
   }
 }
