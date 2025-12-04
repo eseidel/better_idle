@@ -77,7 +77,9 @@ class Action {
   final Map<String, int> outputs;
   Tick get maxValue => duration.inMilliseconds ~/ tickDuration.inMilliseconds;
 
-  List<Drop> get rewards => [...outputs.entries.map((e) => Drop(e.key))];
+  List<Drop> get rewards => [
+    ...outputs.entries.map((e) => Drop(e.key, count: e.value)),
+  ];
 }
 
 class SkillState {

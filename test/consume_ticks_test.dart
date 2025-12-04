@@ -252,5 +252,41 @@ void main() {
       // With seeded random, we know it will always drop 1.
       expect(birdNestCount, greaterThanOrEqualTo(1));
     });
+
+    test(
+      'action with output count > 1 correctly creates drops with that count',
+      () {
+        // Create an action with output count > 1
+        const testAction = Action(
+          skill: Skill.woodcutting,
+          name: 'Test Action',
+          unlockLevel: 1,
+          duration: Duration(seconds: 1),
+          xp: 10,
+          outputs: {'Normal Logs': 3}, // Count > 1
+        );
+
+        // Verify the rewards getter returns drops with the correct count
+        final rewards = testAction.rewards;
+        expect(rewards.length, 1);
+        expect(rewards.first.name, 'Normal Logs');
+        expect(rewards.first.count, 3); // Should be 3, not 1
+
+        // Test end-to-end: complete the action and verify correct items added
+        var state = GlobalState.empty();
+        state = state.startAction(testAction);
+
+        final builder = StateUpdateBuilder(state);
+        // Complete the action directly (bypassing consumeTicks which requires registry lookup)
+        completeAction(builder, testAction);
+        state = builder.build();
+
+        // Verify 3 items were added (not 1)
+        final items = state.inventory.items;
+        expect(items.length, 1);
+        expect(items.first.item.name, 'Normal Logs');
+        expect(items.first.count, 3);
+      },
+    );
   });
 }
