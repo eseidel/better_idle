@@ -41,7 +41,9 @@ class WelcomeBackDialog extends StatelessWidget {
               ...changes.skillXpChanges.entries.map(
                 (entry) => Padding(
                   padding: const EdgeInsets.only(left: 16, bottom: 4),
-                  child: Text('+${entry.value} ${entry.key.name} xp'),
+                  child: Text(
+                    '${signedCountString(entry.value)} ${entry.key.name} xp',
+                  ),
                 ),
               ),
             ],
@@ -49,7 +51,7 @@ class WelcomeBackDialog extends StatelessWidget {
               ...changes.inventoryChanges.entries.map(
                 (entry) => Padding(
                   padding: const EdgeInsets.only(left: 16, bottom: 4),
-                  child: Text('+${entry.value} ${entry.key}'),
+                  child: Text('${signedCountString(entry.value)} ${entry.key}'),
                 ),
               ),
             ],
