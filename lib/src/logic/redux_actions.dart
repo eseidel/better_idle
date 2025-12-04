@@ -2,6 +2,7 @@ import 'package:better_idle/src/data/items.dart';
 import 'package:better_idle/src/logic/consume_ticks.dart';
 import 'package:better_idle/src/services/toast_service.dart';
 import 'package:better_idle/src/state.dart';
+import 'package:better_idle/src/types/inventory.dart';
 
 export 'package:async_redux/async_redux.dart';
 
@@ -133,6 +134,6 @@ class SellItemAction extends ReduxAction<GlobalState> {
 
   @override
   GlobalState reduce() {
-    return state.sellItem(item, count);
+    return state.sellItem(ItemStack(item, count: count));
   }
 }

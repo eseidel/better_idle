@@ -10,6 +10,6 @@ class Drop {
 
   ItemStack toItemStack() {
     final item = itemRegistry.byName(name);
-    return ItemStack(item: item, count: count);
+    return ItemStack(item, count: count);
   }
 }

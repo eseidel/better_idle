@@ -238,18 +238,6 @@ class GlobalState {
   /// Returns true if the inventory is at capacity (no more slots available).
   bool get isInventoryFull => inventoryUsed >= inventoryCapacity;
 
-  /// Checks if an item can be added to the inventory.
-  /// Returns true if the item can be added, false if it would exceed capacity.
-  /// Items that already exist in inventory can always be added (stacking).
-  bool canAddItem(Item item) {
-    // If item already exists, we can always stack more
-    if (inventory.countOfItem(item) > 0) {
-      return true; // Can always stack existing items
-    }
-    // If item is new, check if we have space for another slot
-    return inventoryUsed < inventoryCapacity;
-  }
-
   GlobalState startAction(Action action) {
     // Validate that all required items are available
     for (final requirement in action.inputs.entries) {
@@ -343,12 +331,9 @@ class GlobalState {
     return copyWith(actionStates: newActionStates);
   }
 
-  GlobalState sellItem(Item item, int count) {
-    final itemStack = ItemStack(item: item, count: count);
-    final newInventory = inventory.removing(itemStack);
-    // Calculate GP value from items.dart
-    final gpEarned = item.sellsFor * count;
-    return copyWith(inventory: newInventory, gp: gp + gpEarned);
+  GlobalState sellItem(ItemStack stack) {
+    final newInventory = inventory.removing(stack);
+    return copyWith(inventory: newInventory, gp: gp + stack.sellsFor);
   }
 
   GlobalState copyWith({

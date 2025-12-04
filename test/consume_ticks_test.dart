@@ -301,9 +301,7 @@ void main() {
         // Start with Normal Logs in inventory
         var state = GlobalState.empty();
         state = state.copyWith(
-          inventory: Inventory.fromItems([
-            ItemStack(item: normalLogs, count: 5),
-          ]),
+          inventory: Inventory.fromItems([ItemStack(normalLogs, count: 5)]),
         );
 
         // Verify we have 5 Normal Logs
@@ -349,9 +347,7 @@ void main() {
       // Start with 10 Normal Logs in inventory
       var state = GlobalState.empty();
       state = state.copyWith(
-        inventory: Inventory.fromItems([
-          ItemStack(item: normalLogs, count: 10),
-        ]),
+        inventory: Inventory.fromItems([ItemStack(normalLogs, count: 10)]),
       );
 
       // Start the firemaking action

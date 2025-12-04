@@ -110,7 +110,7 @@ void completeAction(
   // Consume required items
   for (final requirement in action.inputs.entries) {
     final item = itemRegistry.byName(requirement.key);
-    builder.removeInventory(ItemStack(item: item, count: requirement.value));
+    builder.removeInventory(ItemStack(item, count: requirement.value));
   }
 
   // Process all drops (action-level, skill-level, and global)

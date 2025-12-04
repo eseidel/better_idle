@@ -13,8 +13,8 @@ void main() {
     // Create a state with TimeAway data
     final originalState = GlobalState(
       inventory: Inventory.fromItems([
-        ItemStack(item: normalLogs, count: 5),
-        ItemStack(item: oakLogs, count: 3),
+        ItemStack(normalLogs, count: 5),
+        ItemStack(oakLogs, count: 3),
       ]),
       activeAction: const ActiveAction(name: 'Normal Tree', progressTicks: 15),
       skillStates: {
@@ -81,7 +81,7 @@ void main() {
   test('GlobalState clearAction clears activeAction', () {
     // Create a state with an activeAction
     final stateWithAction = GlobalState(
-      inventory: Inventory.fromItems([ItemStack(item: normalLogs, count: 5)]),
+      inventory: Inventory.fromItems([ItemStack(normalLogs, count: 5)]),
       activeAction: const ActiveAction(name: 'Normal Tree', progressTicks: 15),
       skillStates: {
         Skill.woodcutting: const SkillState(xp: 100, masteryXp: 50),
@@ -101,7 +101,7 @@ void main() {
   test('GlobalState clearTimeAway clears timeAway', () {
     // Create a state with timeAway
     final stateWithTimeAway = GlobalState(
-      inventory: Inventory.fromItems([ItemStack(item: normalLogs, count: 5)]),
+      inventory: Inventory.fromItems([ItemStack(normalLogs, count: 5)]),
       activeAction: const ActiveAction(name: 'Normal Tree', progressTicks: 15),
       skillStates: {
         Skill.woodcutting: const SkillState(xp: 100, masteryXp: 50),
@@ -125,5 +125,83 @@ void main() {
 
     // Verify timeAway is null
     expect(clearedState.timeAway, isNull);
+  });
+
+  test('GlobalState sellItem removes items and adds GP', () {
+    final birdNest = itemRegistry.byName('Bird Nest');
+
+    // Create a state with items and some existing GP
+    final initialState = GlobalState(
+      inventory: Inventory.fromItems([
+        ItemStack(normalLogs, count: 10),
+        ItemStack(oakLogs, count: 5),
+        ItemStack(birdNest, count: 2),
+      ]),
+      activeAction: null,
+      skillStates: {},
+      actionStates: {},
+      updatedAt: DateTime(2024, 1, 1, 12),
+      gp: 100,
+    );
+
+    // Sell some normal logs (partial quantity)
+    final afterSellingLogs = initialState.sellItem(
+      ItemStack(normalLogs, count: 3),
+    );
+
+    // Verify items were removed
+    expect(afterSellingLogs.inventory.countOfItem(normalLogs), 7);
+    expect(afterSellingLogs.inventory.countOfItem(oakLogs), 5);
+    expect(afterSellingLogs.inventory.countOfItem(birdNest), 2);
+
+    // Verify GP was added correctly (3 * 1 = 3, plus existing 100 = 103)
+    expect(afterSellingLogs.gp, 103);
+
+    // Sell all oak logs
+    final afterSellingOak = afterSellingLogs.sellItem(
+      ItemStack(oakLogs, count: 5),
+    );
+
+    // Verify oak logs are completely removed
+    expect(afterSellingOak.inventory.countOfItem(oakLogs), 0);
+    expect(
+      afterSellingOak.inventory.items.length,
+      2,
+    ); // Only normal logs and bird nest remain
+
+    // Verify GP was added correctly (5 * 5 = 25, plus existing 103 = 128)
+    expect(afterSellingOak.gp, 128);
+
+    // Sell a bird nest (high value item)
+    final afterSellingNest = afterSellingOak.sellItem(
+      ItemStack(birdNest, count: 1),
+    );
+
+    // Verify bird nest count decreased
+    expect(afterSellingNest.inventory.countOfItem(birdNest), 1);
+
+    // Verify GP was added correctly (1 * 350 = 350, plus existing 128 = 478)
+    expect(afterSellingNest.gp, 478);
+  });
+
+  test('GlobalState sellItem with zero GP', () {
+    // Test selling when starting with zero GP
+    final initialState = GlobalState(
+      inventory: Inventory.fromItems([ItemStack(normalLogs, count: 5)]),
+      activeAction: null,
+      skillStates: {},
+      actionStates: {},
+      updatedAt: DateTime(2024, 1, 1, 12),
+      gp: 0,
+    );
+
+    final afterSelling = initialState.sellItem(ItemStack(normalLogs, count: 5));
+
+    // Verify all items were removed
+    expect(afterSelling.inventory.countOfItem(normalLogs), 0);
+    expect(afterSelling.inventory.items.length, 0);
+
+    // Verify GP was added correctly (5 * 1 = 5)
+    expect(afterSelling.gp, 5);
   });
 }

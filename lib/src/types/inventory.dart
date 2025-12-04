@@ -1,12 +1,12 @@
 import 'package:better_idle/src/data/items.dart';
 
 class ItemStack {
-  const ItemStack({required this.item, required this.count});
+  const ItemStack(this.item, {required this.count});
   final Item item;
   final int count;
 
   ItemStack copyWith({int? count}) {
-    return ItemStack(item: item, count: count ?? this.count);
+    return ItemStack(item, count: count ?? this.count);
   }
 
   int get sellsFor => item.sellsFor * count;
@@ -55,8 +55,9 @@ class Inventory {
   final Map<Item, int> _counts;
   final List<Item> _orderedItems;
 
-  List<ItemStack> get items =>
-      _orderedItems.map((e) => ItemStack(item: e, count: _counts[e]!)).toList();
+  List<ItemStack> get items => _orderedItems
+      .map((item) => ItemStack(item, count: _counts[item]!))
+      .toList();
 
   int countOfItem(Item item) => _counts[item] ?? 0;
 
