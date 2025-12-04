@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:better_idle/src/logic/consume_ticks.dart';
 import 'package:better_idle/src/services/toast_service.dart';
+import 'package:better_idle/src/widgets/strings.dart';
 import 'package:flutter/material.dart';
 
 class ToastOverlay extends StatefulWidget {
@@ -73,12 +74,16 @@ class _ToastOverlayState extends State<ToastOverlay>
 
     // Add inventory change bubbles
     for (final entry in _currentData!.inventoryChanges.entries) {
-      bubbles.add(_buildBubble('+${entry.value} ${entry.key}'));
+      bubbles.add(
+        _buildBubble('${signedCountString(entry.value)} ${entry.key}'),
+      );
     }
 
     // Add xp change bubbles
     for (final entry in _currentData!.skillXpChanges.entries) {
-      bubbles.add(_buildBubble('+${entry.value} ${entry.key.name} xp'));
+      bubbles.add(
+        _buildBubble('${signedCountString(entry.value)} ${entry.key.name} xp'),
+      );
     }
 
     return Stack(
