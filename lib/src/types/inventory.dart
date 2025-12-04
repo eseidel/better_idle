@@ -8,6 +8,8 @@ class ItemStack {
   ItemStack copyWith({int? count}) {
     return ItemStack(item: item, count: count ?? this.count);
   }
+
+  int get sellsFor => item.sellsFor * count;
 }
 
 class Inventory {

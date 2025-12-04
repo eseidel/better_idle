@@ -14,10 +14,7 @@ class InventoryPage extends StatefulWidget {
 }
 
 int totalSellValue(Inventory inventory) {
-  return inventory.items.fold(
-    0,
-    (sum, stack) => sum + stack.item.sellsFor * stack.count,
-  );
+  return inventory.items.fold(0, (sum, stack) => sum + stack.sellsFor);
 }
 
 class _InventoryPageState extends State<InventoryPage> {
