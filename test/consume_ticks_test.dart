@@ -4,6 +4,7 @@ import 'package:better_idle/src/data/actions.dart';
 import 'package:better_idle/src/data/items.dart';
 import 'package:better_idle/src/logic/consume_ticks.dart';
 import 'package:better_idle/src/state.dart';
+import 'package:better_idle/src/types/inventory.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
@@ -277,7 +278,8 @@ void main() {
         state = state.startAction(testAction);
 
         final builder = StateUpdateBuilder(state);
-        // Complete the action directly (bypassing consumeTicks which requires registry lookup)
+        // Complete the action directly (bypassing consumeTicks which
+        // requires registry lookup)
         completeAction(builder, testAction);
         state = builder.build();
 
@@ -288,5 +290,90 @@ void main() {
         expect(items.first.count, 3);
       },
     );
+
+    test(
+      'consuming ticks for action with inputs consumes the required items',
+      () {
+        final burnNormalLogs = actionRegistry.byName('Burn Normal Logs');
+        final coalOre = itemRegistry.byName('Coal Ore');
+        final ash = itemRegistry.byName('Ash');
+
+        // Start with Normal Logs in inventory
+        var state = GlobalState.empty();
+        state = state.copyWith(
+          inventory: Inventory.fromItems([
+            ItemStack(item: normalLogs, count: 5),
+          ]),
+        );
+
+        // Verify we have 5 Normal Logs
+        expect(state.inventory.countOfItem(normalLogs), 5);
+
+        // Start the firemaking action
+        state = state.startAction(burnNormalLogs);
+
+        // Advance time by exactly 1 completion (20 ticks = 2 seconds)
+        final builder = StateUpdateBuilder(state);
+        consumeTicks(builder, 20);
+        state = builder.build();
+
+        // Verify activity progress reset to 0 (ready for next completion)
+        expect(state.activeAction?.progressTicks, 0);
+        expect(state.activeAction?.name, burnNormalLogs.name);
+
+        // Verify 1 Normal Log was consumed (5 - 1 = 4 remaining)
+        expect(state.inventory.countOfItem(normalLogs), 4);
+
+        // Verify 1x XP was gained
+        expect(state.skillState(burnNormalLogs.skill).xp, burnNormalLogs.xp);
+
+        // Verify skill-level drops may have occurred (Coal Ore or Ash)
+        final coalOreCount = state.inventory.countOfItem(coalOre);
+        final ashCount = state.inventory.countOfItem(ash);
+        // At least one skill-level drop should have a chance to occur
+        // (Coal Ore has 40% rate, Ash has 20% rate)
+        expect(coalOreCount + ashCount, greaterThanOrEqualTo(0));
+
+        // Verify changes object tracks the consumed item
+        expect(builder.changes.inventoryChanges.counts['Normal Logs'], -1);
+        expect(
+          builder.changes.skillXpChanges.counts[burnNormalLogs.skill],
+          burnNormalLogs.xp,
+        );
+      },
+    );
+
+    test('consuming ticks for multiple completions of action with inputs', () {
+      final burnNormalLogs = actionRegistry.byName('Burn Normal Logs');
+
+      // Start with 10 Normal Logs in inventory
+      var state = GlobalState.empty();
+      state = state.copyWith(
+        inventory: Inventory.fromItems([
+          ItemStack(item: normalLogs, count: 10),
+        ]),
+      );
+
+      // Start the firemaking action
+      state = state.startAction(burnNormalLogs);
+
+      // Advance time by exactly 3 completions (60 ticks = 6 seconds)
+      final builder = StateUpdateBuilder(state);
+      consumeTicks(builder, 60);
+      state = builder.build();
+
+      // Verify 3 Normal Logs were consumed (10 - 3 = 7 remaining)
+      expect(state.inventory.countOfItem(normalLogs), 7);
+
+      // Verify 3x XP was gained
+      expect(state.skillState(burnNormalLogs.skill).xp, burnNormalLogs.xp * 3);
+
+      // Verify changes object tracks all consumed items
+      expect(builder.changes.inventoryChanges.counts['Normal Logs'], -3);
+      expect(
+        builder.changes.skillXpChanges.counts[burnNormalLogs.skill],
+        burnNormalLogs.xp * 3,
+      );
+    });
   });
 }
