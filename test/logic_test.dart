@@ -23,7 +23,7 @@ void main() {
 
     // Verify rewards
     expect(state.inventory.items.length, 1);
-    expect(state.inventory.items.first.name, 'Normal Logs');
+    expect(state.inventory.items.first.item.name, 'Normal Logs');
     expect(state.inventory.items.first.count, 1);
 
     // Verify XP

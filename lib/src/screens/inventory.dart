@@ -1,4 +1,3 @@
-import 'package:better_idle/src/data/items.dart';
 import 'package:better_idle/src/logic/redux_actions.dart';
 import 'package:better_idle/src/types/inventory.dart';
 import 'package:better_idle/src/widgets/context_extensions.dart';
@@ -17,17 +16,17 @@ class InventoryPage extends StatefulWidget {
 int totalSellValue(Inventory inventory) {
   return inventory.items.fold(
     0,
-    (sum, item) => sum + itemRegistry.byName(item.name).sellsFor * item.count,
+    (sum, stack) => sum + stack.item.sellsFor * stack.count,
   );
 }
 
 class _InventoryPageState extends State<InventoryPage> {
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
-  ItemStack? _selectedItem;
+  ItemStack? _selectedStack;
 
-  void _onItemTap(ItemStack item) {
+  void _onItemTap(ItemStack stack) {
     setState(() {
-      _selectedItem = item;
+      _selectedStack = stack;
     });
     _scaffoldKey.currentState?.openEndDrawer();
   }
@@ -42,8 +41,8 @@ class _InventoryPageState extends State<InventoryPage> {
       key: _scaffoldKey,
       appBar: AppBar(title: const Text('Inventory')),
       drawer: const AppNavigationDrawer(),
-      endDrawer: _selectedItem != null
-          ? ItemDetailsDrawer(item: _selectedItem!)
+      endDrawer: _selectedStack != null
+          ? ItemDetailsDrawer(stack: _selectedStack!)
           : null,
       body: Column(
         children: [
@@ -111,7 +110,7 @@ class StackCell extends StatelessWidget {
             // Item name centered
             Center(
               child: Text(
-                ' ${stack.name}',
+                ' ${stack.item.name}',
                 textAlign: TextAlign.center,
                 overflow: TextOverflow.ellipsis,
               ),
@@ -151,9 +150,9 @@ class StackCell extends StatelessWidget {
 }
 
 class ItemDetailsDrawer extends StatefulWidget {
-  const ItemDetailsDrawer({required this.item, super.key});
+  const ItemDetailsDrawer({required this.stack, super.key});
 
-  final ItemStack item;
+  final ItemStack stack;
 
   @override
   State<ItemDetailsDrawer> createState() => _ItemDetailsDrawerState();
@@ -166,13 +165,13 @@ class _ItemDetailsDrawerState extends State<ItemDetailsDrawer> {
   @override
   void initState() {
     super.initState();
-    _sellCount = widget.item.count.toDouble();
-    _lastKnownMaxCount = widget.item.count;
+    _sellCount = widget.stack.count.toDouble();
+    _lastKnownMaxCount = widget.stack.count;
   }
 
   int _getCurrentMaxCount(BuildContext context) {
     final currentItem = context.state.inventory.items.firstWhereOrNull(
-      (i) => i.name == widget.item.name,
+      (i) => i.item == widget.stack.item,
     );
     return currentItem?.count ?? 0;
   }
@@ -182,17 +181,17 @@ class _ItemDetailsDrawerState extends State<ItemDetailsDrawer> {
     super.didUpdateWidget(oldWidget);
 
     // If the item prop changed, reset sell count to the new item's count
-    if (oldWidget.item.name != widget.item.name) {
+    if (oldWidget.stack.item != widget.stack.item) {
       setState(() {
-        _sellCount = widget.item.count.toDouble();
-        _lastKnownMaxCount = widget.item.count;
+        _sellCount = widget.stack.count.toDouble();
+        _lastKnownMaxCount = widget.stack.count;
       });
       return;
     }
 
     // If the item count in the prop changed, update accordingly
-    if (oldWidget.item.count != widget.item.count) {
-      final newMaxCount = widget.item.count;
+    if (oldWidget.stack.count != widget.stack.count) {
+      final newMaxCount = widget.stack.count;
       setState(() {
         _lastKnownMaxCount = newMaxCount;
         if (_sellCount > newMaxCount) {
@@ -241,7 +240,7 @@ class _ItemDetailsDrawerState extends State<ItemDetailsDrawer> {
   Widget build(BuildContext context) {
     // Get current item count from state (may have changed after selling)
     final currentItem = context.state.inventory.items.firstWhereOrNull(
-      (i) => i.name == widget.item.name,
+      (i) => i.item == widget.stack.item,
     );
 
     if (currentItem == null) {
@@ -252,7 +251,7 @@ class _ItemDetailsDrawerState extends State<ItemDetailsDrawer> {
 
     final maxCount = currentItem.count;
 
-    final itemData = itemRegistry.byName(widget.item.name);
+    final itemData = widget.stack.item;
     final sellCountInt = _sellCount.round();
     final totalGpValue = itemData.sellsFor * sellCountInt;
 
@@ -281,7 +280,7 @@ class _ItemDetailsDrawerState extends State<ItemDetailsDrawer> {
               Text('Name:', style: Theme.of(context).textTheme.titleMedium),
               const SizedBox(height: 8),
               Text(
-                widget.item.name,
+                widget.stack.item.name,
                 style: Theme.of(context).textTheme.bodyLarge,
               ),
               const SizedBox(height: 24),
@@ -325,7 +324,7 @@ class _ItemDetailsDrawerState extends State<ItemDetailsDrawer> {
                       ? () {
                           context.dispatch(
                             SellItemAction(
-                              itemName: widget.item.name,
+                              item: widget.stack.item,
                               count: sellCountInt,
                             ),
                           );

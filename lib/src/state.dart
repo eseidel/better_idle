@@ -65,7 +65,7 @@ class Action {
     required this.duration,
     required this.xp,
     required this.unlockLevel,
-    required this.outputs,
+    this.outputs = const {},
     this.inputs = const {},
   });
   final Skill skill;
@@ -239,10 +239,9 @@ class GlobalState {
   /// Checks if an item can be added to the inventory.
   /// Returns true if the item can be added, false if it would exceed capacity.
   /// Items that already exist in inventory can always be added (stacking).
-  bool canAddItem(ItemStack item) {
+  bool canAddItem(Item item) {
     // If item already exists, we can always stack more
-    final itemExists = inventory.items.any((i) => i.name == item.name);
-    if (itemExists) {
+    if (inventory.countOfItem(item) > 0) {
       return true; // Can always stack existing items
     }
     // If item is new, check if we have space for another slot
@@ -252,7 +251,8 @@ class GlobalState {
   GlobalState startAction(Action action) {
     // Validate that all required items are available
     for (final requirement in action.inputs.entries) {
-      final itemCount = inventory.countOfItem(requirement.key);
+      final item = itemRegistry.byName(requirement.key);
+      final itemCount = inventory.countOfItem(item);
       if (itemCount < requirement.value) {
         throw Exception(
           'Cannot start ${action.name}: Need ${requirement.value} '
@@ -341,12 +341,11 @@ class GlobalState {
     return copyWith(actionStates: newActionStates);
   }
 
-  GlobalState sellItem(String itemName, int count) {
-    final itemStack = ItemStack(name: itemName, count: count);
+  GlobalState sellItem(Item item, int count) {
+    final itemStack = ItemStack(item: item, count: count);
     final newInventory = inventory.removing(itemStack);
     // Calculate GP value from items.dart
-    final itemData = itemRegistry.byName(itemName);
-    final gpEarned = itemData.sellsFor * count;
+    final gpEarned = item.sellsFor * count;
     return copyWith(inventory: newInventory, gp: gp + gpEarned);
   }
 

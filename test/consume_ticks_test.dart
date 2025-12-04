@@ -1,6 +1,7 @@
 import 'dart:math';
 
 import 'package:better_idle/src/data/actions.dart';
+import 'package:better_idle/src/data/items.dart';
 import 'package:better_idle/src/logic/consume_ticks.dart';
 import 'package:better_idle/src/state.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -8,6 +9,8 @@ import 'package:flutter_test/flutter_test.dart';
 void main() {
   final normalTree = actionRegistry.byName('Normal Tree');
   final oakTree = actionRegistry.byName('Oak Tree');
+  final normalLogs = itemRegistry.byName('Normal Logs');
+  final birdNest = itemRegistry.byName('Bird Nest');
   group('consumeTicks', () {
     test('consuming ticks for 1 completion adds 1 item and 1x XP', () {
       var state = GlobalState.empty();
@@ -26,7 +29,7 @@ void main() {
 
       // Verify 1 item in inventory
       expect(state.inventory.items.length, 1);
-      expect(state.inventory.items.first.name, 'Normal Logs');
+      expect(state.inventory.items.first.item.name, 'Normal Logs');
       expect(state.inventory.items.first.count, 1);
 
       // Verify 1x XP
@@ -56,7 +59,7 @@ void main() {
 
       // Verify 5 items in inventory
       expect(state.inventory.items.length, 1);
-      expect(state.inventory.items.first.name, 'Normal Logs');
+      expect(state.inventory.items.first.item.name, 'Normal Logs');
       expect(state.inventory.items.first.count, 5);
 
       // Verify 5x XP
@@ -108,7 +111,7 @@ void main() {
 
       // Verify 1 item in inventory (only first completion counted)
       expect(state.inventory.items.length, 1);
-      expect(state.inventory.items.first.name, 'Normal Logs');
+      expect(state.inventory.items.first.item.name, 'Normal Logs');
       expect(state.inventory.items.first.count, 1);
 
       // Verify 1x XP (only first completion counted)
@@ -133,7 +136,7 @@ void main() {
 
       // Verify 2 items in inventory
       expect(state.inventory.items.length, 1);
-      expect(state.inventory.items.first.name, 'Oak Logs');
+      expect(state.inventory.items.first.item.name, 'Oak Logs');
       expect(state.inventory.items.first.count, 2);
 
       // Verify 2x XP (15 * 2 = 30)
@@ -231,15 +234,15 @@ void main() {
       state = builder.build();
 
       // Verify action-level drop (Normal Logs) is present
-      expect(state.inventory.items.any((i) => i.name == 'Normal Logs'), true);
+      expect(state.inventory.items.any((i) => i.item == normalLogs), true);
       final normalLogsCount = state.inventory.items
-          .firstWhere((i) => i.name == 'Normal Logs')
+          .firstWhere((i) => i.item == normalLogs)
           .count;
       expect(normalLogsCount, 100);
 
       // Verify skill-level drop (Bird Nest) may have dropped
       final birdNestCount = state.inventory.items
-          .where((i) => i.name == 'Bird Nest')
+          .where((i) => i.item == birdNest)
           .fold(0, (sum, item) => sum + item.count);
       // With seeded random, we know it will always drop 1.
       expect(birdNestCount, greaterThanOrEqualTo(1));

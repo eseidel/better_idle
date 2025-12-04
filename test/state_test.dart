@@ -1,4 +1,5 @@
 import 'package:better_idle/src/data/actions.dart';
+import 'package:better_idle/src/data/items.dart';
 import 'package:better_idle/src/logic/consume_ticks.dart';
 import 'package:better_idle/src/state.dart';
 import 'package:better_idle/src/types/inventory.dart';
@@ -6,12 +7,14 @@ import 'package:better_idle/src/types/time_away.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  final normalLogs = itemRegistry.byName('Normal Logs');
+  final oakLogs = itemRegistry.byName('Oak Logs');
   test('GlobalState toJson/fromJson round-trip', () {
     // Create a state with TimeAway data
     final originalState = GlobalState(
       inventory: Inventory.fromItems([
-        const ItemStack(name: 'Normal Logs', count: 5),
-        const ItemStack(name: 'Oak Logs', count: 3),
+        ItemStack(item: normalLogs, count: 5),
+        ItemStack(item: oakLogs, count: 3),
       ]),
       activeAction: const ActiveAction(name: 'Normal Tree', progressTicks: 15),
       skillStates: {
@@ -45,9 +48,9 @@ void main() {
     // Verify all fields match
     expect(roundTrippedState.updatedAt, originalState.updatedAt);
     expect(roundTrippedState.inventory.items.length, 2);
-    expect(roundTrippedState.inventory.items[0].name, 'Normal Logs');
+    expect(roundTrippedState.inventory.items[0].item, normalLogs);
     expect(roundTrippedState.inventory.items[0].count, 5);
-    expect(roundTrippedState.inventory.items[1].name, 'Oak Logs');
+    expect(roundTrippedState.inventory.items[1].item, oakLogs);
     expect(roundTrippedState.inventory.items[1].count, 3);
 
     expect(roundTrippedState.activeAction?.name, 'Normal Tree');
@@ -92,9 +95,7 @@ void main() {
   test('GlobalState clearAction clears activeAction', () {
     // Create a state with an activeAction
     final stateWithAction = GlobalState(
-      inventory: Inventory.fromItems([
-        const ItemStack(name: 'Normal Logs', count: 5),
-      ]),
+      inventory: Inventory.fromItems([ItemStack(item: normalLogs, count: 5)]),
       activeAction: const ActiveAction(name: 'Normal Tree', progressTicks: 15),
       skillStates: {
         Skill.woodcutting: const SkillState(xp: 100, masteryXp: 50),
@@ -114,9 +115,7 @@ void main() {
   test('GlobalState clearTimeAway clears timeAway', () {
     // Create a state with timeAway
     final stateWithTimeAway = GlobalState(
-      inventory: Inventory.fromItems([
-        const ItemStack(name: 'Normal Logs', count: 5),
-      ]),
+      inventory: Inventory.fromItems([ItemStack(item: normalLogs, count: 5)]),
       activeAction: const ActiveAction(name: 'Normal Tree', progressTicks: 15),
       skillStates: {
         Skill.woodcutting: const SkillState(xp: 100, masteryXp: 50),
