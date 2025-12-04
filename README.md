@@ -15,15 +15,14 @@ Melvor Idle is nice, but has a bunch of UI flaws which detract from using it:
 If this ever actually works well, the Melvor folks are welcome to take it and
 use it.
 
-### MVP
+### TODO
 
-- Fix TimeAway to track start/end time and update end time.
+- Actions missing inputs should not be clickable.
+- Actions should automatically stop when they run out of inputs.
+- Clicking an action that is already running should stop it, not restart it.
 - Track per-item mastery and levels.
-- Show offline progression dialog on load.
-- Track gold as a resource.
-- Make it possible to inspect items and sell them.
 - Add a shop.
-- Make inventory fixed-size
+- Enforce fixed size inventory, stop actions that exceed such.
 - Add a store to purchase inventory slots.
 - Allow buying of skill upgrades (e.g. faster axe)
 - Welcome back should show levels gained.
