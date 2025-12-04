@@ -43,53 +43,39 @@ void main() {
     final json = originalState.toJson();
 
     // Convert back from JSON
-    final roundTrippedState = GlobalState.fromJson(json);
+    final loaded = GlobalState.fromJson(json);
 
     // Verify all fields match
-    expect(roundTrippedState.updatedAt, originalState.updatedAt);
-    expect(roundTrippedState.inventory.items.length, 2);
-    expect(roundTrippedState.inventory.items[0].item, normalLogs);
-    expect(roundTrippedState.inventory.items[0].count, 5);
-    expect(roundTrippedState.inventory.items[1].item, oakLogs);
-    expect(roundTrippedState.inventory.items[1].count, 3);
+    expect(loaded.updatedAt, originalState.updatedAt);
+    final items = loaded.inventory.items;
+    expect(items.length, 2);
+    expect(items[0].item, normalLogs);
+    expect(items[0].count, 5);
+    expect(items[1].item, oakLogs);
+    expect(items[1].count, 3);
 
-    expect(roundTrippedState.activeAction?.name, 'Normal Tree');
-    expect(roundTrippedState.activeAction?.progressTicks, 15);
+    expect(loaded.activeAction?.name, 'Normal Tree');
+    expect(loaded.activeAction?.progressTicks, 15);
 
-    expect(roundTrippedState.skillStates.length, 1);
-    expect(roundTrippedState.skillStates[Skill.woodcutting]?.xp, 100);
-    expect(roundTrippedState.skillStates[Skill.woodcutting]?.masteryXp, 50);
+    expect(loaded.skillStates.length, 1);
+    expect(loaded.skillStates[Skill.woodcutting]?.xp, 100);
+    expect(loaded.skillStates[Skill.woodcutting]?.masteryXp, 50);
 
-    expect(roundTrippedState.actionStates.length, 2);
-    expect(roundTrippedState.actionStates['Normal Tree']?.masteryXp, 25);
-    expect(roundTrippedState.actionStates['Oak Tree']?.masteryXp, 10);
+    expect(loaded.actionStates.length, 2);
+    expect(loaded.actionStates['Normal Tree']?.masteryXp, 25);
+    expect(loaded.actionStates['Oak Tree']?.masteryXp, 10);
 
     // Verify TimeAway data
-    expect(roundTrippedState.timeAway, isNotNull);
-    expect(roundTrippedState.timeAway!.duration, const Duration(seconds: 30));
-    expect(roundTrippedState.timeAway!.activeSkill, Skill.woodcutting);
-    expect(
-      roundTrippedState.timeAway!.changes.inventoryChanges.counts.length,
-      2,
-    );
-    expect(
-      roundTrippedState
-          .timeAway!
-          .changes
-          .inventoryChanges
-          .counts['Normal Logs'],
-      10,
-    );
-    expect(
-      roundTrippedState.timeAway!.changes.inventoryChanges.counts['Oak Logs'],
-      5,
-    );
-    expect(roundTrippedState.timeAway!.changes.skillXpChanges.counts.length, 1);
-    expect(
-      roundTrippedState.timeAway!.changes.skillXpChanges.counts[Skill
-          .woodcutting],
-      50,
-    );
+    final timeAway = loaded.timeAway;
+    expect(timeAway, isNotNull);
+    expect(timeAway!.duration, const Duration(seconds: 30));
+    expect(timeAway.activeSkill, Skill.woodcutting);
+    final changes = timeAway.changes;
+    expect(changes.inventoryChanges.counts.length, 2);
+    expect(changes.inventoryChanges.counts['Normal Logs'], 10);
+    expect(changes.inventoryChanges.counts['Oak Logs'], 5);
+    expect(changes.skillXpChanges.counts.length, 1);
+    expect(changes.skillXpChanges.counts[Skill.woodcutting], 50);
   });
 
   test('GlobalState clearAction clears activeAction', () {

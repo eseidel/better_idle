@@ -22,9 +22,10 @@ void main() {
     expect(state.activeAction?.progressTicks, 0);
 
     // Verify rewards
-    expect(state.inventory.items.length, 1);
-    expect(state.inventory.items.first.item.name, 'Normal Logs');
-    expect(state.inventory.items.first.count, 1);
+    final items = state.inventory.items;
+    expect(items.length, 1);
+    expect(items.first.item.name, 'Normal Logs');
+    expect(items.first.count, 1);
 
     // Verify XP
     expect(state.skillState(normalTree.skill).xp, normalTree.xp);

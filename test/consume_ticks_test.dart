@@ -28,9 +28,10 @@ void main() {
       expect(state.activeAction?.name, normalTree.name);
 
       // Verify 1 item in inventory
-      expect(state.inventory.items.length, 1);
-      expect(state.inventory.items.first.item.name, 'Normal Logs');
-      expect(state.inventory.items.first.count, 1);
+      final items = state.inventory.items;
+      expect(items.length, 1);
+      expect(items.first.item.name, 'Normal Logs');
+      expect(items.first.count, 1);
 
       // Verify 1x XP
       expect(state.skillState(normalTree.skill).xp, normalTree.xp);
@@ -58,9 +59,10 @@ void main() {
       expect(state.activeAction?.name, normalTree.name);
 
       // Verify 5 items in inventory
-      expect(state.inventory.items.length, 1);
-      expect(state.inventory.items.first.item.name, 'Normal Logs');
-      expect(state.inventory.items.first.count, 5);
+      final items = state.inventory.items;
+      expect(items.length, 1);
+      expect(items.first.item.name, 'Normal Logs');
+      expect(items.first.count, 5);
 
       // Verify 5x XP
       expect(state.skillState(normalTree.skill).xp, normalTree.xp * 5);
@@ -110,9 +112,10 @@ void main() {
       expect(state.activeAction?.name, normalTree.name);
 
       // Verify 1 item in inventory (only first completion counted)
-      expect(state.inventory.items.length, 1);
-      expect(state.inventory.items.first.item.name, 'Normal Logs');
-      expect(state.inventory.items.first.count, 1);
+      final items = state.inventory.items;
+      expect(items.length, 1);
+      expect(items.first.item.name, 'Normal Logs');
+      expect(items.first.count, 1);
 
       // Verify 1x XP (only first completion counted)
       expect(state.skillState(normalTree.skill).xp, normalTree.xp);
@@ -135,9 +138,10 @@ void main() {
       expect(state.activeAction?.name, oakTree.name);
 
       // Verify 2 items in inventory
-      expect(state.inventory.items.length, 1);
-      expect(state.inventory.items.first.item.name, 'Oak Logs');
-      expect(state.inventory.items.first.count, 2);
+      final items = state.inventory.items;
+      expect(items.length, 1);
+      expect(items.first.item.name, 'Oak Logs');
+      expect(items.first.count, 2);
 
       // Verify 2x XP (15 * 2 = 30)
       expect(state.skillState(oakTree.skill).xp, oakTree.xp * 2);
@@ -234,8 +238,9 @@ void main() {
       state = builder.build();
 
       // Verify action-level drop (Normal Logs) is present
-      expect(state.inventory.items.any((i) => i.item == normalLogs), true);
-      final normalLogsCount = state.inventory.items
+      final items = state.inventory.items;
+      expect(items.any((i) => i.item == normalLogs), true);
+      final normalLogsCount = items
           .firstWhere((i) => i.item == normalLogs)
           .count;
       expect(normalLogsCount, 100);
