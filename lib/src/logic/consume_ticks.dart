@@ -65,6 +65,11 @@ class StateUpdateBuilder {
     _changes = _changes.adding(item);
   }
 
+  void removeInventory(ItemStack item) {
+    _state = _state.copyWith(inventory: _state.inventory.removing(item));
+    _changes = _changes.removing(item);
+  }
+
   void addSkillXp(Skill skill, int amount) {
     _state = _state.addSkillXp(skill, amount);
     _changes = _changes.addingSkillXp(skill, amount);
@@ -100,6 +105,14 @@ void completeAction(
   Random? random,
 }) {
   final rng = random ?? Random();
+
+  // Consume required items
+  for (final requirement in action.inputs.entries) {
+    builder.removeInventory(
+      ItemStack(name: requirement.key, count: requirement.value),
+    );
+  }
+
   // Process all drops (action-level, skill-level, and global)
   for (final drop in dropsRegistry.allDropsForAction(action)) {
     if (drop.rate >= 1.0 || rng.nextDouble() < drop.rate) {

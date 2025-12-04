@@ -64,16 +64,20 @@ class Action {
     required this.name,
     required this.duration,
     required this.xp,
-    required this.rewards,
     required this.unlockLevel,
+    required this.outputs,
+    this.inputs = const {},
   });
   final Skill skill;
   final String name;
   final int xp;
   final int unlockLevel;
-  final List<Drop> rewards;
   final Duration duration;
+  final Map<String, int> inputs;
+  final Map<String, int> outputs;
   Tick get maxValue => duration.inMilliseconds ~/ tickDuration.inMilliseconds;
+
+  List<Drop> get rewards => [...outputs.entries.map((e) => Drop(e.key))];
 }
 
 class SkillState {
@@ -246,6 +250,16 @@ class GlobalState {
   }
 
   GlobalState startAction(Action action) {
+    // Validate that all required items are available
+    for (final requirement in action.inputs.entries) {
+      final itemCount = inventory.countOfItem(requirement.key);
+      if (itemCount < requirement.value) {
+        throw Exception(
+          'Cannot start ${action.name}: Need ${requirement.value} '
+          '${requirement.key}, but only have $itemCount',
+        );
+      }
+    }
     final name = action.name;
     return copyWith(activeAction: ActiveAction(name: name, progressTicks: 0));
   }

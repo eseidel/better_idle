@@ -178,6 +178,13 @@ class Changes {
     );
   }
 
+  Changes removing(ItemStack item) {
+    return Changes(
+      inventoryChanges: inventoryChanges.addCount(item.name, -item.count),
+      skillXpChanges: skillXpChanges,
+    );
+  }
+
   Changes addingSkillXp(Skill skill, int amount) {
     return Changes(
       inventoryChanges: inventoryChanges,

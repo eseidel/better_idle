@@ -1,4 +1,5 @@
 import 'package:better_idle/src/screens/debug.dart';
+import 'package:better_idle/src/screens/firemaking.dart';
 import 'package:better_idle/src/screens/inventory.dart';
 import 'package:better_idle/src/screens/woodcutting.dart';
 import 'package:flutter/material.dart';
@@ -20,6 +21,11 @@ final GoRouter router = GoRouter(
       path: '/woodcutting',
       name: 'woodcutting',
       builder: (context, _) => const WoodcuttingPage(),
+    ),
+    GoRoute(
+      path: '/firemaking',
+      name: 'firemaking',
+      builder: (context, _) => const FiremakingPage(),
     ),
     GoRoute(
       path: '/debug',

@@ -55,6 +55,15 @@ class AppNavigationDrawer extends StatelessWidget {
             },
           ),
           ListTile(
+            leading: const Icon(Icons.local_fire_department),
+            title: const Text('Firemaking'),
+            selected: currentLocation == '/firemaking',
+            onTap: () {
+              Navigator.pop(context);
+              router.goNamed('firemaking');
+            },
+          ),
+          ListTile(
             leading: const Icon(Icons.bug_report),
             title: const Text('Debug'),
             selected: currentLocation == '/debug',

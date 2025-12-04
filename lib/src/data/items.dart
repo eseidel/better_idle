@@ -2,6 +2,8 @@ const _all = [
   Item(name: 'Normal Logs', sellsFor: 1),
   Item(name: 'Oak Logs', sellsFor: 5),
   Item(name: 'Bird Nest', sellsFor: 350),
+  Item(name: 'Coal Ore', sellsFor: 13),
+  Item(name: 'Ash', sellsFor: 5),
 ];
 
 class Item {

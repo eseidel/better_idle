@@ -40,6 +40,10 @@ class Inventory {
   List<ItemStack> get items =>
       _orderedItems.map((e) => ItemStack(name: e, count: _counts[e]!)).toList();
 
+  int countOfItem(String name) {
+    return _counts[name] ?? 0;
+  }
+
   Inventory adding(ItemStack item) {
     final counts = Map<String, int>.from(_counts);
     final orderedItems = List<String>.from(_orderedItems);
