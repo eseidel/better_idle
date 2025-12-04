@@ -1,4 +1,5 @@
 import 'package:better_idle/src/data/actions.dart';
+import 'package:better_idle/src/data/items.dart';
 import 'package:better_idle/src/logic/consume_ticks.dart';
 import 'package:better_idle/src/state.dart';
 import 'package:better_idle/src/types/inventory.dart';
@@ -6,12 +7,14 @@ import 'package:better_idle/src/types/time_away.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  final normalLogs = itemRegistry.byName('Normal Logs');
+  final oakLogs = itemRegistry.byName('Oak Logs');
   test('GlobalState toJson/fromJson round-trip', () {
     // Create a state with TimeAway data
     final originalState = GlobalState(
       inventory: Inventory.fromItems([
-        const ItemStack(name: 'Normal Logs', count: 5),
-        const ItemStack(name: 'Oak Logs', count: 3),
+        ItemStack(normalLogs, count: 5),
+        ItemStack(oakLogs, count: 3),
       ]),
       activeAction: const ActiveAction(name: 'Normal Tree', progressTicks: 15),
       skillStates: {
@@ -40,61 +43,45 @@ void main() {
     final json = originalState.toJson();
 
     // Convert back from JSON
-    final roundTrippedState = GlobalState.fromJson(json);
+    final loaded = GlobalState.fromJson(json);
 
     // Verify all fields match
-    expect(roundTrippedState.updatedAt, originalState.updatedAt);
-    expect(roundTrippedState.inventory.items.length, 2);
-    expect(roundTrippedState.inventory.items[0].name, 'Normal Logs');
-    expect(roundTrippedState.inventory.items[0].count, 5);
-    expect(roundTrippedState.inventory.items[1].name, 'Oak Logs');
-    expect(roundTrippedState.inventory.items[1].count, 3);
+    expect(loaded.updatedAt, originalState.updatedAt);
+    final items = loaded.inventory.items;
+    expect(items.length, 2);
+    expect(items[0].item, normalLogs);
+    expect(items[0].count, 5);
+    expect(items[1].item, oakLogs);
+    expect(items[1].count, 3);
 
-    expect(roundTrippedState.activeAction?.name, 'Normal Tree');
-    expect(roundTrippedState.activeAction?.progressTicks, 15);
+    expect(loaded.activeAction?.name, 'Normal Tree');
+    expect(loaded.activeAction?.progressTicks, 15);
 
-    expect(roundTrippedState.skillStates.length, 1);
-    expect(roundTrippedState.skillStates[Skill.woodcutting]?.xp, 100);
-    expect(roundTrippedState.skillStates[Skill.woodcutting]?.masteryXp, 50);
+    expect(loaded.skillStates.length, 1);
+    expect(loaded.skillStates[Skill.woodcutting]?.xp, 100);
+    expect(loaded.skillStates[Skill.woodcutting]?.masteryXp, 50);
 
-    expect(roundTrippedState.actionStates.length, 2);
-    expect(roundTrippedState.actionStates['Normal Tree']?.masteryXp, 25);
-    expect(roundTrippedState.actionStates['Oak Tree']?.masteryXp, 10);
+    expect(loaded.actionStates.length, 2);
+    expect(loaded.actionStates['Normal Tree']?.masteryXp, 25);
+    expect(loaded.actionStates['Oak Tree']?.masteryXp, 10);
 
     // Verify TimeAway data
-    expect(roundTrippedState.timeAway, isNotNull);
-    expect(roundTrippedState.timeAway!.duration, const Duration(seconds: 30));
-    expect(roundTrippedState.timeAway!.activeSkill, Skill.woodcutting);
-    expect(
-      roundTrippedState.timeAway!.changes.inventoryChanges.counts.length,
-      2,
-    );
-    expect(
-      roundTrippedState
-          .timeAway!
-          .changes
-          .inventoryChanges
-          .counts['Normal Logs'],
-      10,
-    );
-    expect(
-      roundTrippedState.timeAway!.changes.inventoryChanges.counts['Oak Logs'],
-      5,
-    );
-    expect(roundTrippedState.timeAway!.changes.skillXpChanges.counts.length, 1);
-    expect(
-      roundTrippedState.timeAway!.changes.skillXpChanges.counts[Skill
-          .woodcutting],
-      50,
-    );
+    final timeAway = loaded.timeAway;
+    expect(timeAway, isNotNull);
+    expect(timeAway!.duration, const Duration(seconds: 30));
+    expect(timeAway.activeSkill, Skill.woodcutting);
+    final changes = timeAway.changes;
+    expect(changes.inventoryChanges.counts.length, 2);
+    expect(changes.inventoryChanges.counts['Normal Logs'], 10);
+    expect(changes.inventoryChanges.counts['Oak Logs'], 5);
+    expect(changes.skillXpChanges.counts.length, 1);
+    expect(changes.skillXpChanges.counts[Skill.woodcutting], 50);
   });
 
   test('GlobalState clearAction clears activeAction', () {
     // Create a state with an activeAction
     final stateWithAction = GlobalState(
-      inventory: Inventory.fromItems([
-        const ItemStack(name: 'Normal Logs', count: 5),
-      ]),
+      inventory: Inventory.fromItems([ItemStack(normalLogs, count: 5)]),
       activeAction: const ActiveAction(name: 'Normal Tree', progressTicks: 15),
       skillStates: {
         Skill.woodcutting: const SkillState(xp: 100, masteryXp: 50),
@@ -114,9 +101,7 @@ void main() {
   test('GlobalState clearTimeAway clears timeAway', () {
     // Create a state with timeAway
     final stateWithTimeAway = GlobalState(
-      inventory: Inventory.fromItems([
-        const ItemStack(name: 'Normal Logs', count: 5),
-      ]),
+      inventory: Inventory.fromItems([ItemStack(normalLogs, count: 5)]),
       activeAction: const ActiveAction(name: 'Normal Tree', progressTicks: 15),
       skillStates: {
         Skill.woodcutting: const SkillState(xp: 100, masteryXp: 50),
@@ -140,5 +125,83 @@ void main() {
 
     // Verify timeAway is null
     expect(clearedState.timeAway, isNull);
+  });
+
+  test('GlobalState sellItem removes items and adds GP', () {
+    final birdNest = itemRegistry.byName('Bird Nest');
+
+    // Create a state with items and some existing GP
+    final initialState = GlobalState(
+      inventory: Inventory.fromItems([
+        ItemStack(normalLogs, count: 10),
+        ItemStack(oakLogs, count: 5),
+        ItemStack(birdNest, count: 2),
+      ]),
+      activeAction: null,
+      skillStates: {},
+      actionStates: {},
+      updatedAt: DateTime(2024, 1, 1, 12),
+      gp: 100,
+    );
+
+    // Sell some normal logs (partial quantity)
+    final afterSellingLogs = initialState.sellItem(
+      ItemStack(normalLogs, count: 3),
+    );
+
+    // Verify items were removed
+    expect(afterSellingLogs.inventory.countOfItem(normalLogs), 7);
+    expect(afterSellingLogs.inventory.countOfItem(oakLogs), 5);
+    expect(afterSellingLogs.inventory.countOfItem(birdNest), 2);
+
+    // Verify GP was added correctly (3 * 1 = 3, plus existing 100 = 103)
+    expect(afterSellingLogs.gp, 103);
+
+    // Sell all oak logs
+    final afterSellingOak = afterSellingLogs.sellItem(
+      ItemStack(oakLogs, count: 5),
+    );
+
+    // Verify oak logs are completely removed
+    expect(afterSellingOak.inventory.countOfItem(oakLogs), 0);
+    expect(
+      afterSellingOak.inventory.items.length,
+      2,
+    ); // Only normal logs and bird nest remain
+
+    // Verify GP was added correctly (5 * 5 = 25, plus existing 103 = 128)
+    expect(afterSellingOak.gp, 128);
+
+    // Sell a bird nest (high value item)
+    final afterSellingNest = afterSellingOak.sellItem(
+      ItemStack(birdNest, count: 1),
+    );
+
+    // Verify bird nest count decreased
+    expect(afterSellingNest.inventory.countOfItem(birdNest), 1);
+
+    // Verify GP was added correctly (1 * 350 = 350, plus existing 128 = 478)
+    expect(afterSellingNest.gp, 478);
+  });
+
+  test('GlobalState sellItem with zero GP', () {
+    // Test selling when starting with zero GP
+    final initialState = GlobalState(
+      inventory: Inventory.fromItems([ItemStack(normalLogs, count: 5)]),
+      activeAction: null,
+      skillStates: {},
+      actionStates: {},
+      updatedAt: DateTime(2024, 1, 1, 12),
+      gp: 0,
+    );
+
+    final afterSelling = initialState.sellItem(ItemStack(normalLogs, count: 5));
+
+    // Verify all items were removed
+    expect(afterSelling.inventory.countOfItem(normalLogs), 0);
+    expect(afterSelling.inventory.items.length, 0);
+
+    // Verify GP was added correctly (5 * 1 = 5)
+    expect(afterSelling.gp, 5);
   });
 }

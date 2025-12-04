@@ -1,6 +1,7 @@
 import 'dart:math';
 
 import 'package:better_idle/src/data/actions.dart';
+import 'package:better_idle/src/data/items.dart';
 import 'package:better_idle/src/data/xp.dart';
 import 'package:better_idle/src/state.dart';
 import 'package:better_idle/src/types/inventory.dart';
@@ -60,9 +61,14 @@ class StateUpdateBuilder {
     _state = _state.updateActiveAction(action.name, progress);
   }
 
-  void addInventory(ItemStack item) {
-    _state = _state.copyWith(inventory: _state.inventory.adding(item));
-    _changes = _changes.adding(item);
+  void addInventory(ItemStack stack) {
+    _state = _state.copyWith(inventory: _state.inventory.adding(stack));
+    _changes = _changes.adding(stack);
+  }
+
+  void removeInventory(ItemStack stack) {
+    _state = _state.copyWith(inventory: _state.inventory.removing(stack));
+    _changes = _changes.removing(stack);
   }
 
   void addSkillXp(Skill skill, int amount) {
@@ -100,6 +106,13 @@ void completeAction(
   Random? random,
 }) {
   final rng = random ?? Random();
+
+  // Consume required items
+  for (final requirement in action.inputs.entries) {
+    final item = itemRegistry.byName(requirement.key);
+    builder.removeInventory(ItemStack(item, count: requirement.value));
+  }
+
   // Process all drops (action-level, skill-level, and global)
   for (final drop in dropsRegistry.allDropsForAction(action)) {
     if (drop.rate >= 1.0 || rng.nextDouble() < drop.rate) {

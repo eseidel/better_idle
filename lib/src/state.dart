@@ -64,16 +64,22 @@ class Action {
     required this.name,
     required this.duration,
     required this.xp,
-    required this.rewards,
     required this.unlockLevel,
+    this.outputs = const {},
+    this.inputs = const {},
   });
   final Skill skill;
   final String name;
   final int xp;
   final int unlockLevel;
-  final List<Drop> rewards;
   final Duration duration;
+  final Map<String, int> inputs;
+  final Map<String, int> outputs;
   Tick get maxValue => duration.inMilliseconds ~/ tickDuration.inMilliseconds;
+
+  List<Drop> get rewards => [
+    ...outputs.entries.map((e) => Drop(e.key, count: e.value)),
+  ];
 }
 
 class SkillState {
@@ -232,20 +238,18 @@ class GlobalState {
   /// Returns true if the inventory is at capacity (no more slots available).
   bool get isInventoryFull => inventoryUsed >= inventoryCapacity;
 
-  /// Checks if an item can be added to the inventory.
-  /// Returns true if the item can be added, false if it would exceed capacity.
-  /// Items that already exist in inventory can always be added (stacking).
-  bool canAddItem(ItemStack item) {
-    // If item already exists, we can always stack more
-    final itemExists = inventory.items.any((i) => i.name == item.name);
-    if (itemExists) {
-      return true; // Can always stack existing items
-    }
-    // If item is new, check if we have space for another slot
-    return inventoryUsed < inventoryCapacity;
-  }
-
   GlobalState startAction(Action action) {
+    // Validate that all required items are available
+    for (final requirement in action.inputs.entries) {
+      final item = itemRegistry.byName(requirement.key);
+      final itemCount = inventory.countOfItem(item);
+      if (itemCount < requirement.value) {
+        throw Exception(
+          'Cannot start ${action.name}: Need ${requirement.value} '
+          '${requirement.key}, but only have $itemCount',
+        );
+      }
+    }
     final name = action.name;
     return copyWith(activeAction: ActiveAction(name: name, progressTicks: 0));
   }
@@ -327,13 +331,9 @@ class GlobalState {
     return copyWith(actionStates: newActionStates);
   }
 
-  GlobalState sellItem(String itemName, int count) {
-    final itemStack = ItemStack(name: itemName, count: count);
-    final newInventory = inventory.removing(itemStack);
-    // Calculate GP value from items.dart
-    final itemData = itemRegistry.byName(itemName);
-    final gpEarned = itemData.sellsFor * count;
-    return copyWith(inventory: newInventory, gp: gp + gpEarned);
+  GlobalState sellItem(ItemStack stack) {
+    final newInventory = inventory.removing(stack);
+    return copyWith(inventory: newInventory, gp: gp + stack.sellsFor);
   }
 
   GlobalState copyWith({

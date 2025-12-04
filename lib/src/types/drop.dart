@@ -1,3 +1,4 @@
+import 'package:better_idle/src/data/items.dart';
 import 'package:better_idle/src/types/inventory.dart';
 
 class Drop {
@@ -8,6 +9,7 @@ class Drop {
   final double rate;
 
   ItemStack toItemStack() {
-    return ItemStack(name: name, count: count);
+    final item = itemRegistry.byName(name);
+    return ItemStack(item, count: count);
   }
 }

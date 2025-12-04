@@ -52,3 +52,14 @@ String approximateCountString(int value) {
 
 /// The correct string for a precise number value.
 String preciseNumberString(int value) => NumberFormat('#,##0').format(value);
+
+String signedCountString(int value) {
+  if (value == 0) {
+    return '0';
+  }
+  if (value > 0) {
+    return '+${approximateCountString(value)}';
+  }
+  // Negative values already have a minus sign.
+  return approximateCountString(value);
+}

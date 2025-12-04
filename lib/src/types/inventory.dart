@@ -1,71 +1,92 @@
+import 'package:better_idle/src/data/items.dart';
+
 class ItemStack {
-  const ItemStack({required this.name, required this.count});
-  final String name;
+  const ItemStack(this.item, {required this.count});
+  final Item item;
   final int count;
 
   ItemStack copyWith({int? count}) {
-    return ItemStack(name: name, count: count ?? this.count);
+    return ItemStack(item, count: count ?? this.count);
   }
+
+  int get sellsFor => item.sellsFor * count;
 }
 
 class Inventory {
-  Inventory.fromItems(List<ItemStack> items)
+  Inventory.fromItems(List<ItemStack> stacks)
     : _counts = {},
       _orderedItems = [] {
-    for (final item in items) {
-      _counts[item.name] = item.count;
-      _orderedItems.add(item.name);
+    for (final stack in stacks) {
+      _counts[stack.item] = stack.count;
+      _orderedItems.add(stack.item);
     }
   }
 
   Inventory.empty() : this.fromItems([]);
 
   Inventory._({
-    required Map<String, int> counts,
-    required List<String> orderedItems,
+    required Map<Item, int> counts,
+    required List<Item> orderedItems,
   }) : _counts = counts,
        _orderedItems = orderedItems;
 
   Inventory.fromJson(Map<String, dynamic> json)
-    : _counts = Map<String, int>.from(json['counts'] as Map<String, dynamic>),
-      _orderedItems = List<String>.from(json['orderedItems'] as List<dynamic>);
+    : _counts = {},
+      _orderedItems = [] {
+    final countsJson = json['counts'] as Map<String, dynamic>;
+    final orderedItemsJson = json['orderedItems'] as List<dynamic>;
 
-  Map<String, dynamic> toJson() {
-    return {'counts': _counts, 'orderedItems': _orderedItems};
+    for (final name in orderedItemsJson) {
+      // If the item name is not in the registry this will throw a BadStateError
+      // Consider a mode that handles gracefully ignores unknown items.
+      final item = itemRegistry.byName(name as String);
+      _counts[item] = countsJson[name] as int;
+      _orderedItems.add(item);
+    }
   }
 
-  final Map<String, int> _counts;
-  final List<String> _orderedItems;
+  Map<String, dynamic> toJson() {
+    return {
+      'counts': _counts.map((key, value) => MapEntry(key.name, value)),
+      'orderedItems': _orderedItems.map((item) => item.name).toList(),
+    };
+  }
 
-  List<ItemStack> get items =>
-      _orderedItems.map((e) => ItemStack(name: e, count: _counts[e]!)).toList();
+  final Map<Item, int> _counts;
+  final List<Item> _orderedItems;
 
-  Inventory adding(ItemStack item) {
-    final counts = Map<String, int>.from(_counts);
-    final orderedItems = List<String>.from(_orderedItems);
-    final existingCount = counts[item.name];
+  List<ItemStack> get items => _orderedItems
+      .map((item) => ItemStack(item, count: _counts[item]!))
+      .toList();
+
+  int countOfItem(Item item) => _counts[item] ?? 0;
+
+  Inventory adding(ItemStack stack) {
+    final counts = Map<Item, int>.from(_counts);
+    final orderedItems = List<Item>.from(_orderedItems);
+    final existingCount = counts[stack.item];
     if (existingCount == null) {
-      counts[item.name] = item.count;
-      orderedItems.add(item.name);
+      counts[stack.item] = stack.count;
+      orderedItems.add(stack.item);
     } else {
-      counts[item.name] = existingCount + item.count;
+      counts[stack.item] = existingCount + stack.count;
     }
     return Inventory._(counts: counts, orderedItems: orderedItems);
   }
 
-  Inventory removing(ItemStack item) {
-    final counts = Map<String, int>.from(_counts);
-    final orderedItems = List<String>.from(_orderedItems);
-    final existingCount = counts[item.name];
+  Inventory removing(ItemStack stack) {
+    final counts = Map<Item, int>.from(_counts);
+    final orderedItems = List<Item>.from(_orderedItems);
+    final existingCount = counts[stack.item];
     if (existingCount == null) {
       return this; // Item not in inventory, return unchanged
     }
-    final newCount = existingCount - item.count;
+    final newCount = existingCount - stack.count;
     if (newCount <= 0) {
-      counts.remove(item.name);
-      orderedItems.remove(item.name);
+      counts.remove(stack.item);
+      orderedItems.remove(stack.item);
     } else {
-      counts[item.name] = newCount;
+      counts[stack.item] = newCount;
     }
     return Inventory._(counts: counts, orderedItems: orderedItems);
   }

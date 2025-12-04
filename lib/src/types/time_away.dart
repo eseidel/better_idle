@@ -171,9 +171,19 @@ class Changes {
 
   bool get isEmpty => inventoryChanges.isEmpty && skillXpChanges.isEmpty;
 
-  Changes adding(ItemStack item) {
+  Changes adding(ItemStack stack) {
     return Changes(
-      inventoryChanges: inventoryChanges.addCount(item.name, item.count),
+      inventoryChanges: inventoryChanges.addCount(stack.item.name, stack.count),
+      skillXpChanges: skillXpChanges,
+    );
+  }
+
+  Changes removing(ItemStack stack) {
+    return Changes(
+      inventoryChanges: inventoryChanges.addCount(
+        stack.item.name,
+        -stack.count,
+      ),
       skillXpChanges: skillXpChanges,
     );
   }

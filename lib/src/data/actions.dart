@@ -2,7 +2,8 @@ import 'package:better_idle/src/state.dart';
 import 'package:better_idle/src/types/drop.dart';
 
 enum Skill {
-  woodcutting('Woodcutting');
+  woodcutting('Woodcutting'),
+  firemaking('Firemaking');
 
   const Skill(this.name);
 
@@ -13,14 +14,14 @@ enum Skill {
   final String name;
 }
 
-final _all = [
+final _woodcuttingActions = <Action>[
   const Action(
     skill: Skill.woodcutting,
     name: 'Normal Tree',
     unlockLevel: 1,
     duration: Duration(seconds: 3),
     xp: 10,
-    rewards: [Drop('Normal Logs')],
+    outputs: {'Normal Logs': 1},
   ),
   const Action(
     skill: Skill.woodcutting,
@@ -28,7 +29,7 @@ final _all = [
     unlockLevel: 10,
     duration: Duration(seconds: 4),
     xp: 15,
-    rewards: [Drop('Oak Logs')],
+    outputs: {'Oak Logs': 1},
   ),
   const Action(
     skill: Skill.woodcutting,
@@ -36,7 +37,7 @@ final _all = [
     unlockLevel: 20,
     duration: Duration(seconds: 5),
     xp: 22,
-    rewards: [Drop('Willow Logs')],
+    outputs: {'Willow Logs': 1},
   ),
   const Action(
     skill: Skill.woodcutting,
@@ -44,15 +45,57 @@ final _all = [
     unlockLevel: 35,
     duration: Duration(seconds: 6),
     xp: 30,
-    rewards: [Drop('Teak Logs')],
+    outputs: {'Teak Logs': 1},
   ),
 ];
+
+final _firemakingActions = <Action>[
+  const Action(
+    skill: Skill.firemaking,
+    name: 'Burn Normal Logs',
+    unlockLevel: 1,
+    duration: Duration(seconds: 2),
+    xp: 19,
+    inputs: {'Normal Logs': 1},
+  ),
+  const Action(
+    skill: Skill.firemaking,
+    name: 'Burn Oak Logs',
+    unlockLevel: 10,
+    duration: Duration(seconds: 2),
+    xp: 39,
+    inputs: {'Oak Logs': 1},
+  ),
+  const Action(
+    skill: Skill.firemaking,
+    name: 'Burn Willow Logs',
+    unlockLevel: 25,
+    duration: Duration(seconds: 3),
+    xp: 52,
+    inputs: {'Willow Logs': 1},
+  ),
+  const Action(
+    skill: Skill.firemaking,
+    name: 'Burn Teak Logs',
+    unlockLevel: 35,
+    duration: Duration(seconds: 4),
+    xp: 84,
+    inputs: {'Teak Logs': 1},
+  ),
+];
+
+final List<Action> _all = [..._woodcuttingActions, ..._firemakingActions];
 
 // Skill-level drops: shared across all actions in a skill
 final _skillDrops = <Skill, List<Drop>>{
   Skill.woodcutting: [
     const Drop('Bird Nest', rate: 0.005),
     // Add other woodcutting skill-level drops here
+  ],
+  Skill.firemaking: [
+    const Drop('Coal Ore', rate: 0.40),
+    const Drop('Ash', rate: 0.20),
+    // Missing Charcoal, Generous Fire Spirit
   ],
   // Add other skills as they're added
 };

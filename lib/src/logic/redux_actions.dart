@@ -1,6 +1,8 @@
+import 'package:better_idle/src/data/items.dart';
 import 'package:better_idle/src/logic/consume_ticks.dart';
 import 'package:better_idle/src/services/toast_service.dart';
 import 'package:better_idle/src/state.dart';
+import 'package:better_idle/src/types/inventory.dart';
 
 export 'package:async_redux/async_redux.dart';
 
@@ -126,12 +128,12 @@ class DismissWelcomeBackDialogAction extends ReduxAction<GlobalState> {
 
 /// Sells a specified quantity of an item.
 class SellItemAction extends ReduxAction<GlobalState> {
-  SellItemAction({required this.itemName, required this.count});
-  final String itemName;
+  SellItemAction({required this.item, required this.count});
+  final Item item;
   final int count;
 
   @override
   GlobalState reduce() {
-    return state.sellItem(itemName, count);
+    return state.sellItem(ItemStack(item, count: count));
   }
 }

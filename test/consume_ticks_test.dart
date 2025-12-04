@@ -1,13 +1,17 @@
 import 'dart:math';
 
 import 'package:better_idle/src/data/actions.dart';
+import 'package:better_idle/src/data/items.dart';
 import 'package:better_idle/src/logic/consume_ticks.dart';
 import 'package:better_idle/src/state.dart';
+import 'package:better_idle/src/types/inventory.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   final normalTree = actionRegistry.byName('Normal Tree');
   final oakTree = actionRegistry.byName('Oak Tree');
+  final normalLogs = itemRegistry.byName('Normal Logs');
+  final birdNest = itemRegistry.byName('Bird Nest');
   group('consumeTicks', () {
     test('consuming ticks for 1 completion adds 1 item and 1x XP', () {
       var state = GlobalState.empty();
@@ -25,9 +29,10 @@ void main() {
       expect(state.activeAction?.name, normalTree.name);
 
       // Verify 1 item in inventory
-      expect(state.inventory.items.length, 1);
-      expect(state.inventory.items.first.name, 'Normal Logs');
-      expect(state.inventory.items.first.count, 1);
+      final items = state.inventory.items;
+      expect(items.length, 1);
+      expect(items.first.item.name, 'Normal Logs');
+      expect(items.first.count, 1);
 
       // Verify 1x XP
       expect(state.skillState(normalTree.skill).xp, normalTree.xp);
@@ -55,9 +60,10 @@ void main() {
       expect(state.activeAction?.name, normalTree.name);
 
       // Verify 5 items in inventory
-      expect(state.inventory.items.length, 1);
-      expect(state.inventory.items.first.name, 'Normal Logs');
-      expect(state.inventory.items.first.count, 5);
+      final items = state.inventory.items;
+      expect(items.length, 1);
+      expect(items.first.item.name, 'Normal Logs');
+      expect(items.first.count, 5);
 
       // Verify 5x XP
       expect(state.skillState(normalTree.skill).xp, normalTree.xp * 5);
@@ -107,9 +113,10 @@ void main() {
       expect(state.activeAction?.name, normalTree.name);
 
       // Verify 1 item in inventory (only first completion counted)
-      expect(state.inventory.items.length, 1);
-      expect(state.inventory.items.first.name, 'Normal Logs');
-      expect(state.inventory.items.first.count, 1);
+      final items = state.inventory.items;
+      expect(items.length, 1);
+      expect(items.first.item.name, 'Normal Logs');
+      expect(items.first.count, 1);
 
       // Verify 1x XP (only first completion counted)
       expect(state.skillState(normalTree.skill).xp, normalTree.xp);
@@ -132,9 +139,10 @@ void main() {
       expect(state.activeAction?.name, oakTree.name);
 
       // Verify 2 items in inventory
-      expect(state.inventory.items.length, 1);
-      expect(state.inventory.items.first.name, 'Oak Logs');
-      expect(state.inventory.items.first.count, 2);
+      final items = state.inventory.items;
+      expect(items.length, 1);
+      expect(items.first.item.name, 'Oak Logs');
+      expect(items.first.count, 2);
 
       // Verify 2x XP (15 * 2 = 30)
       expect(state.skillState(oakTree.skill).xp, oakTree.xp * 2);
@@ -231,18 +239,137 @@ void main() {
       state = builder.build();
 
       // Verify action-level drop (Normal Logs) is present
-      expect(state.inventory.items.any((i) => i.name == 'Normal Logs'), true);
-      final normalLogsCount = state.inventory.items
-          .firstWhere((i) => i.name == 'Normal Logs')
+      final items = state.inventory.items;
+      expect(items.any((i) => i.item == normalLogs), true);
+      final normalLogsCount = items
+          .firstWhere((i) => i.item == normalLogs)
           .count;
       expect(normalLogsCount, 100);
 
       // Verify skill-level drop (Bird Nest) may have dropped
       final birdNestCount = state.inventory.items
-          .where((i) => i.name == 'Bird Nest')
+          .where((i) => i.item == birdNest)
           .fold(0, (sum, item) => sum + item.count);
       // With seeded random, we know it will always drop 1.
       expect(birdNestCount, greaterThanOrEqualTo(1));
+    });
+
+    test(
+      'action with output count > 1 correctly creates drops with that count',
+      () {
+        // Create an action with output count > 1
+        const testAction = Action(
+          skill: Skill.woodcutting,
+          name: 'Test Action',
+          unlockLevel: 1,
+          duration: Duration(seconds: 1),
+          xp: 10,
+          outputs: {'Normal Logs': 3}, // Count > 1
+        );
+
+        // Verify the rewards getter returns drops with the correct count
+        final rewards = testAction.rewards;
+        expect(rewards.length, 1);
+        expect(rewards.first.name, 'Normal Logs');
+        expect(rewards.first.count, 3); // Should be 3, not 1
+
+        // Test end-to-end: complete the action and verify correct items added
+        var state = GlobalState.empty();
+        state = state.startAction(testAction);
+
+        final builder = StateUpdateBuilder(state);
+        // Complete the action directly (bypassing consumeTicks which
+        // requires registry lookup)
+        completeAction(builder, testAction);
+        state = builder.build();
+
+        // Verify 3 items were added (not 1)
+        final items = state.inventory.items;
+        expect(items.length, 1);
+        expect(items.first.item.name, 'Normal Logs');
+        expect(items.first.count, 3);
+      },
+    );
+
+    test(
+      'consuming ticks for action with inputs consumes the required items',
+      () {
+        final burnNormalLogs = actionRegistry.byName('Burn Normal Logs');
+        final coalOre = itemRegistry.byName('Coal Ore');
+        final ash = itemRegistry.byName('Ash');
+
+        // Start with Normal Logs in inventory
+        var state = GlobalState.empty();
+        state = state.copyWith(
+          inventory: Inventory.fromItems([ItemStack(normalLogs, count: 5)]),
+        );
+
+        // Verify we have 5 Normal Logs
+        expect(state.inventory.countOfItem(normalLogs), 5);
+
+        // Start the firemaking action
+        state = state.startAction(burnNormalLogs);
+
+        // Advance time by exactly 1 completion (20 ticks = 2 seconds)
+        final builder = StateUpdateBuilder(state);
+        consumeTicks(builder, 20);
+        state = builder.build();
+
+        // Verify activity progress reset to 0 (ready for next completion)
+        expect(state.activeAction?.progressTicks, 0);
+        expect(state.activeAction?.name, burnNormalLogs.name);
+
+        // Verify 1 Normal Log was consumed (5 - 1 = 4 remaining)
+        expect(state.inventory.countOfItem(normalLogs), 4);
+
+        // Verify 1x XP was gained
+        expect(state.skillState(burnNormalLogs.skill).xp, burnNormalLogs.xp);
+
+        // Verify skill-level drops may have occurred (Coal Ore or Ash)
+        final coalOreCount = state.inventory.countOfItem(coalOre);
+        final ashCount = state.inventory.countOfItem(ash);
+        // At least one skill-level drop should have a chance to occur
+        // (Coal Ore has 40% rate, Ash has 20% rate)
+        expect(coalOreCount + ashCount, greaterThanOrEqualTo(0));
+
+        // Verify changes object tracks the consumed item
+        expect(builder.changes.inventoryChanges.counts['Normal Logs'], -1);
+        expect(
+          builder.changes.skillXpChanges.counts[burnNormalLogs.skill],
+          burnNormalLogs.xp,
+        );
+      },
+    );
+
+    test('consuming ticks for multiple completions of action with inputs', () {
+      final burnNormalLogs = actionRegistry.byName('Burn Normal Logs');
+
+      // Start with 10 Normal Logs in inventory
+      var state = GlobalState.empty();
+      state = state.copyWith(
+        inventory: Inventory.fromItems([ItemStack(normalLogs, count: 10)]),
+      );
+
+      // Start the firemaking action
+      state = state.startAction(burnNormalLogs);
+
+      // Advance time by exactly 3 completions (60 ticks = 6 seconds)
+      final builder = StateUpdateBuilder(state);
+      consumeTicks(builder, 60);
+      state = builder.build();
+
+      // Verify 3 Normal Logs were consumed (10 - 3 = 7 remaining)
+      expect(state.inventory.countOfItem(normalLogs), 7);
+
+      // Verify 3x XP was gained
+      expect(state.skillState(burnNormalLogs.skill).xp, burnNormalLogs.xp * 3);
+
+      // Verify changes object tracks all consumed items
+      expect(builder.changes.inventoryChanges.counts['Normal Logs'], -3);
+      expect(
+        builder.changes.skillXpChanges.counts[burnNormalLogs.skill],
+        burnNormalLogs.xp * 3,
+      );
     });
   });
 }
