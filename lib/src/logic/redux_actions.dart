@@ -26,14 +26,22 @@ class UpdateActivityProgressAction extends ReduxAction<GlobalState> {
       return newState;
     }
 
-    // If dialog is open, accumulate changes into timeAway
+    // If timeAway exists, accumulate changes into it for the dialog to display.
+    // The dialog is showing these changes, so don't show toast.
+    // If timeAway is null, show toast normally.
     final existingTimeAway = state.timeAway;
-    if (existingTimeAway != null && !changes.isEmpty) {
+    if (existingTimeAway != null) {
+      // timeAway should never be empty
+      assert(
+        !existingTimeAway.changes.isEmpty,
+        'timeAway should never be empty',
+      );
+      // so if it exists, the dialog is showing and we should suppress toasts.
       final timeAway = existingTimeAway.mergeChanges(changes);
       // Don't show toast - dialog shows changes
       return newState.copyWith(timeAway: timeAway);
     } else {
-      // Otherwise, no dialog open - show toast
+      // No timeAway - show toast normally
       toastService.showToast(changes);
       return newState;
     }
@@ -85,7 +93,10 @@ class ResumeFromPauseAction extends ReduxAction<GlobalState> {
       endTime: now,
     );
     final timeAway = newTimeAway.maybeMergeInto(state.timeAway);
-    return newState.copyWith(timeAway: timeAway);
+    // Set timeAway on state if it has changes - empty timeAway should be null
+    return newState.copyWith(
+      timeAway: timeAway.changes.isEmpty ? null : timeAway,
+    );
   }
 }
 
