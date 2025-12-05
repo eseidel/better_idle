@@ -14,10 +14,6 @@ Tick ticksFromDuration(Duration duration) {
   return duration.inMilliseconds ~/ tickDuration.inMilliseconds;
 }
 
-Tick ticksSince(DateTime start) {
-  return ticksFromDuration(DateTime.timestamp().difference(start));
-}
-
 class ActiveAction {
   const ActiveAction({
     required this.name,
