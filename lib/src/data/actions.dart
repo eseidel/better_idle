@@ -51,8 +51,6 @@ class Action {
 
   bool get isFixedDuration => minDuration == maxDuration;
 
-  Tick get maxValue => ticksFromDuration(maxDuration);
-
   Tick rollDuration(Random random) {
     if (isFixedDuration) {
       return ticksFromDuration(minDuration);

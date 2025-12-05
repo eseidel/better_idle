@@ -10,22 +10,6 @@ export 'package:async_redux/async_redux.dart';
 typedef Tick = int;
 const Duration tickDuration = Duration(milliseconds: 100);
 
-/// Exception thrown when attempting to add an item to a full inventory.
-class InventoryFullException implements Exception {
-  const InventoryFullException({
-    required this.currentCapacity,
-    required this.attemptedItem,
-  });
-
-  final int currentCapacity;
-  final String attemptedItem;
-
-  @override
-  String toString() =>
-      'InventoryFullException: Cannot add $attemptedItem - '
-      'inventory is full (capacity: $currentCapacity)';
-}
-
 Tick ticksFromDuration(Duration duration) {
   return duration.inMilliseconds ~/ tickDuration.inMilliseconds;
 }
@@ -42,26 +26,10 @@ class ActiveAction {
   });
 
   factory ActiveAction.fromJson(Map<String, dynamic> json) {
-    final name = json['name'] as String;
-    final remainingTicks = json['remainingTicks'] as int?;
-    final totalTicks = json['totalTicks'] as int?;
-
-    // Backward compatibility: if new fields missing, derive from old fields.
-    if (remainingTicks == null || totalTicks == null) {
-      final oldProgressTicks = json['progressTicks'] as int? ?? 0;
-      final action = actionRegistry.byName(name);
-      final defaultTotal = action.maxValue;
-      return ActiveAction(
-        name: name,
-        remainingTicks: defaultTotal - oldProgressTicks,
-        totalTicks: defaultTotal,
-      );
-    }
-
     return ActiveAction(
-      name: name,
-      remainingTicks: remainingTicks,
-      totalTicks: totalTicks,
+      name: json['name'] as String,
+      remainingTicks: json['remainingTicks'] as int,
+      totalTicks: json['totalTicks'] as int,
     );
   }
 
