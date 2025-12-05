@@ -17,8 +17,6 @@ use it.
 
 ### TODO
 
-- Actions should automatically stop when they run out of inputs.
-- Clicking an action that is already running should stop it, not restart it.
 - Track per-item mastery and levels.
 - Add a shop.
 - Enforce fixed size inventory, stop actions that exceed such.

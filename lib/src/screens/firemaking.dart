@@ -70,10 +70,12 @@ class ActionCell extends StatelessWidget {
     final progress = (progressTicks ?? 0) / action.maxValue;
     final actionState = context.state.actionState(actionName);
     final canStart = context.state.canStartAction(action);
+    final isRunning = context.state.activeAction?.name == actionName;
+    final canToggle = canStart || isRunning;
     return GestureDetector(
-      onTap: canStart
+      onTap: canToggle
           ? () {
-              context.dispatch(StartActionAction(action: action));
+              context.dispatch(ToggleActionAction(action: action));
             }
           : null,
       child: Container(

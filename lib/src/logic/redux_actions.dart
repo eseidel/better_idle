@@ -6,16 +6,6 @@ import 'package:better_idle/src/types/inventory.dart';
 
 export 'package:async_redux/async_redux.dart';
 
-class StartActionAction extends ReduxAction<GlobalState> {
-  StartActionAction({required this.action});
-  final Action action;
-  @override
-  GlobalState reduce() {
-    // We need to stop the current activity or wait for it to finish?
-    return store.state.startAction(action);
-  }
-}
-
 class UpdateActivityProgressAction extends ReduxAction<GlobalState> {
   UpdateActivityProgressAction({required this.now});
   final DateTime now;
@@ -49,39 +39,18 @@ class UpdateActivityProgressAction extends ReduxAction<GlobalState> {
   }
 }
 
-class StopActionAction extends ReduxAction<GlobalState> {
+class ToggleActionAction extends ReduxAction<GlobalState> {
+  ToggleActionAction({required this.action});
+  final Action action;
   @override
   GlobalState reduce() {
-    // This might need to either wait for the activity to finish, or cancel it?
-    return state.clearAction();
+    // If the action is already running, stop it
+    if (state.activeAction?.name == action.name) {
+      return state.clearAction();
+    }
+    // Otherwise, start this action, which will clear any other active action.
+    return state.startAction(action);
   }
-}
-
-(TimeAway, GlobalState) consumeManyTicks(
-  GlobalState state,
-  Tick ticks, {
-  DateTime? endTime,
-}) {
-  final action = state.activeAction;
-  if (action == null) {
-    // No activity active, return empty changes
-    return (TimeAway.empty(), state);
-  }
-  final builder = StateUpdateBuilder(state);
-  consumeTicks(builder, ticks);
-  final startTime = state.updatedAt;
-  final calculatedEndTime =
-      endTime ??
-      startTime.add(
-        Duration(milliseconds: ticks * tickDuration.inMilliseconds),
-      );
-  final timeAway = TimeAway(
-    startTime: startTime,
-    endTime: calculatedEndTime,
-    activeSkill: state.activeSkill,
-    changes: builder.changes,
-  );
-  return (timeAway, builder.build());
 }
 
 /// Advances the game by a specified number of ticks and returns the changes.

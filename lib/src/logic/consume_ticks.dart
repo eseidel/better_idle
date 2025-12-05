@@ -130,6 +130,7 @@ void completeAction(
   builder.addSkillMasteryXp(action.skill, skillMasteryXp);
 }
 
+/// Consumes a specified number of ticks and updates the state.
 void consumeTicks(StateUpdateBuilder builder, Tick ticks, {Random? random}) {
   final state = builder.state;
   final startingAction = state.activeAction;
@@ -166,4 +167,32 @@ void consumeTicks(StateUpdateBuilder builder, Tick ticks, {Random? random}) {
       }
     }
   }
+}
+
+/// Consumes a specified number of ticks and returns the changes.
+(TimeAway, GlobalState) consumeManyTicks(
+  GlobalState state,
+  Tick ticks, {
+  DateTime? endTime,
+}) {
+  final action = state.activeAction;
+  if (action == null) {
+    // No activity active, return empty changes
+    return (TimeAway.empty(), state);
+  }
+  final builder = StateUpdateBuilder(state);
+  consumeTicks(builder, ticks);
+  final startTime = state.updatedAt;
+  final calculatedEndTime =
+      endTime ??
+      startTime.add(
+        Duration(milliseconds: ticks * tickDuration.inMilliseconds),
+      );
+  final timeAway = TimeAway(
+    startTime: startTime,
+    endTime: calculatedEndTime,
+    activeSkill: state.activeSkill,
+    changes: builder.changes,
+  );
+  return (timeAway, builder.build());
 }
