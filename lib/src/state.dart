@@ -238,6 +238,18 @@ class GlobalState {
   /// Returns true if the inventory is at capacity (no more slots available).
   bool get isInventoryFull => inventoryUsed >= inventoryCapacity;
 
+  /// Returns true if all required inputs for the action are available.
+  bool canStartAction(Action action) {
+    for (final requirement in action.inputs.entries) {
+      final item = itemRegistry.byName(requirement.key);
+      final itemCount = inventory.countOfItem(item);
+      if (itemCount < requirement.value) {
+        return false;
+      }
+    }
+    return true;
+  }
+
   GlobalState startAction(Action action) {
     // Validate that all required items are available
     for (final requirement in action.inputs.entries) {

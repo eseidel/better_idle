@@ -69,10 +69,13 @@ class ActionCell extends StatelessWidget {
     ).textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.bold);
     final progress = (progressTicks ?? 0) / action.maxValue;
     final actionState = context.state.actionState(actionName);
+    final canStart = context.state.canStartAction(action);
     return GestureDetector(
-      onTap: () {
-        context.dispatch(StartActionAction(action: action));
-      },
+      onTap: canStart
+          ? () {
+              context.dispatch(StartActionAction(action: action));
+            }
+          : null,
       child: Container(
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
