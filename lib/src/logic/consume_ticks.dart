@@ -107,6 +107,20 @@ class _Progress {
   int get progressTicks => totalTicks - remainingTicks;
 }
 
+class XpPerAction {
+  const XpPerAction({required this.xp, required this.masteryXp});
+  final int xp;
+  final int masteryXp;
+  int get masteryPoolXp => max(1, (0.25 * masteryXp).toInt());
+}
+
+XpPerAction xpPerAction(GlobalState state, Action action) {
+  return XpPerAction(
+    xp: action.xp,
+    masteryXp: masteryXpPerAction(state, action),
+  );
+}
+
 void completeAction(
   StateUpdateBuilder builder,
   Action action, {
@@ -126,11 +140,12 @@ void completeAction(
       builder.addInventory(drop.toItemStack());
     }
   }
-  builder.addSkillXp(action.skill, action.xp);
-  final masteryXpToAdd = masteryXpPerAction(builder.state, action);
-  builder.addActionMasteryXp(action.name, masteryXpToAdd);
-  final skillMasteryXp = max(1, (0.25 * masteryXpToAdd).toInt());
-  builder.addSkillMasteryXp(action.skill, skillMasteryXp);
+  final perAction = xpPerAction(builder.state, action);
+
+  builder
+    ..addSkillXp(action.skill, perAction.xp)
+    ..addActionMasteryXp(action.name, perAction.masteryXp)
+    ..addSkillMasteryXp(action.skill, perAction.masteryPoolXp);
 }
 
 /// Consumes a specified number of ticks and updates the state.
