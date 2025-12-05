@@ -67,7 +67,15 @@ class ActionCell extends StatelessWidget {
     final labelStyle = Theme.of(
       context,
     ).textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.bold);
-    final progress = (progressTicks ?? 0) / action.maxValue;
+    final activeAction = context.state.activeAction;
+    double progress;
+    if (activeAction?.name == actionName && activeAction != null) {
+      progress =
+          (activeAction.totalTicks - activeAction.remainingTicks) /
+          activeAction.totalTicks;
+    } else {
+      progress = 0.0;
+    }
     final actionState = context.state.actionState(actionName);
     final canStart = context.state.canStartAction(action);
     final isRunning = context.state.activeAction?.name == actionName;
@@ -89,7 +97,9 @@ class ActionCell extends StatelessWidget {
           children: [
             const Text('Burn'),
             Text(actionName, style: labelStyle),
-            Text('${action.xp} Skill XP, ${action.duration.inSeconds} seconds'),
+            Text(
+              '${action.xp} Skill XP, ${action.minDuration.inSeconds} seconds',
+            ),
             LinearProgressIndicator(value: progress),
             MasteryProgressCell(masteryXp: actionState.masteryXp),
           ],

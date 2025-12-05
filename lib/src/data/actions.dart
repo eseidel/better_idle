@@ -3,7 +3,8 @@ import 'package:better_idle/src/types/drop.dart';
 
 enum Skill {
   woodcutting('Woodcutting'),
-  firemaking('Firemaking');
+  firemaking('Firemaking'),
+  fishing('Fishing');
 
   const Skill(this.name);
 
@@ -84,7 +85,23 @@ final _firemakingActions = <Action>[
   ),
 ];
 
-final List<Action> _all = [..._woodcuttingActions, ..._firemakingActions];
+final _fishingActions = <Action>[
+  const Action.ranged(
+    skill: Skill.fishing,
+    name: 'Raw Shrimp',
+    unlockLevel: 1,
+    minDuration: Duration(seconds: 4),
+    maxDuration: Duration(seconds: 8),
+    xp: 10,
+    outputs: {'Raw Shrimp': 1},
+  ),
+];
+
+final List<Action> _all = [
+  ..._woodcuttingActions,
+  ..._firemakingActions,
+  ..._fishingActions,
+];
 
 // Skill-level drops: shared across all actions in a skill
 final _skillDrops = <Skill, List<Drop>>{
@@ -96,6 +113,9 @@ final _skillDrops = <Skill, List<Drop>>{
     const Drop('Coal Ore', rate: 0.40),
     const Drop('Ash', rate: 0.20),
     // Missing Charcoal, Generous Fire Spirit
+  ],
+  Skill.fishing: [
+    // Add fishing skill-level drops here as needed
   ],
   // Add other skills as they're added
 };

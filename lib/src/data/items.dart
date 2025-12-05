@@ -9,6 +9,7 @@ const _all = [
   Item(name: 'Bird Nest', sellsFor: 350),
   Item(name: 'Coal Ore', sellsFor: 13),
   Item(name: 'Ash', sellsFor: 5),
+  Item(name: 'Raw Shrimp', sellsFor: 3),
 ];
 
 @immutable

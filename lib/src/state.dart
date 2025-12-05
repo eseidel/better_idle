@@ -36,27 +36,55 @@ Tick ticksSince(DateTime start) {
 }
 
 class ActiveAction {
-  const ActiveAction({required this.name, required this.progressTicks});
+  const ActiveAction({
+    required this.name,
+    required this.remainingTicks,
+    required this.totalTicks,
+  });
 
   factory ActiveAction.fromJson(Map<String, dynamic> json) {
+    final name = json['name'] as String;
+    final remainingTicks = json['remainingTicks'] as int?;
+    final totalTicks = json['totalTicks'] as int?;
+
+    // Backward compatibility: if new fields missing, derive from old fields.
+    if (remainingTicks == null || totalTicks == null) {
+      final oldProgressTicks = json['progressTicks'] as int? ?? 0;
+      final action = actionRegistry.byName(name);
+      final defaultTotal = action.maxValue;
+      return ActiveAction(
+        name: name,
+        remainingTicks: defaultTotal - oldProgressTicks,
+        totalTicks: defaultTotal,
+      );
+    }
+
     return ActiveAction(
-      name: json['name'] as String,
-      progressTicks: json['progressTicks'] as int,
+      name: name,
+      remainingTicks: remainingTicks,
+      totalTicks: totalTicks,
     );
   }
-  final String name;
-  final int progressTicks;
 
-  ActiveAction copyWith({String? name, int? progressTicks}) {
+  final String name;
+  final int remainingTicks;
+  final int totalTicks;
+
+  // Computed getter for backward compatibility
+  int get progressTicks => totalTicks - remainingTicks;
+
+  ActiveAction copyWith({String? name, int? remainingTicks, int? totalTicks}) {
     return ActiveAction(
       name: name ?? this.name,
-      progressTicks: progressTicks ?? this.progressTicks,
+      remainingTicks: remainingTicks ?? this.remainingTicks,
+      totalTicks: totalTicks ?? this.totalTicks,
     );
   }
 
   Map<String, dynamic> toJson() => {
     'name': name,
-    'progressTicks': progressTicks,
+    'remainingTicks': remainingTicks,
+    'totalTicks': totalTicks,
   };
 }
 
@@ -64,20 +92,48 @@ class Action {
   const Action({
     required this.skill,
     required this.name,
-    required this.duration,
+    required Duration duration,
+    required this.xp,
+    required this.unlockLevel,
+    this.outputs = const {},
+    this.inputs = const {},
+  }) : minDuration = duration,
+       maxDuration = duration;
+
+  const Action.ranged({
+    required this.skill,
+    required this.name,
+    required this.minDuration,
+    required this.maxDuration,
     required this.xp,
     required this.unlockLevel,
     this.outputs = const {},
     this.inputs = const {},
   });
+
   final Skill skill;
   final String name;
   final int xp;
   final int unlockLevel;
-  final Duration duration;
+  final Duration minDuration;
+  final Duration maxDuration;
   final Map<String, int> inputs;
   final Map<String, int> outputs;
-  Tick get maxValue => duration.inMilliseconds ~/ tickDuration.inMilliseconds;
+
+  bool get isFixedDuration => minDuration == maxDuration;
+
+  Tick get maxValue => ticksFromDuration(maxDuration);
+
+  Tick rollDuration(Random random) {
+    if (isFixedDuration) {
+      return ticksFromDuration(minDuration);
+    }
+    final minTicks = ticksFromDuration(minDuration);
+    final maxTicks = ticksFromDuration(maxDuration);
+    // random.nextInt(n) creates [0, n-1] so use +1 to produce a uniform random
+    // value between minTicks and maxTicks (inclusive).
+    return minTicks + random.nextInt((maxTicks - minTicks) + 1);
+  }
 
   List<Drop> get rewards => [
     ...outputs.entries.map((e) => Drop(e.key, count: e.value)),
@@ -320,7 +376,14 @@ class GlobalState {
       }
     }
     final name = action.name;
-    return copyWith(activeAction: ActiveAction(name: name, progressTicks: 0));
+    final totalTicks = action.rollDuration(Random());
+    return copyWith(
+      activeAction: ActiveAction(
+        name: name,
+        remainingTicks: totalTicks,
+        totalTicks: totalTicks,
+      ),
+    );
   }
 
   GlobalState clearAction() {
@@ -365,12 +428,19 @@ class GlobalState {
     return activeAction!.progressTicks;
   }
 
-  GlobalState updateActiveAction(String actionName, int progressTicks) {
+  GlobalState updateActiveAction(
+    String actionName,
+    int remainingTicks,
+    int totalTicks,
+  ) {
     final activeAction = this.activeAction;
     if (activeAction == null || activeAction.name != actionName) {
       throw Exception('Active action is not $actionName');
     }
-    final newActiveAction = activeAction.copyWith(progressTicks: progressTicks);
+    final newActiveAction = activeAction.copyWith(
+      remainingTicks: remainingTicks,
+      totalTicks: totalTicks,
+    );
     return copyWith(activeAction: newActiveAction);
   }
 
