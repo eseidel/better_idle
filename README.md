@@ -17,7 +17,6 @@ use it.
 
 ### TODO
 
-- Actions missing inputs should not be clickable.
 - Actions should automatically stop when they run out of inputs.
 - Clicking an action that is already running should stop it, not restart it.
 - Track per-item mastery and levels.
