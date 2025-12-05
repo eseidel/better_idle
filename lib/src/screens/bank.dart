@@ -6,18 +6,18 @@ import 'package:better_idle/src/widgets/strings.dart';
 import 'package:collection/collection.dart';
 import 'package:flutter/material.dart';
 
-class InventoryPage extends StatefulWidget {
-  const InventoryPage({super.key});
+class BankPage extends StatefulWidget {
+  const BankPage({super.key});
 
   @override
-  State<InventoryPage> createState() => _InventoryPageState();
+  State<BankPage> createState() => _BankPageState();
 }
 
 int totalSellValue(Inventory inventory) {
   return inventory.items.fold(0, (sum, stack) => sum + stack.sellsFor);
 }
 
-class _InventoryPageState extends State<InventoryPage> {
+class _BankPageState extends State<BankPage> {
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
   ItemStack? _selectedStack;
 
@@ -36,7 +36,7 @@ class _InventoryPageState extends State<InventoryPage> {
     final inventoryCapacity = state.inventoryCapacity;
     return Scaffold(
       key: _scaffoldKey,
-      appBar: AppBar(title: const Text('Inventory')),
+      appBar: AppBar(title: const Text('Bank')),
       drawer: const AppNavigationDrawer(),
       endDrawer: _selectedStack != null
           ? ItemDetailsDrawer(stack: _selectedStack!)

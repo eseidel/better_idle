@@ -1,6 +1,6 @@
+import 'package:better_idle/src/screens/bank.dart';
 import 'package:better_idle/src/screens/debug.dart';
 import 'package:better_idle/src/screens/firemaking.dart';
-import 'package:better_idle/src/screens/inventory.dart';
 import 'package:better_idle/src/screens/shop.dart';
 import 'package:better_idle/src/screens/woodcutting.dart';
 import 'package:flutter/material.dart';
@@ -16,7 +16,7 @@ final GoRouter router = GoRouter(
     GoRoute(
       path: '/bank',
       name: 'bank',
-      builder: (context, _) => const InventoryPage(),
+      builder: (context, _) => const BankPage(),
     ),
     GoRoute(
       path: '/woodcutting',
