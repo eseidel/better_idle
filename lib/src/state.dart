@@ -363,7 +363,7 @@ class GlobalState {
     return true;
   }
 
-  GlobalState startAction(Action action) {
+  GlobalState startAction(Action action, {Random? random}) {
     // Validate that all required items are available
     for (final requirement in action.inputs.entries) {
       final item = itemRegistry.byName(requirement.key);
@@ -376,7 +376,7 @@ class GlobalState {
       }
     }
     final name = action.name;
-    final totalTicks = action.rollDuration(Random());
+    final totalTicks = action.rollDuration(random ?? Random());
     return copyWith(
       activeAction: ActiveAction(
         name: name,
@@ -429,17 +429,15 @@ class GlobalState {
   }
 
   GlobalState updateActiveAction(
-    String actionName,
-    int remainingTicks,
-    int totalTicks,
-  ) {
+    String actionName, {
+    required int remainingTicks,
+  }) {
     final activeAction = this.activeAction;
     if (activeAction == null || activeAction.name != actionName) {
       throw Exception('Active action is not $actionName');
     }
     final newActiveAction = activeAction.copyWith(
       remainingTicks: remainingTicks,
-      totalTicks: totalTicks,
     );
     return copyWith(activeAction: newActiveAction);
   }

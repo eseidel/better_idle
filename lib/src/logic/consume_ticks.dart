@@ -58,8 +58,15 @@ class StateUpdateBuilder {
 
   GlobalState get state => _state;
 
-  void setActionProgress(Action action, int remainingTicks, int totalTicks) {
-    _state = _state.updateActiveAction(action.name, remainingTicks, totalTicks);
+  void setActionProgress(Action action, {required int remainingTicks}) {
+    _state = _state.updateActiveAction(
+      action.name,
+      remainingTicks: remainingTicks,
+    );
+  }
+
+  void startAction(Action action, {Random? random}) {
+    _state = _state.startAction(action, random: random);
   }
 
   void addInventory(ItemStack stack) {
@@ -175,7 +182,7 @@ void consumeTicks(StateUpdateBuilder builder, Tick ticks, {Random? random}) {
     final ticksToApply = min(ticksToConsume, before.remainingTicks);
     final newRemainingTicks = before.remainingTicks - ticksToApply;
     ticksToConsume -= ticksToApply;
-    builder.setActionProgress(action, newRemainingTicks, before.totalTicks);
+    builder.setActionProgress(action, remainingTicks: newRemainingTicks);
 
     if (newRemainingTicks <= 0) {
       completeAction(builder, action, random: rng);
@@ -187,9 +194,7 @@ void consumeTicks(StateUpdateBuilder builder, Tick ticks, {Random? random}) {
 
       // Start the action again if we can.
       if (builder.state.canStartAction(action)) {
-        // Roll new duration for this iteration
-        final newTotalTicks = action.rollDuration(rng);
-        builder.setActionProgress(action, newTotalTicks, newTotalTicks);
+        builder.startAction(action, random: rng);
       } else {
         // Otherwise, clear the action and break out of the loop.
         builder.clearAction();
