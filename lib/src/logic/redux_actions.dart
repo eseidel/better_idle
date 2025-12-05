@@ -1,3 +1,4 @@
+import 'package:better_idle/src/data/actions.dart';
 import 'package:better_idle/src/data/items.dart';
 import 'package:better_idle/src/logic/consume_ticks.dart';
 import 'package:better_idle/src/services/toast_service.dart';

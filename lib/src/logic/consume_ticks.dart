@@ -65,8 +65,9 @@ class StateUpdateBuilder {
     );
   }
 
-  void startAction(Action action, {Random? random}) {
-    _state = _state.startAction(action, random: random);
+  void restartCurrentAction(Action action, {Random? random}) {
+    // This shouldn't be able to start a *new* action, only restart the current.
+    _state = _state.startAction(action, random: random ?? Random());
   }
 
   void addInventory(ItemStack stack) {
@@ -194,7 +195,7 @@ void consumeTicks(StateUpdateBuilder builder, Tick ticks, {Random? random}) {
 
       // Start the action again if we can.
       if (builder.state.canStartAction(action)) {
-        builder.startAction(action, random: rng);
+        builder.restartCurrentAction(action, random: rng);
       } else {
         // Otherwise, clear the action and break out of the loop.
         builder.clearAction();

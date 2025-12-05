@@ -1,3 +1,5 @@
+import 'dart:math';
+
 import 'package:better_idle/src/state.dart';
 import 'package:better_idle/src/types/drop.dart';
 
@@ -13,6 +15,58 @@ enum Skill {
   }
 
   final String name;
+}
+
+class Action {
+  const Action({
+    required this.skill,
+    required this.name,
+    required Duration duration,
+    required this.xp,
+    required this.unlockLevel,
+    this.outputs = const {},
+    this.inputs = const {},
+  }) : minDuration = duration,
+       maxDuration = duration;
+
+  const Action.ranged({
+    required this.skill,
+    required this.name,
+    required this.minDuration,
+    required this.maxDuration,
+    required this.xp,
+    required this.unlockLevel,
+    this.outputs = const {},
+    this.inputs = const {},
+  });
+
+  final Skill skill;
+  final String name;
+  final int xp;
+  final int unlockLevel;
+  final Duration minDuration;
+  final Duration maxDuration;
+  final Map<String, int> inputs;
+  final Map<String, int> outputs;
+
+  bool get isFixedDuration => minDuration == maxDuration;
+
+  Tick get maxValue => ticksFromDuration(maxDuration);
+
+  Tick rollDuration(Random random) {
+    if (isFixedDuration) {
+      return ticksFromDuration(minDuration);
+    }
+    final minTicks = ticksFromDuration(minDuration);
+    final maxTicks = ticksFromDuration(maxDuration);
+    // random.nextInt(n) creates [0, n-1] so use +1 to produce a uniform random
+    // value between minTicks and maxTicks (inclusive).
+    return minTicks + random.nextInt((maxTicks - minTicks) + 1);
+  }
+
+  List<Drop> get rewards => [
+    ...outputs.entries.map((e) => Drop(e.key, count: e.value)),
+  ];
 }
 
 final _woodcuttingActions = <Action>[
