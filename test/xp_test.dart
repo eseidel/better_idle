@@ -31,6 +31,11 @@ void main() {
       expect(levelForXp(512), 6);
       expect(levelForXp(650), 7);
     });
+
+    test('invalid xp throws', () {
+      expect(() => levelForXp(-1), throwsA(isA<StateError>()));
+      expect(levelForXp(1000000000), equals(maxLevel));
+    });
   });
 
   group('startXpForLevel', () {
@@ -49,6 +54,12 @@ void main() {
     test('returns correct XP for various levels', () {
       expect(startXpForLevel(4), 276);
       expect(startXpForLevel(5), 388);
+    });
+
+    test('invalid level throws', () {
+      expect(() => startXpForLevel(-1), throwsA(isA<StateError>()));
+      expect(() => startXpForLevel(0), throwsA(isA<StateError>()));
+      expect(() => startXpForLevel(maxLevel + 1), throwsA(isA<StateError>()));
     });
   });
 
