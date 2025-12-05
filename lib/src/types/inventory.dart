@@ -13,6 +13,8 @@ class ItemStack {
 }
 
 class Inventory {
+  const Inventory.empty() : _counts = const {}, _orderedItems = const [];
+
   Inventory.fromItems(List<ItemStack> stacks)
     : _counts = {},
       _orderedItems = [] {
@@ -21,8 +23,6 @@ class Inventory {
       _orderedItems.add(stack.item);
     }
   }
-
-  Inventory.empty() : this.fromItems([]);
 
   Inventory._({
     required Map<Item, int> counts,

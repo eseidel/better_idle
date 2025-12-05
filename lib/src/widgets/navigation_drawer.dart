@@ -37,14 +37,24 @@ class AppNavigationDrawer extends StatelessWidget {
             ),
           ),
           ListTile(
-            leading: const Icon(Icons.inventory_2),
-            title: const Text('Inventory'),
-            selected: currentLocation == '/inventory',
+            leading: const Icon(Icons.shopping_cart),
+            title: const Text('Shop'),
+            selected: currentLocation == '/shop',
             onTap: () {
               Navigator.pop(context);
-              router.goNamed('inventory');
+              router.goNamed('shop');
             },
           ),
+          ListTile(
+            leading: const Icon(Icons.inventory_2),
+            title: const Text('Bank'),
+            selected: currentLocation == '/bank',
+            onTap: () {
+              Navigator.pop(context);
+              router.goNamed('bank');
+            },
+          ),
+          const Divider(),
           ListTile(
             leading: const Icon(Icons.forest),
             title: const Text('Woodcutting'),
@@ -63,6 +73,7 @@ class AppNavigationDrawer extends StatelessWidget {
               router.goNamed('firemaking');
             },
           ),
+          const Divider(),
           ListTile(
             leading: const Icon(Icons.bug_report),
             title: const Text('Debug'),

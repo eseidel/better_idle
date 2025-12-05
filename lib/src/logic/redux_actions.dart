@@ -106,3 +106,20 @@ class SellItemAction extends ReduxAction<GlobalState> {
     return state.sellItem(ItemStack(item, count: count));
   }
 }
+
+/// Purchases a bank slot from the shop.
+class PurchaseBankSlotAction extends ReduxAction<GlobalState> {
+  @override
+  GlobalState reduce() {
+    final cost = state.shop.nextBankSlotCost();
+    if (state.gp < cost) {
+      throw Exception(
+        'Not enough GP to purchase bank slot. Need $cost, have ${state.gp}',
+      );
+    }
+    return state.copyWith(
+      gp: state.gp - cost,
+      shop: state.shop.copyWith(bankSlots: state.shop.bankSlots + 1),
+    );
+  }
+}

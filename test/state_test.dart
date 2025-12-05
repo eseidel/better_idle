@@ -11,7 +11,7 @@ void main() {
   final oakLogs = itemRegistry.byName('Oak Logs');
   test('GlobalState toJson/fromJson round-trip', () {
     // Create a state with TimeAway data
-    final originalState = GlobalState(
+    final originalState = GlobalState.test(
       inventory: Inventory.fromItems([
         ItemStack(normalLogs, count: 5),
         ItemStack(oakLogs, count: 3),
@@ -25,7 +25,6 @@ void main() {
         'Oak Tree': const ActionState(masteryXp: 10),
       },
       updatedAt: DateTime(2024, 1, 1, 12),
-      gp: 0,
       timeAway: TimeAway(
         startTime: DateTime(2024, 1, 1, 11, 59, 30),
         endTime: DateTime(2024, 1, 1, 12),
@@ -80,7 +79,7 @@ void main() {
 
   test('GlobalState clearAction clears activeAction', () {
     // Create a state with an activeAction
-    final stateWithAction = GlobalState(
+    final stateWithAction = GlobalState.test(
       inventory: Inventory.fromItems([ItemStack(normalLogs, count: 5)]),
       activeAction: const ActiveAction(name: 'Normal Tree', progressTicks: 15),
       skillStates: {
@@ -88,7 +87,6 @@ void main() {
       },
       actionStates: {'Normal Tree': const ActionState(masteryXp: 25)},
       updatedAt: DateTime(2024, 1, 1, 12),
-      gp: 0,
     );
 
     // Clear the action
@@ -100,7 +98,7 @@ void main() {
 
   test('GlobalState clearTimeAway clears timeAway', () {
     // Create a state with timeAway
-    final stateWithTimeAway = GlobalState(
+    final stateWithTimeAway = GlobalState.test(
       inventory: Inventory.fromItems([ItemStack(normalLogs, count: 5)]),
       activeAction: const ActiveAction(name: 'Normal Tree', progressTicks: 15),
       skillStates: {
@@ -108,7 +106,6 @@ void main() {
       },
       actionStates: {'Normal Tree': const ActionState(masteryXp: 25)},
       updatedAt: DateTime(2024, 1, 1, 12),
-      gp: 0,
       timeAway: TimeAway(
         startTime: DateTime(2024, 1, 1, 11, 59, 30),
         endTime: DateTime(2024, 1, 1, 12),
@@ -131,15 +128,12 @@ void main() {
     final birdNest = itemRegistry.byName('Bird Nest');
 
     // Create a state with items and some existing GP
-    final initialState = GlobalState(
+    final initialState = GlobalState.test(
       inventory: Inventory.fromItems([
         ItemStack(normalLogs, count: 10),
         ItemStack(oakLogs, count: 5),
         ItemStack(birdNest, count: 2),
       ]),
-      activeAction: null,
-      skillStates: {},
-      actionStates: {},
       updatedAt: DateTime(2024, 1, 1, 12),
       gp: 100,
     );
@@ -186,13 +180,9 @@ void main() {
 
   test('GlobalState sellItem with zero GP', () {
     // Test selling when starting with zero GP
-    final initialState = GlobalState(
+    final initialState = GlobalState.test(
       inventory: Inventory.fromItems([ItemStack(normalLogs, count: 5)]),
-      activeAction: null,
-      skillStates: {},
-      actionStates: {},
       updatedAt: DateTime(2024, 1, 1, 12),
-      gp: 0,
     );
 
     final afterSelling = initialState.sellItem(ItemStack(normalLogs, count: 5));

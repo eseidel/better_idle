@@ -46,8 +46,8 @@ class _InventoryPageState extends State<InventoryPage> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceEvenly,
             children: [
-              Text('Bank: ${approximateCreditString(sellValue)} GP'),
-              Text('Capacity: $inventoryUsed/$inventoryCapacity'),
+              Text('Space: $inventoryUsed/$inventoryCapacity'),
+              Text('Value: ${approximateCreditString(sellValue)} GP'),
             ],
           ),
           Expanded(

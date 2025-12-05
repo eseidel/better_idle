@@ -1,3 +1,5 @@
+import 'dart:math';
+
 import 'package:better_idle/src/data/actions.dart';
 import 'package:better_idle/src/data/items.dart';
 import 'package:better_idle/src/logic/consume_ticks.dart';
@@ -124,6 +126,35 @@ class ActionState {
   }
 }
 
+class ShopState {
+  const ShopState({required this.bankSlots});
+
+  const ShopState.empty() : this(bankSlots: 0);
+
+  factory ShopState.fromJson(Map<String, dynamic> json) {
+    return ShopState(bankSlots: json['bankSlots'] as int);
+  }
+  final int bankSlots;
+
+  ShopState copyWith({int? bankSlots}) {
+    return ShopState(bankSlots: bankSlots ?? this.bankSlots);
+  }
+
+  Map<String, dynamic> toJson() {
+    return {'bankSlots': bankSlots};
+  }
+
+  int nextBankSlotCost() {
+    // https://wiki.melvoridle.com/w/Bank
+    // C_b = \left \lfloor \frac{132\,728\,500 \times (n+2)}{142\,015^{\left (\frac{163}{122+n} \right )}}\right \rfloor
+    final n = bankSlots;
+    return (132728500 * (n + 2) / pow(142015, 163 / (122 + n))).floor();
+  }
+}
+
+/// The initial number of free bank slots.
+const int initialBankSlots = 20;
+
 class GlobalState {
   const GlobalState({
     required this.inventory,
@@ -132,21 +163,43 @@ class GlobalState {
     required this.actionStates,
     required this.updatedAt,
     required this.gp,
+    required this.shop,
     this.timeAway,
-    this.inventoryCapacity = 10,
   });
 
   GlobalState.empty()
     : this(
-        inventory: Inventory.empty(),
+        inventory: const Inventory.empty(),
         activeAction: null,
         skillStates: {},
         actionStates: {},
         updatedAt: DateTime.timestamp(),
         gp: 0,
         timeAway: null,
-        inventoryCapacity: 10,
+        shop: const ShopState.empty(),
       );
+
+  factory GlobalState.test({
+    Inventory inventory = const Inventory.empty(),
+    ActiveAction? activeAction,
+    Map<Skill, SkillState> skillStates = const {},
+    Map<String, ActionState> actionStates = const {},
+    DateTime? updatedAt,
+    int gp = 0,
+    TimeAway? timeAway,
+    ShopState shop = const ShopState.empty(),
+  }) {
+    return GlobalState(
+      inventory: inventory,
+      activeAction: activeAction,
+      skillStates: skillStates,
+      actionStates: actionStates,
+      updatedAt: updatedAt ?? DateTime.timestamp(),
+      gp: gp,
+      timeAway: timeAway,
+      shop: shop,
+    );
+  }
 
   GlobalState.fromJson(Map<String, dynamic> json)
     : updatedAt = DateTime.parse(json['updatedAt'] as String),
@@ -174,7 +227,10 @@ class GlobalState {
       timeAway = json['timeAway'] != null
           ? TimeAway.fromJson(json['timeAway'] as Map<String, dynamic>)
           : null,
-      inventoryCapacity = json['inventoryCapacity'] as int? ?? 10;
+      shop = json['shop'] != null
+          ? ShopState.fromJson(json['shop'] as Map<String, dynamic>)
+          : const ShopState.empty();
+
   Map<String, dynamic> toJson() {
     return {
       'updatedAt': updatedAt.toIso8601String(),
@@ -188,7 +244,7 @@ class GlobalState {
       ),
       'gp': gp,
       'timeAway': timeAway?.toJson(),
-      'inventoryCapacity': inventoryCapacity,
+      'shop': shop.toJson(),
     };
   }
 
@@ -215,9 +271,10 @@ class GlobalState {
   /// which the user kills the app with the "welcome back" dialog open.
   final TimeAway? timeAway;
 
-  /// The maximum number of unique item types (slots) the inventory can hold.
-  /// Items stack unlimited within their slot.
-  final int inventoryCapacity;
+  /// The shop state.
+  final ShopState shop;
+
+  int get inventoryCapacity => shop.bankSlots + initialBankSlots;
 
   bool get isActive => activeAction != null;
 
@@ -270,12 +327,12 @@ class GlobalState {
     // This can't be copyWith since null means no-update.
     return GlobalState(
       inventory: inventory,
+      shop: shop,
       activeAction: null,
       skillStates: skillStates,
       actionStates: actionStates,
       updatedAt: DateTime.timestamp(),
       gp: gp,
-      inventoryCapacity: inventoryCapacity,
     );
   }
 
@@ -288,7 +345,7 @@ class GlobalState {
       actionStates: actionStates,
       updatedAt: DateTime.timestamp(),
       gp: gp,
-      inventoryCapacity: inventoryCapacity,
+      shop: shop,
     );
   }
 
@@ -355,7 +412,7 @@ class GlobalState {
     Map<String, ActionState>? actionStates,
     int? gp,
     TimeAway? timeAway,
-    int? inventoryCapacity,
+    ShopState? shop,
   }) {
     return GlobalState(
       inventory: inventory ?? this.inventory,
@@ -365,7 +422,7 @@ class GlobalState {
       updatedAt: DateTime.timestamp(),
       gp: gp ?? this.gp,
       timeAway: timeAway ?? this.timeAway,
-      inventoryCapacity: inventoryCapacity ?? this.inventoryCapacity,
+      shop: shop ?? this.shop,
     );
   }
 }
