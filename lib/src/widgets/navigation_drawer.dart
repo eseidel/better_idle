@@ -1,4 +1,5 @@
 import 'package:better_idle/src/data/actions.dart';
+import 'package:better_idle/src/data/xp.dart';
 import 'package:better_idle/src/widgets/context_extensions.dart';
 import 'package:better_idle/src/widgets/router.dart';
 import 'package:better_idle/src/widgets/skills.dart';
@@ -16,10 +17,20 @@ class SkillTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final currentLocation = GoRouterState.of(context).uri.path;
     final routeName = skill.routeName;
+    final activeSkill = context.state.activeSkill;
+    final isActiveSkill = activeSkill == skill;
+    final isSelected = selected || currentLocation == '/$routeName';
+    final skillState = context.state.skillState(skill);
+    final level = levelForXp(skillState.xp);
+
     return ListTile(
-      leading: Icon(skill.icon),
+      leading: Icon(skill.icon, color: isActiveSkill ? Colors.orange : null),
       title: Text(skill.name),
-      selected: selected || currentLocation == '/$routeName',
+      trailing: Text('$level / $maxLevel'),
+      selected: isSelected,
+      tileColor: isActiveSkill && !isSelected
+          ? Colors.orange.withValues(alpha: 0.1)
+          : null,
       onTap: () {
         Navigator.pop(context);
         router.goNamed(routeName);
@@ -37,25 +48,23 @@ class AppNavigationDrawer extends StatelessWidget {
   Widget build(BuildContext context) {
     final currentLocation = GoRouterState.of(context).uri.path;
     final gp = context.state.gp;
+    final state = context.state;
+    final inventoryUsed = state.inventoryUsed;
+    final inventoryCapacity = state.inventoryCapacity;
 
     return Drawer(
       child: ListView(
         padding: EdgeInsets.zero,
         children: <Widget>[
-          DrawerHeader(
-            decoration: const BoxDecoration(color: Colors.blue),
+          const DrawerHeader(
+            decoration: BoxDecoration(color: Colors.blue),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisAlignment: MainAxisAlignment.end,
               children: [
-                const Text(
+                Text(
                   'Better Idle',
                   style: TextStyle(color: Colors.white, fontSize: 24),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  '${approximateCreditString(gp)} GP',
-                  style: const TextStyle(color: Colors.white, fontSize: 16),
                 ),
               ],
             ),
@@ -63,6 +72,7 @@ class AppNavigationDrawer extends StatelessWidget {
           ListTile(
             leading: const Icon(Icons.shopping_cart),
             title: const Text('Shop'),
+            trailing: Text(approximateCreditString(gp)),
             selected: currentLocation == '/shop',
             onTap: () {
               Navigator.pop(context);
@@ -72,6 +82,7 @@ class AppNavigationDrawer extends StatelessWidget {
           ListTile(
             leading: const Icon(Icons.inventory_2),
             title: const Text('Bank'),
+            trailing: Text('$inventoryUsed / $inventoryCapacity'),
             selected: currentLocation == '/bank',
             onTap: () {
               Navigator.pop(context);
