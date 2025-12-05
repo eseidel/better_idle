@@ -87,9 +87,7 @@ class ActionCell extends StatelessWidget {
           children: [
             const Text('Burn'),
             Text(actionName, style: labelStyle),
-            Text(
-              '${action.xp} Skill XP, ${action.duration.inSeconds} seconds',
-            ),
+            Text('${action.xp} Skill XP, ${action.duration.inSeconds} seconds'),
             LinearProgressIndicator(value: progress),
             MasteryProgressCell(masteryXp: actionState.masteryXp),
           ],
