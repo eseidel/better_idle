@@ -119,7 +119,8 @@ class ShopState {
     // https://wiki.melvoridle.com/w/Bank
     // C_b = \left \lfloor \frac{132\,728\,500 \times (n+2)}{142\,015^{\left (\frac{163}{122+n} \right )}}\right \rfloor
     final n = bankSlots;
-    return (132728500 * (n + 2) / pow(142015, 163 / (122 + n))).floor();
+    final cost = (132728500 * (n + 2) / pow(142015, 163 / (122 + n))).floor();
+    return cost.clamp(0, 5000000);
   }
 }
 
