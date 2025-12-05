@@ -65,6 +65,7 @@ class AdvanceTicksAction extends ReduxAction<GlobalState> {
   @override
   GlobalState reduce() {
     final (timeAway, newState) = consumeManyTicks(state, ticks);
+    this.timeAway = timeAway;
     return newState;
   }
 }

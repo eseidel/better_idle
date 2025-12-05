@@ -1,8 +1,32 @@
+import 'package:better_idle/src/data/actions.dart';
 import 'package:better_idle/src/widgets/context_extensions.dart';
 import 'package:better_idle/src/widgets/router.dart';
+import 'package:better_idle/src/widgets/skills.dart';
 import 'package:better_idle/src/widgets/strings.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+
+class SkillTile extends StatelessWidget {
+  const SkillTile({required this.skill, super.key, this.selected = false});
+
+  final Skill skill;
+  final bool selected;
+
+  @override
+  Widget build(BuildContext context) {
+    final currentLocation = GoRouterState.of(context).uri.path;
+    final routeName = skill.routeName;
+    return ListTile(
+      leading: Icon(skill.icon),
+      title: Text(skill.name),
+      selected: selected || currentLocation == '/$routeName',
+      onTap: () {
+        Navigator.pop(context);
+        router.goNamed(routeName);
+      },
+    );
+  }
+}
 
 /// A navigation drawer that provides navigation to different screens.
 class AppNavigationDrawer extends StatelessWidget {
@@ -55,24 +79,8 @@ class AppNavigationDrawer extends StatelessWidget {
             },
           ),
           const Divider(),
-          ListTile(
-            leading: const Icon(Icons.forest),
-            title: const Text('Woodcutting'),
-            selected: currentLocation == '/woodcutting',
-            onTap: () {
-              Navigator.pop(context);
-              router.goNamed('woodcutting');
-            },
-          ),
-          ListTile(
-            leading: const Icon(Icons.local_fire_department),
-            title: const Text('Firemaking'),
-            selected: currentLocation == '/firemaking',
-            onTap: () {
-              Navigator.pop(context);
-              router.goNamed('firemaking');
-            },
-          ),
+          const SkillTile(skill: Skill.woodcutting),
+          const SkillTile(skill: Skill.firemaking),
           const Divider(),
           ListTile(
             leading: const Icon(Icons.bug_report),

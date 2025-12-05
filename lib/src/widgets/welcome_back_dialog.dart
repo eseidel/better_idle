@@ -1,5 +1,6 @@
 import 'package:better_idle/src/logic/consume_ticks.dart';
 import 'package:better_idle/src/logic/redux_actions.dart';
+import 'package:better_idle/src/widgets/skills.dart';
 import 'package:better_idle/src/widgets/strings.dart';
 import 'package:flutter/material.dart';
 
@@ -18,12 +19,10 @@ class WelcomeBackDialog extends StatelessWidget {
     return AlertDialog(
       title: Column(
         children: [
-          if (activeSkill != null)
-            // This will eventually be an icon instead.
-            Text(
-              activeSkill.name,
-              style: const TextStyle(fontWeight: FontWeight.bold),
-            ),
+          if (activeSkill != null) ...[
+            Icon(activeSkill.icon),
+            const SizedBox(width: 8),
+          ],
           const Text('Welcome Back!'),
         ],
       ),

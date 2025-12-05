@@ -37,7 +37,7 @@ class DebugPage extends StatelessWidget {
     // Dispatch action to advance by the given duration and get changes
     final ticks = ticksFromDuration(duration);
     final action = AdvanceTicksAction(ticks: ticks);
-    await StoreProvider.dispatch<GlobalState>(context, action);
+    StoreProvider.dispatchSync<GlobalState>(context, action);
     final timeAway = action.timeAway;
     if (context.mounted) {
       await showDialog<void>(
