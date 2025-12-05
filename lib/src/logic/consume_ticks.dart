@@ -33,6 +33,7 @@ int calculateMasteryXpPerAction({
 }
 
 /// Returns the amount of mastery XP gained per action.
+// TODO(eseidel): Take a duration instead of using maxDuration?
 int masteryXpPerAction(GlobalState state, Action action) {
   final skillState = state.skillState(action.skill);
   final actionState = state.actionState(action.name);
@@ -40,7 +41,7 @@ int masteryXpPerAction(GlobalState state, Action action) {
   final itemsInSkill = actionRegistry.forSkill(action.skill).length;
   return calculateMasteryXpPerAction(
     unlockedActions: state.unlockedActionsCount(action.skill),
-    actionSeconds: action.duration.inSeconds.toDouble(),
+    actionSeconds: action.maxDuration.inSeconds.toDouble(),
     playerTotalMasteryForSkill: skillState.xp,
     totalMasteryForSkill: skillState.masteryXp,
     itemMasteryLevel: actionMasteryLevel,
@@ -57,8 +58,16 @@ class StateUpdateBuilder {
 
   GlobalState get state => _state;
 
-  void setActionProgress(Action action, int progress) {
-    _state = _state.updateActiveAction(action.name, progress);
+  void setActionProgress(Action action, {required int remainingTicks}) {
+    _state = _state.updateActiveAction(
+      action.name,
+      remainingTicks: remainingTicks,
+    );
+  }
+
+  void restartCurrentAction(Action action, {Random? random}) {
+    // This shouldn't be able to start a *new* action, only restart the current.
+    _state = _state.startAction(action, random: random ?? Random());
   }
 
   void addInventory(ItemStack stack) {
@@ -97,11 +106,27 @@ class StateUpdateBuilder {
 }
 
 class _Progress {
-  const _Progress(this.action, this.progressTicks);
+  const _Progress(this.action, this.remainingTicks, this.totalTicks);
   final Action action;
-  final int progressTicks;
+  final int remainingTicks;
+  final int totalTicks;
 
-  int get remainingTicks => action.maxValue - progressTicks;
+  // Computed getter for convenience
+  int get progressTicks => totalTicks - remainingTicks;
+}
+
+class XpPerAction {
+  const XpPerAction({required this.xp, required this.masteryXp});
+  final int xp;
+  final int masteryXp;
+  int get masteryPoolXp => max(1, (0.25 * masteryXp).toInt());
+}
+
+XpPerAction xpPerAction(GlobalState state, Action action) {
+  return XpPerAction(
+    xp: action.xp,
+    masteryXp: masteryXpPerAction(state, action),
+  );
 }
 
 void completeAction(
@@ -123,11 +148,12 @@ void completeAction(
       builder.addInventory(drop.toItemStack());
     }
   }
-  builder.addSkillXp(action.skill, action.xp);
-  final masteryXpToAdd = masteryXpPerAction(builder.state, action);
-  builder.addActionMasteryXp(action.name, masteryXpToAdd);
-  final skillMasteryXp = max(1, (0.25 * masteryXpToAdd).toInt());
-  builder.addSkillMasteryXp(action.skill, skillMasteryXp);
+  final perAction = xpPerAction(builder.state, action);
+
+  builder
+    ..addSkillXp(action.skill, perAction.xp)
+    ..addActionMasteryXp(action.name, perAction.masteryXp)
+    ..addSkillMasteryXp(action.skill, perAction.masteryPoolXp);
 }
 
 /// Consumes a specified number of ticks and updates the state.
@@ -140,17 +166,27 @@ void consumeTicks(StateUpdateBuilder builder, Tick ticks, {Random? random}) {
   // The active action can never change during this loop other than to
   // be cleared. So we can just use the starting action name.
   final action = actionRegistry.byName(startingAction.name);
-  var remainingTicks = ticks;
-  while (remainingTicks > 0) {
-    final before = _Progress(action, state.activeProgress(action));
-    final ticksToApply = min(remainingTicks, before.remainingTicks);
-    final progressTicks = before.progressTicks + ticksToApply;
-    remainingTicks -= ticksToApply;
-    builder.setActionProgress(action, progressTicks);
+  var ticksToConsume = ticks;
+  final rng = random ?? Random();
 
-    final after = _Progress(action, progressTicks);
-    if (after.remainingTicks <= 0) {
-      completeAction(builder, action, random: random);
+  while (ticksToConsume > 0) {
+    final currentAction = builder.state.activeAction;
+    if (currentAction == null || currentAction.name != startingAction.name) {
+      break;
+    }
+
+    final before = _Progress(
+      action,
+      currentAction.remainingTicks,
+      currentAction.totalTicks,
+    );
+    final ticksToApply = min(ticksToConsume, before.remainingTicks);
+    final newRemainingTicks = before.remainingTicks - ticksToApply;
+    ticksToConsume -= ticksToApply;
+    builder.setActionProgress(action, remainingTicks: newRemainingTicks);
+
+    if (newRemainingTicks <= 0) {
+      completeAction(builder, action, random: rng);
 
       // Reset progress for the *current* activity.
       if (builder.state.activeAction?.name != startingAction.name) {
@@ -159,7 +195,7 @@ void consumeTicks(StateUpdateBuilder builder, Tick ticks, {Random? random}) {
 
       // Start the action again if we can.
       if (builder.state.canStartAction(action)) {
-        builder.setActionProgress(action, 0);
+        builder.restartCurrentAction(action, random: rng);
       } else {
         // Otherwise, clear the action and break out of the loop.
         builder.clearAction();

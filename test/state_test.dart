@@ -16,7 +16,11 @@ void main() {
         ItemStack(normalLogs, count: 5),
         ItemStack(oakLogs, count: 3),
       ]),
-      activeAction: const ActiveAction(name: 'Normal Tree', progressTicks: 15),
+      activeAction: const ActiveAction(
+        name: 'Normal Tree',
+        remainingTicks: 15,
+        totalTicks: 30,
+      ),
       skillStates: {
         Skill.woodcutting: const SkillState(xp: 100, masteryXp: 50),
       },
@@ -81,7 +85,11 @@ void main() {
     // Create a state with an activeAction
     final stateWithAction = GlobalState.test(
       inventory: Inventory.fromItems([ItemStack(normalLogs, count: 5)]),
-      activeAction: const ActiveAction(name: 'Normal Tree', progressTicks: 15),
+      activeAction: const ActiveAction(
+        name: 'Normal Tree',
+        remainingTicks: 15,
+        totalTicks: 30,
+      ),
       skillStates: {
         Skill.woodcutting: const SkillState(xp: 100, masteryXp: 50),
       },
@@ -100,7 +108,11 @@ void main() {
     // Create a state with timeAway
     final stateWithTimeAway = GlobalState.test(
       inventory: Inventory.fromItems([ItemStack(normalLogs, count: 5)]),
-      activeAction: const ActiveAction(name: 'Normal Tree', progressTicks: 15),
+      activeAction: const ActiveAction(
+        name: 'Normal Tree',
+        remainingTicks: 15,
+        totalTicks: 30,
+      ),
       skillStates: {
         Skill.woodcutting: const SkillState(xp: 100, masteryXp: 50),
       },

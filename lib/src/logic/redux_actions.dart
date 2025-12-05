@@ -1,3 +1,4 @@
+import 'package:better_idle/src/data/actions.dart';
 import 'package:better_idle/src/data/items.dart';
 import 'package:better_idle/src/logic/consume_ticks.dart';
 import 'package:better_idle/src/services/toast_service.dart';
@@ -16,7 +17,7 @@ class UpdateActivityProgressAction extends ReduxAction<GlobalState> {
     if (activity == null) {
       throw Exception('No activity to update progress for');
     }
-    final ticks = ticksSince(state.updatedAt);
+    final ticks = ticksFromDuration(now.difference(state.updatedAt));
     final builder = StateUpdateBuilder(state);
     consumeTicks(builder, ticks);
     final changes = builder.changes;

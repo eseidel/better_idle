@@ -1,9 +1,12 @@
+import 'dart:math';
+
 import 'package:better_idle/src/state.dart';
 import 'package:better_idle/src/types/drop.dart';
 
 enum Skill {
   woodcutting('Woodcutting'),
-  firemaking('Firemaking');
+  firemaking('Firemaking'),
+  fishing('Fishing');
 
   const Skill(this.name);
 
@@ -12,6 +15,56 @@ enum Skill {
   }
 
   final String name;
+}
+
+class Action {
+  const Action({
+    required this.skill,
+    required this.name,
+    required Duration duration,
+    required this.xp,
+    required this.unlockLevel,
+    this.outputs = const {},
+    this.inputs = const {},
+  }) : minDuration = duration,
+       maxDuration = duration;
+
+  const Action.ranged({
+    required this.skill,
+    required this.name,
+    required this.minDuration,
+    required this.maxDuration,
+    required this.xp,
+    required this.unlockLevel,
+    this.outputs = const {},
+    this.inputs = const {},
+  });
+
+  final Skill skill;
+  final String name;
+  final int xp;
+  final int unlockLevel;
+  final Duration minDuration;
+  final Duration maxDuration;
+  final Map<String, int> inputs;
+  final Map<String, int> outputs;
+
+  bool get isFixedDuration => minDuration == maxDuration;
+
+  Tick rollDuration(Random random) {
+    if (isFixedDuration) {
+      return ticksFromDuration(minDuration);
+    }
+    final minTicks = ticksFromDuration(minDuration);
+    final maxTicks = ticksFromDuration(maxDuration);
+    // random.nextInt(n) creates [0, n-1] so use +1 to produce a uniform random
+    // value between minTicks and maxTicks (inclusive).
+    return minTicks + random.nextInt((maxTicks - minTicks) + 1);
+  }
+
+  List<Drop> get rewards => [
+    ...outputs.entries.map((e) => Drop(e.key, count: e.value)),
+  ];
 }
 
 final _woodcuttingActions = <Action>[
@@ -84,7 +137,23 @@ final _firemakingActions = <Action>[
   ),
 ];
 
-final List<Action> _all = [..._woodcuttingActions, ..._firemakingActions];
+final _fishingActions = <Action>[
+  const Action.ranged(
+    skill: Skill.fishing,
+    name: 'Raw Shrimp',
+    unlockLevel: 1,
+    minDuration: Duration(seconds: 4),
+    maxDuration: Duration(seconds: 8),
+    xp: 10,
+    outputs: {'Raw Shrimp': 1},
+  ),
+];
+
+final List<Action> _all = [
+  ..._woodcuttingActions,
+  ..._firemakingActions,
+  ..._fishingActions,
+];
 
 // Skill-level drops: shared across all actions in a skill
 final _skillDrops = <Skill, List<Drop>>{
@@ -96,6 +165,9 @@ final _skillDrops = <Skill, List<Drop>>{
     const Drop('Coal Ore', rate: 0.40),
     const Drop('Ash', rate: 0.20),
     // Missing Charcoal, Generous Fire Spirit
+  ],
+  Skill.fishing: [
+    // Add fishing skill-level drops here as needed
   ],
   // Add other skills as they're added
 };

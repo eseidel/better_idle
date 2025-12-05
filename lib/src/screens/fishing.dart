@@ -1,5 +1,6 @@
 import 'package:better_idle/src/data/actions.dart';
 import 'package:better_idle/src/data/xp.dart';
+import 'package:better_idle/src/logic/consume_ticks.dart';
 import 'package:better_idle/src/logic/redux_actions.dart';
 import 'package:better_idle/src/state.dart';
 import 'package:better_idle/src/widgets/context_extensions.dart';
@@ -8,17 +9,17 @@ import 'package:better_idle/src/widgets/navigation_drawer.dart';
 import 'package:better_idle/src/widgets/skill_progress.dart';
 import 'package:flutter/material.dart' hide Action;
 
-class FiremakingPage extends StatelessWidget {
-  const FiremakingPage({super.key});
+class FishingPage extends StatelessWidget {
+  const FishingPage({super.key});
 
   @override
   Widget build(BuildContext context) {
-    const skill = Skill.firemaking;
+    const skill = Skill.fishing;
     final actions = actionRegistry.forSkill(skill).toList();
     final skillState = context.state.skillState(skill);
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Firemaking')),
+      appBar: AppBar(title: const Text('Fishing')),
       drawer: const AppNavigationDrawer(),
       body: Column(
         children: [
@@ -36,7 +37,7 @@ class FiremakingPage extends StatelessWidget {
                     final action = actions[index];
                     final progressTicks = context.state.activeProgress(action);
                     final actionState = context.state.actionState(action.name);
-                    return ActionCell(
+                    return FishingActionCell(
                       action: action,
                       actionState: actionState,
                       progressTicks: progressTicks,
@@ -50,8 +51,8 @@ class FiremakingPage extends StatelessWidget {
   }
 }
 
-class ActionCell extends StatelessWidget {
-  const ActionCell({
+class FishingActionCell extends StatelessWidget {
+  const FishingActionCell({
     required this.action,
     required this.actionState,
     required this.progressTicks,
@@ -67,43 +68,62 @@ class ActionCell extends StatelessWidget {
     final labelStyle = Theme.of(
       context,
     ).textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.bold);
-    final activeAction = context.state.activeAction;
-    double progress;
-    if (activeAction?.name == actionName && activeAction != null) {
-      progress =
-          (activeAction.totalTicks - activeAction.remainingTicks) /
-          activeAction.totalTicks;
-    } else {
-      progress = 0.0;
-    }
     final actionState = context.state.actionState(actionName);
     final canStart = context.state.canStartAction(action);
     final isRunning = context.state.activeAction?.name == actionName;
-    final canToggle = canStart || isRunning;
-    return GestureDetector(
-      onTap: canToggle
-          ? () {
-              context.dispatch(ToggleActionAction(action: action));
-            }
-          : null,
-      child: Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          border: Border.all(color: Colors.grey),
-          borderRadius: BorderRadius.circular(8),
-        ),
-        child: Column(
-          children: [
-            const Text('Burn'),
-            Text(actionName, style: labelStyle),
-            Text(
-              '${action.xp} Skill XP, ${action.minDuration.inSeconds} seconds',
-            ),
-            LinearProgressIndicator(value: progress),
-            MasteryProgressCell(masteryXp: actionState.masteryXp),
-          ],
-        ),
+
+    // Format duration display
+    final durationText = action.isFixedDuration
+        ? '${action.minDuration.inSeconds} seconds'
+        : '${action.minDuration.inSeconds}-'
+              '${action.maxDuration.inSeconds} seconds';
+    final perAction = xpPerAction(context.state, action);
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        border: Border.all(color: Colors.grey),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Column(
+        children: [
+          const Text('Fishing'),
+          Text(actionName, style: labelStyle),
+          Text('XP per action: ${perAction.xp}'),
+          Text('Mastery XP: ${perAction.masteryXp}'),
+          Text('Mastery Pool XP: ${perAction.masteryPoolXp}'),
+          Text(durationText),
+
+          MasteryProgressCell(masteryXp: actionState.masteryXp),
+          const SizedBox(height: 8),
+          ElevatedButton(
+            onPressed: canStart || isRunning
+                ? () {
+                    context.dispatch(ToggleActionAction(action: action));
+                  }
+                : null,
+            child: Text(isRunning ? 'Stop Fishing' : 'Start Fishing'),
+          ),
+          if (isRunning)
+            const Padding(
+              padding: EdgeInsets.symmetric(vertical: 8),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  ),
+                  SizedBox(width: 8),
+                  Text('Fishing'),
+                ],
+              ),
+            )
+          else
+            const SizedBox(height: 40, child: Text('Idle')),
+        ],
       ),
     );
   }

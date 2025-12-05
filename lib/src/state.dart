@@ -3,7 +3,6 @@ import 'dart:math';
 import 'package:better_idle/src/data/actions.dart';
 import 'package:better_idle/src/data/items.dart';
 import 'package:better_idle/src/logic/consume_ticks.dart';
-import 'package:better_idle/src/types/drop.dart';
 import 'package:better_idle/src/types/inventory.dart';
 
 export 'package:async_redux/async_redux.dart';
@@ -11,77 +10,45 @@ export 'package:async_redux/async_redux.dart';
 typedef Tick = int;
 const Duration tickDuration = Duration(milliseconds: 100);
 
-/// Exception thrown when attempting to add an item to a full inventory.
-class InventoryFullException implements Exception {
-  const InventoryFullException({
-    required this.currentCapacity,
-    required this.attemptedItem,
-  });
-
-  final int currentCapacity;
-  final String attemptedItem;
-
-  @override
-  String toString() =>
-      'InventoryFullException: Cannot add $attemptedItem - '
-      'inventory is full (capacity: $currentCapacity)';
-}
-
 Tick ticksFromDuration(Duration duration) {
   return duration.inMilliseconds ~/ tickDuration.inMilliseconds;
 }
 
-Tick ticksSince(DateTime start) {
-  return ticksFromDuration(DateTime.timestamp().difference(start));
-}
-
 class ActiveAction {
-  const ActiveAction({required this.name, required this.progressTicks});
+  const ActiveAction({
+    required this.name,
+    required this.remainingTicks,
+    required this.totalTicks,
+  });
 
   factory ActiveAction.fromJson(Map<String, dynamic> json) {
     return ActiveAction(
       name: json['name'] as String,
-      progressTicks: json['progressTicks'] as int,
+      remainingTicks: json['remainingTicks'] as int,
+      totalTicks: json['totalTicks'] as int,
     );
   }
-  final String name;
-  final int progressTicks;
 
-  ActiveAction copyWith({String? name, int? progressTicks}) {
+  final String name;
+  final int remainingTicks;
+  final int totalTicks;
+
+  // Computed getter for backward compatibility
+  int get progressTicks => totalTicks - remainingTicks;
+
+  ActiveAction copyWith({String? name, int? remainingTicks, int? totalTicks}) {
     return ActiveAction(
       name: name ?? this.name,
-      progressTicks: progressTicks ?? this.progressTicks,
+      remainingTicks: remainingTicks ?? this.remainingTicks,
+      totalTicks: totalTicks ?? this.totalTicks,
     );
   }
 
   Map<String, dynamic> toJson() => {
     'name': name,
-    'progressTicks': progressTicks,
+    'remainingTicks': remainingTicks,
+    'totalTicks': totalTicks,
   };
-}
-
-class Action {
-  const Action({
-    required this.skill,
-    required this.name,
-    required this.duration,
-    required this.xp,
-    required this.unlockLevel,
-    this.outputs = const {},
-    this.inputs = const {},
-  });
-  final Skill skill;
-  final String name;
-  final int xp;
-  final int unlockLevel;
-  final Duration duration;
-  final Map<String, int> inputs;
-  final Map<String, int> outputs;
-  Tick get maxValue => duration.inMilliseconds ~/ tickDuration.inMilliseconds;
-
-  List<Drop> get rewards => [
-    ...outputs.entries.map((e) => Drop(e.key, count: e.value)),
-  ];
 }
 
 class SkillState {
@@ -148,7 +115,8 @@ class ShopState {
     // https://wiki.melvoridle.com/w/Bank
     // C_b = \left \lfloor \frac{132\,728\,500 \times (n+2)}{142\,015^{\left (\frac{163}{122+n} \right )}}\right \rfloor
     final n = bankSlots;
-    return (132728500 * (n + 2) / pow(142015, 163 / (122 + n))).floor();
+    final cost = (132728500 * (n + 2) / pow(142015, 163 / (122 + n))).floor();
+    return cost.clamp(0, 5000000);
   }
 }
 
@@ -307,7 +275,7 @@ class GlobalState {
     return true;
   }
 
-  GlobalState startAction(Action action) {
+  GlobalState startAction(Action action, {Random? random}) {
     // Validate that all required items are available
     for (final requirement in action.inputs.entries) {
       final item = itemRegistry.byName(requirement.key);
@@ -320,7 +288,14 @@ class GlobalState {
       }
     }
     final name = action.name;
-    return copyWith(activeAction: ActiveAction(name: name, progressTicks: 0));
+    final totalTicks = action.rollDuration(random ?? Random());
+    return copyWith(
+      activeAction: ActiveAction(
+        name: name,
+        remainingTicks: totalTicks,
+        totalTicks: totalTicks,
+      ),
+    );
   }
 
   GlobalState clearAction() {
@@ -365,12 +340,17 @@ class GlobalState {
     return activeAction!.progressTicks;
   }
 
-  GlobalState updateActiveAction(String actionName, int progressTicks) {
+  GlobalState updateActiveAction(
+    String actionName, {
+    required int remainingTicks,
+  }) {
     final activeAction = this.activeAction;
     if (activeAction == null || activeAction.name != actionName) {
       throw Exception('Active action is not $actionName');
     }
-    final newActiveAction = activeAction.copyWith(progressTicks: progressTicks);
+    final newActiveAction = activeAction.copyWith(
+      remainingTicks: remainingTicks,
+    );
     return copyWith(activeAction: newActiveAction);
   }
 
