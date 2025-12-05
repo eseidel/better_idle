@@ -371,5 +371,54 @@ void main() {
         burnNormalLogs.xp * 3,
       );
     });
+
+    test('consuming ticks stops when inputs are insufficient to continue', () {
+      final burnNormalLogs = actionRegistry.byName('Burn Normal Logs');
+      const n = 5; // Try to run 5 times
+      const nMinusOne = 4; // But only have inputs for 4 times
+
+      // Start with N-1 Normal Logs in inventory (enough for 4 completions)
+      var state = GlobalState.empty();
+      state = state.copyWith(
+        inventory: Inventory.fromItems([
+          ItemStack(normalLogs, count: nMinusOne),
+        ]),
+      );
+
+      // Verify we have N-1 logs
+      expect(state.inventory.countOfItem(normalLogs), nMinusOne);
+
+      // Start the firemaking action
+      state = state.startAction(burnNormalLogs);
+
+      // Advance time by enough ticks for N completions
+      // (N * 20 ticks = 100 ticks for 5 completions)
+      final builder = StateUpdateBuilder(state);
+      consumeTicks(builder, n * 20);
+      state = builder.build();
+
+      // Verify action was cleared (can't continue without inputs)
+      expect(state.activeAction, null);
+
+      // Verify all logs were consumed (0 remaining)
+      expect(state.inventory.countOfItem(normalLogs), 0);
+
+      // Verify only N-1 completions occurred based on XP
+      // (each completion gives burnNormalLogs.xp XP)
+      expect(
+        state.skillState(burnNormalLogs.skill).xp,
+        burnNormalLogs.xp * nMinusOne,
+      );
+
+      // Verify changes object tracks all consumed items
+      expect(
+        builder.changes.inventoryChanges.counts['Normal Logs'],
+        -nMinusOne,
+      );
+      expect(
+        builder.changes.skillXpChanges.counts[burnNormalLogs.skill],
+        burnNormalLogs.xp * nMinusOne,
+      );
+    });
   });
 }

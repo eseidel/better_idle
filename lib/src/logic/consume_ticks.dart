@@ -87,6 +87,10 @@ class StateUpdateBuilder {
     // Probably getting to 99 is?
   }
 
+  void clearAction() {
+    _state = _state.clearAction();
+  }
+
   GlobalState build() => _state;
 
   Changes get changes => _changes;
@@ -151,7 +155,15 @@ void consumeTicks(StateUpdateBuilder builder, Tick ticks, {Random? random}) {
       if (builder.state.activeAction?.name != startingAction.name) {
         throw Exception('Active action changed during consumption?');
       }
-      builder.setActionProgress(action, 0);
+
+      // Start the action again if we can.
+      if (builder.state.canStartAction(action)) {
+        builder.setActionProgress(action, 0);
+      } else {
+        // Otherwise, clear the action and break out of the loop.
+        builder.clearAction();
+        break;
+      }
     }
   }
 }
