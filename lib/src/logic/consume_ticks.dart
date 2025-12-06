@@ -11,6 +11,9 @@ export 'package:async_redux/async_redux.dart';
 
 export '../types/time_away.dart';
 
+/// Ticks required to regenerate 1 HP (10 seconds = 100 ticks).
+final int ticksPer1Hp = ticksFromDuration(const Duration(seconds: 10));
+
 /// Calculates the amount of mastery XP gained per action from raw values.
 /// Derived from https://wiki.melvoridle.com/w/Mastery.
 int calculateMasteryXpPerAction({
@@ -80,12 +83,8 @@ ActionState applyResourceTicks(ActionState actionState, Tick ticksElapsed) {
     if (ticksRemaining >= respawnTicks) {
       // Node has respawned at full health
       ticksRemaining -= respawnTicks;
-      newState = ActionState(
-        masteryXp: newState.masteryXp,
-        // totalHpLost: 0 (default - full health on respawn)
-        // respawnTicksRemaining: null (default - not depleted)
-        // hpRegenTicksRemaining: 0 (default - no regen needed)
-      );
+      // Reset the action state, keeping the masteryXp.
+      newState = newState.copyRestarting();
     } else {
       // Still respawning, reduce timer
       return newState.copyWith(
@@ -95,7 +94,6 @@ ActionState applyResourceTicks(ActionState actionState, Tick ticksElapsed) {
   }
 
   // Apply HP regeneration if not depleted
-  const ticksPer1Hp = 100; // 10 seconds = 100 ticks = 1 HP
   var regenTicks = newState.hpRegenTicksRemaining - ticksRemaining;
 
   while (regenTicks <= 0 && newState.totalHpLost > 0) {
@@ -104,14 +102,12 @@ ActionState applyResourceTicks(ActionState actionState, Tick ticksElapsed) {
     regenTicks += ticksPer1Hp;
   }
 
-  // Ensure regen ticks stay in valid range
-  if (newState.totalHpLost == 0) {
-    regenTicks = 0; // No need to track regen when at full HP
-  } else if (regenTicks > ticksPer1Hp) {
-    regenTicks = ticksPer1Hp; // Cap at one regen cycle
-  }
+  // Ensure regen ticks stay in valid range (0 if at full HP, otherwise 0-100)
+  final clampedRegenTicks = newState.totalHpLost == 0
+      ? 0
+      : regenTicks.clamp(0, ticksPer1Hp);
 
-  return newState.copyWith(hpRegenTicksRemaining: max(0, regenTicks));
+  return newState.copyWith(hpRegenTicksRemaining: clampedRegenTicks);
 }
 
 class StateUpdateBuilder {
@@ -212,7 +208,6 @@ class StateUpdateBuilder {
   /// Damages a resource node and starts HP regeneration if needed.
   void damageResourceNode(String actionName, int totalHpLost) {
     final actionState = _state.actionState(actionName);
-    final ticksPer1Hp = ticksFromDuration(const Duration(seconds: 10));
     updateActionState(
       actionName,
       actionState.copyWith(

@@ -133,6 +133,13 @@ class ActionState {
     );
   }
 
+  /// Create a new state for this action, as though it restarted fresh.
+  // If we moved all the mining state into its own class, this would just
+  // mean nulling that mining state instead.
+  ActionState copyRestarting() {
+    return ActionState(masteryXp: masteryXp);
+  }
+
   Map<String, dynamic> toJson() {
     return {
       'masteryXp': masteryXp,
