@@ -608,5 +608,48 @@ void main() {
       expect(levelChange!.startLevel, 1);
       expect(levelChange.endLevel, 2);
     });
+
+    test('mining action continues through node depletion and respawn', () {
+      final runeEssence = actionRegistry.byName('Rune Essence');
+      final runeEssenceItem = itemRegistry.byName('Rune Essence');
+
+      var state = GlobalState.empty();
+      state = state.startAction(runeEssence);
+
+      // Rune Essence: 3 second action (30 ticks), 1 second respawn (10 ticks)
+      // HP at mastery level 1: 5 + 1 = 6 HP
+      // HP regen: 1 HP per 100 ticks (10 seconds)
+
+      // Expected timeline:
+      // - First 6 swings: 6 * 30 = 180 ticks (18 seconds)
+      //   - At tick 100, HP regens by 1, so we get 7 total HP before depletion
+      // - 7th swing completes at tick 210, node depletes
+      // - Respawn: 10 ticks (1 second)
+      // - Node available again at tick 220
+      // - 8th swing: ticks 220-250
+
+      // Let's run enough ticks for 10 completions worth of time
+      // 10 * 30 = 300 ticks
+      // Expected: 7 swings, then respawn, then 2-3 more swings
+      final builder = StateUpdateBuilder(state);
+      consumeTicks(builder, 300);
+      state = builder.build();
+
+      // With 6 base HP + 1 regen = 7 swings before first depletion
+      // After 10 tick respawn at tick 220, we have 80 ticks left
+      // That's 2 more swings (60 ticks), with 20 ticks remaining
+      // Total expected: 7 + 2 = 9 rune essence
+
+      final runeEssenceCount = state.inventory.countOfItem(runeEssenceItem);
+      expect(
+        runeEssenceCount,
+        9,
+        reason: 'Should mine 7 before depletion, respawn, then mine 2 more',
+      );
+
+      // Verify action is still running
+      expect(state.activeAction, isNotNull);
+      expect(state.activeAction!.name, runeEssence.name);
+    });
   });
 }

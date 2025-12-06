@@ -75,21 +75,52 @@ class SkillState {
 }
 
 class ActionState {
-  const ActionState({required this.masteryXp});
+  const ActionState({
+    required this.masteryXp,
+    this.totalHpLost = 0,
+    this.respawnTicksRemaining,
+    this.hpRegenTicksRemaining = 0,
+  });
 
   const ActionState.empty() : this(masteryXp: 0);
 
   factory ActionState.fromJson(Map<String, dynamic> json) {
-    return ActionState(masteryXp: json['masteryXp'] as int);
+    return ActionState(
+      masteryXp: json['masteryXp'] as int,
+      totalHpLost: json['totalHpLost'] as int? ?? 0,
+      respawnTicksRemaining: json['respawnTicksRemaining'] as int?,
+      hpRegenTicksRemaining: json['hpRegenTicksRemaining'] as int? ?? 0,
+    );
   }
-  final int masteryXp;
 
-  ActionState copyWith({int? masteryXp}) {
-    return ActionState(masteryXp: masteryXp ?? this.masteryXp);
+  final int masteryXp;
+  final int totalHpLost;
+  final Tick? respawnTicksRemaining; // Null if not depleted
+  final Tick hpRegenTicksRemaining; // Ticks until next HP regen
+
+  ActionState copyWith({
+    int? masteryXp,
+    int? totalHpLost,
+    Tick? respawnTicksRemaining,
+    Tick? hpRegenTicksRemaining,
+  }) {
+    return ActionState(
+      masteryXp: masteryXp ?? this.masteryXp,
+      totalHpLost: totalHpLost ?? this.totalHpLost,
+      respawnTicksRemaining:
+          respawnTicksRemaining ?? this.respawnTicksRemaining,
+      hpRegenTicksRemaining:
+          hpRegenTicksRemaining ?? this.hpRegenTicksRemaining,
+    );
   }
 
   Map<String, dynamic> toJson() {
-    return {'masteryXp': masteryXp};
+    return {
+      'masteryXp': masteryXp,
+      'totalHpLost': totalHpLost,
+      'respawnTicksRemaining': respawnTicksRemaining,
+      'hpRegenTicksRemaining': hpRegenTicksRemaining,
+    };
   }
 }
 
@@ -246,6 +277,25 @@ class GlobalState {
 
   bool get isActive => activeAction != null;
 
+  /// Returns true if there are any active resource timers (respawn or regen).
+  bool get hasActiveResourceTimers {
+    for (final actionState in actionStates.values) {
+      // Check for active respawn timer
+      if (actionState.respawnTicksRemaining != null &&
+          actionState.respawnTicksRemaining! > 0) {
+        return true;
+      }
+      // Check for active HP regeneration
+      if (actionState.totalHpLost > 0) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  /// Returns true if the game loop should be running.
+  bool get shouldTick => isActive || hasActiveResourceTimers;
+
   Skill? get activeSkill {
     final name = activeAction?.name;
     if (name == null) {
@@ -265,6 +315,7 @@ class GlobalState {
 
   /// Returns true if all required inputs for the action are available.
   bool canStartAction(Action action) {
+    // Check inputs
     for (final requirement in action.inputs.entries) {
       final item = itemRegistry.byName(requirement.key);
       final itemCount = inventory.countOfItem(item);
@@ -272,6 +323,15 @@ class GlobalState {
         return false;
       }
     }
+
+    // Check if resource node is depleted
+    if (action.resourceProperties != null) {
+      final actionState = this.actionState(action.name);
+      if (isNodeDepleted(actionState)) {
+        return false; // Can't mine depleted node
+      }
+    }
+
     return true;
   }
 

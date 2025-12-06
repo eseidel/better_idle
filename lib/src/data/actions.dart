@@ -18,6 +18,20 @@ enum Skill {
   final String name;
 }
 
+class ResourceProperties {
+  const ResourceProperties({
+    required this.respawnTime,
+  });
+
+  final Duration respawnTime;
+
+  // Rock HP = 5 + Mastery Level + Boosts
+  // For now, boosts are 0
+  int maxHpForMasteryLevel(int masteryLevel) {
+    return 5 + masteryLevel;
+  }
+}
+
 class Action {
   const Action({
     required this.skill,
@@ -27,6 +41,7 @@ class Action {
     required this.unlockLevel,
     this.outputs = const {},
     this.inputs = const {},
+    this.resourceProperties,
   }) : minDuration = duration,
        maxDuration = duration;
 
@@ -39,6 +54,7 @@ class Action {
     required this.unlockLevel,
     this.outputs = const {},
     this.inputs = const {},
+    this.resourceProperties,
   });
 
   final Skill skill;
@@ -49,8 +65,11 @@ class Action {
   final Duration maxDuration;
   final Map<String, int> inputs;
   final Map<String, int> outputs;
+  final ResourceProperties? resourceProperties;
 
   bool get isFixedDuration => minDuration == maxDuration;
+
+  bool get hasResourceProperties => resourceProperties != null;
 
   Duration get meanDuration {
     final totalMicroseconds =
@@ -164,6 +183,9 @@ final _miningActions = <Action>[
     duration: Duration(seconds: 3),
     xp: 5,
     outputs: {'Rune Essence': 1},
+    resourceProperties: ResourceProperties(
+      respawnTime: Duration(seconds: 1),
+    ),
   ),
   const Action(
     skill: Skill.mining,
@@ -172,6 +194,9 @@ final _miningActions = <Action>[
     duration: Duration(seconds: 3),
     xp: 7,
     outputs: {'Copper': 1},
+    resourceProperties: ResourceProperties(
+      respawnTime: Duration(seconds: 5),
+    ),
   ),
 ];
 
