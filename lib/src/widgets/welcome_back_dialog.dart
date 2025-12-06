@@ -1,5 +1,4 @@
 import 'package:better_idle/src/logic/consume_ticks.dart';
-import 'package:better_idle/src/logic/redux_actions.dart';
 import 'package:better_idle/src/widgets/skills.dart';
 import 'package:better_idle/src/widgets/strings.dart';
 import 'package:flutter/material.dart';
@@ -61,12 +60,7 @@ class WelcomeBackDialog extends StatelessWidget {
       ),
       actions: [
         TextButton(
-          onPressed: () {
-            // Pop the dialog first, before clearing state
-            Navigator.of(context).pop();
-            // Then dispatch action to clear timeAway
-            context.dispatchSync(DismissWelcomeBackDialogAction());
-          },
+          onPressed: () => Navigator.of(context).pop(),
           child: const Text('OK'),
         ),
       ],

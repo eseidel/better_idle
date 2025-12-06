@@ -168,10 +168,11 @@ class _AppLifecycleManagerState extends State<_AppLifecycleManager>
     _isDialogShowing = true;
     showDialog<void>(
       context: navigatorContext,
-      barrierDismissible: false,
+      barrierDismissible: true,
       builder: (context) => WelcomeBackDialog(timeAway: timeAway),
     ).then((_) {
-      // Dialog dismissed - reset tracking so it can be shown again if needed
+      // Dialog dismissed - clear timeAway state and reset tracking
+      widget.store.dispatch(DismissWelcomeBackDialogAction());
       if (mounted) {
         setState(() {
           _isDialogShowing = false;
