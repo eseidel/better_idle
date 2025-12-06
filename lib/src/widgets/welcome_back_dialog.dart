@@ -66,9 +66,23 @@ class WelcomeBackDialog extends StatelessWidget {
                 final prediction = xpPerHour != null
                     ? ' (${approximateCountString(xpPerHour)} xp/hr)'
                     : '';
+
+                // Color XP gains green (XP is typically always positive)
+                final xpColor = xpGained > 0 ? Colors.green : Colors.red;
+
                 return Padding(
                   padding: const EdgeInsets.only(left: 16, bottom: 4),
-                  child: Text('$xpText ${skill.name} xp$prediction'),
+                  child: Text.rich(
+                    TextSpan(
+                      children: [
+                        TextSpan(
+                          text: xpText,
+                          style: TextStyle(color: xpColor),
+                        ),
+                        TextSpan(text: ' ${skill.name} xp$prediction'),
+                      ],
+                    ),
+                  ),
                 );
               }),
             ],
@@ -76,14 +90,41 @@ class WelcomeBackDialog extends StatelessWidget {
               ...changes.inventoryChanges.entries.map((entry) {
                 final itemName = entry.key;
                 final itemCount = entry.value;
-                final itemsPerHour = timeAway.predictedItemsPerHour[itemName];
+                // Check both gained and consumed predictions
+                final gainedPerHour = timeAway.itemsGainedPerHour[itemName];
+                final consumedPerHour = timeAway.itemsConsumedPerHour[itemName];
                 final countText = signedCountString(itemCount);
-                final prediction = itemsPerHour != null
-                    ? ' (${approximateCountString(itemsPerHour.round())} / hr)'
-                    : '';
+
+                // Determine which prediction to show based on item count change
+                final String prediction;
+                if (itemCount > 0 && gainedPerHour != null) {
+                  // Positive change - show gain prediction
+                  prediction =
+                      ' (${approximateCountString(gainedPerHour.round())} / hr)';
+                } else if (itemCount < 0 && consumedPerHour != null) {
+                  // Negative change - show consumption prediction
+                  prediction =
+                      ' (${approximateCountString(consumedPerHour.round())} / hr)';
+                } else {
+                  prediction = '';
+                }
+
+                // Determine color based on gain/loss
+                final countColor = itemCount > 0 ? Colors.green : Colors.red;
+
                 return Padding(
                   padding: const EdgeInsets.only(left: 16, bottom: 4),
-                  child: Text('$countText $itemName$prediction'),
+                  child: Text.rich(
+                    TextSpan(
+                      children: [
+                        TextSpan(
+                          text: countText,
+                          style: TextStyle(color: countColor),
+                        ),
+                        TextSpan(text: ' $itemName$prediction'),
+                      ],
+                    ),
+                  ),
                 );
               }),
             ],

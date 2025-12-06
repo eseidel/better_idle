@@ -83,10 +83,10 @@ class TimeAway {
     return {action.skill: xpPerHour.round()};
   }
 
-  /// Calculates the predicted items per hour based on the active action's
-  /// drops (including outputs, skill-level drops, and global drops).
+  /// Calculates the predicted items gained per hour based on the active
+  /// action's drops (including outputs, skill-level drops, and global drops).
   /// Returns a map of item name to items per hour.
-  Map<String, double> get predictedItemsPerHour {
+  Map<String, double> get itemsGainedPerHour {
     final action = activeAction;
     if (action == null) {
       return {};
@@ -114,6 +114,32 @@ class TimeAway {
 
       // Accumulate if the same item appears in multiple drop sources
       result[drop.name] = (result[drop.name] ?? 0.0) + itemsPerHour;
+    }
+
+    return result;
+  }
+
+  /// Calculates the predicted items consumed per hour based on the active
+  /// action's inputs. Returns a map of item name to items per hour.
+  Map<String, double> get itemsConsumedPerHour {
+    final action = activeAction;
+    if (action == null || action.inputs.isEmpty) {
+      return {};
+    }
+
+    final meanDurationSeconds = action.meanDuration.inSeconds;
+    if (meanDurationSeconds == 0) {
+      return {};
+    }
+
+    // Calculate expected items consumed per hour for each input
+    // Items per hour = (items per action) * (3600 / mean duration)
+    final actionsPerHour = 3600.0 / meanDurationSeconds;
+    final result = <String, double>{};
+
+    for (final entry in action.inputs.entries) {
+      final itemsPerHour = entry.value * actionsPerHour;
+      result[entry.key] = itemsPerHour;
     }
 
     return result;
