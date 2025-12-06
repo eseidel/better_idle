@@ -17,18 +17,12 @@ class LevelChange {
   int get levelsGained => endLevel - startLevel;
 
   Map<String, dynamic> toJson() {
-    return {
-      'startLevel': startLevel,
-      'endLevel': endLevel,
-    };
+    return {'startLevel': startLevel, 'endLevel': endLevel};
   }
 
   LevelChange merge(LevelChange other) {
     // When merging level changes, take the earliest start and latest end
-    return LevelChange(
-      startLevel: startLevel,
-      endLevel: other.endLevel,
-    );
+    return LevelChange(startLevel: startLevel, endLevel: other.endLevel);
   }
 }
 
@@ -38,6 +32,7 @@ class TimeAway {
     required this.endTime,
     required this.activeSkill,
     required this.changes,
+    this.activeAction,
   });
 
   TimeAway.empty()
@@ -45,6 +40,7 @@ class TimeAway {
         startTime: DateTime.fromMillisecondsSinceEpoch(0),
         endTime: DateTime.fromMillisecondsSinceEpoch(0),
         activeSkill: null,
+        activeAction: null,
         changes: const Changes.empty(),
       );
 
@@ -55,26 +51,50 @@ class TimeAway {
       activeSkill: json['activeSkill'] != null
           ? Skill.fromName(json['activeSkill'] as String)
           : null,
+      activeAction: json['activeAction'] != null
+          ? actionRegistry.byName(json['activeAction'] as String)
+          : null,
       changes: Changes.fromJson(json['changes'] as Map<String, dynamic>),
     );
   }
   final DateTime startTime;
   final DateTime endTime;
   final Skill? activeSkill;
+  final Action? activeAction;
   final Changes changes;
 
   Duration get duration => endTime.difference(startTime);
+
+  /// Calculates the predicted XP per hour for each skill based on the active
+  /// action. Returns a map of Skill to XP per hour.
+  Map<Skill, int> get predictedXpPerHour {
+    final action = activeAction;
+    if (action == null) {
+      return {};
+    }
+
+    final meanDurationSeconds = action.meanDuration.inSeconds;
+    if (meanDurationSeconds == 0) {
+      return {};
+    }
+
+    // XP per hour = (XP per action) * (3600 seconds / mean duration in seconds)
+    final xpPerHour = action.xp * (3600.0 / meanDurationSeconds);
+    return {action.skill: xpPerHour.round()};
+  }
 
   TimeAway copyWith({
     DateTime? startTime,
     DateTime? endTime,
     Skill? activeSkill,
+    Action? activeAction,
     Changes? changes,
   }) {
     return TimeAway(
       startTime: startTime ?? this.startTime,
       endTime: endTime ?? this.endTime,
       activeSkill: activeSkill ?? this.activeSkill,
+      activeAction: activeAction ?? this.activeAction,
       changes: changes ?? this.changes,
     );
   }
@@ -98,6 +118,7 @@ class TimeAway {
       startTime: mergedStartTime,
       endTime: mergedEndTime,
       activeSkill: activeSkill ?? other.activeSkill,
+      activeAction: activeAction ?? other.activeAction,
       changes: changes.merge(other.changes),
     );
   }
@@ -107,6 +128,7 @@ class TimeAway {
       'startTime': startTime.millisecondsSinceEpoch,
       'endTime': endTime.millisecondsSinceEpoch,
       'activeSkill': activeSkill?.name,
+      'activeAction': activeAction?.name,
       'changes': changes.toJson(),
     };
   }

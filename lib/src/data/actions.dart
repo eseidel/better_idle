@@ -51,6 +51,12 @@ class Action {
 
   bool get isFixedDuration => minDuration == maxDuration;
 
+  Duration get meanDuration {
+    final totalMicroseconds =
+        (minDuration.inMicroseconds + maxDuration.inMicroseconds) ~/ 2;
+    return Duration(microseconds: totalMicroseconds);
+  }
+
   Tick rollDuration(Random random) {
     if (isFixedDuration) {
       return ticksFromDuration(minDuration);

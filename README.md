@@ -20,6 +20,8 @@ use it.
 
 ### TODO
 
-- Track per-item mastery and levels.
 - Allow buying of skill upgrades (e.g. faster axe)
-- Welcome back should show levels gained.
+- Handle global and per-action modifiers (e.g. mastery levels).
+- Add Equipment
+- Add Combat
+- Add Farming

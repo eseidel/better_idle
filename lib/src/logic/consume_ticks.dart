@@ -262,6 +262,7 @@ void consumeTicks(StateUpdateBuilder builder, Tick ticks, {Random? random}) {
     startTime: startTime,
     endTime: calculatedEndTime,
     activeSkill: state.activeSkill,
+    activeAction: actionRegistry.byName(action.name),
     changes: builder.changes,
   );
   return (timeAway, builder.build());

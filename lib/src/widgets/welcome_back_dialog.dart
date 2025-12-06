@@ -36,38 +36,41 @@ class WelcomeBackDialog extends StatelessWidget {
             ),
             const SizedBox(height: 16),
             if (changes.skillLevelChanges.isNotEmpty) ...[
-              ...changes.skillLevelChanges.entries.map(
-                (entry) {
-                  final skill = entry.key;
-                  final levelChange = entry.value;
-                  final levelsGained = levelChange.levelsGained;
-                  final range =
-                      '${levelChange.startLevel}->${levelChange.endLevel}';
-                  final levelText = levelsGained > 1
-                      ? 'gained $levelsGained levels $range'
-                      : 'level up $range';
-                  return Padding(
-                    padding: const EdgeInsets.only(left: 16, bottom: 4),
-                    child: Text(
-                      '${skill.name} $levelText!',
-                      style: const TextStyle(
-                        fontWeight: FontWeight.bold,
-                        color: Colors.green,
-                      ),
-                    ),
-                  );
-                },
-              ),
-            ],
-            if (changes.skillXpChanges.isNotEmpty) ...[
-              ...changes.skillXpChanges.entries.map(
-                (entry) => Padding(
+              ...changes.skillLevelChanges.entries.map((entry) {
+                final skill = entry.key;
+                final levelChange = entry.value;
+                final levelsGained = levelChange.levelsGained;
+                final range =
+                    '${levelChange.startLevel}->${levelChange.endLevel}';
+                final levelText = levelsGained > 1
+                    ? 'gained $levelsGained levels $range'
+                    : 'level up $range';
+                return Padding(
                   padding: const EdgeInsets.only(left: 16, bottom: 4),
                   child: Text(
-                    '${signedCountString(entry.value)} ${entry.key.name} xp',
+                    '${skill.name} $levelText!',
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      color: Colors.green,
+                    ),
                   ),
-                ),
-              ),
+                );
+              }),
+            ],
+            if (changes.skillXpChanges.isNotEmpty) ...[
+              ...changes.skillXpChanges.entries.map((entry) {
+                final xpGained = entry.value;
+                final skill = entry.key;
+                final xpPerHour = timeAway.predictedXpPerHour[skill];
+                final xpText = signedCountString(xpGained);
+                final prediction = xpPerHour != null
+                    ? ' (${approximateCountString(xpPerHour)} xp/hr)'
+                    : '';
+                return Padding(
+                  padding: const EdgeInsets.only(left: 16, bottom: 4),
+                  child: Text('$xpText ${skill.name} xp$prediction'),
+                );
+              }),
             ],
             if (changes.inventoryChanges.isNotEmpty) ...[
               ...changes.inventoryChanges.entries.map(
