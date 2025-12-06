@@ -126,12 +126,12 @@ class ActionCell extends StatelessWidget {
               if (isDepleted) ...[
                 Text(
                   'Respawning in ${respawnTimeRemaining!.inSeconds}s',
-                  style: const TextStyle(color: Colors.orange),
+                  style: TextStyle(color: Colors.grey[600]),
                 ),
                 LinearProgressIndicator(
                   value: action.respawnProgress(actionState) ?? 0,
                   backgroundColor: Colors.grey[300],
-                  color: Colors.orange,
+                  color: Colors.grey[600],
                 ),
               ] else ...[
                 Text('HP: $currentHp / $maxHp'),
