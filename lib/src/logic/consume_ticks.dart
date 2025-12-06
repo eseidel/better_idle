@@ -51,11 +51,12 @@ int masteryXpPerAction(GlobalState state, Action action) {
 }
 
 /// Gets the current HP of a resource node.
-int getCurrentHp(Action action, ActionState actionState, int masteryLevel) {
+int getCurrentHp(Action action, ActionState actionState) {
   if (action.resourceProperties == null) {
     throw Exception('Action does not have resource properties');
   }
 
+  final masteryLevel = levelForXp(actionState.masteryXp);
   final maxHp = action.resourceProperties!.maxHpForMasteryLevel(masteryLevel);
   return max(0, maxHp - actionState.totalHpLost);
 }
@@ -287,14 +288,12 @@ bool completeAction(
   // Handle resource depletion for mining
   if (action.resourceProperties != null) {
     final actionState = builder.state.actionState(action.name);
-    final masteryLevel = levelForXp(actionState.masteryXp);
 
     // Increment damage
     final newTotalHpLost = actionState.totalHpLost + 1;
     final currentHp = getCurrentHp(
       action,
       actionState.copyWith(totalHpLost: newTotalHpLost),
-      masteryLevel,
     );
 
     // Check if depleted

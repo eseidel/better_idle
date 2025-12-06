@@ -90,7 +90,7 @@ class ActionCell extends StatelessWidget {
 
     if (hasResources) {
       maxHp = action.resourceProperties!.maxHpForMasteryLevel(masteryLevel);
-      currentHp = getCurrentHp(action, actionState, masteryLevel);
+      currentHp = getCurrentHp(action, actionState);
       isDepleted = isNodeDepleted(actionState);
 
       if (isDepleted && actionState.respawnTicksRemaining != null) {
