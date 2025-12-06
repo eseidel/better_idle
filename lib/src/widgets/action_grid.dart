@@ -80,26 +80,26 @@ class ActionCell extends StatelessWidget {
     final canToggle = canStart || isRunning;
 
     // Check if this is a resource-based action (mining)
-    final hasResources = action.resourceProperties != null;
+    final resourceProps = action.resourceProperties;
     final masteryLevel = levelForXp(actionState.masteryXp);
 
     int? currentHp;
     int? maxHp;
-    var isDepleted = false;
     Duration? respawnTimeRemaining;
 
-    if (hasResources) {
-      maxHp = action.resourceProperties!.maxHpForMasteryLevel(masteryLevel);
+    if (resourceProps != null) {
+      maxHp = resourceProps.maxHpForMasteryLevel(masteryLevel);
       currentHp = getCurrentHp(action, actionState);
-      isDepleted = isNodeDepleted(actionState);
 
-      if (isDepleted && actionState.respawnTicksRemaining != null) {
-        final ticks = actionState.respawnTicksRemaining!;
+      final respawnTicks = actionState.respawnTicksRemaining;
+      if (respawnTicks != null && respawnTicks > 0) {
         respawnTimeRemaining = Duration(
-          milliseconds: ticks * tickDuration.inMilliseconds,
+          milliseconds: respawnTicks * tickDuration.inMilliseconds,
         );
       }
     }
+
+    final isDepleted = respawnTimeRemaining != null;
 
     return GestureDetector(
       onTap: canToggle && !isDepleted
@@ -121,11 +121,11 @@ class ActionCell extends StatelessWidget {
             Text(
               '${action.xp} Skill XP, ${action.minDuration.inSeconds} seconds',
             ),
-            if (hasResources) ...[
+            if (resourceProps != null) ...[
               const SizedBox(height: 4),
-              if (isDepleted) ...[
+              if (respawnTimeRemaining case final respawnTime?) ...[
                 Text(
-                  'Respawning in ${respawnTimeRemaining!.inSeconds}s',
+                  'Respawning in ${respawnTime.inSeconds}s',
                   style: TextStyle(color: Colors.grey[600]),
                 ),
                 LinearProgressIndicator(

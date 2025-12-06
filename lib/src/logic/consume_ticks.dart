@@ -52,19 +52,20 @@ int masteryXpPerAction(GlobalState state, Action action) {
 
 /// Gets the current HP of a resource node.
 int getCurrentHp(Action action, ActionState actionState) {
-  if (action.resourceProperties == null) {
+  final resourceProps = action.resourceProperties;
+  if (resourceProps == null) {
     throw Exception('Action does not have resource properties');
   }
 
   final masteryLevel = levelForXp(actionState.masteryXp);
-  final maxHp = action.resourceProperties!.maxHpForMasteryLevel(masteryLevel);
+  final maxHp = resourceProps.maxHpForMasteryLevel(masteryLevel);
   return max(0, maxHp - actionState.totalHpLost);
 }
 
 /// Returns true if the node is currently depleted and not yet respawned.
 bool isNodeDepleted(ActionState actionState) {
-  return actionState.respawnTicksRemaining != null &&
-      actionState.respawnTicksRemaining! > 0;
+  final respawnTicks = actionState.respawnTicksRemaining;
+  return respawnTicks != null && respawnTicks > 0;
 }
 
 /// Applies HP regeneration and respawn countdowns to resource-based actions.

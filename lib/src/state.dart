@@ -394,10 +394,11 @@ class GlobalState {
       actionStates[action] ?? const ActionState.empty();
 
   int activeProgress(Action action) {
-    if (activeAction?.name != action.name) {
+    final active = activeAction;
+    if (active == null || active.name != action.name) {
       return 0;
     }
-    return activeAction!.progressTicks;
+    return active.progressTicks;
   }
 
   GlobalState updateActiveAction(
