@@ -169,17 +169,7 @@ class _AppLifecycleManagerState extends State<_AppLifecycleManager>
     showDialog<void>(
       context: navigatorContext,
       barrierDismissible: false,
-      builder: (context) => StoreConnector<GlobalState, TimeAway>(
-        converter: (store) {
-          final ta = store.state.timeAway;
-          if (ta == null) {
-            // This shouldn't happen, but handle it gracefully
-            return TimeAway.empty();
-          }
-          return ta;
-        },
-        builder: (context, timeAway) => WelcomeBackDialog(timeAway: timeAway),
-      ),
+      builder: (context) => WelcomeBackDialog(timeAway: timeAway),
     ).then((_) {
       // Dialog dismissed - reset tracking so it can be shown again if needed
       if (mounted) {

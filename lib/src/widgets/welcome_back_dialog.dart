@@ -62,10 +62,10 @@ class WelcomeBackDialog extends StatelessWidget {
       actions: [
         TextButton(
           onPressed: () {
-            // Dispatch action to clear timeAway
-            context.dispatchSync(DismissWelcomeBackDialogAction());
-            // Pop the dialog
+            // Pop the dialog first, before clearing state
             Navigator.of(context).pop();
+            // Then dispatch action to clear timeAway
+            context.dispatchSync(DismissWelcomeBackDialogAction());
           },
           child: const Text('OK'),
         ),
