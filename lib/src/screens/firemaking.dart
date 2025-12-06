@@ -1,7 +1,5 @@
 import 'package:better_idle/src/data/actions.dart';
-import 'package:better_idle/src/data/xp.dart';
-import 'package:better_idle/src/logic/redux_actions.dart';
-import 'package:better_idle/src/state.dart';
+import 'package:better_idle/src/widgets/action_grid.dart';
 import 'package:better_idle/src/widgets/context_extensions.dart';
 import 'package:better_idle/src/widgets/mastery_pool.dart';
 import 'package:better_idle/src/widgets/navigation_drawer.dart';
@@ -24,113 +22,9 @@ class FiremakingPage extends StatelessWidget {
         children: [
           SkillProgress(xp: skillState.xp),
           MasteryPoolProgress(xp: skillState.masteryXp),
-          Expanded(
-            child:
-                // Grid view of all activities, 2x wide
-                GridView.builder(
-                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                    crossAxisCount: 2,
-                  ),
-                  itemCount: actions.length,
-                  itemBuilder: (context, index) {
-                    final action = actions[index];
-                    final progressTicks = context.state.activeProgress(action);
-                    final actionState = context.state.actionState(action.name);
-                    return ActionCell(
-                      action: action,
-                      actionState: actionState,
-                      progressTicks: progressTicks,
-                    );
-                  },
-                ),
-          ),
+          Expanded(child: ActionGrid(actions: actions)),
         ],
       ),
     );
-  }
-}
-
-class ActionCell extends StatelessWidget {
-  const ActionCell({
-    required this.action,
-    required this.actionState,
-    required this.progressTicks,
-    super.key,
-  });
-
-  final Action action;
-  final ActionState actionState;
-  final int? progressTicks;
-
-  Widget _buildUnlocked(BuildContext context) {
-    final actionName = action.name;
-    final labelStyle = Theme.of(
-      context,
-    ).textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.bold);
-    final activeAction = context.state.activeAction;
-    double progress;
-    if (activeAction?.name == actionName && activeAction != null) {
-      progress =
-          (activeAction.totalTicks - activeAction.remainingTicks) /
-          activeAction.totalTicks;
-    } else {
-      progress = 0.0;
-    }
-    final actionState = context.state.actionState(actionName);
-    final canStart = context.state.canStartAction(action);
-    final isRunning = context.state.activeAction?.name == actionName;
-    final canToggle = canStart || isRunning;
-    return GestureDetector(
-      onTap: canToggle
-          ? () {
-              context.dispatch(ToggleActionAction(action: action));
-            }
-          : null,
-      child: Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          border: Border.all(color: Colors.grey),
-          borderRadius: BorderRadius.circular(8),
-        ),
-        child: Column(
-          children: [
-            const Text('Burn'),
-            Text(actionName, style: labelStyle),
-            Text(
-              '${action.xp} Skill XP, ${action.minDuration.inSeconds} seconds',
-            ),
-            LinearProgressIndicator(value: progress),
-            MasteryProgressCell(masteryXp: actionState.masteryXp),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildLocked(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        border: Border.all(color: Colors.grey),
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: Column(
-        children: [const Text('Locked'), Text('Level ${action.unlockLevel}')],
-      ),
-    );
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final skillState = context.state.skillState(action.skill);
-    final skillLevel = levelForXp(skillState.xp);
-    final isUnlocked = skillLevel >= action.unlockLevel;
-    if (isUnlocked) {
-      return _buildUnlocked(context);
-    } else {
-      return _buildLocked(context);
-    }
   }
 }
