@@ -45,10 +45,11 @@ class _ToastOverlayState extends State<ToastOverlay>
 
   void _showToast(Changes data) {
     setState(() {
-      if (_currentData == null) {
+      final currentData = _currentData;
+      if (currentData == null) {
         _currentData = data;
       } else {
-        _currentData = _currentData!.merge(data);
+        _currentData = currentData.merge(data);
       }
     });
     _controller.forward();
@@ -66,21 +67,22 @@ class _ToastOverlayState extends State<ToastOverlay>
 
   @override
   Widget build(BuildContext context) {
-    if (_currentData == null || _currentData!.isEmpty) {
+    final currentData = _currentData;
+    if (currentData == null || currentData.isEmpty) {
       return widget.child;
     }
 
     final bubbles = <Widget>[];
 
     // Add inventory change bubbles
-    for (final entry in _currentData!.inventoryChanges.entries) {
+    for (final entry in currentData.inventoryChanges.entries) {
       bubbles.add(
         _buildBubble('${signedCountString(entry.value)} ${entry.key}'),
       );
     }
 
     // Add xp change bubbles
-    for (final entry in _currentData!.skillXpChanges.entries) {
+    for (final entry in currentData.skillXpChanges.entries) {
       bubbles.add(
         _buildBubble('${signedCountString(entry.value)} ${entry.key.name} xp'),
       );

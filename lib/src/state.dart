@@ -4,6 +4,7 @@ import 'package:better_idle/src/data/actions.dart';
 import 'package:better_idle/src/data/items.dart';
 import 'package:better_idle/src/logic/consume_ticks.dart';
 import 'package:better_idle/src/types/inventory.dart';
+import 'package:meta/meta.dart';
 
 export 'package:async_redux/async_redux.dart';
 
@@ -14,6 +15,7 @@ Tick ticksFromDuration(Duration duration) {
   return duration.inMilliseconds ~/ tickDuration.inMilliseconds;
 }
 
+@immutable
 class ActiveAction {
   const ActiveAction({
     required this.name,
@@ -51,15 +53,21 @@ class ActiveAction {
   };
 }
 
+/// Per-skill serialized state.
+@immutable
 class SkillState {
   const SkillState({required this.xp, required this.masteryXp});
 
-  SkillState.empty() : this(xp: 0, masteryXp: 0);
+  const SkillState.empty() : this(xp: 0, masteryXp: 0);
 
   SkillState.fromJson(Map<String, dynamic> json)
     : xp = json['xp'] as int,
       masteryXp = json['masteryXp'] as int;
+
+  // Skill xp accumulated for this Skill, determines skill level.
   final int xp;
+
+  /// Mastery xp accumulated for this Skill, determines mastery level.
   final int masteryXp;
 
   SkillState copyWith({int? xp, int? masteryXp}) {
@@ -74,25 +82,76 @@ class SkillState {
   }
 }
 
+/// The serialized state of an Action in progress.
+@immutable
 class ActionState {
-  const ActionState({required this.masteryXp});
+  /// Used to start a new Action.
+  const ActionState({
+    required this.masteryXp,
+    this.totalHpLost = 0,
+    this.respawnTicksRemaining,
+    this.hpRegenTicksRemaining = 0,
+  });
 
+  // Used to create an empty action state when initializing for the first time.
   const ActionState.empty() : this(masteryXp: 0);
 
   factory ActionState.fromJson(Map<String, dynamic> json) {
-    return ActionState(masteryXp: json['masteryXp'] as int);
+    return ActionState(
+      masteryXp: json['masteryXp'] as int,
+      totalHpLost: json['totalHpLost'] as int? ?? 0,
+      respawnTicksRemaining: json['respawnTicksRemaining'] as int?,
+      hpRegenTicksRemaining: json['hpRegenTicksRemaining'] as int? ?? 0,
+    );
   }
+
+  /// How much accumulated mastery xp this action has.
   final int masteryXp;
 
-  ActionState copyWith({int? masteryXp}) {
-    return ActionState(masteryXp: masteryXp ?? this.masteryXp);
+  /// States for mining.
+  /// How much hp this mining node has lost.
+  final int totalHpLost;
+
+  /// How many ticks until this mining node response if depleted.
+  final Tick? respawnTicksRemaining; // Null if not depleted
+  /// How many ticks until this mining node regens HP.
+  final Tick hpRegenTicksRemaining; // Ticks until next HP regen
+
+  ActionState copyWith({
+    int? masteryXp,
+    int? totalHpLost,
+    Tick? respawnTicksRemaining,
+    Tick? hpRegenTicksRemaining,
+  }) {
+    return ActionState(
+      masteryXp: masteryXp ?? this.masteryXp,
+      totalHpLost: totalHpLost ?? this.totalHpLost,
+      respawnTicksRemaining:
+          respawnTicksRemaining ?? this.respawnTicksRemaining,
+      hpRegenTicksRemaining:
+          hpRegenTicksRemaining ?? this.hpRegenTicksRemaining,
+    );
+  }
+
+  /// Create a new state for this action, as though it restarted fresh.
+  // If we moved all the mining state into its own class, this would just
+  // mean nulling that mining state instead.
+  ActionState copyRestarting() {
+    return ActionState(masteryXp: masteryXp);
   }
 
   Map<String, dynamic> toJson() {
-    return {'masteryXp': masteryXp};
+    return {
+      'masteryXp': masteryXp,
+      'totalHpLost': totalHpLost,
+      'respawnTicksRemaining': respawnTicksRemaining,
+      'hpRegenTicksRemaining': hpRegenTicksRemaining,
+    };
   }
 }
 
+/// Used for serializing the state of the Shop (what has been purchased).
+@immutable
 class ShopState {
   const ShopState({required this.bankSlots});
 
@@ -101,6 +160,8 @@ class ShopState {
   factory ShopState.fromJson(Map<String, dynamic> json) {
     return ShopState(bankSlots: json['bankSlots'] as int);
   }
+
+  /// How many bank slots the player has purchased.
   final int bankSlots;
 
   ShopState copyWith({int? bankSlots}) {
@@ -111,6 +172,7 @@ class ShopState {
     return {'bankSlots': bankSlots};
   }
 
+  /// What the next bank slot will cost.
   int nextBankSlotCost() {
     // https://wiki.melvoridle.com/w/Bank
     // C_b = \left \lfloor \frac{132\,728\,500 \times (n+2)}{142\,015^{\left (\frac{163}{122+n} \right )}}\right \rfloor
@@ -123,6 +185,8 @@ class ShopState {
 /// The initial number of free bank slots.
 const int initialBankSlots = 20;
 
+/// Primary state object serialized to disk and used in memory.
+@immutable
 class GlobalState {
   const GlobalState({
     required this.inventory,
@@ -147,6 +211,7 @@ class GlobalState {
         shop: const ShopState.empty(),
       );
 
+  @visibleForTesting
   factory GlobalState.test({
     Inventory inventory = const Inventory.empty(),
     ActiveAction? activeAction,
@@ -246,6 +311,25 @@ class GlobalState {
 
   bool get isActive => activeAction != null;
 
+  /// Returns true if there are any active resource timers (respawn or regen).
+  bool get hasActiveResourceTimers {
+    for (final actionState in actionStates.values) {
+      // Check for active respawn timer
+      if (actionState.respawnTicksRemaining != null &&
+          actionState.respawnTicksRemaining! > 0) {
+        return true;
+      }
+      // Check for active HP regeneration
+      if (actionState.totalHpLost > 0) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  /// Returns true if the game loop should be running.
+  bool get shouldTick => isActive || hasActiveResourceTimers;
+
   Skill? get activeSkill {
     final name = activeAction?.name;
     if (name == null) {
@@ -265,6 +349,7 @@ class GlobalState {
 
   /// Returns true if all required inputs for the action are available.
   bool canStartAction(Action action) {
+    // Check inputs
     for (final requirement in action.inputs.entries) {
       final item = itemRegistry.byName(requirement.key);
       final itemCount = inventory.countOfItem(item);
@@ -272,6 +357,15 @@ class GlobalState {
         return false;
       }
     }
+
+    // Check if resource node is depleted
+    if (action.resourceProperties != null) {
+      final actionState = this.actionState(action.name);
+      if (isNodeDepleted(actionState)) {
+        return false; // Can't mine depleted node
+      }
+    }
+
     return true;
   }
 
@@ -325,7 +419,7 @@ class GlobalState {
   }
 
   SkillState skillState(Skill skill) =>
-      skillStates[skill] ?? SkillState.empty();
+      skillStates[skill] ?? const SkillState.empty();
 
   // TODO(eseidel): Implement this.
   int unlockedActionsCount(Skill skill) => 1;
@@ -334,10 +428,11 @@ class GlobalState {
       actionStates[action] ?? const ActionState.empty();
 
   int activeProgress(Action action) {
-    if (activeAction?.name != action.name) {
+    final active = activeAction;
+    if (active == null || active.name != action.name) {
       return 0;
     }
-    return activeAction!.progressTicks;
+    return active.progressTicks;
   }
 
   GlobalState updateActiveAction(

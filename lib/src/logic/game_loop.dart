@@ -13,10 +13,10 @@ class GameLoop {
   }
 
   void _onStateChange(GlobalState state) {
-    if (state.isActive) {
+    if (state.shouldTick) {
       start();
     }
-    if (!state.isActive) {
+    if (!state.shouldTick) {
       pause();
     }
   }
@@ -69,7 +69,7 @@ class GameLoop {
     }
     _lastUpdate = now;
 
-    if (!_store.state.isActive) {
+    if (!_store.state.shouldTick) {
       // Safety check - should not happen when loop is managed correctly
       return;
     }

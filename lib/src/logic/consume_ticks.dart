@@ -11,6 +11,9 @@ export 'package:async_redux/async_redux.dart';
 
 export '../types/time_away.dart';
 
+/// Ticks required to regenerate 1 HP (10 seconds = 100 ticks).
+final int ticksPer1Hp = ticksFromDuration(const Duration(seconds: 10));
+
 /// Calculates the amount of mastery XP gained per action from raw values.
 /// Derived from https://wiki.melvoridle.com/w/Mastery.
 int calculateMasteryXpPerAction({
@@ -48,6 +51,102 @@ int masteryXpPerAction(GlobalState state, Action action) {
     totalItemsInSkill: itemsInSkill,
     bonus: 0,
   );
+}
+
+/// Gets the current HP of a resource node.
+int getCurrentHp(Action action, ActionState actionState) {
+  final resourceProps = action.resourceProperties;
+  if (resourceProps == null) {
+    throw Exception('Action does not have resource properties');
+  }
+
+  final masteryLevel = levelForXp(actionState.masteryXp);
+  final maxHp = resourceProps.maxHpForMasteryLevel(masteryLevel);
+  return max(0, maxHp - actionState.totalHpLost);
+}
+
+/// Returns true if the node is currently depleted and not yet respawned.
+bool isNodeDepleted(ActionState actionState) {
+  final respawnTicks = actionState.respawnTicksRemaining;
+  return respawnTicks != null && respawnTicks > 0;
+}
+
+/// Result of applying ticks to a resource action state.
+typedef TickConsumptionResult = ({ActionState state, Tick ticksConsumed});
+
+/// Applies respawn countdown to a depleted resource node.
+/// Returns the updated state and how many ticks were consumed by respawning.
+/// If the node is not depleted, returns 0 ticks consumed.
+TickConsumptionResult _applyRespawnTicks(
+  ActionState actionState,
+  Tick ticksAvailable,
+) {
+  final respawnTicks = actionState.respawnTicksRemaining;
+  if (respawnTicks == null || respawnTicks <= 0) {
+    // Not depleted, no ticks consumed
+    return (state: actionState, ticksConsumed: 0);
+  }
+
+  if (ticksAvailable >= respawnTicks) {
+    // Node fully respawns - return to full health
+    return (state: actionState.copyRestarting(), ticksConsumed: respawnTicks);
+  } else {
+    // Partial respawn progress
+    final newState = actionState.copyWith(
+      respawnTicksRemaining: respawnTicks - ticksAvailable,
+    );
+    return (state: newState, ticksConsumed: ticksAvailable);
+  }
+}
+
+/// Applies HP regeneration to a resource node.
+/// Returns the updated state and how many ticks were consumed by regeneration.
+TickConsumptionResult _applyRegenTicks(
+  ActionState actionState,
+  Tick ticksAvailable,
+) {
+  var hpLost = actionState.totalHpLost;
+  if (hpLost == 0) {
+    return (state: actionState, ticksConsumed: 0);
+  }
+
+  var ticksUntilNextHeal = actionState.hpRegenTicksRemaining;
+  var ticksRemaining = ticksAvailable;
+
+  // Apply heals while we have HP to regen and enough ticks
+  while (hpLost > 0 && ticksRemaining >= ticksUntilNextHeal) {
+    ticksRemaining -= ticksUntilNextHeal;
+    hpLost -= 1;
+    ticksUntilNextHeal = ticksPer1Hp;
+  }
+
+  // Apply partial progress toward next heal if we still have HP to regen
+  if (hpLost > 0) {
+    ticksUntilNextHeal -= ticksRemaining;
+    ticksRemaining = 0;
+  } else {
+    ticksUntilNextHeal = 0;
+  }
+
+  return (
+    state: actionState.copyWith(
+      totalHpLost: hpLost,
+      hpRegenTicksRemaining: ticksUntilNextHeal,
+    ),
+    ticksConsumed: ticksAvailable - ticksRemaining,
+  );
+}
+
+/// Applies HP regeneration and respawn countdowns to resource-based actions.
+/// Returns updated ActionState with HP regenerated and/or respawn progressed.
+ActionState applyResourceTicks(ActionState actionState, Tick ticksElapsed) {
+  if (isNodeDepleted(actionState)) {
+    final respawnResult = _applyRespawnTicks(actionState, ticksElapsed);
+    return respawnResult.state;
+  } else {
+    final regenResult = _applyRegenTicks(actionState, ticksElapsed);
+    return regenResult.state;
+  }
 }
 
 class StateUpdateBuilder {
@@ -120,8 +219,43 @@ class StateUpdateBuilder {
     // Probably getting to 99 is?
   }
 
+  void updateActionState(String actionName, ActionState newState) {
+    final newActionStates = Map<String, ActionState>.from(_state.actionStates);
+    newActionStates[actionName] = newState;
+    _state = _state.copyWith(actionStates: newActionStates);
+  }
+
   void clearAction() {
     _state = _state.clearAction();
+  }
+
+  /// Depletes a resource node and starts its respawn timer.
+  void depleteResourceNode(String actionName, Action action, int totalHpLost) {
+    final respawnTicks = ticksFromDuration(
+      action.resourceProperties!.respawnTime,
+    );
+    final actionState = _state.actionState(actionName);
+    updateActionState(
+      actionName,
+      actionState.copyWith(
+        totalHpLost: totalHpLost,
+        respawnTicksRemaining: respawnTicks,
+      ),
+    );
+  }
+
+  /// Damages a resource node and starts HP regeneration if needed.
+  void damageResourceNode(String actionName, int totalHpLost) {
+    final actionState = _state.actionState(actionName);
+    updateActionState(
+      actionName,
+      actionState.copyWith(
+        totalHpLost: totalHpLost,
+        hpRegenTicksRemaining: actionState.hpRegenTicksRemaining == 0
+            ? ticksPer1Hp
+            : actionState.hpRegenTicksRemaining,
+      ),
+    );
   }
 
   GlobalState build() => _state;
@@ -186,6 +320,28 @@ bool completeAction(
     ..addActionMasteryXp(action.name, perAction.masteryXp)
     ..addSkillMasteryXp(action.skill, perAction.masteryPoolXp);
 
+  // Handle resource depletion for mining
+  if (action.resourceProperties != null) {
+    final actionState = builder.state.actionState(action.name);
+
+    // Increment damage
+    final newTotalHpLost = actionState.totalHpLost + 1;
+    final currentHp = getCurrentHp(
+      action,
+      actionState.copyWith(totalHpLost: newTotalHpLost),
+    );
+
+    // Check if depleted
+    if (currentHp <= 0) {
+      // Node is depleted - set respawn timer
+      builder.depleteResourceNode(action.name, action, newTotalHpLost);
+      canRepeatAction = false; // Can't continue mining
+    } else {
+      // Still has HP, just update damage and start regen countdown if needed
+      builder.damageResourceNode(action.name, newTotalHpLost);
+    }
+  }
+
   return canRepeatAction;
 }
 
@@ -201,6 +357,31 @@ void consumeTicks(StateUpdateBuilder builder, Tick ticks, {Random? random}) {
   final action = actionRegistry.byName(startingAction.name);
   var ticksToConsume = ticks;
   final rng = random ?? Random();
+
+  // Apply HP regeneration and respawn for resource-based actions
+  if (action.resourceProperties != null) {
+    final actionState = state.actionState(action.name);
+
+    // Check if node was depleted at the start
+    final wasDepletedAtStart = isNodeDepleted(actionState);
+
+    // Apply ticks to resource (regen and respawn)
+    final updatedState = applyResourceTicks(actionState, ticks);
+    builder.updateActionState(action.name, updatedState);
+
+    // Check if node is still depleted after applying ticks
+    if (isNodeDepleted(updatedState)) {
+      // Node is still depleted, can't mine yet - all ticks consumed waiting
+      return;
+    } else if (wasDepletedAtStart) {
+      // Node WAS depleted but has now respawned
+      // Subtract the ticks we spent waiting for respawn
+      final respawnTicksConsumed = actionState.respawnTicksRemaining!;
+      ticksToConsume -= respawnTicksConsumed;
+      // Restart the action with fresh duration since we were waiting
+      builder.restartCurrentAction(action, random: rng);
+    }
+  }
 
   while (ticksToConsume > 0) {
     final currentAction = builder.state.activeAction;
@@ -224,6 +405,39 @@ void consumeTicks(StateUpdateBuilder builder, Tick ticks, {Random? random}) {
       // Reset progress for the *current* activity.
       if (builder.state.activeAction?.name != startingAction.name) {
         throw Exception('Active action changed during consumption?');
+      }
+
+      // Check if node was depleted after completion
+      if (action.resourceProperties != null && !canRepeat) {
+        final currentActionState = builder.state.actionState(action.name);
+        if (isNodeDepleted(currentActionState)) {
+          // Node depleted, wait for respawn
+          final respawnTicks = currentActionState.respawnTicksRemaining!;
+          if (ticksToConsume >= respawnTicks) {
+            // We have enough ticks to wait for respawn
+            ticksToConsume -= respawnTicks;
+            // Apply respawn ticks to bring node back
+            final respawnedState = applyResourceTicks(
+              currentActionState,
+              respawnTicks,
+            );
+            builder.updateActionState(action.name, respawnedState);
+            // Try to restart action now that node has respawned
+            if (builder.state.canStartAction(action)) {
+              builder.restartCurrentAction(action, random: rng);
+              continue; // Continue the loop to keep mining
+            }
+          } else {
+            // Not enough ticks for respawn yet - apply partial respawn progress
+            // but keep the action active so it resumes when node respawns
+            final partialRespawnState = applyResourceTicks(
+              currentActionState,
+              ticksToConsume,
+            );
+            builder.updateActionState(action.name, partialRespawnState);
+            break; // Stop processing but keep action active
+          }
+        }
       }
 
       // Start the action again if we can and it's safe to repeat.
