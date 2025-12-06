@@ -24,39 +24,44 @@ class WoodcuttingPage extends StatelessWidget {
         children: [
           SkillProgress(xp: skillState.xp),
           MasteryPoolProgress(xp: skillState.masteryXp),
-          Expanded(
-            child: Align(
-              alignment: Alignment.topCenter,
-              child: ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 1200),
-                child: SingleChildScrollView(
-                  padding: const EdgeInsets.all(8),
-                  child: Wrap(
-                    spacing: 8,
-                    runSpacing: 8,
-                    children: actions.map((action) {
-                      final progressTicks = context.state.activeProgress(
-                        action,
-                      );
-                      final actionState = context.state.actionState(
-                        action.name,
-                      );
-                      return SizedBox(
-                        width: 300,
-                        height: 150,
-                        child: ActionCell(
-                          action: action,
-                          actionState: actionState,
-                          progressTicks: progressTicks,
-                        ),
-                      );
-                    }).toList(),
-                  ),
-                ),
-              ),
-            ),
-          ),
+          Expanded(child: ActionGrid(actions: actions)),
         ],
+      ),
+    );
+  }
+}
+
+class ActionGrid extends StatelessWidget {
+  const ActionGrid({required this.actions, super.key});
+
+  final List<Action> actions;
+
+  @override
+  Widget build(BuildContext context) {
+    return Align(
+      alignment: Alignment.topCenter,
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 1200),
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(8),
+          child: Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: actions.map((action) {
+              final progressTicks = context.state.activeProgress(action);
+              final actionState = context.state.actionState(action.name);
+              return SizedBox(
+                width: 300,
+                height: 150,
+                child: ActionCell(
+                  action: action,
+                  actionState: actionState,
+                  progressTicks: progressTicks,
+                ),
+              );
+            }).toList(),
+          ),
+        ),
       ),
     );
   }
