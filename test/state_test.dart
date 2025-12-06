@@ -21,12 +21,12 @@ void main() {
         remainingTicks: 15,
         totalTicks: 30,
       ),
-      skillStates: {
-        Skill.woodcutting: const SkillState(xp: 100, masteryXp: 50),
+      skillStates: const {
+        Skill.woodcutting: SkillState(xp: 100, masteryXp: 50),
       },
-      actionStates: {
-        'Normal Tree': const ActionState(masteryXp: 25),
-        'Oak Tree': const ActionState(masteryXp: 10),
+      actionStates: const {
+        'Normal Tree': ActionState(masteryXp: 25),
+        'Oak Tree': ActionState(masteryXp: 10),
       },
       updatedAt: DateTime(2024, 1, 1, 12),
       timeAway: TimeAway(
@@ -92,10 +92,10 @@ void main() {
         remainingTicks: 15,
         totalTicks: 30,
       ),
-      skillStates: {
-        Skill.woodcutting: const SkillState(xp: 100, masteryXp: 50),
+      skillStates: const {
+        Skill.woodcutting: SkillState(xp: 100, masteryXp: 50),
       },
-      actionStates: {'Normal Tree': const ActionState(masteryXp: 25)},
+      actionStates: const {'Normal Tree': ActionState(masteryXp: 25)},
       updatedAt: DateTime(2024, 1, 1, 12),
     );
 
@@ -115,10 +115,10 @@ void main() {
         remainingTicks: 15,
         totalTicks: 30,
       ),
-      skillStates: {
-        Skill.woodcutting: const SkillState(xp: 100, masteryXp: 50),
+      skillStates: const {
+        Skill.woodcutting: SkillState(xp: 100, masteryXp: 50),
       },
-      actionStates: {'Normal Tree': const ActionState(masteryXp: 25)},
+      actionStates: const {'Normal Tree': ActionState(masteryXp: 25)},
       updatedAt: DateTime(2024, 1, 1, 12),
       timeAway: TimeAway(
         startTime: DateTime(2024, 1, 1, 11, 59, 30),

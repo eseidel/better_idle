@@ -4,6 +4,7 @@ import 'package:better_idle/src/data/actions.dart';
 import 'package:better_idle/src/data/items.dart';
 import 'package:better_idle/src/logic/consume_ticks.dart';
 import 'package:better_idle/src/types/inventory.dart';
+import 'package:meta/meta.dart';
 
 export 'package:async_redux/async_redux.dart';
 
@@ -14,6 +15,7 @@ Tick ticksFromDuration(Duration duration) {
   return duration.inMilliseconds ~/ tickDuration.inMilliseconds;
 }
 
+@immutable
 class ActiveAction {
   const ActiveAction({
     required this.name,
@@ -51,15 +53,21 @@ class ActiveAction {
   };
 }
 
+/// Per-skill serialized state.
+@immutable
 class SkillState {
   const SkillState({required this.xp, required this.masteryXp});
 
-  SkillState.empty() : this(xp: 0, masteryXp: 0);
+  const SkillState.empty() : this(xp: 0, masteryXp: 0);
 
   SkillState.fromJson(Map<String, dynamic> json)
     : xp = json['xp'] as int,
       masteryXp = json['masteryXp'] as int;
+
+  // Skill xp accumulated for this Skill, determines skill level.
   final int xp;
+
+  /// Mastery xp accumulated for this Skill, determines mastery level.
   final int masteryXp;
 
   SkillState copyWith({int? xp, int? masteryXp}) {
@@ -74,7 +82,10 @@ class SkillState {
   }
 }
 
+/// The serialized state of an Action in progress.
+@immutable
 class ActionState {
+  /// Used to start a new Action.
   const ActionState({
     required this.masteryXp,
     this.totalHpLost = 0,
@@ -82,6 +93,7 @@ class ActionState {
     this.hpRegenTicksRemaining = 0,
   });
 
+  // Used to create an empty action state when initializing for the first time.
   const ActionState.empty() : this(masteryXp: 0);
 
   factory ActionState.fromJson(Map<String, dynamic> json) {
@@ -93,9 +105,16 @@ class ActionState {
     );
   }
 
+  /// How much accumulated mastery xp this action has.
   final int masteryXp;
+
+  /// States for mining.
+  /// How much hp this mining node has lost.
   final int totalHpLost;
+
+  /// How many ticks until this mining node response if depleted.
   final Tick? respawnTicksRemaining; // Null if not depleted
+  /// How many ticks until this mining node regens HP.
   final Tick hpRegenTicksRemaining; // Ticks until next HP regen
 
   ActionState copyWith({
@@ -124,6 +143,8 @@ class ActionState {
   }
 }
 
+/// Used for serializing the state of the Shop (what has been purchased).
+@immutable
 class ShopState {
   const ShopState({required this.bankSlots});
 
@@ -132,6 +153,8 @@ class ShopState {
   factory ShopState.fromJson(Map<String, dynamic> json) {
     return ShopState(bankSlots: json['bankSlots'] as int);
   }
+
+  /// How many bank slots the player has purchased.
   final int bankSlots;
 
   ShopState copyWith({int? bankSlots}) {
@@ -142,6 +165,7 @@ class ShopState {
     return {'bankSlots': bankSlots};
   }
 
+  /// What the next bank slot will cost.
   int nextBankSlotCost() {
     // https://wiki.melvoridle.com/w/Bank
     // C_b = \left \lfloor \frac{132\,728\,500 \times (n+2)}{142\,015^{\left (\frac{163}{122+n} \right )}}\right \rfloor
@@ -154,6 +178,8 @@ class ShopState {
 /// The initial number of free bank slots.
 const int initialBankSlots = 20;
 
+/// Primary state object serialized to disk and used in memory.
+@immutable
 class GlobalState {
   const GlobalState({
     required this.inventory,
@@ -178,6 +204,7 @@ class GlobalState {
         shop: const ShopState.empty(),
       );
 
+  @visibleForTesting
   factory GlobalState.test({
     Inventory inventory = const Inventory.empty(),
     ActiveAction? activeAction,
@@ -385,7 +412,7 @@ class GlobalState {
   }
 
   SkillState skillState(Skill skill) =>
-      skillStates[skill] ?? SkillState.empty();
+      skillStates[skill] ?? const SkillState.empty();
 
   // TODO(eseidel): Implement this.
   int unlockedActionsCount(Skill skill) => 1;
