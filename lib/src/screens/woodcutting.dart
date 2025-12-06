@@ -25,26 +25,36 @@ class WoodcuttingPage extends StatelessWidget {
           SkillProgress(xp: skillState.xp),
           MasteryPoolProgress(xp: skillState.masteryXp),
           Expanded(
-            child:
-                // Grid view of all activities, 2x wide
-                GridView.builder(
-                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                    crossAxisCount: 2,
+            child: Align(
+              alignment: Alignment.topCenter,
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 1200),
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.all(8),
+                  child: Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: actions.map((action) {
+                      final progressTicks = context.state.activeProgress(
+                        action,
+                      );
+                      final actionState = context.state.actionState(
+                        action.name,
+                      );
+                      return SizedBox(
+                        width: 300,
+                        height: 150,
+                        child: ActionCell(
+                          action: action,
+                          actionState: actionState,
+                          progressTicks: progressTicks,
+                        ),
+                      );
+                    }).toList(),
                   ),
-                  itemBuilder: (context, index) {
-                    if (index >= actions.length) {
-                      return Container();
-                    }
-                    final action = actions[index];
-                    final progressTicks = context.state.activeProgress(action);
-                    final actionState = context.state.actionState(action.name);
-                    return ActionCell(
-                      action: action,
-                      actionState: actionState,
-                      progressTicks: progressTicks,
-                    );
-                  },
                 ),
+              ),
+            ),
           ),
         ],
       ),

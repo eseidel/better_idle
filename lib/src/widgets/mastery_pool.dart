@@ -55,11 +55,16 @@ class MasteryProgressCell extends StatelessWidget {
       children: [
         Text('🏆 ${progress.level}'),
         const SizedBox(width: 8),
-        Column(
-          children: [
-            Text('$masteryXp / ${progress.nextLevelXp}'),
-            // LinearProgressIndicator(value: progress.progress),
-          ],
+        Expanded(
+          child: Column(
+            children: [
+              Text(
+                '$masteryXp / ${progress.nextLevelXp}',
+                overflow: TextOverflow.ellipsis,
+              ),
+              // LinearProgressIndicator(value: progress.progress),
+            ],
+          ),
         ),
       ],
     );
