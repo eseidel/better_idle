@@ -70,9 +70,22 @@ class StateUpdateBuilder {
     _state = _state.startAction(action, random: random ?? Random());
   }
 
-  void addInventory(ItemStack stack) {
+  /// Adds inventory if there's space. Returns true if successful.
+  /// If inventory is full and the item is new, the item is dropped and
+  /// tracked in dropped items.
+  bool addInventory(ItemStack stack) {
+    // Check if inventory is full and this is a new item type
+    final isNewItemType = _state.inventory.countOfItem(stack.item) == 0;
+    if (_state.isInventoryFull && isNewItemType) {
+      // Can't add new item type when inventory is full - drop it
+      _changes = _changes.dropping(stack);
+      return false;
+    }
+
+    // Add the item to inventory (either new slot available or stacking)
     _state = _state.copyWith(inventory: _state.inventory.adding(stack));
     _changes = _changes.adding(stack);
+    return true;
   }
 
   void removeInventory(ItemStack stack) {
@@ -129,12 +142,15 @@ XpPerAction xpPerAction(GlobalState state, Action action) {
   );
 }
 
-void completeAction(
+/// Completes an action, consuming inputs, adding outputs, and awarding XP.
+/// Returns true if the action can repeat (no items were dropped).
+bool completeAction(
   StateUpdateBuilder builder,
   Action action, {
   Random? random,
 }) {
   final rng = random ?? Random();
+  var canRepeatAction = true;
 
   // Consume required items
   for (final requirement in action.inputs.entries) {
@@ -145,7 +161,11 @@ void completeAction(
   // Process all drops (action-level, skill-level, and global)
   for (final drop in dropsRegistry.allDropsForAction(action)) {
     if (drop.rate >= 1.0 || rng.nextDouble() < drop.rate) {
-      builder.addInventory(drop.toItemStack());
+      final success = builder.addInventory(drop.toItemStack());
+      if (!success) {
+        // Item was dropped, can't repeat action
+        canRepeatAction = false;
+      }
     }
   }
   final perAction = xpPerAction(builder.state, action);
@@ -154,6 +174,8 @@ void completeAction(
     ..addSkillXp(action.skill, perAction.xp)
     ..addActionMasteryXp(action.name, perAction.masteryXp)
     ..addSkillMasteryXp(action.skill, perAction.masteryPoolXp);
+
+  return canRepeatAction;
 }
 
 /// Consumes a specified number of ticks and updates the state.
@@ -186,15 +208,16 @@ void consumeTicks(StateUpdateBuilder builder, Tick ticks, {Random? random}) {
     builder.setActionProgress(action, remainingTicks: newRemainingTicks);
 
     if (newRemainingTicks <= 0) {
-      completeAction(builder, action, random: rng);
+      final canRepeat = completeAction(builder, action, random: rng);
 
       // Reset progress for the *current* activity.
       if (builder.state.activeAction?.name != startingAction.name) {
         throw Exception('Active action changed during consumption?');
       }
 
-      // Start the action again if we can.
-      if (builder.state.canStartAction(action)) {
+      // Start the action again if we can and it's safe to repeat.
+      // If items were dropped, stop the action to avoid further drops.
+      if (canRepeat && builder.state.canStartAction(action)) {
         builder.restartCurrentAction(action, random: rng);
       } else {
         // Otherwise, clear the action and break out of the loop.

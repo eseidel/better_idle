@@ -38,6 +38,7 @@ void main() {
             counts: {'Normal Logs': 10, 'Oak Logs': 5},
           ),
           skillXpChanges: Counts<Skill>(counts: {Skill.woodcutting: 50}),
+          droppedItems: Counts<String>.empty(),
         ),
       ),
     );
@@ -125,6 +126,7 @@ void main() {
         changes: const Changes(
           inventoryChanges: Counts<String>(counts: {'Normal Logs': 10}),
           skillXpChanges: Counts<Skill>(counts: {Skill.woodcutting: 50}),
+          droppedItems: Counts<String>.empty(),
         ),
       ),
     );

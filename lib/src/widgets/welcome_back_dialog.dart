@@ -53,6 +53,25 @@ class WelcomeBackDialog extends StatelessWidget {
                 ),
               ),
             ],
+            if (changes.droppedItems.isNotEmpty) ...[
+              const SizedBox(height: 16),
+              const Text(
+                'Dropped items (inventory full):',
+                style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  color: Colors.orange,
+                ),
+              ),
+              ...changes.droppedItems.entries.map(
+                (entry) => Padding(
+                  padding: const EdgeInsets.only(left: 16, bottom: 4),
+                  child: Text(
+                    '${entry.value} ${entry.key}',
+                    style: const TextStyle(color: Colors.orange),
+                  ),
+                ),
+              ),
+            ],
             // This dialog shouldn't be shown if there are no changes.
             if (changes.isEmpty) ...[const Text('Nothing new happened.')],
           ],

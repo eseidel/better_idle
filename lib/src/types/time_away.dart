@@ -139,7 +139,11 @@ class Counts<T> {
 }
 
 class Changes {
-  const Changes({required this.inventoryChanges, required this.skillXpChanges});
+  const Changes({
+    required this.inventoryChanges,
+    required this.skillXpChanges,
+    required this.droppedItems,
+  });
   // We don't bother tracking mastery XP changes since they're not displayed
   // in the welcome back dialog.
 
@@ -147,6 +151,7 @@ class Changes {
     : this(
         inventoryChanges: const Counts<String>.empty(),
         skillXpChanges: const Counts<Skill>.empty(),
+        droppedItems: const Counts<String>.empty(),
       );
 
   factory Changes.fromJson(Map<String, dynamic> json) {
@@ -157,24 +162,33 @@ class Changes {
       skillXpChanges: Counts<Skill>.fromJson(
         json['skillXpChanges'] as Map<String, dynamic>,
       ),
+      droppedItems: Counts<String>.fromJson(
+        json['droppedItems'] as Map<String, dynamic>? ?? {},
+      ),
     );
   }
   final Counts<String> inventoryChanges;
   final Counts<Skill> skillXpChanges;
+  final Counts<String> droppedItems;
 
   Changes merge(Changes other) {
     return Changes(
       inventoryChanges: inventoryChanges.add(other.inventoryChanges),
       skillXpChanges: skillXpChanges.add(other.skillXpChanges),
+      droppedItems: droppedItems.add(other.droppedItems),
     );
   }
 
-  bool get isEmpty => inventoryChanges.isEmpty && skillXpChanges.isEmpty;
+  bool get isEmpty =>
+      inventoryChanges.isEmpty &&
+      skillXpChanges.isEmpty &&
+      droppedItems.isEmpty;
 
   Changes adding(ItemStack stack) {
     return Changes(
       inventoryChanges: inventoryChanges.addCount(stack.item.name, stack.count),
       skillXpChanges: skillXpChanges,
+      droppedItems: droppedItems,
     );
   }
 
@@ -185,6 +199,15 @@ class Changes {
         -stack.count,
       ),
       skillXpChanges: skillXpChanges,
+      droppedItems: droppedItems,
+    );
+  }
+
+  Changes dropping(ItemStack stack) {
+    return Changes(
+      inventoryChanges: inventoryChanges,
+      skillXpChanges: skillXpChanges,
+      droppedItems: droppedItems.addCount(stack.item.name, stack.count),
     );
   }
 
@@ -192,6 +215,7 @@ class Changes {
     return Changes(
       inventoryChanges: inventoryChanges,
       skillXpChanges: skillXpChanges.addCount(skill, amount),
+      droppedItems: droppedItems,
     );
   }
 
@@ -199,6 +223,7 @@ class Changes {
     return {
       'inventoryChanges': inventoryChanges.toJson(),
       'skillXpChanges': skillXpChanges.toJson(),
+      'droppedItems': droppedItems.toJson(),
     };
   }
 }

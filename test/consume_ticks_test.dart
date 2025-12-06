@@ -420,5 +420,115 @@ void main() {
         burnNormalLogs.xp * nMinusOne,
       );
     });
+
+    test('action stops when inventory is full and cannot receive outputs', () {
+      // Create test items to fill inventory to capacity
+      // We need 20 unique items to fill the default 20 slots
+      final testItems = <ItemStack>[];
+      for (var i = 0; i < 20; i++) {
+        // Create unique test items to completely fill inventory
+        testItems.add(
+          ItemStack(Item(name: 'Test Item $i', sellsFor: 1), count: 1),
+        );
+      }
+
+      var state = GlobalState.empty();
+      state = state.copyWith(inventory: Inventory.fromItems(testItems));
+
+      // Verify inventory is completely full
+      expect(state.inventoryUsed, 20);
+      expect(state.inventoryRemaining, 0);
+      expect(state.isInventoryFull, true);
+
+      // Start woodcutting Normal Tree (outputs Normal Logs - new item)
+      // Action CAN start even with full inventory
+      state = state.startAction(normalTree);
+      expect(state.activeAction, isNotNull);
+
+      // Complete one action - the output should be dropped
+      final builder = StateUpdateBuilder(state);
+      consumeTicks(builder, 30); // 1 completion
+      state = builder.build();
+
+      // Action should have stopped after first completion
+      // because items were dropped
+      expect(state.activeAction, isNull);
+
+      // No Normal Logs should have been added to inventory
+      expect(state.inventory.countOfItem(normalLogs), 0);
+
+      // Verify dropped items were tracked
+      expect(builder.changes.droppedItems.counts['Normal Logs'], 1);
+
+      // Inventory should still be full with 20 items
+      expect(state.inventoryUsed, 20);
+    });
+
+    test('action continues if inventory is full but can stack outputs', () {
+      // Create a state with all 8 items in inventory (full)
+      var state = GlobalState.empty();
+      final items = <ItemStack>[
+        ItemStack(normalLogs, count: 5), // Include Normal Logs
+        ItemStack(itemRegistry.byName('Oak Logs'), count: 1),
+        ItemStack(itemRegistry.byName('Willow Logs'), count: 1),
+        ItemStack(itemRegistry.byName('Teak Logs'), count: 1),
+        ItemStack(itemRegistry.byName('Bird Nest'), count: 1),
+        ItemStack(itemRegistry.byName('Coal Ore'), count: 1),
+        ItemStack(itemRegistry.byName('Ash'), count: 1),
+        ItemStack(itemRegistry.byName('Raw Shrimp'), count: 1),
+      ];
+      state = state.copyWith(inventory: Inventory.fromItems(items));
+
+      // Verify inventory has all 8 items
+      expect(state.inventoryUsed, 8);
+
+      // Start woodcutting Normal Tree (outputs Normal Logs - can stack!)
+      state = state.startAction(normalTree);
+
+      // Multiple completions should work because Normal Logs can stack
+      final builder = StateUpdateBuilder(state);
+      consumeTicks(builder, 90); // 3 completions
+      state = builder.build();
+
+      // Verify we got 3 more Normal Logs (5 + 3 = 8 total)
+      expect(state.inventory.countOfItem(normalLogs), 8);
+      expect(state.activeAction, isNotNull); // Action should still be active
+
+      // Verify changes tracked the 3 Normal Logs added
+      expect(builder.changes.inventoryChanges.counts['Normal Logs'], 3);
+    });
+
+    test('TimeAway tracks dropped items when inventory is full', () {
+      // Create test items to fill inventory to capacity
+      final testItems = <ItemStack>[];
+      for (var i = 0; i < 20; i++) {
+        testItems.add(
+          ItemStack(Item(name: 'Test Item $i', sellsFor: 1), count: 1),
+        );
+      }
+
+      var state = GlobalState.empty();
+      state = state.copyWith(inventory: Inventory.fromItems(testItems));
+      state = state.startAction(normalTree);
+
+      // Use consumeManyTicks to simulate time away
+      final (timeAway, newState) = consumeManyTicks(
+        state,
+        90, // 3 completions worth of ticks
+      );
+
+      // Verify action stopped after first completion (items were dropped)
+      expect(newState.activeAction, isNull);
+
+      // Verify TimeAway has the dropped items
+      expect(timeAway.changes.droppedItems.counts['Normal Logs'], 1);
+
+      // No Normal Logs in inventory
+      expect(newState.inventory.countOfItem(normalLogs), 0);
+
+      // Verify TimeAway has correct duration and skill
+      expect(timeAway.activeSkill, Skill.woodcutting);
+      expect(timeAway.duration.inMilliseconds, greaterThan(0));
+    });
   });
 }
