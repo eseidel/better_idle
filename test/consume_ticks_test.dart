@@ -651,5 +651,73 @@ void main() {
       expect(state.activeAction, isNotNull);
       expect(state.activeAction!.name, runeEssence.name);
     });
+
+    test('mining action resumes after respawn across multiple tick cycles', () {
+      // This tests the specific bug where the action would stop when a node
+      // depleted and the respawn timer hadn't completed in the same tick cycle.
+      final copper = actionRegistry.byName('Copper');
+      final copperItem = itemRegistry.byName('Copper');
+
+      var state = GlobalState.empty();
+      state = state.startAction(copper);
+
+      // Copper: 3 second action (30 ticks), 5 second respawn (50 ticks)
+      // HP at mastery level 1: 5 + 1 = 6 HP
+
+      // Mine until the node depletes (6 completions = 180 ticks)
+      var builder = StateUpdateBuilder(state);
+      consumeTicks(builder, 180);
+      state = builder.build();
+
+      // Verify we got 6 copper
+      expect(state.inventory.countOfItem(copperItem), 6);
+
+      // Verify node is depleted
+      final actionState = state.actionState(copper.name);
+      expect(isNodeDepleted(actionState), true);
+
+      // Critical: Action should still be active even though node is depleted
+      expect(state.activeAction, isNotNull);
+      expect(state.activeAction!.name, copper.name);
+
+      // Now simulate a few more tick cycles while node is respawning
+      // Respawn takes 50 ticks, let's do 20 ticks at a time
+      builder = StateUpdateBuilder(state);
+      consumeTicks(builder, 20);
+      state = builder.build();
+
+      // Still depleted, still active
+      expect(isNodeDepleted(state.actionState(copper.name)), true);
+      expect(state.activeAction, isNotNull);
+      expect(state.inventory.countOfItem(copperItem), 6); // No new copper yet
+
+      // Another 20 ticks (40 total, still 10 ticks to go)
+      builder = StateUpdateBuilder(state);
+      consumeTicks(builder, 20);
+      state = builder.build();
+
+      expect(isNodeDepleted(state.actionState(copper.name)), true);
+      expect(state.activeAction, isNotNull);
+
+      // Final 20 ticks - respawn completes (10 ticks) + 10 ticks toward next
+      builder = StateUpdateBuilder(state);
+      consumeTicks(builder, 20);
+      state = builder.build();
+
+      // Node should no longer be depleted
+      expect(isNodeDepleted(state.actionState(copper.name)), false);
+      // Action should still be running
+      expect(state.activeAction, isNotNull);
+      expect(state.activeAction!.name, copper.name);
+
+      // Complete another mining action
+      builder = StateUpdateBuilder(state);
+      consumeTicks(builder, 30); // One more completion
+      state = builder.build();
+
+      // Should have 7 copper now (6 before + 1 after respawn)
+      expect(state.inventory.countOfItem(copperItem), 7);
+      expect(state.activeAction, isNotNull);
+    });
   });
 }

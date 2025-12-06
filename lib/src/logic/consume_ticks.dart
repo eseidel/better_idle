@@ -328,22 +328,24 @@ void consumeTicks(StateUpdateBuilder builder, Tick ticks, {Random? random}) {
   if (action.resourceProperties != null) {
     final actionState = state.actionState(action.name);
 
+    // Check if node was depleted at the start
+    final wasDepletedAtStart = isNodeDepleted(actionState);
+
     // Apply ticks to resource (regen and respawn)
     final updatedState = applyResourceTicks(actionState, ticks);
     builder.updateActionState(action.name, updatedState);
 
     // Check if node is still depleted after applying ticks
     if (isNodeDepleted(updatedState)) {
-      // Node is still depleted, can't mine yet - consume the respawn ticks
-      ticksToConsume -= ticks; // All ticks consumed waiting for respawn
+      // Node is still depleted, can't mine yet - all ticks consumed waiting
       return;
-    } else if (actionState.respawnTicksRemaining != null &&
-        actionState.respawnTicksRemaining! > 0) {
+    } else if (wasDepletedAtStart) {
       // Node WAS depleted but has now respawned
       // Subtract the ticks we spent waiting for respawn
-      final respawnTicksConsumed = actionState.respawnTicksRemaining! -
-          (updatedState.respawnTicksRemaining ?? 0);
+      final respawnTicksConsumed = actionState.respawnTicksRemaining!;
       ticksToConsume -= respawnTicksConsumed;
+      // Restart the action with fresh duration since we were waiting
+      builder.restartCurrentAction(action, random: rng);
     }
   }
 
@@ -381,8 +383,10 @@ void consumeTicks(StateUpdateBuilder builder, Tick ticks, {Random? random}) {
             // We have enough ticks to wait for respawn
             ticksToConsume -= respawnTicks;
             // Apply respawn ticks to bring node back
-            final respawnedState =
-                applyResourceTicks(currentActionState, respawnTicks);
+            final respawnedState = applyResourceTicks(
+              currentActionState,
+              respawnTicks,
+            );
             builder.updateActionState(action.name, respawnedState);
             // Try to restart action now that node has respawned
             if (builder.state.canStartAction(action)) {
@@ -390,9 +394,14 @@ void consumeTicks(StateUpdateBuilder builder, Tick ticks, {Random? random}) {
               continue; // Continue the loop to keep mining
             }
           } else {
-            // Not enough ticks for respawn, consume remaining and stop
-            builder.clearAction();
-            break;
+            // Not enough ticks for respawn yet - apply partial respawn progress
+            // but keep the action active so it resumes when node respawns
+            final partialRespawnState = applyResourceTicks(
+              currentActionState,
+              ticksToConsume,
+            );
+            builder.updateActionState(action.name, partialRespawnState);
+            break; // Stop processing but keep action active
           }
         }
       }
