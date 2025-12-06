@@ -168,7 +168,6 @@ class _AppLifecycleManagerState extends State<_AppLifecycleManager>
     _isDialogShowing = true;
     showDialog<void>(
       context: navigatorContext,
-      barrierDismissible: true,
       builder: (context) => WelcomeBackDialog(timeAway: timeAway),
     ).then((_) {
       // Dialog dismissed - clear timeAway state and reset tracking

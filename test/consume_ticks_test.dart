@@ -2,6 +2,7 @@ import 'dart:math';
 
 import 'package:better_idle/src/data/actions.dart';
 import 'package:better_idle/src/data/items.dart';
+import 'package:better_idle/src/data/xp.dart';
 import 'package:better_idle/src/logic/consume_ticks.dart';
 import 'package:better_idle/src/state.dart';
 import 'package:better_idle/src/types/inventory.dart';
@@ -529,6 +530,83 @@ void main() {
       // Verify TimeAway has correct duration and skill
       expect(timeAway.activeSkill, Skill.woodcutting);
       expect(timeAway.duration.inMilliseconds, greaterThan(0));
+    });
+
+    test('Changes tracks skill level gains', () {
+      var state = GlobalState.empty();
+
+      // Start with level 1 (0 XP)
+      expect(levelForXp(state.skillState(Skill.woodcutting).xp), 1);
+
+      state = state.startAction(normalTree);
+
+      // Complete enough actions to level up
+      // Level 2 requires 83 XP, normalTree gives 10 XP per completion
+      // So we need 9 completions (9 * 10 = 90 XP)
+      final builder = StateUpdateBuilder(state);
+      consumeTicks(builder, 30 * 9); // 9 completions
+      state = builder.build();
+
+      // Verify we leveled up to level 2
+      final finalXp = state.skillState(Skill.woodcutting).xp;
+      expect(finalXp, 90); // 9 * 10
+      expect(levelForXp(finalXp), 2);
+
+      // Verify changes tracked the level gain
+      final levelChange =
+          builder.changes.skillLevelChanges.changes[Skill.woodcutting];
+      expect(levelChange, isNotNull);
+      expect(levelChange!.startLevel, 1);
+      expect(levelChange.endLevel, 2);
+      expect(levelChange.levelsGained, 1);
+      expect(builder.changes.skillXpChanges.counts[Skill.woodcutting], 90);
+    });
+
+    test('Changes tracks multiple skill level gains', () {
+      var state = GlobalState.empty();
+
+      state = state.startAction(normalTree);
+
+      // Complete enough actions to gain multiple levels
+      // Level 3 requires 174 XP, normalTree gives 10 XP per completion
+      // So we need 18 completions (18 * 10 = 180 XP)
+      final builder = StateUpdateBuilder(state);
+      consumeTicks(builder, 30 * 18); // 18 completions
+      state = builder.build();
+
+      // Verify we leveled up to level 3 (gained 2 levels)
+      final finalXp = state.skillState(Skill.woodcutting).xp;
+      expect(finalXp, 180);
+      expect(levelForXp(finalXp), 3);
+
+      // Verify changes tracked 2 level gains
+      final levelChange =
+          builder.changes.skillLevelChanges.changes[Skill.woodcutting];
+      expect(levelChange, isNotNull);
+      expect(levelChange!.startLevel, 1);
+      expect(levelChange.endLevel, 3);
+      expect(levelChange.levelsGained, 2);
+    });
+
+    test('TimeAway tracks skill level gains during time away', () {
+      var state = GlobalState.empty();
+      state = state.startAction(normalTree);
+
+      // Complete enough ticks to level up
+      final (timeAway, newState) = consumeManyTicks(
+        state,
+        30 * 9, // 9 completions = 90 XP = level 2
+      );
+
+      // Verify state leveled up
+      expect(levelForXp(newState.skillState(Skill.woodcutting).xp), 2);
+
+      // Verify TimeAway tracked the level gain
+      final levelChange =
+          timeAway.changes.skillLevelChanges.changes[Skill.woodcutting];
+      expect(levelChange, isNotNull);
+      expect(levelChange!.startLevel, 1);
+      expect(levelChange.endLevel, 2);
     });
   });
 }

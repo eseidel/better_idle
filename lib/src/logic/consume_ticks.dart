@@ -94,8 +94,19 @@ class StateUpdateBuilder {
   }
 
   void addSkillXp(Skill skill, int amount) {
+    final oldXp = _state.skillState(skill).xp;
+    final oldLevel = levelForXp(oldXp);
+
     _state = _state.addSkillXp(skill, amount);
     _changes = _changes.addingSkillXp(skill, amount);
+
+    final newXp = _state.skillState(skill).xp;
+    final newLevel = levelForXp(newXp);
+
+    // Track level changes
+    if (newLevel > oldLevel) {
+      _changes = _changes.addingSkillLevel(skill, oldLevel, newLevel);
+    }
   }
 
   void addSkillMasteryXp(Skill skill, int amount) {

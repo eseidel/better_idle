@@ -1,5 +1,5 @@
-import 'package:better_idle/src/logic/redux_actions.dart';
-import 'package:better_idle/src/state.dart';
+import 'package:better_idle/src/data/actions.dart';
+import 'package:better_idle/src/types/time_away.dart';
 import 'package:better_idle/src/widgets/navigation_drawer.dart';
 import 'package:better_idle/src/widgets/welcome_back_dialog.dart';
 import 'package:flutter/material.dart';
@@ -9,7 +9,6 @@ class DebugPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    const duration = Duration(seconds: 30);
     return Scaffold(
       appBar: AppBar(title: const Text('Debug')),
       drawer: const AppNavigationDrawer(),
@@ -18,11 +17,8 @@ class DebugPage extends StatelessWidget {
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             ElevatedButton(
-              onPressed: () =>
-                  _showWelcomeBackDialog(context, duration: duration),
-              child: Text(
-                'Show Welcome Back Dialog (${duration.inSeconds} seconds)',
-              ),
+              onPressed: () => _showWelcomeBackDialog(context),
+              child: const Text('Show Welcome Back Dialog (Example)'),
             ),
           ],
         ),
@@ -30,15 +26,46 @@ class DebugPage extends StatelessWidget {
     );
   }
 
-  Future<void> _showWelcomeBackDialog(
-    BuildContext context, {
-    required Duration duration,
-  }) async {
-    // Dispatch action to advance by the given duration and get changes
-    final ticks = ticksFromDuration(duration);
-    final action = AdvanceTicksAction(ticks: ticks);
-    StoreProvider.dispatchSync<GlobalState>(context, action);
-    final timeAway = action.timeAway;
+  TimeAway _createExampleTimeAway() {
+    // Create an example TimeAway with all types of changes
+    final now = DateTime.now();
+    return TimeAway(
+      startTime: now.subtract(const Duration(hours: 2, minutes: 30)),
+      endTime: now,
+      activeSkill: Skill.woodcutting,
+      changes: const Changes(
+        // Skill level gains
+        skillLevelChanges: LevelChanges(
+          changes: {
+            Skill.woodcutting: LevelChange(startLevel: 19, endLevel: 21),
+            Skill.firemaking: LevelChange(startLevel: 5, endLevel: 6),
+          },
+        ),
+        // Skill XP gains
+        skillXpChanges: Counts<Skill>(
+          counts: {Skill.woodcutting: 450, Skill.firemaking: 125},
+        ),
+        // Inventory changes (positive and negative)
+        inventoryChanges: Counts<String>(
+          counts: {
+            'Normal Logs': 150, // Gained
+            'Oak Logs': 75, // Gained
+            'Coal Ore': 12, // Gained (from drops)
+            'Bird Nest': 3, // Gained (from drops)
+            'Ash': -45, // Consumed
+          },
+        ),
+        // Dropped items (inventory was full)
+        droppedItems: Counts<String>(
+          counts: {'Willow Logs': 5, 'Teak Logs': 2},
+        ),
+      ),
+    );
+  }
+
+  Future<void> _showWelcomeBackDialog(BuildContext context) async {
+    final timeAway = _createExampleTimeAway();
+
     if (context.mounted) {
       await showDialog<void>(
         context: context,

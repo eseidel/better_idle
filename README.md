@@ -21,6 +21,5 @@ use it.
 ### TODO
 
 - Track per-item mastery and levels.
-- Add a store to purchase inventory slots.
 - Allow buying of skill upgrades (e.g. faster axe)
 - Welcome back should show levels gained.

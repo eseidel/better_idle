@@ -39,6 +39,7 @@ void main() {
           ),
           skillXpChanges: Counts<Skill>(counts: {Skill.woodcutting: 50}),
           droppedItems: Counts<String>.empty(),
+          skillLevelChanges: LevelChanges.empty(),
         ),
       ),
     );
@@ -127,6 +128,7 @@ void main() {
           inventoryChanges: Counts<String>(counts: {'Normal Logs': 10}),
           skillXpChanges: Counts<Skill>(counts: {Skill.woodcutting: 50}),
           droppedItems: Counts<String>.empty(),
+          skillLevelChanges: LevelChanges.empty(),
         ),
       ),
     );

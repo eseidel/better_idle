@@ -35,6 +35,30 @@ class WelcomeBackDialog extends StatelessWidget {
               style: const TextStyle(fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 16),
+            if (changes.skillLevelChanges.isNotEmpty) ...[
+              ...changes.skillLevelChanges.entries.map(
+                (entry) {
+                  final skill = entry.key;
+                  final levelChange = entry.value;
+                  final levelsGained = levelChange.levelsGained;
+                  final range =
+                      '${levelChange.startLevel}->${levelChange.endLevel}';
+                  final levelText = levelsGained > 1
+                      ? 'gained $levelsGained levels $range'
+                      : 'level up $range';
+                  return Padding(
+                    padding: const EdgeInsets.only(left: 16, bottom: 4),
+                    child: Text(
+                      '${skill.name} $levelText!',
+                      style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                        color: Colors.green,
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ],
             if (changes.skillXpChanges.isNotEmpty) ...[
               ...changes.skillXpChanges.entries.map(
                 (entry) => Padding(
