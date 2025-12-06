@@ -19,11 +19,11 @@ enum Skill {
 }
 
 class ResourceProperties {
-  const ResourceProperties({
-    required this.respawnTime,
-  });
+  const ResourceProperties({required this.respawnTime});
 
   final Duration respawnTime;
+
+  int get respawnTicks => ticksFromDuration(respawnTime);
 
   // Rock HP = 5 + Mastery Level + Boosts
   // For now, boosts are 0
@@ -70,6 +70,15 @@ class Action {
   bool get isFixedDuration => minDuration == maxDuration;
 
   bool get hasResourceProperties => resourceProperties != null;
+
+  /// Returns progress (0.0 to 1.0) toward respawn completion, or null if
+  /// not respawning or not a resource-based action.
+  double? respawnProgress(ActionState actionState) {
+    final props = resourceProperties;
+    final remaining = actionState.respawnTicksRemaining;
+    if (props == null || remaining == null) return null;
+    return 1.0 - (remaining / props.respawnTicks);
+  }
 
   Duration get meanDuration {
     final totalMicroseconds =
@@ -183,9 +192,7 @@ final _miningActions = <Action>[
     duration: Duration(seconds: 3),
     xp: 5,
     outputs: {'Rune Essence': 1},
-    resourceProperties: ResourceProperties(
-      respawnTime: Duration(seconds: 1),
-    ),
+    resourceProperties: ResourceProperties(respawnTime: Duration(seconds: 1)),
   ),
   const Action(
     skill: Skill.mining,
@@ -194,9 +201,7 @@ final _miningActions = <Action>[
     duration: Duration(seconds: 3),
     xp: 7,
     outputs: {'Copper': 1},
-    resourceProperties: ResourceProperties(
-      respawnTime: Duration(seconds: 5),
-    ),
+    resourceProperties: ResourceProperties(respawnTime: Duration(seconds: 5)),
   ),
 ];
 

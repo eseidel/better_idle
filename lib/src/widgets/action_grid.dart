@@ -123,17 +123,24 @@ class ActionCell extends StatelessWidget {
             ),
             if (hasResources) ...[
               const SizedBox(height: 4),
-              Text('HP: $currentHp / $maxHp'),
-              LinearProgressIndicator(
-                value: currentHp! / maxHp!,
-                backgroundColor: Colors.grey[300],
-                color: isDepleted ? Colors.red : Colors.blue,
-              ),
-              if (isDepleted)
+              if (isDepleted) ...[
                 Text(
                   'Respawning in ${respawnTimeRemaining!.inSeconds}s',
-                  style: const TextStyle(color: Colors.red, fontSize: 12),
+                  style: const TextStyle(color: Colors.orange),
                 ),
+                LinearProgressIndicator(
+                  value: action.respawnProgress(actionState) ?? 0,
+                  backgroundColor: Colors.grey[300],
+                  color: Colors.orange,
+                ),
+              ] else ...[
+                Text('HP: $currentHp / $maxHp'),
+                LinearProgressIndicator(
+                  value: currentHp! / maxHp!,
+                  backgroundColor: Colors.grey[300],
+                  color: Colors.blue,
+                ),
+              ],
             ],
             const SizedBox(height: 4),
             LinearProgressIndicator(value: progress),
