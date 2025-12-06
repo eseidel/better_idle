@@ -71,43 +71,82 @@ bool isNodeDepleted(ActionState actionState) {
   return respawnTicks != null && respawnTicks > 0;
 }
 
+/// Result of applying ticks to a resource action state.
+typedef TickConsumptionResult = ({ActionState state, Tick ticksConsumed});
+
+/// Applies respawn countdown to a depleted resource node.
+/// Returns the updated state and how many ticks were consumed by respawning.
+/// If the node is not depleted, returns 0 ticks consumed.
+TickConsumptionResult _applyRespawnTicks(
+  ActionState actionState,
+  Tick ticksAvailable,
+) {
+  final respawnTicks = actionState.respawnTicksRemaining;
+  if (respawnTicks == null || respawnTicks <= 0) {
+    // Not depleted, no ticks consumed
+    return (state: actionState, ticksConsumed: 0);
+  }
+
+  if (ticksAvailable >= respawnTicks) {
+    // Node fully respawns - return to full health
+    return (state: actionState.copyRestarting(), ticksConsumed: respawnTicks);
+  } else {
+    // Partial respawn progress
+    final newState = actionState.copyWith(
+      respawnTicksRemaining: respawnTicks - ticksAvailable,
+    );
+    return (state: newState, ticksConsumed: ticksAvailable);
+  }
+}
+
+/// Applies HP regeneration to a resource node.
+/// Returns the updated state and how many ticks were consumed by regeneration.
+TickConsumptionResult _applyRegenTicks(
+  ActionState actionState,
+  Tick ticksAvailable,
+) {
+  var hpLost = actionState.totalHpLost;
+  if (hpLost == 0) {
+    return (state: actionState, ticksConsumed: 0);
+  }
+
+  var ticksUntilNextHeal = actionState.hpRegenTicksRemaining;
+  var ticksRemaining = ticksAvailable;
+
+  // Apply heals while we have HP to regen and enough ticks
+  while (hpLost > 0 && ticksRemaining >= ticksUntilNextHeal) {
+    ticksRemaining -= ticksUntilNextHeal;
+    hpLost -= 1;
+    ticksUntilNextHeal = ticksPer1Hp;
+  }
+
+  // Apply partial progress toward next heal if we still have HP to regen
+  if (hpLost > 0) {
+    ticksUntilNextHeal -= ticksRemaining;
+    ticksRemaining = 0;
+  } else {
+    ticksUntilNextHeal = 0;
+  }
+
+  return (
+    state: actionState.copyWith(
+      totalHpLost: hpLost,
+      hpRegenTicksRemaining: ticksUntilNextHeal,
+    ),
+    ticksConsumed: ticksAvailable - ticksRemaining,
+  );
+}
+
 /// Applies HP regeneration and respawn countdowns to resource-based actions.
 /// Returns updated ActionState with HP regenerated and/or respawn progressed.
 ActionState applyResourceTicks(ActionState actionState, Tick ticksElapsed) {
-  var newState = actionState;
-  var ticksRemaining = ticksElapsed;
-
-  // If node is depleted, count down respawn timer
-  if (newState.respawnTicksRemaining != null) {
-    final respawnTicks = newState.respawnTicksRemaining!;
-    if (ticksRemaining >= respawnTicks) {
-      // Node has respawned at full health
-      ticksRemaining -= respawnTicks;
-      // Reset the action state, keeping the masteryXp.
-      newState = newState.copyRestarting();
-    } else {
-      // Still respawning, reduce timer
-      return newState.copyWith(
-        respawnTicksRemaining: respawnTicks - ticksRemaining,
-      );
-    }
+  if (isNodeDepleted(actionState)) {
+    final respawnResult = _applyRespawnTicks(actionState, ticksElapsed);
+    return respawnResult.state;
+  } else {
+    final regenResult = _applyRegenTicks(actionState, ticksElapsed);
+    return regenResult.state;
   }
-
-  // Apply HP regeneration if not depleted
-  var regenTicks = newState.hpRegenTicksRemaining - ticksRemaining;
-
-  while (regenTicks <= 0 && newState.totalHpLost > 0) {
-    // Regenerate 1 HP
-    newState = newState.copyWith(totalHpLost: max(0, newState.totalHpLost - 1));
-    regenTicks += ticksPer1Hp;
-  }
-
-  // Ensure regen ticks stay in valid range (0 if at full HP, otherwise 0-100)
-  final clampedRegenTicks = newState.totalHpLost == 0
-      ? 0
-      : regenTicks.clamp(0, ticksPer1Hp);
-
-  return newState.copyWith(hpRegenTicksRemaining: clampedRegenTicks);
 }
 
 class StateUpdateBuilder {
