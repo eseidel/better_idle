@@ -83,6 +83,28 @@ class TimeAway {
     return {action.skill: xpPerHour.round()};
   }
 
+  /// Calculates the predicted items per hour based on the active action's
+  /// outputs. Returns a map of item name to items per hour.
+  Map<String, int> get predictedItemsPerHour {
+    final action = activeAction;
+    if (action == null || action.outputs.isEmpty) {
+      return {};
+    }
+
+    final meanDurationSeconds = action.meanDuration.inSeconds;
+    if (meanDurationSeconds == 0) {
+      return {};
+    }
+
+    // Items per hour = (items per action) * (3600 seconds / mean duration)
+    final result = <String, int>{};
+    for (final entry in action.outputs.entries) {
+      final itemsPerHour = entry.value * (3600.0 / meanDurationSeconds);
+      result[entry.key] = itemsPerHour.round();
+    }
+    return result;
+  }
+
   TimeAway copyWith({
     DateTime? startTime,
     DateTime? endTime,

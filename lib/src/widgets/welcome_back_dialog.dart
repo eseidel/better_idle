@@ -73,12 +73,19 @@ class WelcomeBackDialog extends StatelessWidget {
               }),
             ],
             if (changes.inventoryChanges.isNotEmpty) ...[
-              ...changes.inventoryChanges.entries.map(
-                (entry) => Padding(
+              ...changes.inventoryChanges.entries.map((entry) {
+                final itemName = entry.key;
+                final itemCount = entry.value;
+                final itemsPerHour = timeAway.predictedItemsPerHour[itemName];
+                final countText = signedCountString(itemCount);
+                final prediction = itemsPerHour != null
+                    ? ' (${approximateCountString(itemsPerHour)} / hr)'
+                    : '';
+                return Padding(
                   padding: const EdgeInsets.only(left: 16, bottom: 4),
-                  child: Text('${signedCountString(entry.value)} ${entry.key}'),
-                ),
-              ),
+                  child: Text('$countText $itemName$prediction'),
+                );
+              }),
             ],
             if (changes.droppedItems.isNotEmpty) ...[
               const SizedBox(height: 16),
