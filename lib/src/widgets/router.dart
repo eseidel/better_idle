@@ -2,6 +2,7 @@ import 'package:better_idle/src/screens/bank.dart';
 import 'package:better_idle/src/screens/debug.dart';
 import 'package:better_idle/src/screens/firemaking.dart';
 import 'package:better_idle/src/screens/fishing.dart';
+import 'package:better_idle/src/screens/mining.dart';
 import 'package:better_idle/src/screens/shop.dart';
 import 'package:better_idle/src/screens/woodcutting.dart';
 import 'package:flutter/material.dart';
@@ -33,6 +34,11 @@ final GoRouter router = GoRouter(
       path: '/fishing',
       name: 'fishing',
       builder: (context, _) => const FishingPage(),
+    ),
+    GoRoute(
+      path: '/mining',
+      name: 'mining',
+      builder: (context, _) => const MiningPage(),
     ),
     GoRoute(
       path: '/shop',

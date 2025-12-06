@@ -6,6 +6,7 @@ extension SkillExtensions on Skill {
     Skill.woodcutting => Icons.forest,
     Skill.firemaking => Icons.local_fire_department,
     Skill.fishing => Icons.set_meal,
+    Skill.mining => Icons.construction,
   };
 
   String get routeName => name.toLowerCase();
