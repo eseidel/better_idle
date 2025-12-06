@@ -84,10 +84,11 @@ class TimeAway {
   }
 
   /// Calculates the predicted items per hour based on the active action's
-  /// outputs. Returns a map of item name to items per hour.
-  Map<String, int> get predictedItemsPerHour {
+  /// drops (including outputs, skill-level drops, and global drops).
+  /// Returns a map of item name to items per hour.
+  Map<String, double> get predictedItemsPerHour {
     final action = activeAction;
-    if (action == null || action.outputs.isEmpty) {
+    if (action == null) {
       return {};
     }
 
@@ -96,12 +97,25 @@ class TimeAway {
       return {};
     }
 
-    // Items per hour = (items per action) * (3600 seconds / mean duration)
-    final result = <String, int>{};
-    for (final entry in action.outputs.entries) {
-      final itemsPerHour = entry.value * (3600.0 / meanDurationSeconds);
-      result[entry.key] = itemsPerHour.round();
+    // Get all possible drops for this action
+    final allDrops = dropsRegistry.allDropsForAction(action);
+    if (allDrops.isEmpty) {
+      return {};
     }
+
+    // Calculate expected items per hour for each drop
+    // Items per hour = (items per action * drop rate) * (3600 / mean duration)
+    final actionsPerHour = 3600.0 / meanDurationSeconds;
+    final result = <String, double>{};
+
+    for (final drop in allDrops) {
+      final expectedItemsPerAction = drop.count * drop.rate;
+      final itemsPerHour = expectedItemsPerAction * actionsPerHour;
+
+      // Accumulate if the same item appears in multiple drop sources
+      result[drop.name] = (result[drop.name] ?? 0.0) + itemsPerHour;
+    }
+
     return result;
   }
 

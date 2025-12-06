@@ -79,7 +79,7 @@ class WelcomeBackDialog extends StatelessWidget {
                 final itemsPerHour = timeAway.predictedItemsPerHour[itemName];
                 final countText = signedCountString(itemCount);
                 final prediction = itemsPerHour != null
-                    ? ' (${approximateCountString(itemsPerHour)} / hr)'
+                    ? ' (${approximateCountString(itemsPerHour.round())} / hr)'
                     : '';
                 return Padding(
                   padding: const EdgeInsets.only(left: 16, bottom: 4),
