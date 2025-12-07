@@ -190,7 +190,7 @@ final _miningActions = <MiningAction>[
     unlockLevel: 1,
     duration: Duration(seconds: 3),
     xp: 5,
-    outputs: {'Rune Essence': 1},
+    outputs: {'Rune Essence': 2},
     respawnTime: Duration(seconds: 1),
   ),
   const MiningAction(
