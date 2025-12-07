@@ -22,6 +22,7 @@ use it.
 
 - Allow buying of skill upgrades (e.g. faster axe)
 - Handle global and per-action modifiers (e.g. mastery levels).
+- Support Mastery skill modifiers (e.g. increasing double items chance)
 - Add Equipment
 - Add Combat
 - Add Farming
