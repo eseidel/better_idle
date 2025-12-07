@@ -14,6 +14,9 @@ const _all = [
   Item(name: 'Copper Ore', sellsFor: 2),
   Item(name: 'Tin Ore', sellsFor: 2),
   Item(name: 'Iron Ore', sellsFor: 5),
+  // Bars
+  Item(name: 'Bronze Bar', sellsFor: 6),
+  Item(name: 'Iron Bar', sellsFor: 12),
   // Gems
   Item(name: 'Topaz', sellsFor: 225),
   Item(name: 'Sapphire', sellsFor: 335),

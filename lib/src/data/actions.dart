@@ -20,7 +20,8 @@ enum Skill {
   woodcutting('Woodcutting'),
   firemaking('Firemaking'),
   fishing('Fishing'),
-  mining('Mining');
+  mining('Mining'),
+  smithing('Smithing');
 
   const Skill(this.name);
 
@@ -239,11 +240,33 @@ final _miningActions = <MiningAction>[
   ),
 ];
 
+final _smithingActions = <Action>[
+  const Action(
+    skill: Skill.smithing,
+    name: 'Bronze Bar',
+    unlockLevel: 1,
+    duration: Duration(seconds: 2),
+    xp: 5,
+    inputs: {'Copper Ore': 1, 'Tin Ore': 1},
+    outputs: {'Bronze Bar': 1},
+  ),
+  const Action(
+    skill: Skill.smithing,
+    name: 'Iron Bar',
+    unlockLevel: 10,
+    duration: Duration(seconds: 2),
+    xp: 8,
+    inputs: {'Iron Ore': 1},
+    outputs: {'Iron Bar': 1},
+  ),
+];
+
 final List<Action> _all = [
   ..._woodcuttingActions,
   ..._firemakingActions,
   ..._fishingActions,
   ..._miningActions,
+  ..._smithingActions,
 ];
 
 // Skill-level drops: shared across all actions in a skill.
@@ -264,7 +287,9 @@ final _skillDrops = <Skill, List<Droppable>>{
   Skill.mining: [
     miningGemTable, // DropTable is a Drop, so it can go here
   ],
-  // Add other skills as they're added
+  Skill.smithing: [
+    // Add smithing skill-level drops here as needed
+  ],
 };
 
 // Global drops: shared across all skills/actions

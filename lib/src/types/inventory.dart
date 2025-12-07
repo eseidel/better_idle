@@ -61,6 +61,11 @@ class Inventory {
 
   int countOfItem(Item item) => _counts[item] ?? 0;
 
+  int countByName(String name) {
+    final item = itemRegistry.byName(name);
+    return countOfItem(item);
+  }
+
   Inventory adding(ItemStack stack) {
     final counts = Map<Item, int>.from(_counts);
     final orderedItems = List<Item>.from(_orderedItems);

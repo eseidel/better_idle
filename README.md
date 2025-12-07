@@ -23,6 +23,10 @@ use it.
 - Allow buying of skill upgrades (e.g. faster axe)
 - Handle global and per-action modifiers (e.g. mastery levels).
 - Support Mastery skill modifiers (e.g. increasing double items chance)
+- Fix Firemaking to put log selection behind a pop-up.
+- Fix Fishing to have separate regions.
+- Fix Smithing to separate action groups.
+- Add Cooking
 - Add Equipment
 - Add Combat
 - Add Farming
