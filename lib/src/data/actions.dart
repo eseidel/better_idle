@@ -18,20 +18,6 @@ enum Skill {
   final String name;
 }
 
-class ResourceProperties {
-  const ResourceProperties({required this.respawnTime});
-
-  final Duration respawnTime;
-
-  int get respawnTicks => ticksFromDuration(respawnTime);
-
-  // Rock HP = 5 + Mastery Level + Boosts
-  // For now, boosts are 0
-  int maxHpForMasteryLevel(int masteryLevel) {
-    return 5 + masteryLevel;
-  }
-}
-
 class Action {
   const Action({
     required this.skill,
@@ -41,7 +27,6 @@ class Action {
     required this.unlockLevel,
     this.outputs = const {},
     this.inputs = const {},
-    this.resourceProperties,
   }) : minDuration = duration,
        maxDuration = duration;
 
@@ -54,7 +39,6 @@ class Action {
     required this.unlockLevel,
     this.outputs = const {},
     this.inputs = const {},
-    this.resourceProperties,
   });
 
   final Skill skill;
@@ -65,20 +49,8 @@ class Action {
   final Duration maxDuration;
   final Map<String, int> inputs;
   final Map<String, int> outputs;
-  final ResourceProperties? resourceProperties;
 
   bool get isFixedDuration => minDuration == maxDuration;
-
-  bool get hasResourceProperties => resourceProperties != null;
-
-  /// Returns progress (0.0 to 1.0) toward respawn completion, or null if
-  /// not respawning or not a resource-based action.
-  double? respawnProgress(ActionState actionState) {
-    final props = resourceProperties;
-    final remaining = actionState.respawnTicksRemaining;
-    if (props == null || remaining == null) return null;
-    return 1.0 - (remaining / props.respawnTicks);
-  }
 
   Duration get meanDuration {
     final totalMicroseconds =
@@ -100,6 +72,34 @@ class Action {
   List<Drop> get rewards => [
     ...outputs.entries.map((e) => Drop(e.key, count: e.value)),
   ];
+}
+
+/// Mining action with rock HP and respawn mechanics.
+class MiningAction extends Action {
+  const MiningAction({
+    required super.name,
+    required super.unlockLevel,
+    required super.duration,
+    required super.xp,
+    required super.outputs,
+    required this.respawnTime,
+  }) : super(skill: Skill.mining);
+
+  final Duration respawnTime;
+
+  int get respawnTicks => ticksFromDuration(respawnTime);
+
+  // Rock HP = 5 + Mastery Level + Boosts
+  // For now, boosts are 0
+  int maxHpForMasteryLevel(int masteryLevel) => 5 + masteryLevel;
+
+  /// Returns progress (0.0 to 1.0) toward respawn completion, or null if
+  /// not respawning.
+  double? respawnProgress(ActionState actionState) {
+    final remaining = actionState.respawnTicksRemaining;
+    if (remaining == null) return null;
+    return 1.0 - (remaining / respawnTicks);
+  }
 }
 
 final _woodcuttingActions = <Action>[
@@ -184,24 +184,22 @@ final _fishingActions = <Action>[
   ),
 ];
 
-final _miningActions = <Action>[
-  const Action(
-    skill: Skill.mining,
+final _miningActions = <MiningAction>[
+  const MiningAction(
     name: 'Rune Essence',
     unlockLevel: 1,
     duration: Duration(seconds: 3),
     xp: 5,
     outputs: {'Rune Essence': 1},
-    resourceProperties: ResourceProperties(respawnTime: Duration(seconds: 1)),
+    respawnTime: Duration(seconds: 1),
   ),
-  const Action(
-    skill: Skill.mining,
+  const MiningAction(
     name: 'Copper',
     unlockLevel: 1,
     duration: Duration(seconds: 3),
     xp: 7,
     outputs: {'Copper': 1},
-    resourceProperties: ResourceProperties(respawnTime: Duration(seconds: 5)),
+    respawnTime: Duration(seconds: 5),
   ),
 ];
 

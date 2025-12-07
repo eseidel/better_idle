@@ -79,23 +79,24 @@ class ActionCell extends StatelessWidget {
     final isRunning = context.state.activeAction?.name == actionName;
     final canToggle = canStart || isRunning;
 
-    // Check if this is a resource-based action (mining)
-    final resourceProps = action.resourceProperties;
+    // Check if this is a mining action
     final masteryLevel = levelForXp(actionState.masteryXp);
 
     int? currentHp;
     int? maxHp;
     Duration? respawnTimeRemaining;
+    double? respawnProgress;
 
-    if (resourceProps != null) {
-      maxHp = resourceProps.maxHpForMasteryLevel(masteryLevel);
-      currentHp = getCurrentHp(action, actionState);
+    if (action case final MiningAction miningAction) {
+      maxHp = miningAction.maxHpForMasteryLevel(masteryLevel);
+      currentHp = getCurrentHp(miningAction, actionState);
 
       final respawnTicks = actionState.respawnTicksRemaining;
       if (respawnTicks != null && respawnTicks > 0) {
         respawnTimeRemaining = Duration(
           milliseconds: respawnTicks * tickDuration.inMilliseconds,
         );
+        respawnProgress = miningAction.respawnProgress(actionState);
       }
     }
 
@@ -121,7 +122,7 @@ class ActionCell extends StatelessWidget {
             Text(
               '${action.xp} Skill XP, ${action.minDuration.inSeconds} seconds',
             ),
-            if (resourceProps != null) ...[
+            if (action is MiningAction) ...[
               const SizedBox(height: 4),
               if (respawnTimeRemaining case final respawnTime?) ...[
                 Text(
@@ -129,7 +130,7 @@ class ActionCell extends StatelessWidget {
                   style: TextStyle(color: Colors.grey[600]),
                 ),
                 LinearProgressIndicator(
-                  value: action.respawnProgress(actionState) ?? 0,
+                  value: respawnProgress ?? 0,
                   backgroundColor: Colors.grey[300],
                   color: Colors.grey[600],
                 ),

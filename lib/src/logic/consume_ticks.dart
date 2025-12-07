@@ -53,15 +53,10 @@ int masteryXpPerAction(GlobalState state, Action action) {
   );
 }
 
-/// Gets the current HP of a resource node.
-int getCurrentHp(Action action, ActionState actionState) {
-  final resourceProps = action.resourceProperties;
-  if (resourceProps == null) {
-    throw Exception('Action does not have resource properties');
-  }
-
+/// Gets the current HP of a mining node.
+int getCurrentHp(MiningAction action, ActionState actionState) {
   final masteryLevel = levelForXp(actionState.masteryXp);
-  final maxHp = resourceProps.maxHpForMasteryLevel(masteryLevel);
+  final maxHp = action.maxHpForMasteryLevel(masteryLevel);
   return max(0, maxHp - actionState.totalHpLost);
 }
 
@@ -229,17 +224,18 @@ class StateUpdateBuilder {
     _state = _state.clearAction();
   }
 
-  /// Depletes a resource node and starts its respawn timer.
-  void depleteResourceNode(String actionName, Action action, int totalHpLost) {
-    final respawnTicks = ticksFromDuration(
-      action.resourceProperties!.respawnTime,
-    );
+  /// Depletes a mining node and starts its respawn timer.
+  void depleteResourceNode(
+    String actionName,
+    MiningAction action,
+    int totalHpLost,
+  ) {
     final actionState = _state.actionState(actionName);
     updateActionState(
       actionName,
       actionState.copyWith(
         totalHpLost: totalHpLost,
-        respawnTicksRemaining: respawnTicks,
+        respawnTicksRemaining: action.respawnTicks,
       ),
     );
   }
@@ -321,7 +317,7 @@ bool completeAction(
     ..addSkillMasteryXp(action.skill, perAction.masteryPoolXp);
 
   // Handle resource depletion for mining
-  if (action.resourceProperties != null) {
+  if (action is MiningAction) {
     final actionState = builder.state.actionState(action.name);
 
     // Increment damage
@@ -358,8 +354,8 @@ void consumeTicks(StateUpdateBuilder builder, Tick ticks, {Random? random}) {
   var ticksToConsume = ticks;
   final rng = random ?? Random();
 
-  // Apply HP regeneration and respawn for resource-based actions
-  if (action.resourceProperties != null) {
+  // Apply HP regeneration and respawn for mining actions
+  if (action is MiningAction) {
     final actionState = state.actionState(action.name);
 
     // Check if node was depleted at the start
@@ -408,7 +404,7 @@ void consumeTicks(StateUpdateBuilder builder, Tick ticks, {Random? random}) {
       }
 
       // Check if node was depleted after completion
-      if (action.resourceProperties != null && !canRepeat) {
+      if (action is MiningAction && !canRepeat) {
         final currentActionState = builder.state.actionState(action.name);
         if (isNodeDepleted(currentActionState)) {
           // Node depleted, wait for respawn
@@ -470,7 +466,7 @@ void consumeTicksForAllSystems(StateUpdateBuilder builder, Tick ticks) {
     // Skip the active action - consumeTicks will handle it
     if (actionName == activeActionName) continue;
 
-    if (action.resourceProperties != null) {
+    if (action is MiningAction) {
       final updatedState = applyResourceTicks(actionState, ticks);
       builder.updateActionState(actionName, updatedState);
     }

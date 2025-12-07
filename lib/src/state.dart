@@ -358,8 +358,8 @@ class GlobalState {
       }
     }
 
-    // Check if resource node is depleted
-    if (action.resourceProperties != null) {
+    // Check if mining node is depleted
+    if (action is MiningAction) {
       final actionState = this.actionState(action.name);
       if (isNodeDepleted(actionState)) {
         return false; // Can't mine depleted node
