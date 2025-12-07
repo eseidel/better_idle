@@ -259,6 +259,15 @@ final _smithingActions = <Action>[
     inputs: {'Iron Ore': 1},
     outputs: {'Iron Bar': 1},
   ),
+  const Action(
+    skill: Skill.smithing,
+    name: 'Bronze Dagger',
+    unlockLevel: 1,
+    duration: Duration(seconds: 2),
+    xp: 10,
+    inputs: {'Bronze Bar': 1},
+    outputs: {'Bronze Dagger': 1},
+  ),
 ];
 
 final List<Action> _all = [
