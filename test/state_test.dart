@@ -9,6 +9,8 @@ import 'package:flutter_test/flutter_test.dart';
 void main() {
   final normalLogs = itemRegistry.byName('Normal Logs');
   final oakLogs = itemRegistry.byName('Oak Logs');
+  final birdNest = itemRegistry.byName('Bird Nest');
+
   test('GlobalState toJson/fromJson round-trip', () {
     // Create a state with TimeAway data
     final originalState = GlobalState.test(
@@ -141,8 +143,6 @@ void main() {
   });
 
   test('GlobalState sellItem removes items and adds GP', () {
-    final birdNest = itemRegistry.byName('Bird Nest');
-
     // Create a state with items and some existing GP
     final initialState = GlobalState.test(
       inventory: Inventory.fromItems([

@@ -11,8 +11,21 @@ import 'package:flutter_test/flutter_test.dart';
 void main() {
   final normalTree = actionRegistry.byName('Normal Tree');
   final oakTree = actionRegistry.byName('Oak Tree');
+  final burnNormalLogs = actionRegistry.byName('Burn Normal Logs');
+  final runeEssence = actionRegistry.byName('Rune Essence');
+  final copper = actionRegistry.byName('Copper');
+
   final normalLogs = itemRegistry.byName('Normal Logs');
+  final oakLogs = itemRegistry.byName('Oak Logs');
+  final willowLogs = itemRegistry.byName('Willow Logs');
+  final teakLogs = itemRegistry.byName('Teak Logs');
   final birdNest = itemRegistry.byName('Bird Nest');
+  final coalOre = itemRegistry.byName('Coal Ore');
+  final ash = itemRegistry.byName('Ash');
+  final rawShrimp = itemRegistry.byName('Raw Shrimp');
+  final runeEssenceItem = itemRegistry.byName('Rune Essence');
+  final copperOre = itemRegistry.byName('Copper Ore');
+
   group('consumeTicks', () {
     test('consuming ticks for 1 completion adds 1 item and 1x XP', () {
       var state = GlobalState.empty();
@@ -295,10 +308,6 @@ void main() {
     test(
       'consuming ticks for action with inputs consumes the required items',
       () {
-        final burnNormalLogs = actionRegistry.byName('Burn Normal Logs');
-        final coalOre = itemRegistry.byName('Coal Ore');
-        final ash = itemRegistry.byName('Ash');
-
         // Start with Normal Logs in inventory
         var state = GlobalState.empty();
         state = state.copyWith(
@@ -429,7 +438,7 @@ void main() {
       for (var i = 0; i < 20; i++) {
         // Create unique test items to completely fill inventory
         testItems.add(
-          ItemStack(Item(name: 'Test Item $i', sellsFor: 1), count: 1),
+          ItemStack(Item('Test Item $i', gp: 1), count: 1),
         );
       }
 
@@ -470,13 +479,13 @@ void main() {
       var state = GlobalState.empty();
       final items = <ItemStack>[
         ItemStack(normalLogs, count: 5), // Include Normal Logs
-        ItemStack(itemRegistry.byName('Oak Logs'), count: 1),
-        ItemStack(itemRegistry.byName('Willow Logs'), count: 1),
-        ItemStack(itemRegistry.byName('Teak Logs'), count: 1),
-        ItemStack(itemRegistry.byName('Bird Nest'), count: 1),
-        ItemStack(itemRegistry.byName('Coal Ore'), count: 1),
-        ItemStack(itemRegistry.byName('Ash'), count: 1),
-        ItemStack(itemRegistry.byName('Raw Shrimp'), count: 1),
+        ItemStack(oakLogs, count: 1),
+        ItemStack(willowLogs, count: 1),
+        ItemStack(teakLogs, count: 1),
+        ItemStack(birdNest, count: 1),
+        ItemStack(coalOre, count: 1),
+        ItemStack(ash, count: 1),
+        ItemStack(rawShrimp, count: 1),
       ];
       state = state.copyWith(inventory: Inventory.fromItems(items));
 
@@ -504,7 +513,7 @@ void main() {
       final testItems = <ItemStack>[];
       for (var i = 0; i < 20; i++) {
         testItems.add(
-          ItemStack(Item(name: 'Test Item $i', sellsFor: 1), count: 1),
+          ItemStack(Item('Test Item $i', gp: 1), count: 1),
         );
       }
 
@@ -610,9 +619,6 @@ void main() {
     });
 
     test('mining action continues through node depletion and respawn', () {
-      final runeEssence = actionRegistry.byName('Rune Essence');
-      final runeEssenceItem = itemRegistry.byName('Rune Essence');
-
       var state = GlobalState.empty();
       state = state.startAction(runeEssence);
 
@@ -655,9 +661,6 @@ void main() {
     test('mining action resumes after respawn across multiple tick cycles', () {
       // This tests the specific bug where the action would stop when a node
       // depleted and the respawn timer hadn't completed in the same tick cycle.
-      final copper = actionRegistry.byName('Copper');
-      final copperItem = itemRegistry.byName('Copper Ore');
-
       var state = GlobalState.empty();
       state = state.startAction(copper);
 
@@ -670,7 +673,7 @@ void main() {
       state = builder.build();
 
       // Verify we got 6 copper
-      expect(state.inventory.countOfItem(copperItem), 6);
+      expect(state.inventory.countOfItem(copperOre), 6);
 
       // Verify node is depleted
       final actionState = state.actionState(copper.name);
@@ -694,7 +697,7 @@ void main() {
         true,
       );
       expect(state.activeAction, isNotNull);
-      expect(state.inventory.countOfItem(copperItem), 6); // No new copper yet
+      expect(state.inventory.countOfItem(copperOre), 6); // No new copper yet
 
       // Another 20 ticks (40 total, still 10 ticks to go)
       builder = StateUpdateBuilder(state);
@@ -729,7 +732,7 @@ void main() {
       state = builder.build();
 
       // Should have 7 copper now (6 before + 1 after respawn)
-      expect(state.inventory.countOfItem(copperItem), 7);
+      expect(state.inventory.countOfItem(copperOre), 7);
       expect(state.activeAction, isNotNull);
     });
 
@@ -740,11 +743,6 @@ void main() {
       // 3. Non-active mining node with damage continues healing
       //
       // This simulates what UpdateActivityProgressAction does in the game.
-
-      final normalTree = actionRegistry.byName('Normal Tree');
-      final normalLogs = itemRegistry.byName('Normal Logs');
-      final copper = actionRegistry.byName('Copper');
-      final runeEssence = actionRegistry.byName('Rune Essence');
 
       // Create initial state with:
       // - Woodcutting as active action
