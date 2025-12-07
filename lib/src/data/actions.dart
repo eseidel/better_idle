@@ -2,6 +2,7 @@ import 'dart:math';
 
 import 'package:better_idle/src/state.dart';
 import 'package:better_idle/src/types/drop.dart';
+import 'package:meta/meta.dart';
 
 enum Skill {
   woodcutting('Woodcutting'),
@@ -74,16 +75,19 @@ class Action {
   ];
 }
 
+const miningSwingDuration = Duration(seconds: 3);
+
 /// Mining action with rock HP and respawn mechanics.
+@immutable
 class MiningAction extends Action {
-  const MiningAction({
+  MiningAction({
     required super.name,
     required super.unlockLevel,
-    required super.duration,
     required super.xp,
     required super.outputs,
-    required this.respawnTime,
-  }) : super(skill: Skill.mining);
+    required int respawnSeconds,
+  }) : respawnTime = Duration(seconds: respawnSeconds),
+       super(skill: Skill.mining, duration: miningSwingDuration);
 
   final Duration respawnTime;
 
@@ -185,21 +189,19 @@ final _fishingActions = <Action>[
 ];
 
 final _miningActions = <MiningAction>[
-  const MiningAction(
+  MiningAction(
     name: 'Rune Essence',
     unlockLevel: 1,
-    duration: Duration(seconds: 3),
     xp: 5,
-    outputs: {'Rune Essence': 2},
-    respawnTime: Duration(seconds: 1),
+    outputs: const {'Rune Essence': 2},
+    respawnSeconds: 1,
   ),
-  const MiningAction(
+  MiningAction(
     name: 'Copper',
     unlockLevel: 1,
-    duration: Duration(seconds: 3),
     xp: 7,
-    outputs: {'Copper': 1},
-    respawnTime: Duration(seconds: 5),
+    outputs: const {'Copper Ore': 1},
+    respawnSeconds: 5,
   ),
 ];
 

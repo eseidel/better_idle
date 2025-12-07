@@ -656,7 +656,7 @@ void main() {
       // This tests the specific bug where the action would stop when a node
       // depleted and the respawn timer hadn't completed in the same tick cycle.
       final copper = actionRegistry.byName('Copper');
-      final copperItem = itemRegistry.byName('Copper');
+      final copperItem = itemRegistry.byName('Copper Ore');
 
       var state = GlobalState.empty();
       state = state.startAction(copper);

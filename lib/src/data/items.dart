@@ -11,7 +11,7 @@ const _all = [
   Item(name: 'Ash', sellsFor: 5),
   Item(name: 'Raw Shrimp', sellsFor: 3),
   Item(name: 'Rune Essence', sellsFor: 0),
-  Item(name: 'Copper', sellsFor: 2),
+  Item(name: 'Copper Ore', sellsFor: 2),
 ];
 
 @immutable

@@ -321,8 +321,11 @@ bool completeAction(
     // Increment damage
     final newTotalHpLost = miningState.totalHpLost + 1;
     final newMiningState = miningState.copyWith(totalHpLost: newTotalHpLost);
-    final currentHp =
-        getCurrentHp(action, newMiningState, actionState.masteryXp);
+    final currentHp = getCurrentHp(
+      action,
+      newMiningState,
+      actionState.masteryXp,
+    );
 
     // Check if depleted
     if (currentHp <= 0) {
