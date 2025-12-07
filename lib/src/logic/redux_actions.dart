@@ -1,4 +1,5 @@
 import 'package:better_idle/src/data/actions.dart';
+import 'package:better_idle/src/data/combat.dart';
 import 'package:better_idle/src/data/items.dart';
 import 'package:better_idle/src/logic/consume_ticks.dart';
 import 'package:better_idle/src/services/toast_service.dart';
@@ -55,8 +56,8 @@ class ToggleActionAction extends ReduxAction<GlobalState> {
     if (state.activeAction?.name == action.name) {
       return state.clearAction();
     }
-    // Otherwise, start this action, which will clear any other active action.
-    return state.startAction(action);
+    // Otherwise, start this action, stopping combat and any other active action.
+    return state.clearCombat().startAction(action);
   }
 }
 
@@ -132,5 +133,29 @@ class PurchaseBankSlotAction extends ReduxAction<GlobalState> {
       gp: state.gp - cost,
       shop: state.shop.copyWith(bankSlots: state.shop.bankSlots + 1),
     );
+  }
+}
+
+/// Starts combat with a monster.
+class StartCombatAction extends ReduxAction<GlobalState> {
+  StartCombatAction({required this.monster});
+  final Monster monster;
+
+  @override
+  GlobalState reduce() {
+    // If already in combat with this monster, do nothing
+    if (state.combat?.monsterName == monster.name) {
+      return state;
+    }
+    // Stop any active action and start combat
+    return state.clearAction().copyWith(combat: CombatState.start(monster));
+  }
+}
+
+/// Stops combat and clears combat state.
+class StopCombatAction extends ReduxAction<GlobalState> {
+  @override
+  GlobalState reduce() {
+    return state.clearCombat();
   }
 }

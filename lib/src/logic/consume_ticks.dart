@@ -218,6 +218,23 @@ class StateUpdateBuilder {
     _state = _state.clearAction();
   }
 
+  void addGp(int amount) {
+    _state = _state.copyWith(gp: _state.gp + amount);
+    _changes = _changes.addingGp(amount);
+  }
+
+  void setCombat(CombatState? combat) {
+    if (combat == null) {
+      _state = _state.clearCombat();
+    } else {
+      _state = _state.copyWith(combat: combat);
+    }
+  }
+
+  void setPlayerHp(int hp) {
+    _state = _state.copyWith(playerHp: hp);
+  }
+
   /// Depletes a mining node and starts its respawn timer.
   void depleteResourceNode(
     String actionName,
@@ -454,6 +471,126 @@ void consumeTicks(StateUpdateBuilder builder, Tick ticks, {Random? random}) {
   }
 }
 
+/// Respawn time for monsters after death.
+const Duration monsterRespawnDuration = Duration(seconds: 3);
+
+/// Processes combat ticks for an active fight.
+void consumeCombatTicks(
+  StateUpdateBuilder builder,
+  Tick ticks, {
+  Random? random,
+}) {
+  final combat = builder.state.combat;
+  if (combat == null) return;
+
+  final rng = random ?? Random();
+  var remainingTicks = ticks;
+  var currentCombat = combat;
+  var playerHp = builder.state.playerHp;
+
+  while (remainingTicks > 0) {
+    // Handle monster respawn
+    final respawnTicks = currentCombat.respawnTicksRemaining;
+    if (respawnTicks != null) {
+      if (remainingTicks >= respawnTicks) {
+        // Monster respawns
+        remainingTicks -= respawnTicks;
+        currentCombat = CombatState.start(currentCombat.monster);
+        builder.setCombat(currentCombat);
+        continue;
+      } else {
+        // Still waiting for respawn
+        currentCombat = currentCombat.copyWith(
+          respawnTicksRemaining: respawnTicks - remainingTicks,
+        );
+        builder.setCombat(currentCombat);
+        return;
+      }
+    }
+
+    // Find next event (player attack or monster attack)
+    final playerTicks = currentCombat.playerAttackTicksRemaining;
+    final monsterTicks = currentCombat.monsterAttackTicksRemaining;
+    final nextEventTicks =
+        playerTicks < monsterTicks ? playerTicks : monsterTicks;
+
+    if (remainingTicks < nextEventTicks) {
+      // Not enough ticks for any attack, just update timers
+      currentCombat = currentCombat.copyWith(
+        playerAttackTicksRemaining: playerTicks - remainingTicks,
+        monsterAttackTicksRemaining: monsterTicks - remainingTicks,
+      );
+      builder.setCombat(currentCombat);
+      return;
+    }
+
+    // Advance to next event
+    remainingTicks -= nextEventTicks;
+    final newPlayerTicks = playerTicks - nextEventTicks;
+    final newMonsterTicks = monsterTicks - nextEventTicks;
+
+    // Process player attack if ready
+    var monsterHp = currentCombat.monsterHp;
+    var resetPlayerTicks = newPlayerTicks;
+    if (newPlayerTicks <= 0) {
+      final pStats = playerStats(builder.state);
+      final damage = pStats.rollDamage(rng);
+      monsterHp -= damage;
+      // Reset player attack timer
+      resetPlayerTicks = ticksFromDuration(
+        Duration(milliseconds: (pStats.attackSpeed * 1000).round()),
+      );
+    }
+
+    // Check if monster died
+    if (monsterHp <= 0) {
+      // Monster dies - grant GP drop and start respawn
+      final gpDrop = currentCombat.monster.rollGpDrop(rng);
+      builder.addGp(gpDrop);
+      currentCombat = currentCombat.copyWith(
+        monsterHp: 0,
+        playerAttackTicksRemaining: resetPlayerTicks,
+        monsterAttackTicksRemaining: newMonsterTicks,
+        respawnTicksRemaining: ticksFromDuration(monsterRespawnDuration),
+      );
+      builder.setCombat(currentCombat);
+      continue;
+    }
+
+    // Process monster attack if ready
+    var resetMonsterTicks = newMonsterTicks;
+    if (newMonsterTicks <= 0) {
+      final mStats = currentCombat.monster.stats;
+      final damage = mStats.rollDamage(rng);
+      final pStats = playerStats(builder.state);
+      final reducedDamage = (damage * (1 - pStats.damageReduction)).round();
+      playerHp -= reducedDamage;
+      builder.setPlayerHp(playerHp);
+      // Reset monster attack timer
+      resetMonsterTicks = ticksFromDuration(
+        Duration(milliseconds: (mStats.attackSpeed * 1000).round()),
+      );
+    }
+
+    // Check if player died
+    if (playerHp <= 0) {
+      // Player dies - end combat, reset HP
+      builder
+        ..setPlayerHp(maxPlayerHp)
+        ..setCombat(null);
+      return;
+    }
+
+    // Update combat state
+    currentCombat = currentCombat.copyWith(
+      monsterHp: monsterHp,
+      playerAttackTicksRemaining: resetPlayerTicks,
+      monsterAttackTicksRemaining: resetMonsterTicks,
+    );
+    builder.setCombat(currentCombat);
+  }
+}
+
 /// Applies ticks to all game systems: active action and background resource
 /// recovery (respawn/heal) for all mining nodes.
 ///
@@ -481,6 +618,11 @@ void consumeTicksForAllSystems(StateUpdateBuilder builder, Tick ticks) {
   // Process active action (this also handles resource ticks for active action)
   if (state.activeAction != null) {
     consumeTicks(builder, ticks);
+  }
+
+  // Process combat
+  if (state.combat != null) {
+    consumeCombatTicks(builder, ticks);
   }
 }
 

@@ -1,6 +1,7 @@
 import 'dart:math';
 
 import 'package:better_idle/src/data/actions.dart';
+import 'package:better_idle/src/data/combat.dart';
 import 'package:better_idle/src/data/items.dart';
 import 'package:better_idle/src/logic/consume_ticks.dart';
 import 'package:better_idle/src/types/inventory.dart';
@@ -216,6 +217,106 @@ class ShopState {
 /// The initial number of free bank slots.
 const int initialBankSlots = 20;
 
+/// Fixed player stats for now.
+Stats playerStats(GlobalState state) {
+  return const Stats(
+    minHit: 1,
+    maxHit: 23,
+    damageReduction: 0,
+    attackSpeed: 4,
+  );
+}
+
+/// Maximum player HP.
+const int maxPlayerHp = 100;
+
+/// Combat state tracking the current fight.
+@immutable
+class CombatState {
+  const CombatState({
+    required this.monsterName,
+    required this.monsterHp,
+    required this.playerAttackTicksRemaining,
+    required this.monsterAttackTicksRemaining,
+    this.respawnTicksRemaining,
+  });
+
+  factory CombatState.start(Monster monster) {
+    final pStats = playerStats(GlobalState.empty());
+    final playerAttackTicks = ticksFromDuration(
+      Duration(milliseconds: (pStats.attackSpeed * 1000).round()),
+    );
+    final monsterAttackTicks = ticksFromDuration(
+      Duration(milliseconds: (monster.stats.attackSpeed * 1000).round()),
+    );
+    return CombatState(
+      monsterName: monster.name,
+      monsterHp: monster.maxHp,
+      playerAttackTicksRemaining: playerAttackTicks,
+      monsterAttackTicksRemaining: monsterAttackTicks,
+    );
+  }
+
+  factory CombatState.fromJson(Map<String, dynamic> json) {
+    return CombatState(
+      monsterName: json['monsterName'] as String,
+      monsterHp: json['monsterHp'] as int,
+      playerAttackTicksRemaining: json['playerAttackTicksRemaining'] as int,
+      monsterAttackTicksRemaining: json['monsterAttackTicksRemaining'] as int,
+      respawnTicksRemaining: json['respawnTicksRemaining'] as int?,
+    );
+  }
+
+  final String monsterName;
+  final int monsterHp;
+  final int playerAttackTicksRemaining;
+  final int monsterAttackTicksRemaining;
+  final int? respawnTicksRemaining;
+
+  Monster get monster => monsterRegistry.byName(monsterName);
+
+  bool get isMonsterDead => monsterHp <= 0;
+  bool get isRespawning => respawnTicksRemaining != null;
+
+  CombatState copyWith({
+    String? monsterName,
+    int? monsterHp,
+    int? playerAttackTicksRemaining,
+    int? monsterAttackTicksRemaining,
+    int? respawnTicksRemaining,
+  }) {
+    return CombatState(
+      monsterName: monsterName ?? this.monsterName,
+      monsterHp: monsterHp ?? this.monsterHp,
+      playerAttackTicksRemaining:
+          playerAttackTicksRemaining ?? this.playerAttackTicksRemaining,
+      monsterAttackTicksRemaining:
+          monsterAttackTicksRemaining ?? this.monsterAttackTicksRemaining,
+      respawnTicksRemaining:
+          respawnTicksRemaining ?? this.respawnTicksRemaining,
+    );
+  }
+
+  CombatState clearRespawn() {
+    return CombatState(
+      monsterName: monsterName,
+      monsterHp: monsterHp,
+      playerAttackTicksRemaining: playerAttackTicksRemaining,
+      monsterAttackTicksRemaining: monsterAttackTicksRemaining,
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'monsterName': monsterName,
+      'monsterHp': monsterHp,
+      'playerAttackTicksRemaining': playerAttackTicksRemaining,
+      'monsterAttackTicksRemaining': monsterAttackTicksRemaining,
+      'respawnTicksRemaining': respawnTicksRemaining,
+    };
+  }
+}
+
 /// Primary state object serialized to disk and used in memory.
 @immutable
 class GlobalState {
@@ -227,7 +328,9 @@ class GlobalState {
     required this.updatedAt,
     required this.gp,
     required this.shop,
+    required this.playerHp,
     this.timeAway,
+    this.combat,
   });
 
   GlobalState.empty()
@@ -240,6 +343,8 @@ class GlobalState {
         gp: 0,
         timeAway: null,
         shop: const ShopState.empty(),
+        playerHp: maxPlayerHp,
+        combat: null,
       );
 
   @visibleForTesting
@@ -252,6 +357,8 @@ class GlobalState {
     int gp = 0,
     TimeAway? timeAway,
     ShopState shop = const ShopState.empty(),
+    int playerHp = maxPlayerHp,
+    CombatState? combat,
   }) {
     return GlobalState(
       inventory: inventory,
@@ -262,6 +369,8 @@ class GlobalState {
       gp: gp,
       timeAway: timeAway,
       shop: shop,
+      playerHp: playerHp,
+      combat: combat,
     );
   }
 
@@ -293,7 +402,11 @@ class GlobalState {
           : null,
       shop = json['shop'] != null
           ? ShopState.fromJson(json['shop'] as Map<String, dynamic>)
-          : const ShopState.empty();
+          : const ShopState.empty(),
+      playerHp = json['playerHp'] as int? ?? maxPlayerHp,
+      combat = json['combat'] != null
+          ? CombatState.fromJson(json['combat'] as Map<String, dynamic>)
+          : null;
 
   Map<String, dynamic> toJson() {
     return {
@@ -309,6 +422,8 @@ class GlobalState {
       'gp': gp,
       'timeAway': timeAway?.toJson(),
       'shop': shop.toJson(),
+      'playerHp': playerHp,
+      'combat': combat?.toJson(),
     };
   }
 
@@ -338,6 +453,12 @@ class GlobalState {
   /// The shop state.
   final ShopState shop;
 
+  /// The current player HP.
+  final int playerHp;
+
+  /// The current combat state, or null if not in combat.
+  final CombatState? combat;
+
   int get inventoryCapacity => shop.bankSlots + initialBankSlots;
 
   bool get isActive => activeAction != null;
@@ -362,7 +483,7 @@ class GlobalState {
   }
 
   /// Returns true if the game loop should be running.
-  bool get shouldTick => isActive || hasActiveResourceTimers;
+  bool get shouldTick => isActive || hasActiveResourceTimers || combat != null;
 
   Skill? get activeSkill {
     final name = activeAction?.name;
@@ -437,6 +558,8 @@ class GlobalState {
       actionStates: actionStates,
       updatedAt: DateTime.timestamp(),
       gp: gp,
+      playerHp: playerHp,
+      combat: combat,
     );
   }
 
@@ -450,6 +573,23 @@ class GlobalState {
       updatedAt: DateTime.timestamp(),
       gp: gp,
       shop: shop,
+      playerHp: playerHp,
+      combat: combat,
+    );
+  }
+
+  GlobalState clearCombat() {
+    // This can't be copyWith since null means no-update.
+    return GlobalState(
+      inventory: inventory,
+      activeAction: activeAction,
+      skillStates: skillStates,
+      actionStates: actionStates,
+      updatedAt: DateTime.timestamp(),
+      gp: gp,
+      shop: shop,
+      playerHp: playerHp,
+      combat: null,
     );
   }
 
@@ -523,6 +663,8 @@ class GlobalState {
     int? gp,
     TimeAway? timeAway,
     ShopState? shop,
+    int? playerHp,
+    CombatState? combat,
   }) {
     return GlobalState(
       inventory: inventory ?? this.inventory,
@@ -533,6 +675,8 @@ class GlobalState {
       gp: gp ?? this.gp,
       timeAway: timeAway ?? this.timeAway,
       shop: shop ?? this.shop,
+      playerHp: playerHp ?? this.playerHp,
+      combat: combat ?? this.combat,
     );
   }
 }
