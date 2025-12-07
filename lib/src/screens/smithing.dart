@@ -66,10 +66,7 @@ class _SmithingPageState extends State<SmithingPage> {
 }
 
 class _SelectedActionDisplay extends StatelessWidget {
-  const _SelectedActionDisplay({
-    required this.action,
-    required this.onStart,
-  });
+  const _SelectedActionDisplay({required this.action, required this.onStart});
 
   final Action action;
   final VoidCallback onStart;
@@ -158,10 +155,7 @@ class _SelectedActionDisplay extends StatelessWidget {
           const SizedBox(height: 8),
 
           // Grants section
-          const Text(
-            'Grants:',
-            style: TextStyle(fontWeight: FontWeight.bold),
-          ),
+          const Text('Grants:', style: TextStyle(fontWeight: FontWeight.bold)),
           const SizedBox(height: 4),
           Text('${action.xp} XP, 3 Mastery XP, 0.25% Pool XP'),
           const SizedBox(height: 16),

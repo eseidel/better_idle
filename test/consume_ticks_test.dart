@@ -437,9 +437,7 @@ void main() {
       final testItems = <ItemStack>[];
       for (var i = 0; i < 20; i++) {
         // Create unique test items to completely fill inventory
-        testItems.add(
-          ItemStack(Item('Test Item $i', gp: 1), count: 1),
-        );
+        testItems.add(ItemStack(Item('Test Item $i', gp: 1), count: 1));
       }
 
       var state = GlobalState.empty();
@@ -512,9 +510,7 @@ void main() {
       // Create test items to fill inventory to capacity
       final testItems = <ItemStack>[];
       for (var i = 0; i < 20; i++) {
-        testItems.add(
-          ItemStack(Item('Test Item $i', gp: 1), count: 1),
-        );
+        testItems.add(ItemStack(Item('Test Item $i', gp: 1), count: 1));
       }
 
       var state = GlobalState.empty();

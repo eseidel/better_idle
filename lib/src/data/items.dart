@@ -9,10 +9,7 @@ const _woodcutting = [
   Item('Bird Nest', gp: 350),
 ];
 
-const _firemaking = [
-  Item('Coal Ore', gp: 13),
-  Item('Ash', gp: 5),
-];
+const _firemaking = [Item('Coal Ore', gp: 13), Item('Ash', gp: 5)];
 
 const _fishing = [Item('Raw Shrimp', gp: 3)];
 
@@ -23,10 +20,7 @@ const _mining = [
   Item('Iron Ore', gp: 5),
 ];
 
-const _smithing = [
-  Item('Bronze Bar', gp: 6),
-  Item('Iron Bar', gp: 12),
-];
+const _smithing = [Item('Bronze Bar', gp: 6), Item('Iron Bar', gp: 12)];
 
 const _gems = [
   Item('Topaz', gp: 225),
