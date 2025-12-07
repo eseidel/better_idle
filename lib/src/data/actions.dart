@@ -96,7 +96,7 @@ class MiningAction extends Action {
   /// Returns progress (0.0 to 1.0) toward respawn completion, or null if
   /// not respawning.
   double? respawnProgress(ActionState actionState) {
-    final remaining = actionState.respawnTicksRemaining;
+    final remaining = actionState.mining?.respawnTicksRemaining;
     if (remaining == null) return null;
     return 1.0 - (remaining / respawnTicks);
   }

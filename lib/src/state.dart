@@ -82,49 +82,46 @@ class SkillState {
   }
 }
 
-/// The serialized state of an Action in progress.
+/// Mining-specific state for a mining node.
 @immutable
-class ActionState {
-  /// Used to start a new Action.
-  const ActionState({
-    required this.masteryXp,
+class MiningState {
+  const MiningState({
     this.totalHpLost = 0,
     this.respawnTicksRemaining,
     this.hpRegenTicksRemaining = 0,
   });
 
-  // Used to create an empty action state when initializing for the first time.
-  const ActionState.empty() : this(masteryXp: 0);
+  const MiningState.empty() : this();
 
-  factory ActionState.fromJson(Map<String, dynamic> json) {
-    return ActionState(
-      masteryXp: json['masteryXp'] as int,
+  factory MiningState.fromJson(Map<String, dynamic> json) {
+    return MiningState(
       totalHpLost: json['totalHpLost'] as int? ?? 0,
       respawnTicksRemaining: json['respawnTicksRemaining'] as int?,
       hpRegenTicksRemaining: json['hpRegenTicksRemaining'] as int? ?? 0,
     );
   }
 
-  /// How much accumulated mastery xp this action has.
-  final int masteryXp;
-
-  /// States for mining.
-  /// How much hp this mining node has lost.
+  /// How much HP this mining node has lost.
   final int totalHpLost;
 
-  /// How many ticks until this mining node response if depleted.
+  /// How many ticks until this mining node respawns if depleted.
   final Tick? respawnTicksRemaining; // Null if not depleted
-  /// How many ticks until this mining node regens HP.
+
+  /// How many ticks until this mining node regens 1 HP.
   final Tick hpRegenTicksRemaining; // Ticks until next HP regen
 
-  ActionState copyWith({
-    int? masteryXp,
+  /// Returns true if the node is currently depleted and not yet respawned.
+  bool get isDepleted {
+    final respawnTicks = respawnTicksRemaining;
+    return respawnTicks != null && respawnTicks > 0;
+  }
+
+  MiningState copyWith({
     int? totalHpLost,
     Tick? respawnTicksRemaining,
     Tick? hpRegenTicksRemaining,
   }) {
-    return ActionState(
-      masteryXp: masteryXp ?? this.masteryXp,
+    return MiningState(
       totalHpLost: totalHpLost ?? this.totalHpLost,
       respawnTicksRemaining:
           respawnTicksRemaining ?? this.respawnTicksRemaining,
@@ -133,9 +130,51 @@ class ActionState {
     );
   }
 
+  Map<String, dynamic> toJson() {
+    return {
+      'totalHpLost': totalHpLost,
+      'respawnTicksRemaining': respawnTicksRemaining,
+      'hpRegenTicksRemaining': hpRegenTicksRemaining,
+    };
+  }
+}
+
+/// The serialized state of an Action in progress.
+@immutable
+class ActionState {
+  const ActionState({
+    required this.masteryXp,
+    this.mining,
+  });
+
+  const ActionState.empty() : this(masteryXp: 0);
+
+  factory ActionState.fromJson(Map<String, dynamic> json) {
+    return ActionState(
+      masteryXp: json['masteryXp'] as int,
+      mining: json['mining'] != null
+          ? MiningState.fromJson(json['mining'] as Map<String, dynamic>)
+          : null,
+    );
+  }
+
+  /// How much accumulated mastery xp this action has.
+  final int masteryXp;
+
+  /// Mining-specific state (null for non-mining actions).
+  final MiningState? mining;
+
+  ActionState copyWith({
+    int? masteryXp,
+    MiningState? mining,
+  }) {
+    return ActionState(
+      masteryXp: masteryXp ?? this.masteryXp,
+      mining: mining ?? this.mining,
+    );
+  }
+
   /// Create a new state for this action, as though it restarted fresh.
-  // If we moved all the mining state into its own class, this would just
-  // mean nulling that mining state instead.
   ActionState copyRestarting() {
     return ActionState(masteryXp: masteryXp);
   }
@@ -143,9 +182,7 @@ class ActionState {
   Map<String, dynamic> toJson() {
     return {
       'masteryXp': masteryXp,
-      'totalHpLost': totalHpLost,
-      'respawnTicksRemaining': respawnTicksRemaining,
-      'hpRegenTicksRemaining': hpRegenTicksRemaining,
+      if (mining != null) 'mining': mining!.toJson(),
     };
   }
 }
@@ -311,16 +348,19 @@ class GlobalState {
 
   bool get isActive => activeAction != null;
 
-  /// Returns true if there are any active resource timers (respawn or regen).
+  /// Returns true if there are any active mining timers (respawn or regen).
   bool get hasActiveResourceTimers {
     for (final actionState in actionStates.values) {
+      final mining = actionState.mining;
+      if (mining == null) continue;
+
       // Check for active respawn timer
-      if (actionState.respawnTicksRemaining != null &&
-          actionState.respawnTicksRemaining! > 0) {
+      if (mining.respawnTicksRemaining != null &&
+          mining.respawnTicksRemaining! > 0) {
         return true;
       }
       // Check for active HP regeneration
-      if (actionState.totalHpLost > 0) {
+      if (mining.totalHpLost > 0) {
         return true;
       }
     }
@@ -361,7 +401,8 @@ class GlobalState {
     // Check if mining node is depleted
     if (action is MiningAction) {
       final actionState = this.actionState(action.name);
-      if (isNodeDepleted(actionState)) {
+      final miningState = actionState.mining ?? const MiningState.empty();
+      if (miningState.isDepleted) {
         return false; // Can't mine depleted node
       }
     }

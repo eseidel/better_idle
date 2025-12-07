@@ -54,58 +54,52 @@ int masteryXpPerAction(GlobalState state, Action action) {
 }
 
 /// Gets the current HP of a mining node.
-int getCurrentHp(MiningAction action, ActionState actionState) {
-  final masteryLevel = levelForXp(actionState.masteryXp);
+int getCurrentHp(MiningAction action, MiningState miningState, int masteryXp) {
+  final masteryLevel = levelForXp(masteryXp);
   final maxHp = action.maxHpForMasteryLevel(masteryLevel);
-  return max(0, maxHp - actionState.totalHpLost);
+  return max(0, maxHp - miningState.totalHpLost);
 }
 
-/// Returns true if the node is currently depleted and not yet respawned.
-bool isNodeDepleted(ActionState actionState) {
-  final respawnTicks = actionState.respawnTicksRemaining;
-  return respawnTicks != null && respawnTicks > 0;
-}
+/// Result of applying ticks to mining state.
+typedef MiningTickResult = ({MiningState state, Tick ticksConsumed});
 
-/// Result of applying ticks to a resource action state.
-typedef TickConsumptionResult = ({ActionState state, Tick ticksConsumed});
-
-/// Applies respawn countdown to a depleted resource node.
+/// Applies respawn countdown to a depleted mining node.
 /// Returns the updated state and how many ticks were consumed by respawning.
 /// If the node is not depleted, returns 0 ticks consumed.
-TickConsumptionResult _applyRespawnTicks(
-  ActionState actionState,
+MiningTickResult _applyRespawnTicks(
+  MiningState miningState,
   Tick ticksAvailable,
 ) {
-  final respawnTicks = actionState.respawnTicksRemaining;
+  final respawnTicks = miningState.respawnTicksRemaining;
   if (respawnTicks == null || respawnTicks <= 0) {
     // Not depleted, no ticks consumed
-    return (state: actionState, ticksConsumed: 0);
+    return (state: miningState, ticksConsumed: 0);
   }
 
   if (ticksAvailable >= respawnTicks) {
     // Node fully respawns - return to full health
-    return (state: actionState.copyRestarting(), ticksConsumed: respawnTicks);
+    return (state: const MiningState.empty(), ticksConsumed: respawnTicks);
   } else {
     // Partial respawn progress
-    final newState = actionState.copyWith(
+    final newState = miningState.copyWith(
       respawnTicksRemaining: respawnTicks - ticksAvailable,
     );
     return (state: newState, ticksConsumed: ticksAvailable);
   }
 }
 
-/// Applies HP regeneration to a resource node.
+/// Applies HP regeneration to a mining node.
 /// Returns the updated state and how many ticks were consumed by regeneration.
-TickConsumptionResult _applyRegenTicks(
-  ActionState actionState,
+MiningTickResult _applyRegenTicks(
+  MiningState miningState,
   Tick ticksAvailable,
 ) {
-  var hpLost = actionState.totalHpLost;
+  var hpLost = miningState.totalHpLost;
   if (hpLost == 0) {
-    return (state: actionState, ticksConsumed: 0);
+    return (state: miningState, ticksConsumed: 0);
   }
 
-  var ticksUntilNextHeal = actionState.hpRegenTicksRemaining;
+  var ticksUntilNextHeal = miningState.hpRegenTicksRemaining;
   var ticksRemaining = ticksAvailable;
 
   // Apply heals while we have HP to regen and enough ticks
@@ -124,7 +118,7 @@ TickConsumptionResult _applyRegenTicks(
   }
 
   return (
-    state: actionState.copyWith(
+    state: miningState.copyWith(
       totalHpLost: hpLost,
       hpRegenTicksRemaining: ticksUntilNextHeal,
     ),
@@ -132,14 +126,14 @@ TickConsumptionResult _applyRegenTicks(
   );
 }
 
-/// Applies HP regeneration and respawn countdowns to resource-based actions.
-/// Returns updated ActionState with HP regenerated and/or respawn progressed.
-ActionState applyResourceTicks(ActionState actionState, Tick ticksElapsed) {
-  if (isNodeDepleted(actionState)) {
-    final respawnResult = _applyRespawnTicks(actionState, ticksElapsed);
+/// Applies HP regeneration and respawn countdowns to a mining node.
+/// Returns updated MiningState with HP regenerated and/or respawn progressed.
+MiningState applyMiningTicks(MiningState miningState, Tick ticksElapsed) {
+  if (miningState.isDepleted) {
+    final respawnResult = _applyRespawnTicks(miningState, ticksElapsed);
     return respawnResult.state;
   } else {
-    final regenResult = _applyRegenTicks(actionState, ticksElapsed);
+    final regenResult = _applyRegenTicks(miningState, ticksElapsed);
     return regenResult.state;
   }
 }
@@ -231,27 +225,30 @@ class StateUpdateBuilder {
     int totalHpLost,
   ) {
     final actionState = _state.actionState(actionName);
-    updateActionState(
-      actionName,
-      actionState.copyWith(
-        totalHpLost: totalHpLost,
-        respawnTicksRemaining: action.respawnTicks,
-      ),
+    final newMining = MiningState(
+      totalHpLost: totalHpLost,
+      respawnTicksRemaining: action.respawnTicks,
     );
+    updateActionState(actionName, actionState.copyWith(mining: newMining));
   }
 
-  /// Damages a resource node and starts HP regeneration if needed.
+  /// Damages a mining node and starts HP regeneration if needed.
   void damageResourceNode(String actionName, int totalHpLost) {
     final actionState = _state.actionState(actionName);
-    updateActionState(
-      actionName,
-      actionState.copyWith(
-        totalHpLost: totalHpLost,
-        hpRegenTicksRemaining: actionState.hpRegenTicksRemaining == 0
-            ? ticksPer1Hp
-            : actionState.hpRegenTicksRemaining,
-      ),
+    final currentMining = actionState.mining ?? const MiningState.empty();
+    final newMining = currentMining.copyWith(
+      totalHpLost: totalHpLost,
+      hpRegenTicksRemaining: currentMining.hpRegenTicksRemaining == 0
+          ? ticksPer1Hp
+          : currentMining.hpRegenTicksRemaining,
     );
+    updateActionState(actionName, actionState.copyWith(mining: newMining));
+  }
+
+  /// Updates the mining state for an action.
+  void updateMiningState(String actionName, MiningState newMining) {
+    final actionState = _state.actionState(actionName);
+    updateActionState(actionName, actionState.copyWith(mining: newMining));
   }
 
   GlobalState build() => _state;
@@ -319,13 +316,13 @@ bool completeAction(
   // Handle resource depletion for mining
   if (action is MiningAction) {
     final actionState = builder.state.actionState(action.name);
+    final miningState = actionState.mining ?? const MiningState.empty();
 
     // Increment damage
-    final newTotalHpLost = actionState.totalHpLost + 1;
-    final currentHp = getCurrentHp(
-      action,
-      actionState.copyWith(totalHpLost: newTotalHpLost),
-    );
+    final newTotalHpLost = miningState.totalHpLost + 1;
+    final newMiningState = miningState.copyWith(totalHpLost: newTotalHpLost);
+    final currentHp =
+        getCurrentHp(action, newMiningState, actionState.masteryXp);
 
     // Check if depleted
     if (currentHp <= 0) {
@@ -357,22 +354,23 @@ void consumeTicks(StateUpdateBuilder builder, Tick ticks, {Random? random}) {
   // Apply HP regeneration and respawn for mining actions
   if (action is MiningAction) {
     final actionState = state.actionState(action.name);
+    final miningState = actionState.mining ?? const MiningState.empty();
 
     // Check if node was depleted at the start
-    final wasDepletedAtStart = isNodeDepleted(actionState);
+    final wasDepletedAtStart = miningState.isDepleted;
 
     // Apply ticks to resource (regen and respawn)
-    final updatedState = applyResourceTicks(actionState, ticks);
-    builder.updateActionState(action.name, updatedState);
+    final updatedMining = applyMiningTicks(miningState, ticks);
+    builder.updateMiningState(action.name, updatedMining);
 
     // Check if node is still depleted after applying ticks
-    if (isNodeDepleted(updatedState)) {
+    if (updatedMining.isDepleted) {
       // Node is still depleted, can't mine yet - all ticks consumed waiting
       return;
     } else if (wasDepletedAtStart) {
       // Node WAS depleted but has now respawned
       // Subtract the ticks we spent waiting for respawn
-      final respawnTicksConsumed = actionState.respawnTicksRemaining!;
+      final respawnTicksConsumed = miningState.respawnTicksRemaining!;
       ticksToConsume -= respawnTicksConsumed;
       // Restart the action with fresh duration since we were waiting
       builder.restartCurrentAction(action, random: rng);
@@ -406,18 +404,20 @@ void consumeTicks(StateUpdateBuilder builder, Tick ticks, {Random? random}) {
       // Check if node was depleted after completion
       if (action is MiningAction && !canRepeat) {
         final currentActionState = builder.state.actionState(action.name);
-        if (isNodeDepleted(currentActionState)) {
+        final currentMining =
+            currentActionState.mining ?? const MiningState.empty();
+        if (currentMining.isDepleted) {
           // Node depleted, wait for respawn
-          final respawnTicks = currentActionState.respawnTicksRemaining!;
+          final respawnTicks = currentMining.respawnTicksRemaining!;
           if (ticksToConsume >= respawnTicks) {
             // We have enough ticks to wait for respawn
             ticksToConsume -= respawnTicks;
             // Apply respawn ticks to bring node back
-            final respawnedState = applyResourceTicks(
-              currentActionState,
+            final respawnedMining = applyMiningTicks(
+              currentMining,
               respawnTicks,
             );
-            builder.updateActionState(action.name, respawnedState);
+            builder.updateMiningState(action.name, respawnedMining);
             // Try to restart action now that node has respawned
             if (builder.state.canStartAction(action)) {
               builder.restartCurrentAction(action, random: rng);
@@ -426,11 +426,11 @@ void consumeTicks(StateUpdateBuilder builder, Tick ticks, {Random? random}) {
           } else {
             // Not enough ticks for respawn yet - apply partial respawn progress
             // but keep the action active so it resumes when node respawns
-            final partialRespawnState = applyResourceTicks(
-              currentActionState,
+            final partialMining = applyMiningTicks(
+              currentMining,
               ticksToConsume,
             );
-            builder.updateActionState(action.name, partialRespawnState);
+            builder.updateMiningState(action.name, partialMining);
             break; // Stop processing but keep action active
           }
         }
@@ -467,8 +467,9 @@ void consumeTicksForAllSystems(StateUpdateBuilder builder, Tick ticks) {
     if (actionName == activeActionName) continue;
 
     if (action is MiningAction) {
-      final updatedState = applyResourceTicks(actionState, ticks);
-      builder.updateActionState(actionName, updatedState);
+      final miningState = actionState.mining ?? const MiningState.empty();
+      final updatedMining = applyMiningTicks(miningState, ticks);
+      builder.updateMiningState(actionName, updatedMining);
     }
   }
 
