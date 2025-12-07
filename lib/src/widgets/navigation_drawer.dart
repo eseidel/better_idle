@@ -56,17 +56,13 @@ class AppNavigationDrawer extends StatelessWidget {
       child: ListView(
         padding: EdgeInsets.zero,
         children: <Widget>[
-          const DrawerHeader(
-            decoration: BoxDecoration(color: Colors.blue),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisAlignment: MainAxisAlignment.end,
-              children: [
-                Text(
-                  'Better Idle',
-                  style: TextStyle(color: Colors.white, fontSize: 24),
-                ),
-              ],
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.fromLTRB(16, 48, 16, 16),
+            color: Colors.blue,
+            child: const Text(
+              'Better Idle',
+              style: TextStyle(color: Colors.white, fontSize: 24),
             ),
           ),
           ListTile(
@@ -89,6 +85,9 @@ class AppNavigationDrawer extends StatelessWidget {
               router.goNamed('bank');
             },
           ),
+          const Divider(),
+          const SkillTile(skill: Skill.hitpoints),
+          const SkillTile(skill: Skill.attack),
           const Divider(),
           const SkillTile(skill: Skill.woodcutting),
           const SkillTile(skill: Skill.firemaking),

@@ -1,4 +1,5 @@
 import 'package:better_idle/src/screens/bank.dart';
+import 'package:better_idle/src/screens/combat.dart';
 import 'package:better_idle/src/screens/debug.dart';
 import 'package:better_idle/src/screens/firemaking.dart';
 import 'package:better_idle/src/screens/fishing.dart';
@@ -45,6 +46,11 @@ final GoRouter router = GoRouter(
       path: '/smithing',
       name: 'smithing',
       builder: (context, _) => const SmithingPage(),
+    ),
+    GoRoute(
+      path: '/combat',
+      name: 'combat',
+      builder: (context, _) => const CombatPage(),
     ),
     GoRoute(
       path: '/shop',

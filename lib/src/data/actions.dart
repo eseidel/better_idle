@@ -17,6 +17,8 @@ const miningGemTable = DropTable(
 );
 
 enum Skill {
+  hitpoints('Hitpoints'),
+  attack('Attack'),
   woodcutting('Woodcutting'),
   firemaking('Firemaking'),
   fishing('Fishing'),
@@ -281,6 +283,8 @@ final List<Action> _all = [
 // Skill-level drops: shared across all actions in a skill.
 // This can include both simple Drops and DropTables.
 final _skillDrops = <Skill, List<Droppable>>{
+  Skill.hitpoints: [],
+  Skill.attack: [],
   Skill.woodcutting: [
     const Drop('Bird Nest', rate: 0.005),
     // Add other woodcutting skill-level drops here
