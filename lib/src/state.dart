@@ -142,10 +142,7 @@ class MiningState {
 /// The serialized state of an Action in progress.
 @immutable
 class ActionState {
-  const ActionState({
-    required this.masteryXp,
-    this.mining,
-  });
+  const ActionState({required this.masteryXp, this.mining});
 
   const ActionState.empty() : this(masteryXp: 0);
 
@@ -164,10 +161,7 @@ class ActionState {
   /// Mining-specific state (null for non-mining actions).
   final MiningState? mining;
 
-  ActionState copyWith({
-    int? masteryXp,
-    MiningState? mining,
-  }) {
+  ActionState copyWith({int? masteryXp, MiningState? mining}) {
     return ActionState(
       masteryXp: masteryXp ?? this.masteryXp,
       mining: mining ?? this.mining,
