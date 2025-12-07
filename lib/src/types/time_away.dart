@@ -104,16 +104,16 @@ class TimeAway {
     }
 
     // Calculate expected items per hour for each drop
-    // Items per hour = (items per action * drop rate) * (3600 / mean duration)
+    // Items per hour = (expected items per action) * (3600 / mean duration)
     final actionsPerHour = 3600.0 / meanDurationSeconds;
     final result = <String, double>{};
 
     for (final drop in allDrops) {
-      final expectedItemsPerAction = drop.count * drop.rate;
-      final itemsPerHour = expectedItemsPerAction * actionsPerHour;
-
-      // Accumulate if the same item appears in multiple drop sources
-      result[drop.name] = (result[drop.name] ?? 0.0) + itemsPerHour;
+      for (final entry in drop.expectedItems.entries) {
+        final itemsPerHour = entry.value * actionsPerHour;
+        // Accumulate if the same item appears in multiple drop sources
+        result[entry.key] = (result[entry.key] ?? 0.0) + itemsPerHour;
+      }
     }
 
     return result;

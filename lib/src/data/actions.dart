@@ -4,6 +4,18 @@ import 'package:better_idle/src/state.dart';
 import 'package:better_idle/src/types/drop.dart';
 import 'package:meta/meta.dart';
 
+/// Gem drop table for mining - 1% chance to trigger, then weighted selection.
+const miningGemTable = DropTable(
+  rate: 0.01, // 1% chance to get a gem
+  entries: [
+    Drop('Topaz', rate: 50), // 50% of 1% = 0.5%
+    Drop('Sapphire', rate: 17.5), // 17.5% of 1% = 0.175%
+    Drop('Ruby', rate: 17.5), // 17.5% of 1% = 0.175%
+    Drop('Emerald', rate: 10), // 10% of 1% = 0.1%
+    Drop('Diamond', rate: 5), // 5% of 1% = 0.05%
+  ],
+);
+
 enum Skill {
   woodcutting('Woodcutting'),
   firemaking('Firemaking'),
@@ -234,8 +246,9 @@ final List<Action> _all = [
   ..._miningActions,
 ];
 
-// Skill-level drops: shared across all actions in a skill
-final _skillDrops = <Skill, List<Drop>>{
+// Skill-level drops: shared across all actions in a skill.
+// This can include both simple Drops and DropTables.
+final _skillDrops = <Skill, List<Droppable>>{
   Skill.woodcutting: [
     const Drop('Bird Nest', rate: 0.005),
     // Add other woodcutting skill-level drops here
@@ -249,13 +262,13 @@ final _skillDrops = <Skill, List<Drop>>{
     // Add fishing skill-level drops here as needed
   ],
   Skill.mining: [
-    // Add mining skill-level drops here as needed
+    miningGemTable, // DropTable is a Drop, so it can go here
   ],
   // Add other skills as they're added
 };
 
 // Global drops: shared across all skills/actions
-final _globalDrops = <Drop>[
+final _globalDrops = <Droppable>[
   // Add global drops here as needed
   // Example: Drop(name: 'Lucky Coin', rate: 0.0001),
 ];
@@ -279,24 +292,25 @@ final actionRegistry = ActionRegistry(_all);
 class DropsRegistry {
   DropsRegistry(this._skillDrops, this._globalDrops);
 
-  final Map<Skill, List<Drop>> _skillDrops;
-  final List<Drop> _globalDrops;
+  final Map<Skill, List<Droppable>> _skillDrops;
+  final List<Droppable> _globalDrops;
 
   /// Returns all skill-level drops for a given skill.
-  List<Drop> forSkill(Skill skill) {
+  List<Droppable> forSkill(Skill skill) {
     return _skillDrops[skill] ?? [];
   }
 
   /// Returns all global drops.
-  List<Drop> get global => _globalDrops;
+  List<Droppable> get global => _globalDrops;
 
   /// Returns all drops that should be processed when an action completes.
   /// This combines action-level drops (from the action), skill-level drops,
-  /// and global drops into a single list.
-  List<Drop> allDropsForAction(Action action) {
+  /// and global drops into a single list. Includes both simple Drops and
+  /// DropTables, which are processed uniformly via Droppable.roll().
+  List<Droppable> allDropsForAction(Action action) {
     return [
       ...action.rewards, // Action-level drops
-      ...forSkill(action.skill), // Skill-level drops
+      ...forSkill(action.skill), // Skill-level drops (may include DropTables)
       ...global, // Global drops
     ];
   }

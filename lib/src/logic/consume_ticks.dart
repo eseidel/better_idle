@@ -297,9 +297,11 @@ bool completeAction(
   }
 
   // Process all drops (action-level, skill-level, and global)
+  // This handles both simple Drops and DropTables via polymorphism.
   for (final drop in dropsRegistry.allDropsForAction(action)) {
-    if (drop.rate >= 1.0 || rng.nextDouble() < drop.rate) {
-      final success = builder.addInventory(drop.toItemStack());
+    final itemStack = drop.roll(rng);
+    if (itemStack != null) {
+      final success = builder.addInventory(itemStack);
       if (!success) {
         // Item was dropped, can't repeat action
         canRepeatAction = false;

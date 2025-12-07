@@ -14,6 +14,12 @@ const _all = [
   Item(name: 'Copper Ore', sellsFor: 2),
   Item(name: 'Tin Ore', sellsFor: 2),
   Item(name: 'Iron Ore', sellsFor: 5),
+  // Gems
+  Item(name: 'Topaz', sellsFor: 225),
+  Item(name: 'Sapphire', sellsFor: 335),
+  Item(name: 'Ruby', sellsFor: 555),
+  Item(name: 'Emerald', sellsFor: 555),
+  Item(name: 'Diamond', sellsFor: 1150),
 ];
 
 @immutable
