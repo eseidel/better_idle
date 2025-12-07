@@ -19,6 +19,8 @@ enum Skill {
   final String name;
 }
 
+enum RockType { essence, ore }
+
 class Action {
   const Action({
     required this.skill,
@@ -86,9 +88,11 @@ class MiningAction extends Action {
     required super.xp,
     required super.outputs,
     required int respawnSeconds,
+    required this.rockType,
   }) : respawnTime = Duration(seconds: respawnSeconds),
        super(skill: Skill.mining, duration: miningSwingDuration);
 
+  final RockType rockType;
   final Duration respawnTime;
 
   int get respawnTicks => ticksFromDuration(respawnTime);
@@ -195,6 +199,7 @@ final _miningActions = <MiningAction>[
     xp: 5,
     outputs: const {'Rune Essence': 2},
     respawnSeconds: 1,
+    rockType: RockType.essence,
   ),
   MiningAction(
     name: 'Copper',
@@ -202,6 +207,23 @@ final _miningActions = <MiningAction>[
     xp: 7,
     outputs: const {'Copper Ore': 1},
     respawnSeconds: 5,
+    rockType: RockType.ore,
+  ),
+  MiningAction(
+    name: 'Tin',
+    unlockLevel: 1,
+    xp: 7,
+    outputs: const {'Tin Ore': 1},
+    respawnSeconds: 5,
+    rockType: RockType.ore,
+  ),
+  MiningAction(
+    name: 'Iron',
+    unlockLevel: 15,
+    xp: 14,
+    outputs: const {'Iron Ore': 1},
+    respawnSeconds: 10,
+    rockType: RockType.ore,
   ),
 ];
 

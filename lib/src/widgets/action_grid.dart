@@ -124,6 +124,10 @@ class ActionCell extends StatelessWidget {
           children: [
             const Text('Cut'),
             Text(actionName, style: labelStyle),
+            if (action case final MiningAction miningAction) ...[
+              const SizedBox(height: 4),
+              RockTypeBadge(rockType: miningAction.rockType),
+            ],
             Text(
               '${action.xp} Skill XP, ${action.minDuration.inSeconds} seconds',
             ),
@@ -181,5 +185,31 @@ class ActionCell extends StatelessWidget {
     } else {
       return _buildLocked(context);
     }
+  }
+}
+
+class RockTypeBadge extends StatelessWidget {
+  const RockTypeBadge({required this.rockType, super.key});
+
+  final RockType rockType;
+
+  @override
+  Widget build(BuildContext context) {
+    final (label, color) = switch (rockType) {
+      RockType.essence => ('Essence', Colors.purple[100]!),
+      RockType.ore => ('Ore', Colors.brown[200]!),
+    };
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+      decoration: BoxDecoration(
+        color: color,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Text(
+        label,
+        style: Theme.of(context).textTheme.bodySmall,
+      ),
+    );
   }
 }
