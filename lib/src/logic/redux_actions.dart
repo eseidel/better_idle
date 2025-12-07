@@ -16,30 +16,7 @@ class UpdateActivityProgressAction extends ReduxAction<GlobalState> {
     final ticks = ticksFromDuration(now.difference(state.updatedAt));
     final builder = StateUpdateBuilder(state);
 
-    // Apply resource ticks to all mining actions (respawn/regen)
-    // This needs to happen even when there's no active action
-    final activeActionName = state.activeAction?.name;
-    for (final entry in state.actionStates.entries) {
-      final actionName = entry.key;
-      final actionState = entry.value;
-      final action = actionRegistry.byName(actionName);
-
-      // Skip the active action - consumeTicks will handle it
-      if (actionName == activeActionName) {
-        continue;
-      }
-
-      if (action.resourceProperties != null) {
-        final updatedState = applyResourceTicks(actionState, ticks);
-        builder.updateActionState(actionName, updatedState);
-      }
-    }
-
-    // If there's an active action, consume ticks for it
-    // (this also applies resource ticks to the active action)
-    if (state.activeAction != null) {
-      consumeTicks(builder, ticks);
-    }
+    consumeTicksForAllSystems(builder, ticks);
 
     final changes = builder.changes;
     final newState = builder.build();

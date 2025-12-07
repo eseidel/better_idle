@@ -719,5 +719,206 @@ void main() {
       expect(state.inventory.countOfItem(copperItem), 7);
       expect(state.activeAction, isNotNull);
     });
+
+    test(
+      'concurrent systems: woodcutting while mining nodes heal/respawn',
+      () {
+        // This test verifies that multiple systems run concurrently:
+        // 1. Active woodcutting action produces logs
+        // 2. Non-active mining node mid-respawn continues respawn countdown
+        // 3. Non-active mining node with damage continues healing
+        //
+        // This simulates what UpdateActivityProgressAction does in the game.
+
+        final normalTree = actionRegistry.byName('Normal Tree');
+        final normalLogs = itemRegistry.byName('Normal Logs');
+        final copper = actionRegistry.byName('Copper');
+        final runeEssence = actionRegistry.byName('Rune Essence');
+
+        // Create initial state with:
+        // - Woodcutting as active action
+        // - Copper node mid-respawn (30 ticks remaining out of 50)
+        // - Rune Essence node damaged (3 HP lost) and healing
+        var state = GlobalState.test(
+          actionStates: const {
+            // Copper: depleted, mid-respawn with 30 ticks remaining
+            'Copper': ActionState(
+              masteryXp: 0,
+              totalHpLost: 6, // Fully depleted (6 HP lost = 0 HP remaining)
+              respawnTicksRemaining: 30, // 30 ticks until respawn (3 seconds)
+            ),
+            // Rune Essence: damaged but not depleted, healing
+            'Rune Essence': ActionState(
+              masteryXp: 0,
+              totalHpLost: 3, // 3 HP lost, 3 HP remaining (out of 6)
+              hpRegenTicksRemaining: 50, // 50 ticks until next heal
+            ),
+          },
+        );
+
+        // Start woodcutting
+        state = state.startAction(normalTree);
+
+        // Helper that uses the same logic as UpdateActivityProgressAction
+        GlobalState applyTicks(GlobalState state, Tick ticks) {
+          final builder = StateUpdateBuilder(state);
+          consumeTicksForAllSystems(builder, ticks);
+          return builder.build();
+        }
+
+        // --- Phase 1: 20 ticks ---
+        // - Woodcutting: 20/30 ticks toward completion (not done yet)
+        // - Copper: respawn 30 -> 10 ticks remaining (still depleted)
+        // - Rune Essence: heal countdown 50 -> 30 ticks (no heal yet)
+        state = applyTicks(state, 20);
+
+        expect(
+          state.activeAction?.name,
+          normalTree.name,
+          reason: 'Active action should still be woodcutting',
+        );
+        expect(
+          state.activeAction?.progressTicks,
+          20,
+          reason: 'Should have 20 ticks progress toward woodcutting',
+        );
+        expect(
+          state.inventory.countOfItem(normalLogs),
+          0,
+          reason: 'No logs yet - woodcutting not complete',
+        );
+
+        final copperStatePhase1 = state.actionState(copper.name);
+        expect(
+          isNodeDepleted(copperStatePhase1),
+          true,
+          reason: 'Copper should still be depleted',
+        );
+        expect(
+          copperStatePhase1.respawnTicksRemaining,
+          10,
+          reason: 'Copper should have 10 ticks remaining until respawn',
+        );
+
+        final runeStatePhase1 = state.actionState(runeEssence.name);
+        expect(
+          runeStatePhase1.totalHpLost,
+          3,
+          reason: 'Rune Essence should still have 3 HP lost (no heal yet)',
+        );
+        expect(
+          runeStatePhase1.hpRegenTicksRemaining,
+          30,
+          reason: 'Rune Essence should have 30 ticks until next heal',
+        );
+
+        // --- Phase 2: 30 more ticks (50 total) ---
+        // - Woodcutting: completes at tick 30, restarts, at 20/30 again
+        // - Copper: respawn completes at tick 10, node available
+        // - Rune Essence: heal triggers at exactly tick 30, HP 3->2 lost,
+        //   reset to 100 ticks until next heal (no leftover ticks)
+        state = applyTicks(state, 30);
+
+        expect(
+          state.activeAction?.name,
+          normalTree.name,
+          reason: 'Active action should still be woodcutting',
+        );
+        expect(
+          state.inventory.countOfItem(normalLogs),
+          1,
+          reason: 'Should have 1 log from first woodcutting completion',
+        );
+
+        final copperStatePhase2 = state.actionState(copper.name);
+        expect(
+          isNodeDepleted(copperStatePhase2),
+          false,
+          reason: 'Copper should have respawned and no longer be depleted',
+        );
+        expect(
+          copperStatePhase2.totalHpLost,
+          0,
+          reason: 'Copper should be at full HP after respawn',
+        );
+
+        final runeStatePhase2 = state.actionState(runeEssence.name);
+        expect(
+          runeStatePhase2.totalHpLost,
+          2,
+          reason: 'Rune Essence should have healed 1 HP (3->2 lost)',
+        );
+        expect(
+          runeStatePhase2.hpRegenTicksRemaining,
+          100,
+          reason:
+              'Rune Essence: heal consumed exactly 30 ticks, '
+              'reset to 100 ticks until next heal',
+        );
+
+        // --- Phase 3: 100 more ticks (150 total) ---
+        // - Woodcutting: had 20 progress, needs 10 to complete -> log 2
+        //   then 90 ticks remaining = 3 more completions -> logs 3, 4, 5
+        //   Total: 5 logs
+        // - Copper: stays at full HP (not being mined)
+        // - Rune Essence: heals 1 more HP at tick 100, HP 2->1 lost
+        state = applyTicks(state, 100);
+
+        expect(state.activeAction?.name, normalTree.name);
+        expect(
+          state.inventory.countOfItem(normalLogs),
+          5,
+          reason: 'Should have 5 logs total (1 + 1 partial + 3 full)',
+        );
+
+        final copperStatePhase3 = state.actionState(copper.name);
+        expect(
+          isNodeDepleted(copperStatePhase3),
+          false,
+          reason: 'Copper should still be available',
+        );
+        expect(copperStatePhase3.totalHpLost, 0);
+
+        final runeStatePhase3 = state.actionState(runeEssence.name);
+        expect(
+          runeStatePhase3.totalHpLost,
+          1,
+          reason: 'Rune Essence should have healed another HP (2->1 lost)',
+        );
+
+        // --- Phase 4: 100 more ticks (250 total) ---
+        // - Woodcutting: had 10 progress, needs 20 to complete -> log 6
+        //   then 80 ticks remaining = 2 more completions -> logs 7, 8
+        //   plus 20 progress toward next
+        //   Total: 8 logs
+        // - Rune Essence: heals final HP at tick 100 (1->0 lost)
+        state = applyTicks(state, 100);
+
+        expect(
+          state.inventory.countOfItem(normalLogs),
+          8,
+          reason: 'Should have 8 logs total',
+        );
+
+        final runeStatePhase4 = state.actionState(runeEssence.name);
+        expect(
+          runeStatePhase4.totalHpLost,
+          0,
+          reason: 'Rune Essence should be fully healed',
+        );
+        expect(
+          runeStatePhase4.hpRegenTicksRemaining,
+          0,
+          reason: 'No regen needed when at full HP',
+        );
+
+        // Verify the active action stayed woodcutting throughout
+        expect(
+          state.activeAction?.name,
+          normalTree.name,
+          reason: 'Woodcutting should still be the active action',
+        );
+      },
+    );
   });
 }

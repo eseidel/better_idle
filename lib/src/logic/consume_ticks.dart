@@ -453,6 +453,35 @@ void consumeTicks(StateUpdateBuilder builder, Tick ticks, {Random? random}) {
   }
 }
 
+/// Applies ticks to all game systems: active action and background resource
+/// recovery (respawn/heal) for all mining nodes.
+///
+/// This is the core tick-processing logic used by UpdateActivityProgressAction.
+void consumeTicksForAllSystems(StateUpdateBuilder builder, Tick ticks) {
+  final state = builder.state;
+  final activeActionName = state.activeAction?.name;
+
+  // Apply resource ticks to all non-active mining actions (respawn/regen)
+  for (final entry in state.actionStates.entries) {
+    final actionName = entry.key;
+    final actionState = entry.value;
+    final action = actionRegistry.byName(actionName);
+
+    // Skip the active action - consumeTicks will handle it
+    if (actionName == activeActionName) continue;
+
+    if (action.resourceProperties != null) {
+      final updatedState = applyResourceTicks(actionState, ticks);
+      builder.updateActionState(actionName, updatedState);
+    }
+  }
+
+  // Process active action (this also handles resource ticks for active action)
+  if (state.activeAction != null) {
+    consumeTicks(builder, ticks);
+  }
+}
+
 /// Consumes a specified number of ticks and returns the changes.
 (TimeAway, GlobalState) consumeManyTicks(
   GlobalState state,
