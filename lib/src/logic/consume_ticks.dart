@@ -37,7 +37,7 @@ int calculateMasteryXpPerAction({
 
 /// Returns the amount of mastery XP gained per action.
 // TODO(eseidel): Take a duration instead of using maxDuration?
-int masteryXpPerAction(GlobalState state, Action action) {
+int masteryXpPerAction(GlobalState state, SkillAction action) {
   final skillState = state.skillState(action.skill);
   final actionState = state.actionState(action.name);
   final actionMasteryLevel = levelForXp(actionState.masteryXp);
@@ -223,16 +223,14 @@ class StateUpdateBuilder {
     _changes = _changes.addingGp(amount);
   }
 
-  void setCombat(CombatState? combat) {
-    if (combat == null) {
-      _state = _state.clearCombat();
-    } else {
-      _state = _state.copyWith(combat: combat);
-    }
-  }
-
   void setPlayerHp(int hp) {
     _state = _state.copyWith(playerHp: hp);
+  }
+
+  /// Updates the combat state for an action.
+  void updateCombatState(String actionName, CombatActionState newCombat) {
+    final actionState = _state.actionState(actionName);
+    updateActionState(actionName, actionState.copyWith(combat: newCombat));
   }
 
   /// Depletes a mining node and starts its respawn timer.
@@ -275,7 +273,7 @@ class StateUpdateBuilder {
 
 class _Progress {
   const _Progress(this.action, this.remainingTicks, this.totalTicks);
-  final Action action;
+  final SkillAction action;
   final int remainingTicks;
   final int totalTicks;
 
@@ -290,18 +288,18 @@ class XpPerAction {
   int get masteryPoolXp => max(1, (0.25 * masteryXp).toInt());
 }
 
-XpPerAction xpPerAction(GlobalState state, Action action) {
+XpPerAction xpPerAction(GlobalState state, SkillAction action) {
   return XpPerAction(
     xp: action.xp,
     masteryXp: masteryXpPerAction(state, action),
   );
 }
 
-/// Completes an action, consuming inputs, adding outputs, and awarding XP.
+/// Completes a skill action, consuming inputs, adding outputs, and awarding XP.
 /// Returns true if the action can repeat (no items were dropped).
 bool completeAction(
   StateUpdateBuilder builder,
-  Action action, {
+  SkillAction action, {
   Random? random,
 }) {
   final rng = random ?? Random();
@@ -361,6 +359,7 @@ bool completeAction(
 }
 
 /// Consumes a specified number of ticks and updates the state.
+/// Only handles SkillActions - CombatActions are handled by consumeCombatTicks.
 void consumeTicks(StateUpdateBuilder builder, Tick ticks, {Random? random}) {
   final state = builder.state;
   final startingAction = state.activeAction;
@@ -471,21 +470,27 @@ void consumeTicks(StateUpdateBuilder builder, Tick ticks, {Random? random}) {
   }
 }
 
-/// Respawn time for monsters after death.
-const Duration monsterRespawnDuration = Duration(seconds: 3);
-
-/// Processes combat ticks for an active fight.
+/// Processes combat ticks for an active Combat action.
+/// The combat state (including which monster) is stored in ActionState.
 void consumeCombatTicks(
   StateUpdateBuilder builder,
   Tick ticks, {
   Random? random,
 }) {
-  final combat = builder.state.combat;
-  if (combat == null) return;
+  const actionName = 'Combat';
+  final actionState = builder.state.actionState(actionName);
+  final combatState = actionState.combat;
+
+  // Combat state must exist - it's initialized when combat starts
+  if (combatState == null) {
+    return;
+  }
+
+  final action = combatState.combatAction;
 
   final rng = random ?? Random();
   var remainingTicks = ticks;
-  var currentCombat = combat;
+  var currentCombat = combatState;
   var playerHp = builder.state.playerHp;
 
   while (remainingTicks > 0) {
@@ -495,15 +500,16 @@ void consumeCombatTicks(
       if (remainingTicks >= respawnTicks) {
         // Monster respawns
         remainingTicks -= respawnTicks;
-        currentCombat = CombatState.start(currentCombat.monster);
-        builder.setCombat(currentCombat);
+        final pStats = playerStats(builder.state);
+        currentCombat = CombatActionState.start(action, pStats);
+        builder.updateCombatState(actionName, currentCombat);
         continue;
       } else {
         // Still waiting for respawn
         currentCombat = currentCombat.copyWith(
           respawnTicksRemaining: respawnTicks - remainingTicks,
         );
-        builder.setCombat(currentCombat);
+        builder.updateCombatState(actionName, currentCombat);
         return;
       }
     }
@@ -520,7 +526,7 @@ void consumeCombatTicks(
         playerAttackTicksRemaining: playerTicks - remainingTicks,
         monsterAttackTicksRemaining: monsterTicks - remainingTicks,
       );
-      builder.setCombat(currentCombat);
+      builder.updateCombatState(actionName, currentCombat);
       return;
     }
 
@@ -545,7 +551,7 @@ void consumeCombatTicks(
     // Check if monster died
     if (monsterHp <= 0) {
       // Monster dies - grant GP drop and start respawn
-      final gpDrop = currentCombat.monster.rollGpDrop(rng);
+      final gpDrop = action.rollGpDrop(rng);
       builder.addGp(gpDrop);
       currentCombat = currentCombat.copyWith(
         monsterHp: 0,
@@ -553,14 +559,14 @@ void consumeCombatTicks(
         monsterAttackTicksRemaining: newMonsterTicks,
         respawnTicksRemaining: ticksFromDuration(monsterRespawnDuration),
       );
-      builder.setCombat(currentCombat);
+      builder.updateCombatState(actionName, currentCombat);
       continue;
     }
 
     // Process monster attack if ready
     var resetMonsterTicks = newMonsterTicks;
     if (newMonsterTicks <= 0) {
-      final mStats = currentCombat.monster.stats;
+      final mStats = action.stats;
       final damage = mStats.rollDamage(rng);
       final pStats = playerStats(builder.state);
       final reducedDamage = (damage * (1 - pStats.damageReduction)).round();
@@ -577,7 +583,7 @@ void consumeCombatTicks(
       // Player dies - end combat, reset HP
       builder
         ..setPlayerHp(maxPlayerHp)
-        ..setCombat(null);
+        ..clearAction();
       return;
     }
 
@@ -587,7 +593,7 @@ void consumeCombatTicks(
       playerAttackTicksRemaining: resetPlayerTicks,
       monsterAttackTicksRemaining: resetMonsterTicks,
     );
-    builder.setCombat(currentCombat);
+    builder.updateCombatState(actionName, currentCombat);
   }
 }
 
@@ -615,14 +621,21 @@ void consumeTicksForAllSystems(StateUpdateBuilder builder, Tick ticks) {
     }
   }
 
-  // Process active action (this also handles resource ticks for active action)
+  // Process active action (this handles all action types including combat)
   if (state.activeAction != null) {
-    consumeTicks(builder, ticks);
-  }
-
-  // Process combat
-  if (state.combat != null) {
-    consumeCombatTicks(builder, ticks);
+    final actionName = state.activeAction!.name;
+    if (actionName == 'Combat') {
+      // Combat actions are processed differently - they don't complete
+      // like regular actions, they just process attacks on timers.
+      // Get the combat state to find which monster we're fighting.
+      final combatState = state.actionState(actionName).combat;
+      if (combatState != null) {
+        consumeCombatTicks(builder, ticks);
+      }
+    } else {
+      // Regular actions (mining, woodcutting, etc.)
+      consumeTicks(builder, ticks);
+    }
   }
 }
 
@@ -632,24 +645,29 @@ void consumeTicksForAllSystems(StateUpdateBuilder builder, Tick ticks) {
   Tick ticks, {
   DateTime? endTime,
 }) {
-  final action = state.activeAction;
-  if (action == null) {
+  final activeAction = state.activeAction;
+  if (activeAction == null) {
     // No activity active, return empty changes
     return (TimeAway.empty(), state);
   }
   final builder = StateUpdateBuilder(state);
-  consumeTicks(builder, ticks);
+  consumeTicksForAllSystems(builder, ticks);
   final startTime = state.updatedAt;
   final calculatedEndTime =
       endTime ??
       startTime.add(
         Duration(milliseconds: ticks * tickDuration.inMilliseconds),
       );
+  // For TimeAway, we only need the action for predictions.
+  // Combat actions return empty predictions anyway, so null is fine.
+  final action = activeAction.name == 'Combat'
+      ? null
+      : actionRegistry.byName(activeAction.name);
   final timeAway = TimeAway(
     startTime: startTime,
     endTime: calculatedEndTime,
     activeSkill: state.activeSkill,
-    activeAction: actionRegistry.byName(action.name),
+    activeAction: action,
     changes: builder.changes,
   );
   return (timeAway, builder.build());

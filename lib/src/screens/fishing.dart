@@ -59,7 +59,7 @@ class FishingActionCell extends StatelessWidget {
     super.key,
   });
 
-  final Action action;
+  final SkillAction action;
   final ActionState actionState;
   final int? progressTicks;
 

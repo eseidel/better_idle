@@ -14,7 +14,7 @@ class ActionGrid extends StatelessWidget {
     this.cellSize = const Size(300, 150),
   });
 
-  final List<Action> actions;
+  final List<SkillAction> actions;
   final Size cellSize;
 
   @override
@@ -56,7 +56,7 @@ class ActionCell extends StatelessWidget {
     super.key,
   });
 
-  final Action action;
+  final SkillAction action;
   final ActionState actionState;
   final int? progressTicks;
 

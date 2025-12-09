@@ -140,10 +140,102 @@ class MiningState {
   }
 }
 
+/// Respawn time for monsters after death.
+const Duration monsterRespawnDuration = Duration(seconds: 3);
+
+/// Combat-specific state for fighting a monster.
+@immutable
+class CombatActionState {
+  const CombatActionState({
+    required this.monsterName,
+    required this.monsterHp,
+    required this.playerAttackTicksRemaining,
+    required this.monsterAttackTicksRemaining,
+    this.respawnTicksRemaining,
+  });
+
+  /// Start a new combat against a monster.
+  factory CombatActionState.start(CombatAction action, Stats playerStats) {
+    final playerAttackTicks = ticksFromDuration(
+      Duration(milliseconds: (playerStats.attackSpeed * 1000).round()),
+    );
+    final monsterAttackTicks = ticksFromDuration(
+      Duration(milliseconds: (action.stats.attackSpeed * 1000).round()),
+    );
+    return CombatActionState(
+      monsterName: action.name,
+      monsterHp: action.maxHp,
+      playerAttackTicksRemaining: playerAttackTicks,
+      monsterAttackTicksRemaining: monsterAttackTicks,
+    );
+  }
+
+  factory CombatActionState.fromJson(Map<String, dynamic> json) {
+    return CombatActionState(
+      monsterName: json['monsterName'] as String,
+      monsterHp: json['monsterHp'] as int,
+      playerAttackTicksRemaining: json['playerAttackTicksRemaining'] as int,
+      monsterAttackTicksRemaining: json['monsterAttackTicksRemaining'] as int,
+      respawnTicksRemaining: json['respawnTicksRemaining'] as int?,
+    );
+  }
+
+  /// The name of the monster being fought.
+  final String monsterName;
+  final int monsterHp;
+  final int playerAttackTicksRemaining;
+  final int monsterAttackTicksRemaining;
+  final int? respawnTicksRemaining;
+
+  /// Gets the CombatAction for this combat.
+  CombatAction get combatAction => combatActionByName(monsterName);
+
+  bool get isMonsterDead => monsterHp <= 0;
+  bool get isRespawning => respawnTicksRemaining != null;
+
+  CombatActionState copyWith({
+    String? monsterName,
+    int? monsterHp,
+    int? playerAttackTicksRemaining,
+    int? monsterAttackTicksRemaining,
+    int? respawnTicksRemaining,
+  }) {
+    return CombatActionState(
+      monsterName: monsterName ?? this.monsterName,
+      monsterHp: monsterHp ?? this.monsterHp,
+      playerAttackTicksRemaining:
+          playerAttackTicksRemaining ?? this.playerAttackTicksRemaining,
+      monsterAttackTicksRemaining:
+          monsterAttackTicksRemaining ?? this.monsterAttackTicksRemaining,
+      respawnTicksRemaining:
+          respawnTicksRemaining ?? this.respawnTicksRemaining,
+    );
+  }
+
+  CombatActionState clearRespawn() {
+    return CombatActionState(
+      monsterName: monsterName,
+      monsterHp: monsterHp,
+      playerAttackTicksRemaining: playerAttackTicksRemaining,
+      monsterAttackTicksRemaining: monsterAttackTicksRemaining,
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'monsterName': monsterName,
+      'monsterHp': monsterHp,
+      'playerAttackTicksRemaining': playerAttackTicksRemaining,
+      'monsterAttackTicksRemaining': monsterAttackTicksRemaining,
+      'respawnTicksRemaining': respawnTicksRemaining,
+    };
+  }
+}
+
 /// The serialized state of an Action in progress.
 @immutable
 class ActionState {
-  const ActionState({required this.masteryXp, this.mining});
+  const ActionState({required this.masteryXp, this.mining, this.combat});
 
   const ActionState.empty() : this(masteryXp: 0);
 
@@ -152,6 +244,9 @@ class ActionState {
       masteryXp: json['masteryXp'] as int,
       mining: json['mining'] != null
           ? MiningState.fromJson(json['mining'] as Map<String, dynamic>)
+          : null,
+      combat: json['combat'] != null
+          ? CombatActionState.fromJson(json['combat'] as Map<String, dynamic>)
           : null,
     );
   }
@@ -162,10 +257,18 @@ class ActionState {
   /// Mining-specific state (null for non-mining actions).
   final MiningState? mining;
 
-  ActionState copyWith({int? masteryXp, MiningState? mining}) {
+  /// Combat-specific state (null for non-combat actions).
+  final CombatActionState? combat;
+
+  ActionState copyWith({
+    int? masteryXp,
+    MiningState? mining,
+    CombatActionState? combat,
+  }) {
     return ActionState(
       masteryXp: masteryXp ?? this.masteryXp,
       mining: mining ?? this.mining,
+      combat: combat ?? this.combat,
     );
   }
 
@@ -178,6 +281,7 @@ class ActionState {
     return {
       'masteryXp': masteryXp,
       if (mining != null) 'mining': mining!.toJson(),
+      if (combat != null) 'combat': combat!.toJson(),
     };
   }
 }
@@ -230,93 +334,6 @@ Stats playerStats(GlobalState state) {
 /// Maximum player HP.
 const int maxPlayerHp = 100;
 
-/// Combat state tracking the current fight.
-@immutable
-class CombatState {
-  const CombatState({
-    required this.monsterName,
-    required this.monsterHp,
-    required this.playerAttackTicksRemaining,
-    required this.monsterAttackTicksRemaining,
-    this.respawnTicksRemaining,
-  });
-
-  factory CombatState.start(Monster monster) {
-    final pStats = playerStats(GlobalState.empty());
-    final playerAttackTicks = ticksFromDuration(
-      Duration(milliseconds: (pStats.attackSpeed * 1000).round()),
-    );
-    final monsterAttackTicks = ticksFromDuration(
-      Duration(milliseconds: (monster.stats.attackSpeed * 1000).round()),
-    );
-    return CombatState(
-      monsterName: monster.name,
-      monsterHp: monster.maxHp,
-      playerAttackTicksRemaining: playerAttackTicks,
-      monsterAttackTicksRemaining: monsterAttackTicks,
-    );
-  }
-
-  factory CombatState.fromJson(Map<String, dynamic> json) {
-    return CombatState(
-      monsterName: json['monsterName'] as String,
-      monsterHp: json['monsterHp'] as int,
-      playerAttackTicksRemaining: json['playerAttackTicksRemaining'] as int,
-      monsterAttackTicksRemaining: json['monsterAttackTicksRemaining'] as int,
-      respawnTicksRemaining: json['respawnTicksRemaining'] as int?,
-    );
-  }
-
-  final String monsterName;
-  final int monsterHp;
-  final int playerAttackTicksRemaining;
-  final int monsterAttackTicksRemaining;
-  final int? respawnTicksRemaining;
-
-  Monster get monster => monsterRegistry.byName(monsterName);
-
-  bool get isMonsterDead => monsterHp <= 0;
-  bool get isRespawning => respawnTicksRemaining != null;
-
-  CombatState copyWith({
-    String? monsterName,
-    int? monsterHp,
-    int? playerAttackTicksRemaining,
-    int? monsterAttackTicksRemaining,
-    int? respawnTicksRemaining,
-  }) {
-    return CombatState(
-      monsterName: monsterName ?? this.monsterName,
-      monsterHp: monsterHp ?? this.monsterHp,
-      playerAttackTicksRemaining:
-          playerAttackTicksRemaining ?? this.playerAttackTicksRemaining,
-      monsterAttackTicksRemaining:
-          monsterAttackTicksRemaining ?? this.monsterAttackTicksRemaining,
-      respawnTicksRemaining:
-          respawnTicksRemaining ?? this.respawnTicksRemaining,
-    );
-  }
-
-  CombatState clearRespawn() {
-    return CombatState(
-      monsterName: monsterName,
-      monsterHp: monsterHp,
-      playerAttackTicksRemaining: playerAttackTicksRemaining,
-      monsterAttackTicksRemaining: monsterAttackTicksRemaining,
-    );
-  }
-
-  Map<String, dynamic> toJson() {
-    return {
-      'monsterName': monsterName,
-      'monsterHp': monsterHp,
-      'playerAttackTicksRemaining': playerAttackTicksRemaining,
-      'monsterAttackTicksRemaining': monsterAttackTicksRemaining,
-      'respawnTicksRemaining': respawnTicksRemaining,
-    };
-  }
-}
-
 /// Primary state object serialized to disk and used in memory.
 @immutable
 class GlobalState {
@@ -330,7 +347,6 @@ class GlobalState {
     required this.shop,
     required this.playerHp,
     this.timeAway,
-    this.combat,
   });
 
   GlobalState.empty()
@@ -344,7 +360,6 @@ class GlobalState {
         timeAway: null,
         shop: const ShopState.empty(),
         playerHp: maxPlayerHp,
-        combat: null,
       );
 
   @visibleForTesting
@@ -358,7 +373,6 @@ class GlobalState {
     TimeAway? timeAway,
     ShopState shop = const ShopState.empty(),
     int playerHp = maxPlayerHp,
-    CombatState? combat,
   }) {
     return GlobalState(
       inventory: inventory,
@@ -370,7 +384,6 @@ class GlobalState {
       timeAway: timeAway,
       shop: shop,
       playerHp: playerHp,
-      combat: combat,
     );
   }
 
@@ -403,10 +416,7 @@ class GlobalState {
       shop = json['shop'] != null
           ? ShopState.fromJson(json['shop'] as Map<String, dynamic>)
           : const ShopState.empty(),
-      playerHp = json['playerHp'] as int? ?? maxPlayerHp,
-      combat = json['combat'] != null
-          ? CombatState.fromJson(json['combat'] as Map<String, dynamic>)
-          : null;
+      playerHp = json['playerHp'] as int? ?? maxPlayerHp;
 
   Map<String, dynamic> toJson() {
     return {
@@ -423,7 +433,6 @@ class GlobalState {
       'timeAway': timeAway?.toJson(),
       'shop': shop.toJson(),
       'playerHp': playerHp,
-      'combat': combat?.toJson(),
     };
   }
 
@@ -456,9 +465,6 @@ class GlobalState {
   /// The current player HP.
   final int playerHp;
 
-  /// The current combat state, or null if not in combat.
-  final CombatState? combat;
-
   int get inventoryCapacity => shop.bankSlots + initialBankSlots;
 
   bool get isActive => activeAction != null;
@@ -483,7 +489,7 @@ class GlobalState {
   }
 
   /// Returns true if the game loop should be running.
-  bool get shouldTick => isActive || hasActiveResourceTimers || combat != null;
+  bool get shouldTick => isActive || hasActiveResourceTimers;
 
   Skill? get activeSkill {
     final name = activeAction?.name;
@@ -504,48 +510,78 @@ class GlobalState {
 
   /// Returns true if all required inputs for the action are available.
   bool canStartAction(Action action) {
-    // Check inputs
-    for (final requirement in action.inputs.entries) {
-      final item = itemRegistry.byName(requirement.key);
-      final itemCount = inventory.countOfItem(item);
-      if (itemCount < requirement.value) {
-        return false;
+    // Only SkillActions have inputs to check
+    if (action is SkillAction) {
+      // Check inputs
+      for (final requirement in action.inputs.entries) {
+        final item = itemRegistry.byName(requirement.key);
+        final itemCount = inventory.countOfItem(item);
+        if (itemCount < requirement.value) {
+          return false;
+        }
+      }
+
+      // Check if mining node is depleted
+      if (action is MiningAction) {
+        final actionState = this.actionState(action.name);
+        final miningState = actionState.mining ?? const MiningState.empty();
+        if (miningState.isDepleted) {
+          return false; // Can't mine depleted node
+        }
       }
     }
 
-    // Check if mining node is depleted
-    if (action is MiningAction) {
-      final actionState = this.actionState(action.name);
-      final miningState = actionState.mining ?? const MiningState.empty();
-      if (miningState.isDepleted) {
-        return false; // Can't mine depleted node
-      }
-    }
-
+    // CombatActions can always be started
     return true;
   }
 
   GlobalState startAction(Action action, {Random? random}) {
-    // Validate that all required items are available
-    for (final requirement in action.inputs.entries) {
-      final item = itemRegistry.byName(requirement.key);
-      final itemCount = inventory.countOfItem(item);
-      if (itemCount < requirement.value) {
-        throw Exception(
-          'Cannot start ${action.name}: Need ${requirement.value} '
-          '${requirement.key}, but only have $itemCount',
-        );
-      }
-    }
     final name = action.name;
-    final totalTicks = action.rollDuration(random ?? Random());
-    return copyWith(
-      activeAction: ActiveAction(
-        name: name,
-        remainingTicks: totalTicks,
-        totalTicks: totalTicks,
-      ),
-    );
+    int totalTicks;
+
+    if (action is SkillAction) {
+      // Validate that all required items are available for skill actions
+      for (final requirement in action.inputs.entries) {
+        final item = itemRegistry.byName(requirement.key);
+        final itemCount = inventory.countOfItem(item);
+        if (itemCount < requirement.value) {
+          throw Exception(
+            'Cannot start ${action.name}: Need ${requirement.value} '
+            '${requirement.key}, but only have $itemCount',
+          );
+        }
+      }
+      totalTicks = action.rollDuration(random ?? Random());
+      return copyWith(
+        activeAction: ActiveAction(
+          name: name,
+          remainingTicks: totalTicks,
+          totalTicks: totalTicks,
+        ),
+      );
+    } else if (action is CombatAction) {
+      // Combat actions don't have inputs or duration-based completion.
+      // The tick represents the time until the first player attack.
+      final pStats = playerStats(this);
+      totalTicks = ticksFromDuration(
+        Duration(milliseconds: (pStats.attackSpeed * 1000).round()),
+      );
+      // Initialize combat state with the combat action
+      final combatState = CombatActionState.start(action, pStats);
+      final newActionStates = Map<String, ActionState>.from(actionStates);
+      final existingState = actionState(name);
+      newActionStates[name] = existingState.copyWith(combat: combatState);
+      return copyWith(
+        activeAction: ActiveAction(
+          name: name,
+          remainingTicks: totalTicks,
+          totalTicks: totalTicks,
+        ),
+        actionStates: newActionStates,
+      );
+    } else {
+      throw Exception('Unknown action type: ${action.runtimeType}');
+    }
   }
 
   GlobalState clearAction() {
@@ -559,7 +595,6 @@ class GlobalState {
       updatedAt: DateTime.timestamp(),
       gp: gp,
       playerHp: playerHp,
-      combat: combat,
     );
   }
 
@@ -574,22 +609,6 @@ class GlobalState {
       gp: gp,
       shop: shop,
       playerHp: playerHp,
-      combat: combat,
-    );
-  }
-
-  GlobalState clearCombat() {
-    // This can't be copyWith since null means no-update.
-    return GlobalState(
-      inventory: inventory,
-      activeAction: activeAction,
-      skillStates: skillStates,
-      actionStates: actionStates,
-      updatedAt: DateTime.timestamp(),
-      gp: gp,
-      shop: shop,
-      playerHp: playerHp,
-      combat: null,
     );
   }
 
@@ -664,7 +683,6 @@ class GlobalState {
     TimeAway? timeAway,
     ShopState? shop,
     int? playerHp,
-    CombatState? combat,
   }) {
     return GlobalState(
       inventory: inventory ?? this.inventory,
@@ -676,7 +694,6 @@ class GlobalState {
       timeAway: timeAway ?? this.timeAway,
       shop: shop ?? this.shop,
       playerHp: playerHp ?? this.playerHp,
-      combat: combat ?? this.combat,
     );
   }
 }

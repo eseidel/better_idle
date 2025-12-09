@@ -12,8 +12,8 @@ void main() {
   final normalTree = actionRegistry.byName('Normal Tree');
   final oakTree = actionRegistry.byName('Oak Tree');
   final burnNormalLogs = actionRegistry.byName('Burn Normal Logs');
-  final runeEssence = actionRegistry.byName('Rune Essence');
-  final copper = actionRegistry.byName('Copper');
+  final runeEssence = actionRegistry.byName('Rune Essence') as MiningAction;
+  final copper = actionRegistry.byName('Copper') as MiningAction;
 
   final normalLogs = itemRegistry.byName('Normal Logs');
   final oakLogs = itemRegistry.byName('Oak Logs');
@@ -272,7 +272,7 @@ void main() {
       'action with output count > 1 correctly creates drops with that count',
       () {
         // Create an action with output count > 1
-        const testAction = Action(
+        const testAction = SkillAction(
           skill: Skill.woodcutting,
           name: 'Test Action',
           unlockLevel: 1,

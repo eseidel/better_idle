@@ -11,8 +11,14 @@ class CombatPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final state = context.state;
-    final combat = state.combat;
-    final plant = monsterRegistry.byName('Plant');
+    final plant = combatActionByName('Plant');
+
+    // Check if we're in combat with this monster
+    final isInCombat = state.activeAction?.name == plant.name;
+    // Get combat state from action states if in combat
+    final combatState = isInCombat
+        ? state.actionState(plant.name).combat
+        : null;
 
     return Scaffold(
       appBar: AppBar(title: const Text('Combat')),
@@ -27,14 +33,18 @@ class CombatPage extends StatelessWidget {
             const SizedBox(height: 16),
 
             // Monster card
-            _MonsterCard(monster: plant, combat: combat),
+            _MonsterCard(
+              action: plant,
+              combatState: combatState,
+              isInCombat: isInCombat,
+            ),
             const SizedBox(height: 16),
 
             // Fight button
-            if (combat == null)
+            if (!isInCombat)
               ElevatedButton(
                 onPressed: () {
-                  context.dispatch(StartCombatAction(monster: plant));
+                  context.dispatch(StartCombatAction(combatAction: plant));
                 },
                 child: const Text('Fight Plant'),
               )
@@ -88,16 +98,20 @@ class _PlayerStatsCard extends StatelessWidget {
 }
 
 class _MonsterCard extends StatelessWidget {
-  const _MonsterCard({required this.monster, required this.combat});
+  const _MonsterCard({
+    required this.action,
+    required this.combatState,
+    required this.isInCombat,
+  });
 
-  final Monster monster;
-  final CombatState? combat;
+  final CombatAction action;
+  final CombatActionState? combatState;
+  final bool isInCombat;
 
   @override
   Widget build(BuildContext context) {
-    final isInCombat = combat != null;
-    final currentHp = combat?.monsterHp ?? monster.maxHp;
-    final isRespawning = combat?.isRespawning ?? false;
+    final currentHp = combatState?.monsterHp ?? action.maxHp;
+    final isRespawning = combatState?.isRespawning ?? false;
 
     return Card(
       child: Padding(
@@ -108,7 +122,7 @@ class _MonsterCard extends StatelessWidget {
             Row(
               children: [
                 Text(
-                  monster.name,
+                  action.name,
                   style: const TextStyle(
                     fontSize: 18,
                     fontWeight: FontWeight.bold,
@@ -116,7 +130,7 @@ class _MonsterCard extends StatelessWidget {
                 ),
                 const SizedBox(width: 8),
                 Text(
-                  'Lvl ${monster.combatLevel}',
+                  'Lvl ${action.combatLevel}',
                   style: TextStyle(color: Colors.grey[600]),
                 ),
               ],
@@ -124,14 +138,14 @@ class _MonsterCard extends StatelessWidget {
             const SizedBox(height: 8),
             _HpBar(
               currentHp: currentHp,
-              maxHp: monster.maxHp,
+              maxHp: action.maxHp,
               color: Colors.red,
             ),
-            Text('HP: $currentHp / ${monster.maxHp}'),
+            Text('HP: $currentHp / ${action.maxHp}'),
             const SizedBox(height: 8),
-            Text('Attack Speed: ${monster.stats.attackSpeed}s'),
-            Text('Max Hit: ${monster.stats.maxHit}'),
-            Text('GP Drop: ${monster.minGpDrop}-${monster.maxGpDrop}'),
+            Text('Attack Speed: ${action.stats.attackSpeed}s'),
+            Text('Max Hit: ${action.stats.maxHit}'),
+            Text('GP Drop: ${action.minGpDrop}-${action.maxGpDrop}'),
             if (isRespawning)
               const Padding(
                 padding: EdgeInsets.only(top: 8),

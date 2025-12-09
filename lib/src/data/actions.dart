@@ -2,6 +2,7 @@ import 'dart:math';
 
 import 'package:better_idle/src/state.dart';
 import 'package:better_idle/src/types/drop.dart';
+import 'package:collection/collection.dart';
 import 'package:meta/meta.dart';
 
 /// Gem drop table for mining - 1% chance to trigger, then weighted selection.
@@ -36,10 +37,23 @@ enum Skill {
 
 enum RockType { essence, ore }
 
-class Action {
-  const Action({
-    required this.skill,
-    required this.name,
+/// Base class for all actions that can occupy the "active" slot.
+/// Subclasses: SkillAction (duration-based with xp/outputs) and CombatAction.
+@immutable
+abstract class Action {
+  const Action({required this.name, required this.skill});
+
+  final String name;
+  final Skill skill;
+}
+
+/// A skill-based action that completes after a duration, granting xp and drops.
+/// This covers woodcutting, firemaking, fishing, smithing, and mining actions.
+@immutable
+class SkillAction extends Action {
+  const SkillAction({
+    required super.skill,
+    required super.name,
     required Duration duration,
     required this.xp,
     required this.unlockLevel,
@@ -48,9 +62,9 @@ class Action {
   }) : minDuration = duration,
        maxDuration = duration;
 
-  const Action.ranged({
-    required this.skill,
-    required this.name,
+  const SkillAction.ranged({
+    required super.skill,
+    required super.name,
     required this.minDuration,
     required this.maxDuration,
     required this.xp,
@@ -59,8 +73,6 @@ class Action {
     this.inputs = const {},
   });
 
-  final Skill skill;
-  final String name;
   final int xp;
   final int unlockLevel;
   final Duration minDuration;
@@ -96,7 +108,7 @@ const miningSwingDuration = Duration(seconds: 3);
 
 /// Mining action with rock HP and respawn mechanics.
 @immutable
-class MiningAction extends Action {
+class MiningAction extends SkillAction {
   MiningAction({
     required super.name,
     required super.unlockLevel,
@@ -125,8 +137,11 @@ class MiningAction extends Action {
   }
 }
 
-final _woodcuttingActions = <Action>[
-  const Action(
+/// Fixed player attack speed in seconds.
+const double playerAttackSpeed = 4;
+
+final _woodcuttingActions = <SkillAction>[
+  const SkillAction(
     skill: Skill.woodcutting,
     name: 'Normal Tree',
     unlockLevel: 1,
@@ -134,7 +149,7 @@ final _woodcuttingActions = <Action>[
     xp: 10,
     outputs: {'Normal Logs': 1},
   ),
-  const Action(
+  const SkillAction(
     skill: Skill.woodcutting,
     name: 'Oak Tree',
     unlockLevel: 10,
@@ -142,7 +157,7 @@ final _woodcuttingActions = <Action>[
     xp: 15,
     outputs: {'Oak Logs': 1},
   ),
-  const Action(
+  const SkillAction(
     skill: Skill.woodcutting,
     name: 'Willow Tree',
     unlockLevel: 20,
@@ -150,7 +165,7 @@ final _woodcuttingActions = <Action>[
     xp: 22,
     outputs: {'Willow Logs': 1},
   ),
-  const Action(
+  const SkillAction(
     skill: Skill.woodcutting,
     name: 'Teak Tree',
     unlockLevel: 35,
@@ -160,8 +175,8 @@ final _woodcuttingActions = <Action>[
   ),
 ];
 
-final _firemakingActions = <Action>[
-  const Action(
+final _firemakingActions = <SkillAction>[
+  const SkillAction(
     skill: Skill.firemaking,
     name: 'Burn Normal Logs',
     unlockLevel: 1,
@@ -169,7 +184,7 @@ final _firemakingActions = <Action>[
     xp: 19,
     inputs: {'Normal Logs': 1},
   ),
-  const Action(
+  const SkillAction(
     skill: Skill.firemaking,
     name: 'Burn Oak Logs',
     unlockLevel: 10,
@@ -177,7 +192,7 @@ final _firemakingActions = <Action>[
     xp: 39,
     inputs: {'Oak Logs': 1},
   ),
-  const Action(
+  const SkillAction(
     skill: Skill.firemaking,
     name: 'Burn Willow Logs',
     unlockLevel: 25,
@@ -185,7 +200,7 @@ final _firemakingActions = <Action>[
     xp: 52,
     inputs: {'Willow Logs': 1},
   ),
-  const Action(
+  const SkillAction(
     skill: Skill.firemaking,
     name: 'Burn Teak Logs',
     unlockLevel: 35,
@@ -195,8 +210,8 @@ final _firemakingActions = <Action>[
   ),
 ];
 
-final _fishingActions = <Action>[
-  const Action.ranged(
+final _fishingActions = <SkillAction>[
+  const SkillAction.ranged(
     skill: Skill.fishing,
     name: 'Raw Shrimp',
     unlockLevel: 1,
@@ -242,8 +257,8 @@ final _miningActions = <MiningAction>[
   ),
 ];
 
-final _smithingActions = <Action>[
-  const Action(
+final _smithingActions = <SkillAction>[
+  const SkillAction(
     skill: Skill.smithing,
     name: 'Bronze Bar',
     unlockLevel: 1,
@@ -252,7 +267,7 @@ final _smithingActions = <Action>[
     inputs: {'Copper Ore': 1, 'Tin Ore': 1},
     outputs: {'Bronze Bar': 1},
   ),
-  const Action(
+  const SkillAction(
     skill: Skill.smithing,
     name: 'Iron Bar',
     unlockLevel: 10,
@@ -261,7 +276,7 @@ final _smithingActions = <Action>[
     inputs: {'Iron Ore': 1},
     outputs: {'Iron Bar': 1},
   ),
-  const Action(
+  const SkillAction(
     skill: Skill.smithing,
     name: 'Bronze Dagger',
     unlockLevel: 1,
@@ -272,7 +287,7 @@ final _smithingActions = <Action>[
   ),
 ];
 
-final List<Action> _all = [
+final List<SkillAction> _skillActions = [
   ..._woodcuttingActions,
   ..._firemakingActions,
   ..._fishingActions,
@@ -314,18 +329,24 @@ final _globalDrops = <Droppable>[
 class ActionRegistry {
   ActionRegistry(this._all);
 
-  final List<Action> _all;
+  final List<SkillAction> _all;
 
-  Action byName(String name) {
-    return _all.firstWhere((action) => action.name == name);
+  /// Returns a SkillAction by name.
+  SkillAction byName(String name) {
+    final action = _all.firstWhereOrNull((action) => action.name == name);
+    if (action == null) {
+      throw StateError('Missing action $name');
+    }
+    return action;
   }
 
-  Iterable<Action> forSkill(Skill skill) {
+  /// Returns all skill actions for a given skill.
+  Iterable<SkillAction> forSkill(Skill skill) {
     return _all.where((action) => action.skill == skill);
   }
 }
 
-final actionRegistry = ActionRegistry(_all);
+final actionRegistry = ActionRegistry(_skillActions);
 
 class DropsRegistry {
   DropsRegistry(this._skillDrops, this._globalDrops);
@@ -341,11 +362,12 @@ class DropsRegistry {
   /// Returns all global drops.
   List<Droppable> get global => _globalDrops;
 
-  /// Returns all drops that should be processed when an action completes.
+  /// Returns all drops that should be processed when a skill action completes.
   /// This combines action-level drops (from the action), skill-level drops,
   /// and global drops into a single list. Includes both simple Drops and
   /// DropTables, which are processed uniformly via Droppable.roll().
-  List<Droppable> allDropsForAction(Action action) {
+  /// Note: Only SkillActions have rewards - CombatActions handle drops differently.
+  List<Droppable> allDropsForAction(SkillAction action) {
     return [
       ...action.rewards, // Action-level drops
       ...forSkill(action.skill), // Skill-level drops (may include DropTables)

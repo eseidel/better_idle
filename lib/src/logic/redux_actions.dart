@@ -56,8 +56,8 @@ class ToggleActionAction extends ReduxAction<GlobalState> {
     if (state.activeAction?.name == action.name) {
       return state.clearAction();
     }
-    // Otherwise, start this action, stopping combat and any other active action.
-    return state.clearCombat().startAction(action);
+    // Otherwise, start this action (stops any other active action).
+    return state.startAction(action);
   }
 }
 
@@ -136,26 +136,26 @@ class PurchaseBankSlotAction extends ReduxAction<GlobalState> {
   }
 }
 
-/// Starts combat with a monster.
+/// Starts combat with a monster using the action system.
 class StartCombatAction extends ReduxAction<GlobalState> {
-  StartCombatAction({required this.monster});
-  final Monster monster;
+  StartCombatAction({required this.combatAction});
+  final CombatAction combatAction;
 
   @override
   GlobalState reduce() {
     // If already in combat with this monster, do nothing
-    if (state.combat?.monsterName == monster.name) {
+    if (state.activeAction?.name == combatAction.name) {
       return state;
     }
-    // Stop any active action and start combat
-    return state.clearAction().copyWith(combat: CombatState.start(monster));
+    // Start the combat action (this stops any other active action)
+    return state.startAction(combatAction);
   }
 }
 
-/// Stops combat and clears combat state.
+/// Stops combat by clearing the active action.
 class StopCombatAction extends ReduxAction<GlobalState> {
   @override
   GlobalState reduce() {
-    return state.clearCombat();
+    return state.clearAction();
   }
 }
