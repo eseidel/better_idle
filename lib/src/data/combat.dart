@@ -64,12 +64,7 @@ const combatActions = <CombatAction>[
     name: 'Plant',
     combatLevel: 1,
     maxHp: 20,
-    stats: Stats(
-      minHit: 0,
-      maxHit: 11,
-      damageReduction: 0,
-      attackSpeed: 2.4,
-    ),
+    stats: Stats(minHit: 0, maxHit: 11, damageReduction: 0, attackSpeed: 2.4),
     minGpDrop: 1,
     maxGpDrop: 5,
   ),

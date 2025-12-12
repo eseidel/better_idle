@@ -323,12 +323,7 @@ const int initialBankSlots = 20;
 
 /// Fixed player stats for now.
 Stats playerStats(GlobalState state) {
-  return const Stats(
-    minHit: 1,
-    maxHit: 23,
-    damageReduction: 0,
-    attackSpeed: 4,
-  );
+  return const Stats(minHit: 1, maxHit: 23, damageReduction: 0, attackSpeed: 4);
 }
 
 /// Maximum player HP.

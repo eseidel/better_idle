@@ -517,8 +517,9 @@ void consumeCombatTicks(
     // Find next event (player attack or monster attack)
     final playerTicks = currentCombat.playerAttackTicksRemaining;
     final monsterTicks = currentCombat.monsterAttackTicksRemaining;
-    final nextEventTicks =
-        playerTicks < monsterTicks ? playerTicks : monsterTicks;
+    final nextEventTicks = playerTicks < monsterTicks
+        ? playerTicks
+        : monsterTicks;
 
     if (remainingTicks < nextEventTicks) {
       // Not enough ticks for any attack, just update timers
