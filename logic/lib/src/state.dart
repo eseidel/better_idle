@@ -5,6 +5,7 @@ import 'package:logic/src/data/actions.dart';
 import 'package:logic/src/data/combat.dart';
 import 'package:logic/src/data/items.dart';
 import 'package:logic/src/tick.dart';
+import 'package:logic/src/types/equipment.dart';
 import 'package:logic/src/types/inventory.dart';
 import 'package:logic/src/types/time_away.dart';
 import 'package:meta/meta.dart';
@@ -131,6 +132,7 @@ class GlobalState {
     required this.gp,
     required this.shop,
     required this.playerHp,
+    required this.equipment,
     this.timeAway,
   });
 
@@ -163,7 +165,10 @@ class GlobalState {
       shop = json['shop'] != null
           ? ShopState.fromJson(json['shop'] as Map<String, dynamic>)
           : const ShopState.empty(),
-      playerHp = json['playerHp'] as int? ?? maxPlayerHp;
+      playerHp = json['playerHp'] as int? ?? maxPlayerHp,
+      equipment = json['equipment'] != null
+          ? Equipment.fromJson(json['equipment'] as Map<String, dynamic>)
+          : const Equipment.empty();
 
   GlobalState.empty()
     : this(
@@ -176,6 +181,7 @@ class GlobalState {
         timeAway: null,
         shop: const ShopState.empty(),
         playerHp: maxPlayerHp,
+        equipment: const Equipment.empty(),
       );
 
   @visibleForTesting
@@ -189,6 +195,7 @@ class GlobalState {
     TimeAway? timeAway,
     ShopState shop = const ShopState.empty(),
     int playerHp = maxPlayerHp,
+    Equipment equipment = const Equipment.empty(),
   }) {
     return GlobalState(
       inventory: inventory,
@@ -200,6 +207,7 @@ class GlobalState {
       timeAway: timeAway,
       shop: shop,
       playerHp: playerHp,
+      equipment: equipment,
     );
   }
 
@@ -228,6 +236,7 @@ class GlobalState {
       'timeAway': timeAway?.toJson(),
       'shop': shop.toJson(),
       'playerHp': playerHp,
+      'equipment': equipment.toJson(),
     };
   }
 
@@ -259,6 +268,9 @@ class GlobalState {
 
   /// The current player HP.
   final int playerHp;
+
+  /// The player's equipped items.
+  final Equipment equipment;
 
   int get inventoryCapacity => shop.bankSlots + initialBankSlots;
 
@@ -390,6 +402,7 @@ class GlobalState {
       updatedAt: DateTime.timestamp(),
       gp: gp,
       playerHp: playerHp,
+      equipment: equipment,
     );
   }
 
@@ -404,6 +417,7 @@ class GlobalState {
       gp: gp,
       shop: shop,
       playerHp: playerHp,
+      equipment: equipment,
     );
   }
 
@@ -469,6 +483,44 @@ class GlobalState {
     return copyWith(inventory: newInventory, gp: gp + stack.sellsFor);
   }
 
+  /// Equips food from the inventory to an equipment slot.
+  /// Removes the item from inventory and adds it to equipment.
+  GlobalState equipFood(ItemStack stack) {
+    if (!equipment.canEquipFood(stack.item)) {
+      throw StateError('Cannot equip food: ${stack.item.name}');
+    }
+    final newInventory = inventory.removing(stack);
+    final newEquipment = equipment.equipFood(stack);
+    return copyWith(inventory: newInventory, equipment: newEquipment);
+  }
+
+  /// Eats the currently selected food, healing the player.
+  /// Returns null if no food is selected or player is at full health.
+  GlobalState? eatSelectedFood() {
+    final food = equipment.selectedFood;
+    if (food == null) return null;
+
+    final healAmount = food.item.healsFor;
+    if (healAmount == null) return null;
+
+    // Don't eat if already at full health
+    if (playerHp >= maxPlayerHp) return null;
+
+    final newEquipment = equipment.consumeSelectedFood();
+    if (newEquipment == null) return null;
+
+    final newHp = (playerHp + healAmount).clamp(0, maxPlayerHp);
+    return copyWith(equipment: newEquipment, playerHp: newHp);
+  }
+
+  /// Selects a food equipment slot.
+  GlobalState selectFoodSlot(int slotIndex) {
+    if (slotIndex < 0 || slotIndex >= foodSlotCount) {
+      throw ArgumentError('Invalid food slot index: $slotIndex');
+    }
+    return copyWith(equipment: equipment.copyWith(selectedFoodSlot: slotIndex));
+  }
+
   GlobalState copyWith({
     Inventory? inventory,
     ActiveAction? activeAction,
@@ -478,6 +530,7 @@ class GlobalState {
     TimeAway? timeAway,
     ShopState? shop,
     int? playerHp,
+    Equipment? equipment,
   }) {
     return GlobalState(
       inventory: inventory ?? this.inventory,
@@ -489,6 +542,7 @@ class GlobalState {
       timeAway: timeAway ?? this.timeAway,
       shop: shop ?? this.shop,
       playerHp: playerHp ?? this.playerHp,
+      equipment: equipment ?? this.equipment,
     );
   }
 }

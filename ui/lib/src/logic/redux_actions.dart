@@ -155,3 +155,34 @@ class StopCombatAction extends ReduxAction<GlobalState> {
     return state.clearAction();
   }
 }
+
+/// Equips food from inventory to an equipment slot.
+class EquipFoodAction extends ReduxAction<GlobalState> {
+  EquipFoodAction({required this.item, required this.count});
+  final Item item;
+  final int count;
+
+  @override
+  GlobalState reduce() {
+    return state.equipFood(ItemStack(item, count: count));
+  }
+}
+
+/// Eats the currently selected food to heal.
+class EatFoodAction extends ReduxAction<GlobalState> {
+  @override
+  GlobalState? reduce() {
+    return state.eatSelectedFood();
+  }
+}
+
+/// Selects a food equipment slot.
+class SelectFoodSlotAction extends ReduxAction<GlobalState> {
+  SelectFoodSlotAction({required this.slotIndex});
+  final int slotIndex;
+
+  @override
+  GlobalState reduce() {
+    return state.selectFoodSlot(slotIndex);
+  }
+}

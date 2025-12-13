@@ -27,8 +27,11 @@ class CombatPage extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            // Player stats card
-            _PlayerStatsCard(playerHp: state.playerHp),
+            // Player stats card with food
+            _PlayerStatsCard(
+              playerHp: state.playerHp,
+              equipment: state.equipment,
+            ),
             const SizedBox(height: 16),
 
             // Monster card
@@ -66,12 +69,16 @@ class CombatPage extends StatelessWidget {
 }
 
 class _PlayerStatsCard extends StatelessWidget {
-  const _PlayerStatsCard({required this.playerHp});
+  const _PlayerStatsCard({required this.playerHp, required this.equipment});
 
   final int playerHp;
+  final Equipment equipment;
 
   @override
   Widget build(BuildContext context) {
+    final selectedFood = equipment.selectedFood;
+    final canEat = selectedFood != null && playerHp < maxPlayerHp;
+
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(16),
@@ -89,9 +96,99 @@ class _PlayerStatsCard extends StatelessWidget {
               color: Colors.green,
             ),
             Text('HP: $playerHp / $maxPlayerHp'),
+            const SizedBox(height: 16),
+            // Food slots section
+            const Text(
+              'Food',
+              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 8),
+            _FoodSlotsRow(equipment: equipment),
+            const SizedBox(height: 8),
+            // Eat button
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton.icon(
+                onPressed: canEat
+                    ? () => context.dispatch(EatFoodAction())
+                    : null,
+                icon: const Icon(Icons.restaurant),
+                label: Text(
+                  selectedFood != null
+                      ? 'Eat ${selectedFood.item.name} '
+                            '(+${selectedFood.item.healsFor} HP)'
+                      : 'No food selected',
+                ),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.green,
+                  foregroundColor: Colors.white,
+                  disabledBackgroundColor: Colors.grey[300],
+                ),
+              ),
+            ),
           ],
         ),
       ),
+    );
+  }
+}
+
+class _FoodSlotsRow extends StatelessWidget {
+  const _FoodSlotsRow({required this.equipment});
+
+  final Equipment equipment;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+      children: List.generate(foodSlotCount, (index) {
+        final stack = equipment.foodSlots[index];
+        final isSelected = equipment.selectedFoodSlot == index;
+
+        return GestureDetector(
+          onTap: () => context.dispatch(SelectFoodSlotAction(slotIndex: index)),
+          child: Container(
+            width: 70,
+            height: 70,
+            decoration: BoxDecoration(
+              color: stack != null ? Colors.green[100] : Colors.grey[200],
+              border: Border.all(
+                color: isSelected ? Colors.blue : Colors.grey,
+                width: isSelected ? 3 : 1,
+              ),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: stack != null
+                ? Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Text(
+                        stack.item.name,
+                        style: const TextStyle(fontSize: 10),
+                        textAlign: TextAlign.center,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        approximateCountString(stack.count),
+                        style: const TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ],
+                  )
+                : const Center(
+                    child: Text(
+                      'Empty',
+                      style: TextStyle(fontSize: 10, color: Colors.grey),
+                    ),
+                  ),
+          ),
+        );
+      }),
     );
   }
 }

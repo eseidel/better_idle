@@ -1174,8 +1174,7 @@ void main() {
       expect(
         miningState.totalHpLost,
         1,
-        reason:
-            'Should have 1 HP lost: heal reduced to 0, then hit added 1',
+        reason: 'Should have 1 HP lost: heal reduced to 0, then hit added 1',
       );
 
       // Verify action is still running

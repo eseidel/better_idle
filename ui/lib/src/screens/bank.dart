@@ -253,7 +253,7 @@ class _ItemDetailsDrawerState extends State<ItemDetailsDrawer> {
 
     return Drawer(
       child: SafeArea(
-        child: Padding(
+        child: SingleChildScrollView(
           padding: const EdgeInsets.all(16),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -337,10 +337,127 @@ class _ItemDetailsDrawerState extends State<ItemDetailsDrawer> {
                   context,
                 ).textTheme.bodyLarge?.copyWith(fontWeight: FontWeight.bold),
               ),
+              // Show Equip button for consumable items
+              if (itemData.isConsumable) ...[
+                const SizedBox(height: 32),
+                const Divider(),
+                const SizedBox(height: 16),
+                _EquipFoodSection(item: itemData, maxCount: maxCount),
+              ],
             ],
           ),
         ),
       ),
+    );
+  }
+}
+
+class _EquipFoodSection extends StatefulWidget {
+  const _EquipFoodSection({required this.item, required this.maxCount});
+
+  final Item item;
+  final int maxCount;
+
+  @override
+  State<_EquipFoodSection> createState() => _EquipFoodSectionState();
+}
+
+class _EquipFoodSectionState extends State<_EquipFoodSection> {
+  double _equipCount = 1;
+
+  @override
+  void initState() {
+    super.initState();
+    _equipCount = widget.maxCount.toDouble();
+  }
+
+  @override
+  void didUpdateWidget(_EquipFoodSection oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.maxCount != widget.maxCount) {
+      if (_equipCount > widget.maxCount) {
+        setState(() {
+          _equipCount = widget.maxCount > 0 ? widget.maxCount.toDouble() : 1;
+        });
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final equipment = context.state.equipment;
+    final canEquip = equipment.canEquipFood(widget.item);
+    final equipCountInt = _equipCount.round().clamp(1, widget.maxCount);
+
+    // Check if item is already equipped
+    final existingSlot = equipment.foodSlotWithItem(widget.item);
+    final existingCount = existingSlot >= 0
+        ? equipment.foodSlots[existingSlot]?.count ?? 0
+        : 0;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text('Equip Food', style: Theme.of(context).textTheme.titleMedium),
+        const SizedBox(height: 8),
+        if (widget.item.healsFor != null)
+          Text(
+            'Heals ${widget.item.healsFor} HP',
+            style: TextStyle(color: Colors.green[700]),
+          ),
+        if (existingCount > 0)
+          Text(
+            'Currently equipped: $existingCount',
+            style: TextStyle(color: Colors.blue[700]),
+          ),
+        const SizedBox(height: 16),
+        Text(
+          'Quantity: ${approximateCountString(equipCountInt)}',
+          style: Theme.of(context).textTheme.bodyMedium,
+        ),
+        const SizedBox(height: 8),
+        Slider(
+          value: _equipCount.clamp(1, widget.maxCount.toDouble()),
+          min: 1,
+          max: widget.maxCount > 0 ? widget.maxCount.toDouble() : 1.0,
+          divisions: widget.maxCount > 1 ? widget.maxCount - 1 : null,
+          label: preciseNumberString(equipCountInt),
+          onChanged: widget.maxCount > 0
+              ? (value) {
+                  setState(() {
+                    _equipCount = value;
+                  });
+                }
+              : null,
+        ),
+        const SizedBox(height: 16),
+        SizedBox(
+          width: double.infinity,
+          child: ElevatedButton(
+            onPressed: canEquip && equipCountInt > 0
+                ? () {
+                    context.dispatch(
+                      EquipFoodAction(item: widget.item, count: equipCountInt),
+                    );
+                    Navigator.of(context).pop();
+                  }
+                : null,
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.green,
+              foregroundColor: Colors.white,
+            ),
+            child: Text(existingSlot >= 0 ? 'Add to Equipped' : 'Equip'),
+          ),
+        ),
+        if (!canEquip)
+          Padding(
+            padding: const EdgeInsets.only(top: 8),
+            child: Text(
+              'All food slots are full',
+              style: TextStyle(color: Colors.red[700], fontSize: 12),
+            ),
+          ),
+      ],
     );
   }
 }
