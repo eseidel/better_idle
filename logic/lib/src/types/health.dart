@@ -1,56 +1,78 @@
+import 'package:logic/src/tick.dart';
 import 'package:meta/meta.dart';
 
-/// Maximum player HP.
-const int maxPlayerHp = 100;
+/// Ticks required to regenerate HP (10 seconds = 100 ticks).
+final int hpRegenTickInterval = ticksFromDuration(const Duration(seconds: 10));
 
 /// Represents the player's health state.
+/// Note: HealthState doesn't know the player's max HP (which depends on
+/// Hitpoints skill level). Use GlobalState.playerHp and GlobalState.maxPlayerHp
+/// to get the actual current and max HP values.
 @immutable
 class HealthState {
-  const HealthState({required this.lostHp});
+  const HealthState({required this.lostHp, this.hpRegenTicksRemaining = 0});
 
-  const HealthState.full() : lostHp = 0;
+  const HealthState.full() : lostHp = 0, hpRegenTicksRemaining = 0;
 
   factory HealthState.fromJson(Map<String, dynamic> json) {
     // Support reading old 'playerHp' format for backwards compatibility
     if (json.containsKey('lostHp')) {
-      return HealthState(lostHp: json['lostHp'] as int);
+      return HealthState(
+        lostHp: json['lostHp'] as int,
+        hpRegenTicksRemaining: json['hpRegenTicksRemaining'] as int? ?? 0,
+      );
     }
     // Legacy format: convert playerHp to lostHp
-    final playerHp = json['playerHp'] as int? ?? maxPlayerHp;
-    return HealthState(lostHp: maxPlayerHp - playerHp);
+    const int basePlayerHp = 100;
+    final playerHp = json['playerHp'] as int? ?? 100;
+    return HealthState(lostHp: basePlayerHp - playerHp);
   }
 
   /// How much HP the player has lost (0 means full health).
   final int lostHp;
 
-  /// Current HP of the player (derived from lostHp).
-  int get currentHp => (maxPlayerHp - lostHp).clamp(0, maxPlayerHp);
+  /// Ticks remaining until next HP regen tick (0 means not actively regenerating).
+  final int hpRegenTicksRemaining;
 
   /// Whether the player is at full health.
   bool get isFullHealth => lostHp <= 0;
 
-  /// Whether the player is dead.
-  bool get isDead => currentHp <= 0;
+  /// Whether HP regen is active.
+  bool get isRegenerating => hpRegenTicksRemaining > 0;
 
   /// Returns a new HealthState with HP reduced by the given amount.
+  /// Starts the regen timer if not already running.
   HealthState takeDamage(int damage) {
-    return HealthState(lostHp: lostHp + damage);
+    final newLostHp = lostHp + damage;
+    // Start regen timer if we're now injured and timer isn't running
+    final newRegenTicks = (newLostHp > 0 && hpRegenTicksRemaining == 0)
+        ? hpRegenTickInterval
+        : hpRegenTicksRemaining;
+    return HealthState(lostHp: newLostHp, hpRegenTicksRemaining: newRegenTicks);
   }
 
   /// Returns a new HealthState with HP healed by the given amount.
-  /// Won't heal beyond max HP (lostHp won't go below 0).
+  /// Won't heal beyond full HP (lostHp won't go below 0).
+  /// Stops regen timer if fully healed.
   HealthState heal(int amount) {
-    return HealthState(lostHp: (lostHp - amount).clamp(0, maxPlayerHp));
+    final newLostHp = (lostHp - amount).clamp(0, lostHp);
+    // Stop regen timer if fully healed
+    final newRegenTicks = newLostHp <= 0 ? 0 : hpRegenTicksRemaining;
+    return HealthState(lostHp: newLostHp, hpRegenTicksRemaining: newRegenTicks);
   }
 
   /// Resets to full health.
   HealthState reset() => const HealthState.full();
 
-  HealthState copyWith({int? lostHp}) {
-    return HealthState(lostHp: lostHp ?? this.lostHp);
+  HealthState copyWith({int? lostHp, int? hpRegenTicksRemaining}) {
+    return HealthState(
+      lostHp: lostHp ?? this.lostHp,
+      hpRegenTicksRemaining:
+          hpRegenTicksRemaining ?? this.hpRegenTicksRemaining,
+    );
   }
 
   Map<String, dynamic> toJson() {
-    return {'lostHp': lostHp};
+    return {'lostHp': lostHp, 'hpRegenTicksRemaining': hpRegenTicksRemaining};
   }
 }
