@@ -15,17 +15,10 @@ class HealthState {
   const HealthState.full() : lostHp = 0, hpRegenTicksRemaining = 0;
 
   factory HealthState.fromJson(Map<String, dynamic> json) {
-    // Support reading old 'playerHp' format for backwards compatibility
-    if (json.containsKey('lostHp')) {
-      return HealthState(
-        lostHp: json['lostHp'] as int,
-        hpRegenTicksRemaining: json['hpRegenTicksRemaining'] as int? ?? 0,
-      );
-    }
-    // Legacy format: convert playerHp to lostHp
-    const int basePlayerHp = 100;
-    final playerHp = json['playerHp'] as int? ?? 100;
-    return HealthState(lostHp: basePlayerHp - playerHp);
+    return HealthState(
+      lostHp: json['lostHp'] as int? ?? 0,
+      hpRegenTicksRemaining: json['hpRegenTicksRemaining'] as int? ?? 0,
+    );
   }
 
   /// How much HP the player has lost (0 means full health).
