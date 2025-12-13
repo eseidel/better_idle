@@ -109,8 +109,7 @@ class SkillAction extends Action {
   final Map<String, int> inputs;
   final Map<String, int> outputs;
 
-  final List<Droppable> Function(SkillAction action, int masteryLevel)
-  rewardsAtLevel;
+  final List<Droppable> Function(SkillAction, int masteryLevel) rewardsAtLevel;
 
   bool get isFixedDuration => minDuration == maxDuration;
 
