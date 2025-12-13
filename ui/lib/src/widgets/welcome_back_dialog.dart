@@ -1,5 +1,4 @@
 import 'package:better_idle/src/widgets/skills.dart';
-import 'package:better_idle/src/widgets/strings.dart';
 import 'package:flutter/material.dart';
 import 'package:logic/logic.dart';
 

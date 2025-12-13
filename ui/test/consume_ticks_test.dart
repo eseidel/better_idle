@@ -1127,5 +1127,60 @@ void main() {
         reason: 'Copper should have healed during combat',
       );
     });
+
+    test('mining hit and heal happen in predictable order', () {
+      // Set up a scenario where heal completes in same tick batch as mining
+      // hit. Copper: 3 second action (30 ticks). HP regen: 10 seconds (100
+      // ticks) per HP.
+      //
+      // Start with node at 1 HP lost, and 30 ticks until heal.
+      // After 30 ticks: mining completes (hit), heal also completes.
+      // With parallel architecture: background heal runs first (each
+      // iteration), then foreground hit runs.
+      // Expected result: heal first (1 HP -> 0 HP lost), then hit (0 HP -> 1 HP
+      // lost).
+      // Net result: still 1 HP lost after 30 ticks.
+
+      var state = GlobalState.test(
+        actionStates: const {
+          'Copper': ActionState(
+            masteryXp: 0,
+            mining: MiningState(
+              totalHpLost: 1,
+              hpRegenTicksRemaining: 30, // Heal completes at tick 30
+            ),
+          ),
+        },
+      );
+
+      // Start mining copper
+      state = state.startAction(copper);
+
+      // Process exactly 30 ticks (mining completes + heal completes)
+      final builder = StateUpdateBuilder(state);
+      consumeTicksForAllSystems(builder, 30);
+      state = builder.build();
+
+      // Verify we got copper ore (mining completed)
+      expect(state.inventory.countOfItem(copperOre), 1);
+
+      // Verify HP state. With parallel architecture:
+      // - Background healing runs each foreground iteration
+      // - Heal completes at tick 30, reducing 1 HP lost to 0
+      // - Mining hit then adds 1 HP lost
+      // Net effect: still 1 HP lost
+      final miningState =
+          state.actionState(copper.name).mining ?? const MiningState.empty();
+      expect(
+        miningState.totalHpLost,
+        1,
+        reason:
+            'Should have 1 HP lost: heal reduced to 0, then hit added 1',
+      );
+
+      // Verify action is still running
+      expect(state.activeAction, isNotNull);
+      expect(state.activeAction!.name, copper.name);
+    });
   });
 }

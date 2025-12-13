@@ -1,6 +1,5 @@
 import 'package:better_idle/src/logic/redux_actions.dart';
 import 'package:better_idle/src/widgets/navigation_drawer.dart';
-import 'package:better_idle/src/widgets/strings.dart';
 import 'package:flutter/material.dart';
 import 'package:logic/logic.dart';
 

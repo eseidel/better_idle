@@ -1,7 +1,6 @@
 import 'dart:async';
 
 import 'package:better_idle/src/services/toast_service.dart';
-import 'package:better_idle/src/widgets/strings.dart';
 import 'package:flutter/material.dart';
 import 'package:logic/logic.dart';
 
