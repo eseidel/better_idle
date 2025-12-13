@@ -21,6 +21,11 @@ class ActiveAction {
     required this.totalTicks,
   });
 
+  static ActiveAction? maybeFromJson(dynamic json) {
+    if (json == null) return null;
+    return ActiveAction.fromJson(json as Map<String, dynamic>);
+  }
+
   factory ActiveAction.fromJson(Map<String, dynamic> json) {
     return ActiveAction(
       name: json['name'] as String,
@@ -87,6 +92,11 @@ class ShopState {
 
   const ShopState.empty() : this(bankSlots: 0);
 
+  static ShopState? maybeFromJson(dynamic json) {
+    if (json == null) return null;
+    return ShopState.fromJson(json as Map<String, dynamic>);
+  }
+
   factory ShopState.fromJson(Map<String, dynamic> json) {
     return ShopState(bankSlots: json['bankSlots'] as int);
   }
@@ -120,6 +130,19 @@ Stats playerStats(GlobalState state) {
   return const Stats(minHit: 1, maxHit: 23, damageReduction: 0, attackSpeed: 4);
 }
 
+Map<K, V>? maybeMap<K, V>(
+  dynamic json, { // Assumes Map<String, dynamic> for simplicity.
+  K Function(String)? toKey,
+  V Function(dynamic)? toValue,
+}) {
+  if (json == null) return null;
+  final keyFromJson = toKey ?? (String key) => key as K;
+  final valueFromJson = toValue ?? (dynamic value) => value as V;
+  return (json as Map<String, dynamic>?)?.map(
+    (key, value) => MapEntry(keyFromJson(key), valueFromJson(value)),
+  );
+}
+
 /// Primary state object serialized to disk and used in memory.
 @immutable
 class GlobalState {
@@ -139,45 +162,36 @@ class GlobalState {
   GlobalState.fromJson(Map<String, dynamic> json)
     : updatedAt = DateTime.parse(json['updatedAt'] as String),
       inventory = Inventory.fromJson(json['inventory'] as Map<String, dynamic>),
-      activeAction = json['activeAction'] != null
-          ? ActiveAction.fromJson(json['activeAction'] as Map<String, dynamic>)
-          : null,
+      activeAction = ActiveAction.maybeFromJson(json['activeAction']),
       skillStates =
-          (json['skillStates'] as Map<String, dynamic>?)?.map(
-            (key, value) => MapEntry(
-              Skill.fromName(key),
-              SkillState.fromJson(value as Map<String, dynamic>),
-            ),
+          maybeMap(
+            json['skillStates'],
+            toKey: Skill.fromName,
+            toValue: (value) => SkillState.fromJson(value),
           ) ??
-          {},
+          const {},
       actionStates =
-          (json['actionStates'] as Map<String, dynamic>?)?.map(
-            (key, value) => MapEntry(
-              key,
-              ActionState.fromJson(value as Map<String, dynamic>),
-            ),
+          maybeMap(
+            json['actionStates'],
+            toValue: (value) => ActionState.fromJson(value),
           ) ??
-          {},
+          const {},
       gp = json['gp'] as int? ?? 0,
-      timeAway = json['timeAway'] != null
-          ? TimeAway.fromJson(json['timeAway'] as Map<String, dynamic>)
-          : null,
-      shop = json['shop'] != null
-          ? ShopState.fromJson(json['shop'] as Map<String, dynamic>)
-          : const ShopState.empty(),
-      health = json['health'] != null
-          ? HealthState.fromJson(json['health'] as Map<String, dynamic>)
-          : HealthState.fromJson(json),
-      equipment = json['equipment'] != null
-          ? Equipment.fromJson(json['equipment'] as Map<String, dynamic>)
-          : const Equipment.empty();
+      timeAway = TimeAway.maybeFromJson(json['timeAway']),
+      shop = ShopState.maybeFromJson(json['shop']) ?? const ShopState.empty(),
+      health =
+          HealthState.maybeFromJson(json['health']) ?? const HealthState.full(),
+      equipment =
+          Equipment.maybeFromJson(json['equipment']) ?? const Equipment.empty();
 
   GlobalState.empty()
     : this(
         inventory: const Inventory.empty(),
         activeAction: null,
         // Start with level 10 Hitpoints (1154 XP) for 100 HP
-        skillStates: const {Skill.hitpoints: SkillState(xp: 1154, masteryXp: 0)},
+        skillStates: const {
+          Skill.hitpoints: SkillState(xp: 1154, masteryXp: 0),
+        },
         actionStates: {},
         updatedAt: DateTime.timestamp(),
         gp: 0,

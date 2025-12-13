@@ -14,6 +14,11 @@ class HealthState {
 
   const HealthState.full() : lostHp = 0, hpRegenTicksRemaining = 0;
 
+  static HealthState? maybeFromJson(dynamic json) {
+    if (json == null) return null;
+    return HealthState.fromJson(json as Map<String, dynamic>);
+  }
+
   factory HealthState.fromJson(Map<String, dynamic> json) {
     return HealthState(
       lostHp: json['lostHp'] as int? ?? 0,

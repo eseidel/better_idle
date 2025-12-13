@@ -26,9 +26,9 @@ use it.
 - Fix Firemaking to put log selection behind a pop-up.
 - Fix Fishing to have separate regions.
 - Fix Smithing to separate action groups.
-- Add Cooking
 - Add Equipment
-- Add Combat
 - Add Farming
 - Add Thieving
 - Fix combat to show attack timers/progress bars.
+- Woodcutting mastery 99 benefit.
+

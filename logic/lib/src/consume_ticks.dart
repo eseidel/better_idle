@@ -53,13 +53,6 @@ int masteryXpPerAction(GlobalState state, SkillAction action) {
   );
 }
 
-/// Gets the current HP of a mining node.
-int getCurrentHp(MiningAction action, MiningState miningState, int masteryXp) {
-  final masteryLevel = levelForXp(masteryXp);
-  final maxHp = action.maxHpForMasteryLevel(masteryLevel);
-  return max(0, maxHp - miningState.totalHpLost);
-}
-
 /// Result of applying ticks to mining state.
 typedef MiningTickResult = ({MiningState state, Tick ticksConsumed});
 
@@ -348,6 +341,10 @@ class StateUpdateBuilder {
     );
   }
 
+  int currentMasteryLevel(Action action) {
+    return levelForXp(_state.actionState(action.name).masteryXp);
+  }
+
   void restartCurrentAction(Action action, {Random? random}) {
     // This shouldn't be able to start a *new* action, only restart the current.
     _state = _state.startAction(action, random: random ?? Random());
@@ -504,9 +501,13 @@ bool completeAction(
     builder.removeInventory(ItemStack(item, count: requirement.value));
   }
 
+  final masteryLevel = builder.currentMasteryLevel(action);
   // Process all drops (action-level, skill-level, and global)
   // This handles both simple Drops and DropTables via polymorphism.
-  for (final drop in dropsRegistry.allDropsForAction(action)) {
+  for (final drop in dropsRegistry.allDropsForAction(
+    action,
+    masteryLevel: masteryLevel,
+  )) {
     final itemStack = drop.roll(rng);
     if (itemStack != null) {
       final success = builder.addInventory(itemStack);
@@ -531,11 +532,7 @@ bool completeAction(
     // Increment damage
     final newTotalHpLost = miningState.totalHpLost + 1;
     final newMiningState = miningState.copyWith(totalHpLost: newTotalHpLost);
-    final currentHp = getCurrentHp(
-      action,
-      newMiningState,
-      actionState.masteryXp,
-    );
+    final currentHp = newMiningState.currentHp(action, actionState.masteryXp);
 
     // Check if depleted
     if (currentHp <= 0) {
@@ -829,7 +826,9 @@ void consumeAllTicks(StateUpdateBuilder builder, Tick ticks, {Random? random}) {
     // If no foreground action, no mining background actions, and player is
     // fully healed, we're done
     final hasPlayerHpRegen = !builder.state.health.isFullHealth;
-    if (activeAction == null && backgroundActions.isEmpty && !hasPlayerHpRegen) {
+    if (activeAction == null &&
+        backgroundActions.isEmpty &&
+        !hasPlayerHpRegen) {
       break;
     }
 
