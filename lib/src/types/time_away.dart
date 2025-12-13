@@ -46,13 +46,14 @@ class TimeAway {
 
   factory TimeAway.fromJson(Map<String, dynamic> json) {
     final actionName = json['activeAction'] as String?;
-    // Combat actions can't be reconstructed from just a name (need monster).
-    // Since action is only used for predictions (which return empty for
-    // combat),
-    // we just skip it for combat.
-    Action? action;
-    if (actionName != null && actionName != 'Combat') {
-      action = actionRegistry.byName(actionName);
+    // Only reconstruct SkillActions - CombatActions are only used for
+    // predictions which return empty for combat anyway.
+    SkillAction? action;
+    if (actionName != null) {
+      final lookedUp = actionRegistry.byName(actionName);
+      if (lookedUp is SkillAction) {
+        action = lookedUp;
+      }
     }
     return TimeAway(
       startTime: DateTime.fromMillisecondsSinceEpoch(json['startTime'] as int),
