@@ -139,6 +139,61 @@ MiningState applyMiningTicks(MiningState miningState, Tick ticksElapsed) {
 }
 
 // ============================================================================
+// Player HP Regeneration
+// ============================================================================
+
+/// Result of applying HP regen ticks to player health.
+typedef PlayerHpRegenResult = ({HealthState state, Tick ticksConsumed});
+
+/// Applies HP regeneration ticks to player health.
+/// Heals 1% of max HP every 10 seconds while injured.
+PlayerHpRegenResult _applyPlayerHpRegenTicks(
+  HealthState health,
+  int maxPlayerHp,
+  Tick ticksAvailable,
+) {
+  if (health.isFullHealth) {
+    return (state: health, ticksConsumed: 0);
+  }
+
+  var lostHp = health.lostHp;
+  var ticksUntilNextHeal = health.hpRegenTicksRemaining;
+
+  // If regen timer not started, start it
+  if (ticksUntilNextHeal == 0 && lostHp > 0) {
+    ticksUntilNextHeal = hpRegenTickInterval;
+  }
+
+  var ticksRemaining = ticksAvailable;
+
+  // Calculate heal amount (1% of max HP, minimum 1)
+  final healPerTick = max(1, (maxPlayerHp * 0.01).round());
+
+  // Apply heals while we have HP to regen and enough ticks
+  while (lostHp > 0 && ticksRemaining >= ticksUntilNextHeal) {
+    ticksRemaining -= ticksUntilNextHeal;
+    lostHp = max(0, lostHp - healPerTick);
+    ticksUntilNextHeal = hpRegenTickInterval;
+  }
+
+  // Apply partial progress toward next heal if we still have HP to regen
+  if (lostHp > 0) {
+    ticksUntilNextHeal -= ticksRemaining;
+    ticksRemaining = 0;
+  } else {
+    ticksUntilNextHeal = 0;
+  }
+
+  return (
+    state: HealthState(
+      lostHp: lostHp,
+      hpRegenTicksRemaining: ticksUntilNextHeal,
+    ),
+    ticksConsumed: ticksAvailable - ticksRemaining,
+  );
+}
+
+// ============================================================================
 // Background Action System
 // ============================================================================
 
@@ -240,6 +295,18 @@ void _applyBackgroundTicks(
   Tick ticks, {
   String? activeActionName,
 }) {
+  // Apply player HP regeneration
+  final health = builder.state.health;
+  if (!health.isFullHealth) {
+    final result = _applyPlayerHpRegenTicks(
+      health,
+      builder.state.maxPlayerHp,
+      ticks,
+    );
+    builder.setHealth(result.state);
+  }
+
+  // Apply mining node background actions
   for (final bg in backgrounds) {
     // Re-read the current mining state from builder to get any updates
     // that the foreground action may have made
@@ -672,8 +739,8 @@ enum ForegroundResult {
     );
   }
 
-  // Check if player died
-  if (health.isDead) {
+  // Check if player died (lostHp >= maxHp means playerHp <= 0)
+  if (builder.state.playerHp <= 0) {
     builder
       ..resetPlayerHealth()
       ..clearAction();
@@ -759,8 +826,10 @@ void consumeAllTicks(StateUpdateBuilder builder, Tick ticks, {Random? random}) {
 
     ticksRemaining -= ticksThisIteration;
 
-    // If no foreground action and no background actions, we're done
-    if (activeAction == null && backgroundActions.isEmpty) {
+    // If no foreground action, no mining background actions, and player is
+    // fully healed, we're done
+    final hasPlayerHpRegen = !builder.state.health.isFullHealth;
+    if (activeAction == null && backgroundActions.isEmpty && !hasPlayerHpRegen) {
       break;
     }
 

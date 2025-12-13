@@ -30,6 +30,7 @@ class CombatPage extends StatelessWidget {
             // Player stats card with food
             _PlayerStatsCard(
               playerHp: state.playerHp,
+              maxPlayerHp: state.maxPlayerHp,
               equipment: state.equipment,
             ),
             const SizedBox(height: 16),
@@ -69,9 +70,14 @@ class CombatPage extends StatelessWidget {
 }
 
 class _PlayerStatsCard extends StatelessWidget {
-  const _PlayerStatsCard({required this.playerHp, required this.equipment});
+  const _PlayerStatsCard({
+    required this.playerHp,
+    required this.maxPlayerHp,
+    required this.equipment,
+  });
 
   final int playerHp;
+  final int maxPlayerHp;
   final Equipment equipment;
 
   @override

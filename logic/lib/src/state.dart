@@ -11,7 +11,7 @@ import 'package:logic/src/types/inventory.dart';
 import 'package:logic/src/types/time_away.dart';
 import 'package:meta/meta.dart';
 
-export 'package:logic/src/types/health.dart' show maxPlayerHp;
+import 'data/xp.dart';
 
 @immutable
 class ActiveAction {
@@ -176,7 +176,8 @@ class GlobalState {
     : this(
         inventory: const Inventory.empty(),
         activeAction: null,
-        skillStates: {},
+        // Start with level 10 Hitpoints (1154 XP) for 100 HP
+        skillStates: const {Skill.hitpoints: SkillState(xp: 1154, masteryXp: 0)},
         actionStates: {},
         updatedAt: DateTime.timestamp(),
         gp: 0,
@@ -271,8 +272,16 @@ class GlobalState {
   /// The player's health state.
   final HealthState health;
 
-  /// The current player HP (convenience getter).
-  int get playerHp => health.currentHp;
+  /// The player's maximum HP (computed from Hitpoints skill level).
+  /// Each Hitpoints level grants 10 HP.
+  int get maxPlayerHp {
+    final hitpointsXp = skillState(Skill.hitpoints).xp;
+    final hitpointsLevel = levelForXp(hitpointsXp);
+    return hitpointsLevel * 10;
+  }
+
+  /// The current player HP (computed from maxPlayerHp - lostHp).
+  int get playerHp => (maxPlayerHp - health.lostHp).clamp(0, maxPlayerHp);
 
   /// The player's equipped items.
   final Equipment equipment;
@@ -281,8 +290,15 @@ class GlobalState {
 
   bool get isActive => activeAction != null;
 
-  /// Returns true if there are any active mining timers (respawn or regen).
-  bool get hasActiveResourceTimers {
+  /// Returns true if there are any active background timers
+  /// (mining respawn/regen, player HP regen).
+  bool get hasActiveBackgroundTimers {
+    // Check player HP regeneration
+    if (health.lostHp > 0) {
+      return true;
+    }
+
+    // Check mining node timers
     for (final actionState in actionStates.values) {
       final mining = actionState.mining;
       if (mining == null) continue;
@@ -301,7 +317,7 @@ class GlobalState {
   }
 
   /// Returns true if the game loop should be running.
-  bool get shouldTick => isActive || hasActiveResourceTimers;
+  bool get shouldTick => isActive || hasActiveBackgroundTimers;
 
   Skill? get activeSkill {
     final name = activeAction?.name;
