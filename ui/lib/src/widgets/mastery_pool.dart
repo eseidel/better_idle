@@ -1,4 +1,4 @@
-import 'package:better_idle/src/data/xp.dart';
+import 'package:logic/logic.dart';
 import 'package:better_idle/src/widgets/strings.dart';
 import 'package:flutter/material.dart';
 

@@ -1,6 +1,6 @@
 import 'dart:math';
 
-import 'package:better_idle/src/data/actions.dart';
+import 'package:logic/src/data/actions.dart';
 import 'package:meta/meta.dart';
 
 /// Combat stats for a player or monster.

@@ -1,5 +1,4 @@
-import 'package:better_idle/src/data/actions.dart';
-import 'package:better_idle/src/data/xp.dart';
+import 'package:logic/logic.dart';
 import 'package:better_idle/src/widgets/context_extensions.dart';
 import 'package:better_idle/src/widgets/router.dart';
 import 'package:better_idle/src/widgets/skills.dart';

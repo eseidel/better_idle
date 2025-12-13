@@ -1,4 +1,4 @@
-import 'package:better_idle/src/data/actions.dart';
+import 'package:logic/logic.dart';
 import 'package:flutter/material.dart';
 
 extension SkillExtensions on Skill {

@@ -1,16 +1,10 @@
 import 'dart:math';
 
-import 'package:better_idle/src/data/actions.dart';
-import 'package:better_idle/src/data/combat.dart';
-import 'package:better_idle/src/data/items.dart';
-import 'package:better_idle/src/data/xp.dart';
 import 'package:better_idle/src/state.dart';
-import 'package:better_idle/src/types/inventory.dart';
-import 'package:better_idle/src/types/time_away.dart';
+import 'package:logic/logic.dart';
 
 export 'package:async_redux/async_redux.dart';
-
-export '../types/time_away.dart';
+export 'package:logic/logic.dart' show Changes, TimeAway;
 
 /// Ticks required to regenerate 1 HP (10 seconds = 100 ticks).
 final int ticksPer1Hp = ticksFromDuration(const Duration(seconds: 10));

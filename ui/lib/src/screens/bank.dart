@@ -1,6 +1,6 @@
 import 'package:better_idle/src/logic/redux_actions.dart';
-import 'package:better_idle/src/types/inventory.dart';
 import 'package:better_idle/src/widgets/context_extensions.dart';
+import 'package:logic/logic.dart';
 import 'package:better_idle/src/widgets/navigation_drawer.dart';
 import 'package:better_idle/src/widgets/strings.dart';
 import 'package:collection/collection.dart';

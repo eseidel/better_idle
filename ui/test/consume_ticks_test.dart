@@ -1,13 +1,9 @@
 import 'dart:math';
 
-import 'package:better_idle/src/data/actions.dart';
-import 'package:better_idle/src/data/combat.dart';
-import 'package:better_idle/src/data/items.dart';
-import 'package:better_idle/src/data/xp.dart';
 import 'package:better_idle/src/logic/consume_ticks.dart';
 import 'package:better_idle/src/state.dart';
-import 'package:better_idle/src/types/inventory.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:logic/logic.dart';
 
 void main() {
   SkillAction skillAction(String name) =>

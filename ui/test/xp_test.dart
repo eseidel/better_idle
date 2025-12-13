@@ -1,5 +1,5 @@
-import 'package:better_idle/src/data/xp.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:logic/logic.dart';
 
 void main() {
   group('levelForXp', () {

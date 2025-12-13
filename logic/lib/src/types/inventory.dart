@@ -1,4 +1,4 @@
-import 'package:better_idle/src/data/items.dart';
+import 'package:logic/src/data/items.dart';
 
 class ItemStack {
   const ItemStack(this.item, {required this.count});

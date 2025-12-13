@@ -1,7 +1,6 @@
 import 'dart:async';
 
-import 'package:better_idle/src/logic/consume_ticks.dart';
-import 'package:better_idle/src/types/time_away.dart';
+import 'package:logic/logic.dart';
 import 'package:scoped_deps/scoped_deps.dart';
 
 class ToastService {

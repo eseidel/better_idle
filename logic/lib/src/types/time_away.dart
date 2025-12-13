@@ -1,5 +1,5 @@
-import 'package:better_idle/src/data/actions.dart';
-import 'package:better_idle/src/types/inventory.dart';
+import 'package:logic/src/data/actions.dart';
+import 'package:logic/src/types/inventory.dart';
 
 class LevelChange {
   const LevelChange({required this.startLevel, required this.endLevel});

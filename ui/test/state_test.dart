@@ -1,10 +1,6 @@
-import 'package:better_idle/src/data/actions.dart';
-import 'package:better_idle/src/data/items.dart';
-import 'package:better_idle/src/logic/consume_ticks.dart';
 import 'package:better_idle/src/state.dart';
-import 'package:better_idle/src/types/inventory.dart';
-import 'package:better_idle/src/types/time_away.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:logic/logic.dart';
 
 void main() {
   final normalLogs = itemRegistry.byName('Normal Logs');

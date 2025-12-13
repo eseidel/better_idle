@@ -1,7 +1,7 @@
 import 'dart:math';
 
-import 'package:better_idle/src/data/items.dart';
-import 'package:better_idle/src/types/inventory.dart';
+import 'package:logic/src/data/items.dart';
+import 'package:logic/src/types/inventory.dart';
 
 /// Base class for anything that can be dropped.
 abstract class Droppable {

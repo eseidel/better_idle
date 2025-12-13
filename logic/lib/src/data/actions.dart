@@ -1,9 +1,10 @@
 import 'dart:math';
 
-import 'package:better_idle/src/data/combat.dart';
-import 'package:better_idle/src/state.dart';
-import 'package:better_idle/src/types/drop.dart';
 import 'package:collection/collection.dart';
+import 'package:logic/src/action_state.dart';
+import 'package:logic/src/data/combat.dart';
+import 'package:logic/src/tick.dart';
+import 'package:logic/src/types/drop.dart';
 import 'package:meta/meta.dart';
 
 /// Gem drop table for mining - 1% chance to trigger, then weighted selection.
