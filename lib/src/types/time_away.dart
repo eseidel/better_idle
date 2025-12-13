@@ -45,15 +45,23 @@ class TimeAway {
       );
 
   factory TimeAway.fromJson(Map<String, dynamic> json) {
+    final actionName = json['activeAction'] as String?;
+    // Only reconstruct SkillActions - CombatActions are only used for
+    // predictions which return empty for combat anyway.
+    SkillAction? action;
+    if (actionName != null) {
+      final lookedUp = actionRegistry.byName(actionName);
+      if (lookedUp is SkillAction) {
+        action = lookedUp;
+      }
+    }
     return TimeAway(
       startTime: DateTime.fromMillisecondsSinceEpoch(json['startTime'] as int),
       endTime: DateTime.fromMillisecondsSinceEpoch(json['endTime'] as int),
       activeSkill: json['activeSkill'] != null
           ? Skill.fromName(json['activeSkill'] as String)
           : null,
-      activeAction: json['activeAction'] != null
-          ? actionRegistry.byName(json['activeAction'] as String)
-          : null,
+      activeAction: action,
       changes: Changes.fromJson(json['changes'] as Map<String, dynamic>),
     );
   }
@@ -67,9 +75,10 @@ class TimeAway {
 
   /// Calculates the predicted XP per hour for each skill based on the active
   /// action. Returns a map of Skill to XP per hour.
+  /// Returns empty map for CombatActions (combat xp is handled differently).
   Map<Skill, int> get predictedXpPerHour {
     final action = activeAction;
-    if (action == null) {
+    if (action is! SkillAction) {
       return {};
     }
 
@@ -86,9 +95,11 @@ class TimeAway {
   /// Calculates the predicted items gained per hour based on the active
   /// action's drops (including outputs, skill-level drops, and global drops).
   /// Returns a map of item name to items per hour.
+  /// Returns empty map for CombatActions (combat drops are handled
+  /// differently).
   Map<String, double> get itemsGainedPerHour {
     final action = activeAction;
-    if (action == null) {
+    if (action is! SkillAction) {
       return {};
     }
 
@@ -121,9 +132,10 @@ class TimeAway {
 
   /// Calculates the predicted items consumed per hour based on the active
   /// action's inputs. Returns a map of item name to items per hour.
+  /// Returns empty map for CombatActions (combat has no inputs).
   Map<String, double> get itemsConsumedPerHour {
     final action = activeAction;
-    if (action == null || action.inputs.isEmpty) {
+    if (action is! SkillAction || action.inputs.isEmpty) {
       return {};
     }
 
@@ -314,6 +326,7 @@ class Changes {
     required this.skillXpChanges,
     required this.droppedItems,
     required this.skillLevelChanges,
+    this.gpGained = 0,
   });
   // We don't bother tracking mastery XP changes since they're not displayed
   // in the welcome back dialog.
@@ -324,6 +337,7 @@ class Changes {
         skillXpChanges: const Counts<Skill>.empty(),
         droppedItems: const Counts<String>.empty(),
         skillLevelChanges: const LevelChanges.empty(),
+        gpGained: 0,
       );
 
   factory Changes.fromJson(Map<String, dynamic> json) {
@@ -340,12 +354,14 @@ class Changes {
       skillLevelChanges: LevelChanges.fromJson(
         json['skillLevelChanges'] as Map<String, dynamic>? ?? {},
       ),
+      gpGained: json['gpGained'] as int? ?? 0,
     );
   }
   final Counts<String> inventoryChanges;
   final Counts<Skill> skillXpChanges;
   final Counts<String> droppedItems;
   final LevelChanges skillLevelChanges;
+  final int gpGained;
 
   Changes merge(Changes other) {
     return Changes(
@@ -353,6 +369,7 @@ class Changes {
       skillXpChanges: skillXpChanges.add(other.skillXpChanges),
       droppedItems: droppedItems.add(other.droppedItems),
       skillLevelChanges: skillLevelChanges.add(other.skillLevelChanges),
+      gpGained: gpGained + other.gpGained,
     );
   }
 
@@ -360,7 +377,8 @@ class Changes {
       inventoryChanges.isEmpty &&
       skillXpChanges.isEmpty &&
       droppedItems.isEmpty &&
-      skillLevelChanges.isEmpty;
+      skillLevelChanges.isEmpty &&
+      gpGained == 0;
 
   Changes adding(ItemStack stack) {
     return Changes(
@@ -368,6 +386,7 @@ class Changes {
       skillXpChanges: skillXpChanges,
       droppedItems: droppedItems,
       skillLevelChanges: skillLevelChanges,
+      gpGained: gpGained,
     );
   }
 
@@ -380,6 +399,7 @@ class Changes {
       skillXpChanges: skillXpChanges,
       droppedItems: droppedItems,
       skillLevelChanges: skillLevelChanges,
+      gpGained: gpGained,
     );
   }
 
@@ -389,6 +409,7 @@ class Changes {
       skillXpChanges: skillXpChanges,
       droppedItems: droppedItems.addCount(stack.item.name, stack.count),
       skillLevelChanges: skillLevelChanges,
+      gpGained: gpGained,
     );
   }
 
@@ -398,6 +419,7 @@ class Changes {
       skillXpChanges: skillXpChanges.addCount(skill, amount),
       droppedItems: droppedItems,
       skillLevelChanges: skillLevelChanges,
+      gpGained: gpGained,
     );
   }
 
@@ -410,6 +432,17 @@ class Changes {
         skill,
         LevelChange(startLevel: startLevel, endLevel: endLevel),
       ),
+      gpGained: gpGained,
+    );
+  }
+
+  Changes addingGp(int amount) {
+    return Changes(
+      inventoryChanges: inventoryChanges,
+      skillXpChanges: skillXpChanges,
+      droppedItems: droppedItems,
+      skillLevelChanges: skillLevelChanges,
+      gpGained: gpGained + amount,
     );
   }
 
@@ -419,6 +452,7 @@ class Changes {
       'skillXpChanges': skillXpChanges.toJson(),
       'droppedItems': droppedItems.toJson(),
       'skillLevelChanges': skillLevelChanges.toJson(),
+      'gpGained': gpGained,
     };
   }
 }

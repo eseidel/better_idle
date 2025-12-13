@@ -14,7 +14,7 @@ class SmithingPage extends StatefulWidget {
 }
 
 class _SmithingPageState extends State<SmithingPage> {
-  Action? _selectedAction;
+  SkillAction? _selectedAction;
 
   @override
   Widget build(BuildContext context) {
@@ -68,7 +68,7 @@ class _SmithingPageState extends State<SmithingPage> {
 class _SelectedActionDisplay extends StatelessWidget {
   const _SelectedActionDisplay({required this.action, required this.onStart});
 
-  final Action action;
+  final SkillAction action;
   final VoidCallback onStart;
 
   @override
@@ -105,7 +105,7 @@ class _SelectedActionDisplay extends StatelessWidget {
           const SizedBox(height: 12),
 
           // Recycle and Double chance (placeholders)
-          Row(
+          const Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               _ChanceIndicator(
@@ -113,7 +113,7 @@ class _SelectedActionDisplay extends StatelessWidget {
                 label: 'Recycle',
                 value: '0%',
               ),
-              const SizedBox(width: 24),
+              SizedBox(width: 24),
               _ChanceIndicator(
                 icon: Icons.double_arrow,
                 label: 'Double',
@@ -259,9 +259,9 @@ class _ActionList extends StatelessWidget {
     required this.onSelect,
   });
 
-  final List<Action> actions;
-  final Action selectedAction;
-  final void Function(Action) onSelect;
+  final List<SkillAction> actions;
+  final SkillAction selectedAction;
+  final void Function(SkillAction) onSelect;
 
   @override
   Widget build(BuildContext context) {

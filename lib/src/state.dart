@@ -1,6 +1,7 @@
 import 'dart:math';
 
 import 'package:better_idle/src/data/actions.dart';
+import 'package:better_idle/src/data/combat.dart';
 import 'package:better_idle/src/data/items.dart';
 import 'package:better_idle/src/logic/consume_ticks.dart';
 import 'package:better_idle/src/types/inventory.dart';
@@ -139,10 +140,102 @@ class MiningState {
   }
 }
 
+/// Respawn time for monsters after death.
+const Duration monsterRespawnDuration = Duration(seconds: 3);
+
+/// Combat-specific state for fighting a monster.
+@immutable
+class CombatActionState {
+  const CombatActionState({
+    required this.monsterName,
+    required this.monsterHp,
+    required this.playerAttackTicksRemaining,
+    required this.monsterAttackTicksRemaining,
+    this.respawnTicksRemaining,
+  });
+
+  /// Start a new combat against a monster.
+  factory CombatActionState.start(CombatAction action, Stats playerStats) {
+    final playerAttackTicks = ticksFromDuration(
+      Duration(milliseconds: (playerStats.attackSpeed * 1000).round()),
+    );
+    final monsterAttackTicks = ticksFromDuration(
+      Duration(milliseconds: (action.stats.attackSpeed * 1000).round()),
+    );
+    return CombatActionState(
+      monsterName: action.name,
+      monsterHp: action.maxHp,
+      playerAttackTicksRemaining: playerAttackTicks,
+      monsterAttackTicksRemaining: monsterAttackTicks,
+    );
+  }
+
+  factory CombatActionState.fromJson(Map<String, dynamic> json) {
+    return CombatActionState(
+      monsterName: json['monsterName'] as String,
+      monsterHp: json['monsterHp'] as int,
+      playerAttackTicksRemaining: json['playerAttackTicksRemaining'] as int,
+      monsterAttackTicksRemaining: json['monsterAttackTicksRemaining'] as int,
+      respawnTicksRemaining: json['respawnTicksRemaining'] as int?,
+    );
+  }
+
+  /// The name of the monster being fought.
+  final String monsterName;
+  final int monsterHp;
+  final int playerAttackTicksRemaining;
+  final int monsterAttackTicksRemaining;
+  final int? respawnTicksRemaining;
+
+  /// Gets the CombatAction for this combat.
+  CombatAction get combatAction => combatActionByName(monsterName);
+
+  bool get isMonsterDead => monsterHp <= 0;
+  bool get isRespawning => respawnTicksRemaining != null;
+
+  CombatActionState copyWith({
+    String? monsterName,
+    int? monsterHp,
+    int? playerAttackTicksRemaining,
+    int? monsterAttackTicksRemaining,
+    int? respawnTicksRemaining,
+  }) {
+    return CombatActionState(
+      monsterName: monsterName ?? this.monsterName,
+      monsterHp: monsterHp ?? this.monsterHp,
+      playerAttackTicksRemaining:
+          playerAttackTicksRemaining ?? this.playerAttackTicksRemaining,
+      monsterAttackTicksRemaining:
+          monsterAttackTicksRemaining ?? this.monsterAttackTicksRemaining,
+      respawnTicksRemaining:
+          respawnTicksRemaining ?? this.respawnTicksRemaining,
+    );
+  }
+
+  CombatActionState clearRespawn() {
+    return CombatActionState(
+      monsterName: monsterName,
+      monsterHp: monsterHp,
+      playerAttackTicksRemaining: playerAttackTicksRemaining,
+      monsterAttackTicksRemaining: monsterAttackTicksRemaining,
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'monsterName': monsterName,
+      'monsterHp': monsterHp,
+      'playerAttackTicksRemaining': playerAttackTicksRemaining,
+      'monsterAttackTicksRemaining': monsterAttackTicksRemaining,
+      'respawnTicksRemaining': respawnTicksRemaining,
+    };
+  }
+}
+
 /// The serialized state of an Action in progress.
 @immutable
 class ActionState {
-  const ActionState({required this.masteryXp, this.mining});
+  const ActionState({required this.masteryXp, this.mining, this.combat});
 
   const ActionState.empty() : this(masteryXp: 0);
 
@@ -151,6 +244,9 @@ class ActionState {
       masteryXp: json['masteryXp'] as int,
       mining: json['mining'] != null
           ? MiningState.fromJson(json['mining'] as Map<String, dynamic>)
+          : null,
+      combat: json['combat'] != null
+          ? CombatActionState.fromJson(json['combat'] as Map<String, dynamic>)
           : null,
     );
   }
@@ -161,10 +257,18 @@ class ActionState {
   /// Mining-specific state (null for non-mining actions).
   final MiningState? mining;
 
-  ActionState copyWith({int? masteryXp, MiningState? mining}) {
+  /// Combat-specific state (null for non-combat actions).
+  final CombatActionState? combat;
+
+  ActionState copyWith({
+    int? masteryXp,
+    MiningState? mining,
+    CombatActionState? combat,
+  }) {
     return ActionState(
       masteryXp: masteryXp ?? this.masteryXp,
       mining: mining ?? this.mining,
+      combat: combat ?? this.combat,
     );
   }
 
@@ -177,6 +281,7 @@ class ActionState {
     return {
       'masteryXp': masteryXp,
       if (mining != null) 'mining': mining!.toJson(),
+      if (combat != null) 'combat': combat!.toJson(),
     };
   }
 }
@@ -216,6 +321,14 @@ class ShopState {
 /// The initial number of free bank slots.
 const int initialBankSlots = 20;
 
+/// Fixed player stats for now.
+Stats playerStats(GlobalState state) {
+  return const Stats(minHit: 1, maxHit: 23, damageReduction: 0, attackSpeed: 4);
+}
+
+/// Maximum player HP.
+const int maxPlayerHp = 100;
+
 /// Primary state object serialized to disk and used in memory.
 @immutable
 class GlobalState {
@@ -227,43 +340,9 @@ class GlobalState {
     required this.updatedAt,
     required this.gp,
     required this.shop,
+    required this.playerHp,
     this.timeAway,
   });
-
-  GlobalState.empty()
-    : this(
-        inventory: const Inventory.empty(),
-        activeAction: null,
-        skillStates: {},
-        actionStates: {},
-        updatedAt: DateTime.timestamp(),
-        gp: 0,
-        timeAway: null,
-        shop: const ShopState.empty(),
-      );
-
-  @visibleForTesting
-  factory GlobalState.test({
-    Inventory inventory = const Inventory.empty(),
-    ActiveAction? activeAction,
-    Map<Skill, SkillState> skillStates = const {},
-    Map<String, ActionState> actionStates = const {},
-    DateTime? updatedAt,
-    int gp = 0,
-    TimeAway? timeAway,
-    ShopState shop = const ShopState.empty(),
-  }) {
-    return GlobalState(
-      inventory: inventory,
-      activeAction: activeAction,
-      skillStates: skillStates,
-      actionStates: actionStates,
-      updatedAt: updatedAt ?? DateTime.timestamp(),
-      gp: gp,
-      timeAway: timeAway,
-      shop: shop,
-    );
-  }
 
   GlobalState.fromJson(Map<String, dynamic> json)
     : updatedAt = DateTime.parse(json['updatedAt'] as String),
@@ -293,7 +372,56 @@ class GlobalState {
           : null,
       shop = json['shop'] != null
           ? ShopState.fromJson(json['shop'] as Map<String, dynamic>)
-          : const ShopState.empty();
+          : const ShopState.empty(),
+      playerHp = json['playerHp'] as int? ?? maxPlayerHp;
+
+  GlobalState.empty()
+    : this(
+        inventory: const Inventory.empty(),
+        activeAction: null,
+        skillStates: {},
+        actionStates: {},
+        updatedAt: DateTime.timestamp(),
+        gp: 0,
+        timeAway: null,
+        shop: const ShopState.empty(),
+        playerHp: maxPlayerHp,
+      );
+
+  @visibleForTesting
+  factory GlobalState.test({
+    Inventory inventory = const Inventory.empty(),
+    ActiveAction? activeAction,
+    Map<Skill, SkillState> skillStates = const {},
+    Map<String, ActionState> actionStates = const {},
+    DateTime? updatedAt,
+    int gp = 0,
+    TimeAway? timeAway,
+    ShopState shop = const ShopState.empty(),
+    int playerHp = maxPlayerHp,
+  }) {
+    return GlobalState(
+      inventory: inventory,
+      activeAction: activeAction,
+      skillStates: skillStates,
+      actionStates: actionStates,
+      updatedAt: updatedAt ?? DateTime.timestamp(),
+      gp: gp,
+      timeAway: timeAway,
+      shop: shop,
+      playerHp: playerHp,
+    );
+  }
+
+  bool validate() {
+    // Confirm that activeAction.name is a valid action.
+    final actionName = activeAction?.name;
+    if (actionName != null) {
+      // This will throw a StateError if the action is missing.
+      actionRegistry.byName(actionName);
+    }
+    return true;
+  }
 
   Map<String, dynamic> toJson() {
     return {
@@ -309,6 +437,7 @@ class GlobalState {
       'gp': gp,
       'timeAway': timeAway?.toJson(),
       'shop': shop.toJson(),
+      'playerHp': playerHp,
     };
   }
 
@@ -337,6 +466,9 @@ class GlobalState {
 
   /// The shop state.
   final ShopState shop;
+
+  /// The current player HP.
+  final int playerHp;
 
   int get inventoryCapacity => shop.bankSlots + initialBankSlots;
 
@@ -383,48 +515,78 @@ class GlobalState {
 
   /// Returns true if all required inputs for the action are available.
   bool canStartAction(Action action) {
-    // Check inputs
-    for (final requirement in action.inputs.entries) {
-      final item = itemRegistry.byName(requirement.key);
-      final itemCount = inventory.countOfItem(item);
-      if (itemCount < requirement.value) {
-        return false;
+    // Only SkillActions have inputs to check
+    if (action is SkillAction) {
+      // Check inputs
+      for (final requirement in action.inputs.entries) {
+        final item = itemRegistry.byName(requirement.key);
+        final itemCount = inventory.countOfItem(item);
+        if (itemCount < requirement.value) {
+          return false;
+        }
+      }
+
+      // Check if mining node is depleted
+      if (action is MiningAction) {
+        final actionState = this.actionState(action.name);
+        final miningState = actionState.mining ?? const MiningState.empty();
+        if (miningState.isDepleted) {
+          return false; // Can't mine depleted node
+        }
       }
     }
 
-    // Check if mining node is depleted
-    if (action is MiningAction) {
-      final actionState = this.actionState(action.name);
-      final miningState = actionState.mining ?? const MiningState.empty();
-      if (miningState.isDepleted) {
-        return false; // Can't mine depleted node
-      }
-    }
-
+    // CombatActions can always be started
     return true;
   }
 
   GlobalState startAction(Action action, {Random? random}) {
-    // Validate that all required items are available
-    for (final requirement in action.inputs.entries) {
-      final item = itemRegistry.byName(requirement.key);
-      final itemCount = inventory.countOfItem(item);
-      if (itemCount < requirement.value) {
-        throw Exception(
-          'Cannot start ${action.name}: Need ${requirement.value} '
-          '${requirement.key}, but only have $itemCount',
-        );
-      }
-    }
     final name = action.name;
-    final totalTicks = action.rollDuration(random ?? Random());
-    return copyWith(
-      activeAction: ActiveAction(
-        name: name,
-        remainingTicks: totalTicks,
-        totalTicks: totalTicks,
-      ),
-    );
+    int totalTicks;
+
+    if (action is SkillAction) {
+      // Validate that all required items are available for skill actions
+      for (final requirement in action.inputs.entries) {
+        final item = itemRegistry.byName(requirement.key);
+        final itemCount = inventory.countOfItem(item);
+        if (itemCount < requirement.value) {
+          throw Exception(
+            'Cannot start ${action.name}: Need ${requirement.value} '
+            '${requirement.key}, but only have $itemCount',
+          );
+        }
+      }
+      totalTicks = action.rollDuration(random ?? Random());
+      return copyWith(
+        activeAction: ActiveAction(
+          name: name,
+          remainingTicks: totalTicks,
+          totalTicks: totalTicks,
+        ),
+      );
+    } else if (action is CombatAction) {
+      // Combat actions don't have inputs or duration-based completion.
+      // The tick represents the time until the first player attack.
+      final pStats = playerStats(this);
+      totalTicks = ticksFromDuration(
+        Duration(milliseconds: (pStats.attackSpeed * 1000).round()),
+      );
+      // Initialize combat state with the combat action
+      final combatState = CombatActionState.start(action, pStats);
+      final newActionStates = Map<String, ActionState>.from(actionStates);
+      final existingState = actionState(name);
+      newActionStates[name] = existingState.copyWith(combat: combatState);
+      return copyWith(
+        activeAction: ActiveAction(
+          name: name,
+          remainingTicks: totalTicks,
+          totalTicks: totalTicks,
+        ),
+        actionStates: newActionStates,
+      );
+    } else {
+      throw Exception('Unknown action type: ${action.runtimeType}');
+    }
   }
 
   GlobalState clearAction() {
@@ -437,6 +599,7 @@ class GlobalState {
       actionStates: actionStates,
       updatedAt: DateTime.timestamp(),
       gp: gp,
+      playerHp: playerHp,
     );
   }
 
@@ -450,6 +613,7 @@ class GlobalState {
       updatedAt: DateTime.timestamp(),
       gp: gp,
       shop: shop,
+      playerHp: playerHp,
     );
   }
 
@@ -523,6 +687,7 @@ class GlobalState {
     int? gp,
     TimeAway? timeAway,
     ShopState? shop,
+    int? playerHp,
   }) {
     return GlobalState(
       inventory: inventory ?? this.inventory,
@@ -533,6 +698,7 @@ class GlobalState {
       gp: gp ?? this.gp,
       timeAway: timeAway ?? this.timeAway,
       shop: shop ?? this.shop,
+      playerHp: playerHp ?? this.playerHp,
     );
   }
 }

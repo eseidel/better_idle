@@ -5,7 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   test('consumeTicks completes activity and adds toast', () {
-    final normalTree = actionRegistry.byName('Normal Tree'); // Normal Tree (3s)
+    final normalTree = actionRegistry.byName('Normal Tree') as SkillAction;
     var state = GlobalState.empty();
 
     // Start activity
