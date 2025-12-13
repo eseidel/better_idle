@@ -9,11 +9,14 @@ import 'package:better_idle/src/types/inventory.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
-  final normalTree = actionRegistry.byName('Normal Tree');
-  final oakTree = actionRegistry.byName('Oak Tree');
-  final burnNormalLogs = actionRegistry.byName('Burn Normal Logs');
-  final runeEssence = actionRegistry.byName('Rune Essence') as MiningAction;
-  final copper = actionRegistry.byName('Copper') as MiningAction;
+  SkillAction skillAction(String name) =>
+      actionRegistry.skillActionByName(name);
+
+  final normalTree = skillAction('Normal Tree');
+  final oakTree = skillAction('Oak Tree');
+  final burnNormalLogs = skillAction('Burn Normal Logs');
+  final runeEssence = skillAction('Rune Essence') as MiningAction;
+  final copper = skillAction('Copper') as MiningAction;
 
   final normalLogs = itemRegistry.byName('Normal Logs');
   final oakLogs = itemRegistry.byName('Oak Logs');
@@ -352,8 +355,6 @@ void main() {
     );
 
     test('consuming ticks for multiple completions of action with inputs', () {
-      final burnNormalLogs = actionRegistry.byName('Burn Normal Logs');
-
       // Start with 10 Normal Logs in inventory
       var state = GlobalState.empty();
       state = state.copyWith(
@@ -383,7 +384,6 @@ void main() {
     });
 
     test('consuming ticks stops when inputs are insufficient to continue', () {
-      final burnNormalLogs = actionRegistry.byName('Burn Normal Logs');
       const n = 5; // Try to run 5 times
       const nMinusOne = 4; // But only have inputs for 4 times
 

@@ -1,5 +1,6 @@
 import 'dart:math';
 
+import 'package:better_idle/src/data/combat.dart';
 import 'package:better_idle/src/state.dart';
 import 'package:better_idle/src/types/drop.dart';
 import 'package:collection/collection.dart';
@@ -287,12 +288,13 @@ final _smithingActions = <SkillAction>[
   ),
 ];
 
-final List<SkillAction> _skillActions = [
+final List<Action> _all = [
   ..._woodcuttingActions,
   ..._firemakingActions,
   ..._fishingActions,
   ..._miningActions,
   ..._smithingActions,
+  ...combatActions,
 ];
 
 // Skill-level drops: shared across all actions in a skill.
@@ -329,10 +331,10 @@ final _globalDrops = <Droppable>[
 class ActionRegistry {
   ActionRegistry(this._all);
 
-  final List<SkillAction> _all;
+  final List<Action> _all;
 
   /// Returns a SkillAction by name.
-  SkillAction byName(String name) {
+  Action byName(String name) {
     final action = _all.firstWhereOrNull((action) => action.name == name);
     if (action == null) {
       throw StateError('Missing action $name');
@@ -340,13 +342,23 @@ class ActionRegistry {
     return action;
   }
 
+  SkillAction skillActionByName(String name) {
+    final action = byName(name);
+    if (action is SkillAction) {
+      return action;
+    }
+    throw StateError('Action $name is not a SkillAction');
+  }
+
   /// Returns all skill actions for a given skill.
   Iterable<SkillAction> forSkill(Skill skill) {
-    return _all.where((action) => action.skill == skill);
+    return _all.whereType<SkillAction>().where(
+      (action) => action.skill == skill,
+    );
   }
 }
 
-final actionRegistry = ActionRegistry(_skillActions);
+final actionRegistry = ActionRegistry(_all);
 
 class DropsRegistry {
   DropsRegistry(this._skillDrops, this._globalDrops);
@@ -366,7 +378,8 @@ class DropsRegistry {
   /// This combines action-level drops (from the action), skill-level drops,
   /// and global drops into a single list. Includes both simple Drops and
   /// DropTables, which are processed uniformly via Droppable.roll().
-  /// Note: Only SkillActions have rewards - CombatActions handle drops differently.
+  /// Note: Only SkillActions have rewards - CombatActions handle drops
+  /// differently.
   List<Droppable> allDropsForAction(SkillAction action) {
     return [
       ...action.rewards, // Action-level drops

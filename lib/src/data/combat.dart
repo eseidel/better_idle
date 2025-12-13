@@ -38,13 +38,13 @@ class Stats {
 @immutable
 class CombatAction extends Action {
   const CombatAction({
-    required String name,
+    required super.name,
     required this.combatLevel,
     required this.maxHp,
     required this.stats,
     required this.minGpDrop,
     required this.maxGpDrop,
-  }) : super(name: name, skill: Skill.attack);
+  }) : super(skill: Skill.attack);
 
   final int combatLevel;
   final int maxHp;

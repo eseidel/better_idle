@@ -358,6 +358,27 @@ bool completeAction(
   return canRepeatAction;
 }
 
+/// Waits for a mining node to respawn, consuming ticks.
+/// Returns the number of ticks consumed (0 if not depleted).
+/// Updates mining state in the builder.
+Tick _waitForRespawn(
+  StateUpdateBuilder builder,
+  MiningAction action,
+  Tick ticksAvailable,
+) {
+  final miningState =
+      builder.state.actionState(action.name).mining ??
+      const MiningState.empty();
+
+  if (!miningState.isDepleted) {
+    return 0;
+  }
+
+  final respawnResult = _applyRespawnTicks(miningState, ticksAvailable);
+  builder.updateMiningState(action.name, respawnResult.state);
+  return respawnResult.ticksConsumed;
+}
+
 /// Consumes a specified number of ticks and updates the state.
 /// Only handles SkillActions - CombatActions are handled by consumeCombatTicks.
 void consumeTicks(StateUpdateBuilder builder, Tick ticks, {Random? random}) {
@@ -366,103 +387,78 @@ void consumeTicks(StateUpdateBuilder builder, Tick ticks, {Random? random}) {
   if (startingAction == null) {
     return;
   }
-  // The active action can never change during this loop other than to
-  // be cleared. So we can just use the starting action name.
   final action = actionRegistry.byName(startingAction.name);
-  var ticksToConsume = ticks;
+  if (action is! SkillAction) {
+    throw StateError('Non-SkillAction in consumeTicks');
+  }
+
+  var ticksRemaining = ticks;
   final rng = random ?? Random();
 
-  // Apply HP regeneration and respawn for mining actions
+  // Apply HP regeneration for mining (runs in background, independent of loop)
   if (action is MiningAction) {
     final actionState = state.actionState(action.name);
     final miningState = actionState.mining ?? const MiningState.empty();
-
-    // Check if node was depleted at the start
-    final wasDepletedAtStart = miningState.isDepleted;
-
-    // Apply ticks to resource (regen and respawn)
-    final updatedMining = applyMiningTicks(miningState, ticks);
-    builder.updateMiningState(action.name, updatedMining);
-
-    // Check if node is still depleted after applying ticks
-    if (updatedMining.isDepleted) {
-      // Node is still depleted, can't mine yet - all ticks consumed waiting
-      return;
-    } else if (wasDepletedAtStart) {
-      // Node WAS depleted but has now respawned
-      // Subtract the ticks we spent waiting for respawn
-      final respawnTicksConsumed = miningState.respawnTicksRemaining!;
-      ticksToConsume -= respawnTicksConsumed;
-      // Restart the action with fresh duration since we were waiting
-      builder.restartCurrentAction(action, random: rng);
+    if (!miningState.isDepleted && miningState.totalHpLost > 0) {
+      final regenResult = _applyRegenTicks(miningState, ticks);
+      builder.updateMiningState(action.name, regenResult.state);
     }
   }
 
-  while (ticksToConsume > 0) {
+  while (ticksRemaining > 0) {
     final currentAction = builder.state.activeAction;
     if (currentAction == null || currentAction.name != startingAction.name) {
       break;
     }
 
+    // For mining, handle respawn waiting at the start of each iteration
+    if (action is MiningAction) {
+      final ticksConsumed = _waitForRespawn(builder, action, ticksRemaining);
+      ticksRemaining -= ticksConsumed;
+
+      if (ticksRemaining <= 0) {
+        break; // All ticks consumed waiting for respawn
+      }
+
+      // If node just respawned, restart the action
+      if (ticksConsumed > 0) {
+        builder.restartCurrentAction(action, random: rng);
+        continue;
+      }
+    }
+
+    // Process action progress
     final before = _Progress(
       action,
       currentAction.remainingTicks,
       currentAction.totalTicks,
     );
-    final ticksToApply = min(ticksToConsume, before.remainingTicks);
+    final ticksToApply = min(ticksRemaining, before.remainingTicks);
     final newRemainingTicks = before.remainingTicks - ticksToApply;
-    ticksToConsume -= ticksToApply;
+    ticksRemaining -= ticksToApply;
     builder.setActionProgress(action, remainingTicks: newRemainingTicks);
 
     if (newRemainingTicks <= 0) {
       final canRepeat = completeAction(builder, action, random: rng);
 
-      // Reset progress for the *current* activity.
       if (builder.state.activeAction?.name != startingAction.name) {
         throw Exception('Active action changed during consumption?');
       }
 
-      // Check if node was depleted after completion
+      // For mining, depletion sets canRepeat=false - loop handles respawn
       if (action is MiningAction && !canRepeat) {
-        final currentActionState = builder.state.actionState(action.name);
-        final currentMining =
-            currentActionState.mining ?? const MiningState.empty();
-        if (currentMining.isDepleted) {
-          // Node depleted, wait for respawn
-          final respawnTicks = currentMining.respawnTicksRemaining!;
-          if (ticksToConsume >= respawnTicks) {
-            // We have enough ticks to wait for respawn
-            ticksToConsume -= respawnTicks;
-            // Apply respawn ticks to bring node back
-            final respawnedMining = applyMiningTicks(
-              currentMining,
-              respawnTicks,
-            );
-            builder.updateMiningState(action.name, respawnedMining);
-            // Try to restart action now that node has respawned
-            if (builder.state.canStartAction(action)) {
-              builder.restartCurrentAction(action, random: rng);
-              continue; // Continue the loop to keep mining
-            }
-          } else {
-            // Not enough ticks for respawn yet - apply partial respawn progress
-            // but keep the action active so it resumes when node respawns
-            final partialMining = applyMiningTicks(
-              currentMining,
-              ticksToConsume,
-            );
-            builder.updateMiningState(action.name, partialMining);
-            break; // Stop processing but keep action active
-          }
+        final miningState =
+            builder.state.actionState(action.name).mining ??
+            const MiningState.empty();
+        if (miningState.isDepleted) {
+          continue; // Next iteration handles respawn via _waitForRespawn
         }
       }
 
-      // Start the action again if we can and it's safe to repeat.
-      // If items were dropped, stop the action to avoid further drops.
+      // Restart action if possible, otherwise clear and exit
       if (canRepeat && builder.state.canStartAction(action)) {
         builder.restartCurrentAction(action, random: rng);
       } else {
-        // Otherwise, clear the action and break out of the loop.
         builder.clearAction();
         break;
       }

@@ -47,7 +47,8 @@ class TimeAway {
   factory TimeAway.fromJson(Map<String, dynamic> json) {
     final actionName = json['activeAction'] as String?;
     // Combat actions can't be reconstructed from just a name (need monster).
-    // Since action is only used for predictions (which return empty for combat),
+    // Since action is only used for predictions (which return empty for
+    // combat),
     // we just skip it for combat.
     Action? action;
     if (actionName != null && actionName != 'Combat') {
@@ -93,7 +94,8 @@ class TimeAway {
   /// Calculates the predicted items gained per hour based on the active
   /// action's drops (including outputs, skill-level drops, and global drops).
   /// Returns a map of item name to items per hour.
-  /// Returns empty map for CombatActions (combat drops are handled differently).
+  /// Returns empty map for CombatActions (combat drops are handled
+  /// differently).
   Map<String, double> get itemsGainedPerHour {
     final action = activeAction;
     if (action is! SkillAction) {

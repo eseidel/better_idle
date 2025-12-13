@@ -22,8 +22,16 @@ class MyPersistor extends Persistor<GlobalState> {
   @override
   Future<GlobalState> readState() async {
     try {
-      final state = await _persist.loadJson() as Map<String, dynamic>?;
-      return state == null ? GlobalState.empty() : GlobalState.fromJson(state);
+      final json = await _persist.loadJson() as Map<String, dynamic>?;
+      if (json == null) {
+        return GlobalState.empty();
+      }
+      final state = GlobalState.fromJson(json);
+      if (!state.validate()) {
+        logger.err('Invalid state.');
+        return GlobalState.empty();
+      }
+      return state;
     } on Object catch (e, stackTrace) {
       logger.err('Failed to load state: $e, stackTrace: $stackTrace');
       return GlobalState.empty();

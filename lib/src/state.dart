@@ -344,6 +344,37 @@ class GlobalState {
     this.timeAway,
   });
 
+  GlobalState.fromJson(Map<String, dynamic> json)
+    : updatedAt = DateTime.parse(json['updatedAt'] as String),
+      inventory = Inventory.fromJson(json['inventory'] as Map<String, dynamic>),
+      activeAction = json['activeAction'] != null
+          ? ActiveAction.fromJson(json['activeAction'] as Map<String, dynamic>)
+          : null,
+      skillStates =
+          (json['skillStates'] as Map<String, dynamic>?)?.map(
+            (key, value) => MapEntry(
+              Skill.fromName(key),
+              SkillState.fromJson(value as Map<String, dynamic>),
+            ),
+          ) ??
+          {},
+      actionStates =
+          (json['actionStates'] as Map<String, dynamic>?)?.map(
+            (key, value) => MapEntry(
+              key,
+              ActionState.fromJson(value as Map<String, dynamic>),
+            ),
+          ) ??
+          {},
+      gp = json['gp'] as int? ?? 0,
+      timeAway = json['timeAway'] != null
+          ? TimeAway.fromJson(json['timeAway'] as Map<String, dynamic>)
+          : null,
+      shop = json['shop'] != null
+          ? ShopState.fromJson(json['shop'] as Map<String, dynamic>)
+          : const ShopState.empty(),
+      playerHp = json['playerHp'] as int? ?? maxPlayerHp;
+
   GlobalState.empty()
     : this(
         inventory: const Inventory.empty(),
@@ -382,36 +413,15 @@ class GlobalState {
     );
   }
 
-  GlobalState.fromJson(Map<String, dynamic> json)
-    : updatedAt = DateTime.parse(json['updatedAt'] as String),
-      inventory = Inventory.fromJson(json['inventory'] as Map<String, dynamic>),
-      activeAction = json['activeAction'] != null
-          ? ActiveAction.fromJson(json['activeAction'] as Map<String, dynamic>)
-          : null,
-      skillStates =
-          (json['skillStates'] as Map<String, dynamic>?)?.map(
-            (key, value) => MapEntry(
-              Skill.fromName(key),
-              SkillState.fromJson(value as Map<String, dynamic>),
-            ),
-          ) ??
-          {},
-      actionStates =
-          (json['actionStates'] as Map<String, dynamic>?)?.map(
-            (key, value) => MapEntry(
-              key,
-              ActionState.fromJson(value as Map<String, dynamic>),
-            ),
-          ) ??
-          {},
-      gp = json['gp'] as int? ?? 0,
-      timeAway = json['timeAway'] != null
-          ? TimeAway.fromJson(json['timeAway'] as Map<String, dynamic>)
-          : null,
-      shop = json['shop'] != null
-          ? ShopState.fromJson(json['shop'] as Map<String, dynamic>)
-          : const ShopState.empty(),
-      playerHp = json['playerHp'] as int? ?? maxPlayerHp;
+  bool validate() {
+    // Confirm that activeAction.name is a valid action.
+    final actionName = activeAction?.name;
+    if (actionName != null) {
+      // This will throw a StateError if the action is missing.
+      actionRegistry.byName(actionName);
+    }
+    return true;
+  }
 
   Map<String, dynamic> toJson() {
     return {
