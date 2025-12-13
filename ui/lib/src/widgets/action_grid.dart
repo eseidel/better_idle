@@ -1,10 +1,10 @@
 import 'package:better_idle/src/logic/consume_ticks.dart';
 import 'package:better_idle/src/logic/redux_actions.dart';
 import 'package:better_idle/src/state.dart';
-import 'package:logic/logic.dart';
 import 'package:better_idle/src/widgets/context_extensions.dart';
 import 'package:better_idle/src/widgets/mastery_pool.dart';
 import 'package:flutter/material.dart' hide Action;
+import 'package:logic/logic.dart';
 
 class ActionGrid extends StatelessWidget {
   const ActionGrid({

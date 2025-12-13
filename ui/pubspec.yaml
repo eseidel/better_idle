@@ -8,6 +8,7 @@ environment:
 
 dependencies:
   async_redux: ^25.4.0
+  collection: any
   cupertino_icons: ^1.0.8
   flutter:
     sdk: flutter
@@ -15,6 +16,7 @@ dependencies:
   intl: ^0.19.0
   logic:
     path: ../logic
+  meta: any
   scoped_deps:
     git:
       url: https://github.com/shorebirdtech/shorebird.git

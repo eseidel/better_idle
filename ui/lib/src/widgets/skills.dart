@@ -1,5 +1,5 @@
-import 'package:logic/logic.dart';
 import 'package:flutter/material.dart';
+import 'package:logic/logic.dart';
 
 extension SkillExtensions on Skill {
   IconData get icon => switch (this) {

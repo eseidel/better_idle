@@ -1,10 +1,10 @@
-import 'package:logic/logic.dart';
 import 'package:better_idle/src/widgets/context_extensions.dart';
 import 'package:better_idle/src/widgets/router.dart';
 import 'package:better_idle/src/widgets/skills.dart';
 import 'package:better_idle/src/widgets/strings.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:logic/logic.dart';
 
 class SkillTile extends StatelessWidget {
   const SkillTile({required this.skill, super.key, this.selected = false});

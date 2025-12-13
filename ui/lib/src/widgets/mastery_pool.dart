@@ -1,6 +1,6 @@
-import 'package:logic/logic.dart';
 import 'package:better_idle/src/widgets/strings.dart';
 import 'package:flutter/material.dart';
+import 'package:logic/logic.dart';
 
 class MasteryPoolProgress extends StatelessWidget {
   const MasteryPoolProgress({required this.xp, super.key});

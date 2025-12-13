@@ -2,11 +2,11 @@ import 'package:better_idle/src/logic/consume_ticks.dart';
 import 'package:better_idle/src/logic/redux_actions.dart';
 import 'package:better_idle/src/state.dart';
 import 'package:better_idle/src/widgets/context_extensions.dart';
-import 'package:logic/logic.dart';
 import 'package:better_idle/src/widgets/mastery_pool.dart';
 import 'package:better_idle/src/widgets/navigation_drawer.dart';
 import 'package:better_idle/src/widgets/skill_progress.dart';
 import 'package:flutter/material.dart' hide Action;
+import 'package:logic/logic.dart';
 
 class FishingPage extends StatelessWidget {
   const FishingPage({super.key});
