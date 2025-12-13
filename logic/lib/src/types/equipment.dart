@@ -14,6 +14,11 @@ class Equipment {
     : foodSlots = const [null, null, null],
       selectedFoodSlot = 0;
 
+  static Equipment? maybeFromJson(dynamic json) {
+    if (json == null) return null;
+    return Equipment.fromJson(json as Map<String, dynamic>);
+  }
+
   factory Equipment.fromJson(Map<String, dynamic> json) {
     final foodSlotsJson = json['foodSlots'] as List<dynamic>?;
     final foodSlots = foodSlotsJson != null

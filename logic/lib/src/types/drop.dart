@@ -58,19 +58,19 @@ class DropTable extends Droppable {
   final List<Drop> entries;
 
   /// Returns the total weight of all entries.
-  double get totalWeight => entries.fold(0, (sum, e) => sum + e.rate);
+  double get _totalWeight => entries.fold(0, (sum, e) => sum + e.rate);
 
   /// Returns the effective rate for a specific entry (for predictions).
   /// This is: outer rate * (entry weight / total weight)
-  double effectiveRate(Drop entry) {
-    return rate * (entry.rate / totalWeight);
+  double _effectiveRate(Drop entry) {
+    return rate * (entry.rate / _totalWeight);
   }
 
   @override
   Map<String, double> get expectedItems {
     final result = <String, double>{};
     for (final entry in entries) {
-      final effective = effectiveRate(entry);
+      final effective = _effectiveRate(entry);
       final current = result[entry.name] ?? 0.0;
       result[entry.name] = current + entry.count * effective;
     }
@@ -85,7 +85,7 @@ class DropTable extends Droppable {
     }
 
     // Second roll: which entry from the table?
-    final total = totalWeight;
+    final total = _totalWeight;
     var roll = random.nextDouble() * total;
 
     for (final entry in entries) {

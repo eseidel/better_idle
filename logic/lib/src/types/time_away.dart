@@ -44,6 +44,11 @@ class TimeAway {
         changes: const Changes.empty(),
       );
 
+  static TimeAway? maybeFromJson(dynamic json) {
+    if (json == null) return null;
+    return TimeAway.fromJson(json as Map<String, dynamic>);
+  }
+
   factory TimeAway.fromJson(Map<String, dynamic> json) {
     final actionName = json['activeAction'] as String?;
     // Only reconstruct SkillActions - CombatActions are only used for
@@ -92,6 +97,11 @@ class TimeAway {
     return {action.skill: xpPerHour.round()};
   }
 
+  int levelForMastery(String actionName) {
+    // TODO(eseidel): Record mastery levels at time of creation.
+    return 1;
+  }
+
   /// Calculates the predicted items gained per hour based on the active
   /// action's drops (including outputs, skill-level drops, and global drops).
   /// Returns a map of item name to items per hour.
@@ -109,7 +119,12 @@ class TimeAway {
     }
 
     // Get all possible drops for this action
-    final allDrops = dropsRegistry.allDropsForAction(action);
+    // This will be an approximation since mastery level would change over time.
+    final masteryLevel = levelForMastery(action.name);
+    final allDrops = dropsRegistry.allDropsForAction(
+      action,
+      masteryLevel: masteryLevel,
+    );
     if (allDrops.isEmpty) {
       return {};
     }

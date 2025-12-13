@@ -129,7 +129,7 @@ void printFinalState(GlobalState state) {
       'Inventory (${state.inventoryUsed}/${state.inventoryCapacity} slots):',
     );
     for (final stack in state.inventory.items) {
-      print('  ${stack.count}x ${stack.item.name}');
+      print('  ${stack.count} ${stack.item.name}');
     }
   }
 

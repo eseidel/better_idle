@@ -1,6 +1,11 @@
+import 'dart:math';
+
 import 'package:logic/src/data/combat.dart';
 import 'package:logic/src/tick.dart';
 import 'package:meta/meta.dart';
+
+import 'data/actions.dart';
+import 'data/xp.dart';
 
 /// Mining-specific state for rock HP and respawn.
 class MiningState {
@@ -18,6 +23,13 @@ class MiningState {
       respawnTicksRemaining: json['respawnTicksRemaining'] as int?,
       hpRegenTicksRemaining: json['hpRegenTicksRemaining'] as int? ?? 0,
     );
+  }
+
+  /// Gets the current HP of a mining node.
+  int currentHp(MiningAction action, int masteryXp) {
+    final masteryLevel = levelForXp(masteryXp);
+    final maxHp = action.maxHpForMasteryLevel(masteryLevel);
+    return max(0, maxHp - totalHpLost);
   }
 
   /// How much HP this mining node has lost.

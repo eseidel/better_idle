@@ -87,11 +87,7 @@ class ActionCell extends StatelessWidget {
     if (action case final MiningAction miningAction) {
       final miningState = actionState.mining ?? const MiningState.empty();
       maxHp = miningAction.maxHpForMasteryLevel(masteryLevel);
-      currentHp = getCurrentHp(
-        miningAction,
-        miningState,
-        actionState.masteryXp,
-      );
+      currentHp = miningState.currentHp(miningAction, actionState.masteryXp);
 
       final respawnTicks = miningState.respawnTicksRemaining;
       if (respawnTicks != null && respawnTicks > 0) {
