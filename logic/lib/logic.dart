@@ -2,8 +2,10 @@
 library;
 
 // Core types
-export 'src/tick.dart';
 export 'src/action_state.dart';
+export 'src/consume_ticks.dart';
+export 'src/state.dart';
+export 'src/tick.dart';
 
 // Data
 export 'src/data/actions.dart';

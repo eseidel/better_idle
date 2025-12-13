@@ -1,5 +1,3 @@
-import 'package:better_idle/src/logic/consume_ticks.dart';
-import 'package:better_idle/src/state.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:logic/logic.dart';
 

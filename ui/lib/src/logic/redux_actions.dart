@@ -1,4 +1,3 @@
-import 'package:better_idle/src/logic/consume_ticks.dart';
 import 'package:better_idle/src/services/toast_service.dart';
 import 'package:better_idle/src/state.dart';
 import 'package:logic/logic.dart';
