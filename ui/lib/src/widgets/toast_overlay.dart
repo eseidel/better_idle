@@ -1,9 +1,9 @@
 import 'dart:async';
 
-import 'package:better_idle/src/logic/consume_ticks.dart';
 import 'package:better_idle/src/services/toast_service.dart';
 import 'package:better_idle/src/widgets/strings.dart';
 import 'package:flutter/material.dart';
+import 'package:logic/logic.dart';
 
 class ToastOverlay extends StatefulWidget {
   const ToastOverlay({required this.child, required this.service, super.key});

@@ -1,5 +1,5 @@
+import 'package:async_redux/async_redux.dart';
 import 'package:better_idle/src/services/toast_service.dart';
-import 'package:better_idle/src/state.dart';
 import 'package:logic/logic.dart';
 
 export 'package:async_redux/async_redux.dart';

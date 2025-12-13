@@ -1,7 +1,7 @@
-import 'package:better_idle/src/logic/consume_ticks.dart';
 import 'package:better_idle/src/widgets/skills.dart';
 import 'package:better_idle/src/widgets/strings.dart';
 import 'package:flutter/material.dart';
+import 'package:logic/logic.dart';
 
 /// A dialog shown when returning to the app after being away.
 /// Displays the changes (inventory and XP) that occurred while away.

@@ -1,16 +1,15 @@
 import 'dart:async';
 
 import 'package:async_redux/local_persist.dart';
-import 'package:better_idle/src/logic/consume_ticks.dart';
 import 'package:better_idle/src/logic/game_loop.dart';
 import 'package:better_idle/src/logic/redux_actions.dart';
 import 'package:better_idle/src/services/logger.dart';
 import 'package:better_idle/src/services/toast_service.dart';
-import 'package:better_idle/src/state.dart';
 import 'package:better_idle/src/widgets/router.dart';
 import 'package:better_idle/src/widgets/toast_overlay.dart';
 import 'package:better_idle/src/widgets/welcome_back_dialog.dart';
 import 'package:flutter/material.dart';
+import 'package:logic/logic.dart';
 import 'package:scoped_deps/scoped_deps.dart';
 
 void main() {
