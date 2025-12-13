@@ -1,5 +1,5 @@
-import 'package:flutter_test/flutter_test.dart';
 import 'package:logic/logic.dart';
+import 'package:test/test.dart';
 
 void main() {
   final normalLogs = itemRegistry.byName('Normal Logs');
