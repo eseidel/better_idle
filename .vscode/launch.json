@@ -8,19 +8,9 @@
             "name": "better_idle",
             "request": "launch",
             "type": "dart",
+            "cwd": "${workspaceFolder}/ui",
+            "program": "lib/main.dart",
             "deviceId": "macos"
-        },
-        {
-            "name": "better_idle (profile mode)",
-            "request": "launch",
-            "type": "dart",
-            "flutterMode": "profile"
-        },
-        {
-            "name": "better_idle (release mode)",
-            "request": "launch",
-            "type": "dart",
-            "flutterMode": "release"
         }
     ]
 }

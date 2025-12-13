@@ -8,6 +8,7 @@ extension SkillExtensions on Skill {
     Skill.woodcutting => Icons.forest,
     Skill.firemaking => Icons.local_fire_department,
     Skill.fishing => Icons.set_meal,
+    Skill.cooking => Icons.restaurant,
     Skill.mining => Icons.construction,
     Skill.smithing => Icons.hardware,
   };

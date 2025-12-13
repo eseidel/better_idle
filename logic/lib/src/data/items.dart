@@ -13,6 +13,8 @@ const _firemaking = [Item('Coal Ore', gp: 13), Item('Ash', gp: 5)];
 
 const _fishing = [Item('Raw Shrimp', gp: 3)];
 
+const _cooking = [Item('Shrimp', gp: 2, healsFor: 30)];
+
 const _mining = [
   Item('Rune Essence', gp: 0),
   Item('Copper Ore', gp: 2),
@@ -36,6 +38,7 @@ const List<Item> _all = [
   ..._woodcutting,
   ..._firemaking,
   ..._fishing,
+  ..._cooking,
   ..._mining,
   ..._smithing,
   ..._gems,
@@ -43,13 +46,19 @@ const List<Item> _all = [
 
 @immutable
 class Item extends Equatable {
-  const Item(this.name, {required int gp}) : sellsFor = gp;
+  const Item(this.name, {required int gp, this.healsFor}) : sellsFor = gp;
 
   final String name;
   final int sellsFor;
 
+  /// The amount of HP this item heals when consumed. Null if not consumable.
+  final int? healsFor;
+
+  /// Whether this item can be consumed for healing.
+  bool get isConsumable => healsFor != null;
+
   @override
-  List<Object?> get props => [name, sellsFor];
+  List<Object?> get props => [name, sellsFor, healsFor];
 }
 
 class ItemRegistry {

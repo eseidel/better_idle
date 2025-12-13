@@ -30,3 +30,5 @@ use it.
 - Add Equipment
 - Add Combat
 - Add Farming
+- Add Thieving
+- Fix combat to show attack timers/progress bars.

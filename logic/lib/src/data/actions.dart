@@ -25,6 +25,7 @@ enum Skill {
   woodcutting('Woodcutting'),
   firemaking('Firemaking'),
   fishing('Fishing'),
+  cooking('Cooking'),
   mining('Mining'),
   smithing('Smithing');
 
@@ -289,10 +290,23 @@ final _smithingActions = <SkillAction>[
   ),
 ];
 
+final _cookingActions = <SkillAction>[
+  const SkillAction(
+    skill: Skill.cooking,
+    name: 'Shrimp',
+    unlockLevel: 1,
+    duration: Duration(seconds: 2),
+    xp: 5,
+    inputs: {'Raw Shrimp': 1},
+    outputs: {'Shrimp': 1},
+  ),
+];
+
 final List<Action> _all = [
   ..._woodcuttingActions,
   ..._firemakingActions,
   ..._fishingActions,
+  ..._cookingActions,
   ..._miningActions,
   ..._smithingActions,
   ...combatActions,
@@ -314,6 +328,9 @@ final _skillDrops = <Skill, List<Droppable>>{
   ],
   Skill.fishing: [
     // Add fishing skill-level drops here as needed
+  ],
+  Skill.cooking: [
+    // Add cooking skill-level drops here as needed
   ],
   Skill.mining: [
     miningGemTable, // DropTable is a Drop, so it can go here
