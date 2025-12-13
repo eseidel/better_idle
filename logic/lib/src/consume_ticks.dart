@@ -7,6 +7,7 @@ import 'package:logic/src/data/items.dart';
 import 'package:logic/src/data/xp.dart';
 import 'package:logic/src/state.dart';
 import 'package:logic/src/tick.dart';
+import 'package:logic/src/types/health.dart';
 import 'package:logic/src/types/inventory.dart';
 import 'package:logic/src/types/time_away.dart';
 
@@ -350,8 +351,16 @@ class StateUpdateBuilder {
     _changes = _changes.addingGp(amount);
   }
 
-  void setPlayerHp(int hp) {
-    _state = _state.copyWith(playerHp: hp);
+  void setHealth(HealthState health) {
+    _state = _state.copyWith(health: health);
+  }
+
+  void damagePlayer(int damage) {
+    _state = _state.copyWith(health: _state.health.takeDamage(damage));
+  }
+
+  void resetPlayerHealth() {
+    _state = _state.copyWith(health: const HealthState.full());
   }
 
   /// Updates the combat state for an action.
@@ -582,7 +591,7 @@ enum ForegroundResult {
 
   final remainingTicks = ticksAvailable;
   var currentCombat = combatState;
-  var playerHp = builder.state.playerHp;
+  var health = builder.state.health;
 
   // Handle monster respawn
   final respawnTicks = currentCombat.respawnTicksRemaining;
@@ -656,17 +665,17 @@ enum ForegroundResult {
     final damage = mStats.rollDamage(rng);
     final pStats = playerStats(builder.state);
     final reducedDamage = (damage * (1 - pStats.damageReduction)).round();
-    playerHp = playerHp - reducedDamage;
-    builder.setPlayerHp(playerHp);
+    health = health.takeDamage(reducedDamage);
+    builder.setHealth(health);
     resetMonsterTicks = ticksFromDuration(
       Duration(milliseconds: (mStats.attackSpeed * 1000).round()),
     );
   }
 
   // Check if player died
-  if (playerHp <= 0) {
+  if (health.isDead) {
     builder
-      ..setPlayerHp(maxPlayerHp)
+      ..resetPlayerHealth()
       ..clearAction();
     return (ForegroundResult.stopped, ticksConsumed);
   }

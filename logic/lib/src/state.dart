@@ -6,9 +6,12 @@ import 'package:logic/src/data/combat.dart';
 import 'package:logic/src/data/items.dart';
 import 'package:logic/src/tick.dart';
 import 'package:logic/src/types/equipment.dart';
+import 'package:logic/src/types/health.dart';
 import 'package:logic/src/types/inventory.dart';
 import 'package:logic/src/types/time_away.dart';
 import 'package:meta/meta.dart';
+
+export 'package:logic/src/types/health.dart' show maxPlayerHp;
 
 @immutable
 class ActiveAction {
@@ -117,9 +120,6 @@ Stats playerStats(GlobalState state) {
   return const Stats(minHit: 1, maxHit: 23, damageReduction: 0, attackSpeed: 4);
 }
 
-/// Maximum player HP.
-const int maxPlayerHp = 100;
-
 /// Primary state object serialized to disk and used in memory.
 @immutable
 class GlobalState {
@@ -131,7 +131,7 @@ class GlobalState {
     required this.updatedAt,
     required this.gp,
     required this.shop,
-    required this.playerHp,
+    required this.health,
     required this.equipment,
     this.timeAway,
   });
@@ -165,7 +165,9 @@ class GlobalState {
       shop = json['shop'] != null
           ? ShopState.fromJson(json['shop'] as Map<String, dynamic>)
           : const ShopState.empty(),
-      playerHp = json['playerHp'] as int? ?? maxPlayerHp,
+      health = json['health'] != null
+          ? HealthState.fromJson(json['health'] as Map<String, dynamic>)
+          : HealthState.fromJson(json),
       equipment = json['equipment'] != null
           ? Equipment.fromJson(json['equipment'] as Map<String, dynamic>)
           : const Equipment.empty();
@@ -180,7 +182,7 @@ class GlobalState {
         gp: 0,
         timeAway: null,
         shop: const ShopState.empty(),
-        playerHp: maxPlayerHp,
+        health: const HealthState.full(),
         equipment: const Equipment.empty(),
       );
 
@@ -194,7 +196,7 @@ class GlobalState {
     int gp = 0,
     TimeAway? timeAway,
     ShopState shop = const ShopState.empty(),
-    int playerHp = maxPlayerHp,
+    HealthState health = const HealthState.full(),
     Equipment equipment = const Equipment.empty(),
   }) {
     return GlobalState(
@@ -206,7 +208,7 @@ class GlobalState {
       gp: gp,
       timeAway: timeAway,
       shop: shop,
-      playerHp: playerHp,
+      health: health,
       equipment: equipment,
     );
   }
@@ -235,7 +237,7 @@ class GlobalState {
       'gp': gp,
       'timeAway': timeAway?.toJson(),
       'shop': shop.toJson(),
-      'playerHp': playerHp,
+      'health': health.toJson(),
       'equipment': equipment.toJson(),
     };
   }
@@ -266,8 +268,11 @@ class GlobalState {
   /// The shop state.
   final ShopState shop;
 
-  /// The current player HP.
-  final int playerHp;
+  /// The player's health state.
+  final HealthState health;
+
+  /// The current player HP (convenience getter).
+  int get playerHp => health.currentHp;
 
   /// The player's equipped items.
   final Equipment equipment;
@@ -401,7 +406,7 @@ class GlobalState {
       actionStates: actionStates,
       updatedAt: DateTime.timestamp(),
       gp: gp,
-      playerHp: playerHp,
+      health: health,
       equipment: equipment,
     );
   }
@@ -416,7 +421,7 @@ class GlobalState {
       updatedAt: DateTime.timestamp(),
       gp: gp,
       shop: shop,
-      playerHp: playerHp,
+      health: health,
       equipment: equipment,
     );
   }
@@ -504,13 +509,13 @@ class GlobalState {
     if (healAmount == null) return null;
 
     // Don't eat if already at full health
-    if (playerHp >= maxPlayerHp) return null;
+    if (health.isFullHealth) return null;
 
     final newEquipment = equipment.consumeSelectedFood();
     if (newEquipment == null) return null;
 
-    final newHp = (playerHp + healAmount).clamp(0, maxPlayerHp);
-    return copyWith(equipment: newEquipment, playerHp: newHp);
+    final newHealth = health.heal(healAmount);
+    return copyWith(equipment: newEquipment, health: newHealth);
   }
 
   /// Selects a food equipment slot.
@@ -529,7 +534,7 @@ class GlobalState {
     int? gp,
     TimeAway? timeAway,
     ShopState? shop,
-    int? playerHp,
+    HealthState? health,
     Equipment? equipment,
   }) {
     return GlobalState(
@@ -541,7 +546,7 @@ class GlobalState {
       gp: gp ?? this.gp,
       timeAway: timeAway ?? this.timeAway,
       shop: shop ?? this.shop,
-      playerHp: playerHp ?? this.playerHp,
+      health: health ?? this.health,
       equipment: equipment ?? this.equipment,
     );
   }
