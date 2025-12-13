@@ -1,6 +1,7 @@
 import 'dart:math';
 
 import 'package:better_idle/src/data/actions.dart';
+import 'package:better_idle/src/data/combat.dart';
 import 'package:better_idle/src/data/items.dart';
 import 'package:better_idle/src/data/xp.dart';
 import 'package:better_idle/src/state.dart';
@@ -135,6 +136,96 @@ MiningState applyMiningTicks(MiningState miningState, Tick ticksElapsed) {
   } else {
     final regenResult = _applyRegenTicks(miningState, ticksElapsed);
     return regenResult.state;
+  }
+}
+
+// ============================================================================
+// Background Action System
+// ============================================================================
+
+/// Result of applying ticks to a background action.
+typedef BackgroundTickResult = ({
+  MiningState newState,
+  Tick ticksConsumed,
+  bool completed,
+});
+
+/// Represents a background process that consumes ticks independently.
+/// Background actions run in parallel with the foreground action.
+abstract class BackgroundTickConsumer {
+  /// The action name this background consumer is associated with.
+  String get actionName;
+
+  /// Whether this background action has work to do.
+  bool get isActive;
+
+  /// Apply ticks and return the result.
+  BackgroundTickResult applyTicks(Tick ticks);
+}
+
+/// Background action for mining node HP regeneration and respawn.
+class MiningBackgroundAction implements BackgroundTickConsumer {
+  MiningBackgroundAction(this.actionName, this.miningState);
+
+  @override
+  final String actionName;
+  final MiningState miningState;
+
+  @override
+  bool get isActive => miningState.isDepleted || miningState.totalHpLost > 0;
+
+  @override
+  BackgroundTickResult applyTicks(Tick ticks) {
+    if (miningState.isDepleted) {
+      final result = _applyRespawnTicks(miningState, ticks);
+      return (
+        newState: result.state,
+        ticksConsumed: result.ticksConsumed,
+        completed: !result.state.isDepleted,
+      );
+    } else if (miningState.totalHpLost > 0) {
+      final result = _applyRegenTicks(miningState, ticks);
+      return (
+        newState: result.state,
+        ticksConsumed: result.ticksConsumed,
+        completed: result.state.totalHpLost == 0,
+      );
+    }
+    return (newState: miningState, ticksConsumed: 0, completed: false);
+  }
+}
+
+/// Collects all active background actions from the current state.
+List<BackgroundTickConsumer> _getBackgroundActions(GlobalState state) {
+  final backgrounds = <BackgroundTickConsumer>[];
+
+  for (final entry in state.actionStates.entries) {
+    final actionName = entry.key;
+    final actionState = entry.value;
+
+    // Check if this is a mining action with background work
+    final action = actionRegistry.byName(actionName);
+    if (action is MiningAction) {
+      final mining = actionState.mining ?? const MiningState.empty();
+      final bgAction = MiningBackgroundAction(actionName, mining);
+      if (bgAction.isActive) {
+        backgrounds.add(bgAction);
+      }
+    }
+  }
+
+  return backgrounds;
+}
+
+/// Applies ticks to all background actions and updates the builder.
+void _applyBackgroundTicks(
+  StateUpdateBuilder builder,
+  List<BackgroundTickConsumer> backgrounds,
+  Tick ticks,
+) {
+  for (final bg in backgrounds) {
+    final result = bg.applyTicks(ticks);
+    builder.updateMiningState(bg.actionName, result.newState);
   }
 }
 
@@ -594,46 +685,290 @@ void consumeCombatTicks(
   }
 }
 
+// ============================================================================
+// Main Tick Processing - New Architecture
+// ============================================================================
+
+/// Result of processing a foreground action for one iteration.
+enum ForegroundResult {
+  /// Action is still in progress, more ticks can be applied.
+  continued,
+
+  /// Action ended (no inputs, inventory full, player died, etc.).
+  stopped,
+}
+
+/// Processes one iteration of a SkillAction foreground.
+/// Returns how many ticks were consumed and whether to continue.
+(ForegroundResult, Tick) _processSkillForeground(
+  StateUpdateBuilder builder,
+  SkillAction action,
+  Tick ticksAvailable,
+  Random rng,
+) {
+  final currentAction = builder.state.activeAction;
+  if (currentAction == null) {
+    return (ForegroundResult.stopped, 0);
+  }
+
+  // For mining, handle respawn waiting (blocking foreground behavior)
+  if (action is MiningAction) {
+    final miningState = builder.state.actionState(action.name).mining ??
+        const MiningState.empty();
+
+    if (miningState.isDepleted) {
+      // Wait for respawn - this is foreground blocking behavior
+      final respawnResult = _applyRespawnTicks(miningState, ticksAvailable);
+      builder.updateMiningState(action.name, respawnResult.state);
+
+      if (respawnResult.state.isDepleted) {
+        // Still depleted, consumed all available ticks waiting
+        return (ForegroundResult.continued, ticksAvailable);
+      } else {
+        // Respawn complete, restart action and continue
+        builder.restartCurrentAction(action, random: rng);
+        return (ForegroundResult.continued, respawnResult.ticksConsumed);
+      }
+    }
+  }
+
+  // Process action progress
+  final ticksToApply = min(ticksAvailable, currentAction.remainingTicks);
+  final newRemainingTicks = currentAction.remainingTicks - ticksToApply;
+  builder.setActionProgress(action, remainingTicks: newRemainingTicks);
+
+  if (newRemainingTicks <= 0) {
+    // Action completed
+    final canRepeat = completeAction(builder, action, random: rng);
+
+    // For mining, check if node just depleted
+    if (action is MiningAction && !canRepeat) {
+      final miningState = builder.state.actionState(action.name).mining ??
+          const MiningState.empty();
+      if (miningState.isDepleted) {
+        // Node depleted - next iteration will handle respawn
+        return (ForegroundResult.continued, ticksToApply);
+      }
+    }
+
+    // Restart action if possible, otherwise stop
+    if (canRepeat && builder.state.canStartAction(action)) {
+      builder.restartCurrentAction(action, random: rng);
+      return (ForegroundResult.continued, ticksToApply);
+    } else {
+      builder.clearAction();
+      return (ForegroundResult.stopped, ticksToApply);
+    }
+  }
+
+  // Action still in progress
+  return (ForegroundResult.continued, ticksToApply);
+}
+
+/// Processes one iteration of a CombatAction foreground.
+/// Returns how many ticks were consumed and whether to continue.
+(ForegroundResult, Tick) _processCombatForeground(
+  StateUpdateBuilder builder,
+  CombatAction action,
+  Tick ticksAvailable,
+  Random rng,
+) {
+  final activeAction = builder.state.activeAction;
+  if (activeAction == null) {
+    return (ForegroundResult.stopped, 0);
+  }
+
+  final combatState = builder.state.actionState(activeAction.name).combat;
+  if (combatState == null) {
+    return (ForegroundResult.stopped, 0);
+  }
+
+  final remainingTicks = ticksAvailable;
+  var currentCombat = combatState;
+  var playerHp = builder.state.playerHp;
+
+  // Handle monster respawn
+  final respawnTicks = currentCombat.respawnTicksRemaining;
+  if (respawnTicks != null) {
+    if (remainingTicks >= respawnTicks) {
+      // Monster respawns
+      final pStats = playerStats(builder.state);
+      currentCombat = CombatActionState.start(action, pStats);
+      builder.updateCombatState(activeAction.name, currentCombat);
+      return (ForegroundResult.continued, respawnTicks);
+    } else {
+      // Still waiting for respawn
+      currentCombat = currentCombat.copyWith(
+        respawnTicksRemaining: respawnTicks - remainingTicks,
+      );
+      builder.updateCombatState(activeAction.name, currentCombat);
+      return (ForegroundResult.continued, remainingTicks);
+    }
+  }
+
+  // Find next event (player attack or monster attack)
+  final playerTicks = currentCombat.playerAttackTicksRemaining;
+  final monsterTicks = currentCombat.monsterAttackTicksRemaining;
+  final nextEventTicks = min(playerTicks, monsterTicks);
+
+  if (remainingTicks < nextEventTicks) {
+    // Not enough ticks for any attack, just update timers
+    currentCombat = currentCombat.copyWith(
+      playerAttackTicksRemaining: playerTicks - remainingTicks,
+      monsterAttackTicksRemaining: monsterTicks - remainingTicks,
+    );
+    builder.updateCombatState(activeAction.name, currentCombat);
+    return (ForegroundResult.continued, remainingTicks);
+  }
+
+  // Advance to next event
+  final ticksConsumed = nextEventTicks;
+  final newPlayerTicks = playerTicks - nextEventTicks;
+  final newMonsterTicks = monsterTicks - nextEventTicks;
+
+  // Process player attack if ready
+  var monsterHp = currentCombat.monsterHp;
+  var resetPlayerTicks = newPlayerTicks;
+  if (newPlayerTicks <= 0) {
+    final pStats = playerStats(builder.state);
+    final damage = pStats.rollDamage(rng);
+    monsterHp -= damage;
+    resetPlayerTicks = ticksFromDuration(
+      Duration(milliseconds: (pStats.attackSpeed * 1000).round()),
+    );
+  }
+
+  // Check if monster died
+  if (monsterHp <= 0) {
+    final gpDrop = action.rollGpDrop(rng);
+    builder.addGp(gpDrop);
+    currentCombat = currentCombat.copyWith(
+      monsterHp: 0,
+      playerAttackTicksRemaining: resetPlayerTicks,
+      monsterAttackTicksRemaining: newMonsterTicks,
+      respawnTicksRemaining: ticksFromDuration(monsterRespawnDuration),
+    );
+    builder.updateCombatState(activeAction.name, currentCombat);
+    return (ForegroundResult.continued, ticksConsumed);
+  }
+
+  // Process monster attack if ready
+  var resetMonsterTicks = newMonsterTicks;
+  if (newMonsterTicks <= 0) {
+    final mStats = action.stats;
+    final damage = mStats.rollDamage(rng);
+    final pStats = playerStats(builder.state);
+    final reducedDamage = (damage * (1 - pStats.damageReduction)).round();
+    playerHp = playerHp - reducedDamage;
+    builder.setPlayerHp(playerHp);
+    resetMonsterTicks = ticksFromDuration(
+      Duration(milliseconds: (mStats.attackSpeed * 1000).round()),
+    );
+  }
+
+  // Check if player died
+  if (playerHp <= 0) {
+    builder
+      ..setPlayerHp(maxPlayerHp)
+      ..clearAction();
+    return (ForegroundResult.stopped, ticksConsumed);
+  }
+
+  // Update combat state
+  currentCombat = currentCombat.copyWith(
+    monsterHp: monsterHp,
+    playerAttackTicksRemaining: resetPlayerTicks,
+    monsterAttackTicksRemaining: resetMonsterTicks,
+  );
+  builder.updateCombatState(activeAction.name, currentCombat);
+  return (ForegroundResult.continued, ticksConsumed);
+}
+
+/// Dispatches foreground processing based on action type.
+(ForegroundResult, Tick) _processForegroundAction(
+  StateUpdateBuilder builder,
+  Action action,
+  Tick ticksAvailable,
+  Random rng,
+) {
+  if (action is CombatAction) {
+    return _processCombatForeground(builder, action, ticksAvailable, rng);
+  } else if (action is SkillAction) {
+    return _processSkillForeground(builder, action, ticksAvailable, rng);
+  } else {
+    throw StateError('Unknown action type: ${action.runtimeType}');
+  }
+}
+
+/// Main tick processing - handles foreground action (if any) and all
+/// background actions in parallel.
+///
+/// This is the new unified entry point that replaces the old scattered logic.
+void consumeAllTicks(
+  StateUpdateBuilder builder,
+  Tick ticks, {
+  Random? random,
+}) {
+  final rng = random ?? Random();
+  var ticksRemaining = ticks;
+
+  while (ticksRemaining > 0) {
+    // 1. Compute current background actions (may change each iteration)
+    final backgroundActions = _getBackgroundActions(builder.state);
+
+    // 2. Determine how many ticks to process this iteration
+    Tick ticksThisIteration;
+
+    final activeAction = builder.state.activeAction;
+    if (activeAction != null) {
+      // Process foreground action until next "event"
+      final action = actionRegistry.byName(activeAction.name);
+      final (foregroundResult, ticksUsed) = _processForegroundAction(
+        builder,
+        action,
+        ticksRemaining,
+        rng,
+      );
+      ticksThisIteration = ticksUsed;
+
+      // Handle foreground result
+      if (foregroundResult == ForegroundResult.stopped) {
+        // Apply remaining ticks to background before exiting
+        _applyBackgroundTicks(builder, backgroundActions, ticksRemaining);
+        break;
+      }
+    } else {
+      // No foreground action - consume all ticks for background actions
+      ticksThisIteration = ticksRemaining;
+    }
+
+    // 3. Apply same ticks to ALL background actions
+    _applyBackgroundTicks(builder, backgroundActions, ticksThisIteration);
+
+    ticksRemaining -= ticksThisIteration;
+
+    // If no foreground action and no background actions, we're done
+    if (activeAction == null && backgroundActions.isEmpty) {
+      break;
+    }
+
+    // Safety: if no ticks were consumed, break to avoid infinite loop
+    if (ticksThisIteration == 0) {
+      break;
+    }
+  }
+}
+
 /// Applies ticks to all game systems: active action and background resource
 /// recovery (respawn/heal) for all mining nodes.
 ///
 /// This is the core tick-processing logic used by UpdateActivityProgressAction.
-void consumeTicksForAllSystems(StateUpdateBuilder builder, Tick ticks) {
-  final state = builder.state;
-  final activeActionName = state.activeAction?.name;
-
-  // Apply resource ticks to all non-active mining actions (respawn/regen)
-  for (final entry in state.actionStates.entries) {
-    final actionName = entry.key;
-    final actionState = entry.value;
-    final action = actionRegistry.byName(actionName);
-
-    // Skip the active action - consumeTicks will handle it
-    if (actionName == activeActionName) continue;
-
-    if (action is MiningAction) {
-      final miningState = actionState.mining ?? const MiningState.empty();
-      final updatedMining = applyMiningTicks(miningState, ticks);
-      builder.updateMiningState(actionName, updatedMining);
-    }
-  }
-
-  // Process active action (this handles all action types including combat)
-  if (state.activeAction != null) {
-    final actionName = state.activeAction!.name;
-    if (actionName == 'Combat') {
-      // Combat actions are processed differently - they don't complete
-      // like regular actions, they just process attacks on timers.
-      // Get the combat state to find which monster we're fighting.
-      final combatState = state.actionState(actionName).combat;
-      if (combatState != null) {
-        consumeCombatTicks(builder, ticks);
-      }
-    } else {
-      // Regular actions (mining, woodcutting, etc.)
-      consumeTicks(builder, ticks);
-    }
-  }
+void consumeTicksForAllSystems(
+  StateUpdateBuilder builder,
+  Tick ticks, {
+  Random? random,
+}) {
+  consumeAllTicks(builder, ticks, random: random);
 }
 
 /// Consumes a specified number of ticks and returns the changes.

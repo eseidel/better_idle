@@ -939,5 +939,138 @@ void main() {
         reason: 'Woodcutting should still be the active action',
       );
     });
+
+    test('background actions run without foreground action', () {
+      // Start with a damaged mining node but no active action
+      var state = GlobalState.test(
+        actionStates: const {
+          'Copper': ActionState(
+            masteryXp: 0,
+            mining: MiningState(
+              totalHpLost: 3, // 3 HP lost
+              hpRegenTicksRemaining: 50, // 50 ticks until next heal
+            ),
+          ),
+        },
+      );
+
+      // Verify no active action
+      expect(state.activeAction, isNull);
+
+      // Process 60 ticks (enough for 1 heal at tick 50, partial progress)
+      final builder = StateUpdateBuilder(state);
+      consumeTicksForAllSystems(builder, 60);
+      state = builder.build();
+
+      // Verify node healed (should have healed once at tick 50)
+      final miningState =
+          state.actionState('Copper').mining ?? const MiningState.empty();
+      expect(
+        miningState.totalHpLost,
+        2,
+        reason: 'Node should have healed 1 HP (3 -> 2)',
+      );
+      // 10 ticks of partial progress toward next heal (100 - 10 = 90 remaining)
+      expect(
+        miningState.hpRegenTicksRemaining,
+        90,
+        reason: 'Should have 90 ticks until next heal',
+      );
+    });
+
+    test('background respawn runs without foreground action', () {
+      // Start with a depleted mining node but no active action
+      var state = GlobalState.test(
+        actionStates: const {
+          'Copper': ActionState(
+            masteryXp: 0,
+            mining: MiningState(
+              totalHpLost: 6,
+              respawnTicksRemaining: 30, // 30 ticks until respawn
+            ),
+          ),
+        },
+      );
+
+      // Verify no active action and node is depleted
+      expect(state.activeAction, isNull);
+      expect(
+        state.actionState('Copper').mining?.isDepleted,
+        true,
+      );
+
+      // Process enough ticks to respawn
+      final builder = StateUpdateBuilder(state);
+      consumeTicksForAllSystems(builder, 50);
+      state = builder.build();
+
+      // Verify node respawned
+      final miningState =
+          state.actionState('Copper').mining ?? const MiningState.empty();
+      expect(
+        miningState.isDepleted,
+        false,
+        reason: 'Node should have respawned',
+      );
+      expect(
+        miningState.totalHpLost,
+        0,
+        reason: 'Node should be at full HP after respawn',
+      );
+    });
+
+    test('multiple mining nodes heal in parallel', () {
+      // Start with two damaged mining nodes
+      var state = GlobalState.test(
+        actionStates: const {
+          'Copper': ActionState(
+            masteryXp: 0,
+            mining: MiningState(
+              totalHpLost: 2,
+              hpRegenTicksRemaining: 50,
+            ),
+          ),
+          'Rune Essence': ActionState(
+            masteryXp: 0,
+            mining: MiningState(
+              totalHpLost: 3,
+              hpRegenTicksRemaining: 80,
+            ),
+          ),
+        },
+      );
+
+      // Do woodcutting while both heal
+      state = state.startAction(normalTree);
+
+      // Process 200 ticks - enough for woodcutting completions and heals
+      final builder = StateUpdateBuilder(state);
+      consumeTicksForAllSystems(builder, 200);
+      state = builder.build();
+
+      // Verify woodcutting produced logs
+      expect(
+        state.inventory.countOfItem(normalLogs),
+        greaterThan(0),
+        reason: 'Should have woodcut some logs',
+      );
+
+      // Verify both nodes healed (at least 1 HP each)
+      final copperMining =
+          state.actionState('Copper').mining ?? const MiningState.empty();
+      final runeMining =
+          state.actionState('Rune Essence').mining ?? const MiningState.empty();
+
+      expect(
+        copperMining.totalHpLost,
+        lessThan(2),
+        reason: 'Copper should have healed at least 1 HP',
+      );
+      expect(
+        runeMining.totalHpLost,
+        lessThan(3),
+        reason: 'Rune Essence should have healed at least 1 HP',
+      );
+    });
   });
 }
