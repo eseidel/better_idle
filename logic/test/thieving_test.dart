@@ -217,6 +217,46 @@ void main() {
   });
 
   group('Thieving stun recovery', () {
+    test('thieving action pauses while stunned from failed attempt', () {
+      // Start thieving action
+      final state = GlobalState.test(
+        skillStates: const {
+          Skill.hitpoints: SkillState(xp: 1154, masteryXp: 0), // Level 10 = 100 HP
+        },
+      ).startAction(manAction);
+
+      final builder = StateUpdateBuilder(state);
+
+      // Use a mock random that always fails (to trigger stun)
+      final rng = MockRandom(
+        nextDoubleValue: 0.99, // Always fail
+        nextIntValue: 10, // Damage = 11
+      );
+
+      // Complete the action (30 ticks) - this should fail and stun
+      consumeTicksForAllSystems(builder, 30, random: rng);
+
+      var newState = builder.build();
+      // Should be stunned
+      expect(newState.isStunned, isTrue);
+      // Action should still be active (not stopped)
+      expect(newState.activeAction, isNotNull);
+      expect(newState.activeAction!.name, 'Man');
+      // Action timer stays at 0 (completed but waiting for stun to clear)
+      expect(newState.activeAction!.remainingTicks, 0);
+
+      // Process 15 ticks (half the stun duration)
+      final builder2 = StateUpdateBuilder(newState);
+      consumeTicksForAllSystems(builder2, 15, random: rng);
+
+      newState = builder2.build();
+      // Still stunned (15 of 30 ticks remaining)
+      expect(newState.isStunned, isTrue);
+      expect(newState.stunned.ticksRemaining, 15);
+      // Action timer still at 0 (waiting for stun)
+      expect(newState.activeAction!.remainingTicks, 0);
+    });
+
     test('thieving continues after stun wears off', () {
       // Start thieving while already stunned
       var state = GlobalState.test(

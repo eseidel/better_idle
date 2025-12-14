@@ -288,11 +288,11 @@ void _applyBackgroundTicks(
   List<BackgroundTickConsumer> backgrounds,
   Tick ticks, {
   String? activeActionName,
+  bool skipStunCountdown = false,
 }) {
-  // Apply stunned countdown
-  final stunned = builder.state.stunned;
-  if (stunned.isStunned) {
-    final newStunned = stunned.applyTicks(ticks);
+  // Apply stunned countdown (unless stun was just applied this iteration)
+  if (builder.state.isStunned && !skipStunCountdown) {
+    final newStunned = builder.state.stunned.applyTicks(ticks);
     builder.setStunned(newStunned);
   }
 
@@ -631,6 +631,10 @@ enum ForegroundResult {
 
   /// Action ended (no inputs, inventory full, player died, etc.).
   stopped,
+
+  /// Action completed but player got stunned. Ticks were spent completing
+  /// the action, not waiting for stun - skip stun countdown this iteration.
+  justStunned,
 }
 
 /// Processes one iteration of a SkillAction foreground.
@@ -641,27 +645,25 @@ enum ForegroundResult {
   Tick ticksAvailable,
   Random rng,
 ) {
-  final currentAction = builder.state.activeAction;
+  var currentAction = builder.state.activeAction;
   if (currentAction == null) {
     return (ForegroundResult.stopped, 0);
   }
 
-  // For thieving, handle stun waiting (blocking foreground behavior)
-  if (action is ThievingAction && builder.state.isStunned) {
-    // Wait for stun to clear - consume ticks toward stun recovery
-    final stunned = builder.state.stunned;
-    final ticksToConsume = min(ticksAvailable, stunned.ticksRemaining);
-    final newStunned = stunned.applyTicks(ticksToConsume);
-    builder.setStunned(newStunned);
+  // If stunned, wait for stun to clear before processing any foreground action.
+  // Return ticks to consume (up to stun remaining) but don't modify stun -
+  // background handles the countdown.
+  if (builder.state.isStunned) {
+    final ticksToWait = min(ticksAvailable, builder.state.stunned.ticksRemaining);
+    return (ForegroundResult.continued, ticksToWait);
+  }
 
-    if (newStunned.isStunned) {
-      // Still stunned, consumed all available ticks waiting
-      return (ForegroundResult.continued, ticksAvailable);
-    } else {
-      // Stun cleared, restart action and continue
-      builder.restartCurrentAction(action, random: rng);
-      return (ForegroundResult.continued, ticksToConsume);
-    }
+  // If action completed (remainingTicks=0), stun just cleared - restart it.
+  // This happens when an action (e.g., thieving) completed but was stunned,
+  // leaving it at remainingTicks=0 until stun cleared.
+  if (currentAction.remainingTicks == 0) {
+    builder.restartCurrentAction(action, random: rng);
+    currentAction = builder.state.activeAction!;
   }
 
   // For mining, handle respawn waiting (blocking foreground behavior)
@@ -696,9 +698,15 @@ enum ForegroundResult {
     if (action is ThievingAction) {
       final playerAlive = completeThievingAction(builder, action, rng);
       if (playerAlive) {
-        // Restart action (stun will be handled in next iteration if failed)
-        builder.restartCurrentAction(action, random: rng);
-        return (ForegroundResult.continued, ticksToApply);
+        if (builder.state.isStunned) {
+          // Failed - leave at remainingTicks=0, return justStunned so
+          // background skips stun countdown (ticks were for action completion)
+          return (ForegroundResult.justStunned, ticksToApply);
+        } else {
+          // Success - restart action normally
+          builder.restartCurrentAction(action, random: rng);
+          return (ForegroundResult.continued, ticksToApply);
+        }
       } else {
         // Player died - stop action
         builder.clearAction();
@@ -888,6 +896,8 @@ void consumeAllTicks(StateUpdateBuilder builder, Tick ticks, {Random? random}) {
     // 2. Determine how many ticks to process this iteration
     Tick ticksThisIteration;
 
+    var skipStunCountdown = false;
+
     if (activeAction != null) {
       // Process foreground action until next "event"
       final action = actionRegistry.byName(activeAction.name);
@@ -897,7 +907,6 @@ void consumeAllTicks(StateUpdateBuilder builder, Tick ticks, {Random? random}) {
         ticksRemaining,
         rng,
       );
-      ticksThisIteration = ticksUsed;
 
       // Handle foreground result
       if (foregroundResult == ForegroundResult.stopped) {
@@ -906,6 +915,11 @@ void consumeAllTicks(StateUpdateBuilder builder, Tick ticks, {Random? random}) {
         _applyBackgroundTicks(builder, backgroundActions, ticksRemaining);
         break;
       }
+      if (foregroundResult == ForegroundResult.justStunned) {
+        // Stun was just applied - ticks were for action completion, not stun
+        skipStunCountdown = true;
+      }
+      ticksThisIteration = ticksUsed;
     } else {
       // No foreground action - consume all ticks for background actions
       ticksThisIteration = ticksRemaining;
@@ -917,6 +931,7 @@ void consumeAllTicks(StateUpdateBuilder builder, Tick ticks, {Random? random}) {
       backgroundActions,
       ticksThisIteration,
       activeActionName: activeAction?.name,
+      skipStunCountdown: skipStunCountdown,
     );
 
     ticksRemaining -= ticksThisIteration;
