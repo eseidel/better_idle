@@ -44,7 +44,16 @@ class CombatPage extends StatelessWidget {
             const SizedBox(height: 16),
 
             // Fight button
-            if (!isInCombat)
+            if (state.isStunned)
+              ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.orange,
+                  foregroundColor: Colors.white,
+                ),
+                onPressed: null,
+                child: const Text('Stunned'),
+              )
+            else if (!isInCombat)
               ElevatedButton(
                 onPressed: () {
                   context.dispatch(StartCombatAction(combatAction: plant));

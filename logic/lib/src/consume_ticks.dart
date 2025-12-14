@@ -9,6 +9,7 @@ import 'package:logic/src/state.dart';
 import 'package:logic/src/tick.dart';
 import 'package:logic/src/types/health.dart';
 import 'package:logic/src/types/inventory.dart';
+import 'package:logic/src/types/stunned.dart';
 import 'package:logic/src/types/time_away.dart';
 
 /// Ticks required to regenerate 1 HP (10 seconds = 100 ticks).
@@ -288,6 +289,13 @@ void _applyBackgroundTicks(
   Tick ticks, {
   String? activeActionName,
 }) {
+  // Apply stunned countdown
+  final stunned = builder.state.stunned;
+  if (stunned.isStunned) {
+    final newStunned = stunned.applyTicks(ticks);
+    builder.setStunned(newStunned);
+  }
+
   // Apply player HP regeneration
   final health = builder.state.health;
   if (!health.isFullHealth) {
@@ -417,6 +425,10 @@ class StateUpdateBuilder {
 
   void setHealth(HealthState health) {
     _state = _state.copyWith(health: health);
+  }
+
+  void setStunned(StunnedState stunned) {
+    _state = _state.copyWith(stunned: stunned);
   }
 
   void damagePlayer(int damage) {

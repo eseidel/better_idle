@@ -8,6 +8,7 @@ import 'package:logic/src/tick.dart';
 import 'package:logic/src/types/equipment.dart';
 import 'package:logic/src/types/health.dart';
 import 'package:logic/src/types/inventory.dart';
+import 'package:logic/src/types/stunned.dart';
 import 'package:logic/src/types/time_away.dart';
 import 'package:meta/meta.dart';
 
@@ -157,6 +158,7 @@ class GlobalState {
     required this.health,
     required this.equipment,
     this.timeAway,
+    this.stunned = const StunnedState.fresh(),
   });
 
   GlobalState.fromJson(Map<String, dynamic> json)
@@ -182,7 +184,10 @@ class GlobalState {
       health =
           HealthState.maybeFromJson(json['health']) ?? const HealthState.full(),
       equipment =
-          Equipment.maybeFromJson(json['equipment']) ?? const Equipment.empty();
+          Equipment.maybeFromJson(json['equipment']) ?? const Equipment.empty(),
+      stunned =
+          StunnedState.maybeFromJson(json['stunned']) ??
+          const StunnedState.fresh();
 
   GlobalState.empty()
     : this(
@@ -213,6 +218,7 @@ class GlobalState {
     ShopState shop = const ShopState.empty(),
     HealthState health = const HealthState.full(),
     Equipment equipment = const Equipment.empty(),
+    StunnedState stunned = const StunnedState.fresh(),
   }) {
     return GlobalState(
       inventory: inventory,
@@ -225,6 +231,7 @@ class GlobalState {
       shop: shop,
       health: health,
       equipment: equipment,
+      stunned: stunned,
     );
   }
 
@@ -254,6 +261,7 @@ class GlobalState {
       'shop': shop.toJson(),
       'health': health.toJson(),
       'equipment': equipment.toJson(),
+      'stunned': stunned.toJson(),
     };
   }
 
@@ -300,13 +308,24 @@ class GlobalState {
   /// The player's equipped items.
   final Equipment equipment;
 
+  /// The player's stunned state.
+  final StunnedState stunned;
+
+  /// Whether the player is currently stunned.
+  bool get isStunned => stunned.isStunned;
+
   int get inventoryCapacity => shop.bankSlots + initialBankSlots;
 
   bool get isActive => activeAction != null;
 
   /// Returns true if there are any active background timers
-  /// (mining respawn/regen, player HP regen).
+  /// (mining respawn/regen, player HP regen, stunned countdown).
   bool get hasActiveBackgroundTimers {
+    // Check stunned countdown
+    if (isStunned) {
+      return true;
+    }
+
     // Check player HP regeneration
     if (health.lostHp > 0) {
       return true;
@@ -378,6 +397,10 @@ class GlobalState {
   }
 
   GlobalState startAction(Action action, {Random? random}) {
+    if (isStunned) {
+      throw const StunnedException('Cannot start action while stunned');
+    }
+
     final name = action.name;
     int totalTicks;
 
@@ -427,6 +450,10 @@ class GlobalState {
   }
 
   GlobalState clearAction() {
+    if (isStunned) {
+      throw const StunnedException('Cannot stop action while stunned');
+    }
+
     // This can't be copyWith since null means no-update.
     return GlobalState(
       inventory: inventory,
@@ -438,6 +465,7 @@ class GlobalState {
       gp: gp,
       health: health,
       equipment: equipment,
+      stunned: stunned,
     );
   }
 
@@ -453,6 +481,7 @@ class GlobalState {
       shop: shop,
       health: health,
       equipment: equipment,
+      stunned: stunned,
     );
   }
 
@@ -566,6 +595,7 @@ class GlobalState {
     ShopState? shop,
     HealthState? health,
     Equipment? equipment,
+    StunnedState? stunned,
   }) {
     return GlobalState(
       inventory: inventory ?? this.inventory,
@@ -578,6 +608,7 @@ class GlobalState {
       shop: shop ?? this.shop,
       health: health ?? this.health,
       equipment: equipment ?? this.equipment,
+      stunned: stunned ?? this.stunned,
     );
   }
 }

@@ -47,7 +47,11 @@ class ToggleActionAction extends ReduxAction<GlobalState> {
   ToggleActionAction({required this.action});
   final Action action;
   @override
-  GlobalState reduce() {
+  GlobalState? reduce() {
+    // If stunned, do nothing (UI should prevent this, but be safe)
+    if (state.isStunned) {
+      return null;
+    }
     // If the action is already running, stop it
     if (state.activeAction?.name == action.name) {
       return state.clearAction();
@@ -138,10 +142,14 @@ class StartCombatAction extends ReduxAction<GlobalState> {
   final CombatAction combatAction;
 
   @override
-  GlobalState reduce() {
+  GlobalState? reduce() {
+    // If stunned, do nothing (UI should prevent this, but be safe)
+    if (state.isStunned) {
+      return null;
+    }
     // If already in combat with this monster, do nothing
     if (state.activeAction?.name == combatAction.name) {
-      return state;
+      return null;
     }
     // Start the combat action (this stops any other active action)
     return state.startAction(combatAction);
@@ -151,7 +159,11 @@ class StartCombatAction extends ReduxAction<GlobalState> {
 /// Stops combat by clearing the active action.
 class StopCombatAction extends ReduxAction<GlobalState> {
   @override
-  GlobalState reduce() {
+  GlobalState? reduce() {
+    // If stunned, do nothing (UI should prevent this, but be safe)
+    if (state.isStunned) {
+      return null;
+    }
     return state.clearAction();
   }
 }

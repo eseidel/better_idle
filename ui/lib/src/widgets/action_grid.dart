@@ -74,7 +74,8 @@ class ActionCell extends StatelessWidget {
     final actionState = context.state.actionState(actionName);
     final canStart = context.state.canStartAction(action);
     final isRunning = context.state.activeAction?.name == actionName;
-    final canToggle = canStart || isRunning;
+    final isStunned = context.state.isStunned;
+    final canToggle = (canStart || isRunning) && !isStunned;
 
     // Check if this is a mining action
     final masteryLevel = levelForXp(actionState.masteryXp);
@@ -109,12 +110,26 @@ class ActionCell extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          color: isDepleted ? Colors.grey[200] : Colors.white,
-          border: Border.all(color: Colors.grey),
+          color: isStunned
+              ? Colors.orange[100]
+              : isDepleted
+              ? Colors.grey[200]
+              : Colors.white,
+          border: Border.all(color: isStunned ? Colors.orange : Colors.grey),
           borderRadius: BorderRadius.circular(8),
         ),
         child: Column(
           children: [
+            if (isStunned) ...[
+              Text(
+                'Stunned',
+                style: TextStyle(
+                  color: Colors.orange[800],
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(height: 4),
+            ],
             const Text('Cut'),
             Text(actionName, style: labelStyle),
             if (action case final MiningAction miningAction) ...[
