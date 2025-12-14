@@ -1,3 +1,5 @@
+import 'package:logic/src/data/actions.dart';
+
 // Generated with tool/xp_table.dart
 // From https://wiki.melvoridle.com/w/Experience_Table
 final _xpTable = <int>[
@@ -124,6 +126,16 @@ final _xpTable = <int>[
 ];
 
 final int maxLevel = _xpTable.length;
+
+// Each action stops accumulating mastery xp at level 99.
+final int maxMasteryXp = _xpTable[99];
+
+// Maximum mastery pool xp is different per-skill, but not yet sure how
+// it's calculated.
+int maxMasteryPoolXpForSkill(Skill skill) {
+  // TODO(eseidel): Implement this.
+  return maxMasteryXp;
+}
 
 class XpProgress {
   const XpProgress({

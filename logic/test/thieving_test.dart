@@ -1,0 +1,338 @@
+import 'dart:math';
+
+import 'package:logic/logic.dart';
+import 'package:test/test.dart';
+
+/// A mock Random that returns predictable values.
+class MockRandom implements Random {
+  MockRandom({this.nextDoubleValue = 0.0, this.nextIntValue = 0});
+
+  final double nextDoubleValue;
+  final int nextIntValue;
+
+  @override
+  double nextDouble() => nextDoubleValue;
+
+  @override
+  int nextInt(int max) => nextIntValue.clamp(0, max - 1);
+
+  @override
+  bool nextBool() => nextDoubleValue < 0.5;
+}
+
+void main() {
+  final manAction = thievingActionByName('Man');
+
+  group('ThievingAction', () {
+    test('Man action has correct properties', () {
+      expect(manAction.name, 'Man');
+      expect(manAction.skill, Skill.thieving);
+      expect(manAction.unlockLevel, 1);
+      expect(manAction.xp, 5);
+      expect(manAction.perception, 110);
+      expect(manAction.maxHit, 22);
+      expect(manAction.maxGold, 100);
+      expect(manAction.minDuration, const Duration(seconds: 3));
+    });
+
+    test('rollDamage returns value between 1 and maxHit', () {
+      // With nextInt returning 0, damage = 1 + 0 = 1
+      final minRng = MockRandom(nextIntValue: 0);
+      expect(manAction.rollDamage(minRng), 1);
+
+      // With nextInt returning maxHit-1, damage = 1 + (maxHit-1) = maxHit
+      final maxRng = MockRandom(nextIntValue: manAction.maxHit - 1);
+      expect(manAction.rollDamage(maxRng), manAction.maxHit);
+    });
+
+    test('rollGold returns value between 1 and maxGold', () {
+      // With nextInt returning 0, gold = 1 + 0 = 1
+      final minRng = MockRandom(nextIntValue: 0);
+      expect(manAction.rollGold(minRng), 1);
+
+      // With nextInt returning maxGold-1, gold = 1 + (maxGold-1) = maxGold
+      final maxRng = MockRandom(nextIntValue: manAction.maxGold - 1);
+      expect(manAction.rollGold(maxRng), manAction.maxGold);
+    });
+
+    test(
+      'rollSuccess fails at level 1, mastery 1 vs perception 110 with high roll',
+      () {
+        // Stealth = 40 + 1 (level) + 1 (mastery) = 42
+        // Success chance = (100 + 42) / (100 + 110) = 142/210 = ~67.6%
+        // Roll of 0.70 (70%) should fail
+        final rng = MockRandom(nextDoubleValue: 0.70);
+        expect(manAction.rollSuccess(rng, 1, 1), isFalse);
+      },
+    );
+
+    test(
+      'rollSuccess succeeds at level 1, mastery 1 vs perception 110 with low roll',
+      () {
+        // Stealth = 40 + 1 (level) + 1 (mastery) = 42
+        // Success chance = (100 + 42) / (100 + 110) = 142/210 = ~67.6%
+        // Roll of 0.60 (60%) should succeed
+        final rng = MockRandom(nextDoubleValue: 0.60);
+        expect(manAction.rollSuccess(rng, 1, 1), isTrue);
+      },
+    );
+  });
+
+  group('Thieving success', () {
+    test('thieving success grants gold and XP', () {
+      // Set up state with thieving action active
+      final random = Random(0);
+      final state = GlobalState.test().startAction(manAction, random: random);
+
+      final builder = StateUpdateBuilder(state);
+
+      // Use a mock random that always succeeds and grants specific gold
+      final rng = MockRandom(
+        nextDoubleValue: 0.0, // Always succeed (roll < success rate)
+        nextIntValue: 49, // Gold = 1 + 49 = 50
+      );
+
+      final playerAlive = completeThievingAction(builder, manAction, rng);
+
+      expect(playerAlive, isTrue);
+
+      final newState = builder.build();
+      // Should have gained gold (1 + 49 = 50)
+      expect(newState.gp, 50);
+      // Should have gained XP
+      expect(newState.skillState(Skill.thieving).xp, manAction.xp);
+      // Should NOT be stunned
+      expect(newState.isStunned, isFalse);
+    });
+
+    test('thieving success through tick processing', () {
+      // Start thieving action
+      final random = Random(0);
+      var state = GlobalState.test().startAction(manAction, random: random);
+      final builder = StateUpdateBuilder(state);
+
+      // Use a mock random that always succeeds
+      final rng = MockRandom(
+        nextDoubleValue: 0.0, // Always succeed
+        nextIntValue: 99, // Gold = 1 + 99 = 100 (max)
+      );
+
+      // Process enough ticks to complete the action (3 seconds = 30 ticks)
+      consumeTicks(builder, 30, random: rng);
+
+      final newState = builder.build();
+      // Should have gained gold (1 + 99 = 100)
+      expect(newState.gp, 100);
+      // Should have gained XP
+      expect(newState.skillState(Skill.thieving).xp, manAction.xp);
+      // Should NOT be stunned
+      expect(newState.isStunned, isFalse);
+      // Action should still be active (restarted)
+      expect(newState.activeAction, isNotNull);
+      expect(newState.activeAction!.name, 'Man');
+    });
+  });
+
+  group('Thieving failure', () {
+    test('thieving failure deals damage and stuns player', () {
+      // Set up state with enough HP to survive (level 10 hitpoints = 100 HP)
+      final random = Random(0);
+      final state = GlobalState.test(
+        skillStates: const {
+          Skill.hitpoints: SkillState(xp: 1154, masteryPoolXp: 0), // Level 10
+        },
+      ).startAction(manAction, random: random);
+
+      final builder = StateUpdateBuilder(state);
+
+      // Use a mock random that always fails and deals specific damage
+      final rng = MockRandom(
+        nextDoubleValue: 0.99, // Always fail (roll > success rate)
+        nextIntValue: 10, // Damage = 1 + 10 = 11
+      );
+
+      final playerAlive = completeThievingAction(builder, manAction, rng);
+
+      expect(playerAlive, isTrue);
+
+      final newState = builder.build();
+      // Should have taken damage
+      expect(newState.health.lostHp, 11);
+      // Should be stunned
+      expect(newState.isStunned, isTrue);
+      expect(newState.stunned.ticksRemaining, stunnedDurationTicks);
+      // Should NOT have gained XP
+      expect(newState.skillState(Skill.thieving).xp, 0);
+      // Should NOT have gained gold
+      expect(newState.gp, 0);
+    });
+
+    test('thieving failure that kills player stops action', () {
+      // Set up state with low HP (less than max damage)
+      final random = Random(0);
+      final state = GlobalState.test(
+        skillStates: const {
+          Skill.hitpoints: SkillState(
+            xp: 1154,
+            masteryPoolXp: 0,
+          ), // Level 10 = 100 HP
+        },
+        health: const HealthState(lostHp: 95), // Only 5 HP left (100 max)
+      ).startAction(manAction, random: random);
+
+      final builder = StateUpdateBuilder(state);
+
+      // Use a mock random that always fails and deals max damage
+      final rng = MockRandom(
+        nextDoubleValue: 0.99, // Always fail
+        nextIntValue: 21, // Damage = 1 + 21 = 22 (max)
+      );
+
+      final playerAlive = completeThievingAction(builder, manAction, rng);
+
+      expect(playerAlive, isFalse);
+
+      final newState = builder.build();
+      // Health should be reset (player respawned)
+      expect(newState.health.lostHp, 0);
+      // Should NOT be stunned (death clears it)
+      expect(newState.isStunned, isFalse);
+    });
+
+    test(
+      'thieving failure killing player through tick processing stops action',
+      () {
+        // Start with low HP
+        final random = Random(0);
+        var state = GlobalState.test(
+          skillStates: const {
+            Skill.hitpoints: SkillState(
+              xp: 1154,
+              masteryPoolXp: 0,
+            ), // Level 10 = 100 HP
+          },
+          health: const HealthState(lostHp: 95), // Only 5 HP left
+        ).startAction(manAction, random: random);
+
+        final builder = StateUpdateBuilder(state);
+
+        // Use a mock random that always fails and deals max damage
+        final rng = MockRandom(
+          nextDoubleValue: 0.99, // Always fail
+          nextIntValue: 21, // Damage = 22
+        );
+
+        // Process enough ticks to complete the action (30 ticks)
+        consumeTicks(builder, 30, random: rng);
+
+        final newState = builder.build();
+        // Health should be reset
+        expect(newState.health.lostHp, 0);
+        // Action should be stopped (player died)
+        expect(newState.activeAction, isNull);
+      },
+    );
+  });
+
+  group('Thieving stun recovery', () {
+    test('thieving action pauses while stunned from failed attempt', () {
+      // Start thieving action
+      final random = Random(0);
+      final state = GlobalState.test(
+        skillStates: const {
+          Skill.hitpoints: SkillState(
+            xp: 1154,
+            masteryPoolXp: 0,
+          ), // Level 10 = 100 HP
+        },
+      ).startAction(manAction, random: random);
+
+      final builder = StateUpdateBuilder(state);
+
+      // Use a mock random that always fails (to trigger stun)
+      final rng = MockRandom(
+        nextDoubleValue: 0.99, // Always fail
+        nextIntValue: 10, // Damage = 11
+      );
+
+      // Complete the action (30 ticks) - this should fail and stun
+      consumeTicks(builder, 30, random: rng);
+
+      var newState = builder.build();
+      // Should be stunned
+      expect(newState.isStunned, isTrue);
+      // Action should still be active (not stopped)
+      expect(newState.activeAction, isNotNull);
+      expect(newState.activeAction!.name, 'Man');
+      // Action timer stays at 0 (completed but waiting for stun to clear)
+      expect(newState.activeAction!.remainingTicks, 0);
+
+      // Process 15 ticks (half the stun duration)
+      final builder2 = StateUpdateBuilder(newState);
+      consumeTicks(builder2, 15, random: rng);
+
+      newState = builder2.build();
+      // Still stunned (15 of 30 ticks remaining)
+      expect(newState.isStunned, isTrue);
+      expect(newState.stunned.ticksRemaining, 15);
+      // Action timer still at 0 (waiting for stun)
+      expect(newState.activeAction!.remainingTicks, 0);
+    });
+
+    test('thieving continues after stun wears off', () {
+      // Set up a state where we're stunned but have an active action
+      // (simulating what happens after a failed thieving attempt)
+      final baseState = GlobalState.test(
+        skillStates: const {
+          Skill.hitpoints: SkillState(
+            xp: 1154,
+            masteryPoolXp: 0,
+          ), // Level 10 = 100 HP
+        },
+        stunned: const StunnedState.fresh().stun(), // 30 ticks of stun
+      );
+      // Manually set up the action since startAction throws when stunned
+      var state = GlobalState(
+        inventory: baseState.inventory,
+        activeAction: ActiveAction(
+          name: manAction.name,
+          remainingTicks: 30,
+          totalTicks: 30,
+        ),
+        skillStates: baseState.skillStates,
+        actionStates: baseState.actionStates,
+        updatedAt: baseState.updatedAt,
+        gp: baseState.gp,
+        shop: baseState.shop,
+        health: baseState.health,
+        equipment: baseState.equipment,
+        stunned: baseState.stunned,
+      );
+
+      final builder = StateUpdateBuilder(state);
+
+      // Use a mock random that always succeeds when we finally try
+      final rng = MockRandom(
+        nextDoubleValue: 0.0, // Always succeed
+        nextIntValue: 49, // Gold = 50
+      );
+
+      // Process just enough to clear stun (30 ticks)
+      consumeTicks(builder, 30, random: rng);
+
+      var newState = builder.build();
+      // Stun should be cleared
+      expect(newState.isStunned, isFalse);
+      // Action should still be active (restarted after stun)
+      expect(newState.activeAction, isNotNull);
+
+      // Now process more ticks to complete the action
+      final builder2 = StateUpdateBuilder(newState);
+      consumeTicks(builder2, 30, random: rng);
+
+      newState = builder2.build();
+      // Should have gained gold from successful theft (1 + 49 = 50)
+      expect(newState.gp, 50);
+    });
+  });
+}

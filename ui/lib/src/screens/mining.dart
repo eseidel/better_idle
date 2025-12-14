@@ -21,7 +21,7 @@ class MiningPage extends StatelessWidget {
       body: Column(
         children: [
           SkillProgress(xp: skillState.xp),
-          MasteryPoolProgress(xp: skillState.masteryXp),
+          MasteryPoolProgress(xp: skillState.masteryPoolXp),
           Expanded(
             child: ActionGrid(actions: actions, cellSize: const Size(300, 200)),
           ),

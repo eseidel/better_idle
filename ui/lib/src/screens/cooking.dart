@@ -31,7 +31,7 @@ class _CookingPageState extends State<CookingPage> {
       body: Column(
         children: [
           SkillProgress(xp: skillState.xp),
-          MasteryPoolProgress(xp: skillState.masteryXp),
+          MasteryPoolProgress(xp: skillState.masteryPoolXp),
           Expanded(
             child: SingleChildScrollView(
               padding: const EdgeInsets.all(16),

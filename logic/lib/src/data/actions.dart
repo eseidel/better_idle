@@ -27,7 +27,8 @@ enum Skill {
   fishing('Fishing'),
   cooking('Cooking'),
   mining('Mining'),
-  smithing('Smithing');
+  smithing('Smithing'),
+  thieving('Thieving');
 
   const Skill(this.name);
 
@@ -60,7 +61,7 @@ List<Droppable> woodcuttingRewards(SkillAction action, int masteryLevel) {
     throw StateError('Unsupported outputs: $outputs.');
   }
   final name = outputs.keys.first;
-  final doubleMultiplier = masteryLevel % 10;
+  final doubleMultiplier = masteryLevel ~/ 10;
   final doublePercent = (doubleMultiplier * 0.05).clamp(0.0, 1.0);
   final singlePercent = (1.0 - doublePercent).clamp(0.0, 1.0);
   return [
@@ -167,6 +168,95 @@ class MiningAction extends SkillAction {
   }
 }
 
+/// Duration for all thieving actions.
+const thievingDuration = Duration(seconds: 3);
+
+/// Thieving action with success/fail mechanics.
+/// On success: grants 1-maxGold GP and rolls for drops.
+/// On failure: deals 1-maxHit damage and stuns the player.
+@immutable
+class ThievingAction extends SkillAction {
+  const ThievingAction({
+    required super.name,
+    required super.unlockLevel,
+    required super.xp,
+    required this.perception,
+    required this.maxHit,
+    required this.maxGold,
+    super.outputs = const {},
+  }) : super(skill: Skill.thieving, duration: thievingDuration);
+
+  /// NPC perception - used to calculate success rate.
+  final int perception;
+
+  /// Maximum damage dealt on failure (1-maxHit).
+  final int maxHit;
+
+  /// Maximum gold granted on success (1-maxGold).
+  final int maxGold;
+
+  /// Rolls damage dealt on failure (1 to maxHit inclusive).
+  int rollDamage(Random random) {
+    if (maxHit <= 1) return 1;
+    return 1 + random.nextInt(maxHit);
+  }
+
+  /// Rolls gold granted on success (1 to maxGold inclusive).
+  int rollGold(Random random) {
+    if (maxGold <= 1) return 1;
+    return 1 + random.nextInt(maxGold);
+  }
+
+  /// Determines if the thieving attempt succeeds.
+  /// Success chance = min(1, (100 + stealth) / (100 + perception))
+  /// where stealth = 40 + thievingLevel + actionMasteryLevel
+  bool rollSuccess(Random random, int thievingLevel, int actionMasteryLevel) {
+    final stealth = calculateStealth(thievingLevel, actionMasteryLevel);
+    final successChance = ((100 + stealth) / (100 + perception)).clamp(
+      0.0,
+      1.0,
+    );
+    final roll = random.nextDouble();
+    return roll < successChance;
+  }
+}
+
+/// Base stealth value before skill/mastery bonuses.
+const int baseStealth = 40;
+
+/// Calculates stealth value for thieving.
+/// Stealth = 40 + thieving level + action mastery level
+int calculateStealth(int thievingLevel, int actionMasteryLevel) {
+  return baseStealth + thievingLevel + actionMasteryLevel;
+}
+
+ThievingAction _thieving(
+  String name, {
+  required int level,
+  required int xp,
+  required int perception,
+  required int maxHit,
+  required int maxGold,
+}) {
+  return ThievingAction(
+    name: name,
+    unlockLevel: level,
+    xp: xp,
+    perception: perception,
+    maxHit: maxHit,
+    maxGold: maxGold,
+  );
+}
+
+final thievingActions = <ThievingAction>[
+  _thieving('Man', level: 1, xp: 5, perception: 110, maxHit: 22, maxGold: 100),
+];
+
+/// Look up a ThievingAction by name.
+ThievingAction thievingActionByName(String name) {
+  return thievingActions.firstWhere((action) => action.name == name);
+}
+
 /// Fixed player attack speed in seconds.
 const double playerAttackSpeed = 4;
 
@@ -180,7 +270,7 @@ SkillAction _woodcutting(
     skill: Skill.woodcutting,
     name: '$name Tree',
     unlockLevel: level,
-    duration: Duration(seconds: 3),
+    duration: Duration(seconds: seconds),
     xp: xp,
     outputs: {'$name Logs': 1},
     rewardsAtLevel: woodcuttingRewards,
@@ -329,6 +419,7 @@ final List<Action> _allActions = [
   ...cookingActions,
   ...miningActions,
   ...smithingActions,
+  ...thievingActions,
   ...combatActions,
 ];
 
@@ -357,6 +448,9 @@ final skillDrops = <Skill, List<Droppable>>{
   ],
   Skill.smithing: [
     // Add smithing skill-level drops here as needed
+  ],
+  Skill.thieving: [
+    // Add thieving skill-level drops here as needed
   ],
 };
 

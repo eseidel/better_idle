@@ -36,18 +36,34 @@ int calculateMasteryXpPerAction({
   return max(1, baseValue * actionSeconds * 0.5 * (1 + bonus)).toInt();
 }
 
+// playerTotalMasteryForSkill is presumably a sum of all mastery xp
+// for all actions in this skill?
+int playerTotalMasteryForSkill(GlobalState state, Skill skill) {
+  int total = 0;
+  // This is terribly inefficient, but good enough for now.
+  for (final entry in state.actionStates.entries) {
+    final actionName = entry.key;
+    final actionState = entry.value;
+    final action = actionRegistry.byName(actionName);
+    if (action is SkillAction && action.skill == skill) {
+      total += actionState.masteryXp;
+    }
+  }
+  return total;
+}
+
 /// Returns the amount of mastery XP gained per action.
 // TODO(eseidel): Take a duration instead of using maxDuration?
 int masteryXpPerAction(GlobalState state, SkillAction action) {
-  final skillState = state.skillState(action.skill);
   final actionState = state.actionState(action.name);
-  final actionMasteryLevel = levelForXp(actionState.masteryXp);
-  final itemsInSkill = actionRegistry.forSkill(action.skill).length;
+  final actionMasteryLevel = actionState.masteryLevel;
+  final actions = actionRegistry.forSkill(action.skill);
+  final itemsInSkill = actions.length;
   return calculateMasteryXpPerAction(
     unlockedActions: state.unlockedActionsCount(action.skill),
     actionSeconds: action.maxDuration.inSeconds.toDouble(),
-    playerTotalMasteryForSkill: skillState.xp,
-    totalMasteryForSkill: skillState.masteryXp,
+    playerTotalMasteryForSkill: playerTotalMasteryForSkill(state, action.skill),
+    totalMasteryForSkill: itemsInSkill * maxMasteryXp,
     itemMasteryLevel: actionMasteryLevel,
     totalItemsInSkill: itemsInSkill,
     bonus: 0,
@@ -288,11 +304,11 @@ void _applyBackgroundTicks(
   List<BackgroundTickConsumer> backgrounds,
   Tick ticks, {
   String? activeActionName,
+  bool skipStunCountdown = false,
 }) {
-  // Apply stunned countdown
-  final stunned = builder.state.stunned;
-  if (stunned.isStunned) {
-    final newStunned = stunned.applyTicks(ticks);
+  // Apply stunned countdown (unless stun was just applied this iteration)
+  if (builder.state.isStunned && !skipStunCountdown) {
+    final newStunned = builder.state.stunned.applyTicks(ticks);
     builder.setStunned(newStunned);
   }
 
@@ -353,9 +369,9 @@ class StateUpdateBuilder {
     return levelForXp(_state.actionState(action.name).masteryXp);
   }
 
-  void restartCurrentAction(Action action, {Random? random}) {
+  void restartCurrentAction(Action action, {required Random random}) {
     // This shouldn't be able to start a *new* action, only restart the current.
-    _state = _state.startAction(action, random: random ?? Random());
+    _state = _state.startAction(action, random: random);
   }
 
   /// Adds inventory if there's space. Returns true if successful.
@@ -382,14 +398,12 @@ class StateUpdateBuilder {
   }
 
   void addSkillXp(Skill skill, int amount) {
-    final oldXp = _state.skillState(skill).xp;
-    final oldLevel = levelForXp(oldXp);
+    final oldLevel = _state.skillState(skill).skillLevel;
 
     _state = _state.addSkillXp(skill, amount);
     _changes = _changes.addingSkillXp(skill, amount);
 
-    final newXp = _state.skillState(skill).xp;
-    final newLevel = levelForXp(newXp);
+    final newLevel = _state.skillState(skill).skillLevel;
 
     // Track level changes
     if (newLevel > oldLevel) {
@@ -497,14 +511,69 @@ XpPerAction xpPerAction(GlobalState state, SkillAction action) {
   );
 }
 
+/// Completes a thieving action with success/fail mechanics.
+/// On success: grants XP, 1-maxGold GP, and rolls for drops.
+/// On failure: deals 1-maxHit damage and stuns the player.
+/// Returns true if the player is still alive (action can continue).
+bool completeThievingAction(
+  StateUpdateBuilder builder,
+  ThievingAction action,
+  Random rng,
+) {
+  final thievingLevel = builder.state.skillState(Skill.thieving).skillLevel;
+  final actionMasteryLevel = builder.currentMasteryLevel(action);
+  final success = action.rollSuccess(rng, thievingLevel, actionMasteryLevel);
+
+  if (success) {
+    // Grant XP on success
+    final perAction = xpPerAction(builder.state, action);
+    builder
+      ..addSkillXp(action.skill, perAction.xp)
+      ..addActionMasteryXp(action.name, perAction.masteryXp)
+      ..addSkillMasteryXp(action.skill, perAction.masteryPoolXp);
+
+    // Grant gold
+    final gold = action.rollGold(rng);
+    builder.addGp(gold);
+
+    // Process drops
+    final masteryLevel = builder.currentMasteryLevel(action);
+    for (final drop in dropsRegistry.allDropsForAction(
+      action,
+      masteryLevel: masteryLevel,
+    )) {
+      final itemStack = drop.roll(rng);
+      if (itemStack != null) {
+        builder.addInventory(itemStack);
+      }
+    }
+
+    return true;
+  } else {
+    // Thieving failed - deal damage
+    final damage = action.rollDamage(rng);
+    builder.damagePlayer(damage);
+
+    // Check if player died
+    if (builder.state.playerHp <= 0) {
+      builder.resetPlayerHealth();
+      return false;
+    }
+
+    // Stun the player
+    builder.setStunned(builder.state.stunned.stun());
+
+    return true;
+  }
+}
+
 /// Completes a skill action, consuming inputs, adding outputs, and awarding XP.
 /// Returns true if the action can repeat (no items were dropped).
 bool completeAction(
   StateUpdateBuilder builder,
   SkillAction action, {
-  Random? random,
+  required Random random,
 }) {
-  final rng = random ?? Random();
   var canRepeatAction = true;
 
   // Consume required items
@@ -520,7 +589,7 @@ bool completeAction(
     action,
     masteryLevel: masteryLevel,
   )) {
-    final itemStack = drop.roll(rng);
+    final itemStack = drop.roll(random);
     if (itemStack != null) {
       final success = builder.addInventory(itemStack);
       if (!success) {
@@ -560,11 +629,6 @@ bool completeAction(
   return canRepeatAction;
 }
 
-/// Consumes a specified number of ticks and updates the state.
-void consumeTicks(StateUpdateBuilder builder, Tick ticks, {Random? random}) {
-  consumeTicksForAllSystems(builder, ticks, random: random);
-}
-
 // ============================================================================
 // Main Tick Processing - New Architecture
 // ============================================================================
@@ -576,6 +640,10 @@ enum ForegroundResult {
 
   /// Action ended (no inputs, inventory full, player died, etc.).
   stopped,
+
+  /// Action completed but player got stunned. Ticks were spent completing
+  /// the action, not waiting for stun - skip stun countdown this iteration.
+  justStunned,
 }
 
 /// Processes one iteration of a SkillAction foreground.
@@ -586,9 +654,28 @@ enum ForegroundResult {
   Tick ticksAvailable,
   Random rng,
 ) {
-  final currentAction = builder.state.activeAction;
+  var currentAction = builder.state.activeAction;
   if (currentAction == null) {
     return (ForegroundResult.stopped, 0);
+  }
+
+  // If stunned, wait for stun to clear before processing any foreground action.
+  // Return ticks to consume (up to stun remaining) but don't modify stun -
+  // background handles the countdown.
+  if (builder.state.isStunned) {
+    final ticksToWait = min(
+      ticksAvailable,
+      builder.state.stunned.ticksRemaining,
+    );
+    return (ForegroundResult.continued, ticksToWait);
+  }
+
+  // If action completed (remainingTicks=0), stun just cleared - restart it.
+  // This happens when an action (e.g., thieving) completed but was stunned,
+  // leaving it at remainingTicks=0 until stun cleared.
+  if (currentAction.remainingTicks == 0) {
+    builder.restartCurrentAction(action, random: rng);
+    currentAction = builder.state.activeAction!;
   }
 
   // For mining, handle respawn waiting (blocking foreground behavior)
@@ -619,7 +706,26 @@ enum ForegroundResult {
   builder.setActionProgress(action, remainingTicks: newRemainingTicks);
 
   if (newRemainingTicks <= 0) {
-    // Action completed
+    // Action completed - handle differently based on action type
+    if (action is ThievingAction) {
+      final playerAlive = completeThievingAction(builder, action, rng);
+      if (playerAlive) {
+        if (builder.state.isStunned) {
+          // Failed - leave at remainingTicks=0, return justStunned so
+          // background skips stun countdown (ticks were for action completion)
+          return (ForegroundResult.justStunned, ticksToApply);
+        } else {
+          // Success - restart action normally
+          builder.restartCurrentAction(action, random: rng);
+          return (ForegroundResult.continued, ticksToApply);
+        }
+      } else {
+        // Player died - stop action
+        builder.clearAction();
+        return (ForegroundResult.stopped, ticksToApply);
+      }
+    }
+
     final canRepeat = completeAction(builder, action, random: rng);
 
     // For mining, check if node just depleted
@@ -784,8 +890,11 @@ enum ForegroundResult {
 
 /// Main tick processing - handles foreground action (if any) and all
 /// background actions in parallel.
-void consumeAllTicks(StateUpdateBuilder builder, Tick ticks, {Random? random}) {
-  final rng = random ?? Random();
+void consumeTicks(
+  StateUpdateBuilder builder,
+  Tick ticks, {
+  required Random random,
+}) {
   var ticksRemaining = ticks;
 
   while (ticksRemaining > 0) {
@@ -802,6 +911,8 @@ void consumeAllTicks(StateUpdateBuilder builder, Tick ticks, {Random? random}) {
     // 2. Determine how many ticks to process this iteration
     Tick ticksThisIteration;
 
+    var skipStunCountdown = false;
+
     if (activeAction != null) {
       // Process foreground action until next "event"
       final action = actionRegistry.byName(activeAction.name);
@@ -809,9 +920,8 @@ void consumeAllTicks(StateUpdateBuilder builder, Tick ticks, {Random? random}) {
         builder,
         action,
         ticksRemaining,
-        rng,
+        random,
       );
-      ticksThisIteration = ticksUsed;
 
       // Handle foreground result
       if (foregroundResult == ForegroundResult.stopped) {
@@ -820,6 +930,11 @@ void consumeAllTicks(StateUpdateBuilder builder, Tick ticks, {Random? random}) {
         _applyBackgroundTicks(builder, backgroundActions, ticksRemaining);
         break;
       }
+      if (foregroundResult == ForegroundResult.justStunned) {
+        // Stun was just applied - ticks were for action completion, not stun
+        skipStunCountdown = true;
+      }
+      ticksThisIteration = ticksUsed;
     } else {
       // No foreground action - consume all ticks for background actions
       ticksThisIteration = ticksRemaining;
@@ -831,6 +946,7 @@ void consumeAllTicks(StateUpdateBuilder builder, Tick ticks, {Random? random}) {
       backgroundActions,
       ticksThisIteration,
       activeActionName: activeAction?.name,
+      skipStunCountdown: skipStunCountdown,
     );
 
     ticksRemaining -= ticksThisIteration;
@@ -851,23 +967,12 @@ void consumeAllTicks(StateUpdateBuilder builder, Tick ticks, {Random? random}) {
   }
 }
 
-/// Applies ticks to all game systems: active action and background resource
-/// recovery (respawn/heal) for all mining nodes.
-///
-/// This is the core tick-processing logic used by UpdateActivityProgressAction.
-void consumeTicksForAllSystems(
-  StateUpdateBuilder builder,
-  Tick ticks, {
-  Random? random,
-}) {
-  consumeAllTicks(builder, ticks, random: random);
-}
-
 /// Consumes a specified number of ticks and returns the changes.
 (TimeAway, GlobalState) consumeManyTicks(
   GlobalState state,
   Tick ticks, {
   DateTime? endTime,
+  required Random random,
 }) {
   final activeAction = state.activeAction;
   if (activeAction == null) {
@@ -875,7 +980,7 @@ void consumeTicksForAllSystems(
     return (TimeAway.empty(), state);
   }
   final builder = StateUpdateBuilder(state);
-  consumeTicksForAllSystems(builder, ticks);
+  consumeTicks(builder, ticks, random: random);
   final startTime = state.updatedAt;
   final calculatedEndTime =
       endTime ??
@@ -892,6 +997,9 @@ void consumeTicksForAllSystems(
     // Only pass SkillActions - CombatActions don't support predictions
     activeAction: action is SkillAction ? action : null,
     changes: builder.changes,
+    masteryLevels: builder.state.actionStates.map(
+      (key, value) => MapEntry(key, value.masteryLevel),
+    ),
   );
   return (timeAway, builder.build());
 }

@@ -21,7 +21,7 @@ class FishingPage extends StatelessWidget {
       body: Column(
         children: [
           SkillProgress(xp: skillState.xp),
-          MasteryPoolProgress(xp: skillState.masteryXp),
+          MasteryPoolProgress(xp: skillState.masteryPoolXp),
           Expanded(
             child:
                 // Grid view of all activities, 2x wide

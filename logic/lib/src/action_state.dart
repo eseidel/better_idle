@@ -190,6 +190,9 @@ class ActionState {
   /// Combat-specific state (null for non-combat actions).
   final CombatActionState? combat;
 
+  /// The mastery level for this action, derived from mastery XP.
+  int get masteryLevel => levelForXp(masteryXp);
+
   ActionState copyWith({
     int? masteryXp,
     MiningState? mining,
