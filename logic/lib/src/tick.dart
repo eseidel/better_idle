@@ -8,3 +8,8 @@ const Duration tickDuration = Duration(milliseconds: 100);
 Tick ticksFromDuration(Duration duration) {
   return duration.inMilliseconds ~/ tickDuration.inMilliseconds;
 }
+
+/// Converts ticks to a Duration.
+Duration durationFromTicks(Tick ticks) {
+  return Duration(milliseconds: ticks * tickDuration.inMilliseconds);
+}

@@ -51,6 +51,7 @@ class TimeAway {
     required this.masteryLevels,
     this.activeAction,
     this.stopReason = ActionStopReason.stillRunning,
+    this.stoppedAfter,
   });
 
   factory TimeAway.test({
@@ -61,6 +62,7 @@ class TimeAway {
     Changes? changes,
     Map<String, int>? masteryLevels,
     ActionStopReason? stopReason,
+    Duration? stoppedAfter,
   }) {
     return TimeAway(
       startTime: startTime ?? DateTime.fromMillisecondsSinceEpoch(0),
@@ -70,6 +72,7 @@ class TimeAway {
       changes: changes ?? const Changes.empty(),
       masteryLevels: masteryLevels ?? const {},
       stopReason: stopReason ?? ActionStopReason.stillRunning,
+      stoppedAfter: stoppedAfter,
     );
   }
 
@@ -106,6 +109,7 @@ class TimeAway {
             orElse: () => ActionStopReason.stillRunning,
           )
         : ActionStopReason.stillRunning;
+    final stoppedAfterMs = json['stoppedAfterMs'] as int?;
     return TimeAway(
       startTime: DateTime.fromMillisecondsSinceEpoch(json['startTime'] as int),
       endTime: DateTime.fromMillisecondsSinceEpoch(json['endTime'] as int),
@@ -118,6 +122,9 @@ class TimeAway {
           maybeMap(json['masteryLevels'], toValue: (value) => value as int) ??
           {},
       stopReason: stopReason,
+      stoppedAfter: stoppedAfterMs != null
+          ? Duration(milliseconds: stoppedAfterMs)
+          : null,
     );
   }
   final DateTime startTime;
@@ -127,6 +134,9 @@ class TimeAway {
   final Changes changes;
   final Map<String, int> masteryLevels;
   final ActionStopReason stopReason;
+
+  /// How long after startTime the action stopped, or null if still running.
+  final Duration? stoppedAfter;
 
   Duration get duration => endTime.difference(startTime);
 
@@ -231,6 +241,7 @@ class TimeAway {
     Changes? changes,
     Map<String, int>? masteryLevels,
     ActionStopReason? stopReason,
+    Duration? stoppedAfter,
   }) {
     return TimeAway(
       startTime: startTime ?? this.startTime,
@@ -240,6 +251,7 @@ class TimeAway {
       changes: changes ?? this.changes,
       masteryLevels: masteryLevels ?? this.masteryLevels,
       stopReason: stopReason ?? this.stopReason,
+      stoppedAfter: stoppedAfter ?? this.stoppedAfter,
     );
   }
 
@@ -274,6 +286,8 @@ class TimeAway {
     final mergedStopReason = stopReason != ActionStopReason.stillRunning
         ? stopReason
         : other.stopReason;
+    // Prefer a non-null stoppedAfter (the first stop)
+    final mergedStoppedAfter = stoppedAfter ?? other.stoppedAfter;
     return TimeAway(
       startTime: mergedStartTime,
       endTime: mergedEndTime,
@@ -282,6 +296,7 @@ class TimeAway {
       changes: changes.merge(other.changes),
       masteryLevels: mergedMasteryLevels,
       stopReason: mergedStopReason,
+      stoppedAfter: mergedStoppedAfter,
     );
   }
 
@@ -293,6 +308,7 @@ class TimeAway {
       'activeAction': activeAction?.name,
       'changes': changes.toJson(),
       'stopReason': stopReason.name,
+      'stoppedAfterMs': stoppedAfter?.inMilliseconds,
     };
   }
 }

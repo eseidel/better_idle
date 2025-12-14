@@ -356,12 +356,20 @@ class StateUpdateBuilder {
   GlobalState _state;
   Changes _changes = const Changes.empty();
   ActionStopReason _stopReason = ActionStopReason.stillRunning;
+  Tick _ticksElapsed = 0;
+  Tick? _stoppedAtTick;
 
   GlobalState get state => _state;
   ActionStopReason get stopReason => _stopReason;
+  Tick? get stoppedAtTick => _stoppedAtTick;
+
+  void addElapsedTicks(Tick ticks) {
+    _ticksElapsed += ticks;
+  }
 
   void stopAction(ActionStopReason reason) {
     _stopReason = reason;
+    _stoppedAtTick = _ticksElapsed;
     _state = _state.clearAction();
   }
 
@@ -957,6 +965,7 @@ void consumeTicks(
     );
 
     ticksRemaining -= ticksThisIteration;
+    builder.addElapsedTicks(ticksThisIteration);
 
     // If no foreground action, no mining background actions, and player is
     // fully healed, we're done
@@ -997,6 +1006,10 @@ void consumeTicks(
   // For TimeAway, we only need the action for predictions.
   // Combat actions return empty predictions anyway, so null is fine.
   final action = actionRegistry.byName(activeAction.name);
+  // Convert stoppedAtTick to Duration if action stopped
+  final stoppedAfter = builder.stoppedAtTick != null
+      ? durationFromTicks(builder.stoppedAtTick!)
+      : null;
   final timeAway = TimeAway(
     startTime: startTime,
     endTime: calculatedEndTime,
@@ -1008,6 +1021,7 @@ void consumeTicks(
       (key, value) => MapEntry(key, value.masteryLevel),
     ),
     stopReason: builder.stopReason,
+    stoppedAfter: stoppedAfter,
   );
   return (timeAway, builder.build());
 }

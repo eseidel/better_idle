@@ -107,7 +107,11 @@ void printTimeAway(TimeAway timeAway) {
       ActionStopReason.inventoryFull => 'Inventory full',
       ActionStopReason.playerDied => 'Player died',
     };
-    print('  ⛔ $reason');
+    final stoppedAfter = timeAway.stoppedAfter;
+    final whenText = stoppedAfter != null
+        ? ' after ${approximateDuration(stoppedAfter)}'
+        : '';
+    print('  ⛔ $reason$whenText');
     print('');
   }
 
