@@ -615,15 +615,6 @@ bool completeAction(
   return canRepeatAction;
 }
 
-/// Consumes a specified number of ticks and updates the state.
-void consumeTicks(
-  StateUpdateBuilder builder,
-  Tick ticks, {
-  required Random random,
-}) {
-  consumeTicksForAllSystems(builder, ticks, random: random);
-}
-
 // ============================================================================
 // Main Tick Processing - New Architecture
 // ============================================================================
@@ -885,7 +876,7 @@ enum ForegroundResult {
 
 /// Main tick processing - handles foreground action (if any) and all
 /// background actions in parallel.
-void consumeAllTicks(
+void consumeTicks(
   StateUpdateBuilder builder,
   Tick ticks, {
   required Random random,
@@ -962,18 +953,6 @@ void consumeAllTicks(
   }
 }
 
-/// Applies ticks to all game systems: active action and background resource
-/// recovery (respawn/heal) for all mining nodes.
-///
-/// This is the core tick-processing logic used by UpdateActivityProgressAction.
-void consumeTicksForAllSystems(
-  StateUpdateBuilder builder,
-  Tick ticks, {
-  required Random random,
-}) {
-  consumeAllTicks(builder, ticks, random: random);
-}
-
 /// Consumes a specified number of ticks and returns the changes.
 (TimeAway, GlobalState) consumeManyTicks(
   GlobalState state,
@@ -987,7 +966,7 @@ void consumeTicksForAllSystems(
     return (TimeAway.empty(), state);
   }
   final builder = StateUpdateBuilder(state);
-  consumeTicksForAllSystems(builder, ticks, random: random);
+  consumeTicks(builder, ticks, random: random);
   final startTime = state.updatedAt;
   final calculatedEndTime =
       endTime ??

@@ -794,7 +794,7 @@ void main() {
       // Helper that uses the same logic as UpdateActivityProgressAction
       GlobalState applyTicks(GlobalState state, Tick ticks) {
         final builder = StateUpdateBuilder(state);
-        consumeTicksForAllSystems(builder, ticks, random: random);
+        consumeTicks(builder, ticks, random: random);
         return builder.build();
       }
 
@@ -982,7 +982,7 @@ void main() {
 
       // Process 60 ticks (enough for 1 heal at tick 50, partial progress)
       final builder = StateUpdateBuilder(state);
-      consumeTicksForAllSystems(builder, 60, random: random);
+      consumeTicks(builder, 60, random: random);
       state = builder.build();
 
       // Verify node healed (should have healed once at tick 50)
@@ -1021,7 +1021,7 @@ void main() {
 
       // Process enough ticks to respawn
       final builder = StateUpdateBuilder(state);
-      consumeTicksForAllSystems(builder, 50, random: random);
+      consumeTicks(builder, 50, random: random);
       state = builder.build();
 
       // Verify node respawned
@@ -1059,7 +1059,7 @@ void main() {
 
       // Process 200 ticks - enough for woodcutting completions and heals
       final builder = StateUpdateBuilder(state);
-      consumeTicksForAllSystems(builder, 200, random: random);
+      consumeTicks(builder, 200, random: random);
       state = builder.build();
 
       // Verify woodcutting produced logs
@@ -1093,7 +1093,7 @@ void main() {
 
       // Process some ticks - should not throw
       final builder = StateUpdateBuilder(state);
-      consumeTicksForAllSystems(builder, 100, random: random);
+      consumeTicks(builder, 100, random: random);
       state = builder.build();
 
       // Combat should still be active (player shouldn't have died in 100 ticks)
@@ -1118,7 +1118,7 @@ void main() {
 
       // Process 200 ticks - enough for healing
       final builder = StateUpdateBuilder(state);
-      consumeTicksForAllSystems(builder, 200, random: random);
+      consumeTicks(builder, 200, random: random);
       state = builder.build();
 
       // Verify mining node healed during combat
@@ -1157,7 +1157,7 @@ void main() {
       state = state.startAction(copper, random: random);
       // Process exactly 30 ticks (mining completes + heal completes)
       final builder = StateUpdateBuilder(state);
-      consumeTicksForAllSystems(builder, 30, random: random);
+      consumeTicks(builder, 30, random: random);
       state = builder.build();
 
       // Verify we got copper ore (mining completed)

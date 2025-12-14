@@ -118,7 +118,7 @@ void main() {
       );
 
       // Process enough ticks to complete the action (3 seconds = 30 ticks)
-      consumeTicksForAllSystems(builder, 30, random: rng);
+      consumeTicks(builder, 30, random: rng);
 
       final newState = builder.build();
       // Should have gained gold (1 + 99 = 100)
@@ -223,7 +223,7 @@ void main() {
         );
 
         // Process enough ticks to complete the action (30 ticks)
-        consumeTicksForAllSystems(builder, 30, random: rng);
+        consumeTicks(builder, 30, random: rng);
 
         final newState = builder.build();
         // Health should be reset
@@ -256,7 +256,7 @@ void main() {
       );
 
       // Complete the action (30 ticks) - this should fail and stun
-      consumeTicksForAllSystems(builder, 30, random: rng);
+      consumeTicks(builder, 30, random: rng);
 
       var newState = builder.build();
       // Should be stunned
@@ -269,7 +269,7 @@ void main() {
 
       // Process 15 ticks (half the stun duration)
       final builder2 = StateUpdateBuilder(newState);
-      consumeTicksForAllSystems(builder2, 15, random: rng);
+      consumeTicks(builder2, 15, random: rng);
 
       newState = builder2.build();
       // Still stunned (15 of 30 ticks remaining)
@@ -318,7 +318,7 @@ void main() {
       );
 
       // Process just enough to clear stun (30 ticks)
-      consumeTicksForAllSystems(builder, 30, random: rng);
+      consumeTicks(builder, 30, random: rng);
 
       var newState = builder.build();
       // Stun should be cleared
@@ -328,7 +328,7 @@ void main() {
 
       // Now process more ticks to complete the action
       final builder2 = StateUpdateBuilder(newState);
-      consumeTicksForAllSystems(builder2, 30, random: rng);
+      consumeTicks(builder2, 30, random: rng);
 
       newState = builder2.build();
       // Should have gained gold from successful theft (1 + 49 = 50)

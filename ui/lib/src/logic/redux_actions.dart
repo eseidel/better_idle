@@ -15,7 +15,7 @@ class UpdateActivityProgressAction extends ReduxAction<GlobalState> {
     final ticks = ticksFromDuration(now.difference(state.updatedAt));
     final builder = StateUpdateBuilder(state);
     final random = Random();
-    consumeTicksForAllSystems(builder, ticks, random: random);
+    consumeTicks(builder, ticks, random: random);
 
     final changes = builder.changes;
     final newState = builder.build();

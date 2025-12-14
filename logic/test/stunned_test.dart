@@ -157,7 +157,7 @@ void main() {
 
       // Process 10 ticks (1 second)
       final random = Random(0);
-      consumeTicksForAllSystems(builder, 10, random: random);
+      consumeTicks(builder, 10, random: random);
       final afterTicks = builder.build();
 
       expect(afterTicks.stunned.ticksRemaining, stunnedDurationTicks - 10);
@@ -172,7 +172,7 @@ void main() {
 
       // Process all stun ticks (3 seconds = 30 ticks)
       final random = Random(0);
-      consumeTicksForAllSystems(builder, stunnedDurationTicks, random: random);
+      consumeTicks(builder, stunnedDurationTicks, random: random);
       final afterTicks = builder.build();
 
       expect(afterTicks.stunned.ticksRemaining, 0);
@@ -187,7 +187,7 @@ void main() {
 
       // Process exactly 30 ticks (3 seconds)
       final random = Random(0);
-      consumeTicksForAllSystems(builder, 30, random: random);
+      consumeTicks(builder, 30, random: random);
       final afterTicks = builder.build();
 
       expect(afterTicks.isStunned, isFalse);
