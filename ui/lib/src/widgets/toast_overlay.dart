@@ -87,6 +87,13 @@ class _ToastOverlayState extends State<ToastOverlay>
       );
     }
 
+    // Add GP change bubble
+    if (currentData.gpGained != 0) {
+      bubbles.add(
+        _buildBubble('${signedCountString(currentData.gpGained)} GP'),
+      );
+    }
+
     return Stack(
       children: [
         widget.child,
