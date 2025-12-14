@@ -127,12 +127,10 @@ void main() {
       expect(state.activeAction?.name, normalTree.name);
 
       // Verify 1 item in inventory (only first completion counted)
-      // At mastery level 1, there's a 5% chance for double logs.
       final items = state.inventory.items;
       expect(items.length, 1);
       expect(items.first.item.name, 'Normal Logs');
-      expect(items.first.count, greaterThanOrEqualTo(1));
-      expect(items.first.count, lessThanOrEqualTo(2));
+      expect(items.first.count, 1);
 
       // Verify 1x XP (only first completion counted)
       expect(state.skillState(normalTree.skill).xp, normalTree.xp);
@@ -209,10 +207,8 @@ void main() {
       state = builder.build();
 
       // Verify all rewards are accumulated correctly
-      // Normal Tree has 1 reward per completion, but at mastery level 1 there's
-      // a 5% chance for double logs. So we expect at least 3 logs.
       expect(state.inventory.items.length, 1);
-      expect(state.inventory.items.first.count, greaterThanOrEqualTo(3));
+      expect(state.inventory.items.first.count, 3);
     });
 
     test('consuming ticks for 1 completion adds mastery XP', () {
@@ -231,7 +227,7 @@ void main() {
 
       // Verify mastery XP increased
       final masteryXpAfterFirst = state.skillState(normalTree.skill).masteryXp;
-      expect(masteryXpAfterFirst, greaterThan(0));
+      expect(masteryXpAfterFirst, 1);
 
       // Advance time by exactly 1 more completion
       final builder2 = StateUpdateBuilder(state);
@@ -240,7 +236,7 @@ void main() {
 
       // Verify mastery XP increased again
       final masteryXpAfterSecond = state.skillState(normalTree.skill).masteryXp;
-      expect(masteryXpAfterSecond, greaterThan(masteryXpAfterFirst));
+      expect(masteryXpAfterSecond, 2);
     });
 
     test('skill-level drops are processed on action completion', () {
@@ -256,21 +252,18 @@ void main() {
       state = builder.build();
 
       // Verify action-level drop (Normal Logs) is present
-      // At mastery level 1, there's a 5% chance for double logs per action.
-      // With 100 completions, we expect at least 100 logs (possibly more).
       final items = state.inventory.items;
       expect(items.any((i) => i.item == normalLogs), true);
       final normalLogsCount = items
           .firstWhere((i) => i.item == normalLogs)
           .count;
-      expect(normalLogsCount, greaterThanOrEqualTo(100));
+      expect(normalLogsCount, 102);
 
-      // Verify skill-level drop (Bird Nest) may have dropped
+      // Verify skill-level drop (Bird Nest) dropped
       final birdNestCount = state.inventory.items
           .where((i) => i.item == birdNest)
           .fold(0, (sum, item) => sum + item.count);
-      // With seeded random, we know it will always drop 1.
-      expect(birdNestCount, greaterThanOrEqualTo(1));
+      expect(birdNestCount, 1);
     });
 
     test(
@@ -341,12 +334,11 @@ void main() {
         // Verify 1x XP was gained
         expect(state.skillState(burnNormalLogs.skill).xp, burnNormalLogs.xp);
 
-        // Verify skill-level drops may have occurred (Coal Ore or Ash)
+        // Verify skill-level drops (with seeded Random(0), neither dropped)
         final coalOreCount = state.inventory.countOfItem(coalOre);
         final ashCount = state.inventory.countOfItem(ash);
-        // At least one skill-level drop should have a chance to occur
-        // (Coal Ore has 40% rate, Ash has 20% rate)
-        expect(coalOreCount + ashCount, greaterThanOrEqualTo(0));
+        expect(coalOreCount, 0);
+        expect(ashCount, 0);
 
         // Verify changes object tracks the consumed item
         expect(builder.changes.inventoryChanges.counts['Normal Logs'], -1);
@@ -543,7 +535,7 @@ void main() {
 
       // Verify TimeAway has correct duration and skill
       expect(timeAway.activeSkill, Skill.woodcutting);
-      expect(timeAway.duration.inMilliseconds, greaterThan(0));
+      expect(timeAway.duration.inMilliseconds, 9000);
     });
 
     test('Changes tracks skill level gains', () {
@@ -1071,28 +1063,16 @@ void main() {
       state = builder.build();
 
       // Verify woodcutting produced logs
-      expect(
-        state.inventory.countOfItem(normalLogs),
-        greaterThan(0),
-        reason: 'Should have woodcut some logs',
-      );
+      expect(state.inventory.countOfItem(normalLogs), 6);
 
-      // Verify both nodes healed (at least 1 HP each)
+      // Verify both nodes healed
       final copperMining =
           state.actionState('Copper').mining ?? const MiningState.empty();
       final runeMining =
           state.actionState('Rune Essence').mining ?? const MiningState.empty();
 
-      expect(
-        copperMining.totalHpLost,
-        lessThan(2),
-        reason: 'Copper should have healed at least 1 HP',
-      );
-      expect(
-        runeMining.totalHpLost,
-        lessThan(3),
-        reason: 'Rune Essence should have healed at least 1 HP',
-      );
+      expect(copperMining.totalHpLost, 0);
+      expect(runeMining.totalHpLost, 1);
     });
 
     test('combat action processes ticks with monster name as action name', () {
@@ -1144,11 +1124,7 @@ void main() {
       // Verify mining node healed during combat
       final copperMining =
           state.actionState('Copper').mining ?? const MiningState.empty();
-      expect(
-        copperMining.totalHpLost,
-        lessThan(2),
-        reason: 'Copper should have healed during combat',
-      );
+      expect(copperMining.totalHpLost, 0);
     });
 
     test('mining hit and heal happen in predictable order', () {

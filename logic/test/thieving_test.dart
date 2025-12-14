@@ -121,10 +121,10 @@ void main() {
       consumeTicksForAllSystems(builder, 30, random: rng);
 
       final newState = builder.build();
-      // Should have gained gold
-      expect(newState.gp, greaterThan(0));
+      // Should have gained gold (1 + 99 = 100)
+      expect(newState.gp, 100);
       // Should have gained XP
-      expect(newState.skillState(Skill.thieving).xp, greaterThan(0));
+      expect(newState.skillState(Skill.thieving).xp, manAction.xp);
       // Should NOT be stunned
       expect(newState.isStunned, isFalse);
       // Action should still be active (restarted)
@@ -280,9 +280,9 @@ void main() {
     });
 
     test('thieving continues after stun wears off', () {
-      // Start thieving while already stunned
-      final random = Random(0);
-      var state = GlobalState.test(
+      // Set up a state where we're stunned but have an active action
+      // (simulating what happens after a failed thieving attempt)
+      final baseState = GlobalState.test(
         skillStates: const {
           Skill.hitpoints: SkillState(
             xp: 1154,
@@ -290,23 +290,23 @@ void main() {
           ), // Level 10 = 100 HP
         },
         stunned: const StunnedState.fresh().stun(), // 30 ticks of stun
-      ).startAction(manAction, random: random);
-      // Need to manually set up the action since startAction throws when stunned
-      state = GlobalState(
-        inventory: state.inventory,
+      );
+      // Manually set up the action since startAction throws when stunned
+      var state = GlobalState(
+        inventory: baseState.inventory,
         activeAction: ActiveAction(
           name: manAction.name,
           remainingTicks: 30,
           totalTicks: 30,
         ),
-        skillStates: state.skillStates,
-        actionStates: state.actionStates,
-        updatedAt: state.updatedAt,
-        gp: state.gp,
-        shop: state.shop,
-        health: state.health,
-        equipment: state.equipment,
-        stunned: state.stunned,
+        skillStates: baseState.skillStates,
+        actionStates: baseState.actionStates,
+        updatedAt: baseState.updatedAt,
+        gp: baseState.gp,
+        shop: baseState.shop,
+        health: baseState.health,
+        equipment: baseState.equipment,
+        stunned: baseState.stunned,
       );
 
       final builder = StateUpdateBuilder(state);
@@ -331,8 +331,8 @@ void main() {
       consumeTicksForAllSystems(builder2, 30, random: rng);
 
       newState = builder2.build();
-      // Should have gained gold from successful theft
-      expect(newState.gp, greaterThan(0));
+      // Should have gained gold from successful theft (1 + 49 = 50)
+      expect(newState.gp, 50);
     });
   });
 }
