@@ -3,7 +3,7 @@ description: Game logic for better_idle - pure Dart, no Flutter dependencies.
 version: 1.0.0
 
 environment:
-  sdk: ^3.9.0
+  sdk: ^3.10.0
 
 dependencies:
   collection: ^1.19.0
