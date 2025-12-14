@@ -1,3 +1,5 @@
+import 'dart:math';
+
 import 'package:logic/logic.dart';
 import 'package:test/test.dart';
 
@@ -92,8 +94,9 @@ void main() {
       final state = GlobalState.test(
         stunned: const StunnedState.fresh().stun(),
       );
+      final random = Random(0);
       expect(
-        () => state.startAction(normalTree),
+        () => state.startAction(normalTree, random: random),
         throwsA(isA<StunnedException>()),
       );
     });
@@ -112,7 +115,8 @@ void main() {
 
     test('startAction works when not stunned', () {
       final state = GlobalState.test();
-      final newState = state.startAction(normalTree);
+      final random = Random(0);
+      final newState = state.startAction(normalTree, random: random);
       expect(newState.activeAction, isNotNull);
       expect(newState.activeAction!.name, 'Normal Tree');
     });
@@ -152,7 +156,8 @@ void main() {
       final builder = StateUpdateBuilder(state);
 
       // Process 10 ticks (1 second)
-      consumeTicksForAllSystems(builder, 10);
+      final random = Random(0);
+      consumeTicksForAllSystems(builder, 10, random: random);
       final afterTicks = builder.build();
 
       expect(afterTicks.stunned.ticksRemaining, stunnedDurationTicks - 10);
@@ -166,7 +171,8 @@ void main() {
       final builder = StateUpdateBuilder(state);
 
       // Process all stun ticks (3 seconds = 30 ticks)
-      consumeTicksForAllSystems(builder, stunnedDurationTicks);
+      final random = Random(0);
+      consumeTicksForAllSystems(builder, stunnedDurationTicks, random: random);
       final afterTicks = builder.build();
 
       expect(afterTicks.stunned.ticksRemaining, 0);
@@ -180,7 +186,8 @@ void main() {
       final builder = StateUpdateBuilder(state);
 
       // Process exactly 30 ticks (3 seconds)
-      consumeTicksForAllSystems(builder, 30);
+      final random = Random(0);
+      consumeTicksForAllSystems(builder, 30, random: random);
       final afterTicks = builder.build();
 
       expect(afterTicks.isStunned, isFalse);

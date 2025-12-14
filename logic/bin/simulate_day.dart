@@ -4,6 +4,8 @@
 //
 // If no action is specified, defaults to 'Normal Tree' (woodcutting).
 
+import 'dart:math';
+
 import 'package:logic/logic.dart';
 
 /// Prints TimeAway information to the console in a readable format.
@@ -187,7 +189,8 @@ void main(List<String> args) {
   }
 
   // Start the action
-  state = state.startAction(action);
+  final random = Random();
+  state = state.startAction(action, random: random);
 
   // Simulate 1 day (24 hours)
   const oneDay = Duration(hours: 24);
@@ -203,6 +206,7 @@ void main(List<String> args) {
     state,
     ticks,
     endTime: state.updatedAt.add(oneDay),
+    random: random,
   );
 
   // Print the TimeAway information

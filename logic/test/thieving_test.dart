@@ -81,7 +81,8 @@ void main() {
   group('Thieving success', () {
     test('thieving success grants gold and XP', () {
       // Set up state with thieving action active
-      final state = GlobalState.test().startAction(manAction);
+      final random = Random(0);
+      final state = GlobalState.test().startAction(manAction, random: random);
 
       final builder = StateUpdateBuilder(state);
 
@@ -106,7 +107,8 @@ void main() {
 
     test('thieving success through tick processing', () {
       // Start thieving action
-      var state = GlobalState.test().startAction(manAction);
+      final random = Random(0);
+      var state = GlobalState.test().startAction(manAction, random: random);
       final builder = StateUpdateBuilder(state);
 
       // Use a mock random that always succeeds
@@ -134,11 +136,12 @@ void main() {
   group('Thieving failure', () {
     test('thieving failure deals damage and stuns player', () {
       // Set up state with enough HP to survive (level 10 hitpoints = 100 HP)
+      final random = Random(0);
       final state = GlobalState.test(
         skillStates: const {
           Skill.hitpoints: SkillState(xp: 1154, masteryXp: 0), // Level 10
         },
-      ).startAction(manAction);
+      ).startAction(manAction, random: random);
 
       final builder = StateUpdateBuilder(state);
 
@@ -166,6 +169,7 @@ void main() {
 
     test('thieving failure that kills player stops action', () {
       // Set up state with low HP (less than max damage)
+      final random = Random(0);
       final state = GlobalState.test(
         skillStates: const {
           Skill.hitpoints: SkillState(
@@ -174,7 +178,7 @@ void main() {
           ), // Level 10 = 100 HP
         },
         health: const HealthState(lostHp: 95), // Only 5 HP left (100 max)
-      ).startAction(manAction);
+      ).startAction(manAction, random: random);
 
       final builder = StateUpdateBuilder(state);
 
@@ -199,6 +203,7 @@ void main() {
       'thieving failure killing player through tick processing stops action',
       () {
         // Start with low HP
+        final random = Random(0);
         var state = GlobalState.test(
           skillStates: const {
             Skill.hitpoints: SkillState(
@@ -207,7 +212,7 @@ void main() {
             ), // Level 10 = 100 HP
           },
           health: const HealthState(lostHp: 95), // Only 5 HP left
-        ).startAction(manAction);
+        ).startAction(manAction, random: random);
 
         final builder = StateUpdateBuilder(state);
 
@@ -232,6 +237,7 @@ void main() {
   group('Thieving stun recovery', () {
     test('thieving action pauses while stunned from failed attempt', () {
       // Start thieving action
+      final random = Random(0);
       final state = GlobalState.test(
         skillStates: const {
           Skill.hitpoints: SkillState(
@@ -239,7 +245,7 @@ void main() {
             masteryXp: 0,
           ), // Level 10 = 100 HP
         },
-      ).startAction(manAction);
+      ).startAction(manAction, random: random);
 
       final builder = StateUpdateBuilder(state);
 
@@ -275,6 +281,7 @@ void main() {
 
     test('thieving continues after stun wears off', () {
       // Start thieving while already stunned
+      final random = Random(0);
       var state = GlobalState.test(
         skillStates: const {
           Skill.hitpoints: SkillState(
@@ -283,7 +290,7 @@ void main() {
           ), // Level 10 = 100 HP
         },
         stunned: const StunnedState.fresh().stun(), // 30 ticks of stun
-      );
+      ).startAction(manAction, random: random);
       // Need to manually set up the action since startAction throws when stunned
       state = GlobalState(
         inventory: state.inventory,

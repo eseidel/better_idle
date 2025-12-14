@@ -28,12 +28,13 @@ void main() {
     test('consuming ticks for 1 completion adds 1 item and 1x XP', () {
       var state = GlobalState.empty();
 
+      final random = Random(0);
       // Start action
-      state = state.startAction(normalTree);
+      state = state.startAction(normalTree, random: random);
 
       // Advance time by exactly 1 completion (30 ticks = 3 seconds)
       final builder = StateUpdateBuilder(state);
-      consumeTicks(builder, 30);
+      consumeTicks(builder, 30, random: random);
       state = builder.build();
 
       // Verify activity progress reset to 0 (ready for next completion)
@@ -58,13 +59,14 @@ void main() {
 
     test('consuming ticks for 5 completions adds 5 items and 5x XP', () {
       var state = GlobalState.empty();
+      final random = Random(0);
 
       // Start action
-      state = state.startAction(normalTree);
+      state = state.startAction(normalTree, random: random);
 
       // Advance time by exactly 5 completions (150 ticks = 15 seconds)
       final builder = StateUpdateBuilder(state);
-      consumeTicks(builder, 150);
+      consumeTicks(builder, 150, random: random);
       state = builder.build();
 
       // Verify activity progress reset to 0 (ready for next completion)
@@ -89,13 +91,13 @@ void main() {
 
     test('consuming ticks for partial completion does not add rewards', () {
       var state = GlobalState.empty();
-
+      final random = Random(0);
       // Start action
-      state = state.startAction(normalTree);
+      state = state.startAction(normalTree, random: random);
 
       // Advance time by only 15 ticks (1.5 seconds, half completion)
       final builder = StateUpdateBuilder(state);
-      consumeTicks(builder, 15);
+      consumeTicks(builder, 15, random: random);
       state = builder.build();
 
       // Verify activity progress is at 15 (halfway)
@@ -111,13 +113,13 @@ void main() {
 
     test('consuming ticks for 1.5 completions adds 1 item and 1x XP', () {
       var state = GlobalState.empty();
-
+      final random = Random(0);
       // Start action
-      state = state.startAction(normalTree);
+      state = state.startAction(normalTree, random: random);
 
       // Advance time by 1.5 completions (45 ticks = 4.5 seconds)
       final builder = StateUpdateBuilder(state);
-      consumeTicks(builder, 45);
+      consumeTicks(builder, 45, random: random);
       state = builder.build();
 
       // Verify activity progress is at 15 (halfway through second completion)
@@ -125,10 +127,12 @@ void main() {
       expect(state.activeAction?.name, normalTree.name);
 
       // Verify 1 item in inventory (only first completion counted)
+      // At mastery level 1, there's a 5% chance for double logs.
       final items = state.inventory.items;
       expect(items.length, 1);
       expect(items.first.item.name, 'Normal Logs');
-      expect(items.first.count, 1);
+      expect(items.first.count, greaterThanOrEqualTo(1));
+      expect(items.first.count, lessThanOrEqualTo(2));
 
       // Verify 1x XP (only first completion counted)
       expect(state.skillState(normalTree.skill).xp, normalTree.xp);
@@ -136,14 +140,14 @@ void main() {
 
     test('consuming ticks works with different activity (Oak Tree)', () {
       var state = GlobalState.empty();
-
+      final random = Random(0);
       // Start action
-      state = state.startAction(oakTree);
+      state = state.startAction(oakTree, random: random);
 
       // Advance time by exactly 2 completions (80 ticks = 8 seconds,
       // since Oak Tree takes 4 seconds per completion)
       final builder = StateUpdateBuilder(state);
-      consumeTicks(builder, 80);
+      consumeTicks(builder, 80, random: random);
       state = builder.build();
 
       // Verify activity progress reset to 0
@@ -162,10 +166,10 @@ void main() {
 
     test('consuming ticks with no active activity does nothing', () {
       var state = GlobalState.empty();
-
+      final random = Random(0);
       // No activity started, try to consume ticks
       final builder = StateUpdateBuilder(state);
-      consumeTicks(builder, 100);
+      consumeTicks(builder, 100, random: random);
       state = builder.build();
 
       // Verify state unchanged
@@ -176,13 +180,13 @@ void main() {
 
     test('consuming ticks for exactly 0 ticks does nothing', () {
       var state = GlobalState.empty();
-
+      final random = Random(0);
       // Start action
-      state = state.startAction(normalTree);
+      state = state.startAction(normalTree, random: random);
 
       // Consume 0 ticks
       final builder = StateUpdateBuilder(state);
-      consumeTicks(builder, 0);
+      consumeTicks(builder, 0, random: random);
       state = builder.build();
 
       // Verify no progress, no rewards, no XP
@@ -195,33 +199,34 @@ void main() {
       // This test assumes we might have activities with multiple rewards
       // For now, we'll test that the rewards list is properly processed
       var state = GlobalState.empty();
-
+      final random = Random(0);
       // Start action
-      state = state.startAction(normalTree);
+      state = state.startAction(normalTree, random: random);
 
       // Advance by 3 completions
       final builder = StateUpdateBuilder(state);
-      consumeTicks(builder, 90);
+      consumeTicks(builder, 90, random: random);
       state = builder.build();
 
       // Verify all rewards are accumulated correctly
-      // Normal Tree has 1 reward, so we should have 3 of that item
+      // Normal Tree has 1 reward per completion, but at mastery level 1 there's
+      // a 5% chance for double logs. So we expect at least 3 logs.
       expect(state.inventory.items.length, 1);
-      expect(state.inventory.items.first.count, 3);
+      expect(state.inventory.items.first.count, greaterThanOrEqualTo(3));
     });
 
     test('consuming ticks for 1 completion adds mastery XP', () {
       var state = GlobalState.empty();
-
+      final random = Random(0);
       // Start action
-      state = state.startAction(normalTree);
+      state = state.startAction(normalTree, random: random);
 
       // Verify initial mastery XP is 0
       expect(state.skillState(normalTree.skill).masteryXp, 0);
 
       // Advance time by exactly 1 completion (30 ticks = 3 seconds)
       final builder = StateUpdateBuilder(state);
-      consumeTicks(builder, 30);
+      consumeTicks(builder, 30, random: random);
       state = builder.build();
 
       // Verify mastery XP increased
@@ -230,7 +235,7 @@ void main() {
 
       // Advance time by exactly 1 more completion
       final builder2 = StateUpdateBuilder(state);
-      consumeTicks(builder2, 30);
+      consumeTicks(builder2, 30, random: random);
       state = builder2.build();
 
       // Verify mastery XP increased again
@@ -240,23 +245,25 @@ void main() {
 
     test('skill-level drops are processed on action completion', () {
       // Use seeded random to test drop rates deterministically
-      final rng = Random(12345);
+      final random = Random(12345);
       var state = GlobalState.empty();
-      state = state.startAction(normalTree);
+      state = state.startAction(normalTree, random: random);
 
       // Consume enough ticks to drop at least one Bird Nest
       // With rate 0.005, we expect ~0.5 drops per 100 actions
       final builder = StateUpdateBuilder(state);
-      consumeTicks(builder, 3000, random: rng); // 100 completions
+      consumeTicks(builder, 3000, random: random); // 100 completions
       state = builder.build();
 
       // Verify action-level drop (Normal Logs) is present
+      // At mastery level 1, there's a 5% chance for double logs per action.
+      // With 100 completions, we expect at least 100 logs (possibly more).
       final items = state.inventory.items;
       expect(items.any((i) => i.item == normalLogs), true);
       final normalLogsCount = items
           .firstWhere((i) => i.item == normalLogs)
           .count;
-      expect(normalLogsCount, 100);
+      expect(normalLogsCount, greaterThanOrEqualTo(100));
 
       // Verify skill-level drop (Bird Nest) may have dropped
       final birdNestCount = state.inventory.items
@@ -278,6 +285,7 @@ void main() {
           xp: 10,
           outputs: {'Normal Logs': 3}, // Count > 1
         );
+        final random = Random(0);
 
         // Verify the rewards getter returns drops with the correct count
         final rewards = testAction.rewardsForMasteryLevel(1);
@@ -286,12 +294,12 @@ void main() {
 
         // Test end-to-end: complete the action and verify correct items added
         var state = GlobalState.empty();
-        state = state.startAction(testAction);
+        state = state.startAction(testAction, random: random);
 
         final builder = StateUpdateBuilder(state);
         // Complete the action directly (bypassing consumeTicks which
         // requires registry lookup)
-        completeAction(builder, testAction);
+        completeAction(builder, testAction, random: random);
         state = builder.build();
 
         // Verify 3 items were added (not 1)
@@ -307,6 +315,7 @@ void main() {
       () {
         // Start with Normal Logs in inventory
         var state = GlobalState.empty();
+        final random = Random(0);
         state = state.copyWith(
           inventory: Inventory.fromItems([ItemStack(normalLogs, count: 5)]),
         );
@@ -315,11 +324,11 @@ void main() {
         expect(state.inventory.countOfItem(normalLogs), 5);
 
         // Start the firemaking action
-        state = state.startAction(burnNormalLogs);
+        state = state.startAction(burnNormalLogs, random: random);
 
         // Advance time by exactly 1 completion (20 ticks = 2 seconds)
         final builder = StateUpdateBuilder(state);
-        consumeTicks(builder, 20);
+        consumeTicks(builder, 20, random: random);
         state = builder.build();
 
         // Verify activity progress reset to 0 (ready for next completion)
@@ -351,16 +360,17 @@ void main() {
     test('consuming ticks for multiple completions of action with inputs', () {
       // Start with 10 Normal Logs in inventory
       var state = GlobalState.empty();
+      final random = Random(0);
       state = state.copyWith(
         inventory: Inventory.fromItems([ItemStack(normalLogs, count: 10)]),
       );
 
       // Start the firemaking action
-      state = state.startAction(burnNormalLogs);
+      state = state.startAction(burnNormalLogs, random: random);
 
       // Advance time by exactly 3 completions (60 ticks = 6 seconds)
       final builder = StateUpdateBuilder(state);
-      consumeTicks(builder, 60);
+      consumeTicks(builder, 60, random: random);
       state = builder.build();
 
       // Verify 3 Normal Logs were consumed (10 - 3 = 7 remaining)
@@ -383,6 +393,7 @@ void main() {
 
       // Start with N-1 Normal Logs in inventory (enough for 4 completions)
       var state = GlobalState.empty();
+      final random = Random(0);
       state = state.copyWith(
         inventory: Inventory.fromItems([
           ItemStack(normalLogs, count: nMinusOne),
@@ -393,12 +404,12 @@ void main() {
       expect(state.inventory.countOfItem(normalLogs), nMinusOne);
 
       // Start the firemaking action
-      state = state.startAction(burnNormalLogs);
+      state = state.startAction(burnNormalLogs, random: random);
 
       // Advance time by enough ticks for N completions
       // (N * 20 ticks = 100 ticks for 5 completions)
       final builder = StateUpdateBuilder(state);
-      consumeTicks(builder, n * 20);
+      consumeTicks(builder, n * 20, random: random);
       state = builder.build();
 
       // Verify action was cleared (can't continue without inputs)
@@ -435,6 +446,7 @@ void main() {
       }
 
       var state = GlobalState.empty();
+      final random = Random(0);
       state = state.copyWith(inventory: Inventory.fromItems(testItems));
 
       // Verify inventory is completely full
@@ -444,12 +456,12 @@ void main() {
 
       // Start woodcutting Normal Tree (outputs Normal Logs - new item)
       // Action CAN start even with full inventory
-      state = state.startAction(normalTree);
+      state = state.startAction(normalTree, random: random);
       expect(state.activeAction, isNotNull);
 
       // Complete one action - the output should be dropped
       final builder = StateUpdateBuilder(state);
-      consumeTicks(builder, 30); // 1 completion
+      consumeTicks(builder, 30, random: random); // 1 completion
       state = builder.build();
 
       // Action should have stopped after first completion
@@ -469,6 +481,7 @@ void main() {
     test('action continues if inventory is full but can stack outputs', () {
       // Create a state with all 8 items in inventory (full)
       var state = GlobalState.empty();
+      final random = Random(0);
       final items = <ItemStack>[
         ItemStack(normalLogs, count: 5), // Include Normal Logs
         ItemStack(oakLogs, count: 1),
@@ -485,11 +498,11 @@ void main() {
       expect(state.inventoryUsed, 8);
 
       // Start woodcutting Normal Tree (outputs Normal Logs - can stack!)
-      state = state.startAction(normalTree);
+      state = state.startAction(normalTree, random: random);
 
       // Multiple completions should work because Normal Logs can stack
       final builder = StateUpdateBuilder(state);
-      consumeTicks(builder, 90); // 3 completions
+      consumeTicks(builder, 90, random: random); // 3 completions
       state = builder.build();
 
       // Verify we got 3 more Normal Logs (5 + 3 = 8 total)
@@ -509,12 +522,14 @@ void main() {
 
       var state = GlobalState.empty();
       state = state.copyWith(inventory: Inventory.fromItems(testItems));
-      state = state.startAction(normalTree);
+      final random = Random(0);
+      state = state.startAction(normalTree, random: random);
 
       // Use consumeManyTicks to simulate time away
       final (timeAway, newState) = consumeManyTicks(
         state,
         90, // 3 completions worth of ticks
+        random: random,
       );
 
       // Verify action stopped after first completion (items were dropped)
@@ -533,17 +548,17 @@ void main() {
 
     test('Changes tracks skill level gains', () {
       var state = GlobalState.empty();
-
+      final random = Random(0);
       // Start with level 1 (0 XP)
       expect(levelForXp(state.skillState(Skill.woodcutting).xp), 1);
 
-      state = state.startAction(normalTree);
+      state = state.startAction(normalTree, random: random);
 
       // Complete enough actions to level up
       // Level 2 requires 83 XP, normalTree gives 10 XP per completion
       // So we need 9 completions (9 * 10 = 90 XP)
       final builder = StateUpdateBuilder(state);
-      consumeTicks(builder, 30 * 9); // 9 completions
+      consumeTicks(builder, 30 * 9, random: random); // 9 completions
       state = builder.build();
 
       // Verify we leveled up to level 2
@@ -563,14 +578,14 @@ void main() {
 
     test('Changes tracks multiple skill level gains', () {
       var state = GlobalState.empty();
-
-      state = state.startAction(normalTree);
+      final random = Random(0);
+      state = state.startAction(normalTree, random: random);
 
       // Complete enough actions to gain multiple levels
       // Level 3 requires 174 XP, normalTree gives 10 XP per completion
       // So we need 18 completions (18 * 10 = 180 XP)
       final builder = StateUpdateBuilder(state);
-      consumeTicks(builder, 30 * 18); // 18 completions
+      consumeTicks(builder, 30 * 18, random: random); // 18 completions
       state = builder.build();
 
       // Verify we leveled up to level 3 (gained 2 levels)
@@ -589,12 +604,14 @@ void main() {
 
     test('TimeAway tracks skill level gains during time away', () {
       var state = GlobalState.empty();
-      state = state.startAction(normalTree);
+      final random = Random(0);
+      state = state.startAction(normalTree, random: random);
 
       // Complete enough ticks to level up
       final (timeAway, newState) = consumeManyTicks(
         state,
         30 * 9, // 9 completions = 90 XP = level 2
+        random: random,
       );
 
       // Verify state leveled up
@@ -610,7 +627,8 @@ void main() {
 
     test('mining action continues through node depletion and respawn', () {
       var state = GlobalState.empty();
-      state = state.startAction(runeEssence);
+      final random = Random(0);
+      state = state.startAction(runeEssence, random: random);
 
       // Rune Essence: 3 second action (30 ticks), 1 second respawn (10 ticks)
       // HP at mastery level 1: 5 + 1 = 6 HP
@@ -622,7 +640,7 @@ void main() {
 
       final ticks = ticksFromDuration(const Duration(seconds: 30));
       final builder = StateUpdateBuilder(state);
-      consumeTicks(builder, ticks);
+      consumeTicks(builder, ticks, random: random);
       state = builder.build();
 
       // In 30s, we should swing 10 times.
@@ -664,7 +682,8 @@ void main() {
           ),
         },
       );
-      state = state.startAction(copper);
+      final random = Random(0);
+      state = state.startAction(copper, random: random);
 
       // Copper: 3 second action (30 ticks), 5 second respawn (50 ticks)
       // HP at mastery level 1: 5 + 1 = 6 HP
@@ -672,7 +691,7 @@ void main() {
 
       // Mine once to deplete the node (30 ticks)
       var builder = StateUpdateBuilder(state);
-      consumeTicks(builder, 30);
+      consumeTicks(builder, 30, random: random);
       state = builder.build();
 
       // Verify we got 1 copper and node is depleted
@@ -688,7 +707,7 @@ void main() {
       // Now simulate a few more tick cycles while node is respawning
       // Respawn takes 50 ticks, let's do 20 ticks at a time
       builder = StateUpdateBuilder(state);
-      consumeTicks(builder, 20);
+      consumeTicks(builder, 20, random: random);
       state = builder.build();
 
       // Still depleted, still active
@@ -702,7 +721,7 @@ void main() {
 
       // Another 20 ticks (40 total, still 10 ticks to go)
       builder = StateUpdateBuilder(state);
-      consumeTicks(builder, 20);
+      consumeTicks(builder, 20, random: random);
       state = builder.build();
 
       expect(
@@ -714,7 +733,7 @@ void main() {
 
       // Final 20 ticks - respawn completes (10 ticks) + 10 ticks toward next
       builder = StateUpdateBuilder(state);
-      consumeTicks(builder, 20);
+      consumeTicks(builder, 20, random: random);
       state = builder.build();
 
       // Node should no longer be depleted
@@ -731,7 +750,11 @@ void main() {
       // restarted when respawn completed, but we only have 10 ticks of
       // progress from the 20 tick batch above)
       builder = StateUpdateBuilder(state);
-      consumeTicks(builder, 20); // 10 + 20 = 30 ticks for completion
+      consumeTicks(
+        builder,
+        20,
+        random: random,
+      ); // 10 + 20 = 30 ticks for completion
       state = builder.build();
 
       // Should have 2 copper now (1 before + 1 after respawn)
@@ -771,14 +794,15 @@ void main() {
           ),
         },
       );
+      final random = Random(0);
 
       // Start woodcutting
-      state = state.startAction(normalTree);
+      state = state.startAction(normalTree, random: random);
 
       // Helper that uses the same logic as UpdateActivityProgressAction
       GlobalState applyTicks(GlobalState state, Tick ticks) {
         final builder = StateUpdateBuilder(state);
-        consumeTicksForAllSystems(builder, ticks);
+        consumeTicksForAllSystems(builder, ticks, random: random);
         return builder.build();
       }
 
@@ -960,13 +984,13 @@ void main() {
           ),
         },
       );
-
+      final random = Random(0);
       // Verify no active action
       expect(state.activeAction, isNull);
 
       // Process 60 ticks (enough for 1 heal at tick 50, partial progress)
       final builder = StateUpdateBuilder(state);
-      consumeTicksForAllSystems(builder, 60);
+      consumeTicksForAllSystems(builder, 60, random: random);
       state = builder.build();
 
       // Verify node healed (should have healed once at tick 50)
@@ -998,14 +1022,14 @@ void main() {
           ),
         },
       );
-
+      final random = Random(0);
       // Verify no active action and node is depleted
       expect(state.activeAction, isNull);
       expect(state.actionState('Copper').mining?.isDepleted, true);
 
       // Process enough ticks to respawn
       final builder = StateUpdateBuilder(state);
-      consumeTicksForAllSystems(builder, 50);
+      consumeTicksForAllSystems(builder, 50, random: random);
       state = builder.build();
 
       // Verify node respawned
@@ -1037,13 +1061,13 @@ void main() {
           ),
         },
       );
-
+      final random = Random(0);
       // Do woodcutting while both heal
-      state = state.startAction(normalTree);
+      state = state.startAction(normalTree, random: random);
 
       // Process 200 ticks - enough for woodcutting completions and heals
       final builder = StateUpdateBuilder(state);
-      consumeTicksForAllSystems(builder, 200);
+      consumeTicksForAllSystems(builder, 200, random: random);
       state = builder.build();
 
       // Verify woodcutting produced logs
@@ -1074,10 +1098,10 @@ void main() {
     test('combat action processes ticks with monster name as action name', () {
       // Get the Plant combat action
       final plantAction = combatActionByName('Plant');
-
+      final random = Random(0);
       // Start combat
       var state = GlobalState.empty();
-      state = state.startAction(plantAction);
+      state = state.startAction(plantAction, random: random);
 
       // Verify the active action name is "Plant", not "Combat"
       expect(state.activeAction?.name, 'Plant');
@@ -1089,7 +1113,7 @@ void main() {
 
       // Process some ticks - should not throw
       final builder = StateUpdateBuilder(state);
-      consumeTicksForAllSystems(builder, 100);
+      consumeTicksForAllSystems(builder, 100, random: random);
       state = builder.build();
 
       // Combat should still be active (player shouldn't have died in 100 ticks)
@@ -1098,7 +1122,7 @@ void main() {
 
     test('combat action with mining background heals node', () {
       final plantAction = combatActionByName('Plant');
-
+      final random = Random(0);
       // Start with damaged mining node
       var state = GlobalState.test(
         actionStates: const {
@@ -1110,11 +1134,11 @@ void main() {
       );
 
       // Start combat
-      state = state.startAction(plantAction);
+      state = state.startAction(plantAction, random: random);
 
       // Process 200 ticks - enough for healing
       final builder = StateUpdateBuilder(state);
-      consumeTicksForAllSystems(builder, 200);
+      consumeTicksForAllSystems(builder, 200, random: random);
       state = builder.build();
 
       // Verify mining node healed during combat
@@ -1151,13 +1175,13 @@ void main() {
           ),
         },
       );
+      final random = Random(0);
 
       // Start mining copper
-      state = state.startAction(copper);
-
+      state = state.startAction(copper, random: random);
       // Process exactly 30 ticks (mining completes + heal completes)
       final builder = StateUpdateBuilder(state);
-      consumeTicksForAllSystems(builder, 30);
+      consumeTicksForAllSystems(builder, 30, random: random);
       state = builder.build();
 
       // Verify we got copper ore (mining completed)
@@ -1184,15 +1208,16 @@ void main() {
     test('completes activity and adds toast', () {
       final normalTree = actionRegistry.byName('Normal Tree') as SkillAction;
       var state = GlobalState.empty();
+      final random = Random(0);
 
       // Start activity
-      state = state.startAction(normalTree);
+      state = state.startAction(normalTree, random: random);
 
       // Advance time by 3 seconds (30 ticks)
       // consumeTicks takes state and ticks
       // 3s = 3000ms. tickDuration = 100ms. So 30 ticks.
       final builder = StateUpdateBuilder(state);
-      consumeTicks(builder, 30);
+      consumeTicks(builder, 30, random: random);
       state = builder.build();
 
       // Verify activity completed (progress resets on completion)

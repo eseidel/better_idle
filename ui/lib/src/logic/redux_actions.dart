@@ -1,3 +1,5 @@
+import 'dart:math';
+
 import 'package:async_redux/async_redux.dart';
 import 'package:better_idle/src/services/toast_service.dart';
 import 'package:logic/logic.dart';
@@ -12,8 +14,8 @@ class UpdateActivityProgressAction extends ReduxAction<GlobalState> {
   GlobalState reduce() {
     final ticks = ticksFromDuration(now.difference(state.updatedAt));
     final builder = StateUpdateBuilder(state);
-
-    consumeTicksForAllSystems(builder, ticks);
+    final random = Random();
+    consumeTicksForAllSystems(builder, ticks, random: random);
 
     final changes = builder.changes;
     final newState = builder.build();
@@ -57,7 +59,8 @@ class ToggleActionAction extends ReduxAction<GlobalState> {
       return state.clearAction();
     }
     // Otherwise, start this action (stops any other active action).
-    return state.startAction(action);
+    final random = Random();
+    return state.startAction(action, random: random);
   }
 }
 
@@ -72,7 +75,8 @@ class AdvanceTicksAction extends ReduxAction<GlobalState> {
 
   @override
   GlobalState reduce() {
-    final (timeAway, newState) = consumeManyTicks(state, ticks);
+    final random = Random();
+    final (timeAway, newState) = consumeManyTicks(state, ticks, random: random);
     this.timeAway = timeAway;
     return newState;
   }
@@ -86,10 +90,12 @@ class ResumeFromPauseAction extends ReduxAction<GlobalState> {
     final now = DateTime.timestamp();
     final duration = now.difference(state.updatedAt);
     final ticks = ticksFromDuration(duration);
+    final random = Random();
     final (newTimeAway, newState) = consumeManyTicks(
       state,
       ticks,
       endTime: now,
+      random: random,
     );
     final timeAway = newTimeAway.maybeMergeInto(state.timeAway);
     // Set timeAway on state if it has changes - empty timeAway should be null
@@ -152,7 +158,8 @@ class StartCombatAction extends ReduxAction<GlobalState> {
       return null;
     }
     // Start the combat action (this stops any other active action)
-    return state.startAction(combatAction);
+    final random = Random();
+    return state.startAction(combatAction, random: random);
   }
 }
 

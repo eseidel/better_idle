@@ -353,9 +353,9 @@ class StateUpdateBuilder {
     return levelForXp(_state.actionState(action.name).masteryXp);
   }
 
-  void restartCurrentAction(Action action, {Random? random}) {
+  void restartCurrentAction(Action action, {required Random random}) {
     // This shouldn't be able to start a *new* action, only restart the current.
-    _state = _state.startAction(action, random: random ?? Random());
+    _state = _state.startAction(action, random: random);
   }
 
   /// Adds inventory if there's space. Returns true if successful.
@@ -558,9 +558,8 @@ bool completeThievingAction(
 bool completeAction(
   StateUpdateBuilder builder,
   SkillAction action, {
-  Random? random,
+  required Random random,
 }) {
-  final rng = random ?? Random();
   var canRepeatAction = true;
 
   // Consume required items
@@ -576,7 +575,7 @@ bool completeAction(
     action,
     masteryLevel: masteryLevel,
   )) {
-    final itemStack = drop.roll(rng);
+    final itemStack = drop.roll(random);
     if (itemStack != null) {
       final success = builder.addInventory(itemStack);
       if (!success) {
@@ -617,7 +616,11 @@ bool completeAction(
 }
 
 /// Consumes a specified number of ticks and updates the state.
-void consumeTicks(StateUpdateBuilder builder, Tick ticks, {Random? random}) {
+void consumeTicks(
+  StateUpdateBuilder builder,
+  Tick ticks, {
+  required Random random,
+}) {
   consumeTicksForAllSystems(builder, ticks, random: random);
 }
 
@@ -882,8 +885,11 @@ enum ForegroundResult {
 
 /// Main tick processing - handles foreground action (if any) and all
 /// background actions in parallel.
-void consumeAllTicks(StateUpdateBuilder builder, Tick ticks, {Random? random}) {
-  final rng = random ?? Random();
+void consumeAllTicks(
+  StateUpdateBuilder builder,
+  Tick ticks, {
+  required Random random,
+}) {
   var ticksRemaining = ticks;
 
   while (ticksRemaining > 0) {
@@ -909,7 +915,7 @@ void consumeAllTicks(StateUpdateBuilder builder, Tick ticks, {Random? random}) {
         builder,
         action,
         ticksRemaining,
-        rng,
+        random,
       );
 
       // Handle foreground result
@@ -963,7 +969,7 @@ void consumeAllTicks(StateUpdateBuilder builder, Tick ticks, {Random? random}) {
 void consumeTicksForAllSystems(
   StateUpdateBuilder builder,
   Tick ticks, {
-  Random? random,
+  required Random random,
 }) {
   consumeAllTicks(builder, ticks, random: random);
 }
@@ -973,6 +979,7 @@ void consumeTicksForAllSystems(
   GlobalState state,
   Tick ticks, {
   DateTime? endTime,
+  required Random random,
 }) {
   final activeAction = state.activeAction;
   if (activeAction == null) {
@@ -980,7 +987,7 @@ void consumeTicksForAllSystems(
     return (TimeAway.empty(), state);
   }
   final builder = StateUpdateBuilder(state);
-  consumeTicksForAllSystems(builder, ticks);
+  consumeTicksForAllSystems(builder, ticks, random: random);
   final startTime = state.updatedAt;
   final calculatedEndTime =
       endTime ??

@@ -270,7 +270,7 @@ SkillAction _woodcutting(
     skill: Skill.woodcutting,
     name: '$name Tree',
     unlockLevel: level,
-    duration: Duration(seconds: 3),
+    duration: Duration(seconds: seconds),
     xp: xp,
     outputs: {'$name Logs': 1},
     rewardsAtLevel: woodcuttingRewards,

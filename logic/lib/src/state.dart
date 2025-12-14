@@ -396,7 +396,7 @@ class GlobalState {
     return true;
   }
 
-  GlobalState startAction(Action action, {Random? random}) {
+  GlobalState startAction(Action action, {required Random random}) {
     if (isStunned) {
       throw const StunnedException('Cannot start action while stunned');
     }
@@ -416,7 +416,7 @@ class GlobalState {
           );
         }
       }
-      totalTicks = action.rollDuration(random ?? Random());
+      totalTicks = action.rollDuration(random);
       return copyWith(
         activeAction: ActiveAction(
           name: name,
