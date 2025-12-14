@@ -7,14 +7,30 @@ import 'package:better_idle/src/widgets/xp_badges_row.dart';
 import 'package:flutter/material.dart' hide Action;
 import 'package:logic/logic.dart';
 
-class FishingPage extends StatelessWidget {
+class FishingPage extends StatefulWidget {
   const FishingPage({super.key});
+
+  @override
+  State<FishingPage> createState() => _FishingPageState();
+}
+
+class _FishingPageState extends State<FishingPage> {
+  FishingAction? _selectedAction;
+  final Set<String> _collapsedAreas = {};
 
   @override
   Widget build(BuildContext context) {
     const skill = Skill.fishing;
-    final actions = actionRegistry.forSkill(skill).toList();
     final skillState = context.state.skillState(skill);
+
+    // Default to first action if none selected
+    final selectedAction = _selectedAction ?? fishingActions.first;
+
+    // Group actions by area
+    final actionsByArea = <FishingArea, List<FishingAction>>{};
+    for (final action in fishingActions) {
+      actionsByArea.putIfAbsent(action.area, () => []).add(action);
+    }
 
     return Scaffold(
       appBar: AppBar(title: const Text('Fishing')),
@@ -24,24 +40,41 @@ class FishingPage extends StatelessWidget {
           SkillProgress(xp: skillState.xp),
           MasteryPoolProgress(xp: skillState.masteryPoolXp),
           Expanded(
-            child:
-                // Grid view of all activities, 2x wide
-                GridView.builder(
-                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                    crossAxisCount: 2,
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                children: [
+                  _SelectedActionDisplay(
+                    action: selectedAction,
+                    onStart: () {
+                      context.dispatch(
+                        ToggleActionAction(action: selectedAction),
+                      );
+                    },
                   ),
-                  itemCount: actions.length,
-                  itemBuilder: (context, index) {
-                    final action = actions[index];
-                    final progressTicks = context.state.activeProgress(action);
-                    final actionState = context.state.actionState(action.name);
-                    return FishingActionCell(
-                      action: action,
-                      actionState: actionState,
-                      progressTicks: progressTicks,
-                    );
-                  },
-                ),
+                  const SizedBox(height: 24),
+                  _ActionList(
+                    actionsByArea: actionsByArea,
+                    selectedAction: selectedAction,
+                    collapsedAreas: _collapsedAreas,
+                    onSelect: (action) {
+                      setState(() {
+                        _selectedAction = action;
+                      });
+                    },
+                    onToggleArea: (areaName) {
+                      setState(() {
+                        if (_collapsedAreas.contains(areaName)) {
+                          _collapsedAreas.remove(areaName);
+                        } else {
+                          _collapsedAreas.add(areaName);
+                        }
+                      });
+                    },
+                  ),
+                ],
+              ),
+            ),
           ),
         ],
       ),
@@ -49,113 +82,212 @@ class FishingPage extends StatelessWidget {
   }
 }
 
-class FishingActionCell extends StatelessWidget {
-  const FishingActionCell({
-    required this.action,
-    required this.actionState,
-    required this.progressTicks,
-    super.key,
-  });
+String _formatDuration(Duration d) {
+  final seconds = d.inMilliseconds / 1000;
+  // Round to at most 2 decimal places.
+  final roundedSeconds = (seconds * 100).round() / 100;
+  // Don't show the decimal point if it's a whole number.
+  if (roundedSeconds % 1 == 0) {
+    return '${roundedSeconds.toInt()}s';
+  }
+  return '${roundedSeconds}s';
+}
 
-  final SkillAction action;
-  final ActionState actionState;
-  final int? progressTicks;
+class _SelectedActionDisplay extends StatelessWidget {
+  const _SelectedActionDisplay({required this.action, required this.onStart});
 
-  Widget _buildUnlocked(BuildContext context) {
-    final actionName = action.name;
-    final labelStyle = Theme.of(
-      context,
-    ).textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.bold);
-    final actionState = context.state.actionState(actionName);
-    final canStart = context.state.canStartAction(action);
-    final isRunning = context.state.activeAction?.name == actionName;
+  final FishingAction action;
+  final VoidCallback onStart;
 
-    // Format duration display
-    String formatDuration(Duration d) {
-      final seconds = d.inMilliseconds / 1000;
-      // Round to at most 2 decimal places.
-      final roundedSeconds = (seconds * 100).round() / 100;
-      // Don't show the decimal point if it's a whole number.
-      if (roundedSeconds % 1 == 0) {
-        return '${roundedSeconds.toInt()}s';
-      }
-      return '${roundedSeconds}s';
-    }
+  @override
+  Widget build(BuildContext context) {
+    final state = context.state;
+    final actionState = state.actionState(action.name);
+    final isActive = state.activeAction?.name == action.name;
+    final canStart = state.canStartAction(action);
 
     final durationText = action.isFixedDuration
-        ? '🕐 ${formatDuration(action.minDuration)}'
-        : '🕐 ${formatDuration(action.minDuration)} - '
-              '${formatDuration(action.maxDuration)}';
+        ? _formatDuration(action.minDuration)
+        : '${_formatDuration(action.minDuration)} - '
+              '${_formatDuration(action.maxDuration)}';
+
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white,
-        border: Border.all(color: Colors.grey),
+        color: isActive ? Colors.orange.withValues(alpha: 0.1) : Colors.white,
+        border: Border.all(
+          color: isActive ? Colors.orange : Colors.grey,
+          width: isActive ? 2 : 1,
+        ),
         borderRadius: BorderRadius.circular(8),
       ),
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          const Text('Fishing'),
-          Text(actionName, style: labelStyle),
-          XpBadgesRow(action: action),
-          Text(durationText),
+          // Header: Fishing + Action Name
+          const Text(
+            'Fishing',
+            textAlign: TextAlign.center,
+            style: TextStyle(fontSize: 14, color: Colors.grey),
+          ),
+          Text(
+            action.name,
+            textAlign: TextAlign.center,
+            style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+          ),
+          const SizedBox(height: 8),
 
+          // Mastery progress
           MasteryProgressCell(masteryXp: actionState.masteryXp),
+          const SizedBox(height: 12),
+
+          XpBadgesRow(action: action),
+          const SizedBox(height: 16),
+
+          // Duration and Fish button
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Icon(Icons.access_time, size: 16),
+              const SizedBox(width: 4),
+              Text(durationText),
+            ],
+          ),
           const SizedBox(height: 8),
           ElevatedButton(
-            onPressed: canStart || isRunning
-                ? () {
-                    context.dispatch(ToggleActionAction(action: action));
-                  }
-                : null,
-            child: Text(isRunning ? 'Stop Fishing' : 'Start Fishing'),
+            onPressed: canStart || isActive ? onStart : null,
+            style: ElevatedButton.styleFrom(
+              backgroundColor: isActive ? Colors.orange : null,
+            ),
+            child: Text(isActive ? 'Stop' : 'Fish'),
           ),
-          if (isRunning)
-            const Padding(
-              padding: EdgeInsets.symmetric(vertical: 8),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  SizedBox(
-                    width: 18,
-                    height: 18,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  ),
-                  SizedBox(width: 8),
-                  Text('Fishing'),
-                ],
-              ),
-            )
-          else
-            const SizedBox(height: 40, child: Text('Idle')),
         ],
       ),
     );
   }
+}
 
-  Widget _buildLocked(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        border: Border.all(color: Colors.grey),
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: Column(
-        children: [const Text('Locked'), Text('Level ${action.unlockLevel}')],
-      ),
-    );
-  }
+class _ItemList extends StatelessWidget {
+  const _ItemList({required this.items});
+
+  final Map<String, int> items;
 
   @override
   Widget build(BuildContext context) {
-    final skillState = context.state.skillState(action.skill);
-    final skillLevel = levelForXp(skillState.xp);
-    final isUnlocked = skillLevel >= action.unlockLevel;
-    if (isUnlocked) {
-      return _buildUnlocked(context);
-    } else {
-      return _buildLocked(context);
+    if (items.isEmpty) {
+      return const Text('None', style: TextStyle(color: Colors.grey));
     }
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: items.entries.map((entry) {
+        return Text('${entry.value}x ${entry.key}');
+      }).toList(),
+    );
+  }
+}
+
+class _ActionList extends StatelessWidget {
+  const _ActionList({
+    required this.actionsByArea,
+    required this.selectedAction,
+    required this.collapsedAreas,
+    required this.onSelect,
+    required this.onToggleArea,
+  });
+
+  final Map<FishingArea, List<FishingAction>> actionsByArea;
+  final FishingAction selectedAction;
+  final Set<String> collapsedAreas;
+  final void Function(FishingAction) onSelect;
+  final void Function(String) onToggleArea;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        const Text(
+          'Fishing Spots',
+          style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+        ),
+        const SizedBox(height: 8),
+        ...actionsByArea.entries.map((entry) {
+          final area = entry.key;
+          final actions = entry.value;
+          final isCollapsed = collapsedAreas.contains(area.name);
+
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              // Area header with collapse toggle
+              InkWell(
+                onTap: () => onToggleArea(area.name),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 8,
+                  ),
+                  decoration: BoxDecoration(
+                    color: Colors.blueGrey.shade100,
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(
+                        isCollapsed ? Icons.arrow_right : Icons.arrow_drop_down,
+                        size: 24,
+                      ),
+                      const SizedBox(width: 4),
+                      Expanded(
+                        child: Text(
+                          area.name,
+                          style: const TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 14,
+                          ),
+                        ),
+                      ),
+                      Text(
+                        '${(area.fishChance * 100).toInt()}% fish',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Colors.blueGrey.shade700,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              // Actions list (if not collapsed)
+              if (!isCollapsed)
+                ...actions.map((action) {
+                  final isSelected = action.name == selectedAction.name;
+                  final durationText = action.isFixedDuration
+                      ? _formatDuration(action.minDuration)
+                      : '${_formatDuration(action.minDuration)} - '
+                            '${_formatDuration(action.maxDuration)}';
+                  return Card(
+                    margin: const EdgeInsets.only(left: 16, top: 4, bottom: 4),
+                    color: isSelected
+                        ? Colors.blue.withValues(alpha: 0.1)
+                        : null,
+                    child: ListTile(
+                      title: Text(action.name),
+                      subtitle: Text(
+                        'Lvl ${action.unlockLevel} • $durationText',
+                      ),
+                      trailing: isSelected
+                          ? const Icon(Icons.check_circle, color: Colors.blue)
+                          : null,
+                      onTap: () => onSelect(action),
+                    ),
+                  );
+                }),
+              const SizedBox(height: 8),
+            ],
+          );
+        }),
+      ],
+    );
   }
 }

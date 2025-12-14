@@ -11,6 +11,7 @@ export 'src/tick.dart';
 // Data
 export 'src/data/actions.dart';
 export 'src/data/combat.dart';
+export 'src/data/fishing.dart';
 export 'src/data/items.dart';
 export 'src/data/xp.dart';
 
