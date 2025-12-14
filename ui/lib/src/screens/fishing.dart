@@ -71,10 +71,21 @@ class FishingActionCell extends StatelessWidget {
     final isRunning = context.state.activeAction?.name == actionName;
 
     // Format duration display
+    String formatDuration(Duration d) {
+      final seconds = d.inMilliseconds / 1000;
+      // Round to at most 2 decimal places.
+      final roundedSeconds = (seconds * 100).round() / 100;
+      // Don't show the decimal point if it's a whole number.
+      if (roundedSeconds % 1 == 0) {
+        return '${roundedSeconds.toInt()}s';
+      }
+      return '${roundedSeconds}s';
+    }
+
     final durationText = action.isFixedDuration
-        ? '${action.minDuration.inSeconds} seconds'
-        : '${action.minDuration.inSeconds}-'
-              '${action.maxDuration.inSeconds} seconds';
+        ? '🕐 ${formatDuration(action.minDuration)}'
+        : '🕐 ${formatDuration(action.minDuration)} - '
+              '${formatDuration(action.maxDuration)}';
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(

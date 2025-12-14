@@ -3,6 +3,7 @@ import 'dart:math';
 import 'package:collection/collection.dart';
 import 'package:logic/src/action_state.dart';
 import 'package:logic/src/data/combat.dart';
+import 'package:logic/src/data/fishing.dart';
 import 'package:logic/src/tick.dart';
 import 'package:logic/src/types/drop.dart';
 import 'package:meta/meta.dart';
@@ -305,32 +306,6 @@ final _firemakingActions = <SkillAction>[
   _firemaking('Oak', level: 10, seconds: 2, xp: 39),
   _firemaking('Willow', level: 25, seconds: 3, xp: 52),
   _firemaking('Teak', level: 35, seconds: 4, xp: 84),
-];
-
-SkillAction _fishing(
-  String name, {
-  required int level,
-  required int xp,
-  required int minSeconds,
-  required int maxSeconds,
-}) {
-  return SkillAction.ranged(
-    skill: Skill.fishing,
-    name: name,
-    unlockLevel: level,
-    xp: xp,
-    minDuration: Duration(seconds: minSeconds),
-    maxDuration: Duration(seconds: maxSeconds),
-    outputs: {name: 1},
-  );
-}
-
-final fishingActions = <SkillAction>[
-  _fishing('Raw Shrimp', level: 1, xp: 10, minSeconds: 4, maxSeconds: 8),
-  _fishing('Raw Lobster', level: 40, xp: 50, minSeconds: 4, maxSeconds: 11),
-  _fishing('Raw Crab', level: 60, xp: 120, minSeconds: 5, maxSeconds: 12),
-  _fishing('Raw Sardine', level: 5, xp: 10, minSeconds: 4, maxSeconds: 8),
-  _fishing('Raw Herring', level: 10, xp: 15, minSeconds: 4, maxSeconds: 8),
 ];
 
 MiningAction _mining(
