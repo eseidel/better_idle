@@ -25,10 +25,9 @@ use it.
 - Support Mastery skill modifiers (e.g. increasing double items chance)
 - Fix Firemaking to put log selection behind a pop-up.
 - Fix Fishing to have separate regions.
-- Fix Smithing to separate action groups.
+- Fix Smithing to separate action groups. 
 - Add Equipment
 - Add Farming
-- Add Thieving
 - Fix combat to show attack timers/progress bars.
 - Woodcutting mastery 99 benefit.
 

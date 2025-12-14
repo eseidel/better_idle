@@ -497,23 +497,11 @@ XpPerAction xpPerAction(GlobalState state, SkillAction action) {
   );
 }
 
-/// Result of completing a thieving action.
-enum ThievingResult {
-  /// Thieving succeeded - granted gold and drops.
-  success,
-
-  /// Thieving failed - took damage but still alive.
-  failedAlive,
-
-  /// Thieving failed and player died.
-  failedDead,
-}
-
 /// Completes a thieving action with success/fail mechanics.
 /// On success: grants XP, 1-maxGold GP, and rolls for drops.
 /// On failure: deals 1-maxHit damage and stuns the player.
-/// Returns the result of the thieving attempt.
-ThievingResult completeThievingAction(
+/// Returns true if the player is still alive (action can continue).
+bool completeThievingAction(
   StateUpdateBuilder builder,
   ThievingAction action,
   Random rng,
@@ -545,7 +533,7 @@ ThievingResult completeThievingAction(
       }
     }
 
-    return ThievingResult.success;
+    return true;
   } else {
     // Thieving failed - deal damage
     final damage = action.rollDamage(rng);
@@ -554,13 +542,13 @@ ThievingResult completeThievingAction(
     // Check if player died
     if (builder.state.playerHp <= 0) {
       builder.resetPlayerHealth();
-      return ThievingResult.failedDead;
+      return false;
     }
 
     // Stun the player
     builder.setStunned(builder.state.stunned.stun());
 
-    return ThievingResult.failedAlive;
+    return true;
   }
 }
 
@@ -706,20 +694,15 @@ enum ForegroundResult {
   if (newRemainingTicks <= 0) {
     // Action completed - handle differently based on action type
     if (action is ThievingAction) {
-      final result = completeThievingAction(builder, action, rng);
-      switch (result) {
-        case ThievingResult.success:
-          // Success - restart action
-          builder.restartCurrentAction(action, random: rng);
-          return (ForegroundResult.continued, ticksToApply);
-        case ThievingResult.failedAlive:
-          // Failed but alive and stunned - next iteration will handle stun
-          builder.restartCurrentAction(action, random: rng);
-          return (ForegroundResult.continued, ticksToApply);
-        case ThievingResult.failedDead:
-          // Player died - stop action
-          builder.clearAction();
-          return (ForegroundResult.stopped, ticksToApply);
+      final playerAlive = completeThievingAction(builder, action, rng);
+      if (playerAlive) {
+        // Restart action (stun will be handled in next iteration if failed)
+        builder.restartCurrentAction(action, random: rng);
+        return (ForegroundResult.continued, ticksToApply);
+      } else {
+        // Player died - stop action
+        builder.clearAction();
+        return (ForegroundResult.stopped, ticksToApply);
       }
     }
 
