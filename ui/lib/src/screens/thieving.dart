@@ -23,7 +23,7 @@ class ThievingPage extends StatelessWidget {
       body: Column(
         children: [
           SkillProgress(xp: skillState.xp),
-          MasteryPoolProgress(xp: skillState.masteryXp),
+          MasteryPoolProgress(xp: skillState.masteryPoolXp),
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
             child: Column(

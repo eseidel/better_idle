@@ -218,7 +218,7 @@ void main() {
       state = state.startAction(normalTree, random: random);
 
       // Verify initial mastery XP is 0
-      expect(state.skillState(normalTree.skill).masteryXp, 0);
+      expect(state.skillState(normalTree.skill).masteryPoolXp, 0);
 
       // Advance time by exactly 1 completion (30 ticks = 3 seconds)
       final builder = StateUpdateBuilder(state);
@@ -226,7 +226,9 @@ void main() {
       state = builder.build();
 
       // Verify mastery XP increased
-      final masteryXpAfterFirst = state.skillState(normalTree.skill).masteryXp;
+      final masteryXpAfterFirst = state
+          .skillState(normalTree.skill)
+          .masteryPoolXp;
       expect(masteryXpAfterFirst, 1);
 
       // Advance time by exactly 1 more completion
@@ -235,7 +237,9 @@ void main() {
       state = builder2.build();
 
       // Verify mastery XP increased again
-      final masteryXpAfterSecond = state.skillState(normalTree.skill).masteryXp;
+      final masteryXpAfterSecond = state
+          .skillState(normalTree.skill)
+          .masteryPoolXp;
       expect(masteryXpAfterSecond, 2);
     });
 

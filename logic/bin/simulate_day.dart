@@ -117,7 +117,7 @@ void printFinalState(GlobalState state) {
   for (final skill in Skill.values) {
     final skillState = state.skillState(skill);
     if (skillState.xp > 0) {
-      final level = levelForXp(skillState.xp);
+      final level = skillState.skillLevel;
       print(
         '  ${skill.name}: Level $level (${approximateCountString(skillState.xp)} XP)',
       );

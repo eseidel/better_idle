@@ -36,18 +36,34 @@ int calculateMasteryXpPerAction({
   return max(1, baseValue * actionSeconds * 0.5 * (1 + bonus)).toInt();
 }
 
+// playerTotalMasteryForSkill is presumably a sum of all mastery xp
+// for all actions in this skill?
+int playerTotalMasteryForSkill(GlobalState state, Skill skill) {
+  int total = 0;
+  // This is terribly inefficient, but good enough for now.
+  for (final entry in state.actionStates.entries) {
+    final actionName = entry.key;
+    final actionState = entry.value;
+    final action = actionRegistry.byName(actionName);
+    if (action is SkillAction && action.skill == skill) {
+      total += actionState.masteryXp;
+    }
+  }
+  return total;
+}
+
 /// Returns the amount of mastery XP gained per action.
 // TODO(eseidel): Take a duration instead of using maxDuration?
 int masteryXpPerAction(GlobalState state, SkillAction action) {
-  final skillState = state.skillState(action.skill);
   final actionState = state.actionState(action.name);
-  final actionMasteryLevel = levelForXp(actionState.masteryXp);
-  final itemsInSkill = actionRegistry.forSkill(action.skill).length;
+  final actionMasteryLevel = actionState.masteryLevel;
+  final actions = actionRegistry.forSkill(action.skill);
+  final itemsInSkill = actions.length;
   return calculateMasteryXpPerAction(
     unlockedActions: state.unlockedActionsCount(action.skill),
     actionSeconds: action.maxDuration.inSeconds.toDouble(),
-    playerTotalMasteryForSkill: skillState.xp,
-    totalMasteryForSkill: skillState.masteryXp,
+    playerTotalMasteryForSkill: playerTotalMasteryForSkill(state, action.skill),
+    totalMasteryForSkill: itemsInSkill * maxMasteryXp,
     itemMasteryLevel: actionMasteryLevel,
     totalItemsInSkill: itemsInSkill,
     bonus: 0,
@@ -382,14 +398,12 @@ class StateUpdateBuilder {
   }
 
   void addSkillXp(Skill skill, int amount) {
-    final oldXp = _state.skillState(skill).xp;
-    final oldLevel = levelForXp(oldXp);
+    final oldLevel = _state.skillState(skill).skillLevel;
 
     _state = _state.addSkillXp(skill, amount);
     _changes = _changes.addingSkillXp(skill, amount);
 
-    final newXp = _state.skillState(skill).xp;
-    final newLevel = levelForXp(newXp);
+    final newLevel = _state.skillState(skill).skillLevel;
 
     // Track level changes
     if (newLevel > oldLevel) {
@@ -506,7 +520,7 @@ bool completeThievingAction(
   ThievingAction action,
   Random rng,
 ) {
-  final thievingLevel = levelForXp(builder.state.skillState(Skill.thieving).xp);
+  final thievingLevel = builder.state.skillState(Skill.thieving).skillLevel;
   final actionMasteryLevel = builder.currentMasteryLevel(action);
   final success = action.rollSuccess(rng, thievingLevel, actionMasteryLevel);
 
@@ -983,6 +997,9 @@ void consumeTicks(
     // Only pass SkillActions - CombatActions don't support predictions
     activeAction: action is SkillAction ? action : null,
     changes: builder.changes,
+    masteryLevels: builder.state.actionStates.map(
+      (key, value) => MapEntry(key, value.masteryLevel),
+    ),
   );
   return (timeAway, builder.build());
 }

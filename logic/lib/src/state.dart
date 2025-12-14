@@ -4,6 +4,7 @@ import 'package:logic/src/action_state.dart';
 import 'package:logic/src/data/actions.dart';
 import 'package:logic/src/data/combat.dart';
 import 'package:logic/src/data/items.dart';
+import 'package:logic/src/json.dart';
 import 'package:logic/src/tick.dart';
 import 'package:logic/src/types/equipment.dart';
 import 'package:logic/src/types/health.dart';
@@ -60,29 +61,33 @@ class ActiveAction {
 /// Per-skill serialized state.
 @immutable
 class SkillState {
-  const SkillState({required this.xp, required this.masteryXp});
+  const SkillState({required this.xp, required this.masteryPoolXp});
 
-  const SkillState.empty() : this(xp: 0, masteryXp: 0);
+  const SkillState.empty() : this(xp: 0, masteryPoolXp: 0);
 
   SkillState.fromJson(Map<String, dynamic> json)
     : xp = json['xp'] as int,
-      masteryXp = json['masteryXp'] as int;
+      masteryPoolXp = json['masteryPoolXp'] as int;
 
   // Skill xp accumulated for this Skill, determines skill level.
   final int xp;
 
-  /// Mastery xp accumulated for this Skill, determines mastery level.
-  final int masteryXp;
+  /// The level for this skill, derived from XP.
+  int get skillLevel => levelForXp(xp);
 
-  SkillState copyWith({int? xp, int? masteryXp}) {
+  /// Mastery pool xp, accumulated for this skill
+  /// Can be spent to gain mastery levels for actions within this skill.
+  final int masteryPoolXp;
+
+  SkillState copyWith({int? xp, int? masteryPoolXp}) {
     return SkillState(
       xp: xp ?? this.xp,
-      masteryXp: masteryXp ?? this.masteryXp,
+      masteryPoolXp: masteryPoolXp ?? this.masteryPoolXp,
     );
   }
 
   Map<String, dynamic> toJson() {
-    return {'xp': xp, 'masteryXp': masteryXp};
+    return {'xp': xp, 'masteryPoolXp': masteryPoolXp};
   }
 }
 
@@ -129,19 +134,6 @@ const int initialBankSlots = 20;
 /// Fixed player stats for now.
 Stats playerStats(GlobalState state) {
   return const Stats(minHit: 1, maxHit: 23, damageReduction: 0, attackSpeed: 4);
-}
-
-Map<K, V>? maybeMap<K, V>(
-  dynamic json, { // Assumes Map<String, dynamic> for simplicity.
-  K Function(String)? toKey,
-  V Function(dynamic)? toValue,
-}) {
-  if (json == null) return null;
-  final keyFromJson = toKey ?? (String key) => key as K;
-  final valueFromJson = toValue ?? (dynamic value) => value as V;
-  return (json as Map<String, dynamic>?)?.map(
-    (key, value) => MapEntry(keyFromJson(key), valueFromJson(value)),
-  );
 }
 
 /// Primary state object serialized to disk and used in memory.
@@ -195,7 +187,7 @@ class GlobalState {
         activeAction: null,
         // Start with level 10 Hitpoints (1154 XP) for 100 HP
         skillStates: const {
-          Skill.hitpoints: SkillState(xp: 1154, masteryXp: 0),
+          Skill.hitpoints: SkillState(xp: 1154, masteryPoolXp: 0),
         },
         actionStates: {},
         updatedAt: DateTime.timestamp(),
@@ -297,8 +289,7 @@ class GlobalState {
   /// The player's maximum HP (computed from Hitpoints skill level).
   /// Each Hitpoints level grants 10 HP.
   int get maxPlayerHp {
-    final hitpointsXp = skillState(Skill.hitpoints).xp;
-    final hitpointsLevel = levelForXp(hitpointsXp);
+    final hitpointsLevel = skillState(Skill.hitpoints).skillLevel;
     return hitpointsLevel * 10;
   }
 
@@ -524,7 +515,9 @@ class GlobalState {
 
   GlobalState addSkillMasteryXp(Skill skill, int amount) {
     final oldState = skillState(skill);
-    final newState = oldState.copyWith(masteryXp: oldState.masteryXp + amount);
+    final newState = oldState.copyWith(
+      masteryPoolXp: oldState.masteryPoolXp + amount,
+    );
     return _updateSkillState(skill, newState);
   }
 

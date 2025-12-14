@@ -1,4 +1,5 @@
 import 'package:logic/src/data/actions.dart';
+import 'package:logic/src/json.dart';
 import 'package:logic/src/types/inventory.dart';
 
 class LevelChange {
@@ -32,8 +33,27 @@ class TimeAway {
     required this.endTime,
     required this.activeSkill,
     required this.changes,
+    required this.masteryLevels,
     this.activeAction,
   });
+
+  factory TimeAway.test({
+    DateTime? startTime,
+    DateTime? endTime,
+    Skill? activeSkill,
+    Action? activeAction,
+    Changes? changes,
+    Map<String, int>? masteryLevels,
+  }) {
+    return TimeAway(
+      startTime: startTime ?? DateTime.fromMillisecondsSinceEpoch(0),
+      endTime: endTime ?? DateTime.fromMillisecondsSinceEpoch(0),
+      activeSkill: activeSkill,
+      activeAction: activeAction,
+      changes: changes ?? const Changes.empty(),
+      masteryLevels: masteryLevels ?? const {},
+    );
+  }
 
   TimeAway.empty()
     : this(
@@ -42,6 +62,7 @@ class TimeAway {
         activeSkill: null,
         activeAction: null,
         changes: const Changes.empty(),
+        masteryLevels: const {},
       );
 
   static TimeAway? maybeFromJson(dynamic json) {
@@ -68,6 +89,9 @@ class TimeAway {
           : null,
       activeAction: action,
       changes: Changes.fromJson(json['changes'] as Map<String, dynamic>),
+      masteryLevels:
+          maybeMap(json['masteryLevels'], toValue: (value) => value as int) ??
+          {},
     );
   }
   final DateTime startTime;
@@ -75,6 +99,7 @@ class TimeAway {
   final Skill? activeSkill;
   final Action? activeAction;
   final Changes changes;
+  final Map<String, int> masteryLevels;
 
   Duration get duration => endTime.difference(startTime);
 
@@ -98,8 +123,7 @@ class TimeAway {
   }
 
   int levelForMastery(String actionName) {
-    // TODO(eseidel): Record mastery levels at time of creation.
-    return 1;
+    return masteryLevels[actionName] ?? 0;
   }
 
   /// Calculates the predicted items gained per hour based on the active
@@ -178,6 +202,7 @@ class TimeAway {
     Skill? activeSkill,
     Action? activeAction,
     Changes? changes,
+    Map<String, int>? masteryLevels,
   }) {
     return TimeAway(
       startTime: startTime ?? this.startTime,
@@ -185,6 +210,7 @@ class TimeAway {
       activeSkill: activeSkill ?? this.activeSkill,
       activeAction: activeAction ?? this.activeAction,
       changes: changes ?? this.changes,
+      masteryLevels: masteryLevels ?? this.masteryLevels,
     );
   }
 
@@ -203,12 +229,25 @@ class TimeAway {
     final mergedEndTime = endTime.isAfter(other.endTime)
         ? endTime
         : other.endTime;
+    // Take the higher of the two mastery levels for each skill
+    final actionNames = masteryLevels.keys.toSet().union(
+      other.masteryLevels.keys.toSet(),
+    );
+    final mergedMasteryLevels = <String, int>{};
+    for (final actionName in actionNames) {
+      mergedMasteryLevels[actionName] =
+          (masteryLevels[actionName] ?? 0) >
+              (other.masteryLevels[actionName] ?? 0)
+          ? masteryLevels[actionName]!
+          : other.masteryLevels[actionName] ?? 0;
+    }
     return TimeAway(
       startTime: mergedStartTime,
       endTime: mergedEndTime,
       activeSkill: activeSkill ?? other.activeSkill,
       activeAction: activeAction ?? other.activeAction,
       changes: changes.merge(other.changes),
+      masteryLevels: mergedMasteryLevels,
     );
   }
 

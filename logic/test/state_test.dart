@@ -19,7 +19,7 @@ void main() {
         totalTicks: 30,
       ),
       skillStates: const {
-        Skill.woodcutting: SkillState(xp: 100, masteryXp: 50),
+        Skill.woodcutting: SkillState(xp: 100, masteryPoolXp: 50),
       },
       actionStates: const {
         'Normal Tree': ActionState(masteryXp: 25),
@@ -38,6 +38,7 @@ void main() {
           droppedItems: Counts<String>.empty(),
           skillLevelChanges: LevelChanges.empty(),
         ),
+        masteryLevels: const {'Normal Tree': 2},
       ),
     );
 
@@ -61,7 +62,7 @@ void main() {
 
     expect(loaded.skillStates.length, 1);
     expect(loaded.skillStates[Skill.woodcutting]?.xp, 100);
-    expect(loaded.skillStates[Skill.woodcutting]?.masteryXp, 50);
+    expect(loaded.skillStates[Skill.woodcutting]?.masteryPoolXp, 50);
 
     expect(loaded.actionStates.length, 2);
     expect(loaded.actionStates['Normal Tree']?.masteryXp, 25);
@@ -90,7 +91,7 @@ void main() {
         totalTicks: 30,
       ),
       skillStates: const {
-        Skill.woodcutting: SkillState(xp: 100, masteryXp: 50),
+        Skill.woodcutting: SkillState(xp: 100, masteryPoolXp: 50),
       },
       actionStates: const {'Normal Tree': ActionState(masteryXp: 25)},
       updatedAt: DateTime(2024, 1, 1, 12),
@@ -113,7 +114,7 @@ void main() {
         totalTicks: 30,
       ),
       skillStates: const {
-        Skill.woodcutting: SkillState(xp: 100, masteryXp: 50),
+        Skill.woodcutting: SkillState(xp: 100, masteryPoolXp: 50),
       },
       actionStates: const {'Normal Tree': ActionState(masteryXp: 25)},
       updatedAt: DateTime(2024, 1, 1, 12),
@@ -127,6 +128,7 @@ void main() {
           droppedItems: Counts<String>.empty(),
           skillLevelChanges: LevelChanges.empty(),
         ),
+        masteryLevels: const {'Normal Tree': 2},
       ),
     );
 

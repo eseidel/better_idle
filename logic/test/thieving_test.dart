@@ -139,7 +139,7 @@ void main() {
       final random = Random(0);
       final state = GlobalState.test(
         skillStates: const {
-          Skill.hitpoints: SkillState(xp: 1154, masteryXp: 0), // Level 10
+          Skill.hitpoints: SkillState(xp: 1154, masteryPoolXp: 0), // Level 10
         },
       ).startAction(manAction, random: random);
 
@@ -174,7 +174,7 @@ void main() {
         skillStates: const {
           Skill.hitpoints: SkillState(
             xp: 1154,
-            masteryXp: 0,
+            masteryPoolXp: 0,
           ), // Level 10 = 100 HP
         },
         health: const HealthState(lostHp: 95), // Only 5 HP left (100 max)
@@ -208,7 +208,7 @@ void main() {
           skillStates: const {
             Skill.hitpoints: SkillState(
               xp: 1154,
-              masteryXp: 0,
+              masteryPoolXp: 0,
             ), // Level 10 = 100 HP
           },
           health: const HealthState(lostHp: 95), // Only 5 HP left
@@ -242,7 +242,7 @@ void main() {
         skillStates: const {
           Skill.hitpoints: SkillState(
             xp: 1154,
-            masteryXp: 0,
+            masteryPoolXp: 0,
           ), // Level 10 = 100 HP
         },
       ).startAction(manAction, random: random);
@@ -286,7 +286,7 @@ void main() {
         skillStates: const {
           Skill.hitpoints: SkillState(
             xp: 1154,
-            masteryXp: 0,
+            masteryPoolXp: 0,
           ), // Level 10 = 100 HP
         },
         stunned: const StunnedState.fresh().stun(), // 30 ticks of stun
