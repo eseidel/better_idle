@@ -66,6 +66,18 @@ class Inventory {
     return countOfItem(item);
   }
 
+  /// Returns true if the item can be added to this inventory.
+  /// An item can be added if there's an existing stack of the same item,
+  /// or if there's room for a new item type (slots < capacity).
+  bool canAdd(Item item, {required int capacity}) {
+    // If we already have this item type, we can always stack more
+    if (_counts.containsKey(item)) {
+      return true;
+    }
+    // Otherwise, we need an empty slot
+    return _orderedItems.length < capacity;
+  }
+
   Inventory adding(ItemStack stack) {
     final counts = Map<Item, int>.from(_counts);
     final orderedItems = List<Item>.from(_orderedItems);

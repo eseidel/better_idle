@@ -11,9 +11,21 @@ const _woodcutting = [
 
 const _firemaking = [Item('Coal Ore', gp: 13), Item('Ash', gp: 5)];
 
-const _fishing = [Item('Raw Shrimp', gp: 3)];
+const _fishing = [
+  Item('Raw Shrimp', gp: 3),
+  Item('Raw Lobster', gp: 65),
+  Item('Raw Crab', gp: 135),
+  Item('Raw Sardine', gp: 3),
+  Item('Raw Herring', gp: 8),
+];
 
-const _cooking = [Item('Shrimp', gp: 2, healsFor: 30)];
+const _cooking = [
+  Item('Shrimp', gp: 2, healsFor: 30),
+  Item('Lobster', gp: 108, healsFor: 110),
+  Item('Crab', gp: 280, healsFor: 150),
+  Item('Sardine', gp: 5, healsFor: 40),
+  Item('Herring', gp: 10, healsFor: 50),
+];
 
 const _mining = [
   Item('Rune Essence', gp: 0),

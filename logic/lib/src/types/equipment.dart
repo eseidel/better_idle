@@ -136,6 +136,21 @@ class Equipment {
     return copyWith(foodSlots: newFoodSlots);
   }
 
+  /// Removes food from a specific slot, returning the item stack and updated
+  /// equipment. Returns null if the slot is empty or index is invalid.
+  (ItemStack, Equipment)? unequipFood(int slotIndex) {
+    if (slotIndex < 0 || slotIndex >= foodSlots.length) {
+      return null;
+    }
+    final food = foodSlots[slotIndex];
+    if (food == null) return null;
+
+    final newFoodSlots = List<ItemStack?>.from(foodSlots);
+    newFoodSlots[slotIndex] = null;
+
+    return (food, copyWith(foodSlots: newFoodSlots));
+  }
+
   Equipment copyWith({List<ItemStack?>? foodSlots, int? selectedFoodSlot}) {
     return Equipment(
       foodSlots: foodSlots ?? this.foodSlots,

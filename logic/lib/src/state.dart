@@ -551,6 +551,22 @@ class GlobalState {
     return copyWith(inventory: newInventory, equipment: newEquipment);
   }
 
+  /// Unequips food from an equipment slot and moves it to inventory.
+  /// Throws StateError if inventory is full and can't accept the item.
+  /// Throws ArgumentError if the slot is empty or index is invalid.
+  GlobalState unequipFood(int slotIndex) {
+    final result = equipment.unequipFood(slotIndex);
+    if (result == null) {
+      throw ArgumentError('No food in slot $slotIndex to unequip');
+    }
+    final (food, newEquipment) = result;
+    if (!inventory.canAdd(food.item, capacity: inventoryCapacity)) {
+      throw StateError('Inventory is full, cannot unequip ${food.item.name}');
+    }
+    final newInventory = inventory.adding(food);
+    return copyWith(inventory: newInventory, equipment: newEquipment);
+  }
+
   /// Eats the currently selected food, healing the player.
   /// Returns null if no food is selected or player is at full health.
   GlobalState? eatSelectedFood() {

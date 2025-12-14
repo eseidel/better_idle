@@ -5,6 +5,8 @@ void main() {
   final normalLogs = itemRegistry.byName('Normal Logs');
   final oakLogs = itemRegistry.byName('Oak Logs');
   final birdNest = itemRegistry.byName('Bird Nest');
+  final shrimp = itemRegistry.byName('Shrimp');
+  final lobster = itemRegistry.byName('Lobster');
 
   test('GlobalState toJson/fromJson round-trip', () {
     // Create a state with TimeAway data
@@ -206,5 +208,142 @@ void main() {
 
     // Verify GP was added correctly (5 * 1 = 5)
     expect(afterSelling.gp, 5);
+  });
+
+  group('Inventory.canAdd', () {
+    test('returns true when inventory has existing stack of item', () {
+      final inventory = Inventory.fromItems([
+        ItemStack(normalLogs, count: 5),
+        ItemStack(oakLogs, count: 3),
+      ]);
+      // Can add more normal logs even if at capacity
+      expect(inventory.canAdd(normalLogs, capacity: 2), isTrue);
+    });
+
+    test('returns true when inventory has room for new item', () {
+      final inventory = Inventory.fromItems([ItemStack(normalLogs, count: 5)]);
+      // Can add oak logs because we have room (1 slot used, capacity 2)
+      expect(inventory.canAdd(oakLogs, capacity: 2), isTrue);
+    });
+
+    test('returns false when inventory is full with different items', () {
+      final inventory = Inventory.fromItems([
+        ItemStack(normalLogs, count: 5),
+        ItemStack(oakLogs, count: 3),
+      ]);
+      // Cannot add bird nest because inventory is full (2 slots, capacity 2)
+      expect(inventory.canAdd(birdNest, capacity: 2), isFalse);
+    });
+
+    test('returns true for empty inventory', () {
+      const inventory = Inventory.empty();
+      expect(inventory.canAdd(normalLogs, capacity: 20), isTrue);
+    });
+  });
+
+  group('GlobalState.unequipFood', () {
+    test('moves food from equipment slot to inventory', () {
+      // Start with food equipped and empty inventory
+      final equipment = Equipment(
+        foodSlots: [ItemStack(shrimp, count: 10), null, null],
+        selectedFoodSlot: 0,
+      );
+      final state = GlobalState.test(equipment: equipment);
+
+      final newState = state.unequipFood(0);
+
+      // Food should be removed from equipment
+      expect(newState.equipment.foodSlots[0], isNull);
+      // Food should be in inventory
+      expect(newState.inventory.countOfItem(shrimp), 10);
+    });
+
+    test('stacks with existing inventory items', () {
+      // Start with some shrimp in inventory and more equipped
+      final equipment = Equipment(
+        foodSlots: [ItemStack(shrimp, count: 10), null, null],
+        selectedFoodSlot: 0,
+      );
+      final state = GlobalState.test(
+        inventory: Inventory.fromItems([ItemStack(shrimp, count: 5)]),
+        equipment: equipment,
+      );
+
+      final newState = state.unequipFood(0);
+
+      // Food should be removed from equipment
+      expect(newState.equipment.foodSlots[0], isNull);
+      // Food should stack in inventory (5 + 10 = 15)
+      expect(newState.inventory.countOfItem(shrimp), 15);
+    });
+
+    test('throws ArgumentError when slot is empty', () {
+      final state = GlobalState.test();
+      expect(() => state.unequipFood(0), throwsArgumentError);
+    });
+
+    test('throws ArgumentError when slot index is invalid', () {
+      final state = GlobalState.test();
+      expect(() => state.unequipFood(-1), throwsArgumentError);
+      expect(() => state.unequipFood(3), throwsArgumentError);
+    });
+
+    test('throws StateError when inventory is full', () {
+      // Create inventory at capacity with different items
+      final items = <ItemStack>[];
+      for (var i = 0; i < initialBankSlots; i++) {
+        items.add(ItemStack(Item('Test Item $i', gp: 1), count: 1));
+      }
+      final equipment = Equipment(
+        foodSlots: [ItemStack(shrimp, count: 10), null, null],
+        selectedFoodSlot: 0,
+      );
+      final state = GlobalState.test(
+        inventory: Inventory.fromItems(items),
+        equipment: equipment,
+      );
+
+      expect(() => state.unequipFood(0), throwsStateError);
+    });
+
+    test('succeeds when inventory full but has same item type', () {
+      // Create inventory at capacity but with shrimp as one of the items
+      final items = <ItemStack>[ItemStack(shrimp, count: 5)];
+      for (var i = 1; i < initialBankSlots; i++) {
+        items.add(ItemStack(Item('Test Item $i', gp: 1), count: 1));
+      }
+      final equipment = Equipment(
+        foodSlots: [ItemStack(shrimp, count: 10), null, null],
+        selectedFoodSlot: 0,
+      );
+      final state = GlobalState.test(
+        inventory: Inventory.fromItems(items),
+        equipment: equipment,
+      );
+
+      // Should succeed because shrimp can stack
+      final newState = state.unequipFood(0);
+      expect(newState.inventory.countOfItem(shrimp), 15);
+      expect(newState.equipment.foodSlots[0], isNull);
+    });
+
+    test('can unequip from any slot', () {
+      final equipment = Equipment(
+        foodSlots: [
+          ItemStack(shrimp, count: 5),
+          ItemStack(lobster, count: 3),
+          null,
+        ],
+        selectedFoodSlot: 0,
+      );
+      final state = GlobalState.test(equipment: equipment);
+
+      // Unequip from slot 1
+      final newState = state.unequipFood(1);
+
+      expect(newState.equipment.foodSlots[0]?.item, shrimp);
+      expect(newState.equipment.foodSlots[1], isNull);
+      expect(newState.inventory.countOfItem(lobster), 3);
+    });
   });
 }

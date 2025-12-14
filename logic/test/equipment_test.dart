@@ -3,6 +3,9 @@ import 'package:test/test.dart';
 
 void main() {
   final shrimp = itemRegistry.byName('Shrimp'); // Consumable (healsFor: 30)
+  final lobster = itemRegistry.byName('Lobster'); // Consumable (healsFor: 110)
+  final crab = itemRegistry.byName('Crab'); // Consumable (healsFor: 150)
+  final sardine = itemRegistry.byName('Sardine'); // Consumable (healsFor: 40)
   final normalLogs = itemRegistry.byName('Normal Logs'); // Non-consumable
 
   group('Equipment', () {
@@ -17,24 +20,20 @@ void main() {
         expect(equipment.canEquipFood(normalLogs), isFalse);
       });
 
-      test('returns true when item is already equipped', () {
-        final equipment = const Equipment.empty().equipFood(
-          ItemStack(shrimp, count: 5),
-        );
-        // All slots are not full, but item is already in a slot
-        expect(equipment.canEquipFood(shrimp), isTrue);
-      });
-
       test('returns false when all slots are full with different items', () {
         // Create 3 different consumable items to fill all slots
-        // Since we only have one consumable (Shrimp), we'll test with Shrimp
-        // filling all slots and then checking a different consumable
-        // For now, test that we can still equip if item is already there
-        final equipment = const Equipment.empty().equipFood(
-          ItemStack(shrimp, count: 5),
+        final equipment = Equipment(
+          foodSlots: [
+            ItemStack(shrimp, count: 5),
+            ItemStack(lobster, count: 5),
+            ItemStack(crab, count: 5),
+          ],
+          selectedFoodSlot: 0,
         );
         // Shrimp is already equipped, so we can add more
         expect(equipment.canEquipFood(shrimp), isTrue);
+        // But we can't equip a 4th item
+        expect(equipment.canEquipFood(sardine), isFalse);
       });
     });
 

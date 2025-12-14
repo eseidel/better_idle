@@ -327,6 +327,10 @@ SkillAction _fishing(
 
 final fishingActions = <SkillAction>[
   _fishing('Raw Shrimp', level: 1, xp: 10, minSeconds: 4, maxSeconds: 8),
+  _fishing('Raw Lobster', level: 40, xp: 50, minSeconds: 4, maxSeconds: 11),
+  _fishing('Raw Crab', level: 60, xp: 120, minSeconds: 5, maxSeconds: 12),
+  _fishing('Raw Sardine', level: 5, xp: 10, minSeconds: 4, maxSeconds: 8),
+  _fishing('Raw Herring', level: 10, xp: 15, minSeconds: 4, maxSeconds: 8),
 ];
 
 MiningAction _mining(
@@ -410,6 +414,10 @@ SkillAction _cooking(
 
 final cookingActions = <SkillAction>[
   _cooking('Shrimp', level: 1, xp: 5, seconds: 2),
+  _cooking('Lobster', level: 40, xp: 66, seconds: 5),
+  _cooking('Crab', level: 60, xp: 140, seconds: 7),
+  _cooking('Sardine', level: 5, xp: 5, seconds: 2),
+  _cooking('Herring', level: 10, xp: 15, seconds: 3),
 ];
 
 final List<Action> _allActions = [
@@ -426,31 +434,11 @@ final List<Action> _allActions = [
 // Skill-level drops: shared across all actions in a skill.
 // This can include both simple Drops and DropTables.
 final skillDrops = <Skill, List<Droppable>>{
-  Skill.hitpoints: [],
-  Skill.attack: [],
-  Skill.woodcutting: [
-    const Drop('Bird Nest', rate: 0.005),
-    // Add other woodcutting skill-level drops here
-  ],
+  Skill.woodcutting: [const Drop('Bird Nest', rate: 0.005)],
   Skill.firemaking: [
     const Drop('Coal Ore', rate: 0.40),
     const Drop('Ash', rate: 0.20),
     // Missing Charcoal, Generous Fire Spirit
-  ],
-  Skill.fishing: [
-    // Add fishing skill-level drops here as needed
-  ],
-  Skill.cooking: [
-    // Add cooking skill-level drops here as needed
-  ],
-  Skill.mining: [
-    miningGemTable, // DropTable is a Drop, so it can go here
-  ],
-  Skill.smithing: [
-    // Add smithing skill-level drops here as needed
-  ],
-  Skill.thieving: [
-    // Add thieving skill-level drops here as needed
   ],
 };
 
