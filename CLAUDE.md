@@ -51,7 +51,7 @@ flutter test          # Run tests
 - **Mastery** - Per-action XP that unlocks bonuses (e.g., double drops in woodcutting)
 - **Inventory** - Slot-based bank with purchasable expansion
 - **Equipment** - Food slots for healing during combat
-- **Time Away** - Calculates progress while app was backgrounded, shows "welcome back" summary
+- **Time Away** - Calculates progress while app was in background, shows "welcome back" summary
 
 ### Data Registries
 - `actionRegistry` - All skill and combat actions

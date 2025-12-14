@@ -1,15 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:logic/logic.dart';
 
-/// A bordered cell with rounded corners and an optional count badge.
-class CountBadgeCell extends StatelessWidget {
-  const CountBadgeCell({
+/// A bordered cell with rounded corners and an optional text badge.
+class TextBadgeCell extends StatelessWidget {
+  const TextBadgeCell({
     required this.child,
     this.onTap,
     this.radius = 8.0,
     this.backgroundColor = Colors.transparent,
     this.borderColor,
-    this.count,
+    this.text,
     super.key,
   });
 
@@ -18,9 +18,9 @@ class CountBadgeCell extends StatelessWidget {
   final double radius;
   final Color backgroundColor;
   final Color? borderColor;
-  final int? count;
+  final String? text;
 
-  Widget _buildCountBadge({required int count, required double badgeHeight}) {
+  Widget _buildTextBadge({required String text, required double badgeHeight}) {
     return Container(
       height: badgeHeight,
       padding: const EdgeInsets.symmetric(horizontal: 8),
@@ -29,7 +29,7 @@ class CountBadgeCell extends StatelessWidget {
         borderRadius: BorderRadius.circular(badgeHeight / 2),
       ),
       child: Text(
-        approximateCountString(count),
+        text,
         style: const TextStyle(
           color: Colors.white,
           fontSize: 10,
@@ -50,7 +50,7 @@ class CountBadgeCell extends StatelessWidget {
 
     return Padding(
       // Add padding at bottom to make room for the overlapping badge
-      padding: count != null
+      padding: text != null
           ? const EdgeInsets.only(bottom: badgeOverlap)
           : EdgeInsets.zero,
       child: Stack(
@@ -72,21 +72,50 @@ class CountBadgeCell extends StatelessWidget {
               ),
             ),
           ),
-          // Count badge overlapping the bottom border
-          if (count != null)
+          // Text badge overlapping the bottom border
+          if (text != null)
             Positioned(
               bottom: -badgeOverlap,
               left: 0,
               right: 0,
               child: Center(
-                child: _buildCountBadge(
-                  count: count!,
-                  badgeHeight: badgeHeight,
-                ),
+                child: _buildTextBadge(text: text!, badgeHeight: badgeHeight),
               ),
             ),
         ],
       ),
+    );
+  }
+}
+
+/// A bordered cell with rounded corners and an optional count badge.
+class CountBadgeCell extends StatelessWidget {
+  const CountBadgeCell({
+    required this.child,
+    this.onTap,
+    this.radius = 8.0,
+    this.backgroundColor = Colors.transparent,
+    this.borderColor,
+    this.count,
+    super.key,
+  });
+
+  final Widget child;
+  final VoidCallback? onTap;
+  final double radius;
+  final Color backgroundColor;
+  final Color? borderColor;
+  final int? count;
+
+  @override
+  Widget build(BuildContext context) {
+    return TextBadgeCell(
+      onTap: onTap,
+      radius: radius,
+      backgroundColor: backgroundColor,
+      borderColor: borderColor,
+      text: count != null ? approximateCountString(count!) : null,
+      child: child,
     );
   }
 }

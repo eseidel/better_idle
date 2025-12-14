@@ -1,7 +1,9 @@
 import 'package:better_idle/src/logic/redux_actions.dart';
 import 'package:better_idle/src/widgets/context_extensions.dart';
+import 'package:better_idle/src/widgets/double_chance_badge_cell.dart';
 import 'package:better_idle/src/widgets/mastery_pool.dart';
 import 'package:better_idle/src/widgets/navigation_drawer.dart';
+import 'package:better_idle/src/widgets/recycle_chance_badge_cell.dart';
 import 'package:better_idle/src/widgets/skill_progress.dart';
 import 'package:better_idle/src/widgets/xp_badges_row.dart';
 import 'package:flutter/material.dart' hide Action;
@@ -109,17 +111,9 @@ class _SelectedActionDisplay extends StatelessWidget {
           const Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              _ChanceIndicator(
-                icon: Icons.recycling,
-                label: 'Recycle',
-                value: '0%',
-              ),
+              RecycleChanceBadgeCell(chance: '0%'),
               SizedBox(width: 24),
-              _ChanceIndicator(
-                icon: Icons.double_arrow,
-                label: 'Double',
-                value: '0%',
-              ),
+              DoubleChanceBadgeCell(chance: '0%'),
             ],
           ),
           const SizedBox(height: 12),
@@ -180,30 +174,6 @@ class _SelectedActionDisplay extends StatelessWidget {
           ),
         ],
       ),
-    );
-  }
-}
-
-class _ChanceIndicator extends StatelessWidget {
-  const _ChanceIndicator({
-    required this.icon,
-    required this.label,
-    required this.value,
-  });
-
-  final IconData icon;
-  final String label;
-  final String value;
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      children: [
-        Icon(icon, size: 24, color: Colors.grey),
-        const SizedBox(height: 4),
-        Text(label, style: const TextStyle(fontSize: 12, color: Colors.grey)),
-        Text(value, style: const TextStyle(fontWeight: FontWeight.bold)),
-      ],
     );
   }
 }
