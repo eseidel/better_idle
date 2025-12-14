@@ -1,5 +1,6 @@
 import 'package:better_idle/src/logic/redux_actions.dart';
 import 'package:better_idle/src/widgets/context_extensions.dart';
+import 'package:better_idle/src/widgets/count_badge_cell.dart';
 import 'package:better_idle/src/widgets/navigation_drawer.dart';
 import 'package:collection/collection.dart';
 import 'package:flutter/material.dart';
@@ -95,50 +96,15 @@ class StackCell extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return InkWell(
+    return CountBadgeCell(
       onTap: onTap,
-      child: Container(
-        width: 30,
-        height: 30,
-        color: Colors.green,
-        child: Stack(
-          children: [
-            // Item name centered
-            Center(
-              child: Text(
-                ' ${stack.item.name}',
-                textAlign: TextAlign.center,
-                overflow: TextOverflow.ellipsis,
-              ),
-            ),
-            // Count badge at bottom
-            Positioned(
-              bottom: 0,
-              left: 0,
-              right: 0,
-              child: Container(
-                decoration: const BoxDecoration(
-                  color: Colors.black87,
-                  borderRadius: BorderRadius.only(
-                    bottomLeft: Radius.circular(4),
-                    bottomRight: Radius.circular(4),
-                  ),
-                ),
-                padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
-                child: Text(
-                  approximateCountString(stack.count),
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 10,
-                    fontWeight: FontWeight.bold,
-                  ),
-                  textAlign: TextAlign.center,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ),
-            ),
-          ],
+      borderColor: Colors.green.shade700,
+      count: stack.count,
+      child: Center(
+        child: Text(
+          stack.item.name,
+          textAlign: TextAlign.center,
+          overflow: TextOverflow.ellipsis,
         ),
       ),
     );
