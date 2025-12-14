@@ -3,6 +3,7 @@ import 'package:better_idle/src/widgets/context_extensions.dart';
 import 'package:better_idle/src/widgets/mastery_pool.dart';
 import 'package:better_idle/src/widgets/navigation_drawer.dart';
 import 'package:better_idle/src/widgets/skill_progress.dart';
+import 'package:better_idle/src/widgets/xp_badges_row.dart';
 import 'package:flutter/material.dart' hide Action;
 import 'package:logic/logic.dart';
 
@@ -87,8 +88,6 @@ class ThievingActionCell extends StatelessWidget {
     final isStunned = context.state.isStunned;
     final canToggle = (canStart || isRunning) && !isStunned;
 
-    final perAction = xpPerAction(context.state, action);
-
     // Calculate stealth and success chance
     final thievingLevel = levelForXp(
       context.state.skillState(Skill.thieving).xp,
@@ -125,8 +124,9 @@ class ThievingActionCell extends StatelessWidget {
           const SizedBox(height: 4),
           Text('Success: $successPercent%'),
           Text('Stealth: $stealth'),
-          Text('XP per success: ${perAction.xp}'),
           Text('Max Gold: ${action.maxGold}'),
+          const SizedBox(height: 4),
+          XpBadgesRow(action: action),
           MasteryProgressCell(masteryXp: actionState.masteryXp),
           const SizedBox(height: 8),
           ElevatedButton(

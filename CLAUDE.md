@@ -57,3 +57,7 @@ flutter test          # Run tests
 - `actionRegistry` - All skill and combat actions
 - `itemRegistry` ([logic/lib/src/data/items.dart](logic/lib/src/data/items.dart)) - All items with properties (sell value, heal amount)
 - `dropsRegistry` - Drop tables combining action, skill, and global drops
+
+## Workflow
+
+Run `dart format .` upon completion of edits.

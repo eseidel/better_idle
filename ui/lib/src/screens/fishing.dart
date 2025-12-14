@@ -3,6 +3,7 @@ import 'package:better_idle/src/widgets/context_extensions.dart';
 import 'package:better_idle/src/widgets/mastery_pool.dart';
 import 'package:better_idle/src/widgets/navigation_drawer.dart';
 import 'package:better_idle/src/widgets/skill_progress.dart';
+import 'package:better_idle/src/widgets/xp_badges_row.dart';
 import 'package:flutter/material.dart' hide Action;
 import 'package:logic/logic.dart';
 
@@ -74,8 +75,6 @@ class FishingActionCell extends StatelessWidget {
         ? '${action.minDuration.inSeconds} seconds'
         : '${action.minDuration.inSeconds}-'
               '${action.maxDuration.inSeconds} seconds';
-    final perAction = xpPerAction(context.state, action);
-
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -87,9 +86,7 @@ class FishingActionCell extends StatelessWidget {
         children: [
           const Text('Fishing'),
           Text(actionName, style: labelStyle),
-          Text('XP per action: ${perAction.xp}'),
-          Text('Mastery XP: ${perAction.masteryXp}'),
-          Text('Mastery Pool XP: ${perAction.masteryPoolXp}'),
+          XpBadgesRow(action: action),
           Text(durationText),
 
           MasteryProgressCell(masteryXp: actionState.masteryXp),

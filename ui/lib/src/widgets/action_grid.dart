@@ -1,6 +1,7 @@
 import 'package:better_idle/src/logic/redux_actions.dart';
 import 'package:better_idle/src/widgets/context_extensions.dart';
 import 'package:better_idle/src/widgets/mastery_pool.dart';
+import 'package:better_idle/src/widgets/xp_badges_row.dart';
 import 'package:flutter/material.dart' hide Action;
 import 'package:logic/logic.dart';
 
@@ -136,9 +137,9 @@ class ActionCell extends StatelessWidget {
               const SizedBox(height: 4),
               RockTypeBadge(rockType: miningAction.rockType),
             ],
-            Text(
-              '${action.xp} Skill XP, ${action.minDuration.inSeconds} seconds',
-            ),
+            Text('${action.minDuration.inSeconds} seconds'),
+            const SizedBox(height: 4),
+            XpBadgesRow(action: action),
             if (action is MiningAction) ...[
               const SizedBox(height: 4),
               if (respawnTimeRemaining case final respawnTime?) ...[

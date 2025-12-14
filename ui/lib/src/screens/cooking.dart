@@ -3,6 +3,7 @@ import 'package:better_idle/src/widgets/context_extensions.dart';
 import 'package:better_idle/src/widgets/mastery_pool.dart';
 import 'package:better_idle/src/widgets/navigation_drawer.dart';
 import 'package:better_idle/src/widgets/skill_progress.dart';
+import 'package:better_idle/src/widgets/xp_badges_row.dart';
 import 'package:flutter/material.dart' hide Action;
 import 'package:logic/logic.dart';
 
@@ -155,7 +156,7 @@ class _SelectedActionDisplay extends StatelessWidget {
           // Grants section
           const Text('Grants:', style: TextStyle(fontWeight: FontWeight.bold)),
           const SizedBox(height: 4),
-          Text('${action.xp} XP, 3 Mastery XP, 0.25% Pool XP'),
+          XpBadgesRow(action: action),
           const SizedBox(height: 16),
 
           // Duration and Cook button
