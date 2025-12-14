@@ -98,6 +98,19 @@ void printTimeAway(TimeAway timeAway) {
     print('');
   }
 
+  // Print stop reason if action stopped
+  if (timeAway.stopReason != ActionStopReason.stillRunning) {
+    print('ACTION STOPPED:');
+    final reason = switch (timeAway.stopReason) {
+      ActionStopReason.stillRunning => 'Still running',
+      ActionStopReason.outOfInputs => 'Ran out of input items',
+      ActionStopReason.inventoryFull => 'Inventory full',
+      ActionStopReason.playerDied => 'Player died',
+    };
+    print('  ⛔ $reason');
+    print('');
+  }
+
   if (changes.isEmpty) {
     print('Nothing happened while you were away.');
     print('');

@@ -2,6 +2,21 @@ import 'package:logic/src/data/actions.dart';
 import 'package:logic/src/json.dart';
 import 'package:logic/src/types/inventory.dart';
 
+/// Reason why an action stopped during time away processing.
+enum ActionStopReason {
+  /// Action is still running (not stopped).
+  stillRunning,
+
+  /// Ran out of input items required for the action.
+  outOfInputs,
+
+  /// Inventory is full and can't add new item types.
+  inventoryFull,
+
+  /// Player died during combat or thieving.
+  playerDied,
+}
+
 class LevelChange {
   const LevelChange({required this.startLevel, required this.endLevel});
 
@@ -35,6 +50,7 @@ class TimeAway {
     required this.changes,
     required this.masteryLevels,
     this.activeAction,
+    this.stopReason = ActionStopReason.stillRunning,
   });
 
   factory TimeAway.test({
@@ -44,6 +60,7 @@ class TimeAway {
     Action? activeAction,
     Changes? changes,
     Map<String, int>? masteryLevels,
+    ActionStopReason? stopReason,
   }) {
     return TimeAway(
       startTime: startTime ?? DateTime.fromMillisecondsSinceEpoch(0),
@@ -52,6 +69,7 @@ class TimeAway {
       activeAction: activeAction,
       changes: changes ?? const Changes.empty(),
       masteryLevels: masteryLevels ?? const {},
+      stopReason: stopReason ?? ActionStopReason.stillRunning,
     );
   }
 
@@ -81,6 +99,13 @@ class TimeAway {
         action = lookedUp;
       }
     }
+    final stopReasonName = json['stopReason'] as String?;
+    final stopReason = stopReasonName != null
+        ? ActionStopReason.values.firstWhere(
+            (e) => e.name == stopReasonName,
+            orElse: () => ActionStopReason.stillRunning,
+          )
+        : ActionStopReason.stillRunning;
     return TimeAway(
       startTime: DateTime.fromMillisecondsSinceEpoch(json['startTime'] as int),
       endTime: DateTime.fromMillisecondsSinceEpoch(json['endTime'] as int),
@@ -92,6 +117,7 @@ class TimeAway {
       masteryLevels:
           maybeMap(json['masteryLevels'], toValue: (value) => value as int) ??
           {},
+      stopReason: stopReason,
     );
   }
   final DateTime startTime;
@@ -100,6 +126,7 @@ class TimeAway {
   final Action? activeAction;
   final Changes changes;
   final Map<String, int> masteryLevels;
+  final ActionStopReason stopReason;
 
   Duration get duration => endTime.difference(startTime);
 
@@ -203,6 +230,7 @@ class TimeAway {
     Action? activeAction,
     Changes? changes,
     Map<String, int>? masteryLevels,
+    ActionStopReason? stopReason,
   }) {
     return TimeAway(
       startTime: startTime ?? this.startTime,
@@ -211,6 +239,7 @@ class TimeAway {
       activeAction: activeAction ?? this.activeAction,
       changes: changes ?? this.changes,
       masteryLevels: masteryLevels ?? this.masteryLevels,
+      stopReason: stopReason ?? this.stopReason,
     );
   }
 
@@ -241,6 +270,10 @@ class TimeAway {
           ? masteryLevels[actionName]!
           : other.masteryLevels[actionName] ?? 0;
     }
+    // For stop reason, prefer a non-stillRunning value (the most recent stop)
+    final mergedStopReason = stopReason != ActionStopReason.stillRunning
+        ? stopReason
+        : other.stopReason;
     return TimeAway(
       startTime: mergedStartTime,
       endTime: mergedEndTime,
@@ -248,6 +281,7 @@ class TimeAway {
       activeAction: activeAction ?? other.activeAction,
       changes: changes.merge(other.changes),
       masteryLevels: mergedMasteryLevels,
+      stopReason: mergedStopReason,
     );
   }
 
@@ -258,6 +292,7 @@ class TimeAway {
       'activeSkill': activeSkill?.name,
       'activeAction': activeAction?.name,
       'changes': changes.toJson(),
+      'stopReason': stopReason.name,
     };
   }
 }

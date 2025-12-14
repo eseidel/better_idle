@@ -355,8 +355,15 @@ class StateUpdateBuilder {
 
   GlobalState _state;
   Changes _changes = const Changes.empty();
+  ActionStopReason _stopReason = ActionStopReason.stillRunning;
 
   GlobalState get state => _state;
+  ActionStopReason get stopReason => _stopReason;
+
+  void stopAction(ActionStopReason reason) {
+    _stopReason = reason;
+    _state = _state.clearAction();
+  }
 
   void setActionProgress(Action action, {required int remainingTicks}) {
     _state = _state.updateActiveAction(
@@ -426,10 +433,6 @@ class StateUpdateBuilder {
     final newActionStates = Map<String, ActionState>.from(_state.actionStates);
     newActionStates[actionName] = newState;
     _state = _state.copyWith(actionStates: newActionStates);
-  }
-
-  void clearAction() {
-    _state = _state.clearAction();
   }
 
   void addGp(int amount) {
@@ -721,7 +724,7 @@ enum ForegroundResult {
         }
       } else {
         // Player died - stop action
-        builder.clearAction();
+        builder.stopAction(ActionStopReason.playerDied);
         return (ForegroundResult.stopped, ticksToApply);
       }
     }
@@ -744,7 +747,11 @@ enum ForegroundResult {
       builder.restartCurrentAction(action, random: rng);
       return (ForegroundResult.continued, ticksToApply);
     } else {
-      builder.clearAction();
+      // Determine stop reason: inventory full (can't repeat) or out of inputs
+      final stopReason = !canRepeat
+          ? ActionStopReason.inventoryFull
+          : ActionStopReason.outOfInputs;
+      builder.stopAction(stopReason);
       return (ForegroundResult.stopped, ticksToApply);
     }
   }
@@ -858,7 +865,7 @@ enum ForegroundResult {
   if (builder.state.playerHp <= 0) {
     builder
       ..resetPlayerHealth()
-      ..clearAction();
+      ..stopAction(ActionStopReason.playerDied);
     return (ForegroundResult.stopped, ticksConsumed);
   }
 
@@ -1000,6 +1007,7 @@ void consumeTicks(
     masteryLevels: builder.state.actionStates.map(
       (key, value) => MapEntry(key, value.masteryLevel),
     ),
+    stopReason: builder.stopReason,
   );
   return (timeAway, builder.build());
 }
