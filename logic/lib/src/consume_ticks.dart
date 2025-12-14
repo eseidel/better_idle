@@ -497,6 +497,73 @@ XpPerAction xpPerAction(GlobalState state, SkillAction action) {
   );
 }
 
+/// Result of completing a thieving action.
+enum ThievingResult {
+  /// Thieving succeeded - granted gold and drops.
+  success,
+
+  /// Thieving failed - took damage but still alive.
+  failedAlive,
+
+  /// Thieving failed and player died.
+  failedDead,
+}
+
+/// Completes a thieving action with success/fail mechanics.
+/// On success: grants XP, 1-maxGold GP, and rolls for drops.
+/// On failure: deals 1-maxHit damage and stuns the player.
+/// Returns the result of the thieving attempt.
+ThievingResult completeThievingAction(
+  StateUpdateBuilder builder,
+  ThievingAction action,
+  Random rng,
+) {
+  final thievingLevel = levelForXp(builder.state.skillState(Skill.thieving).xp);
+  final success = action.rollSuccess(rng, thievingLevel);
+
+  if (success) {
+    // Grant XP on success
+    final perAction = xpPerAction(builder.state, action);
+    builder
+      ..addSkillXp(action.skill, perAction.xp)
+      ..addActionMasteryXp(action.name, perAction.masteryXp)
+      ..addSkillMasteryXp(action.skill, perAction.masteryPoolXp);
+
+    // Grant gold
+    final gold = action.rollGold(rng);
+    builder.addGp(gold);
+
+    // Process drops
+    final masteryLevel = builder.currentMasteryLevel(action);
+    for (final drop in dropsRegistry.allDropsForAction(
+      action,
+      masteryLevel: masteryLevel,
+    )) {
+      final itemStack = drop.roll(rng);
+      if (itemStack != null) {
+        builder.addInventory(itemStack);
+      }
+    }
+
+    return ThievingResult.success;
+  } else {
+    // Thieving failed - deal damage
+    final damage = action.rollDamage(rng);
+    builder.damagePlayer(damage);
+
+    // Check if player died
+    if (builder.state.playerHp <= 0) {
+      builder.resetPlayerHealth();
+      return ThievingResult.failedDead;
+    }
+
+    // Stun the player
+    builder.setStunned(builder.state.stunned.stun());
+
+    return ThievingResult.failedAlive;
+  }
+}
+
 /// Completes a skill action, consuming inputs, adding outputs, and awarding XP.
 /// Returns true if the action can repeat (no items were dropped).
 bool completeAction(
@@ -591,6 +658,24 @@ enum ForegroundResult {
     return (ForegroundResult.stopped, 0);
   }
 
+  // For thieving, handle stun waiting (blocking foreground behavior)
+  if (action is ThievingAction && builder.state.isStunned) {
+    // Wait for stun to clear - consume ticks toward stun recovery
+    final stunned = builder.state.stunned;
+    final ticksToConsume = min(ticksAvailable, stunned.ticksRemaining);
+    final newStunned = stunned.applyTicks(ticksToConsume);
+    builder.setStunned(newStunned);
+
+    if (newStunned.isStunned) {
+      // Still stunned, consumed all available ticks waiting
+      return (ForegroundResult.continued, ticksAvailable);
+    } else {
+      // Stun cleared, restart action and continue
+      builder.restartCurrentAction(action, random: rng);
+      return (ForegroundResult.continued, ticksToConsume);
+    }
+  }
+
   // For mining, handle respawn waiting (blocking foreground behavior)
   if (action is MiningAction) {
     final miningState =
@@ -619,7 +704,25 @@ enum ForegroundResult {
   builder.setActionProgress(action, remainingTicks: newRemainingTicks);
 
   if (newRemainingTicks <= 0) {
-    // Action completed
+    // Action completed - handle differently based on action type
+    if (action is ThievingAction) {
+      final result = completeThievingAction(builder, action, rng);
+      switch (result) {
+        case ThievingResult.success:
+          // Success - restart action
+          builder.restartCurrentAction(action, random: rng);
+          return (ForegroundResult.continued, ticksToApply);
+        case ThievingResult.failedAlive:
+          // Failed but alive and stunned - next iteration will handle stun
+          builder.restartCurrentAction(action, random: rng);
+          return (ForegroundResult.continued, ticksToApply);
+        case ThievingResult.failedDead:
+          // Player died - stop action
+          builder.clearAction();
+          return (ForegroundResult.stopped, ticksToApply);
+      }
+    }
+
     final canRepeat = completeAction(builder, action, random: rng);
 
     // For mining, check if node just depleted

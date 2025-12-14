@@ -11,6 +11,7 @@ extension SkillExtensions on Skill {
     Skill.cooking => Icons.restaurant,
     Skill.mining => Icons.construction,
     Skill.smithing => Icons.hardware,
+    Skill.thieving => Icons.back_hand,
   };
 
   String get routeName => switch (this) {
