@@ -208,16 +208,23 @@ class ThievingAction extends SkillAction {
   }
 
   /// Determines if the thieving attempt succeeds.
-  /// Success rate is based on player's thieving level vs NPC perception.
-  /// For now, using a simple formula: successRate = level * 100 / (perception + level)
-  bool rollSuccess(Random random, int thievingLevel) {
-    // Simple success formula based on level vs perception
-    // At level 1 vs perception 110: 1 * 100 / (110 + 1) = ~0.9%
-    // At level 99 vs perception 110: 99 * 100 / (110 + 99) = ~47%
-    final successRate = (thievingLevel * 100) / (perception + thievingLevel);
-    final roll = random.nextDouble() * 100;
-    return roll < successRate;
+  /// Success chance = min(1, (100 + stealth) / (100 + perception))
+  /// where stealth = 40 + thievingLevel + actionMasteryLevel
+  bool rollSuccess(Random random, int thievingLevel, int actionMasteryLevel) {
+    final stealth = calculateStealth(thievingLevel, actionMasteryLevel);
+    final successChance = ((100 + stealth) / (100 + perception)).clamp(0.0, 1.0);
+    final roll = random.nextDouble();
+    return roll < successChance;
   }
+}
+
+/// Base stealth value before skill/mastery bonuses.
+const int baseStealth = 40;
+
+/// Calculates stealth value for thieving.
+/// Stealth = 40 + thieving level + action mastery level
+int calculateStealth(int thievingLevel, int actionMasteryLevel) {
+  return baseStealth + thievingLevel + actionMasteryLevel;
 }
 
 ThievingAction _thieving(

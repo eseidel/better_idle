@@ -58,18 +58,20 @@ void main() {
       expect(manAction.rollGold(maxRng), manAction.maxGold);
     });
 
-    test('rollSuccess fails at level 1 vs perception 110 with high roll', () {
-      // Success rate at level 1 = 1 * 100 / (110 + 1) = ~0.9%
-      // Roll of 50 (50%) should fail
-      final rng = MockRandom(nextDoubleValue: 0.50);
-      expect(manAction.rollSuccess(rng, 1), isFalse);
+    test('rollSuccess fails at level 1, mastery 1 vs perception 110 with high roll', () {
+      // Stealth = 40 + 1 (level) + 1 (mastery) = 42
+      // Success chance = (100 + 42) / (100 + 110) = 142/210 = ~67.6%
+      // Roll of 0.70 (70%) should fail
+      final rng = MockRandom(nextDoubleValue: 0.70);
+      expect(manAction.rollSuccess(rng, 1, 1), isFalse);
     });
 
-    test('rollSuccess succeeds at level 1 vs perception 110 with low roll', () {
-      // Success rate at level 1 = 1 * 100 / (110 + 1) = ~0.9%
-      // Roll of 0.001 (0.1%) should succeed
-      final rng = MockRandom(nextDoubleValue: 0.00001);
-      expect(manAction.rollSuccess(rng, 1), isTrue);
+    test('rollSuccess succeeds at level 1, mastery 1 vs perception 110 with low roll', () {
+      // Stealth = 40 + 1 (level) + 1 (mastery) = 42
+      // Success chance = (100 + 42) / (100 + 110) = 142/210 = ~67.6%
+      // Roll of 0.60 (60%) should succeed
+      final rng = MockRandom(nextDoubleValue: 0.60);
+      expect(manAction.rollSuccess(rng, 1, 1), isTrue);
     });
   });
 

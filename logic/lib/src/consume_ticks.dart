@@ -507,7 +507,8 @@ bool completeThievingAction(
   Random rng,
 ) {
   final thievingLevel = levelForXp(builder.state.skillState(Skill.thieving).xp);
-  final success = action.rollSuccess(rng, thievingLevel);
+  final actionMasteryLevel = builder.currentMasteryLevel(action);
+  final success = action.rollSuccess(rng, thievingLevel, actionMasteryLevel);
 
   if (success) {
     // Grant XP on success
