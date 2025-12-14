@@ -24,23 +24,23 @@ void main() {
         final expectedAt0 = rewardsAt0.first.expectedItems['Normal Logs']!;
         expect(expectedAt0, closeTo(1.0, 0.001));
 
-        // At mastery level 1: 5% double chance, expectedItems = 1.05
-        final rewardsAt1 = normalTree.rewardsForMasteryLevel(1);
+        // At mastery level 10: 5% double chance, expectedItems = 1.05
+        final rewardsAt1 = normalTree.rewardsForMasteryLevel(10);
         expect(rewardsAt1.length, 1);
         final expectedAt1 = rewardsAt1.first.expectedItems['Normal Logs']!;
         expect(expectedAt1, closeTo(1.05, 0.001));
 
-        // At mastery level 5: 25% double chance, expectedItems = 1.25
-        final rewardsAt5 = normalTree.rewardsForMasteryLevel(5);
+        // At mastery level 20: 10% double chance, expectedItems = 1.10
+        final rewardsAt5 = normalTree.rewardsForMasteryLevel(20);
         expect(rewardsAt5.length, 1);
         final expectedAt5 = rewardsAt5.first.expectedItems['Normal Logs']!;
-        expect(expectedAt5, closeTo(1.25, 0.001));
+        expect(expectedAt5, closeTo(1.10, 0.001));
 
-        // At mastery level 9: 45% double chance, expectedItems = 1.45
-        final rewardsAt9 = normalTree.rewardsForMasteryLevel(9);
+        // At mastery level 30: 15% double chance, expectedItems = 1.15
+        final rewardsAt9 = normalTree.rewardsForMasteryLevel(30);
         expect(rewardsAt9.length, 1);
         final expectedAt9 = rewardsAt9.first.expectedItems['Normal Logs']!;
-        expect(expectedAt9, closeTo(1.45, 0.001));
+        expect(expectedAt9, closeTo(1.15, 0.001));
       },
     );
   });

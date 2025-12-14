@@ -261,7 +261,8 @@ void main() {
       final normalLogsCount = items
           .firstWhere((i) => i.item == normalLogs)
           .count;
-      expect(normalLogsCount, 102);
+      // We should have 100 logs because the mastery level is 0.
+      expect(normalLogsCount, 100);
 
       // Verify skill-level drop (Bird Nest) dropped
       final birdNestCount = state.inventory.items

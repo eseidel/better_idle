@@ -61,7 +61,7 @@ List<Droppable> woodcuttingRewards(SkillAction action, int masteryLevel) {
     throw StateError('Unsupported outputs: $outputs.');
   }
   final name = outputs.keys.first;
-  final doubleMultiplier = masteryLevel % 10;
+  final doubleMultiplier = masteryLevel ~/ 10;
   final doublePercent = (doubleMultiplier * 0.05).clamp(0.0, 1.0);
   final singlePercent = (1.0 - doublePercent).clamp(0.0, 1.0);
   return [
