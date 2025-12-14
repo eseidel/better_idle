@@ -90,10 +90,15 @@ class ThievingActionCell extends StatelessWidget {
     final perAction = xpPerAction(context.state, action);
 
     // Calculate stealth and success chance
-    final thievingLevel = levelForXp(context.state.skillState(Skill.thieving).xp);
+    final thievingLevel = levelForXp(
+      context.state.skillState(Skill.thieving).xp,
+    );
     final masteryLevel = levelForXp(actionState.masteryXp);
     final stealth = calculateStealth(thievingLevel, masteryLevel);
-    final successChance = ((100 + stealth) / (100 + action.perception)).clamp(0.0, 1.0);
+    final successChance = ((100 + stealth) / (100 + action.perception)).clamp(
+      0.0,
+      1.0,
+    );
     final successPercent = (successChance * 100).toStringAsFixed(1);
 
     return Container(

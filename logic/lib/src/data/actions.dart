@@ -212,7 +212,10 @@ class ThievingAction extends SkillAction {
   /// where stealth = 40 + thievingLevel + actionMasteryLevel
   bool rollSuccess(Random random, int thievingLevel, int actionMasteryLevel) {
     final stealth = calculateStealth(thievingLevel, actionMasteryLevel);
-    final successChance = ((100 + stealth) / (100 + perception)).clamp(0.0, 1.0);
+    final successChance = ((100 + stealth) / (100 + perception)).clamp(
+      0.0,
+      1.0,
+    );
     final roll = random.nextDouble();
     return roll < successChance;
   }
@@ -246,14 +249,7 @@ ThievingAction _thieving(
 }
 
 final thievingActions = <ThievingAction>[
-  _thieving(
-    'Man',
-    level: 1,
-    xp: 5,
-    perception: 110,
-    maxHit: 22,
-    maxGold: 100,
-  ),
+  _thieving('Man', level: 1, xp: 5, perception: 110, maxHit: 22, maxGold: 100),
 ];
 
 /// Look up a ThievingAction by name.

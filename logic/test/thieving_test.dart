@@ -5,10 +5,7 @@ import 'package:test/test.dart';
 
 /// A mock Random that returns predictable values.
 class MockRandom implements Random {
-  MockRandom({
-    this.nextDoubleValue = 0.0,
-    this.nextIntValue = 0,
-  });
+  MockRandom({this.nextDoubleValue = 0.0, this.nextIntValue = 0});
 
   final double nextDoubleValue;
   final int nextIntValue;
@@ -58,21 +55,27 @@ void main() {
       expect(manAction.rollGold(maxRng), manAction.maxGold);
     });
 
-    test('rollSuccess fails at level 1, mastery 1 vs perception 110 with high roll', () {
-      // Stealth = 40 + 1 (level) + 1 (mastery) = 42
-      // Success chance = (100 + 42) / (100 + 110) = 142/210 = ~67.6%
-      // Roll of 0.70 (70%) should fail
-      final rng = MockRandom(nextDoubleValue: 0.70);
-      expect(manAction.rollSuccess(rng, 1, 1), isFalse);
-    });
+    test(
+      'rollSuccess fails at level 1, mastery 1 vs perception 110 with high roll',
+      () {
+        // Stealth = 40 + 1 (level) + 1 (mastery) = 42
+        // Success chance = (100 + 42) / (100 + 110) = 142/210 = ~67.6%
+        // Roll of 0.70 (70%) should fail
+        final rng = MockRandom(nextDoubleValue: 0.70);
+        expect(manAction.rollSuccess(rng, 1, 1), isFalse);
+      },
+    );
 
-    test('rollSuccess succeeds at level 1, mastery 1 vs perception 110 with low roll', () {
-      // Stealth = 40 + 1 (level) + 1 (mastery) = 42
-      // Success chance = (100 + 42) / (100 + 110) = 142/210 = ~67.6%
-      // Roll of 0.60 (60%) should succeed
-      final rng = MockRandom(nextDoubleValue: 0.60);
-      expect(manAction.rollSuccess(rng, 1, 1), isTrue);
-    });
+    test(
+      'rollSuccess succeeds at level 1, mastery 1 vs perception 110 with low roll',
+      () {
+        // Stealth = 40 + 1 (level) + 1 (mastery) = 42
+        // Success chance = (100 + 42) / (100 + 110) = 142/210 = ~67.6%
+        // Roll of 0.60 (60%) should succeed
+        final rng = MockRandom(nextDoubleValue: 0.60);
+        expect(manAction.rollSuccess(rng, 1, 1), isTrue);
+      },
+    );
   });
 
   group('Thieving success', () {
@@ -165,7 +168,10 @@ void main() {
       // Set up state with low HP (less than max damage)
       final state = GlobalState.test(
         skillStates: const {
-          Skill.hitpoints: SkillState(xp: 1154, masteryXp: 0), // Level 10 = 100 HP
+          Skill.hitpoints: SkillState(
+            xp: 1154,
+            masteryXp: 0,
+          ), // Level 10 = 100 HP
         },
         health: const HealthState(lostHp: 95), // Only 5 HP left (100 max)
       ).startAction(manAction);
@@ -189,33 +195,38 @@ void main() {
       expect(newState.isStunned, isFalse);
     });
 
-    test('thieving failure killing player through tick processing stops action',
-        () {
-      // Start with low HP
-      var state = GlobalState.test(
-        skillStates: const {
-          Skill.hitpoints: SkillState(xp: 1154, masteryXp: 0), // Level 10 = 100 HP
-        },
-        health: const HealthState(lostHp: 95), // Only 5 HP left
-      ).startAction(manAction);
+    test(
+      'thieving failure killing player through tick processing stops action',
+      () {
+        // Start with low HP
+        var state = GlobalState.test(
+          skillStates: const {
+            Skill.hitpoints: SkillState(
+              xp: 1154,
+              masteryXp: 0,
+            ), // Level 10 = 100 HP
+          },
+          health: const HealthState(lostHp: 95), // Only 5 HP left
+        ).startAction(manAction);
 
-      final builder = StateUpdateBuilder(state);
+        final builder = StateUpdateBuilder(state);
 
-      // Use a mock random that always fails and deals max damage
-      final rng = MockRandom(
-        nextDoubleValue: 0.99, // Always fail
-        nextIntValue: 21, // Damage = 22
-      );
+        // Use a mock random that always fails and deals max damage
+        final rng = MockRandom(
+          nextDoubleValue: 0.99, // Always fail
+          nextIntValue: 21, // Damage = 22
+        );
 
-      // Process enough ticks to complete the action (30 ticks)
-      consumeTicksForAllSystems(builder, 30, random: rng);
+        // Process enough ticks to complete the action (30 ticks)
+        consumeTicksForAllSystems(builder, 30, random: rng);
 
-      final newState = builder.build();
-      // Health should be reset
-      expect(newState.health.lostHp, 0);
-      // Action should be stopped (player died)
-      expect(newState.activeAction, isNull);
-    });
+        final newState = builder.build();
+        // Health should be reset
+        expect(newState.health.lostHp, 0);
+        // Action should be stopped (player died)
+        expect(newState.activeAction, isNull);
+      },
+    );
   });
 
   group('Thieving stun recovery', () {
@@ -223,7 +234,10 @@ void main() {
       // Start thieving action
       final state = GlobalState.test(
         skillStates: const {
-          Skill.hitpoints: SkillState(xp: 1154, masteryXp: 0), // Level 10 = 100 HP
+          Skill.hitpoints: SkillState(
+            xp: 1154,
+            masteryXp: 0,
+          ), // Level 10 = 100 HP
         },
       ).startAction(manAction);
 
@@ -263,7 +277,10 @@ void main() {
       // Start thieving while already stunned
       var state = GlobalState.test(
         skillStates: const {
-          Skill.hitpoints: SkillState(xp: 1154, masteryXp: 0), // Level 10 = 100 HP
+          Skill.hitpoints: SkillState(
+            xp: 1154,
+            masteryXp: 0,
+          ), // Level 10 = 100 HP
         },
         stunned: const StunnedState.fresh().stun(), // 30 ticks of stun
       );

@@ -655,7 +655,10 @@ enum ForegroundResult {
   // Return ticks to consume (up to stun remaining) but don't modify stun -
   // background handles the countdown.
   if (builder.state.isStunned) {
-    final ticksToWait = min(ticksAvailable, builder.state.stunned.ticksRemaining);
+    final ticksToWait = min(
+      ticksAvailable,
+      builder.state.stunned.ticksRemaining,
+    );
     return (ForegroundResult.continued, ticksToWait);
   }
 
