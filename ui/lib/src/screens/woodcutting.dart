@@ -22,7 +22,9 @@ class WoodcuttingPage extends StatelessWidget {
         children: [
           SkillProgress(xp: skillState.xp),
           MasteryPoolProgress(xp: skillState.masteryPoolXp),
-          Expanded(child: ActionGrid(actions: actions)),
+          Expanded(
+            child: ActionGrid(actions: actions, cellSize: const Size(300, 200)),
+          ),
         ],
       ),
     );
