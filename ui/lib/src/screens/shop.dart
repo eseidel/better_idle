@@ -3,6 +3,16 @@ import 'package:better_idle/src/widgets/navigation_drawer.dart';
 import 'package:flutter/material.dart';
 import 'package:logic/logic.dart';
 
+extension UpgradeTypeIcon on UpgradeType {
+  IconData get icon {
+    return switch (this) {
+      UpgradeType.axe => Icons.carpenter,
+      UpgradeType.fishingRod => Icons.phishing,
+      UpgradeType.pickaxe => Icons.hardware,
+    };
+  }
+}
+
 class ShopPage extends StatelessWidget {
   const ShopPage({super.key});
 
@@ -12,14 +22,7 @@ class ShopPage extends StatelessWidget {
       appBar: AppBar(title: const Text('Shop')),
       drawer: const AppNavigationDrawer(),
       body: StoreConnector<GlobalState, ShopViewModel>(
-        converter: (store) => ShopViewModel(
-          gp: store.state.gp,
-          nextBankSlotCost: store.state.shop.nextBankSlotCost(),
-          axeLevel: store.state.shop.axeLevel,
-          woodcuttingLevel: store.state
-              .skillState(Skill.woodcutting)
-              .skillLevel,
-        ),
+        converter: (store) => ShopViewModel(store.state),
         builder: (context, viewModel) {
           return ListView(
             children: [
@@ -45,26 +48,28 @@ class ShopPage extends StatelessWidget {
   ) {
     final rows = <Widget>[];
 
-    // Add axe upgrade row if available
-    final nextAxe = nextUpgrade(UpgradeType.axe, viewModel.axeLevel);
-    if (nextAxe != null) {
-      final meetsLevelReq = viewModel.woodcuttingLevel >= nextAxe.requiredLevel;
-      final canAfford = viewModel.gp >= nextAxe.cost;
+    for (final type in UpgradeType.values) {
+      final upgrade = nextUpgrade(type, viewModel.upgradeLevel(type));
+      if (upgrade != null) {
+        final meetsLevelReq =
+            viewModel.skillLevelFor(upgrade) >= upgrade.requiredLevel;
+        final canAfford = viewModel.gp >= upgrade.cost;
 
-      rows.add(
-        _UpgradeItemRow(
-          icon: const Icon(Icons.carpenter),
-          upgrade: nextAxe,
-          canAfford: canAfford,
-          meetsLevelReq: meetsLevelReq,
-          onTap: () => _showUpgradePurchaseDialog(
-            context,
-            nextAxe,
-            UpgradeType.axe,
+        rows.add(
+          _UpgradeItemRow(
+            icon: Icon(type.icon),
+            upgrade: upgrade,
+            canAfford: canAfford,
             meetsLevelReq: meetsLevelReq,
+            onTap: () => _showUpgradePurchaseDialog(
+              context,
+              upgrade,
+              type,
+              meetsLevelReq: meetsLevelReq,
+            ),
           ),
-        ),
-      );
+        );
+      }
     }
 
     return rows;
@@ -123,9 +128,7 @@ class ShopPage extends StatelessWidget {
             ),
             const SizedBox(height: 8),
             Text(
-              'Effect: '
-              '${signedPercentToString(upgrade.durationPercentModifier)} '
-              '${upgrade.skill.name} time',
+              upgrade.description,
               style: const TextStyle(color: Colors.green),
             ),
             if (!meetsLevelReq) ...[
@@ -167,17 +170,19 @@ class ShopPage extends StatelessWidget {
 }
 
 class ShopViewModel {
-  const ShopViewModel({
-    required this.gp,
-    required this.nextBankSlotCost,
-    required this.axeLevel,
-    required this.woodcuttingLevel,
-  });
+  const ShopViewModel(this._state);
 
-  final int gp;
-  final int nextBankSlotCost;
-  final int axeLevel;
-  final int woodcuttingLevel;
+  final GlobalState _state;
+
+  int get gp => _state.gp;
+  int get nextBankSlotCost => _state.shop.nextBankSlotCost();
+
+  /// Get the current upgrade level for a given type.
+  int upgradeLevel(UpgradeType type) => _state.shop.upgradeLevel(type);
+
+  /// Get the player's skill level for an upgrade's required skill.
+  int skillLevelFor(SkillUpgrade upgrade) =>
+      _state.skillState(upgrade.skill).skillLevel;
 }
 
 class _ShopItemRow extends StatelessWidget {
@@ -260,6 +265,11 @@ class _UpgradeItemRow extends StatelessWidget {
                   Text(
                     upgrade.name,
                     style: Theme.of(context).textTheme.titleMedium,
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    upgrade.description,
+                    style: Theme.of(context).textTheme.bodySmall,
                   ),
                   const SizedBox(height: 4),
                   Text(

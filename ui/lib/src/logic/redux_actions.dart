@@ -176,15 +176,13 @@ class PurchaseUpgradeAction extends ReduxAction<GlobalState> {
     );
   }
 
-  int _getCurrentLevel() {
-    return switch (upgradeType) {
-      UpgradeType.axe => state.shop.axeLevel,
-    };
-  }
+  int _getCurrentLevel() => state.shop.upgradeLevel(upgradeType);
 
   ShopState _updatedShop(int newLevel) {
     return switch (upgradeType) {
       UpgradeType.axe => state.shop.copyWith(axeLevel: newLevel),
+      UpgradeType.fishingRod => state.shop.copyWith(fishingRodLevel: newLevel),
+      UpgradeType.pickaxe => state.shop.copyWith(pickaxeLevel: newLevel),
     };
   }
 }

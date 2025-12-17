@@ -95,7 +95,12 @@ class SkillState {
 /// Used for serializing the state of the Shop (what has been purchased).
 @immutable
 class ShopState {
-  const ShopState({required this.bankSlots, this.axeLevel = 0});
+  const ShopState({
+    required this.bankSlots,
+    this.axeLevel = 0,
+    this.fishingRodLevel = 0,
+    this.pickaxeLevel = 0,
+  });
 
   const ShopState.empty() : this(bankSlots: 0);
 
@@ -108,6 +113,8 @@ class ShopState {
     return ShopState(
       bankSlots: json['bankSlots'] as int,
       axeLevel: json['axeLevel'] as int? ?? 0,
+      fishingRodLevel: json['fishingRodLevel'] as int? ?? 0,
+      pickaxeLevel: json['pickaxeLevel'] as int? ?? 0,
     );
   }
 
@@ -117,15 +124,50 @@ class ShopState {
   /// How many axes the player has purchased (0 = none, 1 = iron, 2 = steel).
   final int axeLevel;
 
-  ShopState copyWith({int? bankSlots, int? axeLevel}) {
+  /// How many fishing rods the player has purchased.
+  final int fishingRodLevel;
+
+  /// How many pickaxes the player has purchased.
+  final int pickaxeLevel;
+
+  ShopState copyWith({
+    int? bankSlots,
+    int? axeLevel,
+    int? fishingRodLevel,
+    int? pickaxeLevel,
+  }) {
     return ShopState(
       bankSlots: bankSlots ?? this.bankSlots,
       axeLevel: axeLevel ?? this.axeLevel,
+      fishingRodLevel: fishingRodLevel ?? this.fishingRodLevel,
+      pickaxeLevel: pickaxeLevel ?? this.pickaxeLevel,
     );
   }
 
   Map<String, dynamic> toJson() {
-    return {'bankSlots': bankSlots, 'axeLevel': axeLevel};
+    return {
+      'bankSlots': bankSlots,
+      'axeLevel': axeLevel,
+      'fishingRodLevel': fishingRodLevel,
+      'pickaxeLevel': pickaxeLevel,
+    };
+  }
+
+  /// Returns the upgrade level for a given upgrade type.
+  int upgradeLevel(UpgradeType type) {
+    return switch (type) {
+      UpgradeType.axe => axeLevel,
+      UpgradeType.fishingRod => fishingRodLevel,
+      UpgradeType.pickaxe => pickaxeLevel,
+    };
+  }
+
+  /// Returns the total duration percent modifier for a skill from upgrades.
+  /// Returns 0.0 if the skill has no associated upgrades.
+  double durationModifierForSkill(Skill skill) {
+    final type = upgradeTypeForSkill(skill);
+    if (type == null) return 0.0;
+    return totalDurationPercentModifier(type, upgradeLevel(type));
   }
 
   /// What the next bank slot will cost.
@@ -403,14 +445,7 @@ class GlobalState {
     var ticks = action.rollDuration(random);
 
     // Apply skill-specific upgrade modifiers
-    final percentModifier = switch (action.skill) {
-      Skill.woodcutting => totalDurationPercentModifier(
-        UpgradeType.axe,
-        shop.axeLevel,
-      ),
-      // Future: Skill.mining => totalDurationReduction(UpgradeType.pickaxe, ...),
-      _ => 0.0,
-    };
+    final percentModifier = shop.durationModifierForSkill(action.skill);
 
     if (percentModifier != 0.0) {
       ticks = (ticks * (1.0 + percentModifier)).round();
