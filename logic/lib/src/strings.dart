@@ -63,3 +63,14 @@ String signedCountString(int value) {
   // Negative values already have a minus sign.
   return approximateCountString(value);
 }
+
+String percentToString(double value) {
+  return '${(value * 100).toStringAsFixed(0)}%';
+}
+
+String signedPercentToString(double value) {
+  if (value > 0) {
+    return '+${percentToString(value)}';
+  }
+  return percentToString(value);
+}

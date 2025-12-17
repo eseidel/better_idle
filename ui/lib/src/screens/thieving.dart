@@ -98,7 +98,6 @@ class ThievingActionCell extends StatelessWidget {
       0.0,
       1.0,
     );
-    final successPercent = (successChance * 100).toStringAsFixed(1);
 
     return Container(
       padding: const EdgeInsets.all(16),
@@ -122,7 +121,7 @@ class ThievingActionCell extends StatelessWidget {
           const Text('Pickpocket'),
           Text(actionName, style: labelStyle),
           const SizedBox(height: 4),
-          Text('Success: $successPercent%'),
+          Text('Success: ${percentToString(successChance)}'),
           Text('Stealth: $stealth'),
           Text('Max Gold: ${action.maxGold}'),
           const SizedBox(height: 4),
