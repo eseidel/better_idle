@@ -79,6 +79,11 @@ SkillUpgrade _axe(
 final _axes = <SkillUpgrade>[
   _axe('Iron', level: 1, cost: 50, durationPercent: -5),
   _axe('Steel', level: 10, cost: 750, durationPercent: -5),
+  _axe('Black', level: 20, cost: 2500, durationPercent: -5),
+  _axe('Mithril', level: 35, cost: 10000, durationPercent: -5),
+  _axe('Adamant', level: 50, cost: 50000, durationPercent: -5),
+  _axe('Rune', level: 60, cost: 200000, durationPercent: -5),
+  _axe('Dragon', level: 80, cost: 2000000, durationPercent: -10),
 ];
 
 SkillUpgrade _fishingRod(
@@ -99,6 +104,11 @@ SkillUpgrade _fishingRod(
 final _fishingRods = <SkillUpgrade>[
   _fishingRod('Iron', level: 1, cost: 100, durationPercent: -5),
   _fishingRod('Steel', level: 10, cost: 1000, durationPercent: -5),
+  _fishingRod('Black', level: 20, cost: 5000, durationPercent: -5),
+  _fishingRod('Mithril', level: 35, cost: 20000, durationPercent: -5),
+  _fishingRod('Adamant', level: 50, cost: 75000, durationPercent: -5),
+  _fishingRod('Rune', level: 60, cost: 300000, durationPercent: -5),
+  _fishingRod('Dragon', level: 80, cost: 2000000, durationPercent: -10),
 ];
 
 SkillUpgrade _pickaxe(
@@ -119,6 +129,11 @@ SkillUpgrade _pickaxe(
 final _pickaxes = <SkillUpgrade>[
   _pickaxe('Iron', level: 1, cost: 250, durationPercent: -5),
   _pickaxe('Steel', level: 10, cost: 2000, durationPercent: -5),
+  _pickaxe('Black', level: 20, cost: 10000, durationPercent: -5),
+  _pickaxe('Mithril', level: 35, cost: 50000, durationPercent: -5),
+  _pickaxe('Adamant', level: 50, cost: 200000, durationPercent: -10),
+  _pickaxe('Rune', level: 60, cost: 1000000, durationPercent: -10),
+  _pickaxe('Dragon', level: 80, cost: 5000000, durationPercent: -10),
 ];
 
 /// Returns the next available upgrade for the given type, or null if all owned.
