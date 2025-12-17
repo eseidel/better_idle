@@ -52,6 +52,10 @@ class SkillUpgrade {
     final percent = signedPercentToString(durationPercentModifier - 1.0);
     return '$percent ${skill.name} time';
   }
+
+  /// Human-readable string describing the skill level requirement.
+  String get requirementsString =>
+      'Requires ${skill.name} level $requiredLevel';
 }
 
 /// Registry of all upgrades, organized by type.

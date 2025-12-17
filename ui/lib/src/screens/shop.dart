@@ -31,8 +31,12 @@ class ShopPage extends StatelessWidget {
                 name: 'Bank Slot',
                 price: viewModel.nextBankSlotCost,
                 canAfford: viewModel.gp >= viewModel.nextBankSlotCost,
-                onTap: () =>
-                    _showPurchaseDialog(context, viewModel.nextBankSlotCost),
+                onTap: () => _showPurchaseDialog(
+                  context,
+                  name: 'Bank Slot',
+                  cost: viewModel.nextBankSlotCost,
+                  createAction: PurchaseBankSlotAction.new,
+                ),
               ),
               ..._buildUpgradeRows(context, viewModel),
             ],
@@ -56,16 +60,22 @@ class ShopPage extends StatelessWidget {
         final canAfford = viewModel.gp >= upgrade.cost;
 
         rows.add(
-          _UpgradeItemRow(
+          _ShopItemRow(
             icon: Icon(type.icon),
-            upgrade: upgrade,
+            name: upgrade.name,
+            price: upgrade.cost,
+            description: upgrade.description,
             canAfford: canAfford,
-            meetsLevelReq: meetsLevelReq,
-            onTap: () => _showUpgradePurchaseDialog(
+            levelRequirement: meetsLevelReq ? null : upgrade.requirementsString,
+            onTap: () => _showPurchaseDialog(
               context,
-              upgrade,
-              type,
-              meetsLevelReq: meetsLevelReq,
+              name: upgrade.name,
+              cost: upgrade.cost,
+              description: upgrade.description,
+              levelRequirement: meetsLevelReq
+                  ? null
+                  : upgrade.requirementsString,
+              createAction: () => PurchaseUpgradeAction(upgradeType: type),
             ),
           ),
         );
@@ -75,68 +85,31 @@ class ShopPage extends StatelessWidget {
     return rows;
   }
 
-  void _showPurchaseDialog(BuildContext context, int cost) {
-    showDialog<void>(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: const Text('Purchase Bank Slot'),
-        content: Text(
-          'Purchase Bank Slot for ${approximateCreditString(cost)} GP?',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(dialogContext).pop(),
-            child: const Text('Cancel'),
-          ),
-          TextButton(
-            onPressed: () {
-              try {
-                context.dispatch(PurchaseBankSlotAction());
-                Navigator.of(dialogContext).pop();
-              } on Exception catch (e) {
-                // Show error if purchase fails (e.g., not enough GP)
-                Navigator.of(dialogContext).pop();
-                ScaffoldMessenger.of(
-                  context,
-                ).showSnackBar(SnackBar(content: Text(e.toString())));
-              }
-            },
-            child: const Text('Confirm'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _showUpgradePurchaseDialog(
-    BuildContext context,
-    SkillUpgrade upgrade,
-    UpgradeType upgradeType, {
-    required bool meetsLevelReq,
+  void _showPurchaseDialog(
+    BuildContext context, {
+    required String name,
+    required int cost,
+    required ReduxAction<GlobalState> Function() createAction,
+    String? description,
+    String? levelRequirement,
   }) {
+    final canConfirm = levelRequirement == null;
     showDialog<void>(
       context: context,
       builder: (dialogContext) => AlertDialog(
-        title: Text('Purchase ${upgrade.name}'),
+        title: Text('Purchase $name'),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              'Purchase ${upgrade.name} for '
-              '${approximateCreditString(upgrade.cost)} GP?',
-            ),
-            const SizedBox(height: 8),
-            Text(
-              upgrade.description,
-              style: const TextStyle(color: Colors.green),
-            ),
-            if (!meetsLevelReq) ...[
+            Text('Purchase $name for ${approximateCreditString(cost)} GP?'),
+            if (description != null) ...[
               const SizedBox(height: 8),
-              Text(
-                'Requires ${upgrade.skill.name} level ${upgrade.requiredLevel}',
-                style: const TextStyle(color: Colors.red),
-              ),
+              Text(description, style: const TextStyle(color: Colors.green)),
+            ],
+            if (levelRequirement != null) ...[
+              const SizedBox(height: 8),
+              Text(levelRequirement, style: const TextStyle(color: Colors.red)),
             ],
           ],
         ),
@@ -146,12 +119,10 @@ class ShopPage extends StatelessWidget {
             child: const Text('Cancel'),
           ),
           TextButton(
-            onPressed: meetsLevelReq
+            onPressed: canConfirm
                 ? () {
                     try {
-                      context.dispatch(
-                        PurchaseUpgradeAction(upgradeType: upgradeType),
-                      );
+                      context.dispatch(createAction());
                       Navigator.of(dialogContext).pop();
                     } on Exception catch (e) {
                       Navigator.of(dialogContext).pop();
@@ -192,6 +163,8 @@ class _ShopItemRow extends StatelessWidget {
     required this.price,
     required this.canAfford,
     required this.onTap,
+    this.description,
+    this.levelRequirement,
   });
 
   final Widget icon;
@@ -199,6 +172,12 @@ class _ShopItemRow extends StatelessWidget {
   final int price;
   final bool canAfford;
   final VoidCallback onTap;
+
+  /// Optional description shown below the name.
+  final String? description;
+
+  /// Optional level requirement text shown when requirement is not met.
+  final String? levelRequirement;
 
   @override
   Widget build(BuildContext context) {
@@ -215,6 +194,13 @@ class _ShopItemRow extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(name, style: Theme.of(context).textTheme.titleMedium),
+                  if (description != null) ...[
+                    const SizedBox(height: 2),
+                    Text(
+                      description!,
+                      style: Theme.of(context).textTheme.bodySmall,
+                    ),
+                  ],
                   const SizedBox(height: 4),
                   Text(
                     '${approximateCreditString(price)} GP',
@@ -223,67 +209,10 @@ class _ShopItemRow extends StatelessWidget {
                       fontWeight: FontWeight.bold,
                     ),
                   ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _UpgradeItemRow extends StatelessWidget {
-  const _UpgradeItemRow({
-    required this.icon,
-    required this.upgrade,
-    required this.canAfford,
-    required this.meetsLevelReq,
-    required this.onTap,
-  });
-
-  final Widget icon;
-  final SkillUpgrade upgrade;
-  final bool canAfford;
-  final bool meetsLevelReq;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return InkWell(
-      onTap: onTap,
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Row(
-          children: [
-            icon,
-            const SizedBox(width: 16),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    upgrade.name,
-                    style: Theme.of(context).textTheme.titleMedium,
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    upgrade.description,
-                    style: Theme.of(context).textTheme.bodySmall,
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    '${approximateCreditString(upgrade.cost)} GP',
-                    style: TextStyle(
-                      color: canAfford ? Colors.green : Colors.red,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  if (!meetsLevelReq) ...[
+                  if (levelRequirement != null) ...[
                     const SizedBox(height: 2),
                     Text(
-                      'Requires ${upgrade.skill.name} '
-                      'level ${upgrade.requiredLevel}',
+                      levelRequirement!,
                       style: TextStyle(
                         color: Colors.orange.shade700,
                         fontSize: 12,
