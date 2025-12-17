@@ -11,14 +11,14 @@ enum UpgradeType {
   const UpgradeType(this.skill);
 
   final Skill skill;
-}
 
-/// Returns the upgrade type for a skill, or null if the skill has no upgrades.
-UpgradeType? upgradeTypeForSkill(Skill skill) {
-  for (final type in UpgradeType.values) {
-    if (type.skill == skill) return type;
+  /// Returns the upgrade type for a skill, or null if the skill has no upgrades.
+  static UpgradeType? forSkill(Skill skill) {
+    for (final type in UpgradeType.values) {
+      if (type.skill == skill) return type;
+    }
+    return null;
   }
-  return null;
 }
 
 /// A single upgrade tier within an upgrade series.

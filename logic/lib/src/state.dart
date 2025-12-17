@@ -165,7 +165,7 @@ class ShopState {
   /// Returns the total duration percent modifier for a skill from upgrades.
   /// Returns 0.0 if the skill has no associated upgrades.
   double durationModifierForSkill(Skill skill) {
-    final type = upgradeTypeForSkill(skill);
+    final type = UpgradeType.forSkill(skill);
     if (type == null) return 0.0;
     return totalDurationPercentModifier(type, upgradeLevel(type));
   }
