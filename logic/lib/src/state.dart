@@ -4,6 +4,7 @@ import 'package:logic/src/action_state.dart';
 import 'package:logic/src/data/actions.dart';
 import 'package:logic/src/data/combat.dart';
 import 'package:logic/src/data/items.dart';
+import 'package:logic/src/data/upgrades.dart';
 import 'package:logic/src/json.dart';
 import 'package:logic/src/tick.dart';
 import 'package:logic/src/types/equipment.dart';
@@ -94,7 +95,12 @@ class SkillState {
 /// Used for serializing the state of the Shop (what has been purchased).
 @immutable
 class ShopState {
-  const ShopState({required this.bankSlots});
+  const ShopState({
+    required this.bankSlots,
+    this.axeLevel = 0,
+    this.fishingRodLevel = 0,
+    this.pickaxeLevel = 0,
+  });
 
   const ShopState.empty() : this(bankSlots: 0);
 
@@ -104,18 +110,64 @@ class ShopState {
   }
 
   factory ShopState.fromJson(Map<String, dynamic> json) {
-    return ShopState(bankSlots: json['bankSlots'] as int);
+    return ShopState(
+      bankSlots: json['bankSlots'] as int,
+      axeLevel: json['axeLevel'] as int? ?? 0,
+      fishingRodLevel: json['fishingRodLevel'] as int? ?? 0,
+      pickaxeLevel: json['pickaxeLevel'] as int? ?? 0,
+    );
   }
 
   /// How many bank slots the player has purchased.
   final int bankSlots;
 
-  ShopState copyWith({int? bankSlots}) {
-    return ShopState(bankSlots: bankSlots ?? this.bankSlots);
+  /// How many axes the player has purchased (0 = none, 1 = iron, 2 = steel).
+  final int axeLevel;
+
+  /// How many fishing rods the player has purchased.
+  final int fishingRodLevel;
+
+  /// How many pickaxes the player has purchased.
+  final int pickaxeLevel;
+
+  ShopState copyWith({
+    int? bankSlots,
+    int? axeLevel,
+    int? fishingRodLevel,
+    int? pickaxeLevel,
+  }) {
+    return ShopState(
+      bankSlots: bankSlots ?? this.bankSlots,
+      axeLevel: axeLevel ?? this.axeLevel,
+      fishingRodLevel: fishingRodLevel ?? this.fishingRodLevel,
+      pickaxeLevel: pickaxeLevel ?? this.pickaxeLevel,
+    );
   }
 
   Map<String, dynamic> toJson() {
-    return {'bankSlots': bankSlots};
+    return {
+      'bankSlots': bankSlots,
+      'axeLevel': axeLevel,
+      'fishingRodLevel': fishingRodLevel,
+      'pickaxeLevel': pickaxeLevel,
+    };
+  }
+
+  /// Returns the upgrade level for a given upgrade type.
+  int upgradeLevel(UpgradeType type) {
+    return switch (type) {
+      UpgradeType.axe => axeLevel,
+      UpgradeType.fishingRod => fishingRodLevel,
+      UpgradeType.pickaxe => pickaxeLevel,
+    };
+  }
+
+  /// Returns the total duration percent modifier for a skill from upgrades.
+  /// Returns 0.0 if the skill has no associated upgrades.
+  double durationModifierForSkill(Skill skill) {
+    final type = UpgradeType.forSkill(skill);
+    if (type == null) return 0.0;
+    return totalDurationPercentModifier(type, upgradeLevel(type));
   }
 
   /// What the next bank slot will cost.
@@ -387,6 +439,21 @@ class GlobalState {
     return true;
   }
 
+  /// Rolls duration for a skill action and applies all relevant modifiers.
+  /// This centralizes duration modifier logic for shop upgrades.
+  int rollDurationWithModifiers(SkillAction action, Random random) {
+    var ticks = action.rollDuration(random);
+
+    // Apply skill-specific upgrade modifiers
+    final percentModifier = shop.durationModifierForSkill(action.skill);
+
+    if (percentModifier != 0.0) {
+      ticks = (ticks * (1.0 + percentModifier)).round();
+    }
+
+    return ticks;
+  }
+
   GlobalState startAction(Action action, {required Random random}) {
     if (isStunned) {
       throw const StunnedException('Cannot start action while stunned');
@@ -407,7 +474,7 @@ class GlobalState {
           );
         }
       }
-      totalTicks = action.rollDuration(random);
+      totalTicks = rollDurationWithModifiers(action, random);
       return copyWith(
         activeAction: ActiveAction(
           name: name,

@@ -167,25 +167,6 @@ class _SelectedActionDisplay extends StatelessWidget {
   }
 }
 
-class _ItemList extends StatelessWidget {
-  const _ItemList({required this.items});
-
-  final Map<String, int> items;
-
-  @override
-  Widget build(BuildContext context) {
-    if (items.isEmpty) {
-      return const Text('None', style: TextStyle(color: Colors.grey));
-    }
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: items.entries.map((entry) {
-        return Text('${entry.value}x ${entry.key}');
-      }).toList(),
-    );
-  }
-}
-
 class _ActionList extends StatelessWidget {
   const _ActionList({
     required this.actionsByArea,
@@ -248,7 +229,7 @@ class _ActionList extends StatelessWidget {
                         ),
                       ),
                       Text(
-                        '${(area.fishChance * 100).toInt()}% fish',
+                        '${percentToString(area.fishChance)} fish',
                         style: TextStyle(
                           fontSize: 12,
                           color: Colors.blueGrey.shade700,

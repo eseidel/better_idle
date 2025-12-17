@@ -26,7 +26,7 @@ class MasteryPoolProgress extends StatelessWidget {
                 if (nextLevelXpNeeded != null)
                   Text(
                     '${preciseNumberString(currentXp)} / ${preciseNumberString(nextLevelXpNeeded)} '
-                    '(${(xpProgress.progress * 100).toStringAsFixed(1)}%) XP',
+                    '(${percentToString(xpProgress.progress)} XP',
                     style: Theme.of(context).textTheme.bodyMedium,
                   )
                 else

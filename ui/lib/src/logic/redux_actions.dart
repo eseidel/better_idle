@@ -142,6 +142,51 @@ class PurchaseBankSlotAction extends ReduxAction<GlobalState> {
   }
 }
 
+/// Purchases a skill upgrade from the shop.
+class PurchaseUpgradeAction extends ReduxAction<GlobalState> {
+  PurchaseUpgradeAction({required this.upgradeType});
+  final UpgradeType upgradeType;
+
+  @override
+  GlobalState reduce() {
+    final currentLevel = _getCurrentLevel();
+    final upgrade = nextUpgrade(upgradeType, currentLevel);
+
+    if (upgrade == null) {
+      throw Exception('No more upgrades available for $upgradeType');
+    }
+
+    // Check skill level requirement
+    final skillLevel = state.skillState(upgrade.skill).skillLevel;
+    if (skillLevel < upgrade.requiredLevel) {
+      throw Exception(
+        'Requires ${upgrade.skill.name} level ${upgrade.requiredLevel}',
+      );
+    }
+
+    // Check cost
+    if (state.gp < upgrade.cost) {
+      throw Exception('Not enough GP. Need ${upgrade.cost}, have ${state.gp}');
+    }
+
+    // Apply purchase
+    return state.copyWith(
+      gp: state.gp - upgrade.cost,
+      shop: _updatedShop(currentLevel + 1),
+    );
+  }
+
+  int _getCurrentLevel() => state.shop.upgradeLevel(upgradeType);
+
+  ShopState _updatedShop(int newLevel) {
+    return switch (upgradeType) {
+      UpgradeType.axe => state.shop.copyWith(axeLevel: newLevel),
+      UpgradeType.fishingRod => state.shop.copyWith(fishingRodLevel: newLevel),
+      UpgradeType.pickaxe => state.shop.copyWith(pickaxeLevel: newLevel),
+    };
+  }
+}
+
 /// Starts combat with a monster using the action system.
 class StartCombatAction extends ReduxAction<GlobalState> {
   StartCombatAction({required this.combatAction});
