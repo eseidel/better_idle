@@ -4,43 +4,18 @@
 //
 // Example: dart run bin/solver.dart 1000
 
-import 'dart:math';
-
 import 'package:logic/logic.dart';
 import 'package:logic/src/solver/plan.dart';
 import 'package:logic/src/solver/solver.dart';
 
 void main(List<String> args) {
-  // Parse goal from args, default to 1000
-  final goalCredits = args.isNotEmpty ? int.tryParse(args[0]) ?? 1000 : 1000;
-
-  // Demo state with some progress and an active action
-  var state = GlobalState.empty().copyWith(
-    gp: 40,
-    skillStates: {
-      Skill.hitpoints: const SkillState(xp: 1154, masteryPoolXp: 0),
-      // Level 20 = 4470 XP
-      Skill.woodcutting: const SkillState(xp: 4470, masteryPoolXp: 0),
-      Skill.fishing: const SkillState(xp: 4470, masteryPoolXp: 0),
-      Skill.mining: const SkillState(xp: 4470, masteryPoolXp: 0),
-    },
-  );
-
-  // Start an action so we have gold rate
-  final action = actionRegistry.byName('Willow Tree');
-  state = state.startAction(action, random: Random(0));
-
-  print('=== Solver ===');
-  print('');
-  print('Initial State:');
-  print('  GP: ${state.gp}');
-  print('  Active: ${state.activeAction?.name}');
-  print('  Skills: Level 20 woodcutting/fishing/mining');
-  print('');
+  // Parse gold goal from args, default to 100 GP
+  final goalCredits = args.isNotEmpty ? int.tryParse(args[0]) ?? 100 : 100;
   print('Goal: $goalCredits GP');
-  print('');
 
-  // Solve
+  var state = GlobalState.empty();
+
+  print('Solving...');
   final stopwatch = Stopwatch()..start();
   final result = solveToCredits(state, goalCredits);
   stopwatch.stop();
@@ -50,7 +25,10 @@ void main(List<String> args) {
 
   // Print result
   if (result is SolverSuccess) {
+    print('Plan:');
     print(result.plan.prettyPrint());
+    print('Total ticks: ${result.plan.totalTicks}');
+    print('Interaction count: ${result.plan.interactionCount}');
   } else if (result is SolverFailed) {
     print('FAILED: ${result.failure.reason}');
     print('  Expanded nodes: ${result.failure.expandedNodes}');
