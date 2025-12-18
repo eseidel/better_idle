@@ -4,15 +4,19 @@
 //
 // This is a first step toward building a time-optimal planner.
 
+import 'dart:math';
+
 import 'package:logic/logic.dart';
 import 'package:logic/src/solver/available_interactions.dart';
 import 'package:logic/src/solver/enumerate_candidates.dart';
+import 'package:logic/src/solver/estimate_rates.dart';
 import 'package:logic/src/solver/interaction.dart';
+import 'package:logic/src/solver/next_decision_delta.dart';
 
 void main() {
-  // Demo state with some progress
-  final state = GlobalState.empty().copyWith(
-    gp: 5000,
+  // Demo state with some progress and an active action
+  var state = GlobalState.empty().copyWith(
+    gp: 40, // Not enough for Iron Axe (50 GP)
     skillStates: {
       Skill.hitpoints: const SkillState(xp: 1154, masteryPoolXp: 0),
       // Level 20 = 4470 XP
@@ -22,9 +26,14 @@ void main() {
     },
   );
 
+  // Start an action so we have gold rate
+  final action = actionRegistry.byName('Willow Tree');
+  state = state.startAction(action, random: Random(0));
+
   print('=== Solver Demo ===');
   print('');
-  print('State: Level 20 woodcutting/fishing/mining, 5000 GP');
+  print('State: Level 20 woodcutting/fishing/mining, 40 GP');
+  print('Active: ${state.activeAction?.name}');
   print('');
 
   // Print available interactions
@@ -35,6 +44,11 @@ void main() {
   print('');
   print('--- Enumerated Candidates ---');
   _printCandidates(state);
+
+  // Print next decision delta
+  print('');
+  print('--- Next Decision Delta ---');
+  _printNextDecisionDelta(state);
 }
 
 void _printInteractions(GlobalState state) {
@@ -113,5 +127,27 @@ void _printCandidates(GlobalState state) {
   }
   if (candidates.watch.inventory) {
     print('  Inventory: watching for full');
+  }
+}
+
+void _printNextDecisionDelta(GlobalState state) {
+  final goal = Goal(targetCredits: 10000);
+  final candidates = enumerateCandidates(state);
+  final rates = estimateRates(state);
+  final result = nextDecisionDelta(state, goal, candidates);
+
+  print('Goal: ${goal.targetCredits} GP');
+  print('Current GP: ${state.gp}');
+  print('Gold rate: ${rates.goldPerTick.toStringAsFixed(4)} gp/tick');
+  print('');
+  print('Next decision in: ${result.deltaTicks} ticks');
+  print('Reason: ${result.reason}');
+  if (result.details != null) {
+    print('Details: ${result.details}');
+  }
+
+  if (result.deltaTicks > 0 && result.deltaTicks < infTicks) {
+    final seconds = result.deltaTicks * 0.1;
+    print('(~${seconds.toStringAsFixed(1)} seconds)');
   }
 }
