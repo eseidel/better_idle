@@ -105,7 +105,7 @@ const int _goldBucketSize = 50;
 const int _hpBucketSize = 10;
 
 /// Bucket key for dominance pruning - groups states with same structural situation.
-/// Includes activity, tool tiers, relevant skill levels, and HP bucket for thieving.
+/// Includes activity, tool tiers, relevant skill levels, mastery level, and HP bucket.
 class _BucketKey {
   _BucketKey({
     required this.activityName,
@@ -117,6 +117,7 @@ class _BucketKey {
     required this.miningLevel,
     required this.thievingLevel,
     required this.hpBucket,
+    required this.masteryLevel,
   });
 
   final String activityName;
@@ -132,6 +133,9 @@ class _BucketKey {
   /// Only meaningful when thieving; set to 0 for other activities.
   final int hpBucket;
 
+  /// Mastery level for the current action - affects rates (especially thieving).
+  final int masteryLevel;
+
   @override
   bool operator ==(Object other) =>
       other is _BucketKey &&
@@ -143,7 +147,8 @@ class _BucketKey {
       other.fishingLevel == fishingLevel &&
       other.miningLevel == miningLevel &&
       other.thievingLevel == thievingLevel &&
-      other.hpBucket == hpBucket;
+      other.hpBucket == hpBucket &&
+      other.masteryLevel == masteryLevel;
 
   @override
   int get hashCode => Object.hash(
@@ -156,6 +161,7 @@ class _BucketKey {
     miningLevel,
     thievingLevel,
     hpBucket,
+    masteryLevel,
   );
 }
 
@@ -167,6 +173,11 @@ _BucketKey _bucketKeyFromState(GlobalState state) {
       actionName != null && actionRegistry.byName(actionName) is ThievingAction;
   final hpBucket = isThieving ? state.playerHp ~/ _hpBucketSize : 0;
 
+  // Get mastery level for current action (0 if no action)
+  final masteryLevel = actionName != null
+      ? state.actionState(actionName).masteryLevel
+      : 0;
+
   return _BucketKey(
     activityName: actionName ?? 'none',
     axeLevel: state.shop.axeLevel,
@@ -177,6 +188,7 @@ _BucketKey _bucketKeyFromState(GlobalState state) {
     miningLevel: state.skillState(Skill.mining).skillLevel,
     thievingLevel: state.skillState(Skill.thieving).skillLevel,
     hpBucket: hpBucket,
+    masteryLevel: masteryLevel,
   );
 }
 
@@ -368,6 +380,7 @@ class _Node {
 /// - Upgrade levels
 /// - Skill levels (for level-based gating)
 /// - HP bucket (for thieving, where death is possible)
+/// - Mastery level for current action (affects rates)
 String _stateKey(GlobalState state) {
   final buffer = StringBuffer();
 
@@ -386,6 +399,12 @@ String _stateKey(GlobalState state) {
   if (isThieving) {
     final hpBucket = state.playerHp ~/ _hpBucketSize;
     buffer.write('hp:$hpBucket|');
+  }
+
+  // Mastery level for current action (affects rates, especially for thieving)
+  if (actionName != null) {
+    final masteryLevel = state.actionState(actionName).masteryLevel;
+    buffer.write('mast:$masteryLevel|');
   }
 
   // Upgrade levels
@@ -456,6 +475,21 @@ GlobalState _advanceExpected(GlobalState state, int deltaTicks) {
     }
   }
 
+  // Compute expected mastery XP gains
+  var newActionStates = state.actionStates;
+  if (rates.masteryXpPerTick > 0 && rates.actionName != null) {
+    final masteryXpGain = (rates.masteryXpPerTick * effectiveTicks).floor();
+    if (masteryXpGain > 0) {
+      final actionName = rates.actionName!;
+      final currentActionState = state.actionState(actionName);
+      final newMasteryXp = currentActionState.masteryXp + masteryXpGain;
+      newActionStates = Map.from(state.actionStates);
+      newActionStates[actionName] = currentActionState.copyWith(
+        masteryXp: newMasteryXp,
+      );
+    }
+  }
+
   // Handle death: reset HP and stop activity
   // Note: can't use copyWith(activeAction: null) because null means "keep existing"
   if (playerDied) {
@@ -465,7 +499,7 @@ GlobalState _advanceExpected(GlobalState state, int deltaTicks) {
       activeAction: null, // Activity stops on death
       health: const HealthState.full(), // HP resets on death
       inventory: state.inventory,
-      actionStates: state.actionStates,
+      actionStates: newActionStates,
       updatedAt: DateTime.timestamp(),
       shop: state.shop,
       equipment: state.equipment,
@@ -474,7 +508,11 @@ GlobalState _advanceExpected(GlobalState state, int deltaTicks) {
   }
 
   // Return updated state (ignore inventory - gold is computed directly)
-  return state.copyWith(gp: newGp, skillStates: newSkillStates);
+  return state.copyWith(
+    gp: newGp,
+    skillStates: newSkillStates,
+    actionStates: newActionStates,
+  );
 }
 
 /// Full simulation advance using consumeTicks.
@@ -613,13 +651,17 @@ SolverResult solveToCredits(
     final node = nodes[nodeId];
 
     // Skip if we've already found a better path to this state
+    // BUT: never skip if this node has reached the goal!
     hashStopwatch.reset();
     hashStopwatch.start();
     final nodeKey = _stateKey(node.state);
     profile.hashingTimeUs += hashStopwatch.elapsedMicroseconds;
 
+    final nodeCredits = _effectiveCredits(node.state);
+    final nodeReachedGoal = nodeCredits >= goalCredits;
+
     final bestForKey = bestTicks[nodeKey];
-    if (bestForKey != null && bestForKey < node.ticks) {
+    if (!nodeReachedGoal && bestForKey != null && bestForKey < node.ticks) {
       continue;
     }
 
@@ -716,20 +758,34 @@ SolverResult solveToCredits(
       final newGold = _effectiveCredits(newState);
       final newBucketKey = _bucketKeyFromState(newState);
 
+      // Check if we've reached the goal BEFORE dominance pruning
+      final reachedGoal = newGold >= goalCredits;
+
       // Dominance pruning: skip if dominated by existing frontier point
-      if (frontier.isDominatedOrInsert(newBucketKey, newTicks, newGold)) {
+      // BUT: never skip if we've reached the goal
+      if (!reachedGoal &&
+          frontier.isDominatedOrInsert(newBucketKey, newTicks, newGold)) {
         profile.dominatedSkipped++;
       } else {
+        // If we reached goal, still add to frontier for tracking
+        if (reachedGoal) {
+          frontier.isDominatedOrInsert(newBucketKey, newTicks, newGold);
+        }
         hashStopwatch.reset();
         hashStopwatch.start();
         final newKey = _stateKey(newState);
         profile.hashingTimeUs += hashStopwatch.elapsedMicroseconds;
 
         // Safety: check for zero-progress waits (same state key after advance)
-        if (newKey != nodeKey) {
+        // BUT: always allow if we've reached the goal (even if state key unchanged)
+        if (newKey != nodeKey || reachedGoal) {
           final existingBest = bestTicks[newKey];
-          if (existingBest == null || newTicks < existingBest) {
-            bestTicks[newKey] = newTicks;
+          // Always add if we've reached the goal (this is the terminal state we want)
+          // Otherwise, only add if this is a better path to this state key
+          if (reachedGoal || existingBest == null || newTicks < existingBest) {
+            if (!reachedGoal) {
+              bestTicks[newKey] = newTicks;
+            }
 
             final newNode = _Node(
               state: newState,

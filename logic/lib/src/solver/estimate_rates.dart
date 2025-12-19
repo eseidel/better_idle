@@ -1,5 +1,7 @@
+import 'package:logic/src/consume_ticks.dart';
 import 'package:logic/src/data/actions.dart';
 import 'package:logic/src/data/items.dart';
+import 'package:logic/src/data/xp.dart';
 import 'package:logic/src/state.dart';
 import 'package:logic/src/tick.dart';
 import 'package:logic/src/types/stunned.dart';
@@ -13,6 +15,8 @@ class Rates {
     required this.xpPerTickBySkill,
     required this.itemsPerTick,
     this.hpLossPerTick = 0,
+    this.masteryXpPerTick = 0,
+    this.actionName,
   });
 
   /// Expected gold per tick from current activity (selling outputs).
@@ -28,6 +32,12 @@ class Rates {
   /// Expected HP loss per tick (for thieving hazard model).
   /// Zero for non-hazardous activities.
   final double hpLossPerTick;
+
+  /// Expected mastery XP per tick for the current action.
+  final double masteryXpPerTick;
+
+  /// The name of the action these rates are for (for mastery tracking).
+  final String? actionName;
 }
 
 /// Computes the expected ticks until death for thieving.
@@ -40,6 +50,56 @@ int? ticksUntilDeath(GlobalState state, Rates rates) {
   if (hpAvailable <= 0) return 0; // Already at 1 HP, next hit kills
 
   return (hpAvailable / rates.hpLossPerTick).floor();
+}
+
+/// Computes ticks until the next skill level for the current activity's skill.
+/// Returns null if no XP is being gained or already at max level.
+int? ticksUntilNextSkillLevel(GlobalState state, Rates rates) {
+  // Get the skill being trained
+  if (rates.xpPerTickBySkill.isEmpty) return null;
+
+  // Find the skill with the highest XP rate (the one being trained)
+  final entry = rates.xpPerTickBySkill.entries.reduce(
+    (a, b) => a.value > b.value ? a : b,
+  );
+  final skill = entry.key;
+  final xpRate = entry.value;
+
+  if (xpRate <= 0) return null;
+
+  final skillState = state.skillState(skill);
+  final currentLevel = skillState.skillLevel;
+
+  // Check if at max level
+  if (currentLevel >= maxLevel) return null;
+
+  final currentXp = skillState.xp;
+  final nextLevelXp = startXpForLevel(currentLevel + 1);
+  final xpNeeded = nextLevelXp - currentXp;
+
+  if (xpNeeded <= 0) return 0; // Already have enough XP
+
+  return (xpNeeded / xpRate).ceil();
+}
+
+/// Computes ticks until the next mastery level for the current action.
+/// Returns null if no mastery XP is being gained or already at max level.
+int? ticksUntilNextMasteryLevel(GlobalState state, Rates rates) {
+  if (rates.masteryXpPerTick <= 0 || rates.actionName == null) return null;
+
+  final actionState = state.actionState(rates.actionName!);
+  final currentLevel = actionState.masteryLevel;
+
+  // Check if at max mastery level (99)
+  if (currentLevel >= 99) return null;
+
+  final currentXp = actionState.masteryXp;
+  final nextLevelXp = startXpForLevel(currentLevel + 1);
+  final xpNeeded = nextLevelXp - currentXp;
+
+  if (xpNeeded <= 0) return 0; // Already have enough XP
+
+  return (xpNeeded / rates.masteryXpPerTick).ceil();
 }
 
 /// Estimates expected rates for the current state.
@@ -110,6 +170,11 @@ Rates estimateRates(GlobalState state) {
     final xpPerTick = expectedXpPerAction / effectiveTicks;
     final xpPerTickBySkill = <Skill, double>{action.skill: xpPerTick};
 
+    // Mastery XP is also only gained on success
+    final baseMasteryXpPerAction = masteryXpPerAction(state, action);
+    final expectedMasteryXpPerAction = successChance * baseMasteryXpPerAction;
+    final masteryXpPerTick = expectedMasteryXpPerAction / effectiveTicks;
+
     // Items per tick (thieving typically has no item outputs)
     final uniqueOutputTypes = action.outputs.length.toDouble();
     final itemsPerTick = uniqueOutputTypes > 0
@@ -121,6 +186,8 @@ Rates estimateRates(GlobalState state) {
       xpPerTickBySkill: xpPerTickBySkill,
       itemsPerTick: itemsPerTick,
       hpLossPerTick: hpLossPerTick,
+      masteryXpPerTick: masteryXpPerTick,
+      actionName: action.name,
     );
   }
 
@@ -129,6 +196,10 @@ Rates estimateRates(GlobalState state) {
   // XP rate for the action's skill
   final xpPerTick = action.xp / expectedTicks;
   final xpPerTickBySkill = <Skill, double>{action.skill: xpPerTick};
+
+  // Mastery XP rate
+  final baseMasteryXpPerAction = masteryXpPerAction(state, action);
+  final masteryXpPerTick = baseMasteryXpPerAction / expectedTicks;
 
   // Items per tick - rough estimate based on outputs
   // Count unique output types per action completion
@@ -141,5 +212,7 @@ Rates estimateRates(GlobalState state) {
     goldPerTick: goldPerTick,
     xpPerTickBySkill: xpPerTickBySkill,
     itemsPerTick: itemsPerTick,
+    masteryXpPerTick: masteryXpPerTick,
+    actionName: action.name,
   );
 }

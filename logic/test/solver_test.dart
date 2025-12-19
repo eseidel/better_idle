@@ -379,4 +379,119 @@ void main() {
       expect(result.deltaTicks, lessThanOrEqualTo(ticksToDeath!));
     });
   });
+
+  group('skill and mastery level timing', () {
+    test('ticksUntilNextSkillLevel returns positive value when gaining XP', () {
+      var state = GlobalState.empty();
+      final action = actionRegistry.byName('Normal Tree');
+      state = state.startAction(action, random: Random(0));
+
+      final rates = estimateRates(state);
+      final ticks = ticksUntilNextSkillLevel(state, rates);
+
+      // Should return positive ticks to level 2
+      expect(ticks, isNotNull);
+      expect(ticks, greaterThan(0));
+    });
+
+    test('ticksUntilNextSkillLevel returns null when no XP gain', () {
+      final state = GlobalState.empty();
+
+      // No action active, no XP being gained
+      final rates = estimateRates(state);
+      final ticks = ticksUntilNextSkillLevel(state, rates);
+
+      expect(ticks, isNull);
+    });
+
+    test(
+      'ticksUntilNextMasteryLevel returns positive value for active action',
+      () {
+        var state = GlobalState.empty();
+        final action = actionRegistry.byName('Normal Tree');
+        state = state.startAction(action, random: Random(0));
+
+        final rates = estimateRates(state);
+        final ticks = ticksUntilNextMasteryLevel(state, rates);
+
+        // Should return positive ticks to mastery level 2
+        expect(ticks, isNotNull);
+        expect(ticks, greaterThan(0));
+      },
+    );
+
+    test('ticksUntilNextMasteryLevel returns null when no action', () {
+      final state = GlobalState.empty();
+
+      final rates = estimateRates(state);
+      final ticks = ticksUntilNextMasteryLevel(state, rates);
+
+      expect(ticks, isNull);
+    });
+
+    test('nextDecisionDelta includes skill level timing', () {
+      var state = GlobalState.empty();
+      final action = actionRegistry.byName('Normal Tree');
+      state = state.startAction(action, random: Random(0));
+
+      final goal = Goal(targetCredits: 100000); // High goal
+      final candidates = enumerateCandidates(state);
+
+      final result = nextDecisionDelta(state, goal, candidates);
+
+      // Delta should be limited by skill level up
+      final rates = estimateRates(state);
+      final ticksToLevel = ticksUntilNextSkillLevel(state, rates);
+
+      expect(result.deltaTicks, lessThanOrEqualTo(ticksToLevel!));
+    });
+
+    test('nextDecisionDelta includes mastery level timing for thieving', () {
+      var state = GlobalState.empty();
+      final action = actionRegistry.byName('Man');
+      state = state.startAction(action, random: Random(0));
+
+      final goal = Goal(targetCredits: 100000); // High goal
+      final candidates = enumerateCandidates(state);
+
+      final result = nextDecisionDelta(state, goal, candidates);
+
+      // Delta should be limited by mastery or skill level or death
+      final rates = estimateRates(state);
+      final ticksToMastery = ticksUntilNextMasteryLevel(state, rates);
+      final ticksToSkill = ticksUntilNextSkillLevel(state, rates);
+      final ticksToDeath = ticksUntilDeath(state, rates);
+
+      // Should be bounded by smallest of the three
+      final minBound = [
+        ticksToMastery,
+        ticksToSkill,
+        ticksToDeath,
+      ].whereType<int>().reduce((a, b) => a < b ? a : b);
+
+      expect(result.deltaTicks, lessThanOrEqualTo(minBound));
+    });
+
+    test('estimateRates includes mastery XP rate', () {
+      var state = GlobalState.empty();
+      final action = actionRegistry.byName('Normal Tree');
+      state = state.startAction(action, random: Random(0));
+
+      final rates = estimateRates(state);
+
+      expect(rates.masteryXpPerTick, greaterThan(0));
+      expect(rates.actionName, 'Normal Tree');
+    });
+
+    test('estimateRates includes mastery XP rate for thieving', () {
+      var state = GlobalState.empty();
+      final action = actionRegistry.byName('Man');
+      state = state.startAction(action, random: Random(0));
+
+      final rates = estimateRates(state);
+
+      expect(rates.masteryXpPerTick, greaterThan(0));
+      expect(rates.actionName, 'Man');
+    });
+  });
 }

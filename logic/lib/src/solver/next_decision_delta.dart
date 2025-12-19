@@ -49,6 +49,8 @@ class NextDecisionResult {
 /// - Time until any watched locked activity unlocks
 /// - Time until inventory fills (if watching)
 /// - Time until activity stops (death from thieving)
+/// - Time until next skill level (rates may change)
+/// - Time until next mastery level (rates may change, especially for thieving)
 ///
 /// Returns [infTicks] if no progress is possible.
 NextDecisionResult nextDecisionDelta(
@@ -128,6 +130,18 @@ NextDecisionResult nextDecisionDelta(
   final deltaDeath = ticksUntilDeath(state, rates);
   if (deltaDeath != null && deltaDeath > 0) {
     deltas.add((deltaDeath, 'activity_stops', 'Player will die (thieving)'));
+  }
+
+  // F) Time until next skill level (rates may change)
+  final deltaSkillLevel = ticksUntilNextSkillLevel(state, rates);
+  if (deltaSkillLevel != null && deltaSkillLevel > 0) {
+    deltas.add((deltaSkillLevel, 'skill_level', 'Skill level up'));
+  }
+
+  // G) Time until next mastery level (rates may change, especially for thieving)
+  final deltaMasteryLevel = ticksUntilNextMasteryLevel(state, rates);
+  if (deltaMasteryLevel != null && deltaMasteryLevel > 0) {
+    deltas.add((deltaMasteryLevel, 'mastery_level', 'Mastery level up'));
   }
 
   // Find minimum positive delta
