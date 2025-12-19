@@ -29,12 +29,20 @@ void main(List<String> args) {
     print(result.plan.prettyPrint());
     print('Total ticks: ${result.plan.totalTicks}');
     print('Interaction count: ${result.plan.interactionCount}');
+    if (result.profile != null) {
+      print('');
+      print(result.profile);
+    }
   } else if (result is SolverFailed) {
     print('FAILED: ${result.failure.reason}');
     print('  Expanded nodes: ${result.failure.expandedNodes}');
     print('  Enqueued nodes: ${result.failure.enqueuedNodes}');
     if (result.failure.bestCredits != null) {
       print('  Best credits reached: ${result.failure.bestCredits}');
+    }
+    if (result.profile != null) {
+      print('');
+      print(result.profile);
     }
   }
 }

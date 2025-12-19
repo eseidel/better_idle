@@ -13,6 +13,74 @@ import 'interaction.dart';
 import 'next_decision_delta.dart';
 import 'plan.dart';
 
+/// Profiling stats collected during a solve.
+class SolverProfile {
+  int expandedNodes = 0;
+  int totalNeighborsGenerated = 0;
+  final List<int> decisionDeltas = [];
+
+  // Timing in microseconds
+  int advanceTimeUs = 0;
+  int enumerateCandidatesTimeUs = 0;
+  int hashingTimeUs = 0;
+  int totalTimeUs = 0;
+
+  double get nodesPerSecond =>
+      totalTimeUs > 0 ? expandedNodes / (totalTimeUs / 1e6) : 0;
+
+  double get avgBranchingFactor =>
+      expandedNodes > 0 ? totalNeighborsGenerated / expandedNodes : 0;
+
+  int get minDelta => decisionDeltas.isEmpty ? 0 : decisionDeltas.reduce(min);
+
+  int get medianDelta {
+    if (decisionDeltas.isEmpty) return 0;
+    final sorted = List<int>.from(decisionDeltas)..sort();
+    return sorted[sorted.length ~/ 2];
+  }
+
+  int get p95Delta {
+    if (decisionDeltas.isEmpty) return 0;
+    final sorted = List<int>.from(decisionDeltas)..sort();
+    final idx = (sorted.length * 0.95).floor().clamp(0, sorted.length - 1);
+    return sorted[idx];
+  }
+
+  double get advancePercent =>
+      totalTimeUs > 0 ? 100.0 * advanceTimeUs / totalTimeUs : 0;
+
+  double get enumeratePercent =>
+      totalTimeUs > 0 ? 100.0 * enumerateCandidatesTimeUs / totalTimeUs : 0;
+
+  double get hashingPercent =>
+      totalTimeUs > 0 ? 100.0 * hashingTimeUs / totalTimeUs : 0;
+
+  @override
+  String toString() {
+    final buffer = StringBuffer();
+    buffer.writeln('=== Solver Profile ===');
+    buffer.writeln('Expanded nodes: $expandedNodes');
+    buffer.writeln('Nodes/sec: ${nodesPerSecond.toStringAsFixed(1)}');
+    buffer.writeln(
+      'Avg branching factor: ${avgBranchingFactor.toStringAsFixed(2)}',
+    );
+    buffer.writeln(
+      'nextDecisionDelta: min=$minDelta, median=$medianDelta, p95=$p95Delta',
+    );
+    buffer.writeln('Time breakdown:');
+    buffer.writeln(
+      '  advance/consumeTicks: ${advancePercent.toStringAsFixed(1)}%',
+    );
+    buffer.writeln(
+      '  enumerateCandidates: ${enumeratePercent.toStringAsFixed(1)}%',
+    );
+    buffer.writeln(
+      '  hashing (_stateKey): ${hashingPercent.toStringAsFixed(1)}%',
+    );
+    return buffer.toString();
+  }
+}
+
 /// Default limits for the solver to prevent runaway searches.
 const int defaultMaxExpandedNodes = 200000;
 const int defaultMaxQueueSize = 500000;
@@ -113,10 +181,12 @@ SolverResult solveToCredits(
   int maxQueueSize = defaultMaxQueueSize,
 }) {
   final goal = Goal(targetCredits: goalCredits);
+  final profile = SolverProfile();
+  final totalStopwatch = Stopwatch()..start();
 
   // Check if goal is already satisfied (considering inventory value)
   if (_effectiveCredits(initial) >= goalCredits) {
-    return const SolverSuccess(Plan.empty());
+    return SolverSuccess(const Plan.empty(), profile);
   }
 
   // Node storage - indices are node IDs
@@ -147,12 +217,18 @@ SolverResult solveToCredits(
   pq.add(0);
   enqueuedNodes++;
 
+  final hashStopwatch = Stopwatch()..start();
   final rootKey = _stateKey(initial);
+  profile.hashingTimeUs += hashStopwatch.elapsedMicroseconds;
   bestTicks[rootKey] = 0;
 
   while (pq.isNotEmpty) {
     // Check limits
     if (expandedNodes >= maxExpandedNodes) {
+      totalStopwatch.stop();
+      profile
+        ..expandedNodes = expandedNodes
+        ..totalTimeUs = totalStopwatch.elapsedMicroseconds;
       return SolverFailed(
         SolverFailure(
           reason: 'Exceeded max expanded nodes ($maxExpandedNodes)',
@@ -160,10 +236,15 @@ SolverResult solveToCredits(
           enqueuedNodes: enqueuedNodes,
           bestCredits: bestCredits,
         ),
+        profile,
       );
     }
 
     if (nodes.length >= maxQueueSize) {
+      totalStopwatch.stop();
+      profile
+        ..expandedNodes = expandedNodes
+        ..totalTimeUs = totalStopwatch.elapsedMicroseconds;
       return SolverFailed(
         SolverFailure(
           reason: 'Exceeded max queue size ($maxQueueSize)',
@@ -171,6 +252,7 @@ SolverResult solveToCredits(
           enqueuedNodes: enqueuedNodes,
           bestCredits: bestCredits,
         ),
+        profile,
       );
     }
 
@@ -179,13 +261,18 @@ SolverResult solveToCredits(
     final node = nodes[nodeId];
 
     // Skip if we've already found a better path to this state
+    hashStopwatch.reset();
+    hashStopwatch.start();
     final nodeKey = _stateKey(node.state);
+    profile.hashingTimeUs += hashStopwatch.elapsedMicroseconds;
+
     final bestForKey = bestTicks[nodeKey];
     if (bestForKey != null && bestForKey < node.ticks) {
       continue;
     }
 
     expandedNodes++;
+    var neighborsThisNode = 0;
 
     // Track best credits seen (effective credits = GP + inventory value)
     final nodeEffectiveCredits = _effectiveCredits(node.state);
@@ -202,11 +289,17 @@ SolverResult solveToCredits(
         expandedNodes,
         enqueuedNodes,
       );
-      return SolverSuccess(plan);
+      totalStopwatch.stop();
+      profile
+        ..expandedNodes = expandedNodes
+        ..totalTimeUs = totalStopwatch.elapsedMicroseconds;
+      return SolverSuccess(plan, profile);
     }
 
     // Compute candidates for this state
+    final enumStopwatch = Stopwatch()..start();
     final candidates = enumerateCandidates(node.state);
+    profile.enumerateCandidatesTimeUs += enumStopwatch.elapsedMicroseconds;
 
     // Expand interaction edges (0 time cost)
     final interactions = availableInteractions(node.state);
@@ -216,7 +309,11 @@ SolverResult solveToCredits(
 
       try {
         final newState = applyInteraction(node.state, interaction);
+
+        hashStopwatch.reset();
+        hashStopwatch.start();
         final newKey = _stateKey(newState);
+        profile.hashingTimeUs += hashStopwatch.elapsedMicroseconds;
 
         // Only enqueue if this is the best path to this state
         final existingBest = bestTicks[newKey];
@@ -235,6 +332,7 @@ SolverResult solveToCredits(
           nodes.add(newNode);
           pq.add(newNodeId);
           enqueuedNodes++;
+          neighborsThisNode++;
         }
       } catch (_) {
         // Interaction failed (e.g., can't afford upgrade) - skip
@@ -246,8 +344,17 @@ SolverResult solveToCredits(
     final deltaResult = nextDecisionDelta(node.state, goal, candidates);
 
     if (!deltaResult.isDeadEnd && deltaResult.deltaTicks > 0) {
+      profile.decisionDeltas.add(deltaResult.deltaTicks);
+
+      final advanceStopwatch = Stopwatch()..start();
       final newState = advance(node.state, deltaResult.deltaTicks);
+      profile.advanceTimeUs += advanceStopwatch.elapsedMicroseconds;
+
+      hashStopwatch.reset();
+      hashStopwatch.start();
       final newKey = _stateKey(newState);
+      profile.hashingTimeUs += hashStopwatch.elapsedMicroseconds;
+
       final newTicks = node.ticks + deltaResult.deltaTicks;
 
       // Safety: check for zero-progress waits (same state key after advance)
@@ -268,12 +375,19 @@ SolverResult solveToCredits(
           nodes.add(newNode);
           pq.add(newNodeId);
           enqueuedNodes++;
+          neighborsThisNode++;
         }
       }
     }
+
+    profile.totalNeighborsGenerated += neighborsThisNode;
   }
 
   // Priority queue exhausted without finding goal
+  totalStopwatch.stop();
+  profile
+    ..expandedNodes = expandedNodes
+    ..totalTimeUs = totalStopwatch.elapsedMicroseconds;
   return SolverFailed(
     SolverFailure(
       reason: 'No path to goal found',
@@ -281,6 +395,7 @@ SolverResult solveToCredits(
       enqueuedNodes: enqueuedNodes,
       bestCredits: bestCredits,
     ),
+    profile,
   );
 }
 
