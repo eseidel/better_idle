@@ -2,6 +2,7 @@ import 'package:logic/src/data/actions.dart';
 import 'package:logic/src/data/items.dart';
 import 'package:logic/src/state.dart';
 import 'package:logic/src/tick.dart';
+import 'package:logic/src/types/stunned.dart';
 import 'package:meta/meta.dart';
 
 /// Expected rates for the current state, used by the planner.
@@ -59,7 +60,9 @@ Rates estimateRates(GlobalState state) {
     expectedGoldPerAction += item.sellsFor * output.value;
   }
 
-  // For thieving, add expected gold from the action itself
+  // For thieving, calculate rates accounting for stun time on failure.
+  // On failure, the player is stunned for stunnedDurationTicks, which
+  // increases the effective time per action attempt.
   if (action is ThievingAction) {
     final thievingLevel = state.skillState(Skill.thieving).skillLevel;
     final mastery = state.actionState(action.name).masteryLevel;
@@ -68,8 +71,33 @@ Rates estimateRates(GlobalState state) {
       0.0,
       1.0,
     );
+    final failureChance = 1.0 - successChance;
+
+    // Expected gold per attempt (only on success)
     final expectedThievingGold = successChance * (1 + action.maxGold) / 2;
     expectedGoldPerAction += expectedThievingGold;
+
+    // Effective ticks per attempt = action duration + (failure chance * stun)
+    final effectiveTicks = expectedTicks + failureChance * stunnedDurationTicks;
+
+    final goldPerTick = expectedGoldPerAction / effectiveTicks;
+
+    // XP is only gained on success, so expected XP = successChance * xp
+    final expectedXpPerAction = successChance * action.xp;
+    final xpPerTick = expectedXpPerAction / effectiveTicks;
+    final xpPerTickBySkill = <Skill, double>{action.skill: xpPerTick};
+
+    // Items per tick (thieving typically has no item outputs)
+    final uniqueOutputTypes = action.outputs.length.toDouble();
+    final itemsPerTick = uniqueOutputTypes > 0
+        ? uniqueOutputTypes / effectiveTicks
+        : 0.0;
+
+    return Rates(
+      goldPerTick: goldPerTick,
+      xpPerTickBySkill: xpPerTickBySkill,
+      itemsPerTick: itemsPerTick,
+    );
   }
 
   final goldPerTick = expectedGoldPerAction / expectedTicks;

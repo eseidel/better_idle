@@ -4,6 +4,7 @@ import 'package:logic/src/data/upgrades.dart';
 import 'package:logic/src/data/xp.dart';
 import 'package:logic/src/state.dart';
 import 'package:logic/src/tick.dart';
+import 'package:logic/src/types/stunned.dart';
 import 'package:meta/meta.dart';
 
 /// Default constants for candidate selection.
@@ -113,20 +114,46 @@ List<ActionSummary> buildActionSummaries(GlobalState state) {
         expectedGoldPerAction += item.sellsFor * output.value;
       }
 
-      // For thieving, add expected gold from the action itself
+      // For thieving, account for success rate and stun time on failure
       if (action is ThievingAction) {
         // Success rate depends on stealth vs perception
         // stealth = 40 + thievingLevel + masteryLevel
-        // At level 1 with 0 mastery: stealth = 41
-        // successChance = (100 + 41) / (100 + perception)
         final thievingLevel = state.skillState(Skill.thieving).skillLevel;
         final mastery = state.actionState(action.name).masteryLevel;
         final stealth = calculateStealth(thievingLevel, mastery);
         final successChance = ((100 + stealth) / (100 + action.perception))
             .clamp(0.0, 1.0);
+        final failureChance = 1.0 - successChance;
+
         // Expected gold = successChance * (1 + maxGold) / 2
         final expectedThievingGold = successChance * (1 + action.maxGold) / 2;
         expectedGoldPerAction += expectedThievingGold;
+
+        // Effective ticks per attempt = action duration + (failure chance * stun)
+        final effectiveTicks =
+            expectedTicks + failureChance * stunnedDurationTicks;
+
+        final goldRatePerTick = effectiveTicks > 0
+            ? expectedGoldPerAction / effectiveTicks
+            : 0.0;
+        // XP is only gained on success
+        final expectedXpPerAction = successChance * action.xp;
+        final xpRatePerTick = effectiveTicks > 0
+            ? expectedXpPerAction / effectiveTicks
+            : 0.0;
+
+        summaries.add(
+          ActionSummary(
+            actionName: action.name,
+            skill: action.skill,
+            unlockLevel: action.unlockLevel,
+            isUnlocked: isUnlocked,
+            expectedTicks: effectiveTicks,
+            goldRatePerTick: goldRatePerTick,
+            xpRatePerTick: xpRatePerTick,
+          ),
+        );
+        continue;
       }
 
       final goldRatePerTick = expectedTicks > 0

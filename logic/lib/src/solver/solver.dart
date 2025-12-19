@@ -7,6 +7,7 @@ import 'package:logic/src/data/actions.dart';
 import 'package:logic/src/data/items.dart';
 import 'package:logic/src/state.dart';
 import 'package:logic/src/tick.dart';
+import 'package:logic/src/types/stunned.dart';
 
 import 'apply_interaction.dart';
 import 'available_interactions.dart';
@@ -269,15 +270,25 @@ class _RateCache {
           expectedGoldPerAction += item.sellsFor * output.value;
         }
 
-        // For thieving, compute expected gold with success rate
+        // For thieving, compute expected gold with success rate and stun time
         if (action is ThievingAction) {
           final thievingLevel = state.skillState(Skill.thieving).skillLevel;
           final mastery = state.actionState(action.name).masteryLevel;
           final stealth = calculateStealth(thievingLevel, mastery);
           final successChance = ((100 + stealth) / (100 + action.perception))
               .clamp(0.0, 1.0);
+          final failureChance = 1.0 - successChance;
           final expectedThievingGold = successChance * (1 + action.maxGold) / 2;
           expectedGoldPerAction += expectedThievingGold;
+
+          // Account for stun time on failure
+          final effectiveTicks =
+              expectedTicks + failureChance * stunnedDurationTicks;
+          final rate = expectedGoldPerAction / effectiveTicks;
+          if (rate > maxRate) {
+            maxRate = rate;
+          }
+          continue;
         }
 
         final rate = expectedGoldPerAction / expectedTicks;
