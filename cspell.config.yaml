@@ -18,33 +18,35 @@ ignorePaths:
   - "ios/Runner/GeneratedPluginRegistrant.m"
   - "macos/Pods"
 words:
-  - melvor
-  - cupertino
-  - xcconfig
-  - xcodeproj
-  - eseidel
-  - xcworkspace
-  - xcassets
-  - podfile
-  - gradlew
-  - fluttercommunity
-  - pathprovider
+  - adamant
   - APPL
-  - dists
-  - proguard
   - cocoapods
-  - persistor
-  - seidel
+  - cupertino
+  - dists
+  - eseidel
   - firemaking
-  - respawn
-  - respawning
-  - respawned
-  - regen
-  - respawns
-  - regens
-  - smithing
+  - fluttercommunity
+  - golbin
+  - gradlew
   - hitpoints
+  - melvor
+  - mithril
+  - pathprovider
+  - persistor
+  - pickpocketing
+  - podfile
+  - proguard
+  - regen
+  - regens
+  - respawn
+  - respawned
+  - respawning
+  - respawns
+  - seidel
+  - smithing
   - unequip
   - unequips
-  - mithril
-  - adamant
+  - xcassets
+  - xcconfig
+  - xcodeproj
+  - xcworkspace

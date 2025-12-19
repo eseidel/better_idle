@@ -195,6 +195,23 @@ class MiningAction extends SkillAction {
 /// Duration for all thieving actions.
 const thievingDuration = Duration(seconds: 3);
 
+/// Thieving area - groups NPCs together.
+@immutable
+class ThievingArea {
+  const ThievingArea(this.name);
+
+  final String name;
+}
+
+final _thievingAreas = <ThievingArea>[
+  ThievingArea('Low Town'),
+  ThievingArea('Golbin Village'),
+];
+
+ThievingArea _thievingAreaByName(String name) {
+  return _thievingAreas.firstWhere((a) => a.name == name);
+}
+
 /// Thieving action with success/fail mechanics.
 /// On success: grants 1-maxGold GP and rolls for drops.
 /// On failure: deals 1-maxHit damage and stuns the player.
@@ -207,6 +224,7 @@ class ThievingAction extends SkillAction {
     required this.perception,
     required this.maxHit,
     required this.maxGold,
+    required this.area,
     super.outputs = const {},
   }) : super(skill: Skill.thieving, duration: thievingDuration);
 
@@ -218,6 +236,9 @@ class ThievingAction extends SkillAction {
 
   /// Maximum gold granted on success (1-maxGold).
   final int maxGold;
+
+  /// The area this NPC belongs to.
+  final ThievingArea area;
 
   /// Rolls damage dealt on failure (1 to maxHit inclusive).
   int rollDamage(Random random) {
@@ -261,6 +282,7 @@ ThievingAction _thieving(
   required int perception,
   required int maxHit,
   required int maxGold,
+  required String area,
 }) {
   return ThievingAction(
     name: name,
@@ -269,11 +291,47 @@ ThievingAction _thieving(
     perception: perception,
     maxHit: maxHit,
     maxGold: maxGold,
+    area: _thievingAreaByName(area),
   );
 }
 
 final thievingActions = <ThievingAction>[
-  _thieving('Man', level: 1, xp: 5, perception: 110, maxHit: 22, maxGold: 100),
+  _thieving(
+    'Man',
+    level: 1,
+    xp: 5,
+    perception: 110,
+    maxHit: 22,
+    maxGold: 100,
+    area: 'Low Town',
+  ),
+  _thieving(
+    'Woman',
+    level: 4,
+    xp: 7,
+    perception: 140,
+    maxHit: 32,
+    maxGold: 150,
+    area: 'Low Town',
+  ),
+  _thieving(
+    'Golbin',
+    level: 8,
+    xp: 10,
+    perception: 175,
+    maxHit: 40,
+    maxGold: 175,
+    area: 'Golbin Village',
+  ),
+  _thieving(
+    'Golbin Chief',
+    level: 16,
+    xp: 18,
+    perception: 280,
+    maxHit: 101,
+    maxGold: 275,
+    area: 'Golbin Village',
+  ),
 ];
 
 /// Look up a ThievingAction by name.

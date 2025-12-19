@@ -7,16 +7,32 @@ import 'package:better_idle/src/widgets/xp_badges_row.dart';
 import 'package:flutter/material.dart' hide Action;
 import 'package:logic/logic.dart';
 
-class ThievingPage extends StatelessWidget {
+class ThievingPage extends StatefulWidget {
   const ThievingPage({super.key});
+
+  @override
+  State<ThievingPage> createState() => _ThievingPageState();
+}
+
+class _ThievingPageState extends State<ThievingPage> {
+  ThievingAction? _selectedAction;
+  final Set<String> _collapsedAreas = {};
 
   @override
   Widget build(BuildContext context) {
     const skill = Skill.thieving;
-    final actions = actionRegistry.forSkill(skill).toList();
     final skillState = context.state.skillState(skill);
     final playerHp = context.state.playerHp;
     final maxPlayerHp = context.state.maxPlayerHp;
+
+    // Default to first action if none selected
+    final selectedAction = _selectedAction ?? thievingActions.first;
+
+    // Group actions by area
+    final actionsByArea = <ThievingArea, List<ThievingAction>>{};
+    for (final action in thievingActions) {
+      actionsByArea.putIfAbsent(action.area, () => []).add(action);
+    }
 
     return Scaffold(
       appBar: AppBar(title: const Text('Thieving')),
@@ -30,33 +46,47 @@ class ThievingPage extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                _HpBar(
-                  currentHp: playerHp,
-                  maxHp: maxPlayerHp,
-                  color: Colors.green,
-                ),
+                _HpBar(currentHp: playerHp, maxHp: maxPlayerHp),
                 const SizedBox(height: 4),
                 Text('HP: $playerHp / $maxPlayerHp'),
               ],
             ),
           ),
           Expanded(
-            child: GridView.builder(
-              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                crossAxisCount: 2,
-                childAspectRatio: 0.8,
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                children: [
+                  _SelectedActionDisplay(
+                    action: selectedAction,
+                    onStart: () {
+                      context.dispatch(
+                        ToggleActionAction(action: selectedAction),
+                      );
+                    },
+                  ),
+                  const SizedBox(height: 24),
+                  _ActionList(
+                    actionsByArea: actionsByArea,
+                    selectedAction: selectedAction,
+                    collapsedAreas: _collapsedAreas,
+                    onSelect: (action) {
+                      setState(() {
+                        _selectedAction = action;
+                      });
+                    },
+                    onToggleArea: (areaName) {
+                      setState(() {
+                        if (_collapsedAreas.contains(areaName)) {
+                          _collapsedAreas.remove(areaName);
+                        } else {
+                          _collapsedAreas.add(areaName);
+                        }
+                      });
+                    },
+                  ),
+                ],
               ),
-              itemCount: actions.length,
-              itemBuilder: (context, index) {
-                final action = actions[index] as ThievingAction;
-                final progressTicks = context.state.activeProgress(action);
-                final actionState = context.state.actionState(action.name);
-                return ThievingActionCell(
-                  action: action,
-                  actionState: actionState,
-                  progressTicks: progressTicks,
-                );
-              },
             ),
           ),
         ],
@@ -65,33 +95,23 @@ class ThievingPage extends StatelessWidget {
   }
 }
 
-class ThievingActionCell extends StatelessWidget {
-  const ThievingActionCell({
-    required this.action,
-    required this.actionState,
-    required this.progressTicks,
-    super.key,
-  });
+class _SelectedActionDisplay extends StatelessWidget {
+  const _SelectedActionDisplay({required this.action, required this.onStart});
 
   final ThievingAction action;
-  final ActionState actionState;
-  final int? progressTicks;
+  final VoidCallback onStart;
 
-  Widget _buildUnlocked(BuildContext context) {
-    final actionName = action.name;
-    final labelStyle = Theme.of(
-      context,
-    ).textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.bold);
-    final actionState = context.state.actionState(actionName);
-    final canStart = context.state.canStartAction(action);
-    final isRunning = context.state.activeAction?.name == actionName;
-    final isStunned = context.state.isStunned;
-    final canToggle = (canStart || isRunning) && !isStunned;
+  @override
+  Widget build(BuildContext context) {
+    final state = context.state;
+    final actionState = state.actionState(action.name);
+    final isActive = state.activeAction?.name == action.name;
+    final canStart = state.canStartAction(action);
+    final isStunned = state.isStunned;
+    final canToggle = (canStart || isActive) && !isStunned;
 
     // Calculate stealth and success chance
-    final thievingLevel = levelForXp(
-      context.state.skillState(Skill.thieving).xp,
-    );
+    final thievingLevel = levelForXp(state.skillState(Skill.thieving).xp);
     final masteryLevel = levelForXp(actionState.masteryXp);
     final stealth = calculateStealth(thievingLevel, masteryLevel);
     final successChance = ((100 + stealth) / (100 + action.perception)).clamp(
@@ -102,100 +122,307 @@ class ThievingActionCell extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: isStunned ? Colors.orange[100] : Colors.white,
-        border: Border.all(color: isStunned ? Colors.orange : Colors.grey),
+        color: isActive
+            ? Colors.orange.withValues(alpha: 0.1)
+            : isStunned
+            ? Colors.red.withValues(alpha: 0.1)
+            : Colors.white,
+        border: Border.all(
+          color: isActive
+              ? Colors.orange
+              : isStunned
+              ? Colors.red
+              : Colors.grey,
+          width: isActive ? 2 : 1,
+        ),
         borderRadius: BorderRadius.circular(8),
       ),
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           if (isStunned) ...[
             Text(
               'Stunned',
+              textAlign: TextAlign.center,
               style: TextStyle(
-                color: Colors.orange[800],
+                color: Colors.red[800],
                 fontWeight: FontWeight.bold,
               ),
             ),
             const SizedBox(height: 4),
           ],
-          const Text('Pickpocket'),
-          Text(actionName, style: labelStyle),
-          const SizedBox(height: 4),
-          Text('Success: ${percentToString(successChance)}'),
-          Text('Stealth: $stealth'),
-          Text('Max Gold: ${action.maxGold}'),
-          const SizedBox(height: 4),
-          XpBadgesRow(action: action),
-          MasteryProgressCell(masteryXp: actionState.masteryXp),
-          const SizedBox(height: 8),
-          ElevatedButton(
-            onPressed: canToggle
-                ? () {
-                    context.dispatch(ToggleActionAction(action: action));
-                  }
-                : null,
-            child: Text(isRunning ? 'Stop' : 'Pickpocket'),
+          // Header: Pickpocket + NPC Name
+          const Text(
+            'Pickpocket',
+            textAlign: TextAlign.center,
+            style: TextStyle(fontSize: 14, color: Colors.grey),
           ),
-          if (isRunning)
-            const Padding(
-              padding: EdgeInsets.symmetric(vertical: 8),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.center,
+          Text(
+            action.name,
+            textAlign: TextAlign.center,
+            style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+          ),
+          const SizedBox(height: 8),
+
+          // Mastery progress
+          MasteryProgressCell(masteryXp: actionState.masteryXp),
+          const SizedBox(height: 12),
+
+          XpBadgesRow(action: action),
+          const SizedBox(height: 16),
+
+          // Stats
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+            children: [
+              Column(
                 children: [
-                  SizedBox(
-                    width: 18,
-                    height: 18,
-                    child: CircularProgressIndicator(strokeWidth: 2),
+                  const Text(
+                    'Success',
+                    style: TextStyle(fontSize: 12, color: Colors.grey),
                   ),
-                  SizedBox(width: 8),
-                  Text('Thieving...'),
+                  Text(
+                    percentToString(successChance),
+                    style: const TextStyle(fontWeight: FontWeight.bold),
+                  ),
                 ],
               ),
-            )
-          else
-            const SizedBox(height: 40, child: Text('Idle')),
+              Column(
+                children: [
+                  const Text(
+                    'Max Gold',
+                    style: TextStyle(fontSize: 12, color: Colors.grey),
+                  ),
+                  Text(
+                    '${action.maxGold}',
+                    style: const TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                ],
+              ),
+              Column(
+                children: [
+                  const Text(
+                    'Stealth',
+                    style: TextStyle(fontSize: 12, color: Colors.grey),
+                  ),
+                  Text(
+                    '$stealth',
+                    style: const TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                ],
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+
+          // Progress bar
+          _ThievingProgressBar(action: action),
+          const SizedBox(height: 16),
+
+          ElevatedButton(
+            onPressed: canToggle ? onStart : null,
+            style: ElevatedButton.styleFrom(
+              backgroundColor: isActive ? Colors.orange : null,
+            ),
+            child: Text(isActive ? 'Stop' : 'Pickpocket'),
+          ),
         ],
       ),
     );
   }
+}
 
-  Widget _buildLocked(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        border: Border.all(color: Colors.grey),
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: Column(
-        children: [const Text('Locked'), Text('Level ${action.unlockLevel}')],
-      ),
-    );
-  }
+class _ThievingProgressBar extends StatelessWidget {
+  const _ThievingProgressBar({required this.action});
+
+  final ThievingAction action;
 
   @override
   Widget build(BuildContext context) {
-    final skillState = context.state.skillState(action.skill);
-    final skillLevel = levelForXp(skillState.xp);
-    final isUnlocked = skillLevel >= action.unlockLevel;
-    if (isUnlocked) {
-      return _buildUnlocked(context);
+    final state = context.state;
+    final isActive = state.activeAction?.name == action.name;
+    final isStunned = state.isStunned;
+
+    // Calculate progress
+    double progress;
+    Color barColor;
+    String label;
+
+    if (isStunned) {
+      // Show stun countdown progress
+      final stunTicksRemaining = state.stunned.ticksRemaining;
+      progress = 1.0 - (stunTicksRemaining / stunnedDurationTicks);
+      barColor = Colors.red;
+      label = 'Stunned';
+    } else if (isActive) {
+      // Show action progress
+      final progressTicks = state.activeProgress(action);
+      final totalTicks = ticksFromDuration(thievingDuration);
+      progress = progressTicks / totalTicks;
+      barColor = Colors.orange;
+      label = 'Pickpocketing...';
     } else {
-      return _buildLocked(context);
+      // Idle state
+      progress = 0.0;
+      barColor = Colors.grey;
+      label = 'Idle';
     }
+
+    return Column(
+      children: [
+        Container(
+          height: 24,
+          decoration: BoxDecoration(
+            color: Colors.grey[300],
+            borderRadius: BorderRadius.circular(4),
+          ),
+          child: Stack(
+            children: [
+              FractionallySizedBox(
+                alignment: Alignment.centerLeft,
+                widthFactor: progress.clamp(0.0, 1.0),
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: barColor,
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                ),
+              ),
+              Center(
+                child: Text(
+                  label,
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.bold,
+                    color: progress > 0.5 ? Colors.white : Colors.black87,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _ActionList extends StatelessWidget {
+  const _ActionList({
+    required this.actionsByArea,
+    required this.selectedAction,
+    required this.collapsedAreas,
+    required this.onSelect,
+    required this.onToggleArea,
+  });
+
+  final Map<ThievingArea, List<ThievingAction>> actionsByArea;
+  final ThievingAction selectedAction;
+  final Set<String> collapsedAreas;
+  final void Function(ThievingAction) onSelect;
+  final void Function(String) onToggleArea;
+
+  @override
+  Widget build(BuildContext context) {
+    final skillState = context.state.skillState(Skill.thieving);
+    final skillLevel = levelForXp(skillState.xp);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        const Text(
+          'NPCs',
+          style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+        ),
+        const SizedBox(height: 8),
+        ...actionsByArea.entries.map((entry) {
+          final area = entry.key;
+          final actions = entry.value;
+          final isCollapsed = collapsedAreas.contains(area.name);
+
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              // Area header with collapse toggle
+              InkWell(
+                onTap: () => onToggleArea(area.name),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 8,
+                  ),
+                  decoration: BoxDecoration(
+                    color: Colors.blueGrey.shade100,
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(
+                        isCollapsed ? Icons.arrow_right : Icons.arrow_drop_down,
+                        size: 24,
+                      ),
+                      const SizedBox(width: 4),
+                      Text(
+                        area.name,
+                        style: const TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 14,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              // Actions list (if not collapsed)
+              if (!isCollapsed)
+                ...actions.map((action) {
+                  final isSelected = action.name == selectedAction.name;
+                  final isUnlocked = skillLevel >= action.unlockLevel;
+                  return Card(
+                    margin: const EdgeInsets.only(left: 16, top: 4, bottom: 4),
+                    color: isSelected
+                        ? Colors.blue.withValues(alpha: 0.1)
+                        : isUnlocked
+                        ? null
+                        : Colors.grey.shade200,
+                    child: ListTile(
+                      title: Text(
+                        action.name,
+                        style: TextStyle(
+                          color: isUnlocked ? null : Colors.grey,
+                        ),
+                      ),
+                      subtitle: Text(
+                        isUnlocked
+                            ? 'Lvl ${action.unlockLevel} • '
+                                  'Max ${action.maxGold} GP'
+                            : 'Requires Level ${action.unlockLevel}',
+                        style: TextStyle(
+                          color: isUnlocked ? null : Colors.grey,
+                        ),
+                      ),
+                      trailing: isSelected
+                          ? const Icon(Icons.check_circle, color: Colors.blue)
+                          : isUnlocked
+                          ? null
+                          : const Icon(Icons.lock, color: Colors.grey),
+                      onTap: isUnlocked ? () => onSelect(action) : null,
+                    ),
+                  );
+                }),
+              const SizedBox(height: 8),
+            ],
+          );
+        }),
+      ],
+    );
   }
 }
 
 class _HpBar extends StatelessWidget {
-  const _HpBar({
-    required this.currentHp,
-    required this.maxHp,
-    required this.color,
-  });
+  const _HpBar({required this.currentHp, required this.maxHp});
 
   final int currentHp;
   final int maxHp;
-  final Color color;
 
   @override
   Widget build(BuildContext context) {
@@ -212,7 +439,7 @@ class _HpBar extends StatelessWidget {
         widthFactor: progress,
         child: Container(
           decoration: BoxDecoration(
-            color: color,
+            color: Colors.green,
             borderRadius: BorderRadius.circular(4),
           ),
         ),
