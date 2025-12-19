@@ -879,43 +879,17 @@ Plan _reconstructPlan(
   // Reverse to get steps in order from start to goal
   final reversedSteps = steps.reversed.toList();
 
-  // Merge consecutive wait steps
-  final mergedSteps = _mergeWaitSteps(reversedSteps);
+  // NOTE: We intentionally do NOT merge consecutive wait steps.
+  // Each wait step may cross skill/mastery level boundaries or deaths,
+  // and the rates change at those boundaries. Merging would cause
+  // the plan execution to miss those state changes.
 
   final goalNode = nodes[goalNodeId];
   return Plan(
-    steps: mergedSteps,
+    steps: reversedSteps,
     totalTicks: goalNode.ticks,
     interactionCount: goalNode.interactions,
     expandedNodes: expandedNodes,
     enqueuedNodes: enqueuedNodes,
   );
-}
-
-/// Merges consecutive WaitStep entries into single steps.
-List<PlanStep> _mergeWaitSteps(List<PlanStep> steps) {
-  if (steps.isEmpty) return steps;
-
-  final merged = <PlanStep>[];
-  var accumulatedWait = 0;
-
-  for (final step in steps) {
-    if (step is WaitStep) {
-      accumulatedWait += step.deltaTicks;
-    } else {
-      // Flush any accumulated wait
-      if (accumulatedWait > 0) {
-        merged.add(WaitStep(accumulatedWait));
-        accumulatedWait = 0;
-      }
-      merged.add(step);
-    }
-  }
-
-  // Flush final accumulated wait
-  if (accumulatedWait > 0) {
-    merged.add(WaitStep(accumulatedWait));
-  }
-
-  return merged;
 }
