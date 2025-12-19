@@ -48,6 +48,7 @@ class NextDecisionResult {
 /// - Time until any watched upgrade becomes affordable
 /// - Time until any watched locked activity unlocks
 /// - Time until inventory fills (if watching)
+/// - Time until activity stops (death from thieving)
 ///
 /// Returns [infTicks] if no progress is possible.
 NextDecisionResult nextDecisionDelta(
@@ -121,6 +122,12 @@ NextDecisionResult nextDecisionDelta(
     if (deltaInv != null && deltaInv > 0) {
       deltas.add((deltaInv, 'inventory_full', 'Inventory will be full'));
     }
+  }
+
+  // E) Time until activity stops (death from thieving)
+  final deltaDeath = ticksUntilDeath(state, rates);
+  if (deltaDeath != null && deltaDeath > 0) {
+    deltas.add((deltaDeath, 'activity_stops', 'Player will die (thieving)'));
   }
 
   // Find minimum positive delta

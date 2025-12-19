@@ -7,6 +7,7 @@ import 'package:logic/src/data/actions.dart';
 import 'package:logic/src/data/items.dart';
 import 'package:logic/src/state.dart';
 import 'package:logic/src/tick.dart';
+import 'package:logic/src/types/health.dart';
 import 'package:logic/src/types/stunned.dart';
 
 import 'apply_interaction.dart';
@@ -98,8 +99,13 @@ class SolverProfile {
 /// Larger values = fewer unique states = more pruning but less precision.
 const int _goldBucketSize = 50;
 
+/// HP bucket size for coarse state grouping during thieving.
+/// Groups HP into buckets to reduce state explosion while still
+/// distinguishing "safe" vs "near death" states.
+const int _hpBucketSize = 10;
+
 /// Bucket key for dominance pruning - groups states with same structural situation.
-/// Includes activity, tool tiers, and relevant skill levels.
+/// Includes activity, tool tiers, relevant skill levels, and HP bucket for thieving.
 class _BucketKey {
   _BucketKey({
     required this.activityName,
@@ -110,6 +116,7 @@ class _BucketKey {
     required this.fishingLevel,
     required this.miningLevel,
     required this.thievingLevel,
+    required this.hpBucket,
   });
 
   final String activityName;
@@ -121,6 +128,10 @@ class _BucketKey {
   final int miningLevel;
   final int thievingLevel;
 
+  /// HP bucket for thieving - distinguishes "safe" vs "near death" states.
+  /// Only meaningful when thieving; set to 0 for other activities.
+  final int hpBucket;
+
   @override
   bool operator ==(Object other) =>
       other is _BucketKey &&
@@ -131,7 +142,8 @@ class _BucketKey {
       other.woodcuttingLevel == woodcuttingLevel &&
       other.fishingLevel == fishingLevel &&
       other.miningLevel == miningLevel &&
-      other.thievingLevel == thievingLevel;
+      other.thievingLevel == thievingLevel &&
+      other.hpBucket == hpBucket;
 
   @override
   int get hashCode => Object.hash(
@@ -143,13 +155,20 @@ class _BucketKey {
     fishingLevel,
     miningLevel,
     thievingLevel,
+    hpBucket,
   );
 }
 
 /// Creates a bucket key from a game state.
 _BucketKey _bucketKeyFromState(GlobalState state) {
+  // Only track HP bucket when thieving (where death is possible)
+  final actionName = state.activeAction?.name;
+  final isThieving =
+      actionName != null && actionRegistry.byName(actionName) is ThievingAction;
+  final hpBucket = isThieving ? state.playerHp ~/ _hpBucketSize : 0;
+
   return _BucketKey(
-    activityName: state.activeAction?.name ?? 'none',
+    activityName: actionName ?? 'none',
     axeLevel: state.shop.axeLevel,
     rodLevel: state.shop.fishingRodLevel,
     pickLevel: state.shop.pickaxeLevel,
@@ -157,6 +176,7 @@ _BucketKey _bucketKeyFromState(GlobalState state) {
     fishingLevel: state.skillState(Skill.fishing).skillLevel,
     miningLevel: state.skillState(Skill.mining).skillLevel,
     thievingLevel: state.skillState(Skill.thieving).skillLevel,
+    hpBucket: hpBucket,
   );
 }
 
@@ -347,6 +367,7 @@ class _Node {
 /// - Current activity
 /// - Upgrade levels
 /// - Skill levels (for level-based gating)
+/// - HP bucket (for thieving, where death is possible)
 String _stateKey(GlobalState state) {
   final buffer = StringBuffer();
 
@@ -356,7 +377,16 @@ String _stateKey(GlobalState state) {
   buffer.write('gb:$goldBucket|');
 
   // Active action
-  buffer.write('act:${state.activeAction?.name ?? 'none'}|');
+  final actionName = state.activeAction?.name;
+  buffer.write('act:${actionName ?? 'none'}|');
+
+  // HP bucket for thieving (where death is possible)
+  final isThieving =
+      actionName != null && actionRegistry.byName(actionName) is ThievingAction;
+  if (isThieving) {
+    final hpBucket = state.playerHp ~/ _hpBucketSize;
+    buffer.write('hp:$hpBucket|');
+  }
 
   // Upgrade levels
   buffer.write('axe:${state.shop.axeLevel}|');
@@ -392,13 +422,25 @@ bool _isRateModelable(GlobalState state) {
 
 /// O(1) expected-value fast-forward for rate-modelable activities.
 /// Updates gold and skill XP based on expected rates without full simulation.
+/// For thieving, handles death by stopping the activity when HP would reach 0.
 GlobalState _advanceExpected(GlobalState state, int deltaTicks) {
   if (deltaTicks <= 0) return state;
 
   final rates = estimateRates(state);
 
+  // Check for death during thieving
+  final ticksToDeath = ticksUntilDeath(state, rates);
+  var effectiveTicks = deltaTicks;
+  var playerDied = false;
+
+  if (ticksToDeath != null && ticksToDeath <= deltaTicks) {
+    // Player will die during this advance - only apply ticks until death
+    effectiveTicks = ticksToDeath;
+    playerDied = true;
+  }
+
   // Compute expected gold gain (convert outputs to gold immediately)
-  final expectedGold = (rates.goldPerTick * deltaTicks).floor();
+  final expectedGold = (rates.goldPerTick * effectiveTicks).floor();
   final newGp = state.gp + expectedGold;
 
   // Compute expected skill XP gains
@@ -406,12 +448,29 @@ GlobalState _advanceExpected(GlobalState state, int deltaTicks) {
   for (final entry in rates.xpPerTickBySkill.entries) {
     final skill = entry.key;
     final xpPerTick = entry.value;
-    final xpGain = (xpPerTick * deltaTicks).floor();
+    final xpGain = (xpPerTick * effectiveTicks).floor();
     if (xpGain > 0) {
       final current = state.skillState(skill);
       final newXp = current.xp + xpGain;
       newSkillStates[skill] = current.copyWith(xp: newXp);
     }
+  }
+
+  // Handle death: reset HP and stop activity
+  // Note: can't use copyWith(activeAction: null) because null means "keep existing"
+  if (playerDied) {
+    return GlobalState(
+      gp: newGp,
+      skillStates: newSkillStates,
+      activeAction: null, // Activity stops on death
+      health: const HealthState.full(), // HP resets on death
+      inventory: state.inventory,
+      actionStates: state.actionStates,
+      updatedAt: DateTime.timestamp(),
+      shop: state.shop,
+      equipment: state.equipment,
+      stunned: state.stunned,
+    );
   }
 
   // Return updated state (ignore inventory - gold is computed directly)

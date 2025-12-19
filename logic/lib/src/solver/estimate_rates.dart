@@ -12,6 +12,7 @@ class Rates {
     required this.goldPerTick,
     required this.xpPerTickBySkill,
     required this.itemsPerTick,
+    this.hpLossPerTick = 0,
   });
 
   /// Expected gold per tick from current activity (selling outputs).
@@ -23,6 +24,22 @@ class Rates {
   /// Expected unique item types generated per tick (for inventory fill).
   /// This is a rough estimate - assumes one item type per action completion.
   final double itemsPerTick;
+
+  /// Expected HP loss per tick (for thieving hazard model).
+  /// Zero for non-hazardous activities.
+  final double hpLossPerTick;
+}
+
+/// Computes the expected ticks until death for thieving.
+/// Returns null if no HP loss is expected (safe activity or full health regen).
+int? ticksUntilDeath(GlobalState state, Rates rates) {
+  if (rates.hpLossPerTick <= 0) return null;
+
+  // HP available before death (current HP - 1, since death occurs at 0)
+  final hpAvailable = state.playerHp - 1;
+  if (hpAvailable <= 0) return 0; // Already at 1 HP, next hit kills
+
+  return (hpAvailable / rates.hpLossPerTick).floor();
 }
 
 /// Estimates expected rates for the current state.
@@ -63,6 +80,7 @@ Rates estimateRates(GlobalState state) {
   // For thieving, calculate rates accounting for stun time on failure.
   // On failure, the player is stunned for stunnedDurationTicks, which
   // increases the effective time per action attempt.
+  // Also compute HP loss rate for hazard modeling.
   if (action is ThievingAction) {
     final thievingLevel = state.skillState(Skill.thieving).skillLevel;
     final mastery = state.actionState(action.name).masteryLevel;
@@ -77,10 +95,15 @@ Rates estimateRates(GlobalState state) {
     final expectedThievingGold = successChance * (1 + action.maxGold) / 2;
     expectedGoldPerAction += expectedThievingGold;
 
+    // Expected HP loss per attempt (only on failure)
+    // Damage is uniform 1 to maxHit, so expected damage = (1 + maxHit) / 2
+    final expectedDamagePerAttempt = failureChance * (1 + action.maxHit) / 2;
+
     // Effective ticks per attempt = action duration + (failure chance * stun)
     final effectiveTicks = expectedTicks + failureChance * stunnedDurationTicks;
 
     final goldPerTick = expectedGoldPerAction / effectiveTicks;
+    final hpLossPerTick = expectedDamagePerAttempt / effectiveTicks;
 
     // XP is only gained on success, so expected XP = successChance * xp
     final expectedXpPerAction = successChance * action.xp;
@@ -97,6 +120,7 @@ Rates estimateRates(GlobalState state) {
       goldPerTick: goldPerTick,
       xpPerTickBySkill: xpPerTickBySkill,
       itemsPerTick: itemsPerTick,
+      hpLossPerTick: hpLossPerTick,
     );
   }
 

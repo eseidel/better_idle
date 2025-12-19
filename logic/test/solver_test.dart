@@ -2,7 +2,10 @@ import 'dart:math';
 
 import 'package:logic/logic.dart';
 import 'package:logic/src/solver/apply_interaction.dart';
+import 'package:logic/src/solver/enumerate_candidates.dart';
+import 'package:logic/src/solver/estimate_rates.dart';
 import 'package:logic/src/solver/interaction.dart';
+import 'package:logic/src/solver/next_decision_delta.dart';
 import 'package:logic/src/solver/plan.dart';
 import 'package:logic/src/solver/solver.dart';
 import 'package:test/test.dart';
@@ -268,6 +271,112 @@ void main() {
       expect(result.failure.expandedNodes, 10);
       expect(result.failure.enqueuedNodes, 20);
       expect(result.failure.bestCredits, 50);
+    });
+  });
+
+  group('thieving death modeling', () {
+    test('estimateRates returns hpLossPerTick for thieving', () {
+      var state = GlobalState.empty();
+      final action = actionRegistry.byName('Man'); // Thieving action
+      state = state.startAction(action, random: Random(0));
+
+      final rates = estimateRates(state);
+
+      // Thieving should have positive HP loss rate (player takes damage)
+      expect(rates.hpLossPerTick, greaterThan(0));
+      expect(rates.goldPerTick, greaterThan(0));
+    });
+
+    test('estimateRates returns zero hpLossPerTick for non-thieving', () {
+      var state = GlobalState.empty();
+      final action = actionRegistry.byName('Normal Tree');
+      state = state.startAction(action, random: Random(0));
+
+      final rates = estimateRates(state);
+
+      expect(rates.hpLossPerTick, 0);
+    });
+
+    test('ticksUntilDeath returns positive value for thieving', () {
+      var state = GlobalState.empty();
+      final action = actionRegistry.byName('Man');
+      state = state.startAction(action, random: Random(0));
+
+      final rates = estimateRates(state);
+      final ticks = ticksUntilDeath(state, rates);
+
+      // At level 1 hitpoints (10 HP), player should die eventually
+      expect(ticks, isNotNull);
+      expect(ticks, greaterThan(0));
+    });
+
+    test('ticksUntilDeath returns null for non-thieving', () {
+      var state = GlobalState.empty();
+      final action = actionRegistry.byName('Normal Tree');
+      state = state.startAction(action, random: Random(0));
+
+      final rates = estimateRates(state);
+      final ticks = ticksUntilDeath(state, rates);
+
+      expect(ticks, isNull);
+    });
+
+    test('advance stops activity on death for thieving', () {
+      // Create state with low HP thieving
+      var state = GlobalState.empty();
+      final action = actionRegistry.byName('Man');
+      state = state.startAction(action, random: Random(0));
+
+      // Damage the player to have only 2 HP left
+      final lostHp = state.maxPlayerHp - 2;
+      state = state.copyWith(health: HealthState(lostHp: lostHp));
+
+      final rates = estimateRates(state);
+      final ticksToDeath = ticksUntilDeath(state, rates);
+
+      // Advance past death
+      final newState = advance(state, ticksToDeath! + 1000);
+
+      // Activity should be stopped and HP should be reset
+      expect(newState.activeAction, isNull);
+      expect(newState.playerHp, newState.maxPlayerHp); // Full HP after death
+    });
+
+    test('advance does not stop activity before death', () {
+      var state = GlobalState.empty();
+      final action = actionRegistry.byName('Man');
+      state = state.startAction(action, random: Random(0));
+
+      final rates = estimateRates(state);
+      final ticksToDeath = ticksUntilDeath(state, rates);
+
+      // Advance less than death time
+      final newState = advance(state, ticksToDeath! ~/ 2);
+
+      // Activity should still be running
+      expect(newState.activeAction, isNotNull);
+      expect(newState.activeAction!.name, 'Man');
+    });
+
+    test('nextDecisionDelta includes death timing for thieving', () {
+      var state = GlobalState.empty();
+      final action = actionRegistry.byName('Man');
+      state = state.startAction(action, random: Random(0));
+
+      // Damage player to have only 5 HP left
+      final lostHp = state.maxPlayerHp - 5;
+      state = state.copyWith(health: HealthState(lostHp: lostHp));
+
+      final goal = Goal(targetCredits: 100000); // High goal
+      final candidates = enumerateCandidates(state);
+
+      final result = nextDecisionDelta(state, goal, candidates);
+
+      // Delta should be less than or equal to ticks until death
+      final rates = estimateRates(state);
+      final ticksToDeath = ticksUntilDeath(state, rates);
+
+      expect(result.deltaTicks, lessThanOrEqualTo(ticksToDeath!));
     });
   });
 }
