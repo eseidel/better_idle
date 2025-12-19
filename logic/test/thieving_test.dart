@@ -23,6 +23,17 @@ class MockRandom implements Random {
 void main() {
   final manAction = thievingActionByName('Man');
 
+  group('Thieving drops', () {
+    test("allDropsForAction contains Bobby's Pocket for thieving", () {
+      final drops = dropsRegistry.allDropsForAction(manAction, masteryLevel: 1);
+      final dropNames = drops.map((d) {
+        if (d is Drop) return d.name;
+        return null;
+      }).whereType<String>();
+      expect(dropNames, contains("Bobby's Pocket"));
+    });
+  });
+
   group('ThievingAction', () {
     test('Man action has correct properties', () {
       expect(manAction.name, 'Man');

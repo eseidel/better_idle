@@ -46,6 +46,8 @@ const _gems = [
   Item('Diamond', gp: 1150),
 ];
 
+const _thieving = [Item("Bobby's Pocket", gp: 4000)];
+
 const List<Item> _all = [
   ..._woodcutting,
   ..._firemaking,
@@ -54,6 +56,7 @@ const List<Item> _all = [
   ..._mining,
   ..._smithing,
   ..._gems,
+  ..._thieving,
 ];
 
 @immutable
