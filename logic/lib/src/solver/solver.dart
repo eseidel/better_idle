@@ -4,7 +4,9 @@ import 'dart:math';
 import 'package:collection/collection.dart';
 import 'package:logic/src/consume_ticks.dart';
 import 'package:logic/src/data/actions.dart';
+import 'package:logic/src/data/items.dart';
 import 'package:logic/src/state.dart';
+import 'package:logic/src/tick.dart';
 
 import 'apply_interaction.dart';
 import 'available_interactions.dart';
@@ -24,6 +26,11 @@ class SolverProfile {
   int enumerateCandidatesTimeUs = 0;
   int hashingTimeUs = 0;
   int totalTimeUs = 0;
+
+  // Dominance pruning stats
+  int dominatedSkipped = 0;
+  int frontierInserted = 0;
+  int frontierRemoved = 0;
 
   double get nodesPerSecond =>
       totalTimeUs > 0 ? expandedNodes / (totalTimeUs / 1e6) : 0;
@@ -77,7 +84,90 @@ class SolverProfile {
     buffer.writeln(
       '  hashing (_stateKey): ${hashingPercent.toStringAsFixed(1)}%',
     );
+    buffer.writeln('Dominance pruning:');
+    buffer.writeln('  dominated skipped: $dominatedSkipped');
+    buffer.writeln('  frontier inserted: $frontierInserted');
+    buffer.writeln('  frontier removed: $frontierRemoved');
     return buffer.toString();
+  }
+}
+
+/// Bucket key for dominance pruning - groups states with same structural situation.
+class _BucketKey {
+  _BucketKey({
+    required this.activityName,
+    required this.axeLevel,
+    required this.rodLevel,
+    required this.pickLevel,
+  });
+
+  final String activityName;
+  final int axeLevel;
+  final int rodLevel;
+  final int pickLevel;
+
+  @override
+  bool operator ==(Object other) =>
+      other is _BucketKey &&
+      other.activityName == activityName &&
+      other.axeLevel == axeLevel &&
+      other.rodLevel == rodLevel &&
+      other.pickLevel == pickLevel;
+
+  @override
+  int get hashCode => Object.hash(activityName, axeLevel, rodLevel, pickLevel);
+}
+
+/// Creates a bucket key from a game state.
+_BucketKey _bucketKeyFromState(GlobalState state) {
+  return _BucketKey(
+    activityName: state.activeAction?.name ?? 'none',
+    axeLevel: state.shop.axeLevel,
+    rodLevel: state.shop.fishingRodLevel,
+    pickLevel: state.shop.pickaxeLevel,
+  );
+}
+
+/// A point on the Pareto frontier for dominance checking.
+class _FrontierPoint {
+  _FrontierPoint(this.ticks, this.gold);
+
+  final int ticks;
+  final int gold;
+}
+
+/// Manages per-bucket Pareto frontiers for dominance pruning.
+class _ParetoFrontier {
+  final Map<_BucketKey, List<_FrontierPoint>> _frontiers = {};
+
+  // Stats
+  int inserted = 0;
+  int removed = 0;
+
+  /// Checks if (ticks, gold) is dominated by existing frontier.
+  /// If not dominated, inserts the point and removes any points it dominates.
+  /// Returns true if dominated (caller should skip this node).
+  bool isDominatedOrInsert(_BucketKey key, int ticks, int gold) {
+    final frontier = _frontiers.putIfAbsent(key, () => []);
+
+    // Check if dominated by any existing point
+    // A dominates B if A.ticks <= B.ticks && A.gold >= B.gold
+    for (final p in frontier) {
+      if (p.ticks <= ticks && p.gold >= gold) {
+        return true; // Dominated
+      }
+    }
+
+    // Not dominated - remove any points that new point dominates
+    final originalLength = frontier.length;
+    frontier.removeWhere((p) => ticks <= p.ticks && gold >= p.gold);
+    removed += originalLength - frontier.length;
+
+    // Insert new point
+    frontier.add(_FrontierPoint(ticks, gold));
+    inserted++;
+
+    return false; // Not dominated
   }
 }
 
@@ -92,6 +182,50 @@ int _effectiveCredits(GlobalState state) {
     total += stack.sellsFor;
   }
   return total;
+}
+
+/// Computes R_max: the maximum gold rate per tick across ALL actions.
+/// This is an optimistic upper bound ignoring unlocks/upgrades/gating.
+double _computeMaxGoldRate() {
+  var maxRate = 0.0;
+
+  for (final skill in Skill.values) {
+    for (final action in actionRegistry.forSkill(skill)) {
+      // Skip actions that require inputs
+      if (action.inputs.isNotEmpty) continue;
+
+      final expectedTicks = ticksFromDuration(action.meanDuration).toDouble();
+      if (expectedTicks <= 0) continue;
+
+      // Calculate expected gold per action from selling outputs
+      var expectedGoldPerAction = 0.0;
+      for (final output in action.outputs.entries) {
+        final item = itemRegistry.byName(output.key);
+        expectedGoldPerAction += item.sellsFor * output.value;
+      }
+
+      // For thieving, use optimistic estimate (assume 100% success, max gold)
+      if (action is ThievingAction) {
+        expectedGoldPerAction += action.maxGold.toDouble();
+      }
+
+      final rate = expectedGoldPerAction / expectedTicks;
+      if (rate > maxRate) {
+        maxRate = rate;
+      }
+    }
+  }
+
+  return maxRate;
+}
+
+/// A* heuristic: optimistic lower bound on ticks to reach goal.
+/// h(state) = ceil(remainingGold / R_max)
+int _heuristic(GlobalState state, int goalCredits, double rMax) {
+  if (rMax <= 0) return 0; // Fallback to Dijkstra if no gold rate
+  final remaining = goalCredits - _effectiveCredits(state);
+  if (remaining <= 0) return 0;
+  return (remaining / rMax).ceil();
 }
 
 /// A node in the search graph.
@@ -169,7 +303,7 @@ GlobalState advance(GlobalState state, int deltaTicks) {
 
 /// Solves for an optimal plan to reach the target credits.
 ///
-/// Uses Dijkstra's algorithm to find the minimum-ticks path from the initial
+/// Uses A* algorithm to find the minimum-ticks path from the initial
 /// state to a state with at least [goalCredits] GP.
 ///
 /// Returns a [SolverResult] which is either [SolverSuccess] with the plan,
@@ -189,13 +323,25 @@ SolverResult solveToCredits(
     return SolverSuccess(const Plan.empty(), profile);
   }
 
+  // Precompute R_max for A* heuristic
+  final rMax = _computeMaxGoldRate();
+
+  // Dominance pruning frontier
+  final frontier = _ParetoFrontier();
+
   // Node storage - indices are node IDs
   final nodes = <_Node>[];
 
-  // Priority queue ordered by ticks (min-heap)
-  final pq = PriorityQueue<int>(
-    (a, b) => nodes[a].ticks.compareTo(nodes[b].ticks),
-  );
+  // A* priority: f(n) = g(n) + h(n) = ticksSoFar + heuristic
+  // Break ties by lower ticksSoFar (prefer actual progress over estimates)
+  final pq = PriorityQueue<int>((a, b) {
+    final fA = nodes[a].ticks + _heuristic(nodes[a].state, goalCredits, rMax);
+    final fB = nodes[b].ticks + _heuristic(nodes[b].state, goalCredits, rMax);
+    final cmp = fA.compareTo(fB);
+    if (cmp != 0) return cmp;
+    // Tie-break by lower g (actual ticks)
+    return nodes[a].ticks.compareTo(nodes[b].ticks);
+  });
 
   // Best ticks seen for each state key
   final bestTicks = HashMap<String, int>();
@@ -228,7 +374,9 @@ SolverResult solveToCredits(
       totalStopwatch.stop();
       profile
         ..expandedNodes = expandedNodes
-        ..totalTimeUs = totalStopwatch.elapsedMicroseconds;
+        ..totalTimeUs = totalStopwatch.elapsedMicroseconds
+        ..frontierInserted = frontier.inserted
+        ..frontierRemoved = frontier.removed;
       return SolverFailed(
         SolverFailure(
           reason: 'Exceeded max expanded nodes ($maxExpandedNodes)',
@@ -244,7 +392,9 @@ SolverResult solveToCredits(
       totalStopwatch.stop();
       profile
         ..expandedNodes = expandedNodes
-        ..totalTimeUs = totalStopwatch.elapsedMicroseconds;
+        ..totalTimeUs = totalStopwatch.elapsedMicroseconds
+        ..frontierInserted = frontier.inserted
+        ..frontierRemoved = frontier.removed;
       return SolverFailed(
         SolverFailure(
           reason: 'Exceeded max queue size ($maxQueueSize)',
@@ -292,7 +442,9 @@ SolverResult solveToCredits(
       totalStopwatch.stop();
       profile
         ..expandedNodes = expandedNodes
-        ..totalTimeUs = totalStopwatch.elapsedMicroseconds;
+        ..totalTimeUs = totalStopwatch.elapsedMicroseconds
+        ..frontierInserted = frontier.inserted
+        ..frontierRemoved = frontier.removed;
       return SolverSuccess(plan, profile);
     }
 
@@ -309,6 +461,14 @@ SolverResult solveToCredits(
 
       try {
         final newState = applyInteraction(node.state, interaction);
+        final newGold = _effectiveCredits(newState);
+        final newBucketKey = _bucketKeyFromState(newState);
+
+        // Dominance pruning: skip if dominated by existing frontier point
+        if (frontier.isDominatedOrInsert(newBucketKey, node.ticks, newGold)) {
+          profile.dominatedSkipped++;
+          continue;
+        }
 
         hashStopwatch.reset();
         hashStopwatch.start();
@@ -350,32 +510,39 @@ SolverResult solveToCredits(
       final newState = advance(node.state, deltaResult.deltaTicks);
       profile.advanceTimeUs += advanceStopwatch.elapsedMicroseconds;
 
-      hashStopwatch.reset();
-      hashStopwatch.start();
-      final newKey = _stateKey(newState);
-      profile.hashingTimeUs += hashStopwatch.elapsedMicroseconds;
-
       final newTicks = node.ticks + deltaResult.deltaTicks;
+      final newGold = _effectiveCredits(newState);
+      final newBucketKey = _bucketKeyFromState(newState);
 
-      // Safety: check for zero-progress waits (same state key after advance)
-      if (newKey != nodeKey) {
-        final existingBest = bestTicks[newKey];
-        if (existingBest == null || newTicks < existingBest) {
-          bestTicks[newKey] = newTicks;
+      // Dominance pruning: skip if dominated by existing frontier point
+      if (frontier.isDominatedOrInsert(newBucketKey, newTicks, newGold)) {
+        profile.dominatedSkipped++;
+      } else {
+        hashStopwatch.reset();
+        hashStopwatch.start();
+        final newKey = _stateKey(newState);
+        profile.hashingTimeUs += hashStopwatch.elapsedMicroseconds;
 
-          final newNode = _Node(
-            state: newState,
-            ticks: newTicks,
-            interactions: node.interactions,
-            parentId: nodeId,
-            stepFromParent: WaitStep(deltaResult.deltaTicks),
-          );
+        // Safety: check for zero-progress waits (same state key after advance)
+        if (newKey != nodeKey) {
+          final existingBest = bestTicks[newKey];
+          if (existingBest == null || newTicks < existingBest) {
+            bestTicks[newKey] = newTicks;
 
-          final newNodeId = nodes.length;
-          nodes.add(newNode);
-          pq.add(newNodeId);
-          enqueuedNodes++;
-          neighborsThisNode++;
+            final newNode = _Node(
+              state: newState,
+              ticks: newTicks,
+              interactions: node.interactions,
+              parentId: nodeId,
+              stepFromParent: WaitStep(deltaResult.deltaTicks),
+            );
+
+            final newNodeId = nodes.length;
+            nodes.add(newNode);
+            pq.add(newNodeId);
+            enqueuedNodes++;
+            neighborsThisNode++;
+          }
         }
       }
     }
@@ -387,7 +554,9 @@ SolverResult solveToCredits(
   totalStopwatch.stop();
   profile
     ..expandedNodes = expandedNodes
-    ..totalTimeUs = totalStopwatch.elapsedMicroseconds;
+    ..totalTimeUs = totalStopwatch.elapsedMicroseconds
+    ..frontierInserted = frontier.inserted
+    ..frontierRemoved = frontier.removed;
   return SolverFailed(
     SolverFailure(
       reason: 'No path to goal found',
