@@ -236,9 +236,20 @@ Candidates enumerateCandidates(
       : 0.0;
   final includeSellAll = inventoryUsedFraction > inventoryThreshold;
 
+  // Include affordable watched upgrades in buyUpgrades so the solver can act
+  // on them when nextDecisionDelta returns deltaTicks=0 for "upgrade_affordable"
+  final buyUpgrades = <UpgradeType>{...upgradeResult.candidates};
+  for (final type in upgradeResult.toWatch) {
+    final currentLevel = state.shop.upgradeLevel(type);
+    final upgrade = nextUpgrade(type, currentLevel);
+    if (upgrade != null && state.gp >= upgrade.cost) {
+      buyUpgrades.add(type);
+    }
+  }
+
   return Candidates(
     switchToActivities: switchToActivities,
-    buyUpgrades: upgradeResult.candidates,
+    buyUpgrades: buyUpgrades.toList(),
     includeSellAll: includeSellAll,
     watch: WatchList(
       upgradeTypes: upgradeResult.toWatch,
@@ -327,6 +338,10 @@ class _UpgradeResult {
 /// Only includes upgrades that improve gold/tick for at least one of the
 /// candidate activities AND would make that activity competitive with or
 /// better than the best current rate.
+///
+/// The watch list includes all upgrades that meet skill requirements and have
+/// positive gain, regardless of competitiveness (the planner needs to know
+/// when they become affordable to reconsider decisions).
 _UpgradeResult _selectUpgradeCandidates(
   List<ActionSummary> summaries,
   GlobalState state,
@@ -335,6 +350,7 @@ _UpgradeResult _selectUpgradeCandidates(
   double bestCurrentRate = 0.0,
 }) {
   final candidates = <(UpgradeType, double)>[];
+  final toWatch = <UpgradeType>[];
 
   for (final type in UpgradeType.values) {
     final currentLevel = state.shop.upgradeLevel(type);
@@ -379,8 +395,13 @@ _UpgradeResult _selectUpgradeCandidates(
 
     if (gain <= 0) continue;
 
-    // Skip if upgraded rate wouldn't be competitive with best current rate
-    // (buying this upgrade won't make this activity worth switching to)
+    // Add to watch list - planner needs to know when any valid upgrade
+    // becomes affordable, even if not currently competitive
+    toWatch.add(type);
+
+    // Skip adding to candidates if upgraded rate wouldn't be competitive
+    // with best current rate (buying this upgrade won't make this activity
+    // worth switching to)
     if (newRate < bestCurrentRate) continue;
 
     // Payback time = cost / gain per tick
@@ -394,7 +415,5 @@ _UpgradeResult _selectUpgradeCandidates(
   // Take top M
   final topCandidates = candidates.take(count).map((e) => e.$1).toList();
 
-  // Watch all candidates (even if unaffordable - planner needs to know when
-  // they become affordable)
-  return _UpgradeResult(candidates: topCandidates, toWatch: topCandidates);
+  return _UpgradeResult(candidates: topCandidates, toWatch: toWatch);
 }

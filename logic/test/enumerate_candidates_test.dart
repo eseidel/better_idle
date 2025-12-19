@@ -120,23 +120,29 @@ void main() {
     });
 
     test(
-      'returns upgrade candidates when upgrade makes activity competitive',
+      'includes affordable upgrades in buyUpgrades even when not competitive',
       () {
-        // Set up a state where thieving is NOT the best activity
-        // by using a state with only woodcutting unlocked (no thieving level)
-        // Actually, thieving "Man" is unlocked at level 1, so we need to
-        // set up a scenario where the upgrade WOULD make an activity competitive.
-        //
+        // Set up a state where thieving is the best activity.
         // With thieving Man at 1.14 gold/tick and Normal Tree at 0.033,
         // even a 5% improvement to woodcutting won't make it competitive.
-        // So we test that upgrades ARE NOT included when they can't help.
+        //
+        // However, affordable upgrades from the watch list are included in
+        // buyUpgrades so the solver can act on them when they become affordable.
+        // With 1000 GP, all basic upgrades are affordable.
         final state = GlobalState.empty().copyWith(gp: 1000);
         final candidates = enumerateCandidates(state);
 
-        // Since Man (thieving) is best at 1.14 gold/tick and upgrades only help
-        // woodcutting/fishing/mining which max out around 0.07 gold/tick,
-        // no upgrades should be included (they can't make those competitive)
-        expect(candidates.buyUpgrades, isEmpty);
+        // Affordable upgrades are now included in buyUpgrades even if not
+        // competitive, so the solver has actions to take when
+        // nextDecisionDelta returns "upgrade_affordable"
+        expect(
+          candidates.buyUpgrades,
+          containsAll([
+            UpgradeType.axe,
+            UpgradeType.fishingRod,
+            UpgradeType.pickaxe,
+          ]),
+        );
       },
     );
 
@@ -179,16 +185,22 @@ void main() {
     });
 
     test('watch list includes upgrade types when upgrades are candidates', () {
-      // The watch list only includes upgrade types that are candidates.
-      // Since thieving dominates and no upgrades help, watch list is empty.
+      // The watch list includes all upgrades that meet skill requirements and
+      // have positive gain, even if not competitive with the best activity.
+      // This allows the planner to know when any upgrade becomes affordable.
       final state = GlobalState.empty();
       final candidates = enumerateCandidates(state);
 
-      // With thieving dominating, no upgrades are worth watching for
+      // Even though thieving dominates, we still watch for tool upgrades
+      // so the planner can reconsider when they become affordable
       expect(
         candidates.watch.upgradeTypes,
-        equals(candidates.buyUpgrades),
-        reason: 'Watch list should match upgrade candidates',
+        containsAll([
+          UpgradeType.axe,
+          UpgradeType.fishingRod,
+          UpgradeType.pickaxe,
+        ]),
+        reason: 'Watch list should include all eligible upgrades',
       );
     });
 
