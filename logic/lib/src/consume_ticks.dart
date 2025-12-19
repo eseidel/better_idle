@@ -15,27 +15,6 @@ import 'package:logic/src/types/time_away.dart';
 /// Ticks required to regenerate 1 HP (10 seconds = 100 ticks).
 final int ticksPer1Hp = ticksFromDuration(const Duration(seconds: 10));
 
-/// Calculates the amount of mastery XP gained per action from raw values.
-/// Derived from https://wiki.melvoridle.com/w/Mastery.
-int calculateMasteryXpPerAction({
-  required int unlockedActions,
-  required int playerTotalMasteryForSkill,
-  required int totalMasteryForSkill,
-  required int itemMasteryLevel,
-  required int totalItemsInSkill,
-  required double actionSeconds, // In seconds
-  required double bonus, // e.g. 0.1 for +10%
-}) {
-  // We don't currently have a way to get the "total mastery for skill" value,
-  // so we're not using the mastery portion of the formula.
-  // final masteryPortion =
-  //     unlockedActions * (playerTotalMasteryForSkill / totalMasteryForSkill);
-  final itemPortion = itemMasteryLevel * (totalItemsInSkill / 10);
-  // final baseValue = masteryPortion + itemPortion;
-  final baseValue = itemPortion;
-  return max(1, baseValue * actionSeconds * 0.5 * (1 + bonus)).toInt();
-}
-
 // playerTotalMasteryForSkill is presumably a sum of all mastery xp
 // for all actions in this skill?
 int playerTotalMasteryForSkill(GlobalState state, Skill skill) {
@@ -53,19 +32,12 @@ int playerTotalMasteryForSkill(GlobalState state, Skill skill) {
 }
 
 /// Returns the amount of mastery XP gained per action.
-// TODO(eseidel): Take a duration instead of using maxDuration?
 int masteryXpPerAction(GlobalState state, SkillAction action) {
-  final actionState = state.actionState(action.name);
-  final actionMasteryLevel = actionState.masteryLevel;
-  final actions = actionRegistry.forSkill(action.skill);
-  final itemsInSkill = actions.length;
   return calculateMasteryXpPerAction(
+    action: action,
     unlockedActions: state.unlockedActionsCount(action.skill),
-    actionSeconds: action.maxDuration.inSeconds.toDouble(),
     playerTotalMasteryForSkill: playerTotalMasteryForSkill(state, action.skill),
-    totalMasteryForSkill: itemsInSkill * maxMasteryXp,
-    itemMasteryLevel: actionMasteryLevel,
-    totalItemsInSkill: itemsInSkill,
+    itemMasteryLevel: state.actionState(action.name).masteryLevel,
     bonus: 0,
   );
 }

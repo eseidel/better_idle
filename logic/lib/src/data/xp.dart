@@ -1,3 +1,5 @@
+import 'dart:math';
+
 import 'package:logic/src/data/actions.dart';
 
 // Generated with tool/xp_table.dart
@@ -193,4 +195,59 @@ XpProgress xpProgressForXp(int xp) {
     lastLevelXp: startXp,
     nextLevelXp: nextLevelXp,
   );
+}
+
+/// Calculates the amount of mastery XP gained per action from raw values.
+/// Derived from https://wiki.melvoridle.com/w/Mastery.
+int calculateMasteryXpPerAction({
+  required SkillAction action,
+  required int unlockedActions,
+  required int playerTotalMasteryForSkill,
+  required int itemMasteryLevel,
+  required double bonus, // e.g. 0.1 for +10%
+}) {
+  final actions = actionRegistry.forSkill(action.skill);
+  final totalItemsInSkill = actions.length;
+  final actionTime = actionTimeForMastery(action);
+  final totalMasteryForSkill = totalItemsInSkill * maxMasteryXp;
+  final masteryPortion =
+      unlockedActions * (playerTotalMasteryForSkill / totalMasteryForSkill);
+  final itemPortion = itemMasteryLevel * (totalItemsInSkill / 10);
+  final baseValue = masteryPortion + itemPortion;
+  return max(1, baseValue * actionTime * 0.5 * (1 + bonus)).toInt();
+}
+
+/// Returns the "action time" in seconds used for mastery XP calculation.
+///
+/// Action time varies by skill type:
+/// - Gathering skills (Woodcutting, Mining, Thieving, Fishing): actual action
+///   duration in seconds
+/// - Artisan skills: fixed values regardless of actual duration:
+///   - Firemaking: 60% of base burn interval
+///   - Cooking: 85% of base cooking interval
+///   - Smithing: 1.7 seconds
+double actionTimeForMastery(SkillAction action) {
+  switch (action.skill) {
+    // Gathering skills use actual action duration
+    case Skill.woodcutting:
+    case Skill.mining:
+    case Skill.thieving:
+    case Skill.fishing:
+      return action.maxDuration.inSeconds.toDouble();
+
+    // Artisan skills use fixed values
+    case Skill.firemaking:
+      // 60% of the log's base burn interval
+      return action.maxDuration.inSeconds * 0.6;
+    case Skill.cooking:
+      // 85% of the recipe's base cooking interval
+      return action.maxDuration.inSeconds * 0.85;
+    case Skill.smithing:
+      return 1.7;
+
+    // Combat skills don't use mastery XP in the same way
+    case Skill.hitpoints:
+    case Skill.attack:
+      return action.maxDuration.inSeconds.toDouble();
+  }
 }

@@ -1,3 +1,5 @@
+import 'dart:math';
+
 import 'package:logic/logic.dart';
 import 'package:test/test.dart';
 
@@ -344,6 +346,73 @@ void main() {
       expect(newState.equipment.foodSlots[0]?.item, shrimp);
       expect(newState.equipment.foodSlots[1], isNull);
       expect(newState.inventory.countOfItem(lobster), 3);
+    });
+  });
+
+  group('rollDurationWithModifiers', () {
+    test('woodcutting mastery 99 applies 0.2s flat reduction', () {
+      final normalTree = actionRegistry.skillActionByName('Normal Tree');
+      // Normal Tree has 3 second duration = 30 ticks
+      expect(normalTree.minDuration, const Duration(seconds: 3));
+
+      final random = Random(42);
+
+      // State with no mastery - should get full 30 ticks
+      final stateNoMastery = GlobalState.test();
+      final ticksNoMastery = stateNoMastery.rollDurationWithModifiers(
+        normalTree,
+        random,
+      );
+      expect(ticksNoMastery, 30);
+
+      // State with mastery level 98 (just below threshold) - should get full 30 ticks
+      final xpForLevel98 = startXpForLevel(98);
+      final stateMastery98 = GlobalState.test(
+        actionStates: {'Normal Tree': ActionState(masteryXp: xpForLevel98)},
+      );
+      expect(stateMastery98.actionState('Normal Tree').masteryLevel, 98);
+      final ticksMastery98 = stateMastery98.rollDurationWithModifiers(
+        normalTree,
+        random,
+      );
+      expect(ticksMastery98, 30);
+
+      // State with mastery level 99 - should get 28 ticks (30 - 2 = 0.2s reduction)
+      final xpForLevel99 = startXpForLevel(99);
+      final stateMastery99 = GlobalState.test(
+        actionStates: {'Normal Tree': ActionState(masteryXp: xpForLevel99)},
+      );
+      expect(stateMastery99.actionState('Normal Tree').masteryLevel, 99);
+      final ticksMastery99 = stateMastery99.rollDurationWithModifiers(
+        normalTree,
+        random,
+      );
+      expect(ticksMastery99, 28); // 30 ticks - 2 ticks = 28 ticks
+    });
+
+    test('woodcutting mastery 99 combines with shop upgrades', () {
+      final normalTree = actionRegistry.skillActionByName('Normal Tree');
+      final random = Random(42);
+
+      // State with mastery 99 AND Iron Axe (5% reduction)
+      // Base: 30 ticks
+      // After 5% reduction: 30 * 0.95 = 28.5 -> 29 ticks (rounded)
+      // After flat -2: 29 - 2 = 27 ticks
+      final xpForLevel99 = startXpForLevel(99);
+      final stateWithBoth = GlobalState.test(
+        actionStates: {'Normal Tree': ActionState(masteryXp: xpForLevel99)},
+        shop: const ShopState(bankSlots: 0, axeLevel: 1), // Iron Axe
+      );
+      expect(stateWithBoth.actionState('Normal Tree').masteryLevel, 99);
+
+      final ticksWithBoth = stateWithBoth.rollDurationWithModifiers(
+        normalTree,
+        random,
+      );
+      // 30 * 0.95 = 28.5, rounded = 29 (but we apply percent first in combined)
+      // Actually: combined modifier has percent=-0.05, flat=-2
+      // So: 30 * (1 + -0.05) + -2 = 30 * 0.95 - 2 = 28.5 - 2 = 26.5 -> 27
+      expect(ticksWithBoth, 27);
     });
   });
 }

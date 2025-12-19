@@ -20,7 +20,6 @@ use it.
 
 ### TODO
 
-- Allow buying of skill upgrades (e.g. faster axe)
 - Handle global and per-action modifiers (e.g. mastery levels).
 - Support Mastery skill modifiers (e.g. increasing double items chance)
 - Fix Firemaking to put log selection behind a pop-up.
@@ -28,7 +27,8 @@ use it.
 - Add Equipment
 - Add Farming
 - Fix combat to show attack timers/progress bars.
-- Woodcutting mastery 99 benefit.
 - Fix fishing regions to drop junk/specials.
 - Add Thieving drops.
 - Implement mastery rewards (and UI) for all actions.
+- Implement mastery pool checkpoints.
+- Implement mastery tokens.

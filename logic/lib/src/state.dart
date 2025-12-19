@@ -10,6 +10,7 @@ import 'package:logic/src/tick.dart';
 import 'package:logic/src/types/equipment.dart';
 import 'package:logic/src/types/health.dart';
 import 'package:logic/src/types/inventory.dart';
+import 'package:logic/src/types/modifier.dart';
 import 'package:logic/src/types/stunned.dart';
 import 'package:logic/src/types/time_away.dart';
 import 'package:meta/meta.dart';
@@ -440,18 +441,39 @@ class GlobalState {
   }
 
   /// Rolls duration for a skill action and applies all relevant modifiers.
-  /// This centralizes duration modifier logic for shop upgrades.
+  /// This centralizes duration modifier logic for shop upgrades and mastery.
+  /// Percentage modifiers are applied first, then flat modifiers.
   int rollDurationWithModifiers(SkillAction action, Random random) {
-    var ticks = action.rollDuration(random);
+    final ticks = action.rollDuration(random);
 
-    // Apply skill-specific upgrade modifiers
-    final percentModifier = shop.durationModifierForSkill(action.skill);
+    // Collect all modifiers
+    final modifiers = <Modifier>[];
 
-    if (percentModifier != 0.0) {
-      ticks = (ticks * (1.0 + percentModifier)).round();
+    // Shop upgrade modifiers (percentage only)
+    // Note: durationModifierForSkill returns a multiplier (0.95 = 5% reduction)
+    // but Modifier.percent expects an additive change (-0.05 = 5% reduction)
+    // so we convert: multiplier - 1.0 = additive percent
+    final shopMultiplier = shop.durationModifierForSkill(action.skill);
+    if (shopMultiplier != 0.0) {
+      modifiers.add(Modifier(percent: shopMultiplier - 1.0));
     }
 
-    return ticks;
+    // Mastery-based modifiers (can include both percent and flat)
+    final masteryLevel = actionState(action.name).masteryLevel;
+    final masteryModifier = action.durationModifierForMasteryLevel(
+      masteryLevel,
+    );
+    if (!masteryModifier.isEmpty) {
+      modifiers.add(masteryModifier);
+    }
+
+    // Combine and apply all modifiers
+    if (modifiers.isEmpty) {
+      return ticks;
+    }
+
+    final combined = Modifier.combineAll(modifiers);
+    return combined.applyToInt(ticks);
   }
 
   GlobalState startAction(Action action, {required Random random}) {

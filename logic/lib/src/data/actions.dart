@@ -6,6 +6,7 @@ import 'package:logic/src/data/combat.dart';
 import 'package:logic/src/data/fishing.dart';
 import 'package:logic/src/tick.dart';
 import 'package:logic/src/types/drop.dart';
+import 'package:logic/src/types/modifier.dart';
 import 'package:meta/meta.dart';
 
 /// Gem drop table for mining - 1% chance to trigger, then weighted selection.
@@ -56,6 +57,20 @@ List<Droppable> defaultRewards(SkillAction action, int masteryLevel) {
   return [...action.outputs.entries.map((e) => Drop(e.key, count: e.value))];
 }
 
+/// Default duration modifier function - returns no modifier.
+Modifier defaultDurationModifier(SkillAction action, int masteryLevel) {
+  return const Modifier();
+}
+
+/// Woodcutting duration modifier - at mastery level 99, reduces duration by 0.2s.
+Modifier woodcuttingDurationModifier(SkillAction action, int masteryLevel) {
+  if (masteryLevel >= 99) {
+    // 0.2s = 2 ticks (100ms per tick)
+    return const Modifier(flat: -2);
+  }
+  return const Modifier();
+}
+
 List<Droppable> woodcuttingRewards(SkillAction action, int masteryLevel) {
   final outputs = action.outputs;
   if (outputs.length != 1 || outputs.values.first != 1) {
@@ -89,6 +104,7 @@ class SkillAction extends Action {
     this.outputs = const {},
     this.inputs = const {},
     this.rewardsAtLevel = defaultRewards,
+    this.durationModifierAtLevel = defaultDurationModifier,
   }) : minDuration = duration,
        maxDuration = duration;
 
@@ -102,6 +118,7 @@ class SkillAction extends Action {
     this.outputs = const {},
     this.inputs = const {},
     this.rewardsAtLevel = defaultRewards,
+    this.durationModifierAtLevel = defaultDurationModifier,
   });
 
   final int xp;
@@ -112,6 +129,8 @@ class SkillAction extends Action {
   final Map<String, int> outputs;
 
   final List<Droppable> Function(SkillAction, int masteryLevel) rewardsAtLevel;
+  final Modifier Function(SkillAction, int masteryLevel)
+  durationModifierAtLevel;
 
   bool get isFixedDuration => minDuration == maxDuration;
 
@@ -134,6 +153,10 @@ class SkillAction extends Action {
 
   List<Droppable> rewardsForMasteryLevel(int masteryLevel) =>
       rewardsAtLevel(this, masteryLevel);
+
+  /// Returns the duration modifier for a given mastery level.
+  Modifier durationModifierForMasteryLevel(int masteryLevel) =>
+      durationModifierAtLevel(this, masteryLevel);
 }
 
 const miningSwingDuration = Duration(seconds: 3);
@@ -275,6 +298,7 @@ SkillAction _woodcutting(
     xp: xp,
     outputs: {'$name Logs': 1},
     rewardsAtLevel: woodcuttingRewards,
+    durationModifierAtLevel: woodcuttingDurationModifier,
   );
 }
 
