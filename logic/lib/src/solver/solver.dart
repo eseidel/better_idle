@@ -507,11 +507,22 @@ GlobalState _advanceExpected(GlobalState state, int deltaTicks) {
     );
   }
 
+  // Compute expected HP loss for thieving (even when not dying)
+  HealthState? newHealth;
+  if (rates.hpLossPerTick > 0) {
+    final hpLoss = (rates.hpLossPerTick * effectiveTicks).floor();
+    if (hpLoss > 0) {
+      final newLostHp = state.health.lostHp + hpLoss;
+      newHealth = HealthState(lostHp: newLostHp);
+    }
+  }
+
   // Return updated state (ignore inventory - gold is computed directly)
   return state.copyWith(
     gp: newGp,
     skillStates: newSkillStates,
     actionStates: newActionStates,
+    health: newHealth,
   );
 }
 
