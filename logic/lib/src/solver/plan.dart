@@ -26,22 +26,57 @@ class InteractionStep extends PlanStep {
   int get hashCode => interaction.hashCode;
 }
 
+/// Reason why a wait step ended.
+enum WaitReason {
+  /// Goal GP was reached.
+  goalReached,
+
+  /// An upgrade became affordable.
+  upgradeAffordable,
+
+  /// A locked activity unlocked.
+  activityUnlocks,
+
+  /// Inventory reached threshold for selling.
+  inventoryThreshold,
+
+  /// Inventory became full.
+  inventoryFull,
+
+  /// Player died (thieving).
+  death,
+
+  /// Skill level increased.
+  skillLevel,
+
+  /// Mastery level increased.
+  masteryLevel,
+
+  /// Unknown or unspecified reason.
+  unknown,
+}
+
 /// A step that waits for a specified number of ticks.
 @immutable
 class WaitStep extends PlanStep {
-  const WaitStep(this.deltaTicks);
+  const WaitStep(this.deltaTicks, {this.reason = WaitReason.unknown});
 
   final int deltaTicks;
 
+  /// Why this wait ended (what event triggered re-evaluation).
+  final WaitReason reason;
+
   @override
-  String toString() => 'WaitStep($deltaTicks ticks)';
+  String toString() => 'WaitStep($deltaTicks ticks, $reason)';
 
   @override
   bool operator ==(Object other) =>
-      other is WaitStep && other.deltaTicks == deltaTicks;
+      other is WaitStep &&
+      other.deltaTicks == deltaTicks &&
+      other.reason == reason;
 
   @override
-  int get hashCode => deltaTicks.hashCode;
+  int get hashCode => Object.hash(deltaTicks, reason);
 }
 
 /// The result of running the solver.
@@ -113,8 +148,22 @@ class Plan {
         BuyUpgrade(:final type) => 'Buy upgrade: $type',
         SellAll() => 'Sell all items',
       },
-      WaitStep(:final deltaTicks) =>
-        'Wait $deltaTicks ticks (${_formatDuration(durationFromTicks(deltaTicks))})',
+      WaitStep(:final deltaTicks, :final reason) =>
+        'Wait ${_formatDuration(durationFromTicks(deltaTicks))} -> ${_formatWaitReason(reason)}',
+    };
+  }
+
+  String _formatWaitReason(WaitReason reason) {
+    return switch (reason) {
+      WaitReason.goalReached => 'Goal reached',
+      WaitReason.upgradeAffordable => 'Upgrade affordable',
+      WaitReason.activityUnlocks => 'Activity unlocks',
+      WaitReason.inventoryThreshold => 'Inventory threshold',
+      WaitReason.inventoryFull => 'Inventory full',
+      WaitReason.death => 'Death',
+      WaitReason.skillLevel => 'Skill +1',
+      WaitReason.masteryLevel => 'Mastery +1',
+      WaitReason.unknown => '?',
     };
   }
 

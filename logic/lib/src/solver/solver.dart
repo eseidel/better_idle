@@ -803,7 +803,10 @@ SolverResult solveToCredits(
               ticks: newTicks,
               interactions: node.interactions,
               parentId: nodeId,
-              stepFromParent: WaitStep(deltaResult.deltaTicks),
+              stepFromParent: WaitStep(
+                deltaResult.deltaTicks,
+                reason: deltaResult.waitReason,
+              ),
             );
 
             final newNodeId = nodes.length;
