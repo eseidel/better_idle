@@ -178,11 +178,29 @@ Candidates enumerateCandidates(
     lockedWatchCount,
   );
 
+  // Build list of candidate activity names (current + switchTo)
+  final candidateActivityNames = <String>[
+    ...switchToActivities,
+    if (state.activeAction != null) state.activeAction!.name,
+  ];
+
+  // Find the best current gold rate among all unlocked activities
+  final unlockedSummaries = summaries.where((s) => s.isUnlocked);
+  final bestCurrentRate = unlockedSummaries.isEmpty
+      ? 0.0
+      : unlockedSummaries
+            .map((s) => s.goldRatePerTick)
+            .reduce((a, b) => a > b ? a : b);
+
   // Select upgrade candidates (top M by smallest paybackTicks)
+  // Only includes upgrades that improve gold/tick for candidate activities
+  // AND could make that activity become the best activity
   final upgradeResult = _selectUpgradeCandidates(
     summaries,
     state,
     upgradeCount,
+    candidateActivityNames: candidateActivityNames,
+    bestCurrentRate: bestCurrentRate,
   );
 
   // Determine SellAll and inventory watch
@@ -278,11 +296,17 @@ class _UpgradeResult {
 }
 
 /// Selects top M upgrades by smallest paybackTicks.
+///
+/// Only includes upgrades that improve gold/tick for at least one of the
+/// candidate activities AND would make that activity competitive with or
+/// better than the best current rate.
 _UpgradeResult _selectUpgradeCandidates(
   List<ActionSummary> summaries,
   GlobalState state,
-  int count,
-) {
+  int count, {
+  List<String>? candidateActivityNames,
+  double bestCurrentRate = 0.0,
+}) {
   final candidates = <(UpgradeType, double)>[];
 
   for (final type in UpgradeType.values) {
@@ -296,10 +320,19 @@ _UpgradeResult _selectUpgradeCandidates(
     final skillLevel = state.skillState(next.skill).skillLevel;
     if (skillLevel < next.requiredLevel) continue;
 
-    // Find affected unlocked activities (same skill as upgrade)
-    final affectedActivities = summaries.where(
-      (s) => s.skill == next.skill && s.isUnlocked,
-    );
+    // Find affected activities that are:
+    // 1. Same skill as upgrade
+    // 2. Unlocked
+    // 3. In the candidate list (if provided)
+    final affectedActivities = summaries.where((s) {
+      if (s.skill != next.skill) return false;
+      if (!s.isUnlocked) return false;
+      if (candidateActivityNames != null &&
+          !candidateActivityNames.contains(s.actionName)) {
+        return false;
+      }
+      return true;
+    });
 
     if (affectedActivities.isEmpty) continue;
 
@@ -318,6 +351,10 @@ _UpgradeResult _selectUpgradeCandidates(
     final gain = newRate - baseRate;
 
     if (gain <= 0) continue;
+
+    // Skip if upgraded rate wouldn't be competitive with best current rate
+    // (buying this upgrade won't make this activity worth switching to)
+    if (newRate < bestCurrentRate) continue;
 
     // Payback time = cost / gain per tick
     final paybackTicks = next.cost / gain;

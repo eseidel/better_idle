@@ -176,11 +176,11 @@ void main() {
     test('respects maxExpandedNodes limit', () {
       final state = GlobalState.empty();
 
-      // Set a very low limit
+      // Set a very low limit (solver is now very efficient, so use limit of 2)
       final result = solveToCredits(
         state,
         1000000, // Very high goal
-        maxExpandedNodes: 10,
+        maxExpandedNodes: 2,
       );
 
       expect(result, isA<SolverFailed>());
