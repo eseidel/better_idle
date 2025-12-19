@@ -74,11 +74,15 @@ void main() {
       var state = GlobalState.empty();
       final action = actionRegistry.byName('Normal Tree');
       state = state.startAction(action, random: Random(0));
-      final initialRemainingTicks = state.activeAction!.remainingTicks;
+      final initialGp = state.gp;
 
-      final newState = advance(state, 10);
+      // advance uses expected-value model for rate-modelable activities
+      // so we check that GP increases appropriately
+      final newState = advance(state, 100);
 
-      expect(newState.activeAction!.remainingTicks, initialRemainingTicks - 10);
+      // Normal Tree: 1 gold / 30 ticks = 0.033 gold/tick
+      // After 100 ticks: expect ~3 gold
+      expect(newState.gp, greaterThan(initialGp));
     });
 
     test('is deterministic', () {
@@ -90,9 +94,10 @@ void main() {
       final state2 = advance(state, 100);
 
       expect(state1.gp, state2.gp);
+      // Skill XP should also match
       expect(
-        state1.activeAction?.remainingTicks,
-        state2.activeAction?.remainingTicks,
+        state1.skillState(Skill.woodcutting).xp,
+        state2.skillState(Skill.woodcutting).xp,
       );
     });
 

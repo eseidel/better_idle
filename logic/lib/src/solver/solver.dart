@@ -11,6 +11,7 @@ import 'package:logic/src/tick.dart';
 import 'apply_interaction.dart';
 import 'available_interactions.dart';
 import 'enumerate_candidates.dart';
+import 'estimate_rates.dart';
 import 'interaction.dart';
 import 'next_decision_delta.dart';
 import 'plan.dart';
@@ -92,19 +93,32 @@ class SolverProfile {
   }
 }
 
+/// Gold bucket size for coarse state grouping.
+/// Larger values = fewer unique states = more pruning but less precision.
+const int _goldBucketSize = 50;
+
 /// Bucket key for dominance pruning - groups states with same structural situation.
+/// Includes activity, tool tiers, and relevant skill levels.
 class _BucketKey {
   _BucketKey({
     required this.activityName,
     required this.axeLevel,
     required this.rodLevel,
     required this.pickLevel,
+    required this.woodcuttingLevel,
+    required this.fishingLevel,
+    required this.miningLevel,
+    required this.thievingLevel,
   });
 
   final String activityName;
   final int axeLevel;
   final int rodLevel;
   final int pickLevel;
+  final int woodcuttingLevel;
+  final int fishingLevel;
+  final int miningLevel;
+  final int thievingLevel;
 
   @override
   bool operator ==(Object other) =>
@@ -112,10 +126,23 @@ class _BucketKey {
       other.activityName == activityName &&
       other.axeLevel == axeLevel &&
       other.rodLevel == rodLevel &&
-      other.pickLevel == pickLevel;
+      other.pickLevel == pickLevel &&
+      other.woodcuttingLevel == woodcuttingLevel &&
+      other.fishingLevel == fishingLevel &&
+      other.miningLevel == miningLevel &&
+      other.thievingLevel == thievingLevel;
 
   @override
-  int get hashCode => Object.hash(activityName, axeLevel, rodLevel, pickLevel);
+  int get hashCode => Object.hash(
+    activityName,
+    axeLevel,
+    rodLevel,
+    pickLevel,
+    woodcuttingLevel,
+    fishingLevel,
+    miningLevel,
+    thievingLevel,
+  );
 }
 
 /// Creates a bucket key from a game state.
@@ -125,6 +152,10 @@ _BucketKey _bucketKeyFromState(GlobalState state) {
     axeLevel: state.shop.axeLevel,
     rodLevel: state.shop.fishingRodLevel,
     pickLevel: state.shop.pickaxeLevel,
+    woodcuttingLevel: state.skillState(Skill.woodcutting).skillLevel,
+    fishingLevel: state.skillState(Skill.fishing).skillLevel,
+    miningLevel: state.skillState(Skill.mining).skillLevel,
+    thievingLevel: state.skillState(Skill.thieving).skillLevel,
   );
 }
 
@@ -184,48 +215,91 @@ int _effectiveCredits(GlobalState state) {
   return total;
 }
 
-/// Computes R_max: the maximum gold rate per tick across ALL actions.
-/// This is an optimistic upper bound ignoring unlocks/upgrades/gating.
-double _computeMaxGoldRate() {
-  var maxRate = 0.0;
+/// Cache for best unlocked gold rate by state key (skill levels + tool tiers).
+class _RateCache {
+  final Map<String, double> _cache = {};
 
-  for (final skill in Skill.values) {
-    for (final action in actionRegistry.forSkill(skill)) {
-      // Skip actions that require inputs
-      if (action.inputs.isNotEmpty) continue;
-
-      final expectedTicks = ticksFromDuration(action.meanDuration).toDouble();
-      if (expectedTicks <= 0) continue;
-
-      // Calculate expected gold per action from selling outputs
-      var expectedGoldPerAction = 0.0;
-      for (final output in action.outputs.entries) {
-        final item = itemRegistry.byName(output.key);
-        expectedGoldPerAction += item.sellsFor * output.value;
-      }
-
-      // For thieving, use optimistic estimate (assume 100% success, max gold)
-      if (action is ThievingAction) {
-        expectedGoldPerAction += action.maxGold.toDouble();
-      }
-
-      final rate = expectedGoldPerAction / expectedTicks;
-      if (rate > maxRate) {
-        maxRate = rate;
-      }
-    }
+  String _rateKey(GlobalState state) {
+    // Key by skill levels and tool tiers (things that affect unlocks/rates)
+    return '${state.skillState(Skill.woodcutting).skillLevel}|'
+        '${state.skillState(Skill.fishing).skillLevel}|'
+        '${state.skillState(Skill.mining).skillLevel}|'
+        '${state.skillState(Skill.thieving).skillLevel}|'
+        '${state.shop.axeLevel}|'
+        '${state.shop.fishingRodLevel}|'
+        '${state.shop.pickaxeLevel}';
   }
 
-  return maxRate;
+  double getBestUnlockedRate(GlobalState state) {
+    final key = _rateKey(state);
+    final cached = _cache[key];
+    if (cached != null) return cached;
+
+    final rate = _computeBestUnlockedRate(state);
+    _cache[key] = rate;
+    return rate;
+  }
+
+  /// Computes the best gold rate among currently UNLOCKED actions.
+  double _computeBestUnlockedRate(GlobalState state) {
+    var maxRate = 0.0;
+
+    for (final skill in Skill.values) {
+      final skillLevel = state.skillState(skill).skillLevel;
+
+      for (final action in actionRegistry.forSkill(skill)) {
+        // Skip actions that require inputs
+        if (action.inputs.isNotEmpty) continue;
+
+        // Only consider unlocked actions
+        if (skillLevel < action.unlockLevel) continue;
+
+        // Calculate expected ticks with upgrade modifier
+        final baseExpectedTicks = ticksFromDuration(
+          action.meanDuration,
+        ).toDouble();
+        final percentModifier = state.shop.durationModifierForSkill(skill);
+        final expectedTicks = baseExpectedTicks * (1.0 + percentModifier);
+        if (expectedTicks <= 0) continue;
+
+        // Calculate expected gold per action from selling outputs
+        var expectedGoldPerAction = 0.0;
+        for (final output in action.outputs.entries) {
+          final item = itemRegistry.byName(output.key);
+          expectedGoldPerAction += item.sellsFor * output.value;
+        }
+
+        // For thieving, compute expected gold with success rate
+        if (action is ThievingAction) {
+          final thievingLevel = state.skillState(Skill.thieving).skillLevel;
+          final mastery = state.actionState(action.name).masteryLevel;
+          final stealth = calculateStealth(thievingLevel, mastery);
+          final successChance = ((100 + stealth) / (100 + action.perception))
+              .clamp(0.0, 1.0);
+          final expectedThievingGold = successChance * (1 + action.maxGold) / 2;
+          expectedGoldPerAction += expectedThievingGold;
+        }
+
+        final rate = expectedGoldPerAction / expectedTicks;
+        if (rate > maxRate) {
+          maxRate = rate;
+        }
+      }
+    }
+
+    return maxRate;
+  }
 }
 
 /// A* heuristic: optimistic lower bound on ticks to reach goal.
-/// h(state) = ceil(remainingGold / R_max)
-int _heuristic(GlobalState state, int goalCredits, double rMax) {
-  if (rMax <= 0) return 0; // Fallback to Dijkstra if no gold rate
-  final remaining = goalCredits - _effectiveCredits(state);
+/// Uses best unlocked rate for tighter, state-aware estimates.
+/// h(state) = ceil(remainingGold / R_bestUnlocked)
+int _heuristic(GlobalState state, int goalCredits, _RateCache rateCache) {
+  final bestRate = rateCache.getBestUnlockedRate(state);
+  if (bestRate <= 0) return 0; // Fallback to Dijkstra if no gold rate
+  final remaining = goalCredits - state.gp;
   if (remaining <= 0) return 0;
-  return (remaining / rMax).ceil();
+  return (remaining / bestRate).ceil();
 }
 
 /// A node in the search graph.
@@ -254,18 +328,21 @@ class _Node {
   final PlanStep? stepFromParent;
 }
 
-/// Computes a hash key for a game state for visited tracking.
+/// Computes a coarse hash key for a game state for visited tracking.
 ///
-/// For v0, we use a simple hash based on:
-/// - Effective credits (GP + inventory value)
+/// Uses bucketed gold for coarser grouping to reduce state explosion.
+/// Key includes:
+/// - Bucketed gold (GP / bucket size)
 /// - Current activity
 /// - Upgrade levels
 /// - Skill levels (for level-based gating)
 String _stateKey(GlobalState state) {
   final buffer = StringBuffer();
 
-  // Effective credits (GP + sellable inventory value)
-  buffer.write('ec:${_effectiveCredits(state)}|');
+  // Bucketed gold (coarse grouping for large goals)
+  // Using GP directly since advanceExpected converts items to gold
+  final goldBucket = state.gp ~/ _goldBucketSize;
+  buffer.write('gb:$goldBucket|');
 
   // Active action
   buffer.write('act:${state.activeAction?.name ?? 'none'}|');
@@ -286,11 +363,52 @@ String _stateKey(GlobalState state) {
   return buffer.toString();
 }
 
-/// Advances the game state by a given number of ticks.
-///
-/// This is a deterministic wrapper around consumeTicks that uses a fixed
-/// random seed for planning purposes.
-GlobalState advance(GlobalState state, int deltaTicks) {
+/// Checks if an activity can be modeled with expected-value rates.
+/// Returns true for non-combat gathering/thieving activities.
+bool _isRateModelable(GlobalState state) {
+  final activeAction = state.activeAction;
+  if (activeAction == null) return false;
+
+  final action = actionRegistry.byName(activeAction.name);
+
+  // Only skill actions (non-combat) are rate-modelable
+  // Skip actions that require inputs (firemaking, cooking, smithing)
+  if (action is! SkillAction) return false;
+  if (action.inputs.isNotEmpty) return false;
+
+  return true;
+}
+
+/// O(1) expected-value fast-forward for rate-modelable activities.
+/// Updates gold and skill XP based on expected rates without full simulation.
+GlobalState _advanceExpected(GlobalState state, int deltaTicks) {
+  if (deltaTicks <= 0) return state;
+
+  final rates = estimateRates(state);
+
+  // Compute expected gold gain (convert outputs to gold immediately)
+  final expectedGold = (rates.goldPerTick * deltaTicks).floor();
+  final newGp = state.gp + expectedGold;
+
+  // Compute expected skill XP gains
+  final newSkillStates = Map<Skill, SkillState>.from(state.skillStates);
+  for (final entry in rates.xpPerTickBySkill.entries) {
+    final skill = entry.key;
+    final xpPerTick = entry.value;
+    final xpGain = (xpPerTick * deltaTicks).floor();
+    if (xpGain > 0) {
+      final current = state.skillState(skill);
+      final newXp = current.xp + xpGain;
+      newSkillStates[skill] = current.copyWith(xp: newXp);
+    }
+  }
+
+  // Return updated state (ignore inventory - gold is computed directly)
+  return state.copyWith(gp: newGp, skillStates: newSkillStates);
+}
+
+/// Full simulation advance using consumeTicks.
+GlobalState _advanceFullSim(GlobalState state, int deltaTicks) {
   if (deltaTicks <= 0) return state;
 
   // Use a fixed random for deterministic planning
@@ -299,6 +417,18 @@ GlobalState advance(GlobalState state, int deltaTicks) {
   final builder = StateUpdateBuilder(state);
   consumeTicks(builder, deltaTicks, random: random);
   return builder.build();
+}
+
+/// Advances the game state by a given number of ticks.
+/// Uses O(1) expected-value advance for rate-modelable activities,
+/// falls back to full simulation for combat/complex activities.
+GlobalState advance(GlobalState state, int deltaTicks) {
+  if (deltaTicks <= 0) return state;
+
+  if (_isRateModelable(state)) {
+    return _advanceExpected(state, deltaTicks);
+  }
+  return _advanceFullSim(state, deltaTicks);
 }
 
 /// Solves for an optimal plan to reach the target credits.
@@ -323,8 +453,8 @@ SolverResult solveToCredits(
     return SolverSuccess(const Plan.empty(), profile);
   }
 
-  // Precompute R_max for A* heuristic
-  final rMax = _computeMaxGoldRate();
+  // Rate cache for A* heuristic (caches best unlocked rate by state)
+  final rateCache = _RateCache();
 
   // Dominance pruning frontier
   final frontier = _ParetoFrontier();
@@ -335,8 +465,10 @@ SolverResult solveToCredits(
   // A* priority: f(n) = g(n) + h(n) = ticksSoFar + heuristic
   // Break ties by lower ticksSoFar (prefer actual progress over estimates)
   final pq = PriorityQueue<int>((a, b) {
-    final fA = nodes[a].ticks + _heuristic(nodes[a].state, goalCredits, rMax);
-    final fB = nodes[b].ticks + _heuristic(nodes[b].state, goalCredits, rMax);
+    final fA =
+        nodes[a].ticks + _heuristic(nodes[a].state, goalCredits, rateCache);
+    final fB =
+        nodes[b].ticks + _heuristic(nodes[b].state, goalCredits, rateCache);
     final cmp = fA.compareTo(fB);
     if (cmp != 0) return cmp;
     // Tie-break by lower g (actual ticks)
