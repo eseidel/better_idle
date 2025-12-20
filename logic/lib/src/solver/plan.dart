@@ -18,10 +18,185 @@
 /// dead, restart" loops) into macro steps for UI display.
 library;
 
+import 'package:logic/src/data/actions.dart';
+import 'package:logic/src/state.dart';
 import 'package:logic/src/tick.dart';
 import 'package:meta/meta.dart';
 
 import 'interaction.dart';
+
+// ---------------------------------------------------------------------------
+// Wait Conditions
+// ---------------------------------------------------------------------------
+
+/// A condition that a [WaitStep] waits for during plan execution.
+///
+/// During planning, the solver uses expected-value modeling which may differ
+/// from actual simulation due to randomness. WaitConditions allow plan
+/// execution to continue until the condition is actually met, rather than
+/// stopping after a fixed number of ticks.
+sealed class WaitCondition {
+  const WaitCondition();
+
+  /// Returns true if this condition is satisfied in the given state.
+  bool isSatisfied(GlobalState state);
+
+  /// Human-readable description of what we're waiting for.
+  String describe();
+}
+
+/// Wait until effective value (GP + inventory sell value) reaches a target.
+@immutable
+class WaitForInventoryValue extends WaitCondition {
+  const WaitForInventoryValue(this.targetValue);
+
+  final int targetValue;
+
+  @override
+  bool isSatisfied(GlobalState state) {
+    var total = state.gp;
+    for (final stack in state.inventory.items) {
+      total += stack.sellsFor;
+    }
+    return total >= targetValue;
+  }
+
+  @override
+  String describe() => 'value >= $targetValue';
+
+  @override
+  bool operator ==(Object other) =>
+      other is WaitForInventoryValue && other.targetValue == targetValue;
+
+  @override
+  int get hashCode => targetValue.hashCode;
+}
+
+/// Wait until a skill reaches a target XP amount.
+@immutable
+class WaitForSkillXp extends WaitCondition {
+  const WaitForSkillXp(this.skill, this.targetXp);
+
+  final Skill skill;
+  final int targetXp;
+
+  @override
+  bool isSatisfied(GlobalState state) {
+    return state.skillState(skill).xp >= targetXp;
+  }
+
+  @override
+  String describe() => '${skill.name} XP >= $targetXp';
+
+  @override
+  bool operator ==(Object other) =>
+      other is WaitForSkillXp &&
+      other.skill == skill &&
+      other.targetXp == targetXp;
+
+  @override
+  int get hashCode => Object.hash(skill, targetXp);
+}
+
+/// Wait until mastery for an action reaches a target XP amount.
+@immutable
+class WaitForMasteryXp extends WaitCondition {
+  const WaitForMasteryXp(this.actionName, this.targetMasteryXp);
+
+  final String actionName;
+  final int targetMasteryXp;
+
+  @override
+  bool isSatisfied(GlobalState state) {
+    return state.actionState(actionName).masteryXp >= targetMasteryXp;
+  }
+
+  @override
+  String describe() => '$actionName mastery XP >= $targetMasteryXp';
+
+  @override
+  bool operator ==(Object other) =>
+      other is WaitForMasteryXp &&
+      other.actionName == actionName &&
+      other.targetMasteryXp == targetMasteryXp;
+
+  @override
+  int get hashCode => Object.hash(actionName, targetMasteryXp);
+}
+
+/// Wait until inventory usage reaches a threshold fraction.
+@immutable
+class WaitForInventoryThreshold extends WaitCondition {
+  const WaitForInventoryThreshold(this.threshold);
+
+  /// Fraction of inventory capacity (0.0 to 1.0).
+  final double threshold;
+
+  @override
+  bool isSatisfied(GlobalState state) {
+    if (state.inventoryCapacity <= 0) return false;
+    final usedFraction = state.inventoryUsed / state.inventoryCapacity;
+    return usedFraction >= threshold;
+  }
+
+  @override
+  String describe() => 'inventory >= ${(threshold * 100).toInt()}%';
+
+  @override
+  bool operator ==(Object other) =>
+      other is WaitForInventoryThreshold && other.threshold == threshold;
+
+  @override
+  int get hashCode => threshold.hashCode;
+}
+
+/// Wait until inventory is completely full.
+@immutable
+class WaitForInventoryFull extends WaitCondition {
+  const WaitForInventoryFull();
+
+  @override
+  bool isSatisfied(GlobalState state) {
+    return state.inventoryRemaining <= 0;
+  }
+
+  @override
+  String describe() => 'inventory full';
+
+  @override
+  bool operator ==(Object other) => other is WaitForInventoryFull;
+
+  @override
+  int get hashCode => 0;
+}
+
+/// Wait until player dies (HP reaches 0).
+/// After death, the activity stops and HP resets.
+@immutable
+class WaitForDeath extends WaitCondition {
+  const WaitForDeath();
+
+  @override
+  bool isSatisfied(GlobalState state) {
+    // Death resets HP and stops activity - check if activity stopped
+    // or HP is at max (reset after death).
+    // In practice, we detect death by the activity being null after thieving.
+    return state.activeAction == null;
+  }
+
+  @override
+  String describe() => 'death';
+
+  @override
+  bool operator ==(Object other) => other is WaitForDeath;
+
+  @override
+  int get hashCode => 1;
+}
+
+// ---------------------------------------------------------------------------
+// Plan Steps
+// ---------------------------------------------------------------------------
 
 /// A single step in a plan.
 sealed class PlanStep {
@@ -76,27 +251,45 @@ enum WaitReason {
   unknown,
 }
 
-/// A step that waits for a specified number of ticks.
+/// A step that waits for a condition to be met.
+///
+/// During planning, [deltaTicks] is the expected time to wait based on
+/// expected-value modeling. During execution, [condition] is used to
+/// determine when to stop waiting, which handles variance in actual
+/// simulation vs expected values.
 @immutable
 class WaitStep extends PlanStep {
-  const WaitStep(this.deltaTicks, {this.reason = WaitReason.unknown});
+  const WaitStep(
+    this.deltaTicks, {
+    this.reason = WaitReason.unknown,
+    this.condition,
+  });
 
+  /// Expected ticks to wait (from planning).
   final int deltaTicks;
 
   /// Why this wait ended (what event triggered re-evaluation).
   final WaitReason reason;
 
+  /// The condition to wait for during execution.
+  /// If null, falls back to time-based waiting using [deltaTicks].
+  final WaitCondition? condition;
+
   @override
-  String toString() => 'WaitStep($deltaTicks ticks, $reason)';
+  String toString() {
+    final condStr = condition != null ? ', ${condition!.describe()}' : '';
+    return 'WaitStep($deltaTicks ticks, $reason$condStr)';
+  }
 
   @override
   bool operator ==(Object other) =>
       other is WaitStep &&
       other.deltaTicks == deltaTicks &&
-      other.reason == reason;
+      other.reason == reason &&
+      other.condition == condition;
 
   @override
-  int get hashCode => Object.hash(deltaTicks, reason);
+  int get hashCode => Object.hash(deltaTicks, reason, condition);
 }
 
 /// The result of running the solver.
