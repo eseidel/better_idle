@@ -39,10 +39,10 @@ class Drop extends Droppable {
   final int count;
 
   /// The expected count for this drop (used for predictions).
-  double get expectedCount => count * rate;
+  double get _expectedCount => count * rate;
 
   @override
-  Map<String, double> get expectedItems => {name: expectedCount * rate};
+  Map<String, double> get expectedItems => {name: _expectedCount * rate};
 
   /// Creates an ItemStack with a fixed count (for fixed drops).
   ItemStack toItemStack() {
@@ -109,7 +109,7 @@ class Pick {
   final int maxCount;
 
   /// The expected count for this pick (used for predictions).
-  double get expectedCount => (minCount + maxCount) / 2.0;
+  double get _expectedCount => (minCount + maxCount) / 2.0;
 
   /// Creates the ItemStack when this pick is selected.
   ItemStack roll(Random random) {
@@ -139,7 +139,7 @@ class DropTable extends Droppable {
     final total = _totalWeight;
     for (final entry in entries) {
       final probability = entry.weight / total;
-      final value = entry.expectedCount * probability;
+      final value = entry._expectedCount * probability;
       result[entry.name] = (result[entry.name] ?? 0.0) + value;
     }
     return result;
