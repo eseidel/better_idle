@@ -74,6 +74,7 @@ Modifier woodcuttingDurationModifier(SkillAction action, int masteryLevel) {
   return const Modifier();
 }
 
+// TODO(eseidel): Make this into a more generalized "chance to double" behavior.
 List<Droppable> woodcuttingRewards(SkillAction action, int masteryLevel) {
   final outputs = action.outputs;
   if (outputs.length != 1 || outputs.values.first != 1) {

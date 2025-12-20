@@ -23,6 +23,7 @@ import 'package:logic/src/data/actions.dart';
 import 'package:logic/src/data/xp.dart';
 import 'package:logic/src/state.dart';
 import 'package:logic/src/tick.dart';
+import 'package:logic/src/types/drop.dart';
 import 'package:logic/src/types/stunned.dart';
 import 'package:meta/meta.dart';
 
@@ -146,8 +147,6 @@ Map<String, double> _computeItemFlowsPerAction(
   SkillAction action,
   int masteryLevel,
 ) {
-  final itemFlows = <String, double>{};
-
   // allDropsForAction includes:
   // - Action outputs (via rewardsForMasteryLevel -> rewardsAtLevel)
   // - Skill-level drops (e.g., Bobby's Pocket for thieving)
@@ -156,14 +155,7 @@ Map<String, double> _computeItemFlowsPerAction(
     action,
     masteryLevel: masteryLevel,
   );
-  for (final drop in drops) {
-    final expectedItems = drop.expectedItems;
-    for (final entry in expectedItems.entries) {
-      itemFlows[entry.key] = (itemFlows[entry.key] ?? 0) + entry.value;
-    }
-  }
-
-  return itemFlows;
+  return expectedItemsForDrops(drops);
 }
 
 /// Estimates expected rates (flows) for the current state.
@@ -228,10 +220,11 @@ Rates estimateRates(GlobalState state) {
     final directGpPerTick = expectedThievingGold / effectiveTicks;
     final hpLossPerTick = expectedDamagePerAttempt / effectiveTicks;
 
-    // Convert item flows per action to per tick
+    // Convert item flows per action to per tick (drops only on success)
     final itemFlowsPerTick = <String, double>{};
     for (final entry in itemFlowsPerAction.entries) {
-      itemFlowsPerTick[entry.key] = entry.value / effectiveTicks;
+      itemFlowsPerTick[entry.key] =
+          entry.value * successChance / effectiveTicks;
     }
 
     // XP is only gained on success, so expected XP = successChance * xp

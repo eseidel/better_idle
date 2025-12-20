@@ -18,6 +18,17 @@ abstract class Droppable {
   Map<String, double> get expectedItems;
 }
 
+Map<String, double> expectedItemsForDrops(List<Droppable> drops) {
+  final result = <String, double>{};
+  for (final drop in drops) {
+    final expectedItems = drop.expectedItems;
+    for (final entry in expectedItems.entries) {
+      result[entry.key] = (result[entry.key] ?? 0) + entry.value;
+    }
+  }
+  return result;
+}
+
 /// A simple drop that yields a specific item.
 class Drop extends Droppable {
   const Drop(this.name, {this.count = 1, super.rate = 1.0});

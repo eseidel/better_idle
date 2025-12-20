@@ -1,5 +1,6 @@
 import 'package:logic/src/data/actions.dart';
 import 'package:logic/src/json.dart';
+import 'package:logic/src/types/drop.dart';
 import 'package:logic/src/types/inventory.dart';
 
 /// Reason why an action stopped during time away processing.
@@ -195,12 +196,9 @@ class TimeAway {
     final actionsPerHour = 3600.0 / meanDurationSeconds;
     final result = <String, double>{};
 
-    for (final drop in allDrops) {
-      for (final entry in drop.expectedItems.entries) {
-        final itemsPerHour = entry.value * actionsPerHour;
-        // Accumulate if the same item appears in multiple drop sources
-        result[entry.key] = (result[entry.key] ?? 0.0) + itemsPerHour;
-      }
+    final expectedItems = expectedItemsForDrops(allDrops);
+    for (final entry in expectedItems.entries) {
+      result[entry.key] = entry.value * actionsPerHour;
     }
 
     return result;

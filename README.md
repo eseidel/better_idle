@@ -28,7 +28,7 @@ use it.
 - Add Farming
 - Fix combat to show attack timers/progress bars.
 - Fix fishing regions to drop junk/specials.
-- Add Thieving drops.
+- Add more Thieving drops.
 - Implement mastery rewards (and UI) for all actions.
 - Implement mastery pool checkpoints.
 - Implement mastery tokens.

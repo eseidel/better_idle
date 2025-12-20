@@ -34,6 +34,106 @@ void main() {
     });
   });
 
+  group('Golbin drops', () {
+    final golbinAction = thievingActionByName('Golbin');
+    final golbinDropTable = golbinAction.dropTable!;
+
+    test('Golbin has NPC-specific drop table', () {
+      final drops = dropsRegistry.allDropsForAction(
+        golbinAction,
+        masteryLevel: 1,
+      );
+      // Should have 2 drops: Golbin drop table (action-level) + Bobby's Pocket (skill-level)
+      expect(drops.length, 2);
+      final dropTables = drops.whereType<DropTable>().toList();
+      expect(dropTables, hasLength(1));
+      expect(dropTables.first.expectedItems['Copper Ore'], greaterThan(0));
+    });
+
+    test('golbinDropTable has correct structure', () {
+      // Outer rate is 786/1048 ≈ 75%
+      expect(golbinDropTable.rate, closeTo(786 / 1048, 0.0001));
+      expect(golbinDropTable.entries, hasLength(9));
+    });
+
+    test('golbinDropTable has correct item rates', () {
+      final expected = golbinDropTable.expectedItems;
+
+      // 75/524 = 150/1048 items (14.31%)
+      expect(expected['Copper Ore'], closeTo(75 / 524, 0.0001));
+      expect(expected['Bronze Bar'], closeTo(75 / 524, 0.0001));
+      expect(expected['Normal Logs'], closeTo(75 / 524, 0.0001));
+      expect(expected['Tin Ore'], closeTo(75 / 524, 0.0001));
+
+      // 45/1048 items (4.29%)
+      expect(expected['Oak Logs'], closeTo(45 / 1048, 0.0001));
+      expect(expected['Iron Bar'], closeTo(45 / 1048, 0.0001));
+
+      // 9/262 = 36/1048 (3.44%)
+      expect(expected['Iron Ore'], closeTo(9 / 262, 0.0001));
+
+      // 15/524 = 30/1048 items (2.86%)
+      expect(expected['Steel Bar'], closeTo(15 / 524, 0.0001));
+      expect(expected['Willow Logs'], closeTo(15 / 524, 0.0001));
+    });
+
+    test('golbinDropTable total rate is approximately 75%', () {
+      final expected = golbinDropTable.expectedItems;
+      final totalRate = expected.values.fold(0.0, (sum, rate) => sum + rate);
+      // Total should be 786/1048 ≈ 0.75
+      expect(totalRate, closeTo(0.75, 0.001));
+    });
+
+    test('Golbin thieving success can grant drops', () {
+      // Set up state with Golbin action active
+      final random = Random(42);
+      var state = GlobalState.test(
+        skillStates: const {
+          Skill.thieving: SkillState(xp: 1154, masteryPoolXp: 0), // Level 10
+          Skill.hitpoints: SkillState(xp: 1154, masteryPoolXp: 0), // Level 10
+        },
+      ).startAction(golbinAction, random: random);
+
+      // Run many thieving attempts to get drops
+      final random2 = Random(123);
+      var gotDrop = false;
+
+      for (var i = 0; i < 100 && !gotDrop; i++) {
+        final builder = StateUpdateBuilder(state);
+        // Use random that succeeds thieving
+        final rng = MockRandom(nextDoubleValue: 0.0, nextIntValue: 50);
+        completeThievingAction(builder, golbinAction, rng);
+        state = builder.build();
+
+        // Process with real random for drops
+        final dropBuilder = StateUpdateBuilder(state);
+        consumeTicks(dropBuilder, 30, random: random2);
+        state = dropBuilder.build();
+
+        // Check if we got any of the Golbin-specific drops
+        final golbinItems = [
+          'Copper Ore',
+          'Bronze Bar',
+          'Normal Logs',
+          'Tin Ore',
+          'Oak Logs',
+          'Iron Bar',
+          'Iron Ore',
+          'Steel Bar',
+          'Willow Logs',
+        ];
+        for (final item in golbinItems) {
+          if (state.inventory.countByName(item) > 0) {
+            gotDrop = true;
+            break;
+          }
+        }
+      }
+
+      expect(gotDrop, isTrue, reason: 'Should get Golbin drops eventually');
+    });
+  });
+
   group('ThievingAction', () {
     test('Man action has correct properties', () {
       expect(manAction.name, 'Man');

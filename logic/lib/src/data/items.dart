@@ -34,7 +34,11 @@ const _mining = [
   Item('Iron Ore', gp: 5),
 ];
 
-const _bars = [Item('Bronze Bar', gp: 6), Item('Iron Bar', gp: 12)];
+const _bars = [
+  Item('Bronze Bar', gp: 6),
+  Item('Iron Bar', gp: 12),
+  Item('Steel Bar', gp: 30),
+];
 
 const _smithing = <Item>[..._bars, Item('Bronze Dagger', gp: 1)];
 

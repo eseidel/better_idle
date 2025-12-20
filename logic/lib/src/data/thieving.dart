@@ -1,6 +1,7 @@
 import 'dart:math';
 
 import 'package:logic/src/data/actions.dart';
+import 'package:logic/src/types/drop.dart';
 import 'package:meta/meta.dart';
 
 /// Duration for all thieving actions.
@@ -23,6 +24,15 @@ ThievingArea _thievingAreaByName(String name) {
   return _thievingAreas.firstWhere((a) => a.name == name);
 }
 
+// TODO(eseidel): roll this into defaultRewards?
+List<Droppable> _thievingRewards(SkillAction action, int masteryLevel) {
+  final thievingAction = action as ThievingAction;
+  if (thievingAction.dropTable != null) {
+    return [thievingAction.dropTable!];
+  }
+  return defaultRewards(thievingAction, masteryLevel);
+}
+
 /// Thieving action with success/fail mechanics.
 /// On success: grants 1-maxGold GP and rolls for drops.
 /// On failure: deals 1-maxHit damage and stuns the player.
@@ -37,7 +47,12 @@ class ThievingAction extends SkillAction {
     required this.maxGold,
     required this.area,
     super.outputs = const {},
-  }) : super(skill: Skill.thieving, duration: thievingDuration);
+    this.dropTable,
+  }) : super(
+         skill: Skill.thieving,
+         duration: thievingDuration,
+         rewardsAtLevel: _thievingRewards,
+       );
 
   /// NPC perception - used to calculate success rate.
   final int perception;
@@ -50,6 +65,9 @@ class ThievingAction extends SkillAction {
 
   /// The area this NPC belongs to.
   final ThievingArea area;
+
+  /// The drop table for this NPC.
+  final DropTable? dropTable;
 
   /// Rolls damage dealt on failure (1 to maxHit inclusive).
   int rollDamage(Random random) {
@@ -94,6 +112,7 @@ ThievingAction _thieving(
   required int maxHit,
   required int maxGold,
   required String area,
+  DropTable? dropTable,
 }) {
   return ThievingAction(
     name: name,
@@ -103,6 +122,7 @@ ThievingAction _thieving(
     maxHit: maxHit,
     maxGold: maxGold,
     area: _thievingAreaByName(area),
+    dropTable: dropTable,
   );
 }
 
@@ -133,6 +153,29 @@ final thievingActions = <ThievingAction>[
     maxHit: 40,
     maxGold: 175,
     area: 'Golbin Village',
+
+    /// Golbin drop table - 75% chance to get an item, 25% nothing.
+    /// Fractions expressed with common denominator 1048:
+    /// - 150/1048 each: Copper Ore, Bronze Bar, Normal Logs, Tin Ore (14.31%)
+    /// - 45/1048 each: Oak Logs, Iron Bar (4.29%)
+    /// - 36/1048: Iron Ore (3.44%)
+    /// - 30/1048 each: Steel Bar, Willow Logs (2.86%)
+    /// Total: 786/1048 = 393/524 ≈ 75%
+    // TODO(eseidel): express this exactly as the wiki does.
+    dropTable: DropTable(
+      rate: 786 / 1048, // 75% chance of any drop
+      entries: [
+        Drop('Copper Ore', rate: 150), // 75/524 = 150/1048
+        Drop('Bronze Bar', rate: 150), // 75/524 = 150/1048
+        Drop('Normal Logs', rate: 150), // 75/524 = 150/1048
+        Drop('Tin Ore', rate: 150), // 75/524 = 150/1048
+        Drop('Oak Logs', rate: 45), // 45/1048
+        Drop('Iron Bar', rate: 45), // 45/1048
+        Drop('Iron Ore', rate: 36), // 9/262 = 36/1048
+        Drop('Steel Bar', rate: 30), // 15/524 = 30/1048
+        Drop('Willow Logs', rate: 30), // 15/524 = 30/1048
+      ],
+    ),
   ),
   _thieving(
     'Golbin Chief',

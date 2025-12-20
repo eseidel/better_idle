@@ -62,13 +62,7 @@ void main() {
       );
 
       // Verify gems appear in expectedItems
-      final allExpectedItems = <String, double>{};
-      for (final drop in drops) {
-        for (final entry in drop.expectedItems.entries) {
-          allExpectedItems[entry.key] =
-              (allExpectedItems[entry.key] ?? 0) + entry.value;
-        }
-      }
+      final allExpectedItems = expectedItemsForDrops(drops);
 
       // At least one gem should be present
       final gemNames = ['Topaz', 'Sapphire', 'Ruby', 'Emerald', 'Diamond'];
