@@ -5,10 +5,7 @@ import 'package:logic/src/types/inventory.dart';
 
 /// Base class for anything that can be dropped.
 abstract class Droppable {
-  const Droppable({required this.rate});
-
-  /// The chance this drop is triggered (0.0 to 1.0).
-  final double rate;
+  const Droppable();
 
   /// Rolls this drop and returns the ItemStack if successful, null otherwise.
   ItemStack? roll(Random random);
@@ -29,29 +26,22 @@ Map<String, double> expectedItemsForDrops(List<Droppable> drops) {
   return result;
 }
 
-/// A single item drop (as opposed to a table of drops).
-/// Subclasses define how the count is determined.
-abstract class SingleDrop extends Droppable {
-  const SingleDrop(this.name, {required super.rate});
-
+/// A single item drop with an optional activation rate.
+class Drop extends Droppable {
+  /// Creates a drop with a fixed count (default 1).
+  const Drop(this.name, {this.count = 1, this.rate = 1.0})
+    : assert(count > 0, 'Count must be greater than 0');
   final String name;
 
-  /// The expected count for this drop (used for predictions).
-  double get expectedCount;
-
-  @override
-  Map<String, double> get expectedItems => {name: expectedCount * rate};
-}
-
-/// A simple drop that yields a specific item with a fixed count.
-class Drop extends SingleDrop {
-  const Drop(super.name, {this.count = 1, super.rate = 1.0});
+  /// The chance this drop is triggered (0.0 to 1.0).
+  final double rate;
 
   final int count;
 
   @override
-  double get expectedCount => count.toDouble();
+  Map<String, double> get expectedItems => {name: count * rate};
 
+  /// Creates an ItemStack with a fixed count (for fixed drops).
   ItemStack toItemStack() {
     final item = itemRegistry.byName(name);
     return ItemStack(item, count: count);
@@ -59,95 +49,106 @@ class Drop extends SingleDrop {
 
   @override
   ItemStack? roll(Random random) {
-    if (rate >= 1.0 || random.nextDouble() < rate) {
-      return toItemStack();
-    }
-    return null;
-  }
-}
-
-/// A drop that yields a random count within a range.
-class RangeDrop extends SingleDrop {
-  // We use short names for construction to cut down on typing.
-  const RangeDrop(
-    super.name, {
-    required int min,
-    required int max,
-    super.rate = 1.0,
-  }) : minCount = min,
-       maxCount = max;
-
-  // We use full names for fields for clarity.
-  final int minCount;
-  final int maxCount;
-
-  @override
-  double get expectedCount => (minCount + maxCount) / 2.0;
-
-  @override
-  ItemStack? roll(Random random) {
     if (rate < 1.0 && random.nextDouble() >= rate) {
       return null;
     }
-    // Roll a random count within the range (inclusive)
-    final count = minCount + random.nextInt(maxCount - minCount + 1);
+    return toItemStack();
+  }
+}
+
+/// A conditional drop that wraps any Droppable with a probability gate.
+class DropChance extends Droppable {
+  const DropChance(this.child, {required this.rate});
+
+  final Droppable child;
+
+  /// The chance this drop is triggered (0.0 to 1.0).
+  final double rate;
+
+  @override
+  ItemStack? roll(Random random) {
+    if (random.nextDouble() >= rate) {
+      return null;
+    }
+    return child.roll(random);
+  }
+
+  @override
+  Map<String, double> get expectedItems {
+    final childItems = child.expectedItems;
+    return childItems.map((key, value) => MapEntry(key, value * rate));
+  }
+}
+
+/// A weighted entry in a DropTable.
+/// The weight determines relative probability of selection.
+class Pick {
+  /// Creates a pick with a fixed count (default 1).
+  const Pick(this.name, {this.weight = 1.0, int count = 1})
+    : minCount = count,
+      maxCount = count;
+
+  /// Creates a pick with a random count within a range.
+  const Pick.range(
+    this.name, {
+    required int min,
+    required int max,
+    this.weight = 1.0,
+  }) : minCount = min,
+       maxCount = max;
+
+  final String name;
+
+  /// Relative weight for selection in a DropTable.
+  final double weight;
+
+  final int minCount;
+  final int maxCount;
+
+  /// The expected count for this pick (used for predictions).
+  double get _expectedCount => (minCount + maxCount) / 2.0;
+
+  /// Creates the ItemStack when this pick is selected.
+  ItemStack roll(Random random) {
+    final count = minCount == maxCount
+        ? minCount
+        : minCount + random.nextInt(maxCount - minCount + 1);
     final item = itemRegistry.byName(name);
     return ItemStack(item, count: count);
   }
 }
 
-/// A drop that has an outer chance to occur, and when it does,
-/// selects from a weighted table of possible outcomes.
-///
-/// Each entry's `rate` field is used as its relative weight in the table.
-///
-/// Example: A gem drop with 1% chance, where:
-/// - 50% weight Topaz (0.5% effective)
-/// - 17.5% weight Sapphire (0.175% effective)
-/// - etc.
+/// A drop table that selects exactly one item from weighted entries.
+/// Always drops something (unless entries is empty).
 class DropTable extends Droppable {
-  const DropTable(this.entries, {super.rate = 1.0});
+  DropTable(this.entries)
+    : assert(entries.isNotEmpty, 'Entries must not be empty');
 
-  /// The weighted entries in this table. Each entry's `rate` is used as weight.
-  final List<SingleDrop> entries;
+  /// The weighted entries in this table.
+  final List<Pick> entries;
 
   /// Returns the total weight of all entries.
-  double get _totalWeight => entries.fold(0, (sum, e) => sum + e.rate);
-
-  /// Returns the effective rate for a specific entry (for predictions).
-  /// This is: outer rate * (entry weight / total weight)
-  double _effectiveRate(SingleDrop entry) {
-    return rate * (entry.rate / _totalWeight);
-  }
-
-  /// Returns true if this drop table can drop nothing.
-  bool get canDropNothing => rate < 1.0 || entries.isEmpty;
+  double get _totalWeight => entries.fold(0, (sum, e) => sum + e.weight);
 
   @override
   Map<String, double> get expectedItems {
     final result = <String, double>{};
+    final total = _totalWeight;
     for (final entry in entries) {
-      final effective = _effectiveRate(entry);
-      // Use expectedCount directly (not expectedItems which has rate baked in)
-      final value = entry.expectedCount * effective;
+      final probability = entry.weight / total;
+      final value = entry._expectedCount * probability;
       result[entry.name] = (result[entry.name] ?? 0.0) + value;
     }
     return result;
   }
 
   @override
-  ItemStack? roll(Random random) {
-    // First roll: does the table trigger at all?
-    if (random.nextDouble() >= rate) {
-      return null;
-    }
-
-    // Second roll: which entry from the table?
+  ItemStack roll(Random random) {
     final total = _totalWeight;
     var roll = random.nextDouble() * total;
 
     for (final entry in entries) {
-      roll -= entry.rate;
+      roll -= entry.weight;
       if (roll <= 0) {
         return entry.roll(random);
       }

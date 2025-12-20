@@ -80,7 +80,7 @@ class ThievingAction extends SkillAction {
   final ThievingArea area;
 
   /// The drop table for this NPC.
-  final DropTable? dropTable;
+  final Droppable? dropTable;
 
   /// Rolls damage dealt on failure (1 to maxHit inclusive).
   int rollDamage(Random random) {
@@ -125,7 +125,7 @@ ThievingAction _thieving(
   required int maxHit,
   required int maxGold,
   required String area,
-  DropTable? dropTable,
+  Droppable? dropTable,
 }) {
   return ThievingAction(
     name: name,
@@ -175,18 +175,18 @@ final thievingActions = <ThievingAction>[
     /// - 30/1048 each: Steel Bar, Willow Logs (2.86%)
     /// Total: 786/1048 = 393/524 ≈ 75%
     // TODO(eseidel): express this exactly as the wiki does.
-    dropTable: DropTable(
-      [
-        Drop('Copper Ore', rate: 150), // 75/524 = 150/1048
-        Drop('Bronze Bar', rate: 150), // 75/524 = 150/1048
-        Drop('Normal Logs', rate: 150), // 75/524 = 150/1048
-        Drop('Tin Ore', rate: 150), // 75/524 = 150/1048
-        Drop('Oak Logs', rate: 45), // 45/1048
-        Drop('Iron Bar', rate: 45), // 45/1048
-        Drop('Iron Ore', rate: 36), // 9/262 = 36/1048
-        Drop('Steel Bar', rate: 30), // 15/524 = 30/1048
-        Drop('Willow Logs', rate: 30), // 15/524 = 30/1048
-      ],
+    dropTable: DropChance(
+      DropTable([
+        Pick('Copper Ore', weight: 150), // 75/524 = 150/1048
+        Pick('Bronze Bar', weight: 150), // 75/524 = 150/1048
+        Pick('Normal Logs', weight: 150), // 75/524 = 150/1048
+        Pick('Tin Ore', weight: 150), // 75/524 = 150/1048
+        Pick('Oak Logs', weight: 45), // 45/1048
+        Pick('Iron Bar', weight: 45), // 45/1048
+        Pick('Iron Ore', weight: 36), // 9/262 = 36/1048
+        Pick('Steel Bar', weight: 30), // 15/524 = 30/1048
+        Pick('Willow Logs', weight: 30), // 15/524 = 30/1048
+      ]),
       rate: 786 / 1048, // 75% chance of any drop
     ),
   ),

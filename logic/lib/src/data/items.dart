@@ -83,26 +83,26 @@ final _openables = <Openable>[
     'Egg Chest',
     gp: 100,
     dropTable: DropTable([
-      RangeDrop('Feathers', min: 1, max: 1000),
-      RangeDrop('Raw Chicken', min: 1, max: 40),
+      Pick.range('Feathers', min: 1, max: 1000, weight: 1),
+      Pick.range('Raw Chicken', min: 1, max: 40, weight: 1),
     ]),
   ),
   Openable(
     'Crate of Basic Supplies',
     gp: 100,
     dropTable: DropTable([
-      RangeDrop('Bronze Arrows', min: 1, max: 200, rate: 25),
-      RangeDrop('Raw Shrimp', min: 1, max: 200, rate: 25),
-      RangeDrop('Iron Arrows', min: 1, max: 200, rate: 20),
-      RangeDrop('Raw Sardine', min: 1, max: 200, rate: 18),
-      RangeDrop('Steel Arrows', min: 1, max: 200, rate: 18),
-      RangeDrop('Bronze Bar', min: 1, max: 200, rate: 14),
-      RangeDrop('Raw Herring', min: 1, max: 200, rate: 13),
-      RangeDrop('Mithril Arrows', min: 1, max: 200, rate: 13),
-      RangeDrop('Iron Bar', min: 1, max: 200, rate: 11),
-      RangeDrop('Raw Trout', min: 1, max: 200, rate: 10),
-      RangeDrop('Steel Bar', min: 1, max: 200, rate: 9),
-      RangeDrop('Mithril Bar', min: 1, max: 200, rate: 5),
+      Pick.range('Bronze Arrows', min: 1, max: 200, weight: 25),
+      Pick.range('Raw Shrimp', min: 1, max: 200, weight: 25),
+      Pick.range('Iron Arrows', min: 1, max: 200, weight: 20),
+      Pick.range('Raw Sardine', min: 1, max: 200, weight: 18),
+      Pick.range('Steel Arrows', min: 1, max: 200, weight: 18),
+      Pick.range('Bronze Bar', min: 1, max: 200, weight: 14),
+      Pick.range('Raw Herring', min: 1, max: 200, weight: 13),
+      Pick.range('Mithril Arrows', min: 1, max: 200, weight: 13),
+      Pick.range('Iron Bar', min: 1, max: 200, weight: 11),
+      Pick.range('Raw Trout', min: 1, max: 200, weight: 10),
+      Pick.range('Steel Bar', min: 1, max: 200, weight: 9),
+      Pick.range('Mithril Bar', min: 1, max: 200, weight: 5),
     ]),
   ),
 ];
@@ -141,24 +141,14 @@ class Item extends Equatable {
 /// An item that can be opened to receive drops from a weighted table.
 @immutable
 class Openable extends Item {
-  Openable(super.name, {required super.gp, required this.dropTable})
-    : assert(
-        !dropTable.canDropNothing,
-        'Drop table must have a 100% chance of dropping an item',
-      );
+  // DropTable constructor guarantees non-empty entries.
+  const Openable(super.name, {required super.gp, required this.dropTable});
 
   /// The drop table for this openable.
   final DropTable dropTable;
 
   /// Opens this item once and returns the resulting drop.
-  ItemStack open(Random random) {
-    final drop = dropTable.roll(random);
-    // Openables always drop an item.
-    if (drop == null) {
-      throw StateError('Failed to open $name: no drop');
-    }
-    return drop;
-  }
+  ItemStack open(Random random) => dropTable.roll(random);
 
   @override
   List<Object?> get props => [...super.props, dropTable];
@@ -172,14 +162,11 @@ class ItemRegistry {
   /// All registered items.
   List<Item> get all => _all;
 
-  Item byName(String name) {
-    return _all.firstWhere((item) => item.name == name);
-  }
+  /// Returns the item by name, or throws a StateError if not found.
+  Item byName(String name) => _all.firstWhere((item) => item.name == name);
 
   /// Returns the index of the item in the registry, or -1 if not found.
-  int indexForItem(Item item) {
-    return _all.indexOf(item);
-  }
+  int indexForItem(Item item) => _all.indexOf(item);
 }
 
 final itemRegistry = ItemRegistry(_all);
