@@ -5,3 +5,6 @@
 # Avoid committing pubspec.lock for library packages; see
 # https://dart.dev/guides/libraries/private-files#pubspeclock.
 pubspec.lock
+
+# Used for json/image caching for melvor idle game data.
+.cache
