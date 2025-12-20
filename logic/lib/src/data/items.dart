@@ -56,7 +56,12 @@ const _gems = [
   Item('Diamond', gp: 1150),
 ];
 
-const _thieving = [Item("Bobby's Pocket", gp: 4000)];
+const _thieving = [
+  Item("Bobby's Pocket", gp: 4000),
+  // TODO(eseidel): Missing equipped effect for Jeweled Necklace.
+  // +5% Global GP (except Item Sales)
+  Item('Jeweled Necklace', gp: 5000),
+];
 
 // Ranged items (arrows)
 const _ranged = [

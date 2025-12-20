@@ -8,16 +8,23 @@ import 'package:meta/meta.dart';
 const thievingDuration = Duration(seconds: 3);
 
 /// Thieving area - groups NPCs together.
+/// May include area-level drops that apply to all NPCs in the area.
 @immutable
 class ThievingArea {
-  const ThievingArea(this.name);
+  const ThievingArea(this.name, {this.drops = const []});
 
   final String name;
+
+  /// Drops that apply to all NPCs in this area.
+  final List<Droppable> drops;
 }
 
 final _thievingAreas = <ThievingArea>[
-  ThievingArea('Low Town'),
-  ThievingArea('Golbin Village'),
+  ThievingArea('Low Town', drops: [Drop('Jeweled Necklace', rate: 1 / 500)]),
+  ThievingArea(
+    'Golbin Village',
+    drops: [Drop('Crate of Basic Supplies', rate: 1 / 500)],
+  ),
 ];
 
 ThievingArea _thievingAreaByName(String name) {
@@ -27,10 +34,16 @@ ThievingArea _thievingAreaByName(String name) {
 // TODO(eseidel): roll this into defaultRewards?
 List<Droppable> _thievingRewards(SkillAction action, int masteryLevel) {
   final thievingAction = action as ThievingAction;
-  if (thievingAction.dropTable != null) {
-    return [thievingAction.dropTable!];
+  final areaDrops = thievingAction.area.drops;
+  final actionDropTable = thievingAction.dropTable;
+  if (actionDropTable != null) {
+    return [actionDropTable, ...areaDrops];
   }
-  return defaultRewards(thievingAction, masteryLevel);
+  assert(
+    thievingAction.outputs.isEmpty,
+    'ThievingAction ${thievingAction.name} has outputs but no drop table.',
+  );
+  return [...areaDrops];
 }
 
 /// Thieving action with success/fail mechanics.

@@ -34,6 +34,81 @@ void main() {
     });
   });
 
+  group('Area drops', () {
+    test('Golbin Village area drops include Crate of Basic Supplies', () {
+      final golbinAction = thievingActionByName('Golbin');
+      final golbinChiefAction = thievingActionByName('Golbin Chief');
+
+      // Both actions should be in Golbin Village
+      expect(golbinAction.area.name, 'Golbin Village');
+      expect(golbinChiefAction.area.name, 'Golbin Village');
+
+      // Get all drops for both actions
+      final golbinDrops = dropsRegistry.allDropsForAction(
+        golbinAction,
+        masteryLevel: 1,
+      );
+      final chiefDrops = dropsRegistry.allDropsForAction(
+        golbinChiefAction,
+        masteryLevel: 1,
+      );
+
+      // Extract drop names from Drop objects
+      List<String> getDropNames(List<Droppable> drops) {
+        return drops
+            .map((d) {
+              if (d is Drop) return d.name;
+              return null;
+            })
+            .whereType<String>()
+            .toList();
+      }
+
+      final golbinDropNames = getDropNames(golbinDrops);
+      final chiefDropNames = getDropNames(chiefDrops);
+
+      // Both should include Crate of Basic Supplies from area drops
+      expect(
+        golbinDropNames,
+        contains('Crate of Basic Supplies'),
+        reason: 'Golbin should have area drop',
+      );
+      expect(
+        chiefDropNames,
+        contains('Crate of Basic Supplies'),
+        reason: 'Golbin Chief should have area drop',
+      );
+    });
+
+    test('Crate of Basic Supplies has correct rate (1/500)', () {
+      final golbinAction = thievingActionByName('Golbin');
+      final drops = dropsRegistry.allDropsForAction(
+        golbinAction,
+        masteryLevel: 1,
+      );
+
+      final crateDrop = drops.whereType<Drop>().firstWhere(
+        (d) => d.name == 'Crate of Basic Supplies',
+      );
+
+      expect(crateDrop.rate, closeTo(1 / 500, 0.0001));
+    });
+
+    test('Low Town has Jeweled Necklace area drop', () {
+      final drops = dropsRegistry.allDropsForAction(manAction, masteryLevel: 1);
+      final dropNames = drops
+          .map((d) {
+            if (d is Drop) return d.name;
+            return null;
+          })
+          .whereType<String>()
+          .toList();
+
+      expect(dropNames, contains('Jeweled Necklace'));
+      expect(dropNames, isNot(contains('Crate of Basic Supplies')));
+    });
+  });
+
   group('Golbin drops', () {
     final golbinAction = thievingActionByName('Golbin');
     final golbinDropTable = golbinAction.dropTable!;
@@ -43,8 +118,9 @@ void main() {
         golbinAction,
         masteryLevel: 1,
       );
-      // Should have 2 drops: Golbin drop table (action-level) + Bobby's Pocket (skill-level)
-      expect(drops.length, 2);
+      // Should have 3 drops: Golbin drop table (action-level) +
+      // area drop (Crate of Basic Supplies) + Bobby's Pocket (skill-level)
+      expect(drops.length, 3);
       final dropTables = drops.whereType<DropTable>().toList();
       expect(dropTables, hasLength(1));
       expect(dropTables.first.expectedItems['Copper Ore'], greaterThan(0));
