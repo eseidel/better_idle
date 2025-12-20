@@ -20,13 +20,10 @@ class ThievingArea {
 }
 
 final _thievingAreas = <ThievingArea>[
-  ThievingArea(
-    'Low Town',
-    drops: [DropChance(Drop('Jeweled Necklace'), rate: 1 / 500)],
-  ),
+  ThievingArea('Low Town', drops: [Drop('Jeweled Necklace', rate: 1 / 500)]),
   ThievingArea(
     'Golbin Village',
-    drops: [DropChance(Drop('Crate of Basic Supplies'), rate: 1 / 500)],
+    drops: [Drop('Crate of Basic Supplies', rate: 1 / 500)],
   ),
 ];
 

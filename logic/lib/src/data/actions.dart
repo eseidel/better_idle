@@ -13,8 +13,8 @@ import 'package:meta/meta.dart';
 export 'thieving.dart';
 
 /// Gem drop table for mining - 1% chance to trigger, then weighted selection.
-const miningGemTable = DropChance(
-  DropTable([
+final miningGemTable = DropChance(
+  DropTable(<Pick>[
     Pick('Topaz', 50), // 50% of 1% = 0.5%
     Pick('Sapphire', 17.5), // 17.5% of 1% = 0.175%
     Pick('Ruby', 17.5), // 17.5% of 1% = 0.175%

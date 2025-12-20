@@ -120,7 +120,8 @@ class Pick {
 /// A drop table that selects exactly one item from weighted entries.
 /// Always drops something (unless entries is empty).
 class DropTable extends Droppable {
-  const DropTable(this.entries);
+  DropTable(this.entries)
+    : assert(entries.isNotEmpty, 'Entries must not be empty');
 
   /// The weighted entries in this table.
   final List<Pick> entries;
@@ -141,9 +142,7 @@ class DropTable extends Droppable {
   }
 
   @override
-  ItemStack? roll(Random random) {
-    if (entries.isEmpty) return null;
-
+  ItemStack roll(Random random) {
     final total = _totalWeight;
     var roll = random.nextDouble() * total;
 

@@ -151,14 +151,7 @@ class Openable extends Item {
   final DropTable dropTable;
 
   /// Opens this item once and returns the resulting drop.
-  ItemStack open(Random random) {
-    final drop = dropTable.roll(random);
-    // Openables always drop an item.
-    if (drop == null) {
-      throw StateError('Failed to open $name: no drop');
-    }
-    return drop;
-  }
+  ItemStack open(Random random) => dropTable.roll(random);
 
   @override
   List<Object?> get props => [...super.props, dropTable];
