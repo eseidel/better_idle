@@ -1,3 +1,23 @@
+/// Rate estimation: computes expected flows per tick for the current state.
+///
+/// ## Flows, Not Value
+///
+/// [estimateRates] is a mechanical model returning **expected flows per tick**:
+/// - Direct GP per tick (coins from thieving)
+/// - Items per tick (including drops from tables)
+/// - XP per tick (skill and mastery)
+/// - HP loss per tick (for hazard modeling)
+///
+/// It must NOT encode "sell everything" or any goal policy.
+/// Conversion of items → value belongs to [ValueModel].
+///
+/// ## Drop Handling
+///
+/// Drops are represented in [Rates.itemFlowsPerTick] rather than immediately
+/// turned into GP here. This allows different [ValueModel]s to value items
+/// differently (e.g., sell price vs shadow price for crafting chains).
+library;
+
 import 'package:logic/src/consume_ticks.dart';
 import 'package:logic/src/data/actions.dart';
 import 'package:logic/src/data/xp.dart';

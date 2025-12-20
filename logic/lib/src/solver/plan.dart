@@ -1,3 +1,23 @@
+/// Plan representation: recorded steps for explanation/debugging.
+///
+/// ## Purpose
+///
+/// Plan steps are recorded for explanation, debugging, and UI display.
+/// They reconstruct what the solver decided at each point.
+///
+/// ## Wait Steps
+///
+/// [WaitStep]s correspond to "interesting events" (goal, unlock, affordability,
+/// death, skill/mastery level ups). Each wait may cross level boundaries where
+/// rates change, so consecutive waits are NOT merged.
+///
+/// ## Future: Compression
+///
+/// A plan may be long if modeling micro-events (e.g., many short waits for
+/// mastery gains). Later we may compress repeated cycles (e.g., "thieve until
+/// dead, restart" loops) into macro steps for UI display.
+library;
+
 import 'package:logic/src/tick.dart';
 import 'package:meta/meta.dart';
 

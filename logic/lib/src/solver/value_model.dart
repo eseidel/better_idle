@@ -1,3 +1,27 @@
+/// Value model: the policy layer that converts flows to scalar value.
+///
+/// ## Purpose
+///
+/// [ValueModel] translates flows (from [Rates]) to a scalar value for the
+/// solver. This is the ONLY place where "what is this item worth?" is decided.
+///
+/// ## Implementations
+///
+/// - [SellEverythingForGpValueModel]: Values items at sell price (GP-goal
+///   default). Every item produced is treated as immediately sold.
+///
+/// - [ShadowPriceValueModel]: (Stub for future) Can value items differently
+///   when crafting chains/milestones matter. Example: raw shrimp sell price
+///   is 2 GP, but shadow value may be higher if cooking chain is profitable.
+///
+/// ## Why This Abstraction
+///
+/// By separating rate estimation from valuation, we can:
+/// - Reuse the same rate calculations across different goals
+/// - Support future goals like "reach level 10 fishing" without changing rates
+/// - A/B test different valuation policies
+library;
+
 import 'package:logic/src/data/items.dart';
 import 'package:logic/src/state.dart';
 import 'package:meta/meta.dart';

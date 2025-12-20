@@ -1,6 +1,26 @@
+/// Interaction types: discrete player inputs that mutate state at 0 ticks.
+///
+/// ## Taxonomy
+///
+/// - [SwitchActivity]: Change which action is running (switch/restart)
+/// - [BuyUpgrade]: Purchase a shop upgrade (buy)
+/// - [SellAll]: Sell all inventory items (sell)
+///
+/// ## Design Notes
+///
+/// The solver optimizes primarily for simulated time (ticks); interactions
+/// are a secondary objective (optionally minimized for "fewer clicks").
+///
+/// These are all **instantaneous** (0-tick) state changes. Waiting (time
+/// passing) is handled separately via [WaitStep] in plans.
+library;
+
 import 'package:logic/src/data/upgrades.dart';
 
 /// Represents a possible interaction that can change game state.
+///
+/// All interactions are instantaneous (0 ticks). Time advancement is
+/// modeled separately.
 sealed class Interaction {
   const Interaction();
 }

@@ -1,3 +1,19 @@
+/// Available interactions: enumerates actions that can be applied **right now**.
+///
+/// ## Immediate Actions Only
+///
+/// This module returns only 0-tick interactions (switch, buy, sell).
+/// It must NOT include "wait" - that is handled by [nextDecisionDelta].
+/// It must NOT include actions just because they are "watched".
+///
+/// ## Upgrade Filtering
+///
+/// The solver filters [BuyUpgrade] interactions through
+/// [Candidates.buyUpgrades] to ensure only competitive upgrades are
+/// considered. Watched-but-not-buyable upgrades must not show up in the
+/// final action set passed to the planner.
+library;
+
 import 'package:logic/src/data/actions.dart';
 import 'package:logic/src/data/upgrades.dart';
 import 'package:logic/src/state.dart';
@@ -10,6 +26,9 @@ import 'interaction.dart';
 /// - SwitchActivity for each unlocked action that is not the current action
 /// - BuyUpgrade for each affordable upgrade that meets skill requirements
 /// - SellAll if there are sellable items in inventory
+///
+/// Note: the solver further filters these through [Candidates] to only
+/// consider competitive options.
 List<Interaction> availableInteractions(GlobalState state) {
   final interactions = <Interaction>[];
 

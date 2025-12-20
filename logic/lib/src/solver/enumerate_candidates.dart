@@ -1,3 +1,29 @@
+/// Candidate enumeration: builds a "cheap frontier" for the solver.
+///
+/// ## Two Distinct Outputs
+///
+/// * **Branch candidates** ([Candidates.switchToActivities], [buyUpgrades],
+///   [includeSellAll]): actions we're willing to consider now.
+/// * **Watch candidates** ([WatchList]): events that define "interesting times"
+///   for waiting (affordability, unlocks, inventory).
+///
+/// ## Key Invariant: Watch ≠ Action
+///
+/// [buyUpgrades] must contain only upgrades that are **actionable and
+/// competitive** under the current policy:
+/// - Apply to current activity or top candidate activities
+/// - Positive gain under ValueModel
+/// - Pass heuristics / top-K filters
+///
+/// [WatchList.upgradeTypes] may include a broader set to compute time-to-afford
+/// / future replan moments.
+///
+/// **Never promote watch-only upgrades into buyUpgrades just because they are
+/// affordable.** Example: we may watch FishingRod affordability, but we don't
+/// branch on buying it while thieving unless it improves value for a candidate
+/// activity.
+library;
+
 import 'package:logic/src/data/actions.dart';
 import 'package:logic/src/data/items.dart';
 import 'package:logic/src/data/upgrades.dart';
@@ -385,12 +411,14 @@ _UpgradeResult _selectUpgradeCandidates(
     if (gain <= 0) continue;
 
     // Add to watch list - planner needs to know when any valid upgrade
-    // becomes affordable, even if not currently competitive
+    // becomes affordable, even if not currently competitive.
+    // Invariant: toWatch is for timing waits, NOT for deciding to buy.
     toWatch.add(type);
 
-    // Skip adding to candidates if upgraded rate wouldn't be competitive
-    // with best current rate (buying this upgrade won't make this activity
-    // worth switching to)
+    // Invariant: only add to candidates if competitive.
+    // Skip if upgraded rate wouldn't beat or match best current rate -
+    // buying this upgrade won't make this activity worth switching to.
+    // This is the key guard that prevents "buy axe while thieving" bugs.
     if (newRate < bestCurrentRate) continue;
 
     // Payback time = cost / gain per tick

@@ -1,3 +1,21 @@
+/// Interaction application: pure state mutation at 0 ticks.
+///
+/// ## Design
+///
+/// Interactions mutate state at **0 ticks**:
+/// - [BuyUpgrade]: subtracts GP, updates upgrade level
+/// - [SwitchActivity]: sets active action
+/// - [SellAll]: clears inventory, adds GP
+///
+/// No implicit waiting here. `applyInteraction` must not change policy;
+/// it just applies the chosen action.
+///
+/// ## Upgrade Note
+///
+/// Buying an upgrade does NOT imply it will be used. The solver prevents
+/// irrelevant buys via candidate filtering in [enumerateCandidates].
+library;
+
 import 'dart:math';
 
 import 'package:logic/src/data/actions.dart';

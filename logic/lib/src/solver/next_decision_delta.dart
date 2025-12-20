@@ -1,3 +1,27 @@
+/// Wait-time selector: computes the soonest "interesting" time to re-evaluate.
+///
+/// ## Purpose
+///
+/// Computes **one** wait delta: the soonest time a replan might be beneficial.
+/// Uses [Candidates.watch] sets to define "interesting events" (goal, unlock,
+/// affordability, inventory, death/stop, skill level, mastery level).
+///
+/// Must be cheap and non-simulating.
+///
+/// ## Critical Invariant: dt=0 Rule
+///
+/// `dt == 0` is only allowed when some **immediate interaction** exists
+/// (planner can do something now).
+///
+/// Affordable upgrades that are merely "watched" must not force dt=0.
+/// In practice: if upgrade is affordable but not in [Candidates.buyUpgrades],
+/// ignore it for dt=0 (still relevant for time-to-afford when not yet
+/// affordable).
+///
+/// Watch lists can contain already-affordable items; that should not cause
+/// solver churn.
+library;
+
 import 'package:logic/src/data/actions.dart';
 import 'package:logic/src/data/upgrades.dart';
 import 'package:logic/src/data/xp.dart';

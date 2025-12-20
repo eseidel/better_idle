@@ -1,3 +1,22 @@
+/// Solver: A* search to find minimum-ticks plan to reach a goal.
+///
+/// ## Pipeline Overview
+///
+/// 1. [estimateRates] returns *flows* (direct GP + items/tick + XP/tick).
+/// 2. [ValueModel] converts flows → scalar objective value (policy-dependent).
+/// 3. [enumerateCandidates] proposes a *small* branch set and a *watch* set.
+/// 4. [availableInteractions] returns immediately actionable interactions only.
+/// 5. [nextDecisionDelta] returns the soonest time a watched event could
+///    change what we'd do.
+/// 6. Search expands 0-tick action edges + 1 wait edge.
+///
+/// ## Key Invariant
+///
+/// **Watch lists affect only waiting, never imply we should take an action.**
+/// An upgrade being "watched" (for affordability timing) does NOT mean we
+/// should buy it. Only upgrades in [Candidates.buyUpgrades] are actionable.
+library;
+
 import 'dart:collection';
 import 'dart:math';
 
@@ -766,6 +785,17 @@ SolverResult solveToCredits(
 
     // Expand wait edge
     final deltaResult = nextDecisionDelta(node.state, goal, candidates);
+
+    // Invariant: dt=0 only when actions exist, dt>0 when no immediate actions.
+    // Prevents regression where "affordable watched upgrade" triggers dt=0
+    // but no action is available (watch ≠ action).
+    final relevantInteractions = interactions
+        .where((i) => _isRelevantInteraction(i, candidates))
+        .toList();
+    assert(
+      deltaResult.deltaTicks != 0 || relevantInteractions.isNotEmpty,
+      'dt=0 but no actions; watch ≠ action regression',
+    );
 
     if (!deltaResult.isDeadEnd && deltaResult.deltaTicks > 0) {
       profile.decisionDeltas.add(deltaResult.deltaTicks);
