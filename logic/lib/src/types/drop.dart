@@ -29,12 +29,28 @@ Map<String, double> expectedItemsForDrops(List<Droppable> drops) {
   return result;
 }
 
-/// A simple drop that yields a specific item.
-class Drop extends Droppable {
-  const Drop(this.name, {this.count = 1, super.rate = 1.0});
+/// A single item drop (as opposed to a table of drops).
+/// Subclasses define how the count is determined.
+abstract class SingleDrop extends Droppable {
+  const SingleDrop(this.name, {required super.rate});
 
   final String name;
+
+  /// The expected count for this drop (used for predictions).
+  double get expectedCount;
+
+  @override
+  Map<String, double> get expectedItems => {name: expectedCount * rate};
+}
+
+/// A simple drop that yields a specific item with a fixed count.
+class Drop extends SingleDrop {
+  const Drop(super.name, {this.count = 1, super.rate = 1.0});
+
   final int count;
+
+  @override
+  double get expectedCount => count.toDouble();
 
   ItemStack toItemStack() {
     final item = itemRegistry.byName(name);
@@ -48,31 +64,22 @@ class Drop extends Droppable {
     }
     return null;
   }
-
-  @override
-  Map<String, double> get expectedItems => {name: count * rate};
 }
 
 /// A drop that yields a random count within a range.
-class RangeDrop extends Droppable {
+class RangeDrop extends SingleDrop {
   const RangeDrop(
-    this.name, {
+    super.name, {
     required this.minCount,
     required this.maxCount,
     super.rate = 1.0,
   });
 
-  final String name;
   final int minCount;
   final int maxCount;
 
-  /// Returns the average count for expected value calculations.
-  double get averageCount => (minCount + maxCount) / 2.0;
-
-  ItemStack _toItemStack(int count) {
-    final item = itemRegistry.byName(name);
-    return ItemStack(item, count: count);
-  }
+  @override
+  double get expectedCount => (minCount + maxCount) / 2.0;
 
   @override
   ItemStack? roll(Random random) {
@@ -81,11 +88,9 @@ class RangeDrop extends Droppable {
     }
     // Roll a random count within the range (inclusive)
     final count = minCount + random.nextInt(maxCount - minCount + 1);
-    return _toItemStack(count);
+    final item = itemRegistry.byName(name);
+    return ItemStack(item, count: count);
   }
-
-  @override
-  Map<String, double> get expectedItems => {name: averageCount * rate};
 }
 
 /// A drop that has an outer chance to occur, and when it does,
@@ -100,15 +105,15 @@ class RangeDrop extends Droppable {
 class DropTable extends Droppable {
   const DropTable({required super.rate, required this.entries});
 
-  /// The weighted entries in this table. Each Drop's `rate` is used as weight.
-  final List<Drop> entries;
+  /// The weighted entries in this table. Each entry's `rate` is used as weight.
+  final List<SingleDrop> entries;
 
   /// Returns the total weight of all entries.
   double get _totalWeight => entries.fold(0, (sum, e) => sum + e.rate);
 
   /// Returns the effective rate for a specific entry (for predictions).
   /// This is: outer rate * (entry weight / total weight)
-  double _effectiveRate(Drop entry) {
+  double _effectiveRate(SingleDrop entry) {
     return rate * (entry.rate / _totalWeight);
   }
 
@@ -117,8 +122,9 @@ class DropTable extends Droppable {
     final result = <String, double>{};
     for (final entry in entries) {
       final effective = _effectiveRate(entry);
-      final current = result[entry.name] ?? 0.0;
-      result[entry.name] = current + entry.count * effective;
+      // Use expectedCount directly (not expectedItems which has rate baked in)
+      final value = entry.expectedCount * effective;
+      result[entry.name] = (result[entry.name] ?? 0.0) + value;
     }
     return result;
   }
@@ -137,11 +143,11 @@ class DropTable extends Droppable {
     for (final entry in entries) {
       roll -= entry.rate;
       if (roll <= 0) {
-        return entry.toItemStack();
+        return entry.roll(random);
       }
     }
 
     // Fallback to last entry (shouldn't happen with valid weights)
-    return entries.last.toItemStack();
+    return entries.last.roll(random);
   }
 }

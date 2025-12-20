@@ -4,7 +4,6 @@ import 'package:logic/src/action_state.dart';
 import 'package:logic/src/data/actions.dart';
 import 'package:logic/src/data/combat.dart';
 import 'package:logic/src/data/items.dart';
-import 'package:logic/src/data/openables.dart';
 import 'package:logic/src/data/upgrades.dart';
 import 'package:logic/src/json.dart';
 import 'package:logic/src/tick.dart';
@@ -688,8 +687,7 @@ class GlobalState {
   /// Returns null if the item is not openable or inventory is full.
   /// Throws StateError if player doesn't have the item.
   GlobalState? openItem(Item item, {required Random random}) {
-    final openable = openableRegistry.forItem(item);
-    if (openable == null) {
+    if (item is! Openable) {
       return null; // Not an openable item
     }
 
@@ -699,7 +697,7 @@ class GlobalState {
     }
 
     // Check inventory capacity for the drop
-    final drop = openable.open(random);
+    final drop = item.open(random);
     if (drop == null) {
       return null; // No drop (shouldn't happen with valid openables)
     }

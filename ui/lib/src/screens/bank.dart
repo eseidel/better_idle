@@ -311,7 +311,7 @@ class _ItemDetailsDrawerState extends State<ItemDetailsDrawer> {
                 _EquipFoodSection(item: itemData, maxCount: maxCount),
               ],
               // Show Open button for openable items
-              if (openableRegistry.isOpenable(itemData)) ...[
+              if (itemData is Openable) ...[
                 const SizedBox(height: 32),
                 const Divider(),
                 const SizedBox(height: 16),

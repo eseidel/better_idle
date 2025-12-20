@@ -1,4 +1,8 @@
+import 'dart:math';
+
 import 'package:equatable/equatable.dart';
+import 'package:logic/src/types/drop.dart';
+import 'package:logic/src/types/inventory.dart';
 import 'package:meta/meta.dart';
 
 const _woodcutting = [
@@ -59,7 +63,19 @@ const _farming = [
 ];
 
 // Openable items (chests, etc.)
-const _openables = [Item('Egg Chest', gp: 100)];
+const _openables = [
+  Openable(
+    'Egg Chest',
+    gp: 100,
+    dropTable: DropTable(
+      rate: 1.0,
+      entries: [
+        RangeDrop('Feathers', minCount: 1, maxCount: 1000, rate: 1), // 50%
+        RangeDrop('Raw Chicken', minCount: 1, maxCount: 40, rate: 1), // 50%
+      ],
+    ),
+  ),
+];
 
 const List<Item> _all = [
   ..._woodcutting,
@@ -89,6 +105,21 @@ class Item extends Equatable {
 
   @override
   List<Object?> get props => [name, sellsFor, healsFor];
+}
+
+/// An item that can be opened to receive drops from a weighted table.
+@immutable
+class Openable extends Item {
+  const Openable(super.name, {required super.gp, required this.dropTable});
+
+  /// The drop table for this openable.
+  final DropTable dropTable;
+
+  /// Opens this item once and returns the resulting drop.
+  ItemStack? open(Random random) => dropTable.roll(random);
+
+  @override
+  List<Object?> get props => [...super.props, dropTable];
 }
 
 class ItemRegistry {
