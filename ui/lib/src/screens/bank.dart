@@ -310,6 +310,13 @@ class _ItemDetailsDrawerState extends State<ItemDetailsDrawer> {
                 const SizedBox(height: 16),
                 _EquipFoodSection(item: itemData, maxCount: maxCount),
               ],
+              // Show Open button for openable items
+              if (openableRegistry.isOpenable(itemData)) ...[
+                const SizedBox(height: 32),
+                const Divider(),
+                const SizedBox(height: 16),
+                _OpenItemSection(item: itemData),
+              ],
             ],
           ),
         ),
@@ -420,6 +427,55 @@ class _EquipFoodSectionState extends State<_EquipFoodSection> {
             padding: const EdgeInsets.only(top: 8),
             child: Text(
               'All food slots are full',
+              style: TextStyle(color: Colors.red[700], fontSize: 12),
+            ),
+          ),
+      ],
+    );
+  }
+}
+
+class _OpenItemSection extends StatelessWidget {
+  const _OpenItemSection({required this.item});
+
+  final Item item;
+
+  @override
+  Widget build(BuildContext context) {
+    final state = context.state;
+    final isInventoryFull = state.isInventoryFull;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text('Open Item', style: Theme.of(context).textTheme.titleMedium),
+        const SizedBox(height: 8),
+        Text(
+          'Open to receive a random drop',
+          style: Theme.of(context).textTheme.bodyMedium,
+        ),
+        const SizedBox(height: 16),
+        SizedBox(
+          width: double.infinity,
+          child: ElevatedButton(
+            onPressed: isInventoryFull
+                ? null
+                : () {
+                    context.dispatch(OpenItemAction(item: item));
+                    Navigator.of(context).pop();
+                  },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.orange,
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('Open'),
+          ),
+        ),
+        if (isInventoryFull)
+          Padding(
+            padding: const EdgeInsets.only(top: 8),
+            child: Text(
+              'Inventory is full',
               style: TextStyle(color: Colors.red[700], fontSize: 12),
             ),
           ),

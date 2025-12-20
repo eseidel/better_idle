@@ -53,6 +53,41 @@ class Drop extends Droppable {
   Map<String, double> get expectedItems => {name: count * rate};
 }
 
+/// A drop that yields a random count within a range.
+class RangeDrop extends Droppable {
+  const RangeDrop(
+    this.name, {
+    required this.minCount,
+    required this.maxCount,
+    super.rate = 1.0,
+  });
+
+  final String name;
+  final int minCount;
+  final int maxCount;
+
+  /// Returns the average count for expected value calculations.
+  double get averageCount => (minCount + maxCount) / 2.0;
+
+  ItemStack _toItemStack(int count) {
+    final item = itemRegistry.byName(name);
+    return ItemStack(item, count: count);
+  }
+
+  @override
+  ItemStack? roll(Random random) {
+    if (rate < 1.0 && random.nextDouble() >= rate) {
+      return null;
+    }
+    // Roll a random count within the range (inclusive)
+    final count = minCount + random.nextInt(maxCount - minCount + 1);
+    return _toItemStack(count);
+  }
+
+  @override
+  Map<String, double> get expectedItems => {name: averageCount * rate};
+}
+
 /// A drop that has an outer chance to occur, and when it does,
 /// selects from a weighted table of possible outcomes.
 ///

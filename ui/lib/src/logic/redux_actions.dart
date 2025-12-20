@@ -250,3 +250,15 @@ class SelectFoodSlotAction extends ReduxAction<GlobalState> {
     return state.selectFoodSlot(slotIndex);
   }
 }
+
+/// Opens an openable item and receives the drop.
+class OpenItemAction extends ReduxAction<GlobalState> {
+  OpenItemAction({required this.item});
+  final Item item;
+
+  @override
+  GlobalState? reduce() {
+    final random = Random();
+    return state.openItem(item, random: random);
+  }
+}

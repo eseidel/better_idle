@@ -52,6 +52,15 @@ const _gems = [
 
 const _thieving = [Item("Bobby's Pocket", gp: 4000)];
 
+// Farming items (from openables like Egg Chest)
+const _farming = [
+  Item('Feathers', gp: 2), // Inferred from 1-1000 feathers = 2-2000GP
+  Item('Raw Chicken', gp: 1), // Inferred from 1-40 chicken = 1-40GP
+];
+
+// Openable items (chests, etc.)
+const _openables = [Item('Egg Chest', gp: 100)];
+
 const List<Item> _all = [
   ..._woodcutting,
   ..._firemaking,
@@ -61,6 +70,8 @@ const List<Item> _all = [
   ..._smithing,
   ..._gems,
   ..._thieving,
+  ..._farming,
+  ..._openables,
 ];
 
 @immutable
