@@ -399,6 +399,7 @@ class _Node {
     required this.interactions,
     required this.parentId,
     required this.stepFromParent,
+    this.expectedDeaths = 0,
   });
 
   /// The game state at this node.
@@ -415,6 +416,9 @@ class _Node {
 
   /// The step taken from parent to reach this node.
   final PlanStep? stepFromParent;
+
+  /// Expected number of deaths to reach this node (from planning model).
+  final int expectedDeaths;
 }
 
 /// Computes a coarse hash key for a game state for visited tracking.
@@ -485,17 +489,21 @@ bool _isRateModelable(GlobalState state) {
   return true;
 }
 
+/// Result of advancing expected state.
+typedef AdvanceResult = ({GlobalState state, int deaths});
+
 /// O(1) expected-value fast-forward for rate-modelable activities.
 /// Updates gold and skill XP based on expected rates without full simulation.
 /// For thieving, handles death by stopping the activity when HP would reach 0.
 ///
 /// Uses [valueModel] to convert item flows into GP value.
-GlobalState _advanceExpected(
+/// Returns the new state and the number of expected deaths (0 or 1).
+AdvanceResult _advanceExpected(
   GlobalState state,
   int deltaTicks, {
   ValueModel valueModel = defaultValueModel,
 }) {
-  if (deltaTicks <= 0) return state;
+  if (deltaTicks <= 0) return (state: state, deaths: 0);
 
   final rates = estimateRates(state);
 
@@ -547,17 +555,20 @@ GlobalState _advanceExpected(
   // Handle death: reset HP and stop activity
   // Note: can't use copyWith(activeAction: null) because null means "keep existing"
   if (playerDied) {
-    return GlobalState(
-      gp: newGp,
-      skillStates: newSkillStates,
-      activeAction: null, // Activity stops on death
-      health: const HealthState.full(), // HP resets on death
-      inventory: state.inventory,
-      actionStates: newActionStates,
-      updatedAt: DateTime.timestamp(),
-      shop: state.shop,
-      equipment: state.equipment,
-      stunned: state.stunned,
+    return (
+      state: GlobalState(
+        gp: newGp,
+        skillStates: newSkillStates,
+        activeAction: null, // Activity stops on death
+        health: const HealthState.full(), // HP resets on death
+        inventory: state.inventory,
+        actionStates: newActionStates,
+        updatedAt: DateTime.timestamp(),
+        shop: state.shop,
+        equipment: state.equipment,
+        stunned: state.stunned,
+      ),
+      deaths: 1,
     );
   }
 
@@ -572,11 +583,14 @@ GlobalState _advanceExpected(
   }
 
   // Return updated state (ignore inventory - gold is computed directly)
-  return state.copyWith(
-    gp: newGp,
-    skillStates: newSkillStates,
-    actionStates: newActionStates,
-    health: newHealth,
+  return (
+    state: state.copyWith(
+      gp: newGp,
+      skillStates: newSkillStates,
+      actionStates: newActionStates,
+      health: newHealth,
+    ),
+    deaths: 0,
   );
 }
 
@@ -602,13 +616,15 @@ GlobalState _advanceFullSim(
 ///
 /// Only should be used for planning, since it will not perfectly match
 /// game state (e.g. won't add inventory items)
-GlobalState advance(GlobalState state, int deltaTicks) {
-  if (deltaTicks <= 0) return state;
+///
+/// Returns the new state and the number of expected deaths.
+AdvanceResult advance(GlobalState state, int deltaTicks) {
+  if (deltaTicks <= 0) return (state: state, deaths: 0);
 
   if (_isRateModelable(state)) {
     return _advanceExpected(state, deltaTicks);
   }
-  return _advanceFullSim(state, deltaTicks);
+  return (state: _advanceFullSim(state, deltaTicks), deaths: 0);
 }
 
 /// Result of consuming ticks until a goal is reached.
@@ -1004,9 +1020,11 @@ SolverResult solve(
       profile.decisionDeltas.add(deltaResult.deltaTicks);
 
       final advanceStopwatch = Stopwatch()..start();
-      final newState = advance(node.state, deltaResult.deltaTicks);
+      final advanceResult = advance(node.state, deltaResult.deltaTicks);
       profile.advanceTimeUs += advanceStopwatch.elapsedMicroseconds;
 
+      final newState = advanceResult.state;
+      final newDeaths = node.expectedDeaths + advanceResult.deaths;
       final newTicks = node.ticks + deltaResult.deltaTicks;
       final newProgress = goal.progress(newState);
       final newBucketKey = _bucketKeyFromState(newState);
@@ -1049,6 +1067,7 @@ SolverResult solve(
                 deltaResult.deltaTicks,
                 deltaResult.waitFor,
               ),
+              expectedDeaths: newDeaths,
             );
 
             final newNodeId = nodes.length;
@@ -1147,5 +1166,6 @@ Plan _reconstructPlan(
     interactionCount: goalNode.interactions,
     expandedNodes: expandedNodes,
     enqueuedNodes: enqueuedNodes,
+    expectedDeaths: goalNode.expectedDeaths,
   );
 }

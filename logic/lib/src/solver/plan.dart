@@ -290,6 +290,7 @@ class Plan {
     required this.interactionCount,
     this.expandedNodes = 0,
     this.enqueuedNodes = 0,
+    this.expectedDeaths = 0,
   });
 
   /// An empty plan (goal already satisfied).
@@ -298,7 +299,8 @@ class Plan {
       totalTicks = 0,
       interactionCount = 0,
       expandedNodes = 0,
-      enqueuedNodes = 0;
+      enqueuedNodes = 0,
+      expectedDeaths = 0;
 
   /// The sequence of steps to reach the goal.
   final List<PlanStep> steps;
@@ -314,6 +316,9 @@ class Plan {
 
   /// Number of nodes enqueued during search (for debugging).
   final int enqueuedNodes;
+
+  /// Expected number of deaths during plan execution (from planning model).
+  final int expectedDeaths;
 
   /// Human-readable total time.
   Duration get totalDuration => durationFromTicks(totalTicks);

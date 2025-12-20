@@ -58,9 +58,10 @@ void main(List<String> args) {
     final delta = execResult.ticksDelta;
     final deltaSign = delta >= 0 ? '+' : '';
     print('Delta: $deltaSign$delta ticks');
-    if (execResult.totalDeaths > 0) {
-      print('Deaths: ${execResult.totalDeaths}');
-    }
+    print(
+      'Deaths: ${execResult.totalDeaths} actual, '
+      '${result.plan.expectedDeaths} expected',
+    );
 
     if (result.profile != null) {
       print('');

@@ -84,11 +84,11 @@ void main() {
 
       // advance uses expected-value model for rate-modelable activities
       // so we check that GP increases appropriately
-      final newState = advance(state, 100);
+      final result = advance(state, 100);
 
       // Normal Tree: 1 gold / 30 ticks = 0.033 gold/tick
       // After 100 ticks: expect ~3 gold
-      expect(newState.gp, greaterThan(initialGp));
+      expect(result.state.gp, greaterThan(initialGp));
     });
 
     test('is deterministic', () {
@@ -96,14 +96,14 @@ void main() {
       final action = actionRegistry.byName('Normal Tree');
       state = state.startAction(action, random: Random(0));
 
-      final state1 = advance(state, 100);
-      final state2 = advance(state, 100);
+      final result1 = advance(state, 100);
+      final result2 = advance(state, 100);
 
-      expect(state1.gp, state2.gp);
+      expect(result1.state.gp, result2.state.gp);
       // Skill XP should also match
       expect(
-        state1.skillState(Skill.woodcutting).xp,
-        state2.skillState(Skill.woodcutting).xp,
+        result1.state.skillState(Skill.woodcutting).xp,
+        result2.state.skillState(Skill.woodcutting).xp,
       );
     });
 
@@ -112,10 +112,10 @@ void main() {
       final action = actionRegistry.byName('Normal Tree');
       state = state.startAction(action, random: Random(0));
 
-      final newState = advance(state, 0);
+      final result = advance(state, 0);
 
       expect(
-        newState.activeAction?.remainingTicks,
+        result.state.activeAction?.remainingTicks,
         state.activeAction?.remainingTicks,
       );
     });
@@ -343,11 +343,12 @@ void main() {
       final ticksToDeath = ticksUntilDeath(state, rates);
 
       // Advance past death
-      final newState = advance(state, ticksToDeath! + 1000);
+      final result = advance(state, ticksToDeath! + 1000);
 
       // Activity should be stopped and HP should be reset
-      expect(newState.activeAction, isNull);
-      expect(newState.playerHp, newState.maxPlayerHp); // Full HP after death
+      expect(result.state.activeAction, isNull);
+      expect(result.state.playerHp, result.state.maxPlayerHp); // Full HP
+      expect(result.deaths, 1); // One death occurred
     });
 
     test('advance does not stop activity before death', () {
@@ -359,11 +360,12 @@ void main() {
       final ticksToDeath = ticksUntilDeath(state, rates);
 
       // Advance less than death time
-      final newState = advance(state, ticksToDeath! ~/ 2);
+      final result = advance(state, ticksToDeath! ~/ 2);
 
       // Activity should still be running
-      expect(newState.activeAction, isNotNull);
-      expect(newState.activeAction!.name, 'Man');
+      expect(result.state.activeAction, isNotNull);
+      expect(result.state.activeAction!.name, 'Man');
+      expect(result.deaths, 0); // No death yet
     });
 
     test('nextDecisionDelta includes death timing for thieving', () {
