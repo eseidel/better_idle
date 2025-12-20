@@ -353,6 +353,7 @@ final skillDrops = <Skill, List<Droppable>>{
     const Drop('Ash', rate: 0.20),
     // Missing Charcoal, Generous Fire Spirit
   ],
+  Skill.mining: [miningGemTable],
   Skill.thieving: [const Drop("Bobby's Pocket", rate: 1 / 120)],
 };
 

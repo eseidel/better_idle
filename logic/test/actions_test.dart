@@ -6,6 +6,7 @@ void main() {
       actionRegistry.skillActionByName(name);
 
   final normalTree = skillAction('Normal Tree');
+  final copperMining = skillAction('Copper');
 
   group('SkillAction', () {
     test(
@@ -43,5 +44,42 @@ void main() {
         expect(expectedAt9, closeTo(1.15, 0.001));
       },
     );
+  });
+
+  group('allDropsForAction', () {
+    test('mining actions include gem drops from miningGemTable', () {
+      final drops = dropsRegistry.allDropsForAction(
+        copperMining,
+        masteryLevel: 1,
+      );
+
+      // Check that miningGemTable (a DropTable) is included
+      final hasGemTable = drops.any((d) => d is DropTable);
+      expect(
+        hasGemTable,
+        isTrue,
+        reason: 'Mining actions should include gem drop table',
+      );
+
+      // Verify gems appear in expectedItems
+      final allExpectedItems = <String, double>{};
+      for (final drop in drops) {
+        for (final entry in drop.expectedItems.entries) {
+          allExpectedItems[entry.key] =
+              (allExpectedItems[entry.key] ?? 0) + entry.value;
+        }
+      }
+
+      // At least one gem should be present
+      final gemNames = ['Topaz', 'Sapphire', 'Ruby', 'Emerald', 'Diamond'];
+      final hasAnyGem = gemNames.any(
+        (gem) => allExpectedItems.containsKey(gem),
+      );
+      expect(
+        hasAnyGem,
+        isTrue,
+        reason: 'Mining drops should include gems from miningGemTable',
+      );
+    });
   });
 }
