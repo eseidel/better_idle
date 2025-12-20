@@ -26,32 +26,25 @@ Map<String, double> expectedItemsForDrops(List<Droppable> drops) {
   return result;
 }
 
-/// A single item drop (as opposed to a table of drops).
-/// Subclasses define how the count is determined.
-abstract class SingleDrop extends Droppable {
-  const SingleDrop(this.name, {required this.rate});
-
+/// A single item drop with an optional activation rate.
+class Drop extends Droppable {
+  /// Creates a drop with a fixed count (default 1).
+  const Drop(this.name, {this.count = 1, this.rate = 1.0})
+    : assert(count > 0, 'Count must be greater than 0');
   final String name;
 
   /// The chance this drop is triggered (0.0 to 1.0).
   final double rate;
 
+  final int count;
+
   /// The expected count for this drop (used for predictions).
-  double get expectedCount;
+  double get expectedCount => count * rate;
 
   @override
   Map<String, double> get expectedItems => {name: expectedCount * rate};
-}
 
-/// A simple drop that yields a specific item with a fixed count.
-class Drop extends SingleDrop {
-  const Drop(super.name, {this.count = 1, super.rate = 1.0});
-
-  final int count;
-
-  @override
-  double get expectedCount => count.toDouble();
-
+  /// Creates an ItemStack with a fixed count (for fixed drops).
   ItemStack toItemStack() {
     final item = itemRegistry.byName(name);
     return ItemStack(item, count: count);
@@ -59,40 +52,10 @@ class Drop extends SingleDrop {
 
   @override
   ItemStack? roll(Random random) {
-    if (rate >= 1.0 || random.nextDouble() < rate) {
-      return toItemStack();
-    }
-    return null;
-  }
-}
-
-/// A drop that yields a random count within a range.
-class RangeDrop extends SingleDrop {
-  // We use short names for construction to cut down on typing.
-  const RangeDrop(
-    super.name, {
-    required int min,
-    required int max,
-    super.rate = 1.0,
-  }) : minCount = min,
-       maxCount = max;
-
-  // We use full names for fields for clarity.
-  final int minCount;
-  final int maxCount;
-
-  @override
-  double get expectedCount => (minCount + maxCount) / 2.0;
-
-  @override
-  ItemStack? roll(Random random) {
     if (rate < 1.0 && random.nextDouble() >= rate) {
       return null;
     }
-    // Roll a random count within the range (inclusive)
-    final count = minCount + random.nextInt(maxCount - minCount + 1);
-    final item = itemRegistry.byName(name);
-    return ItemStack(item, count: count);
+    return toItemStack();
   }
 }
 

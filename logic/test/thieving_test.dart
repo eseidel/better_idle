@@ -57,9 +57,9 @@ void main() {
       List<String> getDropNames(List<Droppable> drops) {
         return drops
             .map((d) {
-              if (d is SingleDrop) return d.name;
-              if (d is DropChance && d.child is SingleDrop) {
-                return (d.child as SingleDrop).name;
+              if (d is Drop) return d.name;
+              if (d is DropChance && d.child is Drop) {
+                return (d.child as Drop).name;
               }
               return null;
             })
@@ -92,8 +92,8 @@ void main() {
 
       final crateDrop = drops.whereType<DropChance>().firstWhere(
         (d) =>
-            d.child is SingleDrop &&
-            (d.child as SingleDrop).name == 'Crate of Basic Supplies',
+            d.child is Drop &&
+            (d.child as Drop).name == 'Crate of Basic Supplies',
       );
 
       expect(crateDrop.rate, closeTo(1 / 500, 0.0001));
@@ -103,9 +103,9 @@ void main() {
       final drops = dropsRegistry.allDropsForAction(manAction, masteryLevel: 1);
       final dropNames = drops
           .map((d) {
-            if (d is SingleDrop) return d.name;
-            if (d is DropChance && d.child is SingleDrop) {
-              return (d.child as SingleDrop).name;
+            if (d is Drop) return d.name;
+            if (d is DropChance && d.child is Drop) {
+              return (d.child as Drop).name;
             }
             return null;
           })
