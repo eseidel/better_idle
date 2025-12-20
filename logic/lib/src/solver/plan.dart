@@ -23,6 +23,7 @@ import 'package:logic/src/state.dart';
 import 'package:logic/src/tick.dart';
 import 'package:meta/meta.dart';
 
+import 'goal.dart';
 import 'interaction.dart';
 
 // ---------------------------------------------------------------------------
@@ -202,6 +203,9 @@ class WaitForInventoryFull extends WaitFor {
 }
 
 /// Wait until goal is reached. This is a terminal wait.
+///
+/// During planning, this stores only a description since the goal is known.
+/// During execution, the executor must provide the goal to check satisfaction.
 @immutable
 class WaitForGoal extends WaitFor {
   const WaitForGoal(this.goalDescription);
@@ -210,9 +214,18 @@ class WaitForGoal extends WaitFor {
 
   @override
   bool isSatisfied(GlobalState state) {
-    // Goal satisfaction is checked externally by the solver.
-    // This is used for plan display only.
-    return false;
+    // WaitForGoal cannot check satisfaction on its own - it needs the Goal.
+    // This should not be called directly; use isSatisfiedWithGoal instead.
+    // Returning false here is a fallback that prevents infinite loops in tests.
+    throw StateError(
+      'WaitForGoal.isSatisfied should not be called directly. '
+      'Use isSatisfiedWithGoal with the actual Goal object.',
+    );
+  }
+
+  /// Check if the goal is satisfied. This is the proper way to check.
+  bool isSatisfiedWithGoal(GlobalState state, Goal goal) {
+    return goal.isSatisfied(state);
   }
 
   @override
@@ -428,6 +441,8 @@ class PlanExecutionResult {
   const PlanExecutionResult({
     required this.finalState,
     required this.totalDeaths,
+    required this.actualTicks,
+    required this.plannedTicks,
   });
 
   /// The final game state after executing the plan.
@@ -436,4 +451,13 @@ class PlanExecutionResult {
   /// Total number of deaths that occurred during plan execution.
   /// Deaths are automatically handled by restarting the activity.
   final int totalDeaths;
+
+  /// Actual ticks elapsed during execution.
+  final int actualTicks;
+
+  /// Planned ticks from the solver (for comparison).
+  final int plannedTicks;
+
+  /// Difference between actual and planned ticks.
+  int get ticksDelta => actualTicks - plannedTicks;
 }

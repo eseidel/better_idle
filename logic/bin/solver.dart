@@ -48,12 +48,18 @@ void main(List<String> args) {
     print('Interaction count: ${result.plan.interactionCount}');
 
     // Execute the plan to get the final state
-    final execResult = executePlan(initialState, result.plan);
+    final execResult = executePlan(initialState, result.plan, goal: goal);
     print('');
     _printFinalState(execResult.finalState);
+    print('');
+    print('=== Execution Stats ===');
+    print('Planned ticks: ${execResult.plannedTicks}');
+    print('Actual ticks: ${execResult.actualTicks}');
+    final delta = execResult.ticksDelta;
+    final deltaSign = delta >= 0 ? '+' : '';
+    print('Delta: $deltaSign$delta ticks');
     if (execResult.totalDeaths > 0) {
-      print('');
-      print('Deaths during execution: ${execResult.totalDeaths}');
+      print('Deaths: ${execResult.totalDeaths}');
     }
 
     if (result.profile != null) {
