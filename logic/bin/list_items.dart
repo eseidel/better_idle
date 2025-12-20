@@ -45,27 +45,18 @@ void main(List<String> arguments) async {
 
   final cache = Cache(cacheDir: cacheDir);
   try {
-    print('Fetching ${Cache.mainDataPath}...');
-    final data = await cache.ensureMainData();
-    print('Main data loaded successfully.');
+    print('Fetching ${Cache.demoDataPath}...');
+    final demoData = await cache.ensureDemoData();
+    print('Demo data loaded.');
+
+    print('Fetching ${Cache.fullDataPath}...');
+    final fullData = await cache.ensureFullData();
+    print('Full data loaded.');
     print('');
 
-    // Print some basic info about the data.
-    final namespace = data['namespace'] as String?;
-    final namespaceInfo = namespace != null ? ' (namespace: $namespace)' : '';
-    print('Game data$namespaceInfo');
-
-    if (data['data'] case final Map<String, dynamic> gameData) {
-      for (final key in gameData.keys.take(10)) {
-        final value = gameData[key];
-        if (value is List) {
-          print('  $key: ${value.length} entries');
-        }
-      }
-      if (gameData.keys.length > 10) {
-        print('  ... and ${gameData.keys.length - 10} more categories');
-      }
-    }
+    // Combine both data files.
+    final melvorData = MelvorData([demoData, fullData]);
+    print('Total items: ${melvorData.itemCount}');
   } finally {
     cache.close();
   }

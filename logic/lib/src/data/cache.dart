@@ -11,8 +11,11 @@ class Cache {
   /// The base URL for the Melvor CDN.
   static const String cdnBase = 'https://cdn2-main.melvor.net';
 
-  /// The path to the main game data file.
-  static const String mainDataPath = 'assets/data/melvorFull.json';
+  /// The path to the demo game data file (base game items).
+  static const String demoDataPath = 'assets/data/melvorDemo.json';
+
+  /// The path to the full game data file (expansion items).
+  static const String fullDataPath = 'assets/data/melvorFull.json';
 
   /// The directory where cached files are stored.
   final Directory cacheDir;
@@ -26,14 +29,21 @@ class Cache {
   Cache({required this.cacheDir, http.Client? client})
     : _client = client ?? http.Client();
 
-  /// Ensures the main game data file is cached and returns its parsed content.
-  ///
-  /// If the file is already cached, returns the cached version.
-  /// Otherwise, fetches from the CDN and caches it.
-  Future<Map<String, dynamic>> ensureMainData() async {
-    final file = await ensureAsset(mainDataPath);
+  /// Ensures a data file is cached and returns its parsed content.
+  Future<Map<String, dynamic>> _ensureDataFile(String dataPath) async {
+    final file = await ensureAsset(dataPath);
     final content = await file.readAsString();
     return jsonDecode(content) as Map<String, dynamic>;
+  }
+
+  /// Ensures the demo game data file is cached and returns its parsed content.
+  Future<Map<String, dynamic>> ensureDemoData() async {
+    return _ensureDataFile(demoDataPath);
+  }
+
+  /// Ensures the full game data file is cached and returns its parsed content.
+  Future<Map<String, dynamic>> ensureFullData() async {
+    return _ensureDataFile(fullDataPath);
   }
 
   /// Ensures an asset is cached and returns the cached file.
