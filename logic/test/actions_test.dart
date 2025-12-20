@@ -53,8 +53,8 @@ void main() {
         masteryLevel: 1,
       );
 
-      // Check that miningGemTable (a DropTable) is included
-      final hasGemTable = drops.any((d) => d is DropTable);
+      // Check that miningGemTable (a DropTableChance) is included
+      final hasGemTable = drops.any((d) => d is DropTableChance);
       expect(
         hasGemTable,
         isTrue,

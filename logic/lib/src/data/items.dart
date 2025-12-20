@@ -83,26 +83,26 @@ final _openables = <Openable>[
     'Egg Chest',
     gp: 100,
     dropTable: DropTable([
-      RangeDrop('Feathers', min: 1, max: 1000),
-      RangeDrop('Raw Chicken', min: 1, max: 40),
+      PickRange('Feathers', 1, min: 1, max: 1000),
+      PickRange('Raw Chicken', 1, min: 1, max: 40),
     ]),
   ),
   Openable(
     'Crate of Basic Supplies',
     gp: 100,
     dropTable: DropTable([
-      RangeDrop('Bronze Arrows', min: 1, max: 200, rate: 25),
-      RangeDrop('Raw Shrimp', min: 1, max: 200, rate: 25),
-      RangeDrop('Iron Arrows', min: 1, max: 200, rate: 20),
-      RangeDrop('Raw Sardine', min: 1, max: 200, rate: 18),
-      RangeDrop('Steel Arrows', min: 1, max: 200, rate: 18),
-      RangeDrop('Bronze Bar', min: 1, max: 200, rate: 14),
-      RangeDrop('Raw Herring', min: 1, max: 200, rate: 13),
-      RangeDrop('Mithril Arrows', min: 1, max: 200, rate: 13),
-      RangeDrop('Iron Bar', min: 1, max: 200, rate: 11),
-      RangeDrop('Raw Trout', min: 1, max: 200, rate: 10),
-      RangeDrop('Steel Bar', min: 1, max: 200, rate: 9),
-      RangeDrop('Mithril Bar', min: 1, max: 200, rate: 5),
+      PickRange('Bronze Arrows', 25, min: 1, max: 200),
+      PickRange('Raw Shrimp', 25, min: 1, max: 200),
+      PickRange('Iron Arrows', 20, min: 1, max: 200),
+      PickRange('Raw Sardine', 18, min: 1, max: 200),
+      PickRange('Steel Arrows', 18, min: 1, max: 200),
+      PickRange('Bronze Bar', 14, min: 1, max: 200),
+      PickRange('Raw Herring', 13, min: 1, max: 200),
+      PickRange('Mithril Arrows', 13, min: 1, max: 200),
+      PickRange('Iron Bar', 11, min: 1, max: 200),
+      PickRange('Raw Trout', 10, min: 1, max: 200),
+      PickRange('Steel Bar', 9, min: 1, max: 200),
+      PickRange('Mithril Bar', 5, min: 1, max: 200),
     ]),
   ),
 ];
@@ -143,8 +143,8 @@ class Item extends Equatable {
 class Openable extends Item {
   Openable(super.name, {required super.gp, required this.dropTable})
     : assert(
-        !dropTable.canDropNothing,
-        'Drop table must have a 100% chance of dropping an item',
+        dropTable.entries.isNotEmpty,
+        'Drop table must have at least one entry',
       );
 
   /// The drop table for this openable.

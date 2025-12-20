@@ -53,11 +53,12 @@ void main() {
         masteryLevel: 1,
       );
 
-      // Extract drop names from Drop objects
+      // Extract drop names from Drop and DropChance objects
       List<String> getDropNames(List<Droppable> drops) {
         return drops
             .map((d) {
-              if (d is Drop) return d.name;
+              if (d is SingleDrop) return d.name;
+              if (d is DropChance) return d.name;
               return null;
             })
             .whereType<String>()
@@ -87,7 +88,7 @@ void main() {
         masteryLevel: 1,
       );
 
-      final crateDrop = drops.whereType<Drop>().firstWhere(
+      final crateDrop = drops.whereType<DropChance>().firstWhere(
         (d) => d.name == 'Crate of Basic Supplies',
       );
 
@@ -98,7 +99,8 @@ void main() {
       final drops = dropsRegistry.allDropsForAction(manAction, masteryLevel: 1);
       final dropNames = drops
           .map((d) {
-            if (d is Drop) return d.name;
+            if (d is SingleDrop) return d.name;
+            if (d is DropChance) return d.name;
             return null;
           })
           .whereType<String>()
@@ -111,7 +113,7 @@ void main() {
 
   group('Golbin drops', () {
     final golbinAction = thievingActionByName('Golbin');
-    final golbinDropTable = golbinAction.dropTable!;
+    final golbinDropTable = golbinAction.dropTable! as DropTableChance;
 
     test('Golbin has NPC-specific drop table', () {
       final drops = dropsRegistry.allDropsForAction(
@@ -121,7 +123,7 @@ void main() {
       // Should have 3 drops: Golbin drop table (action-level) +
       // area drop (Crate of Basic Supplies) + Bobby's Pocket (skill-level)
       expect(drops.length, 3);
-      final dropTables = drops.whereType<DropTable>().toList();
+      final dropTables = drops.whereType<DropTableChance>().toList();
       expect(dropTables, hasLength(1));
       expect(dropTables.first.expectedItems['Copper Ore'], greaterThan(0));
     });
