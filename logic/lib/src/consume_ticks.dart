@@ -334,6 +334,7 @@ class StateUpdateBuilder {
   GlobalState get state => _state;
   ActionStopReason get stopReason => _stopReason;
   Tick? get stoppedAtTick => _stoppedAtTick;
+  Tick get ticksElapsed => _ticksElapsed;
 
   void addElapsedTicks(Tick ticks) {
     _ticksElapsed += ticks;

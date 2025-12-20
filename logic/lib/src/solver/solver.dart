@@ -28,6 +28,7 @@ import 'package:logic/src/state.dart';
 import 'package:logic/src/tick.dart';
 import 'package:logic/src/types/health.dart';
 import 'package:logic/src/types/stunned.dart';
+import 'package:logic/src/types/time_away.dart';
 
 import 'apply_interaction.dart';
 import 'available_interactions.dart';
@@ -610,70 +611,122 @@ GlobalState advance(GlobalState state, int deltaTicks) {
   return _advanceFullSim(state, deltaTicks);
 }
 
-/// Executes a plan and returns the final state.
-///
-/// Uses goal-aware waiting: [WaitStep.waitFor] determines when to stop waiting,
-/// which handles variance between expected-value planning and actual simulation.
-GlobalState executePlan(GlobalState state, Plan plan) {
-  // Use a fixed random for deterministic execution
-  final random = Random(42);
+/// Result of goal-oriented tick consumption.
+class _ConsumeUntilResult {
+  _ConsumeUntilResult({required this.state, required this.deathCount});
 
-  for (final step in plan.steps) {
-    switch (step) {
-      case InteractionStep(:final interaction):
-        state = applyInteraction(state, interaction);
-      case WaitStep(:final deltaTicks, :final waitFor):
-        // Goal-aware waiting: continue until condition is met
-        // For value-based conditions, allow much more time since variance
-        // and XP-based wait steps may not accumulate expected items
-        final isValueCondition = waitFor is WaitForInventoryValue;
-        // For value: allow 10x or minimum 1000 ticks (100 seconds)
-        // For other conditions: allow 2x expected time
-        final maxTicks = isValueCondition
-            ? max(deltaTicks * 10, 1000)
-            : deltaTicks * 2;
-        state = _advanceUntilCondition(
-          state,
-          waitFor,
-          maxTicks: maxTicks,
-          random: random,
-        );
-    }
-  }
-  return state;
+  final GlobalState state;
+  final int deathCount;
 }
 
 /// Advances state until a condition is met or maxTicks is reached.
-GlobalState _advanceUntilCondition(
+/// Automatically restarts the activity after death and counts deaths.
+_ConsumeUntilResult _consumeUntilGoal(
   GlobalState state,
   WaitFor waitFor, {
   required int maxTicks,
   required Random random,
 }) {
-  // Check if already satisfied
-  if (waitFor.isSatisfied(state)) return state;
+  if (waitFor.isSatisfied(state)) {
+    return _ConsumeUntilResult(state: state, deathCount: 0);
+  }
 
-  // Advance in chunks to check condition periodically
-  // Use larger chunks for efficiency, but small enough to not overshoot too much
-  const chunkSize = 10; // 1 second worth of ticks
+  final originalActivity = state.activeAction?.name;
   var ticksElapsed = 0;
+  var deathCount = 0;
 
   while (ticksElapsed < maxTicks) {
     final remaining = maxTicks - ticksElapsed;
-    final ticksThisChunk = remaining < chunkSize ? remaining : chunkSize;
 
+    // Process ticks - consumeTicks will stop at "interesting" events
+    // like action completion, death, inventory full, etc.
     final builder = StateUpdateBuilder(state);
-    consumeTicks(builder, ticksThisChunk, random: random);
+    consumeTicks(builder, remaining, random: random);
     state = builder.build();
-    ticksElapsed += ticksThisChunk;
 
+    // Check how many ticks were actually consumed
+    final ticksThisIteration = builder.ticksElapsed;
+    if (ticksThisIteration == 0) break; // No progress possible
+
+    ticksElapsed += ticksThisIteration;
+
+    // Check if goal is satisfied
     if (waitFor.isSatisfied(state)) {
-      return state;
+      return _ConsumeUntilResult(state: state, deathCount: deathCount);
+    }
+
+    // Check if death occurred (activity stopped due to player death)
+    if (builder.stopReason == ActionStopReason.playerDied) {
+      deathCount++;
+
+      // Auto-restart the activity
+      if (originalActivity != null) {
+        final action = actionRegistry.byName(originalActivity);
+        state = state.startAction(action, random: random);
+      }
     }
   }
 
-  // Max ticks reached without condition being satisfied
-  return state;
+  return _ConsumeUntilResult(state: state, deathCount: deathCount);
+}
+
+/// Result of applying a single step.
+typedef _StepResult = ({GlobalState state, int deaths});
+
+_StepResult _applyStep(
+  GlobalState state,
+  PlanStep step, {
+  required Random random,
+}) {
+  switch (step) {
+    case InteractionStep(:final interaction):
+      return (state: applyInteraction(state, interaction), deaths: 0);
+    case WaitStep(:final deltaTicks, :final waitFor):
+      // Goal-aware waiting: continue until condition is met
+      // For value-based conditions, allow much more time since variance
+      // and XP-based wait steps may not accumulate expected items
+      final isValueCondition = waitFor is WaitForInventoryValue;
+      // For value: allow 10x or minimum 1000 ticks (100 seconds)
+      // For other conditions: allow 2x expected time
+      final maxTicks = isValueCondition
+          ? max(deltaTicks * 10, 1000)
+          : deltaTicks * 2;
+      final result = _consumeUntilGoal(
+        state,
+        waitFor,
+        maxTicks: maxTicks,
+        random: random,
+      );
+      return (state: result.state, deaths: result.deathCount);
+  }
+}
+
+/// Executes a plan and returns the result including death count.
+///
+/// Uses goal-aware waiting: [WaitStep.waitFor] determines when to stop waiting,
+/// which handles variance between expected-value planning and actual simulation.
+/// Deaths are automatically handled by restarting the activity and are counted.
+PlanExecutionResult executePlan(GlobalState state, Plan plan) {
+  // Use a fixed random for deterministic execution
+  final random = Random(42);
+  var totalDeaths = 0;
+
+  for (var i = 0; i < plan.steps.length; i++) {
+    final step = plan.steps[i];
+    try {
+      final result = _applyStep(state, step, random: random);
+      state = result.state;
+      totalDeaths += result.deaths;
+    } catch (e) {
+      print('Error applying step: $e');
+      print('State: $state');
+      print('Step: $step');
+      final previousStep = plan.steps[i - 1];
+      print('Previous step: $previousStep');
+      rethrow;
+    }
+  }
+  return PlanExecutionResult(finalState: state, totalDeaths: totalDeaths);
 }
 
 /// Solves for an optimal plan to reach the target credits.

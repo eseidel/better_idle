@@ -158,13 +158,9 @@ NextDecisionResult nextDecisionDelta(
     }
   }
 
-  // E) Time until activity stops (death from thieving)
-  final deltaDeath = ticksUntilDeath(state, rates);
-  if (deltaDeath != null && deltaDeath > 0) {
-    deltas.add(
-      _DeltaCandidate(ticks: deltaDeath, waitFor: const WaitForDeath()),
-    );
-  }
+  // Note: Death is NOT a decision point - it's handled automatically during
+  // plan execution by restarting the activity. The planner still accounts for
+  // death in expected-value calculations via ticksUntilDeath in _advanceExpected.
 
   // F) Time until next skill level (rates may change)
   final deltaSkillLevel = _deltaUntilNextSkillLevel(state, rates);

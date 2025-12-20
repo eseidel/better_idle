@@ -48,9 +48,13 @@ void main(List<String> args) {
     print('Interaction count: ${result.plan.interactionCount}');
 
     // Execute the plan to get the final state
-    final finalState = executePlan(initialState, result.plan);
+    final execResult = executePlan(initialState, result.plan);
     print('');
-    _printFinalState(finalState);
+    _printFinalState(execResult.finalState);
+    if (execResult.totalDeaths > 0) {
+      print('');
+      print('Deaths during execution: ${execResult.totalDeaths}');
+    }
 
     if (result.profile != null) {
       print('');

@@ -201,33 +201,6 @@ class WaitForInventoryFull extends WaitFor {
   int get hashCode => 0;
 }
 
-/// Wait until player dies (HP reaches 0).
-/// After death, the activity stops and HP resets.
-@immutable
-class WaitForDeath extends WaitFor {
-  const WaitForDeath();
-
-  @override
-  bool isSatisfied(GlobalState state) {
-    // Death resets HP and stops activity - check if activity stopped
-    // or HP is at max (reset after death).
-    // In practice, we detect death by the activity being null after thieving.
-    return state.activeAction == null;
-  }
-
-  @override
-  String describe() => 'death';
-
-  @override
-  String get shortDescription => 'Death';
-
-  @override
-  bool operator ==(Object other) => other is WaitForDeath;
-
-  @override
-  int get hashCode => 1;
-}
-
 /// Wait until goal is reached. This is a terminal wait.
 @immutable
 class WaitForGoal extends WaitFor {
@@ -447,4 +420,20 @@ class SolverFailed extends SolverResult {
 
   final SolverFailure failure;
   final dynamic profile;
+}
+
+/// Result of executing a plan via [executePlan].
+@immutable
+class PlanExecutionResult {
+  const PlanExecutionResult({
+    required this.finalState,
+    required this.totalDeaths,
+  });
+
+  /// The final game state after executing the plan.
+  final GlobalState finalState;
+
+  /// Total number of deaths that occurred during plan execution.
+  /// Deaths are automatically handled by restarting the activity.
+  final int totalDeaths;
 }
