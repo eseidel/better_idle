@@ -141,11 +141,8 @@ class Item extends Equatable {
 /// An item that can be opened to receive drops from a weighted table.
 @immutable
 class Openable extends Item {
-  Openable(super.name, {required super.gp, required this.dropTable})
-    : assert(
-        dropTable.entries.isNotEmpty,
-        'Drop table must have at least one entry',
-      );
+  // DropTable constructor guarantees non-empty entries.
+  const Openable(super.name, {required super.gp, required this.dropTable});
 
   /// The drop table for this openable.
   final DropTable dropTable;
