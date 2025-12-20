@@ -29,18 +29,12 @@ import 'package:logic/src/state.dart';
 
 import 'enumerate_candidates.dart';
 import 'estimate_rates.dart';
+import 'goal.dart';
 import 'plan.dart';
 import 'value_model.dart';
 
 /// Sentinel value for "infinite" ticks (no progress possible).
 const int infTicks = 1 << 60;
-
-/// A goal for the planner. V0 is "reach X credits".
-class Goal {
-  const Goal({required this.targetCredits});
-
-  final int targetCredits;
-}
 
 /// A candidate delta (time until some event occurs).
 class _DeltaCandidate {
@@ -103,12 +97,12 @@ NextDecisionResult nextDecisionDelta(
   ValueModel valueModel = defaultValueModel,
 }) {
   // Check if goal is already satisfied
-  if (state.gp >= goal.targetCredits) {
-    return const NextDecisionResult(
+  if (goal.isSatisfied(state)) {
+    return NextDecisionResult(
       deltaTicks: 0,
       reason: 'goal_reached',
       waitReason: WaitReason.goalReached,
-      details: 'Already have enough credits',
+      details: goal.describe(),
     );
   }
 
@@ -143,21 +137,23 @@ NextDecisionResult nextDecisionDelta(
     }
   }
 
-  // Get current rates and compute value rate using the model
+  // Get current rates and compute progress rate toward goal
   final rates = estimateRates(state);
+  final progressRate = goal.progressPerTick(state, rates);
+  // Value rate is still needed for upgrade affordability calculations
   final valueRate = valueModel.valuePerTick(state, rates);
 
   // Compute deltas for each category
   final deltas = <_DeltaCandidate>[];
 
   // A) Time until goal reached
-  final deltaGoal = _deltaUntilGoal(state, goal, valueRate);
+  final deltaGoal = _deltaUntilGoal(state, goal, progressRate);
   if (deltaGoal != null && deltaGoal > 0) {
     deltas.add(
       _DeltaCandidate(
         ticks: deltaGoal,
         waitReason: WaitReason.goalReached,
-        details: 'Goal of ${goal.targetCredits} GP',
+        details: goal.describe(),
       ),
     );
   }
@@ -250,13 +246,13 @@ NextDecisionResult nextDecisionDelta(
   );
 }
 
-/// Computes ticks until goal is reached at current value rate.
-int? _deltaUntilGoal(GlobalState state, Goal goal, double valueRate) {
-  if (valueRate <= 0) return null;
-  if (state.gp >= goal.targetCredits) return 0;
+/// Computes ticks until goal is reached at current progress rate.
+int? _deltaUntilGoal(GlobalState state, Goal goal, double progressRate) {
+  if (progressRate <= 0) return null;
+  if (goal.isSatisfied(state)) return 0;
 
-  final needed = goal.targetCredits - state.gp;
-  return _ceilDiv(needed.toDouble(), valueRate);
+  final remaining = goal.remaining(state);
+  return _ceilDiv(remaining, progressRate);
 }
 
 /// Computes ticks until soonest watched upgrade becomes affordable.

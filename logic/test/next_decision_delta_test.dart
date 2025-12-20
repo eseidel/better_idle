@@ -3,6 +3,7 @@ import 'dart:math';
 import 'package:logic/logic.dart';
 import 'package:logic/src/solver/enumerate_candidates.dart';
 import 'package:logic/src/solver/estimate_rates.dart';
+import 'package:logic/src/solver/goal.dart';
 import 'package:logic/src/solver/next_decision_delta.dart';
 import 'package:logic/src/solver/value_model.dart';
 import 'package:test/test.dart';
@@ -60,8 +61,8 @@ void main() {
   group('nextDecisionDelta', () {
     test('returns 0 when goal is already satisfied', () {
       final state = GlobalState.empty().copyWith(gp: 1000);
-      final goal = Goal(targetCredits: 500);
-      final candidates = enumerateCandidates(state);
+      const goal = ReachGpGoal(500);
+      final candidates = enumerateCandidates(state, goal);
 
       final result = nextDecisionDelta(state, goal, candidates);
 
@@ -76,8 +77,8 @@ void main() {
       // For now, we verify the behavior when upgrades are in buyUpgrades.
 
       final state = GlobalState.empty().copyWith(gp: 100);
-      final goal = Goal(targetCredits: 10000);
-      final candidates = enumerateCandidates(state);
+      const goal = ReachGpGoal(10000);
+      final candidates = enumerateCandidates(state, goal);
 
       // With thieving dominating, buyUpgrades is empty, so no upgrade_affordable
       // Iron Axe is in the watch list but not in buyUpgrades
@@ -97,8 +98,8 @@ void main() {
       final action = actionRegistry.byName('Copper'); // Mining copper
       state = state.startAction(action, random: Random(0));
 
-      final goal = Goal(targetCredits: 10000);
-      final candidates = enumerateCandidates(state);
+      const goal = ReachGpGoal(10000);
+      final candidates = enumerateCandidates(state, goal);
 
       // No money, so upgrades not affordable
       expect(state.gp, 0);
@@ -116,8 +117,8 @@ void main() {
       final action = actionRegistry.byName('Copper');
       state = state.startAction(action, random: Random(0));
 
-      final goal = Goal(targetCredits: 100); // Only need 10 more GP
-      final candidates = enumerateCandidates(state);
+      const goal = ReachGpGoal(100); // Only need 10 more GP
+      final candidates = enumerateCandidates(state, goal);
 
       final result = nextDecisionDelta(state, goal, candidates);
 
@@ -130,8 +131,8 @@ void main() {
     test('returns infTicks when no progress possible', () {
       // No active action, no gold rate
       final state = GlobalState.empty();
-      final goal = Goal(targetCredits: 1000);
-      final candidates = enumerateCandidates(state);
+      const goal = ReachGpGoal(1000);
+      final candidates = enumerateCandidates(state, goal);
 
       final result = nextDecisionDelta(state, goal, candidates);
 
@@ -145,8 +146,8 @@ void main() {
       final action = actionRegistry.byName('Raw Shrimp');
       state = state.startAction(action, random: Random(0));
 
-      final goal = Goal(targetCredits: 100000);
-      final candidates = enumerateCandidates(state);
+      const goal = ReachGpGoal(100000);
+      final candidates = enumerateCandidates(state, goal);
 
       // Should be watching Raw Sardine
       expect(candidates.watch.lockedActivityNames, contains('Raw Sardine'));
@@ -163,8 +164,8 @@ void main() {
       final action = actionRegistry.byName('Normal Tree');
       state = state.startAction(action, random: Random(0));
 
-      final goal = Goal(targetCredits: 1000);
-      final candidates = enumerateCandidates(state);
+      const goal = ReachGpGoal(1000);
+      final candidates = enumerateCandidates(state, goal);
 
       final result1 = nextDecisionDelta(state, goal, candidates);
       final result2 = nextDecisionDelta(state, goal, candidates);
@@ -175,9 +176,15 @@ void main() {
   });
 
   group('Goal', () {
-    test('stores target credits', () {
-      const goal = Goal(targetCredits: 5000);
-      expect(goal.targetCredits, 5000);
+    test('ReachGpGoal stores target GP', () {
+      const goal = ReachGpGoal(5000);
+      expect(goal.targetGp, 5000);
+    });
+
+    test('ReachSkillLevelGoal stores skill and level', () {
+      const goal = ReachSkillLevelGoal(Skill.woodcutting, 50);
+      expect(goal.skill, Skill.woodcutting);
+      expect(goal.targetLevel, 50);
     });
   });
 }

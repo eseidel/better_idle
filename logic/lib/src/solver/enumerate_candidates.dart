@@ -33,6 +33,8 @@ import 'package:logic/src/tick.dart';
 import 'package:logic/src/types/stunned.dart';
 import 'package:meta/meta.dart';
 
+import 'goal.dart';
+
 /// Default constants for candidate selection.
 const int defaultActivityCandidateCount = 8; // K
 const int defaultUpgradeCandidateCount = 8; // M
@@ -208,8 +210,13 @@ List<ActionSummary> buildActionSummaries(GlobalState state) {
 ///
 /// Returns a small, cheap, deterministic set of candidate interactions
 /// and future "interesting times". Does NOT simulate.
+///
+/// Activities are ranked by progress rate toward the [goal].
+/// For [ReachGpGoal], this is gold/tick. For [ReachSkillLevelGoal],
+/// this is XP/tick for the target skill.
 Candidates enumerateCandidates(
-  GlobalState state, {
+  GlobalState state,
+  Goal goal, {
   int activityCount = defaultActivityCandidateCount,
   int upgradeCount = defaultUpgradeCandidateCount,
   int lockedWatchCount = defaultLockedWatchCount,
@@ -217,18 +224,25 @@ Candidates enumerateCandidates(
 }) {
   final summaries = buildActionSummaries(state);
 
-  // Select unlocked activity candidates (top K by goldRatePerTick)
-  final switchToActivities = _selectUnlockedActivities(
+  // Ranking function uses goal's activityRate to determine value
+  double rankingFn(ActionSummary s) =>
+      goal.activityRate(s.skill, s.goldRatePerTick, s.xpRatePerTick);
+
+  // Select unlocked activity candidates (top K by ranking function)
+  final switchToActivities = _selectUnlockedActivitiesByRanking(
     summaries,
     state,
     activityCount,
+    rankingFn,
   );
 
   // Select locked activities to watch (top L by smallest unlockDeltaTicks)
+  // Only watch activities for skills relevant to the goal
   final lockedActivitiesToWatch = _selectLockedActivitiesToWatch(
     summaries,
     state,
     lockedWatchCount,
+    goal: goal,
   );
 
   // Build list of candidate activity names (current + switchTo)
@@ -237,30 +251,30 @@ Candidates enumerateCandidates(
     if (state.activeAction != null) state.activeAction!.name,
   ];
 
-  // Find the best current gold rate among all unlocked activities
+  // Find the best current rate among all unlocked activities using ranking fn
   final unlockedSummaries = summaries.where((s) => s.isUnlocked);
   final bestCurrentRate = unlockedSummaries.isEmpty
       ? 0.0
-      : unlockedSummaries
-            .map((s) => s.goldRatePerTick)
-            .reduce((a, b) => a > b ? a : b);
+      : unlockedSummaries.map(rankingFn).reduce((a, b) => a > b ? a : b);
 
-  // Select upgrade candidates (top M by smallest paybackTicks)
-  // Only includes upgrades that improve gold/tick for candidate activities
-  // AND could make that activity become the best activity
+  // Select upgrade candidates
+  // Only include upgrades for skills relevant to the goal
   final upgradeResult = _selectUpgradeCandidates(
     summaries,
     state,
     upgradeCount,
     candidateActivityNames: candidateActivityNames,
     bestCurrentRate: bestCurrentRate,
+    goal: goal,
   );
 
   // Determine SellAll and inventory watch
+  // For skill goals, selling is less relevant (doesn't contribute to XP)
   final inventoryUsedFraction = state.inventoryCapacity > 0
       ? state.inventoryUsed / state.inventoryCapacity
       : 0.0;
-  final includeSellAll = inventoryUsedFraction > inventoryThreshold;
+  final includeSellAll =
+      goal.isSellRelevant && inventoryUsedFraction > inventoryThreshold;
 
   return Candidates(
     switchToActivities: switchToActivities,
@@ -274,11 +288,12 @@ Candidates enumerateCandidates(
   );
 }
 
-/// Selects top K unlocked activities by goldRatePerTick.
-List<String> _selectUnlockedActivities(
+/// Selects top K unlocked activities by a custom ranking function.
+List<String> _selectUnlockedActivitiesByRanking(
   List<ActionSummary> summaries,
   GlobalState state,
   int count,
+  double Function(ActionSummary) rankingFn,
 ) {
   final currentActionName = state.activeAction?.name;
 
@@ -287,21 +302,28 @@ List<String> _selectUnlockedActivities(
       .where((s) => s.isUnlocked && s.actionName != currentActionName)
       .toList();
 
-  // Sort by goldRatePerTick descending
-  unlocked.sort((a, b) => b.goldRatePerTick.compareTo(a.goldRatePerTick));
+  // Sort by ranking function descending
+  unlocked.sort((a, b) => rankingFn(b).compareTo(rankingFn(a)));
 
   // Take top K
   return unlocked.take(count).map((s) => s.actionName).toList();
 }
 
 /// Selects top L locked activities by smallest unlockDeltaTicks.
+///
+/// Only activities for skills relevant to the [goal] are considered.
 List<String> _selectLockedActivitiesToWatch(
   List<ActionSummary> summaries,
   GlobalState state,
-  int count,
-) {
-  // Filter to locked actions
-  final locked = summaries.where((s) => !s.isUnlocked).toList();
+  int count, {
+  required Goal goal,
+}) {
+  // Filter to locked actions for skills relevant to the goal
+  final locked = summaries.where((s) {
+    if (s.isUnlocked) return false;
+    if (!goal.isSkillRelevant(s.skill)) return false;
+    return true;
+  }).toList();
 
   // For each locked action, compute ticks until unlock
   final withDelta = <(String, double)>[];
@@ -350,9 +372,11 @@ class _UpgradeResult {
 
 /// Selects top M upgrades by smallest paybackTicks.
 ///
-/// Only includes upgrades that improve gold/tick for at least one of the
+/// Only includes upgrades that improve rate for at least one of the
 /// candidate activities AND would make that activity competitive with or
 /// better than the best current rate.
+///
+/// Only upgrades for skills relevant to the [goal] are considered.
 ///
 /// The watch list includes all upgrades that meet skill requirements and have
 /// positive gain, regardless of competitiveness (the planner needs to know
@@ -363,6 +387,7 @@ _UpgradeResult _selectUpgradeCandidates(
   int count, {
   List<String>? candidateActivityNames,
   double bestCurrentRate = 0.0,
+  required Goal goal,
 }) {
   final candidates = <(UpgradeType, double)>[];
   final toWatch = <UpgradeType>[];
@@ -373,6 +398,9 @@ _UpgradeResult _selectUpgradeCandidates(
 
     // No more upgrades available for this type
     if (next == null) continue;
+
+    // Only consider upgrades for skills relevant to the goal
+    if (!goal.isSkillRelevant(next.skill)) continue;
 
     // Doesn't meet skill requirement
     final skillLevel = state.skillState(next.skill).skillLevel;
@@ -394,9 +422,11 @@ _UpgradeResult _selectUpgradeCandidates(
 
     if (affectedActivities.isEmpty) continue;
 
-    // Get best gold rate among affected activities
+    // Get best rate among affected activities using goal's rate function
     final baseRate = affectedActivities
-        .map((s) => s.goldRatePerTick)
+        .map(
+          (s) => goal.activityRate(s.skill, s.goldRatePerTick, s.xpRatePerTick),
+        )
         .reduce((a, b) => a > b ? a : b);
 
     if (baseRate <= 0) continue;

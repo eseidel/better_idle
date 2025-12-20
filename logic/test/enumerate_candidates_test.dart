@@ -4,9 +4,13 @@ import 'package:logic/logic.dart';
 import 'package:logic/src/solver/apply_interaction.dart';
 import 'package:logic/src/solver/enumerate_candidates.dart';
 import 'package:logic/src/solver/estimate_rates.dart';
+import 'package:logic/src/solver/goal.dart';
 import 'package:logic/src/solver/interaction.dart';
 import 'package:logic/src/solver/value_model.dart';
 import 'package:test/test.dart';
+
+/// Default goal for tests - a large GP target that won't be reached
+const _defaultGoal = ReachGpGoal(1000000);
 
 void main() {
   group('buildActionSummaries', () {
@@ -86,7 +90,7 @@ void main() {
   group('enumerateCandidates', () {
     test('returns activity candidates sorted by gold rate', () {
       final state = GlobalState.empty();
-      final candidates = enumerateCandidates(state);
+      final candidates = enumerateCandidates(state, _defaultGoal);
 
       expect(candidates.switchToActivities, isNotEmpty);
 
@@ -116,7 +120,11 @@ void main() {
         },
       );
 
-      final candidates = enumerateCandidates(state, activityCount: 3);
+      final candidates = enumerateCandidates(
+        state,
+        _defaultGoal,
+        activityCount: 3,
+      );
       expect(candidates.switchToActivities.length, lessThanOrEqualTo(3));
     });
 
@@ -129,7 +137,7 @@ void main() {
       // activity competitive with the current best. Otherwise they're
       // wasteful spending.
       final state = GlobalState.empty().copyWith(gp: 1000);
-      final candidates = enumerateCandidates(state);
+      final candidates = enumerateCandidates(state, _defaultGoal);
 
       // No upgrades should be suggested when thieving dominates,
       // even if the player can afford them
@@ -160,7 +168,7 @@ void main() {
       // The test verifies that the upgrade filtering works correctly
       // by checking that when thieving dominates, no upgrades are suggested
       final state = GlobalState.empty();
-      final candidates = enumerateCandidates(state);
+      final candidates = enumerateCandidates(state, _defaultGoal);
       expect(
         candidates.buyUpgrades,
         isEmpty,
@@ -170,7 +178,7 @@ void main() {
 
     test('watch list includes locked activities', () {
       final state = GlobalState.empty();
-      final candidates = enumerateCandidates(state);
+      final candidates = enumerateCandidates(state, _defaultGoal);
 
       expect(candidates.watch.lockedActivityNames, isNotEmpty);
       // Should watch for activities that will unlock soon
@@ -183,7 +191,7 @@ void main() {
       // have positive gain, even if not competitive with the best activity.
       // This allows the planner to know when any upgrade becomes affordable.
       final state = GlobalState.empty();
-      final candidates = enumerateCandidates(state);
+      final candidates = enumerateCandidates(state, _defaultGoal);
 
       // Even though thieving dominates, we still watch for tool upgrades
       // so the planner can reconsider when they become affordable
@@ -222,7 +230,7 @@ void main() {
         ]),
       );
 
-      final candidates = enumerateCandidates(state);
+      final candidates = enumerateCandidates(state, _defaultGoal);
 
       expect(candidates.includeSellAll, isTrue);
       expect(candidates.watch.inventory, isTrue);
@@ -235,7 +243,7 @@ void main() {
         ]),
       );
 
-      final candidates = enumerateCandidates(state);
+      final candidates = enumerateCandidates(state, _defaultGoal);
 
       expect(candidates.includeSellAll, isFalse);
       expect(candidates.watch.inventory, isFalse);
@@ -244,8 +252,8 @@ void main() {
     test('is deterministic for same state', () {
       final state = GlobalState.empty().copyWith(gp: 1000);
 
-      final candidates1 = enumerateCandidates(state);
-      final candidates2 = enumerateCandidates(state);
+      final candidates1 = enumerateCandidates(state, _defaultGoal);
+      final candidates2 = enumerateCandidates(state, _defaultGoal);
 
       expect(
         candidates1.switchToActivities,

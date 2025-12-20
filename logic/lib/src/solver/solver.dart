@@ -33,6 +33,7 @@ import 'apply_interaction.dart';
 import 'available_interactions.dart';
 import 'enumerate_candidates.dart';
 import 'estimate_rates.dart';
+import 'goal.dart';
 import 'interaction.dart';
 import 'next_decision_delta.dart';
 import 'plan.dart';
@@ -214,13 +215,18 @@ _BucketKey _bucketKeyFromState(GlobalState state) {
 
 /// A point on the Pareto frontier for dominance checking.
 class _FrontierPoint {
-  _FrontierPoint(this.ticks, this.gold);
+  _FrontierPoint(this.ticks, this.progress);
 
   final int ticks;
-  final int gold;
+
+  /// Progress toward goal (gold for GP goals, XP for skill goals).
+  final int progress;
 }
 
 /// Manages per-bucket Pareto frontiers for dominance pruning.
+/// The second dimension (progress) is goal-dependent:
+/// - For GP goals: effective credits (GP + inventory value)
+/// - For skill goals: current XP in the target skill
 class _ParetoFrontier {
   final Map<_BucketKey, List<_FrontierPoint>> _frontiers = {};
 
@@ -228,27 +234,27 @@ class _ParetoFrontier {
   int inserted = 0;
   int removed = 0;
 
-  /// Checks if (ticks, gold) is dominated by existing frontier.
+  /// Checks if (ticks, progress) is dominated by existing frontier.
   /// If not dominated, inserts the point and removes any points it dominates.
   /// Returns true if dominated (caller should skip this node).
-  bool isDominatedOrInsert(_BucketKey key, int ticks, int gold) {
+  bool isDominatedOrInsert(_BucketKey key, int ticks, int progress) {
     final frontier = _frontiers.putIfAbsent(key, () => []);
 
     // Check if dominated by any existing point
-    // A dominates B if A.ticks <= B.ticks && A.gold >= B.gold
+    // A dominates B if A.ticks <= B.ticks && A.progress >= B.progress
     for (final p in frontier) {
-      if (p.ticks <= ticks && p.gold >= gold) {
+      if (p.ticks <= ticks && p.progress >= progress) {
         return true; // Dominated
       }
     }
 
     // Not dominated - remove any points that new point dominates
     final originalLength = frontier.length;
-    frontier.removeWhere((p) => ticks <= p.ticks && gold >= p.gold);
+    frontier.removeWhere((p) => ticks <= p.ticks && progress >= p.progress);
     removed += originalLength - frontier.length;
 
     // Insert new point
-    frontier.add(_FrontierPoint(ticks, gold));
+    frontier.add(_FrontierPoint(ticks, progress));
     inserted++;
 
     return false; // Not dominated
@@ -268,8 +274,12 @@ int _effectiveCredits(GlobalState state) {
   return total;
 }
 
-/// Cache for best unlocked gold rate by state key (skill levels + tool tiers).
+/// Cache for best unlocked rate by state key (skill levels + tool tiers).
+/// Supports both GP goals (gold/tick) and skill goals (XP/tick).
 class _RateCache {
+  _RateCache(this.goal);
+
+  final Goal goal;
   final Map<String, double> _cache = {};
 
   String _rateKey(GlobalState state) {
@@ -293,11 +303,15 @@ class _RateCache {
     return rate;
   }
 
-  /// Computes the best gold rate among currently UNLOCKED actions.
+  /// Computes the best rate among currently UNLOCKED actions.
+  /// Uses the goal to determine which rate type and skills are relevant.
   double _computeBestUnlockedRate(GlobalState state) {
     var maxRate = 0.0;
 
     for (final skill in Skill.values) {
+      // Only consider skills relevant to the goal
+      if (!goal.isSkillRelevant(skill)) continue;
+
       final skillLevel = state.skillState(skill).skillLevel;
 
       for (final action in actionRegistry.forSkill(skill)) {
@@ -315,14 +329,10 @@ class _RateCache {
         final expectedTicks = baseExpectedTicks * (1.0 + percentModifier);
         if (expectedTicks <= 0) continue;
 
-        // Calculate expected gold per action from selling outputs
-        var expectedGoldPerAction = 0.0;
-        for (final output in action.outputs.entries) {
-          final item = itemRegistry.byName(output.key);
-          expectedGoldPerAction += item.sellsFor * output.value;
-        }
+        // Compute both gold and XP rates, let goal decide which matters
+        double goldRate;
+        double xpRate;
 
-        // For thieving, compute expected gold with success rate and stun time
         if (action is ThievingAction) {
           final thievingLevel = state.skillState(Skill.thieving).skillLevel;
           final mastery = state.actionState(action.name).masteryLevel;
@@ -330,20 +340,35 @@ class _RateCache {
           final successChance = ((100 + stealth) / (100 + action.perception))
               .clamp(0.0, 1.0);
           final failureChance = 1.0 - successChance;
-          final expectedThievingGold = successChance * (1 + action.maxGold) / 2;
-          expectedGoldPerAction += expectedThievingGold;
-
-          // Account for stun time on failure
           final effectiveTicks =
               expectedTicks + failureChance * stunnedDurationTicks;
-          final rate = expectedGoldPerAction / effectiveTicks;
-          if (rate > maxRate) {
-            maxRate = rate;
+
+          // XP is only gained on success
+          final expectedXpPerAction = successChance * action.xp;
+          xpRate = expectedXpPerAction / effectiveTicks;
+
+          // Gold from thieving
+          var expectedGoldPerAction = 0.0;
+          for (final output in action.outputs.entries) {
+            final item = itemRegistry.byName(output.key);
+            expectedGoldPerAction += item.sellsFor * output.value;
           }
-          continue;
+          final expectedThievingGold = successChance * (1 + action.maxGold) / 2;
+          expectedGoldPerAction += expectedThievingGold;
+          goldRate = expectedGoldPerAction / effectiveTicks;
+        } else {
+          xpRate = action.xp / expectedTicks;
+
+          var expectedGoldPerAction = 0.0;
+          for (final output in action.outputs.entries) {
+            final item = itemRegistry.byName(output.key);
+            expectedGoldPerAction += item.sellsFor * output.value;
+          }
+          goldRate = expectedGoldPerAction / expectedTicks;
         }
 
-        final rate = expectedGoldPerAction / expectedTicks;
+        // Let the goal decide which rate matters
+        final rate = goal.activityRate(skill, goldRate, xpRate);
         if (rate > maxRate) {
           maxRate = rate;
         }
@@ -356,11 +381,11 @@ class _RateCache {
 
 /// A* heuristic: optimistic lower bound on ticks to reach goal.
 /// Uses best unlocked rate for tighter, state-aware estimates.
-/// h(state) = ceil(remainingGold / R_bestUnlocked)
-int _heuristic(GlobalState state, int goalCredits, _RateCache rateCache) {
+/// h(state) = ceil(remaining / R_bestUnlocked)
+int _heuristic(GlobalState state, Goal goal, _RateCache rateCache) {
   final bestRate = rateCache.getBestUnlockedRate(state);
-  if (bestRate <= 0) return 0; // Fallback to Dijkstra if no gold rate
-  final remaining = goalCredits - state.gp;
+  if (bestRate <= 0) return 0; // Fallback to Dijkstra if no rate
+  final remaining = goal.remaining(state);
   if (remaining <= 0) return 0;
   return (remaining / bestRate).ceil();
 }
@@ -591,17 +616,40 @@ SolverResult solveToCredits(
   int maxExpandedNodes = defaultMaxExpandedNodes,
   int maxQueueSize = defaultMaxQueueSize,
 }) {
-  final goal = Goal(targetCredits: goalCredits);
+  return solve(
+    initial,
+    ReachGpGoal(goalCredits),
+    maxExpandedNodes: maxExpandedNodes,
+    maxQueueSize: maxQueueSize,
+  );
+}
+
+/// Solves for an optimal plan to satisfy the given [goal].
+///
+/// Uses A* algorithm to find the minimum-ticks path from the initial
+/// state to a state where [goal.isSatisfied] returns true.
+///
+/// Supports both [ReachGpGoal] (reach target GP) and [ReachSkillLevelGoal]
+/// (reach target skill level).
+///
+/// Returns a [SolverResult] which is either [SolverSuccess] with the plan,
+/// or [SolverFailed] with failure information.
+SolverResult solve(
+  GlobalState initial,
+  Goal goal, {
+  int maxExpandedNodes = defaultMaxExpandedNodes,
+  int maxQueueSize = defaultMaxQueueSize,
+}) {
   final profile = SolverProfile();
   final totalStopwatch = Stopwatch()..start();
 
   // Check if goal is already satisfied (considering inventory value)
-  if (_effectiveCredits(initial) >= goalCredits) {
+  if (goal.isSatisfied(initial)) {
     return SolverSuccess(const Plan.empty(), profile);
   }
 
   // Rate cache for A* heuristic (caches best unlocked rate by state)
-  final rateCache = _RateCache();
+  final rateCache = _RateCache(goal);
 
   // Dominance pruning frontier
   final frontier = _ParetoFrontier();
@@ -612,10 +660,8 @@ SolverResult solveToCredits(
   // A* priority: f(n) = g(n) + h(n) = ticksSoFar + heuristic
   // Break ties by lower ticksSoFar (prefer actual progress over estimates)
   final pq = PriorityQueue<int>((a, b) {
-    final fA =
-        nodes[a].ticks + _heuristic(nodes[a].state, goalCredits, rateCache);
-    final fB =
-        nodes[b].ticks + _heuristic(nodes[b].state, goalCredits, rateCache);
+    final fA = nodes[a].ticks + _heuristic(nodes[a].state, goal, rateCache);
+    final fB = nodes[b].ticks + _heuristic(nodes[b].state, goal, rateCache);
     final cmp = fA.compareTo(fB);
     if (cmp != 0) return cmp;
     // Tie-break by lower g (actual ticks)
@@ -696,8 +742,7 @@ SolverResult solveToCredits(
     final nodeKey = _stateKey(node.state);
     profile.hashingTimeUs += hashStopwatch.elapsedMicroseconds;
 
-    final nodeCredits = _effectiveCredits(node.state);
-    final nodeReachedGoal = nodeCredits >= goalCredits;
+    final nodeReachedGoal = goal.isSatisfied(node.state);
 
     final bestForKey = bestTicks[nodeKey];
     if (!nodeReachedGoal && bestForKey != null && bestForKey < node.ticks) {
@@ -708,13 +753,14 @@ SolverResult solveToCredits(
     var neighborsThisNode = 0;
 
     // Track best credits seen (effective credits = GP + inventory value)
+    // Note: For non-GP goals this tracks GP anyway for diagnostics.
     final nodeEffectiveCredits = _effectiveCredits(node.state);
     if (nodeEffectiveCredits > bestCredits) {
       bestCredits = nodeEffectiveCredits;
     }
 
-    // Check if goal is reached (considering inventory value)
-    if (nodeEffectiveCredits >= goalCredits) {
+    // Check if goal is reached
+    if (nodeReachedGoal) {
       // Reconstruct and return the plan
       final plan = _reconstructPlan(
         nodes,
@@ -733,7 +779,7 @@ SolverResult solveToCredits(
 
     // Compute candidates for this state
     final enumStopwatch = Stopwatch()..start();
-    final candidates = enumerateCandidates(node.state);
+    final candidates = enumerateCandidates(node.state, goal);
     profile.enumerateCandidatesTimeUs += enumStopwatch.elapsedMicroseconds;
 
     // Expand interaction edges (0 time cost)
@@ -744,11 +790,15 @@ SolverResult solveToCredits(
 
       try {
         final newState = applyInteraction(node.state, interaction);
-        final newGold = _effectiveCredits(newState);
+        final newProgress = goal.progress(newState);
         final newBucketKey = _bucketKeyFromState(newState);
 
         // Dominance pruning: skip if dominated by existing frontier point
-        if (frontier.isDominatedOrInsert(newBucketKey, node.ticks, newGold)) {
+        if (frontier.isDominatedOrInsert(
+          newBucketKey,
+          node.ticks,
+          newProgress,
+        )) {
           profile.dominatedSkipped++;
           continue;
         }
@@ -805,21 +855,21 @@ SolverResult solveToCredits(
       profile.advanceTimeUs += advanceStopwatch.elapsedMicroseconds;
 
       final newTicks = node.ticks + deltaResult.deltaTicks;
-      final newGold = _effectiveCredits(newState);
+      final newProgress = goal.progress(newState);
       final newBucketKey = _bucketKeyFromState(newState);
 
       // Check if we've reached the goal BEFORE dominance pruning
-      final reachedGoal = newGold >= goalCredits;
+      final reachedGoal = goal.isSatisfied(newState);
 
       // Dominance pruning: skip if dominated by existing frontier point
       // BUT: never skip if we've reached the goal
       if (!reachedGoal &&
-          frontier.isDominatedOrInsert(newBucketKey, newTicks, newGold)) {
+          frontier.isDominatedOrInsert(newBucketKey, newTicks, newProgress)) {
         profile.dominatedSkipped++;
       } else {
         // If we reached goal, still add to frontier for tracking
         if (reachedGoal) {
-          frontier.isDominatedOrInsert(newBucketKey, newTicks, newGold);
+          frontier.isDominatedOrInsert(newBucketKey, newTicks, newProgress);
         }
         hashStopwatch.reset();
         hashStopwatch.start();

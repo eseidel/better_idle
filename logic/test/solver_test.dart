@@ -4,6 +4,7 @@ import 'package:logic/logic.dart';
 import 'package:logic/src/solver/apply_interaction.dart';
 import 'package:logic/src/solver/enumerate_candidates.dart';
 import 'package:logic/src/solver/estimate_rates.dart';
+import 'package:logic/src/solver/goal.dart';
 import 'package:logic/src/solver/interaction.dart';
 import 'package:logic/src/solver/next_decision_delta.dart';
 import 'package:logic/src/solver/plan.dart';
@@ -368,8 +369,8 @@ void main() {
       final lostHp = state.maxPlayerHp - 5;
       state = state.copyWith(health: HealthState(lostHp: lostHp));
 
-      final goal = Goal(targetCredits: 100000); // High goal
-      final candidates = enumerateCandidates(state);
+      const goal = ReachGpGoal(100000); // High goal
+      final candidates = enumerateCandidates(state, goal);
 
       final result = nextDecisionDelta(state, goal, candidates);
 
@@ -435,8 +436,8 @@ void main() {
       final action = actionRegistry.byName('Normal Tree');
       state = state.startAction(action, random: Random(0));
 
-      final goal = Goal(targetCredits: 100000); // High goal
-      final candidates = enumerateCandidates(state);
+      const goal = ReachGpGoal(100000); // High goal
+      final candidates = enumerateCandidates(state, goal);
 
       final result = nextDecisionDelta(state, goal, candidates);
 
@@ -452,8 +453,8 @@ void main() {
       final action = actionRegistry.byName('Man');
       state = state.startAction(action, random: Random(0));
 
-      final goal = Goal(targetCredits: 100000); // High goal
-      final candidates = enumerateCandidates(state);
+      const goal = ReachGpGoal(100000); // High goal
+      final candidates = enumerateCandidates(state, goal);
 
       final result = nextDecisionDelta(state, goal, candidates);
 

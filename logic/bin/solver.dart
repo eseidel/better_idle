@@ -1,24 +1,41 @@
 // Entry point for the solver - solves for an optimal plan to reach a goal.
 //
 // Usage: dart run bin/solver.dart [goal_credits]
+//        dart run bin/solver.dart -s  # Solve for woodcutting level 70
 //
 // Example: dart run bin/solver.dart 1000
 
+import 'package:args/args.dart';
 import 'package:logic/logic.dart';
 import 'package:logic/src/solver/apply_interaction.dart';
+import 'package:logic/src/solver/goal.dart';
 import 'package:logic/src/solver/plan.dart';
 import 'package:logic/src/solver/solver.dart';
 
 void main(List<String> args) {
-  // Parse gold goal from args, default to 100 GP
-  final goalCredits = args.isNotEmpty ? int.tryParse(args[0]) ?? 100 : 100;
-  print('Goal: $goalCredits GP');
+  final parser = ArgParser()
+    ..addFlag('skill', abbr: 's', help: 'Solve for woodcutting level 70');
+
+  final results = parser.parse(args);
+
+  final Goal goal;
+  if (results['skill'] as bool) {
+    goal = const ReachSkillLevelGoal(Skill.woodcutting, 30);
+    print('Goal: ${goal.describe()}');
+  } else {
+    // Parse gold goal from remaining args, default to 100 GP
+    final goalCredits = results.rest.isNotEmpty
+        ? int.tryParse(results.rest[0]) ?? 100
+        : 100;
+    goal = ReachGpGoal(goalCredits);
+    print('Goal: $goalCredits GP');
+  }
 
   final initialState = GlobalState.empty();
 
   print('Solving...');
   final stopwatch = Stopwatch()..start();
-  final result = solveToCredits(initialState, goalCredits);
+  final result = solve(initialState, goal);
   stopwatch.stop();
 
   print('Solver completed in ${stopwatch.elapsedMilliseconds}ms');
