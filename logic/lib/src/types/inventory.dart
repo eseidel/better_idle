@@ -107,4 +107,18 @@ class Inventory {
     }
     return Inventory._(counts: counts, orderedItems: orderedItems);
   }
+
+  /// Returns a new inventory with items sorted by their registry order.
+  Inventory sorted() {
+    final orderedItems = List<Item>.from(_orderedItems);
+    orderedItems.sort((a, b) {
+      final indexA = itemRegistry.indexForItem(a);
+      final indexB = itemRegistry.indexForItem(b);
+      return indexA.compareTo(indexB);
+    });
+    return Inventory._(
+      counts: Map<Item, int>.from(_counts),
+      orderedItems: orderedItems,
+    );
+  }
 }

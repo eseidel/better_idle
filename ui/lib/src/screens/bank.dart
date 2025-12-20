@@ -45,12 +45,26 @@ class _BankPageState extends State<BankPage> {
           : null,
       body: Column(
         children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-            children: [
-              Text('Space: $inventoryUsed/$inventoryCapacity'),
-              Text('Value: ${approximateCreditString(sellValue)} GP'),
-            ],
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            child: Row(
+              children: [
+                Text(
+                  'Space: $inventoryUsed/$inventoryCapacity',
+                  style: inventoryUsed >= inventoryCapacity
+                      ? const TextStyle(color: Colors.red)
+                      : null,
+                ),
+                const SizedBox(width: 16),
+                Text('Value: ${approximateCreditString(sellValue)} GP'),
+                const Spacer(),
+                IconButton(
+                  icon: const Icon(Icons.sort),
+                  tooltip: 'Sort inventory',
+                  onPressed: () => context.dispatch(SortInventoryAction()),
+                ),
+              ],
+            ),
           ),
           Expanded(
             child: ItemGrid(
@@ -75,7 +89,7 @@ class ItemGrid extends StatelessWidget {
     return GridView.builder(
       padding: const EdgeInsets.all(16),
       gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 4,
+        crossAxisCount: 8,
         crossAxisSpacing: 12,
         mainAxisSpacing: 12,
       ),

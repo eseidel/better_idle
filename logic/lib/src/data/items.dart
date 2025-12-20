@@ -138,8 +138,16 @@ class ItemRegistry {
 
   final List<Item> _all;
 
+  /// All registered items.
+  List<Item> get all => _all;
+
   Item byName(String name) {
     return _all.firstWhere((item) => item.name == name);
+  }
+
+  /// Returns the index of the item in the registry, or -1 if not found.
+  int indexForItem(Item item) {
+    return _all.indexOf(item);
   }
 }
 

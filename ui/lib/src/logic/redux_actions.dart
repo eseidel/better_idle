@@ -278,3 +278,50 @@ class OpenItemAction extends ReduxAction<GlobalState> {
     return newState;
   }
 }
+
+/// Sorts the inventory by registry order.
+class SortInventoryAction extends ReduxAction<GlobalState> {
+  @override
+  GlobalState reduce() {
+    return state.copyWith(inventory: state.inventory.sorted());
+  }
+}
+
+// Debug actions
+
+/// Adds Egg Chests to inventory for testing.
+class DebugAddEggChestsAction extends ReduxAction<GlobalState> {
+  DebugAddEggChestsAction({this.count = 50});
+  final int count;
+
+  @override
+  GlobalState reduce() {
+    final eggChest = itemRegistry.byName('Egg Chest');
+    final stack = ItemStack(eggChest, count: count);
+    final newInventory = state.inventory.adding(stack);
+    return state.copyWith(inventory: newInventory);
+  }
+}
+
+/// Fills inventory with random items (one of each type not already present).
+class DebugFillInventoryAction extends ReduxAction<GlobalState> {
+  @override
+  GlobalState reduce() {
+    var inventory = state.inventory;
+    final capacity = state.inventoryCapacity;
+
+    // Get items not already in inventory
+    final existingItems = inventory.items.map((s) => s.item).toSet();
+    final availableItems = itemRegistry.all
+        .where((item) => !existingItems.contains(item))
+        .toList();
+
+    // Add items until inventory is full
+    for (final item in availableItems) {
+      if (inventory.items.length >= capacity) break;
+      inventory = inventory.adding(ItemStack(item, count: 1));
+    }
+
+    return state.copyWith(inventory: inventory);
+  }
+}
