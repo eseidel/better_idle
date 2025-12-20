@@ -87,7 +87,7 @@ List<Droppable> woodcuttingRewards(SkillAction action, int masteryLevel) {
   return [
     DropTable([
       Pick(name, weight: singlePercent),
-      Pick(name, weight: doublePercent, count: 2),
+      Pick(name, count: 2, weight: doublePercent),
     ]),
   ];
 }
