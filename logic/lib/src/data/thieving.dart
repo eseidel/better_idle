@@ -178,8 +178,8 @@ final thievingActions = <ThievingAction>[
     /// - 30/1048 each: Steel Bar, Willow Logs (2.86%)
     /// Total: 786/1048 = 393/524 ≈ 75%
     // TODO(eseidel): express this exactly as the wiki does.
-    dropTable: DropTableChance(
-      [
+    dropTable: DropChance(
+      DropTable([
         PickFixed('Copper Ore', 150), // 75/524 = 150/1048
         PickFixed('Bronze Bar', 150), // 75/524 = 150/1048
         PickFixed('Normal Logs', 150), // 75/524 = 150/1048
@@ -189,7 +189,7 @@ final thievingActions = <ThievingAction>[
         PickFixed('Iron Ore', 36), // 9/262 = 36/1048
         PickFixed('Steel Bar', 30), // 15/524 = 30/1048
         PickFixed('Willow Logs', 30), // 15/524 = 30/1048
-      ],
+      ]),
       rate: 786 / 1048, // 75% chance of any drop
     ),
   ),

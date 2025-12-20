@@ -96,24 +96,20 @@ class RangeDrop extends SingleDrop {
   }
 }
 
-/// A conditional drop that wraps another SingleDrop with a probability gate.
+/// A conditional drop that wraps any Droppable with a probability gate.
 class DropChance extends Droppable {
   const DropChance(this.child, {required this.rate});
 
-  final SingleDrop child;
+  final Droppable child;
 
   /// The chance this drop is triggered (0.0 to 1.0).
   final double rate;
-
-  /// The name of the wrapped drop.
-  String get name => child.name;
 
   @override
   ItemStack? roll(Random random) {
     if (random.nextDouble() >= rate) {
       return null;
     }
-    // Always roll the child (it has rate 1.0 effectively from our perspective)
     return child.roll(random);
   }
 
@@ -208,57 +204,6 @@ class DropTable extends Droppable {
   ItemStack? roll(Random random) {
     if (entries.isEmpty) return null;
 
-    final total = _totalWeight;
-    var roll = random.nextDouble() * total;
-
-    for (final entry in entries) {
-      roll -= entry.weight;
-      if (roll <= 0) {
-        return entry.roll(random);
-      }
-    }
-
-    // Fallback to last entry (shouldn't happen with valid weights)
-    return entries.last.roll(random);
-  }
-}
-
-/// A conditional drop table that may or may not trigger.
-/// When it triggers, selects exactly one item from weighted entries.
-class DropTableChance extends Droppable {
-  const DropTableChance(this.entries, {required this.rate});
-
-  /// The chance this drop table triggers (0.0 to 1.0).
-  final double rate;
-
-  /// The weighted entries in this table.
-  final List<Pick> entries;
-
-  /// Returns the total weight of all entries.
-  double get _totalWeight => entries.fold(0, (sum, e) => sum + e.weight);
-
-  @override
-  Map<String, double> get expectedItems {
-    final result = <String, double>{};
-    final total = _totalWeight;
-    for (final entry in entries) {
-      final probability = rate * (entry.weight / total);
-      final value = entry.expectedCount * probability;
-      result[entry.name] = (result[entry.name] ?? 0.0) + value;
-    }
-    return result;
-  }
-
-  @override
-  ItemStack? roll(Random random) {
-    // First roll: does the table trigger at all?
-    if (random.nextDouble() >= rate) {
-      return null;
-    }
-
-    if (entries.isEmpty) return null;
-
-    // Second roll: which entry from the table?
     final total = _totalWeight;
     var roll = random.nextDouble() * total;
 

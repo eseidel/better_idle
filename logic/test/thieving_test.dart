@@ -58,7 +58,9 @@ void main() {
         return drops
             .map((d) {
               if (d is SingleDrop) return d.name;
-              if (d is DropChance) return d.name;
+              if (d is DropChance && d.child is SingleDrop) {
+                return (d.child as SingleDrop).name;
+              }
               return null;
             })
             .whereType<String>()
@@ -89,7 +91,9 @@ void main() {
       );
 
       final crateDrop = drops.whereType<DropChance>().firstWhere(
-        (d) => d.name == 'Crate of Basic Supplies',
+        (d) =>
+            d.child is SingleDrop &&
+            (d.child as SingleDrop).name == 'Crate of Basic Supplies',
       );
 
       expect(crateDrop.rate, closeTo(1 / 500, 0.0001));
@@ -100,7 +104,9 @@ void main() {
       final dropNames = drops
           .map((d) {
             if (d is SingleDrop) return d.name;
-            if (d is DropChance) return d.name;
+            if (d is DropChance && d.child is SingleDrop) {
+              return (d.child as SingleDrop).name;
+            }
             return null;
           })
           .whereType<String>()
@@ -113,7 +119,8 @@ void main() {
 
   group('Golbin drops', () {
     final golbinAction = thievingActionByName('Golbin');
-    final golbinDropTable = golbinAction.dropTable! as DropTableChance;
+    final golbinDropChance = golbinAction.dropTable! as DropChance;
+    final golbinDropTable = golbinDropChance.child as DropTable;
 
     test('Golbin has NPC-specific drop table', () {
       final drops = dropsRegistry.allDropsForAction(
@@ -123,19 +130,21 @@ void main() {
       // Should have 3 drops: Golbin drop table (action-level) +
       // area drop (Crate of Basic Supplies) + Bobby's Pocket (skill-level)
       expect(drops.length, 3);
-      final dropTables = drops.whereType<DropTableChance>().toList();
-      expect(dropTables, hasLength(1));
-      expect(dropTables.first.expectedItems['Copper Ore'], greaterThan(0));
+      final dropChances = drops.whereType<DropChance>().toList();
+      // Both the Golbin drop table and the area drop are DropChance
+      expect(dropChances, hasLength(2));
+      expect(dropChances.first.expectedItems['Copper Ore'], greaterThan(0));
     });
 
     test('golbinDropTable has correct structure', () {
       // Outer rate is 786/1048 ≈ 75%
-      expect(golbinDropTable.rate, closeTo(786 / 1048, 0.0001));
+      expect(golbinDropChance.rate, closeTo(786 / 1048, 0.0001));
       expect(golbinDropTable.entries, hasLength(9));
     });
 
     test('golbinDropTable has correct item rates', () {
-      final expected = golbinDropTable.expectedItems;
+      // Use the DropChance's expectedItems which includes the rate
+      final expected = golbinDropChance.expectedItems;
 
       // 75/524 = 150/1048 items (14.31%)
       expect(expected['Copper Ore'], closeTo(75 / 524, 0.0001));
@@ -156,7 +165,8 @@ void main() {
     });
 
     test('golbinDropTable total rate is approximately 75%', () {
-      final expected = golbinDropTable.expectedItems;
+      // Use the DropChance's expectedItems which includes the rate
+      final expected = golbinDropChance.expectedItems;
       final totalRate = expected.values.fold(0.0, (sum, rate) => sum + rate);
       // Total should be 786/1048 ≈ 0.75
       expect(totalRate, closeTo(0.75, 0.001));
