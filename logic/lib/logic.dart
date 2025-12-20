@@ -21,5 +21,6 @@ export 'src/types/drop.dart';
 export 'src/types/equipment.dart';
 export 'src/types/health.dart';
 export 'src/types/inventory.dart';
+export 'src/types/open_result.dart';
 export 'src/types/stunned.dart';
 export 'src/types/time_away.dart';

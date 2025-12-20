@@ -1,3 +1,4 @@
+import 'package:better_idle/src/logic/redux_actions.dart';
 import 'package:better_idle/src/widgets/navigation_drawer.dart';
 import 'package:better_idle/src/widgets/welcome_back_dialog.dart';
 import 'package:flutter/material.dart';
@@ -18,6 +19,20 @@ class DebugPage extends StatelessWidget {
             ElevatedButton(
               onPressed: () => _showWelcomeBackDialog(context),
               child: const Text('Show Welcome Back Dialog (Example)'),
+            ),
+            const SizedBox(height: 16),
+            ElevatedButton(
+              onPressed: () {
+                context.dispatch(DebugAddEggChestsAction());
+              },
+              child: const Text('Add 50 Egg Chests'),
+            ),
+            const SizedBox(height: 16),
+            ElevatedButton(
+              onPressed: () {
+                context.dispatch(DebugFillInventoryAction());
+              },
+              child: const Text('Fill Inventory'),
             ),
           ],
         ),

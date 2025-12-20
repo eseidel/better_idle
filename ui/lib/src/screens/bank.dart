@@ -1,7 +1,9 @@
 import 'package:better_idle/src/logic/redux_actions.dart';
+import 'package:better_idle/src/services/toast_service.dart';
 import 'package:better_idle/src/widgets/context_extensions.dart';
 import 'package:better_idle/src/widgets/count_badge_cell.dart';
 import 'package:better_idle/src/widgets/navigation_drawer.dart';
+import 'package:better_idle/src/widgets/open_result_dialog.dart';
 import 'package:collection/collection.dart';
 import 'package:flutter/material.dart';
 import 'package:logic/logic.dart';
@@ -43,12 +45,26 @@ class _BankPageState extends State<BankPage> {
           : null,
       body: Column(
         children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-            children: [
-              Text('Space: $inventoryUsed/$inventoryCapacity'),
-              Text('Value: ${approximateCreditString(sellValue)} GP'),
-            ],
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            child: Row(
+              children: [
+                Text(
+                  'Space: $inventoryUsed/$inventoryCapacity',
+                  style: inventoryUsed >= inventoryCapacity
+                      ? const TextStyle(color: Colors.red)
+                      : null,
+                ),
+                const SizedBox(width: 16),
+                Text('Value: ${approximateCreditString(sellValue)} GP'),
+                const Spacer(),
+                IconButton(
+                  icon: const Icon(Icons.sort),
+                  tooltip: 'Sort inventory',
+                  onPressed: () => context.dispatch(SortInventoryAction()),
+                ),
+              ],
+            ),
           ),
           Expanded(
             child: ItemGrid(
@@ -73,7 +89,7 @@ class ItemGrid extends StatelessWidget {
     return GridView.builder(
       padding: const EdgeInsets.all(16),
       gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 4,
+        crossAxisCount: 8,
         crossAxisSpacing: 12,
         mainAxisSpacing: 12,
       ),
@@ -310,6 +326,13 @@ class _ItemDetailsDrawerState extends State<ItemDetailsDrawer> {
                 const SizedBox(height: 16),
                 _EquipFoodSection(item: itemData, maxCount: maxCount),
               ],
+              // Show Open button for openable items
+              if (itemData is Openable) ...[
+                const SizedBox(height: 32),
+                const Divider(),
+                const SizedBox(height: 16),
+                _OpenItemSection(item: itemData, maxCount: maxCount),
+              ],
             ],
           ),
         ),
@@ -423,6 +446,113 @@ class _EquipFoodSectionState extends State<_EquipFoodSection> {
               style: TextStyle(color: Colors.red[700], fontSize: 12),
             ),
           ),
+      ],
+    );
+  }
+}
+
+class _OpenItemSection extends StatefulWidget {
+  const _OpenItemSection({required this.item, required this.maxCount});
+
+  final Item item;
+  final int maxCount;
+
+  @override
+  State<_OpenItemSection> createState() => _OpenItemSectionState();
+}
+
+class _OpenItemSectionState extends State<_OpenItemSection> {
+  double _openCount = 1;
+
+  @override
+  void initState() {
+    super.initState();
+    _openCount = widget.maxCount.toDouble();
+  }
+
+  @override
+  void didUpdateWidget(_OpenItemSection oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.maxCount != widget.maxCount) {
+      if (_openCount > widget.maxCount) {
+        setState(() {
+          _openCount = widget.maxCount > 0 ? widget.maxCount.toDouble() : 1;
+        });
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final openCountInt = _openCount.round().clamp(1, widget.maxCount);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text('Open Item', style: Theme.of(context).textTheme.titleMedium),
+        const SizedBox(height: 8),
+        Text(
+          'Open to receive a random drop',
+          style: Theme.of(context).textTheme.bodyMedium,
+        ),
+        const SizedBox(height: 16),
+        Text(
+          'Quantity: ${approximateCountString(openCountInt)}',
+          style: Theme.of(context).textTheme.bodyMedium,
+        ),
+        const SizedBox(height: 8),
+        Slider(
+          value: _openCount.clamp(1, widget.maxCount.toDouble()),
+          min: 1,
+          max: widget.maxCount > 0 ? widget.maxCount.toDouble() : 1.0,
+          divisions: widget.maxCount > 1 ? widget.maxCount - 1 : null,
+          label: preciseNumberString(openCountInt),
+          onChanged: widget.maxCount > 0
+              ? (value) {
+                  setState(() {
+                    _openCount = value;
+                  });
+                }
+              : null,
+        ),
+        const SizedBox(height: 16),
+        SizedBox(
+          width: double.infinity,
+          child: ElevatedButton(
+            onPressed: () {
+              final itemName = widget.item.name;
+              context.dispatch(
+                OpenItemAction(
+                  item: widget.item,
+                  count: openCountInt,
+                  onResult: (result) {
+                    // Close the drawer first
+                    Navigator.of(context).pop();
+
+                    if (result.hasDrops) {
+                      // Show dialog with results
+                      showDialog<void>(
+                        context: context,
+                        builder: (context) => OpenResultDialog(
+                          itemName: itemName,
+                          result: result,
+                        ),
+                      );
+                    } else if (result.error != null) {
+                      // No items opened, show error toast
+                      toastService.showError(result.error!);
+                    }
+                  },
+                ),
+              );
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.orange,
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('Open'),
+          ),
+        ),
       ],
     );
   }

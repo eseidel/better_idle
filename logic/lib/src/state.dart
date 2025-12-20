@@ -11,6 +11,7 @@ import 'package:logic/src/types/equipment.dart';
 import 'package:logic/src/types/health.dart';
 import 'package:logic/src/types/inventory.dart';
 import 'package:logic/src/types/modifier.dart';
+import 'package:logic/src/types/open_result.dart';
 import 'package:logic/src/types/stunned.dart';
 import 'package:logic/src/types/time_away.dart';
 import 'package:meta/meta.dart';
@@ -681,6 +682,50 @@ class GlobalState {
       throw ArgumentError('Invalid food slot index: $slotIndex');
     }
     return copyWith(equipment: equipment.copyWith(selectedFoodSlot: slotIndex));
+  }
+
+  /// Opens openable items and adds the resulting drops to inventory.
+  /// Opens items one by one until inventory is full or count is reached.
+  /// Returns (newState, OpenResult) with combined drops and any error.
+  /// Throws StateError if player doesn't have the item or item is not openable.
+  (GlobalState, OpenResult) openItems(
+    Item item, {
+    required int count,
+    required Random random,
+  }) {
+    if (item is! Openable) {
+      throw StateError('Cannot open ${item.name}: not an openable item');
+    }
+
+    final availableCount = inventory.countOfItem(item);
+    if (availableCount < 1) {
+      throw StateError('Cannot open ${item.name}: not in inventory');
+    }
+
+    // Clamp count to available
+    final toOpen = count.clamp(1, availableCount);
+
+    var currentInventory = inventory;
+    var result = const OpenResult(openedCount: 0, drops: {});
+
+    for (var i = 0; i < toOpen; i++) {
+      // Roll the drop for this item
+      final drop = item.open(random);
+
+      // Check if we can add the drop
+      if (!currentInventory.canAdd(drop.item, capacity: inventoryCapacity)) {
+        result = result.withError('Inventory full');
+        break;
+      }
+
+      // Remove one openable and add the drop
+      currentInventory = currentInventory
+          .removing(ItemStack(item, count: 1))
+          .adding(drop);
+      result = result.addDrop(drop);
+    }
+
+    return (copyWith(inventory: currentInventory), result);
   }
 
   GlobalState copyWith({

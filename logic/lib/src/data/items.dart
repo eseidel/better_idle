@@ -1,4 +1,8 @@
+import 'dart:math';
+
 import 'package:equatable/equatable.dart';
+import 'package:logic/src/types/drop.dart';
+import 'package:logic/src/types/inventory.dart';
 import 'package:meta/meta.dart';
 
 const _woodcutting = [
@@ -52,7 +56,28 @@ const _gems = [
 
 const _thieving = [Item("Bobby's Pocket", gp: 4000)];
 
-const List<Item> _all = [
+// Farming items (from openables like Egg Chest)
+const _farming = [
+  Item('Feathers', gp: 2), // Inferred from 1-1000 feathers = 2-2000GP
+  Item('Raw Chicken', gp: 1), // Inferred from 1-40 chicken = 1-40GP
+];
+
+// Openable items (chests, etc.)
+final _openables = <Openable>[
+  Openable(
+    'Egg Chest',
+    gp: 100,
+    dropTable: DropTable(
+      rate: 1.0,
+      entries: [
+        RangeDrop('Feathers', minCount: 1, maxCount: 1000, rate: 1), // 50%
+        RangeDrop('Raw Chicken', minCount: 1, maxCount: 40, rate: 1), // 50%
+      ],
+    ),
+  ),
+];
+
+final _all = <Item>[
   ..._woodcutting,
   ..._firemaking,
   ..._fishing,
@@ -61,6 +86,8 @@ const List<Item> _all = [
   ..._smithing,
   ..._gems,
   ..._thieving,
+  ..._farming,
+  ..._openables,
 ];
 
 @immutable
@@ -80,13 +107,47 @@ class Item extends Equatable {
   List<Object?> get props => [name, sellsFor, healsFor];
 }
 
+/// An item that can be opened to receive drops from a weighted table.
+@immutable
+class Openable extends Item {
+  Openable(super.name, {required super.gp, required this.dropTable})
+    : assert(
+        !dropTable.canDropNothing,
+        'Drop table must have a 100% chance of dropping an item',
+      );
+
+  /// The drop table for this openable.
+  final DropTable dropTable;
+
+  /// Opens this item once and returns the resulting drop.
+  ItemStack open(Random random) {
+    final drop = dropTable.roll(random);
+    // Openables always drop an item.
+    if (drop == null) {
+      throw StateError('Failed to open $name: no drop');
+    }
+    return drop;
+  }
+
+  @override
+  List<Object?> get props => [...super.props, dropTable];
+}
+
 class ItemRegistry {
   ItemRegistry(this._all);
 
   final List<Item> _all;
 
+  /// All registered items.
+  List<Item> get all => _all;
+
   Item byName(String name) {
     return _all.firstWhere((item) => item.name == name);
+  }
+
+  /// Returns the index of the item in the registry, or -1 if not found.
+  int indexForItem(Item item) {
+    return _all.indexOf(item);
   }
 }
 
