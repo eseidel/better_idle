@@ -108,14 +108,16 @@ class Inventory {
     return Inventory._(counts: counts, orderedItems: orderedItems);
   }
 
+  static int itemRegistryOrder(Item a, Item b) {
+    final indexA = itemRegistry.indexForItem(a);
+    final indexB = itemRegistry.indexForItem(b);
+    return indexA.compareTo(indexB);
+  }
+
   /// Returns a new inventory with items sorted by their registry order.
-  Inventory sorted() {
+  Inventory sorted([int Function(Item, Item) compare = itemRegistryOrder]) {
     final orderedItems = List<Item>.from(_orderedItems);
-    orderedItems.sort((a, b) {
-      final indexA = itemRegistry.indexForItem(a);
-      final indexB = itemRegistry.indexForItem(b);
-      return indexA.compareTo(indexB);
-    });
+    orderedItems.sort(compare);
     return Inventory._(
       counts: Map<Item, int>.from(_counts),
       orderedItems: orderedItems,

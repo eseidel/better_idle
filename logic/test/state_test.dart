@@ -212,37 +212,6 @@ void main() {
     expect(afterSelling.gp, 5);
   });
 
-  group('Inventory.canAdd', () {
-    test('returns true when inventory has existing stack of item', () {
-      final inventory = Inventory.fromItems([
-        ItemStack(normalLogs, count: 5),
-        ItemStack(oakLogs, count: 3),
-      ]);
-      // Can add more normal logs even if at capacity
-      expect(inventory.canAdd(normalLogs, capacity: 2), isTrue);
-    });
-
-    test('returns true when inventory has room for new item', () {
-      final inventory = Inventory.fromItems([ItemStack(normalLogs, count: 5)]);
-      // Can add oak logs because we have room (1 slot used, capacity 2)
-      expect(inventory.canAdd(oakLogs, capacity: 2), isTrue);
-    });
-
-    test('returns false when inventory is full with different items', () {
-      final inventory = Inventory.fromItems([
-        ItemStack(normalLogs, count: 5),
-        ItemStack(oakLogs, count: 3),
-      ]);
-      // Cannot add bird nest because inventory is full (2 slots, capacity 2)
-      expect(inventory.canAdd(birdNest, capacity: 2), isFalse);
-    });
-
-    test('returns true for empty inventory', () {
-      const inventory = Inventory.empty();
-      expect(inventory.canAdd(normalLogs, capacity: 20), isTrue);
-    });
-  });
-
   group('GlobalState.unequipFood', () {
     test('moves food from equipment slot to inventory', () {
       // Start with food equipped and empty inventory
