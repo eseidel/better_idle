@@ -5,6 +5,8 @@
 //
 // Example: dart run bin/solver.dart 1000
 
+import 'dart:math';
+
 import 'package:args/args.dart';
 import 'package:logic/logic.dart';
 import 'package:logic/src/solver/goal.dart';
@@ -48,9 +50,24 @@ void main(List<String> args) {
     print('Interaction count: ${result.plan.interactionCount}');
 
     // Execute the plan to get the final state
-    final finalState = executePlan(initialState, result.plan);
+    final execResult = executePlan(
+      initialState,
+      result.plan,
+      random: Random(42),
+    );
     print('');
-    _printFinalState(finalState);
+    _printFinalState(execResult.finalState);
+    print('');
+    print('=== Execution Stats ===');
+    print('Planned ticks: ${execResult.plannedTicks}');
+    print('Actual ticks: ${execResult.actualTicks}');
+    final delta = execResult.ticksDelta;
+    final deltaSign = delta >= 0 ? '+' : '';
+    print('Delta: $deltaSign$delta ticks');
+    print(
+      'Deaths: ${execResult.totalDeaths} actual, '
+      '${result.plan.expectedDeaths} expected',
+    );
 
     if (result.profile != null) {
       print('');

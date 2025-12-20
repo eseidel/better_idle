@@ -82,10 +82,7 @@ NextDecisionResult nextDecisionDelta(
 }) {
   // Check if goal is already satisfied
   if (goal.isSatisfied(state)) {
-    return NextDecisionResult(
-      deltaTicks: 0,
-      waitFor: WaitForGoal(goal.describe()),
-    );
+    return NextDecisionResult(deltaTicks: 0, waitFor: WaitForGoal(goal));
   }
 
   // Check for immediate availability (upgrades already affordable)
@@ -127,9 +124,7 @@ NextDecisionResult nextDecisionDelta(
   // A) Time until goal reached
   final deltaGoal = _deltaUntilGoal(state, goal, progressRate);
   if (deltaGoal != null && deltaGoal > 0) {
-    deltas.add(
-      _DeltaCandidate(ticks: deltaGoal, waitFor: WaitForGoal(goal.describe())),
-    );
+    deltas.add(_DeltaCandidate(ticks: deltaGoal, waitFor: WaitForGoal(goal)));
   }
 
   // B) Time until any watched upgrade becomes affordable
@@ -158,13 +153,9 @@ NextDecisionResult nextDecisionDelta(
     }
   }
 
-  // E) Time until activity stops (death from thieving)
-  final deltaDeath = ticksUntilDeath(state, rates);
-  if (deltaDeath != null && deltaDeath > 0) {
-    deltas.add(
-      _DeltaCandidate(ticks: deltaDeath, waitFor: const WaitForDeath()),
-    );
-  }
+  // Note: Death is NOT a decision point - it's handled automatically during
+  // plan execution by restarting the activity. The planner still accounts for
+  // death in expected-value calculations via ticksUntilDeath in _advanceExpected.
 
   // F) Time until next skill level (rates may change)
   final deltaSkillLevel = _deltaUntilNextSkillLevel(state, rates);
@@ -180,11 +171,8 @@ NextDecisionResult nextDecisionDelta(
 
   // Find minimum positive delta
   if (deltas.isEmpty) {
-    // Dead end - create a dummy WaitFor that will never be satisfied
-    return NextDecisionResult(
-      deltaTicks: infTicks,
-      waitFor: const WaitForGoal('No progress possible'),
-    );
+    // Dead end - use the goal but with infinite ticks
+    return NextDecisionResult(deltaTicks: infTicks, waitFor: WaitForGoal(goal));
   }
 
   deltas.sort((a, b) => a.ticks.compareTo(b.ticks));

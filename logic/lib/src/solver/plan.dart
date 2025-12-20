@@ -23,6 +23,7 @@ import 'package:logic/src/state.dart';
 import 'package:logic/src/tick.dart';
 import 'package:meta/meta.dart';
 
+import 'goal.dart';
 import 'interaction.dart';
 
 // ---------------------------------------------------------------------------
@@ -201,59 +202,27 @@ class WaitForInventoryFull extends WaitFor {
   int get hashCode => 0;
 }
 
-/// Wait until player dies (HP reaches 0).
-/// After death, the activity stops and HP resets.
-@immutable
-class WaitForDeath extends WaitFor {
-  const WaitForDeath();
-
-  @override
-  bool isSatisfied(GlobalState state) {
-    // Death resets HP and stops activity - check if activity stopped
-    // or HP is at max (reset after death).
-    // In practice, we detect death by the activity being null after thieving.
-    return state.activeAction == null;
-  }
-
-  @override
-  String describe() => 'death';
-
-  @override
-  String get shortDescription => 'Death';
-
-  @override
-  bool operator ==(Object other) => other is WaitForDeath;
-
-  @override
-  int get hashCode => 1;
-}
-
 /// Wait until goal is reached. This is a terminal wait.
 @immutable
 class WaitForGoal extends WaitFor {
-  const WaitForGoal(this.goalDescription);
+  const WaitForGoal(this.goal);
 
-  final String goalDescription;
-
-  @override
-  bool isSatisfied(GlobalState state) {
-    // Goal satisfaction is checked externally by the solver.
-    // This is used for plan display only.
-    return false;
-  }
+  final Goal goal;
 
   @override
-  String describe() => goalDescription;
+  bool isSatisfied(GlobalState state) => goal.isSatisfied(state);
+
+  @override
+  String describe() => goal.describe();
 
   @override
   String get shortDescription => 'Goal reached';
 
   @override
-  bool operator ==(Object other) =>
-      other is WaitForGoal && other.goalDescription == goalDescription;
+  bool operator ==(Object other) => other is WaitForGoal && other.goal == goal;
 
   @override
-  int get hashCode => goalDescription.hashCode;
+  int get hashCode => goal.hashCode;
 }
 
 // ---------------------------------------------------------------------------
@@ -321,6 +290,7 @@ class Plan {
     required this.interactionCount,
     this.expandedNodes = 0,
     this.enqueuedNodes = 0,
+    this.expectedDeaths = 0,
   });
 
   /// An empty plan (goal already satisfied).
@@ -329,7 +299,8 @@ class Plan {
       totalTicks = 0,
       interactionCount = 0,
       expandedNodes = 0,
-      enqueuedNodes = 0;
+      enqueuedNodes = 0,
+      expectedDeaths = 0;
 
   /// The sequence of steps to reach the goal.
   final List<PlanStep> steps;
@@ -345,6 +316,9 @@ class Plan {
 
   /// Number of nodes enqueued during search (for debugging).
   final int enqueuedNodes;
+
+  /// Expected number of deaths during plan execution (from planning model).
+  final int expectedDeaths;
 
   /// Human-readable total time.
   Duration get totalDuration => durationFromTicks(totalTicks);
@@ -447,4 +421,31 @@ class SolverFailed extends SolverResult {
 
   final SolverFailure failure;
   final dynamic profile;
+}
+
+/// Result of executing a plan via [executePlan].
+@immutable
+class PlanExecutionResult {
+  const PlanExecutionResult({
+    required this.finalState,
+    required this.totalDeaths,
+    required this.actualTicks,
+    required this.plannedTicks,
+  });
+
+  /// The final game state after executing the plan.
+  final GlobalState finalState;
+
+  /// Total number of deaths that occurred during plan execution.
+  /// Deaths are automatically handled by restarting the activity.
+  final int totalDeaths;
+
+  /// Actual ticks elapsed during execution.
+  final int actualTicks;
+
+  /// Planned ticks from the solver (for comparison).
+  final int plannedTicks;
+
+  /// Difference between actual and planned ticks.
+  int get ticksDelta => actualTicks - plannedTicks;
 }

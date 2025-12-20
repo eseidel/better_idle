@@ -84,11 +84,11 @@ void main() {
 
       // advance uses expected-value model for rate-modelable activities
       // so we check that GP increases appropriately
-      final newState = advance(state, 100);
+      final result = advance(state, 100);
 
       // Normal Tree: 1 gold / 30 ticks = 0.033 gold/tick
       // After 100 ticks: expect ~3 gold
-      expect(newState.gp, greaterThan(initialGp));
+      expect(result.state.gp, greaterThan(initialGp));
     });
 
     test('is deterministic', () {
@@ -96,14 +96,14 @@ void main() {
       final action = actionRegistry.byName('Normal Tree');
       state = state.startAction(action, random: Random(0));
 
-      final state1 = advance(state, 100);
-      final state2 = advance(state, 100);
+      final result1 = advance(state, 100);
+      final result2 = advance(state, 100);
 
-      expect(state1.gp, state2.gp);
+      expect(result1.state.gp, result2.state.gp);
       // Skill XP should also match
       expect(
-        state1.skillState(Skill.woodcutting).xp,
-        state2.skillState(Skill.woodcutting).xp,
+        result1.state.skillState(Skill.woodcutting).xp,
+        result2.state.skillState(Skill.woodcutting).xp,
       );
     });
 
@@ -112,10 +112,10 @@ void main() {
       final action = actionRegistry.byName('Normal Tree');
       state = state.startAction(action, random: Random(0));
 
-      final newState = advance(state, 0);
+      final result = advance(state, 0);
 
       expect(
-        newState.activeAction?.remainingTicks,
+        result.state.activeAction?.remainingTicks,
         state.activeAction?.remainingTicks,
       );
     });
@@ -216,12 +216,13 @@ void main() {
 
   group('Plan', () {
     test('prettyPrint outputs plan summary', () {
+      const testGoal = ReachGpGoal(100);
       const plan = Plan(
         steps: [
           InteractionStep(SwitchActivity('Normal Tree')),
-          WaitStep(1000, WaitForGoal('test')),
+          WaitStep(1000, WaitForGoal(testGoal)),
           InteractionStep(BuyUpgrade(UpgradeType.axe)),
-          WaitStep(5000, WaitForGoal('test')),
+          WaitStep(5000, WaitForGoal(testGoal)),
         ],
         totalTicks: 6000,
         interactionCount: 2,
@@ -240,9 +241,10 @@ void main() {
     });
 
     test('prettyPrint limits steps shown', () {
+      const testGoal = ReachGpGoal(100);
       final steps = List.generate(
         50,
-        (i) => WaitStep(i * 100, const WaitForGoal('test')),
+        (i) => WaitStep(i * 100, const WaitForGoal(testGoal)),
       );
       final plan = Plan(
         steps: steps,
@@ -341,11 +343,12 @@ void main() {
       final ticksToDeath = ticksUntilDeath(state, rates);
 
       // Advance past death
-      final newState = advance(state, ticksToDeath! + 1000);
+      final result = advance(state, ticksToDeath! + 1000);
 
       // Activity should be stopped and HP should be reset
-      expect(newState.activeAction, isNull);
-      expect(newState.playerHp, newState.maxPlayerHp); // Full HP after death
+      expect(result.state.activeAction, isNull);
+      expect(result.state.playerHp, result.state.maxPlayerHp); // Full HP
+      expect(result.deaths, 1); // One death occurred
     });
 
     test('advance does not stop activity before death', () {
@@ -357,11 +360,12 @@ void main() {
       final ticksToDeath = ticksUntilDeath(state, rates);
 
       // Advance less than death time
-      final newState = advance(state, ticksToDeath! ~/ 2);
+      final result = advance(state, ticksToDeath! ~/ 2);
 
       // Activity should still be running
-      expect(newState.activeAction, isNotNull);
-      expect(newState.activeAction!.name, 'Man');
+      expect(result.state.activeAction, isNotNull);
+      expect(result.state.activeAction!.name, 'Man');
+      expect(result.deaths, 0); // No death yet
     });
 
     test('nextDecisionDelta includes death timing for thieving', () {
@@ -612,6 +616,126 @@ void main() {
             "because skill-level drops like Bobby's Pocket should be included. "
             "Expected with drops: $expectedGoldPerTickWithDrops",
       );
+    });
+  });
+
+  group('consumeUntil', () {
+    test('reaches woodcutting XP goal in reasonable time', () {
+      // Setup: start woodcutting Normal Tree
+      var state = GlobalState.empty();
+      final action = actionRegistry.byName('Normal Tree');
+      state = state.startAction(action, random: Random(42));
+
+      // Normal Tree: 3 seconds (30 ticks), 10 XP per action
+      // To get 10 XP, we need 1 action = 30 ticks
+      const waitFor = WaitForSkillXp(Skill.woodcutting, 10);
+      final result = consumeUntil(state, waitFor, random: Random(42));
+
+      // Should complete in roughly 30 ticks (1 action), not thousands
+      expect(
+        result.ticksElapsed,
+        lessThan(100),
+        reason:
+            'Should reach 10 woodcutting XP in ~30 ticks (1 action), '
+            'not ${result.ticksElapsed} ticks',
+      );
+      expect(
+        result.state.skillState(Skill.woodcutting).xp,
+        greaterThanOrEqualTo(10),
+      );
+    });
+  });
+
+  group('executePlan', () {
+    test('executes empty plan and returns initial state', () {
+      final state = GlobalState.empty().copyWith(gp: 500);
+      const plan = Plan.empty();
+
+      final result = executePlan(state, plan, random: Random(42));
+
+      expect(result.finalState.gp, 500);
+      expect(result.actualTicks, 0);
+      expect(result.totalDeaths, 0);
+    });
+
+    test('executes plan with switch activity step', () {
+      final state = GlobalState.empty();
+      final plan = Plan(
+        steps: [
+          const InteractionStep(SwitchActivity('Normal Tree')),
+          WaitStep(30, WaitForSkillXp(Skill.woodcutting, 10)),
+        ],
+        totalTicks: 30,
+        interactionCount: 1,
+      );
+
+      final result = executePlan(state, plan, random: Random(42));
+
+      // Should have woodcutting XP from the wait
+      expect(
+        result.finalState.skillState(Skill.woodcutting).xp,
+        greaterThan(0),
+      );
+      expect(result.actualTicks, greaterThan(0));
+      expect(result.totalDeaths, 0);
+    });
+
+    test('tracks deaths during thieving execution', () {
+      // Create a plan that does thieving for a long time (will cause deaths)
+      final state = GlobalState.empty();
+      final plan = Plan(
+        steps: [
+          const InteractionStep(SwitchActivity('Man')),
+          // Wait for a very high GP goal - will take many iterations and deaths
+          WaitStep(50000, WaitForGoal(const ReachGpGoal(5000))),
+        ],
+        totalTicks: 50000,
+        interactionCount: 1,
+      );
+
+      final result = executePlan(state, plan, random: Random(42));
+
+      // Should have some GP from thieving
+      expect(result.finalState.gp, greaterThan(0));
+      // Should have experienced deaths during the long thieving session
+      expect(result.totalDeaths, greaterThan(0));
+    });
+
+    test('reports planned vs actual ticks correctly', () {
+      final state = GlobalState.empty();
+      final plan = Plan(
+        steps: [
+          const InteractionStep(SwitchActivity('Normal Tree')),
+          WaitStep(60, WaitForSkillXp(Skill.woodcutting, 20)),
+        ],
+        totalTicks: 60,
+        interactionCount: 1,
+      );
+
+      final result = executePlan(state, plan, random: Random(42));
+
+      // plannedTicks should match plan.totalTicks
+      expect(result.plannedTicks, 60);
+      // actualTicks should be close but may vary due to simulation
+      expect(result.actualTicks, greaterThan(0));
+      // ticksDelta is the difference
+      expect(result.ticksDelta, result.actualTicks - result.plannedTicks);
+    });
+
+    test('executes plan from solve result', () {
+      // Solve for a small GP goal
+      final state = GlobalState.empty();
+      const goal = ReachGpGoal(100);
+      final solveResult = solve(state, goal);
+
+      expect(solveResult, isA<SolverSuccess>());
+      final success = solveResult as SolverSuccess;
+
+      // Execute the plan
+      final execResult = executePlan(state, success.plan, random: Random(42));
+
+      // Should reach the goal (or close to it due to simulation variance)
+      expect(execResult.finalState.gp, greaterThan(50));
     });
   });
 }
