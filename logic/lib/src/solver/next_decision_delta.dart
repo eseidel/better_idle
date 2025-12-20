@@ -89,7 +89,9 @@ NextDecisionResult nextDecisionDelta(
   }
 
   // Check for immediate availability (upgrades already affordable)
-  for (final type in candidates.watch.upgradeTypes) {
+  // Only consider upgrades that are competitive (in buyUpgrades), not the
+  // broader watch list which includes all potentially useful upgrades.
+  for (final type in candidates.buyUpgrades) {
     final currentLevel = state.shop.upgradeLevel(type);
     final upgrade = nextUpgrade(type, currentLevel);
     if (upgrade != null && state.gp >= upgrade.cost) {

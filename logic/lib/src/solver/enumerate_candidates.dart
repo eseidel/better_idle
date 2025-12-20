@@ -236,20 +236,9 @@ Candidates enumerateCandidates(
       : 0.0;
   final includeSellAll = inventoryUsedFraction > inventoryThreshold;
 
-  // Include affordable watched upgrades in buyUpgrades so the solver can act
-  // on them when nextDecisionDelta returns deltaTicks=0 for "upgrade_affordable"
-  final buyUpgrades = <UpgradeType>{...upgradeResult.candidates};
-  for (final type in upgradeResult.toWatch) {
-    final currentLevel = state.shop.upgradeLevel(type);
-    final upgrade = nextUpgrade(type, currentLevel);
-    if (upgrade != null && state.gp >= upgrade.cost) {
-      buyUpgrades.add(type);
-    }
-  }
-
   return Candidates(
     switchToActivities: switchToActivities,
-    buyUpgrades: buyUpgrades.toList(),
+    buyUpgrades: upgradeResult.candidates,
     includeSellAll: includeSellAll,
     watch: WatchList(
       upgradeTypes: upgradeResult.toWatch,

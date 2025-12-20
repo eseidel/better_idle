@@ -120,32 +120,25 @@ void main() {
       expect(candidates.switchToActivities.length, lessThanOrEqualTo(3));
     });
 
-    test(
-      'includes affordable upgrades in buyUpgrades even when not competitive',
-      () {
-        // Set up a state where thieving is the best activity.
-        // With thieving Man at 1.14 gold/tick and Normal Tree at 0.033,
-        // even a 5% improvement to woodcutting won't make it competitive.
-        //
-        // However, affordable upgrades from the watch list are included in
-        // buyUpgrades so the solver can act on them when they become affordable.
-        // With 1000 GP, all basic upgrades are affordable.
-        final state = GlobalState.empty().copyWith(gp: 1000);
-        final candidates = enumerateCandidates(state);
+    test('excludes non-competitive upgrades from buyUpgrades', () {
+      // Set up a state where thieving is the best activity.
+      // With thieving Man at 1.14 gold/tick and Normal Tree at 0.033,
+      // even a 5% improvement to woodcutting won't make it competitive.
+      //
+      // Upgrades should only be in buyUpgrades if they would make an
+      // activity competitive with the current best. Otherwise they're
+      // wasteful spending.
+      final state = GlobalState.empty().copyWith(gp: 1000);
+      final candidates = enumerateCandidates(state);
 
-        // Affordable upgrades are now included in buyUpgrades even if not
-        // competitive, so the solver has actions to take when
-        // nextDecisionDelta returns "upgrade_affordable"
-        expect(
-          candidates.buyUpgrades,
-          containsAll([
-            UpgradeType.axe,
-            UpgradeType.fishingRod,
-            UpgradeType.pickaxe,
-          ]),
-        );
-      },
-    );
+      // No upgrades should be suggested when thieving dominates,
+      // even if the player can afford them
+      expect(
+        candidates.buyUpgrades,
+        isEmpty,
+        reason: 'No upgrades should be suggested when thieving dominates',
+      );
+    });
 
     test('includes upgrades when they could make activity competitive', () {
       // Create a state where Normal Tree is the current best activity
