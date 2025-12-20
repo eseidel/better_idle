@@ -38,37 +38,21 @@ const int infTicks = 1 << 60;
 
 /// A candidate delta (time until some event occurs).
 class _DeltaCandidate {
-  const _DeltaCandidate({
-    required this.ticks,
-    required this.waitReason,
-    this.details,
-  });
+  const _DeltaCandidate({required this.ticks, required this.waitFor});
 
   final int ticks;
-  final WaitReason waitReason;
-  final String? details;
+  final WaitFor waitFor;
 }
 
 /// Result of nextDecisionDelta computation with explanation.
 class NextDecisionResult {
-  const NextDecisionResult({
-    required this.deltaTicks,
-    required this.reason,
-    required this.waitReason,
-    this.details,
-  });
+  const NextDecisionResult({required this.deltaTicks, required this.waitFor});
 
   /// The number of ticks to wait (0 if immediate action available).
   final int deltaTicks;
 
-  /// Human-readable reason for this delta.
-  final String reason;
-
-  /// Typed reason for use in plan steps.
-  final WaitReason waitReason;
-
-  /// Optional details (e.g., which upgrade becomes affordable).
-  final String? details;
+  /// What we're waiting for.
+  final WaitFor waitFor;
 
   bool get isImmediate => deltaTicks == 0;
   bool get isDeadEnd => deltaTicks == infTicks;
@@ -100,9 +84,7 @@ NextDecisionResult nextDecisionDelta(
   if (goal.isSatisfied(state)) {
     return NextDecisionResult(
       deltaTicks: 0,
-      reason: 'goal_reached',
-      waitReason: WaitReason.goalReached,
-      details: goal.describe(),
+      waitFor: WaitForGoal(goal.describe()),
     );
   }
 
@@ -115,9 +97,7 @@ NextDecisionResult nextDecisionDelta(
     if (upgrade != null && state.gp >= upgrade.cost) {
       return NextDecisionResult(
         deltaTicks: 0,
-        reason: 'upgrade_affordable',
-        waitReason: WaitReason.upgradeAffordable,
-        details: '${upgrade.name} is affordable now',
+        waitFor: WaitForInventoryValue(upgrade.cost, reason: upgrade.name),
       );
     }
   }
@@ -128,11 +108,9 @@ NextDecisionResult nextDecisionDelta(
         ? state.inventoryUsed / state.inventoryCapacity
         : 0.0;
     if (usedFraction >= defaultInventoryThreshold) {
-      return const NextDecisionResult(
+      return NextDecisionResult(
         deltaTicks: 0,
-        reason: 'inventory_threshold',
-        waitReason: WaitReason.inventoryThreshold,
-        details: 'Inventory above threshold',
+        waitFor: const WaitForInventoryThreshold(defaultInventoryThreshold),
       );
     }
   }
@@ -150,11 +128,7 @@ NextDecisionResult nextDecisionDelta(
   final deltaGoal = _deltaUntilGoal(state, goal, progressRate);
   if (deltaGoal != null && deltaGoal > 0) {
     deltas.add(
-      _DeltaCandidate(
-        ticks: deltaGoal,
-        waitReason: WaitReason.goalReached,
-        details: goal.describe(),
-      ),
+      _DeltaCandidate(ticks: deltaGoal, waitFor: WaitForGoal(goal.describe())),
     );
   }
 
@@ -179,11 +153,7 @@ NextDecisionResult nextDecisionDelta(
     final deltaInv = _deltaUntilInventoryFull(state, rates);
     if (deltaInv != null && deltaInv > 0) {
       deltas.add(
-        _DeltaCandidate(
-          ticks: deltaInv,
-          waitReason: WaitReason.inventoryFull,
-          details: 'Inventory will be full',
-        ),
+        _DeltaCandidate(ticks: deltaInv, waitFor: const WaitForInventoryFull()),
       );
     }
   }
@@ -192,43 +162,28 @@ NextDecisionResult nextDecisionDelta(
   final deltaDeath = ticksUntilDeath(state, rates);
   if (deltaDeath != null && deltaDeath > 0) {
     deltas.add(
-      _DeltaCandidate(
-        ticks: deltaDeath,
-        waitReason: WaitReason.death,
-        details: 'Player will die (thieving)',
-      ),
+      _DeltaCandidate(ticks: deltaDeath, waitFor: const WaitForDeath()),
     );
   }
 
   // F) Time until next skill level (rates may change)
-  final deltaSkillLevel = ticksUntilNextSkillLevel(state, rates);
-  if (deltaSkillLevel != null && deltaSkillLevel > 0) {
-    deltas.add(
-      _DeltaCandidate(
-        ticks: deltaSkillLevel,
-        waitReason: WaitReason.skillLevel,
-      ),
-    );
+  final deltaSkillLevel = _deltaUntilNextSkillLevel(state, rates);
+  if (deltaSkillLevel != null) {
+    deltas.add(deltaSkillLevel);
   }
 
   // G) Time until next mastery level (rates may change, especially for thieving)
-  final deltaMasteryLevel = ticksUntilNextMasteryLevel(state, rates);
-  if (deltaMasteryLevel != null && deltaMasteryLevel > 0) {
-    deltas.add(
-      _DeltaCandidate(
-        ticks: deltaMasteryLevel,
-        waitReason: WaitReason.masteryLevel,
-      ),
-    );
+  final deltaMasteryLevel = _deltaUntilNextMasteryLevel(state, rates);
+  if (deltaMasteryLevel != null) {
+    deltas.add(deltaMasteryLevel);
   }
 
   // Find minimum positive delta
   if (deltas.isEmpty) {
-    return const NextDecisionResult(
+    // Dead end - create a dummy WaitFor that will never be satisfied
+    return NextDecisionResult(
       deltaTicks: infTicks,
-      reason: 'dead_end',
-      waitReason: WaitReason.unknown,
-      details: 'No progress possible',
+      waitFor: const WaitForGoal('No progress possible'),
     );
   }
 
@@ -238,12 +193,7 @@ NextDecisionResult nextDecisionDelta(
   // Ensure at least 1 tick (avoid returning 0 unless immediate)
   final finalDelta = best.ticks < 1 ? 1 : best.ticks;
 
-  return NextDecisionResult(
-    deltaTicks: finalDelta,
-    reason: best.waitReason.name,
-    waitReason: best.waitReason,
-    details: best.details,
-  );
+  return NextDecisionResult(deltaTicks: finalDelta, waitFor: best.waitFor);
 }
 
 /// Computes ticks until goal is reached at current progress rate.
@@ -265,6 +215,7 @@ _DeltaCandidate? _deltaUntilUpgradeAffordable(
 
   int? minDelta;
   String? minUpgradeName;
+  int? minUpgradeCost;
 
   for (final type in candidates.watch.upgradeTypes) {
     final currentLevel = state.shop.upgradeLevel(type);
@@ -282,14 +233,14 @@ _DeltaCandidate? _deltaUntilUpgradeAffordable(
     if (minDelta == null || delta < minDelta) {
       minDelta = delta;
       minUpgradeName = upgrade.name;
+      minUpgradeCost = upgrade.cost;
     }
   }
 
-  if (minDelta == null) return null;
+  if (minDelta == null || minUpgradeCost == null) return null;
   return _DeltaCandidate(
     ticks: minDelta,
-    waitReason: WaitReason.upgradeAffordable,
-    details: '$minUpgradeName becomes affordable',
+    waitFor: WaitForInventoryValue(minUpgradeCost, reason: minUpgradeName!),
   );
 }
 
@@ -301,6 +252,8 @@ _DeltaCandidate? _deltaUntilActivityUnlocks(
 ) {
   int? minDelta;
   String? minActivityName;
+  Skill? minSkill;
+  int? minTargetXp;
 
   for (final activityName in candidates.watch.lockedActivityNames) {
     final action = actionRegistry.skillActionByName(activityName);
@@ -326,14 +279,61 @@ _DeltaCandidate? _deltaUntilActivityUnlocks(
     if (minDelta == null || delta < minDelta) {
       minDelta = delta;
       minActivityName = activityName;
+      minSkill = skill;
+      minTargetXp = requiredXp;
     }
   }
 
-  if (minDelta == null) return null;
+  if (minDelta == null || minSkill == null || minTargetXp == null) return null;
   return _DeltaCandidate(
     ticks: minDelta,
-    waitReason: WaitReason.activityUnlocks,
-    details: '$minActivityName unlocks',
+    waitFor: WaitForSkillXp(
+      minSkill,
+      minTargetXp,
+      reason: '$minActivityName unlocks',
+    ),
+  );
+}
+
+/// Computes ticks until next skill level.
+_DeltaCandidate? _deltaUntilNextSkillLevel(GlobalState state, Rates rates) {
+  final ticks = ticksUntilNextSkillLevel(state, rates);
+  if (ticks == null || ticks <= 0) return null;
+
+  // Find which skill is being trained
+  final actionName = state.activeAction?.name;
+  if (actionName == null) return null;
+
+  final action = actionRegistry.byName(actionName);
+  if (action is! SkillAction) return null;
+
+  final skill = action.skill;
+  final currentXp = state.skillState(skill).xp;
+  final currentLevel = levelForXp(currentXp);
+  final nextLevelXp = startXpForLevel(currentLevel + 1);
+
+  return _DeltaCandidate(
+    ticks: ticks,
+    waitFor: WaitForSkillXp(skill, nextLevelXp),
+  );
+}
+
+/// Computes ticks until next mastery level.
+_DeltaCandidate? _deltaUntilNextMasteryLevel(GlobalState state, Rates rates) {
+  final ticks = ticksUntilNextMasteryLevel(state, rates);
+  if (ticks == null || ticks <= 0) return null;
+
+  // Find which action is being performed
+  final actionName = state.activeAction?.name;
+  if (actionName == null) return null;
+
+  final currentMasteryXp = state.actionState(actionName).masteryXp;
+  final currentLevel = levelForXp(currentMasteryXp);
+  final nextLevelXp = startXpForLevel(currentLevel + 1);
+
+  return _DeltaCandidate(
+    ticks: ticks,
+    waitFor: WaitForMasteryXp(actionName, nextLevelXp),
   );
 }
 

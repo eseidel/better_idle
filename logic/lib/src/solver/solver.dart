@@ -29,8 +29,6 @@ import 'package:logic/src/tick.dart';
 import 'package:logic/src/types/health.dart';
 import 'package:logic/src/types/stunned.dart';
 
-import 'package:logic/src/data/upgrades.dart';
-
 import 'apply_interaction.dart';
 import 'available_interactions.dart';
 import 'enumerate_candidates.dart';
@@ -612,97 +610,10 @@ GlobalState advance(GlobalState state, int deltaTicks) {
   return _advanceFullSim(state, deltaTicks);
 }
 
-/// Creates a [WaitCondition] based on the wait reason and states.
-///
-/// The condition captures what the solver expects to be true after waiting,
-/// allowing plan execution to continue until the condition is actually met
-/// (handling variance between expected-value planning and actual simulation).
-///
-/// [beforeState] is the state before waiting, [expectedState] is the expected
-/// state after waiting. Some conditions (like upgrade affordable) need to
-/// compute the target from [beforeState].
-WaitCondition? _createWaitCondition(
-  WaitReason reason,
-  GlobalState beforeState,
-  GlobalState expectedState,
-) {
-  return switch (reason) {
-    // For upgrade affordable, find which upgrade becomes affordable and
-    // wait until we can afford it. Use beforeState to find the next upgrade.
-    WaitReason.upgradeAffordable => () {
-      // Find the cheapest upgrade that wasn't affordable before but is now
-      int? minCost;
-      for (final type in UpgradeType.values) {
-        final currentLevel = beforeState.shop.upgradeLevel(type);
-        final upgrade = nextUpgrade(type, currentLevel);
-        if (upgrade == null) continue;
-        // This upgrade is the target if we couldn't afford it before
-        if (beforeState.gp < upgrade.cost) {
-          if (minCost == null || upgrade.cost < minCost) {
-            minCost = upgrade.cost;
-          }
-        }
-      }
-      return minCost != null ? WaitForInventoryValue(minCost) : null;
-    }(),
-
-    // For goal reached (GP goals), use the expected value
-    WaitReason.goalReached => WaitForInventoryValue(
-      _effectiveCredits(expectedState),
-    ),
-
-    // For skill level ups, capture the expected skill XP
-    WaitReason.skillLevel => () {
-      // Find which skill leveled up by checking the active action
-      final actionName = expectedState.activeAction?.name;
-      if (actionName == null) return null;
-      final action = actionRegistry.byName(actionName);
-      if (action is! SkillAction) return null;
-      final skill = action.skill;
-      return WaitForSkillXp(skill, expectedState.skillState(skill).xp);
-    }(),
-
-    // For mastery level ups, capture the expected mastery XP
-    WaitReason.masteryLevel => () {
-      final actionName = expectedState.activeAction?.name;
-      if (actionName == null) return null;
-      final masteryXp = expectedState.actionState(actionName).masteryXp;
-      return WaitForMasteryXp(actionName, masteryXp);
-    }(),
-
-    // For inventory threshold, use the threshold constant
-    WaitReason.inventoryThreshold => const WaitForInventoryThreshold(
-      defaultInventoryThreshold,
-    ),
-
-    // For inventory full, just wait until full
-    WaitReason.inventoryFull => const WaitForInventoryFull(),
-
-    // For death, wait until activity stops
-    WaitReason.death => const WaitForDeath(),
-
-    // Activity unlocks use skill XP
-    WaitReason.activityUnlocks => () {
-      // Find which skill is being trained
-      final actionName = expectedState.activeAction?.name;
-      if (actionName == null) return null;
-      final action = actionRegistry.byName(actionName);
-      if (action is! SkillAction) return null;
-      final skill = action.skill;
-      return WaitForSkillXp(skill, expectedState.skillState(skill).xp);
-    }(),
-
-    // Unknown - no condition, fall back to time-based
-    WaitReason.unknown => null,
-  };
-}
-
 /// Executes a plan and returns the final state.
 ///
-/// Uses goal-aware waiting: when a [WaitStep] has a [WaitCondition], execution
-/// continues until the condition is met (up to a maximum of 2x the expected
-/// ticks). This handles variance between expected-value planning and actual
-/// simulation.
+/// Uses goal-aware waiting: [WaitStep.waitFor] determines when to stop waiting,
+/// which handles variance between expected-value planning and actual simulation.
 GlobalState executePlan(GlobalState state, Plan plan) {
   // Use a fixed random for deterministic execution
   final random = Random(42);
@@ -711,27 +622,22 @@ GlobalState executePlan(GlobalState state, Plan plan) {
     switch (step) {
       case InteractionStep(:final interaction):
         state = applyInteraction(state, interaction);
-      case WaitStep(:final deltaTicks, :final condition):
-        if (condition != null) {
-          // Goal-aware waiting: continue until condition is met
-          // For credits-based conditions, allow much more time since variance
-          // and XP-based wait steps may not accumulate expected items
-          final isValueCondition = condition is WaitForInventoryValue;
-          // For value: allow 10x or minimum 1000 ticks (100 seconds)
-          // For other conditions: allow 2x expected time
-          final maxTicks = isValueCondition
-              ? max(deltaTicks * 10, 1000)
-              : deltaTicks * 2;
-          state = _advanceUntilCondition(
-            state,
-            condition,
-            maxTicks: maxTicks,
-            random: random,
-          );
-        } else {
-          // Fallback to time-based waiting
-          state = _advanceFullSim(state, deltaTicks, random: random);
-        }
+      case WaitStep(:final deltaTicks, :final waitFor):
+        // Goal-aware waiting: continue until condition is met
+        // For value-based conditions, allow much more time since variance
+        // and XP-based wait steps may not accumulate expected items
+        final isValueCondition = waitFor is WaitForInventoryValue;
+        // For value: allow 10x or minimum 1000 ticks (100 seconds)
+        // For other conditions: allow 2x expected time
+        final maxTicks = isValueCondition
+            ? max(deltaTicks * 10, 1000)
+            : deltaTicks * 2;
+        state = _advanceUntilCondition(
+          state,
+          waitFor,
+          maxTicks: maxTicks,
+          random: random,
+        );
     }
   }
   return state;
@@ -740,12 +646,12 @@ GlobalState executePlan(GlobalState state, Plan plan) {
 /// Advances state until a condition is met or maxTicks is reached.
 GlobalState _advanceUntilCondition(
   GlobalState state,
-  WaitCondition condition, {
+  WaitFor waitFor, {
   required int maxTicks,
   required Random random,
 }) {
   // Check if already satisfied
-  if (condition.isSatisfied(state)) return state;
+  if (waitFor.isSatisfied(state)) return state;
 
   // Advance in chunks to check condition periodically
   // Use larger chunks for efficiency, but small enough to not overshoot too much
@@ -761,7 +667,7 @@ GlobalState _advanceUntilCondition(
     state = builder.build();
     ticksElapsed += ticksThisChunk;
 
-    if (condition.isSatisfied(state)) {
+    if (waitFor.isSatisfied(state)) {
       return state;
     }
   }
@@ -1054,13 +960,6 @@ SolverResult solve(
               bestTicks[newKey] = newTicks;
             }
 
-            // Create wait condition based on why we're waiting
-            final waitCondition = _createWaitCondition(
-              deltaResult.waitReason,
-              node.state, // before state
-              newState, // expected state after waiting
-            );
-
             final newNode = _Node(
               state: newState,
               ticks: newTicks,
@@ -1068,8 +967,7 @@ SolverResult solve(
               parentId: nodeId,
               stepFromParent: WaitStep(
                 deltaResult.deltaTicks,
-                reason: deltaResult.waitReason,
-                condition: waitCondition,
+                deltaResult.waitFor,
               ),
             );
 

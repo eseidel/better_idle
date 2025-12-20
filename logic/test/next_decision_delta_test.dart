@@ -5,6 +5,7 @@ import 'package:logic/src/solver/enumerate_candidates.dart';
 import 'package:logic/src/solver/estimate_rates.dart';
 import 'package:logic/src/solver/goal.dart';
 import 'package:logic/src/solver/next_decision_delta.dart';
+import 'package:logic/src/solver/plan.dart';
 import 'package:logic/src/solver/value_model.dart';
 import 'package:test/test.dart';
 
@@ -67,7 +68,7 @@ void main() {
       final result = nextDecisionDelta(state, goal, candidates);
 
       expect(result.deltaTicks, 0);
-      expect(result.reason, 'goal_reached');
+      expect(result.waitFor, isA<WaitForGoal>());
     });
 
     test('returns 0 when competitive upgrade is already affordable', () {
@@ -137,7 +138,7 @@ void main() {
       final result = nextDecisionDelta(state, goal, candidates);
 
       expect(result.deltaTicks, infTicks);
-      expect(result.reason, 'dead_end');
+      expect(result.waitFor, isA<WaitForGoal>());
     });
 
     test('computes unlock delta for watched activities', () {
@@ -171,7 +172,7 @@ void main() {
       final result2 = nextDecisionDelta(state, goal, candidates);
 
       expect(result1.deltaTicks, result2.deltaTicks);
-      expect(result1.reason, result2.reason);
+      expect(result1.waitFor, result2.waitFor);
     });
   });
 

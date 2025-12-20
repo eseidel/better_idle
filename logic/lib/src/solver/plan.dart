@@ -26,31 +26,43 @@ import 'package:meta/meta.dart';
 import 'interaction.dart';
 
 // ---------------------------------------------------------------------------
-// Wait Conditions
+// Wait For (what we're waiting for)
 // ---------------------------------------------------------------------------
 
-/// A condition that a [WaitStep] waits for during plan execution.
+/// Describes what a [WaitStep] is waiting for.
 ///
 /// During planning, the solver uses expected-value modeling which may differ
-/// from actual simulation due to randomness. WaitConditions allow plan
+/// from actual simulation due to randomness. WaitFor types allow plan
 /// execution to continue until the condition is actually met, rather than
 /// stopping after a fixed number of ticks.
-sealed class WaitCondition {
-  const WaitCondition();
+///
+/// Each WaitFor type has:
+/// - [isSatisfied] - check if condition is met (for execution)
+/// - [describe] - human-readable description with values
+/// - [shortDescription] - brief label for plan display (e.g., "Skill +1")
+sealed class WaitFor {
+  const WaitFor();
 
-  /// Returns true if this condition is satisfied in the given state.
+  /// Returns true if this wait condition is satisfied in the given state.
   bool isSatisfied(GlobalState state);
 
-  /// Human-readable description of what we're waiting for.
+  /// Human-readable description of what we're waiting for (with values).
   String describe();
+
+  /// Short description for plan display (e.g., "Skill +1", "Upgrade affordable").
+  String get shortDescription;
 }
 
 /// Wait until effective value (GP + inventory sell value) reaches a target.
+/// Used for: upgrade becomes affordable, GP goal reached.
 @immutable
-class WaitForInventoryValue extends WaitCondition {
-  const WaitForInventoryValue(this.targetValue);
+class WaitForInventoryValue extends WaitFor {
+  const WaitForInventoryValue(this.targetValue, {this.reason = 'Upgrade'});
 
   final int targetValue;
+
+  /// Why we're waiting for this value (for display).
+  final String reason;
 
   @override
   bool isSatisfied(GlobalState state) {
@@ -65,6 +77,9 @@ class WaitForInventoryValue extends WaitCondition {
   String describe() => 'value >= $targetValue';
 
   @override
+  String get shortDescription => '$reason affordable';
+
+  @override
   bool operator ==(Object other) =>
       other is WaitForInventoryValue && other.targetValue == targetValue;
 
@@ -73,12 +88,16 @@ class WaitForInventoryValue extends WaitCondition {
 }
 
 /// Wait until a skill reaches a target XP amount.
+/// Used for: skill level up, activity unlock, goal reached.
 @immutable
-class WaitForSkillXp extends WaitCondition {
-  const WaitForSkillXp(this.skill, this.targetXp);
+class WaitForSkillXp extends WaitFor {
+  const WaitForSkillXp(this.skill, this.targetXp, {this.reason});
 
   final Skill skill;
   final int targetXp;
+
+  /// Optional reason (e.g., 'Oak Tree unlocks'). If null, shows 'Skill +1'.
+  final String? reason;
 
   @override
   bool isSatisfied(GlobalState state) {
@@ -87,6 +106,9 @@ class WaitForSkillXp extends WaitCondition {
 
   @override
   String describe() => '${skill.name} XP >= $targetXp';
+
+  @override
+  String get shortDescription => reason ?? 'Skill +1';
 
   @override
   bool operator ==(Object other) =>
@@ -100,7 +122,7 @@ class WaitForSkillXp extends WaitCondition {
 
 /// Wait until mastery for an action reaches a target XP amount.
 @immutable
-class WaitForMasteryXp extends WaitCondition {
+class WaitForMasteryXp extends WaitFor {
   const WaitForMasteryXp(this.actionName, this.targetMasteryXp);
 
   final String actionName;
@@ -115,6 +137,9 @@ class WaitForMasteryXp extends WaitCondition {
   String describe() => '$actionName mastery XP >= $targetMasteryXp';
 
   @override
+  String get shortDescription => 'Mastery +1';
+
+  @override
   bool operator ==(Object other) =>
       other is WaitForMasteryXp &&
       other.actionName == actionName &&
@@ -126,7 +151,7 @@ class WaitForMasteryXp extends WaitCondition {
 
 /// Wait until inventory usage reaches a threshold fraction.
 @immutable
-class WaitForInventoryThreshold extends WaitCondition {
+class WaitForInventoryThreshold extends WaitFor {
   const WaitForInventoryThreshold(this.threshold);
 
   /// Fraction of inventory capacity (0.0 to 1.0).
@@ -143,6 +168,9 @@ class WaitForInventoryThreshold extends WaitCondition {
   String describe() => 'inventory >= ${(threshold * 100).toInt()}%';
 
   @override
+  String get shortDescription => 'Inventory threshold';
+
+  @override
   bool operator ==(Object other) =>
       other is WaitForInventoryThreshold && other.threshold == threshold;
 
@@ -152,7 +180,7 @@ class WaitForInventoryThreshold extends WaitCondition {
 
 /// Wait until inventory is completely full.
 @immutable
-class WaitForInventoryFull extends WaitCondition {
+class WaitForInventoryFull extends WaitFor {
   const WaitForInventoryFull();
 
   @override
@@ -164,6 +192,9 @@ class WaitForInventoryFull extends WaitCondition {
   String describe() => 'inventory full';
 
   @override
+  String get shortDescription => 'Inventory full';
+
+  @override
   bool operator ==(Object other) => other is WaitForInventoryFull;
 
   @override
@@ -173,7 +204,7 @@ class WaitForInventoryFull extends WaitCondition {
 /// Wait until player dies (HP reaches 0).
 /// After death, the activity stops and HP resets.
 @immutable
-class WaitForDeath extends WaitCondition {
+class WaitForDeath extends WaitFor {
   const WaitForDeath();
 
   @override
@@ -188,10 +219,41 @@ class WaitForDeath extends WaitCondition {
   String describe() => 'death';
 
   @override
+  String get shortDescription => 'Death';
+
+  @override
   bool operator ==(Object other) => other is WaitForDeath;
 
   @override
   int get hashCode => 1;
+}
+
+/// Wait until goal is reached. This is a terminal wait.
+@immutable
+class WaitForGoal extends WaitFor {
+  const WaitForGoal(this.goalDescription);
+
+  final String goalDescription;
+
+  @override
+  bool isSatisfied(GlobalState state) {
+    // Goal satisfaction is checked externally by the solver.
+    // This is used for plan display only.
+    return false;
+  }
+
+  @override
+  String describe() => goalDescription;
+
+  @override
+  String get shortDescription => 'Goal reached';
+
+  @override
+  bool operator ==(Object other) =>
+      other is WaitForGoal && other.goalDescription == goalDescription;
+
+  @override
+  int get hashCode => goalDescription.hashCode;
 }
 
 // ---------------------------------------------------------------------------
@@ -221,75 +283,33 @@ class InteractionStep extends PlanStep {
   int get hashCode => interaction.hashCode;
 }
 
-/// Reason why a wait step ended.
-enum WaitReason {
-  /// Goal GP was reached.
-  goalReached,
-
-  /// An upgrade became affordable.
-  upgradeAffordable,
-
-  /// A locked activity unlocked.
-  activityUnlocks,
-
-  /// Inventory reached threshold for selling.
-  inventoryThreshold,
-
-  /// Inventory became full.
-  inventoryFull,
-
-  /// Player died (thieving).
-  death,
-
-  /// Skill level increased.
-  skillLevel,
-
-  /// Mastery level increased.
-  masteryLevel,
-
-  /// Unknown or unspecified reason.
-  unknown,
-}
-
 /// A step that waits for a condition to be met.
 ///
 /// During planning, [deltaTicks] is the expected time to wait based on
-/// expected-value modeling. During execution, [condition] is used to
+/// expected-value modeling. During execution, [waitFor] is used to
 /// determine when to stop waiting, which handles variance in actual
 /// simulation vs expected values.
 @immutable
 class WaitStep extends PlanStep {
-  const WaitStep(
-    this.deltaTicks, {
-    this.reason = WaitReason.unknown,
-    this.condition,
-  });
+  const WaitStep(this.deltaTicks, this.waitFor);
 
   /// Expected ticks to wait (from planning).
   final int deltaTicks;
 
-  /// Why this wait ended (what event triggered re-evaluation).
-  final WaitReason reason;
-
-  /// The condition to wait for during execution.
-  /// If null, falls back to time-based waiting using [deltaTicks].
-  final WaitCondition? condition;
+  /// What we're waiting for.
+  final WaitFor waitFor;
 
   @override
-  String toString() {
-    final condStr = condition != null ? ', ${condition!.describe()}' : '';
-    return 'WaitStep($deltaTicks ticks, $reason$condStr)';
-  }
+  String toString() => 'WaitStep($deltaTicks ticks, ${waitFor.describe()})';
 
   @override
   bool operator ==(Object other) =>
       other is WaitStep &&
       other.deltaTicks == deltaTicks &&
-      other.reason == reason &&
-      other.condition == condition;
+      other.waitFor == waitFor;
 
   @override
-  int get hashCode => Object.hash(deltaTicks, reason, condition);
+  int get hashCode => Object.hash(deltaTicks, waitFor);
 }
 
 /// The result of running the solver.
@@ -361,22 +381,8 @@ class Plan {
         BuyUpgrade(:final type) => 'Buy upgrade: $type',
         SellAll() => 'Sell all items',
       },
-      WaitStep(:final deltaTicks, :final reason) =>
-        'Wait ${_formatDuration(durationFromTicks(deltaTicks))} -> ${_formatWaitReason(reason)}',
-    };
-  }
-
-  String _formatWaitReason(WaitReason reason) {
-    return switch (reason) {
-      WaitReason.goalReached => 'Goal reached',
-      WaitReason.upgradeAffordable => 'Upgrade affordable',
-      WaitReason.activityUnlocks => 'Activity unlocks',
-      WaitReason.inventoryThreshold => 'Inventory threshold',
-      WaitReason.inventoryFull => 'Inventory full',
-      WaitReason.death => 'Death',
-      WaitReason.skillLevel => 'Skill +1',
-      WaitReason.masteryLevel => 'Mastery +1',
-      WaitReason.unknown => '?',
+      WaitStep(:final deltaTicks, :final waitFor) =>
+        'Wait ${_formatDuration(durationFromTicks(deltaTicks))} -> ${waitFor.shortDescription}',
     };
   }
 

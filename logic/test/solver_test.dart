@@ -219,9 +219,9 @@ void main() {
       const plan = Plan(
         steps: [
           InteractionStep(SwitchActivity('Normal Tree')),
-          WaitStep(1000),
+          WaitStep(1000, WaitForGoal('test')),
           InteractionStep(BuyUpgrade(UpgradeType.axe)),
-          WaitStep(5000),
+          WaitStep(5000, WaitForGoal('test')),
         ],
         totalTicks: 6000,
         interactionCount: 2,
@@ -240,7 +240,10 @@ void main() {
     });
 
     test('prettyPrint limits steps shown', () {
-      final steps = List.generate(50, (i) => WaitStep(i * 100));
+      final steps = List.generate(
+        50,
+        (i) => WaitStep(i * 100, const WaitForGoal('test')),
+      );
       final plan = Plan(
         steps: steps,
         totalTicks: 50 * 100,
