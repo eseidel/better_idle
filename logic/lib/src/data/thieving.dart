@@ -177,15 +177,15 @@ final thievingActions = <ThievingAction>[
     // TODO(eseidel): express this exactly as the wiki does.
     dropTable: DropChance(
       DropTable([
-        Pick('Copper Ore', 150), // 75/524 = 150/1048
-        Pick('Bronze Bar', 150), // 75/524 = 150/1048
-        Pick('Normal Logs', 150), // 75/524 = 150/1048
-        Pick('Tin Ore', 150), // 75/524 = 150/1048
-        Pick('Oak Logs', 45), // 45/1048
-        Pick('Iron Bar', 45), // 45/1048
-        Pick('Iron Ore', 36), // 9/262 = 36/1048
-        Pick('Steel Bar', 30), // 15/524 = 30/1048
-        Pick('Willow Logs', 30), // 15/524 = 30/1048
+        Pick('Copper Ore', weight: 150), // 75/524 = 150/1048
+        Pick('Bronze Bar', weight: 150), // 75/524 = 150/1048
+        Pick('Normal Logs', weight: 150), // 75/524 = 150/1048
+        Pick('Tin Ore', weight: 150), // 75/524 = 150/1048
+        Pick('Oak Logs', weight: 45), // 45/1048
+        Pick('Iron Bar', weight: 45), // 45/1048
+        Pick('Iron Ore', weight: 36), // 9/262 = 36/1048
+        Pick('Steel Bar', weight: 30), // 15/524 = 30/1048
+        Pick('Willow Logs', weight: 30), // 15/524 = 30/1048
       ]),
       rate: 786 / 1048, // 75% chance of any drop
     ),

@@ -83,26 +83,26 @@ final _openables = <Openable>[
     'Egg Chest',
     gp: 100,
     dropTable: DropTable([
-      Pick.range('Feathers', 1, min: 1, max: 1000),
-      Pick.range('Raw Chicken', 1, min: 1, max: 40),
+      Pick.range('Feathers', weight: 1, min: 1, max: 1000),
+      Pick.range('Raw Chicken', weight: 1, min: 1, max: 40),
     ]),
   ),
   Openable(
     'Crate of Basic Supplies',
     gp: 100,
     dropTable: DropTable([
-      Pick.range('Bronze Arrows', 25, min: 1, max: 200),
-      Pick.range('Raw Shrimp', 25, min: 1, max: 200),
-      Pick.range('Iron Arrows', 20, min: 1, max: 200),
-      Pick.range('Raw Sardine', 18, min: 1, max: 200),
-      Pick.range('Steel Arrows', 18, min: 1, max: 200),
-      Pick.range('Bronze Bar', 14, min: 1, max: 200),
-      Pick.range('Raw Herring', 13, min: 1, max: 200),
-      Pick.range('Mithril Arrows', 13, min: 1, max: 200),
-      Pick.range('Iron Bar', 11, min: 1, max: 200),
-      Pick.range('Raw Trout', 10, min: 1, max: 200),
-      Pick.range('Steel Bar', 9, min: 1, max: 200),
-      Pick.range('Mithril Bar', 5, min: 1, max: 200),
+      Pick.range('Bronze Arrows', weight: 25, min: 1, max: 200),
+      Pick.range('Raw Shrimp', weight: 25, min: 1, max: 200),
+      Pick.range('Iron Arrows', weight: 20, min: 1, max: 200),
+      Pick.range('Raw Sardine', weight: 18, min: 1, max: 200),
+      Pick.range('Steel Arrows', weight: 18, min: 1, max: 200),
+      Pick.range('Bronze Bar', weight: 14, min: 1, max: 200),
+      Pick.range('Raw Herring', weight: 13, min: 1, max: 200),
+      Pick.range('Mithril Arrows', weight: 13, min: 1, max: 200),
+      Pick.range('Iron Bar', weight: 11, min: 1, max: 200),
+      Pick.range('Raw Trout', weight: 10, min: 1, max: 200),
+      Pick.range('Steel Bar', weight: 9, min: 1, max: 200),
+      Pick.range('Mithril Bar', weight: 5, min: 1, max: 200),
     ]),
   ),
 ];
@@ -165,14 +165,11 @@ class ItemRegistry {
   /// All registered items.
   List<Item> get all => _all;
 
-  Item byName(String name) {
-    return _all.firstWhere((item) => item.name == name);
-  }
+  /// Returns the item by name, or throws a StateError if not found.
+  Item byName(String name) => _all.firstWhere((item) => item.name == name);
 
   /// Returns the index of the item in the registry, or -1 if not found.
-  int indexForItem(Item item) {
-    return _all.indexOf(item);
-  }
+  int indexForItem(Item item) => _all.indexOf(item);
 }
 
 final itemRegistry = ItemRegistry(_all);

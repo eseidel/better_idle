@@ -87,14 +87,18 @@ class DropChance extends Droppable {
 /// The weight determines relative probability of selection.
 class Pick {
   /// Creates a pick with a fixed count (default 1).
-  const Pick(this.name, this.weight, {int count = 1})
+  const Pick(this.name, {this.weight = 1.0, int count = 1})
     : minCount = count,
       maxCount = count;
 
   /// Creates a pick with a random count within a range.
-  const Pick.range(this.name, this.weight, {required int min, required int max})
-    : minCount = min,
-      maxCount = max;
+  const Pick.range(
+    this.name, {
+    required int min,
+    required int max,
+    this.weight = 1.0,
+  }) : minCount = min,
+       maxCount = max;
 
   final String name;
 
