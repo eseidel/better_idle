@@ -203,43 +203,26 @@ class WaitForInventoryFull extends WaitFor {
 }
 
 /// Wait until goal is reached. This is a terminal wait.
-///
-/// During planning, this stores only a description since the goal is known.
-/// During execution, the executor must provide the goal to check satisfaction.
 @immutable
 class WaitForGoal extends WaitFor {
-  const WaitForGoal(this.goalDescription);
+  const WaitForGoal(this.goal);
 
-  final String goalDescription;
-
-  @override
-  bool isSatisfied(GlobalState state) {
-    // WaitForGoal cannot check satisfaction on its own - it needs the Goal.
-    // This should not be called directly; use isSatisfiedWithGoal instead.
-    // Returning false here is a fallback that prevents infinite loops in tests.
-    throw StateError(
-      'WaitForGoal.isSatisfied should not be called directly. '
-      'Use isSatisfiedWithGoal with the actual Goal object.',
-    );
-  }
-
-  /// Check if the goal is satisfied. This is the proper way to check.
-  bool isSatisfiedWithGoal(GlobalState state, Goal goal) {
-    return goal.isSatisfied(state);
-  }
+  final Goal goal;
 
   @override
-  String describe() => goalDescription;
+  bool isSatisfied(GlobalState state) => goal.isSatisfied(state);
+
+  @override
+  String describe() => goal.describe();
 
   @override
   String get shortDescription => 'Goal reached';
 
   @override
-  bool operator ==(Object other) =>
-      other is WaitForGoal && other.goalDescription == goalDescription;
+  bool operator ==(Object other) => other is WaitForGoal && other.goal == goal;
 
   @override
-  int get hashCode => goalDescription.hashCode;
+  int get hashCode => goal.hashCode;
 }
 
 // ---------------------------------------------------------------------------

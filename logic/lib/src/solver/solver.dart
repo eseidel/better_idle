@@ -624,36 +624,19 @@ class ConsumeUntilResult {
   final int deathCount;
 }
 
-/// Checks if a wait condition is satisfied.
-///
-/// For [WaitForGoal], uses the provided goal to check satisfaction.
-/// For other wait types, uses their built-in isSatisfied method.
-bool _isWaitSatisfied(WaitFor waitFor, GlobalState state, Goal? goal) {
-  if (waitFor is WaitForGoal) {
-    if (goal == null) {
-      throw StateError('WaitForGoal requires a goal to check satisfaction');
-    }
-    return waitFor.isSatisfiedWithGoal(state, goal);
-  }
-  return waitFor.isSatisfied(state);
-}
-
 /// Advances state until a condition is satisfied.
 ///
 /// Uses [consumeTicksUntil] to efficiently process ticks, checking the
 /// condition after each action iteration. Automatically restarts the activity
 /// after death and tracks how many deaths occurred.
 ///
-/// The [goal] parameter is required when the plan contains [WaitForGoal] steps.
-///
 /// Returns the final state, actual ticks elapsed, and death count.
 ConsumeUntilResult consumeUntil(
   GlobalState state,
   WaitFor waitFor, {
   required Random random,
-  Goal? goal,
 }) {
-  if (_isWaitSatisfied(waitFor, state, goal)) {
+  if (waitFor.isSatisfied(state)) {
     return ConsumeUntilResult(state: state, ticksElapsed: 0, deathCount: 0);
   }
 
@@ -669,14 +652,14 @@ ConsumeUntilResult consumeUntil(
     consumeTicksUntil(
       builder,
       random: random,
-      stopCondition: (s) => _isWaitSatisfied(waitFor, s, goal),
+      stopCondition: (s) => waitFor.isSatisfied(s),
     );
 
     state = builder.build();
     totalTicksElapsed += builder.ticksElapsed;
 
     // Check if we're done
-    if (_isWaitSatisfied(waitFor, state, goal)) {
+    if (waitFor.isSatisfied(state)) {
       return ConsumeUntilResult(
         state: state,
         ticksElapsed: totalTicksElapsed,
@@ -719,7 +702,6 @@ _StepResult _applyStep(
   GlobalState state,
   PlanStep step, {
   required Random random,
-  Goal? goal,
 }) {
   switch (step) {
     case InteractionStep(:final interaction):
@@ -729,8 +711,8 @@ _StepResult _applyStep(
         deaths: 0,
       );
     case WaitStep(:final waitFor):
-      // Run until the goal condition is satisfied
-      final result = consumeUntil(state, waitFor, random: random, goal: goal);
+      // Run until the wait condition is satisfied
+      final result = consumeUntil(state, waitFor, random: random);
       return (
         state: result.state,
         ticksElapsed: result.ticksElapsed,
@@ -744,13 +726,7 @@ _StepResult _applyStep(
 /// Uses goal-aware waiting: [WaitStep.waitFor] determines when to stop waiting,
 /// which handles variance between expected-value planning and actual simulation.
 /// Deaths are automatically handled by restarting the activity and are counted.
-///
-/// The [goal] parameter is required to properly check [WaitForGoal] conditions.
-PlanExecutionResult executePlan(
-  GlobalState state,
-  Plan plan, {
-  required Goal goal,
-}) {
+PlanExecutionResult executePlan(GlobalState state, Plan plan) {
   // Use a fixed random for deterministic execution
   final random = Random(42);
   var totalDeaths = 0;
@@ -759,7 +735,7 @@ PlanExecutionResult executePlan(
   for (var i = 0; i < plan.steps.length; i++) {
     final step = plan.steps[i];
     try {
-      final result = _applyStep(state, step, random: random, goal: goal);
+      final result = _applyStep(state, step, random: random);
       state = result.state;
       totalDeaths += result.deaths;
       actualTicks += result.ticksElapsed;

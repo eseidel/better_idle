@@ -48,7 +48,7 @@ void main(List<String> args) {
     print('Interaction count: ${result.plan.interactionCount}');
 
     // Execute the plan to get the final state
-    final execResult = executePlan(initialState, result.plan, goal: goal);
+    final execResult = executePlan(initialState, result.plan);
     print('');
     _printFinalState(execResult.finalState);
     print('');

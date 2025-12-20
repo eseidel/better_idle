@@ -216,12 +216,13 @@ void main() {
 
   group('Plan', () {
     test('prettyPrint outputs plan summary', () {
+      const testGoal = ReachGpGoal(100);
       const plan = Plan(
         steps: [
           InteractionStep(SwitchActivity('Normal Tree')),
-          WaitStep(1000, WaitForGoal('test')),
+          WaitStep(1000, WaitForGoal(testGoal)),
           InteractionStep(BuyUpgrade(UpgradeType.axe)),
-          WaitStep(5000, WaitForGoal('test')),
+          WaitStep(5000, WaitForGoal(testGoal)),
         ],
         totalTicks: 6000,
         interactionCount: 2,
@@ -240,9 +241,10 @@ void main() {
     });
 
     test('prettyPrint limits steps shown', () {
+      const testGoal = ReachGpGoal(100);
       final steps = List.generate(
         50,
-        (i) => WaitStep(i * 100, const WaitForGoal('test')),
+        (i) => WaitStep(i * 100, const WaitForGoal(testGoal)),
       );
       final plan = Plan(
         steps: steps,
