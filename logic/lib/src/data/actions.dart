@@ -14,14 +14,14 @@ export 'thieving.dart';
 
 /// Gem drop table for mining - 1% chance to trigger, then weighted selection.
 const miningGemTable = DropTable(
-  rate: 0.01, // 1% chance to get a gem
-  entries: [
+  [
     Drop('Topaz', rate: 50), // 50% of 1% = 0.5%
     Drop('Sapphire', rate: 17.5), // 17.5% of 1% = 0.175%
     Drop('Ruby', rate: 17.5), // 17.5% of 1% = 0.175%
     Drop('Emerald', rate: 10), // 10% of 1% = 0.1%
     Drop('Diamond', rate: 5), // 5% of 1% = 0.05%
   ],
+  rate: 0.01, // 1% chance to get a gem
 );
 
 enum Skill {
@@ -85,13 +85,10 @@ List<Droppable> woodcuttingRewards(SkillAction action, int masteryLevel) {
   final doublePercent = (doubleMultiplier * 0.05).clamp(0.0, 1.0);
   final singlePercent = (1.0 - doublePercent).clamp(0.0, 1.0);
   return [
-    DropTable(
-      rate: 1.0,
-      entries: [
-        Drop(name, rate: singlePercent),
-        Drop(name, rate: doublePercent, count: 2),
-      ],
-    ),
+    DropTable([
+      Drop(name, rate: singlePercent),
+      Drop(name, rate: doublePercent, count: 2),
+    ]),
   ];
 }
 

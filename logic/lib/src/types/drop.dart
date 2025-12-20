@@ -68,13 +68,16 @@ class Drop extends SingleDrop {
 
 /// A drop that yields a random count within a range.
 class RangeDrop extends SingleDrop {
+  // We use short names for construction to cut down on typing.
   const RangeDrop(
     super.name, {
-    required this.minCount,
-    required this.maxCount,
+    required int min,
+    required int max,
     super.rate = 1.0,
-  });
+  }) : minCount = min,
+       maxCount = max;
 
+  // We use full names for fields for clarity.
   final int minCount;
   final int maxCount;
 
@@ -103,7 +106,7 @@ class RangeDrop extends SingleDrop {
 /// - 17.5% weight Sapphire (0.175% effective)
 /// - etc.
 class DropTable extends Droppable {
-  const DropTable({required super.rate, required this.entries});
+  const DropTable(this.entries, {super.rate = 1.0});
 
   /// The weighted entries in this table. Each entry's `rate` is used as weight.
   final List<SingleDrop> entries;

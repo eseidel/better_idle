@@ -163,8 +163,7 @@ final thievingActions = <ThievingAction>[
     /// Total: 786/1048 = 393/524 ≈ 75%
     // TODO(eseidel): express this exactly as the wiki does.
     dropTable: DropTable(
-      rate: 786 / 1048, // 75% chance of any drop
-      entries: [
+      [
         Drop('Copper Ore', rate: 150), // 75/524 = 150/1048
         Drop('Bronze Bar', rate: 150), // 75/524 = 150/1048
         Drop('Normal Logs', rate: 150), // 75/524 = 150/1048
@@ -175,6 +174,7 @@ final thievingActions = <ThievingAction>[
         Drop('Steel Bar', rate: 30), // 15/524 = 30/1048
         Drop('Willow Logs', rate: 30), // 15/524 = 30/1048
       ],
+      rate: 786 / 1048, // 75% chance of any drop
     ),
   ),
   _thieving(

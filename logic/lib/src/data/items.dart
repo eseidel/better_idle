@@ -16,11 +16,12 @@ const _woodcutting = [
 const _firemaking = [Item('Coal Ore', gp: 13), Item('Ash', gp: 5)];
 
 const _fishing = [
-  Item('Raw Shrimp', gp: 3),
+  Item('Raw Shrimp', gp: 1),
   Item('Raw Lobster', gp: 65),
   Item('Raw Crab', gp: 135),
   Item('Raw Sardine', gp: 3),
   Item('Raw Herring', gp: 8),
+  Item('Raw Trout', gp: 16),
 ];
 
 const _cooking = [
@@ -42,6 +43,7 @@ const _bars = [
   Item('Bronze Bar', gp: 6),
   Item('Iron Bar', gp: 12),
   Item('Steel Bar', gp: 30),
+  Item('Mithril Bar', gp: 125),
 ];
 
 const _smithing = <Item>[..._bars, Item('Bronze Dagger', gp: 1)];
@@ -56,6 +58,14 @@ const _gems = [
 
 const _thieving = [Item("Bobby's Pocket", gp: 4000)];
 
+// Ranged items (arrows)
+const _ranged = [
+  Item('Bronze Arrows', gp: 1),
+  Item('Iron Arrows', gp: 2),
+  Item('Steel Arrows', gp: 3),
+  Item('Mithril Arrows', gp: 8),
+];
+
 // Farming items (from openables like Egg Chest)
 const _farming = [
   Item('Feathers', gp: 2), // Inferred from 1-1000 feathers = 2-2000GP
@@ -67,13 +77,28 @@ final _openables = <Openable>[
   Openable(
     'Egg Chest',
     gp: 100,
-    dropTable: DropTable(
-      rate: 1.0,
-      entries: [
-        RangeDrop('Feathers', minCount: 1, maxCount: 1000, rate: 1), // 50%
-        RangeDrop('Raw Chicken', minCount: 1, maxCount: 40, rate: 1), // 50%
-      ],
-    ),
+    dropTable: DropTable([
+      RangeDrop('Feathers', min: 1, max: 1000),
+      RangeDrop('Raw Chicken', min: 1, max: 40),
+    ]),
+  ),
+  Openable(
+    'Crate of Basic Supplies',
+    gp: 100,
+    dropTable: DropTable([
+      RangeDrop('Bronze Arrows', min: 1, max: 200, rate: 25),
+      RangeDrop('Raw Shrimp', min: 1, max: 200, rate: 25),
+      RangeDrop('Iron Arrows', min: 1, max: 200, rate: 20),
+      RangeDrop('Raw Sardine', min: 1, max: 200, rate: 18),
+      RangeDrop('Steel Arrows', min: 1, max: 200, rate: 18),
+      RangeDrop('Bronze Bar', min: 1, max: 200, rate: 14),
+      RangeDrop('Raw Herring', min: 1, max: 200, rate: 13),
+      RangeDrop('Mithril Arrows', min: 1, max: 200, rate: 13),
+      RangeDrop('Iron Bar', min: 1, max: 200, rate: 11),
+      RangeDrop('Raw Trout', min: 1, max: 200, rate: 10),
+      RangeDrop('Steel Bar', min: 1, max: 200, rate: 9),
+      RangeDrop('Mithril Bar', min: 1, max: 200, rate: 5),
+    ]),
   ),
 ];
 
@@ -86,6 +111,7 @@ final _all = <Item>[
   ..._smithing,
   ..._gems,
   ..._thieving,
+  ..._ranged,
   ..._farming,
   ..._openables,
 ];
