@@ -63,7 +63,7 @@ const _farming = [
 ];
 
 // Openable items (chests, etc.)
-const _openables = [
+final _openables = <Openable>[
   Openable(
     'Egg Chest',
     gp: 100,
@@ -77,7 +77,7 @@ const _openables = [
   ),
 ];
 
-const List<Item> _all = [
+final _all = <Item>[
   ..._woodcutting,
   ..._firemaking,
   ..._fishing,
@@ -110,13 +110,24 @@ class Item extends Equatable {
 /// An item that can be opened to receive drops from a weighted table.
 @immutable
 class Openable extends Item {
-  const Openable(super.name, {required super.gp, required this.dropTable});
+  Openable(super.name, {required super.gp, required this.dropTable})
+    : assert(
+        !dropTable.canDropNothing,
+        'Drop table must have a 100% chance of dropping an item',
+      );
 
   /// The drop table for this openable.
   final DropTable dropTable;
 
   /// Opens this item once and returns the resulting drop.
-  ItemStack? open(Random random) => dropTable.roll(random);
+  ItemStack open(Random random) {
+    final drop = dropTable.roll(random);
+    // Openables always drop an item.
+    if (drop == null) {
+      throw StateError('Failed to open $name: no drop');
+    }
+    return drop;
+  }
 
   @override
   List<Object?> get props => [...super.props, dropTable];

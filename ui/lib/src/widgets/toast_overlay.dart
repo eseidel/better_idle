@@ -19,8 +19,10 @@ class _ToastOverlayState extends State<ToastOverlay>
   late final AnimationController _controller;
   late final Animation<double> _opacity;
   Changes? _currentData;
+  String? _errorMessage;
   Timer? _hideTimer;
-  StreamSubscription<Changes>? _subscription;
+  StreamSubscription<Changes>? _toastSubscription;
+  StreamSubscription<String>? _errorSubscription;
 
   @override
   void initState() {
@@ -31,12 +33,14 @@ class _ToastOverlayState extends State<ToastOverlay>
     );
     _opacity = CurvedAnimation(parent: _controller, curve: Curves.easeOut);
 
-    _subscription = widget.service.toastStream.listen(_showToast);
+    _toastSubscription = widget.service.toastStream.listen(_showToast);
+    _errorSubscription = widget.service.errorStream.listen(_showError);
   }
 
   @override
   void dispose() {
-    _subscription?.cancel();
+    _toastSubscription?.cancel();
+    _errorSubscription?.cancel();
     _controller.dispose();
     _hideTimer?.cancel();
     super.dispose();
@@ -51,6 +55,17 @@ class _ToastOverlayState extends State<ToastOverlay>
         _currentData = currentData.merge(data);
       }
     });
+    _resetHideTimer();
+  }
+
+  void _showError(String message) {
+    setState(() {
+      _errorMessage = message;
+    });
+    _resetHideTimer();
+  }
+
+  void _resetHideTimer() {
     _controller.forward();
     _hideTimer?.cancel();
     _hideTimer = Timer(const Duration(seconds: 2), () {
@@ -58,6 +73,7 @@ class _ToastOverlayState extends State<ToastOverlay>
         if (mounted) {
           setState(() {
             _currentData = null;
+            _errorMessage = null;
           });
         }
       });
@@ -67,31 +83,44 @@ class _ToastOverlayState extends State<ToastOverlay>
   @override
   Widget build(BuildContext context) {
     final currentData = _currentData;
-    if (currentData == null || currentData.isEmpty) {
+    final errorMessage = _errorMessage;
+    final hasData = currentData != null && !currentData.isEmpty;
+    final hasError = errorMessage != null;
+
+    if (!hasData && !hasError) {
       return widget.child;
     }
 
     final bubbles = <Widget>[];
 
     // Add inventory change bubbles
-    for (final entry in currentData.inventoryChanges.entries) {
-      bubbles.add(
-        _buildBubble('${signedCountString(entry.value)} ${entry.key}'),
-      );
+    if (currentData != null) {
+      for (final entry in currentData.inventoryChanges.entries) {
+        bubbles.add(
+          _buildBubble('${signedCountString(entry.value)} ${entry.key}'),
+        );
+      }
+
+      // Add xp change bubbles
+      for (final entry in currentData.skillXpChanges.entries) {
+        bubbles.add(
+          _buildBubble(
+            '${signedCountString(entry.value)} ${entry.key.name} xp',
+          ),
+        );
+      }
+
+      // Add GP change bubble
+      if (currentData.gpGained != 0) {
+        bubbles.add(
+          _buildBubble('${signedCountString(currentData.gpGained)} GP'),
+        );
+      }
     }
 
-    // Add xp change bubbles
-    for (final entry in currentData.skillXpChanges.entries) {
-      bubbles.add(
-        _buildBubble('${signedCountString(entry.value)} ${entry.key.name} xp'),
-      );
-    }
-
-    // Add GP change bubble
-    if (currentData.gpGained != 0) {
-      bubbles.add(
-        _buildBubble('${signedCountString(currentData.gpGained)} GP'),
-      );
+    // Add error bubble at the bottom
+    if (errorMessage != null) {
+      bubbles.add(_buildBubble(errorMessage, isError: true));
     }
 
     return Stack(
@@ -117,7 +146,7 @@ class _ToastOverlayState extends State<ToastOverlay>
     );
   }
 
-  Widget _buildBubble(String text) {
+  Widget _buildBubble(String text, {bool isError = false}) {
     return Material(
       color: Colors.transparent,
       child: Container(
@@ -125,7 +154,7 @@ class _ToastOverlayState extends State<ToastOverlay>
         padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(25),
-          color: Colors.black87,
+          color: isError ? Colors.red[700] : Colors.black87,
         ),
         child: Text(
           text,

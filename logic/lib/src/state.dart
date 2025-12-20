@@ -11,6 +11,7 @@ import 'package:logic/src/types/equipment.dart';
 import 'package:logic/src/types/health.dart';
 import 'package:logic/src/types/inventory.dart';
 import 'package:logic/src/types/modifier.dart';
+import 'package:logic/src/types/open_result.dart';
 import 'package:logic/src/types/stunned.dart';
 import 'package:logic/src/types/time_away.dart';
 import 'package:meta/meta.dart';
@@ -683,35 +684,48 @@ class GlobalState {
     return copyWith(equipment: equipment.copyWith(selectedFoodSlot: slotIndex));
   }
 
-  /// Opens an openable item and adds the resulting drop to inventory.
-  /// Returns null if the item is not openable or inventory is full.
-  /// Throws StateError if player doesn't have the item.
-  GlobalState? openItem(Item item, {required Random random}) {
+  /// Opens openable items and adds the resulting drops to inventory.
+  /// Opens items one by one until inventory is full or count is reached.
+  /// Returns (newState, OpenResult) with combined drops and any error.
+  /// Throws StateError if player doesn't have the item or item is not openable.
+  (GlobalState, OpenResult) openItems(
+    Item item, {
+    required int count,
+    required Random random,
+  }) {
     if (item is! Openable) {
-      return null; // Not an openable item
+      throw StateError('Cannot open ${item.name}: not an openable item');
     }
 
-    // Check player has the item
-    if (inventory.countOfItem(item) < 1) {
+    final availableCount = inventory.countOfItem(item);
+    if (availableCount < 1) {
       throw StateError('Cannot open ${item.name}: not in inventory');
     }
 
-    // Check inventory capacity for the drop
-    final drop = item.open(random);
-    if (drop == null) {
-      return null; // No drop (shouldn't happen with valid openables)
+    // Clamp count to available
+    final toOpen = count.clamp(1, availableCount);
+
+    var currentInventory = inventory;
+    var result = const OpenResult(openedCount: 0, drops: {});
+
+    for (var i = 0; i < toOpen; i++) {
+      // Roll the drop for this item
+      final drop = item.open(random);
+
+      // Check if we can add the drop
+      if (!currentInventory.canAdd(drop.item, capacity: inventoryCapacity)) {
+        result = result.withError('Inventory full');
+        break;
+      }
+
+      // Remove one openable and add the drop
+      currentInventory = currentInventory
+          .removing(ItemStack(item, count: 1))
+          .adding(drop);
+      result = result.addDrop(drop);
     }
 
-    if (!inventory.canAdd(drop.item, capacity: inventoryCapacity)) {
-      return null; // Inventory full
-    }
-
-    // Remove the openable item and add the drop
-    final newInventory = inventory
-        .removing(ItemStack(item, count: 1))
-        .adding(drop);
-
-    return copyWith(inventory: newInventory);
+    return (copyWith(inventory: currentInventory), result);
   }
 
   GlobalState copyWith({

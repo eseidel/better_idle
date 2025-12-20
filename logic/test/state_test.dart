@@ -415,4 +415,228 @@ void main() {
       expect(ticksWithBoth, 27);
     });
   });
+
+  group('GlobalState.openItems', () {
+    final eggChest = itemRegistry.byName('Egg Chest') as Openable;
+    final feathers = itemRegistry.byName('Feathers');
+    final rawChicken = itemRegistry.byName('Raw Chicken');
+
+    // initialBankSlots is 20, so to get specific capacities we subtract from 20
+    // E.g., bankSlots: -18 gives capacity of 20 + (-18) = 2
+
+    test('opens a single item successfully', () {
+      final state = GlobalState.test(
+        inventory: Inventory.fromItems([ItemStack(eggChest, count: 1)]),
+        // Capacity = 20 + (-18) = 2 (enough for chest + drop)
+        shop: const ShopState(bankSlots: -18),
+      );
+
+      final random = Random(42); // Seeded for determinism
+      final (newState, result) = state.openItems(
+        eggChest,
+        count: 1,
+        random: random,
+      );
+
+      // One item opened
+      expect(result.openedCount, 1);
+      expect(result.hasDrops, isTrue);
+      expect(result.error, isNull);
+
+      // Chest was consumed
+      expect(newState.inventory.countOfItem(eggChest), 0);
+
+      // Got exactly one type of drop (feathers or raw chicken)
+      expect(result.drops.length, 1);
+      final dropName = result.drops.keys.first;
+      expect(dropName == 'Feathers' || dropName == 'Raw Chicken', isTrue);
+
+      // The drop is in inventory
+      if (dropName == 'Feathers') {
+        expect(
+          newState.inventory.countOfItem(feathers),
+          result.drops[dropName],
+        );
+      } else {
+        expect(
+          newState.inventory.countOfItem(rawChicken),
+          result.drops[dropName],
+        );
+      }
+    });
+
+    test('opens multiple items and combines drops', () {
+      final state = GlobalState.test(
+        inventory: Inventory.fromItems([ItemStack(eggChest, count: 5)]),
+        // Capacity = 20 + (-17) = 3 (chest + both possible drop types)
+        shop: const ShopState(bankSlots: -17),
+      );
+
+      final random = Random(123);
+      final (newState, result) = state.openItems(
+        eggChest,
+        count: 5,
+        random: random,
+      );
+
+      // All items opened
+      expect(result.openedCount, 5);
+      expect(result.hasDrops, isTrue);
+      expect(result.error, isNull);
+
+      // All chests consumed
+      expect(newState.inventory.countOfItem(eggChest), 0);
+
+      // Got drops (could be feathers, chicken, or both)
+      expect(result.drops.isNotEmpty, isTrue);
+
+      // Total drops in result match inventory
+      final feathersInResult = result.drops['Feathers'] ?? 0;
+      final chickenInResult = result.drops['Raw Chicken'] ?? 0;
+      expect(newState.inventory.countOfItem(feathers), feathersInResult);
+      expect(newState.inventory.countOfItem(rawChicken), chickenInResult);
+    });
+
+    test('fails on first open when inventory is full', () {
+      // Create state with full inventory (1 slot with chest, 0 extra slots)
+      // Capacity = 20 + (-19) = 1 slot, filled by chest stack
+      final state = GlobalState.test(
+        inventory: Inventory.fromItems([ItemStack(eggChest, count: 3)]),
+        shop: const ShopState(bankSlots: -19), // Capacity = 1
+      );
+
+      final random = Random(42);
+      final (newState, result) = state.openItems(
+        eggChest,
+        count: 3,
+        random: random,
+      );
+
+      // No items opened because we can't add the drop
+      expect(result.openedCount, 0);
+      expect(result.hasDrops, isFalse);
+      expect(result.error, 'Inventory full');
+      expect(result.drops, isEmpty);
+
+      // All chests remain
+      expect(newState.inventory.countOfItem(eggChest), 3);
+    });
+
+    test('partial open when inventory fills mid-stack', () {
+      // Start with 10 chests and capacity for chest + 1 drop type
+      // Capacity = 20 + (-18) = 2 slots (chest slot + 1 drop slot)
+      // Open 1: chest stays (count 9), drop uses second slot. Now full.
+      // Open 2: if drop is same type, it stacks and we continue
+      //         if drop is different type, we can't add, so we stop
+      final state = GlobalState.test(
+        inventory: Inventory.fromItems([ItemStack(eggChest, count: 10)]),
+        shop: const ShopState(bankSlots: -18), // Capacity = 2
+      );
+
+      // Seed 999 should give us a mix that eventually hits a different drop
+      final random = Random(999);
+      final (newState, result) = state.openItems(
+        eggChest,
+        count: 10,
+        random: random,
+      );
+
+      // Should have opened some but not all (depends on random drops)
+      // At minimum we should open 1, at most we could open all 10 if same drop
+      expect(result.openedCount, greaterThan(0));
+
+      // If we didn't open all 10, there should be an error
+      if (result.openedCount < 10) {
+        expect(result.error, 'Inventory full');
+        // Remaining chests are still there
+        expect(
+          newState.inventory.countOfItem(eggChest),
+          10 - result.openedCount,
+        );
+      }
+
+      // Drops were tracked
+      expect(result.hasDrops, isTrue);
+    });
+
+    test('leaves remaining chests when inventory fills after some opens', () {
+      // We want to ensure that when opening fails partway through,
+      // the unopened chests remain in inventory
+      // Capacity = 20 + (-18) = 2 slots (chest + 1 drop type)
+      final state = GlobalState.test(
+        inventory: Inventory.fromItems([ItemStack(eggChest, count: 5)]),
+        shop: const ShopState(bankSlots: -18), // Capacity = 2
+      );
+
+      // Try many seeds to find one that fails partway
+      for (var seed = 0; seed < 100; seed++) {
+        final random = Random(seed);
+        final (newState, result) = state.openItems(
+          eggChest,
+          count: 5,
+          random: random,
+        );
+
+        // If this seed caused partial opening
+        if (result.openedCount > 0 && result.openedCount < 5) {
+          // Verify error
+          expect(result.error, 'Inventory full');
+
+          // Verify remaining chests
+          final remainingChests = 5 - result.openedCount;
+          expect(newState.inventory.countOfItem(eggChest), remainingChests);
+
+          // Verify we got drops for what we opened
+          expect(result.hasDrops, isTrue);
+
+          // Test passed, we found a good seed
+          return;
+        }
+      }
+
+      // If we get here, we didn't find a seed that triggered partial open
+      // This is unlikely but possible - skip with a warning
+      // ignore: avoid_print
+      print('Warning: Could not find seed for partial open test');
+    });
+
+    test('throws when item is not openable', () {
+      final state = GlobalState.test(
+        inventory: Inventory.fromItems([ItemStack(normalLogs, count: 5)]),
+      );
+
+      expect(
+        () => state.openItems(normalLogs, count: 1, random: Random()),
+        throwsA(isA<StateError>()),
+      );
+    });
+
+    test('throws when item is not in inventory', () {
+      final state = GlobalState.test(inventory: const Inventory.empty());
+
+      expect(
+        () => state.openItems(eggChest, count: 1, random: Random()),
+        throwsA(isA<StateError>()),
+      );
+    });
+
+    test('clamps count to available quantity', () {
+      final state = GlobalState.test(
+        inventory: Inventory.fromItems([ItemStack(eggChest, count: 2)]),
+        // Enough capacity for drops
+        shop: const ShopState(bankSlots: -17), // Capacity = 3
+      );
+
+      final random = Random(42);
+      final (newState, result) = state.openItems(
+        eggChest,
+        count: 100, // Request more than we have
+        random: random,
+      );
+
+      // Only opened what we had
+      expect(result.openedCount, 2);
+      expect(newState.inventory.countOfItem(eggChest), 0);
+    });
+  });
 }

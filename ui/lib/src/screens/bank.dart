@@ -1,7 +1,9 @@
 import 'package:better_idle/src/logic/redux_actions.dart';
+import 'package:better_idle/src/services/toast_service.dart';
 import 'package:better_idle/src/widgets/context_extensions.dart';
 import 'package:better_idle/src/widgets/count_badge_cell.dart';
 import 'package:better_idle/src/widgets/navigation_drawer.dart';
+import 'package:better_idle/src/widgets/open_result_dialog.dart';
 import 'package:collection/collection.dart';
 import 'package:flutter/material.dart';
 import 'package:logic/logic.dart';
@@ -315,7 +317,7 @@ class _ItemDetailsDrawerState extends State<ItemDetailsDrawer> {
                 const SizedBox(height: 32),
                 const Divider(),
                 const SizedBox(height: 16),
-                _OpenItemSection(item: itemData),
+                _OpenItemSection(item: itemData, maxCount: maxCount),
               ],
             ],
           ),
@@ -435,15 +437,40 @@ class _EquipFoodSectionState extends State<_EquipFoodSection> {
   }
 }
 
-class _OpenItemSection extends StatelessWidget {
-  const _OpenItemSection({required this.item});
+class _OpenItemSection extends StatefulWidget {
+  const _OpenItemSection({required this.item, required this.maxCount});
 
   final Item item;
+  final int maxCount;
+
+  @override
+  State<_OpenItemSection> createState() => _OpenItemSectionState();
+}
+
+class _OpenItemSectionState extends State<_OpenItemSection> {
+  double _openCount = 1;
+
+  @override
+  void initState() {
+    super.initState();
+    _openCount = widget.maxCount.toDouble();
+  }
+
+  @override
+  void didUpdateWidget(_OpenItemSection oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.maxCount != widget.maxCount) {
+      if (_openCount > widget.maxCount) {
+        setState(() {
+          _openCount = widget.maxCount > 0 ? widget.maxCount.toDouble() : 1;
+        });
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
-    final state = context.state;
-    final isInventoryFull = state.isInventoryFull;
+    final openCountInt = _openCount.round().clamp(1, widget.maxCount);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -455,15 +482,56 @@ class _OpenItemSection extends StatelessWidget {
           style: Theme.of(context).textTheme.bodyMedium,
         ),
         const SizedBox(height: 16),
+        Text(
+          'Quantity: ${approximateCountString(openCountInt)}',
+          style: Theme.of(context).textTheme.bodyMedium,
+        ),
+        const SizedBox(height: 8),
+        Slider(
+          value: _openCount.clamp(1, widget.maxCount.toDouble()),
+          min: 1,
+          max: widget.maxCount > 0 ? widget.maxCount.toDouble() : 1.0,
+          divisions: widget.maxCount > 1 ? widget.maxCount - 1 : null,
+          label: preciseNumberString(openCountInt),
+          onChanged: widget.maxCount > 0
+              ? (value) {
+                  setState(() {
+                    _openCount = value;
+                  });
+                }
+              : null,
+        ),
+        const SizedBox(height: 16),
         SizedBox(
           width: double.infinity,
           child: ElevatedButton(
-            onPressed: isInventoryFull
-                ? null
-                : () {
-                    context.dispatch(OpenItemAction(item: item));
+            onPressed: () {
+              final itemName = widget.item.name;
+              context.dispatch(
+                OpenItemAction(
+                  item: widget.item,
+                  count: openCountInt,
+                  onResult: (result) {
+                    // Close the drawer first
                     Navigator.of(context).pop();
+
+                    if (result.hasDrops) {
+                      // Show dialog with results
+                      showDialog<void>(
+                        context: context,
+                        builder: (context) => OpenResultDialog(
+                          itemName: itemName,
+                          result: result,
+                        ),
+                      );
+                    } else if (result.error != null) {
+                      // No items opened, show error toast
+                      toastService.showError(result.error!);
+                    }
                   },
+                ),
+              );
+            },
             style: ElevatedButton.styleFrom(
               backgroundColor: Colors.orange,
               foregroundColor: Colors.white,
@@ -471,14 +539,6 @@ class _OpenItemSection extends StatelessWidget {
             child: const Text('Open'),
           ),
         ),
-        if (isInventoryFull)
-          Padding(
-            padding: const EdgeInsets.only(top: 8),
-            child: Text(
-              'Inventory is full',
-              style: TextStyle(color: Colors.red[700], fontSize: 12),
-            ),
-          ),
       ],
     );
   }

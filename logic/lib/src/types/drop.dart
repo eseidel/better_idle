@@ -117,6 +117,9 @@ class DropTable extends Droppable {
     return rate * (entry.rate / _totalWeight);
   }
 
+  /// Returns true if this drop table can drop nothing.
+  bool get canDropNothing => rate < 1.0 || entries.isEmpty;
+
   @override
   Map<String, double> get expectedItems {
     final result = <String, double>{};
