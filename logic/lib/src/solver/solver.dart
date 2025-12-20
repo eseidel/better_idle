@@ -640,9 +640,9 @@ bool _isWaitSatisfied(WaitFor waitFor, GlobalState state, Goal? goal) {
 
 /// Advances state until a condition is satisfied.
 ///
-/// Unlike [consumeTicks] which processes a fixed number of ticks, this function
-/// runs until [waitFor.isSatisfied] returns true. It automatically restarts the
-/// activity after death and tracks how many deaths occurred.
+/// Uses [consumeTicksUntil] to efficiently process ticks, checking the
+/// condition after each action iteration. Automatically restarts the activity
+/// after death and tracks how many deaths occurred.
 ///
 /// The [goal] parameter is required when the plan contains [WaitForGoal] steps.
 ///
@@ -658,55 +658,56 @@ ConsumeUntilResult consumeUntil(
   }
 
   final originalActivity = state.activeAction?.name;
-  var ticksElapsed = 0;
+  var totalTicksElapsed = 0;
   var deathCount = 0;
 
-  // Safety limit to prevent infinite loops (10 hours of game time)
-  const maxIterations = 360000;
-  var iterations = 0;
-
-  while (!_isWaitSatisfied(waitFor, state, goal) &&
-      iterations < maxIterations) {
-    iterations++;
-
-    // Process one "event" worth of ticks - consumeTicks stops at interesting
-    // events like action completion, death, inventory full, etc.
-    // We pass a large number but consumeTicks will stop earlier at events.
+  // Keep running until the condition is satisfied, restarting after deaths
+  while (true) {
     final builder = StateUpdateBuilder(state);
-    consumeTicks(builder, 10000, random: random);
-    state = builder.build();
 
-    final ticksThisIteration = builder.ticksElapsed;
-    if (ticksThisIteration == 0) {
-      // No progress possible - check if we can restart activity
-      if (originalActivity != null && state.activeAction == null) {
-        final action = actionRegistry.byName(originalActivity);
-        state = state.startAction(action, random: random);
-        continue; // Try again with restarted activity
-      }
-      // No activity and can't restart - avoid infinite loop
-      break;
+    // Use consumeTicksUntil which checks the condition after each action
+    consumeTicksUntil(
+      builder,
+      random: random,
+      stopCondition: (s) => _isWaitSatisfied(waitFor, s, goal),
+    );
+
+    state = builder.build();
+    totalTicksElapsed += builder.ticksElapsed;
+
+    // Check if we're done
+    if (_isWaitSatisfied(waitFor, state, goal)) {
+      return ConsumeUntilResult(
+        state: state,
+        ticksElapsed: totalTicksElapsed,
+        deathCount: deathCount,
+      );
     }
 
-    ticksElapsed += ticksThisIteration;
-
-    // Check if activity stopped for any reason
+    // Check if activity stopped
     if (builder.stopReason != ActionStopReason.stillRunning) {
       if (builder.stopReason == ActionStopReason.playerDied) {
         deathCount++;
       }
 
-      // Auto-restart the activity for any stop reason (death, inventory full, etc.)
+      // Auto-restart the activity and continue
       if (originalActivity != null) {
         final action = actionRegistry.byName(originalActivity);
         state = state.startAction(action, random: random);
+        continue; // Continue with restarted activity
       }
+    }
+
+    // No progress possible
+    if (builder.ticksElapsed == 0 && state.activeAction == null) {
+      break;
     }
   }
 
+  // Return whatever state we ended up with
   return ConsumeUntilResult(
     state: state,
-    ticksElapsed: ticksElapsed,
+    ticksElapsed: totalTicksElapsed,
     deathCount: deathCount,
   );
 }

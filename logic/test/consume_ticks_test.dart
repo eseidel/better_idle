@@ -1214,4 +1214,55 @@ void main() {
       expect(state.skillState(normalTree.skill).xp, normalTree.xp);
     });
   });
+
+  group('consumeTicks vs consumeTicksUntil', () {
+    test('consumeTicks always consumes all requested ticks', () {
+      var state = GlobalState.empty();
+      final random = Random(42);
+
+      // Start woodcutting Normal Tree (30 ticks per action, 10 XP each)
+      state = state.startAction(
+        actionRegistry.skillActionByName('Normal Tree'),
+        random: random,
+      );
+
+      // Request 100 ticks - should consume all 100 even though
+      // we'd hit 10 XP after just 30 ticks
+      final builder = StateUpdateBuilder(state);
+      consumeTicks(builder, 100, random: random);
+
+      // Should consume exactly 100 ticks
+      expect(builder.ticksElapsed, 100);
+    });
+
+    test('consumeTicksUntil stops when condition is met', () {
+      var state = GlobalState.empty();
+      final random = Random(42);
+
+      // Start woodcutting Normal Tree (30 ticks per action, 10 XP each)
+      state = state.startAction(
+        actionRegistry.skillActionByName('Normal Tree'),
+        random: random,
+      );
+
+      // Request up to 10000 ticks, but stop when we have 10 XP
+      final builder = StateUpdateBuilder(state);
+      consumeTicksUntil(
+        builder,
+        random: random,
+        stopCondition: (s) => s.skillState(Skill.woodcutting).xp >= 10,
+        maxTicks: 10000,
+      );
+
+      // Should stop after ~30 ticks (1 action), not consume all 10000
+      expect(builder.ticksElapsed, lessThan(100));
+      expect(builder.ticksElapsed, greaterThanOrEqualTo(30));
+
+      // Verify we actually have the XP
+      expect(
+        builder.state.skillState(Skill.woodcutting).xp,
+        greaterThanOrEqualTo(10),
+      );
+    });
+  });
 }

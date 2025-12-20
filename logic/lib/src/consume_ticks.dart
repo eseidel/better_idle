@@ -876,16 +876,33 @@ enum ForegroundResult {
   }
 }
 
-/// Main tick processing - handles foreground action (if any) and all
+/// Condition function that determines when to stop consuming ticks.
+/// Called after each action iteration with the current state.
+/// Returns true to stop, false to continue.
+typedef StopCondition = bool Function(GlobalState state);
+
+/// Core tick processing loop - handles foreground action (if any) and all
 /// background actions in parallel.
-void consumeTicks(
+///
+/// Processes ticks until one of:
+/// - [maxTicks] is reached
+/// - [stopCondition] returns true (if provided)
+/// - The foreground action stops (death, inventory full, etc.)
+/// - No progress can be made
+void _consumeTicksCore(
   StateUpdateBuilder builder,
-  Tick ticks, {
+  Tick maxTicks, {
   required Random random,
+  StopCondition? stopCondition,
 }) {
-  var ticksRemaining = ticks;
+  var ticksRemaining = maxTicks;
 
   while (ticksRemaining > 0) {
+    // Check stop condition at the start of each iteration
+    if (stopCondition != null && stopCondition(builder.state)) {
+      break;
+    }
+
     final activeAction = builder.state.activeAction;
 
     // 1. Compute current background actions (may change each iteration)
@@ -954,6 +971,48 @@ void consumeTicks(
       break;
     }
   }
+}
+
+/// Main tick processing - handles foreground action (if any) and all
+/// background actions in parallel.
+///
+/// Consumes exactly [ticks] ticks (or stops early if the action stops).
+void consumeTicks(
+  StateUpdateBuilder builder,
+  Tick ticks, {
+  required Random random,
+}) {
+  _consumeTicksCore(builder, ticks, random: random);
+}
+
+/// Consumes ticks until a condition is met.
+///
+/// Unlike [consumeTicks] which processes a fixed number of ticks, this function
+/// runs until [stopCondition] returns true. It checks the condition after each
+/// action iteration (typically after each action completes).
+///
+/// [maxTicks] provides a safety limit to prevent infinite loops (default: 10 hours).
+///
+/// Example:
+/// ```dart
+/// consumeTicksUntil(
+///   builder,
+///   random: random,
+///   stopCondition: (state) => state.skillState(Skill.woodcutting).xp >= 100,
+/// );
+/// ```
+void consumeTicksUntil(
+  StateUpdateBuilder builder, {
+  required Random random,
+  required StopCondition stopCondition,
+  Tick maxTicks = 360000, // 10 hours of game time
+}) {
+  _consumeTicksCore(
+    builder,
+    maxTicks,
+    random: random,
+    stopCondition: stopCondition,
+  );
 }
 
 /// Consumes a specified number of ticks and returns the changes.

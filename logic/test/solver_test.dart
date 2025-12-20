@@ -614,4 +614,31 @@ void main() {
       );
     });
   });
+
+  group('consumeUntil', () {
+    test('reaches woodcutting XP goal in reasonable time', () {
+      // Setup: start woodcutting Normal Tree
+      var state = GlobalState.empty();
+      final action = actionRegistry.byName('Normal Tree');
+      state = state.startAction(action, random: Random(42));
+
+      // Normal Tree: 3 seconds (30 ticks), 10 XP per action
+      // To get 10 XP, we need 1 action = 30 ticks
+      const waitFor = WaitForSkillXp(Skill.woodcutting, 10);
+      final result = consumeUntil(state, waitFor, random: Random(42));
+
+      // Should complete in roughly 30 ticks (1 action), not thousands
+      expect(
+        result.ticksElapsed,
+        lessThan(100),
+        reason:
+            'Should reach 10 woodcutting XP in ~30 ticks (1 action), '
+            'not ${result.ticksElapsed} ticks',
+      );
+      expect(
+        result.state.skillState(Skill.woodcutting).xp,
+        greaterThanOrEqualTo(10),
+      );
+    });
+  });
 }
