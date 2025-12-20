@@ -289,6 +289,10 @@ Candidates enumerateCandidates(
 }
 
 /// Selects top K unlocked activities by a custom ranking function.
+///
+/// Only includes activities with positive ranking (> 0). This filters out
+/// activities that don't contribute to the goal (e.g., fishing when the
+/// goal is a woodcutting level).
 List<String> _selectUnlockedActivitiesByRanking(
   List<ActionSummary> summaries,
   GlobalState state,
@@ -297,9 +301,14 @@ List<String> _selectUnlockedActivitiesByRanking(
 ) {
   final currentActionName = state.activeAction?.name;
 
-  // Filter to unlocked actions, excluding current action
+  // Filter to unlocked actions with positive ranking, excluding current action
   final unlocked = summaries
-      .where((s) => s.isUnlocked && s.actionName != currentActionName)
+      .where(
+        (s) =>
+            s.isUnlocked &&
+            s.actionName != currentActionName &&
+            rankingFn(s) > 0,
+      )
       .toList();
 
   // Sort by ranking function descending

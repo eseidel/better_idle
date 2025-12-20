@@ -21,7 +21,6 @@ import 'dart:math';
 import 'package:logic/src/data/actions.dart';
 import 'package:logic/src/data/upgrades.dart';
 import 'package:logic/src/state.dart';
-import 'package:logic/src/types/inventory.dart';
 
 import 'interaction.dart';
 
@@ -94,13 +93,8 @@ GlobalState _applyBuyUpgrade(GlobalState state, UpgradeType type) {
 
 /// Sells all items in inventory.
 GlobalState _applySellAll(GlobalState state) {
-  var totalValue = 0;
   for (final stack in state.inventory.items) {
-    totalValue += stack.sellsFor;
+    state = state.sellItem(stack);
   }
-
-  return state.copyWith(
-    inventory: const Inventory.empty(),
-    gp: state.gp + totalValue,
-  );
+  return state;
 }

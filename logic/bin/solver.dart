@@ -7,7 +7,6 @@
 
 import 'package:args/args.dart';
 import 'package:logic/logic.dart';
-import 'package:logic/src/solver/apply_interaction.dart';
 import 'package:logic/src/solver/goal.dart';
 import 'package:logic/src/solver/plan.dart';
 import 'package:logic/src/solver/solver.dart';
@@ -49,7 +48,7 @@ void main(List<String> args) {
     print('Interaction count: ${result.plan.interactionCount}');
 
     // Execute the plan to get the final state
-    final finalState = _executePlan(initialState, result.plan);
+    final finalState = executePlan(initialState, result.plan);
     print('');
     _printFinalState(finalState);
 
@@ -69,19 +68,6 @@ void main(List<String> args) {
       print(result.profile);
     }
   }
-}
-
-/// Executes a plan and returns the final state.
-GlobalState _executePlan(GlobalState state, Plan plan) {
-  for (final step in plan.steps) {
-    switch (step) {
-      case InteractionStep(:final interaction):
-        state = applyInteraction(state, interaction);
-      case WaitStep(:final deltaTicks):
-        state = advance(state, deltaTicks);
-    }
-  }
-  return state;
 }
 
 /// Prints the final state after executing the plan.

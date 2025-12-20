@@ -594,6 +594,9 @@ GlobalState _advanceFullSim(GlobalState state, int deltaTicks) {
 /// Advances the game state by a given number of ticks.
 /// Uses O(1) expected-value advance for rate-modelable activities,
 /// falls back to full simulation for combat/complex activities.
+///
+/// Only should be used for planning, since it will not perfectly match
+/// game state (e.g. won't add inventory items)
 GlobalState advance(GlobalState state, int deltaTicks) {
   if (deltaTicks <= 0) return state;
 
@@ -601,6 +604,20 @@ GlobalState advance(GlobalState state, int deltaTicks) {
     return _advanceExpected(state, deltaTicks);
   }
   return _advanceFullSim(state, deltaTicks);
+}
+
+/// Executes a plan and returns the final state.
+GlobalState executePlan(GlobalState state, Plan plan) {
+  for (final step in plan.steps) {
+    switch (step) {
+      case InteractionStep(:final interaction):
+        state = applyInteraction(state, interaction);
+      case WaitStep(:final deltaTicks):
+        // Always use full simulation when replaying a plan.
+        state = _advanceFullSim(state, deltaTicks);
+    }
+  }
+  return state;
 }
 
 /// Solves for an optimal plan to reach the target credits.
@@ -976,9 +993,20 @@ Plan _reconstructPlan(
   // and the rates change at those boundaries. Merging would cause
   // the plan execution to miss those state changes.
 
+  // Insert synthetic "Sell all" steps before each "Buy upgrade".
+  // The solver uses expected-value modeling which converts items to GP
+  // automatically, but in practice the player must sell items first.
+  final processedSteps = <PlanStep>[];
+  for (final step in reversedSteps) {
+    if (step is InteractionStep && step.interaction is BuyUpgrade) {
+      processedSteps.add(const InteractionStep(SellAll()));
+    }
+    processedSteps.add(step);
+  }
+
   final goalNode = nodes[goalNodeId];
   return Plan(
-    steps: reversedSteps,
+    steps: processedSteps,
     totalTicks: goalNode.ticks,
     interactionCount: goalNode.interactions,
     expandedNodes: expandedNodes,
