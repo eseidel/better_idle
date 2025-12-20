@@ -1,3 +1,4 @@
+// cspell:words bobbys
 import 'dart:math';
 
 import 'package:logic/logic.dart';
