@@ -6,6 +6,7 @@ import 'package:logic/src/state.dart';
 import 'enumerate_candidates.dart';
 import 'estimate_rates.dart';
 import 'plan.dart';
+import 'value_model.dart';
 
 /// Sentinel value for "infinite" ticks (no progress possible).
 const int infTicks = 1 << 60;
@@ -74,8 +75,9 @@ class NextDecisionResult {
 NextDecisionResult nextDecisionDelta(
   GlobalState state,
   Goal goal,
-  Candidates candidates,
-) {
+  Candidates candidates, {
+  ValueModel valueModel = defaultValueModel,
+}) {
   // Check if goal is already satisfied
   if (state.gp >= goal.targetCredits) {
     return const NextDecisionResult(
@@ -115,14 +117,15 @@ NextDecisionResult nextDecisionDelta(
     }
   }
 
-  // Get current rates
+  // Get current rates and compute value rate using the model
   final rates = estimateRates(state);
+  final valueRate = valueModel.valuePerTick(state, rates);
 
   // Compute deltas for each category
   final deltas = <_DeltaCandidate>[];
 
   // A) Time until goal reached
-  final deltaGoal = _deltaUntilGoal(state, goal, rates);
+  final deltaGoal = _deltaUntilGoal(state, goal, valueRate);
   if (deltaGoal != null && deltaGoal > 0) {
     deltas.add(
       _DeltaCandidate(
@@ -134,7 +137,11 @@ NextDecisionResult nextDecisionDelta(
   }
 
   // B) Time until any watched upgrade becomes affordable
-  final deltaUpgrade = _deltaUntilUpgradeAffordable(state, candidates, rates);
+  final deltaUpgrade = _deltaUntilUpgradeAffordable(
+    state,
+    candidates,
+    valueRate,
+  );
   if (deltaUpgrade != null) {
     deltas.add(deltaUpgrade);
   }
@@ -217,22 +224,22 @@ NextDecisionResult nextDecisionDelta(
   );
 }
 
-/// Computes ticks until goal is reached at current gold rate.
-int? _deltaUntilGoal(GlobalState state, Goal goal, Rates rates) {
-  if (rates.goldPerTick <= 0) return null;
+/// Computes ticks until goal is reached at current value rate.
+int? _deltaUntilGoal(GlobalState state, Goal goal, double valueRate) {
+  if (valueRate <= 0) return null;
   if (state.gp >= goal.targetCredits) return 0;
 
   final needed = goal.targetCredits - state.gp;
-  return _ceilDiv(needed.toDouble(), rates.goldPerTick);
+  return _ceilDiv(needed.toDouble(), valueRate);
 }
 
 /// Computes ticks until soonest watched upgrade becomes affordable.
 _DeltaCandidate? _deltaUntilUpgradeAffordable(
   GlobalState state,
   Candidates candidates,
-  Rates rates,
+  double valueRate,
 ) {
-  if (rates.goldPerTick <= 0) return null;
+  if (valueRate <= 0) return null;
 
   int? minDelta;
   String? minUpgradeName;
@@ -248,7 +255,7 @@ _DeltaCandidate? _deltaUntilUpgradeAffordable(
     }
 
     final needed = upgrade.cost - state.gp;
-    final delta = _ceilDiv(needed.toDouble(), rates.goldPerTick);
+    final delta = _ceilDiv(needed.toDouble(), valueRate);
 
     if (minDelta == null || delta < minDelta) {
       minDelta = delta;
@@ -310,12 +317,12 @@ _DeltaCandidate? _deltaUntilActivityUnlocks(
 
 /// Computes ticks until inventory is full.
 int? _deltaUntilInventoryFull(GlobalState state, Rates rates) {
-  if (rates.itemsPerTick <= 0) return null;
+  if (rates.itemTypesPerTick <= 0) return null;
 
   final slotsRemaining = state.inventoryRemaining;
   if (slotsRemaining <= 0) return 0;
 
-  return _ceilDiv(slotsRemaining.toDouble(), rates.itemsPerTick);
+  return _ceilDiv(slotsRemaining.toDouble(), rates.itemTypesPerTick);
 }
 
 /// Ceiling division for doubles to int.

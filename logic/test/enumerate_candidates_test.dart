@@ -5,6 +5,7 @@ import 'package:logic/src/solver/apply_interaction.dart';
 import 'package:logic/src/solver/enumerate_candidates.dart';
 import 'package:logic/src/solver/estimate_rates.dart';
 import 'package:logic/src/solver/interaction.dart';
+import 'package:logic/src/solver/value_model.dart';
 import 'package:test/test.dart';
 
 void main() {
@@ -279,7 +280,7 @@ void main() {
 
       // Get baseline rate with no upgrades
       final baseRates = estimateRates(state);
-      final baseGoldRate = baseRates.goldPerTick;
+      final baseGoldRate = defaultValueModel.valuePerTick(state, baseRates);
 
       // Buy all tool upgrades (axe, fishing rod, pickaxe)
       var upgradedState = state.copyWith(
@@ -294,7 +295,10 @@ void main() {
 
       // Get rate with all tool upgrades
       final upgradedRates = estimateRates(upgradedState);
-      final upgradedGoldRate = upgradedRates.goldPerTick;
+      final upgradedGoldRate = defaultValueModel.valuePerTick(
+        upgradedState,
+        upgradedRates,
+      );
 
       // Gold rate should be identical - tools don't affect thieving
       expect(

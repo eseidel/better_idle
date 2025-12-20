@@ -4,6 +4,7 @@ import 'package:logic/logic.dart';
 import 'package:logic/src/solver/enumerate_candidates.dart';
 import 'package:logic/src/solver/estimate_rates.dart';
 import 'package:logic/src/solver/next_decision_delta.dart';
+import 'package:logic/src/solver/value_model.dart';
 import 'package:test/test.dart';
 
 void main() {
@@ -12,9 +13,9 @@ void main() {
       final state = GlobalState.empty();
       final rates = estimateRates(state);
 
-      expect(rates.goldPerTick, 0);
+      expect(defaultValueModel.valuePerTick(state, rates), 0);
       expect(rates.xpPerTickBySkill, isEmpty);
-      expect(rates.itemsPerTick, 0);
+      expect(rates.itemFlowsPerTick, isEmpty);
     });
 
     test('returns positive rates for active skill action', () {
@@ -24,7 +25,7 @@ void main() {
 
       final rates = estimateRates(state);
 
-      expect(rates.goldPerTick, greaterThan(0));
+      expect(defaultValueModel.valuePerTick(state, rates), greaterThan(0));
       expect(rates.xpPerTickBySkill[Skill.woodcutting], greaterThan(0));
     });
 
@@ -47,7 +48,12 @@ void main() {
       // Rates should be different when upgrade is applied
       // Note: Due to current implementation, the modifier calculation may
       // result in different (not necessarily higher) rates
-      expect(ratesWith.goldPerTick, isNot(equals(ratesNo.goldPerTick)));
+      final valueNo = defaultValueModel.valuePerTick(stateNoUpgrade, ratesNo);
+      final valueWith = defaultValueModel.valuePerTick(
+        stateWithUpgrade,
+        ratesWith,
+      );
+      expect(valueWith, isNot(equals(valueNo)));
     });
   });
 

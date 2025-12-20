@@ -1,33 +1,48 @@
 import 'package:logic/src/consume_ticks.dart';
 import 'package:logic/src/data/actions.dart';
-import 'package:logic/src/data/items.dart';
 import 'package:logic/src/data/xp.dart';
 import 'package:logic/src/state.dart';
 import 'package:logic/src/tick.dart';
 import 'package:logic/src/types/stunned.dart';
 import 'package:meta/meta.dart';
 
-/// Expected rates for the current state, used by the planner.
+/// Expected rates (flows) for the current state, used by the planner.
+///
+/// This class reports **flows** without assuming any particular valuation
+/// policy. Use a [ValueModel] to convert flows into a scalar value.
 @immutable
 class Rates {
   const Rates({
-    required this.goldPerTick,
+    required this.directGpPerTick,
+    required this.itemFlowsPerTick,
     required this.xpPerTickBySkill,
-    required this.itemsPerTick,
+    required this.itemTypesPerTick,
     this.hpLossPerTick = 0,
     this.masteryXpPerTick = 0,
     this.actionName,
   });
 
-  /// Expected gold per tick from current activity (selling outputs).
-  final double goldPerTick;
+  /// Empty rates with all values at zero.
+  static const empty = Rates(
+    directGpPerTick: 0,
+    itemFlowsPerTick: {},
+    xpPerTickBySkill: {},
+    itemTypesPerTick: 0,
+  );
+
+  /// Direct GP per tick (e.g., thieving gold, not from selling items).
+  final double directGpPerTick;
+
+  /// Expected item flows per tick: item name -> expected count per tick.
+  /// Includes both action outputs and skill-level/global drops.
+  final Map<String, double> itemFlowsPerTick;
 
   /// Expected XP per tick for each skill from current activity.
   final Map<Skill, double> xpPerTickBySkill;
 
   /// Expected unique item types generated per tick (for inventory fill).
   /// This is a rough estimate - assumes one item type per action completion.
-  final double itemsPerTick;
+  final double itemTypesPerTick;
 
   /// Expected HP loss per tick (for thieving hazard model).
   /// Zero for non-hazardous activities.
@@ -102,21 +117,53 @@ int? ticksUntilNextMasteryLevel(GlobalState state, Rates rates) {
   return (xpNeeded / rates.masteryXpPerTick).ceil();
 }
 
-/// Estimates expected rates for the current state.
+/// Computes expected item flows per action from all drops.
 ///
-/// Uses the active action to compute gold, XP, and item rates.
+/// Returns a map of item name -> expected count per action.
+/// Uses allDropsForAction which includes action outputs (via rewardsAtLevel),
+/// skill-level drops, and global drops.
+Map<String, double> _computeItemFlowsPerAction(
+  SkillAction action,
+  int masteryLevel,
+) {
+  final itemFlows = <String, double>{};
+
+  // allDropsForAction includes:
+  // - Action outputs (via rewardsForMasteryLevel -> rewardsAtLevel)
+  // - Skill-level drops (e.g., Bobby's Pocket for thieving)
+  // - Global drops (e.g., gems)
+  final drops = dropsRegistry.allDropsForAction(
+    action,
+    masteryLevel: masteryLevel,
+  );
+  for (final drop in drops) {
+    final expectedItems = drop.expectedItems;
+    for (final entry in expectedItems.entries) {
+      itemFlows[entry.key] = (itemFlows[entry.key] ?? 0) + entry.value;
+    }
+  }
+
+  return itemFlows;
+}
+
+/// Estimates expected rates (flows) for the current state.
+///
+/// Uses the active action to compute item flows, XP, and direct GP rates.
 /// Returns zero rates if no action is active.
+///
+/// Note: This function reports **flows** without assuming any valuation
+/// policy. Use a [ValueModel] to convert flows into a scalar value.
 Rates estimateRates(GlobalState state) {
   final activeAction = state.activeAction;
   if (activeAction == null) {
-    return const Rates(goldPerTick: 0, xpPerTickBySkill: {}, itemsPerTick: 0);
+    return Rates.empty;
   }
 
   final action = actionRegistry.byName(activeAction.name);
 
   // Only skill actions have predictable rates
   if (action is! SkillAction) {
-    return const Rates(goldPerTick: 0, xpPerTickBySkill: {}, itemsPerTick: 0);
+    return Rates.empty;
   }
 
   // Calculate expected ticks per action completion (with upgrades applied)
@@ -127,15 +174,12 @@ Rates estimateRates(GlobalState state) {
   final expectedTicks = baseExpectedTicks * (1.0 + percentModifier);
 
   if (expectedTicks <= 0) {
-    return const Rates(goldPerTick: 0, xpPerTickBySkill: {}, itemsPerTick: 0);
+    return Rates.empty;
   }
 
-  // Calculate expected gold per action from selling outputs
-  var expectedGoldPerAction = 0.0;
-  for (final output in action.outputs.entries) {
-    final item = itemRegistry.byName(output.key);
-    expectedGoldPerAction += item.sellsFor * output.value;
-  }
+  // Compute item flows per action
+  final masteryLevel = state.actionState(action.name).masteryLevel;
+  final itemFlowsPerAction = _computeItemFlowsPerAction(action, masteryLevel);
 
   // For thieving, calculate rates accounting for stun time on failure.
   // On failure, the player is stunned for stunnedDurationTicks, which
@@ -151,9 +195,8 @@ Rates estimateRates(GlobalState state) {
     );
     final failureChance = 1.0 - successChance;
 
-    // Expected gold per attempt (only on success)
+    // Direct GP per attempt (only on success) - thieving gold coins
     final expectedThievingGold = successChance * (1 + action.maxGold) / 2;
-    expectedGoldPerAction += expectedThievingGold;
 
     // Expected HP loss per attempt (only on failure)
     // Damage is uniform 1 to maxHit, so expected damage = (1 + maxHit) / 2
@@ -162,8 +205,14 @@ Rates estimateRates(GlobalState state) {
     // Effective ticks per attempt = action duration + (failure chance * stun)
     final effectiveTicks = expectedTicks + failureChance * stunnedDurationTicks;
 
-    final goldPerTick = expectedGoldPerAction / effectiveTicks;
+    final directGpPerTick = expectedThievingGold / effectiveTicks;
     final hpLossPerTick = expectedDamagePerAttempt / effectiveTicks;
+
+    // Convert item flows per action to per tick
+    final itemFlowsPerTick = <String, double>{};
+    for (final entry in itemFlowsPerAction.entries) {
+      itemFlowsPerTick[entry.key] = entry.value / effectiveTicks;
+    }
 
     // XP is only gained on success, so expected XP = successChance * xp
     final expectedXpPerAction = successChance * action.xp;
@@ -175,23 +224,29 @@ Rates estimateRates(GlobalState state) {
     final expectedMasteryXpPerAction = successChance * baseMasteryXpPerAction;
     final masteryXpPerTick = expectedMasteryXpPerAction / effectiveTicks;
 
-    // Items per tick (thieving typically has no item outputs)
-    final uniqueOutputTypes = action.outputs.length.toDouble();
-    final itemsPerTick = uniqueOutputTypes > 0
+    // Item types per tick for inventory estimation
+    final uniqueOutputTypes = itemFlowsPerAction.length.toDouble();
+    final itemTypesPerTick = uniqueOutputTypes > 0
         ? uniqueOutputTypes / effectiveTicks
         : 0.0;
 
     return Rates(
-      goldPerTick: goldPerTick,
+      directGpPerTick: directGpPerTick,
+      itemFlowsPerTick: itemFlowsPerTick,
       xpPerTickBySkill: xpPerTickBySkill,
-      itemsPerTick: itemsPerTick,
+      itemTypesPerTick: itemTypesPerTick,
       hpLossPerTick: hpLossPerTick,
       masteryXpPerTick: masteryXpPerTick,
       actionName: action.name,
     );
   }
 
-  final goldPerTick = expectedGoldPerAction / expectedTicks;
+  // Non-thieving actions: no direct GP, all value comes from items
+  // Convert item flows per action to per tick
+  final itemFlowsPerTick = <String, double>{};
+  for (final entry in itemFlowsPerAction.entries) {
+    itemFlowsPerTick[entry.key] = entry.value / expectedTicks;
+  }
 
   // XP rate for the action's skill
   final xpPerTick = action.xp / expectedTicks;
@@ -201,17 +256,17 @@ Rates estimateRates(GlobalState state) {
   final baseMasteryXpPerAction = masteryXpPerAction(state, action);
   final masteryXpPerTick = baseMasteryXpPerAction / expectedTicks;
 
-  // Items per tick - rough estimate based on outputs
-  // Count unique output types per action completion
-  final uniqueOutputTypes = action.outputs.length.toDouble();
-  final itemsPerTick = uniqueOutputTypes > 0
+  // Item types per tick for inventory estimation
+  final uniqueOutputTypes = itemFlowsPerAction.length.toDouble();
+  final itemTypesPerTick = uniqueOutputTypes > 0
       ? uniqueOutputTypes / expectedTicks
       : 0.0;
 
   return Rates(
-    goldPerTick: goldPerTick,
+    directGpPerTick: 0, // Non-thieving actions have no direct GP
+    itemFlowsPerTick: itemFlowsPerTick,
     xpPerTickBySkill: xpPerTickBySkill,
-    itemsPerTick: itemsPerTick,
+    itemTypesPerTick: itemTypesPerTick,
     masteryXpPerTick: masteryXpPerTick,
     actionName: action.name,
   );

@@ -17,6 +17,7 @@ import 'estimate_rates.dart';
 import 'interaction.dart';
 import 'next_decision_delta.dart';
 import 'plan.dart';
+import 'value_model.dart';
 
 /// Profiling stats collected during a solve.
 class SolverProfile {
@@ -442,7 +443,13 @@ bool _isRateModelable(GlobalState state) {
 /// O(1) expected-value fast-forward for rate-modelable activities.
 /// Updates gold and skill XP based on expected rates without full simulation.
 /// For thieving, handles death by stopping the activity when HP would reach 0.
-GlobalState _advanceExpected(GlobalState state, int deltaTicks) {
+///
+/// Uses [valueModel] to convert item flows into GP value.
+GlobalState _advanceExpected(
+  GlobalState state,
+  int deltaTicks, {
+  ValueModel valueModel = defaultValueModel,
+}) {
   if (deltaTicks <= 0) return state;
 
   final rates = estimateRates(state);
@@ -458,8 +465,10 @@ GlobalState _advanceExpected(GlobalState state, int deltaTicks) {
     playerDied = true;
   }
 
-  // Compute expected gold gain (convert outputs to gold immediately)
-  final expectedGold = (rates.goldPerTick * effectiveTicks).floor();
+  // Compute expected gold gain using the value model
+  // (converts item flows to GP based on the policy)
+  final valueRate = valueModel.valuePerTick(state, rates);
+  final expectedGold = (valueRate * effectiveTicks).floor();
   final newGp = state.gp + expectedGold;
 
   // Compute expected skill XP gains

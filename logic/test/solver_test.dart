@@ -8,6 +8,7 @@ import 'package:logic/src/solver/interaction.dart';
 import 'package:logic/src/solver/next_decision_delta.dart';
 import 'package:logic/src/solver/plan.dart';
 import 'package:logic/src/solver/solver.dart';
+import 'package:logic/src/solver/value_model.dart';
 import 'package:test/test.dart';
 
 void main() {
@@ -284,7 +285,7 @@ void main() {
 
       // Thieving should have positive HP loss rate (player takes damage)
       expect(rates.hpLossPerTick, greaterThan(0));
-      expect(rates.goldPerTick, greaterThan(0));
+      expect(defaultValueModel.valuePerTick(state, rates), greaterThan(0));
     });
 
     test('estimateRates returns zero hpLossPerTick for non-thieving', () {
@@ -492,6 +493,120 @@ void main() {
 
       expect(rates.masteryXpPerTick, greaterThan(0));
       expect(rates.actionName, 'Man');
+    });
+
+    test('itemFlowsPerTick includes action outputs via allDropsForAction', () {
+      // Verify that action outputs (like Normal Logs from Normal Tree) are
+      // included in itemFlowsPerTick via allDropsForAction, not double-counted.
+      var state = GlobalState.empty();
+      final action = actionRegistry.byName('Normal Tree');
+      state = state.startAction(action, random: Random(0));
+
+      final rates = estimateRates(state);
+
+      // Normal Tree outputs Normal Logs
+      expect(
+        rates.itemFlowsPerTick,
+        contains('Normal Logs'),
+        reason: 'itemFlowsPerTick should include action outputs',
+      );
+
+      // Verify the rate is correct (1 log per action, not doubled)
+      // Normal Tree has 3s duration = 30 ticks
+      final expectedTicks = ticksFromDuration(const Duration(seconds: 3));
+      final expectedLogsPerTick = 1.0 / expectedTicks;
+      expect(
+        rates.itemFlowsPerTick['Normal Logs'],
+        closeTo(expectedLogsPerTick, 0.0001),
+        reason: 'Normal Logs rate should be 1 per action duration',
+      );
+    });
+
+    test('itemFlowsPerTick includes skill-level drops (Bird Nest)', () {
+      // Verify that skill-level drops are included in itemFlowsPerTick
+      // Woodcutting has Bird Nest as a skill-level drop (0.5% rate)
+      var state = GlobalState.empty();
+      final action = actionRegistry.byName('Normal Tree');
+      state = state.startAction(action, random: Random(0));
+
+      final rates = estimateRates(state);
+
+      // Bird Nest is a skill-level drop for woodcutting
+      expect(
+        rates.itemFlowsPerTick,
+        contains('Bird Nest'),
+        reason: 'itemFlowsPerTick should include skill-level drops',
+      );
+
+      // Verify the rate is correct (0.5% per action)
+      final expectedTicks = ticksFromDuration(const Duration(seconds: 3));
+      final expectedBirdNestPerTick = 0.005 / expectedTicks;
+      expect(
+        rates.itemFlowsPerTick['Bird Nest'],
+        closeTo(expectedBirdNestPerTick, 0.00001),
+        reason: 'Bird Nest rate should match skill drop rate',
+      );
+    });
+
+    test('estimateRates includes skill-level drops in item flows', () {
+      // Thieving has Bobby's Pocket as a skill-level drop (1/120 rate, 4000 GP)
+      // This should appear in itemFlowsPerTick and affect valuePerTick
+      var state = GlobalState.empty();
+      final action = thievingActionByName('Man');
+      state = state.startAction(action, random: Random(0));
+
+      final rates = estimateRates(state);
+
+      // Verify Bobby's Pocket is included in item flows
+      expect(
+        rates.itemFlowsPerTick,
+        contains("Bobby's Pocket"),
+        reason: "itemFlowsPerTick should include Bobby's Pocket drop",
+      );
+
+      // Calculate expected gold from skill-level drops
+      // Bobby's Pocket: rate=1/120, sellsFor=4000
+      // Expected GP per action from drop = (1/120) * 4000 = 33.33
+      const bobbysPocketRate = 1 / 120;
+      const bobbysPocketValue = 4000;
+      const expectedDropGpPerAction = bobbysPocketRate * bobbysPocketValue;
+
+      // Get the base thieving duration in ticks
+      final baseTicks = ticksFromDuration(thievingDuration).toDouble();
+
+      // Account for stun time on failure (same calculation as estimateRates)
+      final thievingLevel = state.skillState(Skill.thieving).skillLevel;
+      final mastery = state.actionState(action.name).masteryLevel;
+      final stealth = calculateStealth(thievingLevel, mastery);
+      final successChance = ((100 + stealth) / (100 + action.perception)).clamp(
+        0.0,
+        1.0,
+      );
+      final failureChance = 1.0 - successChance;
+      final effectiveTicks = baseTicks + failureChance * stunnedDurationTicks;
+
+      // Calculate expected gold WITHOUT drops (just thieving gold)
+      // Expected thieving gold = successChance * (1 + maxGold) / 2
+      final expectedThievingGold = successChance * (1 + action.maxGold) / 2;
+      final expectedGoldPerTickWithoutDrops =
+          expectedThievingGold / effectiveTicks;
+
+      // Calculate expected gold WITH drops
+      final expectedGoldPerTickWithDrops =
+          (expectedThievingGold + expectedDropGpPerAction) / effectiveTicks;
+
+      // The actual valuePerTick should be higher than gold without drops
+      // if skill-level drops are being included via the ValueModel
+      final actualValuePerTick = defaultValueModel.valuePerTick(state, rates);
+      expect(
+        actualValuePerTick,
+        greaterThan(expectedGoldPerTickWithoutDrops),
+        reason:
+            "valuePerTick ($actualValuePerTick) should be higher than "
+            "gold from thieving alone ($expectedGoldPerTickWithoutDrops) "
+            "because skill-level drops like Bobby's Pocket should be included. "
+            "Expected with drops: $expectedGoldPerTickWithDrops",
+      );
     });
   });
 }
