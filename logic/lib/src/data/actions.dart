@@ -15,11 +15,11 @@ export 'thieving.dart';
 /// Gem drop table for mining - 1% chance to trigger, then weighted selection.
 const miningGemTable = DropChance(
   DropTable([
-    PickFixed('Topaz', 50), // 50% of 1% = 0.5%
-    PickFixed('Sapphire', 17.5), // 17.5% of 1% = 0.175%
-    PickFixed('Ruby', 17.5), // 17.5% of 1% = 0.175%
-    PickFixed('Emerald', 10), // 10% of 1% = 0.1%
-    PickFixed('Diamond', 5), // 5% of 1% = 0.05%
+    Pick('Topaz', 50), // 50% of 1% = 0.5%
+    Pick('Sapphire', 17.5), // 17.5% of 1% = 0.175%
+    Pick('Ruby', 17.5), // 17.5% of 1% = 0.175%
+    Pick('Emerald', 10), // 10% of 1% = 0.1%
+    Pick('Diamond', 5), // 5% of 1% = 0.05%
   ]),
   rate: 0.01, // 1% chance to get a gem
 );
@@ -85,10 +85,7 @@ List<Droppable> woodcuttingRewards(SkillAction action, int masteryLevel) {
   final doublePercent = (doubleMultiplier * 0.05).clamp(0.0, 1.0);
   final singlePercent = (1.0 - doublePercent).clamp(0.0, 1.0);
   return [
-    DropTable([
-      PickFixed(name, singlePercent),
-      PickFixed(name, doublePercent, count: 2),
-    ]),
+    DropTable([Pick(name, singlePercent), Pick(name, doublePercent, count: 2)]),
   ];
 }
 

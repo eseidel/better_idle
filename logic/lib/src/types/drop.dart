@@ -120,58 +120,35 @@ class DropChance extends Droppable {
   }
 }
 
-/// Base class for weighted entries in a DropTable.
+/// A weighted entry in a DropTable.
 /// The weight determines relative probability of selection.
-abstract class Pick {
-  const Pick(this.name, this.weight);
+class Pick {
+  /// Creates a pick with a fixed count (default 1).
+  const Pick(this.name, this.weight, {int count = 1})
+    : minCount = count,
+      maxCount = count;
+
+  /// Creates a pick with a random count within a range.
+  const Pick.range(this.name, this.weight, {required int min, required int max})
+    : minCount = min,
+      maxCount = max;
 
   final String name;
 
   /// Relative weight for selection in a DropTable.
   final double weight;
 
-  /// The expected count for this pick (used for predictions).
-  double get expectedCount;
-
-  /// Creates the ItemStack when this pick is selected.
-  ItemStack roll(Random random);
-}
-
-/// A simple pick that yields a specific item with a fixed count.
-class PickFixed extends Pick {
-  const PickFixed(super.name, super.weight, {this.count = 1});
-
-  final int count;
-
-  @override
-  double get expectedCount => count.toDouble();
-
-  @override
-  ItemStack roll(Random random) {
-    final item = itemRegistry.byName(name);
-    return ItemStack(item, count: count);
-  }
-}
-
-/// A pick that yields a random count within a range.
-class PickRange extends Pick {
-  const PickRange(
-    super.name,
-    super.weight, {
-    required int min,
-    required int max,
-  }) : minCount = min,
-       maxCount = max;
-
   final int minCount;
   final int maxCount;
 
-  @override
+  /// The expected count for this pick (used for predictions).
   double get expectedCount => (minCount + maxCount) / 2.0;
 
-  @override
+  /// Creates the ItemStack when this pick is selected.
   ItemStack roll(Random random) {
-    final count = minCount + random.nextInt(maxCount - minCount + 1);
+    final count = minCount == maxCount
+        ? minCount
+        : minCount + random.nextInt(maxCount - minCount + 1);
     final item = itemRegistry.byName(name);
     return ItemStack(item, count: count);
   }
