@@ -742,9 +742,11 @@ _StepResult _applyStep(
 /// Uses goal-aware waiting: [WaitStep.waitFor] determines when to stop waiting,
 /// which handles variance between expected-value planning and actual simulation.
 /// Deaths are automatically handled by restarting the activity and are counted.
-PlanExecutionResult executePlan(GlobalState state, Plan plan) {
-  // Use a fixed random for deterministic execution
-  final random = Random(42);
+PlanExecutionResult executePlan(
+  GlobalState state,
+  Plan plan, {
+  required Random random,
+}) {
   var totalDeaths = 0;
   var actualTicks = 0;
 

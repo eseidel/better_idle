@@ -645,4 +645,97 @@ void main() {
       );
     });
   });
+
+  group('executePlan', () {
+    test('executes empty plan and returns initial state', () {
+      final state = GlobalState.empty().copyWith(gp: 500);
+      const plan = Plan.empty();
+
+      final result = executePlan(state, plan, random: Random(42));
+
+      expect(result.finalState.gp, 500);
+      expect(result.actualTicks, 0);
+      expect(result.totalDeaths, 0);
+    });
+
+    test('executes plan with switch activity step', () {
+      final state = GlobalState.empty();
+      final plan = Plan(
+        steps: [
+          const InteractionStep(SwitchActivity('Normal Tree')),
+          WaitStep(30, WaitForSkillXp(Skill.woodcutting, 10)),
+        ],
+        totalTicks: 30,
+        interactionCount: 1,
+      );
+
+      final result = executePlan(state, plan, random: Random(42));
+
+      // Should have woodcutting XP from the wait
+      expect(
+        result.finalState.skillState(Skill.woodcutting).xp,
+        greaterThan(0),
+      );
+      expect(result.actualTicks, greaterThan(0));
+      expect(result.totalDeaths, 0);
+    });
+
+    test('tracks deaths during thieving execution', () {
+      // Create a plan that does thieving for a long time (will cause deaths)
+      final state = GlobalState.empty();
+      final plan = Plan(
+        steps: [
+          const InteractionStep(SwitchActivity('Man')),
+          // Wait for a very high GP goal - will take many iterations and deaths
+          WaitStep(50000, WaitForGoal(const ReachGpGoal(5000))),
+        ],
+        totalTicks: 50000,
+        interactionCount: 1,
+      );
+
+      final result = executePlan(state, plan, random: Random(42));
+
+      // Should have some GP from thieving
+      expect(result.finalState.gp, greaterThan(0));
+      // Should have experienced deaths during the long thieving session
+      expect(result.totalDeaths, greaterThan(0));
+    });
+
+    test('reports planned vs actual ticks correctly', () {
+      final state = GlobalState.empty();
+      final plan = Plan(
+        steps: [
+          const InteractionStep(SwitchActivity('Normal Tree')),
+          WaitStep(60, WaitForSkillXp(Skill.woodcutting, 20)),
+        ],
+        totalTicks: 60,
+        interactionCount: 1,
+      );
+
+      final result = executePlan(state, plan, random: Random(42));
+
+      // plannedTicks should match plan.totalTicks
+      expect(result.plannedTicks, 60);
+      // actualTicks should be close but may vary due to simulation
+      expect(result.actualTicks, greaterThan(0));
+      // ticksDelta is the difference
+      expect(result.ticksDelta, result.actualTicks - result.plannedTicks);
+    });
+
+    test('executes plan from solve result', () {
+      // Solve for a small GP goal
+      final state = GlobalState.empty();
+      const goal = ReachGpGoal(100);
+      final solveResult = solve(state, goal);
+
+      expect(solveResult, isA<SolverSuccess>());
+      final success = solveResult as SolverSuccess;
+
+      // Execute the plan
+      final execResult = executePlan(state, success.plan, random: Random(42));
+
+      // Should reach the goal (or close to it due to simulation variance)
+      expect(execResult.finalState.gp, greaterThan(50));
+    });
+  });
 }
