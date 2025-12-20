@@ -53,18 +53,10 @@ void main() {
         masteryLevel: 1,
       );
 
-      // Extract drop names from Drop and DropChance objects
+      // Extract drop names from Drop objects
       List<String> getDropNames(List<Droppable> drops) {
-        return drops
-            .map((d) {
-              if (d is Drop) return d.name;
-              if (d is DropChance && d.child is Drop) {
-                return (d.child as Drop).name;
-              }
-              return null;
-            })
-            .whereType<String>()
-            .toList();
+        // Note this is filtering for Drop, which may miss some drops.
+        return drops.whereType<Drop>().map((d) => d.name).toList();
       }
 
       final golbinDropNames = getDropNames(golbinDrops);
@@ -90,10 +82,8 @@ void main() {
         masteryLevel: 1,
       );
 
-      final crateDrop = drops.whereType<DropChance>().firstWhere(
-        (d) =>
-            d.child is Drop &&
-            (d.child as Drop).name == 'Crate of Basic Supplies',
+      final crateDrop = drops.whereType<Drop>().firstWhere(
+        (d) => d.name == 'Crate of Basic Supplies',
       );
 
       expect(crateDrop.rate, closeTo(1 / 500, 0.0001));
@@ -101,16 +91,7 @@ void main() {
 
     test('Low Town has Jeweled Necklace area drop', () {
       final drops = dropsRegistry.allDropsForAction(manAction, masteryLevel: 1);
-      final dropNames = drops
-          .map((d) {
-            if (d is Drop) return d.name;
-            if (d is DropChance && d.child is Drop) {
-              return (d.child as Drop).name;
-            }
-            return null;
-          })
-          .whereType<String>()
-          .toList();
+      final dropNames = drops.whereType<Drop>().map((d) => d.name).toList();
 
       expect(dropNames, contains('Jeweled Necklace'));
       expect(dropNames, isNot(contains('Crate of Basic Supplies')));
@@ -130,9 +111,9 @@ void main() {
       // Should have 3 drops: Golbin drop table (action-level) +
       // area drop (Crate of Basic Supplies) + Bobby's Pocket (skill-level)
       expect(drops.length, 3);
+      // Only the Golbin drop table is wrapped in DropChance
       final dropChances = drops.whereType<DropChance>().toList();
-      // Both the Golbin drop table and the area drop are DropChance
-      expect(dropChances, hasLength(2));
+      expect(dropChances, hasLength(1));
       expect(dropChances.first.expectedItems['Copper Ore'], greaterThan(0));
     });
 

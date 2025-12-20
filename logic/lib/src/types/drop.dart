@@ -38,11 +38,8 @@ class Drop extends Droppable {
 
   final int count;
 
-  /// The expected count for this drop (used for predictions).
-  double get _expectedCount => count * rate;
-
   @override
-  Map<String, double> get expectedItems => {name: _expectedCount * rate};
+  Map<String, double> get expectedItems => {name: count * rate};
 
   /// Creates an ItemStack with a fixed count (for fixed drops).
   ItemStack toItemStack() {
