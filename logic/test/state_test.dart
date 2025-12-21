@@ -43,6 +43,7 @@ void main() {
       },
       updatedAt: DateTime(2024, 1, 1, 12),
       timeAway: TimeAway(
+        registries: testRegistries,
         startTime: DateTime(2024, 1, 1, 11, 59, 30),
         endTime: DateTime(2024, 1, 1, 12),
         activeSkill: Skill.woodcutting,
@@ -141,6 +142,7 @@ void main() {
       actionStates: const {'Normal Tree': ActionState(masteryXp: 25)},
       updatedAt: DateTime(2024, 1, 1, 12),
       timeAway: TimeAway(
+        registries: testRegistries,
         startTime: DateTime(2024, 1, 1, 11, 59, 30),
         endTime: DateTime(2024, 1, 1, 12),
         activeSkill: Skill.woodcutting,

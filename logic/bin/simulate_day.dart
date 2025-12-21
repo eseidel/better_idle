@@ -61,7 +61,7 @@ void printTimeAway(DropsRegistry drops, TimeAway timeAway) {
   // Print inventory changes
   if (changes.inventoryChanges.isNotEmpty) {
     print('INVENTORY CHANGES:');
-    final itemsGained = timeAway.itemsGainedPerHour(drops);
+    final itemsGained = timeAway.itemsGainedPerHour();
     final itemsConsumed = timeAway.itemsConsumedPerHour;
     for (final entry in changes.inventoryChanges.entries) {
       final itemName = entry.key;

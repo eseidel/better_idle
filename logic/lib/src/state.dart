@@ -229,7 +229,7 @@ class GlobalState {
           ) ??
           const {},
       gp = json['gp'] as int? ?? 0,
-      timeAway = TimeAway.maybeFromJson(registries.actions, json['timeAway']),
+      timeAway = TimeAway.maybeFromJson(registries, json['timeAway']),
       shop = ShopState.maybeFromJson(json['shop']) ?? const ShopState.empty(),
       health =
           HealthState.maybeFromJson(json['health']) ?? const HealthState.full(),

@@ -1076,7 +1076,7 @@ void consumeTicksUntil(
   final activeAction = state.activeAction;
   if (activeAction == null) {
     // No activity active, return empty changes
-    return (TimeAway.empty(), state);
+    return (TimeAway.empty(registries), state);
   }
   final builder = StateUpdateBuilder(state);
   consumeTicks(registries, builder, ticks, random: random);
@@ -1094,6 +1094,7 @@ void consumeTicksUntil(
       ? durationFromTicks(builder.stoppedAtTick!)
       : null;
   final timeAway = TimeAway(
+    registries: registries,
     startTime: startTime,
     endTime: calculatedEndTime,
     activeSkill: state.activeSkill(),

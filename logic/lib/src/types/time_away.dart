@@ -1,4 +1,5 @@
 import 'package:logic/src/data/actions.dart';
+import 'package:logic/src/data/registries.dart';
 import 'package:logic/src/json.dart';
 import 'package:logic/src/types/drop.dart';
 import 'package:logic/src/types/inventory.dart';
@@ -45,6 +46,7 @@ class LevelChange {
 
 class TimeAway {
   const TimeAway({
+    required this.registries,
     required this.startTime,
     required this.endTime,
     required this.activeSkill,
@@ -55,7 +57,8 @@ class TimeAway {
     this.stoppedAfter,
   });
 
-  factory TimeAway.test({
+  factory TimeAway.test(
+    Registries registries, {
     DateTime? startTime,
     DateTime? endTime,
     Skill? activeSkill,
@@ -66,6 +69,7 @@ class TimeAway {
     Duration? stoppedAfter,
   }) {
     return TimeAway(
+      registries: registries,
       startTime: startTime ?? DateTime.fromMillisecondsSinceEpoch(0),
       endTime: endTime ?? DateTime.fromMillisecondsSinceEpoch(0),
       activeSkill: activeSkill,
@@ -77,8 +81,9 @@ class TimeAway {
     );
   }
 
-  TimeAway.empty()
+  TimeAway.empty(Registries registries)
     : this(
+        registries: registries,
         startTime: DateTime.fromMillisecondsSinceEpoch(0),
         endTime: DateTime.fromMillisecondsSinceEpoch(0),
         activeSkill: null,
@@ -87,18 +92,18 @@ class TimeAway {
         masteryLevels: const {},
       );
 
-  static TimeAway? maybeFromJson(ActionRegistry actions, dynamic json) {
+  static TimeAway? maybeFromJson(Registries registries, dynamic json) {
     if (json == null) return null;
-    return TimeAway.fromJson(actions, json as Map<String, dynamic>);
+    return TimeAway.fromJson(registries, json as Map<String, dynamic>);
   }
 
-  factory TimeAway.fromJson(ActionRegistry actions, Map<String, dynamic> json) {
+  factory TimeAway.fromJson(Registries registries, Map<String, dynamic> json) {
     final actionName = json['activeAction'] as String?;
     // Only reconstruct SkillActions - CombatActions are only used for
     // predictions which return empty for combat anyway.
     SkillAction? action;
     if (actionName != null) {
-      final lookedUp = actions.byName(actionName);
+      final lookedUp = registries.actions.byName(actionName);
       if (lookedUp is SkillAction) {
         action = lookedUp;
       }
@@ -112,6 +117,7 @@ class TimeAway {
         : ActionStopReason.stillRunning;
     final stoppedAfterMs = json['stoppedAfterMs'] as int?;
     return TimeAway(
+      registries: registries,
       startTime: DateTime.fromMillisecondsSinceEpoch(json['startTime'] as int),
       endTime: DateTime.fromMillisecondsSinceEpoch(json['endTime'] as int),
       activeSkill: json['activeSkill'] != null
@@ -135,6 +141,7 @@ class TimeAway {
   final Changes changes;
   final Map<String, int> masteryLevels;
   final ActionStopReason stopReason;
+  final Registries registries;
 
   /// How long after startTime the action stopped, or null if still running.
   final Duration? stoppedAfter;
@@ -169,7 +176,7 @@ class TimeAway {
   /// Returns a map of item name to items per hour.
   /// Returns empty map for CombatActions (combat drops are handled
   /// differently).
-  Map<String, double> itemsGainedPerHour(DropsRegistry drops) {
+  Map<String, double> itemsGainedPerHour() {
     final action = activeAction;
     if (action is! SkillAction) {
       return {};
@@ -183,7 +190,7 @@ class TimeAway {
     // Get all possible drops for this action
     // This will be an approximation since mastery level would change over time.
     final masteryLevel = levelForMastery(action.name);
-    final allDrops = drops.allDropsForAction(
+    final allDrops = registries.drops.allDropsForAction(
       action,
       masteryLevel: masteryLevel,
     );
@@ -242,6 +249,7 @@ class TimeAway {
     Duration? stoppedAfter,
   }) {
     return TimeAway(
+      registries: registries,
       startTime: startTime ?? this.startTime,
       endTime: endTime ?? this.endTime,
       activeSkill: activeSkill ?? this.activeSkill,
@@ -287,6 +295,7 @@ class TimeAway {
     // Prefer a non-null stoppedAfter (the first stop)
     final mergedStoppedAfter = stoppedAfter ?? other.stoppedAfter;
     return TimeAway(
+      registries: registries,
       startTime: mergedStartTime,
       endTime: mergedEndTime,
       activeSkill: activeSkill ?? other.activeSkill,
