@@ -1,4 +1,5 @@
 import 'package:logic/src/data/items.dart';
+import 'package:logic/src/data/melvor_id.dart';
 import 'package:logic/src/types/inventory.dart';
 import 'package:meta/meta.dart';
 
@@ -27,7 +28,8 @@ class Equipment {
             final slotJson = foodSlotsJson[i];
             if (slotJson == null) return null;
             final map = slotJson as Map<String, dynamic>;
-            final item = items.byName(map['item'] as String);
+            final id = MelvorId.fromJson(map['item'] as String);
+            final item = items.byId(id);
             return ItemStack(item, count: map['count'] as int);
           })
         : const [null, null, null];
@@ -49,7 +51,7 @@ class Equipment {
       'foodSlots': foodSlots
           .map(
             (stack) => stack != null
-                ? {'item': stack.item.name, 'count': stack.count}
+                ? {'item': stack.item.id.toJson(), 'count': stack.count}
                 : null,
           )
           .toList(),
