@@ -12,13 +12,7 @@ import 'package:flutter/material.dart';
 import 'package:logic/logic.dart';
 import 'package:scoped_deps/scoped_deps.dart';
 
-Future<void> main() async {
-  WidgetsFlutterBinding.ensureInitialized();
-
-  // Initialize the item registry from Melvor data before starting the app.
-  final melvorData = await MelvorData.load();
-  initializeItems(melvorData);
-
+void main() {
   runScoped(() => runApp(const MyApp()), values: {loggerRef, toastServiceRef});
 }
 
@@ -258,7 +252,47 @@ class MyApp extends StatefulWidget {
   State<MyApp> createState() => _MyAppState();
 }
 
-class _MyAppState extends State<MyApp> with SingleTickerProviderStateMixin {
+class _MyAppState extends State<MyApp> {
+  bool _isDataLoaded = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadData();
+  }
+
+  Future<void> _loadData() async {
+    final melvorData = await MelvorData.load();
+    initializeItems(melvorData);
+    setState(() {
+      _isDataLoaded = true;
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (!_isDataLoaded) {
+      return const MaterialApp(
+        home: Scaffold(
+          body: Center(
+            child: CircularProgressIndicator(),
+          ),
+        ),
+      );
+    }
+    return const _GameApp();
+  }
+}
+
+class _GameApp extends StatefulWidget {
+  const _GameApp();
+
+  @override
+  State<_GameApp> createState() => _GameAppState();
+}
+
+class _GameAppState extends State<_GameApp>
+    with SingleTickerProviderStateMixin {
   late final MyPersistor _persistor;
   bool _isInitialized = false;
   late final Store<GlobalState> _store;
