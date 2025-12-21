@@ -52,6 +52,7 @@ List<Droppable> _thievingRewards(SkillAction action, int masteryLevel) {
 @immutable
 class ThievingAction extends SkillAction {
   const ThievingAction({
+    required super.id,
     required super.name,
     required super.unlockLevel,
     required super.xp,
@@ -128,6 +129,7 @@ ThievingAction _thieving(
   Droppable? dropTable,
 }) {
   return ThievingAction(
+    id: name.replaceAll(' ', '_'),
     name: name,
     unlockLevel: level,
     xp: xp,

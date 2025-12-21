@@ -30,6 +30,7 @@ final _fishingAreas = <FishingArea>[
 @immutable
 class FishingAction extends SkillAction {
   const FishingAction({
+    required super.id,
     required super.name,
     required super.unlockLevel,
     required super.xp,
@@ -53,6 +54,7 @@ FishingAction _fishing(
   final areaObject = _fishingAreas.firstWhere((a) => a.name == area);
   final fishName = 'Raw $name';
   return FishingAction(
+    id: fishName.replaceAll(' ', '_'),
     name: fishName,
     unlockLevel: level,
     xp: xp,

@@ -1,6 +1,5 @@
 import 'dart:math';
 
-import 'package:collection/collection.dart';
 import 'package:logic/src/action_state.dart';
 import 'package:logic/src/data/combat.dart';
 import 'package:logic/src/data/fishing.dart';
@@ -56,7 +55,10 @@ enum RockType { essence, ore }
 /// Subclasses: SkillAction (duration-based with xp/outputs) and CombatAction.
 @immutable
 abstract class Action {
-  const Action({required this.name, required this.skill});
+  const Action({required this.id, required this.name, required this.skill});
+
+  /// The unique identifier for this action (non-namespaced, e.g., "Normal").
+  final String id;
 
   final String name;
   final Skill skill;
@@ -103,6 +105,7 @@ List<Droppable> woodcuttingRewards(SkillAction action, int masteryLevel) {
 @immutable
 class SkillAction extends Action {
   const SkillAction({
+    required super.id,
     required super.skill,
     required super.name,
     required Duration duration,
@@ -116,6 +119,7 @@ class SkillAction extends Action {
        maxDuration = duration;
 
   const SkillAction.ranged({
+    required super.id,
     required super.skill,
     required super.name,
     required this.minDuration,
@@ -172,6 +176,7 @@ const miningSwingDuration = Duration(seconds: 3);
 @immutable
 class MiningAction extends SkillAction {
   MiningAction({
+    required super.id,
     required super.name,
     required super.unlockLevel,
     required super.xp,
@@ -208,9 +213,11 @@ SkillAction _firemaking(
   required int xp,
   required int seconds,
 }) {
+  final actionName = 'Burn $name Logs';
   return SkillAction(
+    id: actionName.replaceAll(' ', '_'),
     skill: Skill.firemaking,
-    name: 'Burn $name Logs',
+    name: actionName,
     unlockLevel: level,
     duration: Duration(seconds: seconds),
     xp: xp,
@@ -235,6 +242,7 @@ MiningAction _mining(
 }) {
   final outputName = rockType == RockType.ore ? '$name Ore' : name;
   return MiningAction(
+    id: name.replaceAll(' ', '_'),
     name: name,
     unlockLevel: level,
     xp: xp,
@@ -266,6 +274,7 @@ SkillAction _smithing(
   Map<String, int>? outputs,
 }) {
   return SkillAction(
+    id: name.replaceAll(' ', '_'),
     skill: Skill.smithing,
     name: name,
     unlockLevel: level,
@@ -294,6 +303,7 @@ SkillAction _cooking(
   required int seconds,
 }) {
   return SkillAction(
+    id: name.replaceAll(' ', '_'),
     skill: Skill.cooking,
     name: name,
     unlockLevel: level,
@@ -360,13 +370,27 @@ final globalDrops = <Droppable>[
 ];
 
 class ActionRegistry {
-  ActionRegistry(this._all);
+  ActionRegistry(List<Action> all) : _all = all {
+    _byId = {for (final action in _all) action.id: action};
+    _byName = {for (final action in _all) action.name: action};
+  }
 
   final List<Action> _all;
+  late final Map<String, Action> _byId;
+  late final Map<String, Action> _byName;
 
-  /// Returns a SkillAction by name.
+  /// Returns an Action by id, or throws a StateError if not found.
+  Action byId(String id) {
+    final action = _byId[id];
+    if (action == null) {
+      throw StateError('Missing action with id: $id');
+    }
+    return action;
+  }
+
+  /// Returns an Action by name, or throws a StateError if not found.
   Action byName(String name) {
-    final action = _all.firstWhereOrNull((action) => action.name == name);
+    final action = _byName[name];
     if (action == null) {
       throw StateError('Missing action $name');
     }

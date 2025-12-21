@@ -17,12 +17,12 @@ String parseItemName(String itemId) {
 /// Extends SkillAction so it can be used directly in the game.
 class WoodcuttingTree extends SkillAction {
   WoodcuttingTree({
+    required super.id,
     required super.name,
     required super.unlockLevel,
     required super.xp,
     required super.outputs,
     required super.duration,
-    required this.id,
     required this.productId,
     required this.media,
   }) : super(
@@ -47,10 +47,6 @@ class WoodcuttingTree extends SkillAction {
       media: json['media'] as String,
     );
   }
-
-  /// The name of the tree (e.g., "Normal", "Oak").
-  /// This is not a MelvorId for whatever reason.
-  final String id;
 
   /// The Melvor product ID (e.g., "melvorD:Normal_Logs").
   final MelvorId productId;

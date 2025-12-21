@@ -38,6 +38,7 @@ class Stats {
 @immutable
 class CombatAction extends Action {
   const CombatAction({
+    required super.id,
     required super.name,
     required this.combatLevel,
     required this.maxHp,
@@ -59,8 +60,9 @@ class CombatAction extends Action {
   }
 }
 
-const combatActions = <CombatAction>[
+final combatActions = <CombatAction>[
   CombatAction(
+    id: 'Plant',
     name: 'Plant',
     combatLevel: 1,
     maxHp: 20,

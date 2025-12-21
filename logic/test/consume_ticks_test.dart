@@ -298,7 +298,8 @@ void main() {
       'action with output count > 1 correctly creates drops with that count',
       () {
         // Create an action with output count > 1
-        const testAction = SkillAction(
+        final testAction = SkillAction(
+          id: 'Test_Action',
           skill: Skill.woodcutting,
           name: 'Test Action',
           unlockLevel: 1,

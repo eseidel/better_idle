@@ -15,8 +15,10 @@ Future<void> main() async {
   // Print all rocks
   for (final rock in rocks) {
     final r = rock as Map<String, dynamic>;
-    print('${r['name']} (level ${r['level']}, ${r['baseExperience']}xp, '
-        'respawn ${r['baseRespawnInterval']}ms, qty ${r['baseQuantity']}, '
-        'category ${r['category']})');
+    print(
+      '${r['name']} (level ${r['level']}, ${r['baseExperience']}xp, '
+      'respawn ${r['baseRespawnInterval']}ms, qty ${r['baseQuantity']}, '
+      'category ${r['category']})',
+    );
   }
 }

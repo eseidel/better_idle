@@ -188,13 +188,24 @@ class Item extends Equatable {
 class ItemRegistry {
   ItemRegistry(List<Item> items) : _all = items {
     _byName = {for (final item in _all) item.name: item};
+    _byId = {for (final item in _all) item.id: item};
   }
 
   final List<Item> _all;
   late final Map<String, Item> _byName;
+  late final Map<MelvorId, Item> _byId;
 
   /// All registered items.
   List<Item> get all => _all;
+
+  /// Returns the item by MelvorId, or throws a StateError if not found.
+  Item byId(MelvorId id) {
+    final item = _byId[id];
+    if (item == null) {
+      throw StateError('Item not found: $id');
+    }
+    return item;
+  }
 
   /// Returns the item by name, or throws a StateError if not found.
   Item byName(String name) {
