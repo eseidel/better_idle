@@ -1,12 +1,23 @@
 import 'package:logic/logic.dart';
 import 'package:test/test.dart';
 
+import 'test_helper.dart';
+
 void main() {
-  final shrimp = itemRegistry.byName('Shrimp'); // Consumable (healsFor: 30)
-  final lobster = itemRegistry.byName('Lobster'); // Consumable (healsFor: 110)
-  final crab = itemRegistry.byName('Crab'); // Consumable (healsFor: 150)
-  final sardine = itemRegistry.byName('Sardine'); // Consumable (healsFor: 40)
-  final normalLogs = itemRegistry.byName('Normal Logs'); // Non-consumable
+  late Item shrimp; // Consumable (healsFor: 30)
+  late Item lobster; // Consumable (healsFor: 110)
+  late Item crab; // Consumable (healsFor: 150)
+  late Item sardine; // Consumable (healsFor: 40)
+  late Item normalLogs; // Non-consumable
+
+  setUpAll(() async {
+    await ensureItemsInitialized();
+    shrimp = itemRegistry.byName('Shrimp');
+    lobster = itemRegistry.byName('Lobster');
+    crab = itemRegistry.byName('Crab');
+    sardine = itemRegistry.byName('Sardine');
+    normalLogs = itemRegistry.byName('Normal Logs');
+  });
 
   group('Equipment', () {
     group('canEquipFood', () {

@@ -13,7 +13,13 @@ import 'package:logic/src/solver/solver.dart';
 import 'package:logic/src/solver/value_model.dart';
 import 'package:test/test.dart';
 
+import 'test_helper.dart';
+
 void main() {
+  setUpAll(() async {
+    await ensureItemsInitialized();
+  });
+
   group('applyInteraction', () {
     test('SwitchActivity switches to a new activity', () {
       final state = GlobalState.empty();

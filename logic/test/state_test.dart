@@ -3,12 +3,23 @@ import 'dart:math';
 import 'package:logic/logic.dart';
 import 'package:test/test.dart';
 
+import 'test_helper.dart';
+
 void main() {
-  final normalLogs = itemRegistry.byName('Normal Logs');
-  final oakLogs = itemRegistry.byName('Oak Logs');
-  final birdNest = itemRegistry.byName('Bird Nest');
-  final shrimp = itemRegistry.byName('Shrimp');
-  final lobster = itemRegistry.byName('Lobster');
+  late Item normalLogs;
+  late Item oakLogs;
+  late Item birdNest;
+  late Item shrimp;
+  late Item lobster;
+
+  setUpAll(() async {
+    await ensureItemsInitialized();
+    normalLogs = itemRegistry.byName('Normal Logs');
+    oakLogs = itemRegistry.byName('Oak Logs');
+    birdNest = itemRegistry.byName('Bird Nest');
+    shrimp = itemRegistry.byName('Shrimp');
+    lobster = itemRegistry.byName('Lobster');
+  });
 
   test('GlobalState toJson/fromJson round-trip', () {
     // Create a state with TimeAway data
@@ -263,7 +274,7 @@ void main() {
       // Create inventory at capacity with different items
       final items = <ItemStack>[];
       for (var i = 0; i < initialBankSlots; i++) {
-        items.add(ItemStack(Item('Test Item $i', gp: 1), count: 1));
+        items.add(ItemStack(Item.test('Test Item $i', gp: 1), count: 1));
       }
       final equipment = Equipment(
         foodSlots: [ItemStack(shrimp, count: 10), null, null],
@@ -281,7 +292,7 @@ void main() {
       // Create inventory at capacity but with shrimp as one of the items
       final items = <ItemStack>[ItemStack(shrimp, count: 5)];
       for (var i = 1; i < initialBankSlots; i++) {
-        items.add(ItemStack(Item('Test Item $i', gp: 1), count: 1));
+        items.add(ItemStack(Item.test('Test Item $i', gp: 1), count: 1));
       }
       final equipment = Equipment(
         foodSlots: [ItemStack(shrimp, count: 10), null, null],
@@ -386,9 +397,15 @@ void main() {
   });
 
   group('GlobalState.openItems', () {
-    final eggChest = itemRegistry.byName('Egg Chest') as Openable;
-    final feathers = itemRegistry.byName('Feathers');
-    final rawChicken = itemRegistry.byName('Raw Chicken');
+    late Openable eggChest;
+    late Item feathers;
+    late Item rawChicken;
+
+    setUpAll(() {
+      eggChest = itemRegistry.byName('Egg Chest') as Openable;
+      feathers = itemRegistry.byName('Feathers');
+      rawChicken = itemRegistry.byName('Raw Chicken');
+    });
 
     // initialBankSlots is 20, so to get specific capacities we subtract from 20
     // E.g., bankSlots: -18 gives capacity of 20 + (-18) = 2

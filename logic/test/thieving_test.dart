@@ -3,6 +3,8 @@ import 'dart:math';
 import 'package:logic/logic.dart';
 import 'package:test/test.dart';
 
+import 'test_helper.dart';
+
 /// A mock Random that returns predictable values.
 class MockRandom implements Random {
   MockRandom({this.nextDoubleValue = 0.0, this.nextIntValue = 0});
@@ -21,7 +23,12 @@ class MockRandom implements Random {
 }
 
 void main() {
-  final manAction = thievingActionByName('Man');
+  late ThievingAction manAction;
+
+  setUpAll(() async {
+    await ensureItemsInitialized();
+    manAction = thievingActionByName('Man');
+  });
 
   group('Thieving drops', () {
     test("allDropsForAction contains Bobby's Pocket for thieving", () {

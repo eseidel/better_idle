@@ -5,7 +5,13 @@ import 'package:logic/src/solver/plan.dart';
 import 'package:logic/src/solver/solver.dart';
 import 'package:test/test.dart';
 
+import 'test_helper.dart';
+
 void main() {
+  setUpAll(() async {
+    await ensureItemsInitialized();
+  });
+
   group('ReachGpGoal', () {
     test('isSatisfied returns true when GP >= target', () {
       final state = GlobalState.empty().copyWith(gp: 100);

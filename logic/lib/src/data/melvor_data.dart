@@ -1,7 +1,23 @@
+import 'dart:io';
+
+import 'cache.dart';
+
 /// Parsed representation of the Melvor game data.
 ///
 /// Combines data from multiple JSON files (demo + full game).
 class MelvorData {
+  /// Loads MelvorData from the cache, fetching from CDN if needed.
+  static Future<MelvorData> load({Directory? cacheDir}) async {
+    final cache = Cache(cacheDir: cacheDir ?? defaultCacheDir);
+    try {
+      final demoData = await cache.ensureDemoData();
+      final fullData = await cache.ensureFullData();
+      return MelvorData([demoData, fullData]);
+    } finally {
+      cache.close();
+    }
+  }
+
   /// Creates a MelvorData from multiple parsed JSON data files.
   ///
   /// Items from later files override items from earlier files with the same name.

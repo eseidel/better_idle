@@ -12,7 +12,13 @@ import 'package:flutter/material.dart';
 import 'package:logic/logic.dart';
 import 'package:scoped_deps/scoped_deps.dart';
 
-void main() {
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+
+  // Initialize the item registry from Melvor data before starting the app.
+  final melvorData = await MelvorData.load();
+  initializeItems(melvorData);
+
   runScoped(() => runApp(const MyApp()), values: {loggerRef, toastServiceRef});
 }
 

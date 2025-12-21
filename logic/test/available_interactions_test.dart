@@ -5,7 +5,13 @@ import 'package:logic/src/solver/available_interactions.dart';
 import 'package:logic/src/solver/interaction.dart';
 import 'package:test/test.dart';
 
+import 'test_helper.dart';
+
 void main() {
+  setUpAll(() async {
+    await ensureItemsInitialized();
+  });
+
   group('availableInteractions', () {
     test('empty state returns only level 1 activities', () {
       final state = GlobalState.empty();
