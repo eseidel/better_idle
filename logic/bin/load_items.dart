@@ -90,7 +90,7 @@ void main(List<String> arguments) async {
     print('  ${item.name} (${dropTable.entries.length} drops):');
     for (final drop in dropTable.entries.take(3)) {
       print(
-        '    ${drop.name}: ${drop.minCount}-${drop.maxCount}, weight: ${drop.weight}',
+        '    ${drop.name}: ${drop.minQuantity}-${drop.maxQuantity}, weight: ${drop.weight}',
       );
     }
     if (dropTable.entries.length > 3) {

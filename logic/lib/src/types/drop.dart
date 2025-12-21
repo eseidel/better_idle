@@ -88,17 +88,6 @@ class Pick extends DropTableEntry {
         minQuantity: count,
         maxQuantity: count,
       );
-
-  Pick.range(
-    String itemName, {
-    required int min,
-    required int max,
-    required super.weight,
-  }) : super(
-         itemID: 'melvorD:${itemName.replaceAll(' ', '_')}',
-         minQuantity: min,
-         maxQuantity: max,
-       );
 }
 
 /// A drop table that selects exactly one item from weighted entries.

@@ -35,9 +35,7 @@ class DropTableEntry extends Equatable {
   /// The maximum quantity that can drop.
   final int maxQuantity;
 
-  // Deprecated, compatible with old Pick class.
-  int get maxCount => maxQuantity;
-  int get minCount => minQuantity;
+  /// The expected quantity that will drop.
   double get expectedCount => (minQuantity + maxQuantity) / 2.0;
 
   /// The weight of this entry in the drop table.
@@ -180,12 +178,10 @@ class Item extends Equatable {
 class ItemRegistry {
   ItemRegistry._(this._all) {
     _byName = {for (final item in _all) item.name: item};
-    _byId = {for (final item in _all) item.id: item};
   }
 
   final List<Item> _all;
   late final Map<String, Item> _byName;
-  late final Map<String, Item> _byId;
 
   /// All registered items.
   List<Item> get all => _all;
@@ -195,15 +191,6 @@ class ItemRegistry {
     final item = _byName[name];
     if (item == null) {
       throw StateError('Item not found: $name');
-    }
-    return item;
-  }
-
-  /// Returns the item by id, or throws a StateError if not found.
-  Item byId(String id) {
-    final item = _byId[id];
-    if (item == null) {
-      throw StateError('Item not found by id: $id');
     }
     return item;
   }
