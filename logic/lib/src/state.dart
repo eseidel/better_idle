@@ -21,7 +21,7 @@ import 'data/xp.dart';
 @immutable
 class ActiveAction {
   const ActiveAction({
-    required this.name,
+    required this.id,
     required this.remainingTicks,
     required this.totalTicks,
   });
@@ -33,29 +33,30 @@ class ActiveAction {
 
   factory ActiveAction.fromJson(Map<String, dynamic> json) {
     return ActiveAction(
-      name: json['name'] as String,
+      id: json['id'] as String,
       remainingTicks: json['remainingTicks'] as int,
       totalTicks: json['totalTicks'] as int,
     );
   }
 
-  final String name;
+  /// The action ID (matches Action.id).
+  final String id;
   final int remainingTicks;
   final int totalTicks;
 
   // Computed getter for backward compatibility
   int get progressTicks => totalTicks - remainingTicks;
 
-  ActiveAction copyWith({String? name, int? remainingTicks, int? totalTicks}) {
+  ActiveAction copyWith({String? id, int? remainingTicks, int? totalTicks}) {
     return ActiveAction(
-      name: name ?? this.name,
+      id: id ?? this.id,
       remainingTicks: remainingTicks ?? this.remainingTicks,
       totalTicks: totalTicks ?? this.totalTicks,
     );
   }
 
   Map<String, dynamic> toJson() => {
-    'name': name,
+    'id': id,
     'remainingTicks': remainingTicks,
     'totalTicks': totalTicks,
   };
@@ -290,11 +291,11 @@ class GlobalState {
   }
 
   bool validate() {
-    // Confirm that activeAction.name is a valid action.
-    final actionName = activeAction?.name;
-    if (actionName != null) {
+    // Confirm that activeAction.id is a valid action.
+    final actionId = activeAction?.id;
+    if (actionId != null) {
       // This will throw a StateError if the action is missing.
-      registries.actions.byName(actionName);
+      registries.actions.byId(actionId);
     }
     return true;
   }
@@ -409,11 +410,11 @@ class GlobalState {
   bool get shouldTick => isActive || hasActiveBackgroundTimers;
 
   Skill? activeSkill() {
-    final name = activeAction?.name;
-    if (name == null) {
+    final actionId = activeAction?.id;
+    if (actionId == null) {
       return null;
     }
-    return registries.actions.byName(name).skill;
+    return registries.actions.byId(actionId).skill;
   }
 
   /// Returns the number of unique item types (slots) used in inventory.
@@ -493,7 +494,7 @@ class GlobalState {
       throw const StunnedException('Cannot start action while stunned');
     }
 
-    final name = action.name;
+    final actionId = action.id;
     int totalTicks;
 
     if (action is SkillAction) {
@@ -511,7 +512,7 @@ class GlobalState {
       totalTicks = rollDurationWithModifiers(action, random);
       return copyWith(
         activeAction: ActiveAction(
-          name: name,
+          id: actionId,
           remainingTicks: totalTicks,
           totalTicks: totalTicks,
         ),
@@ -526,11 +527,11 @@ class GlobalState {
       // Initialize combat state with the combat action
       final combatState = CombatActionState.start(action, pStats);
       final newActionStates = Map<String, ActionState>.from(actionStates);
-      final existingState = actionState(name);
-      newActionStates[name] = existingState.copyWith(combat: combatState);
+      final existingState = actionState(actionId);
+      newActionStates[actionId] = existingState.copyWith(combat: combatState);
       return copyWith(
         activeAction: ActiveAction(
-          name: name,
+          id: actionId,
           remainingTicks: totalTicks,
           totalTicks: totalTicks,
         ),
@@ -590,19 +591,19 @@ class GlobalState {
 
   int activeProgress(Action action) {
     final active = activeAction;
-    if (active == null || active.name != action.name) {
+    if (active == null || active.id != action.id) {
       return 0;
     }
     return active.progressTicks;
   }
 
   GlobalState updateActiveAction(
-    String actionName, {
+    String actionId, {
     required int remainingTicks,
   }) {
     final activeAction = this.activeAction;
-    if (activeAction == null || activeAction.name != actionName) {
-      throw Exception('Active action is not $actionName');
+    if (activeAction == null || activeAction.id != actionId) {
+      throw Exception('Active action is not $actionId');
     }
     final newActiveAction = activeAction.copyWith(
       remainingTicks: remainingTicks,

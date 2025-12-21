@@ -289,11 +289,11 @@ _DeltaCandidate? _deltaUntilNextSkillLevel(GlobalState state, Rates rates) {
   if (ticks == null || ticks <= 0) return null;
 
   // Find which skill is being trained
-  final actionName = state.activeAction?.name;
-  if (actionName == null) return null;
+  final actionId = state.activeAction?.id;
+  if (actionId == null) return null;
 
   final registries = state.registries;
-  final action = registries.actions.byName(actionName);
+  final action = registries.actions.byId(actionId);
   if (action is! SkillAction) return null;
 
   final skill = action.skill;
@@ -313,16 +313,16 @@ _DeltaCandidate? _deltaUntilNextMasteryLevel(GlobalState state, Rates rates) {
   if (ticks == null || ticks <= 0) return null;
 
   // Find which action is being performed
-  final actionName = state.activeAction?.name;
-  if (actionName == null) return null;
+  final actionId = state.activeAction?.id;
+  if (actionId == null) return null;
 
-  final currentMasteryXp = state.actionState(actionName).masteryXp;
+  final currentMasteryXp = state.actionState(actionId).masteryXp;
   final currentLevel = levelForXp(currentMasteryXp);
   final nextLevelXp = startXpForLevel(currentLevel + 1);
 
   return _DeltaCandidate(
     ticks: ticks,
-    waitFor: WaitForMasteryXp(actionName, nextLevelXp),
+    waitFor: WaitForMasteryXp(actionId, nextLevelXp),
   );
 }
 

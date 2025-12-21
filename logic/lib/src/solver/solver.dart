@@ -190,19 +190,18 @@ class _BucketKey {
 _BucketKey _bucketKeyFromState(GlobalState state) {
   final registries = state.registries;
   // Only track HP bucket when thieving (where death is possible)
-  final actionName = state.activeAction?.name;
+  final actionId = state.activeAction?.id;
   final isThieving =
-      actionName != null &&
-      registries.actions.byName(actionName) is ThievingAction;
+      actionId != null && registries.actions.byId(actionId) is ThievingAction;
   final hpBucket = isThieving ? state.playerHp ~/ _hpBucketSize : 0;
 
   // Get mastery level for current action (0 if no action)
-  final masteryLevel = actionName != null
-      ? state.actionState(actionName).masteryLevel
+  final masteryLevel = actionId != null
+      ? state.actionState(actionId).masteryLevel
       : 0;
 
   return _BucketKey(
-    activityName: actionName ?? 'none',
+    activityName: actionId ?? 'none',
     axeLevel: state.shop.axeLevel,
     rodLevel: state.shop.fishingRodLevel,
     pickLevel: state.shop.pickaxeLevel,
@@ -442,21 +441,21 @@ String _stateKey(GlobalState state) {
   buffer.write('gb:$goldBucket|');
 
   // Active action
-  final actionName = state.activeAction?.name;
-  buffer.write('act:${actionName ?? 'none'}|');
+  final actionId = state.activeAction?.id;
+  buffer.write('act:${actionId ?? 'none'}|');
 
   // HP bucket for thieving (where death is possible)
   final isThieving =
-      actionName != null &&
-      state.registries.actions.byName(actionName) is ThievingAction;
+      actionId != null &&
+      state.registries.actions.byId(actionId) is ThievingAction;
   if (isThieving) {
     final hpBucket = state.playerHp ~/ _hpBucketSize;
     buffer.write('hp:$hpBucket|');
   }
 
   // Mastery level for current action (affects rates, especially for thieving)
-  if (actionName != null) {
-    final masteryLevel = state.actionState(actionName).masteryLevel;
+  if (actionId != null) {
+    final masteryLevel = state.actionState(actionId).masteryLevel;
     buffer.write('mast:$masteryLevel|');
   }
 
@@ -482,7 +481,7 @@ bool _isRateModelable(GlobalState state) {
   final activeAction = state.activeAction;
   if (activeAction == null) return false;
 
-  final action = state.registries.actions.byName(activeAction.name);
+  final action = state.registries.actions.byId(activeAction.id);
 
   // Only skill actions (non-combat) are rate-modelable
   // Skip actions that require inputs (firemaking, cooking, smithing)
@@ -660,7 +659,7 @@ ConsumeUntilResult consumeUntil(
     return ConsumeUntilResult(state: state, ticksElapsed: 0, deathCount: 0);
   }
 
-  final originalActivity = state.activeAction?.name;
+  final originalActivityId = state.activeAction?.id;
   var totalTicksElapsed = 0;
   var deathCount = 0;
 
@@ -694,8 +693,8 @@ ConsumeUntilResult consumeUntil(
       }
 
       // Auto-restart the activity and continue
-      if (originalActivity != null) {
-        final action = state.registries.actions.byName(originalActivity);
+      if (originalActivityId != null) {
+        final action = state.registries.actions.byId(originalActivityId);
         state = state.startAction(action, random: random);
         continue; // Continue with restarted activity
       }

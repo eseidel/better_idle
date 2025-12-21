@@ -49,7 +49,7 @@ List<Interaction> availableInteractions(GlobalState state) {
 /// Returns SwitchActivity interactions for all unlocked actions
 /// that are not the current action.
 List<SwitchActivity> _availableActivitySwitches(GlobalState state) {
-  final currentActionName = state.activeAction?.name;
+  final currentActionId = state.activeAction?.id;
   final switches = <SwitchActivity>[];
   final registries = state.registries;
 
@@ -59,7 +59,7 @@ List<SwitchActivity> _availableActivitySwitches(GlobalState state) {
 
     for (final action in registries.actions.forSkill(skill)) {
       // Skip if this is the current action
-      if (action.name == currentActionName) continue;
+      if (action.id == currentActionId) continue;
 
       // Skip if action is locked (player doesn't meet level requirement)
       if (action.unlockLevel > skillLevel) continue;

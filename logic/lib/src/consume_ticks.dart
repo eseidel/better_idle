@@ -191,8 +191,8 @@ typedef BackgroundTickResult = ({
 /// Represents a background process that consumes ticks independently.
 /// Background actions run in parallel with the foreground action.
 abstract class BackgroundTickConsumer {
-  /// The action name this background consumer is associated with.
-  String get actionName;
+  /// The action ID this background consumer is associated with.
+  String get actionId;
 
   /// Whether this background action has work to do.
   bool get isActive;
@@ -203,10 +203,10 @@ abstract class BackgroundTickConsumer {
 
 /// Background action for mining node HP regeneration and respawn.
 class MiningBackgroundAction implements BackgroundTickConsumer {
-  MiningBackgroundAction(this.actionName, this.miningState);
+  MiningBackgroundAction(this.actionId, this.miningState);
 
   @override
-  final String actionName;
+  final String actionId;
   final MiningState miningState;
 
   @override
@@ -238,29 +238,29 @@ class MiningBackgroundAction implements BackgroundTickConsumer {
 /// foreground handles respawn synchronously).
 List<BackgroundTickConsumer> _getBackgroundActions(
   GlobalState state, {
-  String? activeActionName,
+  String? activeActionId,
 }) {
   final backgrounds = <BackgroundTickConsumer>[];
   final actions = state.registries.actions;
 
   for (final entry in state.actionStates.entries) {
-    final actionName = entry.key;
+    final actionId = entry.key;
     final actionState = entry.value;
 
     // Check if this is a mining action with background work
-    final action = actions.byName(actionName);
+    final action = actions.byId(actionId);
     if (action is MiningAction) {
       final mining = actionState.mining ?? const MiningState.empty();
 
       // For the active action, only include if it needs healing (not respawn)
       // because foreground handles respawn synchronously
-      if (actionName == activeActionName) {
+      if (actionId == activeActionId) {
         if (!mining.isDepleted && mining.totalHpLost > 0) {
-          backgrounds.add(MiningBackgroundAction(actionName, mining));
+          backgrounds.add(MiningBackgroundAction(actionId, mining));
         }
       } else {
         // Non-active actions: include all background work (healing + respawn)
-        final bgAction = MiningBackgroundAction(actionName, mining);
+        final bgAction = MiningBackgroundAction(actionId, mining);
         if (bgAction.isActive) {
           backgrounds.add(bgAction);
         }
@@ -278,7 +278,7 @@ void _applyBackgroundTicks(
   StateUpdateBuilder builder,
   List<BackgroundTickConsumer> backgrounds,
   Tick ticks, {
-  String? activeActionName,
+  String? activeActionId,
   bool skipStunCountdown = false,
 }) {
   // Apply stunned countdown (unless stun was just applied this iteration)
@@ -302,26 +302,26 @@ void _applyBackgroundTicks(
   for (final bg in backgrounds) {
     // Re-read the current mining state from builder to get any updates
     // that the foreground action may have made
-    final currentActionState = builder.state.actionState(bg.actionName);
+    final currentActionState = builder.state.actionState(bg.actionId);
     final currentMining =
         currentActionState.mining ?? const MiningState.empty();
 
     // For the active action, only apply healing (not respawn)
     // because foreground handles respawn synchronously
-    if (bg.actionName == activeActionName) {
+    if (bg.actionId == activeActionId) {
       if (currentMining.isDepleted || currentMining.totalHpLost == 0) {
         continue;
       }
     }
 
     // Only apply if the action still needs background processing
-    final updatedBg = MiningBackgroundAction(bg.actionName, currentMining);
+    final updatedBg = MiningBackgroundAction(bg.actionId, currentMining);
     if (!updatedBg.isActive) {
       continue;
     }
 
     final result = updatedBg.applyTicks(ticks);
-    builder.updateMiningState(bg.actionName, result.newState);
+    builder.updateMiningState(bg.actionId, result.newState);
   }
 }
 
@@ -760,7 +760,7 @@ enum ForegroundResult {
     return (ForegroundResult.stopped, 0);
   }
 
-  final combatState = builder.state.actionState(activeAction.name).combat;
+  final combatState = builder.state.actionState(activeAction.id).combat;
   if (combatState == null) {
     return (ForegroundResult.stopped, 0);
   }
@@ -776,14 +776,14 @@ enum ForegroundResult {
       // Monster respawns
       final pStats = playerStats(builder.state);
       currentCombat = CombatActionState.start(action, pStats);
-      builder.updateCombatState(activeAction.name, currentCombat);
+      builder.updateCombatState(activeAction.id, currentCombat);
       return (ForegroundResult.continued, respawnTicks);
     } else {
       // Still waiting for respawn
       currentCombat = currentCombat.copyWith(
         respawnTicksRemaining: respawnTicks - remainingTicks,
       );
-      builder.updateCombatState(activeAction.name, currentCombat);
+      builder.updateCombatState(activeAction.id, currentCombat);
       return (ForegroundResult.continued, remainingTicks);
     }
   }
@@ -799,7 +799,7 @@ enum ForegroundResult {
       playerAttackTicksRemaining: playerTicks - remainingTicks,
       monsterAttackTicksRemaining: monsterTicks - remainingTicks,
     );
-    builder.updateCombatState(activeAction.name, currentCombat);
+    builder.updateCombatState(activeAction.id, currentCombat);
     return (ForegroundResult.continued, remainingTicks);
   }
 
@@ -830,7 +830,7 @@ enum ForegroundResult {
       monsterAttackTicksRemaining: newMonsterTicks,
       respawnTicksRemaining: ticksFromDuration(monsterRespawnDuration),
     );
-    builder.updateCombatState(activeAction.name, currentCombat);
+    builder.updateCombatState(activeAction.id, currentCombat);
     return (ForegroundResult.continued, ticksConsumed);
   }
 
@@ -862,7 +862,7 @@ enum ForegroundResult {
     playerAttackTicksRemaining: resetPlayerTicks,
     monsterAttackTicksRemaining: resetMonsterTicks,
   );
-  builder.updateCombatState(activeAction.name, currentCombat);
+  builder.updateCombatState(activeAction.id, currentCombat);
   return (ForegroundResult.continued, ticksConsumed);
 }
 
@@ -917,7 +917,7 @@ void _consumeTicksCore(
     // (foreground handles respawn synchronously for the active action)
     final backgroundActions = _getBackgroundActions(
       builder.state,
-      activeActionName: activeAction?.name,
+      activeActionId: activeAction?.id,
     );
 
     // 2. Determine how many ticks to process this iteration
@@ -927,7 +927,7 @@ void _consumeTicksCore(
 
     if (activeAction != null) {
       // Process foreground action until next "event"
-      final action = registries.actions.byName(activeAction.name);
+      final action = registries.actions.byId(activeAction.id);
       final (foregroundResult, ticksUsed) = _processForegroundAction(
         builder,
         action,
@@ -957,7 +957,7 @@ void _consumeTicksCore(
       builder,
       backgroundActions,
       ticksThisIteration,
-      activeActionName: activeAction?.name,
+      activeActionId: activeAction?.id,
       skipStunCountdown: skipStunCountdown,
     );
 
@@ -1045,7 +1045,7 @@ void consumeTicksUntil(
       );
   // For TimeAway, we only need the action for predictions.
   // Combat actions return empty predictions anyway, so null is fine.
-  final action = registries.actions.byName(activeAction.name);
+  final action = registries.actions.byId(activeAction.id);
   // Convert stoppedAtTick to Duration if action stopped
   final stoppedAfter = builder.stoppedAtTick != null
       ? durationFromTicks(builder.stoppedAtTick!)

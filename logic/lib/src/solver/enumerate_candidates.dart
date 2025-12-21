@@ -248,7 +248,8 @@ Candidates enumerateCandidates(
   // Build list of candidate activity names (current + switchTo)
   final candidateActivityNames = <String>[
     ...switchToActivities,
-    if (state.activeAction != null) state.activeAction!.name,
+    if (state.activeAction != null)
+      state.registries.actions.byId(state.activeAction!.id).name,
   ];
 
   // Find the best current rate among all unlocked activities using ranking fn
@@ -299,7 +300,10 @@ List<String> _selectUnlockedActivitiesByRanking(
   int count,
   double Function(ActionSummary) rankingFn,
 ) {
-  final currentActionName = state.activeAction?.name;
+  final currentActionId = state.activeAction?.id;
+  final currentActionName = currentActionId != null
+      ? state.registries.actions.byId(currentActionId).name
+      : null;
 
   // Filter to unlocked actions with positive ranking, excluding current action
   final unlocked = summaries

@@ -116,7 +116,7 @@ void main() {
       final state = GlobalState.test(
         testRegistries,
         activeAction: const ActiveAction(
-          name: 'Normal Tree',
+          id: 'Normal',
           remainingTicks: 10,
           totalTicks: 30,
         ),
@@ -130,14 +130,14 @@ void main() {
       final random = Random(0);
       final newState = state.startAction(normalTree, random: random);
       expect(newState.activeAction, isNotNull);
-      expect(newState.activeAction!.name, 'Normal Tree');
+      expect(newState.activeAction!.id, normalTree.id);
     });
 
     test('clearAction works when not stunned', () {
       final state = GlobalState.test(
         testRegistries,
         activeAction: const ActiveAction(
-          name: 'Normal Tree',
+          id: 'Normal',
           remainingTicks: 10,
           totalTicks: 30,
         ),

@@ -62,7 +62,7 @@ void main() {
 
       // Verify activity progress reset to 0 (ready for next completion)
       expect(state.activeAction?.progressTicks, 0);
-      expect(state.activeAction?.name, normalTree.name);
+      expect(state.activeAction?.id, normalTree.id);
 
       // Verify 1 item in inventory
       final items = state.inventory.items;
@@ -94,7 +94,7 @@ void main() {
 
       // Verify activity progress reset to 0 (ready for next completion)
       expect(state.activeAction?.progressTicks, 0);
-      expect(state.activeAction?.name, normalTree.name);
+      expect(state.activeAction?.id, normalTree.id);
 
       // Verify 5 items in inventory
       final items = state.inventory.items;
@@ -125,7 +125,7 @@ void main() {
 
       // Verify activity progress is at 15 (halfway)
       expect(state.activeAction?.progressTicks, 15);
-      expect(state.activeAction?.name, normalTree.name);
+      expect(state.activeAction?.id, normalTree.id);
 
       // Verify no items in inventory
       expect(state.inventory.items.length, 0);
@@ -147,7 +147,7 @@ void main() {
 
       // Verify activity progress is at 15 (halfway through second completion)
       expect(state.activeAction?.progressTicks, 15);
-      expect(state.activeAction?.name, normalTree.name);
+      expect(state.activeAction?.id, normalTree.id);
 
       // Verify 1 item in inventory (only first completion counted)
       final items = state.inventory.items;
@@ -173,7 +173,7 @@ void main() {
 
       // Verify activity progress reset to 0
       expect(state.activeAction?.progressTicks, 0);
-      expect(state.activeAction?.name, oakTree.name);
+      expect(state.activeAction?.id, oakTree.id);
 
       // Verify 2 items in inventory
       final items = state.inventory.items;
@@ -357,7 +357,7 @@ void main() {
 
         // Verify activity progress reset to 0 (ready for next completion)
         expect(state.activeAction?.progressTicks, 0);
-        expect(state.activeAction?.name, burnNormalLogs.name);
+        expect(state.activeAction?.id, burnNormalLogs.id);
 
         // Verify 1 Normal Log was consumed (5 - 1 = 4 remaining)
         expect(state.inventory.countOfItem(normalLogs), 4);
@@ -683,7 +683,7 @@ void main() {
 
       // Verify action is still running
       expect(state.activeAction, isNotNull);
-      expect(state.activeAction!.name, runeEssence.name);
+      expect(state.activeAction!.id, runeEssence.id);
     });
 
     test('mining action resumes after respawn across multiple tick cycles', () {
@@ -727,12 +727,12 @@ void main() {
       // Verify we got 1 copper and node is depleted
       expect(state.inventory.countOfItem(copperOre), 1);
       final miningState =
-          state.actionState(copper.name).mining ?? const MiningState.empty();
+          state.actionState(copper.id).mining ?? const MiningState.empty();
       expect(miningState.isDepleted, true);
 
       // Critical: Action should still be active even though node is depleted
       expect(state.activeAction, isNotNull);
-      expect(state.activeAction!.name, copper.name);
+      expect(state.activeAction!.id, copper.id);
 
       // Now simulate a few more tick cycles while node is respawning
       // Respawn takes 50 ticks, let's do 20 ticks at a time
@@ -742,7 +742,7 @@ void main() {
 
       // Still depleted, still active
       expect(
-        (state.actionState(copper.name).mining ?? const MiningState.empty())
+        (state.actionState(copper.id).mining ?? const MiningState.empty())
             .isDepleted,
         true,
       );
@@ -755,7 +755,7 @@ void main() {
       state = builder.build();
 
       expect(
-        (state.actionState(copper.name).mining ?? const MiningState.empty())
+        (state.actionState(copper.id).mining ?? const MiningState.empty())
             .isDepleted,
         true,
       );
@@ -768,13 +768,13 @@ void main() {
 
       // Node should no longer be depleted
       expect(
-        (state.actionState(copper.name).mining ?? const MiningState.empty())
+        (state.actionState(copper.id).mining ?? const MiningState.empty())
             .isDepleted,
         false,
       );
       // Action should still be running
       expect(state.activeAction, isNotNull);
-      expect(state.activeAction!.name, copper.name);
+      expect(state.activeAction!.id, copper.id);
 
       // Complete another mining action (need 30 more ticks since action
       // restarted when respawn completed, but we only have 10 ticks of
@@ -844,8 +844,8 @@ void main() {
       state = applyTicks(state, 20);
 
       expect(
-        state.activeAction?.name,
-        normalTree.name,
+        state.activeAction?.id,
+        normalTree.id,
         reason: 'Active action should still be woodcutting',
       );
       expect(
@@ -860,7 +860,7 @@ void main() {
       );
 
       final copperMiningPhase1 =
-          state.actionState(copper.name).mining ?? const MiningState.empty();
+          state.actionState(copper.id).mining ?? const MiningState.empty();
       expect(
         copperMiningPhase1.isDepleted,
         true,
@@ -873,8 +873,7 @@ void main() {
       );
 
       final runeMiningPhase1 =
-          state.actionState(runeEssence.name).mining ??
-          const MiningState.empty();
+          state.actionState(runeEssence.id).mining ?? const MiningState.empty();
       expect(
         runeMiningPhase1.totalHpLost,
         3,
@@ -894,8 +893,8 @@ void main() {
       state = applyTicks(state, 30);
 
       expect(
-        state.activeAction?.name,
-        normalTree.name,
+        state.activeAction?.id,
+        normalTree.id,
         reason: 'Active action should still be woodcutting',
       );
       expect(
@@ -905,7 +904,7 @@ void main() {
       );
 
       final copperMiningPhase2 =
-          state.actionState(copper.name).mining ?? const MiningState.empty();
+          state.actionState(copper.id).mining ?? const MiningState.empty();
       expect(
         copperMiningPhase2.isDepleted,
         false,
@@ -918,8 +917,7 @@ void main() {
       );
 
       final runeMiningPhase2 =
-          state.actionState(runeEssence.name).mining ??
-          const MiningState.empty();
+          state.actionState(runeEssence.id).mining ?? const MiningState.empty();
       expect(
         runeMiningPhase2.totalHpLost,
         2,
@@ -941,7 +939,7 @@ void main() {
       // - Rune Essence: heals 1 more HP at tick 100, HP 2->1 lost
       state = applyTicks(state, 100);
 
-      expect(state.activeAction?.name, normalTree.name);
+      expect(state.activeAction?.id, normalTree.id);
       expect(
         state.inventory.countOfItem(normalLogs),
         5,
@@ -949,7 +947,7 @@ void main() {
       );
 
       final copperMiningPhase3 =
-          state.actionState(copper.name).mining ?? const MiningState.empty();
+          state.actionState(copper.id).mining ?? const MiningState.empty();
       expect(
         copperMiningPhase3.isDepleted,
         false,
@@ -958,8 +956,7 @@ void main() {
       expect(copperMiningPhase3.totalHpLost, 0);
 
       final runeMiningPhase3 =
-          state.actionState(runeEssence.name).mining ??
-          const MiningState.empty();
+          state.actionState(runeEssence.id).mining ?? const MiningState.empty();
       expect(
         runeMiningPhase3.totalHpLost,
         1,
@@ -981,8 +978,7 @@ void main() {
       );
 
       final runeMiningPhase4 =
-          state.actionState(runeEssence.name).mining ??
-          const MiningState.empty();
+          state.actionState(runeEssence.id).mining ?? const MiningState.empty();
       expect(
         runeMiningPhase4.totalHpLost,
         0,
@@ -996,8 +992,8 @@ void main() {
 
       // Verify the active action stayed woodcutting throughout
       expect(
-        state.activeAction?.name,
-        normalTree.name,
+        state.activeAction?.id,
+        normalTree.id,
         reason: 'Woodcutting should still be the active action',
       );
     });
@@ -1126,7 +1122,7 @@ void main() {
       state = state.startAction(plantAction, random: random);
 
       // Verify the active action name is "Plant", not "Combat"
-      expect(state.activeAction?.name, 'Plant');
+      expect(state.activeAction?.id, 'Plant');
 
       // Verify combat state is stored under "Plant"
       final actionState = state.actionState('Plant');
@@ -1139,7 +1135,7 @@ void main() {
       state = builder.build();
 
       // Combat should still be active (player shouldn't have died in 100 ticks)
-      expect(state.activeAction?.name, 'Plant');
+      expect(state.activeAction?.id, 'Plant');
     });
 
     test('combat action with mining background heals node', () {
@@ -1213,7 +1209,7 @@ void main() {
       // - Mining hit then adds 1 HP lost
       // Net effect: still 1 HP lost
       final miningState =
-          state.actionState(copper.name).mining ?? const MiningState.empty();
+          state.actionState(copper.id).mining ?? const MiningState.empty();
       expect(
         miningState.totalHpLost,
         1,
@@ -1222,7 +1218,7 @@ void main() {
 
       // Verify action is still running
       expect(state.activeAction, isNotNull);
-      expect(state.activeAction!.name, copper.name);
+      expect(state.activeAction!.id, copper.id);
     });
 
     test('completes activity and adds toast', () {

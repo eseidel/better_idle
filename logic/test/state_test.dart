@@ -30,7 +30,7 @@ void main() {
         ItemStack(oakLogs, count: 3),
       ]),
       activeAction: const ActiveAction(
-        name: 'Normal Tree',
+        id: 'Normal',
         remainingTicks: 15,
         totalTicks: 30,
       ),
@@ -38,8 +38,8 @@ void main() {
         Skill.woodcutting: SkillState(xp: 100, masteryPoolXp: 50),
       },
       actionStates: const {
-        'Normal Tree': ActionState(masteryXp: 25),
-        'Oak Tree': ActionState(masteryXp: 10),
+        'Normal': ActionState(masteryXp: 25),
+        'Oak': ActionState(masteryXp: 10),
       },
       updatedAt: DateTime(2024, 1, 1, 12),
       timeAway: TimeAway(
@@ -74,7 +74,7 @@ void main() {
     expect(items[1].item, oakLogs);
     expect(items[1].count, 3);
 
-    expect(loaded.activeAction?.name, 'Normal Tree');
+    expect(loaded.activeAction?.id, 'Normal');
     expect(loaded.activeAction?.progressTicks, 15);
 
     expect(loaded.skillStates.length, 1);
@@ -82,8 +82,8 @@ void main() {
     expect(loaded.skillStates[Skill.woodcutting]?.masteryPoolXp, 50);
 
     expect(loaded.actionStates.length, 2);
-    expect(loaded.actionStates['Normal Tree']?.masteryXp, 25);
-    expect(loaded.actionStates['Oak Tree']?.masteryXp, 10);
+    expect(loaded.actionStates['Normal']?.masteryXp, 25);
+    expect(loaded.actionStates['Oak']?.masteryXp, 10);
 
     // Verify TimeAway data
     final timeAway = loaded.timeAway;
@@ -106,14 +106,14 @@ void main() {
         ItemStack(normalLogs, count: 5),
       ]),
       activeAction: const ActiveAction(
-        name: 'Normal Tree',
+        id: 'Normal',
         remainingTicks: 15,
         totalTicks: 30,
       ),
       skillStates: const {
         Skill.woodcutting: SkillState(xp: 100, masteryPoolXp: 50),
       },
-      actionStates: const {'Normal Tree': ActionState(masteryXp: 25)},
+      actionStates: const {'Normal': ActionState(masteryXp: 25)},
       updatedAt: DateTime(2024, 1, 1, 12),
     );
 
@@ -132,14 +132,14 @@ void main() {
         ItemStack(normalLogs, count: 5),
       ]),
       activeAction: const ActiveAction(
-        name: 'Normal Tree',
+        id: 'Normal',
         remainingTicks: 15,
         totalTicks: 30,
       ),
       skillStates: const {
         Skill.woodcutting: SkillState(xp: 100, masteryPoolXp: 50),
       },
-      actionStates: const {'Normal Tree': ActionState(masteryXp: 25)},
+      actionStates: const {'Normal': ActionState(masteryXp: 25)},
       updatedAt: DateTime(2024, 1, 1, 12),
       timeAway: TimeAway(
         registries: testRegistries,

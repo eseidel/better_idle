@@ -27,7 +27,8 @@ void main() {
 
       final newState = applyInteraction(state, interaction);
 
-      expect(newState.activeAction?.name, 'Normal Tree');
+      final action = testActions.byName('Normal Tree');
+      expect(newState.activeAction?.id, action.id);
     });
 
     test('SwitchActivity clears existing action first', () {
@@ -40,7 +41,8 @@ void main() {
 
       final newState = applyInteraction(state, interaction);
 
-      expect(newState.activeAction?.name, 'Normal Tree');
+      final action = testActions.byName('Normal Tree');
+      expect(newState.activeAction?.id, action.id);
     });
 
     test('BuyUpgrade purchases an upgrade', () {
@@ -372,7 +374,7 @@ void main() {
 
       // Activity should still be running
       expect(result.state.activeAction, isNotNull);
-      expect(result.state.activeAction!.name, 'Man');
+      expect(result.state.activeAction!.id, 'Man');
       expect(result.deaths, 0); // No death yet
     });
 

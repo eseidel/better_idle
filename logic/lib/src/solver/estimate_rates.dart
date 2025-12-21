@@ -172,7 +172,7 @@ Rates estimateRates(GlobalState state) {
     return Rates.empty;
   }
 
-  final action = state.registries.actions.byName(activeAction.name);
+  final action = state.registries.actions.byId(activeAction.id);
 
   // Only skill actions have predictable rates
   if (action is! SkillAction) {
