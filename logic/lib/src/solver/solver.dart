@@ -23,6 +23,7 @@ import 'dart:math';
 import 'package:collection/collection.dart';
 import 'package:logic/src/consume_ticks.dart';
 import 'package:logic/src/data/actions.dart';
+import 'package:logic/src/data/registries.dart';
 import 'package:logic/src/state.dart';
 import 'package:logic/src/tick.dart';
 import 'package:logic/src/types/health.dart';
@@ -187,11 +188,12 @@ class _BucketKey {
 }
 
 /// Creates a bucket key from a game state.
-_BucketKey _bucketKeyFromState(GlobalState state) {
+_BucketKey _bucketKeyFromState(Registries registries, GlobalState state) {
   // Only track HP bucket when thieving (where death is possible)
   final actionName = state.activeAction?.name;
   final isThieving =
-      actionName != null && actionRegistry.byName(actionName) is ThievingAction;
+      actionName != null &&
+      registries.actions.byName(actionName) is ThievingAction;
   final hpBucket = isThieving ? state.playerHp ~/ _hpBucketSize : 0;
 
   // Get mastery level for current action (0 if no action)
@@ -293,19 +295,19 @@ class _RateCache {
         '${state.shop.pickaxeLevel}';
   }
 
-  double getBestUnlockedRate(GlobalState state) {
+  double getBestUnlockedRate(Registries registries, GlobalState state) {
     final key = _rateKey(state);
     final cached = _cache[key];
     if (cached != null) return cached;
 
-    final rate = _computeBestUnlockedRate(state);
+    final rate = _computeBestUnlockedRate(registries, state);
     _cache[key] = rate;
     return rate;
   }
 
   /// Computes the best rate among currently UNLOCKED actions.
   /// Uses the goal to determine which rate type and skills are relevant.
-  double _computeBestUnlockedRate(GlobalState state) {
+  double _computeBestUnlockedRate(Registries registries, GlobalState state) {
     var maxRate = 0.0;
 
     for (final skill in Skill.values) {
@@ -314,7 +316,7 @@ class _RateCache {
 
       final skillLevel = state.skillState(skill).skillLevel;
 
-      for (final action in actionRegistry.forSkill(skill)) {
+      for (final action in registries.actions.forSkill(skill)) {
         // Skip actions that require inputs
         if (action.inputs.isNotEmpty) continue;
 
@@ -350,7 +352,7 @@ class _RateCache {
           // Gold from thieving
           var expectedGoldPerAction = 0.0;
           for (final output in action.outputs.entries) {
-            final item = itemRegistry.byName(output.key);
+            final item = registries.items.byName(output.key);
             expectedGoldPerAction += item.sellsFor * output.value;
           }
           final expectedThievingGold = successChance * (1 + action.maxGold) / 2;
@@ -361,7 +363,7 @@ class _RateCache {
 
           var expectedGoldPerAction = 0.0;
           for (final output in action.outputs.entries) {
-            final item = itemRegistry.byName(output.key);
+            final item = registries.items.byName(output.key);
             expectedGoldPerAction += item.sellsFor * output.value;
           }
           goldRate = expectedGoldPerAction / expectedTicks;
@@ -382,8 +384,13 @@ class _RateCache {
 /// A* heuristic: optimistic lower bound on ticks to reach goal.
 /// Uses best unlocked rate for tighter, state-aware estimates.
 /// h(state) = ceil(remaining / R_bestUnlocked)
-int _heuristic(GlobalState state, Goal goal, _RateCache rateCache) {
-  final bestRate = rateCache.getBestUnlockedRate(state);
+int _heuristic(
+  Registries registries,
+  GlobalState state,
+  Goal goal,
+  _RateCache rateCache,
+) {
+  final bestRate = rateCache.getBestUnlockedRate(registries, state);
   if (bestRate <= 0) return 0; // Fallback to Dijkstra if no rate
   final remaining = goal.remaining(state);
   if (remaining <= 0) return 0;
@@ -430,7 +437,7 @@ class _Node {
 /// - Skill levels (for level-based gating)
 /// - HP bucket (for thieving, where death is possible)
 /// - Mastery level for current action (affects rates)
-String _stateKey(GlobalState state) {
+String _stateKey(Registries registries, GlobalState state) {
   final buffer = StringBuffer();
 
   // Bucketed gold (coarse grouping for large goals)
@@ -444,7 +451,8 @@ String _stateKey(GlobalState state) {
 
   // HP bucket for thieving (where death is possible)
   final isThieving =
-      actionName != null && actionRegistry.byName(actionName) is ThievingAction;
+      actionName != null &&
+      registries.actions.byName(actionName) is ThievingAction;
   if (isThieving) {
     final hpBucket = state.playerHp ~/ _hpBucketSize;
     buffer.write('hp:$hpBucket|');
@@ -474,11 +482,11 @@ String _stateKey(GlobalState state) {
 
 /// Checks if an activity can be modeled with expected-value rates.
 /// Returns true for non-combat gathering/thieving activities.
-bool _isRateModelable(GlobalState state) {
+bool _isRateModelable(Registries registries, GlobalState state) {
   final activeAction = state.activeAction;
   if (activeAction == null) return false;
 
-  final action = actionRegistry.byName(activeAction.name);
+  final action = registries.actions.byName(activeAction.name);
 
   // Only skill actions (non-combat) are rate-modelable
   // Skip actions that require inputs (firemaking, cooking, smithing)
@@ -498,13 +506,14 @@ typedef AdvanceResult = ({GlobalState state, int deaths});
 /// Uses [valueModel] to convert item flows into GP value.
 /// Returns the new state and the number of expected deaths (0 or 1).
 AdvanceResult _advanceExpected(
+  Registries registries,
   GlobalState state,
   int deltaTicks, {
   ValueModel valueModel = defaultValueModel,
 }) {
   if (deltaTicks <= 0) return (state: state, deaths: 0);
 
-  final rates = estimateRates(state);
+  final rates = estimateRates(registries, state);
 
   // Check for death during thieving
   final ticksToDeath = ticksUntilDeath(state, rates);
@@ -519,7 +528,7 @@ AdvanceResult _advanceExpected(
 
   // Compute expected gold gain using the value model
   // (converts item flows to GP based on the policy)
-  final valueRate = valueModel.valuePerTick(state, rates);
+  final valueRate = valueModel.valuePerTick(registries.items, state, rates);
   final expectedGold = (valueRate * effectiveTicks).floor();
   final newGp = state.gp + expectedGold;
 
@@ -595,6 +604,7 @@ AdvanceResult _advanceExpected(
 
 /// Full simulation advance using consumeTicks.
 GlobalState _advanceFullSim(
+  Registries registries,
   GlobalState state,
   int deltaTicks, {
   Random? random,
@@ -605,7 +615,7 @@ GlobalState _advanceFullSim(
   random ??= Random(42);
 
   final builder = StateUpdateBuilder(state);
-  consumeTicks(builder, deltaTicks, random: random);
+  consumeTicks(registries, builder, deltaTicks, random: random);
   return builder.build();
 }
 
@@ -617,13 +627,17 @@ GlobalState _advanceFullSim(
 /// game state (e.g. won't add inventory items)
 ///
 /// Returns the new state and the number of expected deaths.
-AdvanceResult advance(GlobalState state, int deltaTicks) {
+AdvanceResult advance(
+  Registries registries,
+  GlobalState state,
+  int deltaTicks,
+) {
   if (deltaTicks <= 0) return (state: state, deaths: 0);
 
-  if (_isRateModelable(state)) {
-    return _advanceExpected(state, deltaTicks);
+  if (_isRateModelable(registries, state)) {
+    return _advanceExpected(registries, state, deltaTicks);
   }
-  return (state: _advanceFullSim(state, deltaTicks), deaths: 0);
+  return (state: _advanceFullSim(registries, state, deltaTicks), deaths: 0);
 }
 
 /// Result of consuming ticks until a goal is reached.
@@ -647,6 +661,7 @@ class ConsumeUntilResult {
 ///
 /// Returns the final state, actual ticks elapsed, and death count.
 ConsumeUntilResult consumeUntil(
+  Registries registries,
   GlobalState state,
   WaitFor waitFor, {
   required Random random,
@@ -665,6 +680,7 @@ ConsumeUntilResult consumeUntil(
 
     // Use consumeTicksUntil which checks the condition after each action
     consumeTicksUntil(
+      registries,
       builder,
       random: random,
       stopCondition: (s) => waitFor.isSatisfied(s),
@@ -690,8 +706,8 @@ ConsumeUntilResult consumeUntil(
 
       // Auto-restart the activity and continue
       if (originalActivity != null) {
-        final action = actionRegistry.byName(originalActivity);
-        state = state.startAction(action, random: random);
+        final action = registries.actions.byName(originalActivity);
+        state = state.startAction(registries.items, action, random: random);
         continue; // Continue with restarted activity
       }
     }
@@ -714,6 +730,7 @@ ConsumeUntilResult consumeUntil(
 typedef _StepResult = ({GlobalState state, int ticksElapsed, int deaths});
 
 _StepResult _applyStep(
+  Registries registries,
   GlobalState state,
   PlanStep step, {
   required Random random,
@@ -721,13 +738,13 @@ _StepResult _applyStep(
   switch (step) {
     case InteractionStep(:final interaction):
       return (
-        state: applyInteraction(state, interaction),
+        state: applyInteraction(registries, state, interaction),
         ticksElapsed: 0,
         deaths: 0,
       );
     case WaitStep(:final waitFor):
       // Run until the wait condition is satisfied
-      final result = consumeUntil(state, waitFor, random: random);
+      final result = consumeUntil(registries, state, waitFor, random: random);
       return (
         state: result.state,
         ticksElapsed: result.ticksElapsed,
@@ -742,6 +759,7 @@ _StepResult _applyStep(
 /// which handles variance between expected-value planning and actual simulation.
 /// Deaths are automatically handled by restarting the activity and are counted.
 PlanExecutionResult executePlan(
+  Registries registries,
   GlobalState state,
   Plan plan, {
   required Random random,
@@ -752,7 +770,7 @@ PlanExecutionResult executePlan(
   for (var i = 0; i < plan.steps.length; i++) {
     final step = plan.steps[i];
     try {
-      final result = _applyStep(state, step, random: random);
+      final result = _applyStep(registries, state, step, random: random);
       state = result.state;
       totalDeaths += result.deaths;
       actualTicks += result.ticksElapsed;
@@ -781,12 +799,14 @@ PlanExecutionResult executePlan(
 /// Returns a [SolverResult] which is either [SolverSuccess] with the plan,
 /// or [SolverFailed] with failure information.
 SolverResult solveToCredits(
+  Registries registries,
   GlobalState initial,
   int goalCredits, {
   int maxExpandedNodes = defaultMaxExpandedNodes,
   int maxQueueSize = defaultMaxQueueSize,
 }) {
   return solve(
+    registries,
     initial,
     ReachGpGoal(goalCredits),
     maxExpandedNodes: maxExpandedNodes,
@@ -805,6 +825,7 @@ SolverResult solveToCredits(
 /// Returns a [SolverResult] which is either [SolverSuccess] with the plan,
 /// or [SolverFailed] with failure information.
 SolverResult solve(
+  Registries registries,
   GlobalState initial,
   Goal goal, {
   int maxExpandedNodes = defaultMaxExpandedNodes,
@@ -830,8 +851,12 @@ SolverResult solve(
   // A* priority: f(n) = g(n) + h(n) = ticksSoFar + heuristic
   // Break ties by lower ticksSoFar (prefer actual progress over estimates)
   final pq = PriorityQueue<int>((a, b) {
-    final fA = nodes[a].ticks + _heuristic(nodes[a].state, goal, rateCache);
-    final fB = nodes[b].ticks + _heuristic(nodes[b].state, goal, rateCache);
+    final fA =
+        nodes[a].ticks +
+        _heuristic(registries, nodes[a].state, goal, rateCache);
+    final fB =
+        nodes[b].ticks +
+        _heuristic(registries, nodes[b].state, goal, rateCache);
     final cmp = fA.compareTo(fB);
     if (cmp != 0) return cmp;
     // Tie-break by lower g (actual ticks)
@@ -859,7 +884,7 @@ SolverResult solve(
   enqueuedNodes++;
 
   final hashStopwatch = Stopwatch()..start();
-  final rootKey = _stateKey(initial);
+  final rootKey = _stateKey(registries, initial);
   profile.hashingTimeUs += hashStopwatch.elapsedMicroseconds;
   bestTicks[rootKey] = 0;
 
@@ -909,7 +934,7 @@ SolverResult solve(
     // BUT: never skip if this node has reached the goal!
     hashStopwatch.reset();
     hashStopwatch.start();
-    final nodeKey = _stateKey(node.state);
+    final nodeKey = _stateKey(registries, node.state);
     profile.hashingTimeUs += hashStopwatch.elapsedMicroseconds;
 
     final nodeReachedGoal = goal.isSatisfied(node.state);
@@ -949,19 +974,19 @@ SolverResult solve(
 
     // Compute candidates for this state
     final enumStopwatch = Stopwatch()..start();
-    final candidates = enumerateCandidates(node.state, goal);
+    final candidates = enumerateCandidates(registries, node.state, goal);
     profile.enumerateCandidatesTimeUs += enumStopwatch.elapsedMicroseconds;
 
     // Expand interaction edges (0 time cost)
-    final interactions = availableInteractions(node.state);
+    final interactions = availableInteractions(registries, node.state);
     for (final interaction in interactions) {
       // Only consider interactions that are in our candidate set (for pruning)
       if (!_isRelevantInteraction(interaction, candidates)) continue;
 
       try {
-        final newState = applyInteraction(node.state, interaction);
+        final newState = applyInteraction(registries, node.state, interaction);
         final newProgress = goal.progress(newState);
-        final newBucketKey = _bucketKeyFromState(newState);
+        final newBucketKey = _bucketKeyFromState(registries, newState);
 
         // Dominance pruning: skip if dominated by existing frontier point
         if (frontier.isDominatedOrInsert(
@@ -975,7 +1000,7 @@ SolverResult solve(
 
         hashStopwatch.reset();
         hashStopwatch.start();
-        final newKey = _stateKey(newState);
+        final newKey = _stateKey(registries, newState);
         profile.hashingTimeUs += hashStopwatch.elapsedMicroseconds;
 
         // Only enqueue if this is the best path to this state
@@ -1004,7 +1029,12 @@ SolverResult solve(
     }
 
     // Expand wait edge
-    final deltaResult = nextDecisionDelta(node.state, goal, candidates);
+    final deltaResult = nextDecisionDelta(
+      registries,
+      node.state,
+      goal,
+      candidates,
+    );
 
     // Invariant: dt=0 only when actions exist, dt>0 when no immediate actions.
     // Prevents regression where "affordable watched upgrade" triggers dt=0
@@ -1021,14 +1051,18 @@ SolverResult solve(
       profile.decisionDeltas.add(deltaResult.deltaTicks);
 
       final advanceStopwatch = Stopwatch()..start();
-      final advanceResult = advance(node.state, deltaResult.deltaTicks);
+      final advanceResult = advance(
+        registries,
+        node.state,
+        deltaResult.deltaTicks,
+      );
       profile.advanceTimeUs += advanceStopwatch.elapsedMicroseconds;
 
       final newState = advanceResult.state;
       final newDeaths = node.expectedDeaths + advanceResult.deaths;
       final newTicks = node.ticks + deltaResult.deltaTicks;
       final newProgress = goal.progress(newState);
-      final newBucketKey = _bucketKeyFromState(newState);
+      final newBucketKey = _bucketKeyFromState(registries, newState);
 
       // Check if we've reached the goal BEFORE dominance pruning
       final reachedGoal = goal.isSatisfied(newState);
@@ -1045,7 +1079,7 @@ SolverResult solve(
         }
         hashStopwatch.reset();
         hashStopwatch.start();
-        final newKey = _stateKey(newState);
+        final newKey = _stateKey(registries, newState);
         profile.hashingTimeUs += hashStopwatch.elapsedMicroseconds;
 
         // Safety: check for zero-progress waits (same state key after advance)

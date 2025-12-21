@@ -7,21 +7,21 @@ import 'test_helper.dart';
 
 void main() {
   setUpAll(() async {
-    await ensureItemsInitialized();
+    await loadTestRegistries();
   });
 
   group('Item', () {
     test('open throws StateError when not openable', () {
       const item = Item.test('Test Item', gp: 10);
       expect(item.isOpenable, isFalse);
-      expect(() => item.open(Random()), throwsA(isA<StateError>()));
+      expect(() => item.open(testItems, Random()), throwsA(isA<StateError>()));
     });
   });
 
   group('ItemRegistry', () {
     test('byName throws StateError for non-existent item', () {
       expect(
-        () => itemRegistry.byName('Non Existent Item'),
+        () => testItems.byName('Non Existent Item'),
         throwsA(isA<StateError>()),
       );
     });

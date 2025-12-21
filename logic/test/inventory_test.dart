@@ -10,16 +10,16 @@ void main() {
   late Item lobster;
 
   setUpAll(() async {
-    await ensureItemsInitialized();
-    normalLogs = itemRegistry.byName('Normal Logs');
-    oakLogs = itemRegistry.byName('Oak Logs');
-    birdNest = itemRegistry.byName('Bird Nest');
-    lobster = itemRegistry.byName('Lobster');
+    await loadTestRegistries();
+    normalLogs = testItems.byName('Normal Logs');
+    oakLogs = testItems.byName('Oak Logs');
+    birdNest = testItems.byName('Bird Nest');
+    lobster = testItems.byName('Lobster');
   });
 
   group('Inventory.canAdd', () {
     test('returns true when inventory has existing stack of item', () {
-      final inventory = Inventory.fromItems([
+      final inventory = Inventory.fromItems(testItems, [
         ItemStack(normalLogs, count: 5),
         ItemStack(oakLogs, count: 3),
       ]);
@@ -28,13 +28,15 @@ void main() {
     });
 
     test('returns true when inventory has room for new item', () {
-      final inventory = Inventory.fromItems([ItemStack(normalLogs, count: 5)]);
+      final inventory = Inventory.fromItems(testItems, [
+        ItemStack(normalLogs, count: 5),
+      ]);
       // Can add oak logs because we have room (1 slot used, capacity 2)
       expect(inventory.canAdd(oakLogs, capacity: 2), isTrue);
     });
 
     test('returns false when inventory is full with different items', () {
-      final inventory = Inventory.fromItems([
+      final inventory = Inventory.fromItems(testItems, [
         ItemStack(normalLogs, count: 5),
         ItemStack(oakLogs, count: 3),
       ]);
@@ -43,14 +45,14 @@ void main() {
     });
 
     test('returns true for empty inventory', () {
-      const inventory = Inventory.empty();
+      final inventory = Inventory.empty(testItems);
       expect(inventory.canAdd(normalLogs, capacity: 20), isTrue);
     });
   });
 
   group('Inventory.sorted', () {
     test('sorts items using custom comparator', () {
-      final inventory = Inventory.fromItems([
+      final inventory = Inventory.fromItems(testItems, [
         ItemStack(birdNest, count: 1),
         ItemStack(lobster, count: 2),
         ItemStack(normalLogs, count: 3),
@@ -74,7 +76,7 @@ void main() {
     });
 
     test('preserves item counts after sorting', () {
-      final inventory = Inventory.fromItems([
+      final inventory = Inventory.fromItems(testItems, [
         ItemStack(oakLogs, count: 100),
         ItemStack(normalLogs, count: 50),
       ]);
@@ -86,13 +88,15 @@ void main() {
     });
 
     test('sorting empty inventory returns empty inventory', () {
-      const inventory = Inventory.empty();
+      final inventory = Inventory.empty(testItems);
       final sorted = inventory.sorted();
       expect(sorted.items, isEmpty);
     });
 
     test('sorting single item inventory returns same item', () {
-      final inventory = Inventory.fromItems([ItemStack(normalLogs, count: 5)]);
+      final inventory = Inventory.fromItems(testItems, [
+        ItemStack(normalLogs, count: 5),
+      ]);
 
       final sorted = inventory.sorted();
 

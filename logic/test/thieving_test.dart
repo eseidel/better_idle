@@ -26,13 +26,13 @@ void main() {
   late ThievingAction manAction;
 
   setUpAll(() async {
-    await ensureItemsInitialized();
+    await loadTestRegistries();
     manAction = thievingActionByName('Man');
   });
 
   group('Thieving drops', () {
     test("allDropsForAction contains Bobby's Pocket for thieving", () {
-      final drops = dropsRegistry.allDropsForAction(manAction, masteryLevel: 1);
+      final drops = testDrops.allDropsForAction(manAction, masteryLevel: 1);
       final dropNames = drops.map((d) {
         if (d is Drop) return d.name;
         return null;
@@ -51,11 +51,11 @@ void main() {
       expect(golbinChiefAction.area.name, 'Golbin Village');
 
       // Get all drops for both actions
-      final golbinDrops = dropsRegistry.allDropsForAction(
+      final golbinDrops = testDrops.allDropsForAction(
         golbinAction,
         masteryLevel: 1,
       );
-      final chiefDrops = dropsRegistry.allDropsForAction(
+      final chiefDrops = testDrops.allDropsForAction(
         golbinChiefAction,
         masteryLevel: 1,
       );
@@ -84,10 +84,7 @@ void main() {
 
     test('Crate of Basic Supplies has correct rate (1/500)', () {
       final golbinAction = thievingActionByName('Golbin');
-      final drops = dropsRegistry.allDropsForAction(
-        golbinAction,
-        masteryLevel: 1,
-      );
+      final drops = testDrops.allDropsForAction(golbinAction, masteryLevel: 1);
 
       final crateDrop = drops.whereType<Drop>().firstWhere(
         (d) => d.name == 'Crate of Basic Supplies',
@@ -97,7 +94,7 @@ void main() {
     });
 
     test('Low Town has Jeweled Necklace area drop', () {
-      final drops = dropsRegistry.allDropsForAction(manAction, masteryLevel: 1);
+      final drops = testDrops.allDropsForAction(manAction, masteryLevel: 1);
       final dropNames = drops.whereType<Drop>().map((d) => d.name).toList();
 
       expect(dropNames, contains('Jeweled Necklace'));
@@ -111,10 +108,7 @@ void main() {
     final golbinDropTable = golbinDropChance.child as DropTable;
 
     test('Golbin has NPC-specific drop table', () {
-      final drops = dropsRegistry.allDropsForAction(
-        golbinAction,
-        masteryLevel: 1,
-      );
+      final drops = testDrops.allDropsForAction(golbinAction, masteryLevel: 1);
       // Should have 3 drops: Golbin drop table (action-level) +
       // area drop (Crate of Basic Supplies) + Bobby's Pocket (skill-level)
       expect(drops.length, 3);
@@ -164,11 +158,12 @@ void main() {
       // Set up state with Golbin action active
       final random = Random(42);
       var state = GlobalState.test(
+        testItems,
         skillStates: const {
           Skill.thieving: SkillState(xp: 1154, masteryPoolXp: 0), // Level 10
           Skill.hitpoints: SkillState(xp: 1154, masteryPoolXp: 0), // Level 10
         },
-      ).startAction(golbinAction, random: random);
+      ).startAction(testItems, golbinAction, random: random);
 
       // Run many thieving attempts to get drops
       final random2 = Random(123);
@@ -178,12 +173,12 @@ void main() {
         final builder = StateUpdateBuilder(state);
         // Use random that succeeds thieving
         final rng = MockRandom(nextDoubleValue: 0.0, nextIntValue: 50);
-        completeThievingAction(builder, golbinAction, rng);
+        completeThievingAction(testRegistries, builder, golbinAction, rng);
         state = builder.build();
 
         // Process with real random for drops
         final dropBuilder = StateUpdateBuilder(state);
-        consumeTicks(dropBuilder, 30, random: random2);
+        consumeTicks(testRegistries, dropBuilder, 30, random: random2);
         state = dropBuilder.build();
 
         // Check if we got any of the Golbin-specific drops
@@ -269,7 +264,9 @@ void main() {
     test('thieving success grants gold and XP', () {
       // Set up state with thieving action active
       final random = Random(0);
-      final state = GlobalState.test().startAction(manAction, random: random);
+      final state = GlobalState.test(
+        testItems,
+      ).startAction(testItems, manAction, random: random);
 
       final builder = StateUpdateBuilder(state);
 
@@ -279,7 +276,12 @@ void main() {
         nextIntValue: 49, // Gold = 1 + 49 = 50
       );
 
-      final playerAlive = completeThievingAction(builder, manAction, rng);
+      final playerAlive = completeThievingAction(
+        testRegistries,
+        builder,
+        manAction,
+        rng,
+      );
 
       expect(playerAlive, isTrue);
 
@@ -295,7 +297,9 @@ void main() {
     test('thieving success through tick processing', () {
       // Start thieving action
       final random = Random(0);
-      var state = GlobalState.test().startAction(manAction, random: random);
+      var state = GlobalState.test(
+        testItems,
+      ).startAction(testItems, manAction, random: random);
       final builder = StateUpdateBuilder(state);
 
       // Use a mock random that always succeeds
@@ -305,7 +309,7 @@ void main() {
       );
 
       // Process enough ticks to complete the action (3 seconds = 30 ticks)
-      consumeTicks(builder, 30, random: rng);
+      consumeTicks(testRegistries, builder, 30, random: rng);
 
       final newState = builder.build();
       // Should have gained gold (1 + 99 = 100)
@@ -325,10 +329,11 @@ void main() {
       // Set up state with enough HP to survive (level 10 hitpoints = 100 HP)
       final random = Random(0);
       final state = GlobalState.test(
+        testItems,
         skillStates: const {
           Skill.hitpoints: SkillState(xp: 1154, masteryPoolXp: 0), // Level 10
         },
-      ).startAction(manAction, random: random);
+      ).startAction(testItems, manAction, random: random);
 
       final builder = StateUpdateBuilder(state);
 
@@ -338,7 +343,12 @@ void main() {
         nextIntValue: 10, // Damage = 1 + 10 = 11
       );
 
-      final playerAlive = completeThievingAction(builder, manAction, rng);
+      final playerAlive = completeThievingAction(
+        testRegistries,
+        builder,
+        manAction,
+        rng,
+      );
 
       expect(playerAlive, isTrue);
 
@@ -358,6 +368,7 @@ void main() {
       // Set up state with low HP (less than max damage)
       final random = Random(0);
       final state = GlobalState.test(
+        testItems,
         skillStates: const {
           Skill.hitpoints: SkillState(
             xp: 1154,
@@ -365,7 +376,7 @@ void main() {
           ), // Level 10 = 100 HP
         },
         health: const HealthState(lostHp: 95), // Only 5 HP left (100 max)
-      ).startAction(manAction, random: random);
+      ).startAction(testItems, manAction, random: random);
 
       final builder = StateUpdateBuilder(state);
 
@@ -375,7 +386,12 @@ void main() {
         nextIntValue: 21, // Damage = 1 + 21 = 22 (max)
       );
 
-      final playerAlive = completeThievingAction(builder, manAction, rng);
+      final playerAlive = completeThievingAction(
+        testRegistries,
+        builder,
+        manAction,
+        rng,
+      );
 
       expect(playerAlive, isFalse);
 
@@ -392,6 +408,7 @@ void main() {
         // Start with low HP
         final random = Random(0);
         var state = GlobalState.test(
+          testItems,
           skillStates: const {
             Skill.hitpoints: SkillState(
               xp: 1154,
@@ -399,7 +416,7 @@ void main() {
             ), // Level 10 = 100 HP
           },
           health: const HealthState(lostHp: 95), // Only 5 HP left
-        ).startAction(manAction, random: random);
+        ).startAction(testItems, manAction, random: random);
 
         final builder = StateUpdateBuilder(state);
 
@@ -410,7 +427,7 @@ void main() {
         );
 
         // Process enough ticks to complete the action (30 ticks)
-        consumeTicks(builder, 30, random: rng);
+        consumeTicks(testRegistries, builder, 30, random: rng);
 
         final newState = builder.build();
         // Health should be reset
@@ -426,13 +443,14 @@ void main() {
       // Start thieving action
       final random = Random(0);
       final state = GlobalState.test(
+        testItems,
         skillStates: const {
           Skill.hitpoints: SkillState(
             xp: 1154,
             masteryPoolXp: 0,
           ), // Level 10 = 100 HP
         },
-      ).startAction(manAction, random: random);
+      ).startAction(testItems, manAction, random: random);
 
       final builder = StateUpdateBuilder(state);
 
@@ -443,7 +461,7 @@ void main() {
       );
 
       // Complete the action (30 ticks) - this should fail and stun
-      consumeTicks(builder, 30, random: rng);
+      consumeTicks(testRegistries, builder, 30, random: rng);
 
       var newState = builder.build();
       // Should be stunned
@@ -456,7 +474,7 @@ void main() {
 
       // Process 15 ticks (half the stun duration)
       final builder2 = StateUpdateBuilder(newState);
-      consumeTicks(builder2, 15, random: rng);
+      consumeTicks(testRegistries, builder2, 15, random: rng);
 
       newState = builder2.build();
       // Still stunned (15 of 30 ticks remaining)
@@ -470,6 +488,7 @@ void main() {
       // Set up a state where we're stunned but have an active action
       // (simulating what happens after a failed thieving attempt)
       final baseState = GlobalState.test(
+        testItems,
         skillStates: const {
           Skill.hitpoints: SkillState(
             xp: 1154,
@@ -505,7 +524,7 @@ void main() {
       );
 
       // Process just enough to clear stun (30 ticks)
-      consumeTicks(builder, 30, random: rng);
+      consumeTicks(testRegistries, builder, 30, random: rng);
 
       var newState = builder.build();
       // Stun should be cleared
@@ -515,7 +534,7 @@ void main() {
 
       // Now process more ticks to complete the action
       final builder2 = StateUpdateBuilder(newState);
-      consumeTicks(builder2, 30, random: rng);
+      consumeTicks(testRegistries, builder2, 30, random: rng);
 
       newState = builder2.build();
       // Should have gained gold from successful theft (1 + 49 = 50)

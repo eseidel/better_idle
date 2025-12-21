@@ -9,7 +9,7 @@ import 'dart:math';
 import 'package:logic/logic.dart';
 
 /// Prints TimeAway information to the console in a readable format.
-void printTimeAway(TimeAway timeAway) {
+void printTimeAway(DropsRegistry drops, TimeAway timeAway) {
   final activeSkill = timeAway.activeSkill;
   final duration = timeAway.duration;
   final changes = timeAway.changes;
@@ -61,11 +61,13 @@ void printTimeAway(TimeAway timeAway) {
   // Print inventory changes
   if (changes.inventoryChanges.isNotEmpty) {
     print('INVENTORY CHANGES:');
+    final itemsGained = timeAway.itemsGainedPerHour(drops);
+    final itemsConsumed = timeAway.itemsConsumedPerHour;
     for (final entry in changes.inventoryChanges.entries) {
       final itemName = entry.key;
       final itemCount = entry.value;
-      final gainedPerHour = timeAway.itemsGainedPerHour[itemName];
-      final consumedPerHour = timeAway.itemsConsumedPerHour[itemName];
+      final gainedPerHour = itemsGained[itemName];
+      final consumedPerHour = itemsConsumed[itemName];
       final countText = signedCountString(itemCount);
 
       String prediction;
@@ -161,20 +163,22 @@ void printFinalState(GlobalState state) {
   print('-' * 40);
 }
 
-void main(List<String> args) {
+void main(List<String> args) async {
   // Parse action name from args, default to 'Normal Tree'
   final actionName = args.isNotEmpty ? args.join(' ') : 'Normal Tree';
+
+  final registries = await loadRegistries();
 
   // Look up the action
   final Action action;
   try {
-    action = actionRegistry.byName(actionName);
+    action = registries.actions.byName(actionName);
   } catch (e) {
     print('Error: Unknown action "$actionName"');
     print('');
     print('Available actions by skill:');
     for (final skill in Skill.values) {
-      final actions = actionRegistry.forSkill(skill).toList();
+      final actions = registries.actions.forSkill(skill).toList();
       if (actions.isNotEmpty) {
         print('  ${skill.name}:');
         for (final a in actions) {
@@ -188,7 +192,7 @@ void main(List<String> args) {
   print('Simulating 1 day of "${action.name}" (${action.skill.name})...');
 
   // Create initial state
-  var state = GlobalState.empty();
+  var state = GlobalState.empty(registries.items);
 
   // If the action requires inputs, add them to the inventory
   if (action is SkillAction && action.inputs.isNotEmpty) {
@@ -196,7 +200,7 @@ void main(List<String> args) {
     print('Action requires inputs, adding to inventory:');
     var inventory = state.inventory;
     for (final entry in action.inputs.entries) {
-      final item = itemRegistry.byName(entry.key);
+      final item = registries.items.byName(entry.key);
       // Add enough for many completions (enough for 1 day at ~1200/hr)
       const itemsNeeded = 50000;
       inventory = inventory.adding(ItemStack(item, count: itemsNeeded));
@@ -207,7 +211,7 @@ void main(List<String> args) {
 
   // Start the action
   final random = Random();
-  state = state.startAction(action, random: random);
+  state = state.startAction(registries.items, action, random: random);
 
   // Simulate 1 day (24 hours)
   const oneDay = Duration(hours: 24);
@@ -220,6 +224,7 @@ void main(List<String> args) {
 
   // Consume all ticks and get the TimeAway result
   final (timeAway, finalState) = consumeManyTicks(
+    registries,
     state,
     ticks,
     endTime: state.updatedAt.add(oneDay),
@@ -227,7 +232,7 @@ void main(List<String> args) {
   );
 
   // Print the TimeAway information
-  printTimeAway(timeAway);
+  printTimeAway(registries.drops, timeAway);
 
   // Print final state summary
   printFinalState(finalState);

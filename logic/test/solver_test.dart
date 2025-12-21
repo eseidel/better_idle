@@ -17,63 +17,66 @@ import 'test_helper.dart';
 
 void main() {
   setUpAll(() async {
-    await ensureItemsInitialized();
+    await loadTestRegistries();
   });
 
   group('applyInteraction', () {
     test('SwitchActivity switches to a new activity', () {
-      final state = GlobalState.empty();
+      final state = GlobalState.empty(testItems);
       const interaction = SwitchActivity('Normal Tree');
 
-      final newState = applyInteraction(state, interaction);
+      final newState = applyInteraction(testRegistries, state, interaction);
 
       expect(newState.activeAction?.name, 'Normal Tree');
     });
 
     test('SwitchActivity clears existing action first', () {
-      var state = GlobalState.empty();
+      var state = GlobalState.empty(testItems);
       state = state.startAction(
-        actionRegistry.byName('Raw Shrimp'),
+        testItems,
+        testActions.byName('Raw Shrimp'),
         random: Random(0),
       );
       const interaction = SwitchActivity('Normal Tree');
 
-      final newState = applyInteraction(state, interaction);
+      final newState = applyInteraction(testRegistries, state, interaction);
 
       expect(newState.activeAction?.name, 'Normal Tree');
     });
 
     test('BuyUpgrade purchases an upgrade', () {
-      final state = GlobalState.empty().copyWith(gp: 100);
+      final state = GlobalState.empty(testItems).copyWith(gp: 100);
       const interaction = BuyUpgrade(UpgradeType.axe);
 
-      final newState = applyInteraction(state, interaction);
+      final newState = applyInteraction(testRegistries, state, interaction);
 
       expect(newState.shop.axeLevel, 1);
       expect(newState.gp, 50); // Iron Axe costs 50
     });
 
     test('BuyUpgrade throws when cannot afford', () {
-      final state = GlobalState.empty().copyWith(gp: 10);
+      final state = GlobalState.empty(testItems).copyWith(gp: 10);
       const interaction = BuyUpgrade(UpgradeType.axe);
 
       expect(
-        () => applyInteraction(state, interaction),
+        () => applyInteraction(testRegistries, state, interaction),
         throwsA(isA<StateError>()),
       );
     });
 
     test('SellAll sells all items in inventory', () {
-      final logs = itemRegistry.byName('Normal Logs');
-      final oak = itemRegistry.byName('Oak Logs');
-      final inventory = Inventory.fromItems([
+      final logs = testItems.byName('Normal Logs');
+      final oak = testItems.byName('Oak Logs');
+      final inventory = Inventory.fromItems(testItems, [
         ItemStack(logs, count: 10),
         ItemStack(oak, count: 5),
       ]);
-      final state = GlobalState.empty().copyWith(inventory: inventory, gp: 0);
+      final state = GlobalState.empty(
+        testItems,
+      ).copyWith(inventory: inventory, gp: 0);
       const interaction = SellAll();
 
-      final newState = applyInteraction(state, interaction);
+      final newState = applyInteraction(testRegistries, state, interaction);
 
       expect(newState.inventory.items, isEmpty);
       // Normal logs sell for 1, oak for 5
@@ -83,14 +86,14 @@ void main() {
 
   group('advance', () {
     test('advances state by specified ticks', () {
-      var state = GlobalState.empty();
-      final action = actionRegistry.byName('Normal Tree');
-      state = state.startAction(action, random: Random(0));
+      var state = GlobalState.empty(testItems);
+      final action = testActions.byName('Normal Tree');
+      state = state.startAction(testItems, action, random: Random(0));
       final initialGp = state.gp;
 
       // advance uses expected-value model for rate-modelable activities
       // so we check that GP increases appropriately
-      final result = advance(state, 100);
+      final result = advance(testRegistries, state, 100);
 
       // Normal Tree: 1 gold / 30 ticks = 0.033 gold/tick
       // After 100 ticks: expect ~3 gold
@@ -98,12 +101,12 @@ void main() {
     });
 
     test('is deterministic', () {
-      var state = GlobalState.empty();
-      final action = actionRegistry.byName('Normal Tree');
-      state = state.startAction(action, random: Random(0));
+      var state = GlobalState.empty(testItems);
+      final action = testActions.byName('Normal Tree');
+      state = state.startAction(testItems, action, random: Random(0));
 
-      final result1 = advance(state, 100);
-      final result2 = advance(state, 100);
+      final result1 = advance(testRegistries, state, 100);
+      final result2 = advance(testRegistries, state, 100);
 
       expect(result1.state.gp, result2.state.gp);
       // Skill XP should also match
@@ -114,11 +117,11 @@ void main() {
     });
 
     test('returns same state when deltaTicks is 0', () {
-      var state = GlobalState.empty();
-      final action = actionRegistry.byName('Normal Tree');
-      state = state.startAction(action, random: Random(0));
+      var state = GlobalState.empty(testItems);
+      final action = testActions.byName('Normal Tree');
+      state = state.startAction(testItems, action, random: Random(0));
 
-      final result = advance(state, 0);
+      final result = advance(testRegistries, state, 0);
 
       expect(
         result.state.activeAction?.remainingTicks,
@@ -129,9 +132,9 @@ void main() {
 
   group('solveToCredits', () {
     test('returns empty plan when goal already met', () {
-      final state = GlobalState.empty().copyWith(gp: 1000);
+      final state = GlobalState.empty(testItems).copyWith(gp: 1000);
 
-      final result = solveToCredits(state, 500);
+      final result = solveToCredits(testRegistries, state, 500);
 
       expect(result, isA<SolverSuccess>());
       final success = result as SolverSuccess;
@@ -141,13 +144,13 @@ void main() {
     });
 
     test('finds a plan to reach goal with single activity', () {
-      var state = GlobalState.empty();
+      var state = GlobalState.empty(testItems);
       // Start with an activity already running
-      final action = actionRegistry.byName('Normal Tree');
-      state = state.startAction(action, random: Random(0));
+      final action = testActions.byName('Normal Tree');
+      state = state.startAction(testItems, action, random: Random(0));
 
       // Small goal that should be reachable
-      final result = solveToCredits(state, 10);
+      final result = solveToCredits(testRegistries, state, 10);
 
       expect(result, isA<SolverSuccess>());
       final success = result as SolverSuccess;
@@ -158,9 +161,9 @@ void main() {
 
     test('plan includes switching activity when beneficial', () {
       // Start with no activity - solver needs to switch
-      final state = GlobalState.empty();
+      final state = GlobalState.empty(testItems);
 
-      final result = solveToCredits(state, 20);
+      final result = solveToCredits(testRegistries, state, 20);
 
       expect(result, isA<SolverSuccess>());
       final success = result as SolverSuccess;
@@ -173,12 +176,12 @@ void main() {
 
     test('plan may include buying upgrade when it improves time-to-goal', () {
       // Start with enough money for Iron Axe and activity running
-      var state = GlobalState.empty().copyWith(gp: 50);
-      final action = actionRegistry.byName('Normal Tree');
-      state = state.startAction(action, random: Random(0));
+      var state = GlobalState.empty(testItems).copyWith(gp: 50);
+      final action = testActions.byName('Normal Tree');
+      state = state.startAction(testItems, action, random: Random(0));
 
       // Moderate goal - may or may not benefit from upgrade
-      final result = solveToCredits(state, 200);
+      final result = solveToCredits(testRegistries, state, 200);
 
       expect(result, isA<SolverSuccess>());
       final success = result as SolverSuccess;
@@ -186,10 +189,11 @@ void main() {
     });
 
     test('respects maxExpandedNodes limit', () {
-      final state = GlobalState.empty();
+      final state = GlobalState.empty(testItems);
 
       // Set a very low limit (solver is now very efficient, so use limit of 2)
       final result = solveToCredits(
+        testRegistries,
         state,
         1000000, // Very high goal
         maxExpandedNodes: 2,
@@ -201,12 +205,12 @@ void main() {
     });
 
     test('produces deterministic results', () {
-      var state = GlobalState.empty();
-      final action = actionRegistry.byName('Normal Tree');
-      state = state.startAction(action, random: Random(0));
+      var state = GlobalState.empty(testItems);
+      final action = testActions.byName('Normal Tree');
+      state = state.startAction(testItems, action, random: Random(0));
 
-      final result1 = solveToCredits(state, 50);
-      final result2 = solveToCredits(state, 50);
+      final result1 = solveToCredits(testRegistries, state, 50);
+      final result2 = solveToCredits(testRegistries, state, 50);
 
       expect(result1, isA<SolverSuccess>());
       expect(result2, isA<SolverSuccess>());
@@ -290,33 +294,36 @@ void main() {
 
   group('thieving death modeling', () {
     test('estimateRates returns hpLossPerTick for thieving', () {
-      var state = GlobalState.empty();
-      final action = actionRegistry.byName('Man'); // Thieving action
-      state = state.startAction(action, random: Random(0));
+      var state = GlobalState.empty(testItems);
+      final action = testActions.byName('Man'); // Thieving action
+      state = state.startAction(testItems, action, random: Random(0));
 
-      final rates = estimateRates(state);
+      final rates = estimateRates(testRegistries, state);
 
       // Thieving should have positive HP loss rate (player takes damage)
       expect(rates.hpLossPerTick, greaterThan(0));
-      expect(defaultValueModel.valuePerTick(state, rates), greaterThan(0));
+      expect(
+        defaultValueModel.valuePerTick(testItems, state, rates),
+        greaterThan(0),
+      );
     });
 
     test('estimateRates returns zero hpLossPerTick for non-thieving', () {
-      var state = GlobalState.empty();
-      final action = actionRegistry.byName('Normal Tree');
-      state = state.startAction(action, random: Random(0));
+      var state = GlobalState.empty(testItems);
+      final action = testActions.byName('Normal Tree');
+      state = state.startAction(testItems, action, random: Random(0));
 
-      final rates = estimateRates(state);
+      final rates = estimateRates(testRegistries, state);
 
       expect(rates.hpLossPerTick, 0);
     });
 
     test('ticksUntilDeath returns positive value for thieving', () {
-      var state = GlobalState.empty();
-      final action = actionRegistry.byName('Man');
-      state = state.startAction(action, random: Random(0));
+      var state = GlobalState.empty(testItems);
+      final action = testActions.byName('Man');
+      state = state.startAction(testItems, action, random: Random(0));
 
-      final rates = estimateRates(state);
+      final rates = estimateRates(testRegistries, state);
       final ticks = ticksUntilDeath(state, rates);
 
       // At level 1 hitpoints (10 HP), player should die eventually
@@ -325,11 +332,11 @@ void main() {
     });
 
     test('ticksUntilDeath returns null for non-thieving', () {
-      var state = GlobalState.empty();
-      final action = actionRegistry.byName('Normal Tree');
-      state = state.startAction(action, random: Random(0));
+      var state = GlobalState.empty(testItems);
+      final action = testActions.byName('Normal Tree');
+      state = state.startAction(testItems, action, random: Random(0));
 
-      final rates = estimateRates(state);
+      final rates = estimateRates(testRegistries, state);
       final ticks = ticksUntilDeath(state, rates);
 
       expect(ticks, isNull);
@@ -337,19 +344,19 @@ void main() {
 
     test('advance stops activity on death for thieving', () {
       // Create state with low HP thieving
-      var state = GlobalState.empty();
-      final action = actionRegistry.byName('Man');
-      state = state.startAction(action, random: Random(0));
+      var state = GlobalState.empty(testItems);
+      final action = testActions.byName('Man');
+      state = state.startAction(testItems, action, random: Random(0));
 
       // Damage the player to have only 2 HP left
       final lostHp = state.maxPlayerHp - 2;
       state = state.copyWith(health: HealthState(lostHp: lostHp));
 
-      final rates = estimateRates(state);
+      final rates = estimateRates(testRegistries, state);
       final ticksToDeath = ticksUntilDeath(state, rates);
 
       // Advance past death
-      final result = advance(state, ticksToDeath! + 1000);
+      final result = advance(testRegistries, state, ticksToDeath! + 1000);
 
       // Activity should be stopped and HP should be reset
       expect(result.state.activeAction, isNull);
@@ -358,15 +365,15 @@ void main() {
     });
 
     test('advance does not stop activity before death', () {
-      var state = GlobalState.empty();
-      final action = actionRegistry.byName('Man');
-      state = state.startAction(action, random: Random(0));
+      var state = GlobalState.empty(testItems);
+      final action = testActions.byName('Man');
+      state = state.startAction(testItems, action, random: Random(0));
 
-      final rates = estimateRates(state);
+      final rates = estimateRates(testRegistries, state);
       final ticksToDeath = ticksUntilDeath(state, rates);
 
       // Advance less than death time
-      final result = advance(state, ticksToDeath! ~/ 2);
+      final result = advance(testRegistries, state, ticksToDeath! ~/ 2);
 
       // Activity should still be running
       expect(result.state.activeAction, isNotNull);
@@ -375,21 +382,21 @@ void main() {
     });
 
     test('nextDecisionDelta includes death timing for thieving', () {
-      var state = GlobalState.empty();
-      final action = actionRegistry.byName('Man');
-      state = state.startAction(action, random: Random(0));
+      var state = GlobalState.empty(testItems);
+      final action = testActions.byName('Man');
+      state = state.startAction(testItems, action, random: Random(0));
 
       // Damage player to have only 5 HP left
       final lostHp = state.maxPlayerHp - 5;
       state = state.copyWith(health: HealthState(lostHp: lostHp));
 
       const goal = ReachGpGoal(100000); // High goal
-      final candidates = enumerateCandidates(state, goal);
+      final candidates = enumerateCandidates(testRegistries, state, goal);
 
-      final result = nextDecisionDelta(state, goal, candidates);
+      final result = nextDecisionDelta(testRegistries, state, goal, candidates);
 
       // Delta should be less than or equal to ticks until death
-      final rates = estimateRates(state);
+      final rates = estimateRates(testRegistries, state);
       final ticksToDeath = ticksUntilDeath(state, rates);
 
       expect(result.deltaTicks, lessThanOrEqualTo(ticksToDeath!));
@@ -398,11 +405,11 @@ void main() {
 
   group('skill and mastery level timing', () {
     test('ticksUntilNextSkillLevel returns positive value when gaining XP', () {
-      var state = GlobalState.empty();
-      final action = actionRegistry.byName('Normal Tree');
-      state = state.startAction(action, random: Random(0));
+      var state = GlobalState.empty(testItems);
+      final action = testActions.byName('Normal Tree');
+      state = state.startAction(testItems, action, random: Random(0));
 
-      final rates = estimateRates(state);
+      final rates = estimateRates(testRegistries, state);
       final ticks = ticksUntilNextSkillLevel(state, rates);
 
       // Should return positive ticks to level 2
@@ -411,10 +418,10 @@ void main() {
     });
 
     test('ticksUntilNextSkillLevel returns null when no XP gain', () {
-      final state = GlobalState.empty();
+      final state = GlobalState.empty(testItems);
 
       // No action active, no XP being gained
-      final rates = estimateRates(state);
+      final rates = estimateRates(testRegistries, state);
       final ticks = ticksUntilNextSkillLevel(state, rates);
 
       expect(ticks, isNull);
@@ -423,11 +430,11 @@ void main() {
     test(
       'ticksUntilNextMasteryLevel returns positive value for active action',
       () {
-        var state = GlobalState.empty();
-        final action = actionRegistry.byName('Normal Tree');
-        state = state.startAction(action, random: Random(0));
+        var state = GlobalState.empty(testItems);
+        final action = testActions.byName('Normal Tree');
+        state = state.startAction(testItems, action, random: Random(0));
 
-        final rates = estimateRates(state);
+        final rates = estimateRates(testRegistries, state);
         final ticks = ticksUntilNextMasteryLevel(state, rates);
 
         // Should return positive ticks to mastery level 2
@@ -437,43 +444,43 @@ void main() {
     );
 
     test('ticksUntilNextMasteryLevel returns null when no action', () {
-      final state = GlobalState.empty();
+      final state = GlobalState.empty(testItems);
 
-      final rates = estimateRates(state);
+      final rates = estimateRates(testRegistries, state);
       final ticks = ticksUntilNextMasteryLevel(state, rates);
 
       expect(ticks, isNull);
     });
 
     test('nextDecisionDelta includes skill level timing', () {
-      var state = GlobalState.empty();
-      final action = actionRegistry.byName('Normal Tree');
-      state = state.startAction(action, random: Random(0));
+      var state = GlobalState.empty(testItems);
+      final action = testActions.byName('Normal Tree');
+      state = state.startAction(testItems, action, random: Random(0));
 
       const goal = ReachGpGoal(100000); // High goal
-      final candidates = enumerateCandidates(state, goal);
+      final candidates = enumerateCandidates(testRegistries, state, goal);
 
-      final result = nextDecisionDelta(state, goal, candidates);
+      final result = nextDecisionDelta(testRegistries, state, goal, candidates);
 
       // Delta should be limited by skill level up
-      final rates = estimateRates(state);
+      final rates = estimateRates(testRegistries, state);
       final ticksToLevel = ticksUntilNextSkillLevel(state, rates);
 
       expect(result.deltaTicks, lessThanOrEqualTo(ticksToLevel!));
     });
 
     test('nextDecisionDelta includes mastery level timing for thieving', () {
-      var state = GlobalState.empty();
-      final action = actionRegistry.byName('Man');
-      state = state.startAction(action, random: Random(0));
+      var state = GlobalState.empty(testItems);
+      final action = testActions.byName('Man');
+      state = state.startAction(testItems, action, random: Random(0));
 
       const goal = ReachGpGoal(100000); // High goal
-      final candidates = enumerateCandidates(state, goal);
+      final candidates = enumerateCandidates(testRegistries, state, goal);
 
-      final result = nextDecisionDelta(state, goal, candidates);
+      final result = nextDecisionDelta(testRegistries, state, goal, candidates);
 
       // Delta should be limited by mastery or skill level or death
-      final rates = estimateRates(state);
+      final rates = estimateRates(testRegistries, state);
       final ticksToMastery = ticksUntilNextMasteryLevel(state, rates);
       final ticksToSkill = ticksUntilNextSkillLevel(state, rates);
       final ticksToDeath = ticksUntilDeath(state, rates);
@@ -489,22 +496,22 @@ void main() {
     });
 
     test('estimateRates includes mastery XP rate', () {
-      var state = GlobalState.empty();
-      final action = actionRegistry.byName('Normal Tree');
-      state = state.startAction(action, random: Random(0));
+      var state = GlobalState.empty(testItems);
+      final action = testActions.byName('Normal Tree');
+      state = state.startAction(testItems, action, random: Random(0));
 
-      final rates = estimateRates(state);
+      final rates = estimateRates(testRegistries, state);
 
       expect(rates.masteryXpPerTick, greaterThan(0));
       expect(rates.actionName, 'Normal Tree');
     });
 
     test('estimateRates includes mastery XP rate for thieving', () {
-      var state = GlobalState.empty();
-      final action = actionRegistry.byName('Man');
-      state = state.startAction(action, random: Random(0));
+      var state = GlobalState.empty(testItems);
+      final action = testActions.byName('Man');
+      state = state.startAction(testItems, action, random: Random(0));
 
-      final rates = estimateRates(state);
+      final rates = estimateRates(testRegistries, state);
 
       expect(rates.masteryXpPerTick, greaterThan(0));
       expect(rates.actionName, 'Man');
@@ -513,11 +520,11 @@ void main() {
     test('itemFlowsPerTick includes action outputs via allDropsForAction', () {
       // Verify that action outputs (like Normal Logs from Normal Tree) are
       // included in itemFlowsPerTick via allDropsForAction, not double-counted.
-      var state = GlobalState.empty();
-      final action = actionRegistry.byName('Normal Tree');
-      state = state.startAction(action, random: Random(0));
+      var state = GlobalState.empty(testItems);
+      final action = testActions.byName('Normal Tree');
+      state = state.startAction(testItems, action, random: Random(0));
 
-      final rates = estimateRates(state);
+      final rates = estimateRates(testRegistries, state);
 
       // Normal Tree outputs Normal Logs
       expect(
@@ -540,11 +547,11 @@ void main() {
     test('itemFlowsPerTick includes skill-level drops (Bird Nest)', () {
       // Verify that skill-level drops are included in itemFlowsPerTick
       // Woodcutting has Bird Nest as a skill-level drop (0.5% rate)
-      var state = GlobalState.empty();
-      final action = actionRegistry.byName('Normal Tree');
-      state = state.startAction(action, random: Random(0));
+      var state = GlobalState.empty(testItems);
+      final action = testActions.byName('Normal Tree');
+      state = state.startAction(testItems, action, random: Random(0));
 
-      final rates = estimateRates(state);
+      final rates = estimateRates(testRegistries, state);
 
       // Bird Nest is a skill-level drop for woodcutting
       expect(
@@ -566,11 +573,11 @@ void main() {
     test('estimateRates includes skill-level drops in item flows', () {
       // Thieving has Bobby's Pocket as a skill-level drop (1/120 rate, 4000 GP)
       // This should appear in itemFlowsPerTick and affect valuePerTick
-      var state = GlobalState.empty();
+      var state = GlobalState.empty(testItems);
       final action = thievingActionByName('Man');
-      state = state.startAction(action, random: Random(0));
+      state = state.startAction(testItems, action, random: Random(0));
 
-      final rates = estimateRates(state);
+      final rates = estimateRates(testRegistries, state);
 
       // Verify Bobby's Pocket is included in item flows
       expect(
@@ -612,7 +619,11 @@ void main() {
 
       // The actual valuePerTick should be higher than gold without drops
       // if skill-level drops are being included via the ValueModel
-      final actualValuePerTick = defaultValueModel.valuePerTick(state, rates);
+      final actualValuePerTick = defaultValueModel.valuePerTick(
+        testItems,
+        state,
+        rates,
+      );
       expect(
         actualValuePerTick,
         greaterThan(expectedGoldPerTickWithoutDrops),
@@ -628,14 +639,19 @@ void main() {
   group('consumeUntil', () {
     test('reaches woodcutting XP goal in reasonable time', () {
       // Setup: start woodcutting Normal Tree
-      var state = GlobalState.empty();
-      final action = actionRegistry.byName('Normal Tree');
-      state = state.startAction(action, random: Random(42));
+      var state = GlobalState.empty(testItems);
+      final action = testActions.byName('Normal Tree');
+      state = state.startAction(testItems, action, random: Random(42));
 
       // Normal Tree: 3 seconds (30 ticks), 10 XP per action
       // To get 10 XP, we need 1 action = 30 ticks
       const waitFor = WaitForSkillXp(Skill.woodcutting, 10);
-      final result = consumeUntil(state, waitFor, random: Random(42));
+      final result = consumeUntil(
+        testRegistries,
+        state,
+        waitFor,
+        random: Random(42),
+      );
 
       // Should complete in roughly 30 ticks (1 action), not thousands
       expect(
@@ -654,10 +670,15 @@ void main() {
 
   group('executePlan', () {
     test('executes empty plan and returns initial state', () {
-      final state = GlobalState.empty().copyWith(gp: 500);
+      final state = GlobalState.empty(testItems).copyWith(gp: 500);
       const plan = Plan.empty();
 
-      final result = executePlan(state, plan, random: Random(42));
+      final result = executePlan(
+        testRegistries,
+        state,
+        plan,
+        random: Random(42),
+      );
 
       expect(result.finalState.gp, 500);
       expect(result.actualTicks, 0);
@@ -665,7 +686,7 @@ void main() {
     });
 
     test('executes plan with switch activity step', () {
-      final state = GlobalState.empty();
+      final state = GlobalState.empty(testItems);
       final plan = Plan(
         steps: [
           const InteractionStep(SwitchActivity('Normal Tree')),
@@ -675,7 +696,12 @@ void main() {
         interactionCount: 1,
       );
 
-      final result = executePlan(state, plan, random: Random(42));
+      final result = executePlan(
+        testRegistries,
+        state,
+        plan,
+        random: Random(42),
+      );
 
       // Should have woodcutting XP from the wait
       expect(
@@ -688,7 +714,7 @@ void main() {
 
     test('tracks deaths during thieving execution', () {
       // Create a plan that does thieving for a long time (will cause deaths)
-      final state = GlobalState.empty();
+      final state = GlobalState.empty(testItems);
       final plan = Plan(
         steps: [
           const InteractionStep(SwitchActivity('Man')),
@@ -699,7 +725,12 @@ void main() {
         interactionCount: 1,
       );
 
-      final result = executePlan(state, plan, random: Random(42));
+      final result = executePlan(
+        testRegistries,
+        state,
+        plan,
+        random: Random(42),
+      );
 
       // Should have some GP from thieving
       expect(result.finalState.gp, greaterThan(0));
@@ -708,7 +739,7 @@ void main() {
     });
 
     test('reports planned vs actual ticks correctly', () {
-      final state = GlobalState.empty();
+      final state = GlobalState.empty(testItems);
       final plan = Plan(
         steps: [
           const InteractionStep(SwitchActivity('Normal Tree')),
@@ -718,7 +749,12 @@ void main() {
         interactionCount: 1,
       );
 
-      final result = executePlan(state, plan, random: Random(42));
+      final result = executePlan(
+        testRegistries,
+        state,
+        plan,
+        random: Random(42),
+      );
 
       // plannedTicks should match plan.totalTicks
       expect(result.plannedTicks, 60);
@@ -730,15 +766,20 @@ void main() {
 
     test('executes plan from solve result', () {
       // Solve for a small GP goal
-      final state = GlobalState.empty();
+      final state = GlobalState.empty(testItems);
       const goal = ReachGpGoal(100);
-      final solveResult = solve(state, goal);
+      final solveResult = solve(testRegistries, state, goal);
 
       expect(solveResult, isA<SolverSuccess>());
       final success = solveResult as SolverSuccess;
 
       // Execute the plan
-      final execResult = executePlan(state, success.plan, random: Random(42));
+      final execResult = executePlan(
+        testRegistries,
+        state,
+        success.plan,
+        random: Random(42),
+      );
 
       // Should reach the goal (or close to it due to simulation variance)
       expect(execResult.finalState.gp, greaterThan(50));

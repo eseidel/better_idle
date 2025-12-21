@@ -43,11 +43,11 @@ abstract class ValueModel {
   const ValueModel();
 
   /// Converts flows into a scalar "value per tick" for the objective.
-  double valuePerTick(GlobalState state, Rates rates);
+  double valuePerTick(ItemRegistry items, GlobalState state, Rates rates);
 
   /// Per-item valuation (sell price, shadow price, etc.)
   /// Used to compute expected value from item flows.
-  double itemValue(GlobalState state, String itemId);
+  double itemValue(ItemRegistry items, GlobalState state, String itemId);
 }
 
 /// ValueModel that sells all item outputs at their shop sell price.
@@ -59,15 +59,15 @@ class SellEverythingForGpValueModel extends ValueModel {
   const SellEverythingForGpValueModel();
 
   @override
-  double itemValue(GlobalState state, String itemId) {
-    return itemRegistry.byName(itemId).sellsFor.toDouble();
+  double itemValue(ItemRegistry items, GlobalState state, String itemId) {
+    return items.byName(itemId).sellsFor.toDouble();
   }
 
   @override
-  double valuePerTick(GlobalState state, Rates rates) {
+  double valuePerTick(ItemRegistry items, GlobalState state, Rates rates) {
     var value = rates.directGpPerTick;
     for (final entry in rates.itemFlowsPerTick.entries) {
-      value += entry.value * itemValue(state, entry.key);
+      value += entry.value * itemValue(items, state, entry.key);
     }
     return value;
   }
@@ -82,17 +82,17 @@ class ShadowPriceValueModel extends ValueModel {
   const ShadowPriceValueModel();
 
   @override
-  double itemValue(GlobalState state, String itemId) {
+  double itemValue(ItemRegistry items, GlobalState state, String itemId) {
     // TODO(future): Implement shadow pricing based on unlocks/recipes
     // For now, fall back to sell price
-    return itemRegistry.byName(itemId).sellsFor.toDouble();
+    return items.byName(itemId).sellsFor.toDouble();
   }
 
   @override
-  double valuePerTick(GlobalState state, Rates rates) {
+  double valuePerTick(ItemRegistry items, GlobalState state, Rates rates) {
     var value = rates.directGpPerTick;
     for (final entry in rates.itemFlowsPerTick.entries) {
-      value += entry.value * itemValue(state, entry.key);
+      value += entry.value * itemValue(items, state, entry.key);
     }
     return value;
   }

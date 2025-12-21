@@ -15,6 +15,7 @@
 library;
 
 import 'package:logic/src/data/actions.dart';
+import 'package:logic/src/data/registries.dart';
 import 'package:logic/src/data/upgrades.dart';
 import 'package:logic/src/state.dart';
 
@@ -29,11 +30,14 @@ import 'interaction.dart';
 ///
 /// Note: the solver further filters these through [Candidates] to only
 /// consider competitive options.
-List<Interaction> availableInteractions(GlobalState state) {
+List<Interaction> availableInteractions(
+  Registries registries,
+  GlobalState state,
+) {
   final interactions = <Interaction>[];
 
   // Add available activity switches
-  interactions.addAll(_availableActivitySwitches(state));
+  interactions.addAll(_availableActivitySwitches(registries, state));
 
   // Add available upgrades
   interactions.addAll(_availableUpgrades(state));
@@ -48,7 +52,10 @@ List<Interaction> availableInteractions(GlobalState state) {
 
 /// Returns SwitchActivity interactions for all unlocked actions
 /// that are not the current action.
-List<SwitchActivity> _availableActivitySwitches(GlobalState state) {
+List<SwitchActivity> _availableActivitySwitches(
+  Registries registries,
+  GlobalState state,
+) {
   final currentActionName = state.activeAction?.name;
   final switches = <SwitchActivity>[];
 
@@ -56,7 +63,7 @@ List<SwitchActivity> _availableActivitySwitches(GlobalState state) {
   for (final skill in Skill.values) {
     final skillLevel = state.skillState(skill).skillLevel;
 
-    for (final action in actionRegistry.forSkill(skill)) {
+    for (final action in registries.actions.forSkill(skill)) {
       // Skip if this is the current action
       if (action.name == currentActionName) continue;
 
@@ -64,7 +71,7 @@ List<SwitchActivity> _availableActivitySwitches(GlobalState state) {
       if (action.unlockLevel > skillLevel) continue;
 
       // Skip if action can't be started (missing inputs, depleted node, etc.)
-      if (!state.canStartAction(action)) continue;
+      if (!state.canStartAction(registries.items, action)) continue;
 
       switches.add(SwitchActivity(action.name));
     }

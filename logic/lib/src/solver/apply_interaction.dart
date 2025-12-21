@@ -18,7 +18,7 @@ library;
 
 import 'dart:math';
 
-import 'package:logic/src/data/actions.dart';
+import 'package:logic/src/data/registries.dart';
 import 'package:logic/src/data/upgrades.dart';
 import 'package:logic/src/state.dart';
 
@@ -28,12 +28,17 @@ import 'interaction.dart';
 ///
 /// This is a pure function that does not modify the input state.
 /// Uses a fixed random seed for deterministic behavior during planning.
-GlobalState applyInteraction(GlobalState state, Interaction interaction) {
+GlobalState applyInteraction(
+  Registries registries,
+  GlobalState state,
+  Interaction interaction,
+) {
   // Use a fixed random for deterministic planning
   final random = Random(42);
 
   return switch (interaction) {
     SwitchActivity(:final actionName) => _applySwitchActivity(
+      registries,
       state,
       actionName,
       random,
@@ -45,11 +50,12 @@ GlobalState applyInteraction(GlobalState state, Interaction interaction) {
 
 /// Switches to a different activity.
 GlobalState _applySwitchActivity(
+  Registries registries,
   GlobalState state,
   String actionName,
   Random random,
 ) {
-  final action = actionRegistry.byName(actionName);
+  final action = registries.actions.byName(actionName);
 
   // Clear current action if any (and not stunned)
   var newState = state;
@@ -58,7 +64,7 @@ GlobalState _applySwitchActivity(
   }
 
   // Start the new action
-  return newState.startAction(action, random: random);
+  return newState.startAction(registries.items, action, random: random);
 }
 
 /// Buys an upgrade from the shop.

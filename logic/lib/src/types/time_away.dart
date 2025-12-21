@@ -87,18 +87,18 @@ class TimeAway {
         masteryLevels: const {},
       );
 
-  static TimeAway? maybeFromJson(dynamic json) {
+  static TimeAway? maybeFromJson(ActionRegistry actions, dynamic json) {
     if (json == null) return null;
-    return TimeAway.fromJson(json as Map<String, dynamic>);
+    return TimeAway.fromJson(actions, json as Map<String, dynamic>);
   }
 
-  factory TimeAway.fromJson(Map<String, dynamic> json) {
+  factory TimeAway.fromJson(ActionRegistry actions, Map<String, dynamic> json) {
     final actionName = json['activeAction'] as String?;
     // Only reconstruct SkillActions - CombatActions are only used for
     // predictions which return empty for combat anyway.
     SkillAction? action;
     if (actionName != null) {
-      final lookedUp = actionRegistry.byName(actionName);
+      final lookedUp = actions.byName(actionName);
       if (lookedUp is SkillAction) {
         action = lookedUp;
       }
@@ -169,7 +169,7 @@ class TimeAway {
   /// Returns a map of item name to items per hour.
   /// Returns empty map for CombatActions (combat drops are handled
   /// differently).
-  Map<String, double> get itemsGainedPerHour {
+  Map<String, double> itemsGainedPerHour(DropsRegistry drops) {
     final action = activeAction;
     if (action is! SkillAction) {
       return {};
@@ -183,7 +183,7 @@ class TimeAway {
     // Get all possible drops for this action
     // This will be an approximation since mastery level would change over time.
     final masteryLevel = levelForMastery(action.name);
-    final allDrops = dropsRegistry.allDropsForAction(
+    final allDrops = drops.allDropsForAction(
       action,
       masteryLevel: masteryLevel,
     );

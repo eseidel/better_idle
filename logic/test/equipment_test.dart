@@ -11,12 +11,12 @@ void main() {
   late Item normalLogs; // Non-consumable
 
   setUpAll(() async {
-    await ensureItemsInitialized();
-    shrimp = itemRegistry.byName('Shrimp');
-    lobster = itemRegistry.byName('Lobster');
-    crab = itemRegistry.byName('Crab');
-    sardine = itemRegistry.byName('Sardine');
-    normalLogs = itemRegistry.byName('Normal Logs');
+    await loadTestRegistries();
+    shrimp = testItems.byName('Shrimp');
+    lobster = testItems.byName('Lobster');
+    crab = testItems.byName('Crab');
+    sardine = testItems.byName('Sardine');
+    normalLogs = testItems.byName('Normal Logs');
   });
 
   group('Equipment', () {

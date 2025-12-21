@@ -8,7 +8,7 @@ abstract class Droppable {
   const Droppable();
 
   /// Rolls this drop and returns the ItemStack if successful, null otherwise.
-  ItemStack? roll(Random random);
+  ItemStack? roll(ItemRegistry items, Random random);
 
   /// Returns the expected items per action for prediction purposes.
   /// Maps item name to expected count (rate * count for simple drops).
@@ -42,17 +42,17 @@ class Drop extends Droppable {
   Map<String, double> get expectedItems => {name: count * rate};
 
   /// Creates an ItemStack with a fixed count (for fixed drops).
-  ItemStack toItemStack() {
-    final item = itemRegistry.byName(name);
+  ItemStack toItemStack(ItemRegistry items) {
+    final item = items.byName(name);
     return ItemStack(item, count: count);
   }
 
   @override
-  ItemStack? roll(Random random) {
+  ItemStack? roll(ItemRegistry items, Random random) {
     if (rate < 1.0 && random.nextDouble() >= rate) {
       return null;
     }
-    return toItemStack();
+    return toItemStack(items);
   }
 }
 
@@ -66,11 +66,11 @@ class DropChance extends Droppable {
   final double rate;
 
   @override
-  ItemStack? roll(Random random) {
+  ItemStack? roll(ItemRegistry items, Random random) {
     if (random.nextDouble() >= rate) {
       return null;
     }
-    return child.roll(random);
+    return child.roll(items, random);
   }
 
   @override
@@ -115,18 +115,18 @@ class DropTable extends Droppable {
   }
 
   @override
-  ItemStack roll(Random random) {
+  ItemStack roll(ItemRegistry items, Random random) {
     final total = _totalWeight;
     var roll = random.nextDouble() * total;
 
     for (final entry in entries) {
       roll -= entry.weight;
       if (roll <= 0) {
-        return entry.roll(random);
+        return entry.roll(items, random);
       }
     }
 
     // Fallback to last entry (shouldn't happen with valid weights)
-    return entries.last.roll(random);
+    return entries.last.roll(items, random);
   }
 }

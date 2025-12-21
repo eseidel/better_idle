@@ -25,6 +25,7 @@
 library;
 
 import 'package:logic/src/data/actions.dart';
+import 'package:logic/src/data/registries.dart';
 import 'package:logic/src/data/upgrades.dart';
 import 'package:logic/src/data/xp.dart';
 import 'package:logic/src/state.dart';
@@ -118,13 +119,16 @@ class Candidates {
 /// - expectedTicks: mean duration in ticks
 /// - goldRatePerTick: expected sell value per tick
 /// - xpRatePerTick: skill XP per tick
-List<ActionSummary> buildActionSummaries(GlobalState state) {
+List<ActionSummary> buildActionSummaries(
+  Registries registries,
+  GlobalState state,
+) {
   final summaries = <ActionSummary>[];
 
   for (final skill in Skill.values) {
     final skillLevel = state.skillState(skill).skillLevel;
 
-    for (final action in actionRegistry.forSkill(skill)) {
+    for (final action in registries.actions.forSkill(skill)) {
       // Skip actions that require inputs (firemaking, cooking, smithing)
       // These aren't standalone activities for gold generation
       if (action.inputs.isNotEmpty) continue;
@@ -137,7 +141,7 @@ List<ActionSummary> buildActionSummaries(GlobalState state) {
       // Calculate expected gold per action from selling outputs
       var expectedGoldPerAction = 0.0;
       for (final output in action.outputs.entries) {
-        final item = itemRegistry.byName(output.key);
+        final item = registries.items.byName(output.key);
         expectedGoldPerAction += item.sellsFor * output.value;
       }
 
@@ -214,6 +218,7 @@ List<ActionSummary> buildActionSummaries(GlobalState state) {
 /// For [ReachGpGoal], this is gold/tick. For [ReachSkillLevelGoal],
 /// this is XP/tick for the target skill.
 Candidates enumerateCandidates(
+  Registries registries,
   GlobalState state,
   Goal goal, {
   int activityCount = defaultActivityCandidateCount,
@@ -221,7 +226,7 @@ Candidates enumerateCandidates(
   int lockedWatchCount = defaultLockedWatchCount,
   double inventoryThreshold = defaultInventoryThreshold,
 }) {
-  final summaries = buildActionSummaries(state);
+  final summaries = buildActionSummaries(registries, state);
 
   // Ranking function uses goal's activityRate to determine value
   double rankingFn(ActionSummary s) =>

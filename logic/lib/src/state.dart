@@ -3,6 +3,7 @@ import 'dart:math';
 import 'package:logic/src/action_state.dart';
 import 'package:logic/src/data/actions.dart';
 import 'package:logic/src/data/combat.dart';
+import 'package:logic/src/data/registries.dart';
 import 'package:logic/src/data/upgrades.dart';
 import 'package:logic/src/json.dart';
 import 'package:logic/src/tick.dart';
@@ -206,9 +207,12 @@ class GlobalState {
     this.stunned = const StunnedState.fresh(),
   });
 
-  GlobalState.fromJson(Map<String, dynamic> json)
+  GlobalState.fromJson(Registries registries, Map<String, dynamic> json)
     : updatedAt = DateTime.parse(json['updatedAt'] as String),
-      inventory = Inventory.fromJson(json['inventory'] as Map<String, dynamic>),
+      inventory = Inventory.fromJson(
+        registries.items,
+        json['inventory'] as Map<String, dynamic>,
+      ),
       activeAction = ActiveAction.maybeFromJson(json['activeAction']),
       skillStates =
           maybeMap(
@@ -224,19 +228,20 @@ class GlobalState {
           ) ??
           const {},
       gp = json['gp'] as int? ?? 0,
-      timeAway = TimeAway.maybeFromJson(json['timeAway']),
+      timeAway = TimeAway.maybeFromJson(registries.actions, json['timeAway']),
       shop = ShopState.maybeFromJson(json['shop']) ?? const ShopState.empty(),
       health =
           HealthState.maybeFromJson(json['health']) ?? const HealthState.full(),
       equipment =
-          Equipment.maybeFromJson(json['equipment']) ?? const Equipment.empty(),
+          Equipment.maybeFromJson(registries.items, json['equipment']) ??
+          const Equipment.empty(),
       stunned =
           StunnedState.maybeFromJson(json['stunned']) ??
           const StunnedState.fresh();
 
-  GlobalState.empty()
+  GlobalState.empty(ItemRegistry items)
     : this(
-        inventory: const Inventory.empty(),
+        inventory: Inventory.empty(items),
         activeAction: null,
         // Start with level 10 Hitpoints (1154 XP) for 100 HP
         skillStates: const {
@@ -252,8 +257,9 @@ class GlobalState {
       );
 
   @visibleForTesting
-  factory GlobalState.test({
-    Inventory inventory = const Inventory.empty(),
+  factory GlobalState.test(
+    ItemRegistry items, {
+    Inventory? inventory,
     ActiveAction? activeAction,
     Map<Skill, SkillState> skillStates = const {},
     Map<String, ActionState> actionStates = const {},
@@ -266,7 +272,7 @@ class GlobalState {
     StunnedState stunned = const StunnedState.fresh(),
   }) {
     return GlobalState(
-      inventory: inventory,
+      inventory: inventory ?? Inventory.empty(items),
       activeAction: activeAction,
       skillStates: skillStates,
       actionStates: actionStates,
@@ -280,12 +286,12 @@ class GlobalState {
     );
   }
 
-  bool validate() {
+  bool validate(ActionRegistry actions) {
     // Confirm that activeAction.name is a valid action.
     final actionName = activeAction?.name;
     if (actionName != null) {
       // This will throw a StateError if the action is missing.
-      actionRegistry.byName(actionName);
+      actions.byName(actionName);
     }
     return true;
   }
@@ -396,12 +402,12 @@ class GlobalState {
   /// Returns true if the game loop should be running.
   bool get shouldTick => isActive || hasActiveBackgroundTimers;
 
-  Skill? get activeSkill {
+  Skill? activeSkill(ActionRegistry actions) {
     final name = activeAction?.name;
     if (name == null) {
       return null;
     }
-    return actionRegistry.byName(name).skill;
+    return actions.byName(name).skill;
   }
 
   /// Returns the number of unique item types (slots) used in inventory.
@@ -414,12 +420,12 @@ class GlobalState {
   bool get isInventoryFull => inventoryUsed >= inventoryCapacity;
 
   /// Returns true if all required inputs for the action are available.
-  bool canStartAction(Action action) {
+  bool canStartAction(ItemRegistry items, Action action) {
     // Only SkillActions have inputs to check
     if (action is SkillAction) {
       // Check inputs
       for (final requirement in action.inputs.entries) {
-        final item = itemRegistry.byName(requirement.key);
+        final item = items.byName(requirement.key);
         final itemCount = inventory.countOfItem(item);
         if (itemCount < requirement.value) {
           return false;
@@ -476,7 +482,11 @@ class GlobalState {
     return combined.applyToInt(ticks);
   }
 
-  GlobalState startAction(Action action, {required Random random}) {
+  GlobalState startAction(
+    ItemRegistry items,
+    Action action, {
+    required Random random,
+  }) {
     if (isStunned) {
       throw const StunnedException('Cannot start action while stunned');
     }
@@ -487,7 +497,7 @@ class GlobalState {
     if (action is SkillAction) {
       // Validate that all required items are available for skill actions
       for (final requirement in action.inputs.entries) {
-        final item = itemRegistry.byName(requirement.key);
+        final item = items.byName(requirement.key);
         final itemCount = inventory.countOfItem(item);
         if (itemCount < requirement.value) {
           throw Exception(
@@ -688,6 +698,7 @@ class GlobalState {
   /// Returns (newState, OpenResult) with combined drops and any error.
   /// Throws StateError if player doesn't have the item or item is not openable.
   (GlobalState, OpenResult) openItems(
+    ItemRegistry items,
     Item item, {
     required int count,
     required Random random,
@@ -709,7 +720,7 @@ class GlobalState {
 
     for (var i = 0; i < toOpen; i++) {
       // Roll the drop for this item
-      final drop = item.open(random);
+      final drop = item.open(items, random);
 
       // Check if we can add the drop
       if (!currentInventory.canAdd(drop.item, capacity: inventoryCapacity)) {

@@ -3,6 +3,7 @@ import 'dart:math';
 import 'package:logic/src/action_state.dart';
 import 'package:logic/src/data/actions.dart';
 import 'package:logic/src/data/combat.dart';
+import 'package:logic/src/data/registries.dart';
 import 'package:logic/src/data/xp.dart';
 import 'package:logic/src/state.dart';
 import 'package:logic/src/tick.dart';
@@ -16,13 +17,17 @@ final int ticksPer1Hp = ticksFromDuration(const Duration(seconds: 10));
 
 // playerTotalMasteryForSkill is presumably a sum of all mastery xp
 // for all actions in this skill?
-int playerTotalMasteryForSkill(GlobalState state, Skill skill) {
+int playerTotalMasteryForSkill(
+  ActionRegistry actions,
+  GlobalState state,
+  Skill skill,
+) {
   int total = 0;
   // This is terribly inefficient, but good enough for now.
   for (final entry in state.actionStates.entries) {
     final actionName = entry.key;
     final actionState = entry.value;
-    final action = actionRegistry.byName(actionName);
+    final action = actions.byName(actionName);
     if (action is SkillAction && action.skill == skill) {
       total += actionState.masteryXp;
     }
@@ -31,11 +36,20 @@ int playerTotalMasteryForSkill(GlobalState state, Skill skill) {
 }
 
 /// Returns the amount of mastery XP gained per action.
-int masteryXpPerAction(GlobalState state, SkillAction action) {
+int masteryXpPerAction(
+  ActionRegistry actions,
+  GlobalState state,
+  SkillAction action,
+) {
   return calculateMasteryXpPerAction(
+    actions: actions,
     action: action,
     unlockedActions: state.unlockedActionsCount(action.skill),
-    playerTotalMasteryForSkill: playerTotalMasteryForSkill(state, action.skill),
+    playerTotalMasteryForSkill: playerTotalMasteryForSkill(
+      actions,
+      state,
+      action.skill,
+    ),
     itemMasteryLevel: state.actionState(action.name).masteryLevel,
     bonus: 0,
   );
@@ -234,6 +248,7 @@ class MiningBackgroundAction implements BackgroundTickConsumer {
 /// For the active mining action, only includes healing (not respawn, since
 /// foreground handles respawn synchronously).
 List<BackgroundTickConsumer> _getBackgroundActions(
+  ActionRegistry actions,
   GlobalState state, {
   String? activeActionName,
 }) {
@@ -244,7 +259,7 @@ List<BackgroundTickConsumer> _getBackgroundActions(
     final actionState = entry.value;
 
     // Check if this is a mining action with background work
-    final action = actionRegistry.byName(actionName);
+    final action = actions.byName(actionName);
     if (action is MiningAction) {
       final mining = actionState.mining ?? const MiningState.empty();
 
@@ -356,9 +371,13 @@ class StateUpdateBuilder {
     return levelForXp(_state.actionState(action.name).masteryXp);
   }
 
-  void restartCurrentAction(Action action, {required Random random}) {
+  void restartCurrentAction(
+    ItemRegistry items,
+    Action action, {
+    required Random random,
+  }) {
     // This shouldn't be able to start a *new* action, only restart the current.
-    _state = _state.startAction(action, random: random);
+    _state = _state.startAction(items, action, random: random);
   }
 
   /// Adds inventory if there's space. Returns true if successful.
@@ -487,10 +506,14 @@ class XpPerAction {
   int get masteryPoolXp => max(1, (0.25 * masteryXp).toInt());
 }
 
-XpPerAction xpPerAction(GlobalState state, SkillAction action) {
+XpPerAction xpPerAction(
+  ActionRegistry actions,
+  GlobalState state,
+  SkillAction action,
+) {
   return XpPerAction(
     xp: action.xp,
-    masteryXp: masteryXpPerAction(state, action),
+    masteryXp: masteryXpPerAction(actions, state, action),
   );
 }
 
@@ -499,6 +522,7 @@ XpPerAction xpPerAction(GlobalState state, SkillAction action) {
 /// On failure: deals 1-maxHit damage and stuns the player.
 /// Returns true if the player is still alive (action can continue).
 bool completeThievingAction(
+  Registries registries,
   StateUpdateBuilder builder,
   ThievingAction action,
   Random rng,
@@ -509,7 +533,7 @@ bool completeThievingAction(
 
   if (success) {
     // Grant XP on success
-    final perAction = xpPerAction(builder.state, action);
+    final perAction = xpPerAction(registries.actions, builder.state, action);
     builder
       ..addSkillXp(action.skill, perAction.xp)
       ..addActionMasteryXp(action.name, perAction.masteryXp)
@@ -521,11 +545,11 @@ bool completeThievingAction(
 
     // Process drops
     final masteryLevel = builder.currentMasteryLevel(action);
-    for (final drop in dropsRegistry.allDropsForAction(
+    for (final drop in registries.drops.allDropsForAction(
       action,
       masteryLevel: masteryLevel,
     )) {
-      final itemStack = drop.roll(rng);
+      final itemStack = drop.roll(registries.items, rng);
       if (itemStack != null) {
         builder.addInventory(itemStack);
       }
@@ -553,6 +577,7 @@ bool completeThievingAction(
 /// Completes a skill action, consuming inputs, adding outputs, and awarding XP.
 /// Returns true if the action can repeat (no items were dropped).
 bool completeAction(
+  Registries registries,
   StateUpdateBuilder builder,
   SkillAction action, {
   required Random random,
@@ -561,18 +586,18 @@ bool completeAction(
 
   // Consume required items
   for (final requirement in action.inputs.entries) {
-    final item = itemRegistry.byName(requirement.key);
+    final item = registries.items.byName(requirement.key);
     builder.removeInventory(ItemStack(item, count: requirement.value));
   }
 
   final masteryLevel = builder.currentMasteryLevel(action);
   // Process all drops (action-level, skill-level, and global)
   // This handles both simple Drops and DropTables via polymorphism.
-  for (final drop in dropsRegistry.allDropsForAction(
+  for (final drop in registries.drops.allDropsForAction(
     action,
     masteryLevel: masteryLevel,
   )) {
-    final itemStack = drop.roll(random);
+    final itemStack = drop.roll(registries.items, random);
     if (itemStack != null) {
       final success = builder.addInventory(itemStack);
       if (!success) {
@@ -581,7 +606,7 @@ bool completeAction(
       }
     }
   }
-  final perAction = xpPerAction(builder.state, action);
+  final perAction = xpPerAction(registries.actions, builder.state, action);
 
   builder
     ..addSkillXp(action.skill, perAction.xp)
@@ -632,6 +657,7 @@ enum ForegroundResult {
 /// Processes one iteration of a SkillAction foreground.
 /// Returns how many ticks were consumed and whether to continue.
 (ForegroundResult, Tick) _processSkillForeground(
+  Registries registries,
   StateUpdateBuilder builder,
   SkillAction action,
   Tick ticksAvailable,
@@ -657,7 +683,7 @@ enum ForegroundResult {
   // This happens when an action (e.g., thieving) completed but was stunned,
   // leaving it at remainingTicks=0 until stun cleared.
   if (currentAction.remainingTicks == 0) {
-    builder.restartCurrentAction(action, random: rng);
+    builder.restartCurrentAction(registries.items, action, random: rng);
     currentAction = builder.state.activeAction!;
   }
 
@@ -677,7 +703,7 @@ enum ForegroundResult {
         return (ForegroundResult.continued, ticksAvailable);
       } else {
         // Respawn complete, restart action and continue
-        builder.restartCurrentAction(action, random: rng);
+        builder.restartCurrentAction(registries.items, action, random: rng);
         return (ForegroundResult.continued, respawnResult.ticksConsumed);
       }
     }
@@ -691,7 +717,12 @@ enum ForegroundResult {
   if (newRemainingTicks <= 0) {
     // Action completed - handle differently based on action type
     if (action is ThievingAction) {
-      final playerAlive = completeThievingAction(builder, action, rng);
+      final playerAlive = completeThievingAction(
+        registries,
+        builder,
+        action,
+        rng,
+      );
       if (playerAlive) {
         if (builder.state.isStunned) {
           // Failed - leave at remainingTicks=0, return justStunned so
@@ -699,7 +730,7 @@ enum ForegroundResult {
           return (ForegroundResult.justStunned, ticksToApply);
         } else {
           // Success - restart action normally
-          builder.restartCurrentAction(action, random: rng);
+          builder.restartCurrentAction(registries.items, action, random: rng);
           return (ForegroundResult.continued, ticksToApply);
         }
       } else {
@@ -709,7 +740,7 @@ enum ForegroundResult {
       }
     }
 
-    final canRepeat = completeAction(builder, action, random: rng);
+    final canRepeat = completeAction(registries, builder, action, random: rng);
 
     // For mining, check if node just depleted
     if (action is MiningAction && !canRepeat) {
@@ -723,8 +754,8 @@ enum ForegroundResult {
     }
 
     // Restart action if possible, otherwise stop
-    if (canRepeat && builder.state.canStartAction(action)) {
-      builder.restartCurrentAction(action, random: rng);
+    if (canRepeat && builder.state.canStartAction(registries.items, action)) {
+      builder.restartCurrentAction(registries.items, action, random: rng);
       return (ForegroundResult.continued, ticksToApply);
     } else {
       // Determine stop reason: inventory full (can't repeat) or out of inputs
@@ -743,6 +774,7 @@ enum ForegroundResult {
 /// Processes one iteration of a CombatAction foreground.
 /// Returns how many ticks were consumed and whether to continue.
 (ForegroundResult, Tick) _processCombatForeground(
+  Registries registries,
   StateUpdateBuilder builder,
   CombatAction action,
   Tick ticksAvailable,
@@ -861,15 +893,28 @@ enum ForegroundResult {
 
 /// Dispatches foreground processing based on action type.
 (ForegroundResult, Tick) _processForegroundAction(
+  Registries registries,
   StateUpdateBuilder builder,
   Action action,
   Tick ticksAvailable,
   Random rng,
 ) {
   if (action is CombatAction) {
-    return _processCombatForeground(builder, action, ticksAvailable, rng);
+    return _processCombatForeground(
+      registries,
+      builder,
+      action,
+      ticksAvailable,
+      rng,
+    );
   } else if (action is SkillAction) {
-    return _processSkillForeground(builder, action, ticksAvailable, rng);
+    return _processSkillForeground(
+      registries,
+      builder,
+      action,
+      ticksAvailable,
+      rng,
+    );
   } else {
     throw StateError('Unknown action type: ${action.runtimeType}');
   }
@@ -889,6 +934,7 @@ typedef StopCondition = bool Function(GlobalState state);
 /// - The foreground action stops (death, inventory full, etc.)
 /// - No progress can be made
 void _consumeTicksCore(
+  Registries registries,
   StateUpdateBuilder builder,
   Tick maxTicks, {
   required Random random,
@@ -908,6 +954,7 @@ void _consumeTicksCore(
     // Pass active action name so we can exclude respawn handling for it
     // (foreground handles respawn synchronously for the active action)
     final backgroundActions = _getBackgroundActions(
+      registries.actions,
       builder.state,
       activeActionName: activeAction?.name,
     );
@@ -919,8 +966,9 @@ void _consumeTicksCore(
 
     if (activeAction != null) {
       // Process foreground action until next "event"
-      final action = actionRegistry.byName(activeAction.name);
+      final action = registries.actions.byName(activeAction.name);
       final (foregroundResult, ticksUsed) = _processForegroundAction(
+        registries,
         builder,
         action,
         ticksRemaining,
@@ -977,11 +1025,12 @@ void _consumeTicksCore(
 ///
 /// Consumes exactly [ticks] ticks (or stops early if the action stops).
 void consumeTicks(
+  Registries registries,
   StateUpdateBuilder builder,
   Tick ticks, {
   required Random random,
 }) {
-  _consumeTicksCore(builder, ticks, random: random);
+  _consumeTicksCore(registries, builder, ticks, random: random);
 }
 
 /// Consumes ticks until a condition is met.
@@ -1001,12 +1050,14 @@ void consumeTicks(
 /// );
 /// ```
 void consumeTicksUntil(
+  Registries registries,
   StateUpdateBuilder builder, {
   required Random random,
   required StopCondition stopCondition,
   Tick maxTicks = 360000, // 10 hours of game time
 }) {
   _consumeTicksCore(
+    registries,
     builder,
     maxTicks,
     random: random,
@@ -1016,6 +1067,7 @@ void consumeTicksUntil(
 
 /// Consumes a specified number of ticks and returns the changes.
 (TimeAway, GlobalState) consumeManyTicks(
+  Registries registries,
   GlobalState state,
   Tick ticks, {
   DateTime? endTime,
@@ -1027,7 +1079,7 @@ void consumeTicksUntil(
     return (TimeAway.empty(), state);
   }
   final builder = StateUpdateBuilder(state);
-  consumeTicks(builder, ticks, random: random);
+  consumeTicks(registries, builder, ticks, random: random);
   final startTime = state.updatedAt;
   final calculatedEndTime =
       endTime ??
@@ -1036,7 +1088,7 @@ void consumeTicksUntil(
       );
   // For TimeAway, we only need the action for predictions.
   // Combat actions return empty predictions anyway, so null is fine.
-  final action = actionRegistry.byName(activeAction.name);
+  final action = registries.actions.byName(activeAction.name);
   // Convert stoppedAtTick to Duration if action stopped
   final stoppedAfter = builder.stoppedAtTick != null
       ? durationFromTicks(builder.stoppedAtTick!)
@@ -1044,7 +1096,7 @@ void consumeTicksUntil(
   final timeAway = TimeAway(
     startTime: startTime,
     endTime: calculatedEndTime,
-    activeSkill: state.activeSkill,
+    activeSkill: state.activeSkill(registries.actions),
     // Only pass SkillActions - CombatActions don't support predictions
     activeAction: action is SkillAction ? action : null,
     changes: builder.changes,

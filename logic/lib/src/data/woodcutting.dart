@@ -1,5 +1,4 @@
 import 'actions.dart';
-import 'melvor_data.dart';
 import 'melvor_id.dart';
 
 /// Parses a Melvor item ID like "melvorD:Normal_Logs" to extract the name.
@@ -103,22 +102,4 @@ List<WoodcuttingTree> extractWoodcuttingTrees(Map<String, dynamic> json) {
   }
 
   return [];
-}
-
-/// The global list of woodcutting actions, initialized from MelvorData.
-late List<WoodcuttingTree> woodcuttingActions;
-
-/// Initializes the global woodcuttingActions from MelvorData.
-void initializeWoodcutting(MelvorData data) {
-  // Search through all data files for woodcutting trees.
-  // Demo data contains the base trees, full data may have expansions.
-  List<WoodcuttingTree> trees = [];
-  for (final json in data.rawDataFiles) {
-    final extracted = extractWoodcuttingTrees(json);
-    if (extracted.isNotEmpty) {
-      trees = extracted;
-    }
-  }
-  trees.sort((a, b) => a.unlockLevel.compareTo(b.unlockLevel));
-  woodcuttingActions = trees;
 }

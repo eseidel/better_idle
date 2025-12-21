@@ -13,18 +13,19 @@ void main() {
   late Item lobster;
 
   setUpAll(() async {
-    await ensureItemsInitialized();
-    normalLogs = itemRegistry.byName('Normal Logs');
-    oakLogs = itemRegistry.byName('Oak Logs');
-    birdNest = itemRegistry.byName('Bird Nest');
-    shrimp = itemRegistry.byName('Shrimp');
-    lobster = itemRegistry.byName('Lobster');
+    await loadTestRegistries();
+    normalLogs = testItems.byName('Normal Logs');
+    oakLogs = testItems.byName('Oak Logs');
+    birdNest = testItems.byName('Bird Nest');
+    shrimp = testItems.byName('Shrimp');
+    lobster = testItems.byName('Lobster');
   });
 
   test('GlobalState toJson/fromJson round-trip', () {
     // Create a state with TimeAway data
     final originalState = GlobalState.test(
-      inventory: Inventory.fromItems([
+      testItems,
+      inventory: Inventory.fromItems(testItems, [
         ItemStack(normalLogs, count: 5),
         ItemStack(oakLogs, count: 3),
       ]),
@@ -61,7 +62,7 @@ void main() {
     final json = originalState.toJson();
 
     // Convert back from JSON
-    final loaded = GlobalState.fromJson(json);
+    final loaded = GlobalState.fromJson(testRegistries, json);
 
     // Verify all fields match
     expect(loaded.updatedAt, originalState.updatedAt);
@@ -99,7 +100,10 @@ void main() {
   test('GlobalState clearAction clears activeAction', () {
     // Create a state with an activeAction
     final stateWithAction = GlobalState.test(
-      inventory: Inventory.fromItems([ItemStack(normalLogs, count: 5)]),
+      testItems,
+      inventory: Inventory.fromItems(testItems, [
+        ItemStack(normalLogs, count: 5),
+      ]),
       activeAction: const ActiveAction(
         name: 'Normal Tree',
         remainingTicks: 15,
@@ -122,7 +126,10 @@ void main() {
   test('GlobalState clearTimeAway clears timeAway', () {
     // Create a state with timeAway
     final stateWithTimeAway = GlobalState.test(
-      inventory: Inventory.fromItems([ItemStack(normalLogs, count: 5)]),
+      testItems,
+      inventory: Inventory.fromItems(testItems, [
+        ItemStack(normalLogs, count: 5),
+      ]),
       activeAction: const ActiveAction(
         name: 'Normal Tree',
         remainingTicks: 15,
@@ -157,7 +164,8 @@ void main() {
   test('GlobalState sellItem removes items and adds GP', () {
     // Create a state with items and some existing GP
     final initialState = GlobalState.test(
-      inventory: Inventory.fromItems([
+      testItems,
+      inventory: Inventory.fromItems(testItems, [
         ItemStack(normalLogs, count: 10),
         ItemStack(oakLogs, count: 5),
         ItemStack(birdNest, count: 2),
@@ -209,7 +217,10 @@ void main() {
   test('GlobalState sellItem with zero GP', () {
     // Test selling when starting with zero GP
     final initialState = GlobalState.test(
-      inventory: Inventory.fromItems([ItemStack(normalLogs, count: 5)]),
+      testItems,
+      inventory: Inventory.fromItems(testItems, [
+        ItemStack(normalLogs, count: 5),
+      ]),
       updatedAt: DateTime(2024, 1, 1, 12),
     );
 
@@ -230,7 +241,7 @@ void main() {
         foodSlots: [ItemStack(shrimp, count: 10), null, null],
         selectedFoodSlot: 0,
       );
-      final state = GlobalState.test(equipment: equipment);
+      final state = GlobalState.test(testItems, equipment: equipment);
 
       final newState = state.unequipFood(0);
 
@@ -247,7 +258,10 @@ void main() {
         selectedFoodSlot: 0,
       );
       final state = GlobalState.test(
-        inventory: Inventory.fromItems([ItemStack(shrimp, count: 5)]),
+        testItems,
+        inventory: Inventory.fromItems(testItems, [
+          ItemStack(shrimp, count: 5),
+        ]),
         equipment: equipment,
       );
 
@@ -260,12 +274,12 @@ void main() {
     });
 
     test('throws ArgumentError when slot is empty', () {
-      final state = GlobalState.test();
+      final state = GlobalState.test(testItems);
       expect(() => state.unequipFood(0), throwsArgumentError);
     });
 
     test('throws ArgumentError when slot index is invalid', () {
-      final state = GlobalState.test();
+      final state = GlobalState.test(testItems);
       expect(() => state.unequipFood(-1), throwsArgumentError);
       expect(() => state.unequipFood(3), throwsArgumentError);
     });
@@ -281,7 +295,8 @@ void main() {
         selectedFoodSlot: 0,
       );
       final state = GlobalState.test(
-        inventory: Inventory.fromItems(items),
+        testItems,
+        inventory: Inventory.fromItems(testItems, items),
         equipment: equipment,
       );
 
@@ -299,7 +314,8 @@ void main() {
         selectedFoodSlot: 0,
       );
       final state = GlobalState.test(
-        inventory: Inventory.fromItems(items),
+        testItems,
+        inventory: Inventory.fromItems(testItems, items),
         equipment: equipment,
       );
 
@@ -318,7 +334,7 @@ void main() {
         ],
         selectedFoodSlot: 0,
       );
-      final state = GlobalState.test(equipment: equipment);
+      final state = GlobalState.test(testItems, equipment: equipment);
 
       // Unequip from slot 1
       final newState = state.unequipFood(1);
@@ -331,14 +347,14 @@ void main() {
 
   group('rollDurationWithModifiers', () {
     test('woodcutting mastery 99 applies 0.2s flat reduction', () {
-      final normalTree = actionRegistry.skillActionByName('Normal Tree');
+      final normalTree = testActions.skillActionByName('Normal Tree');
       // Normal Tree has 3 second duration = 30 ticks
       expect(normalTree.minDuration, const Duration(seconds: 3));
 
       final random = Random(42);
 
       // State with no mastery - should get full 30 ticks
-      final stateNoMastery = GlobalState.test();
+      final stateNoMastery = GlobalState.test(testItems);
       final ticksNoMastery = stateNoMastery.rollDurationWithModifiers(
         normalTree,
         random,
@@ -348,6 +364,7 @@ void main() {
       // State with mastery level 98 (just below threshold) - should get full 30 ticks
       final xpForLevel98 = startXpForLevel(98);
       final stateMastery98 = GlobalState.test(
+        testItems,
         actionStates: {'Normal Tree': ActionState(masteryXp: xpForLevel98)},
       );
       expect(stateMastery98.actionState('Normal Tree').masteryLevel, 98);
@@ -360,6 +377,7 @@ void main() {
       // State with mastery level 99 - should get 28 ticks (30 - 2 = 0.2s reduction)
       final xpForLevel99 = startXpForLevel(99);
       final stateMastery99 = GlobalState.test(
+        testItems,
         actionStates: {'Normal Tree': ActionState(masteryXp: xpForLevel99)},
       );
       expect(stateMastery99.actionState('Normal Tree').masteryLevel, 99);
@@ -371,7 +389,7 @@ void main() {
     });
 
     test('woodcutting mastery 99 combines with shop upgrades', () {
-      final normalTree = actionRegistry.skillActionByName('Normal Tree');
+      final normalTree = testActions.skillActionByName('Normal Tree');
       final random = Random(42);
 
       // State with mastery 99 AND Iron Axe (5% reduction)
@@ -380,6 +398,7 @@ void main() {
       // After flat -2: 29 - 2 = 27 ticks
       final xpForLevel99 = startXpForLevel(99);
       final stateWithBoth = GlobalState.test(
+        testItems,
         actionStates: {'Normal Tree': ActionState(masteryXp: xpForLevel99)},
         shop: const ShopState(bankSlots: 0, axeLevel: 1), // Iron Axe
       );
@@ -402,9 +421,9 @@ void main() {
     late Item rawChicken;
 
     setUpAll(() {
-      eggChest = itemRegistry.byName('Egg Chest');
-      feathers = itemRegistry.byName('Feathers');
-      rawChicken = itemRegistry.byName('Raw Chicken');
+      eggChest = testItems.byName('Egg Chest');
+      feathers = testItems.byName('Feathers');
+      rawChicken = testItems.byName('Raw Chicken');
     });
 
     // initialBankSlots is 20, so to get specific capacities we subtract from 20
@@ -412,13 +431,17 @@ void main() {
 
     test('opens a single item successfully', () {
       final state = GlobalState.test(
-        inventory: Inventory.fromItems([ItemStack(eggChest, count: 1)]),
+        testItems,
+        inventory: Inventory.fromItems(testItems, [
+          ItemStack(eggChest, count: 1),
+        ]),
         // Capacity = 20 + (-18) = 2 (enough for chest + drop)
         shop: const ShopState(bankSlots: -18),
       );
 
       final random = Random(42); // Seeded for determinism
       final (newState, result) = state.openItems(
+        testItems,
         eggChest,
         count: 1,
         random: random,
@@ -453,13 +476,17 @@ void main() {
 
     test('opens multiple items and combines drops', () {
       final state = GlobalState.test(
-        inventory: Inventory.fromItems([ItemStack(eggChest, count: 5)]),
+        testItems,
+        inventory: Inventory.fromItems(testItems, [
+          ItemStack(eggChest, count: 5),
+        ]),
         // Capacity = 20 + (-17) = 3 (chest + both possible drop types)
         shop: const ShopState(bankSlots: -17),
       );
 
       final random = Random(123);
       final (newState, result) = state.openItems(
+        testItems,
         eggChest,
         count: 5,
         random: random,
@@ -487,12 +514,16 @@ void main() {
       // Create state with full inventory (1 slot with chest, 0 extra slots)
       // Capacity = 20 + (-19) = 1 slot, filled by chest stack
       final state = GlobalState.test(
-        inventory: Inventory.fromItems([ItemStack(eggChest, count: 3)]),
+        testItems,
+        inventory: Inventory.fromItems(testItems, [
+          ItemStack(eggChest, count: 3),
+        ]),
         shop: const ShopState(bankSlots: -19), // Capacity = 1
       );
 
       final random = Random(42);
       final (newState, result) = state.openItems(
+        testItems,
         eggChest,
         count: 3,
         random: random,
@@ -515,13 +546,17 @@ void main() {
       // Open 2: if drop is same type, it stacks and we continue
       //         if drop is different type, we can't add, so we stop
       final state = GlobalState.test(
-        inventory: Inventory.fromItems([ItemStack(eggChest, count: 10)]),
+        testItems,
+        inventory: Inventory.fromItems(testItems, [
+          ItemStack(eggChest, count: 10),
+        ]),
         shop: const ShopState(bankSlots: -18), // Capacity = 2
       );
 
       // Seed 999 should give us a mix that eventually hits a different drop
       final random = Random(999);
       final (newState, result) = state.openItems(
+        testItems,
         eggChest,
         count: 10,
         random: random,
@@ -550,7 +585,10 @@ void main() {
       // the unopened chests remain in inventory
       // Capacity = 20 + (-18) = 2 slots (chest + 1 drop type)
       final state = GlobalState.test(
-        inventory: Inventory.fromItems([ItemStack(eggChest, count: 5)]),
+        testItems,
+        inventory: Inventory.fromItems(testItems, [
+          ItemStack(eggChest, count: 5),
+        ]),
         shop: const ShopState(bankSlots: -18), // Capacity = 2
       );
 
@@ -558,6 +596,7 @@ void main() {
       for (var seed = 0; seed < 100; seed++) {
         final random = Random(seed);
         final (newState, result) = state.openItems(
+          testItems,
           eggChest,
           count: 5,
           random: random,
@@ -588,33 +627,44 @@ void main() {
 
     test('throws when item is not openable', () {
       final state = GlobalState.test(
-        inventory: Inventory.fromItems([ItemStack(normalLogs, count: 5)]),
+        testItems,
+        inventory: Inventory.fromItems(testItems, [
+          ItemStack(normalLogs, count: 5),
+        ]),
       );
 
       expect(
-        () => state.openItems(normalLogs, count: 1, random: Random()),
+        () =>
+            state.openItems(testItems, normalLogs, count: 1, random: Random()),
         throwsA(isA<StateError>()),
       );
     });
 
     test('throws when item is not in inventory', () {
-      final state = GlobalState.test(inventory: const Inventory.empty());
+      final state = GlobalState.test(
+        testItems,
+        inventory: Inventory.empty(testItems),
+      );
 
       expect(
-        () => state.openItems(eggChest, count: 1, random: Random()),
+        () => state.openItems(testItems, eggChest, count: 1, random: Random()),
         throwsA(isA<StateError>()),
       );
     });
 
     test('clamps count to available quantity', () {
       final state = GlobalState.test(
-        inventory: Inventory.fromItems([ItemStack(eggChest, count: 2)]),
+        testItems,
+        inventory: Inventory.fromItems(testItems, [
+          ItemStack(eggChest, count: 2),
+        ]),
         // Enough capacity for drops
         shop: const ShopState(bankSlots: -17), // Capacity = 3
       );
 
       final random = Random(42);
       final (newState, result) = state.openItems(
+        testItems,
         eggChest,
         count: 100, // Request more than we have
         random: random,

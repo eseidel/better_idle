@@ -20,6 +20,7 @@ library;
 
 import 'package:logic/src/consume_ticks.dart';
 import 'package:logic/src/data/actions.dart';
+import 'package:logic/src/data/registries.dart';
 import 'package:logic/src/data/xp.dart';
 import 'package:logic/src/state.dart';
 import 'package:logic/src/tick.dart';
@@ -144,6 +145,7 @@ int? ticksUntilNextMasteryLevel(GlobalState state, Rates rates) {
 /// Uses allDropsForAction which includes action outputs (via rewardsAtLevel),
 /// skill-level drops, and global drops.
 Map<String, double> _computeItemFlowsPerAction(
+  DropsRegistry drops,
   SkillAction action,
   int masteryLevel,
 ) {
@@ -151,11 +153,11 @@ Map<String, double> _computeItemFlowsPerAction(
   // - Action outputs (via rewardsForMasteryLevel -> rewardsAtLevel)
   // - Skill-level drops (e.g., Bobby's Pocket for thieving)
   // - Global drops (e.g., gems)
-  final drops = dropsRegistry.allDropsForAction(
+  final dropsForAction = drops.allDropsForAction(
     action,
     masteryLevel: masteryLevel,
   );
-  return expectedItemsForDrops(drops);
+  return expectedItemsForDrops(dropsForAction);
 }
 
 /// Estimates expected rates (flows) for the current state.
@@ -165,13 +167,13 @@ Map<String, double> _computeItemFlowsPerAction(
 ///
 /// Note: This function reports **flows** without assuming any valuation
 /// policy. Use a [ValueModel] to convert flows into a scalar value.
-Rates estimateRates(GlobalState state) {
+Rates estimateRates(Registries registries, GlobalState state) {
   final activeAction = state.activeAction;
   if (activeAction == null) {
     return Rates.empty;
   }
 
-  final action = actionRegistry.byName(activeAction.name);
+  final action = registries.actions.byName(activeAction.name);
 
   // Only skill actions have predictable rates
   if (action is! SkillAction) {
@@ -191,7 +193,11 @@ Rates estimateRates(GlobalState state) {
 
   // Compute item flows per action
   final masteryLevel = state.actionState(action.name).masteryLevel;
-  final itemFlowsPerAction = _computeItemFlowsPerAction(action, masteryLevel);
+  final itemFlowsPerAction = _computeItemFlowsPerAction(
+    registries.drops,
+    action,
+    masteryLevel,
+  );
 
   // For thieving, calculate rates accounting for stun time on failure.
   // On failure, the player is stunned for stunnedDurationTicks, which
@@ -233,7 +239,11 @@ Rates estimateRates(GlobalState state) {
     final xpPerTickBySkill = <Skill, double>{action.skill: xpPerTick};
 
     // Mastery XP is also only gained on success
-    final baseMasteryXpPerAction = masteryXpPerAction(state, action);
+    final baseMasteryXpPerAction = masteryXpPerAction(
+      registries.actions,
+      state,
+      action,
+    );
     final expectedMasteryXpPerAction = successChance * baseMasteryXpPerAction;
     final masteryXpPerTick = expectedMasteryXpPerAction / effectiveTicks;
 
@@ -266,7 +276,11 @@ Rates estimateRates(GlobalState state) {
   final xpPerTickBySkill = <Skill, double>{action.skill: xpPerTick};
 
   // Mastery XP rate
-  final baseMasteryXpPerAction = masteryXpPerAction(state, action);
+  final baseMasteryXpPerAction = masteryXpPerAction(
+    registries.actions,
+    state,
+    action,
+  );
   final masteryXpPerTick = baseMasteryXpPerAction / expectedTicks;
 
   // Item types per tick for inventory estimation

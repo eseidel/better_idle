@@ -1,18 +1,14 @@
 import 'package:logic/logic.dart';
 
-/// Flag to ensure items are only initialized once.
-bool _itemsInitialized = false;
+/// Standard registries for tests. Must call [loadTestRegistries] first.
+late Registries testRegistries;
 
-/// Ensures the itemRegistry is initialized for tests.
-///
-/// This should be called in setUpAll() for any test file that uses itemRegistry.
-/// It's safe to call multiple times; subsequent calls are no-ops.
-Future<void> ensureItemsInitialized() async {
-  if (_itemsInitialized) return;
-  _itemsInitialized = true;
-
-  final melvorData = await MelvorData.load();
-  initializeItems(melvorData);
-  initializeWoodcutting(melvorData);
-  initializeActions();
+/// Loads the test registries. Call this in setUpAll().
+Future<void> loadTestRegistries() async {
+  testRegistries = await loadRegistries();
 }
+
+/// Shorthand accessors for test registries.
+ItemRegistry get testItems => testRegistries.items;
+ActionRegistry get testActions => testRegistries.actions;
+DropsRegistry get testDrops => testRegistries.drops;

@@ -7,8 +7,8 @@ void main() {
   late SkillAction normalTree;
 
   setUpAll(() async {
-    await ensureItemsInitialized();
-    normalTree = actionRegistry.byName('Normal Tree') as SkillAction;
+    await loadTestRegistries();
+    normalTree = testActions.byName('Normal Tree') as SkillAction;
   });
 
   test('TimeAway duration does not update on mergeChanges', () {
@@ -57,13 +57,13 @@ void main() {
   group('itemsGainedPerHour', () {
     test('returns empty map when no active action', () {
       final timeAway = TimeAway.test();
-      expect(timeAway.itemsGainedPerHour, isEmpty);
+      expect(timeAway.itemsGainedPerHour(testDrops), isEmpty);
     });
 
     test('returns empty map for combat action', () {
       final plantAction = combatActionByName('Plant');
       final timeAway = TimeAway.test(activeAction: plantAction);
-      expect(timeAway.itemsGainedPerHour, isEmpty);
+      expect(timeAway.itemsGainedPerHour(testDrops), isEmpty);
     });
 
     test('returns correct items per hour for skill action', () {
@@ -75,7 +75,7 @@ void main() {
         masteryLevels: {'Normal Tree': 0},
       );
 
-      final itemsPerHour = timeAway.itemsGainedPerHour;
+      final itemsPerHour = timeAway.itemsGainedPerHour(testDrops);
       expect(itemsPerHour['Normal Logs'], closeTo(1200, 1));
     });
 
@@ -88,7 +88,7 @@ void main() {
         masteryLevels: {'Normal Tree': 0},
       );
 
-      final itemsPerHour = timeAway.itemsGainedPerHour;
+      final itemsPerHour = timeAway.itemsGainedPerHour(testDrops);
       expect(itemsPerHour['Bird Nest'], closeTo(6, 0.1));
     });
 
@@ -102,7 +102,7 @@ void main() {
         masteryLevels: {'Normal Tree': 80},
       );
 
-      final itemsPerHour = timeAway.itemsGainedPerHour;
+      final itemsPerHour = timeAway.itemsGainedPerHour(testDrops);
       expect(itemsPerHour['Normal Logs'], 1680);
     });
   });
