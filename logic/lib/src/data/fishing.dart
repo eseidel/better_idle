@@ -1,4 +1,5 @@
 import 'package:logic/src/data/actions.dart';
+import 'package:logic/src/data/melvor_id.dart';
 import 'package:meta/meta.dart';
 
 @immutable
@@ -60,7 +61,7 @@ FishingAction _fishing(
     xp: xp,
     minDuration: Duration(seconds: min),
     maxDuration: Duration(seconds: max),
-    outputs: {fishName: 1},
+    outputs: {MelvorId.fromName(fishName): 1},
     area: areaObject,
   );
 }

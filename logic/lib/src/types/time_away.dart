@@ -232,7 +232,7 @@ class TimeAway {
 
     for (final entry in action.inputs.entries) {
       final itemsPerHour = entry.value * actionsPerHour;
-      result[entry.key] = itemsPerHour;
+      result[entry.key.name] = itemsPerHour;
     }
 
     return result;

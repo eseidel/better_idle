@@ -1,5 +1,6 @@
 import 'package:logic/src/data/actions.dart';
 import 'package:logic/src/data/melvor_data.dart';
+import 'package:logic/src/data/melvor_id.dart';
 
 /// Parses a Melvor category ID to determine the RockType.
 RockType parseRockType(String? category) {
@@ -37,7 +38,7 @@ MiningAction parseMiningAction(Map<String, dynamic> rock) {
     name: name,
     unlockLevel: level,
     xp: xp,
-    outputs: {productName: quantity},
+    outputs: {MelvorId.fromName(productName): quantity},
     respawnSeconds: respawnMs ~/ 1000,
     rockType: rockType,
   );

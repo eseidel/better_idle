@@ -305,7 +305,7 @@ void main() {
           unlockLevel: 1,
           duration: Duration(seconds: 1),
           xp: 10,
-          outputs: {'Normal Logs': 3}, // Count > 1
+          outputs: {MelvorId.fromName('Normal Logs'): 3}, // Count > 1
         );
         final random = Random(0);
 

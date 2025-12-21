@@ -12,6 +12,7 @@ import 'package:meta/meta.dart';
 
 import 'items.dart';
 import 'melvor_data.dart';
+import 'melvor_id.dart';
 
 export 'items.dart';
 export 'thieving.dart';
@@ -65,7 +66,9 @@ abstract class Action {
 }
 
 List<Droppable> defaultRewards(SkillAction action, int masteryLevel) {
-  return [...action.outputs.entries.map((e) => Drop(e.key, count: e.value))];
+  return [
+    ...action.outputs.entries.map((e) => Drop(e.key.name, count: e.value)),
+  ];
 }
 
 /// Default duration modifier function - returns no modifier.
@@ -88,7 +91,7 @@ List<Droppable> woodcuttingRewards(SkillAction action, int masteryLevel) {
   if (outputs.length != 1 || outputs.values.first != 1) {
     throw StateError('Unsupported outputs: $outputs.');
   }
-  final name = outputs.keys.first;
+  final name = outputs.keys.first.name;
   final doubleMultiplier = masteryLevel ~/ 10;
   final doublePercent = (doubleMultiplier * 0.05 * 100).toInt().clamp(0, 100);
   final singlePercent = (100 - doublePercent).clamp(0, 100);
@@ -136,8 +139,8 @@ class SkillAction extends Action {
   final int unlockLevel;
   final Duration minDuration;
   final Duration maxDuration;
-  final Map<String, int> inputs;
-  final Map<String, int> outputs;
+  final Map<MelvorId, int> inputs;
+  final Map<MelvorId, int> outputs;
 
   final List<Droppable> Function(SkillAction, int masteryLevel) rewardsAtLevel;
   final Modifier Function(SkillAction, int masteryLevel)
@@ -221,7 +224,7 @@ SkillAction _firemaking(
     unlockLevel: level,
     duration: Duration(seconds: seconds),
     xp: xp,
-    inputs: {'$name Logs': 1},
+    inputs: {MelvorId.fromName('$name Logs'): 1},
   );
 }
 
@@ -246,7 +249,7 @@ MiningAction _mining(
     name: name,
     unlockLevel: level,
     xp: xp,
-    outputs: {outputName: outputCount},
+    outputs: {MelvorId.fromName(outputName): outputCount},
     respawnSeconds: respawnSeconds,
     rockType: rockType,
   );
@@ -266,6 +269,10 @@ final miningActions = <MiningAction>[
   _mining('Iron', level: 15, xp: 14, respawnSeconds: 10),
 ];
 
+Map<MelvorId, int> _toMelvorIdMap(Map<String, int> map) {
+  return map.map((key, value) => MapEntry(MelvorId.fromName(key), value));
+}
+
 SkillAction _smithing(
   String name, {
   required int level,
@@ -280,8 +287,8 @@ SkillAction _smithing(
     unlockLevel: level,
     duration: Duration(seconds: 2),
     xp: xp,
-    inputs: inputs,
-    outputs: outputs ?? {name: 1},
+    inputs: _toMelvorIdMap(inputs),
+    outputs: _toMelvorIdMap(outputs ?? {name: 1}),
   );
 }
 
@@ -309,8 +316,8 @@ SkillAction _cooking(
     unlockLevel: level,
     duration: Duration(seconds: seconds),
     xp: xp,
-    inputs: {'Raw $name': 1},
-    outputs: {name: 1},
+    inputs: {MelvorId.fromName('Raw $name'): 1},
+    outputs: {MelvorId.fromName(name): 1},
   );
 }
 

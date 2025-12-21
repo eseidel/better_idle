@@ -113,8 +113,12 @@ class Item extends Equatable {
     // Parse media path, stripping query params (e.g., "?2").
     final media = (json['media'] as String?)?.split('?').first;
 
+    // Normalize ID to always have namespace (items in JSON may lack it).
+    final rawId = json['id'] as String;
+    final id = rawId.contains(':') ? rawId : 'melvorD:$rawId';
+
     return Item(
-      id: MelvorId(json['id'] as String),
+      id: MelvorId(id),
       name: json['name'] as String,
       itemType: json['itemType'] as String,
       sellsFor: json['sellsFor'] as int,
@@ -188,19 +192,19 @@ class Item extends Equatable {
 class ItemRegistry {
   ItemRegistry(List<Item> items) : _all = items {
     _byName = {for (final item in _all) item.name: item};
-    _byId = {for (final item in _all) item.id: item};
+    _byId = {for (final item in _all) item.id.toJson(): item};
   }
 
   final List<Item> _all;
   late final Map<String, Item> _byName;
-  late final Map<MelvorId, Item> _byId;
+  late final Map<String, Item> _byId;
 
   /// All registered items.
   List<Item> get all => _all;
 
   /// Returns the item by MelvorId, or throws a StateError if not found.
   Item byId(MelvorId id) {
-    final item = _byId[id];
+    final item = _byId[id.toJson()];
     if (item == null) {
       throw StateError('Item not found: $id');
     }

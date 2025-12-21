@@ -138,7 +138,7 @@ List<ActionSummary> buildActionSummaries(GlobalState state) {
       // Calculate expected gold per action from selling outputs
       var expectedGoldPerAction = 0.0;
       for (final output in action.outputs.entries) {
-        final item = registries.items.byName(output.key);
+        final item = registries.items.byId(output.key);
         expectedGoldPerAction += item.sellsFor * output.value;
       }
 

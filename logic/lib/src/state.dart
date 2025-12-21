@@ -431,7 +431,7 @@ class GlobalState {
     if (action is SkillAction) {
       // Check inputs
       for (final requirement in action.inputs.entries) {
-        final item = registries.items.byName(requirement.key);
+        final item = registries.items.byId(requirement.key);
         final itemCount = inventory.countOfItem(item);
         if (itemCount < requirement.value) {
           return false;
@@ -499,12 +499,12 @@ class GlobalState {
     if (action is SkillAction) {
       // Validate that all required items are available for skill actions
       for (final requirement in action.inputs.entries) {
-        final item = registries.items.byName(requirement.key);
+        final item = registries.items.byId(requirement.key);
         final itemCount = inventory.countOfItem(item);
         if (itemCount < requirement.value) {
           throw Exception(
             'Cannot start ${action.name}: Need ${requirement.value} '
-            '${requirement.key}, but only have $itemCount',
+            '${requirement.key.name}, but only have $itemCount',
           );
         }
       }

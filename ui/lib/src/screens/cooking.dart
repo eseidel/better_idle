@@ -81,9 +81,9 @@ class _SelectedActionDisplay extends StatelessWidget {
     final canStart = state.canStartAction(action);
 
     // Get healing value from output item if it exists
-    final outputName = action.outputs.keys.firstOrNull;
-    final outputItem = outputName != null
-        ? state.registries.items.byName(outputName)
+    final outputId = action.outputs.keys.firstOrNull;
+    final outputItem = outputId != null
+        ? state.registries.items.byId(outputId)
         : null;
     final healsFor = outputItem?.healsFor;
 
@@ -188,7 +188,7 @@ class _SelectedActionDisplay extends StatelessWidget {
 class _ItemList extends StatelessWidget {
   const _ItemList({required this.items});
 
-  final Map<String, int> items;
+  final Map<MelvorId, int> items;
 
   @override
   Widget build(BuildContext context) {
@@ -201,7 +201,7 @@ class _ItemList extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: items.entries.map((entry) {
-        return Text('${entry.value}x ${entry.key}');
+        return Text('${entry.value}x ${entry.key.name}');
       }).toList(),
     );
   }
@@ -210,11 +210,12 @@ class _ItemList extends StatelessWidget {
 class _InventoryItemList extends StatelessWidget {
   const _InventoryItemList({required this.items});
 
-  final Map<String, int> items;
+  final Map<MelvorId, int> items;
 
   @override
   Widget build(BuildContext context) {
-    final inventory = context.state.inventory;
+    final state = context.state;
+    final inventory = state.inventory;
 
     if (items.isEmpty) {
       return const Text(
@@ -225,10 +226,11 @@ class _InventoryItemList extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: items.entries.map((entry) {
-        final count = inventory.countByName(entry.key);
+        final item = state.registries.items.byId(entry.key);
+        final count = inventory.countOfItem(item);
         final hasEnough = count >= entry.value;
         return Text(
-          '$count ${entry.key}',
+          '$count ${entry.key.name}',
           style: TextStyle(
             color: hasEnough ? Style.successColor : Style.errorColor,
           ),

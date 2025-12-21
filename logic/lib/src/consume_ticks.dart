@@ -568,7 +568,7 @@ bool completeAction(
   final registries = builder.registries;
   // Consume required items
   for (final requirement in action.inputs.entries) {
-    final item = registries.items.byName(requirement.key);
+    final item = registries.items.byId(requirement.key);
     builder.removeInventory(ItemStack(item, count: requirement.value));
   }
 

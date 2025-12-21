@@ -353,7 +353,7 @@ class _RateCache {
           // Gold from thieving
           var expectedGoldPerAction = 0.0;
           for (final output in action.outputs.entries) {
-            final item = registries.items.byName(output.key);
+            final item = registries.items.byId(output.key);
             expectedGoldPerAction += item.sellsFor * output.value;
           }
           final expectedThievingGold = successChance * (1 + action.maxGold) / 2;
@@ -364,7 +364,7 @@ class _RateCache {
 
           var expectedGoldPerAction = 0.0;
           for (final output in action.outputs.entries) {
-            final item = registries.items.byName(output.key);
+            final item = registries.items.byId(output.key);
             expectedGoldPerAction += item.sellsFor * output.value;
           }
           goldRate = expectedGoldPerAction / expectedTicks;

@@ -32,8 +32,7 @@ class WoodcuttingTree extends SkillAction {
        );
 
   factory WoodcuttingTree.fromJson(Map<String, dynamic> json) {
-    final productId = json['productId'] as String;
-    final outputName = parseItemName(productId);
+    final productId = MelvorId(json['productId'] as String);
     final baseInterval = json['baseInterval'] as int;
 
     return WoodcuttingTree(
@@ -42,8 +41,8 @@ class WoodcuttingTree extends SkillAction {
       unlockLevel: json['level'] as int,
       duration: Duration(milliseconds: baseInterval),
       xp: json['baseExperience'] as int,
-      outputs: {outputName: 1},
-      productId: MelvorId(productId),
+      outputs: {productId: 1},
+      productId: productId,
       media: json['media'] as String,
     );
   }
@@ -58,7 +57,7 @@ class WoodcuttingTree extends SkillAction {
   int get durationSeconds => minDuration.inSeconds;
 
   /// The output item name (e.g., "Normal Logs").
-  String get outputName => outputs.keys.first;
+  String get outputName => outputs.keys.first.name;
 
   @override
   String toString() {
