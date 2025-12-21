@@ -60,7 +60,7 @@ class ToggleActionAction extends ReduxAction<GlobalState> {
     }
     // Otherwise, start this action (stops any other active action).
     final random = Random();
-    return state.startAction(itemRegistry, action, random: random);
+    return state.startAction(action, random: random);
   }
 }
 
@@ -210,7 +210,7 @@ class StartCombatAction extends ReduxAction<GlobalState> {
     }
     // Start the combat action (this stops any other active action)
     final random = Random();
-    return state.startAction(itemRegistry, combatAction, random: random);
+    return state.startAction(combatAction, random: random);
   }
 }
 
@@ -272,7 +272,6 @@ class OpenItemAction extends ReduxAction<GlobalState> {
   GlobalState? reduce() {
     final random = Random();
     final (newState, result) = state.openItems(
-      itemRegistry,
       item,
       count: count,
       random: random,
@@ -303,7 +302,7 @@ class DebugAddEggChestsAction extends ReduxAction<GlobalState> {
 
   @override
   GlobalState reduce() {
-    final eggChest = itemRegistry.byName('Egg Chest');
+    final eggChest = registries.items.byName('Egg Chest');
     final stack = ItemStack(eggChest, count: count);
     final newInventory = state.inventory.adding(stack);
     return state.copyWith(inventory: newInventory);
@@ -319,7 +318,7 @@ class DebugFillInventoryAction extends ReduxAction<GlobalState> {
 
     // Get items not already in inventory
     final existingItems = inventory.items.map((s) => s.item).toSet();
-    final availableItems = itemRegistry.all
+    final availableItems = registries.items.all
         .where((item) => !existingItems.contains(item))
         .toList();
 

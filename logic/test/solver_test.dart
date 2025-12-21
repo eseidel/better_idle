@@ -33,7 +33,6 @@ void main() {
     test('SwitchActivity clears existing action first', () {
       var state = GlobalState.empty(testRegistries);
       state = state.startAction(
-        testItems,
         testActions.byName('Raw Shrimp'),
         random: Random(0),
       );
@@ -88,7 +87,7 @@ void main() {
     test('advances state by specified ticks', () {
       var state = GlobalState.empty(testRegistries);
       final action = testActions.byName('Normal Tree');
-      state = state.startAction(testItems, action, random: Random(0));
+      state = state.startAction(action, random: Random(0));
       final initialGp = state.gp;
 
       // advance uses expected-value model for rate-modelable activities
@@ -103,7 +102,7 @@ void main() {
     test('is deterministic', () {
       var state = GlobalState.empty(testRegistries);
       final action = testActions.byName('Normal Tree');
-      state = state.startAction(testItems, action, random: Random(0));
+      state = state.startAction(action, random: Random(0));
 
       final result1 = advance(testRegistries, state, 100);
       final result2 = advance(testRegistries, state, 100);
@@ -119,7 +118,7 @@ void main() {
     test('returns same state when deltaTicks is 0', () {
       var state = GlobalState.empty(testRegistries);
       final action = testActions.byName('Normal Tree');
-      state = state.startAction(testItems, action, random: Random(0));
+      state = state.startAction(action, random: Random(0));
 
       final result = advance(testRegistries, state, 0);
 
@@ -147,7 +146,7 @@ void main() {
       var state = GlobalState.empty(testRegistries);
       // Start with an activity already running
       final action = testActions.byName('Normal Tree');
-      state = state.startAction(testItems, action, random: Random(0));
+      state = state.startAction(action, random: Random(0));
 
       // Small goal that should be reachable
       final result = solveToCredits(testRegistries, state, 10);
@@ -178,7 +177,7 @@ void main() {
       // Start with enough money for Iron Axe and activity running
       var state = GlobalState.empty(testRegistries).copyWith(gp: 50);
       final action = testActions.byName('Normal Tree');
-      state = state.startAction(testItems, action, random: Random(0));
+      state = state.startAction(action, random: Random(0));
 
       // Moderate goal - may or may not benefit from upgrade
       final result = solveToCredits(testRegistries, state, 200);
@@ -207,7 +206,7 @@ void main() {
     test('produces deterministic results', () {
       var state = GlobalState.empty(testRegistries);
       final action = testActions.byName('Normal Tree');
-      state = state.startAction(testItems, action, random: Random(0));
+      state = state.startAction(action, random: Random(0));
 
       final result1 = solveToCredits(testRegistries, state, 50);
       final result2 = solveToCredits(testRegistries, state, 50);
@@ -296,7 +295,7 @@ void main() {
     test('estimateRates returns hpLossPerTick for thieving', () {
       var state = GlobalState.empty(testRegistries);
       final action = testActions.byName('Man'); // Thieving action
-      state = state.startAction(testItems, action, random: Random(0));
+      state = state.startAction(action, random: Random(0));
 
       final rates = estimateRates(testRegistries, state);
 
@@ -311,7 +310,7 @@ void main() {
     test('estimateRates returns zero hpLossPerTick for non-thieving', () {
       var state = GlobalState.empty(testRegistries);
       final action = testActions.byName('Normal Tree');
-      state = state.startAction(testItems, action, random: Random(0));
+      state = state.startAction(action, random: Random(0));
 
       final rates = estimateRates(testRegistries, state);
 
@@ -321,7 +320,7 @@ void main() {
     test('ticksUntilDeath returns positive value for thieving', () {
       var state = GlobalState.empty(testRegistries);
       final action = testActions.byName('Man');
-      state = state.startAction(testItems, action, random: Random(0));
+      state = state.startAction(action, random: Random(0));
 
       final rates = estimateRates(testRegistries, state);
       final ticks = ticksUntilDeath(state, rates);
@@ -334,7 +333,7 @@ void main() {
     test('ticksUntilDeath returns null for non-thieving', () {
       var state = GlobalState.empty(testRegistries);
       final action = testActions.byName('Normal Tree');
-      state = state.startAction(testItems, action, random: Random(0));
+      state = state.startAction(action, random: Random(0));
 
       final rates = estimateRates(testRegistries, state);
       final ticks = ticksUntilDeath(state, rates);
@@ -346,7 +345,7 @@ void main() {
       // Create state with low HP thieving
       var state = GlobalState.empty(testRegistries);
       final action = testActions.byName('Man');
-      state = state.startAction(testItems, action, random: Random(0));
+      state = state.startAction(action, random: Random(0));
 
       // Damage the player to have only 2 HP left
       final lostHp = state.maxPlayerHp - 2;
@@ -367,7 +366,7 @@ void main() {
     test('advance does not stop activity before death', () {
       var state = GlobalState.empty(testRegistries);
       final action = testActions.byName('Man');
-      state = state.startAction(testItems, action, random: Random(0));
+      state = state.startAction(action, random: Random(0));
 
       final rates = estimateRates(testRegistries, state);
       final ticksToDeath = ticksUntilDeath(state, rates);
@@ -384,7 +383,7 @@ void main() {
     test('nextDecisionDelta includes death timing for thieving', () {
       var state = GlobalState.empty(testRegistries);
       final action = testActions.byName('Man');
-      state = state.startAction(testItems, action, random: Random(0));
+      state = state.startAction(action, random: Random(0));
 
       // Damage player to have only 5 HP left
       final lostHp = state.maxPlayerHp - 5;
@@ -407,7 +406,7 @@ void main() {
     test('ticksUntilNextSkillLevel returns positive value when gaining XP', () {
       var state = GlobalState.empty(testRegistries);
       final action = testActions.byName('Normal Tree');
-      state = state.startAction(testItems, action, random: Random(0));
+      state = state.startAction(action, random: Random(0));
 
       final rates = estimateRates(testRegistries, state);
       final ticks = ticksUntilNextSkillLevel(state, rates);
@@ -432,7 +431,7 @@ void main() {
       () {
         var state = GlobalState.empty(testRegistries);
         final action = testActions.byName('Normal Tree');
-        state = state.startAction(testItems, action, random: Random(0));
+        state = state.startAction(action, random: Random(0));
 
         final rates = estimateRates(testRegistries, state);
         final ticks = ticksUntilNextMasteryLevel(state, rates);
@@ -455,7 +454,7 @@ void main() {
     test('nextDecisionDelta includes skill level timing', () {
       var state = GlobalState.empty(testRegistries);
       final action = testActions.byName('Normal Tree');
-      state = state.startAction(testItems, action, random: Random(0));
+      state = state.startAction(action, random: Random(0));
 
       const goal = ReachGpGoal(100000); // High goal
       final candidates = enumerateCandidates(testRegistries, state, goal);
@@ -472,7 +471,7 @@ void main() {
     test('nextDecisionDelta includes mastery level timing for thieving', () {
       var state = GlobalState.empty(testRegistries);
       final action = testActions.byName('Man');
-      state = state.startAction(testItems, action, random: Random(0));
+      state = state.startAction(action, random: Random(0));
 
       const goal = ReachGpGoal(100000); // High goal
       final candidates = enumerateCandidates(testRegistries, state, goal);
@@ -498,7 +497,7 @@ void main() {
     test('estimateRates includes mastery XP rate', () {
       var state = GlobalState.empty(testRegistries);
       final action = testActions.byName('Normal Tree');
-      state = state.startAction(testItems, action, random: Random(0));
+      state = state.startAction(action, random: Random(0));
 
       final rates = estimateRates(testRegistries, state);
 
@@ -509,7 +508,7 @@ void main() {
     test('estimateRates includes mastery XP rate for thieving', () {
       var state = GlobalState.empty(testRegistries);
       final action = testActions.byName('Man');
-      state = state.startAction(testItems, action, random: Random(0));
+      state = state.startAction(action, random: Random(0));
 
       final rates = estimateRates(testRegistries, state);
 
@@ -522,7 +521,7 @@ void main() {
       // included in itemFlowsPerTick via allDropsForAction, not double-counted.
       var state = GlobalState.empty(testRegistries);
       final action = testActions.byName('Normal Tree');
-      state = state.startAction(testItems, action, random: Random(0));
+      state = state.startAction(action, random: Random(0));
 
       final rates = estimateRates(testRegistries, state);
 
@@ -549,7 +548,7 @@ void main() {
       // Woodcutting has Bird Nest as a skill-level drop (0.5% rate)
       var state = GlobalState.empty(testRegistries);
       final action = testActions.byName('Normal Tree');
-      state = state.startAction(testItems, action, random: Random(0));
+      state = state.startAction(action, random: Random(0));
 
       final rates = estimateRates(testRegistries, state);
 
@@ -575,7 +574,7 @@ void main() {
       // This should appear in itemFlowsPerTick and affect valuePerTick
       var state = GlobalState.empty(testRegistries);
       final action = thievingActionByName('Man');
-      state = state.startAction(testItems, action, random: Random(0));
+      state = state.startAction(action, random: Random(0));
 
       final rates = estimateRates(testRegistries, state);
 
@@ -641,7 +640,7 @@ void main() {
       // Setup: start woodcutting Normal Tree
       var state = GlobalState.empty(testRegistries);
       final action = testActions.byName('Normal Tree');
-      state = state.startAction(testItems, action, random: Random(42));
+      state = state.startAction(action, random: Random(42));
 
       // Normal Tree: 3 seconds (30 ticks), 10 XP per action
       // To get 10 XP, we need 1 action = 30 ticks

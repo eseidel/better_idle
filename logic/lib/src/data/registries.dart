@@ -36,12 +36,6 @@ Registries get registries {
   return _registries!;
 }
 
-/// Returns the loaded item registry. Throws if not yet loaded.
-ItemRegistry get itemRegistry => registries.items;
-
-/// Returns the loaded action registry. Throws if not yet loaded.
-ActionRegistry get actionRegistry => registries.actions;
-
 ItemRegistry initializeItems(MelvorData data) {
   final items = <Item>[];
   for (final name in data.itemNames) {

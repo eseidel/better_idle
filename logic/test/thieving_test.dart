@@ -163,7 +163,7 @@ void main() {
           Skill.thieving: SkillState(xp: 1154, masteryPoolXp: 0), // Level 10
           Skill.hitpoints: SkillState(xp: 1154, masteryPoolXp: 0), // Level 10
         },
-      ).startAction(testItems, golbinAction, random: random);
+      ).startAction(golbinAction, random: random);
 
       // Run many thieving attempts to get drops
       final random2 = Random(123);
@@ -266,7 +266,7 @@ void main() {
       final random = Random(0);
       final state = GlobalState.test(
         testRegistries,
-      ).startAction(testItems, manAction, random: random);
+      ).startAction(manAction, random: random);
 
       final builder = StateUpdateBuilder(state);
 
@@ -299,7 +299,7 @@ void main() {
       final random = Random(0);
       var state = GlobalState.test(
         testRegistries,
-      ).startAction(testItems, manAction, random: random);
+      ).startAction(manAction, random: random);
       final builder = StateUpdateBuilder(state);
 
       // Use a mock random that always succeeds
@@ -333,7 +333,7 @@ void main() {
         skillStates: const {
           Skill.hitpoints: SkillState(xp: 1154, masteryPoolXp: 0), // Level 10
         },
-      ).startAction(testItems, manAction, random: random);
+      ).startAction(manAction, random: random);
 
       final builder = StateUpdateBuilder(state);
 
@@ -376,7 +376,7 @@ void main() {
           ), // Level 10 = 100 HP
         },
         health: const HealthState(lostHp: 95), // Only 5 HP left (100 max)
-      ).startAction(testItems, manAction, random: random);
+      ).startAction(manAction, random: random);
 
       final builder = StateUpdateBuilder(state);
 
@@ -416,7 +416,7 @@ void main() {
             ), // Level 10 = 100 HP
           },
           health: const HealthState(lostHp: 95), // Only 5 HP left
-        ).startAction(testItems, manAction, random: random);
+        ).startAction(manAction, random: random);
 
         final builder = StateUpdateBuilder(state);
 
@@ -450,7 +450,7 @@ void main() {
             masteryPoolXp: 0,
           ), // Level 10 = 100 HP
         },
-      ).startAction(testItems, manAction, random: random);
+      ).startAction(manAction, random: random);
 
       final builder = StateUpdateBuilder(state);
 

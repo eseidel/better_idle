@@ -323,7 +323,7 @@ void main() {
       // Start with Man activity
       var state = GlobalState.empty(testRegistries);
       final manAction = testActions.byName('Man');
-      state = state.startAction(testItems, manAction, random: Random(0));
+      state = state.startAction(manAction, random: Random(0));
 
       // Get baseline rate with no upgrades
       final baseRates = estimateRates(testRegistries, state);
@@ -342,11 +342,7 @@ void main() {
         ),
       );
       // Re-apply the action since we changed state
-      upgradedState = upgradedState.startAction(
-        testItems,
-        manAction,
-        random: Random(0),
-      );
+      upgradedState = upgradedState.startAction(manAction, random: Random(0));
 
       // Get rate with all tool upgrades
       final upgradedRates = estimateRates(testRegistries, upgradedState);

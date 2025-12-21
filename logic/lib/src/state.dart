@@ -289,12 +289,12 @@ class GlobalState {
     );
   }
 
-  bool validate(ActionRegistry actions) {
+  bool validate() {
     // Confirm that activeAction.name is a valid action.
     final actionName = activeAction?.name;
     if (actionName != null) {
       // This will throw a StateError if the action is missing.
-      actions.byName(actionName);
+      registries.actions.byName(actionName);
     }
     return true;
   }
@@ -408,12 +408,12 @@ class GlobalState {
   /// Returns true if the game loop should be running.
   bool get shouldTick => isActive || hasActiveBackgroundTimers;
 
-  Skill? activeSkill(ActionRegistry actions) {
+  Skill? activeSkill() {
     final name = activeAction?.name;
     if (name == null) {
       return null;
     }
-    return actions.byName(name).skill;
+    return registries.actions.byName(name).skill;
   }
 
   /// Returns the number of unique item types (slots) used in inventory.
@@ -426,12 +426,12 @@ class GlobalState {
   bool get isInventoryFull => inventoryUsed >= inventoryCapacity;
 
   /// Returns true if all required inputs for the action are available.
-  bool canStartAction(ItemRegistry items, Action action) {
+  bool canStartAction(Action action) {
     // Only SkillActions have inputs to check
     if (action is SkillAction) {
       // Check inputs
       for (final requirement in action.inputs.entries) {
-        final item = items.byName(requirement.key);
+        final item = registries.items.byName(requirement.key);
         final itemCount = inventory.countOfItem(item);
         if (itemCount < requirement.value) {
           return false;
@@ -488,11 +488,7 @@ class GlobalState {
     return combined.applyToInt(ticks);
   }
 
-  GlobalState startAction(
-    ItemRegistry items,
-    Action action, {
-    required Random random,
-  }) {
+  GlobalState startAction(Action action, {required Random random}) {
     if (isStunned) {
       throw const StunnedException('Cannot start action while stunned');
     }
@@ -503,7 +499,7 @@ class GlobalState {
     if (action is SkillAction) {
       // Validate that all required items are available for skill actions
       for (final requirement in action.inputs.entries) {
-        final item = items.byName(requirement.key);
+        final item = registries.items.byName(requirement.key);
         final itemCount = inventory.countOfItem(item);
         if (itemCount < requirement.value) {
           throw Exception(
@@ -706,7 +702,6 @@ class GlobalState {
   /// Returns (newState, OpenResult) with combined drops and any error.
   /// Throws StateError if player doesn't have the item or item is not openable.
   (GlobalState, OpenResult) openItems(
-    ItemRegistry items,
     Item item, {
     required int count,
     required Random random,
@@ -728,7 +723,7 @@ class GlobalState {
 
     for (var i = 0; i < toOpen; i++) {
       // Roll the drop for this item
-      final drop = item.open(items, random);
+      final drop = item.open(registries.items, random);
 
       // Check if we can add the drop
       if (!currentInventory.canAdd(drop.item, capacity: inventoryCapacity)) {

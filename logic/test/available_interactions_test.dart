@@ -53,7 +53,7 @@ void main() {
       var state = GlobalState.empty(testRegistries).copyWith(gp: 500);
       final action = testActions.byName('Normal Tree');
       final random = Random(0);
-      state = state.startAction(testItems, action, random: random);
+      state = state.startAction(action, random: random);
 
       final interactions = availableInteractions(testRegistries, state);
       final switches = interactions.whereType<SwitchActivity>().toList();

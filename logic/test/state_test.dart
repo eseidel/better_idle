@@ -441,7 +441,6 @@ void main() {
 
       final random = Random(42); // Seeded for determinism
       final (newState, result) = state.openItems(
-        testItems,
         eggChest,
         count: 1,
         random: random,
@@ -486,7 +485,6 @@ void main() {
 
       final random = Random(123);
       final (newState, result) = state.openItems(
-        testItems,
         eggChest,
         count: 5,
         random: random,
@@ -523,7 +521,6 @@ void main() {
 
       final random = Random(42);
       final (newState, result) = state.openItems(
-        testItems,
         eggChest,
         count: 3,
         random: random,
@@ -556,7 +553,6 @@ void main() {
       // Seed 999 should give us a mix that eventually hits a different drop
       final random = Random(999);
       final (newState, result) = state.openItems(
-        testItems,
         eggChest,
         count: 10,
         random: random,
@@ -596,7 +592,6 @@ void main() {
       for (var seed = 0; seed < 100; seed++) {
         final random = Random(seed);
         final (newState, result) = state.openItems(
-          testItems,
           eggChest,
           count: 5,
           random: random,
@@ -634,8 +629,7 @@ void main() {
       );
 
       expect(
-        () =>
-            state.openItems(testItems, normalLogs, count: 1, random: Random()),
+        () => state.openItems(normalLogs, count: 1, random: Random()),
         throwsA(isA<StateError>()),
       );
     });
@@ -647,7 +641,7 @@ void main() {
       );
 
       expect(
-        () => state.openItems(testItems, eggChest, count: 1, random: Random()),
+        () => state.openItems(eggChest, count: 1, random: Random()),
         throwsA(isA<StateError>()),
       );
     });
@@ -664,7 +658,6 @@ void main() {
 
       final random = Random(42);
       final (newState, result) = state.openItems(
-        testItems,
         eggChest,
         count: 100, // Request more than we have
         random: random,

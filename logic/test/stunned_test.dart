@@ -107,7 +107,7 @@ void main() {
       );
       final random = Random(0);
       expect(
-        () => state.startAction(testItems, normalTree, random: random),
+        () => state.startAction(normalTree, random: random),
         throwsA(isA<StunnedException>()),
       );
     });
@@ -128,7 +128,7 @@ void main() {
     test('startAction works when not stunned', () {
       final state = GlobalState.test(testRegistries);
       final random = Random(0);
-      final newState = state.startAction(testItems, normalTree, random: random);
+      final newState = state.startAction(normalTree, random: random);
       expect(newState.activeAction, isNotNull);
       expect(newState.activeAction!.name, 'Normal Tree');
     });

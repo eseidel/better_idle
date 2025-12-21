@@ -64,7 +64,7 @@ GlobalState _applySwitchActivity(
   }
 
   // Start the new action
-  return newState.startAction(registries.items, action, random: random);
+  return newState.startAction(action, random: random);
 }
 
 /// Buys an upgrade from the shop.

@@ -15,7 +15,7 @@ class XpBadgesRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final perAction = xpPerAction(actionRegistry, context.state, action);
+    final perAction = xpPerAction(registries.actions, context.state, action);
     return Row(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [

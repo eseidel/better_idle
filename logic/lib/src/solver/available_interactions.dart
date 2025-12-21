@@ -71,7 +71,7 @@ List<SwitchActivity> _availableActivitySwitches(
       if (action.unlockLevel > skillLevel) continue;
 
       // Skip if action can't be started (missing inputs, depleted node, etc.)
-      if (!state.canStartAction(registries.items, action)) continue;
+      if (!state.canStartAction(action)) continue;
 
       switches.add(SwitchActivity(action.name));
     }

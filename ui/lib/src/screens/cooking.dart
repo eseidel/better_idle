@@ -21,7 +21,7 @@ class _CookingPageState extends State<CookingPage> {
   @override
   Widget build(BuildContext context) {
     const skill = Skill.cooking;
-    final actions = actionRegistry.forSkill(skill).toList();
+    final actions = registries.actions.forSkill(skill).toList();
     final skillState = context.state.skillState(skill);
 
     // Default to first action if none selected
@@ -78,12 +78,12 @@ class _SelectedActionDisplay extends StatelessWidget {
     final state = context.state;
     final actionState = state.actionState(action.name);
     final isActive = state.activeAction?.name == action.name;
-    final canStart = state.canStartAction(itemRegistry, action);
+    final canStart = state.canStartAction(action);
 
     // Get healing value from output item if it exists
     final outputName = action.outputs.keys.firstOrNull;
     final outputItem = outputName != null
-        ? itemRegistry.byName(outputName)
+        ? registries.items.byName(outputName)
         : null;
     final healsFor = outputItem?.healsFor;
 

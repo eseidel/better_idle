@@ -18,7 +18,7 @@ class SkillTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final currentLocation = GoRouterState.of(context).uri.path;
     final routeName = skill.routeName;
-    final activeSkill = context.state.activeSkill(actionRegistry);
+    final activeSkill = context.state.activeSkill();
     final isActiveSkill = activeSkill == skill;
     final isSelected = selected || currentLocation == '/$routeName';
     final skillState = context.state.skillState(skill);

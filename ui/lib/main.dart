@@ -30,7 +30,7 @@ class MyPersistor extends Persistor<GlobalState> {
         return GlobalState.empty(registries);
       }
       final state = GlobalState.fromJson(registries, json);
-      if (!state.validate(actionRegistry)) {
+      if (!state.validate()) {
         logger.err('Invalid state.');
         return GlobalState.empty(registries);
       }

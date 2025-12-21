@@ -708,7 +708,7 @@ ConsumeUntilResult consumeUntil(
       // Auto-restart the activity and continue
       if (originalActivity != null) {
         final action = registries.actions.byName(originalActivity);
-        state = state.startAction(registries.items, action, random: random);
+        state = state.startAction(action, random: random);
         continue; // Continue with restarted activity
       }
     }

@@ -29,7 +29,7 @@ void main() {
     test('returns positive rates for active skill action', () {
       var state = GlobalState.empty(testRegistries);
       final action = testActions.byName('Normal Tree');
-      state = state.startAction(testItems, action, random: Random(0));
+      state = state.startAction(action, random: Random(0));
 
       final rates = estimateRates(testRegistries, state);
 
@@ -43,17 +43,12 @@ void main() {
     test('applies upgrade modifiers to rates', () {
       var stateNoUpgrade = GlobalState.empty(testRegistries);
       final action = testActions.byName('Normal Tree');
-      stateNoUpgrade = stateNoUpgrade.startAction(
-        testItems,
-        action,
-        random: Random(0),
-      );
+      stateNoUpgrade = stateNoUpgrade.startAction(action, random: Random(0));
 
       var stateWithUpgrade = GlobalState.empty(
         testRegistries,
       ).copyWith(shop: const ShopState(bankSlots: 0, axeLevel: 1));
       stateWithUpgrade = stateWithUpgrade.startAction(
-        testItems,
         action,
         random: Random(0),
       );
@@ -116,7 +111,7 @@ void main() {
       // Start with action active but no money
       var state = GlobalState.empty(testRegistries);
       final action = testActions.byName('Copper'); // Mining copper
-      state = state.startAction(testItems, action, random: Random(0));
+      state = state.startAction(action, random: Random(0));
 
       const goal = ReachGpGoal(10000);
       final candidates = enumerateCandidates(testRegistries, state, goal);
@@ -135,7 +130,7 @@ void main() {
       // Start with action and some money close to goal
       var state = GlobalState.empty(testRegistries).copyWith(gp: 90);
       final action = testActions.byName('Copper');
-      state = state.startAction(testItems, action, random: Random(0));
+      state = state.startAction(action, random: Random(0));
 
       const goal = ReachGpGoal(100); // Only need 10 more GP
       final candidates = enumerateCandidates(testRegistries, state, goal);
@@ -164,7 +159,7 @@ void main() {
       // Start at level 1 fishing, Raw Sardine unlocks at level 5
       var state = GlobalState.empty(testRegistries);
       final action = testActions.byName('Raw Shrimp');
-      state = state.startAction(testItems, action, random: Random(0));
+      state = state.startAction(action, random: Random(0));
 
       const goal = ReachGpGoal(100000);
       final candidates = enumerateCandidates(testRegistries, state, goal);
@@ -182,7 +177,7 @@ void main() {
     test('is deterministic', () {
       var state = GlobalState.empty(testRegistries).copyWith(gp: 10);
       final action = testActions.byName('Normal Tree');
-      state = state.startAction(testItems, action, random: Random(0));
+      state = state.startAction(action, random: Random(0));
 
       const goal = ReachGpGoal(1000);
       final candidates = enumerateCandidates(testRegistries, state, goal);

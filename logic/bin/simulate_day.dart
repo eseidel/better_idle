@@ -211,7 +211,7 @@ void main(List<String> args) async {
 
   // Start the action
   final random = Random();
-  state = state.startAction(registries.items, action, random: random);
+  state = state.startAction(action, random: random);
 
   // Simulate 1 day (24 hours)
   const oneDay = Duration(hours: 24);

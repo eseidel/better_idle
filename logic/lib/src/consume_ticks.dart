@@ -377,7 +377,7 @@ class StateUpdateBuilder {
     required Random random,
   }) {
     // This shouldn't be able to start a *new* action, only restart the current.
-    _state = _state.startAction(items, action, random: random);
+    _state = _state.startAction(action, random: random);
   }
 
   /// Adds inventory if there's space. Returns true if successful.
@@ -754,7 +754,7 @@ enum ForegroundResult {
     }
 
     // Restart action if possible, otherwise stop
-    if (canRepeat && builder.state.canStartAction(registries.items, action)) {
+    if (canRepeat && builder.state.canStartAction(action)) {
       builder.restartCurrentAction(registries.items, action, random: rng);
       return (ForegroundResult.continued, ticksToApply);
     } else {
@@ -1096,7 +1096,7 @@ void consumeTicksUntil(
   final timeAway = TimeAway(
     startTime: startTime,
     endTime: calculatedEndTime,
-    activeSkill: state.activeSkill(registries.actions),
+    activeSkill: state.activeSkill(),
     // Only pass SkillActions - CombatActions don't support predictions
     activeAction: action is SkillAction ? action : null,
     changes: builder.changes,
