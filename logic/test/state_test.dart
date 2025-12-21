@@ -397,12 +397,12 @@ void main() {
   });
 
   group('GlobalState.openItems', () {
-    late Openable eggChest;
+    late Item eggChest;
     late Item feathers;
     late Item rawChicken;
 
     setUpAll(() {
-      eggChest = itemRegistry.byName('Egg Chest') as Openable;
+      eggChest = itemRegistry.byName('Egg Chest');
       feathers = itemRegistry.byName('Feathers');
       rawChicken = itemRegistry.byName('Raw Chicken');
     });

@@ -23,7 +23,6 @@ import 'dart:math';
 import 'package:collection/collection.dart';
 import 'package:logic/src/consume_ticks.dart';
 import 'package:logic/src/data/actions.dart';
-import 'package:logic/src/data/items.dart';
 import 'package:logic/src/state.dart';
 import 'package:logic/src/tick.dart';
 import 'package:logic/src/types/health.dart';

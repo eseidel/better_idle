@@ -10,16 +10,19 @@ import 'package:logic/src/types/drop.dart';
 import 'package:logic/src/types/modifier.dart';
 import 'package:meta/meta.dart';
 
+import 'items.dart';
+
+export 'items.dart';
 export 'thieving.dart';
 
 /// Gem drop table for mining - 1% chance to trigger, then weighted selection.
 final miningGemTable = DropChance(
-  DropTable(<Pick>[
-    Pick('Topaz', weight: 50), // 50% of 1% = 0.5%
-    Pick('Sapphire', weight: 17.5), // 17.5% of 1% = 0.175%
-    Pick('Ruby', weight: 17.5), // 17.5% of 1% = 0.175%
-    Pick('Emerald', weight: 10), // 10% of 1% = 0.1%
-    Pick('Diamond', weight: 5), // 5% of 1% = 0.05%
+  DropTable(<DropTableEntry>[
+    Pick('Topaz', weight: 100), // 100 / 200 = 5%
+    Pick('Sapphire', weight: 35), // 35 / 200 = 17.5%
+    Pick('Ruby', weight: 35), // 35 / 200 = 17.5%
+    Pick('Emerald', weight: 20), // 20 / 200 = 10%
+    Pick('Diamond', weight: 10), // 10 / 200 = 5%
   ]),
   rate: 0.01, // 1% chance to get a gem
 );
@@ -82,8 +85,8 @@ List<Droppable> woodcuttingRewards(SkillAction action, int masteryLevel) {
   }
   final name = outputs.keys.first;
   final doubleMultiplier = masteryLevel ~/ 10;
-  final doublePercent = (doubleMultiplier * 0.05).clamp(0.0, 1.0);
-  final singlePercent = (1.0 - doublePercent).clamp(0.0, 1.0);
+  final doublePercent = (doubleMultiplier * 0.05 * 100).toInt().clamp(0, 100);
+  final singlePercent = (100 - doublePercent).clamp(0, 100);
   return [
     DropTable([
       Pick(name, weight: singlePercent),

@@ -3,7 +3,6 @@ import 'dart:math';
 import 'package:logic/src/action_state.dart';
 import 'package:logic/src/data/actions.dart';
 import 'package:logic/src/data/combat.dart';
-import 'package:logic/src/data/items.dart';
 import 'package:logic/src/data/xp.dart';
 import 'package:logic/src/state.dart';
 import 'package:logic/src/tick.dart';

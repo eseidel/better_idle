@@ -3,7 +3,6 @@ import 'dart:math';
 import 'package:logic/src/action_state.dart';
 import 'package:logic/src/data/actions.dart';
 import 'package:logic/src/data/combat.dart';
-import 'package:logic/src/data/items.dart';
 import 'package:logic/src/data/upgrades.dart';
 import 'package:logic/src/json.dart';
 import 'package:logic/src/tick.dart';
@@ -693,7 +692,7 @@ class GlobalState {
     required int count,
     required Random random,
   }) {
-    if (item is! Openable) {
+    if (!item.isOpenable) {
       throw StateError('Cannot open ${item.name}: not an openable item');
     }
 

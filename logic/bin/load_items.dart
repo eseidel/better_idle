@@ -81,17 +81,20 @@ void main(List<String> arguments) async {
   print('');
 
   // Print openable items with their drop tables.
-  final openableItems = itemRegistry.all.whereType<Openable>().toList();
+  final openableItems = itemRegistry.all
+      .where((item) => item.isOpenable)
+      .toList();
   print('Openable items (${openableItems.length}):');
   for (final item in openableItems.take(5)) {
-    print('  ${item.name} (${item.dropTable.entries.length} drops):');
-    for (final drop in item.dropTable.entries.take(3)) {
+    final dropTable = item.dropTable!;
+    print('  ${item.name} (${dropTable.entries.length} drops):');
+    for (final drop in dropTable.entries.take(3)) {
       print(
         '    ${drop.name}: ${drop.minCount}-${drop.maxCount}, weight: ${drop.weight}',
       );
     }
-    if (item.dropTable.entries.length > 3) {
-      print('    ... and ${item.dropTable.entries.length - 3} more');
+    if (dropTable.entries.length > 3) {
+      print('    ... and ${dropTable.entries.length - 3} more');
     }
   }
 }
