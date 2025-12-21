@@ -1,5 +1,6 @@
 import 'actions.dart';
 import 'melvor_data.dart';
+import 'melvor_id.dart';
 
 /// Parses a Melvor item ID like "melvorD:Normal_Logs" to extract the name.
 /// Returns the human-readable name like "Normal Logs".
@@ -37,22 +38,22 @@ class WoodcuttingTree extends SkillAction {
     final baseInterval = json['baseInterval'] as int;
 
     return WoodcuttingTree(
-      id: json['id'] as String,
+      id: MelvorId(json['id'] as String),
       name: json['name'] as String,
       unlockLevel: json['level'] as int,
       duration: Duration(milliseconds: baseInterval),
       xp: json['baseExperience'] as int,
       outputs: {outputName: 1},
-      productId: productId,
+      productId: MelvorId(productId),
       media: json['media'] as String,
     );
   }
 
-  /// The Melvor ID (e.g., "Normal", "Oak").
-  final String id;
+  /// The Melvor ID (e.g., "melvorD:Normal", "melvorD:Oak").
+  final MelvorId id;
 
   /// The Melvor product ID (e.g., "melvorD:Normal_Logs").
-  final String productId;
+  final MelvorId productId;
 
   /// The media path for the tree icon.
   final String media;
