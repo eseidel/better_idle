@@ -62,7 +62,7 @@ class DropTableEntry extends Equatable {
     final count = minQuantity == maxQuantity
         ? minQuantity
         : minQuantity + random.nextInt(maxQuantity - minQuantity + 1);
-    final item = items.byName(name);
+    final item = items.byId(MelvorId.fromJson(itemID));
     return ItemStack(item, count: count);
   }
 }
