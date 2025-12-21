@@ -5,6 +5,7 @@ import 'package:logic/src/action_state.dart';
 import 'package:logic/src/data/combat.dart';
 import 'package:logic/src/data/fishing.dart';
 import 'package:logic/src/data/thieving.dart';
+import 'package:logic/src/data/woodcutting.dart';
 import 'package:logic/src/tick.dart';
 import 'package:logic/src/types/drop.dart';
 import 'package:logic/src/types/modifier.dart';
@@ -14,6 +15,7 @@ import 'items.dart';
 
 export 'items.dart';
 export 'thieving.dart';
+export 'woodcutting.dart';
 
 /// Gem drop table for mining - 1% chance to trigger, then weighted selection.
 final miningGemTable = DropChance(
@@ -199,31 +201,6 @@ class MiningAction extends SkillAction {
 /// Fixed player attack speed in seconds.
 const double playerAttackSpeed = 4;
 
-SkillAction _woodcutting(
-  String name, {
-  required int level,
-  required int xp,
-  required int seconds,
-}) {
-  return SkillAction(
-    skill: Skill.woodcutting,
-    name: '$name Tree',
-    unlockLevel: level,
-    duration: Duration(seconds: seconds),
-    xp: xp,
-    outputs: {'$name Logs': 1},
-    rewardsAtLevel: woodcuttingRewards,
-    durationModifierAtLevel: woodcuttingDurationModifier,
-  );
-}
-
-final _woodcuttingActions = <SkillAction>[
-  _woodcutting('Normal', level: 1, seconds: 3, xp: 10),
-  _woodcutting('Oak', level: 10, seconds: 4, xp: 15),
-  _woodcutting('Willow', level: 20, seconds: 5, xp: 22),
-  _woodcutting('Teak', level: 35, seconds: 6, xp: 30),
-];
-
 SkillAction _firemaking(
   String name, {
   required int level,
@@ -334,8 +311,8 @@ final cookingActions = <SkillAction>[
   _cooking('Herring', level: 10, xp: 15, seconds: 3),
 ];
 
-final List<Action> _allActions = [
-  ..._woodcuttingActions,
+List<Action> _allActions() => [
+  ...woodcuttingActions,
   ..._firemakingActions,
   ...fishingActions,
   ...cookingActions,
@@ -394,7 +371,13 @@ class ActionRegistry {
   }
 }
 
-final actionRegistry = ActionRegistry(_allActions);
+late ActionRegistry actionRegistry;
+
+/// Initializes the global actionRegistry. Must be called after
+/// initializeWoodcutting() and other skill initializers.
+void initializeActions() {
+  actionRegistry = ActionRegistry(_allActions());
+}
 
 class DropsRegistry {
   DropsRegistry(this._skillDrops, this._globalDrops);

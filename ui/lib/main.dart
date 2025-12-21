@@ -268,6 +268,8 @@ class _MyAppState extends State<MyApp> {
   Future<void> _loadData() async {
     final data = await MelvorData.load();
     initializeItems(data);
+    initializeWoodcutting(data);
+    initializeActions();
     await imageCacheService.initialize();
     setState(() {
       _isDataLoaded = true;

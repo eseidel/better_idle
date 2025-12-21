@@ -1,12 +1,17 @@
 import 'package:logic/logic.dart';
 import 'package:test/test.dart';
 
-void main() {
-  SkillAction skillAction(String name) =>
-      actionRegistry.skillActionByName(name);
+import 'test_helper.dart';
 
-  final normalTree = skillAction('Normal Tree');
-  final copperMining = skillAction('Copper');
+void main() {
+  late SkillAction normalTree;
+  late SkillAction copperMining;
+
+  setUpAll(() async {
+    await ensureItemsInitialized();
+    normalTree = actionRegistry.skillActionByName('Normal Tree');
+    copperMining = actionRegistry.skillActionByName('Copper');
+  });
 
   group('SkillAction', () {
     test(

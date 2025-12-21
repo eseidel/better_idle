@@ -1,4 +1,5 @@
 import 'package:better_idle/src/logic/redux_actions.dart';
+import 'package:better_idle/src/widgets/cached_image.dart';
 import 'package:better_idle/src/widgets/context_extensions.dart';
 import 'package:better_idle/src/widgets/mastery_pool.dart';
 import 'package:better_idle/src/widgets/style.dart';
@@ -33,14 +34,127 @@ class ActionGrid extends StatelessWidget {
               return SizedBox(
                 width: cellSize.width,
                 height: cellSize.height,
-                child: ActionCell(
-                  action: action,
-                  actionState: actionState,
-                  progressTicks: progressTicks,
-                ),
+                child: switch (action) {
+                  WoodcuttingTree() => WoodcuttingActionCell(
+                    action: action,
+                    actionState: actionState,
+                  ),
+                  _ => ActionCell(
+                    action: action,
+                    actionState: actionState,
+                    progressTicks: progressTicks,
+                  ),
+                },
               );
             }).toList(),
           ),
+        ),
+      ),
+    );
+  }
+}
+
+class WoodcuttingActionCell extends StatelessWidget {
+  const WoodcuttingActionCell({
+    required this.action,
+    required this.actionState,
+    super.key,
+  });
+
+  final WoodcuttingTree action;
+  final ActionState actionState;
+
+  @override
+  Widget build(BuildContext context) {
+    final skillState = context.state.skillState(action.skill);
+    final skillLevel = levelForXp(skillState.xp);
+    final isUnlocked = skillLevel >= action.unlockLevel;
+
+    if (!isUnlocked) {
+      return _buildLocked(context);
+    }
+    return _buildUnlocked(context);
+  }
+
+  Widget _buildLocked(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Style.cellBackgroundColorLocked,
+        border: Border.all(color: Style.textColorSecondary),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          const CachedImage(
+            assetPath: 'assets/media/skills/woodcutting/woodcutting.png',
+            size: 48,
+          ),
+          const SizedBox(height: 8),
+          const Text('Locked'),
+          Text('Level ${action.unlockLevel}'),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildUnlocked(BuildContext context) {
+    final actionName = action.name;
+    final labelStyle = Theme.of(
+      context,
+    ).textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.bold);
+    final activeAction = context.state.activeAction;
+    final isRunning = activeAction?.name == actionName;
+    final progress = isRunning && activeAction != null
+        ? (activeAction.totalTicks - activeAction.remainingTicks) /
+              activeAction.totalTicks
+        : 0.0;
+
+    final canStart = context.state.canStartAction(action);
+    final isStunned = context.state.isStunned;
+    final canToggle = (canStart || isRunning) && !isStunned;
+
+    return GestureDetector(
+      onTap: canToggle
+          ? () => context.dispatch(ToggleActionAction(action: action))
+          : null,
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: isStunned
+              ? Style.cellBackgroundColorStunned
+              : Style.cellBackgroundColor,
+          border: Border.all(
+            color: isStunned ? Style.activeColor : Style.textColorSecondary,
+          ),
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Column(
+          children: [
+            if (isStunned) ...[
+              Text(
+                'Stunned',
+                style: TextStyle(
+                  color: Style.textColorWarning,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(height: 4),
+            ],
+            const Text('Cut'),
+            Text(actionName, style: labelStyle),
+            Text(
+              '${action.xp} Skill XP / \u{1F551} '
+              '${action.minDuration.inMilliseconds / 1000} seconds',
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
+            const SizedBox(height: 8),
+            CachedImage(assetPath: action.media, size: 64),
+            const Spacer(),
+            LinearProgressIndicator(value: progress),
+            MasteryProgressCell(masteryXp: actionState.masteryXp),
+          ],
         ),
       ),
     );

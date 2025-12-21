@@ -13,4 +13,6 @@ Future<void> ensureItemsInitialized() async {
 
   final melvorData = await MelvorData.load();
   initializeItems(melvorData);
+  initializeWoodcutting(melvorData);
+  initializeActions();
 }

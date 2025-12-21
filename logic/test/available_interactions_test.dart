@@ -67,17 +67,17 @@ void main() {
         gp: 100000,
         skillStates: {
           Skill.hitpoints: const SkillState(xp: 1154, masteryPoolXp: 0),
-          // Level 20 = 4470 XP
-          Skill.woodcutting: const SkillState(xp: 4470, masteryPoolXp: 0),
-          Skill.fishing: const SkillState(xp: 4470, masteryPoolXp: 0),
-          Skill.mining: const SkillState(xp: 4470, masteryPoolXp: 0),
+          // Level 25 = 8740 XP (Willow Tree requires level 25)
+          Skill.woodcutting: const SkillState(xp: 8740, masteryPoolXp: 0),
+          Skill.fishing: const SkillState(xp: 8740, masteryPoolXp: 0),
+          Skill.mining: const SkillState(xp: 8740, masteryPoolXp: 0),
         },
       );
 
       final interactions = availableInteractions(state);
       final switches = interactions.whereType<SwitchActivity>().toList();
 
-      // Should have more activities unlocked at level 20
+      // Should have more activities unlocked at level 25
       expect(switches.map((s) => s.actionName), contains('Oak Tree'));
       expect(switches.map((s) => s.actionName), contains('Willow Tree'));
       expect(switches.map((s) => s.actionName), contains('Raw Herring'));

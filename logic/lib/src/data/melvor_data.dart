@@ -21,7 +21,7 @@ class MelvorData {
   /// Creates a MelvorData from multiple parsed JSON data files.
   ///
   /// Items from later files override items from earlier files with the same name.
-  MelvorData(List<Map<String, dynamic>> dataFiles) {
+  MelvorData(List<Map<String, dynamic>> dataFiles) : _rawDataFiles = dataFiles {
     for (final json in dataFiles) {
       _addDataFromJson(json);
     }
@@ -30,7 +30,12 @@ class MelvorData {
   /// Creates a MelvorData from a single parsed JSON file.
   MelvorData.single(Map<String, dynamic> json) : this([json]);
 
+  final List<Map<String, dynamic>> _rawDataFiles;
   final Map<String, Map<String, dynamic>> _itemsByName = {};
+
+  /// Returns all raw data files.
+  /// Used for accessing skillData and other non-item data.
+  List<Map<String, dynamic>> get rawDataFiles => _rawDataFiles;
 
   void _addDataFromJson(Map<String, dynamic> json) {
     final data = json['data'] as Map<String, dynamic>?;

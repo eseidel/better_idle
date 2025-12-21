@@ -45,6 +45,8 @@ void main(List<String> arguments) async {
 
   final melvorData = await MelvorData.load(cacheDir: cacheDir);
   initializeItems(melvorData);
+  initializeWoodcutting(melvorData);
+  initializeActions();
 
   print('Loaded ${itemRegistry.all.length} items');
   print('');

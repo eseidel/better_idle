@@ -3,7 +3,12 @@ import 'dart:math';
 import 'package:logic/logic.dart';
 import 'package:test/test.dart';
 
+import 'test_helper.dart';
+
 void main() {
+  setUpAll(() async {
+    await ensureItemsInitialized();
+  });
   group('StunnedState', () {
     test('fresh state is not stunned', () {
       const state = StunnedState.fresh();
@@ -76,7 +81,11 @@ void main() {
   });
 
   group('GlobalState stunned behavior', () {
-    final normalTree = actionRegistry.byName('Normal Tree') as SkillAction;
+    late SkillAction normalTree;
+
+    setUpAll(() {
+      normalTree = actionRegistry.byName('Normal Tree') as SkillAction;
+    });
 
     test('isStunned returns false when not stunned', () {
       final state = GlobalState.test();

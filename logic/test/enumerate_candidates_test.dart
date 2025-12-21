@@ -43,8 +43,8 @@ void main() {
       final state = GlobalState.empty().copyWith(
         skillStates: {
           Skill.hitpoints: const SkillState(xp: 1154, masteryPoolXp: 0),
-          // Level 20 = 4470 XP
-          Skill.woodcutting: const SkillState(xp: 4470, masteryPoolXp: 0),
+          // Level 25 = 8740 XP (Willow Tree requires level 25)
+          Skill.woodcutting: const SkillState(xp: 8740, masteryPoolXp: 0),
         },
       );
       final summaries = buildActionSummaries(state);
@@ -58,7 +58,7 @@ void main() {
       );
       final teakTree = summaries.firstWhere((s) => s.actionName == 'Teak Tree');
 
-      // Level 1, 10, 20 should be unlocked at level 20
+      // Level 1, 10, 25 should be unlocked at level 25
       expect(normalTree.isUnlocked, isTrue);
       expect(oakTree.isUnlocked, isTrue);
       expect(willowTree.isUnlocked, isTrue);

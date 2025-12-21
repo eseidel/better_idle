@@ -1,8 +1,15 @@
 import 'package:logic/logic.dart';
 import 'package:test/test.dart';
 
+import 'test_helper.dart';
+
 void main() {
-  final normalTree = actionRegistry.byName('Normal Tree') as SkillAction;
+  late SkillAction normalTree;
+
+  setUpAll(() async {
+    await ensureItemsInitialized();
+    normalTree = actionRegistry.byName('Normal Tree') as SkillAction;
+  });
 
   test('TimeAway duration does not update on mergeChanges', () {
     final startTime = DateTime(2024, 1, 1, 12);
