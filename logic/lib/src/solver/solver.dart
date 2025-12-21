@@ -565,6 +565,7 @@ AdvanceResult _advanceExpected(
   if (playerDied) {
     return (
       state: GlobalState(
+        registries: registries,
         gp: newGp,
         skillStates: newSkillStates,
         activeAction: null, // Activity stops on death

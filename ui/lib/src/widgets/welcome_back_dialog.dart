@@ -94,7 +94,7 @@ class WelcomeBackDialog extends StatelessWidget {
                 final itemCount = entry.value;
                 // Check both gained and consumed predictions
                 final gainedPerHour = timeAway.itemsGainedPerHour(
-                  dropsRegistry,
+                  registries.drops,
                 )[itemName];
                 final consumedPerHour = timeAway.itemsConsumedPerHour[itemName];
                 final countText = signedCountString(itemCount);

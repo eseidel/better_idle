@@ -192,7 +192,7 @@ void main(List<String> args) async {
   print('Simulating 1 day of "${action.name}" (${action.skill.name})...');
 
   // Create initial state
-  var state = GlobalState.empty(registries.items);
+  var state = GlobalState.empty(registries);
 
   // If the action requires inputs, add them to the inventory
   if (action is SkillAction && action.inputs.isNotEmpty) {

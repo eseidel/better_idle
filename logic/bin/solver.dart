@@ -34,7 +34,7 @@ void main(List<String> args) async {
     print('Goal: $goalCredits GP');
   }
 
-  final initialState = GlobalState.empty(registries.items);
+  final initialState = GlobalState.empty(registries);
 
   print('Solving...');
   final stopwatch = Stopwatch()..start();

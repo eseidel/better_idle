@@ -21,7 +21,7 @@ void main() {
 
   group('buildActionSummaries', () {
     test('returns summaries for all skill actions without inputs', () {
-      final state = GlobalState.empty(testItems);
+      final state = GlobalState.empty(testRegistries);
       final summaries = buildActionSummaries(testRegistries, state);
 
       // Should have entries for woodcutting, fishing, mining, thieving
@@ -40,7 +40,7 @@ void main() {
     });
 
     test('marks unlocked actions correctly', () {
-      final state = GlobalState.empty(testItems).copyWith(
+      final state = GlobalState.empty(testRegistries).copyWith(
         skillStates: {
           Skill.hitpoints: const SkillState(xp: 1154, masteryPoolXp: 0),
           // Level 25 = 8740 XP (Willow Tree requires level 25)
@@ -67,7 +67,7 @@ void main() {
     });
 
     test('calculates positive gold rate for activities with outputs', () {
-      final state = GlobalState.empty(testItems);
+      final state = GlobalState.empty(testRegistries);
       final summaries = buildActionSummaries(testRegistries, state);
 
       final normalTree = summaries.firstWhere(
@@ -80,7 +80,7 @@ void main() {
     });
 
     test('calculates positive xp rate for all actions', () {
-      final state = GlobalState.empty(testItems);
+      final state = GlobalState.empty(testRegistries);
       final summaries = buildActionSummaries(testRegistries, state);
 
       for (final summary in summaries) {
@@ -95,7 +95,7 @@ void main() {
 
   group('enumerateCandidates', () {
     test('returns activity candidates sorted by gold rate', () {
-      final state = GlobalState.empty(testItems);
+      final state = GlobalState.empty(testRegistries);
       final candidates = enumerateCandidates(
         testRegistries,
         state,
@@ -121,7 +121,7 @@ void main() {
     });
 
     test('respects activity count limit', () {
-      final state = GlobalState.empty(testItems).copyWith(
+      final state = GlobalState.empty(testRegistries).copyWith(
         skillStates: {
           Skill.hitpoints: const SkillState(xp: 1154, masteryPoolXp: 0),
           Skill.woodcutting: const SkillState(xp: 4470, masteryPoolXp: 0),
@@ -147,7 +147,7 @@ void main() {
       // Upgrades should only be in buyUpgrades if they would make an
       // activity competitive with the current best. Otherwise they're
       // wasteful spending.
-      final state = GlobalState.empty(testItems).copyWith(gp: 1000);
+      final state = GlobalState.empty(testRegistries).copyWith(gp: 1000);
       final candidates = enumerateCandidates(
         testRegistries,
         state,
@@ -176,7 +176,7 @@ void main() {
       // Create state with only woodcutting (no thieving advantage)
       final summaries = buildActionSummaries(
         testRegistries,
-        GlobalState.empty(testItems),
+        GlobalState.empty(testRegistries),
       );
       final woodcuttingOnly = summaries.where(
         (s) => s.skill == Skill.woodcutting && s.isUnlocked,
@@ -185,7 +185,7 @@ void main() {
 
       // The test verifies that the upgrade filtering works correctly
       // by checking that when thieving dominates, no upgrades are suggested
-      final state = GlobalState.empty(testItems);
+      final state = GlobalState.empty(testRegistries);
       final candidates = enumerateCandidates(
         testRegistries,
         state,
@@ -199,7 +199,7 @@ void main() {
     });
 
     test('watch list includes locked activities', () {
-      final state = GlobalState.empty(testItems);
+      final state = GlobalState.empty(testRegistries);
       final candidates = enumerateCandidates(
         testRegistries,
         state,
@@ -216,7 +216,7 @@ void main() {
       // The watch list includes all upgrades that meet skill requirements and
       // have positive gain, even if not competitive with the best activity.
       // This allows the planner to know when any upgrade becomes affordable.
-      final state = GlobalState.empty(testItems);
+      final state = GlobalState.empty(testRegistries);
       final candidates = enumerateCandidates(
         testRegistries,
         state,
@@ -238,7 +238,7 @@ void main() {
 
     test('includeSellAll true when inventory > 80% full', () {
       // Create inventory with 17+ unique items (>80% of 20 slots)
-      final state = GlobalState.empty(testItems).copyWith(
+      final state = GlobalState.empty(testRegistries).copyWith(
         inventory: Inventory.fromItems(testItems, [
           ItemStack(testItems.byName('Normal Logs'), count: 10),
           ItemStack(testItems.byName('Oak Logs'), count: 10),
@@ -271,7 +271,7 @@ void main() {
     });
 
     test('includeSellAll false when inventory < 80% full', () {
-      final state = GlobalState.empty(testItems).copyWith(
+      final state = GlobalState.empty(testRegistries).copyWith(
         inventory: Inventory.fromItems(testItems, [
           ItemStack(testItems.byName('Normal Logs'), count: 10),
         ]),
@@ -288,7 +288,7 @@ void main() {
     });
 
     test('is deterministic for same state', () {
-      final state = GlobalState.empty(testItems).copyWith(gp: 1000);
+      final state = GlobalState.empty(testRegistries).copyWith(gp: 1000);
 
       final candidates1 = enumerateCandidates(
         testRegistries,
@@ -321,7 +321,7 @@ void main() {
   group('estimateRates', () {
     test('thieving Man gold/tick unaffected by tool levels', () {
       // Start with Man activity
-      var state = GlobalState.empty(testItems);
+      var state = GlobalState.empty(testRegistries);
       final manAction = testActions.byName('Man');
       state = state.startAction(testItems, manAction, random: Random(0));
 
@@ -368,7 +368,7 @@ void main() {
   group('applyInteraction', () {
     test('BuyUpgrade reduces GP by upgrade cost', () {
       // Start with enough GP for an axe upgrade
-      final state = GlobalState.empty(testItems).copyWith(gp: 100);
+      final state = GlobalState.empty(testRegistries).copyWith(gp: 100);
       const interaction = BuyUpgrade(UpgradeType.axe);
 
       // Apply the upgrade
@@ -381,7 +381,7 @@ void main() {
 
     test('BuyUpgrade reduces GP by correct amount for each tier', () {
       // Test first fishing rod (costs 100)
-      var state = GlobalState.empty(testItems).copyWith(gp: 200);
+      var state = GlobalState.empty(testRegistries).copyWith(gp: 200);
       var newState = applyInteraction(
         testRegistries,
         state,
@@ -391,7 +391,7 @@ void main() {
       expect(newState.shop.fishingRodLevel, equals(1));
 
       // Test first pickaxe (costs 250)
-      state = GlobalState.empty(testItems).copyWith(gp: 500);
+      state = GlobalState.empty(testRegistries).copyWith(gp: 500);
       newState = applyInteraction(
         testRegistries,
         state,

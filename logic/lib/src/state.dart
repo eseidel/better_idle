@@ -205,9 +205,10 @@ class GlobalState {
     required this.equipment,
     this.timeAway,
     this.stunned = const StunnedState.fresh(),
+    required this.registries,
   });
 
-  GlobalState.fromJson(Registries registries, Map<String, dynamic> json)
+  GlobalState.fromJson(this.registries, Map<String, dynamic> json)
     : updatedAt = DateTime.parse(json['updatedAt'] as String),
       inventory = Inventory.fromJson(
         registries.items,
@@ -239,9 +240,9 @@ class GlobalState {
           StunnedState.maybeFromJson(json['stunned']) ??
           const StunnedState.fresh();
 
-  GlobalState.empty(ItemRegistry items)
+  GlobalState.empty(Registries registries)
     : this(
-        inventory: Inventory.empty(items),
+        inventory: Inventory.empty(registries.items),
         activeAction: null,
         // Start with level 10 Hitpoints (1154 XP) for 100 HP
         skillStates: const {
@@ -254,11 +255,12 @@ class GlobalState {
         shop: const ShopState.empty(),
         health: const HealthState.full(),
         equipment: const Equipment.empty(),
+        registries: registries,
       );
 
   @visibleForTesting
   factory GlobalState.test(
-    ItemRegistry items, {
+    Registries registries, {
     Inventory? inventory,
     ActiveAction? activeAction,
     Map<Skill, SkillState> skillStates = const {},
@@ -272,7 +274,8 @@ class GlobalState {
     StunnedState stunned = const StunnedState.fresh(),
   }) {
     return GlobalState(
-      inventory: inventory ?? Inventory.empty(items),
+      registries: registries,
+      inventory: inventory ?? Inventory.empty(registries.items),
       activeAction: activeAction,
       skillStates: skillStates,
       actionStates: actionStates,
@@ -344,6 +347,9 @@ class GlobalState {
 
   /// The player's health state.
   final HealthState health;
+
+  /// This is the game data used to load the state.
+  final Registries registries;
 
   /// The player's maximum HP (computed from Hitpoints skill level).
   /// Each Hitpoints level grants 10 HP.
@@ -546,6 +552,7 @@ class GlobalState {
 
     // This can't be copyWith since null means no-update.
     return GlobalState(
+      registries: registries,
       inventory: inventory,
       shop: shop,
       activeAction: null,
@@ -562,6 +569,7 @@ class GlobalState {
   GlobalState clearTimeAway() {
     // This can't be copyWith since null means no-update.
     return GlobalState(
+      registries: registries,
       inventory: inventory,
       activeAction: activeAction,
       skillStates: skillStates,
@@ -751,6 +759,7 @@ class GlobalState {
     StunnedState? stunned,
   }) {
     return GlobalState(
+      registries: registries,
       inventory: inventory ?? this.inventory,
       activeAction: activeAction ?? this.activeAction,
       skillStates: skillStates ?? this.skillStates,

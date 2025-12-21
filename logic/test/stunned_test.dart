@@ -88,13 +88,13 @@ void main() {
     });
 
     test('isStunned returns false when not stunned', () {
-      final state = GlobalState.test(testItems);
+      final state = GlobalState.test(testRegistries);
       expect(state.isStunned, isFalse);
     });
 
     test('isStunned returns true when stunned', () {
       final state = GlobalState.test(
-        testItems,
+        testRegistries,
         stunned: const StunnedState.fresh().stun(),
       );
       expect(state.isStunned, isTrue);
@@ -102,7 +102,7 @@ void main() {
 
     test('startAction throws StunnedException when stunned', () {
       final state = GlobalState.test(
-        testItems,
+        testRegistries,
         stunned: const StunnedState.fresh().stun(),
       );
       final random = Random(0);
@@ -114,7 +114,7 @@ void main() {
 
     test('clearAction throws StunnedException when stunned', () {
       final state = GlobalState.test(
-        testItems,
+        testRegistries,
         activeAction: const ActiveAction(
           name: 'Normal Tree',
           remainingTicks: 10,
@@ -126,7 +126,7 @@ void main() {
     });
 
     test('startAction works when not stunned', () {
-      final state = GlobalState.test(testItems);
+      final state = GlobalState.test(testRegistries);
       final random = Random(0);
       final newState = state.startAction(testItems, normalTree, random: random);
       expect(newState.activeAction, isNotNull);
@@ -135,7 +135,7 @@ void main() {
 
     test('clearAction works when not stunned', () {
       final state = GlobalState.test(
-        testItems,
+        testRegistries,
         activeAction: const ActiveAction(
           name: 'Normal Tree',
           remainingTicks: 10,
@@ -148,7 +148,7 @@ void main() {
 
     test('shouldTick returns true when stunned', () {
       final state = GlobalState.test(
-        testItems,
+        testRegistries,
         stunned: const StunnedState.fresh().stun(),
       );
       expect(state.shouldTick, isTrue);
@@ -156,7 +156,7 @@ void main() {
 
     test('hasActiveBackgroundTimers returns true when stunned', () {
       final state = GlobalState.test(
-        testItems,
+        testRegistries,
         stunned: const StunnedState.fresh().stun(),
       );
       expect(state.hasActiveBackgroundTimers, isTrue);
@@ -166,7 +166,7 @@ void main() {
   group('Stunned countdown via tick processing', () {
     test('stunned state decreases over ticks', () {
       final state = GlobalState.test(
-        testItems,
+        testRegistries,
         stunned: const StunnedState.fresh().stun(),
       );
       final builder = StateUpdateBuilder(state);
@@ -182,7 +182,7 @@ void main() {
 
     test('stunned state clears after full duration', () {
       final state = GlobalState.test(
-        testItems,
+        testRegistries,
         stunned: const StunnedState.fresh().stun(),
       );
       final builder = StateUpdateBuilder(state);
@@ -203,7 +203,7 @@ void main() {
 
     test('stunned clears after exactly 3 seconds of ticks', () {
       final state = GlobalState.test(
-        testItems,
+        testRegistries,
         stunned: const StunnedState.fresh().stun(),
       );
       final builder = StateUpdateBuilder(state);

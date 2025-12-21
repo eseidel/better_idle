@@ -49,7 +49,7 @@ void main() {
 
   group('consumeTicks', () {
     test('consuming ticks for 1 completion adds 1 item and 1x XP', () {
-      var state = GlobalState.empty(testItems);
+      var state = GlobalState.empty(testRegistries);
 
       final random = Random(0);
       // Start action
@@ -81,7 +81,7 @@ void main() {
     });
 
     test('consuming ticks for 5 completions adds 5 items and 5x XP', () {
-      var state = GlobalState.empty(testItems);
+      var state = GlobalState.empty(testRegistries);
       final random = Random(0);
 
       // Start action
@@ -113,7 +113,7 @@ void main() {
     });
 
     test('consuming ticks for partial completion does not add rewards', () {
-      var state = GlobalState.empty(testItems);
+      var state = GlobalState.empty(testRegistries);
       final random = Random(0);
       // Start action
       state = state.startAction(testItems, normalTree, random: random);
@@ -135,7 +135,7 @@ void main() {
     });
 
     test('consuming ticks for 1.5 completions adds 1 item and 1x XP', () {
-      var state = GlobalState.empty(testItems);
+      var state = GlobalState.empty(testRegistries);
       final random = Random(0);
       // Start action
       state = state.startAction(testItems, normalTree, random: random);
@@ -160,7 +160,7 @@ void main() {
     });
 
     test('consuming ticks works with different activity (Oak Tree)', () {
-      var state = GlobalState.empty(testItems);
+      var state = GlobalState.empty(testRegistries);
       final random = Random(0);
       // Start action
       state = state.startAction(testItems, oakTree, random: random);
@@ -186,7 +186,7 @@ void main() {
     });
 
     test('consuming ticks with no active activity does nothing', () {
-      var state = GlobalState.empty(testItems);
+      var state = GlobalState.empty(testRegistries);
       final random = Random(0);
       // No activity started, try to consume ticks
       final builder = StateUpdateBuilder(state);
@@ -200,7 +200,7 @@ void main() {
     });
 
     test('consuming ticks for exactly 0 ticks does nothing', () {
-      var state = GlobalState.empty(testItems);
+      var state = GlobalState.empty(testRegistries);
       final random = Random(0);
       // Start action
       state = state.startAction(testItems, normalTree, random: random);
@@ -219,7 +219,7 @@ void main() {
     test('consuming ticks handles activity with multiple rewards', () {
       // This test assumes we might have activities with multiple rewards
       // For now, we'll test that the rewards list is properly processed
-      var state = GlobalState.empty(testItems);
+      var state = GlobalState.empty(testRegistries);
       final random = Random(0);
       // Start action
       state = state.startAction(testItems, normalTree, random: random);
@@ -235,7 +235,7 @@ void main() {
     });
 
     test('consuming ticks for 1 completion adds mastery XP', () {
-      var state = GlobalState.empty(testItems);
+      var state = GlobalState.empty(testRegistries);
       final random = Random(0);
       // Start action
       state = state.startAction(testItems, normalTree, random: random);
@@ -269,7 +269,7 @@ void main() {
     test('skill-level drops are processed on action completion', () {
       // Use seeded random to test drop rates deterministically
       final random = Random(12345);
-      var state = GlobalState.empty(testItems);
+      var state = GlobalState.empty(testRegistries);
       state = state.startAction(testItems, normalTree, random: random);
 
       // Consume enough ticks to drop at least one Bird Nest
@@ -319,7 +319,7 @@ void main() {
         expect(rewards.first.expectedItems['Normal Logs'], 3);
 
         // Test end-to-end: complete the action and verify correct items added
-        var state = GlobalState.empty(testItems);
+        var state = GlobalState.empty(testRegistries);
         state = state.startAction(testItems, testAction, random: random);
 
         final builder = StateUpdateBuilder(state);
@@ -340,7 +340,7 @@ void main() {
       'consuming ticks for action with inputs consumes the required items',
       () {
         // Start with Normal Logs in inventory
-        var state = GlobalState.empty(testItems);
+        var state = GlobalState.empty(testRegistries);
         final random = Random(0);
         state = state.copyWith(
           inventory: Inventory.fromItems(testItems, [
@@ -386,7 +386,7 @@ void main() {
 
     test('consuming ticks for multiple completions of action with inputs', () {
       // Start with 10 Normal Logs in inventory
-      var state = GlobalState.empty(testItems);
+      var state = GlobalState.empty(testRegistries);
       final random = Random(0);
       state = state.copyWith(
         inventory: Inventory.fromItems(testItems, [
@@ -421,7 +421,7 @@ void main() {
       const nMinusOne = 4; // But only have inputs for 4 times
 
       // Start with N-1 Normal Logs in inventory (enough for 4 completions)
-      var state = GlobalState.empty(testItems);
+      var state = GlobalState.empty(testRegistries);
       final random = Random(0);
       state = state.copyWith(
         inventory: Inventory.fromItems(testItems, [
@@ -474,7 +474,7 @@ void main() {
         fillerItems.add(ItemStack(Item.test('Test Item $i', gp: 1), count: 1));
       }
 
-      var state = GlobalState.empty(testItems);
+      var state = GlobalState.empty(testRegistries);
       final random = Random(0);
       state = state.copyWith(
         inventory: Inventory.fromItems(testItems, fillerItems),
@@ -511,7 +511,7 @@ void main() {
 
     test('action continues if inventory is full but can stack outputs', () {
       // Create a state with all 8 items in inventory (full)
-      var state = GlobalState.empty(testItems);
+      var state = GlobalState.empty(testRegistries);
       final random = Random(0);
       final items = <ItemStack>[
         ItemStack(normalLogs, count: 5), // Include Normal Logs
@@ -556,7 +556,7 @@ void main() {
         fillerItems.add(ItemStack(Item.test('Test Item $i', gp: 1), count: 1));
       }
 
-      var state = GlobalState.empty(testItems);
+      var state = GlobalState.empty(testRegistries);
       state = state.copyWith(
         inventory: Inventory.fromItems(testItems, fillerItems),
       );
@@ -586,7 +586,7 @@ void main() {
     });
 
     test('Changes tracks skill level gains', () {
-      var state = GlobalState.empty(testItems);
+      var state = GlobalState.empty(testRegistries);
       final random = Random(0);
       // Start with level 1 (0 XP)
       expect(levelForXp(state.skillState(Skill.woodcutting).xp), 1);
@@ -621,7 +621,7 @@ void main() {
     });
 
     test('Changes tracks multiple skill level gains', () {
-      var state = GlobalState.empty(testItems);
+      var state = GlobalState.empty(testRegistries);
       final random = Random(0);
       state = state.startAction(testItems, normalTree, random: random);
 
@@ -652,7 +652,7 @@ void main() {
     });
 
     test('TimeAway tracks skill level gains during time away', () {
-      var state = GlobalState.empty(testItems);
+      var state = GlobalState.empty(testRegistries);
       final random = Random(0);
       state = state.startAction(testItems, normalTree, random: random);
 
@@ -676,7 +676,7 @@ void main() {
     });
 
     test('mining action continues through node depletion and respawn', () {
-      var state = GlobalState.empty(testItems);
+      var state = GlobalState.empty(testRegistries);
       final random = Random(0);
       state = state.startAction(testItems, runeEssence, random: random);
 
@@ -722,7 +722,7 @@ void main() {
       // Start with a node that's already at 5 HP lost (1 HP remaining)
       // so that the next completion will deplete it
       var state = GlobalState.test(
-        testItems,
+        testRegistries,
         actionStates: const {
           'Copper': ActionState(
             masteryXp: 0,
@@ -827,7 +827,7 @@ void main() {
       // - Copper node mid-respawn (30 ticks remaining out of 50)
       // - Rune Essence node damaged (3 HP lost) and healing
       var state = GlobalState.test(
-        testItems,
+        testRegistries,
         actionStates: const {
           // Copper: depleted, mid-respawn with 30 ticks remaining
           'Copper': ActionState(
@@ -1027,7 +1027,7 @@ void main() {
     test('background actions run without foreground action', () {
       // Start with a damaged mining node but no active action
       var state = GlobalState.test(
-        testItems,
+        testRegistries,
         actionStates: const {
           'Copper': ActionState(
             masteryXp: 0,
@@ -1066,7 +1066,7 @@ void main() {
     test('background respawn runs without foreground action', () {
       // Start with a depleted mining node but no active action
       var state = GlobalState.test(
-        testItems,
+        testRegistries,
         actionStates: const {
           'Copper': ActionState(
             masteryXp: 0,
@@ -1105,7 +1105,7 @@ void main() {
     test('multiple mining nodes heal in parallel', () {
       // Start with two damaged mining nodes
       var state = GlobalState.test(
-        testItems,
+        testRegistries,
         actionStates: const {
           'Copper': ActionState(
             masteryXp: 0,
@@ -1144,7 +1144,7 @@ void main() {
       final plantAction = combatActionByName('Plant');
       final random = Random(0);
       // Start combat
-      var state = GlobalState.empty(testItems);
+      var state = GlobalState.empty(testRegistries);
       state = state.startAction(testItems, plantAction, random: random);
 
       // Verify the active action name is "Plant", not "Combat"
@@ -1169,7 +1169,7 @@ void main() {
       final random = Random(0);
       // Start with damaged mining node
       var state = GlobalState.test(
-        testItems,
+        testRegistries,
         actionStates: const {
           'Copper': ActionState(
             masteryXp: 0,
@@ -1206,7 +1206,7 @@ void main() {
       // Net result: still 1 HP lost after 30 ticks.
 
       var state = GlobalState.test(
-        testItems,
+        testRegistries,
         actionStates: const {
           'Copper': ActionState(
             masteryXp: 0,
@@ -1249,7 +1249,7 @@ void main() {
 
     test('completes activity and adds toast', () {
       final normalTree = testActions.byName('Normal Tree') as SkillAction;
-      var state = GlobalState.empty(testItems);
+      var state = GlobalState.empty(testRegistries);
       final random = Random(0);
 
       // Start activity
@@ -1278,7 +1278,7 @@ void main() {
 
   group('consumeTicks vs consumeTicksUntil', () {
     test('consumeTicks always consumes all requested ticks', () {
-      var state = GlobalState.empty(testItems);
+      var state = GlobalState.empty(testRegistries);
       final random = Random(42);
 
       // Start woodcutting Normal Tree (30 ticks per action, 10 XP each)
@@ -1298,7 +1298,7 @@ void main() {
     });
 
     test('consumeTicksUntil stops when condition is met', () {
-      var state = GlobalState.empty(testItems);
+      var state = GlobalState.empty(testRegistries);
       final random = Random(42);
 
       // Start woodcutting Normal Tree (30 ticks per action, 10 XP each)

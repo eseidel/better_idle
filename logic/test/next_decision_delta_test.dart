@@ -18,7 +18,7 @@ void main() {
 
   group('estimateRates', () {
     test('returns zero rates when no action is active', () {
-      final state = GlobalState.empty(testItems);
+      final state = GlobalState.empty(testRegistries);
       final rates = estimateRates(testRegistries, state);
 
       expect(defaultValueModel.valuePerTick(testItems, state, rates), 0);
@@ -27,7 +27,7 @@ void main() {
     });
 
     test('returns positive rates for active skill action', () {
-      var state = GlobalState.empty(testItems);
+      var state = GlobalState.empty(testRegistries);
       final action = testActions.byName('Normal Tree');
       state = state.startAction(testItems, action, random: Random(0));
 
@@ -41,7 +41,7 @@ void main() {
     });
 
     test('applies upgrade modifiers to rates', () {
-      var stateNoUpgrade = GlobalState.empty(testItems);
+      var stateNoUpgrade = GlobalState.empty(testRegistries);
       final action = testActions.byName('Normal Tree');
       stateNoUpgrade = stateNoUpgrade.startAction(
         testItems,
@@ -50,7 +50,7 @@ void main() {
       );
 
       var stateWithUpgrade = GlobalState.empty(
-        testItems,
+        testRegistries,
       ).copyWith(shop: const ShopState(bankSlots: 0, axeLevel: 1));
       stateWithUpgrade = stateWithUpgrade.startAction(
         testItems,
@@ -80,7 +80,7 @@ void main() {
 
   group('nextDecisionDelta', () {
     test('returns 0 when goal is already satisfied', () {
-      final state = GlobalState.empty(testItems).copyWith(gp: 1000);
+      final state = GlobalState.empty(testRegistries).copyWith(gp: 1000);
       const goal = ReachGpGoal(500);
       final candidates = enumerateCandidates(testRegistries, state, goal);
 
@@ -96,7 +96,7 @@ void main() {
       // at level 1, we need a state where thieving isn't the best option.
       // For now, we verify the behavior when upgrades are in buyUpgrades.
 
-      final state = GlobalState.empty(testItems).copyWith(gp: 100);
+      final state = GlobalState.empty(testRegistries).copyWith(gp: 100);
       const goal = ReachGpGoal(10000);
       final candidates = enumerateCandidates(testRegistries, state, goal);
 
@@ -114,7 +114,7 @@ void main() {
 
     test('returns ticks until upgrade affordable', () {
       // Start with action active but no money
-      var state = GlobalState.empty(testItems);
+      var state = GlobalState.empty(testRegistries);
       final action = testActions.byName('Copper'); // Mining copper
       state = state.startAction(testItems, action, random: Random(0));
 
@@ -133,7 +133,7 @@ void main() {
 
     test('returns ticks until goal reached when close to goal', () {
       // Start with action and some money close to goal
-      var state = GlobalState.empty(testItems).copyWith(gp: 90);
+      var state = GlobalState.empty(testRegistries).copyWith(gp: 90);
       final action = testActions.byName('Copper');
       state = state.startAction(testItems, action, random: Random(0));
 
@@ -150,7 +150,7 @@ void main() {
 
     test('returns infTicks when no progress possible', () {
       // No active action, no gold rate
-      final state = GlobalState.empty(testItems);
+      final state = GlobalState.empty(testRegistries);
       const goal = ReachGpGoal(1000);
       final candidates = enumerateCandidates(testRegistries, state, goal);
 
@@ -162,7 +162,7 @@ void main() {
 
     test('computes unlock delta for watched activities', () {
       // Start at level 1 fishing, Raw Sardine unlocks at level 5
-      var state = GlobalState.empty(testItems);
+      var state = GlobalState.empty(testRegistries);
       final action = testActions.byName('Raw Shrimp');
       state = state.startAction(testItems, action, random: Random(0));
 
@@ -180,7 +180,7 @@ void main() {
     });
 
     test('is deterministic', () {
-      var state = GlobalState.empty(testItems).copyWith(gp: 10);
+      var state = GlobalState.empty(testRegistries).copyWith(gp: 10);
       final action = testActions.byName('Normal Tree');
       state = state.startAction(testItems, action, random: Random(0));
 

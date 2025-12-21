@@ -14,35 +14,35 @@ void main() {
 
   group('ReachGpGoal', () {
     test('isSatisfied returns true when GP >= target', () {
-      final state = GlobalState.empty(testItems).copyWith(gp: 100);
+      final state = GlobalState.empty(testRegistries).copyWith(gp: 100);
       const goal = ReachGpGoal(100);
 
       expect(goal.isSatisfied(state), isTrue);
     });
 
     test('isSatisfied returns true when GP > target', () {
-      final state = GlobalState.empty(testItems).copyWith(gp: 200);
+      final state = GlobalState.empty(testRegistries).copyWith(gp: 200);
       const goal = ReachGpGoal(100);
 
       expect(goal.isSatisfied(state), isTrue);
     });
 
     test('isSatisfied returns false when GP < target', () {
-      final state = GlobalState.empty(testItems).copyWith(gp: 50);
+      final state = GlobalState.empty(testRegistries).copyWith(gp: 50);
       const goal = ReachGpGoal(100);
 
       expect(goal.isSatisfied(state), isFalse);
     });
 
     test('remaining returns 0 when goal is satisfied', () {
-      final state = GlobalState.empty(testItems).copyWith(gp: 100);
+      final state = GlobalState.empty(testRegistries).copyWith(gp: 100);
       const goal = ReachGpGoal(100);
 
       expect(goal.remaining(state), 0.0);
     });
 
     test('remaining returns positive value when not satisfied', () {
-      final state = GlobalState.empty(testItems).copyWith(gp: 50);
+      final state = GlobalState.empty(testRegistries).copyWith(gp: 50);
       const goal = ReachGpGoal(100);
 
       expect(goal.remaining(state), 50.0);
@@ -66,7 +66,7 @@ void main() {
 
   group('ReachSkillLevelGoal', () {
     test('isSatisfied returns true when skill level >= target', () {
-      var state = GlobalState.empty(testItems);
+      var state = GlobalState.empty(testRegistries);
       // Give woodcutting XP for level 5
       final xpForLevel5 = startXpForLevel(5);
       state = state.copyWith(
@@ -81,7 +81,7 @@ void main() {
     });
 
     test('isSatisfied returns true when skill level > target', () {
-      var state = GlobalState.empty(testItems);
+      var state = GlobalState.empty(testRegistries);
       final xpForLevel10 = startXpForLevel(10);
       state = state.copyWith(
         skillStates: {
@@ -95,7 +95,7 @@ void main() {
     });
 
     test('isSatisfied returns false when skill level < target', () {
-      final state = GlobalState.empty(testItems); // Starts at level 1
+      final state = GlobalState.empty(testRegistries); // Starts at level 1
 
       const goal = ReachSkillLevelGoal(Skill.woodcutting, 5);
 
@@ -103,7 +103,7 @@ void main() {
     });
 
     test('remaining returns 0 when goal is satisfied', () {
-      var state = GlobalState.empty(testItems);
+      var state = GlobalState.empty(testRegistries);
       final xpForLevel5 = startXpForLevel(5);
       state = state.copyWith(
         skillStates: {
@@ -117,7 +117,7 @@ void main() {
     });
 
     test('remaining returns XP needed when not satisfied', () {
-      final state = GlobalState.empty(testItems); // 0 XP in woodcutting
+      final state = GlobalState.empty(testRegistries); // 0 XP in woodcutting
 
       const goal = ReachSkillLevelGoal(Skill.woodcutting, 5);
       final xpForLevel5 = startXpForLevel(5);
@@ -153,7 +153,7 @@ void main() {
 
   group('solve with ReachSkillLevelGoal', () {
     test('returns empty plan when already at target level', () {
-      var state = GlobalState.empty(testItems);
+      var state = GlobalState.empty(testRegistries);
       final xpForLevel10 = startXpForLevel(10);
       state = state.copyWith(
         skillStates: {
@@ -170,7 +170,7 @@ void main() {
     });
 
     test('finds plan for simple skill level goal', () {
-      final state = GlobalState.empty(testItems);
+      final state = GlobalState.empty(testRegistries);
 
       // Goal: reach woodcutting level 2 (requires 83 XP)
       const goal = ReachSkillLevelGoal(Skill.woodcutting, 2);
@@ -184,7 +184,7 @@ void main() {
 
   group('enumerateCandidates with skill goal', () {
     test('ranks activities by XP rate for skill goals', () {
-      var state = GlobalState.empty(testItems);
+      var state = GlobalState.empty(testRegistries);
       // Give high fishing level to unlock multiple fishing activities
       final xpForLevel50 = startXpForLevel(50);
       state = state.copyWith(
@@ -212,7 +212,7 @@ void main() {
 
     test('does not include SellAll for skill goals', () {
       // For skill goals, selling is not relevant
-      final state = GlobalState.empty(testItems);
+      final state = GlobalState.empty(testRegistries);
 
       const goal = ReachSkillLevelGoal(Skill.woodcutting, 10);
       final candidates = enumerateCandidates(testRegistries, state, goal);
@@ -222,7 +222,7 @@ void main() {
     });
 
     test('only watches activities for target skill', () {
-      final state = GlobalState.empty(testItems);
+      final state = GlobalState.empty(testRegistries);
 
       const goal = ReachSkillLevelGoal(Skill.woodcutting, 10);
       final candidates = enumerateCandidates(testRegistries, state, goal);

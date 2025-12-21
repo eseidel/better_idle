@@ -158,7 +158,7 @@ void main() {
       // Set up state with Golbin action active
       final random = Random(42);
       var state = GlobalState.test(
-        testItems,
+        testRegistries,
         skillStates: const {
           Skill.thieving: SkillState(xp: 1154, masteryPoolXp: 0), // Level 10
           Skill.hitpoints: SkillState(xp: 1154, masteryPoolXp: 0), // Level 10
@@ -265,7 +265,7 @@ void main() {
       // Set up state with thieving action active
       final random = Random(0);
       final state = GlobalState.test(
-        testItems,
+        testRegistries,
       ).startAction(testItems, manAction, random: random);
 
       final builder = StateUpdateBuilder(state);
@@ -298,7 +298,7 @@ void main() {
       // Start thieving action
       final random = Random(0);
       var state = GlobalState.test(
-        testItems,
+        testRegistries,
       ).startAction(testItems, manAction, random: random);
       final builder = StateUpdateBuilder(state);
 
@@ -329,7 +329,7 @@ void main() {
       // Set up state with enough HP to survive (level 10 hitpoints = 100 HP)
       final random = Random(0);
       final state = GlobalState.test(
-        testItems,
+        testRegistries,
         skillStates: const {
           Skill.hitpoints: SkillState(xp: 1154, masteryPoolXp: 0), // Level 10
         },
@@ -368,7 +368,7 @@ void main() {
       // Set up state with low HP (less than max damage)
       final random = Random(0);
       final state = GlobalState.test(
-        testItems,
+        testRegistries,
         skillStates: const {
           Skill.hitpoints: SkillState(
             xp: 1154,
@@ -408,7 +408,7 @@ void main() {
         // Start with low HP
         final random = Random(0);
         var state = GlobalState.test(
-          testItems,
+          testRegistries,
           skillStates: const {
             Skill.hitpoints: SkillState(
               xp: 1154,
@@ -443,7 +443,7 @@ void main() {
       // Start thieving action
       final random = Random(0);
       final state = GlobalState.test(
-        testItems,
+        testRegistries,
         skillStates: const {
           Skill.hitpoints: SkillState(
             xp: 1154,
@@ -488,7 +488,7 @@ void main() {
       // Set up a state where we're stunned but have an active action
       // (simulating what happens after a failed thieving attempt)
       final baseState = GlobalState.test(
-        testItems,
+        testRegistries,
         skillStates: const {
           Skill.hitpoints: SkillState(
             xp: 1154,
@@ -499,6 +499,7 @@ void main() {
       );
       // Manually set up the action since startAction throws when stunned
       var state = GlobalState(
+        registries: testRegistries,
         inventory: baseState.inventory,
         activeAction: ActiveAction(
           name: manAction.name,

@@ -22,7 +22,7 @@ void main() {
 
   group('applyInteraction', () {
     test('SwitchActivity switches to a new activity', () {
-      final state = GlobalState.empty(testItems);
+      final state = GlobalState.empty(testRegistries);
       const interaction = SwitchActivity('Normal Tree');
 
       final newState = applyInteraction(testRegistries, state, interaction);
@@ -31,7 +31,7 @@ void main() {
     });
 
     test('SwitchActivity clears existing action first', () {
-      var state = GlobalState.empty(testItems);
+      var state = GlobalState.empty(testRegistries);
       state = state.startAction(
         testItems,
         testActions.byName('Raw Shrimp'),
@@ -45,7 +45,7 @@ void main() {
     });
 
     test('BuyUpgrade purchases an upgrade', () {
-      final state = GlobalState.empty(testItems).copyWith(gp: 100);
+      final state = GlobalState.empty(testRegistries).copyWith(gp: 100);
       const interaction = BuyUpgrade(UpgradeType.axe);
 
       final newState = applyInteraction(testRegistries, state, interaction);
@@ -55,7 +55,7 @@ void main() {
     });
 
     test('BuyUpgrade throws when cannot afford', () {
-      final state = GlobalState.empty(testItems).copyWith(gp: 10);
+      final state = GlobalState.empty(testRegistries).copyWith(gp: 10);
       const interaction = BuyUpgrade(UpgradeType.axe);
 
       expect(
@@ -72,7 +72,7 @@ void main() {
         ItemStack(oak, count: 5),
       ]);
       final state = GlobalState.empty(
-        testItems,
+        testRegistries,
       ).copyWith(inventory: inventory, gp: 0);
       const interaction = SellAll();
 
@@ -86,7 +86,7 @@ void main() {
 
   group('advance', () {
     test('advances state by specified ticks', () {
-      var state = GlobalState.empty(testItems);
+      var state = GlobalState.empty(testRegistries);
       final action = testActions.byName('Normal Tree');
       state = state.startAction(testItems, action, random: Random(0));
       final initialGp = state.gp;
@@ -101,7 +101,7 @@ void main() {
     });
 
     test('is deterministic', () {
-      var state = GlobalState.empty(testItems);
+      var state = GlobalState.empty(testRegistries);
       final action = testActions.byName('Normal Tree');
       state = state.startAction(testItems, action, random: Random(0));
 
@@ -117,7 +117,7 @@ void main() {
     });
 
     test('returns same state when deltaTicks is 0', () {
-      var state = GlobalState.empty(testItems);
+      var state = GlobalState.empty(testRegistries);
       final action = testActions.byName('Normal Tree');
       state = state.startAction(testItems, action, random: Random(0));
 
@@ -132,7 +132,7 @@ void main() {
 
   group('solveToCredits', () {
     test('returns empty plan when goal already met', () {
-      final state = GlobalState.empty(testItems).copyWith(gp: 1000);
+      final state = GlobalState.empty(testRegistries).copyWith(gp: 1000);
 
       final result = solveToCredits(testRegistries, state, 500);
 
@@ -144,7 +144,7 @@ void main() {
     });
 
     test('finds a plan to reach goal with single activity', () {
-      var state = GlobalState.empty(testItems);
+      var state = GlobalState.empty(testRegistries);
       // Start with an activity already running
       final action = testActions.byName('Normal Tree');
       state = state.startAction(testItems, action, random: Random(0));
@@ -161,7 +161,7 @@ void main() {
 
     test('plan includes switching activity when beneficial', () {
       // Start with no activity - solver needs to switch
-      final state = GlobalState.empty(testItems);
+      final state = GlobalState.empty(testRegistries);
 
       final result = solveToCredits(testRegistries, state, 20);
 
@@ -176,7 +176,7 @@ void main() {
 
     test('plan may include buying upgrade when it improves time-to-goal', () {
       // Start with enough money for Iron Axe and activity running
-      var state = GlobalState.empty(testItems).copyWith(gp: 50);
+      var state = GlobalState.empty(testRegistries).copyWith(gp: 50);
       final action = testActions.byName('Normal Tree');
       state = state.startAction(testItems, action, random: Random(0));
 
@@ -189,7 +189,7 @@ void main() {
     });
 
     test('respects maxExpandedNodes limit', () {
-      final state = GlobalState.empty(testItems);
+      final state = GlobalState.empty(testRegistries);
 
       // Set a very low limit (solver is now very efficient, so use limit of 2)
       final result = solveToCredits(
@@ -205,7 +205,7 @@ void main() {
     });
 
     test('produces deterministic results', () {
-      var state = GlobalState.empty(testItems);
+      var state = GlobalState.empty(testRegistries);
       final action = testActions.byName('Normal Tree');
       state = state.startAction(testItems, action, random: Random(0));
 
@@ -294,7 +294,7 @@ void main() {
 
   group('thieving death modeling', () {
     test('estimateRates returns hpLossPerTick for thieving', () {
-      var state = GlobalState.empty(testItems);
+      var state = GlobalState.empty(testRegistries);
       final action = testActions.byName('Man'); // Thieving action
       state = state.startAction(testItems, action, random: Random(0));
 
@@ -309,7 +309,7 @@ void main() {
     });
 
     test('estimateRates returns zero hpLossPerTick for non-thieving', () {
-      var state = GlobalState.empty(testItems);
+      var state = GlobalState.empty(testRegistries);
       final action = testActions.byName('Normal Tree');
       state = state.startAction(testItems, action, random: Random(0));
 
@@ -319,7 +319,7 @@ void main() {
     });
 
     test('ticksUntilDeath returns positive value for thieving', () {
-      var state = GlobalState.empty(testItems);
+      var state = GlobalState.empty(testRegistries);
       final action = testActions.byName('Man');
       state = state.startAction(testItems, action, random: Random(0));
 
@@ -332,7 +332,7 @@ void main() {
     });
 
     test('ticksUntilDeath returns null for non-thieving', () {
-      var state = GlobalState.empty(testItems);
+      var state = GlobalState.empty(testRegistries);
       final action = testActions.byName('Normal Tree');
       state = state.startAction(testItems, action, random: Random(0));
 
@@ -344,7 +344,7 @@ void main() {
 
     test('advance stops activity on death for thieving', () {
       // Create state with low HP thieving
-      var state = GlobalState.empty(testItems);
+      var state = GlobalState.empty(testRegistries);
       final action = testActions.byName('Man');
       state = state.startAction(testItems, action, random: Random(0));
 
@@ -365,7 +365,7 @@ void main() {
     });
 
     test('advance does not stop activity before death', () {
-      var state = GlobalState.empty(testItems);
+      var state = GlobalState.empty(testRegistries);
       final action = testActions.byName('Man');
       state = state.startAction(testItems, action, random: Random(0));
 
@@ -382,7 +382,7 @@ void main() {
     });
 
     test('nextDecisionDelta includes death timing for thieving', () {
-      var state = GlobalState.empty(testItems);
+      var state = GlobalState.empty(testRegistries);
       final action = testActions.byName('Man');
       state = state.startAction(testItems, action, random: Random(0));
 
@@ -405,7 +405,7 @@ void main() {
 
   group('skill and mastery level timing', () {
     test('ticksUntilNextSkillLevel returns positive value when gaining XP', () {
-      var state = GlobalState.empty(testItems);
+      var state = GlobalState.empty(testRegistries);
       final action = testActions.byName('Normal Tree');
       state = state.startAction(testItems, action, random: Random(0));
 
@@ -418,7 +418,7 @@ void main() {
     });
 
     test('ticksUntilNextSkillLevel returns null when no XP gain', () {
-      final state = GlobalState.empty(testItems);
+      final state = GlobalState.empty(testRegistries);
 
       // No action active, no XP being gained
       final rates = estimateRates(testRegistries, state);
@@ -430,7 +430,7 @@ void main() {
     test(
       'ticksUntilNextMasteryLevel returns positive value for active action',
       () {
-        var state = GlobalState.empty(testItems);
+        var state = GlobalState.empty(testRegistries);
         final action = testActions.byName('Normal Tree');
         state = state.startAction(testItems, action, random: Random(0));
 
@@ -444,7 +444,7 @@ void main() {
     );
 
     test('ticksUntilNextMasteryLevel returns null when no action', () {
-      final state = GlobalState.empty(testItems);
+      final state = GlobalState.empty(testRegistries);
 
       final rates = estimateRates(testRegistries, state);
       final ticks = ticksUntilNextMasteryLevel(state, rates);
@@ -453,7 +453,7 @@ void main() {
     });
 
     test('nextDecisionDelta includes skill level timing', () {
-      var state = GlobalState.empty(testItems);
+      var state = GlobalState.empty(testRegistries);
       final action = testActions.byName('Normal Tree');
       state = state.startAction(testItems, action, random: Random(0));
 
@@ -470,7 +470,7 @@ void main() {
     });
 
     test('nextDecisionDelta includes mastery level timing for thieving', () {
-      var state = GlobalState.empty(testItems);
+      var state = GlobalState.empty(testRegistries);
       final action = testActions.byName('Man');
       state = state.startAction(testItems, action, random: Random(0));
 
@@ -496,7 +496,7 @@ void main() {
     });
 
     test('estimateRates includes mastery XP rate', () {
-      var state = GlobalState.empty(testItems);
+      var state = GlobalState.empty(testRegistries);
       final action = testActions.byName('Normal Tree');
       state = state.startAction(testItems, action, random: Random(0));
 
@@ -507,7 +507,7 @@ void main() {
     });
 
     test('estimateRates includes mastery XP rate for thieving', () {
-      var state = GlobalState.empty(testItems);
+      var state = GlobalState.empty(testRegistries);
       final action = testActions.byName('Man');
       state = state.startAction(testItems, action, random: Random(0));
 
@@ -520,7 +520,7 @@ void main() {
     test('itemFlowsPerTick includes action outputs via allDropsForAction', () {
       // Verify that action outputs (like Normal Logs from Normal Tree) are
       // included in itemFlowsPerTick via allDropsForAction, not double-counted.
-      var state = GlobalState.empty(testItems);
+      var state = GlobalState.empty(testRegistries);
       final action = testActions.byName('Normal Tree');
       state = state.startAction(testItems, action, random: Random(0));
 
@@ -547,7 +547,7 @@ void main() {
     test('itemFlowsPerTick includes skill-level drops (Bird Nest)', () {
       // Verify that skill-level drops are included in itemFlowsPerTick
       // Woodcutting has Bird Nest as a skill-level drop (0.5% rate)
-      var state = GlobalState.empty(testItems);
+      var state = GlobalState.empty(testRegistries);
       final action = testActions.byName('Normal Tree');
       state = state.startAction(testItems, action, random: Random(0));
 
@@ -573,7 +573,7 @@ void main() {
     test('estimateRates includes skill-level drops in item flows', () {
       // Thieving has Bobby's Pocket as a skill-level drop (1/120 rate, 4000 GP)
       // This should appear in itemFlowsPerTick and affect valuePerTick
-      var state = GlobalState.empty(testItems);
+      var state = GlobalState.empty(testRegistries);
       final action = thievingActionByName('Man');
       state = state.startAction(testItems, action, random: Random(0));
 
@@ -639,7 +639,7 @@ void main() {
   group('consumeUntil', () {
     test('reaches woodcutting XP goal in reasonable time', () {
       // Setup: start woodcutting Normal Tree
-      var state = GlobalState.empty(testItems);
+      var state = GlobalState.empty(testRegistries);
       final action = testActions.byName('Normal Tree');
       state = state.startAction(testItems, action, random: Random(42));
 
@@ -670,7 +670,7 @@ void main() {
 
   group('executePlan', () {
     test('executes empty plan and returns initial state', () {
-      final state = GlobalState.empty(testItems).copyWith(gp: 500);
+      final state = GlobalState.empty(testRegistries).copyWith(gp: 500);
       const plan = Plan.empty();
 
       final result = executePlan(
@@ -686,7 +686,7 @@ void main() {
     });
 
     test('executes plan with switch activity step', () {
-      final state = GlobalState.empty(testItems);
+      final state = GlobalState.empty(testRegistries);
       final plan = Plan(
         steps: [
           const InteractionStep(SwitchActivity('Normal Tree')),
@@ -714,7 +714,7 @@ void main() {
 
     test('tracks deaths during thieving execution', () {
       // Create a plan that does thieving for a long time (will cause deaths)
-      final state = GlobalState.empty(testItems);
+      final state = GlobalState.empty(testRegistries);
       final plan = Plan(
         steps: [
           const InteractionStep(SwitchActivity('Man')),
@@ -739,7 +739,7 @@ void main() {
     });
 
     test('reports planned vs actual ticks correctly', () {
-      final state = GlobalState.empty(testItems);
+      final state = GlobalState.empty(testRegistries);
       final plan = Plan(
         steps: [
           const InteractionStep(SwitchActivity('Normal Tree')),
@@ -766,7 +766,7 @@ void main() {
 
     test('executes plan from solve result', () {
       // Solve for a small GP goal
-      final state = GlobalState.empty(testItems);
+      final state = GlobalState.empty(testRegistries);
       const goal = ReachGpGoal(100);
       final solveResult = solve(testRegistries, state, goal);
 

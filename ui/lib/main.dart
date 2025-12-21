@@ -27,17 +27,17 @@ class MyPersistor extends Persistor<GlobalState> {
     try {
       final json = await _persist.loadJson() as Map<String, dynamic>?;
       if (json == null) {
-        return GlobalState.empty(itemRegistry);
+        return GlobalState.empty(registries);
       }
       final state = GlobalState.fromJson(registries, json);
       if (!state.validate(actionRegistry)) {
         logger.err('Invalid state.');
-        return GlobalState.empty(itemRegistry);
+        return GlobalState.empty(registries);
       }
       return state;
     } on Object catch (e, stackTrace) {
       logger.err('Failed to load state: $e, stackTrace: $stackTrace');
-      return GlobalState.empty(itemRegistry);
+      return GlobalState.empty(registries);
     }
   }
 
@@ -266,7 +266,6 @@ class _MyAppState extends State<MyApp> {
   }
 
   Future<void> _loadData() async {
-    // Load registries (this replaces the old initialize* calls)
     await loadRegistries();
     await imageCacheService.initialize();
     setState(() {
