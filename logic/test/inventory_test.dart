@@ -1,11 +1,21 @@
 import 'package:logic/logic.dart';
 import 'package:test/test.dart';
 
+import 'test_helper.dart';
+
 void main() {
-  final normalLogs = itemRegistry.byName('Normal Logs');
-  final oakLogs = itemRegistry.byName('Oak Logs');
-  final birdNest = itemRegistry.byName('Bird Nest');
-  final lobster = itemRegistry.byName('Lobster');
+  late Item normalLogs;
+  late Item oakLogs;
+  late Item birdNest;
+  late Item lobster;
+
+  setUpAll(() async {
+    await ensureItemsInitialized();
+    normalLogs = itemRegistry.byName('Normal Logs');
+    oakLogs = itemRegistry.byName('Oak Logs');
+    birdNest = itemRegistry.byName('Bird Nest');
+    lobster = itemRegistry.byName('Lobster');
+  });
 
   group('Inventory.canAdd', () {
     test('returns true when inventory has existing stack of item', () {

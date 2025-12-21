@@ -3,26 +3,48 @@ import 'dart:math';
 import 'package:logic/logic.dart';
 import 'package:test/test.dart';
 
+import 'test_helper.dart';
+
 void main() {
   SkillAction skillAction(String name) =>
       actionRegistry.skillActionByName(name);
 
-  final normalTree = skillAction('Normal Tree');
-  final oakTree = skillAction('Oak Tree');
-  final burnNormalLogs = skillAction('Burn Normal Logs');
-  final runeEssence = skillAction('Rune Essence') as MiningAction;
-  final copper = skillAction('Copper') as MiningAction;
+  late SkillAction normalTree;
+  late SkillAction oakTree;
+  late SkillAction burnNormalLogs;
+  late MiningAction runeEssence;
+  late MiningAction copper;
 
-  final normalLogs = itemRegistry.byName('Normal Logs');
-  final oakLogs = itemRegistry.byName('Oak Logs');
-  final willowLogs = itemRegistry.byName('Willow Logs');
-  final teakLogs = itemRegistry.byName('Teak Logs');
-  final birdNest = itemRegistry.byName('Bird Nest');
-  final coalOre = itemRegistry.byName('Coal Ore');
-  final ash = itemRegistry.byName('Ash');
-  final rawShrimp = itemRegistry.byName('Raw Shrimp');
-  final runeEssenceItem = itemRegistry.byName('Rune Essence');
-  final copperOre = itemRegistry.byName('Copper Ore');
+  late Item normalLogs;
+  late Item oakLogs;
+  late Item willowLogs;
+  late Item teakLogs;
+  late Item birdNest;
+  late Item coalOre;
+  late Item ash;
+  late Item rawShrimp;
+  late Item runeEssenceItem;
+  late Item copperOre;
+
+  setUpAll(() async {
+    await ensureItemsInitialized();
+    normalTree = skillAction('Normal Tree');
+    oakTree = skillAction('Oak Tree');
+    burnNormalLogs = skillAction('Burn Normal Logs');
+    runeEssence = skillAction('Rune Essence') as MiningAction;
+    copper = skillAction('Copper') as MiningAction;
+
+    normalLogs = itemRegistry.byName('Normal Logs');
+    oakLogs = itemRegistry.byName('Oak Logs');
+    willowLogs = itemRegistry.byName('Willow Logs');
+    teakLogs = itemRegistry.byName('Teak Logs');
+    birdNest = itemRegistry.byName('Bird Nest');
+    coalOre = itemRegistry.byName('Coal Ore');
+    ash = itemRegistry.byName('Ash');
+    rawShrimp = itemRegistry.byName('Raw Shrimp');
+    runeEssenceItem = itemRegistry.byName('Rune Essence');
+    copperOre = itemRegistry.byName('Copper Ore');
+  });
 
   group('consumeTicks', () {
     test('consuming ticks for 1 completion adds 1 item and 1x XP', () {
@@ -439,7 +461,7 @@ void main() {
       final testItems = <ItemStack>[];
       for (var i = 0; i < 20; i++) {
         // Create unique test items to completely fill inventory
-        testItems.add(ItemStack(Item('Test Item $i', gp: 1), count: 1));
+        testItems.add(ItemStack(Item.test('Test Item $i', gp: 1), count: 1));
       }
 
       var state = GlobalState.empty();
@@ -514,7 +536,7 @@ void main() {
       // Create test items to fill inventory to capacity
       final testItems = <ItemStack>[];
       for (var i = 0; i < 20; i++) {
-        testItems.add(ItemStack(Item('Test Item $i', gp: 1), count: 1));
+        testItems.add(ItemStack(Item.test('Test Item $i', gp: 1), count: 1));
       }
 
       var state = GlobalState.empty();

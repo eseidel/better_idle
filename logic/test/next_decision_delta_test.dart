@@ -9,7 +9,13 @@ import 'package:logic/src/solver/plan.dart';
 import 'package:logic/src/solver/value_model.dart';
 import 'package:test/test.dart';
 
+import 'test_helper.dart';
+
 void main() {
+  setUpAll(() async {
+    await ensureItemsInitialized();
+  });
+
   group('estimateRates', () {
     test('returns zero rates when no action is active', () {
       final state = GlobalState.empty();

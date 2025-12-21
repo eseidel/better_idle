@@ -80,42 +80,14 @@ class DropChance extends Droppable {
   }
 }
 
-/// A weighted entry in a DropTable.
-/// The weight determines relative probability of selection.
-class Pick {
-  /// Creates a pick with a fixed count (default 1).
-  const Pick(this.name, {this.weight = 1.0, int count = 1})
-    : minCount = count,
-      maxCount = count;
-
-  /// Creates a pick with a random count within a range.
-  const Pick.range(
-    this.name, {
-    required int min,
-    required int max,
-    this.weight = 1.0,
-  }) : minCount = min,
-       maxCount = max;
-
-  final String name;
-
-  /// Relative weight for selection in a DropTable.
-  final double weight;
-
-  final int minCount;
-  final int maxCount;
-
-  /// The expected count for this pick (used for predictions).
-  double get _expectedCount => (minCount + maxCount) / 2.0;
-
-  /// Creates the ItemStack when this pick is selected.
-  ItemStack roll(Random random) {
-    final count = minCount == maxCount
-        ? minCount
-        : minCount + random.nextInt(maxCount - minCount + 1);
-    final item = itemRegistry.byName(name);
-    return ItemStack(item, count: count);
-  }
+/// Deprecated, to be removed once we're loading everything from MelvorData.
+class Pick extends DropTableEntry {
+  Pick(String itemName, {int count = 1, required super.weight})
+    : super(
+        itemID: 'melvorD:${itemName.replaceAll(' ', '_')}',
+        minQuantity: count,
+        maxQuantity: count,
+      );
 }
 
 /// A drop table that selects exactly one item from weighted entries.
@@ -125,7 +97,7 @@ class DropTable extends Droppable {
     : assert(entries.isNotEmpty, 'Entries must not be empty');
 
   /// The weighted entries in this table.
-  final List<Pick> entries;
+  final List<DropTableEntry> entries;
 
   /// Returns the total weight of all entries.
   double get _totalWeight => entries.fold(0, (sum, e) => sum + e.weight);
@@ -136,7 +108,7 @@ class DropTable extends Droppable {
     final total = _totalWeight;
     for (final entry in entries) {
       final probability = entry.weight / total;
-      final value = entry._expectedCount * probability;
+      final value = entry.expectedCount * probability;
       result[entry.name] = (result[entry.name] ?? 0.0) + value;
     }
     return result;

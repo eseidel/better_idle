@@ -1,7 +1,13 @@
 import 'package:logic/logic.dart';
 import 'package:test/test.dart';
 
+import 'test_helper.dart';
+
 void main() {
+  setUpAll(() async {
+    await ensureItemsInitialized();
+  });
+
   group('logic package', () {
     test('exports Skill enum', () {
       expect(Skill.values, isNotEmpty);

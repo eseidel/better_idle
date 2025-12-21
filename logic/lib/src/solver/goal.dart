@@ -19,7 +19,6 @@
 library;
 
 import 'package:logic/src/data/actions.dart';
-import 'package:logic/src/data/items.dart';
 import 'package:logic/src/data/xp.dart';
 import 'package:logic/src/state.dart';
 import 'package:meta/meta.dart';

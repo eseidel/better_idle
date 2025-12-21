@@ -9,10 +9,16 @@ import 'package:logic/src/solver/interaction.dart';
 import 'package:logic/src/solver/value_model.dart';
 import 'package:test/test.dart';
 
+import 'test_helper.dart';
+
 /// Default goal for tests - a large GP target that won't be reached
 const _defaultGoal = ReachGpGoal(1000000);
 
 void main() {
+  setUpAll(() async {
+    await ensureItemsInitialized();
+  });
+
   group('buildActionSummaries', () {
     test('returns summaries for all skill actions without inputs', () {
       final state = GlobalState.empty();

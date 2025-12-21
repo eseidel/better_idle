@@ -1,172 +1,214 @@
 import 'dart:math';
 
 import 'package:equatable/equatable.dart';
+import 'package:logic/src/data/melvor_data.dart';
 import 'package:logic/src/types/drop.dart';
 import 'package:logic/src/types/inventory.dart';
 import 'package:meta/meta.dart';
 
-const _woodcutting = [
-  Item('Normal Logs', gp: 1),
-  Item('Oak Logs', gp: 5),
-  Item('Willow Logs', gp: 10),
-  Item('Teak Logs', gp: 20),
-  Item('Bird Nest', gp: 350),
-];
+/// An entry in a drop table from the Melvor JSON data.
+@immutable
+class DropTableEntry extends Equatable {
+  const DropTableEntry({
+    required this.itemID,
+    required this.minQuantity,
+    required this.maxQuantity,
+    required this.weight,
+  });
 
-const _firemaking = [Item('Coal Ore', gp: 13), Item('Ash', gp: 5)];
+  /// Creates a DropTableEntry from a JSON map.
+  factory DropTableEntry.fromJson(Map<String, dynamic> json) {
+    return DropTableEntry(
+      itemID: json['itemID'] as String,
+      minQuantity: json['minQuantity'] as int,
+      maxQuantity: json['maxQuantity'] as int,
+      weight: json['weight'] as int,
+    );
+  }
 
-const _fishing = [
-  Item('Raw Shrimp', gp: 1),
-  Item('Raw Lobster', gp: 65),
-  Item('Raw Crab', gp: 135),
-  Item('Raw Sardine', gp: 3),
-  Item('Raw Herring', gp: 8),
-  Item('Raw Trout', gp: 16),
-];
+  /// The fully qualified item ID (e.g., "melvorD:Normal_Logs").
+  final String itemID;
 
-const _cooking = [
-  Item('Shrimp', gp: 2, healsFor: 30),
-  Item('Lobster', gp: 108, healsFor: 110),
-  Item('Crab', gp: 280, healsFor: 150),
-  Item('Sardine', gp: 5, healsFor: 40),
-  Item('Herring', gp: 10, healsFor: 50),
-];
+  /// The minimum quantity that can drop.
+  final int minQuantity;
 
-const _mining = [
-  Item('Rune Essence', gp: 0),
-  Item('Copper Ore', gp: 2),
-  Item('Tin Ore', gp: 2),
-  Item('Iron Ore', gp: 5),
-];
+  /// The maximum quantity that can drop.
+  final int maxQuantity;
 
-const _bars = [
-  Item('Bronze Bar', gp: 6),
-  Item('Iron Bar', gp: 12),
-  Item('Steel Bar', gp: 30),
-  Item('Mithril Bar', gp: 125),
-];
+  /// The expected quantity that will drop.
+  double get expectedCount => (minQuantity + maxQuantity) / 2.0;
 
-const _smithing = <Item>[..._bars, Item('Bronze Dagger', gp: 1)];
+  /// The weight of this entry in the drop table.
+  final int weight;
 
-const _gems = [
-  Item('Topaz', gp: 225),
-  Item('Sapphire', gp: 335),
-  Item('Ruby', gp: 555),
-  Item('Emerald', gp: 555),
-  Item('Diamond', gp: 1150),
-];
+  /// Extracts the item name from the fully qualified itemID.
+  /// e.g., "melvorD:Normal_Logs" -> "Normal_Logs"
+  String get itemIdWithoutNamespace {
+    final colonIndex = itemID.indexOf(':');
+    return colonIndex >= 0 ? itemID.substring(colonIndex + 1) : itemID;
+  }
 
-const _thieving = [
-  Item("Bobby's Pocket", gp: 4000),
-  // TODO(eseidel): Missing equipped effect for Jeweled Necklace.
-  // +5% Global GP (except Item Sales)
-  Item('Jeweled Necklace', gp: 5000),
-];
+  String get name => itemIdWithoutNamespace.replaceAll('_', ' ');
 
-// Ranged items (arrows)
-const _ranged = [
-  Item('Bronze Arrows', gp: 1),
-  Item('Iron Arrows', gp: 2),
-  Item('Steel Arrows', gp: 3),
-  Item('Mithril Arrows', gp: 8),
-];
+  @override
+  List<Object?> get props => [itemID, minQuantity, maxQuantity, weight];
 
-// Farming items (from openables like Egg Chest)
-const _farming = [
-  Item('Feathers', gp: 2), // Inferred from 1-1000 feathers = 2-2000GP
-  Item('Raw Chicken', gp: 1), // Inferred from 1-40 chicken = 1-40GP
-];
+  @override
+  String toString() =>
+      'DropTableEntry($itemID, $minQuantity-$maxQuantity, weight: $weight)';
 
-// Openable items (chests, etc.)
-final _openables = <Openable>[
-  Openable(
-    'Egg Chest',
-    gp: 100,
-    dropTable: DropTable([
-      Pick.range('Feathers', min: 1, max: 1000, weight: 1),
-      Pick.range('Raw Chicken', min: 1, max: 40, weight: 1),
-    ]),
-  ),
-  Openable(
-    'Crate of Basic Supplies',
-    gp: 100,
-    dropTable: DropTable([
-      Pick.range('Bronze Arrows', min: 1, max: 200, weight: 25),
-      Pick.range('Raw Shrimp', min: 1, max: 200, weight: 25),
-      Pick.range('Iron Arrows', min: 1, max: 200, weight: 20),
-      Pick.range('Raw Sardine', min: 1, max: 200, weight: 18),
-      Pick.range('Steel Arrows', min: 1, max: 200, weight: 18),
-      Pick.range('Bronze Bar', min: 1, max: 200, weight: 14),
-      Pick.range('Raw Herring', min: 1, max: 200, weight: 13),
-      Pick.range('Mithril Arrows', min: 1, max: 200, weight: 13),
-      Pick.range('Iron Bar', min: 1, max: 200, weight: 11),
-      Pick.range('Raw Trout', min: 1, max: 200, weight: 10),
-      Pick.range('Steel Bar', min: 1, max: 200, weight: 9),
-      Pick.range('Mithril Bar', min: 1, max: 200, weight: 5),
-    ]),
-  ),
-];
+  /// Creates the ItemStack when this pick is selected.
+  ItemStack roll(Random random) {
+    final count = minQuantity == maxQuantity
+        ? minQuantity
+        : minQuantity + random.nextInt(maxQuantity - minQuantity + 1);
+    final item = itemRegistry.byName(name);
+    return ItemStack(item, count: count);
+  }
+}
 
-final _all = <Item>[
-  ..._woodcutting,
-  ..._firemaking,
-  ..._fishing,
-  ..._cooking,
-  ..._mining,
-  ..._smithing,
-  ..._gems,
-  ..._thieving,
-  ..._ranged,
-  ..._farming,
-  ..._openables,
-];
-
+/// An item loaded from the Melvor game data.
 @immutable
 class Item extends Equatable {
-  const Item(this.name, {required int gp, this.healsFor}) : sellsFor = gp;
+  const Item({
+    required this.id,
+    required this.name,
+    required this.itemType,
+    required this.sellsFor,
+    this.category,
+    this.type,
+    this.healsFor,
+    this.dropTable,
+  });
 
+  /// Creates a simple test item with minimal required fields.
+  /// Only for use in tests.
+  @visibleForTesting
+  const Item.test(this.name, {required int gp, this.healsFor})
+    : id = name,
+      itemType = 'Item',
+      sellsFor = gp,
+      category = null,
+      type = null,
+      dropTable = null;
+
+  /// Creates an Item from a JSON map.
+  factory Item.fromJson(Map<String, dynamic> json) {
+    // Melvor uses HP/10, we use actual HP values, so multiply by 10.
+    final rawHealsFor = json['healsFor'] as num?;
+    final healsFor = rawHealsFor != null ? (rawHealsFor * 10).toInt() : null;
+
+    // Parse drop table if present.
+    final dropTableJson = json['dropTable'] as List<dynamic>?;
+    DropTable? dropTable;
+    if (dropTableJson != null && dropTableJson.isNotEmpty) {
+      final entries = dropTableJson
+          .map((e) => DropTableEntry.fromJson(e as Map<String, dynamic>))
+          .toList();
+      dropTable = DropTable(entries);
+    }
+
+    return Item(
+      id: json['id'] as String,
+      name: json['name'] as String,
+      itemType: json['itemType'] as String,
+      sellsFor: json['sellsFor'] as int,
+      category: json['category'] as String?,
+      type: json['type'] as String?,
+      healsFor: healsFor,
+      dropTable: dropTable,
+    );
+  }
+
+  /// The unique identifier for this item (e.g., "Normal_Logs").
+  final String id;
+
+  /// The display name for this item (e.g., "Normal Logs").
   final String name;
+
+  /// The type of item (e.g., "Item", "Food", "Weapon", "Equipment").
+  final String itemType;
+
+  /// The amount of GP this item sells for.
   final int sellsFor;
+
+  /// The category of this item (e.g., "Woodcutting", "Fishing").
+  final String? category;
+
+  /// The sub-type of this item (e.g., "Logs", "Raw Fish", "Food").
+  final String? type;
 
   /// The amount of HP this item heals when consumed. Null if not consumable.
   final int? healsFor;
 
+  /// The drop table for openable items. Null if not openable.
+  final DropTable? dropTable;
+
   /// Whether this item can be consumed for healing.
   bool get isConsumable => healsFor != null;
 
-  @override
-  List<Object?> get props => [name, sellsFor, healsFor];
-}
-
-/// An item that can be opened to receive drops from a weighted table.
-@immutable
-class Openable extends Item {
-  // DropTable constructor guarantees non-empty entries.
-  const Openable(super.name, {required super.gp, required this.dropTable});
-
-  /// The drop table for this openable.
-  final DropTable dropTable;
+  /// Whether this item can be opened (has a drop table).
+  bool get isOpenable => dropTable != null;
 
   /// Opens this item once and returns the resulting drop.
-  ItemStack open(Random random) => dropTable.roll(random);
+  /// Throws if the item is not openable.
+  ItemStack open(Random random) {
+    if (dropTable == null) {
+      throw StateError('Item $name is not openable');
+    }
+    return dropTable!.roll(random);
+  }
 
   @override
-  List<Object?> get props => [...super.props, dropTable];
+  List<Object?> get props => [
+    id,
+    name,
+    itemType,
+    sellsFor,
+    category,
+    type,
+    healsFor,
+    dropTable,
+  ];
+
+  @override
+  String toString() => 'Item($name)';
 }
 
 class ItemRegistry {
-  ItemRegistry(this._all);
+  ItemRegistry._(this._all) {
+    _byName = {for (final item in _all) item.name: item};
+  }
 
   final List<Item> _all;
+  late final Map<String, Item> _byName;
 
   /// All registered items.
   List<Item> get all => _all;
 
   /// Returns the item by name, or throws a StateError if not found.
-  Item byName(String name) => _all.firstWhere((item) => item.name == name);
+  Item byName(String name) {
+    final item = _byName[name];
+    if (item == null) {
+      throw StateError('Item not found: $name');
+    }
+    return item;
+  }
 
   /// Returns the index of the item in the registry, or -1 if not found.
   int indexForItem(Item item) => _all.indexOf(item);
 }
 
-final itemRegistry = ItemRegistry(_all);
+late ItemRegistry itemRegistry;
+
+/// Initializes the global itemRegistry from MelvorData.
+void initializeItems(MelvorData data) {
+  final items = <Item>[];
+  for (final name in data.itemNames) {
+    final json = data.lookupItem(name);
+    if (json != null) {
+      items.add(Item.fromJson(json));
+    }
+  }
+  itemRegistry = ItemRegistry._(items);
+}
