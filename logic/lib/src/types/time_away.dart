@@ -176,7 +176,7 @@ class TimeAway {
   /// Returns a map of item name to items per hour.
   /// Returns empty map for CombatActions (combat drops are handled
   /// differently).
-  Map<String, double> itemsGainedPerHour() {
+  Map<String, double> get itemsGainedPerHour {
     final action = activeAction;
     if (action is! SkillAction) {
       return {};

@@ -9,7 +9,7 @@ import 'dart:math';
 import 'package:logic/logic.dart';
 
 /// Prints TimeAway information to the console in a readable format.
-void printTimeAway(DropsRegistry drops, TimeAway timeAway) {
+void printTimeAway(TimeAway timeAway) {
   final activeSkill = timeAway.activeSkill;
   final duration = timeAway.duration;
   final changes = timeAway.changes;
@@ -61,7 +61,7 @@ void printTimeAway(DropsRegistry drops, TimeAway timeAway) {
   // Print inventory changes
   if (changes.inventoryChanges.isNotEmpty) {
     print('INVENTORY CHANGES:');
-    final itemsGained = timeAway.itemsGainedPerHour();
+    final itemsGained = timeAway.itemsGainedPerHour;
     final itemsConsumed = timeAway.itemsConsumedPerHour;
     for (final entry in changes.inventoryChanges.entries) {
       final itemName = entry.key;
@@ -232,7 +232,7 @@ void main(List<String> args) async {
   );
 
   // Print the TimeAway information
-  printTimeAway(registries.drops, timeAway);
+  printTimeAway(timeAway);
 
   // Print final state summary
   printFinalState(finalState);

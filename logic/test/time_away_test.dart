@@ -77,13 +77,13 @@ void main() {
   group('itemsGainedPerHour', () {
     test('returns empty map when no active action', () {
       final timeAway = TimeAway.test(testRegistries);
-      expect(timeAway.itemsGainedPerHour(), isEmpty);
+      expect(timeAway.itemsGainedPerHour, isEmpty);
     });
 
     test('returns empty map for combat action', () {
       final plantAction = combatActionByName('Plant');
       final timeAway = TimeAway.test(testRegistries, activeAction: plantAction);
-      expect(timeAway.itemsGainedPerHour(), isEmpty);
+      expect(timeAway.itemsGainedPerHour, isEmpty);
     });
 
     test('returns correct items per hour for skill action', () {
@@ -96,7 +96,7 @@ void main() {
         masteryLevels: {'Normal Tree': 0},
       );
 
-      final itemsPerHour = timeAway.itemsGainedPerHour();
+      final itemsPerHour = timeAway.itemsGainedPerHour;
       expect(itemsPerHour['Normal Logs'], closeTo(1200, 1));
     });
 
@@ -110,7 +110,7 @@ void main() {
         masteryLevels: {'Normal Tree': 0},
       );
 
-      final itemsPerHour = timeAway.itemsGainedPerHour();
+      final itemsPerHour = timeAway.itemsGainedPerHour;
       expect(itemsPerHour['Bird Nest'], closeTo(6, 0.1));
     });
 
@@ -125,7 +125,7 @@ void main() {
         masteryLevels: {'Normal Tree': 80},
       );
 
-      final itemsPerHour = timeAway.itemsGainedPerHour();
+      final itemsPerHour = timeAway.itemsGainedPerHour;
       expect(itemsPerHour['Normal Logs'], 1680);
     });
   });
