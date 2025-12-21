@@ -22,7 +22,7 @@ void main() {
   group('buildActionSummaries', () {
     test('returns summaries for all skill actions without inputs', () {
       final state = GlobalState.empty(testRegistries);
-      final summaries = buildActionSummaries(testRegistries, state);
+      final summaries = buildActionSummaries(state);
 
       // Should have entries for woodcutting, fishing, mining, thieving
       // but NOT firemaking, cooking, smithing (they require inputs)
@@ -47,7 +47,7 @@ void main() {
           Skill.woodcutting: const SkillState(xp: 8740, masteryPoolXp: 0),
         },
       );
-      final summaries = buildActionSummaries(testRegistries, state);
+      final summaries = buildActionSummaries(state);
 
       final normalTree = summaries.firstWhere(
         (s) => s.actionName == 'Normal Tree',
@@ -68,7 +68,7 @@ void main() {
 
     test('calculates positive gold rate for activities with outputs', () {
       final state = GlobalState.empty(testRegistries);
-      final summaries = buildActionSummaries(testRegistries, state);
+      final summaries = buildActionSummaries(state);
 
       final normalTree = summaries.firstWhere(
         (s) => s.actionName == 'Normal Tree',
@@ -81,7 +81,7 @@ void main() {
 
     test('calculates positive xp rate for all actions', () {
       final state = GlobalState.empty(testRegistries);
-      final summaries = buildActionSummaries(testRegistries, state);
+      final summaries = buildActionSummaries(state);
 
       for (final summary in summaries) {
         expect(
@@ -96,16 +96,12 @@ void main() {
   group('enumerateCandidates', () {
     test('returns activity candidates sorted by gold rate', () {
       final state = GlobalState.empty(testRegistries);
-      final candidates = enumerateCandidates(
-        testRegistries,
-        state,
-        _defaultGoal,
-      );
+      final candidates = enumerateCandidates(state, _defaultGoal);
 
       expect(candidates.switchToActivities, isNotEmpty);
 
       // Verify sorted by gold rate (descending)
-      final summaries = buildActionSummaries(testRegistries, state);
+      final summaries = buildActionSummaries(state);
       double? lastRate;
       for (final name in candidates.switchToActivities) {
         final summary = summaries.firstWhere((s) => s.actionName == name);
@@ -131,7 +127,6 @@ void main() {
       );
 
       final candidates = enumerateCandidates(
-        testRegistries,
         state,
         _defaultGoal,
         activityCount: 3,
@@ -148,11 +143,7 @@ void main() {
       // activity competitive with the current best. Otherwise they're
       // wasteful spending.
       final state = GlobalState.empty(testRegistries).copyWith(gp: 1000);
-      final candidates = enumerateCandidates(
-        testRegistries,
-        state,
-        _defaultGoal,
-      );
+      final candidates = enumerateCandidates(state, _defaultGoal);
 
       // No upgrades should be suggested when thieving dominates,
       // even if the player can afford them
@@ -174,10 +165,7 @@ void main() {
       // upgrades for that skill should be included.
 
       // Create state with only woodcutting (no thieving advantage)
-      final summaries = buildActionSummaries(
-        testRegistries,
-        GlobalState.empty(testRegistries),
-      );
+      final summaries = buildActionSummaries(GlobalState.empty(testRegistries));
       final woodcuttingOnly = summaries.where(
         (s) => s.skill == Skill.woodcutting && s.isUnlocked,
       );
@@ -186,11 +174,7 @@ void main() {
       // The test verifies that the upgrade filtering works correctly
       // by checking that when thieving dominates, no upgrades are suggested
       final state = GlobalState.empty(testRegistries);
-      final candidates = enumerateCandidates(
-        testRegistries,
-        state,
-        _defaultGoal,
-      );
+      final candidates = enumerateCandidates(state, _defaultGoal);
       expect(
         candidates.buyUpgrades,
         isEmpty,
@@ -200,11 +184,7 @@ void main() {
 
     test('watch list includes locked activities', () {
       final state = GlobalState.empty(testRegistries);
-      final candidates = enumerateCandidates(
-        testRegistries,
-        state,
-        _defaultGoal,
-      );
+      final candidates = enumerateCandidates(state, _defaultGoal);
 
       expect(candidates.watch.lockedActivityNames, isNotEmpty);
       // Should watch for activities that will unlock soon
@@ -217,11 +197,7 @@ void main() {
       // have positive gain, even if not competitive with the best activity.
       // This allows the planner to know when any upgrade becomes affordable.
       final state = GlobalState.empty(testRegistries);
-      final candidates = enumerateCandidates(
-        testRegistries,
-        state,
-        _defaultGoal,
-      );
+      final candidates = enumerateCandidates(state, _defaultGoal);
 
       // Even though thieving dominates, we still watch for tool upgrades
       // so the planner can reconsider when they become affordable
@@ -260,11 +236,7 @@ void main() {
         ]),
       );
 
-      final candidates = enumerateCandidates(
-        testRegistries,
-        state,
-        _defaultGoal,
-      );
+      final candidates = enumerateCandidates(state, _defaultGoal);
 
       expect(candidates.includeSellAll, isTrue);
       expect(candidates.watch.inventory, isTrue);
@@ -277,11 +249,7 @@ void main() {
         ]),
       );
 
-      final candidates = enumerateCandidates(
-        testRegistries,
-        state,
-        _defaultGoal,
-      );
+      final candidates = enumerateCandidates(state, _defaultGoal);
 
       expect(candidates.includeSellAll, isFalse);
       expect(candidates.watch.inventory, isFalse);
@@ -290,16 +258,8 @@ void main() {
     test('is deterministic for same state', () {
       final state = GlobalState.empty(testRegistries).copyWith(gp: 1000);
 
-      final candidates1 = enumerateCandidates(
-        testRegistries,
-        state,
-        _defaultGoal,
-      );
-      final candidates2 = enumerateCandidates(
-        testRegistries,
-        state,
-        _defaultGoal,
-      );
+      final candidates1 = enumerateCandidates(state, _defaultGoal);
+      final candidates2 = enumerateCandidates(state, _defaultGoal);
 
       expect(
         candidates1.switchToActivities,
@@ -326,12 +286,8 @@ void main() {
       state = state.startAction(manAction, random: Random(0));
 
       // Get baseline rate with no upgrades
-      final baseRates = estimateRates(testRegistries, state);
-      final baseGoldRate = defaultValueModel.valuePerTick(
-        testItems,
-        state,
-        baseRates,
-      );
+      final baseRates = estimateRates(state);
+      final baseGoldRate = defaultValueModel.valuePerTick(state, baseRates);
 
       // Buy all tool upgrades (axe, fishing rod, pickaxe)
       var upgradedState = state.copyWith(
@@ -345,9 +301,8 @@ void main() {
       upgradedState = upgradedState.startAction(manAction, random: Random(0));
 
       // Get rate with all tool upgrades
-      final upgradedRates = estimateRates(testRegistries, upgradedState);
+      final upgradedRates = estimateRates(upgradedState);
       final upgradedGoldRate = defaultValueModel.valuePerTick(
-        testItems,
         upgradedState,
         upgradedRates,
       );
@@ -368,7 +323,7 @@ void main() {
       const interaction = BuyUpgrade(UpgradeType.axe);
 
       // Apply the upgrade
-      final newState = applyInteraction(testRegistries, state, interaction);
+      final newState = applyInteraction(state, interaction);
 
       // Iron Axe costs 50 GP
       expect(newState.gp, equals(50));
@@ -379,7 +334,6 @@ void main() {
       // Test first fishing rod (costs 100)
       var state = GlobalState.empty(testRegistries).copyWith(gp: 200);
       var newState = applyInteraction(
-        testRegistries,
         state,
         const BuyUpgrade(UpgradeType.fishingRod),
       );
@@ -388,11 +342,7 @@ void main() {
 
       // Test first pickaxe (costs 250)
       state = GlobalState.empty(testRegistries).copyWith(gp: 500);
-      newState = applyInteraction(
-        testRegistries,
-        state,
-        const BuyUpgrade(UpgradeType.pickaxe),
-      );
+      newState = applyInteraction(state, const BuyUpgrade(UpgradeType.pickaxe));
       expect(newState.gp, equals(250)); // 500 - 250
       expect(newState.shop.pickaxeLevel, equals(1));
     });

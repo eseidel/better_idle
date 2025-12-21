@@ -15,7 +15,6 @@
 library;
 
 import 'package:logic/src/data/actions.dart';
-import 'package:logic/src/data/registries.dart';
 import 'package:logic/src/data/upgrades.dart';
 import 'package:logic/src/state.dart';
 
@@ -30,14 +29,11 @@ import 'interaction.dart';
 ///
 /// Note: the solver further filters these through [Candidates] to only
 /// consider competitive options.
-List<Interaction> availableInteractions(
-  Registries registries,
-  GlobalState state,
-) {
+List<Interaction> availableInteractions(GlobalState state) {
   final interactions = <Interaction>[];
 
   // Add available activity switches
-  interactions.addAll(_availableActivitySwitches(registries, state));
+  interactions.addAll(_availableActivitySwitches(state));
 
   // Add available upgrades
   interactions.addAll(_availableUpgrades(state));
@@ -52,12 +48,10 @@ List<Interaction> availableInteractions(
 
 /// Returns SwitchActivity interactions for all unlocked actions
 /// that are not the current action.
-List<SwitchActivity> _availableActivitySwitches(
-  Registries registries,
-  GlobalState state,
-) {
+List<SwitchActivity> _availableActivitySwitches(GlobalState state) {
   final currentActionName = state.activeAction?.name;
   final switches = <SwitchActivity>[];
+  final registries = state.registries;
 
   // Check all skills for available actions
   for (final skill in Skill.values) {

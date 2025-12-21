@@ -1,4 +1,5 @@
 import 'package:better_idle/src/logic/redux_actions.dart';
+import 'package:better_idle/src/widgets/context_extensions.dart';
 import 'package:better_idle/src/widgets/navigation_drawer.dart';
 import 'package:better_idle/src/widgets/welcome_back_dialog.dart';
 import 'package:flutter/material.dart';
@@ -40,7 +41,7 @@ class DebugPage extends StatelessWidget {
     );
   }
 
-  TimeAway _createExampleTimeAway() {
+  TimeAway _createExampleTimeAway(Registries registries) {
     // Create an example TimeAway with all types of changes
     final now = DateTime.now();
     // Use Oak Tree action to demonstrate predictions
@@ -83,7 +84,7 @@ class DebugPage extends StatelessWidget {
   }
 
   Future<void> _showWelcomeBackDialog(BuildContext context) async {
-    final timeAway = _createExampleTimeAway();
+    final timeAway = _createExampleTimeAway(context.state.registries);
 
     if (context.mounted) {
       await showDialog<void>(

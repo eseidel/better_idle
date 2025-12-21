@@ -57,7 +57,7 @@ void main() {
 
       // Advance time by exactly 1 completion (30 ticks = 3 seconds)
       final builder = StateUpdateBuilder(state);
-      consumeTicks(testRegistries, builder, 30, random: random);
+      consumeTicks(builder, 30, random: random);
       state = builder.build();
 
       // Verify activity progress reset to 0 (ready for next completion)
@@ -89,7 +89,7 @@ void main() {
 
       // Advance time by exactly 5 completions (150 ticks = 15 seconds)
       final builder = StateUpdateBuilder(state);
-      consumeTicks(testRegistries, builder, 150, random: random);
+      consumeTicks(builder, 150, random: random);
       state = builder.build();
 
       // Verify activity progress reset to 0 (ready for next completion)
@@ -120,7 +120,7 @@ void main() {
 
       // Advance time by only 15 ticks (1.5 seconds, half completion)
       final builder = StateUpdateBuilder(state);
-      consumeTicks(testRegistries, builder, 15, random: random);
+      consumeTicks(builder, 15, random: random);
       state = builder.build();
 
       // Verify activity progress is at 15 (halfway)
@@ -142,7 +142,7 @@ void main() {
 
       // Advance time by 1.5 completions (45 ticks = 4.5 seconds)
       final builder = StateUpdateBuilder(state);
-      consumeTicks(testRegistries, builder, 45, random: random);
+      consumeTicks(builder, 45, random: random);
       state = builder.build();
 
       // Verify activity progress is at 15 (halfway through second completion)
@@ -168,7 +168,7 @@ void main() {
       // Advance time by exactly 2 completions (80 ticks = 8 seconds,
       // since Oak Tree takes 4 seconds per completion)
       final builder = StateUpdateBuilder(state);
-      consumeTicks(testRegistries, builder, 80, random: random);
+      consumeTicks(builder, 80, random: random);
       state = builder.build();
 
       // Verify activity progress reset to 0
@@ -190,7 +190,7 @@ void main() {
       final random = Random(0);
       // No activity started, try to consume ticks
       final builder = StateUpdateBuilder(state);
-      consumeTicks(testRegistries, builder, 100, random: random);
+      consumeTicks(builder, 100, random: random);
       state = builder.build();
 
       // Verify state unchanged
@@ -207,7 +207,7 @@ void main() {
 
       // Consume 0 ticks
       final builder = StateUpdateBuilder(state);
-      consumeTicks(testRegistries, builder, 0, random: random);
+      consumeTicks(builder, 0, random: random);
       state = builder.build();
 
       // Verify no progress, no rewards, no XP
@@ -226,7 +226,7 @@ void main() {
 
       // Advance by 3 completions
       final builder = StateUpdateBuilder(state);
-      consumeTicks(testRegistries, builder, 90, random: random);
+      consumeTicks(builder, 90, random: random);
       state = builder.build();
 
       // Verify all rewards are accumulated correctly
@@ -245,7 +245,7 @@ void main() {
 
       // Advance time by exactly 1 completion (30 ticks = 3 seconds)
       final builder = StateUpdateBuilder(state);
-      consumeTicks(testRegistries, builder, 30, random: random);
+      consumeTicks(builder, 30, random: random);
       state = builder.build();
 
       // Verify mastery XP increased
@@ -256,7 +256,7 @@ void main() {
 
       // Advance time by exactly 1 more completion
       final builder2 = StateUpdateBuilder(state);
-      consumeTicks(testRegistries, builder2, 30, random: random);
+      consumeTicks(builder2, 30, random: random);
       state = builder2.build();
 
       // Verify mastery XP increased again
@@ -275,12 +275,7 @@ void main() {
       // Consume enough ticks to drop at least one Bird Nest
       // With rate 0.005, we expect ~0.5 drops per 100 actions
       final builder = StateUpdateBuilder(state);
-      consumeTicks(
-        testRegistries,
-        builder,
-        3000,
-        random: random,
-      ); // 100 completions
+      consumeTicks(builder, 3000, random: random); // 100 completions
       state = builder.build();
 
       // Verify action-level drop (Normal Logs) is present
@@ -325,7 +320,7 @@ void main() {
         final builder = StateUpdateBuilder(state);
         // Complete the action directly (bypassing consumeTicks which
         // requires registry lookup)
-        completeAction(testRegistries, builder, testAction, random: random);
+        completeAction(builder, testAction, random: random);
         state = builder.build();
 
         // Verify 3 items were added (not 1)
@@ -356,7 +351,7 @@ void main() {
 
         // Advance time by exactly 1 completion (20 ticks = 2 seconds)
         final builder = StateUpdateBuilder(state);
-        consumeTicks(testRegistries, builder, 20, random: random);
+        consumeTicks(builder, 20, random: random);
         state = builder.build();
 
         // Verify activity progress reset to 0 (ready for next completion)
@@ -399,7 +394,7 @@ void main() {
 
       // Advance time by exactly 3 completions (60 ticks = 6 seconds)
       final builder = StateUpdateBuilder(state);
-      consumeTicks(testRegistries, builder, 60, random: random);
+      consumeTicks(builder, 60, random: random);
       state = builder.build();
 
       // Verify 3 Normal Logs were consumed (10 - 3 = 7 remaining)
@@ -438,7 +433,7 @@ void main() {
       // Advance time by enough ticks for N completions
       // (N * 20 ticks = 100 ticks for 5 completions)
       final builder = StateUpdateBuilder(state);
-      consumeTicks(testRegistries, builder, n * 20, random: random);
+      consumeTicks(builder, n * 20, random: random);
       state = builder.build();
 
       // Verify action was cleared (can't continue without inputs)
@@ -492,7 +487,7 @@ void main() {
 
       // Complete one action - the output should be dropped
       final builder = StateUpdateBuilder(state);
-      consumeTicks(testRegistries, builder, 30, random: random); // 1 completion
+      consumeTicks(builder, 30, random: random); // 1 completion
       state = builder.build();
 
       // Action should have stopped after first completion
@@ -533,12 +528,7 @@ void main() {
 
       // Multiple completions should work because Normal Logs can stack
       final builder = StateUpdateBuilder(state);
-      consumeTicks(
-        testRegistries,
-        builder,
-        90,
-        random: random,
-      ); // 3 completions
+      consumeTicks(builder, 90, random: random); // 3 completions
       state = builder.build();
 
       // Verify we got 3 more Normal Logs (5 + 3 = 8 total)
@@ -565,7 +555,6 @@ void main() {
 
       // Use consumeManyTicks to simulate time away
       final (timeAway, newState) = consumeManyTicks(
-        testRegistries,
         state,
         90, // 3 completions worth of ticks
         random: random,
@@ -597,12 +586,7 @@ void main() {
       // Level 2 requires 83 XP, normalTree gives 10 XP per completion
       // So we need 9 completions (9 * 10 = 90 XP)
       final builder = StateUpdateBuilder(state);
-      consumeTicks(
-        testRegistries,
-        builder,
-        30 * 9,
-        random: random,
-      ); // 9 completions
+      consumeTicks(builder, 30 * 9, random: random); // 9 completions
       state = builder.build();
 
       // Verify we leveled up to level 2
@@ -629,12 +613,7 @@ void main() {
       // Level 3 requires 174 XP, normalTree gives 10 XP per completion
       // So we need 18 completions (18 * 10 = 180 XP)
       final builder = StateUpdateBuilder(state);
-      consumeTicks(
-        testRegistries,
-        builder,
-        30 * 18,
-        random: random,
-      ); // 18 completions
+      consumeTicks(builder, 30 * 18, random: random); // 18 completions
       state = builder.build();
 
       // Verify we leveled up to level 3 (gained 2 levels)
@@ -658,7 +637,6 @@ void main() {
 
       // Complete enough ticks to level up
       final (timeAway, newState) = consumeManyTicks(
-        testRegistries,
         state,
         30 * 9, // 9 completions = 90 XP = level 2
         random: random,
@@ -690,7 +668,7 @@ void main() {
 
       final ticks = ticksFromDuration(const Duration(seconds: 30));
       final builder = StateUpdateBuilder(state);
-      consumeTicks(testRegistries, builder, ticks, random: random);
+      consumeTicks(builder, ticks, random: random);
       state = builder.build();
 
       // In 30s, we should swing 10 times.
@@ -742,7 +720,7 @@ void main() {
 
       // Mine once to deplete the node (30 ticks)
       var builder = StateUpdateBuilder(state);
-      consumeTicks(testRegistries, builder, 30, random: random);
+      consumeTicks(builder, 30, random: random);
       state = builder.build();
 
       // Verify we got 1 copper and node is depleted
@@ -758,7 +736,7 @@ void main() {
       // Now simulate a few more tick cycles while node is respawning
       // Respawn takes 50 ticks, let's do 20 ticks at a time
       builder = StateUpdateBuilder(state);
-      consumeTicks(testRegistries, builder, 20, random: random);
+      consumeTicks(builder, 20, random: random);
       state = builder.build();
 
       // Still depleted, still active
@@ -772,7 +750,7 @@ void main() {
 
       // Another 20 ticks (40 total, still 10 ticks to go)
       builder = StateUpdateBuilder(state);
-      consumeTicks(testRegistries, builder, 20, random: random);
+      consumeTicks(builder, 20, random: random);
       state = builder.build();
 
       expect(
@@ -784,7 +762,7 @@ void main() {
 
       // Final 20 ticks - respawn completes (10 ticks) + 10 ticks toward next
       builder = StateUpdateBuilder(state);
-      consumeTicks(testRegistries, builder, 20, random: random);
+      consumeTicks(builder, 20, random: random);
       state = builder.build();
 
       // Node should no longer be depleted
@@ -802,7 +780,6 @@ void main() {
       // progress from the 20 tick batch above)
       builder = StateUpdateBuilder(state);
       consumeTicks(
-        testRegistries,
         builder,
         20,
         random: random,
@@ -855,7 +832,7 @@ void main() {
       // Helper that uses the same logic as UpdateActivityProgressAction
       GlobalState applyTicks(GlobalState state, Tick ticks) {
         final builder = StateUpdateBuilder(state);
-        consumeTicks(testRegistries, builder, ticks, random: random);
+        consumeTicks(builder, ticks, random: random);
         return builder.build();
       }
 
@@ -1044,7 +1021,7 @@ void main() {
 
       // Process 60 ticks (enough for 1 heal at tick 50, partial progress)
       final builder = StateUpdateBuilder(state);
-      consumeTicks(testRegistries, builder, 60, random: random);
+      consumeTicks(builder, 60, random: random);
       state = builder.build();
 
       // Verify node healed (should have healed once at tick 50)
@@ -1084,7 +1061,7 @@ void main() {
 
       // Process enough ticks to respawn
       final builder = StateUpdateBuilder(state);
-      consumeTicks(testRegistries, builder, 50, random: random);
+      consumeTicks(builder, 50, random: random);
       state = builder.build();
 
       // Verify node respawned
@@ -1123,7 +1100,7 @@ void main() {
 
       // Process 200 ticks - enough for woodcutting completions and heals
       final builder = StateUpdateBuilder(state);
-      consumeTicks(testRegistries, builder, 200, random: random);
+      consumeTicks(builder, 200, random: random);
       state = builder.build();
 
       // Verify woodcutting produced logs
@@ -1157,7 +1134,7 @@ void main() {
 
       // Process some ticks - should not throw
       final builder = StateUpdateBuilder(state);
-      consumeTicks(testRegistries, builder, 100, random: random);
+      consumeTicks(builder, 100, random: random);
       state = builder.build();
 
       // Combat should still be active (player shouldn't have died in 100 ticks)
@@ -1183,7 +1160,7 @@ void main() {
 
       // Process 200 ticks - enough for healing
       final builder = StateUpdateBuilder(state);
-      consumeTicks(testRegistries, builder, 200, random: random);
+      consumeTicks(builder, 200, random: random);
       state = builder.build();
 
       // Verify mining node healed during combat
@@ -1223,7 +1200,7 @@ void main() {
       state = state.startAction(copper, random: random);
       // Process exactly 30 ticks (mining completes + heal completes)
       final builder = StateUpdateBuilder(state);
-      consumeTicks(testRegistries, builder, 30, random: random);
+      consumeTicks(builder, 30, random: random);
       state = builder.build();
 
       // Verify we got copper ore (mining completed)
@@ -1259,7 +1236,7 @@ void main() {
       // consumeTicks takes state and ticks
       // 3s = 3000ms. tickDuration = 100ms. So 30 ticks.
       final builder = StateUpdateBuilder(state);
-      consumeTicks(testRegistries, builder, 30, random: random);
+      consumeTicks(builder, 30, random: random);
       state = builder.build();
 
       // Verify activity completed (progress resets on completion)
@@ -1290,7 +1267,7 @@ void main() {
       // Request 100 ticks - should consume all 100 even though
       // we'd hit 10 XP after just 30 ticks
       final builder = StateUpdateBuilder(state);
-      consumeTicks(testRegistries, builder, 100, random: random);
+      consumeTicks(builder, 100, random: random);
 
       // Should consume exactly 100 ticks
       expect(builder.ticksElapsed, 100);
@@ -1309,7 +1286,6 @@ void main() {
       // Request up to 10000 ticks, but stop when we have 10 XP
       final builder = StateUpdateBuilder(state);
       consumeTicksUntil(
-        testRegistries,
         builder,
         random: random,
         stopCondition: (s) => s.skillState(Skill.woodcutting).xp >= 10,

@@ -20,7 +20,6 @@ library;
 
 import 'package:logic/src/consume_ticks.dart';
 import 'package:logic/src/data/actions.dart';
-import 'package:logic/src/data/registries.dart';
 import 'package:logic/src/data/xp.dart';
 import 'package:logic/src/state.dart';
 import 'package:logic/src/tick.dart';
@@ -167,13 +166,13 @@ Map<String, double> _computeItemFlowsPerAction(
 ///
 /// Note: This function reports **flows** without assuming any valuation
 /// policy. Use a [ValueModel] to convert flows into a scalar value.
-Rates estimateRates(Registries registries, GlobalState state) {
+Rates estimateRates(GlobalState state) {
   final activeAction = state.activeAction;
   if (activeAction == null) {
     return Rates.empty;
   }
 
-  final action = registries.actions.byName(activeAction.name);
+  final action = state.registries.actions.byName(activeAction.name);
 
   // Only skill actions have predictable rates
   if (action is! SkillAction) {
@@ -194,7 +193,7 @@ Rates estimateRates(Registries registries, GlobalState state) {
   // Compute item flows per action
   final masteryLevel = state.actionState(action.name).masteryLevel;
   final itemFlowsPerAction = _computeItemFlowsPerAction(
-    registries.drops,
+    state.registries.drops,
     action,
     masteryLevel,
   );
@@ -239,11 +238,7 @@ Rates estimateRates(Registries registries, GlobalState state) {
     final xpPerTickBySkill = <Skill, double>{action.skill: xpPerTick};
 
     // Mastery XP is also only gained on success
-    final baseMasteryXpPerAction = masteryXpPerAction(
-      registries.actions,
-      state,
-      action,
-    );
+    final baseMasteryXpPerAction = masteryXpPerAction(state, action);
     final expectedMasteryXpPerAction = successChance * baseMasteryXpPerAction;
     final masteryXpPerTick = expectedMasteryXpPerAction / effectiveTicks;
 
@@ -276,11 +271,7 @@ Rates estimateRates(Registries registries, GlobalState state) {
   final xpPerTickBySkill = <Skill, double>{action.skill: xpPerTick};
 
   // Mastery XP rate
-  final baseMasteryXpPerAction = masteryXpPerAction(
-    registries.actions,
-    state,
-    action,
-  );
+  final baseMasteryXpPerAction = masteryXpPerAction(state, action);
   final masteryXpPerTick = baseMasteryXpPerAction / expectedTicks;
 
   // Item types per tick for inventory estimation

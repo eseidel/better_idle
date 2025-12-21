@@ -15,7 +15,7 @@ class UpdateActivityProgressAction extends ReduxAction<GlobalState> {
     final ticks = ticksFromDuration(now.difference(state.updatedAt));
     final builder = StateUpdateBuilder(state);
     final random = Random();
-    consumeTicks(registries, builder, ticks, random: random);
+    consumeTicks(builder, ticks, random: random);
 
     final changes = builder.changes;
     final newState = builder.build();
@@ -76,12 +76,7 @@ class AdvanceTicksAction extends ReduxAction<GlobalState> {
   @override
   GlobalState reduce() {
     final random = Random();
-    final (timeAway, newState) = consumeManyTicks(
-      registries,
-      state,
-      ticks,
-      random: random,
-    );
+    final (timeAway, newState) = consumeManyTicks(state, ticks, random: random);
     this.timeAway = timeAway;
     return newState;
   }
@@ -97,7 +92,6 @@ class ResumeFromPauseAction extends ReduxAction<GlobalState> {
     final ticks = ticksFromDuration(duration);
     final random = Random();
     final (newTimeAway, newState) = consumeManyTicks(
-      registries,
       state,
       ticks,
       endTime: now,
@@ -302,7 +296,7 @@ class DebugAddEggChestsAction extends ReduxAction<GlobalState> {
 
   @override
   GlobalState reduce() {
-    final eggChest = registries.items.byName('Egg Chest');
+    final eggChest = state.registries.items.byName('Egg Chest');
     final stack = ItemStack(eggChest, count: count);
     final newInventory = state.inventory.adding(stack);
     return state.copyWith(inventory: newInventory);
@@ -318,7 +312,7 @@ class DebugFillInventoryAction extends ReduxAction<GlobalState> {
 
     // Get items not already in inventory
     final existingItems = inventory.items.map((s) => s.item).toSet();
-    final availableItems = registries.items.all
+    final availableItems = state.registries.items.all
         .where((item) => !existingItems.contains(item))
         .toList();
 

@@ -21,6 +21,10 @@ void main() {
 }
 
 class MyPersistor extends Persistor<GlobalState> {
+  MyPersistor(this.registries);
+
+  final Registries registries;
+
   final LocalPersist _persist = LocalPersist('better_idle');
   @override
   Future<GlobalState> readState() async {
@@ -295,6 +299,7 @@ class _GameApp extends StatefulWidget {
 
 class _GameAppState extends State<_GameApp>
     with SingleTickerProviderStateMixin {
+  late final Registries registries;
   late final MyPersistor _persistor;
   bool _isInitialized = false;
   late final Store<GlobalState> _store;
@@ -303,7 +308,7 @@ class _GameAppState extends State<_GameApp>
   @override
   void initState() {
     super.initState();
-    _persistor = MyPersistor();
+    _persistor = MyPersistor(registries);
     _persistor.readState().then((initialState) {
       setState(() {
         _store = Store<GlobalState>(

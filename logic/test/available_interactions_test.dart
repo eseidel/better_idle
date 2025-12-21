@@ -15,7 +15,7 @@ void main() {
   group('availableInteractions', () {
     test('empty state returns only level 1 activities', () {
       final state = GlobalState.empty(testRegistries);
-      final interactions = availableInteractions(testRegistries, state);
+      final interactions = availableInteractions(state);
 
       final switches = interactions.whereType<SwitchActivity>().toList();
       final upgrades = interactions.whereType<BuyUpgrade>().toList();
@@ -37,7 +37,7 @@ void main() {
 
     test('state with GP includes affordable upgrades', () {
       final state = GlobalState.empty(testRegistries).copyWith(gp: 1000);
-      final interactions = availableInteractions(testRegistries, state);
+      final interactions = availableInteractions(state);
 
       final upgrades = interactions.whereType<BuyUpgrade>().toList();
 
@@ -55,7 +55,7 @@ void main() {
       final random = Random(0);
       state = state.startAction(action, random: random);
 
-      final interactions = availableInteractions(testRegistries, state);
+      final interactions = availableInteractions(state);
       final switches = interactions.whereType<SwitchActivity>().toList();
 
       // Normal Tree should not be in the list since it's active
@@ -74,7 +74,7 @@ void main() {
         },
       );
 
-      final interactions = availableInteractions(testRegistries, state);
+      final interactions = availableInteractions(state);
       final switches = interactions.whereType<SwitchActivity>().toList();
 
       // Should have more activities unlocked at level 25
@@ -94,7 +94,7 @@ void main() {
         ]),
       );
 
-      final interactions = availableInteractions(testRegistries, state);
+      final interactions = availableInteractions(state);
       final sells = interactions.whereType<SellAll>().toList();
 
       expect(sells.length, 1);
@@ -102,7 +102,7 @@ void main() {
 
     test('empty inventory does not include SellAll', () {
       final state = GlobalState.empty(testRegistries);
-      final interactions = availableInteractions(testRegistries, state);
+      final interactions = availableInteractions(state);
       final sells = interactions.whereType<SellAll>().toList();
 
       expect(sells, isEmpty);

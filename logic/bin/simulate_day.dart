@@ -224,7 +224,6 @@ void main(List<String> args) async {
 
   // Consume all ticks and get the TimeAway result
   final (timeAway, finalState) = consumeManyTicks(
-    registries,
     state,
     ticks,
     endTime: state.updatedAt.add(oneDay),

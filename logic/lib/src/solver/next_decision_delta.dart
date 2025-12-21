@@ -23,7 +23,6 @@
 library;
 
 import 'package:logic/src/data/actions.dart';
-import 'package:logic/src/data/registries.dart';
 import 'package:logic/src/data/upgrades.dart';
 import 'package:logic/src/data/xp.dart';
 import 'package:logic/src/state.dart';
@@ -76,7 +75,6 @@ class NextDecisionResult {
 ///
 /// Returns [infTicks] if no progress is possible.
 NextDecisionResult nextDecisionDelta(
-  Registries registries,
   GlobalState state,
   Goal goal,
   Candidates candidates, {
@@ -115,10 +113,10 @@ NextDecisionResult nextDecisionDelta(
   }
 
   // Get current rates and compute progress rate toward goal
-  final rates = estimateRates(registries, state);
-  final progressRate = goal.progressPerTick(registries.items, state, rates);
+  final rates = estimateRates(state);
+  final progressRate = goal.progressPerTick(state, rates);
   // Value rate is still needed for upgrade affordability calculations
-  final valueRate = valueModel.valuePerTick(registries.items, state, rates);
+  final valueRate = valueModel.valuePerTick(state, rates);
 
   // Compute deltas for each category
   final deltas = <_DeltaCandidate>[];
@@ -140,19 +138,14 @@ NextDecisionResult nextDecisionDelta(
   }
 
   // C) Time until any watched locked activity unlocks
-  final deltaUnlock = _deltaUntilActivityUnlocks(
-    registries,
-    state,
-    candidates,
-    rates,
-  );
+  final deltaUnlock = _deltaUntilActivityUnlocks(state, candidates, rates);
   if (deltaUnlock != null) {
     deltas.add(deltaUnlock);
   }
 
   // D) Time until inventory fills (if watching)
   if (candidates.watch.inventory) {
-    final deltaInv = _deltaUntilInventoryFull(registries, state, rates);
+    final deltaInv = _deltaUntilInventoryFull(state, rates);
     if (deltaInv != null && deltaInv > 0) {
       deltas.add(
         _DeltaCandidate(ticks: deltaInv, waitFor: const WaitForInventoryFull()),
@@ -165,17 +158,13 @@ NextDecisionResult nextDecisionDelta(
   // death in expected-value calculations via ticksUntilDeath in _advanceExpected.
 
   // F) Time until next skill level (rates may change)
-  final deltaSkillLevel = _deltaUntilNextSkillLevel(registries, state, rates);
+  final deltaSkillLevel = _deltaUntilNextSkillLevel(state, rates);
   if (deltaSkillLevel != null) {
     deltas.add(deltaSkillLevel);
   }
 
   // G) Time until next mastery level (rates may change, especially for thieving)
-  final deltaMasteryLevel = _deltaUntilNextMasteryLevel(
-    registries,
-    state,
-    rates,
-  );
+  final deltaMasteryLevel = _deltaUntilNextMasteryLevel(state, rates);
   if (deltaMasteryLevel != null) {
     deltas.add(deltaMasteryLevel);
   }
@@ -245,7 +234,6 @@ _DeltaCandidate? _deltaUntilUpgradeAffordable(
 
 /// Computes ticks until soonest watched locked activity unlocks.
 _DeltaCandidate? _deltaUntilActivityUnlocks(
-  Registries registries,
   GlobalState state,
   Candidates candidates,
   Rates rates,
@@ -254,7 +242,7 @@ _DeltaCandidate? _deltaUntilActivityUnlocks(
   String? minActivityName;
   Skill? minSkill;
   int? minTargetXp;
-  final actionRegistry = registries.actions;
+  final actionRegistry = state.registries.actions;
   for (final activityName in candidates.watch.lockedActivityNames) {
     final action = actionRegistry.skillActionByName(activityName);
     final skill = action.skill;
@@ -296,11 +284,7 @@ _DeltaCandidate? _deltaUntilActivityUnlocks(
 }
 
 /// Computes ticks until next skill level.
-_DeltaCandidate? _deltaUntilNextSkillLevel(
-  Registries registries,
-  GlobalState state,
-  Rates rates,
-) {
+_DeltaCandidate? _deltaUntilNextSkillLevel(GlobalState state, Rates rates) {
   final ticks = ticksUntilNextSkillLevel(state, rates);
   if (ticks == null || ticks <= 0) return null;
 
@@ -308,6 +292,7 @@ _DeltaCandidate? _deltaUntilNextSkillLevel(
   final actionName = state.activeAction?.name;
   if (actionName == null) return null;
 
+  final registries = state.registries;
   final action = registries.actions.byName(actionName);
   if (action is! SkillAction) return null;
 
@@ -323,11 +308,7 @@ _DeltaCandidate? _deltaUntilNextSkillLevel(
 }
 
 /// Computes ticks until next mastery level.
-_DeltaCandidate? _deltaUntilNextMasteryLevel(
-  Registries registries,
-  GlobalState state,
-  Rates rates,
-) {
+_DeltaCandidate? _deltaUntilNextMasteryLevel(GlobalState state, Rates rates) {
   final ticks = ticksUntilNextMasteryLevel(state, rates);
   if (ticks == null || ticks <= 0) return null;
 
@@ -346,11 +327,7 @@ _DeltaCandidate? _deltaUntilNextMasteryLevel(
 }
 
 /// Computes ticks until inventory is full.
-int? _deltaUntilInventoryFull(
-  Registries registries,
-  GlobalState state,
-  Rates rates,
-) {
+int? _deltaUntilInventoryFull(GlobalState state, Rates rates) {
   if (rates.itemTypesPerTick <= 0) return null;
 
   final slotsRemaining = state.inventoryRemaining;

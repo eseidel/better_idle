@@ -38,7 +38,7 @@ void main(List<String> args) async {
 
   print('Solving...');
   final stopwatch = Stopwatch()..start();
-  final result = solve(registries, initialState, goal);
+  final result = solve(initialState, goal);
   stopwatch.stop();
 
   print('Solver completed in ${stopwatch.elapsedMilliseconds}ms');
@@ -53,7 +53,6 @@ void main(List<String> args) async {
 
     // Execute the plan to get the final state
     final execResult = executePlan(
-      registries,
       initialState,
       result.plan,
       random: Random(42),

@@ -43,7 +43,7 @@ sealed class Goal {
   /// Returns the progress rate toward the goal given current rates.
   /// For GP goals, this uses the value model.
   /// For skill goals, this uses the XP rate directly.
-  double progressPerTick(ItemRegistry items, GlobalState state, Rates rates);
+  double progressPerTick(GlobalState state, Rates rates);
 
   /// Returns the current progress value for dominance pruning.
   /// For GP goals: effective credits (GP + inventory value).
@@ -98,11 +98,11 @@ class ReachGpGoal extends Goal {
   String describe() => 'Reach $targetGp GP';
 
   @override
-  double progressPerTick(ItemRegistry items, GlobalState state, Rates rates) {
+  double progressPerTick(GlobalState state, Rates rates) {
     // For GP goals, progress = direct GP + value of items produced
     var value = rates.directGpPerTick;
     for (final entry in rates.itemFlowsPerTick.entries) {
-      final item = items.byName(entry.key);
+      final item = state.registries.items.byName(entry.key);
       value += entry.value * item.sellsFor;
     }
     return value;
@@ -154,7 +154,7 @@ class ReachSkillLevelGoal extends Goal {
   String describe() => 'Reach ${skill.name} level $targetLevel';
 
   @override
-  double progressPerTick(ItemRegistry items, GlobalState state, Rates rates) {
+  double progressPerTick(GlobalState state, Rates rates) {
     // For skill goals, progress = XP per tick for the target skill
     return rates.xpPerTickBySkill[skill] ?? 0.0;
   }

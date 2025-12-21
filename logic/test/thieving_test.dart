@@ -173,12 +173,12 @@ void main() {
         final builder = StateUpdateBuilder(state);
         // Use random that succeeds thieving
         final rng = MockRandom(nextDoubleValue: 0.0, nextIntValue: 50);
-        completeThievingAction(testRegistries, builder, golbinAction, rng);
+        completeThievingAction(builder, golbinAction, rng);
         state = builder.build();
 
         // Process with real random for drops
         final dropBuilder = StateUpdateBuilder(state);
-        consumeTicks(testRegistries, dropBuilder, 30, random: random2);
+        consumeTicks(dropBuilder, 30, random: random2);
         state = dropBuilder.build();
 
         // Check if we got any of the Golbin-specific drops
@@ -276,12 +276,7 @@ void main() {
         nextIntValue: 49, // Gold = 1 + 49 = 50
       );
 
-      final playerAlive = completeThievingAction(
-        testRegistries,
-        builder,
-        manAction,
-        rng,
-      );
+      final playerAlive = completeThievingAction(builder, manAction, rng);
 
       expect(playerAlive, isTrue);
 
@@ -309,7 +304,7 @@ void main() {
       );
 
       // Process enough ticks to complete the action (3 seconds = 30 ticks)
-      consumeTicks(testRegistries, builder, 30, random: rng);
+      consumeTicks(builder, 30, random: rng);
 
       final newState = builder.build();
       // Should have gained gold (1 + 99 = 100)
@@ -343,12 +338,7 @@ void main() {
         nextIntValue: 10, // Damage = 1 + 10 = 11
       );
 
-      final playerAlive = completeThievingAction(
-        testRegistries,
-        builder,
-        manAction,
-        rng,
-      );
+      final playerAlive = completeThievingAction(builder, manAction, rng);
 
       expect(playerAlive, isTrue);
 
@@ -386,12 +376,7 @@ void main() {
         nextIntValue: 21, // Damage = 1 + 21 = 22 (max)
       );
 
-      final playerAlive = completeThievingAction(
-        testRegistries,
-        builder,
-        manAction,
-        rng,
-      );
+      final playerAlive = completeThievingAction(builder, manAction, rng);
 
       expect(playerAlive, isFalse);
 
@@ -427,7 +412,7 @@ void main() {
         );
 
         // Process enough ticks to complete the action (30 ticks)
-        consumeTicks(testRegistries, builder, 30, random: rng);
+        consumeTicks(builder, 30, random: rng);
 
         final newState = builder.build();
         // Health should be reset
@@ -461,7 +446,7 @@ void main() {
       );
 
       // Complete the action (30 ticks) - this should fail and stun
-      consumeTicks(testRegistries, builder, 30, random: rng);
+      consumeTicks(builder, 30, random: rng);
 
       var newState = builder.build();
       // Should be stunned
@@ -474,7 +459,7 @@ void main() {
 
       // Process 15 ticks (half the stun duration)
       final builder2 = StateUpdateBuilder(newState);
-      consumeTicks(testRegistries, builder2, 15, random: rng);
+      consumeTicks(builder2, 15, random: rng);
 
       newState = builder2.build();
       // Still stunned (15 of 30 ticks remaining)
@@ -525,7 +510,7 @@ void main() {
       );
 
       // Process just enough to clear stun (30 ticks)
-      consumeTicks(testRegistries, builder, 30, random: rng);
+      consumeTicks(builder, 30, random: rng);
 
       var newState = builder.build();
       // Stun should be cleared
@@ -535,7 +520,7 @@ void main() {
 
       // Now process more ticks to complete the action
       final builder2 = StateUpdateBuilder(newState);
-      consumeTicks(testRegistries, builder2, 30, random: rng);
+      consumeTicks(builder2, 30, random: rng);
 
       newState = builder2.build();
       // Should have gained gold from successful theft (1 + 49 = 50)

@@ -19,9 +19,9 @@ void main() {
   group('estimateRates', () {
     test('returns zero rates when no action is active', () {
       final state = GlobalState.empty(testRegistries);
-      final rates = estimateRates(testRegistries, state);
+      final rates = estimateRates(state);
 
-      expect(defaultValueModel.valuePerTick(testItems, state, rates), 0);
+      expect(defaultValueModel.valuePerTick(state, rates), 0);
       expect(rates.xpPerTickBySkill, isEmpty);
       expect(rates.itemFlowsPerTick, isEmpty);
     });
@@ -31,12 +31,9 @@ void main() {
       final action = testActions.byName('Normal Tree');
       state = state.startAction(action, random: Random(0));
 
-      final rates = estimateRates(testRegistries, state);
+      final rates = estimateRates(state);
 
-      expect(
-        defaultValueModel.valuePerTick(testItems, state, rates),
-        greaterThan(0),
-      );
+      expect(defaultValueModel.valuePerTick(state, rates), greaterThan(0));
       expect(rates.xpPerTickBySkill[Skill.woodcutting], greaterThan(0));
     });
 
@@ -53,19 +50,14 @@ void main() {
         random: Random(0),
       );
 
-      final ratesNo = estimateRates(testRegistries, stateNoUpgrade);
-      final ratesWith = estimateRates(testRegistries, stateWithUpgrade);
+      final ratesNo = estimateRates(stateNoUpgrade);
+      final ratesWith = estimateRates(stateWithUpgrade);
 
       // Rates should be different when upgrade is applied
       // Note: Due to current implementation, the modifier calculation may
       // result in different (not necessarily higher) rates
-      final valueNo = defaultValueModel.valuePerTick(
-        testItems,
-        stateNoUpgrade,
-        ratesNo,
-      );
+      final valueNo = defaultValueModel.valuePerTick(stateNoUpgrade, ratesNo);
       final valueWith = defaultValueModel.valuePerTick(
-        testItems,
         stateWithUpgrade,
         ratesWith,
       );
@@ -77,9 +69,9 @@ void main() {
     test('returns 0 when goal is already satisfied', () {
       final state = GlobalState.empty(testRegistries).copyWith(gp: 1000);
       const goal = ReachGpGoal(500);
-      final candidates = enumerateCandidates(testRegistries, state, goal);
+      final candidates = enumerateCandidates(state, goal);
 
-      final result = nextDecisionDelta(testRegistries, state, goal, candidates);
+      final result = nextDecisionDelta(state, goal, candidates);
 
       expect(result.deltaTicks, 0);
       expect(result.waitFor, isA<WaitForGoal>());
@@ -93,14 +85,14 @@ void main() {
 
       final state = GlobalState.empty(testRegistries).copyWith(gp: 100);
       const goal = ReachGpGoal(10000);
-      final candidates = enumerateCandidates(testRegistries, state, goal);
+      final candidates = enumerateCandidates(state, goal);
 
       // With thieving dominating, buyUpgrades is empty, so no upgrade_affordable
       // Iron Axe is in the watch list but not in buyUpgrades
       expect(candidates.watch.upgradeTypes, contains(UpgradeType.axe));
       expect(candidates.buyUpgrades, isEmpty);
 
-      final result = nextDecisionDelta(testRegistries, state, goal, candidates);
+      final result = nextDecisionDelta(state, goal, candidates);
 
       // Since no competitive upgrades are affordable, we don't return
       // upgrade_affordable - we continue with normal planning
@@ -114,12 +106,12 @@ void main() {
       state = state.startAction(action, random: Random(0));
 
       const goal = ReachGpGoal(10000);
-      final candidates = enumerateCandidates(testRegistries, state, goal);
+      final candidates = enumerateCandidates(state, goal);
 
       // No money, so upgrades not affordable
       expect(state.gp, 0);
 
-      final result = nextDecisionDelta(testRegistries, state, goal, candidates);
+      final result = nextDecisionDelta(state, goal, candidates);
 
       // Should return time until first upgrade (Iron Axe 50GP) becomes affordable
       expect(result.deltaTicks, greaterThan(0));
@@ -133,9 +125,9 @@ void main() {
       state = state.startAction(action, random: Random(0));
 
       const goal = ReachGpGoal(100); // Only need 10 more GP
-      final candidates = enumerateCandidates(testRegistries, state, goal);
+      final candidates = enumerateCandidates(state, goal);
 
-      final result = nextDecisionDelta(testRegistries, state, goal, candidates);
+      final result = nextDecisionDelta(state, goal, candidates);
 
       // With thieving dominating, no upgrades are in buyUpgrades
       // So we should get ticks until goal is reached
@@ -147,9 +139,9 @@ void main() {
       // No active action, no gold rate
       final state = GlobalState.empty(testRegistries);
       const goal = ReachGpGoal(1000);
-      final candidates = enumerateCandidates(testRegistries, state, goal);
+      final candidates = enumerateCandidates(state, goal);
 
-      final result = nextDecisionDelta(testRegistries, state, goal, candidates);
+      final result = nextDecisionDelta(state, goal, candidates);
 
       expect(result.deltaTicks, infTicks);
       expect(result.waitFor, isA<WaitForGoal>());
@@ -162,12 +154,12 @@ void main() {
       state = state.startAction(action, random: Random(0));
 
       const goal = ReachGpGoal(100000);
-      final candidates = enumerateCandidates(testRegistries, state, goal);
+      final candidates = enumerateCandidates(state, goal);
 
       // Should be watching Raw Sardine
       expect(candidates.watch.lockedActivityNames, contains('Raw Sardine'));
 
-      final result = nextDecisionDelta(testRegistries, state, goal, candidates);
+      final result = nextDecisionDelta(state, goal, candidates);
 
       // Should have computed delta (may be goal, upgrade, or unlock)
       expect(result.deltaTicks, greaterThan(0));
@@ -180,20 +172,10 @@ void main() {
       state = state.startAction(action, random: Random(0));
 
       const goal = ReachGpGoal(1000);
-      final candidates = enumerateCandidates(testRegistries, state, goal);
+      final candidates = enumerateCandidates(state, goal);
 
-      final result1 = nextDecisionDelta(
-        testRegistries,
-        state,
-        goal,
-        candidates,
-      );
-      final result2 = nextDecisionDelta(
-        testRegistries,
-        state,
-        goal,
-        candidates,
-      );
+      final result1 = nextDecisionDelta(state, goal, candidates);
+      final result2 = nextDecisionDelta(state, goal, candidates);
 
       expect(result1.deltaTicks, result2.deltaTicks);
       expect(result1.waitFor, result2.waitFor);

@@ -162,7 +162,7 @@ void main() {
       );
 
       const goal = ReachSkillLevelGoal(Skill.woodcutting, 10);
-      final result = solve(testRegistries, state, goal);
+      final result = solve(state, goal);
 
       expect(result, isA<SolverSuccess>());
       final success = result as SolverSuccess;
@@ -174,7 +174,7 @@ void main() {
 
       // Goal: reach woodcutting level 2 (requires 83 XP)
       const goal = ReachSkillLevelGoal(Skill.woodcutting, 2);
-      final result = solve(testRegistries, state, goal);
+      final result = solve(state, goal);
 
       expect(result, isA<SolverSuccess>());
       final success = result as SolverSuccess;
@@ -194,7 +194,7 @@ void main() {
       );
 
       const goal = ReachSkillLevelGoal(Skill.fishing, 60);
-      final candidates = enumerateCandidates(testRegistries, state, goal);
+      final candidates = enumerateCandidates(state, goal);
 
       // Should have activities in switchToActivities
       expect(candidates.switchToActivities, isNotEmpty);
@@ -215,7 +215,7 @@ void main() {
       final state = GlobalState.empty(testRegistries);
 
       const goal = ReachSkillLevelGoal(Skill.woodcutting, 10);
-      final candidates = enumerateCandidates(testRegistries, state, goal);
+      final candidates = enumerateCandidates(state, goal);
 
       // SellAll should not be included for skill goals
       expect(candidates.includeSellAll, isFalse);
@@ -225,7 +225,7 @@ void main() {
       final state = GlobalState.empty(testRegistries);
 
       const goal = ReachSkillLevelGoal(Skill.woodcutting, 10);
-      final candidates = enumerateCandidates(testRegistries, state, goal);
+      final candidates = enumerateCandidates(state, goal);
 
       // Only woodcutting activities should be watched
       for (final name in candidates.watch.lockedActivityNames) {

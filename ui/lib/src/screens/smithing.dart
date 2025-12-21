@@ -23,7 +23,7 @@ class _SmithingPageState extends State<SmithingPage> {
   @override
   Widget build(BuildContext context) {
     const skill = Skill.smithing;
-    final actions = registries.actions.forSkill(skill).toList();
+    final actions = context.state.registries.actions.forSkill(skill).toList();
     final skillState = context.state.skillState(skill);
 
     // Default to first action if none selected

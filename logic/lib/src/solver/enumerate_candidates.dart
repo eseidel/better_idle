@@ -25,7 +25,6 @@
 library;
 
 import 'package:logic/src/data/actions.dart';
-import 'package:logic/src/data/registries.dart';
 import 'package:logic/src/data/upgrades.dart';
 import 'package:logic/src/data/xp.dart';
 import 'package:logic/src/state.dart';
@@ -119,11 +118,9 @@ class Candidates {
 /// - expectedTicks: mean duration in ticks
 /// - goldRatePerTick: expected sell value per tick
 /// - xpRatePerTick: skill XP per tick
-List<ActionSummary> buildActionSummaries(
-  Registries registries,
-  GlobalState state,
-) {
+List<ActionSummary> buildActionSummaries(GlobalState state) {
   final summaries = <ActionSummary>[];
+  final registries = state.registries;
 
   for (final skill in Skill.values) {
     final skillLevel = state.skillState(skill).skillLevel;
@@ -218,7 +215,6 @@ List<ActionSummary> buildActionSummaries(
 /// For [ReachGpGoal], this is gold/tick. For [ReachSkillLevelGoal],
 /// this is XP/tick for the target skill.
 Candidates enumerateCandidates(
-  Registries registries,
   GlobalState state,
   Goal goal, {
   int activityCount = defaultActivityCandidateCount,
@@ -226,7 +222,7 @@ Candidates enumerateCandidates(
   int lockedWatchCount = defaultLockedWatchCount,
   double inventoryThreshold = defaultInventoryThreshold,
 }) {
-  final summaries = buildActionSummaries(registries, state);
+  final summaries = buildActionSummaries(state);
 
   // Ranking function uses goal's activityRate to determine value
   double rankingFn(ActionSummary s) =>

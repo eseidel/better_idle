@@ -25,7 +25,7 @@ void main() {
       final state = GlobalState.empty(testRegistries);
       const interaction = SwitchActivity('Normal Tree');
 
-      final newState = applyInteraction(testRegistries, state, interaction);
+      final newState = applyInteraction(state, interaction);
 
       expect(newState.activeAction?.name, 'Normal Tree');
     });
@@ -38,7 +38,7 @@ void main() {
       );
       const interaction = SwitchActivity('Normal Tree');
 
-      final newState = applyInteraction(testRegistries, state, interaction);
+      final newState = applyInteraction(state, interaction);
 
       expect(newState.activeAction?.name, 'Normal Tree');
     });
@@ -47,7 +47,7 @@ void main() {
       final state = GlobalState.empty(testRegistries).copyWith(gp: 100);
       const interaction = BuyUpgrade(UpgradeType.axe);
 
-      final newState = applyInteraction(testRegistries, state, interaction);
+      final newState = applyInteraction(state, interaction);
 
       expect(newState.shop.axeLevel, 1);
       expect(newState.gp, 50); // Iron Axe costs 50
@@ -58,7 +58,7 @@ void main() {
       const interaction = BuyUpgrade(UpgradeType.axe);
 
       expect(
-        () => applyInteraction(testRegistries, state, interaction),
+        () => applyInteraction(state, interaction),
         throwsA(isA<StateError>()),
       );
     });
@@ -75,7 +75,7 @@ void main() {
       ).copyWith(inventory: inventory, gp: 0);
       const interaction = SellAll();
 
-      final newState = applyInteraction(testRegistries, state, interaction);
+      final newState = applyInteraction(state, interaction);
 
       expect(newState.inventory.items, isEmpty);
       // Normal logs sell for 1, oak for 5
@@ -92,7 +92,7 @@ void main() {
 
       // advance uses expected-value model for rate-modelable activities
       // so we check that GP increases appropriately
-      final result = advance(testRegistries, state, 100);
+      final result = advance(state, 100);
 
       // Normal Tree: 1 gold / 30 ticks = 0.033 gold/tick
       // After 100 ticks: expect ~3 gold
@@ -104,8 +104,8 @@ void main() {
       final action = testActions.byName('Normal Tree');
       state = state.startAction(action, random: Random(0));
 
-      final result1 = advance(testRegistries, state, 100);
-      final result2 = advance(testRegistries, state, 100);
+      final result1 = advance(state, 100);
+      final result2 = advance(state, 100);
 
       expect(result1.state.gp, result2.state.gp);
       // Skill XP should also match
@@ -120,7 +120,7 @@ void main() {
       final action = testActions.byName('Normal Tree');
       state = state.startAction(action, random: Random(0));
 
-      final result = advance(testRegistries, state, 0);
+      final result = advance(state, 0);
 
       expect(
         result.state.activeAction?.remainingTicks,
@@ -133,7 +133,7 @@ void main() {
     test('returns empty plan when goal already met', () {
       final state = GlobalState.empty(testRegistries).copyWith(gp: 1000);
 
-      final result = solveToCredits(testRegistries, state, 500);
+      final result = solveToCredits(state, 500);
 
       expect(result, isA<SolverSuccess>());
       final success = result as SolverSuccess;
@@ -149,7 +149,7 @@ void main() {
       state = state.startAction(action, random: Random(0));
 
       // Small goal that should be reachable
-      final result = solveToCredits(testRegistries, state, 10);
+      final result = solveToCredits(state, 10);
 
       expect(result, isA<SolverSuccess>());
       final success = result as SolverSuccess;
@@ -162,7 +162,7 @@ void main() {
       // Start with no activity - solver needs to switch
       final state = GlobalState.empty(testRegistries);
 
-      final result = solveToCredits(testRegistries, state, 20);
+      final result = solveToCredits(state, 20);
 
       expect(result, isA<SolverSuccess>());
       final success = result as SolverSuccess;
@@ -180,7 +180,7 @@ void main() {
       state = state.startAction(action, random: Random(0));
 
       // Moderate goal - may or may not benefit from upgrade
-      final result = solveToCredits(testRegistries, state, 200);
+      final result = solveToCredits(state, 200);
 
       expect(result, isA<SolverSuccess>());
       final success = result as SolverSuccess;
@@ -192,7 +192,6 @@ void main() {
 
       // Set a very low limit (solver is now very efficient, so use limit of 2)
       final result = solveToCredits(
-        testRegistries,
         state,
         1000000, // Very high goal
         maxExpandedNodes: 2,
@@ -208,8 +207,8 @@ void main() {
       final action = testActions.byName('Normal Tree');
       state = state.startAction(action, random: Random(0));
 
-      final result1 = solveToCredits(testRegistries, state, 50);
-      final result2 = solveToCredits(testRegistries, state, 50);
+      final result1 = solveToCredits(state, 50);
+      final result2 = solveToCredits(state, 50);
 
       expect(result1, isA<SolverSuccess>());
       expect(result2, isA<SolverSuccess>());
@@ -297,14 +296,11 @@ void main() {
       final action = testActions.byName('Man'); // Thieving action
       state = state.startAction(action, random: Random(0));
 
-      final rates = estimateRates(testRegistries, state);
+      final rates = estimateRates(state);
 
       // Thieving should have positive HP loss rate (player takes damage)
       expect(rates.hpLossPerTick, greaterThan(0));
-      expect(
-        defaultValueModel.valuePerTick(testItems, state, rates),
-        greaterThan(0),
-      );
+      expect(defaultValueModel.valuePerTick(state, rates), greaterThan(0));
     });
 
     test('estimateRates returns zero hpLossPerTick for non-thieving', () {
@@ -312,7 +308,7 @@ void main() {
       final action = testActions.byName('Normal Tree');
       state = state.startAction(action, random: Random(0));
 
-      final rates = estimateRates(testRegistries, state);
+      final rates = estimateRates(state);
 
       expect(rates.hpLossPerTick, 0);
     });
@@ -322,7 +318,7 @@ void main() {
       final action = testActions.byName('Man');
       state = state.startAction(action, random: Random(0));
 
-      final rates = estimateRates(testRegistries, state);
+      final rates = estimateRates(state);
       final ticks = ticksUntilDeath(state, rates);
 
       // At level 1 hitpoints (10 HP), player should die eventually
@@ -335,7 +331,7 @@ void main() {
       final action = testActions.byName('Normal Tree');
       state = state.startAction(action, random: Random(0));
 
-      final rates = estimateRates(testRegistries, state);
+      final rates = estimateRates(state);
       final ticks = ticksUntilDeath(state, rates);
 
       expect(ticks, isNull);
@@ -351,11 +347,11 @@ void main() {
       final lostHp = state.maxPlayerHp - 2;
       state = state.copyWith(health: HealthState(lostHp: lostHp));
 
-      final rates = estimateRates(testRegistries, state);
+      final rates = estimateRates(state);
       final ticksToDeath = ticksUntilDeath(state, rates);
 
       // Advance past death
-      final result = advance(testRegistries, state, ticksToDeath! + 1000);
+      final result = advance(state, ticksToDeath! + 1000);
 
       // Activity should be stopped and HP should be reset
       expect(result.state.activeAction, isNull);
@@ -368,11 +364,11 @@ void main() {
       final action = testActions.byName('Man');
       state = state.startAction(action, random: Random(0));
 
-      final rates = estimateRates(testRegistries, state);
+      final rates = estimateRates(state);
       final ticksToDeath = ticksUntilDeath(state, rates);
 
       // Advance less than death time
-      final result = advance(testRegistries, state, ticksToDeath! ~/ 2);
+      final result = advance(state, ticksToDeath! ~/ 2);
 
       // Activity should still be running
       expect(result.state.activeAction, isNotNull);
@@ -390,12 +386,12 @@ void main() {
       state = state.copyWith(health: HealthState(lostHp: lostHp));
 
       const goal = ReachGpGoal(100000); // High goal
-      final candidates = enumerateCandidates(testRegistries, state, goal);
+      final candidates = enumerateCandidates(state, goal);
 
-      final result = nextDecisionDelta(testRegistries, state, goal, candidates);
+      final result = nextDecisionDelta(state, goal, candidates);
 
       // Delta should be less than or equal to ticks until death
-      final rates = estimateRates(testRegistries, state);
+      final rates = estimateRates(state);
       final ticksToDeath = ticksUntilDeath(state, rates);
 
       expect(result.deltaTicks, lessThanOrEqualTo(ticksToDeath!));
@@ -408,7 +404,7 @@ void main() {
       final action = testActions.byName('Normal Tree');
       state = state.startAction(action, random: Random(0));
 
-      final rates = estimateRates(testRegistries, state);
+      final rates = estimateRates(state);
       final ticks = ticksUntilNextSkillLevel(state, rates);
 
       // Should return positive ticks to level 2
@@ -420,7 +416,7 @@ void main() {
       final state = GlobalState.empty(testRegistries);
 
       // No action active, no XP being gained
-      final rates = estimateRates(testRegistries, state);
+      final rates = estimateRates(state);
       final ticks = ticksUntilNextSkillLevel(state, rates);
 
       expect(ticks, isNull);
@@ -433,7 +429,7 @@ void main() {
         final action = testActions.byName('Normal Tree');
         state = state.startAction(action, random: Random(0));
 
-        final rates = estimateRates(testRegistries, state);
+        final rates = estimateRates(state);
         final ticks = ticksUntilNextMasteryLevel(state, rates);
 
         // Should return positive ticks to mastery level 2
@@ -445,7 +441,7 @@ void main() {
     test('ticksUntilNextMasteryLevel returns null when no action', () {
       final state = GlobalState.empty(testRegistries);
 
-      final rates = estimateRates(testRegistries, state);
+      final rates = estimateRates(state);
       final ticks = ticksUntilNextMasteryLevel(state, rates);
 
       expect(ticks, isNull);
@@ -457,12 +453,12 @@ void main() {
       state = state.startAction(action, random: Random(0));
 
       const goal = ReachGpGoal(100000); // High goal
-      final candidates = enumerateCandidates(testRegistries, state, goal);
+      final candidates = enumerateCandidates(state, goal);
 
-      final result = nextDecisionDelta(testRegistries, state, goal, candidates);
+      final result = nextDecisionDelta(state, goal, candidates);
 
       // Delta should be limited by skill level up
-      final rates = estimateRates(testRegistries, state);
+      final rates = estimateRates(state);
       final ticksToLevel = ticksUntilNextSkillLevel(state, rates);
 
       expect(result.deltaTicks, lessThanOrEqualTo(ticksToLevel!));
@@ -474,12 +470,12 @@ void main() {
       state = state.startAction(action, random: Random(0));
 
       const goal = ReachGpGoal(100000); // High goal
-      final candidates = enumerateCandidates(testRegistries, state, goal);
+      final candidates = enumerateCandidates(state, goal);
 
-      final result = nextDecisionDelta(testRegistries, state, goal, candidates);
+      final result = nextDecisionDelta(state, goal, candidates);
 
       // Delta should be limited by mastery or skill level or death
-      final rates = estimateRates(testRegistries, state);
+      final rates = estimateRates(state);
       final ticksToMastery = ticksUntilNextMasteryLevel(state, rates);
       final ticksToSkill = ticksUntilNextSkillLevel(state, rates);
       final ticksToDeath = ticksUntilDeath(state, rates);
@@ -499,7 +495,7 @@ void main() {
       final action = testActions.byName('Normal Tree');
       state = state.startAction(action, random: Random(0));
 
-      final rates = estimateRates(testRegistries, state);
+      final rates = estimateRates(state);
 
       expect(rates.masteryXpPerTick, greaterThan(0));
       expect(rates.actionName, 'Normal Tree');
@@ -510,7 +506,7 @@ void main() {
       final action = testActions.byName('Man');
       state = state.startAction(action, random: Random(0));
 
-      final rates = estimateRates(testRegistries, state);
+      final rates = estimateRates(state);
 
       expect(rates.masteryXpPerTick, greaterThan(0));
       expect(rates.actionName, 'Man');
@@ -523,7 +519,7 @@ void main() {
       final action = testActions.byName('Normal Tree');
       state = state.startAction(action, random: Random(0));
 
-      final rates = estimateRates(testRegistries, state);
+      final rates = estimateRates(state);
 
       // Normal Tree outputs Normal Logs
       expect(
@@ -550,7 +546,7 @@ void main() {
       final action = testActions.byName('Normal Tree');
       state = state.startAction(action, random: Random(0));
 
-      final rates = estimateRates(testRegistries, state);
+      final rates = estimateRates(state);
 
       // Bird Nest is a skill-level drop for woodcutting
       expect(
@@ -576,7 +572,7 @@ void main() {
       final action = thievingActionByName('Man');
       state = state.startAction(action, random: Random(0));
 
-      final rates = estimateRates(testRegistries, state);
+      final rates = estimateRates(state);
 
       // Verify Bobby's Pocket is included in item flows
       expect(
@@ -618,11 +614,7 @@ void main() {
 
       // The actual valuePerTick should be higher than gold without drops
       // if skill-level drops are being included via the ValueModel
-      final actualValuePerTick = defaultValueModel.valuePerTick(
-        testItems,
-        state,
-        rates,
-      );
+      final actualValuePerTick = defaultValueModel.valuePerTick(state, rates);
       expect(
         actualValuePerTick,
         greaterThan(expectedGoldPerTickWithoutDrops),
@@ -645,12 +637,7 @@ void main() {
       // Normal Tree: 3 seconds (30 ticks), 10 XP per action
       // To get 10 XP, we need 1 action = 30 ticks
       const waitFor = WaitForSkillXp(Skill.woodcutting, 10);
-      final result = consumeUntil(
-        testRegistries,
-        state,
-        waitFor,
-        random: Random(42),
-      );
+      final result = consumeUntil(state, waitFor, random: Random(42));
 
       // Should complete in roughly 30 ticks (1 action), not thousands
       expect(
@@ -672,12 +659,7 @@ void main() {
       final state = GlobalState.empty(testRegistries).copyWith(gp: 500);
       const plan = Plan.empty();
 
-      final result = executePlan(
-        testRegistries,
-        state,
-        plan,
-        random: Random(42),
-      );
+      final result = executePlan(state, plan, random: Random(42));
 
       expect(result.finalState.gp, 500);
       expect(result.actualTicks, 0);
@@ -695,12 +677,7 @@ void main() {
         interactionCount: 1,
       );
 
-      final result = executePlan(
-        testRegistries,
-        state,
-        plan,
-        random: Random(42),
-      );
+      final result = executePlan(state, plan, random: Random(42));
 
       // Should have woodcutting XP from the wait
       expect(
@@ -724,12 +701,7 @@ void main() {
         interactionCount: 1,
       );
 
-      final result = executePlan(
-        testRegistries,
-        state,
-        plan,
-        random: Random(42),
-      );
+      final result = executePlan(state, plan, random: Random(42));
 
       // Should have some GP from thieving
       expect(result.finalState.gp, greaterThan(0));
@@ -748,12 +720,7 @@ void main() {
         interactionCount: 1,
       );
 
-      final result = executePlan(
-        testRegistries,
-        state,
-        plan,
-        random: Random(42),
-      );
+      final result = executePlan(state, plan, random: Random(42));
 
       // plannedTicks should match plan.totalTicks
       expect(result.plannedTicks, 60);
@@ -767,18 +734,13 @@ void main() {
       // Solve for a small GP goal
       final state = GlobalState.empty(testRegistries);
       const goal = ReachGpGoal(100);
-      final solveResult = solve(testRegistries, state, goal);
+      final solveResult = solve(state, goal);
 
       expect(solveResult, isA<SolverSuccess>());
       final success = solveResult as SolverSuccess;
 
       // Execute the plan
-      final execResult = executePlan(
-        testRegistries,
-        state,
-        success.plan,
-        random: Random(42),
-      );
+      final execResult = executePlan(state, success.plan, random: Random(42));
 
       // Should reach the goal (or close to it due to simulation variance)
       expect(execResult.finalState.gp, greaterThan(50));

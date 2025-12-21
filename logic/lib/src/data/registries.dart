@@ -28,13 +28,13 @@ Future<Registries> loadRegistries({Directory? cacheDir}) async {
   return _registries!;
 }
 
-/// Returns the loaded registries. Throws if not yet loaded.
-Registries get registries {
-  if (_registries == null) {
-    throw StateError('Registries not loaded. Call loadRegistries() first.');
-  }
-  return _registries!;
-}
+// /// Returns the loaded registries. Throws if not yet loaded.
+// Registries get registries {
+//   if (_registries == null) {
+//     throw StateError('Registries not loaded. Call loadRegistries() first.');
+//   }
+//   return _registries!;
+// }
 
 ItemRegistry initializeItems(MelvorData data) {
   final items = <Item>[];

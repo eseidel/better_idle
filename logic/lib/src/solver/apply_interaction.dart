@@ -18,7 +18,6 @@ library;
 
 import 'dart:math';
 
-import 'package:logic/src/data/registries.dart';
 import 'package:logic/src/data/upgrades.dart';
 import 'package:logic/src/state.dart';
 
@@ -28,17 +27,12 @@ import 'interaction.dart';
 ///
 /// This is a pure function that does not modify the input state.
 /// Uses a fixed random seed for deterministic behavior during planning.
-GlobalState applyInteraction(
-  Registries registries,
-  GlobalState state,
-  Interaction interaction,
-) {
+GlobalState applyInteraction(GlobalState state, Interaction interaction) {
   // Use a fixed random for deterministic planning
   final random = Random(42);
 
   return switch (interaction) {
     SwitchActivity(:final actionName) => _applySwitchActivity(
-      registries,
       state,
       actionName,
       random,
@@ -50,12 +44,11 @@ GlobalState applyInteraction(
 
 /// Switches to a different activity.
 GlobalState _applySwitchActivity(
-  Registries registries,
   GlobalState state,
   String actionName,
   Random random,
 ) {
-  final action = registries.actions.byName(actionName);
+  final action = state.registries.actions.byName(actionName);
 
   // Clear current action if any (and not stunned)
   var newState = state;
