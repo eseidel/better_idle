@@ -1,6 +1,7 @@
 import 'package:better_idle/src/logic/redux_actions.dart';
 import 'package:better_idle/src/widgets/context_extensions.dart';
 import 'package:better_idle/src/widgets/mastery_pool.dart';
+import 'package:better_idle/src/widgets/style.dart';
 import 'package:better_idle/src/widgets/xp_badges_row.dart';
 import 'package:flutter/material.dart' hide Action;
 import 'package:logic/logic.dart';
@@ -112,11 +113,13 @@ class ActionCell extends StatelessWidget {
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
           color: isStunned
-              ? Colors.orange[100]
+              ? Style.cellBackgroundColorStunned
               : isDepleted
-              ? Colors.grey[200]
-              : Colors.white,
-          border: Border.all(color: isStunned ? Colors.orange : Colors.grey),
+              ? Style.cellBackgroundColorDepleted
+              : Style.cellBackgroundColor,
+          border: Border.all(
+            color: isStunned ? Style.activeColor : Style.textColorSecondary,
+          ),
           borderRadius: BorderRadius.circular(8),
         ),
         child: Column(
@@ -125,7 +128,7 @@ class ActionCell extends StatelessWidget {
               Text(
                 'Stunned',
                 style: TextStyle(
-                  color: Colors.orange[800],
+                  color: Style.textColorWarning,
                   fontWeight: FontWeight.bold,
                 ),
               ),
@@ -145,19 +148,19 @@ class ActionCell extends StatelessWidget {
               if (respawnTimeRemaining case final respawnTime?) ...[
                 Text(
                   'Respawning in ${respawnTime.inSeconds}s',
-                  style: TextStyle(color: Colors.grey[600]),
+                  style: TextStyle(color: Style.textColorMuted),
                 ),
                 LinearProgressIndicator(
                   value: respawnProgress ?? 0,
-                  backgroundColor: Colors.grey[300],
-                  color: Colors.grey[600],
+                  backgroundColor: Style.progressBackgroundColor,
+                  color: Style.progressForegroundColorMuted,
                 ),
               ] else ...[
                 Text('HP: $currentHp / $maxHp'),
                 LinearProgressIndicator(
                   value: currentHp! / maxHp!,
-                  backgroundColor: Colors.grey[300],
-                  color: Colors.blue,
+                  backgroundColor: Style.progressBackgroundColor,
+                  color: Style.progressForegroundColor,
                 ),
               ],
             ],
@@ -174,8 +177,8 @@ class ActionCell extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white,
-        border: Border.all(color: Colors.grey),
+        color: Style.cellBackgroundColorLocked,
+        border: Border.all(color: Style.textColorSecondary),
         borderRadius: BorderRadius.circular(8),
       ),
       child: Column(
@@ -205,8 +208,8 @@ class RockTypeBadge extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final (label, color) = switch (rockType) {
-      RockType.essence => ('Essence', Colors.purple[100]!),
-      RockType.ore => ('Ore', Colors.brown[200]!),
+      RockType.essence => ('Essence', Style.rockTypeEssenceColor),
+      RockType.ore => ('Ore', Style.rockTypOrColor),
     };
 
     return Container(

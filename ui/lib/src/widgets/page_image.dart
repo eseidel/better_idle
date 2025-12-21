@@ -1,4 +1,5 @@
 import 'package:better_idle/src/widgets/cached_image.dart';
+import 'package:better_idle/src/widgets/style.dart';
 import 'package:flutter/material.dart';
 
 /// A widget that displays a page header image with loading and fallback.
@@ -38,7 +39,11 @@ class PageImage extends StatelessWidget {
       width: size,
       height: size,
       child: Center(
-        child: Icon(fallbackIcon, size: size * 0.6, color: Colors.grey),
+        child: Icon(
+          fallbackIcon,
+          size: size * 0.6,
+          color: Style.iconColorDefault,
+        ),
       ),
     );
   }

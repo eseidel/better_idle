@@ -1,4 +1,5 @@
 import 'package:better_idle/src/widgets/count_badge_cell.dart';
+import 'package:better_idle/src/widgets/style.dart';
 import 'package:flutter/material.dart';
 
 /// A small square widget displaying "XP" with an xp count badge.
@@ -17,8 +18,7 @@ class XpBadgeCell extends StatelessWidget {
       width: 48,
       height: 48,
       child: CountBadgeCell(
-        backgroundColor: Colors.grey.shade200,
-        borderColor: Colors.grey.shade600,
+        backgroundColor: Style.xpBadgeBackgroundColor,
         count: xp,
         child: const Center(
           child: Text(

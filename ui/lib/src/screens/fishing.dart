@@ -3,6 +3,7 @@ import 'package:better_idle/src/widgets/context_extensions.dart';
 import 'package:better_idle/src/widgets/mastery_pool.dart';
 import 'package:better_idle/src/widgets/navigation_drawer.dart';
 import 'package:better_idle/src/widgets/skill_progress.dart';
+import 'package:better_idle/src/widgets/style.dart';
 import 'package:better_idle/src/widgets/xp_badges_row.dart';
 import 'package:flutter/material.dart' hide Action;
 import 'package:logic/logic.dart';
@@ -114,9 +115,11 @@ class _SelectedActionDisplay extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: isActive ? Colors.orange.withValues(alpha: 0.1) : Colors.white,
+        color: isActive
+            ? Style.activeColorLight
+            : Style.containerBackgroundLight,
         border: Border.all(
-          color: isActive ? Colors.orange : Colors.grey,
+          color: isActive ? Style.activeColor : Style.iconColorDefault,
           width: isActive ? 2 : 1,
         ),
         borderRadius: BorderRadius.circular(8),
@@ -128,7 +131,7 @@ class _SelectedActionDisplay extends StatelessWidget {
           const Text(
             'Fishing',
             textAlign: TextAlign.center,
-            style: TextStyle(fontSize: 14, color: Colors.grey),
+            style: TextStyle(fontSize: 14, color: Style.textColorSecondary),
           ),
           Text(
             action.name,
@@ -157,7 +160,7 @@ class _SelectedActionDisplay extends StatelessWidget {
           ElevatedButton(
             onPressed: canStart || isActive ? onStart : null,
             style: ElevatedButton.styleFrom(
-              backgroundColor: isActive ? Colors.orange : null,
+              backgroundColor: isActive ? Style.activeColor : null,
             ),
             child: Text(isActive ? 'Stop' : 'Fish'),
           ),
@@ -209,7 +212,7 @@ class _ActionList extends StatelessWidget {
                     vertical: 8,
                   ),
                   decoration: BoxDecoration(
-                    color: Colors.blueGrey.shade100,
+                    color: Style.fishingAreaHeaderColor,
                     borderRadius: BorderRadius.circular(4),
                   ),
                   child: Row(
@@ -232,7 +235,7 @@ class _ActionList extends StatelessWidget {
                         '${percentToString(area.fishChance)} fish',
                         style: TextStyle(
                           fontSize: 12,
-                          color: Colors.blueGrey.shade700,
+                          color: Style.fishingAreaSelectedColor,
                         ),
                       ),
                     ],
@@ -249,16 +252,17 @@ class _ActionList extends StatelessWidget {
                             '${_formatDuration(action.maxDuration)}';
                   return Card(
                     margin: const EdgeInsets.only(left: 16, top: 4, bottom: 4),
-                    color: isSelected
-                        ? Colors.blue.withValues(alpha: 0.1)
-                        : null,
+                    color: isSelected ? Style.selectedColorLight : null,
                     child: ListTile(
                       title: Text(action.name),
                       subtitle: Text(
                         'Lvl ${action.unlockLevel} • $durationText',
                       ),
                       trailing: isSelected
-                          ? const Icon(Icons.check_circle, color: Colors.blue)
+                          ? const Icon(
+                              Icons.check_circle,
+                              color: Style.selectedColor,
+                            )
                           : null,
                       onTap: () => onSelect(action),
                     ),

@@ -1,5 +1,6 @@
 import 'package:better_idle/src/widgets/cached_image.dart';
 import 'package:better_idle/src/widgets/skills.dart';
+import 'package:better_idle/src/widgets/style.dart';
 import 'package:flutter/material.dart';
 import 'package:logic/logic.dart';
 
@@ -31,7 +32,11 @@ class SkillImage extends StatelessWidget {
       width: size,
       height: size,
       child: Center(
-        child: Icon(skill.icon, size: size * 0.6, color: Colors.grey),
+        child: Icon(
+          skill.icon,
+          size: size * 0.6,
+          color: Style.iconColorDefault,
+        ),
       ),
     );
   }

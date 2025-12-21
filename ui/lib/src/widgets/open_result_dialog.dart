@@ -1,3 +1,4 @@
+import 'package:better_idle/src/widgets/style.dart';
 import 'package:flutter/material.dart';
 import 'package:logic/logic.dart';
 
@@ -42,7 +43,7 @@ class OpenResultDialog extends StatelessWidget {
                 padding: const EdgeInsets.only(left: 16, bottom: 4),
                 child: Text(
                   '${approximateCountString(count)} $itemName',
-                  style: const TextStyle(color: Colors.green),
+                  style: const TextStyle(color: Style.successColor),
                 ),
               );
             }),
@@ -51,7 +52,7 @@ class OpenResultDialog extends StatelessWidget {
               Text(
                 result.error!,
                 style: TextStyle(
-                  color: Colors.orange[700],
+                  color: Style.shopPurchasedColor,
                   fontStyle: FontStyle.italic,
                 ),
               ),

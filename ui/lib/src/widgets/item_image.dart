@@ -1,4 +1,5 @@
 import 'package:better_idle/src/widgets/cached_image.dart';
+import 'package:better_idle/src/widgets/style.dart';
 import 'package:flutter/material.dart';
 import 'package:logic/logic.dart';
 
@@ -29,7 +30,11 @@ class ItemImage extends StatelessWidget {
       width: size,
       height: size,
       child: Center(
-        child: Icon(Icons.help_outline, size: size * 0.6, color: Colors.grey),
+        child: Icon(
+          Icons.help_outline,
+          size: size * 0.6,
+          color: Style.iconColorDefault,
+        ),
       ),
     );
   }

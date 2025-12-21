@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:better_idle/src/services/toast_service.dart';
+import 'package:better_idle/src/widgets/style.dart';
 import 'package:flutter/material.dart';
 import 'package:logic/logic.dart';
 
@@ -148,17 +149,19 @@ class _ToastOverlayState extends State<ToastOverlay>
 
   Widget _buildBubble(String text, {bool isError = false}) {
     return Material(
-      color: Colors.transparent,
+      color: Style.transparentColor,
       child: Container(
         margin: const EdgeInsets.only(bottom: 8),
         padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(25),
-          color: isError ? Colors.red[700] : Colors.black87,
+          color: isError
+              ? Style.toastBackgroundError
+              : Style.toastBackgroundDefault,
         ),
         child: Text(
           text,
-          style: const TextStyle(color: Colors.white),
+          style: const TextStyle(color: Style.textColorPrimary),
           textAlign: TextAlign.center,
         ),
       ),

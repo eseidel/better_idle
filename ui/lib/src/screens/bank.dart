@@ -5,6 +5,7 @@ import 'package:better_idle/src/widgets/count_badge_cell.dart';
 import 'package:better_idle/src/widgets/item_image.dart';
 import 'package:better_idle/src/widgets/navigation_drawer.dart';
 import 'package:better_idle/src/widgets/open_result_dialog.dart';
+import 'package:better_idle/src/widgets/style.dart';
 import 'package:collection/collection.dart';
 import 'package:flutter/material.dart';
 import 'package:logic/logic.dart';
@@ -53,7 +54,7 @@ class _BankPageState extends State<BankPage> {
                 Text(
                   'Space: $inventoryUsed/$inventoryCapacity',
                   style: inventoryUsed >= inventoryCapacity
-                      ? const TextStyle(color: Colors.red)
+                      ? const TextStyle(color: Style.errorColor)
                       : null,
                 ),
                 const SizedBox(width: 16),
@@ -117,8 +118,8 @@ class StackCell extends StatelessWidget {
   Widget build(BuildContext context) {
     return CountBadgeCell(
       onTap: onTap,
-      backgroundColor: Colors.grey.shade800,
-      borderColor: Colors.green.shade700,
+      backgroundColor: Style.cellBackgroundColor,
+      borderColor: Style.cellBorderColorSuccess,
       count: stack.count,
       child: Padding(
         padding: const EdgeInsets.all(6),
@@ -399,12 +400,12 @@ class _EquipFoodSectionState extends State<_EquipFoodSection> {
         if (widget.item.healsFor != null)
           Text(
             'Heals ${widget.item.healsFor} HP',
-            style: TextStyle(color: Colors.green[700]),
+            style: TextStyle(color: Style.textColorSuccess),
           ),
         if (existingCount > 0)
           Text(
             'Currently equipped: $existingCount',
-            style: TextStyle(color: Colors.blue[700]),
+            style: TextStyle(color: Style.textColorInfo),
           ),
         const SizedBox(height: 16),
         Text(
@@ -438,10 +439,6 @@ class _EquipFoodSectionState extends State<_EquipFoodSection> {
                     Navigator.of(context).pop();
                   }
                 : null,
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.green,
-              foregroundColor: Colors.white,
-            ),
             child: Text(existingSlot >= 0 ? 'Add to Equipped' : 'Equip'),
           ),
         ),
@@ -450,7 +447,7 @@ class _EquipFoodSectionState extends State<_EquipFoodSection> {
             padding: const EdgeInsets.only(top: 8),
             child: Text(
               'All food slots are full',
-              style: TextStyle(color: Colors.red[700], fontSize: 12),
+              style: TextStyle(color: Style.textColorError, fontSize: 12),
             ),
           ),
       ],
@@ -553,10 +550,6 @@ class _OpenItemSectionState extends State<_OpenItemSection> {
                 ),
               );
             },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.orange,
-              foregroundColor: Colors.white,
-            ),
             child: const Text('Open'),
           ),
         ),

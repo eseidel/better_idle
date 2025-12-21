@@ -1,4 +1,5 @@
 import 'package:better_idle/src/widgets/skills.dart';
+import 'package:better_idle/src/widgets/style.dart';
 import 'package:flutter/material.dart';
 import 'package:logic/logic.dart';
 
@@ -50,7 +51,7 @@ class WelcomeBackDialog extends StatelessWidget {
                     '${skill.name} $levelText!',
                     style: const TextStyle(
                       fontWeight: FontWeight.bold,
-                      color: Colors.green,
+                      color: Style.successColor,
                     ),
                   ),
                 );
@@ -67,7 +68,9 @@ class WelcomeBackDialog extends StatelessWidget {
                     : '';
 
                 // Color XP gains green (XP is typically always positive)
-                final xpColor = xpGained > 0 ? Colors.green : Colors.red;
+                final xpColor = xpGained > 0
+                    ? Style.successColor
+                    : Style.errorColor;
 
                 return Padding(
                   padding: const EdgeInsets.only(left: 16, bottom: 4),
@@ -109,7 +112,9 @@ class WelcomeBackDialog extends StatelessWidget {
                 }
 
                 // Determine color based on gain/loss
-                final countColor = itemCount > 0 ? Colors.green : Colors.red;
+                final countColor = itemCount > 0
+                    ? Style.successColor
+                    : Style.errorColor;
 
                 return Padding(
                   padding: const EdgeInsets.only(left: 16, bottom: 4),
@@ -133,7 +138,7 @@ class WelcomeBackDialog extends StatelessWidget {
                 'Dropped items (inventory full):',
                 style: TextStyle(
                   fontWeight: FontWeight.bold,
-                  color: Colors.orange,
+                  color: Style.warningColor,
                 ),
               ),
               ...changes.droppedItems.entries.map(
@@ -141,7 +146,7 @@ class WelcomeBackDialog extends StatelessWidget {
                   padding: const EdgeInsets.only(left: 16, bottom: 4),
                   child: Text(
                     '${entry.value} ${entry.key}',
-                    style: const TextStyle(color: Colors.orange),
+                    style: const TextStyle(color: Style.warningColor),
                   ),
                 ),
               ),

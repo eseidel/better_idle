@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:better_idle/src/services/image_cache_service.dart';
+import 'package:better_idle/src/widgets/style.dart';
 import 'package:flutter/material.dart';
 
 /// A widget that displays an image from the Melvor CDN with caching.
@@ -108,7 +109,7 @@ class _CachedImageState extends State<CachedImage> {
             child: Icon(
               Icons.hourglass_empty,
               size: widget.size * 0.6,
-              color: Colors.grey,
+              color: Style.iconColorDefault,
             ),
           ),
         );
@@ -123,7 +124,7 @@ class _CachedImageState extends State<CachedImage> {
             child: Icon(
               Icons.help_outline,
               size: widget.size * 0.6,
-              color: Colors.grey,
+              color: Style.iconColorDefault,
             ),
           ),
         );

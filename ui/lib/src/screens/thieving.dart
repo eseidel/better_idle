@@ -3,6 +3,7 @@ import 'package:better_idle/src/widgets/context_extensions.dart';
 import 'package:better_idle/src/widgets/mastery_pool.dart';
 import 'package:better_idle/src/widgets/navigation_drawer.dart';
 import 'package:better_idle/src/widgets/skill_progress.dart';
+import 'package:better_idle/src/widgets/style.dart';
 import 'package:better_idle/src/widgets/xp_badges_row.dart';
 import 'package:flutter/material.dart' hide Action;
 import 'package:logic/logic.dart';
@@ -123,16 +124,16 @@ class _SelectedActionDisplay extends StatelessWidget {
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: isActive
-            ? Colors.orange.withValues(alpha: 0.1)
+            ? Style.activeColorLight
             : isStunned
-            ? Colors.red.withValues(alpha: 0.1)
-            : Colors.white,
+            ? Style.errorColorLight
+            : Style.containerBackgroundLight,
         border: Border.all(
           color: isActive
-              ? Colors.orange
+              ? Style.activeColor
               : isStunned
-              ? Colors.red
-              : Colors.grey,
+              ? Style.errorColor
+              : Style.iconColorDefault,
           width: isActive ? 2 : 1,
         ),
         borderRadius: BorderRadius.circular(8),
@@ -145,7 +146,7 @@ class _SelectedActionDisplay extends StatelessWidget {
               'Stunned',
               textAlign: TextAlign.center,
               style: TextStyle(
-                color: Colors.red[800],
+                color: Style.stunnedTextColor,
                 fontWeight: FontWeight.bold,
               ),
             ),
@@ -155,7 +156,7 @@ class _SelectedActionDisplay extends StatelessWidget {
           const Text(
             'Pickpocket',
             textAlign: TextAlign.center,
-            style: TextStyle(fontSize: 14, color: Colors.grey),
+            style: TextStyle(fontSize: 14, color: Style.textColorSecondary),
           ),
           Text(
             action.name,
@@ -179,7 +180,10 @@ class _SelectedActionDisplay extends StatelessWidget {
                 children: [
                   const Text(
                     'Success',
-                    style: TextStyle(fontSize: 12, color: Colors.grey),
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: Style.textColorSecondary,
+                    ),
                   ),
                   Text(
                     percentToString(successChance),
@@ -191,7 +195,10 @@ class _SelectedActionDisplay extends StatelessWidget {
                 children: [
                   const Text(
                     'Max Gold',
-                    style: TextStyle(fontSize: 12, color: Colors.grey),
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: Style.textColorSecondary,
+                    ),
                   ),
                   Text(
                     '${action.maxGold}',
@@ -203,7 +210,10 @@ class _SelectedActionDisplay extends StatelessWidget {
                 children: [
                   const Text(
                     'Stealth',
-                    style: TextStyle(fontSize: 12, color: Colors.grey),
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: Style.textColorSecondary,
+                    ),
                   ),
                   Text(
                     '$stealth',
@@ -222,7 +232,7 @@ class _SelectedActionDisplay extends StatelessWidget {
           ElevatedButton(
             onPressed: canToggle ? onStart : null,
             style: ElevatedButton.styleFrom(
-              backgroundColor: isActive ? Colors.orange : null,
+              backgroundColor: isActive ? Style.activeColor : null,
             ),
             child: Text(isActive ? 'Stop' : 'Pickpocket'),
           ),
@@ -252,19 +262,19 @@ class _ThievingProgressBar extends StatelessWidget {
       // Show stun countdown progress
       final stunTicksRemaining = state.stunned.ticksRemaining;
       progress = 1.0 - (stunTicksRemaining / stunnedDurationTicks);
-      barColor = Colors.red;
+      barColor = Style.progressForegroundColorError;
       label = 'Stunned';
     } else if (isActive) {
       // Show action progress
       final progressTicks = state.activeProgress(action);
       final totalTicks = ticksFromDuration(thievingDuration);
       progress = progressTicks / totalTicks;
-      barColor = Colors.orange;
+      barColor = Style.progressForegroundColorWarning;
       label = 'Pickpocketing...';
     } else {
       // Idle state
       progress = 0.0;
-      barColor = Colors.grey;
+      barColor = Style.iconColorDefault;
       label = 'Idle';
     }
 
@@ -273,7 +283,7 @@ class _ThievingProgressBar extends StatelessWidget {
         Container(
           height: 24,
           decoration: BoxDecoration(
-            color: Colors.grey[300],
+            color: Style.progressBackgroundColor,
             borderRadius: BorderRadius.circular(4),
           ),
           child: Stack(
@@ -294,7 +304,9 @@ class _ThievingProgressBar extends StatelessWidget {
                   style: TextStyle(
                     fontSize: 12,
                     fontWeight: FontWeight.bold,
-                    color: progress > 0.5 ? Colors.white : Colors.black87,
+                    color: progress > 0.5
+                        ? Style.textColorPrimary
+                        : Style.progressTextDark,
                   ),
                 ),
               ),
@@ -351,7 +363,7 @@ class _ActionList extends StatelessWidget {
                     vertical: 8,
                   ),
                   decoration: BoxDecoration(
-                    color: Colors.blueGrey.shade100,
+                    color: Style.thievingAreaHeaderColor,
                     borderRadius: BorderRadius.circular(4),
                   ),
                   child: Row(
@@ -380,15 +392,15 @@ class _ActionList extends StatelessWidget {
                   return Card(
                     margin: const EdgeInsets.only(left: 16, top: 4, bottom: 4),
                     color: isSelected
-                        ? Colors.blue.withValues(alpha: 0.1)
+                        ? Style.selectedColorLight
                         : isUnlocked
                         ? null
-                        : Colors.grey.shade200,
+                        : Style.thievingNpcUnlockedColor,
                     child: ListTile(
                       title: Text(
                         action.name,
                         style: TextStyle(
-                          color: isUnlocked ? null : Colors.grey,
+                          color: isUnlocked ? null : Style.textColorSecondary,
                         ),
                       ),
                       subtitle: Text(
@@ -397,14 +409,20 @@ class _ActionList extends StatelessWidget {
                                   'Max ${action.maxGold} GP'
                             : 'Requires Level ${action.unlockLevel}',
                         style: TextStyle(
-                          color: isUnlocked ? null : Colors.grey,
+                          color: isUnlocked ? null : Style.textColorSecondary,
                         ),
                       ),
                       trailing: isSelected
-                          ? const Icon(Icons.check_circle, color: Colors.blue)
+                          ? const Icon(
+                              Icons.check_circle,
+                              color: Style.selectedColor,
+                            )
                           : isUnlocked
                           ? null
-                          : const Icon(Icons.lock, color: Colors.grey),
+                          : const Icon(
+                              Icons.lock,
+                              color: Style.textColorSecondary,
+                            ),
                       onTap: isUnlocked ? () => onSelect(action) : null,
                     ),
                   );
@@ -431,7 +449,7 @@ class _HpBar extends StatelessWidget {
     return Container(
       height: 20,
       decoration: BoxDecoration(
-        color: Colors.grey[300],
+        color: Style.progressBackgroundColor,
         borderRadius: BorderRadius.circular(4),
       ),
       child: FractionallySizedBox(
@@ -439,7 +457,7 @@ class _HpBar extends StatelessWidget {
         widthFactor: progress,
         child: Container(
           decoration: BoxDecoration(
-            color: Colors.green,
+            color: Style.playerHpBarColor,
             borderRadius: BorderRadius.circular(4),
           ),
         ),

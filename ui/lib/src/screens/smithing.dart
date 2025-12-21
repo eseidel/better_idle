@@ -5,6 +5,7 @@ import 'package:better_idle/src/widgets/mastery_pool.dart';
 import 'package:better_idle/src/widgets/navigation_drawer.dart';
 import 'package:better_idle/src/widgets/recycle_chance_badge_cell.dart';
 import 'package:better_idle/src/widgets/skill_progress.dart';
+import 'package:better_idle/src/widgets/style.dart';
 import 'package:better_idle/src/widgets/xp_badges_row.dart';
 import 'package:flutter/material.dart' hide Action;
 import 'package:logic/logic.dart';
@@ -84,9 +85,11 @@ class _SelectedActionDisplay extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: isActive ? Colors.orange.withValues(alpha: 0.1) : Colors.white,
+        color: isActive
+            ? Style.activeColorLight
+            : Style.containerBackgroundLight,
         border: Border.all(
-          color: isActive ? Colors.orange : Colors.grey,
+          color: isActive ? Style.activeColor : Style.iconColorDefault,
           width: isActive ? 2 : 1,
         ),
         borderRadius: BorderRadius.circular(8),
@@ -98,7 +101,7 @@ class _SelectedActionDisplay extends StatelessWidget {
           const Text(
             'Create',
             textAlign: TextAlign.center,
-            style: TextStyle(fontSize: 14, color: Colors.grey),
+            style: TextStyle(fontSize: 14, color: Style.textColorSecondary),
           ),
           Text(
             action.name,
@@ -168,7 +171,7 @@ class _SelectedActionDisplay extends StatelessWidget {
           ElevatedButton(
             onPressed: canStart || isActive ? onStart : null,
             style: ElevatedButton.styleFrom(
-              backgroundColor: isActive ? Colors.orange : null,
+              backgroundColor: isActive ? Style.activeColor : null,
             ),
             child: Text(isActive ? 'Stop' : 'Create'),
           ),
@@ -186,7 +189,10 @@ class _ItemList extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (items.isEmpty) {
-      return const Text('None', style: TextStyle(color: Colors.grey));
+      return const Text(
+        'None',
+        style: TextStyle(color: Style.textColorSecondary),
+      );
     }
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -207,7 +213,10 @@ class _InventoryItemList extends StatelessWidget {
     final inventory = context.state.inventory;
 
     if (items.isEmpty) {
-      return const Text('None', style: TextStyle(color: Colors.grey));
+      return const Text(
+        'None',
+        style: TextStyle(color: Style.textColorSecondary),
+      );
     }
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -216,7 +225,9 @@ class _InventoryItemList extends StatelessWidget {
         final hasEnough = count >= entry.value;
         return Text(
           '$count ${entry.key}',
-          style: TextStyle(color: hasEnough ? Colors.green : Colors.red),
+          style: TextStyle(
+            color: hasEnough ? Style.successColor : Style.errorColor,
+          ),
         );
       }).toList(),
     );
@@ -247,7 +258,7 @@ class _ActionList extends StatelessWidget {
         ...actions.map((action) {
           final isSelected = action.name == selectedAction.name;
           return Card(
-            color: isSelected ? Colors.blue.withValues(alpha: 0.1) : null,
+            color: isSelected ? Style.selectedColorLight : null,
             child: ListTile(
               title: Text(action.name),
               subtitle: Text(
@@ -256,7 +267,7 @@ class _ActionList extends StatelessWidget {
                     .join(', '),
               ),
               trailing: isSelected
-                  ? const Icon(Icons.check_circle, color: Colors.blue)
+                  ? const Icon(Icons.check_circle, color: Style.selectedColor)
                   : null,
               onTap: () => onSelect(action),
             ),

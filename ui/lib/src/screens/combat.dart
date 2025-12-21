@@ -1,6 +1,7 @@
 import 'package:better_idle/src/logic/redux_actions.dart';
 import 'package:better_idle/src/widgets/context_extensions.dart';
 import 'package:better_idle/src/widgets/navigation_drawer.dart';
+import 'package:better_idle/src/widgets/style.dart';
 import 'package:flutter/material.dart';
 import 'package:logic/logic.dart';
 
@@ -45,14 +46,7 @@ class CombatPage extends StatelessWidget {
 
             // Fight button
             if (state.isStunned)
-              ElevatedButton(
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.orange,
-                  foregroundColor: Colors.white,
-                ),
-                onPressed: null,
-                child: const Text('Stunned'),
-              )
+              const ElevatedButton(onPressed: null, child: Text('Stunned'))
             else if (!isInCombat)
               ElevatedButton(
                 onPressed: () {
@@ -62,10 +56,6 @@ class CombatPage extends StatelessWidget {
               )
             else
               ElevatedButton(
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.red,
-                  foregroundColor: Colors.white,
-                ),
                 onPressed: () {
                   context.dispatch(StopCombatAction());
                 },
@@ -108,7 +98,7 @@ class _PlayerStatsCard extends StatelessWidget {
             _HpBar(
               currentHp: playerHp,
               maxHp: maxPlayerHp,
-              color: Colors.green,
+              color: Style.playerHpBarColor,
             ),
             Text('HP: $playerHp / $maxPlayerHp'),
             const SizedBox(height: 16),
@@ -133,11 +123,6 @@ class _PlayerStatsCard extends StatelessWidget {
                       ? 'Eat ${selectedFood.item.name} '
                             '(+${selectedFood.item.healsFor} HP)'
                       : 'No food selected',
-                ),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.green,
-                  foregroundColor: Colors.white,
-                  disabledBackgroundColor: Colors.grey[300],
                 ),
               ),
             ),
@@ -167,9 +152,13 @@ class _FoodSlotsRow extends StatelessWidget {
             width: 70,
             height: 70,
             decoration: BoxDecoration(
-              color: stack != null ? Colors.green[100] : Colors.grey[200],
+              color: stack != null
+                  ? Style.containerBackgroundFilled
+                  : Style.containerBackgroundEmpty,
               border: Border.all(
-                color: isSelected ? Colors.blue : Colors.grey,
+                color: isSelected
+                    ? Style.selectedColor
+                    : Style.iconColorDefault,
                 width: isSelected ? 3 : 1,
               ),
               borderRadius: BorderRadius.circular(8),
@@ -198,7 +187,10 @@ class _FoodSlotsRow extends StatelessWidget {
                 : const Center(
                     child: Text(
                       'Empty',
-                      style: TextStyle(fontSize: 10, color: Colors.grey),
+                      style: TextStyle(
+                        fontSize: 10,
+                        color: Style.textColorSecondary,
+                      ),
                     ),
                   ),
           ),
@@ -242,7 +234,7 @@ class _MonsterCard extends StatelessWidget {
                 const SizedBox(width: 8),
                 Text(
                   'Lvl ${action.combatLevel}',
-                  style: TextStyle(color: Colors.grey[600]),
+                  style: TextStyle(color: Style.levelTextColor),
                 ),
               ],
             ),
@@ -250,7 +242,7 @@ class _MonsterCard extends StatelessWidget {
             _HpBar(
               currentHp: currentHp,
               maxHp: action.maxHp,
-              color: Colors.red,
+              color: Style.monsterHpBarColor,
             ),
             Text('HP: $currentHp / ${action.maxHp}'),
             const SizedBox(height: 8),
@@ -264,7 +256,7 @@ class _MonsterCard extends StatelessWidget {
                   'Respawning...',
                   style: TextStyle(
                     fontStyle: FontStyle.italic,
-                    color: Colors.orange,
+                    color: Style.warningColor,
                   ),
                 ),
               )
@@ -308,7 +300,7 @@ class _HpBar extends StatelessWidget {
     return Container(
       height: 20,
       decoration: BoxDecoration(
-        color: Colors.grey[300],
+        color: Style.progressBackgroundColor,
         borderRadius: BorderRadius.circular(4),
       ),
       child: FractionallySizedBox(

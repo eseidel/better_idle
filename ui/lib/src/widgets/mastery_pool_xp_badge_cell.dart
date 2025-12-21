@@ -1,4 +1,5 @@
 import 'package:better_idle/src/widgets/count_badge_cell.dart';
+import 'package:better_idle/src/widgets/style.dart';
 import 'package:flutter/material.dart';
 
 /// A small square widget displaying a trophy-in-circle icon with a mastery
@@ -18,8 +19,7 @@ class MasteryPoolXpBadgeCell extends StatelessWidget {
       width: 48,
       height: 48,
       child: CountBadgeCell(
-        backgroundColor: Colors.grey.shade200,
-        borderColor: Colors.grey.shade600,
+        backgroundColor: Style.xpBadgeBackgroundColor,
         count: masteryPoolXp,
         child: Center(
           child: Container(
@@ -27,8 +27,8 @@ class MasteryPoolXpBadgeCell extends StatelessWidget {
             height: 28,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
-              border: Border.all(color: Colors.amber.shade700, width: 2),
-              color: Colors.amber.shade100,
+              border: Border.all(color: Style.masteryPoolBorderColor, width: 2),
+              color: Style.masteryPoolBackgroundColor,
             ),
             child: const Center(
               child: Text('🏆', style: TextStyle(fontSize: 12)),

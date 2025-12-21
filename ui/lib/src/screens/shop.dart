@@ -1,5 +1,6 @@
 import 'package:better_idle/src/logic/redux_actions.dart';
 import 'package:better_idle/src/widgets/navigation_drawer.dart';
+import 'package:better_idle/src/widgets/style.dart';
 import 'package:flutter/material.dart';
 import 'package:logic/logic.dart';
 
@@ -105,11 +106,17 @@ class ShopPage extends StatelessWidget {
             Text('Purchase $name for ${approximateCreditString(cost)} GP?'),
             if (description != null) ...[
               const SizedBox(height: 8),
-              Text(description, style: const TextStyle(color: Colors.green)),
+              Text(
+                description,
+                style: const TextStyle(color: Style.successColor),
+              ),
             ],
             if (levelRequirement != null) ...[
               const SizedBox(height: 8),
-              Text(levelRequirement, style: const TextStyle(color: Colors.red)),
+              Text(
+                levelRequirement,
+                style: const TextStyle(color: Style.errorColor),
+              ),
             ],
           ],
         ),
@@ -205,7 +212,7 @@ class _ShopItemRow extends StatelessWidget {
                   Text(
                     '${approximateCreditString(price)} GP',
                     style: TextStyle(
-                      color: canAfford ? Colors.green : Colors.red,
+                      color: canAfford ? Style.successColor : Style.errorColor,
                       fontWeight: FontWeight.bold,
                     ),
                   ),
@@ -214,7 +221,7 @@ class _ShopItemRow extends StatelessWidget {
                     Text(
                       levelRequirement!,
                       style: TextStyle(
-                        color: Colors.orange.shade700,
+                        color: Style.shopPurchasedColor,
                         fontSize: 12,
                       ),
                     ),

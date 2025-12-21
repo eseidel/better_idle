@@ -1,3 +1,4 @@
+import 'package:better_idle/src/widgets/style.dart';
 import 'package:flutter/material.dart';
 import 'package:logic/logic.dart';
 
@@ -7,8 +8,9 @@ class TextBadgeCell extends StatelessWidget {
     required this.child,
     this.onTap,
     this.radius = 8.0,
-    this.backgroundColor = Colors.transparent,
+    this.backgroundColor = Style.transparentColor,
     this.borderColor,
+    this.badgeBackgroundColor,
     this.text,
     super.key,
   });
@@ -18,6 +20,7 @@ class TextBadgeCell extends StatelessWidget {
   final double radius;
   final Color backgroundColor;
   final Color? borderColor;
+  final Color? badgeBackgroundColor;
   final String? text;
 
   Widget _buildTextBadge({required String text, required double badgeHeight}) {
@@ -25,19 +28,23 @@ class TextBadgeCell extends StatelessWidget {
       height: badgeHeight,
       padding: const EdgeInsets.symmetric(horizontal: 6),
       decoration: BoxDecoration(
-        color: Colors.grey.shade800,
+        color: badgeBackgroundColor ?? Style.badgeBackgroundColor,
         borderRadius: BorderRadius.circular(badgeHeight / 2),
       ),
-      child: Text(
-        text,
-        style: const TextStyle(
-          color: Colors.white,
-          fontSize: 9,
-          fontWeight: FontWeight.bold,
+      child: Center(
+        widthFactor: 1,
+        child: Text(
+          text,
+          style: const TextStyle(
+            color: Style.badgeTextColor,
+            fontSize: 9,
+            fontWeight: FontWeight.w300,
+            height: 1,
+          ),
+          textAlign: TextAlign.center,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
         ),
-        textAlign: TextAlign.center,
-        maxLines: 1,
-        overflow: TextOverflow.ellipsis,
       ),
     );
   }
@@ -108,8 +115,9 @@ class CountBadgeCell extends StatelessWidget {
     required this.child,
     this.onTap,
     this.radius = 8.0,
-    this.backgroundColor = Colors.transparent,
+    this.backgroundColor = Style.transparentColor,
     this.borderColor,
+    this.badgeBackgroundColor,
     this.count,
     super.key,
   });
@@ -119,6 +127,7 @@ class CountBadgeCell extends StatelessWidget {
   final double radius;
   final Color backgroundColor;
   final Color? borderColor;
+  final Color? badgeBackgroundColor;
   final int? count;
 
   @override
@@ -128,6 +137,7 @@ class CountBadgeCell extends StatelessWidget {
       radius: radius,
       backgroundColor: backgroundColor,
       borderColor: borderColor,
+      badgeBackgroundColor: badgeBackgroundColor,
       text: count != null ? approximateCountString(count!) : null,
       child: child,
     );
