@@ -85,16 +85,18 @@ class ItemGrid extends StatelessWidget {
   final List<ItemStack> stacks;
   final void Function(ItemStack) onItemTap;
 
+  static const double _cellSize = 72;
+
   @override
   Widget build(BuildContext context) {
     return GridView.builder(
-      padding: const EdgeInsets.all(16),
-      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 8,
-        crossAxisSpacing: 12,
-        mainAxisSpacing: 12,
+      padding: const EdgeInsets.all(12),
+      gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+        maxCrossAxisExtent: _cellSize,
+        crossAxisSpacing: 4,
+        mainAxisSpacing: 4,
       ),
-      itemCount: stacks.length, // Only show actual items, no empty cells
+      itemCount: stacks.length,
       itemBuilder: (context, index) {
         return StackCell(
           stack: stacks[index],
@@ -115,9 +117,13 @@ class StackCell extends StatelessWidget {
   Widget build(BuildContext context) {
     return CountBadgeCell(
       onTap: onTap,
+      backgroundColor: Colors.grey.shade800,
       borderColor: Colors.green.shade700,
       count: stack.count,
-      child: Center(child: ItemImage(item: stack.item)),
+      child: Padding(
+        padding: const EdgeInsets.all(6),
+        child: Center(child: ItemImage(item: stack.item)),
+      ),
     );
   }
 }

@@ -277,8 +277,10 @@ class _MyAppState extends State<MyApp> {
   @override
   Widget build(BuildContext context) {
     if (!_isDataLoaded) {
-      return const MaterialApp(
-        home: Scaffold(body: Center(child: CircularProgressIndicator())),
+      return MaterialApp(
+        themeMode: ThemeMode.dark,
+        darkTheme: ThemeData.dark(),
+        home: const Scaffold(body: Center(child: CircularProgressIndicator())),
       );
     }
     return const _GameApp();
@@ -334,6 +336,8 @@ class _GameAppState extends State<_GameApp>
         gameLoop: _gameLoop,
         child: MaterialApp.router(
           routerConfig: router,
+          themeMode: ThemeMode.dark,
+          darkTheme: ThemeData.dark(),
           builder: (context, child) {
             return ToastOverlay(
               service: toastService,
