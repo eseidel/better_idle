@@ -19,4 +19,10 @@ extension SkillExtensions on Skill {
     Skill.attack => 'combat',
     _ => name.toLowerCase(),
   };
+
+  /// Returns the asset path for this skill in the media directory.
+  String get assetPath {
+    final lower = name.toLowerCase();
+    return 'assets/media/skills/$lower/$lower.png';
+  }
 }

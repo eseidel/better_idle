@@ -1,6 +1,4 @@
-import 'dart:io';
-
-import 'package:better_idle/src/services/image_cache_service.dart';
+import 'package:better_idle/src/widgets/cached_image.dart';
 import 'package:flutter/material.dart';
 import 'package:logic/logic.dart';
 
@@ -8,7 +6,7 @@ import 'package:logic/logic.dart';
 ///
 /// While the image is loading, displays a hourglass icon.
 /// If the image fails to load or the item has no media path, shows fallback.
-class ItemImage extends StatefulWidget {
+class ItemImage extends StatelessWidget {
   const ItemImage({required this.item, this.size = 32, super.key});
 
   /// The item whose icon to display.
@@ -18,106 +16,20 @@ class ItemImage extends StatefulWidget {
   final double size;
 
   @override
-  State<ItemImage> createState() => _ItemImageState();
-}
-
-class _ItemImageState extends State<ItemImage> {
-  File? _cachedFile;
-  bool _isLoading = false;
-
-  @override
-  void initState() {
-    super.initState();
-    _loadImage();
-  }
-
-  @override
-  void didUpdateWidget(ItemImage oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (oldWidget.item != widget.item) {
-      _cachedFile = null;
-      _isLoading = false;
-      _loadImage();
-    }
-  }
-
-  void _loadImage() {
-    final media = widget.item.media;
-    if (media == null) {
-      return;
-    }
-
-    // Check if already cached.
-    final cached = imageCacheService.getCachedFile(media);
-    if (cached != null) {
-      setState(() {
-        _cachedFile = cached;
-      });
-      return;
-    }
-
-    // Start loading.
-    setState(() {
-      _isLoading = true;
-    });
-
-    imageCacheService.ensureAsset(media).then((file) {
-      if (mounted) {
-        setState(() {
-          _isLoading = false;
-          _cachedFile = file;
-        });
-      }
-    });
-  }
-
-  @override
   Widget build(BuildContext context) {
-    // Show cached image if available.
-    if (_cachedFile != null) {
-      return Image.file(
-        _cachedFile!,
-        width: widget.size,
-        height: widget.size,
-        fit: BoxFit.contain,
-        errorBuilder: (context, error, stackTrace) {
-          return _buildFallback();
-        },
-      );
+    final media = item.media;
+    if (media == null) {
+      return _buildFallback();
     }
-
-    // Show loading or fallback.
-    if (_isLoading) {
-      return _buildLoading();
-    }
-
-    return _buildFallback();
-  }
-
-  Widget _buildLoading() {
-    return SizedBox(
-      width: widget.size,
-      height: widget.size,
-      child: Center(
-        child: Icon(
-          Icons.hourglass_empty,
-          size: widget.size * 0.6,
-          color: Colors.grey,
-        ),
-      ),
-    );
+    return CachedImage(assetPath: media, size: size);
   }
 
   Widget _buildFallback() {
     return SizedBox(
-      width: widget.size,
-      height: widget.size,
+      width: size,
+      height: size,
       child: Center(
-        child: Icon(
-          Icons.help_outline,
-          size: widget.size * 0.6,
-          color: Colors.grey,
-        ),
+        child: Icon(Icons.help_outline, size: size * 0.6, color: Colors.grey),
       ),
     );
   }

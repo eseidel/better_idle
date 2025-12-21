@@ -1,5 +1,7 @@
 import 'package:better_idle/src/widgets/context_extensions.dart';
+import 'package:better_idle/src/widgets/page_image.dart';
 import 'package:better_idle/src/widgets/router.dart';
+import 'package:better_idle/src/widgets/skill_image.dart';
 import 'package:better_idle/src/widgets/skills.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
@@ -22,7 +24,7 @@ class SkillTile extends StatelessWidget {
     final level = levelForXp(skillState.xp);
 
     return ListTile(
-      leading: Icon(skill.icon, color: isActiveSkill ? Colors.orange : null),
+      leading: SkillImage(skill: skill, size: 24),
       title: Text(skill.name),
       trailing: Text('$level / $maxLevel'),
       selected: isSelected,
@@ -64,7 +66,10 @@ class AppNavigationDrawer extends StatelessWidget {
             ),
           ),
           ListTile(
-            leading: const Icon(Icons.shopping_cart),
+            leading: const PageImage(
+              pageId: 'shop',
+              fallbackIcon: Icons.shopping_cart,
+            ),
             title: const Text('Shop'),
             trailing: Text(approximateCreditString(gp)),
             selected: currentLocation == '/shop',
@@ -74,7 +79,10 @@ class AppNavigationDrawer extends StatelessWidget {
             },
           ),
           ListTile(
-            leading: const Icon(Icons.inventory_2),
+            leading: const PageImage(
+              pageId: 'bank',
+              fallbackIcon: Icons.inventory_2,
+            ),
             title: const Text('Bank'),
             trailing: Text('$inventoryUsed / $inventoryCapacity'),
             selected: currentLocation == '/bank',
@@ -84,16 +92,16 @@ class AppNavigationDrawer extends StatelessWidget {
             },
           ),
           const Divider(),
-          const SkillTile(skill: Skill.hitpoints),
-          const SkillTile(skill: Skill.attack),
+          const SkillTile(skill: .hitpoints),
+          const SkillTile(skill: .attack),
           const Divider(),
-          const SkillTile(skill: Skill.woodcutting),
-          const SkillTile(skill: Skill.fishing),
-          const SkillTile(skill: Skill.firemaking),
-          const SkillTile(skill: Skill.cooking),
-          const SkillTile(skill: Skill.mining),
-          const SkillTile(skill: Skill.smithing),
-          const SkillTile(skill: Skill.thieving),
+          const SkillTile(skill: .woodcutting),
+          const SkillTile(skill: .fishing),
+          const SkillTile(skill: .firemaking),
+          const SkillTile(skill: .cooking),
+          const SkillTile(skill: .mining),
+          const SkillTile(skill: .smithing),
+          const SkillTile(skill: .thieving),
           const Divider(),
           ListTile(
             leading: const Icon(Icons.bug_report),

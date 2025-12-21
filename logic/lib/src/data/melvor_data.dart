@@ -23,7 +23,7 @@ class MelvorData {
   /// Items from later files override items from earlier files with the same name.
   MelvorData(List<Map<String, dynamic>> dataFiles) {
     for (final json in dataFiles) {
-      _addItemsFromJson(json);
+      _addDataFromJson(json);
     }
   }
 
@@ -32,8 +32,12 @@ class MelvorData {
 
   final Map<String, Map<String, dynamic>> _itemsByName = {};
 
-  void _addItemsFromJson(Map<String, dynamic> json) {
-    final items = json['data']?['items'] as List<dynamic>? ?? [];
+  void _addDataFromJson(Map<String, dynamic> json) {
+    final data = json['data'] as Map<String, dynamic>?;
+    if (data == null) return;
+
+    // Parse items.
+    final items = data['items'] as List<dynamic>? ?? [];
     for (final item in items) {
       if (item is Map<String, dynamic>) {
         final name = item['name'] as String?;
