@@ -1,5 +1,5 @@
 import 'actions.dart';
-import 'melvor_data.dart';
+import 'melvor_id.dart';
 
 /// Parses a Melvor item ID like "melvorD:Normal_Logs" to extract the name.
 /// Returns the human-readable name like "Normal Logs".
@@ -43,16 +43,17 @@ class WoodcuttingTree extends SkillAction {
       duration: Duration(milliseconds: baseInterval),
       xp: json['baseExperience'] as int,
       outputs: {outputName: 1},
-      productId: productId,
+      productId: MelvorId(productId),
       media: json['media'] as String,
     );
   }
 
-  /// The Melvor ID (e.g., "Normal", "Oak").
+  /// The name of the tree (e.g., "Normal", "Oak").
+  /// This is not a MelvorId for whatever reason.
   final String id;
 
   /// The Melvor product ID (e.g., "melvorD:Normal_Logs").
-  final String productId;
+  final MelvorId productId;
 
   /// The media path for the tree icon.
   final String media;
@@ -102,22 +103,4 @@ List<WoodcuttingTree> extractWoodcuttingTrees(Map<String, dynamic> json) {
   }
 
   return [];
-}
-
-/// The global list of woodcutting actions, initialized from MelvorData.
-late List<WoodcuttingTree> woodcuttingActions;
-
-/// Initializes the global woodcuttingActions from MelvorData.
-void initializeWoodcutting(MelvorData data) {
-  // Search through all data files for woodcutting trees.
-  // Demo data contains the base trees, full data may have expansions.
-  List<WoodcuttingTree> trees = [];
-  for (final json in data.rawDataFiles) {
-    final extracted = extractWoodcuttingTrees(json);
-    if (extracted.isNotEmpty) {
-      trees = extracted;
-    }
-  }
-  trees.sort((a, b) => a.unlockLevel.compareTo(b.unlockLevel));
-  woodcuttingActions = trees;
 }

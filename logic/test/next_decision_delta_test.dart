@@ -13,12 +13,12 @@ import 'test_helper.dart';
 
 void main() {
   setUpAll(() async {
-    await ensureItemsInitialized();
+    await loadTestRegistries();
   });
 
   group('estimateRates', () {
     test('returns zero rates when no action is active', () {
-      final state = GlobalState.empty();
+      final state = GlobalState.empty(testRegistries);
       final rates = estimateRates(state);
 
       expect(defaultValueModel.valuePerTick(state, rates), 0);
@@ -27,8 +27,8 @@ void main() {
     });
 
     test('returns positive rates for active skill action', () {
-      var state = GlobalState.empty();
-      final action = actionRegistry.byName('Normal Tree');
+      var state = GlobalState.empty(testRegistries);
+      final action = testActions.byName('Normal Tree');
       state = state.startAction(action, random: Random(0));
 
       final rates = estimateRates(state);
@@ -38,13 +38,13 @@ void main() {
     });
 
     test('applies upgrade modifiers to rates', () {
-      var stateNoUpgrade = GlobalState.empty();
-      final action = actionRegistry.byName('Normal Tree');
+      var stateNoUpgrade = GlobalState.empty(testRegistries);
+      final action = testActions.byName('Normal Tree');
       stateNoUpgrade = stateNoUpgrade.startAction(action, random: Random(0));
 
-      var stateWithUpgrade = GlobalState.empty().copyWith(
-        shop: const ShopState(bankSlots: 0, axeLevel: 1),
-      );
+      var stateWithUpgrade = GlobalState.empty(
+        testRegistries,
+      ).copyWith(shop: const ShopState(bankSlots: 0, axeLevel: 1));
       stateWithUpgrade = stateWithUpgrade.startAction(
         action,
         random: Random(0),
@@ -67,7 +67,7 @@ void main() {
 
   group('nextDecisionDelta', () {
     test('returns 0 when goal is already satisfied', () {
-      final state = GlobalState.empty().copyWith(gp: 1000);
+      final state = GlobalState.empty(testRegistries).copyWith(gp: 1000);
       const goal = ReachGpGoal(500);
       final candidates = enumerateCandidates(state, goal);
 
@@ -83,7 +83,7 @@ void main() {
       // at level 1, we need a state where thieving isn't the best option.
       // For now, we verify the behavior when upgrades are in buyUpgrades.
 
-      final state = GlobalState.empty().copyWith(gp: 100);
+      final state = GlobalState.empty(testRegistries).copyWith(gp: 100);
       const goal = ReachGpGoal(10000);
       final candidates = enumerateCandidates(state, goal);
 
@@ -101,8 +101,8 @@ void main() {
 
     test('returns ticks until upgrade affordable', () {
       // Start with action active but no money
-      var state = GlobalState.empty();
-      final action = actionRegistry.byName('Copper'); // Mining copper
+      var state = GlobalState.empty(testRegistries);
+      final action = testActions.byName('Copper'); // Mining copper
       state = state.startAction(action, random: Random(0));
 
       const goal = ReachGpGoal(10000);
@@ -120,8 +120,8 @@ void main() {
 
     test('returns ticks until goal reached when close to goal', () {
       // Start with action and some money close to goal
-      var state = GlobalState.empty().copyWith(gp: 90);
-      final action = actionRegistry.byName('Copper');
+      var state = GlobalState.empty(testRegistries).copyWith(gp: 90);
+      final action = testActions.byName('Copper');
       state = state.startAction(action, random: Random(0));
 
       const goal = ReachGpGoal(100); // Only need 10 more GP
@@ -137,7 +137,7 @@ void main() {
 
     test('returns infTicks when no progress possible', () {
       // No active action, no gold rate
-      final state = GlobalState.empty();
+      final state = GlobalState.empty(testRegistries);
       const goal = ReachGpGoal(1000);
       final candidates = enumerateCandidates(state, goal);
 
@@ -149,8 +149,8 @@ void main() {
 
     test('computes unlock delta for watched activities', () {
       // Start at level 1 fishing, Raw Sardine unlocks at level 5
-      var state = GlobalState.empty();
-      final action = actionRegistry.byName('Raw Shrimp');
+      var state = GlobalState.empty(testRegistries);
+      final action = testActions.byName('Raw Shrimp');
       state = state.startAction(action, random: Random(0));
 
       const goal = ReachGpGoal(100000);
@@ -167,8 +167,8 @@ void main() {
     });
 
     test('is deterministic', () {
-      var state = GlobalState.empty().copyWith(gp: 10);
-      final action = actionRegistry.byName('Normal Tree');
+      var state = GlobalState.empty(testRegistries).copyWith(gp: 10);
+      final action = testActions.byName('Normal Tree');
       state = state.startAction(action, random: Random(0));
 
       const goal = ReachGpGoal(1000);

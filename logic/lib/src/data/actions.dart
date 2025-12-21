@@ -12,6 +12,7 @@ import 'package:logic/src/types/modifier.dart';
 import 'package:meta/meta.dart';
 
 import 'items.dart';
+import 'melvor_data.dart';
 
 export 'items.dart';
 export 'thieving.dart';
@@ -311,16 +312,33 @@ final cookingActions = <SkillAction>[
   _cooking('Herring', level: 10, xp: 15, seconds: 3),
 ];
 
-List<Action> _allActions() => [
-  ...woodcuttingActions,
-  ..._firemakingActions,
-  ...fishingActions,
-  ...cookingActions,
-  ...miningActions,
-  ...smithingActions,
-  ...thievingActions,
-  ...combatActions,
-];
+/// Initializes the global woodcuttingActions from MelvorData.
+List<WoodcuttingTree> loadWoodcuttingActions(MelvorData data) {
+  // Search through all data files for woodcutting trees.
+  // Demo data contains the base trees, full data may have expansions.
+  List<WoodcuttingTree> trees = [];
+  for (final json in data.rawDataFiles) {
+    final extracted = extractWoodcuttingTrees(json);
+    if (extracted.isNotEmpty) {
+      trees = extracted;
+    }
+  }
+  trees.sort((a, b) => a.unlockLevel.compareTo(b.unlockLevel));
+  return trees.toList();
+}
+
+List<Action> loadActions(MelvorData data) {
+  return [
+    ...loadWoodcuttingActions(data),
+    ..._firemakingActions,
+    ...fishingActions,
+    ...cookingActions,
+    ...miningActions,
+    ...smithingActions,
+    ...thievingActions,
+    ...combatActions,
+  ];
+}
 
 // Skill-level drops: shared across all actions in a skill.
 // This can include both simple Drops and DropTables.
@@ -371,14 +389,6 @@ class ActionRegistry {
   }
 }
 
-late ActionRegistry actionRegistry;
-
-/// Initializes the global actionRegistry. Must be called after
-/// initializeWoodcutting() and other skill initializers.
-void initializeActions() {
-  actionRegistry = ActionRegistry(_allActions());
-}
-
 class DropsRegistry {
   DropsRegistry(this._skillDrops, this._globalDrops);
 
@@ -410,5 +420,3 @@ class DropsRegistry {
     ];
   }
 }
-
-final dropsRegistry = DropsRegistry(skillDrops, globalDrops);

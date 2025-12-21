@@ -296,7 +296,7 @@ class DebugAddEggChestsAction extends ReduxAction<GlobalState> {
 
   @override
   GlobalState reduce() {
-    final eggChest = itemRegistry.byName('Egg Chest');
+    final eggChest = state.registries.items.byName('Egg Chest');
     final stack = ItemStack(eggChest, count: count);
     final newInventory = state.inventory.adding(stack);
     return state.copyWith(inventory: newInventory);
@@ -312,7 +312,7 @@ class DebugFillInventoryAction extends ReduxAction<GlobalState> {
 
     // Get items not already in inventory
     final existingItems = inventory.items.map((s) => s.item).toSet();
-    final availableItems = itemRegistry.all
+    final availableItems = state.registries.items.all
         .where((item) => !existingItems.contains(item))
         .toList();
 

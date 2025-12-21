@@ -51,12 +51,13 @@ List<Interaction> availableInteractions(GlobalState state) {
 List<SwitchActivity> _availableActivitySwitches(GlobalState state) {
   final currentActionName = state.activeAction?.name;
   final switches = <SwitchActivity>[];
+  final registries = state.registries;
 
   // Check all skills for available actions
   for (final skill in Skill.values) {
     final skillLevel = state.skillState(skill).skillLevel;
 
-    for (final action in actionRegistry.forSkill(skill)) {
+    for (final action in registries.actions.forSkill(skill)) {
       // Skip if this is the current action
       if (action.name == currentActionName) continue;
 

@@ -242,7 +242,7 @@ _DeltaCandidate? _deltaUntilActivityUnlocks(
   String? minActivityName;
   Skill? minSkill;
   int? minTargetXp;
-
+  final actionRegistry = state.registries.actions;
   for (final activityName in candidates.watch.lockedActivityNames) {
     final action = actionRegistry.skillActionByName(activityName);
     final skill = action.skill;
@@ -292,7 +292,8 @@ _DeltaCandidate? _deltaUntilNextSkillLevel(GlobalState state, Rates rates) {
   final actionName = state.activeAction?.name;
   if (actionName == null) return null;
 
-  final action = actionRegistry.byName(actionName);
+  final registries = state.registries;
+  final action = registries.actions.byName(actionName);
   if (action is! SkillAction) return null;
 
   final skill = action.skill;

@@ -14,12 +14,12 @@ class Equipment {
     : foodSlots = const [null, null, null],
       selectedFoodSlot = 0;
 
-  static Equipment? maybeFromJson(dynamic json) {
+  static Equipment? maybeFromJson(ItemRegistry items, dynamic json) {
     if (json == null) return null;
-    return Equipment.fromJson(json as Map<String, dynamic>);
+    return Equipment.fromJson(items, json as Map<String, dynamic>);
   }
 
-  factory Equipment.fromJson(Map<String, dynamic> json) {
+  factory Equipment.fromJson(ItemRegistry items, Map<String, dynamic> json) {
     final foodSlotsJson = json['foodSlots'] as List<dynamic>?;
     final foodSlots = foodSlotsJson != null
         ? List<ItemStack?>.generate(foodSlotCount, (i) {
@@ -27,7 +27,7 @@ class Equipment {
             final slotJson = foodSlotsJson[i];
             if (slotJson == null) return null;
             final map = slotJson as Map<String, dynamic>;
-            final item = itemRegistry.byName(map['item'] as String);
+            final item = items.byName(map['item'] as String);
             return ItemStack(item, count: map['count'] as int);
           })
         : const [null, null, null];

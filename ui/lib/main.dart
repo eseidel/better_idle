@@ -21,23 +21,27 @@ void main() {
 }
 
 class MyPersistor extends Persistor<GlobalState> {
+  MyPersistor(this.registries);
+
+  final Registries registries;
+
   final LocalPersist _persist = LocalPersist('better_idle');
   @override
   Future<GlobalState> readState() async {
     try {
       final json = await _persist.loadJson() as Map<String, dynamic>?;
       if (json == null) {
-        return GlobalState.empty();
+        return GlobalState.empty(registries);
       }
-      final state = GlobalState.fromJson(json);
+      final state = GlobalState.fromJson(registries, json);
       if (!state.validate()) {
         logger.err('Invalid state.');
-        return GlobalState.empty();
+        return GlobalState.empty(registries);
       }
       return state;
     } on Object catch (e, stackTrace) {
       logger.err('Failed to load state: $e, stackTrace: $stackTrace');
-      return GlobalState.empty();
+      return GlobalState.empty(registries);
     }
   }
 
@@ -266,10 +270,7 @@ class _MyAppState extends State<MyApp> {
   }
 
   Future<void> _loadData() async {
-    final data = await MelvorData.load();
-    initializeItems(data);
-    initializeWoodcutting(data);
-    initializeActions();
+    await loadRegistries();
     await imageCacheService.initialize();
     setState(() {
       _isDataLoaded = true;
@@ -298,6 +299,7 @@ class _GameApp extends StatefulWidget {
 
 class _GameAppState extends State<_GameApp>
     with SingleTickerProviderStateMixin {
+  late final Registries registries;
   late final MyPersistor _persistor;
   bool _isInitialized = false;
   late final Store<GlobalState> _store;
@@ -306,7 +308,7 @@ class _GameAppState extends State<_GameApp>
   @override
   void initState() {
     super.initState();
-    _persistor = MyPersistor();
+    _persistor = MyPersistor(registries);
     _persistor.readState().then((initialState) {
       setState(() {
         _store = Store<GlobalState>(

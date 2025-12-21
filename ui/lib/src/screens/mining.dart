@@ -12,7 +12,7 @@ class MiningPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     const skill = Skill.mining;
-    final actions = actionRegistry.forSkill(skill).toList();
+    final actions = context.state.registries.actions.forSkill(skill).toList();
     final skillState = context.state.skillState(skill);
 
     return Scaffold(

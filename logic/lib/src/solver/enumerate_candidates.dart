@@ -120,11 +120,12 @@ class Candidates {
 /// - xpRatePerTick: skill XP per tick
 List<ActionSummary> buildActionSummaries(GlobalState state) {
   final summaries = <ActionSummary>[];
+  final registries = state.registries;
 
   for (final skill in Skill.values) {
     final skillLevel = state.skillState(skill).skillLevel;
 
-    for (final action in actionRegistry.forSkill(skill)) {
+    for (final action in registries.actions.forSkill(skill)) {
       // Skip actions that require inputs (firemaking, cooking, smithing)
       // These aren't standalone activities for gold generation
       if (action.inputs.isNotEmpty) continue;
@@ -137,7 +138,7 @@ List<ActionSummary> buildActionSummaries(GlobalState state) {
       // Calculate expected gold per action from selling outputs
       var expectedGoldPerAction = 0.0;
       for (final output in action.outputs.entries) {
-        final item = itemRegistry.byName(output.key);
+        final item = registries.items.byName(output.key);
         expectedGoldPerAction += item.sellsFor * output.value;
       }
 

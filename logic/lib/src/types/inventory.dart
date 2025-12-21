@@ -13,10 +13,14 @@ class ItemStack {
 }
 
 class Inventory {
-  const Inventory.empty() : _counts = const {}, _orderedItems = const [];
+  const Inventory.empty(ItemRegistry items)
+    : _items = items,
+      _counts = const {},
+      _orderedItems = const [];
 
-  Inventory.fromItems(List<ItemStack> stacks)
-    : _counts = {},
+  Inventory.fromItems(ItemRegistry items, List<ItemStack> stacks)
+    : _items = items,
+      _counts = {},
       _orderedItems = [] {
     for (final stack in stacks) {
       _counts[stack.item] = stack.count;
@@ -25,13 +29,18 @@ class Inventory {
   }
 
   Inventory._({
+    required ItemRegistry items,
     required Map<Item, int> counts,
     required List<Item> orderedItems,
-  }) : _counts = counts,
+  }) : _items = items,
+       _counts = counts,
        _orderedItems = orderedItems;
 
-  Inventory.fromJson(Map<String, dynamic> json)
-    : _counts = {},
+  final ItemRegistry _items;
+
+  Inventory.fromJson(ItemRegistry items, Map<String, dynamic> json)
+    : _items = items,
+      _counts = {},
       _orderedItems = [] {
     final countsJson = json['counts'] as Map<String, dynamic>;
     final orderedItemsJson = json['orderedItems'] as List<dynamic>;
@@ -39,7 +48,7 @@ class Inventory {
     for (final name in orderedItemsJson) {
       // If the item name is not in the registry this will throw a BadStateError
       // Consider a mode that handles gracefully ignores unknown items.
-      final item = itemRegistry.byName(name as String);
+      final item = items.byName(name as String);
       _counts[item] = countsJson[name] as int;
       _orderedItems.add(item);
     }
@@ -62,7 +71,7 @@ class Inventory {
   int countOfItem(Item item) => _counts[item] ?? 0;
 
   int countByName(String name) {
-    final item = itemRegistry.byName(name);
+    final item = _items.byName(name);
     return countOfItem(item);
   }
 
@@ -88,7 +97,11 @@ class Inventory {
     } else {
       counts[stack.item] = existingCount + stack.count;
     }
-    return Inventory._(counts: counts, orderedItems: orderedItems);
+    return Inventory._(
+      items: _items,
+      counts: counts,
+      orderedItems: orderedItems,
+    );
   }
 
   Inventory removing(ItemStack stack) {
@@ -105,20 +118,25 @@ class Inventory {
     } else {
       counts[stack.item] = newCount;
     }
-    return Inventory._(counts: counts, orderedItems: orderedItems);
+    return Inventory._(
+      items: _items,
+      counts: counts,
+      orderedItems: orderedItems,
+    );
   }
 
-  static int itemRegistryOrder(Item a, Item b) {
-    final indexA = itemRegistry.indexForItem(a);
-    final indexB = itemRegistry.indexForItem(b);
+  int _itemRegistryOrder(Item a, Item b) {
+    final indexA = _items.indexForItem(a);
+    final indexB = _items.indexForItem(b);
     return indexA.compareTo(indexB);
   }
 
   /// Returns a new inventory with items sorted by their registry order.
-  Inventory sorted([int Function(Item, Item) compare = itemRegistryOrder]) {
+  Inventory sorted([int Function(Item, Item)? compare]) {
     final orderedItems = List<Item>.from(_orderedItems);
-    orderedItems.sort(compare);
+    orderedItems.sort(compare ?? _itemRegistryOrder);
     return Inventory._(
+      items: _items,
       counts: Map<Item, int>.from(_counts),
       orderedItems: orderedItems,
     );

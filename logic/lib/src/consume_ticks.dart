@@ -3,6 +3,7 @@ import 'dart:math';
 import 'package:logic/src/action_state.dart';
 import 'package:logic/src/data/actions.dart';
 import 'package:logic/src/data/combat.dart';
+import 'package:logic/src/data/registries.dart';
 import 'package:logic/src/data/xp.dart';
 import 'package:logic/src/state.dart';
 import 'package:logic/src/tick.dart';
@@ -18,11 +19,12 @@ final int ticksPer1Hp = ticksFromDuration(const Duration(seconds: 10));
 // for all actions in this skill?
 int playerTotalMasteryForSkill(GlobalState state, Skill skill) {
   int total = 0;
+  final actions = state.registries.actions;
   // This is terribly inefficient, but good enough for now.
   for (final entry in state.actionStates.entries) {
     final actionName = entry.key;
     final actionState = entry.value;
-    final action = actionRegistry.byName(actionName);
+    final action = actions.byName(actionName);
     if (action is SkillAction && action.skill == skill) {
       total += actionState.masteryXp;
     }
@@ -33,6 +35,7 @@ int playerTotalMasteryForSkill(GlobalState state, Skill skill) {
 /// Returns the amount of mastery XP gained per action.
 int masteryXpPerAction(GlobalState state, SkillAction action) {
   return calculateMasteryXpPerAction(
+    actions: state.registries.actions,
     action: action,
     unlockedActions: state.unlockedActionsCount(action.skill),
     playerTotalMasteryForSkill: playerTotalMasteryForSkill(state, action.skill),
@@ -238,13 +241,14 @@ List<BackgroundTickConsumer> _getBackgroundActions(
   String? activeActionName,
 }) {
   final backgrounds = <BackgroundTickConsumer>[];
+  final actions = state.registries.actions;
 
   for (final entry in state.actionStates.entries) {
     final actionName = entry.key;
     final actionState = entry.value;
 
     // Check if this is a mining action with background work
-    final action = actionRegistry.byName(actionName);
+    final action = actions.byName(actionName);
     if (action is MiningAction) {
       final mining = actionState.mining ?? const MiningState.empty();
 
@@ -329,6 +333,8 @@ class StateUpdateBuilder {
   ActionStopReason _stopReason = ActionStopReason.stillRunning;
   Tick _ticksElapsed = 0;
   Tick? _stoppedAtTick;
+
+  Registries get registries => _state.registries;
 
   GlobalState get state => _state;
   ActionStopReason get stopReason => _stopReason;
@@ -506,6 +512,7 @@ bool completeThievingAction(
   final thievingLevel = builder.state.skillState(Skill.thieving).skillLevel;
   final actionMasteryLevel = builder.currentMasteryLevel(action);
   final success = action.rollSuccess(rng, thievingLevel, actionMasteryLevel);
+  final registries = builder.registries;
 
   if (success) {
     // Grant XP on success
@@ -521,11 +528,11 @@ bool completeThievingAction(
 
     // Process drops
     final masteryLevel = builder.currentMasteryLevel(action);
-    for (final drop in dropsRegistry.allDropsForAction(
+    for (final drop in registries.drops.allDropsForAction(
       action,
       masteryLevel: masteryLevel,
     )) {
-      final itemStack = drop.roll(rng);
+      final itemStack = drop.roll(registries.items, rng);
       if (itemStack != null) {
         builder.addInventory(itemStack);
       }
@@ -558,21 +565,21 @@ bool completeAction(
   required Random random,
 }) {
   var canRepeatAction = true;
-
+  final registries = builder.registries;
   // Consume required items
   for (final requirement in action.inputs.entries) {
-    final item = itemRegistry.byName(requirement.key);
+    final item = registries.items.byName(requirement.key);
     builder.removeInventory(ItemStack(item, count: requirement.value));
   }
 
   final masteryLevel = builder.currentMasteryLevel(action);
   // Process all drops (action-level, skill-level, and global)
   // This handles both simple Drops and DropTables via polymorphism.
-  for (final drop in dropsRegistry.allDropsForAction(
+  for (final drop in registries.drops.allDropsForAction(
     action,
     masteryLevel: masteryLevel,
   )) {
-    final itemStack = drop.roll(random);
+    final itemStack = drop.roll(registries.items, random);
     if (itemStack != null) {
       final success = builder.addInventory(itemStack);
       if (!success) {
@@ -895,6 +902,7 @@ void _consumeTicksCore(
   StopCondition? stopCondition,
 }) {
   var ticksRemaining = maxTicks;
+  final registries = builder.registries;
 
   while (ticksRemaining > 0) {
     // Check stop condition at the start of each iteration
@@ -919,7 +927,7 @@ void _consumeTicksCore(
 
     if (activeAction != null) {
       // Process foreground action until next "event"
-      final action = actionRegistry.byName(activeAction.name);
+      final action = registries.actions.byName(activeAction.name);
       final (foregroundResult, ticksUsed) = _processForegroundAction(
         builder,
         action,
@@ -1021,10 +1029,11 @@ void consumeTicksUntil(
   DateTime? endTime,
   required Random random,
 }) {
+  final registries = state.registries;
   final activeAction = state.activeAction;
   if (activeAction == null) {
     // No activity active, return empty changes
-    return (TimeAway.empty(), state);
+    return (TimeAway.empty(registries), state);
   }
   final builder = StateUpdateBuilder(state);
   consumeTicks(builder, ticks, random: random);
@@ -1036,15 +1045,16 @@ void consumeTicksUntil(
       );
   // For TimeAway, we only need the action for predictions.
   // Combat actions return empty predictions anyway, so null is fine.
-  final action = actionRegistry.byName(activeAction.name);
+  final action = registries.actions.byName(activeAction.name);
   // Convert stoppedAtTick to Duration if action stopped
   final stoppedAfter = builder.stoppedAtTick != null
       ? durationFromTicks(builder.stoppedAtTick!)
       : null;
   final timeAway = TimeAway(
+    registries: registries,
     startTime: startTime,
     endTime: calculatedEndTime,
-    activeSkill: state.activeSkill,
+    activeSkill: state.activeSkill(),
     // Only pass SkillActions - CombatActions don't support predictions
     activeAction: action is SkillAction ? action : null,
     changes: builder.changes,

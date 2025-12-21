@@ -4,10 +4,6 @@ library;
 // Core types
 export 'src/action_state.dart';
 export 'src/consume_ticks.dart';
-export 'src/state.dart';
-export 'src/strings.dart';
-export 'src/tick.dart';
-
 // Data
 export 'src/data/actions.dart';
 export 'src/data/cache.dart';
@@ -15,9 +11,12 @@ export 'src/data/combat.dart';
 export 'src/data/fishing.dart';
 export 'src/data/items.dart';
 export 'src/data/melvor_data.dart';
+export 'src/data/registries.dart';
 export 'src/data/upgrades.dart';
 export 'src/data/xp.dart';
-
+export 'src/state.dart';
+export 'src/strings.dart';
+export 'src/tick.dart';
 // Types
 export 'src/types/drop.dart';
 export 'src/types/equipment.dart';

@@ -102,7 +102,7 @@ class ReachGpGoal extends Goal {
     // For GP goals, progress = direct GP + value of items produced
     var value = rates.directGpPerTick;
     for (final entry in rates.itemFlowsPerTick.entries) {
-      final item = itemRegistry.byName(entry.key);
+      final item = state.registries.items.byName(entry.key);
       value += entry.value * item.sellsFor;
     }
     return value;

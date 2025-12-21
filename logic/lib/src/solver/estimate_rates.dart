@@ -144,6 +144,7 @@ int? ticksUntilNextMasteryLevel(GlobalState state, Rates rates) {
 /// Uses allDropsForAction which includes action outputs (via rewardsAtLevel),
 /// skill-level drops, and global drops.
 Map<String, double> _computeItemFlowsPerAction(
+  DropsRegistry drops,
   SkillAction action,
   int masteryLevel,
 ) {
@@ -151,11 +152,11 @@ Map<String, double> _computeItemFlowsPerAction(
   // - Action outputs (via rewardsForMasteryLevel -> rewardsAtLevel)
   // - Skill-level drops (e.g., Bobby's Pocket for thieving)
   // - Global drops (e.g., gems)
-  final drops = dropsRegistry.allDropsForAction(
+  final dropsForAction = drops.allDropsForAction(
     action,
     masteryLevel: masteryLevel,
   );
-  return expectedItemsForDrops(drops);
+  return expectedItemsForDrops(dropsForAction);
 }
 
 /// Estimates expected rates (flows) for the current state.
@@ -171,7 +172,7 @@ Rates estimateRates(GlobalState state) {
     return Rates.empty;
   }
 
-  final action = actionRegistry.byName(activeAction.name);
+  final action = state.registries.actions.byName(activeAction.name);
 
   // Only skill actions have predictable rates
   if (action is! SkillAction) {
@@ -191,7 +192,11 @@ Rates estimateRates(GlobalState state) {
 
   // Compute item flows per action
   final masteryLevel = state.actionState(action.name).masteryLevel;
-  final itemFlowsPerAction = _computeItemFlowsPerAction(action, masteryLevel);
+  final itemFlowsPerAction = _computeItemFlowsPerAction(
+    state.registries.drops,
+    action,
+    masteryLevel,
+  );
 
   // For thieving, calculate rates accounting for stun time on failure.
   // On failure, the player is stunned for stunnedDurationTicks, which

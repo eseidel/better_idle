@@ -200,14 +200,15 @@ XpProgress xpProgressForXp(int xp) {
 /// Calculates the amount of mastery XP gained per action from raw values.
 /// Derived from https://wiki.melvoridle.com/w/Mastery.
 int calculateMasteryXpPerAction({
+  required ActionRegistry actions,
   required SkillAction action,
   required int unlockedActions,
   required int playerTotalMasteryForSkill,
   required int itemMasteryLevel,
   required double bonus, // e.g. 0.1 for +10%
 }) {
-  final actions = actionRegistry.forSkill(action.skill);
-  final totalItemsInSkill = actions.length;
+  final actionsForSkill = actions.forSkill(action.skill);
+  final totalItemsInSkill = actionsForSkill.length;
   final actionTime = actionTimeForMastery(action);
   final totalMasteryForSkill = totalItemsInSkill * maxMasteryXp;
   final masteryPortion =

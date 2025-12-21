@@ -22,7 +22,6 @@
 /// - A/B test different valuation policies
 library;
 
-import 'package:logic/src/data/items.dart';
 import 'package:logic/src/state.dart';
 import 'package:meta/meta.dart';
 
@@ -60,7 +59,7 @@ class SellEverythingForGpValueModel extends ValueModel {
 
   @override
   double itemValue(GlobalState state, String itemId) {
-    return itemRegistry.byName(itemId).sellsFor.toDouble();
+    return state.registries.items.byName(itemId).sellsFor.toDouble();
   }
 
   @override
@@ -85,7 +84,7 @@ class ShadowPriceValueModel extends ValueModel {
   double itemValue(GlobalState state, String itemId) {
     // TODO(future): Implement shadow pricing based on unlocks/recipes
     // For now, fall back to sell price
-    return itemRegistry.byName(itemId).sellsFor.toDouble();
+    return state.registries.items.byName(itemId).sellsFor.toDouble();
   }
 
   @override

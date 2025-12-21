@@ -18,7 +18,6 @@ library;
 
 import 'dart:math';
 
-import 'package:logic/src/data/actions.dart';
 import 'package:logic/src/data/upgrades.dart';
 import 'package:logic/src/state.dart';
 
@@ -49,7 +48,7 @@ GlobalState _applySwitchActivity(
   String actionName,
   Random random,
 ) {
-  final action = actionRegistry.byName(actionName);
+  final action = state.registries.actions.byName(actionName);
 
   // Clear current action if any (and not stunned)
   var newState = state;

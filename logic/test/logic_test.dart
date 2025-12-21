@@ -5,7 +5,7 @@ import 'test_helper.dart';
 
 void main() {
   setUpAll(() async {
-    await ensureItemsInitialized();
+    await loadTestRegistries();
   });
 
   group('logic package', () {
@@ -14,7 +14,7 @@ void main() {
     });
 
     test('exports Item class', () {
-      final item = itemRegistry.byName('Normal Logs');
+      final item = testItems.byName('Normal Logs');
       expect(item.name, 'Normal Logs');
     });
 

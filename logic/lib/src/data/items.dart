@@ -1,7 +1,7 @@
 import 'dart:math';
 
 import 'package:equatable/equatable.dart';
-import 'package:logic/src/data/melvor_data.dart';
+import 'package:logic/src/data/melvor_id.dart';
 import 'package:logic/src/types/drop.dart';
 import 'package:logic/src/types/inventory.dart';
 import 'package:meta/meta.dart';
@@ -58,11 +58,11 @@ class DropTableEntry extends Equatable {
       'DropTableEntry($itemID, $minQuantity-$maxQuantity, weight: $weight)';
 
   /// Creates the ItemStack when this pick is selected.
-  ItemStack roll(Random random) {
+  ItemStack roll(ItemRegistry items, Random random) {
     final count = minQuantity == maxQuantity
         ? minQuantity
         : minQuantity + random.nextInt(maxQuantity - minQuantity + 1);
-    final item = itemRegistry.byName(name);
+    final item = items.byName(name);
     return ItemStack(item, count: count);
   }
 }
@@ -85,8 +85,8 @@ class Item extends Equatable {
   /// Creates a simple test item with minimal required fields.
   /// Only for use in tests.
   @visibleForTesting
-  const Item.test(this.name, {required int gp, this.healsFor})
-    : id = name,
+  Item.test(this.name, {required int gp, this.healsFor})
+    : id = MelvorId('melvorD:${name.replaceAll(' ', '_')}'),
       itemType = 'Item',
       sellsFor = gp,
       category = null,
@@ -114,7 +114,7 @@ class Item extends Equatable {
     final media = (json['media'] as String?)?.split('?').first;
 
     return Item(
-      id: json['id'] as String,
+      id: MelvorId(json['id'] as String),
       name: json['name'] as String,
       itemType: json['itemType'] as String,
       sellsFor: json['sellsFor'] as int,
@@ -126,8 +126,8 @@ class Item extends Equatable {
     );
   }
 
-  /// The unique identifier for this item (e.g., "Normal_Logs").
-  final String id;
+  /// The unique identifier for this item (e.g., "melvorD:Normal_Logs").
+  final MelvorId id;
 
   /// The display name for this item (e.g., "Normal Logs").
   final String name;
@@ -161,11 +161,11 @@ class Item extends Equatable {
 
   /// Opens this item once and returns the resulting drop.
   /// Throws if the item is not openable.
-  ItemStack open(Random random) {
+  ItemStack open(ItemRegistry items, Random random) {
     if (dropTable == null) {
       throw StateError('Item $name is not openable');
     }
-    return dropTable!.roll(random);
+    return dropTable!.roll(items, random);
   }
 
   @override
@@ -186,7 +186,7 @@ class Item extends Equatable {
 }
 
 class ItemRegistry {
-  ItemRegistry._(this._all) {
+  ItemRegistry(List<Item> items) : _all = items {
     _byName = {for (final item in _all) item.name: item};
   }
 
@@ -207,18 +207,4 @@ class ItemRegistry {
 
   /// Returns the index of the item in the registry, or -1 if not found.
   int indexForItem(Item item) => _all.indexOf(item);
-}
-
-late ItemRegistry itemRegistry;
-
-/// Initializes the global itemRegistry from MelvorData.
-void initializeItems(MelvorData data) {
-  final items = <Item>[];
-  for (final name in data.itemNames) {
-    final json = data.lookupItem(name);
-    if (json != null) {
-      items.add(Item.fromJson(json));
-    }
-  }
-  itemRegistry = ItemRegistry._(items);
 }

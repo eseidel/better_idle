@@ -13,11 +13,13 @@ import 'package:logic/src/solver/goal.dart';
 import 'package:logic/src/solver/plan.dart';
 import 'package:logic/src/solver/solver.dart';
 
-void main(List<String> args) {
+void main(List<String> args) async {
   final parser = ArgParser()
     ..addFlag('skill', abbr: 's', help: 'Solve for woodcutting level 70');
 
   final results = parser.parse(args);
+
+  final registries = await loadRegistries();
 
   final Goal goal;
   if (results['skill'] as bool) {
@@ -32,7 +34,7 @@ void main(List<String> args) {
     print('Goal: $goalCredits GP');
   }
 
-  final initialState = GlobalState.empty();
+  final initialState = GlobalState.empty(registries);
 
   print('Solving...');
   final stopwatch = Stopwatch()..start();

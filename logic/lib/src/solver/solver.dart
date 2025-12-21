@@ -188,10 +188,12 @@ class _BucketKey {
 
 /// Creates a bucket key from a game state.
 _BucketKey _bucketKeyFromState(GlobalState state) {
+  final registries = state.registries;
   // Only track HP bucket when thieving (where death is possible)
   final actionName = state.activeAction?.name;
   final isThieving =
-      actionName != null && actionRegistry.byName(actionName) is ThievingAction;
+      actionName != null &&
+      registries.actions.byName(actionName) is ThievingAction;
   final hpBucket = isThieving ? state.playerHp ~/ _hpBucketSize : 0;
 
   // Get mastery level for current action (0 if no action)
@@ -307,6 +309,7 @@ class _RateCache {
   /// Uses the goal to determine which rate type and skills are relevant.
   double _computeBestUnlockedRate(GlobalState state) {
     var maxRate = 0.0;
+    final registries = state.registries;
 
     for (final skill in Skill.values) {
       // Only consider skills relevant to the goal
@@ -314,7 +317,7 @@ class _RateCache {
 
       final skillLevel = state.skillState(skill).skillLevel;
 
-      for (final action in actionRegistry.forSkill(skill)) {
+      for (final action in registries.actions.forSkill(skill)) {
         // Skip actions that require inputs
         if (action.inputs.isNotEmpty) continue;
 
@@ -350,7 +353,7 @@ class _RateCache {
           // Gold from thieving
           var expectedGoldPerAction = 0.0;
           for (final output in action.outputs.entries) {
-            final item = itemRegistry.byName(output.key);
+            final item = registries.items.byName(output.key);
             expectedGoldPerAction += item.sellsFor * output.value;
           }
           final expectedThievingGold = successChance * (1 + action.maxGold) / 2;
@@ -361,7 +364,7 @@ class _RateCache {
 
           var expectedGoldPerAction = 0.0;
           for (final output in action.outputs.entries) {
-            final item = itemRegistry.byName(output.key);
+            final item = registries.items.byName(output.key);
             expectedGoldPerAction += item.sellsFor * output.value;
           }
           goldRate = expectedGoldPerAction / expectedTicks;
@@ -444,7 +447,8 @@ String _stateKey(GlobalState state) {
 
   // HP bucket for thieving (where death is possible)
   final isThieving =
-      actionName != null && actionRegistry.byName(actionName) is ThievingAction;
+      actionName != null &&
+      state.registries.actions.byName(actionName) is ThievingAction;
   if (isThieving) {
     final hpBucket = state.playerHp ~/ _hpBucketSize;
     buffer.write('hp:$hpBucket|');
@@ -478,7 +482,7 @@ bool _isRateModelable(GlobalState state) {
   final activeAction = state.activeAction;
   if (activeAction == null) return false;
 
-  final action = actionRegistry.byName(activeAction.name);
+  final action = state.registries.actions.byName(activeAction.name);
 
   // Only skill actions (non-combat) are rate-modelable
   // Skip actions that require inputs (firemaking, cooking, smithing)
@@ -556,6 +560,7 @@ AdvanceResult _advanceExpected(
   if (playerDied) {
     return (
       state: GlobalState(
+        registries: state.registries,
         gp: newGp,
         skillStates: newSkillStates,
         activeAction: null, // Activity stops on death
@@ -690,7 +695,7 @@ ConsumeUntilResult consumeUntil(
 
       // Auto-restart the activity and continue
       if (originalActivity != null) {
-        final action = actionRegistry.byName(originalActivity);
+        final action = state.registries.actions.byName(originalActivity);
         state = state.startAction(action, random: random);
         continue; // Continue with restarted activity
       }

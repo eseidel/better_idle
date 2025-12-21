@@ -8,9 +8,9 @@ void main() {
   late SkillAction copperMining;
 
   setUpAll(() async {
-    await ensureItemsInitialized();
-    normalTree = actionRegistry.skillActionByName('Normal Tree');
-    copperMining = actionRegistry.skillActionByName('Copper');
+    await loadTestRegistries();
+    normalTree = testActions.skillActionByName('Normal Tree');
+    copperMining = testActions.skillActionByName('Copper');
   });
 
   group('SkillAction', () {
@@ -53,10 +53,7 @@ void main() {
 
   group('allDropsForAction', () {
     test('mining actions include gem drops from miningGemTable', () {
-      final drops = dropsRegistry.allDropsForAction(
-        copperMining,
-        masteryLevel: 1,
-      );
+      final drops = testDrops.allDropsForAction(copperMining, masteryLevel: 1);
 
       // Check that miningGemTable (a DropChance wrapping DropTable) is included
       final hasGemTable = drops.any(

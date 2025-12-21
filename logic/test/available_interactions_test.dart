@@ -9,12 +9,12 @@ import 'test_helper.dart';
 
 void main() {
   setUpAll(() async {
-    await ensureItemsInitialized();
+    await loadTestRegistries();
   });
 
   group('availableInteractions', () {
     test('empty state returns only level 1 activities', () {
-      final state = GlobalState.empty();
+      final state = GlobalState.empty(testRegistries);
       final interactions = availableInteractions(state);
 
       final switches = interactions.whereType<SwitchActivity>().toList();
@@ -36,7 +36,7 @@ void main() {
     });
 
     test('state with GP includes affordable upgrades', () {
-      final state = GlobalState.empty().copyWith(gp: 1000);
+      final state = GlobalState.empty(testRegistries).copyWith(gp: 1000);
       final interactions = availableInteractions(state);
 
       final upgrades = interactions.whereType<BuyUpgrade>().toList();
@@ -50,8 +50,8 @@ void main() {
     });
 
     test('active action is excluded from switches', () {
-      var state = GlobalState.empty().copyWith(gp: 500);
-      final action = actionRegistry.byName('Normal Tree');
+      var state = GlobalState.empty(testRegistries).copyWith(gp: 500);
+      final action = testActions.byName('Normal Tree');
       final random = Random(0);
       state = state.startAction(action, random: random);
 
@@ -63,7 +63,7 @@ void main() {
     });
 
     test('higher skill levels unlock more activities', () {
-      final state = GlobalState.empty().copyWith(
+      final state = GlobalState.empty(testRegistries).copyWith(
         gp: 100000,
         skillStates: {
           Skill.hitpoints: const SkillState(xp: 1154, masteryPoolXp: 0),
@@ -85,10 +85,10 @@ void main() {
     });
 
     test('inventory with items includes SellAll', () {
-      final logs = itemRegistry.byName('Normal Logs');
-      final ore = itemRegistry.byName('Copper Ore');
-      final state = GlobalState.empty().copyWith(
-        inventory: Inventory.fromItems([
+      final logs = testItems.byName('Normal Logs');
+      final ore = testItems.byName('Copper Ore');
+      final state = GlobalState.empty(testRegistries).copyWith(
+        inventory: Inventory.fromItems(testItems, [
           ItemStack(logs, count: 100),
           ItemStack(ore, count: 50),
         ]),
@@ -101,7 +101,7 @@ void main() {
     });
 
     test('empty inventory does not include SellAll', () {
-      final state = GlobalState.empty();
+      final state = GlobalState.empty(testRegistries);
       final interactions = availableInteractions(state);
       final sells = interactions.whereType<SellAll>().toList();
 
