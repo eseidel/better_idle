@@ -107,7 +107,7 @@ class _SelectedActionDisplay extends StatelessWidget {
     final state = context.state;
     final actionState = state.actionState(action.name);
     final isActive = state.activeAction?.name == action.name;
-    final canStart = state.canStartAction(action);
+    final canStart = state.canStartAction(itemRegistry, action);
     final isStunned = state.isStunned;
     final canToggle = (canStart || isActive) && !isStunned;
 

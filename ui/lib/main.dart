@@ -27,17 +27,17 @@ class MyPersistor extends Persistor<GlobalState> {
     try {
       final json = await _persist.loadJson() as Map<String, dynamic>?;
       if (json == null) {
-        return GlobalState.empty();
+        return GlobalState.empty(itemRegistry);
       }
-      final state = GlobalState.fromJson(json);
-      if (!state.validate()) {
+      final state = GlobalState.fromJson(registries, json);
+      if (!state.validate(actionRegistry)) {
         logger.err('Invalid state.');
-        return GlobalState.empty();
+        return GlobalState.empty(itemRegistry);
       }
       return state;
     } on Object catch (e, stackTrace) {
       logger.err('Failed to load state: $e, stackTrace: $stackTrace');
-      return GlobalState.empty();
+      return GlobalState.empty(itemRegistry);
     }
   }
 
@@ -266,10 +266,8 @@ class _MyAppState extends State<MyApp> {
   }
 
   Future<void> _loadData() async {
-    final data = await MelvorData.load();
-    initializeItems(data);
-    initializeWoodcutting(data);
-    initializeActions();
+    // Load registries (this replaces the old initialize* calls)
+    await loadRegistries();
     await imageCacheService.initialize();
     setState(() {
       _isDataLoaded = true;

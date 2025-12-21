@@ -78,7 +78,7 @@ class _SelectedActionDisplay extends StatelessWidget {
     final state = context.state;
     final actionState = state.actionState(action.name);
     final isActive = state.activeAction?.name == action.name;
-    final canStart = state.canStartAction(action);
+    final canStart = state.canStartAction(itemRegistry, action);
 
     // Get healing value from output item if it exists
     final outputName = action.outputs.keys.firstOrNull;

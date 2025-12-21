@@ -15,7 +15,7 @@ class UpdateActivityProgressAction extends ReduxAction<GlobalState> {
     final ticks = ticksFromDuration(now.difference(state.updatedAt));
     final builder = StateUpdateBuilder(state);
     final random = Random();
-    consumeTicks(builder, ticks, random: random);
+    consumeTicks(registries, builder, ticks, random: random);
 
     final changes = builder.changes;
     final newState = builder.build();
@@ -60,7 +60,7 @@ class ToggleActionAction extends ReduxAction<GlobalState> {
     }
     // Otherwise, start this action (stops any other active action).
     final random = Random();
-    return state.startAction(action, random: random);
+    return state.startAction(itemRegistry, action, random: random);
   }
 }
 
@@ -76,7 +76,12 @@ class AdvanceTicksAction extends ReduxAction<GlobalState> {
   @override
   GlobalState reduce() {
     final random = Random();
-    final (timeAway, newState) = consumeManyTicks(state, ticks, random: random);
+    final (timeAway, newState) = consumeManyTicks(
+      registries,
+      state,
+      ticks,
+      random: random,
+    );
     this.timeAway = timeAway;
     return newState;
   }
@@ -92,6 +97,7 @@ class ResumeFromPauseAction extends ReduxAction<GlobalState> {
     final ticks = ticksFromDuration(duration);
     final random = Random();
     final (newTimeAway, newState) = consumeManyTicks(
+      registries,
       state,
       ticks,
       endTime: now,
@@ -204,7 +210,7 @@ class StartCombatAction extends ReduxAction<GlobalState> {
     }
     // Start the combat action (this stops any other active action)
     final random = Random();
-    return state.startAction(combatAction, random: random);
+    return state.startAction(itemRegistry, combatAction, random: random);
   }
 }
 
@@ -266,6 +272,7 @@ class OpenItemAction extends ReduxAction<GlobalState> {
   GlobalState? reduce() {
     final random = Random();
     final (newState, result) = state.openItems(
+      itemRegistry,
       item,
       count: count,
       random: random,

@@ -111,7 +111,7 @@ class WoodcuttingActionCell extends StatelessWidget {
               activeAction.totalTicks
         : 0.0;
 
-    final canStart = context.state.canStartAction(action);
+    final canStart = context.state.canStartAction(itemRegistry, action);
     final isStunned = context.state.isStunned;
     final canToggle = (canStart || isRunning) && !isStunned;
 
@@ -188,7 +188,7 @@ class ActionCell extends StatelessWidget {
       progress = 0.0;
     }
     final actionState = context.state.actionState(actionName);
-    final canStart = context.state.canStartAction(action);
+    final canStart = context.state.canStartAction(itemRegistry, action);
     final isRunning = context.state.activeAction?.name == actionName;
     final isStunned = context.state.isStunned;
     final canToggle = (canStart || isRunning) && !isStunned;

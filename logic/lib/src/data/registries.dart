@@ -13,9 +13,9 @@ class Registries {
 
 Registries? _registries;
 
-/// Ensures the itemRegistry is initialized for tests.
+/// Ensures the registries are initialized.
 ///
-/// This should be called in setUpAll() for any test file that uses itemRegistry.
+/// This should be called during app startup or in setUpAll() for tests.
 /// It's safe to call multiple times; subsequent calls are no-ops.
 Future<Registries> loadRegistries({Directory? cacheDir}) async {
   if (_registries != null) return _registries!;
@@ -27,6 +27,23 @@ Future<Registries> loadRegistries({Directory? cacheDir}) async {
   );
   return _registries!;
 }
+
+/// Returns the loaded registries. Throws if not yet loaded.
+Registries get registries {
+  if (_registries == null) {
+    throw StateError('Registries not loaded. Call loadRegistries() first.');
+  }
+  return _registries!;
+}
+
+/// Returns the loaded item registry. Throws if not yet loaded.
+ItemRegistry get itemRegistry => registries.items;
+
+/// Returns the loaded action registry. Throws if not yet loaded.
+ActionRegistry get actionRegistry => registries.actions;
+
+/// Returns the loaded drops registry. Throws if not yet loaded.
+DropsRegistry get dropsRegistry => registries.drops;
 
 ItemRegistry initializeItems(MelvorData data) {
   final items = <Item>[];
