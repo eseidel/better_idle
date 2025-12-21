@@ -37,7 +37,7 @@ class WoodcuttingTree extends SkillAction {
     final baseInterval = json['baseInterval'] as int;
 
     return WoodcuttingTree(
-      id: MelvorId(json['id'] as String),
+      id: json['id'] as String,
       name: json['name'] as String,
       unlockLevel: json['level'] as int,
       duration: Duration(milliseconds: baseInterval),
@@ -48,8 +48,9 @@ class WoodcuttingTree extends SkillAction {
     );
   }
 
-  /// The Melvor ID (e.g., "melvorD:Normal", "melvorD:Oak").
-  final MelvorId id;
+  /// The name of the tree (e.g., "Normal", "Oak").
+  /// This is not a MelvorId for whatever reason.
+  final String id;
 
   /// The Melvor product ID (e.g., "melvorD:Normal_Logs").
   final MelvorId productId;
