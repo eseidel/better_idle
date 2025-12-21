@@ -1,6 +1,7 @@
 import 'dart:math';
 
 import 'package:equatable/equatable.dart';
+import 'package:logic/src/data/melvor_id.dart';
 import 'package:logic/src/types/drop.dart';
 import 'package:logic/src/types/inventory.dart';
 import 'package:meta/meta.dart';
@@ -84,8 +85,8 @@ class Item extends Equatable {
   /// Creates a simple test item with minimal required fields.
   /// Only for use in tests.
   @visibleForTesting
-  const Item.test(this.name, {required int gp, this.healsFor})
-    : id = name,
+  Item.test(this.name, {required int gp, this.healsFor})
+    : id = MelvorId('melvorD:${name.replaceAll(' ', '_')}'),
       itemType = 'Item',
       sellsFor = gp,
       category = null,
@@ -113,7 +114,7 @@ class Item extends Equatable {
     final media = (json['media'] as String?)?.split('?').first;
 
     return Item(
-      id: json['id'] as String,
+      id: MelvorId(json['id'] as String),
       name: json['name'] as String,
       itemType: json['itemType'] as String,
       sellsFor: json['sellsFor'] as int,
@@ -125,8 +126,8 @@ class Item extends Equatable {
     );
   }
 
-  /// The unique identifier for this item (e.g., "Normal_Logs").
-  final String id;
+  /// The unique identifier for this item (e.g., "melvorD:Normal_Logs").
+  final MelvorId id;
 
   /// The display name for this item (e.g., "Normal Logs").
   final String name;
