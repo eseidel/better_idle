@@ -79,6 +79,7 @@ class Item extends Equatable {
     this.type,
     this.healsFor,
     this.dropTable,
+    this.media,
   });
 
   /// Creates a simple test item with minimal required fields.
@@ -90,7 +91,8 @@ class Item extends Equatable {
       sellsFor = gp,
       category = null,
       type = null,
-      dropTable = null;
+      dropTable = null,
+      media = null;
 
   /// Creates an Item from a JSON map.
   factory Item.fromJson(Map<String, dynamic> json) {
@@ -108,6 +110,9 @@ class Item extends Equatable {
       dropTable = DropTable(entries);
     }
 
+    // Parse media path, stripping query params (e.g., "?2").
+    final media = (json['media'] as String?)?.split('?').first;
+
     return Item(
       id: json['id'] as String,
       name: json['name'] as String,
@@ -117,6 +122,7 @@ class Item extends Equatable {
       type: json['type'] as String?,
       healsFor: healsFor,
       dropTable: dropTable,
+      media: media,
     );
   }
 
@@ -144,6 +150,9 @@ class Item extends Equatable {
   /// The drop table for openable items. Null if not openable.
   final DropTable? dropTable;
 
+  /// The asset path for this item's icon (e.g., "assets/media/bank/logs_normal.png").
+  final String? media;
+
   /// Whether this item can be consumed for healing.
   bool get isConsumable => healsFor != null;
 
@@ -169,6 +178,7 @@ class Item extends Equatable {
     type,
     healsFor,
     dropTable,
+    media,
   ];
 
   @override

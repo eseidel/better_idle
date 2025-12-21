@@ -2,6 +2,7 @@ import 'package:better_idle/src/logic/redux_actions.dart';
 import 'package:better_idle/src/services/toast_service.dart';
 import 'package:better_idle/src/widgets/context_extensions.dart';
 import 'package:better_idle/src/widgets/count_badge_cell.dart';
+import 'package:better_idle/src/widgets/item_image.dart';
 import 'package:better_idle/src/widgets/navigation_drawer.dart';
 import 'package:better_idle/src/widgets/open_result_dialog.dart';
 import 'package:collection/collection.dart';
@@ -116,13 +117,7 @@ class StackCell extends StatelessWidget {
       onTap: onTap,
       borderColor: Colors.green.shade700,
       count: stack.count,
-      child: Center(
-        child: Text(
-          stack.item.name,
-          textAlign: TextAlign.center,
-          overflow: TextOverflow.ellipsis,
-        ),
-      ),
+      child: Center(child: ItemImage(item: stack.item)),
     );
   }
 }
@@ -255,11 +250,17 @@ class _ItemDetailsDrawerState extends State<ItemDetailsDrawer> {
               ),
               const Divider(),
               const SizedBox(height: 16),
-              Text('Name:', style: Theme.of(context).textTheme.titleMedium),
-              const SizedBox(height: 8),
-              Text(
-                widget.stack.item.name,
-                style: Theme.of(context).textTheme.bodyLarge,
+              Row(
+                children: [
+                  ItemImage(item: widget.stack.item, size: 48),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: Text(
+                      widget.stack.item.name,
+                      style: Theme.of(context).textTheme.headlineSmall,
+                    ),
+                  ),
+                ],
               ),
               const SizedBox(height: 24),
               Text(

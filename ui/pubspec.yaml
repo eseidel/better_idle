@@ -17,6 +17,7 @@ dependencies:
   logic:
     path: ../logic
   meta: any
+  path_provider: ^2.1.5
   scoped_deps:
     git:
       url: https://github.com/shorebirdtech/shorebird.git

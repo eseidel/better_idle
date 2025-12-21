@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:async_redux/local_persist.dart';
 import 'package:better_idle/src/logic/game_loop.dart';
 import 'package:better_idle/src/logic/redux_actions.dart';
+import 'package:better_idle/src/services/image_cache_service.dart';
 import 'package:better_idle/src/services/logger.dart';
 import 'package:better_idle/src/services/toast_service.dart';
 import 'package:better_idle/src/widgets/router.dart';
@@ -13,7 +14,10 @@ import 'package:logic/logic.dart';
 import 'package:scoped_deps/scoped_deps.dart';
 
 void main() {
-  runScoped(() => runApp(const MyApp()), values: {loggerRef, toastServiceRef});
+  runScoped(
+    () => runApp(const MyApp()),
+    values: {loggerRef, toastServiceRef, imageCacheServiceRef},
+  );
 }
 
 class MyPersistor extends Persistor<GlobalState> {
@@ -264,6 +268,7 @@ class _MyAppState extends State<MyApp> {
   Future<void> _loadData() async {
     final melvorData = await MelvorData.load();
     initializeItems(melvorData);
+    await imageCacheService.initialize();
     setState(() {
       _isDataLoaded = true;
     });
@@ -273,11 +278,7 @@ class _MyAppState extends State<MyApp> {
   Widget build(BuildContext context) {
     if (!_isDataLoaded) {
       return const MaterialApp(
-        home: Scaffold(
-          body: Center(
-            child: CircularProgressIndicator(),
-          ),
-        ),
+        home: Scaffold(body: Center(child: CircularProgressIndicator())),
       );
     }
     return const _GameApp();
