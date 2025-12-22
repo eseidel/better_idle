@@ -22,8 +22,7 @@ void main() {
       final sells = interactions.whereType<SellAll>().toList();
 
       // Helper to get action name from actionId
-      String actionName(SwitchActivity s) =>
-          testActions.byId(s.actionId).name;
+      String actionName(SwitchActivity s) => testActions.byId(s.actionId).name;
 
       // Should have level 1 activities: Normal Tree, Raw Shrimp,
       // Rune Essence, Copper, Tin, Man
@@ -63,8 +62,7 @@ void main() {
       final switches = interactions.whereType<SwitchActivity>().toList();
 
       // Helper to get action name from actionId
-      String actionName(SwitchActivity s) =>
-          testActions.byId(s.actionId).name;
+      String actionName(SwitchActivity s) => testActions.byId(s.actionId).name;
 
       // Normal Tree should not be in the list since it's active
       expect(switches.map(actionName), isNot(contains('Normal Tree')));
@@ -86,8 +84,7 @@ void main() {
       final switches = interactions.whereType<SwitchActivity>().toList();
 
       // Helper to get action name from actionId
-      String actionName(SwitchActivity s) =>
-          testActions.byId(s.actionId).name;
+      String actionName(SwitchActivity s) => testActions.byId(s.actionId).name;
 
       // Should have more activities unlocked at level 25
       expect(switches.map(actionName), contains('Oak Tree'));

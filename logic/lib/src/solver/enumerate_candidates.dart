@@ -306,9 +306,7 @@ List<MelvorId> _selectUnlockedActivitiesByRanking(
   final unlocked = summaries
       .where(
         (s) =>
-            s.isUnlocked &&
-            s.actionId != currentActionId &&
-            rankingFn(s) > 0,
+            s.isUnlocked && s.actionId != currentActionId && rankingFn(s) > 0,
       )
       .toList();
 

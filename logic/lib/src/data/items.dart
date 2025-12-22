@@ -98,7 +98,10 @@ class Item extends Equatable {
       media = null;
 
   /// Creates an Item from a JSON map.
-  factory Item.fromJson(Map<String, dynamic> json) {
+  factory Item.fromJson(
+    Map<String, dynamic> json, {
+    required String namespace,
+  }) {
     // Melvor uses HP/10, we use actual HP values, so multiply by 10.
     final rawHealsFor = json['healsFor'] as num?;
     final healsFor = rawHealsFor != null ? (rawHealsFor * 10).toInt() : null;
@@ -117,11 +120,13 @@ class Item extends Equatable {
     final media = (json['media'] as String?)?.split('?').first;
 
     // Normalize ID to always have namespace (items in JSON may lack it).
-    final rawId = json['id'] as String;
-    final id = rawId.contains(':') ? rawId : 'melvorD:$rawId';
+    final id = MelvorId.fromJsonWithNamespace(
+      json['id'] as String,
+      defaultNamespace: namespace,
+    );
 
     return Item(
-      id: MelvorId(id),
+      id: id,
       name: json['name'] as String,
       itemType: json['itemType'] as String,
       sellsFor: json['sellsFor'] as int,

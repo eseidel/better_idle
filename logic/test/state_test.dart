@@ -395,7 +395,9 @@ void main() {
     });
 
     test('woodcutting mastery 99 combines with shop upgrades', () {
-      final normalTreeSkillAction = testActions.skillActionByName('Normal Tree');
+      final normalTreeSkillAction = testActions.skillActionByName(
+        'Normal Tree',
+      );
       final random = Random(42);
 
       // State with mastery 99 AND Iron Axe (5% reduction)
@@ -405,10 +407,15 @@ void main() {
       final xpForLevel99 = startXpForLevel(99);
       final stateWithBoth = GlobalState.test(
         testRegistries,
-        actionStates: {normalTreeSkillAction.id: ActionState(masteryXp: xpForLevel99)},
+        actionStates: {
+          normalTreeSkillAction.id: ActionState(masteryXp: xpForLevel99),
+        },
         shop: const ShopState(bankSlots: 0, axeLevel: 1), // Iron Axe
       );
-      expect(stateWithBoth.actionState(normalTreeSkillAction.id).masteryLevel, 99);
+      expect(
+        stateWithBoth.actionState(normalTreeSkillAction.id).masteryLevel,
+        99,
+      );
 
       final ticksWithBoth = stateWithBoth.rollDurationWithModifiers(
         normalTreeSkillAction,

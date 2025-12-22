@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'cache.dart';
+import 'items.dart';
 
 /// Parsed representation of the Melvor game data.
 ///
@@ -23,35 +24,37 @@ class MelvorData {
   /// Items from later files override items from earlier files with the same name.
   /// Skill data from later files is merged with earlier files by skillID.
   MelvorData(List<Map<String, dynamic>> dataFiles) : _rawDataFiles = dataFiles {
+    final items = <Item>[];
     for (final json in dataFiles) {
-      _addDataFromJson(json);
+      final namespace = json['namespace'] as String;
+      _addDataFromJson(json, namespace: namespace, items: items);
     }
+    _items = ItemRegistry(items);
   }
 
-  /// Creates a MelvorData from a single parsed JSON file.
-  MelvorData.single(Map<String, dynamic> json) : this([json]);
-
   final List<Map<String, dynamic>> _rawDataFiles;
-  final Map<String, Map<String, dynamic>> _itemsByName = {};
+  late final ItemRegistry _items;
   final Map<String, Map<String, dynamic>> _skillDataById = {};
+
+  /// Returns the item registry.
+  ItemRegistry get items => _items;
 
   /// Returns all raw data files.
   /// Used for accessing skillData and other non-item data.
   List<Map<String, dynamic>> get rawDataFiles => _rawDataFiles;
 
-  void _addDataFromJson(Map<String, dynamic> json) {
+  void _addDataFromJson(
+    Map<String, dynamic> json, {
+    required String namespace,
+    required List<Item> items,
+  }) {
     final data = json['data'] as Map<String, dynamic>?;
     if (data == null) return;
 
     // Parse items.
-    final items = data['items'] as List<dynamic>? ?? [];
-    for (final item in items) {
-      if (item is Map<String, dynamic>) {
-        final name = item['name'] as String?;
-        if (name != null) {
-          _itemsByName[name] = item;
-        }
-      }
+    final itemsJson = data['items'] as List<dynamic>? ?? [];
+    for (final itemJson in itemsJson) {
+      items.add(Item.fromJson(itemJson, namespace: namespace));
     }
 
     // Parse skill data.
@@ -99,15 +102,6 @@ class MelvorData {
     }
     return result;
   }
-
-  /// Returns the item data for the given name, or null if not found.
-  Map<String, dynamic>? lookupItem(String name) => _itemsByName[name];
-
-  /// Returns all item names in the data.
-  Iterable<String> get itemNames => _itemsByName.keys;
-
-  /// Returns the number of items in the data.
-  int get itemCount => _itemsByName.length;
 
   /// Returns the skill data for the given skill ID, or null if not found.
   ///
