@@ -1,6 +1,5 @@
 import 'dart:math';
 
-import 'package:logic/src/data/combat.dart';
 import 'package:logic/src/tick.dart';
 import 'package:logic/src/types/drop.dart';
 import 'package:logic/src/types/modifier.dart';
@@ -158,8 +157,6 @@ class SkillAction extends Action {
 
 /// Fixed player attack speed in seconds.
 const double playerAttackSpeed = 4;
-
-final hardCodedActions = <Action>[...combatActions];
 
 // Skill-level drops: shared across all actions in a skill.
 // This can include both simple Drops and DropTables.

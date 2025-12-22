@@ -1,6 +1,7 @@
 import 'dart:math';
 
 import 'package:logic/src/data/combat.dart';
+import 'package:logic/src/data/melvor_id.dart';
 import 'package:logic/src/tick.dart';
 import 'package:meta/meta.dart';
 
@@ -77,7 +78,7 @@ const Duration monsterRespawnDuration = Duration(seconds: 3);
 @immutable
 class CombatActionState {
   const CombatActionState({
-    required this.monsterName,
+    required this.monsterId,
     required this.monsterHp,
     required this.playerAttackTicksRemaining,
     required this.monsterAttackTicksRemaining,
@@ -93,7 +94,7 @@ class CombatActionState {
       Duration(milliseconds: (action.stats.attackSpeed * 1000).round()),
     );
     return CombatActionState(
-      monsterName: action.name,
+      monsterId: action.id,
       monsterHp: action.maxHp,
       playerAttackTicksRemaining: playerAttackTicks,
       monsterAttackTicksRemaining: monsterAttackTicks,
@@ -102,7 +103,7 @@ class CombatActionState {
 
   factory CombatActionState.fromJson(Map<String, dynamic> json) {
     return CombatActionState(
-      monsterName: json['monsterName'] as String,
+      monsterId: MelvorId.fromJson(json['monsterId'] as String),
       monsterHp: json['monsterHp'] as int,
       playerAttackTicksRemaining: json['playerAttackTicksRemaining'] as int,
       monsterAttackTicksRemaining: json['monsterAttackTicksRemaining'] as int,
@@ -110,28 +111,25 @@ class CombatActionState {
     );
   }
 
-  /// The name of the monster being fought.
-  final String monsterName;
+  /// The ID of the monster being fought.
+  final MelvorId monsterId;
   final int monsterHp;
   final int playerAttackTicksRemaining;
   final int monsterAttackTicksRemaining;
   final int? respawnTicksRemaining;
 
-  /// Gets the CombatAction for this combat.
-  CombatAction get combatAction => combatActionByName(monsterName);
-
   bool get isMonsterDead => monsterHp <= 0;
   bool get isRespawning => respawnTicksRemaining != null;
 
   CombatActionState copyWith({
-    String? monsterName,
+    MelvorId? monsterId,
     int? monsterHp,
     int? playerAttackTicksRemaining,
     int? monsterAttackTicksRemaining,
     int? respawnTicksRemaining,
   }) {
     return CombatActionState(
-      monsterName: monsterName ?? this.monsterName,
+      monsterId: monsterId ?? this.monsterId,
       monsterHp: monsterHp ?? this.monsterHp,
       playerAttackTicksRemaining:
           playerAttackTicksRemaining ?? this.playerAttackTicksRemaining,
@@ -144,7 +142,7 @@ class CombatActionState {
 
   CombatActionState clearRespawn() {
     return CombatActionState(
-      monsterName: monsterName,
+      monsterId: monsterId,
       monsterHp: monsterHp,
       playerAttackTicksRemaining: playerAttackTicksRemaining,
       monsterAttackTicksRemaining: monsterAttackTicksRemaining,
@@ -153,7 +151,7 @@ class CombatActionState {
 
   Map<String, dynamic> toJson() {
     return {
-      'monsterName': monsterName,
+      'monsterId': monsterId.toJson(),
       'monsterHp': monsterHp,
       'playerAttackTicksRemaining': playerAttackTicksRemaining,
       'monsterAttackTicksRemaining': monsterAttackTicksRemaining,

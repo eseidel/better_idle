@@ -81,7 +81,7 @@ void main() {
     });
 
     test('returns empty map for combat action', () {
-      final plantAction = combatActionByName('Plant');
+      final plantAction = testActions.byName('Plant') as CombatAction;
       final timeAway = TimeAway.test(testRegistries, activeAction: plantAction);
       expect(timeAway.itemsConsumedPerHour, isEmpty);
     });
@@ -115,7 +115,7 @@ void main() {
     });
 
     test('returns empty map for combat action', () {
-      final plantAction = combatActionByName('Plant');
+      final plantAction = testActions.byName('Plant') as CombatAction;
       final timeAway = TimeAway.test(testRegistries, activeAction: plantAction);
       expect(timeAway.itemsGainedPerHour, isEmpty);
     });

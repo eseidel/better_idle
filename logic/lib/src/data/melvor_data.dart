@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'actions.dart';
 import 'cache.dart';
+import 'combat.dart';
 import 'melvor_id.dart';
 
 /// Parsed representation of the Melvor game data.
@@ -34,6 +35,7 @@ class MelvorData {
       final namespace = json['namespace'] as String;
       _addDataFromJson(json, namespace: namespace, items: items);
       actions.addAll(parseActions(json, namespace: namespace));
+      actions.addAll(parseCombatActions(json, namespace: namespace));
       fishingAreas.addAll(parseFishingAreas(json, namespace: namespace));
       smithingCategories.addAll(
         parseSmithingCategories(json, namespace: namespace),
@@ -49,7 +51,7 @@ class MelvorData {
         parseThievingActions(json, namespace: namespace, areas: _thievingAreas),
       );
     }
-    _actions = ActionRegistry(actions + hardCodedActions);
+    _actions = ActionRegistry(actions);
     _fishingAreas = FishingAreaRegistry(fishingAreas);
     _smithingCategories = SmithingCategoryRegistry(smithingCategories);
   }
@@ -393,4 +395,25 @@ List<ThievingAction> parseThievingActions(
   }
 
   return [];
+}
+
+List<CombatAction> parseCombatActions(
+  Map<String, dynamic> json, {
+  required String namespace,
+}) {
+  final data = json['data'] as Map<String, dynamic>?;
+  if (data == null) {
+    return [];
+  }
+
+  final monsters = data['monsters'] as List<dynamic>? ?? [];
+  return monsters
+      .map((monsterJson) => monsterJson as Map<String, dynamic>)
+      // Filter out monsters with empty names (like RandomITM).
+      .where((m) => (m['name'] as String?)?.isNotEmpty ?? false)
+      .map(
+        (monsterJson) =>
+            CombatAction.fromJson(monsterJson, namespace: namespace),
+      )
+      .toList();
 }

@@ -1116,7 +1116,7 @@ void main() {
 
     test('combat action processes ticks with monster name as action name', () {
       // Get the Plant combat action
-      final plantAction = combatActionByName('Plant');
+      final plantAction = testActions.byName('Plant') as CombatAction;
       final random = Random(0);
       // Start combat
       var state = GlobalState.empty(testRegistries);
@@ -1128,7 +1128,7 @@ void main() {
       // Verify combat state is stored under "Plant"
       final actionState = state.actionState(plantAction.id);
       expect(actionState.combat, isNotNull);
-      expect(actionState.combat!.monsterName, 'Plant');
+      expect(actionState.combat!.monsterId, plantAction.id);
 
       // Process some ticks - should not throw
       final builder = StateUpdateBuilder(state);
@@ -1140,7 +1140,7 @@ void main() {
     });
 
     test('combat action with mining background heals node', () {
-      final plantAction = combatActionByName('Plant');
+      final plantAction = testActions.byName('Plant') as CombatAction;
       final random = Random(0);
       // Start with damaged mining node
       var state = GlobalState.test(

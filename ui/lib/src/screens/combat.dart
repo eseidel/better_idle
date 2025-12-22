@@ -11,7 +11,7 @@ class CombatPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final state = context.state;
-    final plant = combatActionByName('Plant');
+    final plant = state.registries.actions.byName('Plant') as CombatAction;
 
     // Check if we're in combat with this monster
     final isInCombat = state.activeAction?.id == plant.id;
