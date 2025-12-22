@@ -1,5 +1,5 @@
 import 'package:better_idle/src/widgets/item_change_row.dart';
-import 'package:better_idle/src/widgets/skills.dart';
+import 'package:better_idle/src/widgets/skill_image.dart';
 import 'package:better_idle/src/widgets/style.dart';
 import 'package:flutter/material.dart';
 import 'package:logic/logic.dart';
@@ -20,8 +20,8 @@ class WelcomeBackDialog extends StatelessWidget {
       title: Column(
         children: [
           if (activeSkill != null) ...[
-            Icon(activeSkill.icon),
-            const SizedBox(width: 8),
+            SkillImage(skill: activeSkill, size: 48),
+            const SizedBox(height: 8),
           ],
           const Text('Welcome Back!'),
         ],

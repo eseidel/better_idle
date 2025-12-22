@@ -209,6 +209,18 @@ List<Action> parseActions(
             ),
           );
         }
+      case 'melvorD:Cooking':
+        final recipes = skillContent['recipes'] as List<dynamic>?;
+        if (recipes != null) {
+          actions.addAll(
+            recipes.map(
+              (json) => CookingAction.fromJson(
+                json as Map<String, dynamic>,
+                namespace: namespace,
+              ),
+            ),
+          );
+        }
       default:
       // print('Unknown skill ID: $skillId');
     }

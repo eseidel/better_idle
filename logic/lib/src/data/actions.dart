@@ -10,6 +10,7 @@ import 'package:meta/meta.dart';
 import 'melvor_id.dart';
 import 'mining.dart';
 
+export 'cooking.dart';
 export 'firemaking.dart';
 export 'fishing.dart';
 export 'items.dart';
@@ -171,37 +172,7 @@ class SkillAction extends Action {
 /// Fixed player attack speed in seconds.
 const double playerAttackSpeed = 4;
 
-SkillAction _cooking(
-  String name, {
-  required int level,
-  required int xp,
-  required int seconds,
-}) {
-  return SkillAction(
-    id: MelvorId.fromName(name),
-    skill: Skill.cooking,
-    name: name,
-    unlockLevel: level,
-    duration: Duration(seconds: seconds),
-    xp: xp,
-    inputs: {MelvorId.fromName('Raw $name'): 1},
-    outputs: {MelvorId.fromName(name): 1},
-  );
-}
-
-final cookingActions = <SkillAction>[
-  _cooking('Shrimp', level: 1, xp: 5, seconds: 2),
-  _cooking('Lobster', level: 40, xp: 66, seconds: 5),
-  _cooking('Crab', level: 60, xp: 140, seconds: 7),
-  _cooking('Sardine', level: 5, xp: 5, seconds: 2),
-  _cooking('Herring', level: 10, xp: 15, seconds: 3),
-];
-
-final hardCodedActions = <Action>[
-  ...cookingActions,
-  ...thievingActions,
-  ...combatActions,
-];
+final hardCodedActions = <Action>[...thievingActions, ...combatActions];
 
 // Skill-level drops: shared across all actions in a skill.
 // This can include both simple Drops and DropTables.
