@@ -48,26 +48,20 @@ void main() {
   group('Area drops', () {
     final crateId = MelvorId('melvorF:Crate_Of_Basic_Supplies');
     test('Golbin Village area drops include Crate of Basic Supplies', () {
-      final golbinAction = thievingActionByName('Golbin');
-      final golbinChiefAction = thievingActionByName('Golbin Chief');
+      final golbin = thievingActionByName('Golbin');
+      final golbinChief = thievingActionByName('Golbin Chief');
 
       // Both actions should be in Golbin Village
-      final golbinArea = testRegistries.thievingAreas.areaForNpc(
-        golbinAction.id,
-      );
-      final chiefArea = testRegistries.thievingAreas.areaForNpc(
-        golbinChiefAction.id,
-      );
+      final areas = testRegistries.thievingAreas;
+      final golbinArea = areas.areaForNpc(golbin.id);
+      final chiefArea = areas.areaForNpc(golbinChief.id);
       expect(golbinArea.name, 'Golbin Village');
       expect(chiefArea.name, 'Golbin Village');
 
       // Get all drops for both actions
-      final golbinDrops = testDrops.allDropsForAction(
-        golbinAction,
-        masteryLevel: 1,
-      );
+      final golbinDrops = testDrops.allDropsForAction(golbin, masteryLevel: 1);
       final chiefDrops = testDrops.allDropsForAction(
-        golbinChiefAction,
+        golbinChief,
         masteryLevel: 1,
       );
 
