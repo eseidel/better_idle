@@ -45,7 +45,8 @@ class DebugPage extends StatelessWidget {
     // Create an example TimeAway with all types of changes
     final now = DateTime.now();
     // Use Oak Tree action to demonstrate predictions
-    final oakTreeAction = registries.actions.byName('Oak Tree');
+    final oakTreeId = MelvorId('melvorD:Oak_Tree');
+    final oakTreeAction = registries.actions.byId(oakTreeId);
     return TimeAway(
       registries: registries,
       startTime: now.subtract(const Duration(hours: 2, minutes: 30)),

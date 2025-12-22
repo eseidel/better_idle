@@ -1,5 +1,6 @@
 import 'package:logic/src/data/items.dart';
 import 'package:logic/src/data/melvor_id.dart';
+import 'package:meta/meta.dart';
 
 class ItemStack {
   const ItemStack(this.item, {required this.count});
@@ -72,8 +73,9 @@ class Inventory {
 
   int countOfItem(Item item) => _counts[item] ?? 0;
 
-  int countByName(String name) {
-    final item = _items.byName(name);
+  @visibleForTesting
+  int countById(MelvorId id) {
+    final item = _items.byId(id);
     return countOfItem(item);
   }
 

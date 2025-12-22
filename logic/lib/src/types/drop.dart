@@ -44,8 +44,6 @@ class Drop extends Droppable {
 
   final int count;
 
-  String get name => itemId.name;
-
   @override
   Map<MelvorId, double> get expectedItems => {itemId: count * rate};
 

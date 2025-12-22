@@ -37,16 +37,16 @@ void main() {
   group('Thieving drops', () {
     test("allDropsForAction contains Bobby's Pocket for thieving", () {
       final drops = testDrops.allDropsForAction(manAction, masteryLevel: 1);
-      final dropNames = drops.map((d) {
-        if (d is Drop) return d.name;
+      final itemIds = drops.map((d) {
+        if (d is Drop) return d.itemId;
         return null;
-      }).whereType<String>();
-      // Note: Drop.name derives from MelvorId which lacks apostrophe
-      expect(dropNames, contains('Bobbys Pocket'));
+      }).whereType<MelvorId>();
+      expect(itemIds, contains(MelvorId('melvorF:Bobbys_Pocket')));
     });
   });
 
   group('Area drops', () {
+    final crateId = MelvorId('melvorF:Crate_Of_Basic_Supplies');
     test('Golbin Village area drops include Crate of Basic Supplies', () {
       final golbinAction = thievingActionByName('Golbin');
       final golbinChiefAction = thievingActionByName('Golbin Chief');
@@ -72,33 +72,21 @@ void main() {
       );
 
       // Extract drop names from Drop objects (area drops are rate-based Drops)
-      List<String> getDropNames(List<Droppable> drops) {
-        return drops.whereType<Drop>().map((d) => d.name).toList();
+      List<MelvorId> getDropIds(List<Droppable> drops) {
+        return drops.whereType<Drop>().map((d) => d.itemId).toList();
       }
 
-      final golbinDropNames = getDropNames(golbinDrops);
-      final chiefDropNames = getDropNames(chiefDrops);
-
       // Both should include Crate Of Basic Supplies from area drops
-      // Note: Drop.name derives from MelvorId, so capitalization matches ID
-      expect(
-        golbinDropNames,
-        contains('Crate Of Basic Supplies'),
-        reason: 'Golbin should have area drop',
-      );
-      expect(
-        chiefDropNames,
-        contains('Crate Of Basic Supplies'),
-        reason: 'Golbin Chief should have area drop',
-      );
+
+      expect(getDropIds(golbinDrops), contains(crateId));
+      expect(getDropIds(chiefDrops), contains(crateId));
     });
 
     test('Crate Of Basic Supplies has correct rate (1/500)', () {
       final golbinAction = thievingActionByName('Golbin');
       final drops = testDrops.allDropsForAction(golbinAction, masteryLevel: 1);
-
       final crateDrop = drops.whereType<Drop>().firstWhere(
-        (d) => d.name == 'Crate Of Basic Supplies',
+        (d) => d.itemId == crateId,
       );
 
       expect(crateDrop.rate, closeTo(1 / 500, 0.0001));
@@ -106,10 +94,10 @@ void main() {
 
     test('Low Town has Jeweled Necklace area drop', () {
       final drops = testDrops.allDropsForAction(manAction, masteryLevel: 1);
-      final dropNames = drops.whereType<Drop>().map((d) => d.name).toList();
+      final dropIds = drops.whereType<Drop>().map((d) => d.itemId).toList();
 
-      expect(dropNames, contains('Jeweled Necklace'));
-      expect(dropNames, isNot(contains('Crate Of Basic Supplies')));
+      expect(dropIds, contains(MelvorId('melvorF:Jeweled_Necklace')));
+      expect(dropIds, isNot(contains(crateId)));
     });
   });
 
@@ -206,18 +194,18 @@ void main() {
 
         // Check if we got any of the Golbin-specific drops
         final golbinItems = [
-          'Copper Ore',
-          'Bronze Bar',
-          'Normal Logs',
-          'Tin Ore',
-          'Oak Logs',
-          'Iron Bar',
-          'Iron Ore',
-          'Steel Bar',
-          'Willow Logs',
+          MelvorId('melvorD:Copper_Ore'),
+          MelvorId('melvorD:Bronze_Bar'),
+          MelvorId('melvorD:Normal_Logs'),
+          MelvorId('melvorD:Tin_Ore'),
+          MelvorId('melvorD:Oak_Logs'),
+          MelvorId('melvorD:Iron_Bar'),
+          MelvorId('melvorD:Iron_Ore'),
+          MelvorId('melvorD:Steel_Bar'),
+          MelvorId('melvorD:Willow_Logs'),
         ];
         for (final item in golbinItems) {
-          if (state.inventory.countByName(item) > 0) {
+          if (state.inventory.countById(item) > 0) {
             gotDrop = true;
             break;
           }
