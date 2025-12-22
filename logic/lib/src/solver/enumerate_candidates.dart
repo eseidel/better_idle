@@ -147,7 +147,7 @@ List<ActionSummary> buildActionSummaries(GlobalState state) {
         // Success rate depends on stealth vs perception
         // stealth = 40 + thievingLevel + masteryLevel
         final thievingLevel = state.skillState(Skill.thieving).skillLevel;
-        final mastery = state.actionState(action.name).masteryLevel;
+        final mastery = state.actionState(action.id).masteryLevel;
         final stealth = calculateStealth(thievingLevel, mastery);
         final successChance = ((100 + stealth) / (100 + action.perception))
             .clamp(0.0, 1.0);

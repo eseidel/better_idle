@@ -1,6 +1,7 @@
 import 'dart:math';
 
 import 'package:logic/src/data/actions.dart';
+import 'package:logic/src/data/melvor_id.dart';
 import 'package:meta/meta.dart';
 
 /// Combat stats for a player or monster.
@@ -62,7 +63,7 @@ class CombatAction extends Action {
 
 final combatActions = <CombatAction>[
   CombatAction(
-    id: 'Plant',
+    id: MelvorId.fromName('Plant'),
     name: 'Plant',
     combatLevel: 1,
     maxHp: 20,

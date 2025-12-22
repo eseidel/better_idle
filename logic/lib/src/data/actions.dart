@@ -58,8 +58,7 @@ enum RockType { essence, ore }
 abstract class Action {
   const Action({required this.id, required this.name, required this.skill});
 
-  /// The unique identifier for this action (non-namespaced, e.g., "Normal").
-  final String id;
+  final MelvorId id;
 
   final String name;
   final Skill skill;
@@ -218,7 +217,7 @@ SkillAction _firemaking(
 }) {
   final actionName = 'Burn $name Logs';
   return SkillAction(
-    id: actionName.replaceAll(' ', '_'),
+    id: MelvorId.fromName(actionName),
     skill: Skill.firemaking,
     name: actionName,
     unlockLevel: level,
@@ -245,7 +244,7 @@ MiningAction _mining(
 }) {
   final outputName = rockType == RockType.ore ? '$name Ore' : name;
   return MiningAction(
-    id: name.replaceAll(' ', '_'),
+    id: MelvorId.fromName(name),
     name: name,
     unlockLevel: level,
     xp: xp,
@@ -281,7 +280,7 @@ SkillAction _smithing(
   Map<String, int>? outputs,
 }) {
   return SkillAction(
-    id: name.replaceAll(' ', '_'),
+    id: MelvorId.fromName(name),
     skill: Skill.smithing,
     name: name,
     unlockLevel: level,
@@ -310,7 +309,7 @@ SkillAction _cooking(
   required int seconds,
 }) {
   return SkillAction(
-    id: name.replaceAll(' ', '_'),
+    id: MelvorId.fromName(name),
     skill: Skill.cooking,
     name: name,
     unlockLevel: level,
@@ -383,11 +382,11 @@ class ActionRegistry {
   }
 
   final List<Action> _all;
-  late final Map<String, Action> _byId;
+  late final Map<MelvorId, Action> _byId;
   late final Map<String, Action> _byName;
 
   /// Returns an Action by id, or throws a StateError if not found.
-  Action byId(String id) {
+  Action byId(MelvorId id) {
     final action = _byId[id];
     if (action == null) {
       throw StateError('Missing action with id: $id');

@@ -55,7 +55,7 @@ FishingAction _fishing(
   final areaObject = _fishingAreas.firstWhere((a) => a.name == area);
   final fishName = 'Raw $name';
   return FishingAction(
-    id: fishName.replaceAll(' ', '_'),
+    id: MelvorId.fromName(fishName),
     name: fishName,
     unlockLevel: level,
     xp: xp,

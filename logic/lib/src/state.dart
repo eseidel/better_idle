@@ -3,6 +3,7 @@ import 'dart:math';
 import 'package:logic/src/action_state.dart';
 import 'package:logic/src/data/actions.dart';
 import 'package:logic/src/data/combat.dart';
+import 'package:logic/src/data/melvor_id.dart';
 import 'package:logic/src/data/registries.dart';
 import 'package:logic/src/data/upgrades.dart';
 import 'package:logic/src/json.dart';
@@ -33,21 +34,21 @@ class ActiveAction {
 
   factory ActiveAction.fromJson(Map<String, dynamic> json) {
     return ActiveAction(
-      id: json['id'] as String,
+      id: MelvorId.fromJson(json['id'] as String),
       remainingTicks: json['remainingTicks'] as int,
       totalTicks: json['totalTicks'] as int,
     );
   }
 
   /// The action ID (matches Action.id).
-  final String id;
+  final MelvorId id;
   final int remainingTicks;
   final int totalTicks;
 
   // Computed getter for backward compatibility
   int get progressTicks => totalTicks - remainingTicks;
 
-  ActiveAction copyWith({String? id, int? remainingTicks, int? totalTicks}) {
+  ActiveAction copyWith({MelvorId? id, int? remainingTicks, int? totalTicks}) {
     return ActiveAction(
       id: id ?? this.id,
       remainingTicks: remainingTicks ?? this.remainingTicks,
@@ -265,7 +266,7 @@ class GlobalState {
     Inventory? inventory,
     ActiveAction? activeAction,
     Map<Skill, SkillState> skillStates = const {},
-    Map<String, ActionState> actionStates = const {},
+    Map<MelvorId, ActionState> actionStates = const {},
     DateTime? updatedAt,
     int gp = 0,
     TimeAway? timeAway,
@@ -333,7 +334,7 @@ class GlobalState {
   final Map<Skill, SkillState> skillStates;
 
   /// The accumulated action states.
-  final Map<String, ActionState> actionStates;
+  final Map<MelvorId, ActionState> actionStates;
 
   /// The current gold pieces (GP) the player has.
   final int gp;
@@ -441,7 +442,7 @@ class GlobalState {
 
       // Check if mining node is depleted
       if (action is MiningAction) {
-        final actionState = this.actionState(action.name);
+        final actionState = this.actionState(action.id);
         final miningState = actionState.mining ?? const MiningState.empty();
         if (miningState.isDepleted) {
           return false; // Can't mine depleted node
@@ -472,7 +473,7 @@ class GlobalState {
     }
 
     // Mastery-based modifiers (can include both percent and flat)
-    final masteryLevel = actionState(action.name).masteryLevel;
+    final masteryLevel = actionState(action.id).masteryLevel;
     final masteryModifier = action.durationModifierForMasteryLevel(
       masteryLevel,
     );
@@ -526,7 +527,7 @@ class GlobalState {
       );
       // Initialize combat state with the combat action
       final combatState = CombatActionState.start(action, pStats);
-      final newActionStates = Map<String, ActionState>.from(actionStates);
+      final newActionStates = Map<MelvorId, ActionState>.from(actionStates);
       final existingState = actionState(actionId);
       newActionStates[actionId] = existingState.copyWith(combat: combatState);
       return copyWith(
@@ -586,7 +587,7 @@ class GlobalState {
   // TODO(eseidel): Implement this.
   int unlockedActionsCount(Skill skill) => 1;
 
-  ActionState actionState(String action) =>
+  ActionState actionState(MelvorId action) =>
       actionStates[action] ?? const ActionState.empty();
 
   int activeProgress(Action action) {
@@ -598,7 +599,7 @@ class GlobalState {
   }
 
   GlobalState updateActiveAction(
-    String actionId, {
+    MelvorId actionId, {
     required int remainingTicks,
   }) {
     final activeAction = this.activeAction;
@@ -631,11 +632,11 @@ class GlobalState {
     return copyWith(skillStates: newSkillStates);
   }
 
-  GlobalState addActionMasteryXp(String actionName, int amount) {
-    final oldState = actionState(actionName);
+  GlobalState addActionMasteryXp(MelvorId actionId, int amount) {
+    final oldState = actionState(actionId);
     final newState = oldState.copyWith(masteryXp: oldState.masteryXp + amount);
-    final newActionStates = Map<String, ActionState>.from(actionStates);
-    newActionStates[actionName] = newState;
+    final newActionStates = Map<MelvorId, ActionState>.from(actionStates);
+    newActionStates[actionId] = newState;
     return copyWith(actionStates: newActionStates);
   }
 
@@ -746,7 +747,7 @@ class GlobalState {
     Inventory? inventory,
     ActiveAction? activeAction,
     Map<Skill, SkillState>? skillStates,
-    Map<String, ActionState>? actionStates,
+    Map<MelvorId, ActionState>? actionStates,
     int? gp,
     TimeAway? timeAway,
     ShopState? shop,

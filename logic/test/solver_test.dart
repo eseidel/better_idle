@@ -500,18 +500,18 @@ void main() {
       final rates = estimateRates(state);
 
       expect(rates.masteryXpPerTick, greaterThan(0));
-      expect(rates.actionName, 'Normal Tree');
+      expect(rates.actionId, normalTree.id);
     });
 
     test('estimateRates includes mastery XP rate for thieving', () {
       var state = GlobalState.empty(testRegistries);
-      final action = testActions.byName('Man');
+      final action = thievingActionByName('Man');
       state = state.startAction(action, random: Random(0));
 
       final rates = estimateRates(state);
 
       expect(rates.masteryXpPerTick, greaterThan(0));
-      expect(rates.actionName, 'Man');
+      expect(rates.actionId, man.id);
     });
 
     test('itemFlowsPerTick includes action outputs via allDropsForAction', () {

@@ -21,7 +21,8 @@ String parseProductName(String productId, RockType rockType) {
 
 /// Creates a MiningAction from Melvor rock data.
 MiningAction parseMiningAction(Map<String, dynamic> rock) {
-  final id = rock['id'] as String;
+  final noNamespaceId = rock['id'] as String;
+  final id = MelvorId('melvorD:$noNamespaceId');
   final name = rock['name'] as String;
   final level = rock['level'] as int;
   final xp = rock['baseExperience'] as int;

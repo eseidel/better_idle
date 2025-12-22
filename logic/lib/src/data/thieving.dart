@@ -1,6 +1,7 @@
 import 'dart:math';
 
 import 'package:logic/src/data/actions.dart';
+import 'package:logic/src/data/melvor_id.dart';
 import 'package:logic/src/types/drop.dart';
 import 'package:meta/meta.dart';
 
@@ -129,7 +130,7 @@ ThievingAction _thieving(
   Droppable? dropTable,
 }) {
   return ThievingAction(
-    id: name.replaceAll(' ', '_'),
+    id: MelvorId.fromName(name),
     name: name,
     unlockLevel: level,
     xp: xp,

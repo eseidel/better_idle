@@ -29,22 +29,25 @@ void main() {
 
   group('DropTableEntry', () {
     test('equality compares all fields', () {
-      const entry1 = DropTableEntry(
-        itemID: 'melvorD:Normal_Logs',
-        minQuantity: 1,
-        maxQuantity: 5,
+      final entry1 = DropTableEntry.test(
+        'Normal Logs',
+        gp: 10,
+        min: 1,
+        max: 5,
         weight: 10,
       );
-      const entry2 = DropTableEntry(
-        itemID: 'melvorD:Normal_Logs',
-        minQuantity: 1,
-        maxQuantity: 5,
+      final entry2 = DropTableEntry.test(
+        'Normal Logs',
+        gp: 10,
+        min: 1,
+        max: 5,
         weight: 10,
       );
-      const different = DropTableEntry(
-        itemID: 'melvorD:Oak_Logs',
-        minQuantity: 1,
-        maxQuantity: 5,
+      final different = DropTableEntry.test(
+        'Oak Logs',
+        gp: 10,
+        min: 1,
+        max: 5,
         weight: 10,
       );
 
@@ -53,10 +56,11 @@ void main() {
     });
 
     test('toString includes all fields', () {
-      const entry = DropTableEntry(
-        itemID: 'melvorD:Normal_Logs',
-        minQuantity: 1,
-        maxQuantity: 5,
+      final entry = DropTableEntry.test(
+        'Normal Logs',
+        gp: 10,
+        min: 1,
+        max: 5,
         weight: 10,
       );
 
@@ -67,22 +71,22 @@ void main() {
     });
 
     test('name extracts item name from itemID', () {
-      const entry = DropTableEntry(
-        itemID: 'melvorD:Normal_Logs',
+      final entry = DropTableEntry(
+        itemID: MelvorId('melvorD:Normal_Logs'),
         minQuantity: 1,
         maxQuantity: 5,
         weight: 10,
       );
 
-      expect(entry.itemIdWithoutNamespace, 'Normal_Logs');
       expect(entry.name, 'Normal Logs');
     });
 
     test('expectedCount returns average of min and max', () {
-      const entry = DropTableEntry(
-        itemID: 'melvorD:Test',
-        minQuantity: 2,
-        maxQuantity: 10,
+      final entry = DropTableEntry.test(
+        'Test',
+        gp: 10,
+        min: 2,
+        max: 10,
         weight: 1,
       );
 

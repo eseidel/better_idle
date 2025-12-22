@@ -29,17 +29,17 @@ void main() {
         ItemStack(normalLogs, count: 5),
         ItemStack(oakLogs, count: 3),
       ]),
-      activeAction: const ActiveAction(
-        id: 'Normal',
+      activeAction: ActiveAction(
+        id: normalTree.id,
         remainingTicks: 15,
         totalTicks: 30,
       ),
       skillStates: const {
         Skill.woodcutting: SkillState(xp: 100, masteryPoolXp: 50),
       },
-      actionStates: const {
-        'Normal': ActionState(masteryXp: 25),
-        'Oak': ActionState(masteryXp: 10),
+      actionStates: {
+        normalTree.id: ActionState(masteryXp: 25),
+        oakTree.id: ActionState(masteryXp: 10),
       },
       updatedAt: DateTime(2024, 1, 1, 12),
       timeAway: TimeAway(

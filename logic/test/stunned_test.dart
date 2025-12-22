@@ -115,8 +115,8 @@ void main() {
     test('clearAction throws StunnedException when stunned', () {
       final state = GlobalState.test(
         testRegistries,
-        activeAction: const ActiveAction(
-          id: 'Normal',
+        activeAction: ActiveAction(
+          id: MelvorId.fromName('Normal Tree'),
           remainingTicks: 10,
           totalTicks: 30,
         ),
@@ -136,8 +136,8 @@ void main() {
     test('clearAction works when not stunned', () {
       final state = GlobalState.test(
         testRegistries,
-        activeAction: const ActiveAction(
-          id: 'Normal',
+        activeAction: ActiveAction(
+          id: MelvorId.fromName('Normal'),
           remainingTicks: 10,
           totalTicks: 30,
         ),

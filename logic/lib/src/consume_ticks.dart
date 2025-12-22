@@ -3,6 +3,7 @@ import 'dart:math';
 import 'package:logic/src/action_state.dart';
 import 'package:logic/src/data/actions.dart';
 import 'package:logic/src/data/combat.dart';
+import 'package:logic/src/data/melvor_id.dart';
 import 'package:logic/src/data/registries.dart';
 import 'package:logic/src/data/xp.dart';
 import 'package:logic/src/state.dart';
@@ -22,9 +23,9 @@ int playerTotalMasteryForSkill(GlobalState state, Skill skill) {
   final actions = state.registries.actions;
   // This is terribly inefficient, but good enough for now.
   for (final entry in state.actionStates.entries) {
-    final actionName = entry.key;
+    final actionId = entry.key;
     final actionState = entry.value;
-    final action = actions.byName(actionName);
+    final action = actions.byId(actionId);
     if (action is SkillAction && action.skill == skill) {
       total += actionState.masteryXp;
     }
@@ -39,7 +40,7 @@ int masteryXpPerAction(GlobalState state, SkillAction action) {
     action: action,
     unlockedActions: state.unlockedActionsCount(action.skill),
     playerTotalMasteryForSkill: playerTotalMasteryForSkill(state, action.skill),
-    itemMasteryLevel: state.actionState(action.name).masteryLevel,
+    itemMasteryLevel: state.actionState(action.id).masteryLevel,
     bonus: 0,
   );
 }
@@ -192,7 +193,7 @@ typedef BackgroundTickResult = ({
 /// Background actions run in parallel with the foreground action.
 abstract class BackgroundTickConsumer {
   /// The action ID this background consumer is associated with.
-  String get actionId;
+  MelvorId get actionId;
 
   /// Whether this background action has work to do.
   bool get isActive;
@@ -206,7 +207,8 @@ class MiningBackgroundAction implements BackgroundTickConsumer {
   MiningBackgroundAction(this.actionId, this.miningState);
 
   @override
-  final String actionId;
+  final MelvorId actionId;
+
   final MiningState miningState;
 
   @override
@@ -238,7 +240,7 @@ class MiningBackgroundAction implements BackgroundTickConsumer {
 /// foreground handles respawn synchronously).
 List<BackgroundTickConsumer> _getBackgroundActions(
   GlobalState state, {
-  String? activeActionId,
+  MelvorId? activeActionId,
 }) {
   final backgrounds = <BackgroundTickConsumer>[];
   final actions = state.registries.actions;
@@ -278,7 +280,7 @@ void _applyBackgroundTicks(
   StateUpdateBuilder builder,
   List<BackgroundTickConsumer> backgrounds,
   Tick ticks, {
-  String? activeActionId,
+  MelvorId? activeActionId,
   bool skipStunCountdown = false,
 }) {
   // Apply stunned countdown (unless stun was just applied this iteration)
@@ -353,13 +355,13 @@ class StateUpdateBuilder {
 
   void setActionProgress(Action action, {required int remainingTicks}) {
     _state = _state.updateActiveAction(
-      action.name,
+      action.id,
       remainingTicks: remainingTicks,
     );
   }
 
   int currentMasteryLevel(Action action) {
-    return levelForXp(_state.actionState(action.name).masteryXp);
+    return levelForXp(_state.actionState(action.id).masteryXp);
   }
 
   void restartCurrentAction(Action action, {required Random random}) {
@@ -409,15 +411,17 @@ class StateUpdateBuilder {
     // Skill Mastery XP is not tracked in the changes object.
   }
 
-  void addActionMasteryXp(String actionName, int amount) {
-    _state = _state.addActionMasteryXp(actionName, amount);
+  void addActionMasteryXp(MelvorId actionId, int amount) {
+    _state = _state.addActionMasteryXp(actionId, amount);
     // Action Mastery XP is not tracked in the changes object.
     // Probably getting to 99 is?
   }
 
-  void updateActionState(String actionName, ActionState newState) {
-    final newActionStates = Map<String, ActionState>.from(_state.actionStates);
-    newActionStates[actionName] = newState;
+  void updateActionState(MelvorId actionId, ActionState newState) {
+    final newActionStates = Map<MelvorId, ActionState>.from(
+      _state.actionStates,
+    );
+    newActionStates[actionId] = newState;
     _state = _state.copyWith(actionStates: newActionStates);
   }
 
@@ -443,28 +447,28 @@ class StateUpdateBuilder {
   }
 
   /// Updates the combat state for an action.
-  void updateCombatState(String actionName, CombatActionState newCombat) {
-    final actionState = _state.actionState(actionName);
-    updateActionState(actionName, actionState.copyWith(combat: newCombat));
+  void updateCombatState(MelvorId actionId, CombatActionState newCombat) {
+    final actionState = _state.actionState(actionId);
+    updateActionState(actionId, actionState.copyWith(combat: newCombat));
   }
 
   /// Depletes a mining node and starts its respawn timer.
   void depleteResourceNode(
-    String actionName,
+    MelvorId actionId,
     MiningAction action,
     int totalHpLost,
   ) {
-    final actionState = _state.actionState(actionName);
+    final actionState = _state.actionState(actionId);
     final newMining = MiningState(
       totalHpLost: totalHpLost,
       respawnTicksRemaining: action.respawnTicks,
     );
-    updateActionState(actionName, actionState.copyWith(mining: newMining));
+    updateActionState(actionId, actionState.copyWith(mining: newMining));
   }
 
   /// Damages a mining node and starts HP regeneration if needed.
-  void damageResourceNode(String actionName, int totalHpLost) {
-    final actionState = _state.actionState(actionName);
+  void damageResourceNode(MelvorId actionId, int totalHpLost) {
+    final actionState = _state.actionState(actionId);
     final currentMining = actionState.mining ?? const MiningState.empty();
     final newMining = currentMining.copyWith(
       totalHpLost: totalHpLost,
@@ -472,13 +476,13 @@ class StateUpdateBuilder {
           ? ticksPer1Hp
           : currentMining.hpRegenTicksRemaining,
     );
-    updateActionState(actionName, actionState.copyWith(mining: newMining));
+    updateActionState(actionId, actionState.copyWith(mining: newMining));
   }
 
   /// Updates the mining state for an action.
-  void updateMiningState(String actionName, MiningState newMining) {
-    final actionState = _state.actionState(actionName);
-    updateActionState(actionName, actionState.copyWith(mining: newMining));
+  void updateMiningState(MelvorId actionId, MiningState newMining) {
+    final actionState = _state.actionState(actionId);
+    updateActionState(actionId, actionState.copyWith(mining: newMining));
   }
 
   GlobalState build() => _state;
@@ -519,7 +523,7 @@ bool completeThievingAction(
     final perAction = xpPerAction(builder.state, action);
     builder
       ..addSkillXp(action.skill, perAction.xp)
-      ..addActionMasteryXp(action.name, perAction.masteryXp)
+      ..addActionMasteryXp(action.id, perAction.masteryXp)
       ..addSkillMasteryXp(action.skill, perAction.masteryPoolXp);
 
     // Grant gold
@@ -592,12 +596,12 @@ bool completeAction(
 
   builder
     ..addSkillXp(action.skill, perAction.xp)
-    ..addActionMasteryXp(action.name, perAction.masteryXp)
+    ..addActionMasteryXp(action.id, perAction.masteryXp)
     ..addSkillMasteryXp(action.skill, perAction.masteryPoolXp);
 
   // Handle resource depletion for mining
   if (action is MiningAction) {
-    final actionState = builder.state.actionState(action.name);
+    final actionState = builder.state.actionState(action.id);
     final miningState = actionState.mining ?? const MiningState.empty();
 
     // Increment damage
@@ -608,11 +612,11 @@ bool completeAction(
     // Check if depleted
     if (currentHp <= 0) {
       // Node is depleted - set respawn timer
-      builder.depleteResourceNode(action.name, action, newTotalHpLost);
+      builder.depleteResourceNode(action.id, action, newTotalHpLost);
       canRepeatAction = false; // Can't continue mining
     } else {
       // Still has HP, just update damage and start regen countdown if needed
-      builder.damageResourceNode(action.name, newTotalHpLost);
+      builder.damageResourceNode(action.id, newTotalHpLost);
     }
   }
 
@@ -671,13 +675,13 @@ enum ForegroundResult {
   // For mining, handle respawn waiting (blocking foreground behavior)
   if (action is MiningAction) {
     final miningState =
-        builder.state.actionState(action.name).mining ??
+        builder.state.actionState(action.id).mining ??
         const MiningState.empty();
 
     if (miningState.isDepleted) {
       // Wait for respawn - this is foreground blocking behavior
       final respawnResult = _applyRespawnTicks(miningState, ticksAvailable);
-      builder.updateMiningState(action.name, respawnResult.state);
+      builder.updateMiningState(action.id, respawnResult.state);
 
       if (respawnResult.state.isDepleted) {
         // Still depleted, consumed all available ticks waiting
@@ -721,7 +725,7 @@ enum ForegroundResult {
     // For mining, check if node just depleted
     if (action is MiningAction && !canRepeat) {
       final miningState =
-          builder.state.actionState(action.name).mining ??
+          builder.state.actionState(action.id).mining ??
           const MiningState.empty();
       if (miningState.isDepleted) {
         // Node depleted - next iteration will handle respawn

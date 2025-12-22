@@ -16,10 +16,20 @@ class DropTableEntry extends Equatable {
     required this.weight,
   });
 
+  DropTableEntry.test(
+    String name, {
+    required int gp,
+    int min = 1,
+    int max = 1,
+    this.weight = 1,
+  }) : itemID = MelvorId.fromName(name),
+       minQuantity = min,
+       maxQuantity = max;
+
   /// Creates a DropTableEntry from a JSON map.
   factory DropTableEntry.fromJson(Map<String, dynamic> json) {
     return DropTableEntry(
-      itemID: json['itemID'] as String,
+      itemID: MelvorId.fromJson(json['itemID'] as String),
       minQuantity: json['minQuantity'] as int,
       maxQuantity: json['maxQuantity'] as int,
       weight: json['weight'] as int,
@@ -27,7 +37,7 @@ class DropTableEntry extends Equatable {
   }
 
   /// The fully qualified item ID (e.g., "melvorD:Normal_Logs").
-  final String itemID;
+  final MelvorId itemID;
 
   /// The minimum quantity that can drop.
   final int minQuantity;
@@ -41,14 +51,7 @@ class DropTableEntry extends Equatable {
   /// The weight of this entry in the drop table.
   final int weight;
 
-  /// Extracts the item name from the fully qualified itemID.
-  /// e.g., "melvorD:Normal_Logs" -> "Normal_Logs"
-  String get itemIdWithoutNamespace {
-    final colonIndex = itemID.indexOf(':');
-    return colonIndex >= 0 ? itemID.substring(colonIndex + 1) : itemID;
-  }
-
-  String get name => itemIdWithoutNamespace.replaceAll('_', ' ');
+  String get name => itemID.name;
 
   @override
   List<Object?> get props => [itemID, minQuantity, maxQuantity, weight];
@@ -62,7 +65,7 @@ class DropTableEntry extends Equatable {
     final count = minQuantity == maxQuantity
         ? minQuantity
         : minQuantity + random.nextInt(maxQuantity - minQuantity + 1);
-    final item = items.byId(MelvorId.fromJson(itemID));
+    final item = items.byId(itemID);
     return ItemStack(item, count: count);
   }
 }

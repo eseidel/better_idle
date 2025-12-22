@@ -1,4 +1,5 @@
 import 'package:logic/src/data/actions.dart';
+import 'package:logic/src/data/melvor_id.dart';
 import 'package:logic/src/data/registries.dart';
 import 'package:logic/src/json.dart';
 import 'package:logic/src/types/drop.dart';
@@ -64,7 +65,7 @@ class TimeAway {
     Skill? activeSkill,
     Action? activeAction,
     Changes? changes,
-    Map<String, int>? masteryLevels,
+    Map<MelvorId, int>? masteryLevels,
     ActionStopReason? stopReason,
     Duration? stoppedAfter,
   }) {
@@ -139,7 +140,7 @@ class TimeAway {
   final Skill? activeSkill;
   final Action? activeAction;
   final Changes changes;
-  final Map<String, int> masteryLevels;
+  final Map<MelvorId, int> masteryLevels;
   final ActionStopReason stopReason;
   final Registries registries;
 
@@ -167,8 +168,8 @@ class TimeAway {
     return {action.skill: xpPerHour.round()};
   }
 
-  int levelForMastery(String actionName) {
-    return masteryLevels[actionName] ?? 0;
+  int levelForMastery(MelvorId actionId) {
+    return masteryLevels[actionId] ?? 0;
   }
 
   /// Calculates the predicted items gained per hour based on the active
@@ -189,7 +190,7 @@ class TimeAway {
 
     // Get all possible drops for this action
     // This will be an approximation since mastery level would change over time.
-    final masteryLevel = levelForMastery(action.name);
+    final masteryLevel = levelForMastery(action.id);
     final allDrops = registries.drops.allDropsForAction(
       action,
       masteryLevel: masteryLevel,
@@ -244,7 +245,7 @@ class TimeAway {
     Skill? activeSkill,
     Action? activeAction,
     Changes? changes,
-    Map<String, int>? masteryLevels,
+    Map<MelvorId, int>? masteryLevels,
     ActionStopReason? stopReason,
     Duration? stoppedAfter,
   }) {
@@ -277,16 +278,15 @@ class TimeAway {
         ? endTime
         : other.endTime;
     // Take the higher of the two mastery levels for each skill
-    final actionNames = masteryLevels.keys.toSet().union(
+    final actionIds = masteryLevels.keys.toSet().union(
       other.masteryLevels.keys.toSet(),
     );
-    final mergedMasteryLevels = <String, int>{};
-    for (final actionName in actionNames) {
-      mergedMasteryLevels[actionName] =
-          (masteryLevels[actionName] ?? 0) >
-              (other.masteryLevels[actionName] ?? 0)
-          ? masteryLevels[actionName]!
-          : other.masteryLevels[actionName] ?? 0;
+    final mergedMasteryLevels = <MelvorId, int>{};
+    for (final actionId in actionIds) {
+      mergedMasteryLevels[actionId] =
+          (masteryLevels[actionId] ?? 0) > (other.masteryLevels[actionId] ?? 0)
+          ? masteryLevels[actionId]!
+          : other.masteryLevels[actionId] ?? 0;
     }
     // For stop reason, prefer a non-stillRunning value (the most recent stop)
     final mergedStopReason = stopReason != ActionStopReason.stillRunning

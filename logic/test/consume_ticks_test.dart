@@ -299,7 +299,7 @@ void main() {
       () {
         // Create an action with output count > 1
         final testAction = SkillAction(
-          id: 'Test_Action',
+          id: MelvorId.fromName('Test Action'),
           skill: Skill.woodcutting,
           name: 'Test Action',
           unlockLevel: 1,
@@ -702,8 +702,8 @@ void main() {
       // so that the next completion will deplete it
       var state = GlobalState.test(
         testRegistries,
-        actionStates: const {
-          'Copper': ActionState(
+        actionStates: {
+          copper.id: ActionState(
             masteryXp: 0,
             mining: MiningState(
               totalHpLost: 5,
@@ -806,9 +806,9 @@ void main() {
       // - Rune Essence node damaged (3 HP lost) and healing
       var state = GlobalState.test(
         testRegistries,
-        actionStates: const {
+        actionStates: {
           // Copper: depleted, mid-respawn with 30 ticks remaining
-          'Copper': ActionState(
+          copper.id: ActionState(
             masteryXp: 0,
             mining: MiningState(
               totalHpLost: 6, // Fully depleted (6 HP lost = 0 HP remaining)
@@ -816,7 +816,7 @@ void main() {
             ),
           ),
           // Rune Essence: damaged but not depleted, healing
-          'Rune Essence': ActionState(
+          runeEssence.id: ActionState(
             masteryXp: 0,
             mining: MiningState(
               totalHpLost: 3, // 3 HP lost, 3 HP remaining (out of 6)
@@ -1002,8 +1002,8 @@ void main() {
       // Start with a damaged mining node but no active action
       var state = GlobalState.test(
         testRegistries,
-        actionStates: const {
-          'Copper': ActionState(
+        actionStates: {
+          copper.id: ActionState(
             masteryXp: 0,
             mining: MiningState(
               totalHpLost: 3, // 3 HP lost
@@ -1023,7 +1023,7 @@ void main() {
 
       // Verify node healed (should have healed once at tick 50)
       final miningState =
-          state.actionState('Copper').mining ?? const MiningState.empty();
+          state.actionState(copper.id).mining ?? const MiningState.empty();
       expect(
         miningState.totalHpLost,
         2,
@@ -1041,8 +1041,8 @@ void main() {
       // Start with a depleted mining node but no active action
       var state = GlobalState.test(
         testRegistries,
-        actionStates: const {
-          'Copper': ActionState(
+        actionStates: {
+          copper.id: ActionState(
             masteryXp: 0,
             mining: MiningState(
               totalHpLost: 6,
@@ -1054,7 +1054,7 @@ void main() {
       final random = Random(0);
       // Verify no active action and node is depleted
       expect(state.activeAction, isNull);
-      expect(state.actionState('Copper').mining?.isDepleted, true);
+      expect(state.actionState(copper.id).mining?.isDepleted, true);
 
       // Process enough ticks to respawn
       final builder = StateUpdateBuilder(state);
@@ -1063,7 +1063,7 @@ void main() {
 
       // Verify node respawned
       final miningState =
-          state.actionState('Copper').mining ?? const MiningState.empty();
+          state.actionState(copper.id).mining ?? const MiningState.empty();
       expect(
         miningState.isDepleted,
         false,
@@ -1080,12 +1080,12 @@ void main() {
       // Start with two damaged mining nodes
       var state = GlobalState.test(
         testRegistries,
-        actionStates: const {
-          'Copper': ActionState(
+        actionStates: {
+          copper.id: ActionState(
             masteryXp: 0,
             mining: MiningState(totalHpLost: 2, hpRegenTicksRemaining: 50),
           ),
-          'Rune Essence': ActionState(
+          runeEssence.id: ActionState(
             masteryXp: 0,
             mining: MiningState(totalHpLost: 3, hpRegenTicksRemaining: 80),
           ),
@@ -1105,9 +1105,9 @@ void main() {
 
       // Verify both nodes healed
       final copperMining =
-          state.actionState('Copper').mining ?? const MiningState.empty();
+          state.actionState(copper.id).mining ?? const MiningState.empty();
       final runeMining =
-          state.actionState('Rune Essence').mining ?? const MiningState.empty();
+          state.actionState(runeEssence.id).mining ?? const MiningState.empty();
 
       expect(copperMining.totalHpLost, 0);
       expect(runeMining.totalHpLost, 1);
@@ -1122,10 +1122,10 @@ void main() {
       state = state.startAction(plantAction, random: random);
 
       // Verify the active action name is "Plant", not "Combat"
-      expect(state.activeAction?.id, 'Plant');
+      expect(state.activeAction?.id, plantAction.id);
 
       // Verify combat state is stored under "Plant"
-      final actionState = state.actionState('Plant');
+      final actionState = state.actionState(plantAction.id);
       expect(actionState.combat, isNotNull);
       expect(actionState.combat!.monsterName, 'Plant');
 
@@ -1135,7 +1135,7 @@ void main() {
       state = builder.build();
 
       // Combat should still be active (player shouldn't have died in 100 ticks)
-      expect(state.activeAction?.id, 'Plant');
+      expect(state.activeAction?.id, plantAction.id);
     });
 
     test('combat action with mining background heals node', () {
@@ -1144,8 +1144,8 @@ void main() {
       // Start with damaged mining node
       var state = GlobalState.test(
         testRegistries,
-        actionStates: const {
-          'Copper': ActionState(
+        actionStates: {
+          copper.id: ActionState(
             masteryXp: 0,
             mining: MiningState(totalHpLost: 2, hpRegenTicksRemaining: 50),
           ),
@@ -1162,7 +1162,7 @@ void main() {
 
       // Verify mining node healed during combat
       final copperMining =
-          state.actionState('Copper').mining ?? const MiningState.empty();
+          state.actionState(copper.id).mining ?? const MiningState.empty();
       expect(copperMining.totalHpLost, 0);
     });
 
@@ -1181,8 +1181,8 @@ void main() {
 
       var state = GlobalState.test(
         testRegistries,
-        actionStates: const {
-          'Copper': ActionState(
+        actionStates: {
+          copper.id: ActionState(
             masteryXp: 0,
             mining: MiningState(
               totalHpLost: 1,

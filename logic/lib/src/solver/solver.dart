@@ -201,7 +201,7 @@ _BucketKey _bucketKeyFromState(GlobalState state) {
       : 0;
 
   return _BucketKey(
-    activityName: actionId ?? 'none',
+    activityName: actionId?.name ?? 'none',
     axeLevel: state.shop.axeLevel,
     rodLevel: state.shop.fishingRodLevel,
     pickLevel: state.shop.pickaxeLevel,
@@ -337,7 +337,7 @@ class _RateCache {
 
         if (action is ThievingAction) {
           final thievingLevel = state.skillState(Skill.thieving).skillLevel;
-          final mastery = state.actionState(action.name).masteryLevel;
+          final mastery = state.actionState(action.id).masteryLevel;
           final stealth = calculateStealth(thievingLevel, mastery);
           final successChance = ((100 + stealth) / (100 + action.perception))
               .clamp(0.0, 1.0);
@@ -541,14 +541,14 @@ AdvanceResult _advanceExpected(
 
   // Compute expected mastery XP gains
   var newActionStates = state.actionStates;
-  if (rates.masteryXpPerTick > 0 && rates.actionName != null) {
+  if (rates.masteryXpPerTick > 0 && rates.actionId != null) {
     final masteryXpGain = (rates.masteryXpPerTick * effectiveTicks).floor();
     if (masteryXpGain > 0) {
-      final actionName = rates.actionName!;
-      final currentActionState = state.actionState(actionName);
+      final actionId = rates.actionId!;
+      final currentActionState = state.actionState(actionId);
       final newMasteryXp = currentActionState.masteryXp + masteryXpGain;
       newActionStates = Map.from(state.actionStates);
-      newActionStates[actionName] = currentActionState.copyWith(
+      newActionStates[actionId] = currentActionState.copyWith(
         masteryXp: newMasteryXp,
       );
     }
