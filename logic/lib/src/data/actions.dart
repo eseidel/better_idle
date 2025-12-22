@@ -340,18 +340,15 @@ List<WoodcuttingTree> loadWoodcuttingActions(MelvorData data) {
   return trees.toList();
 }
 
-List<Action> loadActions(MelvorData data) {
-  return [
-    ...loadWoodcuttingActions(data),
-    ..._firemakingActions,
-    ...fishingActions,
-    ...cookingActions,
-    ...miningActions,
-    ...smithingActions,
-    ...thievingActions,
-    ...combatActions,
-  ];
-}
+final hardCodedActions = <Action>[
+  ..._firemakingActions,
+  ...fishingActions,
+  ...cookingActions,
+  ...miningActions,
+  ...smithingActions,
+  ...thievingActions,
+  ...combatActions,
+];
 
 // Skill-level drops: shared across all actions in a skill.
 // This can include both simple Drops and DropTables.

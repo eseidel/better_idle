@@ -19,7 +19,7 @@ Future<Registries> loadRegistries({Directory? cacheDir}) async {
   final melvorData = await MelvorData.load(cacheDir: cacheDir);
   return Registries(
     melvorData.items,
-    ActionRegistry(loadActions(melvorData)),
+    melvorData.actions,
     DropsRegistry(skillDrops, globalDrops),
   );
 }

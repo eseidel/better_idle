@@ -1,8 +1,7 @@
 import 'dart:io';
 
+import 'actions.dart';
 import 'cache.dart';
-import 'items.dart';
-import 'woodcutting.dart';
 
 /// Parsed representation of the Melvor game data.
 ///
@@ -26,19 +25,25 @@ class MelvorData {
   /// Skill data from later files is merged with earlier files by skillID.
   MelvorData(List<Map<String, dynamic>> dataFiles) : _rawDataFiles = dataFiles {
     final items = <Item>[];
+    final actions = <Action>[];
     for (final json in dataFiles) {
       final namespace = json['namespace'] as String;
       _addDataFromJson(json, namespace: namespace, items: items);
+      actions.addAll(parseActions(json, namespace: namespace));
     }
     _items = ItemRegistry(items);
+    _actions = ActionRegistry(actions + hardCodedActions);
   }
 
   final List<Map<String, dynamic>> _rawDataFiles;
   late final ItemRegistry _items;
+  late final ActionRegistry _actions;
   final Map<String, Map<String, dynamic>> _skillDataById = {};
 
   /// Returns the item registry.
   ItemRegistry get items => _items;
+
+  ActionRegistry get actions => _actions;
 
   /// Returns all raw data files.
   /// Used for accessing skillData and other non-item data.
@@ -104,18 +109,47 @@ class MelvorData {
     return result;
   }
 
-  /// Returns the skill data for the given skill ID, or null if not found.
-  ///
-  /// Example: `lookupSkillData('melvorD:Woodcutting')` returns the woodcutting
-  /// skill data containing trees, pets, rareDrops, etc.
-  Map<String, dynamic>? lookupSkillData(String skillId) =>
-      _skillDataById[skillId];
-
-  /// Returns all skill IDs in the data.
-  Iterable<String> get skillIds => _skillDataById.keys;
-
   /// Returns the number of skills in the data.
   int get skillCount => _skillDataById.length;
+}
+
+List<Action> parseActions(
+  Map<String, dynamic> json, {
+  required String namespace,
+}) {
+  final data = json['data'] as Map<String, dynamic>?;
+  if (data == null) {
+    return [];
+  }
+
+  final skillData = data['skillData'] as List<dynamic>?;
+  if (skillData == null) {
+    return [];
+  }
+
+  final actions = <Action>[];
+  for (final skill in skillData) {
+    if (skill is! Map<String, dynamic>) continue;
+    final skillId = skill['skillID'] as String?;
+    final skillContent = skill['data'] as Map<String, dynamic>?;
+    if (skillContent == null) continue;
+
+    switch (skillId) {
+      case 'melvorD:Woodcutting':
+        final trees = skillContent['trees'] as List<dynamic>?;
+        if (trees != null) {
+          actions.addAll(
+            trees.whereType<Map<String, dynamic>>().map(
+              (json) => WoodcuttingTree.fromJson(json, namespace: namespace),
+            ),
+          );
+        }
+      default:
+      // print('Unknown skill ID: $skillId');
+    }
+  }
+
+  return actions;
 }
 
 /// Extracts woodcutting trees from the skillData array in Melvor JSON.
@@ -156,4 +190,12 @@ List<WoodcuttingTree> extractWoodcuttingTrees(
   }
 
   return [];
+}
+
+/// Parses a Melvor category ID to determine the RockType.
+RockType parseRockType(String? category) {
+  if (category == 'melvorD:Essence') {
+    return RockType.essence;
+  }
+  return RockType.ore;
 }
