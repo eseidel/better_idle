@@ -315,7 +315,7 @@ void main() {
       expect(newState.isStunned, isFalse);
       // Action should still be active (restarted)
       expect(newState.activeAction, isNotNull);
-      expect(newState.activeAction!.name, 'Man');
+      expect(newState.activeAction!.id, manAction.id);
     });
   });
 
@@ -453,7 +453,7 @@ void main() {
       expect(newState.isStunned, isTrue);
       // Action should still be active (not stopped)
       expect(newState.activeAction, isNotNull);
-      expect(newState.activeAction!.name, 'Man');
+      expect(newState.activeAction!.id, manAction.id);
       // Action timer stays at 0 (completed but waiting for stun to clear)
       expect(newState.activeAction!.remainingTicks, 0);
 
@@ -487,7 +487,7 @@ void main() {
         registries: testRegistries,
         inventory: baseState.inventory,
         activeAction: ActiveAction(
-          name: manAction.name,
+          id: manAction.id,
           remainingTicks: 30,
           totalTicks: 30,
         ),

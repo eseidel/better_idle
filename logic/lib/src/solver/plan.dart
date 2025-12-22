@@ -19,6 +19,7 @@
 library;
 
 import 'package:logic/src/data/actions.dart';
+import 'package:logic/src/data/melvor_id.dart';
 import 'package:logic/src/state.dart';
 import 'package:logic/src/tick.dart';
 import 'package:meta/meta.dart';
@@ -124,18 +125,18 @@ class WaitForSkillXp extends WaitFor {
 /// Wait until mastery for an action reaches a target XP amount.
 @immutable
 class WaitForMasteryXp extends WaitFor {
-  const WaitForMasteryXp(this.actionName, this.targetMasteryXp);
+  const WaitForMasteryXp(this.actionId, this.targetMasteryXp);
 
-  final String actionName;
+  final MelvorId actionId;
   final int targetMasteryXp;
 
   @override
   bool isSatisfied(GlobalState state) {
-    return state.actionState(actionName).masteryXp >= targetMasteryXp;
+    return state.actionState(actionId).masteryXp >= targetMasteryXp;
   }
 
   @override
-  String describe() => '$actionName mastery XP >= $targetMasteryXp';
+  String describe() => '${actionId.name} mastery XP >= $targetMasteryXp';
 
   @override
   String get shortDescription => 'Mastery +1';
@@ -143,11 +144,11 @@ class WaitForMasteryXp extends WaitFor {
   @override
   bool operator ==(Object other) =>
       other is WaitForMasteryXp &&
-      other.actionName == actionName &&
+      other.actionId == actionId &&
       other.targetMasteryXp == targetMasteryXp;
 
   @override
-  int get hashCode => Object.hash(actionName, targetMasteryXp);
+  int get hashCode => Object.hash(actionId, targetMasteryXp);
 }
 
 /// Wait until inventory usage reaches a threshold fraction.
@@ -351,7 +352,7 @@ class Plan {
   String _formatStep(PlanStep step) {
     return switch (step) {
       InteractionStep(:final interaction) => switch (interaction) {
-        SwitchActivity(:final actionName) => 'Switch to $actionName',
+        SwitchActivity(:final actionId) => 'Switch to $actionId',
         BuyUpgrade(:final type) => 'Buy upgrade: $type',
         SellAll() => 'Sell all items',
       },

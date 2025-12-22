@@ -200,7 +200,7 @@ void main(List<String> args) async {
     print('Action requires inputs, adding to inventory:');
     var inventory = state.inventory;
     for (final entry in action.inputs.entries) {
-      final item = registries.items.byName(entry.key);
+      final item = registries.items.byId(entry.key);
       // Add enough for many completions (enough for 1 day at ~1200/hr)
       const itemsNeeded = 50000;
       inventory = inventory.adding(ItemStack(item, count: itemsNeeded));

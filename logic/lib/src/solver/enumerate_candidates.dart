@@ -25,6 +25,7 @@
 library;
 
 import 'package:logic/src/data/actions.dart';
+import 'package:logic/src/data/melvor_id.dart';
 import 'package:logic/src/data/upgrades.dart';
 import 'package:logic/src/data/xp.dart';
 import 'package:logic/src/state.dart';
@@ -44,7 +45,7 @@ const double defaultInventoryThreshold = 0.8;
 @immutable
 class ActionSummary {
   const ActionSummary({
-    required this.actionName,
+    required this.actionId,
     required this.skill,
     required this.unlockLevel,
     required this.isUnlocked,
@@ -53,7 +54,7 @@ class ActionSummary {
     required this.xpRatePerTick,
   });
 
-  final String actionName;
+  final MelvorId actionId;
   final Skill skill;
   final int unlockLevel;
   final bool isUnlocked;
@@ -73,7 +74,7 @@ class ActionSummary {
 class WatchList {
   const WatchList({
     this.upgradeTypes = const [],
-    this.lockedActivityNames = const [],
+    this.lockedActivityIds = const [],
     this.inventory = false,
   });
 
@@ -81,7 +82,7 @@ class WatchList {
   final List<UpgradeType> upgradeTypes;
 
   /// Locked activities whose unlock defines wait points.
-  final List<String> lockedActivityNames;
+  final List<MelvorId> lockedActivityIds;
 
   /// Whether inventory-full should define a wait point.
   final bool inventory;
@@ -99,7 +100,7 @@ class Candidates {
   });
 
   /// Top-K unlocked activities to consider switching to.
-  final List<String> switchToActivities;
+  final List<MelvorId> switchToActivities;
 
   /// Top-K upgrades worth considering (may be unaffordable).
   final List<UpgradeType> buyUpgrades;
@@ -138,7 +139,7 @@ List<ActionSummary> buildActionSummaries(GlobalState state) {
       // Calculate expected gold per action from selling outputs
       var expectedGoldPerAction = 0.0;
       for (final output in action.outputs.entries) {
-        final item = registries.items.byName(output.key);
+        final item = registries.items.byId(output.key);
         expectedGoldPerAction += item.sellsFor * output.value;
       }
 
@@ -147,7 +148,7 @@ List<ActionSummary> buildActionSummaries(GlobalState state) {
         // Success rate depends on stealth vs perception
         // stealth = 40 + thievingLevel + masteryLevel
         final thievingLevel = state.skillState(Skill.thieving).skillLevel;
-        final mastery = state.actionState(action.name).masteryLevel;
+        final mastery = state.actionState(action.id).masteryLevel;
         final stealth = calculateStealth(thievingLevel, mastery);
         final successChance = ((100 + stealth) / (100 + action.perception))
             .clamp(0.0, 1.0);
@@ -172,7 +173,7 @@ List<ActionSummary> buildActionSummaries(GlobalState state) {
 
         summaries.add(
           ActionSummary(
-            actionName: action.name,
+            actionId: action.id,
             skill: action.skill,
             unlockLevel: action.unlockLevel,
             isUnlocked: isUnlocked,
@@ -191,7 +192,7 @@ List<ActionSummary> buildActionSummaries(GlobalState state) {
 
       summaries.add(
         ActionSummary(
-          actionName: action.name,
+          actionId: action.id,
           skill: action.skill,
           unlockLevel: action.unlockLevel,
           isUnlocked: isUnlocked,
@@ -245,10 +246,10 @@ Candidates enumerateCandidates(
     goal: goal,
   );
 
-  // Build list of candidate activity names (current + switchTo)
-  final candidateActivityNames = <String>[
+  // Build list of candidate activity IDs (current + switchTo)
+  final candidateActivityIds = <MelvorId>[
     ...switchToActivities,
-    if (state.activeAction != null) state.activeAction!.name,
+    if (state.activeAction != null) state.activeAction!.id,
   ];
 
   // Find the best current rate among all unlocked activities using ranking fn
@@ -263,7 +264,7 @@ Candidates enumerateCandidates(
     summaries,
     state,
     upgradeCount,
-    candidateActivityNames: candidateActivityNames,
+    candidateActivityIds: candidateActivityIds,
     bestCurrentRate: bestCurrentRate,
     goal: goal,
   );
@@ -282,7 +283,7 @@ Candidates enumerateCandidates(
     includeSellAll: includeSellAll,
     watch: WatchList(
       upgradeTypes: upgradeResult.toWatch,
-      lockedActivityNames: lockedActivitiesToWatch,
+      lockedActivityIds: lockedActivitiesToWatch,
       inventory: includeSellAll,
     ),
   );
@@ -293,21 +294,19 @@ Candidates enumerateCandidates(
 /// Only includes activities with positive ranking (> 0). This filters out
 /// activities that don't contribute to the goal (e.g., fishing when the
 /// goal is a woodcutting level).
-List<String> _selectUnlockedActivitiesByRanking(
+List<MelvorId> _selectUnlockedActivitiesByRanking(
   List<ActionSummary> summaries,
   GlobalState state,
   int count,
   double Function(ActionSummary) rankingFn,
 ) {
-  final currentActionName = state.activeAction?.name;
+  final currentActionId = state.activeAction?.id;
 
   // Filter to unlocked actions with positive ranking, excluding current action
   final unlocked = summaries
       .where(
         (s) =>
-            s.isUnlocked &&
-            s.actionName != currentActionName &&
-            rankingFn(s) > 0,
+            s.isUnlocked && s.actionId != currentActionId && rankingFn(s) > 0,
       )
       .toList();
 
@@ -315,13 +314,13 @@ List<String> _selectUnlockedActivitiesByRanking(
   unlocked.sort((a, b) => rankingFn(b).compareTo(rankingFn(a)));
 
   // Take top K
-  return unlocked.take(count).map((s) => s.actionName).toList();
+  return unlocked.take(count).map((s) => s.actionId).toList();
 }
 
 /// Selects top L locked activities by smallest unlockDeltaTicks.
 ///
 /// Only activities for skills relevant to the [goal] are considered.
-List<String> _selectLockedActivitiesToWatch(
+List<MelvorId> _selectLockedActivitiesToWatch(
   List<ActionSummary> summaries,
   GlobalState state,
   int count, {
@@ -335,7 +334,7 @@ List<String> _selectLockedActivitiesToWatch(
   }).toList();
 
   // For each locked action, compute ticks until unlock
-  final withDelta = <(String, double)>[];
+  final withDelta = <(MelvorId, double)>[];
   for (final summary in locked) {
     final skillState = state.skillState(summary.skill);
     final currentXp = skillState.xp;
@@ -355,7 +354,7 @@ List<String> _selectLockedActivitiesToWatch(
     }
 
     final unlockDeltaTicks = xpNeeded / xpRate;
-    withDelta.add((summary.actionName, unlockDeltaTicks));
+    withDelta.add((summary.actionId, unlockDeltaTicks));
   }
 
   // Sort by smallest unlockDeltaTicks
@@ -394,7 +393,7 @@ _UpgradeResult _selectUpgradeCandidates(
   List<ActionSummary> summaries,
   GlobalState state,
   int count, {
-  List<String>? candidateActivityNames,
+  List<MelvorId>? candidateActivityIds,
   double bestCurrentRate = 0.0,
   required Goal goal,
 }) {
@@ -422,8 +421,8 @@ _UpgradeResult _selectUpgradeCandidates(
     final affectedActivities = summaries.where((s) {
       if (s.skill != next.skill) return false;
       if (!s.isUnlocked) return false;
-      if (candidateActivityNames != null &&
-          !candidateActivityNames.contains(s.actionName)) {
+      if (candidateActivityIds != null &&
+          !candidateActivityIds.contains(s.actionId)) {
         return false;
       }
       return true;

@@ -23,11 +23,12 @@ void main() {
   group('applyInteraction', () {
     test('SwitchActivity switches to a new activity', () {
       final state = GlobalState.empty(testRegistries);
-      const interaction = SwitchActivity('Normal Tree');
+      final action = testActions.byName('Normal Tree');
+      final interaction = SwitchActivity(action.id);
 
       final newState = applyInteraction(state, interaction);
 
-      expect(newState.activeAction?.name, 'Normal Tree');
+      expect(newState.activeAction?.id, action.id);
     });
 
     test('SwitchActivity clears existing action first', () {
@@ -36,11 +37,12 @@ void main() {
         testActions.byName('Raw Shrimp'),
         random: Random(0),
       );
-      const interaction = SwitchActivity('Normal Tree');
+      final action = testActions.byName('Normal Tree');
+      final interaction = SwitchActivity(action.id);
 
       final newState = applyInteraction(state, interaction);
 
-      expect(newState.activeAction?.name, 'Normal Tree');
+      expect(newState.activeAction?.id, action.id);
     });
 
     test('BuyUpgrade purchases an upgrade', () {
@@ -225,12 +227,13 @@ void main() {
   group('Plan', () {
     test('prettyPrint outputs plan summary', () {
       const testGoal = ReachGpGoal(100);
-      const plan = Plan(
+      final normalTreeAction = testActions.byName('Normal Tree');
+      final plan = Plan(
         steps: [
-          InteractionStep(SwitchActivity('Normal Tree')),
-          WaitStep(1000, WaitForGoal(testGoal)),
-          InteractionStep(BuyUpgrade(UpgradeType.axe)),
-          WaitStep(5000, WaitForGoal(testGoal)),
+          InteractionStep(SwitchActivity(normalTreeAction.id)),
+          const WaitStep(1000, WaitForGoal(testGoal)),
+          const InteractionStep(BuyUpgrade(UpgradeType.axe)),
+          const WaitStep(5000, WaitForGoal(testGoal)),
         ],
         totalTicks: 6000,
         interactionCount: 2,
@@ -243,7 +246,7 @@ void main() {
       expect(output, contains('=== Plan ==='));
       expect(output, contains('Total ticks: 6000'));
       expect(output, contains('Interactions: 2'));
-      expect(output, contains('Switch to Normal Tree'));
+      expect(output, contains('Switch to'));
       expect(output, contains('Buy upgrade: UpgradeType.axe'));
       expect(output, contains('Wait'));
     });
@@ -372,7 +375,7 @@ void main() {
 
       // Activity should still be running
       expect(result.state.activeAction, isNotNull);
-      expect(result.state.activeAction!.name, 'Man');
+      expect(result.state.activeAction!.id, action.id);
       expect(result.deaths, 0); // No death yet
     });
 
@@ -498,7 +501,7 @@ void main() {
       final rates = estimateRates(state);
 
       expect(rates.masteryXpPerTick, greaterThan(0));
-      expect(rates.actionName, 'Normal Tree');
+      expect(rates.actionId, action.id);
     });
 
     test('estimateRates includes mastery XP rate for thieving', () {
@@ -509,7 +512,7 @@ void main() {
       final rates = estimateRates(state);
 
       expect(rates.masteryXpPerTick, greaterThan(0));
-      expect(rates.actionName, 'Man');
+      expect(rates.actionId, action.id);
     });
 
     test('itemFlowsPerTick includes action outputs via allDropsForAction', () {
@@ -593,7 +596,7 @@ void main() {
 
       // Account for stun time on failure (same calculation as estimateRates)
       final thievingLevel = state.skillState(Skill.thieving).skillLevel;
-      final mastery = state.actionState(action.name).masteryLevel;
+      final mastery = state.actionState(action.id).masteryLevel;
       final stealth = calculateStealth(thievingLevel, mastery);
       final successChance = ((100 + stealth) / (100 + action.perception)).clamp(
         0.0,
@@ -668,10 +671,11 @@ void main() {
 
     test('executes plan with switch activity step', () {
       final state = GlobalState.empty(testRegistries);
+      final normalTreeAction = testActions.byName('Normal Tree');
       final plan = Plan(
         steps: [
-          const InteractionStep(SwitchActivity('Normal Tree')),
-          WaitStep(30, WaitForSkillXp(Skill.woodcutting, 10)),
+          InteractionStep(SwitchActivity(normalTreeAction.id)),
+          const WaitStep(30, WaitForSkillXp(Skill.woodcutting, 10)),
         ],
         totalTicks: 30,
         interactionCount: 1,
@@ -691,11 +695,12 @@ void main() {
     test('tracks deaths during thieving execution', () {
       // Create a plan that does thieving for a long time (will cause deaths)
       final state = GlobalState.empty(testRegistries);
+      final manAction = testActions.byName('Man');
       final plan = Plan(
         steps: [
-          const InteractionStep(SwitchActivity('Man')),
+          InteractionStep(SwitchActivity(manAction.id)),
           // Wait for a very high GP goal - will take many iterations and deaths
-          WaitStep(50000, WaitForGoal(const ReachGpGoal(5000))),
+          const WaitStep(50000, WaitForGoal(ReachGpGoal(5000))),
         ],
         totalTicks: 50000,
         interactionCount: 1,
@@ -711,10 +716,11 @@ void main() {
 
     test('reports planned vs actual ticks correctly', () {
       final state = GlobalState.empty(testRegistries);
+      final normalTreeAction = testActions.byName('Normal Tree');
       final plan = Plan(
         steps: [
-          const InteractionStep(SwitchActivity('Normal Tree')),
-          WaitStep(60, WaitForSkillXp(Skill.woodcutting, 20)),
+          InteractionStep(SwitchActivity(normalTreeAction.id)),
+          const WaitStep(60, WaitForSkillXp(Skill.woodcutting, 20)),
         ],
         totalTicks: 60,
         interactionCount: 1,

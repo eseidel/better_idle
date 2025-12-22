@@ -1,6 +1,7 @@
 import 'dart:math';
 
 import 'package:logic/src/data/actions.dart';
+import 'package:logic/src/data/melvor_id.dart';
 import 'package:logic/src/types/drop.dart';
 import 'package:meta/meta.dart';
 
@@ -52,6 +53,7 @@ List<Droppable> _thievingRewards(SkillAction action, int masteryLevel) {
 @immutable
 class ThievingAction extends SkillAction {
   const ThievingAction({
+    required super.id,
     required super.name,
     required super.unlockLevel,
     required super.xp,
@@ -128,6 +130,7 @@ ThievingAction _thieving(
   Droppable? dropTable,
 }) {
   return ThievingAction(
+    id: MelvorId.fromName(name),
     name: name,
     unlockLevel: level,
     xp: xp,

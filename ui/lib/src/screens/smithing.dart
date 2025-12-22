@@ -78,8 +78,8 @@ class _SelectedActionDisplay extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final state = context.state;
-    final actionState = state.actionState(action.name);
-    final isActive = state.activeAction?.name == action.name;
+    final actionState = state.actionState(action.id);
+    final isActive = state.activeAction?.id == action.id;
     final canStart = state.canStartAction(action);
 
     return Container(
@@ -184,7 +184,7 @@ class _SelectedActionDisplay extends StatelessWidget {
 class _ItemList extends StatelessWidget {
   const _ItemList({required this.items});
 
-  final Map<String, int> items;
+  final Map<MelvorId, int> items;
 
   @override
   Widget build(BuildContext context) {
@@ -197,7 +197,7 @@ class _ItemList extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: items.entries.map((entry) {
-        return Text('${entry.value}x ${entry.key}');
+        return Text('${entry.value}x ${entry.key.name}');
       }).toList(),
     );
   }
@@ -206,11 +206,12 @@ class _ItemList extends StatelessWidget {
 class _InventoryItemList extends StatelessWidget {
   const _InventoryItemList({required this.items});
 
-  final Map<String, int> items;
+  final Map<MelvorId, int> items;
 
   @override
   Widget build(BuildContext context) {
-    final inventory = context.state.inventory;
+    final state = context.state;
+    final inventory = state.inventory;
 
     if (items.isEmpty) {
       return const Text(
@@ -221,10 +222,11 @@ class _InventoryItemList extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: items.entries.map((entry) {
-        final count = inventory.countByName(entry.key);
+        final item = state.registries.items.byId(entry.key);
+        final count = inventory.countOfItem(item);
         final hasEnough = count >= entry.value;
         return Text(
-          '$count ${entry.key}',
+          '$count ${entry.key.name}',
           style: TextStyle(
             color: hasEnough ? Style.successColor : Style.errorColor,
           ),

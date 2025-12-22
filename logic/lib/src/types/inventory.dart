@@ -1,4 +1,5 @@
 import 'package:logic/src/data/items.dart';
+import 'package:logic/src/data/melvor_id.dart';
 
 class ItemStack {
   const ItemStack(this.item, {required this.count});
@@ -45,19 +46,20 @@ class Inventory {
     final countsJson = json['counts'] as Map<String, dynamic>;
     final orderedItemsJson = json['orderedItems'] as List<dynamic>;
 
-    for (final name in orderedItemsJson) {
-      // If the item name is not in the registry this will throw a BadStateError
-      // Consider a mode that handles gracefully ignores unknown items.
-      final item = items.byName(name as String);
-      _counts[item] = countsJson[name] as int;
+    for (final idString in orderedItemsJson) {
+      // If the item id is not in the registry this will throw a StateError.
+      // Consider a mode that gracefully ignores unknown items.
+      final id = MelvorId.fromJson(idString as String);
+      final item = items.byId(id);
+      _counts[item] = countsJson[idString] as int;
       _orderedItems.add(item);
     }
   }
 
   Map<String, dynamic> toJson() {
     return {
-      'counts': _counts.map((key, value) => MapEntry(key.name, value)),
-      'orderedItems': _orderedItems.map((item) => item.name).toList(),
+      'counts': _counts.map((key, value) => MapEntry(key.id.toJson(), value)),
+      'orderedItems': _orderedItems.map((item) => item.id.toJson()).toList(),
     };
   }
 

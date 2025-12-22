@@ -17,12 +17,12 @@ String parseItemName(String itemId) {
 /// Extends SkillAction so it can be used directly in the game.
 class WoodcuttingTree extends SkillAction {
   WoodcuttingTree({
+    required super.id,
     required super.name,
     required super.unlockLevel,
     required super.xp,
     required super.outputs,
     required super.duration,
-    required this.id,
     required this.productId,
     required this.media,
   }) : super(
@@ -31,26 +31,30 @@ class WoodcuttingTree extends SkillAction {
          durationModifierAtLevel: woodcuttingDurationModifier,
        );
 
-  factory WoodcuttingTree.fromJson(Map<String, dynamic> json) {
-    final productId = json['productId'] as String;
-    final outputName = parseItemName(productId);
+  factory WoodcuttingTree.fromJson(
+    Map<String, dynamic> json, {
+    required String namespace,
+  }) {
+    final productId = MelvorId.fromJsonWithNamespace(
+      json['productId'] as String,
+      defaultNamespace: namespace,
+    );
     final baseInterval = json['baseInterval'] as int;
 
     return WoodcuttingTree(
-      id: json['id'] as String,
+      id: MelvorId.fromJsonWithNamespace(
+        json['id'] as String,
+        defaultNamespace: namespace,
+      ),
       name: json['name'] as String,
       unlockLevel: json['level'] as int,
       duration: Duration(milliseconds: baseInterval),
       xp: json['baseExperience'] as int,
-      outputs: {outputName: 1},
-      productId: MelvorId(productId),
+      outputs: {productId: 1},
+      productId: productId,
       media: json['media'] as String,
     );
   }
-
-  /// The name of the tree (e.g., "Normal", "Oak").
-  /// This is not a MelvorId for whatever reason.
-  final String id;
 
   /// The Melvor product ID (e.g., "melvorD:Normal_Logs").
   final MelvorId productId;
@@ -62,7 +66,7 @@ class WoodcuttingTree extends SkillAction {
   int get durationSeconds => minDuration.inSeconds;
 
   /// The output item name (e.g., "Normal Logs").
-  String get outputName => outputs.keys.first;
+  String get outputName => outputs.keys.first.name;
 
   @override
   String toString() {
@@ -72,7 +76,13 @@ class WoodcuttingTree extends SkillAction {
 }
 
 /// Extracts woodcutting trees from the skillData array in Melvor JSON.
-List<WoodcuttingTree> extractWoodcuttingTrees(Map<String, dynamic> json) {
+///
+/// The [namespace] parameter specifies the namespace prefix to use for IDs
+/// that don't already have one (e.g., "melvorD" for demo data).
+List<WoodcuttingTree> extractWoodcuttingTrees(
+  Map<String, dynamic> json, {
+  required String namespace,
+}) {
   // The JSON structure is { "data": { "skillData": [...] } }
   final data = json['data'] as Map<String, dynamic>?;
   if (data == null) {
@@ -98,7 +108,7 @@ List<WoodcuttingTree> extractWoodcuttingTrees(Map<String, dynamic> json) {
 
     return trees
         .whereType<Map<String, dynamic>>()
-        .map(WoodcuttingTree.fromJson)
+        .map((json) => WoodcuttingTree.fromJson(json, namespace: namespace))
         .toList();
   }
 

@@ -205,7 +205,7 @@ void main() {
       // The important thing is that fishing activities are present and ranked
       // by their XP rate.
       final fishingActivities = candidates.switchToActivities
-          .where((name) => testActions.byName(name).skill == Skill.fishing)
+          .where((id) => testActions.byId(id).skill == Skill.fishing)
           .toList();
       expect(fishingActivities, isNotEmpty);
     });
@@ -228,8 +228,8 @@ void main() {
       final candidates = enumerateCandidates(state, goal);
 
       // Only woodcutting activities should be watched
-      for (final name in candidates.watch.lockedActivityNames) {
-        final action = testActions.byName(name);
+      for (final actionId in candidates.watch.lockedActivityIds) {
+        final action = testActions.byId(actionId);
         expect(action.skill, Skill.woodcutting);
       }
     });

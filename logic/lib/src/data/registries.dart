@@ -18,19 +18,8 @@ class Registries {
 Future<Registries> loadRegistries({Directory? cacheDir}) async {
   final melvorData = await MelvorData.load(cacheDir: cacheDir);
   return Registries(
-    initializeItems(melvorData),
+    melvorData.items,
     ActionRegistry(loadActions(melvorData)),
     DropsRegistry(skillDrops, globalDrops),
   );
-}
-
-ItemRegistry initializeItems(MelvorData data) {
-  final items = <Item>[];
-  for (final name in data.itemNames) {
-    final json = data.lookupItem(name);
-    if (json != null) {
-      items.add(Item.fromJson(json));
-    }
-  }
-  return ItemRegistry(items);
 }

@@ -1,4 +1,5 @@
 import 'package:logic/src/data/actions.dart';
+import 'package:logic/src/data/melvor_id.dart';
 import 'package:meta/meta.dart';
 
 @immutable
@@ -30,6 +31,7 @@ final _fishingAreas = <FishingArea>[
 @immutable
 class FishingAction extends SkillAction {
   const FishingAction({
+    required super.id,
     required super.name,
     required super.unlockLevel,
     required super.xp,
@@ -53,12 +55,13 @@ FishingAction _fishing(
   final areaObject = _fishingAreas.firstWhere((a) => a.name == area);
   final fishName = 'Raw $name';
   return FishingAction(
+    id: MelvorId.fromName(fishName),
     name: fishName,
     unlockLevel: level,
     xp: xp,
     minDuration: Duration(seconds: min),
     maxDuration: Duration(seconds: max),
-    outputs: {fishName: 1},
+    outputs: {MelvorId.fromName(fishName): 1},
     area: areaObject,
   );
 }

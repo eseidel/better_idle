@@ -14,6 +14,9 @@ import 'test_helper.dart';
 /// Default goal for tests - a large GP target that won't be reached
 const _defaultGoal = ReachGpGoal(1000000);
 
+/// Helper to get action display name from actionId.
+String actionName(MelvorId actionId) => testActions.byId(actionId).name;
+
 void main() {
   setUpAll(() async {
     await loadTestRegistries();
@@ -26,7 +29,7 @@ void main() {
 
       // Should have entries for woodcutting, fishing, mining, thieving
       // but NOT firemaking, cooking, smithing (they require inputs)
-      final actionNames = summaries.map((s) => s.actionName).toList();
+      final actionNames = summaries.map((s) => actionName(s.actionId)).toList();
 
       expect(actionNames, contains('Normal Tree'));
       expect(actionNames, contains('Raw Shrimp'));
@@ -50,13 +53,17 @@ void main() {
       final summaries = buildActionSummaries(state);
 
       final normalTree = summaries.firstWhere(
-        (s) => s.actionName == 'Normal Tree',
+        (s) => actionName(s.actionId) == 'Normal Tree',
       );
-      final oakTree = summaries.firstWhere((s) => s.actionName == 'Oak Tree');
+      final oakTree = summaries.firstWhere(
+        (s) => actionName(s.actionId) == 'Oak Tree',
+      );
       final willowTree = summaries.firstWhere(
-        (s) => s.actionName == 'Willow Tree',
+        (s) => actionName(s.actionId) == 'Willow Tree',
       );
-      final teakTree = summaries.firstWhere((s) => s.actionName == 'Teak Tree');
+      final teakTree = summaries.firstWhere(
+        (s) => actionName(s.actionId) == 'Teak Tree',
+      );
 
       // Level 1, 10, 25 should be unlocked at level 25
       expect(normalTree.isUnlocked, isTrue);
@@ -71,9 +78,11 @@ void main() {
       final summaries = buildActionSummaries(state);
 
       final normalTree = summaries.firstWhere(
-        (s) => s.actionName == 'Normal Tree',
+        (s) => actionName(s.actionId) == 'Normal Tree',
       );
-      final copper = summaries.firstWhere((s) => s.actionName == 'Copper');
+      final copper = summaries.firstWhere(
+        (s) => actionName(s.actionId) == 'Copper',
+      );
 
       expect(normalTree.goldRatePerTick, greaterThan(0));
       expect(copper.goldRatePerTick, greaterThan(0));
@@ -87,7 +96,7 @@ void main() {
         expect(
           summary.xpRatePerTick,
           greaterThan(0),
-          reason: '${summary.actionName} should have positive XP rate',
+          reason: '${summary.actionId} should have positive XP rate',
         );
       }
     });
@@ -103,8 +112,8 @@ void main() {
       // Verify sorted by gold rate (descending)
       final summaries = buildActionSummaries(state);
       double? lastRate;
-      for (final name in candidates.switchToActivities) {
-        final summary = summaries.firstWhere((s) => s.actionName == name);
+      for (final actionId in candidates.switchToActivities) {
+        final summary = summaries.firstWhere((s) => s.actionId == actionId);
         if (lastRate != null) {
           expect(
             summary.goldRatePerTick,
@@ -186,10 +195,11 @@ void main() {
       final state = GlobalState.empty(testRegistries);
       final candidates = enumerateCandidates(state, _defaultGoal);
 
-      expect(candidates.watch.lockedActivityNames, isNotEmpty);
+      expect(candidates.watch.lockedActivityIds, isNotEmpty);
       // Should watch for activities that will unlock soon
       // At level 1, Raw Sardine (level 5) should be watched
-      expect(candidates.watch.lockedActivityNames, contains('Raw Sardine'));
+      final sardineAction = testActions.byName('Raw Sardine');
+      expect(candidates.watch.lockedActivityIds, contains(sardineAction.id));
     });
 
     test('watch list includes upgrade types when upgrades are candidates', () {
@@ -268,8 +278,8 @@ void main() {
       expect(candidates1.buyUpgrades, equals(candidates2.buyUpgrades));
       expect(candidates1.includeSellAll, equals(candidates2.includeSellAll));
       expect(
-        candidates1.watch.lockedActivityNames,
-        equals(candidates2.watch.lockedActivityNames),
+        candidates1.watch.lockedActivityIds,
+        equals(candidates2.watch.lockedActivityIds),
       );
       expect(
         candidates1.watch.upgradeTypes,

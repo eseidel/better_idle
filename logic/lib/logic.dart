@@ -11,6 +11,7 @@ export 'src/data/combat.dart';
 export 'src/data/fishing.dart';
 export 'src/data/items.dart';
 export 'src/data/melvor_data.dart';
+export 'src/data/melvor_id.dart';
 export 'src/data/registries.dart';
 export 'src/data/upgrades.dart';
 export 'src/data/xp.dart';

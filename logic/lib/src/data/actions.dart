@@ -1,6 +1,5 @@
 import 'dart:math';
 
-import 'package:collection/collection.dart';
 import 'package:logic/src/action_state.dart';
 import 'package:logic/src/data/combat.dart';
 import 'package:logic/src/data/fishing.dart';
@@ -13,6 +12,7 @@ import 'package:meta/meta.dart';
 
 import 'items.dart';
 import 'melvor_data.dart';
+import 'melvor_id.dart';
 
 export 'items.dart';
 export 'thieving.dart';
@@ -56,14 +56,18 @@ enum RockType { essence, ore }
 /// Subclasses: SkillAction (duration-based with xp/outputs) and CombatAction.
 @immutable
 abstract class Action {
-  const Action({required this.name, required this.skill});
+  const Action({required this.id, required this.name, required this.skill});
+
+  final MelvorId id;
 
   final String name;
   final Skill skill;
 }
 
 List<Droppable> defaultRewards(SkillAction action, int masteryLevel) {
-  return [...action.outputs.entries.map((e) => Drop(e.key, count: e.value))];
+  return [
+    ...action.outputs.entries.map((e) => Drop(e.key.name, count: e.value)),
+  ];
 }
 
 /// Default duration modifier function - returns no modifier.
@@ -86,7 +90,7 @@ List<Droppable> woodcuttingRewards(SkillAction action, int masteryLevel) {
   if (outputs.length != 1 || outputs.values.first != 1) {
     throw StateError('Unsupported outputs: $outputs.');
   }
-  final name = outputs.keys.first;
+  final name = outputs.keys.first.name;
   final doubleMultiplier = masteryLevel ~/ 10;
   final doublePercent = (doubleMultiplier * 0.05 * 100).toInt().clamp(0, 100);
   final singlePercent = (100 - doublePercent).clamp(0, 100);
@@ -103,6 +107,7 @@ List<Droppable> woodcuttingRewards(SkillAction action, int masteryLevel) {
 @immutable
 class SkillAction extends Action {
   const SkillAction({
+    required super.id,
     required super.skill,
     required super.name,
     required Duration duration,
@@ -116,6 +121,7 @@ class SkillAction extends Action {
        maxDuration = duration;
 
   const SkillAction.ranged({
+    required super.id,
     required super.skill,
     required super.name,
     required this.minDuration,
@@ -132,8 +138,8 @@ class SkillAction extends Action {
   final int unlockLevel;
   final Duration minDuration;
   final Duration maxDuration;
-  final Map<String, int> inputs;
-  final Map<String, int> outputs;
+  final Map<MelvorId, int> inputs;
+  final Map<MelvorId, int> outputs;
 
   final List<Droppable> Function(SkillAction, int masteryLevel) rewardsAtLevel;
   final Modifier Function(SkillAction, int masteryLevel)
@@ -172,6 +178,7 @@ const miningSwingDuration = Duration(seconds: 3);
 @immutable
 class MiningAction extends SkillAction {
   MiningAction({
+    required super.id,
     required super.name,
     required super.unlockLevel,
     required super.xp,
@@ -208,13 +215,15 @@ SkillAction _firemaking(
   required int xp,
   required int seconds,
 }) {
+  final actionName = 'Burn $name Logs';
   return SkillAction(
+    id: MelvorId.fromName(actionName),
     skill: Skill.firemaking,
-    name: 'Burn $name Logs',
+    name: actionName,
     unlockLevel: level,
     duration: Duration(seconds: seconds),
     xp: xp,
-    inputs: {'$name Logs': 1},
+    inputs: {MelvorId.fromName('$name Logs'): 1},
   );
 }
 
@@ -235,10 +244,11 @@ MiningAction _mining(
 }) {
   final outputName = rockType == RockType.ore ? '$name Ore' : name;
   return MiningAction(
+    id: MelvorId.fromName(name),
     name: name,
     unlockLevel: level,
     xp: xp,
-    outputs: {outputName: outputCount},
+    outputs: {MelvorId.fromName(outputName): outputCount},
     respawnSeconds: respawnSeconds,
     rockType: rockType,
   );
@@ -258,6 +268,10 @@ final miningActions = <MiningAction>[
   _mining('Iron', level: 15, xp: 14, respawnSeconds: 10),
 ];
 
+Map<MelvorId, int> _toMelvorIdMap(Map<String, int> map) {
+  return map.map((key, value) => MapEntry(MelvorId.fromName(key), value));
+}
+
 SkillAction _smithing(
   String name, {
   required int level,
@@ -266,13 +280,14 @@ SkillAction _smithing(
   Map<String, int>? outputs,
 }) {
   return SkillAction(
+    id: MelvorId.fromName(name),
     skill: Skill.smithing,
     name: name,
     unlockLevel: level,
     duration: Duration(seconds: 2),
     xp: xp,
-    inputs: inputs,
-    outputs: outputs ?? {name: 1},
+    inputs: _toMelvorIdMap(inputs),
+    outputs: _toMelvorIdMap(outputs ?? {name: 1}),
   );
 }
 
@@ -294,13 +309,14 @@ SkillAction _cooking(
   required int seconds,
 }) {
   return SkillAction(
+    id: MelvorId.fromName(name),
     skill: Skill.cooking,
     name: name,
     unlockLevel: level,
     duration: Duration(seconds: seconds),
     xp: xp,
-    inputs: {'Raw $name': 1},
-    outputs: {name: 1},
+    inputs: {MelvorId.fromName('Raw $name'): 1},
+    outputs: {MelvorId.fromName(name): 1},
   );
 }
 
@@ -317,11 +333,11 @@ List<WoodcuttingTree> loadWoodcuttingActions(MelvorData data) {
   // Search through all data files for woodcutting trees.
   // Demo data contains the base trees, full data may have expansions.
   List<WoodcuttingTree> trees = [];
-  for (final json in data.rawDataFiles) {
-    final extracted = extractWoodcuttingTrees(json);
-    if (extracted.isNotEmpty) {
-      trees = extracted;
-    }
+  final rawFiles = data.rawDataFiles;
+  for (final json in rawFiles) {
+    final namespace = json['namespace'] as String;
+    final extracted = extractWoodcuttingTrees(json, namespace: namespace);
+    trees.addAll(extracted);
   }
   trees.sort((a, b) => a.unlockLevel.compareTo(b.unlockLevel));
   return trees.toList();
@@ -360,13 +376,27 @@ final globalDrops = <Droppable>[
 ];
 
 class ActionRegistry {
-  ActionRegistry(this._all);
+  ActionRegistry(List<Action> all) : _all = all {
+    _byId = {for (final action in _all) action.id: action};
+    _byName = {for (final action in _all) action.name: action};
+  }
 
   final List<Action> _all;
+  late final Map<MelvorId, Action> _byId;
+  late final Map<String, Action> _byName;
 
-  /// Returns a SkillAction by name.
+  /// Returns an Action by id, or throws a StateError if not found.
+  Action byId(MelvorId id) {
+    final action = _byId[id];
+    if (action == null) {
+      throw StateError('Missing action with id: $id');
+    }
+    return action;
+  }
+
+  /// Returns an Action by name, or throws a StateError if not found.
   Action byName(String name) {
-    final action = _all.firstWhereOrNull((action) => action.name == name);
+    final action = _byName[name];
     if (action == null) {
       throw StateError('Missing action $name');
     }

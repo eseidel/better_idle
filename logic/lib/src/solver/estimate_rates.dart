@@ -20,6 +20,7 @@ library;
 
 import 'package:logic/src/consume_ticks.dart';
 import 'package:logic/src/data/actions.dart';
+import 'package:logic/src/data/melvor_id.dart';
 import 'package:logic/src/data/xp.dart';
 import 'package:logic/src/state.dart';
 import 'package:logic/src/tick.dart';
@@ -40,7 +41,7 @@ class Rates {
     required this.itemTypesPerTick,
     this.hpLossPerTick = 0,
     this.masteryXpPerTick = 0,
-    this.actionName,
+    this.actionId,
   });
 
   /// Empty rates with all values at zero.
@@ -73,7 +74,7 @@ class Rates {
   final double masteryXpPerTick;
 
   /// The name of the action these rates are for (for mastery tracking).
-  final String? actionName;
+  final MelvorId? actionId;
 }
 
 /// Computes the expected ticks until death for thieving.
@@ -121,9 +122,9 @@ int? ticksUntilNextSkillLevel(GlobalState state, Rates rates) {
 /// Computes ticks until the next mastery level for the current action.
 /// Returns null if no mastery XP is being gained or already at max level.
 int? ticksUntilNextMasteryLevel(GlobalState state, Rates rates) {
-  if (rates.masteryXpPerTick <= 0 || rates.actionName == null) return null;
+  if (rates.masteryXpPerTick <= 0 || rates.actionId == null) return null;
 
-  final actionState = state.actionState(rates.actionName!);
+  final actionState = state.actionState(rates.actionId!);
   final currentLevel = actionState.masteryLevel;
 
   // Check if at max mastery level (99)
@@ -172,7 +173,7 @@ Rates estimateRates(GlobalState state) {
     return Rates.empty;
   }
 
-  final action = state.registries.actions.byName(activeAction.name);
+  final action = state.registries.actions.byId(activeAction.id);
 
   // Only skill actions have predictable rates
   if (action is! SkillAction) {
@@ -191,7 +192,7 @@ Rates estimateRates(GlobalState state) {
   }
 
   // Compute item flows per action
-  final masteryLevel = state.actionState(action.name).masteryLevel;
+  final masteryLevel = state.actionState(action.id).masteryLevel;
   final itemFlowsPerAction = _computeItemFlowsPerAction(
     state.registries.drops,
     action,
@@ -204,7 +205,7 @@ Rates estimateRates(GlobalState state) {
   // Also compute HP loss rate for hazard modeling.
   if (action is ThievingAction) {
     final thievingLevel = state.skillState(Skill.thieving).skillLevel;
-    final mastery = state.actionState(action.name).masteryLevel;
+    final mastery = state.actionState(action.id).masteryLevel;
     final stealth = calculateStealth(thievingLevel, mastery);
     final successChance = ((100 + stealth) / (100 + action.perception)).clamp(
       0.0,
@@ -255,7 +256,7 @@ Rates estimateRates(GlobalState state) {
       itemTypesPerTick: itemTypesPerTick,
       hpLossPerTick: hpLossPerTick,
       masteryXpPerTick: masteryXpPerTick,
-      actionName: action.name,
+      actionId: action.id,
     );
   }
 
@@ -286,6 +287,6 @@ Rates estimateRates(GlobalState state) {
     xpPerTickBySkill: xpPerTickBySkill,
     itemTypesPerTick: itemTypesPerTick,
     masteryXpPerTick: masteryXpPerTick,
-    actionName: action.name,
+    actionId: action.id,
   );
 }

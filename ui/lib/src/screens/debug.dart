@@ -79,7 +79,10 @@ class DebugPage extends StatelessWidget {
           counts: {'Willow Logs': 5, 'Teak Logs': 2},
         ),
       ),
-      masteryLevels: {'Normal Tree': 2, 'Oak Tree': 1},
+      masteryLevels: {
+        MelvorId.fromName('Normal Tree'): 2,
+        MelvorId.fromName('Oak Tree'): 1,
+      },
     );
   }
 

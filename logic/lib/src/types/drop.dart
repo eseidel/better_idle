@@ -1,6 +1,7 @@
 import 'dart:math';
 
 import 'package:logic/src/data/items.dart';
+import 'package:logic/src/data/melvor_id.dart';
 import 'package:logic/src/types/inventory.dart';
 
 /// Base class for anything that can be dropped.
@@ -84,7 +85,7 @@ class DropChance extends Droppable {
 class Pick extends DropTableEntry {
   Pick(String itemName, {int count = 1, required super.weight})
     : super(
-        itemID: 'melvorD:${itemName.replaceAll(' ', '_')}',
+        itemID: MelvorId.fromName(itemName),
         minQuantity: count,
         maxQuantity: count,
       );

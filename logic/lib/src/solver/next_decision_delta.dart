@@ -243,8 +243,9 @@ _DeltaCandidate? _deltaUntilActivityUnlocks(
   Skill? minSkill;
   int? minTargetXp;
   final actionRegistry = state.registries.actions;
-  for (final activityName in candidates.watch.lockedActivityNames) {
-    final action = actionRegistry.skillActionByName(activityName);
+  for (final activityId in candidates.watch.lockedActivityIds) {
+    final action = actionRegistry.byId(activityId);
+    if (action is! SkillAction) continue;
     final skill = action.skill;
     final requiredLevel = action.unlockLevel;
     final requiredXp = startXpForLevel(requiredLevel);
@@ -266,7 +267,7 @@ _DeltaCandidate? _deltaUntilActivityUnlocks(
 
     if (minDelta == null || delta < minDelta) {
       minDelta = delta;
-      minActivityName = activityName;
+      minActivityName = action.name;
       minSkill = skill;
       minTargetXp = requiredXp;
     }
@@ -289,11 +290,11 @@ _DeltaCandidate? _deltaUntilNextSkillLevel(GlobalState state, Rates rates) {
   if (ticks == null || ticks <= 0) return null;
 
   // Find which skill is being trained
-  final actionName = state.activeAction?.name;
-  if (actionName == null) return null;
+  final actionId = state.activeAction?.id;
+  if (actionId == null) return null;
 
   final registries = state.registries;
-  final action = registries.actions.byName(actionName);
+  final action = registries.actions.byId(actionId);
   if (action is! SkillAction) return null;
 
   final skill = action.skill;
@@ -313,16 +314,16 @@ _DeltaCandidate? _deltaUntilNextMasteryLevel(GlobalState state, Rates rates) {
   if (ticks == null || ticks <= 0) return null;
 
   // Find which action is being performed
-  final actionName = state.activeAction?.name;
-  if (actionName == null) return null;
+  final actionId = state.activeAction?.id;
+  if (actionId == null) return null;
 
-  final currentMasteryXp = state.actionState(actionName).masteryXp;
+  final currentMasteryXp = state.actionState(actionId).masteryXp;
   final currentLevel = levelForXp(currentMasteryXp);
   final nextLevelXp = startXpForLevel(currentLevel + 1);
 
   return _DeltaCandidate(
     ticks: ticks,
-    waitFor: WaitForMasteryXp(actionName, nextLevelXp),
+    waitFor: WaitForMasteryXp(actionId, nextLevelXp),
   );
 }
 

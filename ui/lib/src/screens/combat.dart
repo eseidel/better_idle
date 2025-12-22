@@ -14,11 +14,9 @@ class CombatPage extends StatelessWidget {
     final plant = combatActionByName('Plant');
 
     // Check if we're in combat with this monster
-    final isInCombat = state.activeAction?.name == plant.name;
+    final isInCombat = state.activeAction?.id == plant.id;
     // Get combat state from action states if in combat
-    final combatState = isInCombat
-        ? state.actionState(plant.name).combat
-        : null;
+    final combatState = isInCombat ? state.actionState(plant.id).combat : null;
 
     return Scaffold(
       appBar: AppBar(title: const Text('Combat')),

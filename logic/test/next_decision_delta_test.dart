@@ -157,7 +157,8 @@ void main() {
       final candidates = enumerateCandidates(state, goal);
 
       // Should be watching Raw Sardine
-      expect(candidates.watch.lockedActivityNames, contains('Raw Sardine'));
+      final sardineAction = testActions.byName('Raw Sardine');
+      expect(candidates.watch.lockedActivityIds, contains(sardineAction.id));
 
       final result = nextDecisionDelta(state, goal, candidates);
 

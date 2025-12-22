@@ -115,8 +115,8 @@ void main() {
     test('clearAction throws StunnedException when stunned', () {
       final state = GlobalState.test(
         testRegistries,
-        activeAction: const ActiveAction(
-          name: 'Normal Tree',
+        activeAction: ActiveAction(
+          id: MelvorId.fromName('Normal Tree'),
           remainingTicks: 10,
           totalTicks: 30,
         ),
@@ -130,14 +130,14 @@ void main() {
       final random = Random(0);
       final newState = state.startAction(normalTree, random: random);
       expect(newState.activeAction, isNotNull);
-      expect(newState.activeAction!.name, 'Normal Tree');
+      expect(newState.activeAction!.id, normalTree.id);
     });
 
     test('clearAction works when not stunned', () {
       final state = GlobalState.test(
         testRegistries,
-        activeAction: const ActiveAction(
-          name: 'Normal Tree',
+        activeAction: ActiveAction(
+          id: MelvorId.fromName('Normal'),
           remainingTicks: 10,
           totalTicks: 30,
         ),

@@ -11,6 +11,8 @@ void main() {
   late Item birdNest;
   late Item shrimp;
   late Item lobster;
+  late Action normalTree;
+  late Action oakTree;
 
   setUpAll(() async {
     await loadTestRegistries();
@@ -19,6 +21,8 @@ void main() {
     birdNest = testItems.byName('Bird Nest');
     shrimp = testItems.byName('Shrimp');
     lobster = testItems.byName('Lobster');
+    normalTree = testActions.byName('Normal Tree');
+    oakTree = testActions.byName('Oak Tree');
   });
 
   test('GlobalState toJson/fromJson round-trip', () {
@@ -29,17 +33,17 @@ void main() {
         ItemStack(normalLogs, count: 5),
         ItemStack(oakLogs, count: 3),
       ]),
-      activeAction: const ActiveAction(
-        name: 'Normal Tree',
+      activeAction: ActiveAction(
+        id: normalTree.id,
         remainingTicks: 15,
         totalTicks: 30,
       ),
       skillStates: const {
         Skill.woodcutting: SkillState(xp: 100, masteryPoolXp: 50),
       },
-      actionStates: const {
-        'Normal Tree': ActionState(masteryXp: 25),
-        'Oak Tree': ActionState(masteryXp: 10),
+      actionStates: {
+        normalTree.id: ActionState(masteryXp: 25),
+        oakTree.id: ActionState(masteryXp: 10),
       },
       updatedAt: DateTime(2024, 1, 1, 12),
       timeAway: TimeAway(
@@ -55,7 +59,7 @@ void main() {
           droppedItems: Counts<String>.empty(),
           skillLevelChanges: LevelChanges.empty(),
         ),
-        masteryLevels: const {'Normal Tree': 2},
+        masteryLevels: {normalTree.id: 2},
       ),
     );
 
@@ -74,7 +78,7 @@ void main() {
     expect(items[1].item, oakLogs);
     expect(items[1].count, 3);
 
-    expect(loaded.activeAction?.name, 'Normal Tree');
+    expect(loaded.activeAction?.id, normalTree.id);
     expect(loaded.activeAction?.progressTicks, 15);
 
     expect(loaded.skillStates.length, 1);
@@ -82,8 +86,8 @@ void main() {
     expect(loaded.skillStates[Skill.woodcutting]?.masteryPoolXp, 50);
 
     expect(loaded.actionStates.length, 2);
-    expect(loaded.actionStates['Normal Tree']?.masteryXp, 25);
-    expect(loaded.actionStates['Oak Tree']?.masteryXp, 10);
+    expect(loaded.actionStates[normalTree.id]?.masteryXp, 25);
+    expect(loaded.actionStates[oakTree.id]?.masteryXp, 10);
 
     // Verify TimeAway data
     final timeAway = loaded.timeAway;
@@ -105,15 +109,15 @@ void main() {
       inventory: Inventory.fromItems(testItems, [
         ItemStack(normalLogs, count: 5),
       ]),
-      activeAction: const ActiveAction(
-        name: 'Normal Tree',
+      activeAction: ActiveAction(
+        id: normalTree.id,
         remainingTicks: 15,
         totalTicks: 30,
       ),
       skillStates: const {
         Skill.woodcutting: SkillState(xp: 100, masteryPoolXp: 50),
       },
-      actionStates: const {'Normal Tree': ActionState(masteryXp: 25)},
+      actionStates: {normalTree.id: const ActionState(masteryXp: 25)},
       updatedAt: DateTime(2024, 1, 1, 12),
     );
 
@@ -131,15 +135,15 @@ void main() {
       inventory: Inventory.fromItems(testItems, [
         ItemStack(normalLogs, count: 5),
       ]),
-      activeAction: const ActiveAction(
-        name: 'Normal Tree',
+      activeAction: ActiveAction(
+        id: normalTree.id,
         remainingTicks: 15,
         totalTicks: 30,
       ),
       skillStates: const {
         Skill.woodcutting: SkillState(xp: 100, masteryPoolXp: 50),
       },
-      actionStates: const {'Normal Tree': ActionState(masteryXp: 25)},
+      actionStates: {normalTree.id: const ActionState(masteryXp: 25)},
       updatedAt: DateTime(2024, 1, 1, 12),
       timeAway: TimeAway(
         registries: testRegistries,
@@ -152,7 +156,7 @@ void main() {
           droppedItems: Counts<String>.empty(),
           skillLevelChanges: LevelChanges.empty(),
         ),
-        masteryLevels: const {'Normal Tree': 2},
+        masteryLevels: {normalTree.id: 2},
       ),
     );
 
@@ -367,9 +371,9 @@ void main() {
       final xpForLevel98 = startXpForLevel(98);
       final stateMastery98 = GlobalState.test(
         testRegistries,
-        actionStates: {'Normal Tree': ActionState(masteryXp: xpForLevel98)},
+        actionStates: {normalTree.id: ActionState(masteryXp: xpForLevel98)},
       );
-      expect(stateMastery98.actionState('Normal Tree').masteryLevel, 98);
+      expect(stateMastery98.actionState(normalTree.id).masteryLevel, 98);
       final ticksMastery98 = stateMastery98.rollDurationWithModifiers(
         normalTree,
         random,
@@ -380,9 +384,9 @@ void main() {
       final xpForLevel99 = startXpForLevel(99);
       final stateMastery99 = GlobalState.test(
         testRegistries,
-        actionStates: {'Normal Tree': ActionState(masteryXp: xpForLevel99)},
+        actionStates: {normalTree.id: ActionState(masteryXp: xpForLevel99)},
       );
-      expect(stateMastery99.actionState('Normal Tree').masteryLevel, 99);
+      expect(stateMastery99.actionState(normalTree.id).masteryLevel, 99);
       final ticksMastery99 = stateMastery99.rollDurationWithModifiers(
         normalTree,
         random,
@@ -391,7 +395,9 @@ void main() {
     });
 
     test('woodcutting mastery 99 combines with shop upgrades', () {
-      final normalTree = testActions.skillActionByName('Normal Tree');
+      final normalTreeSkillAction = testActions.skillActionByName(
+        'Normal Tree',
+      );
       final random = Random(42);
 
       // State with mastery 99 AND Iron Axe (5% reduction)
@@ -401,13 +407,18 @@ void main() {
       final xpForLevel99 = startXpForLevel(99);
       final stateWithBoth = GlobalState.test(
         testRegistries,
-        actionStates: {'Normal Tree': ActionState(masteryXp: xpForLevel99)},
+        actionStates: {
+          normalTreeSkillAction.id: ActionState(masteryXp: xpForLevel99),
+        },
         shop: const ShopState(bankSlots: 0, axeLevel: 1), // Iron Axe
       );
-      expect(stateWithBoth.actionState('Normal Tree').masteryLevel, 99);
+      expect(
+        stateWithBoth.actionState(normalTreeSkillAction.id).masteryLevel,
+        99,
+      );
 
       final ticksWithBoth = stateWithBoth.rollDurationWithModifiers(
-        normalTree,
+        normalTreeSkillAction,
         random,
       );
       // 30 * 0.95 = 28.5, rounded = 29 (but we apply percent first in combined)

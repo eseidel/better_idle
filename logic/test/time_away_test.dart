@@ -93,7 +93,7 @@ void main() {
       final timeAway = TimeAway.test(
         testRegistries,
         activeAction: normalTree,
-        masteryLevels: {'Normal Tree': 0},
+        masteryLevels: {normalTree.id: 0},
       );
 
       final itemsPerHour = timeAway.itemsGainedPerHour;
@@ -107,7 +107,7 @@ void main() {
       final timeAway = TimeAway.test(
         testRegistries,
         activeAction: normalTree,
-        masteryLevels: {'Normal Tree': 0},
+        masteryLevels: {normalTree.id: 0},
       );
 
       final itemsPerHour = timeAway.itemsGainedPerHour;
@@ -122,7 +122,7 @@ void main() {
       final timeAway = TimeAway.test(
         testRegistries,
         activeAction: normalTree,
-        masteryLevels: {'Normal Tree': 80},
+        masteryLevels: {normalTree.id: 80},
       );
 
       final itemsPerHour = timeAway.itemsGainedPerHour;

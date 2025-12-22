@@ -16,10 +16,20 @@ class DropTableEntry extends Equatable {
     required this.weight,
   });
 
+  DropTableEntry.test(
+    String name, {
+    required int gp,
+    int min = 1,
+    int max = 1,
+    this.weight = 1,
+  }) : itemID = MelvorId.fromName(name),
+       minQuantity = min,
+       maxQuantity = max;
+
   /// Creates a DropTableEntry from a JSON map.
   factory DropTableEntry.fromJson(Map<String, dynamic> json) {
     return DropTableEntry(
-      itemID: json['itemID'] as String,
+      itemID: MelvorId.fromJson(json['itemID'] as String),
       minQuantity: json['minQuantity'] as int,
       maxQuantity: json['maxQuantity'] as int,
       weight: json['weight'] as int,
@@ -27,7 +37,7 @@ class DropTableEntry extends Equatable {
   }
 
   /// The fully qualified item ID (e.g., "melvorD:Normal_Logs").
-  final String itemID;
+  final MelvorId itemID;
 
   /// The minimum quantity that can drop.
   final int minQuantity;
@@ -41,14 +51,7 @@ class DropTableEntry extends Equatable {
   /// The weight of this entry in the drop table.
   final int weight;
 
-  /// Extracts the item name from the fully qualified itemID.
-  /// e.g., "melvorD:Normal_Logs" -> "Normal_Logs"
-  String get itemIdWithoutNamespace {
-    final colonIndex = itemID.indexOf(':');
-    return colonIndex >= 0 ? itemID.substring(colonIndex + 1) : itemID;
-  }
-
-  String get name => itemIdWithoutNamespace.replaceAll('_', ' ');
+  String get name => itemID.name;
 
   @override
   List<Object?> get props => [itemID, minQuantity, maxQuantity, weight];
@@ -62,7 +65,7 @@ class DropTableEntry extends Equatable {
     final count = minQuantity == maxQuantity
         ? minQuantity
         : minQuantity + random.nextInt(maxQuantity - minQuantity + 1);
-    final item = items.byName(name);
+    final item = items.byId(itemID);
     return ItemStack(item, count: count);
   }
 }
@@ -95,7 +98,10 @@ class Item extends Equatable {
       media = null;
 
   /// Creates an Item from a JSON map.
-  factory Item.fromJson(Map<String, dynamic> json) {
+  factory Item.fromJson(
+    Map<String, dynamic> json, {
+    required String namespace,
+  }) {
     // Melvor uses HP/10, we use actual HP values, so multiply by 10.
     final rawHealsFor = json['healsFor'] as num?;
     final healsFor = rawHealsFor != null ? (rawHealsFor * 10).toInt() : null;
@@ -113,8 +119,14 @@ class Item extends Equatable {
     // Parse media path, stripping query params (e.g., "?2").
     final media = (json['media'] as String?)?.split('?').first;
 
+    // Normalize ID to always have namespace (items in JSON may lack it).
+    final id = MelvorId.fromJsonWithNamespace(
+      json['id'] as String,
+      defaultNamespace: namespace,
+    );
+
     return Item(
-      id: MelvorId(json['id'] as String),
+      id: id,
       name: json['name'] as String,
       itemType: json['itemType'] as String,
       sellsFor: json['sellsFor'] as int,
@@ -188,13 +200,24 @@ class Item extends Equatable {
 class ItemRegistry {
   ItemRegistry(List<Item> items) : _all = items {
     _byName = {for (final item in _all) item.name: item};
+    _byId = {for (final item in _all) item.id.toJson(): item};
   }
 
   final List<Item> _all;
   late final Map<String, Item> _byName;
+  late final Map<String, Item> _byId;
 
   /// All registered items.
   List<Item> get all => _all;
+
+  /// Returns the item by MelvorId, or throws a StateError if not found.
+  Item byId(MelvorId id) {
+    final item = _byId[id.toJson()];
+    if (item == null) {
+      throw StateError('Item not found: $id');
+    }
+    return item;
+  }
 
   /// Returns the item by name, or throws a StateError if not found.
   Item byName(String name) {

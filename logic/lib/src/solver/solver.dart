@@ -190,19 +190,18 @@ class _BucketKey {
 _BucketKey _bucketKeyFromState(GlobalState state) {
   final registries = state.registries;
   // Only track HP bucket when thieving (where death is possible)
-  final actionName = state.activeAction?.name;
+  final actionId = state.activeAction?.id;
   final isThieving =
-      actionName != null &&
-      registries.actions.byName(actionName) is ThievingAction;
+      actionId != null && registries.actions.byId(actionId) is ThievingAction;
   final hpBucket = isThieving ? state.playerHp ~/ _hpBucketSize : 0;
 
   // Get mastery level for current action (0 if no action)
-  final masteryLevel = actionName != null
-      ? state.actionState(actionName).masteryLevel
+  final masteryLevel = actionId != null
+      ? state.actionState(actionId).masteryLevel
       : 0;
 
   return _BucketKey(
-    activityName: actionName ?? 'none',
+    activityName: actionId?.name ?? 'none',
     axeLevel: state.shop.axeLevel,
     rodLevel: state.shop.fishingRodLevel,
     pickLevel: state.shop.pickaxeLevel,
@@ -338,7 +337,7 @@ class _RateCache {
 
         if (action is ThievingAction) {
           final thievingLevel = state.skillState(Skill.thieving).skillLevel;
-          final mastery = state.actionState(action.name).masteryLevel;
+          final mastery = state.actionState(action.id).masteryLevel;
           final stealth = calculateStealth(thievingLevel, mastery);
           final successChance = ((100 + stealth) / (100 + action.perception))
               .clamp(0.0, 1.0);
@@ -353,7 +352,7 @@ class _RateCache {
           // Gold from thieving
           var expectedGoldPerAction = 0.0;
           for (final output in action.outputs.entries) {
-            final item = registries.items.byName(output.key);
+            final item = registries.items.byId(output.key);
             expectedGoldPerAction += item.sellsFor * output.value;
           }
           final expectedThievingGold = successChance * (1 + action.maxGold) / 2;
@@ -364,7 +363,7 @@ class _RateCache {
 
           var expectedGoldPerAction = 0.0;
           for (final output in action.outputs.entries) {
-            final item = registries.items.byName(output.key);
+            final item = registries.items.byId(output.key);
             expectedGoldPerAction += item.sellsFor * output.value;
           }
           goldRate = expectedGoldPerAction / expectedTicks;
@@ -442,21 +441,21 @@ String _stateKey(GlobalState state) {
   buffer.write('gb:$goldBucket|');
 
   // Active action
-  final actionName = state.activeAction?.name;
-  buffer.write('act:${actionName ?? 'none'}|');
+  final actionId = state.activeAction?.id;
+  buffer.write('act:${actionId ?? 'none'}|');
 
   // HP bucket for thieving (where death is possible)
   final isThieving =
-      actionName != null &&
-      state.registries.actions.byName(actionName) is ThievingAction;
+      actionId != null &&
+      state.registries.actions.byId(actionId) is ThievingAction;
   if (isThieving) {
     final hpBucket = state.playerHp ~/ _hpBucketSize;
     buffer.write('hp:$hpBucket|');
   }
 
   // Mastery level for current action (affects rates, especially for thieving)
-  if (actionName != null) {
-    final masteryLevel = state.actionState(actionName).masteryLevel;
+  if (actionId != null) {
+    final masteryLevel = state.actionState(actionId).masteryLevel;
     buffer.write('mast:$masteryLevel|');
   }
 
@@ -482,7 +481,7 @@ bool _isRateModelable(GlobalState state) {
   final activeAction = state.activeAction;
   if (activeAction == null) return false;
 
-  final action = state.registries.actions.byName(activeAction.name);
+  final action = state.registries.actions.byId(activeAction.id);
 
   // Only skill actions (non-combat) are rate-modelable
   // Skip actions that require inputs (firemaking, cooking, smithing)
@@ -542,14 +541,14 @@ AdvanceResult _advanceExpected(
 
   // Compute expected mastery XP gains
   var newActionStates = state.actionStates;
-  if (rates.masteryXpPerTick > 0 && rates.actionName != null) {
+  if (rates.masteryXpPerTick > 0 && rates.actionId != null) {
     final masteryXpGain = (rates.masteryXpPerTick * effectiveTicks).floor();
     if (masteryXpGain > 0) {
-      final actionName = rates.actionName!;
-      final currentActionState = state.actionState(actionName);
+      final actionId = rates.actionId!;
+      final currentActionState = state.actionState(actionId);
       final newMasteryXp = currentActionState.masteryXp + masteryXpGain;
       newActionStates = Map.from(state.actionStates);
-      newActionStates[actionName] = currentActionState.copyWith(
+      newActionStates[actionId] = currentActionState.copyWith(
         masteryXp: newMasteryXp,
       );
     }
@@ -660,7 +659,7 @@ ConsumeUntilResult consumeUntil(
     return ConsumeUntilResult(state: state, ticksElapsed: 0, deathCount: 0);
   }
 
-  final originalActivity = state.activeAction?.name;
+  final originalActivityId = state.activeAction?.id;
   var totalTicksElapsed = 0;
   var deathCount = 0;
 
@@ -694,8 +693,8 @@ ConsumeUntilResult consumeUntil(
       }
 
       // Auto-restart the activity and continue
-      if (originalActivity != null) {
-        final action = state.registries.actions.byName(originalActivity);
+      if (originalActivityId != null) {
+        final action = state.registries.actions.byId(originalActivityId);
         state = state.startAction(action, random: random);
         continue; // Continue with restarted activity
       }
@@ -1110,8 +1109,8 @@ SolverResult solve(
 /// Checks if an interaction is relevant given the current candidates.
 bool _isRelevantInteraction(Interaction interaction, Candidates candidates) {
   return switch (interaction) {
-    SwitchActivity(:final actionName) => candidates.switchToActivities.contains(
-      actionName,
+    SwitchActivity(:final actionId) => candidates.switchToActivities.contains(
+      actionId,
     ),
     BuyUpgrade(:final type) => candidates.buyUpgrades.contains(type),
     SellAll() => candidates.includeSellAll,
