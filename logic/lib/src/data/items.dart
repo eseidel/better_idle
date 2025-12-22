@@ -68,17 +68,6 @@ class DropTableEntry extends Equatable {
   /// The weight of this entry in the drop table.
   final int weight;
 
-  String get name => itemID.name;
-
-  @override
-  List<Object?> get props => [itemID, minQuantity, maxQuantity, weight];
-
-  @override
-  String toString() =>
-      'DropTableEntry($itemID, $minQuantity-$maxQuantity, weight: $weight)';
-
-  Map<String, double> get expectedItems => {itemID.toJson(): expectedCount};
-
   /// Creates the ItemStack when this entry is selected/rolled.
   ItemStack roll(ItemRegistry items, Random random) {
     final count = minQuantity == maxQuantity
@@ -87,6 +76,9 @@ class DropTableEntry extends Equatable {
     final item = items.byId(itemID);
     return ItemStack(item, count: count);
   }
+
+  @override
+  List<Object?> get props => [itemID, minQuantity, maxQuantity, weight];
 }
 
 /// An item loaded from the Melvor game data.

@@ -132,11 +132,11 @@ class DropTable extends Droppable {
       roll -= entry.weight;
       if (roll <= 0) {
         // In a DropTable, entries always have rate = 1.0, so roll never returns null.
-        return entry.roll(items, random)!;
+        return entry.roll(items, random);
       }
     }
 
     // Fallback to last entry (shouldn't happen with valid weights)
-    return entries.last.roll(items, random)!;
+    return entries.last.roll(items, random);
   }
 }

@@ -78,7 +78,7 @@ void main() {
         weight: 10,
       );
 
-      expect(entry.name, 'Normal Logs');
+      expect(entry.itemID.name, 'Normal Logs');
     });
 
     test('expectedCount returns average of min and max', () {
