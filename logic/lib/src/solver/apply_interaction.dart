@@ -18,6 +18,7 @@ library;
 
 import 'dart:math';
 
+import 'package:logic/src/data/melvor_id.dart';
 import 'package:logic/src/data/upgrades.dart';
 import 'package:logic/src/state.dart';
 
@@ -32,9 +33,9 @@ GlobalState applyInteraction(GlobalState state, Interaction interaction) {
   final random = Random(42);
 
   return switch (interaction) {
-    SwitchActivity(:final actionName) => _applySwitchActivity(
+    SwitchActivity(:final actionId) => _applySwitchActivity(
       state,
-      actionName,
+      actionId,
       random,
     ),
     BuyUpgrade(:final type) => _applyBuyUpgrade(state, type),
@@ -45,10 +46,10 @@ GlobalState applyInteraction(GlobalState state, Interaction interaction) {
 /// Switches to a different activity.
 GlobalState _applySwitchActivity(
   GlobalState state,
-  String actionName,
+  MelvorId actionId,
   Random random,
 ) {
-  final action = state.registries.actions.byName(actionName);
+  final action = state.registries.actions.byId(actionId);
 
   // Clear current action if any (and not stunned)
   var newState = state;

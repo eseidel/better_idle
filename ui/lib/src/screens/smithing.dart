@@ -78,8 +78,8 @@ class _SelectedActionDisplay extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final state = context.state;
-    final actionState = state.actionState(action.name);
-    final isActive = state.activeAction?.name == action.name;
+    final actionState = state.actionState(action.id);
+    final isActive = state.activeAction?.id == action.id;
     final canStart = state.canStartAction(action);
 
     return Container(

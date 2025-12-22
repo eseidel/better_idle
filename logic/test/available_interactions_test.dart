@@ -21,12 +21,16 @@ void main() {
       final upgrades = interactions.whereType<BuyUpgrade>().toList();
       final sells = interactions.whereType<SellAll>().toList();
 
+      // Helper to get action name from actionId
+      String actionName(SwitchActivity s) =>
+          testActions.byId(s.actionId).name;
+
       // Should have level 1 activities: Normal Tree, Raw Shrimp,
       // Rune Essence, Copper, Tin, Man
       expect(switches.length, 6);
-      expect(switches.map((s) => s.actionName), contains('Normal Tree'));
-      expect(switches.map((s) => s.actionName), contains('Raw Shrimp'));
-      expect(switches.map((s) => s.actionName), contains('Man'));
+      expect(switches.map(actionName), contains('Normal Tree'));
+      expect(switches.map(actionName), contains('Raw Shrimp'));
+      expect(switches.map(actionName), contains('Man'));
 
       // No upgrades affordable with 0 GP
       expect(upgrades, isEmpty);
@@ -58,8 +62,12 @@ void main() {
       final interactions = availableInteractions(state);
       final switches = interactions.whereType<SwitchActivity>().toList();
 
+      // Helper to get action name from actionId
+      String actionName(SwitchActivity s) =>
+          testActions.byId(s.actionId).name;
+
       // Normal Tree should not be in the list since it's active
-      expect(switches.map((s) => s.actionName), isNot(contains('Normal Tree')));
+      expect(switches.map(actionName), isNot(contains('Normal Tree')));
     });
 
     test('higher skill levels unlock more activities', () {
@@ -77,11 +85,15 @@ void main() {
       final interactions = availableInteractions(state);
       final switches = interactions.whereType<SwitchActivity>().toList();
 
+      // Helper to get action name from actionId
+      String actionName(SwitchActivity s) =>
+          testActions.byId(s.actionId).name;
+
       // Should have more activities unlocked at level 25
-      expect(switches.map((s) => s.actionName), contains('Oak Tree'));
-      expect(switches.map((s) => s.actionName), contains('Willow Tree'));
-      expect(switches.map((s) => s.actionName), contains('Raw Herring'));
-      expect(switches.map((s) => s.actionName), contains('Iron'));
+      expect(switches.map(actionName), contains('Oak Tree'));
+      expect(switches.map(actionName), contains('Willow Tree'));
+      expect(switches.map(actionName), contains('Raw Herring'));
+      expect(switches.map(actionName), contains('Iron'));
     });
 
     test('inventory with items includes SellAll', () {

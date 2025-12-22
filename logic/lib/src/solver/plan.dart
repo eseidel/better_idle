@@ -352,7 +352,7 @@ class Plan {
   String _formatStep(PlanStep step) {
     return switch (step) {
       InteractionStep(:final interaction) => switch (interaction) {
-        SwitchActivity(:final actionName) => 'Switch to $actionName',
+        SwitchActivity(:final actionId) => 'Switch to $actionId',
         BuyUpgrade(:final type) => 'Buy upgrade: $type',
         SellAll() => 'Sell all items',
       },

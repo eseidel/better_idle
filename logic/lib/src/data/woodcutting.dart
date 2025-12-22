@@ -31,12 +31,21 @@ class WoodcuttingTree extends SkillAction {
          durationModifierAtLevel: woodcuttingDurationModifier,
        );
 
-  factory WoodcuttingTree.fromJson(Map<String, dynamic> json) {
-    final productId = MelvorId(json['productId'] as String);
+  factory WoodcuttingTree.fromJson(
+    Map<String, dynamic> json, {
+    required String namespace,
+  }) {
+    final productId = MelvorId.fromJsonWithNamespace(
+      json['productId'] as String,
+      defaultNamespace: namespace,
+    );
     final baseInterval = json['baseInterval'] as int;
 
     return WoodcuttingTree(
-      id: MelvorId.fromJson(json['id'] as String),
+      id: MelvorId.fromJsonWithNamespace(
+        json['id'] as String,
+        defaultNamespace: namespace,
+      ),
       name: json['name'] as String,
       unlockLevel: json['level'] as int,
       duration: Duration(milliseconds: baseInterval),
@@ -67,7 +76,13 @@ class WoodcuttingTree extends SkillAction {
 }
 
 /// Extracts woodcutting trees from the skillData array in Melvor JSON.
-List<WoodcuttingTree> extractWoodcuttingTrees(Map<String, dynamic> json) {
+///
+/// The [namespace] parameter specifies the namespace prefix to use for IDs
+/// that don't already have one (e.g., "melvorD" for demo data).
+List<WoodcuttingTree> extractWoodcuttingTrees(
+  Map<String, dynamic> json, {
+  required String namespace,
+}) {
   // The JSON structure is { "data": { "skillData": [...] } }
   final data = json['data'] as Map<String, dynamic>?;
   if (data == null) {
@@ -93,7 +108,7 @@ List<WoodcuttingTree> extractWoodcuttingTrees(Map<String, dynamic> json) {
 
     return trees
         .whereType<Map<String, dynamic>>()
-        .map(WoodcuttingTree.fromJson)
+        .map((json) => WoodcuttingTree.fromJson(json, namespace: namespace))
         .toList();
   }
 

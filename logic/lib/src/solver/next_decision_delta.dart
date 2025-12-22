@@ -243,8 +243,9 @@ _DeltaCandidate? _deltaUntilActivityUnlocks(
   Skill? minSkill;
   int? minTargetXp;
   final actionRegistry = state.registries.actions;
-  for (final activityName in candidates.watch.lockedActivityNames) {
-    final action = actionRegistry.skillActionByName(activityName);
+  for (final activityId in candidates.watch.lockedActivityIds) {
+    final action = actionRegistry.byId(activityId);
+    if (action is! SkillAction) continue;
     final skill = action.skill;
     final requiredLevel = action.unlockLevel;
     final requiredXp = startXpForLevel(requiredLevel);
@@ -266,7 +267,7 @@ _DeltaCandidate? _deltaUntilActivityUnlocks(
 
     if (minDelta == null || delta < minDelta) {
       minDelta = delta;
-      minActivityName = activityName;
+      minActivityName = action.name;
       minSkill = skill;
       minTargetXp = requiredXp;
     }

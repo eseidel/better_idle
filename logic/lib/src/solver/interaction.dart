@@ -15,6 +15,7 @@
 /// passing) is handled separately via [WaitStep] in plans.
 library;
 
+import 'package:logic/src/data/melvor_id.dart';
 import 'package:logic/src/data/upgrades.dart';
 
 /// Represents a possible interaction that can change game state.
@@ -27,19 +28,19 @@ sealed class Interaction {
 
 /// Switch to a different activity.
 class SwitchActivity extends Interaction {
-  const SwitchActivity(this.actionName);
+  const SwitchActivity(this.actionId);
 
-  final String actionName;
+  final MelvorId actionId;
 
   @override
-  String toString() => 'SwitchActivity($actionName)';
+  String toString() => 'SwitchActivity($actionId)';
 
   @override
   bool operator ==(Object other) =>
-      other is SwitchActivity && other.actionName == actionName;
+      other is SwitchActivity && other.actionId == actionId;
 
   @override
-  int get hashCode => actionName.hashCode;
+  int get hashCode => actionId.hashCode;
 }
 
 /// Buy an upgrade from the shop.

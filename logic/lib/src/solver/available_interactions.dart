@@ -67,7 +67,7 @@ List<SwitchActivity> _availableActivitySwitches(GlobalState state) {
       // Skip if action can't be started (missing inputs, depleted node, etc.)
       if (!state.canStartAction(action)) continue;
 
-      switches.add(SwitchActivity(action.name));
+      switches.add(SwitchActivity(action.id));
     }
   }
 

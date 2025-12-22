@@ -328,13 +328,28 @@ final cookingActions = <SkillAction>[
   _cooking('Herring', level: 10, xp: 15, seconds: 3),
 ];
 
+/// Namespace constants for Melvor data files.
+const melvorDemoNamespace = 'melvorD';
+const melvorFullNamespace = 'melvorF';
+
+/// Namespaces for each raw data file, in order.
+/// Index 0 = demo data (melvorD), Index 1 = full data (melvorF).
+const _dataFileNamespaces = [melvorDemoNamespace, melvorFullNamespace];
+
 /// Initializes the global woodcuttingActions from MelvorData.
 List<WoodcuttingTree> loadWoodcuttingActions(MelvorData data) {
   // Search through all data files for woodcutting trees.
   // Demo data contains the base trees, full data may have expansions.
   List<WoodcuttingTree> trees = [];
-  for (final json in data.rawDataFiles) {
-    final extracted = extractWoodcuttingTrees(json);
+  final rawFiles = data.rawDataFiles;
+  for (var i = 0; i < rawFiles.length; i++) {
+    final namespace = i < _dataFileNamespaces.length
+        ? _dataFileNamespaces[i]
+        : melvorDemoNamespace;
+    final extracted = extractWoodcuttingTrees(
+      rawFiles[i],
+      namespace: namespace,
+    );
     if (extracted.isNotEmpty) {
       trees = extracted;
     }

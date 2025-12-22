@@ -1109,8 +1109,8 @@ SolverResult solve(
 /// Checks if an interaction is relevant given the current candidates.
 bool _isRelevantInteraction(Interaction interaction, Candidates candidates) {
   return switch (interaction) {
-    SwitchActivity(:final actionName) => candidates.switchToActivities.contains(
-      actionName,
+    SwitchActivity(:final actionId) => candidates.switchToActivities.contains(
+      actionId,
     ),
     BuyUpgrade(:final type) => candidates.buyUpgrades.contains(type),
     SellAll() => candidates.includeSellAll,

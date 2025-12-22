@@ -30,7 +30,7 @@ class ActionGrid extends StatelessWidget {
             runSpacing: 8,
             children: actions.map((action) {
               final progressTicks = context.state.activeProgress(action);
-              final actionState = context.state.actionState(action.name);
+              final actionState = context.state.actionState(action.id);
               return SizedBox(
                 width: cellSize.width,
                 height: cellSize.height,
@@ -105,7 +105,7 @@ class WoodcuttingActionCell extends StatelessWidget {
       context,
     ).textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.bold);
     final activeAction = context.state.activeAction;
-    final isRunning = activeAction?.name == actionName;
+    final isRunning = activeAction?.id == action.id;
     final progress = isRunning && activeAction != null
         ? (activeAction.totalTicks - activeAction.remainingTicks) /
               activeAction.totalTicks
@@ -180,16 +180,16 @@ class ActionCell extends StatelessWidget {
     ).textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.bold);
     final activeAction = context.state.activeAction;
     double progress;
-    if (activeAction?.name == actionName && activeAction != null) {
+    if (activeAction?.id == action.id && activeAction != null) {
       progress =
           (activeAction.totalTicks - activeAction.remainingTicks) /
           activeAction.totalTicks;
     } else {
       progress = 0.0;
     }
-    final actionState = context.state.actionState(actionName);
+    final actionState = context.state.actionState(action.id);
     final canStart = context.state.canStartAction(action);
-    final isRunning = context.state.activeAction?.name == actionName;
+    final isRunning = context.state.activeAction?.id == action.id;
     final isStunned = context.state.isStunned;
     final canToggle = (canStart || isRunning) && !isStunned;
 
