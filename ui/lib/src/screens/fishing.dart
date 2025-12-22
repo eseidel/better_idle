@@ -23,14 +23,33 @@ class _FishingPageState extends State<FishingPage> {
   Widget build(BuildContext context) {
     const skill = Skill.fishing;
     final skillState = context.state.skillState(skill);
+    final registries = context.state.registries;
 
-    // Default to first action if none selected
+    // Get all fishing actions from registries.
+    final fishingActions = registries.actions
+        .forSkill(skill)
+        .whereType<FishingAction>()
+        .toList();
+
+    // Get all fishing areas from registries.
+    final fishingAreas = registries.fishingAreas.all;
+
+    // Default to first action if none selected.
     final selectedAction = _selectedAction ?? fishingActions.first;
 
-    // Group actions by area
+    // Group actions by area.
     final actionsByArea = <FishingArea, List<FishingAction>>{};
-    for (final action in fishingActions) {
-      actionsByArea.putIfAbsent(action.area, () => []).add(action);
+    for (final area in fishingAreas) {
+      final actionsInArea = <FishingAction>[];
+      for (final fishId in area.fishIDs) {
+        final action = fishingActions.where((a) => a.id == fishId).firstOrNull;
+        if (action != null) {
+          actionsInArea.add(action);
+        }
+      }
+      if (actionsInArea.isNotEmpty) {
+        actionsByArea[area] = actionsInArea;
+      }
     }
 
     return Scaffold(
@@ -245,7 +264,7 @@ class _ActionList extends StatelessWidget {
               // Actions list (if not collapsed)
               if (!isCollapsed)
                 ...actions.map((action) {
-                  final isSelected = action.name == selectedAction.name;
+                  final isSelected = action.id == selectedAction.id;
                   final durationText = action.isFixedDuration
                       ? _formatDuration(action.minDuration)
                       : '${_formatDuration(action.minDuration)} - '

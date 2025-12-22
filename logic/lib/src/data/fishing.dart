@@ -4,8 +4,8 @@ import 'package:meta/meta.dart';
 
 /// A fishing area parsed from Melvor data.
 @immutable
-class FishingAreaData {
-  const FishingAreaData({
+class FishingArea {
+  const FishingArea({
     required this.id,
     required this.name,
     required this.fishChance,
@@ -16,7 +16,7 @@ class FishingAreaData {
     this.isSecret = false,
   });
 
-  factory FishingAreaData.fromJson(
+  factory FishingArea.fromJson(
     Map<String, dynamic> json, {
     required String namespace,
   }) {
@@ -31,7 +31,7 @@ class FishingAreaData {
 
     final requiredItemIDJson = json['requiredItemID'] as String?;
 
-    return FishingAreaData(
+    return FishingArea(
       id: MelvorId.fromJsonWithNamespace(
         json['id'] as String,
         defaultNamespace: namespace,
@@ -69,11 +69,9 @@ class FishingAreaData {
 }
 
 /// A fishing action parsed from Melvor data.
-///
-/// Extends SkillAction so it can be used directly in the game.
 @immutable
-class FishingFish extends SkillAction {
-  FishingFish({
+class FishingAction extends SkillAction {
+  FishingAction({
     required super.id,
     required super.name,
     required super.unlockLevel,
@@ -86,7 +84,7 @@ class FishingFish extends SkillAction {
     required this.media,
   }) : super.ranged(skill: Skill.fishing);
 
-  factory FishingFish.fromJson(
+  factory FishingAction.fromJson(
     Map<String, dynamic> json, {
     required String namespace,
   }) {
@@ -100,7 +98,7 @@ class FishingFish extends SkillAction {
     // Use item name from productId for action name (e.g., "Raw Shrimp").
     final name = productId.name;
 
-    return FishingFish(
+    return FishingAction(
       id: MelvorId.fromJsonWithNamespace(
         json['id'] as String,
         defaultNamespace: namespace,
@@ -134,5 +132,31 @@ class FishingFish extends SkillAction {
     return '$name (level $unlockLevel, '
         '${minDuration.inSeconds}-${maxDuration.inSeconds}s, '
         '${xp}xp)';
+  }
+}
+
+/// Registry for fishing areas.
+class FishingAreaRegistry {
+  FishingAreaRegistry(List<FishingArea> areas) : _areas = areas {
+    _byId = {for (final area in _areas) area.id: area};
+  }
+
+  final List<FishingArea> _areas;
+  late final Map<MelvorId, FishingArea> _byId;
+
+  /// Returns all fishing areas.
+  List<FishingArea> get all => _areas;
+
+  /// Returns a fishing area by ID, or null if not found.
+  FishingArea? byId(MelvorId id) => _byId[id];
+
+  /// Returns the fishing area containing the given fish ID, or null if not found.
+  FishingArea? areaForFish(MelvorId fishId) {
+    for (final area in _areas) {
+      if (area.fishIDs.contains(fishId)) {
+        return area;
+      }
+    }
+    return null;
   }
 }
