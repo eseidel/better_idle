@@ -97,7 +97,7 @@ void main() {
       );
 
       final itemsPerHour = timeAway.itemsGainedPerHour;
-      expect(itemsPerHour['Normal Logs'], closeTo(1200, 1));
+      expect(itemsPerHour['melvorD:Normal_Logs'], closeTo(1200, 1));
     });
 
     test('includes skill-level drops in calculation', () {
@@ -111,7 +111,7 @@ void main() {
       );
 
       final itemsPerHour = timeAway.itemsGainedPerHour;
-      expect(itemsPerHour['Bird Nest'], closeTo(6, 0.1));
+      expect(itemsPerHour['melvorD:Bird_Nest'], closeTo(6, 0.1));
     });
 
     test('accounts for mastery level doubling chance', () {
@@ -126,7 +126,7 @@ void main() {
       );
 
       final itemsPerHour = timeAway.itemsGainedPerHour;
-      expect(itemsPerHour['Normal Logs'], 1680);
+      expect(itemsPerHour['melvorD:Normal_Logs'], 1680);
     });
   });
 }

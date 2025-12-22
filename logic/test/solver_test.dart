@@ -15,6 +15,10 @@ import 'package:test/test.dart';
 
 import 'test_helper.dart';
 
+ThievingAction thievingActionByName(String name) {
+  return testRegistries.actions.byName(name) as ThievingAction;
+}
+
 void main() {
   setUpAll(() async {
     await loadTestRegistries();
@@ -524,10 +528,10 @@ void main() {
 
       final rates = estimateRates(state);
 
-      // Normal Tree outputs Normal Logs
+      // Normal Tree outputs Normal Logs (keys are MelvorId strings)
       expect(
         rates.itemFlowsPerTick,
-        contains('Normal Logs'),
+        contains('melvorD:Normal_Logs'),
         reason: 'itemFlowsPerTick should include action outputs',
       );
 
@@ -536,7 +540,7 @@ void main() {
       final expectedTicks = ticksFromDuration(const Duration(seconds: 3));
       final expectedLogsPerTick = 1.0 / expectedTicks;
       expect(
-        rates.itemFlowsPerTick['Normal Logs'],
+        rates.itemFlowsPerTick['melvorD:Normal_Logs'],
         closeTo(expectedLogsPerTick, 0.0001),
         reason: 'Normal Logs rate should be 1 per action duration',
       );
@@ -551,10 +555,10 @@ void main() {
 
       final rates = estimateRates(state);
 
-      // Bird Nest is a skill-level drop for woodcutting
+      // Bird Nest is a skill-level drop for woodcutting (keys are MelvorId strings)
       expect(
         rates.itemFlowsPerTick,
-        contains('Bird Nest'),
+        contains('melvorD:Bird_Nest'),
         reason: 'itemFlowsPerTick should include skill-level drops',
       );
 
@@ -562,7 +566,7 @@ void main() {
       final expectedTicks = ticksFromDuration(const Duration(seconds: 3));
       final expectedBirdNestPerTick = 0.005 / expectedTicks;
       expect(
-        rates.itemFlowsPerTick['Bird Nest'],
+        rates.itemFlowsPerTick['melvorD:Bird_Nest'],
         closeTo(expectedBirdNestPerTick, 0.00001),
         reason: 'Bird Nest rate should match skill drop rate',
       );
@@ -577,10 +581,10 @@ void main() {
 
       final rates = estimateRates(state);
 
-      // Verify Bobby's Pocket is included in item flows
+      // Verify Bobby's Pocket is included in item flows (keys are MelvorId strings)
       expect(
         rates.itemFlowsPerTick,
-        contains("Bobby's Pocket"),
+        contains('melvorF:Bobbys_Pocket'),
         reason: "itemFlowsPerTick should include Bobby's Pocket drop",
       );
 

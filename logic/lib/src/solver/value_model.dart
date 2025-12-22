@@ -22,6 +22,7 @@
 /// - A/B test different valuation policies
 library;
 
+import 'package:logic/src/data/melvor_id.dart';
 import 'package:logic/src/state.dart';
 import 'package:meta/meta.dart';
 
@@ -59,7 +60,7 @@ class SellEverythingForGpValueModel extends ValueModel {
 
   @override
   double itemValue(GlobalState state, String itemId) {
-    return state.registries.items.byName(itemId).sellsFor.toDouble();
+    return state.registries.items.byId(MelvorId(itemId)).sellsFor.toDouble();
   }
 
   @override

@@ -312,7 +312,7 @@ void main() {
         // Verify the rewards getter returns drops with the correct count
         final rewards = testAction.rewardsForMasteryLevel(1);
         expect(rewards.length, 1);
-        expect(rewards.first.expectedItems['Normal Logs'], 3);
+        expect(rewards.first.expectedItems['melvorD:Normal_Logs'], 3);
 
         // Test end-to-end: complete the action and verify correct items added
         var state = GlobalState.empty(testRegistries);

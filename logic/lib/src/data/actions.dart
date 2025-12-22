@@ -1,7 +1,6 @@
 import 'dart:math';
 
 import 'package:logic/src/data/combat.dart';
-import 'package:logic/src/data/thieving.dart';
 import 'package:logic/src/tick.dart';
 import 'package:logic/src/types/drop.dart';
 import 'package:logic/src/types/modifier.dart';
@@ -52,9 +51,7 @@ abstract class Action {
 }
 
 List<Droppable> defaultRewards(SkillAction action, int masteryLevel) {
-  return [
-    ...action.outputs.entries.map((e) => Drop(e.key.name, count: e.value)),
-  ];
+  return [...action.outputs.entries.map((e) => Drop(e.key, count: e.value))];
 }
 
 /// Default duration modifier function - returns no modifier.
@@ -162,19 +159,19 @@ class SkillAction extends Action {
 /// Fixed player attack speed in seconds.
 const double playerAttackSpeed = 4;
 
-final hardCodedActions = <Action>[...thievingActions, ...combatActions];
+final hardCodedActions = <Action>[...combatActions];
 
 // Skill-level drops: shared across all actions in a skill.
 // This can include both simple Drops and DropTables.
 final skillDrops = <Skill, List<Droppable>>{
-  Skill.woodcutting: [const Drop('Bird Nest', rate: 0.005)],
+  Skill.woodcutting: [Drop.fromName('Bird Nest', rate: 0.005)],
   Skill.firemaking: [
-    const Drop('Coal Ore', rate: 0.40),
-    const Drop('Ash', rate: 0.20),
+    Drop.fromName('Coal Ore', rate: 0.40),
+    Drop.fromName('Ash', rate: 0.20),
     // Missing Charcoal, Generous Fire Spirit
   ],
   Skill.mining: [miningGemTable],
-  Skill.thieving: [const Drop("Bobby's Pocket", rate: 1 / 120)],
+  Skill.thieving: [Drop(MelvorId('melvorF:Bobbys_Pocket'), rate: 1 / 120)],
 };
 
 // Global drops: shared across all skills/actions

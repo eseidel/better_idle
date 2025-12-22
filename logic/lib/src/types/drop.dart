@@ -12,7 +12,7 @@ abstract class Droppable {
   ItemStack? roll(ItemRegistry items, Random random);
 
   /// Returns the expected items per action for prediction purposes.
-  /// Maps item name to expected count (rate * count for simple drops).
+  /// Maps MelvorId string to expected count (rate * count for simple drops).
   Map<String, double> get expectedItems;
 }
 
@@ -29,22 +29,29 @@ Map<String, double> expectedItemsForDrops(List<Droppable> drops) {
 
 /// A single item drop with an optional activation rate.
 class Drop extends Droppable {
-  /// Creates a drop with a fixed count (default 1).
-  const Drop(this.name, {this.count = 1, this.rate = 1.0})
+  /// Creates a drop from a MelvorId.
+  const Drop(this.itemId, {this.count = 1, this.rate = 1.0})
     : assert(count > 0, 'Count must be greater than 0');
-  final String name;
+
+  /// Creates a drop from a string name (convenience constructor).
+  Drop.fromName(String name, {int count = 1, double rate = 1.0})
+    : this(MelvorId.fromName(name), count: count, rate: rate);
+
+  final MelvorId itemId;
 
   /// The chance this drop is triggered (0.0 to 1.0).
   final double rate;
 
   final int count;
 
+  String get name => itemId.name;
+
   @override
-  Map<String, double> get expectedItems => {name: count * rate};
+  Map<String, double> get expectedItems => {itemId.toJson(): count * rate};
 
   /// Creates an ItemStack with a fixed count (for fixed drops).
   ItemStack toItemStack(ItemRegistry items) {
-    final item = items.byName(name);
+    final item = items.byId(itemId);
     return ItemStack(item, count: count);
   }
 
@@ -110,7 +117,8 @@ class DropTable extends Droppable {
     for (final entry in entries) {
       final probability = entry.weight / total;
       final value = entry.expectedCount * probability;
-      result[entry.name] = (result[entry.name] ?? 0.0) + value;
+      final key = entry.itemID.toJson();
+      result[key] = (result[key] ?? 0.0) + value;
     }
     return result;
   }
@@ -123,11 +131,12 @@ class DropTable extends Droppable {
     for (final entry in entries) {
       roll -= entry.weight;
       if (roll <= 0) {
-        return entry.roll(items, random);
+        // In a DropTable, entries always have rate = 1.0, so roll never returns null.
+        return entry.roll(items, random)!;
       }
     }
 
     // Fallback to last entry (shouldn't happen with valid weights)
-    return entries.last.roll(items, random);
+    return entries.last.roll(items, random)!;
   }
 }
