@@ -158,7 +158,7 @@ List<Action> parseActions(
         if (rocks != null) {
           actions.addAll(
             rocks.map(
-              (json) => MiningRock.fromJson(
+              (json) => MiningAction.fromJson(
                 json as Map<String, dynamic>,
                 namespace: namespace,
               ),

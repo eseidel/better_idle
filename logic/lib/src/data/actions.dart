@@ -1,6 +1,5 @@
 import 'dart:math';
 
-import 'package:logic/src/action_state.dart';
 import 'package:logic/src/data/combat.dart';
 import 'package:logic/src/data/thieving.dart';
 import 'package:logic/src/tick.dart';
@@ -8,26 +7,14 @@ import 'package:logic/src/types/drop.dart';
 import 'package:logic/src/types/modifier.dart';
 import 'package:meta/meta.dart';
 
-import 'items.dart';
 import 'melvor_id.dart';
+import 'mining.dart';
 
 export 'fishing.dart';
 export 'items.dart';
 export 'mining.dart';
 export 'thieving.dart';
 export 'woodcutting.dart';
-
-/// Gem drop table for mining - 1% chance to trigger, then weighted selection.
-final miningGemTable = DropChance(
-  DropTable(<DropTableEntry>[
-    Pick('Topaz', weight: 100), // 100 / 200 = 5%
-    Pick('Sapphire', weight: 35), // 35 / 200 = 17.5%
-    Pick('Ruby', weight: 35), // 35 / 200 = 17.5%
-    Pick('Emerald', weight: 20), // 20 / 200 = 10%
-    Pick('Diamond', weight: 10), // 10 / 200 = 5%
-  ]),
-  rate: 0.01, // 1% chance to get a gem
-);
 
 enum Skill {
   hitpoints('Hitpoints'),
@@ -179,40 +166,6 @@ class SkillAction extends Action {
       durationModifierAtLevel(this, masteryLevel);
 }
 
-const miningSwingDuration = Duration(seconds: 3);
-
-/// Mining action with rock HP and respawn mechanics.
-@immutable
-class MiningAction extends SkillAction {
-  MiningAction({
-    required super.id,
-    required super.name,
-    required super.unlockLevel,
-    required super.xp,
-    required super.outputs,
-    required int respawnSeconds,
-    required this.rockType,
-  }) : respawnTime = Duration(seconds: respawnSeconds),
-       super(skill: Skill.mining, duration: miningSwingDuration);
-
-  final RockType rockType;
-  final Duration respawnTime;
-
-  int get respawnTicks => ticksFromDuration(respawnTime);
-
-  // Rock HP = 5 + Mastery Level + Boosts
-  // For now, boosts are 0
-  int maxHpForMasteryLevel(int masteryLevel) => 5 + masteryLevel;
-
-  /// Returns progress (0.0 to 1.0) toward respawn completion, or null if
-  /// not respawning.
-  double? respawnProgress(ActionState actionState) {
-    final remaining = actionState.mining?.respawnTicksRemaining;
-    if (remaining == null) return null;
-    return 1.0 - (remaining / respawnTicks);
-  }
-}
-
 /// Fixed player attack speed in seconds.
 const double playerAttackSpeed = 4;
 
@@ -240,8 +193,6 @@ final _firemakingActions = <SkillAction>[
   _firemaking('Willow', level: 25, seconds: 3, xp: 52),
   _firemaking('Teak', level: 35, seconds: 4, xp: 84),
 ];
-
-// Mining actions are now loaded from JSON via MiningRock.fromJson.
 
 Map<MelvorId, int> _toMelvorIdMap(Map<String, int> map) {
   return map.map((key, value) => MapEntry(MelvorId.fromName(key), value));
@@ -306,8 +257,6 @@ final cookingActions = <SkillAction>[
 final hardCodedActions = <Action>[
   ..._firemakingActions,
   ...cookingActions,
-  // Mining actions are loaded from JSON via MiningRock.fromJson.
-  // Fishing actions are loaded from JSON via FishingFish.fromJson.
   ...smithingActions,
   ...thievingActions,
   ...combatActions,
