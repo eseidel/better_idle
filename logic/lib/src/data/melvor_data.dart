@@ -159,6 +159,18 @@ List<Action> parseActions(
             ),
           );
         }
+      case 'melvorD:Fishing':
+        final fish = skillContent['fish'] as List<dynamic>?;
+        if (fish != null) {
+          actions.addAll(
+            fish.map(
+              (json) => FishingFish.fromJson(
+                json as Map<String, dynamic>,
+                namespace: namespace,
+              ),
+            ),
+          );
+        }
       default:
       // print('Unknown skill ID: $skillId');
     }

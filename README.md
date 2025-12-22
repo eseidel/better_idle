@@ -32,3 +32,4 @@ use it.
 - Implement mastery rewards (and UI) for all actions.
 - Implement mastery pool checkpoints.
 - Implement mastery tokens.
+- Gems should not drop for rune essence.
