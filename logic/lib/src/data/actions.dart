@@ -4,17 +4,16 @@ import 'package:logic/src/action_state.dart';
 import 'package:logic/src/data/combat.dart';
 import 'package:logic/src/data/fishing.dart';
 import 'package:logic/src/data/thieving.dart';
-import 'package:logic/src/data/woodcutting.dart';
 import 'package:logic/src/tick.dart';
 import 'package:logic/src/types/drop.dart';
 import 'package:logic/src/types/modifier.dart';
 import 'package:meta/meta.dart';
 
 import 'items.dart';
-import 'melvor_data.dart';
 import 'melvor_id.dart';
 
 export 'items.dart';
+export 'mining.dart';
 export 'thieving.dart';
 export 'woodcutting.dart';
 
@@ -51,6 +50,14 @@ enum Skill {
 }
 
 enum RockType { essence, ore }
+
+/// Parses a Melvor category ID to determine the RockType.
+RockType parseRockType(String? category) {
+  if (category == 'melvorD:Essence') {
+    return RockType.essence;
+  }
+  return RockType.ore;
+}
 
 /// Base class for all actions that can occupy the "active" slot.
 /// Subclasses: SkillAction (duration-based with xp/outputs) and CombatAction.
@@ -234,39 +241,7 @@ final _firemakingActions = <SkillAction>[
   _firemaking('Teak', level: 35, seconds: 4, xp: 84),
 ];
 
-MiningAction _mining(
-  String name, {
-  required int level,
-  required int xp,
-  required int respawnSeconds,
-  int outputCount = 1,
-  RockType rockType = RockType.ore,
-}) {
-  final outputName = rockType == RockType.ore ? '$name Ore' : name;
-  return MiningAction(
-    id: MelvorId.fromName(name),
-    name: name,
-    unlockLevel: level,
-    xp: xp,
-    outputs: {MelvorId.fromName(outputName): outputCount},
-    respawnSeconds: respawnSeconds,
-    rockType: rockType,
-  );
-}
-
-final miningActions = <MiningAction>[
-  _mining(
-    'Rune Essence',
-    level: 1,
-    xp: 5,
-    respawnSeconds: 1,
-    outputCount: 2,
-    rockType: RockType.essence,
-  ),
-  _mining('Copper', level: 1, xp: 7, respawnSeconds: 5),
-  _mining('Tin', level: 1, xp: 7, respawnSeconds: 5, outputCount: 1),
-  _mining('Iron', level: 15, xp: 14, respawnSeconds: 10),
-];
+// Mining actions are now loaded from JSON via MiningRock.fromJson.
 
 Map<MelvorId, int> _toMelvorIdMap(Map<String, int> map) {
   return map.map((key, value) => MapEntry(MelvorId.fromName(key), value));
@@ -328,23 +303,11 @@ final cookingActions = <SkillAction>[
   _cooking('Herring', level: 10, xp: 15, seconds: 3),
 ];
 
-List<WoodcuttingTree> loadWoodcuttingActions(MelvorData data) {
-  List<WoodcuttingTree> trees = [];
-  final rawFiles = data.rawDataFiles;
-  for (final json in rawFiles) {
-    final namespace = json['namespace'] as String;
-    final extracted = extractWoodcuttingTrees(json, namespace: namespace);
-    trees.addAll(extracted);
-  }
-  trees.sort((a, b) => a.unlockLevel.compareTo(b.unlockLevel));
-  return trees.toList();
-}
-
 final hardCodedActions = <Action>[
   ..._firemakingActions,
   ...fishingActions,
   ...cookingActions,
-  ...miningActions,
+  // Mining actions are loaded from JSON via MiningRock.fromJson.
   ...smithingActions,
   ...thievingActions,
   ...combatActions,

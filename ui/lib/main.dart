@@ -299,7 +299,6 @@ class _GameApp extends StatefulWidget {
 
 class _GameAppState extends State<_GameApp>
     with SingleTickerProviderStateMixin {
-  late final Registries registries;
   late final MyPersistor _persistor;
   bool _isInitialized = false;
   late final Store<GlobalState> _store;
@@ -308,16 +307,18 @@ class _GameAppState extends State<_GameApp>
   @override
   void initState() {
     super.initState();
-    _persistor = MyPersistor(registries);
-    _persistor.readState().then((initialState) {
-      setState(() {
-        _store = Store<GlobalState>(
-          initialState: initialState,
-          persistor: _persistor,
-        );
-        _gameLoop = GameLoop(this, _store);
-        _gameLoop.updateInterval = const Duration(milliseconds: 100);
-        _isInitialized = true;
+    loadRegistries().then((registries) {
+      _persistor = MyPersistor(registries);
+      _persistor.readState().then((initialState) {
+        setState(() {
+          _store = Store<GlobalState>(
+            initialState: initialState,
+            persistor: _persistor,
+          );
+          _gameLoop = GameLoop(this, _store);
+          _gameLoop.updateInterval = const Duration(milliseconds: 100);
+          _isInitialized = true;
+        });
       });
     });
   }
