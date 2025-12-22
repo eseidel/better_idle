@@ -51,12 +51,12 @@ void main() {
         startTime: DateTime(2024, 1, 1, 11, 59, 30),
         endTime: DateTime(2024, 1, 1, 12),
         activeSkill: Skill.woodcutting,
-        changes: const Changes(
-          inventoryChanges: Counts<String>(
-            counts: {'Normal Logs': 10, 'Oak Logs': 5},
+        changes: Changes(
+          inventoryChanges: Counts<MelvorId>(
+            counts: {normalLogs.id: 10, oakLogs.id: 5},
           ),
           skillXpChanges: Counts<Skill>(counts: {Skill.woodcutting: 50}),
-          droppedItems: Counts<String>.empty(),
+          droppedItems: Counts<MelvorId>.empty(),
           skillLevelChanges: LevelChanges.empty(),
         ),
         masteryLevels: {normalTree.id: 2},
@@ -96,8 +96,8 @@ void main() {
     expect(timeAway.activeSkill, Skill.woodcutting);
     final changes = timeAway.changes;
     expect(changes.inventoryChanges.counts.length, 2);
-    expect(changes.inventoryChanges.counts['Normal Logs'], 10);
-    expect(changes.inventoryChanges.counts['Oak Logs'], 5);
+    expect(changes.inventoryChanges.counts[normalLogs.id], 10);
+    expect(changes.inventoryChanges.counts[oakLogs.id], 5);
     expect(changes.skillXpChanges.counts.length, 1);
     expect(changes.skillXpChanges.counts[Skill.woodcutting], 50);
   });
@@ -150,10 +150,10 @@ void main() {
         startTime: DateTime(2024, 1, 1, 11, 59, 30),
         endTime: DateTime(2024, 1, 1, 12),
         activeSkill: Skill.woodcutting,
-        changes: const Changes(
-          inventoryChanges: Counts<String>(counts: {'Normal Logs': 10}),
+        changes: Changes(
+          inventoryChanges: Counts<MelvorId>(counts: {normalLogs.id: 10}),
           skillXpChanges: Counts<Skill>(counts: {Skill.woodcutting: 50}),
-          droppedItems: Counts<String>.empty(),
+          droppedItems: Counts<MelvorId>.empty(),
           skillLevelChanges: LevelChanges.empty(),
         ),
         masteryLevels: {normalTree.id: 2},

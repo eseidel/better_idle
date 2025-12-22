@@ -91,12 +91,12 @@ class WelcomeBackDialog extends StatelessWidget {
             ],
             if (changes.inventoryChanges.isNotEmpty) ...[
               ...changes.inventoryChanges.entries.map((entry) {
-                final itemName = entry.key;
+                final itemId = entry.key;
                 final itemCount = entry.value;
-                final item = timeAway.registries.items.byName(itemName);
+                final item = timeAway.registries.items.byId(itemId);
                 // Check both gained and consumed predictions
-                final gainedPerHour = timeAway.itemsGainedPerHour[itemName];
-                final consumedPerHour = timeAway.itemsConsumedPerHour[itemName];
+                final gainedPerHour = timeAway.itemsGainedPerHour[itemId];
+                final consumedPerHour = timeAway.itemsConsumedPerHour[itemId];
 
                 // Determine which prediction to show based on item count change
                 final String prediction;
@@ -129,7 +129,7 @@ class WelcomeBackDialog extends StatelessWidget {
                 ),
               ),
               ...changes.droppedItems.entries.map((entry) {
-                final item = timeAway.registries.items.byName(entry.key);
+                final item = timeAway.registries.items.byId(entry.key);
                 // Show dropped items as negative (they were lost)
                 return ItemChangeRow(item: item, count: -entry.value);
               }),

@@ -19,7 +19,6 @@
 library;
 
 import 'package:logic/src/data/actions.dart';
-import 'package:logic/src/data/melvor_id.dart';
 import 'package:logic/src/data/xp.dart';
 import 'package:logic/src/state.dart';
 import 'package:meta/meta.dart';
@@ -103,7 +102,7 @@ class ReachGpGoal extends Goal {
     // For GP goals, progress = direct GP + value of items produced
     var value = rates.directGpPerTick;
     for (final entry in rates.itemFlowsPerTick.entries) {
-      final item = state.registries.items.byId(MelvorId(entry.key));
+      final item = state.registries.items.byId(entry.key);
       value += entry.value * item.sellsFor;
     }
     return value;

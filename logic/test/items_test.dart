@@ -54,22 +54,6 @@ void main() {
       expect(entry1, equals(entry2));
       expect(entry1, isNot(equals(different)));
     });
-
-    test('toString includes all fields', () {
-      final entry = DropTableEntry.test(
-        'Normal Logs',
-        gp: 10,
-        min: 1,
-        max: 5,
-        weight: 10,
-      );
-
-      final str = entry.toString();
-      expect(str, contains('melvorD:Normal_Logs'));
-      expect(str, contains('1-5'));
-      expect(str, contains('weight: 10'));
-    });
-
     test('name extracts item name from itemID', () {
       final entry = DropTableEntry(
         itemID: MelvorId('melvorD:Normal_Logs'),

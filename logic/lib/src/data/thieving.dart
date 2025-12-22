@@ -8,6 +8,13 @@ import 'package:meta/meta.dart';
 /// Duration for all thieving actions.
 const thievingDuration = Duration(seconds: 3);
 
+// TODO(eseidel): Confirm these rates from Melvor wiki or game source.
+/// Drop rate for area unique drops (e.g., Crate of Basic Supplies).
+const double areaUniqueDropRate = 1 / 500;
+
+/// Chance that a thieving loot table drops something (vs nothing).
+const double lootTableDropChance = 0.75;
+
 /// Thieving area - groups NPCs together.
 /// May include area-level drops that apply to all NPCs in the area.
 @immutable
@@ -41,8 +48,7 @@ class ThievingArea {
         defaultNamespace: namespace,
       );
       final quantity = dropMap['quantity'] as int? ?? 1;
-      // Area unique drops have a 1/500 rate based on game data.
-      uniqueDrops.add(Drop(itemId, count: quantity, rate: 1 / 500));
+      uniqueDrops.add(Drop(itemId, count: quantity, rate: areaUniqueDropRate));
     }
 
     return ThievingArea(
@@ -157,14 +163,7 @@ class ThievingAction extends SkillAction {
             ),
           )
           .toList();
-      // Thieving loot tables have ~75% chance to drop something.
-      // Calculate total weight and add empty weight for ~25% nothing.
-      final totalWeight = entries.fold<int>(0, (sum, e) => sum + e.weight);
-      final emptyWeight = totalWeight ~/ 3; // ~25% of total.
-      dropTable = DropChance(
-        DropTable(entries),
-        rate: totalWeight / (totalWeight + emptyWeight),
-      );
+      dropTable = DropChance(DropTable(entries), rate: lootTableDropChance);
     }
 
     // maxHit in JSON is in units of 10 HP (e.g., 2.2 = 22 damage).

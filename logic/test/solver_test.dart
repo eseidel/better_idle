@@ -539,8 +539,9 @@ void main() {
       // Normal Tree has 3s duration = 30 ticks
       final expectedTicks = ticksFromDuration(const Duration(seconds: 3));
       final expectedLogsPerTick = 1.0 / expectedTicks;
+      final normalLogsId = MelvorId.fromName('Normal Logs');
       expect(
-        rates.itemFlowsPerTick['melvorD:Normal_Logs'],
+        rates.itemFlowsPerTick[normalLogsId],
         closeTo(expectedLogsPerTick, 0.0001),
         reason: 'Normal Logs rate should be 1 per action duration',
       );
@@ -565,8 +566,9 @@ void main() {
       // Verify the rate is correct (0.5% per action)
       final expectedTicks = ticksFromDuration(const Duration(seconds: 3));
       final expectedBirdNestPerTick = 0.005 / expectedTicks;
+      final birdNestId = MelvorId.fromName('Bird Nest');
       expect(
-        rates.itemFlowsPerTick['melvorD:Bird_Nest'],
+        rates.itemFlowsPerTick[birdNestId],
         closeTo(expectedBirdNestPerTick, 0.00001),
         reason: 'Bird Nest rate should match skill drop rate',
       );

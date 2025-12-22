@@ -52,31 +52,34 @@ class DebugPage extends StatelessWidget {
       endTime: now,
       activeSkill: Skill.woodcutting,
       activeAction: oakTreeAction,
-      changes: const Changes(
+      changes: Changes(
         // Skill level gains
-        skillLevelChanges: LevelChanges(
+        skillLevelChanges: const LevelChanges(
           changes: {
             Skill.woodcutting: LevelChange(startLevel: 19, endLevel: 21),
             Skill.firemaking: LevelChange(startLevel: 5, endLevel: 6),
           },
         ),
         // Skill XP gains
-        skillXpChanges: Counts<Skill>(
+        skillXpChanges: const Counts<Skill>(
           counts: {Skill.woodcutting: 450, Skill.firemaking: 125},
         ),
         // Inventory changes (positive and negative)
-        inventoryChanges: Counts<String>(
+        inventoryChanges: Counts<MelvorId>(
           counts: {
-            'Normal Logs': 150, // Gained
-            'Oak Logs': 75, // Gained
-            'Coal Ore': 12, // Gained (from drops)
-            'Bird Nest': 3, // Gained (from drops)
-            'Ash': -45, // Consumed
+            MelvorId.fromName('Normal Logs'): 150, // Gained
+            MelvorId.fromName('Oak Logs'): 75, // Gained
+            MelvorId.fromName('Coal Ore'): 12, // Gained (from drops)
+            MelvorId.fromName('Bird Nest'): 3, // Gained (from drops)
+            MelvorId.fromName('Ash'): -45, // Consumed
           },
         ),
         // Dropped items (inventory was full)
-        droppedItems: Counts<String>(
-          counts: {'Willow Logs': 5, 'Teak Logs': 2},
+        droppedItems: Counts<MelvorId>(
+          counts: {
+            MelvorId.fromName('Willow Logs'): 5,
+            MelvorId.fromName('Teak Logs'): 2,
+          },
         ),
       ),
       masteryLevels: {

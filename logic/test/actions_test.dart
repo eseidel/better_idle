@@ -24,32 +24,30 @@ void main() {
         //                = (1 - doublePercent) + doublePercent * 2
         //                = 1 + doublePercent
 
+        final normalLogsId = MelvorId.fromName('Normal Logs');
+
         // At mastery level 0: 0% double chance, expectedItems = 1.0
         final rewardsAt0 = normalTree.rewardsForMasteryLevel(0);
         expect(rewardsAt0.length, 1);
-        final expectedAt0 =
-            rewardsAt0.first.expectedItems['melvorD:Normal_Logs']!;
+        final expectedAt0 = rewardsAt0.first.expectedItems[normalLogsId]!;
         expect(expectedAt0, closeTo(1.0, 0.001));
 
         // At mastery level 10: 5% double chance, expectedItems = 1.05
         final rewardsAt1 = normalTree.rewardsForMasteryLevel(10);
         expect(rewardsAt1.length, 1);
-        final expectedAt1 =
-            rewardsAt1.first.expectedItems['melvorD:Normal_Logs']!;
+        final expectedAt1 = rewardsAt1.first.expectedItems[normalLogsId]!;
         expect(expectedAt1, closeTo(1.05, 0.001));
 
         // At mastery level 20: 10% double chance, expectedItems = 1.10
         final rewardsAt5 = normalTree.rewardsForMasteryLevel(20);
         expect(rewardsAt5.length, 1);
-        final expectedAt5 =
-            rewardsAt5.first.expectedItems['melvorD:Normal_Logs']!;
+        final expectedAt5 = rewardsAt5.first.expectedItems[normalLogsId]!;
         expect(expectedAt5, closeTo(1.10, 0.001));
 
         // At mastery level 30: 15% double chance, expectedItems = 1.15
         final rewardsAt9 = normalTree.rewardsForMasteryLevel(30);
         expect(rewardsAt9.length, 1);
-        final expectedAt9 =
-            rewardsAt9.first.expectedItems['melvorD:Normal_Logs']!;
+        final expectedAt9 = rewardsAt9.first.expectedItems[normalLogsId]!;
         expect(expectedAt9, closeTo(1.15, 0.001));
       },
     );
@@ -72,15 +70,15 @@ void main() {
       // Verify gems appear in expectedItems
       final allExpectedItems = expectedItemsForDrops(drops);
 
-      // At least one gem should be present (keys are now MelvorId strings)
+      // At least one gem should be present (keys are now MelvorId)
       final gemIds = [
-        'melvorD:Topaz',
-        'melvorD:Sapphire',
-        'melvorD:Ruby',
-        'melvorD:Emerald',
-        'melvorD:Diamond',
+        MelvorId('melvorD:Topaz'),
+        MelvorId('melvorD:Sapphire'),
+        MelvorId('melvorD:Ruby'),
+        MelvorId('melvorD:Emerald'),
+        MelvorId('melvorD:Diamond'),
       ];
-      final hasAnyGem = gemIds.any((gem) => allExpectedItems.containsKey(gem));
+      final hasAnyGem = gemIds.any(allExpectedItems.containsKey);
       expect(
         hasAnyGem,
         isTrue,

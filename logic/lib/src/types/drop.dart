@@ -13,11 +13,11 @@ abstract class Droppable {
 
   /// Returns the expected items per action for prediction purposes.
   /// Maps MelvorId string to expected count (rate * count for simple drops).
-  Map<String, double> get expectedItems;
+  Map<MelvorId, double> get expectedItems;
 }
 
-Map<String, double> expectedItemsForDrops(List<Droppable> drops) {
-  final result = <String, double>{};
+Map<MelvorId, double> expectedItemsForDrops(List<Droppable> drops) {
+  final result = <MelvorId, double>{};
   for (final drop in drops) {
     final expectedItems = drop.expectedItems;
     for (final entry in expectedItems.entries) {
@@ -47,7 +47,7 @@ class Drop extends Droppable {
   String get name => itemId.name;
 
   @override
-  Map<String, double> get expectedItems => {itemId.toJson(): count * rate};
+  Map<MelvorId, double> get expectedItems => {itemId: count * rate};
 
   /// Creates an ItemStack with a fixed count (for fixed drops).
   ItemStack toItemStack(ItemRegistry items) {
@@ -82,7 +82,7 @@ class DropChance extends Droppable {
   }
 
   @override
-  Map<String, double> get expectedItems {
+  Map<MelvorId, double> get expectedItems {
     final childItems = child.expectedItems;
     return childItems.map((key, value) => MapEntry(key, value * rate));
   }
@@ -111,13 +111,13 @@ class DropTable extends Droppable {
   double get _totalWeight => entries.fold(0, (sum, e) => sum + e.weight);
 
   @override
-  Map<String, double> get expectedItems {
-    final result = <String, double>{};
+  Map<MelvorId, double> get expectedItems {
+    final result = <MelvorId, double>{};
     final total = _totalWeight;
     for (final entry in entries) {
       final probability = entry.weight / total;
       final value = entry.expectedCount * probability;
-      final key = entry.itemID.toJson();
+      final key = entry.itemID;
       result[key] = (result[key] ?? 0.0) + value;
     }
     return result;

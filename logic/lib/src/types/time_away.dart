@@ -177,7 +177,7 @@ class TimeAway {
   /// Returns a map of item name to items per hour.
   /// Returns empty map for CombatActions (combat drops are handled
   /// differently).
-  Map<String, double> get itemsGainedPerHour {
+  Map<MelvorId, double> get itemsGainedPerHour {
     final action = activeAction;
     if (action is! SkillAction) {
       return {};
@@ -202,7 +202,7 @@ class TimeAway {
     // Calculate expected items per hour for each drop
     // Items per hour = (expected items per action) * (3600 / mean duration)
     final actionsPerHour = 3600.0 / meanDurationSeconds;
-    final result = <String, double>{};
+    final result = <MelvorId, double>{};
 
     final expectedItems = expectedItemsForDrops(allDrops);
     for (final entry in expectedItems.entries) {
@@ -215,7 +215,7 @@ class TimeAway {
   /// Calculates the predicted items consumed per hour based on the active
   /// action's inputs. Returns a map of item name to items per hour.
   /// Returns empty map for CombatActions (combat has no inputs).
-  Map<String, double> get itemsConsumedPerHour {
+  Map<MelvorId, double> get itemsConsumedPerHour {
     final action = activeAction;
     if (action is! SkillAction || action.inputs.isEmpty) {
       return {};
@@ -229,11 +229,11 @@ class TimeAway {
     // Calculate expected items consumed per hour for each input
     // Items per hour = (items per action) * (3600 / mean duration)
     final actionsPerHour = 3600.0 / meanDurationSeconds;
-    final result = <String, double>{};
+    final result = <MelvorId, double>{};
 
     for (final entry in action.inputs.entries) {
       final itemsPerHour = entry.value * actionsPerHour;
-      result[entry.key.name] = itemsPerHour;
+      result[entry.key] = itemsPerHour;
     }
 
     return result;
@@ -445,22 +445,22 @@ class Changes {
 
   const Changes.empty()
     : this(
-        inventoryChanges: const Counts<String>.empty(),
+        inventoryChanges: const Counts<MelvorId>.empty(),
         skillXpChanges: const Counts<Skill>.empty(),
-        droppedItems: const Counts<String>.empty(),
+        droppedItems: const Counts<MelvorId>.empty(),
         skillLevelChanges: const LevelChanges.empty(),
         gpGained: 0,
       );
 
   factory Changes.fromJson(Map<String, dynamic> json) {
     return Changes(
-      inventoryChanges: Counts<String>.fromJson(
+      inventoryChanges: Counts<MelvorId>.fromJson(
         json['inventoryChanges'] as Map<String, dynamic>,
       ),
       skillXpChanges: Counts<Skill>.fromJson(
         json['skillXpChanges'] as Map<String, dynamic>,
       ),
-      droppedItems: Counts<String>.fromJson(
+      droppedItems: Counts<MelvorId>.fromJson(
         json['droppedItems'] as Map<String, dynamic>? ?? {},
       ),
       skillLevelChanges: LevelChanges.fromJson(
@@ -469,9 +469,9 @@ class Changes {
       gpGained: json['gpGained'] as int? ?? 0,
     );
   }
-  final Counts<String> inventoryChanges;
   final Counts<Skill> skillXpChanges;
-  final Counts<String> droppedItems;
+  final Counts<MelvorId> inventoryChanges;
+  final Counts<MelvorId> droppedItems;
   final LevelChanges skillLevelChanges;
   final int gpGained;
 
@@ -494,7 +494,7 @@ class Changes {
 
   Changes adding(ItemStack stack) {
     return Changes(
-      inventoryChanges: inventoryChanges.addCount(stack.item.name, stack.count),
+      inventoryChanges: inventoryChanges.addCount(stack.item.id, stack.count),
       skillXpChanges: skillXpChanges,
       droppedItems: droppedItems,
       skillLevelChanges: skillLevelChanges,
@@ -504,10 +504,7 @@ class Changes {
 
   Changes removing(ItemStack stack) {
     return Changes(
-      inventoryChanges: inventoryChanges.addCount(
-        stack.item.name,
-        -stack.count,
-      ),
+      inventoryChanges: inventoryChanges.addCount(stack.item.id, -stack.count),
       skillXpChanges: skillXpChanges,
       droppedItems: droppedItems,
       skillLevelChanges: skillLevelChanges,
@@ -519,7 +516,7 @@ class Changes {
     return Changes(
       inventoryChanges: inventoryChanges,
       skillXpChanges: skillXpChanges,
-      droppedItems: droppedItems.addCount(stack.item.name, stack.count),
+      droppedItems: droppedItems.addCount(stack.item.id, stack.count),
       skillLevelChanges: skillLevelChanges,
       gpGained: gpGained,
     );

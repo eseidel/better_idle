@@ -132,10 +132,8 @@ void main() {
       // Only the Golbin drop table is wrapped in DropChance
       final dropChances = drops.whereType<DropChance>().toList();
       expect(dropChances, hasLength(1));
-      expect(
-        dropChances.first.expectedItems['melvorD:Copper_Ore'],
-        greaterThan(0),
-      );
+      final copperOreId = MelvorId.fromName('Copper Ore');
+      expect(dropChances.first.expectedItems[copperOreId], greaterThan(0));
     });
 
     test('golbinDropTable has correct structure', () {
@@ -162,12 +160,12 @@ void main() {
 
       // Copper and Tin should have higher rates than Iron and Steel
       expect(
-        expected['melvorD:Copper_Ore']!,
-        greaterThan(expected['melvorD:Iron_Ore']!),
+        expected[MelvorId('melvorD:Copper_Ore')]!,
+        greaterThan(expected[MelvorId('melvorD:Iron_Ore')]!),
       );
       expect(
-        expected['melvorD:Tin_Ore']!,
-        greaterThan(expected['melvorD:Steel_Bar']!),
+        expected[MelvorId('melvorD:Tin_Ore')]!,
+        greaterThan(expected[MelvorId('melvorD:Steel_Bar')]!),
       );
     });
 

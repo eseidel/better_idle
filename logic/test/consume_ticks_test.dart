@@ -74,7 +74,7 @@ void main() {
       expect(state.skillState(normalTree.skill).xp, normalTree.xp);
 
       // validate that builder.changes contains inventory and xp changes.
-      expect(builder.changes.inventoryChanges.counts, {'Normal Logs': 1});
+      expect(builder.changes.inventoryChanges.counts, {normalLogs.id: 1});
       expect(builder.changes.skillXpChanges.counts, {
         normalTree.skill: normalTree.xp,
       });
@@ -106,7 +106,7 @@ void main() {
       expect(state.skillState(normalTree.skill).xp, normalTree.xp * 5);
 
       // validate that builder.changes contains inventory and xp changes.
-      expect(builder.changes.inventoryChanges.counts, {'Normal Logs': 5});
+      expect(builder.changes.inventoryChanges.counts, {normalLogs.id: 5});
       expect(builder.changes.skillXpChanges.counts, {
         normalTree.skill: normalTree.xp * 5,
       });
@@ -297,6 +297,7 @@ void main() {
     test(
       'action with output count > 1 correctly creates drops with that count',
       () {
+        final normalLogsId = MelvorId.fromName('Normal Logs');
         // Create an action with output count > 1
         final testAction = SkillAction(
           id: MelvorId.fromName('Test Action'),
@@ -305,14 +306,14 @@ void main() {
           unlockLevel: 1,
           duration: Duration(seconds: 1),
           xp: 10,
-          outputs: {MelvorId.fromName('Normal Logs'): 3}, // Count > 1
+          outputs: {normalLogsId: 3}, // Count > 1
         );
         final random = Random(0);
 
         // Verify the rewards getter returns drops with the correct count
         final rewards = testAction.rewardsForMasteryLevel(1);
         expect(rewards.length, 1);
-        expect(rewards.first.expectedItems['melvorD:Normal_Logs'], 3);
+        expect(rewards.first.expectedItems[normalLogsId], 3);
 
         // Test end-to-end: complete the action and verify correct items added
         var state = GlobalState.empty(testRegistries);
@@ -327,7 +328,7 @@ void main() {
         // Verify 3 items were added (not 1)
         final items = state.inventory.items;
         expect(items.length, 1);
-        expect(items.first.item.name, 'Normal Logs');
+        expect(items.first.item.id, normalLogsId);
         expect(items.first.count, 3);
       },
     );
@@ -372,7 +373,7 @@ void main() {
         expect(ashCount, 0);
 
         // Verify changes object tracks the consumed item
-        expect(builder.changes.inventoryChanges.counts['Normal Logs'], -1);
+        expect(builder.changes.inventoryChanges.counts[normalLogs.id], -1);
         expect(
           builder.changes.skillXpChanges.counts[burnNormalLogs.skill],
           burnNormalLogs.xp,
@@ -405,7 +406,7 @@ void main() {
       expect(state.skillState(burnNormalLogs.skill).xp, burnNormalLogs.xp * 3);
 
       // Verify changes object tracks all consumed items
-      expect(builder.changes.inventoryChanges.counts['Normal Logs'], -3);
+      expect(builder.changes.inventoryChanges.counts[normalLogs.id], -3);
       expect(
         builder.changes.skillXpChanges.counts[burnNormalLogs.skill],
         burnNormalLogs.xp * 3,
@@ -452,7 +453,7 @@ void main() {
 
       // Verify changes object tracks all consumed items
       expect(
-        builder.changes.inventoryChanges.counts['Normal Logs'],
+        builder.changes.inventoryChanges.counts[normalLogs.id],
         -nMinusOne,
       );
       expect(
@@ -499,7 +500,7 @@ void main() {
       expect(state.inventory.countOfItem(normalLogs), 0);
 
       // Verify dropped items were tracked
-      expect(builder.changes.droppedItems.counts['Normal Logs'], 1);
+      expect(builder.changes.droppedItems.counts[normalLogs.id], 1);
 
       // Inventory should still be full with 20 items
       expect(state.inventoryUsed, 20);
@@ -537,7 +538,7 @@ void main() {
       expect(state.activeAction, isNotNull); // Action should still be active
 
       // Verify changes tracked the 3 Normal Logs added
-      expect(builder.changes.inventoryChanges.counts['Normal Logs'], 3);
+      expect(builder.changes.inventoryChanges.counts[normalLogs.id], 3);
     });
 
     test('TimeAway tracks dropped items when inventory is full', () {
@@ -565,7 +566,7 @@ void main() {
       expect(newState.activeAction, isNull);
 
       // Verify TimeAway has the dropped items
-      expect(timeAway.changes.droppedItems.counts['Normal Logs'], 1);
+      expect(timeAway.changes.droppedItems.counts[normalLogs.id], 1);
 
       // No Normal Logs in inventory
       expect(newState.inventory.countOfItem(normalLogs), 0);
