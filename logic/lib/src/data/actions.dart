@@ -328,10 +328,7 @@ final cookingActions = <SkillAction>[
   _cooking('Herring', level: 10, xp: 15, seconds: 3),
 ];
 
-/// Initializes the global woodcuttingActions from MelvorData.
 List<WoodcuttingTree> loadWoodcuttingActions(MelvorData data) {
-  // Search through all data files for woodcutting trees.
-  // Demo data contains the base trees, full data may have expansions.
   List<WoodcuttingTree> trees = [];
   final rawFiles = data.rawDataFiles;
   for (final json in rawFiles) {
