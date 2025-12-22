@@ -296,7 +296,8 @@ class DebugAddEggChestsAction extends ReduxAction<GlobalState> {
 
   @override
   GlobalState reduce() {
-    final eggChest = state.registries.items.byName('Egg Chest');
+    final eggChestId = MelvorId('melvorD:Egg_Chest');
+    final eggChest = state.registries.items.byId(eggChestId);
     final stack = ItemStack(eggChest, count: count);
     final newInventory = state.inventory.adding(stack);
     return state.copyWith(inventory: newInventory);

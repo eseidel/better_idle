@@ -74,6 +74,40 @@ void main() {
     expect(merged.duration, const Duration(seconds: 15));
   });
 
+  group('itemsConsumedPerHour', () {
+    test('returns empty map when no active action', () {
+      final timeAway = TimeAway.test(testRegistries);
+      expect(timeAway.itemsConsumedPerHour, isEmpty);
+    });
+
+    test('returns empty map for combat action', () {
+      final plantAction = combatActionByName('Plant');
+      final timeAway = TimeAway.test(testRegistries, activeAction: plantAction);
+      expect(timeAway.itemsConsumedPerHour, isEmpty);
+    });
+
+    test('returns empty map for action with no inputs', () {
+      // Woodcutting has no inputs
+      final timeAway = TimeAway.test(testRegistries, activeAction: normalTree);
+      expect(timeAway.itemsConsumedPerHour, isEmpty);
+    });
+
+    test('returns correct items per hour for action with inputs', () {
+      // Firemaking: "Burn Normal Logs" takes 2 seconds and consumes 1 Normal Logs
+      // Actions per hour = 3600 / 2 = 1800
+      // Items consumed per hour = 1 * 1800 = 1800
+      final burnNormalLogs =
+          testActions.byName('Burn Normal Logs') as SkillAction;
+      final timeAway = TimeAway.test(
+        testRegistries,
+        activeAction: burnNormalLogs,
+      );
+
+      final itemsPerHour = timeAway.itemsConsumedPerHour;
+      expect(itemsPerHour[MelvorId('melvorD:Normal_Logs')], closeTo(1800, 1));
+    });
+  });
+
   group('itemsGainedPerHour', () {
     test('returns empty map when no active action', () {
       final timeAway = TimeAway.test(testRegistries);
@@ -97,7 +131,7 @@ void main() {
       );
 
       final itemsPerHour = timeAway.itemsGainedPerHour;
-      expect(itemsPerHour['Normal Logs'], closeTo(1200, 1));
+      expect(itemsPerHour[MelvorId('melvorD:Normal_Logs')], closeTo(1200, 1));
     });
 
     test('includes skill-level drops in calculation', () {
@@ -111,7 +145,7 @@ void main() {
       );
 
       final itemsPerHour = timeAway.itemsGainedPerHour;
-      expect(itemsPerHour['Bird Nest'], closeTo(6, 0.1));
+      expect(itemsPerHour[MelvorId('melvorD:Bird_Nest')], closeTo(6, 0.1));
     });
 
     test('accounts for mastery level doubling chance', () {
@@ -126,7 +160,7 @@ void main() {
       );
 
       final itemsPerHour = timeAway.itemsGainedPerHour;
-      expect(itemsPerHour['Normal Logs'], 1680);
+      expect(itemsPerHour[MelvorId('melvorD:Normal_Logs')], 1680);
     });
   });
 }

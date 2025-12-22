@@ -57,7 +57,7 @@ class Rates {
 
   /// Expected item flows per tick: item name -> expected count per tick.
   /// Includes both action outputs and skill-level/global drops.
-  final Map<String, double> itemFlowsPerTick;
+  final Map<MelvorId, double> itemFlowsPerTick;
 
   /// Expected XP per tick for each skill from current activity.
   final Map<Skill, double> xpPerTickBySkill;
@@ -144,7 +144,7 @@ int? ticksUntilNextMasteryLevel(GlobalState state, Rates rates) {
 /// Returns a map of item name -> expected count per action.
 /// Uses allDropsForAction which includes action outputs (via rewardsAtLevel),
 /// skill-level drops, and global drops.
-Map<String, double> _computeItemFlowsPerAction(
+Map<MelvorId, double> _computeItemFlowsPerAction(
   DropsRegistry drops,
   SkillAction action,
   int masteryLevel,
@@ -227,7 +227,7 @@ Rates estimateRates(GlobalState state) {
     final hpLossPerTick = expectedDamagePerAttempt / effectiveTicks;
 
     // Convert item flows per action to per tick (drops only on success)
-    final itemFlowsPerTick = <String, double>{};
+    final itemFlowsPerTick = <MelvorId, double>{};
     for (final entry in itemFlowsPerAction.entries) {
       itemFlowsPerTick[entry.key] =
           entry.value * successChance / effectiveTicks;
@@ -262,7 +262,7 @@ Rates estimateRates(GlobalState state) {
 
   // Non-thieving actions: no direct GP, all value comes from items
   // Convert item flows per action to per tick
-  final itemFlowsPerTick = <String, double>{};
+  final itemFlowsPerTick = <MelvorId, double>{};
   for (final entry in itemFlowsPerAction.entries) {
     itemFlowsPerTick[entry.key] = entry.value / expectedTicks;
   }

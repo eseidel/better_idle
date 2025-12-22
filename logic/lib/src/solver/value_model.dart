@@ -22,6 +22,7 @@
 /// - A/B test different valuation policies
 library;
 
+import 'package:logic/src/data/melvor_id.dart';
 import 'package:logic/src/state.dart';
 import 'package:meta/meta.dart';
 
@@ -46,7 +47,7 @@ abstract class ValueModel {
 
   /// Per-item valuation (sell price, shadow price, etc.)
   /// Used to compute expected value from item flows.
-  double itemValue(GlobalState state, String itemId);
+  double itemValue(GlobalState state, MelvorId itemId);
 }
 
 /// ValueModel that sells all item outputs at their shop sell price.
@@ -58,8 +59,8 @@ class SellEverythingForGpValueModel extends ValueModel {
   const SellEverythingForGpValueModel();
 
   @override
-  double itemValue(GlobalState state, String itemId) {
-    return state.registries.items.byName(itemId).sellsFor.toDouble();
+  double itemValue(GlobalState state, MelvorId itemId) {
+    return state.registries.items.byId(itemId).sellsFor.toDouble();
   }
 
   @override
@@ -81,10 +82,10 @@ class ShadowPriceValueModel extends ValueModel {
   const ShadowPriceValueModel();
 
   @override
-  double itemValue(GlobalState state, String itemId) {
+  double itemValue(GlobalState state, MelvorId itemId) {
     // TODO(future): Implement shadow pricing based on unlocks/recipes
     // For now, fall back to sell price
-    return state.registries.items.byName(itemId).sellsFor.toDouble();
+    return state.registries.items.byId(itemId).sellsFor.toDouble();
   }
 
   @override

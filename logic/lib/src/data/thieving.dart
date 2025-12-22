@@ -8,34 +8,91 @@ import 'package:meta/meta.dart';
 /// Duration for all thieving actions.
 const thievingDuration = Duration(seconds: 3);
 
+// TODO(eseidel): Confirm these rates from Melvor wiki or game source.
+/// Drop rate for area unique drops (e.g., Crate of Basic Supplies).
+const double areaUniqueDropRate = 1 / 500;
+
+/// Chance that a thieving loot table drops something (vs nothing).
+const double lootTableDropChance = 0.75;
+
 /// Thieving area - groups NPCs together.
 /// May include area-level drops that apply to all NPCs in the area.
 @immutable
 class ThievingArea {
-  const ThievingArea(this.name, {this.drops = const []});
+  const ThievingArea({
+    required this.id,
+    required this.name,
+    required this.npcIds,
+    this.uniqueDrops = const [],
+  });
 
+  factory ThievingArea.fromJson(
+    Map<String, dynamic> json, {
+    required String namespace,
+  }) {
+    final npcIds = (json['npcIDs'] as List<dynamic>)
+        .map(
+          (id) => MelvorId.fromJsonWithNamespace(
+            id as String,
+            defaultNamespace: namespace,
+          ),
+        )
+        .toList();
+
+    final uniqueDropsJson = json['uniqueDrops'] as List<dynamic>? ?? [];
+    final uniqueDrops = <Drop>[];
+    for (final dropJson in uniqueDropsJson) {
+      final dropMap = dropJson as Map<String, dynamic>;
+      final itemId = MelvorId.fromJsonWithNamespace(
+        dropMap['id'] as String,
+        defaultNamespace: namespace,
+      );
+      final quantity = dropMap['quantity'] as int? ?? 1;
+      uniqueDrops.add(Drop(itemId, count: quantity, rate: areaUniqueDropRate));
+    }
+
+    return ThievingArea(
+      id: MelvorId.fromJsonWithNamespace(
+        json['id'] as String,
+        defaultNamespace: namespace,
+      ),
+      name: json['name'] as String,
+      npcIds: npcIds,
+      uniqueDrops: uniqueDrops,
+    );
+  }
+
+  final MelvorId id;
   final String name;
+  final List<MelvorId> npcIds;
 
   /// Drops that apply to all NPCs in this area.
-  final List<Droppable> drops;
+  final List<Drop> uniqueDrops;
 }
 
-final _thievingAreas = <ThievingArea>[
-  ThievingArea('Low Town', drops: [Drop('Jeweled Necklace', rate: 1 / 500)]),
-  ThievingArea(
-    'Golbin Village',
-    drops: [Drop('Crate of Basic Supplies', rate: 1 / 500)],
-  ),
-];
+/// Registry for thieving areas.
+class ThievingAreaRegistry {
+  ThievingAreaRegistry(List<ThievingArea> areas) : _areas = areas;
 
-ThievingArea _thievingAreaByName(String name) {
-  return _thievingAreas.firstWhere((a) => a.name == name);
+  final List<ThievingArea> _areas;
+
+  /// Returns the thieving area containing the given NPC ID.
+  ///
+  /// Throws [StateError] if the NPC is not found in any area.
+  ThievingArea areaForNpc(MelvorId npcId) {
+    for (final area in _areas) {
+      if (area.npcIds.contains(npcId)) {
+        return area;
+      }
+    }
+    throw StateError('Thieving NPC $npcId has no area');
+  }
 }
 
 // TODO(eseidel): roll this into defaultRewards?
 List<Droppable> _thievingRewards(SkillAction action, int masteryLevel) {
   final thievingAction = action as ThievingAction;
-  final areaDrops = thievingAction.area.drops;
+  final areaDrops = thievingAction.area.uniqueDrops;
   final actionDropTable = thievingAction.dropTable;
   if (actionDropTable != null) {
     return [actionDropTable, ...areaDrops];
@@ -63,11 +120,67 @@ class ThievingAction extends SkillAction {
     required this.area,
     super.outputs = const {},
     this.dropTable,
+    this.media,
   }) : super(
          skill: Skill.thieving,
          duration: thievingDuration,
          rewardsAtLevel: _thievingRewards,
        );
+
+  factory ThievingAction.fromJson(
+    Map<String, dynamic> json, {
+    required String namespace,
+    required ThievingArea area,
+  }) {
+    // Parse currency drops to get max gold.
+    final currencyDrops = json['currencyDrops'] as List<dynamic>? ?? [];
+    var maxGold = 0;
+    for (final drop in currencyDrops) {
+      final dropMap = drop as Map<String, dynamic>;
+      final currencyId = dropMap['id'] as String;
+      if (currencyId == 'melvorD:GP') {
+        maxGold = dropMap['quantity'] as int;
+        break;
+      }
+    }
+
+    // Parse loot table using DropTableEntry.
+    final lootTableJson = json['lootTable'] as List<dynamic>? ?? [];
+    Droppable? dropTable;
+    if (lootTableJson.isNotEmpty) {
+      final entries = lootTableJson
+          .map(
+            (lootJson) => DropTableEntry.fromThievingJson(
+              lootJson as Map<String, dynamic>,
+              namespace: namespace,
+            ),
+          )
+          .toList();
+      dropTable = DropChance(DropTable(entries), rate: lootTableDropChance);
+    }
+
+    // maxHit in JSON is in units of 10 HP (e.g., 2.2 = 22 damage).
+    final maxHitRaw = json['maxHit'];
+    final maxHit = maxHitRaw is int
+        ? maxHitRaw * 10
+        : ((maxHitRaw as double) * 10).round();
+
+    return ThievingAction(
+      id: MelvorId.fromJsonWithNamespace(
+        json['id'] as String,
+        defaultNamespace: namespace,
+      ),
+      name: json['name'] as String,
+      unlockLevel: json['level'] as int,
+      xp: json['baseExperience'] as int,
+      perception: json['perception'] as int,
+      maxHit: maxHit,
+      maxGold: maxGold,
+      area: area,
+      dropTable: dropTable,
+      media: json['media'] as String?,
+    );
+  }
 
   /// NPC perception - used to calculate success rate.
   final int perception;
@@ -83,6 +196,9 @@ class ThievingAction extends SkillAction {
 
   /// The drop table for this NPC.
   final Droppable? dropTable;
+
+  /// The media path for the NPC icon.
+  final String? media;
 
   /// Rolls damage dealt on failure (1 to maxHit inclusive).
   int rollDamage(Random random) {
@@ -117,94 +233,4 @@ const int baseStealth = 40;
 /// Stealth = 40 + thieving level + action mastery level
 int calculateStealth(int thievingLevel, int actionMasteryLevel) {
   return baseStealth + thievingLevel + actionMasteryLevel;
-}
-
-ThievingAction _thieving(
-  String name, {
-  required int level,
-  required int xp,
-  required int perception,
-  required int maxHit,
-  required int maxGold,
-  required String area,
-  Droppable? dropTable,
-}) {
-  return ThievingAction(
-    id: MelvorId.fromName(name),
-    name: name,
-    unlockLevel: level,
-    xp: xp,
-    perception: perception,
-    maxHit: maxHit,
-    maxGold: maxGold,
-    area: _thievingAreaByName(area),
-    dropTable: dropTable,
-  );
-}
-
-final thievingActions = <ThievingAction>[
-  _thieving(
-    'Man',
-    level: 1,
-    xp: 5,
-    perception: 110,
-    maxHit: 22,
-    maxGold: 100,
-    area: 'Low Town',
-  ),
-  _thieving(
-    'Woman',
-    level: 4,
-    xp: 7,
-    perception: 140,
-    maxHit: 32,
-    maxGold: 150,
-    area: 'Low Town',
-  ),
-  _thieving(
-    'Golbin',
-    level: 8,
-    xp: 10,
-    perception: 175,
-    maxHit: 40,
-    maxGold: 175,
-    area: 'Golbin Village',
-
-    /// Golbin drop table - 75% chance to get an item, 25% nothing.
-    /// Fractions expressed with common denominator 1048:
-    /// - 150/1048 each: Copper Ore, Bronze Bar, Normal Logs, Tin Ore (14.31%)
-    /// - 45/1048 each: Oak Logs, Iron Bar (4.29%)
-    /// - 36/1048: Iron Ore (3.44%)
-    /// - 30/1048 each: Steel Bar, Willow Logs (2.86%)
-    /// Total: 786/1048 = 393/524 ≈ 75%
-    // TODO(eseidel): express this exactly as the wiki does.
-    dropTable: DropChance(
-      DropTable([
-        Pick('Copper Ore', weight: 150), // 75/524 = 150/1048
-        Pick('Bronze Bar', weight: 150), // 75/524 = 150/1048
-        Pick('Normal Logs', weight: 150), // 75/524 = 150/1048
-        Pick('Tin Ore', weight: 150), // 75/524 = 150/1048
-        Pick('Oak Logs', weight: 45), // 45/1048
-        Pick('Iron Bar', weight: 45), // 45/1048
-        Pick('Iron Ore', weight: 36), // 9/262 = 36/1048
-        Pick('Steel Bar', weight: 30), // 15/524 = 30/1048
-        Pick('Willow Logs', weight: 30), // 15/524 = 30/1048
-      ]),
-      rate: 786 / 1048, // 75% chance of any drop
-    ),
-  ),
-  _thieving(
-    'Golbin Chief',
-    level: 16,
-    xp: 18,
-    perception: 280,
-    maxHit: 101,
-    maxGold: 275,
-    area: 'Golbin Village',
-  ),
-];
-
-/// Look up a ThievingAction by name.
-ThievingAction thievingActionByName(String name) {
-  return thievingActions.firstWhere((action) => action.name == name);
 }

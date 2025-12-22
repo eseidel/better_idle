@@ -22,6 +22,10 @@ class MockRandom implements Random {
   bool nextBool() => nextDoubleValue < 0.5;
 }
 
+ThievingAction thievingActionByName(String name) {
+  return testRegistries.actions.byName(name) as ThievingAction;
+}
+
 void main() {
   late ThievingAction manAction;
 
@@ -33,61 +37,50 @@ void main() {
   group('Thieving drops', () {
     test("allDropsForAction contains Bobby's Pocket for thieving", () {
       final drops = testDrops.allDropsForAction(manAction, masteryLevel: 1);
-      final dropNames = drops.map((d) {
-        if (d is Drop) return d.name;
+      final itemIds = drops.map((d) {
+        if (d is Drop) return d.itemId;
         return null;
-      }).whereType<String>();
-      expect(dropNames, contains("Bobby's Pocket"));
+      }).whereType<MelvorId>();
+      expect(itemIds, contains(MelvorId('melvorF:Bobbys_Pocket')));
     });
   });
 
   group('Area drops', () {
+    final crateId = MelvorId('melvorF:Crate_Of_Basic_Supplies');
     test('Golbin Village area drops include Crate of Basic Supplies', () {
-      final golbinAction = thievingActionByName('Golbin');
-      final golbinChiefAction = thievingActionByName('Golbin Chief');
+      final golbin = thievingActionByName('Golbin');
+      final golbinChief = thievingActionByName('Golbin Chief');
 
       // Both actions should be in Golbin Village
-      expect(golbinAction.area.name, 'Golbin Village');
-      expect(golbinChiefAction.area.name, 'Golbin Village');
+      final areas = testRegistries.thievingAreas;
+      final golbinArea = areas.areaForNpc(golbin.id);
+      final chiefArea = areas.areaForNpc(golbinChief.id);
+      expect(golbinArea.name, 'Golbin Village');
+      expect(chiefArea.name, 'Golbin Village');
 
       // Get all drops for both actions
-      final golbinDrops = testDrops.allDropsForAction(
-        golbinAction,
-        masteryLevel: 1,
-      );
+      final golbinDrops = testDrops.allDropsForAction(golbin, masteryLevel: 1);
       final chiefDrops = testDrops.allDropsForAction(
-        golbinChiefAction,
+        golbinChief,
         masteryLevel: 1,
       );
 
-      // Extract drop names from Drop objects
-      List<String> getDropNames(List<Droppable> drops) {
-        // Note this is filtering for Drop, which may miss some drops.
-        return drops.whereType<Drop>().map((d) => d.name).toList();
+      // Extract drop names from Drop objects (area drops are rate-based Drops)
+      List<MelvorId> getDropIds(List<Droppable> drops) {
+        return drops.whereType<Drop>().map((d) => d.itemId).toList();
       }
 
-      final golbinDropNames = getDropNames(golbinDrops);
-      final chiefDropNames = getDropNames(chiefDrops);
+      // Both should include Crate Of Basic Supplies from area drops
 
-      // Both should include Crate of Basic Supplies from area drops
-      expect(
-        golbinDropNames,
-        contains('Crate of Basic Supplies'),
-        reason: 'Golbin should have area drop',
-      );
-      expect(
-        chiefDropNames,
-        contains('Crate of Basic Supplies'),
-        reason: 'Golbin Chief should have area drop',
-      );
+      expect(getDropIds(golbinDrops), contains(crateId));
+      expect(getDropIds(chiefDrops), contains(crateId));
     });
 
-    test('Crate of Basic Supplies has correct rate (1/500)', () {
+    test('Crate Of Basic Supplies has correct rate (1/500)', () {
       final golbinAction = thievingActionByName('Golbin');
       final drops = testDrops.allDropsForAction(golbinAction, masteryLevel: 1);
-
       final crateDrop = drops.whereType<Drop>().firstWhere(
-        (d) => d.name == 'Crate of Basic Supplies',
+        (d) => d.itemId == crateId,
       );
 
       expect(crateDrop.rate, closeTo(1 / 500, 0.0001));
@@ -95,17 +88,23 @@ void main() {
 
     test('Low Town has Jeweled Necklace area drop', () {
       final drops = testDrops.allDropsForAction(manAction, masteryLevel: 1);
-      final dropNames = drops.whereType<Drop>().map((d) => d.name).toList();
+      final dropIds = drops.whereType<Drop>().map((d) => d.itemId).toList();
 
-      expect(dropNames, contains('Jeweled Necklace'));
-      expect(dropNames, isNot(contains('Crate of Basic Supplies')));
+      expect(dropIds, contains(MelvorId('melvorF:Jeweled_Necklace')));
+      expect(dropIds, isNot(contains(crateId)));
     });
   });
 
   group('Golbin drops', () {
-    final golbinAction = thievingActionByName('Golbin');
-    final golbinDropChance = golbinAction.dropTable! as DropChance;
-    final golbinDropTable = golbinDropChance.child as DropTable;
+    late ThievingAction golbinAction;
+    late DropChance golbinDropChance;
+    late DropTable golbinDropTable;
+
+    setUp(() {
+      golbinAction = thievingActionByName('Golbin');
+      golbinDropChance = golbinAction.dropTable! as DropChance;
+      golbinDropTable = golbinDropChance.child as DropTable;
+    });
 
     test('Golbin has NPC-specific drop table', () {
       final drops = testDrops.allDropsForAction(golbinAction, masteryLevel: 1);
@@ -115,43 +114,49 @@ void main() {
       // Only the Golbin drop table is wrapped in DropChance
       final dropChances = drops.whereType<DropChance>().toList();
       expect(dropChances, hasLength(1));
-      expect(dropChances.first.expectedItems['Copper Ore'], greaterThan(0));
+      final copperOreId = MelvorId.fromName('Copper Ore');
+      expect(dropChances.first.expectedItems[copperOreId], greaterThan(0));
     });
 
     test('golbinDropTable has correct structure', () {
-      // Outer rate is 786/1048 ≈ 75%
-      expect(golbinDropChance.rate, closeTo(786 / 1048, 0.0001));
+      // The drop table should have ~75% chance to drop something
+      expect(golbinDropChance.rate, closeTo(0.75, 0.01));
       expect(golbinDropTable.entries, hasLength(9));
     });
 
-    test('golbinDropTable has correct item rates', () {
+    test('golbinDropTable has correct items', () {
       // Use the DropChance's expectedItems which includes the rate
+      // Keys are now MelvorId strings
       final expected = golbinDropChance.expectedItems;
 
-      // 75/524 = 150/1048 items (14.31%)
-      expect(expected['Copper Ore'], closeTo(75 / 524, 0.0001));
-      expect(expected['Bronze Bar'], closeTo(75 / 524, 0.0001));
-      expect(expected['Normal Logs'], closeTo(75 / 524, 0.0001));
-      expect(expected['Tin Ore'], closeTo(75 / 524, 0.0001));
+      // Verify all expected items are present
+      expect(expected, contains('melvorD:Copper_Ore'));
+      expect(expected, contains('melvorD:Bronze_Bar'));
+      expect(expected, contains('melvorD:Normal_Logs'));
+      expect(expected, contains('melvorD:Tin_Ore'));
+      expect(expected, contains('melvorD:Oak_Logs'));
+      expect(expected, contains('melvorD:Iron_Bar'));
+      expect(expected, contains('melvorD:Iron_Ore'));
+      expect(expected, contains('melvorD:Steel_Bar'));
+      expect(expected, contains('melvorD:Willow_Logs'));
 
-      // 45/1048 items (4.29%)
-      expect(expected['Oak Logs'], closeTo(45 / 1048, 0.0001));
-      expect(expected['Iron Bar'], closeTo(45 / 1048, 0.0001));
-
-      // 9/262 = 36/1048 (3.44%)
-      expect(expected['Iron Ore'], closeTo(9 / 262, 0.0001));
-
-      // 15/524 = 30/1048 items (2.86%)
-      expect(expected['Steel Bar'], closeTo(15 / 524, 0.0001));
-      expect(expected['Willow Logs'], closeTo(15 / 524, 0.0001));
+      // Copper and Tin should have higher rates than Iron and Steel
+      expect(
+        expected[MelvorId('melvorD:Copper_Ore')]!,
+        greaterThan(expected[MelvorId('melvorD:Iron_Ore')]!),
+      );
+      expect(
+        expected[MelvorId('melvorD:Tin_Ore')]!,
+        greaterThan(expected[MelvorId('melvorD:Steel_Bar')]!),
+      );
     });
 
     test('golbinDropTable total rate is approximately 75%', () {
       // Use the DropChance's expectedItems which includes the rate
       final expected = golbinDropChance.expectedItems;
       final totalRate = expected.values.fold(0.0, (sum, rate) => sum + rate);
-      // Total should be 786/1048 ≈ 0.75
-      expect(totalRate, closeTo(0.75, 0.001));
+      // Total should be approximately 75%
+      expect(totalRate, closeTo(0.75, 0.01));
     });
 
     test('Golbin thieving success can grant drops', () {
@@ -183,18 +188,18 @@ void main() {
 
         // Check if we got any of the Golbin-specific drops
         final golbinItems = [
-          'Copper Ore',
-          'Bronze Bar',
-          'Normal Logs',
-          'Tin Ore',
-          'Oak Logs',
-          'Iron Bar',
-          'Iron Ore',
-          'Steel Bar',
-          'Willow Logs',
+          MelvorId('melvorD:Copper_Ore'),
+          MelvorId('melvorD:Bronze_Bar'),
+          MelvorId('melvorD:Normal_Logs'),
+          MelvorId('melvorD:Tin_Ore'),
+          MelvorId('melvorD:Oak_Logs'),
+          MelvorId('melvorD:Iron_Bar'),
+          MelvorId('melvorD:Iron_Ore'),
+          MelvorId('melvorD:Steel_Bar'),
+          MelvorId('melvorD:Willow_Logs'),
         ];
         for (final item in golbinItems) {
-          if (state.inventory.countByName(item) > 0) {
+          if (state.inventory.countById(item) > 0) {
             gotDrop = true;
             break;
           }

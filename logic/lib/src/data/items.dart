@@ -7,6 +7,7 @@ import 'package:logic/src/types/inventory.dart';
 import 'package:meta/meta.dart';
 
 /// An entry in a drop table from the Melvor JSON data.
+/// Used for weighted drops within a DropTable.
 @immutable
 class DropTableEntry extends Equatable {
   const DropTableEntry({
@@ -26,12 +27,28 @@ class DropTableEntry extends Equatable {
        minQuantity = min,
        maxQuantity = max;
 
-  /// Creates a DropTableEntry from a JSON map.
+  /// Creates a DropTableEntry from a JSON map (standard format).
   factory DropTableEntry.fromJson(Map<String, dynamic> json) {
     return DropTableEntry(
       itemID: MelvorId.fromJson(json['itemID'] as String),
       minQuantity: json['minQuantity'] as int,
       maxQuantity: json['maxQuantity'] as int,
+      weight: json['weight'] as int,
+    );
+  }
+
+  /// Creates a DropTableEntry from thieving loot table JSON format.
+  factory DropTableEntry.fromThievingJson(
+    Map<String, dynamic> json, {
+    required String namespace,
+  }) {
+    return DropTableEntry(
+      itemID: MelvorId.fromJsonWithNamespace(
+        json['itemID'] as String,
+        defaultNamespace: namespace,
+      ),
+      minQuantity: json['minQuantity'] as int? ?? 1,
+      maxQuantity: json['maxQuantity'] as int? ?? 1,
       weight: json['weight'] as int,
     );
   }
@@ -51,16 +68,7 @@ class DropTableEntry extends Equatable {
   /// The weight of this entry in the drop table.
   final int weight;
 
-  String get name => itemID.name;
-
-  @override
-  List<Object?> get props => [itemID, minQuantity, maxQuantity, weight];
-
-  @override
-  String toString() =>
-      'DropTableEntry($itemID, $minQuantity-$maxQuantity, weight: $weight)';
-
-  /// Creates the ItemStack when this pick is selected.
+  /// Creates the ItemStack when this entry is selected/rolled.
   ItemStack roll(ItemRegistry items, Random random) {
     final count = minQuantity == maxQuantity
         ? minQuantity
@@ -68,6 +76,9 @@ class DropTableEntry extends Equatable {
     final item = items.byId(itemID);
     return ItemStack(item, count: count);
   }
+
+  @override
+  List<Object?> get props => [itemID, minQuantity, maxQuantity, weight];
 }
 
 /// An item loaded from the Melvor game data.

@@ -12,12 +12,12 @@ abstract class Droppable {
   ItemStack? roll(ItemRegistry items, Random random);
 
   /// Returns the expected items per action for prediction purposes.
-  /// Maps item name to expected count (rate * count for simple drops).
-  Map<String, double> get expectedItems;
+  /// Maps MelvorId string to expected count (rate * count for simple drops).
+  Map<MelvorId, double> get expectedItems;
 }
 
-Map<String, double> expectedItemsForDrops(List<Droppable> drops) {
-  final result = <String, double>{};
+Map<MelvorId, double> expectedItemsForDrops(List<Droppable> drops) {
+  final result = <MelvorId, double>{};
   for (final drop in drops) {
     final expectedItems = drop.expectedItems;
     for (final entry in expectedItems.entries) {
@@ -29,10 +29,15 @@ Map<String, double> expectedItemsForDrops(List<Droppable> drops) {
 
 /// A single item drop with an optional activation rate.
 class Drop extends Droppable {
-  /// Creates a drop with a fixed count (default 1).
-  const Drop(this.name, {this.count = 1, this.rate = 1.0})
+  /// Creates a drop from a MelvorId.
+  const Drop(this.itemId, {this.count = 1, this.rate = 1.0})
     : assert(count > 0, 'Count must be greater than 0');
-  final String name;
+
+  /// Creates a drop from a string name (convenience constructor).
+  Drop.fromName(String name, {int count = 1, double rate = 1.0})
+    : this(MelvorId.fromName(name), count: count, rate: rate);
+
+  final MelvorId itemId;
 
   /// The chance this drop is triggered (0.0 to 1.0).
   final double rate;
@@ -40,11 +45,11 @@ class Drop extends Droppable {
   final int count;
 
   @override
-  Map<String, double> get expectedItems => {name: count * rate};
+  Map<MelvorId, double> get expectedItems => {itemId: count * rate};
 
   /// Creates an ItemStack with a fixed count (for fixed drops).
   ItemStack toItemStack(ItemRegistry items) {
-    final item = items.byName(name);
+    final item = items.byId(itemId);
     return ItemStack(item, count: count);
   }
 
@@ -75,7 +80,7 @@ class DropChance extends Droppable {
   }
 
   @override
-  Map<String, double> get expectedItems {
+  Map<MelvorId, double> get expectedItems {
     final childItems = child.expectedItems;
     return childItems.map((key, value) => MapEntry(key, value * rate));
   }
@@ -104,13 +109,14 @@ class DropTable extends Droppable {
   double get _totalWeight => entries.fold(0, (sum, e) => sum + e.weight);
 
   @override
-  Map<String, double> get expectedItems {
-    final result = <String, double>{};
+  Map<MelvorId, double> get expectedItems {
+    final result = <MelvorId, double>{};
     final total = _totalWeight;
     for (final entry in entries) {
       final probability = entry.weight / total;
       final value = entry.expectedCount * probability;
-      result[entry.name] = (result[entry.name] ?? 0.0) + value;
+      final key = entry.itemID;
+      result[key] = (result[key] ?? 0.0) + value;
     }
     return result;
   }
@@ -123,6 +129,7 @@ class DropTable extends Droppable {
     for (final entry in entries) {
       roll -= entry.weight;
       if (roll <= 0) {
+        // In a DropTable, entries always have rate = 1.0, so roll never returns null.
         return entry.roll(items, random);
       }
     }

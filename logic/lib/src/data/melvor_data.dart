@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'actions.dart';
 import 'cache.dart';
+import 'melvor_id.dart';
 
 /// Parsed representation of the Melvor game data.
 ///
@@ -23,11 +24,12 @@ class MelvorData {
   ///
   /// Items from later files override items from earlier files with the same name.
   /// Skill data from later files is merged with earlier files by skillID.
-  MelvorData(List<Map<String, dynamic>> dataFiles) : _rawDataFiles = dataFiles {
+  MelvorData(List<Map<String, dynamic>> dataFiles) {
     final items = <Item>[];
     final actions = <Action>[];
     final fishingAreas = <FishingArea>[];
     final smithingCategories = <SmithingCategory>[];
+    final thievingAreas = <ThievingArea>[];
     for (final json in dataFiles) {
       final namespace = json['namespace'] as String;
       _addDataFromJson(json, namespace: namespace, items: items);
@@ -36,18 +38,27 @@ class MelvorData {
       smithingCategories.addAll(
         parseSmithingCategories(json, namespace: namespace),
       );
+      thievingAreas.addAll(parseThievingAreas(json, namespace: namespace));
     }
     _items = ItemRegistry(items);
+    _thievingAreas = ThievingAreaRegistry(thievingAreas);
+    // Parse thieving actions after areas are available.
+    for (final json in dataFiles) {
+      final namespace = json['namespace'] as String;
+      actions.addAll(
+        parseThievingActions(json, namespace: namespace, areas: _thievingAreas),
+      );
+    }
     _actions = ActionRegistry(actions + hardCodedActions);
     _fishingAreas = FishingAreaRegistry(fishingAreas);
     _smithingCategories = SmithingCategoryRegistry(smithingCategories);
   }
 
-  final List<Map<String, dynamic>> _rawDataFiles;
   late final ItemRegistry _items;
   late final ActionRegistry _actions;
   late final FishingAreaRegistry _fishingAreas;
   late final SmithingCategoryRegistry _smithingCategories;
+  late final ThievingAreaRegistry _thievingAreas;
   final Map<String, Map<String, dynamic>> _skillDataById = {};
 
   /// Returns the item registry.
@@ -59,9 +70,7 @@ class MelvorData {
 
   SmithingCategoryRegistry get smithingCategories => _smithingCategories;
 
-  /// Returns all raw data files.
-  /// Used for accessing skillData and other non-item data.
-  List<Map<String, dynamic>> get rawDataFiles => _rawDataFiles;
+  ThievingAreaRegistry get thievingAreas => _thievingAreas;
 
   void _addDataFromJson(
     Map<String, dynamic> json, {
@@ -299,6 +308,87 @@ List<SmithingCategory> parseSmithingCategories(
             ),
           )
           .toList();
+    }
+  }
+
+  return [];
+}
+
+List<ThievingArea> parseThievingAreas(
+  Map<String, dynamic> json, {
+  required String namespace,
+}) {
+  final data = json['data'] as Map<String, dynamic>?;
+  if (data == null) {
+    return [];
+  }
+
+  final skillData = data['skillData'] as List<dynamic>?;
+  if (skillData == null) {
+    return [];
+  }
+
+  for (final skill in skillData) {
+    if (skill is! Map<String, dynamic>) continue;
+    final skillId = skill['skillID'] as String?;
+    if (skillId != 'melvorD:Thieving') continue;
+
+    final skillContent = skill['data'] as Map<String, dynamic>?;
+    if (skillContent == null) continue;
+
+    final areas = skillContent['areas'] as List<dynamic>?;
+    if (areas != null) {
+      return areas
+          .map(
+            (json) => ThievingArea.fromJson(
+              json as Map<String, dynamic>,
+              namespace: namespace,
+            ),
+          )
+          .toList();
+    }
+  }
+
+  return [];
+}
+
+List<ThievingAction> parseThievingActions(
+  Map<String, dynamic> json, {
+  required String namespace,
+  required ThievingAreaRegistry areas,
+}) {
+  final data = json['data'] as Map<String, dynamic>?;
+  if (data == null) {
+    return [];
+  }
+
+  final skillData = data['skillData'] as List<dynamic>?;
+  if (skillData == null) {
+    return [];
+  }
+
+  for (final skill in skillData) {
+    if (skill is! Map<String, dynamic>) continue;
+    final skillId = skill['skillID'] as String?;
+    if (skillId != 'melvorD:Thieving') continue;
+
+    final skillContent = skill['data'] as Map<String, dynamic>?;
+    if (skillContent == null) continue;
+
+    final npcs = skillContent['npcs'] as List<dynamic>?;
+    if (npcs != null) {
+      return npcs.map((npcJson) {
+        final npcMap = npcJson as Map<String, dynamic>;
+        final npcId = MelvorId.fromJsonWithNamespace(
+          npcMap['id'] as String,
+          defaultNamespace: namespace,
+        );
+        return ThievingAction.fromJson(
+          npcMap,
+          namespace: namespace,
+          area: areas.areaForNpc(npcId),
+        );
+      }).toList();
     }
   }
 

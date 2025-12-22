@@ -25,14 +25,22 @@ class _ThievingPageState extends State<ThievingPage> {
     final skillState = context.state.skillState(skill);
     final playerHp = context.state.playerHp;
     final maxPlayerHp = context.state.maxPlayerHp;
+    final registries = context.state.registries;
+
+    // Get all thieving actions from the registry
+    final thievingActions = registries.actions
+        .forSkill(Skill.thieving)
+        .whereType<ThievingAction>()
+        .toList();
 
     // Default to first action if none selected
     final selectedAction = _selectedAction ?? thievingActions.first;
 
-    // Group actions by area
+    // Group actions by area using the ThievingAreaRegistry
     final actionsByArea = <ThievingArea, List<ThievingAction>>{};
     for (final action in thievingActions) {
-      actionsByArea.putIfAbsent(action.area, () => []).add(action);
+      final area = registries.thievingAreas.areaForNpc(action.id);
+      actionsByArea.putIfAbsent(area, () => []).add(action);
     }
 
     return Scaffold(
