@@ -90,10 +90,11 @@ class Style {
   static Color foodSlotFilledColor = Colors.green.shade500;
   static Color foodSlotEmptyColor = Colors.grey.shade600;
 
+  // Category/area header color (used in fishing, thieving, smithing, etc.)
+  static Color categoryHeaderColor = Colors.blueGrey.shade600;
+
   // Thieving specific colors
-  static Color thievingAreaHeaderColor = Colors.blueGrey.shade100;
   static Color thievingNpcUnlockedColor = Colors.grey.shade200;
-  static Color fishingAreaHeaderColor = Colors.blueGrey.shade100;
   static Color fishingAreaSelectedColor = Colors.blueGrey.shade700;
 
   // Shop colors

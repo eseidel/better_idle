@@ -58,49 +58,36 @@ class TextBadgeCell extends StatelessWidget {
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        // Main container with InkWell inside, forced to be square
-        Expanded(
-          child: Center(
-            child: AspectRatio(
-              aspectRatio: 1,
-              child: Stack(
-                clipBehavior: Clip.none,
-                children: [
-                  Material(
-                    color: backgroundColor,
+        // Main container with InkWell inside
+        Stack(
+          clipBehavior: Clip.none,
+          children: [
+            Material(
+              color: backgroundColor,
+              borderRadius: BorderRadius.circular(radius),
+              child: InkWell(
+                onTap: onTap,
+                borderRadius: BorderRadius.circular(radius),
+                child: Container(
+                  decoration: BoxDecoration(
                     borderRadius: BorderRadius.circular(radius),
-                    child: InkWell(
-                      onTap: onTap,
-                      borderRadius: BorderRadius.circular(radius),
-                      child: Container(
-                        decoration: BoxDecoration(
-                          borderRadius: BorderRadius.circular(radius),
-                          border: Border.all(
-                            color: effectiveBorderColor,
-                            width: 2,
-                          ),
-                        ),
-                        child: child,
-                      ),
-                    ),
+                    border: Border.all(color: effectiveBorderColor, width: 2),
                   ),
-                  // Text badge overlapping the bottom border
-                  if (text != null)
-                    Positioned(
-                      bottom: -badgeOverlap,
-                      left: 0,
-                      right: 0,
-                      child: Center(
-                        child: _buildTextBadge(
-                          text: text!,
-                          badgeHeight: badgeHeight,
-                        ),
-                      ),
-                    ),
-                ],
+                  child: child,
+                ),
               ),
             ),
-          ),
+            // Text badge overlapping the bottom border
+            if (text != null)
+              Positioned(
+                bottom: -badgeOverlap,
+                left: 0,
+                right: 0,
+                child: Center(
+                  child: _buildTextBadge(text: text!, badgeHeight: badgeHeight),
+                ),
+              ),
+          ],
         ),
         // Reserve space for the badge overlap
         if (text != null) const SizedBox(height: badgeOverlap),

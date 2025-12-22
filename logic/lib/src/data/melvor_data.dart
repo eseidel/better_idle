@@ -27,21 +27,27 @@ class MelvorData {
     final items = <Item>[];
     final actions = <Action>[];
     final fishingAreas = <FishingArea>[];
+    final smithingCategories = <SmithingCategory>[];
     for (final json in dataFiles) {
       final namespace = json['namespace'] as String;
       _addDataFromJson(json, namespace: namespace, items: items);
       actions.addAll(parseActions(json, namespace: namespace));
       fishingAreas.addAll(parseFishingAreas(json, namespace: namespace));
+      smithingCategories.addAll(
+        parseSmithingCategories(json, namespace: namespace),
+      );
     }
     _items = ItemRegistry(items);
     _actions = ActionRegistry(actions + hardCodedActions);
     _fishingAreas = FishingAreaRegistry(fishingAreas);
+    _smithingCategories = SmithingCategoryRegistry(smithingCategories);
   }
 
   final List<Map<String, dynamic>> _rawDataFiles;
   late final ItemRegistry _items;
   late final ActionRegistry _actions;
   late final FishingAreaRegistry _fishingAreas;
+  late final SmithingCategoryRegistry _smithingCategories;
   final Map<String, Map<String, dynamic>> _skillDataById = {};
 
   /// Returns the item registry.
@@ -50,6 +56,8 @@ class MelvorData {
   ActionRegistry get actions => _actions;
 
   FishingAreaRegistry get fishingAreas => _fishingAreas;
+
+  SmithingCategoryRegistry get smithingCategories => _smithingCategories;
 
   /// Returns all raw data files.
   /// Used for accessing skillData and other non-item data.
@@ -189,6 +197,18 @@ List<Action> parseActions(
             ),
           );
         }
+      case 'melvorD:Smithing':
+        final recipes = skillContent['recipes'] as List<dynamic>?;
+        if (recipes != null) {
+          actions.addAll(
+            recipes.map(
+              (json) => SmithingAction.fromJson(
+                json as Map<String, dynamic>,
+                namespace: namespace,
+              ),
+            ),
+          );
+        }
       default:
       // print('Unknown skill ID: $skillId');
     }
@@ -224,6 +244,44 @@ List<FishingArea> parseFishingAreas(
       return areas
           .map(
             (json) => FishingArea.fromJson(
+              json as Map<String, dynamic>,
+              namespace: namespace,
+            ),
+          )
+          .toList();
+    }
+  }
+
+  return [];
+}
+
+List<SmithingCategory> parseSmithingCategories(
+  Map<String, dynamic> json, {
+  required String namespace,
+}) {
+  final data = json['data'] as Map<String, dynamic>?;
+  if (data == null) {
+    return [];
+  }
+
+  final skillData = data['skillData'] as List<dynamic>?;
+  if (skillData == null) {
+    return [];
+  }
+
+  for (final skill in skillData) {
+    if (skill is! Map<String, dynamic>) continue;
+    final skillId = skill['skillID'] as String?;
+    if (skillId != 'melvorD:Smithing') continue;
+
+    final skillContent = skill['data'] as Map<String, dynamic>?;
+    if (skillContent == null) continue;
+
+    final categories = skillContent['categories'] as List<dynamic>?;
+    if (categories != null) {
+      return categories
+          .map(
+            (json) => SmithingCategory.fromJson(
               json as Map<String, dynamic>,
               namespace: namespace,
             ),

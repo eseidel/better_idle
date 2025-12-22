@@ -1,4 +1,5 @@
 import 'package:better_idle/src/logic/redux_actions.dart';
+import 'package:better_idle/src/widgets/cached_image.dart';
 import 'package:better_idle/src/widgets/context_extensions.dart';
 import 'package:better_idle/src/widgets/double_chance_badge_cell.dart';
 import 'package:better_idle/src/widgets/mastery_pool.dart';
@@ -18,13 +19,30 @@ class SmithingPage extends StatefulWidget {
 }
 
 class _SmithingPageState extends State<SmithingPage> {
-  SkillAction? _selectedAction;
+  SmithingAction? _selectedAction;
+  final Set<MelvorId> _collapsedCategories = {};
 
   @override
   Widget build(BuildContext context) {
     const skill = Skill.smithing;
-    final actions = context.state.registries.actions.forSkill(skill).toList();
+    final registries = context.state.registries;
+    final actions = registries.actions
+        .forSkill(skill)
+        .whereType<SmithingAction>()
+        .toList();
     final skillState = context.state.skillState(skill);
+    final categories = registries.smithingCategories;
+
+    // Group actions by category
+    final actionsByCategory = <SmithingCategory, List<SmithingAction>>{};
+    for (final action in actions) {
+      final category = action.categoryId != null
+          ? categories.byId(action.categoryId!)
+          : null;
+      if (category != null) {
+        actionsByCategory.putIfAbsent(category, () => []).add(action);
+      }
+    }
 
     // Default to first action if none selected
     final selectedAction = _selectedAction ?? actions.first;
@@ -51,11 +69,21 @@ class _SmithingPageState extends State<SmithingPage> {
                   ),
                   const SizedBox(height: 24),
                   _ActionList(
-                    actions: actions,
+                    actionsByCategory: actionsByCategory,
                     selectedAction: selectedAction,
+                    collapsedCategories: _collapsedCategories,
                     onSelect: (action) {
                       setState(() {
                         _selectedAction = action;
+                      });
+                    },
+                    onToggleCategory: (category) {
+                      setState(() {
+                        if (_collapsedCategories.contains(category.id)) {
+                          _collapsedCategories.remove(category.id);
+                        } else {
+                          _collapsedCategories.add(category.id);
+                        }
                       });
                     },
                   ),
@@ -238,14 +266,18 @@ class _InventoryItemList extends StatelessWidget {
 
 class _ActionList extends StatelessWidget {
   const _ActionList({
-    required this.actions,
+    required this.actionsByCategory,
     required this.selectedAction,
+    required this.collapsedCategories,
     required this.onSelect,
+    required this.onToggleCategory,
   });
 
-  final List<SkillAction> actions;
-  final SkillAction selectedAction;
-  final void Function(SkillAction) onSelect;
+  final Map<SmithingCategory, List<SmithingAction>> actionsByCategory;
+  final SmithingAction selectedAction;
+  final Set<MelvorId> collapsedCategories;
+  final void Function(SmithingAction) onSelect;
+  final void Function(SmithingCategory) onToggleCategory;
 
   @override
   Widget build(BuildContext context) {
@@ -257,22 +289,72 @@ class _ActionList extends StatelessWidget {
           style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
         ),
         const SizedBox(height: 8),
-        ...actions.map((action) {
-          final isSelected = action.name == selectedAction.name;
-          return Card(
-            color: isSelected ? Style.selectedColorLight : null,
-            child: ListTile(
-              title: Text(action.name),
-              subtitle: Text(
-                action.inputs.entries
-                    .map((e) => '${e.value}x ${e.key}')
-                    .join(', '),
+        ...actionsByCategory.entries.map((entry) {
+          final category = entry.key;
+          final actions = entry.value;
+          final isCollapsed = collapsedCategories.contains(category.id);
+
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              // Category header with collapse toggle
+              InkWell(
+                onTap: () => onToggleCategory(category),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 8,
+                  ),
+                  decoration: BoxDecoration(
+                    color: Style.categoryHeaderColor,
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(
+                        isCollapsed ? Icons.arrow_right : Icons.arrow_drop_down,
+                        size: 24,
+                      ),
+                      const SizedBox(width: 8),
+                      CachedImage(assetPath: category.media, size: 24),
+                      const SizedBox(width: 8),
+                      Text(
+                        category.name,
+                        style: const TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 14,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
               ),
-              trailing: isSelected
-                  ? const Icon(Icons.check_circle, color: Style.selectedColor)
-                  : null,
-              onTap: () => onSelect(action),
-            ),
+              // Actions list (if not collapsed)
+              if (!isCollapsed)
+                ...actions.map((action) {
+                  final isSelected = action.name == selectedAction.name;
+                  return Card(
+                    margin: const EdgeInsets.only(left: 16, top: 4, bottom: 4),
+                    color: isSelected ? Style.selectedColorLight : null,
+                    child: ListTile(
+                      title: Text(action.name),
+                      subtitle: Text(
+                        action.inputs.entries
+                            .map((e) => '${e.value}x ${e.key.name}')
+                            .join(', '),
+                      ),
+                      trailing: isSelected
+                          ? const Icon(
+                              Icons.check_circle,
+                              color: Style.selectedColor,
+                            )
+                          : null,
+                      onTap: () => onSelect(action),
+                    ),
+                  );
+                }),
+              const SizedBox(height: 8),
+            ],
           );
         }),
       ],

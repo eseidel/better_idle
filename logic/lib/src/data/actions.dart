@@ -14,6 +14,7 @@ export 'firemaking.dart';
 export 'fishing.dart';
 export 'items.dart';
 export 'mining.dart';
+export 'smithing.dart';
 export 'thieving.dart';
 export 'woodcutting.dart';
 
@@ -170,40 +171,6 @@ class SkillAction extends Action {
 /// Fixed player attack speed in seconds.
 const double playerAttackSpeed = 4;
 
-Map<MelvorId, int> _toMelvorIdMap(Map<String, int> map) {
-  return map.map((key, value) => MapEntry(MelvorId.fromName(key), value));
-}
-
-SkillAction _smithing(
-  String name, {
-  required int level,
-  required int xp,
-  required Map<String, int> inputs,
-  Map<String, int>? outputs,
-}) {
-  return SkillAction(
-    id: MelvorId.fromName(name),
-    skill: Skill.smithing,
-    name: name,
-    unlockLevel: level,
-    duration: Duration(seconds: 2),
-    xp: xp,
-    inputs: _toMelvorIdMap(inputs),
-    outputs: _toMelvorIdMap(outputs ?? {name: 1}),
-  );
-}
-
-final smithingActions = <SkillAction>[
-  _smithing(
-    'Bronze Bar',
-    level: 1,
-    xp: 5,
-    inputs: {'Copper Ore': 1, 'Tin Ore': 1},
-  ),
-  _smithing('Iron Bar', level: 10, xp: 8, inputs: {'Iron Ore': 1}),
-  _smithing('Bronze Dagger', level: 1, xp: 10, inputs: {'Bronze Bar': 1}),
-];
-
 SkillAction _cooking(
   String name, {
   required int level,
@@ -232,7 +199,6 @@ final cookingActions = <SkillAction>[
 
 final hardCodedActions = <Action>[
   ...cookingActions,
-  ...smithingActions,
   ...thievingActions,
   ...combatActions,
 ];

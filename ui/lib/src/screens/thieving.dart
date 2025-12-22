@@ -363,7 +363,7 @@ class _ActionList extends StatelessWidget {
                     vertical: 8,
                   ),
                   decoration: BoxDecoration(
-                    color: Style.thievingAreaHeaderColor,
+                    color: Style.categoryHeaderColor,
                     borderRadius: BorderRadius.circular(4),
                   ),
                   child: Row(
