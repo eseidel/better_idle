@@ -24,7 +24,7 @@ class MelvorData {
   ///
   /// Items from later files override items from earlier files with the same name.
   /// Skill data from later files is merged with earlier files by skillID.
-  MelvorData(List<Map<String, dynamic>> dataFiles) : _rawDataFiles = dataFiles {
+  MelvorData(List<Map<String, dynamic>> dataFiles) {
     final items = <Item>[];
     final actions = <Action>[];
     final fishingAreas = <FishingArea>[];
@@ -54,7 +54,6 @@ class MelvorData {
     _smithingCategories = SmithingCategoryRegistry(smithingCategories);
   }
 
-  final List<Map<String, dynamic>> _rawDataFiles;
   late final ItemRegistry _items;
   late final ActionRegistry _actions;
   late final FishingAreaRegistry _fishingAreas;
@@ -72,10 +71,6 @@ class MelvorData {
   SmithingCategoryRegistry get smithingCategories => _smithingCategories;
 
   ThievingAreaRegistry get thievingAreas => _thievingAreas;
-
-  /// Returns all raw data files.
-  /// Used for accessing skillData and other non-item data.
-  List<Map<String, dynamic>> get rawDataFiles => _rawDataFiles;
 
   void _addDataFromJson(
     Map<String, dynamic> json, {
