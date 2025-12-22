@@ -1,3 +1,4 @@
+import 'package:better_idle/src/widgets/item_change_row.dart';
 import 'package:better_idle/src/widgets/skills.dart';
 import 'package:better_idle/src/widgets/style.dart';
 import 'package:flutter/material.dart';
@@ -92,10 +93,10 @@ class WelcomeBackDialog extends StatelessWidget {
               ...changes.inventoryChanges.entries.map((entry) {
                 final itemName = entry.key;
                 final itemCount = entry.value;
+                final item = timeAway.registries.items.byName(itemName);
                 // Check both gained and consumed predictions
                 final gainedPerHour = timeAway.itemsGainedPerHour[itemName];
                 final consumedPerHour = timeAway.itemsConsumedPerHour[itemName];
-                final countText = signedCountString(itemCount);
 
                 // Determine which prediction to show based on item count change
                 final String prediction;
@@ -111,24 +112,10 @@ class WelcomeBackDialog extends StatelessWidget {
                   prediction = '';
                 }
 
-                // Determine color based on gain/loss
-                final countColor = itemCount > 0
-                    ? Style.successColor
-                    : Style.errorColor;
-
-                return Padding(
-                  padding: const EdgeInsets.only(left: 16, bottom: 4),
-                  child: Text.rich(
-                    TextSpan(
-                      children: [
-                        TextSpan(
-                          text: countText,
-                          style: TextStyle(color: countColor),
-                        ),
-                        TextSpan(text: ' $itemName$prediction'),
-                      ],
-                    ),
-                  ),
+                return ItemChangeRow(
+                  item: item,
+                  count: itemCount,
+                  suffix: prediction,
                 );
               }),
             ],
@@ -141,15 +128,11 @@ class WelcomeBackDialog extends StatelessWidget {
                   color: Style.warningColor,
                 ),
               ),
-              ...changes.droppedItems.entries.map(
-                (entry) => Padding(
-                  padding: const EdgeInsets.only(left: 16, bottom: 4),
-                  child: Text(
-                    '${entry.value} ${entry.key}',
-                    style: const TextStyle(color: Style.warningColor),
-                  ),
-                ),
-              ),
+              ...changes.droppedItems.entries.map((entry) {
+                final item = timeAway.registries.items.byName(entry.key);
+                // Show dropped items as negative (they were lost)
+                return ItemChangeRow(item: item, count: -entry.value);
+              }),
             ],
             // This dialog shouldn't be shown if there are no changes.
             if (changes.isEmpty) ...[const Text('Nothing new happened.')],
