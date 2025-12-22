@@ -53,13 +53,4 @@ class WoodcuttingTree extends SkillAction {
 
   /// Duration in seconds.
   int get durationSeconds => minDuration.inSeconds;
-
-  /// The output item name (e.g., "Normal Logs").
-  String get outputName => outputs.keys.first.name;
-
-  @override
-  String toString() {
-    return '$name (level $unlockLevel, ${durationSeconds}s, ${xp}xp) '
-        '-> $outputName';
-  }
 }

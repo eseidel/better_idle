@@ -2,7 +2,6 @@ import 'dart:math';
 
 import 'package:logic/src/action_state.dart';
 import 'package:logic/src/data/combat.dart';
-import 'package:logic/src/data/fishing.dart';
 import 'package:logic/src/data/thieving.dart';
 import 'package:logic/src/tick.dart';
 import 'package:logic/src/types/drop.dart';
@@ -12,6 +11,7 @@ import 'package:meta/meta.dart';
 import 'items.dart';
 import 'melvor_id.dart';
 
+export 'fishing.dart';
 export 'items.dart';
 export 'mining.dart';
 export 'thieving.dart';
@@ -305,9 +305,9 @@ final cookingActions = <SkillAction>[
 
 final hardCodedActions = <Action>[
   ..._firemakingActions,
-  ...fishingActions,
   ...cookingActions,
   // Mining actions are loaded from JSON via MiningRock.fromJson.
+  // Fishing actions are loaded from JSON via FishingFish.fromJson.
   ...smithingActions,
   ...thievingActions,
   ...combatActions,

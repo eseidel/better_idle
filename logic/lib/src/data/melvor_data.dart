@@ -26,24 +26,30 @@ class MelvorData {
   MelvorData(List<Map<String, dynamic>> dataFiles) : _rawDataFiles = dataFiles {
     final items = <Item>[];
     final actions = <Action>[];
+    final fishingAreas = <FishingArea>[];
     for (final json in dataFiles) {
       final namespace = json['namespace'] as String;
       _addDataFromJson(json, namespace: namespace, items: items);
       actions.addAll(parseActions(json, namespace: namespace));
+      fishingAreas.addAll(parseFishingAreas(json, namespace: namespace));
     }
     _items = ItemRegistry(items);
     _actions = ActionRegistry(actions + hardCodedActions);
+    _fishingAreas = FishingAreaRegistry(fishingAreas);
   }
 
   final List<Map<String, dynamic>> _rawDataFiles;
   late final ItemRegistry _items;
   late final ActionRegistry _actions;
+  late final FishingAreaRegistry _fishingAreas;
   final Map<String, Map<String, dynamic>> _skillDataById = {};
 
   /// Returns the item registry.
   ItemRegistry get items => _items;
 
   ActionRegistry get actions => _actions;
+
+  FishingAreaRegistry get fishingAreas => _fishingAreas;
 
   /// Returns all raw data files.
   /// Used for accessing skillData and other non-item data.
@@ -159,10 +165,60 @@ List<Action> parseActions(
             ),
           );
         }
+      case 'melvorD:Fishing':
+        final fish = skillContent['fish'] as List<dynamic>?;
+        if (fish != null) {
+          actions.addAll(
+            fish.map(
+              (json) => FishingAction.fromJson(
+                json as Map<String, dynamic>,
+                namespace: namespace,
+              ),
+            ),
+          );
+        }
       default:
       // print('Unknown skill ID: $skillId');
     }
   }
 
   return actions;
+}
+
+List<FishingArea> parseFishingAreas(
+  Map<String, dynamic> json, {
+  required String namespace,
+}) {
+  final data = json['data'] as Map<String, dynamic>?;
+  if (data == null) {
+    return [];
+  }
+
+  final skillData = data['skillData'] as List<dynamic>?;
+  if (skillData == null) {
+    return [];
+  }
+
+  for (final skill in skillData) {
+    if (skill is! Map<String, dynamic>) continue;
+    final skillId = skill['skillID'] as String?;
+    if (skillId != 'melvorD:Fishing') continue;
+
+    final skillContent = skill['data'] as Map<String, dynamic>?;
+    if (skillContent == null) continue;
+
+    final areas = skillContent['areas'] as List<dynamic>?;
+    if (areas != null) {
+      return areas
+          .map(
+            (json) => FishingArea.fromJson(
+              json as Map<String, dynamic>,
+              namespace: namespace,
+            ),
+          )
+          .toList();
+    }
+  }
+
+  return [];
 }

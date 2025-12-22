@@ -100,7 +100,7 @@ class Style {
   static Color shopPurchasedColor = Colors.orange.shade700;
 
   // Container/card backgrounds
-  static const Color containerBackgroundLight = Colors.white;
+  static Color containerBackgroundLight = Colors.grey.shade800;
   static Color containerBackgroundFilled = Colors.green.shade600;
   static Color containerBackgroundEmpty = Colors.grey.shade800;
 

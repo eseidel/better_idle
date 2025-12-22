@@ -4,11 +4,12 @@ import 'package:logic/src/data/actions.dart';
 import 'package:logic/src/data/melvor_data.dart';
 
 class Registries {
-  Registries(this.items, this.actions, this.drops);
+  Registries(this.items, this.actions, this.drops, this.fishingAreas);
 
   final ItemRegistry items;
   final ActionRegistry actions;
   final DropsRegistry drops;
+  final FishingAreaRegistry fishingAreas;
 }
 
 /// Ensures the registries are initialized.
@@ -21,5 +22,6 @@ Future<Registries> loadRegistries({Directory? cacheDir}) async {
     melvorData.items,
     melvorData.actions,
     DropsRegistry(skillDrops, globalDrops),
+    melvorData.fishingAreas,
   );
 }
