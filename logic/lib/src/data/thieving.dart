@@ -72,18 +72,9 @@ class ThievingArea {
 
 /// Registry for thieving areas.
 class ThievingAreaRegistry {
-  ThievingAreaRegistry(List<ThievingArea> areas) : _areas = areas {
-    _byId = {for (final area in _areas) area.id: area};
-  }
+  ThievingAreaRegistry(List<ThievingArea> areas) : _areas = areas;
 
   final List<ThievingArea> _areas;
-  late final Map<MelvorId, ThievingArea> _byId;
-
-  /// Returns all thieving areas.
-  List<ThievingArea> get all => _areas;
-
-  /// Returns a thieving area by ID, or null if not found.
-  ThievingArea? byId(MelvorId id) => _byId[id];
 
   /// Returns the thieving area containing the given NPC ID.
   ///

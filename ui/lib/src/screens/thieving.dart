@@ -40,9 +40,7 @@ class _ThievingPageState extends State<ThievingPage> {
     final actionsByArea = <ThievingArea, List<ThievingAction>>{};
     for (final action in thievingActions) {
       final area = registries.thievingAreas.areaForNpc(action.id);
-      if (area != null) {
-        actionsByArea.putIfAbsent(area, () => []).add(action);
-      }
+      actionsByArea.putIfAbsent(area, () => []).add(action);
     }
 
     return Scaffold(
