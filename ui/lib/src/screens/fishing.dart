@@ -2,6 +2,7 @@ import 'package:better_idle/src/logic/redux_actions.dart';
 import 'package:better_idle/src/widgets/context_extensions.dart';
 import 'package:better_idle/src/widgets/mastery_pool.dart';
 import 'package:better_idle/src/widgets/navigation_drawer.dart';
+import 'package:better_idle/src/widgets/skill_image.dart';
 import 'package:better_idle/src/widgets/skill_progress.dart';
 import 'package:better_idle/src/widgets/style.dart';
 import 'package:better_idle/src/widgets/xp_badges_row.dart';
@@ -23,6 +24,7 @@ class _FishingPageState extends State<FishingPage> {
   Widget build(BuildContext context) {
     const skill = Skill.fishing;
     final skillState = context.state.skillState(skill);
+    final skillLevel = levelForXp(skillState.xp);
     final registries = context.state.registries;
 
     // Get all fishing actions from registries.
@@ -34,8 +36,13 @@ class _FishingPageState extends State<FishingPage> {
     // Get all fishing areas from registries.
     final fishingAreas = registries.fishingAreas.all;
 
-    // Default to first action if none selected.
-    final selectedAction = _selectedAction ?? fishingActions.first;
+    // Default to first unlocked action if none selected.
+    final unlockedActions = fishingActions
+        .where((a) => skillLevel >= a.unlockLevel)
+        .toList();
+    final selectedAction =
+        _selectedAction ??
+        (unlockedActions.isNotEmpty ? unlockedActions.first : null);
 
     // Group actions by area.
     final actionsByArea = <FishingArea, List<FishingAction>>{};
@@ -64,18 +71,23 @@ class _FishingPageState extends State<FishingPage> {
               padding: const EdgeInsets.all(16),
               child: Column(
                 children: [
-                  _SelectedActionDisplay(
-                    action: selectedAction,
-                    onStart: () {
-                      context.dispatch(
-                        ToggleActionAction(action: selectedAction),
-                      );
-                    },
-                  ),
+                  if (selectedAction != null)
+                    _SelectedActionDisplay(
+                      action: selectedAction,
+                      skillLevel: skillLevel,
+                      onStart: () {
+                        context.dispatch(
+                          ToggleActionAction(action: selectedAction),
+                        );
+                      },
+                    )
+                  else
+                    _NoUnlockedActionsDisplay(skillLevel: skillLevel),
                   const SizedBox(height: 24),
                   _ActionList(
                     actionsByArea: actionsByArea,
                     selectedAction: selectedAction,
+                    skillLevel: skillLevel,
                     collapsedAreas: _collapsedAreas,
                     onSelect: (action) {
                       setState(() {
@@ -113,14 +125,86 @@ String _formatDuration(Duration d) {
   return '${roundedSeconds}s';
 }
 
+class _NoUnlockedActionsDisplay extends StatelessWidget {
+  const _NoUnlockedActionsDisplay({required this.skillLevel});
+
+  final int skillLevel;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Style.cellBackgroundColorLocked,
+        border: Border.all(color: Style.textColorSecondary),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Column(
+        children: [
+          const Icon(Icons.lock, size: 48, color: Style.textColorSecondary),
+          const SizedBox(height: 8),
+          const Text('No fishing actions unlocked yet'),
+          Text('Current level: $skillLevel'),
+        ],
+      ),
+    );
+  }
+}
+
 class _SelectedActionDisplay extends StatelessWidget {
-  const _SelectedActionDisplay({required this.action, required this.onStart});
+  const _SelectedActionDisplay({
+    required this.action,
+    required this.skillLevel,
+    required this.onStart,
+  });
 
   final FishingAction action;
+  final int skillLevel;
   final VoidCallback onStart;
 
   @override
   Widget build(BuildContext context) {
+    final isUnlocked = skillLevel >= action.unlockLevel;
+
+    if (!isUnlocked) {
+      return _buildLocked(context);
+    }
+    return _buildUnlocked(context);
+  }
+
+  Widget _buildLocked(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Style.cellBackgroundColorLocked,
+        border: Border.all(color: Style.textColorSecondary),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          const Icon(Icons.lock, size: 48, color: Style.textColorSecondary),
+          const SizedBox(height: 8),
+          Text(
+            action.name,
+            textAlign: TextAlign.center,
+            style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+          ),
+          const SizedBox(height: 8),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Text('Unlocked at '),
+              const SkillImage(skill: Skill.fishing, size: 16),
+              Text(' Level ${action.unlockLevel}'),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildUnlocked(BuildContext context) {
     final state = context.state;
     final actionState = state.actionState(action.id);
     final isActive = state.activeAction?.id == action.id;
@@ -137,10 +221,6 @@ class _SelectedActionDisplay extends StatelessWidget {
         color: isActive
             ? Style.activeColorLight
             : Style.containerBackgroundLight,
-        border: Border.all(
-          color: isActive ? Style.activeColor : Style.iconColorDefault,
-          width: isActive ? 2 : 1,
-        ),
         borderRadius: BorderRadius.circular(8),
       ),
       child: Column(
@@ -193,13 +273,15 @@ class _ActionList extends StatelessWidget {
   const _ActionList({
     required this.actionsByArea,
     required this.selectedAction,
+    required this.skillLevel,
     required this.collapsedAreas,
     required this.onSelect,
     required this.onToggleArea,
   });
 
   final Map<FishingArea, List<FishingAction>> actionsByArea;
-  final FishingAction selectedAction;
+  final FishingAction? selectedAction;
+  final int skillLevel;
   final Set<String> collapsedAreas;
   final void Function(FishingAction) onSelect;
   final void Function(String) onToggleArea;
@@ -250,13 +332,7 @@ class _ActionList extends StatelessWidget {
                           ),
                         ),
                       ),
-                      Text(
-                        '${percentToString(area.fishChance)} fish',
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: Style.fishingAreaSelectedColor,
-                        ),
-                      ),
+                      _AreaChances(area: area),
                     ],
                   ),
                 ),
@@ -264,11 +340,46 @@ class _ActionList extends StatelessWidget {
               // Actions list (if not collapsed)
               if (!isCollapsed)
                 ...actions.map((action) {
-                  final isSelected = action.id == selectedAction.id;
+                  final isSelected = action.id == selectedAction?.id;
+                  final isUnlocked = skillLevel >= action.unlockLevel;
                   final durationText = action.isFixedDuration
                       ? _formatDuration(action.minDuration)
                       : '${_formatDuration(action.minDuration)} - '
                             '${_formatDuration(action.maxDuration)}';
+
+                  if (!isUnlocked) {
+                    return Card(
+                      margin: const EdgeInsets.only(
+                        left: 16,
+                        top: 4,
+                        bottom: 4,
+                      ),
+                      color: Style.cellBackgroundColorLocked,
+                      child: ListTile(
+                        leading: const Icon(
+                          Icons.lock,
+                          color: Style.textColorSecondary,
+                        ),
+                        title: Row(
+                          children: [
+                            const Text(
+                              'Unlocked at ',
+                              style: TextStyle(color: Style.textColorSecondary),
+                            ),
+                            const SkillImage(skill: Skill.fishing, size: 14),
+                            Text(
+                              ' Level ${action.unlockLevel}',
+                              style: const TextStyle(
+                                color: Style.textColorSecondary,
+                              ),
+                            ),
+                          ],
+                        ),
+                        onTap: () => onSelect(action),
+                      ),
+                    );
+                  }
+
                   return Card(
                     margin: const EdgeInsets.only(left: 16, top: 4, bottom: 4),
                     color: isSelected ? Style.selectedColorLight : null,
@@ -292,6 +403,28 @@ class _ActionList extends StatelessWidget {
           );
         }),
       ],
+    );
+  }
+}
+
+class _AreaChances extends StatelessWidget {
+  const _AreaChances({required this.area});
+
+  final FishingArea area;
+
+  @override
+  Widget build(BuildContext context) {
+    final parts = <String>['Fish: ${percentToString(area.fishChance)}'];
+    if (area.junkChance > 0) {
+      parts.add('Junk: ${percentToString(area.junkChance)}');
+    }
+    if (area.specialChance > 0) {
+      parts.add('Special: ${percentToString(area.specialChance)}');
+    }
+
+    return Text(
+      parts.join(' • '),
+      style: TextStyle(fontSize: 12, color: Style.fishingAreaSelectedColor),
     );
   }
 }
