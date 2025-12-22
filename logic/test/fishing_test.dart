@@ -45,7 +45,7 @@ void main() {
     });
 
     test('areaForFish returns null for unknown fish id', () {
-      final unknownFishId = MelvorId.fromName('test:Unknown_Fish');
+      final unknownFishId = MelvorId('test:Unknown_Fish');
       final area = testRegistries.fishingAreas.areaForFish(unknownFishId);
       expect(area, isNull);
     });
