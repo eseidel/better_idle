@@ -177,6 +177,18 @@ List<Action> parseActions(
             ),
           );
         }
+      case 'melvorD:Firemaking':
+        final logs = skillContent['logs'] as List<dynamic>?;
+        if (logs != null) {
+          actions.addAll(
+            logs.map(
+              (json) => FiremakingAction.fromJson(
+                json as Map<String, dynamic>,
+                namespace: namespace,
+              ),
+            ),
+          );
+        }
       default:
       // print('Unknown skill ID: $skillId');
     }

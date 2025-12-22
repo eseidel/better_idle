@@ -10,6 +10,7 @@ import 'package:meta/meta.dart';
 import 'melvor_id.dart';
 import 'mining.dart';
 
+export 'firemaking.dart';
 export 'fishing.dart';
 export 'items.dart';
 export 'mining.dart';
@@ -169,31 +170,6 @@ class SkillAction extends Action {
 /// Fixed player attack speed in seconds.
 const double playerAttackSpeed = 4;
 
-SkillAction _firemaking(
-  String name, {
-  required int level,
-  required int xp,
-  required int seconds,
-}) {
-  final actionName = 'Burn $name Logs';
-  return SkillAction(
-    id: MelvorId.fromName(actionName),
-    skill: Skill.firemaking,
-    name: actionName,
-    unlockLevel: level,
-    duration: Duration(seconds: seconds),
-    xp: xp,
-    inputs: {MelvorId.fromName('$name Logs'): 1},
-  );
-}
-
-final _firemakingActions = <SkillAction>[
-  _firemaking('Normal', level: 1, seconds: 2, xp: 19),
-  _firemaking('Oak', level: 10, seconds: 2, xp: 39),
-  _firemaking('Willow', level: 25, seconds: 3, xp: 52),
-  _firemaking('Teak', level: 35, seconds: 4, xp: 84),
-];
-
 Map<MelvorId, int> _toMelvorIdMap(Map<String, int> map) {
   return map.map((key, value) => MapEntry(MelvorId.fromName(key), value));
 }
@@ -255,7 +231,6 @@ final cookingActions = <SkillAction>[
 ];
 
 final hardCodedActions = <Action>[
-  ..._firemakingActions,
   ...cookingActions,
   ...smithingActions,
   ...thievingActions,
