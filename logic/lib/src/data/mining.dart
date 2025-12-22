@@ -65,13 +65,4 @@ class MiningRock extends MiningAction {
 
   /// The media path for the rock icon.
   final String media;
-
-  /// The output item name (e.g., "Copper Ore").
-  String get outputName => outputs.keys.first.name;
-
-  @override
-  String toString() {
-    return '$name (level $unlockLevel, ${respawnTime.inSeconds}s respawn, '
-        '${xp}xp) -> $outputName x$baseQuantity';
-  }
 }

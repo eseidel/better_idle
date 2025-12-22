@@ -123,16 +123,6 @@ class FishingAction extends SkillAction {
 
   /// The media path for the fish icon.
   final String media;
-
-  /// The output item name (e.g., "Raw Shrimp").
-  String get outputName => outputs.keys.first.name;
-
-  @override
-  String toString() {
-    return '$name (level $unlockLevel, '
-        '${minDuration.inSeconds}-${maxDuration.inSeconds}s, '
-        '${xp}xp)';
-  }
 }
 
 /// Registry for fishing areas.

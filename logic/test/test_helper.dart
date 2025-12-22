@@ -12,3 +12,4 @@ Future<void> loadTestRegistries() async {
 ItemRegistry get testItems => testRegistries.items;
 ActionRegistry get testActions => testRegistries.actions;
 DropsRegistry get testDrops => testRegistries.drops;
+FishingAreaRegistry get testFishingAreas => testRegistries.fishingAreas;
