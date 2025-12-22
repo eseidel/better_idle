@@ -8,6 +8,16 @@ import 'melvor_id.dart';
 
 const _miningSwingDuration = Duration(seconds: 3);
 
+enum RockType { essence, ore }
+
+/// Parses a Melvor category ID to determine the RockType.
+RockType parseRockType(String? category) {
+  if (category == 'melvorD:Essence') {
+    return RockType.essence;
+  }
+  return RockType.ore;
+}
+
 /// A mining rock action parsed from Melvor data.
 ///
 /// Mining actions have rock HP and respawn mechanics.

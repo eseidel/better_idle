@@ -39,16 +39,6 @@ enum Skill {
   final String name;
 }
 
-enum RockType { essence, ore }
-
-/// Parses a Melvor category ID to determine the RockType.
-RockType parseRockType(String? category) {
-  if (category == 'melvorD:Essence') {
-    return RockType.essence;
-  }
-  return RockType.ore;
-}
-
 /// Base class for all actions that can occupy the "active" slot.
 /// Subclasses: SkillAction (duration-based with xp/outputs) and CombatAction.
 @immutable
