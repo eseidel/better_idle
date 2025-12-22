@@ -5,6 +5,12 @@ extension type MelvorId._(String id) {
   factory MelvorId.fromJson(String json) => MelvorId(json);
 
   /// Creates a MelvorId from a JSON string, adding namespace if missing.
+  static MelvorId? maybeFromJson(String? json) {
+    if (json == null) return null;
+    return MelvorId.fromJson(json);
+  }
+
+  /// Creates a MelvorId from a JSON string, adding namespace if missing.
   /// If the ID already contains a namespace (has ':'), it is used as-is.
   /// Otherwise, the provided [defaultNamespace] is prepended.
   factory MelvorId.fromJsonWithNamespace(

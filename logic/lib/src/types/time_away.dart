@@ -99,12 +99,12 @@ class TimeAway {
   }
 
   factory TimeAway.fromJson(Registries registries, Map<String, dynamic> json) {
-    final actionName = json['activeAction'] as String?;
+    final actionId = MelvorId.maybeFromJson(json['activeAction'] as String?);
     // Only reconstruct SkillActions - CombatActions are only used for
     // predictions which return empty for combat anyway.
     SkillAction? action;
-    if (actionName != null) {
-      final lookedUp = registries.actions.byName(actionName);
+    if (actionId != null) {
+      final lookedUp = registries.actions.byId(actionId);
       if (lookedUp is SkillAction) {
         action = lookedUp;
       }
@@ -312,7 +312,7 @@ class TimeAway {
       'startTime': startTime.millisecondsSinceEpoch,
       'endTime': endTime.millisecondsSinceEpoch,
       'activeSkill': activeSkill?.name,
-      'activeAction': activeAction?.name,
+      'activeAction': activeAction?.id.toJson(),
       'changes': changes.toJson(),
       'stopReason': stopReason.name,
       'stoppedAfterMs': stoppedAfter?.inMilliseconds,

@@ -208,6 +208,7 @@ class ActionRegistry {
     return action;
   }
 
+  @visibleForTesting
   SkillAction skillActionByName(String name) {
     final action = byName(name);
     if (action is SkillAction) {
