@@ -388,12 +388,10 @@ List<ThievingAction> parseThievingActions(
           npcMap['id'] as String,
           defaultNamespace: namespace,
         );
-        final area = areas.areaForNpc(npcId);
-        final areaDrops = area?.uniqueDrops ?? [];
         return ThievingAction.fromJson(
           npcMap,
           namespace: namespace,
-          areaDrops: areaDrops,
+          area: areas.areaForNpc(npcId),
         );
       }).toList();
     }

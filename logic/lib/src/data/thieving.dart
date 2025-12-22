@@ -85,21 +85,23 @@ class ThievingAreaRegistry {
   /// Returns a thieving area by ID, or null if not found.
   ThievingArea? byId(MelvorId id) => _byId[id];
 
-  /// Returns the thieving area containing the given NPC ID, or null if not found.
-  ThievingArea? areaForNpc(MelvorId npcId) {
+  /// Returns the thieving area containing the given NPC ID.
+  ///
+  /// Throws [StateError] if the NPC is not found in any area.
+  ThievingArea areaForNpc(MelvorId npcId) {
     for (final area in _areas) {
       if (area.npcIds.contains(npcId)) {
         return area;
       }
     }
-    return null;
+    throw StateError('Thieving NPC $npcId has no area');
   }
 }
 
 // TODO(eseidel): roll this into defaultRewards?
 List<Droppable> _thievingRewards(SkillAction action, int masteryLevel) {
   final thievingAction = action as ThievingAction;
-  final areaDrops = thievingAction.areaDrops;
+  final areaDrops = thievingAction.area.uniqueDrops;
   final actionDropTable = thievingAction.dropTable;
   if (actionDropTable != null) {
     return [actionDropTable, ...areaDrops];
@@ -124,7 +126,7 @@ class ThievingAction extends SkillAction {
     required this.perception,
     required this.maxHit,
     required this.maxGold,
-    required this.areaDrops,
+    required this.area,
     super.outputs = const {},
     this.dropTable,
     this.media,
@@ -137,7 +139,7 @@ class ThievingAction extends SkillAction {
   factory ThievingAction.fromJson(
     Map<String, dynamic> json, {
     required String namespace,
-    required List<Drop> areaDrops,
+    required ThievingArea area,
   }) {
     // Parse currency drops to get max gold.
     final currencyDrops = json['currencyDrops'] as List<dynamic>? ?? [];
@@ -183,7 +185,7 @@ class ThievingAction extends SkillAction {
       perception: json['perception'] as int,
       maxHit: maxHit,
       maxGold: maxGold,
-      areaDrops: areaDrops,
+      area: area,
       dropTable: dropTable,
       media: json['media'] as String?,
     );
@@ -198,8 +200,8 @@ class ThievingAction extends SkillAction {
   /// Maximum gold granted on success (1-maxGold).
   final int maxGold;
 
-  /// Drops from the area this NPC belongs to.
-  final List<Drop> areaDrops;
+  /// The area this NPC belongs to.
+  final ThievingArea area;
 
   /// The drop table for this NPC.
   final Droppable? dropTable;

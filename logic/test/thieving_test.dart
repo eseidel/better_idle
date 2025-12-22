@@ -58,8 +58,8 @@ void main() {
       final chiefArea = testRegistries.thievingAreas.areaForNpc(
         golbinChiefAction.id,
       );
-      expect(golbinArea?.name, 'Golbin Village');
-      expect(chiefArea?.name, 'Golbin Village');
+      expect(golbinArea.name, 'Golbin Village');
+      expect(chiefArea.name, 'Golbin Village');
 
       // Get all drops for both actions
       final golbinDrops = testDrops.allDropsForAction(
