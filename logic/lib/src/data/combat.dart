@@ -309,19 +309,76 @@ class CombatAction extends Action {
     if (minGpDrop >= maxGpDrop) return maxGpDrop;
     return minGpDrop + random.nextInt((maxGpDrop - minGpDrop) + 1);
   }
+}
 
-  Map<String, dynamic> toJson() => {
-    'id': id.toJson(),
-    'name': name,
-    'levels': levels.toJson(),
-    'attackType': attackType.toJson(),
-    'attackSpeed': attackSpeed,
-    'lootChance': lootChance,
-    'minGpDrop': minGpDrop,
-    'maxGpDrop': maxGpDrop,
-    if (bones != null) 'bones': bones!.toJson(),
-    if (media != null) 'media': media,
-    'canSlayer': canSlayer,
-    'isBoss': isBoss,
-  };
+/// A combat area containing multiple monsters.
+@immutable
+class CombatArea {
+  const CombatArea({
+    required this.id,
+    required this.name,
+    required this.monsterIds,
+    this.difficulty = const [],
+    this.media,
+  });
+
+  factory CombatArea.fromJson(
+    Map<String, dynamic> json, {
+    required String namespace,
+  }) {
+    final monsterIds = (json['monsterIDs'] as List<dynamic>)
+        .map(
+          (id) => MelvorId.fromJsonWithNamespace(
+            id as String,
+            defaultNamespace: namespace,
+          ),
+        )
+        .toList();
+
+    final difficultyRaw = json['difficulty'] as List<dynamic>? ?? [];
+    final difficulty = difficultyRaw.map((e) => e as int).toList();
+
+    return CombatArea(
+      id: MelvorId.fromJsonWithNamespace(
+        json['id'] as String,
+        defaultNamespace: namespace,
+      ),
+      name: json['name'] as String,
+      monsterIds: monsterIds,
+      difficulty: difficulty,
+      media: json['media'] as String?,
+    );
+  }
+
+  final MelvorId id;
+  final String name;
+  final List<MelvorId> monsterIds;
+  final List<int> difficulty;
+  final String? media;
+}
+
+/// Registry for combat areas.
+class CombatAreaRegistry {
+  CombatAreaRegistry(List<CombatArea> areas) : _areas = areas {
+    _byId = {for (final area in _areas) area.id: area};
+  }
+
+  final List<CombatArea> _areas;
+  late final Map<MelvorId, CombatArea> _byId;
+
+  /// Returns all combat areas.
+  List<CombatArea> get all => _areas;
+
+  /// Returns a combat area by ID, or null if not found.
+  CombatArea? byId(MelvorId id) => _byId[id];
+
+  /// Returns the combat area containing the given monster ID, or null.
+  CombatArea? areaForMonster(MelvorId monsterId) {
+    for (final area in _areas) {
+      if (area.monsterIds.contains(monsterId)) {
+        return area;
+      }
+    }
+    return null;
+  }
 }

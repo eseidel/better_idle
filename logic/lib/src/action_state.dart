@@ -1,6 +1,5 @@
 import 'dart:math';
 
-import 'package:logic/src/data/combat.dart';
 import 'package:logic/src/data/melvor_id.dart';
 import 'package:logic/src/tick.dart';
 import 'package:meta/meta.dart';

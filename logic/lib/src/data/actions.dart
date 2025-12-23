@@ -5,9 +5,11 @@ import 'package:logic/src/types/drop.dart';
 import 'package:logic/src/types/modifier.dart';
 import 'package:meta/meta.dart';
 
+import 'combat.dart';
 import 'melvor_id.dart';
 import 'mining.dart';
 
+export 'combat.dart';
 export 'cooking.dart';
 export 'firemaking.dart';
 export 'fishing.dart';
@@ -196,6 +198,9 @@ class ActionRegistry {
     return action;
   }
 
+  /// Returns an Action by id, or null if not found.
+  Action? tryById(MelvorId id) => _byId[id];
+
   /// Returns an Action by name, or throws a StateError if not found.
   Action byName(String name) {
     final action = _byName[name];
@@ -220,6 +225,9 @@ class ActionRegistry {
       (action) => action.skill == skill,
     );
   }
+
+  /// Returns all combat actions.
+  Iterable<CombatAction> get combatActions => _all.whereType<CombatAction>();
 }
 
 class DropsRegistry {
