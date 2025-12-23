@@ -117,6 +117,9 @@ class _CombatAreaTile extends StatelessWidget {
     return Card(
       color: hasActiveMonster ? Style.activeColorLight : null,
       child: ExpansionTile(
+        leading: area.media != null
+            ? CachedImage(assetPath: area.media!, size: 40)
+            : null,
         title: Text(area.name),
         subtitle: Text('${monsters.length} monsters'),
         initiallyExpanded: hasActiveMonster,
