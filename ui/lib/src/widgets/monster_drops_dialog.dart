@@ -146,9 +146,9 @@ class MonsterDropsDialog extends StatelessWidget {
 
   String _formatQuantityPrefix(int min, int max) {
     if (min == max) {
-      return '${min}x';
+      return '$min x';
     }
-    return 'Up to ${max}x';
+    return 'Up to $max x';
   }
 }
 
