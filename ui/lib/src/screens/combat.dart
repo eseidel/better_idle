@@ -1,6 +1,7 @@
 import 'package:better_idle/src/logic/redux_actions.dart';
 import 'package:better_idle/src/widgets/cached_image.dart';
 import 'package:better_idle/src/widgets/context_extensions.dart';
+import 'package:better_idle/src/widgets/monster_drops_dialog.dart';
 import 'package:better_idle/src/widgets/navigation_drawer.dart';
 import 'package:better_idle/src/widgets/skill_image.dart';
 import 'package:better_idle/src/widgets/skills.dart';
@@ -116,6 +117,9 @@ class _CombatAreaTile extends StatelessWidget {
     return Card(
       color: hasActiveMonster ? Style.activeColorLight : null,
       child: ExpansionTile(
+        leading: area.media != null
+            ? CachedImage(assetPath: area.media!, size: 40)
+            : null,
         title: Text(area.name),
         subtitle: Text('${monsters.length} monsters'),
         initiallyExpanded: hasActiveMonster,
@@ -168,13 +172,26 @@ class _MonsterListTile extends StatelessWidget {
         ),
         trailing: isActive
             ? const Icon(Icons.flash_on, color: Style.activeColor)
-            : ElevatedButton(
-                onPressed: isStunned
-                    ? null
-                    : () => context.dispatch(
-                        StartCombatAction(combatAction: monster),
-                      ),
-                child: const Text('Fight'),
+            : Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  OutlinedButton(
+                    onPressed: () => showDialog<void>(
+                      context: context,
+                      builder: (_) => MonsterDropsDialog(monster: monster),
+                    ),
+                    child: const Text('Drops'),
+                  ),
+                  const SizedBox(width: 8),
+                  ElevatedButton(
+                    onPressed: isStunned
+                        ? null
+                        : () => context.dispatch(
+                            StartCombatAction(combatAction: monster),
+                          ),
+                    child: const Text('Fight'),
+                  ),
+                ],
               ),
       ),
     );
