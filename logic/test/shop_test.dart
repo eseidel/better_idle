@@ -210,15 +210,13 @@ void main() {
       expect(req.level, 50);
     });
 
-    test('fromJson returns null for unsupported skill', () {
+    test('fromJson throws for unsupported skill', () {
       final json = {
         'type': 'SkillLevel',
         'skillID': 'melvorD:UnsupportedSkill',
         'level': 50,
       };
-      final req = SkillLevelRequirement.fromJson(json);
-
-      expect(req, isNull);
+      expect(() => SkillLevelRequirement.fromJson(json), throwsArgumentError);
     });
 
     test('equality works correctly', () {
