@@ -1,6 +1,10 @@
 import 'dart:async';
 
 import 'package:better_idle/src/services/toast_service.dart';
+import 'package:better_idle/src/widgets/cached_image.dart';
+import 'package:better_idle/src/widgets/context_extensions.dart';
+import 'package:better_idle/src/widgets/item_image.dart';
+import 'package:better_idle/src/widgets/skill_image.dart';
 import 'package:better_idle/src/widgets/style.dart';
 import 'package:flutter/material.dart';
 import 'package:logic/logic.dart';
@@ -97,24 +101,23 @@ class _ToastOverlayState extends State<ToastOverlay>
     // Add inventory change bubbles
     if (currentData != null) {
       for (final entry in currentData.inventoryChanges.entries) {
+        final item = context.state.registries.items.byId(entry.key);
         bubbles.add(
-          _buildBubble('${signedCountString(entry.value)} ${entry.key}'),
+          _buildItemBubble(item, entry.value),
         );
       }
 
       // Add xp change bubbles
       for (final entry in currentData.skillXpChanges.entries) {
         bubbles.add(
-          _buildBubble(
-            '${signedCountString(entry.value)} ${entry.key.name} xp',
-          ),
+          _buildSkillXpBubble(entry.key, entry.value),
         );
       }
 
       // Add GP change bubble
       if (currentData.gpGained != 0) {
         bubbles.add(
-          _buildBubble('${signedCountString(currentData.gpGained)} GP'),
+          _buildGpBubble(currentData.gpGained),
         );
       }
     }
@@ -163,6 +166,84 @@ class _ToastOverlayState extends State<ToastOverlay>
           text,
           style: const TextStyle(color: Style.textColorPrimary),
           textAlign: TextAlign.center,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildItemBubble(Item item, int count) {
+    return Material(
+      color: Style.transparentColor,
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 8),
+        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(25),
+          color: Style.toastBackgroundDefault,
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ItemImage(item: item, size: 20),
+            const SizedBox(width: 8),
+            Text(
+              signedCountString(count),
+              style: const TextStyle(color: Style.textColorPrimary),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSkillXpBubble(Skill skill, int xp) {
+    return Material(
+      color: Style.transparentColor,
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 8),
+        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(25),
+          color: Style.toastBackgroundDefault,
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            SkillImage(skill: skill, size: 20),
+            const SizedBox(width: 8),
+            Text(
+              '${signedCountString(xp)} XP',
+              style: const TextStyle(color: Style.textColorPrimary),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildGpBubble(int gp) {
+    return Material(
+      color: Style.transparentColor,
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 8),
+        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(25),
+          color: Style.toastBackgroundDefault,
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const CachedImage(
+              assetPath: 'assets/media/main/coins.png',
+              size: 20,
+            ),
+            const SizedBox(width: 8),
+            Text(
+              signedCountString(gp),
+              style: const TextStyle(color: Style.textColorPrimary),
+            ),
+          ],
         ),
       ),
     );

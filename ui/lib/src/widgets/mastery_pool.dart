@@ -1,3 +1,4 @@
+import 'package:better_idle/src/widgets/cached_image.dart';
 import 'package:flutter/material.dart';
 import 'package:logic/logic.dart';
 
@@ -52,7 +53,12 @@ class MasteryProgressCell extends StatelessWidget {
     final progress = xpProgressForXp(masteryXp);
     return Row(
       children: [
-        Text('🏆 ${progress.level}'),
+        const CachedImage(
+          assetPath: 'assets/media/main/mastery_header.png',
+          size: 16,
+        ),
+        const SizedBox(width: 4),
+        Text('${progress.level}'),
         const SizedBox(width: 8),
         Expanded(
           child: Column(
@@ -64,7 +70,10 @@ class MasteryProgressCell extends StatelessWidget {
                 style: Theme.of(context).textTheme.bodySmall,
               ),
               const SizedBox(height: 4),
-              LinearProgressIndicator(value: progress.progress),
+              ClipRRect(
+                borderRadius: BorderRadius.circular(2),
+                child: LinearProgressIndicator(value: progress.progress),
+              ),
             ],
           ),
         ),

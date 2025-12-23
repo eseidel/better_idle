@@ -81,19 +81,19 @@ class WoodcuttingActionCell extends StatelessWidget {
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: Style.cellBackgroundColorLocked,
-        border: Border.all(color: Style.textColorSecondary),
         borderRadius: BorderRadius.circular(8),
       ),
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
+          const Text('Locked'),
+          const SizedBox(height: 8),
           const CachedImage(
             assetPath: 'assets/media/skills/woodcutting/woodcutting.png',
-            size: 48,
+            size: 64,
           ),
           const SizedBox(height: 8),
-          const Text('Locked'),
-          Text('Level ${action.unlockLevel}'),
+          LockedLevelBadge(level: action.unlockLevel),
         ],
       ),
     );
@@ -125,9 +125,6 @@ class WoodcuttingActionCell extends StatelessWidget {
           color: isStunned
               ? Style.cellBackgroundColorStunned
               : Style.cellBackgroundColor,
-          border: Border.all(
-            color: isStunned ? Style.activeColor : Style.textColorSecondary,
-          ),
           borderRadius: BorderRadius.circular(8),
         ),
         child: Column(
@@ -152,7 +149,14 @@ class WoodcuttingActionCell extends StatelessWidget {
             const SizedBox(height: 8),
             CachedImage(assetPath: action.media, size: 64),
             const Spacer(),
-            LinearProgressIndicator(value: progress),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(4),
+              child: SizedBox(
+                height: 8,
+                child: LinearProgressIndicator(value: progress),
+              ),
+            ),
+            const SizedBox(height: 8),
             MasteryProgressCell(masteryXp: actionState.masteryXp),
           ],
         ),
@@ -311,6 +315,33 @@ class ActionCell extends StatelessWidget {
     } else {
       return _buildLocked(context);
     }
+  }
+}
+
+/// A wide red lozenge (diamond-shaped) badge showing the required level.
+class LockedLevelBadge extends StatelessWidget {
+  const LockedLevelBadge({required this.level, super.key});
+
+  final int level;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(vertical: 3),
+      decoration: BoxDecoration(
+        color: const Color(0xFFE56767),
+        borderRadius: BorderRadius.circular(4),
+      ),
+      child: Text(
+        'Level $level',
+        textAlign: TextAlign.center,
+        style: const TextStyle(
+          color: Colors.white,
+          fontWeight: FontWeight.bold,
+        ),
+      ),
+    );
   }
 }
 
