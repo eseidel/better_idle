@@ -108,13 +108,14 @@ class MiningAction extends SkillAction {
 }
 
 /// Gem drop table for mining - 1% chance to trigger, then weighted selection.
+// TODO(eseidel): Read this from JSON under data.randomGems.
 final miningGemTable = DropChance(
   DropTable(<DropTableEntry>[
-    Pick('Topaz', weight: 100), // 100 / 200 = 5%
-    Pick('Sapphire', weight: 35), // 35 / 200 = 17.5%
-    Pick('Ruby', weight: 35), // 35 / 200 = 17.5%
-    Pick('Emerald', weight: 20), // 20 / 200 = 10%
-    Pick('Diamond', weight: 10), // 10 / 200 = 5%
+    DropTableEntry.fromName('Topaz', weight: 100), // 100 / 200 = 5%
+    DropTableEntry.fromName('Sapphire', weight: 35), // 35 / 200 = 17.5%
+    DropTableEntry.fromName('Ruby', weight: 35), // 35 / 200 = 17.5%
+    DropTableEntry.fromName('Emerald', weight: 20), // 20 / 200 = 10%
+    DropTableEntry.fromName('Diamond', weight: 10), // 10 / 200 = 5%
   ]),
   rate: 0.01, // 1% chance to get a gem
 );

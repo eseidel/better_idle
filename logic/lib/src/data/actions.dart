@@ -6,6 +6,7 @@ import 'package:logic/src/types/modifier.dart';
 import 'package:meta/meta.dart';
 
 import 'combat.dart';
+import 'items.dart';
 import 'melvor_id.dart';
 import 'mining.dart';
 
@@ -81,8 +82,8 @@ List<Droppable> woodcuttingRewards(SkillAction action, int masteryLevel) {
   final singlePercent = (100 - doublePercent).clamp(0, 100);
   return [
     DropTable([
-      Pick(name, weight: singlePercent),
-      Pick(name, count: 2, weight: doublePercent),
+      DropTableEntry.fromName(name, weight: singlePercent),
+      DropTableEntry.fromName(name, count: 2, weight: doublePercent),
     ]),
   ];
 }
