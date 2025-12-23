@@ -409,11 +409,12 @@ _UpgradeResult _selectUpgradeCandidates(
     if (!goal.isSkillRelevant(skill)) continue;
 
     // Doesn't meet skill requirement
-    final requiredLevel = shopRegistry.skillLevelRequirement(purchase);
-    if (requiredLevel != null) {
-      final skillLevel = state.skillState(skill).skillLevel;
-      if (skillLevel < requiredLevel) continue;
-    }
+    final requirements = shopRegistry.skillLevelRequirements(purchase);
+    final meetsAllRequirements = requirements.every((req) {
+      final skillLevel = state.skillState(req.skill).skillLevel;
+      return skillLevel >= req.level;
+    });
+    if (!meetsAllRequirements) continue;
 
     // Find affected activities that are:
     // 1. Same skill as upgrade

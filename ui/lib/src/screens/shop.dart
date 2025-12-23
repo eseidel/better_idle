@@ -1,21 +1,19 @@
 import 'package:better_idle/src/logic/redux_actions.dart';
+import 'package:better_idle/src/widgets/cached_image.dart';
 import 'package:better_idle/src/widgets/navigation_drawer.dart';
 import 'package:better_idle/src/widgets/style.dart';
 import 'package:flutter/material.dart';
 import 'package:logic/logic.dart';
 
-/// Returns an icon for a skill upgrade based on the skill it affects.
-IconData _iconForSkill(Skill skill) {
-  return switch (skill) {
-    Skill.woodcutting => Icons.carpenter,
-    Skill.fishing => Icons.phishing,
-    Skill.mining => Icons.hardware,
-    _ => Icons.shopping_cart,
-  };
+class ShopPage extends StatefulWidget {
+  const ShopPage({super.key});
+
+  @override
+  State<ShopPage> createState() => _ShopPageState();
 }
 
-class ShopPage extends StatelessWidget {
-  const ShopPage({super.key});
+class _ShopPageState extends State<ShopPage> {
+  final Set<String> _collapsedCategories = {};
 
   @override
   Widget build(BuildContext context) {
@@ -25,62 +23,123 @@ class ShopPage extends StatelessWidget {
       body: StoreConnector<GlobalState, ShopViewModel>(
         converter: (store) => ShopViewModel(store.state),
         builder: (context, viewModel) {
-          return ListView(
-            children: [
-              _ShopItemRow(
-                icon: const Icon(Icons.account_balance),
-                name: 'Bank Slot',
-                price: viewModel.nextBankSlotCost,
-                canAfford: viewModel.gp >= viewModel.nextBankSlotCost,
-                onTap: () => _showPurchaseDialog(
-                  context,
-                  name: 'Bank Slot',
-                  cost: viewModel.nextBankSlotCost,
-                  createAction: PurchaseBankSlotAction.new,
-                ),
-              ),
-              ..._buildUpgradeRows(context, viewModel),
-            ],
-          );
+          return ListView(children: _buildCategoryRows(context, viewModel));
         },
       ),
     );
   }
 
-  List<Widget> _buildUpgradeRows(
+  List<Widget> _buildCategoryRows(
     BuildContext context,
     ShopViewModel viewModel,
   ) {
     final rows = <Widget>[];
-    final availableUpgrades = viewModel.availableUpgrades;
+    final purchasesByCategory = viewModel.purchasesByCategory;
 
-    for (final (purchase, skill) in availableUpgrades) {
-      final requiredLevel = viewModel.skillLevelRequirement(purchase);
-      final meetsLevelReq =
-          requiredLevel == null || viewModel.skillLevel(skill) >= requiredLevel;
+    for (final entry in purchasesByCategory.entries) {
+      final category = entry.key;
+      final purchases = entry.value;
+      final isCollapsed = _collapsedCategories.contains(category.id.toJson());
+
+      // Category header
+      rows.add(
+        InkWell(
+          onTap: () {
+            setState(() {
+              final categoryId = category.id.toJson();
+              if (_collapsedCategories.contains(categoryId)) {
+                _collapsedCategories.remove(categoryId);
+              } else {
+                _collapsedCategories.add(categoryId);
+              }
+            });
+          },
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            decoration: BoxDecoration(
+              color: Style.categoryHeaderColor,
+              border: Border(bottom: BorderSide(color: Colors.grey.shade300)),
+            ),
+            child: Row(
+              children: [
+                Icon(
+                  isCollapsed ? Icons.arrow_right : Icons.arrow_drop_down,
+                  size: 24,
+                ),
+                const SizedBox(width: 8),
+                if (category.media != null)
+                  CachedImage(assetPath: category.media!, size: 20)
+                else
+                  const Icon(Icons.category, size: 20),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    category.name,
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 16,
+                    ),
+                  ),
+                ),
+                Text(
+                  '${purchases.length} items',
+                  style: TextStyle(color: Colors.grey.shade600, fontSize: 12),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+
+      // Items in category (if not collapsed)
+      if (!isCollapsed) {
+        rows.addAll(
+          _buildPurchaseRowsForCategory(context, viewModel, purchases),
+        );
+      }
+    }
+
+    return rows;
+  }
+
+  List<Widget> _buildPurchaseRowsForCategory(
+    BuildContext context,
+    ShopViewModel viewModel,
+    List<ShopPurchase> purchases,
+  ) {
+    final rows = <Widget>[];
+
+    for (final purchase in purchases) {
+      // Skip bank slots - they're handled separately with dynamic pricing
+      if (purchase.cost.usesBankSlotPricing) continue;
+
+      final unmetRequirements = viewModel.unmetSkillRequirements(purchase);
+      final meetsAllReqs = unmetRequirements.isEmpty;
       final cost = purchase.cost.gpCost ?? 0;
       final canAfford = viewModel.gp >= cost;
 
-      // Build description from modifiers
+      // Build description from purchase
       final description = _buildDescription(purchase);
-      final requirementsString = requiredLevel != null
-          ? 'Requires ${skill.name} level $requiredLevel'
+      final requirementsString = unmetRequirements.isNotEmpty
+          ? unmetRequirements
+                .map((r) => 'Requires ${r.skill.name} level ${r.level}')
+                .join('\n')
           : null;
 
       rows.add(
         _ShopItemRow(
-          icon: Icon(_iconForSkill(skill)),
+          media: purchase.media,
           name: purchase.name,
           price: cost,
           description: description,
           canAfford: canAfford,
-          levelRequirement: meetsLevelReq ? null : requirementsString,
+          levelRequirement: meetsAllReqs ? null : requirementsString,
           onTap: () => _showPurchaseDialog(
             context,
             name: purchase.name,
             cost: cost,
             description: description,
-            levelRequirement: meetsLevelReq ? null : requirementsString,
+            levelRequirement: meetsAllReqs ? null : requirementsString,
             createAction: () => PurchaseShopItemAction(purchaseId: purchase.id),
           ),
         ),
@@ -91,15 +150,26 @@ class ShopPage extends StatelessWidget {
   }
 
   String? _buildDescription(ShopPurchase purchase) {
-    final modifiers = purchase.contains.skillIntervalModifiers;
-    if (modifiers.isEmpty) return null;
-
     final parts = <String>[];
-    for (final mod in modifiers) {
+
+    // Add skill interval modifiers
+    for (final mod in purchase.contains.skillIntervalModifiers) {
       final percent = mod.value < 0 ? '${mod.value}%' : '+${mod.value}%';
       parts.add('$percent ${mod.skill.name} time');
     }
-    return parts.join(', ');
+
+    // Add bank space
+    final bankSpace = purchase.contains.bankSpace;
+    if (bankSpace != null) {
+      parts.add('+$bankSpace bank space');
+    }
+
+    // Fall back to custom description if no modifiers
+    if (parts.isEmpty && purchase.description != null) {
+      return purchase.description;
+    }
+
+    return parts.isEmpty ? null : parts.join(', ');
   }
 
   void _showPurchaseDialog(
@@ -173,13 +243,36 @@ class ShopViewModel {
 
   ShopRegistry get _shopRegistry => _state.registries.shop;
 
-  /// Get available skill upgrades that can be purchased.
-  List<(ShopPurchase, Skill)> get availableUpgrades =>
-      _shopRegistry.availableSkillUpgrades(_state.shop.purchaseCounts);
+  /// Get all visible purchases that can be shown in the shop.
+  List<ShopPurchase> get visiblePurchases =>
+      _shopRegistry.visiblePurchases(_state.shop.purchaseCounts);
 
-  /// Get the skill level requirement for a purchase.
-  int? skillLevelRequirement(ShopPurchase purchase) =>
-      _shopRegistry.skillLevelRequirement(purchase);
+  /// Get visible purchases grouped by category.
+  /// Returns a map with categories as keys, preserving category order.
+  Map<ShopCategory, List<ShopPurchase>> get purchasesByCategory {
+    final result = <ShopCategory, List<ShopPurchase>>{};
+    final purchases = visiblePurchases;
+
+    // Group purchases by category, maintaining category order
+    for (final category in _shopRegistry.categories) {
+      final categoryPurchases = purchases
+          .where((p) => p.category == category.id)
+          .toList();
+      if (categoryPurchases.isNotEmpty) {
+        result[category] = categoryPurchases;
+      }
+    }
+
+    return result;
+  }
+
+  /// Get skill level requirements that the player doesn't meet.
+  List<SkillLevelRequirement> unmetSkillRequirements(ShopPurchase purchase) {
+    final requirements = _shopRegistry.skillLevelRequirements(purchase);
+    return requirements
+        .where((r) => _state.skillState(r.skill).skillLevel < r.level)
+        .toList();
+  }
 
   /// Get the player's skill level for a skill.
   int skillLevel(Skill skill) => _state.skillState(skill).skillLevel;
@@ -187,16 +280,18 @@ class ShopViewModel {
 
 class _ShopItemRow extends StatelessWidget {
   const _ShopItemRow({
-    required this.icon,
     required this.name,
     required this.price,
     required this.canAfford,
     required this.onTap,
+    this.media,
     this.description,
     this.levelRequirement,
   });
 
-  final Widget icon;
+  /// The asset path for the purchase icon.
+  final String? media;
+
   final String name;
   final int price;
   final bool canAfford;
@@ -216,7 +311,10 @@ class _ShopItemRow extends StatelessWidget {
         padding: const EdgeInsets.all(16),
         child: Row(
           children: [
-            icon,
+            if (media != null)
+              CachedImage(assetPath: media!)
+            else
+              const Icon(Icons.shopping_cart, size: 32),
             const SizedBox(width: 16),
             Expanded(
               child: Column(
