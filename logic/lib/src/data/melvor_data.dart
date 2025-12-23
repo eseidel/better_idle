@@ -30,15 +30,18 @@ class MelvorData {
     final fishingAreas = <FishingArea>[];
     final smithingCategories = <SmithingCategory>[];
     final thievingAreas = <ThievingArea>[];
+    final combatAreas = <CombatArea>[];
     for (final json in dataFiles) {
       final namespace = json['namespace'] as String;
       _addDataFromJson(json, namespace: namespace, items: items);
       actions.addAll(parseActions(json, namespace: namespace));
+      actions.addAll(parseCombatActions(json, namespace: namespace));
       fishingAreas.addAll(parseFishingAreas(json, namespace: namespace));
       smithingCategories.addAll(
         parseSmithingCategories(json, namespace: namespace),
       );
       thievingAreas.addAll(parseThievingAreas(json, namespace: namespace));
+      combatAreas.addAll(parseCombatAreas(json, namespace: namespace));
     }
     _items = ItemRegistry(items);
     _thievingAreas = ThievingAreaRegistry(thievingAreas);
@@ -49,9 +52,10 @@ class MelvorData {
         parseThievingActions(json, namespace: namespace, areas: _thievingAreas),
       );
     }
-    _actions = ActionRegistry(actions + hardCodedActions);
+    _actions = ActionRegistry(actions);
     _fishingAreas = FishingAreaRegistry(fishingAreas);
     _smithingCategories = SmithingCategoryRegistry(smithingCategories);
+    _combatAreas = CombatAreaRegistry(combatAreas);
   }
 
   late final ItemRegistry _items;
@@ -59,6 +63,7 @@ class MelvorData {
   late final FishingAreaRegistry _fishingAreas;
   late final SmithingCategoryRegistry _smithingCategories;
   late final ThievingAreaRegistry _thievingAreas;
+  late final CombatAreaRegistry _combatAreas;
   final Map<String, Map<String, dynamic>> _skillDataById = {};
 
   /// Returns the item registry.
@@ -71,6 +76,8 @@ class MelvorData {
   SmithingCategoryRegistry get smithingCategories => _smithingCategories;
 
   ThievingAreaRegistry get thievingAreas => _thievingAreas;
+
+  CombatAreaRegistry get combatAreas => _combatAreas;
 
   void _addDataFromJson(
     Map<String, dynamic> json, {
@@ -393,4 +400,41 @@ List<ThievingAction> parseThievingActions(
   }
 
   return [];
+}
+
+List<CombatAction> parseCombatActions(
+  Map<String, dynamic> json, {
+  required String namespace,
+}) {
+  final data = json['data'] as Map<String, dynamic>?;
+  if (data == null) {
+    return [];
+  }
+
+  final monsters = data['monsters'] as List<dynamic>? ?? [];
+  return monsters
+      .map((monsterJson) => monsterJson as Map<String, dynamic>)
+      // Filter out monsters with empty names (like RandomITM).
+      .where((m) => (m['name'] as String?)?.isNotEmpty ?? false)
+      .map(
+        (monsterJson) =>
+            CombatAction.fromJson(monsterJson, namespace: namespace),
+      )
+      .toList();
+}
+
+List<CombatArea> parseCombatAreas(
+  Map<String, dynamic> json, {
+  required String namespace,
+}) {
+  final data = json['data'] as Map<String, dynamic>?;
+  if (data == null) {
+    return [];
+  }
+
+  final areas = data['combatAreas'] as List<dynamic>? ?? [];
+  return areas
+      .map((areaJson) => areaJson as Map<String, dynamic>)
+      .map((areaJson) => CombatArea.fromJson(areaJson, namespace: namespace))
+      .toList();
 }

@@ -11,17 +11,24 @@ class CombatPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final state = context.state;
-    final plant = combatActionByName('Plant');
+    final areas = state.registries.combatAreas.all;
 
-    // Check if we're in combat with this monster
-    final isInCombat = state.activeAction?.id == plant.id;
-    // Get combat state from action states if in combat
-    final combatState = isInCombat ? state.actionState(plant.id).combat : null;
+    // Get the currently active combat action (if any)
+    final activeAction = state.activeAction;
+    CombatAction? activeMonster;
+    CombatActionState? combatState;
+    if (activeAction != null) {
+      final action = state.registries.actions.byId(activeAction.id);
+      if (action is CombatAction) {
+        activeMonster = action;
+        combatState = state.actionState(activeMonster.id).combat;
+      }
+    }
 
     return Scaffold(
       appBar: AppBar(title: const Text('Combat')),
       drawer: const AppNavigationDrawer(),
-      body: Padding(
+      body: SingleChildScrollView(
         padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -31,36 +38,129 @@ class CombatPage extends StatelessWidget {
               playerHp: state.playerHp,
               maxPlayerHp: state.maxPlayerHp,
               equipment: state.equipment,
+              attackTicksRemaining: combatState?.playerAttackTicksRemaining,
+              totalAttackTicks: activeMonster != null
+                  ? ticksFromDuration(
+                      Duration(
+                        milliseconds: (playerStats(state).attackSpeed * 1000)
+                            .round(),
+                      ),
+                    )
+                  : null,
             ),
             const SizedBox(height: 16),
 
-            // Monster card
-            _MonsterCard(
-              action: plant,
-              combatState: combatState,
-              isInCombat: isInCombat,
-            ),
-            const SizedBox(height: 16),
+            // Active combat section
+            if (activeMonster != null) ...[
+              _MonsterCard(
+                action: activeMonster,
+                combatState: combatState,
+                isInCombat: true,
+              ),
+              const SizedBox(height: 8),
+              if (state.isStunned)
+                const ElevatedButton(onPressed: null, child: Text('Stunned'))
+              else
+                ElevatedButton(
+                  onPressed: () => context.dispatch(StopCombatAction()),
+                  child: const Text('Run Away'),
+                ),
+              const SizedBox(height: 24),
+            ],
 
-            // Fight button
-            if (state.isStunned)
-              const ElevatedButton(onPressed: null, child: Text('Stunned'))
-            else if (!isInCombat)
-              ElevatedButton(
-                onPressed: () {
-                  context.dispatch(StartCombatAction(combatAction: plant));
-                },
-                child: const Text('Fight Plant'),
-              )
-            else
-              ElevatedButton(
-                onPressed: () {
-                  context.dispatch(StopCombatAction());
-                },
-                child: const Text('Run Away'),
+            // Combat Areas
+            const Text(
+              'Combat Areas',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 8),
+            for (final area in areas)
+              _CombatAreaTile(
+                area: area,
+                activeMonster: activeMonster,
+                isStunned: state.isStunned,
               ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _CombatAreaTile extends StatelessWidget {
+  const _CombatAreaTile({
+    required this.area,
+    required this.activeMonster,
+    required this.isStunned,
+  });
+
+  final CombatArea area;
+  final CombatAction? activeMonster;
+  final bool isStunned;
+
+  @override
+  Widget build(BuildContext context) {
+    final state = context.state;
+    // Resolve monster IDs to actual CombatAction objects
+    final actions = state.registries.actions;
+    final monsters = area.monsterIds.map(actions.combatActionById).toList();
+
+    // Check if any monster in this area is being fought
+    final activeId = activeMonster?.id;
+    final hasActiveMonster =
+        activeId != null && area.monsterIds.contains(activeId);
+
+    return Card(
+      color: hasActiveMonster ? Style.activeColorLight : null,
+      child: ExpansionTile(
+        title: Text(area.name),
+        subtitle: Text('${monsters.length} monsters'),
+        initiallyExpanded: hasActiveMonster,
+        children: monsters
+            .map(
+              (monster) => _MonsterListTile(
+                monster: monster,
+                isActive: activeMonster?.id == monster.id,
+                isStunned: isStunned,
+              ),
+            )
+            .toList(),
+      ),
+    );
+  }
+}
+
+class _MonsterListTile extends StatelessWidget {
+  const _MonsterListTile({
+    required this.monster,
+    required this.isActive,
+    required this.isStunned,
+  });
+
+  final CombatAction monster;
+  final bool isActive;
+  final bool isStunned;
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      color: isActive ? Style.activeColorLight : null,
+      child: ListTile(
+        title: Text(monster.name),
+        subtitle: Text(
+          'Lvl ${monster.combatLevel} • HP: ${monster.maxHp} • '
+          'Max Hit: ${monster.stats.maxHit}',
+        ),
+        trailing: isActive
+            ? const Icon(Icons.flash_on, color: Style.activeColor)
+            : ElevatedButton(
+                onPressed: isStunned
+                    ? null
+                    : () => context.dispatch(
+                        StartCombatAction(combatAction: monster),
+                      ),
+                child: const Text('Fight'),
+              ),
       ),
     );
   }
@@ -71,11 +171,15 @@ class _PlayerStatsCard extends StatelessWidget {
     required this.playerHp,
     required this.maxPlayerHp,
     required this.equipment,
+    this.attackTicksRemaining,
+    this.totalAttackTicks,
   });
 
   final int playerHp;
   final int maxPlayerHp;
   final Equipment equipment;
+  final int? attackTicksRemaining;
+  final int? totalAttackTicks;
 
   @override
   Widget build(BuildContext context) {
@@ -99,6 +203,11 @@ class _PlayerStatsCard extends StatelessWidget {
               color: Style.playerHpBarColor,
             ),
             Text('HP: $playerHp / $maxPlayerHp'),
+            const SizedBox(height: 8),
+            _AttackBar(
+              ticksRemaining: attackTicksRemaining,
+              totalTicks: totalAttackTicks,
+            ),
             const SizedBox(height: 16),
             // Food slots section
             const Text(
@@ -237,42 +346,64 @@ class _MonsterCard extends StatelessWidget {
               ],
             ),
             const SizedBox(height: 8),
-            _HpBar(
-              currentHp: currentHp,
-              maxHp: action.maxHp,
-              color: Style.monsterHpBarColor,
-            ),
-            Text('HP: $currentHp / ${action.maxHp}'),
-            const SizedBox(height: 8),
-            Text('Attack Speed: ${action.stats.attackSpeed}s'),
-            Text('Max Hit: ${action.stats.maxHit}'),
-            Text('GP Drop: ${action.minGpDrop}-${action.maxGpDrop}'),
             if (isRespawning)
               const Padding(
-                padding: EdgeInsets.only(top: 8),
-                child: Text(
-                  'Respawning...',
-                  style: TextStyle(
-                    fontStyle: FontStyle.italic,
-                    color: Style.warningColor,
+                padding: EdgeInsets.symmetric(vertical: 16),
+                child: Center(
+                  child: Column(
+                    children: [
+                      CircularProgressIndicator(),
+                      SizedBox(height: 8),
+                      Text(
+                        'Loading next monster...',
+                        style: TextStyle(
+                          fontStyle: FontStyle.italic,
+                          color: Style.textColorSecondary,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
               )
-            else if (isInCombat)
-              const Padding(
-                padding: EdgeInsets.only(top: 8),
-                child: Row(
-                  children: [
-                    SizedBox(
-                      width: 16,
-                      height: 16,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    ),
-                    SizedBox(width: 8),
-                    Text('Fighting...'),
-                  ],
-                ),
+            else ...[
+              _HpBar(
+                currentHp: currentHp,
+                maxHp: action.maxHp,
+                color: Style.monsterHpBarColor,
               ),
+              Text('HP: $currentHp / ${action.maxHp}'),
+              const SizedBox(height: 8),
+              _AttackBar(
+                ticksRemaining: combatState?.monsterAttackTicksRemaining,
+                totalTicks: isInCombat
+                    ? ticksFromDuration(
+                        Duration(
+                          milliseconds: (action.stats.attackSpeed * 1000)
+                              .round(),
+                        ),
+                      )
+                    : null,
+              ),
+              const SizedBox(height: 8),
+              Text('Attack Speed: ${action.stats.attackSpeed}s'),
+              Text('Max Hit: ${action.stats.maxHit}'),
+              Text('GP Drop: ${action.minGpDrop}-${action.maxGpDrop}'),
+              if (isInCombat)
+                const Padding(
+                  padding: EdgeInsets.only(top: 8),
+                  child: Row(
+                    children: [
+                      SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      ),
+                      SizedBox(width: 8),
+                      Text('Fighting...'),
+                    ],
+                  ),
+                ),
+            ],
           ],
         ),
       ),
@@ -307,6 +438,41 @@ class _HpBar extends StatelessWidget {
         child: Container(
           decoration: BoxDecoration(
             color: color,
+            borderRadius: BorderRadius.circular(4),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _AttackBar extends StatelessWidget {
+  const _AttackBar({required this.ticksRemaining, required this.totalTicks});
+
+  final int? ticksRemaining;
+  final int? totalTicks;
+
+  @override
+  Widget build(BuildContext context) {
+    final total = totalTicks;
+    final remaining = ticksRemaining;
+    // Progress goes from 0 to 1 as the attack charges up.
+    final progress = (total != null && total > 0 && remaining != null)
+        ? (1.0 - remaining / total).clamp(0.0, 1.0)
+        : 0.0;
+
+    return Container(
+      height: 12,
+      decoration: BoxDecoration(
+        color: Style.progressBackgroundColor,
+        borderRadius: BorderRadius.circular(4),
+      ),
+      child: FractionallySizedBox(
+        alignment: Alignment.centerLeft,
+        widthFactor: progress,
+        child: Container(
+          decoration: BoxDecoration(
+            color: Style.attackBarColor,
             borderRadius: BorderRadius.circular(4),
           ),
         ),

@@ -17,6 +17,12 @@ class DropTableEntry extends Equatable {
     required this.weight,
   });
 
+  /// Creates a DropTableEntry from a simple name string with equal min/max.
+  DropTableEntry.fromName(String name, {int count = 1, required this.weight})
+    : itemID = MelvorId.fromName(name),
+      minQuantity = count,
+      maxQuantity = count;
+
   DropTableEntry.test(
     String name, {
     required int gp,

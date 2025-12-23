@@ -1,14 +1,16 @@
 import 'dart:math';
 
-import 'package:logic/src/data/combat.dart';
 import 'package:logic/src/tick.dart';
 import 'package:logic/src/types/drop.dart';
 import 'package:logic/src/types/modifier.dart';
 import 'package:meta/meta.dart';
 
+import 'combat.dart';
+import 'items.dart';
 import 'melvor_id.dart';
 import 'mining.dart';
 
+export 'combat.dart';
 export 'cooking.dart';
 export 'firemaking.dart';
 export 'fishing.dart';
@@ -80,8 +82,8 @@ List<Droppable> woodcuttingRewards(SkillAction action, int masteryLevel) {
   final singlePercent = (100 - doublePercent).clamp(0, 100);
   return [
     DropTable([
-      Pick(name, weight: singlePercent),
-      Pick(name, count: 2, weight: doublePercent),
+      DropTableEntry.fromName(name, weight: singlePercent),
+      DropTableEntry.fromName(name, count: 2, weight: doublePercent),
     ]),
   ];
 }
@@ -159,8 +161,6 @@ class SkillAction extends Action {
 /// Fixed player attack speed in seconds.
 const double playerAttackSpeed = 4;
 
-final hardCodedActions = <Action>[...combatActions];
-
 // Skill-level drops: shared across all actions in a skill.
 // This can include both simple Drops and DropTables.
 final skillDrops = <Skill, List<Droppable>>{
@@ -223,6 +223,8 @@ class ActionRegistry {
       (action) => action.skill == skill,
     );
   }
+
+  CombatAction combatActionById(MelvorId id) => byId(id) as CombatAction;
 }
 
 class DropsRegistry {

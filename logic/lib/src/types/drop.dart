@@ -86,16 +86,6 @@ class DropChance extends Droppable {
   }
 }
 
-/// Deprecated, to be removed once we're loading everything from MelvorData.
-class Pick extends DropTableEntry {
-  Pick(String itemName, {int count = 1, required super.weight})
-    : super(
-        itemID: MelvorId.fromName(itemName),
-        minQuantity: count,
-        maxQuantity: count,
-      );
-}
-
 /// A drop table that selects exactly one item from weighted entries.
 /// Always drops something (unless entries is empty).
 class DropTable extends Droppable {

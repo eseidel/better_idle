@@ -2,7 +2,6 @@ import 'dart:math';
 
 import 'package:logic/src/action_state.dart';
 import 'package:logic/src/data/actions.dart';
-import 'package:logic/src/data/combat.dart';
 import 'package:logic/src/data/melvor_id.dart';
 import 'package:logic/src/data/registries.dart';
 import 'package:logic/src/data/xp.dart';
@@ -828,10 +827,14 @@ enum ForegroundResult {
   if (monsterHp <= 0) {
     final gpDrop = action.rollGpDrop(rng);
     builder.addGp(gpDrop);
+    // Reset monster attack timer to full duration for when it respawns
+    final fullMonsterAttackTicks = ticksFromDuration(
+      Duration(milliseconds: (action.stats.attackSpeed * 1000).round()),
+    );
     currentCombat = currentCombat.copyWith(
       monsterHp: 0,
       playerAttackTicksRemaining: resetPlayerTicks,
-      monsterAttackTicksRemaining: newMonsterTicks,
+      monsterAttackTicksRemaining: fullMonsterAttackTicks,
       respawnTicksRemaining: ticksFromDuration(monsterRespawnDuration),
     );
     builder.updateCombatState(activeAction.id, currentCombat);

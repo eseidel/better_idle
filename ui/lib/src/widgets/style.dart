@@ -114,6 +114,9 @@ class Style {
   // Monster HP bar color
   static const Color monsterHpBarColor = Colors.red;
 
+  // Attack bar color
+  static const Color attackBarColor = Colors.orange;
+
   // Progress bar text colors
   static const Color progressTextDark = Colors.black87;
 
