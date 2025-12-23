@@ -1,6 +1,9 @@
 import 'package:better_idle/src/logic/redux_actions.dart';
+import 'package:better_idle/src/widgets/cached_image.dart';
 import 'package:better_idle/src/widgets/context_extensions.dart';
 import 'package:better_idle/src/widgets/navigation_drawer.dart';
+import 'package:better_idle/src/widgets/skill_image.dart';
+import 'package:better_idle/src/widgets/skills.dart';
 import 'package:better_idle/src/widgets/style.dart';
 import 'package:flutter/material.dart';
 import 'package:logic/logic.dart';
@@ -146,10 +149,22 @@ class _MonsterListTile extends StatelessWidget {
     return Card(
       color: isActive ? Style.activeColorLight : null,
       child: ListTile(
-        title: Text(monster.name),
-        subtitle: Text(
-          'Lvl ${monster.combatLevel} • HP: ${monster.maxHp} • '
-          'Max Hit: ${monster.stats.maxHit}',
+        leading: monster.media != null
+            ? CachedImage(assetPath: monster.media!, size: 40)
+            : null,
+        title: Row(
+          children: [
+            CachedImage(assetPath: monster.attackType.assetPath, size: 16),
+            const SizedBox(width: 4),
+            Text(monster.name),
+          ],
+        ),
+        subtitle: Row(
+          children: [
+            Text('Lvl ${monster.combatLevel} • '),
+            const SkillImage(skill: Skill.hitpoints, size: 14),
+            Text(' ${monster.maxHp}'),
+          ],
         ),
         trailing: isActive
             ? const Icon(Icons.flash_on, color: Style.activeColor)
