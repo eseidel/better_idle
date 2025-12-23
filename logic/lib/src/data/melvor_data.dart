@@ -88,6 +88,12 @@ class MelvorData {
     actions.addAll(smithingActions);
     _smithingCategories = smithingCategories;
 
+    final (fletchingActions, fletchingCategories) = parseFletching(
+      skillDataById['melvorD:Fletching'],
+    );
+    actions.addAll(fletchingActions);
+    _fletchingCategories = fletchingCategories;
+
     // Parse combat before thieving so thieving wins name collisions
     // (e.g., "Golbin" exists as both monster and thieving NPC).
     // TODO(eseidel): Having a single ActionRegistry for both skill actions
@@ -112,6 +118,7 @@ class MelvorData {
   late final ActionRegistry _actions;
   late final FishingAreaRegistry _fishingAreas;
   late final SmithingCategoryRegistry _smithingCategories;
+  late final FletchingCategoryRegistry _fletchingCategories;
   late final ThievingAreaRegistry _thievingAreas;
   late final CombatAreaRegistry _combatAreas;
 
@@ -123,6 +130,8 @@ class MelvorData {
   FishingAreaRegistry get fishingAreas => _fishingAreas;
 
   SmithingCategoryRegistry get smithingCategories => _smithingCategories;
+
+  FletchingCategoryRegistry get fletchingCategories => _fletchingCategories;
 
   ThievingAreaRegistry get thievingAreas => _thievingAreas;
 
@@ -291,6 +300,46 @@ List<FiremakingAction> parseFiremaking(List<SkillDataEntry>? entries) {
   }
 
   return (actions, SmithingCategoryRegistry(categories));
+}
+
+/// Parses all fletching data. Returns (actions, categoriesRegistry).
+(List<FletchingAction>, FletchingCategoryRegistry) parseFletching(
+  List<SkillDataEntry>? entries,
+) {
+  if (entries == null) {
+    return ([], FletchingCategoryRegistry([]));
+  }
+
+  final actions = <FletchingAction>[];
+  final categories = <FletchingCategory>[];
+
+  for (final entry in entries) {
+    final recipes = entry.data['recipes'] as List<dynamic>?;
+    if (recipes != null) {
+      actions.addAll(
+        recipes.map(
+          (json) => FletchingAction.fromJson(
+            json as Map<String, dynamic>,
+            namespace: entry.namespace,
+          ),
+        ),
+      );
+    }
+
+    final cats = entry.data['categories'] as List<dynamic>?;
+    if (cats != null) {
+      categories.addAll(
+        cats.map(
+          (json) => FletchingCategory.fromJson(
+            json as Map<String, dynamic>,
+            namespace: entry.namespace,
+          ),
+        ),
+      );
+    }
+  }
+
+  return (actions, FletchingCategoryRegistry(categories));
 }
 
 /// Parses all thieving data. Builds areas registry internally.

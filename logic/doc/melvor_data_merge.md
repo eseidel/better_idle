@@ -1,3 +1,5 @@
+<!-- cspell:words Defence Runecrafting Herblore Skillcape Jewlery -->
+
 # Melvor Data Merge Analysis
 
 This document describes how `melvorDemo.json` and `melvorFull.json` are merged in `MelvorData`.

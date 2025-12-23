@@ -12,30 +12,30 @@ import 'package:better_idle/src/widgets/xp_badges_row.dart';
 import 'package:flutter/material.dart' hide Action;
 import 'package:logic/logic.dart';
 
-class SmithingPage extends StatefulWidget {
-  const SmithingPage({super.key});
+class FletchingPage extends StatefulWidget {
+  const FletchingPage({super.key});
 
   @override
-  State<SmithingPage> createState() => _SmithingPageState();
+  State<FletchingPage> createState() => _FletchingPageState();
 }
 
-class _SmithingPageState extends State<SmithingPage> {
-  SmithingAction? _selectedAction;
+class _FletchingPageState extends State<FletchingPage> {
+  FletchingAction? _selectedAction;
   final Set<MelvorId> _collapsedCategories = {};
 
   @override
   Widget build(BuildContext context) {
-    const skill = Skill.smithing;
+    const skill = Skill.fletching;
     final registries = context.state.registries;
     final actions = registries.actions
         .forSkill(skill)
-        .whereType<SmithingAction>()
+        .whereType<FletchingAction>()
         .toList();
     final skillState = context.state.skillState(skill);
-    final categories = registries.smithingCategories;
+    final categories = registries.fletchingCategories;
 
     // Group actions by category
-    final actionsByCategory = <SmithingCategory, List<SmithingAction>>{};
+    final actionsByCategory = <FletchingCategory, List<FletchingAction>>{};
     for (final action in actions) {
       final category = action.categoryId != null
           ? categories.byId(action.categoryId!)
@@ -49,7 +49,7 @@ class _SmithingPageState extends State<SmithingPage> {
     final selectedAction = _selectedAction ?? actions.first;
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Smithing')),
+      appBar: AppBar(title: const Text('Fletching')),
       drawer: const AppNavigationDrawer(),
       body: Column(
         children: [
@@ -69,7 +69,7 @@ class _SmithingPageState extends State<SmithingPage> {
                     },
                   ),
                   const SizedBox(height: 24),
-                  CategorizedActionList<SmithingCategory, SmithingAction>(
+                  CategorizedActionList<FletchingCategory, FletchingAction>(
                     actionsByCategory: actionsByCategory,
                     selectedAction: selectedAction,
                     collapsedCategories: _collapsedCategories,
@@ -130,9 +130,9 @@ class _SelectedActionDisplay extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          // Header: Create + Action Name
+          // Header: Fletch + Action Name
           const Text(
-            'Create',
+            'Fletch',
             textAlign: TextAlign.center,
             style: TextStyle(fontSize: 14, color: Style.textColorSecondary),
           ),
@@ -191,7 +191,7 @@ class _SelectedActionDisplay extends StatelessWidget {
           XpBadgesRow(action: action),
           const SizedBox(height: 16),
 
-          // Duration and Create button
+          // Duration and Fletch button
           Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
@@ -206,7 +206,7 @@ class _SelectedActionDisplay extends StatelessWidget {
             style: ElevatedButton.styleFrom(
               backgroundColor: isActive ? Style.activeColor : null,
             ),
-            child: Text(isActive ? 'Stop' : 'Create'),
+            child: Text(isActive ? 'Stop' : 'Fletch'),
           ),
         ],
       ),

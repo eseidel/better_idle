@@ -1,5 +1,7 @@
 import 'package:better_idle/src/logic/redux_actions.dart';
 import 'package:better_idle/src/widgets/context_extensions.dart';
+import 'package:better_idle/src/widgets/input_items_row.dart';
+import 'package:better_idle/src/widgets/item_image.dart';
 import 'package:better_idle/src/widgets/mastery_pool.dart';
 import 'package:better_idle/src/widgets/navigation_drawer.dart';
 import 'package:better_idle/src/widgets/skill_progress.dart';
@@ -192,6 +194,7 @@ class _ItemList extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final state = context.state;
     if (items.isEmpty) {
       return const Text(
         'None',
@@ -201,7 +204,15 @@ class _ItemList extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: items.entries.map((entry) {
-        return Text('${entry.value}x ${entry.key.name}');
+        final item = state.registries.items.byId(entry.key);
+        return Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ItemImage(item: item, size: 20),
+            const SizedBox(width: 4),
+            Text('${entry.value}x ${entry.key.name}'),
+          ],
+        );
       }).toList(),
     );
   }
@@ -229,11 +240,18 @@ class _InventoryItemList extends StatelessWidget {
         final item = state.registries.items.byId(entry.key);
         final count = inventory.countOfItem(item);
         final hasEnough = count >= entry.value;
-        return Text(
-          '$count ${entry.key.name}',
-          style: TextStyle(
-            color: hasEnough ? Style.successColor : Style.errorColor,
-          ),
+        return Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ItemImage(item: item, size: 20),
+            const SizedBox(width: 4),
+            Text(
+              '$count ${entry.key.name}',
+              style: TextStyle(
+                color: hasEnough ? Style.successColor : Style.errorColor,
+              ),
+            ),
+          ],
         );
       }).toList(),
     );
@@ -263,15 +281,16 @@ class _ActionList extends StatelessWidget {
         const SizedBox(height: 8),
         ...actions.map((action) {
           final isSelected = action.name == selectedAction.name;
+          final cookingAction = action as CookingAction;
+          final productItem = context.state.registries.items.byId(
+            cookingAction.productId,
+          );
           return Card(
             color: isSelected ? Style.selectedColorLight : null,
             child: ListTile(
+              leading: ItemImage(item: productItem),
               title: Text(action.name),
-              subtitle: Text(
-                action.inputs.entries
-                    .map((e) => '${e.value}x ${e.key}')
-                    .join(', '),
-              ),
+              subtitle: InputItemsRow(items: action.inputs),
               trailing: isSelected
                   ? const Icon(Icons.check_circle, color: Style.selectedColor)
                   : null,

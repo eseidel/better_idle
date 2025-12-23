@@ -10,6 +10,7 @@ class Registries {
     this.drops,
     this.fishingAreas,
     this.smithingCategories,
+    this.fletchingCategories,
     this.thievingAreas,
     this.combatAreas,
   );
@@ -19,6 +20,7 @@ class Registries {
   final DropsRegistry drops;
   final FishingAreaRegistry fishingAreas;
   final SmithingCategoryRegistry smithingCategories;
+  final FletchingCategoryRegistry fletchingCategories;
   final ThievingAreaRegistry thievingAreas;
   final CombatAreaRegistry combatAreas;
 }
@@ -35,6 +37,7 @@ Future<Registries> loadRegistries({Directory? cacheDir}) async {
     DropsRegistry(skillDrops, globalDrops),
     melvorData.fishingAreas,
     melvorData.smithingCategories,
+    melvorData.fletchingCategories,
     melvorData.thievingAreas,
     melvorData.combatAreas,
   );
