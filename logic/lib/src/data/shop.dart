@@ -4,6 +4,7 @@ import 'package:equatable/equatable.dart';
 import 'package:logic/src/data/actions.dart';
 import 'package:logic/src/data/currency.dart';
 import 'package:logic/src/data/melvor_id.dart';
+import 'package:logic/src/types/modifier.dart';
 import 'package:meta/meta.dart';
 
 /// The type of cost calculation for a shop purchase.
@@ -127,57 +128,28 @@ class ShopCost extends Equatable {
   List<Object?> get props => [currencies, items];
 }
 
-/// A skill interval modifier from a shop purchase.
-@immutable
-class SkillIntervalModifier extends Equatable {
-  const SkillIntervalModifier({required this.skill, required this.value});
-
-  /// Returns null if the skill is not supported.
-  static SkillIntervalModifier? fromJson(Map<String, dynamic> json) {
-    final skillId = MelvorId(json['skillID'] as String);
-    final skill = Skill.fromId(skillId);
-    return SkillIntervalModifier(skill: skill, value: json['value'] as int);
-  }
-
-  final Skill skill;
-
-  /// The interval modifier in percentage points (e.g., -5 means 5% reduction).
-  final int value;
-
-  @override
-  List<Object?> get props => [skill, value];
-}
-
 /// What a shop purchase contains/grants.
 @immutable
 class ShopContents extends Equatable {
-  const ShopContents({required this.skillIntervalModifiers, this.bankSpace});
+  const ShopContents({required this.modifiers});
 
-  factory ShopContents.fromJson(Map<String, dynamic> json) {
-    final modifiers = json['modifiers'] as Map<String, dynamic>? ?? {};
-
-    // Parse skill interval modifiers (filtering out unsupported skills)
-    final skillIntervalJson =
-        modifiers['skillInterval'] as List<dynamic>? ?? [];
-    final skillIntervalModifiers = skillIntervalJson
-        .map((e) => SkillIntervalModifier.fromJson(e as Map<String, dynamic>))
-        .whereType<SkillIntervalModifier>()
-        .toList();
-
-    // Parse bank space modifier
-    final bankSpace = modifiers['bankSpace'] as int?;
-
+  factory ShopContents.fromJson(
+    Map<String, dynamic> json, {
+    required String namespace,
+  }) {
+    final modifiersJson = json['modifiers'] as Map<String, dynamic>? ?? {};
     return ShopContents(
-      skillIntervalModifiers: skillIntervalModifiers,
-      bankSpace: bankSpace,
+      modifiers: ModifierDataSet.fromJson(modifiersJson, namespace: namespace),
     );
   }
 
-  final List<SkillIntervalModifier> skillIntervalModifiers;
-  final int? bankSpace;
+  final ModifierDataSet modifiers;
+
+  /// Bank space modifier value, or null if not present.
+  int? get bankSpace => modifiers.byName('bankSpace')?.totalValue.toInt();
 
   @override
-  List<Object?> get props => [skillIntervalModifiers, bankSpace];
+  List<Object?> get props => [modifiers];
 }
 
 /// Base class for shop requirements.
@@ -340,7 +312,10 @@ class ShopPurchase extends Equatable {
           )
           .whereType<ShopRequirement>()
           .toList(),
-      contains: ShopContents.fromJson(json['contains'] as Map<String, dynamic>),
+      contains: ShopContents.fromJson(
+        json['contains'] as Map<String, dynamic>,
+        namespace: namespace,
+      ),
       buyLimit: json['defaultBuyLimit'] as int,
     );
   }
@@ -401,7 +376,7 @@ class ShopRegistry {
   /// Returns purchases that affect the given skill via interval modifiers.
   List<ShopPurchase> purchasesAffectingSkill(Skill skill) {
     return _purchases.where((p) {
-      return p.contains.skillIntervalModifiers.any((m) => m.skill == skill);
+      return p.contains.modifiers.hasSkillIntervalFor(skill.id);
     }).toList();
   }
 
@@ -415,11 +390,7 @@ class ShopRegistry {
     for (final purchase in purchasesAffectingSkill(skill)) {
       final owned = purchaseCounts[purchase.id] ?? 0;
       if (owned > 0) {
-        for (final mod in purchase.contains.skillIntervalModifiers) {
-          if (mod.skill == skill) {
-            total += mod.value;
-          }
-        }
+        total += purchase.contains.modifiers.skillIntervalForSkill(skill.id);
       }
     }
     return total;
@@ -466,16 +437,23 @@ class ShopRegistry {
   /// - It hasn't reached its buy limit
   ///
   /// Returns purchases paired with the skill they affect (first affected skill).
+  /// Only includes purchases that affect skills we support.
   List<(ShopPurchase, Skill)> availableSkillUpgrades(
     Map<MelvorId, int> purchaseCounts,
   ) {
     final result = <(ShopPurchase, Skill)>[];
     for (final purchase in visiblePurchases(purchaseCounts)) {
-      final modifiers = purchase.contains.skillIntervalModifiers;
-      if (modifiers.isEmpty) continue;
+      final skillIds = purchase.contains.modifiers.skillIntervalSkillIds;
+      if (skillIds.isEmpty) continue;
 
-      // Use first affected skill
-      result.add((purchase, modifiers.first.skill));
+      // Find the first supported skill
+      for (final skillId in skillIds) {
+        final skill = Skill.tryFromId(skillId);
+        if (skill != null) {
+          result.add((purchase, skill));
+          break;
+        }
+      }
     }
     return result;
   }
@@ -506,10 +484,7 @@ class ShopRegistry {
   /// For example, 0.95 means 5% reduction (faster).
   /// Returns 1.0 if the purchase has no skill interval modifiers.
   double durationMultiplier(ShopPurchase purchase) {
-    var totalPercent = 0;
-    for (final mod in purchase.contains.skillIntervalModifiers) {
-      totalPercent += mod.value;
-    }
+    final totalPercent = purchase.contains.modifiers.totalSkillInterval;
     // Value of -5 means -5%, so multiplier is 1.0 + (-5/100) = 0.95
     return 1.0 + (totalPercent / 100.0);
   }

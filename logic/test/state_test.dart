@@ -397,9 +397,110 @@ void main() {
       expect(ticksMastery99, 28); // 30 ticks - 2 ticks = 28 ticks
     });
 
-    // Shop upgrade combination tests require full shop data parsing
-    // which is tested in the solver tests with real game data.
-    // This test was testing the old hardcoded upgrade system.
+    test('shop upgrade applies percentage reduction to woodcutting', () {
+      final normalTree = testActions.skillActionByName('Normal Tree');
+      // Normal Tree has 3 second fixed duration = 30 ticks
+      expect(normalTree.minDuration, const Duration(seconds: 3));
+      expect(normalTree.maxDuration, const Duration(seconds: 3));
+
+      final random = Random(42);
+
+      // State with no upgrades - should get full 30 ticks
+      final stateNoUpgrade = GlobalState.test(testRegistries);
+      final ticksNoUpgrade = stateNoUpgrade.rollDurationWithModifiers(
+        normalTree,
+        random,
+        testRegistries.shop,
+      );
+      expect(ticksNoUpgrade, 30);
+
+      // Axes must be purchased in order (each requires the previous one).
+      // Iron Axe (-5%) + Steel Axe (-5%) = -10% total
+      final ironAxeId = MelvorId('melvorD:Iron_Axe');
+      final steelAxeId = MelvorId('melvorD:Steel_Axe');
+      final stateWithAxes = GlobalState.test(
+        testRegistries,
+        shop: ShopState(purchaseCounts: {ironAxeId: 1, steelAxeId: 1}),
+      );
+      final ticksWithAxes = stateWithAxes.rollDurationWithModifiers(
+        normalTree,
+        random,
+        testRegistries.shop,
+      );
+      // 30 * 0.90 = 27 ticks
+      expect(ticksWithAxes, 27);
+    });
+
+    test('shop upgrade applies percentage reduction to fishing', () {
+      final shrimp = testActions.skillActionByName('Raw Shrimp');
+      // Raw Shrimp has variable duration (4-8 seconds)
+      expect(shrimp.minDuration, const Duration(seconds: 4));
+      expect(shrimp.maxDuration, const Duration(seconds: 8));
+
+      // Get the rolled duration without any modifiers
+      final random1 = Random(42);
+      final stateNoUpgrade = GlobalState.test(testRegistries);
+      final ticksNoUpgrade = stateNoUpgrade.rollDurationWithModifiers(
+        shrimp,
+        random1,
+        testRegistries.shop,
+      );
+
+      // Fishing rods must be purchased in order (each requires the previous).
+      // Iron Rod (-5%) + Steel Rod (-5%) = -10% total
+      final random2 = Random(42);
+      final ironRodId = MelvorId('melvorD:Iron_Fishing_Rod');
+      final steelRodId = MelvorId('melvorD:Steel_Fishing_Rod');
+      final stateWithRods = GlobalState.test(
+        testRegistries,
+        shop: ShopState(purchaseCounts: {ironRodId: 1, steelRodId: 1}),
+      );
+      final ticksWithRods = stateWithRods.rollDurationWithModifiers(
+        shrimp,
+        random2,
+        testRegistries.shop,
+      );
+
+      // The modifier should reduce duration by 10%
+      final expectedTicks = (ticksNoUpgrade * 0.90).round();
+      expect(ticksWithRods, expectedTicks);
+
+      // Verify the reduction is meaningful (not just 0)
+      expect(ticksWithRods, lessThan(ticksNoUpgrade));
+    });
+
+    test('shop upgrade applies percentage reduction to mining', () {
+      final copper = testActions.skillActionByName('Copper');
+      // Copper has 3 second duration = 30 ticks
+      expect(copper.minDuration, const Duration(seconds: 3));
+
+      final random = Random(42);
+
+      // State with no upgrades
+      final stateNoUpgrade = GlobalState.test(testRegistries);
+      final ticksNoUpgrade = stateNoUpgrade.rollDurationWithModifiers(
+        copper,
+        random,
+        testRegistries.shop,
+      );
+      expect(ticksNoUpgrade, 30);
+
+      // Pickaxes must be purchased in order (each requires the previous).
+      // Iron (-5%) + Steel (-5%) = -10% total
+      final ironPickaxeId = MelvorId('melvorD:Iron_Pickaxe');
+      final steelPickaxeId = MelvorId('melvorD:Steel_Pickaxe');
+      final stateWithPickaxes = GlobalState.test(
+        testRegistries,
+        shop: ShopState(purchaseCounts: {ironPickaxeId: 1, steelPickaxeId: 1}),
+      );
+      final ticksWithPickaxes = stateWithPickaxes.rollDurationWithModifiers(
+        copper,
+        random,
+        testRegistries.shop,
+      );
+      // 30 * 0.90 = 27 ticks
+      expect(ticksWithPickaxes, 27);
+    });
   });
 
   group('GlobalState.openItems', () {

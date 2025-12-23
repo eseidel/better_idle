@@ -276,6 +276,52 @@ class ModifierDataSet extends Equatable {
 
   final List<ModifierData> modifiers;
 
+  /// Get modifier by name, or null if not found.
+  ModifierData? byName(String name) {
+    for (final mod in modifiers) {
+      if (mod.name == name) return mod;
+    }
+    return null;
+  }
+
+  /// Get total value for a modifier scoped to a specific skill.
+  /// Returns the sum of all matching entries.
+  int skillIntervalForSkill(MelvorId skillId) {
+    final mod = byName('skillInterval');
+    if (mod == null) return 0;
+    var total = 0;
+    for (final entry in mod.entries) {
+      if (entry.scope?.skillId == skillId) {
+        total += entry.value.toInt();
+      }
+    }
+    return total;
+  }
+
+  /// Returns true if this set has any skill interval modifiers for the skill.
+  bool hasSkillIntervalFor(MelvorId skillId) {
+    final mod = byName('skillInterval');
+    if (mod == null) return false;
+    return mod.entries.any((e) => e.scope?.skillId == skillId);
+  }
+
+  /// Returns all skill IDs that have skill interval modifiers.
+  List<MelvorId> get skillIntervalSkillIds {
+    final mod = byName('skillInterval');
+    if (mod == null) return [];
+    return mod.entries
+        .map((e) => e.scope?.skillId)
+        .whereType<MelvorId>()
+        .toList();
+  }
+
+  /// Returns the total skill interval value across all skills.
+  int get totalSkillInterval {
+    final mod = byName('skillInterval');
+    if (mod == null) return 0;
+    return mod.entries.fold<int>(0, (sum, e) => sum + e.value.toInt());
+  }
+
   @override
   List<Object?> get props => [modifiers];
 }

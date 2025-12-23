@@ -56,6 +56,14 @@ enum Skill {
     );
   }
 
+  /// Returns the skill for the given ID, or null if not recognized.
+  static Skill? tryFromId(MelvorId id) {
+    for (final skill in values) {
+      if (skill.id == id) return skill;
+    }
+    return null;
+  }
+
   /// The Melvor ID for this skill (e.g., melvorD:Woodcutting).
   /// All skills use the melvorD namespace (e.g., melvorD:Woodcutting).
   MelvorId get id => MelvorId('melvorD:$name');
