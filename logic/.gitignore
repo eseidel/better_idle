@@ -11,3 +11,6 @@ pubspec.lock
 
 # Used for json/image caching for melvor idle game data.
 .cache
+
+# Produced by tool/parse_modifiers.dart
+modifier_report.json
