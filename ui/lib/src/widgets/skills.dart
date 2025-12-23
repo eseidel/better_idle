@@ -13,6 +13,7 @@ extension SkillExtensions on Skill {
     Skill.smithing => Icons.hardware,
     Skill.fletching => Icons.keyboard_double_arrow_up,
     Skill.thieving => Icons.back_hand,
+    Skill.crafting => Icons.handyman,
   };
 
   String get routeName => switch (this) {
