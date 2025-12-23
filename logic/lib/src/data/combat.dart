@@ -352,14 +352,4 @@ class CombatAreaRegistry {
 
   /// Returns a combat area by ID, or null if not found.
   CombatArea? byId(MelvorId id) => _byId[id];
-
-  /// Returns the combat area containing the given monster ID, or null.
-  CombatArea? areaForMonster(MelvorId monsterId) {
-    for (final area in _areas) {
-      if (area.monsterIds.contains(monsterId)) {
-        return area;
-      }
-    }
-    return null;
-  }
 }
