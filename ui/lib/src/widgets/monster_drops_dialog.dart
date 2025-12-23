@@ -100,7 +100,7 @@ class MonsterDropsDialog extends StatelessWidget {
     if (min == max) {
       return '$min';
     }
-    return '$min-$max';
+    return '$min - $max';
   }
 
   Widget _buildLootTable(BuildContext context, Droppable lootTable) {
