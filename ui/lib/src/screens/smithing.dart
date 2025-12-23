@@ -1,8 +1,7 @@
 import 'package:better_idle/src/logic/redux_actions.dart';
-import 'package:better_idle/src/widgets/cached_image.dart';
+import 'package:better_idle/src/widgets/categorized_action_list.dart';
 import 'package:better_idle/src/widgets/context_extensions.dart';
 import 'package:better_idle/src/widgets/double_chance_badge_cell.dart';
-import 'package:better_idle/src/widgets/input_items_row.dart';
 import 'package:better_idle/src/widgets/item_image.dart';
 import 'package:better_idle/src/widgets/mastery_pool.dart';
 import 'package:better_idle/src/widgets/navigation_drawer.dart';
@@ -70,7 +69,7 @@ class _SmithingPageState extends State<SmithingPage> {
                     },
                   ),
                   const SizedBox(height: 24),
-                  _ActionList(
+                  CategorizedActionList<SmithingCategory, SmithingAction>(
                     actionsByCategory: actionsByCategory,
                     selectedAction: selectedAction,
                     collapsedCategories: _collapsedCategories,
@@ -88,6 +87,10 @@ class _SmithingPageState extends State<SmithingPage> {
                         }
                       });
                     },
+                    categoryId: (c) => c.id,
+                    categoryName: (c) => c.name,
+                    categoryMedia: (c) => c.media,
+                    actionProductId: (a) => a.productId,
                   ),
                 ],
               ),
@@ -278,104 +281,6 @@ class _InventoryItemList extends StatelessWidget {
           ],
         );
       }).toList(),
-    );
-  }
-}
-
-class _ActionList extends StatelessWidget {
-  const _ActionList({
-    required this.actionsByCategory,
-    required this.selectedAction,
-    required this.collapsedCategories,
-    required this.onSelect,
-    required this.onToggleCategory,
-  });
-
-  final Map<SmithingCategory, List<SmithingAction>> actionsByCategory;
-  final SmithingAction selectedAction;
-  final Set<MelvorId> collapsedCategories;
-  final void Function(SmithingAction) onSelect;
-  final void Function(SmithingCategory) onToggleCategory;
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        const Text(
-          'Available Actions',
-          style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-        ),
-        const SizedBox(height: 8),
-        ...actionsByCategory.entries.map((entry) {
-          final category = entry.key;
-          final actions = entry.value;
-          final isCollapsed = collapsedCategories.contains(category.id);
-
-          return Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              // Category header with collapse toggle
-              InkWell(
-                onTap: () => onToggleCategory(category),
-                child: Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 12,
-                    vertical: 8,
-                  ),
-                  decoration: BoxDecoration(
-                    color: Style.categoryHeaderColor,
-                    borderRadius: BorderRadius.circular(4),
-                  ),
-                  child: Row(
-                    children: [
-                      Icon(
-                        isCollapsed ? Icons.arrow_right : Icons.arrow_drop_down,
-                        size: 24,
-                      ),
-                      const SizedBox(width: 8),
-                      CachedImage(assetPath: category.media, size: 24),
-                      const SizedBox(width: 8),
-                      Text(
-                        category.name,
-                        style: const TextStyle(
-                          fontWeight: FontWeight.bold,
-                          fontSize: 14,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-              // Actions list (if not collapsed)
-              if (!isCollapsed)
-                ...actions.map((action) {
-                  final isSelected = action.name == selectedAction.name;
-                  final productItem = context.state.registries.items.byId(
-                    action.productId,
-                  );
-                  return Card(
-                    margin: const EdgeInsets.only(left: 16, top: 4, bottom: 4),
-                    color: isSelected ? Style.selectedColorLight : null,
-                    child: ListTile(
-                      leading: ItemImage(item: productItem),
-                      title: Text(action.name),
-                      subtitle: InputItemsRow(items: action.inputs),
-                      trailing: isSelected
-                          ? const Icon(
-                              Icons.check_circle,
-                              color: Style.selectedColor,
-                            )
-                          : null,
-                      onTap: () => onSelect(action),
-                    ),
-                  );
-                }),
-              const SizedBox(height: 8),
-            ],
-          );
-        }),
-      ],
     );
   }
 }
