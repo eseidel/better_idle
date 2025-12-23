@@ -224,16 +224,7 @@ class ActionRegistry {
     );
   }
 
-  CombatAction combatActionById(MelvorId id) {
-    final action = _byId[id];
-    if (action == null) {
-      throw StateError('Missing combat action with id: $id');
-    }
-    if (action is! CombatAction) {
-      throw StateError('Action $id is not a CombatAction');
-    }
-    return action;
-  }
+  CombatAction combatActionById(MelvorId id) => byId(id) as CombatAction;
 }
 
 class DropsRegistry {
