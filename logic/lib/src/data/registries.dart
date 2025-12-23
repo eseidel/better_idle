@@ -11,6 +11,7 @@ class Registries {
     this.fishingAreas,
     this.smithingCategories,
     this.fletchingCategories,
+    this.craftingCategories,
     this.thievingAreas,
     this.combatAreas,
   );
@@ -21,6 +22,7 @@ class Registries {
   final FishingAreaRegistry fishingAreas;
   final SmithingCategoryRegistry smithingCategories;
   final FletchingCategoryRegistry fletchingCategories;
+  final CraftingCategoryRegistry craftingCategories;
   final ThievingAreaRegistry thievingAreas;
   final CombatAreaRegistry combatAreas;
 }
@@ -38,6 +40,7 @@ Future<Registries> loadRegistries({Directory? cacheDir}) async {
     melvorData.fishingAreas,
     melvorData.smithingCategories,
     melvorData.fletchingCategories,
+    melvorData.craftingCategories,
     melvorData.thievingAreas,
     melvorData.combatAreas,
   );

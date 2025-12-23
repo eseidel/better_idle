@@ -1,6 +1,7 @@
 import 'package:better_idle/src/screens/bank.dart';
 import 'package:better_idle/src/screens/combat.dart';
 import 'package:better_idle/src/screens/cooking.dart';
+import 'package:better_idle/src/screens/crafting.dart';
 import 'package:better_idle/src/screens/debug.dart';
 import 'package:better_idle/src/screens/firemaking.dart';
 import 'package:better_idle/src/screens/fishing.dart';
@@ -64,6 +65,11 @@ final GoRouter router = GoRouter(
       path: '/fletching',
       name: 'fletching',
       builder: (context, _) => const FletchingPage(),
+    ),
+    GoRoute(
+      path: '/crafting',
+      name: 'crafting',
+      builder: (context, _) => const CraftingPage(),
     ),
     GoRoute(
       path: '/combat',

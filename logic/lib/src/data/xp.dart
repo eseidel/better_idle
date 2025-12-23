@@ -245,6 +245,7 @@ double actionTimeForMastery(SkillAction action) {
       return action.maxDuration.inSeconds * 0.85;
     case Skill.smithing:
     case Skill.fletching:
+    case Skill.crafting:
       return 1.7;
 
     // Combat skills don't use mastery XP in the same way
