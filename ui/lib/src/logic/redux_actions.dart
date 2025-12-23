@@ -182,18 +182,43 @@ class PurchaseShopItemAction extends ReduxAction<GlobalState> {
       }
     }
 
-    // Check cost
-    final cost = purchase.cost.gpCost;
-    if (cost == null) {
-      throw Exception('Purchase has no GP cost');
+    // Check and calculate currency costs
+    final currencyCosts = purchase.cost.fixedCurrencyCosts;
+    var newGp = state.gp;
+    for (final (currency, amount) in currencyCosts) {
+      switch (currency) {
+        case Currency.gp:
+          if (newGp < amount) {
+            throw Exception('Not enough GP. Need $amount, have $newGp');
+          }
+          newGp -= amount;
+        case Currency.slayerCoins:
+        case Currency.raidCoins:
+          // TODO(eseidel): Implement slayer and raid coins when added to state.
+          throw Exception('${currency.abbreviation} not yet implemented');
+      }
     }
-    if (state.gp < cost) {
-      throw Exception('Not enough GP. Need $cost, have ${state.gp}');
+
+    // Check and apply item costs
+    final itemCosts = purchase.cost.items;
+    var newInventory = state.inventory;
+    for (final itemCost in itemCosts) {
+      final item = state.registries.items.byId(itemCost.itemId);
+      final count = newInventory.countOfItem(item);
+      if (count < itemCost.quantity) {
+        throw Exception(
+          'Not enough ${item.name}. Need ${itemCost.quantity}, have $count',
+        );
+      }
+      newInventory = newInventory.removing(
+        ItemStack(item, count: itemCost.quantity),
+      );
     }
 
     // Apply purchase
     return state.copyWith(
-      gp: state.gp - cost,
+      gp: newGp,
+      inventory: newInventory,
       shop: state.shop.withPurchase(purchaseId),
     );
   }

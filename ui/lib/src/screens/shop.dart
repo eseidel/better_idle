@@ -114,21 +114,27 @@ class _ShopPageState extends State<ShopPage> {
       // Skip bank slots - they're handled separately with dynamic pricing
       if (purchase.cost.usesBankSlotPricing) continue;
 
-      // Skip items with item costs (not yet supported)
-      if (purchase.cost.hasItemCost) continue;
-
       final unmetRequirements = viewModel.unmetSkillRequirements(purchase);
       final meetsAllReqs = unmetRequirements.isEmpty;
 
-      // Get all currency costs
+      // Get all costs
       final currencyCosts = purchase.cost.fixedCurrencyCosts;
+      final itemCosts = purchase.cost.items;
 
-      // Check if player can afford all currencies
-      final canAfford = viewModel.canAffordCosts(currencyCosts);
-      final canPurchase = meetsAllReqs && canAfford;
+      // Check if player can afford all currencies and items
+      final canAffordCurrency = viewModel.canAffordCosts(currencyCosts);
+      final canAffordItems = viewModel.canAffordItemCosts(itemCosts);
+      final canPurchase = meetsAllReqs && canAffordCurrency && canAffordItems;
 
       // Build description from purchase
       final description = _buildDescription(purchase);
+
+      // Resolve item costs to (Item, quantity, canAfford) tuples
+      final resolvedItemCosts = itemCosts.map((cost) {
+        final item = viewModel.itemById(cost.itemId);
+        final canAfford = viewModel.itemCount(cost.itemId) >= cost.quantity;
+        return (item, cost.quantity, canAfford);
+      }).toList();
 
       rows.add(
         _ShopItemRow(
@@ -136,13 +142,17 @@ class _ShopPageState extends State<ShopPage> {
           name: purchase.name,
           currencyCosts: currencyCosts,
           canAffordCosts: viewModel.canAffordEachCost(currencyCosts),
+          itemCosts: resolvedItemCosts,
           description: description,
           unmetRequirements: unmetRequirements,
           onTap: canPurchase
               ? () => _showPurchaseDialog(
                   context,
                   name: purchase.name,
-                  costWidget: _buildCostWidget(currencyCosts),
+                  costWidget: _buildCostWidget(
+                    currencyCosts,
+                    resolvedItemCosts,
+                  ),
                   description: description,
                   createAction: () =>
                       PurchaseShopItemAction(purchaseId: purchase.id),
@@ -155,21 +165,47 @@ class _ShopPageState extends State<ShopPage> {
     return rows;
   }
 
-  Widget _buildCostWidget(List<(Currency, int)> costs) {
-    return Wrap(
-      spacing: 8,
-      crossAxisAlignment: WrapCrossAlignment.center,
-      children: costs.map((cost) {
-        final (currency, amount) = cost;
-        return Row(
+  Widget _buildCostWidget(
+    List<(Currency, int)> currencyCosts,
+    List<(Item, int, bool)> itemCosts,
+  ) {
+    final widgets = <Widget>[];
+
+    // Add currency costs
+    for (final (currency, amount) in currencyCosts) {
+      widgets.add(
+        Row(
           mainAxisSize: MainAxisSize.min,
           children: [
             CachedImage(assetPath: currency.assetPath, size: 16),
             const SizedBox(width: 4),
             Text(approximateCreditString(amount)),
           ],
-        );
-      }).toList(),
+        ),
+      );
+    }
+
+    // Add item costs
+    for (final (item, quantity, _) in itemCosts) {
+      widgets.add(
+        Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (item.media != null)
+              CachedImage(assetPath: item.media!, size: 16)
+            else
+              const Icon(Icons.inventory_2, size: 16),
+            const SizedBox(width: 4),
+            Text('$quantity'),
+          ],
+        ),
+      );
+    }
+
+    return Wrap(
+      spacing: 8,
+      crossAxisAlignment: WrapCrossAlignment.center,
+      children: widgets,
     );
   }
 
@@ -326,6 +362,34 @@ class ShopViewModel {
     }
     return result;
   }
+
+  /// Returns an item by its MelvorId.
+  Item itemById(MelvorId id) => _state.registries.items.byId(id);
+
+  /// Returns the player's count of an item in inventory.
+  int itemCount(MelvorId itemId) {
+    final item = _state.registries.items.byId(itemId);
+    return _state.inventory.countOfItem(item);
+  }
+
+  /// Returns true if the player can afford all the given item costs.
+  bool canAffordItemCosts(List<ItemCost> costs) {
+    for (final cost in costs) {
+      if (itemCount(cost.itemId) < cost.quantity) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  /// Returns a map of itemId to whether the player can afford that cost.
+  Map<MelvorId, bool> canAffordEachItemCost(List<ItemCost> costs) {
+    final result = <MelvorId, bool>{};
+    for (final cost in costs) {
+      result[cost.itemId] = itemCount(cost.itemId) >= cost.quantity;
+    }
+    return result;
+  }
 }
 
 class _ShopItemRow extends StatelessWidget {
@@ -333,6 +397,7 @@ class _ShopItemRow extends StatelessWidget {
     required this.name,
     required this.currencyCosts,
     required this.canAffordCosts,
+    required this.itemCosts,
     this.onTap,
     this.media,
     this.description,
@@ -349,6 +414,9 @@ class _ShopItemRow extends StatelessWidget {
 
   /// Map of currency to whether the player can afford that cost.
   final Map<Currency, bool> canAffordCosts;
+
+  /// List of item costs for this purchase, with resolved item data.
+  final List<(Item, int, bool)> itemCosts; // (item, quantity, canAfford)
 
   /// Called when tapped. Null if the item cannot be purchased.
   final VoidCallback? onTap;
@@ -400,7 +468,7 @@ class _ShopItemRow extends StatelessWidget {
   }
 
   Widget _buildCostRow() {
-    if (currencyCosts.isEmpty) {
+    if (currencyCosts.isEmpty && itemCosts.isEmpty) {
       return const Text(
         'Free',
         style: TextStyle(
@@ -410,14 +478,14 @@ class _ShopItemRow extends StatelessWidget {
       );
     }
 
-    return Wrap(
-      spacing: 12,
-      crossAxisAlignment: WrapCrossAlignment.center,
-      children: currencyCosts.map((cost) {
-        final (currency, amount) = cost;
-        final canAfford = canAffordCosts[currency] ?? false;
-        final color = canAfford ? Style.successColor : Style.errorColor;
-        return Row(
+    final widgets = <Widget>[];
+
+    // Add currency costs
+    for (final (currency, amount) in currencyCosts) {
+      final canAfford = canAffordCosts[currency] ?? false;
+      final color = canAfford ? Style.successColor : Style.errorColor;
+      widgets.add(
+        Row(
           mainAxisSize: MainAxisSize.min,
           children: [
             CachedImage(assetPath: currency.assetPath, size: 16),
@@ -427,8 +495,35 @@ class _ShopItemRow extends StatelessWidget {
               style: TextStyle(color: color, fontWeight: FontWeight.bold),
             ),
           ],
-        );
-      }).toList(),
+        ),
+      );
+    }
+
+    // Add item costs
+    for (final (item, quantity, canAfford) in itemCosts) {
+      final color = canAfford ? Style.successColor : Style.errorColor;
+      widgets.add(
+        Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (item.media != null)
+              CachedImage(assetPath: item.media!, size: 16)
+            else
+              Icon(Icons.inventory_2, size: 16, color: color),
+            const SizedBox(width: 4),
+            Text(
+              '$quantity',
+              style: TextStyle(color: color, fontWeight: FontWeight.bold),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return Wrap(
+      spacing: 12,
+      crossAxisAlignment: WrapCrossAlignment.center,
+      children: widgets,
     );
   }
 

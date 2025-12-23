@@ -123,9 +123,6 @@ class ShopCost extends Equatable {
     return result;
   }
 
-  /// Returns true if this purchase has any item costs.
-  bool get hasItemCost => items.isNotEmpty;
-
   @override
   List<Object?> get props => [currencies, items];
 }

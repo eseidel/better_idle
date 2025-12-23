@@ -1,7 +1,66 @@
 import 'package:logic/logic.dart';
 import 'package:test/test.dart';
 
+import 'test_helper.dart';
+
 void main() {
+  group('ShopCost', () {
+    test('fixedCurrencyCosts returns all fixed costs', () {
+      const cost = ShopCost(
+        currencies: [
+          CurrencyCost(
+            currency: Currency.gp,
+            type: CostType.fixed,
+            fixedCost: 1000,
+          ),
+          CurrencyCost(
+            currency: Currency.slayerCoins,
+            type: CostType.fixed,
+            fixedCost: 50,
+          ),
+        ],
+        items: [],
+      );
+
+      final fixed = cost.fixedCurrencyCosts;
+      expect(fixed.length, 2);
+      expect(fixed[0], (Currency.gp, 1000));
+      expect(fixed[1], (Currency.slayerCoins, 50));
+    });
+
+    test('fixedCurrencyCosts excludes bank slot pricing', () {
+      const cost = ShopCost(
+        currencies: [
+          CurrencyCost(currency: Currency.gp, type: CostType.bankSlot),
+        ],
+        items: [],
+      );
+
+      expect(cost.fixedCurrencyCosts, isEmpty);
+      expect(cost.usesBankSlotPricing, isTrue);
+    });
+  });
+
+  group('ShopRegistry', () {
+    setUpAll(() async {
+      await loadTestRegistries();
+    });
+    test('item costs reference valid items', () {
+      for (final purchase in testRegistries.shop.all) {
+        for (final itemCost in purchase.cost.items) {
+          // This should not throw - all item IDs should be valid
+          expect(
+            () => testRegistries.items.byId(itemCost.itemId),
+            returnsNormally,
+            reason:
+                'Item ${itemCost.itemId} in purchase ${purchase.id} '
+                'should exist in item registry',
+          );
+        }
+      }
+    });
+  });
+
   group('ShopState', () {
     test('nextBankSlotCost returns correct costs for first 10 slots', () {
       void expectSlotCost(int slot, int expectedCost) {
