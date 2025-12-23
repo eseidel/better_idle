@@ -198,9 +198,6 @@ class ActionRegistry {
     return action;
   }
 
-  /// Returns an Action by id, or null if not found.
-  Action? tryById(MelvorId id) => _byId[id];
-
   /// Returns an Action by name, or throws a StateError if not found.
   Action byName(String name) {
     final action = _byName[name];
@@ -226,8 +223,16 @@ class ActionRegistry {
     );
   }
 
-  /// Returns all combat actions.
-  Iterable<CombatAction> get combatActions => _all.whereType<CombatAction>();
+  CombatAction combatActionById(MelvorId id) {
+    final action = _byId[id];
+    if (action == null) {
+      throw StateError('Missing combat action with id: $id');
+    }
+    if (action is! CombatAction) {
+      throw StateError('Action $id is not a CombatAction');
+    }
+    return action;
+  }
 }
 
 class DropsRegistry {

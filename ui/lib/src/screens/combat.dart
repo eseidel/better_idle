@@ -102,13 +102,8 @@ class _CombatAreaTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final state = context.state;
     // Resolve monster IDs to actual CombatAction objects
-    final monsters = area.monsterIds
-        .map((id) {
-          final action = state.registries.actions.tryById(id);
-          return action is CombatAction ? action : null;
-        })
-        .whereType<CombatAction>()
-        .toList();
+    final actions = state.registries.actions;
+    final monsters = area.monsterIds.map(actions.combatActionById).toList();
 
     // Check if any monster in this area is being fought
     final activeId = activeMonster?.id;
