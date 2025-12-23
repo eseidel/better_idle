@@ -1,35 +1,55 @@
 import 'package:better_idle/src/logic/redux_actions.dart';
+import 'package:better_idle/src/widgets/cached_image.dart';
 import 'package:better_idle/src/widgets/context_extensions.dart';
+import 'package:better_idle/src/widgets/double_chance_badge_cell.dart';
 import 'package:better_idle/src/widgets/item_image.dart';
 import 'package:better_idle/src/widgets/mastery_pool.dart';
 import 'package:better_idle/src/widgets/navigation_drawer.dart';
+import 'package:better_idle/src/widgets/recycle_chance_badge_cell.dart';
 import 'package:better_idle/src/widgets/skill_progress.dart';
 import 'package:better_idle/src/widgets/style.dart';
 import 'package:better_idle/src/widgets/xp_badges_row.dart';
 import 'package:flutter/material.dart' hide Action;
 import 'package:logic/logic.dart';
 
-class CookingPage extends StatefulWidget {
-  const CookingPage({super.key});
+class FletchingPage extends StatefulWidget {
+  const FletchingPage({super.key});
 
   @override
-  State<CookingPage> createState() => _CookingPageState();
+  State<FletchingPage> createState() => _FletchingPageState();
 }
 
-class _CookingPageState extends State<CookingPage> {
-  SkillAction? _selectedAction;
+class _FletchingPageState extends State<FletchingPage> {
+  FletchingAction? _selectedAction;
+  final Set<MelvorId> _collapsedCategories = {};
 
   @override
   Widget build(BuildContext context) {
-    const skill = Skill.cooking;
-    final actions = context.state.registries.actions.forSkill(skill).toList();
+    const skill = Skill.fletching;
+    final registries = context.state.registries;
+    final actions = registries.actions
+        .forSkill(skill)
+        .whereType<FletchingAction>()
+        .toList();
     final skillState = context.state.skillState(skill);
+    final categories = registries.fletchingCategories;
+
+    // Group actions by category
+    final actionsByCategory = <FletchingCategory, List<FletchingAction>>{};
+    for (final action in actions) {
+      final category = action.categoryId != null
+          ? categories.byId(action.categoryId!)
+          : null;
+      if (category != null) {
+        actionsByCategory.putIfAbsent(category, () => []).add(action);
+      }
+    }
 
     // Default to first action if none selected
     final selectedAction = _selectedAction ?? actions.first;
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Cooking')),
+      appBar: AppBar(title: const Text('Fletching')),
       drawer: const AppNavigationDrawer(),
       body: Column(
         children: [
@@ -50,11 +70,21 @@ class _CookingPageState extends State<CookingPage> {
                   ),
                   const SizedBox(height: 24),
                   _ActionList(
-                    actions: actions,
+                    actionsByCategory: actionsByCategory,
                     selectedAction: selectedAction,
+                    collapsedCategories: _collapsedCategories,
                     onSelect: (action) {
                       setState(() {
                         _selectedAction = action;
+                      });
+                    },
+                    onToggleCategory: (category) {
+                      setState(() {
+                        if (_collapsedCategories.contains(category.id)) {
+                          _collapsedCategories.remove(category.id);
+                        } else {
+                          _collapsedCategories.add(category.id);
+                        }
                       });
                     },
                   ),
@@ -81,13 +111,6 @@ class _SelectedActionDisplay extends StatelessWidget {
     final isActive = state.activeAction?.id == action.id;
     final canStart = state.canStartAction(action);
 
-    // Get healing value from output item if it exists
-    final outputId = action.outputs.keys.firstOrNull;
-    final outputItem = outputId != null
-        ? state.registries.items.byId(outputId)
-        : null;
-    final healsFor = outputItem?.healsFor;
-
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -103,9 +126,9 @@ class _SelectedActionDisplay extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          // Header: Cook + Action Name
+          // Header: Fletch + Action Name
           const Text(
-            'Cook',
+            'Fletch',
             textAlign: TextAlign.center,
             style: TextStyle(fontSize: 14, color: Style.textColorSecondary),
           ),
@@ -113,6 +136,17 @@ class _SelectedActionDisplay extends StatelessWidget {
             action.name,
             textAlign: TextAlign.center,
             style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+          ),
+          const SizedBox(height: 12),
+
+          // Recycle and Double chance (placeholders)
+          const Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              RecycleChanceBadgeCell(chance: '0%'),
+              SizedBox(width: 24),
+              DoubleChanceBadgeCell(chance: '0%'),
+            ],
           ),
           const SizedBox(height: 12),
 
@@ -145,16 +179,6 @@ class _SelectedActionDisplay extends StatelessWidget {
           ),
           const SizedBox(height: 4),
           _ItemList(items: action.outputs),
-          if (healsFor != null) ...[
-            const SizedBox(height: 4),
-            Row(
-              children: [
-                const Icon(Icons.favorite, size: 16, color: Style.healColor),
-                const SizedBox(width: 4),
-                Text('Heals $healsFor HP'),
-              ],
-            ),
-          ],
           const SizedBox(height: 8),
 
           // Grants section
@@ -163,7 +187,7 @@ class _SelectedActionDisplay extends StatelessWidget {
           XpBadgesRow(action: action),
           const SizedBox(height: 16),
 
-          // Duration and Cook button
+          // Duration and Fletch button
           Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
@@ -178,7 +202,7 @@ class _SelectedActionDisplay extends StatelessWidget {
             style: ElevatedButton.styleFrom(
               backgroundColor: isActive ? Style.activeColor : null,
             ),
-            child: Text(isActive ? 'Stop' : 'Cook'),
+            child: Text(isActive ? 'Stop' : 'Fletch'),
           ),
         ],
       ),
@@ -289,14 +313,18 @@ class _InputItemsRow extends StatelessWidget {
 
 class _ActionList extends StatelessWidget {
   const _ActionList({
-    required this.actions,
+    required this.actionsByCategory,
     required this.selectedAction,
+    required this.collapsedCategories,
     required this.onSelect,
+    required this.onToggleCategory,
   });
 
-  final List<SkillAction> actions;
-  final SkillAction selectedAction;
-  final void Function(SkillAction) onSelect;
+  final Map<FletchingCategory, List<FletchingAction>> actionsByCategory;
+  final FletchingAction selectedAction;
+  final Set<MelvorId> collapsedCategories;
+  final void Function(FletchingAction) onSelect;
+  final void Function(FletchingCategory) onToggleCategory;
 
   @override
   Widget build(BuildContext context) {
@@ -304,27 +332,76 @@ class _ActionList extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         const Text(
-          'Available Recipes',
+          'Available Actions',
           style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
         ),
         const SizedBox(height: 8),
-        ...actions.map((action) {
-          final isSelected = action.name == selectedAction.name;
-          final cookingAction = action as CookingAction;
-          final productItem = context.state.registries.items.byId(
-            cookingAction.productId,
-          );
-          return Card(
-            color: isSelected ? Style.selectedColorLight : null,
-            child: ListTile(
-              leading: ItemImage(item: productItem),
-              title: Text(action.name),
-              subtitle: _InputItemsRow(items: action.inputs),
-              trailing: isSelected
-                  ? const Icon(Icons.check_circle, color: Style.selectedColor)
-                  : null,
-              onTap: () => onSelect(action),
-            ),
+        ...actionsByCategory.entries.map((entry) {
+          final category = entry.key;
+          final actions = entry.value;
+          final isCollapsed = collapsedCategories.contains(category.id);
+
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              // Category header with collapse toggle
+              InkWell(
+                onTap: () => onToggleCategory(category),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 8,
+                  ),
+                  decoration: BoxDecoration(
+                    color: Style.categoryHeaderColor,
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(
+                        isCollapsed ? Icons.arrow_right : Icons.arrow_drop_down,
+                        size: 24,
+                      ),
+                      const SizedBox(width: 8),
+                      CachedImage(assetPath: category.media, size: 24),
+                      const SizedBox(width: 8),
+                      Text(
+                        category.name,
+                        style: const TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 14,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              // Actions list (if not collapsed)
+              if (!isCollapsed)
+                ...actions.map((action) {
+                  final isSelected = action.name == selectedAction.name;
+                  final productItem = context.state.registries.items.byId(
+                    action.productId,
+                  );
+                  return Card(
+                    margin: const EdgeInsets.only(left: 16, top: 4, bottom: 4),
+                    color: isSelected ? Style.selectedColorLight : null,
+                    child: ListTile(
+                      leading: ItemImage(item: productItem),
+                      title: Text(action.name),
+                      subtitle: _InputItemsRow(items: action.inputs),
+                      trailing: isSelected
+                          ? const Icon(
+                              Icons.check_circle,
+                              color: Style.selectedColor,
+                            )
+                          : null,
+                      onTap: () => onSelect(action),
+                    ),
+                  );
+                }),
+              const SizedBox(height: 8),
+            ],
           );
         }),
       ],

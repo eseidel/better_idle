@@ -244,6 +244,7 @@ double actionTimeForMastery(SkillAction action) {
       // 85% of the recipe's base cooking interval
       return action.maxDuration.inSeconds * 0.85;
     case Skill.smithing:
+    case Skill.fletching:
       return 1.7;
 
     // Combat skills don't use mastery XP in the same way

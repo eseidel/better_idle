@@ -1,5 +1,6 @@
 import 'package:better_idle/src/logic/redux_actions.dart';
 import 'package:better_idle/src/widgets/context_extensions.dart';
+import 'package:better_idle/src/widgets/item_image.dart';
 import 'package:better_idle/src/widgets/mastery_pool.dart';
 import 'package:better_idle/src/widgets/navigation_drawer.dart';
 import 'package:better_idle/src/widgets/skill_image.dart';
@@ -380,10 +381,14 @@ class _ActionList extends StatelessWidget {
                     );
                   }
 
+                  final productItem = context.state.registries.items.byId(
+                    action.productId,
+                  );
                   return Card(
                     margin: const EdgeInsets.only(left: 16, top: 4, bottom: 4),
                     color: isSelected ? Style.selectedColorLight : null,
                     child: ListTile(
+                      leading: ItemImage(item: productItem),
                       title: Text(action.name),
                       subtitle: Text(
                         'Lvl ${action.unlockLevel} • $durationText',

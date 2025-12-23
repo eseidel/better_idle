@@ -2,6 +2,7 @@ import 'package:better_idle/src/logic/redux_actions.dart';
 import 'package:better_idle/src/widgets/cached_image.dart';
 import 'package:better_idle/src/widgets/context_extensions.dart';
 import 'package:better_idle/src/widgets/double_chance_badge_cell.dart';
+import 'package:better_idle/src/widgets/item_image.dart';
 import 'package:better_idle/src/widgets/mastery_pool.dart';
 import 'package:better_idle/src/widgets/navigation_drawer.dart';
 import 'package:better_idle/src/widgets/recycle_chance_badge_cell.dart';
@@ -216,6 +217,7 @@ class _ItemList extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final state = context.state;
     if (items.isEmpty) {
       return const Text(
         'None',
@@ -225,7 +227,15 @@ class _ItemList extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: items.entries.map((entry) {
-        return Text('${entry.value}x ${entry.key.name}');
+        final item = state.registries.items.byId(entry.key);
+        return Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ItemImage(item: item, size: 20),
+            const SizedBox(width: 4),
+            Text('${entry.value}x ${entry.key.name}'),
+          ],
+        );
       }).toList(),
     );
   }
@@ -253,13 +263,50 @@ class _InventoryItemList extends StatelessWidget {
         final item = state.registries.items.byId(entry.key);
         final count = inventory.countOfItem(item);
         final hasEnough = count >= entry.value;
-        return Text(
-          '$count ${entry.key.name}',
-          style: TextStyle(
-            color: hasEnough ? Style.successColor : Style.errorColor,
-          ),
+        return Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ItemImage(item: item, size: 20),
+            const SizedBox(width: 4),
+            Text(
+              '$count ${entry.key.name}',
+              style: TextStyle(
+                color: hasEnough ? Style.successColor : Style.errorColor,
+              ),
+            ),
+          ],
         );
       }).toList(),
+    );
+  }
+}
+
+/// Compact inline display of input items with icons and counts.
+/// Shows: [item1 icon] 15 [item2 icon] 10
+class _InputItemsRow extends StatelessWidget {
+  const _InputItemsRow({required this.items});
+
+  final Map<MelvorId, int> items;
+
+  @override
+  Widget build(BuildContext context) {
+    final state = context.state;
+    if (items.isEmpty) {
+      return const Text(
+        'No inputs',
+        style: TextStyle(color: Style.textColorSecondary),
+      );
+    }
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        for (final (index, entry) in items.entries.indexed) ...[
+          if (index > 0) const SizedBox(width: 8),
+          ItemImage(item: state.registries.items.byId(entry.key), size: 16),
+          const SizedBox(width: 2),
+          Text('${entry.value}'),
+        ],
+      ],
     );
   }
 }
@@ -333,16 +380,16 @@ class _ActionList extends StatelessWidget {
               if (!isCollapsed)
                 ...actions.map((action) {
                   final isSelected = action.name == selectedAction.name;
+                  final productItem = context.state.registries.items.byId(
+                    action.productId,
+                  );
                   return Card(
                     margin: const EdgeInsets.only(left: 16, top: 4, bottom: 4),
                     color: isSelected ? Style.selectedColorLight : null,
                     child: ListTile(
+                      leading: ItemImage(item: productItem),
                       title: Text(action.name),
-                      subtitle: Text(
-                        action.inputs.entries
-                            .map((e) => '${e.value}x ${e.key.name}')
-                            .join(', '),
-                      ),
+                      subtitle: _InputItemsRow(items: action.inputs),
                       trailing: isSelected
                           ? const Icon(
                               Icons.check_circle,

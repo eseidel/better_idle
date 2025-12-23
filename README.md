@@ -26,10 +26,10 @@ use it.
 - Fix Smithing to separate action groups. 
 - Add Equipment
 - Add Farming
-- Fix combat to show attack timers/progress bars.
 - Fix fishing regions to drop junk/specials.
 - Add more Thieving drops.
 - Implement mastery rewards (and UI) for all actions.
 - Implement mastery pool checkpoints.
 - Implement mastery tokens.
 - Gems should not drop for rune essence.
+- Handle recipes which have multiple possible inputs.
