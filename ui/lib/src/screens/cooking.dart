@@ -1,5 +1,6 @@
 import 'package:better_idle/src/logic/redux_actions.dart';
 import 'package:better_idle/src/widgets/context_extensions.dart';
+import 'package:better_idle/src/widgets/input_items_row.dart';
 import 'package:better_idle/src/widgets/item_image.dart';
 import 'package:better_idle/src/widgets/mastery_pool.dart';
 import 'package:better_idle/src/widgets/navigation_drawer.dart';
@@ -257,36 +258,6 @@ class _InventoryItemList extends StatelessWidget {
   }
 }
 
-/// Compact inline display of input items with icons and counts.
-/// Shows: [item1 icon] 15 [item2 icon] 10
-class _InputItemsRow extends StatelessWidget {
-  const _InputItemsRow({required this.items});
-
-  final Map<MelvorId, int> items;
-
-  @override
-  Widget build(BuildContext context) {
-    final state = context.state;
-    if (items.isEmpty) {
-      return const Text(
-        'No inputs',
-        style: TextStyle(color: Style.textColorSecondary),
-      );
-    }
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        for (final (index, entry) in items.entries.indexed) ...[
-          if (index > 0) const SizedBox(width: 8),
-          ItemImage(item: state.registries.items.byId(entry.key), size: 16),
-          const SizedBox(width: 2),
-          Text('${entry.value}'),
-        ],
-      ],
-    );
-  }
-}
-
 class _ActionList extends StatelessWidget {
   const _ActionList({
     required this.actions,
@@ -319,7 +290,7 @@ class _ActionList extends StatelessWidget {
             child: ListTile(
               leading: ItemImage(item: productItem),
               title: Text(action.name),
-              subtitle: _InputItemsRow(items: action.inputs),
+              subtitle: InputItemsRow(items: action.inputs),
               trailing: isSelected
                   ? const Icon(Icons.check_circle, color: Style.selectedColor)
                   : null,
