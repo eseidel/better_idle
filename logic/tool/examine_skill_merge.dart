@@ -23,12 +23,15 @@ void main() async {
     print('Skills in Full: ${fullSkillData.keys.toList()}\n');
 
     // Find skills that exist in both
-    final commonSkills =
-        demoSkillData.keys.where((k) => fullSkillData.containsKey(k)).toList();
-    final demoOnlySkills =
-        demoSkillData.keys.where((k) => !fullSkillData.containsKey(k)).toList();
-    final fullOnlySkills =
-        fullSkillData.keys.where((k) => !demoSkillData.containsKey(k)).toList();
+    final commonSkills = demoSkillData.keys
+        .where((k) => fullSkillData.containsKey(k))
+        .toList();
+    final demoOnlySkills = demoSkillData.keys
+        .where((k) => !fullSkillData.containsKey(k))
+        .toList();
+    final fullOnlySkills = fullSkillData.keys
+        .where((k) => !demoSkillData.containsKey(k))
+        .toList();
 
     print('Skills in BOTH: $commonSkills');
     print('Skills ONLY in Demo: $demoOnlySkills');
@@ -45,8 +48,9 @@ void main() async {
       print('Full keys: ${fullContent.keys.toList()}');
 
       // Find common keys that would be merged
-      final commonKeys =
-          demoContent.keys.where((k) => fullContent.containsKey(k)).toList();
+      final commonKeys = demoContent.keys
+          .where((k) => fullContent.containsKey(k))
+          .toList();
 
       for (final key in commonKeys) {
         final demoValue = demoContent[key];
@@ -68,8 +72,9 @@ void main() async {
       }
 
       // Keys only in full (added)
-      final fullOnlyKeys =
-          fullContent.keys.where((k) => !demoContent.containsKey(k)).toList();
+      final fullOnlyKeys = fullContent.keys
+          .where((k) => !demoContent.containsKey(k))
+          .toList();
       if (fullOnlyKeys.isNotEmpty) {
         print('  Keys only in Full (added): $fullOnlyKeys');
       }
@@ -79,14 +84,29 @@ void main() async {
 
     // Detailed look at specific skill
     print('=== DETAILED EXAMPLE: Woodcutting Trees ===\n');
-    _showDetailedMerge(demoSkillData, fullSkillData, 'melvorD:Woodcutting', 'trees');
+    _showDetailedMerge(
+      demoSkillData,
+      fullSkillData,
+      'melvorD:Woodcutting',
+      'trees',
+    );
 
     print('=== DETAILED EXAMPLE: Mining Rocks ===\n');
-    _showDetailedMerge(demoSkillData, fullSkillData, 'melvorD:Mining', 'rockData');
+    _showDetailedMerge(
+      demoSkillData,
+      fullSkillData,
+      'melvorD:Mining',
+      'rockData',
+    );
 
     print('=== DETAILED EXAMPLE: Fishing ===\n');
     _showDetailedMerge(demoSkillData, fullSkillData, 'melvorD:Fishing', 'fish');
-    _showDetailedMerge(demoSkillData, fullSkillData, 'melvorD:Fishing', 'areas');
+    _showDetailedMerge(
+      demoSkillData,
+      fullSkillData,
+      'melvorD:Fishing',
+      'areas',
+    );
   } finally {
     cache.close();
   }
@@ -110,7 +130,11 @@ Map<String, Map<String, dynamic>> _extractSkillData(Map<String, dynamic> json) {
   return result;
 }
 
-void _showListExamples(String key, List<dynamic> demoList, List<dynamic> fullList) {
+void _showListExamples(
+  String key,
+  List<dynamic> demoList,
+  List<dynamic> fullList,
+) {
   String getName(dynamic item) {
     if (item is Map<String, dynamic>) {
       return item['name'] as String? ??
