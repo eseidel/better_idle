@@ -80,19 +80,10 @@ class MonsterLevels {
     ].reduce((a, b) => a > b ? a : b);
     return (base + maxOffense * 0.325).floor();
   }
-
-  Map<String, dynamic> toJson() => {
-    'Hitpoints': hitpoints,
-    'Attack': attack,
-    'Strength': strength,
-    // The json uses the british spelling of defense.
-    'Defence': defense, // cspell:disable-line
-    'Ranged': ranged,
-    'Magic': magic,
-  };
 }
 
 /// Bones dropped by a monster on death.
+/// Each monster only drops one kind of bones, up to a specific quantity.
 @immutable
 class BonesDrop {
   const BonesDrop({required this.itemId, required this.quantity});
@@ -112,11 +103,6 @@ class BonesDrop {
 
   final MelvorId itemId;
   final int quantity;
-
-  Map<String, dynamic> toJson() => {
-    'itemID': itemId.toJson(),
-    'quantity': quantity,
-  };
 }
 
 /// Type of attack the monster uses.
@@ -127,13 +113,8 @@ enum AttackType {
   random;
 
   factory AttackType.fromJson(String value) {
-    return AttackType.values.firstWhere(
-      (e) => e.name == value,
-      orElse: () => AttackType.melee,
-    );
+    return AttackType.values.firstWhere((e) => e.name == value);
   }
-
-  String toJson() => name;
 }
 
 /// A combat action for fighting a specific monster.
