@@ -471,23 +471,13 @@ class Changes {
     );
   }
 
-  /// Parse currencies from JSON, supporting both old 'gpGained' field and new
-  /// 'currenciesGained' map format.
   static Map<Currency, int> _currenciesFromJson(Map<String, dynamic> json) {
-    // Try new format first
-    final currenciesJson = json['currenciesGained'] as Map<String, dynamic>?;
-    if (currenciesJson != null) {
-      return currenciesJson.map((key, value) {
-        final currency = Currency.fromIdOrThrow(key);
-        return MapEntry(currency, value as int);
-      });
-    }
-    // Fall back to old 'gpGained' field for migration
-    final gpGained = json['gpGained'] as int? ?? 0;
-    if (gpGained > 0) {
-      return {Currency.gp: gpGained};
-    }
-    return const {};
+    final currenciesJson =
+        json['currenciesGained'] as Map<String, dynamic>? ?? {};
+    return currenciesJson.map((key, value) {
+      final currency = Currency.fromId(key);
+      return MapEntry(currency, value as int);
+    });
   }
 
   final Counts<Skill> skillXpChanges;
@@ -495,9 +485,6 @@ class Changes {
   final Counts<MelvorId> droppedItems;
   final LevelChanges skillLevelChanges;
   final Map<Currency, int> currenciesGained;
-
-  /// The amount of GP gained. Convenience getter for backward compatibility.
-  int get gpGained => currenciesGained[Currency.gp] ?? 0;
 
   /// Helper to merge two currency maps.
   static Map<Currency, int> _mergeCurrencies(
@@ -595,8 +582,6 @@ class Changes {
       currenciesGained: newCurrencies,
     );
   }
-
-  Changes addingGp(int amount) => addingCurrency(Currency.gp, amount);
 
   Map<String, dynamic> toJson() {
     return {

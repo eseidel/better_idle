@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:logic/src/data/actions.dart';
 import 'package:logic/src/data/melvor_data.dart';
+import 'package:logic/src/data/shop.dart';
 
 class Registries {
   Registries(
@@ -14,6 +15,7 @@ class Registries {
     this.craftingCategories,
     this.thievingAreas,
     this.combatAreas,
+    this.shop,
   );
 
   final ItemRegistry items;
@@ -25,6 +27,7 @@ class Registries {
   final CraftingCategoryRegistry craftingCategories;
   final ThievingAreaRegistry thievingAreas;
   final CombatAreaRegistry combatAreas;
+  final ShopRegistry shop;
 }
 
 /// Ensures the registries are initialized.
@@ -43,5 +46,6 @@ Future<Registries> loadRegistries({Directory? cacheDir}) async {
     melvorData.craftingCategories,
     melvorData.thievingAreas,
     melvorData.combatAreas,
+    melvorData.shop,
   );
 }

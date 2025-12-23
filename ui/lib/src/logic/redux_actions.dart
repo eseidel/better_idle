@@ -129,6 +129,7 @@ class SellItemAction extends ReduxAction<GlobalState> {
 class PurchaseBankSlotAction extends ReduxAction<GlobalState> {
   @override
   GlobalState reduce() {
+    const bankSlotId = MelvorId('melvorD:Extra_Bank_Slot');
     final cost = state.shop.nextBankSlotCost();
     if (state.gp < cost) {
       throw Exception(
@@ -137,53 +138,89 @@ class PurchaseBankSlotAction extends ReduxAction<GlobalState> {
     }
     return state.copyWith(
       gp: state.gp - cost,
-      shop: state.shop.copyWith(bankSlots: state.shop.bankSlots + 1),
+      shop: state.shop.withPurchase(bankSlotId),
     );
   }
 }
 
-/// Purchases a skill upgrade from the shop.
-class PurchaseUpgradeAction extends ReduxAction<GlobalState> {
-  PurchaseUpgradeAction({required this.upgradeType});
-  final UpgradeType upgradeType;
+/// Purchases a shop item (skill upgrade or other purchase).
+class PurchaseShopItemAction extends ReduxAction<GlobalState> {
+  PurchaseShopItemAction({required this.purchaseId});
+  final MelvorId purchaseId;
 
   @override
   GlobalState reduce() {
-    final currentLevel = _getCurrentLevel();
-    final upgrade = nextUpgrade(upgradeType, currentLevel);
+    final shopRegistry = state.registries.shop;
+    final purchase = shopRegistry.byId(purchaseId);
 
-    if (upgrade == null) {
-      throw Exception('No more upgrades available for $upgradeType');
+    if (purchase == null) {
+      throw Exception('Unknown shop purchase: $purchaseId');
     }
 
-    // Check skill level requirement
-    final skillLevel = state.skillState(upgrade.skill).skillLevel;
-    if (skillLevel < upgrade.requiredLevel) {
-      throw Exception(
-        'Requires ${upgrade.skill.name} level ${upgrade.requiredLevel}',
+    // Check buy limit
+    final currentCount = state.shop.purchaseCount(purchaseId);
+    if (!purchase.isUnlimited && currentCount >= purchase.buyLimit) {
+      throw Exception('Already purchased maximum of ${purchase.name}');
+    }
+
+    // Check unlock requirements
+    for (final req in purchase.unlockRequirements) {
+      if (req is ShopPurchaseRequirement) {
+        if (state.shop.purchaseCount(req.purchaseId) < req.count) {
+          throw Exception('Must own prerequisite purchase first');
+        }
+      }
+    }
+
+    // Check purchase requirements (skill levels)
+    for (final req in purchase.purchaseRequirements) {
+      if (req is SkillLevelRequirement) {
+        final skillLevel = state.skillState(req.skill).skillLevel;
+        if (skillLevel < req.level) {
+          throw Exception('Requires ${req.skill.name} level ${req.level}');
+        }
+      }
+    }
+
+    // Check and calculate currency costs
+    final currencyCosts = purchase.cost.fixedCurrencyCosts;
+    var newGp = state.gp;
+    for (final (currency, amount) in currencyCosts) {
+      switch (currency) {
+        case Currency.gp:
+          if (newGp < amount) {
+            throw Exception('Not enough GP. Need $amount, have $newGp');
+          }
+          newGp -= amount;
+        case Currency.slayerCoins:
+        case Currency.raidCoins:
+          // TODO(eseidel): Implement slayer and raid coins when added to state.
+          throw Exception('${currency.abbreviation} not yet implemented');
+      }
+    }
+
+    // Check and apply item costs
+    final itemCosts = purchase.cost.items;
+    var newInventory = state.inventory;
+    for (final itemCost in itemCosts) {
+      final item = state.registries.items.byId(itemCost.itemId);
+      final count = newInventory.countOfItem(item);
+      if (count < itemCost.quantity) {
+        throw Exception(
+          'Not enough ${item.name}. Need ${itemCost.quantity}, have $count',
+        );
+      }
+      newInventory = newInventory.removing(
+        ItemStack(item, count: itemCost.quantity),
       );
-    }
-
-    // Check cost
-    if (state.gp < upgrade.cost) {
-      throw Exception('Not enough GP. Need ${upgrade.cost}, have ${state.gp}');
     }
 
     // Apply purchase
     return state.copyWith(
-      gp: state.gp - upgrade.cost,
-      shop: _updatedShop(currentLevel + 1),
+      gp: newGp,
+      inventory: newInventory,
+      shop: state.shop.withPurchase(purchaseId),
     );
-  }
-
-  int _getCurrentLevel() => state.shop.upgradeLevel(upgradeType);
-
-  ShopState _updatedShop(int newLevel) {
-    return switch (upgradeType) {
-      UpgradeType.axe => state.shop.copyWith(axeLevel: newLevel),
-      UpgradeType.fishingRod => state.shop.copyWith(fishingRodLevel: newLevel),
-      UpgradeType.pickaxe => state.shop.copyWith(pickaxeLevel: newLevel),
-    };
   }
 }
 
@@ -296,7 +333,7 @@ class DebugAddEggChestsAction extends ReduxAction<GlobalState> {
 
   @override
   GlobalState reduce() {
-    final eggChestId = MelvorId('melvorD:Egg_Chest');
+    const eggChestId = MelvorId('melvorD:Egg_Chest');
     final eggChest = state.registries.items.byId(eggChestId);
     final stack = ItemStack(eggChest, count: count);
     final newInventory = state.inventory.adding(stack);

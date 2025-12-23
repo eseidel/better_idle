@@ -22,6 +22,8 @@ export 'smithing.dart';
 export 'thieving.dart';
 export 'woodcutting.dart';
 
+/// Hard-coded list of skills.  We sometimes wish to refer to a skill in code
+/// this allows us to do that at compile time rather than at runtime.
 enum Skill {
   hitpoints('Hitpoints'),
   attack('Attack'),
@@ -37,11 +39,26 @@ enum Skill {
 
   const Skill(this.name);
 
+  /// Returns the skill for the given name (e.g., "Woodcutting").
+  /// Used for deserializing saved game state. Throws if not recognized.
   factory Skill.fromName(String name) {
     return Skill.values.firstWhere((e) => e.name == name);
   }
 
   final String name;
+
+  /// Returns the skill for the given ID.
+  /// Throws if the skill is not recognized.
+  factory Skill.fromId(MelvorId id) {
+    return values.firstWhere(
+      (e) => e.id == id,
+      orElse: () => throw ArgumentError('Unknown skill ID: $id'),
+    );
+  }
+
+  /// The Melvor ID for this skill (e.g., melvorD:Woodcutting).
+  /// All skills use the melvorD namespace (e.g., melvorD:Woodcutting).
+  MelvorId get id => MelvorId('melvorD:$name');
 }
 
 /// Base class for all actions that can occupy the "active" slot.

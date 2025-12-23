@@ -42,9 +42,10 @@ void main() {
       final action = testActions.byName('Normal Tree');
       stateNoUpgrade = stateNoUpgrade.startAction(action, random: Random(0));
 
+      final ironAxeId = MelvorId('melvorD:Iron_Axe');
       var stateWithUpgrade = GlobalState.empty(
         testRegistries,
-      ).copyWith(shop: const ShopState(bankSlots: 0, axeLevel: 1));
+      ).copyWith(shop: ShopState.empty().withPurchase(ironAxeId));
       stateWithUpgrade = stateWithUpgrade.startAction(
         action,
         random: Random(0),
@@ -89,7 +90,8 @@ void main() {
 
       // With thieving dominating, buyUpgrades is empty, so no upgrade_affordable
       // Iron Axe is in the watch list but not in buyUpgrades
-      expect(candidates.watch.upgradeTypes, contains(UpgradeType.axe));
+      final ironAxeId = MelvorId('melvorD:Iron_Axe');
+      expect(candidates.watch.upgradePurchaseIds, contains(ironAxeId));
       expect(candidates.buyUpgrades, isEmpty);
 
       final result = nextDecisionDelta(state, goal, candidates);

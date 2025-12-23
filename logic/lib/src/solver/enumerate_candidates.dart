@@ -15,7 +15,7 @@
 /// - Positive gain under ValueModel
 /// - Pass heuristics / top-K filters
 ///
-/// [WatchList.upgradeTypes] may include a broader set to compute time-to-afford
+/// [WatchList.upgradePurchaseIds] may include a broader set to compute time-to-afford
 /// / future replan moments.
 ///
 /// **Never promote watch-only upgrades into buyUpgrades just because they are
@@ -26,7 +26,6 @@ library;
 
 import 'package:logic/src/data/actions.dart';
 import 'package:logic/src/data/melvor_id.dart';
-import 'package:logic/src/data/upgrades.dart';
 import 'package:logic/src/data/xp.dart';
 import 'package:logic/src/state.dart';
 import 'package:logic/src/tick.dart';
@@ -73,13 +72,13 @@ class ActionSummary {
 @immutable
 class WatchList {
   const WatchList({
-    this.upgradeTypes = const [],
+    this.upgradePurchaseIds = const [],
     this.lockedActivityIds = const [],
     this.inventory = false,
   });
 
-  /// Upgrades whose affordability defines wait points.
-  final List<UpgradeType> upgradeTypes;
+  /// Shop purchase IDs for upgrades whose affordability defines wait points.
+  final List<MelvorId> upgradePurchaseIds;
 
   /// Locked activities whose unlock defines wait points.
   final List<MelvorId> lockedActivityIds;
@@ -102,8 +101,8 @@ class Candidates {
   /// Top-K unlocked activities to consider switching to.
   final List<MelvorId> switchToActivities;
 
-  /// Top-K upgrades worth considering (may be unaffordable).
-  final List<UpgradeType> buyUpgrades;
+  /// Top-K upgrade purchase IDs worth considering (may be unaffordable).
+  final List<MelvorId> buyUpgrades;
 
   /// Whether SellAll should be offered.
   final bool includeSellAll;
@@ -282,7 +281,7 @@ Candidates enumerateCandidates(
     buyUpgrades: upgradeResult.candidates,
     includeSellAll: includeSellAll,
     watch: WatchList(
-      upgradeTypes: upgradeResult.toWatch,
+      upgradePurchaseIds: upgradeResult.toWatch,
       lockedActivityIds: lockedActivitiesToWatch,
       inventory: includeSellAll,
     ),
@@ -374,8 +373,8 @@ double _currentXpRateForSkill(List<ActionSummary> summaries, Skill skill) {
 /// Result of upgrade candidate selection.
 class _UpgradeResult {
   const _UpgradeResult({required this.candidates, required this.toWatch});
-  final List<UpgradeType> candidates;
-  final List<UpgradeType> toWatch;
+  final List<MelvorId> candidates;
+  final List<MelvorId> toWatch;
 }
 
 /// Selects top M upgrades by smallest paybackTicks.
@@ -397,29 +396,32 @@ _UpgradeResult _selectUpgradeCandidates(
   double bestCurrentRate = 0.0,
   required Goal goal,
 }) {
-  final candidates = <(UpgradeType, double)>[];
-  final toWatch = <UpgradeType>[];
+  final candidates = <(MelvorId, double)>[];
+  final toWatch = <MelvorId>[];
 
-  for (final type in UpgradeType.values) {
-    final currentLevel = state.shop.upgradeLevel(type);
-    final next = nextUpgrade(type, currentLevel);
+  final shopRegistry = state.registries.shop;
+  final availableUpgrades = shopRegistry.availableSkillUpgrades(
+    state.shop.purchaseCounts,
+  );
 
-    // No more upgrades available for this type
-    if (next == null) continue;
-
+  for (final (purchase, skill) in availableUpgrades) {
     // Only consider upgrades for skills relevant to the goal
-    if (!goal.isSkillRelevant(next.skill)) continue;
+    if (!goal.isSkillRelevant(skill)) continue;
 
     // Doesn't meet skill requirement
-    final skillLevel = state.skillState(next.skill).skillLevel;
-    if (skillLevel < next.requiredLevel) continue;
+    final requirements = shopRegistry.skillLevelRequirements(purchase);
+    final meetsAllRequirements = requirements.every((req) {
+      final skillLevel = state.skillState(req.skill).skillLevel;
+      return skillLevel >= req.level;
+    });
+    if (!meetsAllRequirements) continue;
 
     // Find affected activities that are:
     // 1. Same skill as upgrade
     // 2. Unlocked
     // 3. In the candidate list (if provided)
     final affectedActivities = summaries.where((s) {
-      if (s.skill != next.skill) return false;
+      if (s.skill != skill) return false;
       if (!s.isUnlocked) return false;
       if (candidateActivityIds != null &&
           !candidateActivityIds.contains(s.actionId)) {
@@ -440,9 +442,9 @@ _UpgradeResult _selectUpgradeCandidates(
     if (baseRate <= 0) continue;
 
     // Compute new rate after upgrade
-    // Upgrade gives durationPercentModifier (e.g., 0.95 = -5% duration)
+    // Upgrade gives durationMultiplier (e.g., 0.95 = -5% duration)
     // Shorter duration means higher rate: newRate = baseRate / modifier
-    final modifier = next.durationPercentModifier;
+    final modifier = shopRegistry.durationMultiplier(purchase);
     final newRate = baseRate / modifier;
     final gain = newRate - baseRate;
 
@@ -451,7 +453,7 @@ _UpgradeResult _selectUpgradeCandidates(
     // Add to watch list - planner needs to know when any valid upgrade
     // becomes affordable, even if not currently competitive.
     // Invariant: toWatch is for timing waits, NOT for deciding to buy.
-    toWatch.add(type);
+    toWatch.add(purchase.id);
 
     // Invariant: only add to candidates if competitive.
     // Skip if upgraded rate wouldn't beat or match best current rate -
@@ -460,8 +462,10 @@ _UpgradeResult _selectUpgradeCandidates(
     if (newRate < bestCurrentRate) continue;
 
     // Payback time = cost / gain per tick
-    final paybackTicks = next.cost / gain;
-    candidates.add((type, paybackTicks));
+    final cost = shopRegistry.gpCost(purchase);
+    if (cost == null) continue; // Skip upgrades with special pricing
+    final paybackTicks = cost / gain;
+    candidates.add((purchase.id, paybackTicks));
   }
 
   // Sort by smallest paybackTicks

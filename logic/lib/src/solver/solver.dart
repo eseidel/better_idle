@@ -328,7 +328,7 @@ class _RateCache {
         final baseExpectedTicks = ticksFromDuration(
           action.meanDuration,
         ).toDouble();
-        final percentModifier = state.shop.durationModifierForSkill(skill);
+        final percentModifier = state.shopDurationModifierForSkill(skill);
         final expectedTicks = baseExpectedTicks * (1.0 + percentModifier);
         if (expectedTicks <= 0) continue;
 
@@ -1119,7 +1119,9 @@ bool _isRelevantInteraction(Interaction interaction, Candidates candidates) {
     SwitchActivity(:final actionId) => candidates.switchToActivities.contains(
       actionId,
     ),
-    BuyUpgrade(:final type) => candidates.buyUpgrades.contains(type),
+    BuyShopItem(:final purchaseId) => candidates.buyUpgrades.contains(
+      purchaseId,
+    ),
     SellAll() => candidates.includeSellAll,
   };
 }
@@ -1165,7 +1167,7 @@ Plan _reconstructPlan(
   // automatically, but in practice the player must sell items first.
   final processedSteps = <PlanStep>[];
   for (final step in reversedSteps) {
-    if (step is InteractionStep && step.interaction is BuyUpgrade) {
+    if (step is InteractionStep && step.interaction is BuyShopItem) {
       processedSteps.add(const InteractionStep(SellAll()));
     }
     processedSteps.add(step);

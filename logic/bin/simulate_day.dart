@@ -84,10 +84,14 @@ void printTimeAway(TimeAway timeAway) {
     print('');
   }
 
-  // Print GP gained
-  if (changes.gpGained > 0) {
-    print('GP GAINED:');
-    print('  +${approximateCountString(changes.gpGained)} GP');
+  // Print currencies gained
+  if (changes.currenciesGained.isNotEmpty) {
+    print('CURRENCIES GAINED:');
+    for (final entry in changes.currenciesGained.entries) {
+      final currency = entry.key;
+      final amount = entry.value;
+      print('  +${approximateCountString(amount)} ${currency.abbreviation}');
+    }
     print('');
   }
 

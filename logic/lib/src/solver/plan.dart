@@ -353,7 +353,7 @@ class Plan {
     return switch (step) {
       InteractionStep(:final interaction) => switch (interaction) {
         SwitchActivity(:final actionId) => 'Switch to $actionId',
-        BuyUpgrade(:final type) => 'Buy upgrade: $type',
+        BuyShopItem(:final purchaseId) => 'Buy upgrade: $purchaseId',
         SellAll() => 'Sell all items',
       },
       WaitStep(:final deltaTicks, :final waitFor) =>

@@ -5,7 +5,7 @@ import 'package:logic/src/data/actions.dart';
 import 'package:logic/src/data/currency.dart';
 import 'package:logic/src/data/melvor_id.dart';
 import 'package:logic/src/data/registries.dart';
-import 'package:logic/src/data/upgrades.dart';
+import 'package:logic/src/data/shop.dart';
 import 'package:logic/src/json.dart';
 import 'package:logic/src/tick.dart';
 import 'package:logic/src/types/equipment.dart';
@@ -99,14 +99,9 @@ class SkillState {
 /// Used for serializing the state of the Shop (what has been purchased).
 @immutable
 class ShopState {
-  const ShopState({
-    required this.bankSlots,
-    this.axeLevel = 0,
-    this.fishingRodLevel = 0,
-    this.pickaxeLevel = 0,
-  });
+  const ShopState({required this.purchaseCounts});
 
-  const ShopState.empty() : this(bankSlots: 0);
+  const ShopState.empty() : purchaseCounts = const {};
 
   static ShopState? maybeFromJson(dynamic json) {
     if (json == null) return null;
@@ -114,73 +109,101 @@ class ShopState {
   }
 
   factory ShopState.fromJson(Map<String, dynamic> json) {
-    return ShopState(
-      bankSlots: json['bankSlots'] as int,
-      axeLevel: json['axeLevel'] as int? ?? 0,
-      fishingRodLevel: json['fishingRodLevel'] as int? ?? 0,
-      pickaxeLevel: json['pickaxeLevel'] as int? ?? 0,
-    );
+    final countsJson = json['purchaseCounts'] as Map<String, dynamic>? ?? {};
+    final counts = <MelvorId, int>{};
+    for (final entry in countsJson.entries) {
+      counts[MelvorId.fromJson(entry.key)] = entry.value as int;
+    }
+    return ShopState(purchaseCounts: counts);
   }
 
-  /// How many bank slots the player has purchased.
-  final int bankSlots;
+  /// Map of purchase ID to count purchased.
+  final Map<MelvorId, int> purchaseCounts;
 
-  /// How many axes the player has purchased (0 = none, 1 = iron, 2 = steel).
-  final int axeLevel;
+  /// Returns how many times a purchase has been made.
+  int purchaseCount(MelvorId purchaseId) => purchaseCounts[purchaseId] ?? 0;
 
-  /// How many fishing rods the player has purchased.
-  final int fishingRodLevel;
+  /// Returns true if the player owns at least one of this purchase.
+  bool owns(MelvorId purchaseId) => purchaseCount(purchaseId) > 0;
 
-  /// How many pickaxes the player has purchased.
-  final int pickaxeLevel;
+  /// Returns the number of bank slots purchased (Extra_Bank_Slot purchase).
+  int get bankSlotsPurchased =>
+      purchaseCount(MelvorId('melvorD:Extra_Bank_Slot'));
 
-  ShopState copyWith({
-    int? bankSlots,
-    int? axeLevel,
-    int? fishingRodLevel,
-    int? pickaxeLevel,
-  }) {
-    return ShopState(
-      bankSlots: bankSlots ?? this.bankSlots,
-      axeLevel: axeLevel ?? this.axeLevel,
-      fishingRodLevel: fishingRodLevel ?? this.fishingRodLevel,
-      pickaxeLevel: pickaxeLevel ?? this.pickaxeLevel,
-    );
+  // Axe tier IDs in order
+  static const _axeIds = [
+    'melvorD:Iron_Axe',
+    'melvorD:Steel_Axe',
+    'melvorD:Black_Axe',
+    'melvorD:Mithril_Axe',
+    'melvorD:Adamant_Axe',
+    'melvorD:Rune_Axe',
+    'melvorD:Dragon_Axe',
+  ];
+
+  // Fishing rod tier IDs in order
+  static const _rodIds = [
+    'melvorD:Iron_Fishing_Rod',
+    'melvorD:Steel_Fishing_Rod',
+    'melvorD:Black_Fishing_Rod',
+    'melvorD:Mithril_Fishing_Rod',
+    'melvorD:Adamant_Fishing_Rod',
+    'melvorD:Rune_Fishing_Rod',
+    'melvorD:Dragon_Fishing_Rod',
+  ];
+
+  // Pickaxe tier IDs in order
+  static const _pickaxeIds = [
+    'melvorD:Iron_Pickaxe',
+    'melvorD:Steel_Pickaxe',
+    'melvorD:Black_Pickaxe',
+    'melvorD:Mithril_Pickaxe',
+    'melvorD:Adamant_Pickaxe',
+    'melvorD:Rune_Pickaxe',
+    'melvorD:Dragon_Pickaxe',
+  ];
+
+  /// Returns how many axe tiers have been purchased (0-7).
+  int get axeLevel => _countTiersOwned(_axeIds);
+
+  /// Returns how many fishing rod tiers have been purchased (0-7).
+  int get fishingRodLevel => _countTiersOwned(_rodIds);
+
+  /// Returns how many pickaxe tiers have been purchased (0-7).
+  int get pickaxeLevel => _countTiersOwned(_pickaxeIds);
+
+  int _countTiersOwned(List<String> tierIds) {
+    var count = 0;
+    for (final id in tierIds) {
+      if (owns(MelvorId(id))) count++;
+    }
+    return count;
+  }
+
+  /// Returns a new ShopState with the given purchase incremented.
+  ShopState withPurchase(MelvorId purchaseId, {int count = 1}) {
+    final newCounts = Map<MelvorId, int>.from(purchaseCounts);
+    newCounts[purchaseId] = (newCounts[purchaseId] ?? 0) + count;
+    return ShopState(purchaseCounts: newCounts);
   }
 
   Map<String, dynamic> toJson() {
-    return {
-      'bankSlots': bankSlots,
-      'axeLevel': axeLevel,
-      'fishingRodLevel': fishingRodLevel,
-      'pickaxeLevel': pickaxeLevel,
-    };
+    final countsJson = <String, dynamic>{};
+    for (final entry in purchaseCounts.entries) {
+      countsJson[entry.key.toJson()] = entry.value;
+    }
+    return {'purchaseCounts': countsJson};
   }
 
-  /// Returns the upgrade level for a given upgrade type.
-  int upgradeLevel(UpgradeType type) {
-    return switch (type) {
-      UpgradeType.axe => axeLevel,
-      UpgradeType.fishingRod => fishingRodLevel,
-      UpgradeType.pickaxe => pickaxeLevel,
-    };
+  /// Returns the total skill interval modifier for a skill from owned purchases.
+  /// Uses the shop registry to look up which purchases affect this skill.
+  int totalSkillIntervalModifier(Skill skill, ShopRegistry registry) {
+    return registry.totalSkillIntervalModifier(skill, purchaseCounts);
   }
 
-  /// Returns the total duration percent modifier for a skill from upgrades.
-  /// Returns 0.0 if the skill has no associated upgrades.
-  double durationModifierForSkill(Skill skill) {
-    final type = UpgradeType.forSkill(skill);
-    if (type == null) return 0.0;
-    return totalDurationPercentModifier(type, upgradeLevel(type));
-  }
-
-  /// What the next bank slot will cost.
+  /// Returns the cost for the next bank slot purchase.
   int nextBankSlotCost() {
-    // https://wiki.melvoridle.com/w/Bank
-    // C_b = \left \lfloor \frac{132\,728\,500 \times (n+2)}{142\,015^{\left (\frac{163}{122+n} \right )}}\right \rfloor
-    final n = bankSlots;
-    final cost = (132728500 * (n + 2) / pow(142015, 163 / (122 + n))).floor();
-    return cost.clamp(0, 5000000);
+    return calculateBankSlotCost(bankSlotsPurchased);
   }
 }
 
@@ -242,23 +265,12 @@ class GlobalState {
           StunnedState.maybeFromJson(json['stunned']) ??
           const StunnedState.fresh();
 
-  /// Parse currencies from JSON, supporting both old 'gp' field and new
-  /// 'currencies' map format.
   static Map<Currency, int> _currenciesFromJson(Map<String, dynamic> json) {
-    // Try new format first
-    final currenciesJson = json['currencies'] as Map<String, dynamic>?;
-    if (currenciesJson != null) {
-      return currenciesJson.map((key, value) {
-        final currency = Currency.fromIdOrThrow(key);
-        return MapEntry(currency, value as int);
-      });
-    }
-    // Fall back to old 'gp' field for migration
-    final gp = json['gp'] as int? ?? 0;
-    if (gp > 0) {
-      return {Currency.gp: gp};
-    }
-    return const {};
+    final currenciesJson = json['currencies'] as Map<String, dynamic>? ?? {};
+    return currenciesJson.map((key, value) {
+      final currency = Currency.fromId(key);
+      return MapEntry(currency, value as int);
+    });
   }
 
   GlobalState.empty(Registries registries)
@@ -361,9 +373,9 @@ class GlobalState {
   /// The player's currencies (GP, Slayer Coins, etc.).
   final Map<Currency, int> currencies;
 
-  /// The current gold pieces (GP) the player has.
-  /// Convenience getter for backward compatibility.
-  int get gp => currencies[Currency.gp] ?? 0;
+  /// The current gold pieces (GP) the player has, convenience getter.
+  /// Callers need to be careful not to ignore other currencies.
+  int get gp => currency(Currency.gp);
 
   /// Gets the amount of a specific currency.
   int currency(Currency type) => currencies[type] ?? 0;
@@ -401,7 +413,7 @@ class GlobalState {
   /// Whether the player is currently stunned.
   bool get isStunned => stunned.isStunned;
 
-  int get inventoryCapacity => shop.bankSlots + initialBankSlots;
+  int get inventoryCapacity => shop.bankSlotsPurchased + initialBankSlots;
 
   bool get isActive => activeAction != null;
 
@@ -483,22 +495,35 @@ class GlobalState {
     return true;
   }
 
+  /// Returns the shop duration modifier for a skill as a decimal fraction.
+  /// For example, -0.05 means 5% reduction.
+  /// This is a convenience method that combines ShopState and ShopRegistry.
+  double shopDurationModifierForSkill(Skill skill) {
+    return shop.totalSkillIntervalModifier(skill, registries.shop) / 100.0;
+  }
+
   /// Rolls duration for a skill action and applies all relevant modifiers.
   /// This centralizes duration modifier logic for shop upgrades and mastery.
   /// Percentage modifiers are applied first, then flat modifiers.
-  int rollDurationWithModifiers(SkillAction action, Random random) {
+  int rollDurationWithModifiers(
+    SkillAction action,
+    Random random,
+    ShopRegistry shopRegistry,
+  ) {
     final ticks = action.rollDuration(random);
 
     // Collect all modifiers
     final modifiers = <Modifier>[];
 
     // Shop upgrade modifiers (percentage only)
-    // Note: durationModifierForSkill returns a multiplier (0.95 = 5% reduction)
-    // but Modifier.percent expects an additive change (-0.05 = 5% reduction)
-    // so we convert: multiplier - 1.0 = additive percent
-    final shopMultiplier = shop.durationModifierForSkill(action.skill);
-    if (shopMultiplier != 0.0) {
-      modifiers.add(Modifier(percent: shopMultiplier - 1.0));
+    // The totalSkillIntervalModifier returns percentage points (e.g., -5 for 5% reduction)
+    // Convert to Modifier.percent format (-0.05 = 5% reduction)
+    final shopModifier = shop.totalSkillIntervalModifier(
+      action.skill,
+      shopRegistry,
+    );
+    if (shopModifier != 0) {
+      modifiers.add(Modifier(percent: shopModifier / 100.0));
     }
 
     // Mastery-based modifiers (can include both percent and flat)
@@ -539,7 +564,7 @@ class GlobalState {
           );
         }
       }
-      totalTicks = rollDurationWithModifiers(action, random);
+      totalTicks = rollDurationWithModifiers(action, random, registries.shop);
       return copyWith(
         activeAction: ActiveAction(
           id: actionId,
@@ -683,9 +708,6 @@ class GlobalState {
     newCurrencies[type] = (newCurrencies[type] ?? 0) + amount;
     return copyWith(currencies: newCurrencies);
   }
-
-  /// Convenience method to add GP.
-  GlobalState addGp(int amount) => addCurrency(Currency.gp, amount);
 
   /// Equips food from the inventory to an equipment slot.
   /// Removes the item from inventory and adds it to equipment.

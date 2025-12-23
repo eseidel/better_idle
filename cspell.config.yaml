@@ -49,8 +49,10 @@ words:
   - respawned
   - respawning
   - respawns
+  - reqs # short for requirements
   - seidel
   - shortbows
+  - skillcapes
   - smithing
   - unequip
   - unequips

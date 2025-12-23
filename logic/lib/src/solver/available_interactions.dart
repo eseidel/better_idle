@@ -8,14 +8,14 @@
 ///
 /// ## Upgrade Filtering
 ///
-/// The solver filters [BuyUpgrade] interactions through
+/// The solver filters [BuyShopItem] interactions through
 /// [Candidates.buyUpgrades] to ensure only competitive upgrades are
 /// considered. Watched-but-not-buyable upgrades must not show up in the
 /// final action set passed to the planner.
 library;
 
 import 'package:logic/src/data/actions.dart';
-import 'package:logic/src/data/upgrades.dart';
+import 'package:logic/src/data/shop.dart';
 import 'package:logic/src/state.dart';
 
 import 'interaction.dart';
@@ -24,7 +24,7 @@ import 'interaction.dart';
 ///
 /// This includes:
 /// - SwitchActivity for each unlocked action that is not the current action
-/// - BuyUpgrade for each affordable upgrade that meets skill requirements
+/// - BuyShopItem for each affordable shop purchase that meets requirements
 /// - SellAll if there are sellable items in inventory
 ///
 /// Note: the solver further filters these through [Candidates] to only
@@ -35,8 +35,8 @@ List<Interaction> availableInteractions(GlobalState state) {
   // Add available activity switches
   interactions.addAll(_availableActivitySwitches(state));
 
-  // Add available upgrades
-  interactions.addAll(_availableUpgrades(state));
+  // Add available shop purchases
+  interactions.addAll(_availableShopPurchases(state));
 
   // Add SellAll if there are sellable items
   if (_canSellAll(state)) {
@@ -74,29 +74,65 @@ List<SwitchActivity> _availableActivitySwitches(GlobalState state) {
   return switches;
 }
 
-/// Returns BuyUpgrade interactions for all affordable upgrades
-/// that meet skill requirements.
-List<BuyUpgrade> _availableUpgrades(GlobalState state) {
-  final upgrades = <BuyUpgrade>[];
+/// Returns BuyShopItem interactions for all affordable shop purchases
+/// that meet requirements.
+List<BuyShopItem> _availableShopPurchases(GlobalState state) {
+  final purchases = <BuyShopItem>[];
+  final registry = state.registries.shop;
 
-  for (final type in UpgradeType.values) {
-    final currentLevel = state.shop.upgradeLevel(type);
-    final next = nextUpgrade(type, currentLevel);
+  for (final purchase in registry.all) {
+    // Check if already at buy limit
+    final currentCount = state.shop.purchaseCount(purchase.id);
+    if (!purchase.isUnlimited && currentCount >= purchase.buyLimit) continue;
 
-    // No more upgrades available for this type
-    if (next == null) continue;
+    // Check unlock requirements (must own prerequisites)
+    if (!_meetsUnlockRequirements(state, purchase)) continue;
 
-    // Can't afford it
-    if (state.gp < next.cost) continue;
+    // Check purchase requirements (skill levels etc.)
+    if (!_meetsPurchaseRequirements(state, purchase)) continue;
 
-    // Doesn't meet skill requirement
-    final skillLevel = state.skillState(next.skill).skillLevel;
-    if (skillLevel < next.requiredLevel) continue;
+    // Check affordability - skip purchases without GP cost (item costs, etc.)
+    final int cost;
+    if (purchase.cost.usesBankSlotPricing) {
+      cost = state.shop.nextBankSlotCost();
+    } else {
+      final gpCost = purchase.cost.gpCost;
+      if (gpCost == null) continue; // Skip non-GP purchases
+      cost = gpCost;
+    }
+    if (state.gp < cost) continue;
 
-    upgrades.add(BuyUpgrade(type));
+    purchases.add(BuyShopItem(purchase.id));
   }
 
-  return upgrades;
+  return purchases;
+}
+
+/// Checks if unlock requirements are met (e.g., owning prerequisite purchases).
+bool _meetsUnlockRequirements(GlobalState state, ShopPurchase purchase) {
+  for (final req in purchase.unlockRequirements) {
+    switch (req) {
+      case ShopPurchaseRequirement(:final purchaseId, :final count):
+        if (state.shop.purchaseCount(purchaseId) < count) return false;
+      case SkillLevelRequirement():
+        // Skill requirements are typically in purchaseRequirements, not unlock
+        break;
+    }
+  }
+  return true;
+}
+
+/// Checks if purchase requirements are met (e.g., skill levels).
+bool _meetsPurchaseRequirements(GlobalState state, ShopPurchase purchase) {
+  for (final req in purchase.purchaseRequirements) {
+    switch (req) {
+      case SkillLevelRequirement(:final skill, :final level):
+        if (state.skillState(skill).skillLevel < level) return false;
+      case ShopPurchaseRequirement(:final purchaseId, :final count):
+        if (state.shop.purchaseCount(purchaseId) < count) return false;
+    }
+  }
+  return true;
 }
 
 /// Returns true if there are any items in inventory (all items are sellable).

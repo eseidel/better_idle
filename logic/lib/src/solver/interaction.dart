@@ -16,7 +16,6 @@
 library;
 
 import 'package:logic/src/data/melvor_id.dart';
-import 'package:logic/src/data/upgrades.dart';
 
 /// Represents a possible interaction that can change game state.
 ///
@@ -43,20 +42,21 @@ class SwitchActivity extends Interaction {
   int get hashCode => actionId.hashCode;
 }
 
-/// Buy an upgrade from the shop.
-class BuyUpgrade extends Interaction {
-  const BuyUpgrade(this.type);
+/// Buy an item from the shop.
+class BuyShopItem extends Interaction {
+  const BuyShopItem(this.purchaseId);
 
-  final UpgradeType type;
-
-  @override
-  String toString() => 'BuyUpgrade($type)';
+  final MelvorId purchaseId;
 
   @override
-  bool operator ==(Object other) => other is BuyUpgrade && other.type == type;
+  String toString() => 'BuyShopItem($purchaseId)';
 
   @override
-  int get hashCode => type.hashCode;
+  bool operator ==(Object other) =>
+      other is BuyShopItem && other.purchaseId == purchaseId;
+
+  @override
+  int get hashCode => purchaseId.hashCode;
 }
 
 /// Sell all sellable items in inventory.

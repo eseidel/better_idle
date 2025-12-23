@@ -3,7 +3,7 @@
 /// ## Design
 ///
 /// Interactions mutate state at **0 ticks**:
-/// - [BuyUpgrade]: subtracts GP, updates upgrade level
+/// - [BuyShopItem]: subtracts GP, updates purchase count
 /// - [SwitchActivity]: sets active action
 /// - [SellAll]: clears inventory, adds GP
 ///
@@ -20,7 +20,6 @@ import 'dart:math';
 
 import 'package:logic/src/data/currency.dart';
 import 'package:logic/src/data/melvor_id.dart';
-import 'package:logic/src/data/upgrades.dart';
 import 'package:logic/src/state.dart';
 
 import 'interaction.dart';
@@ -39,7 +38,7 @@ GlobalState applyInteraction(GlobalState state, Interaction interaction) {
       actionId,
       random,
     ),
-    BuyUpgrade(:final type) => _applyBuyUpgrade(state, type),
+    BuyShopItem(:final purchaseId) => _applyBuyShopItem(state, purchaseId),
     SellAll() => _applySellAll(state),
   };
 }
@@ -62,32 +61,36 @@ GlobalState _applySwitchActivity(
   return newState.startAction(action, random: random);
 }
 
-/// Buys an upgrade from the shop.
-GlobalState _applyBuyUpgrade(GlobalState state, UpgradeType type) {
-  final currentLevel = state.shop.upgradeLevel(type);
-  final upgrade = nextUpgrade(type, currentLevel);
+/// Buys a shop item.
+GlobalState _applyBuyShopItem(GlobalState state, MelvorId purchaseId) {
+  final purchase = state.registries.shop.byId(purchaseId);
 
-  if (upgrade == null) {
-    throw StateError('No more upgrades available for $type');
+  if (purchase == null) {
+    throw StateError('Shop purchase not found: $purchaseId');
   }
 
-  if (state.gp < upgrade.cost) {
+  // Check buy limit
+  final currentCount = state.shop.purchaseCount(purchaseId);
+  if (!purchase.isUnlimited && currentCount >= purchase.buyLimit) {
+    throw StateError('Already purchased maximum of ${purchase.name}');
+  }
+
+  // Calculate cost (handle dynamic bank slot pricing)
+  final cost = purchase.cost.usesBankSlotPricing
+      ? state.shop.nextBankSlotCost()
+      : purchase.cost.gpCost ?? 0;
+
+  if (state.gp < cost) {
     throw StateError(
-      'Cannot afford ${upgrade.name}: costs ${upgrade.cost}, have ${state.gp}',
+      'Cannot afford ${purchase.name}: costs $cost, have ${state.gp}',
     );
   }
 
   // Deduct cost
-  final stateAfterPayment = state.addCurrency(Currency.gp, -upgrade.cost);
+  final stateAfterPayment = state.addCurrency(Currency.gp, -cost);
 
-  // Update shop state with new upgrade level
-  final newShop = switch (type) {
-    UpgradeType.axe => state.shop.copyWith(axeLevel: currentLevel + 1),
-    UpgradeType.fishingRod => state.shop.copyWith(
-      fishingRodLevel: currentLevel + 1,
-    ),
-    UpgradeType.pickaxe => state.shop.copyWith(pickaxeLevel: currentLevel + 1),
-  };
+  // Update shop state with new purchase
+  final newShop = state.shop.withPurchase(purchaseId);
 
   return stateAfterPayment.copyWith(shop: newShop);
 }

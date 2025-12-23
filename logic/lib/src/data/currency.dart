@@ -11,7 +11,10 @@ enum Currency {
     'melvorD:SlayerCoins',
     'SC',
     'assets/media/main/slayer_coins.png',
-  );
+  ),
+
+  /// Raid Coins - earned from Golbin Raid
+  raidCoins('melvorD:RaidCoins', 'RC', 'assets/media/main/raid_coins.png');
 
   const Currency(this.id, this.abbreviation, this.assetPath);
 
@@ -25,24 +28,14 @@ enum Currency {
   final String assetPath;
 
   /// Look up a currency by its Melvor ID.
-  /// Returns null if not found.
-  static Currency? fromId(String id) {
+  /// Throws if not found.
+  static Currency fromId(String id) {
     for (final currency in Currency.values) {
       if (currency.id == id) {
         return currency;
       }
     }
-    return null;
-  }
-
-  /// Look up a currency by its Melvor ID.
-  /// Throws if not found.
-  static Currency fromIdOrThrow(String id) {
-    final currency = fromId(id);
-    if (currency == null) {
-      throw ArgumentError('Unknown currency ID: $id');
-    }
-    return currency;
+    throw ArgumentError('Unknown currency ID: $id');
   }
 }
 
