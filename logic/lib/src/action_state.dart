@@ -139,15 +139,6 @@ class CombatActionState {
     );
   }
 
-  CombatActionState clearRespawn() {
-    return CombatActionState(
-      monsterId: monsterId,
-      monsterHp: monsterHp,
-      playerAttackTicksRemaining: playerAttackTicksRemaining,
-      monsterAttackTicksRemaining: monsterAttackTicksRemaining,
-    );
-  }
-
   Map<String, dynamic> toJson() {
     return {
       'monsterId': monsterId.toJson(),
