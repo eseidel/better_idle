@@ -11,7 +11,10 @@ enum Currency {
     'melvorD:SlayerCoins',
     'SC',
     'assets/media/main/slayer_coins.png',
-  );
+  ),
+
+  /// Raid Coins - earned from Golbin Raid
+  raidCoins('melvorD:RaidCoins', 'RC', 'assets/media/main/raid_coins.png');
 
   const Currency(this.id, this.abbreviation, this.assetPath);
 

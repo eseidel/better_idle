@@ -112,6 +112,20 @@ class ShopCost extends Equatable {
     );
   }
 
+  /// Returns all fixed currency costs as a list of (Currency, amount) pairs.
+  List<(Currency, int)> get fixedCurrencyCosts {
+    final result = <(Currency, int)>[];
+    for (final c in currencies) {
+      if (c.type == CostType.fixed && c.fixedCost != null) {
+        result.add((c.currency, c.fixedCost!));
+      }
+    }
+    return result;
+  }
+
+  /// Returns true if this purchase has any item costs.
+  bool get hasItemCost => items.isNotEmpty;
+
   @override
   List<Object?> get props => [currencies, items];
 }

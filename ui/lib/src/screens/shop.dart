@@ -1,6 +1,7 @@
 import 'package:better_idle/src/logic/redux_actions.dart';
 import 'package:better_idle/src/widgets/cached_image.dart';
 import 'package:better_idle/src/widgets/navigation_drawer.dart';
+import 'package:better_idle/src/widgets/skills.dart';
 import 'package:better_idle/src/widgets/style.dart';
 import 'package:flutter/material.dart';
 import 'package:logic/logic.dart';
@@ -113,40 +114,63 @@ class _ShopPageState extends State<ShopPage> {
       // Skip bank slots - they're handled separately with dynamic pricing
       if (purchase.cost.usesBankSlotPricing) continue;
 
+      // Skip items with item costs (not yet supported)
+      if (purchase.cost.hasItemCost) continue;
+
       final unmetRequirements = viewModel.unmetSkillRequirements(purchase);
       final meetsAllReqs = unmetRequirements.isEmpty;
-      final cost = purchase.cost.gpCost ?? 0;
-      final canAfford = viewModel.gp >= cost;
+
+      // Get all currency costs
+      final currencyCosts = purchase.cost.fixedCurrencyCosts;
+
+      // Check if player can afford all currencies
+      final canAfford = viewModel.canAffordCosts(currencyCosts);
+      final canPurchase = meetsAllReqs && canAfford;
 
       // Build description from purchase
       final description = _buildDescription(purchase);
-      final requirementsString = unmetRequirements.isNotEmpty
-          ? unmetRequirements
-                .map((r) => 'Requires ${r.skill.name} level ${r.level}')
-                .join('\n')
-          : null;
 
       rows.add(
         _ShopItemRow(
           media: purchase.media,
           name: purchase.name,
-          price: cost,
+          currencyCosts: currencyCosts,
+          canAffordCosts: viewModel.canAffordEachCost(currencyCosts),
           description: description,
-          canAfford: canAfford,
-          levelRequirement: meetsAllReqs ? null : requirementsString,
-          onTap: () => _showPurchaseDialog(
-            context,
-            name: purchase.name,
-            cost: cost,
-            description: description,
-            levelRequirement: meetsAllReqs ? null : requirementsString,
-            createAction: () => PurchaseShopItemAction(purchaseId: purchase.id),
-          ),
+          unmetRequirements: unmetRequirements,
+          onTap: canPurchase
+              ? () => _showPurchaseDialog(
+                  context,
+                  name: purchase.name,
+                  costWidget: _buildCostWidget(currencyCosts),
+                  description: description,
+                  createAction: () =>
+                      PurchaseShopItemAction(purchaseId: purchase.id),
+                )
+              : null,
         ),
       );
     }
 
     return rows;
+  }
+
+  Widget _buildCostWidget(List<(Currency, int)> costs) {
+    return Wrap(
+      spacing: 8,
+      crossAxisAlignment: WrapCrossAlignment.center,
+      children: costs.map((cost) {
+        final (currency, amount) = cost;
+        return Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            CachedImage(assetPath: currency.assetPath, size: 16),
+            const SizedBox(width: 4),
+            Text(approximateCreditString(amount)),
+          ],
+        );
+      }).toList(),
+    );
   }
 
   String? _buildDescription(ShopPurchase purchase) {
@@ -175,12 +199,10 @@ class _ShopPageState extends State<ShopPage> {
   void _showPurchaseDialog(
     BuildContext context, {
     required String name,
-    required int cost,
+    required Widget costWidget,
     required ReduxAction<GlobalState> Function() createAction,
     String? description,
-    String? levelRequirement,
   }) {
-    final canConfirm = levelRequirement == null;
     showDialog<void>(
       context: context,
       builder: (dialogContext) => AlertDialog(
@@ -189,19 +211,19 @@ class _ShopPageState extends State<ShopPage> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('Purchase $name for ${approximateCreditString(cost)} GP?'),
+            Wrap(
+              crossAxisAlignment: WrapCrossAlignment.center,
+              children: [
+                Text('Purchase $name for '),
+                costWidget,
+                const Text('?'),
+              ],
+            ),
             if (description != null) ...[
               const SizedBox(height: 8),
               Text(
                 description,
                 style: const TextStyle(color: Style.successColor),
-              ),
-            ],
-            if (levelRequirement != null) ...[
-              const SizedBox(height: 8),
-              Text(
-                levelRequirement,
-                style: const TextStyle(color: Style.errorColor),
               ),
             ],
           ],
@@ -212,19 +234,17 @@ class _ShopPageState extends State<ShopPage> {
             child: const Text('Cancel'),
           ),
           TextButton(
-            onPressed: canConfirm
-                ? () {
-                    try {
-                      context.dispatch(createAction());
-                      Navigator.of(dialogContext).pop();
-                    } on Exception catch (e) {
-                      Navigator.of(dialogContext).pop();
-                      ScaffoldMessenger.of(
-                        context,
-                      ).showSnackBar(SnackBar(content: Text(e.toString())));
-                    }
-                  }
-                : null,
+            onPressed: () {
+              try {
+                context.dispatch(createAction());
+                Navigator.of(dialogContext).pop();
+              } on Exception catch (e) {
+                Navigator.of(dialogContext).pop();
+                ScaffoldMessenger.of(
+                  context,
+                ).showSnackBar(SnackBar(content: Text(e.toString())));
+              }
+            },
             child: const Text('Confirm'),
           ),
         ],
@@ -276,32 +296,68 @@ class ShopViewModel {
 
   /// Get the player's skill level for a skill.
   int skillLevel(Skill skill) => _state.skillState(skill).skillLevel;
+
+  /// Returns the player's balance for a currency.
+  int currencyBalance(Currency currency) {
+    return switch (currency) {
+      Currency.gp => _state.gp,
+      // TODO(eseidel): Add slayer coins and raid coins to state when
+      // implemented.
+      Currency.slayerCoins => 0,
+      Currency.raidCoins => 0,
+    };
+  }
+
+  /// Returns true if the player can afford all the given currency costs.
+  bool canAffordCosts(List<(Currency, int)> costs) {
+    for (final (currency, amount) in costs) {
+      if (currencyBalance(currency) < amount) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  /// Returns a map of currency to whether the player can afford that cost.
+  Map<Currency, bool> canAffordEachCost(List<(Currency, int)> costs) {
+    final result = <Currency, bool>{};
+    for (final (currency, amount) in costs) {
+      result[currency] = currencyBalance(currency) >= amount;
+    }
+    return result;
+  }
 }
 
 class _ShopItemRow extends StatelessWidget {
   const _ShopItemRow({
     required this.name,
-    required this.price,
-    required this.canAfford,
-    required this.onTap,
+    required this.currencyCosts,
+    required this.canAffordCosts,
+    this.onTap,
     this.media,
     this.description,
-    this.levelRequirement,
+    this.unmetRequirements = const [],
   });
 
   /// The asset path for the purchase icon.
   final String? media;
 
   final String name;
-  final int price;
-  final bool canAfford;
-  final VoidCallback onTap;
+
+  /// List of (currency, amount) pairs for this purchase.
+  final List<(Currency, int)> currencyCosts;
+
+  /// Map of currency to whether the player can afford that cost.
+  final Map<Currency, bool> canAffordCosts;
+
+  /// Called when tapped. Null if the item cannot be purchased.
+  final VoidCallback? onTap;
 
   /// Optional description shown below the name.
   final String? description;
 
-  /// Optional level requirement text shown when requirement is not met.
-  final String? levelRequirement;
+  /// Skill level requirements the player hasn't met yet.
+  final List<SkillLevelRequirement> unmetRequirements;
 
   @override
   Widget build(BuildContext context) {
@@ -329,22 +385,10 @@ class _ShopItemRow extends StatelessWidget {
                     ),
                   ],
                   const SizedBox(height: 4),
-                  Text(
-                    '${approximateCreditString(price)} GP',
-                    style: TextStyle(
-                      color: canAfford ? Style.successColor : Style.errorColor,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  if (levelRequirement != null) ...[
+                  _buildCostRow(),
+                  if (unmetRequirements.isNotEmpty) ...[
                     const SizedBox(height: 2),
-                    Text(
-                      levelRequirement!,
-                      style: TextStyle(
-                        color: Style.shopPurchasedColor,
-                        fontSize: 12,
-                      ),
-                    ),
+                    _buildRequirementsRow(),
                   ],
                 ],
               ),
@@ -352,6 +396,62 @@ class _ShopItemRow extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+
+  Widget _buildCostRow() {
+    if (currencyCosts.isEmpty) {
+      return const Text(
+        'Free',
+        style: TextStyle(
+          color: Style.successColor,
+          fontWeight: FontWeight.bold,
+        ),
+      );
+    }
+
+    return Wrap(
+      spacing: 12,
+      crossAxisAlignment: WrapCrossAlignment.center,
+      children: currencyCosts.map((cost) {
+        final (currency, amount) = cost;
+        final canAfford = canAffordCosts[currency] ?? false;
+        final color = canAfford ? Style.successColor : Style.errorColor;
+        return Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            CachedImage(assetPath: currency.assetPath, size: 16),
+            const SizedBox(width: 4),
+            Text(
+              approximateCreditString(amount),
+              style: TextStyle(color: color, fontWeight: FontWeight.bold),
+            ),
+          ],
+        );
+      }).toList(),
+    );
+  }
+
+  Widget _buildRequirementsRow() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: unmetRequirements.map((req) {
+        return Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              'Requires ',
+              style: TextStyle(color: Style.shopPurchasedColor, fontSize: 12),
+            ),
+            CachedImage(assetPath: req.skill.assetPath, size: 14),
+            const SizedBox(width: 4),
+            Text(
+              'Level ${req.level}',
+              style: TextStyle(color: Style.shopPurchasedColor, fontSize: 12),
+            ),
+          ],
+        );
+      }).toList(),
     );
   }
 }
