@@ -1,4 +1,5 @@
 import 'package:logic/src/data/actions.dart';
+import 'package:logic/src/data/currency.dart';
 import 'package:logic/src/data/melvor_id.dart';
 import 'package:logic/src/data/registries.dart';
 import 'package:logic/src/json.dart';
@@ -438,7 +439,7 @@ class Changes {
     required this.skillXpChanges,
     required this.droppedItems,
     required this.skillLevelChanges,
-    this.gpGained = 0,
+    this.currenciesGained = const {},
   });
   // We don't bother tracking mastery XP changes since they're not displayed
   // in the welcome back dialog.
@@ -449,7 +450,7 @@ class Changes {
         skillXpChanges: const Counts<Skill>.empty(),
         droppedItems: const Counts<MelvorId>.empty(),
         skillLevelChanges: const LevelChanges.empty(),
-        gpGained: 0,
+        currenciesGained: const {},
       );
 
   factory Changes.fromJson(Map<String, dynamic> json) {
@@ -466,14 +467,49 @@ class Changes {
       skillLevelChanges: LevelChanges.fromJson(
         json['skillLevelChanges'] as Map<String, dynamic>? ?? {},
       ),
-      gpGained: json['gpGained'] as int? ?? 0,
+      currenciesGained: _currenciesFromJson(json),
     );
   }
+
+  /// Parse currencies from JSON, supporting both old 'gpGained' field and new
+  /// 'currenciesGained' map format.
+  static Map<Currency, int> _currenciesFromJson(Map<String, dynamic> json) {
+    // Try new format first
+    final currenciesJson = json['currenciesGained'] as Map<String, dynamic>?;
+    if (currenciesJson != null) {
+      return currenciesJson.map((key, value) {
+        final currency = Currency.fromIdOrThrow(key);
+        return MapEntry(currency, value as int);
+      });
+    }
+    // Fall back to old 'gpGained' field for migration
+    final gpGained = json['gpGained'] as int? ?? 0;
+    if (gpGained > 0) {
+      return {Currency.gp: gpGained};
+    }
+    return const {};
+  }
+
   final Counts<Skill> skillXpChanges;
   final Counts<MelvorId> inventoryChanges;
   final Counts<MelvorId> droppedItems;
   final LevelChanges skillLevelChanges;
-  final int gpGained;
+  final Map<Currency, int> currenciesGained;
+
+  /// The amount of GP gained. Convenience getter for backward compatibility.
+  int get gpGained => currenciesGained[Currency.gp] ?? 0;
+
+  /// Helper to merge two currency maps.
+  static Map<Currency, int> _mergeCurrencies(
+    Map<Currency, int> a,
+    Map<Currency, int> b,
+  ) {
+    final result = Map<Currency, int>.from(a);
+    for (final entry in b.entries) {
+      result[entry.key] = (result[entry.key] ?? 0) + entry.value;
+    }
+    return result;
+  }
 
   Changes merge(Changes other) {
     return Changes(
@@ -481,7 +517,10 @@ class Changes {
       skillXpChanges: skillXpChanges.add(other.skillXpChanges),
       droppedItems: droppedItems.add(other.droppedItems),
       skillLevelChanges: skillLevelChanges.add(other.skillLevelChanges),
-      gpGained: gpGained + other.gpGained,
+      currenciesGained: _mergeCurrencies(
+        currenciesGained,
+        other.currenciesGained,
+      ),
     );
   }
 
@@ -490,7 +529,7 @@ class Changes {
       skillXpChanges.isEmpty &&
       droppedItems.isEmpty &&
       skillLevelChanges.isEmpty &&
-      gpGained == 0;
+      currenciesGained.isEmpty;
 
   Changes adding(ItemStack stack) {
     return Changes(
@@ -498,7 +537,7 @@ class Changes {
       skillXpChanges: skillXpChanges,
       droppedItems: droppedItems,
       skillLevelChanges: skillLevelChanges,
-      gpGained: gpGained,
+      currenciesGained: currenciesGained,
     );
   }
 
@@ -508,7 +547,7 @@ class Changes {
       skillXpChanges: skillXpChanges,
       droppedItems: droppedItems,
       skillLevelChanges: skillLevelChanges,
-      gpGained: gpGained,
+      currenciesGained: currenciesGained,
     );
   }
 
@@ -518,7 +557,7 @@ class Changes {
       skillXpChanges: skillXpChanges,
       droppedItems: droppedItems.addCount(stack.item.id, stack.count),
       skillLevelChanges: skillLevelChanges,
-      gpGained: gpGained,
+      currenciesGained: currenciesGained,
     );
   }
 
@@ -528,7 +567,7 @@ class Changes {
       skillXpChanges: skillXpChanges.addCount(skill, amount),
       droppedItems: droppedItems,
       skillLevelChanges: skillLevelChanges,
-      gpGained: gpGained,
+      currenciesGained: currenciesGained,
     );
   }
 
@@ -541,19 +580,23 @@ class Changes {
         skill,
         LevelChange(startLevel: startLevel, endLevel: endLevel),
       ),
-      gpGained: gpGained,
+      currenciesGained: currenciesGained,
     );
   }
 
-  Changes addingGp(int amount) {
+  Changes addingCurrency(Currency currency, int amount) {
+    final newCurrencies = Map<Currency, int>.from(currenciesGained);
+    newCurrencies[currency] = (newCurrencies[currency] ?? 0) + amount;
     return Changes(
       inventoryChanges: inventoryChanges,
       skillXpChanges: skillXpChanges,
       droppedItems: droppedItems,
       skillLevelChanges: skillLevelChanges,
-      gpGained: gpGained + amount,
+      currenciesGained: newCurrencies,
     );
   }
+
+  Changes addingGp(int amount) => addingCurrency(Currency.gp, amount);
 
   Map<String, dynamic> toJson() {
     return {
@@ -561,7 +604,9 @@ class Changes {
       'skillXpChanges': skillXpChanges.toJson(),
       'droppedItems': droppedItems.toJson(),
       'skillLevelChanges': skillLevelChanges.toJson(),
-      'gpGained': gpGained,
+      'currenciesGained': currenciesGained.map(
+        (key, value) => MapEntry(key.id, value),
+      ),
     };
   }
 }

@@ -499,7 +499,7 @@ void main() {
         skillStates: baseState.skillStates,
         actionStates: baseState.actionStates,
         updatedAt: baseState.updatedAt,
-        gp: baseState.gp,
+        currencies: baseState.currencies,
         shop: baseState.shop,
         health: baseState.health,
         equipment: baseState.equipment,

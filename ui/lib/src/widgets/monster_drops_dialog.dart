@@ -5,9 +5,6 @@ import 'package:better_idle/src/widgets/style.dart';
 import 'package:flutter/material.dart';
 import 'package:logic/logic.dart';
 
-/// Path to the GP/coins icon.
-const gpIconPath = 'assets/media/main/coins.png';
-
 /// A dialog that displays the drops for a combat monster.
 class MonsterDropsDialog extends StatelessWidget {
   const MonsterDropsDialog({required this.monster, super.key});
@@ -45,8 +42,8 @@ class MonsterDropsDialog extends StatelessWidget {
             if (monster.minGpDrop > 0 || monster.maxGpDrop > 0)
               _DropRow(
                 prefix: _formatGpRange(monster.minGpDrop, monster.maxGpDrop),
-                icon: const CachedImage(assetPath: gpIconPath, size: 20),
-                name: 'GP',
+                icon: CachedImage(assetPath: Currency.gp.assetPath, size: 20),
+                name: Currency.gp.abbreviation,
               ),
 
             // Bones drop

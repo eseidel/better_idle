@@ -2,6 +2,7 @@ import 'dart:math';
 
 import 'package:logic/src/action_state.dart';
 import 'package:logic/src/data/actions.dart';
+import 'package:logic/src/data/currency.dart';
 import 'package:logic/src/data/melvor_id.dart';
 import 'package:logic/src/data/registries.dart';
 import 'package:logic/src/data/xp.dart';
@@ -424,9 +425,13 @@ class StateUpdateBuilder {
     _state = _state.copyWith(actionStates: newActionStates);
   }
 
+  void addCurrency(Currency currency, int amount) {
+    _state = _state.addCurrency(currency, amount);
+    _changes = _changes.addingCurrency(currency, amount);
+  }
+
   void addGp(int amount) {
-    _state = _state.copyWith(gp: _state.gp + amount);
-    _changes = _changes.addingGp(amount);
+    addCurrency(Currency.gp, amount);
   }
 
   void setHealth(HealthState health) {

@@ -23,6 +23,7 @@ import 'dart:math';
 import 'package:collection/collection.dart';
 import 'package:logic/src/consume_ticks.dart';
 import 'package:logic/src/data/actions.dart';
+import 'package:logic/src/data/currency.dart';
 import 'package:logic/src/state.dart';
 import 'package:logic/src/tick.dart';
 import 'package:logic/src/types/health.dart';
@@ -557,10 +558,13 @@ AdvanceResult _advanceExpected(
   // Handle death: reset HP and stop activity
   // Note: can't use copyWith(activeAction: null) because null means "keep existing"
   if (playerDied) {
+    // Build currencies map with updated GP
+    final newCurrencies = Map<Currency, int>.from(state.currencies);
+    newCurrencies[Currency.gp] = newGp;
     return (
       state: GlobalState(
         registries: state.registries,
-        gp: newGp,
+        currencies: newCurrencies,
         skillStates: newSkillStates,
         activeAction: null, // Activity stops on death
         health: const HealthState.full(), // HP resets on death
@@ -586,9 +590,12 @@ AdvanceResult _advanceExpected(
   }
 
   // Return updated state (ignore inventory - gold is computed directly)
+  // Build currencies map with updated GP
+  final newCurrencies = Map<Currency, int>.from(state.currencies);
+  newCurrencies[Currency.gp] = newGp;
   return (
     state: state.copyWith(
-      gp: newGp,
+      currencies: newCurrencies,
       skillStates: newSkillStates,
       actionStates: newActionStates,
       health: newHealth,

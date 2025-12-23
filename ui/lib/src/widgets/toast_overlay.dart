@@ -102,23 +102,17 @@ class _ToastOverlayState extends State<ToastOverlay>
     if (currentData != null) {
       for (final entry in currentData.inventoryChanges.entries) {
         final item = context.state.registries.items.byId(entry.key);
-        bubbles.add(
-          _buildItemBubble(item, entry.value),
-        );
+        bubbles.add(_buildItemBubble(item, entry.value));
       }
 
       // Add xp change bubbles
       for (final entry in currentData.skillXpChanges.entries) {
-        bubbles.add(
-          _buildSkillXpBubble(entry.key, entry.value),
-        );
+        bubbles.add(_buildSkillXpBubble(entry.key, entry.value));
       }
 
       // Add GP change bubble
       if (currentData.gpGained != 0) {
-        bubbles.add(
-          _buildGpBubble(currentData.gpGained),
-        );
+        bubbles.add(_buildGpBubble(currentData.gpGained));
       }
     }
 
@@ -234,10 +228,7 @@ class _ToastOverlayState extends State<ToastOverlay>
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const CachedImage(
-              assetPath: 'assets/media/main/coins.png',
-              size: 20,
-            ),
+            CachedImage(assetPath: Currency.gp.assetPath, size: 20),
             const SizedBox(width: 8),
             Text(
               signedCountString(gp),

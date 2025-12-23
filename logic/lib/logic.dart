@@ -8,6 +8,7 @@ export 'src/consume_ticks.dart';
 export 'src/data/actions.dart';
 export 'src/data/cache.dart';
 export 'src/data/combat.dart';
+export 'src/data/currency.dart';
 export 'src/data/fishing.dart';
 export 'src/data/items.dart';
 export 'src/data/melvor_data.dart';

@@ -18,6 +18,7 @@ library;
 
 import 'dart:math';
 
+import 'package:logic/src/data/currency.dart';
 import 'package:logic/src/data/melvor_id.dart';
 import 'package:logic/src/data/upgrades.dart';
 import 'package:logic/src/state.dart';
@@ -77,7 +78,7 @@ GlobalState _applyBuyUpgrade(GlobalState state, UpgradeType type) {
   }
 
   // Deduct cost
-  final newGp = state.gp - upgrade.cost;
+  final stateAfterPayment = state.addCurrency(Currency.gp, -upgrade.cost);
 
   // Update shop state with new upgrade level
   final newShop = switch (type) {
@@ -88,7 +89,7 @@ GlobalState _applyBuyUpgrade(GlobalState state, UpgradeType type) {
     UpgradeType.pickaxe => state.shop.copyWith(pickaxeLevel: currentLevel + 1),
   };
 
-  return state.copyWith(gp: newGp, shop: newShop);
+  return stateAfterPayment.copyWith(shop: newShop);
 }
 
 /// Sells all items in inventory.

@@ -2,6 +2,7 @@ import 'dart:math';
 
 import 'package:logic/src/action_state.dart';
 import 'package:logic/src/data/actions.dart';
+import 'package:logic/src/data/currency.dart';
 import 'package:logic/src/data/melvor_id.dart';
 import 'package:logic/src/data/registries.dart';
 import 'package:logic/src/data/upgrades.dart';
@@ -200,7 +201,7 @@ class GlobalState {
     required this.skillStates,
     required this.actionStates,
     required this.updatedAt,
-    required this.gp,
+    required this.currencies,
     required this.shop,
     required this.health,
     required this.equipment,
@@ -229,7 +230,7 @@ class GlobalState {
             toValue: (value) => ActionState.fromJson(value),
           ) ??
           const {},
-      gp = json['gp'] as int? ?? 0,
+      currencies = _currenciesFromJson(json),
       timeAway = TimeAway.maybeFromJson(registries, json['timeAway']),
       shop = ShopState.maybeFromJson(json['shop']) ?? const ShopState.empty(),
       health =
@@ -241,6 +242,25 @@ class GlobalState {
           StunnedState.maybeFromJson(json['stunned']) ??
           const StunnedState.fresh();
 
+  /// Parse currencies from JSON, supporting both old 'gp' field and new
+  /// 'currencies' map format.
+  static Map<Currency, int> _currenciesFromJson(Map<String, dynamic> json) {
+    // Try new format first
+    final currenciesJson = json['currencies'] as Map<String, dynamic>?;
+    if (currenciesJson != null) {
+      return currenciesJson.map((key, value) {
+        final currency = Currency.fromIdOrThrow(key);
+        return MapEntry(currency, value as int);
+      });
+    }
+    // Fall back to old 'gp' field for migration
+    final gp = json['gp'] as int? ?? 0;
+    if (gp > 0) {
+      return {Currency.gp: gp};
+    }
+    return const {};
+  }
+
   GlobalState.empty(Registries registries)
     : this(
         inventory: Inventory.empty(registries.items),
@@ -251,7 +271,7 @@ class GlobalState {
         },
         actionStates: {},
         updatedAt: DateTime.timestamp(),
-        gp: 0,
+        currencies: const {},
         timeAway: null,
         shop: const ShopState.empty(),
         health: const HealthState.full(),
@@ -268,12 +288,15 @@ class GlobalState {
     Map<MelvorId, ActionState> actionStates = const {},
     DateTime? updatedAt,
     int gp = 0,
+    Map<Currency, int>? currencies,
     TimeAway? timeAway,
     ShopState shop = const ShopState.empty(),
     HealthState health = const HealthState.full(),
     Equipment equipment = const Equipment.empty(),
     StunnedState stunned = const StunnedState.fresh(),
   }) {
+    // Support both gp parameter (for existing tests) and currencies map
+    final currenciesMap = currencies ?? (gp > 0 ? {Currency.gp: gp} : const {});
     return GlobalState(
       registries: registries,
       inventory: inventory ?? Inventory.empty(registries.items),
@@ -281,7 +304,7 @@ class GlobalState {
       skillStates: skillStates,
       actionStates: actionStates,
       updatedAt: updatedAt ?? DateTime.timestamp(),
-      gp: gp,
+      currencies: currenciesMap,
       timeAway: timeAway,
       shop: shop,
       health: health,
@@ -311,7 +334,7 @@ class GlobalState {
       'actionStates': actionStates.map(
         (key, value) => MapEntry(key, value.toJson()),
       ),
-      'gp': gp,
+      'currencies': currencies.map((key, value) => MapEntry(key.id, value)),
       'timeAway': timeAway?.toJson(),
       'shop': shop.toJson(),
       'health': health.toJson(),
@@ -335,8 +358,15 @@ class GlobalState {
   /// The accumulated action states.
   final Map<MelvorId, ActionState> actionStates;
 
+  /// The player's currencies (GP, Slayer Coins, etc.).
+  final Map<Currency, int> currencies;
+
   /// The current gold pieces (GP) the player has.
-  final int gp;
+  /// Convenience getter for backward compatibility.
+  int get gp => currencies[Currency.gp] ?? 0;
+
+  /// Gets the amount of a specific currency.
+  int currency(Currency type) => currencies[type] ?? 0;
 
   /// Time away represents the accumulated changes since the last time the
   /// user interacted with the app.  It is persisted to disk, for the case in
@@ -556,7 +586,7 @@ class GlobalState {
       skillStates: skillStates,
       actionStates: actionStates,
       updatedAt: DateTime.timestamp(),
-      gp: gp,
+      currencies: currencies,
       health: health,
       equipment: equipment,
       stunned: stunned,
@@ -572,7 +602,7 @@ class GlobalState {
       skillStates: skillStates,
       actionStates: actionStates,
       updatedAt: DateTime.timestamp(),
-      gp: gp,
+      currencies: currencies,
       shop: shop,
       health: health,
       equipment: equipment,
@@ -641,8 +671,21 @@ class GlobalState {
 
   GlobalState sellItem(ItemStack stack) {
     final newInventory = inventory.removing(stack);
-    return copyWith(inventory: newInventory, gp: gp + stack.sellsFor);
+    return addCurrency(
+      Currency.gp,
+      stack.sellsFor,
+    ).copyWith(inventory: newInventory);
   }
+
+  /// Adds an amount of a specific currency.
+  GlobalState addCurrency(Currency type, int amount) {
+    final newCurrencies = Map<Currency, int>.from(currencies);
+    newCurrencies[type] = (newCurrencies[type] ?? 0) + amount;
+    return copyWith(currencies: newCurrencies);
+  }
+
+  /// Convenience method to add GP.
+  GlobalState addGp(int amount) => addCurrency(Currency.gp, amount);
 
   /// Equips food from the inventory to an equipment slot.
   /// Removes the item from inventory and adds it to equipment.
@@ -747,13 +790,20 @@ class GlobalState {
     ActiveAction? activeAction,
     Map<Skill, SkillState>? skillStates,
     Map<MelvorId, ActionState>? actionStates,
-    int? gp,
+    Map<Currency, int>? currencies,
+    int? gp, // Convenience parameter for setting GP directly
     TimeAway? timeAway,
     ShopState? shop,
     HealthState? health,
     Equipment? equipment,
     StunnedState? stunned,
   }) {
+    // Handle gp convenience parameter
+    var newCurrencies = currencies ?? this.currencies;
+    if (gp != null) {
+      newCurrencies = Map<Currency, int>.from(newCurrencies);
+      newCurrencies[Currency.gp] = gp;
+    }
     return GlobalState(
       registries: registries,
       inventory: inventory ?? this.inventory,
@@ -761,7 +811,7 @@ class GlobalState {
       skillStates: skillStates ?? this.skillStates,
       actionStates: actionStates ?? this.actionStates,
       updatedAt: DateTime.timestamp(),
-      gp: gp ?? this.gp,
+      currencies: newCurrencies,
       timeAway: timeAway ?? this.timeAway,
       shop: shop ?? this.shop,
       health: health ?? this.health,
