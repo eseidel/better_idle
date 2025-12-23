@@ -1,6 +1,5 @@
 import 'dart:math';
 
-import 'package:collection/collection.dart';
 import 'package:logic/src/tick.dart';
 import 'package:logic/src/types/drop.dart';
 import 'package:logic/src/types/modifier.dart';
@@ -51,16 +50,10 @@ enum Skill {
   /// Returns the skill for the given ID.
   /// Throws if the skill is not recognized.
   factory Skill.fromId(MelvorId id) {
-    final skill = tryFromId(id);
-    if (skill == null) {
-      throw ArgumentError('Unknown skill ID: $id');
-    }
-    return skill;
-  }
-
-  /// Returns the skill for the given ID, or null if not recognized.
-  static Skill? tryFromId(MelvorId id) {
-    return Skill.values.firstWhereOrNull((e) => e.id == id);
+    return values.firstWhere(
+      (e) => e.id == id,
+      orElse: () => throw ArgumentError('Unknown skill ID: $id'),
+    );
   }
 
   /// The Melvor ID for this skill (e.g., melvorD:Woodcutting).

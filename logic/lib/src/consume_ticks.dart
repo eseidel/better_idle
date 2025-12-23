@@ -430,10 +430,6 @@ class StateUpdateBuilder {
     _changes = _changes.addingCurrency(currency, amount);
   }
 
-  void addGp(int amount) {
-    addCurrency(Currency.gp, amount);
-  }
-
   void setHealth(HealthState health) {
     _state = _state.copyWith(health: health);
   }
@@ -532,7 +528,7 @@ bool completeThievingAction(
 
     // Grant gold
     final gold = action.rollGold(rng);
-    builder.addGp(gold);
+    builder.addCurrency(Currency.gp, gold);
 
     // Process drops
     final masteryLevel = builder.currentMasteryLevel(action);
@@ -831,7 +827,7 @@ enum ForegroundResult {
   // Check if monster died
   if (monsterHp <= 0) {
     final gpDrop = action.rollGpDrop(rng);
-    builder.addGp(gpDrop);
+    builder.addCurrency(Currency.gp, gpDrop);
     // Reset monster attack timer to full duration for when it respawns
     final fullMonsterAttackTicks = ticksFromDuration(
       Duration(milliseconds: (action.stats.attackSpeed * 1000).round()),

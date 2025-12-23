@@ -26,7 +26,7 @@ class CurrencyCost extends Equatable {
 
   factory CurrencyCost.fromJson(Map<String, dynamic> json) {
     final currencyId = json['currency'] as String;
-    final currency = Currency.fromIdOrThrow(currencyId);
+    final currency = Currency.fromId(currencyId);
     final typeStr = json['type'] as String;
     final type = typeStr == 'BankSlot' ? CostType.bankSlot : CostType.fixed;
     final fixedCost = json['cost'] as int?;
@@ -135,8 +135,7 @@ class SkillIntervalModifier extends Equatable {
   /// Returns null if the skill is not supported.
   static SkillIntervalModifier? fromJson(Map<String, dynamic> json) {
     final skillId = MelvorId(json['skillID'] as String);
-    final skill = Skill.tryFromId(skillId);
-    if (skill == null) return null;
+    final skill = Skill.fromId(skillId);
     return SkillIntervalModifier(skill: skill, value: json['value'] as int);
   }
 
@@ -210,8 +209,7 @@ class SkillLevelRequirement extends ShopRequirement {
   /// Returns null if the skill is not supported.
   static SkillLevelRequirement? fromJson(Map<String, dynamic> json) {
     final skillId = MelvorId(json['skillID'] as String);
-    final skill = Skill.tryFromId(skillId);
-    if (skill == null) return null;
+    final skill = Skill.fromId(skillId);
     return SkillLevelRequirement(skill: skill, level: json['level'] as int);
   }
 
@@ -385,18 +383,11 @@ class ShopPurchase extends Equatable {
 class ShopRegistry {
   ShopRegistry(this._purchases, this._categories) {
     _byId = {for (final p in _purchases) p.id.toJson(): p};
-    _byCategory = {};
-    for (final p in _purchases) {
-      _byCategory.putIfAbsent(p.category.toJson(), () => []).add(p);
-    }
-    _categoriesById = {for (final c in _categories) c.id.toJson(): c};
   }
 
   final List<ShopPurchase> _purchases;
   final List<ShopCategory> _categories;
   late final Map<String, ShopPurchase> _byId;
-  late final Map<String, List<ShopPurchase>> _byCategory;
-  late final Map<String, ShopCategory> _categoriesById;
 
   /// All registered purchases.
   List<ShopPurchase> get all => _purchases;
@@ -406,13 +397,6 @@ class ShopRegistry {
 
   /// Returns the purchase by ID, or null if not found.
   ShopPurchase? byId(MelvorId id) => _byId[id.toJson()];
-
-  /// Returns all purchases in a category.
-  List<ShopPurchase> byCategory(MelvorId categoryId) =>
-      _byCategory[categoryId.toJson()] ?? [];
-
-  /// Returns the category by ID, or null if not found.
-  ShopCategory? categoryById(MelvorId id) => _categoriesById[id.toJson()];
 
   /// Returns purchases that affect the given skill via interval modifiers.
   List<ShopPurchase> purchasesAffectingSkill(Skill skill) {

@@ -265,23 +265,12 @@ class GlobalState {
           StunnedState.maybeFromJson(json['stunned']) ??
           const StunnedState.fresh();
 
-  /// Parse currencies from JSON, supporting both old 'gp' field and new
-  /// 'currencies' map format.
   static Map<Currency, int> _currenciesFromJson(Map<String, dynamic> json) {
-    // Try new format first
-    final currenciesJson = json['currencies'] as Map<String, dynamic>?;
-    if (currenciesJson != null) {
-      return currenciesJson.map((key, value) {
-        final currency = Currency.fromIdOrThrow(key);
-        return MapEntry(currency, value as int);
-      });
-    }
-    // Fall back to old 'gp' field for migration
-    final gp = json['gp'] as int? ?? 0;
-    if (gp > 0) {
-      return {Currency.gp: gp};
-    }
-    return const {};
+    final currenciesJson = json['currencies'] as Map<String, dynamic>? ?? {};
+    return currenciesJson.map((key, value) {
+      final currency = Currency.fromId(key);
+      return MapEntry(currency, value as int);
+    });
   }
 
   GlobalState.empty(Registries registries)
@@ -384,9 +373,9 @@ class GlobalState {
   /// The player's currencies (GP, Slayer Coins, etc.).
   final Map<Currency, int> currencies;
 
-  /// The current gold pieces (GP) the player has.
-  /// Convenience getter for backward compatibility.
-  int get gp => currencies[Currency.gp] ?? 0;
+  /// The current gold pieces (GP) the player has, convenience getter.
+  /// Callers need to be careful not to ignore other currencies.
+  int get gp => currency(Currency.gp);
 
   /// Gets the amount of a specific currency.
   int currency(Currency type) => currencies[type] ?? 0;
@@ -719,9 +708,6 @@ class GlobalState {
     newCurrencies[type] = (newCurrencies[type] ?? 0) + amount;
     return copyWith(currencies: newCurrencies);
   }
-
-  /// Convenience method to add GP.
-  GlobalState addGp(int amount) => addCurrency(Currency.gp, amount);
 
   /// Equips food from the inventory to an equipment slot.
   /// Removes the item from inventory and adds it to equipment.

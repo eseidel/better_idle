@@ -110,9 +110,9 @@ class _ToastOverlayState extends State<ToastOverlay>
         bubbles.add(_buildSkillXpBubble(entry.key, entry.value));
       }
 
-      // Add GP change bubble
-      if (currentData.gpGained != 0) {
-        bubbles.add(_buildGpBubble(currentData.gpGained));
+      // Add currency change bubbles
+      for (final entry in currentData.currenciesGained.entries) {
+        bubbles.add(_buildCurrencyBubble(entry.key, entry.value));
       }
     }
 
@@ -215,7 +215,7 @@ class _ToastOverlayState extends State<ToastOverlay>
     );
   }
 
-  Widget _buildGpBubble(int gp) {
+  Widget _buildCurrencyBubble(Currency currency, int amount) {
     return Material(
       color: Style.transparentColor,
       child: Container(
@@ -231,7 +231,7 @@ class _ToastOverlayState extends State<ToastOverlay>
             CachedImage(assetPath: Currency.gp.assetPath, size: 20),
             const SizedBox(width: 8),
             Text(
-              signedCountString(gp),
+              signedCountString(amount),
               style: const TextStyle(color: Style.textColorPrimary),
             ),
           ],
