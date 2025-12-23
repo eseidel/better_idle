@@ -202,7 +202,7 @@ void main() {
       expect(candidates.watch.lockedActivityIds, contains(sardineAction.id));
     });
 
-    test('watch list includes upgrade types when upgrades are candidates', () {
+    test('watch list includes upgrades when upgrades are candidates', () {
       // The watch list includes all upgrades that meet skill requirements and
       // have positive gain, even if not competitive with the best activity.
       // This allows the planner to know when any upgrade becomes affordable.
@@ -211,14 +211,11 @@ void main() {
 
       // Even though thieving dominates, we still watch for tool upgrades
       // so the planner can reconsider when they become affordable
+      // The specific IDs depend on the parsed shop data
       expect(
-        candidates.watch.upgradeTypes,
-        containsAll([
-          UpgradeType.axe,
-          UpgradeType.fishingRod,
-          UpgradeType.pickaxe,
-        ]),
-        reason: 'Watch list should include all eligible upgrades',
+        candidates.watch.upgradePurchaseIds,
+        isNotEmpty,
+        reason: 'Watch list should include eligible upgrades',
       );
     });
 
@@ -282,8 +279,8 @@ void main() {
         equals(candidates2.watch.lockedActivityIds),
       );
       expect(
-        candidates1.watch.upgradeTypes,
-        equals(candidates2.watch.upgradeTypes),
+        candidates1.watch.upgradePurchaseIds,
+        equals(candidates2.watch.upgradePurchaseIds),
       );
     });
   });
@@ -300,12 +297,14 @@ void main() {
       final baseGoldRate = defaultValueModel.valuePerTick(state, baseRates);
 
       // Buy all tool upgrades (axe, fishing rod, pickaxe)
+      final ironAxeId = MelvorId('melvorD:Iron_Axe');
+      final ironRodId = MelvorId('melvorD:Iron_Fishing_Rod');
+      final ironPickaxeId = MelvorId('melvorD:Iron_Pickaxe');
       var upgradedState = state.copyWith(
-        shop: state.shop.copyWith(
-          axeLevel: 3,
-          fishingRodLevel: 3,
-          pickaxeLevel: 3,
-        ),
+        shop: state.shop
+            .withPurchase(ironAxeId)
+            .withPurchase(ironRodId)
+            .withPurchase(ironPickaxeId),
       );
       // Re-apply the action since we changed state
       upgradedState = upgradedState.startAction(manAction, random: Random(0));
@@ -327,34 +326,34 @@ void main() {
   });
 
   group('applyInteraction', () {
-    test('BuyUpgrade reduces GP by upgrade cost', () {
+    test('BuyShopItem reduces GP by upgrade cost', () {
       // Start with enough GP for an axe upgrade
       final state = GlobalState.empty(testRegistries).copyWith(gp: 100);
-      const interaction = BuyUpgrade(UpgradeType.axe);
+      final ironAxeId = MelvorId('melvorD:Iron_Axe');
+      final interaction = BuyShopItem(ironAxeId);
 
       // Apply the upgrade
       final newState = applyInteraction(state, interaction);
 
       // Iron Axe costs 50 GP
       expect(newState.gp, equals(50));
-      expect(newState.shop.axeLevel, equals(1));
+      expect(newState.shop.purchaseCount(ironAxeId), equals(1));
     });
 
-    test('BuyUpgrade reduces GP by correct amount for each tier', () {
+    test('BuyShopItem reduces GP by correct amount for each tier', () {
       // Test first fishing rod (costs 100)
+      final ironRodId = MelvorId('melvorD:Iron_Fishing_Rod');
       var state = GlobalState.empty(testRegistries).copyWith(gp: 200);
-      var newState = applyInteraction(
-        state,
-        const BuyUpgrade(UpgradeType.fishingRod),
-      );
+      var newState = applyInteraction(state, BuyShopItem(ironRodId));
       expect(newState.gp, equals(100)); // 200 - 100
-      expect(newState.shop.fishingRodLevel, equals(1));
+      expect(newState.shop.purchaseCount(ironRodId), equals(1));
 
       // Test first pickaxe (costs 250)
+      final ironPickaxeId = MelvorId('melvorD:Iron_Pickaxe');
       state = GlobalState.empty(testRegistries).copyWith(gp: 500);
-      newState = applyInteraction(state, const BuyUpgrade(UpgradeType.pickaxe));
+      newState = applyInteraction(state, BuyShopItem(ironPickaxeId));
       expect(newState.gp, equals(250)); // 500 - 250
-      expect(newState.shop.pickaxeLevel, equals(1));
+      expect(newState.shop.purchaseCount(ironPickaxeId), equals(1));
     });
   });
 }

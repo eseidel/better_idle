@@ -14,7 +14,7 @@ export 'src/data/items.dart';
 export 'src/data/melvor_data.dart';
 export 'src/data/melvor_id.dart';
 export 'src/data/registries.dart';
-export 'src/data/upgrades.dart';
+export 'src/data/shop.dart';
 export 'src/data/xp.dart';
 export 'src/state.dart';
 export 'src/strings.dart';

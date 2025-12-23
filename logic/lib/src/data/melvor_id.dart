@@ -1,5 +1,5 @@
-extension type MelvorId._(String id) {
-  MelvorId(this.id);
+extension type const MelvorId._(String id) {
+  const MelvorId(this.id);
 
   /// Creates a MelvorId from a JSON string.
   factory MelvorId.fromJson(String json) => MelvorId(json);

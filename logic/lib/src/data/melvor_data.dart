@@ -3,6 +3,7 @@ import 'dart:io';
 import 'actions.dart';
 import 'cache.dart';
 import 'melvor_id.dart';
+import 'shop.dart';
 
 /// A skill data entry from a single data file, with its namespace preserved.
 class SkillDataEntry {
@@ -118,10 +119,14 @@ class MelvorData {
 
     _actions = ActionRegistry(actions);
     _combatAreas = CombatAreaRegistry(combatAreas);
+
+    // Parse shop data
+    _shop = parseShop(dataFiles);
   }
 
   late final ItemRegistry _items;
   late final ActionRegistry _actions;
+  late final ShopRegistry _shop;
   late final FishingAreaRegistry _fishingAreas;
   late final SmithingCategoryRegistry _smithingCategories;
   late final FletchingCategoryRegistry _fletchingCategories;
@@ -145,6 +150,8 @@ class MelvorData {
   ThievingAreaRegistry get thievingAreas => _thievingAreas;
 
   CombatAreaRegistry get combatAreas => _combatAreas;
+
+  ShopRegistry get shop => _shop;
 }
 
 /// Parses all woodcutting data. Returns actions list.
@@ -479,4 +486,45 @@ List<CombatArea> parseCombatAreas(
       .map((areaJson) => areaJson as Map<String, dynamic>)
       .map((areaJson) => CombatArea.fromJson(areaJson, namespace: namespace))
       .toList();
+}
+
+/// Parses all shop data from multiple data files.
+ShopRegistry parseShop(List<Map<String, dynamic>> dataFiles) {
+  final purchases = <ShopPurchase>[];
+  final categories = <ShopCategory>[];
+
+  for (final json in dataFiles) {
+    final namespace = json['namespace'] as String;
+    final data = json['data'] as Map<String, dynamic>?;
+    if (data == null) continue;
+
+    // Parse shop purchases
+    final purchasesJson = data['shopPurchases'] as List<dynamic>? ?? [];
+    for (final purchaseJson in purchasesJson) {
+      try {
+        purchases.add(
+          ShopPurchase.fromJson(
+            purchaseJson as Map<String, dynamic>,
+            namespace: namespace,
+          ),
+        );
+      } on ArgumentError {
+        // Skip purchases with unknown currencies or skills
+        continue;
+      }
+    }
+
+    // Parse shop categories
+    final categoriesJson = data['shopCategories'] as List<dynamic>? ?? [];
+    for (final categoryJson in categoriesJson) {
+      categories.add(
+        ShopCategory.fromJson(
+          categoryJson as Map<String, dynamic>,
+          namespace: namespace,
+        ),
+      );
+    }
+  }
+
+  return ShopRegistry(purchases, categories);
 }

@@ -4,14 +4,14 @@ import 'package:better_idle/src/widgets/style.dart';
 import 'package:flutter/material.dart';
 import 'package:logic/logic.dart';
 
-extension UpgradeTypeIcon on UpgradeType {
-  IconData get icon {
-    return switch (this) {
-      UpgradeType.axe => Icons.carpenter,
-      UpgradeType.fishingRod => Icons.phishing,
-      UpgradeType.pickaxe => Icons.hardware,
-    };
-  }
+/// Returns an icon for a skill upgrade based on the skill it affects.
+IconData _iconForSkill(Skill skill) {
+  return switch (skill) {
+    Skill.woodcutting => Icons.carpenter,
+    Skill.fishing => Icons.phishing,
+    Skill.mining => Icons.hardware,
+    _ => Icons.shopping_cart,
+  };
 }
 
 class ShopPage extends StatelessWidget {
@@ -52,38 +52,54 @@ class ShopPage extends StatelessWidget {
     ShopViewModel viewModel,
   ) {
     final rows = <Widget>[];
+    final availableUpgrades = viewModel.availableUpgrades;
 
-    for (final type in UpgradeType.values) {
-      final upgrade = nextUpgrade(type, viewModel.upgradeLevel(type));
-      if (upgrade != null) {
-        final meetsLevelReq =
-            viewModel.skillLevelFor(upgrade) >= upgrade.requiredLevel;
-        final canAfford = viewModel.gp >= upgrade.cost;
+    for (final (purchase, skill) in availableUpgrades) {
+      final requiredLevel = viewModel.skillLevelRequirement(purchase);
+      final meetsLevelReq =
+          requiredLevel == null || viewModel.skillLevel(skill) >= requiredLevel;
+      final cost = purchase.cost.gpCost ?? 0;
+      final canAfford = viewModel.gp >= cost;
 
-        rows.add(
-          _ShopItemRow(
-            icon: Icon(type.icon),
-            name: upgrade.name,
-            price: upgrade.cost,
-            description: upgrade.description,
-            canAfford: canAfford,
-            levelRequirement: meetsLevelReq ? null : upgrade.requirementsString,
-            onTap: () => _showPurchaseDialog(
-              context,
-              name: upgrade.name,
-              cost: upgrade.cost,
-              description: upgrade.description,
-              levelRequirement: meetsLevelReq
-                  ? null
-                  : upgrade.requirementsString,
-              createAction: () => PurchaseUpgradeAction(upgradeType: type),
-            ),
+      // Build description from modifiers
+      final description = _buildDescription(purchase);
+      final requirementsString = requiredLevel != null
+          ? 'Requires ${skill.name} level $requiredLevel'
+          : null;
+
+      rows.add(
+        _ShopItemRow(
+          icon: Icon(_iconForSkill(skill)),
+          name: purchase.name,
+          price: cost,
+          description: description,
+          canAfford: canAfford,
+          levelRequirement: meetsLevelReq ? null : requirementsString,
+          onTap: () => _showPurchaseDialog(
+            context,
+            name: purchase.name,
+            cost: cost,
+            description: description,
+            levelRequirement: meetsLevelReq ? null : requirementsString,
+            createAction: () => PurchaseShopItemAction(purchaseId: purchase.id),
           ),
-        );
-      }
+        ),
+      );
     }
 
     return rows;
+  }
+
+  String? _buildDescription(ShopPurchase purchase) {
+    final modifiers = purchase.contains.skillIntervalModifiers;
+    if (modifiers.isEmpty) return null;
+
+    final parts = <String>[];
+    for (final mod in modifiers) {
+      final percent = mod.value < 0 ? '${mod.value}%' : '+${mod.value}%';
+      parts.add('$percent ${mod.skill.name} time');
+    }
+    return parts.join(', ');
   }
 
   void _showPurchaseDialog(
@@ -155,12 +171,18 @@ class ShopViewModel {
   int get gp => _state.gp;
   int get nextBankSlotCost => _state.shop.nextBankSlotCost();
 
-  /// Get the current upgrade level for a given type.
-  int upgradeLevel(UpgradeType type) => _state.shop.upgradeLevel(type);
+  ShopRegistry get _shopRegistry => _state.registries.shop;
 
-  /// Get the player's skill level for an upgrade's required skill.
-  int skillLevelFor(SkillUpgrade upgrade) =>
-      _state.skillState(upgrade.skill).skillLevel;
+  /// Get available skill upgrades that can be purchased.
+  List<(ShopPurchase, Skill)> get availableUpgrades =>
+      _shopRegistry.availableSkillUpgrades(_state.shop.purchaseCounts);
+
+  /// Get the skill level requirement for a purchase.
+  int? skillLevelRequirement(ShopPurchase purchase) =>
+      _shopRegistry.skillLevelRequirement(purchase);
+
+  /// Get the player's skill level for a skill.
+  int skillLevel(Skill skill) => _state.skillState(skill).skillLevel;
 }
 
 class _ShopItemRow extends StatelessWidget {

@@ -184,7 +184,7 @@ Rates estimateRates(GlobalState state) {
   final baseExpectedTicks = ticksFromDuration(action.meanDuration).toDouble();
 
   // Apply upgrade modifier
-  final percentModifier = state.shop.durationModifierForSkill(action.skill);
+  final percentModifier = state.shopDurationModifierForSkill(action.skill);
   final expectedTicks = baseExpectedTicks * (1.0 + percentModifier);
 
   if (expectedTicks <= 0) {

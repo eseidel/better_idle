@@ -49,19 +49,21 @@ void main() {
       expect(newState.activeAction?.id, action.id);
     });
 
-    test('BuyUpgrade purchases an upgrade', () {
+    test('BuyShopItem purchases an upgrade', () {
       final state = GlobalState.empty(testRegistries).copyWith(gp: 100);
-      const interaction = BuyUpgrade(UpgradeType.axe);
+      final ironAxeId = MelvorId('melvorD:Iron_Axe');
+      final interaction = BuyShopItem(ironAxeId);
 
       final newState = applyInteraction(state, interaction);
 
-      expect(newState.shop.axeLevel, 1);
+      expect(newState.shop.purchaseCount(ironAxeId), 1);
       expect(newState.gp, 50); // Iron Axe costs 50
     });
 
-    test('BuyUpgrade throws when cannot afford', () {
+    test('BuyShopItem throws when cannot afford', () {
       final state = GlobalState.empty(testRegistries).copyWith(gp: 10);
-      const interaction = BuyUpgrade(UpgradeType.axe);
+      final ironAxeId = MelvorId('melvorD:Iron_Axe');
+      final interaction = BuyShopItem(ironAxeId);
 
       expect(
         () => applyInteraction(state, interaction),
@@ -236,7 +238,7 @@ void main() {
         steps: [
           InteractionStep(SwitchActivity(normalTreeAction.id)),
           const WaitStep(1000, WaitForGoal(testGoal)),
-          const InteractionStep(BuyUpgrade(UpgradeType.axe)),
+          InteractionStep(BuyShopItem(MelvorId('melvorD:Iron_Axe'))),
           const WaitStep(5000, WaitForGoal(testGoal)),
         ],
         totalTicks: 6000,
@@ -251,7 +253,7 @@ void main() {
       expect(output, contains('Total ticks: 6000'));
       expect(output, contains('Interactions: 2'));
       expect(output, contains('Switch to'));
-      expect(output, contains('Buy upgrade: UpgradeType.axe'));
+      expect(output, contains('Buy upgrade: melvorD:Iron_Axe'));
       expect(output, contains('Wait'));
     });
 

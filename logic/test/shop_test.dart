@@ -5,7 +5,15 @@ void main() {
   group('ShopState', () {
     test('nextBankSlotCost returns correct costs for first 10 slots', () {
       void expectSlotCost(int slot, int expectedCost) {
-        final shopState = ShopState(bankSlots: slot);
+        final bankSlotId = MelvorId('melvorD:Extra_Bank_Slot');
+        var purchaseCounts = <MelvorId, int>{};
+        for (var i = 0; i < slot; i++) {
+          purchaseCounts = {
+            ...purchaseCounts,
+            bankSlotId: (purchaseCounts[bankSlotId] ?? 0) + 1,
+          };
+        }
+        final shopState = ShopState(purchaseCounts: purchaseCounts);
         final cost = shopState.nextBankSlotCost();
         expect(
           cost,
@@ -34,14 +42,15 @@ void main() {
 
     test('ShopState.empty starts with 0 bank slots', () {
       const shopState = ShopState.empty();
-      expect(shopState.bankSlots, 0);
+      expect(shopState.bankSlotsPurchased, 0);
       expect(shopState.nextBankSlotCost(), greaterThan(0));
     });
 
-    test('ShopState.copyWith updates bank slots', () {
+    test('ShopState.withPurchase adds purchase', () {
       const shopState = ShopState.empty();
-      final updated = shopState.copyWith(bankSlots: 5);
-      expect(updated.bankSlots, 5);
+      final bankSlotId = MelvorId('melvorD:Extra_Bank_Slot');
+      final updated = shopState.withPurchase(bankSlotId);
+      expect(updated.purchaseCount(bankSlotId), 1);
       expect(
         updated.nextBankSlotCost(),
         isNot(equals(shopState.nextBankSlotCost())),
@@ -49,11 +58,12 @@ void main() {
     });
 
     test('ShopState serialization round-trip', () {
-      const original = ShopState(bankSlots: 3);
+      final bankSlotId = MelvorId('melvorD:Extra_Bank_Slot');
+      final original = ShopState(purchaseCounts: {bankSlotId: 3});
       final json = original.toJson();
       final loaded = ShopState.fromJson(json);
 
-      expect(loaded.bankSlots, original.bankSlots);
+      expect(loaded.bankSlotsPurchased, original.bankSlotsPurchased);
       expect(loaded.nextBankSlotCost(), original.nextBankSlotCost());
     });
   });

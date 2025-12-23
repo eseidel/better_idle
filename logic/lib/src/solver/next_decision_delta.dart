@@ -23,7 +23,6 @@
 library;
 
 import 'package:logic/src/data/actions.dart';
-import 'package:logic/src/data/upgrades.dart';
 import 'package:logic/src/data/xp.dart';
 import 'package:logic/src/state.dart';
 
@@ -88,13 +87,15 @@ NextDecisionResult nextDecisionDelta(
   // Check for immediate availability (upgrades already affordable)
   // Only consider upgrades that are competitive (in buyUpgrades), not the
   // broader watch list which includes all potentially useful upgrades.
-  for (final type in candidates.buyUpgrades) {
-    final currentLevel = state.shop.upgradeLevel(type);
-    final upgrade = nextUpgrade(type, currentLevel);
-    if (upgrade != null && state.gp >= upgrade.cost) {
+  final shopRegistry = state.registries.shop;
+  for (final purchaseId in candidates.buyUpgrades) {
+    final purchase = shopRegistry.byId(purchaseId);
+    if (purchase == null) continue;
+    final cost = purchase.cost.gpCost;
+    if (cost != null && state.gp >= cost) {
       return NextDecisionResult(
         deltaTicks: 0,
-        waitFor: WaitForInventoryValue(upgrade.cost, reason: upgrade.name),
+        waitFor: WaitForInventoryValue(cost, reason: purchase.name),
       );
     }
   }
@@ -205,23 +206,26 @@ _DeltaCandidate? _deltaUntilUpgradeAffordable(
   String? minUpgradeName;
   int? minUpgradeCost;
 
-  for (final type in candidates.watch.upgradeTypes) {
-    final currentLevel = state.shop.upgradeLevel(type);
-    final upgrade = nextUpgrade(type, currentLevel);
-    if (upgrade == null) continue;
+  final shopRegistry = state.registries.shop;
+  for (final purchaseId in candidates.watch.upgradePurchaseIds) {
+    final purchase = shopRegistry.byId(purchaseId);
+    if (purchase == null) continue;
 
-    if (state.gp >= upgrade.cost) {
+    final cost = purchase.cost.gpCost;
+    if (cost == null) continue; // Skip special pricing
+
+    if (state.gp >= cost) {
       // Already affordable - should have been caught above
       continue;
     }
 
-    final needed = upgrade.cost - state.gp;
+    final needed = cost - state.gp;
     final delta = _ceilDiv(needed.toDouble(), valueRate);
 
     if (minDelta == null || delta < minDelta) {
       minDelta = delta;
-      minUpgradeName = upgrade.name;
-      minUpgradeCost = upgrade.cost;
+      minUpgradeName = purchase.name;
+      minUpgradeCost = cost;
     }
   }
 
