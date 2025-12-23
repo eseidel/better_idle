@@ -22,6 +22,7 @@ export 'src/tick.dart';
 // Types
 export 'src/types/drop.dart';
 export 'src/types/equipment.dart';
+export 'src/types/equipment_slot.dart';
 export 'src/types/health.dart';
 export 'src/types/inventory.dart';
 export 'src/types/modifier.dart';

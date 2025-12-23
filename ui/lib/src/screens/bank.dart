@@ -334,6 +334,13 @@ class _ItemDetailsDrawerState extends State<ItemDetailsDrawer> {
                 const SizedBox(height: 16),
                 _EquipFoodSection(item: itemData, maxCount: maxCount),
               ],
+              // Show Equip button for gear items
+              if (itemData.isEquippable) ...[
+                const SizedBox(height: 32),
+                const Divider(),
+                const SizedBox(height: 16),
+                _EquipGearSection(item: itemData),
+              ],
               // Show Open button for openable items
               if (itemData.isOpenable) ...[
                 const SizedBox(height: 32),
@@ -554,6 +561,93 @@ class _OpenItemSectionState extends State<_OpenItemSection> {
           ),
         ),
       ],
+    );
+  }
+}
+
+class _EquipGearSection extends StatelessWidget {
+  const _EquipGearSection({required this.item});
+
+  final Item item;
+
+  @override
+  Widget build(BuildContext context) {
+    final equipment = context.state.equipment;
+    final validSlots = item.validSlots;
+
+    // Find which slot this item is currently equipped in (if any)
+    EquipmentSlot? currentlyEquippedSlot;
+    for (final slot in validSlots) {
+      if (equipment.gearInSlot(slot) == item) {
+        currentlyEquippedSlot = slot;
+        break;
+      }
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text('Equip Gear', style: Theme.of(context).textTheme.titleMedium),
+        const SizedBox(height: 8),
+        Text(
+          'Valid slots: ${validSlots.map((s) => s.displayName).join(', ')}',
+          style: Theme.of(context).textTheme.bodyMedium,
+        ),
+        if (currentlyEquippedSlot != null)
+          Padding(
+            padding: const EdgeInsets.only(top: 4),
+            child: Text(
+              'Currently equipped in: ${currentlyEquippedSlot.displayName}',
+              style: TextStyle(color: Style.textColorInfo),
+            ),
+          ),
+        const SizedBox(height: 16),
+        // Show an equip button for each valid slot
+        for (final slot in validSlots) ...[
+          _EquipSlotButton(item: item, slot: slot, equipment: equipment),
+          const SizedBox(height: 8),
+        ],
+      ],
+    );
+  }
+}
+
+class _EquipSlotButton extends StatelessWidget {
+  const _EquipSlotButton({
+    required this.item,
+    required this.slot,
+    required this.equipment,
+  });
+
+  final Item item;
+  final EquipmentSlot slot;
+  final Equipment equipment;
+
+  @override
+  Widget build(BuildContext context) {
+    final currentItem = equipment.gearInSlot(slot);
+    final isAlreadyEquipped = currentItem == item;
+
+    String buttonText;
+    if (isAlreadyEquipped) {
+      buttonText = '${slot.displayName} (Already equipped)';
+    } else if (currentItem != null) {
+      buttonText = '${slot.displayName} (Swap with ${currentItem.name})';
+    } else {
+      buttonText = 'Equip in ${slot.displayName}';
+    }
+
+    return SizedBox(
+      width: double.infinity,
+      child: ElevatedButton(
+        onPressed: isAlreadyEquipped
+            ? null
+            : () {
+                context.dispatch(EquipGearAction(item: item, slot: slot));
+                Navigator.of(context).pop();
+              },
+        child: Text(buttonText),
+      ),
     );
   }
 }

@@ -11,6 +11,10 @@ void main() {
   late Item birdNest;
   late Item shrimp;
   late Item lobster;
+  late Item bronzeDagger;
+  late Item bronzeSword;
+  late Item bronzeHelmet;
+  late Item bronzeShield;
   late Action normalTree;
   late Action oakTree;
 
@@ -21,6 +25,10 @@ void main() {
     birdNest = testItems.byName('Bird Nest');
     shrimp = testItems.byName('Shrimp');
     lobster = testItems.byName('Lobster');
+    bronzeDagger = testItems.byName('Bronze Dagger');
+    bronzeSword = testItems.byName('Bronze Sword');
+    bronzeHelmet = testItems.byName('Bronze Helmet');
+    bronzeShield = testItems.byName('Bronze Shield');
     normalTree = testActions.byName('Normal Tree');
     oakTree = testActions.byName('Oak Tree');
   });
@@ -792,6 +800,301 @@ void main() {
       // Only opened what we had
       expect(result.openedCount, 2);
       expect(newState.inventory.countOfItem(eggChest), 0);
+    });
+  });
+
+  group('GlobalState.equipGear', () {
+    test('moves item from inventory to equipment slot', () {
+      final state = GlobalState.test(
+        testRegistries,
+        inventory: Inventory.fromItems(testItems, [
+          ItemStack(bronzeDagger, count: 1),
+        ]),
+      );
+
+      final newState = state.equipGear(bronzeDagger, EquipmentSlot.weapon);
+
+      // Item should be removed from inventory
+      expect(newState.inventory.countOfItem(bronzeDagger), 0);
+      // Item should be in the weapon slot
+      expect(newState.equipment.gearInSlot(EquipmentSlot.weapon), bronzeDagger);
+    });
+
+    test('only removes one item when equipping from stack', () {
+      final state = GlobalState.test(
+        testRegistries,
+        inventory: Inventory.fromItems(testItems, [
+          ItemStack(bronzeDagger, count: 5),
+        ]),
+      );
+
+      final newState = state.equipGear(bronzeDagger, EquipmentSlot.weapon);
+
+      // Only one item should be removed from inventory
+      expect(newState.inventory.countOfItem(bronzeDagger), 4);
+      // Item should be in the weapon slot
+      expect(newState.equipment.gearInSlot(EquipmentSlot.weapon), bronzeDagger);
+    });
+
+    test('swaps items when slot is occupied', () {
+      // Start with a sword equipped and dagger in inventory
+      final equipment = Equipment(
+        foodSlots: const [null, null, null],
+        selectedFoodSlot: 0,
+        gearSlots: {EquipmentSlot.weapon: bronzeSword},
+      );
+      final state = GlobalState.test(
+        testRegistries,
+        inventory: Inventory.fromItems(testItems, [
+          ItemStack(bronzeDagger, count: 1),
+        ]),
+        equipment: equipment,
+      );
+
+      final newState = state.equipGear(bronzeDagger, EquipmentSlot.weapon);
+
+      // Dagger should be equipped
+      expect(newState.equipment.gearInSlot(EquipmentSlot.weapon), bronzeDagger);
+      // Sword should be back in inventory
+      expect(newState.inventory.countOfItem(bronzeSword), 1);
+      // Dagger should be removed from inventory
+      expect(newState.inventory.countOfItem(bronzeDagger), 0);
+    });
+
+    test('throws StateError when item is not in inventory', () {
+      final state = GlobalState.test(testRegistries);
+
+      expect(
+        () => state.equipGear(bronzeDagger, EquipmentSlot.weapon),
+        throwsStateError,
+      );
+    });
+
+    test('throws StateError when item is not equippable', () {
+      final state = GlobalState.test(
+        testRegistries,
+        inventory: Inventory.fromItems(testItems, [
+          ItemStack(normalLogs, count: 1),
+        ]),
+      );
+
+      expect(
+        () => state.equipGear(normalLogs, EquipmentSlot.weapon),
+        throwsStateError,
+      );
+    });
+
+    test('throws StateError when item cannot go in the specified slot', () {
+      final state = GlobalState.test(
+        testRegistries,
+        inventory: Inventory.fromItems(testItems, [
+          ItemStack(bronzeDagger, count: 1),
+        ]),
+      );
+
+      // Bronze dagger can only go in Weapon slot, not Helmet
+      expect(
+        () => state.equipGear(bronzeDagger, EquipmentSlot.helmet),
+        throwsStateError,
+      );
+    });
+
+    test('throws StateError when inventory full and swapping', () {
+      // Fill inventory with different items
+      final items = <ItemStack>[];
+      for (var i = 0; i < initialBankSlots; i++) {
+        items.add(ItemStack(Item.test('Test Item $i', gp: 1), count: 1));
+      }
+      // Replace one slot with the dagger we want to equip
+      items[0] = ItemStack(bronzeDagger, count: 1);
+
+      // Have a sword equipped that needs to go back to inventory
+      final equipment = Equipment(
+        foodSlots: const [null, null, null],
+        selectedFoodSlot: 0,
+        gearSlots: {EquipmentSlot.weapon: bronzeSword},
+      );
+
+      final state = GlobalState.test(
+        testRegistries,
+        inventory: Inventory.fromItems(testItems, items),
+        equipment: equipment,
+      );
+
+      // Inventory is full, can't swap
+      expect(
+        () => state.equipGear(bronzeDagger, EquipmentSlot.weapon),
+        throwsStateError,
+      );
+    });
+
+    test('can equip different items to different slots', () {
+      final state = GlobalState.test(
+        testRegistries,
+        inventory: Inventory.fromItems(testItems, [
+          ItemStack(bronzeDagger, count: 1),
+          ItemStack(bronzeHelmet, count: 1),
+          ItemStack(bronzeShield, count: 1),
+        ]),
+      );
+
+      var newState = state.equipGear(bronzeDagger, EquipmentSlot.weapon);
+      newState = newState.equipGear(bronzeHelmet, EquipmentSlot.helmet);
+      newState = newState.equipGear(bronzeShield, EquipmentSlot.shield);
+
+      expect(newState.equipment.gearInSlot(EquipmentSlot.weapon), bronzeDagger);
+      expect(newState.equipment.gearInSlot(EquipmentSlot.helmet), bronzeHelmet);
+      expect(newState.equipment.gearInSlot(EquipmentSlot.shield), bronzeShield);
+      expect(newState.inventory.countOfItem(bronzeDagger), 0);
+      expect(newState.inventory.countOfItem(bronzeHelmet), 0);
+      expect(newState.inventory.countOfItem(bronzeShield), 0);
+    });
+  });
+
+  group('GlobalState.unequipGear', () {
+    test('moves item from equipment slot to inventory', () {
+      final equipment = Equipment(
+        foodSlots: const [null, null, null],
+        selectedFoodSlot: 0,
+        gearSlots: {EquipmentSlot.weapon: bronzeDagger},
+      );
+      final state = GlobalState.test(testRegistries, equipment: equipment);
+
+      final newState = state.unequipGear(EquipmentSlot.weapon);
+
+      expect(newState, isNotNull);
+      expect(newState!.equipment.gearInSlot(EquipmentSlot.weapon), isNull);
+      expect(newState.inventory.countOfItem(bronzeDagger), 1);
+    });
+
+    test('returns null when slot is empty', () {
+      final state = GlobalState.test(testRegistries);
+
+      final newState = state.unequipGear(EquipmentSlot.weapon);
+
+      expect(newState, isNull);
+    });
+
+    test('stacks with existing inventory items', () {
+      final equipment = Equipment(
+        foodSlots: const [null, null, null],
+        selectedFoodSlot: 0,
+        gearSlots: {EquipmentSlot.weapon: bronzeDagger},
+      );
+      final state = GlobalState.test(
+        testRegistries,
+        inventory: Inventory.fromItems(testItems, [
+          ItemStack(bronzeDagger, count: 3),
+        ]),
+        equipment: equipment,
+      );
+
+      final newState = state.unequipGear(EquipmentSlot.weapon);
+
+      expect(newState, isNotNull);
+      expect(newState!.equipment.gearInSlot(EquipmentSlot.weapon), isNull);
+      // Should stack: 3 + 1 = 4
+      expect(newState.inventory.countOfItem(bronzeDagger), 4);
+    });
+
+    test('throws StateError when inventory is full', () {
+      // Fill inventory with different items
+      final items = <ItemStack>[];
+      for (var i = 0; i < initialBankSlots; i++) {
+        items.add(ItemStack(Item.test('Test Item $i', gp: 1), count: 1));
+      }
+
+      final equipment = Equipment(
+        foodSlots: const [null, null, null],
+        selectedFoodSlot: 0,
+        gearSlots: {EquipmentSlot.weapon: bronzeDagger},
+      );
+      final state = GlobalState.test(
+        testRegistries,
+        inventory: Inventory.fromItems(testItems, items),
+        equipment: equipment,
+      );
+
+      expect(() => state.unequipGear(EquipmentSlot.weapon), throwsStateError);
+    });
+
+    test('succeeds when inventory full but has same item type', () {
+      // Fill inventory but include the same item type
+      final items = <ItemStack>[ItemStack(bronzeDagger, count: 2)];
+      for (var i = 1; i < initialBankSlots; i++) {
+        items.add(ItemStack(Item.test('Test Item $i', gp: 1), count: 1));
+      }
+
+      final equipment = Equipment(
+        foodSlots: const [null, null, null],
+        selectedFoodSlot: 0,
+        gearSlots: {EquipmentSlot.weapon: bronzeDagger},
+      );
+      final state = GlobalState.test(
+        testRegistries,
+        inventory: Inventory.fromItems(testItems, items),
+        equipment: equipment,
+      );
+
+      // Should succeed because dagger can stack
+      final newState = state.unequipGear(EquipmentSlot.weapon);
+      expect(newState, isNotNull);
+      expect(newState!.inventory.countOfItem(bronzeDagger), 3);
+      expect(newState.equipment.gearInSlot(EquipmentSlot.weapon), isNull);
+    });
+
+    test('can unequip from any slot', () {
+      final equipment = Equipment(
+        foodSlots: const [null, null, null],
+        selectedFoodSlot: 0,
+        gearSlots: {
+          EquipmentSlot.weapon: bronzeDagger,
+          EquipmentSlot.helmet: bronzeHelmet,
+          EquipmentSlot.shield: bronzeShield,
+        },
+      );
+      final state = GlobalState.test(testRegistries, equipment: equipment);
+
+      // Unequip helmet only
+      final newState = state.unequipGear(EquipmentSlot.helmet);
+
+      expect(newState, isNotNull);
+      expect(
+        newState!.equipment.gearInSlot(EquipmentSlot.weapon),
+        bronzeDagger,
+      );
+      expect(newState.equipment.gearInSlot(EquipmentSlot.helmet), isNull);
+      expect(newState.equipment.gearInSlot(EquipmentSlot.shield), bronzeShield);
+      expect(newState.inventory.countOfItem(bronzeHelmet), 1);
+    });
+  });
+
+  group('Equipment gear slots serialization', () {
+    test('toJson/fromJson round-trip with gear equipped', () {
+      final equipment = Equipment(
+        foodSlots: const [null, null, null],
+        selectedFoodSlot: 0,
+        gearSlots: {
+          EquipmentSlot.weapon: bronzeDagger,
+          EquipmentSlot.helmet: bronzeHelmet,
+        },
+      );
+      final originalState = GlobalState.test(
+        testRegistries,
+        equipment: equipment,
+        updatedAt: DateTime(2024, 1, 1, 12),
+      );
+
+      // Convert to JSON
+      final json = originalState.toJson();
+
+      // Convert back from JSON
+      final loaded = GlobalState.fromJson(testRegistries, json);
+
+      // Verify gear is preserved
+      expect(loaded.equipment.gearInSlot(EquipmentSlot.weapon), bronzeDagger);
+      expect(loaded.equipment.gearInSlot(EquipmentSlot.helmet), bronzeHelmet);
+      expect(loaded.equipment.gearInSlot(EquipmentSlot.shield), isNull);
     });
   });
 }

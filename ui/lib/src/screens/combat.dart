@@ -1,6 +1,7 @@
 import 'package:better_idle/src/logic/redux_actions.dart';
 import 'package:better_idle/src/widgets/cached_image.dart';
 import 'package:better_idle/src/widgets/context_extensions.dart';
+import 'package:better_idle/src/widgets/equipment_slots.dart';
 import 'package:better_idle/src/widgets/monster_drops_dialog.dart';
 import 'package:better_idle/src/widgets/navigation_drawer.dart';
 import 'package:better_idle/src/widgets/skill_image.dart';
@@ -265,6 +266,14 @@ class _PlayerStatsCard extends StatelessWidget {
                 ),
               ),
             ),
+            const SizedBox(height: 16),
+            // Equipment slots section
+            const Text(
+              'Equipment',
+              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 8),
+            const EquipmentSlotsCompact(),
           ],
         ),
       ),

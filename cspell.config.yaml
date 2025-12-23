@@ -28,6 +28,7 @@ words:
   - defence # Consider removing and forcing all our code to use Defense.
   - dists
   - dragonhide
+  - equippable
   - eseidel
   - firemaking
   - fluttercommunity
@@ -45,6 +46,8 @@ words:
   - pathprovider
   - persistor
   - pickpocketing
+  - platebody
+  - platelegs
   - podfile
   - proguard
   - regen

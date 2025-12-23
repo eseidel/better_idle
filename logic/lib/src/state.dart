@@ -9,6 +9,7 @@ import 'package:logic/src/data/shop.dart';
 import 'package:logic/src/json.dart';
 import 'package:logic/src/tick.dart';
 import 'package:logic/src/types/equipment.dart';
+import 'package:logic/src/types/equipment_slot.dart';
 import 'package:logic/src/types/health.dart';
 import 'package:logic/src/types/inventory.dart';
 import 'package:logic/src/types/modifier_old.dart';
@@ -761,6 +762,65 @@ class GlobalState {
       throw ArgumentError('Invalid food slot index: $slotIndex');
     }
     return copyWith(equipment: equipment.copyWith(selectedFoodSlot: slotIndex));
+  }
+
+  /// Equips a gear item from inventory to a specific equipment slot.
+  /// Removes one item from inventory and equips it.
+  /// If there was an item in that slot, it's returned to inventory.
+  /// Throws StateError if player doesn't have the item or inventory is full
+  /// when swapping.
+  GlobalState equipGear(Item item, EquipmentSlot slot) {
+    if (!item.isEquippable) {
+      throw StateError('Cannot equip ${item.name}: not equippable');
+    }
+    if (!item.canEquipInSlot(slot)) {
+      throw StateError(
+        'Cannot equip ${item.name} in $slot slot. '
+        'Valid slots: ${item.validSlots}',
+      );
+    }
+    if (inventory.countOfItem(item) < 1) {
+      throw StateError('Cannot equip ${item.name}: not in inventory');
+    }
+
+    // Check if we're swapping and have room in inventory
+    final previousItem = equipment.gearInSlot(slot);
+    if (previousItem != null) {
+      if (!inventory.canAdd(previousItem, capacity: inventoryCapacity)) {
+        throw StateError(
+          'Inventory is full, cannot swap ${previousItem.name} for '
+          '${item.name}',
+        );
+      }
+    }
+
+    // Remove item from inventory
+    var newInventory = inventory.removing(ItemStack(item, count: 1));
+
+    // Equip the item
+    final (newEquipment, swappedItem) = equipment.equipGear(item, slot);
+
+    // Add swapped item back to inventory if there was one
+    if (swappedItem != null) {
+      newInventory = newInventory.adding(ItemStack(swappedItem, count: 1));
+    }
+
+    return copyWith(inventory: newInventory, equipment: newEquipment);
+  }
+
+  /// Unequips gear from a specific slot and moves it to inventory.
+  /// Throws StateError if inventory is full.
+  /// Returns null if the slot is empty.
+  GlobalState? unequipGear(EquipmentSlot slot) {
+    final result = equipment.unequipGear(slot);
+    if (result == null) return null;
+
+    final (item, newEquipment) = result;
+    if (!inventory.canAdd(item, capacity: inventoryCapacity)) {
+      throw StateError('Inventory is full, cannot unequip ${item.name}');
+    }
+    final newInventory = inventory.adding(ItemStack(item, count: 1));
+    return copyWith(inventory: newInventory, equipment: newEquipment);
   }
 
   /// Opens openable items and adds the resulting drops to inventory.

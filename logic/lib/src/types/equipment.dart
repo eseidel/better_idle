@@ -1,5 +1,6 @@
 import 'package:logic/src/data/items.dart';
 import 'package:logic/src/data/melvor_id.dart';
+import 'package:logic/src/types/equipment_slot.dart';
 import 'package:logic/src/types/inventory.dart';
 import 'package:meta/meta.dart';
 
@@ -9,11 +10,16 @@ const int foodSlotCount = 3;
 /// Represents the player's equipped items.
 @immutable
 class Equipment {
-  const Equipment({required this.foodSlots, required this.selectedFoodSlot});
+  const Equipment({
+    required this.foodSlots,
+    required this.selectedFoodSlot,
+    this.gearSlots = const {},
+  });
 
   const Equipment.empty()
     : foodSlots = const [null, null, null],
-      selectedFoodSlot = 0;
+      selectedFoodSlot = 0,
+      gearSlots = const {};
 
   static Equipment? maybeFromJson(ItemRegistry items, dynamic json) {
     if (json == null) return null;
@@ -34,9 +40,21 @@ class Equipment {
           })
         : const [null, null, null];
 
+    // Parse gear slots
+    final gearSlotsJson = json['gearSlots'] as Map<String, dynamic>?;
+    final gearSlots = <EquipmentSlot, Item>{};
+    if (gearSlotsJson != null) {
+      for (final entry in gearSlotsJson.entries) {
+        final slot = EquipmentSlot.fromJson(entry.key);
+        final itemId = MelvorId.fromJson(entry.value as String);
+        gearSlots[slot] = items.byId(itemId);
+      }
+    }
+
     return Equipment(
       foodSlots: foodSlots,
       selectedFoodSlot: json['selectedFoodSlot'] as int? ?? 0,
+      gearSlots: gearSlots,
     );
   }
 
@@ -45,6 +63,10 @@ class Equipment {
 
   /// The currently selected food slot index (0-2).
   final int selectedFoodSlot;
+
+  /// The gear items equipped in each slot. Keys are slot types, values are
+  /// the equipped items. Empty slots are not present in the map.
+  final Map<EquipmentSlot, Item> gearSlots;
 
   Map<String, dynamic> toJson() {
     return {
@@ -56,6 +78,9 @@ class Equipment {
           )
           .toList(),
       'selectedFoodSlot': selectedFoodSlot,
+      'gearSlots': gearSlots.map(
+        (slot, item) => MapEntry(slot.toJson(), item.id.toJson()),
+      ),
     };
   }
 
@@ -153,10 +178,54 @@ class Equipment {
     return (food, copyWith(foodSlots: newFoodSlots));
   }
 
-  Equipment copyWith({List<ItemStack?>? foodSlots, int? selectedFoodSlot}) {
+  /// Returns the item currently equipped in the given slot, or null if empty.
+  Item? gearInSlot(EquipmentSlot slot) => gearSlots[slot];
+
+  /// Returns true if the item can be equipped in the given slot.
+  /// An item can be equipped if the slot is empty or will be swapped.
+  bool canEquipGear(Item item, EquipmentSlot slot) {
+    return item.canEquipInSlot(slot);
+  }
+
+  /// Equips an item in the given slot, returning the updated equipment
+  /// and any item that was previously in that slot (or null if empty).
+  /// Throws if the item cannot be equipped in that slot.
+  (Equipment, Item?) equipGear(Item item, EquipmentSlot slot) {
+    if (!item.canEquipInSlot(slot)) {
+      throw ArgumentError(
+        'Cannot equip ${item.name} in $slot slot. '
+        'Valid slots: ${item.validSlots}',
+      );
+    }
+
+    final previousItem = gearSlots[slot];
+    final newGearSlots = Map<EquipmentSlot, Item>.from(gearSlots);
+    newGearSlots[slot] = item;
+
+    return (copyWith(gearSlots: newGearSlots), previousItem);
+  }
+
+  /// Removes an item from the given slot, returning the item and updated
+  /// equipment. Returns null if the slot is empty.
+  (Item, Equipment)? unequipGear(EquipmentSlot slot) {
+    final item = gearSlots[slot];
+    if (item == null) return null;
+
+    final newGearSlots = Map<EquipmentSlot, Item>.from(gearSlots);
+    newGearSlots.remove(slot);
+
+    return (item, copyWith(gearSlots: newGearSlots));
+  }
+
+  Equipment copyWith({
+    List<ItemStack?>? foodSlots,
+    int? selectedFoodSlot,
+    Map<EquipmentSlot, Item>? gearSlots,
+  }) {
     return Equipment(
       foodSlots: foodSlots ?? this.foodSlots,
       selectedFoodSlot: selectedFoodSlot ?? this.selectedFoodSlot,
+      gearSlots: gearSlots ?? this.gearSlots,
     );
   }
 }

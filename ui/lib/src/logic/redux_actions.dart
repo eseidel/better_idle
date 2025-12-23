@@ -324,6 +324,29 @@ class SortInventoryAction extends ReduxAction<GlobalState> {
   }
 }
 
+/// Equips gear from inventory to an equipment slot.
+class EquipGearAction extends ReduxAction<GlobalState> {
+  EquipGearAction({required this.item, required this.slot});
+  final Item item;
+  final EquipmentSlot slot;
+
+  @override
+  GlobalState reduce() {
+    return state.equipGear(item, slot);
+  }
+}
+
+/// Unequips gear from an equipment slot back to inventory.
+class UnequipGearAction extends ReduxAction<GlobalState> {
+  UnequipGearAction({required this.slot});
+  final EquipmentSlot slot;
+
+  @override
+  GlobalState? reduce() {
+    return state.unequipGear(slot);
+  }
+}
+
 // Debug actions
 
 /// Adds Egg Chests to inventory for testing.

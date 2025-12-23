@@ -3,6 +3,7 @@ import 'dart:math';
 import 'package:equatable/equatable.dart';
 import 'package:logic/src/data/melvor_id.dart';
 import 'package:logic/src/types/drop.dart';
+import 'package:logic/src/types/equipment_slot.dart';
 import 'package:logic/src/types/inventory.dart';
 import 'package:meta/meta.dart';
 
@@ -100,6 +101,7 @@ class Item extends Equatable {
     this.healsFor,
     this.dropTable,
     this.media,
+    this.validSlots = const [],
   });
 
   /// Creates a simple test item with minimal required fields.
@@ -112,7 +114,8 @@ class Item extends Equatable {
       category = null,
       type = null,
       dropTable = null,
-      media = null;
+      media = null,
+      validSlots = const [];
 
   /// Creates an Item from a JSON map.
   factory Item.fromJson(
@@ -136,6 +139,14 @@ class Item extends Equatable {
     // Parse media path, stripping query params (e.g., "?2").
     final media = (json['media'] as String?)?.split('?').first;
 
+    // Parse valid equipment slots.
+    final validSlotsJson = json['validSlots'] as List<dynamic>?;
+    final validSlots =
+        validSlotsJson
+            ?.map((s) => EquipmentSlot.fromJson(s as String))
+            .toList() ??
+        const [];
+
     // Normalize ID to always have namespace (items in JSON may lack it).
     final id = MelvorId.fromJsonWithNamespace(
       json['id'] as String,
@@ -152,6 +163,7 @@ class Item extends Equatable {
       healsFor: healsFor,
       dropTable: dropTable,
       media: media,
+      validSlots: validSlots,
     );
   }
 
@@ -182,11 +194,21 @@ class Item extends Equatable {
   /// The asset path for this item's icon (e.g., "assets/media/bank/logs_normal.png").
   final String? media;
 
+  /// The equipment slots this item can be equipped in.
+  /// Empty list means the item cannot be equipped.
+  final List<EquipmentSlot> validSlots;
+
   /// Whether this item can be consumed for healing.
   bool get isConsumable => healsFor != null;
 
   /// Whether this item can be opened (has a drop table).
   bool get isOpenable => dropTable != null;
+
+  /// Whether this item can be equipped (has valid slots).
+  bool get isEquippable => validSlots.isNotEmpty;
+
+  /// Returns true if this item can be equipped in the given slot.
+  bool canEquipInSlot(EquipmentSlot slot) => validSlots.contains(slot);
 
   /// Opens this item once and returns the resulting drop.
   /// Throws if the item is not openable.
@@ -208,6 +230,7 @@ class Item extends Equatable {
     healsFor,
     dropTable,
     media,
+    validSlots,
   ];
 
   @override
