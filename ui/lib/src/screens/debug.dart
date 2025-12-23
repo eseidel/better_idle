@@ -1,5 +1,6 @@
 import 'package:better_idle/src/logic/redux_actions.dart';
 import 'package:better_idle/src/widgets/context_extensions.dart';
+import 'package:better_idle/src/widgets/item_catalog_grid.dart';
 import 'package:better_idle/src/widgets/navigation_drawer.dart';
 import 'package:better_idle/src/widgets/welcome_back_dialog.dart';
 import 'package:flutter/material.dart';
@@ -13,30 +14,42 @@ class DebugPage extends StatelessWidget {
     return Scaffold(
       appBar: AppBar(title: const Text('Debug')),
       drawer: const AppNavigationDrawer(),
-      body: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            ElevatedButton(
-              onPressed: () => _showWelcomeBackDialog(context),
-              child: const Text('Show Welcome Back Dialog (Example)'),
+      body: Column(
+        children: [
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            alignment: WrapAlignment.center,
+            children: [
+              ElevatedButton(
+                onPressed: () => _showWelcomeBackDialog(context),
+                child: const Text('Show Welcome Back Dialog'),
+              ),
+              ElevatedButton(
+                onPressed: () {
+                  context.dispatch(DebugAddEggChestsAction());
+                },
+                child: const Text('Add 50 Egg Chests'),
+              ),
+              ElevatedButton(
+                onPressed: () {
+                  context.dispatch(DebugFillInventoryAction());
+                },
+                child: const Text('Fill Inventory'),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          const Padding(
+            padding: EdgeInsets.symmetric(horizontal: 16),
+            child: Text(
+              'Tap an item to add it to inventory:',
+              style: TextStyle(fontWeight: FontWeight.bold),
             ),
-            const SizedBox(height: 16),
-            ElevatedButton(
-              onPressed: () {
-                context.dispatch(DebugAddEggChestsAction());
-              },
-              child: const Text('Add 50 Egg Chests'),
-            ),
-            const SizedBox(height: 16),
-            ElevatedButton(
-              onPressed: () {
-                context.dispatch(DebugFillInventoryAction());
-              },
-              child: const Text('Fill Inventory'),
-            ),
-          ],
-        ),
+          ),
+          const SizedBox(height: 8),
+          const Expanded(child: ItemCatalogGrid()),
+        ],
       ),
     );
   }

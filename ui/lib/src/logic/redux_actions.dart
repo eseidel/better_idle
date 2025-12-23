@@ -363,3 +363,21 @@ class DebugFillInventoryAction extends ReduxAction<GlobalState> {
     return state.copyWith(inventory: inventory);
   }
 }
+
+/// Adds a specific item to inventory for debugging.
+/// Returns null if inventory is full (cannot add new item type).
+class DebugAddItemAction extends ReduxAction<GlobalState> {
+  DebugAddItemAction({required this.item, this.count = 1});
+  final Item item;
+  final int count;
+
+  @override
+  GlobalState? reduce() {
+    if (!state.inventory.canAdd(item, capacity: state.inventoryCapacity)) {
+      return null;
+    }
+    final stack = ItemStack(item, count: count);
+    final newInventory = state.inventory.adding(stack);
+    return state.copyWith(inventory: newInventory);
+  }
+}

@@ -213,9 +213,13 @@ class _ShopPageState extends State<ShopPage> {
     final parts = <String>[];
 
     // Add skill interval modifiers
-    for (final mod in purchase.contains.skillIntervalModifiers) {
-      final percent = mod.value < 0 ? '${mod.value}%' : '+${mod.value}%';
-      parts.add('$percent ${mod.skill.name} time');
+    final modifiers = purchase.contains.modifiers;
+    for (final skillId in modifiers.skillIntervalSkillIds) {
+      final skill = Skill.tryFromId(skillId);
+      if (skill == null) continue;
+      final value = modifiers.skillIntervalForSkill(skillId);
+      final percent = value < 0 ? '$value%' : '+$value%';
+      parts.add('$percent ${skill.name} time');
     }
 
     // Add bank space
