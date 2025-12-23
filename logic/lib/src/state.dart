@@ -11,7 +11,7 @@ import 'package:logic/src/tick.dart';
 import 'package:logic/src/types/equipment.dart';
 import 'package:logic/src/types/health.dart';
 import 'package:logic/src/types/inventory.dart';
-import 'package:logic/src/types/modifier.dart';
+import 'package:logic/src/types/modifier_old.dart';
 import 'package:logic/src/types/open_result.dart';
 import 'package:logic/src/types/stunned.dart';
 import 'package:logic/src/types/time_away.dart';
@@ -513,7 +513,7 @@ class GlobalState {
     final ticks = action.rollDuration(random);
 
     // Collect all modifiers
-    final modifiers = <Modifier>[];
+    final modifiers = <ModifierOld>[];
 
     // Shop upgrade modifiers (percentage only)
     // The totalSkillIntervalModifier returns percentage points (e.g., -5 for 5% reduction)
@@ -523,7 +523,7 @@ class GlobalState {
       shopRegistry,
     );
     if (shopModifier != 0) {
-      modifiers.add(Modifier(percent: shopModifier / 100.0));
+      modifiers.add(ModifierOld(percent: shopModifier / 100.0));
     }
 
     // Mastery-based modifiers (can include both percent and flat)
@@ -540,7 +540,7 @@ class GlobalState {
       return ticks;
     }
 
-    final combined = Modifier.combineAll(modifiers);
+    final combined = ModifierOld.combineAll(modifiers);
     return combined.applyToInt(ticks);
   }
 

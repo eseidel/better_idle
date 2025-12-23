@@ -2,7 +2,7 @@ import 'dart:math';
 
 import 'package:logic/src/tick.dart';
 import 'package:logic/src/types/drop.dart';
-import 'package:logic/src/types/modifier.dart';
+import 'package:logic/src/types/modifier_old.dart';
 import 'package:meta/meta.dart';
 
 import 'combat.dart';
@@ -78,17 +78,17 @@ List<Droppable> defaultRewards(SkillAction action, int masteryLevel) {
 }
 
 /// Default duration modifier function - returns no modifier.
-Modifier defaultDurationModifier(SkillAction action, int masteryLevel) {
-  return const Modifier();
+ModifierOld defaultDurationModifier(SkillAction action, int masteryLevel) {
+  return const ModifierOld();
 }
 
 /// Woodcutting duration modifier - at mastery level 99, reduces duration by 0.2s.
-Modifier woodcuttingDurationModifier(SkillAction action, int masteryLevel) {
+ModifierOld woodcuttingDurationModifier(SkillAction action, int masteryLevel) {
   if (masteryLevel >= 99) {
     // 0.2s = 2 ticks (100ms per tick)
-    return const Modifier(flat: -2);
+    return const ModifierOld(flat: -2);
   }
-  return const Modifier();
+  return const ModifierOld();
 }
 
 // TODO(eseidel): Make this into a more generalized "chance to double" behavior.
@@ -149,7 +149,7 @@ class SkillAction extends Action {
   final Map<MelvorId, int> outputs;
 
   final List<Droppable> Function(SkillAction, int masteryLevel) rewardsAtLevel;
-  final Modifier Function(SkillAction, int masteryLevel)
+  final ModifierOld Function(SkillAction, int masteryLevel)
   durationModifierAtLevel;
 
   bool get isFixedDuration => minDuration == maxDuration;
@@ -175,7 +175,7 @@ class SkillAction extends Action {
       rewardsAtLevel(this, masteryLevel);
 
   /// Returns the duration modifier for a given mastery level.
-  Modifier durationModifierForMasteryLevel(int masteryLevel) =>
+  ModifierOld durationModifierForMasteryLevel(int masteryLevel) =>
       durationModifierAtLevel(this, masteryLevel);
 }
 
