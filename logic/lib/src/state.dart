@@ -13,6 +13,7 @@ import 'package:logic/src/types/equipment_slot.dart';
 import 'package:logic/src/types/health.dart';
 import 'package:logic/src/types/inventory.dart';
 import 'package:logic/src/types/modifier_old.dart';
+import 'package:logic/src/types/resolved_modifiers.dart';
 import 'package:logic/src/types/open_result.dart';
 import 'package:logic/src/types/stunned.dart';
 import 'package:logic/src/types/time_away.dart';
@@ -503,6 +504,61 @@ class GlobalState {
     return shop.totalSkillIntervalModifier(skill, registries.shop) / 100.0;
   }
 
+  /// Resolves mastery-based skill interval modifiers for an action.
+  ///
+  /// Reads from [MasteryBonusRegistry] and evaluates which bonuses apply
+  /// based on the current mastery level. Returns resolved flat and percentage
+  /// modifiers that affect action duration.
+  ResolvedModifiers resolveMasteryModifiers(SkillAction action) {
+    final masteryLevel = actionState(action.id).masteryLevel;
+    final skillBonuses = registries.masteryBonuses.forSkill(action.skill.id);
+    if (skillBonuses == null) return ResolvedModifiers.empty;
+
+    var flatMs = 0;
+    var percent = 0.0;
+
+    for (final bonus in skillBonuses.bonuses) {
+      final count = bonus.countAtLevel(masteryLevel);
+      if (count == 0) continue;
+
+      // Handle flatSkillInterval (flat milliseconds)
+      final flatMod = bonus.modifiers.byName('flatSkillInterval');
+      if (flatMod != null) {
+        for (final entry in flatMod.entries) {
+          final scope = entry.scope;
+          if (scope == null ||
+              scope.matchesSkillForMastery(
+                action.skill.id,
+                autoScopeToAction: bonus.autoScopeToAction,
+              )) {
+            flatMs += (entry.value * count).toInt();
+          }
+        }
+      }
+
+      // Handle skillInterval (percentage points, e.g., -5 = -5%)
+      final percentMod = bonus.modifiers.byName('skillInterval');
+      if (percentMod != null) {
+        for (final entry in percentMod.entries) {
+          final scope = entry.scope;
+          if (scope == null ||
+              scope.matchesSkillForMastery(
+                action.skill.id,
+                autoScopeToAction: bonus.autoScopeToAction,
+              )) {
+            percent += entry.value * count;
+          }
+        }
+      }
+    }
+
+    return ResolvedModifiers(
+      flatSkillIntervalMs: flatMs,
+      // Convert percentage points to decimal (e.g., -5 -> -0.05)
+      skillIntervalPercent: percent / 100.0,
+    );
+  }
+
   /// Rolls duration for a skill action and applies all relevant modifiers.
   /// This centralizes duration modifier logic for shop upgrades and mastery.
   /// Percentage modifiers are applied first, then flat modifiers.
@@ -527,11 +583,8 @@ class GlobalState {
       modifiers.add(ModifierOld(percent: shopModifier / 100.0));
     }
 
-    // Mastery-based modifiers (can include both percent and flat)
-    final masteryLevel = actionState(action.id).masteryLevel;
-    final masteryModifier = action.durationModifierForMasteryLevel(
-      masteryLevel,
-    );
+    // Mastery-based modifiers from data (can include both percent and flat)
+    final masteryModifier = resolveMasteryModifiers(action).toModifierOld();
     if (!masteryModifier.isEmpty) {
       modifiers.add(masteryModifier);
     }

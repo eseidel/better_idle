@@ -2,7 +2,6 @@ import 'dart:math';
 
 import 'package:logic/src/tick.dart';
 import 'package:logic/src/types/drop.dart';
-import 'package:logic/src/types/modifier_old.dart';
 import 'package:meta/meta.dart';
 
 import 'combat.dart';
@@ -85,20 +84,6 @@ List<Droppable> defaultRewards(SkillAction action, int masteryLevel) {
   return [...action.outputs.entries.map((e) => Drop(e.key, count: e.value))];
 }
 
-/// Default duration modifier function - returns no modifier.
-ModifierOld defaultDurationModifier(SkillAction action, int masteryLevel) {
-  return const ModifierOld();
-}
-
-/// Woodcutting duration modifier - at mastery level 99, reduces duration by 0.2s.
-ModifierOld woodcuttingDurationModifier(SkillAction action, int masteryLevel) {
-  if (masteryLevel >= 99) {
-    // 0.2s = 2 ticks (100ms per tick)
-    return const ModifierOld(flat: -2);
-  }
-  return const ModifierOld();
-}
-
 // TODO(eseidel): Make this into a more generalized "chance to double" behavior.
 List<Droppable> woodcuttingRewards(SkillAction action, int masteryLevel) {
   final outputs = action.outputs;
@@ -131,7 +116,6 @@ class SkillAction extends Action {
     this.outputs = const {},
     this.inputs = const {},
     this.rewardsAtLevel = defaultRewards,
-    this.durationModifierAtLevel = defaultDurationModifier,
   }) : minDuration = duration,
        maxDuration = duration;
 
@@ -146,7 +130,6 @@ class SkillAction extends Action {
     this.outputs = const {},
     this.inputs = const {},
     this.rewardsAtLevel = defaultRewards,
-    this.durationModifierAtLevel = defaultDurationModifier,
   });
 
   final int xp;
@@ -157,8 +140,6 @@ class SkillAction extends Action {
   final Map<MelvorId, int> outputs;
 
   final List<Droppable> Function(SkillAction, int masteryLevel) rewardsAtLevel;
-  final ModifierOld Function(SkillAction, int masteryLevel)
-  durationModifierAtLevel;
 
   bool get isFixedDuration => minDuration == maxDuration;
 
@@ -181,10 +162,6 @@ class SkillAction extends Action {
 
   List<Droppable> rewardsForMasteryLevel(int masteryLevel) =>
       rewardsAtLevel(this, masteryLevel);
-
-  /// Returns the duration modifier for a given mastery level.
-  ModifierOld durationModifierForMasteryLevel(int masteryLevel) =>
-      durationModifierAtLevel(this, masteryLevel);
 }
 
 /// Fixed player attack speed in seconds.

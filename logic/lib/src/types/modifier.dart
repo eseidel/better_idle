@@ -179,6 +179,24 @@ class ModifierScope extends Equatable {
     effectGroupId,
   ];
 
+  /// Checks if this scope matches the given skill for mastery bonus resolution.
+  ///
+  /// For mastery bonuses with [autoScopeToAction] = true, the actionID is a
+  /// template placeholder and only the skillID is checked. ActionIDs are
+  /// skill-specific and not globally unique.
+  ///
+  /// For mastery bonuses with [autoScopeToAction] = false, the modifier applies
+  /// globally (e.g., Firemaking level 99 masteryXP bonus).
+  bool matchesSkillForMastery(
+    MelvorId skillId, {
+    required bool autoScopeToAction,
+  }) {
+    if (isGlobal) return true;
+    if (!autoScopeToAction) return true; // Global modifier, no filtering
+    // For autoScopeToAction=true, only check skill (actionID is template)
+    return this.skillId == null || this.skillId == skillId;
+  }
+
   @override
   String toString() => presentKeys.isEmpty ? 'global' : presentKeys.join(',');
 }
