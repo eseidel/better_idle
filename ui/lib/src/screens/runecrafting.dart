@@ -13,31 +13,32 @@ import 'package:better_idle/src/widgets/xp_badges_row.dart';
 import 'package:flutter/material.dart' hide Action;
 import 'package:logic/logic.dart';
 
-class HerblorePage extends StatefulWidget {
-  const HerblorePage({super.key});
+class RunecraftingPage extends StatefulWidget {
+  const RunecraftingPage({super.key});
 
   @override
-  State<HerblorePage> createState() => _HerblorePageState();
+  State<RunecraftingPage> createState() => _RunecraftingPageState();
 }
 
-class _HerblorePageState extends State<HerblorePage> {
-  HerbloreAction? _selectedAction;
+class _RunecraftingPageState extends State<RunecraftingPage> {
+  RunecraftingAction? _selectedAction;
   final Set<MelvorId> _collapsedCategories = {};
 
   @override
   Widget build(BuildContext context) {
-    const skill = Skill.herblore;
+    const skill = Skill.runecrafting;
     final registries = context.state.registries;
     final actions = registries.actions
         .forSkill(skill)
-        .whereType<HerbloreAction>()
+        .whereType<RunecraftingAction>()
         .toList();
     final skillState = context.state.skillState(skill);
     final skillLevel = skillState.skillLevel;
-    final categories = registries.herbloreCategories;
+    final categories = registries.runecraftingCategories;
 
     // Group actions by category
-    final actionsByCategory = <HerbloreCategory, List<HerbloreAction>>{};
+    final actionsByCategory =
+        <RunecraftingCategory, List<RunecraftingAction>>{};
     for (final action in actions) {
       final category = action.categoryId != null
           ? categories.byId(action.categoryId!)
@@ -56,7 +57,7 @@ class _HerblorePageState extends State<HerblorePage> {
         (unlockedActions.isNotEmpty ? unlockedActions.first : null);
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Herblore')),
+      appBar: AppBar(title: const Text('Runecrafting')),
       drawer: const AppNavigationDrawer(),
       body: Column(
         children: [
@@ -78,13 +79,16 @@ class _HerblorePageState extends State<HerblorePage> {
                     },
                   ),
                   const SizedBox(height: 24),
-                  CategorizedActionList<HerbloreCategory, HerbloreAction>(
+                  CategorizedActionList<
+                    RunecraftingCategory,
+                    RunecraftingAction
+                  >(
                     actionsByCategory: actionsByCategory,
                     selectedAction: selectedAction,
                     collapsedCategories: _collapsedCategories,
                     skill: skill,
                     skillLevel: skillLevel,
-                    title: 'Available Potions',
+                    title: 'Available Recipes',
                     onSelect: (action) {
                       setState(() {
                         _selectedAction = action;
@@ -121,7 +125,7 @@ class _SelectedActionDisplay extends StatelessWidget {
     required this.onStart,
   });
 
-  final HerbloreAction action;
+  final RunecraftingAction action;
   final int skillLevel;
   final VoidCallback onStart;
 
@@ -158,7 +162,7 @@ class _SelectedActionDisplay extends StatelessWidget {
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               const Text('Unlocked at '),
-              const SkillImage(skill: Skill.herblore, size: 16),
+              const SkillImage(skill: Skill.runecrafting, size: 16),
               Text(' Level ${action.unlockLevel}'),
             ],
           ),
@@ -188,9 +192,9 @@ class _SelectedActionDisplay extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          // Header: Brew + Action Name
+          // Header: Create + Action Name
           const Text(
-            'Brew',
+            'Create',
             textAlign: TextAlign.center,
             style: TextStyle(fontSize: 14, color: Style.textColorSecondary),
           ),
@@ -245,7 +249,7 @@ class _SelectedActionDisplay extends StatelessWidget {
           XpBadgesRow(action: action),
           const SizedBox(height: 16),
 
-          // Duration and Brew button
+          // Duration and Create button
           Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
@@ -260,7 +264,7 @@ class _SelectedActionDisplay extends StatelessWidget {
             style: ElevatedButton.styleFrom(
               backgroundColor: isActive ? Style.activeColor : null,
             ),
-            child: Text(isActive ? 'Stop' : 'Brew'),
+            child: Text(isActive ? 'Stop' : 'Create'),
           ),
         ],
       ),

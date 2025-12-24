@@ -16,6 +16,7 @@ extension SkillExtensions on Skill {
     Skill.thieving => Icons.back_hand,
     Skill.crafting => Icons.handyman,
     Skill.herblore => Icons.science,
+    Skill.runecrafting => Icons.auto_fix_high,
   };
 
   String get routeName => switch (this) {
