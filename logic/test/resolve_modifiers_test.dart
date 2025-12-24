@@ -8,15 +8,14 @@ void main() {
   group('ResolvedModifiers', () {
     test('empty has no values', () {
       expect(ResolvedModifiers.empty.isEmpty, isTrue);
-      expect(ResolvedModifiers.empty['skillInterval'], 0);
-      expect(ResolvedModifiers.empty['flatSkillInterval'], 0);
+      expect(ResolvedModifiers.empty.skillInterval, 0);
+      expect(ResolvedModifiers.empty.flatSkillInterval, 0);
     });
 
     test('stores and retrieves values by name', () {
       final modifiers = ResolvedModifiers({'skillInterval': -5, 'skillXP': 10});
-      expect(modifiers['skillInterval'], -5);
-      expect(modifiers['skillXP'], 10);
-      expect(modifiers['unknown'], 0);
+      expect(modifiers.skillInterval, -5);
+      expect(modifiers.skillXP, 10);
       expect(modifiers.isEmpty, isFalse);
     });
 
@@ -28,9 +27,9 @@ void main() {
       });
       final combined = a.combine(b);
 
-      expect(combined['skillInterval'], -8); // -5 + -3
-      expect(combined['skillXP'], 10);
-      expect(combined['flatSkillInterval'], -200);
+      expect(combined.skillInterval, -8); // -5 + -3
+      expect(combined.skillXP, 10);
+      expect(combined.flatSkillInterval, -200);
     });
 
     test('combine with empty returns original', () {
@@ -48,8 +47,8 @@ void main() {
         ..add('skillXP', 10);
 
       final result = builder.build();
-      expect(result['skillInterval'], -8);
-      expect(result['skillXP'], 10);
+      expect(result.skillInterval, -8);
+      expect(result.skillXP, 10);
     });
   });
 
@@ -113,7 +112,7 @@ void main() {
         actionStates: {action.id: ActionState(masteryXp: startXpForLevel(98))},
       );
       final modifiersLevel98 = stateLevel98.resolveModifiers(action);
-      expect(modifiersLevel98['flatSkillInterval'], 0);
+      expect(modifiersLevel98.flatSkillInterval, 0);
 
       // At level 99, bonus should apply
       final stateLevel99 = GlobalState.test(
@@ -121,7 +120,7 @@ void main() {
         actionStates: {action.id: ActionState(masteryXp: startXpForLevel(99))},
       );
       final modifiersLevel99 = stateLevel99.resolveModifiers(action);
-      expect(modifiersLevel99['flatSkillInterval'], -200);
+      expect(modifiersLevel99.flatSkillInterval, -200);
     });
 
     test(
@@ -164,7 +163,7 @@ void main() {
           },
         );
         final modifiers = state.resolveModifiers(firemakingAction);
-        expect(modifiers['masteryXP'], 0.25);
+        expect(modifiers.masteryXP, 0.25);
       },
     );
 
@@ -204,50 +203,35 @@ void main() {
         registries,
         actionStates: {action.id: ActionState(masteryXp: startXpForLevel(5))},
       );
-      expect(
-        stateLevel5.resolveModifiers(action)['skillItemDoublingChance'],
-        0,
-      );
+      expect(stateLevel5.resolveModifiers(action).skillItemDoublingChance, 0);
 
       // At level 10, bonus applies once (5%)
       final stateLevel10 = GlobalState.test(
         registries,
         actionStates: {action.id: ActionState(masteryXp: startXpForLevel(10))},
       );
-      expect(
-        stateLevel10.resolveModifiers(action)['skillItemDoublingChance'],
-        5,
-      );
+      expect(stateLevel10.resolveModifiers(action).skillItemDoublingChance, 5);
 
       // At level 50, bonus applies 5 times (25%)
       final stateLevel50 = GlobalState.test(
         registries,
         actionStates: {action.id: ActionState(masteryXp: startXpForLevel(50))},
       );
-      expect(
-        stateLevel50.resolveModifiers(action)['skillItemDoublingChance'],
-        25,
-      );
+      expect(stateLevel50.resolveModifiers(action).skillItemDoublingChance, 25);
 
       // At level 90 (max), bonus applies 9 times (45%)
       final stateLevel90 = GlobalState.test(
         registries,
         actionStates: {action.id: ActionState(masteryXp: startXpForLevel(90))},
       );
-      expect(
-        stateLevel90.resolveModifiers(action)['skillItemDoublingChance'],
-        45,
-      );
+      expect(stateLevel90.resolveModifiers(action).skillItemDoublingChance, 45);
 
       // At level 99 (past max), bonus still only applies 9 times (45%)
       final stateLevel99 = GlobalState.test(
         registries,
         actionStates: {action.id: ActionState(masteryXp: startXpForLevel(99))},
       );
-      expect(
-        stateLevel99.resolveModifiers(action)['skillItemDoublingChance'],
-        45,
-      );
+      expect(stateLevel99.resolveModifiers(action).skillItemDoublingChance, 45);
     });
 
     test('shop purchase modifiers are resolved', () {
@@ -283,14 +267,14 @@ void main() {
 
       // Without purchase, no modifier
       final stateNoPurchase = GlobalState.test(registries);
-      expect(stateNoPurchase.resolveModifiers(action)['skillInterval'], 0);
+      expect(stateNoPurchase.resolveModifiers(action).skillInterval, 0);
 
       // With purchase, modifier applies
       final stateWithPurchase = GlobalState.test(
         registries,
         shop: ShopState(purchaseCounts: {fakeShopPurchaseId: 1}),
       );
-      expect(stateWithPurchase.resolveModifiers(action)['skillInterval'], -5);
+      expect(stateWithPurchase.resolveModifiers(action).skillInterval, -5);
     });
 
     test('global scope within skillInterval modifier applies', () {
@@ -338,7 +322,7 @@ void main() {
 
       // Both the woodcutting-scoped (-5) and global (-2) entries should apply
       final modifiers = stateWithPurchase.resolveModifiers(woodcuttingAction);
-      expect(modifiers['skillInterval'], -7);
+      expect(modifiers.skillInterval, -7);
     });
 
     test('combines modifiers from multiple sources', () {
@@ -411,9 +395,9 @@ void main() {
       final modifiers = state.resolveModifiers(action);
 
       // Shop (-5) + Mastery (-3) = -8
-      expect(modifiers['skillInterval'], -8);
+      expect(modifiers.skillInterval, -8);
       // Only from mastery
-      expect(modifiers['flatSkillInterval'], -200);
+      expect(modifiers.flatSkillInterval, -200);
     });
 
     test('modifier scoped to different skill does not apply', () {
@@ -453,7 +437,7 @@ void main() {
 
       // The fishing-scoped modifier should NOT apply to woodcutting
       final modifiers = state.resolveModifiers(woodcuttingAction);
-      expect(modifiers['skillInterval'], 0);
+      expect(modifiers.skillInterval, 0);
     });
   });
 

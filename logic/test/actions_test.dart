@@ -15,42 +15,47 @@ void main() {
 
   group('SkillAction', () {
     test(
-      'woodcutting mastery increases expected items via 5% doubling chance',
+      'woodcutting base rewards return 1 item (doubling applied via modifiers)',
       () {
-        // Woodcutting has a doubling mechanic: every mastery level adds 5%
-        // chance to double drops (capped at 50% at mastery level 10, then wraps).
-        // Formula: doublePercent = (masteryLevel % 10) * 0.05
-        // Expected items = singlePercent * 1 + doublePercent * 2
-        //                = (1 - doublePercent) + doublePercent * 2
-        //                = 1 + doublePercent
-
+        // Woodcutting now uses defaultRewards (1 item per action).
+        // The doubling mechanic is applied via skillItemDoublingChance modifier
+        // at roll time in rollAndCollectDrops(), not in the rewards themselves.
         final normalLogsId = MelvorId.fromName('Normal Logs');
 
-        // At mastery level 0: 0% double chance, expectedItems = 1.0
+        // Base rewards are always 1 item regardless of mastery level
         final rewardsAt0 = normalTree.rewardsForMasteryLevel(0);
         expect(rewardsAt0.length, 1);
         final expectedAt0 = rewardsAt0.first.expectedItems[normalLogsId]!;
         expect(expectedAt0, closeTo(1.0, 0.001));
 
-        // At mastery level 10: 5% double chance, expectedItems = 1.05
-        final rewardsAt1 = normalTree.rewardsForMasteryLevel(10);
-        expect(rewardsAt1.length, 1);
-        final expectedAt1 = rewardsAt1.first.expectedItems[normalLogsId]!;
-        expect(expectedAt1, closeTo(1.05, 0.001));
-
-        // At mastery level 20: 10% double chance, expectedItems = 1.10
-        final rewardsAt5 = normalTree.rewardsForMasteryLevel(20);
-        expect(rewardsAt5.length, 1);
-        final expectedAt5 = rewardsAt5.first.expectedItems[normalLogsId]!;
-        expect(expectedAt5, closeTo(1.10, 0.001));
-
-        // At mastery level 30: 15% double chance, expectedItems = 1.15
-        final rewardsAt9 = normalTree.rewardsForMasteryLevel(30);
-        expect(rewardsAt9.length, 1);
-        final expectedAt9 = rewardsAt9.first.expectedItems[normalLogsId]!;
-        expect(expectedAt9, closeTo(1.15, 0.001));
+        // Even at high mastery, base rewards are still 1 item
+        final rewardsAt50 = normalTree.rewardsForMasteryLevel(50);
+        expect(rewardsAt50.length, 1);
+        final expectedAt50 = rewardsAt50.first.expectedItems[normalLogsId]!;
+        expect(expectedAt50, closeTo(1.0, 0.001));
       },
     );
+
+    test('expectedItemsForDrops applies doubling chance multiplier', () {
+      final normalLogsId = MelvorId.fromName('Normal Logs');
+      final drops = testDrops.allDropsForAction(normalTree, masteryLevel: 0);
+
+      // With 0% doubling chance, expected items = 1.0
+      final expected0 = expectedItemsForDrops(drops, doublingChance: 0.0);
+      expect(expected0[normalLogsId], closeTo(1.0, 0.001));
+
+      // With 5% doubling chance, expected items = 1.05
+      final expected5 = expectedItemsForDrops(drops, doublingChance: 0.05);
+      expect(expected5[normalLogsId], closeTo(1.05, 0.001));
+
+      // With 10% doubling chance, expected items = 1.10
+      final expected10 = expectedItemsForDrops(drops, doublingChance: 0.10);
+      expect(expected10[normalLogsId], closeTo(1.10, 0.001));
+
+      // With 25% doubling chance, expected items = 1.25
+      final expected25 = expectedItemsForDrops(drops, doublingChance: 0.25);
+      expect(expected25[normalLogsId], closeTo(1.25, 0.001));
+    });
   });
 
   group('allDropsForAction', () {

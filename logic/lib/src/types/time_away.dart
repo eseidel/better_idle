@@ -57,6 +57,7 @@ class TimeAway {
     this.activeAction,
     this.stopReason = ActionStopReason.stillRunning,
     this.stoppedAfter,
+    this.doublingChance = 0.0,
   });
 
   factory TimeAway.test(
@@ -69,6 +70,7 @@ class TimeAway {
     Map<MelvorId, int>? masteryLevels,
     ActionStopReason? stopReason,
     Duration? stoppedAfter,
+    double? doublingChance,
   }) {
     return TimeAway(
       registries: registries,
@@ -80,6 +82,7 @@ class TimeAway {
       masteryLevels: masteryLevels ?? const {},
       stopReason: stopReason ?? ActionStopReason.stillRunning,
       stoppedAfter: stoppedAfter,
+      doublingChance: doublingChance ?? 0.0,
     );
   }
 
@@ -148,6 +151,9 @@ class TimeAway {
   /// How long after startTime the action stopped, or null if still running.
   final Duration? stoppedAfter;
 
+  /// The item doubling chance (0.0-1.0) from skillItemDoublingChance modifier.
+  final double doublingChance;
+
   Duration get duration => endTime.difference(startTime);
 
   /// Calculates the predicted XP per hour for each skill based on the active
@@ -205,7 +211,10 @@ class TimeAway {
     final actionsPerHour = 3600.0 / meanDurationSeconds;
     final result = <MelvorId, double>{};
 
-    final expectedItems = expectedItemsForDrops(allDrops);
+    final expectedItems = expectedItemsForDrops(
+      allDrops,
+      doublingChance: doublingChance,
+    );
     for (final entry in expectedItems.entries) {
       result[entry.key] = entry.value * actionsPerHour;
     }
@@ -249,6 +258,7 @@ class TimeAway {
     Map<MelvorId, int>? masteryLevels,
     ActionStopReason? stopReason,
     Duration? stoppedAfter,
+    double? doublingChance,
   }) {
     return TimeAway(
       registries: registries,
@@ -260,6 +270,7 @@ class TimeAway {
       masteryLevels: masteryLevels ?? this.masteryLevels,
       stopReason: stopReason ?? this.stopReason,
       stoppedAfter: stoppedAfter ?? this.stoppedAfter,
+      doublingChance: doublingChance ?? this.doublingChance,
     );
   }
 
@@ -295,6 +306,10 @@ class TimeAway {
         : other.stopReason;
     // Prefer a non-null stoppedAfter (the first stop)
     final mergedStoppedAfter = stoppedAfter ?? other.stoppedAfter;
+    // Use the higher doubling chance (most recent state)
+    final mergedDoublingChance = doublingChance > other.doublingChance
+        ? doublingChance
+        : other.doublingChance;
     return TimeAway(
       registries: registries,
       startTime: mergedStartTime,
@@ -305,6 +320,7 @@ class TimeAway {
       masteryLevels: mergedMasteryLevels,
       stopReason: mergedStopReason,
       stoppedAfter: mergedStoppedAfter,
+      doublingChance: mergedDoublingChance,
     );
   }
 

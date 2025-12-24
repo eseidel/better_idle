@@ -144,8 +144,9 @@ int? ticksUntilNextMasteryLevel(GlobalState state, Rates rates) {
 /// Returns a map of item name -> expected count per action.
 /// Uses allDropsForAction which includes action outputs (via rewardsAtLevel),
 /// skill-level drops, and global drops.
+/// Applies skillItemDoublingChance from resolved modifiers.
 Map<MelvorId, double> _computeItemFlowsPerAction(
-  DropsRegistry drops,
+  GlobalState state,
   SkillAction action,
   int masteryLevel,
 ) {
@@ -153,11 +154,19 @@ Map<MelvorId, double> _computeItemFlowsPerAction(
   // - Action outputs (via rewardsForMasteryLevel -> rewardsAtLevel)
   // - Skill-level drops (e.g., Bobby's Pocket for thieving)
   // - Global drops (e.g., gems)
-  final dropsForAction = drops.allDropsForAction(
+  final dropsForAction = state.registries.drops.allDropsForAction(
     action,
     masteryLevel: masteryLevel,
   );
-  return expectedItemsForDrops(dropsForAction);
+
+  // Get doubling chance from modifiers
+  final modifiers = state.resolveModifiers(action);
+  final doublingChance = (modifiers.skillItemDoublingChance / 100.0).clamp(
+    0.0,
+    1.0,
+  );
+
+  return expectedItemsForDrops(dropsForAction, doublingChance: doublingChance);
 }
 
 /// Estimates expected rates (flows) for the current state.
@@ -194,7 +203,7 @@ Rates estimateRates(GlobalState state) {
   // Compute item flows per action
   final masteryLevel = state.actionState(action.id).masteryLevel;
   final itemFlowsPerAction = _computeItemFlowsPerAction(
-    state.registries.drops,
+    state,
     action,
     masteryLevel,
   );

@@ -16,12 +16,18 @@ abstract class Droppable {
   Map<MelvorId, double> get expectedItems;
 }
 
-Map<MelvorId, double> expectedItemsForDrops(List<Droppable> drops) {
+/// Computes expected items per action from a list of drops.
+/// If [doublingChance] is provided (0.0-1.0), applies it as a multiplier.
+Map<MelvorId, double> expectedItemsForDrops(
+  List<Droppable> drops, {
+  double doublingChance = 0.0,
+}) {
   final result = <MelvorId, double>{};
+  final multiplier = 1.0 + doublingChance;
   for (final drop in drops) {
     final expectedItems = drop.expectedItems;
     for (final entry in expectedItems.entries) {
-      result[entry.key] = (result[entry.key] ?? 0) + entry.value;
+      result[entry.key] = (result[entry.key] ?? 0) + entry.value * multiplier;
     }
   }
   return result;

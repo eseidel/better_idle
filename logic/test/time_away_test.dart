@@ -323,15 +323,15 @@ void main() {
       expect(itemsPerHour[MelvorId('melvorD:Bird_Nest')], closeTo(6, 0.1));
     });
 
-    test('accounts for mastery level doubling chance', () {
-      // Woodcutting gets 5% doubling chance every 10 mastery levels.
-      // At mastery level 80, doubling chance = 40%
+    test('accounts for doubling chance', () {
+      // With 40% doubling chance:
       // Expected logs = 1 * (1 + 0.40) = 1.40 per action
       // Items per hour = 1.40 * 1200 = 1680
       final timeAway = TimeAway.test(
         testRegistries,
         activeAction: normalTree,
         masteryLevels: {normalTree.id: 80},
+        doublingChance: 0.40,
       );
 
       final itemsPerHour = timeAway.itemsGainedPerHour;

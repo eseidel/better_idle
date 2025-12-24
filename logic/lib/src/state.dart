@@ -586,10 +586,10 @@ class GlobalState {
     final modifiers = resolveModifiers(action);
 
     // skillInterval is percentage points (e.g., -5 = 5% reduction)
-    final percentPoints = modifiers['skillInterval'];
+    final percentPoints = modifiers.skillInterval;
 
     // flatSkillInterval is milliseconds, convert to ticks (100ms = 1 tick)
-    final flatTicks = modifiers['flatSkillInterval'] / 100.0;
+    final flatTicks = modifiers.flatSkillInterval / 100.0;
 
     // Apply: percentage first, then flat adjustment
     final result = ticks * (1.0 + percentPoints / 100.0) + flatTicks;

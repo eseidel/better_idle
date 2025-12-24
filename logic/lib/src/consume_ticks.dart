@@ -10,6 +10,7 @@ import 'package:logic/src/state.dart';
 import 'package:logic/src/tick.dart';
 import 'package:logic/src/types/health.dart';
 import 'package:logic/src/types/inventory.dart';
+import 'package:logic/src/types/resolved_modifiers.dart';
 import 'package:logic/src/types/stunned.dart';
 import 'package:logic/src/types/time_away.dart';
 
@@ -504,6 +505,44 @@ XpPerAction xpPerAction(GlobalState state, SkillAction action) {
   );
 }
 
+/// Rolls all drops for an action and adds them to inventory.
+/// Applies skillItemDoublingChance from modifiers to double items.
+/// Returns false if any item was dropped due to full inventory.
+bool rollAndCollectDrops(
+  StateUpdateBuilder builder,
+  SkillAction action,
+  ResolvedModifiers modifiers,
+  Random random,
+) {
+  final registries = builder.registries;
+  final masteryLevel = builder.currentMasteryLevel(action);
+  var allItemsAdded = true;
+
+  // Get doubling chance from modifiers (percentage -> 0.0-1.0)
+  final doublingChance = (modifiers.skillItemDoublingChance / 100.0).clamp(
+    0.0,
+    1.0,
+  );
+
+  for (final drop in registries.drops.allDropsForAction(
+    action,
+    masteryLevel: masteryLevel,
+  )) {
+    var itemStack = drop.roll(registries.items, random);
+    if (itemStack != null) {
+      // Apply doubling chance
+      if (doublingChance > 0 && random.nextDouble() < doublingChance) {
+        itemStack = ItemStack(itemStack.item, count: itemStack.count * 2);
+      }
+      final success = builder.addInventory(itemStack);
+      if (!success) {
+        allItemsAdded = false;
+      }
+    }
+  }
+  return allItemsAdded;
+}
+
 /// Completes a thieving action with success/fail mechanics.
 /// On success: grants XP, 1-maxGold GP, and rolls for drops.
 /// On failure: deals 1-maxHit damage and stuns the player.
@@ -516,7 +555,6 @@ bool completeThievingAction(
   final thievingLevel = builder.state.skillState(Skill.thieving).skillLevel;
   final actionMasteryLevel = builder.currentMasteryLevel(action);
   final success = action.rollSuccess(rng, thievingLevel, actionMasteryLevel);
-  final registries = builder.registries;
 
   if (success) {
     // Grant XP on success
@@ -530,17 +568,9 @@ bool completeThievingAction(
     final gold = action.rollGold(rng);
     builder.addCurrency(Currency.gp, gold);
 
-    // Process drops
-    final masteryLevel = builder.currentMasteryLevel(action);
-    for (final drop in registries.drops.allDropsForAction(
-      action,
-      masteryLevel: masteryLevel,
-    )) {
-      final itemStack = drop.roll(registries.items, rng);
-      if (itemStack != null) {
-        builder.addInventory(itemStack);
-      }
-    }
+    // Roll drops with doubling applied
+    final modifiers = builder.state.resolveModifiers(action);
+    rollAndCollectDrops(builder, action, modifiers, rng);
 
     return true;
   } else {
@@ -568,7 +598,6 @@ bool completeAction(
   SkillAction action, {
   required Random random,
 }) {
-  var canRepeatAction = true;
   final registries = builder.registries;
   // Consume required items
   for (final requirement in action.inputs.entries) {
@@ -576,22 +605,10 @@ bool completeAction(
     builder.removeInventory(ItemStack(item, count: requirement.value));
   }
 
-  final masteryLevel = builder.currentMasteryLevel(action);
-  // Process all drops (action-level, skill-level, and global)
-  // This handles both simple Drops and DropTables via polymorphism.
-  for (final drop in registries.drops.allDropsForAction(
-    action,
-    masteryLevel: masteryLevel,
-  )) {
-    final itemStack = drop.roll(registries.items, random);
-    if (itemStack != null) {
-      final success = builder.addInventory(itemStack);
-      if (!success) {
-        // Item was dropped, can't repeat action
-        canRepeatAction = false;
-      }
-    }
-  }
+  // Roll drops with doubling applied
+  final modifiers = builder.state.resolveModifiers(action);
+  var canRepeatAction = rollAndCollectDrops(builder, action, modifiers, random);
+
   final perAction = xpPerAction(builder.state, action);
 
   builder
@@ -1058,6 +1075,15 @@ void consumeTicksUntil(
   final stoppedAfter = builder.stoppedAtTick != null
       ? durationFromTicks(builder.stoppedAtTick!)
       : null;
+  // Compute doubling chance for predictions
+  double doublingChance = 0.0;
+  if (action is SkillAction) {
+    final modifiers = state.resolveModifiers(action);
+    doublingChance = (modifiers.skillItemDoublingChance / 100.0).clamp(
+      0.0,
+      1.0,
+    );
+  }
   final timeAway = TimeAway(
     registries: registries,
     startTime: startTime,
@@ -1071,6 +1097,7 @@ void consumeTicksUntil(
     ),
     stopReason: builder.stopReason,
     stoppedAfter: stoppedAfter,
+    doublingChance: doublingChance,
   );
   return (timeAway, builder.build());
 }

@@ -14,7 +14,7 @@ class WoodcuttingTree extends SkillAction {
     required super.duration,
     required this.productId,
     required this.media,
-  }) : super(skill: Skill.woodcutting, rewardsAtLevel: woodcuttingRewards);
+  }) : super(skill: Skill.woodcutting);
 
   factory WoodcuttingTree.fromJson(
     Map<String, dynamic> json, {

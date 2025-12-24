@@ -5,7 +5,6 @@ import 'package:logic/src/types/drop.dart';
 import 'package:meta/meta.dart';
 
 import 'combat.dart';
-import 'items.dart';
 import 'melvor_id.dart';
 import 'mining.dart';
 
@@ -82,24 +81,6 @@ abstract class Action {
 
 List<Droppable> defaultRewards(SkillAction action, int masteryLevel) {
   return [...action.outputs.entries.map((e) => Drop(e.key, count: e.value))];
-}
-
-// TODO(eseidel): Make this into a more generalized "chance to double" behavior.
-List<Droppable> woodcuttingRewards(SkillAction action, int masteryLevel) {
-  final outputs = action.outputs;
-  if (outputs.length != 1 || outputs.values.first != 1) {
-    throw StateError('Unsupported outputs: $outputs.');
-  }
-  final name = outputs.keys.first.name;
-  final doubleMultiplier = masteryLevel ~/ 10;
-  final doublePercent = (doubleMultiplier * 0.05 * 100).toInt().clamp(0, 100);
-  final singlePercent = (100 - doublePercent).clamp(0, 100);
-  return [
-    DropTable([
-      DropTableEntry.fromName(name, weight: singlePercent),
-      DropTableEntry.fromName(name, count: 2, weight: doublePercent),
-    ]),
-  ];
 }
 
 /// A skill-based action that completes after a duration, granting xp and drops.
