@@ -16,6 +16,7 @@ class Registries {
     this.fletchingCategories,
     this.craftingCategories,
     this.herbloreCategories,
+    this.runecraftingCategories,
     this.thievingAreas,
     this.combatAreas,
     this.shop,
@@ -37,6 +38,7 @@ class Registries {
       FletchingCategoryRegistry([]),
       CraftingCategoryRegistry([]),
       HerbloreCategoryRegistry([]),
+      RunecraftingCategoryRegistry([]),
       ThievingAreaRegistry([]),
       CombatAreaRegistry([]),
       shop ?? ShopRegistry([], []),
@@ -53,6 +55,7 @@ class Registries {
   final FletchingCategoryRegistry fletchingCategories;
   final CraftingCategoryRegistry craftingCategories;
   final HerbloreCategoryRegistry herbloreCategories;
+  final RunecraftingCategoryRegistry runecraftingCategories;
   final ThievingAreaRegistry thievingAreas;
   final CombatAreaRegistry combatAreas;
   final ShopRegistry shop;
@@ -75,6 +78,7 @@ Future<Registries> loadRegistries({Directory? cacheDir}) async {
     melvorData.fletchingCategories,
     melvorData.craftingCategories,
     melvorData.herbloreCategories,
+    melvorData.runecraftingCategories,
     melvorData.thievingAreas,
     melvorData.combatAreas,
     melvorData.shop,

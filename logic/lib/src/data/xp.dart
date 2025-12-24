@@ -247,6 +247,7 @@ double actionTimeForMastery(SkillAction action) {
     case Skill.fletching:
     case Skill.crafting:
     case Skill.herblore:
+    case Skill.runecrafting:
       return 1.7;
 
     // Combat skills don't use mastery XP in the same way

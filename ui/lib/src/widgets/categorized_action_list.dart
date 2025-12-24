@@ -2,14 +2,15 @@ import 'package:better_idle/src/widgets/cached_image.dart';
 import 'package:better_idle/src/widgets/context_extensions.dart';
 import 'package:better_idle/src/widgets/input_items_row.dart';
 import 'package:better_idle/src/widgets/item_image.dart';
+import 'package:better_idle/src/widgets/skill_image.dart';
 import 'package:better_idle/src/widgets/style.dart';
 import 'package:flutter/material.dart';
 import 'package:logic/logic.dart';
 
 /// A generic widget for displaying skill actions grouped by category.
 ///
-/// Used by Smithing and Fletching screens which share the same layout:
-/// collapsible category headers with action cards underneath.
+/// Used by Smithing, Fletching, Herblore, and Runecrafting screens which share
+/// the same layout: collapsible category headers with action cards underneath.
 ///
 /// Type parameters:
 /// - [C] - The category type (e.g., SmithingCategory, FletchingCategory)
@@ -25,11 +26,14 @@ class CategorizedActionList<C, A extends SkillAction> extends StatelessWidget {
     required this.categoryName,
     required this.categoryMedia,
     required this.actionProductId,
+    this.skill,
+    this.skillLevel,
+    this.title = 'Available Actions',
     super.key,
   });
 
   final Map<C, List<A>> actionsByCategory;
-  final A selectedAction;
+  final A? selectedAction;
   final Set<MelvorId> collapsedCategories;
   final void Function(A) onSelect;
   final void Function(C) onToggleCategory;
@@ -46,14 +50,23 @@ class CategorizedActionList<C, A extends SkillAction> extends StatelessWidget {
   /// Extracts the product ID from an action.
   final MelvorId Function(A) actionProductId;
 
+  /// The skill for showing lock icons. If null, locking is disabled.
+  final Skill? skill;
+
+  /// The current skill level. If null, all actions are shown as unlocked.
+  final int? skillLevel;
+
+  /// The title shown above the action list.
+  final String title;
+
   @override
   Widget build(BuildContext context) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        const Text(
-          'Available Actions',
-          style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+        Text(
+          title,
+          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
         ),
         const SizedBox(height: 8),
         ...actionsByCategory.entries.map((entry) {
@@ -101,7 +114,42 @@ class CategorizedActionList<C, A extends SkillAction> extends StatelessWidget {
               // Actions list (if not collapsed)
               if (!isCollapsed)
                 ...actions.map((action) {
-                  final isSelected = action.name == selectedAction.name;
+                  final isSelected = action.id == selectedAction?.id;
+                  final isUnlocked =
+                      skillLevel == null || skillLevel! >= action.unlockLevel;
+
+                  if (!isUnlocked && skill != null) {
+                    return Card(
+                      margin: const EdgeInsets.only(
+                        left: 16,
+                        top: 4,
+                        bottom: 4,
+                      ),
+                      color: Style.cellBackgroundColorLocked,
+                      child: ListTile(
+                        leading: const Icon(
+                          Icons.lock,
+                          color: Style.textColorSecondary,
+                        ),
+                        title: Row(
+                          children: [
+                            const Text(
+                              'Unlocked at ',
+                              style: TextStyle(color: Style.textColorSecondary),
+                            ),
+                            SkillImage(skill: skill!, size: 14),
+                            Text(
+                              ' Level ${action.unlockLevel}',
+                              style: const TextStyle(
+                                color: Style.textColorSecondary,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    );
+                  }
+
                   final productItem = context.state.registries.items.byId(
                     actionProductId(action),
                   );

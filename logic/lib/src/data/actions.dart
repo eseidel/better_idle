@@ -19,6 +19,7 @@ export 'fishing.dart';
 export 'fletching.dart';
 export 'items.dart';
 export 'mining.dart';
+export 'runecrafting.dart';
 export 'smithing.dart';
 export 'thieving.dart';
 export 'woodcutting.dart';
@@ -41,7 +42,8 @@ enum Skill {
   thieving('Thieving'),
   fletching('Fletching'),
   crafting('Crafting'),
-  herblore('Herblore');
+  herblore('Herblore'),
+  runecrafting('Runecrafting');
 
   const Skill(this.name);
 

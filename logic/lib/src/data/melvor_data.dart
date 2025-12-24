@@ -110,6 +110,12 @@ class MelvorData {
     actions.addAll(herbloreActions);
     _herbloreCategories = herbloreCategories;
 
+    final (runecraftingActions, runecraftingCategories) = parseRunecrafting(
+      skillDataById['melvorD:Runecrafting'],
+    );
+    actions.addAll(runecraftingActions);
+    _runecraftingCategories = runecraftingCategories;
+
     for (final json in dataFiles) {
       final namespace = json['namespace'] as String;
       actions.addAll(parseCombatActions(json, namespace: namespace));
@@ -142,6 +148,7 @@ class MelvorData {
   late final FletchingCategoryRegistry _fletchingCategories;
   late final CraftingCategoryRegistry _craftingCategories;
   late final HerbloreCategoryRegistry _herbloreCategories;
+  late final RunecraftingCategoryRegistry _runecraftingCategories;
   late final ThievingAreaRegistry _thievingAreas;
   late final CombatAreaRegistry _combatAreas;
   late final MasteryBonusRegistry _masteryBonuses;
@@ -161,6 +168,9 @@ class MelvorData {
   CraftingCategoryRegistry get craftingCategories => _craftingCategories;
 
   HerbloreCategoryRegistry get herbloreCategories => _herbloreCategories;
+
+  RunecraftingCategoryRegistry get runecraftingCategories =>
+      _runecraftingCategories;
 
   ThievingAreaRegistry get thievingAreas => _thievingAreas;
 
@@ -455,6 +465,46 @@ List<FiremakingAction> parseFiremaking(List<SkillDataEntry>? entries) {
   }
 
   return (actions, HerbloreCategoryRegistry(categories));
+}
+
+/// Parses all runecrafting data. Returns (actions, categoriesRegistry).
+(List<RunecraftingAction>, RunecraftingCategoryRegistry) parseRunecrafting(
+  List<SkillDataEntry>? entries,
+) {
+  if (entries == null) {
+    return ([], RunecraftingCategoryRegistry([]));
+  }
+
+  final actions = <RunecraftingAction>[];
+  final categories = <RunecraftingCategory>[];
+
+  for (final entry in entries) {
+    final recipes = entry.data['recipes'] as List<dynamic>?;
+    if (recipes != null) {
+      actions.addAll(
+        recipes.map(
+          (json) => RunecraftingAction.fromJson(
+            json as Map<String, dynamic>,
+            namespace: entry.namespace,
+          ),
+        ),
+      );
+    }
+
+    final cats = entry.data['categories'] as List<dynamic>?;
+    if (cats != null) {
+      categories.addAll(
+        cats.map(
+          (json) => RunecraftingCategory.fromJson(
+            json as Map<String, dynamic>,
+            namespace: entry.namespace,
+          ),
+        ),
+      );
+    }
+  }
+
+  return (actions, RunecraftingCategoryRegistry(categories));
 }
 
 /// Parses all thieving data. Builds areas registry internally.
