@@ -216,21 +216,30 @@ class ActionRegistry {
     return action;
   }
 
+  CombatAction combatWithId(MelvorId id) =>
+      _byId[ActionId(Skill.combat.id, id.localId)] as CombatAction;
+
+  @visibleForTesting
   SkillAction woodcutting(String name) =>
       _bySkillAndName(Skill.woodcutting, name) as SkillAction;
 
+  @visibleForTesting
   MiningAction mining(String name) =>
       _bySkillAndName(Skill.mining, name) as MiningAction;
 
+  @visibleForTesting
   SkillAction firemaking(String name) =>
       _bySkillAndName(Skill.firemaking, name) as SkillAction;
 
+  @visibleForTesting
   SkillAction fishing(String name) =>
       _bySkillAndName(Skill.fishing, name) as SkillAction;
 
+  @visibleForTesting
   CombatAction combat(String name) =>
       _bySkillAndName(Skill.combat, name) as CombatAction;
 
+  @visibleForTesting
   ThievingAction thieving(String name) =>
       _bySkillAndName(Skill.thieving, name) as ThievingAction;
 }
