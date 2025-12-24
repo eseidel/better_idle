@@ -339,6 +339,10 @@ class ShopPurchase extends Equatable {
   /// Whether this purchase has unlimited buy limit.
   bool get isUnlimited => buyLimit == 0;
 
+  /// Whether this purchase has skill interval modifiers for the given skill.
+  bool hasSkillIntervalFor(MelvorId skillId) =>
+      contains.modifiers.hasSkillIntervalFor(skillId);
+
   @override
   List<Object?> get props => [
     id,
@@ -375,9 +379,7 @@ class ShopRegistry {
 
   /// Returns purchases that affect the given skill via interval modifiers.
   List<ShopPurchase> purchasesAffectingSkill(Skill skill) {
-    return _purchases.where((p) {
-      return p.contains.modifiers.hasSkillIntervalFor(skill.id);
-    }).toList();
+    return _purchases.where((p) => p.hasSkillIntervalFor(skill.id)).toList();
   }
 
   /// Calculates total skill interval modifier from owned purchases.

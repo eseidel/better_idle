@@ -179,21 +179,20 @@ class ModifierScope extends Equatable {
     effectGroupId,
   ];
 
-  /// Checks if this scope matches the given skill for mastery bonus resolution.
+  /// Checks if this scope applies to the given skill.
   ///
-  /// For mastery bonuses with [autoScopeToAction] = true, the actionID is a
-  /// template placeholder and only the skillID is checked. ActionIDs are
-  /// skill-specific and not globally unique.
+  /// Returns true if:
+  /// - This scope is global (all fields null)
+  /// - [autoScopeToAction] is false (global modifier, no filtering)
+  /// - [skillId] matches (or is null, meaning applies to all skills)
   ///
-  /// For mastery bonuses with [autoScopeToAction] = false, the modifier applies
-  /// globally (e.g., Firemaking level 99 masteryXP bonus).
-  bool matchesSkillForMastery(
-    MelvorId skillId, {
-    required bool autoScopeToAction,
-  }) {
+  /// For mastery bonuses with [autoScopeToAction] = true (default), the
+  /// actionID in the scope is a template placeholder and is ignored.
+  /// For [autoScopeToAction] = false, the modifier applies globally.
+  bool appliesToSkill(MelvorId skillId, {bool autoScopeToAction = true}) {
     if (isGlobal) return true;
     if (!autoScopeToAction) return true; // Global modifier, no filtering
-    // For autoScopeToAction=true, only check skill (actionID is template)
+    // Check if skillId matches (null skillId means applies to all skills)
     return this.skillId == null || this.skillId == skillId;
   }
 
@@ -211,6 +210,17 @@ class ModifierEntry extends Equatable {
 
   /// Scope (null means global/unscoped).
   final ModifierScope? scope;
+
+  /// Checks if this entry applies to the given skill.
+  ///
+  /// Returns true if scope is null (global) or if scope applies to the skill.
+  bool appliesToSkill(MelvorId skillId, {bool autoScopeToAction = true}) {
+    return scope?.appliesToSkill(
+          skillId,
+          autoScopeToAction: autoScopeToAction,
+        ) ??
+        true;
+  }
 
   @override
   List<Object?> get props => [value, scope];

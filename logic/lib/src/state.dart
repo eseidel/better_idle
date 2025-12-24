@@ -12,7 +12,6 @@ import 'package:logic/src/types/equipment.dart';
 import 'package:logic/src/types/equipment_slot.dart';
 import 'package:logic/src/types/health.dart';
 import 'package:logic/src/types/inventory.dart';
-import 'package:logic/src/types/modifier_old.dart';
 import 'package:logic/src/types/resolved_modifiers.dart';
 import 'package:logic/src/types/open_result.dart';
 import 'package:logic/src/types/stunned.dart';
@@ -201,6 +200,24 @@ class ShopState {
   /// Uses the shop registry to look up which purchases affect this skill.
   int totalSkillIntervalModifier(Skill skill, ShopRegistry registry) {
     return registry.totalSkillIntervalModifier(skill, purchaseCounts);
+  }
+
+  /// Returns owned purchases that affect the given skill via interval modifiers.
+  ///
+  /// More efficient than ShopRegistry.purchasesAffectingSkill when the player
+  /// owns few purchases, as it only iterates owned purchases.
+  Iterable<ShopPurchase> ownedPurchasesAffectingSkill(
+    Skill skill,
+    ShopRegistry registry,
+  ) sync* {
+    for (final entry in purchaseCounts.entries) {
+      if (entry.value <= 0) continue;
+      final purchase = registry.byId(entry.key);
+      if (purchase == null) continue;
+      if (purchase.hasSkillIntervalFor(skill.id)) {
+        yield purchase;
+      }
+    }
   }
 
   /// Returns the cost for the next bank slot purchase.
@@ -504,63 +521,63 @@ class GlobalState {
     return shop.totalSkillIntervalModifier(skill, registries.shop) / 100.0;
   }
 
-  /// Resolves mastery-based skill interval modifiers for an action.
+  /// Resolves all modifiers for a skill action from all sources.
   ///
-  /// Reads from [MasteryBonusRegistry] and evaluates which bonuses apply
-  /// based on the current mastery level. Returns resolved flat and percentage
-  /// modifiers that affect action duration.
-  ResolvedModifiers resolveMasteryModifiers(SkillAction action) {
-    final masteryLevel = actionState(action.id).masteryLevel;
-    final skillBonuses = registries.masteryBonuses.forSkill(action.skill.id);
-    if (skillBonuses == null) return ResolvedModifiers.empty;
+  /// Combines modifiers from:
+  /// - Shop purchases (e.g., axe upgrades for woodcutting)
+  /// - Mastery bonuses (based on current mastery level)
+  /// - (Future: equipment, potions, prayers, etc.)
+  ///
+  /// Returns a [ResolvedModifiers] containing all modifier values by name.
+  /// Values are stored as raw numbers from the data (e.g., skillInterval
+  /// is in percentage points like -5, flatSkillInterval is in milliseconds).
+  ResolvedModifiers resolveModifiers(SkillAction action) {
+    final builder = ResolvedModifiersBuilder();
+    final skillId = action.skill.id;
 
-    var flatMs = 0;
-    var percent = 0.0;
-
-    for (final bonus in skillBonuses.bonuses) {
-      final count = bonus.countAtLevel(masteryLevel);
-      if (count == 0) continue;
-
-      // Handle flatSkillInterval (flat milliseconds)
-      final flatMod = bonus.modifiers.byName('flatSkillInterval');
-      if (flatMod != null) {
-        for (final entry in flatMod.entries) {
-          final scope = entry.scope;
-          if (scope == null ||
-              scope.matchesSkillForMastery(
-                action.skill.id,
-                autoScopeToAction: bonus.autoScopeToAction,
-              )) {
-            flatMs += (entry.value * count).toInt();
-          }
-        }
-      }
-
-      // Handle skillInterval (percentage points, e.g., -5 = -5%)
-      final percentMod = bonus.modifiers.byName('skillInterval');
-      if (percentMod != null) {
-        for (final entry in percentMod.entries) {
-          final scope = entry.scope;
-          if (scope == null ||
-              scope.matchesSkillForMastery(
-                action.skill.id,
-                autoScopeToAction: bonus.autoScopeToAction,
-              )) {
-            percent += entry.value * count;
+    // --- Shop modifiers ---
+    for (final purchase in shop.ownedPurchasesAffectingSkill(
+      action.skill,
+      registries.shop,
+    )) {
+      // Add all modifiers from the purchase that match this skill
+      for (final mod in purchase.contains.modifiers.modifiers) {
+        for (final entry in mod.entries) {
+          if (entry.appliesToSkill(skillId)) {
+            builder.add(mod.name, entry.value);
           }
         }
       }
     }
 
-    return ResolvedModifiers(
-      flatSkillIntervalMs: flatMs,
-      // Convert percentage points to decimal (e.g., -5 -> -0.05)
-      skillIntervalPercent: percent / 100.0,
-    );
+    // --- Mastery modifiers ---
+    final masteryLevel = actionState(action.id).masteryLevel;
+    final skillBonuses = registries.masteryBonuses.forSkill(skillId);
+    if (skillBonuses != null) {
+      for (final bonus in skillBonuses.bonuses) {
+        final count = bonus.countAtLevel(masteryLevel);
+        if (count == 0) continue;
+
+        // Add all modifiers from this bonus
+        for (final mod in bonus.modifiers.modifiers) {
+          for (final entry in mod.entries) {
+            if (entry.appliesToSkill(
+              skillId,
+              autoScopeToAction: bonus.autoScopeToAction,
+            )) {
+              builder.add(mod.name, entry.value * count);
+            }
+          }
+        }
+      }
+    }
+
+    // --- Future: equipment, potions, prayers, etc. ---
+
+    return builder.build();
   }
 
   /// Rolls duration for a skill action and applies all relevant modifiers.
-  /// This centralizes duration modifier logic for shop upgrades and mastery.
   /// Percentage modifiers are applied first, then flat modifiers.
   int rollDurationWithModifiers(
     SkillAction action,
@@ -568,34 +585,19 @@ class GlobalState {
     ShopRegistry shopRegistry,
   ) {
     final ticks = action.rollDuration(random);
+    final modifiers = resolveModifiers(action);
 
-    // Collect all modifiers
-    final modifiers = <ModifierOld>[];
+    // skillInterval is percentage points (e.g., -5 = 5% reduction)
+    final percentPoints = modifiers['skillInterval'];
 
-    // Shop upgrade modifiers (percentage only)
-    // The totalSkillIntervalModifier returns percentage points (e.g., -5 for 5% reduction)
-    // Convert to Modifier.percent format (-0.05 = 5% reduction)
-    final shopModifier = shop.totalSkillIntervalModifier(
-      action.skill,
-      shopRegistry,
-    );
-    if (shopModifier != 0) {
-      modifiers.add(ModifierOld(percent: shopModifier / 100.0));
-    }
+    // flatSkillInterval is milliseconds, convert to ticks (100ms = 1 tick)
+    final flatTicks = modifiers['flatSkillInterval'] / 100.0;
 
-    // Mastery-based modifiers from data (can include both percent and flat)
-    final masteryModifier = resolveMasteryModifiers(action).toModifierOld();
-    if (!masteryModifier.isEmpty) {
-      modifiers.add(masteryModifier);
-    }
+    // Apply: percentage first, then flat adjustment
+    final result = ticks * (1.0 + percentPoints / 100.0) + flatTicks;
 
-    // Combine and apply all modifiers
-    if (modifiers.isEmpty) {
-      return ticks;
-    }
-
-    final combined = ModifierOld.combineAll(modifiers);
-    return combined.applyToInt(ticks);
+    // Round and clamp to at least 1 tick
+    return result.round().clamp(1, double.maxFinite.toInt());
   }
 
   GlobalState startAction(Action action, {required Random random}) {
