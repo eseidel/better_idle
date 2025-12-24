@@ -8,6 +8,7 @@ import 'package:better_idle/src/widgets/skill_image.dart';
 import 'package:better_idle/src/widgets/skill_progress.dart';
 import 'package:better_idle/src/widgets/style.dart';
 import 'package:better_idle/src/widgets/xp_badges_row.dart';
+import 'package:collection/collection.dart';
 import 'package:flutter/material.dart' hide Action;
 import 'package:logic/logic.dart';
 
@@ -51,7 +52,9 @@ class _FishingPageState extends State<FishingPage> {
     for (final area in fishingAreas) {
       final actionsInArea = <FishingAction>[];
       for (final fishId in area.fishIDs) {
-        final action = fishingActions.where((a) => a.id == fishId).firstOrNull;
+        final action = fishingActions.firstWhereOrNull(
+          (a) => a.id.namespacedId == fishId,
+        );
         if (action != null) {
           actionsInArea.add(action);
         }

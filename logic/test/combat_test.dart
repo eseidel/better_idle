@@ -1,5 +1,4 @@
-import 'package:logic/src/data/combat.dart';
-import 'package:logic/src/data/melvor_id.dart';
+import 'package:logic/logic.dart';
 import 'package:test/test.dart';
 
 void main() {
@@ -111,7 +110,7 @@ void main() {
 
       test('uses ranged level for ranged attack type', () {
         final action = CombatAction(
-          id: MelvorId('test:ranged_monster'),
+          id: ActionId(Skill.combat.id, 'Ranged Monster'),
           name: 'Ranged Monster',
           levels: const MonsterLevels(
             hitpoints: 10,

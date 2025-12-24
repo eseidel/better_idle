@@ -19,6 +19,7 @@
 library;
 
 import 'package:logic/src/consume_ticks.dart';
+import 'package:logic/src/data/action_id.dart';
 import 'package:logic/src/data/actions.dart';
 import 'package:logic/src/data/melvor_id.dart';
 import 'package:logic/src/data/xp.dart';
@@ -74,7 +75,7 @@ class Rates {
   final double masteryXpPerTick;
 
   /// The name of the action these rates are for (for mastery tracking).
-  final MelvorId? actionId;
+  final ActionId? actionId;
 }
 
 /// Computes the expected ticks until death for thieving.

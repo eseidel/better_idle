@@ -15,7 +15,7 @@ import 'test_helper.dart';
 const _defaultGoal = ReachGpGoal(1000000);
 
 /// Helper to get action display name from actionId.
-String actionName(MelvorId actionId) => testActions.byId(actionId).name;
+String actionName(ActionId actionId) => testActions.byId(actionId).name;
 
 void main() {
   setUpAll(() async {
@@ -200,7 +200,7 @@ void main() {
       expect(candidates.watch.lockedActivityIds, isNotEmpty);
       // Should watch for activities that will unlock soon
       // At level 1, Raw Sardine (level 5) should be watched
-      final sardineAction = testActions.byName('Raw Sardine');
+      final sardineAction = testActions.fishing('Raw Sardine');
       expect(candidates.watch.lockedActivityIds, contains(sardineAction.id));
     });
 

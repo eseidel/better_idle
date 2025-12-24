@@ -29,8 +29,8 @@ void main() {
     bronzeSword = testItems.byName('Bronze Sword');
     bronzeHelmet = testItems.byName('Bronze Helmet');
     bronzeShield = testItems.byName('Bronze Shield');
-    normalTree = testActions.byName('Normal Tree');
-    oakTree = testActions.byName('Oak Tree');
+    normalTree = testActions.woodcutting('Normal Tree');
+    oakTree = testActions.woodcutting('Oak Tree');
   });
 
   test('GlobalState toJson/fromJson round-trip', () {
@@ -361,7 +361,7 @@ void main() {
 
   group('rollDurationWithModifiers', () {
     test('woodcutting mastery 99 applies 0.2s flat reduction', () {
-      final normalTree = testActions.skillActionByName('Normal Tree');
+      final normalTree = testActions.woodcutting('Normal Tree');
       // Normal Tree has 3 second duration = 30 ticks
       expect(normalTree.minDuration, const Duration(seconds: 3));
 
@@ -406,7 +406,7 @@ void main() {
     });
 
     test('shop upgrade applies percentage reduction to woodcutting', () {
-      final normalTree = testActions.skillActionByName('Normal Tree');
+      final normalTree = testActions.woodcutting('Normal Tree');
       // Normal Tree has 3 second fixed duration = 30 ticks
       expect(normalTree.minDuration, const Duration(seconds: 3));
       expect(normalTree.maxDuration, const Duration(seconds: 3));
@@ -440,7 +440,7 @@ void main() {
     });
 
     test('shop upgrade applies percentage reduction to fishing', () {
-      final shrimp = testActions.skillActionByName('Raw Shrimp');
+      final shrimp = testActions.fishing('Raw Shrimp');
       // Raw Shrimp has variable duration (4-8 seconds)
       expect(shrimp.minDuration, const Duration(seconds: 4));
       expect(shrimp.maxDuration, const Duration(seconds: 8));
@@ -478,7 +478,7 @@ void main() {
     });
 
     test('shop upgrade applies percentage reduction to mining', () {
-      final copper = testActions.skillActionByName('Copper');
+      final copper = testActions.mining('Copper');
       // Copper has 3 second duration = 30 ticks
       expect(copper.minDuration, const Duration(seconds: 3));
 

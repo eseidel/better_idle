@@ -58,7 +58,7 @@ class DebugPage extends StatelessWidget {
     // Create an example TimeAway with all types of changes
     final now = DateTime.now();
     // Use Oak Tree action to demonstrate predictions
-    const oakTreeId = MelvorId('melvorD:Oak_Tree');
+    final oakTreeId = ActionId(Skill.woodcutting.id, 'Oak Tree');
     final oakTreeAction = registries.actions.byId(oakTreeId);
     return TimeAway(
       registries: registries,
@@ -97,8 +97,8 @@ class DebugPage extends StatelessWidget {
         ),
       ),
       masteryLevels: {
-        MelvorId.fromName('Normal Tree'): 2,
-        MelvorId.fromName('Oak Tree'): 1,
+        ActionId(Skill.woodcutting.id, 'Normal Tree'): 2,
+        ActionId(Skill.woodcutting.id, 'Oak Tree'): 1,
       },
     );
   }

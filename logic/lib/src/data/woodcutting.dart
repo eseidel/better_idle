@@ -1,3 +1,4 @@
+import 'action_id.dart';
 import 'actions.dart';
 import 'melvor_id.dart';
 
@@ -27,10 +28,7 @@ class WoodcuttingTree extends SkillAction {
     final baseInterval = json['baseInterval'] as int;
 
     return WoodcuttingTree(
-      id: MelvorId.fromJsonWithNamespace(
-        json['id'] as String,
-        defaultNamespace: namespace,
-      ),
+      id: ActionId(Skill.woodcutting.id, json['id'] as String),
       name: json['name'] as String,
       unlockLevel: json['level'] as int,
       duration: Duration(milliseconds: baseInterval),

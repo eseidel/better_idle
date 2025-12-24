@@ -84,7 +84,7 @@ void main() {
     late SkillAction normalTree;
 
     setUpAll(() {
-      normalTree = testActions.byName('Normal Tree') as SkillAction;
+      normalTree = testActions.woodcutting('Normal Tree');
     });
 
     test('isStunned returns false when not stunned', () {
@@ -116,7 +116,7 @@ void main() {
       final state = GlobalState.test(
         testRegistries,
         activeAction: ActiveAction(
-          id: MelvorId.fromName('Normal Tree'),
+          id: ActionId(Skill.woodcutting.id, 'Normal Tree'),
           remainingTicks: 10,
           totalTicks: 30,
         ),
@@ -137,7 +137,7 @@ void main() {
       final state = GlobalState.test(
         testRegistries,
         activeAction: ActiveAction(
-          id: MelvorId.fromName('Normal'),
+          id: ActionId(Skill.woodcutting.id, 'Normal Tree'),
           remainingTicks: 10,
           totalTicks: 30,
         ),

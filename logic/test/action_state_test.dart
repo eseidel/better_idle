@@ -1,11 +1,12 @@
 import 'package:logic/logic.dart';
+import 'package:logic/src/data/action_id.dart';
 import 'package:test/test.dart';
 
 void main() {
   group('ActionState', () {
     group('toJson/fromJson', () {
       test('round-trips with CombatActionState', () {
-        final monsterId = MelvorId('melvorD:Cow');
+        final monsterId = ActionId(Skill.attack.id, 'Cow');
         final original = ActionState(
           masteryXp: 100,
           combat: CombatActionState(

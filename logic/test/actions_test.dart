@@ -9,8 +9,8 @@ void main() {
 
   setUpAll(() async {
     await loadTestRegistries();
-    normalTree = testActions.skillActionByName('Normal Tree');
-    copperMining = testActions.skillActionByName('Copper');
+    normalTree = testActions.woodcutting('Normal Tree');
+    copperMining = testActions.mining('Copper');
   });
 
   group('SkillAction', () {

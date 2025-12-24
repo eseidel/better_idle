@@ -2,6 +2,8 @@ import 'package:logic/src/data/actions.dart';
 import 'package:logic/src/data/melvor_id.dart';
 import 'package:meta/meta.dart';
 
+import 'action_id.dart';
+
 /// A fishing area parsed from Melvor data.
 @immutable
 class FishingArea {
@@ -99,10 +101,7 @@ class FishingAction extends SkillAction {
     final name = productId.name;
 
     return FishingAction(
-      id: MelvorId.fromJsonWithNamespace(
-        json['id'] as String,
-        defaultNamespace: namespace,
-      ),
+      id: ActionId(Skill.fishing.id, json['id'] as String),
       name: name,
       unlockLevel: json['level'] as int,
       xp: json['baseExperience'] as int,

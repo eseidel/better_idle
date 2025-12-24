@@ -22,16 +22,12 @@ class MockRandom implements Random {
   bool nextBool() => nextDoubleValue < 0.5;
 }
 
-ThievingAction thievingActionByName(String name) {
-  return testRegistries.actions.byName(name) as ThievingAction;
-}
-
 void main() {
   late ThievingAction manAction;
 
   setUpAll(() async {
     await loadTestRegistries();
-    manAction = thievingActionByName('Man');
+    manAction = testActions.thieving('Man');
   });
 
   group('Thieving drops', () {
@@ -48,8 +44,8 @@ void main() {
   group('Area drops', () {
     final crateId = MelvorId('melvorF:Crate_Of_Basic_Supplies');
     test('Golbin Village area drops include Crate of Basic Supplies', () {
-      final golbin = thievingActionByName('Golbin');
-      final golbinChief = thievingActionByName('Golbin Chief');
+      final golbin = testActions.thieving('Golbin');
+      final golbinChief = testActions.thieving('Golbin Chief');
 
       // Both actions should be in Golbin Village
       final areas = testRegistries.thievingAreas;
@@ -77,7 +73,7 @@ void main() {
     });
 
     test('Crate Of Basic Supplies has correct rate (1/500)', () {
-      final golbinAction = thievingActionByName('Golbin');
+      final golbinAction = testActions.thieving('Golbin');
       final drops = testDrops.allDropsForAction(golbinAction, masteryLevel: 1);
       final crateDrop = drops.whereType<Drop>().firstWhere(
         (d) => d.itemId == crateId,
@@ -101,7 +97,7 @@ void main() {
     late DropTable golbinDropTable;
 
     setUp(() {
-      golbinAction = thievingActionByName('Golbin');
+      golbinAction = testActions.thieving('Golbin');
       golbinDropChance = golbinAction.dropTable! as DropChance;
       golbinDropTable = golbinDropChance.child as DropTable;
     });

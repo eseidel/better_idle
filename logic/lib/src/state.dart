@@ -1,6 +1,7 @@
 import 'dart:math';
 
 import 'package:logic/src/action_state.dart';
+import 'package:logic/src/data/action_id.dart';
 import 'package:logic/src/data/actions.dart';
 import 'package:logic/src/data/currency.dart';
 import 'package:logic/src/data/melvor_id.dart';
@@ -35,21 +36,20 @@ class ActiveAction {
 
   factory ActiveAction.fromJson(Map<String, dynamic> json) {
     return ActiveAction(
-      id: MelvorId.fromJson(json['id'] as String),
+      id: ActionId.fromJson(json['id'] as String),
       remainingTicks: json['remainingTicks'] as int,
       totalTicks: json['totalTicks'] as int,
     );
   }
 
-  /// The action ID (matches Action.id).
-  final MelvorId id;
+  final ActionId id;
   final int remainingTicks;
   final int totalTicks;
 
   // Computed getter for backward compatibility
   int get progressTicks => totalTicks - remainingTicks;
 
-  ActiveAction copyWith({MelvorId? id, int? remainingTicks, int? totalTicks}) {
+  ActiveAction copyWith({ActionId? id, int? remainingTicks, int? totalTicks}) {
     return ActiveAction(
       id: id ?? this.id,
       remainingTicks: remainingTicks ?? this.remainingTicks,
@@ -58,7 +58,7 @@ class ActiveAction {
   }
 
   Map<String, dynamic> toJson() => {
-    'id': id,
+    'id': id.toJson(),
     'remainingTicks': remainingTicks,
     'totalTicks': totalTicks,
   };
@@ -314,7 +314,7 @@ class GlobalState {
     Inventory? inventory,
     ActiveAction? activeAction,
     Map<Skill, SkillState> skillStates = const {},
-    Map<MelvorId, ActionState> actionStates = const {},
+    Map<ActionId, ActionState> actionStates = const {},
     DateTime? updatedAt,
     int gp = 0,
     Map<Currency, int>? currencies,
@@ -385,7 +385,7 @@ class GlobalState {
   final Map<Skill, SkillState> skillStates;
 
   /// The accumulated action states.
-  final Map<MelvorId, ActionState> actionStates;
+  final Map<ActionId, ActionState> actionStates;
 
   /// The player's currencies (GP, Slayer Coins, etc.).
   final Map<Currency, int> currencies;
@@ -635,7 +635,7 @@ class GlobalState {
       );
       // Initialize combat state with the combat action
       final combatState = CombatActionState.start(action, pStats);
-      final newActionStates = Map<MelvorId, ActionState>.from(actionStates);
+      final newActionStates = Map<ActionId, ActionState>.from(actionStates);
       final existingState = actionState(actionId);
       newActionStates[actionId] = existingState.copyWith(combat: combatState);
       return copyWith(
@@ -695,7 +695,7 @@ class GlobalState {
   // TODO(eseidel): Implement this.
   int unlockedActionsCount(Skill skill) => 1;
 
-  ActionState actionState(MelvorId action) =>
+  ActionState actionState(ActionId action) =>
       actionStates[action] ?? const ActionState.empty();
 
   int activeProgress(Action action) {
@@ -707,7 +707,7 @@ class GlobalState {
   }
 
   GlobalState updateActiveAction(
-    MelvorId actionId, {
+    ActionId actionId, {
     required int remainingTicks,
   }) {
     final activeAction = this.activeAction;
@@ -740,10 +740,10 @@ class GlobalState {
     return copyWith(skillStates: newSkillStates);
   }
 
-  GlobalState addActionMasteryXp(MelvorId actionId, int amount) {
+  GlobalState addActionMasteryXp(ActionId actionId, int amount) {
     final oldState = actionState(actionId);
     final newState = oldState.copyWith(masteryXp: oldState.masteryXp + amount);
-    final newActionStates = Map<MelvorId, ActionState>.from(actionStates);
+    final newActionStates = Map<ActionId, ActionState>.from(actionStates);
     newActionStates[actionId] = newState;
     return copyWith(actionStates: newActionStates);
   }
@@ -924,7 +924,7 @@ class GlobalState {
     Inventory? inventory,
     ActiveAction? activeAction,
     Map<Skill, SkillState>? skillStates,
-    Map<MelvorId, ActionState>? actionStates,
+    Map<ActionId, ActionState>? actionStates,
     Map<Currency, int>? currencies,
     TimeAway? timeAway,
     ShopState? shop,

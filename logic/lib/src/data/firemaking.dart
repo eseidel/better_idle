@@ -1,5 +1,6 @@
 import 'package:meta/meta.dart';
 
+import 'action_id.dart';
 import 'actions.dart';
 import 'melvor_id.dart';
 
@@ -37,10 +38,7 @@ class FiremakingAction extends SkillAction {
     final actionName = 'Burn ${logId.name}';
 
     return FiremakingAction(
-      id: MelvorId.fromJsonWithNamespace(
-        json['id'] as String,
-        defaultNamespace: namespace,
-      ),
+      id: const ActionId(Skill.firemaking.id, json['id'] as String),
       name: actionName,
       unlockLevel: json['level'] as int,
       xp: json['baseExperience'] as int,

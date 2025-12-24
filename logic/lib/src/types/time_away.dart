@@ -1,3 +1,4 @@
+import 'package:logic/src/data/action_id.dart';
 import 'package:logic/src/data/actions.dart';
 import 'package:logic/src/data/currency.dart';
 import 'package:logic/src/data/melvor_id.dart';
@@ -67,7 +68,7 @@ class TimeAway {
     Skill? activeSkill,
     Action? activeAction,
     Changes? changes,
-    Map<MelvorId, int>? masteryLevels,
+    Map<ActionId, int>? masteryLevels,
     ActionStopReason? stopReason,
     Duration? stoppedAfter,
     double? doublingChance,
@@ -103,7 +104,7 @@ class TimeAway {
   }
 
   factory TimeAway.fromJson(Registries registries, Map<String, dynamic> json) {
-    final actionId = MelvorId.maybeFromJson(json['activeAction'] as String?);
+    final actionId = ActionId.maybeFromJson(json['activeAction'] as String?);
     // Only reconstruct SkillActions - CombatActions are only used for
     // predictions which return empty for combat anyway.
     SkillAction? action;
@@ -144,7 +145,7 @@ class TimeAway {
   final Skill? activeSkill;
   final Action? activeAction;
   final Changes changes;
-  final Map<MelvorId, int> masteryLevels;
+  final Map<ActionId, int> masteryLevels;
   final ActionStopReason stopReason;
   final Registries registries;
 
@@ -175,7 +176,7 @@ class TimeAway {
     return {action.skill: xpPerHour.round()};
   }
 
-  int levelForMastery(MelvorId actionId) {
+  int levelForMastery(ActionId actionId) {
     return masteryLevels[actionId] ?? 0;
   }
 
@@ -255,7 +256,7 @@ class TimeAway {
     Skill? activeSkill,
     Action? activeAction,
     Changes? changes,
-    Map<MelvorId, int>? masteryLevels,
+    Map<ActionId, int>? masteryLevels,
     ActionStopReason? stopReason,
     Duration? stoppedAfter,
     double? doublingChance,
@@ -293,7 +294,7 @@ class TimeAway {
     final actionIds = masteryLevels.keys.toSet().union(
       other.masteryLevels.keys.toSet(),
     );
-    final mergedMasteryLevels = <MelvorId, int>{};
+    final mergedMasteryLevels = <ActionId, int>{};
     for (final actionId in actionIds) {
       mergedMasteryLevels[actionId] =
           (masteryLevels[actionId] ?? 0) > (other.masteryLevels[actionId] ?? 0)

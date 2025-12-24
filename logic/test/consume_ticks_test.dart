@@ -26,13 +26,12 @@ void main() {
   setUpAll(() async {
     await loadTestRegistries();
     final actions = testActions;
-    SkillAction skillAction(String name) => actions.skillActionByName(name);
 
-    normalTree = skillAction('Normal Tree');
-    oakTree = skillAction('Oak Tree');
-    burnNormalLogs = skillAction('Burn Normal Logs');
-    runeEssence = skillAction('Rune Essence') as MiningAction;
-    copper = skillAction('Copper') as MiningAction;
+    normalTree = actions.woodcutting('Normal Tree');
+    oakTree = actions.woodcutting('Oak Tree');
+    burnNormalLogs = actions.firemaking('Burn Normal Logs');
+    runeEssence = actions.mining('Rune Essence');
+    copper = actions.mining('Copper');
 
     final items = testItems;
     normalLogs = items.byName('Normal Logs');
@@ -297,23 +296,22 @@ void main() {
     test(
       'action with output count > 1 correctly creates drops with that count',
       () {
-        final normalLogsId = MelvorId.fromName('Normal Logs');
         // Create an action with output count > 1
         final testAction = SkillAction(
-          id: MelvorId.fromName('Test Action'),
+          id: ActionId(Skill.woodcutting.id, 'Test Action'),
           skill: Skill.woodcutting,
           name: 'Test Action',
           unlockLevel: 1,
           duration: Duration(seconds: 1),
           xp: 10,
-          outputs: {normalLogsId: 3}, // Count > 1
+          outputs: {normalLogs.id: 3}, // Count > 1
         );
         final random = Random(0);
 
         // Verify the rewards getter returns drops with the correct count
         final rewards = testAction.rewardsForMasteryLevel(1);
         expect(rewards.length, 1);
-        expect(rewards.first.expectedItems[normalLogsId], 3);
+        expect(rewards.first.expectedItems[normalLogs.id], 3);
 
         // Test end-to-end: complete the action and verify correct items added
         var state = GlobalState.empty(testRegistries);
@@ -1116,7 +1114,7 @@ void main() {
 
     test('combat action processes ticks with monster name as action name', () {
       // Get the Plant combat action
-      final plantAction = testActions.byName('Plant') as CombatAction;
+      final plantAction = testActions.combat('Plant');
       final random = Random(0);
       // Start combat
       var state = GlobalState.empty(testRegistries);
@@ -1140,7 +1138,7 @@ void main() {
     });
 
     test('combat action with mining background heals node', () {
-      final plantAction = testActions.byName('Plant') as CombatAction;
+      final plantAction = testActions.combat('Plant');
       final random = Random(0);
       // Start with damaged mining node
       var state = GlobalState.test(
@@ -1223,7 +1221,7 @@ void main() {
     });
 
     test('completes activity and adds toast', () {
-      final normalTree = testActions.byName('Normal Tree') as SkillAction;
+      final normalTree = testActions.woodcutting('Normal Tree');
       var state = GlobalState.empty(testRegistries);
       final random = Random(0);
 
@@ -1258,7 +1256,7 @@ void main() {
 
       // Start woodcutting Normal Tree (30 ticks per action, 10 XP each)
       state = state.startAction(
-        testActions.skillActionByName('Normal Tree'),
+        testActions.woodcutting('Normal Tree'),
         random: random,
       );
 
@@ -1277,7 +1275,7 @@ void main() {
 
       // Start woodcutting Normal Tree (30 ticks per action, 10 XP each)
       state = state.startAction(
-        testActions.skillActionByName('Normal Tree'),
+        testActions.woodcutting('Normal Tree'),
         random: random,
       );
 

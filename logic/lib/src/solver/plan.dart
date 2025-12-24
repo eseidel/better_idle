@@ -18,8 +18,8 @@
 /// dead, restart" loops) into macro steps for UI display.
 library;
 
+import 'package:logic/src/data/action_id.dart';
 import 'package:logic/src/data/actions.dart';
-import 'package:logic/src/data/melvor_id.dart';
 import 'package:logic/src/state.dart';
 import 'package:logic/src/tick.dart';
 import 'package:meta/meta.dart';
@@ -127,7 +127,7 @@ class WaitForSkillXp extends WaitFor {
 class WaitForMasteryXp extends WaitFor {
   const WaitForMasteryXp(this.actionId, this.targetMasteryXp);
 
-  final MelvorId actionId;
+  final ActionId actionId;
   final int targetMasteryXp;
 
   @override
