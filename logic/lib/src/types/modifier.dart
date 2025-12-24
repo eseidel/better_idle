@@ -150,22 +150,6 @@ class ModifierScope extends Equatable {
       damageTypeId == null &&
       effectGroupId == null;
 
-  /// Returns the scope keys present in this scope, sorted alphabetically.
-  List<String> get presentKeys {
-    final keys = <String>[];
-    if (skillId != null) keys.add('skillID');
-    if (actionId != null) keys.add('actionID');
-    if (realmId != null) keys.add('realmID');
-    if (categoryId != null) keys.add('categoryID');
-    if (subcategoryId != null) keys.add('subcategoryID');
-    if (itemId != null) keys.add('itemID');
-    if (currencyId != null) keys.add('currencyID');
-    if (damageTypeId != null) keys.add('damageTypeID');
-    if (effectGroupId != null) keys.add('effectGroupID');
-    keys.sort();
-    return keys;
-  }
-
   @override
   List<Object?> get props => [
     skillId,
@@ -195,9 +179,6 @@ class ModifierScope extends Equatable {
     // Check if skillId matches (null skillId means applies to all skills)
     return this.skillId == null || this.skillId == skillId;
   }
-
-  @override
-  String toString() => presentKeys.isEmpty ? 'global' : presentKeys.join(',');
 }
 
 /// A single modifier entry with optional scope.
