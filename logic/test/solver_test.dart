@@ -50,7 +50,7 @@ void main() {
     });
 
     test('BuyShopItem purchases an upgrade', () {
-      final state = GlobalState.empty(testRegistries).copyWith(gp: 100);
+      final state = GlobalState.test(testRegistries, gp: 100);
       final ironAxeId = MelvorId('melvorD:Iron_Axe');
       final interaction = BuyShopItem(ironAxeId);
 
@@ -61,7 +61,7 @@ void main() {
     });
 
     test('BuyShopItem throws when cannot afford', () {
-      final state = GlobalState.empty(testRegistries).copyWith(gp: 10);
+      final state = GlobalState.test(testRegistries, gp: 10);
       final ironAxeId = MelvorId('melvorD:Iron_Axe');
       final interaction = BuyShopItem(ironAxeId);
 
@@ -78,9 +78,7 @@ void main() {
         ItemStack(logs, count: 10),
         ItemStack(oak, count: 5),
       ]);
-      final state = GlobalState.empty(
-        testRegistries,
-      ).copyWith(inventory: inventory, gp: 0);
+      final state = GlobalState.test(testRegistries, inventory: inventory);
       const interaction = SellAll();
 
       final newState = applyInteraction(state, interaction);
@@ -139,7 +137,7 @@ void main() {
 
   group('solveToCredits', () {
     test('returns empty plan when goal already met', () {
-      final state = GlobalState.empty(testRegistries).copyWith(gp: 1000);
+      final state = GlobalState.test(testRegistries, gp: 1000);
 
       final result = solveToCredits(state, 500);
 
@@ -183,7 +181,7 @@ void main() {
 
     test('plan may include buying upgrade when it improves time-to-goal', () {
       // Start with enough money for Iron Axe and activity running
-      var state = GlobalState.empty(testRegistries).copyWith(gp: 50);
+      var state = GlobalState.test(testRegistries, gp: 50);
       final action = testActions.byName('Normal Tree');
       state = state.startAction(action, random: Random(0));
 
@@ -667,7 +665,7 @@ void main() {
 
   group('executePlan', () {
     test('executes empty plan and returns initial state', () {
-      final state = GlobalState.empty(testRegistries).copyWith(gp: 500);
+      final state = GlobalState.test(testRegistries, gp: 500);
       const plan = Plan.empty();
 
       final result = executePlan(state, plan, random: Random(42));

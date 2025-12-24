@@ -14,35 +14,35 @@ void main() {
 
   group('ReachGpGoal', () {
     test('isSatisfied returns true when GP >= target', () {
-      final state = GlobalState.empty(testRegistries).copyWith(gp: 100);
+      final state = GlobalState.test(testRegistries, gp: 100);
       const goal = ReachGpGoal(100);
 
       expect(goal.isSatisfied(state), isTrue);
     });
 
     test('isSatisfied returns true when GP > target', () {
-      final state = GlobalState.empty(testRegistries).copyWith(gp: 200);
+      final state = GlobalState.test(testRegistries, gp: 200);
       const goal = ReachGpGoal(100);
 
       expect(goal.isSatisfied(state), isTrue);
     });
 
     test('isSatisfied returns false when GP < target', () {
-      final state = GlobalState.empty(testRegistries).copyWith(gp: 50);
+      final state = GlobalState.test(testRegistries, gp: 50);
       const goal = ReachGpGoal(100);
 
       expect(goal.isSatisfied(state), isFalse);
     });
 
     test('remaining returns 0 when goal is satisfied', () {
-      final state = GlobalState.empty(testRegistries).copyWith(gp: 100);
+      final state = GlobalState.test(testRegistries, gp: 100);
       const goal = ReachGpGoal(100);
 
       expect(goal.remaining(state), 0.0);
     });
 
     test('remaining returns positive value when not satisfied', () {
-      final state = GlobalState.empty(testRegistries).copyWith(gp: 50);
+      final state = GlobalState.test(testRegistries, gp: 50);
       const goal = ReachGpGoal(100);
 
       expect(goal.remaining(state), 50.0);

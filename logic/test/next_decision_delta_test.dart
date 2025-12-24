@@ -68,7 +68,7 @@ void main() {
 
   group('nextDecisionDelta', () {
     test('returns 0 when goal is already satisfied', () {
-      final state = GlobalState.empty(testRegistries).copyWith(gp: 1000);
+      final state = GlobalState.test(testRegistries, gp: 1000);
       const goal = ReachGpGoal(500);
       final candidates = enumerateCandidates(state, goal);
 
@@ -84,7 +84,7 @@ void main() {
       // at level 1, we need a state where thieving isn't the best option.
       // For now, we verify the behavior when upgrades are in buyUpgrades.
 
-      final state = GlobalState.empty(testRegistries).copyWith(gp: 100);
+      final state = GlobalState.test(testRegistries, gp: 100);
       const goal = ReachGpGoal(10000);
       final candidates = enumerateCandidates(state, goal);
 
@@ -122,7 +122,7 @@ void main() {
 
     test('returns ticks until goal reached when close to goal', () {
       // Start with action and some money close to goal
-      var state = GlobalState.empty(testRegistries).copyWith(gp: 90);
+      var state = GlobalState.test(testRegistries, gp: 90);
       final action = testActions.byName('Copper');
       state = state.startAction(action, random: Random(0));
 
@@ -170,7 +170,7 @@ void main() {
     });
 
     test('is deterministic', () {
-      var state = GlobalState.empty(testRegistries).copyWith(gp: 10);
+      var state = GlobalState.test(testRegistries, gp: 10);
       final action = testActions.byName('Normal Tree');
       state = state.startAction(action, random: Random(0));
 

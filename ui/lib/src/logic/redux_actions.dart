@@ -125,24 +125,6 @@ class SellItemAction extends ReduxAction<GlobalState> {
   }
 }
 
-/// Purchases a bank slot from the shop.
-class PurchaseBankSlotAction extends ReduxAction<GlobalState> {
-  @override
-  GlobalState reduce() {
-    const bankSlotId = MelvorId('melvorD:Extra_Bank_Slot');
-    final cost = state.shop.nextBankSlotCost();
-    if (state.gp < cost) {
-      throw Exception(
-        'Not enough GP to purchase bank slot. Need $cost, have ${state.gp}',
-      );
-    }
-    return state.copyWith(
-      gp: state.gp - cost,
-      shop: state.shop.withPurchase(bankSlotId),
-    );
-  }
-}
-
 /// Purchases a shop item (skill upgrade or other purchase).
 class PurchaseShopItemAction extends ReduxAction<GlobalState> {
   PurchaseShopItemAction({required this.purchaseId});
@@ -182,26 +164,30 @@ class PurchaseShopItemAction extends ReduxAction<GlobalState> {
       }
     }
 
-    // Check and calculate currency costs
-    final currencyCosts = purchase.cost.fixedCurrencyCosts;
-    var newGp = state.gp;
-    for (final (currency, amount) in currencyCosts) {
-      switch (currency) {
-        case Currency.gp:
-          if (newGp < amount) {
-            throw Exception('Not enough GP. Need $amount, have $newGp');
-          }
-          newGp -= amount;
-        case Currency.slayerCoins:
-        case Currency.raidCoins:
-          // TODO(eseidel): Implement slayer and raid coins when added to state.
-          throw Exception('${currency.abbreviation} not yet implemented');
+    // Calculate currency costs (handle dynamic bank slot pricing)
+    var newState = state;
+    if (purchase.cost.usesBankSlotPricing) {
+      final cost = state.shop.nextBankSlotCost();
+      if (state.gp < cost) {
+        throw Exception('Not enough GP. Need $cost, have ${state.gp}');
+      }
+      newState = newState.addCurrency(Currency.gp, -cost);
+    } else {
+      final currencyCosts = purchase.cost.fixedCurrencyCosts;
+      for (final (currency, amount) in currencyCosts) {
+        final balance = newState.currency(currency);
+        if (balance < amount) {
+          throw Exception(
+            'Not enough ${currency.abbreviation}. Need $amount, have $balance',
+          );
+        }
+        newState = newState.addCurrency(currency, -amount);
       }
     }
 
     // Check and apply item costs
     final itemCosts = purchase.cost.items;
-    var newInventory = state.inventory;
+    var newInventory = newState.inventory;
     for (final itemCost in itemCosts) {
       final item = state.registries.items.byId(itemCost.itemId);
       final count = newInventory.countOfItem(item);
@@ -216,10 +202,9 @@ class PurchaseShopItemAction extends ReduxAction<GlobalState> {
     }
 
     // Apply purchase
-    return state.copyWith(
-      gp: newGp,
+    return newState.copyWith(
       inventory: newInventory,
-      shop: state.shop.withPurchase(purchaseId),
+      shop: newState.shop.withPurchase(purchaseId),
     );
   }
 }

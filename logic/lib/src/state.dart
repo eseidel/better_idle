@@ -12,8 +12,8 @@ import 'package:logic/src/types/equipment.dart';
 import 'package:logic/src/types/equipment_slot.dart';
 import 'package:logic/src/types/health.dart';
 import 'package:logic/src/types/inventory.dart';
-import 'package:logic/src/types/resolved_modifiers.dart';
 import 'package:logic/src/types/open_result.dart';
+import 'package:logic/src/types/resolved_modifiers.dart';
 import 'package:logic/src/types/stunned.dart';
 import 'package:logic/src/types/time_away.dart';
 import 'package:meta/meta.dart';
@@ -221,9 +221,7 @@ class ShopState {
   }
 
   /// Returns the cost for the next bank slot purchase.
-  int nextBankSlotCost() {
-    return calculateBankSlotCost(bankSlotsPurchased);
-  }
+  int nextBankSlotCost() => calculateBankSlotCost(bankSlotsPurchased);
 }
 
 /// The initial number of free bank slots.
@@ -928,7 +926,6 @@ class GlobalState {
     Map<Skill, SkillState>? skillStates,
     Map<MelvorId, ActionState>? actionStates,
     Map<Currency, int>? currencies,
-    int? gp, // Convenience parameter for setting GP directly
     TimeAway? timeAway,
     ShopState? shop,
     HealthState? health,
@@ -937,10 +934,8 @@ class GlobalState {
   }) {
     // Handle gp convenience parameter
     var newCurrencies = currencies ?? this.currencies;
-    if (gp != null) {
-      newCurrencies = Map<Currency, int>.from(newCurrencies);
-      newCurrencies[Currency.gp] = gp;
-    }
+    newCurrencies = Map<Currency, int>.from(newCurrencies);
+    newCurrencies[Currency.gp] = gp;
     return GlobalState(
       registries: registries,
       inventory: inventory ?? this.inventory,

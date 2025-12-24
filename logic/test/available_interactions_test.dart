@@ -39,7 +39,7 @@ void main() {
     });
 
     test('state with GP includes affordable shop purchases', () {
-      final state = GlobalState.empty(testRegistries).copyWith(gp: 1000);
+      final state = GlobalState.test(testRegistries, gp: 1000);
       final interactions = availableInteractions(state);
 
       final purchases = interactions.whereType<BuyShopItem>().toList();
@@ -50,7 +50,7 @@ void main() {
     });
 
     test('active action is excluded from switches', () {
-      var state = GlobalState.empty(testRegistries).copyWith(gp: 500);
+      var state = GlobalState.test(testRegistries, gp: 500);
       final action = testActions.byName('Normal Tree');
       final random = Random(0);
       state = state.startAction(action, random: random);
@@ -66,7 +66,8 @@ void main() {
     });
 
     test('higher skill levels unlock more activities', () {
-      final state = GlobalState.empty(testRegistries).copyWith(
+      final state = GlobalState.test(
+        testRegistries,
         gp: 100000,
         skillStates: {
           Skill.hitpoints: const SkillState(xp: 1154, masteryPoolXp: 0),
@@ -93,7 +94,8 @@ void main() {
     test('inventory with items includes SellAll', () {
       final logs = testItems.byName('Normal Logs');
       final ore = testItems.byName('Copper Ore');
-      final state = GlobalState.empty(testRegistries).copyWith(
+      final state = GlobalState.test(
+        testRegistries,
         inventory: Inventory.fromItems(testItems, [
           ItemStack(logs, count: 100),
           ItemStack(ore, count: 50),

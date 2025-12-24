@@ -43,7 +43,8 @@ void main() {
     });
 
     test('marks unlocked actions correctly', () {
-      final state = GlobalState.empty(testRegistries).copyWith(
+      final state = GlobalState.test(
+        testRegistries,
         skillStates: {
           Skill.hitpoints: const SkillState(xp: 1154, masteryPoolXp: 0),
           // Level 25 = 8740 XP (Willow Tree requires level 25)
@@ -126,7 +127,8 @@ void main() {
     });
 
     test('respects activity count limit', () {
-      final state = GlobalState.empty(testRegistries).copyWith(
+      final state = GlobalState.test(
+        testRegistries,
         skillStates: {
           Skill.hitpoints: const SkillState(xp: 1154, masteryPoolXp: 0),
           Skill.woodcutting: const SkillState(xp: 4470, masteryPoolXp: 0),
@@ -151,7 +153,7 @@ void main() {
       // Upgrades should only be in buyUpgrades if they would make an
       // activity competitive with the current best. Otherwise they're
       // wasteful spending.
-      final state = GlobalState.empty(testRegistries).copyWith(gp: 1000);
+      final state = GlobalState.test(testRegistries, gp: 1000);
       final candidates = enumerateCandidates(state, _defaultGoal);
 
       // No upgrades should be suggested when thieving dominates,
@@ -221,7 +223,8 @@ void main() {
 
     test('includeSellAll true when inventory > 80% full', () {
       // Create inventory with 17+ unique items (>80% of 20 slots)
-      final state = GlobalState.empty(testRegistries).copyWith(
+      final state = GlobalState.test(
+        testRegistries,
         inventory: Inventory.fromItems(testItems, [
           ItemStack(testItems.byName('Normal Logs'), count: 10),
           ItemStack(testItems.byName('Oak Logs'), count: 10),
@@ -250,7 +253,8 @@ void main() {
     });
 
     test('includeSellAll false when inventory < 80% full', () {
-      final state = GlobalState.empty(testRegistries).copyWith(
+      final state = GlobalState.test(
+        testRegistries,
         inventory: Inventory.fromItems(testItems, [
           ItemStack(testItems.byName('Normal Logs'), count: 10),
         ]),
@@ -263,7 +267,7 @@ void main() {
     });
 
     test('is deterministic for same state', () {
-      final state = GlobalState.empty(testRegistries).copyWith(gp: 1000);
+      final state = GlobalState.test(testRegistries, gp: 1000);
 
       final candidates1 = enumerateCandidates(state, _defaultGoal);
       final candidates2 = enumerateCandidates(state, _defaultGoal);
@@ -328,7 +332,7 @@ void main() {
   group('applyInteraction', () {
     test('BuyShopItem reduces GP by upgrade cost', () {
       // Start with enough GP for an axe upgrade
-      final state = GlobalState.empty(testRegistries).copyWith(gp: 100);
+      final state = GlobalState.test(testRegistries, gp: 100);
       final ironAxeId = MelvorId('melvorD:Iron_Axe');
       final interaction = BuyShopItem(ironAxeId);
 
@@ -343,14 +347,14 @@ void main() {
     test('BuyShopItem reduces GP by correct amount for each tier', () {
       // Test first fishing rod (costs 100)
       final ironRodId = MelvorId('melvorD:Iron_Fishing_Rod');
-      var state = GlobalState.empty(testRegistries).copyWith(gp: 200);
+      var state = GlobalState.test(testRegistries, gp: 200);
       var newState = applyInteraction(state, BuyShopItem(ironRodId));
       expect(newState.gp, equals(100)); // 200 - 100
       expect(newState.shop.purchaseCount(ironRodId), equals(1));
 
       // Test first pickaxe (costs 250)
       final ironPickaxeId = MelvorId('melvorD:Iron_Pickaxe');
-      state = GlobalState.empty(testRegistries).copyWith(gp: 500);
+      state = GlobalState.test(testRegistries, gp: 500);
       newState = applyInteraction(state, BuyShopItem(ironPickaxeId));
       expect(newState.gp, equals(250)); // 500 - 250
       expect(newState.shop.purchaseCount(ironPickaxeId), equals(1));
