@@ -2,7 +2,7 @@ import 'package:better_idle/src/logic/redux_actions.dart';
 import 'package:better_idle/src/widgets/categorized_action_list.dart';
 import 'package:better_idle/src/widgets/context_extensions.dart';
 import 'package:better_idle/src/widgets/double_chance_badge_cell.dart';
-import 'package:better_idle/src/widgets/item_image.dart';
+import 'package:better_idle/src/widgets/item_count_badge_cell.dart';
 import 'package:better_idle/src/widgets/mastery_pool.dart';
 import 'package:better_idle/src/widgets/mastery_unlocks_dialog.dart';
 import 'package:better_idle/src/widgets/navigation_drawer.dart';
@@ -166,7 +166,7 @@ class _SelectedActionDisplay extends StatelessWidget {
             style: TextStyle(fontWeight: FontWeight.bold),
           ),
           const SizedBox(height: 4),
-          _ItemList(items: action.inputs),
+          ItemCountBadgesRow.required(items: action.inputs),
           const SizedBox(height: 8),
 
           // You Have section
@@ -175,7 +175,7 @@ class _SelectedActionDisplay extends StatelessWidget {
             style: TextStyle(fontWeight: FontWeight.bold),
           ),
           const SizedBox(height: 4),
-          _InventoryItemList(items: action.inputs),
+          ItemCountBadgesRow.inventory(items: action.inputs),
           const SizedBox(height: 8),
 
           // Produces section
@@ -184,7 +184,7 @@ class _SelectedActionDisplay extends StatelessWidget {
             style: TextStyle(fontWeight: FontWeight.bold),
           ),
           const SizedBox(height: 4),
-          _ItemList(items: action.outputs),
+          ItemCountBadgesRow.required(items: action.outputs),
           const SizedBox(height: 8),
 
           // Grants section
@@ -212,77 +212,6 @@ class _SelectedActionDisplay extends StatelessWidget {
           ),
         ],
       ),
-    );
-  }
-}
-
-class _ItemList extends StatelessWidget {
-  const _ItemList({required this.items});
-
-  final Map<MelvorId, int> items;
-
-  @override
-  Widget build(BuildContext context) {
-    final state = context.state;
-    if (items.isEmpty) {
-      return const Text(
-        'None',
-        style: TextStyle(color: Style.textColorSecondary),
-      );
-    }
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: items.entries.map((entry) {
-        final item = state.registries.items.byId(entry.key);
-        return Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            ItemImage(item: item, size: 20),
-            const SizedBox(width: 4),
-            Text('${entry.value}x ${entry.key.name}'),
-          ],
-        );
-      }).toList(),
-    );
-  }
-}
-
-class _InventoryItemList extends StatelessWidget {
-  const _InventoryItemList({required this.items});
-
-  final Map<MelvorId, int> items;
-
-  @override
-  Widget build(BuildContext context) {
-    final state = context.state;
-    final inventory = state.inventory;
-
-    if (items.isEmpty) {
-      return const Text(
-        'None',
-        style: TextStyle(color: Style.textColorSecondary),
-      );
-    }
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: items.entries.map((entry) {
-        final item = state.registries.items.byId(entry.key);
-        final count = inventory.countOfItem(item);
-        final hasEnough = count >= entry.value;
-        return Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            ItemImage(item: item, size: 20),
-            const SizedBox(width: 4),
-            Text(
-              '$count ${entry.key.name}',
-              style: TextStyle(
-                color: hasEnough ? Style.successColor : Style.errorColor,
-              ),
-            ),
-          ],
-        );
-      }).toList(),
     );
   }
 }

@@ -15,24 +15,20 @@ class MasteryPoolXpBadgeCell extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox(
-      width: 48,
-      height: 48,
-      child: CountBadgeCell(
-        backgroundColor: Style.xpBadgeBackgroundColor,
-        count: masteryPoolXp,
-        child: Center(
-          child: Container(
-            width: 28,
-            height: 28,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              border: Border.all(color: Style.masteryPoolBorderColor, width: 2),
-              color: Style.masteryPoolBackgroundColor,
-            ),
-            child: const Center(
-              child: Text('🏆', style: TextStyle(fontSize: 12)),
-            ),
+    return CountBadgeCell(
+      backgroundColor: Style.xpBadgeBackgroundColor,
+      count: masteryPoolXp,
+      child: Center(
+        child: Container(
+          width: 28,
+          height: 28,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            border: Border.all(color: Style.masteryPoolBorderColor, width: 2),
+            color: Style.masteryPoolBackgroundColor,
+          ),
+          child: const Center(
+            child: Text('🏆', style: TextStyle(fontSize: 12)),
           ),
         ),
       ),
