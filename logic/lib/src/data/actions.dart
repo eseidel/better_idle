@@ -14,6 +14,7 @@ export 'combat.dart';
 export 'cooking.dart';
 export 'crafting.dart';
 export 'firemaking.dart';
+export 'herblore.dart';
 export 'fishing.dart';
 export 'fletching.dart';
 export 'items.dart';
@@ -39,7 +40,8 @@ enum Skill {
   smithing('Smithing'),
   thieving('Thieving'),
   fletching('Fletching'),
-  crafting('Crafting');
+  crafting('Crafting'),
+  herblore('Herblore');
 
   const Skill(this.name);
 

@@ -6,6 +6,7 @@ import 'package:better_idle/src/screens/debug.dart';
 import 'package:better_idle/src/screens/firemaking.dart';
 import 'package:better_idle/src/screens/fishing.dart';
 import 'package:better_idle/src/screens/fletching.dart';
+import 'package:better_idle/src/screens/herblore.dart';
 import 'package:better_idle/src/screens/mining.dart';
 import 'package:better_idle/src/screens/shop.dart';
 import 'package:better_idle/src/screens/smithing.dart';
@@ -70,6 +71,11 @@ final GoRouter router = GoRouter(
       path: '/crafting',
       name: 'crafting',
       builder: (context, _) => const CraftingPage(),
+    ),
+    GoRoute(
+      path: '/herblore',
+      name: 'herblore',
+      builder: (context, _) => const HerblorePage(),
     ),
     GoRoute(
       path: '/combat',

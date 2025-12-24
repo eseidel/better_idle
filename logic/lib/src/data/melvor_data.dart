@@ -104,6 +104,12 @@ class MelvorData {
     actions.addAll(craftingActions);
     _craftingCategories = craftingCategories;
 
+    final (herbloreActions, herbloreCategories) = parseHerblore(
+      skillDataById['melvorD:Herblore'],
+    );
+    actions.addAll(herbloreActions);
+    _herbloreCategories = herbloreCategories;
+
     for (final json in dataFiles) {
       final namespace = json['namespace'] as String;
       actions.addAll(parseCombatActions(json, namespace: namespace));
@@ -135,6 +141,7 @@ class MelvorData {
   late final SmithingCategoryRegistry _smithingCategories;
   late final FletchingCategoryRegistry _fletchingCategories;
   late final CraftingCategoryRegistry _craftingCategories;
+  late final HerbloreCategoryRegistry _herbloreCategories;
   late final ThievingAreaRegistry _thievingAreas;
   late final CombatAreaRegistry _combatAreas;
   late final MasteryBonusRegistry _masteryBonuses;
@@ -152,6 +159,8 @@ class MelvorData {
   FletchingCategoryRegistry get fletchingCategories => _fletchingCategories;
 
   CraftingCategoryRegistry get craftingCategories => _craftingCategories;
+
+  HerbloreCategoryRegistry get herbloreCategories => _herbloreCategories;
 
   ThievingAreaRegistry get thievingAreas => _thievingAreas;
 
@@ -406,6 +415,46 @@ List<FiremakingAction> parseFiremaking(List<SkillDataEntry>? entries) {
   }
 
   return (actions, CraftingCategoryRegistry(categories));
+}
+
+/// Parses all herblore data. Returns (actions, categoriesRegistry).
+(List<HerbloreAction>, HerbloreCategoryRegistry) parseHerblore(
+  List<SkillDataEntry>? entries,
+) {
+  if (entries == null) {
+    return ([], HerbloreCategoryRegistry([]));
+  }
+
+  final actions = <HerbloreAction>[];
+  final categories = <HerbloreCategory>[];
+
+  for (final entry in entries) {
+    final recipes = entry.data['recipes'] as List<dynamic>?;
+    if (recipes != null) {
+      actions.addAll(
+        recipes.map(
+          (json) => HerbloreAction.fromJson(
+            json as Map<String, dynamic>,
+            namespace: entry.namespace,
+          ),
+        ),
+      );
+    }
+
+    final cats = entry.data['categories'] as List<dynamic>?;
+    if (cats != null) {
+      categories.addAll(
+        cats.map(
+          (json) => HerbloreCategory.fromJson(
+            json as Map<String, dynamic>,
+            namespace: entry.namespace,
+          ),
+        ),
+      );
+    }
+  }
+
+  return (actions, HerbloreCategoryRegistry(categories));
 }
 
 /// Parses all thieving data. Builds areas registry internally.
