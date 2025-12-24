@@ -21,13 +21,13 @@ use it.
 ### TODO
 
 - Handle global and per-action modifiers (e.g. mastery levels).
-- Support Mastery skill modifiers (e.g. increasing double items chance)
+- Complete support for mastery benefits.
 - Fix Firemaking to put log selection behind a pop-up.
-- Fix Smithing to separate action groups. 
-- Add Equipment
 - Add Farming
+- Add Township
 - Fix fishing regions to drop junk/specials.
 - Add more Thieving drops.
+- Add global drops.
 - Implement mastery rewards (and UI) for all actions.
 - Implement mastery pool checkpoints.
 - Implement mastery tokens.

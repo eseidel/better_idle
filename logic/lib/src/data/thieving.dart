@@ -5,6 +5,8 @@ import 'package:logic/src/data/melvor_id.dart';
 import 'package:logic/src/types/drop.dart';
 import 'package:meta/meta.dart';
 
+import 'action_id.dart';
+
 /// Duration for all thieving actions.
 const thievingDuration = Duration(seconds: 3);
 
@@ -166,10 +168,7 @@ class ThievingAction extends SkillAction {
         : ((maxHitRaw as double) * 10).round();
 
     return ThievingAction(
-      id: MelvorId.fromJsonWithNamespace(
-        json['id'] as String,
-        defaultNamespace: namespace,
-      ),
+      id: ActionId(Skill.thieving.id, json['id'] as String),
       name: json['name'] as String,
       unlockLevel: json['level'] as int,
       xp: json['baseExperience'] as int,

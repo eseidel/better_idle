@@ -167,6 +167,12 @@ void printFinalState(GlobalState state) {
   print('-' * 40);
 }
 
+// It's not valid to look up an action by name, since there are duplicates
+// e.g. Golbin thieving and combat.  But this is good enough for this script.
+Action actionByName(ActionRegistry actions, String name) {
+  return actions.all.firstWhere((a) => a.name == name);
+}
+
 void main(List<String> args) async {
   // Parse action name from args, default to 'Normal Tree'
   final actionName = args.isNotEmpty ? args.join(' ') : 'Normal Tree';
@@ -176,7 +182,7 @@ void main(List<String> args) async {
   // Look up the action
   final Action action;
   try {
-    action = registries.actions.byName(actionName);
+    action = actionByName(registries.actions, actionName);
   } catch (e) {
     print('Error: Unknown action "$actionName"');
     print('');

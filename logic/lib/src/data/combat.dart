@@ -5,6 +5,8 @@ import 'package:logic/src/data/melvor_id.dart';
 import 'package:logic/src/types/drop.dart';
 import 'package:meta/meta.dart';
 
+import 'action_id.dart';
+
 /// Combat stats for a player or monster.
 @immutable
 class Stats {
@@ -198,10 +200,7 @@ class CombatAction extends Action {
     }
 
     return CombatAction(
-      id: MelvorId.fromJsonWithNamespace(
-        json['id'] as String,
-        defaultNamespace: namespace,
-      ),
+      id: ActionId(Skill.combat.id, json['id'] as String),
       name: json['name'] as String,
       levels: levels,
       attackType: AttackType.fromJson(json['attackType'] as String),

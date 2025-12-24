@@ -1,5 +1,5 @@
-extension type const MelvorId._(String id) {
-  const MelvorId(this.id);
+class MelvorId {
+  const MelvorId(this.fullId);
 
   /// Creates a MelvorId from a JSON string.
   factory MelvorId.fromJson(String json) => MelvorId(json);
@@ -29,16 +29,26 @@ extension type const MelvorId._(String id) {
       MelvorId('melvorD:${name.replaceAll(' ', '_')}');
 
   /// Returns the underlying string for JSON serialization.
-  String toJson() => id;
+  String toJson() => fullId;
 
-  /// Returns the realm prefix (e.g., "melvorD" from "melvorD:Normal_Logs").
-  /// Returns empty string if no realm prefix is present.
-  String get realm => id.substring(0, id.indexOf(':'));
+  final String fullId;
 
-  /// Returns the ID part after the colon (e.g., "Normal_Logs" from "melvorD:Normal_Logs").
-  /// Returns the full ID if no colon is present.
-  String get idName => id.substring(id.indexOf(':') + 1);
+  String get namespace => fullId.substring(0, fullId.indexOf(':'));
+  String get localId => fullId.substring(fullId.indexOf(':') + 1);
 
   /// Returns a human-readable name (underscores replaced with spaces).
-  String get name => idName.replaceAll('_', ' ');
+  String get name => localId.replaceAll('_', ' ');
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is MelvorId &&
+          runtimeType == other.runtimeType &&
+          fullId == other.fullId;
+
+  @override
+  int get hashCode => fullId.hashCode;
+
+  @override
+  String toString() => fullId;
 }

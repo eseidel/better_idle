@@ -4,9 +4,11 @@ import 'package:logic/src/tick.dart';
 import 'package:logic/src/types/drop.dart';
 import 'package:meta/meta.dart';
 
+import 'action_id.dart';
 import 'combat.dart';
 import 'melvor_id.dart';
 import 'mining.dart';
+import 'thieving.dart';
 
 export 'combat.dart';
 export 'cooking.dart';
@@ -22,9 +24,13 @@ export 'woodcutting.dart';
 
 /// Hard-coded list of skills.  We sometimes wish to refer to a skill in code
 /// this allows us to do that at compile time rather than at runtime.
+/// These are essentially "Action Types" in the sense that they are the types
+/// of actions that can be performed by the player.
 enum Skill {
+  combat('Combat'),
   hitpoints('Hitpoints'),
   attack('Attack'),
+
   woodcutting('Woodcutting'),
   firemaking('Firemaking'),
   fishing('Fishing'),
@@ -73,7 +79,7 @@ enum Skill {
 abstract class Action {
   const Action({required this.id, required this.name, required this.skill});
 
-  final MelvorId id;
+  final ActionId id;
 
   final String name;
   final Skill skill;
@@ -162,17 +168,24 @@ final skillDrops = <Skill, List<Droppable>>{
 };
 
 class ActionRegistry {
-  ActionRegistry(List<Action> all) : _all = all {
-    _byId = {for (final action in _all) action.id: action};
-    _byName = {for (final action in _all) action.name: action};
+  ActionRegistry(this.all) {
+    _byId = {for (final action in all) action.id: action};
+    _bySkillAndNameMap = {};
+    for (final action in all) {
+      // Use action.id.skillId rather than action.skill.id because they can
+      // differ (e.g. CombatAction has id.skillId=combat but skill=attack).
+      _bySkillAndNameMap
+          .putIfAbsent(action.id.skillId, () => {})
+          .putIfAbsent(action.name, () => action);
+    }
   }
 
-  final List<Action> _all;
-  late final Map<MelvorId, Action> _byId;
-  late final Map<String, Action> _byName;
+  final List<Action> all;
+  late final Map<ActionId, Action> _byId;
+  late final Map<MelvorId, Map<String, Action>> _bySkillAndNameMap;
 
   /// Returns an Action by id, or throws a StateError if not found.
-  Action byId(MelvorId id) {
+  Action byId(ActionId id) {
     final action = _byId[id];
     if (action == null) {
       throw StateError('Missing action with id: $id');
@@ -180,32 +193,46 @@ class ActionRegistry {
     return action;
   }
 
-  /// Returns an Action by name, or throws a StateError if not found.
-  Action byName(String name) {
-    final action = _byName[name];
-    if (action == null) {
-      throw StateError('Missing action $name');
-    }
-    return action;
-  }
-
-  @visibleForTesting
-  SkillAction skillActionByName(String name) {
-    final action = byName(name);
-    if (action is SkillAction) {
-      return action;
-    }
-    throw StateError('Action $name is not a SkillAction');
-  }
-
   /// Returns all skill actions for a given skill.
   Iterable<SkillAction> forSkill(Skill skill) {
-    return _all.whereType<SkillAction>().where(
+    return all.whereType<SkillAction>().where(
       (action) => action.skill == skill,
     );
   }
 
-  CombatAction combatActionById(MelvorId id) => byId(id) as CombatAction;
+  Action _bySkillAndName(Skill skill, String name) {
+    final byName = _bySkillAndNameMap[skill.id];
+    if (byName == null) {
+      final names = _bySkillAndNameMap.keys.join(', ');
+      throw StateError('Missing actions for skill: $skill. Available: $names');
+    }
+    final action = byName[name];
+    if (action == null) {
+      final names = byName.keys.join(', ');
+      throw StateError(
+        'Missing action with skill: $skill and name: $name. Available: $names',
+      );
+    }
+    return action;
+  }
+
+  SkillAction woodcutting(String name) =>
+      _bySkillAndName(Skill.woodcutting, name) as SkillAction;
+
+  MiningAction mining(String name) =>
+      _bySkillAndName(Skill.mining, name) as MiningAction;
+
+  SkillAction firemaking(String name) =>
+      _bySkillAndName(Skill.firemaking, name) as SkillAction;
+
+  SkillAction fishing(String name) =>
+      _bySkillAndName(Skill.fishing, name) as SkillAction;
+
+  CombatAction combat(String name) =>
+      _bySkillAndName(Skill.combat, name) as CombatAction;
+
+  ThievingAction thieving(String name) =>
+      _bySkillAndName(Skill.thieving, name) as ThievingAction;
 }
 
 class DropsRegistry {

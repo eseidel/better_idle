@@ -1,5 +1,4 @@
-import 'package:logic/src/data/combat.dart';
-import 'package:logic/src/data/melvor_id.dart';
+import 'package:logic/logic.dart';
 import 'package:test/test.dart';
 
 void main() {
@@ -83,7 +82,7 @@ void main() {
     group('stats', () {
       test('uses strength for melee attack type', () {
         final action = CombatAction(
-          id: MelvorId('test:melee_monster'),
+          id: ActionId(Skill.combat.id, 'Melee Monster'),
           name: 'Melee Monster',
           levels: const MonsterLevels(
             hitpoints: 10,
@@ -111,7 +110,7 @@ void main() {
 
       test('uses ranged level for ranged attack type', () {
         final action = CombatAction(
-          id: MelvorId('test:ranged_monster'),
+          id: ActionId(Skill.combat.id, 'Ranged Monster'),
           name: 'Ranged Monster',
           levels: const MonsterLevels(
             hitpoints: 10,
@@ -138,7 +137,7 @@ void main() {
 
       test('uses magic level for magic attack type', () {
         final action = CombatAction(
-          id: MelvorId('test:magic_monster'),
+          id: ActionId(Skill.combat.id, 'Magic Monster'),
           name: 'Magic Monster',
           levels: const MonsterLevels(
             hitpoints: 10,
@@ -165,7 +164,7 @@ void main() {
 
       test('uses highest offensive level for random attack type', () {
         final action = CombatAction(
-          id: MelvorId('test:random_monster'),
+          id: ActionId(Skill.combat.id, 'Random Monster'),
           name: 'Random Monster',
           levels: const MonsterLevels(
             hitpoints: 10,

@@ -40,7 +40,7 @@ class _ThievingPageState extends State<ThievingPage> {
     // Group actions by area using the ThievingAreaRegistry
     final actionsByArea = <ThievingArea, List<ThievingAction>>{};
     for (final action in thievingActions) {
-      final area = registries.thievingAreas.areaForNpc(action.id);
+      final area = registries.thievingAreas.areaForNpc(action.id.namespacedId);
       actionsByArea.putIfAbsent(area, () => []).add(action);
     }
 

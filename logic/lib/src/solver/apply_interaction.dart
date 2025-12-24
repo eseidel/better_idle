@@ -18,6 +18,7 @@ library;
 
 import 'dart:math';
 
+import 'package:logic/src/data/action_id.dart';
 import 'package:logic/src/data/currency.dart';
 import 'package:logic/src/data/melvor_id.dart';
 import 'package:logic/src/state.dart';
@@ -46,7 +47,7 @@ GlobalState applyInteraction(GlobalState state, Interaction interaction) {
 /// Switches to a different activity.
 GlobalState _applySwitchActivity(
   GlobalState state,
-  MelvorId actionId,
+  ActionId actionId,
   Random random,
 ) {
   final action = state.registries.actions.byId(actionId);

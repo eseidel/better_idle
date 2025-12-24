@@ -51,7 +51,7 @@ void main() {
 
     test('active action is excluded from switches', () {
       var state = GlobalState.test(testRegistries, gp: 500);
-      final action = testActions.byName('Normal Tree');
+      final action = testActions.woodcutting('Normal Tree');
       final random = Random(0);
       state = state.startAction(action, random: random);
 

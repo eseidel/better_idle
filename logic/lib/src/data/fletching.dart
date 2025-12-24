@@ -1,5 +1,6 @@
 import 'package:meta/meta.dart';
 
+import 'action_id.dart';
 import 'actions.dart';
 import 'melvor_id.dart';
 
@@ -94,10 +95,7 @@ class FletchingAction extends SkillAction {
     }
 
     return FletchingAction(
-      id: MelvorId.fromJsonWithNamespace(
-        json['id'] as String,
-        defaultNamespace: namespace,
-      ),
+      id: ActionId(Skill.fletching.id, json['id'] as String),
       name: productId.name,
       unlockLevel: json['level'] as int,
       xp: json['baseExperience'] as int,

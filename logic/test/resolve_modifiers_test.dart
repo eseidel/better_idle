@@ -54,13 +54,13 @@ void main() {
 
   group('resolveModifiers', () {
     // Create fake IDs for testing
-    final fakeActionId = MelvorId('test:FakeAction');
+    final fakeLocalId = 'FakeAction';
     final fakeShopPurchaseId = MelvorId('test:FakePurchase');
 
     // Helper to create a fake SkillAction
-    SkillAction createFakeAction({required Skill skill, MelvorId? id}) {
+    SkillAction createFakeAction({required Skill skill, String? localId}) {
       return SkillAction(
-        id: id ?? fakeActionId,
+        id: ActionId(skill.id, localId ?? fakeLocalId),
         skill: skill,
         name: 'Fake Action',
         duration: const Duration(seconds: 3),
@@ -152,7 +152,7 @@ void main() {
         // Create a Firemaking action
         final firemakingAction = createFakeAction(
           skill: Skill.firemaking,
-          id: MelvorId('test:FiremakingAction'),
+          localId: 'FiremakingAction',
         );
 
         // At level 99, the global bonus should apply
@@ -312,7 +312,7 @@ void main() {
 
       final woodcuttingAction = createFakeAction(
         skill: Skill.woodcutting,
-        id: MelvorId('test:WoodcuttingAction'),
+        localId: 'WoodcuttingAction',
       );
 
       final stateWithPurchase = GlobalState.test(
@@ -496,7 +496,7 @@ void main() {
 
       // 3 second action = 30 ticks
       final action = SkillAction(
-        id: MelvorId('test:TestAction'),
+        id: ActionId(Skill.woodcutting.id, 'TestAction'),
         skill: Skill.woodcutting,
         name: 'Test Action',
         duration: const Duration(seconds: 3),

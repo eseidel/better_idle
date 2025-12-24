@@ -1,9 +1,9 @@
 import 'dart:math';
 
 import 'package:logic/src/action_state.dart';
+import 'package:logic/src/data/action_id.dart';
 import 'package:logic/src/data/actions.dart';
 import 'package:logic/src/data/currency.dart';
-import 'package:logic/src/data/melvor_id.dart';
 import 'package:logic/src/data/registries.dart';
 import 'package:logic/src/data/xp.dart';
 import 'package:logic/src/state.dart';
@@ -194,7 +194,7 @@ typedef BackgroundTickResult = ({
 /// Background actions run in parallel with the foreground action.
 abstract class BackgroundTickConsumer {
   /// The action ID this background consumer is associated with.
-  MelvorId get actionId;
+  ActionId get actionId;
 
   /// Whether this background action has work to do.
   bool get isActive;
@@ -208,7 +208,7 @@ class MiningBackgroundAction implements BackgroundTickConsumer {
   MiningBackgroundAction(this.actionId, this.miningState);
 
   @override
-  final MelvorId actionId;
+  final ActionId actionId;
 
   final MiningState miningState;
 
@@ -241,7 +241,7 @@ class MiningBackgroundAction implements BackgroundTickConsumer {
 /// foreground handles respawn synchronously).
 List<BackgroundTickConsumer> _getBackgroundActions(
   GlobalState state, {
-  MelvorId? activeActionId,
+  ActionId? activeActionId,
 }) {
   final backgrounds = <BackgroundTickConsumer>[];
   final actions = state.registries.actions;
@@ -281,7 +281,7 @@ void _applyBackgroundTicks(
   StateUpdateBuilder builder,
   List<BackgroundTickConsumer> backgrounds,
   Tick ticks, {
-  MelvorId? activeActionId,
+  ActionId? activeActionId,
   bool skipStunCountdown = false,
 }) {
   // Apply stunned countdown (unless stun was just applied this iteration)
@@ -412,14 +412,14 @@ class StateUpdateBuilder {
     // Skill Mastery XP is not tracked in the changes object.
   }
 
-  void addActionMasteryXp(MelvorId actionId, int amount) {
+  void addActionMasteryXp(ActionId actionId, int amount) {
     _state = _state.addActionMasteryXp(actionId, amount);
     // Action Mastery XP is not tracked in the changes object.
     // Probably getting to 99 is?
   }
 
-  void updateActionState(MelvorId actionId, ActionState newState) {
-    final newActionStates = Map<MelvorId, ActionState>.from(
+  void updateActionState(ActionId actionId, ActionState newState) {
+    final newActionStates = Map<ActionId, ActionState>.from(
       _state.actionStates,
     );
     newActionStates[actionId] = newState;
@@ -448,14 +448,14 @@ class StateUpdateBuilder {
   }
 
   /// Updates the combat state for an action.
-  void updateCombatState(MelvorId actionId, CombatActionState newCombat) {
+  void updateCombatState(ActionId actionId, CombatActionState newCombat) {
     final actionState = _state.actionState(actionId);
     updateActionState(actionId, actionState.copyWith(combat: newCombat));
   }
 
   /// Depletes a mining node and starts its respawn timer.
   void depleteResourceNode(
-    MelvorId actionId,
+    ActionId actionId,
     MiningAction action,
     int totalHpLost,
   ) {
@@ -468,7 +468,7 @@ class StateUpdateBuilder {
   }
 
   /// Damages a mining node and starts HP regeneration if needed.
-  void damageResourceNode(MelvorId actionId, int totalHpLost) {
+  void damageResourceNode(ActionId actionId, int totalHpLost) {
     final actionState = _state.actionState(actionId);
     final currentMining = actionState.mining ?? const MiningState.empty();
     final newMining = currentMining.copyWith(
@@ -481,7 +481,7 @@ class StateUpdateBuilder {
   }
 
   /// Updates the mining state for an action.
-  void updateMiningState(MelvorId actionId, MiningState newMining) {
+  void updateMiningState(ActionId actionId, MiningState newMining) {
     final actionState = _state.actionState(actionId);
     updateActionState(actionId, actionState.copyWith(mining: newMining));
   }

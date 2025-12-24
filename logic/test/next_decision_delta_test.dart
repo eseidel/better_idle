@@ -28,7 +28,7 @@ void main() {
 
     test('returns positive rates for active skill action', () {
       var state = GlobalState.empty(testRegistries);
-      final action = testActions.byName('Normal Tree');
+      final action = testActions.woodcutting('Normal Tree');
       state = state.startAction(action, random: Random(0));
 
       final rates = estimateRates(state);
@@ -39,7 +39,7 @@ void main() {
 
     test('applies upgrade modifiers to rates', () {
       var stateNoUpgrade = GlobalState.empty(testRegistries);
-      final action = testActions.byName('Normal Tree');
+      final action = testActions.woodcutting('Normal Tree');
       stateNoUpgrade = stateNoUpgrade.startAction(action, random: Random(0));
 
       final ironAxeId = MelvorId('melvorD:Iron_Axe');
@@ -104,7 +104,7 @@ void main() {
     test('returns ticks until upgrade affordable', () {
       // Start with action active but no money
       var state = GlobalState.empty(testRegistries);
-      final action = testActions.byName('Copper'); // Mining copper
+      final action = testActions.mining('Copper');
       state = state.startAction(action, random: Random(0));
 
       const goal = ReachGpGoal(10000);
@@ -123,7 +123,7 @@ void main() {
     test('returns ticks until goal reached when close to goal', () {
       // Start with action and some money close to goal
       var state = GlobalState.test(testRegistries, gp: 90);
-      final action = testActions.byName('Copper');
+      final action = testActions.mining('Copper');
       state = state.startAction(action, random: Random(0));
 
       const goal = ReachGpGoal(100); // Only need 10 more GP
@@ -152,14 +152,14 @@ void main() {
     test('computes unlock delta for watched activities', () {
       // Start at level 1 fishing, Raw Sardine unlocks at level 5
       var state = GlobalState.empty(testRegistries);
-      final action = testActions.byName('Raw Shrimp');
+      final action = testActions.fishing('Raw Shrimp');
       state = state.startAction(action, random: Random(0));
 
       const goal = ReachGpGoal(100000);
       final candidates = enumerateCandidates(state, goal);
 
       // Should be watching Raw Sardine
-      final sardineAction = testActions.byName('Raw Sardine');
+      final sardineAction = testActions.fishing('Raw Sardine');
       expect(candidates.watch.lockedActivityIds, contains(sardineAction.id));
 
       final result = nextDecisionDelta(state, goal, candidates);
@@ -171,7 +171,7 @@ void main() {
 
     test('is deterministic', () {
       var state = GlobalState.test(testRegistries, gp: 10);
-      final action = testActions.byName('Normal Tree');
+      final action = testActions.woodcutting('Normal Tree');
       state = state.startAction(action, random: Random(0));
 
       const goal = ReachGpGoal(1000);

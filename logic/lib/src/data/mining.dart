@@ -3,6 +3,7 @@ import 'package:logic/src/tick.dart';
 import 'package:logic/src/types/drop.dart';
 import 'package:meta/meta.dart';
 
+import 'action_id.dart';
 import 'actions.dart';
 import 'melvor_id.dart';
 
@@ -52,10 +53,7 @@ class MiningAction extends SkillAction {
     final category = json['category'] as String?;
 
     return MiningAction(
-      id: MelvorId.fromJsonWithNamespace(
-        json['id'] as String,
-        defaultNamespace: namespace,
-      ),
+      id: ActionId(Skill.mining.id, json['id'] as String),
       name: json['name'] as String,
       unlockLevel: json['level'] as int,
       xp: json['baseExperience'] as int,

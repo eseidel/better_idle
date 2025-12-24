@@ -104,11 +104,6 @@ class MelvorData {
     actions.addAll(craftingActions);
     _craftingCategories = craftingCategories;
 
-    // Parse combat before thieving so thieving wins name collisions
-    // (e.g., "Golbin" exists as both monster and thieving NPC).
-    // TODO(eseidel): Having a single ActionRegistry for both skill actions
-    // and combat actions is problematic due to name collisions. Consider
-    // separating into SkillActionRegistry and CombatActionRegistry.
     for (final json in dataFiles) {
       final namespace = json['namespace'] as String;
       actions.addAll(parseCombatActions(json, namespace: namespace));

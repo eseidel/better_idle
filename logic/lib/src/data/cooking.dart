@@ -1,5 +1,6 @@
 import 'package:meta/meta.dart';
 
+import 'action_id.dart';
 import 'actions.dart';
 import 'melvor_id.dart';
 
@@ -71,10 +72,7 @@ class CookingAction extends SkillAction {
     final name = productId.name;
 
     return CookingAction(
-      id: MelvorId.fromJsonWithNamespace(
-        json['id'] as String,
-        defaultNamespace: namespace,
-      ),
+      id: ActionId(Skill.cooking.id, json['id'] as String),
       name: name,
       unlockLevel: json['level'] as int,
       xp: json['baseExperience'] as int,

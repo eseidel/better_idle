@@ -1,4 +1,7 @@
+import 'dart:math';
+
 import 'package:logic/logic.dart';
+import 'package:logic/src/types/resolved_modifiers.dart';
 import 'package:test/test.dart';
 
 import 'test_helper.dart';
@@ -9,8 +12,8 @@ void main() {
 
   setUpAll(() async {
     await loadTestRegistries();
-    normalTree = testActions.skillActionByName('Normal Tree');
-    copperMining = testActions.skillActionByName('Copper');
+    normalTree = testActions.woodcutting('Normal Tree');
+    copperMining = testActions.mining('Copper');
   });
 
   group('SkillAction', () {
@@ -88,6 +91,50 @@ void main() {
         hasAnyGem,
         isTrue,
         reason: 'Mining drops should include gems from miningGemTable',
+      );
+    });
+  });
+
+  group('rollAndCollectDrops', () {
+    test('doubles items when random triggers doubling chance', () {
+      final normalLogsId = MelvorId.fromName('Normal Logs');
+      final state = GlobalState.test(testRegistries);
+      final builder = StateUpdateBuilder(state);
+
+      // Create modifiers with 100% doubling chance to guarantee doubling
+      const modifiers = ResolvedModifiers({'skillItemDoublingChance': 100});
+
+      // Use a fixed seed random - the doubling check uses random.nextDouble()
+      // With 100% chance, any random value will trigger doubling
+      final random = Random(42);
+
+      rollAndCollectDrops(builder, normalTree, modifiers, random);
+
+      // With 100% doubling chance, we should get 2 logs instead of 1
+      final inventory = builder.state.inventory;
+      final logsCount = inventory.countById(normalLogsId);
+      expect(logsCount, 2, reason: 'Should have doubled the logs drop');
+    });
+
+    test('does not double items when doubling chance is 0', () {
+      final normalLogsId = MelvorId.fromName('Normal Logs');
+      final state = GlobalState.test(testRegistries);
+      final builder = StateUpdateBuilder(state);
+
+      // No doubling chance
+      const modifiers = ResolvedModifiers.empty;
+
+      final random = Random(42);
+
+      rollAndCollectDrops(builder, normalTree, modifiers, random);
+
+      // With 0% doubling chance, we should get exactly 1 log
+      final inventory = builder.state.inventory;
+      final logsCount = inventory.countById(normalLogsId);
+      expect(
+        logsCount,
+        1,
+        reason: 'Should have exactly 1 log without doubling',
       );
     });
   });

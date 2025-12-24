@@ -15,6 +15,7 @@
 /// passing) is handled separately via [WaitStep] in plans.
 library;
 
+import 'package:logic/src/data/action_id.dart';
 import 'package:logic/src/data/melvor_id.dart';
 
 /// Represents a possible interaction that can change game state.
@@ -29,7 +30,7 @@ sealed class Interaction {
 class SwitchActivity extends Interaction {
   const SwitchActivity(this.actionId);
 
-  final MelvorId actionId;
+  final ActionId actionId;
 
   @override
   String toString() => 'SwitchActivity($actionId)';
