@@ -61,6 +61,30 @@ void main() {
     });
   });
 
+  group('ActionRegistry', () {
+    test('combatWithId returns CombatAction for valid monster ID', () {
+      // Use the combat() helper to get a known monster, then verify combatWithId
+      // can find it by MelvorId.
+      final chicken = testActions.combat('Chicken');
+      final monsterId = chicken.id.namespacedId;
+
+      final result = testActions.combatWithId(monsterId);
+
+      expect(result, isA<CombatAction>());
+      expect(result.name, 'Chicken');
+      expect(result.id, chicken.id);
+    });
+
+    test('combatWithId throws for invalid monster ID', () {
+      final invalidId = MelvorId('melvorD:NonExistentMonster');
+
+      expect(
+        () => testActions.combatWithId(invalidId),
+        throwsA(isA<TypeError>()),
+      );
+    });
+  });
+
   group('allDropsForAction', () {
     test('mining actions include gem drops from miningGemTable', () {
       final drops = testDrops.allDropsForAction(copperMining, masteryLevel: 1);
