@@ -222,9 +222,6 @@ class ActionRegistry {
   MiningAction mining(String name) =>
       _bySkillAndName(Skill.mining, name) as MiningAction;
 
-  SkillAction cooking(String name) =>
-      _bySkillAndName(Skill.cooking, name) as SkillAction;
-
   SkillAction firemaking(String name) =>
       _bySkillAndName(Skill.firemaking, name) as SkillAction;
 

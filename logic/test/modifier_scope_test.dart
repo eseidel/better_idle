@@ -57,16 +57,12 @@ void main() {
         skillId: MelvorId('melvorD:Woodcutting'),
         actionId: MelvorId('melvorD:Oak'),
       );
-      final scope2 = ModifierScope(
-        skillId: MelvorId('melvorD:Woodcutting'),
-      );
+      final scope2 = ModifierScope(skillId: MelvorId('melvorD:Woodcutting'));
       expect(scope1, isNot(equals(scope2)));
     });
 
     test('scope with null field differs from scope with value', () {
-      final scope1 = ModifierScope(
-        skillId: MelvorId('melvorD:Woodcutting'),
-      );
+      final scope1 = ModifierScope(skillId: MelvorId('melvorD:Woodcutting'));
       final scope2 = ModifierScope(
         skillId: MelvorId('melvorD:Woodcutting'),
         actionId: MelvorId('melvorD:Oak'),
@@ -128,14 +124,10 @@ void main() {
       );
       expect(scopeWithSkill.isGlobal, isFalse);
 
-      final scopeWithAction = ModifierScope(
-        actionId: MelvorId('melvorD:Oak'),
-      );
+      final scopeWithAction = ModifierScope(actionId: MelvorId('melvorD:Oak'));
       expect(scopeWithAction.isGlobal, isFalse);
 
-      final scopeWithRealm = ModifierScope(
-        realmId: MelvorId('melvorD:Melvor'),
-      );
+      final scopeWithRealm = ModifierScope(realmId: MelvorId('melvorD:Melvor'));
       expect(scopeWithRealm.isGlobal, isFalse);
     });
   });
@@ -232,6 +224,248 @@ void main() {
       expect(scope.currencyId, equals(MelvorId('melvorD:GP')));
       expect(scope.damageTypeId, equals(MelvorId('melvorD:Normal')));
       expect(scope.effectGroupId, equals(MelvorId('melvorD:Burn')));
+    });
+  });
+
+  group('ModifierEntry', () {
+    test('entries with same value and no scope are equal', () {
+      const entry1 = ModifierEntry(value: 5);
+      const entry2 = ModifierEntry(value: 5);
+      expect(entry1, equals(entry2));
+      expect(entry1.hashCode, equals(entry2.hashCode));
+    });
+
+    test('entries with different values are not equal', () {
+      const entry1 = ModifierEntry(value: 5);
+      const entry2 = ModifierEntry(value: 10);
+      expect(entry1, isNot(equals(entry2)));
+    });
+
+    test('entries with same value and scope are equal', () {
+      final scope = ModifierScope(skillId: MelvorId('melvorD:Woodcutting'));
+      final entry1 = ModifierEntry(value: 5, scope: scope);
+      final entry2 = ModifierEntry(value: 5, scope: scope);
+      expect(entry1, equals(entry2));
+      expect(entry1.hashCode, equals(entry2.hashCode));
+    });
+
+    test('entries with same value but different scope are not equal', () {
+      final entry1 = ModifierEntry(
+        value: 5,
+        scope: ModifierScope(skillId: MelvorId('melvorD:Woodcutting')),
+      );
+      final entry2 = ModifierEntry(
+        value: 5,
+        scope: ModifierScope(skillId: MelvorId('melvorD:Fishing')),
+      );
+      expect(entry1, isNot(equals(entry2)));
+    });
+
+    test('entry with scope differs from entry without scope', () {
+      const entry1 = ModifierEntry(value: 5);
+      final entry2 = ModifierEntry(
+        value: 5,
+        scope: ModifierScope(skillId: MelvorId('melvorD:Woodcutting')),
+      );
+      expect(entry1, isNot(equals(entry2)));
+    });
+
+    test('appliesToSkill with null scope returns true for any skill', () {
+      const entry = ModifierEntry(value: 5);
+      expect(entry.appliesToSkill(MelvorId('melvorD:Woodcutting')), isTrue);
+      expect(entry.appliesToSkill(MelvorId('melvorD:Fishing')), isTrue);
+    });
+
+    test('appliesToSkill delegates to scope', () {
+      final entry = ModifierEntry(
+        value: 5,
+        scope: ModifierScope(skillId: MelvorId('melvorD:Woodcutting')),
+      );
+      expect(entry.appliesToSkill(MelvorId('melvorD:Woodcutting')), isTrue);
+      expect(entry.appliesToSkill(MelvorId('melvorD:Fishing')), isFalse);
+    });
+  });
+
+  group('ModifierData', () {
+    test('equality with same name and entries', () {
+      const data1 = ModifierData(
+        name: 'skillXP',
+        entries: [ModifierEntry(value: 5)],
+      );
+      const data2 = ModifierData(
+        name: 'skillXP',
+        entries: [ModifierEntry(value: 5)],
+      );
+      expect(data1, equals(data2));
+      expect(data1.hashCode, equals(data2.hashCode));
+    });
+
+    test('inequality with different name', () {
+      const data1 = ModifierData(
+        name: 'skillXP',
+        entries: [ModifierEntry(value: 5)],
+      );
+      const data2 = ModifierData(
+        name: 'skillInterval',
+        entries: [ModifierEntry(value: 5)],
+      );
+      expect(data1, isNot(equals(data2)));
+    });
+
+    test('isScalar true for single unscoped entry', () {
+      const data = ModifierData(
+        name: 'skillXP',
+        entries: [ModifierEntry(value: 5)],
+      );
+      expect(data.isScalar, isTrue);
+    });
+
+    test('isScalar false for multiple entries', () {
+      const data = ModifierData(
+        name: 'skillXP',
+        entries: [ModifierEntry(value: 5), ModifierEntry(value: 3)],
+      );
+      expect(data.isScalar, isFalse);
+    });
+
+    test('isScalar false for scoped entry', () {
+      final data = ModifierData(
+        name: 'skillXP',
+        entries: [
+          ModifierEntry(
+            value: 5,
+            scope: ModifierScope(skillId: MelvorId('melvorD:Woodcutting')),
+          ),
+        ],
+      );
+      expect(data.isScalar, isFalse);
+    });
+
+    test('totalValue sums all entries', () {
+      const data = ModifierData(
+        name: 'skillXP',
+        entries: [
+          ModifierEntry(value: 5),
+          ModifierEntry(value: 3),
+          ModifierEntry(value: 2),
+        ],
+      );
+      expect(data.totalValue, 10);
+    });
+  });
+
+  group('ModifierDataSet', () {
+    test('equality with same modifiers', () {
+      const set1 = ModifierDataSet([
+        ModifierData(name: 'skillXP', entries: [ModifierEntry(value: 5)]),
+      ]);
+      const set2 = ModifierDataSet([
+        ModifierData(name: 'skillXP', entries: [ModifierEntry(value: 5)]),
+      ]);
+      expect(set1, equals(set2));
+      expect(set1.hashCode, equals(set2.hashCode));
+    });
+
+    test('byName returns modifier when found', () {
+      const set = ModifierDataSet([
+        ModifierData(name: 'skillXP', entries: [ModifierEntry(value: 5)]),
+        ModifierData(
+          name: 'skillInterval',
+          entries: [ModifierEntry(value: -3)],
+        ),
+      ]);
+      final mod = set.byName('skillXP');
+      expect(mod, isNotNull);
+      expect(mod!.name, 'skillXP');
+    });
+
+    test('byName returns null when not found', () {
+      const set = ModifierDataSet([
+        ModifierData(name: 'skillXP', entries: [ModifierEntry(value: 5)]),
+      ]);
+      expect(set.byName('skillInterval'), isNull);
+    });
+
+    test('skillIntervalForSkill returns value for matching skill', () {
+      final set = ModifierDataSet([
+        ModifierData(
+          name: 'skillInterval',
+          entries: [
+            ModifierEntry(
+              value: -5,
+              scope: ModifierScope(skillId: MelvorId('melvorD:Woodcutting')),
+            ),
+            ModifierEntry(
+              value: -3,
+              scope: ModifierScope(skillId: MelvorId('melvorD:Fishing')),
+            ),
+          ],
+        ),
+      ]);
+      expect(set.skillIntervalForSkill(MelvorId('melvorD:Woodcutting')), -5);
+      expect(set.skillIntervalForSkill(MelvorId('melvorD:Fishing')), -3);
+    });
+
+    test('skillIntervalForSkill returns 0 when no modifier', () {
+      const set = ModifierDataSet([]);
+      expect(set.skillIntervalForSkill(MelvorId('melvorD:Woodcutting')), 0);
+    });
+
+    test('hasSkillIntervalFor returns true when skill has modifier', () {
+      final set = ModifierDataSet([
+        ModifierData(
+          name: 'skillInterval',
+          entries: [
+            ModifierEntry(
+              value: -5,
+              scope: ModifierScope(skillId: MelvorId('melvorD:Woodcutting')),
+            ),
+          ],
+        ),
+      ]);
+      expect(set.hasSkillIntervalFor(MelvorId('melvorD:Woodcutting')), isTrue);
+      expect(set.hasSkillIntervalFor(MelvorId('melvorD:Fishing')), isFalse);
+    });
+
+    test('skillIntervalSkillIds returns all skills with modifiers', () {
+      final set = ModifierDataSet([
+        ModifierData(
+          name: 'skillInterval',
+          entries: [
+            ModifierEntry(
+              value: -5,
+              scope: ModifierScope(skillId: MelvorId('melvorD:Woodcutting')),
+            ),
+            ModifierEntry(
+              value: -3,
+              scope: ModifierScope(skillId: MelvorId('melvorD:Fishing')),
+            ),
+          ],
+        ),
+      ]);
+      expect(set.skillIntervalSkillIds, [
+        MelvorId('melvorD:Woodcutting'),
+        MelvorId('melvorD:Fishing'),
+      ]);
+    });
+
+    test('totalSkillInterval sums all skill interval entries', () {
+      final set = ModifierDataSet([
+        ModifierData(
+          name: 'skillInterval',
+          entries: [
+            ModifierEntry(
+              value: -5,
+              scope: ModifierScope(skillId: MelvorId('melvorD:Woodcutting')),
+            ),
+            ModifierEntry(
+              value: -3,
+              scope: ModifierScope(skillId: MelvorId('melvorD:Fishing')),
+            ),
+          ],
+        ),
+      ]);
+      expect(set.totalSkillInterval, -8);
     });
   });
 }
