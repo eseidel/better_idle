@@ -86,16 +86,19 @@ class ItemGrid extends StatelessWidget {
   final List<ItemStack> stacks;
   final void Function(ItemStack) onItemTap;
 
-  static const double _cellSize = 72;
+  // Cell dimensions: 64px square + 8px badge overlap = 64x72
+  static const double _cellWidth = 64;
+  static const double _cellHeight = 72;
 
   @override
   Widget build(BuildContext context) {
     return GridView.builder(
       padding: const EdgeInsets.all(12),
       gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
-        maxCrossAxisExtent: _cellSize,
+        maxCrossAxisExtent: _cellWidth,
         crossAxisSpacing: 4,
         mainAxisSpacing: 4,
+        childAspectRatio: _cellWidth / _cellHeight,
       ),
       itemCount: stacks.length,
       itemBuilder: (context, index) {
@@ -114,16 +117,19 @@ class StackCell extends StatelessWidget {
   final ItemStack stack;
   final VoidCallback onTap;
 
+  // Grid cell is 72px. Badge overlap is 8px, so inradius = 72 - 8 = 64.
+  static const double _inradius = 64;
+
   @override
   Widget build(BuildContext context) {
     return CountBadgeCell(
+      inradius: _inradius,
       onTap: onTap,
       backgroundColor: Style.cellBackgroundColor,
       borderColor: Style.cellBorderColorSuccess,
       count: stack.count,
-      child: Padding(
-        padding: const EdgeInsets.all(6),
-        child: Center(child: ItemImage(item: stack.item)),
+      child: Center(
+        child: ItemImage(item: stack.item, size: _inradius * 0.6),
       ),
     );
   }

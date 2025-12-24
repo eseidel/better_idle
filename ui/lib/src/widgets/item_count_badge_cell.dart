@@ -19,14 +19,14 @@ class ItemCountBadgeCell extends StatelessWidget {
     required this.item,
     required this.count,
     this.hasEnough,
-    this.apothem = TextBadgeCell.defaultApothem,
+    this.inradius = TextBadgeCell.defaultInradius,
     super.key,
   });
 
   final Item item;
   final int count;
   final bool? hasEnough;
-  final double apothem;
+  final double inradius;
 
   @override
   Widget build(BuildContext context) {
@@ -36,11 +36,11 @@ class ItemCountBadgeCell extends StatelessWidget {
       null => null,
     };
 
-    // Icon size is roughly 60% of the apothem
-    final iconSize = apothem * 0.6;
+    // Icon size is roughly 60% of the inradius
+    final iconSize = inradius * 0.6;
 
     return CountBadgeCell(
-      apothem: apothem,
+      inradius: inradius,
       backgroundColor: Style.xpBadgeBackgroundColor,
       borderColor: borderColor,
       count: count,

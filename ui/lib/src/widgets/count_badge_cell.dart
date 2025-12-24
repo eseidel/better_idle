@@ -4,15 +4,14 @@ import 'package:logic/logic.dart';
 
 /// A bordered cell with rounded corners and an optional text badge.
 ///
-/// The cell is a square with side length [apothem]. The badge overlaps the
+/// The cell is a square with side length [inradius]. The badge overlaps the
 /// bottom edge, extending below by half the badge height. The total widget
-/// height is [apothem] + [badgeOverlap] when a badge is shown.
+/// height is [inradius] + [badgeOverlap] when a badge is shown.
 class TextBadgeCell extends StatelessWidget {
   const TextBadgeCell({
     required this.child,
-    this.apothem = defaultApothem,
+    this.inradius = defaultInradius,
     this.onTap,
-    this.radius = 8.0,
     this.backgroundColor = Style.transparentColor,
     this.borderColor,
     this.badgeBackgroundColor,
@@ -20,14 +19,14 @@ class TextBadgeCell extends StatelessWidget {
     super.key,
   });
 
-  /// Default apothem size for badge cells.
-  static const double defaultApothem = 48;
+  /// Default inradius size for badge cells.
+  static const double defaultInradius = 48;
 
-  /// Small apothem size for compact badge cells.
-  static const double smallApothem = 32;
+  /// Small inradius size for compact badge cells.
+  static const double smallInradius = 32;
 
-  /// Large apothem size for prominent badge cells.
-  static const double largeApothem = 64;
+  /// Large inradius size for prominent badge cells.
+  static const double largeInradius = 64;
 
   /// Badge height constant.
   static const double badgeHeight = 16;
@@ -35,10 +34,12 @@ class TextBadgeCell extends StatelessWidget {
   /// How much the badge extends below the cell.
   static const double badgeOverlap = badgeHeight / 2;
 
+  /// Border radius for the cell.
+  static final BorderRadius borderRadius = BorderRadius.circular(8);
+
   final Widget child;
-  final double apothem;
+  final double inradius;
   final VoidCallback? onTap;
-  final double radius;
   final Color backgroundColor;
   final Color? borderColor;
   final Color? badgeBackgroundColor;
@@ -73,27 +74,27 @@ class TextBadgeCell extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final effectiveBorderColor = borderColor ?? backgroundColor;
-    final totalHeight = text != null ? apothem + badgeOverlap : apothem;
+    final totalHeight = text != null ? inradius + badgeOverlap : inradius;
 
     return SizedBox(
-      width: apothem,
+      width: inradius,
       height: totalHeight,
       child: Stack(
         clipBehavior: Clip.none,
         children: [
           // Main square cell
           SizedBox(
-            width: apothem,
-            height: apothem,
+            width: inradius,
+            height: inradius,
             child: Material(
               color: backgroundColor,
-              borderRadius: BorderRadius.circular(radius),
+              borderRadius: borderRadius,
               child: InkWell(
                 onTap: onTap,
-                borderRadius: BorderRadius.circular(radius),
+                borderRadius: borderRadius,
                 child: Container(
                   decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(radius),
+                    borderRadius: borderRadius,
                     border: Border.all(color: effectiveBorderColor, width: 2),
                   ),
                   child: child,
@@ -119,9 +120,8 @@ class TextBadgeCell extends StatelessWidget {
 class CountBadgeCell extends StatelessWidget {
   const CountBadgeCell({
     required this.child,
-    this.apothem = TextBadgeCell.defaultApothem,
+    this.inradius = TextBadgeCell.defaultInradius,
     this.onTap,
-    this.radius = 8.0,
     this.backgroundColor = Style.transparentColor,
     this.borderColor,
     this.badgeBackgroundColor,
@@ -130,9 +130,8 @@ class CountBadgeCell extends StatelessWidget {
   });
 
   final Widget child;
-  final double apothem;
+  final double inradius;
   final VoidCallback? onTap;
-  final double radius;
   final Color backgroundColor;
   final Color? borderColor;
   final Color? badgeBackgroundColor;
@@ -141,9 +140,8 @@ class CountBadgeCell extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return TextBadgeCell(
-      apothem: apothem,
+      inradius: inradius,
       onTap: onTap,
-      radius: radius,
       backgroundColor: backgroundColor,
       borderColor: borderColor,
       badgeBackgroundColor: badgeBackgroundColor,
