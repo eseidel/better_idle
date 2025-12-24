@@ -4,6 +4,7 @@ import 'package:better_idle/src/widgets/context_extensions.dart';
 import 'package:better_idle/src/widgets/double_chance_badge_cell.dart';
 import 'package:better_idle/src/widgets/item_image.dart';
 import 'package:better_idle/src/widgets/mastery_pool.dart';
+import 'package:better_idle/src/widgets/mastery_unlocks_dialog.dart';
 import 'package:better_idle/src/widgets/navigation_drawer.dart';
 import 'package:better_idle/src/widgets/recycle_chance_badge_cell.dart';
 import 'package:better_idle/src/widgets/skill_progress.dart';
@@ -55,6 +56,7 @@ class _CraftingPageState extends State<CraftingPage> {
         children: [
           SkillProgress(xp: skillState.xp),
           MasteryPoolProgress(xp: skillState.masteryPoolXp),
+          const MasteryUnlocksButton(skill: skill),
           Expanded(
             child: SingleChildScrollView(
               padding: const EdgeInsets.all(16),

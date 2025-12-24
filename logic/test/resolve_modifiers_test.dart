@@ -70,28 +70,8 @@ void main() {
       );
     }
 
-    // Helper to create empty registries with optional overrides
-    Registries createTestRegistries({
-      ShopRegistry? shop,
-      MasteryBonusRegistry? masteryBonuses,
-    }) {
-      return Registries(
-        ItemRegistry([]),
-        ActionRegistry([]),
-        DropsRegistry({}, []),
-        FishingAreaRegistry([]),
-        SmithingCategoryRegistry([]),
-        FletchingCategoryRegistry([]),
-        CraftingCategoryRegistry([]),
-        ThievingAreaRegistry([]),
-        CombatAreaRegistry([]),
-        shop ?? ShopRegistry([], []),
-        masteryBonuses ?? MasteryBonusRegistry([]),
-      );
-    }
-
     test('returns empty when no modifiers apply', () {
-      final registries = createTestRegistries();
+      final registries = Registries.test();
       final action = createFakeAction(skill: Skill.woodcutting);
       final state = GlobalState.test(registries);
       final modifiers = state.resolveModifiers(action);
@@ -116,7 +96,7 @@ void main() {
         level: 99,
       );
 
-      final registries = createTestRegistries(
+      final registries = Registries.test(
         masteryBonuses: MasteryBonusRegistry([
           SkillMasteryBonuses(
             skillId: Skill.woodcutting.id,
@@ -161,7 +141,7 @@ void main() {
           autoScopeToAction: false, // This makes it apply globally
         );
 
-        final registries = createTestRegistries(
+        final registries = Registries.test(
           masteryBonuses: MasteryBonusRegistry([
             SkillMasteryBonuses(
               skillId: Skill.firemaking.id,
@@ -208,7 +188,7 @@ void main() {
         levelScalingMax: 90,
       );
 
-      final registries = createTestRegistries(
+      final registries = Registries.test(
         masteryBonuses: MasteryBonusRegistry([
           SkillMasteryBonuses(
             skillId: Skill.woodcutting.id,
@@ -295,7 +275,7 @@ void main() {
         buyLimit: 1,
       );
 
-      final registries = createTestRegistries(
+      final registries = Registries.test(
         shop: ShopRegistry([shopPurchase], []),
       );
 
@@ -342,7 +322,7 @@ void main() {
         buyLimit: 1,
       );
 
-      final registries = createTestRegistries(
+      final registries = Registries.test(
         shop: ShopRegistry([globalShopPurchase], []),
       );
 
@@ -410,7 +390,7 @@ void main() {
         level: 50,
       );
 
-      final registries = createTestRegistries(
+      final registries = Registries.test(
         shop: ShopRegistry([shopPurchase], []),
         masteryBonuses: MasteryBonusRegistry([
           SkillMasteryBonuses(
@@ -453,7 +433,7 @@ void main() {
         level: 10,
       );
 
-      final registries = createTestRegistries(
+      final registries = Registries.test(
         masteryBonuses: MasteryBonusRegistry([
           SkillMasteryBonuses(
             skillId: Skill.woodcutting.id, // Bonus is in woodcutting's registry
@@ -520,18 +500,9 @@ void main() {
         level: 99,
       );
 
-      final registries = Registries(
-        ItemRegistry([]),
-        ActionRegistry([]),
-        DropsRegistry({}, []),
-        FishingAreaRegistry([]),
-        SmithingCategoryRegistry([]),
-        FletchingCategoryRegistry([]),
-        CraftingCategoryRegistry([]),
-        ThievingAreaRegistry([]),
-        CombatAreaRegistry([]),
-        ShopRegistry([shopPurchase], []),
-        MasteryBonusRegistry([
+      final registries = Registries.test(
+        shop: ShopRegistry([shopPurchase], []),
+        masteryBonuses: MasteryBonusRegistry([
           SkillMasteryBonuses(
             skillId: Skill.woodcutting.id,
             bonuses: [masteryBonus],

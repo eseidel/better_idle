@@ -4,6 +4,7 @@ import 'package:logic/src/data/actions.dart';
 import 'package:logic/src/data/melvor_data.dart';
 import 'package:logic/src/data/shop.dart';
 import 'package:logic/src/types/mastery.dart';
+import 'package:logic/src/types/mastery_unlock.dart';
 
 class Registries {
   Registries(
@@ -18,7 +19,29 @@ class Registries {
     this.combatAreas,
     this.shop,
     this.masteryBonuses,
+    this.masteryUnlocks,
   );
+
+  static Registries test({
+    ShopRegistry? shop,
+    MasteryBonusRegistry? masteryBonuses,
+    MasteryUnlockRegistry? masteryUnlocks,
+  }) {
+    return Registries(
+      ItemRegistry([]),
+      ActionRegistry([]),
+      DropsRegistry({}, []),
+      FishingAreaRegistry([]),
+      SmithingCategoryRegistry([]),
+      FletchingCategoryRegistry([]),
+      CraftingCategoryRegistry([]),
+      ThievingAreaRegistry([]),
+      CombatAreaRegistry([]),
+      shop ?? ShopRegistry([], []),
+      masteryBonuses ?? MasteryBonusRegistry([]),
+      masteryUnlocks ?? MasteryUnlockRegistry([]),
+    );
+  }
 
   final ItemRegistry items;
   final ActionRegistry actions;
@@ -31,6 +54,7 @@ class Registries {
   final CombatAreaRegistry combatAreas;
   final ShopRegistry shop;
   final MasteryBonusRegistry masteryBonuses;
+  final MasteryUnlockRegistry masteryUnlocks;
 }
 
 /// Ensures the registries are initialized.
@@ -51,5 +75,6 @@ Future<Registries> loadRegistries({Directory? cacheDir}) async {
     melvorData.combatAreas,
     melvorData.shop,
     melvorData.masteryBonuses,
+    melvorData.masteryUnlocks,
   );
 }

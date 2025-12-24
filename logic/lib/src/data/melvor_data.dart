@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:logic/src/types/mastery.dart';
+import 'package:logic/src/types/mastery_unlock.dart';
 
 import 'actions.dart';
 import 'cache.dart';
@@ -127,6 +128,9 @@ class MelvorData {
 
     // Parse mastery bonuses for all skills
     _masteryBonuses = parseMasteryBonuses(skillDataById);
+
+    // Parse mastery unlocks (display-only descriptions) for all skills
+    _masteryUnlocks = parseMasteryUnlocks(skillDataById);
   }
 
   late final ItemRegistry _items;
@@ -139,6 +143,7 @@ class MelvorData {
   late final ThievingAreaRegistry _thievingAreas;
   late final CombatAreaRegistry _combatAreas;
   late final MasteryBonusRegistry _masteryBonuses;
+  late final MasteryUnlockRegistry _masteryUnlocks;
 
   /// Returns the item registry.
   ItemRegistry get items => _items;
@@ -160,6 +165,8 @@ class MelvorData {
   ShopRegistry get shop => _shop;
 
   MasteryBonusRegistry get masteryBonuses => _masteryBonuses;
+
+  MasteryUnlockRegistry get masteryUnlocks => _masteryUnlocks;
 }
 
 /// Parses all woodcutting data. Returns actions list.
@@ -563,4 +570,29 @@ MasteryBonusRegistry parseMasteryBonuses(
   }
 
   return MasteryBonusRegistry(skillBonuses);
+}
+
+/// Parses mastery level unlocks (display-only descriptions) for all skills.
+MasteryUnlockRegistry parseMasteryUnlocks(
+  Map<String, List<SkillDataEntry>> skillDataById,
+) {
+  final skillUnlocks = <SkillMasteryUnlocks>[];
+
+  for (final entry in skillDataById.entries) {
+    final skillId = MelvorId.fromJson(entry.key);
+    final unlocks = <MasteryLevelUnlock>[];
+
+    // Collect unlocks from all data entries for this skill
+    for (final dataEntry in entry.value) {
+      unlocks.addAll(parseMasteryLevelUnlocks(dataEntry.data));
+    }
+
+    if (unlocks.isNotEmpty) {
+      // Sort by level and remove duplicates
+      unlocks.sort((a, b) => a.level.compareTo(b.level));
+      skillUnlocks.add(SkillMasteryUnlocks(skillId: skillId, unlocks: unlocks));
+    }
+  }
+
+  return MasteryUnlockRegistry(skillUnlocks);
 }

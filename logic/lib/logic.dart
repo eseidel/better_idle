@@ -26,6 +26,7 @@ export 'src/types/equipment_slot.dart';
 export 'src/types/health.dart';
 export 'src/types/inventory.dart';
 export 'src/types/mastery.dart';
+export 'src/types/mastery_unlock.dart';
 export 'src/types/modifier.dart';
 export 'src/types/open_result.dart';
 export 'src/types/stunned.dart';
