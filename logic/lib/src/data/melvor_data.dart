@@ -1,5 +1,7 @@
 import 'dart:io';
 
+import 'package:logic/src/types/mastery.dart';
+
 import 'actions.dart';
 import 'cache.dart';
 import 'melvor_id.dart';
@@ -122,6 +124,9 @@ class MelvorData {
 
     // Parse shop data
     _shop = parseShop(dataFiles);
+
+    // Parse mastery bonuses for all skills
+    _masteryBonuses = parseMasteryBonuses(skillDataById);
   }
 
   late final ItemRegistry _items;
@@ -133,6 +138,7 @@ class MelvorData {
   late final CraftingCategoryRegistry _craftingCategories;
   late final ThievingAreaRegistry _thievingAreas;
   late final CombatAreaRegistry _combatAreas;
+  late final MasteryBonusRegistry _masteryBonuses;
 
   /// Returns the item registry.
   ItemRegistry get items => _items;
@@ -152,6 +158,8 @@ class MelvorData {
   CombatAreaRegistry get combatAreas => _combatAreas;
 
   ShopRegistry get shop => _shop;
+
+  MasteryBonusRegistry get masteryBonuses => _masteryBonuses;
 }
 
 /// Parses all woodcutting data. Returns actions list.
@@ -527,4 +535,32 @@ ShopRegistry parseShop(List<Map<String, dynamic>> dataFiles) {
   }
 
   return ShopRegistry(purchases, categories);
+}
+
+/// Parses mastery level bonuses for all skills.
+MasteryBonusRegistry parseMasteryBonuses(
+  Map<String, List<SkillDataEntry>> skillDataById,
+) {
+  final skillBonuses = <SkillMasteryBonuses>[];
+
+  for (final entry in skillDataById.entries) {
+    final skillId = MelvorId.fromJson(entry.key);
+    final bonuses = <MasteryLevelBonus>[];
+
+    // Collect bonuses from all data entries for this skill
+    for (final dataEntry in entry.value) {
+      bonuses.addAll(
+        parseMasteryLevelBonuses(
+          dataEntry.data,
+          namespace: dataEntry.namespace,
+        ),
+      );
+    }
+
+    if (bonuses.isNotEmpty) {
+      skillBonuses.add(SkillMasteryBonuses(skillId: skillId, bonuses: bonuses));
+    }
+  }
+
+  return MasteryBonusRegistry(skillBonuses);
 }

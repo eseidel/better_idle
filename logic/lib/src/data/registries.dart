@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:logic/src/data/actions.dart';
 import 'package:logic/src/data/melvor_data.dart';
 import 'package:logic/src/data/shop.dart';
+import 'package:logic/src/types/mastery.dart';
 
 class Registries {
   Registries(
@@ -16,6 +17,7 @@ class Registries {
     this.thievingAreas,
     this.combatAreas,
     this.shop,
+    this.masteryBonuses,
   );
 
   final ItemRegistry items;
@@ -28,6 +30,7 @@ class Registries {
   final ThievingAreaRegistry thievingAreas;
   final CombatAreaRegistry combatAreas;
   final ShopRegistry shop;
+  final MasteryBonusRegistry masteryBonuses;
 }
 
 /// Ensures the registries are initialized.
@@ -47,5 +50,6 @@ Future<Registries> loadRegistries({Directory? cacheDir}) async {
     melvorData.thievingAreas,
     melvorData.combatAreas,
     melvorData.shop,
+    melvorData.masteryBonuses,
   );
 }

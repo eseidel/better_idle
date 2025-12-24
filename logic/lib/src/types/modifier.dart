@@ -46,10 +46,10 @@
 //
 // ## Special Case: masteryLevelBonuses
 //
-// Inside `masteryLevelBonuses`, the `actionID` is NOT a filter - it's a
-// **template placeholder**. These define bonuses that apply at certain
-// mastery levels, and the actionID gets substituted with whatever action
-// they are being evaluated for.
+// All modifiers inside `masteryLevelBonuses` are **templates**. The scope
+// keys (skillID, actionID) in these modifiers are placeholder examples from
+// the data, not actual filters. At evaluation time, these get substituted
+// with the actual action being evaluated.
 //
 // For example, in Fishing's masteryLevelBonuses:
 // ```json
@@ -64,13 +64,13 @@
 //   "levelScalingMax": 99
 // }
 // ```
-// The "Raw_Shrimp" here is just the first fishing action used as an example.
+// The "Raw_Shrimp" here is just an example action used as a placeholder.
 // At runtime, when you have level 50 mastery in catching Lobsters, the game
 // applies this bonus to Lobsters, not Shrimp.
 //
-// The `actionID`-only scope pattern appears EXCLUSIVELY in masteryLevelBonuses.
-// Everywhere else, actionID is combined with skillID (or other keys) to form
-// an actual filter.
+// The `autoScopeToAction` field (default: true) controls this behavior.
+// When false, the modifier applies globally without action substitution
+// (e.g., Firemaking's level 99 bonus gives +0.25% Mastery XP to all skills).
 //
 // ## Special Keys
 //
@@ -89,8 +89,8 @@ import 'package:meta/meta.dart';
 /// Can contain multiple scope keys (skillID, actionID, etc.) that act as
 /// filters - the modifier only applies when all specified conditions match.
 ///
-/// Note: In `masteryLevelBonuses`, an actionID-only scope is a template
-/// placeholder, not a filter. See file header comment for details.
+/// Note: In `masteryLevelBonuses`, all scopes are template placeholders,
+/// not filters. See file header comment for details.
 @immutable
 class ModifierScope extends Equatable {
   const ModifierScope({
