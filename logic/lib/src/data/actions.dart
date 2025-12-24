@@ -161,12 +161,6 @@ final skillDrops = <Skill, List<Droppable>>{
   Skill.thieving: [Drop(MelvorId('melvorF:Bobbys_Pocket'), rate: 1 / 120)],
 };
 
-// Global drops: shared across all skills/actions
-final globalDrops = <Droppable>[
-  // Add global drops here as needed
-  // Example: Drop(name: 'Lucky Coin', rate: 0.0001),
-];
-
 class ActionRegistry {
   ActionRegistry(List<Action> all) : _all = all {
     _byId = {for (final action in _all) action.id: action};
@@ -215,18 +209,14 @@ class ActionRegistry {
 }
 
 class DropsRegistry {
-  DropsRegistry(this._skillDrops, this._globalDrops);
+  DropsRegistry(this._skillDrops);
 
   final Map<Skill, List<Droppable>> _skillDrops;
-  final List<Droppable> _globalDrops;
 
   /// Returns all skill-level drops for a given skill.
   List<Droppable> forSkill(Skill skill) {
     return _skillDrops[skill] ?? [];
   }
-
-  /// Returns all global drops.
-  List<Droppable> get global => _globalDrops;
 
   /// Returns all drops that should be processed when a skill action completes.
   /// This combines action-level drops (from the action), skill-level drops,
@@ -241,7 +231,7 @@ class DropsRegistry {
     return [
       ...action.rewardsForMasteryLevel(masteryLevel), // Action-level drops
       ...forSkill(action.skill), // Skill-level drops (may include DropTables)
-      ...global, // Global drops
+      // Missing global drops.
     ];
   }
 }

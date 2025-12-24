@@ -30,7 +30,7 @@ class Registries {
     return Registries(
       ItemRegistry([]),
       ActionRegistry([]),
-      DropsRegistry({}, []),
+      DropsRegistry({}),
       FishingAreaRegistry([]),
       SmithingCategoryRegistry([]),
       FletchingCategoryRegistry([]),
@@ -66,7 +66,7 @@ Future<Registries> loadRegistries({Directory? cacheDir}) async {
   return Registries(
     melvorData.items,
     melvorData.actions,
-    DropsRegistry(skillDrops, globalDrops),
+    DropsRegistry(skillDrops),
     melvorData.fishingAreas,
     melvorData.smithingCategories,
     melvorData.fletchingCategories,
