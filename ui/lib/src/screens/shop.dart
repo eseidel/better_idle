@@ -338,15 +338,7 @@ class ShopViewModel {
   int skillLevel(Skill skill) => _state.skillState(skill).skillLevel;
 
   /// Returns the player's balance for a currency.
-  int currencyBalance(Currency currency) {
-    return switch (currency) {
-      Currency.gp => _state.gp,
-      // TODO(eseidel): Add slayer coins and raid coins to state when
-      // implemented.
-      Currency.slayerCoins => 0,
-      Currency.raidCoins => 0,
-    };
-  }
+  int currencyBalance(Currency currency) => _state.currency(currency);
 
   /// Returns true if the player can afford all the given currency costs.
   bool canAffordCosts(List<(Currency, int)> costs) {
