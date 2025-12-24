@@ -18,11 +18,7 @@ class DoubleChanceBadgeCell extends StatelessWidget {
     return TextBadgeCell(
       backgroundColor: Style.xpBadgeBackgroundColor,
       text: chance,
-      child: SizedBox(
-        width: 48,
-        height: 48,
-        child: Icon(Icons.call_split, size: 24, color: Style.xpBadgeIconColor),
-      ),
+      child: Icon(Icons.call_split, size: 24, color: Style.xpBadgeIconColor),
     );
   }
 }

@@ -3,11 +3,15 @@ import 'package:flutter/material.dart';
 import 'package:logic/logic.dart';
 
 /// A bordered cell with rounded corners and an optional text badge.
+///
+/// The cell is a square with side length [inradius]. The badge overlaps the
+/// bottom edge, extending below by half the badge height. The total widget
+/// height is [inradius] + [badgeOverlap] when a badge is shown.
 class TextBadgeCell extends StatelessWidget {
   const TextBadgeCell({
     required this.child,
+    this.inradius = defaultInradius,
     this.onTap,
-    this.radius = 8.0,
     this.backgroundColor = Style.transparentColor,
     this.borderColor,
     this.badgeBackgroundColor,
@@ -15,15 +19,33 @@ class TextBadgeCell extends StatelessWidget {
     super.key,
   });
 
+  /// Default inradius size for badge cells.
+  static const double defaultInradius = 48;
+
+  /// Small inradius size for compact badge cells.
+  static const double smallInradius = 32;
+
+  /// Large inradius size for prominent badge cells.
+  static const double largeInradius = 64;
+
+  /// Badge height constant.
+  static const double badgeHeight = 16;
+
+  /// How much the badge extends below the cell.
+  static const double badgeOverlap = badgeHeight / 2;
+
+  /// Border radius for the cell.
+  static final BorderRadius borderRadius = BorderRadius.circular(8);
+
   final Widget child;
+  final double inradius;
   final VoidCallback? onTap;
-  final double radius;
   final Color backgroundColor;
   final Color? borderColor;
   final Color? badgeBackgroundColor;
   final String? text;
 
-  Widget _buildTextBadge({required String text, required double badgeHeight}) {
+  Widget _buildTextBadge({required String text}) {
     return Container(
       height: badgeHeight,
       padding: const EdgeInsets.symmetric(horizontal: 6),
@@ -51,47 +73,45 @@ class TextBadgeCell extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    const badgeHeight = 16.0;
-    const badgeOverlap = badgeHeight / 2;
     final effectiveBorderColor = borderColor ?? backgroundColor;
+    final totalHeight = text != null ? inradius + badgeOverlap : inradius;
 
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        // Main container with InkWell inside
-        Stack(
-          clipBehavior: Clip.none,
-          children: [
-            Material(
+    return SizedBox(
+      width: inradius,
+      height: totalHeight,
+      child: Stack(
+        clipBehavior: Clip.none,
+        children: [
+          // Main square cell
+          SizedBox(
+            width: inradius,
+            height: inradius,
+            child: Material(
               color: backgroundColor,
-              borderRadius: BorderRadius.circular(radius),
+              borderRadius: borderRadius,
               child: InkWell(
                 onTap: onTap,
-                borderRadius: BorderRadius.circular(radius),
+                borderRadius: borderRadius,
                 child: Container(
                   decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(radius),
+                    borderRadius: borderRadius,
                     border: Border.all(color: effectiveBorderColor, width: 2),
                   ),
                   child: child,
                 ),
               ),
             ),
-            // Text badge overlapping the bottom border
-            if (text != null)
-              Positioned(
-                bottom: -badgeOverlap,
-                left: 0,
-                right: 0,
-                child: Center(
-                  child: _buildTextBadge(text: text!, badgeHeight: badgeHeight),
-                ),
-              ),
-          ],
-        ),
-        // Reserve space for the badge overlap
-        if (text != null) const SizedBox(height: badgeOverlap),
-      ],
+          ),
+          // Text badge overlapping the bottom border
+          if (text != null)
+            Positioned(
+              bottom: 0,
+              left: 0,
+              right: 0,
+              child: Center(child: _buildTextBadge(text: text!)),
+            ),
+        ],
+      ),
     );
   }
 }
@@ -100,8 +120,8 @@ class TextBadgeCell extends StatelessWidget {
 class CountBadgeCell extends StatelessWidget {
   const CountBadgeCell({
     required this.child,
+    this.inradius = TextBadgeCell.defaultInradius,
     this.onTap,
-    this.radius = 8.0,
     this.backgroundColor = Style.transparentColor,
     this.borderColor,
     this.badgeBackgroundColor,
@@ -110,8 +130,8 @@ class CountBadgeCell extends StatelessWidget {
   });
 
   final Widget child;
+  final double inradius;
   final VoidCallback? onTap;
-  final double radius;
   final Color backgroundColor;
   final Color? borderColor;
   final Color? badgeBackgroundColor;
@@ -120,8 +140,8 @@ class CountBadgeCell extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return TextBadgeCell(
+      inradius: inradius,
       onTap: onTap,
-      radius: radius,
       backgroundColor: backgroundColor,
       borderColor: borderColor,
       badgeBackgroundColor: badgeBackgroundColor,

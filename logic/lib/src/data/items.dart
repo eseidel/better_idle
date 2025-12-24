@@ -232,9 +232,6 @@ class Item extends Equatable {
     media,
     validSlots,
   ];
-
-  @override
-  String toString() => 'Item($name)';
 }
 
 class ItemRegistry {

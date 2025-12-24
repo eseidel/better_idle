@@ -14,17 +14,13 @@ class XpBadgeCell extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox(
-      width: 48,
-      height: 48,
-      child: CountBadgeCell(
-        backgroundColor: Style.xpBadgeBackgroundColor,
-        count: xp,
-        child: const Center(
-          child: Text(
-            'XP',
-            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
-          ),
+    return CountBadgeCell(
+      backgroundColor: Style.xpBadgeBackgroundColor,
+      count: xp,
+      child: const Center(
+        child: Text(
+          'XP',
+          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
         ),
       ),
     );

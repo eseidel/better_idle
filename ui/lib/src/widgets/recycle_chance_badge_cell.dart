@@ -18,11 +18,7 @@ class RecycleChanceBadgeCell extends StatelessWidget {
     return TextBadgeCell(
       backgroundColor: Style.xpBadgeBackgroundColor,
       text: chance,
-      child: SizedBox(
-        width: 48,
-        height: 48,
-        child: Icon(Icons.recycling, size: 24, color: Style.xpBadgeIconColor),
-      ),
+      child: Icon(Icons.recycling, size: 24, color: Style.xpBadgeIconColor),
     );
   }
 }

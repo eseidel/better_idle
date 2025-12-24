@@ -61,13 +61,6 @@ class FishingArea {
   final List<MelvorId> fishIDs;
   final MelvorId? requiredItemID;
   final bool isSecret;
-
-  @override
-  String toString() {
-    return '$name (fish: ${(fishChance * 100).toInt()}%, '
-        'junk: ${(junkChance * 100).toInt()}%, '
-        'special: ${(specialChance * 100).toInt()}%)';
-  }
 }
 
 /// A fishing action parsed from Melvor data.
