@@ -78,7 +78,7 @@ void main() {
   });
 
   group('ShopCost', () {
-    test('fixedCurrencyCosts returns all fixed costs', () {
+    test('currencyCosts returns all fixed costs', () {
       const cost = ShopCost(
         currencies: [
           CurrencyCost(
@@ -95,13 +95,13 @@ void main() {
         items: [],
       );
 
-      final fixed = cost.fixedCurrencyCosts;
-      expect(fixed.length, 2);
-      expect(fixed[0], (Currency.gp, 1000));
-      expect(fixed[1], (Currency.slayerCoins, 50));
+      final costs = cost.currencyCosts(bankSlotsPurchased: 0);
+      expect(costs.length, 2);
+      expect(costs[0], (Currency.gp, 1000));
+      expect(costs[1], (Currency.slayerCoins, 50));
     });
 
-    test('fixedCurrencyCosts excludes bank slot pricing', () {
+    test('currencyCosts calculates bank slot pricing dynamically', () {
       const cost = ShopCost(
         currencies: [
           CurrencyCost(currency: Currency.gp, type: CostType.bankSlot),
@@ -109,8 +109,18 @@ void main() {
         items: [],
       );
 
-      expect(cost.fixedCurrencyCosts, isEmpty);
-      expect(cost.usesBankSlotPricing, isTrue);
+      // First bank slot cost
+      final costs0 = cost.currencyCosts(bankSlotsPurchased: 0);
+      expect(costs0.length, 1);
+      expect(costs0[0].$1, Currency.gp);
+      expect(costs0[0].$2, calculateBankSlotCost(0));
+
+      // After purchasing some slots, the cost increases
+      final costs5 = cost.currencyCosts(bankSlotsPurchased: 5);
+      expect(costs5.length, 1);
+      expect(costs5[0].$1, Currency.gp);
+      expect(costs5[0].$2, calculateBankSlotCost(5));
+      expect(costs5[0].$2, greaterThan(costs0[0].$2));
     });
 
     test('gpCost returns GP cost for fixed pricing', () {

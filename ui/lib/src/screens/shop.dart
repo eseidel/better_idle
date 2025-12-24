@@ -111,14 +111,13 @@ class _ShopPageState extends State<ShopPage> {
     final rows = <Widget>[];
 
     for (final purchase in purchases) {
-      // Skip bank slots - they're handled separately with dynamic pricing
-      if (purchase.cost.usesBankSlotPricing) continue;
-
       final unmetRequirements = viewModel.unmetSkillRequirements(purchase);
       final meetsAllReqs = unmetRequirements.isEmpty;
 
-      // Get all costs
-      final currencyCosts = purchase.cost.fixedCurrencyCosts;
+      // Get all costs (handles both fixed and bank slot pricing)
+      final currencyCosts = purchase.cost.currencyCosts(
+        bankSlotsPurchased: viewModel.bankSlotsPurchased,
+      );
       final itemCosts = purchase.cost.items;
 
       // Check if player can afford all currencies and items
@@ -299,7 +298,7 @@ class ShopViewModel {
   final GlobalState _state;
 
   int get gp => _state.gp;
-  int get nextBankSlotCost => _state.shop.nextBankSlotCost();
+  int get bankSlotsPurchased => _state.shop.bankSlotsPurchased;
 
   ShopRegistry get _shopRegistry => _state.registries.shop;
 

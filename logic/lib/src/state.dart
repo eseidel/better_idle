@@ -932,10 +932,6 @@ class GlobalState {
     Equipment? equipment,
     StunnedState? stunned,
   }) {
-    // Handle gp convenience parameter
-    var newCurrencies = currencies ?? this.currencies;
-    newCurrencies = Map<Currency, int>.from(newCurrencies);
-    newCurrencies[Currency.gp] = gp;
     return GlobalState(
       registries: registries,
       inventory: inventory ?? this.inventory,
@@ -943,7 +939,7 @@ class GlobalState {
       skillStates: skillStates ?? this.skillStates,
       actionStates: actionStates ?? this.actionStates,
       updatedAt: DateTime.timestamp(),
-      currencies: newCurrencies,
+      currencies: currencies ?? this.currencies,
       timeAway: timeAway ?? this.timeAway,
       shop: shop ?? this.shop,
       health: health ?? this.health,

@@ -107,14 +107,14 @@ class ShopCost extends Equatable {
   }
 
   /// Returns true if this purchase uses the bank slot pricing formula.
-  bool get usesBankSlotPricing {
+  bool get _usesBankSlotPricing {
     return currencies.any(
       (c) => c.currency == Currency.gp && c.type == CostType.bankSlot,
     );
   }
 
   /// Returns all fixed currency costs as a list of (Currency, amount) pairs.
-  List<(Currency, int)> get fixedCurrencyCosts {
+  List<(Currency, int)> get _fixedCurrencyCosts {
     final result = <(Currency, int)>[];
     for (final c in currencies) {
       if (c.type == CostType.fixed && c.fixedCost != null) {
@@ -122,6 +122,18 @@ class ShopCost extends Equatable {
       }
     }
     return result;
+  }
+
+  /// Returns all currency costs as a list of (Currency, amount) pairs.
+  ///
+  /// For purchases with dynamic bank slot pricing, calculates the cost
+  /// based on [bankSlotsPurchased]. For fixed pricing, returns the fixed costs.
+  List<(Currency, int)> currencyCosts({required int bankSlotsPurchased}) {
+    if (_usesBankSlotPricing) {
+      final cost = calculateBankSlotCost(bankSlotsPurchased);
+      return [(Currency.gp, cost)];
+    }
+    return _fixedCurrencyCosts;
   }
 
   @override

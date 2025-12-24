@@ -15,6 +15,7 @@
 library;
 
 import 'package:logic/src/data/actions.dart';
+import 'package:logic/src/data/currency.dart';
 import 'package:logic/src/data/shop.dart';
 import 'package:logic/src/state.dart';
 
@@ -92,14 +93,13 @@ List<BuyShopItem> _availableShopPurchases(GlobalState state) {
     if (!_meetsPurchaseRequirements(state, purchase)) continue;
 
     // Check affordability - skip purchases without GP cost (item costs, etc.)
-    final int cost;
-    if (purchase.cost.usesBankSlotPricing) {
-      cost = state.shop.nextBankSlotCost();
-    } else {
-      final gpCost = purchase.cost.gpCost;
-      if (gpCost == null) continue; // Skip non-GP purchases
-      cost = gpCost;
-    }
+    final currencyCosts = purchase.cost.currencyCosts(
+      bankSlotsPurchased: state.shop.bankSlotsPurchased,
+    );
+    // Solver only considers pure GP purchases
+    if (currencyCosts.length != 1) continue;
+    final (currency, cost) = currencyCosts.first;
+    if (currency != Currency.gp) continue;
     if (state.gp < cost) continue;
 
     purchases.add(BuyShopItem(purchase.id));

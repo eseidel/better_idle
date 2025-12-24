@@ -75,19 +75,24 @@ GlobalState _applyBuyShopItem(GlobalState state, MelvorId purchaseId) {
     throw StateError('Already purchased maximum of ${purchase.name}');
   }
 
-  // Calculate cost (handle dynamic bank slot pricing)
-  final cost = purchase.cost.usesBankSlotPricing
-      ? state.shop.nextBankSlotCost()
-      : purchase.cost.gpCost ?? 0;
+  // Calculate cost (solver only handles GP costs)
+  final currencyCosts = purchase.cost.currencyCosts(
+    bankSlotsPurchased: state.shop.bankSlotsPurchased,
+  );
+  // Extract GP cost (solver only processes GP-only purchases)
+  final gpCost = currencyCosts
+      .where((c) => c.$1 == Currency.gp)
+      .map((c) => c.$2)
+      .fold(0, (a, b) => a + b);
 
-  if (state.gp < cost) {
+  if (state.gp < gpCost) {
     throw StateError(
-      'Cannot afford ${purchase.name}: costs $cost, have ${state.gp}',
+      'Cannot afford ${purchase.name}: costs $gpCost, have ${state.gp}',
     );
   }
 
   // Deduct cost
-  final stateAfterPayment = state.addCurrency(Currency.gp, -cost);
+  final stateAfterPayment = state.addCurrency(Currency.gp, -gpCost);
 
   // Update shop state with new purchase
   final newShop = state.shop.withPurchase(purchaseId);

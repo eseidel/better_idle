@@ -164,25 +164,19 @@ class PurchaseShopItemAction extends ReduxAction<GlobalState> {
       }
     }
 
-    // Calculate currency costs (handle dynamic bank slot pricing)
+    // Calculate and apply currency costs
     var newState = state;
-    if (purchase.cost.usesBankSlotPricing) {
-      final cost = state.shop.nextBankSlotCost();
-      if (state.gp < cost) {
-        throw Exception('Not enough GP. Need $cost, have ${state.gp}');
+    final currencyCosts = purchase.cost.currencyCosts(
+      bankSlotsPurchased: state.shop.bankSlotsPurchased,
+    );
+    for (final (currency, amount) in currencyCosts) {
+      final balance = newState.currency(currency);
+      if (balance < amount) {
+        throw Exception(
+          'Not enough ${currency.abbreviation}. Need $amount, have $balance',
+        );
       }
-      newState = newState.addCurrency(Currency.gp, -cost);
-    } else {
-      final currencyCosts = purchase.cost.fixedCurrencyCosts;
-      for (final (currency, amount) in currencyCosts) {
-        final balance = newState.currency(currency);
-        if (balance < amount) {
-          throw Exception(
-            'Not enough ${currency.abbreviation}. Need $amount, have $balance',
-          );
-        }
-        newState = newState.addCurrency(currency, -amount);
-      }
+      newState = newState.addCurrency(currency, -amount);
     }
 
     // Check and apply item costs
