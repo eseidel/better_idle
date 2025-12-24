@@ -32,9 +32,6 @@ class FletchingCategory {
   final MelvorId id;
   final String name;
   final String media;
-
-  @override
-  String toString() => name;
 }
 
 /// Registry for fletching categories.
