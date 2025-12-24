@@ -367,6 +367,9 @@ class Counts<T> {
     if (T == Skill) {
       return Skill.fromName(key as String) as T;
     }
+    if (T == MelvorId) {
+      return MelvorId.fromJson(key as String) as T;
+    }
     return key as T;
   }
 

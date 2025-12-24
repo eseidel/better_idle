@@ -267,6 +267,7 @@ class GlobalState {
       actionStates =
           maybeMap(
             json['actionStates'],
+            toKey: ActionId.fromJson,
             toValue: (value) => ActionState.fromJson(value),
           ) ??
           const {},
@@ -361,7 +362,7 @@ class GlobalState {
         (key, value) => MapEntry(key.name, value.toJson()),
       ),
       'actionStates': actionStates.map(
-        (key, value) => MapEntry(key, value.toJson()),
+        (key, value) => MapEntry(key.toJson(), value.toJson()),
       ),
       'currencies': currencies.map((key, value) => MapEntry(key.id, value)),
       'timeAway': timeAway?.toJson(),

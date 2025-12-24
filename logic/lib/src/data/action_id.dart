@@ -10,9 +10,14 @@ class ActionId {
   final MelvorId skillId;
   final String localId;
 
+  /// The action name (localId with underscores replaced by spaces).
+  /// This is also the "name" field on the Action object.
+  String get actionName => localId.replaceAll('_', ' ');
+
   MelvorId get namespacedId => MelvorId('${skillId.namespace}:$localId');
 
-  String get name => localId.replaceAll('_', ' ');
+  /// Alias for actionName for convenience.
+  String get name => actionName;
 
   String toJson() => '${skillId.toJson()}/$localId';
 
@@ -25,4 +30,18 @@ class ActionId {
     final parts = json.split('/');
     return ActionId(MelvorId.fromJson(parts[0]), parts[1]);
   }
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is ActionId &&
+          runtimeType == other.runtimeType &&
+          skillId == other.skillId &&
+          localId == other.localId;
+
+  @override
+  int get hashCode => Object.hash(skillId, localId);
+
+  @override
+  String toString() => '${skillId.fullId}/$localId';
 }

@@ -1,12 +1,11 @@
 import 'package:logic/logic.dart';
-import 'package:logic/src/data/action_id.dart';
 import 'package:test/test.dart';
 
 void main() {
   group('ActionState', () {
     group('toJson/fromJson', () {
       test('round-trips with CombatActionState', () {
-        final monsterId = ActionId(Skill.attack.id, 'Cow');
+        final monsterId = ActionId(Skill.combat.id, 'Cow');
         final original = ActionState(
           masteryXp: 100,
           combat: CombatActionState(
@@ -33,7 +32,7 @@ void main() {
       test(
         'round-trips with CombatActionState including respawnTicksRemaining',
         () {
-          final monsterId = MelvorId('melvorD:Cow');
+          final monsterId = ActionId(Skill.combat.id, 'Cow');
           final original = ActionState(
             masteryXp: 250,
             combat: CombatActionState(
@@ -85,7 +84,7 @@ void main() {
   group('CombatActionState', () {
     group('toJson/fromJson', () {
       test('round-trips correctly', () {
-        final monsterId = MelvorId('melvorD:Goblin');
+        final monsterId = ActionId(Skill.combat.id, 'Goblin');
         final original = CombatActionState(
           monsterId: monsterId,
           monsterHp: 100,
@@ -104,7 +103,7 @@ void main() {
       });
 
       test('round-trips with respawnTicksRemaining', () {
-        final monsterId = MelvorId('melvorD:Goblin');
+        final monsterId = ActionId(Skill.combat.id, 'Goblin');
         final original = CombatActionState(
           monsterId: monsterId,
           monsterHp: 0,
@@ -126,7 +125,7 @@ void main() {
 
     test('isMonsterDead returns true when hp <= 0', () {
       final state = CombatActionState(
-        monsterId: MelvorId('melvorD:Cow'),
+        monsterId: ActionId(Skill.combat.id, 'Cow'),
         monsterHp: 0,
         playerAttackTicksRemaining: 24,
         monsterAttackTicksRemaining: 28,
@@ -136,7 +135,7 @@ void main() {
 
     test('isMonsterDead returns false when hp > 0', () {
       final state = CombatActionState(
-        monsterId: MelvorId('melvorD:Cow'),
+        monsterId: ActionId(Skill.combat.id, 'Cow'),
         monsterHp: 1,
         playerAttackTicksRemaining: 24,
         monsterAttackTicksRemaining: 28,
@@ -146,7 +145,7 @@ void main() {
 
     test('isRespawning returns true when respawnTicksRemaining is set', () {
       final state = CombatActionState(
-        monsterId: MelvorId('melvorD:Cow'),
+        monsterId: ActionId(Skill.combat.id, 'Cow'),
         monsterHp: 0,
         playerAttackTicksRemaining: 24,
         monsterAttackTicksRemaining: 28,
@@ -157,7 +156,7 @@ void main() {
 
     test('isRespawning returns false when respawnTicksRemaining is null', () {
       final state = CombatActionState(
-        monsterId: MelvorId('melvorD:Cow'),
+        monsterId: ActionId(Skill.combat.id, 'Cow'),
         monsterHp: 50,
         playerAttackTicksRemaining: 24,
         monsterAttackTicksRemaining: 28,

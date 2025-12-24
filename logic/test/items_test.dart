@@ -87,7 +87,7 @@ void main() {
 
       final entry = DropTableEntry.fromJson(json);
 
-      expect(entry.itemID, 'melvorD:Oak_Logs');
+      expect(entry.itemID, MelvorId('melvorD:Oak_Logs'));
       expect(entry.minQuantity, 3);
       expect(entry.maxQuantity, 7);
       expect(entry.weight, 25);

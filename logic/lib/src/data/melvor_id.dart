@@ -38,4 +38,17 @@ class MelvorId {
 
   /// Returns a human-readable name (underscores replaced with spaces).
   String get name => localId.replaceAll('_', ' ');
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is MelvorId &&
+          runtimeType == other.runtimeType &&
+          fullId == other.fullId;
+
+  @override
+  int get hashCode => fullId.hashCode;
+
+  @override
+  String toString() => fullId;
 }

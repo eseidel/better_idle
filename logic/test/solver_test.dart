@@ -524,10 +524,10 @@ void main() {
 
       final rates = estimateRates(state);
 
-      // Normal Tree outputs Normal Logs (keys are MelvorId strings)
+      // Normal Tree outputs Normal Logs (keys are MelvorId objects)
       expect(
         rates.itemFlowsPerTick,
-        contains('melvorD:Normal_Logs'),
+        contains(MelvorId('melvorD:Normal_Logs')),
         reason: 'itemFlowsPerTick should include action outputs',
       );
 
@@ -552,10 +552,10 @@ void main() {
 
       final rates = estimateRates(state);
 
-      // Bird Nest is a skill-level drop for woodcutting (keys are MelvorId strings)
+      // Bird Nest is a skill-level drop for woodcutting (keys are MelvorId objects)
       expect(
         rates.itemFlowsPerTick,
-        contains('melvorD:Bird_Nest'),
+        contains(MelvorId('melvorD:Bird_Nest')),
         reason: 'itemFlowsPerTick should include skill-level drops',
       );
 
@@ -579,10 +579,10 @@ void main() {
 
       final rates = estimateRates(state);
 
-      // Verify Bobby's Pocket is included in item flows (keys are MelvorId strings)
+      // Verify Bobby's Pocket is included in item flows (keys are MelvorId objects)
       expect(
         rates.itemFlowsPerTick,
-        contains('melvorF:Bobbys_Pocket'),
+        contains(MelvorId('melvorF:Bobbys_Pocket')),
         reason: "itemFlowsPerTick should include Bobby's Pocket drop",
       );
 

@@ -169,13 +169,20 @@ final skillDrops = <Skill, List<Droppable>>{
 
 class ActionRegistry {
   ActionRegistry(this.all) {
-    _byId = {
-      for (final action in all) ActionId(action.skill.id, action.name): action,
-    };
+    _byId = {for (final action in all) action.id: action};
+    _bySkillAndNameMap = {};
+    for (final action in all) {
+      // Use action.id.skillId rather than action.skill.id because they can
+      // differ (e.g. CombatAction has id.skillId=combat but skill=attack).
+      _bySkillAndNameMap
+          .putIfAbsent(action.id.skillId, () => {})
+          .putIfAbsent(action.name, () => action);
+    }
   }
 
   final List<Action> all;
   late final Map<ActionId, Action> _byId;
+  late final Map<MelvorId, Map<String, Action>> _bySkillAndNameMap;
 
   /// Returns an Action by id, or throws a StateError if not found.
   Action byId(ActionId id) {
@@ -186,10 +193,6 @@ class ActionRegistry {
     return action;
   }
 
-  Action bySkillAndName(Skill skill, String name) {
-    return byId(ActionId(skill.id, name));
-  }
-
   /// Returns all skill actions for a given skill.
   Iterable<SkillAction> forSkill(Skill skill) {
     return all.whereType<SkillAction>().where(
@@ -197,26 +200,42 @@ class ActionRegistry {
     );
   }
 
+  Action _bySkillAndName(Skill skill, String name) {
+    final byName = _bySkillAndNameMap[skill.id];
+    if (byName == null) {
+      final names = _bySkillAndNameMap.keys.join(', ');
+      throw StateError('Missing actions for skill: $skill. Available: $names');
+    }
+    final action = byName[name];
+    if (action == null) {
+      final names = byName.keys.join(', ');
+      throw StateError(
+        'Missing action with skill: $skill and name: $name. Available: $names',
+      );
+    }
+    return action;
+  }
+
   SkillAction woodcutting(String name) =>
-      byId(ActionId(Skill.woodcutting.id, name)) as SkillAction;
+      _bySkillAndName(Skill.woodcutting, name) as SkillAction;
 
   MiningAction mining(String name) =>
-      byId(ActionId(Skill.mining.id, name)) as MiningAction;
+      _bySkillAndName(Skill.mining, name) as MiningAction;
 
   SkillAction cooking(String name) =>
-      byId(ActionId(Skill.cooking.id, name)) as SkillAction;
+      _bySkillAndName(Skill.cooking, name) as SkillAction;
 
   SkillAction firemaking(String name) =>
-      byId(ActionId(Skill.firemaking.id, name)) as SkillAction;
+      _bySkillAndName(Skill.firemaking, name) as SkillAction;
 
   SkillAction fishing(String name) =>
-      byId(ActionId(Skill.fishing.id, name)) as SkillAction;
+      _bySkillAndName(Skill.fishing, name) as SkillAction;
 
   CombatAction combat(String name) =>
-      byId(ActionId(Skill.attack.id, name)) as CombatAction;
+      _bySkillAndName(Skill.combat, name) as CombatAction;
 
   ThievingAction thieving(String name) =>
-      byId(ActionId(Skill.thieving.id, name)) as ThievingAction;
+      _bySkillAndName(Skill.thieving, name) as ThievingAction;
 }
 
 class DropsRegistry {

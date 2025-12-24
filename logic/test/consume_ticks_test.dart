@@ -326,7 +326,7 @@ void main() {
         // Verify 3 items were added (not 1)
         final items = state.inventory.items;
         expect(items.length, 1);
-        expect(items.first.item.id, normalLogsId);
+        expect(items.first.item.id, normalLogs.id);
         expect(items.first.count, 3);
       },
     );

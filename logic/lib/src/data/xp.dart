@@ -249,6 +249,7 @@ double actionTimeForMastery(SkillAction action) {
       return 1.7;
 
     // Combat skills don't use mastery XP in the same way
+    case Skill.combat:
     case Skill.hitpoints:
     case Skill.attack:
       return action.maxDuration.inSeconds.toDouble();

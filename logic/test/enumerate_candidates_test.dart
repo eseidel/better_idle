@@ -293,7 +293,7 @@ void main() {
     test('thieving Man gold/tick unaffected by tool levels', () {
       // Start with Man activity
       var state = GlobalState.empty(testRegistries);
-      final manAction = testActions.byName('Man');
+      final manAction = testActions.thieving('Man');
       state = state.startAction(manAction, random: Random(0));
 
       // Get baseline rate with no upgrades

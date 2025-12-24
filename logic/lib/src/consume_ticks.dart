@@ -4,7 +4,6 @@ import 'package:logic/src/action_state.dart';
 import 'package:logic/src/data/action_id.dart';
 import 'package:logic/src/data/actions.dart';
 import 'package:logic/src/data/currency.dart';
-import 'package:logic/src/data/melvor_id.dart';
 import 'package:logic/src/data/registries.dart';
 import 'package:logic/src/data/xp.dart';
 import 'package:logic/src/state.dart';
@@ -27,7 +26,7 @@ int playerTotalMasteryForSkill(GlobalState state, Skill skill) {
   for (final entry in state.actionStates.entries) {
     final actionId = entry.key;
     final actionState = entry.value;
-    final action = actions.bySkillAndName(skill, actionId.actionName);
+    final action = actions.byId(actionId);
     if (action is SkillAction && action.skill == skill) {
       total += actionState.masteryXp;
     }
@@ -242,7 +241,7 @@ class MiningBackgroundAction implements BackgroundTickConsumer {
 /// foreground handles respawn synchronously).
 List<BackgroundTickConsumer> _getBackgroundActions(
   GlobalState state, {
-  MelvorId? activeActionId,
+  ActionId? activeActionId,
 }) {
   final backgrounds = <BackgroundTickConsumer>[];
   final actions = state.registries.actions;
@@ -282,7 +281,7 @@ void _applyBackgroundTicks(
   StateUpdateBuilder builder,
   List<BackgroundTickConsumer> backgrounds,
   Tick ticks, {
-  MelvorId? activeActionId,
+  ActionId? activeActionId,
   bool skipStunCountdown = false,
 }) {
   // Apply stunned countdown (unless stun was just applied this iteration)

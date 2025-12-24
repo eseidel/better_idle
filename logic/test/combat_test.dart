@@ -82,7 +82,7 @@ void main() {
     group('stats', () {
       test('uses strength for melee attack type', () {
         final action = CombatAction(
-          id: MelvorId('test:melee_monster'),
+          id: ActionId(Skill.combat.id, 'Melee Monster'),
           name: 'Melee Monster',
           levels: const MonsterLevels(
             hitpoints: 10,
@@ -137,7 +137,7 @@ void main() {
 
       test('uses magic level for magic attack type', () {
         final action = CombatAction(
-          id: MelvorId('test:magic_monster'),
+          id: ActionId(Skill.combat.id, 'Magic Monster'),
           name: 'Magic Monster',
           levels: const MonsterLevels(
             hitpoints: 10,
@@ -164,7 +164,7 @@ void main() {
 
       test('uses highest offensive level for random attack type', () {
         final action = CombatAction(
-          id: MelvorId('test:random_monster'),
+          id: ActionId(Skill.combat.id, 'Random Monster'),
           name: 'Random Monster',
           levels: const MonsterLevels(
             hitpoints: 10,

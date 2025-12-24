@@ -3,6 +3,7 @@ import 'package:logic/logic.dart';
 
 extension SkillExtensions on Skill {
   IconData get icon => switch (this) {
+    Skill.combat => Icons.sports_martial_arts,
     Skill.hitpoints => Icons.favorite,
     Skill.attack => Icons.sports_martial_arts,
     Skill.woodcutting => Icons.forest,

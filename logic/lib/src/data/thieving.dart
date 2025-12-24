@@ -81,9 +81,9 @@ class ThievingAreaRegistry {
   /// Returns the thieving area containing the given NPC ID.
   ///
   /// Throws [StateError] if the NPC is not found in any area.
-  ThievingArea areaForNpc(ActionId npcId) {
+  ThievingArea areaForNpc(MelvorId npcId) {
     for (final area in _areas) {
-      if (area.npcIds.contains(npcId.namespacedId)) {
+      if (area.npcIds.contains(npcId)) {
         return area;
       }
     }

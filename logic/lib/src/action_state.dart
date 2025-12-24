@@ -3,8 +3,8 @@ import 'dart:math';
 import 'package:logic/src/tick.dart';
 import 'package:meta/meta.dart';
 
+import 'data/action_id.dart';
 import 'data/actions.dart';
-import 'data/melvor_id.dart';
 import 'data/xp.dart';
 
 /// Mining-specific state for rock HP and respawn.
@@ -102,7 +102,7 @@ class CombatActionState {
 
   factory CombatActionState.fromJson(Map<String, dynamic> json) {
     return CombatActionState(
-      monsterId: MelvorId.fromJson(json['monsterId'] as String),
+      monsterId: ActionId.fromJson(json['monsterId'] as String),
       monsterHp: json['monsterHp'] as int,
       playerAttackTicksRemaining: json['playerAttackTicksRemaining'] as int,
       monsterAttackTicksRemaining: json['monsterAttackTicksRemaining'] as int,
@@ -111,7 +111,7 @@ class CombatActionState {
   }
 
   /// The ID of the monster being fought.
-  final MelvorId monsterId;
+  final ActionId monsterId;
   final int monsterHp;
   final int playerAttackTicksRemaining;
   final int monsterAttackTicksRemaining;
@@ -121,7 +121,7 @@ class CombatActionState {
   bool get isRespawning => respawnTicksRemaining != null;
 
   CombatActionState copyWith({
-    MelvorId? monsterId,
+    ActionId? monsterId,
     int? monsterHp,
     int? playerAttackTicksRemaining,
     int? monsterAttackTicksRemaining,
