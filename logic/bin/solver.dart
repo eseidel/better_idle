@@ -47,7 +47,7 @@ void main(List<String> args) async {
   // Print result
   if (result is SolverSuccess) {
     print('Plan:');
-    print(result.plan.prettyPrint());
+    print(result.plan.prettyPrint(actions: registries.actions));
     print('Total ticks: ${result.plan.totalTicks}');
     print('Interaction count: ${result.plan.interactionCount}');
 

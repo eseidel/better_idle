@@ -325,7 +325,7 @@ class Plan {
   Duration get totalDuration => durationFromTicks(totalTicks);
 
   /// Pretty-prints the plan for debugging.
-  String prettyPrint({int maxSteps = 30}) {
+  String prettyPrint({int maxSteps = 30, ActionRegistry? actions}) {
     final buffer = StringBuffer();
     buffer.writeln('=== Plan ===');
     buffer.writeln(
@@ -339,7 +339,7 @@ class Plan {
     final stepsToShow = steps.take(maxSteps).toList();
     for (var i = 0; i < stepsToShow.length; i++) {
       final step = stepsToShow[i];
-      buffer.writeln('  ${i + 1}. ${_formatStep(step)}');
+      buffer.writeln('  ${i + 1}. ${_formatStep(step, actions)}');
     }
 
     if (steps.length > maxSteps) {
@@ -349,10 +349,11 @@ class Plan {
     return buffer.toString();
   }
 
-  String _formatStep(PlanStep step) {
+  String _formatStep(PlanStep step, ActionRegistry? actions) {
     return switch (step) {
       InteractionStep(:final interaction) => switch (interaction) {
-        SwitchActivity(:final actionId) => 'Switch to $actionId',
+        SwitchActivity(:final actionId) =>
+          'Switch to ${actions?.byId(actionId).name ?? actionId}',
         BuyShopItem(:final purchaseId) => 'Buy upgrade: $purchaseId',
         SellAll() => 'Sell all items',
       },
