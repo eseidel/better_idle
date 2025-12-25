@@ -150,10 +150,30 @@ class CombatActionState {
   }
 }
 
+sealed class RecipeSelection {
+  const RecipeSelection();
+}
+
+/// This is used for actions without alternative recipes.
+class NoSelectedRecipe extends RecipeSelection {
+  const NoSelectedRecipe();
+}
+
+/// This is used for actions with alternative recipes.
+class SelectedRecipe extends RecipeSelection {
+  const SelectedRecipe({required this.index});
+  final int index;
+}
+
 /// The serialized state of an Action in progress.
 @immutable
 class ActionState {
-  const ActionState({required this.masteryXp, this.mining, this.combat});
+  const ActionState({
+    required this.masteryXp,
+    this.mining,
+    this.combat,
+    this.selectedRecipeIndex,
+  });
 
   const ActionState.empty() : this(masteryXp: 0);
 
@@ -166,6 +186,7 @@ class ActionState {
       combat: json['combat'] != null
           ? CombatActionState.fromJson(json['combat'] as Map<String, dynamic>)
           : null,
+      selectedRecipeIndex: json['selectedRecipeIndex'] as int?,
     );
   }
 
@@ -178,6 +199,27 @@ class ActionState {
   /// Combat-specific state (null for non-combat actions).
   final CombatActionState? combat;
 
+  /// The selected recipe index for actions with alternativeCosts.
+  /// Null means no recipe has been selected, which can either be that
+  /// this state is brand new and hasn't been written to disk yet, or that
+  /// the action has no alternative recipes.
+  /// Either way, the correct way to read this value is through recipeSelection.
+  final int? selectedRecipeIndex;
+
+  RecipeSelection recipeSelection(Action action) {
+    if (action is SkillAction && action.hasAlternativeRecipes) {
+      final existingIndex = selectedRecipeIndex;
+      assert(
+        existingIndex == null ||
+            (existingIndex >= 0 &&
+                existingIndex < action.alternativeRecipes!.length),
+        'Selected recipe index $existingIndex is out of range for action ${action.id}',
+      );
+      return SelectedRecipe(index: selectedRecipeIndex ?? 0);
+    }
+    return NoSelectedRecipe();
+  }
+
   /// The mastery level for this action, derived from mastery XP.
   int get masteryLevel => levelForXp(masteryXp);
 
@@ -185,17 +227,23 @@ class ActionState {
     int? masteryXp,
     MiningState? mining,
     CombatActionState? combat,
+    int? selectedRecipeIndex,
   }) {
     return ActionState(
       masteryXp: masteryXp ?? this.masteryXp,
       mining: mining ?? this.mining,
       combat: combat ?? this.combat,
+      selectedRecipeIndex: selectedRecipeIndex ?? this.selectedRecipeIndex,
     );
   }
 
   /// Create a new state for this action, as though it restarted fresh.
+  /// Preserves the selectedRecipeIndex since the user chose it.
   ActionState copyRestarting() {
-    return ActionState(masteryXp: masteryXp);
+    return ActionState(
+      masteryXp: masteryXp,
+      selectedRecipeIndex: selectedRecipeIndex,
+    );
   }
 
   Map<String, dynamic> toJson() {
@@ -203,6 +251,8 @@ class ActionState {
       'masteryXp': masteryXp,
       if (mining != null) 'mining': mining!.toJson(),
       if (combat != null) 'combat': combat!.toJson(),
+      if (selectedRecipeIndex != null)
+        'selectedRecipeIndex': selectedRecipeIndex,
     };
   }
 }

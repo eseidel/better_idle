@@ -1,5 +1,6 @@
 import 'dart:math';
 
+import 'package:logic/src/action_state.dart';
 import 'package:logic/src/tick.dart';
 import 'package:logic/src/types/drop.dart';
 import 'package:meta/meta.dart';
@@ -9,6 +10,9 @@ import 'combat.dart';
 import 'melvor_id.dart';
 import 'mining.dart';
 import 'thieving.dart';
+
+export 'package:logic/src/action_state.dart'
+    show RecipeSelection, NoSelectedRecipe, SelectedRecipe;
 
 export 'combat.dart';
 export 'cooking.dart';
@@ -89,8 +93,56 @@ abstract class Action {
   final Skill skill;
 }
 
-List<Droppable> defaultRewards(SkillAction action, int masteryLevel) {
-  return [...action.outputs.entries.map((e) => Drop(e.key, count: e.value))];
+/// Represents an alternative recipe for a SkillAction.
+/// Used when Melvor data has `alternativeCosts` instead of `itemCosts`.
+/// Each alternative has different input costs and may produce different
+/// output quantities via the quantityMultiplier.
+@immutable
+class AlternativeRecipe {
+  const AlternativeRecipe({
+    required this.inputs,
+    required this.quantityMultiplier,
+  });
+
+  /// The item costs for this recipe variant.
+  final Map<MelvorId, int> inputs;
+
+  /// Multiplier applied to base output quantity.
+  final int quantityMultiplier;
+}
+
+/// Parses alternativeCosts from Melvor JSON.
+/// Returns null if not present.
+List<AlternativeRecipe>? parseAlternativeCosts(
+  Map<String, dynamic> json, {
+  required String namespace,
+}) {
+  final alternatives = json['alternativeCosts'] as List<dynamic>?;
+  if (alternatives == null || alternatives.isEmpty) return null;
+
+  return alternatives.map((alt) {
+    final altMap = alt as Map<String, dynamic>;
+    final itemCosts = altMap['itemCosts'] as List<dynamic>? ?? [];
+    final inputs = <MelvorId, int>{};
+    for (final cost in itemCosts) {
+      final costMap = cost as Map<String, dynamic>;
+      final itemId = MelvorId.fromJsonWithNamespace(
+        costMap['id'] as String,
+        defaultNamespace: namespace,
+      );
+      final quantity = costMap['quantity'] as int;
+      inputs[itemId] = quantity;
+    }
+    return AlternativeRecipe(
+      inputs: inputs,
+      quantityMultiplier: altMap['quantityMultiplier'] as int? ?? 1,
+    );
+  }).toList();
+}
+
+List<Droppable> defaultRewards(SkillAction action, RecipeSelection selection) {
+  final outputs = action.outputsForRecipe(selection);
+  return [...outputs.entries.map((e) => Drop(e.key, count: e.value))];
 }
 
 /// A skill-based action that completes after a duration, granting xp and drops.
@@ -106,6 +158,7 @@ class SkillAction extends Action {
     required this.unlockLevel,
     this.outputs = const {},
     this.inputs = const {},
+    this.alternativeRecipes,
     this.rewardsAtLevel = defaultRewards,
   }) : minDuration = duration,
        maxDuration = duration;
@@ -120,6 +173,7 @@ class SkillAction extends Action {
     required this.unlockLevel,
     this.outputs = const {},
     this.inputs = const {},
+    this.alternativeRecipes,
     this.rewardsAtLevel = defaultRewards,
   });
 
@@ -130,7 +184,46 @@ class SkillAction extends Action {
   final Map<MelvorId, int> inputs;
   final Map<MelvorId, int> outputs;
 
-  final List<Droppable> Function(SkillAction, int masteryLevel) rewardsAtLevel;
+  /// Alternative recipes (from alternativeCosts in Melvor JSON).
+  /// When non-null, this replaces the `inputs` field - the user selects
+  /// which recipe to use, and each recipe may have a quantity multiplier.
+  final List<AlternativeRecipe>? alternativeRecipes;
+
+  /// Function that returns drops for this action based on recipe selection.
+  final List<Droppable> Function(SkillAction action, RecipeSelection selection)
+  rewardsAtLevel;
+
+  /// Whether this action has alternative recipes to choose from.
+  bool get hasAlternativeRecipes =>
+      alternativeRecipes != null && alternativeRecipes!.isNotEmpty;
+
+  /// Returns the inputs for the given recipe selection.
+  /// For NoSelectedRecipe, returns the base inputs.
+  /// For SelectedRecipe, returns the inputs from the selected alternative recipe.
+  Map<MelvorId, int> inputsForRecipe(RecipeSelection selection) {
+    return switch (selection) {
+      NoSelectedRecipe() => inputs,
+      SelectedRecipe(:final index) =>
+        alternativeRecipes![index.clamp(0, alternativeRecipes!.length - 1)]
+            .inputs,
+    };
+  }
+
+  /// Returns the outputs for the given recipe selection.
+  /// For NoSelectedRecipe, returns the base outputs.
+  /// For SelectedRecipe, applies the quantityMultiplier from the selected recipe.
+  Map<MelvorId, int> outputsForRecipe(RecipeSelection selection) {
+    return switch (selection) {
+      NoSelectedRecipe() => outputs,
+      SelectedRecipe(:final index) => () {
+        final recipe =
+            alternativeRecipes![index.clamp(0, alternativeRecipes!.length - 1)];
+        return outputs.map(
+          (key, value) => MapEntry(key, value * recipe.quantityMultiplier),
+        );
+      }(),
+    };
+  }
 
   bool get isFixedDuration => minDuration == maxDuration;
 
@@ -151,8 +244,9 @@ class SkillAction extends Action {
     return minTicks + random.nextInt((maxTicks - minTicks) + 1);
   }
 
-  List<Droppable> rewardsForMasteryLevel(int masteryLevel) =>
-      rewardsAtLevel(this, masteryLevel);
+  /// Returns the drops for this action given the recipe selection.
+  List<Droppable> rewardsForSelection(RecipeSelection selection) =>
+      rewardsAtLevel(this, selection);
 }
 
 /// Fixed player attack speed in seconds.
@@ -265,11 +359,11 @@ class DropsRegistry {
   /// Note: Only SkillActions have rewards - CombatActions handle drops
   /// differently.
   List<Droppable> allDropsForAction(
-    SkillAction action, {
-    required masteryLevel,
-  }) {
+    SkillAction action,
+    RecipeSelection selection,
+  ) {
     return [
-      ...action.rewardsForMasteryLevel(masteryLevel), // Action-level drops
+      ...action.rewardsForSelection(selection),
       ...forSkill(action.skill), // Skill-level drops (may include DropTables)
       // Missing global drops.
     ];

@@ -25,23 +25,22 @@ void main() {
         // at roll time in rollAndCollectDrops(), not in the rewards themselves.
         final normalLogsId = MelvorId.fromName('Normal Logs');
 
-        // Base rewards are always 1 item regardless of mastery level
-        final rewardsAt0 = normalTree.rewardsForMasteryLevel(0);
-        expect(rewardsAt0.length, 1);
-        final expectedAt0 = rewardsAt0.first.expectedItems[normalLogsId]!;
-        expect(expectedAt0, closeTo(1.0, 0.001));
-
-        // Even at high mastery, base rewards are still 1 item
-        final rewardsAt50 = normalTree.rewardsForMasteryLevel(50);
-        expect(rewardsAt50.length, 1);
-        final expectedAt50 = rewardsAt50.first.expectedItems[normalLogsId]!;
-        expect(expectedAt50, closeTo(1.0, 0.001));
+        // Base rewards are always 1 item (doubling applied via modifiers)
+        final rewards = normalTree.rewardsForSelection(
+          const NoSelectedRecipe(),
+        );
+        expect(rewards.length, 1);
+        final expected = rewards.first.expectedItems[normalLogsId]!;
+        expect(expected, closeTo(1.0, 0.001));
       },
     );
 
     test('expectedItemsForDrops applies doubling chance multiplier', () {
       final normalLogsId = MelvorId.fromName('Normal Logs');
-      final drops = testDrops.allDropsForAction(normalTree, masteryLevel: 0);
+      final drops = testDrops.allDropsForAction(
+        normalTree,
+        const NoSelectedRecipe(),
+      );
 
       // With 0% doubling chance, expected items = 1.0
       final expected0 = expectedItemsForDrops(drops, doublingChance: 0.0);
@@ -87,7 +86,10 @@ void main() {
 
   group('allDropsForAction', () {
     test('mining actions include gem drops from miningGemTable', () {
-      final drops = testDrops.allDropsForAction(copperMining, masteryLevel: 1);
+      final drops = testDrops.allDropsForAction(
+        copperMining,
+        const NoSelectedRecipe(),
+      );
 
       // Check that miningGemTable (a DropChance wrapping DropTable) is included
       final hasGemTable = drops.any(
@@ -119,6 +121,135 @@ void main() {
     });
   });
 
+  group('outputsForRecipe', () {
+    test('returns base outputs for NoSelectedRecipe', () {
+      final ironBarId = MelvorId('melvorD:Iron_Bar');
+      final coalOreId = MelvorId('melvorD:Coal_Ore');
+      final ironOreId = MelvorId('melvorD:Iron_Ore');
+
+      final action = SkillAction(
+        id: ActionId.test(Skill.smithing, 'Test Smithing'),
+        skill: Skill.smithing,
+        name: 'Test Smithing',
+        duration: const Duration(seconds: 3),
+        xp: 10,
+        unlockLevel: 1,
+        outputs: {ironBarId: 1},
+        alternativeRecipes: [
+          AlternativeRecipe(
+            inputs: {coalOreId: 1, ironOreId: 1},
+            quantityMultiplier: 1,
+          ),
+          AlternativeRecipe(
+            inputs: {coalOreId: 2, ironOreId: 2},
+            quantityMultiplier: 2,
+          ),
+        ],
+      );
+
+      final outputs = action.outputsForRecipe(const NoSelectedRecipe());
+
+      expect(outputs, {ironBarId: 1});
+    });
+
+    test('applies quantityMultiplier from selected recipe', () {
+      final ironBarId = MelvorId('melvorD:Iron_Bar');
+      final coalOreId = MelvorId('melvorD:Coal_Ore');
+      final ironOreId = MelvorId('melvorD:Iron_Ore');
+
+      final action = SkillAction(
+        id: ActionId.test(Skill.smithing, 'Test Smithing'),
+        skill: Skill.smithing,
+        name: 'Test Smithing',
+        duration: const Duration(seconds: 3),
+        xp: 10,
+        unlockLevel: 1,
+        outputs: {ironBarId: 1},
+        alternativeRecipes: [
+          AlternativeRecipe(
+            inputs: {coalOreId: 1, ironOreId: 1},
+            quantityMultiplier: 1,
+          ),
+          AlternativeRecipe(
+            inputs: {coalOreId: 2, ironOreId: 2},
+            quantityMultiplier: 2,
+          ),
+          AlternativeRecipe(
+            inputs: {coalOreId: 3, ironOreId: 3},
+            quantityMultiplier: 3,
+          ),
+        ],
+      );
+
+      // Select recipe at index 0 (multiplier = 1)
+      final outputs0 = action.outputsForRecipe(const SelectedRecipe(index: 0));
+      expect(outputs0, {ironBarId: 1});
+
+      // Select recipe at index 1 (multiplier = 2)
+      final outputs1 = action.outputsForRecipe(const SelectedRecipe(index: 1));
+      expect(outputs1, {ironBarId: 2});
+
+      // Select recipe at index 2 (multiplier = 3)
+      final outputs2 = action.outputsForRecipe(const SelectedRecipe(index: 2));
+      expect(outputs2, {ironBarId: 3});
+    });
+
+    test('clamps out-of-bounds recipe index', () {
+      final ironBarId = MelvorId('melvorD:Iron_Bar');
+      final coalOreId = MelvorId('melvorD:Coal_Ore');
+
+      final action = SkillAction(
+        id: ActionId.test(Skill.smithing, 'Test Smithing'),
+        skill: Skill.smithing,
+        name: 'Test Smithing',
+        duration: const Duration(seconds: 3),
+        xp: 10,
+        unlockLevel: 1,
+        outputs: {ironBarId: 1},
+        alternativeRecipes: [
+          AlternativeRecipe(inputs: {coalOreId: 1}, quantityMultiplier: 1),
+          AlternativeRecipe(inputs: {coalOreId: 2}, quantityMultiplier: 5),
+        ],
+      );
+
+      // Index -1 should clamp to 0 (multiplier = 1)
+      final outputsNegative = action.outputsForRecipe(
+        const SelectedRecipe(index: -1),
+      );
+      expect(outputsNegative, {ironBarId: 1});
+
+      // Index 10 should clamp to last index (1, multiplier = 5)
+      final outputsOverflow = action.outputsForRecipe(
+        const SelectedRecipe(index: 10),
+      );
+      expect(outputsOverflow, {ironBarId: 5});
+    });
+
+    test('applies multiplier to multiple output items', () {
+      final ironBarId = MelvorId('melvorD:Iron_Bar');
+      final steelBarId = MelvorId('melvorD:Steel_Bar');
+      final coalOreId = MelvorId('melvorD:Coal_Ore');
+
+      final action = SkillAction(
+        id: ActionId.test(Skill.smithing, 'Test Multi-Output'),
+        skill: Skill.smithing,
+        name: 'Test Multi-Output',
+        duration: const Duration(seconds: 3),
+        xp: 10,
+        unlockLevel: 1,
+        outputs: {ironBarId: 2, steelBarId: 3},
+        alternativeRecipes: [
+          AlternativeRecipe(inputs: {coalOreId: 1}, quantityMultiplier: 1),
+          AlternativeRecipe(inputs: {coalOreId: 4}, quantityMultiplier: 4),
+        ],
+      );
+
+      // Select recipe with multiplier = 4
+      final outputs = action.outputsForRecipe(const SelectedRecipe(index: 1));
+      expect(outputs, {ironBarId: 8, steelBarId: 12});
+    });
+  });
+
   group('rollAndCollectDrops', () {
     test('doubles items when random triggers doubling chance', () {
       final normalLogsId = MelvorId.fromName('Normal Logs');
@@ -132,7 +263,13 @@ void main() {
       // With 100% chance, any random value will trigger doubling
       final random = Random(42);
 
-      rollAndCollectDrops(builder, normalTree, modifiers, random);
+      rollAndCollectDrops(
+        builder,
+        normalTree,
+        modifiers,
+        random,
+        const NoSelectedRecipe(),
+      );
 
       // With 100% doubling chance, we should get 2 logs instead of 1
       final inventory = builder.state.inventory;
@@ -150,7 +287,13 @@ void main() {
 
       final random = Random(42);
 
-      rollAndCollectDrops(builder, normalTree, modifiers, random);
+      rollAndCollectDrops(
+        builder,
+        normalTree,
+        modifiers,
+        random,
+        const NoSelectedRecipe(),
+      );
 
       // With 0% doubling chance, we should get exactly 1 log
       final inventory = builder.state.inventory;

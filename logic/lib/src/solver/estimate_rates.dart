@@ -149,15 +149,15 @@ int? ticksUntilNextMasteryLevel(GlobalState state, Rates rates) {
 Map<MelvorId, double> _computeItemFlowsPerAction(
   GlobalState state,
   SkillAction action,
-  int masteryLevel,
+  RecipeSelection selection,
 ) {
   // allDropsForAction includes:
-  // - Action outputs (via rewardsForMasteryLevel -> rewardsAtLevel)
+  // - Action outputs (via rewardsForSelection -> rewardsAtLevel)
   // - Skill-level drops (e.g., Bobby's Pocket for thieving)
   // - Global drops (e.g., gems)
   final dropsForAction = state.registries.drops.allDropsForAction(
     action,
-    masteryLevel: masteryLevel,
+    selection,
   );
 
   // Get doubling chance from modifiers
@@ -202,11 +202,12 @@ Rates estimateRates(GlobalState state) {
   }
 
   // Compute item flows per action
-  final masteryLevel = state.actionState(action.id).masteryLevel;
+  final actionState = state.actionState(action.id);
+  final selection = actionState.recipeSelection(action);
   final itemFlowsPerAction = _computeItemFlowsPerAction(
     state,
     action,
-    masteryLevel,
+    selection,
   );
 
   // For thieving, calculate rates accounting for stun time on failure.

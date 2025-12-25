@@ -64,6 +64,18 @@ class ToggleActionAction extends ReduxAction<GlobalState> {
   }
 }
 
+/// Sets the selected recipe index for an action with alternative costs.
+class SetRecipeAction extends ReduxAction<GlobalState> {
+  SetRecipeAction({required this.actionId, required this.recipeIndex});
+  final ActionId actionId;
+  final int recipeIndex;
+
+  @override
+  GlobalState reduce() {
+    return state.setRecipeIndex(actionId, recipeIndex);
+  }
+}
+
 /// Advances the game by a specified number of ticks and returns the changes.
 /// Unlike UpdateActionProgressAction, this does not show toasts.
 class AdvanceTicksAction extends ReduxAction<GlobalState> {

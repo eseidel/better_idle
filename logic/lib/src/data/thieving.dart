@@ -92,7 +92,10 @@ class ThievingAreaRegistry {
 }
 
 // TODO(eseidel): roll this into defaultRewards?
-List<Droppable> _thievingRewards(SkillAction action, int masteryLevel) {
+List<Droppable> _thievingRewards(
+  SkillAction action,
+  RecipeSelection selection,
+) {
   final thievingAction = action as ThievingAction;
   final areaDrops = thievingAction.area.uniqueDrops;
   final actionDropTable = thievingAction.dropTable;

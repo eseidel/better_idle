@@ -513,9 +513,9 @@ bool rollAndCollectDrops(
   SkillAction action,
   ResolvedModifiers modifiers,
   Random random,
+  RecipeSelection selection,
 ) {
   final registries = builder.registries;
-  final masteryLevel = builder.currentMasteryLevel(action);
   var allItemsAdded = true;
 
   // Get doubling chance from modifiers (percentage -> 0.0-1.0)
@@ -524,10 +524,7 @@ bool rollAndCollectDrops(
     1.0,
   );
 
-  for (final drop in registries.drops.allDropsForAction(
-    action,
-    masteryLevel: masteryLevel,
-  )) {
+  for (final drop in registries.drops.allDropsForAction(action, selection)) {
     var itemStack = drop.roll(registries.items, random);
     if (itemStack != null) {
       // Apply doubling chance
@@ -569,8 +566,10 @@ bool completeThievingAction(
     builder.addCurrency(Currency.gp, gold);
 
     // Roll drops with doubling applied
+    final actionState = builder.state.actionState(action.id);
+    final selection = actionState.recipeSelection(action);
     final modifiers = builder.state.resolveModifiers(action);
-    rollAndCollectDrops(builder, action, modifiers, rng);
+    rollAndCollectDrops(builder, action, modifiers, rng, selection);
 
     return true;
   } else {
@@ -599,15 +598,25 @@ bool completeAction(
   required Random random,
 }) {
   final registries = builder.registries;
-  // Consume required items
-  for (final requirement in action.inputs.entries) {
+  final actionState = builder.state.actionState(action.id);
+  final selection = actionState.recipeSelection(action);
+
+  // Consume required items (using selected recipe if applicable)
+  final inputs = action.inputsForRecipe(selection);
+  for (final requirement in inputs.entries) {
     final item = registries.items.byId(requirement.key);
     builder.removeInventory(ItemStack(item, count: requirement.value));
   }
 
-  // Roll drops with doubling applied
+  // Roll drops with doubling applied (using selected recipe for output multiplier)
   final modifiers = builder.state.resolveModifiers(action);
-  var canRepeatAction = rollAndCollectDrops(builder, action, modifiers, random);
+  var canRepeatAction = rollAndCollectDrops(
+    builder,
+    action,
+    modifiers,
+    random,
+    selection,
+  );
 
   final perAction = xpPerAction(builder.state, action);
 
@@ -1075,14 +1084,17 @@ void consumeTicksUntil(
   final stoppedAfter = builder.stoppedAtTick != null
       ? durationFromTicks(builder.stoppedAtTick!)
       : null;
-  // Compute doubling chance for predictions
+  // Compute doubling chance and recipe selection for predictions
   double doublingChance = 0.0;
+  RecipeSelection recipeSelection = const NoSelectedRecipe();
   if (action is SkillAction) {
     final modifiers = state.resolveModifiers(action);
     doublingChance = (modifiers.skillItemDoublingChance / 100.0).clamp(
       0.0,
       1.0,
     );
+    final actionState = state.actionState(action.id);
+    recipeSelection = actionState.recipeSelection(action);
   }
   final timeAway = TimeAway(
     registries: registries,
@@ -1091,6 +1103,7 @@ void consumeTicksUntil(
     activeSkill: state.activeSkill(),
     // Only pass SkillActions - CombatActions don't support predictions
     activeAction: action is SkillAction ? action : null,
+    recipeSelection: recipeSelection,
     changes: builder.changes,
     masteryLevels: builder.state.actionStates.map(
       (key, value) => MapEntry(key, value.masteryLevel),

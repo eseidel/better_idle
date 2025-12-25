@@ -1,3 +1,4 @@
+import 'package:better_idle/src/logic/redux_actions.dart';
 import 'package:better_idle/src/widgets/context_extensions.dart';
 import 'package:better_idle/src/widgets/double_chance_badge_cell.dart';
 import 'package:better_idle/src/widgets/item_count_badge_cell.dart';
@@ -123,8 +124,13 @@ class SkillActionDisplay extends StatelessWidget {
   Widget _buildUnlocked(BuildContext context) {
     final state = context.state;
     final actionState = state.actionState(action.id);
+    final selection = actionState.recipeSelection(action);
     final isActive = state.activeAction?.id == action.id;
     final canStart = state.canStartAction(action);
+
+    // Get recipe-specific inputs and outputs
+    final inputs = action.inputsForRecipe(selection);
+    final outputs = action.outputsForRecipe(selection);
 
     return Container(
       padding: const EdgeInsets.all(16),
@@ -172,19 +178,29 @@ class SkillActionDisplay extends StatelessWidget {
             const SizedBox(height: 12),
           ],
 
+          // Recipe selector (if action has alternative recipes)
+          if (selection case SelectedRecipe(:final index)) ...[
+            _RecipeSelector(
+              action: action,
+              selectedIndex: index,
+              itemRegistry: state.registries.items,
+            ),
+            const SizedBox(height: 12),
+          ],
+
           // Mastery progress
           MasteryProgressCell(masteryXp: actionState.masteryXp),
           const SizedBox(height: 12),
 
           if (showInputsOutputs) ...[
             // Requires section
-            if (action.inputs.isNotEmpty) ...[
+            if (inputs.isNotEmpty) ...[
               const Text(
                 'Requires:',
                 style: TextStyle(fontWeight: FontWeight.bold),
               ),
               const SizedBox(height: 4),
-              ItemCountBadgesRow.required(items: action.inputs),
+              ItemCountBadgesRow.required(items: inputs),
               const SizedBox(height: 8),
 
               // You Have section
@@ -193,18 +209,18 @@ class SkillActionDisplay extends StatelessWidget {
                 style: TextStyle(fontWeight: FontWeight.bold),
               ),
               const SizedBox(height: 4),
-              ItemCountBadgesRow.inventory(items: action.inputs),
+              ItemCountBadgesRow.inventory(items: inputs),
               const SizedBox(height: 8),
             ],
 
             // Produces section
-            if (action.outputs.isNotEmpty) ...[
+            if (outputs.isNotEmpty) ...[
               const Text(
                 'Produces:',
                 style: TextStyle(fontWeight: FontWeight.bold),
               ),
               const SizedBox(height: 4),
-              ItemCountBadgesRow.required(items: action.outputs),
+              ItemCountBadgesRow.required(items: outputs),
               const SizedBox(height: 8),
             ],
           ],
@@ -245,6 +261,89 @@ class SkillActionDisplay extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+/// A dropdown widget for selecting between alternative recipes.
+class _RecipeSelector extends StatelessWidget {
+  const _RecipeSelector({
+    required this.action,
+    required this.selectedIndex,
+    required this.itemRegistry,
+  });
+
+  final SkillAction action;
+  final int selectedIndex;
+  final ItemRegistry itemRegistry;
+
+  @override
+  Widget build(BuildContext context) {
+    final recipes = action.alternativeRecipes!;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text('Recipe:', style: TextStyle(fontWeight: FontWeight.bold)),
+        const SizedBox(height: 4),
+        DropdownButton<int>(
+          value: selectedIndex,
+          isExpanded: true,
+          items: List.generate(recipes.length, (index) {
+            final recipe = recipes[index];
+            return DropdownMenuItem(
+              value: index,
+              child: _RecipeOption(recipe: recipe, itemRegistry: itemRegistry),
+            );
+          }),
+          onChanged: (newIndex) {
+            if (newIndex != null && newIndex != selectedIndex) {
+              context.dispatch(
+                SetRecipeAction(actionId: action.id, recipeIndex: newIndex),
+              );
+            }
+          },
+        ),
+      ],
+    );
+  }
+}
+
+/// A single recipe option showing item badges with inventory status.
+class _RecipeOption extends StatelessWidget {
+  const _RecipeOption({required this.recipe, required this.itemRegistry});
+
+  final AlternativeRecipe recipe;
+  final ItemRegistry itemRegistry;
+
+  @override
+  Widget build(BuildContext context) {
+    if (recipe.inputs.isEmpty) {
+      return const Text('Unknown');
+    }
+
+    final state = context.state;
+
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        // Show item badges for inputs with inventory status
+        ...recipe.inputs.entries.map((entry) {
+          final item = itemRegistry.byId(entry.key);
+          final requiredCount = entry.value;
+          final inventoryCount = state.inventory.countOfItem(item);
+          final hasEnough = inventoryCount >= requiredCount;
+          return Padding(
+            padding: const EdgeInsets.only(right: 4),
+            child: ItemCountBadgeCell(
+              item: item,
+              count: requiredCount,
+              hasEnough: hasEnough,
+              inradius: 24,
+            ),
+          );
+        }),
+      ],
     );
   }
 }

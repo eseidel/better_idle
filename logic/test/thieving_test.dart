@@ -32,7 +32,10 @@ void main() {
 
   group('Thieving drops', () {
     test("allDropsForAction contains Bobby's Pocket for thieving", () {
-      final drops = testDrops.allDropsForAction(manAction, masteryLevel: 1);
+      final drops = testDrops.allDropsForAction(
+        manAction,
+        const NoSelectedRecipe(),
+      );
       final itemIds = drops.map((d) {
         if (d is Drop) return d.itemId;
         return null;
@@ -53,10 +56,13 @@ void main() {
       expect(golbinChief.area.name, 'Golbin Village');
 
       // Get all drops for both actions
-      final golbinDrops = testDrops.allDropsForAction(golbin, masteryLevel: 1);
+      final golbinDrops = testDrops.allDropsForAction(
+        golbin,
+        const NoSelectedRecipe(),
+      );
       final chiefDrops = testDrops.allDropsForAction(
         golbinChief,
-        masteryLevel: 1,
+        const NoSelectedRecipe(),
       );
 
       // Extract drop names from Drop objects (area drops are rate-based Drops)
@@ -72,7 +78,10 @@ void main() {
 
     test('Crate Of Basic Supplies has correct rate (1/500)', () {
       final golbinAction = testActions.thieving('Golbin');
-      final drops = testDrops.allDropsForAction(golbinAction, masteryLevel: 1);
+      final drops = testDrops.allDropsForAction(
+        golbinAction,
+        const NoSelectedRecipe(),
+      );
       final crateDrop = drops.whereType<Drop>().firstWhere(
         (d) => d.itemId == crateId,
       );
@@ -81,7 +90,10 @@ void main() {
     });
 
     test('Low Town has Jeweled Necklace area drop', () {
-      final drops = testDrops.allDropsForAction(manAction, masteryLevel: 1);
+      final drops = testDrops.allDropsForAction(
+        manAction,
+        const NoSelectedRecipe(),
+      );
       final dropIds = drops.whereType<Drop>().map((d) => d.itemId).toList();
 
       expect(dropIds, contains(MelvorId('melvorF:Jeweled_Necklace')));
@@ -101,7 +113,10 @@ void main() {
     });
 
     test('Golbin has NPC-specific drop table', () {
-      final drops = testDrops.allDropsForAction(golbinAction, masteryLevel: 1);
+      final drops = testDrops.allDropsForAction(
+        golbinAction,
+        const NoSelectedRecipe(),
+      );
       // Should have 3 drops: Golbin drop table (action-level) +
       // area drop (Crate of Basic Supplies) + Bobby's Pocket (skill-level)
       expect(drops.length, 3);
