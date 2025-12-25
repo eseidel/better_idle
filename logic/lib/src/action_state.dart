@@ -153,7 +153,12 @@ class CombatActionState {
 /// The serialized state of an Action in progress.
 @immutable
 class ActionState {
-  const ActionState({required this.masteryXp, this.mining, this.combat});
+  const ActionState({
+    required this.masteryXp,
+    this.mining,
+    this.combat,
+    this.selectedRecipeIndex,
+  });
 
   const ActionState.empty() : this(masteryXp: 0);
 
@@ -166,6 +171,7 @@ class ActionState {
       combat: json['combat'] != null
           ? CombatActionState.fromJson(json['combat'] as Map<String, dynamic>)
           : null,
+      selectedRecipeIndex: json['selectedRecipeIndex'] as int?,
     );
   }
 
@@ -178,6 +184,13 @@ class ActionState {
   /// Combat-specific state (null for non-combat actions).
   final CombatActionState? combat;
 
+  /// The selected recipe index for actions with alternativeCosts.
+  /// Null means recipe 0 (the default).
+  final int? selectedRecipeIndex;
+
+  /// Gets the effective recipe index (defaults to 0).
+  int get recipeIndex => selectedRecipeIndex ?? 0;
+
   /// The mastery level for this action, derived from mastery XP.
   int get masteryLevel => levelForXp(masteryXp);
 
@@ -185,17 +198,23 @@ class ActionState {
     int? masteryXp,
     MiningState? mining,
     CombatActionState? combat,
+    int? selectedRecipeIndex,
   }) {
     return ActionState(
       masteryXp: masteryXp ?? this.masteryXp,
       mining: mining ?? this.mining,
       combat: combat ?? this.combat,
+      selectedRecipeIndex: selectedRecipeIndex ?? this.selectedRecipeIndex,
     );
   }
 
   /// Create a new state for this action, as though it restarted fresh.
+  /// Preserves the selectedRecipeIndex since the user chose it.
   ActionState copyRestarting() {
-    return ActionState(masteryXp: masteryXp);
+    return ActionState(
+      masteryXp: masteryXp,
+      selectedRecipeIndex: selectedRecipeIndex,
+    );
   }
 
   Map<String, dynamic> toJson() {
@@ -203,6 +222,8 @@ class ActionState {
       'masteryXp': masteryXp,
       if (mining != null) 'mining': mining!.toJson(),
       if (combat != null) 'combat': combat!.toJson(),
+      if (selectedRecipeIndex != null)
+        'selectedRecipeIndex': selectedRecipeIndex,
     };
   }
 }

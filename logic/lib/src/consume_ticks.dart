@@ -512,8 +512,9 @@ bool rollAndCollectDrops(
   StateUpdateBuilder builder,
   SkillAction action,
   ResolvedModifiers modifiers,
-  Random random,
-) {
+  Random random, {
+  int recipeIndex = 0,
+}) {
   final registries = builder.registries;
   final masteryLevel = builder.currentMasteryLevel(action);
   var allItemsAdded = true;
@@ -527,6 +528,7 @@ bool rollAndCollectDrops(
   for (final drop in registries.drops.allDropsForAction(
     action,
     masteryLevel: masteryLevel,
+    recipeIndex: recipeIndex,
   )) {
     var itemStack = drop.roll(registries.items, random);
     if (itemStack != null) {
@@ -599,15 +601,25 @@ bool completeAction(
   required Random random,
 }) {
   final registries = builder.registries;
-  // Consume required items
-  for (final requirement in action.inputs.entries) {
+  final actionState = builder.state.actionState(action.id);
+  final recipeIndex = actionState.recipeIndex;
+
+  // Consume required items (using selected recipe if applicable)
+  final inputs = action.inputsForRecipe(recipeIndex);
+  for (final requirement in inputs.entries) {
     final item = registries.items.byId(requirement.key);
     builder.removeInventory(ItemStack(item, count: requirement.value));
   }
 
-  // Roll drops with doubling applied
+  // Roll drops with doubling applied (using selected recipe for output multiplier)
   final modifiers = builder.state.resolveModifiers(action);
-  var canRepeatAction = rollAndCollectDrops(builder, action, modifiers, random);
+  var canRepeatAction = rollAndCollectDrops(
+    builder,
+    action,
+    modifiers,
+    random,
+    recipeIndex: recipeIndex,
+  );
 
   final perAction = xpPerAction(builder.state, action);
 

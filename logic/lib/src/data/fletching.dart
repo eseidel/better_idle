@@ -63,6 +63,7 @@ class FletchingAction extends SkillAction {
     required super.xp,
     required super.inputs,
     required super.outputs,
+    super.alternativeRecipes,
     required this.productId,
     required this.baseQuantity,
     required this.categoryId,
@@ -78,18 +79,33 @@ class FletchingAction extends SkillAction {
     );
     final baseQuantity = json['baseQuantity'] as int? ?? 1;
 
-    // Parse item costs into inputs map.
-    final itemCosts = json['itemCosts'] as List<dynamic>? ?? [];
+    // Parse alternativeCosts (replaces itemCosts when present).
+    final alternativeRecipes = parseAlternativeCosts(
+      json,
+      namespace: namespace,
+    );
+
+    // Parse item costs into inputs map (only if no alternativeCosts).
     final inputs = <MelvorId, int>{};
-    for (final cost in itemCosts) {
-      final costMap = cost as Map<String, dynamic>;
-      final itemId = MelvorId.fromJsonWithNamespace(
-        costMap['id'] as String,
-        defaultNamespace: namespace,
-      );
-      final quantity = costMap['quantity'] as int;
-      inputs[itemId] = quantity;
+    if (alternativeRecipes == null) {
+      final itemCosts = json['itemCosts'] as List<dynamic>? ?? [];
+      for (final cost in itemCosts) {
+        final costMap = cost as Map<String, dynamic>;
+        final itemId = MelvorId.fromJsonWithNamespace(
+          costMap['id'] as String,
+          defaultNamespace: namespace,
+        );
+        final quantity = costMap['quantity'] as int;
+        inputs[itemId] = quantity;
+      }
     }
+
+    // Assert that we don't have both itemCosts and alternativeCosts populated.
+    assert(
+      alternativeRecipes == null ||
+          (json['itemCosts'] as List<dynamic>? ?? []).isEmpty,
+      'Action cannot have both itemCosts and alternativeCosts',
+    );
 
     final localId = MelvorId.fromJsonWithNamespace(
       json['id'] as String,
@@ -102,6 +118,7 @@ class FletchingAction extends SkillAction {
       xp: json['baseExperience'] as int,
       inputs: inputs,
       outputs: {productId: baseQuantity},
+      alternativeRecipes: alternativeRecipes,
       productId: productId,
       baseQuantity: baseQuantity,
       categoryId: json['categoryID'] != null

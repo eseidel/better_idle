@@ -1,3 +1,4 @@
+import 'package:better_idle/src/logic/redux_actions.dart';
 import 'package:better_idle/src/widgets/context_extensions.dart';
 import 'package:better_idle/src/widgets/double_chance_badge_cell.dart';
 import 'package:better_idle/src/widgets/item_count_badge_cell.dart';
@@ -125,6 +126,11 @@ class SkillActionDisplay extends StatelessWidget {
     final actionState = state.actionState(action.id);
     final isActive = state.activeAction?.id == action.id;
     final canStart = state.canStartAction(action);
+    final recipeIndex = actionState.recipeIndex;
+
+    // Get recipe-specific inputs and outputs
+    final inputs = action.inputsForRecipe(recipeIndex);
+    final outputs = action.outputsForRecipe(recipeIndex);
 
     return Container(
       padding: const EdgeInsets.all(16),
@@ -172,19 +178,29 @@ class SkillActionDisplay extends StatelessWidget {
             const SizedBox(height: 12),
           ],
 
+          // Recipe selector (if action has alternative recipes)
+          if (action.hasAlternativeRecipes) ...[
+            _RecipeSelector(
+              action: action,
+              selectedIndex: recipeIndex,
+              itemRegistry: state.registries.items,
+            ),
+            const SizedBox(height: 12),
+          ],
+
           // Mastery progress
           MasteryProgressCell(masteryXp: actionState.masteryXp),
           const SizedBox(height: 12),
 
           if (showInputsOutputs) ...[
             // Requires section
-            if (action.inputs.isNotEmpty) ...[
+            if (inputs.isNotEmpty) ...[
               const Text(
                 'Requires:',
                 style: TextStyle(fontWeight: FontWeight.bold),
               ),
               const SizedBox(height: 4),
-              ItemCountBadgesRow.required(items: action.inputs),
+              ItemCountBadgesRow.required(items: inputs),
               const SizedBox(height: 8),
 
               // You Have section
@@ -193,18 +209,18 @@ class SkillActionDisplay extends StatelessWidget {
                 style: TextStyle(fontWeight: FontWeight.bold),
               ),
               const SizedBox(height: 4),
-              ItemCountBadgesRow.inventory(items: action.inputs),
+              ItemCountBadgesRow.inventory(items: inputs),
               const SizedBox(height: 8),
             ],
 
             // Produces section
-            if (action.outputs.isNotEmpty) ...[
+            if (outputs.isNotEmpty) ...[
               const Text(
                 'Produces:',
                 style: TextStyle(fontWeight: FontWeight.bold),
               ),
               const SizedBox(height: 4),
-              ItemCountBadgesRow.required(items: action.outputs),
+              ItemCountBadgesRow.required(items: outputs),
               const SizedBox(height: 8),
             ],
           ],
@@ -246,5 +262,60 @@ class SkillActionDisplay extends StatelessWidget {
         ],
       ),
     );
+  }
+}
+
+/// A dropdown widget for selecting between alternative recipes.
+class _RecipeSelector extends StatelessWidget {
+  const _RecipeSelector({
+    required this.action,
+    required this.selectedIndex,
+    required this.itemRegistry,
+  });
+
+  final SkillAction action;
+  final int selectedIndex;
+  final ItemRegistry itemRegistry;
+
+  @override
+  Widget build(BuildContext context) {
+    final recipes = action.alternativeRecipes!;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text('Recipe:', style: TextStyle(fontWeight: FontWeight.bold)),
+        const SizedBox(height: 4),
+        DropdownButton<int>(
+          value: selectedIndex,
+          isExpanded: true,
+          items: List.generate(recipes.length, (index) {
+            final recipe = recipes[index];
+            final label = _buildRecipeLabel(recipe);
+            return DropdownMenuItem(value: index, child: Text(label));
+          }),
+          onChanged: (newIndex) {
+            if (newIndex != null && newIndex != selectedIndex) {
+              context.dispatch(
+                SetRecipeAction(actionId: action.id, recipeIndex: newIndex),
+              );
+            }
+          },
+        ),
+      ],
+    );
+  }
+
+  /// Builds a label for a recipe showing the primary input and multiplier.
+  String _buildRecipeLabel(AlternativeRecipe recipe) {
+    if (recipe.inputs.isEmpty) {
+      return 'Unknown (x${recipe.quantityMultiplier})';
+    }
+    final firstInput = recipe.inputs.entries.first;
+    final item = itemRegistry.byId(firstInput.key);
+    final multiplierSuffix = recipe.quantityMultiplier > 1
+        ? ' (x${recipe.quantityMultiplier})'
+        : '';
+    return '${item.name}$multiplierSuffix';
   }
 }

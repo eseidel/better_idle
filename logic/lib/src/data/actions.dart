@@ -89,6 +89,53 @@ abstract class Action {
   final Skill skill;
 }
 
+/// Represents an alternative recipe for a SkillAction.
+/// Used when Melvor data has `alternativeCosts` instead of `itemCosts`.
+/// Each alternative has different input costs and may produce different
+/// output quantities via the quantityMultiplier.
+@immutable
+class AlternativeRecipe {
+  const AlternativeRecipe({
+    required this.inputs,
+    required this.quantityMultiplier,
+  });
+
+  /// The item costs for this recipe variant.
+  final Map<MelvorId, int> inputs;
+
+  /// Multiplier applied to base output quantity.
+  final int quantityMultiplier;
+}
+
+/// Parses alternativeCosts from Melvor JSON.
+/// Returns null if not present.
+List<AlternativeRecipe>? parseAlternativeCosts(
+  Map<String, dynamic> json, {
+  required String namespace,
+}) {
+  final alternatives = json['alternativeCosts'] as List<dynamic>?;
+  if (alternatives == null || alternatives.isEmpty) return null;
+
+  return alternatives.map((alt) {
+    final altMap = alt as Map<String, dynamic>;
+    final itemCosts = altMap['itemCosts'] as List<dynamic>? ?? [];
+    final inputs = <MelvorId, int>{};
+    for (final cost in itemCosts) {
+      final costMap = cost as Map<String, dynamic>;
+      final itemId = MelvorId.fromJsonWithNamespace(
+        costMap['id'] as String,
+        defaultNamespace: namespace,
+      );
+      final quantity = costMap['quantity'] as int;
+      inputs[itemId] = quantity;
+    }
+    return AlternativeRecipe(
+      inputs: inputs,
+      quantityMultiplier: altMap['quantityMultiplier'] as int? ?? 1,
+    );
+  }).toList();
+}
+
 List<Droppable> defaultRewards(SkillAction action, int masteryLevel) {
   return [...action.outputs.entries.map((e) => Drop(e.key, count: e.value))];
 }
@@ -106,6 +153,7 @@ class SkillAction extends Action {
     required this.unlockLevel,
     this.outputs = const {},
     this.inputs = const {},
+    this.alternativeRecipes,
     this.rewardsAtLevel = defaultRewards,
   }) : minDuration = duration,
        maxDuration = duration;
@@ -120,6 +168,7 @@ class SkillAction extends Action {
     required this.unlockLevel,
     this.outputs = const {},
     this.inputs = const {},
+    this.alternativeRecipes,
     this.rewardsAtLevel = defaultRewards,
   });
 
@@ -130,7 +179,35 @@ class SkillAction extends Action {
   final Map<MelvorId, int> inputs;
   final Map<MelvorId, int> outputs;
 
+  /// Alternative recipes (from alternativeCosts in Melvor JSON).
+  /// When non-null, this replaces the `inputs` field - the user selects
+  /// which recipe to use, and each recipe may have a quantity multiplier.
+  final List<AlternativeRecipe>? alternativeRecipes;
+
   final List<Droppable> Function(SkillAction, int masteryLevel) rewardsAtLevel;
+
+  /// Whether this action has alternative recipes to choose from.
+  bool get hasAlternativeRecipes =>
+      alternativeRecipes != null && alternativeRecipes!.isNotEmpty;
+
+  /// Returns the inputs for a specific recipe index.
+  /// If alternativeRecipes is null/empty, returns the base inputs.
+  Map<MelvorId, int> inputsForRecipe(int recipeIndex) {
+    if (!hasAlternativeRecipes) return inputs;
+    final index = recipeIndex.clamp(0, alternativeRecipes!.length - 1);
+    return alternativeRecipes![index].inputs;
+  }
+
+  /// Returns the outputs for a specific recipe index (applying quantityMultiplier).
+  /// If alternativeRecipes is null/empty, returns the base outputs.
+  Map<MelvorId, int> outputsForRecipe(int recipeIndex) {
+    if (!hasAlternativeRecipes) return outputs;
+    final index = recipeIndex.clamp(0, alternativeRecipes!.length - 1);
+    final recipe = alternativeRecipes![index];
+    return outputs.map(
+      (key, value) => MapEntry(key, value * recipe.quantityMultiplier),
+    );
+  }
 
   bool get isFixedDuration => minDuration == maxDuration;
 
@@ -264,12 +341,25 @@ class DropsRegistry {
   /// DropTables, which are processed uniformly via Droppable.roll().
   /// Note: Only SkillActions have rewards - CombatActions handle drops
   /// differently.
+  ///
+  /// If [recipeIndex] is provided and the action has alternative recipes,
+  /// the outputs are adjusted by the recipe's quantity multiplier.
   List<Droppable> allDropsForAction(
     SkillAction action, {
-    required masteryLevel,
+    required int masteryLevel,
+    int recipeIndex = 0,
   }) {
+    // Get outputs adjusted for the selected recipe (handles multiplier)
+    final outputs = action.outputsForRecipe(recipeIndex);
+    final outputDrops = outputs.entries.map((e) => Drop(e.key, count: e.value));
+
+    // Note: We use outputDrops directly instead of rewardsForMasteryLevel
+    // when alternative recipes are involved, because rewardsForMasteryLevel
+    // uses the base outputs which don't account for recipe multipliers.
+    // For actions without alternative recipes, outputsForRecipe returns the
+    // base outputs, so this is equivalent.
     return [
-      ...action.rewardsForMasteryLevel(masteryLevel), // Action-level drops
+      ...outputDrops, // Action outputs (with recipe multiplier applied)
       ...forSkill(action.skill), // Skill-level drops (may include DropTables)
       // Missing global drops.
     ];

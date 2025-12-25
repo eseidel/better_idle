@@ -490,8 +490,12 @@ class GlobalState {
   bool canStartAction(Action action) {
     // Only SkillActions have inputs to check
     if (action is SkillAction) {
+      // Get the selected recipe's inputs
+      final actionStateVal = actionState(action.id);
+      final inputs = action.inputsForRecipe(actionStateVal.recipeIndex);
+
       // Check inputs
-      for (final requirement in action.inputs.entries) {
+      for (final requirement in inputs.entries) {
         final item = registries.items.byId(requirement.key);
         final itemCount = inventory.countOfItem(item);
         if (itemCount < requirement.value) {
@@ -501,8 +505,7 @@ class GlobalState {
 
       // Check if mining node is depleted
       if (action is MiningAction) {
-        final actionState = this.actionState(action.id);
-        final miningState = actionState.mining ?? const MiningState.empty();
+        final miningState = actionStateVal.mining ?? const MiningState.empty();
         if (miningState.isDepleted) {
           return false; // Can't mine depleted node
         }
@@ -608,8 +611,12 @@ class GlobalState {
     int totalTicks;
 
     if (action is SkillAction) {
+      // Get the selected recipe's inputs
+      final actionStateVal = actionState(actionId);
+      final inputs = action.inputsForRecipe(actionStateVal.recipeIndex);
+
       // Validate that all required items are available for skill actions
-      for (final requirement in action.inputs.entries) {
+      for (final requirement in inputs.entries) {
         final item = registries.items.byId(requirement.key);
         final itemCount = inventory.countOfItem(item);
         if (itemCount < requirement.value) {
@@ -744,6 +751,15 @@ class GlobalState {
   GlobalState addActionMasteryXp(ActionId actionId, int amount) {
     final oldState = actionState(actionId);
     final newState = oldState.copyWith(masteryXp: oldState.masteryXp + amount);
+    final newActionStates = Map<ActionId, ActionState>.from(actionStates);
+    newActionStates[actionId] = newState;
+    return copyWith(actionStates: newActionStates);
+  }
+
+  /// Sets the selected recipe index for an action with alternative costs.
+  GlobalState setRecipeIndex(ActionId actionId, int recipeIndex) {
+    final oldState = actionState(actionId);
+    final newState = oldState.copyWith(selectedRecipeIndex: recipeIndex);
     final newActionStates = Map<ActionId, ActionState>.from(actionStates);
     newActionStates[actionId] = newState;
     return copyWith(actionStates: newActionStates);
