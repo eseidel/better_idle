@@ -1,3 +1,5 @@
+import 'package:equatable/equatable.dart';
+
 import 'actions.dart';
 import 'melvor_id.dart';
 
@@ -5,7 +7,7 @@ import 'melvor_id.dart';
 /// This is necessary to uniquely identify an action, since action names
 /// are unique within a skill, but not across skills and skills themselves
 /// are namespaced (but also themselves unique without a namespace).
-class ActionId {
+class ActionId extends Equatable {
   const ActionId(this.skillId, this.localId);
 
   final MelvorId skillId;
@@ -27,15 +29,7 @@ class ActionId {
   }
 
   @override
-  bool operator ==(Object other) =>
-      identical(this, other) ||
-      other is ActionId &&
-          runtimeType == other.runtimeType &&
-          skillId == other.skillId &&
-          localId == other.localId;
-
-  @override
-  int get hashCode => Object.hash(skillId, localId);
+  List<Object?> get props => [skillId, localId];
 
   @override
   String toString() => '${skillId.fullId}/$localId';

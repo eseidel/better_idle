@@ -18,6 +18,7 @@
 /// "how we value intermediate progress". The [ValueModel] handles the latter.
 library;
 
+import 'package:equatable/equatable.dart';
 import 'package:logic/src/data/actions.dart';
 import 'package:logic/src/data/xp.dart';
 import 'package:logic/src/state.dart';
@@ -27,7 +28,7 @@ import 'estimate_rates.dart';
 
 /// Abstract base class for solver goals.
 @immutable
-sealed class Goal {
+sealed class Goal extends Equatable {
   const Goal();
 
   /// Returns true if the goal is satisfied in the given state.
@@ -121,11 +122,7 @@ class ReachGpGoal extends Goal {
   double activityRate(Skill skill, double goldRate, double xpRate) => goldRate;
 
   @override
-  bool operator ==(Object other) =>
-      other is ReachGpGoal && other.targetGp == targetGp;
-
-  @override
-  int get hashCode => targetGp.hashCode;
+  List<Object?> get props => [targetGp];
 }
 
 /// Goal to reach a target level in a specific skill.
@@ -173,11 +170,5 @@ class ReachSkillLevelGoal extends Goal {
       s == skill ? xpRate : 0.0;
 
   @override
-  bool operator ==(Object other) =>
-      other is ReachSkillLevelGoal &&
-      other.skill == skill &&
-      other.targetLevel == targetLevel;
-
-  @override
-  int get hashCode => Object.hash(skill, targetLevel);
+  List<Object?> get props => [skill, targetLevel];
 }

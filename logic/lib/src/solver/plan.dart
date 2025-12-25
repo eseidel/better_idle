@@ -18,6 +18,7 @@
 /// dead, restart" loops) into macro steps for UI display.
 library;
 
+import 'package:equatable/equatable.dart';
 import 'package:logic/src/data/action_id.dart';
 import 'package:logic/src/data/actions.dart';
 import 'package:logic/src/state.dart';
@@ -42,7 +43,7 @@ import 'interaction.dart';
 /// - [isSatisfied] - check if condition is met (for execution)
 /// - [describe] - human-readable description with values
 /// - [shortDescription] - brief label for plan display (e.g., "Skill +1")
-sealed class WaitFor {
+sealed class WaitFor extends Equatable {
   const WaitFor();
 
   /// Returns true if this wait condition is satisfied in the given state.
@@ -82,11 +83,7 @@ class WaitForInventoryValue extends WaitFor {
   String get shortDescription => '$reason affordable';
 
   @override
-  bool operator ==(Object other) =>
-      other is WaitForInventoryValue && other.targetValue == targetValue;
-
-  @override
-  int get hashCode => targetValue.hashCode;
+  List<Object?> get props => [targetValue];
 }
 
 /// Wait until a skill reaches a target XP amount.
@@ -113,13 +110,7 @@ class WaitForSkillXp extends WaitFor {
   String get shortDescription => reason ?? 'Skill +1';
 
   @override
-  bool operator ==(Object other) =>
-      other is WaitForSkillXp &&
-      other.skill == skill &&
-      other.targetXp == targetXp;
-
-  @override
-  int get hashCode => Object.hash(skill, targetXp);
+  List<Object?> get props => [skill, targetXp];
 }
 
 /// Wait until mastery for an action reaches a target XP amount.
@@ -146,13 +137,7 @@ class WaitForMasteryXp extends WaitFor {
   String get shortDescription => 'Mastery +1';
 
   @override
-  bool operator ==(Object other) =>
-      other is WaitForMasteryXp &&
-      other.actionId == actionId &&
-      other.targetMasteryXp == targetMasteryXp;
-
-  @override
-  int get hashCode => Object.hash(actionId, targetMasteryXp);
+  List<Object?> get props => [actionId, targetMasteryXp];
 }
 
 /// Wait until inventory usage reaches a threshold fraction.
@@ -177,11 +162,7 @@ class WaitForInventoryThreshold extends WaitFor {
   String get shortDescription => 'Inventory threshold';
 
   @override
-  bool operator ==(Object other) =>
-      other is WaitForInventoryThreshold && other.threshold == threshold;
-
-  @override
-  int get hashCode => threshold.hashCode;
+  List<Object?> get props => [threshold];
 }
 
 /// Wait until inventory is completely full.
@@ -201,10 +182,7 @@ class WaitForInventoryFull extends WaitFor {
   String get shortDescription => 'Inventory full';
 
   @override
-  bool operator ==(Object other) => other is WaitForInventoryFull;
-
-  @override
-  int get hashCode => 0;
+  List<Object?> get props => [];
 }
 
 /// Wait until goal is reached. This is a terminal wait.
@@ -224,10 +202,7 @@ class WaitForGoal extends WaitFor {
   String get shortDescription => 'Goal reached';
 
   @override
-  bool operator ==(Object other) => other is WaitForGoal && other.goal == goal;
-
-  @override
-  int get hashCode => goal.hashCode;
+  List<Object?> get props => [goal];
 }
 
 // ---------------------------------------------------------------------------
@@ -235,7 +210,7 @@ class WaitForGoal extends WaitFor {
 // ---------------------------------------------------------------------------
 
 /// A single step in a plan.
-sealed class PlanStep {
+sealed class PlanStep extends Equatable {
   const PlanStep();
 }
 
@@ -247,14 +222,10 @@ class InteractionStep extends PlanStep {
   final Interaction interaction;
 
   @override
+  List<Object?> get props => [interaction];
+
+  @override
   String toString() => 'InteractionStep($interaction)';
-
-  @override
-  bool operator ==(Object other) =>
-      other is InteractionStep && other.interaction == interaction;
-
-  @override
-  int get hashCode => interaction.hashCode;
 }
 
 /// A step that waits for a condition to be met.
@@ -274,16 +245,10 @@ class WaitStep extends PlanStep {
   final WaitFor waitFor;
 
   @override
+  List<Object?> get props => [deltaTicks, waitFor];
+
+  @override
   String toString() => 'WaitStep($deltaTicks ticks, ${waitFor.describe()})';
-
-  @override
-  bool operator ==(Object other) =>
-      other is WaitStep &&
-      other.deltaTicks == deltaTicks &&
-      other.waitFor == waitFor;
-
-  @override
-  int get hashCode => Object.hash(deltaTicks, waitFor);
 }
 
 /// The result of running the solver.

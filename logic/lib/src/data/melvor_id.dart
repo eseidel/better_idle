@@ -1,4 +1,6 @@
-class MelvorId {
+import 'package:equatable/equatable.dart';
+
+class MelvorId extends Equatable {
   const MelvorId(this.fullId);
 
   /// Creates a MelvorId from a JSON string.
@@ -40,14 +42,7 @@ class MelvorId {
   String get name => localId.replaceAll('_', ' ');
 
   @override
-  bool operator ==(Object other) =>
-      identical(this, other) ||
-      other is MelvorId &&
-          runtimeType == other.runtimeType &&
-          fullId == other.fullId;
-
-  @override
-  int get hashCode => fullId.hashCode;
+  List<Object?> get props => [fullId];
 
   @override
   String toString() => fullId;

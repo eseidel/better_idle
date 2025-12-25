@@ -15,6 +15,7 @@
 /// passing) is handled separately via [WaitStep] in plans.
 library;
 
+import 'package:equatable/equatable.dart';
 import 'package:logic/src/data/action_id.dart';
 import 'package:logic/src/data/melvor_id.dart';
 
@@ -22,7 +23,7 @@ import 'package:logic/src/data/melvor_id.dart';
 ///
 /// All interactions are instantaneous (0 ticks). Time advancement is
 /// modeled separately.
-sealed class Interaction {
+sealed class Interaction extends Equatable {
   const Interaction();
 }
 
@@ -33,14 +34,10 @@ class SwitchActivity extends Interaction {
   final ActionId actionId;
 
   @override
+  List<Object?> get props => [actionId];
+
+  @override
   String toString() => 'SwitchActivity($actionId)';
-
-  @override
-  bool operator ==(Object other) =>
-      other is SwitchActivity && other.actionId == actionId;
-
-  @override
-  int get hashCode => actionId.hashCode;
 }
 
 /// Buy an item from the shop.
@@ -50,14 +47,10 @@ class BuyShopItem extends Interaction {
   final MelvorId purchaseId;
 
   @override
+  List<Object?> get props => [purchaseId];
+
+  @override
   String toString() => 'BuyShopItem($purchaseId)';
-
-  @override
-  bool operator ==(Object other) =>
-      other is BuyShopItem && other.purchaseId == purchaseId;
-
-  @override
-  int get hashCode => purchaseId.hashCode;
 }
 
 /// Sell all sellable items in inventory.
@@ -65,11 +58,8 @@ class SellAll extends Interaction {
   const SellAll();
 
   @override
+  List<Object?> get props => [];
+
+  @override
   String toString() => 'SellAll()';
-
-  @override
-  bool operator ==(Object other) => other is SellAll;
-
-  @override
-  int get hashCode => runtimeType.hashCode;
 }

@@ -21,6 +21,7 @@ import 'dart:collection';
 import 'dart:math';
 
 import 'package:collection/collection.dart';
+import 'package:equatable/equatable.dart';
 import 'package:logic/src/consume_ticks.dart';
 import 'package:logic/src/data/actions.dart';
 import 'package:logic/src/data/currency.dart';
@@ -128,8 +129,8 @@ const int _hpBucketSize = 10;
 
 /// Bucket key for dominance pruning - groups states with same structural situation.
 /// Includes activity, tool tiers, relevant skill levels, mastery level, and HP bucket.
-class _BucketKey {
-  _BucketKey({
+class _BucketKey extends Equatable {
+  const _BucketKey({
     required this.activityName,
     required this.axeLevel,
     required this.rodLevel,
@@ -159,21 +160,7 @@ class _BucketKey {
   final int masteryLevel;
 
   @override
-  bool operator ==(Object other) =>
-      other is _BucketKey &&
-      other.activityName == activityName &&
-      other.axeLevel == axeLevel &&
-      other.rodLevel == rodLevel &&
-      other.pickLevel == pickLevel &&
-      other.woodcuttingLevel == woodcuttingLevel &&
-      other.fishingLevel == fishingLevel &&
-      other.miningLevel == miningLevel &&
-      other.thievingLevel == thievingLevel &&
-      other.hpBucket == hpBucket &&
-      other.masteryLevel == masteryLevel;
-
-  @override
-  int get hashCode => Object.hash(
+  List<Object?> get props => [
     activityName,
     axeLevel,
     rodLevel,
@@ -184,7 +171,7 @@ class _BucketKey {
     thievingLevel,
     hpBucket,
     masteryLevel,
-  );
+  ];
 }
 
 /// Creates a bucket key from a game state.
