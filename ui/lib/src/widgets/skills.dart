@@ -19,6 +19,7 @@ extension SkillExtensions on Skill {
     Skill.runecrafting => Icons.auto_fix_high,
     Skill.agility => Icons.directions_run,
     Skill.summoning => Icons.pets,
+    Skill.astrology => Icons.auto_awesome,
   };
 
   String get routeName => switch (this) {

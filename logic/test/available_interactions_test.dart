@@ -25,9 +25,10 @@ void main() {
       String actionName(SwitchActivity s) => testActions.byId(s.actionId).name;
 
       // Should have level 1 activities: Normal Tree, Raw Shrimp,
-      // Rune Essence, Copper, Tin, Man, plus 3 Agility slot 0 obstacles
+      // Rune Essence, Copper, Tin, Man, plus 3 Agility slot 0 obstacles,
+      // plus 1 Astrology constellation (Deedree)
       // Note: Arrow Shafts is level 1 but requires logs (alternativeCosts)
-      expect(switches.length, 9);
+      expect(switches.length, 10);
       expect(switches.map(actionName), contains('Normal Tree'));
       expect(switches.map(actionName), contains('Raw Shrimp'));
       expect(switches.map(actionName), contains('Man'));

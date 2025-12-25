@@ -235,6 +235,7 @@ double actionTimeForMastery(SkillAction action) {
     case Skill.thieving:
     case Skill.fishing:
     case Skill.agility:
+    case Skill.astrology:
       return action.maxDuration.inSeconds.toDouble();
 
     // Artisan skills use fixed values

@@ -135,6 +135,7 @@ class MelvorData {
     _agilityPillars = agilityPillars;
 
     actions.addAll(parseSummoning(skillDataById['melvorD:Summoning']));
+    actions.addAll(parseAstrology(skillDataById['melvorD:Astrology']));
 
     _actions = ActionRegistry(actions);
     _combatAreas = CombatAreaRegistry(combatAreas);
@@ -776,6 +777,27 @@ List<SummoningAction> parseSummoning(List<SkillDataEntry>? entries) {
       actions.addAll(
         recipes.map(
           (json) => SummoningAction.fromJson(
+            json as Map<String, dynamic>,
+            namespace: entry.namespace,
+          ),
+        ),
+      );
+    }
+  }
+  return actions;
+}
+
+/// Parses all astrology data. Returns actions list.
+List<AstrologyAction> parseAstrology(List<SkillDataEntry>? entries) {
+  if (entries == null) return [];
+
+  final actions = <AstrologyAction>[];
+  for (final entry in entries) {
+    final recipes = entry.data['recipes'] as List<dynamic>?;
+    if (recipes != null) {
+      actions.addAll(
+        recipes.map(
+          (json) => AstrologyAction.fromJson(
             json as Map<String, dynamic>,
             namespace: entry.namespace,
           ),
