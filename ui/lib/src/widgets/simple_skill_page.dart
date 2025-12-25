@@ -3,6 +3,7 @@ import 'package:better_idle/src/widgets/context_extensions.dart';
 import 'package:better_idle/src/widgets/mastery_pool.dart';
 import 'package:better_idle/src/widgets/mastery_unlocks_dialog.dart';
 import 'package:better_idle/src/widgets/navigation_drawer.dart';
+import 'package:better_idle/src/widgets/skill_milestones_dialog.dart';
 import 'package:better_idle/src/widgets/skill_progress.dart';
 import 'package:flutter/material.dart' hide Action;
 import 'package:logic/logic.dart';
@@ -36,7 +37,13 @@ class SimpleSkillPage extends StatelessWidget {
         children: [
           SkillProgress(xp: skillState.xp),
           MasteryPoolProgress(xp: skillState.masteryPoolXp),
-          MasteryUnlocksButton(skill: skill),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              MasteryUnlocksButton(skill: skill),
+              SkillMilestonesButton(skill: skill),
+            ],
+          ),
           Expanded(
             child: ActionGrid(actions: actions, cellSize: cellSize),
           ),
