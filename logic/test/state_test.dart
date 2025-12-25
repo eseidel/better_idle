@@ -1069,6 +1069,55 @@ void main() {
     });
   });
 
+  group('GlobalState.setRecipeIndex', () {
+    test('sets the selected recipe index for an action', () {
+      final state = GlobalState.test(testRegistries);
+
+      // Initially, action state should have no selected recipe index
+      expect(state.actionState(normalTree.id).selectedRecipeIndex, isNull);
+
+      // Set a recipe index
+      final newState = state.setRecipeIndex(normalTree.id, 2);
+
+      // Verify the recipe index was set
+      expect(newState.actionState(normalTree.id).selectedRecipeIndex, 2);
+    });
+
+    test('updates existing action state with recipe index', () {
+      // Create state with existing mastery XP
+      final state = GlobalState.test(
+        testRegistries,
+        actionStates: {normalTree.id: const ActionState(masteryXp: 100)},
+      );
+
+      // Set a recipe index
+      final newState = state.setRecipeIndex(normalTree.id, 1);
+
+      // Verify mastery XP is preserved
+      expect(newState.actionState(normalTree.id).masteryXp, 100);
+      // Verify recipe index was set
+      expect(newState.actionState(normalTree.id).selectedRecipeIndex, 1);
+    });
+
+    test('can change recipe index from one value to another', () {
+      final state = GlobalState.test(
+        testRegistries,
+        actionStates: {
+          normalTree.id: const ActionState(
+            masteryXp: 50,
+            selectedRecipeIndex: 0,
+          ),
+        },
+      );
+
+      // Change recipe index from 0 to 3
+      final newState = state.setRecipeIndex(normalTree.id, 3);
+
+      expect(newState.actionState(normalTree.id).selectedRecipeIndex, 3);
+      expect(newState.actionState(normalTree.id).masteryXp, 50);
+    });
+  });
+
   group('Equipment gear slots serialization', () {
     test('toJson/fromJson round-trip with gear equipped', () {
       final equipment = Equipment(

@@ -23,6 +23,7 @@ words:
   - APPL
   - bobbys
   - cocoapods
+  - cooldown
   - craftable
   - cupertino
   - defence # Consider removing and forcing all our code to use Defense.
