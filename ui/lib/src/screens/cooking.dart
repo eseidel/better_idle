@@ -160,7 +160,6 @@ class _ActionList extends StatelessWidget {
                     ),
                   ],
                 ),
-                onTap: () => onSelect(action),
               ),
             );
           }

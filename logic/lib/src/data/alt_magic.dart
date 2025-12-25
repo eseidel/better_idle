@@ -18,11 +18,16 @@ class AltMagicAction extends SkillAction {
     required super.unlockLevel,
     required super.xp,
     required this.media,
-    required this.runesRequired,
+    required Map<MelvorId, int> runesRequired,
     required this.produces,
     required this.productionRatio,
     required this.specialCostType,
-  }) : super(skill: Skill.altMagic, duration: _altMagicCastDuration);
+  }) : runesRequired = runesRequired,
+       super(
+         skill: Skill.altMagic,
+         duration: _altMagicCastDuration,
+         inputs: runesRequired,
+       );
 
   factory AltMagicAction.fromJson(
     Map<String, dynamic> json, {
