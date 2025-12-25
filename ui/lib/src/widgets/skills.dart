@@ -26,7 +26,7 @@ extension SkillExtensions on Skill {
   String get routeName => switch (this) {
     Skill.hitpoints => 'combat',
     Skill.attack => 'combat',
-    Skill.altMagic => 'altmagic',
+    Skill.altMagic => 'alt_magic',
     _ => name.toLowerCase(),
   };
 

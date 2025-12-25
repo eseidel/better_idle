@@ -1,3 +1,4 @@
+// cspell:words deedree
 import 'dart:math';
 
 import 'package:logic/logic.dart';

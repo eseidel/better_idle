@@ -4,6 +4,7 @@ import 'package:better_idle/src/widgets/hp_bar.dart';
 import 'package:better_idle/src/widgets/mastery_pool.dart';
 import 'package:better_idle/src/widgets/mastery_unlocks_dialog.dart';
 import 'package:better_idle/src/widgets/navigation_drawer.dart';
+import 'package:better_idle/src/widgets/skill_milestones_dialog.dart';
 import 'package:better_idle/src/widgets/skill_progress.dart';
 import 'package:better_idle/src/widgets/style.dart';
 import 'package:better_idle/src/widgets/xp_badges_row.dart';
@@ -52,7 +53,13 @@ class _ThievingPageState extends State<ThievingPage> {
         children: [
           SkillProgress(xp: skillState.xp),
           MasteryPoolProgress(xp: skillState.masteryPoolXp),
-          const MasteryUnlocksButton(skill: skill),
+          const Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              MasteryUnlocksButton(skill: skill),
+              SkillMilestonesButton(skill: skill),
+            ],
+          ),
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
             child: Column(

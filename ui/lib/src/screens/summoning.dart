@@ -7,6 +7,7 @@ import 'package:better_idle/src/widgets/mastery_unlocks_dialog.dart';
 import 'package:better_idle/src/widgets/navigation_drawer.dart';
 import 'package:better_idle/src/widgets/skill_action_display.dart';
 import 'package:better_idle/src/widgets/skill_image.dart';
+import 'package:better_idle/src/widgets/skill_milestones_dialog.dart';
 import 'package:better_idle/src/widgets/skill_progress.dart';
 import 'package:better_idle/src/widgets/style.dart';
 import 'package:flutter/material.dart' hide Action;
@@ -55,7 +56,13 @@ class _SummoningPageState extends State<SummoningPage> {
         children: [
           SkillProgress(xp: skillState.xp),
           MasteryPoolProgress(xp: skillState.masteryPoolXp),
-          const MasteryUnlocksButton(skill: skill),
+          const Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              MasteryUnlocksButton(skill: skill),
+              SkillMilestonesButton(skill: skill),
+            ],
+          ),
           Expanded(
             child: SingleChildScrollView(
               padding: const EdgeInsets.all(16),
