@@ -2,6 +2,7 @@ import 'package:better_idle/src/logic/redux_actions.dart';
 import 'package:better_idle/src/widgets/cached_image.dart';
 import 'package:better_idle/src/widgets/context_extensions.dart';
 import 'package:better_idle/src/widgets/equipment_slots.dart';
+import 'package:better_idle/src/widgets/hp_bar.dart';
 import 'package:better_idle/src/widgets/monster_drops_dialog.dart';
 import 'package:better_idle/src/widgets/navigation_drawer.dart';
 import 'package:better_idle/src/widgets/skill_image.dart';
@@ -230,14 +231,14 @@ class _PlayerStatsCard extends StatelessWidget {
               style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 8),
-            _HpBar(
+            HpBar(
               currentHp: playerHp,
               maxHp: maxPlayerHp,
               color: Style.playerHpBarColor,
             ),
             Text('HP: $playerHp / $maxPlayerHp'),
             const SizedBox(height: 8),
-            _AttackBar(
+            AttackBar(
               ticksRemaining: attackTicksRemaining,
               totalTicks: totalAttackTicks,
             ),
@@ -407,14 +408,14 @@ class _MonsterCard extends StatelessWidget {
                 ),
               )
             else ...[
-              _HpBar(
+              HpBar(
                 currentHp: currentHp,
                 maxHp: action.maxHp,
                 color: Style.monsterHpBarColor,
               ),
               Text('HP: $currentHp / ${action.maxHp}'),
               const SizedBox(height: 8),
-              _AttackBar(
+              AttackBar(
                 ticksRemaining: combatState?.monsterAttackTicksRemaining,
                 totalTicks: isInCombat
                     ? ticksFromDuration(
@@ -446,76 +447,6 @@ class _MonsterCard extends StatelessWidget {
                 ),
             ],
           ],
-        ),
-      ),
-    );
-  }
-}
-
-class _HpBar extends StatelessWidget {
-  const _HpBar({
-    required this.currentHp,
-    required this.maxHp,
-    required this.color,
-  });
-
-  final int currentHp;
-  final int maxHp;
-  final Color color;
-
-  @override
-  Widget build(BuildContext context) {
-    final progress = maxHp > 0 ? (currentHp / maxHp).clamp(0.0, 1.0) : 0.0;
-
-    return Container(
-      height: 20,
-      decoration: BoxDecoration(
-        color: Style.progressBackgroundColor,
-        borderRadius: BorderRadius.circular(4),
-      ),
-      child: FractionallySizedBox(
-        alignment: Alignment.centerLeft,
-        widthFactor: progress,
-        child: Container(
-          decoration: BoxDecoration(
-            color: color,
-            borderRadius: BorderRadius.circular(4),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _AttackBar extends StatelessWidget {
-  const _AttackBar({required this.ticksRemaining, required this.totalTicks});
-
-  final int? ticksRemaining;
-  final int? totalTicks;
-
-  @override
-  Widget build(BuildContext context) {
-    final total = totalTicks;
-    final remaining = ticksRemaining;
-    // Progress goes from 0 to 1 as the attack charges up.
-    final progress = (total != null && total > 0 && remaining != null)
-        ? (1.0 - remaining / total).clamp(0.0, 1.0)
-        : 0.0;
-
-    return Container(
-      height: 12,
-      decoration: BoxDecoration(
-        color: Style.progressBackgroundColor,
-        borderRadius: BorderRadius.circular(4),
-      ),
-      child: FractionallySizedBox(
-        alignment: Alignment.centerLeft,
-        widthFactor: progress,
-        child: Container(
-          decoration: BoxDecoration(
-            color: Style.attackBarColor,
-            borderRadius: BorderRadius.circular(4),
-          ),
         ),
       ),
     );

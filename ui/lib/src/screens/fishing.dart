@@ -4,10 +4,10 @@ import 'package:better_idle/src/widgets/item_image.dart';
 import 'package:better_idle/src/widgets/mastery_pool.dart';
 import 'package:better_idle/src/widgets/mastery_unlocks_dialog.dart';
 import 'package:better_idle/src/widgets/navigation_drawer.dart';
+import 'package:better_idle/src/widgets/skill_action_display.dart';
 import 'package:better_idle/src/widgets/skill_image.dart';
 import 'package:better_idle/src/widgets/skill_progress.dart';
 import 'package:better_idle/src/widgets/style.dart';
-import 'package:better_idle/src/widgets/xp_badges_row.dart';
 import 'package:collection/collection.dart';
 import 'package:flutter/material.dart' hide Action;
 import 'package:logic/logic.dart';
@@ -78,9 +78,29 @@ class _FishingPageState extends State<FishingPage> {
               child: Column(
                 children: [
                   if (selectedAction != null)
-                    _SelectedActionDisplay(
+                    SkillActionDisplay(
                       action: selectedAction,
+                      skill: skill,
                       skillLevel: skillLevel,
+                      headerText: 'Fishing',
+                      buttonText: 'Fish',
+                      showInputsOutputs: false,
+                      durationBuilder: (action) {
+                        final fishingAction = action as FishingAction;
+                        final min = _formatDuration(fishingAction.minDuration);
+                        final max = _formatDuration(fishingAction.maxDuration);
+                        final durationText = fishingAction.isFixedDuration
+                            ? min
+                            : '$min - $max';
+                        return Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            const Icon(Icons.access_time, size: 16),
+                            const SizedBox(width: 4),
+                            Text(durationText),
+                          ],
+                        );
+                      },
                       onStart: () {
                         context.dispatch(
                           ToggleActionAction(action: selectedAction),
@@ -151,124 +171,6 @@ class _NoUnlockedActionsDisplay extends StatelessWidget {
           const SizedBox(height: 8),
           const Text('No fishing actions unlocked yet'),
           Text('Current level: $skillLevel'),
-        ],
-      ),
-    );
-  }
-}
-
-class _SelectedActionDisplay extends StatelessWidget {
-  const _SelectedActionDisplay({
-    required this.action,
-    required this.skillLevel,
-    required this.onStart,
-  });
-
-  final FishingAction action;
-  final int skillLevel;
-  final VoidCallback onStart;
-
-  @override
-  Widget build(BuildContext context) {
-    final isUnlocked = skillLevel >= action.unlockLevel;
-
-    if (!isUnlocked) {
-      return _buildLocked(context);
-    }
-    return _buildUnlocked(context);
-  }
-
-  Widget _buildLocked(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Style.cellBackgroundColorLocked,
-        border: Border.all(color: Style.textColorSecondary),
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          const Icon(Icons.lock, size: 48, color: Style.textColorSecondary),
-          const SizedBox(height: 8),
-          Text(
-            action.name,
-            textAlign: TextAlign.center,
-            style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-          ),
-          const SizedBox(height: 8),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const Text('Unlocked at '),
-              const SkillImage(skill: Skill.fishing, size: 16),
-              Text(' Level ${action.unlockLevel}'),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildUnlocked(BuildContext context) {
-    final state = context.state;
-    final actionState = state.actionState(action.id);
-    final isActive = state.activeAction?.id == action.id;
-    final canStart = state.canStartAction(action);
-
-    final durationText = action.isFixedDuration
-        ? _formatDuration(action.minDuration)
-        : '${_formatDuration(action.minDuration)} - '
-              '${_formatDuration(action.maxDuration)}';
-
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: isActive
-            ? Style.activeColorLight
-            : Style.containerBackgroundLight,
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          // Header: Fishing + Action Name
-          const Text(
-            'Fishing',
-            textAlign: TextAlign.center,
-            style: TextStyle(fontSize: 14, color: Style.textColorSecondary),
-          ),
-          Text(
-            action.name,
-            textAlign: TextAlign.center,
-            style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-          ),
-          const SizedBox(height: 8),
-
-          // Mastery progress
-          MasteryProgressCell(masteryXp: actionState.masteryXp),
-          const SizedBox(height: 12),
-
-          XpBadgesRow(action: action),
-          const SizedBox(height: 16),
-
-          // Duration and Fish button
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const Icon(Icons.access_time, size: 16),
-              const SizedBox(width: 4),
-              Text(durationText),
-            ],
-          ),
-          const SizedBox(height: 8),
-          ElevatedButton(
-            onPressed: canStart || isActive ? onStart : null,
-            style: ElevatedButton.styleFrom(
-              backgroundColor: isActive ? Style.activeColor : null,
-            ),
-            child: Text(isActive ? 'Stop' : 'Fish'),
-          ),
         ],
       ),
     );

@@ -1,5 +1,6 @@
 import 'package:better_idle/src/logic/redux_actions.dart';
 import 'package:better_idle/src/widgets/context_extensions.dart';
+import 'package:better_idle/src/widgets/hp_bar.dart';
 import 'package:better_idle/src/widgets/mastery_pool.dart';
 import 'package:better_idle/src/widgets/mastery_unlocks_dialog.dart';
 import 'package:better_idle/src/widgets/navigation_drawer.dart';
@@ -57,7 +58,7 @@ class _ThievingPageState extends State<ThievingPage> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                _HpBar(currentHp: playerHp, maxHp: maxPlayerHp),
+                HpBar(currentHp: playerHp, maxHp: maxPlayerHp),
                 const SizedBox(height: 4),
                 Text('HP: $playerHp / $maxPlayerHp'),
               ],
@@ -442,36 +443,6 @@ class _ActionList extends StatelessWidget {
           );
         }),
       ],
-    );
-  }
-}
-
-class _HpBar extends StatelessWidget {
-  const _HpBar({required this.currentHp, required this.maxHp});
-
-  final int currentHp;
-  final int maxHp;
-
-  @override
-  Widget build(BuildContext context) {
-    final progress = maxHp > 0 ? (currentHp / maxHp).clamp(0.0, 1.0) : 0.0;
-
-    return Container(
-      height: 20,
-      decoration: BoxDecoration(
-        color: Style.progressBackgroundColor,
-        borderRadius: BorderRadius.circular(4),
-      ),
-      child: FractionallySizedBox(
-        alignment: Alignment.centerLeft,
-        widthFactor: progress,
-        child: Container(
-          decoration: BoxDecoration(
-            color: Style.playerHpBarColor,
-            borderRadius: BorderRadius.circular(4),
-          ),
-        ),
-      ),
     );
   }
 }
