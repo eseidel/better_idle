@@ -58,6 +58,26 @@ flutter test          # Run tests
 - `itemRegistry` ([logic/lib/src/data/items.dart](logic/lib/src/data/items.dart)) - All items with properties (sell value, heal amount)
 - `dropsRegistry` - Drop tables combining action, skill, and global drops
 
+### Solver System
+The `logic/lib/src/solver/` directory contains an A* path-finding solver for automated goal-seeking:
+- `solver.dart` - Main solver entry point
+- `goal.dart` - Goal definitions (e.g., acquire item, reach level)
+- `enumerate_candidates.dart` - Generates possible next actions
+- Uses `estimateRates` and `ValueModel` for heuristic evaluation
+
+Run the solver CLI: `dart run bin/solver.dart`
+
+### Data Loading
+Game data is sourced from Melvor Idle's API and cached locally:
+- `MelvorId` - Strongly-typed IDs (e.g., `melvorD:Woodcutting`, `melvorD:Oak_Tree`)
+- `MelvorData` - Orchestrates fetching and caching game data
+- Data cached in `.cache/assets/` for offline development
+
+### Testing Patterns
+- Use `GlobalState.test()` factory for test fixtures with custom registries
+- `test_helper.dart` provides common test utilities
+- Most comprehensive tests are in `consume_ticks_test.dart` (covers tick processing edge cases)
+
 ## Workflow
 
 Run `dart format .` upon completion of edits.
