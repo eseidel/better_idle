@@ -7,6 +7,7 @@ import 'package:better_idle/src/widgets/mastery_pool.dart';
 import 'package:better_idle/src/widgets/mastery_unlocks_dialog.dart';
 import 'package:better_idle/src/widgets/navigation_drawer.dart';
 import 'package:better_idle/src/widgets/recycle_chance_badge_cell.dart';
+import 'package:better_idle/src/widgets/skill_image.dart';
 import 'package:better_idle/src/widgets/skill_progress.dart';
 import 'package:better_idle/src/widgets/style.dart';
 import 'package:better_idle/src/widgets/xp_badges_row.dart';
@@ -33,6 +34,7 @@ class _CraftingPageState extends State<CraftingPage> {
         .whereType<CraftingAction>()
         .toList();
     final skillState = context.state.skillState(skill);
+    final skillLevel = skillState.skillLevel;
     final categories = registries.craftingCategories;
 
     // Group actions by category
@@ -46,8 +48,13 @@ class _CraftingPageState extends State<CraftingPage> {
       }
     }
 
-    // Default to first action if none selected
-    final selectedAction = _selectedAction ?? actions.first;
+    // Default to first unlocked action if none selected
+    final unlockedActions = actions
+        .where((a) => skillLevel >= a.unlockLevel)
+        .toList();
+    final selectedAction =
+        _selectedAction ??
+        (unlockedActions.isNotEmpty ? unlockedActions.first : null);
 
     return Scaffold(
       appBar: AppBar(title: const Text('Crafting')),
@@ -63,7 +70,8 @@ class _CraftingPageState extends State<CraftingPage> {
               child: Column(
                 children: [
                   _SelectedActionDisplay(
-                    action: selectedAction,
+                    action: selectedAction!,
+                    skillLevel: skillLevel,
                     onStart: () {
                       context.dispatch(
                         ToggleActionAction(action: selectedAction),
@@ -75,6 +83,8 @@ class _CraftingPageState extends State<CraftingPage> {
                     actionsByCategory: actionsByCategory,
                     selectedAction: selectedAction,
                     collapsedCategories: _collapsedCategories,
+                    skill: skill,
+                    skillLevel: skillLevel,
                     onSelect: (action) {
                       setState(() {
                         _selectedAction = action;
@@ -105,13 +115,59 @@ class _CraftingPageState extends State<CraftingPage> {
 }
 
 class _SelectedActionDisplay extends StatelessWidget {
-  const _SelectedActionDisplay({required this.action, required this.onStart});
+  const _SelectedActionDisplay({
+    required this.action,
+    required this.skillLevel,
+    required this.onStart,
+  });
 
-  final SkillAction action;
+  final CraftingAction action;
+  final int skillLevel;
   final VoidCallback onStart;
 
   @override
   Widget build(BuildContext context) {
+    final isUnlocked = skillLevel >= action.unlockLevel;
+
+    if (!isUnlocked) {
+      return _buildLocked(context);
+    }
+    return _buildUnlocked(context);
+  }
+
+  Widget _buildLocked(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Style.cellBackgroundColorLocked,
+        border: Border.all(color: Style.textColorSecondary),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          const Icon(Icons.lock, size: 48, color: Style.textColorSecondary),
+          const SizedBox(height: 8),
+          Text(
+            action.name,
+            textAlign: TextAlign.center,
+            style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+          ),
+          const SizedBox(height: 8),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Text('Unlocked at '),
+              const SkillImage(skill: Skill.crafting, size: 16),
+              Text(' Level ${action.unlockLevel}'),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildUnlocked(BuildContext context) {
     final state = context.state;
     final actionState = state.actionState(action.id);
     final isActive = state.activeAction?.id == action.id;
