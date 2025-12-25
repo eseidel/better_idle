@@ -14,14 +14,6 @@ class ActionId {
   static ActionId test(Skill skill, String localName) =>
       ActionId(skill.id, MelvorId('test:${localName.replaceAll(' ', '_')}'));
 
-  /// The action name (localId with underscores replaced by spaces).
-  /// This is also the "name" field on the Action object.
-  // TODO(eseidel): remove this, guessing names from ids is not reliable.
-  String get actionName => localId.name;
-
-  /// Alias for actionName for convenience.
-  String get name => actionName;
-
   String toJson() => '${skillId.toJson()}/$localId';
 
   static ActionId? maybeFromJson(String? json) {

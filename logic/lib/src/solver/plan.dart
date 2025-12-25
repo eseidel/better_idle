@@ -136,7 +136,11 @@ class WaitForMasteryXp extends WaitFor {
   }
 
   @override
-  String describe() => '${actionId.name} mastery XP >= $targetMasteryXp';
+  String describe() {
+    // This isn't the real name, but it's close enough for debugging.
+    final actionName = actionId.localId.name;
+    return '$actionName mastery XP >= $targetMasteryXp';
+  }
 
   @override
   String get shortDescription => 'Mastery +1';

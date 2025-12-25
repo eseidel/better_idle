@@ -201,8 +201,10 @@ _BucketKey _bucketKeyFromState(GlobalState state) {
       ? state.actionState(actionId).masteryLevel
       : 0;
 
+  // This isn't the real name, but it's close enough for this logic.
+  final activityName = actionId != null ? actionId.localId.name : 'none';
   return _BucketKey(
-    activityName: actionId?.name ?? 'none',
+    activityName: activityName,
     axeLevel: state.shop.axeLevel,
     rodLevel: state.shop.fishingRodLevel,
     pickLevel: state.shop.pickaxeLevel,
