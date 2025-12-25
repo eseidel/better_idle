@@ -33,6 +33,10 @@ extension SkillExtensions on Skill {
   /// Returns the asset path for this skill in the media directory.
   String get assetPath {
     final lower = name.toLowerCase();
+
+    if (this == Skill.altMagic) {
+      return 'assets/media/skills/magic/magic.png';
+    }
     return 'assets/media/skills/$lower/$lower.png';
   }
 }
