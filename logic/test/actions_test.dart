@@ -25,23 +25,22 @@ void main() {
         // at roll time in rollAndCollectDrops(), not in the rewards themselves.
         final normalLogsId = MelvorId.fromName('Normal Logs');
 
-        // Base rewards are always 1 item regardless of mastery level
-        final rewardsAt0 = normalTree.rewardsForMasteryLevel(0);
-        expect(rewardsAt0.length, 1);
-        final expectedAt0 = rewardsAt0.first.expectedItems[normalLogsId]!;
-        expect(expectedAt0, closeTo(1.0, 0.001));
-
-        // Even at high mastery, base rewards are still 1 item
-        final rewardsAt50 = normalTree.rewardsForMasteryLevel(50);
-        expect(rewardsAt50.length, 1);
-        final expectedAt50 = rewardsAt50.first.expectedItems[normalLogsId]!;
-        expect(expectedAt50, closeTo(1.0, 0.001));
+        // Base rewards are always 1 item (doubling applied via modifiers)
+        final rewards = normalTree.rewardsForSelection(
+          const NoSelectedRecipe(),
+        );
+        expect(rewards.length, 1);
+        final expected = rewards.first.expectedItems[normalLogsId]!;
+        expect(expected, closeTo(1.0, 0.001));
       },
     );
 
     test('expectedItemsForDrops applies doubling chance multiplier', () {
       final normalLogsId = MelvorId.fromName('Normal Logs');
-      final drops = testDrops.allDropsForAction(normalTree, masteryLevel: 0);
+      final drops = testDrops.allDropsForAction(
+        normalTree,
+        const NoSelectedRecipe(),
+      );
 
       // With 0% doubling chance, expected items = 1.0
       final expected0 = expectedItemsForDrops(drops, doublingChance: 0.0);
@@ -87,7 +86,10 @@ void main() {
 
   group('allDropsForAction', () {
     test('mining actions include gem drops from miningGemTable', () {
-      final drops = testDrops.allDropsForAction(copperMining, masteryLevel: 1);
+      final drops = testDrops.allDropsForAction(
+        copperMining,
+        const NoSelectedRecipe(),
+      );
 
       // Check that miningGemTable (a DropChance wrapping DropTable) is included
       final hasGemTable = drops.any(
@@ -132,7 +134,13 @@ void main() {
       // With 100% chance, any random value will trigger doubling
       final random = Random(42);
 
-      rollAndCollectDrops(builder, normalTree, modifiers, random);
+      rollAndCollectDrops(
+        builder,
+        normalTree,
+        modifiers,
+        random,
+        const NoSelectedRecipe(),
+      );
 
       // With 100% doubling chance, we should get 2 logs instead of 1
       final inventory = builder.state.inventory;
@@ -150,7 +158,13 @@ void main() {
 
       final random = Random(42);
 
-      rollAndCollectDrops(builder, normalTree, modifiers, random);
+      rollAndCollectDrops(
+        builder,
+        normalTree,
+        modifiers,
+        random,
+        const NoSelectedRecipe(),
+      );
 
       // With 0% doubling chance, we should get exactly 1 log
       final inventory = builder.state.inventory;

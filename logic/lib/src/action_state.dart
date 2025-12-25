@@ -150,6 +150,21 @@ class CombatActionState {
   }
 }
 
+sealed class RecipeSelection {
+  const RecipeSelection();
+}
+
+/// This is used for actions without alternative recipes.
+class NoSelectedRecipe extends RecipeSelection {
+  const NoSelectedRecipe();
+}
+
+/// This is used for actions with alternative recipes.
+class SelectedRecipe extends RecipeSelection {
+  const SelectedRecipe({required this.index});
+  final int index;
+}
+
 /// The serialized state of an Action in progress.
 @immutable
 class ActionState {
@@ -185,11 +200,18 @@ class ActionState {
   final CombatActionState? combat;
 
   /// The selected recipe index for actions with alternativeCosts.
-  /// Null means recipe 0 (the default).
+  /// Null means no recipe has been selected, which can either be that
+  /// this state is brand new and hasn't been written to disk yet, or that
+  /// the action has no alternative recipes.
+  /// Either way, the correct way to read this value is through recipeSelection.
   final int? selectedRecipeIndex;
 
-  /// Gets the effective recipe index (defaults to 0).
-  int get recipeIndex => selectedRecipeIndex ?? 0;
+  RecipeSelection recipeSelection(Action action) {
+    if (action is SkillAction && action.hasAlternativeRecipes) {
+      return SelectedRecipe(index: selectedRecipeIndex ?? 0);
+    }
+    return NoSelectedRecipe();
+  }
 
   /// The mastery level for this action, derived from mastery XP.
   int get masteryLevel => levelForXp(masteryXp);

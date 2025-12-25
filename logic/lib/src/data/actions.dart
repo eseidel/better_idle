@@ -1,5 +1,6 @@
 import 'dart:math';
 
+import 'package:logic/src/action_state.dart';
 import 'package:logic/src/tick.dart';
 import 'package:logic/src/types/drop.dart';
 import 'package:meta/meta.dart';
@@ -9,6 +10,9 @@ import 'combat.dart';
 import 'melvor_id.dart';
 import 'mining.dart';
 import 'thieving.dart';
+
+export 'package:logic/src/action_state.dart'
+    show RecipeSelection, NoSelectedRecipe, SelectedRecipe;
 
 export 'combat.dart';
 export 'cooking.dart';
@@ -136,12 +140,8 @@ List<AlternativeRecipe>? parseAlternativeCosts(
   }).toList();
 }
 
-List<Droppable> defaultRewards(
-  SkillAction action,
-  int masteryLevel, {
-  int recipeIndex = 0,
-}) {
-  final outputs = action.outputsForRecipe(recipeIndex);
+List<Droppable> defaultRewards(SkillAction action, RecipeSelection selection) {
+  final outputs = action.outputsForRecipe(selection);
   return [...outputs.entries.map((e) => Drop(e.key, count: e.value))];
 }
 
@@ -189,36 +189,40 @@ class SkillAction extends Action {
   /// which recipe to use, and each recipe may have a quantity multiplier.
   final List<AlternativeRecipe>? alternativeRecipes;
 
-  /// Function that returns drops for this action based on mastery level.
-  /// The recipeIndex parameter is used for actions with alternative recipes.
-  final List<Droppable> Function(
-    SkillAction action,
-    int masteryLevel, {
-    int recipeIndex,
-  })
+  /// Function that returns drops for this action based on recipe selection.
+  final List<Droppable> Function(SkillAction action, RecipeSelection selection)
   rewardsAtLevel;
 
   /// Whether this action has alternative recipes to choose from.
   bool get hasAlternativeRecipes =>
       alternativeRecipes != null && alternativeRecipes!.isNotEmpty;
 
-  /// Returns the inputs for a specific recipe index.
-  /// If alternativeRecipes is null/empty, returns the base inputs.
-  Map<MelvorId, int> inputsForRecipe(int recipeIndex) {
-    if (!hasAlternativeRecipes) return inputs;
-    final index = recipeIndex.clamp(0, alternativeRecipes!.length - 1);
-    return alternativeRecipes![index].inputs;
+  /// Returns the inputs for the given recipe selection.
+  /// For NoSelectedRecipe, returns the base inputs.
+  /// For SelectedRecipe, returns the inputs from the selected alternative recipe.
+  Map<MelvorId, int> inputsForRecipe(RecipeSelection selection) {
+    return switch (selection) {
+      NoSelectedRecipe() => inputs,
+      SelectedRecipe(:final index) =>
+        alternativeRecipes![index.clamp(0, alternativeRecipes!.length - 1)]
+            .inputs,
+    };
   }
 
-  /// Returns the outputs for a specific recipe index (applying quantityMultiplier).
-  /// If alternativeRecipes is null/empty, returns the base outputs.
-  Map<MelvorId, int> outputsForRecipe(int recipeIndex) {
-    if (!hasAlternativeRecipes) return outputs;
-    final index = recipeIndex.clamp(0, alternativeRecipes!.length - 1);
-    final recipe = alternativeRecipes![index];
-    return outputs.map(
-      (key, value) => MapEntry(key, value * recipe.quantityMultiplier),
-    );
+  /// Returns the outputs for the given recipe selection.
+  /// For NoSelectedRecipe, returns the base outputs.
+  /// For SelectedRecipe, applies the quantityMultiplier from the selected recipe.
+  Map<MelvorId, int> outputsForRecipe(RecipeSelection selection) {
+    return switch (selection) {
+      NoSelectedRecipe() => outputs,
+      SelectedRecipe(:final index) => () {
+        final recipe =
+            alternativeRecipes![index.clamp(0, alternativeRecipes!.length - 1)];
+        return outputs.map(
+          (key, value) => MapEntry(key, value * recipe.quantityMultiplier),
+        );
+      }(),
+    };
   }
 
   bool get isFixedDuration => minDuration == maxDuration;
@@ -240,10 +244,9 @@ class SkillAction extends Action {
     return minTicks + random.nextInt((maxTicks - minTicks) + 1);
   }
 
-  List<Droppable> rewardsForMasteryLevel(
-    int masteryLevel, {
-    int recipeIndex = 0,
-  }) => rewardsAtLevel(this, masteryLevel, recipeIndex: recipeIndex);
+  /// Returns the drops for this action given the recipe selection.
+  List<Droppable> rewardsForSelection(RecipeSelection selection) =>
+      rewardsAtLevel(this, selection);
 }
 
 /// Fixed player attack speed in seconds.
@@ -355,16 +358,12 @@ class DropsRegistry {
   /// DropTables, which are processed uniformly via Droppable.roll().
   /// Note: Only SkillActions have rewards - CombatActions handle drops
   /// differently.
-  ///
-  /// If [recipeIndex] is provided and the action has alternative recipes,
-  /// the outputs are adjusted by the recipe's quantity multiplier.
   List<Droppable> allDropsForAction(
-    SkillAction action, {
-    required int masteryLevel,
-    int recipeIndex = 0,
-  }) {
+    SkillAction action,
+    RecipeSelection selection,
+  ) {
     return [
-      ...action.rewardsForMasteryLevel(masteryLevel, recipeIndex: recipeIndex),
+      ...action.rewardsForSelection(selection),
       ...forSkill(action.skill), // Skill-level drops (may include DropTables)
       // Missing global drops.
     ];

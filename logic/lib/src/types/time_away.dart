@@ -56,6 +56,7 @@ class TimeAway {
     required this.changes,
     required this.masteryLevels,
     this.activeAction,
+    this.recipeSelection = const NoSelectedRecipe(),
     this.stopReason = ActionStopReason.stillRunning,
     this.stoppedAfter,
     this.doublingChance = 0.0,
@@ -67,6 +68,7 @@ class TimeAway {
     DateTime? endTime,
     Skill? activeSkill,
     Action? activeAction,
+    RecipeSelection? recipeSelection,
     Changes? changes,
     Map<ActionId, int>? masteryLevels,
     ActionStopReason? stopReason,
@@ -79,6 +81,7 @@ class TimeAway {
       endTime: endTime ?? DateTime.fromMillisecondsSinceEpoch(0),
       activeSkill: activeSkill,
       activeAction: activeAction,
+      recipeSelection: recipeSelection ?? const NoSelectedRecipe(),
       changes: changes ?? const Changes.empty(),
       masteryLevels: masteryLevels ?? const {},
       stopReason: stopReason ?? ActionStopReason.stillRunning,
@@ -122,6 +125,10 @@ class TimeAway {
           )
         : ActionStopReason.stillRunning;
     final stoppedAfterMs = json['stoppedAfterMs'] as int?;
+    final recipeIndex = json['recipeIndex'] as int?;
+    final recipeSelection = recipeIndex != null
+        ? SelectedRecipe(index: recipeIndex)
+        : const NoSelectedRecipe();
     return TimeAway(
       registries: registries,
       startTime: DateTime.fromMillisecondsSinceEpoch(json['startTime'] as int),
@@ -130,6 +137,7 @@ class TimeAway {
           ? Skill.fromName(json['activeSkill'] as String)
           : null,
       activeAction: action,
+      recipeSelection: recipeSelection,
       changes: Changes.fromJson(json['changes'] as Map<String, dynamic>),
       masteryLevels:
           maybeMap(json['masteryLevels'], toValue: (value) => value as int) ??
@@ -144,6 +152,7 @@ class TimeAway {
   final DateTime endTime;
   final Skill? activeSkill;
   final Action? activeAction;
+  final RecipeSelection recipeSelection;
   final Changes changes;
   final Map<ActionId, int> masteryLevels;
   final ActionStopReason stopReason;
@@ -196,12 +205,10 @@ class TimeAway {
       return {};
     }
 
-    // Get all possible drops for this action
-    // This will be an approximation since mastery level would change over time.
-    final masteryLevel = levelForMastery(action.id);
+    // Get all possible drops for this action using the selected recipe.
     final allDrops = registries.drops.allDropsForAction(
       action,
-      masteryLevel: masteryLevel,
+      recipeSelection,
     );
     if (allDrops.isEmpty) {
       return {};
@@ -228,7 +235,12 @@ class TimeAway {
   /// Returns empty map for CombatActions (combat has no inputs).
   Map<MelvorId, double> get itemsConsumedPerHour {
     final action = activeAction;
-    if (action is! SkillAction || action.inputs.isEmpty) {
+    if (action is! SkillAction) {
+      return {};
+    }
+
+    final inputs = action.inputsForRecipe(recipeSelection);
+    if (inputs.isEmpty) {
       return {};
     }
 
@@ -242,7 +254,7 @@ class TimeAway {
     final actionsPerHour = 3600.0 / meanDurationSeconds;
     final result = <MelvorId, double>{};
 
-    for (final entry in action.inputs.entries) {
+    for (final entry in inputs.entries) {
       final itemsPerHour = entry.value * actionsPerHour;
       result[entry.key] = itemsPerHour;
     }
@@ -255,6 +267,7 @@ class TimeAway {
     DateTime? endTime,
     Skill? activeSkill,
     Action? activeAction,
+    RecipeSelection? recipeSelection,
     Changes? changes,
     Map<ActionId, int>? masteryLevels,
     ActionStopReason? stopReason,
@@ -267,6 +280,7 @@ class TimeAway {
       endTime: endTime ?? this.endTime,
       activeSkill: activeSkill ?? this.activeSkill,
       activeAction: activeAction ?? this.activeAction,
+      recipeSelection: recipeSelection ?? this.recipeSelection,
       changes: changes ?? this.changes,
       masteryLevels: masteryLevels ?? this.masteryLevels,
       stopReason: stopReason ?? this.stopReason,
@@ -311,12 +325,17 @@ class TimeAway {
     final mergedDoublingChance = doublingChance > other.doublingChance
         ? doublingChance
         : other.doublingChance;
+    // Prefer the most recent recipe selection (from this)
+    final mergedRecipeSelection = recipeSelection is SelectedRecipe
+        ? recipeSelection
+        : other.recipeSelection;
     return TimeAway(
       registries: registries,
       startTime: mergedStartTime,
       endTime: mergedEndTime,
       activeSkill: activeSkill ?? other.activeSkill,
       activeAction: activeAction ?? other.activeAction,
+      recipeSelection: mergedRecipeSelection,
       changes: changes.merge(other.changes),
       masteryLevels: mergedMasteryLevels,
       stopReason: mergedStopReason,
@@ -326,11 +345,16 @@ class TimeAway {
   }
 
   Map<String, dynamic> toJson() {
+    final recipeIndex = switch (recipeSelection) {
+      NoSelectedRecipe() => null,
+      SelectedRecipe(:final index) => index,
+    };
     return {
       'startTime': startTime.millisecondsSinceEpoch,
       'endTime': endTime.millisecondsSinceEpoch,
       'activeSkill': activeSkill?.name,
       'activeAction': activeAction?.id.toJson(),
+      if (recipeIndex != null) 'recipeIndex': recipeIndex,
       'changes': changes.toJson(),
       'stopReason': stopReason.name,
       'stoppedAfterMs': stoppedAfter?.inMilliseconds,

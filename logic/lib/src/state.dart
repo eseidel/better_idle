@@ -490,9 +490,9 @@ class GlobalState {
   bool canStartAction(Action action) {
     // Only SkillActions have inputs to check
     if (action is SkillAction) {
-      // Get the selected recipe's inputs
       final actionStateVal = actionState(action.id);
-      final inputs = action.inputsForRecipe(actionStateVal.recipeIndex);
+      final selection = actionStateVal.recipeSelection(action);
+      final inputs = action.inputsForRecipe(selection);
 
       // Check inputs
       for (final requirement in inputs.entries) {
@@ -611,9 +611,9 @@ class GlobalState {
     int totalTicks;
 
     if (action is SkillAction) {
-      // Get the selected recipe's inputs
       final actionStateVal = actionState(actionId);
-      final inputs = action.inputsForRecipe(actionStateVal.recipeIndex);
+      final selection = actionStateVal.recipeSelection(action);
+      final inputs = action.inputsForRecipe(selection);
 
       // Validate that all required items are available for skill actions
       for (final requirement in inputs.entries) {

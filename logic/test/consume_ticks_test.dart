@@ -309,7 +309,9 @@ void main() {
         final random = Random(0);
 
         // Verify the rewards getter returns drops with the correct count
-        final rewards = testAction.rewardsForMasteryLevel(1);
+        final rewards = testAction.rewardsForSelection(
+          const NoSelectedRecipe(),
+        );
         expect(rewards.length, 1);
         expect(rewards.first.expectedItems[normalLogs.id], 3);
 

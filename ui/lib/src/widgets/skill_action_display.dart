@@ -124,13 +124,13 @@ class SkillActionDisplay extends StatelessWidget {
   Widget _buildUnlocked(BuildContext context) {
     final state = context.state;
     final actionState = state.actionState(action.id);
+    final selection = actionState.recipeSelection(action);
     final isActive = state.activeAction?.id == action.id;
     final canStart = state.canStartAction(action);
-    final recipeIndex = actionState.recipeIndex;
 
     // Get recipe-specific inputs and outputs
-    final inputs = action.inputsForRecipe(recipeIndex);
-    final outputs = action.outputsForRecipe(recipeIndex);
+    final inputs = action.inputsForRecipe(selection);
+    final outputs = action.outputsForRecipe(selection);
 
     return Container(
       padding: const EdgeInsets.all(16),
@@ -179,10 +179,10 @@ class SkillActionDisplay extends StatelessWidget {
           ],
 
           // Recipe selector (if action has alternative recipes)
-          if (action.hasAlternativeRecipes) ...[
+          if (selection case SelectedRecipe(:final index)) ...[
             _RecipeSelector(
               action: action,
-              selectedIndex: recipeIndex,
+              selectedIndex: index,
               itemRegistry: state.registries.items,
             ),
             const SizedBox(height: 12),
@@ -291,8 +291,10 @@ class _RecipeSelector extends StatelessWidget {
           isExpanded: true,
           items: List.generate(recipes.length, (index) {
             final recipe = recipes[index];
-            final label = _buildRecipeLabel(recipe);
-            return DropdownMenuItem(value: index, child: Text(label));
+            return DropdownMenuItem(
+              value: index,
+              child: _RecipeOption(recipe: recipe, itemRegistry: itemRegistry),
+            );
           }),
           onChanged: (newIndex) {
             if (newIndex != null && newIndex != selectedIndex) {
@@ -305,17 +307,43 @@ class _RecipeSelector extends StatelessWidget {
       ],
     );
   }
+}
 
-  /// Builds a label for a recipe showing the primary input and multiplier.
-  String _buildRecipeLabel(AlternativeRecipe recipe) {
+/// A single recipe option showing item badges with inventory status.
+class _RecipeOption extends StatelessWidget {
+  const _RecipeOption({required this.recipe, required this.itemRegistry});
+
+  final AlternativeRecipe recipe;
+  final ItemRegistry itemRegistry;
+
+  @override
+  Widget build(BuildContext context) {
     if (recipe.inputs.isEmpty) {
-      return 'Unknown (x${recipe.quantityMultiplier})';
+      return const Text('Unknown');
     }
-    final firstInput = recipe.inputs.entries.first;
-    final item = itemRegistry.byId(firstInput.key);
-    final multiplierSuffix = recipe.quantityMultiplier > 1
-        ? ' (x${recipe.quantityMultiplier})'
-        : '';
-    return '${item.name}$multiplierSuffix';
+
+    final state = context.state;
+
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        // Show item badges for inputs with inventory status
+        ...recipe.inputs.entries.map((entry) {
+          final item = itemRegistry.byId(entry.key);
+          final requiredCount = entry.value;
+          final inventoryCount = state.inventory.countOfItem(item);
+          final hasEnough = inventoryCount >= requiredCount;
+          return Padding(
+            padding: const EdgeInsets.only(right: 4),
+            child: ItemCountBadgeCell(
+              item: item,
+              count: requiredCount,
+              hasEnough: hasEnough,
+              inradius: 24,
+            ),
+          );
+        }),
+      ],
+    );
   }
 }
