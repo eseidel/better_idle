@@ -136,8 +136,13 @@ List<AlternativeRecipe>? parseAlternativeCosts(
   }).toList();
 }
 
-List<Droppable> defaultRewards(SkillAction action, int masteryLevel) {
-  return [...action.outputs.entries.map((e) => Drop(e.key, count: e.value))];
+List<Droppable> defaultRewards(
+  SkillAction action,
+  int masteryLevel, {
+  int recipeIndex = 0,
+}) {
+  final outputs = action.outputsForRecipe(recipeIndex);
+  return [...outputs.entries.map((e) => Drop(e.key, count: e.value))];
 }
 
 /// A skill-based action that completes after a duration, granting xp and drops.
@@ -184,7 +189,14 @@ class SkillAction extends Action {
   /// which recipe to use, and each recipe may have a quantity multiplier.
   final List<AlternativeRecipe>? alternativeRecipes;
 
-  final List<Droppable> Function(SkillAction, int masteryLevel) rewardsAtLevel;
+  /// Function that returns drops for this action based on mastery level.
+  /// The recipeIndex parameter is used for actions with alternative recipes.
+  final List<Droppable> Function(
+    SkillAction action,
+    int masteryLevel, {
+    int recipeIndex,
+  })
+  rewardsAtLevel;
 
   /// Whether this action has alternative recipes to choose from.
   bool get hasAlternativeRecipes =>
@@ -228,8 +240,10 @@ class SkillAction extends Action {
     return minTicks + random.nextInt((maxTicks - minTicks) + 1);
   }
 
-  List<Droppable> rewardsForMasteryLevel(int masteryLevel) =>
-      rewardsAtLevel(this, masteryLevel);
+  List<Droppable> rewardsForMasteryLevel(
+    int masteryLevel, {
+    int recipeIndex = 0,
+  }) => rewardsAtLevel(this, masteryLevel, recipeIndex: recipeIndex);
 }
 
 /// Fixed player attack speed in seconds.
@@ -349,17 +363,8 @@ class DropsRegistry {
     required int masteryLevel,
     int recipeIndex = 0,
   }) {
-    // Get outputs adjusted for the selected recipe (handles multiplier)
-    final outputs = action.outputsForRecipe(recipeIndex);
-    final outputDrops = outputs.entries.map((e) => Drop(e.key, count: e.value));
-
-    // Note: We use outputDrops directly instead of rewardsForMasteryLevel
-    // when alternative recipes are involved, because rewardsForMasteryLevel
-    // uses the base outputs which don't account for recipe multipliers.
-    // For actions without alternative recipes, outputsForRecipe returns the
-    // base outputs, so this is equivalent.
     return [
-      ...outputDrops, // Action outputs (with recipe multiplier applied)
+      ...action.rewardsForMasteryLevel(masteryLevel, recipeIndex: recipeIndex),
       ...forSkill(action.skill), // Skill-level drops (may include DropTables)
       // Missing global drops.
     ];

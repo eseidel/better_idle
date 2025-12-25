@@ -25,8 +25,9 @@ void main() {
       String actionName(SwitchActivity s) => testActions.byId(s.actionId).name;
 
       // Should have level 1 activities: Normal Tree, Raw Shrimp,
-      // Rune Essence, Copper, Tin, Man, Arrow Shafts
-      expect(switches.length, 7);
+      // Rune Essence, Copper, Tin, Man
+      // Note: Arrow Shafts is level 1 but requires logs (alternativeCosts)
+      expect(switches.length, 6);
       expect(switches.map(actionName), contains('Normal Tree'));
       expect(switches.map(actionName), contains('Raw Shrimp'));
       expect(switches.map(actionName), contains('Man'));
