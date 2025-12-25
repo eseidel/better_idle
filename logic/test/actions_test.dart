@@ -121,6 +121,135 @@ void main() {
     });
   });
 
+  group('outputsForRecipe', () {
+    test('returns base outputs for NoSelectedRecipe', () {
+      final ironBarId = MelvorId('melvorD:Iron_Bar');
+      final coalOreId = MelvorId('melvorD:Coal_Ore');
+      final ironOreId = MelvorId('melvorD:Iron_Ore');
+
+      final action = SkillAction(
+        id: ActionId.test(Skill.smithing, 'Test Smithing'),
+        skill: Skill.smithing,
+        name: 'Test Smithing',
+        duration: const Duration(seconds: 3),
+        xp: 10,
+        unlockLevel: 1,
+        outputs: {ironBarId: 1},
+        alternativeRecipes: [
+          AlternativeRecipe(
+            inputs: {coalOreId: 1, ironOreId: 1},
+            quantityMultiplier: 1,
+          ),
+          AlternativeRecipe(
+            inputs: {coalOreId: 2, ironOreId: 2},
+            quantityMultiplier: 2,
+          ),
+        ],
+      );
+
+      final outputs = action.outputsForRecipe(const NoSelectedRecipe());
+
+      expect(outputs, {ironBarId: 1});
+    });
+
+    test('applies quantityMultiplier from selected recipe', () {
+      final ironBarId = MelvorId('melvorD:Iron_Bar');
+      final coalOreId = MelvorId('melvorD:Coal_Ore');
+      final ironOreId = MelvorId('melvorD:Iron_Ore');
+
+      final action = SkillAction(
+        id: ActionId.test(Skill.smithing, 'Test Smithing'),
+        skill: Skill.smithing,
+        name: 'Test Smithing',
+        duration: const Duration(seconds: 3),
+        xp: 10,
+        unlockLevel: 1,
+        outputs: {ironBarId: 1},
+        alternativeRecipes: [
+          AlternativeRecipe(
+            inputs: {coalOreId: 1, ironOreId: 1},
+            quantityMultiplier: 1,
+          ),
+          AlternativeRecipe(
+            inputs: {coalOreId: 2, ironOreId: 2},
+            quantityMultiplier: 2,
+          ),
+          AlternativeRecipe(
+            inputs: {coalOreId: 3, ironOreId: 3},
+            quantityMultiplier: 3,
+          ),
+        ],
+      );
+
+      // Select recipe at index 0 (multiplier = 1)
+      final outputs0 = action.outputsForRecipe(const SelectedRecipe(index: 0));
+      expect(outputs0, {ironBarId: 1});
+
+      // Select recipe at index 1 (multiplier = 2)
+      final outputs1 = action.outputsForRecipe(const SelectedRecipe(index: 1));
+      expect(outputs1, {ironBarId: 2});
+
+      // Select recipe at index 2 (multiplier = 3)
+      final outputs2 = action.outputsForRecipe(const SelectedRecipe(index: 2));
+      expect(outputs2, {ironBarId: 3});
+    });
+
+    test('clamps out-of-bounds recipe index', () {
+      final ironBarId = MelvorId('melvorD:Iron_Bar');
+      final coalOreId = MelvorId('melvorD:Coal_Ore');
+
+      final action = SkillAction(
+        id: ActionId.test(Skill.smithing, 'Test Smithing'),
+        skill: Skill.smithing,
+        name: 'Test Smithing',
+        duration: const Duration(seconds: 3),
+        xp: 10,
+        unlockLevel: 1,
+        outputs: {ironBarId: 1},
+        alternativeRecipes: [
+          AlternativeRecipe(inputs: {coalOreId: 1}, quantityMultiplier: 1),
+          AlternativeRecipe(inputs: {coalOreId: 2}, quantityMultiplier: 5),
+        ],
+      );
+
+      // Index -1 should clamp to 0 (multiplier = 1)
+      final outputsNegative = action.outputsForRecipe(
+        const SelectedRecipe(index: -1),
+      );
+      expect(outputsNegative, {ironBarId: 1});
+
+      // Index 10 should clamp to last index (1, multiplier = 5)
+      final outputsOverflow = action.outputsForRecipe(
+        const SelectedRecipe(index: 10),
+      );
+      expect(outputsOverflow, {ironBarId: 5});
+    });
+
+    test('applies multiplier to multiple output items', () {
+      final ironBarId = MelvorId('melvorD:Iron_Bar');
+      final steelBarId = MelvorId('melvorD:Steel_Bar');
+      final coalOreId = MelvorId('melvorD:Coal_Ore');
+
+      final action = SkillAction(
+        id: ActionId.test(Skill.smithing, 'Test Multi-Output'),
+        skill: Skill.smithing,
+        name: 'Test Multi-Output',
+        duration: const Duration(seconds: 3),
+        xp: 10,
+        unlockLevel: 1,
+        outputs: {ironBarId: 2, steelBarId: 3},
+        alternativeRecipes: [
+          AlternativeRecipe(inputs: {coalOreId: 1}, quantityMultiplier: 1),
+          AlternativeRecipe(inputs: {coalOreId: 4}, quantityMultiplier: 4),
+        ],
+      );
+
+      // Select recipe with multiplier = 4
+      final outputs = action.outputsForRecipe(const SelectedRecipe(index: 1));
+      expect(outputs, {ironBarId: 8, steelBarId: 12});
+    });
+  });
+
   group('rollAndCollectDrops', () {
     test('doubles items when random triggers doubling chance', () {
       final normalLogsId = MelvorId.fromName('Normal Logs');

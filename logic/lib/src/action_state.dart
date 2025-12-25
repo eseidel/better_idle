@@ -208,6 +208,13 @@ class ActionState {
 
   RecipeSelection recipeSelection(Action action) {
     if (action is SkillAction && action.hasAlternativeRecipes) {
+      final existingIndex = selectedRecipeIndex;
+      assert(
+        existingIndex == null ||
+            (existingIndex >= 0 &&
+                existingIndex < action.alternativeRecipes!.length),
+        'Selected recipe index $existingIndex is out of range for action ${action.id}',
+      );
       return SelectedRecipe(index: selectedRecipeIndex ?? 0);
     }
     return NoSelectedRecipe();
