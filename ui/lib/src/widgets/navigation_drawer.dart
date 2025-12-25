@@ -25,6 +25,8 @@ class SkillTile extends StatelessWidget {
     final level = levelForXp(skillState.xp);
 
     return ListTile(
+      dense: true,
+      visualDensity: VisualDensity.compact,
       leading: SkillImage(skill: skill, size: 24),
       title: Text(skill.name),
       trailing: Text('$level / $maxLevel'),
@@ -65,6 +67,8 @@ class AppNavigationDrawer extends StatelessWidget {
             ),
           ),
           ListTile(
+            dense: true,
+            visualDensity: VisualDensity.compact,
             leading: const PageImage(
               pageId: 'shop',
               fallbackIcon: Icons.shopping_cart,
@@ -78,6 +82,8 @@ class AppNavigationDrawer extends StatelessWidget {
             },
           ),
           ListTile(
+            dense: true,
+            visualDensity: VisualDensity.compact,
             leading: const PageImage(
               pageId: 'bank',
               fallbackIcon: Icons.inventory_2,
@@ -111,6 +117,8 @@ class AppNavigationDrawer extends StatelessWidget {
           const SkillTile(skill: Skill.altMagic),
           const Divider(),
           ListTile(
+            dense: true,
+            visualDensity: VisualDensity.compact,
             leading: const Icon(Icons.bug_report),
             title: const Text('Debug'),
             selected: currentLocation == '/debug',
