@@ -12,6 +12,7 @@ import 'package:better_idle/src/screens/mining.dart';
 import 'package:better_idle/src/screens/runecrafting.dart';
 import 'package:better_idle/src/screens/shop.dart';
 import 'package:better_idle/src/screens/smithing.dart';
+import 'package:better_idle/src/screens/summoning.dart';
 import 'package:better_idle/src/screens/thieving.dart';
 import 'package:better_idle/src/screens/woodcutting.dart';
 import 'package:flutter/material.dart';
@@ -93,6 +94,11 @@ final GoRouter router = GoRouter(
       path: '/agility',
       name: 'agility',
       builder: (context, _) => const AgilityPage(),
+    ),
+    GoRoute(
+      path: '/summoning',
+      name: 'summoning',
+      builder: (context, _) => const SummoningPage(),
     ),
     GoRoute(
       path: '/shop',

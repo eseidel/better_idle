@@ -134,6 +134,8 @@ class MelvorData {
     _agilityCourses = agilityCourses;
     _agilityPillars = agilityPillars;
 
+    actions.addAll(parseSummoning(skillDataById['melvorD:Summoning']));
+
     _actions = ActionRegistry(actions);
     _combatAreas = CombatAreaRegistry(combatAreas);
 
@@ -761,4 +763,25 @@ parseAgility(List<SkillDataEntry>? entries) {
     AgilityCourseRegistry(courses),
     AgilityPillarRegistry(pillars),
   );
+}
+
+/// Parses all summoning data. Returns actions list.
+List<SummoningAction> parseSummoning(List<SkillDataEntry>? entries) {
+  if (entries == null) return [];
+
+  final actions = <SummoningAction>[];
+  for (final entry in entries) {
+    final recipes = entry.data['recipes'] as List<dynamic>?;
+    if (recipes != null) {
+      actions.addAll(
+        recipes.map(
+          (json) => SummoningAction.fromJson(
+            json as Map<String, dynamic>,
+            namespace: entry.namespace,
+          ),
+        ),
+      );
+    }
+  }
+  return actions;
 }

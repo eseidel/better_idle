@@ -28,6 +28,7 @@ export 'smithing.dart';
 export 'thieving.dart';
 export 'woodcutting.dart';
 export 'agility.dart';
+export 'summoning.dart';
 
 /// Hard-coded list of skills.  We sometimes wish to refer to a skill in code
 /// this allows us to do that at compile time rather than at runtime.
@@ -49,7 +50,8 @@ enum Skill {
   crafting('Crafting'),
   herblore('Herblore'),
   runecrafting('Runecrafting'),
-  agility('Agility');
+  agility('Agility'),
+  summoning('Summoning');
 
   const Skill(this.name);
 
