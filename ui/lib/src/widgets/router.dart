@@ -1,4 +1,5 @@
 import 'package:better_idle/src/screens/agility.dart';
+import 'package:better_idle/src/screens/alt_magic.dart';
 import 'package:better_idle/src/screens/astrology.dart';
 import 'package:better_idle/src/screens/bank.dart';
 import 'package:better_idle/src/screens/combat.dart';
@@ -105,6 +106,11 @@ final GoRouter router = GoRouter(
       path: '/astrology',
       name: 'astrology',
       builder: (context, _) => const AstrologyPage(),
+    ),
+    GoRoute(
+      path: '/altmagic',
+      name: 'altmagic',
+      builder: (context, _) => const AltMagicPage(),
     ),
     GoRoute(
       path: '/shop',

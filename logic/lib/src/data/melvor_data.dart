@@ -136,6 +136,7 @@ class MelvorData {
 
     actions.addAll(parseSummoning(skillDataById['melvorD:Summoning']));
     actions.addAll(parseAstrology(skillDataById['melvorD:Astrology']));
+    actions.addAll(parseAltMagic(skillDataById['melvorD:Magic']));
 
     _actions = ActionRegistry(actions);
     _combatAreas = CombatAreaRegistry(combatAreas);
@@ -798,6 +799,27 @@ List<AstrologyAction> parseAstrology(List<SkillDataEntry>? entries) {
       actions.addAll(
         recipes.map(
           (json) => AstrologyAction.fromJson(
+            json as Map<String, dynamic>,
+            namespace: entry.namespace,
+          ),
+        ),
+      );
+    }
+  }
+  return actions;
+}
+
+/// Parses all alt magic data. Returns actions list.
+List<AltMagicAction> parseAltMagic(List<SkillDataEntry>? entries) {
+  if (entries == null) return [];
+
+  final actions = <AltMagicAction>[];
+  for (final entry in entries) {
+    final altSpells = entry.data['altSpells'] as List<dynamic>?;
+    if (altSpells != null) {
+      actions.addAll(
+        altSpells.map(
+          (json) => AltMagicAction.fromJson(
             json as Map<String, dynamic>,
             namespace: entry.namespace,
           ),

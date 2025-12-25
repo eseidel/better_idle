@@ -28,6 +28,7 @@ export 'smithing.dart';
 export 'thieving.dart';
 export 'woodcutting.dart';
 export 'agility.dart';
+export 'alt_magic.dart';
 export 'astrology.dart';
 export 'summoning.dart';
 
@@ -53,7 +54,8 @@ enum Skill {
   runecrafting('Runecrafting'),
   agility('Agility'),
   summoning('Summoning'),
-  astrology('Astrology');
+  astrology('Astrology'),
+  altMagic('Alt. Magic');
 
   const Skill(this.name);
 

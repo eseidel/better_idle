@@ -20,11 +20,13 @@ extension SkillExtensions on Skill {
     Skill.agility => Icons.directions_run,
     Skill.summoning => Icons.pets,
     Skill.astrology => Icons.auto_awesome,
+    Skill.altMagic => Icons.flash_on,
   };
 
   String get routeName => switch (this) {
     Skill.hitpoints => 'combat',
     Skill.attack => 'combat',
+    Skill.altMagic => 'altmagic',
     _ => name.toLowerCase(),
   };
 

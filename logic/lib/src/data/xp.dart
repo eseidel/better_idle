@@ -251,6 +251,7 @@ double actionTimeForMastery(SkillAction action) {
     case Skill.herblore:
     case Skill.runecrafting:
     case Skill.summoning:
+    case Skill.altMagic:
       return 1.7;
 
     // Combat skills don't use mastery XP in the same way

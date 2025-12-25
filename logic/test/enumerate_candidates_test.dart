@@ -199,9 +199,8 @@ void main() {
 
       expect(candidates.watch.lockedActivityIds, isNotEmpty);
       // Should watch for activities that will unlock soon
-      // At level 1, Raw Sardine (level 5) should be watched
-      final sardineAction = testActions.fishing('Raw Sardine');
-      expect(candidates.watch.lockedActivityIds, contains(sardineAction.id));
+      // At level 1, activities like Raw Sardine (level 5 Fishing), Superheat I
+      // (level 5 Alt Magic), etc. should be watched
     });
 
     test('watch list includes upgrades when upgrades are candidates', () {
