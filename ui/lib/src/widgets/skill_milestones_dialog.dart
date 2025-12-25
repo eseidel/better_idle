@@ -17,7 +17,7 @@ String? _mediaForAction(SkillAction action) {
   }
   if (action is MiningAction) return action.media;
   if (action is ThievingAction) return action.media;
-  if (action is AgilityObstacle) return action.media;
+  if (action is AgilityObstacle) return 'assets/media/main/stamina.png';
   if (action is AstrologyAction) return action.media;
   if (action is AltMagicAction) return action.media;
   // For other action types, return null (no direct media).
@@ -63,17 +63,20 @@ class SkillMilestonesDialog extends StatelessWidget {
           Expanded(child: Text('${skill.name} Milestones')),
         ],
       ),
-      content: actions.isEmpty
-          ? const Text(
-              'No milestones available for this skill.',
-              style: TextStyle(color: Style.textColorSecondary),
-            )
-          : SingleChildScrollView(
-              child: _SkillMilestonesTable(
-                actions: actions,
-                currentLevel: currentLevel,
+      content: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 400),
+        child: actions.isEmpty
+            ? const Text(
+                'No milestones available for this skill.',
+                style: TextStyle(color: Style.textColorSecondary),
+              )
+            : SingleChildScrollView(
+                child: _SkillMilestonesTable(
+                  actions: actions,
+                  currentLevel: currentLevel,
+                ),
               ),
-            ),
+      ),
       actions: [
         TextButton(
           onPressed: () => Navigator.of(context).pop(),
