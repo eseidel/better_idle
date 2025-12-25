@@ -167,8 +167,12 @@ class ThievingAction extends SkillAction {
         ? maxHitRaw * 10
         : ((maxHitRaw as double) * 10).round();
 
+    final localId = MelvorId.fromJsonWithNamespace(
+      json['id'] as String,
+      defaultNamespace: namespace,
+    );
     return ThievingAction(
-      id: ActionId(Skill.thieving.id, json['id'] as String),
+      id: ActionId(Skill.thieving.id, localId),
       name: json['name'] as String,
       unlockLevel: json['level'] as int,
       xp: json['baseExperience'] as int,

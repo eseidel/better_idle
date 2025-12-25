@@ -52,8 +52,12 @@ class MiningAction extends SkillAction {
     final baseQuantity = json['baseQuantity'] as int? ?? 1;
     final category = json['category'] as String?;
 
+    final localId = MelvorId.fromJsonWithNamespace(
+      json['id'] as String,
+      defaultNamespace: namespace,
+    );
     return MiningAction(
-      id: ActionId(Skill.mining.id, json['id'] as String),
+      id: ActionId(Skill.mining.id, localId),
       name: json['name'] as String,
       unlockLevel: json['level'] as int,
       xp: json['baseExperience'] as int,

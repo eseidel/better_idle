@@ -100,8 +100,12 @@ class HerbloreAction extends SkillAction {
       inputs[itemId] = quantity;
     }
 
+    final localId = MelvorId.fromJsonWithNamespace(
+      json['id'] as String,
+      defaultNamespace: namespace,
+    );
     return HerbloreAction(
-      id: ActionId(Skill.herblore.id, json['id'] as String),
+      id: ActionId(Skill.herblore.id, localId),
       name: json['name'] as String,
       unlockLevel: json['level'] as int,
       xp: json['baseExperience'] as int,

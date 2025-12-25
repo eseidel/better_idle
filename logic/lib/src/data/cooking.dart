@@ -71,8 +71,12 @@ class CookingAction extends SkillAction {
     // Use the product name as the action name.
     final name = productId.name;
 
+    final localId = MelvorId.fromJsonWithNamespace(
+      json['id'] as String,
+      defaultNamespace: namespace,
+    );
     return CookingAction(
-      id: ActionId(Skill.cooking.id, json['id'] as String),
+      id: ActionId(Skill.cooking.id, localId),
       name: name,
       unlockLevel: json['level'] as int,
       xp: json['baseExperience'] as int,

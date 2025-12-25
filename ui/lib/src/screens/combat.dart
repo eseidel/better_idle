@@ -113,7 +113,7 @@ class _CombatAreaTile extends StatelessWidget {
     // Check if any monster in this area is being fought
     final activeId = activeMonster?.id;
     final hasActiveMonster =
-        activeId != null && area.monsterIds.contains(activeId.namespacedId);
+        activeId != null && area.monsterIds.contains(activeId.localId);
 
     return Card(
       color: hasActiveMonster ? Style.activeColorLight : null,

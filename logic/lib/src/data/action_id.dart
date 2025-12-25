@@ -1,3 +1,4 @@
+import 'actions.dart';
 import 'melvor_id.dart';
 
 /// ActionId has two parts, the skill id and the action name.
@@ -8,13 +9,15 @@ class ActionId {
   const ActionId(this.skillId, this.localId);
 
   final MelvorId skillId;
-  final String localId;
+  final MelvorId localId;
+
+  static ActionId test(Skill skill, String localName) =>
+      ActionId(skill.id, MelvorId('test:${localName.replaceAll(' ', '_')}'));
 
   /// The action name (localId with underscores replaced by spaces).
   /// This is also the "name" field on the Action object.
-  String get actionName => localId.replaceAll('_', ' ');
-
-  MelvorId get namespacedId => MelvorId('${skillId.namespace}:$localId');
+  // TODO(eseidel): remove this, guessing names from ids is not reliable.
+  String get actionName => localId.name;
 
   /// Alias for actionName for convenience.
   String get name => actionName;
@@ -28,7 +31,7 @@ class ActionId {
 
   factory ActionId.fromJson(String json) {
     final parts = json.split('/');
-    return ActionId(MelvorId.fromJson(parts[0]), parts[1]);
+    return ActionId(MelvorId.fromJson(parts[0]), MelvorId.fromJson(parts[1]));
   }
 
   @override

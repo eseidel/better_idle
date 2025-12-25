@@ -199,8 +199,12 @@ class CombatAction extends Action {
       lootTable = DropChance(DropTable(entries), rate: lootChance / 100);
     }
 
+    final localId = MelvorId.fromJsonWithNamespace(
+      json['id'] as String,
+      defaultNamespace: namespace,
+    );
     return CombatAction(
-      id: ActionId(Skill.combat.id, json['id'] as String),
+      id: ActionId(Skill.combat.id, localId),
       name: json['name'] as String,
       levels: levels,
       attackType: AttackType.fromJson(json['attackType'] as String),

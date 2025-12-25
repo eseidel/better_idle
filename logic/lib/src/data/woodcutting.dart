@@ -27,8 +27,12 @@ class WoodcuttingTree extends SkillAction {
     );
     final baseInterval = json['baseInterval'] as int;
 
+    final localId = MelvorId.fromJsonWithNamespace(
+      json['id'] as String,
+      defaultNamespace: namespace,
+    );
     return WoodcuttingTree(
-      id: ActionId(Skill.woodcutting.id, json['id'] as String),
+      id: ActionId(Skill.woodcutting.id, localId),
       name: json['name'] as String,
       unlockLevel: json['level'] as int,
       duration: Duration(milliseconds: baseInterval),

@@ -14,9 +14,9 @@ export 'combat.dart';
 export 'cooking.dart';
 export 'crafting.dart';
 export 'firemaking.dart';
-export 'herblore.dart';
 export 'fishing.dart';
 export 'fletching.dart';
+export 'herblore.dart';
 export 'items.dart';
 export 'mining.dart';
 export 'runecrafting.dart';
@@ -221,7 +221,7 @@ class ActionRegistry {
   }
 
   CombatAction combatWithId(MelvorId id) =>
-      _byId[ActionId(Skill.combat.id, id.localId)] as CombatAction;
+      _byId[ActionId(Skill.combat.id, id)] as CombatAction;
 
   @visibleForTesting
   SkillAction woodcutting(String name) =>

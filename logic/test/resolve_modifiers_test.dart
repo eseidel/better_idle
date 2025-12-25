@@ -60,7 +60,7 @@ void main() {
     // Helper to create a fake SkillAction
     SkillAction createFakeAction({required Skill skill, String? localId}) {
       return SkillAction(
-        id: ActionId(skill.id, localId ?? fakeLocalId),
+        id: ActionId(skill.id, MelvorId('test:${localId ?? fakeLocalId}')),
         skill: skill,
         name: 'Fake Action',
         duration: const Duration(seconds: 3),
@@ -496,7 +496,7 @@ void main() {
 
       // 3 second action = 30 ticks
       final action = SkillAction(
-        id: ActionId(Skill.woodcutting.id, 'TestAction'),
+        id: ActionId.test(Skill.woodcutting, 'TestAction'),
         skill: Skill.woodcutting,
         name: 'Test Action',
         duration: const Duration(seconds: 3),

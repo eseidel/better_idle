@@ -93,8 +93,12 @@ class FishingAction extends SkillAction {
     // Use item name from productId for action name (e.g., "Raw Shrimp").
     final name = productId.name;
 
+    final localId = MelvorId.fromJsonWithNamespace(
+      json['id'] as String,
+      defaultNamespace: namespace,
+    );
     return FishingAction(
-      id: ActionId(Skill.fishing.id, json['id'] as String),
+      id: ActionId(Skill.fishing.id, localId),
       name: name,
       unlockLevel: json['level'] as int,
       xp: json['baseExperience'] as int,

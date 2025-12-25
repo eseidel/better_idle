@@ -66,7 +66,7 @@ void main() {
       // Use the combat() helper to get a known monster, then verify combatWithId
       // can find it by MelvorId.
       final chicken = testActions.combat('Chicken');
-      final monsterId = chicken.id.namespacedId;
+      final monsterId = chicken.id.localId;
 
       final result = testActions.combatWithId(monsterId);
 

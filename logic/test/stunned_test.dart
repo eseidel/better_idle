@@ -116,7 +116,7 @@ void main() {
       final state = GlobalState.test(
         testRegistries,
         activeAction: ActiveAction(
-          id: ActionId(Skill.woodcutting.id, 'Normal Tree'),
+          id: ActionId.test(Skill.woodcutting, 'Normal Tree'),
           remainingTicks: 10,
           totalTicks: 30,
         ),
@@ -137,7 +137,7 @@ void main() {
       final state = GlobalState.test(
         testRegistries,
         activeAction: ActiveAction(
-          id: ActionId(Skill.woodcutting.id, 'Normal Tree'),
+          id: ActionId.test(Skill.woodcutting, 'Normal Tree'),
           remainingTicks: 10,
           totalTicks: 30,
         ),

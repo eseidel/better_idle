@@ -94,8 +94,12 @@ class SmithingAction extends SkillAction {
       inputs[itemId] = quantity;
     }
 
+    final localId = MelvorId.fromJsonWithNamespace(
+      json['id'] as String,
+      defaultNamespace: namespace,
+    );
     return SmithingAction(
-      id: ActionId(Skill.smithing.id, json['id'] as String),
+      id: ActionId(Skill.smithing.id, localId),
       name: productId.name,
       unlockLevel: json['level'] as int,
       xp: json['baseExperience'] as int,

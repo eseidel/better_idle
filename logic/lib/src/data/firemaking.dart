@@ -37,8 +37,12 @@ class FiremakingAction extends SkillAction {
     // Action name is "Burn X Logs" based on the log name.
     final actionName = 'Burn ${logId.name}';
 
+    final localId = MelvorId.fromJsonWithNamespace(
+      json['id'] as String,
+      defaultNamespace: namespace,
+    );
     return FiremakingAction(
-      id: ActionId(Skill.firemaking.id, json['id'] as String),
+      id: ActionId(Skill.firemaking.id, localId),
       name: actionName,
       unlockLevel: json['level'] as int,
       xp: json['baseExperience'] as int,

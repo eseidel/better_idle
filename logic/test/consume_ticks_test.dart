@@ -298,7 +298,7 @@ void main() {
       () {
         // Create an action with output count > 1
         final testAction = SkillAction(
-          id: ActionId(Skill.woodcutting.id, 'Test Action'),
+          id: ActionId.test(Skill.woodcutting, 'Test Action'),
           skill: Skill.woodcutting,
           name: 'Test Action',
           unlockLevel: 1,

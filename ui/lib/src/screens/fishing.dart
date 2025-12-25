@@ -53,7 +53,7 @@ class _FishingPageState extends State<FishingPage> {
       final actionsInArea = <FishingAction>[];
       for (final fishId in area.fishIDs) {
         final action = fishingActions.firstWhereOrNull(
-          (a) => a.id.namespacedId == fishId,
+          (a) => a.id.localId == fishId,
         );
         if (action != null) {
           actionsInArea.add(action);
