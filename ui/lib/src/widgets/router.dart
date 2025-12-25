@@ -108,8 +108,8 @@ final GoRouter router = GoRouter(
       builder: (context, _) => const AstrologyPage(),
     ),
     GoRoute(
-      path: '/altmagic',
-      name: 'altmagic',
+      path: '/alt_magic',
+      name: 'alt_magic',
       builder: (context, _) => const AltMagicPage(),
     ),
     GoRoute(
