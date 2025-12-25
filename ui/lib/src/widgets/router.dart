@@ -1,3 +1,4 @@
+import 'package:better_idle/src/screens/agility.dart';
 import 'package:better_idle/src/screens/bank.dart';
 import 'package:better_idle/src/screens/combat.dart';
 import 'package:better_idle/src/screens/cooking.dart';
@@ -87,6 +88,11 @@ final GoRouter router = GoRouter(
       path: '/combat',
       name: 'combat',
       builder: (context, _) => const CombatPage(),
+    ),
+    GoRoute(
+      path: '/agility',
+      name: 'agility',
+      builder: (context, _) => const AgilityPage(),
     ),
     GoRoute(
       path: '/shop',

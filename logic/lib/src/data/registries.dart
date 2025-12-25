@@ -19,6 +19,8 @@ class Registries {
     this.runecraftingCategories,
     this.thievingAreas,
     this.combatAreas,
+    this.agilityCourses,
+    this.agilityPillars,
     this.shop,
     this.masteryBonuses,
     this.masteryUnlocks,
@@ -41,6 +43,8 @@ class Registries {
       RunecraftingCategoryRegistry([]),
       ThievingAreaRegistry([]),
       CombatAreaRegistry([]),
+      AgilityCourseRegistry([]),
+      AgilityPillarRegistry([]),
       shop ?? ShopRegistry([], []),
       masteryBonuses ?? MasteryBonusRegistry([]),
       masteryUnlocks ?? MasteryUnlockRegistry([]),
@@ -58,6 +62,8 @@ class Registries {
   final RunecraftingCategoryRegistry runecraftingCategories;
   final ThievingAreaRegistry thievingAreas;
   final CombatAreaRegistry combatAreas;
+  final AgilityCourseRegistry agilityCourses;
+  final AgilityPillarRegistry agilityPillars;
   final ShopRegistry shop;
   final MasteryBonusRegistry masteryBonuses;
   final MasteryUnlockRegistry masteryUnlocks;
@@ -81,6 +87,8 @@ Future<Registries> loadRegistries({Directory? cacheDir}) async {
     melvorData.runecraftingCategories,
     melvorData.thievingAreas,
     melvorData.combatAreas,
+    melvorData.agilityCourses,
+    melvorData.agilityPillars,
     melvorData.shop,
     melvorData.masteryBonuses,
     melvorData.masteryUnlocks,

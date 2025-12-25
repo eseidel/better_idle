@@ -103,8 +103,9 @@ class AppNavigationDrawer extends StatelessWidget {
           const SkillTile(skill: Skill.thieving),
           const SkillTile(skill: Skill.fletching),
           const SkillTile(skill: Skill.crafting),
-          const SkillTile(skill: Skill.herblore),
           const SkillTile(skill: Skill.runecrafting),
+          const SkillTile(skill: Skill.herblore),
+          const SkillTile(skill: Skill.agility),
           const Divider(),
           ListTile(
             leading: const Icon(Icons.bug_report),

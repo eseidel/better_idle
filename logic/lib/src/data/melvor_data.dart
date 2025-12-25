@@ -127,6 +127,13 @@ class MelvorData {
     actions.addAll(thievingActions);
     _thievingAreas = thievingAreas;
 
+    final (agilityActions, agilityCourses, agilityPillars) = parseAgility(
+      skillDataById['melvorD:Agility'],
+    );
+    actions.addAll(agilityActions);
+    _agilityCourses = agilityCourses;
+    _agilityPillars = agilityPillars;
+
     _actions = ActionRegistry(actions);
     _combatAreas = CombatAreaRegistry(combatAreas);
 
@@ -151,6 +158,8 @@ class MelvorData {
   late final RunecraftingCategoryRegistry _runecraftingCategories;
   late final ThievingAreaRegistry _thievingAreas;
   late final CombatAreaRegistry _combatAreas;
+  late final AgilityCourseRegistry _agilityCourses;
+  late final AgilityPillarRegistry _agilityPillars;
   late final MasteryBonusRegistry _masteryBonuses;
   late final MasteryUnlockRegistry _masteryUnlocks;
 
@@ -175,6 +184,10 @@ class MelvorData {
   ThievingAreaRegistry get thievingAreas => _thievingAreas;
 
   CombatAreaRegistry get combatAreas => _combatAreas;
+
+  AgilityCourseRegistry get agilityCourses => _agilityCourses;
+
+  AgilityPillarRegistry get agilityPillars => _agilityPillars;
 
   ShopRegistry get shop => _shop;
 
@@ -689,4 +702,63 @@ MasteryUnlockRegistry parseMasteryUnlocks(
   }
 
   return MasteryUnlockRegistry(skillUnlocks);
+}
+
+/// Parses all agility data. Returns (obstacles, coursesRegistry, pillarsRegistry).
+(List<AgilityObstacle>, AgilityCourseRegistry, AgilityPillarRegistry)
+parseAgility(List<SkillDataEntry>? entries) {
+  if (entries == null) {
+    return ([], AgilityCourseRegistry([]), AgilityPillarRegistry([]));
+  }
+
+  final obstacles = <AgilityObstacle>[];
+  final courses = <AgilityCourse>[];
+  final pillars = <AgilityPillar>[];
+
+  for (final entry in entries) {
+    // Parse obstacles
+    final obstaclesJson = entry.data['obstacles'] as List<dynamic>?;
+    if (obstaclesJson != null) {
+      obstacles.addAll(
+        obstaclesJson.map(
+          (json) => AgilityObstacle.fromJson(
+            json as Map<String, dynamic>,
+            namespace: entry.namespace,
+          ),
+        ),
+      );
+    }
+
+    // Parse courses
+    final coursesJson = entry.data['courses'] as List<dynamic>?;
+    if (coursesJson != null) {
+      courses.addAll(
+        coursesJson.map(
+          (json) => AgilityCourse.fromJson(
+            json as Map<String, dynamic>,
+            namespace: entry.namespace,
+          ),
+        ),
+      );
+    }
+
+    // Parse pillars
+    final pillarsJson = entry.data['pillars'] as List<dynamic>?;
+    if (pillarsJson != null) {
+      pillars.addAll(
+        pillarsJson.map(
+          (json) => AgilityPillar.fromJson(
+            json as Map<String, dynamic>,
+            namespace: entry.namespace,
+          ),
+        ),
+      );
+    }
+  }
+
+  return (
+    obstacles,
+    AgilityCourseRegistry(courses),
+    AgilityPillarRegistry(pillars),
+  );
 }
