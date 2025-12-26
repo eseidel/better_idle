@@ -974,11 +974,201 @@ class GlobalState {
     return (copyWith(inventory: currentInventory), result);
   }
 
+  // ============================================================================
+  // Farming Methods
+  // ============================================================================
+
+  /// Plants a crop in a plot.
+  GlobalState plantCrop(MelvorId plotId, FarmingCrop crop, Tick currentTick) {
+    // Validate plot is unlocked
+    if (!unlockedPlots.contains(plotId)) {
+      throw StateError('Plot $plotId is not unlocked');
+    }
+
+    // Validate plot is empty
+    final currentPlotState = plotStates[plotId] ?? const PlotState.empty();
+    if (!currentPlotState.isEmpty) {
+      throw StateError('Plot $plotId is not empty');
+    }
+
+    // Validate player has required level
+    final farmingLevel = skillState(Skill.farming).skillLevel;
+    if (farmingLevel < crop.level) {
+      throw StateError(
+        'Farming level $farmingLevel is too low for ${crop.name} '
+        '(requires ${crop.level})',
+      );
+    }
+
+    // Get seed item (throws if not found)
+    final seed = registries.items.byId(crop.seedId);
+
+    // Validate player has seeds
+    if (inventory.countOfItem(seed) < crop.seedCost) {
+      throw StateError(
+        'Not enough ${seed.name}: need ${crop.seedCost}, '
+        'have ${inventory.countOfItem(seed)}',
+      );
+    }
+
+    // Consume seeds from inventory
+    var newInventory = inventory.removing(
+      ItemStack(seed, count: crop.seedCost),
+    );
+
+    // Create new plot state
+    final newPlotState = PlotState(
+      cropId: crop.id,
+      plantedAtTick: currentTick,
+      growthTicksRequired: crop.growthTicks,
+      compostApplied: 0,
+      isReadyToHarvest: false,
+    );
+
+    // Update plot states
+    final newPlotStates = Map<MelvorId, PlotState>.from(plotStates);
+    newPlotStates[plotId] = newPlotState;
+
+    // Award XP if category says to give XP on plant
+    final category = registries.farmingCategories.byId(crop.categoryId);
+    var newState = copyWith(inventory: newInventory, plotStates: newPlotStates);
+
+    if (category?.giveXPOnPlant == true) {
+      newState = newState.addSkillXp(Skill.farming, crop.baseXP);
+    }
+
+    return newState;
+  }
+
+  /// Applies compost to a growing crop.
+  GlobalState applyCompost(MelvorId plotId, Item compost) {
+    // Validate compost item has compost value
+    final compostValueNullable = compost.compostValue;
+    if (compostValueNullable == null || compostValueNullable == 0) {
+      throw StateError('${compost.name} is not compost');
+    }
+    final compostValue = compostValueNullable; // Now non-nullable after check
+
+    // Validate plot has a growing crop
+    final plotState = plotStates[plotId];
+    if (plotState == null || !plotState.isGrowing) {
+      throw StateError('Plot $plotId does not have a growing crop');
+    }
+
+    // Validate player has compost
+    if (inventory.countOfItem(compost) < 1) {
+      throw StateError('Not enough ${compost.name}');
+    }
+
+    // Validate compost limit (max 80)
+    final newCompostValue = plotState.compostApplied + compostValue;
+    if (newCompostValue > 80) {
+      throw StateError(
+        'Cannot apply more compost: already at ${plotState.compostApplied}, '
+        'max is 80',
+      );
+    }
+
+    // Consume compost from inventory
+    final newInventory = inventory.removing(ItemStack(compost, count: 1));
+
+    // Update plot state
+    final newPlotState = plotState.copyWith(compostApplied: newCompostValue);
+
+    final newPlotStates = Map<MelvorId, PlotState>.from(plotStates);
+    newPlotStates[plotId] = newPlotState;
+
+    return copyWith(inventory: newInventory, plotStates: newPlotStates);
+  }
+
+  /// Harvests a ready crop from a plot.
+  GlobalState harvestCrop(MelvorId plotId, Random random) {
+    // Validate plot has a ready crop
+    final plotState = plotStates[plotId];
+    if (plotState == null || !plotState.isReadyToHarvest) {
+      throw StateError('Plot $plotId does not have a crop ready to harvest');
+    }
+
+    final cropId = plotState.cropId;
+    if (cropId == null) {
+      throw StateError('Plot $plotId has no crop planted');
+    }
+
+    // Get crop and category
+    final crop = registries.farmingCrops.byId(cropId);
+    if (crop == null) {
+      throw StateError('Crop $cropId not found');
+    }
+
+    final category = registries.farmingCategories.byId(crop.categoryId);
+    if (category == null) {
+      throw StateError('Category ${crop.categoryId} not found');
+    }
+
+    // Calculate harvest quantity
+    final baseQuantity = crop.baseQuantity;
+    final multiplier = category.harvestMultiplier;
+    final compostBonus = 1.0 + (plotState.compostApplied / 100.0);
+    final masteryLevel = actionState(cropId).masteryLevel;
+    final masteryBonus = 1.0 + (masteryLevel * 0.002); // +0.2% per level
+
+    final quantity = (baseQuantity * multiplier * compostBonus * masteryBonus)
+        .round();
+
+    // Get product item (throws if not found)
+    final product = registries.items.byId(crop.productId);
+
+    // Add harvested items to inventory
+    var newInventory = inventory.adding(ItemStack(product, count: quantity));
+
+    // Roll for seed return if category allows
+    if (category.returnSeeds) {
+      final seed = registries.items.byId(crop.seedId);
+      final baseChance = 0.30; // 30% base chance
+      final masteryChanceBonus = masteryLevel * 0.002; // +0.2% per level
+      var seedsReturned = 0;
+
+      for (var i = 0; i < quantity; i++) {
+        if (random.nextDouble() < baseChance + masteryChanceBonus) {
+          seedsReturned++;
+        }
+      }
+
+      if (seedsReturned > 0) {
+        newInventory = newInventory.adding(
+          ItemStack(seed, count: seedsReturned),
+        );
+      }
+    }
+
+    // Award XP (if not already given on plant)
+    var newState = copyWith(inventory: newInventory);
+
+    if (!category.giveXPOnPlant) {
+      final xpAmount = category.scaleXPWithQuantity
+          ? crop.baseXP * quantity
+          : crop.baseXP;
+      newState = newState.addSkillXp(Skill.farming, xpAmount);
+    }
+
+    // Award mastery XP
+    final masteryXpAmount = crop.baseXP ~/ category.masteryXPDivider;
+    newState = newState.addActionMasteryXp(cropId, masteryXpAmount);
+
+    // Clear plot state
+    final newPlotStates = Map<MelvorId, PlotState>.from(plotStates);
+    newPlotStates.remove(plotId);
+
+    return newState.copyWith(plotStates: newPlotStates);
+  }
+
   GlobalState copyWith({
     Inventory? inventory,
     ActiveAction? activeAction,
     Map<Skill, SkillState>? skillStates,
     Map<ActionId, ActionState>? actionStates,
+    Map<MelvorId, PlotState>? plotStates,
+    Set<MelvorId>? unlockedPlots,
     Map<Currency, int>? currencies,
     TimeAway? timeAway,
     ShopState? shop,
@@ -992,6 +1182,8 @@ class GlobalState {
       activeAction: activeAction ?? this.activeAction,
       skillStates: skillStates ?? this.skillStates,
       actionStates: actionStates ?? this.actionStates,
+      plotStates: plotStates ?? this.plotStates,
+      unlockedPlots: unlockedPlots ?? this.unlockedPlots,
       updatedAt: DateTime.timestamp(),
       currencies: currencies ?? this.currencies,
       timeAway: timeAway ?? this.timeAway,

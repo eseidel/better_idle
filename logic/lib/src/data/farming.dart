@@ -181,7 +181,8 @@ class FarmingCrop extends Action {
 
     return FarmingCrop(
       id: ActionId(Skill.farming.id, localId),
-      name: json['name'] as String,
+      // recipes do not have a name, so use the id
+      name: json['id'] as String,
       categoryId: MelvorId.fromJsonWithNamespace(
         json['categoryID'] as String,
         defaultNamespace: namespace,
