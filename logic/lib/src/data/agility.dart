@@ -22,8 +22,7 @@ class AgilityObstacle extends SkillAction {
     this.currencyCosts = CurrencyCosts.empty,
     this.currencyRewards = const [],
     super.inputs = const {},
-    super.outputs = const {},
-  }) : super(skill: Skill.agility);
+  }) : super(skill: Skill.agility, outputs: const {});
 
   factory AgilityObstacle.fromJson(
     Map<String, dynamic> json, {
@@ -54,15 +53,8 @@ class AgilityObstacle extends SkillAction {
 
     // Parse item rewards as outputs
     final itemRewards = json['itemRewards'] as List<dynamic>? ?? [];
-    final outputs = <MelvorId, int>{};
-    for (final reward in itemRewards) {
-      final rewardMap = reward as Map<String, dynamic>;
-      final itemId = MelvorId.fromJsonWithNamespace(
-        rewardMap['id'] as String,
-        defaultNamespace: namespace,
-      );
-      final quantity = rewardMap['quantity'] as int;
-      outputs[itemId] = quantity;
+    if (itemRewards.isNotEmpty) {
+      throw ArgumentError('itemRewards are not supported: $itemRewards');
     }
 
     final localId = MelvorId.fromJsonWithNamespace(
@@ -96,7 +88,6 @@ class AgilityObstacle extends SkillAction {
       category: json['category'] as int,
       media: json['media'] as String?,
       inputs: inputs,
-      outputs: outputs,
       currencyCosts: currencyCosts,
       currencyRewards: currencyRewards,
     );
