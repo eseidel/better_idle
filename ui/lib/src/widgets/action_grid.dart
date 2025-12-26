@@ -147,9 +147,10 @@ class WoodcuttingActionCell extends StatelessWidget {
             CachedImage(assetPath: action.media, size: 64),
             const Spacer(),
             TweenedProgressIndicator(
-              progress: isRunning && activeAction != null
-                  ? activeAction.toProgressAt(context.state.updatedAt)
-                  : null,
+              progress:
+                  activeAction?.toProgressAt(context.state.updatedAt) ??
+                  ProgressAt.zero(context.state.updatedAt),
+              animate: isRunning,
             ),
             const SizedBox(height: 8),
             MasteryProgressCell(masteryXp: actionState.masteryXp),
@@ -257,15 +258,15 @@ class ActionCell extends StatelessWidget {
                   progress: () {
                     final miningState =
                         actionState.mining ?? const MiningState.empty();
-                    final respawnTicks = miningState.respawnTicksRemaining;
-                    if (respawnTicks == null) return null;
+                    final respawnTicks = miningState.respawnTicksRemaining ?? 0;
                     final miningAction = action as MiningAction;
-                    return progressAtFromTicks(
+                    return ProgressAt(
                       lastUpdateTime: context.state.updatedAt,
                       progressTicks: miningAction.respawnTicks - respawnTicks,
                       totalTicks: miningAction.respawnTicks,
                     );
                   }(),
+                  animate: true,
                   backgroundColor: Style.progressBackgroundColor,
                   color: Style.progressForegroundColorMuted,
                 ),
@@ -280,9 +281,10 @@ class ActionCell extends StatelessWidget {
             ],
             const SizedBox(height: 4),
             TweenedProgressIndicator(
-              progress: isRunning && activeAction != null && !isDepleted
-                  ? activeAction.toProgressAt(context.state.updatedAt)
-                  : null,
+              progress:
+                  activeAction?.toProgressAt(context.state.updatedAt) ??
+                  ProgressAt.zero(context.state.updatedAt),
+              animate: isRunning && !isDepleted,
             ),
             MasteryProgressCell(masteryXp: actionState.masteryXp),
           ],

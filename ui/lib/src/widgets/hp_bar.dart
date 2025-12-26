@@ -72,16 +72,16 @@ class AttackBar extends StatelessWidget {
     final remaining = ticksRemaining;
 
     // Create ProgressAt for tweened animation
-    final progress = (total != null && total > 0 && remaining != null)
-        ? progressAtFromTicks(
-            lastUpdateTime: context.state.updatedAt,
-            progressTicks: total - remaining,
-            totalTicks: total,
-          )
-        : null;
+    final isActive = total != null && total > 0 && remaining != null;
+    final progress = ProgressAt(
+      lastUpdateTime: context.state.updatedAt,
+      progressTicks: isActive ? total - remaining : 0,
+      totalTicks: isActive ? total : 1,
+    );
 
     return TweenedProgressIndicator(
       progress: progress,
+      animate: isActive,
       height: height,
       backgroundColor: Style.progressBackgroundColor,
       color: Style.attackBarColor,

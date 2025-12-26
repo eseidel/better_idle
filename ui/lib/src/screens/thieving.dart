@@ -273,34 +273,38 @@ class _ThievingProgressBar extends StatelessWidget {
     final isStunned = state.isStunned;
 
     // Calculate progress and styling
-    ProgressAt? progressData;
+    ProgressAt progress;
+    bool animate;
     Color barColor;
     String label;
 
     if (isStunned) {
       // Show stun countdown progress
       final stunTicksRemaining = state.stunned.ticksRemaining;
-      progressData = progressAtFromTicks(
+      progress = ProgressAt(
         lastUpdateTime: state.updatedAt,
         progressTicks: stunnedDurationTicks - stunTicksRemaining,
         totalTicks: stunnedDurationTicks,
       );
+      animate = true;
       barColor = Style.progressForegroundColorError;
       label = 'Stunned';
     } else if (isActive) {
       // Show action progress
       final progressTicks = state.activeProgress(action);
       final totalTicks = ticksFromDuration(thievingDuration);
-      progressData = progressAtFromTicks(
+      progress = ProgressAt(
         lastUpdateTime: state.updatedAt,
         progressTicks: progressTicks,
         totalTicks: totalTicks,
       );
+      animate = true;
       barColor = Style.progressForegroundColorWarning;
       label = 'Pickpocketing...';
     } else {
       // Idle state
-      progressData = null;
+      progress = ProgressAt.zero(state.updatedAt);
+      animate = false;
       barColor = Style.iconColorDefault;
       label = 'Idle';
     }
@@ -312,7 +316,8 @@ class _ThievingProgressBar extends StatelessWidget {
           child: Stack(
             children: [
               TweenedProgressIndicator(
-                progress: progressData,
+                progress: progress,
+                animate: animate,
                 height: 24,
                 backgroundColor: Style.progressBackgroundColor,
                 color: barColor,
@@ -323,7 +328,7 @@ class _ThievingProgressBar extends StatelessWidget {
                   style: TextStyle(
                     fontSize: 12,
                     fontWeight: FontWeight.bold,
-                    color: progressData != null && progressData.progress > 0.5
+                    color: progress.progress > 0.5
                         ? Style.textColorPrimary
                         : Style.progressTextDark,
                   ),

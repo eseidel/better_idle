@@ -6,15 +6,16 @@ import 'package:logic/logic.dart';
 /// This widget takes discrete progress updates (from the game's 10Hz tick rate)
 /// and smoothly interpolates the progress bar to eliminate stuttering.
 ///
-/// When [progress] is provided, the widget automatically advances the
+/// When [animate] is true, the widget automatically advances the
 /// progress based on elapsed time since the last update, making it appear as if
 /// the progress is updating at 60fps even though the underlying data only
 /// updates at 10Hz.
 ///
-/// When [progress] is null, it displays a static empty progress bar.
+/// When [animate] is false, it displays a static empty progress bar.
 class TweenedProgressIndicator extends StatefulWidget {
   const TweenedProgressIndicator({
     required this.progress,
+    required this.animate,
     this.height = 8.0,
     this.borderRadius,
     this.backgroundColor,
@@ -23,8 +24,11 @@ class TweenedProgressIndicator extends StatefulWidget {
     super.key,
   });
 
-  /// The current progress, or null if no progress is active
-  final ProgressAt? progress;
+  /// The current progress data
+  final ProgressAt progress;
+
+  /// Whether to animate the progress bar
+  final bool animate;
 
   /// Height of the progress bar
   final double height;
@@ -70,10 +74,9 @@ class _TweenedProgressIndicatorState extends State<TweenedProgressIndicator>
 
   /// Calculate the estimated current progress based on elapsed time
   double _calculateEstimatedProgress() {
-    final progressData = widget.progress;
-    if (progressData == null) return 0;
+    if (!widget.animate) return 0;
 
-    return progressData.estimateProgressAt(
+    return widget.progress.estimateProgressAt(
       DateTime.now(),
       tickDuration: widget.tickDuration,
     );
@@ -81,8 +84,8 @@ class _TweenedProgressIndicatorState extends State<TweenedProgressIndicator>
 
   @override
   Widget build(BuildContext context) {
-    // If no progress data, show static empty progress
-    if (widget.progress == null) {
+    // If not animating, show static empty progress
+    if (!widget.animate) {
       return ClipRRect(
         borderRadius: widget.borderRadius ?? BorderRadius.circular(4),
         child: SizedBox(

@@ -11,6 +11,12 @@ class ProgressAt {
     required this.totalTicks,
   });
 
+  factory ProgressAt.zero(DateTime? lastUpdateTime) => ProgressAt(
+    lastUpdateTime: lastUpdateTime ?? DateTime.now(),
+    progressTicks: 0,
+    totalTicks: 1,
+  );
+
   /// The timestamp when the progress was last updated
   final DateTime lastUpdateTime;
 
@@ -66,17 +72,4 @@ extension ActiveActionProgressAt on ActiveAction {
       totalTicks: totalTicks,
     );
   }
-}
-
-/// Helper function to create ProgressAt from tick counts.
-ProgressAt progressAtFromTicks({
-  required DateTime lastUpdateTime,
-  required int progressTicks,
-  required int totalTicks,
-}) {
-  return ProgressAt(
-    lastUpdateTime: lastUpdateTime,
-    progressTicks: progressTicks,
-    totalTicks: totalTicks,
-  );
 }
