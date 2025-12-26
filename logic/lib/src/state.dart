@@ -1168,6 +1168,13 @@ class GlobalState {
     return newState.copyWith(plotStates: newPlotStates);
   }
 
+  /// Clears a farming plot, destroying any growing crop and compost.
+  GlobalState clearPlot(MelvorId plotId) {
+    final newPlotStates = Map<MelvorId, PlotState>.from(plotStates);
+    newPlotStates.remove(plotId);
+    return copyWith(plotStates: newPlotStates);
+  }
+
   GlobalState copyWith({
     Inventory? inventory,
     ActiveAction? activeAction,

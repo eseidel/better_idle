@@ -496,3 +496,14 @@ class UnlockPlotAction extends ReduxAction<GlobalState> {
     return newState.copyWith(unlockedPlots: newUnlockedPlots);
   }
 }
+
+/// Clears a farming plot, destroying any growing crop and compost.
+class ClearPlotAction extends ReduxAction<GlobalState> {
+  ClearPlotAction({required this.plotId});
+  final MelvorId plotId;
+
+  @override
+  GlobalState reduce() {
+    return state.clearPlot(plotId);
+  }
+}

@@ -14,6 +14,9 @@ import 'thieving.dart';
 export 'package:logic/src/action_state.dart'
     show RecipeSelection, NoSelectedRecipe, SelectedRecipe;
 
+export 'agility.dart';
+export 'alt_magic.dart';
+export 'astrology.dart';
 export 'combat.dart';
 export 'cooking.dart';
 export 'crafting.dart';
@@ -26,12 +29,9 @@ export 'items.dart';
 export 'mining.dart';
 export 'runecrafting.dart';
 export 'smithing.dart';
+export 'summoning.dart';
 export 'thieving.dart';
 export 'woodcutting.dart';
-export 'agility.dart';
-export 'alt_magic.dart';
-export 'astrology.dart';
-export 'summoning.dart';
 
 /// Hard-coded list of skills.  We sometimes wish to refer to a skill in code
 /// this allows us to do that at compile time rather than at runtime.
@@ -258,9 +258,6 @@ class SkillAction extends Action {
   List<Droppable> rewardsForSelection(RecipeSelection selection) =>
       rewardsAtLevel(this, selection);
 }
-
-/// Fixed player attack speed in seconds.
-const double playerAttackSpeed = 4;
 
 // Skill-level drops: shared across all actions in a skill.
 // This can include both simple Drops and DropTables.
