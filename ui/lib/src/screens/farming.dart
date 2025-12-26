@@ -70,6 +70,38 @@ class _CategorySection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final state = context.state;
+    final farmingLevel = state.skillState(Skill.farming).skillLevel;
+
+    // Filter plots to show:
+    // 1. All unlocked plots
+    // 2. All locked plots where player has met the level requirement
+    // 3. One additional locked plot (the next closest in level)
+    final unlockedPlots = <FarmingPlot>[];
+    final lockedWithLevel = <FarmingPlot>[];
+    final lockedWithoutLevel = <FarmingPlot>[];
+
+    for (final plot in plots) {
+      if (state.unlockedPlots.contains(plot.id)) {
+        unlockedPlots.add(plot);
+      } else if (farmingLevel >= plot.level) {
+        lockedWithLevel.add(plot);
+      } else {
+        lockedWithoutLevel.add(plot);
+      }
+    }
+
+    // Sort locked plots without level by their level requirement
+    lockedWithoutLevel.sort((a, b) => a.level.compareTo(b.level));
+
+    // Build the list of visible plots, sorted by level for consistent display
+    final visiblePlots = <FarmingPlot>[
+      ...unlockedPlots,
+      ...lockedWithLevel,
+      // Add only the next closest locked plot (if any)
+      if (lockedWithoutLevel.isNotEmpty) lockedWithoutLevel.first,
+    ]..sort((a, b) => a.level.compareTo(b.level));
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -84,7 +116,8 @@ class _CategorySection extends StatelessWidget {
           spacing: 8,
           runSpacing: 8,
           children: [
-            for (final plot in plots) _PlotCard(plot: plot, category: category),
+            for (final plot in visiblePlots)
+              _PlotCard(plot: plot, category: category),
           ],
         ),
         const SizedBox(height: 24),
