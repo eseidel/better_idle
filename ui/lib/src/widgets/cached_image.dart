@@ -53,8 +53,10 @@ class _CachedImageState extends State<CachedImage> {
   }
 
   void _loadImage() {
+    final service = context.imageCacheService;
+
     // Check if already cached.
-    final cached = imageCacheService.getCachedFile(widget.assetPath);
+    final cached = service.getCachedFile(widget.assetPath);
     if (cached != null) {
       setState(() {
         _cachedFile = cached;
@@ -67,7 +69,7 @@ class _CachedImageState extends State<CachedImage> {
       _isLoading = true;
     });
 
-    imageCacheService.ensureAsset(widget.assetPath).then((file) {
+    service.ensureAsset(widget.assetPath).then((file) {
       if (mounted) {
         setState(() {
           _isLoading = false;

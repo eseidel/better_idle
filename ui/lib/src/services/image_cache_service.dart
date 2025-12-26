@@ -1,31 +1,22 @@
 import 'dart:async';
 import 'dart:io';
 
-import 'package:flutter/foundation.dart';
+import 'package:flutter/widgets.dart';
 import 'package:logic/logic.dart';
-import 'package:path_provider/path_provider.dart';
-import 'package:scoped_deps/scoped_deps.dart';
 
 /// Service for caching and loading item images from the Melvor CDN.
 class ImageCacheService {
-  Cache? _cache;
-  final Map<String, Future<File?>> _pendingFetches = {};
+  ImageCacheService(this._cache);
 
-  /// Initializes the cache with the app's document directory.
-  Future<void> initialize() async {
-    final appDir = await getApplicationDocumentsDirectory();
-    final cacheDir = Directory('${appDir.path}/melvor_cache');
-    _cache = Cache(cacheDir: cacheDir);
-  }
+  final Cache _cache;
+  final Map<String, Future<File?>> _pendingFetches = {};
 
   /// Returns the cached file for an asset path, or null if not yet cached.
   ///
   /// If the asset is not cached, starts a background fetch and returns null.
   /// Call this method again after the fetch completes to get the file.
   File? getCachedFile(String assetPath) {
-    if (_cache == null) return null;
-
-    final file = File('${_cache!.cacheDir.path}/$assetPath');
+    final file = File('${_cache.cacheDir.path}/$assetPath');
     if (file.existsSync()) {
       return file;
     }
@@ -41,7 +32,7 @@ class ImageCacheService {
   /// Fetches an asset and returns the cached file.
   Future<File?> _fetchAsset(String assetPath) async {
     try {
-      final file = await _cache!.ensureAsset(assetPath);
+      final file = await _cache.ensureAsset(assetPath);
       unawaited(_pendingFetches.remove(assetPath));
       return file;
     } on CacheException catch (e) {
@@ -55,12 +46,8 @@ class ImageCacheService {
   ///
   /// Returns the cached file, or null if fetch fails.
   Future<File?> ensureAsset(String assetPath) async {
-    if (_cache == null) {
-      await initialize();
-    }
-
     // Check if already cached.
-    final file = File('${_cache!.cacheDir.path}/$assetPath');
+    final file = File('${_cache.cacheDir.path}/$assetPath');
     if (file.existsSync()) {
       return file;
     }
@@ -78,14 +65,37 @@ class ImageCacheService {
 
   /// Disposes of the cache resources.
   void dispose() {
-    _cache?.close();
-    _cache = null;
+    _cache.close();
     _pendingFetches.clear();
   }
 }
 
-final ScopedRef<ImageCacheService> imageCacheServiceRef = create(
-  ImageCacheService.new,
-);
+/// InheritedWidget that provides [ImageCacheService] to the widget tree.
+class ImageCacheServiceProvider extends InheritedWidget {
+  const ImageCacheServiceProvider({
+    required this.service,
+    required super.child,
+    super.key,
+  });
 
-ImageCacheService get imageCacheService => read(imageCacheServiceRef);
+  final ImageCacheService service;
+
+  @override
+  bool updateShouldNotify(ImageCacheServiceProvider oldWidget) {
+    return service != oldWidget.service;
+  }
+
+  static ImageCacheService of(BuildContext context) {
+    final provider = context
+        .dependOnInheritedWidgetOfExactType<ImageCacheServiceProvider>();
+    assert(provider != null, 'No ImageCacheServiceProvider found in context');
+    return provider!.service;
+  }
+}
+
+/// Extension to access [ImageCacheService] from [BuildContext].
+extension ImageCacheServiceContext on BuildContext {
+  ImageCacheService get imageCacheService {
+    return ImageCacheServiceProvider.of(this);
+  }
+}

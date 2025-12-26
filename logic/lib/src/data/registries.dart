@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:logic/src/data/actions.dart';
+import 'package:logic/src/data/cache.dart';
 import 'package:logic/src/data/melvor_data.dart';
 import 'package:logic/src/data/shop.dart';
 import 'package:logic/src/types/mastery.dart';
@@ -74,7 +75,20 @@ class Registries {
 /// This should be called during app startup or in setUpAll() for tests.
 /// It's safe to call multiple times; subsequent calls are no-ops.
 Future<Registries> loadRegistries({Directory? cacheDir}) async {
-  final melvorData = await MelvorData.load(cacheDir: cacheDir);
+  final cache = Cache(cacheDir: cacheDir ?? defaultCacheDir);
+  try {
+    return await loadRegistriesFromCache(cache);
+  } finally {
+    cache.close();
+  }
+}
+
+/// Loads registries from an existing cache instance.
+///
+/// Use this when you have a Cache instance that you want to reuse
+/// (e.g., for both loading registries and caching images).
+Future<Registries> loadRegistriesFromCache(Cache cache) async {
+  final melvorData = await MelvorData.loadFromCache(cache);
   return Registries(
     melvorData.items,
     melvorData.actions,

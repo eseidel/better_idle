@@ -11,13 +11,11 @@ import 'package:better_idle/src/widgets/toast_overlay.dart';
 import 'package:better_idle/src/widgets/welcome_back_dialog.dart';
 import 'package:flutter/material.dart';
 import 'package:logic/logic.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:scoped_deps/scoped_deps.dart';
 
 void main() {
-  runScoped(
-    () => runApp(const MyApp()),
-    values: {loggerRef, toastServiceRef, imageCacheServiceRef},
-  );
+  runScoped(() => runApp(const MyApp()), values: {loggerRef, toastServiceRef});
 }
 
 class MyPersistor extends Persistor<GlobalState> {
@@ -262,6 +260,8 @@ class MyApp extends StatefulWidget {
 
 class _MyAppState extends State<MyApp> {
   bool _isDataLoaded = false;
+  late final ImageCacheService _imageCacheService;
+  late final Registries _registries;
 
   @override
   void initState() {
@@ -270,11 +270,20 @@ class _MyAppState extends State<MyApp> {
   }
 
   Future<void> _loadData() async {
-    await loadRegistries();
-    await imageCacheService.initialize();
+    final cacheDir = await getApplicationCacheDirectory();
+    final cache = Cache(cacheDir: cacheDir);
+    _imageCacheService = ImageCacheService(cache);
+    _registries = await loadRegistriesFromCache(cache);
+
     setState(() {
       _isDataLoaded = true;
     });
+  }
+
+  @override
+  void dispose() {
+    _imageCacheService.dispose();
+    super.dispose();
   }
 
   @override
@@ -286,12 +295,17 @@ class _MyAppState extends State<MyApp> {
         home: const Scaffold(body: Center(child: CircularProgressIndicator())),
       );
     }
-    return const _GameApp();
+    return ImageCacheServiceProvider(
+      service: _imageCacheService,
+      child: _GameApp(registries: _registries),
+    );
   }
 }
 
 class _GameApp extends StatefulWidget {
-  const _GameApp();
+  const _GameApp({required this.registries});
+
+  final Registries registries;
 
   @override
   State<_GameApp> createState() => _GameAppState();
@@ -307,18 +321,16 @@ class _GameAppState extends State<_GameApp>
   @override
   void initState() {
     super.initState();
-    loadRegistries().then((registries) {
-      _persistor = MyPersistor(registries);
-      _persistor.readState().then((initialState) {
-        setState(() {
-          _store = Store<GlobalState>(
-            initialState: initialState,
-            persistor: _persistor,
-          );
-          _gameLoop = GameLoop(this, _store);
-          _gameLoop.updateInterval = const Duration(milliseconds: 100);
-          _isInitialized = true;
-        });
+    _persistor = MyPersistor(widget.registries);
+    _persistor.readState().then((initialState) {
+      setState(() {
+        _store = Store<GlobalState>(
+          initialState: initialState,
+          persistor: _persistor,
+        );
+        _gameLoop = GameLoop(this, _store);
+        _gameLoop.updateInterval = const Duration(milliseconds: 100);
+        _isInitialized = true;
       });
     });
   }

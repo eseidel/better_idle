@@ -24,12 +24,17 @@ class MelvorData {
   static Future<MelvorData> load({Directory? cacheDir}) async {
     final cache = Cache(cacheDir: cacheDir ?? defaultCacheDir);
     try {
-      final demoData = await cache.ensureDemoData();
-      final fullData = await cache.ensureFullData();
-      return MelvorData([demoData, fullData]);
+      return await loadFromCache(cache);
     } finally {
       cache.close();
     }
+  }
+
+  /// Loads MelvorData from an existing cache instance.
+  static Future<MelvorData> loadFromCache(Cache cache) async {
+    final demoData = await cache.ensureDemoData();
+    final fullData = await cache.ensureFullData();
+    return MelvorData([demoData, fullData]);
   }
 
   /// Creates a MelvorData from multiple parsed JSON data files.
