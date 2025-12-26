@@ -124,9 +124,10 @@ void main() {
       expect(plotState.cropId, crop.id);
     });
 
-    test('Multiple compost applications up to max 80', () {
+    test('Multiple compost applications up to max 50', () {
+      // Max compost is 50 because: 50% base success + 50% compost = 100% success
       final normalCompost = Item.test('Compost', gp: 10, compostValue: 10);
-      final strongCompost = Item.test('Weird Gloop', gp: 50, compostValue: 40);
+      final strongCompost = Item.test('Weird Gloop', gp: 50, compostValue: 50);
       final state = createTestState([normalCompost, strongCompost]);
 
       final plotId = const MelvorId('test:plot_1');
@@ -142,14 +143,22 @@ void main() {
       updatedState = updatedState.applyCompost(plotId, normalCompost);
       expect(updatedState.plotStates[plotId]!.compostApplied, 10);
 
-      // Apply strong compost (40 value)
-      updatedState = updatedState.applyCompost(plotId, strongCompost);
+      // Apply more normal compost
+      updatedState = updatedState.applyCompost(plotId, normalCompost);
+      expect(updatedState.plotStates[plotId]!.compostApplied, 20);
+
+      updatedState = updatedState.applyCompost(plotId, normalCompost);
+      expect(updatedState.plotStates[plotId]!.compostApplied, 30);
+
+      updatedState = updatedState.applyCompost(plotId, normalCompost);
+      expect(updatedState.plotStates[plotId]!.compostApplied, 40);
+
+      updatedState = updatedState.applyCompost(plotId, normalCompost);
       expect(updatedState.plotStates[plotId]!.compostApplied, 50);
 
-      // Apply another strong compost (40 value) - should reach 80 but not exceed
-      // Actually, this would be 90, so it should fail
+      // Cannot apply any more - at max (50)
       expect(
-        () => updatedState.applyCompost(plotId, strongCompost),
+        () => updatedState.applyCompost(plotId, normalCompost),
         throwsA(
           isA<StateError>().having(
             (e) => e.message,
@@ -159,20 +168,9 @@ void main() {
         ),
       );
 
-      // Apply normal compost instead (10 value) to reach 60
-      updatedState = updatedState.applyCompost(plotId, normalCompost);
-      expect(updatedState.plotStates[plotId]!.compostApplied, 60);
-
-      // Apply two more normal compost to reach 80
-      updatedState = updatedState.applyCompost(plotId, normalCompost);
-      expect(updatedState.plotStates[plotId]!.compostApplied, 70);
-
-      updatedState = updatedState.applyCompost(plotId, normalCompost);
-      expect(updatedState.plotStates[plotId]!.compostApplied, 80);
-
-      // Cannot apply any more - at max
+      // Strong compost (50 value) also can't be applied when already at 50
       expect(
-        () => updatedState.applyCompost(plotId, normalCompost),
+        () => updatedState.applyCompost(plotId, strongCompost),
         throwsA(
           isA<StateError>().having(
             (e) => e.message,

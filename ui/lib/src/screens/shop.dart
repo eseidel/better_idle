@@ -1,5 +1,6 @@
 import 'package:better_idle/src/logic/redux_actions.dart';
 import 'package:better_idle/src/widgets/cached_image.dart';
+import 'package:better_idle/src/widgets/cost_row.dart';
 import 'package:better_idle/src/widgets/navigation_drawer.dart';
 import 'package:better_idle/src/widgets/skills.dart';
 import 'package:better_idle/src/widgets/style.dart';
@@ -448,7 +449,11 @@ class _ShopItemRow extends StatelessWidget {
                     ),
                   ],
                   const SizedBox(height: 4),
-                  _buildCostRow(),
+                  CostRow(
+                    currencyCosts: currencyCosts,
+                    canAffordCosts: canAffordCosts,
+                    itemCosts: itemCosts,
+                  ),
                   if (unmetRequirements.isNotEmpty) ...[
                     const SizedBox(height: 2),
                     _buildRequirementsRow(),
@@ -462,82 +467,20 @@ class _ShopItemRow extends StatelessWidget {
     );
   }
 
-  Widget _buildCostRow() {
-    if (currencyCosts.isEmpty && itemCosts.isEmpty) {
-      return const Text(
-        'Free',
-        style: TextStyle(
-          color: Style.successColor,
-          fontWeight: FontWeight.bold,
-        ),
-      );
-    }
-
-    final widgets = <Widget>[];
-
-    // Add currency costs
-    for (final (currency, amount) in currencyCosts) {
-      final canAfford = canAffordCosts[currency] ?? false;
-      final color = canAfford ? Style.successColor : Style.errorColor;
-      widgets.add(
-        Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            CachedImage(assetPath: currency.assetPath, size: 16),
-            const SizedBox(width: 4),
-            Text(
-              approximateCreditString(amount),
-              style: TextStyle(color: color, fontWeight: FontWeight.bold),
-            ),
-          ],
-        ),
-      );
-    }
-
-    // Add item costs
-    for (final (item, quantity, canAfford) in itemCosts) {
-      final color = canAfford ? Style.successColor : Style.errorColor;
-      widgets.add(
-        Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            if (item.media != null)
-              CachedImage(assetPath: item.media!, size: 16)
-            else
-              Icon(Icons.inventory_2, size: 16, color: color),
-            const SizedBox(width: 4),
-            Text(
-              '$quantity',
-              style: TextStyle(color: color, fontWeight: FontWeight.bold),
-            ),
-          ],
-        ),
-      );
-    }
-
-    return Wrap(
-      spacing: 12,
-      crossAxisAlignment: WrapCrossAlignment.center,
-      children: widgets,
-    );
-  }
-
   Widget _buildRequirementsRow() {
+    final color = Style.unmetRequirementColor;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: unmetRequirements.map((req) {
         return Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Text(
-              'Requires ',
-              style: TextStyle(color: Style.shopPurchasedColor, fontSize: 12),
-            ),
+            Text('Requires ', style: TextStyle(color: color, fontSize: 12)),
             CachedImage(assetPath: req.skill.assetPath, size: 14),
             const SizedBox(width: 4),
             Text(
               'Level ${req.level}',
-              style: TextStyle(color: Style.shopPurchasedColor, fontSize: 12),
+              style: TextStyle(color: color, fontSize: 12),
             ),
           ],
         );

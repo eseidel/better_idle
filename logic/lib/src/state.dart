@@ -1065,20 +1065,25 @@ class GlobalState {
       throw StateError('Not enough ${compost.name}');
     }
 
-    // Validate compost limit (max 80)
+    // Validate compost limit (max 50, which gives 100% success chance)
     final newCompostValue = plotState.compostApplied + compostValue;
-    if (newCompostValue > 80) {
+    if (newCompostValue > 50) {
       throw StateError(
         'Cannot apply more compost: already at ${plotState.compostApplied}, '
-        'max is 80',
+        'max is 50',
       );
     }
 
     // Consume compost from inventory
     final newInventory = inventory.removing(ItemStack(compost, count: 1));
 
-    // Update plot state with new compost value
-    final newPlotState = plotState.copyWith(compostApplied: newCompostValue);
+    // Update plot state with new compost and harvest bonus values
+    final harvestBonus = compost.harvestBonus ?? 0;
+    final newHarvestBonus = plotState.harvestBonusApplied + harvestBonus;
+    final newPlotState = plotState.copyWith(
+      compostApplied: newCompostValue,
+      harvestBonusApplied: newHarvestBonus,
+    );
 
     final newPlotStates = Map<MelvorId, PlotState>.from(plotStates);
     newPlotStates[plotId] = newPlotState;
@@ -1110,18 +1115,30 @@ class GlobalState {
       throw StateError('Category ${crop.categoryId} not found');
     }
 
-    // Calculate harvest quantity
-    final baseQuantity = crop.baseQuantity;
-    final multiplier = category.harvestMultiplier;
-    final compostBonus = 1.0 + (plotState.compostApplied / 100.0);
-    final masteryLevel = actionState(cropId).masteryLevel;
-    final masteryBonus = 1.0 + (masteryLevel * 0.002); // +0.2% per level
-
-    final quantity = (baseQuantity * multiplier * compostBonus * masteryBonus)
-        .round();
+    // Check success chance (50% base + compost value)
+    final successChance = (50 + plotState.compostApplied) / 100.0;
+    final succeeded = random.nextDouble() < successChance;
 
     // Get product item (throws if not found)
     final product = registries.items.byId(crop.productId);
+
+    // If failed, just clear the plot and return (no harvest, no XP)
+    if (!succeeded) {
+      final newPlotStates = Map<MelvorId, PlotState>.from(plotStates);
+      newPlotStates.remove(plotId);
+      return copyWith(plotStates: newPlotStates);
+    }
+
+    // Calculate harvest quantity
+    final baseQuantity = crop.baseQuantity;
+    final multiplier = category.harvestMultiplier;
+    // harvestBonusApplied is a percentage (e.g., 10 = +10%)
+    final harvestBonus = 1.0 + (plotState.harvestBonusApplied / 100.0);
+    final masteryLevel = actionState(cropId).masteryLevel;
+    final masteryBonus = 1.0 + (masteryLevel * 0.002); // +0.2% per level
+
+    final quantity = (baseQuantity * multiplier * harvestBonus * masteryBonus)
+        .round();
 
     // Add harvested items to inventory
     var newInventory = inventory.adding(ItemStack(product, count: quantity));

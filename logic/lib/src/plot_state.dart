@@ -10,6 +10,7 @@ class PlotState {
     this.cropId,
     this.growthTicksRemaining,
     this.compostApplied = 0,
+    this.harvestBonusApplied = 0,
   });
 
   const PlotState.empty() : this();
@@ -20,6 +21,7 @@ class PlotState {
       cropId: cropIdJson != null ? ActionId.fromJson(cropIdJson) : null,
       growthTicksRemaining: json['growthTicksRemaining'] as int?,
       compostApplied: json['compostApplied'] as int? ?? 0,
+      harvestBonusApplied: json['harvestBonusApplied'] as int? ?? 0,
     );
   }
 
@@ -30,8 +32,12 @@ class PlotState {
   /// Follows the countdown pattern used by mining respawn, stunned, etc.
   final Tick? growthTicksRemaining;
 
-  /// Compost value applied (0-80, each 10 = +10% harvest).
+  /// Compost value applied (0-50). Increases success chance.
+  /// Base success chance is 50%, compost adds to it (e.g., 50 compost = 100%).
   final int compostApplied;
+
+  /// Harvest bonus percentage applied (e.g., 10 for +10% harvest quantity).
+  final int harvestBonusApplied;
 
   /// Returns true if this plot is empty.
   bool get isEmpty => cropId == null;
@@ -51,11 +57,13 @@ class PlotState {
     ActionId? cropId,
     Tick? growthTicksRemaining,
     int? compostApplied,
+    int? harvestBonusApplied,
   }) {
     return PlotState(
       cropId: cropId ?? this.cropId,
       growthTicksRemaining: growthTicksRemaining ?? this.growthTicksRemaining,
       compostApplied: compostApplied ?? this.compostApplied,
+      harvestBonusApplied: harvestBonusApplied ?? this.harvestBonusApplied,
     );
   }
 
@@ -65,6 +73,7 @@ class PlotState {
       if (growthTicksRemaining != null)
         'growthTicksRemaining': growthTicksRemaining,
       'compostApplied': compostApplied,
+      'harvestBonusApplied': harvestBonusApplied,
     };
   }
 

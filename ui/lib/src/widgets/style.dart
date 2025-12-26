@@ -99,6 +99,7 @@ class Style {
 
   // Shop colors
   static Color shopPurchasedColor = Colors.orange.shade700;
+  static Color unmetRequirementColor = const Color(0xFFE56767);
 
   // Container/card backgrounds
   static Color containerBackgroundLight = Colors.grey.shade800;

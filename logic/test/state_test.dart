@@ -1511,8 +1511,7 @@ void main() {
       expect(() => state.harvestCrop(plotId, random), throwsStateError);
     });
 
-    test('harvestCrop applies compost bonus to harvest quantity', () {
-      final random = Random(42);
+    test('harvestCrop applies harvest bonus to harvest quantity', () {
       var state = GlobalState.empty(testRegistries);
       state = state.copyWith(
         inventory: Inventory.fromItems(testItems, [
@@ -1520,18 +1519,19 @@ void main() {
         ]),
       );
 
-      // Plant first crop without compost
+      // Plant first crop without harvest bonus
       state = state.plantCrop(plotId, crop);
       var readyPlotState = PlotState(
         cropId: crop.id,
         growthTicksRemaining: 0,
-        compostApplied: 0,
+        compostApplied: 50, // 100% success chance
+        harvestBonusApplied: 0,
       );
       state = state.copyWith(plotStates: {plotId: readyPlotState});
 
-      // Harvest without compost
-      state = state.harvestCrop(plotId, random);
-      final harvestWithoutCompost = state.inventory.countOfItem(product);
+      // Harvest without harvest bonus
+      state = state.harvestCrop(plotId, Random(42));
+      final harvestWithoutBonus = state.inventory.countOfItem(product);
 
       // Reset inventory for second harvest
       state = state.copyWith(
@@ -1540,22 +1540,22 @@ void main() {
         ]),
       );
 
-      // Plant second crop with max compost (80%)
+      // Plant second crop with harvest bonus (50%)
       state = state.plantCrop(plotId, crop);
       readyPlotState = PlotState(
         cropId: crop.id,
         growthTicksRemaining: 0,
-        compostApplied: 80, // +80% bonus
+        compostApplied: 50, // 100% success chance
+        harvestBonusApplied: 50, // +50% harvest quantity
       );
       state = state.copyWith(plotStates: {plotId: readyPlotState});
 
-      // Harvest with compost
-      final random2 = Random(42); // Same seed for comparison
-      state = state.harvestCrop(plotId, random2);
-      final harvestWithCompost = state.inventory.countOfItem(product);
+      // Harvest with harvest bonus
+      state = state.harvestCrop(plotId, Random(42));
+      final harvestWithBonus = state.inventory.countOfItem(product);
 
-      // With 80% compost bonus, should get more product
-      expect(harvestWithCompost, greaterThan(harvestWithoutCompost));
+      // With 50% harvest bonus, should get more product
+      expect(harvestWithBonus, greaterThan(harvestWithoutBonus));
     });
   });
 

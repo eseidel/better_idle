@@ -100,6 +100,7 @@ class Item extends Equatable {
     this.type,
     this.healsFor,
     this.compostValue,
+    this.harvestBonus,
     this.dropTable,
     this.media,
     this.validSlots = const [],
@@ -108,15 +109,20 @@ class Item extends Equatable {
   /// Creates a simple test item with minimal required fields.
   /// Only for use in tests.
   @visibleForTesting
-  Item.test(this.name, {required int gp, this.healsFor, this.compostValue})
-    : id = MelvorId('melvorD:${name.replaceAll(' ', '_')}'),
-      itemType = 'Item',
-      sellsFor = gp,
-      category = null,
-      type = null,
-      dropTable = null,
-      media = null,
-      validSlots = const [];
+  Item.test(
+    this.name, {
+    required int gp,
+    this.healsFor,
+    this.compostValue,
+    this.harvestBonus,
+  }) : id = MelvorId('melvorD:${name.replaceAll(' ', '_')}'),
+       itemType = 'Item',
+       sellsFor = gp,
+       category = null,
+       type = null,
+       dropTable = null,
+       media = null,
+       validSlots = const [];
 
   /// Creates an Item from a JSON map.
   factory Item.fromJson(
@@ -128,7 +134,14 @@ class Item extends Equatable {
     final healsFor = rawHealsFor != null ? (rawHealsFor * 10).toInt() : null;
 
     // Parse compost value if present.
-    final compostValue = json['compostValue'] as int?;
+    // JSON stores 2x the actual percent (e.g., 20 = 10%, 100 = 50%).
+    final rawCompostValue = json['compostValue'] as int?;
+    final compostValue = rawCompostValue != null ? rawCompostValue ~/ 2 : null;
+
+    // Parse harvest bonus if present.
+    // JSON stores 2x the actual percent (e.g., 20 = 10%).
+    final rawHarvestBonus = json['harvestBonus'] as int?;
+    final harvestBonus = rawHarvestBonus != null ? rawHarvestBonus ~/ 2 : null;
 
     // Parse drop table if present.
     final dropTableJson = json['dropTable'] as List<dynamic>?;
@@ -166,6 +179,7 @@ class Item extends Equatable {
       type: json['type'] as String?,
       healsFor: healsFor,
       compostValue: compostValue,
+      harvestBonus: harvestBonus,
       dropTable: dropTable,
       media: media,
       validSlots: validSlots,
@@ -193,8 +207,11 @@ class Item extends Equatable {
   /// The amount of HP this item heals when consumed. Null if not consumable.
   final int? healsFor;
 
-  /// The compost value for farming (0-80). Null if not compost.
+  /// The compost value for farming (0-50). Null if not compost.
   final int? compostValue;
+
+  /// The harvest bonus percentage for farming (e.g., 10 for +10%). Null if none.
+  final int? harvestBonus;
 
   /// The drop table for openable items. Null if not openable.
   final DropTable? dropTable;
@@ -237,6 +254,7 @@ class Item extends Equatable {
     type,
     healsFor,
     compostValue,
+    harvestBonus,
     dropTable,
     media,
     validSlots,
