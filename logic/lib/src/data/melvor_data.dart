@@ -100,7 +100,7 @@ class MelvorData {
     final (farmingCrops, farmingCategories, farmingPlots) = parseFarming(
       skillDataById['melvorD:Farming'],
     );
-    // Note: Don't add crops to actions - they're not SkillActions
+    actions.addAll(farmingCrops);
     _farmingCrops = FarmingCropRegistry(farmingCrops);
     _farmingCategories = farmingCategories;
     _farmingPlots = farmingPlots;

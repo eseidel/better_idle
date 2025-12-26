@@ -24,15 +24,13 @@ final int ticksPer1Hp = ticksFromDuration(const Duration(seconds: 10));
 // for all actions in this skill?
 int playerTotalMasteryForSkill(GlobalState state, Skill skill) {
   int total = 0;
-  final actions = state.registries.actions;
-  // This is terribly inefficient, but good enough for now.
   for (final entry in state.actionStates.entries) {
     final actionId = entry.key;
     final actionState = entry.value;
-    final action = actions.byId(actionId);
-    if (action is SkillAction && action.skill == skill) {
-      total += actionState.masteryXp;
+    if (actionId.skillId != skill.id) {
+      continue;
     }
+    total += actionState.masteryXp;
   }
   return total;
 }
