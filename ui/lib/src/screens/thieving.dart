@@ -7,6 +7,7 @@ import 'package:better_idle/src/widgets/navigation_drawer.dart';
 import 'package:better_idle/src/widgets/skill_milestones_dialog.dart';
 import 'package:better_idle/src/widgets/skill_progress.dart';
 import 'package:better_idle/src/widgets/style.dart';
+import 'package:better_idle/src/widgets/tweened_progress_indicator.dart';
 import 'package:better_idle/src/widgets/xp_badges_row.dart';
 import 'package:flutter/material.dart' hide Action;
 import 'package:logic/logic.dart';
@@ -271,50 +272,50 @@ class _ThievingProgressBar extends StatelessWidget {
     final isActive = state.activeAction?.id == action.id;
     final isStunned = state.isStunned;
 
-    // Calculate progress
-    double progress;
+    // Calculate progress and styling
+    ProgressAt? progressData;
     Color barColor;
     String label;
 
     if (isStunned) {
       // Show stun countdown progress
       final stunTicksRemaining = state.stunned.ticksRemaining;
-      progress = 1.0 - (stunTicksRemaining / stunnedDurationTicks);
+      progressData = progressAtFromTicks(
+        lastUpdateTime: state.updatedAt,
+        progressTicks: stunnedDurationTicks - stunTicksRemaining,
+        totalTicks: stunnedDurationTicks,
+      );
       barColor = Style.progressForegroundColorError;
       label = 'Stunned';
     } else if (isActive) {
       // Show action progress
       final progressTicks = state.activeProgress(action);
       final totalTicks = ticksFromDuration(thievingDuration);
-      progress = progressTicks / totalTicks;
+      progressData = progressAtFromTicks(
+        lastUpdateTime: state.updatedAt,
+        progressTicks: progressTicks,
+        totalTicks: totalTicks,
+      );
       barColor = Style.progressForegroundColorWarning;
       label = 'Pickpocketing...';
     } else {
       // Idle state
-      progress = 0.0;
+      progressData = null;
       barColor = Style.iconColorDefault;
       label = 'Idle';
     }
 
     return Column(
       children: [
-        Container(
+        SizedBox(
           height: 24,
-          decoration: BoxDecoration(
-            color: Style.progressBackgroundColor,
-            borderRadius: BorderRadius.circular(4),
-          ),
           child: Stack(
             children: [
-              FractionallySizedBox(
-                alignment: Alignment.centerLeft,
-                widthFactor: progress.clamp(0.0, 1.0),
-                child: Container(
-                  decoration: BoxDecoration(
-                    color: barColor,
-                    borderRadius: BorderRadius.circular(4),
-                  ),
-                ),
+              TweenedProgressIndicator(
+                progress: progressData,
+                height: 24,
+                backgroundColor: Style.progressBackgroundColor,
+                color: barColor,
               ),
               Center(
                 child: Text(
@@ -322,7 +323,7 @@ class _ThievingProgressBar extends StatelessWidget {
                   style: TextStyle(
                     fontSize: 12,
                     fontWeight: FontWeight.bold,
-                    color: progress > 0.5
+                    color: progressData != null && progressData.progress > 0.5
                         ? Style.textColorPrimary
                         : Style.progressTextDark,
                   ),

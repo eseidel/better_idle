@@ -67,3 +67,16 @@ extension ActiveActionProgressAt on ActiveAction {
     );
   }
 }
+
+/// Helper function to create ProgressAt from tick counts.
+ProgressAt progressAtFromTicks({
+  required DateTime lastUpdateTime,
+  required int progressTicks,
+  required int totalTicks,
+}) {
+  return ProgressAt(
+    lastUpdateTime: lastUpdateTime,
+    progressTicks: progressTicks,
+    totalTicks: totalTicks,
+  );
+}

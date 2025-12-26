@@ -1,5 +1,8 @@
+import 'package:better_idle/src/widgets/context_extensions.dart';
 import 'package:better_idle/src/widgets/style.dart';
+import 'package:better_idle/src/widgets/tweened_progress_indicator.dart';
 import 'package:flutter/material.dart';
+import 'package:logic/logic.dart';
 
 /// A horizontal progress bar for displaying HP (health points).
 ///
@@ -67,27 +70,21 @@ class AttackBar extends StatelessWidget {
   Widget build(BuildContext context) {
     final total = totalTicks;
     final remaining = ticksRemaining;
-    // Progress goes from 0 to 1 as the attack charges up.
-    final progress = (total != null && total > 0 && remaining != null)
-        ? (1.0 - remaining / total).clamp(0.0, 1.0)
-        : 0.0;
 
-    return Container(
+    // Create ProgressAt for tweened animation
+    final progress = (total != null && total > 0 && remaining != null)
+        ? progressAtFromTicks(
+            lastUpdateTime: context.state.updatedAt,
+            progressTicks: total - remaining,
+            totalTicks: total,
+          )
+        : null;
+
+    return TweenedProgressIndicator(
+      progress: progress,
       height: height,
-      decoration: BoxDecoration(
-        color: Style.progressBackgroundColor,
-        borderRadius: BorderRadius.circular(4),
-      ),
-      child: FractionallySizedBox(
-        alignment: Alignment.centerLeft,
-        widthFactor: progress,
-        child: Container(
-          decoration: BoxDecoration(
-            color: Style.attackBarColor,
-            borderRadius: BorderRadius.circular(4),
-          ),
-        ),
-      ),
+      backgroundColor: Style.progressBackgroundColor,
+      color: Style.attackBarColor,
     );
   }
 }

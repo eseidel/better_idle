@@ -178,14 +178,6 @@ class ActionCell extends StatelessWidget {
       context,
     ).textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.bold);
     final activeAction = context.state.activeAction;
-    double progress;
-    if (activeAction?.id == action.id && activeAction != null) {
-      progress =
-          (activeAction.totalTicks - activeAction.remainingTicks) /
-          activeAction.totalTicks;
-    } else {
-      progress = 0.0;
-    }
     final actionState = context.state.actionState(action.id);
     final canStart = context.state.canStartAction(action);
     final isRunning = context.state.activeAction?.id == action.id;
@@ -198,7 +190,6 @@ class ActionCell extends StatelessWidget {
     int? currentHp;
     int? maxHp;
     Duration? respawnTimeRemaining;
-    double? respawnProgress;
 
     if (action case final MiningAction miningAction) {
       final miningState = actionState.mining ?? const MiningState.empty();
@@ -210,7 +201,6 @@ class ActionCell extends StatelessWidget {
         respawnTimeRemaining = Duration(
           milliseconds: respawnTicks * tickDuration.inMilliseconds,
         );
-        respawnProgress = miningAction.respawnProgress(actionState);
       }
     }
 
@@ -263,8 +253,19 @@ class ActionCell extends StatelessWidget {
                   'Respawning in ${respawnTime.inSeconds}s',
                   style: TextStyle(color: Style.textColorMuted),
                 ),
-                LinearProgressIndicator(
-                  value: respawnProgress ?? 0,
+                TweenedProgressIndicator(
+                  progress: () {
+                    final miningState =
+                        actionState.mining ?? const MiningState.empty();
+                    final respawnTicks = miningState.respawnTicksRemaining;
+                    if (respawnTicks == null) return null;
+                    final miningAction = action as MiningAction;
+                    return progressAtFromTicks(
+                      lastUpdateTime: context.state.updatedAt,
+                      progressTicks: miningAction.respawnTicks - respawnTicks,
+                      totalTicks: miningAction.respawnTicks,
+                    );
+                  }(),
                   backgroundColor: Style.progressBackgroundColor,
                   color: Style.progressForegroundColorMuted,
                 ),
@@ -278,7 +279,11 @@ class ActionCell extends StatelessWidget {
               ],
             ],
             const SizedBox(height: 4),
-            LinearProgressIndicator(value: progress),
+            TweenedProgressIndicator(
+              progress: isRunning && activeAction != null && !isDepleted
+                  ? activeAction.toProgressAt(context.state.updatedAt)
+                  : null,
+            ),
             MasteryProgressCell(masteryXp: actionState.masteryXp),
           ],
         ),
