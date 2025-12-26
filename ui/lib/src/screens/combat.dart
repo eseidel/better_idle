@@ -17,7 +17,6 @@ class CombatPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final state = context.state;
-    final areas = state.registries.combatAreas.all;
 
     // Get the currently active combat action (if any)
     final activeAction = state.activeAction;
@@ -39,6 +38,17 @@ class CombatPage extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
+            // Select Combat Area button
+            ElevatedButton.icon(
+              onPressed: () => showDialog<void>(
+                context: context,
+                builder: (_) => const CombatAreaSelectionDialog(),
+              ),
+              icon: const Icon(Icons.map),
+              label: const Text('Select Combat Area'),
+            ),
+            const SizedBox(height: 16),
+
             // Player stats card with food
             _PlayerStatsCard(
               playerHp: state.playerHp,
@@ -74,22 +84,55 @@ class CombatPage extends StatelessWidget {
                 ),
               const SizedBox(height: 24),
             ],
-
-            // Combat Areas
-            const Text(
-              'Combat Areas',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 8),
-            for (final area in areas)
-              _CombatAreaTile(
-                area: area,
-                activeMonster: activeMonster,
-                isStunned: state.isStunned,
-              ),
           ],
         ),
       ),
+    );
+  }
+}
+
+class CombatAreaSelectionDialog extends StatelessWidget {
+  const CombatAreaSelectionDialog({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final state = context.state;
+    final areas = state.registries.combatAreas.all;
+
+    // Get the currently active combat action (if any)
+    final activeAction = state.activeAction;
+    CombatAction? activeMonster;
+    if (activeAction != null) {
+      final action = state.registries.actions.byId(activeAction.id);
+      if (action is CombatAction) {
+        activeMonster = action;
+      }
+    }
+
+    return AlertDialog(
+      title: const Text('Select Combat Area'),
+      content: SizedBox(
+        width: double.maxFinite,
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              for (final area in areas)
+                _CombatAreaTile(
+                  area: area,
+                  activeMonster: activeMonster,
+                  isStunned: state.isStunned,
+                ),
+            ],
+          ),
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('Close'),
+        ),
+      ],
     );
   }
 }
@@ -189,9 +232,12 @@ class _MonsterListTile extends StatelessWidget {
                   ElevatedButton(
                     onPressed: isStunned
                         ? null
-                        : () => context.dispatch(
-                            StartCombatAction(combatAction: monster),
-                          ),
+                        : () {
+                            context.dispatch(
+                              StartCombatAction(combatAction: monster),
+                            );
+                            Navigator.of(context).pop(); // Close dialog
+                          },
                     child: const Text('Fight'),
                   ),
                 ],
