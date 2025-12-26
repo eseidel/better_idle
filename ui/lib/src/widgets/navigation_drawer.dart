@@ -8,6 +8,27 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:logic/logic.dart';
 
+class _SectionHeader extends StatelessWidget {
+  const _SectionHeader({required this.title});
+
+  final String title;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 4),
+      child: Text(
+        title,
+        style: const TextStyle(
+          fontSize: 12,
+          fontWeight: FontWeight.bold,
+          color: Style.textColorSecondary,
+        ),
+      ),
+    );
+  }
+}
+
 class SkillTile extends StatelessWidget {
   const SkillTile({required this.skill, super.key, this.selected = false});
 
@@ -96,10 +117,12 @@ class AppNavigationDrawer extends StatelessWidget {
               router.goNamed('bank');
             },
           ),
-          const Divider(),
+          const _SectionHeader(title: 'Combat'),
           const SkillTile(skill: Skill.hitpoints),
           const SkillTile(skill: Skill.attack),
-          const Divider(),
+          const _SectionHeader(title: 'Passive'),
+          const SkillTile(skill: Skill.farming),
+          const _SectionHeader(title: 'Skills'),
           const SkillTile(skill: Skill.woodcutting),
           const SkillTile(skill: Skill.fishing),
           const SkillTile(skill: Skill.firemaking),
@@ -111,7 +134,6 @@ class AppNavigationDrawer extends StatelessWidget {
           const SkillTile(skill: Skill.crafting),
           const SkillTile(skill: Skill.runecrafting),
           const SkillTile(skill: Skill.herblore),
-          const SkillTile(skill: Skill.farming),
           const SkillTile(skill: Skill.agility),
           const SkillTile(skill: Skill.summoning),
           const SkillTile(skill: Skill.astrology),
