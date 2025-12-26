@@ -1,28 +1,6 @@
-import 'package:flutter/material.dart';
 import 'package:logic/logic.dart';
 
 extension SkillExtensions on Skill {
-  IconData get icon => switch (this) {
-    Skill.combat => Icons.sports_martial_arts,
-    Skill.hitpoints => Icons.favorite,
-    Skill.attack => Icons.sports_martial_arts,
-    Skill.woodcutting => Icons.forest,
-    Skill.firemaking => Icons.local_fire_department,
-    Skill.fishing => Icons.set_meal,
-    Skill.cooking => Icons.restaurant,
-    Skill.mining => Icons.construction,
-    Skill.smithing => Icons.hardware,
-    Skill.fletching => Icons.keyboard_double_arrow_up,
-    Skill.thieving => Icons.back_hand,
-    Skill.crafting => Icons.handyman,
-    Skill.herblore => Icons.science,
-    Skill.runecrafting => Icons.auto_fix_high,
-    Skill.agility => Icons.directions_run,
-    Skill.summoning => Icons.pets,
-    Skill.astrology => Icons.auto_awesome,
-    Skill.altMagic => Icons.flash_on,
-  };
-
   String get routeName => switch (this) {
     Skill.hitpoints => 'combat',
     Skill.attack => 'combat',
