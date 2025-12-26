@@ -35,17 +35,25 @@ class CachedImage extends StatefulWidget {
 class _CachedImageState extends State<CachedImage> {
   File? _cachedFile;
   bool _isLoading = false;
+  String? _lastAssetPath;
 
   @override
-  void initState() {
-    super.initState();
-    _loadImage();
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // Load image when dependencies change or on first build
+    if (_lastAssetPath != widget.assetPath) {
+      _lastAssetPath = widget.assetPath;
+      _cachedFile = null;
+      _isLoading = false;
+      _loadImage();
+    }
   }
 
   @override
   void didUpdateWidget(CachedImage oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.assetPath != widget.assetPath) {
+      _lastAssetPath = widget.assetPath;
       _cachedFile = null;
       _isLoading = false;
       _loadImage();
