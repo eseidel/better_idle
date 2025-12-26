@@ -1,3 +1,5 @@
+import 'dart:math';
+
 import 'package:logic/logic.dart';
 import 'package:test/test.dart';
 
@@ -84,6 +86,160 @@ void main() {
 
       expect(readyPlot.isGrowing, false);
       expect(readyPlot.isReadyToHarvest, true);
+    });
+  });
+
+  group('Farming XP', () {
+    // Per the spec:
+    // - Planting allotment/herb seeds grants base XP
+    // - Planting tree seeds grants NO XP
+    // - Harvesting trees grants fixed XP (baseXP)
+    // - Harvesting allotments/herbs grants XP = baseXP * quantity harvested
+
+    late FarmingCrop allotmentCrop;
+    late FarmingCrop treeCrop;
+    late FarmingCategory allotmentCategory;
+    late FarmingCategory treeCategory;
+    late MelvorId plotId;
+
+    setUpAll(() {
+      // Get an allotment crop (level 1 for easier testing)
+      allotmentCategory = testRegistries.farmingCategories.all.firstWhere(
+        (c) => c.name == 'Allotments',
+      );
+      allotmentCrop = testRegistries.farmingCrops
+          .forCategory(allotmentCategory.id)
+          .firstWhere((c) => c.level == 1);
+
+      // Get a tree crop (trees start at level 15, so get the lowest level one)
+      treeCategory = testRegistries.farmingCategories.all.firstWhere(
+        (c) => c.name == 'Trees',
+      );
+      final treeCrops = testRegistries.farmingCrops.forCategory(
+        treeCategory.id,
+      );
+      treeCrops.sort((a, b) => a.level.compareTo(b.level));
+      treeCrop = treeCrops.first;
+
+      // Get an unlocked plot
+      plotId = testRegistries.farmingPlots.initialPlots().first;
+    });
+
+    test('allotment category has correct flags', () {
+      expect(allotmentCategory.giveXPOnPlant, isTrue);
+      expect(allotmentCategory.scaleXPWithQuantity, isTrue);
+    });
+
+    test('tree category has correct flags', () {
+      expect(treeCategory.giveXPOnPlant, isFalse);
+      expect(treeCategory.scaleXPWithQuantity, isFalse);
+    });
+
+    test('planting allotment seed grants base XP', () {
+      final seed = testRegistries.items.byId(allotmentCrop.seedId);
+      var state = GlobalState.empty(testRegistries);
+      state = state.copyWith(
+        inventory: Inventory.fromItems(testItems, [
+          ItemStack(seed, count: allotmentCrop.seedCost),
+        ]),
+      );
+
+      final xpBefore = state.skillState(Skill.farming).xp;
+      state = state.plantCrop(plotId, allotmentCrop);
+      final xpAfter = state.skillState(Skill.farming).xp;
+
+      expect(xpAfter - xpBefore, allotmentCrop.baseXP);
+    });
+
+    test('planting tree seed grants NO XP', () {
+      final seed = testRegistries.items.byId(treeCrop.seedId);
+      var state = GlobalState.empty(testRegistries);
+      // Set farming level high enough for the tree crop
+      state = state.copyWith(
+        inventory: Inventory.fromItems(testItems, [
+          ItemStack(seed, count: treeCrop.seedCost),
+        ]),
+        skillStates: {
+          Skill.farming: SkillState(
+            xp: startXpForLevel(treeCrop.level),
+            masteryPoolXp: 0,
+          ),
+        },
+      );
+
+      final xpBefore = state.skillState(Skill.farming).xp;
+      state = state.plantCrop(plotId, treeCrop);
+      final xpAfter = state.skillState(Skill.farming).xp;
+
+      expect(xpAfter - xpBefore, 0);
+    });
+
+    test('harvesting tree grants fixed XP (not scaled by quantity)', () {
+      final random = Random(42);
+      final seed = testRegistries.items.byId(treeCrop.seedId);
+      var state = GlobalState.empty(testRegistries);
+      // Set farming level high enough for the tree crop
+      state = state.copyWith(
+        inventory: Inventory.fromItems(testItems, [
+          ItemStack(seed, count: treeCrop.seedCost),
+        ]),
+        skillStates: {
+          Skill.farming: SkillState(
+            xp: startXpForLevel(treeCrop.level),
+            masteryPoolXp: 0,
+          ),
+        },
+      );
+
+      // Plant and immediately set as ready
+      state = state.plantCrop(plotId, treeCrop);
+      final readyPlotState = PlotState(
+        cropId: treeCrop.id,
+        growthTicksRemaining: 0,
+        compostApplied: 0,
+      );
+      state = state.copyWith(plotStates: {plotId: readyPlotState});
+
+      final xpBefore = state.skillState(Skill.farming).xp;
+      state = state.harvestCrop(plotId, random);
+      final xpAfter = state.skillState(Skill.farming).xp;
+
+      // Tree harvest should give exactly baseXP (not scaled)
+      expect(xpAfter - xpBefore, treeCrop.baseXP);
+    });
+
+    test('harvesting allotment grants XP scaled by quantity', () {
+      final random = Random(42);
+      final seed = testRegistries.items.byId(allotmentCrop.seedId);
+      final product = testRegistries.items.byId(allotmentCrop.productId);
+      var state = GlobalState.empty(testRegistries);
+      state = state.copyWith(
+        inventory: Inventory.fromItems(testItems, [
+          ItemStack(seed, count: allotmentCrop.seedCost),
+        ]),
+      );
+
+      // Plant (grants base XP)
+      state = state.plantCrop(plotId, allotmentCrop);
+
+      // Set as ready to harvest
+      final readyPlotState = PlotState(
+        cropId: allotmentCrop.id,
+        growthTicksRemaining: 0,
+        compostApplied: 0,
+      );
+      state = state.copyWith(plotStates: {plotId: readyPlotState});
+
+      final xpBeforeHarvest = state.skillState(Skill.farming).xp;
+      state = state.harvestCrop(plotId, random);
+      final xpAfterHarvest = state.skillState(Skill.farming).xp;
+
+      // Determine how many items were harvested
+      final harvestedQuantity = state.inventory.countOfItem(product);
+
+      // Allotment harvest should give baseXP * quantity
+      final expectedHarvestXp = allotmentCrop.baseXP * harvestedQuantity;
+      expect(xpAfterHarvest - xpBeforeHarvest, expectedHarvestXp);
     });
   });
 }

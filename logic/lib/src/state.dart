@@ -1146,15 +1146,16 @@ class GlobalState {
       }
     }
 
-    // Award XP (if not already given on plant)
+    // Award XP on harvest
+    // - Allotments/Herbs: XP = baseXP * quantity (scaleXPWithQuantity=true)
+    // - Trees: XP = baseXP (scaleXPWithQuantity=false)
+    // Note: giveXPOnPlant controls additional XP when planting, not harvest XP
     var newState = copyWith(inventory: newInventory);
 
-    if (!category.giveXPOnPlant) {
-      final xpAmount = category.scaleXPWithQuantity
-          ? crop.baseXP * quantity
-          : crop.baseXP;
-      newState = newState.addSkillXp(Skill.farming, xpAmount);
-    }
+    final xpAmount = category.scaleXPWithQuantity
+        ? crop.baseXP * quantity
+        : crop.baseXP;
+    newState = newState.addSkillXp(Skill.farming, xpAmount);
 
     // Award mastery XP
     final masteryXpAmount = crop.baseXP ~/ category.masteryXPDivider;
