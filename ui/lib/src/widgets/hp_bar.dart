@@ -56,12 +56,14 @@ class AttackBar extends StatelessWidget {
   const AttackBar({
     required this.ticksRemaining,
     required this.totalTicks,
+    this.animate = true,
     this.height = 12,
     super.key,
   });
 
   final int? ticksRemaining;
   final int? totalTicks;
+  final bool animate;
 
   /// The height of the bar. Defaults to 12.
   final double height;
@@ -77,6 +79,7 @@ class AttackBar extends StatelessWidget {
       lastUpdateTime: context.state.updatedAt,
       progressTicks: isActive ? total - remaining : 0,
       totalTicks: isActive ? total : 1,
+      isAdvancing: animate && isActive,
     );
 
     return TweenedProgressIndicator(

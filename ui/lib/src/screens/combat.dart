@@ -44,6 +44,7 @@ class CombatPage extends StatelessWidget {
               playerHp: state.playerHp,
               maxPlayerHp: state.maxPlayerHp,
               equipment: state.equipment,
+              animateAttack: state.isPlayerActive,
               attackTicksRemaining: combatState?.playerAttackTicksRemaining,
               totalAttackTicks: activeMonster != null
                   ? ticksFromDuration(
@@ -205,6 +206,7 @@ class _PlayerStatsCard extends StatelessWidget {
     required this.playerHp,
     required this.maxPlayerHp,
     required this.equipment,
+    required this.animateAttack,
     this.attackTicksRemaining,
     this.totalAttackTicks,
   });
@@ -214,6 +216,7 @@ class _PlayerStatsCard extends StatelessWidget {
   final Equipment equipment;
   final int? attackTicksRemaining;
   final int? totalAttackTicks;
+  final bool animateAttack;
 
   @override
   Widget build(BuildContext context) {
@@ -241,6 +244,7 @@ class _PlayerStatsCard extends StatelessWidget {
             AttackBar(
               ticksRemaining: attackTicksRemaining,
               totalTicks: totalAttackTicks,
+              animate: animateAttack,
             ),
             const SizedBox(height: 16),
             // Food slots section
@@ -425,6 +429,7 @@ class _MonsterCard extends StatelessWidget {
                         ),
                       )
                     : null,
+                animate: context.state.isMonsterActive,
               ),
               const SizedBox(height: 8),
               Text('Attack Speed: ${action.stats.attackSpeed}s'),

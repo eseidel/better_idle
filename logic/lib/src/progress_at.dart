@@ -9,12 +9,14 @@ class ProgressAt {
     required this.lastUpdateTime,
     required this.progressTicks,
     required this.totalTicks,
+    this.isAdvancing = true,
   });
 
   factory ProgressAt.zero(DateTime? lastUpdateTime) => ProgressAt(
     lastUpdateTime: lastUpdateTime ?? DateTime.now(),
     progressTicks: 0,
     totalTicks: 1,
+    isAdvancing: false,
   );
 
   /// The timestamp when the progress was last updated
@@ -25,6 +27,9 @@ class ProgressAt {
 
   /// Total ticks needed for completion
   final int totalTicks;
+
+  /// Whether the progress is currently advancing
+  final bool isAdvancing;
 
   /// Calculate the base progress (0.0 to 1.0) from the tick values
   double get progress {
@@ -42,8 +47,8 @@ class ProgressAt {
   }) {
     final baseProgress = progress;
 
-    // If we're already complete, don't advance further
-    if (baseProgress >= 1) return 1;
+    // If we're already complete or not advancing, don't advance further
+    if (baseProgress >= 1 || !isAdvancing) return baseProgress;
 
     // Calculate how much time has elapsed since the last update
     final elapsed = now.difference(lastUpdateTime);

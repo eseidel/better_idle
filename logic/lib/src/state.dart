@@ -462,6 +462,23 @@ class GlobalState {
   /// Whether the player is currently stunned.
   bool get isStunned => stunned.isStunned;
 
+  /// Whether the player can perform actions (true if not stunned and combat isn't paused).
+  bool get isPlayerActive => !isStunned && !isCombatPaused;
+
+  /// Whether the current monster can perform actions (true if combat isn't paused).
+  bool get isMonsterActive => !isCombatPaused;
+
+  /// Whether combat is currently paused (e.g., waiting for monster respawn).
+  bool get isCombatPaused {
+    final active = activeAction;
+    if (active == null) return false;
+    final state = actionStates[active.id];
+    if (state == null) return false;
+    final combat = state.combat;
+    if (combat == null) return false;
+    return combat.isRespawning;
+  }
+
   int get inventoryCapacity => shop.bankSlotsPurchased + initialBankSlots;
 
   bool get isActive => activeAction != null;

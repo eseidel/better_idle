@@ -84,14 +84,19 @@ class _TweenedProgressIndicatorState extends State<TweenedProgressIndicator>
 
   @override
   Widget build(BuildContext context) {
-    // If not animating, show static empty progress
+    // If not animating OR the progress itself says it's not advancing,
+    // show static progress at the CURRENT estimated position (or base progress).
+    // Note: We still use AnimatedBuilder if it's "animating" in the widget sense,
+    // but the estimation will be frozen if progress.isAdvancing is false.
+
     if (!widget.animate) {
+      final progress = widget.progress.progress;
       return ClipRRect(
         borderRadius: widget.borderRadius ?? BorderRadius.circular(4),
         child: SizedBox(
           height: widget.height,
           child: LinearProgressIndicator(
-            value: 0,
+            value: progress,
             backgroundColor: widget.backgroundColor,
             color: widget.color,
           ),

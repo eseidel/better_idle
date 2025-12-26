@@ -150,7 +150,7 @@ class WoodcuttingActionCell extends StatelessWidget {
               progress:
                   activeAction?.toProgressAt(context.state.updatedAt) ??
                   ProgressAt.zero(context.state.updatedAt),
-              animate: isRunning,
+              animate: isRunning && context.state.isPlayerActive,
             ),
             const SizedBox(height: 8),
             MasteryProgressCell(masteryXp: actionState.masteryXp),
@@ -284,7 +284,7 @@ class ActionCell extends StatelessWidget {
               progress:
                   activeAction?.toProgressAt(context.state.updatedAt) ??
                   ProgressAt.zero(context.state.updatedAt),
-              animate: isRunning && !isDepleted,
+              animate: isRunning && !isDepleted && context.state.isPlayerActive,
             ),
             MasteryProgressCell(masteryXp: actionState.masteryXp),
           ],
