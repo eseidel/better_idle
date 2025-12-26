@@ -3,6 +3,7 @@ import 'package:meta/meta.dart';
 
 import 'action_id.dart';
 import 'actions.dart';
+import 'currency.dart';
 import 'melvor_id.dart';
 
 /// A farming category parsed from Melvor data (Allotment, Herb, Tree).
@@ -96,6 +97,10 @@ class FarmingPlot {
     Map<String, dynamic> json, {
     required String namespace,
   }) {
+    final currencyCosts = CurrencyCosts.fromJson(
+      json['currencyCosts'] as List<dynamic>?,
+    );
+
     return FarmingPlot(
       id: MelvorId.fromJsonWithNamespace(
         json['id'] as String,
@@ -106,7 +111,7 @@ class FarmingPlot {
         defaultNamespace: namespace,
       ),
       level: json['level'] as int? ?? 1,
-      gpCost: json['gpCost'] as int? ?? 0,
+      gpCost: currencyCosts.gpCost,
     );
   }
 

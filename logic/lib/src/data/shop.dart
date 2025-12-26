@@ -7,41 +7,6 @@ import 'package:logic/src/data/melvor_id.dart';
 import 'package:logic/src/types/modifier.dart';
 import 'package:meta/meta.dart';
 
-/// The type of cost calculation for a shop purchase.
-enum CostType {
-  /// Fixed cost defined in JSON.
-  fixed,
-
-  /// Dynamic cost based on bank slot formula.
-  bankSlot,
-}
-
-/// A currency cost for a shop purchase.
-@immutable
-class CurrencyCost extends Equatable {
-  const CurrencyCost({
-    required this.currency,
-    required this.type,
-    this.fixedCost,
-  });
-
-  factory CurrencyCost.fromJson(Map<String, dynamic> json) {
-    final currencyId = json['currency'] as String;
-    final currency = Currency.fromId(currencyId);
-    final typeStr = json['type'] as String;
-    final type = typeStr == 'BankSlot' ? CostType.bankSlot : CostType.fixed;
-    final fixedCost = json['cost'] as int?;
-    return CurrencyCost(currency: currency, type: type, fixedCost: fixedCost);
-  }
-
-  final Currency currency;
-  final CostType type;
-  final int? fixedCost;
-
-  @override
-  List<Object?> get props => [currency, type, fixedCost];
-}
-
 /// An item cost for a shop purchase.
 @immutable
 class ItemCost extends Equatable {

@@ -1,4 +1,5 @@
 import 'package:logic/src/data/actions.dart';
+import 'package:logic/src/data/currency.dart';
 import 'package:logic/src/data/melvor_id.dart';
 import 'package:meta/meta.dart';
 
@@ -18,8 +19,8 @@ class AgilityObstacle extends SkillAction {
     required super.duration,
     required this.category,
     this.media,
-    this.currencyCosts = const {},
-    this.currencyRewards = const {},
+    this.currencyCosts = CurrencyCosts.empty,
+    this.currencyRewards = const [],
     super.inputs = const {},
     super.outputs = const {},
   }) : super(skill: Skill.agility);
@@ -42,30 +43,14 @@ class AgilityObstacle extends SkillAction {
     }
 
     // Parse currency costs (mainly GP) - stored separately, not as inputs
-    final currencyCostsJson = json['currencyCosts'] as List<dynamic>? ?? [];
-    final currencyCosts = <MelvorId, int>{};
-    for (final cost in currencyCostsJson) {
-      final costMap = cost as Map<String, dynamic>;
-      final currencyId = MelvorId.fromJsonWithNamespace(
-        costMap['id'] as String,
-        defaultNamespace: namespace,
-      );
-      final quantity = costMap['quantity'] as int;
-      currencyCosts[currencyId] = quantity;
-    }
+    final currencyCosts = CurrencyCosts.fromJson(
+      json['currencyCosts'] as List<dynamic>?,
+    );
 
     // Parse currency rewards
-    final currencyRewardsJson = json['currencyRewards'] as List<dynamic>? ?? [];
-    final currencyRewards = <MelvorId, int>{};
-    for (final reward in currencyRewardsJson) {
-      final rewardMap = reward as Map<String, dynamic>;
-      final currencyId = MelvorId.fromJsonWithNamespace(
-        rewardMap['id'] as String,
-        defaultNamespace: namespace,
-      );
-      final quantity = rewardMap['quantity'] as int;
-      currencyRewards[currencyId] = quantity;
-    }
+    final currencyRewards = parseCurrencyStacks(
+      json['currencyRewards'] as List<dynamic>?,
+    );
 
     // Parse item rewards as outputs
     final itemRewards = json['itemRewards'] as List<dynamic>? ?? [];
@@ -124,10 +109,10 @@ class AgilityObstacle extends SkillAction {
   final String? media;
 
   /// Currency costs to build this obstacle (e.g., GP).
-  final Map<MelvorId, int> currencyCosts;
+  final CurrencyCosts currencyCosts;
 
-  /// Currency rewards for completing this obstacle (e.g., GP).
-  final Map<MelvorId, int> currencyRewards;
+  /// Currency rewards for completing this obstacle.
+  final List<CurrencyStack> currencyRewards;
 }
 
 /// An agility course configuration.
@@ -217,7 +202,7 @@ class AgilityPillar {
     required this.name,
     required this.slot,
     required this.itemCosts,
-    required this.currencyCosts,
+    this.currencyCosts = CurrencyCosts.empty,
   });
 
   factory AgilityPillar.fromJson(
@@ -238,17 +223,9 @@ class AgilityPillar {
     }
 
     // Parse currency costs
-    final currencyCostsJson = json['currencyCosts'] as List<dynamic>? ?? [];
-    final currencyCosts = <MelvorId, int>{};
-    for (final cost in currencyCostsJson) {
-      final costMap = cost as Map<String, dynamic>;
-      final currencyId = MelvorId.fromJsonWithNamespace(
-        costMap['id'] as String,
-        defaultNamespace: namespace,
-      );
-      final quantity = costMap['quantity'] as int;
-      currencyCosts[currencyId] = quantity;
-    }
+    final currencyCosts = CurrencyCosts.fromJson(
+      json['currencyCosts'] as List<dynamic>?,
+    );
 
     return AgilityPillar(
       id: MelvorId.fromJsonWithNamespace(
@@ -275,7 +252,7 @@ class AgilityPillar {
   final Map<MelvorId, int> itemCosts;
 
   /// Currency costs to build this pillar.
-  final Map<MelvorId, int> currencyCosts;
+  final CurrencyCosts currencyCosts;
 }
 
 /// Registry for agility courses.
