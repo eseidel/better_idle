@@ -4,13 +4,22 @@
     // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
     "version": "0.2.0",
     "configurations": [
+
         {
-            "name": "better_idle",
+            "name": "better_idle (macos)",
             "request": "launch",
             "type": "dart",
             "cwd": "${workspaceFolder}/ui",
             "program": "lib/main.dart",
             "deviceId": "macos"
+        },
+        {
+            "name": "better_idle (iPhone)",
+            "request": "launch",
+            "type": "dart",
+            "cwd": "${workspaceFolder}/ui",
+            "program": "lib/main.dart",
+            "deviceId": "00008120-0011315A2290C01E"
         }
     ]
 }
