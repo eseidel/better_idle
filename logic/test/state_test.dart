@@ -34,7 +34,18 @@ void main() {
   });
 
   test('GlobalState toJson/fromJson round-trip', () {
-    // Create a state with TimeAway data
+    // Get farming data for plot state testing
+    final crops = testRegistries.farmingCrops.all;
+    final levelOneCrops = crops.where((c) => c.level == 1).toList();
+    final crop = levelOneCrops.first;
+    final initialPlots = testRegistries.farmingPlots.initialPlots().toList();
+    final plotId1 = initialPlots[0];
+    // Get a second plot if available, otherwise use the first with different state
+    final plotId2 = initialPlots.length > 1
+        ? initialPlots[1]
+        : MelvorId('melvorD:Test_Plot_2');
+
+    // Create a state with TimeAway data and PlotStates
     final originalState = GlobalState.test(
       testRegistries,
       inventory: Inventory.fromItems(testItems, [
@@ -52,6 +63,18 @@ void main() {
       actionStates: {
         normalTree.id: ActionState(masteryXp: 25),
         oakTree.id: ActionState(masteryXp: 10),
+      },
+      plotStates: {
+        plotId1: PlotState(
+          cropId: crop.id,
+          growthTicksRemaining: 500,
+          compostApplied: 30,
+        ),
+        plotId2: PlotState(
+          cropId: crop.id,
+          growthTicksRemaining: 0, // Ready to harvest
+          compostApplied: 0,
+        ),
       },
       updatedAt: DateTime(2024, 1, 1, 12),
       timeAway: TimeAway(
@@ -96,6 +119,22 @@ void main() {
     expect(loaded.actionStates.length, 2);
     expect(loaded.actionStates[normalTree.id]?.masteryXp, 25);
     expect(loaded.actionStates[oakTree.id]?.masteryXp, 10);
+
+    // Verify PlotStates data
+    expect(loaded.plotStates.length, 2);
+    final loadedPlot1 = loaded.plotStates[plotId1]!;
+    expect(loadedPlot1.cropId, crop.id);
+    expect(loadedPlot1.growthTicksRemaining, 500);
+    expect(loadedPlot1.compostApplied, 30);
+    expect(loadedPlot1.isGrowing, true);
+    expect(loadedPlot1.isReadyToHarvest, false);
+
+    final loadedPlot2 = loaded.plotStates[plotId2]!;
+    expect(loadedPlot2.cropId, crop.id);
+    expect(loadedPlot2.growthTicksRemaining, 0);
+    expect(loadedPlot2.compostApplied, 0);
+    expect(loadedPlot2.isGrowing, false);
+    expect(loadedPlot2.isReadyToHarvest, true);
 
     // Verify TimeAway data
     final timeAway = loaded.timeAway;
@@ -246,6 +285,167 @@ void main() {
 
     // Verify GP was added correctly (5 * 1 = 5)
     expect(afterSelling.gp, 5);
+  });
+
+  group('GlobalState.equipFood', () {
+    test('moves food from inventory to equipment slot', () {
+      final state = GlobalState.test(
+        testRegistries,
+        inventory: Inventory.fromItems(testItems, [
+          ItemStack(shrimp, count: 10),
+        ]),
+      );
+
+      final newState = state.equipFood(ItemStack(shrimp, count: 10));
+
+      // Food should be removed from inventory
+      expect(newState.inventory.countOfItem(shrimp), 0);
+      // Food should be in an equipment slot
+      expect(newState.equipment.foodSlots[0]?.item, shrimp);
+      expect(newState.equipment.foodSlots[0]?.count, 10);
+    });
+
+    test('equips partial stack from inventory', () {
+      final state = GlobalState.test(
+        testRegistries,
+        inventory: Inventory.fromItems(testItems, [
+          ItemStack(shrimp, count: 20),
+        ]),
+      );
+
+      final newState = state.equipFood(ItemStack(shrimp, count: 5));
+
+      // Only 5 should be removed from inventory
+      expect(newState.inventory.countOfItem(shrimp), 15);
+      // 5 should be in equipment
+      expect(newState.equipment.foodSlots[0]?.count, 5);
+    });
+
+    test('stacks with existing food in slot', () {
+      final equipment = Equipment(
+        foodSlots: [ItemStack(shrimp, count: 5), null, null],
+        selectedFoodSlot: 0,
+      );
+      final state = GlobalState.test(
+        testRegistries,
+        inventory: Inventory.fromItems(testItems, [
+          ItemStack(shrimp, count: 10),
+        ]),
+        equipment: equipment,
+      );
+
+      final newState = state.equipFood(ItemStack(shrimp, count: 10));
+
+      // Food should be removed from inventory
+      expect(newState.inventory.countOfItem(shrimp), 0);
+      // Should stack in the first slot (5 + 10 = 15)
+      expect(newState.equipment.foodSlots[0]?.count, 15);
+    });
+
+    test('throws when item is not food', () {
+      final state = GlobalState.test(
+        testRegistries,
+        inventory: Inventory.fromItems(testItems, [
+          ItemStack(normalLogs, count: 5),
+        ]),
+      );
+
+      expect(
+        () => state.equipFood(ItemStack(normalLogs, count: 5)),
+        throwsStateError,
+      );
+    });
+  });
+
+  group('GlobalState.eatSelectedFood', () {
+    test('heals player and consumes food', () {
+      final equipment = Equipment(
+        foodSlots: [ItemStack(shrimp, count: 5), null, null],
+        selectedFoodSlot: 0,
+      );
+      final state = GlobalState.test(
+        testRegistries,
+        equipment: equipment,
+        health: const HealthState(lostHp: 50),
+      );
+
+      final newState = state.eatSelectedFood();
+
+      expect(newState, isNotNull);
+      // Food count should decrease by 1
+      expect(newState!.equipment.foodSlots[0]?.count, 4);
+      // Health should be restored by shrimp's heal amount
+      expect(newState.health.lostHp, lessThan(50));
+    });
+
+    test('returns null when no food is selected', () {
+      final state = GlobalState.test(
+        testRegistries,
+        health: const HealthState(lostHp: 50),
+      );
+
+      final newState = state.eatSelectedFood();
+
+      expect(newState, isNull);
+    });
+
+    test('returns null when player is at full health', () {
+      final equipment = Equipment(
+        foodSlots: [ItemStack(shrimp, count: 5), null, null],
+        selectedFoodSlot: 0,
+      );
+      final state = GlobalState.test(
+        testRegistries,
+        equipment: equipment,
+        health: const HealthState.full(),
+      );
+
+      final newState = state.eatSelectedFood();
+
+      expect(newState, isNull);
+    });
+
+    test('clears slot when last food is eaten', () {
+      final equipment = Equipment(
+        foodSlots: [ItemStack(shrimp, count: 1), null, null],
+        selectedFoodSlot: 0,
+      );
+      final state = GlobalState.test(
+        testRegistries,
+        equipment: equipment,
+        health: const HealthState(lostHp: 50),
+      );
+
+      final newState = state.eatSelectedFood();
+
+      expect(newState, isNotNull);
+      // Slot should now be empty
+      expect(newState!.equipment.foodSlots[0], isNull);
+    });
+
+    test('eats from correct selected slot', () {
+      final equipment = Equipment(
+        foodSlots: [
+          ItemStack(shrimp, count: 5),
+          ItemStack(lobster, count: 3),
+          null,
+        ],
+        selectedFoodSlot: 1, // Select lobster
+      );
+      final state = GlobalState.test(
+        testRegistries,
+        equipment: equipment,
+        health: const HealthState(lostHp: 50),
+      );
+
+      final newState = state.eatSelectedFood();
+
+      expect(newState, isNotNull);
+      // Shrimp should be unchanged
+      expect(newState!.equipment.foodSlots[0]?.count, 5);
+      // Lobster should decrease by 1
+      expect(newState.equipment.foodSlots[1]?.count, 2);
+    });
   });
 
   group('GlobalState.unequipFood', () {
@@ -1356,6 +1556,104 @@ void main() {
 
       // With 80% compost bonus, should get more product
       expect(harvestWithCompost, greaterThan(harvestWithoutCompost));
+    });
+  });
+
+  group('hasActiveBackgroundTimers', () {
+    test('returns false with no background timers', () {
+      final state = GlobalState.empty(testRegistries);
+      expect(state.hasActiveBackgroundTimers, false);
+    });
+
+    test('returns true when farming plot is growing', () {
+      // Get farming data
+      final crops = testRegistries.farmingCrops.all;
+      final levelOneCrops = crops.where((c) => c.level == 1).toList();
+      final crop = levelOneCrops.first;
+      final plotId = testRegistries.farmingPlots.initialPlots().first;
+
+      final state = GlobalState.test(
+        testRegistries,
+        plotStates: {
+          plotId: PlotState(
+            cropId: crop.id,
+            growthTicksRemaining: 100,
+            compostApplied: 0,
+          ),
+        },
+      );
+
+      expect(state.hasActiveBackgroundTimers, true);
+    });
+
+    test('returns false when farming plot is ready to harvest', () {
+      // Get farming data
+      final crops = testRegistries.farmingCrops.all;
+      final levelOneCrops = crops.where((c) => c.level == 1).toList();
+      final crop = levelOneCrops.first;
+      final plotId = testRegistries.farmingPlots.initialPlots().first;
+
+      final state = GlobalState.test(
+        testRegistries,
+        plotStates: {
+          plotId: PlotState(
+            cropId: crop.id,
+            growthTicksRemaining: 0, // Ready to harvest
+            compostApplied: 0,
+          ),
+        },
+      );
+
+      expect(state.hasActiveBackgroundTimers, false);
+    });
+
+    test('returns true when player HP needs regeneration', () {
+      final state = GlobalState.test(
+        testRegistries,
+        health: const HealthState(lostHp: 10),
+      );
+
+      expect(state.hasActiveBackgroundTimers, true);
+    });
+
+    test('returns false when player HP is full', () {
+      final state = GlobalState.test(
+        testRegistries,
+        health: const HealthState.full(),
+      );
+
+      expect(state.hasActiveBackgroundTimers, false);
+    });
+
+    test('returns true with multiple growing plots', () {
+      // Get farming data
+      final crops = testRegistries.farmingCrops.all;
+      final levelOneCrops = crops.where((c) => c.level == 1).toList();
+      final crop = levelOneCrops.first;
+      final initialPlots = testRegistries.farmingPlots.initialPlots().toList();
+      final plotId1 = initialPlots[0];
+      final plotId2 = initialPlots.length > 1
+          ? initialPlots[1]
+          : MelvorId('melvorD:Test_Plot_2');
+
+      final state = GlobalState.test(
+        testRegistries,
+        plotStates: {
+          plotId1: PlotState(
+            cropId: crop.id,
+            growthTicksRemaining: 100,
+            compostApplied: 0,
+          ),
+          plotId2: PlotState(
+            cropId: crop.id,
+            growthTicksRemaining: 0, // This one is ready
+            compostApplied: 0,
+          ),
+        },
+      );
+
+      // Should return true because plotId1 is still growing
+      expect(state.hasActiveBackgroundTimers, true);
     });
   });
 
