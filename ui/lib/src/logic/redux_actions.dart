@@ -477,18 +477,22 @@ class UnlockPlotAction extends ReduxAction<GlobalState> {
       return null;
     }
 
-    // Check GP cost
-    final gpBalance = state.currency(Currency.gp);
-    if (gpBalance < plot.gpCost) {
-      return null;
+    // Check currency costs
+    for (final cost in plot.currencyCosts.costs) {
+      if (state.currency(cost.currency) < cost.amount) {
+        return null;
+      }
     }
 
-    // Deduct GP and unlock plot
-    final newUnlockedPlots = Set<MelvorId>.from(state.unlockedPlots)
+    // Deduct costs and unlock plot
+    var newState = state;
+    for (final cost in plot.currencyCosts.costs) {
+      newState = newState.addCurrency(cost.currency, -cost.amount);
+    }
+
+    final newUnlockedPlots = Set<MelvorId>.from(newState.unlockedPlots)
       ..add(plotId);
 
-    return state
-        .addCurrency(Currency.gp, -plot.gpCost)
-        .copyWith(unlockedPlots: newUnlockedPlots);
+    return newState.copyWith(unlockedPlots: newUnlockedPlots);
   }
 }

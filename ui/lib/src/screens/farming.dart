@@ -1,4 +1,5 @@
 import 'package:better_idle/src/widgets/context_extensions.dart';
+import 'package:better_idle/src/widgets/currency_display.dart';
 import 'package:better_idle/src/widgets/mastery_pool.dart';
 import 'package:better_idle/src/widgets/mastery_unlocks_dialog.dart';
 import 'package:better_idle/src/widgets/navigation_drawer.dart';
@@ -46,10 +47,7 @@ class FarmingPage extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   for (final entry in plotsByCategory.entries)
-                    _CategorySection(
-                      category: entry.key,
-                      plots: entry.value,
-                    ),
+                    _CategorySection(category: entry.key, plots: entry.value),
                 ],
               ),
             ),
@@ -61,10 +59,7 @@ class FarmingPage extends StatelessWidget {
 }
 
 class _CategorySection extends StatelessWidget {
-  const _CategorySection({
-    required this.category,
-    required this.plots,
-  });
+  const _CategorySection({required this.category, required this.plots});
 
   final FarmingCategory category;
   final List<FarmingPlot> plots;
@@ -85,11 +80,7 @@ class _CategorySection extends StatelessWidget {
           spacing: 8,
           runSpacing: 8,
           children: [
-            for (final plot in plots)
-              _PlotCard(
-                plot: plot,
-                category: category,
-              ),
+            for (final plot in plots) _PlotCard(plot: plot, category: category),
           ],
         ),
         const SizedBox(height: 24),
@@ -99,10 +90,7 @@ class _CategorySection extends StatelessWidget {
 }
 
 class _PlotCard extends StatelessWidget {
-  const _PlotCard({
-    required this.plot,
-    required this.category,
-  });
+  const _PlotCard({required this.plot, required this.category});
 
   final FarmingPlot plot;
   final FarmingCategory category;
@@ -163,7 +151,8 @@ class _LockedPlotContent extends StatelessWidget {
         const Icon(Icons.lock, size: 48),
         const SizedBox(height: 8),
         Text('Level ${plot.level}'),
-        Text('${plot.gpCost} GP'),
+        if (plot.currencyCosts.isNotEmpty)
+          CurrencyListDisplay.fromCosts(plot.currencyCosts),
       ],
     );
   }

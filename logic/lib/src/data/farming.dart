@@ -90,17 +90,13 @@ class FarmingPlot {
     required this.id,
     required this.categoryId,
     required this.level,
-    required this.gpCost,
+    this.currencyCosts = CurrencyCosts.empty,
   });
 
   factory FarmingPlot.fromJson(
     Map<String, dynamic> json, {
     required String namespace,
   }) {
-    final currencyCosts = CurrencyCosts.fromJson(
-      json['currencyCosts'] as List<dynamic>?,
-    );
-
     return FarmingPlot(
       id: MelvorId.fromJsonWithNamespace(
         json['id'] as String,
@@ -111,14 +107,16 @@ class FarmingPlot {
         defaultNamespace: namespace,
       ),
       level: json['level'] as int? ?? 1,
-      gpCost: currencyCosts.gpCost,
+      currencyCosts: CurrencyCosts.fromJson(
+        json['currencyCosts'] as List<dynamic>?,
+      ),
     );
   }
 
   final MelvorId id;
   final MelvorId categoryId;
   final int level;
-  final int gpCost;
+  final CurrencyCosts currencyCosts;
 
   @override
   String toString() => 'FarmingPlot($id)';
@@ -145,11 +143,11 @@ class FarmingPlotRegistry {
   }
 
   /// Returns the set of plot IDs that should be unlocked initially.
-  /// These are plots with level 1 and no GP cost (free starter plots).
+  /// These are plots with level 1 and no cost (free starter plots).
   Set<MelvorId> initialPlots() {
     return {
       for (final plot in _plots)
-        if (plot.level == 1 && plot.gpCost == 0) plot.id,
+        if (plot.level == 1 && plot.currencyCosts.isEmpty) plot.id,
     };
   }
 }

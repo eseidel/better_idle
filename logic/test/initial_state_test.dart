@@ -10,9 +10,9 @@ void main() {
     test('Free farming plots are unlocked at game start', () {
       final state = GlobalState.empty(testRegistries);
 
-      // Check that plots with level 1 and gpCost 0 are unlocked
+      // Check that plots with level 1 and no cost are unlocked
       final freePlots = testRegistries.farmingPlots.all
-          .where((plot) => plot.level == 1 && plot.gpCost == 0)
+          .where((plot) => plot.level == 1 && plot.currencyCosts.isEmpty)
           .toList();
 
       expect(
@@ -26,8 +26,8 @@ void main() {
           state.unlockedPlots.contains(plot.id),
           true,
           reason:
-              'Plot ${plot.id} with level ${plot.level} and cost '
-              '${plot.gpCost} should be unlocked',
+              'Plot ${plot.id} with level ${plot.level} and no cost '
+              'should be unlocked',
         );
       }
     });
@@ -35,17 +35,16 @@ void main() {
     test('Paid farming plots are locked at game start', () {
       final state = GlobalState.empty(testRegistries);
 
-      // Check that plots that cost GP are locked
+      // Check that plots that cost currency are locked
       final paidPlots = testRegistries.farmingPlots.all
-          .where((plot) => plot.gpCost > 0)
+          .where((plot) => plot.currencyCosts.isNotEmpty)
           .toList();
 
       for (final plot in paidPlots) {
         expect(
           state.unlockedPlots.contains(plot.id),
           false,
-          reason:
-              'Plot ${plot.id} with cost ${plot.gpCost} GP should be locked',
+          reason: 'Plot ${plot.id} with cost should be locked',
         );
       }
     });
