@@ -21,8 +21,8 @@ class SkillImage extends StatelessWidget {
     return CachedImage(
       assetPath: skill.assetPath,
       size: size,
-      placeholder: const Center(child: Text('Loading...')),
-      fallback: const Icon(Icons.help_outline),
+      placeholder: Icon(Icons.hourglass_empty, size: size),
+      fallback: Icon(Icons.help_outline, size: size),
     );
   }
 }
