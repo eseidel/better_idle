@@ -1087,22 +1087,23 @@ void consumeTicksUntil(
   required Random random,
 }) {
   final registries = state.registries;
-  final activeAction = state.activeAction;
-  if (activeAction == null) {
-    // No activity active, return empty changes
-    return (TimeAway.empty(registries), state);
-  }
   final builder = StateUpdateBuilder(state);
   consumeTicks(builder, ticks, random: random);
+
   final startTime = state.updatedAt;
   final calculatedEndTime =
       endTime ??
       startTime.add(
         Duration(milliseconds: ticks * tickDuration.inMilliseconds),
       );
+
+  // Build TimeAway with action details if there was an active action
+  final activeAction = state.activeAction;
   // For TimeAway, we only need the action for predictions.
   // Combat actions return empty predictions anyway, so null is fine.
-  final action = registries.actions.byId(activeAction.id);
+  final action = activeAction != null
+      ? registries.actions.byId(activeAction.id)
+      : null;
   // Convert stoppedAtTick to Duration if action stopped
   final stoppedAfter = builder.stoppedAtTick != null
       ? durationFromTicks(builder.stoppedAtTick!)

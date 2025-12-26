@@ -77,7 +77,7 @@ class SetRecipeAction extends ReduxAction<GlobalState> {
 }
 
 /// Advances the game by a specified number of ticks and returns the changes.
-/// Unlike UpdateActionProgressAction, this does not show toasts.
+/// Unlike UpdateActivityProgressAction, this does not show toasts.
 class AdvanceTicksAction extends ReduxAction<GlobalState> {
   AdvanceTicksAction({required this.ticks});
   final Tick ticks;
@@ -354,21 +354,6 @@ class UnequipGearAction extends ReduxAction<GlobalState> {
 }
 
 // Debug actions
-
-/// Adds Egg Chests to inventory for testing.
-class DebugAddEggChestsAction extends ReduxAction<GlobalState> {
-  DebugAddEggChestsAction({this.count = 50});
-  final int count;
-
-  @override
-  GlobalState reduce() {
-    const eggChestId = MelvorId('melvorD:Egg_Chest');
-    final eggChest = state.registries.items.byId(eggChestId);
-    final stack = ItemStack(eggChest, count: count);
-    final newInventory = state.inventory.adding(stack);
-    return state.copyWith(inventory: newInventory);
-  }
-}
 
 /// Fills inventory with random items (one of each type not already present).
 class DebugFillInventoryAction extends ReduxAction<GlobalState> {

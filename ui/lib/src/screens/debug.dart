@@ -27,15 +27,13 @@ class DebugPage extends StatelessWidget {
               ),
               ElevatedButton(
                 onPressed: () {
-                  context.dispatch(DebugAddEggChestsAction());
-                },
-                child: const Text('Add 50 Egg Chests'),
-              ),
-              ElevatedButton(
-                onPressed: () {
                   context.dispatch(DebugFillInventoryAction());
                 },
                 child: const Text('Fill Inventory'),
+              ),
+              ElevatedButton(
+                onPressed: () => _fastForward30Minutes(context),
+                child: const Text('Fast Forward 30m'),
               ),
               ElevatedButton(
                 onPressed: () => _confirmResetState(context),
@@ -109,6 +107,19 @@ class DebugPage extends StatelessWidget {
         ActionId.test(Skill.woodcutting, 'Oak Tree'): 1,
       },
     );
+  }
+
+  Future<void> _fastForward30Minutes(BuildContext context) async {
+    const thirtyMinutesInTicks = 30 * 60 * 10; // 30 min * 60 sec * 10 ticks/sec
+    final action = AdvanceTicksAction(ticks: thirtyMinutesInTicks);
+    context.dispatch(action);
+
+    if (context.mounted) {
+      await showDialog<void>(
+        context: context,
+        builder: (context) => WelcomeBackDialog(timeAway: action.timeAway),
+      );
+    }
   }
 
   Future<void> _confirmResetState(BuildContext context) async {
