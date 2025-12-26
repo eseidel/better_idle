@@ -22,18 +22,22 @@ class Registries {
     this.combatAreas,
     this.agilityCourses,
     this.agilityPillars,
+    this.farmingCrops,
+    this.farmingCategories,
+    this.farmingPlots,
     this.shop,
     this.masteryBonuses,
     this.masteryUnlocks,
   );
 
   static Registries test({
+    List<Item> items = const [],
     ShopRegistry? shop,
     MasteryBonusRegistry? masteryBonuses,
     MasteryUnlockRegistry? masteryUnlocks,
   }) {
     return Registries(
-      ItemRegistry([]),
+      ItemRegistry(items),
       ActionRegistry([]),
       DropsRegistry({}),
       FishingAreaRegistry([]),
@@ -46,6 +50,9 @@ class Registries {
       CombatAreaRegistry([]),
       AgilityCourseRegistry([]),
       AgilityPillarRegistry([]),
+      FarmingCropRegistry([]),
+      FarmingCategoryRegistry([]),
+      FarmingPlotRegistry([]),
       shop ?? ShopRegistry([], []),
       masteryBonuses ?? MasteryBonusRegistry([]),
       masteryUnlocks ?? MasteryUnlockRegistry([]),
@@ -65,6 +72,9 @@ class Registries {
   final CombatAreaRegistry combatAreas;
   final AgilityCourseRegistry agilityCourses;
   final AgilityPillarRegistry agilityPillars;
+  final FarmingCropRegistry farmingCrops;
+  final FarmingCategoryRegistry farmingCategories;
+  final FarmingPlotRegistry farmingPlots;
   final ShopRegistry shop;
   final MasteryBonusRegistry masteryBonuses;
   final MasteryUnlockRegistry masteryUnlocks;
@@ -103,6 +113,9 @@ Future<Registries> loadRegistriesFromCache(Cache cache) async {
     melvorData.combatAreas,
     melvorData.agilityCourses,
     melvorData.agilityPillars,
+    melvorData.farmingCrops,
+    melvorData.farmingCategories,
+    melvorData.farmingPlots,
     melvorData.shop,
     melvorData.masteryBonuses,
     melvorData.masteryUnlocks,

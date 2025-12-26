@@ -254,6 +254,10 @@ double actionTimeForMastery(SkillAction action) {
     case Skill.altMagic:
       return 1.7;
 
+    // Farming uses growth duration for mastery calculations
+    case Skill.farming:
+      return action.maxDuration.inSeconds.toDouble();
+
     // Combat skills don't use mastery XP in the same way
     case Skill.combat:
     case Skill.hitpoints:

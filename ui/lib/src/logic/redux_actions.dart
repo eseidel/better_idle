@@ -410,3 +410,89 @@ class DebugAddItemAction extends ReduxAction<GlobalState> {
     return state.copyWith(inventory: newInventory);
   }
 }
+
+/// Resets the game state to a fresh empty state.
+class DebugResetStateAction extends ReduxAction<GlobalState> {
+  @override
+  GlobalState reduce() {
+    return GlobalState.empty(state.registries);
+  }
+}
+
+// ============================================================================
+// Farming Actions
+// ============================================================================
+
+/// Plants a crop in a farming plot.
+class PlantCropAction extends ReduxAction<GlobalState> {
+  PlantCropAction({required this.plotId, required this.crop});
+  final MelvorId plotId;
+  final FarmingCrop crop;
+
+  @override
+  GlobalState reduce() {
+    return state.plantCrop(plotId, crop);
+  }
+}
+
+/// Applies compost to a growing crop.
+class ApplyCompostAction extends ReduxAction<GlobalState> {
+  ApplyCompostAction({required this.plotId, required this.compost});
+  final MelvorId plotId;
+  final Item compost;
+
+  @override
+  GlobalState reduce() {
+    return state.applyCompost(plotId, compost);
+  }
+}
+
+/// Harvests a ready crop from a plot.
+class HarvestCropAction extends ReduxAction<GlobalState> {
+  HarvestCropAction({required this.plotId});
+  final MelvorId plotId;
+
+  @override
+  GlobalState reduce() {
+    final random = Random();
+    return state.harvestCrop(plotId, random);
+  }
+}
+
+/// Unlocks a farming plot.
+class UnlockPlotAction extends ReduxAction<GlobalState> {
+  UnlockPlotAction({required this.plotId});
+  final MelvorId plotId;
+
+  @override
+  GlobalState? reduce() {
+    final plot = state.registries.farmingPlots.byId(plotId);
+    if (plot == null) {
+      return null;
+    }
+
+    // Check level requirement
+    final farmingLevel = state.skillState(Skill.farming).skillLevel;
+    if (farmingLevel < plot.level) {
+      return null;
+    }
+
+    // Check currency costs
+    for (final cost in plot.currencyCosts.costs) {
+      if (state.currency(cost.currency) < cost.amount) {
+        return null;
+      }
+    }
+
+    // Deduct costs and unlock plot
+    var newState = state;
+    for (final cost in plot.currencyCosts.costs) {
+      newState = newState.addCurrency(cost.currency, -cost.amount);
+    }
+
+    final newUnlockedPlots = Set<MelvorId>.from(newState.unlockedPlots)
+      ..add(plotId);
+
+    return newState.copyWith(unlockedPlots: newUnlockedPlots);
+  }
+}

@@ -97,6 +97,14 @@ class MelvorData {
     actions.addAll(smithingActions);
     _smithingCategories = smithingCategories;
 
+    final (farmingCrops, farmingCategories, farmingPlots) = parseFarming(
+      skillDataById['melvorD:Farming'],
+    );
+    // Note: Don't add crops to actions - they're not SkillActions
+    _farmingCrops = FarmingCropRegistry(farmingCrops);
+    _farmingCategories = farmingCategories;
+    _farmingPlots = farmingPlots;
+
     final (fletchingActions, fletchingCategories) = parseFletching(
       skillDataById['melvorD:Fletching'],
     );
@@ -161,6 +169,9 @@ class MelvorData {
   late final ShopRegistry _shop;
   late final FishingAreaRegistry _fishingAreas;
   late final SmithingCategoryRegistry _smithingCategories;
+  late final FarmingCropRegistry _farmingCrops;
+  late final FarmingCategoryRegistry _farmingCategories;
+  late final FarmingPlotRegistry _farmingPlots;
   late final FletchingCategoryRegistry _fletchingCategories;
   late final CraftingCategoryRegistry _craftingCategories;
   late final HerbloreCategoryRegistry _herbloreCategories;
@@ -180,6 +191,12 @@ class MelvorData {
   FishingAreaRegistry get fishingAreas => _fishingAreas;
 
   SmithingCategoryRegistry get smithingCategories => _smithingCategories;
+
+  FarmingCropRegistry get farmingCrops => _farmingCrops;
+
+  FarmingCategoryRegistry get farmingCategories => _farmingCategories;
+
+  FarmingPlotRegistry get farmingPlots => _farmingPlots;
 
   FletchingCategoryRegistry get fletchingCategories => _fletchingCategories;
 
@@ -367,6 +384,63 @@ List<FiremakingAction> parseFiremaking(List<SkillDataEntry>? entries) {
   }
 
   return (actions, SmithingCategoryRegistry(categories));
+}
+
+/// Parses all farming data. Returns (crops, categoriesRegistry, plotsRegistry).
+(List<FarmingCrop>, FarmingCategoryRegistry, FarmingPlotRegistry) parseFarming(
+  List<SkillDataEntry>? entries,
+) {
+  if (entries == null) {
+    return ([], FarmingCategoryRegistry([]), FarmingPlotRegistry([]));
+  }
+
+  final crops = <FarmingCrop>[];
+  final categories = <FarmingCategory>[];
+  final plots = <FarmingPlot>[];
+
+  for (final entry in entries) {
+    final recipes = entry.data['recipes'] as List<dynamic>?;
+    if (recipes != null) {
+      crops.addAll(
+        recipes.map(
+          (json) => FarmingCrop.fromJson(
+            json as Map<String, dynamic>,
+            namespace: entry.namespace,
+          ),
+        ),
+      );
+    }
+
+    final cats = entry.data['categories'] as List<dynamic>?;
+    if (cats != null) {
+      categories.addAll(
+        cats.map(
+          (json) => FarmingCategory.fromJson(
+            json as Map<String, dynamic>,
+            namespace: entry.namespace,
+          ),
+        ),
+      );
+    }
+
+    final plotsJson = entry.data['plots'] as List<dynamic>?;
+    if (plotsJson != null) {
+      plots.addAll(
+        plotsJson.map(
+          (json) => FarmingPlot.fromJson(
+            json as Map<String, dynamic>,
+            namespace: entry.namespace,
+          ),
+        ),
+      );
+    }
+  }
+
+  return (
+    crops,
+    FarmingCategoryRegistry(categories),
+    FarmingPlotRegistry(plots),
+  );
 }
 
 /// Parses all fletching data. Returns (actions, categoriesRegistry).

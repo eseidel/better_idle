@@ -131,10 +131,6 @@ class _SelectedObstacleDisplay extends StatelessWidget {
     final canStart = state.canStartAction(obstacle);
     final canToggle = canStart || isActive;
 
-    // Get GP rewards
-    final gpReward =
-        obstacle.currencyRewards[const MelvorId('melvorD:GP')] ?? 0;
-
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -195,16 +191,24 @@ class _SelectedObstacleDisplay extends StatelessWidget {
               Column(
                 children: [
                   const Text(
-                    'GP Reward',
+                    'Rewards',
                     style: TextStyle(
                       fontSize: 12,
                       color: Style.textColorSecondary,
                     ),
                   ),
-                  Text(
-                    '$gpReward',
-                    style: const TextStyle(fontWeight: FontWeight.bold),
-                  ),
+                  if (obstacle.currencyRewards.isEmpty)
+                    const Text(
+                      '-',
+                      style: TextStyle(fontWeight: FontWeight.bold),
+                    )
+                  else
+                    ...obstacle.currencyRewards.map(
+                      (reward) => Text(
+                        '${reward.amount} ${reward.currency.abbreviation}',
+                        style: const TextStyle(fontWeight: FontWeight.bold),
+                      ),
+                    ),
                 ],
               ),
               Column(
@@ -398,9 +402,9 @@ class _ObstacleList extends StatelessWidget {
               if (!isCollapsed)
                 ...obstacles.map((obstacle) {
                   final isSelected = obstacle.id == selectedObstacle?.id;
-                  final gpReward =
-                      obstacle.currencyRewards[const MelvorId('melvorD:GP')] ??
-                      0;
+                  final rewardsStr = obstacle.currencyRewards
+                      .map((r) => '${r.amount} ${r.currency.abbreviation}')
+                      .join(', ');
                   return Card(
                     margin: const EdgeInsets.only(left: 16, top: 4, bottom: 4),
                     color: isSelected
@@ -416,7 +420,9 @@ class _ObstacleList extends StatelessWidget {
                         ),
                       ),
                       subtitle: Text(
-                        '${obstacle.xp} XP • $gpReward GP',
+                        rewardsStr.isNotEmpty
+                            ? '${obstacle.xp} XP • $rewardsStr'
+                            : '${obstacle.xp} XP',
                         style: TextStyle(
                           color: slotUnlocked ? null : Style.textColorSecondary,
                         ),

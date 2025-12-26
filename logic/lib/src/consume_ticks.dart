@@ -4,8 +4,11 @@ import 'package:logic/src/action_state.dart';
 import 'package:logic/src/data/action_id.dart';
 import 'package:logic/src/data/actions.dart';
 import 'package:logic/src/data/currency.dart';
+import 'package:logic/src/data/melvor_id.dart';
 import 'package:logic/src/data/registries.dart';
 import 'package:logic/src/data/xp.dart';
+import 'package:logic/src/farming_background.dart';
+import 'package:logic/src/plot_state.dart';
 import 'package:logic/src/state.dart';
 import 'package:logic/src/tick.dart';
 import 'package:logic/src/types/health.dart';
@@ -326,6 +329,20 @@ void _applyBackgroundTicks(
     final result = updatedBg.applyTicks(ticks);
     builder.updateMiningState(bg.actionId, result.newState);
   }
+
+  // Apply farming plot background actions
+  for (final entry in builder.state.plotStates.entries) {
+    final plotId = entry.key;
+    final plotState = entry.value;
+
+    final farmingBg = FarmingPlotGrowth(plotId, plotState.cropId!, plotState);
+    if (!farmingBg.isActive) {
+      continue;
+    }
+
+    final result = farmingBg.applyTicks(ticks);
+    builder.updatePlotState(plotId, result.newState);
+  }
 }
 
 class StateUpdateBuilder {
@@ -424,6 +441,12 @@ class StateUpdateBuilder {
     );
     newActionStates[actionId] = newState;
     _state = _state.copyWith(actionStates: newActionStates);
+  }
+
+  void updatePlotState(MelvorId plotId, PlotState newState) {
+    final newPlotStates = Map<MelvorId, PlotState>.from(_state.plotStates);
+    newPlotStates[plotId] = newState;
+    _state = _state.copyWith(plotStates: newPlotStates);
   }
 
   void addCurrency(Currency currency, int amount) {

@@ -37,6 +37,14 @@ class DebugPage extends StatelessWidget {
                 },
                 child: const Text('Fill Inventory'),
               ),
+              ElevatedButton(
+                onPressed: () => _confirmResetState(context),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.red,
+                  foregroundColor: Colors.white,
+                ),
+                child: const Text('Reset State'),
+              ),
             ],
           ),
           const SizedBox(height: 16),
@@ -101,6 +109,34 @@ class DebugPage extends StatelessWidget {
         ActionId.test(Skill.woodcutting, 'Oak Tree'): 1,
       },
     );
+  }
+
+  Future<void> _confirmResetState(BuildContext context) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Reset State?'),
+        content: const Text(
+          'This will erase all progress and start fresh. '
+          'This cannot be undone.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            style: TextButton.styleFrom(foregroundColor: Colors.red),
+            child: const Text('Reset'),
+          ),
+        ],
+      ),
+    );
+
+    if ((confirmed ?? false) && context.mounted) {
+      context.dispatch(DebugResetStateAction());
+    }
   }
 
   Future<void> _showWelcomeBackDialog(BuildContext context) async {

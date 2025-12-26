@@ -99,6 +99,7 @@ class Item extends Equatable {
     this.category,
     this.type,
     this.healsFor,
+    this.compostValue,
     this.dropTable,
     this.media,
     this.validSlots = const [],
@@ -107,7 +108,7 @@ class Item extends Equatable {
   /// Creates a simple test item with minimal required fields.
   /// Only for use in tests.
   @visibleForTesting
-  Item.test(this.name, {required int gp, this.healsFor})
+  Item.test(this.name, {required int gp, this.healsFor, this.compostValue})
     : id = MelvorId('melvorD:${name.replaceAll(' ', '_')}'),
       itemType = 'Item',
       sellsFor = gp,
@@ -125,6 +126,9 @@ class Item extends Equatable {
     // Melvor uses HP/10, we use actual HP values, so multiply by 10.
     final rawHealsFor = json['healsFor'] as num?;
     final healsFor = rawHealsFor != null ? (rawHealsFor * 10).toInt() : null;
+
+    // Parse compost value if present.
+    final compostValue = json['compostValue'] as int?;
 
     // Parse drop table if present.
     final dropTableJson = json['dropTable'] as List<dynamic>?;
@@ -161,6 +165,7 @@ class Item extends Equatable {
       category: json['category'] as String?,
       type: json['type'] as String?,
       healsFor: healsFor,
+      compostValue: compostValue,
       dropTable: dropTable,
       media: media,
       validSlots: validSlots,
@@ -187,6 +192,9 @@ class Item extends Equatable {
 
   /// The amount of HP this item heals when consumed. Null if not consumable.
   final int? healsFor;
+
+  /// The compost value for farming (0-80). Null if not compost.
+  final int? compostValue;
 
   /// The drop table for openable items. Null if not openable.
   final DropTable? dropTable;
@@ -228,6 +236,7 @@ class Item extends Equatable {
     category,
     type,
     healsFor,
+    compostValue,
     dropTable,
     media,
     validSlots,

@@ -56,3 +56,112 @@ class CurrencyStack extends Equatable {
   @override
   String toString() => 'CurrencyStack($currency, $amount)';
 }
+
+/// The type of cost calculation for a shop purchase.
+enum CostType {
+  /// Fixed cost defined in JSON.
+  fixed,
+
+  /// Dynamic cost based on bank slot formula.
+  bankSlot,
+}
+
+/// A currency cost for a shop purchase.
+@immutable
+class CurrencyCost extends Equatable {
+  const CurrencyCost({
+    required this.currency,
+    required this.type,
+    this.fixedCost,
+  });
+
+  factory CurrencyCost.fromJson(Map<String, dynamic> json) {
+    final currencyId = json['currency'] as String;
+    final currency = Currency.fromId(currencyId);
+    final typeStr = json['type'] as String;
+    final type = typeStr == 'BankSlot' ? CostType.bankSlot : CostType.fixed;
+    final fixedCost = json['cost'] as int?;
+    return CurrencyCost(currency: currency, type: type, fixedCost: fixedCost);
+  }
+
+  final Currency currency;
+  final CostType type;
+  final int? fixedCost;
+
+  @override
+  List<Object?> get props => [currency, type, fixedCost];
+}
+
+/// A collection of currency costs parsed from Melvor JSON.
+///
+/// Used for simple fixed currency costs in skills like farming and agility.
+@immutable
+class CurrencyCosts extends Equatable {
+  const CurrencyCosts(this.costs);
+
+  /// An empty currency costs collection.
+  static const empty = CurrencyCosts([]);
+
+  /// Parses a Melvor currencyCosts array.
+  ///
+  /// The JSON format is: `[{"id": "melvorD:GP", "quantity": 80000}, ...]`
+  factory CurrencyCosts.fromJson(List<dynamic>? json) {
+    if (json == null || json.isEmpty) return empty;
+    final costs = <CurrencyStack>[];
+    for (final cost in json) {
+      final costMap = cost as Map<String, dynamic>;
+      final currencyId = costMap['id'] as String;
+      final currency = Currency.fromId(currencyId);
+      final quantity = costMap['quantity'] as int;
+      costs.add(CurrencyStack(currency, quantity));
+    }
+    return CurrencyCosts(costs);
+  }
+
+  final List<CurrencyStack> costs;
+
+  /// Returns the GP cost, or 0 if not present.
+  int get gpCost {
+    for (final cost in costs) {
+      if (cost.currency == Currency.gp) {
+        return cost.amount;
+      }
+    }
+    return 0;
+  }
+
+  /// Returns the cost for a specific currency, or 0 if not present.
+  int costFor(Currency currency) {
+    for (final cost in costs) {
+      if (cost.currency == currency) {
+        return cost.amount;
+      }
+    }
+    return 0;
+  }
+
+  /// Whether there are no costs.
+  bool get isEmpty => costs.isEmpty;
+
+  /// Whether there are any costs.
+  bool get isNotEmpty => costs.isNotEmpty;
+
+  @override
+  List<Object?> get props => [costs];
+}
+
+/// Parses a Melvor currency stacks array (used for rewards, etc.).
+///
+/// The JSON format is: `[{"id": "melvorD:GP", "quantity": 100}, ...]`
+List<CurrencyStack> parseCurrencyStacks(List<dynamic>? json) {
+  if (json == null || json.isEmpty) return const [];
+  final stacks = <CurrencyStack>[];
+  for (final item in json) {
+    final itemMap = item as Map<String, dynamic>;
+    final currencyId = itemMap['id'] as String;
+    final currency = Currency.fromId(currencyId);
+    final quantity = itemMap['quantity'] as int;
+    stacks.add(CurrencyStack(currency, quantity));
+  }
+  return stacks;
+}
