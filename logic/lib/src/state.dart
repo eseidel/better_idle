@@ -979,7 +979,8 @@ class GlobalState {
   // ============================================================================
 
   /// Plants a crop in a plot.
-  GlobalState plantCrop(MelvorId plotId, FarmingCrop crop, Tick currentTick) {
+  /// Uses countdown pattern - no currentTick parameter needed.
+  GlobalState plantCrop(MelvorId plotId, FarmingCrop crop) {
     // Validate plot is unlocked
     if (!unlockedPlots.contains(plotId)) {
       throw StateError('Plot $plotId is not unlocked');
@@ -1016,13 +1017,11 @@ class GlobalState {
       ItemStack(seed, count: crop.seedCost),
     );
 
-    // Create new plot state
+    // Create new plot state with countdown timer
     final newPlotState = PlotState(
       cropId: crop.id,
-      plantedAtTick: currentTick,
-      growthTicksRequired: crop.growthTicks,
+      growthTicksRemaining: crop.growthTicks,
       compostApplied: 0,
-      isReadyToHarvest: false,
     );
 
     // Update plot states

@@ -12,42 +12,37 @@ typedef FarmingPlotTickResult = ({
 
 /// Background action for farming plot growth.
 ///
-/// Unlike other skills, farming doesn't use BackgroundTickConsumer since plots
-/// grow independently with their own state (not stored in ActionState).
+/// Uses countdown pattern like mining respawn: growthTicksRemaining decrements
+/// toward zero as ticks are consumed.
 class FarmingPlotGrowth {
-  FarmingPlotGrowth(this.plotId, this.cropId, this.plotState, this.currentTick);
+  FarmingPlotGrowth(this.plotId, this.cropId, this.plotState);
 
   final MelvorId plotId;
   final ActionId cropId;
   final PlotState plotState;
-  final Tick currentTick;
 
   /// Whether this plot needs processing (is actively growing).
   bool get isActive => plotState.isGrowing;
 
   /// Apply ticks to this plot and return the updated state.
+  /// Follows countdown pattern: decrement growthTicksRemaining until it reaches 0.
   FarmingPlotTickResult applyTicks(Tick ticks) {
     if (!plotState.isGrowing) {
       return (newState: plotState, ticksConsumed: 0, completed: false);
     }
 
-    final plantedAt = plotState.plantedAtTick;
-    if (plantedAt == null) {
-      // Should not happen if isGrowing is true
-      return (newState: plotState, ticksConsumed: 0, completed: false);
-    }
+    final remaining = plotState.growthTicksRemaining!;
 
-    // Calculate total elapsed ticks from when planted
-    final elapsedTicks = currentTick - plantedAt + ticks;
-    final growthRequired = plotState.growthTicksRequired;
-
-    if (elapsedTicks >= growthRequired) {
-      // Crop is ready to harvest
-      final newState = plotState.copyWith(isReadyToHarvest: true);
+    if (ticks >= remaining) {
+      // Crop is ready to harvest - set to 0 to mark as ready
+      final newState = plotState.copyWith(growthTicksRemaining: 0);
       return (newState: newState, ticksConsumed: ticks, completed: true);
     }
 
-    // Still growing
-    return (newState: plotState, ticksConsumed: ticks, completed: false);
+    // Still growing - decrement countdown
+    final newState = plotState.copyWith(
+      growthTicksRemaining: remaining - ticks,
+    );
+    return (newState: newState, ticksConsumed: ticks, completed: false);
   }
 }

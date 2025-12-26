@@ -331,17 +331,11 @@ void _applyBackgroundTicks(
   }
 
   // Apply farming plot background actions
-  final currentTick = builder.ticksElapsed;
   for (final entry in builder.state.plotStates.entries) {
     final plotId = entry.key;
     final plotState = entry.value;
 
-    final farmingBg = FarmingPlotGrowth(
-      plotId,
-      plotState.cropId!,
-      plotState,
-      currentTick,
-    );
+    final farmingBg = FarmingPlotGrowth(plotId, plotState.cropId!, plotState);
     if (!farmingBg.isActive) {
       continue;
     }

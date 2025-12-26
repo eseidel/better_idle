@@ -423,11 +423,7 @@ class PlantCropAction extends ReduxAction<GlobalState> {
 
   @override
   GlobalState reduce() {
-    // Get current tick from state's updatedAt
-    final currentTick = ticksFromDuration(
-      state.updatedAt.difference(DateTime.fromMillisecondsSinceEpoch(0)),
-    );
-    return state.plantCrop(plotId, crop, currentTick);
+    return state.plantCrop(plotId, crop);
   }
 }
 
