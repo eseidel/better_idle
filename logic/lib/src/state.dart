@@ -8,6 +8,7 @@ import 'package:logic/src/data/melvor_id.dart';
 import 'package:logic/src/data/registries.dart';
 import 'package:logic/src/data/shop.dart';
 import 'package:logic/src/json.dart';
+import 'package:logic/src/plot_state.dart';
 import 'package:logic/src/tick.dart';
 import 'package:logic/src/types/equipment.dart';
 import 'package:logic/src/types/equipment_slot.dart';
@@ -245,6 +246,8 @@ class GlobalState {
     required this.shop,
     required this.health,
     required this.equipment,
+    this.plotStates = const {},
+    this.unlockedPlots = const {},
     this.timeAway,
     this.stunned = const StunnedState.fresh(),
     required this.registries,
@@ -270,6 +273,18 @@ class GlobalState {
             toKey: ActionId.fromJson,
             toValue: (value) => ActionState.fromJson(value),
           ) ??
+          const {},
+      plotStates =
+          maybeMap(
+            json['plotStates'],
+            toKey: MelvorId.fromJson,
+            toValue: (value) => PlotState.fromJson(value),
+          ) ??
+          const {},
+      unlockedPlots =
+          (json['unlockedPlots'] as List<dynamic>?)
+              ?.map((e) => MelvorId.fromJson(e as String))
+              .toSet() ??
           const {},
       currencies = _currenciesFromJson(json),
       timeAway = TimeAway.maybeFromJson(registries, json['timeAway']),
@@ -316,6 +331,8 @@ class GlobalState {
     ActiveAction? activeAction,
     Map<Skill, SkillState> skillStates = const {},
     Map<ActionId, ActionState> actionStates = const {},
+    Map<MelvorId, PlotState> plotStates = const {},
+    Set<MelvorId> unlockedPlots = const {},
     DateTime? updatedAt,
     int gp = 0,
     Map<Currency, int>? currencies,
@@ -333,6 +350,8 @@ class GlobalState {
       activeAction: activeAction,
       skillStates: skillStates,
       actionStates: actionStates,
+      plotStates: plotStates,
+      unlockedPlots: unlockedPlots,
       updatedAt: updatedAt ?? DateTime.timestamp(),
       currencies: currenciesMap,
       timeAway: timeAway,
@@ -364,6 +383,10 @@ class GlobalState {
       'actionStates': actionStates.map(
         (key, value) => MapEntry(key.toJson(), value.toJson()),
       ),
+      'plotStates': plotStates.map(
+        (key, value) => MapEntry(key.toJson(), value.toJson()),
+      ),
+      'unlockedPlots': unlockedPlots.map((e) => e.toJson()).toList(),
       'currencies': currencies.map((key, value) => MapEntry(key.id, value)),
       'timeAway': timeAway?.toJson(),
       'shop': shop.toJson(),
@@ -387,6 +410,12 @@ class GlobalState {
 
   /// The accumulated action states.
   final Map<ActionId, ActionState> actionStates;
+
+  /// The farming plot states (plot ID -> plot state).
+  final Map<MelvorId, PlotState> plotStates;
+
+  /// The set of unlocked farming plots.
+  final Set<MelvorId> unlockedPlots;
 
   /// The player's currencies (GP, Slayer Coins, etc.).
   final Map<Currency, int> currencies;
@@ -463,6 +492,14 @@ class GlobalState {
         return true;
       }
     }
+
+    // Check farming plot timers
+    for (final plotState in plotStates.values) {
+      if (plotState.isGrowing) {
+        return true;
+      }
+    }
+
     return false;
   }
 

@@ -17,6 +17,7 @@ export 'package:logic/src/action_state.dart'
 export 'combat.dart';
 export 'cooking.dart';
 export 'crafting.dart';
+export 'farming.dart';
 export 'firemaking.dart';
 export 'fishing.dart';
 export 'fletching.dart';
@@ -47,6 +48,7 @@ enum Skill {
   cooking('Cooking'),
   mining('Mining'),
   smithing('Smithing'),
+  farming('Farming'),
   thieving('Thieving'),
   fletching('Fletching'),
   crafting('Crafting'),
