@@ -3,6 +3,7 @@ import 'package:better_idle/src/widgets/cached_image.dart';
 import 'package:better_idle/src/widgets/context_extensions.dart';
 import 'package:better_idle/src/widgets/mastery_pool.dart';
 import 'package:better_idle/src/widgets/style.dart';
+import 'package:better_idle/src/widgets/tweened_progress_indicator.dart';
 import 'package:better_idle/src/widgets/xp_badges_row.dart';
 import 'package:flutter/material.dart' hide Action;
 import 'package:logic/logic.dart';
@@ -106,10 +107,6 @@ class WoodcuttingActionCell extends StatelessWidget {
     ).textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.bold);
     final activeAction = context.state.activeAction;
     final isRunning = activeAction?.id == action.id;
-    final progress = isRunning && activeAction != null
-        ? (activeAction.totalTicks - activeAction.remainingTicks) /
-              activeAction.totalTicks
-        : 0.0;
 
     final canStart = context.state.canStartAction(action);
     final isStunned = context.state.isStunned;
@@ -149,12 +146,9 @@ class WoodcuttingActionCell extends StatelessWidget {
             const SizedBox(height: 8),
             CachedImage(assetPath: action.media, size: 64),
             const Spacer(),
-            ClipRRect(
-              borderRadius: BorderRadius.circular(4),
-              child: SizedBox(
-                height: 8,
-                child: LinearProgressIndicator(value: progress),
-              ),
+            TweenedProgressIndicator(
+              lastUpdateTime: context.state.updatedAt,
+              activeAction: isRunning ? activeAction : null,
             ),
             const SizedBox(height: 8),
             MasteryProgressCell(masteryXp: actionState.masteryXp),
