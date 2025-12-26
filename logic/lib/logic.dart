@@ -5,6 +5,7 @@ library;
 export 'src/action_state.dart';
 export 'src/consume_ticks.dart';
 export 'src/data/action_id.dart';
+export 'src/progress_at.dart';
 // Data
 export 'src/data/actions.dart';
 export 'src/data/cache.dart';
