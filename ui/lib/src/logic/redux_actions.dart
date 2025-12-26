@@ -411,6 +411,14 @@ class DebugAddItemAction extends ReduxAction<GlobalState> {
   }
 }
 
+/// Resets the game state to a fresh empty state.
+class DebugResetStateAction extends ReduxAction<GlobalState> {
+  @override
+  GlobalState reduce() {
+    return GlobalState.empty(state.registries);
+  }
+}
+
 // ============================================================================
 // Farming Actions
 // ============================================================================

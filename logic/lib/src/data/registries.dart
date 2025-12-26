@@ -31,12 +31,13 @@ class Registries {
   );
 
   static Registries test({
+    List<Item> items = const [],
     ShopRegistry? shop,
     MasteryBonusRegistry? masteryBonuses,
     MasteryUnlockRegistry? masteryUnlocks,
   }) {
     return Registries(
-      ItemRegistry([]),
+      ItemRegistry(items),
       ActionRegistry([]),
       DropsRegistry({}),
       FishingAreaRegistry([]),

@@ -138,6 +138,15 @@ class FarmingPlotRegistry {
   List<FarmingPlot> forCategory(MelvorId categoryId) {
     return _plots.where((plot) => plot.categoryId == categoryId).toList();
   }
+
+  /// Returns the set of plot IDs that should be unlocked initially.
+  /// These are plots with level 1 and no GP cost (free starter plots).
+  Set<MelvorId> initialPlots() {
+    return {
+      for (final plot in _plots)
+        if (plot.level == 1 && plot.gpCost == 0) plot.id,
+    };
+  }
 }
 
 /// A farming crop parsed from Melvor data.

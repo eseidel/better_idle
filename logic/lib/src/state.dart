@@ -322,6 +322,8 @@ class GlobalState {
         health: const HealthState.full(),
         equipment: const Equipment.empty(),
         registries: registries,
+        // Unlock all free starter plots (level 1, 0 GP cost)
+        unlockedPlots: registries.farmingPlots.initialPlots(),
       );
 
   @visibleForTesting
@@ -1018,10 +1020,11 @@ class GlobalState {
     );
 
     // Create new plot state with countdown timer
+    // Preserve any compost that was applied before planting
     final newPlotState = PlotState(
       cropId: crop.id,
       growthTicksRemaining: crop.growthTicks,
-      compostApplied: 0,
+      compostApplied: currentPlotState.compostApplied,
     );
 
     // Update plot states
@@ -1039,7 +1042,8 @@ class GlobalState {
     return newState;
   }
 
-  /// Applies compost to a growing crop.
+  /// Applies compost to an empty plot before planting.
+  /// Compost can only be applied to empty plots, not to growing crops.
   GlobalState applyCompost(MelvorId plotId, Item compost) {
     // Validate compost item has compost value
     final compostValueNullable = compost.compostValue;
@@ -1048,10 +1052,12 @@ class GlobalState {
     }
     final compostValue = compostValueNullable; // Now non-nullable after check
 
-    // Validate plot has a growing crop
-    final plotState = plotStates[plotId];
-    if (plotState == null || !plotState.isGrowing) {
-      throw StateError('Plot $plotId does not have a growing crop');
+    // Get or create empty plot state
+    final plotState = plotStates[plotId] ?? const PlotState.empty();
+
+    // Validate plot is empty (compost must be applied before planting)
+    if (!plotState.isEmpty) {
+      throw StateError('Compost can only be applied to empty plots');
     }
 
     // Validate player has compost
@@ -1071,7 +1077,7 @@ class GlobalState {
     // Consume compost from inventory
     final newInventory = inventory.removing(ItemStack(compost, count: 1));
 
-    // Update plot state
+    // Update plot state with new compost value
     final newPlotState = plotState.copyWith(compostApplied: newCompostValue);
 
     final newPlotStates = Map<MelvorId, PlotState>.from(plotStates);
