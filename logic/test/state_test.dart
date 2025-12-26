@@ -1118,6 +1118,247 @@ void main() {
     });
   });
 
+  group('GlobalState.plantCrop and harvestCrop', () {
+    late FarmingCrop crop;
+    late Item seed;
+    late Item product;
+    late MelvorId plotId;
+
+    setUpAll(() {
+      // Get a level-1 crop for testing
+      final crops = testRegistries.farmingCrops.all;
+      final levelOneCrops = crops.where((c) => c.level == 1).toList();
+      crop = levelOneCrops.first;
+      seed = testItems.byId(crop.seedId);
+      product = testItems.byId(crop.productId);
+
+      // Get an unlocked plot
+      final initialPlots = testRegistries.farmingPlots.initialPlots();
+      plotId = initialPlots.first;
+    });
+
+    test('plantCrop consumes seed and creates growing plot state', () {
+      var state = GlobalState.empty(testRegistries);
+      state = state.copyWith(
+        inventory: Inventory.fromItems(testItems, [
+          ItemStack(seed, count: crop.seedCost + 5),
+        ]),
+      );
+
+      // Verify initial state
+      expect(state.inventory.countOfItem(seed), crop.seedCost + 5);
+      expect(state.plotStates[plotId], isNull);
+
+      // Plant the crop
+      state = state.plantCrop(plotId, crop);
+
+      // Verify seed was consumed
+      expect(state.inventory.countOfItem(seed), 5);
+
+      // Verify plot state was created
+      final plotState = state.plotStates[plotId]!;
+      expect(plotState.cropId, crop.id);
+      expect(plotState.growthTicksRemaining, crop.growthTicks);
+      expect(plotState.isGrowing, true);
+      expect(plotState.isReadyToHarvest, false);
+    });
+
+    test('plantCrop throws when plot is not unlocked', () {
+      var state = GlobalState.empty(testRegistries);
+      state = state.copyWith(
+        inventory: Inventory.fromItems(testItems, [
+          ItemStack(seed, count: crop.seedCost),
+        ]),
+        unlockedPlots: {}, // No plots unlocked
+      );
+
+      expect(() => state.plantCrop(plotId, crop), throwsStateError);
+    });
+
+    test('plantCrop throws when plot is not empty', () {
+      var state = GlobalState.empty(testRegistries);
+      state = state.copyWith(
+        inventory: Inventory.fromItems(testItems, [
+          ItemStack(seed, count: crop.seedCost * 2),
+        ]),
+      );
+
+      // Plant first crop
+      state = state.plantCrop(plotId, crop);
+
+      // Try to plant again in the same plot
+      expect(() => state.plantCrop(plotId, crop), throwsStateError);
+    });
+
+    test('plantCrop throws when not enough seeds', () {
+      var state = GlobalState.empty(testRegistries);
+      state = state.copyWith(
+        inventory: Inventory.fromItems(testItems, [
+          ItemStack(seed, count: crop.seedCost - 1), // Not enough
+        ]),
+      );
+
+      expect(() => state.plantCrop(plotId, crop), throwsStateError);
+    });
+
+    test('harvestCrop yields product and clears plot', () {
+      final random = Random(42);
+      var state = GlobalState.empty(testRegistries);
+      state = state.copyWith(
+        inventory: Inventory.fromItems(testItems, [
+          ItemStack(seed, count: crop.seedCost),
+        ]),
+      );
+
+      // Plant the crop
+      state = state.plantCrop(plotId, crop);
+
+      // Manually set the crop as ready (growthTicksRemaining = 0)
+      final readyPlotState = PlotState(
+        cropId: crop.id,
+        growthTicksRemaining: 0,
+        compostApplied: 0,
+      );
+      state = state.copyWith(plotStates: {plotId: readyPlotState});
+
+      // Verify crop is ready
+      expect(state.plotStates[plotId]!.isReadyToHarvest, true);
+
+      // Harvest
+      state = state.harvestCrop(plotId, random);
+
+      // Verify product was added
+      expect(state.inventory.countOfItem(product), greaterThan(0));
+
+      // Verify plot is cleared
+      final plotStateAfter = state.plotStates[plotId];
+      expect(
+        plotStateAfter == null || plotStateAfter.isEmpty,
+        true,
+        reason: 'Plot should be empty after harvest',
+      );
+    });
+
+    test('harvestCrop awards farming XP', () {
+      final random = Random(42);
+      var state = GlobalState.empty(testRegistries);
+      state = state.copyWith(
+        inventory: Inventory.fromItems(testItems, [
+          ItemStack(seed, count: crop.seedCost),
+        ]),
+      );
+
+      // Plant the crop
+      state = state.plantCrop(plotId, crop);
+
+      // Check if this crop's category gives XP on plant or harvest
+      final category = testRegistries.farmingCategories.byId(crop.categoryId);
+      final xpOnPlant = category?.giveXPOnPlant ?? false;
+
+      // Get XP after planting
+      final xpAfterPlant = state.skillState(Skill.farming).xp;
+
+      // Set crop as ready
+      final readyPlotState = PlotState(
+        cropId: crop.id,
+        growthTicksRemaining: 0,
+        compostApplied: 0,
+      );
+      state = state.copyWith(plotStates: {plotId: readyPlotState});
+
+      // Harvest
+      state = state.harvestCrop(plotId, random);
+
+      // Verify XP was awarded (either on plant or harvest, depending on category)
+      final xpAfterHarvest = state.skillState(Skill.farming).xp;
+      if (xpOnPlant) {
+        // XP given on plant, so should have XP after plant
+        expect(xpAfterPlant, greaterThan(0));
+      } else {
+        // XP given on harvest
+        expect(xpAfterHarvest, greaterThan(xpAfterPlant));
+      }
+    });
+
+    test('harvestCrop throws when plot has no ready crop', () {
+      final random = Random(42);
+      var state = GlobalState.empty(testRegistries);
+      state = state.copyWith(
+        inventory: Inventory.fromItems(testItems, [
+          ItemStack(seed, count: crop.seedCost),
+        ]),
+      );
+
+      // Plant the crop (still growing)
+      state = state.plantCrop(plotId, crop);
+
+      // Verify crop is NOT ready
+      expect(state.plotStates[plotId]!.isGrowing, true);
+      expect(state.plotStates[plotId]!.isReadyToHarvest, false);
+
+      // Try to harvest - should throw
+      expect(() => state.harvestCrop(plotId, random), throwsStateError);
+    });
+
+    test('harvestCrop throws when plot is empty', () {
+      final random = Random(42);
+      final state = GlobalState.empty(testRegistries);
+
+      // No crop planted
+      expect(state.plotStates[plotId], isNull);
+
+      // Try to harvest - should throw
+      expect(() => state.harvestCrop(plotId, random), throwsStateError);
+    });
+
+    test('harvestCrop applies compost bonus to harvest quantity', () {
+      final random = Random(42);
+      var state = GlobalState.empty(testRegistries);
+      state = state.copyWith(
+        inventory: Inventory.fromItems(testItems, [
+          ItemStack(seed, count: crop.seedCost * 2),
+        ]),
+      );
+
+      // Plant first crop without compost
+      state = state.plantCrop(plotId, crop);
+      var readyPlotState = PlotState(
+        cropId: crop.id,
+        growthTicksRemaining: 0,
+        compostApplied: 0,
+      );
+      state = state.copyWith(plotStates: {plotId: readyPlotState});
+
+      // Harvest without compost
+      state = state.harvestCrop(plotId, random);
+      final harvestWithoutCompost = state.inventory.countOfItem(product);
+
+      // Reset inventory for second harvest
+      state = state.copyWith(
+        inventory: Inventory.fromItems(testItems, [
+          ItemStack(seed, count: crop.seedCost),
+        ]),
+      );
+
+      // Plant second crop with max compost (80%)
+      state = state.plantCrop(plotId, crop);
+      readyPlotState = PlotState(
+        cropId: crop.id,
+        growthTicksRemaining: 0,
+        compostApplied: 80, // +80% bonus
+      );
+      state = state.copyWith(plotStates: {plotId: readyPlotState});
+
+      // Harvest with compost
+      final random2 = Random(42); // Same seed for comparison
+      state = state.harvestCrop(plotId, random2);
+      final harvestWithCompost = state.inventory.countOfItem(product);
+
+      // With 80% compost bonus, should get more product
+      expect(harvestWithCompost, greaterThan(harvestWithoutCompost));
+    });
+  });
+
   group('Equipment gear slots serialization', () {
     test('toJson/fromJson round-trip with gear equipped', () {
       final equipment = Equipment(
