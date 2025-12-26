@@ -137,6 +137,21 @@ class SellItemAction extends ReduxAction<GlobalState> {
   }
 }
 
+/// Sells multiple item stacks at once.
+class SellMultipleItemsAction extends ReduxAction<GlobalState> {
+  SellMultipleItemsAction({required this.stacks});
+  final List<ItemStack> stacks;
+
+  @override
+  GlobalState reduce() {
+    var newState = state;
+    for (final stack in stacks) {
+      newState = newState.sellItem(stack);
+    }
+    return newState;
+  }
+}
+
 /// Purchases a shop item (skill upgrade or other purchase).
 class PurchaseShopItemAction extends ReduxAction<GlobalState> {
   PurchaseShopItemAction({required this.purchaseId});

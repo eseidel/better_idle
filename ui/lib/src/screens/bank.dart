@@ -25,11 +25,80 @@ class _BankPageState extends State<BankPage> {
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
   ItemStack? _selectedStack;
 
+  // Multi-select state
+  bool _isSelectionMode = false;
+  final Set<Item> _selectedItems = {};
+
   void _onItemTap(ItemStack stack) {
+    if (_isSelectionMode) {
+      // Toggle selection
+      setState(() {
+        if (_selectedItems.contains(stack.item)) {
+          _selectedItems.remove(stack.item);
+          // Exit selection mode if no items selected
+          if (_selectedItems.isEmpty) {
+            _isSelectionMode = false;
+          }
+        } else {
+          _selectedItems.add(stack.item);
+        }
+      });
+    } else {
+      // Normal single-select mode - open drawer
+      setState(() {
+        _selectedStack = stack;
+      });
+      // Use WidgetsBinding to ensure the drawer is built before opening
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _scaffoldKey.currentState?.openEndDrawer();
+      });
+    }
+  }
+
+  void _onItemLongPress(ItemStack stack) {
+    if (!_isSelectionMode) {
+      setState(() {
+        _isSelectionMode = true;
+        _selectedItems.add(stack.item);
+      });
+    }
+  }
+
+  void _exitSelectionMode() {
     setState(() {
-      _selectedStack = stack;
+      _isSelectionMode = false;
+      _selectedItems.clear();
     });
-    _scaffoldKey.currentState?.openEndDrawer();
+  }
+
+  Future<void> _showSellConfirmation() async {
+    final inventory = context.state.inventory;
+    // Build list of selected stacks (items with current counts from inventory)
+    final selectedStacks = <ItemStack>[];
+    for (final item in _selectedItems) {
+      final stack = inventory.items.firstWhereOrNull((s) => s.item == item);
+      if (stack != null) {
+        selectedStacks.add(stack);
+      }
+    }
+
+    if (selectedStacks.isEmpty) {
+      _exitSelectionMode();
+      return;
+    }
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) =>
+          _SellConfirmationDialog(stacks: selectedStacks),
+    );
+
+    if (!mounted) return;
+    if (confirmed ?? false) {
+      // Perform the sale
+      context.dispatch(SellMultipleItemsAction(stacks: selectedStacks));
+      _exitSelectionMode();
+    }
   }
 
   @override
@@ -38,53 +107,96 @@ class _BankPageState extends State<BankPage> {
     final state = context.state;
     final inventoryUsed = state.inventoryUsed;
     final inventoryCapacity = state.inventoryCapacity;
-    return Scaffold(
-      key: _scaffoldKey,
-      appBar: AppBar(title: const Text('Bank')),
-      drawer: const AppNavigationDrawer(),
-      endDrawer: _selectedStack != null
-          ? ItemDetailsDrawer(stack: _selectedStack!)
-          : null,
-      body: Column(
-        children: [
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            child: Row(
-              children: [
-                Text(
-                  'Space: $inventoryUsed/$inventoryCapacity',
-                  style: inventoryUsed >= inventoryCapacity
-                      ? const TextStyle(color: Style.errorColor)
-                      : null,
+
+    // Handle back button in selection mode
+    return PopScope(
+      canPop: !_isSelectionMode,
+      onPopInvokedWithResult: (didPop, result) {
+        if (!didPop && _isSelectionMode) {
+          _exitSelectionMode();
+        }
+      },
+      child: Scaffold(
+        key: _scaffoldKey,
+        appBar: _isSelectionMode
+            ? AppBar(
+                leading: IconButton(
+                  icon: const Icon(Icons.close),
+                  onPressed: _exitSelectionMode,
                 ),
-                const SizedBox(width: 16),
-                Text('Value: ${approximateCreditString(sellValue)} GP'),
-                const Spacer(),
-                IconButton(
-                  icon: const Icon(Icons.sort),
-                  tooltip: 'Sort inventory',
-                  onPressed: () => context.dispatch(SortInventoryAction()),
+                title: Text('${_selectedItems.length} selected'),
+                actions: [
+                  TextButton(
+                    onPressed: _selectedItems.isNotEmpty
+                        ? _showSellConfirmation
+                        : null,
+                    child: const Text(
+                      'Sell',
+                      style: TextStyle(color: Colors.white),
+                    ),
+                  ),
+                ],
+              )
+            : AppBar(title: const Text('Bank')),
+        drawer: _isSelectionMode ? null : const AppNavigationDrawer(),
+        endDrawer: !_isSelectionMode && _selectedStack != null
+            ? ItemDetailsDrawer(stack: _selectedStack!)
+            : null,
+        body: Column(
+          children: [
+            if (!_isSelectionMode)
+              Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 8,
                 ),
-              ],
+                child: Row(
+                  children: [
+                    Text(
+                      'Space: $inventoryUsed/$inventoryCapacity',
+                      style: inventoryUsed >= inventoryCapacity
+                          ? const TextStyle(color: Style.errorColor)
+                          : null,
+                    ),
+                    const SizedBox(width: 16),
+                    Text('Value: ${approximateCreditString(sellValue)} GP'),
+                    const Spacer(),
+                    IconButton(
+                      icon: const Icon(Icons.sort),
+                      tooltip: 'Sort inventory',
+                      onPressed: () => context.dispatch(SortInventoryAction()),
+                    ),
+                  ],
+                ),
+              ),
+            Expanded(
+              child: ItemGrid(
+                stacks: context.state.inventory.items,
+                onItemTap: _onItemTap,
+                onItemLongPress: _onItemLongPress,
+                selectedItems: _isSelectionMode ? _selectedItems : null,
+              ),
             ),
-          ),
-          Expanded(
-            child: ItemGrid(
-              stacks: context.state.inventory.items,
-              onItemTap: _onItemTap,
-            ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
 }
 
 class ItemGrid extends StatelessWidget {
-  const ItemGrid({required this.stacks, required this.onItemTap, super.key});
+  const ItemGrid({
+    required this.stacks,
+    required this.onItemTap,
+    this.onItemLongPress,
+    this.selectedItems,
+    super.key,
+  });
 
   final List<ItemStack> stacks;
   final void Function(ItemStack) onItemTap;
+  final void Function(ItemStack)? onItemLongPress;
+  final Set<Item>? selectedItems;
 
   // Cell dimensions: 64px square + 8px badge overlap = 64x72
   static const double _cellWidth = 64;
@@ -102,9 +214,15 @@ class ItemGrid extends StatelessWidget {
       ),
       itemCount: stacks.length,
       itemBuilder: (context, index) {
+        final stack = stacks[index];
+        final isSelected = selectedItems?.contains(stack.item) ?? false;
         return StackCell(
-          stack: stacks[index],
-          onTap: () => onItemTap(stacks[index]),
+          stack: stack,
+          onTap: () => onItemTap(stack),
+          onLongPress: onItemLongPress != null
+              ? () => onItemLongPress!(stack)
+              : null,
+          isSelected: isSelected,
         );
       },
     );
@@ -112,24 +230,56 @@ class ItemGrid extends StatelessWidget {
 }
 
 class StackCell extends StatelessWidget {
-  const StackCell({required this.stack, required this.onTap, super.key});
+  const StackCell({
+    required this.stack,
+    required this.onTap,
+    this.onLongPress,
+    this.isSelected = false,
+    super.key,
+  });
 
   final ItemStack stack;
   final VoidCallback onTap;
+  final VoidCallback? onLongPress;
+  final bool isSelected;
 
   // Grid cell is 72px. Badge overlap is 8px, so inradius = 72 - 8 = 64.
   static const double _inradius = 64;
 
   @override
   Widget build(BuildContext context) {
-    return CountBadgeCell(
-      inradius: _inradius,
-      onTap: onTap,
-      backgroundColor: Style.cellBackgroundColor,
-      borderColor: Style.cellBorderColorSuccess,
-      count: stack.count,
-      child: Center(
-        child: ItemImage(item: stack.item, size: _inradius * 0.6),
+    return GestureDetector(
+      onLongPress: onLongPress,
+      child: Stack(
+        children: [
+          CountBadgeCell(
+            inradius: _inradius,
+            onTap: onTap,
+            backgroundColor: Style.cellBackgroundColor,
+            borderColor: isSelected
+                ? Style.cellBorderColorSelected
+                : Style.cellBorderColorSuccess,
+            count: stack.count,
+            child: Center(
+              child: ItemImage(item: stack.item, size: _inradius * 0.6),
+            ),
+          ),
+          // Selection checkmark overlay
+          if (isSelected)
+            Positioned(
+              top: 2,
+              right: 2,
+              child: Container(
+                width: 18,
+                height: 18,
+                decoration: const BoxDecoration(
+                  color: Style.selectedColor,
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(Icons.check, size: 12, color: Colors.white),
+              ),
+            ),
+        ],
       ),
     );
   }
@@ -654,6 +804,104 @@ class _EquipSlotButton extends StatelessWidget {
               },
         child: Text(buttonText),
       ),
+    );
+  }
+}
+
+class _SellConfirmationDialog extends StatelessWidget {
+  const _SellConfirmationDialog({required this.stacks});
+
+  final List<ItemStack> stacks;
+
+  @override
+  Widget build(BuildContext context) {
+    final grandTotal = stacks.fold(0, (sum, stack) => sum + stack.sellsFor);
+
+    return AlertDialog(
+      title: const Text('Confirm Sale'),
+      content: SizedBox(
+        width: double.maxFinite,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Selling ${stacks.length} '
+              'item${stacks.length == 1 ? '' : ' types'}:',
+              style: Theme.of(context).textTheme.titleSmall,
+            ),
+            const SizedBox(height: 12),
+            ConstrainedBox(
+              constraints: const BoxConstraints(maxHeight: 300),
+              child: ListView.builder(
+                shrinkWrap: true,
+                itemCount: stacks.length,
+                itemBuilder: (context, index) {
+                  final stack = stacks[index];
+                  final unitPrice = stack.item.sellsFor;
+                  final lineTotal = stack.sellsFor;
+                  return Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 4),
+                    child: Row(
+                      children: [
+                        ItemImage(item: stack.item, size: 24),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            stack.item.name,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          'x${approximateCountString(stack.count)}',
+                          style: Theme.of(context).textTheme.bodySmall,
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          '@${approximateCountString(unitPrice)}',
+                          style: Theme.of(context).textTheme.bodySmall
+                              ?.copyWith(color: Style.textColorMuted),
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          '${approximateCreditString(lineTotal)} GP',
+                          style: Theme.of(context).textTheme.bodyMedium,
+                        ),
+                      ],
+                    ),
+                  );
+                },
+              ),
+            ),
+            const Divider(),
+            const SizedBox(height: 8),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                Text('Total: ', style: Theme.of(context).textTheme.titleMedium),
+                Text(
+                  '${approximateCreditString(grandTotal)} GP',
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.bold,
+                    color: Style.textColorSuccess,
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(false),
+          child: const Text('Cancel'),
+        ),
+        ElevatedButton(
+          onPressed: () => Navigator.of(context).pop(true),
+          child: const Text('Confirm Sell'),
+        ),
+      ],
     );
   }
 }

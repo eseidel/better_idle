@@ -18,12 +18,11 @@ class AltMagicAction extends SkillAction {
     required super.unlockLevel,
     required super.xp,
     required this.media,
-    required Map<MelvorId, int> runesRequired,
+    required this.runesRequired,
     required this.produces,
     required this.productionRatio,
     required this.specialCostType,
-  }) : runesRequired = runesRequired,
-       super(
+  }) : super(
          skill: Skill.altMagic,
          duration: _altMagicCastDuration,
          inputs: runesRequired,
