@@ -51,7 +51,7 @@ sealed class WaitFor extends Equatable {
   /// Human-readable description of what we're waiting for (with values).
   String describe();
 
-  /// Short description for plan display (e.g., "Skill +1", "Upgrade affordable").
+  /// Short description for plan (e.g., "Skill +1", "Upgrade affordable").
   String get shortDescription;
 }
 
@@ -255,9 +255,9 @@ class WaitForInputsAvailable extends WaitFor {
   List<Object?> get props => [actionId];
 }
 
-/// Wait until we have enough inputs to complete the goal via a consuming action.
-/// Used when a producer action needs to gather sufficient inputs before switching
-/// to the consuming action to complete the skill goal.
+/// Wait until we have enough inputs to complete the goal via a consuming
+/// action. Used when a producer action needs to gather sufficient inputs before
+/// switching to the consuming action to complete the skill goal.
 @immutable
 class WaitForSufficientInputs extends WaitFor {
   const WaitForSufficientInputs(this.actionId, this.targetCount);
@@ -393,12 +393,12 @@ class Plan {
   ///
   /// Compression rules:
   /// 1. Merges consecutive WaitSteps into a single wait with combined ticks
-  /// 2. Removes no-op switches (SwitchActivity to the same activity as previous)
+  /// 2. Removes no-op switches (SwitchActivity to the same activity)
   /// 3. Collapses "wake-only" waits where no interaction occurs between wakes
   ///    (e.g., consecutive mastery level-ups with no activity change)
   ///
-  /// The compressed plan is for display only - it may not be directly executable
-  /// since merged waits lose their intermediate WaitFor conditions.
+  /// The compressed plan is for display only - it may not be directly
+  /// executable since merged waits lose their intermediate WaitFor conditions.
   Plan compress() {
     if (steps.isEmpty) return this;
 
@@ -488,7 +488,8 @@ class Plan {
         SellAll() => 'Sell all items',
       },
       WaitStep(:final deltaTicks, :final waitFor) =>
-        'Wait ${_formatDuration(durationFromTicks(deltaTicks))} -> ${waitFor.shortDescription}',
+        'Wait ${_formatDuration(durationFromTicks(deltaTicks))} '
+            '-> ${waitFor.shortDescription}',
     };
   }
 
@@ -531,7 +532,8 @@ class SolverFailure {
 
   @override
   String toString() =>
-      'SolverFailure($reason, expanded=$expandedNodes, enqueued=$enqueuedNodes, bestCredits=$bestCredits)';
+      'SolverFailure($reason, expanded=$expandedNodes, '
+      'enqueued=$enqueuedNodes, bestCredits=$bestCredits)';
 }
 
 /// Result of the solver - either a plan or a failure.

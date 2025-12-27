@@ -127,8 +127,9 @@ const int _hpBucketSize = 10;
 /// Groups inventory counts to reduce state explosion.
 const int _inventoryBucketSize = 10;
 
-/// Bucket key for dominance pruning - groups states with same structural situation.
-/// Includes activity, tool tiers, relevant skill levels, mastery level, and HP bucket.
+/// Bucket key for dominance pruning - groups states with same structural
+/// situation. Includes activity, tool tiers, relevant skill levels, mastery
+/// level, and HP bucket.
 class _BucketKey extends Equatable {
   const _BucketKey({
     required this.activityName,
@@ -163,7 +164,7 @@ class _BucketKey extends Equatable {
   /// Only meaningful when thieving; set to 0 for other activities.
   final int hpBucket;
 
-  /// Mastery level for the current action - affects rates (especially thieving).
+  /// Mastery level for the current action - affects rates (e.g. thieving).
   final int masteryLevel;
 
   /// Inventory bucket - distinguishes states with different inventory amounts.
@@ -206,14 +207,14 @@ _BucketKey _bucketKeyFromState(GlobalState state) {
   // This isn't the real name, but it's close enough for this logic.
   final activityName = actionId != null ? actionId.localId.name : 'none';
 
-  // Inventory bucket: count total items to distinguish states with different inventory
-  // Use exact count for small inventories to avoid false dominance
+  // Inventory bucket: count total items to distinguish states with different
+  // inventory. Use exact count for small inventories to avoid false dominance.
   final totalItems = state.inventory.items.fold<int>(
     0,
     (sum, stack) => sum + stack.count,
   );
-  // For small inventories (< 100 items), use exact count to differentiate states
-  // For larger inventories, use buckets to reduce state explosion
+  // For small inventories (< 100 items), use exact count to differentiate
+  // states. For larger inventories, use buckets to reduce state explosion.
   final inventoryBucket = totalItems < 100
       ? totalItems
       : 100 + (totalItems - 100) ~/ _inventoryBucketSize;
@@ -513,8 +514,8 @@ String _stateKey(GlobalState state) {
     }
   }
 
-  // Inventory bucket (important for consuming skills)
-  // Use exact count for small inventories to avoid zero-progress false positives
+  // Inventory bucket (important for consuming skills). Use exact count for
+  // small inventories to avoid zero-progress false positives.
   final totalItems = state.inventory.items.fold<int>(
     0,
     (sum, stack) => sum + stack.count,
@@ -713,10 +714,11 @@ class ConsumeUntilResult {
 ///
 /// Returns the final state, actual ticks elapsed, and death count.
 ConsumeUntilResult consumeUntil(
-  GlobalState state,
+  GlobalState originalState,
   WaitFor waitFor, {
   required Random random,
 }) {
+  var state = originalState;
   if (waitFor.isSatisfied(state)) {
     return ConsumeUntilResult(state: state, ticksElapsed: 0, deathCount: 0);
   }
@@ -808,10 +810,11 @@ _StepResult _applyStep(
 /// which handles variance between expected-value planning and actual simulation.
 /// Deaths are automatically handled by restarting the activity and are counted.
 PlanExecutionResult executePlan(
-  GlobalState state,
+  GlobalState originalState,
   Plan plan, {
   required Random random,
 }) {
+  var state = originalState;
   var totalDeaths = 0;
   var actualTicks = 0;
 

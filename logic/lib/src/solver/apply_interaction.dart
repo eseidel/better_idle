@@ -102,7 +102,8 @@ GlobalState _applyBuyShopItem(GlobalState state, MelvorId purchaseId) {
 }
 
 /// Sells all items in inventory.
-GlobalState _applySellAll(GlobalState state) {
+GlobalState _applySellAll(GlobalState originalState) {
+  var state = originalState;
   for (final stack in state.inventory.items) {
     state = state.sellItem(stack);
   }
