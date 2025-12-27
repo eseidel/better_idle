@@ -116,5 +116,10 @@ void _printFinalState(GlobalState state) {
     for (final stack in state.inventory.items) {
       print('  ${stack.item.name}: ${stack.count}');
     }
+    final totalValue = state.inventory.items.fold<int>(
+      0,
+      (sum, stack) => sum + stack.sellsFor,
+    );
+    print('Total value: $totalValue gp');
   }
 }
