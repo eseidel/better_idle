@@ -27,6 +27,7 @@ import 'package:logic/src/data/actions.dart';
 import 'package:logic/src/data/currency.dart';
 import 'package:logic/src/state.dart';
 import 'package:logic/src/tick.dart';
+import 'package:logic/src/types/inventory.dart';
 import 'package:logic/src/types/stunned.dart';
 import 'package:logic/src/types/time_away.dart';
 
@@ -126,6 +127,10 @@ const int _goldBucketSize = 50;
 /// distinguishing "safe" vs "near death" states.
 const int _hpBucketSize = 10;
 
+/// Size of inventory bucket for dominance pruning.
+/// Groups inventory counts to reduce state explosion.
+const int _inventoryBucketSize = 10;
+
 /// Bucket key for dominance pruning - groups states with same structural situation.
 /// Includes activity, tool tiers, relevant skill levels, mastery level, and HP bucket.
 class _BucketKey extends Equatable {
@@ -138,8 +143,12 @@ class _BucketKey extends Equatable {
     required this.fishingLevel,
     required this.miningLevel,
     required this.thievingLevel,
+    required this.firemakingLevel,
+    required this.cookingLevel,
+    required this.smithingLevel,
     required this.hpBucket,
     required this.masteryLevel,
+    required this.inventoryBucket,
   });
 
   final String activityName;
@@ -150,6 +159,9 @@ class _BucketKey extends Equatable {
   final int fishingLevel;
   final int miningLevel;
   final int thievingLevel;
+  final int firemakingLevel;
+  final int cookingLevel;
+  final int smithingLevel;
 
   /// HP bucket for thieving - distinguishes "safe" vs "near death" states.
   /// Only meaningful when thieving; set to 0 for other activities.
@@ -157,6 +169,10 @@ class _BucketKey extends Equatable {
 
   /// Mastery level for the current action - affects rates (especially thieving).
   final int masteryLevel;
+
+  /// Inventory bucket - distinguishes states with different inventory amounts.
+  /// Important for consuming skills where inventory contents affect progress.
+  final int inventoryBucket;
 
   @override
   List<Object?> get props => [
@@ -168,8 +184,12 @@ class _BucketKey extends Equatable {
     fishingLevel,
     miningLevel,
     thievingLevel,
+    firemakingLevel,
+    cookingLevel,
+    smithingLevel,
     hpBucket,
     masteryLevel,
+    inventoryBucket,
   ];
 }
 
@@ -189,6 +209,19 @@ _BucketKey _bucketKeyFromState(GlobalState state) {
 
   // This isn't the real name, but it's close enough for this logic.
   final activityName = actionId != null ? actionId.localId.name : 'none';
+
+  // Inventory bucket: count total items to distinguish states with different inventory
+  // Use exact count for small inventories to avoid false dominance
+  final totalItems = state.inventory.items.fold<int>(
+    0,
+    (sum, stack) => sum + stack.count,
+  );
+  // For small inventories (< 100 items), use exact count to differentiate states
+  // For larger inventories, use buckets to reduce state explosion
+  final inventoryBucket = totalItems < 100
+      ? totalItems
+      : 100 + (totalItems - 100) ~/ _inventoryBucketSize;
+
   return _BucketKey(
     activityName: activityName,
     axeLevel: state.shop.axeLevel,
@@ -198,8 +231,12 @@ _BucketKey _bucketKeyFromState(GlobalState state) {
     fishingLevel: state.skillState(Skill.fishing).skillLevel,
     miningLevel: state.skillState(Skill.mining).skillLevel,
     thievingLevel: state.skillState(Skill.thieving).skillLevel,
+    firemakingLevel: state.skillState(Skill.firemaking).skillLevel,
+    cookingLevel: state.skillState(Skill.cooking).skillLevel,
+    smithingLevel: state.skillState(Skill.smithing).skillLevel,
     hpBucket: hpBucket,
     masteryLevel: masteryLevel,
+    inventoryBucket: inventoryBucket,
   );
 }
 
@@ -479,11 +516,27 @@ String _stateKey(GlobalState state) {
     }
   }
 
+  // Inventory bucket (important for consuming skills)
+  // Use exact count for small inventories to avoid zero-progress false positives
+  final totalItems = state.inventory.items.fold<int>(
+    0,
+    (sum, stack) => sum + stack.count,
+  );
+  if (totalItems > 0) {
+    // For small inventories, use exact count; for larger, use buckets
+    if (totalItems < 100) {
+      buffer.write('inv:$totalItems|');
+    } else {
+      final invBucket = totalItems ~/ _inventoryBucketSize;
+      buffer.write('inv:$invBucket|');
+    }
+  }
+
   return buffer.toString();
 }
 
 /// Checks if an activity can be modeled with expected-value rates.
-/// Returns true for non-combat gathering/thieving activities.
+/// Returns true for non-combat skill activities (including consuming actions).
 bool _isRateModelable(GlobalState state) {
   final activeAction = state.activeAction;
   if (activeAction == null) return false;
@@ -491,9 +544,7 @@ bool _isRateModelable(GlobalState state) {
   final action = state.registries.actions.byId(activeAction.id);
 
   // Only skill actions (non-combat) are rate-modelable
-  // Skip actions that require inputs (firemaking, cooking, smithing)
   if (action is! SkillAction) return false;
-  if (action.inputs.isNotEmpty) return false;
 
   return true;
 }
@@ -571,6 +622,33 @@ AdvanceResult _advanceExpected(
   final newCurrencies = Map<Currency, int>.from(state.currencies);
   newCurrencies[Currency.gp] = newGp;
 
+  // Update inventory with expected item gains
+  // This is important for consuming skills where items need to be tracked
+  // Skip items not in the registry (e.g., skill drops like Ash)
+  var newInventory = state.inventory;
+  for (final entry in rates.itemFlowsPerTick.entries) {
+    final itemId = entry.key;
+    final flowRate = entry.value;
+    final expectedCount = (flowRate * deltaTicks).floor();
+    if (expectedCount > 0) {
+      final item = state.registries.items.byId(itemId);
+      newInventory = newInventory.adding(ItemStack(item, count: expectedCount));
+    }
+  }
+
+  // Subtract consumed items
+  for (final entry in rates.itemsConsumedPerTick.entries) {
+    final itemId = entry.key;
+    final consumeRate = entry.value;
+    final consumedCount = (consumeRate * deltaTicks).floor();
+    if (consumedCount > 0) {
+      final item = state.registries.items.byId(itemId);
+      newInventory = newInventory.removing(
+        ItemStack(item, count: consumedCount),
+      );
+    }
+  }
+
   // Note: HP is not tracked in the continuous model - death cycles are
   // absorbed into the rate adjustment. Activity continues without stopping.
   return (
@@ -578,6 +656,7 @@ AdvanceResult _advanceExpected(
       currencies: newCurrencies,
       skillStates: newSkillStates,
       actionStates: newActionStates,
+      inventory: newInventory,
     ),
     deaths: expectedDeaths,
   );
@@ -750,8 +829,9 @@ PlanExecutionResult executePlan(
       print('Error applying step: $e');
       print('State: $state');
       print('Step: $step');
-      final previousStep = plan.steps[i - 1];
-      print('Previous step: $previousStep');
+      if (i > 0) {
+        print('Previous step: ${plan.steps[i - 1]}');
+      }
       rethrow;
     }
   }

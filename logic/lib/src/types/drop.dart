@@ -39,10 +39,6 @@ class Drop extends Droppable {
   const Drop(this.itemId, {this.count = 1, this.rate = 1.0})
     : assert(count > 0, 'Count must be greater than 0');
 
-  /// Creates a drop from a string name (convenience constructor).
-  Drop.fromName(String name, {int count = 1, double rate = 1.0})
-    : this(MelvorId.fromName(name), count: count, rate: rate);
-
   final MelvorId itemId;
 
   /// The chance this drop is triggered (0.0 to 1.0).

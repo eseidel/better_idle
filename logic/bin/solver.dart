@@ -23,7 +23,7 @@ void main(List<String> args) async {
 
   final Goal goal;
   if (results['skill'] as bool) {
-    goal = const ReachSkillLevelGoal(Skill.woodcutting, 30);
+    goal = const ReachSkillLevelGoal(Skill.firemaking, 30);
     print('Goal: ${goal.describe()}');
   } else {
     // Parse gold goal from remaining args, default to 100 GP
@@ -46,6 +46,9 @@ void main(List<String> args) async {
 
   // Print result
   if (result is SolverSuccess) {
+    print('Uncompressed plan (${result.plan.steps.length} steps):');
+    print(result.plan.prettyPrint(actions: registries.actions));
+    print('');
     final compressed = result.plan.compress();
     print(
       'Plan (compressed ${result.plan.steps.length} -> ${compressed.steps.length} steps):',

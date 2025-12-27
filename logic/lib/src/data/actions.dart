@@ -262,10 +262,10 @@ class SkillAction extends Action {
 // Skill-level drops: shared across all actions in a skill.
 // This can include both simple Drops and DropTables.
 final skillDrops = <Skill, List<Droppable>>{
-  Skill.woodcutting: [Drop.fromName('Bird Nest', rate: 0.005)],
+  Skill.woodcutting: [Drop(MelvorId('melvorD:Bird_Nest'), rate: 0.005)],
   Skill.firemaking: [
-    Drop.fromName('Coal Ore', rate: 0.40),
-    Drop.fromName('Ash', rate: 0.20),
+    Drop(MelvorId('melvorD:Coal_Ore'), rate: 0.40),
+    Drop(MelvorId('melvorF:Ash'), rate: 0.20),
     // Missing Charcoal, Generous Fire Spirit
   ],
   Skill.mining: [miningGemTable],

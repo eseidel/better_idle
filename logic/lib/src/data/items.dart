@@ -284,6 +284,7 @@ class ItemRegistry {
   }
 
   /// Returns the item by name, or throws a StateError if not found.
+  @visibleForTesting
   Item byName(String name) {
     final item = _byName[name];
     if (item == null) {
