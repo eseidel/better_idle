@@ -77,7 +77,7 @@ class _TweenedProgressIndicatorState extends State<TweenedProgressIndicator>
     if (!widget.animate) return 0;
 
     return widget.progress.estimateProgressAt(
-      DateTime.now(),
+      DateTime.timestamp(),
       tickDuration: widget.tickDuration,
     );
   }

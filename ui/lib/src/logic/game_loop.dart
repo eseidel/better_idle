@@ -33,7 +33,7 @@ class GameLoop {
   /// The duration between game updates
   Duration updateInterval = const Duration(milliseconds: 100);
 
-  DateTime _lastUpdate = DateTime.now();
+  DateTime _lastUpdate = DateTime.timestamp();
 
   late final StreamSubscription<GlobalState> _subscription;
 
@@ -42,7 +42,7 @@ class GameLoop {
     if (_isRunning) return;
 
     _isRunning = true;
-    _lastUpdate = DateTime.now();
+    _lastUpdate = DateTime.timestamp();
     _ticker.start();
   }
 

@@ -13,7 +13,7 @@ class ProgressAt {
   });
 
   factory ProgressAt.zero(DateTime? lastUpdateTime) => ProgressAt(
-    lastUpdateTime: lastUpdateTime ?? DateTime.now(),
+    lastUpdateTime: lastUpdateTime ?? DateTime.timestamp(),
     progressTicks: 0,
     totalTicks: 1,
     isAdvancing: false,
