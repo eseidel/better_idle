@@ -441,6 +441,145 @@ void main() {
     });
   });
 
+  group('firemaking mastery interval', () {
+    // Firemaking mastery grants -0.1% skillInterval per mastery level
+    // This test verifies the modifier is being applied correctly
+    test('firemaking mastery applies skillInterval modifier per level', () {
+      // Create the firemaking mastery bonus that grants -0.1% per level
+      // This is the structure from Melvor data:
+      // level: 1, levelScalingSlope: 1, levelScalingMax: 99
+      // meaning it applies at levels 1, 2, 3, ... up to 99
+      final firemakingMasteryBonus = MasteryLevelBonus(
+        modifiers: ModifierDataSet([
+          ModifierData(
+            name: 'skillInterval',
+            entries: [
+              ModifierEntry(
+                value: -0.1, // -0.1% per level
+                scope: ModifierScope(skillId: Skill.firemaking.id),
+              ),
+            ],
+          ),
+        ]),
+        level: 1,
+        levelScalingSlope: 1,
+        levelScalingMax: 99,
+      );
+
+      final registries = Registries.test(
+        masteryBonuses: MasteryBonusRegistry([
+          SkillMasteryBonuses(
+            skillId: Skill.firemaking.id,
+            bonuses: [firemakingMasteryBonus],
+          ),
+        ]),
+      );
+
+      final firemakingAction = SkillAction(
+        id: ActionId(
+          Skill.firemaking.id,
+          const MelvorId('test:BurnNormalLogs'),
+        ),
+        skill: Skill.firemaking,
+        name: 'Burn Normal Logs',
+        duration: const Duration(seconds: 2),
+        xp: 10,
+        unlockLevel: 1,
+      );
+
+      // At mastery level 1, bonus applies once: -0.1%
+      final stateLevel1 = GlobalState.test(
+        registries,
+        actionStates: {
+          firemakingAction.id: ActionState(masteryXp: startXpForLevel(1)),
+        },
+      );
+      final modifiersLevel1 = stateLevel1.resolveModifiers(firemakingAction);
+      expect(modifiersLevel1.skillInterval, closeTo(-0.1, 0.001));
+
+      // At mastery level 50, bonus applies 50 times: -5%
+      final stateLevel50 = GlobalState.test(
+        registries,
+        actionStates: {
+          firemakingAction.id: ActionState(masteryXp: startXpForLevel(50)),
+        },
+      );
+      final modifiersLevel50 = stateLevel50.resolveModifiers(firemakingAction);
+      expect(modifiersLevel50.skillInterval, closeTo(-5.0, 0.001));
+
+      // At mastery level 99, bonus applies 99 times: -9.9%
+      final stateLevel99 = GlobalState.test(
+        registries,
+        actionStates: {
+          firemakingAction.id: ActionState(masteryXp: startXpForLevel(99)),
+        },
+      );
+      final modifiersLevel99 = stateLevel99.resolveModifiers(firemakingAction);
+      expect(modifiersLevel99.skillInterval, closeTo(-9.9, 0.001));
+    });
+
+    test('firemaking mastery modifier is applied to action duration', () {
+      // Create the firemaking mastery bonus that grants -0.1% per level
+      final firemakingMasteryBonus = MasteryLevelBonus(
+        modifiers: ModifierDataSet([
+          ModifierData(
+            name: 'skillInterval',
+            entries: [
+              ModifierEntry(
+                value: -0.1, // -0.1% per level
+                scope: ModifierScope(skillId: Skill.firemaking.id),
+              ),
+            ],
+          ),
+        ]),
+        level: 1,
+        levelScalingSlope: 1,
+        levelScalingMax: 99,
+      );
+
+      final registries = Registries.test(
+        masteryBonuses: MasteryBonusRegistry([
+          SkillMasteryBonuses(
+            skillId: Skill.firemaking.id,
+            bonuses: [firemakingMasteryBonus],
+          ),
+        ]),
+      );
+
+      // 2 second action = 20 ticks
+      final firemakingAction = SkillAction(
+        id: ActionId(
+          Skill.firemaking.id,
+          const MelvorId('test:BurnNormalLogs'),
+        ),
+        skill: Skill.firemaking,
+        name: 'Burn Normal Logs',
+        duration: const Duration(seconds: 2),
+        xp: 10,
+        unlockLevel: 1,
+      );
+
+      final random = Random(42);
+
+      // At mastery level 50, we get -5% skillInterval
+      // 20 ticks * 0.95 = 19 ticks
+      final state = GlobalState.test(
+        registries,
+        actionStates: {
+          firemakingAction.id: ActionState(masteryXp: startXpForLevel(50)),
+        },
+      );
+
+      final ticks = state.rollDurationWithModifiers(
+        firemakingAction,
+        random,
+        registries.shop,
+      );
+
+      expect(ticks, 19);
+    });
+  });
+
   group('rollDurationWithModifiers integration', () {
     test('applies resolved modifiers to duration correctly', () {
       // Create a shop modifier and mastery modifier

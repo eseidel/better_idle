@@ -326,9 +326,6 @@ class _RateCache {
     final skillLevel = state.skillState(targetSkill).skillLevel;
 
     for (final action in registries.actions.forSkill(targetSkill)) {
-      // Skip actions that require inputs (can't sustain without switching)
-      if (action.inputs.isNotEmpty) continue;
-
       // Only consider unlocked actions
       if (skillLevel < action.unlockLevel) continue;
 
@@ -340,13 +337,85 @@ class _RateCache {
       final expectedTicks = baseExpectedTicks * (1.0 + percentModifier);
       if (expectedTicks <= 0) continue;
 
-      final xpRate = action.xp / expectedTicks;
+      var xpRate = action.xp / expectedTicks;
+
+      // For consuming actions, cap effective rate by producer throughput.
+      // This keeps the heuristic admissible but less wildly optimistic.
+      if (action.inputs.isNotEmpty) {
+        final producerCap = _computeProducerCapForAction(state, action);
+        if (producerCap != null && producerCap < xpRate) {
+          xpRate = producerCap;
+        }
+      }
+
       if (xpRate > maxRate) {
         maxRate = xpRate;
       }
     }
 
     return maxRate;
+  }
+
+  /// Computes the maximum XP rate a consuming action can sustain based on
+  /// producer throughput. Returns null if producers aren't available.
+  ///
+  /// For each input, finds the best unlocked producer and calculates how fast
+  /// inputs can be supplied. The effective XP rate is capped by the slowest
+  /// input supply chain.
+  double? _computeProducerCapForAction(GlobalState state, SkillAction action) {
+    final registries = state.registries;
+    double? minCap;
+
+    for (final inputEntry in action.inputs.entries) {
+      final inputItemId = inputEntry.key;
+      final inputsPerAction = inputEntry.value;
+
+      // Find best producer for this input item
+      double bestProducerRate = 0;
+      for (final skill in Skill.values) {
+        final producerSkillLevel = state.skillState(skill).skillLevel;
+
+        for (final producer in registries.actions.forSkill(skill)) {
+          // Only non-consuming, unlocked producers
+          if (producer.inputs.isNotEmpty) continue;
+          if (producerSkillLevel < producer.unlockLevel) continue;
+
+          // Check if this action produces the needed item
+          final outputCount = producer.outputs[inputItemId];
+          if (outputCount == null || outputCount <= 0) continue;
+
+          // Calculate producer rate
+          final producerTicks = ticksFromDuration(
+            producer.meanDuration,
+          ).toDouble();
+          final modifier = state.shopDurationModifierForSkill(skill);
+          final effectiveTicks = producerTicks * (1.0 + modifier);
+          if (effectiveTicks <= 0) continue;
+
+          final itemsPerTick = outputCount / effectiveTicks;
+          if (itemsPerTick > bestProducerRate) {
+            bestProducerRate = itemsPerTick;
+          }
+        }
+      }
+
+      if (bestProducerRate <= 0) {
+        // No producer available - can't sustain this action
+        return 0;
+      }
+
+      // How many consuming actions can we do per tick given producer rate?
+      // items/tick from producer / items needed per action = actions/tick
+      // actions/tick * XP/action = XP/tick cap
+      final actionsPerTick = bestProducerRate / inputsPerAction;
+      final xpCap = actionsPerTick * action.xp;
+
+      if (minCap == null || xpCap < minCap) {
+        minCap = xpCap;
+      }
+    }
+
+    return minCap;
   }
 
   /// Computes the best rate among currently UNLOCKED actions.
@@ -448,13 +517,14 @@ class _RateCache {
 /// Uses best unlocked rate for tighter, state-aware estimates.
 /// h(state) = ceil(remaining / R_bestUnlocked)
 ///
-/// For multi-skill goals, returns the maximum time needed for any single skill,
+/// For multi-skill goals, returns the SUM of time needed for each skill,
 /// since skills must be trained serially (can only do one activity at a time).
+/// This is admissible because we can't train two skills simultaneously.
 int _heuristic(GlobalState state, Goal goal, _RateCache rateCache) {
   if (goal is MultiSkillGoal) {
-    // For multi-skill goals, estimate time for each unfinished skill
-    // and return the maximum (they can't all be trained simultaneously)
-    var maxTicks = 0;
+    // For multi-skill goals, sum the estimated time for each unfinished skill.
+    // This is admissible because skills are trained serially.
+    var totalTicks = 0;
     for (final subgoal in goal.subgoals) {
       if (subgoal.isSatisfied(state)) continue;
 
@@ -466,9 +536,9 @@ int _heuristic(GlobalState state, Goal goal, _RateCache rateCache) {
       if (bestRate <= 0) continue;
 
       final ticks = (remaining / bestRate).ceil();
-      if (ticks > maxTicks) maxTicks = ticks;
+      totalTicks += ticks;
     }
-    return maxTicks;
+    return totalTicks;
   }
 
   // Single goal: use the combined rate
@@ -540,10 +610,13 @@ String _stateKey(GlobalState state) {
     buffer.write('hp:$hpBucket|');
   }
 
-  // Mastery level for current action (affects rates, especially for thieving)
+  // Mastery level bucket for current action (affects rates, especially for
+  // thieving). Use buckets of 10 to reduce state explosion while still
+  // capturing major rate changes.
   if (actionId != null) {
     final masteryLevel = state.actionState(actionId).masteryLevel;
-    buffer.write('mast:$masteryLevel|');
+    final masteryBucket = masteryLevel ~/ 10;
+    buffer.write('mast:$masteryBucket|');
   }
 
   // Upgrade levels
