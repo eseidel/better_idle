@@ -46,10 +46,11 @@ void main(List<String> args) async {
 
   // Print result
   if (result is SolverSuccess) {
-    print('Plan:');
-    print(result.plan.prettyPrint(actions: registries.actions));
-    print('Total ticks: ${result.plan.totalTicks}');
-    print('Interaction count: ${result.plan.interactionCount}');
+    final compressed = result.plan.compress();
+    print('Plan (compressed ${result.plan.steps.length} -> ${compressed.steps.length} steps):');
+    print(compressed.prettyPrint(actions: registries.actions));
+    print('Total ticks: ${compressed.totalTicks}');
+    print('Interaction count: ${compressed.interactionCount}');
 
     // Execute the plan to get the final state
     final execResult = executePlan(

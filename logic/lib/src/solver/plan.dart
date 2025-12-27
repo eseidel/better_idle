@@ -293,6 +293,73 @@ class Plan {
   /// Human-readable total time.
   Duration get totalDuration => durationFromTicks(totalTicks);
 
+  /// Returns a compressed version of this plan for display purposes.
+  ///
+  /// Compression rules:
+  /// 1. Merges consecutive WaitSteps into a single wait with combined ticks
+  /// 2. Removes no-op switches (SwitchActivity to the same activity as previous)
+  /// 3. Collapses "wake-only" waits where no interaction occurs between wakes
+  ///    (e.g., consecutive mastery level-ups with no activity change)
+  ///
+  /// The compressed plan is for display only - it may not be directly executable
+  /// since merged waits lose their intermediate WaitFor conditions.
+  Plan compress() {
+    if (steps.isEmpty) return this;
+
+    final compressed = <PlanStep>[];
+    ActionId? currentActivity;
+
+    for (var i = 0; i < steps.length; i++) {
+      final step = steps[i];
+
+      switch (step) {
+        case InteractionStep(:final interaction):
+          switch (interaction) {
+            case SwitchActivity(:final actionId):
+              // Remove no-op switches (switching to same activity)
+              if (actionId == currentActivity) continue;
+              currentActivity = actionId;
+              compressed.add(step);
+
+            case BuyShopItem():
+            case SellAll():
+              compressed.add(step);
+          }
+
+        case WaitStep(:final deltaTicks, :final waitFor):
+          // Check if we can merge with the previous step
+          if (compressed.isNotEmpty && compressed.last is WaitStep) {
+            // Check if there's no meaningful interaction between these waits
+            // A meaningful interaction is anything except the wait itself
+            // Since we're iterating in order, if the last compressed step
+            // is a WaitStep, we can try to merge.
+            final lastWait = compressed.last as WaitStep;
+
+            // Merge consecutive waits - keep the final waitFor since that's
+            // what we're ultimately waiting for
+            compressed[compressed.length - 1] = WaitStep(
+              lastWait.deltaTicks + deltaTicks,
+              waitFor, // Use the later wait's condition
+            );
+          } else {
+            compressed.add(step);
+          }
+      }
+    }
+
+    // Recalculate interaction count (non-wait steps)
+    final newInteractionCount = compressed.whereType<InteractionStep>().length;
+
+    return Plan(
+      steps: compressed,
+      totalTicks: totalTicks,
+      interactionCount: newInteractionCount,
+      expandedNodes: expandedNodes,
+      enqueuedNodes: enqueuedNodes,
+      expectedDeaths: expectedDeaths,
+    );
+  }
+
   /// Pretty-prints the plan for debugging.
   String prettyPrint({int maxSteps = 30, ActionRegistry? actions}) {
     final buffer = StringBuffer();

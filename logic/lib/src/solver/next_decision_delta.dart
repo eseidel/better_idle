@@ -158,8 +158,8 @@ NextDecisionResult nextDecisionDelta(
   // plan execution by restarting the activity. The planner still accounts for
   // death in expected-value calculations via ticksUntilDeath in _advanceExpected.
 
-  // F) Time until next skill level (rates may change)
-  final deltaSkillLevel = _deltaUntilNextSkillLevel(state, rates);
+  // F) Time until next skill level that unlocks a watched activity
+  final deltaSkillLevel = _deltaUntilNextSkillLevel(state, rates, candidates);
   if (deltaSkillLevel != null) {
     deltas.add(deltaSkillLevel);
   }
@@ -288,11 +288,16 @@ _DeltaCandidate? _deltaUntilActivityUnlocks(
   );
 }
 
-/// Computes ticks until next skill level.
-_DeltaCandidate? _deltaUntilNextSkillLevel(GlobalState state, Rates rates) {
-  final ticks = ticksUntilNextSkillLevel(state, rates);
-  if (ticks == null || ticks <= 0) return null;
-
+/// Computes ticks until next meaningful skill level (unlock threshold).
+///
+/// Rather than watching every skill level up, we only watch levels that
+/// unlock new actions. This reduces the number of wait steps in the plan.
+/// Unlock thresholds are determined by the lockedActivityIds in the watch list.
+_DeltaCandidate? _deltaUntilNextSkillLevel(
+  GlobalState state,
+  Rates rates,
+  Candidates candidates,
+) {
   // Find which skill is being trained
   final actionId = state.activeAction?.id;
   if (actionId == null) return null;
@@ -302,32 +307,85 @@ _DeltaCandidate? _deltaUntilNextSkillLevel(GlobalState state, Rates rates) {
   if (action is! SkillAction) return null;
 
   final skill = action.skill;
+  final xpRate = rates.xpPerTickBySkill[skill];
+  if (xpRate == null || xpRate <= 0) return null;
+
   final currentXp = state.skillState(skill).xp;
   final currentLevel = levelForXp(currentXp);
-  final nextLevelXp = startXpForLevel(currentLevel + 1);
+
+  // Find the next unlock level for any locked activity of this skill
+  int? nextUnlockLevel;
+  for (final lockedId in candidates.watch.lockedActivityIds) {
+    final lockedAction = registries.actions.byId(lockedId);
+    if (lockedAction is! SkillAction) continue;
+    if (lockedAction.skill != skill) continue;
+
+    final unlockLevel = lockedAction.unlockLevel;
+    if (unlockLevel > currentLevel) {
+      if (nextUnlockLevel == null || unlockLevel < nextUnlockLevel) {
+        nextUnlockLevel = unlockLevel;
+      }
+    }
+  }
+
+  // If no unlock levels are being watched, don't add a skill level wait
+  if (nextUnlockLevel == null) return null;
+
+  final targetXp = startXpForLevel(nextUnlockLevel);
+  final xpNeeded = targetXp - currentXp;
+  if (xpNeeded <= 0) return null;
+
+  final ticks = (xpNeeded / xpRate).ceil();
 
   return _DeltaCandidate(
     ticks: ticks,
-    waitFor: WaitForSkillXp(skill, nextLevelXp),
+    waitFor: WaitForSkillXp(skill, targetXp, reason: 'Level $nextUnlockLevel'),
   );
 }
 
-/// Computes ticks until next mastery level.
+/// Mastery level interval for watch events.
+/// Instead of watching every mastery level, we only watch at these boundaries.
+/// This reduces plan noise while still allowing the solver to re-evaluate
+/// at meaningful rate changes.
+const int _masteryLevelInterval = 10;
+
+/// Computes ticks until next meaningful mastery level boundary.
+///
+/// Rather than watching every mastery level up, we watch at intervals
+/// (e.g., every 10 levels: 10, 20, 30, ...). This reduces the number
+/// of wait steps while still allowing rate recalculation at meaningful points.
+///
+/// For thieving, mastery affects stealth directly, but the effect is gradual
+/// enough that checking every 10 levels is sufficient for planning purposes.
 _DeltaCandidate? _deltaUntilNextMasteryLevel(GlobalState state, Rates rates) {
-  final ticks = ticksUntilNextMasteryLevel(state, rates);
-  if (ticks == null || ticks <= 0) return null;
+  if (rates.masteryXpPerTick <= 0 || rates.actionId == null) return null;
 
-  // Find which action is being performed
-  final actionId = state.activeAction?.id;
-  if (actionId == null) return null;
+  final actionId = rates.actionId!;
+  final actionState = state.actionState(actionId);
+  final currentLevel = actionState.masteryLevel;
 
-  final currentMasteryXp = state.actionState(actionId).masteryXp;
-  final currentLevel = levelForXp(currentMasteryXp);
-  final nextLevelXp = startXpForLevel(currentLevel + 1);
+  // Check if at max mastery level (99)
+  if (currentLevel >= 99) return null;
+
+  // Find the next boundary level (multiple of _masteryLevelInterval, or 99)
+  final nextBoundary =
+      ((currentLevel ~/ _masteryLevelInterval) + 1) * _masteryLevelInterval;
+  final targetLevel = nextBoundary > 99 ? 99 : nextBoundary;
+
+  // If we're already at or past the target, no wait needed
+  if (currentLevel >= targetLevel) return null;
+
+  final currentXp = actionState.masteryXp;
+  final targetXp = startXpForLevel(targetLevel);
+  final xpNeeded = targetXp - currentXp;
+
+  if (xpNeeded <= 0) return null;
+
+  final ticks = (xpNeeded / rates.masteryXpPerTick).ceil();
 
   return _DeltaCandidate(
     ticks: ticks,
-    waitFor: WaitForMasteryXp(actionId, nextLevelXp),
+    waitFor: WaitForMasteryXp(actionId, targetXp),
   );
 }
 

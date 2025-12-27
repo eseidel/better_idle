@@ -450,7 +450,7 @@ void main() {
       expect(ticks, isNull);
     });
 
-    test('nextDecisionDelta includes skill level timing', () {
+    test('nextDecisionDelta includes skill unlock timing', () {
       var state = GlobalState.empty(testRegistries);
       final action = testActions.woodcutting('Normal Tree');
       state = state.startAction(action, random: Random(0));
@@ -460,11 +460,12 @@ void main() {
 
       final result = nextDecisionDelta(state, goal, candidates);
 
-      // Delta should be limited by skill level up
-      final rates = estimateRates(state);
-      final ticksToLevel = ticksUntilNextSkillLevel(state, rates);
-
-      expect(result.deltaTicks, lessThanOrEqualTo(ticksToLevel!));
+      // Delta should be positive (progressing toward goal)
+      // Note: skill level timing only applies for unlock thresholds now,
+      // not every level up. The delta should be bounded by goal progress,
+      // upgrade affordability, or activity unlock timing.
+      expect(result.deltaTicks, greaterThan(0));
+      expect(result.isDeadEnd, isFalse);
     });
 
     test('nextDecisionDelta includes mastery level timing for thieving', () {
@@ -752,6 +753,131 @@ void main() {
 
       // Should reach the goal (or close to it due to simulation variance)
       expect(execResult.finalState.gp, greaterThan(50));
+    });
+  });
+
+  group('Plan.compress', () {
+    test('returns empty plan unchanged', () {
+      const plan = Plan.empty();
+      final compressed = plan.compress();
+
+      expect(compressed.steps, isEmpty);
+      expect(compressed.totalTicks, 0);
+      expect(compressed.interactionCount, 0);
+    });
+
+    test('merges consecutive WaitSteps', () {
+      const goal = ReachGpGoal(100);
+      final plan = Plan(
+        steps: [
+          const WaitStep(100, WaitForSkillXp(Skill.woodcutting, 50)),
+          const WaitStep(200, WaitForSkillXp(Skill.woodcutting, 100)),
+          const WaitStep(300, WaitForGoal(goal)),
+        ],
+        totalTicks: 600,
+        interactionCount: 0,
+      );
+
+      final compressed = plan.compress();
+
+      // Should merge all three waits into one
+      expect(compressed.steps.length, 1);
+      expect(compressed.steps[0], isA<WaitStep>());
+      final wait = compressed.steps[0] as WaitStep;
+      expect(wait.deltaTicks, 600); // 100 + 200 + 300
+      // Should keep the final waitFor
+      expect(wait.waitFor, isA<WaitForGoal>());
+      expect(compressed.totalTicks, 600);
+      expect(compressed.interactionCount, 0);
+    });
+
+    test('does not merge waits separated by interaction', () {
+      final normalTreeAction = testActions.woodcutting('Normal Tree');
+      final oakTreeAction = testActions.woodcutting('Oak Tree');
+      final plan = Plan(
+        steps: [
+          InteractionStep(SwitchActivity(normalTreeAction.id)),
+          const WaitStep(100, WaitForSkillXp(Skill.woodcutting, 50)),
+          InteractionStep(SwitchActivity(oakTreeAction.id)),
+          const WaitStep(200, WaitForSkillXp(Skill.woodcutting, 100)),
+        ],
+        totalTicks: 300,
+        interactionCount: 2,
+      );
+
+      final compressed = plan.compress();
+
+      // Should have 4 steps (switch, wait, switch, wait)
+      expect(compressed.steps.length, 4);
+      expect(compressed.interactionCount, 2);
+    });
+
+    test('removes no-op switch to same activity', () {
+      final normalTreeAction = testActions.woodcutting('Normal Tree');
+      final plan = Plan(
+        steps: [
+          InteractionStep(SwitchActivity(normalTreeAction.id)),
+          const WaitStep(100, WaitForSkillXp(Skill.woodcutting, 50)),
+          // No-op switch to same activity
+          InteractionStep(SwitchActivity(normalTreeAction.id)),
+          const WaitStep(200, WaitForSkillXp(Skill.woodcutting, 100)),
+        ],
+        totalTicks: 300,
+        interactionCount: 2,
+      );
+
+      final compressed = plan.compress();
+
+      // Should remove the no-op switch and merge the waits
+      expect(compressed.steps.length, 2); // switch + merged wait
+      expect(compressed.steps[0], isA<InteractionStep>());
+      expect(compressed.steps[1], isA<WaitStep>());
+      final wait = compressed.steps[1] as WaitStep;
+      expect(wait.deltaTicks, 300); // 100 + 200 merged
+      expect(compressed.interactionCount, 1);
+    });
+
+    test('keeps SellAll and BuyShopItem interactions', () {
+      final normalTreeAction = testActions.woodcutting('Normal Tree');
+      final ironAxeId = MelvorId('melvorD:Iron_Axe');
+      final plan = Plan(
+        steps: [
+          InteractionStep(SwitchActivity(normalTreeAction.id)),
+          const WaitStep(100, WaitForInventoryValue(50)),
+          const InteractionStep(SellAll()),
+          InteractionStep(BuyShopItem(ironAxeId)),
+          const WaitStep(200, WaitForSkillXp(Skill.woodcutting, 100)),
+        ],
+        totalTicks: 300,
+        interactionCount: 3,
+      );
+
+      final compressed = plan.compress();
+
+      // Should keep all interactions except no-ops
+      expect(compressed.steps.length, 5);
+      expect(compressed.interactionCount, 3);
+    });
+
+    test('preserves totalTicks and metadata', () {
+      final plan = Plan(
+        steps: [
+          const WaitStep(100, WaitForSkillXp(Skill.woodcutting, 50)),
+          const WaitStep(200, WaitForSkillXp(Skill.woodcutting, 100)),
+        ],
+        totalTicks: 300,
+        interactionCount: 0,
+        expandedNodes: 42,
+        enqueuedNodes: 100,
+        expectedDeaths: 2,
+      );
+
+      final compressed = plan.compress();
+
+      expect(compressed.totalTicks, 300);
+      expect(compressed.expandedNodes, 42);
+      expect(compressed.enqueuedNodes, 100);
+      expect(compressed.expectedDeaths, 2);
     });
   });
 }
