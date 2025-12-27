@@ -123,9 +123,9 @@ NextDecisionResult nextDecisionDelta(
   final deltas = <_DeltaCandidate>[];
 
   // A) Time until goal reached
-  final deltaGoal = _deltaUntilGoal(state, goal, progressRate);
-  if (deltaGoal != null && deltaGoal > 0) {
-    deltas.add(_DeltaCandidate(ticks: deltaGoal, waitFor: WaitForGoal(goal)));
+  final goalDelta = _deltaUntilGoalWithWaitFor(state, goal, progressRate);
+  if (goalDelta != null && goalDelta.ticks > 0) {
+    deltas.add(goalDelta);
   }
 
   // B) Time until any watched upgrade becomes affordable
@@ -214,12 +214,62 @@ NextDecisionResult nextDecisionDelta(
 }
 
 /// Computes ticks until goal is reached at current progress rate.
-int? _deltaUntilGoal(GlobalState state, Goal goal, double progressRate) {
+///
+/// For multi-skill goals, computes time until the CURRENT skill being trained
+/// reaches its target (not time until all skills are done, which would require
+/// switching activities). Returns appropriate WaitFor for plan execution.
+_DeltaCandidate? _deltaUntilGoalWithWaitFor(
+  GlobalState state,
+  Goal goal,
+  double progressRate,
+) {
   if (progressRate <= 0) return null;
-  if (goal.isSatisfied(state)) return 0;
+  if (goal.isSatisfied(state)) return null;
 
+  // For multi-skill goals, only consider skills we're currently training
+  if (goal is MultiSkillGoal) {
+    // Find which skill we're currently training
+    final actionId = state.activeAction?.id;
+    if (actionId == null) return null;
+
+    final registries = state.registries;
+    final action = registries.actions.byId(actionId);
+    if (action is! SkillAction) return null;
+
+    final activeSkill = action.skill;
+
+    // Find the subgoal for the active skill
+    final activeSubgoal = goal.subgoals
+        .where((g) => g.skill == activeSkill && !g.isSatisfied(state))
+        .firstOrNull;
+
+    if (activeSubgoal == null) {
+      // Not training a goal skill, or already satisfied
+      return null;
+    }
+
+    // Return time until THIS skill's goal is reached
+    final remaining = activeSubgoal.remaining(state);
+    final ticks = _ceilDiv(remaining, progressRate);
+
+    // Use WaitForSkillXp for the specific subgoal, not WaitForGoal
+    // This ensures plan execution waits for just this skill
+    final skillName = activeSubgoal.skill.name;
+    final targetLevel = activeSubgoal.targetLevel;
+    return _DeltaCandidate(
+      ticks: ticks,
+      waitFor: WaitForSkillXp(
+        activeSubgoal.skill,
+        activeSubgoal.targetXp,
+        reason: 'Goal: $skillName $targetLevel',
+      ),
+    );
+  }
+
+  // Single goal: use WaitForGoal
   final remaining = goal.remaining(state);
-  return _ceilDiv(remaining, progressRate);
+  final ticks = _ceilDiv(remaining, progressRate);
+  return _DeltaCandidate(ticks: ticks, waitFor: WaitForGoal(goal));
 }
 
 /// Computes ticks until soonest watched upgrade becomes affordable.

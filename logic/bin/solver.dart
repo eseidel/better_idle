@@ -16,14 +16,22 @@ import 'package:logic/src/solver/solver.dart';
 
 void main(List<String> args) async {
   final parser = ArgParser()
-    ..addFlag('skill', abbr: 's', help: 'Solve for woodcutting level 70');
+    ..addFlag('skill', abbr: 's', help: 'Solve for firemaking level 30')
+    ..addOption(
+      'skills',
+      abbr: 'm',
+      help: 'Solve for multiple skills (e.g., "Woodcutting=50,Firemaking=50")',
+    );
 
   final results = parser.parse(args);
 
   final registries = await loadRegistries();
 
   final Goal goal;
-  if (results['skill'] as bool) {
+  if (results['skills'] != null) {
+    goal = _parseMultiSkillGoal(results['skills'] as String);
+    print('Goal: ${goal.describe()}');
+  } else if (results['skill'] as bool) {
     goal = const ReachSkillLevelGoal(Skill.firemaking, 30);
     print('Goal: ${goal.describe()}');
   } else {
@@ -67,6 +75,9 @@ void main(List<String> args) async {
     );
     print('');
     _printFinalState(execResult.finalState);
+    if (goal is MultiSkillGoal) {
+      _printMultiSkillProgress(execResult.finalState, goal);
+    }
     print('');
     print('=== Execution Stats ===');
     print('Planned ticks: ${execResult.plannedTicks}');
@@ -151,4 +162,53 @@ void _printSolverProfile(SolverProfile profile) {
   print('  hashing (_stateKey): ${profile.hashingPercent.toStringAsFixed(1)}%');
   print('Dominance pruning:');
   print('  dominated skipped: ${profile.dominatedSkipped}');
+}
+
+/// Parses "Skill=Level,Skill=Level,..." into a MultiSkillGoal or single goal.
+Goal _parseMultiSkillGoal(String input) {
+  final skillMap = <Skill, int>{};
+  for (final part in input.split(',')) {
+    final kv = part.trim().split('=');
+    if (kv.length != 2) {
+      throw FormatException('Invalid skill format: $part');
+    }
+    final skillName = kv[0].trim().toLowerCase();
+    final level = int.parse(kv[1].trim());
+
+    final skill = Skill.values.firstWhere(
+      (s) => s.name.toLowerCase() == skillName,
+      orElse: () => throw FormatException('Unknown skill: ${kv[0]}'),
+    );
+    skillMap[skill] = level;
+  }
+
+  if (skillMap.length == 1) {
+    // Single skill: use simpler goal type
+    final entry = skillMap.entries.first;
+    return ReachSkillLevelGoal(entry.key, entry.value);
+  }
+  return MultiSkillGoal.fromMap(skillMap);
+}
+
+/// Prints per-skill progress for multi-skill goals.
+void _printMultiSkillProgress(GlobalState state, MultiSkillGoal goal) {
+  print('');
+  print('=== Multi-Skill Progress ===');
+
+  var totalRemainingXp = 0.0;
+  for (final subgoal in goal.subgoals) {
+    final skillState = state.skillState(subgoal.skill);
+    final targetXp = subgoal.targetXp;
+    final remaining = subgoal.remaining(state);
+    totalRemainingXp += remaining;
+
+    final status = subgoal.isSatisfied(state) ? '✓' : ' ';
+    print(
+      '  $status ${subgoal.skill.name}: '
+      'Level ${skillState.skillLevel}/${subgoal.targetLevel} '
+      '(${skillState.xp}/$targetXp XP, '
+      '${remaining.toInt()} remaining)',
+    );
+  }
+  print('  Total remaining: ${totalRemainingXp.toInt()} XP');
 }

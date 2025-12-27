@@ -172,3 +172,80 @@ class ReachSkillLevelGoal extends Goal {
   @override
   List<Object?> get props => [skill, targetLevel];
 }
+
+/// Goal to reach target levels in multiple skills (AND semantics).
+///
+/// All subgoals must be satisfied for the goal to be complete.
+/// Progress is measured as the sum of remaining XP across all unfinished
+/// skills.
+@immutable
+class MultiSkillGoal extends Goal {
+  const MultiSkillGoal(this.subgoals);
+
+  /// Convenience constructor from a map of skill -> target level.
+  factory MultiSkillGoal.fromMap(Map<Skill, int> skillLevels) {
+    final subgoals = skillLevels.entries
+        .map((e) => ReachSkillLevelGoal(e.key, e.value))
+        .toList();
+    return MultiSkillGoal(subgoals);
+  }
+
+  /// Individual skill-level targets.
+  final List<ReachSkillLevelGoal> subgoals;
+
+  @override
+  bool isSatisfied(GlobalState state) {
+    return subgoals.every((g) => g.isSatisfied(state));
+  }
+
+  @override
+  double remaining(GlobalState state) {
+    // Sum of XP remaining across all unfinished skills
+    return subgoals
+        .where((g) => !g.isSatisfied(state))
+        .map((g) => g.remaining(state))
+        .fold(0, (a, b) => a + b);
+  }
+
+  @override
+  String describe() {
+    final parts = subgoals.map((g) => '${g.skill.name} ${g.targetLevel}');
+    return 'Reach ${parts.join(', ')}';
+  }
+
+  @override
+  double progressPerTick(GlobalState state, Rates rates) {
+    // Sum of XP/tick for all unfinished skills
+    var total = 0.0;
+    for (final subgoal in subgoals) {
+      if (subgoal.isSatisfied(state)) continue;
+      final xpRate = rates.xpPerTickBySkill[subgoal.skill] ?? 0.0;
+      total += xpRate;
+    }
+    return total;
+  }
+
+  @override
+  int progress(GlobalState state) {
+    // Sum of XP across all target skills (for dominance comparison)
+    return subgoals.fold(0, (sum, g) => sum + state.skillState(g.skill).xp);
+  }
+
+  @override
+  bool get isSellRelevant => false; // Skill goals don't benefit from selling
+
+  @override
+  bool isSkillRelevant(Skill skill) {
+    // Any skill in our subgoals is relevant
+    return subgoals.any((g) => g.skill == skill);
+  }
+
+  @override
+  double activityRate(Skill skill, double goldRate, double xpRate) {
+    // Return XP rate if this skill is in our goal set
+    return isSkillRelevant(skill) ? xpRate : 0.0;
+  }
+
+  @override
+  List<Object?> get props => [subgoals];
+}
