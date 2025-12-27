@@ -224,6 +224,36 @@ void main() {
       expect(result1.deltaTicks, result2.deltaTicks);
       expect(result1.waitFor, result2.waitFor);
     });
+
+    test('returns ticks until inputs depleted for consuming action', () {
+      // Start firemaking with limited logs - should calculate depletion time
+      var state = GlobalState.test(
+        testRegistries,
+        inventory: Inventory.fromItems(testItems, [
+          ItemStack(testItems.byName('Normal Logs'), count: 10),
+        ]),
+      );
+      final burnAction = testActions.firemaking('Burn Normal Logs');
+      state = state.startAction(burnAction, random: Random(0));
+
+      // Use a skill goal for firemaking to ensure consuming action is relevant
+      const goal = ReachSkillLevelGoal(Skill.firemaking, 99);
+      final candidates = enumerateCandidates(state, goal);
+
+      final result = nextDecisionDelta(state, goal, candidates);
+
+      // Should return a finite result (depletion or other event)
+      expect(result.deltaTicks, greaterThan(0));
+      expect(result.deltaTicks, lessThan(infTicks));
+
+      // Verify rates show consumption is happening
+      final rates = estimateRates(state);
+      expect(rates.itemsConsumedPerTick, isNotEmpty);
+
+      // With only 10 logs and burning them, depletion should be the soonest
+      // event (faster than reaching level 99 firemaking)
+      expect(result.waitFor, isA<WaitForInputsDepleted>());
+    });
   });
 
   group('Goal', () {
