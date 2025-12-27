@@ -196,7 +196,7 @@ class ShopState {
     return {'purchaseCounts': countsJson};
   }
 
-  /// Returns the total skill interval modifier for a skill from owned purchases.
+  /// Total skill interval modifier for a skill from owned purchases.
   /// Uses the shop registry to look up which purchases affect this skill.
   int totalSkillIntervalModifier(Skill skill, ShopRegistry registry) {
     return registry.totalSkillIntervalModifier(skill, purchaseCounts);

@@ -565,7 +565,7 @@ void main() {
       );
       expect(ticksNoMastery, 30);
 
-      // State with mastery level 98 (just below threshold) - should get full 30 ticks
+      // Mastery level 98 (just below threshold) - should get full 30 ticks
       final xpForLevel98 = startXpForLevel(98);
       final stateMastery98 = GlobalState.test(
         testRegistries,
@@ -579,7 +579,7 @@ void main() {
       );
       expect(ticksMastery98, 30);
 
-      // State with mastery level 99 - should get 28 ticks (30 - 2 = 0.2s reduction)
+      // Mastery level 99 - should get 28 ticks (30 - 2 = 0.2s reduction)
       final xpForLevel99 = startXpForLevel(99);
       final stateMastery99 = GlobalState.test(
         testRegistries,
