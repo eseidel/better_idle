@@ -23,4 +23,6 @@ jobs:
         uses: shorebirdtech/setup-shorebird@v1
 
       - name: Patch iOS
-        run: shorebird patch ios --release-version=latest -- --no-codesign
+        # Adding --allow-asset-diffs to work around:
+        # https://github.com/shorebirdtech/shorebird/issues/3442
+        run: shorebird patch ios --release-version=latest --no-codesign --allow-asset-diffs
