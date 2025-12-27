@@ -66,8 +66,13 @@ class SellEverythingForGpValueModel extends ValueModel {
   @override
   double valuePerTick(GlobalState state, Rates rates) {
     var value = rates.directGpPerTick;
+    // Add value from items produced
     for (final entry in rates.itemFlowsPerTick.entries) {
       value += entry.value * itemValue(state, entry.key);
+    }
+    // Subtract value from items consumed (opportunity cost)
+    for (final entry in rates.itemsConsumedPerTick.entries) {
+      value -= entry.value * itemValue(state, entry.key);
     }
     return value;
   }
@@ -90,8 +95,13 @@ class ShadowPriceValueModel extends ValueModel {
   @override
   double valuePerTick(GlobalState state, Rates rates) {
     var value = rates.directGpPerTick;
+    // Add value from items produced
     for (final entry in rates.itemFlowsPerTick.entries) {
       value += entry.value * itemValue(state, entry.key);
+    }
+    // Subtract value from items consumed (opportunity cost)
+    for (final entry in rates.itemsConsumedPerTick.entries) {
+      value -= entry.value * itemValue(state, entry.key);
     }
     return value;
   }

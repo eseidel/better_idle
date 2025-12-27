@@ -64,6 +64,50 @@ void main() {
       );
       expect(valueWith, isNot(equals(valueNo)));
     });
+
+    test('consuming actions account for input costs in GP value', () {
+      // Firemaking consumes logs (which have sell value) and produces drops
+      // The value model should subtract input costs from output value
+      var state = GlobalState.test(
+        testRegistries,
+        inventory: Inventory.fromItems(testItems, [
+          ItemStack(testItems.byName('Normal Logs'), count: 100),
+        ]),
+      );
+      final burnAction = testActions.firemaking('Burn Normal Logs');
+      state = state.startAction(burnAction, random: Random(0));
+
+      final rates = estimateRates(state);
+
+      // Verify rates track both consumption and production
+      expect(rates.itemsConsumedPerTick, isNotEmpty);
+      expect(rates.xpPerTickBySkill[Skill.firemaking], greaterThan(0));
+
+      // Calculate what the GP value would be WITHOUT subtracting input costs
+      var outputValueOnly = 0.0;
+      for (final entry in rates.itemFlowsPerTick.entries) {
+        outputValueOnly +=
+            entry.value * defaultValueModel.itemValue(state, entry.key);
+      }
+
+      // Calculate the actual input cost that should be subtracted
+      var inputCost = 0.0;
+      for (final entry in rates.itemsConsumedPerTick.entries) {
+        inputCost +=
+            entry.value * defaultValueModel.itemValue(state, entry.key);
+      }
+
+      // The actual GP value should be output minus input
+      final gpValue = defaultValueModel.valuePerTick(state, rates);
+      expect(
+        gpValue,
+        closeTo(outputValueOnly - inputCost, 0.001),
+        reason: 'GP value should subtract consumed input value from outputs',
+      );
+
+      // Input cost should be positive (we are consuming something of value)
+      expect(inputCost, greaterThan(0));
+    });
   });
 
   group('nextDecisionDelta', () {
