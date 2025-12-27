@@ -278,7 +278,7 @@ class GlobalState {
           maybeMap(
             json['plotStates'],
             toKey: MelvorId.fromJson,
-            toValue: (value) => PlotState.fromJson(value),
+            toValue: (value) => PlotState.fromJson(registries.items, value),
           ) ??
           const {},
       unlockedPlots =
@@ -1041,7 +1041,7 @@ class GlobalState {
     final newPlotState = PlotState(
       cropId: crop.id,
       growthTicksRemaining: crop.growthTicks,
-      compostApplied: currentPlotState.compostApplied,
+      compostItems: currentPlotState.compostItems,
     );
 
     // Update plot states
@@ -1063,11 +1063,10 @@ class GlobalState {
   /// Compost can only be applied to empty plots, not to growing crops.
   GlobalState applyCompost(MelvorId plotId, Item compost) {
     // Validate compost item has compost value
-    final compostValueNullable = compost.compostValue;
-    if (compostValueNullable == null || compostValueNullable == 0) {
+    final compostValue = compost.compostValue;
+    if (compostValue == null || compostValue == 0) {
       throw StateError('${compost.name} is not compost');
     }
-    final compostValue = compostValueNullable; // Now non-nullable after check
 
     // Get or create empty plot state
     final plotState = plotStates[plotId] ?? const PlotState.empty();
@@ -1094,12 +1093,9 @@ class GlobalState {
     // Consume compost from inventory
     final newInventory = inventory.removing(ItemStack(compost, count: 1));
 
-    // Update plot state with new compost and harvest bonus values
-    final harvestBonus = compost.harvestBonus ?? 0;
-    final newHarvestBonus = plotState.harvestBonusApplied + harvestBonus;
+    // Add compost item to the plot's compost list
     final newPlotState = plotState.copyWith(
-      compostApplied: newCompostValue,
-      harvestBonusApplied: newHarvestBonus,
+      compostItems: [...plotState.compostItems, compost],
     );
 
     final newPlotStates = Map<MelvorId, PlotState>.from(plotStates);

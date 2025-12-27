@@ -213,12 +213,10 @@ void main() {
       updatedState = updatedState.applyCompost(plotId, compost);
       updatedState = updatedState.plantCrop(plotId, crop);
 
-      // Simulate growth completion
-      final grownPlot = PlotState(
-        cropId: crop.id,
-        growthTicksRemaining: 0, // Ready to harvest
-        compostApplied: 10,
-      );
+      // Simulate growth completion - the compost should already be on the plot
+      // from the applyCompost call, so we just need to set growth to 0
+      final currentPlot = updatedState.plotStates[plotId]!;
+      final grownPlot = currentPlot.copyWith(growthTicksRemaining: 0);
 
       updatedState = updatedState.copyWith(plotStates: {plotId: grownPlot});
 

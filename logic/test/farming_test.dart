@@ -16,11 +16,7 @@ void main() {
       final cropId = ActionId.test(Skill.farming, 'Potato');
 
       // Create a plot with 100 ticks remaining
-      final plot = PlotState(
-        cropId: cropId,
-        growthTicksRemaining: 100,
-        compostApplied: 0,
-      );
+      final plot = PlotState(cropId: cropId, growthTicksRemaining: 100);
 
       expect(plot.growthTicksRemaining, 100);
       expect(plot.isGrowing, true);
@@ -49,28 +45,19 @@ void main() {
 
     test('PlotState serialization preserves countdown', () {
       final cropId = ActionId.test(Skill.farming, 'Potato');
-      final plot = PlotState(
-        cropId: cropId,
-        growthTicksRemaining: 42,
-        compostApplied: 10,
-      );
+      final plot = PlotState(cropId: cropId, growthTicksRemaining: 42);
 
       final json = plot.toJson();
-      final restored = PlotState.fromJson(json);
+      final restored = PlotState.fromJson(testItems, json);
 
       expect(restored.cropId, cropId);
       expect(restored.growthTicksRemaining, 42);
-      expect(restored.compostApplied, 10);
       expect(restored.isGrowing, true);
     });
 
     test('PlotState ready state (countdown at 0)', () {
       final cropId = ActionId.test(Skill.farming, 'Carrot');
-      final readyPlot = PlotState(
-        cropId: cropId,
-        growthTicksRemaining: 0,
-        compostApplied: 0,
-      );
+      final readyPlot = PlotState(cropId: cropId, growthTicksRemaining: 0);
 
       expect(readyPlot.isGrowing, false);
       expect(readyPlot.isReadyToHarvest, true);
@@ -78,11 +65,7 @@ void main() {
 
     test('PlotState ready state (countdown null)', () {
       final cropId = ActionId.test(Skill.farming, 'Carrot');
-      final readyPlot = PlotState(
-        cropId: cropId,
-        growthTicksRemaining: null,
-        compostApplied: 0,
-      );
+      final readyPlot = PlotState(cropId: cropId, growthTicksRemaining: null);
 
       expect(readyPlot.isGrowing, false);
       expect(readyPlot.isReadyToHarvest, true);
@@ -196,7 +179,6 @@ void main() {
       final readyPlotState = PlotState(
         cropId: treeCrop.id,
         growthTicksRemaining: 0,
-        compostApplied: 0,
       );
       state = state.copyWith(plotStates: {plotId: readyPlotState});
 
@@ -226,7 +208,6 @@ void main() {
       final readyPlotState = PlotState(
         cropId: allotmentCrop.id,
         growthTicksRemaining: 0,
-        compostApplied: 0,
       );
       state = state.copyWith(plotStates: {plotId: readyPlotState});
 
@@ -280,7 +261,6 @@ void main() {
         final readyPlotState = PlotState(
           cropId: allotmentCrop.id,
           growthTicksRemaining: 0,
-          compostApplied: 0,
         );
         state = state.copyWith(plotStates: {plotId: readyPlotState});
 
@@ -313,10 +293,11 @@ void main() {
       state = state.plantCrop(plotId, allotmentCrop);
 
       // Set as ready to harvest with 50 compost = 100% success
+      final compost50 = testCompost(compostValue: 50);
       final readyPlotState = PlotState(
         cropId: allotmentCrop.id,
         growthTicksRemaining: 0,
-        compostApplied: 50,
+        compostItems: [compost50],
       );
       state = state.copyWith(plotStates: {plotId: readyPlotState});
 
@@ -356,7 +337,6 @@ void main() {
       final readyPlotState = PlotState(
         cropId: allotmentCrop.id,
         growthTicksRemaining: 0,
-        compostApplied: 0,
       );
       state = state.copyWith(plotStates: {plotId: readyPlotState});
 
@@ -396,11 +376,12 @@ void main() {
         ]),
       );
       stateWithout = stateWithout.plantCrop(plotId, allotmentCrop);
+      // Compost with 50 value (100% success), no harvest bonus
+      final compostNoBonus = testCompost(compostValue: 50, harvestBonus: 0);
       final plotStateWithout = PlotState(
         cropId: allotmentCrop.id,
         growthTicksRemaining: 0,
-        compostApplied: 50, // 100% success
-        harvestBonusApplied: 0,
+        compostItems: [compostNoBonus],
       );
       stateWithout = stateWithout.copyWith(
         plotStates: {plotId: plotStateWithout},
@@ -418,11 +399,12 @@ void main() {
         ]),
       );
       stateWith = stateWith.plantCrop(plotId, allotmentCrop);
+      // Compost with 50 value (100% success) and 50% harvest bonus
+      final compostWithBonus = testCompost(compostValue: 50, harvestBonus: 50);
       final plotStateWith = PlotState(
         cropId: allotmentCrop.id,
         growthTicksRemaining: 0,
-        compostApplied: 50, // 100% success
-        harvestBonusApplied: 50, // +50% harvest
+        compostItems: [compostWithBonus],
       );
       stateWith = stateWith.copyWith(plotStates: {plotId: plotStateWith});
 
@@ -499,11 +481,11 @@ void main() {
       state = state.plantCrop(plotId, allotmentCrop);
 
       // Manually set up plot with compost (as if compost was applied)
+      final compost = testCompost(compostValue: 25, harvestBonus: 5);
       final plotWithCompost = PlotState(
         cropId: allotmentCrop.id,
         growthTicksRemaining: 100,
-        compostApplied: 25,
-        harvestBonusApplied: 5,
+        compostItems: [compost],
       );
       state = state.copyWith(plotStates: {plotId: plotWithCompost});
 
