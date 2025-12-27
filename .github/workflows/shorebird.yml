@@ -1,0 +1,26 @@
+name: Shorebird
+
+on:
+  push:
+    branches:
+      - stable
+
+env:
+  SHOREBIRD_TOKEN: ${{ secrets.SHOREBIRD_TOKEN }}
+
+jobs:
+  patch:
+    name: Patch iOS Release
+    runs-on: macos-latest
+    defaults:
+      run:
+        working-directory: ui
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Shorebird
+        uses: shorebirdtech/setup-shorebird@v1
+
+      - name: Patch iOS
+        run: shorebird patch ios
