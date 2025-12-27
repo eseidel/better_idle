@@ -24,7 +24,8 @@ enum BankSortInsertType {
 class BankSortEntry {
   const BankSortEntry({
     required this.insertAt,
-    required this.ids, this.afterId,
+    required this.ids,
+    this.afterId,
   });
 
   factory BankSortEntry.fromJson(

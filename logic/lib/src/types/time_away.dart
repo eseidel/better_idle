@@ -148,6 +148,7 @@ class TimeAway {
     if (json == null) return null;
     return TimeAway.fromJson(registries, json as Map<String, dynamic>);
   }
+
   final DateTime startTime;
   final DateTime endTime;
   final Skill? activeSkill;
