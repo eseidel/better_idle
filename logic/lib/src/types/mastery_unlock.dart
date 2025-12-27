@@ -7,7 +7,6 @@
 // Unlike masteryLevelBonuses (which contain actual modifier data for game
 // mechanics), masteryLevelUnlocks are purely for UI display purposes.
 
-import 'package:equatable/equatable.dart';
 import 'package:logic/src/data/melvor_id.dart';
 import 'package:meta/meta.dart';
 
@@ -16,7 +15,7 @@ import 'package:meta/meta.dart';
 /// Represents a description of what bonus is unlocked at a certain mastery
 /// level. This is display-only data.
 @immutable
-class MasteryLevelUnlock extends Equatable {
+class MasteryLevelUnlock {
   const MasteryLevelUnlock({required this.level, required this.description});
 
   factory MasteryLevelUnlock.fromJson(Map<String, dynamic> json) {
@@ -31,14 +30,11 @@ class MasteryLevelUnlock extends Equatable {
 
   /// Human-readable description of the bonus.
   final String description;
-
-  @override
-  List<Object?> get props => [level, description];
 }
 
 /// Collection of mastery level unlocks for a single skill.
 @immutable
-class SkillMasteryUnlocks extends Equatable {
+class SkillMasteryUnlocks {
   const SkillMasteryUnlocks({required this.skillId, required this.unlocks});
 
   /// The skill these unlocks belong to.
@@ -46,9 +42,6 @@ class SkillMasteryUnlocks extends Equatable {
 
   /// All mastery level unlocks for this skill, sorted by level.
   final List<MasteryLevelUnlock> unlocks;
-
-  @override
-  List<Object?> get props => [skillId, unlocks];
 }
 
 /// Registry for looking up mastery unlocks by skill.
@@ -63,9 +56,6 @@ class MasteryUnlockRegistry {
 
   /// All skills with mastery unlocks.
   Iterable<MelvorId> get skillIds => _bySkillId.keys;
-
-  /// Total number of skills with mastery unlocks.
-  int get length => _bySkillId.length;
 }
 
 /// Parses masteryLevelUnlocks from a skill's data entry.
