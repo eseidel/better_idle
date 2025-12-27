@@ -470,4 +470,85 @@ void main() {
       expect(plotState.harvestBonusApplied, 10);
     });
   });
+
+  group('Clear plot', () {
+    late FarmingCrop allotmentCrop;
+    late MelvorId plotId;
+
+    setUpAll(() {
+      final allotmentCategory = testRegistries.farmingCategories.all.firstWhere(
+        (c) => c.name == 'Allotments',
+      );
+      allotmentCrop = testRegistries.farmingCrops
+          .forCategory(allotmentCategory.id)
+          .firstWhere((c) => c.level == 1);
+      plotId = testRegistries.farmingPlots.initialPlots().first;
+    });
+
+    test('clearPlot clears both seeds and compost', () {
+      final seed = testRegistries.items.byId(allotmentCrop.seedId);
+      var state = GlobalState.empty(testRegistries);
+
+      state = state.copyWith(
+        inventory: Inventory.fromItems(testItems, [
+          ItemStack(seed, count: allotmentCrop.seedCost),
+        ]),
+      );
+
+      // Plant the crop
+      state = state.plantCrop(plotId, allotmentCrop);
+
+      // Manually set up plot with compost (as if compost was applied)
+      final plotWithCompost = PlotState(
+        cropId: allotmentCrop.id,
+        growthTicksRemaining: 100,
+        compostApplied: 25,
+        harvestBonusApplied: 5,
+      );
+      state = state.copyWith(plotStates: {plotId: plotWithCompost});
+
+      // Verify the plot has both the crop and the compost
+      expect(state.plotStates[plotId]!.cropId, allotmentCrop.id);
+      expect(state.plotStates[plotId]!.compostApplied, 25);
+      expect(state.plotStates[plotId]!.harvestBonusApplied, 5);
+      expect(state.plotStates[plotId]!.isGrowing, isTrue);
+
+      // Clear the plot
+      state = state.clearPlot(plotId);
+
+      // Verify the plot is completely cleared (no entry in plotStates)
+      expect(state.plotStates[plotId], isNull);
+    });
+
+    test('clearPlot clears plot with only compost applied', () {
+      var state = GlobalState.empty(testRegistries);
+
+      // Create a compost item
+      final compost = Item.test(
+        'Test Compost',
+        gp: 100,
+        compostValue: 30,
+        harvestBonus: 10,
+      );
+
+      state = state.copyWith(
+        inventory: Inventory.fromItems(testItems, [
+          ItemStack(compost, count: 1),
+        ]),
+      );
+
+      // Apply compost to empty plot (no seed planted)
+      state = state.applyCompost(plotId, compost);
+
+      // Verify compost was applied
+      expect(state.plotStates[plotId]!.compostApplied, 30);
+      expect(state.plotStates[plotId]!.isEmpty, isTrue); // No crop planted
+
+      // Clear the plot
+      state = state.clearPlot(plotId);
+
+      // Verify the plot is completely cleared
+      expect(state.plotStates[plotId], isNull);
+    });
+  });
 }
