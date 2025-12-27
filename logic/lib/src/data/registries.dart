@@ -34,6 +34,7 @@ class Registries {
 
   static Registries test({
     List<Item> items = const [],
+    List<Action> actions = const [],
     ShopRegistry? shop,
     MasteryBonusRegistry? masteryBonuses,
     MasteryUnlockRegistry? masteryUnlocks,
@@ -41,7 +42,7 @@ class Registries {
   }) {
     return Registries(
       ItemRegistry(items),
-      ActionRegistry([]),
+      ActionRegistry(actions),
       DropsRegistry({}),
       FishingAreaRegistry([]),
       SmithingCategoryRegistry([]),

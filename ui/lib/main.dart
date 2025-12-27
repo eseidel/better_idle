@@ -196,24 +196,22 @@ class _AppLifecycleManagerState extends State<_AppLifecycleManager>
   @override
   void didChangeAppLifecycleState(AppLifecycleState lifecycle) {
     switch (lifecycle) {
+      case AppLifecycleState.hidden:
       case AppLifecycleState.paused:
       case AppLifecycleState.detached:
-        // Pause game loop
-        widget.gameLoop.pause();
+        // Suspend game loop - must handle hidden for iOS which sends
+        // inactive → hidden → paused when backgrounding.
+        // suspend() prevents auto-restart from state change listeners.
+        widget.gameLoop.suspend();
         widget.store.dispatch(
           ProcessLifecycleChangeAction(LifecycleChange.pause),
         );
       case AppLifecycleState.resumed:
         // Calculate time away and process it
         widget.store.dispatch(ResumeFromPauseAction());
-        // Resume game loop if activity is active
-        Future.microtask(() {
-          final state = widget.store.state;
-          if (state.isActive) {
-            widget.gameLoop.start();
-          }
-          _checkAndShowDialog();
-        });
+        // Resume game loop from suspension - this re-enables auto-start
+        widget.gameLoop.resume();
+        Future.microtask(_checkAndShowDialog);
         widget.store.dispatch(
           ProcessLifecycleChangeAction(LifecycleChange.resume),
         );
@@ -222,8 +220,6 @@ class _AppLifecycleManagerState extends State<_AppLifecycleManager>
         widget.store.dispatch(
           ProcessLifecycleChangeAction(LifecycleChange.resume),
         );
-      case AppLifecycleState.hidden:
-      // ignored for now.
     }
   }
 
