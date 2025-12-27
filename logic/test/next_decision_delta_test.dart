@@ -157,7 +157,7 @@ void main() {
 
       final result = nextDecisionDelta(state, goal, candidates);
 
-      // Should return time until first upgrade (Iron Axe 50GP) becomes affordable
+      // Should return time until first upgrade becomes affordable
       expect(result.deltaTicks, greaterThan(0));
       expect(result.deltaTicks, lessThan(infTicks));
     });

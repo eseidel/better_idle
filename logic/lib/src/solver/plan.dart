@@ -458,15 +458,13 @@ class Plan {
 
   /// Pretty-prints the plan for debugging.
   String prettyPrint({int maxSteps = 30, ActionRegistry? actions}) {
-    final buffer = StringBuffer();
-    buffer.writeln('=== Plan ===');
-    buffer.writeln(
-      'Total ticks: $totalTicks (${_formatDuration(totalDuration)})',
-    );
-    buffer.writeln('Interactions: $interactionCount');
-    buffer.writeln('Expanded nodes: $expandedNodes');
-    buffer.writeln('Enqueued nodes: $enqueuedNodes');
-    buffer.writeln('Steps (${steps.length} total):');
+    final buffer = StringBuffer()
+      ..writeln('=== Plan ===')
+      ..writeln('Total ticks: $totalTicks (${_formatDuration(totalDuration)})')
+      ..writeln('Interactions: $interactionCount')
+      ..writeln('Expanded nodes: $expandedNodes')
+      ..writeln('Enqueued nodes: $enqueuedNodes')
+      ..writeln('Steps (${steps.length} total):');
 
     final stepsToShow = steps.take(maxSteps).toList();
     for (var i = 0; i < stepsToShow.length; i++) {
@@ -557,7 +555,7 @@ class SolverFailed extends SolverResult {
   final dynamic profile;
 }
 
-/// Result of executing a plan via [executePlan].
+/// Result of executing a plan via [executePlan()].
 @immutable
 class PlanExecutionResult {
   const PlanExecutionResult({

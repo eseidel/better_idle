@@ -62,8 +62,6 @@ void main() {
 
   group('ActionRegistry', () {
     test('combatWithId returns CombatAction for valid monster ID', () {
-      // Use the combat() helper to get a known monster, then verify combatWithId
-      // can find it by MelvorId.
       final chicken = testActions.combat('Chicken');
       final monsterId = chicken.id.localId;
 

@@ -151,9 +151,10 @@ class MelvorData {
     _agilityCourses = agilityCourses;
     _agilityPillars = agilityPillars;
 
-    actions.addAll(parseSummoning(skillDataById['melvorD:Summoning']));
-    actions.addAll(parseAstrology(skillDataById['melvorD:Astrology']));
-    actions.addAll(parseAltMagic(skillDataById['melvorD:Magic']));
+    actions
+      ..addAll(parseSummoning(skillDataById['melvorD:Summoning']))
+      ..addAll(parseAstrology(skillDataById['melvorD:Astrology']))
+      ..addAll(parseAltMagic(skillDataById['melvorD:Magic']));
 
     _actions = ActionRegistry(actions);
     _combatAreas = CombatAreaRegistry(combatAreas);
@@ -750,17 +751,12 @@ ShopRegistry parseShop(List<Map<String, dynamic>> dataFiles) {
     // Parse shop purchases
     final purchasesJson = data['shopPurchases'] as List<dynamic>? ?? [];
     for (final purchaseJson in purchasesJson) {
-      try {
-        purchases.add(
-          ShopPurchase.fromJson(
-            purchaseJson as Map<String, dynamic>,
-            namespace: namespace,
-          ),
-        );
-      } on ArgumentError {
-        // Skip purchases with unknown currencies or skills
-        continue;
-      }
+      purchases.add(
+        ShopPurchase.fromJson(
+          purchaseJson as Map<String, dynamic>,
+          namespace: namespace,
+        ),
+      );
     }
 
     // Parse shop categories
@@ -831,7 +827,7 @@ MasteryUnlockRegistry parseMasteryUnlocks(
   return MasteryUnlockRegistry(skillUnlocks);
 }
 
-/// Parses all agility data. Returns (obstacles, coursesRegistry, pillarsRegistry).
+/// Parses all agility data (obstacles, courses, pillars).
 (List<AgilityObstacle>, AgilityCourseRegistry, AgilityPillarRegistry)
 parseAgility(List<SkillDataEntry>? entries) {
   if (entries == null) {

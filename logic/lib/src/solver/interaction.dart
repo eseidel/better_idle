@@ -3,7 +3,7 @@
 /// ## Taxonomy
 ///
 /// - [SwitchActivity]: Change which action is running (switch/restart)
-/// - [BuyUpgrade]: Purchase a shop upgrade (buy)
+/// - [BuyShopItem]: Purchase a shop item/upgrade (buy)
 /// - [SellAll]: Sell all inventory items (sell)
 ///
 /// ## Design Notes

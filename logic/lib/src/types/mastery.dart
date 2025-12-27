@@ -13,7 +13,8 @@
 //
 // For example, Fishing's mastery bonus:
 // ```json
-// { "fishingMasteryDoublingChance": [{ "actionID": "melvorD:Raw_Shrimp", "value": 0.4 }] }
+// { "fishingMasteryDoublingChance":
+//   [{ "actionID": "melvorD:Raw_Shrimp", "value": 0.4 }] }
 // ```
 // The "Raw_Shrimp" is just an example - at runtime this applies to whatever
 // fish you're catching.

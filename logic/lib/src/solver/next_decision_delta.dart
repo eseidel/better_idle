@@ -156,7 +156,8 @@ NextDecisionResult nextDecisionDelta(
 
   // Note: Death is NOT a decision point - it's handled automatically during
   // plan execution by restarting the activity. The planner still accounts for
-  // death in expected-value calculations via ticksUntilDeath in _advanceExpected.
+  // death in expected-value calculations via ticksUntilDeath in
+  // [_advanceExpected].
 
   // E) Time until inputs depleted (for consuming actions)
   final deltaInputsDepleted = _deltaUntilInputsDepleted(state, rates);
@@ -191,7 +192,7 @@ NextDecisionResult nextDecisionDelta(
     deltas.add(deltaSkillLevel);
   }
 
-  // G) Time until next mastery level (rates may change, especially for thieving)
+  // G) Time until next mastery level (rates may change, especially thieving)
   final deltaMasteryLevel = _deltaUntilNextMasteryLevel(state, rates);
   if (deltaMasteryLevel != null) {
     deltas.add(deltaMasteryLevel);

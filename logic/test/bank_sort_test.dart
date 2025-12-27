@@ -166,7 +166,7 @@ void main() {
       expect(result, [
         const MelvorId('melvorD:A'),
         const MelvorId('melvorF:X'),
-        const MelvorId('melvorF:Y'), // Inserted after X (which was inserted after A)
+        const MelvorId('melvorF:Y'), // Inserted after X (inserted after A)
         const MelvorId('melvorD:B'),
       ]);
     });

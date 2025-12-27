@@ -15,7 +15,6 @@ class ItemStack {
 }
 
 class Inventory {
-
   Inventory.fromJson(ItemRegistry items, Map<String, dynamic> json)
     : _items = items,
       _counts = {},
@@ -137,8 +136,8 @@ class Inventory {
 
   /// Returns a new inventory with items sorted by their registry order.
   Inventory sorted([int Function(Item, Item)? compare]) {
-    final orderedItems = List<Item>.from(_orderedItems);
-    orderedItems.sort(compare ?? _itemRegistryOrder);
+    final orderedItems = List<Item>.from(_orderedItems)
+      ..sort(compare ?? _itemRegistryOrder);
     return Inventory._(
       items: _items,
       counts: Map<Item, int>.from(_counts),

@@ -466,10 +466,12 @@ class GlobalState {
   /// Whether the player is currently stunned.
   bool get isStunned => stunned.isStunned;
 
-  /// Whether the player can perform actions (true if not stunned and combat isn't paused).
+  /// Whether the player can perform actions
+  /// (true if not stunned and combat isn't paused).
   bool get isPlayerActive => !isStunned && !isCombatPaused;
 
-  /// Whether the current monster can perform actions (true if combat isn't paused).
+  /// Whether the current monster can perform actions
+  /// (true if combat isn't paused).
   bool get isMonsterActive => !isCombatPaused;
 
   /// Whether combat is currently paused (e.g., waiting for monster respawn).
@@ -1137,8 +1139,8 @@ class GlobalState {
 
     // If failed, just clear the plot and return (no harvest, no XP)
     if (!succeeded) {
-      final newPlotStates = Map<MelvorId, PlotState>.from(plotStates);
-      newPlotStates.remove(plotId);
+      final newPlotStates = Map<MelvorId, PlotState>.from(plotStates)
+        ..remove(plotId);
       return copyWith(plotStates: newPlotStates);
     }
 
@@ -1191,17 +1193,13 @@ class GlobalState {
     final masteryXpAmount = crop.baseXP ~/ category.masteryXPDivider;
     newState = newState.addActionMasteryXp(cropId, masteryXpAmount);
 
-    // Clear plot state
-    final newPlotStates = Map<MelvorId, PlotState>.from(plotStates);
-    newPlotStates.remove(plotId);
-
-    return newState.copyWith(plotStates: newPlotStates);
+    return newState.clearPlot(plotId);
   }
 
   /// Clears a farming plot, destroying any growing crop and compost.
   GlobalState clearPlot(MelvorId plotId) {
-    final newPlotStates = Map<MelvorId, PlotState>.from(plotStates);
-    newPlotStates.remove(plotId);
+    final newPlotStates = Map<MelvorId, PlotState>.from(plotStates)
+      ..remove(plotId);
     return copyWith(plotStates: newPlotStates);
   }
 

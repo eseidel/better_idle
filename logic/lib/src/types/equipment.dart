@@ -236,8 +236,7 @@ class Equipment {
     final item = gearSlots[slot];
     if (item == null) return null;
 
-    final newGearSlots = Map<EquipmentSlot, Item>.from(gearSlots);
-    newGearSlots.remove(slot);
+    final newGearSlots = Map<EquipmentSlot, Item>.from(gearSlots)..remove(slot);
 
     return (item, copyWith(gearSlots: newGearSlots));
   }
@@ -263,9 +262,8 @@ class Equipment {
       return DeathPenaltyResult(equipment: this, slotRolled: slot);
     }
 
-    // Remove the item from equipment (it's lost forever, not returned to inventory)
-    final newGearSlots = Map<EquipmentSlot, Item>.from(gearSlots);
-    newGearSlots.remove(slot);
+    // Remove the item from equipment (it's lost forever)
+    final newGearSlots = Map<EquipmentSlot, Item>.from(gearSlots)..remove(slot);
 
     // For now, count is always 1 since gear slots hold single items
     // (ammo/summons would need stack tracking if we implement that)

@@ -163,7 +163,10 @@ void main() {
     test('golbinDropTable total rate is approximately 75%', () {
       // Use the DropChance's expectedItems which includes the rate
       final expected = golbinDropChance.expectedItems;
-      final totalRate = expected.values.fold(0, (sum, rate) => sum + rate);
+      final totalRate = expected.values.fold<double>(
+        0,
+        (sum, rate) => sum + rate,
+      );
       // Total should be approximately 75%
       expect(totalRate, closeTo(0.75, 0.01));
     });
@@ -251,27 +254,21 @@ void main() {
       expect(manAction.rollGold(maxRng), manAction.maxGold);
     });
 
-    test(
-      'rollSuccess fails at level 1, mastery 1 vs perception 110 with high roll',
-      () {
-        // Stealth = 40 + 1 (level) + 1 (mastery) = 42
-        // Success chance = (100 + 42) / (100 + 110) = 142/210 = ~67.6%
-        // Roll of 0.70 (70%) should fail
-        final rng = MockRandom(nextDoubleValue: 0.70);
-        expect(manAction.rollSuccess(rng, 1, 1), isFalse);
-      },
-    );
+    test('rollSuccess fails at level 1, mastery 1 vs perception 110', () {
+      // Stealth = 40 + 1 (level) + 1 (mastery) = 42
+      // Success chance = (100 + 42) / (100 + 110) = 142/210 = ~67.6%
+      // Roll of 0.70 (70%) should fail
+      final rng = MockRandom(nextDoubleValue: 0.70);
+      expect(manAction.rollSuccess(rng, 1, 1), isFalse);
+    });
 
-    test(
-      'rollSuccess succeeds at level 1, mastery 1 vs perception 110 with low roll',
-      () {
-        // Stealth = 40 + 1 (level) + 1 (mastery) = 42
-        // Success chance = (100 + 42) / (100 + 110) = 142/210 = ~67.6%
-        // Roll of 0.60 (60%) should succeed
-        final rng = MockRandom(nextDoubleValue: 0.60);
-        expect(manAction.rollSuccess(rng, 1, 1), isTrue);
-      },
-    );
+    test('rollSuccess succeeds at level 1, mastery 1 vs perception 110', () {
+      // Stealth = 40 + 1 (level) + 1 (mastery) = 42
+      // Success chance = (100 + 42) / (100 + 110) = 142/210 = ~67.6%
+      // Roll of 0.60 (60%) should succeed
+      final rng = MockRandom(nextDoubleValue: 0.60);
+      expect(manAction.rollSuccess(rng, 1, 1), isTrue);
+    });
   });
 
   group('Thieving success', () {

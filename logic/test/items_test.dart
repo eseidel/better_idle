@@ -29,24 +29,9 @@ void main() {
 
   group('DropTableEntry', () {
     test('equality compares all fields', () {
-      final entry1 = DropTableEntry.test(
-        'Normal Logs',
-        gp: 10,
-        max: 5,
-        weight: 10,
-      );
-      final entry2 = DropTableEntry.test(
-        'Normal Logs',
-        gp: 10,
-        max: 5,
-        weight: 10,
-      );
-      final different = DropTableEntry.test(
-        'Oak Logs',
-        gp: 10,
-        max: 5,
-        weight: 10,
-      );
+      final entry1 = DropTableEntry.test('Normal Logs', max: 5, weight: 10);
+      final entry2 = DropTableEntry.test('Normal Logs', max: 5, weight: 10);
+      final different = DropTableEntry.test('Oak Logs', max: 5, weight: 10);
 
       expect(entry1, equals(entry2));
       expect(entry1, isNot(equals(different)));
@@ -63,12 +48,7 @@ void main() {
     });
 
     test('expectedCount returns average of min and max', () {
-      final entry = DropTableEntry.test(
-        'Test',
-        gp: 10,
-        min: 2,
-        max: 10,
-      );
+      final entry = DropTableEntry.test('Test', min: 2, max: 10);
 
       expect(entry.expectedCount, 6.0);
     });

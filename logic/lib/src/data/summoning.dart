@@ -19,7 +19,10 @@ class SummoningAction extends SkillAction {
     required super.xp,
     required super.inputs,
     required super.outputs,
-    required this.productId, required this.tier, required this.markMedia, super.alternativeRecipes,
+    required this.productId,
+    required this.tier,
+    required this.markMedia,
+    super.alternativeRecipes,
   }) : super(skill: Skill.summoning, duration: _summoningDuration);
 
   factory SummoningAction.fromJson(
@@ -68,7 +71,7 @@ class SummoningAction extends SkillAction {
       defaultNamespace: namespace,
     );
 
-    // For display, use shards as base inputs (first alternative is the default).
+    // For display, use shards as base inputs (first alternative is default).
     final baseInputs =
         alternativeRecipes != null && alternativeRecipes.isNotEmpty
         ? alternativeRecipes.first.inputs

@@ -12,6 +12,7 @@
 ///
 /// ## Upgrade Note
 ///
+/// @docImport 'package:logic/src/solver/enumerate_candidates.dart';
 /// Buying an upgrade does NOT imply it will be used. The solver prevents
 /// irrelevant buys via candidate filtering in [enumerateCandidates].
 library;

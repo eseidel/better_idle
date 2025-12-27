@@ -125,7 +125,7 @@ void main() {
     });
 
     test('Multiple compost applications up to max 50', () {
-      // Max compost is 50 because: 50% base success + 50% compost = 100% success
+      // Max compost is 50 because: 50% base success + 50% compost = 100%
       final normalCompost = Item.test('Compost', gp: 10, compostValue: 10);
       final strongCompost = Item.test('Weird Gloop', gp: 50, compostValue: 50);
       final state = createTestState([normalCompost, strongCompost]);

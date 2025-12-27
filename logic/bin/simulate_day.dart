@@ -7,6 +7,7 @@
 
 import 'dart:math';
 
+import 'package:collection/collection.dart';
 import 'package:logic/logic.dart';
 
 /// Prints TimeAway information to the console in a readable format.
@@ -143,7 +144,8 @@ void printFinalState(GlobalState state) {
     if (skillState.xp > 0) {
       final level = skillState.skillLevel;
       print(
-        '  ${skill.name}: Level $level (${approximateCountString(skillState.xp)} XP)',
+        '  ${skill.name}: Level $level '
+        '(${approximateCountString(skillState.xp)} XP)',
       );
     }
   }
@@ -170,8 +172,8 @@ void printFinalState(GlobalState state) {
 
 // It's not valid to look up an action by name, since there are duplicates
 // e.g. Golbin thieving and combat.  But this is good enough for this script.
-Action actionByName(ActionRegistry actions, String name) {
-  return actions.all.firstWhere((a) => a.name == name);
+Action? actionByName(ActionRegistry actions, String name) {
+  return actions.all.firstWhereOrNull((a) => a.name == name);
 }
 
 void main(List<String> args) async {
@@ -181,10 +183,8 @@ void main(List<String> args) async {
   final registries = await loadRegistries();
 
   // Look up the action
-  final Action action;
-  try {
-    action = actionByName(registries.actions, actionName);
-  } catch (e) {
+  final action = actionByName(registries.actions, actionName);
+  if (action == null) {
     print('Error: Unknown action "$actionName"');
     print('');
     print('Available actions by skill:');

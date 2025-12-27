@@ -639,7 +639,7 @@ bool completeAction(
     builder.removeInventory(ItemStack(item, count: requirement.value));
   }
 
-  // Roll drops with doubling applied (using selected recipe for output multiplier)
+  // Roll drops with doubling applied (using recipe for output multiplier)
   final modifiers = builder.state.resolveModifiers(action);
   var canRepeatAction = rollAndCollectDrops(
     builder,
@@ -727,6 +727,9 @@ enum ForegroundResult {
   if (currentAction.remainingTicks == 0) {
     builder.restartCurrentAction(action, random: rng);
     currentAction = builder.state.activeAction;
+  }
+  if (currentAction == null) {
+    throw StateError('Active action is null');
   }
 
   // For mining, handle respawn waiting (blocking foreground behavior)
@@ -1072,7 +1075,7 @@ void consumeTicks(
 /// runs until [stopCondition] returns true. It checks the condition after each
 /// action iteration (typically after each action completes).
 ///
-/// [maxTicks] provides a safety limit to prevent infinite loops (default: 10 hours).
+/// [maxTicks] provides a safety limit to prevent infinite loops.
 ///
 /// Example:
 /// ```dart
@@ -1126,7 +1129,7 @@ void consumeTicksUntil(
       ? durationFromTicks(builder.stoppedAtTick!)
       : null;
   // Compute doubling chance and recipe selection for predictions
-  var doublingChance = 0;
+  var doublingChance = 0.0;
   RecipeSelection recipeSelection = const NoSelectedRecipe();
   if (action is SkillAction) {
     final modifiers = state.resolveModifiers(action);

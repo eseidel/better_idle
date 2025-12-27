@@ -98,10 +98,8 @@ void main() {
       treeCategory = testRegistries.farmingCategories.all.firstWhere(
         (c) => c.name == 'Trees',
       );
-      final treeCrops = testRegistries.farmingCrops.forCategory(
-        treeCategory.id,
-      );
-      treeCrops.sort((a, b) => a.level.compareTo(b.level));
+      final treeCrops = testRegistries.farmingCrops.forCategory(treeCategory.id)
+        ..sort((a, b) => a.level.compareTo(b.level));
       treeCrop = treeCrops.first;
 
       // Get an unlocked plot

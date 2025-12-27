@@ -29,7 +29,7 @@ class HealthState {
   /// How much HP the player has lost (0 means full health).
   final int lostHp;
 
-  /// Ticks remaining until next HP regen tick (0 means not actively regenerating).
+  /// Ticks remaining until next HP regen tick (0 means not regenerating).
   final int hpRegenTicksRemaining;
 
   /// Whether the player is at full health.

@@ -100,7 +100,10 @@ void main() {
       final mod = bonus.modifiers.modifiers.first;
       expect(mod.name, 'skillInterval');
       expect(mod.entries.length, 1);
-      expect(mod.entries.first.scope?.skillId, const MelvorId('melvorD:Firemaking'));
+      expect(
+        mod.entries.first.scope?.skillId,
+        const MelvorId('melvorD:Firemaking'),
+      );
       expect(
         mod.entries.first.scope?.actionId,
         const MelvorId('melvorD:Normal_Logs'),
@@ -124,7 +127,10 @@ void main() {
       expect(bonus.autoScopeToAction, true);
       final mod = bonus.modifiers.modifiers.first;
       expect(mod.entries.first.scope?.skillId, isNull);
-      expect(mod.entries.first.scope?.actionId, const MelvorId('melvorD:Raw_Shrimp'));
+      expect(
+        mod.entries.first.scope?.actionId,
+        const MelvorId('melvorD:Raw_Shrimp'),
+      );
     });
   });
 
@@ -138,7 +144,9 @@ void main() {
     });
 
     test('loads bonuses for fishing', () {
-      final fishing = testMasteryBonuses.forSkill(const MelvorId('melvorD:Fishing'));
+      final fishing = testMasteryBonuses.forSkill(
+        const MelvorId('melvorD:Fishing'),
+      );
       expect(fishing, isNotNull);
       expect(fishing!.bonuses, isNotEmpty);
 
@@ -179,7 +187,10 @@ void main() {
         testMasteryBonuses.skillIds,
         contains(const MelvorId('melvorD:Fishing')),
       );
-      expect(testMasteryBonuses.skillIds, contains(const MelvorId('melvorD:Mining')));
+      expect(
+        testMasteryBonuses.skillIds,
+        contains(const MelvorId('melvorD:Mining')),
+      );
       expect(
         testMasteryBonuses.skillIds,
         contains(const MelvorId('melvorD:Cooking')),
@@ -189,7 +200,9 @@ void main() {
 
   group('SkillMasteryBonuses', () {
     test('contains expected bonus structure for mining', () {
-      final mining = testMasteryBonuses.forSkill(const MelvorId('melvorD:Mining'));
+      final mining = testMasteryBonuses.forSkill(
+        const MelvorId('melvorD:Mining'),
+      );
       expect(mining, isNotNull);
 
       // Mining has scaling bonuses for node HP and doubling chance

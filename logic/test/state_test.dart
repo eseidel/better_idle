@@ -1452,7 +1452,7 @@ void main() {
       // Harvest (note: 50% success rate, but we check XP regardless)
       state = state.harvestCrop(plotId, random);
 
-      // Verify XP was awarded (either on plant or harvest, depending on category)
+      // Verify XP was awarded (either on plant or harvest, depending)
       final xpAfterHarvest = state.skillState(Skill.farming).xp;
       if (xpOnPlant) {
         // XP given on plant, so should have XP after plant

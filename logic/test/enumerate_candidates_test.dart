@@ -23,7 +23,7 @@ void main() {
   });
 
   group('buildActionSummaries', () {
-    test('returns summaries for all skill actions including consuming ones', () {
+    test('returns summaries for all skill actions including consuming', () {
       final state = GlobalState.empty(testRegistries);
       final summaries = buildActionSummaries(state);
 
@@ -36,7 +36,7 @@ void main() {
       expect(actionNames, contains('Copper'));
       expect(actionNames, contains('Man'));
 
-      // Consuming actions are also included (with hasInputs=true, canStartNow=false)
+      // Consuming actions are included (hasInputs=true, canStartNow=false)
       expect(actionNames, contains('Burn Normal Logs'));
 
       // Verify consuming actions are marked correctly
@@ -151,7 +151,7 @@ void main() {
 
         expect(candidates.switchToActivities, isNotEmpty);
 
-        // Candidates should include both thieving (best gold rate) and producers
+        // Candidates should include thieving (best gold rate) and producers
         // for consuming actions that have positive gold rate from byproducts.
         // The ordering may not be strictly by gold rate because producers for
         // consuming actions are added alongside those actions.
@@ -180,21 +180,6 @@ void main() {
       );
       expect(candidates.switchToActivities.length, lessThanOrEqualTo(3));
     });
-
-    test('upgrade candidates may include skill upgrades', () {
-      // The upgrade filtering logic considers whether upgrades would
-      // improve competitive activities. With the current rate calculation
-      // (which includes byproducts from consuming actions), some upgrades
-      // may be included in buyUpgrades.
-      final state = GlobalState.test(testRegistries, gp: 1000);
-      final candidates = enumerateCandidates(state, _defaultGoal);
-
-      // Upgrades list is computed based on activity competitiveness.
-      // We just verify the list is not null (the actual filtering logic
-      // is tested implicitly through the solver tests).
-      expect(candidates.buyUpgrades, isA<List>());
-    });
-
     test('watch list includes upgrades from buyUpgrades', () {
       // The watch list should include upgrades that are candidates
       // for affordability tracking.

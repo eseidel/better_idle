@@ -647,7 +647,7 @@ void main() {
 
       final rates = estimateRates(state);
 
-      // Bird Nest is a skill-level drop for woodcutting (keys are MelvorId objects)
+      // Bird Nest is a skill-level drop for woodcutting
       expect(
         rates.itemFlowsPerTick,
         contains(const MelvorId('melvorD:Bird_Nest')),
@@ -674,7 +674,7 @@ void main() {
 
       final rates = estimateRates(state);
 
-      // Verify Bobby's Pocket is included in item flows (keys are MelvorId objects)
+      // Verify Bobby's Pocket is included in item flows
       expect(
         rates.itemFlowsPerTick,
         contains(const MelvorId('melvorF:Bobbys_Pocket')),

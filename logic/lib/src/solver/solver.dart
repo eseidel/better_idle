@@ -89,30 +89,27 @@ class SolverProfile {
 
   @override
   String toString() {
-    final buffer = StringBuffer();
-    buffer.writeln('=== Solver Profile ===');
-    buffer.writeln('Expanded nodes: $expandedNodes');
-    buffer.writeln('Nodes/sec: ${nodesPerSecond.toStringAsFixed(1)}');
-    buffer.writeln(
-      'Avg branching factor: ${avgBranchingFactor.toStringAsFixed(2)}',
-    );
-    buffer.writeln(
-      'nextDecisionDelta: min=$minDelta, median=$medianDelta, p95=$p95Delta',
-    );
-    buffer.writeln('Time breakdown:');
-    buffer.writeln(
-      '  advance/consumeTicks: ${advancePercent.toStringAsFixed(1)}%',
-    );
-    buffer.writeln(
-      '  enumerateCandidates: ${enumeratePercent.toStringAsFixed(1)}%',
-    );
-    buffer.writeln(
-      '  hashing (_stateKey): ${hashingPercent.toStringAsFixed(1)}%',
-    );
-    buffer.writeln('Dominance pruning:');
-    buffer.writeln('  dominated skipped: $dominatedSkipped');
-    buffer.writeln('  frontier inserted: $frontierInserted');
-    buffer.writeln('  frontier removed: $frontierRemoved');
+    final buffer = StringBuffer()
+      ..writeln('=== Solver Profile ===')
+      ..writeln()
+      ..writeln('Expanded nodes: $expandedNodes')
+      ..writeln('Nodes/sec: ${nodesPerSecond.toStringAsFixed(1)}')
+      ..writeln(
+        'Avg branching factor: ${avgBranchingFactor.toStringAsFixed(2)}',
+      )
+      ..writeln(
+        'nextDecisionDelta: min=$minDelta, median=$medianDelta, p95=$p95Delta',
+      )
+      ..writeln('Time breakdown:')
+      ..writeln('  advance/consumeTicks: ${advancePercent.toStringAsFixed(1)}%')
+      ..writeln(
+        '  enumerateCandidates: ${enumeratePercent.toStringAsFixed(1)}%',
+      )
+      ..writeln('  hashing (_stateKey): ${hashingPercent.toStringAsFixed(1)}%')
+      ..writeln('Dominance pruning:')
+      ..writeln('  dominated skipped: $dominatedSkipped')
+      ..writeln('  frontier inserted: $frontierInserted')
+      ..writeln('  frontier removed: $frontierRemoved');
     return buffer.toString();
   }
 }
@@ -503,9 +500,10 @@ String _stateKey(GlobalState state) {
   }
 
   // Upgrade levels
-  buffer.write('axe:${state.shop.axeLevel}|');
-  buffer.write('rod:${state.shop.fishingRodLevel}|');
-  buffer.write('pick:${state.shop.pickaxeLevel}|');
+  buffer
+    ..write('axe:${state.shop.axeLevel}|')
+    ..write('rod:${state.shop.fishingRodLevel}|')
+    ..write('pick:${state.shop.pickaxeLevel}|');
 
   // Skill levels (just levels, not full XP for coarser grouping)
   for (final skill in Skill.values) {
@@ -804,7 +802,7 @@ _StepResult _applyStep(
   }
 }
 
-/// Executes a plan and returns the result including death count and actual ticks.
+/// Execute a plan and return the result including death count and actual ticks.
 ///
 /// Uses goal-aware waiting: [WaitStep.waitFor] determines when to stop waiting,
 /// which handles variance between expected-value planning and actual simulation.
@@ -866,7 +864,7 @@ SolverResult solveToCredits(
 /// Solves for an optimal plan to satisfy the given [goal].
 ///
 /// Uses A* algorithm to find the minimum-ticks path from the initial
-/// state to a state where [goal.isSatisfied] returns true.
+/// state to a state where [Goal.isSatisfied] returns true.
 ///
 /// Supports both [ReachGpGoal] (reach target GP) and [ReachSkillLevelGoal]
 /// (reach target skill level).
@@ -976,8 +974,9 @@ SolverResult solve(
 
     // Skip if we've already found a better path to this state
     // BUT: never skip if this node has reached the goal!
-    hashStopwatch.reset();
-    hashStopwatch.start();
+    hashStopwatch
+      ..reset()
+      ..start();
     final nodeKey = _stateKey(node.state);
     profile.hashingTimeUs += hashStopwatch.elapsedMicroseconds;
 
@@ -1042,8 +1041,9 @@ SolverResult solve(
           continue;
         }
 
-        hashStopwatch.reset();
-        hashStopwatch.start();
+        hashStopwatch
+          ..reset()
+          ..start();
         final newKey = _stateKey(newState);
         profile.hashingTimeUs += hashStopwatch.elapsedMicroseconds;
 
@@ -1112,8 +1112,9 @@ SolverResult solve(
         if (reachedGoal) {
           frontier.isDominatedOrInsert(newBucketKey, newTicks, newProgress);
         }
-        hashStopwatch.reset();
-        hashStopwatch.start();
+        hashStopwatch
+          ..reset()
+          ..start();
         final newKey = _stateKey(newState);
         profile.hashingTimeUs += hashStopwatch.elapsedMicroseconds;
 

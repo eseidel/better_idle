@@ -34,7 +34,7 @@ class Registries {
     this._bankSortIndex,
   );
 
-  static Registries test({
+  factory Registries.test({
     List<Item> items = const [],
     List<Action> actions = const [],
     ShopRegistry? shop,

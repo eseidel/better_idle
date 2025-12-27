@@ -120,6 +120,6 @@ class RunecraftingAction extends SkillAction {
   /// Base quantity of items produced per runecrafting action.
   final int baseQuantity;
 
-  /// The category ID (e.g., "melvorF:StandardRunes", "melvorF:CombinationRunes").
+  /// The category ID ("melvorF:StandardRunes", "melvorF:CombinationRunes").
   final MelvorId? categoryId;
 }

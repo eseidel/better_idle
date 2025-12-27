@@ -135,13 +135,19 @@ void main() {
   group('ModifierScope.appliesToSkill', () {
     test('global scope applies to any skill', () {
       const scope = ModifierScope();
-      expect(scope.appliesToSkill(const MelvorId('melvorD:Woodcutting')), isTrue);
+      expect(
+        scope.appliesToSkill(const MelvorId('melvorD:Woodcutting')),
+        isTrue,
+      );
       expect(scope.appliesToSkill(const MelvorId('melvorD:Fishing')), isTrue);
     });
 
     test('matching skillId applies', () {
       const scope = ModifierScope(skillId: MelvorId('melvorD:Woodcutting'));
-      expect(scope.appliesToSkill(const MelvorId('melvorD:Woodcutting')), isTrue);
+      expect(
+        scope.appliesToSkill(const MelvorId('melvorD:Woodcutting')),
+        isTrue,
+      );
     });
 
     test('non-matching skillId does not apply', () {
@@ -151,7 +157,10 @@ void main() {
 
     test('scope with only actionId applies to any skill', () {
       const scope = ModifierScope(actionId: MelvorId('melvorD:Oak'));
-      expect(scope.appliesToSkill(const MelvorId('melvorD:Woodcutting')), isTrue);
+      expect(
+        scope.appliesToSkill(const MelvorId('melvorD:Woodcutting')),
+        isTrue,
+      );
       expect(scope.appliesToSkill(const MelvorId('melvorD:Fishing')), isTrue);
     });
 
@@ -161,8 +170,14 @@ void main() {
         actionId: MelvorId('melvorD:Normal_Logs'),
       );
       // With autoScopeToAction true (default), only applies to Firemaking
-      expect(scope.appliesToSkill(const MelvorId('melvorD:Firemaking')), isTrue);
-      expect(scope.appliesToSkill(const MelvorId('melvorD:Woodcutting')), isFalse);
+      expect(
+        scope.appliesToSkill(const MelvorId('melvorD:Firemaking')),
+        isTrue,
+      );
+      expect(
+        scope.appliesToSkill(const MelvorId('melvorD:Woodcutting')),
+        isFalse,
+      );
 
       // With autoScopeToAction false, applies to all skills
       expect(
@@ -272,7 +287,10 @@ void main() {
 
     test('appliesToSkill with null scope returns true for any skill', () {
       const entry = ModifierEntry(value: 5);
-      expect(entry.appliesToSkill(const MelvorId('melvorD:Woodcutting')), isTrue);
+      expect(
+        entry.appliesToSkill(const MelvorId('melvorD:Woodcutting')),
+        isTrue,
+      );
       expect(entry.appliesToSkill(const MelvorId('melvorD:Fishing')), isTrue);
     });
 
@@ -281,7 +299,10 @@ void main() {
         value: 5,
         scope: ModifierScope(skillId: MelvorId('melvorD:Woodcutting')),
       );
-      expect(entry.appliesToSkill(const MelvorId('melvorD:Woodcutting')), isTrue);
+      expect(
+        entry.appliesToSkill(const MelvorId('melvorD:Woodcutting')),
+        isTrue,
+      );
       expect(entry.appliesToSkill(const MelvorId('melvorD:Fishing')), isFalse);
     });
   });
@@ -402,13 +423,19 @@ void main() {
           ],
         ),
       ]);
-      expect(set.skillIntervalForSkill(const MelvorId('melvorD:Woodcutting')), -5);
+      expect(
+        set.skillIntervalForSkill(const MelvorId('melvorD:Woodcutting')),
+        -5,
+      );
       expect(set.skillIntervalForSkill(const MelvorId('melvorD:Fishing')), -3);
     });
 
     test('skillIntervalForSkill returns 0 when no modifier', () {
       const set = ModifierDataSet([]);
-      expect(set.skillIntervalForSkill(const MelvorId('melvorD:Woodcutting')), 0);
+      expect(
+        set.skillIntervalForSkill(const MelvorId('melvorD:Woodcutting')),
+        0,
+      );
     });
 
     test('hasSkillIntervalFor returns true when skill has modifier', () {
@@ -423,8 +450,14 @@ void main() {
           ],
         ),
       ]);
-      expect(set.hasSkillIntervalFor(const MelvorId('melvorD:Woodcutting')), isTrue);
-      expect(set.hasSkillIntervalFor(const MelvorId('melvorD:Fishing')), isFalse);
+      expect(
+        set.hasSkillIntervalFor(const MelvorId('melvorD:Woodcutting')),
+        isTrue,
+      );
+      expect(
+        set.hasSkillIntervalFor(const MelvorId('melvorD:Fishing')),
+        isFalse,
+      );
     });
 
     test('skillIntervalSkillIds returns all skills with modifiers', () {
