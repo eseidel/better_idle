@@ -484,6 +484,8 @@ class Changes {
     required this.droppedItems,
     required this.skillLevelChanges,
     this.currenciesGained = const {},
+    this.lostOnDeath = const Counts<MelvorId>.empty(),
+    this.deathCount = 0,
   });
   // We don't bother tracking mastery XP changes since they're not displayed
   // in the welcome back dialog.
@@ -495,6 +497,8 @@ class Changes {
         droppedItems: const Counts<MelvorId>.empty(),
         skillLevelChanges: const LevelChanges.empty(),
         currenciesGained: const {},
+        lostOnDeath: const Counts<MelvorId>.empty(),
+        deathCount: 0,
       );
 
   factory Changes.fromJson(Map<String, dynamic> json) {
@@ -512,6 +516,10 @@ class Changes {
         json['skillLevelChanges'] as Map<String, dynamic>? ?? {},
       ),
       currenciesGained: _currenciesFromJson(json),
+      lostOnDeath: Counts<MelvorId>.fromJson(
+        json['lostOnDeath'] as Map<String, dynamic>? ?? {},
+      ),
+      deathCount: json['deathCount'] as int? ?? 0,
     );
   }
 
@@ -529,6 +537,8 @@ class Changes {
   final Counts<MelvorId> droppedItems;
   final LevelChanges skillLevelChanges;
   final Map<Currency, int> currenciesGained;
+  final Counts<MelvorId> lostOnDeath;
+  final int deathCount;
 
   /// Helper to merge two currency maps.
   static Map<Currency, int> _mergeCurrencies(
@@ -552,6 +562,8 @@ class Changes {
         currenciesGained,
         other.currenciesGained,
       ),
+      lostOnDeath: lostOnDeath.add(other.lostOnDeath),
+      deathCount: deathCount + other.deathCount,
     );
   }
 
@@ -560,7 +572,9 @@ class Changes {
       skillXpChanges.isEmpty &&
       droppedItems.isEmpty &&
       skillLevelChanges.isEmpty &&
-      currenciesGained.isEmpty;
+      currenciesGained.isEmpty &&
+      lostOnDeath.isEmpty &&
+      deathCount == 0;
 
   Changes adding(ItemStack stack) {
     return Changes(
@@ -569,6 +583,8 @@ class Changes {
       droppedItems: droppedItems,
       skillLevelChanges: skillLevelChanges,
       currenciesGained: currenciesGained,
+      lostOnDeath: lostOnDeath,
+      deathCount: deathCount,
     );
   }
 
@@ -579,6 +595,8 @@ class Changes {
       droppedItems: droppedItems,
       skillLevelChanges: skillLevelChanges,
       currenciesGained: currenciesGained,
+      lostOnDeath: lostOnDeath,
+      deathCount: deathCount,
     );
   }
 
@@ -589,6 +607,8 @@ class Changes {
       droppedItems: droppedItems.addCount(stack.item.id, stack.count),
       skillLevelChanges: skillLevelChanges,
       currenciesGained: currenciesGained,
+      lostOnDeath: lostOnDeath,
+      deathCount: deathCount,
     );
   }
 
@@ -599,6 +619,8 @@ class Changes {
       droppedItems: droppedItems,
       skillLevelChanges: skillLevelChanges,
       currenciesGained: currenciesGained,
+      lostOnDeath: lostOnDeath,
+      deathCount: deathCount,
     );
   }
 
@@ -612,6 +634,8 @@ class Changes {
         LevelChange(startLevel: startLevel, endLevel: endLevel),
       ),
       currenciesGained: currenciesGained,
+      lostOnDeath: lostOnDeath,
+      deathCount: deathCount,
     );
   }
 
@@ -624,6 +648,34 @@ class Changes {
       droppedItems: droppedItems,
       skillLevelChanges: skillLevelChanges,
       currenciesGained: newCurrencies,
+      lostOnDeath: lostOnDeath,
+      deathCount: deathCount,
+    );
+  }
+
+  /// Tracks an item lost due to death penalty.
+  Changes losingOnDeath(ItemStack stack) {
+    return Changes(
+      inventoryChanges: inventoryChanges,
+      skillXpChanges: skillXpChanges,
+      droppedItems: droppedItems,
+      skillLevelChanges: skillLevelChanges,
+      currenciesGained: currenciesGained,
+      lostOnDeath: lostOnDeath.addCount(stack.item.id, stack.count),
+      deathCount: deathCount,
+    );
+  }
+
+  /// Records a death occurrence (increments death count).
+  Changes recordingDeath() {
+    return Changes(
+      inventoryChanges: inventoryChanges,
+      skillXpChanges: skillXpChanges,
+      droppedItems: droppedItems,
+      skillLevelChanges: skillLevelChanges,
+      currenciesGained: currenciesGained,
+      lostOnDeath: lostOnDeath,
+      deathCount: deathCount + 1,
     );
   }
 
@@ -636,6 +688,8 @@ class Changes {
       'currenciesGained': currenciesGained.map(
         (key, value) => MapEntry(key.id, value),
       ),
+      'lostOnDeath': lostOnDeath.toJson(),
+      'deathCount': deathCount,
     };
   }
 }

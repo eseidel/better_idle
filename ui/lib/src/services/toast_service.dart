@@ -10,12 +10,19 @@ class ToastService {
   final _errorController = StreamController<String>.broadcast();
   Stream<String> get errorStream => _errorController.stream;
 
+  final _deathController = StreamController<Counts<MelvorId>>.broadcast();
+  Stream<Counts<MelvorId>> get deathStream => _deathController.stream;
+
   void showToast(Changes changes) {
     _toastController.add(changes);
   }
 
   void showError(String message) {
     _errorController.add(message);
+  }
+
+  void showDeath(Counts<MelvorId> lostOnDeath) {
+    _deathController.add(lostOnDeath);
   }
 }
 

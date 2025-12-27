@@ -11,6 +11,7 @@ import 'package:logic/src/farming_background.dart';
 import 'package:logic/src/plot_state.dart';
 import 'package:logic/src/state.dart';
 import 'package:logic/src/tick.dart';
+import 'package:logic/src/types/equipment.dart';
 import 'package:logic/src/types/health.dart';
 import 'package:logic/src/types/inventory.dart';
 import 'package:logic/src/types/resolved_modifiers.dart';
@@ -468,6 +469,25 @@ class StateUpdateBuilder {
     _state = _state.copyWith(health: const HealthState.full());
   }
 
+  /// Applies the death penalty: randomly selects an equipment slot and
+  /// removes any item in it. Tracks the lost item and death in changes.
+  /// Returns the result indicating what was lost (if anything).
+  DeathPenaltyResult applyDeathPenalty(Random rng) {
+    final result = _state.equipment.applyDeathPenalty(rng);
+    _state = _state.copyWith(equipment: result.equipment);
+
+    // Record the death occurrence
+    _changes = _changes.recordingDeath();
+
+    // Track the lost item in changes
+    final lost = result.itemLost;
+    if (lost != null) {
+      _changes = _changes.losingOnDeath(lost);
+    }
+
+    return result;
+  }
+
   /// Updates the combat state for an action.
   void updateCombatState(ActionId actionId, CombatActionState newCombat) {
     final actionState = _state.actionState(actionId);
@@ -600,7 +620,9 @@ bool completeThievingAction(
 
     // Check if player died
     if (builder.state.playerHp <= 0) {
-      builder.resetPlayerHealth();
+      builder
+        ..applyDeathPenalty(rng)
+        ..resetPlayerHealth();
       return false;
     }
 
@@ -915,6 +937,7 @@ enum ForegroundResult {
   // Check if player died (lostHp >= maxHp means playerHp <= 0)
   if (builder.state.playerHp <= 0) {
     builder
+      ..applyDeathPenalty(rng)
       ..resetPlayerHealth()
       ..stopAction(ActionStopReason.playerDied);
     return (ForegroundResult.stopped, ticksConsumed);

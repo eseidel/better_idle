@@ -40,6 +40,12 @@ class UpdateActivityProgressAction extends ReduxAction<GlobalState> {
     } else {
       // No timeAway - show toast normally
       toastService.showToast(changes);
+
+      // Show death dialog if player died during this tick
+      if (changes.deathCount > 0) {
+        toastService.showDeath(changes.lostOnDeath);
+      }
+
       return newState;
     }
   }

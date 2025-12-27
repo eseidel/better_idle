@@ -47,7 +47,9 @@ void main(List<String> args) async {
   // Print result
   if (result is SolverSuccess) {
     final compressed = result.plan.compress();
-    print('Plan (compressed ${result.plan.steps.length} -> ${compressed.steps.length} steps):');
+    print(
+      'Plan (compressed ${result.plan.steps.length} -> ${compressed.steps.length} steps):',
+    );
     print(compressed.prettyPrint(actions: registries.actions));
     print('Total ticks: ${compressed.totalTicks}');
     print('Interaction count: ${compressed.interactionCount}');

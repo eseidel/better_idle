@@ -6,6 +6,7 @@ import 'package:better_idle/src/widgets/context_extensions.dart';
 import 'package:better_idle/src/widgets/item_image.dart';
 import 'package:better_idle/src/widgets/skill_image.dart';
 import 'package:better_idle/src/widgets/style.dart';
+import 'package:better_idle/src/widgets/you_died_dialog.dart';
 import 'package:flutter/material.dart';
 import 'package:logic/logic.dart';
 
@@ -28,6 +29,8 @@ class _ToastOverlayState extends State<ToastOverlay>
   Timer? _hideTimer;
   StreamSubscription<Changes>? _toastSubscription;
   StreamSubscription<String>? _errorSubscription;
+  StreamSubscription<Counts<MelvorId>>? _deathSubscription;
+  bool _isDeathDialogShowing = false;
 
   @override
   void initState() {
@@ -40,15 +43,34 @@ class _ToastOverlayState extends State<ToastOverlay>
 
     _toastSubscription = widget.service.toastStream.listen(_showToast);
     _errorSubscription = widget.service.errorStream.listen(_showError);
+    _deathSubscription = widget.service.deathStream.listen(_showDeathDialog);
   }
 
   @override
   void dispose() {
     _toastSubscription?.cancel();
     _errorSubscription?.cancel();
+    _deathSubscription?.cancel();
     _controller.dispose();
     _hideTimer?.cancel();
     super.dispose();
+  }
+
+  void _showDeathDialog(Counts<MelvorId> lostOnDeath) {
+    if (_isDeathDialogShowing) return;
+    _isDeathDialogShowing = true;
+
+    showDialog<void>(
+      context: context,
+      builder: (context) => YouDiedDialog(
+        lostOnDeath: lostOnDeath,
+        registries: this.context.state.registries,
+      ),
+    ).then((_) {
+      if (mounted) {
+        _isDeathDialogShowing = false;
+      }
+    });
   }
 
   void _showToast(Changes data) {

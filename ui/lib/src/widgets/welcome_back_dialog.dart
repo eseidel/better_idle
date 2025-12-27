@@ -134,6 +134,28 @@ class WelcomeBackDialog extends StatelessWidget {
                 return ItemChangeRow(item: item, count: -entry.value);
               }),
             ],
+            if (changes.deathCount > 0) ...[
+              const SizedBox(height: 16),
+              Text(
+                changes.deathCount == 1
+                    ? 'You died!'
+                    : 'You died ${changes.deathCount} times!',
+                style: const TextStyle(
+                  fontWeight: FontWeight.bold,
+                  color: Style.errorColor,
+                ),
+              ),
+              if (changes.lostOnDeath.isEmpty)
+                const Padding(
+                  padding: EdgeInsets.only(left: 16, top: 4),
+                  child: Text('Luck was on your side. You lost nothing.'),
+                )
+              else
+                ...changes.lostOnDeath.entries.map((entry) {
+                  final item = timeAway.registries.items.byId(entry.key);
+                  return ItemChangeRow(item: item, count: -entry.value);
+                }),
+            ],
             // This dialog shouldn't be shown if there are no changes.
             if (changes.isEmpty) ...[const Text('Nothing new happened.')],
           ],

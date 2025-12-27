@@ -1,3 +1,5 @@
+import 'dart:math';
+
 import 'package:logic/src/data/items.dart';
 import 'package:logic/src/data/melvor_id.dart';
 import 'package:logic/src/types/equipment_slot.dart';
@@ -6,6 +8,29 @@ import 'package:meta/meta.dart';
 
 /// Number of food slots available for equipment.
 const int foodSlotCount = 3;
+
+/// Result of applying the death penalty.
+/// Contains the updated equipment and what was lost (if anything).
+@immutable
+class DeathPenaltyResult {
+  const DeathPenaltyResult({
+    required this.equipment,
+    required this.slotRolled,
+    this.itemLost,
+  });
+
+  /// The updated equipment after the death penalty.
+  final Equipment equipment;
+
+  /// The slot that was randomly selected.
+  final EquipmentSlot slotRolled;
+
+  /// The item stack that was lost, or null if the slot was empty.
+  final ItemStack? itemLost;
+
+  /// True if the player was lucky and lost nothing.
+  bool get wasLucky => itemLost == null;
+}
 
 /// Represents the player's equipped items.
 @immutable
@@ -215,6 +240,40 @@ class Equipment {
     newGearSlots.remove(slot);
 
     return (item, copyWith(gearSlots: newGearSlots));
+  }
+
+  /// Applies the death penalty by randomly selecting an equipment slot
+  /// and removing any item in that slot.
+  ///
+  /// Per Melvor Idle rules:
+  /// - A random equipment slot is selected (not food slots)
+  /// - If the slot has an item, it is lost forever
+  /// - If the slot is empty, nothing is lost ("Luck was on your side")
+  /// - For ammo (quiver) or summons, the entire stack is lost
+  DeathPenaltyResult applyDeathPenalty(Random rng) {
+    // Roll a random equipment slot (excluding food slots)
+    final slots = EquipmentSlot.values;
+    final slotIndex = rng.nextInt(slots.length);
+    final slot = slots[slotIndex];
+
+    // Check if there's an item in this slot
+    final item = gearSlots[slot];
+    if (item == null) {
+      // Lucky! Nothing equipped in this slot
+      return DeathPenaltyResult(equipment: this, slotRolled: slot);
+    }
+
+    // Remove the item from equipment (it's lost forever, not returned to inventory)
+    final newGearSlots = Map<EquipmentSlot, Item>.from(gearSlots);
+    newGearSlots.remove(slot);
+
+    // For now, count is always 1 since gear slots hold single items
+    // (ammo/summons would need stack tracking if we implement that)
+    return DeathPenaltyResult(
+      equipment: copyWith(gearSlots: newGearSlots),
+      slotRolled: slot,
+      itemLost: ItemStack(item, count: 1),
+    );
   }
 
   Equipment copyWith({
