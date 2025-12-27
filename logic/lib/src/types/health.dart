@@ -35,9 +35,6 @@ class HealthState {
   /// Whether the player is at full health.
   bool get isFullHealth => lostHp <= 0;
 
-  /// Whether HP regen is active.
-  bool get isRegenerating => hpRegenTicksRemaining > 0;
-
   /// Returns a new HealthState with HP reduced by the given amount.
   /// Starts the regen timer if not already running.
   HealthState takeDamage(int damage) {
@@ -57,17 +54,6 @@ class HealthState {
     // Stop regen timer if fully healed
     final newRegenTicks = newLostHp <= 0 ? 0 : hpRegenTicksRemaining;
     return HealthState(lostHp: newLostHp, hpRegenTicksRemaining: newRegenTicks);
-  }
-
-  /// Resets to full health.
-  HealthState reset() => const HealthState.full();
-
-  HealthState copyWith({int? lostHp, int? hpRegenTicksRemaining}) {
-    return HealthState(
-      lostHp: lostHp ?? this.lostHp,
-      hpRegenTicksRemaining:
-          hpRegenTicksRemaining ?? this.hpRegenTicksRemaining,
-    );
   }
 
   Map<String, dynamic> toJson() {
