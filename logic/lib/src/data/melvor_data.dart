@@ -4,6 +4,7 @@ import 'package:logic/src/types/mastery.dart';
 import 'package:logic/src/types/mastery_unlock.dart';
 
 import 'actions.dart';
+import 'bank_sort.dart';
 import 'cache.dart';
 import 'melvor_id.dart';
 import 'shop.dart';
@@ -45,6 +46,7 @@ class MelvorData {
     final items = <Item>[];
     final skillDataById = <String, List<SkillDataEntry>>{};
     final combatAreas = <CombatArea>[];
+    final bankSortEntries = <BankSortEntry>[];
 
     // Step 1: Collect items and skill data entries (preserving namespace)
     for (final json in dataFiles) {
@@ -73,9 +75,24 @@ class MelvorData {
 
       // Combat areas (not skill-based)
       combatAreas.addAll(parseCombatAreas(json, namespace: namespace));
+
+      // Collect bank sort order entries
+      final sortOrder = data['bankSortOrder'] as List<dynamic>? ?? [];
+      for (final entry in sortOrder) {
+        bankSortEntries.add(
+          BankSortEntry.fromJson(
+            entry as Map<String, dynamic>,
+            namespace: namespace,
+          ),
+        );
+      }
     }
 
     _items = ItemRegistry(items);
+
+    // Compute bank sort order
+    final bankSortOrder = computeBankSortOrder(bankSortEntries);
+    _bankSortIndex = buildBankSortIndex(bankSortOrder);
 
     // Step 2: Parse each skill (null-safe, returns empty on missing)
     final actions = <Action>[];
@@ -167,6 +184,7 @@ class MelvorData {
   late final ItemRegistry _items;
   late final ActionRegistry _actions;
   late final ShopRegistry _shop;
+  late final Map<MelvorId, int> _bankSortIndex;
   late final FishingAreaRegistry _fishingAreas;
   late final SmithingCategoryRegistry _smithingCategories;
   late final FarmingCropRegistry _farmingCrops;
@@ -220,6 +238,28 @@ class MelvorData {
   MasteryBonusRegistry get masteryBonuses => _masteryBonuses;
 
   MasteryUnlockRegistry get masteryUnlocks => _masteryUnlocks;
+
+  /// Returns the bank sort index map for passing to Registries.
+  Map<MelvorId, int> get bankSortIndex => _bankSortIndex;
+
+  /// Returns the sort index for an item, or null if not in sort order.
+  int? bankSortIndexOf(MelvorId id) => _bankSortIndex[id];
+
+  /// Comparator for sorting item IDs according to bank sort order.
+  /// Items in sort order come before items not in sort order.
+  /// Items not in sort order maintain stable relative ordering.
+  int compareBankItems(MelvorId a, MelvorId b) {
+    final indexA = _bankSortIndex[a];
+    final indexB = _bankSortIndex[b];
+
+    // Both not in sort order - maintain original order (return 0)
+    if (indexA == null && indexB == null) return 0;
+    // Items in sort order come before items not in sort order
+    if (indexA == null) return 1;
+    if (indexB == null) return -1;
+
+    return indexA.compareTo(indexB);
+  }
 }
 
 /// Parses all woodcutting data. Returns actions list.

@@ -322,11 +322,13 @@ class OpenItemAction extends ReduxAction<GlobalState> {
   }
 }
 
-/// Sorts the inventory by registry order.
+/// Sorts the inventory by bank sort order.
 class SortInventoryAction extends ReduxAction<GlobalState> {
   @override
   GlobalState reduce() {
-    return state.copyWith(inventory: state.inventory.sorted());
+    return state.copyWith(
+      inventory: state.inventory.sorted(state.registries.compareBankItems),
+    );
   }
 }
 

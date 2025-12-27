@@ -39,7 +39,6 @@ is written in a different language than the mods.
 - Handle global and per-action modifiers (e.g. mastery levels).
 - Complete support for mastery benefits.
 - Fix Firemaking to put log selection behind a pop-up.
-- Add Farming
 - Add Township
 - Fix fishing regions to drop junk/specials.
 - Add more Thieving drops.

@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:logic/src/data/actions.dart';
 import 'package:logic/src/data/cache.dart';
 import 'package:logic/src/data/melvor_data.dart';
+import 'package:logic/src/data/melvor_id.dart';
 import 'package:logic/src/data/shop.dart';
 import 'package:logic/src/types/mastery.dart';
 import 'package:logic/src/types/mastery_unlock.dart';
@@ -28,6 +29,7 @@ class Registries {
     this.shop,
     this.masteryBonuses,
     this.masteryUnlocks,
+    this._bankSortIndex,
   );
 
   static Registries test({
@@ -35,6 +37,7 @@ class Registries {
     ShopRegistry? shop,
     MasteryBonusRegistry? masteryBonuses,
     MasteryUnlockRegistry? masteryUnlocks,
+    Map<MelvorId, int>? bankSortIndex,
   }) {
     return Registries(
       ItemRegistry(items),
@@ -56,6 +59,7 @@ class Registries {
       shop ?? ShopRegistry([], []),
       masteryBonuses ?? MasteryBonusRegistry([]),
       masteryUnlocks ?? MasteryUnlockRegistry([]),
+      bankSortIndex ?? {},
     );
   }
 
@@ -78,6 +82,23 @@ class Registries {
   final ShopRegistry shop;
   final MasteryBonusRegistry masteryBonuses;
   final MasteryUnlockRegistry masteryUnlocks;
+  final Map<MelvorId, int> _bankSortIndex;
+
+  /// Comparator for sorting items according to bank sort order.
+  /// Items in sort order come before items not in sort order.
+  /// Items not in sort order maintain stable relative ordering.
+  int compareBankItems(Item a, Item b) {
+    final indexA = _bankSortIndex[a.id];
+    final indexB = _bankSortIndex[b.id];
+
+    // Both not in sort order - maintain original order (return 0)
+    if (indexA == null && indexB == null) return 0;
+    // Items in sort order come before items not in sort order
+    if (indexA == null) return 1;
+    if (indexB == null) return -1;
+
+    return indexA.compareTo(indexB);
+  }
 }
 
 /// Ensures the registries are initialized.
@@ -119,5 +140,6 @@ Future<Registries> loadRegistriesFromCache(Cache cache) async {
     melvorData.shop,
     melvorData.masteryBonuses,
     melvorData.masteryUnlocks,
+    melvorData.bankSortIndex,
   );
 }
