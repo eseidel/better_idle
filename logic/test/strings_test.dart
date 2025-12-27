@@ -91,10 +91,10 @@ void main() {
 
   group('percentToString', () {
     test('formats decimal as percentage', () {
-      expect(percentToString(0.0), '0%');
+      expect(percentToString(0), '0%');
       expect(percentToString(0.05), '5%');
       expect(percentToString(0.50), '50%');
-      expect(percentToString(1.0), '100%');
+      expect(percentToString(1), '100%');
     });
 
     test('handles negative values', () {
@@ -115,7 +115,7 @@ void main() {
     });
 
     test('returns 0% for zero', () {
-      expect(signedPercentToString(0.0), '0%');
+      expect(signedPercentToString(0), '0%');
     });
   });
 }

@@ -1,11 +1,10 @@
 import 'package:logic/src/action_state.dart';
+import 'package:logic/src/data/action_id.dart';
+import 'package:logic/src/data/actions.dart';
+import 'package:logic/src/data/melvor_id.dart';
 import 'package:logic/src/tick.dart';
 import 'package:logic/src/types/drop.dart';
 import 'package:meta/meta.dart';
-
-import 'action_id.dart';
-import 'actions.dart';
-import 'melvor_id.dart';
 
 const _miningSwingDuration = Duration(seconds: 3);
 

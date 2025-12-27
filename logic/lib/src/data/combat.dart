@@ -1,11 +1,10 @@
 import 'dart:math';
 
+import 'package:logic/src/data/action_id.dart';
 import 'package:logic/src/data/actions.dart';
 import 'package:logic/src/data/melvor_id.dart';
 import 'package:logic/src/types/drop.dart';
 import 'package:meta/meta.dart';
-
-import 'action_id.dart';
 
 /// Combat stats for a player or monster.
 @immutable
@@ -220,7 +219,7 @@ class CombatAction extends Action {
     );
   }
 
-  /// The monster's levels (hitpoints, attack, strength, defense, ranged, magic).
+  /// The monster's levels
   final MonsterLevels levels;
 
   /// The type of attack this monster uses.

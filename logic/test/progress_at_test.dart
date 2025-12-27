@@ -5,7 +5,7 @@ void main() {
   group('ProgressAt', () {
     group('constructor', () {
       test('creates instance with required parameters', () {
-        final time = DateTime(2024, 1, 1, 12, 0, 0);
+        final time = DateTime(2024, 1, 1, 12);
         final progressAt = ProgressAt(
           lastUpdateTime: time,
           progressTicks: 5,
@@ -42,7 +42,7 @@ void main() {
 
     group('ProgressAt.zero', () {
       test('creates zero progress with provided time', () {
-        final time = DateTime(2024, 1, 1, 12, 0, 0);
+        final time = DateTime(2024, 1, 1, 12);
         final progressAt = ProgressAt.zero(time);
 
         expect(progressAt.lastUpdateTime, time);
@@ -136,7 +136,7 @@ void main() {
 
     group('estimateProgressAt', () {
       test('returns base progress when already complete', () {
-        final time = DateTime(2024, 1, 1, 12, 0, 0);
+        final time = DateTime(2024, 1, 1, 12);
         final progressAt = ProgressAt(
           lastUpdateTime: time,
           progressTicks: 10,
@@ -148,7 +148,7 @@ void main() {
       });
 
       test('returns base progress when not advancing', () {
-        final time = DateTime(2024, 1, 1, 12, 0, 0);
+        final time = DateTime(2024, 1, 1, 12);
         final progressAt = ProgressAt(
           lastUpdateTime: time,
           progressTicks: 5,
@@ -161,7 +161,7 @@ void main() {
       });
 
       test('estimates progress based on elapsed time', () {
-        final time = DateTime(2024, 1, 1, 12, 0, 0);
+        final time = DateTime(2024, 1, 1, 12);
         final progressAt = ProgressAt(
           lastUpdateTime: time,
           progressTicks: 0,
@@ -174,7 +174,7 @@ void main() {
       });
 
       test('estimates progress with custom tick duration', () {
-        final time = DateTime(2024, 1, 1, 12, 0, 0);
+        final time = DateTime(2024, 1, 1, 12);
         final progressAt = ProgressAt(
           lastUpdateTime: time,
           progressTicks: 0,
@@ -193,7 +193,7 @@ void main() {
       });
 
       test('clamps estimated progress to 1.0', () {
-        final time = DateTime(2024, 1, 1, 12, 0, 0);
+        final time = DateTime(2024, 1, 1, 12);
         final progressAt = ProgressAt(
           lastUpdateTime: time,
           progressTicks: 5,
@@ -206,7 +206,7 @@ void main() {
       });
 
       test('handles zero elapsed time', () {
-        final time = DateTime(2024, 1, 1, 12, 0, 0);
+        final time = DateTime(2024, 1, 1, 12);
         final progressAt = ProgressAt(
           lastUpdateTime: time,
           progressTicks: 3,
@@ -217,7 +217,7 @@ void main() {
       });
 
       test('adds to existing progress', () {
-        final time = DateTime(2024, 1, 1, 12, 0, 0);
+        final time = DateTime(2024, 1, 1, 12);
         final progressAt = ProgressAt(
           lastUpdateTime: time,
           progressTicks: 5,
@@ -238,7 +238,7 @@ void main() {
         remainingTicks: 6,
         totalTicks: 10,
       );
-      final time = DateTime(2024, 1, 1, 12, 0, 0);
+      final time = DateTime(2024, 1, 1, 12);
 
       final progressAt = action.toProgressAt(time);
 

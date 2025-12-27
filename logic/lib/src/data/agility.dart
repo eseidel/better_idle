@@ -1,9 +1,8 @@
+import 'package:logic/src/data/action_id.dart';
 import 'package:logic/src/data/actions.dart';
 import 'package:logic/src/data/currency.dart';
 import 'package:logic/src/data/melvor_id.dart';
 import 'package:meta/meta.dart';
-
-import 'action_id.dart';
 
 /// An agility obstacle that can be built in a course slot.
 ///
@@ -127,12 +126,7 @@ class AgilityCourse {
 
     final pillarSlotsJson = json['pillarSlots'] as List<dynamic>? ?? [];
     final pillarSlots = pillarSlotsJson
-        .map(
-          (slot) => AgilityPillarSlot.fromJson(
-            slot as Map<String, dynamic>,
-            namespace: namespace,
-          ),
-        )
+        .map((slot) => AgilityPillarSlot.fromJson(slot as Map<String, dynamic>))
         .toList();
 
     return AgilityCourse(
@@ -164,10 +158,7 @@ class AgilityPillarSlot {
     required this.obstacleCount,
   });
 
-  factory AgilityPillarSlot.fromJson(
-    Map<String, dynamic> json, {
-    required String namespace,
-  }) {
+  factory AgilityPillarSlot.fromJson(Map<String, dynamic> json) {
     return AgilityPillarSlot(
       level: json['level'] as int,
       name: json['name'] as String,

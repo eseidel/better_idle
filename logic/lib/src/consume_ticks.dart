@@ -11,7 +11,7 @@ final int ticksPer1Hp = ticksFromDuration(const Duration(seconds: 10));
 // playerTotalMasteryForSkill is presumably a sum of all mastery xp
 // for all actions in this skill?
 int playerTotalMasteryForSkill(GlobalState state, Skill skill) {
-  int total = 0;
+  var total = 0;
   for (final entry in state.actionStates.entries) {
     final actionId = entry.key;
     final actionState = entry.value;
@@ -195,7 +195,7 @@ abstract class BackgroundTickConsumer {
 /// Background action for mining node HP regeneration and respawn.
 @immutable
 class MiningBackgroundAction implements BackgroundTickConsumer {
-  MiningBackgroundAction(this.actionId, this.miningState);
+  const MiningBackgroundAction(this.actionId, this.miningState);
 
   @override
   final ActionId actionId;
@@ -726,7 +726,7 @@ enum ForegroundResult {
   // leaving it at remainingTicks=0 until stun cleared.
   if (currentAction.remainingTicks == 0) {
     builder.restartCurrentAction(action, random: rng);
-    currentAction = builder.state.activeAction!;
+    currentAction = builder.state.activeAction;
   }
 
   // For mining, handle respawn waiting (blocking foreground behavior)
@@ -844,7 +844,6 @@ enum ForegroundResult {
         monsterHp: action.maxHp,
         playerAttackTicksRemaining: playerAttackTicks,
         monsterAttackTicksRemaining: monsterAttackTicks,
-        spawnTicksRemaining: null,
       );
       builder.updateCombatState(activeAction.id, currentCombat);
       return (ForegroundResult.continued, spawnTicks);
@@ -1101,8 +1100,8 @@ void consumeTicksUntil(
 (TimeAway, GlobalState) consumeManyTicks(
   GlobalState state,
   Tick ticks, {
-  DateTime? endTime,
   required Random random,
+  DateTime? endTime,
 }) {
   final registries = state.registries;
   final builder = StateUpdateBuilder(state);
@@ -1127,7 +1126,7 @@ void consumeTicksUntil(
       ? durationFromTicks(builder.stoppedAtTick!)
       : null;
   // Compute doubling chance and recipe selection for predictions
-  double doublingChance = 0.0;
+  var doublingChance = 0;
   RecipeSelection recipeSelection = const NoSelectedRecipe();
   if (action is SkillAction) {
     final modifiers = state.resolveModifiers(action);

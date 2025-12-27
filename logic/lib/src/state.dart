@@ -7,6 +7,7 @@ import 'package:logic/src/data/currency.dart';
 import 'package:logic/src/data/melvor_id.dart';
 import 'package:logic/src/data/registries.dart';
 import 'package:logic/src/data/shop.dart';
+import 'package:logic/src/data/xp.dart';
 import 'package:logic/src/json.dart';
 import 'package:logic/src/plot_state.dart';
 import 'package:logic/src/tick.dart';
@@ -20,8 +21,6 @@ import 'package:logic/src/types/stunned.dart';
 import 'package:logic/src/types/time_away.dart';
 import 'package:meta/meta.dart';
 
-import 'data/xp.dart';
-
 @immutable
 class ActiveAction {
   const ActiveAction({
@@ -30,17 +29,17 @@ class ActiveAction {
     required this.totalTicks,
   });
 
-  static ActiveAction? maybeFromJson(dynamic json) {
-    if (json == null) return null;
-    return ActiveAction.fromJson(json as Map<String, dynamic>);
-  }
-
   factory ActiveAction.fromJson(Map<String, dynamic> json) {
     return ActiveAction(
       id: ActionId.fromJson(json['id'] as String),
       remainingTicks: json['remainingTicks'] as int,
       totalTicks: json['totalTicks'] as int,
     );
+  }
+
+  static ActiveAction? maybeFromJson(dynamic json) {
+    if (json == null) return null;
+    return ActiveAction.fromJson(json as Map<String, dynamic>);
   }
 
   final ActionId id;
@@ -103,13 +102,6 @@ class SkillState {
 class ShopState {
   const ShopState({required this.purchaseCounts});
 
-  const ShopState.empty() : purchaseCounts = const {};
-
-  static ShopState? maybeFromJson(dynamic json) {
-    if (json == null) return null;
-    return ShopState.fromJson(json as Map<String, dynamic>);
-  }
-
   factory ShopState.fromJson(Map<String, dynamic> json) {
     final countsJson = json['purchaseCounts'] as Map<String, dynamic>? ?? {};
     final counts = <MelvorId, int>{};
@@ -117,6 +109,13 @@ class ShopState {
       counts[MelvorId.fromJson(entry.key)] = entry.value as int;
     }
     return ShopState(purchaseCounts: counts);
+  }
+
+  const ShopState.empty() : purchaseCounts = const {};
+
+  static ShopState? maybeFromJson(dynamic json) {
+    if (json == null) return null;
+    return ShopState.fromJson(json as Map<String, dynamic>);
   }
 
   /// Map of purchase ID to count purchased.
@@ -130,7 +129,7 @@ class ShopState {
 
   /// Returns the number of bank slots purchased (Extra_Bank_Slot purchase).
   int get bankSlotsPurchased =>
-      purchaseCount(MelvorId('melvorD:Extra_Bank_Slot'));
+      purchaseCount(const MelvorId('melvorD:Extra_Bank_Slot'));
 
   // Axe tier IDs in order
   static const _axeIds = [
@@ -246,65 +245,12 @@ class GlobalState {
     required this.shop,
     required this.health,
     required this.equipment,
+    required this.registries,
     this.plotStates = const {},
     this.unlockedPlots = const {},
     this.timeAway,
     this.stunned = const StunnedState.fresh(),
-    required this.registries,
   });
-
-  GlobalState.fromJson(this.registries, Map<String, dynamic> json)
-    : updatedAt = DateTime.parse(json['updatedAt'] as String),
-      inventory = Inventory.fromJson(
-        registries.items,
-        json['inventory'] as Map<String, dynamic>,
-      ),
-      activeAction = ActiveAction.maybeFromJson(json['activeAction']),
-      skillStates =
-          maybeMap(
-            json['skillStates'],
-            toKey: Skill.fromName,
-            toValue: (value) => SkillState.fromJson(value),
-          ) ??
-          const {},
-      actionStates =
-          maybeMap(
-            json['actionStates'],
-            toKey: ActionId.fromJson,
-            toValue: (value) => ActionState.fromJson(value),
-          ) ??
-          const {},
-      plotStates =
-          maybeMap(
-            json['plotStates'],
-            toKey: MelvorId.fromJson,
-            toValue: (value) => PlotState.fromJson(registries.items, value),
-          ) ??
-          const {},
-      unlockedPlots =
-          (json['unlockedPlots'] as List<dynamic>?)
-              ?.map((e) => MelvorId.fromJson(e as String))
-              .toSet() ??
-          const {},
-      currencies = _currenciesFromJson(json),
-      timeAway = TimeAway.maybeFromJson(registries, json['timeAway']),
-      shop = ShopState.maybeFromJson(json['shop']) ?? const ShopState.empty(),
-      health =
-          HealthState.maybeFromJson(json['health']) ?? const HealthState.full(),
-      equipment =
-          Equipment.maybeFromJson(registries.items, json['equipment']) ??
-          const Equipment.empty(),
-      stunned =
-          StunnedState.maybeFromJson(json['stunned']) ??
-          const StunnedState.fresh();
-
-  static Map<Currency, int> _currenciesFromJson(Map<String, dynamic> json) {
-    final currenciesJson = json['currencies'] as Map<String, dynamic>? ?? {};
-    return currenciesJson.map((key, value) {
-      final currency = Currency.fromId(key);
-      return MapEntry(currency, value as int);
-    });
-  }
 
   GlobalState.empty(Registries registries)
     : this(
@@ -362,6 +308,64 @@ class GlobalState {
       equipment: equipment,
       stunned: stunned,
     );
+  }
+
+  GlobalState.fromJson(this.registries, Map<String, dynamic> json)
+    : updatedAt = DateTime.parse(json['updatedAt'] as String),
+      inventory = Inventory.fromJson(
+        registries.items,
+        json['inventory'] as Map<String, dynamic>,
+      ),
+      activeAction = ActiveAction.maybeFromJson(json['activeAction']),
+      skillStates =
+          maybeMap(
+            json['skillStates'],
+            toKey: Skill.fromName,
+            toValue: (value) =>
+                SkillState.fromJson(value as Map<String, dynamic>),
+          ) ??
+          const {},
+      actionStates =
+          maybeMap(
+            json['actionStates'],
+            toKey: ActionId.fromJson,
+            toValue: (value) =>
+                ActionState.fromJson(value as Map<String, dynamic>),
+          ) ??
+          const {},
+      plotStates =
+          maybeMap(
+            json['plotStates'],
+            toKey: MelvorId.fromJson,
+            toValue: (value) => PlotState.fromJson(
+              registries.items,
+              value as Map<String, dynamic>,
+            ),
+          ) ??
+          const {},
+      unlockedPlots =
+          (json['unlockedPlots'] as List<dynamic>?)
+              ?.map((e) => MelvorId.fromJson(e as String))
+              .toSet() ??
+          const {},
+      currencies = _currenciesFromJson(json),
+      timeAway = TimeAway.maybeFromJson(registries, json['timeAway']),
+      shop = ShopState.maybeFromJson(json['shop']) ?? const ShopState.empty(),
+      health =
+          HealthState.maybeFromJson(json['health']) ?? const HealthState.full(),
+      equipment =
+          Equipment.maybeFromJson(registries.items, json['equipment']) ??
+          const Equipment.empty(),
+      stunned =
+          StunnedState.maybeFromJson(json['stunned']) ??
+          const StunnedState.fresh();
+
+  static Map<Currency, int> _currenciesFromJson(Map<String, dynamic> json) {
+    final currenciesJson = json['currencies'] as Map<String, dynamic>? ?? {};
+    return currenciesJson.map((key, value) {
+      final currency = Currency.fromId(key);
+      return MapEntry(currency, value as int);
+    });
   }
 
   bool validate() {
@@ -993,10 +997,6 @@ class GlobalState {
     return (copyWith(inventory: currentInventory), result);
   }
 
-  // ============================================================================
-  // Farming Methods
-  // ============================================================================
-
   /// Plants a crop in a plot.
   /// Uses countdown pattern - no currentTick parameter needed.
   GlobalState plantCrop(MelvorId plotId, FarmingCrop crop) {
@@ -1032,7 +1032,7 @@ class GlobalState {
     }
 
     // Consume seeds from inventory
-    var newInventory = inventory.removing(
+    final newInventory = inventory.removing(
       ItemStack(seed, count: crop.seedCost),
     );
 
@@ -1052,7 +1052,7 @@ class GlobalState {
     final category = registries.farmingCategories.byId(crop.categoryId);
     var newState = copyWith(inventory: newInventory, plotStates: newPlotStates);
 
-    if (category?.giveXPOnPlant == true) {
+    if (category?.giveXPOnPlant ?? false) {
       newState = newState.addSkillXp(Skill.farming, crop.baseXP);
     }
 
@@ -1159,7 +1159,7 @@ class GlobalState {
     // Roll for seed return if category allows
     if (category.returnSeeds) {
       final seed = registries.items.byId(crop.seedId);
-      final baseChance = 0.30; // 30% base chance
+      const baseChance = 0.30; // 30% base chance
       final masteryChanceBonus = masteryLevel * 0.002; // +0.2% per level
       var seedsReturned = 0;
 

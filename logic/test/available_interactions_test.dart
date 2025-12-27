@@ -72,12 +72,12 @@ void main() {
       final state = GlobalState.test(
         testRegistries,
         gp: 100000,
-        skillStates: {
-          Skill.hitpoints: const SkillState(xp: 1154, masteryPoolXp: 0),
+        skillStates: const {
+          Skill.hitpoints: SkillState(xp: 1154, masteryPoolXp: 0),
           // Level 25 = 8740 XP (Willow Tree requires level 25)
-          Skill.woodcutting: const SkillState(xp: 8740, masteryPoolXp: 0),
-          Skill.fishing: const SkillState(xp: 8740, masteryPoolXp: 0),
-          Skill.mining: const SkillState(xp: 8740, masteryPoolXp: 0),
+          Skill.woodcutting: SkillState(xp: 8740, masteryPoolXp: 0),
+          Skill.fishing: SkillState(xp: 8740, masteryPoolXp: 0),
+          Skill.mining: SkillState(xp: 8740, masteryPoolXp: 0),
         },
       );
 

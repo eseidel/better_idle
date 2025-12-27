@@ -18,6 +18,7 @@ library;
 import 'package:equatable/equatable.dart';
 import 'package:logic/src/data/action_id.dart';
 import 'package:logic/src/data/melvor_id.dart';
+import 'package:logic/src/solver/plan.dart' show WaitStep;
 
 /// Represents a possible interaction that can change game state.
 ///

@@ -25,21 +25,20 @@ import 'package:equatable/equatable.dart';
 import 'package:logic/src/consume_ticks.dart';
 import 'package:logic/src/data/actions.dart';
 import 'package:logic/src/data/currency.dart';
+import 'package:logic/src/solver/apply_interaction.dart';
+import 'package:logic/src/solver/available_interactions.dart';
+import 'package:logic/src/solver/enumerate_candidates.dart';
+import 'package:logic/src/solver/estimate_rates.dart';
+import 'package:logic/src/solver/goal.dart';
+import 'package:logic/src/solver/interaction.dart';
+import 'package:logic/src/solver/next_decision_delta.dart';
+import 'package:logic/src/solver/plan.dart';
+import 'package:logic/src/solver/value_model.dart';
 import 'package:logic/src/state.dart';
 import 'package:logic/src/tick.dart';
 import 'package:logic/src/types/inventory.dart';
 import 'package:logic/src/types/stunned.dart';
 import 'package:logic/src/types/time_away.dart';
-
-import 'apply_interaction.dart';
-import 'available_interactions.dart';
-import 'enumerate_candidates.dart';
-import 'estimate_rates.dart';
-import 'goal.dart';
-import 'interaction.dart';
-import 'next_decision_delta.dart';
-import 'plan.dart';
-import 'value_model.dart';
 
 /// Profiling stats collected during a solve.
 class SolverProfile {

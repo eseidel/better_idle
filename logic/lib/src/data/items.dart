@@ -19,20 +19,15 @@ class DropTableEntry extends Equatable {
   });
 
   /// Creates a DropTableEntry from a simple name string with equal min/max.
-  DropTableEntry.fromName(String name, {int count = 1, required this.weight})
+  DropTableEntry.fromName(String name, {required this.weight, int count = 1})
     : itemID = MelvorId.fromName(name),
       minQuantity = count,
       maxQuantity = count;
 
-  DropTableEntry.test(
-    String name, {
-    required int gp,
-    int min = 1,
-    int max = 1,
-    this.weight = 1,
-  }) : itemID = MelvorId.fromName(name),
-       minQuantity = min,
-       maxQuantity = max;
+  DropTableEntry.test(String name, {int min = 1, int max = 1, this.weight = 1})
+    : itemID = MelvorId.fromName(name),
+      minQuantity = min,
+      maxQuantity = max;
 
   /// Creates a DropTableEntry from a JSON map (standard format).
   factory DropTableEntry.fromJson(Map<String, dynamic> json) {
@@ -210,7 +205,7 @@ class Item extends Equatable {
   /// The compost value for farming (0-50). Null if not compost.
   final int? compostValue;
 
-  /// The harvest bonus percentage for farming (e.g., 10 for +10%). Null if none.
+  /// Harvest bonus percentage for farming (e.g., 10 for +10%). Null if none.
   final int? harvestBonus;
 
   /// The drop table for openable items. Null if not openable.

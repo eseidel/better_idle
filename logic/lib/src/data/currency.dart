@@ -99,9 +99,6 @@ class CurrencyCost extends Equatable {
 class CurrencyCosts extends Equatable {
   const CurrencyCosts(this.costs);
 
-  /// An empty currency costs collection.
-  static const empty = CurrencyCosts([]);
-
   /// Parses a Melvor currencyCosts array.
   ///
   /// The JSON format is: `[{"id": "melvorD:GP", "quantity": 80000}, ...]`
@@ -117,6 +114,9 @@ class CurrencyCosts extends Equatable {
     }
     return CurrencyCosts(costs);
   }
+
+  /// An empty currency costs collection.
+  static const empty = CurrencyCosts([]);
 
   final List<CurrencyStack> costs;
 

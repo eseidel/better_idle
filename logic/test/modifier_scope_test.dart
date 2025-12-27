@@ -12,38 +12,38 @@ void main() {
     });
 
     test('scopes with same skillId are equal', () {
-      final scope1 = ModifierScope(skillId: MelvorId('melvorD:Woodcutting'));
-      final scope2 = ModifierScope(skillId: MelvorId('melvorD:Woodcutting'));
+      const scope1 = ModifierScope(skillId: MelvorId('melvorD:Woodcutting'));
+      const scope2 = ModifierScope(skillId: MelvorId('melvorD:Woodcutting'));
       expect(scope1, equals(scope2));
       expect(scope1.hashCode, equals(scope2.hashCode));
     });
 
     test('scopes with different skillId are not equal', () {
-      final scope1 = ModifierScope(skillId: MelvorId('melvorD:Woodcutting'));
-      final scope2 = ModifierScope(skillId: MelvorId('melvorD:Fishing'));
+      const scope1 = ModifierScope(skillId: MelvorId('melvorD:Woodcutting'));
+      const scope2 = ModifierScope(skillId: MelvorId('melvorD:Fishing'));
       expect(scope1, isNot(equals(scope2)));
     });
 
     test('scopes with same actionId are equal', () {
-      final scope1 = ModifierScope(actionId: MelvorId('melvorD:Oak'));
-      final scope2 = ModifierScope(actionId: MelvorId('melvorD:Oak'));
+      const scope1 = ModifierScope(actionId: MelvorId('melvorD:Oak'));
+      const scope2 = ModifierScope(actionId: MelvorId('melvorD:Oak'));
       expect(scope1, equals(scope2));
       expect(scope1.hashCode, equals(scope2.hashCode));
     });
 
     test('scopes with different actionId are not equal', () {
-      final scope1 = ModifierScope(actionId: MelvorId('melvorD:Oak'));
-      final scope2 = ModifierScope(actionId: MelvorId('melvorD:Willow'));
+      const scope1 = ModifierScope(actionId: MelvorId('melvorD:Oak'));
+      const scope2 = ModifierScope(actionId: MelvorId('melvorD:Willow'));
       expect(scope1, isNot(equals(scope2)));
     });
 
     test('scopes with same multiple fields are equal', () {
-      final scope1 = ModifierScope(
+      const scope1 = ModifierScope(
         skillId: MelvorId('melvorD:Woodcutting'),
         actionId: MelvorId('melvorD:Oak'),
         realmId: MelvorId('melvorD:Melvor'),
       );
-      final scope2 = ModifierScope(
+      const scope2 = ModifierScope(
         skillId: MelvorId('melvorD:Woodcutting'),
         actionId: MelvorId('melvorD:Oak'),
         realmId: MelvorId('melvorD:Melvor'),
@@ -53,17 +53,17 @@ void main() {
     });
 
     test('scopes with partially matching fields are not equal', () {
-      final scope1 = ModifierScope(
+      const scope1 = ModifierScope(
         skillId: MelvorId('melvorD:Woodcutting'),
         actionId: MelvorId('melvorD:Oak'),
       );
-      final scope2 = ModifierScope(skillId: MelvorId('melvorD:Woodcutting'));
+      const scope2 = ModifierScope(skillId: MelvorId('melvorD:Woodcutting'));
       expect(scope1, isNot(equals(scope2)));
     });
 
     test('scope with null field differs from scope with value', () {
-      final scope1 = ModifierScope(skillId: MelvorId('melvorD:Woodcutting'));
-      final scope2 = ModifierScope(
+      const scope1 = ModifierScope(skillId: MelvorId('melvorD:Woodcutting'));
+      const scope2 = ModifierScope(
         skillId: MelvorId('melvorD:Woodcutting'),
         actionId: MelvorId('melvorD:Oak'),
       );
@@ -71,7 +71,7 @@ void main() {
     });
 
     test('all scope fields can be compared', () {
-      final scope1 = ModifierScope(
+      const scope1 = ModifierScope(
         skillId: MelvorId('melvorD:Woodcutting'),
         actionId: MelvorId('melvorD:Oak'),
         realmId: MelvorId('melvorD:Melvor'),
@@ -82,7 +82,7 @@ void main() {
         damageTypeId: MelvorId('melvorD:Normal'),
         effectGroupId: MelvorId('melvorD:Burn'),
       );
-      final scope2 = ModifierScope(
+      const scope2 = ModifierScope(
         skillId: MelvorId('melvorD:Woodcutting'),
         actionId: MelvorId('melvorD:Oak'),
         realmId: MelvorId('melvorD:Melvor'),
@@ -97,7 +97,7 @@ void main() {
       expect(scope1.hashCode, equals(scope2.hashCode));
 
       // Changing any field should make them unequal
-      final scope3 = ModifierScope(
+      const scope3 = ModifierScope(
         skillId: MelvorId('melvorD:Woodcutting'),
         actionId: MelvorId('melvorD:Oak'),
         realmId: MelvorId('melvorD:Melvor'),
@@ -119,15 +119,15 @@ void main() {
     });
 
     test('scope with any field set is not global', () {
-      final scopeWithSkill = ModifierScope(
+      const scopeWithSkill = ModifierScope(
         skillId: MelvorId('melvorD:Woodcutting'),
       );
       expect(scopeWithSkill.isGlobal, isFalse);
 
-      final scopeWithAction = ModifierScope(actionId: MelvorId('melvorD:Oak'));
+      const scopeWithAction = ModifierScope(actionId: MelvorId('melvorD:Oak'));
       expect(scopeWithAction.isGlobal, isFalse);
 
-      final scopeWithRealm = ModifierScope(realmId: MelvorId('melvorD:Melvor'));
+      const scopeWithRealm = ModifierScope(realmId: MelvorId('melvorD:Melvor'));
       expect(scopeWithRealm.isGlobal, isFalse);
     });
   });
@@ -135,46 +135,46 @@ void main() {
   group('ModifierScope.appliesToSkill', () {
     test('global scope applies to any skill', () {
       const scope = ModifierScope();
-      expect(scope.appliesToSkill(MelvorId('melvorD:Woodcutting')), isTrue);
-      expect(scope.appliesToSkill(MelvorId('melvorD:Fishing')), isTrue);
+      expect(scope.appliesToSkill(const MelvorId('melvorD:Woodcutting')), isTrue);
+      expect(scope.appliesToSkill(const MelvorId('melvorD:Fishing')), isTrue);
     });
 
     test('matching skillId applies', () {
-      final scope = ModifierScope(skillId: MelvorId('melvorD:Woodcutting'));
-      expect(scope.appliesToSkill(MelvorId('melvorD:Woodcutting')), isTrue);
+      const scope = ModifierScope(skillId: MelvorId('melvorD:Woodcutting'));
+      expect(scope.appliesToSkill(const MelvorId('melvorD:Woodcutting')), isTrue);
     });
 
     test('non-matching skillId does not apply', () {
-      final scope = ModifierScope(skillId: MelvorId('melvorD:Woodcutting'));
-      expect(scope.appliesToSkill(MelvorId('melvorD:Fishing')), isFalse);
+      const scope = ModifierScope(skillId: MelvorId('melvorD:Woodcutting'));
+      expect(scope.appliesToSkill(const MelvorId('melvorD:Fishing')), isFalse);
     });
 
     test('scope with only actionId applies to any skill', () {
-      final scope = ModifierScope(actionId: MelvorId('melvorD:Oak'));
-      expect(scope.appliesToSkill(MelvorId('melvorD:Woodcutting')), isTrue);
-      expect(scope.appliesToSkill(MelvorId('melvorD:Fishing')), isTrue);
+      const scope = ModifierScope(actionId: MelvorId('melvorD:Oak'));
+      expect(scope.appliesToSkill(const MelvorId('melvorD:Woodcutting')), isTrue);
+      expect(scope.appliesToSkill(const MelvorId('melvorD:Fishing')), isTrue);
     });
 
     test('autoScopeToAction false makes scope apply globally', () {
-      final scope = ModifierScope(
+      const scope = ModifierScope(
         skillId: MelvorId('melvorD:Firemaking'),
         actionId: MelvorId('melvorD:Normal_Logs'),
       );
       // With autoScopeToAction true (default), only applies to Firemaking
-      expect(scope.appliesToSkill(MelvorId('melvorD:Firemaking')), isTrue);
-      expect(scope.appliesToSkill(MelvorId('melvorD:Woodcutting')), isFalse);
+      expect(scope.appliesToSkill(const MelvorId('melvorD:Firemaking')), isTrue);
+      expect(scope.appliesToSkill(const MelvorId('melvorD:Woodcutting')), isFalse);
 
       // With autoScopeToAction false, applies to all skills
       expect(
         scope.appliesToSkill(
-          MelvorId('melvorD:Firemaking'),
+          const MelvorId('melvorD:Firemaking'),
           autoScopeToAction: false,
         ),
         isTrue,
       );
       expect(
         scope.appliesToSkill(
-          MelvorId('melvorD:Woodcutting'),
+          const MelvorId('melvorD:Woodcutting'),
           autoScopeToAction: false,
         ),
         isTrue,
@@ -184,26 +184,26 @@ void main() {
 
   group('ModifierScope.fromJson', () {
     test('parses empty json as global scope', () {
-      final scope = ModifierScope.fromJson({}, namespace: 'melvorD');
+      final scope = ModifierScope.fromJson(const {}, namespace: 'melvorD');
       expect(scope.isGlobal, isTrue);
     });
 
     test('parses skillID', () {
-      final scope = ModifierScope.fromJson({
+      final scope = ModifierScope.fromJson(const {
         'skillID': 'melvorD:Woodcutting',
       }, namespace: 'melvorD');
-      expect(scope.skillId, equals(MelvorId('melvorD:Woodcutting')));
+      expect(scope.skillId, equals(const MelvorId('melvorD:Woodcutting')));
     });
 
     test('adds namespace to unqualified ids', () {
-      final scope = ModifierScope.fromJson({
+      final scope = ModifierScope.fromJson(const {
         'skillID': 'Woodcutting',
       }, namespace: 'melvorD');
-      expect(scope.skillId, equals(MelvorId('melvorD:Woodcutting')));
+      expect(scope.skillId, equals(const MelvorId('melvorD:Woodcutting')));
     });
 
     test('parses all scope keys', () {
-      final scope = ModifierScope.fromJson({
+      final scope = ModifierScope.fromJson(const {
         'skillID': 'melvorD:Woodcutting',
         'actionID': 'melvorD:Oak',
         'realmID': 'melvorD:Melvor',
@@ -215,15 +215,15 @@ void main() {
         'effectGroupID': 'melvorD:Burn',
       }, namespace: 'melvorD');
 
-      expect(scope.skillId, equals(MelvorId('melvorD:Woodcutting')));
-      expect(scope.actionId, equals(MelvorId('melvorD:Oak')));
-      expect(scope.realmId, equals(MelvorId('melvorD:Melvor')));
-      expect(scope.categoryId, equals(MelvorId('melvorD:Trees')));
-      expect(scope.subcategoryId, equals(MelvorId('melvorD:Normal')));
-      expect(scope.itemId, equals(MelvorId('melvorD:Oak_Logs')));
-      expect(scope.currencyId, equals(MelvorId('melvorD:GP')));
-      expect(scope.damageTypeId, equals(MelvorId('melvorD:Normal')));
-      expect(scope.effectGroupId, equals(MelvorId('melvorD:Burn')));
+      expect(scope.skillId, equals(const MelvorId('melvorD:Woodcutting')));
+      expect(scope.actionId, equals(const MelvorId('melvorD:Oak')));
+      expect(scope.realmId, equals(const MelvorId('melvorD:Melvor')));
+      expect(scope.categoryId, equals(const MelvorId('melvorD:Trees')));
+      expect(scope.subcategoryId, equals(const MelvorId('melvorD:Normal')));
+      expect(scope.itemId, equals(const MelvorId('melvorD:Oak_Logs')));
+      expect(scope.currencyId, equals(const MelvorId('melvorD:GP')));
+      expect(scope.damageTypeId, equals(const MelvorId('melvorD:Normal')));
+      expect(scope.effectGroupId, equals(const MelvorId('melvorD:Burn')));
     });
   });
 
@@ -242,19 +242,19 @@ void main() {
     });
 
     test('entries with same value and scope are equal', () {
-      final scope = ModifierScope(skillId: MelvorId('melvorD:Woodcutting'));
-      final entry1 = ModifierEntry(value: 5, scope: scope);
-      final entry2 = ModifierEntry(value: 5, scope: scope);
+      const scope = ModifierScope(skillId: MelvorId('melvorD:Woodcutting'));
+      const entry1 = ModifierEntry(value: 5, scope: scope);
+      const entry2 = ModifierEntry(value: 5, scope: scope);
       expect(entry1, equals(entry2));
       expect(entry1.hashCode, equals(entry2.hashCode));
     });
 
     test('entries with same value but different scope are not equal', () {
-      final entry1 = ModifierEntry(
+      const entry1 = ModifierEntry(
         value: 5,
         scope: ModifierScope(skillId: MelvorId('melvorD:Woodcutting')),
       );
-      final entry2 = ModifierEntry(
+      const entry2 = ModifierEntry(
         value: 5,
         scope: ModifierScope(skillId: MelvorId('melvorD:Fishing')),
       );
@@ -263,7 +263,7 @@ void main() {
 
     test('entry with scope differs from entry without scope', () {
       const entry1 = ModifierEntry(value: 5);
-      final entry2 = ModifierEntry(
+      const entry2 = ModifierEntry(
         value: 5,
         scope: ModifierScope(skillId: MelvorId('melvorD:Woodcutting')),
       );
@@ -272,17 +272,17 @@ void main() {
 
     test('appliesToSkill with null scope returns true for any skill', () {
       const entry = ModifierEntry(value: 5);
-      expect(entry.appliesToSkill(MelvorId('melvorD:Woodcutting')), isTrue);
-      expect(entry.appliesToSkill(MelvorId('melvorD:Fishing')), isTrue);
+      expect(entry.appliesToSkill(const MelvorId('melvorD:Woodcutting')), isTrue);
+      expect(entry.appliesToSkill(const MelvorId('melvorD:Fishing')), isTrue);
     });
 
     test('appliesToSkill delegates to scope', () {
-      final entry = ModifierEntry(
+      const entry = ModifierEntry(
         value: 5,
         scope: ModifierScope(skillId: MelvorId('melvorD:Woodcutting')),
       );
-      expect(entry.appliesToSkill(MelvorId('melvorD:Woodcutting')), isTrue);
-      expect(entry.appliesToSkill(MelvorId('melvorD:Fishing')), isFalse);
+      expect(entry.appliesToSkill(const MelvorId('melvorD:Woodcutting')), isTrue);
+      expect(entry.appliesToSkill(const MelvorId('melvorD:Fishing')), isFalse);
     });
   });
 
@@ -329,7 +329,7 @@ void main() {
     });
 
     test('isScalar false for scoped entry', () {
-      final data = ModifierData(
+      const data = ModifierData(
         name: 'skillXP',
         entries: [
           ModifierEntry(
@@ -387,7 +387,7 @@ void main() {
     });
 
     test('skillIntervalForSkill returns value for matching skill', () {
-      final set = ModifierDataSet([
+      const set = ModifierDataSet([
         ModifierData(
           name: 'skillInterval',
           entries: [
@@ -402,17 +402,17 @@ void main() {
           ],
         ),
       ]);
-      expect(set.skillIntervalForSkill(MelvorId('melvorD:Woodcutting')), -5);
-      expect(set.skillIntervalForSkill(MelvorId('melvorD:Fishing')), -3);
+      expect(set.skillIntervalForSkill(const MelvorId('melvorD:Woodcutting')), -5);
+      expect(set.skillIntervalForSkill(const MelvorId('melvorD:Fishing')), -3);
     });
 
     test('skillIntervalForSkill returns 0 when no modifier', () {
       const set = ModifierDataSet([]);
-      expect(set.skillIntervalForSkill(MelvorId('melvorD:Woodcutting')), 0);
+      expect(set.skillIntervalForSkill(const MelvorId('melvorD:Woodcutting')), 0);
     });
 
     test('hasSkillIntervalFor returns true when skill has modifier', () {
-      final set = ModifierDataSet([
+      const set = ModifierDataSet([
         ModifierData(
           name: 'skillInterval',
           entries: [
@@ -423,12 +423,12 @@ void main() {
           ],
         ),
       ]);
-      expect(set.hasSkillIntervalFor(MelvorId('melvorD:Woodcutting')), isTrue);
-      expect(set.hasSkillIntervalFor(MelvorId('melvorD:Fishing')), isFalse);
+      expect(set.hasSkillIntervalFor(const MelvorId('melvorD:Woodcutting')), isTrue);
+      expect(set.hasSkillIntervalFor(const MelvorId('melvorD:Fishing')), isFalse);
     });
 
     test('skillIntervalSkillIds returns all skills with modifiers', () {
-      final set = ModifierDataSet([
+      const set = ModifierDataSet([
         ModifierData(
           name: 'skillInterval',
           entries: [
@@ -444,13 +444,13 @@ void main() {
         ),
       ]);
       expect(set.skillIntervalSkillIds, [
-        MelvorId('melvorD:Woodcutting'),
-        MelvorId('melvorD:Fishing'),
+        const MelvorId('melvorD:Woodcutting'),
+        const MelvorId('melvorD:Fishing'),
       ]);
     });
 
     test('totalSkillInterval sums all skill interval entries', () {
-      final set = ModifierDataSet([
+      const set = ModifierDataSet([
         ModifierData(
           name: 'skillInterval',
           entries: [

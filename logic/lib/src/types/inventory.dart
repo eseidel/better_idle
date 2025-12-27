@@ -15,6 +15,23 @@ class ItemStack {
 }
 
 class Inventory {
+
+  Inventory.fromJson(ItemRegistry items, Map<String, dynamic> json)
+    : _items = items,
+      _counts = {},
+      _orderedItems = [] {
+    final countsJson = json['counts'] as Map<String, dynamic>;
+    final orderedItemsJson = json['orderedItems'] as List<dynamic>;
+
+    for (final idString in orderedItemsJson) {
+      // If the item id is not in the registry this will throw a StateError.
+      // Consider a mode that gracefully ignores unknown items.
+      final id = MelvorId.fromJson(idString as String);
+      final item = items.byId(id);
+      _counts[item] = countsJson[idString] as int;
+      _orderedItems.add(item);
+    }
+  }
   const Inventory.empty(ItemRegistry items)
     : _items = items,
       _counts = const {},
@@ -39,23 +56,6 @@ class Inventory {
        _orderedItems = orderedItems;
 
   final ItemRegistry _items;
-
-  Inventory.fromJson(ItemRegistry items, Map<String, dynamic> json)
-    : _items = items,
-      _counts = {},
-      _orderedItems = [] {
-    final countsJson = json['counts'] as Map<String, dynamic>;
-    final orderedItemsJson = json['orderedItems'] as List<dynamic>;
-
-    for (final idString in orderedItemsJson) {
-      // If the item id is not in the registry this will throw a StateError.
-      // Consider a mode that gracefully ignores unknown items.
-      final id = MelvorId.fromJson(idString as String);
-      final item = items.byId(id);
-      _counts[item] = countsJson[idString] as int;
-      _orderedItems.add(item);
-    }
-  }
 
   Map<String, dynamic> toJson() {
     return {

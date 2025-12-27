@@ -41,16 +41,6 @@ class Equipment {
     this.gearSlots = const {},
   });
 
-  const Equipment.empty()
-    : foodSlots = const [null, null, null],
-      selectedFoodSlot = 0,
-      gearSlots = const {};
-
-  static Equipment? maybeFromJson(ItemRegistry items, dynamic json) {
-    if (json == null) return null;
-    return Equipment.fromJson(items, json as Map<String, dynamic>);
-  }
-
   factory Equipment.fromJson(ItemRegistry items, Map<String, dynamic> json) {
     final foodSlotsJson = json['foodSlots'] as List<dynamic>?;
     final foodSlots = foodSlotsJson != null
@@ -81,6 +71,16 @@ class Equipment {
       selectedFoodSlot: json['selectedFoodSlot'] as int? ?? 0,
       gearSlots: gearSlots,
     );
+  }
+
+  const Equipment.empty()
+    : foodSlots = const [null, null, null],
+      selectedFoodSlot = 0,
+      gearSlots = const {};
+
+  static Equipment? maybeFromJson(ItemRegistry items, dynamic json) {
+    if (json == null) return null;
+    return Equipment.fromJson(items, json as Map<String, dynamic>);
   }
 
   /// The food items equipped in each slot. Null means empty slot.
@@ -252,7 +252,7 @@ class Equipment {
   /// - For ammo (quiver) or summons, the entire stack is lost
   DeathPenaltyResult applyDeathPenalty(Random rng) {
     // Roll a random equipment slot (excluding food slots)
-    final slots = EquipmentSlot.values;
+    const slots = EquipmentSlot.values;
     final slotIndex = rng.nextInt(slots.length);
     final slot = slots[slotIndex];
 

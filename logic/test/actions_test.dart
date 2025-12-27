@@ -43,7 +43,7 @@ void main() {
       );
 
       // With 0% doubling chance, expected items = 1.0
-      final expected0 = expectedItemsForDrops(drops, doublingChance: 0.0);
+      final expected0 = expectedItemsForDrops(drops);
       expect(expected0[normalLogsId], closeTo(1.0, 0.001));
 
       // With 5% doubling chance, expected items = 1.05
@@ -75,7 +75,7 @@ void main() {
     });
 
     test('combatWithId throws for invalid monster ID', () {
-      final invalidId = MelvorId('melvorD:NonExistentMonster');
+      const invalidId = MelvorId('melvorD:NonExistentMonster');
 
       expect(
         () => testActions.combatWithId(invalidId),
@@ -106,11 +106,11 @@ void main() {
 
       // At least one gem should be present (keys are now MelvorId)
       final gemIds = [
-        MelvorId('melvorD:Topaz'),
-        MelvorId('melvorD:Sapphire'),
-        MelvorId('melvorD:Ruby'),
-        MelvorId('melvorD:Emerald'),
-        MelvorId('melvorD:Diamond'),
+        const MelvorId('melvorD:Topaz'),
+        const MelvorId('melvorD:Sapphire'),
+        const MelvorId('melvorD:Ruby'),
+        const MelvorId('melvorD:Emerald'),
+        const MelvorId('melvorD:Diamond'),
       ];
       final hasAnyGem = gemIds.any(allExpectedItems.containsKey);
       expect(
@@ -123,9 +123,9 @@ void main() {
 
   group('outputsForRecipe', () {
     test('returns base outputs for NoSelectedRecipe', () {
-      final ironBarId = MelvorId('melvorD:Iron_Bar');
-      final coalOreId = MelvorId('melvorD:Coal_Ore');
-      final ironOreId = MelvorId('melvorD:Iron_Ore');
+      const ironBarId = MelvorId('melvorD:Iron_Bar');
+      const coalOreId = MelvorId('melvorD:Coal_Ore');
+      const ironOreId = MelvorId('melvorD:Iron_Ore');
 
       final action = SkillAction(
         id: ActionId.test(Skill.smithing, 'Test Smithing'),
@@ -153,9 +153,9 @@ void main() {
     });
 
     test('applies quantityMultiplier from selected recipe', () {
-      final ironBarId = MelvorId('melvorD:Iron_Bar');
-      final coalOreId = MelvorId('melvorD:Coal_Ore');
-      final ironOreId = MelvorId('melvorD:Iron_Ore');
+      const ironBarId = MelvorId('melvorD:Iron_Bar');
+      const coalOreId = MelvorId('melvorD:Coal_Ore');
+      const ironOreId = MelvorId('melvorD:Iron_Ore');
 
       final action = SkillAction(
         id: ActionId.test(Skill.smithing, 'Test Smithing'),
@@ -195,8 +195,8 @@ void main() {
     });
 
     test('clamps out-of-bounds recipe index', () {
-      final ironBarId = MelvorId('melvorD:Iron_Bar');
-      final coalOreId = MelvorId('melvorD:Coal_Ore');
+      const ironBarId = MelvorId('melvorD:Iron_Bar');
+      const coalOreId = MelvorId('melvorD:Coal_Ore');
 
       final action = SkillAction(
         id: ActionId.test(Skill.smithing, 'Test Smithing'),
@@ -226,9 +226,9 @@ void main() {
     });
 
     test('applies multiplier to multiple output items', () {
-      final ironBarId = MelvorId('melvorD:Iron_Bar');
-      final steelBarId = MelvorId('melvorD:Steel_Bar');
-      final coalOreId = MelvorId('melvorD:Coal_Ore');
+      const ironBarId = MelvorId('melvorD:Iron_Bar');
+      const steelBarId = MelvorId('melvorD:Steel_Bar');
+      const coalOreId = MelvorId('melvorD:Coal_Ore');
 
       final action = SkillAction(
         id: ActionId.test(Skill.smithing, 'Test Multi-Output'),

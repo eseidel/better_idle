@@ -21,9 +21,8 @@ import 'dart:math';
 import 'package:logic/src/data/action_id.dart';
 import 'package:logic/src/data/currency.dart';
 import 'package:logic/src/data/melvor_id.dart';
+import 'package:logic/src/solver/interaction.dart';
 import 'package:logic/src/state.dart';
-
-import 'interaction.dart';
 
 /// Applies an interaction to the game state, returning the new state.
 ///

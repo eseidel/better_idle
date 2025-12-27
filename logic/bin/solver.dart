@@ -4,6 +4,7 @@
 //        dart run bin/solver.dart -s  # Solve for woodcutting level 70
 //
 // Example: dart run bin/solver.dart 1000
+// ignore_for_file: avoid_print
 
 import 'dart:math';
 
@@ -51,7 +52,8 @@ void main(List<String> args) async {
     print('');
     final compressed = result.plan.compress();
     print(
-      'Plan (compressed ${result.plan.steps.length} -> ${compressed.steps.length} steps):',
+      'Plan (compressed ${result.plan.steps.length} '
+      '-> ${compressed.steps.length} steps):',
     );
     print(compressed.prettyPrint(actions: registries.actions));
     print('Total ticks: ${compressed.totalTicks}');

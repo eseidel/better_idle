@@ -47,8 +47,8 @@ void main() {
 
     test('BuyShopItem purchases an upgrade', () {
       final state = GlobalState.test(testRegistries, gp: 100);
-      final ironAxeId = MelvorId('melvorD:Iron_Axe');
-      final interaction = BuyShopItem(ironAxeId);
+      const ironAxeId = MelvorId('melvorD:Iron_Axe');
+      const interaction = BuyShopItem(ironAxeId);
 
       final newState = applyInteraction(state, interaction);
 
@@ -58,8 +58,8 @@ void main() {
 
     test('BuyShopItem throws when cannot afford', () {
       final state = GlobalState.test(testRegistries, gp: 10);
-      final ironAxeId = MelvorId('melvorD:Iron_Axe');
-      final interaction = BuyShopItem(ironAxeId);
+      const ironAxeId = MelvorId('melvorD:Iron_Axe');
+      const interaction = BuyShopItem(ironAxeId);
 
       expect(
         () => applyInteraction(state, interaction),
@@ -232,7 +232,7 @@ void main() {
         steps: [
           InteractionStep(SwitchActivity(normalTreeAction.id)),
           const WaitStep(1000, WaitForGoal(testGoal)),
-          InteractionStep(BuyShopItem(MelvorId('melvorD:Iron_Axe'))),
+          const InteractionStep(BuyShopItem(MelvorId('melvorD:Iron_Axe'))),
           const WaitStep(5000, WaitForGoal(testGoal)),
         ],
         totalTicks: 6000,
@@ -597,15 +597,16 @@ void main() {
         actualDeaths,
         greaterThan(0),
         reason:
-            'Actual deaths should be non-zero after thieving for $simulationTicks ticks',
+            'Actual deaths should be non-zero after thieving '
+            'for $simulationTicks ticks',
       );
       // Order of magnitude check - both should be in the range of 10-100
       expect(
         actualDeaths,
         greaterThan(expectedDeaths ~/ 10),
         reason:
-            'Actual deaths ($actualDeaths) should be within order of magnitude of '
-            'expected ($expectedDeaths). ticksToDeath=$ticksToDeath',
+            'Actual deaths ($actualDeaths) should be within order of magnitude '
+            'of expected ($expectedDeaths). ticksToDeath=$ticksToDeath',
       );
     });
 
@@ -621,7 +622,7 @@ void main() {
       // Normal Tree outputs Normal Logs (keys are MelvorId objects)
       expect(
         rates.itemFlowsPerTick,
-        contains(MelvorId('melvorD:Normal_Logs')),
+        contains(const MelvorId('melvorD:Normal_Logs')),
         reason: 'itemFlowsPerTick should include action outputs',
       );
 
@@ -649,7 +650,7 @@ void main() {
       // Bird Nest is a skill-level drop for woodcutting (keys are MelvorId objects)
       expect(
         rates.itemFlowsPerTick,
-        contains(MelvorId('melvorD:Bird_Nest')),
+        contains(const MelvorId('melvorD:Bird_Nest')),
         reason: 'itemFlowsPerTick should include skill-level drops',
       );
 
@@ -676,7 +677,7 @@ void main() {
       // Verify Bobby's Pocket is included in item flows (keys are MelvorId objects)
       expect(
         rates.itemFlowsPerTick,
-        contains(MelvorId('melvorF:Bobbys_Pocket')),
+        contains(const MelvorId('melvorF:Bobbys_Pocket')),
         reason: "itemFlowsPerTick should include Bobby's Pocket drop",
       );
 
@@ -718,10 +719,10 @@ void main() {
         actualValuePerTick,
         greaterThan(expectedGoldPerTickWithoutDrops),
         reason:
-            "valuePerTick ($actualValuePerTick) should be higher than "
-            "gold from thieving alone ($expectedGoldPerTickWithoutDrops) "
+            'valuePerTick ($actualValuePerTick) should be higher than '
+            'gold from thieving alone ($expectedGoldPerTickWithoutDrops) '
             "because skill-level drops like Bobby's Pocket should be included. "
-            "Expected with drops: $expectedGoldPerTickWithDrops",
+            'Expected with drops: $expectedGoldPerTickWithDrops',
       );
     });
   });
@@ -861,11 +862,11 @@ void main() {
 
     test('merges consecutive WaitSteps', () {
       const goal = ReachGpGoal(100);
-      final plan = Plan(
+      const plan = Plan(
         steps: [
-          const WaitStep(100, WaitForSkillXp(Skill.woodcutting, 50)),
-          const WaitStep(200, WaitForSkillXp(Skill.woodcutting, 100)),
-          const WaitStep(300, WaitForGoal(goal)),
+          WaitStep(100, WaitForSkillXp(Skill.woodcutting, 50)),
+          WaitStep(200, WaitForSkillXp(Skill.woodcutting, 100)),
+          WaitStep(300, WaitForGoal(goal)),
         ],
         totalTicks: 600,
         interactionCount: 0,
@@ -932,13 +933,13 @@ void main() {
 
     test('keeps SellAll and BuyShopItem interactions', () {
       final normalTreeAction = testActions.woodcutting('Normal Tree');
-      final ironAxeId = MelvorId('melvorD:Iron_Axe');
+      const ironAxeId = MelvorId('melvorD:Iron_Axe');
       final plan = Plan(
         steps: [
           InteractionStep(SwitchActivity(normalTreeAction.id)),
           const WaitStep(100, WaitForInventoryValue(50)),
           const InteractionStep(SellAll()),
-          InteractionStep(BuyShopItem(ironAxeId)),
+          const InteractionStep(BuyShopItem(ironAxeId)),
           const WaitStep(200, WaitForSkillXp(Skill.woodcutting, 100)),
         ],
         totalTicks: 300,
@@ -953,10 +954,10 @@ void main() {
     });
 
     test('preserves totalTicks and metadata', () {
-      final plan = Plan(
+      const plan = Plan(
         steps: [
-          const WaitStep(100, WaitForSkillXp(Skill.woodcutting, 50)),
-          const WaitStep(200, WaitForSkillXp(Skill.woodcutting, 100)),
+          WaitStep(100, WaitForSkillXp(Skill.woodcutting, 50)),
+          WaitStep(200, WaitForSkillXp(Skill.woodcutting, 100)),
         ],
         totalTicks: 300,
         interactionCount: 0,

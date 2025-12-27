@@ -122,7 +122,7 @@ void main() {
         ),
         stunned: const StunnedState.fresh().stun(),
       );
-      expect(() => state.clearAction(), throwsA(isA<StunnedException>()));
+      expect(state.clearAction, throwsA(isA<StunnedException>()));
     });
 
     test('startAction works when not stunned', () {

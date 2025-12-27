@@ -23,10 +23,9 @@
 library;
 
 import 'package:logic/src/data/melvor_id.dart';
+import 'package:logic/src/solver/estimate_rates.dart';
 import 'package:logic/src/state.dart';
 import 'package:meta/meta.dart';
-
-import 'estimate_rates.dart';
 
 /// Converts flows (from [Rates]) into an objective-specific scalar value.
 ///

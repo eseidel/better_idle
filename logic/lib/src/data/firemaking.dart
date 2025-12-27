@@ -1,8 +1,7 @@
+import 'package:logic/src/data/action_id.dart';
+import 'package:logic/src/data/actions.dart';
+import 'package:logic/src/data/melvor_id.dart';
 import 'package:meta/meta.dart';
-
-import 'action_id.dart';
-import 'actions.dart';
-import 'melvor_id.dart';
 
 /// A firemaking action parsed from Melvor data.
 ///
@@ -10,7 +9,7 @@ import 'melvor_id.dart';
 /// bonus drops like Coal and Ash.
 @immutable
 class FiremakingAction extends SkillAction {
-  FiremakingAction({
+  const FiremakingAction({
     required super.id,
     required super.name,
     required super.unlockLevel,

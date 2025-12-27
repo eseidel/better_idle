@@ -65,7 +65,7 @@ void main() {
 
     test('PlotState ready state (countdown null)', () {
       final cropId = ActionId.test(Skill.farming, 'Carrot');
-      final readyPlot = PlotState(cropId: cropId, growthTicksRemaining: null);
+      final readyPlot = PlotState(cropId: cropId);
 
       expect(readyPlot.isGrowing, false);
       expect(readyPlot.isReadyToHarvest, true);
@@ -321,7 +321,7 @@ void main() {
       }
       expect(failingSeed, isNotNull, reason: 'Should find a failing seed');
 
-      final random = Random(failingSeed!);
+      final random = Random(failingSeed);
       final seed = testRegistries.items.byId(allotmentCrop.seedId);
       var state = GlobalState.empty(testRegistries);
       state = state.copyWith(
@@ -377,7 +377,7 @@ void main() {
       );
       stateWithout = stateWithout.plantCrop(plotId, allotmentCrop);
       // Compost with 50 value (100% success), no harvest bonus
-      final compostNoBonus = testCompost(compostValue: 50, harvestBonus: 0);
+      final compostNoBonus = testCompost(compostValue: 50);
       final plotStateWithout = PlotState(
         cropId: allotmentCrop.id,
         growthTicksRemaining: 0,

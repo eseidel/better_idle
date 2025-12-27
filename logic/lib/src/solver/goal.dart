@@ -21,10 +21,10 @@ library;
 import 'package:equatable/equatable.dart';
 import 'package:logic/src/data/actions.dart';
 import 'package:logic/src/data/xp.dart';
+import 'package:logic/src/solver/estimate_rates.dart';
+import 'package:logic/src/solver/value_model.dart' show ValueModel;
 import 'package:logic/src/state.dart';
 import 'package:meta/meta.dart';
-
-import 'estimate_rates.dart';
 
 /// Abstract base class for solver goals.
 @immutable

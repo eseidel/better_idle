@@ -62,6 +62,49 @@ class TimeAway {
     this.doublingChance = 0.0,
   });
 
+  factory TimeAway.fromJson(Registries registries, Map<String, dynamic> json) {
+    final actionId = ActionId.maybeFromJson(json['activeAction'] as String?);
+    // Only reconstruct SkillActions - CombatActions are only used for
+    // predictions which return empty for combat anyway.
+    SkillAction? action;
+    if (actionId != null) {
+      final lookedUp = registries.actions.byId(actionId);
+      if (lookedUp is SkillAction) {
+        action = lookedUp;
+      }
+    }
+    final stopReasonName = json['stopReason'] as String?;
+    final stopReason = stopReasonName != null
+        ? ActionStopReason.values.firstWhere(
+            (e) => e.name == stopReasonName,
+            orElse: () => ActionStopReason.stillRunning,
+          )
+        : ActionStopReason.stillRunning;
+    final stoppedAfterMs = json['stoppedAfterMs'] as int?;
+    final recipeIndex = json['recipeIndex'] as int?;
+    final recipeSelection = recipeIndex != null
+        ? SelectedRecipe(index: recipeIndex)
+        : const NoSelectedRecipe();
+    return TimeAway(
+      registries: registries,
+      startTime: DateTime.fromMillisecondsSinceEpoch(json['startTime'] as int),
+      endTime: DateTime.fromMillisecondsSinceEpoch(json['endTime'] as int),
+      activeSkill: json['activeSkill'] != null
+          ? Skill.fromName(json['activeSkill'] as String)
+          : null,
+      activeAction: action,
+      recipeSelection: recipeSelection,
+      changes: Changes.fromJson(json['changes'] as Map<String, dynamic>),
+      masteryLevels:
+          maybeMap(json['masteryLevels'], toValue: (value) => value as int) ??
+          {},
+      stopReason: stopReason,
+      stoppedAfter: stoppedAfterMs != null
+          ? Duration(milliseconds: stoppedAfterMs)
+          : null,
+    );
+  }
+
   factory TimeAway.test(
     Registries registries, {
     DateTime? startTime,
@@ -104,49 +147,6 @@ class TimeAway {
   static TimeAway? maybeFromJson(Registries registries, dynamic json) {
     if (json == null) return null;
     return TimeAway.fromJson(registries, json as Map<String, dynamic>);
-  }
-
-  factory TimeAway.fromJson(Registries registries, Map<String, dynamic> json) {
-    final actionId = ActionId.maybeFromJson(json['activeAction'] as String?);
-    // Only reconstruct SkillActions - CombatActions are only used for
-    // predictions which return empty for combat anyway.
-    SkillAction? action;
-    if (actionId != null) {
-      final lookedUp = registries.actions.byId(actionId);
-      if (lookedUp is SkillAction) {
-        action = lookedUp;
-      }
-    }
-    final stopReasonName = json['stopReason'] as String?;
-    final stopReason = stopReasonName != null
-        ? ActionStopReason.values.firstWhere(
-            (e) => e.name == stopReasonName,
-            orElse: () => ActionStopReason.stillRunning,
-          )
-        : ActionStopReason.stillRunning;
-    final stoppedAfterMs = json['stoppedAfterMs'] as int?;
-    final recipeIndex = json['recipeIndex'] as int?;
-    final recipeSelection = recipeIndex != null
-        ? SelectedRecipe(index: recipeIndex)
-        : const NoSelectedRecipe();
-    return TimeAway(
-      registries: registries,
-      startTime: DateTime.fromMillisecondsSinceEpoch(json['startTime'] as int),
-      endTime: DateTime.fromMillisecondsSinceEpoch(json['endTime'] as int),
-      activeSkill: json['activeSkill'] != null
-          ? Skill.fromName(json['activeSkill'] as String)
-          : null,
-      activeAction: action,
-      recipeSelection: recipeSelection,
-      changes: Changes.fromJson(json['changes'] as Map<String, dynamic>),
-      masteryLevels:
-          maybeMap(json['masteryLevels'], toValue: (value) => value as int) ??
-          {},
-      stopReason: stopReason,
-      stoppedAfter: stoppedAfterMs != null
-          ? Duration(milliseconds: stoppedAfterMs)
-          : null,
-    );
   }
   final DateTime startTime;
   final DateTime endTime;
@@ -354,7 +354,7 @@ class TimeAway {
       'endTime': endTime.millisecondsSinceEpoch,
       'activeSkill': activeSkill?.name,
       'activeAction': activeAction?.id.toJson(),
-      if (recipeIndex != null) 'recipeIndex': recipeIndex,
+      'recipeIndex': ?recipeIndex,
       'changes': changes.toJson(),
       'stopReason': stopReason.name,
       'stoppedAfterMs': stoppedAfter?.inMilliseconds,

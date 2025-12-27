@@ -8,6 +8,13 @@ final defaultCacheDir = Directory('.cache');
 
 /// Fetches and caches game data from the Melvor CDN.
 class Cache {
+  /// Creates a new cache instance.
+  ///
+  /// The [cacheDir] is where cached files will be stored.
+  /// An optional [client] can be provided for testing.
+  Cache({required this.cacheDir, http.Client? client})
+    : _client = client ?? http.Client();
+
   /// The base URL for the Melvor CDN.
   static const String cdnBase = 'https://cdn2-main.melvor.net';
 
@@ -21,13 +28,6 @@ class Cache {
   final Directory cacheDir;
 
   final http.Client _client;
-
-  /// Creates a new cache instance.
-  ///
-  /// The [cacheDir] is where cached files will be stored.
-  /// An optional [client] can be provided for testing.
-  Cache({required this.cacheDir, http.Client? client})
-    : _client = client ?? http.Client();
 
   /// Ensures a data file is cached and returns its parsed content.
   Future<Map<String, dynamic>> _ensureDataFile(String dataPath) async {
@@ -57,7 +57,7 @@ class Cache {
     final cacheFile = File(path.join(cacheDir.path, assetPath));
 
     // Check cache first.
-    if (await cacheFile.exists()) {
+    if (cacheFile.existsSync()) {
       return cacheFile;
     }
 
@@ -86,9 +86,8 @@ class Cache {
 
 /// Exception thrown when a cache operation fails.
 class CacheException implements Exception {
-  final String message;
-
   CacheException(this.message);
+  final String message;
 
   @override
   String toString() => 'CacheException: $message';

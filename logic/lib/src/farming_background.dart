@@ -17,7 +17,7 @@ typedef FarmingPlotTickResult = ({
 /// toward zero as ticks are consumed.
 @immutable
 class FarmingPlotGrowth {
-  FarmingPlotGrowth(this.plotId, this.cropId, this.plotState);
+  const FarmingPlotGrowth(this.plotId, this.cropId, this.plotState);
 
   final MelvorId plotId;
   final ActionId cropId;

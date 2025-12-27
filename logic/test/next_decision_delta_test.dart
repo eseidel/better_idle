@@ -42,10 +42,10 @@ void main() {
       final action = testActions.woodcutting('Normal Tree');
       stateNoUpgrade = stateNoUpgrade.startAction(action, random: Random(0));
 
-      final ironAxeId = MelvorId('melvorD:Iron_Axe');
+      const ironAxeId = MelvorId('melvorD:Iron_Axe');
       var stateWithUpgrade = GlobalState.empty(
         testRegistries,
-      ).copyWith(shop: ShopState.empty().withPurchase(ironAxeId));
+      ).copyWith(shop: const ShopState.empty().withPurchase(ironAxeId));
       stateWithUpgrade = stateWithUpgrade.startAction(
         action,
         random: Random(0),
@@ -131,7 +131,7 @@ void main() {
       final candidates = enumerateCandidates(state, goal);
 
       // Iron Axe is in the watch list
-      final ironAxeId = MelvorId('melvorD:Iron_Axe');
+      const ironAxeId = MelvorId('melvorD:Iron_Axe');
       expect(candidates.watch.upgradePurchaseIds, contains(ironAxeId));
 
       // buyUpgrades may contain upgrades depending on rate calculations

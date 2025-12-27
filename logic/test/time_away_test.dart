@@ -14,7 +14,7 @@ void main() {
       });
 
       test('merges inventory changes', () {
-        final itemId = MelvorId('melvorD:Normal_Logs');
+        const itemId = MelvorId('melvorD:Normal_Logs');
         final c1 = const Changes.empty().merge(
           Changes(
             inventoryChanges: Counts(counts: {itemId: 10}),
@@ -34,55 +34,55 @@ void main() {
       });
 
       test('merges skill xp changes', () {
-        final c1 = Changes(
-          inventoryChanges: const Counts.empty(),
-          skillXpChanges: const Counts(counts: {Skill.woodcutting: 100}),
-          droppedItems: const Counts.empty(),
-          skillLevelChanges: const LevelChanges.empty(),
+        const c1 = Changes(
+          inventoryChanges: Counts.empty(),
+          skillXpChanges: Counts(counts: {Skill.woodcutting: 100}),
+          droppedItems: Counts.empty(),
+          skillLevelChanges: LevelChanges.empty(),
         );
-        final c2 = Changes(
-          inventoryChanges: const Counts.empty(),
-          skillXpChanges: const Counts(counts: {Skill.woodcutting: 50}),
-          droppedItems: const Counts.empty(),
-          skillLevelChanges: const LevelChanges.empty(),
+        const c2 = Changes(
+          inventoryChanges: Counts.empty(),
+          skillXpChanges: Counts(counts: {Skill.woodcutting: 50}),
+          droppedItems: Counts.empty(),
+          skillLevelChanges: LevelChanges.empty(),
         );
         final merged = c1.merge(c2);
         expect(merged.skillXpChanges.counts[Skill.woodcutting], 150);
       });
 
       test('merges currencies gained', () {
-        final c1 = Changes(
-          inventoryChanges: const Counts.empty(),
-          skillXpChanges: const Counts.empty(),
-          droppedItems: const Counts.empty(),
-          skillLevelChanges: const LevelChanges.empty(),
-          currenciesGained: const {Currency.gp: 1000},
+        const c1 = Changes(
+          inventoryChanges: Counts.empty(),
+          skillXpChanges: Counts.empty(),
+          droppedItems: Counts.empty(),
+          skillLevelChanges: LevelChanges.empty(),
+          currenciesGained: {Currency.gp: 1000},
         );
-        final c2 = Changes(
-          inventoryChanges: const Counts.empty(),
-          skillXpChanges: const Counts.empty(),
-          droppedItems: const Counts.empty(),
-          skillLevelChanges: const LevelChanges.empty(),
-          currenciesGained: const {Currency.gp: 500},
+        const c2 = Changes(
+          inventoryChanges: Counts.empty(),
+          skillXpChanges: Counts.empty(),
+          droppedItems: Counts.empty(),
+          skillLevelChanges: LevelChanges.empty(),
+          currenciesGained: {Currency.gp: 500},
         );
         final merged = c1.merge(c2);
         expect(merged.currenciesGained[Currency.gp], 1500);
       });
 
       test('merges multiple currency types', () {
-        final c1 = Changes(
-          inventoryChanges: const Counts.empty(),
-          skillXpChanges: const Counts.empty(),
-          droppedItems: const Counts.empty(),
-          skillLevelChanges: const LevelChanges.empty(),
-          currenciesGained: const {Currency.gp: 1000, Currency.slayerCoins: 50},
+        const c1 = Changes(
+          inventoryChanges: Counts.empty(),
+          skillXpChanges: Counts.empty(),
+          droppedItems: Counts.empty(),
+          skillLevelChanges: LevelChanges.empty(),
+          currenciesGained: {Currency.gp: 1000, Currency.slayerCoins: 50},
         );
-        final c2 = Changes(
-          inventoryChanges: const Counts.empty(),
-          skillXpChanges: const Counts.empty(),
-          droppedItems: const Counts.empty(),
-          skillLevelChanges: const LevelChanges.empty(),
-          currenciesGained: const {Currency.gp: 500, Currency.raidCoins: 100},
+        const c2 = Changes(
+          inventoryChanges: Counts.empty(),
+          skillXpChanges: Counts.empty(),
+          droppedItems: Counts.empty(),
+          skillLevelChanges: LevelChanges.empty(),
+          currenciesGained: {Currency.gp: 500, Currency.raidCoins: 100},
         );
         final merged = c1.merge(c2);
         expect(merged.currenciesGained[Currency.gp], 1500);
@@ -91,12 +91,12 @@ void main() {
       });
 
       test('merges currencies with empty', () {
-        final c1 = Changes(
-          inventoryChanges: const Counts.empty(),
-          skillXpChanges: const Counts.empty(),
-          droppedItems: const Counts.empty(),
-          skillLevelChanges: const LevelChanges.empty(),
-          currenciesGained: const {Currency.gp: 1000},
+        const c1 = Changes(
+          inventoryChanges: Counts.empty(),
+          skillXpChanges: Counts.empty(),
+          droppedItems: Counts.empty(),
+          skillLevelChanges: LevelChanges.empty(),
+          currenciesGained: {Currency.gp: 1000},
         );
         const c2 = Changes.empty();
         final merged = c1.merge(c2);
@@ -115,12 +115,12 @@ void main() {
 
     group('serialization', () {
       test('currencies round-trip through JSON', () {
-        final original = Changes(
-          inventoryChanges: const Counts.empty(),
-          skillXpChanges: const Counts.empty(),
-          droppedItems: const Counts.empty(),
-          skillLevelChanges: const LevelChanges.empty(),
-          currenciesGained: const {
+        const original = Changes(
+          inventoryChanges: Counts.empty(),
+          skillXpChanges: Counts.empty(),
+          droppedItems: Counts.empty(),
+          skillLevelChanges: LevelChanges.empty(),
+          currenciesGained: {
             Currency.gp: 1000,
             Currency.slayerCoins: 50,
             Currency.raidCoins: 25,
@@ -212,7 +212,7 @@ void main() {
       final endTime = startTime.add(const Duration(hours: 1));
       final changes = Changes(
         inventoryChanges: Counts(
-          counts: {MelvorId('melvorD:Normal_Logs'): 100},
+          counts: {const MelvorId('melvorD:Normal_Logs'): 100},
         ),
         skillXpChanges: const Counts(counts: {Skill.woodcutting: 500}),
         droppedItems: const Counts.empty(),
@@ -242,7 +242,9 @@ void main() {
       expect(loaded.changes.currenciesGained[Currency.slayerCoins], 100);
       expect(loaded.changes.currenciesGained[Currency.raidCoins], 50);
       expect(
-        loaded.changes.inventoryChanges.counts[MelvorId('melvorD:Normal_Logs')],
+        loaded.changes.inventoryChanges.counts[const MelvorId(
+          'melvorD:Normal_Logs',
+        )],
         100,
       );
       expect(loaded.changes.skillXpChanges.counts[Skill.woodcutting], 500);
@@ -268,7 +270,7 @@ void main() {
     });
 
     test('returns correct items per hour for action with inputs', () {
-      // Firemaking: "Burn Normal Logs" takes 2 seconds and consumes 1 Normal Logs
+      // "Burn Normal Logs" takes 2 seconds and consumes 1 Normal Logs
       // Actions per hour = 3600 / 2 = 1800
       // Items consumed per hour = 1 * 1800 = 1800
       final burnNormalLogs = testActions.firemaking('Burn Normal Logs');
@@ -278,7 +280,10 @@ void main() {
       );
 
       final itemsPerHour = timeAway.itemsConsumedPerHour;
-      expect(itemsPerHour[MelvorId('melvorD:Normal_Logs')], closeTo(1800, 1));
+      expect(
+        itemsPerHour[const MelvorId('melvorD:Normal_Logs')],
+        closeTo(1800, 1),
+      );
     });
   });
 
@@ -305,7 +310,10 @@ void main() {
       );
 
       final itemsPerHour = timeAway.itemsGainedPerHour;
-      expect(itemsPerHour[MelvorId('melvorD:Normal_Logs')], closeTo(1200, 1));
+      expect(
+        itemsPerHour[const MelvorId('melvorD:Normal_Logs')],
+        closeTo(1200, 1),
+      );
     });
 
     test('includes skill-level drops in calculation', () {
@@ -319,7 +327,10 @@ void main() {
       );
 
       final itemsPerHour = timeAway.itemsGainedPerHour;
-      expect(itemsPerHour[MelvorId('melvorD:Bird_Nest')], closeTo(6, 0.1));
+      expect(
+        itemsPerHour[const MelvorId('melvorD:Bird_Nest')],
+        closeTo(6, 0.1),
+      );
     });
 
     test('accounts for doubling chance', () {
@@ -334,7 +345,7 @@ void main() {
       );
 
       final itemsPerHour = timeAway.itemsGainedPerHour;
-      expect(itemsPerHour[MelvorId('melvorD:Normal_Logs')], 1680);
+      expect(itemsPerHour[const MelvorId('melvorD:Normal_Logs')], 1680);
     });
   });
 }

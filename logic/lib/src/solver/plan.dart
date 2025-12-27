@@ -21,12 +21,11 @@ library;
 import 'package:equatable/equatable.dart';
 import 'package:logic/src/data/action_id.dart';
 import 'package:logic/src/data/actions.dart';
+import 'package:logic/src/solver/goal.dart';
+import 'package:logic/src/solver/interaction.dart';
 import 'package:logic/src/state.dart';
 import 'package:logic/src/tick.dart';
 import 'package:meta/meta.dart';
-
-import 'goal.dart';
-import 'interaction.dart';
 
 // ---------------------------------------------------------------------------
 // Wait For (what we're waiting for)

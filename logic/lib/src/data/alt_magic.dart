@@ -1,8 +1,7 @@
+import 'package:logic/src/data/action_id.dart';
+import 'package:logic/src/data/actions.dart';
+import 'package:logic/src/data/melvor_id.dart';
 import 'package:meta/meta.dart';
-
-import 'action_id.dart';
-import 'actions.dart';
-import 'melvor_id.dart';
 
 /// The base interval for casting alt magic spells (2 seconds).
 const _altMagicCastDuration = Duration(seconds: 2);
@@ -12,7 +11,7 @@ const _altMagicCastDuration = Duration(seconds: 2);
 /// Alt Magic spells convert items or resources into other items/GP.
 @immutable
 class AltMagicAction extends SkillAction {
-  AltMagicAction({
+  const AltMagicAction({
     required super.id,
     required super.name,
     required super.unlockLevel,

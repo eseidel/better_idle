@@ -25,13 +25,12 @@ library;
 import 'package:logic/src/data/action_id.dart';
 import 'package:logic/src/data/actions.dart';
 import 'package:logic/src/data/xp.dart';
+import 'package:logic/src/solver/enumerate_candidates.dart';
+import 'package:logic/src/solver/estimate_rates.dart';
+import 'package:logic/src/solver/goal.dart';
+import 'package:logic/src/solver/plan.dart';
+import 'package:logic/src/solver/value_model.dart';
 import 'package:logic/src/state.dart';
-
-import 'enumerate_candidates.dart';
-import 'estimate_rates.dart';
-import 'goal.dart';
-import 'plan.dart';
-import 'value_model.dart';
 
 /// Sentinel value for "infinite" ticks (no progress possible).
 const int infTicks = 1 << 60;
@@ -107,9 +106,9 @@ NextDecisionResult nextDecisionDelta(
         ? state.inventoryUsed / state.inventoryCapacity
         : 0.0;
     if (usedFraction >= defaultInventoryThreshold) {
-      return NextDecisionResult(
+      return const NextDecisionResult(
         deltaTicks: 0,
-        waitFor: const WaitForInventoryThreshold(defaultInventoryThreshold),
+        waitFor: WaitForInventoryThreshold(defaultInventoryThreshold),
       );
     }
   }

@@ -1,8 +1,7 @@
+import 'package:logic/src/data/action_id.dart';
+import 'package:logic/src/data/actions.dart';
+import 'package:logic/src/data/melvor_id.dart';
 import 'package:meta/meta.dart';
-
-import 'action_id.dart';
-import 'actions.dart';
-import 'melvor_id.dart';
 
 const _smithingDuration = Duration(seconds: 2);
 
@@ -60,7 +59,7 @@ class SmithingCategoryRegistry {
 /// Smithing actions consume ore/bars and produce equipment or bars.
 @immutable
 class SmithingAction extends SkillAction {
-  SmithingAction({
+  const SmithingAction({
     required super.id,
     required super.name,
     required super.unlockLevel,

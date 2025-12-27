@@ -4,11 +4,13 @@
 // generates statistics about their structure and usage.
 //
 // See logic/lib/src/types/modifier.dart for modifier format documentation.
+// ignore_for_file: avoid_print
 
 import 'dart:convert';
 import 'dart:io';
 
 import 'package:logic/src/data/cache.dart';
+import 'package:logic/src/strings.dart';
 import 'package:logic/src/types/modifier.dart';
 
 // ============================================================================
@@ -92,7 +94,7 @@ void parseModifiersMap(
       // Update stats for this modifier name
       final nameStats = stats.byName.putIfAbsent(
         entry.key,
-        () => ModifierNameStats(),
+        ModifierNameStats.new,
       );
 
       if (modifier.isScalar) {
@@ -107,7 +109,7 @@ void parseModifiersMap(
           }
         }
       }
-    } catch (e) {
+    } on Exception catch (e) {
       stats.failures.add(
         ParseFailure(source, entry.key, e.toString(), entry.value),
       );
@@ -231,7 +233,7 @@ void printConsoleSummary(ModifierStats stats) {
   print('Unique modifier names: ${stats.byName.length}');
   print(
     'Successfully parsed: ${stats.successCount} '
-    '(${(stats.successCount / stats.totalInstances * 100).toStringAsFixed(1)}%)',
+    '(${percentToString(stats.successCount / stats.totalInstances)}%)',
   );
   print('Parse failures: ${stats.failures.length}');
 

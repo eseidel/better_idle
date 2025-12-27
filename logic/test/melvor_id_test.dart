@@ -4,53 +4,53 @@ import 'package:test/test.dart';
 void main() {
   group('MelvorId', () {
     test('namespace extracts namespace from fullId', () {
-      final id = MelvorId('melvorD:Woodcutting');
+      const id = MelvorId('melvorD:Woodcutting');
       expect(id.namespace, 'melvorD');
     });
 
     test('namespace works with different namespaces', () {
-      expect(MelvorId('melvorF:SomeAction').namespace, 'melvorF');
-      expect(MelvorId('test:Item').namespace, 'test');
-      expect(MelvorId('custom:Thing').namespace, 'custom');
+      expect(const MelvorId('melvorF:SomeAction').namespace, 'melvorF');
+      expect(const MelvorId('test:Item').namespace, 'test');
+      expect(const MelvorId('custom:Thing').namespace, 'custom');
     });
 
     test('localId extracts local part from fullId', () {
-      final id = MelvorId('melvorD:Woodcutting');
+      const id = MelvorId('melvorD:Woodcutting');
       expect(id.localId, 'Woodcutting');
     });
 
     test('localId works with underscores', () {
-      final id = MelvorId('melvorD:Normal_Logs');
+      const id = MelvorId('melvorD:Normal_Logs');
       expect(id.localId, 'Normal_Logs');
     });
 
     test('name converts underscores to spaces', () {
-      expect(MelvorId('melvorD:Normal_Logs').name, 'Normal Logs');
-      expect(MelvorId('melvorD:Raw_Shrimp').name, 'Raw Shrimp');
-      expect(MelvorId('melvorD:Woodcutting').name, 'Woodcutting');
+      expect(const MelvorId('melvorD:Normal_Logs').name, 'Normal Logs');
+      expect(const MelvorId('melvorD:Raw_Shrimp').name, 'Raw Shrimp');
+      expect(const MelvorId('melvorD:Woodcutting').name, 'Woodcutting');
     });
 
     test('equality with same fullId', () {
-      final id1 = MelvorId('melvorD:Woodcutting');
-      final id2 = MelvorId('melvorD:Woodcutting');
+      const id1 = MelvorId('melvorD:Woodcutting');
+      const id2 = MelvorId('melvorD:Woodcutting');
       expect(id1, equals(id2));
       expect(id1.hashCode, equals(id2.hashCode));
     });
 
     test('inequality with different fullId', () {
-      final id1 = MelvorId('melvorD:Woodcutting');
-      final id2 = MelvorId('melvorD:Fishing');
+      const id1 = MelvorId('melvorD:Woodcutting');
+      const id2 = MelvorId('melvorD:Fishing');
       expect(id1, isNot(equals(id2)));
     });
 
     test('inequality with different namespace', () {
-      final id1 = MelvorId('melvorD:Woodcutting');
-      final id2 = MelvorId('melvorF:Woodcutting');
+      const id1 = MelvorId('melvorD:Woodcutting');
+      const id2 = MelvorId('melvorF:Woodcutting');
       expect(id1, isNot(equals(id2)));
     });
 
     test('toString returns fullId', () {
-      final id = MelvorId('melvorD:Woodcutting');
+      const id = MelvorId('melvorD:Woodcutting');
       expect(id.toString(), 'melvorD:Woodcutting');
     });
 
@@ -60,7 +60,7 @@ void main() {
     });
 
     test('toJson returns fullId', () {
-      final id = MelvorId('melvorD:Woodcutting');
+      const id = MelvorId('melvorD:Woodcutting');
       expect(id.toJson(), 'melvorD:Woodcutting');
     });
 

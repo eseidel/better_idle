@@ -302,7 +302,7 @@ void main() {
           skill: Skill.woodcutting,
           name: 'Test Action',
           unlockLevel: 1,
-          duration: Duration(seconds: 1),
+          duration: const Duration(seconds: 1),
           xp: 10,
           outputs: {normalLogs.id: 3}, // Count > 1
         );
@@ -704,7 +704,7 @@ void main() {
       var state = GlobalState.test(
         testRegistries,
         actionStates: {
-          copper.id: ActionState(
+          copper.id: const ActionState(
             masteryXp: 0,
             mining: MiningState(
               totalHpLost: 5,
@@ -809,7 +809,7 @@ void main() {
         testRegistries,
         actionStates: {
           // Copper: depleted, mid-respawn with 30 ticks remaining
-          copper.id: ActionState(
+          copper.id: const ActionState(
             masteryXp: 0,
             mining: MiningState(
               totalHpLost: 6, // Fully depleted (6 HP lost = 0 HP remaining)
@@ -817,7 +817,7 @@ void main() {
             ),
           ),
           // Rune Essence: damaged but not depleted, healing
-          runeEssence.id: ActionState(
+          runeEssence.id: const ActionState(
             masteryXp: 0,
             mining: MiningState(
               totalHpLost: 3, // 3 HP lost, 3 HP remaining (out of 6)
@@ -1004,7 +1004,7 @@ void main() {
       var state = GlobalState.test(
         testRegistries,
         actionStates: {
-          copper.id: ActionState(
+          copper.id: const ActionState(
             masteryXp: 0,
             mining: MiningState(
               totalHpLost: 3, // 3 HP lost
@@ -1043,7 +1043,7 @@ void main() {
       var state = GlobalState.test(
         testRegistries,
         actionStates: {
-          copper.id: ActionState(
+          copper.id: const ActionState(
             masteryXp: 0,
             mining: MiningState(
               totalHpLost: 6,
@@ -1082,11 +1082,11 @@ void main() {
       var state = GlobalState.test(
         testRegistries,
         actionStates: {
-          copper.id: ActionState(
+          copper.id: const ActionState(
             masteryXp: 0,
             mining: MiningState(totalHpLost: 2, hpRegenTicksRemaining: 50),
           ),
-          runeEssence.id: ActionState(
+          runeEssence.id: const ActionState(
             masteryXp: 0,
             mining: MiningState(totalHpLost: 3, hpRegenTicksRemaining: 80),
           ),
@@ -1146,7 +1146,7 @@ void main() {
       var state = GlobalState.test(
         testRegistries,
         actionStates: {
-          copper.id: ActionState(
+          copper.id: const ActionState(
             masteryXp: 0,
             mining: MiningState(totalHpLost: 2, hpRegenTicksRemaining: 50),
           ),
@@ -1183,7 +1183,7 @@ void main() {
       var state = GlobalState.test(
         testRegistries,
         actionStates: {
-          copper.id: ActionState(
+          copper.id: const ActionState(
             masteryXp: 0,
             mining: MiningState(
               totalHpLost: 1,
@@ -1354,7 +1354,7 @@ void main() {
     test('multiple farming plots grow in parallel', () {
       // Get all available plots for the Allotment category
       // (initial plots are level 1, no cost, and category Allotment)
-      final allotmentCategoryId = MelvorId('melvorD:Allotment');
+      const allotmentCategoryId = MelvorId('melvorD:Allotment');
       final allotmentPlots = testRegistries.farmingPlots
           .forCategory(allotmentCategoryId)
           .where((p) => p.level == 1 && p.currencyCosts.isEmpty)

@@ -1,8 +1,7 @@
+import 'package:logic/src/data/action_id.dart';
+import 'package:logic/src/data/actions.dart';
+import 'package:logic/src/data/melvor_id.dart';
 import 'package:meta/meta.dart';
-
-import 'action_id.dart';
-import 'actions.dart';
-import 'melvor_id.dart';
 
 const _runecraftingDuration = Duration(seconds: 2);
 
@@ -58,7 +57,7 @@ class RunecraftingCategoryRegistry {
 /// and magical gear.
 @immutable
 class RunecraftingAction extends SkillAction {
-  RunecraftingAction({
+  const RunecraftingAction({
     required super.id,
     required super.name,
     required super.unlockLevel,

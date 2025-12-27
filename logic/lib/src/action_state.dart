@@ -1,11 +1,10 @@
 import 'dart:math';
 
+import 'package:logic/src/data/action_id.dart';
+import 'package:logic/src/data/actions.dart';
+import 'package:logic/src/data/xp.dart';
 import 'package:logic/src/tick.dart';
 import 'package:meta/meta.dart';
-
-import 'data/action_id.dart';
-import 'data/actions.dart';
-import 'data/xp.dart';
 
 /// Mining-specific state for rock HP and respawn.
 @immutable
@@ -212,11 +211,12 @@ class ActionState {
         existingIndex == null ||
             (existingIndex >= 0 &&
                 existingIndex < action.alternativeRecipes!.length),
-        'Selected recipe index $existingIndex is out of range for action ${action.id}',
+        'Selected recipe index $existingIndex '
+        'is out of range for action ${action.id}',
       );
       return SelectedRecipe(index: selectedRecipeIndex ?? 0);
     }
-    return NoSelectedRecipe();
+    return const NoSelectedRecipe();
   }
 
   /// The mastery level for this action, derived from mastery XP.

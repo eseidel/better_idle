@@ -1,8 +1,7 @@
+import 'package:logic/src/data/action_id.dart';
+import 'package:logic/src/data/actions.dart';
+import 'package:logic/src/data/melvor_id.dart';
 import 'package:meta/meta.dart';
-
-import 'action_id.dart';
-import 'actions.dart';
-import 'melvor_id.dart';
 
 const _fletchingDuration = Duration(seconds: 2);
 
@@ -57,17 +56,17 @@ class FletchingCategoryRegistry {
 /// Fletching actions consume logs/materials and produce arrows, bows, etc.
 @immutable
 class FletchingAction extends SkillAction {
-  FletchingAction({
+  const FletchingAction({
     required super.id,
     required super.name,
     required super.unlockLevel,
     required super.xp,
     required super.inputs,
     required super.outputs,
-    super.alternativeRecipes,
     required this.productId,
     required this.baseQuantity,
     required this.categoryId,
+    super.alternativeRecipes,
   }) : super(skill: Skill.fletching, duration: _fletchingDuration);
 
   factory FletchingAction.fromJson(

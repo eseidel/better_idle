@@ -17,9 +17,9 @@ library;
 import 'package:logic/src/data/actions.dart';
 import 'package:logic/src/data/currency.dart';
 import 'package:logic/src/data/shop.dart';
+import 'package:logic/src/solver/enumerate_candidates.dart' show Candidates;
+import 'package:logic/src/solver/interaction.dart';
 import 'package:logic/src/state.dart';
-
-import 'interaction.dart';
 
 /// Returns all available interactions from the current state.
 ///

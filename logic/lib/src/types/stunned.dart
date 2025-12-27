@@ -23,15 +23,15 @@ class StunnedException implements Exception {
 class StunnedState {
   const StunnedState({required this.ticksRemaining});
 
+  factory StunnedState.fromJson(Map<String, dynamic> json) {
+    return StunnedState(ticksRemaining: json['ticksRemaining'] as int? ?? 0);
+  }
+
   const StunnedState.fresh() : ticksRemaining = 0;
 
   static StunnedState? maybeFromJson(dynamic json) {
     if (json == null) return null;
     return StunnedState.fromJson(json as Map<String, dynamic>);
-  }
-
-  factory StunnedState.fromJson(Map<String, dynamic> json) {
-    return StunnedState(ticksRemaining: json['ticksRemaining'] as int? ?? 0);
   }
 
   /// Ticks remaining until the stunned effect wears off.

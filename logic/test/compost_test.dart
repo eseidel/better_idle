@@ -17,7 +17,7 @@ void main() {
       final compost = Item.test('Compost', gp: 10, compostValue: 10);
       final state = createTestState([compost]);
 
-      final plotId = const MelvorId('test:plot_1');
+      const plotId = MelvorId('test:plot_1');
 
       // Add compost to inventory
       var updatedState = state.copyWith(
@@ -39,7 +39,7 @@ void main() {
       final seed = Item.test('Potato Seeds', gp: 5);
       final state = createTestState([compost, seed]);
 
-      final plotId = const MelvorId('test:plot_1');
+      const plotId = MelvorId('test:plot_1');
 
       // Create a growing crop
       final crop = FarmingCrop(
@@ -84,7 +84,7 @@ void main() {
       final seed = Item.test('Potato Seeds', gp: 5);
       final state = createTestState([compost, seed]);
 
-      final plotId = const MelvorId('test:plot_1');
+      const plotId = MelvorId('test:plot_1');
 
       final crop = FarmingCrop(
         id: ActionId.test(Skill.farming, 'Potato'),
@@ -130,7 +130,7 @@ void main() {
       final strongCompost = Item.test('Weird Gloop', gp: 50, compostValue: 50);
       final state = createTestState([normalCompost, strongCompost]);
 
-      final plotId = const MelvorId('test:plot_1');
+      const plotId = MelvorId('test:plot_1');
 
       var updatedState = state.copyWith(
         inventory: state.inventory
@@ -186,7 +186,7 @@ void main() {
       final seed = Item.test('Potato Seeds', gp: 5);
       final state = createTestState([compost, seed]);
 
-      final plotId = const MelvorId('test:plot_1');
+      const plotId = MelvorId('test:plot_1');
 
       final crop = FarmingCrop(
         id: ActionId.test(Skill.farming, 'Potato'),

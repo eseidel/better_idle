@@ -28,12 +28,11 @@ import 'package:logic/src/data/action_id.dart';
 import 'package:logic/src/data/actions.dart';
 import 'package:logic/src/data/melvor_id.dart';
 import 'package:logic/src/data/xp.dart';
+import 'package:logic/src/solver/goal.dart';
 import 'package:logic/src/state.dart';
 import 'package:logic/src/tick.dart';
 import 'package:logic/src/types/stunned.dart';
 import 'package:meta/meta.dart';
-
-import 'goal.dart';
 
 /// Default constants for candidate selection.
 const int defaultActivityCandidateCount = 8; // K
@@ -490,7 +489,7 @@ List<ActionId> _selectLockedActivitiesToWatch(
 /// Gets the best XP rate per tick for a skill from unlocked activities.
 double _currentXpRateForSkill(List<ActionSummary> summaries, Skill skill) {
   final forSkill = summaries.where((s) => s.skill == skill && s.isUnlocked);
-  if (forSkill.isEmpty) return 0.0;
+  if (forSkill.isEmpty) return 0;
   return forSkill.map((s) => s.xpRatePerTick).reduce((a, b) => a > b ? a : b);
 }
 
@@ -516,9 +515,8 @@ _UpgradeResult _selectUpgradeCandidates(
   List<ActionSummary> summaries,
   GlobalState state,
   int count, {
-  List<ActionId>? candidateActivityIds,
+  required Goal goal, List<ActionId>? candidateActivityIds,
   double bestCurrentRate = 0.0,
-  required Goal goal,
 }) {
   final candidates = <(MelvorId, double)>[];
   final toWatch = <MelvorId>[];

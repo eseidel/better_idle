@@ -50,10 +50,10 @@ void main() {
     test('marks unlocked actions correctly', () {
       final state = GlobalState.test(
         testRegistries,
-        skillStates: {
-          Skill.hitpoints: const SkillState(xp: 1154, masteryPoolXp: 0),
+        skillStates: const {
+          Skill.hitpoints: SkillState(xp: 1154, masteryPoolXp: 0),
           // Level 25 = 8740 XP (Willow Tree requires level 25)
-          Skill.woodcutting: const SkillState(xp: 8740, masteryPoolXp: 0),
+          Skill.woodcutting: SkillState(xp: 8740, masteryPoolXp: 0),
         },
       );
       final summaries = buildActionSummaries(state);
@@ -165,11 +165,11 @@ void main() {
     test('respects activity count limit', () {
       final state = GlobalState.test(
         testRegistries,
-        skillStates: {
-          Skill.hitpoints: const SkillState(xp: 1154, masteryPoolXp: 0),
-          Skill.woodcutting: const SkillState(xp: 4470, masteryPoolXp: 0),
-          Skill.fishing: const SkillState(xp: 4470, masteryPoolXp: 0),
-          Skill.mining: const SkillState(xp: 4470, masteryPoolXp: 0),
+        skillStates: const {
+          Skill.hitpoints: SkillState(xp: 1154, masteryPoolXp: 0),
+          Skill.woodcutting: SkillState(xp: 4470, masteryPoolXp: 0),
+          Skill.fishing: SkillState(xp: 4470, masteryPoolXp: 0),
+          Skill.mining: SkillState(xp: 4470, masteryPoolXp: 0),
         },
       );
 
@@ -318,9 +318,9 @@ void main() {
       final baseGoldRate = defaultValueModel.valuePerTick(state, baseRates);
 
       // Buy all tool upgrades (axe, fishing rod, pickaxe)
-      final ironAxeId = MelvorId('melvorD:Iron_Axe');
-      final ironRodId = MelvorId('melvorD:Iron_Fishing_Rod');
-      final ironPickaxeId = MelvorId('melvorD:Iron_Pickaxe');
+      const ironAxeId = MelvorId('melvorD:Iron_Axe');
+      const ironRodId = MelvorId('melvorD:Iron_Fishing_Rod');
+      const ironPickaxeId = MelvorId('melvorD:Iron_Pickaxe');
       var upgradedState = state.copyWith(
         shop: state.shop
             .withPurchase(ironAxeId)
@@ -350,8 +350,8 @@ void main() {
     test('BuyShopItem reduces GP by upgrade cost', () {
       // Start with enough GP for an axe upgrade
       final state = GlobalState.test(testRegistries, gp: 100);
-      final ironAxeId = MelvorId('melvorD:Iron_Axe');
-      final interaction = BuyShopItem(ironAxeId);
+      const ironAxeId = MelvorId('melvorD:Iron_Axe');
+      const interaction = BuyShopItem(ironAxeId);
 
       // Apply the upgrade
       final newState = applyInteraction(state, interaction);
@@ -363,16 +363,16 @@ void main() {
 
     test('BuyShopItem reduces GP by correct amount for each tier', () {
       // Test first fishing rod (costs 100)
-      final ironRodId = MelvorId('melvorD:Iron_Fishing_Rod');
+      const ironRodId = MelvorId('melvorD:Iron_Fishing_Rod');
       var state = GlobalState.test(testRegistries, gp: 200);
-      var newState = applyInteraction(state, BuyShopItem(ironRodId));
+      var newState = applyInteraction(state, const BuyShopItem(ironRodId));
       expect(newState.gp, equals(100)); // 200 - 100
       expect(newState.shop.purchaseCount(ironRodId), equals(1));
 
       // Test first pickaxe (costs 250)
-      final ironPickaxeId = MelvorId('melvorD:Iron_Pickaxe');
+      const ironPickaxeId = MelvorId('melvorD:Iron_Pickaxe');
       state = GlobalState.test(testRegistries, gp: 500);
-      newState = applyInteraction(state, BuyShopItem(ironPickaxeId));
+      newState = applyInteraction(state, const BuyShopItem(ironPickaxeId));
       expect(newState.gp, equals(250)); // 500 - 250
       expect(newState.shop.purchaseCount(ironPickaxeId), equals(1));
     });

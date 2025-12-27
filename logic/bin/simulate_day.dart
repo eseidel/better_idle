@@ -3,6 +3,7 @@
 // Usage: dart run bin/simulate_day.dart [action_name]
 //
 // If no action is specified, defaults to 'Normal Tree' (woodcutting).
+// ignore_for_file: avoid_print
 
 import 'dart:math';
 

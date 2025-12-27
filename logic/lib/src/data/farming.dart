@@ -1,10 +1,9 @@
+import 'package:logic/src/data/action_id.dart';
+import 'package:logic/src/data/actions.dart';
+import 'package:logic/src/data/currency.dart';
+import 'package:logic/src/data/melvor_id.dart';
 import 'package:logic/src/tick.dart';
 import 'package:meta/meta.dart';
-
-import 'action_id.dart';
-import 'actions.dart';
-import 'currency.dart';
-import 'melvor_id.dart';
 
 /// A farming category parsed from Melvor data (Allotment, Herb, Tree).
 @immutable
@@ -179,7 +178,7 @@ class FarmingCrop extends Action {
     required String namespace,
   }) {
     final seedId = MelvorId.fromJsonWithNamespace(
-      json['seedCost']['id'] as String,
+      (json['seedCost'] as Map<String, dynamic>)['id'] as String,
       defaultNamespace: namespace,
     );
     final productId = MelvorId.fromJsonWithNamespace(
@@ -202,7 +201,7 @@ class FarmingCrop extends Action {
       ),
       level: json['level'] as int,
       baseXP: json['baseExperience'] as int,
-      seedCost: json['seedCost']['quantity'] as int,
+      seedCost: (json['seedCost'] as Map<String, dynamic>)['quantity'] as int,
       baseInterval: json['baseInterval'] as int,
       seedId: seedId,
       productId: productId,

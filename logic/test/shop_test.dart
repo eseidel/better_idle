@@ -59,15 +59,15 @@ void main() {
 
   group('ItemCost', () {
     test('equality works correctly', () {
-      final cost1 = ItemCost(
+      const cost1 = ItemCost(
         itemId: MelvorId('melvorD:Normal_Logs'),
         quantity: 10,
       );
-      final cost2 = ItemCost(
+      const cost2 = ItemCost(
         itemId: MelvorId('melvorD:Normal_Logs'),
         quantity: 10,
       );
-      final cost3 = ItemCost(
+      const cost3 = ItemCost(
         itemId: MelvorId('melvorD:Oak_Logs'),
         quantity: 10,
       );
@@ -184,7 +184,7 @@ void main() {
       };
       final category = ShopCategory.fromJson(json, namespace: 'melvorD');
 
-      expect(category.id, MelvorId('melvorD:TestCategory'));
+      expect(category.id, const MelvorId('melvorD:TestCategory'));
       expect(category.name, 'Test Category');
       expect(category.media, 'assets/media/test.png');
     });
@@ -197,9 +197,9 @@ void main() {
     });
 
     test('equality works correctly', () {
-      final cat1 = ShopCategory(id: MelvorId('melvorD:Test'), name: 'Test');
-      final cat2 = ShopCategory(id: MelvorId('melvorD:Test'), name: 'Test');
-      final cat3 = ShopCategory(id: MelvorId('melvorD:Other'), name: 'Other');
+      const cat1 = ShopCategory(id: MelvorId('melvorD:Test'), name: 'Test');
+      const cat2 = ShopCategory(id: MelvorId('melvorD:Test'), name: 'Test');
+      const cat3 = ShopCategory(id: MelvorId('melvorD:Other'), name: 'Other');
 
       expect(cat1, equals(cat2));
       expect(cat1, isNot(equals(cat3)));
@@ -248,20 +248,20 @@ void main() {
       };
       final req = ShopPurchaseRequirement.fromJson(json, namespace: 'melvorD');
 
-      expect(req.purchaseId, MelvorId('melvorD:Bronze_Axe'));
+      expect(req.purchaseId, const MelvorId('melvorD:Bronze_Axe'));
       expect(req.count, 1);
     });
 
     test('equality works correctly', () {
-      final req1 = ShopPurchaseRequirement(
+      const req1 = ShopPurchaseRequirement(
         purchaseId: MelvorId('melvorD:Bronze_Axe'),
         count: 1,
       );
-      final req2 = ShopPurchaseRequirement(
+      const req2 = ShopPurchaseRequirement(
         purchaseId: MelvorId('melvorD:Bronze_Axe'),
         count: 1,
       );
-      final req3 = ShopPurchaseRequirement(
+      const req3 = ShopPurchaseRequirement(
         purchaseId: MelvorId('melvorD:Iron_Axe'),
         count: 1,
       );
@@ -294,7 +294,7 @@ void main() {
   group('ShopState', () {
     test('nextBankSlotCost returns correct costs for first 10 slots', () {
       void expectSlotCost(int slot, int expectedCost) {
-        final bankSlotId = MelvorId('melvorD:Extra_Bank_Slot');
+        const bankSlotId = MelvorId('melvorD:Extra_Bank_Slot');
         var purchaseCounts = <MelvorId, int>{};
         for (var i = 0; i < slot; i++) {
           purchaseCounts = {
@@ -337,7 +337,7 @@ void main() {
 
     test('ShopState.withPurchase adds purchase', () {
       const shopState = ShopState.empty();
-      final bankSlotId = MelvorId('melvorD:Extra_Bank_Slot');
+      const bankSlotId = MelvorId('melvorD:Extra_Bank_Slot');
       final updated = shopState.withPurchase(bankSlotId);
       expect(updated.purchaseCount(bankSlotId), 1);
       expect(
@@ -347,7 +347,7 @@ void main() {
     });
 
     test('ShopState serialization round-trip', () {
-      final bankSlotId = MelvorId('melvorD:Extra_Bank_Slot');
+      const bankSlotId = MelvorId('melvorD:Extra_Bank_Slot');
       final original = ShopState(purchaseCounts: {bankSlotId: 3});
       final json = original.toJson();
       final loaded = ShopState.fromJson(json);
