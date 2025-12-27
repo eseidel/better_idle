@@ -22,6 +22,7 @@
 /// solver churn.
 library;
 
+import 'package:logic/src/data/action_id.dart';
 import 'package:logic/src/data/actions.dart';
 import 'package:logic/src/data/xp.dart';
 import 'package:logic/src/state.dart';
@@ -157,6 +158,22 @@ NextDecisionResult nextDecisionDelta(
   // Note: Death is NOT a decision point - it's handled automatically during
   // plan execution by restarting the activity. The planner still accounts for
   // death in expected-value calculations via ticksUntilDeath in _advanceExpected.
+
+  // E) Time until inputs depleted (for consuming actions)
+  final deltaInputsDepleted = _deltaUntilInputsDepleted(state, rates);
+  if (deltaInputsDepleted != null) {
+    deltas.add(deltaInputsDepleted);
+  }
+
+  // E2) Time until inputs available for watched consuming activities
+  final deltaInputsAvailable = _deltaUntilInputsAvailable(
+    state,
+    candidates,
+    rates,
+  );
+  if (deltaInputsAvailable != null) {
+    deltas.add(deltaInputsAvailable);
+  }
 
   // F) Time until next skill level that unlocks a watched activity
   final deltaSkillLevel = _deltaUntilNextSkillLevel(state, rates, candidates);
@@ -397,6 +414,128 @@ int? _deltaUntilInventoryFull(GlobalState state, Rates rates) {
   if (slotsRemaining <= 0) return 0;
 
   return _ceilDiv(slotsRemaining.toDouble(), rates.itemTypesPerTick);
+}
+
+/// Computes ticks until inputs become available for a watched consuming action.
+///
+/// When running a producer action (e.g., woodcutting), this calculates when
+/// we'll have enough items to start a consuming action (e.g., firemaking).
+_DeltaCandidate? _deltaUntilInputsAvailable(
+  GlobalState state,
+  Candidates candidates,
+  Rates rates,
+) {
+  if (candidates.watch.consumingActivityIds.isEmpty) return null;
+
+  final registries = state.registries;
+  int? minTicks;
+  ActionId? soonestActionId;
+
+  for (final consumingActionId in candidates.watch.consumingActivityIds) {
+    final action = registries.actions.byId(consumingActionId);
+    if (action is! SkillAction) continue;
+
+    // Get the inputs needed for this action
+    final actionStateVal = state.actionState(action.id);
+    final selection = actionStateVal.recipeSelection(action);
+    final inputs = action.inputsForRecipe(selection);
+
+    // Find the slowest input to acquire (limiting factor)
+    int? maxTicksForAction;
+
+    for (final entry in inputs.entries) {
+      final itemId = entry.key;
+      final needed = entry.value;
+
+      // Get current count (skip if item not in registry)
+      final item = registries.items.tryById(itemId);
+      if (item == null) continue;
+      final available = state.inventory.countOfItem(item);
+
+      if (available >= needed) {
+        // Already have enough of this input
+        continue;
+      }
+
+      final stillNeeded = needed - available;
+
+      // Check if current action produces this item
+      final productionRate = rates.itemFlowsPerTick[itemId];
+      if (productionRate == null || productionRate <= 0) {
+        // Current action doesn't produce this item - can't estimate
+        maxTicksForAction = null;
+        break;
+      }
+
+      final ticksForInput = (stillNeeded / productionRate).ceil();
+      if (maxTicksForAction == null || ticksForInput > maxTicksForAction) {
+        maxTicksForAction = ticksForInput;
+      }
+    }
+
+    // If we could estimate time for all inputs of this action
+    if (maxTicksForAction != null && maxTicksForAction > 0) {
+      if (minTicks == null || maxTicksForAction < minTicks) {
+        minTicks = maxTicksForAction;
+        soonestActionId = consumingActionId;
+      }
+    }
+  }
+
+  if (minTicks == null || soonestActionId == null) return null;
+
+  return _DeltaCandidate(
+    ticks: minTicks,
+    waitFor: WaitForInputsAvailable(soonestActionId),
+  );
+}
+
+/// Computes ticks until inputs are depleted for a consuming action.
+///
+/// For actions that consume inputs (firemaking, cooking, etc.), this
+/// calculates when the inventory will run out of required items based
+/// on the consumption rate. Returns null for non-consuming actions.
+_DeltaCandidate? _deltaUntilInputsDepleted(GlobalState state, Rates rates) {
+  // No consumption means no depletion event
+  if (rates.itemsConsumedPerTick.isEmpty) return null;
+  if (rates.actionId == null) return null;
+
+  // Find the limiting input (the one that runs out first)
+  int? minTicks;
+
+  for (final entry in rates.itemsConsumedPerTick.entries) {
+    final itemId = entry.key;
+    final consumptionRate = entry.value;
+
+    if (consumptionRate <= 0) continue;
+
+    // Get current inventory count for this item (skip if not in registry)
+    final item = state.registries.items.tryById(itemId);
+    if (item == null) continue;
+    final available = state.inventory.countOfItem(item);
+
+    if (available <= 0) {
+      // Already depleted - this shouldn't happen if we're running the action
+      return _DeltaCandidate(
+        ticks: 0,
+        waitFor: WaitForInputsDepleted(rates.actionId!),
+      );
+    }
+
+    // Calculate ticks until this input is depleted
+    final ticksUntilDepleted = (available / consumptionRate).floor();
+
+    if (minTicks == null || ticksUntilDepleted < minTicks) {
+      minTicks = ticksUntilDepleted;
+    }
+  }
+
+  if (minTicks == null || minTicks <= 0) return null;
+
+  return _DeltaCandidate(
+    ticks: minTicks,
+    waitFor: WaitForInputsDepleted(rates.actionId!),
+  );
 }
 
 /// Ceiling division for doubles to int.

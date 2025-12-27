@@ -40,6 +40,7 @@ class Rates {
     required this.itemFlowsPerTick,
     required this.xpPerTickBySkill,
     required this.itemTypesPerTick,
+    this.itemsConsumedPerTick = const {},
     this.hpLossPerTick = 0,
     this.masteryXpPerTick = 0,
     this.actionId,
@@ -59,6 +60,10 @@ class Rates {
   /// Expected item flows per tick: item name -> expected count per tick.
   /// Includes both action outputs and skill-level/global drops.
   final Map<MelvorId, double> itemFlowsPerTick;
+
+  /// Expected items consumed per tick for consuming actions (firemaking, etc).
+  /// Maps item ID to expected consumption rate per tick.
+  final Map<MelvorId, double> itemsConsumedPerTick;
 
   /// Expected XP per tick for each skill from current activity.
   final Map<Skill, double> xpPerTickBySkill;
@@ -115,6 +120,9 @@ Rates deathCycleAdjustedRates(
   return Rates(
     directGpPerTick: rates.directGpPerTick * cycleRatio,
     itemFlowsPerTick: rates.itemFlowsPerTick.map(
+      (k, v) => MapEntry(k, v * cycleRatio),
+    ),
+    itemsConsumedPerTick: rates.itemsConsumedPerTick.map(
       (k, v) => MapEntry(k, v * cycleRatio),
     ),
     xpPerTickBySkill: rates.xpPerTickBySkill.map(
@@ -247,6 +255,13 @@ Rates estimateRates(GlobalState state) {
     selection,
   );
 
+  // Compute items consumed per tick for consuming actions
+  final inputs = action.inputsForRecipe(selection);
+  final itemsConsumedPerTick = <MelvorId, double>{};
+  for (final entry in inputs.entries) {
+    itemsConsumedPerTick[entry.key] = entry.value / expectedTicks;
+  }
+
   // For thieving, calculate rates accounting for stun time on failure.
   // On failure, the player is stunned for stunnedDurationTicks, which
   // increases the effective time per action attempt.
@@ -300,6 +315,7 @@ Rates estimateRates(GlobalState state) {
     return Rates(
       directGpPerTick: directGpPerTick,
       itemFlowsPerTick: itemFlowsPerTick,
+      itemsConsumedPerTick: itemsConsumedPerTick,
       xpPerTickBySkill: xpPerTickBySkill,
       itemTypesPerTick: itemTypesPerTick,
       hpLossPerTick: hpLossPerTick,
@@ -332,6 +348,7 @@ Rates estimateRates(GlobalState state) {
   return Rates(
     directGpPerTick: 0, // Non-thieving actions have no direct GP
     itemFlowsPerTick: itemFlowsPerTick,
+    itemsConsumedPerTick: itemsConsumedPerTick,
     xpPerTickBySkill: xpPerTickBySkill,
     itemTypesPerTick: itemTypesPerTick,
     masteryXpPerTick: masteryXpPerTick,

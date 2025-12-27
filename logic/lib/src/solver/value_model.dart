@@ -60,7 +60,10 @@ class SellEverythingForGpValueModel extends ValueModel {
 
   @override
   double itemValue(GlobalState state, MelvorId itemId) {
-    return state.registries.items.byId(itemId).sellsFor.toDouble();
+    // Use tryById to handle items that may not be in the registry (e.g., skill
+    // drops like Ash that aren't part of the core item set). Treat missing
+    // items as worthless for valuation purposes.
+    return state.registries.items.tryById(itemId)?.sellsFor.toDouble() ?? 0.0;
   }
 
   @override
@@ -84,8 +87,8 @@ class ShadowPriceValueModel extends ValueModel {
   @override
   double itemValue(GlobalState state, MelvorId itemId) {
     // TODO(future): Implement shadow pricing based on unlocks/recipes
-    // For now, fall back to sell price
-    return state.registries.items.byId(itemId).sellsFor.toDouble();
+    // For now, fall back to sell price. Use tryById to handle missing items.
+    return state.registries.items.tryById(itemId)?.sellsFor.toDouble() ?? 0.0;
   }
 
   @override

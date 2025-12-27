@@ -9,7 +9,10 @@ import 'dart:math';
 
 import 'package:args/args.dart';
 import 'package:logic/logic.dart';
+import 'package:logic/src/solver/available_interactions.dart';
+import 'package:logic/src/solver/enumerate_candidates.dart';
 import 'package:logic/src/solver/goal.dart';
+import 'package:logic/src/solver/interaction.dart';
 import 'package:logic/src/solver/plan.dart';
 import 'package:logic/src/solver/solver.dart';
 
@@ -23,7 +26,7 @@ void main(List<String> args) async {
 
   final Goal goal;
   if (results['skill'] as bool) {
-    goal = const ReachSkillLevelGoal(Skill.woodcutting, 30);
+    goal = const ReachSkillLevelGoal(Skill.firemaking, 30);
     print('Goal: ${goal.describe()}');
   } else {
     // Parse gold goal from remaining args, default to 100 GP
@@ -35,6 +38,40 @@ void main(List<String> args) async {
   }
 
   final initialState = GlobalState.empty(registries);
+
+  // Debug: print candidate activities
+  print('Debug: enumerating candidates...');
+  final debugCandidates = enumerateCandidates(initialState, goal);
+  print('  switchToActivities: ${debugCandidates.switchToActivities}');
+  print('  buyUpgrades: ${debugCandidates.buyUpgrades}');
+  print('  includeSellAll: ${debugCandidates.includeSellAll}');
+
+  // Debug: print available interactions
+  final debugInteractions = availableInteractions(initialState);
+  print('  availableInteractions: ${debugInteractions.length}');
+  for (final i in debugInteractions.take(10)) {
+    print('    $i');
+  }
+
+  // Debug: check which interactions are relevant
+  print('  Relevant interactions:');
+  for (final i in debugInteractions) {
+    if (i is SwitchActivity) {
+      final isRelevant = debugCandidates.switchToActivities.contains(
+        i.actionId,
+      );
+      if (isRelevant) {
+        print('    $i - RELEVANT');
+      }
+    }
+  }
+
+  // Debug: print watch lists
+  print('  Watch lists:');
+  print(
+    '    consumingActivityIds: ${debugCandidates.watch.consumingActivityIds}',
+  );
+  print('    lockedActivityIds: ${debugCandidates.watch.lockedActivityIds}');
 
   print('Solving...');
   final stopwatch = Stopwatch()..start();

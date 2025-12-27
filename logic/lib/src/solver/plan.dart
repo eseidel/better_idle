@@ -205,6 +205,57 @@ class WaitForGoal extends WaitFor {
   List<Object?> get props => [goal];
 }
 
+/// Wait until inputs for the current action are depleted.
+/// Used for consuming actions (firemaking, cooking, etc.) to signal when
+/// the solver should switch to a producer action.
+@immutable
+class WaitForInputsDepleted extends WaitFor {
+  const WaitForInputsDepleted(this.actionId);
+
+  final ActionId actionId;
+
+  @override
+  bool isSatisfied(GlobalState state) {
+    final action = state.registries.actions.byId(actionId);
+    // Inputs are depleted when we can no longer start the action
+    return !state.canStartAction(action);
+  }
+
+  @override
+  String describe() => 'inputs depleted for ${actionId.localId.name}';
+
+  @override
+  String get shortDescription => 'Inputs depleted';
+
+  @override
+  List<Object?> get props => [actionId];
+}
+
+/// Wait until inputs for a consuming action become available.
+/// Used when a producer action is gathering inputs for a consuming action.
+@immutable
+class WaitForInputsAvailable extends WaitFor {
+  const WaitForInputsAvailable(this.actionId);
+
+  final ActionId actionId;
+
+  @override
+  bool isSatisfied(GlobalState state) {
+    final action = state.registries.actions.byId(actionId);
+    // Inputs are available when we can start the action
+    return state.canStartAction(action);
+  }
+
+  @override
+  String describe() => 'inputs available for ${actionId.localId.name}';
+
+  @override
+  String get shortDescription => 'Inputs available';
+
+  @override
+  List<Object?> get props => [actionId];
+}
+
 // ---------------------------------------------------------------------------
 // Plan Steps
 // ---------------------------------------------------------------------------

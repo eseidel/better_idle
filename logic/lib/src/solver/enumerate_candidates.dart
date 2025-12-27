@@ -52,6 +52,9 @@ class ActionSummary {
     required this.expectedTicks,
     required this.goldRatePerTick,
     required this.xpRatePerTick,
+    this.hasInputs = false,
+    this.canStartNow = true,
+    this.missingInputs = const {},
   });
 
   final ActionId actionId;
@@ -67,6 +70,17 @@ class ActionSummary {
 
   /// Expected skill XP per tick.
   final double xpRatePerTick;
+
+  /// Whether this action requires inputs (firemaking, cooking, etc).
+  final bool hasInputs;
+
+  /// Whether the action can start now (has required inputs available).
+  /// Always true for actions without inputs.
+  final bool canStartNow;
+
+  /// Items needed but not available in inventory.
+  /// Maps item ID to quantity still needed.
+  final Map<MelvorId, int> missingInputs;
 }
 
 /// What events the planner should watch for to define "wait until interesting".
@@ -75,6 +89,7 @@ class WatchList {
   const WatchList({
     this.upgradePurchaseIds = const [],
     this.lockedActivityIds = const [],
+    this.consumingActivityIds = const [],
     this.inventory = false,
   });
 
@@ -83,6 +98,10 @@ class WatchList {
 
   /// Locked activities whose unlock defines wait points.
   final List<ActionId> lockedActivityIds;
+
+  /// Consuming activities (with inputs) that we're gathering inputs for.
+  /// Used to compute "inputs available" wait points.
+  final List<ActionId> consumingActivityIds;
 
   /// Whether inventory-full should define a wait point.
   final bool inventory;
@@ -119,6 +138,9 @@ class Candidates {
 /// - expectedTicks: mean duration in ticks
 /// - goldRatePerTick: expected sell value per tick
 /// - xpRatePerTick: skill XP per tick
+/// - hasInputs: whether the action requires input items
+/// - canStartNow: whether required inputs are available
+/// - missingInputs: items needed but not available
 List<ActionSummary> buildActionSummaries(GlobalState state) {
   final summaries = <ActionSummary>[];
   final registries = state.registries;
@@ -127,11 +149,27 @@ List<ActionSummary> buildActionSummaries(GlobalState state) {
     final skillLevel = state.skillState(skill).skillLevel;
 
     for (final action in registries.actions.forSkill(skill)) {
-      // Skip actions that require inputs (firemaking, cooking, smithing)
-      // These aren't standalone activities for gold generation
-      if (action.inputs.isNotEmpty) continue;
-
       final isUnlocked = skillLevel >= action.unlockLevel;
+
+      // Check if action has inputs and whether they are available
+      final actionStateVal = state.actionState(action.id);
+      final selection = actionStateVal.recipeSelection(action);
+      final inputs = action.inputsForRecipe(selection);
+      final hasInputs = inputs.isNotEmpty;
+
+      // Compute missing inputs (skip items not in registry)
+      final missingInputs = <MelvorId, int>{};
+      if (hasInputs) {
+        for (final entry in inputs.entries) {
+          final item = registries.items.tryById(entry.key);
+          if (item == null) continue;
+          final available = state.inventory.countOfItem(item);
+          if (available < entry.value) {
+            missingInputs[entry.key] = entry.value - available;
+          }
+        }
+      }
+      final canStartNow = missingInputs.isEmpty;
 
       // Calculate expected ticks per action (mean duration)
       final expectedTicks = ticksFromDuration(action.meanDuration).toDouble();
@@ -139,8 +177,10 @@ List<ActionSummary> buildActionSummaries(GlobalState state) {
       // Calculate expected gold per action from selling outputs
       var expectedGoldPerAction = 0.0;
       for (final output in action.outputs.entries) {
-        final item = registries.items.byId(output.key);
-        expectedGoldPerAction += item.sellsFor * output.value;
+        final item = registries.items.tryById(output.key);
+        if (item != null) {
+          expectedGoldPerAction += item.sellsFor * output.value;
+        }
       }
 
       // For thieving, account for success rate and stun time on failure
@@ -180,6 +220,9 @@ List<ActionSummary> buildActionSummaries(GlobalState state) {
             expectedTicks: effectiveTicks,
             goldRatePerTick: goldRatePerTick,
             xpRatePerTick: xpRatePerTick,
+            hasInputs: hasInputs,
+            canStartNow: canStartNow,
+            missingInputs: missingInputs,
           ),
         );
         continue;
@@ -199,6 +242,9 @@ List<ActionSummary> buildActionSummaries(GlobalState state) {
           expectedTicks: expectedTicks,
           goldRatePerTick: goldRatePerTick,
           xpRatePerTick: xpRatePerTick,
+          hasInputs: hasInputs,
+          canStartNow: canStartNow,
+          missingInputs: missingInputs,
         ),
       );
     }
@@ -277,6 +323,16 @@ Candidates enumerateCandidates(
   final includeSellAll =
       goal.isSellRelevant && inventoryUsedFraction > inventoryThreshold;
 
+  // Find consuming activities that can't start now (need to gather inputs)
+  final consumingActivitiesToWatch = <ActionId>[];
+  for (final summary in summaries) {
+    if (!summary.isUnlocked) continue;
+    if (!summary.hasInputs) continue;
+    if (summary.canStartNow) continue;
+    if (!goal.isSkillRelevant(summary.skill)) continue;
+    consumingActivitiesToWatch.add(summary.actionId);
+  }
+
   return Candidates(
     switchToActivities: switchToActivities,
     buyUpgrades: upgradeResult.candidates,
@@ -284,9 +340,39 @@ Candidates enumerateCandidates(
     watch: WatchList(
       upgradePurchaseIds: upgradeResult.toWatch,
       lockedActivityIds: lockedActivitiesToWatch,
+      consumingActivityIds: consumingActivitiesToWatch,
       inventory: includeSellAll,
     ),
   );
+}
+
+/// Finds producer actions for a given item.
+///
+/// Returns action summaries for unlocked actions that produce the given item
+/// in their outputs. Used to find input-producing actions when a consuming
+/// action can't start due to missing inputs.
+List<ActionSummary> _findProducersForItem(
+  List<ActionSummary> summaries,
+  GlobalState state,
+  MelvorId itemId,
+) {
+  final producers = <ActionSummary>[];
+  final registries = state.registries;
+
+  for (final summary in summaries) {
+    if (!summary.isUnlocked) continue;
+    if (summary.hasInputs) continue; // Don't chain consuming actions
+
+    final action = registries.actions.byId(summary.actionId);
+    if (action is! SkillAction) continue;
+
+    // Check if this action produces the item we need
+    if (action.outputs.containsKey(itemId)) {
+      producers.add(summary);
+    }
+  }
+
+  return producers;
 }
 
 /// Selects top K unlocked activities by a custom ranking function.
@@ -294,6 +380,10 @@ Candidates enumerateCandidates(
 /// Only includes activities with positive ranking (> 0). This filters out
 /// activities that don't contribute to the goal (e.g., fishing when the
 /// goal is a woodcutting level).
+///
+/// For consuming actions (those with inputs):
+/// - If the action can start now (has inputs), include it
+/// - If the action can't start, include producer actions for missing inputs
 List<ActionId> _selectUnlockedActivitiesByRanking(
   List<ActionSummary> summaries,
   GlobalState state,
@@ -313,8 +403,43 @@ List<ActionId> _selectUnlockedActivitiesByRanking(
   // Sort by ranking function descending
   unlocked.sort((a, b) => rankingFn(b).compareTo(rankingFn(a)));
 
-  // Take top K
-  return unlocked.take(count).map((s) => s.actionId).toList();
+  // Build result set, handling consuming actions specially
+  final result = <ActionId>{};
+  final producersAdded = <ActionId>{};
+
+  for (final summary in unlocked) {
+    if (result.length >= count) break;
+
+    if (!summary.hasInputs) {
+      // Non-consuming action: always include
+      result.add(summary.actionId);
+    } else if (summary.canStartNow) {
+      // Consuming action with inputs available: include
+      result.add(summary.actionId);
+    } else {
+      // Consuming action that can't start: add producers for missing inputs
+      // Also add the consuming action itself so the solver can switch to it
+      // when inputs become available
+      result.add(summary.actionId);
+
+      for (final missingItemId in summary.missingInputs.keys) {
+        final producers = _findProducersForItem(
+          summaries,
+          state,
+          missingItemId,
+        );
+        for (final producer in producers) {
+          if (!producersAdded.contains(producer.actionId) &&
+              producer.actionId != currentActionId) {
+            producersAdded.add(producer.actionId);
+            result.add(producer.actionId);
+          }
+        }
+      }
+    }
+  }
+
+  return result.take(count * 2).toList(); // Allow extra for producers
 }
 
 /// Selects top L locked activities by smallest unlockDeltaTicks.
