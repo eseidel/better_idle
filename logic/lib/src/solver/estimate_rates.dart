@@ -90,6 +90,43 @@ int? ticksUntilDeath(GlobalState state, Rates rates) {
   return (hpAvailable / rates.hpLossPerTick).floor();
 }
 
+/// Adjusts rates to account for death cycle overhead in thieving.
+///
+/// For activities with HP loss, the long-run effective rate is reduced
+/// because time is "lost" to death and restart. This function computes
+/// the steady-state rate assuming auto-restart after death.
+///
+/// Returns the original rates if no death risk, or adjusted rates if
+/// death will occur.
+Rates deathCycleAdjustedRates(
+  GlobalState state,
+  Rates rates, {
+  int restartOverheadTicks = 0,
+}) {
+  if (rates.hpLossPerTick <= 0) return rates; // No death risk
+
+  final ticksToDeath = ticksUntilDeath(state, rates);
+  if (ticksToDeath == null || ticksToDeath <= 0) return Rates.empty; // Dead
+
+  final ticksPerCycle = ticksToDeath + restartOverheadTicks;
+  final cycleRatio = ticksToDeath / ticksPerCycle; // Fraction of cycle alive
+
+  // Adjust all flow rates by the cycle ratio
+  return Rates(
+    directGpPerTick: rates.directGpPerTick * cycleRatio,
+    itemFlowsPerTick: rates.itemFlowsPerTick.map(
+      (k, v) => MapEntry(k, v * cycleRatio),
+    ),
+    xpPerTickBySkill: rates.xpPerTickBySkill.map(
+      (k, v) => MapEntry(k, v * cycleRatio),
+    ),
+    itemTypesPerTick: rates.itemTypesPerTick * cycleRatio,
+    hpLossPerTick: rates.hpLossPerTick, // Keep original for death calculations
+    masteryXpPerTick: rates.masteryXpPerTick * cycleRatio,
+    actionId: rates.actionId,
+  );
+}
+
 /// Computes ticks until the next skill level for the current activity's skill.
 /// Returns null if no XP is being gained or already at max level.
 int? ticksUntilNextSkillLevel(GlobalState state, Rates rates) {

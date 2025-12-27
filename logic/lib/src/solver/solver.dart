@@ -27,7 +27,6 @@ import 'package:logic/src/data/actions.dart';
 import 'package:logic/src/data/currency.dart';
 import 'package:logic/src/state.dart';
 import 'package:logic/src/tick.dart';
-import 'package:logic/src/types/health.dart';
 import 'package:logic/src/types/stunned.dart';
 import 'package:logic/src/types/time_away.dart';
 
@@ -348,6 +347,24 @@ class _RateCache {
           final expectedThievingGold = successChance * (1 + action.maxGold) / 2;
           expectedGoldPerAction += expectedThievingGold;
           goldRate = expectedGoldPerAction / effectiveTicks;
+
+          // Apply cycle adjustment for death risk
+          final expectedDamagePerAttempt =
+              failureChance * (1 + action.maxHit) / 2;
+          final hpLossPerTick = expectedDamagePerAttempt / effectiveTicks;
+          if (hpLossPerTick > 0) {
+            final playerHp = state.playerHp;
+            final ticksToDeath = ((playerHp - 1) / hpLossPerTick).floor();
+            if (ticksToDeath > 0) {
+              // With 0 restart overhead, cycleRatio = 1.0 (no penalty yet)
+              // When we add restartOverheadTicks, this becomes meaningful
+              const restartOverheadTicks = 0;
+              final ticksPerCycle = ticksToDeath + restartOverheadTicks;
+              final cycleRatio = ticksToDeath.toDouble() / ticksPerCycle;
+              goldRate *= cycleRatio;
+              xpRate *= cycleRatio;
+            }
+          }
         } else {
           xpRate = action.xp / expectedTicks;
 
@@ -486,10 +503,13 @@ typedef AdvanceResult = ({GlobalState state, int deaths});
 
 /// O(1) expected-value fast-forward for rate-modelable activities.
 /// Updates gold and skill XP based on expected rates without full simulation.
-/// For thieving, handles death by stopping the activity when HP would reach 0.
+///
+/// For thieving (activities with death risk), uses a continuous model that
+/// incorporates death cycles into the effective rates. This avoids discrete
+/// death events that would require activity restarts and cause solver churn.
 ///
 /// Uses [valueModel] to convert item flows into GP value.
-/// Returns the new state and the number of expected deaths (0 or 1).
+/// Returns the new state and the number of expected deaths.
 AdvanceResult _advanceExpected(
   GlobalState state,
   int deltaTicks, {
@@ -497,23 +517,23 @@ AdvanceResult _advanceExpected(
 }) {
   if (deltaTicks <= 0) return (state: state, deaths: 0);
 
-  final rates = estimateRates(state);
+  final rawRates = estimateRates(state);
 
-  // Check for death during thieving
-  final ticksToDeath = ticksUntilDeath(state, rates);
-  var effectiveTicks = deltaTicks;
-  var playerDied = false;
+  // For activities with death risk, use cycle-adjusted rates.
+  // This models the long-run average including death/restart cycles,
+  // avoiding discrete death events that would stop the activity.
+  final ticksToDeath = ticksUntilDeath(state, rawRates);
+  final hasDeathRisk = ticksToDeath != null && ticksToDeath > 0;
 
-  if (ticksToDeath != null && ticksToDeath <= deltaTicks) {
-    // Player will die during this advance - only apply ticks until death
-    effectiveTicks = ticksToDeath;
-    playerDied = true;
-  }
+  // Use cycle-adjusted rates if there's death risk, otherwise raw rates
+  final rates = hasDeathRisk
+      ? deathCycleAdjustedRates(state, rawRates)
+      : rawRates;
 
   // Compute expected gold gain using the value model
   // (converts item flows to GP based on the policy)
   final valueRate = valueModel.valuePerTick(state, rates);
-  final expectedGold = (valueRate * effectiveTicks).floor();
+  final expectedGold = (valueRate * deltaTicks).floor();
   final newGp = state.gp + expectedGold;
 
   // Compute expected skill XP gains
@@ -521,7 +541,7 @@ AdvanceResult _advanceExpected(
   for (final entry in rates.xpPerTickBySkill.entries) {
     final skill = entry.key;
     final xpPerTick = entry.value;
-    final xpGain = (xpPerTick * effectiveTicks).floor();
+    final xpGain = (xpPerTick * deltaTicks).floor();
     if (xpGain > 0) {
       final current = state.skillState(skill);
       final newXp = current.xp + xpGain;
@@ -532,7 +552,7 @@ AdvanceResult _advanceExpected(
   // Compute expected mastery XP gains
   var newActionStates = state.actionStates;
   if (rates.masteryXpPerTick > 0 && rates.actionId != null) {
-    final masteryXpGain = (rates.masteryXpPerTick * effectiveTicks).floor();
+    final masteryXpGain = (rates.masteryXpPerTick * deltaTicks).floor();
     if (masteryXpGain > 0) {
       final actionId = rates.actionId!;
       final currentActionState = state.actionState(actionId);
@@ -544,52 +564,22 @@ AdvanceResult _advanceExpected(
     }
   }
 
-  // Handle death: reset HP and stop activity
-  // Note: can't use copyWith(activeAction: null) because null means "keep existing"
-  if (playerDied) {
-    // Build currencies map with updated GP
-    final newCurrencies = Map<Currency, int>.from(state.currencies);
-    newCurrencies[Currency.gp] = newGp;
-    return (
-      state: GlobalState(
-        registries: state.registries,
-        currencies: newCurrencies,
-        skillStates: newSkillStates,
-        activeAction: null, // Activity stops on death
-        health: const HealthState.full(), // HP resets on death
-        inventory: state.inventory,
-        actionStates: newActionStates,
-        updatedAt: DateTime.timestamp(),
-        shop: state.shop,
-        equipment: state.equipment,
-        stunned: state.stunned,
-      ),
-      deaths: 1,
-    );
-  }
+  // Estimate expected deaths during this period (for tracking/display)
+  final expectedDeaths = hasDeathRisk ? deltaTicks ~/ ticksToDeath : 0;
 
-  // Compute expected HP loss for thieving (even when not dying)
-  HealthState? newHealth;
-  if (rates.hpLossPerTick > 0) {
-    final hpLoss = (rates.hpLossPerTick * effectiveTicks).floor();
-    if (hpLoss > 0) {
-      final newLostHp = state.health.lostHp + hpLoss;
-      newHealth = HealthState(lostHp: newLostHp);
-    }
-  }
-
-  // Return updated state (ignore inventory - gold is computed directly)
   // Build currencies map with updated GP
   final newCurrencies = Map<Currency, int>.from(state.currencies);
   newCurrencies[Currency.gp] = newGp;
+
+  // Note: HP is not tracked in the continuous model - death cycles are
+  // absorbed into the rate adjustment. Activity continues without stopping.
   return (
     state: state.copyWith(
       currencies: newCurrencies,
       skillStates: newSkillStates,
       actionStates: newActionStates,
-      health: newHealth,
     ),
-    deaths: 0,
+    deaths: expectedDeaths,
   );
 }
 

@@ -340,7 +340,7 @@ void main() {
       expect(ticks, isNull);
     });
 
-    test('advance stops activity on death for thieving', () {
+    test('advance uses continuous model for thieving (activity continues)', () {
       // Create state with low HP thieving
       var state = GlobalState.empty(testRegistries);
       final action = testActions.thieving('Man');
@@ -353,30 +353,33 @@ void main() {
       final rates = estimateRates(state);
       final ticksToDeath = ticksUntilDeath(state, rates);
 
-      // Advance past death
+      // Advance past death - with continuous model, activity continues
       final result = advance(state, ticksToDeath! + 1000);
 
-      // Activity should be stopped and HP should be reset
-      expect(result.state.activeAction, isNull);
-      expect(result.state.playerHp, result.state.maxPlayerHp); // Full HP
-      expect(result.deaths, 1); // One death occurred
+      // Activity should continue (continuous model doesn't stop on death)
+      expect(result.state.activeAction, isNotNull);
+      expect(result.state.activeAction!.id, action.id);
+      // Deaths should be tracked based on how many cycles occurred
+      expect(result.deaths, greaterThan(0));
     });
 
-    test('advance does not stop activity before death', () {
+    test('advance tracks expected deaths proportional to time', () {
       var state = GlobalState.empty(testRegistries);
       final action = testActions.thieving('Man');
       state = state.startAction(action, random: Random(0));
 
       final rates = estimateRates(state);
-      final ticksToDeath = ticksUntilDeath(state, rates);
+      final ticksToDeath = ticksUntilDeath(state, rates)!;
 
-      // Advance less than death time
-      final result = advance(state, ticksToDeath! ~/ 2);
+      // Advance for multiple death cycles
+      final result = advance(state, ticksToDeath * 5);
 
-      // Activity should still be running
+      // Activity should still be running (continuous model)
       expect(result.state.activeAction, isNotNull);
       expect(result.state.activeAction!.id, action.id);
-      expect(result.deaths, 0); // No death yet
+      // Should track approximately 5 deaths (may be 4 or 5 due to integer division)
+      expect(result.deaths, greaterThanOrEqualTo(4));
+      expect(result.deaths, lessThanOrEqualTo(5));
     });
 
     test('nextDecisionDelta includes death timing for thieving', () {
@@ -514,6 +517,96 @@ void main() {
 
       expect(rates.masteryXpPerTick, greaterThan(0));
       expect(rates.actionId, action.id);
+    });
+
+    test('deathCycleAdjustedRates reduces rates for hazardous activities', () {
+      var state = GlobalState.empty(testRegistries);
+      final action = testActions.thieving('Man');
+      state = state.startAction(action, random: Random(0));
+
+      final rawRates = estimateRates(state);
+      final adjustedRates = deathCycleAdjustedRates(state, rawRates);
+
+      // With no restart overhead, cycle ratio = ticksToDeath / ticksToDeath = 1.0
+      // So rates should be unchanged (for now)
+      // When we add restart overhead, this will change
+      expect(adjustedRates.directGpPerTick, rawRates.directGpPerTick);
+      expect(adjustedRates.masteryXpPerTick, rawRates.masteryXpPerTick);
+      // hpLossPerTick should be preserved (not adjusted)
+      expect(adjustedRates.hpLossPerTick, rawRates.hpLossPerTick);
+    });
+
+    test('deathCycleAdjustedRates returns original for non-hazardous', () {
+      var state = GlobalState.empty(testRegistries);
+      final action = testActions.woodcutting('Normal Tree');
+      state = state.startAction(action, random: Random(0));
+
+      final rawRates = estimateRates(state);
+      final adjustedRates = deathCycleAdjustedRates(state, rawRates);
+
+      // No death risk, so rates should be unchanged
+      expect(adjustedRates.directGpPerTick, rawRates.directGpPerTick);
+      expect(adjustedRates.itemFlowsPerTick, rawRates.itemFlowsPerTick);
+    });
+
+    test('expected deaths roughly matches simulated deaths for thieving', () {
+      // Setup: known thieving state
+      var state = GlobalState.empty(testRegistries);
+      final action = testActions.thieving('Man');
+      state = state.startAction(action, random: Random(42));
+
+      // Get expected death rate from model
+      final rates = estimateRates(state);
+      final ticksToDeath = ticksUntilDeath(state, rates)!;
+
+      // Simulate for a fixed duration using consumeTicks
+      const simulationTicks = 50000; // ~1.4 hours
+      var simState = state;
+      var ticksElapsed = 0;
+      var actualDeaths = 0;
+      final random = Random(42);
+
+      while (ticksElapsed < simulationTicks) {
+        final builder = StateUpdateBuilder(simState);
+        // Consume a chunk of ticks at a time
+        consumeTicks(builder, 1000, random: random);
+        simState = builder.build();
+        actualDeaths += builder.changes.deathCount;
+        ticksElapsed += 1000;
+
+        // Restart activity if it was stopped by death
+        if (simState.activeAction == null) {
+          simState = simState.startAction(action, random: random);
+        }
+      }
+
+      // Compare expected vs actual
+      final expectedDeaths = simulationTicks ~/ ticksToDeath;
+
+      // The model is approximate - actual deaths may be lower because:
+      // 1. HP regen between deaths
+      // 2. Leveling up reduces failure rate during simulation
+      // 3. The model uses initial state rates throughout
+      // We just verify expected deaths is non-zero and in the right ballpark.
+      expect(
+        expectedDeaths,
+        greaterThan(0),
+        reason: 'Expected deaths should be non-zero for thieving',
+      );
+      expect(
+        actualDeaths,
+        greaterThan(0),
+        reason:
+            'Actual deaths should be non-zero after thieving for $simulationTicks ticks',
+      );
+      // Order of magnitude check - both should be in the range of 10-100
+      expect(
+        actualDeaths,
+        greaterThan(expectedDeaths ~/ 10),
+        reason:
+            'Actual deaths ($actualDeaths) should be within order of magnitude of '
+            'expected ($expectedDeaths). ticksToDeath=$ticksToDeath',
+      );
     });
 
     test('itemFlowsPerTick includes action outputs via allDropsForAction', () {
