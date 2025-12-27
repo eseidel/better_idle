@@ -234,4 +234,257 @@ void main() {
       }
     });
   });
+
+  group('MultiSkillGoal', () {
+    test('isSatisfied requires all subgoals satisfied', () {
+      var state = GlobalState.empty(testRegistries);
+      // Give woodcutting level 5 XP, but not enough for firemaking
+      final xpForLevel5 = startXpForLevel(5);
+      state = state.copyWith(
+        skillStates: {
+          Skill.woodcutting: SkillState(xp: xpForLevel5, masteryPoolXp: 0),
+          Skill.firemaking: SkillState(
+            xp: 50,
+            masteryPoolXp: 0,
+          ), // Only level 1
+        },
+      );
+
+      final goal = MultiSkillGoal.fromMap({
+        Skill.woodcutting: 5,
+        Skill.firemaking: 3,
+      });
+
+      // Woodcutting is at 5, but firemaking is only level 1 (needs level 3)
+      expect(goal.isSatisfied(state), isFalse);
+
+      // Now give firemaking enough XP for level 3
+      final xpForLevel3 = startXpForLevel(3);
+      state = state.copyWith(
+        skillStates: {
+          Skill.woodcutting: SkillState(xp: xpForLevel5, masteryPoolXp: 0),
+          Skill.firemaking: SkillState(xp: xpForLevel3, masteryPoolXp: 0),
+        },
+      );
+
+      expect(goal.isSatisfied(state), isTrue);
+    });
+
+    test('remaining sums XP across unfinished skills', () {
+      final state = GlobalState.empty(testRegistries);
+
+      final goal = MultiSkillGoal.fromMap({
+        Skill.woodcutting: 2,
+        Skill.firemaking: 2,
+      });
+
+      // Both skills at level 1 (0 XP)
+      // Level 2 requires 83 XP each, so 166 total
+      final xpForLevel2 = startXpForLevel(2);
+      expect(goal.remaining(state), equals(xpForLevel2 * 2.0));
+    });
+
+    test('remaining only counts unfinished skills', () {
+      var state = GlobalState.empty(testRegistries);
+      final xpForLevel5 = startXpForLevel(5);
+      state = state.copyWith(
+        skillStates: {
+          Skill.woodcutting: SkillState(xp: xpForLevel5, masteryPoolXp: 0),
+          // firemaking still at 0
+        },
+      );
+
+      final goal = MultiSkillGoal.fromMap({
+        Skill.woodcutting: 5, // Already satisfied
+        Skill.firemaking: 2, // Not satisfied
+      });
+
+      // Only firemaking should contribute to remaining
+      final xpForLevel2 = startXpForLevel(2);
+      expect(goal.remaining(state), equals(xpForLevel2.toDouble()));
+    });
+
+    test('isSkillRelevant returns true for goal skills only', () {
+      final goal = MultiSkillGoal.fromMap({
+        Skill.woodcutting: 50,
+        Skill.firemaking: 50,
+      });
+
+      expect(goal.isSkillRelevant(Skill.woodcutting), isTrue);
+      expect(goal.isSkillRelevant(Skill.firemaking), isTrue);
+      expect(goal.isSkillRelevant(Skill.fishing), isFalse);
+      expect(goal.isSkillRelevant(Skill.thieving), isFalse);
+    });
+
+    test('isSellRelevant returns false', () {
+      final goal = MultiSkillGoal.fromMap({
+        Skill.woodcutting: 50,
+        Skill.firemaking: 50,
+      });
+
+      expect(goal.isSellRelevant, isFalse);
+    });
+
+    test('describe lists all skill targets', () {
+      final goal = MultiSkillGoal.fromMap({
+        Skill.woodcutting: 50,
+        Skill.firemaking: 40,
+      });
+
+      final description = goal.describe().toLowerCase();
+      expect(description, contains('woodcutting'));
+      expect(description, contains('firemaking'));
+      expect(description, contains('50'));
+      expect(description, contains('40'));
+    });
+
+    test('progress returns sum of XP across target skills', () {
+      var state = GlobalState.empty(testRegistries);
+      state = state.copyWith(
+        skillStates: {
+          Skill.woodcutting: const SkillState(xp: 100, masteryPoolXp: 0),
+          Skill.firemaking: const SkillState(xp: 50, masteryPoolXp: 0),
+        },
+      );
+
+      final goal = MultiSkillGoal.fromMap({
+        Skill.woodcutting: 10,
+        Skill.firemaking: 10,
+      });
+
+      expect(goal.progress(state), equals(150));
+    });
+
+    test('activityRate returns XP rate for relevant skills only', () {
+      final goal = MultiSkillGoal.fromMap({
+        Skill.woodcutting: 50,
+        Skill.firemaking: 50,
+      });
+
+      // Woodcutting activity should contribute its XP rate
+      expect(goal.activityRate(Skill.woodcutting, 10.0, 5.0), equals(5.0));
+      expect(goal.activityRate(Skill.firemaking, 8.0, 4.0), equals(4.0));
+
+      // Non-goal skill should return 0
+      expect(goal.activityRate(Skill.fishing, 20.0, 10.0), equals(0.0));
+    });
+
+    test('equality works correctly', () {
+      final goal1 = MultiSkillGoal.fromMap({
+        Skill.woodcutting: 50,
+        Skill.firemaking: 50,
+      });
+      final goal2 = MultiSkillGoal.fromMap({
+        Skill.woodcutting: 50,
+        Skill.firemaking: 50,
+      });
+      final goal3 = MultiSkillGoal.fromMap({
+        Skill.woodcutting: 50,
+        Skill.firemaking: 40, // Different level
+      });
+
+      expect(goal1, equals(goal2));
+      expect(goal1, isNot(equals(goal3)));
+    });
+
+    test('fromMap with single skill returns MultiSkillGoal', () {
+      // fromMap always creates MultiSkillGoal, even with single skill
+      final goal = MultiSkillGoal.fromMap({Skill.woodcutting: 50});
+
+      expect(goal, isA<MultiSkillGoal>());
+      expect(goal.subgoals.length, equals(1));
+    });
+  });
+
+  group('solve with MultiSkillGoal', () {
+    test('returns empty plan when all skills at target level', () {
+      var state = GlobalState.empty(testRegistries);
+      final xpForLevel5 = startXpForLevel(5);
+      state = state.copyWith(
+        skillStates: {
+          Skill.woodcutting: SkillState(xp: xpForLevel5, masteryPoolXp: 0),
+          Skill.firemaking: SkillState(xp: xpForLevel5, masteryPoolXp: 0),
+        },
+      );
+
+      final goal = MultiSkillGoal.fromMap({
+        Skill.woodcutting: 5,
+        Skill.firemaking: 5,
+      });
+      final result = solve(state, goal);
+
+      expect(result, isA<SolverSuccess>());
+      final success = result as SolverSuccess;
+      expect(success.plan.steps, isEmpty);
+    });
+
+    test('finds plan for simple multi-skill goal', () {
+      final state = GlobalState.empty(testRegistries);
+
+      // Goal: reach woodcutting and firemaking level 2
+      final goal = MultiSkillGoal.fromMap({
+        Skill.woodcutting: 2,
+        Skill.firemaking: 2,
+      });
+      final result = solve(state, goal);
+
+      expect(result, isA<SolverSuccess>());
+      final success = result as SolverSuccess;
+      expect(success.plan.totalTicks, greaterThan(0));
+    });
+  });
+
+  group('enumerateCandidates with MultiSkillGoal', () {
+    test('includes activities for all goal skills', () {
+      final state = GlobalState.empty(testRegistries);
+
+      final goal = MultiSkillGoal.fromMap({
+        Skill.woodcutting: 10,
+        Skill.firemaking: 10,
+      });
+      final candidates = enumerateCandidates(state, goal);
+
+      expect(candidates.switchToActivities, isNotEmpty);
+
+      // Should include both woodcutting and firemaking activities
+      final skills = candidates.switchToActivities
+          .map((id) => testActions.byId(id).skill)
+          .toSet();
+
+      // At minimum, woodcutting should be present (firemaking may need inputs)
+      expect(skills, contains(Skill.woodcutting));
+    });
+
+    test('watches activities for all goal skills', () {
+      final state = GlobalState.empty(testRegistries);
+
+      final goal = MultiSkillGoal.fromMap({
+        Skill.woodcutting: 10,
+        Skill.firemaking: 10,
+      });
+      final candidates = enumerateCandidates(state, goal);
+
+      // Should only watch activities for goal skills
+      for (final actionId in candidates.watch.lockedActivityIds) {
+        final action = testActions.byId(actionId);
+        expect(
+          goal.isSkillRelevant(action.skill),
+          isTrue,
+          reason: '${action.skill} should be relevant to goal',
+        );
+      }
+    });
+
+    test('does not include SellAll for multi-skill goals', () {
+      final state = GlobalState.empty(testRegistries);
+
+      final goal = MultiSkillGoal.fromMap({
+        Skill.woodcutting: 10,
+        Skill.firemaking: 10,
+      });
+      final candidates = enumerateCandidates(state, goal);
+
+      expect(candidates.includeSellAll, isFalse);
+    });
+  });
 }

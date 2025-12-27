@@ -282,6 +282,7 @@ class _RateCache {
 
   final Goal goal;
   final Map<String, double> _cache = {};
+  final Map<String, double> _skillCache = {};
 
   String _rateKey(GlobalState state) {
     // Key by skill levels and tool tiers (things that affect unlocks/rates)
@@ -289,6 +290,9 @@ class _RateCache {
         '${state.skillState(Skill.fishing).skillLevel}|'
         '${state.skillState(Skill.mining).skillLevel}|'
         '${state.skillState(Skill.thieving).skillLevel}|'
+        '${state.skillState(Skill.firemaking).skillLevel}|'
+        '${state.skillState(Skill.cooking).skillLevel}|'
+        '${state.skillState(Skill.smithing).skillLevel}|'
         '${state.shop.axeLevel}|'
         '${state.shop.fishingRodLevel}|'
         '${state.shop.pickaxeLevel}';
@@ -302,6 +306,47 @@ class _RateCache {
     final rate = _computeBestUnlockedRate(state);
     _cache[key] = rate;
     return rate;
+  }
+
+  /// Gets the best XP rate for a specific skill.
+  /// Used by multi-skill goal heuristic to compute per-skill estimates.
+  double getBestRateForSkill(GlobalState state, Skill targetSkill) {
+    final key = '${_rateKey(state)}|${targetSkill.name}';
+    final cached = _skillCache[key];
+    if (cached != null) return cached;
+
+    final rate = _computeBestRateForSkill(state, targetSkill);
+    _skillCache[key] = rate;
+    return rate;
+  }
+
+  double _computeBestRateForSkill(GlobalState state, Skill targetSkill) {
+    var maxRate = 0.0;
+    final registries = state.registries;
+    final skillLevel = state.skillState(targetSkill).skillLevel;
+
+    for (final action in registries.actions.forSkill(targetSkill)) {
+      // Skip actions that require inputs (can't sustain without switching)
+      if (action.inputs.isNotEmpty) continue;
+
+      // Only consider unlocked actions
+      if (skillLevel < action.unlockLevel) continue;
+
+      // Calculate expected ticks with upgrade modifier
+      final baseExpectedTicks = ticksFromDuration(
+        action.meanDuration,
+      ).toDouble();
+      final percentModifier = state.shopDurationModifierForSkill(targetSkill);
+      final expectedTicks = baseExpectedTicks * (1.0 + percentModifier);
+      if (expectedTicks <= 0) continue;
+
+      final xpRate = action.xp / expectedTicks;
+      if (xpRate > maxRate) {
+        maxRate = xpRate;
+      }
+    }
+
+    return maxRate;
   }
 
   /// Computes the best rate among currently UNLOCKED actions.
@@ -402,7 +447,31 @@ class _RateCache {
 /// A* heuristic: optimistic lower bound on ticks to reach goal.
 /// Uses best unlocked rate for tighter, state-aware estimates.
 /// h(state) = ceil(remaining / R_bestUnlocked)
+///
+/// For multi-skill goals, returns the maximum time needed for any single skill,
+/// since skills must be trained serially (can only do one activity at a time).
 int _heuristic(GlobalState state, Goal goal, _RateCache rateCache) {
+  if (goal is MultiSkillGoal) {
+    // For multi-skill goals, estimate time for each unfinished skill
+    // and return the maximum (they can't all be trained simultaneously)
+    var maxTicks = 0;
+    for (final subgoal in goal.subgoals) {
+      if (subgoal.isSatisfied(state)) continue;
+
+      final remaining = subgoal.remaining(state);
+      if (remaining <= 0) continue;
+
+      // Get best rate for this specific skill
+      final bestRate = rateCache.getBestRateForSkill(state, subgoal.skill);
+      if (bestRate <= 0) continue;
+
+      final ticks = (remaining / bestRate).ceil();
+      if (ticks > maxTicks) maxTicks = ticks;
+    }
+    return maxTicks;
+  }
+
+  // Single goal: use the combined rate
   final bestRate = rateCache.getBestUnlockedRate(state);
   if (bestRate <= 0) return 0; // Fallback to Dijkstra if no rate
   final remaining = goal.remaining(state);
