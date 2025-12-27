@@ -23,4 +23,4 @@ jobs:
         uses: shorebirdtech/setup-shorebird@v1
 
       - name: Patch iOS
-        run: shorebird patch ios
+        run: shorebird patch ios --release-version=latest
