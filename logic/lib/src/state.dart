@@ -974,9 +974,8 @@ class GlobalState {
     var result = const OpenResult(openedCount: 0, drops: {});
 
     for (var i = 0; i < toOpen; i++) {
-      // Roll the drop for this item (may be null if item not in registry)
+      // Roll the drop for this item
       final drop = item.open(registries.items, random);
-      if (drop == null) continue;
 
       // Check if we can add the drop
       if (!currentInventory.canAdd(drop.item, capacity: inventoryCapacity)) {
