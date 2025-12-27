@@ -820,19 +820,28 @@ enum ForegroundResult {
   var currentCombat = combatState;
   var health = builder.state.health;
 
-  // Handle monster respawn
-  final respawnTicks = currentCombat.respawnTicksRemaining;
-  if (respawnTicks != null) {
-    if (remainingTicks >= respawnTicks) {
-      // Monster respawns
+  // Handle monster spawn
+  final spawnTicks = currentCombat.spawnTicksRemaining;
+  if (spawnTicks != null) {
+    if (remainingTicks >= spawnTicks) {
+      // Monster spawns
       final pStats = playerStats(builder.state);
-      currentCombat = CombatActionState.start(action, pStats);
+      final playerAttackTicks = secondsToTicks(pStats.attackSpeed);
+      final monsterAttackTicks = secondsToTicks(action.stats.attackSpeed);
+
+      currentCombat = CombatActionState(
+        monsterId: action.id,
+        monsterHp: action.maxHp,
+        playerAttackTicksRemaining: playerAttackTicks,
+        monsterAttackTicksRemaining: monsterAttackTicks,
+        spawnTicksRemaining: null,
+      );
       builder.updateCombatState(activeAction.id, currentCombat);
-      return (ForegroundResult.continued, respawnTicks);
+      return (ForegroundResult.continued, spawnTicks);
     } else {
-      // Still waiting for respawn
+      // Still waiting for spawn
       currentCombat = currentCombat.copyWith(
-        respawnTicksRemaining: respawnTicks - remainingTicks,
+        spawnTicksRemaining: spawnTicks - remainingTicks,
       );
       builder.updateCombatState(activeAction.id, currentCombat);
       return (ForegroundResult.continued, remainingTicks);
@@ -875,7 +884,7 @@ enum ForegroundResult {
   if (monsterHp <= 0) {
     final gpDrop = action.rollGpDrop(rng);
     builder.addCurrency(Currency.gp, gpDrop);
-    // Reset monster attack timer to full duration for when it respawns
+    // Reset monster attack timer to full duration for when it spawns
     final fullMonsterAttackTicks = ticksFromDuration(
       Duration(milliseconds: (action.stats.attackSpeed * 1000).round()),
     );
@@ -883,7 +892,7 @@ enum ForegroundResult {
       monsterHp: 0,
       playerAttackTicksRemaining: resetPlayerTicks,
       monsterAttackTicksRemaining: fullMonsterAttackTicks,
-      respawnTicksRemaining: ticksFromDuration(monsterRespawnDuration),
+      spawnTicksRemaining: ticksFromDuration(monsterSpawnDuration),
     );
     builder.updateCombatState(activeAction.id, currentCombat);
     return (ForegroundResult.continued, ticksConsumed);

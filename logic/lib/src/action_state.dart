@@ -70,8 +70,8 @@ class MiningState {
   }
 }
 
-/// Respawn time for monsters after death.
-const Duration monsterRespawnDuration = Duration(seconds: 3);
+/// Spawn time for monsters.
+const Duration monsterSpawnDuration = Duration(seconds: 3);
 
 /// Combat-specific state for fighting a monster.
 @immutable
@@ -81,22 +81,19 @@ class CombatActionState {
     required this.monsterHp,
     required this.playerAttackTicksRemaining,
     required this.monsterAttackTicksRemaining,
-    this.respawnTicksRemaining,
+    this.spawnTicksRemaining,
   });
 
-  /// Start a new combat against a monster.
+  /// Start a new combat against a monster, beginning with a spawn timer.
   factory CombatActionState.start(CombatAction action, Stats playerStats) {
-    final playerAttackTicks = ticksFromDuration(
-      Duration(milliseconds: (playerStats.attackSpeed * 1000).round()),
-    );
-    final monsterAttackTicks = ticksFromDuration(
-      Duration(milliseconds: (action.stats.attackSpeed * 1000).round()),
-    );
+    final playerAttackTicks = secondsToTicks(playerStats.attackSpeed);
+    final monsterAttackTicks = secondsToTicks(action.stats.attackSpeed);
     return CombatActionState(
       monsterId: action.id,
-      monsterHp: action.maxHp,
+      monsterHp: 0,
       playerAttackTicksRemaining: playerAttackTicks,
       monsterAttackTicksRemaining: monsterAttackTicks,
+      spawnTicksRemaining: ticksFromDuration(monsterSpawnDuration),
     );
   }
 
@@ -106,7 +103,7 @@ class CombatActionState {
       monsterHp: json['monsterHp'] as int,
       playerAttackTicksRemaining: json['playerAttackTicksRemaining'] as int,
       monsterAttackTicksRemaining: json['monsterAttackTicksRemaining'] as int,
-      respawnTicksRemaining: json['respawnTicksRemaining'] as int?,
+      spawnTicksRemaining: json['spawnTicksRemaining'] as int?,
     );
   }
 
@@ -115,17 +112,16 @@ class CombatActionState {
   final int monsterHp;
   final int playerAttackTicksRemaining;
   final int monsterAttackTicksRemaining;
-  final int? respawnTicksRemaining;
+  final int? spawnTicksRemaining;
 
-  bool get isMonsterDead => monsterHp <= 0;
-  bool get isRespawning => respawnTicksRemaining != null;
+  bool get isSpawning => spawnTicksRemaining != null;
 
   CombatActionState copyWith({
     ActionId? monsterId,
     int? monsterHp,
     int? playerAttackTicksRemaining,
     int? monsterAttackTicksRemaining,
-    int? respawnTicksRemaining,
+    int? spawnTicksRemaining,
   }) {
     return CombatActionState(
       monsterId: monsterId ?? this.monsterId,
@@ -134,8 +130,7 @@ class CombatActionState {
           playerAttackTicksRemaining ?? this.playerAttackTicksRemaining,
       monsterAttackTicksRemaining:
           monsterAttackTicksRemaining ?? this.monsterAttackTicksRemaining,
-      respawnTicksRemaining:
-          respawnTicksRemaining ?? this.respawnTicksRemaining,
+      spawnTicksRemaining: spawnTicksRemaining ?? this.spawnTicksRemaining,
     );
   }
 
@@ -145,7 +140,7 @@ class CombatActionState {
       'monsterHp': monsterHp,
       'playerAttackTicksRemaining': playerAttackTicksRemaining,
       'monsterAttackTicksRemaining': monsterAttackTicksRemaining,
-      'respawnTicksRemaining': respawnTicksRemaining,
+      'spawnTicksRemaining': spawnTicksRemaining,
     };
   }
 }

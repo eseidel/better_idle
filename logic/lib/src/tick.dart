@@ -2,7 +2,15 @@
 typedef Tick = int;
 
 /// Duration of a single tick.
-const Duration tickDuration = Duration(milliseconds: 100);
+const int msPerTick = 100;
+
+/// Converts seconds to ticks, rounding to the nearest tick.
+Tick secondsToTicks(double seconds) => (seconds * 1000 / msPerTick).round();
+
+/// Converts milliseconds to ticks, rounding to the nearest tick.
+Tick msToTicks(num ms) => (ms / msPerTick).round();
+
+const Duration tickDuration = Duration(milliseconds: msPerTick);
 
 /// Converts a Duration to ticks.
 Tick ticksFromDuration(Duration duration) {
@@ -11,5 +19,5 @@ Tick ticksFromDuration(Duration duration) {
 
 /// Converts ticks to a Duration.
 Duration durationFromTicks(Tick ticks) {
-  return Duration(milliseconds: ticks * tickDuration.inMilliseconds);
+  return Duration(milliseconds: ticks * msPerTick);
 }

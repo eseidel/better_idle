@@ -84,10 +84,11 @@ class _TweenedProgressIndicatorState extends State<TweenedProgressIndicator>
 
   @override
   Widget build(BuildContext context) {
-    // If not animating OR the progress itself says it's not advancing,
-    // show static progress at the CURRENT estimated position (or base progress).
-    // Note: We still use AnimatedBuilder if it's "animating" in the widget sense,
-    // but the estimation will be frozen if progress.isAdvancing is false.
+    // If not animating OR the progress itself says it's not advancing, show
+    // static progress at the CURRENT estimated position (or base progress).
+    // Note: We still use AnimatedBuilder if it's "animating" in the widget
+    // sense, but the estimation will be frozen if progress.  In that case,
+    // isAdvancing is false.
 
     if (!widget.animate) {
       final progress = widget.progress.progress;

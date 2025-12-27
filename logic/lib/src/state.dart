@@ -476,7 +476,7 @@ class GlobalState {
     if (state == null) return false;
     final combat = state.combat;
     if (combat == null) return false;
-    return combat.isRespawning;
+    return combat.isSpawning;
   }
 
   int get inventoryCapacity => shop.bankSlotsPurchased + initialBankSlots;
@@ -697,7 +697,7 @@ class GlobalState {
       totalTicks = ticksFromDuration(
         Duration(milliseconds: (pStats.attackSpeed * 1000).round()),
       );
-      // Initialize combat state with the combat action
+      // Initialize combat state with the combat action, starting with respawn
       final combatState = CombatActionState.start(action, pStats);
       final newActionStates = Map<ActionId, ActionState>.from(actionStates);
       final existingState = actionState(actionId);

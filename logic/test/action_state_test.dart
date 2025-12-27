@@ -25,7 +25,7 @@ void main() {
         expect(restored.combat!.monsterHp, 50);
         expect(restored.combat!.playerAttackTicksRemaining, 24);
         expect(restored.combat!.monsterAttackTicksRemaining, 30);
-        expect(restored.combat!.respawnTicksRemaining, isNull);
+        expect(restored.combat!.spawnTicksRemaining, isNull);
         expect(restored.mining, isNull);
       });
 
@@ -40,7 +40,7 @@ void main() {
               monsterHp: 0,
               playerAttackTicksRemaining: 20,
               monsterAttackTicksRemaining: 25,
-              respawnTicksRemaining: 30,
+              spawnTicksRemaining: 30,
             ),
           );
 
@@ -53,7 +53,7 @@ void main() {
           expect(restored.combat!.monsterHp, 0);
           expect(restored.combat!.playerAttackTicksRemaining, 20);
           expect(restored.combat!.monsterAttackTicksRemaining, 25);
-          expect(restored.combat!.respawnTicksRemaining, 30);
+          expect(restored.combat!.spawnTicksRemaining, 30);
         },
       );
 
@@ -99,7 +99,7 @@ void main() {
         expect(restored.monsterHp, 100);
         expect(restored.playerAttackTicksRemaining, 24);
         expect(restored.monsterAttackTicksRemaining, 28);
-        expect(restored.respawnTicksRemaining, isNull);
+        expect(restored.spawnTicksRemaining, isNull);
       });
 
       test('round-trips with respawnTicksRemaining', () {
@@ -109,7 +109,7 @@ void main() {
           monsterHp: 0,
           playerAttackTicksRemaining: 24,
           monsterAttackTicksRemaining: 28,
-          respawnTicksRemaining: 30,
+          spawnTicksRemaining: 30,
         );
 
         final json = original.toJson();
@@ -119,49 +119,29 @@ void main() {
         expect(restored.monsterHp, 0);
         expect(restored.playerAttackTicksRemaining, 24);
         expect(restored.monsterAttackTicksRemaining, 28);
-        expect(restored.respawnTicksRemaining, 30);
+        expect(restored.spawnTicksRemaining, 30);
       });
     });
 
-    test('isMonsterDead returns true when hp <= 0', () {
+    test('isSpawning returns true when spawnTicksRemaining is set', () {
       final state = CombatActionState(
         monsterId: ActionId.test(Skill.combat, 'Cow'),
         monsterHp: 0,
         playerAttackTicksRemaining: 24,
         monsterAttackTicksRemaining: 28,
+        spawnTicksRemaining: 30,
       );
-      expect(state.isMonsterDead, isTrue);
+      expect(state.isSpawning, isTrue);
     });
 
-    test('isMonsterDead returns false when hp > 0', () {
-      final state = CombatActionState(
-        monsterId: ActionId.test(Skill.combat, 'Cow'),
-        monsterHp: 1,
-        playerAttackTicksRemaining: 24,
-        monsterAttackTicksRemaining: 28,
-      );
-      expect(state.isMonsterDead, isFalse);
-    });
-
-    test('isRespawning returns true when respawnTicksRemaining is set', () {
-      final state = CombatActionState(
-        monsterId: ActionId.test(Skill.combat, 'Cow'),
-        monsterHp: 0,
-        playerAttackTicksRemaining: 24,
-        monsterAttackTicksRemaining: 28,
-        respawnTicksRemaining: 30,
-      );
-      expect(state.isRespawning, isTrue);
-    });
-
-    test('isRespawning returns false when respawnTicksRemaining is null', () {
+    test('isSpawning returns false when spawnTicksRemaining is null', () {
       final state = CombatActionState(
         monsterId: ActionId.test(Skill.combat, 'Cow'),
         monsterHp: 50,
         playerAttackTicksRemaining: 24,
         monsterAttackTicksRemaining: 28,
       );
-      expect(state.isRespawning, isFalse);
+      expect(state.isSpawning, isFalse);
     });
   });
 }

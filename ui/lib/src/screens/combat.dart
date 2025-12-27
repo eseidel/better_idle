@@ -413,7 +413,7 @@ class _MonsterCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final currentHp = combatState?.monsterHp ?? action.maxHp;
-    final isRespawning = combatState?.isRespawning ?? false;
+    final isSpawning = combatState?.isSpawning ?? false;
 
     return Card(
       child: Padding(
@@ -438,7 +438,7 @@ class _MonsterCard extends StatelessWidget {
               ],
             ),
             const SizedBox(height: 8),
-            if (isRespawning)
+            if (isSpawning)
               const Padding(
                 padding: EdgeInsets.symmetric(vertical: 16),
                 child: Center(
@@ -447,7 +447,7 @@ class _MonsterCard extends StatelessWidget {
                       CircularProgressIndicator(),
                       SizedBox(height: 8),
                       Text(
-                        'Loading next monster...',
+                        'Monster spawning...',
                         style: TextStyle(
                           fontStyle: FontStyle.italic,
                           color: Style.textColorSecondary,
