@@ -1657,6 +1657,84 @@ void main() {
     });
   });
 
+  group('isCombatPaused', () {
+    test('returns false when no active action', () {
+      final state = GlobalState.test(testRegistries);
+      expect(state.isCombatPaused, false);
+    });
+
+    test('returns false when active action has no action state', () {
+      final state = GlobalState.test(
+        testRegistries,
+        activeAction: ActiveAction(
+          id: normalTree.id,
+          remainingTicks: 15,
+          totalTicks: 30,
+        ),
+      );
+      expect(state.isCombatPaused, false);
+    });
+
+    test('returns false when action state has no combat state', () {
+      final state = GlobalState.test(
+        testRegistries,
+        activeAction: ActiveAction(
+          id: normalTree.id,
+          remainingTicks: 15,
+          totalTicks: 30,
+        ),
+        actionStates: {normalTree.id: const ActionState(masteryXp: 100)},
+      );
+      expect(state.isCombatPaused, false);
+    });
+
+    test('returns false when combat is not spawning', () {
+      final combatActionId = ActionId.test(Skill.combat, 'Cow');
+      final combatState = CombatActionState(
+        monsterId: combatActionId,
+        monsterHp: 50,
+        playerAttackTicksRemaining: 24,
+        monsterAttackTicksRemaining: 28,
+        // spawnTicksRemaining is null - not spawning
+      );
+      final state = GlobalState.test(
+        testRegistries,
+        activeAction: ActiveAction(
+          id: combatActionId,
+          remainingTicks: 0,
+          totalTicks: 0,
+        ),
+        actionStates: {
+          combatActionId: ActionState(masteryXp: 0, combat: combatState),
+        },
+      );
+      expect(state.isCombatPaused, false);
+    });
+
+    test('returns true when combat is spawning', () {
+      final combatActionId = ActionId.test(Skill.combat, 'Cow');
+      final combatState = CombatActionState(
+        monsterId: combatActionId,
+        monsterHp: 0,
+        playerAttackTicksRemaining: 24,
+        monsterAttackTicksRemaining: 28,
+        spawnTicksRemaining: 30, // Monster is spawning
+      );
+      final state = GlobalState.test(
+        testRegistries,
+        activeAction: ActiveAction(
+          id: combatActionId,
+          remainingTicks: 0,
+          totalTicks: 0,
+        ),
+        actionStates: {
+          combatActionId: ActionState(masteryXp: 0, combat: combatState),
+        },
+      );
+      expect(state.isCombatPaused, true);
+    });
+  });
+
   group('Equipment gear slots serialization', () {
     test('toJson/fromJson round-trip with gear equipped', () {
       final equipment = Equipment(
