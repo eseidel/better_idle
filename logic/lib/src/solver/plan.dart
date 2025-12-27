@@ -256,6 +256,52 @@ class WaitForInputsAvailable extends WaitFor {
   List<Object?> get props => [actionId];
 }
 
+/// Wait until we have enough inputs to complete the goal via a consuming action.
+/// Used when a producer action needs to gather sufficient inputs before switching
+/// to the consuming action to complete the skill goal.
+@immutable
+class WaitForSufficientInputs extends WaitFor {
+  const WaitForSufficientInputs(this.actionId, this.targetCount);
+
+  final ActionId actionId;
+  final int targetCount;
+
+  @override
+  bool isSatisfied(GlobalState state) {
+    final action = state.registries.actions.byId(actionId);
+    if (action is! SkillAction) return false;
+
+    // Get the inputs needed for this action
+    final actionStateVal = state.actionState(action.id);
+    final selection = actionStateVal.recipeSelection(action);
+    final inputs = action.inputsForRecipe(selection);
+
+    // Check if we have enough of all inputs
+    for (final entry in inputs.entries) {
+      final item = state.registries.items.byId(entry.key);
+      final available = state.inventory.countOfItem(item);
+      // We need at least targetCount of the primary input
+      // (for simplicity, check if we have enough to run targetCount actions)
+      final neededPerAction = entry.value;
+      if (available <
+          targetCount * neededPerAction / inputs.length.toDouble()) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  @override
+  String describe() =>
+      'sufficient inputs ($targetCount) for ${actionId.localId.name}';
+
+  @override
+  String get shortDescription => 'Sufficient inputs';
+
+  @override
+  List<Object?> get props => [actionId, targetCount];
+}
+
 // ---------------------------------------------------------------------------
 // Plan Steps
 // ---------------------------------------------------------------------------

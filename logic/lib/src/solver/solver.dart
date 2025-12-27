@@ -829,8 +829,9 @@ PlanExecutionResult executePlan(
       print('Error applying step: $e');
       print('State: $state');
       print('Step: $step');
-      final previousStep = plan.steps[i - 1];
-      print('Previous step: $previousStep');
+      if (i > 0) {
+        print('Previous step: ${plan.steps[i - 1]}');
+      }
       rethrow;
     }
   }

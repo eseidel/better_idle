@@ -320,12 +320,13 @@ Candidates enumerateCandidates(
   final includeSellAll =
       goal.isSellRelevant && inventoryUsedFraction > inventoryThreshold;
 
-  // Find consuming activities that can't start now (need to gather inputs)
+  // Find consuming activities relevant to the goal.
+  // Include even activities that can start now, because we may need to
+  // gather MORE inputs to complete the goal, not just enough to start.
   final consumingActivitiesToWatch = <ActionId>[];
   for (final summary in summaries) {
     if (!summary.isUnlocked) continue;
     if (!summary.hasInputs) continue;
-    if (summary.canStartNow) continue;
     if (!goal.isSkillRelevant(summary.skill)) continue;
     consumingActivitiesToWatch.add(summary.actionId);
   }

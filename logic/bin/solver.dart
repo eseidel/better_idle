@@ -9,10 +9,7 @@ import 'dart:math';
 
 import 'package:args/args.dart';
 import 'package:logic/logic.dart';
-import 'package:logic/src/solver/available_interactions.dart';
-import 'package:logic/src/solver/enumerate_candidates.dart';
 import 'package:logic/src/solver/goal.dart';
-import 'package:logic/src/solver/interaction.dart';
 import 'package:logic/src/solver/plan.dart';
 import 'package:logic/src/solver/solver.dart';
 
@@ -39,40 +36,6 @@ void main(List<String> args) async {
 
   final initialState = GlobalState.empty(registries);
 
-  // Debug: print candidate activities
-  print('Debug: enumerating candidates...');
-  final debugCandidates = enumerateCandidates(initialState, goal);
-  print('  switchToActivities: ${debugCandidates.switchToActivities}');
-  print('  buyUpgrades: ${debugCandidates.buyUpgrades}');
-  print('  includeSellAll: ${debugCandidates.includeSellAll}');
-
-  // Debug: print available interactions
-  final debugInteractions = availableInteractions(initialState);
-  print('  availableInteractions: ${debugInteractions.length}');
-  for (final i in debugInteractions.take(10)) {
-    print('    $i');
-  }
-
-  // Debug: check which interactions are relevant
-  print('  Relevant interactions:');
-  for (final i in debugInteractions) {
-    if (i is SwitchActivity) {
-      final isRelevant = debugCandidates.switchToActivities.contains(
-        i.actionId,
-      );
-      if (isRelevant) {
-        print('    $i - RELEVANT');
-      }
-    }
-  }
-
-  // Debug: print watch lists
-  print('  Watch lists:');
-  print(
-    '    consumingActivityIds: ${debugCandidates.watch.consumingActivityIds}',
-  );
-  print('    lockedActivityIds: ${debugCandidates.watch.lockedActivityIds}');
-
   print('Solving...');
   final stopwatch = Stopwatch()..start();
   final result = solve(initialState, goal);
@@ -83,6 +46,9 @@ void main(List<String> args) async {
 
   // Print result
   if (result is SolverSuccess) {
+    print('Uncompressed plan (${result.plan.steps.length} steps):');
+    print(result.plan.prettyPrint(actions: registries.actions));
+    print('');
     final compressed = result.plan.compress();
     print(
       'Plan (compressed ${result.plan.steps.length} -> ${compressed.steps.length} steps):',

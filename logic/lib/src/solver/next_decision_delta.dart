@@ -175,6 +175,17 @@ NextDecisionResult nextDecisionDelta(
     deltas.add(deltaInputsAvailable);
   }
 
+  // E3) Time until sufficient inputs to complete goal via consuming activity
+  final deltaSufficientInputs = _deltaUntilSufficientInputsForGoal(
+    state,
+    candidates,
+    goal,
+    rates,
+  );
+  if (deltaSufficientInputs != null) {
+    deltas.add(deltaSufficientInputs);
+  }
+
   // F) Time until next skill level that unlocks a watched activity
   final deltaSkillLevel = _deltaUntilNextSkillLevel(state, rates, candidates);
   if (deltaSkillLevel != null) {
@@ -533,6 +544,102 @@ _DeltaCandidate? _deltaUntilInputsDepleted(GlobalState state, Rates rates) {
   return _DeltaCandidate(
     ticks: minTicks,
     waitFor: WaitForInputsDepleted(rates.actionId!),
+  );
+}
+
+/// Computes ticks until we have enough inputs to reach the goal via a consumer.
+///
+/// When running a producer action (e.g., woodcutting), this calculates when
+/// we'll have enough items to complete the consuming action (e.g., firemaking)
+/// all the way to the goal. This is different from [_deltaUntilInputsAvailable]
+/// which only waits for enough to start one action.
+_DeltaCandidate? _deltaUntilSufficientInputsForGoal(
+  GlobalState state,
+  Candidates candidates,
+  Goal goal,
+  Rates rates,
+) {
+  if (candidates.watch.consumingActivityIds.isEmpty) return null;
+  if (goal is! ReachSkillLevelGoal) return null; // Only for skill goals
+
+  final registries = state.registries;
+  int? bestTicks;
+  ActionId? bestActionId;
+  int? bestInputsNeeded;
+
+  for (final consumingActionId in candidates.watch.consumingActivityIds) {
+    final action = registries.actions.byId(consumingActionId);
+    if (action is! SkillAction) continue;
+
+    // Only consider actions that train the goal skill
+    if (action.skill != goal.skill) continue;
+
+    // Get the inputs needed per action
+    final actionStateVal = state.actionState(action.id);
+    final selection = actionStateVal.recipeSelection(action);
+    final inputs = action.inputsForRecipe(selection);
+
+    if (inputs.isEmpty) continue;
+
+    // Calculate how many actions are needed to reach the goal
+    final xpPerAction = action.xp.toDouble();
+    if (xpPerAction <= 0) continue;
+
+    final xpNeeded = goal.remaining(state);
+    if (xpNeeded <= 0) continue;
+
+    final actionsNeeded = (xpNeeded / xpPerAction).ceil();
+
+    // For each input, calculate total needed and production time
+    int? maxTicksForAction;
+
+    for (final entry in inputs.entries) {
+      final itemId = entry.key;
+      final neededPerAction = entry.value;
+      final totalNeeded = neededPerAction * actionsNeeded;
+
+      // Get current count
+      final item = registries.items.byId(itemId);
+      final available = state.inventory.countOfItem(item);
+
+      if (available >= totalNeeded) {
+        // Already have enough
+        continue;
+      }
+
+      final stillNeeded = totalNeeded - available;
+
+      // Check if current action produces this item
+      final productionRate = rates.itemFlowsPerTick[itemId];
+      if (productionRate == null || productionRate <= 0) {
+        // Current action doesn't produce this item
+        maxTicksForAction = null;
+        break;
+      }
+
+      final ticksForInput = (stillNeeded / productionRate).ceil();
+      if (maxTicksForAction == null || ticksForInput > maxTicksForAction) {
+        maxTicksForAction = ticksForInput;
+      }
+    }
+
+    // If we could estimate time for all inputs of this action
+    if (maxTicksForAction != null && maxTicksForAction > 0) {
+      if (bestTicks == null || maxTicksForAction < bestTicks) {
+        bestTicks = maxTicksForAction;
+        bestActionId = consumingActionId;
+        // Calculate total inputs needed for description
+        final firstInput = inputs.entries.first;
+        bestInputsNeeded = firstInput.value * actionsNeeded;
+      }
+    }
+  }
+
+  if (bestTicks == null || bestActionId == null) return null;
+
+  return _DeltaCandidate(
+    ticks: bestTicks,
+    waitFor: WaitForSufficientInputs(bestActionId, bestInputsNeeded ?? 0),
   );
 }
 
