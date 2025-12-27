@@ -378,10 +378,8 @@ class _RateCache {
           // Gold from thieving
           var expectedGoldPerAction = 0.0;
           for (final output in action.outputs.entries) {
-            final item = registries.items.tryById(output.key);
-            if (item != null) {
-              expectedGoldPerAction += item.sellsFor * output.value;
-            }
+            final item = registries.items.byId(output.key);
+            expectedGoldPerAction += item.sellsFor * output.value;
           }
           final expectedThievingGold = successChance * (1 + action.maxGold) / 2;
           expectedGoldPerAction += expectedThievingGold;
@@ -409,10 +407,8 @@ class _RateCache {
 
           var expectedGoldPerAction = 0.0;
           for (final output in action.outputs.entries) {
-            final item = registries.items.tryById(output.key);
-            if (item != null) {
-              expectedGoldPerAction += item.sellsFor * output.value;
-            }
+            final item = registries.items.byId(output.key);
+            expectedGoldPerAction += item.sellsFor * output.value;
           }
           goldRate = expectedGoldPerAction / expectedTicks;
         }
@@ -635,12 +631,8 @@ AdvanceResult _advanceExpected(
     final flowRate = entry.value;
     final expectedCount = (flowRate * deltaTicks).floor();
     if (expectedCount > 0) {
-      final item = state.registries.items.tryById(itemId);
-      if (item != null) {
-        newInventory = newInventory.adding(
-          ItemStack(item, count: expectedCount),
-        );
-      }
+      final item = state.registries.items.byId(itemId);
+      newInventory = newInventory.adding(ItemStack(item, count: expectedCount));
     }
   }
 
@@ -650,12 +642,10 @@ AdvanceResult _advanceExpected(
     final consumeRate = entry.value;
     final consumedCount = (consumeRate * deltaTicks).floor();
     if (consumedCount > 0) {
-      final item = state.registries.items.tryById(itemId);
-      if (item != null) {
-        newInventory = newInventory.removing(
-          ItemStack(item, count: consumedCount),
-        );
-      }
+      final item = state.registries.items.byId(itemId);
+      newInventory = newInventory.removing(
+        ItemStack(item, count: consumedCount),
+      );
     }
   }
 

@@ -448,8 +448,7 @@ _DeltaCandidate? _deltaUntilInputsAvailable(
       final needed = entry.value;
 
       // Get current count (skip if item not in registry)
-      final item = registries.items.tryById(itemId);
-      if (item == null) continue;
+      final item = registries.items.byId(itemId);
       final available = state.inventory.countOfItem(item);
 
       if (available >= needed) {
@@ -510,8 +509,7 @@ _DeltaCandidate? _deltaUntilInputsDepleted(GlobalState state, Rates rates) {
     if (consumptionRate <= 0) continue;
 
     // Get current inventory count for this item (skip if not in registry)
-    final item = state.registries.items.tryById(itemId);
-    if (item == null) continue;
+    final item = state.registries.items.byId(itemId);
     final available = state.inventory.countOfItem(item);
 
     if (available <= 0) {

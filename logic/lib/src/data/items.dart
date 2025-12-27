@@ -76,13 +76,11 @@ class DropTableEntry extends Equatable {
   final int weight;
 
   /// Creates the ItemStack when this entry is selected/rolled.
-  /// Returns null if the item doesn't exist in the registry.
-  ItemStack? roll(ItemRegistry items, Random random) {
+  ItemStack roll(ItemRegistry items, Random random) {
     final count = minQuantity == maxQuantity
         ? minQuantity
         : minQuantity + random.nextInt(maxQuantity - minQuantity + 1);
-    final item = items.tryById(itemID);
-    if (item == null) return null;
+    final item = items.byId(itemID);
     return ItemStack(item, count: count);
   }
 
@@ -238,11 +236,10 @@ class Item extends Equatable {
   bool canEquipInSlot(EquipmentSlot slot) => validSlots.contains(slot);
 
   /// Opens this item once and returns the resulting drop.
-  /// Returns null if the item is not openable or if the drop item
-  /// doesn't exist in the registry.
-  ItemStack? open(ItemRegistry items, Random random) {
+  /// Throws if the item is not openable.
+  ItemStack open(ItemRegistry items, Random random) {
     if (dropTable == null) {
-      return null;
+      throw StateError('Item $name is not openable');
     }
     return dropTable!.roll(items, random);
   }
@@ -285,9 +282,6 @@ class ItemRegistry {
     }
     return item;
   }
-
-  /// Returns the item by MelvorId, or null if not found.
-  Item? tryById(MelvorId id) => _byId[id.toJson()];
 
   /// Returns the item by name, or throws a StateError if not found.
   Item byName(String name) {

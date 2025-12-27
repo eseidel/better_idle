@@ -161,8 +161,7 @@ List<ActionSummary> buildActionSummaries(GlobalState state) {
       final missingInputs = <MelvorId, int>{};
       if (hasInputs) {
         for (final entry in inputs.entries) {
-          final item = registries.items.tryById(entry.key);
-          if (item == null) continue;
+          final item = registries.items.byId(entry.key);
           final available = state.inventory.countOfItem(item);
           if (available < entry.value) {
             missingInputs[entry.key] = entry.value - available;
@@ -177,10 +176,8 @@ List<ActionSummary> buildActionSummaries(GlobalState state) {
       // Calculate expected gold per action from selling outputs
       var expectedGoldPerAction = 0.0;
       for (final output in action.outputs.entries) {
-        final item = registries.items.tryById(output.key);
-        if (item != null) {
-          expectedGoldPerAction += item.sellsFor * output.value;
-        }
+        final item = registries.items.byId(output.key);
+        expectedGoldPerAction += item.sellsFor * output.value;
       }
 
       // For thieving, account for success rate and stun time on failure

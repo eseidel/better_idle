@@ -54,10 +54,8 @@ class Drop extends Droppable {
   Map<MelvorId, double> get expectedItems => {itemId: count * rate};
 
   /// Creates an ItemStack with a fixed count (for fixed drops).
-  /// Returns null if the item doesn't exist in the registry.
-  ItemStack? toItemStack(ItemRegistry items) {
-    final item = items.tryById(itemId);
-    if (item == null) return null;
+  ItemStack toItemStack(ItemRegistry items) {
+    final item = items.byId(itemId);
     return ItemStack(item, count: count);
   }
 
@@ -120,14 +118,14 @@ class DropTable extends Droppable {
   }
 
   @override
-  ItemStack? roll(ItemRegistry items, Random random) {
+  ItemStack roll(ItemRegistry items, Random random) {
     final total = _totalWeight;
     var roll = random.nextDouble() * total;
 
     for (final entry in entries) {
       roll -= entry.weight;
       if (roll <= 0) {
-        // Returns null if the item doesn't exist in the registry
+        // In a DropTable, entries always have rate = 1.0, so roll never returns null.
         return entry.roll(items, random);
       }
     }
