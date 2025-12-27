@@ -147,9 +147,9 @@ class WoodcuttingActionCell extends StatelessWidget {
             CachedImage(assetPath: action.media, size: 64),
             const Spacer(),
             TweenedProgressIndicator(
-              progress:
-                  activeAction?.toProgressAt(context.state.updatedAt) ??
-                  ProgressAt.zero(context.state.updatedAt),
+              progress: isRunning
+                  ? activeAction!.toProgressAt(context.state.updatedAt)
+                  : ProgressAt.zero(context.state.updatedAt),
               animate: isRunning && context.state.isPlayerActive,
             ),
             const SizedBox(height: 8),
@@ -281,9 +281,9 @@ class ActionCell extends StatelessWidget {
             ],
             const SizedBox(height: 4),
             TweenedProgressIndicator(
-              progress:
-                  activeAction?.toProgressAt(context.state.updatedAt) ??
-                  ProgressAt.zero(context.state.updatedAt),
+              progress: isRunning
+                  ? activeAction!.toProgressAt(context.state.updatedAt)
+                  : ProgressAt.zero(context.state.updatedAt),
               animate: isRunning && !isDepleted && context.state.isPlayerActive,
             ),
             MasteryProgressCell(masteryXp: actionState.masteryXp),
