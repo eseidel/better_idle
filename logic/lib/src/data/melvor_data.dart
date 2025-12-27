@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:logic/src/types/mastery.dart';
 import 'package:logic/src/types/mastery_unlock.dart';
+import 'package:meta/meta.dart';
 
 import 'actions.dart';
 import 'bank_sort.dart';
@@ -10,6 +11,7 @@ import 'melvor_id.dart';
 import 'shop.dart';
 
 /// A skill data entry from a single data file, with its namespace preserved.
+@immutable
 class SkillDataEntry {
   const SkillDataEntry(this.namespace, this.data);
 
@@ -20,6 +22,7 @@ class SkillDataEntry {
 /// Parsed representation of the Melvor game data.
 ///
 /// Combines data from multiple JSON files (demo + full game).
+@immutable
 class MelvorData {
   /// Loads MelvorData from the cache, fetching from CDN if needed.
   static Future<MelvorData> load({Directory? cacheDir}) async {

@@ -35,6 +35,7 @@ class CraftingCategory {
 }
 
 /// Registry for crafting categories.
+@immutable
 class CraftingCategoryRegistry {
   CraftingCategoryRegistry(List<CraftingCategory> categories)
     : _categories = categories {

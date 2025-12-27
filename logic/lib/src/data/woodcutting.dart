@@ -1,3 +1,5 @@
+import 'package:meta/meta.dart';
+
 import 'action_id.dart';
 import 'actions.dart';
 import 'melvor_id.dart';
@@ -5,6 +7,7 @@ import 'melvor_id.dart';
 /// A woodcutting tree action parsed from Melvor data.
 ///
 /// Extends SkillAction so it can be used directly in the game.
+@immutable
 class WoodcuttingTree extends SkillAction {
   WoodcuttingTree({
     required super.id,

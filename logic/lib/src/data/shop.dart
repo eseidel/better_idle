@@ -336,6 +336,7 @@ class ShopPurchase extends Equatable {
 }
 
 /// Registry of all shop purchases and categories.
+@immutable
 class ShopRegistry {
   ShopRegistry(this._purchases, this._categories) {
     _byId = {for (final p in _purchases) p.id.toJson(): p};

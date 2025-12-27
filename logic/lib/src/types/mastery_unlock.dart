@@ -45,6 +45,7 @@ class SkillMasteryUnlocks {
 }
 
 /// Registry for looking up mastery unlocks by skill.
+@immutable
 class MasteryUnlockRegistry {
   MasteryUnlockRegistry(List<SkillMasteryUnlocks> unlocks)
     : _bySkillId = {for (final u in unlocks) u.skillId: u};

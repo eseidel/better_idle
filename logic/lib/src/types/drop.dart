@@ -3,6 +3,7 @@ import 'dart:math';
 import 'package:logic/src/data/items.dart';
 import 'package:logic/src/data/melvor_id.dart';
 import 'package:logic/src/types/inventory.dart';
+import 'package:meta/meta.dart';
 
 /// Base class for anything that can be dropped.
 abstract class Droppable {
@@ -34,6 +35,7 @@ Map<MelvorId, double> expectedItemsForDrops(
 }
 
 /// A single item drop with an optional activation rate.
+@immutable
 class Drop extends Droppable {
   /// Creates a drop from a MelvorId.
   const Drop(this.itemId, {this.count = 1, this.rate = 1.0})
@@ -65,6 +67,7 @@ class Drop extends Droppable {
 }
 
 /// A conditional drop that wraps any Droppable with a probability gate.
+@immutable
 class DropChance extends Droppable {
   const DropChance(this.child, {required this.rate});
 
@@ -90,6 +93,7 @@ class DropChance extends Droppable {
 
 /// A drop table that selects exactly one item from weighted entries.
 /// Always drops something (unless entries is empty).
+@immutable
 class DropTable extends Droppable {
   DropTable(this.entries)
     : assert(entries.isNotEmpty, 'Entries must not be empty');

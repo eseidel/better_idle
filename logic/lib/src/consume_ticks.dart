@@ -1,22 +1,9 @@
 import 'dart:math';
 
-import 'package:logic/src/action_state.dart';
-import 'package:logic/src/data/action_id.dart';
-import 'package:logic/src/data/actions.dart';
-import 'package:logic/src/data/currency.dart';
-import 'package:logic/src/data/melvor_id.dart';
-import 'package:logic/src/data/registries.dart';
-import 'package:logic/src/data/xp.dart';
+import 'package:logic/logic.dart';
 import 'package:logic/src/farming_background.dart';
-import 'package:logic/src/plot_state.dart';
-import 'package:logic/src/state.dart';
-import 'package:logic/src/tick.dart';
-import 'package:logic/src/types/equipment.dart';
-import 'package:logic/src/types/health.dart';
-import 'package:logic/src/types/inventory.dart';
 import 'package:logic/src/types/resolved_modifiers.dart';
-import 'package:logic/src/types/stunned.dart';
-import 'package:logic/src/types/time_away.dart';
+import 'package:meta/meta.dart';
 
 /// Ticks required to regenerate 1 HP (10 seconds = 100 ticks).
 final int ticksPer1Hp = ticksFromDuration(const Duration(seconds: 10));
@@ -206,6 +193,7 @@ abstract class BackgroundTickConsumer {
 }
 
 /// Background action for mining node HP regeneration and respawn.
+@immutable
 class MiningBackgroundAction implements BackgroundTickConsumer {
   MiningBackgroundAction(this.actionId, this.miningState);
 

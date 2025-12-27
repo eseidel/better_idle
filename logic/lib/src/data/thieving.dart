@@ -73,6 +73,7 @@ class ThievingArea {
 }
 
 /// Registry for thieving areas.
+@immutable
 class ThievingAreaRegistry {
   ThievingAreaRegistry(List<ThievingArea> areas) : _areas = areas;
 

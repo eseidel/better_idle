@@ -35,6 +35,7 @@ class HerbloreCategory {
 }
 
 /// Registry for herblore categories.
+@immutable
 class HerbloreCategoryRegistry {
   HerbloreCategoryRegistry(List<HerbloreCategory> categories)
     : _categories = categories {

@@ -261,6 +261,7 @@ class Item extends Equatable {
   ];
 }
 
+@immutable
 class ItemRegistry {
   ItemRegistry(List<Item> items) : _all = items {
     _byName = {for (final item in _all) item.name: item};

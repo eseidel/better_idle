@@ -38,6 +38,7 @@ class SmithingCategory {
 }
 
 /// Registry for smithing categories.
+@immutable
 class SmithingCategoryRegistry {
   SmithingCategoryRegistry(List<SmithingCategory> categories)
     : _categories = categories {

@@ -7,7 +7,9 @@ import 'package:logic/src/data/melvor_id.dart';
 import 'package:logic/src/data/shop.dart';
 import 'package:logic/src/types/mastery.dart';
 import 'package:logic/src/types/mastery_unlock.dart';
+import 'package:meta/meta.dart';
 
+@immutable
 class Registries {
   Registries(
     this.items,

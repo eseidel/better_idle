@@ -122,6 +122,7 @@ class FishingAction extends SkillAction {
 }
 
 /// Registry for fishing areas.
+@immutable
 class FishingAreaRegistry {
   FishingAreaRegistry(List<FishingArea> areas) : _areas = areas {
     _byId = {for (final area in _areas) area.id: area};

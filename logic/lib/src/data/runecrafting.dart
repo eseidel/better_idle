@@ -35,6 +35,7 @@ class RunecraftingCategory {
 }
 
 /// Registry for runecrafting categories.
+@immutable
 class RunecraftingCategoryRegistry {
   RunecraftingCategoryRegistry(List<RunecraftingCategory> categories)
     : _categories = categories {

@@ -2,6 +2,7 @@ import 'package:logic/src/data/action_id.dart';
 import 'package:logic/src/data/melvor_id.dart';
 import 'package:logic/src/plot_state.dart';
 import 'package:logic/src/tick.dart';
+import 'package:meta/meta.dart';
 
 /// Result of applying ticks to a farming plot.
 typedef FarmingPlotTickResult = ({
@@ -14,6 +15,7 @@ typedef FarmingPlotTickResult = ({
 ///
 /// Uses countdown pattern like mining respawn: growthTicksRemaining decrements
 /// toward zero as ticks are consumed.
+@immutable
 class FarmingPlotGrowth {
   FarmingPlotGrowth(this.plotId, this.cropId, this.plotState);
 

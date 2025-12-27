@@ -35,6 +35,7 @@ class FletchingCategory {
 }
 
 /// Registry for fletching categories.
+@immutable
 class FletchingCategoryRegistry {
   FletchingCategoryRegistry(List<FletchingCategory> categories)
     : _categories = categories {

@@ -342,6 +342,7 @@ class CombatArea {
 }
 
 /// Registry for combat areas.
+@immutable
 class CombatAreaRegistry {
   CombatAreaRegistry(List<CombatArea> areas) : _areas = areas {
     _byId = {for (final area in _areas) area.id: area};

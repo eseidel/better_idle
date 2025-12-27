@@ -67,6 +67,7 @@ class FarmingCategory {
 }
 
 /// Registry for farming categories.
+@immutable
 class FarmingCategoryRegistry {
   FarmingCategoryRegistry(List<FarmingCategory> categories)
     : _categories = categories {

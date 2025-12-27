@@ -1,9 +1,11 @@
 import 'package:logic/src/state.dart';
+import 'package:meta/meta.dart';
 
 /// Represents progress at a specific point in time.
 ///
 /// Used for estimating progress at a rate higher than the game tick based
 /// on time elapsed since the last update.
+@immutable
 class ProgressAt {
   const ProgressAt({
     required this.lastUpdateTime,

@@ -8,6 +8,7 @@ import 'data/actions.dart';
 import 'data/xp.dart';
 
 /// Mining-specific state for rock HP and respawn.
+@immutable
 class MiningState {
   const MiningState({
     this.totalHpLost = 0,
@@ -145,16 +146,19 @@ class CombatActionState {
   }
 }
 
+@immutable
 sealed class RecipeSelection {
   const RecipeSelection();
 }
 
 /// This is used for actions without alternative recipes.
+@immutable
 class NoSelectedRecipe extends RecipeSelection {
   const NoSelectedRecipe();
 }
 
 /// This is used for actions with alternative recipes.
+@immutable
 class SelectedRecipe extends RecipeSelection {
   const SelectedRecipe({required this.index});
   final int index;
