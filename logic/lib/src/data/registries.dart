@@ -11,7 +11,7 @@ import 'package:meta/meta.dart';
 
 @immutable
 class Registries {
-  Registries(
+  const Registries(
     this.items,
     this.actions,
     this.drops,
@@ -34,7 +34,7 @@ class Registries {
     this._bankSortIndex,
   );
 
-  static Registries test({
+  factory Registries.test({
     List<Item> items = const [],
     List<Action> actions = const [],
     ShopRegistry? shop,
@@ -46,22 +46,22 @@ class Registries {
       ItemRegistry(items),
       ActionRegistry(actions),
       DropsRegistry({}),
-      FishingAreaRegistry([]),
-      SmithingCategoryRegistry([]),
-      FletchingCategoryRegistry([]),
-      CraftingCategoryRegistry([]),
-      HerbloreCategoryRegistry([]),
-      RunecraftingCategoryRegistry([]),
-      ThievingAreaRegistry([]),
-      CombatAreaRegistry([]),
+      FishingAreaRegistry(const []),
+      SmithingCategoryRegistry(const []),
+      FletchingCategoryRegistry(const []),
+      CraftingCategoryRegistry(const []),
+      HerbloreCategoryRegistry(const []),
+      RunecraftingCategoryRegistry(const []),
+      const ThievingAreaRegistry([]),
+      CombatAreaRegistry(const []),
       AgilityCourseRegistry([]),
       AgilityPillarRegistry([]),
       FarmingCropRegistry([]),
-      FarmingCategoryRegistry([]),
+      FarmingCategoryRegistry(const []),
       FarmingPlotRegistry([]),
-      shop ?? ShopRegistry([], []),
+      shop ?? ShopRegistry(const [], const []),
       masteryBonuses ?? MasteryBonusRegistry([]),
-      masteryUnlocks ?? MasteryUnlockRegistry([]),
+      masteryUnlocks ?? MasteryUnlockRegistry(const []),
       bankSortIndex ?? {},
     );
   }

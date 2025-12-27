@@ -26,7 +26,7 @@ void main() {
     });
 
     test('byId returns null for unknown id', () {
-      final unknownId = MelvorId('test:Unknown_Area');
+      const unknownId = MelvorId('test:Unknown_Area');
       final area = testRegistries.fishingAreas.byId(unknownId);
       expect(area, isNull);
     });
@@ -45,7 +45,7 @@ void main() {
     });
 
     test('areaForFish returns null for unknown fish id', () {
-      final unknownFishId = MelvorId('test:Unknown_Fish');
+      const unknownFishId = MelvorId('test:Unknown_Fish');
       final area = testRegistries.fishingAreas.areaForFish(unknownFishId);
       expect(area, isNull);
     });

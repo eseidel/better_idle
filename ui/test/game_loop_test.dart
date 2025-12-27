@@ -16,7 +16,7 @@ const _testAction = SkillAction(
 );
 
 void main() {
-  final registries = Registries.test(actions: [_testAction]);
+  final registries = Registries.test(actions: const [_testAction]);
 
   group('GameLoop suspend/resume', () {
     testWidgets('suspend prevents auto-start from state changes', (

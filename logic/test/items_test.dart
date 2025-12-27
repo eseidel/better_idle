@@ -29,33 +29,15 @@ void main() {
 
   group('DropTableEntry', () {
     test('equality compares all fields', () {
-      final entry1 = DropTableEntry.test(
-        'Normal Logs',
-        gp: 10,
-        min: 1,
-        max: 5,
-        weight: 10,
-      );
-      final entry2 = DropTableEntry.test(
-        'Normal Logs',
-        gp: 10,
-        min: 1,
-        max: 5,
-        weight: 10,
-      );
-      final different = DropTableEntry.test(
-        'Oak Logs',
-        gp: 10,
-        min: 1,
-        max: 5,
-        weight: 10,
-      );
+      final entry1 = DropTableEntry.test('Normal Logs', max: 5, weight: 10);
+      final entry2 = DropTableEntry.test('Normal Logs', max: 5, weight: 10);
+      final different = DropTableEntry.test('Oak Logs', max: 5, weight: 10);
 
       expect(entry1, equals(entry2));
       expect(entry1, isNot(equals(different)));
     });
     test('name extracts item name from itemID', () {
-      final entry = DropTableEntry(
+      const entry = DropTableEntry(
         itemID: MelvorId('melvorD:Normal_Logs'),
         minQuantity: 1,
         maxQuantity: 5,
@@ -66,13 +48,7 @@ void main() {
     });
 
     test('expectedCount returns average of min and max', () {
-      final entry = DropTableEntry.test(
-        'Test',
-        gp: 10,
-        min: 2,
-        max: 10,
-        weight: 1,
-      );
+      final entry = DropTableEntry.test('Test', min: 2, max: 10);
 
       expect(entry.expectedCount, 6.0);
     });
@@ -87,7 +63,7 @@ void main() {
 
       final entry = DropTableEntry.fromJson(json);
 
-      expect(entry.itemID, MelvorId('melvorD:Oak_Logs'));
+      expect(entry.itemID, const MelvorId('melvorD:Oak_Logs'));
       expect(entry.minQuantity, 3);
       expect(entry.maxQuantity, 7);
       expect(entry.weight, 25);

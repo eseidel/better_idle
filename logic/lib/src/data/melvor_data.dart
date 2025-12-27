@@ -1,14 +1,13 @@
 import 'dart:io';
 
+import 'package:logic/src/data/actions.dart';
+import 'package:logic/src/data/bank_sort.dart';
+import 'package:logic/src/data/cache.dart';
+import 'package:logic/src/data/melvor_id.dart';
+import 'package:logic/src/data/shop.dart';
 import 'package:logic/src/types/mastery.dart';
 import 'package:logic/src/types/mastery_unlock.dart';
 import 'package:meta/meta.dart';
-
-import 'actions.dart';
-import 'bank_sort.dart';
-import 'cache.dart';
-import 'melvor_id.dart';
-import 'shop.dart';
 
 /// A skill data entry from a single data file, with its namespace preserved.
 @immutable
@@ -24,26 +23,9 @@ class SkillDataEntry {
 /// Combines data from multiple JSON files (demo + full game).
 @immutable
 class MelvorData {
-  /// Loads MelvorData from the cache, fetching from CDN if needed.
-  static Future<MelvorData> load({Directory? cacheDir}) async {
-    final cache = Cache(cacheDir: cacheDir ?? defaultCacheDir);
-    try {
-      return await loadFromCache(cache);
-    } finally {
-      cache.close();
-    }
-  }
-
-  /// Loads MelvorData from an existing cache instance.
-  static Future<MelvorData> loadFromCache(Cache cache) async {
-    final demoData = await cache.ensureDemoData();
-    final fullData = await cache.ensureFullData();
-    return MelvorData([demoData, fullData]);
-  }
-
   /// Creates a MelvorData from multiple parsed JSON data files.
   ///
-  /// Items from later files override items from earlier files with the same name.
+  /// Later files override items from earlier files with the same name.
   /// Skill data from later files is merged with earlier files by skillID.
   MelvorData(List<Map<String, dynamic>> dataFiles) {
     final items = <Item>[];
@@ -60,7 +42,9 @@ class MelvorData {
       // Collect items
       final itemsJson = data['items'] as List<dynamic>? ?? [];
       for (final itemJson in itemsJson) {
-        items.add(Item.fromJson(itemJson, namespace: namespace));
+        items.add(
+          Item.fromJson(itemJson as Map<String, dynamic>, namespace: namespace),
+        );
       }
 
       // Collect skill data entries
@@ -98,12 +82,12 @@ class MelvorData {
     _bankSortIndex = buildBankSortIndex(bankSortOrder);
 
     // Step 2: Parse each skill (null-safe, returns empty on missing)
-    final actions = <Action>[];
-
-    actions.addAll(parseWoodcutting(skillDataById['melvorD:Woodcutting']));
-    actions.addAll(parseMining(skillDataById['melvorD:Mining']));
-    actions.addAll(parseCooking(skillDataById['melvorD:Cooking']));
-    actions.addAll(parseFiremaking(skillDataById['melvorD:Firemaking']));
+    final actions = <Action>[
+      ...parseWoodcutting(skillDataById['melvorD:Woodcutting']),
+      ...parseMining(skillDataById['melvorD:Mining']),
+      ...parseCooking(skillDataById['melvorD:Cooking']),
+      ...parseFiremaking(skillDataById['melvorD:Firemaking']),
+    ];
 
     final (fishingActions, fishingAreas) = parseFishing(
       skillDataById['melvorD:Fishing'],
@@ -167,9 +151,10 @@ class MelvorData {
     _agilityCourses = agilityCourses;
     _agilityPillars = agilityPillars;
 
-    actions.addAll(parseSummoning(skillDataById['melvorD:Summoning']));
-    actions.addAll(parseAstrology(skillDataById['melvorD:Astrology']));
-    actions.addAll(parseAltMagic(skillDataById['melvorD:Magic']));
+    actions
+      ..addAll(parseSummoning(skillDataById['melvorD:Summoning']))
+      ..addAll(parseAstrology(skillDataById['melvorD:Astrology']))
+      ..addAll(parseAltMagic(skillDataById['melvorD:Magic']));
 
     _actions = ActionRegistry(actions);
     _combatAreas = CombatAreaRegistry(combatAreas);
@@ -182,6 +167,23 @@ class MelvorData {
 
     // Parse mastery unlocks (display-only descriptions) for all skills
     _masteryUnlocks = parseMasteryUnlocks(skillDataById);
+  }
+
+  /// Loads MelvorData from the cache, fetching from CDN if needed.
+  static Future<MelvorData> load({Directory? cacheDir}) async {
+    final cache = Cache(cacheDir: cacheDir ?? defaultCacheDir);
+    try {
+      return await loadFromCache(cache);
+    } finally {
+      cache.close();
+    }
+  }
+
+  /// Loads MelvorData from an existing cache instance.
+  static Future<MelvorData> loadFromCache(Cache cache) async {
+    final demoData = await cache.ensureDemoData();
+    final fullData = await cache.ensureFullData();
+    return MelvorData([demoData, fullData]);
   }
 
   late final ItemRegistry _items;
@@ -312,7 +314,7 @@ List<MiningAction> parseMining(List<SkillDataEntry>? entries) {
   List<SkillDataEntry>? entries,
 ) {
   if (entries == null) {
-    return ([], FishingAreaRegistry([]));
+    return ([], FishingAreaRegistry(const []));
   }
 
   final actions = <FishingAction>[];
@@ -394,7 +396,7 @@ List<FiremakingAction> parseFiremaking(List<SkillDataEntry>? entries) {
   List<SkillDataEntry>? entries,
 ) {
   if (entries == null) {
-    return ([], SmithingCategoryRegistry([]));
+    return ([], SmithingCategoryRegistry(const []));
   }
 
   final actions = <SmithingAction>[];
@@ -434,7 +436,7 @@ List<FiremakingAction> parseFiremaking(List<SkillDataEntry>? entries) {
   List<SkillDataEntry>? entries,
 ) {
   if (entries == null) {
-    return ([], FarmingCategoryRegistry([]), FarmingPlotRegistry([]));
+    return ([], FarmingCategoryRegistry(const []), FarmingPlotRegistry([]));
   }
 
   final crops = <FarmingCrop>[];
@@ -491,7 +493,7 @@ List<FiremakingAction> parseFiremaking(List<SkillDataEntry>? entries) {
   List<SkillDataEntry>? entries,
 ) {
   if (entries == null) {
-    return ([], FletchingCategoryRegistry([]));
+    return ([], FletchingCategoryRegistry(const []));
   }
 
   final actions = <FletchingAction>[];
@@ -531,7 +533,7 @@ List<FiremakingAction> parseFiremaking(List<SkillDataEntry>? entries) {
   List<SkillDataEntry>? entries,
 ) {
   if (entries == null) {
-    return ([], CraftingCategoryRegistry([]));
+    return ([], CraftingCategoryRegistry(const []));
   }
 
   final actions = <CraftingAction>[];
@@ -571,7 +573,7 @@ List<FiremakingAction> parseFiremaking(List<SkillDataEntry>? entries) {
   List<SkillDataEntry>? entries,
 ) {
   if (entries == null) {
-    return ([], HerbloreCategoryRegistry([]));
+    return ([], HerbloreCategoryRegistry(const []));
   }
 
   final actions = <HerbloreAction>[];
@@ -611,7 +613,7 @@ List<FiremakingAction> parseFiremaking(List<SkillDataEntry>? entries) {
   List<SkillDataEntry>? entries,
 ) {
   if (entries == null) {
-    return ([], RunecraftingCategoryRegistry([]));
+    return ([], RunecraftingCategoryRegistry(const []));
   }
 
   final actions = <RunecraftingAction>[];
@@ -652,7 +654,7 @@ List<FiremakingAction> parseFiremaking(List<SkillDataEntry>? entries) {
   List<SkillDataEntry>? entries,
 ) {
   if (entries == null) {
-    return ([], ThievingAreaRegistry([]));
+    return ([], const ThievingAreaRegistry([]));
   }
 
   // First pass: collect areas
@@ -749,17 +751,12 @@ ShopRegistry parseShop(List<Map<String, dynamic>> dataFiles) {
     // Parse shop purchases
     final purchasesJson = data['shopPurchases'] as List<dynamic>? ?? [];
     for (final purchaseJson in purchasesJson) {
-      try {
-        purchases.add(
-          ShopPurchase.fromJson(
-            purchaseJson as Map<String, dynamic>,
-            namespace: namespace,
-          ),
-        );
-      } on ArgumentError {
-        // Skip purchases with unknown currencies or skills
-        continue;
-      }
+      purchases.add(
+        ShopPurchase.fromJson(
+          purchaseJson as Map<String, dynamic>,
+          namespace: namespace,
+        ),
+      );
     }
 
     // Parse shop categories
@@ -830,7 +827,7 @@ MasteryUnlockRegistry parseMasteryUnlocks(
   return MasteryUnlockRegistry(skillUnlocks);
 }
 
-/// Parses all agility data. Returns (obstacles, coursesRegistry, pillarsRegistry).
+/// Parses all agility data (obstacles, courses, pillars).
 (List<AgilityObstacle>, AgilityCourseRegistry, AgilityPillarRegistry)
 parseAgility(List<SkillDataEntry>? entries) {
   if (entries == null) {

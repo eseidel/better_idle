@@ -1,8 +1,7 @@
+import 'package:logic/src/data/action_id.dart';
+import 'package:logic/src/data/actions.dart';
+import 'package:logic/src/data/melvor_id.dart';
 import 'package:meta/meta.dart';
-
-import 'action_id.dart';
-import 'actions.dart';
-import 'melvor_id.dart';
 
 const _herbloreDuration = Duration(seconds: 2);
 
@@ -59,7 +58,7 @@ class HerbloreCategoryRegistry {
 /// mastery level, but for simplicity we produce the first tier by default.
 @immutable
 class HerbloreAction extends SkillAction {
-  HerbloreAction({
+  const HerbloreAction({
     required super.id,
     required super.name,
     required super.unlockLevel,

@@ -100,10 +100,13 @@ void main() {
       final mod = bonus.modifiers.modifiers.first;
       expect(mod.name, 'skillInterval');
       expect(mod.entries.length, 1);
-      expect(mod.entries.first.scope?.skillId, MelvorId('melvorD:Firemaking'));
+      expect(
+        mod.entries.first.scope?.skillId,
+        const MelvorId('melvorD:Firemaking'),
+      );
       expect(
         mod.entries.first.scope?.actionId,
-        MelvorId('melvorD:Normal_Logs'),
+        const MelvorId('melvorD:Normal_Logs'),
       );
       expect(mod.entries.first.value, -0.1);
     });
@@ -124,21 +127,26 @@ void main() {
       expect(bonus.autoScopeToAction, true);
       final mod = bonus.modifiers.modifiers.first;
       expect(mod.entries.first.scope?.skillId, isNull);
-      expect(mod.entries.first.scope?.actionId, MelvorId('melvorD:Raw_Shrimp'));
+      expect(
+        mod.entries.first.scope?.actionId,
+        const MelvorId('melvorD:Raw_Shrimp'),
+      );
     });
   });
 
   group('MasteryBonusRegistry', () {
     test('loads bonuses for woodcutting', () {
       final woodcutting = testMasteryBonuses.forSkill(
-        MelvorId('melvorD:Woodcutting'),
+        const MelvorId('melvorD:Woodcutting'),
       );
       expect(woodcutting, isNotNull);
       expect(woodcutting!.bonuses, isNotEmpty);
     });
 
     test('loads bonuses for fishing', () {
-      final fishing = testMasteryBonuses.forSkill(MelvorId('melvorD:Fishing'));
+      final fishing = testMasteryBonuses.forSkill(
+        const MelvorId('melvorD:Fishing'),
+      );
       expect(fishing, isNotNull);
       expect(fishing!.bonuses, isNotEmpty);
 
@@ -151,7 +159,7 @@ void main() {
 
     test('loads bonuses for firemaking with autoScopeToAction false', () {
       final firemaking = testMasteryBonuses.forSkill(
-        MelvorId('melvorD:Firemaking'),
+        const MelvorId('melvorD:Firemaking'),
       );
       expect(firemaking, isNotNull);
 
@@ -165,7 +173,7 @@ void main() {
 
     test('returns null for unknown skill', () {
       final unknown = testMasteryBonuses.forSkill(
-        MelvorId('melvorD:UnknownSkill'),
+        const MelvorId('melvorD:UnknownSkill'),
       );
       expect(unknown, isNull);
     });
@@ -173,23 +181,28 @@ void main() {
     test('skillIds returns all skills with bonuses', () {
       expect(
         testMasteryBonuses.skillIds,
-        contains(MelvorId('melvorD:Woodcutting')),
+        contains(const MelvorId('melvorD:Woodcutting')),
       );
       expect(
         testMasteryBonuses.skillIds,
-        contains(MelvorId('melvorD:Fishing')),
+        contains(const MelvorId('melvorD:Fishing')),
       );
-      expect(testMasteryBonuses.skillIds, contains(MelvorId('melvorD:Mining')));
       expect(
         testMasteryBonuses.skillIds,
-        contains(MelvorId('melvorD:Cooking')),
+        contains(const MelvorId('melvorD:Mining')),
+      );
+      expect(
+        testMasteryBonuses.skillIds,
+        contains(const MelvorId('melvorD:Cooking')),
       );
     });
   });
 
   group('SkillMasteryBonuses', () {
     test('contains expected bonus structure for mining', () {
-      final mining = testMasteryBonuses.forSkill(MelvorId('melvorD:Mining'));
+      final mining = testMasteryBonuses.forSkill(
+        const MelvorId('melvorD:Mining'),
+      );
       expect(mining, isNotNull);
 
       // Mining has scaling bonuses for node HP and doubling chance

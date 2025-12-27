@@ -1,8 +1,7 @@
+import 'package:logic/src/data/action_id.dart';
+import 'package:logic/src/data/actions.dart';
+import 'package:logic/src/data/melvor_id.dart';
 import 'package:meta/meta.dart';
-
-import 'action_id.dart';
-import 'actions.dart';
-import 'melvor_id.dart';
 
 /// The base interval for studying constellations (3 seconds).
 const _astrologyStudyDuration = Duration(seconds: 3);
@@ -13,7 +12,7 @@ const _astrologyStudyDuration = Duration(seconds: 3);
 /// and unlock modifiers that affect other skills.
 @immutable
 class AstrologyAction extends SkillAction {
-  AstrologyAction({
+  const AstrologyAction({
     required super.id,
     required super.name,
     required super.unlockLevel,

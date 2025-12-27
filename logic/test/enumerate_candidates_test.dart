@@ -23,7 +23,7 @@ void main() {
   });
 
   group('buildActionSummaries', () {
-    test('returns summaries for all skill actions including consuming ones', () {
+    test('returns summaries for all skill actions including consuming', () {
       final state = GlobalState.empty(testRegistries);
       final summaries = buildActionSummaries(state);
 
@@ -36,7 +36,7 @@ void main() {
       expect(actionNames, contains('Copper'));
       expect(actionNames, contains('Man'));
 
-      // Consuming actions are also included (with hasInputs=true, canStartNow=false)
+      // Consuming actions are included (hasInputs=true, canStartNow=false)
       expect(actionNames, contains('Burn Normal Logs'));
 
       // Verify consuming actions are marked correctly
@@ -50,10 +50,10 @@ void main() {
     test('marks unlocked actions correctly', () {
       final state = GlobalState.test(
         testRegistries,
-        skillStates: {
-          Skill.hitpoints: const SkillState(xp: 1154, masteryPoolXp: 0),
+        skillStates: const {
+          Skill.hitpoints: SkillState(xp: 1154, masteryPoolXp: 0),
           // Level 25 = 8740 XP (Willow Tree requires level 25)
-          Skill.woodcutting: const SkillState(xp: 8740, masteryPoolXp: 0),
+          Skill.woodcutting: SkillState(xp: 8740, masteryPoolXp: 0),
         },
       );
       final summaries = buildActionSummaries(state);
@@ -151,7 +151,7 @@ void main() {
 
         expect(candidates.switchToActivities, isNotEmpty);
 
-        // Candidates should include both thieving (best gold rate) and producers
+        // Candidates should include thieving (best gold rate) and producers
         // for consuming actions that have positive gold rate from byproducts.
         // The ordering may not be strictly by gold rate because producers for
         // consuming actions are added alongside those actions.
@@ -165,11 +165,11 @@ void main() {
     test('respects activity count limit', () {
       final state = GlobalState.test(
         testRegistries,
-        skillStates: {
-          Skill.hitpoints: const SkillState(xp: 1154, masteryPoolXp: 0),
-          Skill.woodcutting: const SkillState(xp: 4470, masteryPoolXp: 0),
-          Skill.fishing: const SkillState(xp: 4470, masteryPoolXp: 0),
-          Skill.mining: const SkillState(xp: 4470, masteryPoolXp: 0),
+        skillStates: const {
+          Skill.hitpoints: SkillState(xp: 1154, masteryPoolXp: 0),
+          Skill.woodcutting: SkillState(xp: 4470, masteryPoolXp: 0),
+          Skill.fishing: SkillState(xp: 4470, masteryPoolXp: 0),
+          Skill.mining: SkillState(xp: 4470, masteryPoolXp: 0),
         },
       );
 
@@ -180,21 +180,6 @@ void main() {
       );
       expect(candidates.switchToActivities.length, lessThanOrEqualTo(3));
     });
-
-    test('upgrade candidates may include skill upgrades', () {
-      // The upgrade filtering logic considers whether upgrades would
-      // improve competitive activities. With the current rate calculation
-      // (which includes byproducts from consuming actions), some upgrades
-      // may be included in buyUpgrades.
-      final state = GlobalState.test(testRegistries, gp: 1000);
-      final candidates = enumerateCandidates(state, _defaultGoal);
-
-      // Upgrades list is computed based on activity competitiveness.
-      // We just verify the list is not null (the actual filtering logic
-      // is tested implicitly through the solver tests).
-      expect(candidates.buyUpgrades, isA<List>());
-    });
-
     test('watch list includes upgrades from buyUpgrades', () {
       // The watch list should include upgrades that are candidates
       // for affordability tracking.
@@ -318,9 +303,9 @@ void main() {
       final baseGoldRate = defaultValueModel.valuePerTick(state, baseRates);
 
       // Buy all tool upgrades (axe, fishing rod, pickaxe)
-      final ironAxeId = MelvorId('melvorD:Iron_Axe');
-      final ironRodId = MelvorId('melvorD:Iron_Fishing_Rod');
-      final ironPickaxeId = MelvorId('melvorD:Iron_Pickaxe');
+      const ironAxeId = MelvorId('melvorD:Iron_Axe');
+      const ironRodId = MelvorId('melvorD:Iron_Fishing_Rod');
+      const ironPickaxeId = MelvorId('melvorD:Iron_Pickaxe');
       var upgradedState = state.copyWith(
         shop: state.shop
             .withPurchase(ironAxeId)
@@ -350,8 +335,8 @@ void main() {
     test('BuyShopItem reduces GP by upgrade cost', () {
       // Start with enough GP for an axe upgrade
       final state = GlobalState.test(testRegistries, gp: 100);
-      final ironAxeId = MelvorId('melvorD:Iron_Axe');
-      final interaction = BuyShopItem(ironAxeId);
+      const ironAxeId = MelvorId('melvorD:Iron_Axe');
+      const interaction = BuyShopItem(ironAxeId);
 
       // Apply the upgrade
       final newState = applyInteraction(state, interaction);
@@ -363,16 +348,16 @@ void main() {
 
     test('BuyShopItem reduces GP by correct amount for each tier', () {
       // Test first fishing rod (costs 100)
-      final ironRodId = MelvorId('melvorD:Iron_Fishing_Rod');
+      const ironRodId = MelvorId('melvorD:Iron_Fishing_Rod');
       var state = GlobalState.test(testRegistries, gp: 200);
-      var newState = applyInteraction(state, BuyShopItem(ironRodId));
+      var newState = applyInteraction(state, const BuyShopItem(ironRodId));
       expect(newState.gp, equals(100)); // 200 - 100
       expect(newState.shop.purchaseCount(ironRodId), equals(1));
 
       // Test first pickaxe (costs 250)
-      final ironPickaxeId = MelvorId('melvorD:Iron_Pickaxe');
+      const ironPickaxeId = MelvorId('melvorD:Iron_Pickaxe');
       state = GlobalState.test(testRegistries, gp: 500);
-      newState = applyInteraction(state, BuyShopItem(ironPickaxeId));
+      newState = applyInteraction(state, const BuyShopItem(ironPickaxeId));
       expect(newState.gp, equals(250)); // 500 - 250
       expect(newState.shop.purchaseCount(ironPickaxeId), equals(1));
     });

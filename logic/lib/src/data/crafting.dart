@@ -1,8 +1,7 @@
+import 'package:logic/src/data/action_id.dart';
+import 'package:logic/src/data/actions.dart';
+import 'package:logic/src/data/melvor_id.dart';
 import 'package:meta/meta.dart';
-
-import 'action_id.dart';
-import 'actions.dart';
-import 'melvor_id.dart';
 
 const _craftingDuration = Duration(seconds: 2);
 
@@ -58,7 +57,7 @@ class CraftingCategoryRegistry {
 /// jewelry, and other craftable goods.
 @immutable
 class CraftingAction extends SkillAction {
-  CraftingAction({
+  const CraftingAction({
     required super.id,
     required super.name,
     required super.unlockLevel,

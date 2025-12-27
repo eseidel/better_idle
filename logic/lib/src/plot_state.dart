@@ -1,9 +1,8 @@
+import 'package:logic/src/data/action_id.dart';
 import 'package:logic/src/data/items.dart';
 import 'package:logic/src/data/melvor_id.dart';
 import 'package:logic/src/tick.dart';
 import 'package:meta/meta.dart';
-
-import 'data/action_id.dart';
 
 /// State for an individual farming plot.
 @immutable

@@ -1,7 +1,8 @@
-/// Available interactions: enumerates actions that can be applied **right now**.
+/// Available interactions: enumerates actions that can be applied **now**.
 ///
 /// ## Immediate Actions Only
 ///
+/// @docImport 'package:logic/src/solver/next_decision_delta.dart';
 /// This module returns only 0-tick interactions (switch, buy, sell).
 /// It must NOT include "wait" - that is handled by [nextDecisionDelta].
 /// It must NOT include actions just because they are "watched".
@@ -17,9 +18,9 @@ library;
 import 'package:logic/src/data/actions.dart';
 import 'package:logic/src/data/currency.dart';
 import 'package:logic/src/data/shop.dart';
+import 'package:logic/src/solver/enumerate_candidates.dart' show Candidates;
+import 'package:logic/src/solver/interaction.dart';
 import 'package:logic/src/state.dart';
-
-import 'interaction.dart';
 
 /// Returns all available interactions from the current state.
 ///
@@ -31,20 +32,11 @@ import 'interaction.dart';
 /// Note: the solver further filters these through [Candidates] to only
 /// consider competitive options.
 List<Interaction> availableInteractions(GlobalState state) {
-  final interactions = <Interaction>[];
-
-  // Add available activity switches
-  interactions.addAll(_availableActivitySwitches(state));
-
-  // Add available shop purchases
-  interactions.addAll(_availableShopPurchases(state));
-
-  // Add SellAll if there are sellable items
-  if (_canSellAll(state)) {
-    interactions.add(const SellAll());
-  }
-
-  return interactions;
+  return <Interaction>[
+    ..._availableActivitySwitches(state),
+    ..._availableShopPurchases(state),
+    if (_canSellAll(state)) const SellAll(),
+  ];
 }
 
 /// Returns SwitchActivity interactions for all unlocked actions

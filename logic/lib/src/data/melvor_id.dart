@@ -5,15 +5,6 @@ import 'package:meta/meta.dart';
 class MelvorId extends Equatable {
   const MelvorId(this.fullId);
 
-  /// Creates a MelvorId from a JSON string.
-  factory MelvorId.fromJson(String json) => MelvorId(json);
-
-  /// Creates a MelvorId from a JSON string, adding namespace if missing.
-  static MelvorId? maybeFromJson(String? json) {
-    if (json == null) return null;
-    return MelvorId.fromJson(json);
-  }
-
   /// Creates a MelvorId from a JSON string, adding namespace if missing.
   /// If the ID already contains a namespace (has ':'), it is used as-is.
   /// Otherwise, the provided [defaultNamespace] is prepended.
@@ -31,6 +22,15 @@ class MelvorId extends Equatable {
   /// Converts "Normal Logs" to "melvorD:Normal_Logs".
   factory MelvorId.fromName(String name) =>
       MelvorId('melvorD:${name.replaceAll(' ', '_')}');
+
+  /// Creates a MelvorId from a JSON string.
+  factory MelvorId.fromJson(String json) => MelvorId(json);
+
+  /// Creates a MelvorId from a JSON string, adding namespace if missing.
+  static MelvorId? maybeFromJson(String? json) {
+    if (json == null) return null;
+    return MelvorId.fromJson(json);
+  }
 
   /// Returns the underlying string for JSON serialization.
   String toJson() => fullId;

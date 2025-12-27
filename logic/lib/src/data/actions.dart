@@ -1,18 +1,17 @@
 import 'dart:math';
 
 import 'package:logic/src/action_state.dart';
+import 'package:logic/src/data/action_id.dart';
+import 'package:logic/src/data/combat.dart';
+import 'package:logic/src/data/melvor_id.dart';
+import 'package:logic/src/data/mining.dart';
+import 'package:logic/src/data/thieving.dart';
 import 'package:logic/src/tick.dart';
 import 'package:logic/src/types/drop.dart';
 import 'package:meta/meta.dart';
 
-import 'action_id.dart';
-import 'combat.dart';
-import 'melvor_id.dart';
-import 'mining.dart';
-import 'thieving.dart';
-
 export 'package:logic/src/action_state.dart'
-    show RecipeSelection, NoSelectedRecipe, SelectedRecipe;
+    show NoSelectedRecipe, RecipeSelection, SelectedRecipe;
 
 export 'agility.dart';
 export 'alt_magic.dart';
@@ -38,17 +37,27 @@ export 'woodcutting.dart';
 /// These are essentially "Action Types" in the sense that they are the types
 /// of actions that can be performed by the player.
 enum Skill {
+  // Combat skills
   combat('Combat'),
   hitpoints('Hitpoints'),
   attack('Attack'),
+  strength('Strength'),
+  defence('Defence'),
+  ranged('Ranged'),
+  magic('Magic'),
+  prayer('Prayer'),
+  slayer('Slayer'),
+  // Passive skills
+  town('Township'),
+  farming('Farming'),
 
+  // Other skills
   woodcutting('Woodcutting'),
   firemaking('Firemaking'),
   fishing('Fishing'),
   cooking('Cooking'),
   mining('Mining'),
   smithing('Smithing'),
-  farming('Farming'),
   thieving('Thieving'),
   fletching('Fletching'),
   crafting('Crafting'),
@@ -67,8 +76,6 @@ enum Skill {
     return Skill.values.firstWhere((e) => e.name == name);
   }
 
-  final String name;
-
   /// Returns the skill for the given ID.
   /// Throws if the skill is not recognized.
   factory Skill.fromId(MelvorId id) {
@@ -77,6 +84,8 @@ enum Skill {
       orElse: () => throw ArgumentError('Unknown skill ID: $id'),
     );
   }
+
+  final String name;
 
   /// Returns the skill for the given ID, or null if not recognized.
   static Skill? tryFromId(MelvorId id) {
@@ -209,7 +218,7 @@ class SkillAction extends Action {
 
   /// Returns the inputs for the given recipe selection.
   /// For NoSelectedRecipe, returns the base inputs.
-  /// For SelectedRecipe, returns the inputs from the selected alternative recipe.
+  /// For SelectedRecipe, returns inputs from the selected alternative recipe.
   Map<MelvorId, int> inputsForRecipe(RecipeSelection selection) {
     return switch (selection) {
       NoSelectedRecipe() => inputs,
@@ -221,7 +230,7 @@ class SkillAction extends Action {
 
   /// Returns the outputs for the given recipe selection.
   /// For NoSelectedRecipe, returns the base outputs.
-  /// For SelectedRecipe, applies the quantityMultiplier from the selected recipe.
+  /// For SelectedRecipe, applies quantityMultiplier from the selected recipe.
   Map<MelvorId, int> outputsForRecipe(RecipeSelection selection) {
     return switch (selection) {
       NoSelectedRecipe() => outputs,
@@ -262,14 +271,16 @@ class SkillAction extends Action {
 // Skill-level drops: shared across all actions in a skill.
 // This can include both simple Drops and DropTables.
 final skillDrops = <Skill, List<Droppable>>{
-  Skill.woodcutting: [Drop(MelvorId('melvorD:Bird_Nest'), rate: 0.005)],
+  Skill.woodcutting: [const Drop(MelvorId('melvorD:Bird_Nest'), rate: 0.005)],
   Skill.firemaking: [
-    Drop(MelvorId('melvorD:Coal_Ore'), rate: 0.40),
-    Drop(MelvorId('melvorF:Ash'), rate: 0.20),
+    const Drop(MelvorId('melvorD:Coal_Ore'), rate: 0.40),
+    const Drop(MelvorId('melvorF:Ash'), rate: 0.20),
     // Missing Charcoal, Generous Fire Spirit
   ],
   Skill.mining: [miningGemTable],
-  Skill.thieving: [Drop(MelvorId('melvorF:Bobbys_Pocket'), rate: 1 / 120)],
+  Skill.thieving: [
+    const Drop(MelvorId('melvorF:Bobbys_Pocket'), rate: 1 / 120),
+  ],
 };
 
 class ActionRegistry {
@@ -322,7 +333,7 @@ class ActionRegistry {
   }
 
   CombatAction combatWithId(MelvorId id) =>
-      _byId[ActionId(Skill.combat.id, id)] as CombatAction;
+      _byId[ActionId(Skill.combat.id, id)]! as CombatAction;
 
   @visibleForTesting
   SkillAction woodcutting(String name) =>

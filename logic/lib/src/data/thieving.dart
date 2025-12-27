@@ -1,11 +1,10 @@
 import 'dart:math';
 
+import 'package:logic/src/data/action_id.dart';
 import 'package:logic/src/data/actions.dart';
 import 'package:logic/src/data/melvor_id.dart';
 import 'package:logic/src/types/drop.dart';
 import 'package:meta/meta.dart';
-
-import 'action_id.dart';
 
 /// Duration for all thieving actions.
 const thievingDuration = Duration(seconds: 3);
@@ -75,7 +74,7 @@ class ThievingArea {
 /// Registry for thieving areas.
 @immutable
 class ThievingAreaRegistry {
-  ThievingAreaRegistry(List<ThievingArea> areas) : _areas = areas;
+  const ThievingAreaRegistry(List<ThievingArea> areas) : _areas = areas;
 
   final List<ThievingArea> _areas;
 

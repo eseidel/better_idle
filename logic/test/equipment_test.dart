@@ -103,7 +103,7 @@ void main() {
 
       test('uses first empty slot when item not already equipped', () {
         // Fill slot 0 with shrimp
-        var equipment = const Equipment.empty().equipFood(
+        final equipment = const Equipment.empty().equipFood(
           ItemStack(shrimp, count: 5),
         );
 

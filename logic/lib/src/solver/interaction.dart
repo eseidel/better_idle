@@ -3,7 +3,7 @@
 /// ## Taxonomy
 ///
 /// - [SwitchActivity]: Change which action is running (switch/restart)
-/// - [BuyUpgrade]: Purchase a shop upgrade (buy)
+/// - [BuyShopItem]: Purchase a shop item/upgrade (buy)
 /// - [SellAll]: Sell all inventory items (sell)
 ///
 /// ## Design Notes
@@ -18,6 +18,7 @@ library;
 import 'package:equatable/equatable.dart';
 import 'package:logic/src/data/action_id.dart';
 import 'package:logic/src/data/melvor_id.dart';
+import 'package:logic/src/solver/plan.dart' show WaitStep;
 
 /// Represents a possible interaction that can change game state.
 ///

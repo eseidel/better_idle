@@ -65,7 +65,7 @@ void main() {
 
     test('PlotState ready state (countdown null)', () {
       final cropId = ActionId.test(Skill.farming, 'Carrot');
-      final readyPlot = PlotState(cropId: cropId, growthTicksRemaining: null);
+      final readyPlot = PlotState(cropId: cropId);
 
       expect(readyPlot.isGrowing, false);
       expect(readyPlot.isReadyToHarvest, true);
@@ -98,10 +98,8 @@ void main() {
       treeCategory = testRegistries.farmingCategories.all.firstWhere(
         (c) => c.name == 'Trees',
       );
-      final treeCrops = testRegistries.farmingCrops.forCategory(
-        treeCategory.id,
-      );
-      treeCrops.sort((a, b) => a.level.compareTo(b.level));
+      final treeCrops = testRegistries.farmingCrops.forCategory(treeCategory.id)
+        ..sort((a, b) => a.level.compareTo(b.level));
       treeCrop = treeCrops.first;
 
       // Get an unlocked plot
@@ -321,7 +319,7 @@ void main() {
       }
       expect(failingSeed, isNotNull, reason: 'Should find a failing seed');
 
-      final random = Random(failingSeed!);
+      final random = Random(failingSeed);
       final seed = testRegistries.items.byId(allotmentCrop.seedId);
       var state = GlobalState.empty(testRegistries);
       state = state.copyWith(
@@ -377,7 +375,7 @@ void main() {
       );
       stateWithout = stateWithout.plantCrop(plotId, allotmentCrop);
       // Compost with 50 value (100% success), no harvest bonus
-      final compostNoBonus = testCompost(compostValue: 50, harvestBonus: 0);
+      final compostNoBonus = testCompost(compostValue: 50);
       final plotStateWithout = PlotState(
         cropId: allotmentCrop.id,
         growthTicksRemaining: 0,
@@ -414,7 +412,7 @@ void main() {
       // Calculate expected values
       // Base quantity * category multiplier = base (e.g., 1 * 3 = 3)
       // Without bonus: base * 1.0 = 3
-      // With 50% bonus: base * 1.5 = 4.5 -> rounds to 5 (or 4 depending on rounding)
+      // 50% bonus: base * 1.5 = 4.5 -> rounds to 5
       final baseQuantity = allotmentCrop.baseQuantity;
       final multiplier = allotmentCategory.harvestMultiplier;
       final expectedWithout = baseQuantity * multiplier;

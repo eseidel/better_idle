@@ -17,7 +17,7 @@ typedef FarmingPlotTickResult = ({
 /// toward zero as ticks are consumed.
 @immutable
 class FarmingPlotGrowth {
-  FarmingPlotGrowth(this.plotId, this.cropId, this.plotState);
+  const FarmingPlotGrowth(this.plotId, this.cropId, this.plotState);
 
   final MelvorId plotId;
   final ActionId cropId;
@@ -27,7 +27,7 @@ class FarmingPlotGrowth {
   bool get isActive => plotState.isGrowing;
 
   /// Apply ticks to this plot and return the updated state.
-  /// Follows countdown pattern: decrement growthTicksRemaining until it reaches 0.
+  /// decrement growthTicksRemaining until it reaches 0.
   FarmingPlotTickResult applyTicks(Tick ticks) {
     if (!plotState.isGrowing) {
       return (newState: plotState, ticksConsumed: 0, completed: false);

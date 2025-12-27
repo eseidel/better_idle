@@ -1,8 +1,7 @@
+import 'package:logic/src/data/action_id.dart';
 import 'package:logic/src/data/actions.dart';
 import 'package:logic/src/data/melvor_id.dart';
 import 'package:meta/meta.dart';
-
-import 'action_id.dart';
 
 /// A fishing area parsed from Melvor data.
 @immutable
@@ -66,7 +65,7 @@ class FishingArea {
 /// A fishing action parsed from Melvor data.
 @immutable
 class FishingAction extends SkillAction {
-  FishingAction({
+  const FishingAction({
     required super.id,
     required super.name,
     required super.unlockLevel,
@@ -137,7 +136,7 @@ class FishingAreaRegistry {
   /// Returns a fishing area by ID, or null if not found.
   FishingArea? byId(MelvorId id) => _byId[id];
 
-  /// Returns the fishing area containing the given fish ID, or null if not found.
+  /// Returns fishing area containing the given fish ID, or null if not found.
   FishingArea? areaForFish(MelvorId fishId) {
     for (final area in _areas) {
       if (area.fishIDs.contains(fishId)) {

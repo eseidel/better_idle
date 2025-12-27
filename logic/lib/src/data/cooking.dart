@@ -1,8 +1,7 @@
+import 'package:logic/src/data/action_id.dart';
+import 'package:logic/src/data/actions.dart';
+import 'package:logic/src/data/melvor_id.dart';
 import 'package:meta/meta.dart';
-
-import 'action_id.dart';
-import 'actions.dart';
-import 'melvor_id.dart';
 
 /// A cooking action parsed from Melvor data.
 ///
@@ -10,7 +9,7 @@ import 'melvor_id.dart';
 /// They can also produce "perfect" versions of the food.
 @immutable
 class CookingAction extends SkillAction {
-  CookingAction({
+  const CookingAction({
     required super.id,
     required super.name,
     required super.unlockLevel,
@@ -94,7 +93,7 @@ class CookingAction extends SkillAction {
   /// The Melvor product ID (e.g., "melvorD:Shrimp").
   final MelvorId productId;
 
-  /// The Melvor ID for the perfect cook version (e.g., "melvorD:Shrimp_Perfect").
+  /// The Melvor ID for the perfect cook version (e.g. "melvorD:Shrimp_Perfect")
   final MelvorId? perfectCookId;
 
   /// The cooking category (e.g., "melvorD:Fire").

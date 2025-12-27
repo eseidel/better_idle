@@ -40,10 +40,10 @@ void main() {
     final crop = levelOneCrops.first;
     final initialPlots = testRegistries.farmingPlots.initialPlots().toList();
     final plotId1 = initialPlots[0];
-    // Get a second plot if available, otherwise use the first with different state
+    // Get a second plot if available, otherwise use a test plot id
     final plotId2 = initialPlots.length > 1
         ? initialPlots[1]
-        : MelvorId('melvorD:Test_Plot_2');
+        : const MelvorId('melvorD:Test_Plot_2');
 
     // Create a state with TimeAway data and PlotStates
     final originalState = GlobalState.test(
@@ -61,8 +61,8 @@ void main() {
         Skill.woodcutting: SkillState(xp: 100, masteryPoolXp: 50),
       },
       actionStates: {
-        normalTree.id: ActionState(masteryXp: 25),
-        oakTree.id: ActionState(masteryXp: 10),
+        normalTree.id: const ActionState(masteryXp: 25),
+        oakTree.id: const ActionState(masteryXp: 10),
       },
       plotStates: {
         plotId1: PlotState(cropId: crop.id, growthTicksRemaining: 500),
@@ -81,9 +81,9 @@ void main() {
           inventoryChanges: Counts<MelvorId>(
             counts: {normalLogs.id: 10, oakLogs.id: 5},
           ),
-          skillXpChanges: Counts<Skill>(counts: {Skill.woodcutting: 50}),
-          droppedItems: Counts<MelvorId>.empty(),
-          skillLevelChanges: LevelChanges.empty(),
+          skillXpChanges: const Counts<Skill>(counts: {Skill.woodcutting: 50}),
+          droppedItems: const Counts<MelvorId>.empty(),
+          skillLevelChanges: const LevelChanges.empty(),
         ),
         masteryLevels: {normalTree.id: 2},
       ),
@@ -192,9 +192,9 @@ void main() {
         activeSkill: Skill.woodcutting,
         changes: Changes(
           inventoryChanges: Counts<MelvorId>(counts: {normalLogs.id: 10}),
-          skillXpChanges: Counts<Skill>(counts: {Skill.woodcutting: 50}),
-          droppedItems: Counts<MelvorId>.empty(),
-          skillLevelChanges: LevelChanges.empty(),
+          skillXpChanges: const Counts<Skill>(counts: {Skill.woodcutting: 50}),
+          droppedItems: const Counts<MelvorId>.empty(),
+          skillLevelChanges: const LevelChanges.empty(),
         ),
         masteryLevels: {normalTree.id: 2},
       ),
@@ -387,11 +387,7 @@ void main() {
         foodSlots: [ItemStack(shrimp, count: 5), null, null],
         selectedFoodSlot: 0,
       );
-      final state = GlobalState.test(
-        testRegistries,
-        equipment: equipment,
-        health: const HealthState.full(),
-      );
+      final state = GlobalState.test(testRegistries, equipment: equipment);
 
       final newState = state.eatSelectedFood();
 
@@ -569,7 +565,7 @@ void main() {
       );
       expect(ticksNoMastery, 30);
 
-      // State with mastery level 98 (just below threshold) - should get full 30 ticks
+      // Mastery level 98 (just below threshold) - should get full 30 ticks
       final xpForLevel98 = startXpForLevel(98);
       final stateMastery98 = GlobalState.test(
         testRegistries,
@@ -583,7 +579,7 @@ void main() {
       );
       expect(ticksMastery98, 30);
 
-      // State with mastery level 99 - should get 28 ticks (30 - 2 = 0.2s reduction)
+      // Mastery level 99 - should get 28 ticks (30 - 2 = 0.2s reduction)
       final xpForLevel99 = startXpForLevel(99);
       final stateMastery99 = GlobalState.test(
         testRegistries,
@@ -617,8 +613,8 @@ void main() {
 
       // Axes must be purchased in order (each requires the previous one).
       // Iron Axe (-5%) + Steel Axe (-5%) = -10% total
-      final ironAxeId = MelvorId('melvorD:Iron_Axe');
-      final steelAxeId = MelvorId('melvorD:Steel_Axe');
+      const ironAxeId = MelvorId('melvorD:Iron_Axe');
+      const steelAxeId = MelvorId('melvorD:Steel_Axe');
       final stateWithAxes = GlobalState.test(
         testRegistries,
         shop: ShopState(purchaseCounts: {ironAxeId: 1, steelAxeId: 1}),
@@ -650,8 +646,8 @@ void main() {
       // Fishing rods must be purchased in order (each requires the previous).
       // Iron Rod (-5%) + Steel Rod (-5%) = -10% total
       final random2 = Random(42);
-      final ironRodId = MelvorId('melvorD:Iron_Fishing_Rod');
-      final steelRodId = MelvorId('melvorD:Steel_Fishing_Rod');
+      const ironRodId = MelvorId('melvorD:Iron_Fishing_Rod');
+      const steelRodId = MelvorId('melvorD:Steel_Fishing_Rod');
       final stateWithRods = GlobalState.test(
         testRegistries,
         shop: ShopState(purchaseCounts: {ironRodId: 1, steelRodId: 1}),
@@ -688,8 +684,8 @@ void main() {
 
       // Pickaxes must be purchased in order (each requires the previous).
       // Iron (-5%) + Steel (-5%) = -10% total
-      final ironPickaxeId = MelvorId('melvorD:Iron_Pickaxe');
-      final steelPickaxeId = MelvorId('melvorD:Steel_Pickaxe');
+      const ironPickaxeId = MelvorId('melvorD:Iron_Pickaxe');
+      const steelPickaxeId = MelvorId('melvorD:Steel_Pickaxe');
       final stateWithPickaxes = GlobalState.test(
         testRegistries,
         shop: ShopState(purchaseCounts: {ironPickaxeId: 1, steelPickaxeId: 1}),
@@ -724,8 +720,6 @@ void main() {
         inventory: Inventory.fromItems(testItems, [
           ItemStack(eggChest, count: 1),
         ]),
-        // Capacity = 20 + (-18) = 2 (enough for chest + drop)
-        shop: const ShopState.empty(), // Uses default capacity
       );
 
       final random = Random(42); // Seeded for determinism
@@ -768,8 +762,6 @@ void main() {
         inventory: Inventory.fromItems(testItems, [
           ItemStack(eggChest, count: 5),
         ]),
-        // Capacity = 20 + (-17) = 3 (chest + both possible drop types)
-        shop: const ShopState.empty(), // Uses default capacity
       );
 
       final random = Random(123);
@@ -815,7 +807,6 @@ void main() {
       final state = GlobalState.test(
         testRegistries,
         inventory: Inventory.fromItems(testItems, fillerItems),
-        shop: const ShopState.empty(),
       );
 
       // Verify inventory is actually full
@@ -859,7 +850,6 @@ void main() {
       final state = GlobalState.test(
         testRegistries,
         inventory: Inventory.fromItems(testItems, fillerItems),
-        shop: const ShopState.empty(),
       );
 
       // Verify inventory is 19/20 (one slot free for first drop)
@@ -912,7 +902,6 @@ void main() {
       final state = GlobalState.test(
         testRegistries,
         inventory: Inventory.fromItems(testItems, fillerItems),
-        shop: const ShopState.empty(),
       );
 
       // Try many seeds to find one that fails partway
@@ -979,8 +968,6 @@ void main() {
         inventory: Inventory.fromItems(testItems, [
           ItemStack(eggChest, count: 2),
         ]),
-        // Enough capacity for drops
-        shop: const ShopState.empty(), // Uses default capacity // Capacity = 3
       );
 
       final random = Random(42);
@@ -1465,7 +1452,7 @@ void main() {
       // Harvest (note: 50% success rate, but we check XP regardless)
       state = state.harvestCrop(plotId, random);
 
-      // Verify XP was awarded (either on plant or harvest, depending on category)
+      // Verify XP was awarded (either on plant or harvest, depending)
       final xpAfterHarvest = state.skillState(Skill.farming).xp;
       if (xpOnPlant) {
         // XP given on plant, so should have XP after plant
@@ -1517,7 +1504,7 @@ void main() {
 
       // Plant first crop without harvest bonus
       state = state.plantCrop(plotId, crop);
-      final compostNoBonus = testCompost(compostValue: 50, harvestBonus: 0);
+      final compostNoBonus = testCompost(compostValue: 50);
       var readyPlotState = PlotState(
         cropId: crop.id,
         growthTicksRemaining: 0,
@@ -1608,10 +1595,7 @@ void main() {
     });
 
     test('returns false when player HP is full', () {
-      final state = GlobalState.test(
-        testRegistries,
-        health: const HealthState.full(),
-      );
+      final state = GlobalState.test(testRegistries);
 
       expect(state.hasActiveBackgroundTimers, false);
     });
@@ -1625,7 +1609,7 @@ void main() {
       final plotId1 = initialPlots[0];
       final plotId2 = initialPlots.length > 1
           ? initialPlots[1]
-          : MelvorId('melvorD:Test_Plot_2');
+          : const MelvorId('melvorD:Test_Plot_2');
 
       final state = GlobalState.test(
         testRegistries,

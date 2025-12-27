@@ -25,13 +25,12 @@ library;
 import 'package:logic/src/data/action_id.dart';
 import 'package:logic/src/data/actions.dart';
 import 'package:logic/src/data/xp.dart';
+import 'package:logic/src/solver/enumerate_candidates.dart';
+import 'package:logic/src/solver/estimate_rates.dart';
+import 'package:logic/src/solver/goal.dart';
+import 'package:logic/src/solver/plan.dart';
+import 'package:logic/src/solver/value_model.dart';
 import 'package:logic/src/state.dart';
-
-import 'enumerate_candidates.dart';
-import 'estimate_rates.dart';
-import 'goal.dart';
-import 'plan.dart';
-import 'value_model.dart';
 
 /// Sentinel value for "infinite" ticks (no progress possible).
 const int infTicks = 1 << 60;
@@ -107,9 +106,9 @@ NextDecisionResult nextDecisionDelta(
         ? state.inventoryUsed / state.inventoryCapacity
         : 0.0;
     if (usedFraction >= defaultInventoryThreshold) {
-      return NextDecisionResult(
+      return const NextDecisionResult(
         deltaTicks: 0,
-        waitFor: const WaitForInventoryThreshold(defaultInventoryThreshold),
+        waitFor: WaitForInventoryThreshold(defaultInventoryThreshold),
       );
     }
   }
@@ -157,7 +156,8 @@ NextDecisionResult nextDecisionDelta(
 
   // Note: Death is NOT a decision point - it's handled automatically during
   // plan execution by restarting the activity. The planner still accounts for
-  // death in expected-value calculations via ticksUntilDeath in _advanceExpected.
+  // death in expected-value calculations via ticksUntilDeath in
+  // [_advanceExpected].
 
   // E) Time until inputs depleted (for consuming actions)
   final deltaInputsDepleted = _deltaUntilInputsDepleted(state, rates);
@@ -192,7 +192,7 @@ NextDecisionResult nextDecisionDelta(
     deltas.add(deltaSkillLevel);
   }
 
-  // G) Time until next mastery level (rates may change, especially for thieving)
+  // G) Time until next mastery level (rates may change, especially thieving)
   final deltaMasteryLevel = _deltaUntilNextMasteryLevel(state, rates);
   if (deltaMasteryLevel != null) {
     deltas.add(deltaMasteryLevel);

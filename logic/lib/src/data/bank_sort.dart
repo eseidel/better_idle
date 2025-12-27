@@ -1,4 +1,4 @@
-import 'melvor_id.dart';
+import 'package:logic/src/data/melvor_id.dart';
 
 /// The type of insertion for a bank sort entry.
 enum BankSortInsertType {
@@ -24,8 +24,8 @@ enum BankSortInsertType {
 class BankSortEntry {
   const BankSortEntry({
     required this.insertAt,
-    this.afterId,
     required this.ids,
+    this.afterId,
   });
 
   factory BankSortEntry.fromJson(

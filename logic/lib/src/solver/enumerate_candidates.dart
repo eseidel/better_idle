@@ -2,21 +2,22 @@
 ///
 /// ## Two Distinct Outputs
 ///
-/// * **Branch candidates** ([Candidates.switchToActivities], [buyUpgrades],
-///   [includeSellAll]): actions we're willing to consider now.
+/// * **Branch candidates** ([Candidates.switchToActivities],
+///   [Candidates.buyUpgrades], [Candidates.includeSellAll]):
+///   actions we're willing to consider now.
 /// * **Watch candidates** ([WatchList]): events that define "interesting times"
 ///   for waiting (affordability, unlocks, inventory).
 ///
 /// ## Key Invariant: Watch ≠ Action
 ///
-/// [buyUpgrades] must contain only upgrades that are **actionable and
-/// competitive** under the current policy:
+/// [Candidates.buyUpgrades] must contain only upgrades that are **actionable
+/// and competitive** under the current policy:
 /// - Apply to current activity or top candidate activities
 /// - Positive gain under ValueModel
 /// - Pass heuristics / top-K filters
 ///
-/// [WatchList.upgradePurchaseIds] may include a broader set to compute time-to-afford
-/// / future replan moments.
+/// [WatchList.upgradePurchaseIds] may include a broader set to compute
+/// time-to-afford / future replan moments.
 ///
 /// **Never promote watch-only upgrades into buyUpgrades just because they are
 /// affordable.** Example: we may watch FishingRod affordability, but we don't
@@ -28,12 +29,11 @@ import 'package:logic/src/data/action_id.dart';
 import 'package:logic/src/data/actions.dart';
 import 'package:logic/src/data/melvor_id.dart';
 import 'package:logic/src/data/xp.dart';
+import 'package:logic/src/solver/goal.dart';
 import 'package:logic/src/state.dart';
 import 'package:logic/src/tick.dart';
 import 'package:logic/src/types/stunned.dart';
 import 'package:meta/meta.dart';
-
-import 'goal.dart';
 
 /// Default constants for candidate selection.
 const int defaultActivityCandidateCount = 8; // K
@@ -195,7 +195,8 @@ List<ActionSummary> buildActionSummaries(GlobalState state) {
         final expectedThievingGold = successChance * (1 + action.maxGold) / 2;
         expectedGoldPerAction += expectedThievingGold;
 
-        // Effective ticks per attempt = action duration + (failure chance * stun)
+        // Effective ticks per attempt =
+        // action duration + (failure chance * stun)
         final effectiveTicks =
             expectedTicks + failureChance * stunnedDurationTicks;
 
@@ -391,15 +392,16 @@ List<ActionId> _selectUnlockedActivitiesByRanking(
   final currentActionId = state.activeAction?.id;
 
   // Filter to unlocked actions with positive ranking, excluding current action
-  final unlocked = summaries
-      .where(
-        (s) =>
-            s.isUnlocked && s.actionId != currentActionId && rankingFn(s) > 0,
-      )
-      .toList();
-
-  // Sort by ranking function descending
-  unlocked.sort((a, b) => rankingFn(b).compareTo(rankingFn(a)));
+  final unlocked =
+      summaries
+          .where(
+            (s) =>
+                s.isUnlocked &&
+                s.actionId != currentActionId &&
+                rankingFn(s) > 0,
+          )
+          .toList()
+        ..sort((a, b) => rankingFn(b).compareTo(rankingFn(a)));
 
   // Build result set, handling consuming actions specially
   final result = <ActionId>{};
@@ -490,7 +492,7 @@ List<ActionId> _selectLockedActivitiesToWatch(
 /// Gets the best XP rate per tick for a skill from unlocked activities.
 double _currentXpRateForSkill(List<ActionSummary> summaries, Skill skill) {
   final forSkill = summaries.where((s) => s.skill == skill && s.isUnlocked);
-  if (forSkill.isEmpty) return 0.0;
+  if (forSkill.isEmpty) return 0;
   return forSkill.map((s) => s.xpRatePerTick).reduce((a, b) => a > b ? a : b);
 }
 
@@ -516,9 +518,9 @@ _UpgradeResult _selectUpgradeCandidates(
   List<ActionSummary> summaries,
   GlobalState state,
   int count, {
+  required Goal goal,
   List<ActionId>? candidateActivityIds,
   double bestCurrentRate = 0.0,
-  required Goal goal,
 }) {
   final candidates = <(MelvorId, double)>[];
   final toWatch = <MelvorId>[];

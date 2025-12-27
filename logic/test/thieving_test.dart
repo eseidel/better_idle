@@ -40,12 +40,12 @@ void main() {
         if (d is Drop) return d.itemId;
         return null;
       }).whereType<MelvorId>();
-      expect(itemIds, contains(MelvorId('melvorF:Bobbys_Pocket')));
+      expect(itemIds, contains(const MelvorId('melvorF:Bobbys_Pocket')));
     });
   });
 
   group('Area drops', () {
-    final crateId = MelvorId('melvorF:Crate_Of_Basic_Supplies');
+    const crateId = MelvorId('melvorF:Crate_Of_Basic_Supplies');
     test('Golbin Village area drops include Crate of Basic Supplies', () {
       final golbin = testActions.thieving('Golbin');
       final golbinChief = testActions.thieving('Golbin Chief');
@@ -96,7 +96,7 @@ void main() {
       );
       final dropIds = drops.whereType<Drop>().map((d) => d.itemId).toList();
 
-      expect(dropIds, contains(MelvorId('melvorF:Jeweled_Necklace')));
+      expect(dropIds, contains(const MelvorId('melvorF:Jeweled_Necklace')));
       expect(dropIds, isNot(contains(crateId)));
     });
   });
@@ -139,31 +139,34 @@ void main() {
       final expected = golbinDropChance.expectedItems;
 
       // Verify all expected items are present
-      expect(expected, contains(MelvorId('melvorD:Copper_Ore')));
-      expect(expected, contains(MelvorId('melvorD:Bronze_Bar')));
-      expect(expected, contains(MelvorId('melvorD:Normal_Logs')));
-      expect(expected, contains(MelvorId('melvorD:Tin_Ore')));
-      expect(expected, contains(MelvorId('melvorD:Oak_Logs')));
-      expect(expected, contains(MelvorId('melvorD:Iron_Bar')));
-      expect(expected, contains(MelvorId('melvorD:Iron_Ore')));
-      expect(expected, contains(MelvorId('melvorD:Steel_Bar')));
-      expect(expected, contains(MelvorId('melvorD:Willow_Logs')));
+      expect(expected, contains(const MelvorId('melvorD:Copper_Ore')));
+      expect(expected, contains(const MelvorId('melvorD:Bronze_Bar')));
+      expect(expected, contains(const MelvorId('melvorD:Normal_Logs')));
+      expect(expected, contains(const MelvorId('melvorD:Tin_Ore')));
+      expect(expected, contains(const MelvorId('melvorD:Oak_Logs')));
+      expect(expected, contains(const MelvorId('melvorD:Iron_Bar')));
+      expect(expected, contains(const MelvorId('melvorD:Iron_Ore')));
+      expect(expected, contains(const MelvorId('melvorD:Steel_Bar')));
+      expect(expected, contains(const MelvorId('melvorD:Willow_Logs')));
 
       // Copper and Tin should have higher rates than Iron and Steel
       expect(
-        expected[MelvorId('melvorD:Copper_Ore')]!,
-        greaterThan(expected[MelvorId('melvorD:Iron_Ore')]!),
+        expected[const MelvorId('melvorD:Copper_Ore')],
+        greaterThan(expected[const MelvorId('melvorD:Iron_Ore')]!),
       );
       expect(
-        expected[MelvorId('melvorD:Tin_Ore')]!,
-        greaterThan(expected[MelvorId('melvorD:Steel_Bar')]!),
+        expected[const MelvorId('melvorD:Tin_Ore')],
+        greaterThan(expected[const MelvorId('melvorD:Steel_Bar')]!),
       );
     });
 
     test('golbinDropTable total rate is approximately 75%', () {
       // Use the DropChance's expectedItems which includes the rate
       final expected = golbinDropChance.expectedItems;
-      final totalRate = expected.values.fold(0.0, (sum, rate) => sum + rate);
+      final totalRate = expected.values.fold<double>(
+        0,
+        (sum, rate) => sum + rate,
+      );
       // Total should be approximately 75%
       expect(totalRate, closeTo(0.75, 0.01));
     });
@@ -186,7 +189,7 @@ void main() {
       for (var i = 0; i < 100 && !gotDrop; i++) {
         final builder = StateUpdateBuilder(state);
         // Use random that succeeds thieving
-        final rng = MockRandom(nextDoubleValue: 0.0, nextIntValue: 50);
+        final rng = MockRandom(nextIntValue: 50);
         completeThievingAction(builder, golbinAction, rng);
         state = builder.build();
 
@@ -197,15 +200,15 @@ void main() {
 
         // Check if we got any of the Golbin-specific drops
         final golbinItems = [
-          MelvorId('melvorD:Copper_Ore'),
-          MelvorId('melvorD:Bronze_Bar'),
-          MelvorId('melvorD:Normal_Logs'),
-          MelvorId('melvorD:Tin_Ore'),
-          MelvorId('melvorD:Oak_Logs'),
-          MelvorId('melvorD:Iron_Bar'),
-          MelvorId('melvorD:Iron_Ore'),
-          MelvorId('melvorD:Steel_Bar'),
-          MelvorId('melvorD:Willow_Logs'),
+          const MelvorId('melvorD:Copper_Ore'),
+          const MelvorId('melvorD:Bronze_Bar'),
+          const MelvorId('melvorD:Normal_Logs'),
+          const MelvorId('melvorD:Tin_Ore'),
+          const MelvorId('melvorD:Oak_Logs'),
+          const MelvorId('melvorD:Iron_Bar'),
+          const MelvorId('melvorD:Iron_Ore'),
+          const MelvorId('melvorD:Steel_Bar'),
+          const MelvorId('melvorD:Willow_Logs'),
         ];
         for (final item in golbinItems) {
           if (state.inventory.countById(item) > 0) {
@@ -233,7 +236,7 @@ void main() {
 
     test('rollDamage returns value between 1 and maxHit', () {
       // With nextInt returning 0, damage = 1 + 0 = 1
-      final minRng = MockRandom(nextIntValue: 0);
+      final minRng = MockRandom();
       expect(manAction.rollDamage(minRng), 1);
 
       // With nextInt returning maxHit-1, damage = 1 + (maxHit-1) = maxHit
@@ -243,7 +246,7 @@ void main() {
 
     test('rollGold returns value between 1 and maxGold', () {
       // With nextInt returning 0, gold = 1 + 0 = 1
-      final minRng = MockRandom(nextIntValue: 0);
+      final minRng = MockRandom();
       expect(manAction.rollGold(minRng), 1);
 
       // With nextInt returning maxGold-1, gold = 1 + (maxGold-1) = maxGold
@@ -251,27 +254,21 @@ void main() {
       expect(manAction.rollGold(maxRng), manAction.maxGold);
     });
 
-    test(
-      'rollSuccess fails at level 1, mastery 1 vs perception 110 with high roll',
-      () {
-        // Stealth = 40 + 1 (level) + 1 (mastery) = 42
-        // Success chance = (100 + 42) / (100 + 110) = 142/210 = ~67.6%
-        // Roll of 0.70 (70%) should fail
-        final rng = MockRandom(nextDoubleValue: 0.70);
-        expect(manAction.rollSuccess(rng, 1, 1), isFalse);
-      },
-    );
+    test('rollSuccess fails at level 1, mastery 1 vs perception 110', () {
+      // Stealth = 40 + 1 (level) + 1 (mastery) = 42
+      // Success chance = (100 + 42) / (100 + 110) = 142/210 = ~67.6%
+      // Roll of 0.70 (70%) should fail
+      final rng = MockRandom(nextDoubleValue: 0.70);
+      expect(manAction.rollSuccess(rng, 1, 1), isFalse);
+    });
 
-    test(
-      'rollSuccess succeeds at level 1, mastery 1 vs perception 110 with low roll',
-      () {
-        // Stealth = 40 + 1 (level) + 1 (mastery) = 42
-        // Success chance = (100 + 42) / (100 + 110) = 142/210 = ~67.6%
-        // Roll of 0.60 (60%) should succeed
-        final rng = MockRandom(nextDoubleValue: 0.60);
-        expect(manAction.rollSuccess(rng, 1, 1), isTrue);
-      },
-    );
+    test('rollSuccess succeeds at level 1, mastery 1 vs perception 110', () {
+      // Stealth = 40 + 1 (level) + 1 (mastery) = 42
+      // Success chance = (100 + 42) / (100 + 110) = 142/210 = ~67.6%
+      // Roll of 0.60 (60%) should succeed
+      final rng = MockRandom(nextDoubleValue: 0.60);
+      expect(manAction.rollSuccess(rng, 1, 1), isTrue);
+    });
   });
 
   group('Thieving success', () {
@@ -286,7 +283,6 @@ void main() {
 
       // Use a mock random that always succeeds and grants specific gold
       final rng = MockRandom(
-        nextDoubleValue: 0.0, // Always succeed (roll < success rate)
         nextIntValue: 49, // Gold = 1 + 49 = 50
       );
 
@@ -306,14 +302,13 @@ void main() {
     test('thieving success through tick processing', () {
       // Start thieving action
       final random = Random(0);
-      var state = GlobalState.test(
+      final state = GlobalState.test(
         testRegistries,
       ).startAction(manAction, random: random);
       final builder = StateUpdateBuilder(state);
 
       // Use a mock random that always succeeds
       final rng = MockRandom(
-        nextDoubleValue: 0.0, // Always succeed
         nextIntValue: 99, // Gold = 1 + 99 = 100 (max)
       );
 
@@ -406,7 +401,7 @@ void main() {
       () {
         // Start with low HP
         final random = Random(0);
-        var state = GlobalState.test(
+        final state = GlobalState.test(
           testRegistries,
           skillStates: const {
             Skill.hitpoints: SkillState(
@@ -497,7 +492,7 @@ void main() {
         stunned: const StunnedState.fresh().stun(), // 30 ticks of stun
       );
       // Manually set up the action since startAction throws when stunned
-      var state = GlobalState(
+      final state = GlobalState(
         registries: testRegistries,
         inventory: baseState.inventory,
         activeAction: ActiveAction(
@@ -519,7 +514,6 @@ void main() {
 
       // Use a mock random that always succeeds when we finally try
       final rng = MockRandom(
-        nextDoubleValue: 0.0, // Always succeed
         nextIntValue: 49, // Gold = 50
       );
 

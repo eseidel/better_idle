@@ -1,8 +1,7 @@
+import 'package:logic/src/data/action_id.dart';
+import 'package:logic/src/data/actions.dart';
+import 'package:logic/src/data/melvor_id.dart';
 import 'package:meta/meta.dart';
-
-import 'action_id.dart';
-import 'actions.dart';
-import 'melvor_id.dart';
 
 const _summoningDuration = Duration(seconds: 5);
 
@@ -13,17 +12,17 @@ const _summoningDuration = Duration(seconds: 5);
 /// where each alternative uses the same shards plus one of the non-shard items.
 @immutable
 class SummoningAction extends SkillAction {
-  SummoningAction({
+  const SummoningAction({
     required super.id,
     required super.name,
     required super.unlockLevel,
     required super.xp,
     required super.inputs,
     required super.outputs,
-    super.alternativeRecipes,
     required this.productId,
     required this.tier,
     required this.markMedia,
+    super.alternativeRecipes,
   }) : super(skill: Skill.summoning, duration: _summoningDuration);
 
   factory SummoningAction.fromJson(
@@ -72,7 +71,7 @@ class SummoningAction extends SkillAction {
       defaultNamespace: namespace,
     );
 
-    // For display, use shards as base inputs (first alternative is the default).
+    // For display, use shards as base inputs (first alternative is default).
     final baseInputs =
         alternativeRecipes != null && alternativeRecipes.isNotEmpty
         ? alternativeRecipes.first.inputs

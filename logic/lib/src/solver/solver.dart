@@ -17,6 +17,9 @@
 /// should buy it. Only upgrades in [Candidates.buyUpgrades] are actionable.
 library;
 
+// We should use a logger instead of print statements.
+// ignore_for_file: avoid_print
+
 import 'dart:collection';
 import 'dart:math';
 
@@ -25,21 +28,20 @@ import 'package:equatable/equatable.dart';
 import 'package:logic/src/consume_ticks.dart';
 import 'package:logic/src/data/actions.dart';
 import 'package:logic/src/data/currency.dart';
+import 'package:logic/src/solver/apply_interaction.dart';
+import 'package:logic/src/solver/available_interactions.dart';
+import 'package:logic/src/solver/enumerate_candidates.dart';
+import 'package:logic/src/solver/estimate_rates.dart';
+import 'package:logic/src/solver/goal.dart';
+import 'package:logic/src/solver/interaction.dart';
+import 'package:logic/src/solver/next_decision_delta.dart';
+import 'package:logic/src/solver/plan.dart';
+import 'package:logic/src/solver/value_model.dart';
 import 'package:logic/src/state.dart';
 import 'package:logic/src/tick.dart';
 import 'package:logic/src/types/inventory.dart';
 import 'package:logic/src/types/stunned.dart';
 import 'package:logic/src/types/time_away.dart';
-
-import 'apply_interaction.dart';
-import 'available_interactions.dart';
-import 'enumerate_candidates.dart';
-import 'estimate_rates.dart';
-import 'goal.dart';
-import 'interaction.dart';
-import 'next_decision_delta.dart';
-import 'plan.dart';
-import 'value_model.dart';
 
 /// Profiling stats collected during a solve.
 class SolverProfile {
@@ -87,35 +89,6 @@ class SolverProfile {
 
   double get hashingPercent =>
       totalTimeUs > 0 ? 100.0 * hashingTimeUs / totalTimeUs : 0;
-
-  @override
-  String toString() {
-    final buffer = StringBuffer();
-    buffer.writeln('=== Solver Profile ===');
-    buffer.writeln('Expanded nodes: $expandedNodes');
-    buffer.writeln('Nodes/sec: ${nodesPerSecond.toStringAsFixed(1)}');
-    buffer.writeln(
-      'Avg branching factor: ${avgBranchingFactor.toStringAsFixed(2)}',
-    );
-    buffer.writeln(
-      'nextDecisionDelta: min=$minDelta, median=$medianDelta, p95=$p95Delta',
-    );
-    buffer.writeln('Time breakdown:');
-    buffer.writeln(
-      '  advance/consumeTicks: ${advancePercent.toStringAsFixed(1)}%',
-    );
-    buffer.writeln(
-      '  enumerateCandidates: ${enumeratePercent.toStringAsFixed(1)}%',
-    );
-    buffer.writeln(
-      '  hashing (_stateKey): ${hashingPercent.toStringAsFixed(1)}%',
-    );
-    buffer.writeln('Dominance pruning:');
-    buffer.writeln('  dominated skipped: $dominatedSkipped');
-    buffer.writeln('  frontier inserted: $frontierInserted');
-    buffer.writeln('  frontier removed: $frontierRemoved');
-    return buffer.toString();
-  }
 }
 
 /// Gold bucket size for coarse state grouping.
@@ -131,8 +104,9 @@ const int _hpBucketSize = 10;
 /// Groups inventory counts to reduce state explosion.
 const int _inventoryBucketSize = 10;
 
-/// Bucket key for dominance pruning - groups states with same structural situation.
-/// Includes activity, tool tiers, relevant skill levels, mastery level, and HP bucket.
+/// Bucket key for dominance pruning - groups states with same structural
+/// situation. Includes activity, tool tiers, relevant skill levels, mastery
+/// level, and HP bucket.
 class _BucketKey extends Equatable {
   const _BucketKey({
     required this.activityName,
@@ -167,7 +141,7 @@ class _BucketKey extends Equatable {
   /// Only meaningful when thieving; set to 0 for other activities.
   final int hpBucket;
 
-  /// Mastery level for the current action - affects rates (especially thieving).
+  /// Mastery level for the current action - affects rates (e.g. thieving).
   final int masteryLevel;
 
   /// Inventory bucket - distinguishes states with different inventory amounts.
@@ -210,14 +184,14 @@ _BucketKey _bucketKeyFromState(GlobalState state) {
   // This isn't the real name, but it's close enough for this logic.
   final activityName = actionId != null ? actionId.localId.name : 'none';
 
-  // Inventory bucket: count total items to distinguish states with different inventory
-  // Use exact count for small inventories to avoid false dominance
+  // Inventory bucket: count total items to distinguish states with different
+  // inventory. Use exact count for small inventories to avoid false dominance.
   final totalItems = state.inventory.items.fold<int>(
     0,
     (sum, stack) => sum + stack.count,
   );
-  // For small inventories (< 100 items), use exact count to differentiate states
-  // For larger inventories, use buckets to reduce state explosion
+  // For small inventories (< 100 items), use exact count to differentiate
+  // states. For larger inventories, use buckets to reduce state explosion.
   final inventoryBucket = totalItems < 100
       ? totalItems
       : 100 + (totalItems - 100) ~/ _inventoryBucketSize;
@@ -504,9 +478,10 @@ String _stateKey(GlobalState state) {
   }
 
   // Upgrade levels
-  buffer.write('axe:${state.shop.axeLevel}|');
-  buffer.write('rod:${state.shop.fishingRodLevel}|');
-  buffer.write('pick:${state.shop.pickaxeLevel}|');
+  buffer
+    ..write('axe:${state.shop.axeLevel}|')
+    ..write('rod:${state.shop.fishingRodLevel}|')
+    ..write('pick:${state.shop.pickaxeLevel}|');
 
   // Skill levels (just levels, not full XP for coarser grouping)
   for (final skill in Skill.values) {
@@ -516,8 +491,8 @@ String _stateKey(GlobalState state) {
     }
   }
 
-  // Inventory bucket (important for consuming skills)
-  // Use exact count for small inventories to avoid zero-progress false positives
+  // Inventory bucket (important for consuming skills). Use exact count for
+  // small inventories to avoid zero-progress false positives.
   final totalItems = state.inventory.items.fold<int>(
     0,
     (sum, stack) => sum + stack.count,
@@ -716,10 +691,11 @@ class ConsumeUntilResult {
 ///
 /// Returns the final state, actual ticks elapsed, and death count.
 ConsumeUntilResult consumeUntil(
-  GlobalState state,
+  GlobalState originalState,
   WaitFor waitFor, {
   required Random random,
 }) {
+  var state = originalState;
   if (waitFor.isSatisfied(state)) {
     return ConsumeUntilResult(state: state, ticksElapsed: 0, deathCount: 0);
   }
@@ -805,16 +781,17 @@ _StepResult _applyStep(
   }
 }
 
-/// Executes a plan and returns the result including death count and actual ticks.
+/// Execute a plan and return the result including death count and actual ticks.
 ///
 /// Uses goal-aware waiting: [WaitStep.waitFor] determines when to stop waiting,
-/// which handles variance between expected-value planning and actual simulation.
+/// which handles variance between expected-value planning and full simulation.
 /// Deaths are automatically handled by restarting the activity and are counted.
 PlanExecutionResult executePlan(
-  GlobalState state,
+  GlobalState originalState,
   Plan plan, {
   required Random random,
 }) {
+  var state = originalState;
   var totalDeaths = 0;
   var actualTicks = 0;
 
@@ -867,7 +844,7 @@ SolverResult solveToCredits(
 /// Solves for an optimal plan to satisfy the given [goal].
 ///
 /// Uses A* algorithm to find the minimum-ticks path from the initial
-/// state to a state where [goal.isSatisfied] returns true.
+/// state to a state where [Goal.isSatisfied] returns true.
 ///
 /// Supports both [ReachGpGoal] (reach target GP) and [ReachSkillLevelGoal]
 /// (reach target skill level).
@@ -977,8 +954,9 @@ SolverResult solve(
 
     // Skip if we've already found a better path to this state
     // BUT: never skip if this node has reached the goal!
-    hashStopwatch.reset();
-    hashStopwatch.start();
+    hashStopwatch
+      ..reset()
+      ..start();
     final nodeKey = _stateKey(node.state);
     profile.hashingTimeUs += hashStopwatch.elapsedMicroseconds;
 
@@ -1043,8 +1021,9 @@ SolverResult solve(
           continue;
         }
 
-        hashStopwatch.reset();
-        hashStopwatch.start();
+        hashStopwatch
+          ..reset()
+          ..start();
         final newKey = _stateKey(newState);
         profile.hashingTimeUs += hashStopwatch.elapsedMicroseconds;
 
@@ -1067,7 +1046,7 @@ SolverResult solve(
           enqueuedNodes++;
           neighborsThisNode++;
         }
-      } catch (_) {
+      } on Exception catch (_) {
         // Interaction failed (e.g., can't afford upgrade) - skip
         continue;
       }
@@ -1113,16 +1092,17 @@ SolverResult solve(
         if (reachedGoal) {
           frontier.isDominatedOrInsert(newBucketKey, newTicks, newProgress);
         }
-        hashStopwatch.reset();
-        hashStopwatch.start();
+        hashStopwatch
+          ..reset()
+          ..start();
         final newKey = _stateKey(newState);
         profile.hashingTimeUs += hashStopwatch.elapsedMicroseconds;
 
         // Safety: check for zero-progress waits (same state key after advance)
-        // BUT: always allow if we've reached the goal (even if state key unchanged)
+        // BUT: allow if we've reached the goal (even if state key unchanged)
         if (newKey != nodeKey || reachedGoal) {
           final existingBest = bestTicks[newKey];
-          // Always add if we've reached the goal (this is the terminal state we want)
+          // Add if we've reached the goal (this is the terminal state we want)
           // Otherwise, only add if this is a better path to this state key
           if (reachedGoal || existingBest == null || newTicks < existingBest) {
             if (!reachedGoal) {

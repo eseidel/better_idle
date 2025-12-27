@@ -12,6 +12,7 @@
 ///
 /// ## Upgrade Note
 ///
+/// @docImport 'package:logic/src/solver/enumerate_candidates.dart';
 /// Buying an upgrade does NOT imply it will be used. The solver prevents
 /// irrelevant buys via candidate filtering in [enumerateCandidates].
 library;
@@ -21,9 +22,8 @@ import 'dart:math';
 import 'package:logic/src/data/action_id.dart';
 import 'package:logic/src/data/currency.dart';
 import 'package:logic/src/data/melvor_id.dart';
+import 'package:logic/src/solver/interaction.dart';
 import 'package:logic/src/state.dart';
-
-import 'interaction.dart';
 
 /// Applies an interaction to the game state, returning the new state.
 ///
@@ -102,7 +102,8 @@ GlobalState _applyBuyShopItem(GlobalState state, MelvorId purchaseId) {
 }
 
 /// Sells all items in inventory.
-GlobalState _applySellAll(GlobalState state) {
+GlobalState _applySellAll(GlobalState originalState) {
+  var state = originalState;
   for (final stack in state.inventory.items) {
     state = state.sellItem(stack);
   }

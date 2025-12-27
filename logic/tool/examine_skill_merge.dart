@@ -1,6 +1,7 @@
 import 'package:logic/src/data/cache.dart';
 
 /// Examines what skillData is merged between melvorDemo and melvorFull.
+// ignore_for_file: avoid_print
 void main() async {
   final cache = Cache(cacheDir: defaultCacheDir);
 
@@ -21,7 +22,7 @@ void main() async {
 
     // Find skills that exist in both
     final commonSkills = demoSkillData.keys
-        .where((k) => fullSkillData.containsKey(k))
+        .where(fullSkillData.containsKey)
         .toList();
     final demoOnlySkills = demoSkillData.keys
         .where((k) => !fullSkillData.containsKey(k))
@@ -46,7 +47,7 @@ void main() async {
 
       // Find common keys that would be merged
       final commonKeys = demoContent.keys
-          .where((k) => fullContent.containsKey(k))
+          .where(fullContent.containsKey)
           .toList();
 
       for (final key in commonKeys) {
@@ -56,7 +57,8 @@ void main() async {
         if (demoValue is List && fullValue is List) {
           print(
             '  $key: Demo has ${demoValue.length} items, '
-            'Full has ${fullValue.length} items -> MERGED (${demoValue.length + fullValue.length} total)',
+            'Full has ${fullValue.length} items -> '
+            'MERGED (${demoValue.length + fullValue.length} total)',
           );
 
           // Show some example items if they have names/ids

@@ -12,13 +12,6 @@ final int hpRegenTickInterval = ticksFromDuration(const Duration(seconds: 10));
 class HealthState {
   const HealthState({required this.lostHp, this.hpRegenTicksRemaining = 0});
 
-  const HealthState.full() : lostHp = 0, hpRegenTicksRemaining = 0;
-
-  static HealthState? maybeFromJson(dynamic json) {
-    if (json == null) return null;
-    return HealthState.fromJson(json as Map<String, dynamic>);
-  }
-
   factory HealthState.fromJson(Map<String, dynamic> json) {
     return HealthState(
       lostHp: json['lostHp'] as int? ?? 0,
@@ -26,10 +19,17 @@ class HealthState {
     );
   }
 
+  const HealthState.full() : lostHp = 0, hpRegenTicksRemaining = 0;
+
+  static HealthState? maybeFromJson(dynamic json) {
+    if (json == null) return null;
+    return HealthState.fromJson(json as Map<String, dynamic>);
+  }
+
   /// How much HP the player has lost (0 means full health).
   final int lostHp;
 
-  /// Ticks remaining until next HP regen tick (0 means not actively regenerating).
+  /// Ticks remaining until next HP regen tick (0 means not regenerating).
   final int hpRegenTicksRemaining;
 
   /// Whether the player is at full health.

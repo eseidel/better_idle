@@ -416,7 +416,7 @@ class ShopRegistry {
   /// - Its unlock requirements are met (owns prerequisite purchases)
   /// - It hasn't reached its buy limit
   ///
-  /// Returns purchases paired with the skill they affect (first affected skill).
+  /// Returns purchases paired with the first skill they affect.
   /// Only includes purchases that affect skills we support.
   List<(ShopPurchase, Skill)> availableSkillUpgrades(
     Map<MelvorId, int> purchaseCounts,

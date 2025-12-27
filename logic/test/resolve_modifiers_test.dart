@@ -13,15 +13,15 @@ void main() {
     });
 
     test('stores and retrieves values by name', () {
-      final modifiers = ResolvedModifiers({'skillInterval': -5, 'skillXP': 10});
+      const modifiers = ResolvedModifiers({'skillInterval': -5, 'skillXP': 10});
       expect(modifiers.skillInterval, -5);
       expect(modifiers.skillXP, 10);
       expect(modifiers.isEmpty, isFalse);
     });
 
     test('combine merges values', () {
-      final a = ResolvedModifiers({'skillInterval': -5, 'skillXP': 10});
-      final b = ResolvedModifiers({
+      const a = ResolvedModifiers({'skillInterval': -5, 'skillXP': 10});
+      const b = ResolvedModifiers({
         'skillInterval': -3,
         'flatSkillInterval': -200,
       });
@@ -33,7 +33,7 @@ void main() {
     });
 
     test('combine with empty returns original', () {
-      final a = ResolvedModifiers({'skillInterval': -5});
+      const a = ResolvedModifiers({'skillInterval': -5});
       expect(a.combine(ResolvedModifiers.empty), same(a));
       expect(ResolvedModifiers.empty.combine(a), same(a));
     });
@@ -54,8 +54,8 @@ void main() {
 
   group('resolveModifiers', () {
     // Create fake IDs for testing
-    final fakeLocalId = 'FakeAction';
-    final fakeShopPurchaseId = MelvorId('test:FakePurchase');
+    const fakeLocalId = 'FakeAction';
+    const fakeShopPurchaseId = MelvorId('test:FakePurchase');
 
     // Helper to create a fake SkillAction
     SkillAction createFakeAction({required Skill skill, String? localId}) {
@@ -129,11 +129,11 @@ void main() {
         // Create a global mastery bonus (autoScopeToAction: false)
         // This simulates something like Firemaking's level 99 bonus that gives
         // +0.25% Mastery XP to ALL skills, not just Firemaking
-        final globalMasteryBonus = MasteryLevelBonus(
+        const globalMasteryBonus = MasteryLevelBonus(
           modifiers: ModifierDataSet([
             ModifierData(
               name: 'masteryXP',
-              entries: [const ModifierEntry(value: 0.25)], // Global, no scope
+              entries: [ModifierEntry(value: 0.25)], // Global, no scope
             ),
           ]),
           level: 99,
@@ -144,7 +144,7 @@ void main() {
           masteryBonuses: MasteryBonusRegistry([
             SkillMasteryBonuses(
               skillId: Skill.firemaking.id,
-              bonuses: [globalMasteryBonus],
+              bonuses: const [globalMasteryBonus],
             ),
           ]),
         );
@@ -239,10 +239,10 @@ void main() {
       final shopPurchase = ShopPurchase(
         id: fakeShopPurchaseId,
         name: 'Test Axe',
-        category: MelvorId('test:TestCategory'),
+        category: const MelvorId('test:TestCategory'),
         cost: const ShopCost(currencies: [], items: []),
-        unlockRequirements: [],
-        purchaseRequirements: [],
+        unlockRequirements: const [],
+        purchaseRequirements: const [],
         contains: ShopContents(
           modifiers: ModifierDataSet([
             ModifierData(
@@ -260,7 +260,7 @@ void main() {
       );
 
       final registries = Registries.test(
-        shop: ShopRegistry([shopPurchase], []),
+        shop: ShopRegistry([shopPurchase], const []),
       );
 
       final action = createFakeAction(skill: Skill.woodcutting);
@@ -283,10 +283,10 @@ void main() {
       final globalShopPurchase = ShopPurchase(
         id: fakeShopPurchaseId,
         name: 'Global Speed Boost',
-        category: MelvorId('test:TestCategory'),
+        category: const MelvorId('test:TestCategory'),
         cost: const ShopCost(currencies: [], items: []),
-        unlockRequirements: [],
-        purchaseRequirements: [],
+        unlockRequirements: const [],
+        purchaseRequirements: const [],
         contains: ShopContents(
           modifiers: ModifierDataSet([
             ModifierData(
@@ -307,7 +307,7 @@ void main() {
       );
 
       final registries = Registries.test(
-        shop: ShopRegistry([globalShopPurchase], []),
+        shop: ShopRegistry([globalShopPurchase], const []),
       );
 
       final woodcuttingAction = createFakeAction(
@@ -330,10 +330,10 @@ void main() {
       final shopPurchase = ShopPurchase(
         id: fakeShopPurchaseId,
         name: 'Test Axe',
-        category: MelvorId('test:TestCategory'),
+        category: const MelvorId('test:TestCategory'),
         cost: const ShopCost(currencies: [], items: []),
-        unlockRequirements: [],
-        purchaseRequirements: [],
+        unlockRequirements: const [],
+        purchaseRequirements: const [],
         contains: ShopContents(
           modifiers: ModifierDataSet([
             ModifierData(
@@ -375,7 +375,7 @@ void main() {
       );
 
       final registries = Registries.test(
-        shop: ShopRegistry([shopPurchase], []),
+        shop: ShopRegistry([shopPurchase], const []),
         masteryBonuses: MasteryBonusRegistry([
           SkillMasteryBonuses(
             skillId: Skill.woodcutting.id,
@@ -444,15 +444,15 @@ void main() {
   group('rollDurationWithModifiers integration', () {
     test('applies resolved modifiers to duration correctly', () {
       // Create a shop modifier and mastery modifier
-      final shopPurchaseId = MelvorId('test:TestAxe');
+      const shopPurchaseId = MelvorId('test:TestAxe');
 
       final shopPurchase = ShopPurchase(
         id: shopPurchaseId,
         name: 'Test Axe',
-        category: MelvorId('test:TestCategory'),
+        category: const MelvorId('test:TestCategory'),
         cost: const ShopCost(currencies: [], items: []),
-        unlockRequirements: [],
-        purchaseRequirements: [],
+        unlockRequirements: const [],
+        purchaseRequirements: const [],
         contains: ShopContents(
           modifiers: ModifierDataSet([
             ModifierData(
@@ -485,7 +485,7 @@ void main() {
       );
 
       final registries = Registries.test(
-        shop: ShopRegistry([shopPurchase], []),
+        shop: ShopRegistry([shopPurchase], const []),
         masteryBonuses: MasteryBonusRegistry([
           SkillMasteryBonuses(
             skillId: Skill.woodcutting.id,

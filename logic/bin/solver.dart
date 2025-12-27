@@ -4,6 +4,7 @@
 //        dart run bin/solver.dart -s  # Solve for woodcutting level 70
 //
 // Example: dart run bin/solver.dart 1000
+// ignore_for_file: avoid_print
 
 import 'dart:math';
 
@@ -51,7 +52,8 @@ void main(List<String> args) async {
     print('');
     final compressed = result.plan.compress();
     print(
-      'Plan (compressed ${result.plan.steps.length} -> ${compressed.steps.length} steps):',
+      'Plan (compressed ${result.plan.steps.length} '
+      '-> ${compressed.steps.length} steps):',
     );
     print(compressed.prettyPrint(actions: registries.actions));
     print('Total ticks: ${compressed.totalTicks}');
@@ -77,9 +79,10 @@ void main(List<String> args) async {
       '${result.plan.expectedDeaths} expected',
     );
 
-    if (result.profile != null) {
+    final profile = result.profile;
+    if (profile != null) {
       print('');
-      print(result.profile);
+      _printSolverProfile(profile);
     }
   } else if (result is SolverFailed) {
     print('FAILED: ${result.failure.reason}');
@@ -125,4 +128,27 @@ void _printFinalState(GlobalState state) {
     );
     print('Total value: $totalValue gp');
   }
+}
+
+void _printSolverProfile(SolverProfile profile) {
+  print('=== Solver Profile ===');
+  print('Expanded nodes: ${profile.expandedNodes}');
+  print('Nodes/sec: ${profile.nodesPerSecond.toStringAsFixed(1)}');
+  print(
+    'Avg branching factor: ${profile.avgBranchingFactor.toStringAsFixed(2)}',
+  );
+  print(
+    'nextDecisionDelta: min=${profile.minDelta}, '
+    'median=${profile.medianDelta}, p95=${profile.p95Delta}',
+  );
+  print('Time breakdown:');
+  print(
+    '  advance/consumeTicks: ${profile.advancePercent.toStringAsFixed(1)}%',
+  );
+  print(
+    '  enumerateCandidates: ${profile.enumeratePercent.toStringAsFixed(1)}%',
+  );
+  print('  hashing (_stateKey): ${profile.hashingPercent.toStringAsFixed(1)}%');
+  print('Dominance pruning:');
+  print('  dominated skipped: ${profile.dominatedSkipped}');
 }
