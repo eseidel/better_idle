@@ -254,6 +254,46 @@ void main() {
       // event (faster than reaching level 99 firemaking)
       expect(result.waitFor, isA<WaitForInputsDepleted>());
     });
+
+    test(
+      'returns ticks until sufficient inputs for goal via consuming action',
+      () {
+        // Run woodcutting (producer) with a firemaking goal (consumer)
+        // Start with enough logs to begin firemaking (1 log) but not enough
+        // to reach the goal, so we wait for sufficient inputs.
+        var state = GlobalState.test(
+          testRegistries,
+          inventory: Inventory.fromItems(testItems, [
+            // 1 log is enough to start, but not enough to reach level 5
+            ItemStack(testItems.byName('Normal Logs'), count: 1),
+          ]),
+        );
+        final chopAction = testActions.woodcutting('Normal Tree');
+        state = state.startAction(chopAction, random: Random(0));
+
+        // Firemaking level 5 requires more logs than we have
+        const goal = ReachSkillLevelGoal(Skill.firemaking, 5);
+        final candidates = enumerateCandidates(state, goal);
+
+        // Verify firemaking is in the consuming activities watch list
+        final burnActionId = testActions.firemaking('Burn Normal Logs').id;
+        expect(candidates.watch.consumingActivityIds, contains(burnActionId));
+
+        final result = nextDecisionDelta(state, goal, candidates);
+
+        // Should return a finite result
+        expect(result.deltaTicks, greaterThan(0));
+        expect(result.deltaTicks, lessThan(infTicks));
+
+        // Verify rates show we're producing logs
+        final rates = estimateRates(state);
+        final normalLogsId = testItems.byName('Normal Logs').id;
+        expect(rates.itemFlowsPerTick[normalLogsId], greaterThan(0));
+
+        // Should be waiting for sufficient inputs to complete the goal
+        expect(result.waitFor, isA<WaitForSufficientInputs>());
+      },
+    );
   });
 
   group('Goal', () {
