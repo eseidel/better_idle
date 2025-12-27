@@ -23,6 +23,7 @@ import 'package:logic/src/data/action_id.dart';
 import 'package:logic/src/data/actions.dart';
 import 'package:logic/src/solver/goal.dart';
 import 'package:logic/src/solver/interaction.dart';
+import 'package:logic/src/solver/solver.dart';
 import 'package:logic/src/state.dart';
 import 'package:logic/src/tick.dart';
 import 'package:meta/meta.dart';
@@ -547,7 +548,7 @@ class SolverSuccess extends SolverResult {
   const SolverSuccess(this.plan, [this.profile]);
 
   final Plan plan;
-  final dynamic profile;
+  final SolverProfile? profile;
 }
 
 class SolverFailed extends SolverResult {

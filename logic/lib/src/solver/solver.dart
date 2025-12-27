@@ -89,32 +89,6 @@ class SolverProfile {
 
   double get hashingPercent =>
       totalTimeUs > 0 ? 100.0 * hashingTimeUs / totalTimeUs : 0;
-
-  @override
-  String toString() {
-    final buffer = StringBuffer()
-      ..writeln('=== Solver Profile ===')
-      ..writeln()
-      ..writeln('Expanded nodes: $expandedNodes')
-      ..writeln('Nodes/sec: ${nodesPerSecond.toStringAsFixed(1)}')
-      ..writeln(
-        'Avg branching factor: ${avgBranchingFactor.toStringAsFixed(2)}',
-      )
-      ..writeln(
-        'nextDecisionDelta: min=$minDelta, median=$medianDelta, p95=$p95Delta',
-      )
-      ..writeln('Time breakdown:')
-      ..writeln('  advance/consumeTicks: ${advancePercent.toStringAsFixed(1)}%')
-      ..writeln(
-        '  enumerateCandidates: ${enumeratePercent.toStringAsFixed(1)}%',
-      )
-      ..writeln('  hashing (_stateKey): ${hashingPercent.toStringAsFixed(1)}%')
-      ..writeln('Dominance pruning:')
-      ..writeln('  dominated skipped: $dominatedSkipped')
-      ..writeln('  frontier inserted: $frontierInserted')
-      ..writeln('  frontier removed: $frontierRemoved');
-    return buffer.toString();
-  }
 }
 
 /// Gold bucket size for coarse state grouping.
