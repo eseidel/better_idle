@@ -37,17 +37,27 @@ export 'woodcutting.dart';
 /// These are essentially "Action Types" in the sense that they are the types
 /// of actions that can be performed by the player.
 enum Skill {
+  // Combat skills
   combat('Combat'),
   hitpoints('Hitpoints'),
   attack('Attack'),
+  strength('Strength'),
+  defence('Defence'),
+  ranged('Ranged'),
+  magic('Magic'),
+  prayer('Prayer'),
+  slayer('Slayer'),
+  // Passive skills
+  town('Township'),
+  farming('Farming'),
 
+  // Other skills
   woodcutting('Woodcutting'),
   firemaking('Firemaking'),
   fishing('Fishing'),
   cooking('Cooking'),
   mining('Mining'),
   smithing('Smithing'),
-  farming('Farming'),
   thieving('Thieving'),
   fletching('Fletching'),
   crafting('Crafting'),

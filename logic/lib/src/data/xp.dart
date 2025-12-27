@@ -260,6 +260,13 @@ double actionTimeForMastery(SkillAction action) {
 
     // Combat skills don't use mastery XP in the same way
     case Skill.combat:
+    case Skill.strength:
+    case Skill.defence:
+    case Skill.ranged:
+    case Skill.magic:
+    case Skill.prayer:
+    case Skill.slayer:
+    case Skill.town:
     case Skill.hitpoints:
     case Skill.attack:
       return action.maxDuration.inSeconds.toDouble();

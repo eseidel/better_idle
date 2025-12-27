@@ -202,7 +202,7 @@ class ShopState {
     return registry.totalSkillIntervalModifier(skill, purchaseCounts);
   }
 
-  /// Returns owned purchases that affect the given skill via interval modifiers.
+  /// Owned purchases that affect the given skill via interval modifiers.
   ///
   /// More efficient than ShopRegistry.purchasesAffectingSkill when the player
   /// owns few purchases, as it only iterates owned purchases.

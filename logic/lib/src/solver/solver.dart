@@ -17,6 +17,9 @@
 /// should buy it. Only upgrades in [Candidates.buyUpgrades] are actionable.
 library;
 
+// We should use a logger instead of print statements.
+// ignore_for_file: avoid_print
+
 import 'dart:collection';
 import 'dart:math';
 
@@ -807,7 +810,7 @@ _StepResult _applyStep(
 /// Execute a plan and return the result including death count and actual ticks.
 ///
 /// Uses goal-aware waiting: [WaitStep.waitFor] determines when to stop waiting,
-/// which handles variance between expected-value planning and actual simulation.
+/// which handles variance between expected-value planning and full simulation.
 /// Deaths are automatically handled by restarting the activity and are counted.
 PlanExecutionResult executePlan(
   GlobalState originalState,
@@ -1069,7 +1072,7 @@ SolverResult solve(
           enqueuedNodes++;
           neighborsThisNode++;
         }
-      } catch (_) {
+      } on Exception catch (_) {
         // Interaction failed (e.g., can't afford upgrade) - skip
         continue;
       }
@@ -1122,10 +1125,10 @@ SolverResult solve(
         profile.hashingTimeUs += hashStopwatch.elapsedMicroseconds;
 
         // Safety: check for zero-progress waits (same state key after advance)
-        // BUT: always allow if we've reached the goal (even if state key unchanged)
+        // BUT: allow if we've reached the goal (even if state key unchanged)
         if (newKey != nodeKey || reachedGoal) {
           final existingBest = bestTicks[newKey];
-          // Always add if we've reached the goal (this is the terminal state we want)
+          // Add if we've reached the goal (this is the terminal state we want)
           // Otherwise, only add if this is a better path to this state key
           if (reachedGoal || existingBest == null || newTicks < existingBest) {
             if (!reachedGoal) {

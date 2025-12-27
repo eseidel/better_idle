@@ -377,9 +377,8 @@ void main() {
       // Activity should still be running (continuous model)
       expect(result.state.activeAction, isNotNull);
       expect(result.state.activeAction!.id, action.id);
-      // Should track approximately 5 deaths (may be 4 or 5 due to integer division)
-      expect(result.deaths, greaterThanOrEqualTo(4));
-      expect(result.deaths, lessThanOrEqualTo(5));
+      // Should track approximately 5 deaths
+      expect(result.deaths, equals(5));
     });
 
     test('nextDecisionDelta includes death timing for thieving', () {

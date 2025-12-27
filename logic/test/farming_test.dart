@@ -412,7 +412,7 @@ void main() {
       // Calculate expected values
       // Base quantity * category multiplier = base (e.g., 1 * 3 = 3)
       // Without bonus: base * 1.0 = 3
-      // With 50% bonus: base * 1.5 = 4.5 -> rounds to 5 (or 4 depending on rounding)
+      // 50% bonus: base * 1.5 = 4.5 -> rounds to 5
       final baseQuantity = allotmentCrop.baseQuantity;
       final multiplier = allotmentCategory.harvestMultiplier;
       final expectedWithout = baseQuantity * multiplier;
