@@ -585,7 +585,7 @@ class SolverFailed extends SolverResult {
   const SolverFailed(this.failure, [this.profile]);
 
   final SolverFailure failure;
-  final dynamic profile;
+  final SolverProfile? profile;
 }
 
 /// Result of executing a plan via [executePlan()].

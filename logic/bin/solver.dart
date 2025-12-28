@@ -102,9 +102,10 @@ void main(List<String> args) async {
     if (result.failure.bestCredits != null) {
       print('  Best credits reached: ${result.failure.bestCredits}');
     }
-    if (result.profile != null) {
+    final profile = result.profile;
+    if (profile != null) {
       print('');
-      print(result.profile);
+      _printSolverProfile(profile);
     }
   }
 }
