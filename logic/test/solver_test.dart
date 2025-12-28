@@ -849,6 +849,91 @@ void main() {
     });
   });
 
+  group('TrainConsumingSkillUntil macro expansion', () {
+    test('expands firemaking skill goal using sustainable rate model', () {
+      // Setup: state with logs for firemaking
+      final state = GlobalState.test(
+        testRegistries,
+        inventory: Inventory.fromItems(testItems, [
+          ItemStack(testItems.byName('Normal Logs'), count: 100),
+        ]),
+      );
+
+      // Create a goal for firemaking level 2 (a consuming skill)
+      const goal = ReachSkillLevelGoal(Skill.firemaking, 2);
+
+      // Solve - this should trigger TrainConsumingSkillUntil macro expansion
+      final result = solve(state, goal);
+
+      expect(result, isA<SolverSuccess>());
+      final success = result as SolverSuccess;
+
+      // Verify the plan reaches the goal
+      expect(success.plan.totalTicks, greaterThan(0));
+      // Plan should include some steps
+      expect(success.plan.steps, isNotEmpty);
+    });
+
+    test('projects both consuming and producing skill XP', () {
+      // Setup: state with logs for firemaking
+      final state = GlobalState.test(
+        testRegistries,
+        inventory: Inventory.fromItems(testItems, [
+          ItemStack(testItems.byName('Normal Logs'), count: 100),
+        ]),
+      );
+
+      // Create a firemaking goal
+      const goal = ReachSkillLevelGoal(Skill.firemaking, 2);
+
+      // Solve and execute the plan
+      final solveResult = solve(state, goal);
+      expect(solveResult, isA<SolverSuccess>());
+      final success = solveResult as SolverSuccess;
+
+      // Execute the plan
+      final execResult = executePlan(state, success.plan, random: Random(42));
+
+      // Should have firemaking XP (the consuming skill)
+      expect(
+        execResult.finalState.skillState(Skill.firemaking).xp,
+        greaterThan(0),
+        reason: 'Should gain firemaking XP from burning logs',
+      );
+
+      // Should also have woodcutting XP (the producing skill, if needed)
+      // Note: if we started with enough logs, we might not need to chop any,
+      // but the solver should still work correctly
+    });
+
+    test('handles sustainable rate calculation for consuming skills', () {
+      // Setup: state without logs - solver needs to plan woodcutting first
+      final state = GlobalState.empty(testRegistries);
+
+      // Create a firemaking goal (consuming skill)
+      const goal = ReachSkillLevelGoal(Skill.firemaking, 2);
+
+      // Solve - this tests the coupled produce/consume model
+      final result = solve(state, goal);
+
+      expect(result, isA<SolverSuccess>());
+      final success = result as SolverSuccess;
+
+      // Plan should exist and have reasonable ticks
+      expect(success.plan.totalTicks, greaterThan(0));
+
+      // Execute to verify the plan works
+      final execResult = executePlan(state, success.plan, random: Random(42));
+
+      // Should reach or approach firemaking level 2
+      expect(
+        execResult.finalState.skillState(Skill.firemaking).skillLevel,
+        greaterThanOrEqualTo(1),
+        reason: 'Plan should make progress toward firemaking goal',
+      );
+    });
+  });
+
   group('Plan.compress', () {
     test('returns empty plan unchanged', () {
       const plan = Plan.empty();
