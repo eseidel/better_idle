@@ -98,6 +98,25 @@ enum Skill {
   /// The Melvor ID for this skill (e.g., melvorD:Woodcutting).
   /// All skills use the melvorD namespace (e.g., melvorD:Woodcutting).
   MelvorId get id => MelvorId('melvorD:$name');
+
+  /// Skills that have actions requiring inputs (consuming skills).
+  /// For solver: these skills need inventory tracking to properly plan
+  /// input gathering before training the skill.
+  static const consumingSkills = {
+    Skill.firemaking,
+    Skill.cooking,
+    Skill.smithing,
+    Skill.fletching,
+    Skill.crafting,
+    Skill.herblore,
+    Skill.runecrafting,
+    Skill.agility,
+    Skill.summoning,
+    Skill.altMagic,
+  };
+
+  /// Returns true if this skill requires inputs to train.
+  bool get isConsuming => consumingSkills.contains(this);
 }
 
 /// Base class for all actions that can occupy the "active" slot.

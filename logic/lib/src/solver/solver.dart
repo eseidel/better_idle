@@ -1211,18 +1211,24 @@ ActionId? _findBestActionForSkill(GlobalState state, Skill skill, Goal goal) {
   double bestRate = 0;
 
   for (final action in actions) {
-    // Switch to action to estimate rates
-    final testState = applyInteraction(state, SwitchActivity(action.id));
-    final rates = estimateRates(testState);
+    // Try to switch to action to estimate rates
+    // Skip actions that can't be started (e.g., missing inputs for consuming)
+    try {
+      final testState = applyInteraction(state, SwitchActivity(action.id));
+      final rates = estimateRates(testState);
 
-    final goldRate = defaultValueModel.valuePerTick(testState, rates);
-    final xpRate = rates.xpPerTickBySkill[skill] ?? 0.0;
+      final goldRate = defaultValueModel.valuePerTick(testState, rates);
+      final xpRate = rates.xpPerTickBySkill[skill] ?? 0.0;
 
-    final rate = goal.activityRate(skill, goldRate, xpRate);
+      final rate = goal.activityRate(skill, goldRate, xpRate);
 
-    if (rate > bestRate) {
-      bestRate = rate;
-      best = action.id;
+      if (rate > bestRate) {
+        bestRate = rate;
+        best = action.id;
+      }
+    } on Exception catch (_) {
+      // Can't start this action (e.g., missing inputs) - skip it
+      continue;
     }
   }
 

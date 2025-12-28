@@ -262,7 +262,8 @@ List<ActionSummary> buildActionSummaries(GlobalState state) {
 ///
 /// For each skill relevant to the goal:
 /// - Creates TrainSkillUntil macros with primaryStop = StopAtNextBoundary
-/// - If skill has a goal target, also creates macro with primaryStop = StopAtGoal
+/// - If skill has a goal target, also creates macro with
+///   primaryStop = StopAtGoal
 /// - Adds watchedStops for competitive upgrades (future extension)
 List<MacroCandidate> _generateMacros(GlobalState state, Goal goal) {
   final macros = <MacroCandidate>[];
@@ -445,14 +446,16 @@ List<ActionId> _selectUnlockedActivitiesByRanking(
 ) {
   final currentActionId = state.activeAction?.id;
 
-  // Filter to unlocked actions with positive ranking, excluding current action
+  // Filter to unlocked actions with non-negative ranking, excluding current
+  // action. Include zero-ranked actions to support producer skills for
+  // consuming actions (e.g., Woodcutting for Firemaking goals).
   final unlocked =
       summaries
           .where(
             (s) =>
                 s.isUnlocked &&
                 s.actionId != currentActionId &&
-                rankingFn(s) > 0,
+                rankingFn(s) >= 0,
           )
           .toList()
         ..sort((a, b) => rankingFn(b).compareTo(rankingFn(a)));

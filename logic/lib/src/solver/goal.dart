@@ -206,7 +206,7 @@ class ReachSkillLevelGoal extends Goal {
   bool get shouldTrackMastery => skill == Skill.thieving;
 
   @override
-  bool get shouldTrackInventory => false; // WC/Fishing don't consume inputs
+  bool get shouldTrackInventory => skill.isConsuming; // Track inventory for consuming skills
 
   @override
   List<Object?> get props => [skill, targetLevel];
@@ -296,7 +296,7 @@ class MultiSkillGoal extends Goal {
   bool get shouldTrackMastery => subgoals.any((g) => g.skill == Skill.thieving);
 
   @override
-  bool get shouldTrackInventory => false; // Non-consuming skills for now
+  bool get shouldTrackInventory => subgoals.any((g) => g.skill.isConsuming); // Track if any consuming skills
 
   @override
   List<Object?> get props => [subgoals];
