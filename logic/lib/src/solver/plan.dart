@@ -584,8 +584,14 @@ class Plan {
   String _formatStep(PlanStep step, ActionRegistry? actions) {
     return switch (step) {
       InteractionStep(:final interaction) => switch (interaction) {
-        SwitchActivity(:final actionId) =>
-          'Switch to ${actions?.byId(actionId).name ?? actionId}',
+        SwitchActivity(:final actionId) => () {
+          final action = actions?.byId(actionId);
+          final actionName = action?.name ?? actionId.toString();
+          final skillName = action?.skill.name.toLowerCase() ?? '';
+          return skillName.isNotEmpty
+              ? 'Switch to $actionName ($skillName)'
+              : 'Switch to $actionName';
+        }(),
         BuyShopItem(:final purchaseId) => 'Buy upgrade: $purchaseId',
         SellAll() => 'Sell all items',
       },
@@ -600,10 +606,11 @@ class Plan {
   }
 
   String _formatMacro(MacroCandidate macro) {
-    if (macro case TrainSkillUntil(:final skill)) {
-      return 'Train ${skill.name}';
-    }
-    return macro.toString();
+    return switch (macro) {
+      TrainSkillUntil(:final skill) => 'Train ${skill.name}',
+      TrainConsumingSkillUntil(:final consumingSkill) =>
+        'Train ${consumingSkill.name}',
+    };
   }
 
   String _formatDuration(Duration d) {
