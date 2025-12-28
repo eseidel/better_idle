@@ -1029,9 +1029,24 @@ _StepResult _applyStep(
         ticksElapsed: result.ticksElapsed,
         deaths: result.deathCount,
       );
-    case MacroStep(:final waitFor):
+    case MacroStep(:final macro, :final waitFor):
       // Execute the macro by running until the composite wait condition
-      final result = consumeUntil(state, waitFor, random: random);
+      // Macros need to set up the action before executing
+      var executionState = state;
+      if (macro is TrainSkillUntil) {
+        // Find and switch to the best action for this skill
+        final bestAction = _findBestActionForSkill(
+          state,
+          macro.skill,
+          // We don't have the goal here, so create a dummy one
+          ReachSkillLevelGoal(macro.skill, 99),
+        );
+        if (bestAction != null && state.activeAction?.id != bestAction) {
+          executionState = applyInteraction(state, SwitchActivity(bestAction));
+        }
+      }
+
+      final result = consumeUntil(executionState, waitFor, random: random);
       return (
         state: result.state,
         ticksElapsed: result.ticksElapsed,
