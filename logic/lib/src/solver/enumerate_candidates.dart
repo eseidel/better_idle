@@ -287,12 +287,43 @@ List<MacroCandidate> _generateMacros(GlobalState state, Goal goal) {
   // For ReachSkillLevelGoal, generate macros for the target skill
   if (goal is ReachSkillLevelGoal) {
     if (!goal.isSatisfied(state)) {
-      // Primary macro: train until next boundary, watching for goal
+      // Build watched stops: always watch for goal completion
+      final watchedStops = <MacroStopRule>[
+        StopAtGoal(goal.skill, goal.targetXp),
+      ];
+
+      // For consuming skills, also watch for input depletion
+      // This ensures macro stops when inputs run out, allowing solver to
+      // switch back to producer skill
+      if (goal.skill.isConsuming) {
+        // Find the best action for this skill to determine what inputs to watch
+        final skillLevel = state.skillState(goal.skill).skillLevel;
+        final actions = state.registries.actions.all
+            .whereType<SkillAction>()
+            .where((action) => action.skill == goal.skill)
+            .where((action) => action.unlockLevel <= skillLevel);
+
+        // Use the first startable action, or first unlocked action if none startable
+        SkillAction? actionToWatch;
+        for (final action in actions) {
+          if (state.canStartAction(action)) {
+            actionToWatch = action;
+            break;
+          }
+        }
+        actionToWatch ??= actions.firstOrNull;
+
+        if (actionToWatch != null) {
+          watchedStops.add(StopWhenInputsDepleted(actionToWatch.id));
+        }
+      }
+
+      // Primary macro: train until next boundary, watching for goal + inputs
       macros.add(
         TrainSkillUntil(
           goal.skill,
           StopAtNextBoundary(goal.skill),
-          watchedStops: [StopAtGoal(goal.skill, goal.targetXp)],
+          watchedStops: watchedStops,
         ),
       );
     }
