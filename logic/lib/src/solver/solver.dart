@@ -825,6 +825,66 @@ class ConsumeUntilResult {
   final int deathCount;
 }
 
+/// Finds actions that produce the input items for a consuming action.
+///
+/// Returns a list of producer actions that:
+/// - Output at least one of the consuming action's required inputs
+/// - Can be started with current resources
+/// - Are unlocked (player meets level requirements for the producer skill)
+/// - Sorted by production rate (prefer faster producers)
+///
+/// Returns empty list if no suitable producers exist.
+List<SkillAction> _findProducersFor(
+  GlobalState state,
+  SkillAction consumingAction,
+  ActionRegistry actionRegistry,
+) {
+  final producers = <SkillAction>[];
+
+  // For each input item the consumer needs
+  for (final inputItemId in consumingAction.inputs.keys) {
+    // Find all actions that output this item
+    for (final action in actionRegistry.all) {
+      if (action is! SkillAction) continue;
+      if (!action.outputs.containsKey(inputItemId)) continue;
+
+      // Check if producer is unlocked for its skill
+      final producerSkillLevel = state.skillState(action.skill).skillLevel;
+      if (action.unlockLevel > producerSkillLevel) continue;
+
+      // Check if we can start this producer (has no missing inputs)
+      if (!state.canStartAction(action)) continue;
+
+      producers.add(action);
+    }
+  }
+
+  // Sort by production rate (items per tick) for the required input
+  producers.sort((a, b) {
+    // Get the required input item (same for both since they produce it)
+    final inputItemId = consumingAction.inputs.keys.first;
+
+    // Calculate production rate for action a
+    final aOutputCount = a.outputs[inputItemId] ?? 0;
+    final aTicksPerAction =
+        (a.minDuration.inMilliseconds / Duration.millisecondsPerSecond * 10)
+            .round();
+    final aRate = aOutputCount / aTicksPerAction;
+
+    // Calculate production rate for action b
+    final bOutputCount = b.outputs[inputItemId] ?? 0;
+    final bTicksPerAction =
+        (b.minDuration.inMilliseconds / Duration.millisecondsPerSecond * 10)
+            .round();
+    final bRate = bOutputCount / bTicksPerAction;
+
+    // Higher rate is better
+    return bRate.compareTo(aRate);
+  });
+
+  return producers;
+}
+
 /// Advances state until a condition is satisfied.
 ///
 /// Uses [consumeTicksUntil] to efficiently process ticks, checking the
@@ -881,8 +941,67 @@ ConsumeUntilResult consumeUntil(
           continue; // Continue with restarted activity
         }
       }
-      // For other stop reasons (outOfInputs, inventoryFull), break out
-      // since we can't make further progress towards the wait condition.
+      // For other stop reasons (outOfInputs, inventoryFull), try to adapt.
+      // For skill goals with consuming actions, switch to producer to gather
+      // inputs.
+      if (waitFor is WaitForSkillXp && originalActivityId != null) {
+        final currentAction = state.registries.actions.byId(originalActivityId);
+
+        // Check if this is a consuming action (has inputs)
+        if (currentAction is SkillAction && currentAction.inputs.isNotEmpty) {
+          // Find producers for the inputs this action needs
+          final producers = _findProducersFor(
+            state,
+            currentAction,
+            state.registries.actions,
+          );
+
+          if (producers.isNotEmpty) {
+            final producer = producers.first;
+            final inputItemId = currentAction.inputs.keys.first;
+
+            // Calculate buffer: enough to burn for ~5 minutes
+            final consumptionRate = currentAction.inputs.values.first;
+            final ticksPerBurn =
+                (currentAction.minDuration.inMilliseconds /
+                        Duration.millisecondsPerSecond *
+                        10)
+                    .round();
+            const bufferTicks = 3000; // 5 minutes at 100ms/tick
+            final bufferCount = ((bufferTicks / ticksPerBurn) * consumptionRate)
+                .ceil();
+
+            print(
+              'Switching to ${producer.name} to gather '
+              '$bufferCount+ ${inputItemId.localId}...',
+            );
+
+            // Switch to producer
+            state = state.startAction(producer, random: random);
+
+            // Gather inputs
+            final gatherResult = consumeUntil(
+              state,
+              WaitForInventoryAtLeast(inputItemId, bufferCount),
+              random: random,
+            );
+            state = gatherResult.state;
+            totalTicksElapsed += gatherResult.ticksElapsed;
+            deathCount += gatherResult.deathCount;
+
+            // Switch back to consumer
+            print('Switching back to ${currentAction.name}...');
+            state = state.startAction(currentAction, random: random);
+            continue; // Continue consuming
+          }
+        }
+      }
+
+      // No producer found - return with partial progress
+      print(
+        'WARNING: Activity stopped (${builder.stopReason}) before wait '
+        'condition satisfied: ${waitFor.describe()}',
+      );
       break;
     }
 
@@ -948,12 +1067,7 @@ PlanExecutionResult executePlan(
       totalDeaths += result.deaths;
       actualTicks += result.ticksElapsed;
     } catch (e) {
-      print('Error applying step: $e');
-      print('State: $state');
-      print('Step: $step');
-      if (i > 0) {
-        print('Previous step: ${plan.steps[i - 1]}');
-      }
+      print('Error applying step $i: $e');
       rethrow;
     }
   }

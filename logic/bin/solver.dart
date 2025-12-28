@@ -56,7 +56,7 @@ void main(List<String> args) async {
   // Print result
   if (result is SolverSuccess) {
     print('Uncompressed plan (${result.plan.steps.length} steps):');
-    print(result.plan.prettyPrint(actions: registries.actions));
+    print(result.plan.prettyPrint(actions: registries.actions, maxSteps: 100));
     print('');
     final compressed = result.plan.compress();
     print(

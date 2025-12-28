@@ -243,14 +243,14 @@ void main() {
       state = state.copyWith(
         skillStates: {
           Skill.woodcutting: SkillState(xp: xpForLevel5, masteryPoolXp: 0),
-          Skill.firemaking: SkillState(
+          Skill.firemaking: const SkillState(
             xp: 50,
             masteryPoolXp: 0,
           ), // Only level 1
         },
       );
 
-      final goal = MultiSkillGoal.fromMap({
+      final goal = MultiSkillGoal.fromMap(const {
         Skill.woodcutting: 5,
         Skill.firemaking: 3,
       });
@@ -273,7 +273,7 @@ void main() {
     test('remaining sums XP across unfinished skills', () {
       final state = GlobalState.empty(testRegistries);
 
-      final goal = MultiSkillGoal.fromMap({
+      final goal = MultiSkillGoal.fromMap(const {
         Skill.woodcutting: 2,
         Skill.firemaking: 2,
       });
@@ -294,7 +294,7 @@ void main() {
         },
       );
 
-      final goal = MultiSkillGoal.fromMap({
+      final goal = MultiSkillGoal.fromMap(const {
         Skill.woodcutting: 5, // Already satisfied
         Skill.firemaking: 2, // Not satisfied
       });
@@ -305,7 +305,7 @@ void main() {
     });
 
     test('isSkillRelevant returns true for goal skills only', () {
-      final goal = MultiSkillGoal.fromMap({
+      final goal = MultiSkillGoal.fromMap(const {
         Skill.woodcutting: 50,
         Skill.firemaking: 50,
       });
@@ -317,7 +317,7 @@ void main() {
     });
 
     test('isSellRelevant returns false', () {
-      final goal = MultiSkillGoal.fromMap({
+      final goal = MultiSkillGoal.fromMap(const {
         Skill.woodcutting: 50,
         Skill.firemaking: 50,
       });
@@ -326,7 +326,7 @@ void main() {
     });
 
     test('describe lists all skill targets', () {
-      final goal = MultiSkillGoal.fromMap({
+      final goal = MultiSkillGoal.fromMap(const {
         Skill.woodcutting: 50,
         Skill.firemaking: 40,
       });
@@ -347,7 +347,7 @@ void main() {
         },
       );
 
-      final goal = MultiSkillGoal.fromMap({
+      final goal = MultiSkillGoal.fromMap(const {
         Skill.woodcutting: 10,
         Skill.firemaking: 10,
       });
@@ -356,29 +356,29 @@ void main() {
     });
 
     test('activityRate returns XP rate for relevant skills only', () {
-      final goal = MultiSkillGoal.fromMap({
+      final goal = MultiSkillGoal.fromMap(const {
         Skill.woodcutting: 50,
         Skill.firemaking: 50,
       });
 
       // Woodcutting activity should contribute its XP rate
-      expect(goal.activityRate(Skill.woodcutting, 10.0, 5.0), equals(5.0));
-      expect(goal.activityRate(Skill.firemaking, 8.0, 4.0), equals(4.0));
+      expect(goal.activityRate(Skill.woodcutting, 10, 5), equals(5.0));
+      expect(goal.activityRate(Skill.firemaking, 8, 4), equals(4.0));
 
       // Non-goal skill should return 0
-      expect(goal.activityRate(Skill.fishing, 20.0, 10.0), equals(0.0));
+      expect(goal.activityRate(Skill.fishing, 20, 10), equals(0.0));
     });
 
     test('equality works correctly', () {
-      final goal1 = MultiSkillGoal.fromMap({
+      final goal1 = MultiSkillGoal.fromMap(const {
         Skill.woodcutting: 50,
         Skill.firemaking: 50,
       });
-      final goal2 = MultiSkillGoal.fromMap({
+      final goal2 = MultiSkillGoal.fromMap(const {
         Skill.woodcutting: 50,
         Skill.firemaking: 50,
       });
-      final goal3 = MultiSkillGoal.fromMap({
+      final goal3 = MultiSkillGoal.fromMap(const {
         Skill.woodcutting: 50,
         Skill.firemaking: 40, // Different level
       });
@@ -389,7 +389,7 @@ void main() {
 
     test('fromMap with single skill returns MultiSkillGoal', () {
       // fromMap always creates MultiSkillGoal, even with single skill
-      final goal = MultiSkillGoal.fromMap({Skill.woodcutting: 50});
+      final goal = MultiSkillGoal.fromMap(const {Skill.woodcutting: 50});
 
       expect(goal, isA<MultiSkillGoal>());
       expect(goal.subgoals.length, equals(1));
@@ -407,7 +407,7 @@ void main() {
         },
       );
 
-      final goal = MultiSkillGoal.fromMap({
+      final goal = MultiSkillGoal.fromMap(const {
         Skill.woodcutting: 5,
         Skill.firemaking: 5,
       });
@@ -422,7 +422,7 @@ void main() {
       final state = GlobalState.empty(testRegistries);
 
       // Goal: reach woodcutting and firemaking level 2
-      final goal = MultiSkillGoal.fromMap({
+      final goal = MultiSkillGoal.fromMap(const {
         Skill.woodcutting: 2,
         Skill.firemaking: 2,
       });
@@ -438,7 +438,7 @@ void main() {
     test('includes activities for all goal skills', () {
       final state = GlobalState.empty(testRegistries);
 
-      final goal = MultiSkillGoal.fromMap({
+      final goal = MultiSkillGoal.fromMap(const {
         Skill.woodcutting: 10,
         Skill.firemaking: 10,
       });
@@ -458,7 +458,7 @@ void main() {
     test('watches activities for all goal skills', () {
       final state = GlobalState.empty(testRegistries);
 
-      final goal = MultiSkillGoal.fromMap({
+      final goal = MultiSkillGoal.fromMap(const {
         Skill.woodcutting: 10,
         Skill.firemaking: 10,
       });
@@ -478,7 +478,7 @@ void main() {
     test('does not include SellAll for multi-skill goals', () {
       final state = GlobalState.empty(testRegistries);
 
-      final goal = MultiSkillGoal.fromMap({
+      final goal = MultiSkillGoal.fromMap(const {
         Skill.woodcutting: 10,
         Skill.firemaking: 10,
       });

@@ -21,6 +21,7 @@ library;
 import 'package:equatable/equatable.dart';
 import 'package:logic/src/data/action_id.dart';
 import 'package:logic/src/data/actions.dart';
+import 'package:logic/src/data/melvor_id.dart';
 import 'package:logic/src/solver/goal.dart';
 import 'package:logic/src/solver/interaction.dart';
 import 'package:logic/src/solver/solver.dart';
@@ -254,6 +255,35 @@ class WaitForInputsAvailable extends WaitFor {
 
   @override
   List<Object?> get props => [actionId];
+}
+
+/// Wait until inventory has at least a certain count of an item.
+/// Used during adaptive produce/consume cycles to gather enough inputs
+/// before switching back to the consuming action.
+@immutable
+class WaitForInventoryAtLeast extends WaitFor {
+  const WaitForInventoryAtLeast(this.itemId, this.minCount);
+
+  final MelvorId itemId;
+  final int minCount;
+
+  @override
+  bool isSatisfied(GlobalState state) {
+    final count = state.inventory.items
+        .where((s) => s.item.id == itemId)
+        .map((s) => s.count)
+        .fold(0, (a, b) => a + b);
+    return count >= minCount;
+  }
+
+  @override
+  String describe() => '${itemId.localId} count >= $minCount';
+
+  @override
+  String get shortDescription => 'Inventory at least $minCount';
+
+  @override
+  List<Object?> get props => [itemId, minCount];
 }
 
 /// Wait until we have enough inputs to complete the goal via a consuming
