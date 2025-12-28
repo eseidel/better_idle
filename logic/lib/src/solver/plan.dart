@@ -332,6 +332,40 @@ class WaitForSufficientInputs extends WaitFor {
   List<Object?> get props => [actionId, targetCount];
 }
 
+/// Wait until ANY of the given conditions is satisfied.
+///
+/// Used for macro-step planning where we want to stop training when the
+/// soonest of several conditions triggers (e.g., "next boundary OR upgrade
+/// affordable OR inputs depleted").
+class WaitForAnyOf extends WaitFor {
+  const WaitForAnyOf(this.conditions);
+
+  final List<WaitFor> conditions;
+
+  @override
+  bool isSatisfied(GlobalState state) {
+    // Satisfied if ANY condition is met
+    return conditions.any((condition) => condition.isSatisfied(state));
+  }
+
+  @override
+  String describe() {
+    final descriptions = conditions.map((c) => c.describe()).join(' OR ');
+    return 'any of ($descriptions)';
+  }
+
+  @override
+  String get shortDescription {
+    // Use the first condition's short description for brevity
+    return conditions.isNotEmpty
+        ? conditions.first.shortDescription
+        : 'Any condition';
+  }
+
+  @override
+  List<Object?> get props => [conditions];
+}
+
 // ---------------------------------------------------------------------------
 // Plan Steps
 // ---------------------------------------------------------------------------

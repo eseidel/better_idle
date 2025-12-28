@@ -26,6 +26,7 @@ import 'dart:math';
 import 'package:collection/collection.dart';
 import 'package:equatable/equatable.dart';
 import 'package:logic/src/consume_ticks.dart';
+import 'package:logic/src/data/action_id.dart';
 import 'package:logic/src/data/actions.dart';
 import 'package:logic/src/data/currency.dart';
 import 'package:logic/src/solver/apply_interaction.dart';
@@ -34,8 +35,10 @@ import 'package:logic/src/solver/enumerate_candidates.dart';
 import 'package:logic/src/solver/estimate_rates.dart';
 import 'package:logic/src/solver/goal.dart';
 import 'package:logic/src/solver/interaction.dart';
+import 'package:logic/src/solver/macro_candidate.dart';
 import 'package:logic/src/solver/next_decision_delta.dart';
 import 'package:logic/src/solver/plan.dart';
+import 'package:logic/src/solver/unlock_boundaries.dart';
 import 'package:logic/src/solver/value_model.dart';
 import 'package:logic/src/state.dart';
 import 'package:logic/src/tick.dart';
@@ -1082,6 +1085,225 @@ SolverResult solveToCredits(
     maxExpandedNodes: maxExpandedNodes,
     maxQueueSize: maxQueueSize,
   );
+}
+
+// ---------------------------------------------------------------------------
+// Macro Expansion
+// ---------------------------------------------------------------------------
+
+/// Result of expanding a macro candidate.
+typedef MacroExpansionResult = ({
+  GlobalState state,
+  int ticksElapsed,
+  WaitFor waitFor, // Composite WaitFor for plan execution
+  int deaths,
+});
+
+/// Expands a macro candidate into a future state by estimating progress.
+///
+/// Uses expected-value modeling (same as `advance`) to project forward
+/// until ANY of the macro's stop conditions would trigger.
+///
+/// Returns null if the macro cannot be executed (e.g., no unlocked actions).
+MacroExpansionResult? _expandMacro(
+  GlobalState state,
+  MacroCandidate macro,
+  Goal goal,
+  Map<Skill, SkillBoundaries> boundaries,
+) {
+  if (macro is! TrainSkillUntil) return null;
+  return _expandTrainSkillUntil(state, macro, goal, boundaries);
+}
+
+/// Expands a TrainSkillUntil macro.
+///
+/// 1. Finds the best unlocked action for the skill
+/// 2. Switches to that action (if not already on it)
+/// 3. Builds composite WaitFor from all stop rules (primary + watched)
+/// 4. Estimates ticks until soonest condition triggers
+/// 5. Uses expected-value advance to project state
+MacroExpansionResult? _expandTrainSkillUntil(
+  GlobalState state,
+  TrainSkillUntil macro,
+  Goal goal,
+  Map<Skill, SkillBoundaries> boundaries,
+) {
+  // Find best unlocked action for this skill
+  final bestAction = _findBestActionForSkill(state, macro.skill, goal);
+  if (bestAction == null) return null;
+
+  // Switch to that action (if not already on it)
+  var currentState = state;
+  if (state.activeAction?.id != bestAction) {
+    currentState = applyInteraction(state, SwitchActivity(bestAction));
+  }
+
+  // Build composite WaitFor from all stop rules (primary + watched)
+  final waitConditions = macro.allStops
+      .map((MacroStopRule rule) => rule.toWaitFor(currentState, boundaries))
+      .toList();
+
+  // Create composite WaitFor (stops when ANY condition triggers)
+  final compositeWaitFor = waitConditions.length == 1
+      ? waitConditions.first
+      : WaitForAnyOf(waitConditions);
+
+  // Estimate ticks until ANY stop condition triggers (use minimum)
+  final ticksUntilStop =
+      _estimateTicksForCompositeWaitFor(currentState, waitConditions, goal);
+
+  if (ticksUntilStop <= 0 || ticksUntilStop >= infTicks) {
+    return null; // No progress possible or already satisfied
+  }
+
+  // Use expected-value advance (already exists!)
+  final advanceResult = advance(currentState, ticksUntilStop);
+
+  return (
+    state: advanceResult.state,
+    ticksElapsed: ticksUntilStop,
+    waitFor: compositeWaitFor, // Execution will respect all conditions
+    deaths: advanceResult.deaths,
+  );
+}
+
+/// Finds the best action for a skill based on the goal's criteria.
+///
+/// For skill goals, picks the action with highest XP rate.
+/// For GP goals, picks the action with highest gold rate.
+ActionId? _findBestActionForSkill(
+  GlobalState state,
+  Skill skill,
+  Goal goal,
+) {
+  final skillLevel = state.skillState(skill).skillLevel;
+  final actions = state.registries.actions.all
+      .whereType<SkillAction>()
+      .where((action) => action.skill == skill)
+      .where((action) => action.unlockLevel <= skillLevel);
+
+  if (actions.isEmpty) return null;
+
+  // Rank by goal-specific rate
+  ActionId? best;
+  double bestRate = 0;
+
+  for (final action in actions) {
+    // Switch to action to estimate rates
+    final testState = applyInteraction(state, SwitchActivity(action.id));
+    final rates = estimateRates(testState);
+
+    final goldRate = defaultValueModel.valuePerTick(testState, rates);
+    final xpRate = rates.xpPerTickBySkill[skill] ?? 0.0;
+
+    final rate = goal.activityRate(skill, goldRate, xpRate);
+
+    if (rate > bestRate) {
+      bestRate = rate;
+      best = action.id;
+    }
+  }
+
+  return best;
+}
+
+/// Estimates ticks until ANY condition is satisfied (returns minimum).
+int _estimateTicksForCompositeWaitFor(
+  GlobalState state,
+  List<WaitFor> conditions,
+  Goal goal,
+) {
+  var minTicks = infTicks;
+
+  for (final condition in conditions) {
+    final ticks = _estimateTicksForSingleWaitFor(state, condition, goal);
+    if (ticks < minTicks) {
+      minTicks = ticks;
+    }
+  }
+
+  return minTicks;
+}
+
+/// Estimates ticks for a single WaitFor condition.
+int _estimateTicksForSingleWaitFor(
+  GlobalState state,
+  WaitFor condition,
+  Goal goal,
+) {
+  final rates = estimateRates(state);
+
+  switch (condition) {
+    case WaitForSkillXp(:final skill, :final targetXp):
+      final currentXp = state.skillState(skill).xp;
+      final needed = targetXp - currentXp;
+      if (needed <= 0) return 0;
+
+      final xpRate = rates.xpPerTickBySkill[skill] ?? 0.0;
+      if (xpRate <= 0) return infTicks;
+
+      return (needed / xpRate).ceil();
+
+    case WaitForInventoryValue(:final targetValue):
+      final currentValue = _effectiveCredits(state);
+      final needed = targetValue - currentValue;
+      if (needed <= 0) return 0;
+
+      final valueRate = defaultValueModel.valuePerTick(state, rates);
+      if (valueRate <= 0) return infTicks;
+
+      return (needed / valueRate).ceil();
+
+    case WaitForInputsDepleted(:final actionId):
+      // Estimate from current inventory / consumption rate
+      final action = state.registries.actions.byId(actionId);
+      if (action is! SkillAction) return infTicks;
+
+      final actionStateVal = state.actionState(action.id);
+      final selection = actionStateVal.recipeSelection(action);
+      final inputs = action.inputsForRecipe(selection);
+
+      if (inputs.isEmpty) return infTicks; // Non-consuming action
+
+      // Find minimum ticks based on available inputs
+      var minInputTicks = infTicks;
+      final actionDurationTicks =
+          action.minDuration.inMilliseconds ~/ msPerTick;
+
+      for (final entry in inputs.entries) {
+        final item = state.registries.items.byId(entry.key);
+        final available = state.inventory.countOfItem(item);
+        final consumedPerAction = entry.value;
+        final consumedPerTick =
+            consumedPerAction / actionDurationTicks.toDouble();
+
+        if (consumedPerTick > 0) {
+          final ticksUntilDepleted = (available / consumedPerTick).floor();
+          if (ticksUntilDepleted < minInputTicks) {
+            minInputTicks = ticksUntilDepleted;
+          }
+        }
+      }
+
+      return minInputTicks;
+
+    case WaitForAnyOf(:final conditions):
+      // Recursively handle nested AnyOf
+      return _estimateTicksForCompositeWaitFor(state, conditions, goal);
+
+    case WaitForGoal(:final goal):
+      final remaining = goal.remaining(state);
+      if (remaining <= 0) return 0;
+
+      final progressRate = goal.progressPerTick(state, rates);
+      if (progressRate <= 0) return infTicks;
+
+      return (remaining / progressRate).ceil();
+
+    default:
+      // Conservative fallback for unhandled types
+      return infTicks;
+  }
 }
 
 /// Solves for an optimal plan to satisfy the given [goal].
