@@ -11,6 +11,7 @@ import 'package:logic/src/solver/next_decision_delta.dart';
 import 'package:logic/src/solver/plan.dart';
 import 'package:logic/src/solver/solver.dart';
 import 'package:logic/src/solver/value_model.dart';
+import 'package:logic/src/solver/wait_for.dart';
 import 'package:test/test.dart';
 
 import 'test_helper.dart';
@@ -1233,8 +1234,9 @@ void main() {
       expect(profile.rateZeroBecauseZeroTicks, 1);
 
       // Record same reason multiple times
-      profile.recordRateZeroReason(RateZeroReason.noRelevantSkill);
-      profile.recordRateZeroReason(RateZeroReason.noRelevantSkill);
+      profile
+        ..recordRateZeroReason(RateZeroReason.noRelevantSkill)
+        ..recordRateZeroReason(RateZeroReason.noRelevantSkill);
       expect(profile.rateZeroBecauseNoRelevantSkill, 3);
 
       // Other counters unchanged
@@ -1255,8 +1257,9 @@ void main() {
       expect(profile.rootBestRate, 0.5);
 
       // Record non-root rates
-      profile.recordBestRate(0.3, isRoot: false);
-      profile.recordBestRate(0.7, isRoot: false);
+      profile
+        ..recordBestRate(0.3, isRoot: false)
+        ..recordBestRate(0.7, isRoot: false);
       expect(profile.bestRateSamples, [0.5, 0.3, 0.7]);
       expect(profile.rootBestRate, 0.5); // unchanged
 

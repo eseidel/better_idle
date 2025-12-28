@@ -7,8 +7,8 @@ library;
 import 'package:logic/src/data/actions.dart';
 import 'package:logic/src/data/melvor_id.dart';
 import 'package:logic/src/data/xp.dart';
-import 'package:logic/src/solver/plan.dart';
 import 'package:logic/src/solver/unlock_boundaries.dart';
+import 'package:logic/src/solver/wait_for.dart';
 import 'package:logic/src/state.dart';
 
 /// A macro-level planning action that commits to an activity for an

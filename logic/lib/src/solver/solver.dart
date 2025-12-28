@@ -41,6 +41,7 @@ import 'package:logic/src/solver/next_decision_delta.dart';
 import 'package:logic/src/solver/plan.dart';
 import 'package:logic/src/solver/unlock_boundaries.dart';
 import 'package:logic/src/solver/value_model.dart';
+import 'package:logic/src/solver/wait_for.dart';
 import 'package:logic/src/state.dart';
 import 'package:logic/src/tick.dart';
 import 'package:logic/src/types/inventory.dart';
