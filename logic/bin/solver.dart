@@ -1,8 +1,9 @@
 // Entry point for the solver - solves for an optimal plan to reach a goal.
 //
 // Usage: dart run bin/solver.dart [goal_credits]
-//        dart run bin/solver.dart -s  # Solve for woodcutting level 70
+//        dart run bin/solver.dart -s  # Solve for firemaking level 30
 //        dart run bin/solver.dart --cliff  # Diagnose FM=55 vs FM=56 cliff
+//        dart run bin/solver.dart -d  # Solve with diagnostics enabled
 //
 // Example: dart run bin/solver.dart 1000
 // ignore_for_file: avoid_print
@@ -22,6 +23,12 @@ void main(List<String> args) async {
       'skills',
       abbr: 'm',
       help: 'Solve for multiple skills (e.g., "Woodcutting=50,Firemaking=50")',
+    )
+    ..addFlag(
+      'diagnostics',
+      abbr: 'd',
+      help: 'Collect and print solver diagnostics',
+      negatable: false,
     )
     ..addFlag(
       'cliff',
@@ -74,10 +81,15 @@ void main(List<String> args) async {
   }
 
   final initialState = GlobalState.empty(registries);
+  final collectDiagnostics = results['diagnostics'] as bool;
 
-  print('Solving...');
+  print('Solving${collectDiagnostics ? ' (with diagnostics)' : ''}...');
   final stopwatch = Stopwatch()..start();
-  final result = solve(initialState, goal);
+  final result = solve(
+    initialState,
+    goal,
+    collectDiagnostics: collectDiagnostics,
+  );
   stopwatch.stop();
 
   print('Solver completed in ${stopwatch.elapsedMilliseconds}ms');
@@ -123,7 +135,7 @@ void main(List<String> args) async {
     final profile = result.profile;
     if (profile != null) {
       print('');
-      _printSolverProfile(profile);
+      _printSolverProfile(profile, extended: collectDiagnostics);
     }
   } else if (result is SolverFailed) {
     print('FAILED: ${result.failure.reason}');
@@ -135,7 +147,7 @@ void main(List<String> args) async {
     final profile = result.profile;
     if (profile != null) {
       print('');
-      _printSolverProfile(profile);
+      _printSolverProfile(profile, extended: collectDiagnostics);
     }
   }
 }
@@ -172,7 +184,7 @@ void _printFinalState(GlobalState state) {
   }
 }
 
-void _printSolverProfile(SolverProfile profile) {
+void _printSolverProfile(SolverProfile profile, {bool extended = false}) {
   print('=== Solver Profile ===');
   print('Expanded nodes: ${profile.expandedNodes}');
   print('Nodes/sec: ${profile.nodesPerSecond.toStringAsFixed(1)}');
@@ -193,6 +205,91 @@ void _printSolverProfile(SolverProfile profile) {
   print('  hashing (_stateKey): ${profile.hashingPercent.toStringAsFixed(1)}%');
   print('Dominance pruning:');
   print('  dominated skipped: ${profile.dominatedSkipped}');
+
+  // Extended diagnostics (only when --diagnostics flag is used)
+  if (!extended) return;
+
+  print('');
+  print('=== Extended Diagnostics ===');
+  print('Unique bucket keys: ${profile.uniqueBucketKeys}');
+  print('Peak queue size: ${profile.peakQueueSize}');
+  print('Frontier inserted: ${profile.frontierInserted}');
+  print('Frontier removed: ${profile.frontierRemoved}');
+
+  // Heuristic health
+  if (profile.heuristicValues.isNotEmpty) {
+    print('');
+    print('Heuristic health:');
+    print('  Root bestRate: ${profile.rootBestRate?.toStringAsFixed(4)}');
+    print(
+      '  bestRate range: ${profile.minBestRate.toStringAsFixed(2)} - '
+      '${profile.maxBestRate.toStringAsFixed(2)} '
+      '(median: ${profile.medianBestRate.toStringAsFixed(2)})',
+    );
+    final hSorted = List<int>.from(profile.heuristicValues)..sort();
+    final minH = hSorted.first;
+    final maxH = hSorted.last;
+    final medH = hSorted[hSorted.length ~/ 2];
+    print('  h() range: $minH - $maxH (median: $medH)');
+    if (profile.zeroRateCount > 0) {
+      final zeroFrac = profile.zeroRateCount / profile.heuristicValues.length;
+      print('  Zero rate fraction: ${zeroFrac.toStringAsFixed(2)}');
+    }
+  }
+
+  // Why bestRate is zero
+  final totalZero =
+      profile.rateZeroBecauseNoRelevantSkill +
+      profile.rateZeroBecauseNoUnlockedActions +
+      profile.rateZeroBecauseInputsRequired +
+      profile.rateZeroBecauseZeroTicks;
+  if (totalZero > 0) {
+    print('');
+    print('Why bestRate == 0:');
+    if (profile.rateZeroBecauseNoRelevantSkill > 0) {
+      print('  noRelevantSkill: ${profile.rateZeroBecauseNoRelevantSkill}');
+    }
+    if (profile.rateZeroBecauseNoUnlockedActions > 0) {
+      print('  noUnlockedActions: ${profile.rateZeroBecauseNoUnlockedActions}');
+    }
+    if (profile.rateZeroBecauseInputsRequired > 0) {
+      print('  inputsRequired: ${profile.rateZeroBecauseInputsRequired}');
+    }
+    if (profile.rateZeroBecauseZeroTicks > 0) {
+      print('  zeroTicks: ${profile.rateZeroBecauseZeroTicks}');
+    }
+  }
+
+  // Consuming skill candidate stats
+  if (profile.candidateStatsHistory.isNotEmpty) {
+    print('');
+    print('Consuming skill candidate stats (last sample):');
+    final stats = profile.candidateStatsHistory.last;
+    print('  Consumer actions considered: ${stats.consumerActionsConsidered}');
+    print('  Producer actions considered: ${stats.producerActionsConsidered}');
+    print('  Pairs considered: ${stats.pairsConsidered}');
+    print('  Pairs kept: ${stats.pairsKept}');
+    if (stats.topPairs.isNotEmpty) {
+      print('  Top pairs:');
+      for (final pair in stats.topPairs) {
+        print(
+          '    ${pair.consumerId} + ${pair.producerId}: '
+          '${pair.score.toStringAsFixed(4)} XP/tick',
+        );
+      }
+    }
+  }
+
+  // Macro stop triggers
+  if (profile.macroStopTriggers.isNotEmpty) {
+    print('');
+    print('Macro stop triggers:');
+    final sorted = profile.macroStopTriggers.entries.toList()
+      ..sort((a, b) => b.value.compareTo(a.value));
+    for (final entry in sorted) {
+      print('  ${entry.key}: ${entry.value}');
+    }
+  }
 }
 
 /// Parses "Skill=Level,Skill=Level,..." into a MultiSkillGoal or single goal.

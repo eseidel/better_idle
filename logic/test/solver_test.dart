@@ -751,6 +751,46 @@ void main() {
         greaterThanOrEqualTo(10),
       );
     });
+
+    test('switches to producer when consuming action runs out of inputs', () {
+      // Setup: state with only 1 log for firemaking - will run out quickly
+      final normalLogs = testItems.byName('Normal Logs');
+      final state = GlobalState.test(
+        testRegistries,
+        inventory: Inventory.fromItems(testItems, [
+          ItemStack(normalLogs, count: 1),
+        ]),
+      );
+
+      // Start firemaking (a consuming action that needs logs)
+      final firemakingAction = testActions.firemaking('Burn Normal Logs');
+      final runningState = state.startAction(
+        firemakingAction,
+        random: Random(42),
+      );
+
+      // Try to reach firemaking XP that requires more logs than we have
+      // Normal Logs firemaking: 40 XP per action, so we need 5 logs for 200 XP
+      const waitFor = WaitForSkillXp(Skill.firemaking, 200);
+      final result = consumeUntil(runningState, waitFor, random: Random(42));
+
+      // Should have gained firemaking XP (at least 200)
+      expect(
+        result.state.skillState(Skill.firemaking).xp,
+        greaterThanOrEqualTo(200),
+        reason: 'Should have reached 200 firemaking XP by gathering more logs',
+      );
+
+      // Should also have gained woodcutting XP from gathering logs
+      expect(
+        result.state.skillState(Skill.woodcutting).xp,
+        greaterThan(0),
+        reason: 'Should have gained woodcutting XP from gathering logs',
+      );
+
+      // The total ticks should reflect both gathering and burning
+      expect(result.ticksElapsed, greaterThan(0));
+    });
   });
 
   group('executePlan', () {
@@ -1166,6 +1206,102 @@ void main() {
           profile.enumeratePercent +
           profile.hashingPercent;
       expect(totalPercent, lessThanOrEqualTo(100.0));
+    });
+  });
+
+  group('SolverProfile', () {
+    test('recordRateZeroReason increments correct counters', () {
+      final profile = SolverProfile();
+
+      // Initially all counters are zero
+      expect(profile.rateZeroBecauseNoRelevantSkill, 0);
+      expect(profile.rateZeroBecauseNoUnlockedActions, 0);
+      expect(profile.rateZeroBecauseInputsRequired, 0);
+      expect(profile.rateZeroBecauseZeroTicks, 0);
+
+      // Record each reason type
+      profile.recordRateZeroReason(RateZeroReason.noRelevantSkill);
+      expect(profile.rateZeroBecauseNoRelevantSkill, 1);
+
+      profile.recordRateZeroReason(RateZeroReason.noUnlockedActions);
+      expect(profile.rateZeroBecauseNoUnlockedActions, 1);
+
+      profile.recordRateZeroReason(RateZeroReason.inputsRequired);
+      expect(profile.rateZeroBecauseInputsRequired, 1);
+
+      profile.recordRateZeroReason(RateZeroReason.zeroTicks);
+      expect(profile.rateZeroBecauseZeroTicks, 1);
+
+      // Record same reason multiple times
+      profile.recordRateZeroReason(RateZeroReason.noRelevantSkill);
+      profile.recordRateZeroReason(RateZeroReason.noRelevantSkill);
+      expect(profile.rateZeroBecauseNoRelevantSkill, 3);
+
+      // Other counters unchanged
+      expect(profile.rateZeroBecauseNoUnlockedActions, 1);
+      expect(profile.rateZeroBecauseInputsRequired, 1);
+      expect(profile.rateZeroBecauseZeroTicks, 1);
+    });
+
+    test('recordBestRate tracks samples and root rate', () {
+      final profile = SolverProfile();
+
+      expect(profile.bestRateSamples, isEmpty);
+      expect(profile.rootBestRate, isNull);
+
+      // Record root rate
+      profile.recordBestRate(0.5, isRoot: true);
+      expect(profile.bestRateSamples, [0.5]);
+      expect(profile.rootBestRate, 0.5);
+
+      // Record non-root rates
+      profile.recordBestRate(0.3, isRoot: false);
+      profile.recordBestRate(0.7, isRoot: false);
+      expect(profile.bestRateSamples, [0.5, 0.3, 0.7]);
+      expect(profile.rootBestRate, 0.5); // unchanged
+
+      // Check min/max/median
+      expect(profile.minBestRate, 0.3);
+      expect(profile.maxBestRate, 0.7);
+      expect(profile.medianBestRate, 0.5);
+    });
+
+    test('recordHeuristic tracks values and zero rate count', () {
+      final profile = SolverProfile();
+
+      expect(profile.heuristicValues, isEmpty);
+      expect(profile.zeroRateCount, 0);
+
+      profile.recordHeuristic(100, hasZeroRate: false);
+      expect(profile.heuristicValues, [100]);
+      expect(profile.zeroRateCount, 0);
+
+      profile.recordHeuristic(200, hasZeroRate: true);
+      expect(profile.heuristicValues, [100, 200]);
+      expect(profile.zeroRateCount, 1);
+
+      profile.recordHeuristic(50, hasZeroRate: true);
+      expect(profile.heuristicValues, [100, 200, 50]);
+      expect(profile.zeroRateCount, 2);
+    });
+
+    test('recordBucketKey tracks unique keys', () {
+      final profile = SolverProfile();
+
+      expect(profile.uniqueBucketKeys, 0);
+
+      profile.recordBucketKey('key1');
+      expect(profile.uniqueBucketKeys, 1);
+
+      profile.recordBucketKey('key2');
+      expect(profile.uniqueBucketKeys, 2);
+
+      // Duplicate key doesn't increment
+      profile.recordBucketKey('key1');
+      expect(profile.uniqueBucketKeys, 2);
+
+      profile.recordBucketKey('key3');
+      expect(profile.uniqueBucketKeys, 3);
     });
   });
 }
