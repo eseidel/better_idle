@@ -873,14 +873,17 @@ ConsumeUntilResult consumeUntil(
     if (builder.stopReason != ActionStopReason.stillRunning) {
       if (builder.stopReason == ActionStopReason.playerDied) {
         deathCount++;
-      }
 
-      // Auto-restart the activity and continue
-      if (originalActivityId != null) {
-        final action = state.registries.actions.byId(originalActivityId);
-        state = state.startAction(action, random: random);
-        continue; // Continue with restarted activity
+        // Auto-restart the activity after death and continue
+        if (originalActivityId != null) {
+          final action = state.registries.actions.byId(originalActivityId);
+          state = state.startAction(action, random: random);
+          continue; // Continue with restarted activity
+        }
       }
+      // For other stop reasons (outOfInputs, inventoryFull), break out
+      // since we can't make further progress towards the wait condition.
+      break;
     }
 
     // No progress possible
