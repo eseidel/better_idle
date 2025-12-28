@@ -1379,30 +1379,103 @@ MacroExpansionResult? _expandTrainConsumingSkillUntil(
     SwitchActivity(bestConsumeAction),
   );
 
-  // TODO(coupled-loops): Calculate and use sustainable rate in advancement
-  // Should model: consumeXP/tick * (produceTime / (produceTime + consumeTime))
-  // For now, we just use the consume action's advancement model
-
   // Build stop condition from primary stop
   final waitFor = macro.primaryStop.toWaitFor(state, boundaries);
 
-  // Estimate ticks until stop condition
-  final ticksUntilStop = _estimateTicksForCompositeWaitFor(state, [
-    waitFor,
-  ], goal);
+  // Calculate sustainable XP rate accounting for production time
+  final consumeAction_ =
+      state.registries.actions.byId(bestConsumeAction) as SkillAction;
+  final produceAction_ =
+      state.registries.actions.byId(producerAction) as SkillAction;
 
-  if (ticksUntilStop <= 0 || ticksUntilStop >= infTicks) {
-    return null; // No progress possible or already satisfied
+  final consumeTicksPerAction = ticksFromDuration(
+    consumeAction_.meanDuration,
+  ).toDouble();
+  final produceTicksPerAction = ticksFromDuration(
+    produceAction_.meanDuration,
+  ).toDouble();
+
+  final inputsNeededPerAction = consumeAction_.inputs[inputItem] ?? 1;
+  final outputsPerAction = produceAction_.outputs[inputItem] ?? 1;
+
+  // How many produce actions needed per consume action
+  final produceActionsPerConsumeAction =
+      inputsNeededPerAction / outputsPerAction;
+
+  // Total time for one consume cycle (produce + consume)
+  final totalTicksPerCycle =
+      (produceActionsPerConsumeAction * produceTicksPerAction) +
+      consumeTicksPerAction;
+
+  // Sustainable XP rate = XP per action / total cycle time
+  final consumeXpPerAction = consumeAction_.xp.toDouble();
+  final sustainableXpPerTick = consumeXpPerAction / totalTicksPerCycle;
+
+  // Calculate ticks needed based on sustainable rate
+  // For XP goals, we need to reach a specific XP target
+  final currentXp = state.skillState(macro.consumingSkill).xp;
+  int ticksUntilStop;
+
+  if (waitFor is WaitForSkillXp) {
+    // Calculate exactly how many ticks needed at sustainable rate
+    final xpNeeded = (waitFor.targetXp - currentXp).toDouble();
+    if (xpNeeded <= 0) return null; // Already satisfied
+    ticksUntilStop = (xpNeeded / sustainableXpPerTick).ceil();
+  } else {
+    // For other stop conditions, estimate using composite method then adjust
+    final estimatedTicks = _estimateTicksForCompositeWaitFor(consumeState, [
+      waitFor,
+    ], goal);
+    if (estimatedTicks <= 0 || estimatedTicks >= infTicks) {
+      return null;
+    }
+    // The estimate assumes full consume rate, adjust for sustainable rate
+    final consumeXpPerTick = consumeAction_.xp / consumeTicksPerAction;
+    final slowdownFactor = sustainableXpPerTick / consumeXpPerTick;
+    ticksUntilStop = (estimatedTicks / slowdownFactor).ceil();
   }
 
-  // Use the consume action for advancement (with sustainable rate modeled)
-  final advanceResult = advance(consumeState, ticksUntilStop);
+  // Project state based on coupled loop dynamics
+  // Calculate XP gains for both consuming and producing skills
+  final consumingSkillXp =
+      currentXp + (sustainableXpPerTick * ticksUntilStop).floor();
+
+  // Calculate producer skill XP (woodcutting gains XP during production phase)
+  final produceSkill = produceAction_.skill;
+  final currentProduceXp = state.skillState(produceSkill).xp;
+
+  // Time spent producing = produceActionsPerConsumeAction * produceTicksPerAction per cycle
+  // Number of cycles = ticksUntilStop / totalTicksPerCycle
+  final numCycles = ticksUntilStop / totalTicksPerCycle;
+  final totalProduceTicks =
+      numCycles * produceActionsPerConsumeAction * produceTicksPerAction;
+  final produceXpGained =
+      (totalProduceTicks * (produceAction_.xp / produceTicksPerAction)).floor();
+  final producingSkillXp = currentProduceXp + produceXpGained;
+
+  // Build projected state with both skills updated
+  final projectedState = state.copyWith(
+    skillStates: {
+      for (final skill in Skill.values)
+        skill: skill == macro.consumingSkill
+            ? SkillState(
+                xp: consumingSkillXp,
+                masteryPoolXp: state.skillState(skill).masteryPoolXp,
+              )
+            : skill == produceSkill
+            ? SkillState(
+                xp: producingSkillXp,
+                masteryPoolXp: state.skillState(skill).masteryPoolXp,
+              )
+            : state.skillState(skill),
+    },
+  );
 
   return (
-    state: advanceResult.state,
+    state: projectedState,
     ticksElapsed: ticksUntilStop,
     waitFor: waitFor,
-    deaths: advanceResult.deaths,
+    deaths: 0, // No combat deaths in firemaking/woodcutting
   );
 }
 

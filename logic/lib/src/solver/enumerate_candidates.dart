@@ -339,13 +339,17 @@ Candidates enumerateCandidates(
   double rankingFn(ActionSummary s) =>
       goal.activityRate(s.skill, s.goldRatePerTick, s.xpRatePerTick);
 
-  // Select unlocked activity candidates (top K by ranking function)
-  final switchToActivities = _selectUnlockedActivitiesByRanking(
-    summaries,
-    state,
-    activityCount,
-    rankingFn,
-  );
+  // Select unlocked activity candidates
+  // For consuming skills, use strict pruning to avoid near-tie explosion
+  final switchToActivities =
+      (goal is ReachSkillLevelGoal && goal.skill.isConsuming)
+      ? _selectConsumingSkillCandidates(summaries, state, goal.skill)
+      : _selectUnlockedActivitiesByRanking(
+          summaries,
+          state,
+          activityCount,
+          rankingFn,
+        );
 
   // Select locked activities to watch (top L by smallest unlockDeltaTicks)
   // Only watch activities for skills relevant to the goal
@@ -439,6 +443,127 @@ List<ActionSummary> _findProducersForItem(
   }
 
   return producers;
+}
+
+/// Strict pruning for consuming skills.
+///
+/// For consuming skills (e.g., Firemaking), we need to avoid the "near-tie
+/// explosion" where multiple burn actions have similar scores. This function:
+/// - Calculates sustainable XP/tick for each burn action (accounting for
+///   production time of inputs)
+/// - Selects top N burn actions (default N=2)
+/// - For each selected burn action, finds the best producer (highest output/tick)
+/// - Applies tie-breaking: sustainable XP/tick > fewer switches > has fuel
+///
+/// Returns a list of activity IDs to consider as switch-to candidates.
+List<ActionId> _selectConsumingSkillCandidates(
+  List<ActionSummary> summaries,
+  GlobalState state,
+  Skill consumingSkill, {
+  int maxBurnActions = 2,
+}) {
+  final registries = state.registries;
+  final currentActionId = state.activeAction?.id;
+
+  // Find all unlocked burn actions for this consuming skill
+  final burnActions = summaries
+      .where(
+        (s) =>
+            s.skill == consumingSkill &&
+            s.isUnlocked &&
+            s.hasInputs &&
+            s.actionId != currentActionId,
+      )
+      .toList();
+
+  if (burnActions.isEmpty) return [];
+
+  // Calculate sustainable XP/tick for each burn action
+  final burnWithRates =
+      <
+        ({
+          ActionSummary burn,
+          double sustainableXpPerTick,
+          ActionSummary? producer,
+        })
+      >[];
+
+  for (final burnSummary in burnActions) {
+    final burnAction =
+        registries.actions.byId(burnSummary.actionId) as SkillAction;
+    final inputItem = burnAction.inputs.keys.first;
+
+    // Find best producer for this input
+    final producers = _findProducersForItem(summaries, state, inputItem);
+    if (producers.isEmpty) continue;
+
+    // Best producer is the one with highest output/tick
+    producers.sort((a, b) {
+      final aAction = registries.actions.byId(a.actionId) as SkillAction;
+      final bAction = registries.actions.byId(b.actionId) as SkillAction;
+      final aOutputPerTick =
+          (aAction.outputs[inputItem] ?? 1) / a.expectedTicks;
+      final bOutputPerTick =
+          (bAction.outputs[inputItem] ?? 1) / b.expectedTicks;
+      return bOutputPerTick.compareTo(aOutputPerTick);
+    });
+    final bestProducer = producers.first;
+    final producerAction =
+        registries.actions.byId(bestProducer.actionId) as SkillAction;
+
+    // Calculate sustainable XP rate
+    final consumeTicksPerAction = burnSummary.expectedTicks;
+    final produceTicksPerAction = bestProducer.expectedTicks;
+    final inputsNeededPerAction = burnAction.inputs[inputItem] ?? 1;
+    final outputsPerAction = producerAction.outputs[inputItem] ?? 1;
+
+    final produceActionsPerConsumeAction =
+        inputsNeededPerAction / outputsPerAction;
+    final totalTicksPerCycle =
+        (produceActionsPerConsumeAction * produceTicksPerAction) +
+        consumeTicksPerAction;
+
+    final consumeXpPerAction = burnAction.xp.toDouble();
+    final sustainableXpPerTick = consumeXpPerAction / totalTicksPerCycle;
+
+    burnWithRates.add((
+      burn: burnSummary,
+      sustainableXpPerTick: sustainableXpPerTick,
+      producer: bestProducer,
+    ));
+  }
+
+  // Sort by sustainable XP/tick (descending)
+  burnWithRates.sort((a, b) {
+    // Primary: sustainable XP/tick
+    final xpCmp = b.sustainableXpPerTick.compareTo(a.sustainableXpPerTick);
+    if (xpCmp != 0) return xpCmp;
+
+    // Tie-breaker 1: Prefer already having fuel in inventory
+    final aHasFuel = a.burn.canStartNow ? 1 : 0;
+    final bHasFuel = b.burn.canStartNow ? 1 : 0;
+    final fuelCmp = bHasFuel.compareTo(aHasFuel);
+    if (fuelCmp != 0) return fuelCmp;
+
+    // Tie-breaker 2: Prefer fewer switches (longer macro segments)
+    // Actions with longer duration mean fewer switches
+    final durationCmp = b.burn.expectedTicks.compareTo(a.burn.expectedTicks);
+    return durationCmp;
+  });
+
+  // Select top N burn actions
+  final selectedBurns = burnWithRates.take(maxBurnActions).toList();
+
+  // Build result: for each burn action, include it and its best producer
+  final result = <ActionId>[];
+  for (final entry in selectedBurns) {
+    result.add(entry.burn.actionId);
+    if (entry.producer != null) {
+      result.add(entry.producer!.actionId);
+    }
+  }
+
+  return result;
 }
 
 /// Selects top K unlocked activities by a custom ranking function.
