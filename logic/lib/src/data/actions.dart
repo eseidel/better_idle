@@ -102,7 +102,7 @@ enum Skill {
   /// Skills that have actions requiring inputs (consuming skills).
   /// For solver: these skills need inventory tracking to properly plan
   /// input gathering before training the skill.
-  static const consumingSkills = {
+  static const Set<Skill> consumingSkills = {
     Skill.firemaking,
     Skill.cooking,
     Skill.smithing,

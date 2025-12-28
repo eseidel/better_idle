@@ -467,18 +467,18 @@ List<ActionSummary> _findProducersForItem(
 /// Stats from consuming skill candidate selection.
 class ConsumingSkillCandidateStats {
   ConsumingSkillCandidateStats({
-    required this.burnActionsConsidered,
+    required this.consumerActionsConsidered,
     required this.producerActionsConsidered,
     required this.pairsConsidered,
     required this.pairsKept,
     required this.topPairs,
   });
 
-  final int burnActionsConsidered;
+  final int consumerActionsConsidered;
   final int producerActionsConsidered;
   final int pairsConsidered;
   final int pairsKept;
-  final List<({String burnId, String producerId, double score})> topPairs;
+  final List<({String consumerId, String producerId, double score})> topPairs;
 }
 
 /// Result of consuming skill candidate selection.
@@ -491,13 +491,15 @@ class _ConsumingSkillResult {
 
 /// Strict pruning for consuming skills.
 ///
-/// For consuming skills (e.g., Firemaking), we need to avoid the "near-tie
-/// explosion" where multiple burn actions have similar scores. This function:
-/// - Calculates sustainable XP/tick for each burn action (accounting for
+/// For consuming skills (e.g., Firemaking, Cooking, Smithing), we need to avoid
+/// the "near-tie explosion" where multiple consumer actions have similar scores.
+/// This function:
+/// - Calculates sustainable XP/tick for each consumer action (accounting for
 ///   production time of inputs)
-/// - Selects top N burn actions (default N=2)
-/// - For each selected burn action, finds the best producer (highest output/tick)
-/// - Applies tie-breaking: sustainable XP/tick > fewer switches > has fuel
+/// - Selects top N consumer actions (default N=2)
+/// - For each selected consumer action, finds the best producer (highest
+///   output/tick)
+/// - Applies tie-breaking: sustainable XP/tick > fewer switches > has inputs
 ///
 /// Returns a list of activity IDs to consider as switch-to candidates.
 /// If [collectStats] is true, also returns diagnostic stats.
@@ -505,14 +507,14 @@ _ConsumingSkillResult _selectConsumingSkillCandidatesWithStats(
   List<ActionSummary> summaries,
   GlobalState state,
   Skill consumingSkill, {
-  int maxBurnActions = 2,
+  int maxConsumerActions = 2,
   bool collectStats = false,
 }) {
   final registries = state.registries;
   final currentActionId = state.activeAction?.id;
 
-  // Find all unlocked burn actions for this consuming skill
-  final burnActions = summaries
+  // Find all unlocked consumer actions for this consuming skill
+  final consumerActions = summaries
       .where(
         (s) =>
             s.skill == consumingSkill &&
@@ -522,12 +524,12 @@ _ConsumingSkillResult _selectConsumingSkillCandidatesWithStats(
       )
       .toList();
 
-  if (burnActions.isEmpty) {
+  if (consumerActions.isEmpty) {
     return _ConsumingSkillResult(
       candidates: [],
       stats: collectStats
           ? ConsumingSkillCandidateStats(
-              burnActionsConsidered: 0,
+              consumerActionsConsidered: 0,
               producerActionsConsidered: 0,
               pairsConsidered: 0,
               pairsKept: 0,
@@ -541,20 +543,20 @@ _ConsumingSkillResult _selectConsumingSkillCandidatesWithStats(
   var producerActionsConsidered = 0;
   var pairsConsidered = 0;
 
-  // Calculate sustainable XP/tick for each burn action
-  final burnWithRates =
+  // Calculate sustainable XP/tick for each consumer action
+  final consumersWithRates =
       <
         ({
-          ActionSummary burn,
+          ActionSummary consumer,
           double sustainableXpPerTick,
           ActionSummary? producer,
         })
       >[];
 
-  for (final burnSummary in burnActions) {
-    final burnAction =
-        registries.actions.byId(burnSummary.actionId) as SkillAction;
-    final inputItem = burnAction.inputs.keys.first;
+  for (final consumerSummary in consumerActions) {
+    final consumerAction =
+        registries.actions.byId(consumerSummary.actionId) as SkillAction;
+    final inputItem = consumerAction.inputs.keys.first;
 
     // Find best producer for this input
     final producers = _findProducersForItem(summaries, state, inputItem);
@@ -578,9 +580,9 @@ _ConsumingSkillResult _selectConsumingSkillCandidatesWithStats(
         registries.actions.byId(bestProducer.actionId) as SkillAction;
 
     // Calculate sustainable XP rate
-    final consumeTicksPerAction = burnSummary.expectedTicks;
+    final consumeTicksPerAction = consumerSummary.expectedTicks;
     final produceTicksPerAction = bestProducer.expectedTicks;
-    final inputsNeededPerAction = burnAction.inputs[inputItem] ?? 1;
+    final inputsNeededPerAction = consumerAction.inputs[inputItem] ?? 1;
     final outputsPerAction = producerAction.outputs[inputItem] ?? 1;
 
     final produceActionsPerConsumeAction =
@@ -589,41 +591,45 @@ _ConsumingSkillResult _selectConsumingSkillCandidatesWithStats(
         (produceActionsPerConsumeAction * produceTicksPerAction) +
         consumeTicksPerAction;
 
-    final consumeXpPerAction = burnAction.xp.toDouble();
+    final consumeXpPerAction = consumerAction.xp.toDouble();
     final sustainableXpPerTick = consumeXpPerAction / totalTicksPerCycle;
 
-    burnWithRates.add((
-      burn: burnSummary,
+    consumersWithRates.add((
+      consumer: consumerSummary,
       sustainableXpPerTick: sustainableXpPerTick,
       producer: bestProducer,
     ));
   }
 
   // Sort by sustainable XP/tick (descending)
-  burnWithRates.sort((a, b) {
+  consumersWithRates.sort((a, b) {
     // Primary: sustainable XP/tick
     final xpCmp = b.sustainableXpPerTick.compareTo(a.sustainableXpPerTick);
     if (xpCmp != 0) return xpCmp;
 
-    // Tie-breaker 1: Prefer already having fuel in inventory
-    final aHasFuel = a.burn.canStartNow ? 1 : 0;
-    final bHasFuel = b.burn.canStartNow ? 1 : 0;
-    final fuelCmp = bHasFuel.compareTo(aHasFuel);
-    if (fuelCmp != 0) return fuelCmp;
+    // Tie-breaker 1: Prefer already having inputs in inventory
+    final aHasInputs = a.consumer.canStartNow ? 1 : 0;
+    final bHasInputs = b.consumer.canStartNow ? 1 : 0;
+    final inputsCmp = bHasInputs.compareTo(aHasInputs);
+    if (inputsCmp != 0) return inputsCmp;
 
     // Tie-breaker 2: Prefer fewer switches (longer macro segments)
     // Actions with longer duration mean fewer switches
-    final durationCmp = b.burn.expectedTicks.compareTo(a.burn.expectedTicks);
+    final durationCmp = b.consumer.expectedTicks.compareTo(
+      a.consumer.expectedTicks,
+    );
     return durationCmp;
   });
 
-  // Select top N burn actions
-  final selectedBurns = burnWithRates.take(maxBurnActions).toList();
+  // Select top N consumer actions
+  final selectedConsumers = consumersWithRates
+      .take(maxConsumerActions)
+      .toList();
 
-  // Build result: for each burn action, include it and its best producer
+  // Build result: for each consumer action, include it and its best producer
   final result = <ActionId>[];
-  for (final entry in selectedBurns) {
-    result.add(entry.burn.actionId);
+  for (final entry in selectedConsumers) {
+    result.add(entry.consumer.actionId);
     if (entry.producer != null) {
       result.add(entry.producer!.actionId);
     }
@@ -632,10 +638,10 @@ _ConsumingSkillResult _selectConsumingSkillCandidatesWithStats(
   // Build stats if requested
   ConsumingSkillCandidateStats? stats;
   if (collectStats) {
-    final topPairs = selectedBurns
+    final topPairs = selectedConsumers
         .map(
           (e) => (
-            burnId: e.burn.actionId.localId.name,
+            consumerId: e.consumer.actionId.localId.name,
             producerId: e.producer?.actionId.localId.name ?? 'none',
             score: e.sustainableXpPerTick,
           ),
@@ -643,10 +649,10 @@ _ConsumingSkillResult _selectConsumingSkillCandidatesWithStats(
         .toList();
 
     stats = ConsumingSkillCandidateStats(
-      burnActionsConsidered: burnActions.length,
+      consumerActionsConsidered: consumerActions.length,
       producerActionsConsidered: producerActionsConsidered,
       pairsConsidered: pairsConsidered,
-      pairsKept: selectedBurns.length,
+      pairsKept: selectedConsumers.length,
       topPairs: topPairs,
     );
   }

@@ -47,6 +47,21 @@ import 'package:logic/src/types/inventory.dart';
 import 'package:logic/src/types/stunned.dart';
 import 'package:logic/src/types/time_away.dart';
 
+/// Reasons why bestRate might be zero.
+enum RateZeroReason {
+  /// No skills relevant to the goal were found.
+  noRelevantSkill,
+
+  /// Skills exist but no actions are unlocked yet.
+  noUnlockedActions,
+
+  /// All unlocked actions require inputs (consuming skill).
+  inputsRequired,
+
+  /// Action has zero expected ticks (shouldn't happen).
+  zeroTicks,
+}
+
 /// Profiling stats collected during a solve.
 class SolverProfile {
   int expandedNodes = 0;
@@ -78,6 +93,46 @@ class SolverProfile {
 
   // Candidate stats per enumeration call
   final List<CandidateStats> candidateStatsHistory = [];
+
+  // Best rate diagnostics
+  double? rootBestRate;
+  final List<double> bestRateSamples = [];
+
+  // Why bestRate is zero counters
+  int rateZeroBecauseNoRelevantSkill = 0;
+  int rateZeroBecauseNoUnlockedActions = 0;
+  int rateZeroBecauseInputsRequired = 0;
+  int rateZeroBecauseZeroTicks = 0;
+
+  void recordBestRate(double rate, {required bool isRoot}) {
+    bestRateSamples.add(rate);
+    if (isRoot) rootBestRate = rate;
+  }
+
+  void recordRateZeroReason(RateZeroReason reason) {
+    switch (reason) {
+      case RateZeroReason.noRelevantSkill:
+        rateZeroBecauseNoRelevantSkill++;
+      case RateZeroReason.noUnlockedActions:
+        rateZeroBecauseNoUnlockedActions++;
+      case RateZeroReason.inputsRequired:
+        rateZeroBecauseInputsRequired++;
+      case RateZeroReason.zeroTicks:
+        rateZeroBecauseZeroTicks++;
+    }
+  }
+
+  double get minBestRate =>
+      bestRateSamples.isEmpty ? 0 : bestRateSamples.reduce(min);
+
+  double get maxBestRate =>
+      bestRateSamples.isEmpty ? 0 : bestRateSamples.reduce(max);
+
+  double get medianBestRate {
+    if (bestRateSamples.isEmpty) return 0;
+    final sorted = List<double>.from(bestRateSamples)..sort();
+    return sorted[sorted.length ~/ 2];
+  }
 
   void recordBucketKey(String key) {
     if (_seenBucketKeys.add(key)) {
@@ -146,18 +201,18 @@ class SolverProfile {
 /// Stats from a single candidate enumeration call.
 class CandidateStats {
   CandidateStats({
-    required this.burnActionsConsidered,
+    required this.consumerActionsConsidered,
     required this.producerActionsConsidered,
     required this.pairsConsidered,
     required this.pairsKept,
     required this.topPairs,
   });
 
-  final int burnActionsConsidered;
+  final int consumerActionsConsidered;
   final int producerActionsConsidered;
   final int pairsConsidered;
   final int pairsKept;
-  final List<({String burnId, String producerId, double score})> topPairs;
+  final List<({String consumerId, String producerId, double score})> topPairs;
 }
 
 /// Gold bucket size for coarse state grouping.
@@ -338,6 +393,14 @@ int _effectiveCredits(GlobalState state) {
   return total;
 }
 
+/// Result of rate computation with optional diagnostic info.
+class _RateResult {
+  _RateResult(this.rate, {this.zeroReason});
+
+  final double rate;
+  final RateZeroReason? zeroReason;
+}
+
 /// Cache for best unlocked rate by state key (skill levels + tool tiers).
 /// Supports both GP goals (gold/tick) and skill goals (XP/tick).
 class _RateCache {
@@ -346,6 +409,7 @@ class _RateCache {
   final Goal goal;
   final Map<String, double> _cache = {};
   final Map<String, double> _skillCache = {};
+  final Map<String, RateZeroReason?> _reasonCache = {};
 
   String _rateKey(GlobalState state) {
     // Key by skill levels and tool tiers (things that affect unlocks/rates)
@@ -366,9 +430,17 @@ class _RateCache {
     final cached = _cache[key];
     if (cached != null) return cached;
 
-    final rate = _computeBestUnlockedRate(state);
-    _cache[key] = rate;
-    return rate;
+    final result = _computeBestUnlockedRate(state);
+    _cache[key] = result.rate;
+    _reasonCache[key] = result.zeroReason;
+    return result.rate;
+  }
+
+  /// Gets the reason why the rate was zero for this state.
+  /// Returns null if the rate was non-zero or not yet computed.
+  RateZeroReason? getZeroReason(GlobalState state) {
+    final key = _rateKey(state);
+    return _reasonCache[key];
   }
 
   /// Gets the best XP rate for a specific skill.
@@ -483,20 +555,30 @@ class _RateCache {
 
   /// Computes the best rate among currently UNLOCKED actions.
   /// Uses the goal to determine which rate type and skills are relevant.
-  double _computeBestUnlockedRate(GlobalState state) {
+  ///
+  /// For consuming skills (Firemaking, Cooking), calculates the sustainable
+  /// XP rate based on best consumer+producer pairs, not just raw consume rate.
+  /// This ensures the heuristic doesn't return 0 just because inputs
+  /// aren't currently in inventory.
+  ///
+  /// Returns rate and reason if zero.
+  _RateResult _computeBestUnlockedRate(GlobalState state) {
     var maxRate = 0.0;
     final registries = state.registries;
+
+    // Track why rate might be zero
+    var sawRelevantSkill = false;
+    var sawUnlockedAction = false;
+    var sawZeroTicks = false;
 
     for (final skill in Skill.values) {
       // Only consider skills relevant to the goal
       if (!goal.isSkillRelevant(skill)) continue;
+      sawRelevantSkill = true;
 
       final skillLevel = state.skillState(skill).skillLevel;
 
       for (final action in registries.actions.forSkill(skill)) {
-        // Skip actions that require inputs
-        if (action.inputs.isNotEmpty) continue;
-
         // Only consider unlocked actions
         if (skillLevel < action.unlockLevel) continue;
 
@@ -506,7 +588,10 @@ class _RateCache {
         ).toDouble();
         final percentModifier = state.shopDurationModifierForSkill(skill);
         final expectedTicks = baseExpectedTicks * (1.0 + percentModifier);
-        if (expectedTicks <= 0) continue;
+        if (expectedTicks <= 0) {
+          sawZeroTicks = true;
+          continue;
+        }
 
         // Compute both gold and XP rates, let goal decide which matters
         double goldRate;
@@ -553,6 +638,21 @@ class _RateCache {
               xpRate *= cycleRatio;
             }
           }
+        } else if (action.inputs.isNotEmpty) {
+          // Consuming action (Firemaking, Cooking): compute sustainable rate
+          // based on best producer throughput, not raw consume rate.
+          final sustainedRate = _computeSustainedRateForConsumingAction(
+            state,
+            action,
+          );
+          if (sustainedRate == null || sustainedRate <= 0) {
+            // No producer available for this action, skip it
+            continue;
+          }
+          xpRate = sustainedRate;
+          // Gold rate for consuming actions is typically 0 (logs don't sell)
+          goldRate = 0;
+          sawUnlockedAction = true;
         } else {
           xpRate = action.xp / expectedTicks;
 
@@ -564,6 +664,8 @@ class _RateCache {
           goldRate = expectedGoldPerAction / expectedTicks;
         }
 
+        sawUnlockedAction = true;
+
         // Let the goal decide which rate matters
         final rate = goal.activityRate(skill, goldRate, xpRate);
         if (rate > maxRate) {
@@ -572,7 +674,111 @@ class _RateCache {
       }
     }
 
-    return maxRate;
+    // Determine reason if rate is zero
+    if (maxRate <= 0) {
+      RateZeroReason reason;
+      if (!sawRelevantSkill) {
+        reason = RateZeroReason.noRelevantSkill;
+      } else if (!sawUnlockedAction) {
+        reason = RateZeroReason.noUnlockedActions;
+      } else if (sawZeroTicks) {
+        reason = RateZeroReason.zeroTicks;
+      } else {
+        // Rare: saw unlocked actions but all rates were zero
+        reason = RateZeroReason.noUnlockedActions;
+      }
+      return _RateResult(0, zeroReason: reason);
+    }
+
+    return _RateResult(maxRate);
+  }
+
+  /// Computes the sustainable XP rate for a consuming action.
+  ///
+  /// For a consuming action (e.g., burning logs, cooking fish), calculates:
+  /// - How fast we can produce inputs with the best unlocked producer
+  /// - The effective XP/tick accounting for production overhead
+  ///
+  /// Returns null if no producer is available for the required inputs.
+  double? _computeSustainedRateForConsumingAction(
+    GlobalState state,
+    SkillAction consumeAction,
+  ) {
+    final registries = state.registries;
+
+    // Get the first input item (logs for firemaking, fish for cooking)
+    if (consumeAction.inputs.isEmpty) return null;
+    final inputItemId = consumeAction.inputs.keys.first;
+    final inputsPerConsumeAction = consumeAction.inputs[inputItemId] ?? 1;
+
+    // Find the best unlocked producer for this input
+    double? bestProducerOutputPerTick;
+    double? bestProducerTicksPerAction;
+
+    for (final skill in Skill.values) {
+      final producerSkillLevel = state.skillState(skill).skillLevel;
+
+      for (final producer in registries.actions.forSkill(skill)) {
+        // Only non-consuming, unlocked producers
+        if (producer.inputs.isNotEmpty) continue;
+        if (producerSkillLevel < producer.unlockLevel) continue;
+
+        // Check if this action produces the needed item
+        final outputCount = producer.outputs[inputItemId];
+        if (outputCount == null || outputCount <= 0) continue;
+
+        // Calculate producer rate
+        final producerBaseTicks = ticksFromDuration(
+          producer.meanDuration,
+        ).toDouble();
+        final modifier = state.shopDurationModifierForSkill(skill);
+        final producerTicks = producerBaseTicks * (1.0 + modifier);
+        if (producerTicks <= 0) continue;
+
+        final outputPerTick = outputCount / producerTicks;
+        if (bestProducerOutputPerTick == null ||
+            outputPerTick > bestProducerOutputPerTick) {
+          bestProducerOutputPerTick = outputPerTick;
+          bestProducerTicksPerAction = producerTicks;
+        }
+      }
+    }
+
+    if (bestProducerOutputPerTick == null ||
+        bestProducerTicksPerAction == null) {
+      return null; // No producer available
+    }
+
+    // Calculate consume action ticks
+    final consumeBaseTicks = ticksFromDuration(
+      consumeAction.meanDuration,
+    ).toDouble();
+    final consumeModifier = state.shopDurationModifierForSkill(
+      consumeAction.skill,
+    );
+    final consumeTicks = consumeBaseTicks * (1.0 + consumeModifier);
+    if (consumeTicks <= 0) return null;
+
+    // Calculate sustainable XP rate:
+    // To do one consume action, we need inputsPerConsumeAction inputs.
+    // Producer makes outputPerTick items/tick.
+    // So we need (inputsPerConsumeAction / bestProducerOutputPerTick) ticks
+    // to produce enough inputs.
+    // Total cycle = produce time + consume time
+    // XP per cycle = consumeAction.xp
+    // Sustained rate = XP / total cycle time
+
+    // How many producer actions needed per consume action?
+    // producer outputs `outputCount` per action taking `producerTicks`
+    // We get bestProducerOutputPerTick = outputCount / producerTicks
+    // To get inputsPerConsumeAction inputs:
+    // ticks needed = inputsPerConsumeAction / bestProducerOutputPerTick
+    final produceTicksPerCycle =
+        inputsPerConsumeAction / bestProducerOutputPerTick;
+    final totalTicksPerCycle = produceTicksPerCycle + consumeTicks;
+
+    final sustainedXpPerTick = consumeAction.xp / totalTicksPerCycle;
+    return sustainedXpPerTick;
   }
 }
 
@@ -642,10 +848,106 @@ class _Node {
   final int expectedDeaths;
 }
 
+/// Describes why the best rate is zero for error messages.
+///
+/// Provides actionable context for the tripwire failure, including:
+/// - The reason category (no producers, no unlocked actions, etc.)
+/// - For consuming skills: which input item has no producer
+String _describeZeroRateReason(
+  RateZeroReason? reason,
+  Goal goal,
+  GlobalState state,
+) {
+  final goalDesc = goal.describe();
+
+  switch (reason) {
+    case RateZeroReason.noRelevantSkill:
+      return 'no relevant skill for goal "$goalDesc"';
+
+    case RateZeroReason.noUnlockedActions:
+      // For consuming skills, try to identify which input is missing a producer
+      if (goal is ReachSkillLevelGoal && goal.skill.isConsuming) {
+        final skill = goal.skill;
+        final registries = state.registries;
+        final skillLevel = state.skillState(skill).skillLevel;
+
+        // Find the first consumer action that's unlocked but has no producer
+        for (final action in registries.actions.forSkill(skill)) {
+          if (skillLevel < action.unlockLevel) continue;
+          if (action.inputs.isEmpty) continue;
+
+          final inputId = action.inputs.keys.first;
+          final inputItem = registries.items.byId(inputId);
+
+          // Check if any producer exists for this input
+          var hasProducer = false;
+          for (final prodSkill in Skill.values) {
+            final prodLevel = state.skillState(prodSkill).skillLevel;
+            for (final prod in registries.actions.forSkill(prodSkill)) {
+              if (prodLevel < prod.unlockLevel) continue;
+              if (prod.inputs.isNotEmpty) continue;
+              if (prod.outputs.containsKey(inputId)) {
+                hasProducer = true;
+                break;
+              }
+            }
+            if (hasProducer) break;
+          }
+
+          if (!hasProducer) {
+            return 'no producer for ${inputItem.name} '
+                '(needed by ${action.name}) at current skill levels';
+          }
+        }
+        return 'no unlocked actions for ${skill.name}';
+      }
+      return 'no unlocked actions for goal "$goalDesc"';
+
+    case RateZeroReason.inputsRequired:
+      return 'all actions require inputs with no available producers';
+
+    case RateZeroReason.zeroTicks:
+      return 'all actions have zero duration (configuration error)';
+
+    case null:
+      return 'unknown reason (rate computed as zero)';
+  }
+}
+
 /// Computes a goal-scoped hash key for a game state for visited tracking.
 ///
 /// Uses bucketed gold for coarser grouping to reduce state explosion.
 /// Only includes fields relevant to the goal to avoid unnecessary distinctions.
+///
+/// ## Design Invariants for Consuming Skills
+///
+/// When scaling to more consuming skills (Cooking, Smithing, Herblore, etc.),
+/// watch for these state explosion risks:
+///
+/// 1. **Inventory bucket granularity**: The inventory bucket must be coarse
+///    enough that small input buffer variations don't create distinct states.
+///    Currently uses [_inventoryBucketSize] for large inventories.
+///    - BAD: Exact log count creates explosion (10 logs vs 11 logs = 2 states)
+///    - GOOD: Bucketed count (0-99 logs vs 100-199 logs = fewer states)
+///
+/// 2. **Don't encode consumer action choice in key**: The active action is
+///    tracked, but the *candidate selection* (which consuming action to do
+///    next) should NOT be in the key. The candidate pruning in
+///    `_selectConsumingSkillCandidatesWithStats` limits branching instead.
+///    - BAD: Key includes "will_burn_willow" vs "will_burn_oak"
+///    - GOOD: Key only has current action, candidates are pruned separately
+///
+/// 3. **Producer skill levels**: For consuming skills, the producer skill
+///    level (e.g., Woodcutting for Firemaking) affects sustainable XP rate
+///    but is NOT directly in the key. Skill levels are only tracked for
+///    goal-relevant skills via [Goal.relevantSkillsForBucketing].
+///
+/// 4. **Multi-input actions**: Some consuming actions need multiple inputs
+///    (e.g., Smithing needs ore + coal). The inventory bucket should aggregate
+///    total items, not track each type separately, to avoid combinatorial
+///    explosion.
+///
+/// See also: `_selectConsumingSkillCandidatesWithStats` for candidate pruning.
 String _stateKey(GlobalState state, Goal goal) {
   final buffer = StringBuffer();
 
@@ -1013,16 +1315,16 @@ ConsumeUntilResult consumeUntil(
             final producer = producers.first;
             final inputItemId = currentAction.inputs.keys.first;
 
-            // Calculate buffer: enough to burn for ~5 minutes
+            // Calculate buffer: enough to consume for ~5 minutes
             final consumptionRate = currentAction.inputs.values.first;
-            final ticksPerBurn =
+            final ticksPerConsume =
                 (currentAction.minDuration.inMilliseconds /
                         Duration.millisecondsPerSecond *
                         10)
                     .round();
             const bufferTicks = 3000; // 5 minutes at 100ms/tick
-            final bufferCount = ((bufferTicks / ticksPerBurn) * consumptionRate)
-                .ceil();
+            final bufferCount =
+                ((bufferTicks / ticksPerConsume) * consumptionRate).ceil();
 
             print(
               'Switching to ${producer.name} to gather '
@@ -1078,8 +1380,8 @@ typedef _StepResult = ({GlobalState state, int ticksElapsed, int deaths});
 /// Executes a coupled produce/consume loop for consuming skills.
 ///
 /// Alternates between:
-/// 1. Produce inputs (e.g., cut logs) until buffer threshold
-/// 2. Consume inputs (e.g., burn logs) until depleted or stop condition
+/// 1. Produce inputs (e.g., cut logs, catch fish) until buffer threshold
+/// 2. Consume inputs (e.g., burn logs, cook fish) until depleted or stop
 /// 3. Repeat until primary stop condition is met
 _StepResult _executeCoupledLoop(
   GlobalState state,
@@ -1404,8 +1706,8 @@ MacroExpansionResult? _expandTrainSkillUntil(
 ///
 /// For consuming skills (Firemaking, Cooking, etc.), this models a coupled
 /// produce/consume loop:
-/// 1. Find best consuming action (e.g., Burn Oak Logs)
-/// 2. Find corresponding producer action (e.g., Cut Oak Tree)
+/// 1. Find best consuming action (e.g., burn logs, cook fish)
+/// 2. Find corresponding producer action (e.g., cut logs, catch fish)
 /// 3. Estimate sustainable rate: consumingXP/tick including production time
 /// 4. Project state forward until stop condition
 ///
@@ -1417,7 +1719,7 @@ MacroExpansionResult? _expandTrainConsumingSkillUntil(
   Goal goal,
   Map<Skill, SkillBoundaries> boundaries,
 ) {
-  // Find best unlocked consuming action (e.g., Burn Oak Logs)
+  // Find best unlocked consuming action
   final bestConsumeAction = _findBestActionForSkill(
     state,
     macro.consumingSkill,
@@ -1803,6 +2105,36 @@ SolverResult solve(
   profile.hashingTimeUs += hashStopwatch.elapsedMicroseconds;
   bestTicks[rootKey] = 0;
 
+  // Record root best rate for diagnostics
+  if (collectDiagnostics) {
+    final rootBestRate = rateCache.getBestUnlockedRate(initial);
+    profile.recordBestRate(rootBestRate, isRoot: true);
+    final zeroReason = rateCache.getZeroReason(initial);
+    if (zeroReason != null) {
+      profile.recordRateZeroReason(zeroReason);
+    }
+  }
+
+  // Diagnostic tripwire: fail fast if heuristic has zero best rate.
+  // This catches configuration errors early (e.g., consuming skill goal
+  // with no unlocked producer for required inputs).
+  final rootBestRate = rateCache.getBestUnlockedRate(initial);
+  if (rootBestRate <= 0) {
+    final zeroReason = rateCache.getZeroReason(initial);
+    final reasonStr = _describeZeroRateReason(zeroReason, goal, initial);
+    totalStopwatch.stop();
+    profile
+      ..expandedNodes = 0
+      ..totalTimeUs = totalStopwatch.elapsedMicroseconds;
+    return SolverFailed(
+      SolverFailure(
+        reason: 'Heuristic bestRate=0: $reasonStr',
+        enqueuedNodes: enqueuedNodes,
+      ),
+      profile,
+    );
+  }
+
   while (pq.isNotEmpty) {
     // Check limits
     if (expandedNodes >= maxExpandedNodes) {
@@ -1874,7 +2206,16 @@ SolverResult solve(
       final h = _heuristic(node.state, goal, rateCache);
       profile
         ..recordHeuristic(h, hasZeroRate: bestRate <= 0)
-        ..recordBucketKey(nodeKey);
+        ..recordBucketKey(nodeKey)
+        ..recordBestRate(bestRate, isRoot: false);
+
+      // Record zero reason if applicable
+      if (bestRate <= 0) {
+        final zeroReason = rateCache.getZeroReason(node.state);
+        if (zeroReason != null) {
+          profile.recordRateZeroReason(zeroReason);
+        }
+      }
     }
 
     // Track best credits seen (effective credits = GP + inventory value)
@@ -1916,7 +2257,7 @@ SolverResult solve(
       final stats = candidates.consumingSkillStats!;
       profile.candidateStatsHistory.add(
         CandidateStats(
-          burnActionsConsidered: stats.burnActionsConsidered,
+          consumerActionsConsidered: stats.consumerActionsConsidered,
           producerActionsConsidered: stats.producerActionsConsidered,
           pairsConsidered: stats.pairsConsidered,
           pairsKept: stats.pairsKept,

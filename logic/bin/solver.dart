@@ -385,6 +385,53 @@ Future<void> _runCliffDiagnostic(
   );
   print('');
 
+  // Best rate diagnostics
+  print('--- Best Rate (heuristic input) ---');
+  print(
+    'Root bestRate: ${lowerProfile.rootBestRate?.toStringAsFixed(4) ?? "?"} '
+    '-> ${upperProfile.rootBestRate?.toStringAsFixed(4) ?? "?"}',
+  );
+  _printComparisonDouble(
+    'Min bestRate',
+    lowerProfile.minBestRate,
+    upperProfile.minBestRate,
+  );
+  _printComparisonDouble(
+    'Median bestRate',
+    lowerProfile.medianBestRate,
+    upperProfile.medianBestRate,
+  );
+  _printComparisonDouble(
+    'Max bestRate',
+    lowerProfile.maxBestRate,
+    upperProfile.maxBestRate,
+  );
+  print('');
+
+  // Why bestRate is zero counters
+  print('--- Why bestRate == 0 ---');
+  _printComparison(
+    'noRelevantSkill',
+    lowerProfile.rateZeroBecauseNoRelevantSkill,
+    upperProfile.rateZeroBecauseNoRelevantSkill,
+  );
+  _printComparison(
+    'noUnlockedActions',
+    lowerProfile.rateZeroBecauseNoUnlockedActions,
+    upperProfile.rateZeroBecauseNoUnlockedActions,
+  );
+  _printComparison(
+    'inputsRequired',
+    lowerProfile.rateZeroBecauseInputsRequired,
+    upperProfile.rateZeroBecauseInputsRequired,
+  );
+  _printComparison(
+    'zeroTicks',
+    lowerProfile.rateZeroBecauseZeroTicks,
+    upperProfile.rateZeroBecauseZeroTicks,
+  );
+  print('');
+
   // Decision deltas
   print('--- Decision Deltas ---');
   _printComparison('Min delta', lowerProfile.minDelta, upperProfile.minDelta);
@@ -444,9 +491,9 @@ Future<void> _runCliffDiagnostic(
 
     if (lowerStats != null || upperStats != null) {
       _printComparison(
-        'Burn actions considered',
-        lowerStats?.burnActionsConsidered ?? 0,
-        upperStats?.burnActionsConsidered ?? 0,
+        'Consumer actions considered',
+        lowerStats?.consumerActionsConsidered ?? 0,
+        upperStats?.consumerActionsConsidered ?? 0,
       );
       _printComparison(
         'Producer actions considered',
@@ -470,7 +517,7 @@ Future<void> _runCliffDiagnostic(
         print('Top pairs at level $lowerLevel:');
         for (final pair in lowerStats.topPairs) {
           print(
-            '  ${pair.burnId} + ${pair.producerId}: '
+            '  ${pair.consumerId} + ${pair.producerId}: '
             '${pair.score.toStringAsFixed(4)} XP/tick',
           );
         }
@@ -479,7 +526,7 @@ Future<void> _runCliffDiagnostic(
         print('Top pairs at level $upperLevel:');
         for (final pair in upperStats.topPairs) {
           print(
-            '  ${pair.burnId} + ${pair.producerId}: '
+            '  ${pair.consumerId} + ${pair.producerId}: '
             '${pair.score.toStringAsFixed(4)} XP/tick',
           );
         }

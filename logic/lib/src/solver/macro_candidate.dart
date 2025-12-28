@@ -45,12 +45,13 @@ class TrainSkillUntil extends MacroCandidate {
 
 /// Train a consuming skill via coupled produce/consume loops.
 ///
-/// For consuming skills (Firemaking, Cooking), this macro alternates:
-/// 1. Produce inputs (e.g., cut logs) until buffer threshold
-/// 2. Consume inputs (e.g., burn logs) until depleted
+/// For consuming skills (Firemaking, Cooking, Smithing), this macro alternates:
+/// 1. Produce inputs (e.g., cut logs, catch fish) until buffer threshold
+/// 2. Consume inputs (e.g., burn logs, cook fish) until depleted
 /// 3. Repeat until stop condition
 ///
-/// This models the sustainable rate: consumingXP/tick = (consumeRate * produceTime) / (produceTime + consumeTime)
+/// This models the sustainable rate:
+///   consumingXP/tick = (consumeRate * produceTime) / (produceTime + consumeTime)
 class TrainConsumingSkillUntil extends MacroCandidate {
   const TrainConsumingSkillUntil(
     this.consumingSkill,
