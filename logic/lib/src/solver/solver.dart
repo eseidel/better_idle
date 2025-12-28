@@ -105,109 +105,103 @@ const int _hpBucketSize = 10;
 const int _inventoryBucketSize = 10;
 
 /// Bucket key for dominance pruning - groups states with same structural
-/// situation. Includes activity, tool tiers, relevant skill levels, mastery
-/// level, and HP bucket.
+/// situation. Goal-scoped: only tracks skills/upgrades relevant to the goal.
+///
+/// For WC=99/Fish=99 goal, tracks: {WC level, Fish level, axe tier, rod tier,
+/// active action}.
+/// For Thieving goal, tracks: {Thieving level, HP, mastery, active action}.
+/// For GP goals, tracks all skills (current behavior).
 class _BucketKey extends Equatable {
   const _BucketKey({
     required this.activityName,
+    required this.skillLevels,
+    // TODO(eseidel): Track axeLevel/rodLevel/pickLevel as purchases instead?
     required this.axeLevel,
     required this.rodLevel,
     required this.pickLevel,
-    required this.woodcuttingLevel,
-    required this.fishingLevel,
-    required this.miningLevel,
-    required this.thievingLevel,
-    required this.firemakingLevel,
-    required this.cookingLevel,
-    required this.smithingLevel,
     required this.hpBucket,
     required this.masteryLevel,
     required this.inventoryBucket,
   });
 
+  /// Active action name - needed to distinguish woodcutting vs fishing states
   final String activityName;
+
+  /// Map of goal-relevant skills to their levels.
+  /// For WC=99/Fish=99: {Skill.woodcutting: 50, Skill.fishing: 40}
+  /// For GP goals: all 7 skills
+  final Map<Skill, int> skillLevels;
+
+  /// Tool tier upgrades (always tracked for their respective skills)
   final int axeLevel;
   final int rodLevel;
   final int pickLevel;
-  final int woodcuttingLevel;
-  final int fishingLevel;
-  final int miningLevel;
-  final int thievingLevel;
-  final int firemakingLevel;
-  final int cookingLevel;
-  final int smithingLevel;
 
-  /// HP bucket for thieving - distinguishes "safe" vs "near death" states.
-  /// Only meaningful when thieving; set to 0 for other activities.
+  /// HP bucket for thieving - only tracked if goal.shouldTrackHp
   final int hpBucket;
 
-  /// Mastery level for the current action - affects rates (e.g. thieving).
+  /// Mastery level for the current action - only tracked if
+  /// goal.shouldTrackMastery
   final int masteryLevel;
 
-  /// Inventory bucket - distinguishes states with different inventory amounts.
-  /// Important for consuming skills where inventory contents affect progress.
+  /// Inventory bucket - only tracked if goal.shouldTrackInventory
   final int inventoryBucket;
 
   @override
   List<Object?> get props => [
     activityName,
+    skillLevels,
     axeLevel,
     rodLevel,
     pickLevel,
-    woodcuttingLevel,
-    fishingLevel,
-    miningLevel,
-    thievingLevel,
-    firemakingLevel,
-    cookingLevel,
-    smithingLevel,
     hpBucket,
     masteryLevel,
     inventoryBucket,
   ];
 }
 
-/// Creates a bucket key from a game state.
-_BucketKey _bucketKeyFromState(GlobalState state) {
-  final registries = state.registries;
-  // Only track HP bucket when thieving (where death is possible)
+/// Creates a goal-scoped bucket key from a game state.
+/// Only tracks skills, HP, mastery, and inventory relevant to the goal.
+_BucketKey _bucketKeyFromState(GlobalState state, Goal goal) {
+  // Track active action - needed to distinguish states
   final actionId = state.activeAction?.id;
-  final isThieving =
-      actionId != null && registries.actions.byId(actionId) is ThievingAction;
-  final hpBucket = isThieving ? state.playerHp ~/ _hpBucketSize : 0;
+  final activityName = actionId != null ? actionId.localId.name : 'none';
 
-  // Get mastery level for current action (0 if no action)
-  final masteryLevel = actionId != null
+  // Build skill levels map for only goal-relevant skills
+  final skillLevels = <Skill, int>{};
+  for (final skill in goal.relevantSkillsForBucketing) {
+    skillLevels[skill] = state.skillState(skill).skillLevel;
+  }
+
+  // Track HP only if goal requires it (thieving goals)
+  final hpBucket = goal.shouldTrackHp ? state.playerHp ~/ _hpBucketSize : 0;
+
+  // Track mastery only if goal requires it (thieving goals)
+  final masteryLevel = goal.shouldTrackMastery && actionId != null
       ? state.actionState(actionId).masteryLevel
       : 0;
 
-  // This isn't the real name, but it's close enough for this logic.
-  final activityName = actionId != null ? actionId.localId.name : 'none';
-
-  // Inventory bucket: count total items to distinguish states with different
-  // inventory. Use exact count for small inventories to avoid false dominance.
-  final totalItems = state.inventory.items.fold<int>(
-    0,
-    (sum, stack) => sum + stack.count,
-  );
-  // For small inventories (< 100 items), use exact count to differentiate
-  // states. For larger inventories, use buckets to reduce state explosion.
-  final inventoryBucket = totalItems < 100
-      ? totalItems
-      : 100 + (totalItems - 100) ~/ _inventoryBucketSize;
+  // Track inventory only if goal requires it (consuming skill goals)
+  final inventoryBucket = goal.shouldTrackInventory
+      ? () {
+          final totalItems = state.inventory.items.fold<int>(
+            0,
+            (sum, stack) => sum + stack.count,
+          );
+          // For small inventories (< 100 items), use exact count
+          // For larger inventories, use buckets
+          return totalItems < 100
+              ? totalItems
+              : 100 + (totalItems - 100) ~/ _inventoryBucketSize;
+        }()
+      : 0;
 
   return _BucketKey(
     activityName: activityName,
+    skillLevels: skillLevels,
     axeLevel: state.shop.axeLevel,
     rodLevel: state.shop.fishingRodLevel,
     pickLevel: state.shop.pickaxeLevel,
-    woodcuttingLevel: state.skillState(Skill.woodcutting).skillLevel,
-    fishingLevel: state.skillState(Skill.fishing).skillLevel,
-    miningLevel: state.skillState(Skill.mining).skillLevel,
-    thievingLevel: state.skillState(Skill.thieving).skillLevel,
-    firemakingLevel: state.skillState(Skill.firemaking).skillLevel,
-    cookingLevel: state.skillState(Skill.cooking).skillLevel,
-    smithingLevel: state.skillState(Skill.smithing).skillLevel,
     hpBucket: hpBucket,
     masteryLevel: masteryLevel,
     inventoryBucket: inventoryBucket,
@@ -579,17 +573,11 @@ class _Node {
   final int expectedDeaths;
 }
 
-/// Computes a coarse hash key for a game state for visited tracking.
+/// Computes a goal-scoped hash key for a game state for visited tracking.
 ///
 /// Uses bucketed gold for coarser grouping to reduce state explosion.
-/// Key includes:
-/// - Bucketed gold (GP / bucket size)
-/// - Current activity
-/// - Upgrade levels
-/// - Skill levels (for level-based gating)
-/// - HP bucket (for thieving, where death is possible)
-/// - Mastery level for current action (affects rates)
-String _stateKey(GlobalState state) {
+/// Only includes fields relevant to the goal to avoid unnecessary distinctions.
+String _stateKey(GlobalState state, Goal goal) {
   final buffer = StringBuffer();
 
   // Bucketed gold (coarse grouping for large goals)
@@ -597,55 +585,51 @@ String _stateKey(GlobalState state) {
   final goldBucket = state.gp ~/ _goldBucketSize;
   buffer.write('gb:$goldBucket|');
 
-  // Active action
+  // Active action (always tracked for state deduplication)
   final actionId = state.activeAction?.id;
   buffer.write('act:${actionId ?? 'none'}|');
 
-  // HP bucket for thieving (where death is possible)
-  final isThieving =
-      actionId != null &&
-      state.registries.actions.byId(actionId) is ThievingAction;
-  if (isThieving) {
+  // HP bucket - only if goal tracks HP (thieving)
+  if (goal.shouldTrackHp && actionId != null) {
     final hpBucket = state.playerHp ~/ _hpBucketSize;
     buffer.write('hp:$hpBucket|');
   }
 
-  // Mastery level bucket for current action (affects rates, especially for
-  // thieving). Use buckets of 10 to reduce state explosion while still
-  // capturing major rate changes.
-  if (actionId != null) {
+  // Mastery level bucket - only if goal tracks mastery (thieving)
+  if (goal.shouldTrackMastery && actionId != null) {
     final masteryLevel = state.actionState(actionId).masteryLevel;
     final masteryBucket = masteryLevel ~/ 10;
     buffer.write('mast:$masteryBucket|');
   }
 
-  // Upgrade levels
+  // Upgrade levels (always tracked - tool tiers affect rates)
   buffer
     ..write('axe:${state.shop.axeLevel}|')
     ..write('rod:${state.shop.fishingRodLevel}|')
     ..write('pick:${state.shop.pickaxeLevel}|');
 
-  // Skill levels (just levels, not full XP for coarser grouping)
-  for (final skill in Skill.values) {
+  // Skill levels - only goal-relevant skills
+  for (final skill in goal.relevantSkillsForBucketing) {
     final level = state.skillState(skill).skillLevel;
     if (level > 1) {
       buffer.write('${skill.name}:$level|');
     }
   }
 
-  // Inventory bucket (important for consuming skills). Use exact count for
-  // small inventories to avoid zero-progress false positives.
-  final totalItems = state.inventory.items.fold<int>(
-    0,
-    (sum, stack) => sum + stack.count,
-  );
-  if (totalItems > 0) {
-    // For small inventories, use exact count; for larger, use buckets
-    if (totalItems < 100) {
-      buffer.write('inv:$totalItems|');
-    } else {
-      final invBucket = totalItems ~/ _inventoryBucketSize;
-      buffer.write('inv:$invBucket|');
+  // Inventory bucket - only if goal tracks inventory (consuming skills)
+  if (goal.shouldTrackInventory) {
+    final totalItems = state.inventory.items.fold<int>(
+      0,
+      (sum, stack) => sum + stack.count,
+    );
+    if (totalItems > 0) {
+      // For small inventories, use exact count; for larger, use buckets
+      if (totalItems < 100) {
+        buffer.write('inv:$totalItems|');
+      } else {
+        final invBucket = totalItems ~/ _inventoryBucketSize;
+        buffer.write('inv:$invBucket|');
+      }
     }
   }
 
@@ -1165,7 +1149,7 @@ SolverResult solve(
   enqueuedNodes++;
 
   final hashStopwatch = Stopwatch()..start();
-  final rootKey = _stateKey(initial);
+  final rootKey = _stateKey(initial, goal);
   profile.hashingTimeUs += hashStopwatch.elapsedMicroseconds;
   bestTicks[rootKey] = 0;
 
@@ -1216,7 +1200,7 @@ SolverResult solve(
     hashStopwatch
       ..reset()
       ..start();
-    final nodeKey = _stateKey(node.state);
+    final nodeKey = _stateKey(node.state, goal);
     profile.hashingTimeUs += hashStopwatch.elapsedMicroseconds;
 
     final nodeReachedGoal = goal.isSatisfied(node.state);
@@ -1268,7 +1252,7 @@ SolverResult solve(
       try {
         final newState = applyInteraction(node.state, interaction);
         final newProgress = goal.progress(newState);
-        final newBucketKey = _bucketKeyFromState(newState);
+        final newBucketKey = _bucketKeyFromState(newState, goal);
 
         // Dominance pruning: skip if dominated by existing frontier point
         if (frontier.isDominatedOrInsert(
@@ -1283,7 +1267,7 @@ SolverResult solve(
         hashStopwatch
           ..reset()
           ..start();
-        final newKey = _stateKey(newState);
+        final newKey = _stateKey(newState, goal);
         profile.hashingTimeUs += hashStopwatch.elapsedMicroseconds;
 
         // Only enqueue if this is the best path to this state
@@ -1336,7 +1320,7 @@ SolverResult solve(
       final newDeaths = node.expectedDeaths + advanceResult.deaths;
       final newTicks = node.ticks + deltaResult.deltaTicks;
       final newProgress = goal.progress(newState);
-      final newBucketKey = _bucketKeyFromState(newState);
+      final newBucketKey = _bucketKeyFromState(newState, goal);
 
       // Check if we've reached the goal BEFORE dominance pruning
       final reachedGoal = goal.isSatisfied(newState);
@@ -1354,7 +1338,7 @@ SolverResult solve(
         hashStopwatch
           ..reset()
           ..start();
-        final newKey = _stateKey(newState);
+        final newKey = _stateKey(newState, goal);
         profile.hashingTimeUs += hashStopwatch.elapsedMicroseconds;
 
         // Safety: check for zero-progress waits (same state key after advance)
