@@ -64,6 +64,36 @@ class SolverProfile {
   int frontierInserted = 0;
   int frontierRemoved = 0;
 
+  // Extended diagnostic stats (populated when diagnostics enabled)
+  int peakQueueSize = 0;
+  int uniqueBucketKeys = 0;
+  final Set<String> _seenBucketKeys = {};
+
+  // Heuristic health metrics
+  final List<int> heuristicValues = [];
+  int zeroRateCount = 0;
+
+  // Macro stop trigger histogram
+  final Map<String, int> macroStopTriggers = {};
+
+  // Candidate stats per enumeration call
+  final List<CandidateStats> candidateStatsHistory = [];
+
+  void recordBucketKey(String key) {
+    if (_seenBucketKeys.add(key)) {
+      uniqueBucketKeys = _seenBucketKeys.length;
+    }
+  }
+
+  void recordHeuristic(int h, {required bool hasZeroRate}) {
+    heuristicValues.add(h);
+    if (hasZeroRate) zeroRateCount++;
+  }
+
+  void recordMacroStopTrigger(String trigger) {
+    macroStopTriggers[trigger] = (macroStopTriggers[trigger] ?? 0) + 1;
+  }
+
   double get nodesPerSecond =>
       totalTimeUs > 0 ? expandedNodes / (totalTimeUs / 1e6) : 0;
 
@@ -93,6 +123,41 @@ class SolverProfile {
 
   double get hashingPercent =>
       totalTimeUs > 0 ? 100.0 * hashingTimeUs / totalTimeUs : 0;
+
+  // Heuristic health metrics
+  int get minHeuristic =>
+      heuristicValues.isEmpty ? 0 : heuristicValues.reduce(min);
+
+  int get maxHeuristic =>
+      heuristicValues.isEmpty ? 0 : heuristicValues.reduce(max);
+
+  int get medianHeuristic {
+    if (heuristicValues.isEmpty) return 0;
+    final sorted = List<int>.from(heuristicValues)..sort();
+    return sorted[sorted.length ~/ 2];
+  }
+
+  double get zeroRateFraction =>
+      heuristicValues.isEmpty ? 0 : zeroRateCount / heuristicValues.length;
+
+  int get heuristicSpread => maxHeuristic - minHeuristic;
+}
+
+/// Stats from a single candidate enumeration call.
+class CandidateStats {
+  CandidateStats({
+    required this.burnActionsConsidered,
+    required this.producerActionsConsidered,
+    required this.pairsConsidered,
+    required this.pairsKept,
+    required this.topPairs,
+  });
+
+  final int burnActionsConsidered;
+  final int producerActionsConsidered;
+  final int pairsConsidered;
+  final int pairsKept;
+  final List<({String burnId, String producerId, double score})> topPairs;
 }
 
 /// Gold bucket size for coarse state grouping.
@@ -1444,7 +1509,8 @@ MacroExpansionResult? _expandTrainConsumingSkillUntil(
   final produceSkill = produceAction_.skill;
   final currentProduceXp = state.skillState(produceSkill).xp;
 
-  // Time spent producing = produceActionsPerConsumeAction * produceTicksPerAction per cycle
+  // Time spent producing = produceActionsPerConsumeAction *
+  // produceTicksPerAction per cycle.
   // Number of cycles = ticksUntilStop / totalTicksPerCycle
   final numCycles = ticksUntilStop / totalTicksPerCycle;
   final totalProduceTicks =
@@ -1669,6 +1735,9 @@ int _estimateTicksForSingleWaitFor(
 /// Supports both [ReachGpGoal] (reach target GP) and [ReachSkillLevelGoal]
 /// (reach target skill level).
 ///
+/// If [collectDiagnostics] is true, collects extended diagnostic stats
+/// including heuristic health, bucket key uniqueness, and candidate stats.
+///
 /// Returns a [SolverResult] which is either [SolverSuccess] with the plan,
 /// or [SolverFailed] with failure information.
 SolverResult solve(
@@ -1676,6 +1745,7 @@ SolverResult solve(
   Goal goal, {
   int maxExpandedNodes = defaultMaxExpandedNodes,
   int maxQueueSize = defaultMaxQueueSize,
+  bool collectDiagnostics = false,
 }) {
   final profile = SolverProfile();
   final totalStopwatch = Stopwatch()..start();
@@ -1793,6 +1863,20 @@ SolverResult solve(
     expandedNodes++;
     var neighborsThisNode = 0;
 
+    // Track peak queue size for diagnostics
+    if (pq.length > profile.peakQueueSize) {
+      profile.peakQueueSize = pq.length;
+    }
+
+    // Collect heuristic health metrics when diagnostics enabled
+    if (collectDiagnostics) {
+      final bestRate = rateCache.getBestUnlockedRate(node.state);
+      final h = _heuristic(node.state, goal, rateCache);
+      profile
+        ..recordHeuristic(h, hasZeroRate: bestRate <= 0)
+        ..recordBucketKey(nodeKey);
+    }
+
     // Track best credits seen (effective credits = GP + inventory value)
     // Note: For non-GP goals this tracks GP anyway for diagnostics.
     final nodeEffectiveCredits = _effectiveCredits(node.state);
@@ -1820,8 +1904,26 @@ SolverResult solve(
 
     // Compute candidates for this state
     final enumStopwatch = Stopwatch()..start();
-    final candidates = enumerateCandidates(node.state, goal);
+    final candidates = enumerateCandidates(
+      node.state,
+      goal,
+      collectStats: collectDiagnostics,
+    );
     profile.enumerateCandidatesTimeUs += enumStopwatch.elapsedMicroseconds;
+
+    // Record candidate stats when diagnostics enabled
+    if (collectDiagnostics && candidates.consumingSkillStats != null) {
+      final stats = candidates.consumingSkillStats!;
+      profile.candidateStatsHistory.add(
+        CandidateStats(
+          burnActionsConsidered: stats.burnActionsConsidered,
+          producerActionsConsidered: stats.producerActionsConsidered,
+          pairsConsidered: stats.pairsConsidered,
+          pairsKept: stats.pairsKept,
+          topPairs: stats.topPairs,
+        ),
+      );
+    }
 
     // Expand interaction edges (0 time cost)
     final interactions = availableInteractions(node.state);

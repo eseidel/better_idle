@@ -119,6 +119,7 @@ class Candidates {
     required this.includeSellAll,
     required this.watch,
     required this.macros,
+    this.consumingSkillStats,
   });
 
   /// Top-K unlocked activities to consider switching to.
@@ -135,6 +136,9 @@ class Candidates {
 
   /// Macro-level candidates (train skill until boundary).
   final List<MacroCandidate> macros;
+
+  /// Stats from consuming skill candidate selection (if collected).
+  final ConsumingSkillCandidateStats? consumingSkillStats;
 }
 
 /// Builds action summaries for all skill actions.
@@ -322,6 +326,8 @@ List<MacroCandidate> _generateMacros(GlobalState state, Goal goal) {
 /// Activities are ranked by progress rate toward the [goal].
 /// For [ReachGpGoal], this is gold/tick. For [ReachSkillLevelGoal],
 /// this is XP/tick for the target skill.
+///
+/// If [collectStats] is true, populates diagnostic stats for consuming skills.
 Candidates enumerateCandidates(
   GlobalState state,
   Goal goal, {
@@ -329,6 +335,7 @@ Candidates enumerateCandidates(
   int upgradeCount = defaultUpgradeCandidateCount,
   int lockedWatchCount = defaultLockedWatchCount,
   double inventoryThreshold = defaultInventoryThreshold,
+  bool collectStats = false,
 }) {
   final summaries = buildActionSummaries(state);
 
@@ -341,15 +348,26 @@ Candidates enumerateCandidates(
 
   // Select unlocked activity candidates
   // For consuming skills, use strict pruning to avoid near-tie explosion
-  final switchToActivities =
-      (goal is ReachSkillLevelGoal && goal.skill.isConsuming)
-      ? _selectConsumingSkillCandidates(summaries, state, goal.skill)
-      : _selectUnlockedActivitiesByRanking(
-          summaries,
-          state,
-          activityCount,
-          rankingFn,
-        );
+  List<ActionId> switchToActivities;
+  ConsumingSkillCandidateStats? consumingStats;
+
+  if (goal is ReachSkillLevelGoal && goal.skill.isConsuming) {
+    final result = _selectConsumingSkillCandidatesWithStats(
+      summaries,
+      state,
+      goal.skill,
+      collectStats: collectStats,
+    );
+    switchToActivities = result.candidates;
+    consumingStats = result.stats;
+  } else {
+    switchToActivities = _selectUnlockedActivitiesByRanking(
+      summaries,
+      state,
+      activityCount,
+      rankingFn,
+    );
+  }
 
   // Select locked activities to watch (top L by smallest unlockDeltaTicks)
   // Only watch activities for skills relevant to the goal
@@ -413,6 +431,7 @@ Candidates enumerateCandidates(
       inventory: includeSellAll,
     ),
     macros: macros,
+    consumingSkillStats: consumingStats,
   );
 }
 
@@ -445,6 +464,31 @@ List<ActionSummary> _findProducersForItem(
   return producers;
 }
 
+/// Stats from consuming skill candidate selection.
+class ConsumingSkillCandidateStats {
+  ConsumingSkillCandidateStats({
+    required this.burnActionsConsidered,
+    required this.producerActionsConsidered,
+    required this.pairsConsidered,
+    required this.pairsKept,
+    required this.topPairs,
+  });
+
+  final int burnActionsConsidered;
+  final int producerActionsConsidered;
+  final int pairsConsidered;
+  final int pairsKept;
+  final List<({String burnId, String producerId, double score})> topPairs;
+}
+
+/// Result of consuming skill candidate selection.
+class _ConsumingSkillResult {
+  _ConsumingSkillResult({required this.candidates, this.stats});
+
+  final List<ActionId> candidates;
+  final ConsumingSkillCandidateStats? stats;
+}
+
 /// Strict pruning for consuming skills.
 ///
 /// For consuming skills (e.g., Firemaking), we need to avoid the "near-tie
@@ -456,11 +500,13 @@ List<ActionSummary> _findProducersForItem(
 /// - Applies tie-breaking: sustainable XP/tick > fewer switches > has fuel
 ///
 /// Returns a list of activity IDs to consider as switch-to candidates.
-List<ActionId> _selectConsumingSkillCandidates(
+/// If [collectStats] is true, also returns diagnostic stats.
+_ConsumingSkillResult _selectConsumingSkillCandidatesWithStats(
   List<ActionSummary> summaries,
   GlobalState state,
   Skill consumingSkill, {
   int maxBurnActions = 2,
+  bool collectStats = false,
 }) {
   final registries = state.registries;
   final currentActionId = state.activeAction?.id;
@@ -476,7 +522,24 @@ List<ActionId> _selectConsumingSkillCandidates(
       )
       .toList();
 
-  if (burnActions.isEmpty) return [];
+  if (burnActions.isEmpty) {
+    return _ConsumingSkillResult(
+      candidates: [],
+      stats: collectStats
+          ? ConsumingSkillCandidateStats(
+              burnActionsConsidered: 0,
+              producerActionsConsidered: 0,
+              pairsConsidered: 0,
+              pairsKept: 0,
+              topPairs: [],
+            )
+          : null,
+    );
+  }
+
+  // Track stats
+  var producerActionsConsidered = 0;
+  var pairsConsidered = 0;
 
   // Calculate sustainable XP/tick for each burn action
   final burnWithRates =
@@ -496,6 +559,9 @@ List<ActionId> _selectConsumingSkillCandidates(
     // Find best producer for this input
     final producers = _findProducersForItem(summaries, state, inputItem);
     if (producers.isEmpty) continue;
+
+    producerActionsConsidered += producers.length;
+    pairsConsidered += producers.length; // Each producer forms a pair
 
     // Best producer is the one with highest output/tick
     producers.sort((a, b) {
@@ -563,7 +629,29 @@ List<ActionId> _selectConsumingSkillCandidates(
     }
   }
 
-  return result;
+  // Build stats if requested
+  ConsumingSkillCandidateStats? stats;
+  if (collectStats) {
+    final topPairs = selectedBurns
+        .map(
+          (e) => (
+            burnId: e.burn.actionId.localId.name,
+            producerId: e.producer?.actionId.localId.name ?? 'none',
+            score: e.sustainableXpPerTick,
+          ),
+        )
+        .toList();
+
+    stats = ConsumingSkillCandidateStats(
+      burnActionsConsidered: burnActions.length,
+      producerActionsConsidered: producerActionsConsidered,
+      pairsConsidered: pairsConsidered,
+      pairsKept: selectedBurns.length,
+      topPairs: topPairs,
+    );
+  }
+
+  return _ConsumingSkillResult(candidates: result, stats: stats);
 }
 
 /// Selects top K unlocked activities by a custom ranking function.
