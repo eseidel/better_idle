@@ -31,6 +31,7 @@ import 'package:logic/src/data/melvor_id.dart';
 import 'package:logic/src/data/xp.dart';
 import 'package:logic/src/solver/goal.dart';
 import 'package:logic/src/solver/macro_candidate.dart';
+import 'package:logic/src/solver/unlock_boundaries.dart';
 import 'package:logic/src/state.dart';
 import 'package:logic/src/tick.dart';
 import 'package:logic/src/types/stunned.dart';
@@ -287,12 +288,22 @@ List<MacroCandidate> _generateMacros(GlobalState state, Goal goal) {
   // For ReachSkillLevelGoal, generate macros for the target skill
   if (goal is ReachSkillLevelGoal) {
     if (!goal.isSatisfied(state)) {
-      // Build watched stops: always watch for goal completion
-      final watchedStops = <MacroStopRule>[
-        StopAtGoal(goal.skill, goal.targetXp),
-      ];
+      // Determine primary stop: use goal if closer than next boundary,
+      // otherwise use boundary
+      final currentLevel = state.skillState(goal.skill).skillLevel;
+      final boundaries = computeUnlockBoundaries(state.registries);
+      final nextBoundary = boundaries[goal.skill]?.nextBoundary(currentLevel);
 
-      // For consuming skills, also watch for input depletion
+      // Use goal as primary if no boundary or goal is at/before boundary
+      final primaryStop =
+          nextBoundary == null || goal.targetLevel <= nextBoundary
+              ? StopAtGoal(goal.skill, goal.targetXp)
+              : StopAtNextBoundary(goal.skill);
+
+      // Build watched stops for consuming skills
+      final watchedStops = <MacroStopRule>[];
+
+      // For consuming skills, watch for input depletion
       // This ensures macro stops when inputs run out, allowing solver to
       // switch back to producer skill
       if (goal.skill.isConsuming) {
@@ -318,11 +329,11 @@ List<MacroCandidate> _generateMacros(GlobalState state, Goal goal) {
         }
       }
 
-      // Primary macro: train until next boundary, watching for goal + inputs
+      // Create macro: primary stop is closer of (boundary, goal)
       macros.add(
         TrainSkillUntil(
           goal.skill,
-          StopAtNextBoundary(goal.skill),
+          primaryStop,
           watchedStops: watchedStops,
         ),
       );
