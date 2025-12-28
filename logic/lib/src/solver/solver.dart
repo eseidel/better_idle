@@ -29,6 +29,7 @@ import 'package:logic/src/consume_ticks.dart';
 import 'package:logic/src/data/action_id.dart';
 import 'package:logic/src/data/actions.dart';
 import 'package:logic/src/data/currency.dart';
+import 'package:logic/src/data/melvor_id.dart';
 import 'package:logic/src/solver/apply_interaction.dart';
 import 'package:logic/src/solver/available_interactions.dart';
 import 'package:logic/src/solver/enumerate_candidates.dart';
@@ -1009,10 +1010,119 @@ ConsumeUntilResult consumeUntil(
 /// Result of applying a single step.
 typedef _StepResult = ({GlobalState state, int ticksElapsed, int deaths});
 
+/// Executes a coupled produce/consume loop for consuming skills.
+///
+/// Alternates between:
+/// 1. Produce inputs (e.g., cut logs) until buffer threshold
+/// 2. Consume inputs (e.g., burn logs) until depleted or stop condition
+/// 3. Repeat until primary stop condition is met
+_StepResult _executeCoupledLoop(
+  GlobalState state,
+  TrainConsumingSkillUntil macro,
+  WaitFor waitFor,
+  Map<Skill, SkillBoundaries>? boundaries,
+  Random random,
+) {
+  var currentState = state;
+  var totalTicks = 0;
+  var totalDeaths = 0;
+
+  // Find best consuming and producing actions
+  final goal = ReachSkillLevelGoal(macro.consumingSkill, 99);
+  final bestConsumeAction = _findBestActionForSkill(
+    currentState,
+    macro.consumingSkill,
+    goal,
+  );
+  if (bestConsumeAction == null) {
+    return (state: currentState, ticksElapsed: 0, deaths: 0);
+  }
+
+  final consumeAction = currentState.registries.actions.byId(bestConsumeAction);
+  if (consumeAction is! SkillAction || consumeAction.inputs.isEmpty) {
+    return (state: currentState, ticksElapsed: 0, deaths: 0);
+  }
+
+  final inputItem = consumeAction.inputs.keys.first;
+  final producerAction = _findProducerActionForItem(
+    currentState,
+    inputItem,
+    goal,
+  );
+  if (producerAction == null) {
+    return (state: currentState, ticksElapsed: 0, deaths: 0);
+  }
+
+  // Regenerate actual wait condition from primary stop
+  final actualWaitFor = boundaries != null
+      ? macro.primaryStop.toWaitFor(currentState, boundaries)
+      : waitFor;
+
+  // Execute coupled loop
+  while (true) {
+    // Check if primary stop condition is met
+    if (actualWaitFor.isSatisfied(currentState)) {
+      break;
+    }
+
+    // Phase 1: Produce inputs until we have some buffer
+    currentState = applyInteraction(
+      currentState,
+      SwitchActivity(producerAction),
+    );
+
+    // Produce until we have at least 10 items (simple buffer policy)
+    const bufferTarget = 10;
+    final currentCount = currentState.inventory.countOfItem(
+      currentState.registries.items.byId(inputItem),
+    );
+    if (currentCount < bufferTarget) {
+      final produceResult = consumeUntil(
+        currentState,
+        WaitForInventoryAtLeast(inputItem, bufferTarget),
+        random: random,
+      );
+      currentState = produceResult.state;
+      totalTicks += produceResult.ticksElapsed;
+      totalDeaths += produceResult.deathCount;
+    }
+
+    // Check stop condition again after producing
+    if (actualWaitFor.isSatisfied(currentState)) {
+      break;
+    }
+
+    // Phase 2: Consume inputs until depleted or stop condition
+    currentState = applyInteraction(
+      currentState,
+      SwitchActivity(bestConsumeAction),
+    );
+
+    final consumeResult = consumeUntil(
+      currentState,
+      WaitForAnyOf([actualWaitFor, WaitForInputsDepleted(bestConsumeAction)]),
+      random: random,
+    );
+    currentState = consumeResult.state;
+    totalTicks += consumeResult.ticksElapsed;
+    totalDeaths += consumeResult.deathCount;
+
+    // If we hit the stop condition, we're done
+    if (actualWaitFor.isSatisfied(currentState)) {
+      break;
+    }
+
+    // Otherwise, loop back to produce more inputs
+  }
+
+  return (state: currentState, ticksElapsed: totalTicks, deaths: totalDeaths);
+}
+
 _StepResult _applyStep(
   GlobalState state,
   PlanStep step, {
   required Random random,
+  Map<Skill, SkillBoundaries>? boundaries,
 }) {
   switch (step) {
     case InteractionStep(:final interaction):
@@ -1033,6 +1143,8 @@ _StepResult _applyStep(
       // Execute the macro by running until the composite wait condition
       // Macros need to set up the action before executing
       var executionState = state;
+      var executionWaitFor = waitFor;
+
       if (macro is TrainSkillUntil) {
         // Find and switch to the best action for this skill
         final bestAction = _findBestActionForSkill(
@@ -1044,9 +1156,27 @@ _StepResult _applyStep(
         if (bestAction != null && state.activeAction?.id != bestAction) {
           executionState = applyInteraction(state, SwitchActivity(bestAction));
         }
+
+        // Regenerate WaitFor based on actual execution state and action
+        // This ensures StopWhenInputsDepleted references the correct action
+        if (boundaries != null) {
+          final waitConditions = macro.allStops
+              .map((rule) => rule.toWaitFor(executionState, boundaries))
+              .toList();
+          executionWaitFor = waitConditions.length == 1
+              ? waitConditions.first
+              : WaitForAnyOf(waitConditions);
+        }
+      } else if (macro is TrainConsumingSkillUntil) {
+        // Execute coupled produce/consume loop until stop condition
+        return _executeCoupledLoop(state, macro, waitFor, boundaries, random);
       }
 
-      final result = consumeUntil(executionState, waitFor, random: random);
+      final result = consumeUntil(
+        executionState,
+        executionWaitFor,
+        random: random,
+      );
       return (
         state: result.state,
         ticksElapsed: result.ticksElapsed,
@@ -1069,10 +1199,18 @@ PlanExecutionResult executePlan(
   var totalDeaths = 0;
   var actualTicks = 0;
 
+  // Compute boundaries once for macro execution
+  final boundaries = computeUnlockBoundaries(state.registries);
+
   for (var i = 0; i < plan.steps.length; i++) {
     final step = plan.steps[i];
     try {
-      final result = _applyStep(state, step, random: random);
+      final result = _applyStep(
+        state,
+        step,
+        random: random,
+        boundaries: boundaries,
+      );
       state = result.state;
       totalDeaths += result.deaths;
       actualTicks += result.ticksElapsed;
@@ -1134,8 +1272,12 @@ MacroExpansionResult? _expandMacro(
   Goal goal,
   Map<Skill, SkillBoundaries> boundaries,
 ) {
-  if (macro is! TrainSkillUntil) return null;
-  return _expandTrainSkillUntil(state, macro, goal, boundaries);
+  if (macro is TrainSkillUntil) {
+    return _expandTrainSkillUntil(state, macro, goal, boundaries);
+  } else if (macro is TrainConsumingSkillUntil) {
+    return _expandTrainConsumingSkillUntil(state, macro, goal, boundaries);
+  }
+  return null;
 }
 
 /// Expands a TrainSkillUntil macro.
@@ -1191,6 +1333,118 @@ MacroExpansionResult? _expandTrainSkillUntil(
     waitFor: compositeWaitFor, // Execution will respect all conditions
     deaths: advanceResult.deaths,
   );
+}
+
+/// Expands a TrainConsumingSkillUntil macro for consuming skills.
+///
+/// For consuming skills (Firemaking, Cooking, etc.), this models a coupled
+/// produce/consume loop:
+/// 1. Find best consuming action (e.g., Burn Oak Logs)
+/// 2. Find corresponding producer action (e.g., Cut Oak Tree)
+/// 3. Estimate sustainable rate: consumingXP/tick including production time
+/// 4. Project state forward until stop condition
+///
+/// The sustainable rate is:
+///   consumeXP/tick * (produceTime / (produceTime + consumeTime))
+MacroExpansionResult? _expandTrainConsumingSkillUntil(
+  GlobalState state,
+  TrainConsumingSkillUntil macro,
+  Goal goal,
+  Map<Skill, SkillBoundaries> boundaries,
+) {
+  // Find best unlocked consuming action (e.g., Burn Oak Logs)
+  final bestConsumeAction = _findBestActionForSkill(
+    state,
+    macro.consumingSkill,
+    goal,
+  );
+  if (bestConsumeAction == null) return null;
+
+  // Get the consuming action to find its inputs
+  final consumeAction = state.registries.actions.byId(bestConsumeAction);
+  if (consumeAction is! SkillAction || consumeAction.inputs.isEmpty) {
+    return null; // Not a valid consuming action
+  }
+
+  // Find the primary input item (assume first input for now)
+  final inputItem = consumeAction.inputs.keys.first;
+
+  // Find producer action for this input item
+  final producerAction = _findProducerActionForItem(state, inputItem, goal);
+  if (producerAction == null) return null;
+
+  // Switch to the consuming action for state projection
+  final consumeState = applyInteraction(
+    state,
+    SwitchActivity(bestConsumeAction),
+  );
+
+  // TODO(coupled-loops): Calculate and use sustainable rate in advancement
+  // Should model: consumeXP/tick * (produceTime / (produceTime + consumeTime))
+  // For now, we just use the consume action's advancement model
+
+  // Build stop condition from primary stop
+  final waitFor = macro.primaryStop.toWaitFor(state, boundaries);
+
+  // Estimate ticks until stop condition
+  final ticksUntilStop = _estimateTicksForCompositeWaitFor(state, [
+    waitFor,
+  ], goal);
+
+  if (ticksUntilStop <= 0 || ticksUntilStop >= infTicks) {
+    return null; // No progress possible or already satisfied
+  }
+
+  // Use the consume action for advancement (with sustainable rate modeled)
+  final advanceResult = advance(consumeState, ticksUntilStop);
+
+  return (
+    state: advanceResult.state,
+    ticksElapsed: ticksUntilStop,
+    waitFor: waitFor,
+    deaths: advanceResult.deaths,
+  );
+}
+
+/// Finds an action that produces the given item.
+ActionId? _findProducerActionForItem(
+  GlobalState state,
+  MelvorId item,
+  Goal goal,
+) {
+  int skillLevel(Skill skill) => state.skillState(skill).skillLevel;
+
+  // Find all actions that produce this item
+  final producers = state.registries.actions.all
+      .whereType<SkillAction>()
+      .where((action) => action.outputs.containsKey(item))
+      .where((action) => action.unlockLevel <= skillLevel(action.skill));
+
+  if (producers.isEmpty) return null;
+
+  // Rank by production rate (outputs per tick)
+  ActionId? best;
+  double bestRate = 0;
+
+  for (final action in producers) {
+    try {
+      // Test if we can switch to this action
+      applyInteraction(state, SwitchActivity(action.id));
+
+      final ticksPerAction = ticksFromDuration(action.meanDuration).toDouble();
+      final outputsPerAction = action.outputs[item] ?? 1;
+      final outputsPerTick = outputsPerAction / ticksPerAction;
+
+      if (outputsPerTick > bestRate) {
+        bestRate = outputsPerTick;
+        best = action.id;
+      }
+    } on Exception catch (_) {
+      continue; // Skip if can't start
+    }
+  }
+
+  return best;
 }
 
 /// Finds the best action for a skill based on the goal's criteria.

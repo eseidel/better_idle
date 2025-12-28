@@ -297,46 +297,16 @@ List<MacroCandidate> _generateMacros(GlobalState state, Goal goal) {
       // Use goal as primary if no boundary or goal is at/before boundary
       final primaryStop =
           nextBoundary == null || goal.targetLevel <= nextBoundary
-              ? StopAtGoal(goal.skill, goal.targetXp)
-              : StopAtNextBoundary(goal.skill);
+          ? StopAtGoal(goal.skill, goal.targetXp)
+          : StopAtNextBoundary(goal.skill);
 
-      // Build watched stops for consuming skills
-      final watchedStops = <MacroStopRule>[];
-
-      // For consuming skills, watch for input depletion
-      // This ensures macro stops when inputs run out, allowing solver to
-      // switch back to producer skill
+      // For consuming skills, use coupled produce/consume macro
       if (goal.skill.isConsuming) {
-        // Find the best action for this skill to determine what inputs to watch
-        final skillLevel = state.skillState(goal.skill).skillLevel;
-        final actions = state.registries.actions.all
-            .whereType<SkillAction>()
-            .where((action) => action.skill == goal.skill)
-            .where((action) => action.unlockLevel <= skillLevel);
-
-        // Use the first startable action, or first unlocked action if none startable
-        SkillAction? actionToWatch;
-        for (final action in actions) {
-          if (state.canStartAction(action)) {
-            actionToWatch = action;
-            break;
-          }
-        }
-        actionToWatch ??= actions.firstOrNull;
-
-        if (actionToWatch != null) {
-          watchedStops.add(StopWhenInputsDepleted(actionToWatch.id));
-        }
+        macros.add(TrainConsumingSkillUntil(goal.skill, primaryStop));
+      } else {
+        // For non-consuming skills, use simple train macro
+        macros.add(TrainSkillUntil(goal.skill, primaryStop));
       }
-
-      // Create macro: primary stop is closer of (boundary, goal)
-      macros.add(
-        TrainSkillUntil(
-          goal.skill,
-          primaryStop,
-          watchedStops: watchedStops,
-        ),
-      );
     }
   }
 

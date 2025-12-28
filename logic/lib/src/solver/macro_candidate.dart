@@ -4,7 +4,6 @@
 /// many ticks, reducing the solver's branching factor and state explosion.
 library;
 
-import 'package:logic/src/data/action_id.dart';
 import 'package:logic/src/data/actions.dart';
 import 'package:logic/src/data/melvor_id.dart';
 import 'package:logic/src/data/xp.dart';
@@ -38,6 +37,33 @@ class TrainSkillUntil extends MacroCandidate {
 
   /// Additional stop conditions to watch (upgrades, inputs, etc.).
   /// Macro stops when ANY condition (primary OR watched) triggers.
+  final List<MacroStopRule> watchedStops;
+
+  /// All stop conditions (primary + watched).
+  List<MacroStopRule> get allStops => [primaryStop, ...watchedStops];
+}
+
+/// Train a consuming skill via coupled produce/consume loops.
+///
+/// For consuming skills (Firemaking, Cooking), this macro alternates:
+/// 1. Produce inputs (e.g., cut logs) until buffer threshold
+/// 2. Consume inputs (e.g., burn logs) until depleted
+/// 3. Repeat until stop condition
+///
+/// This models the sustainable rate: consumingXP/tick = (consumeRate * produceTime) / (produceTime + consumeTime)
+class TrainConsumingSkillUntil extends MacroCandidate {
+  const TrainConsumingSkillUntil(
+    this.consumingSkill,
+    this.primaryStop, {
+    this.watchedStops = const [],
+  });
+
+  final Skill consumingSkill;
+
+  /// Primary stop condition (usually boundary or goal).
+  final MacroStopRule primaryStop;
+
+  /// Additional stop conditions to watch (upgrades, etc.).
   final List<MacroStopRule> watchedStops;
 
   /// All stop conditions (primary + watched).
@@ -107,13 +133,22 @@ class StopWhenUpgradeAffordable extends MacroStopRule {
 ///
 /// This ensures the macro doesn't continue when there are no logs/fish to
 /// consume, allowing the solver to switch to a producer action.
+///
+/// Note: This uses the active action from the state at toWaitFor() time,
+/// not a fixed action ID, to handle cases where the best action changes
+/// (e.g., Normal Logs -> Oak Logs as Firemaking level increases).
 class StopWhenInputsDepleted extends MacroStopRule {
-  const StopWhenInputsDepleted(this.actionId);
-
-  final ActionId actionId;
+  const StopWhenInputsDepleted();
 
   @override
   WaitFor toWaitFor(GlobalState state, Map<Skill, SkillBoundaries> boundaries) {
-    return WaitForInputsDepleted(actionId);
+    // Use the currently active action, which may have changed since planning
+    final activeActionId = state.activeAction?.id;
+    if (activeActionId == null) {
+      // No active action - this should never happen during macro execution
+      // but return a no-op condition as fallback
+      throw StateError('StopWhenInputsDepleted called with no active action');
+    }
+    return WaitForInputsDepleted(activeActionId);
   }
 }
