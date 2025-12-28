@@ -30,6 +30,7 @@ import 'package:logic/src/data/actions.dart';
 import 'package:logic/src/data/melvor_id.dart';
 import 'package:logic/src/data/xp.dart';
 import 'package:logic/src/solver/goal.dart';
+import 'package:logic/src/solver/macro_candidate.dart';
 import 'package:logic/src/state.dart';
 import 'package:logic/src/tick.dart';
 import 'package:logic/src/types/stunned.dart';
@@ -116,6 +117,7 @@ class Candidates {
     required this.buyUpgrades,
     required this.includeSellAll,
     required this.watch,
+    required this.macros,
   });
 
   /// Top-K unlocked activities to consider switching to.
@@ -129,6 +131,9 @@ class Candidates {
 
   /// Events to watch for "wait until interesting time".
   final WatchList watch;
+
+  /// Macro-level candidates (train skill until boundary).
+  final List<MacroCandidate> macros;
 }
 
 /// Builds action summaries for all skill actions.
@@ -253,6 +258,51 @@ List<ActionSummary> buildActionSummaries(GlobalState state) {
 
 /// Enumerates candidate interactions for the planner.
 ///
+/// Generates macro candidates for goal-relevant skills.
+///
+/// For each skill relevant to the goal:
+/// - Creates TrainSkillUntil macros with primaryStop = StopAtNextBoundary
+/// - If skill has a goal target, also creates macro with primaryStop = StopAtGoal
+/// - Adds watchedStops for competitive upgrades (future extension)
+List<MacroCandidate> _generateMacros(GlobalState state, Goal goal) {
+  final macros = <MacroCandidate>[];
+
+  // For MultiSkillGoal, generate macros for each subgoal
+  if (goal is MultiSkillGoal) {
+    for (final subgoal in goal.subgoals) {
+      if (subgoal.isSatisfied(state)) continue;
+
+      // Primary macro: train until next boundary
+      macros.add(
+        TrainSkillUntil(
+          subgoal.skill,
+          StopAtNextBoundary(subgoal.skill),
+          watchedStops: [StopAtGoal(subgoal.skill, subgoal.targetXp)],
+        ),
+      );
+    }
+  }
+
+  // For ReachSkillLevelGoal, generate macros for the target skill
+  if (goal is ReachSkillLevelGoal) {
+    if (!goal.isSatisfied(state)) {
+      // Primary macro: train until next boundary, watching for goal
+      macros.add(
+        TrainSkillUntil(
+          goal.skill,
+          StopAtNextBoundary(goal.skill),
+          watchedStops: [StopAtGoal(goal.skill, goal.targetXp)],
+        ),
+      );
+    }
+  }
+
+  // For ReachGpGoal, we don't generate macros (use micro-steps instead)
+  // GP goals benefit from frequent re-evaluation for upgrade purchases
+
+  return macros;
+}
+
 /// Returns a small, cheap, deterministic set of candidate interactions
 /// and future "interesting times". Does NOT simulate.
 ///
@@ -268,6 +318,9 @@ Candidates enumerateCandidates(
   double inventoryThreshold = defaultInventoryThreshold,
 }) {
   final summaries = buildActionSummaries(state);
+
+  // Generate macro candidates for skill goals
+  final macros = _generateMacros(state, goal);
 
   // Ranking function uses goal's activityRate to determine value
   double rankingFn(ActionSummary s) =>
@@ -342,6 +395,7 @@ Candidates enumerateCandidates(
       consumingActivityIds: consumingActivitiesToWatch,
       inventory: includeSellAll,
     ),
+    macros: macros,
   );
 }
 

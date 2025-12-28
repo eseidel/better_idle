@@ -1029,6 +1029,14 @@ _StepResult _applyStep(
         ticksElapsed: result.ticksElapsed,
         deaths: result.deathCount,
       );
+    case MacroStep(:final waitFor):
+      // Execute the macro by running until the composite wait condition
+      final result = consumeUntil(state, waitFor, random: random);
+      return (
+        state: result.state,
+        ticksElapsed: result.ticksElapsed,
+        deaths: result.deathCount,
+      );
   }
 }
 
@@ -1149,8 +1157,11 @@ MacroExpansionResult? _expandTrainSkillUntil(
       : WaitForAnyOf(waitConditions);
 
   // Estimate ticks until ANY stop condition triggers (use minimum)
-  final ticksUntilStop =
-      _estimateTicksForCompositeWaitFor(currentState, waitConditions, goal);
+  final ticksUntilStop = _estimateTicksForCompositeWaitFor(
+    currentState,
+    waitConditions,
+    goal,
+  );
 
   if (ticksUntilStop <= 0 || ticksUntilStop >= infTicks) {
     return null; // No progress possible or already satisfied
@@ -1171,11 +1182,7 @@ MacroExpansionResult? _expandTrainSkillUntil(
 ///
 /// For skill goals, picks the action with highest XP rate.
 /// For GP goals, picks the action with highest gold rate.
-ActionId? _findBestActionForSkill(
-  GlobalState state,
-  Skill skill,
-  Goal goal,
-) {
+ActionId? _findBestActionForSkill(GlobalState state, Skill skill, Goal goal) {
   final skillLevel = state.skillState(skill).skillLevel;
   final actions = state.registries.actions.all
       .whereType<SkillAction>()
@@ -1329,6 +1336,9 @@ SolverResult solve(
   if (goal.isSatisfied(initial)) {
     return SolverSuccess(const Plan.empty(), profile);
   }
+
+  // Compute unlock boundaries for macro-step planning
+  final boundaries = computeUnlockBoundaries(initial.registries);
 
   // Rate cache for A* heuristic (caches best unlocked rate by state)
   final rateCache = _RateCache(goal);
@@ -1514,6 +1524,79 @@ SolverResult solve(
       } on Exception catch (_) {
         // Interaction failed (e.g., can't afford upgrade) - skip
         continue;
+      }
+    }
+
+    // Expand macro edges (train skill until boundary/goal)
+    for (final macro in candidates.macros) {
+      final expansionResult = _expandMacro(node.state, macro, goal, boundaries);
+      if (expansionResult == null) continue;
+
+      final newState = expansionResult.state;
+      final newDeaths = node.expectedDeaths + expansionResult.deaths;
+      final newTicks = node.ticks + expansionResult.ticksElapsed;
+      final newProgress = goal.progress(newState);
+      final newBucketKey = _bucketKeyFromState(newState, goal);
+
+      // Check if we've reached the goal
+      final reachedGoal = goal.isSatisfied(newState);
+
+      // Dominance pruning: skip if dominated unless we reached the goal
+      if (!reachedGoal &&
+          frontier.isDominatedOrInsert(newBucketKey, newTicks, newProgress)) {
+        profile.dominatedSkipped++;
+        continue;
+      }
+
+      // Add to frontier if reached goal
+      if (reachedGoal) {
+        frontier.isDominatedOrInsert(newBucketKey, newTicks, newProgress);
+      }
+
+      hashStopwatch
+        ..reset()
+        ..start();
+      final newKey = _stateKey(newState, goal);
+      profile.hashingTimeUs += hashStopwatch.elapsedMicroseconds;
+
+      // Only enqueue if this is the best path to this state
+      final existingBest = bestTicks[newKey];
+      if (existingBest == null || newTicks < existingBest) {
+        bestTicks[newKey] = newTicks;
+
+        final newNode = _Node(
+          state: newState,
+          ticks: newTicks,
+          interactions: node.interactions,
+          expectedDeaths: newDeaths,
+          parentId: nodeId,
+          stepFromParent: MacroStep(
+            macro,
+            expansionResult.ticksElapsed,
+            expansionResult.waitFor,
+          ),
+        );
+
+        final newNodeId = nodes.length;
+        nodes.add(newNode);
+
+        if (reachedGoal) {
+          // Found goal via macro - return immediately
+          totalStopwatch.stop();
+          profile
+            ..expandedNodes = expandedNodes
+            ..totalTimeUs = totalStopwatch.elapsedMicroseconds
+            ..frontierInserted = frontier.inserted
+            ..frontierRemoved = frontier.removed;
+          return SolverSuccess(
+            _reconstructPlan(nodes, newNodeId, expandedNodes, enqueuedNodes),
+            profile,
+          );
+        }
+
+        pq.add(newNodeId);
+        enqueuedNodes++;
+        neighborsThisNode++;
       }
     }
 

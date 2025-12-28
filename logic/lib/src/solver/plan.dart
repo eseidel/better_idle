@@ -24,6 +24,7 @@ import 'package:logic/src/data/actions.dart';
 import 'package:logic/src/data/melvor_id.dart';
 import 'package:logic/src/solver/goal.dart';
 import 'package:logic/src/solver/interaction.dart';
+import 'package:logic/src/solver/macro_candidate.dart';
 import 'package:logic/src/solver/solver.dart';
 import 'package:logic/src/state.dart';
 import 'package:logic/src/tick.dart';
@@ -412,6 +413,38 @@ class WaitStep extends PlanStep {
   String toString() => 'WaitStep($deltaTicks ticks, ${waitFor.describe()})';
 }
 
+/// A step that represents executing a macro (train skill until boundary/goal).
+///
+/// Macros are high-level planning primitives that span many ticks and
+/// automatically select the best action for a skill. During execution,
+/// the macro is expanded into concrete interactions and waits.
+@immutable
+class MacroStep extends PlanStep {
+  const MacroStep(this.macro, this.deltaTicks, this.waitFor);
+
+  /// The macro candidate that was expanded.
+  final MacroCandidate macro;
+
+  /// Expected ticks for this macro (from planning).
+  final int deltaTicks;
+
+  /// Composite wait condition (AnyOf the macro's stop conditions).
+  final WaitFor waitFor;
+
+  @override
+  List<Object?> get props => [macro, deltaTicks, waitFor];
+
+  @override
+  String toString() {
+    if (macro is TrainSkillUntil) {
+      final m = macro as TrainSkillUntil;
+      return 'MacroStep(Train ${m.skill.name} for $deltaTicks ticks, '
+          '${waitFor.describe()})';
+    }
+    return 'MacroStep($macro, $deltaTicks ticks, ${waitFor.describe()})';
+  }
+}
+
 /// The result of running the solver.
 @immutable
 class Plan {
@@ -505,6 +538,10 @@ class Plan {
           } else {
             compressed.add(step);
           }
+
+        case MacroStep():
+          // Macros are kept as-is, no compression
+          compressed.add(step);
       }
     }
 
@@ -555,7 +592,18 @@ class Plan {
       WaitStep(:final deltaTicks, :final waitFor) =>
         'Wait ${_formatDuration(durationFromTicks(deltaTicks))} '
             '-> ${waitFor.shortDescription}',
+      MacroStep(:final macro, :final deltaTicks, :final waitFor) =>
+        'Macro: ${_formatMacro(macro)} '
+            '(${_formatDuration(durationFromTicks(deltaTicks))}) '
+            '-> ${waitFor.shortDescription}',
     };
+  }
+
+  String _formatMacro(MacroCandidate macro) {
+    if (macro case TrainSkillUntil(:final skill)) {
+      return 'Train ${skill.name}';
+    }
+    return macro.toString();
   }
 
   String _formatDuration(Duration d) {
