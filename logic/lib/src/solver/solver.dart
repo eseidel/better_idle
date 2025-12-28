@@ -1681,11 +1681,8 @@ MacroExpansionResult? _expandTrainSkillUntil(
       : WaitForAnyOf(waitConditions);
 
   // Estimate ticks until ANY stop condition triggers (use minimum)
-  final ticksUntilStop = _estimateTicksForCompositeWaitFor(
-    currentState,
-    waitConditions,
-    goal,
-  );
+  final rates = estimateRates(currentState);
+  final ticksUntilStop = compositeWaitFor.estimateTicks(currentState, rates);
 
   if (ticksUntilStop <= 0 || ticksUntilStop >= infTicks) {
     return null; // No progress possible or already satisfied
@@ -1789,10 +1786,9 @@ MacroExpansionResult? _expandTrainConsumingSkillUntil(
     if (xpNeeded <= 0) return null; // Already satisfied
     ticksUntilStop = (xpNeeded / sustainableXpPerTick).ceil();
   } else {
-    // For other stop conditions, estimate using composite method then adjust
-    final estimatedTicks = _estimateTicksForCompositeWaitFor(consumeState, [
-      waitFor,
-    ], goal);
+    // For other stop conditions, estimate then adjust for sustainable rate
+    final consumeRates = estimateRates(consumeState);
+    final estimatedTicks = waitFor.estimateTicks(consumeState, consumeRates);
     if (estimatedTicks <= 0 || estimatedTicks >= infTicks) {
       return null;
     }
@@ -1928,105 +1924,6 @@ ActionId? _findBestActionForSkill(GlobalState state, Skill skill, Goal goal) {
   }
 
   return best;
-}
-
-/// Estimates ticks until ANY condition is satisfied (returns minimum).
-int _estimateTicksForCompositeWaitFor(
-  GlobalState state,
-  List<WaitFor> conditions,
-  Goal goal,
-) {
-  var minTicks = infTicks;
-
-  for (final condition in conditions) {
-    final ticks = _estimateTicksForSingleWaitFor(state, condition, goal);
-    if (ticks < minTicks) {
-      minTicks = ticks;
-    }
-  }
-
-  return minTicks;
-}
-
-/// Estimates ticks for a single WaitFor condition.
-int _estimateTicksForSingleWaitFor(
-  GlobalState state,
-  WaitFor condition,
-  Goal goal,
-) {
-  final rates = estimateRates(state);
-
-  switch (condition) {
-    case WaitForSkillXp(:final skill, :final targetXp):
-      final currentXp = state.skillState(skill).xp;
-      final needed = targetXp - currentXp;
-      if (needed <= 0) return 0;
-
-      final xpRate = rates.xpPerTickBySkill[skill] ?? 0.0;
-      if (xpRate <= 0) return infTicks;
-
-      return (needed / xpRate).ceil();
-
-    case WaitForInventoryValue(:final targetValue):
-      final currentValue = _effectiveCredits(state);
-      final needed = targetValue - currentValue;
-      if (needed <= 0) return 0;
-
-      final valueRate = defaultValueModel.valuePerTick(state, rates);
-      if (valueRate <= 0) return infTicks;
-
-      return (needed / valueRate).ceil();
-
-    case WaitForInputsDepleted(:final actionId):
-      // Estimate from current inventory / consumption rate
-      final action = state.registries.actions.byId(actionId);
-      if (action is! SkillAction) return infTicks;
-
-      final actionStateVal = state.actionState(action.id);
-      final selection = actionStateVal.recipeSelection(action);
-      final inputs = action.inputsForRecipe(selection);
-
-      if (inputs.isEmpty) return infTicks; // Non-consuming action
-
-      // Find minimum ticks based on available inputs
-      var minInputTicks = infTicks;
-      final actionDurationTicks =
-          action.minDuration.inMilliseconds ~/ msPerTick;
-
-      for (final entry in inputs.entries) {
-        final item = state.registries.items.byId(entry.key);
-        final available = state.inventory.countOfItem(item);
-        final consumedPerAction = entry.value;
-        final consumedPerTick =
-            consumedPerAction / actionDurationTicks.toDouble();
-
-        if (consumedPerTick > 0) {
-          final ticksUntilDepleted = (available / consumedPerTick).floor();
-          if (ticksUntilDepleted < minInputTicks) {
-            minInputTicks = ticksUntilDepleted;
-          }
-        }
-      }
-
-      return minInputTicks;
-
-    case WaitForAnyOf(:final conditions):
-      // Recursively handle nested AnyOf
-      return _estimateTicksForCompositeWaitFor(state, conditions, goal);
-
-    case WaitForGoal(:final goal):
-      final remaining = goal.remaining(state);
-      if (remaining <= 0) return 0;
-
-      final progressRate = goal.progressPerTick(state, rates);
-      if (progressRate <= 0) return infTicks;
-
-      return (remaining / progressRate).ceil();
-
-    default:
-      // Conservative fallback for unhandled types
-      return infTicks;
-  }
 }
 
 /// Solves for an optimal plan to satisfy the given [goal].

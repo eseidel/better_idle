@@ -22,13 +22,29 @@ import 'package:equatable/equatable.dart';
 import 'package:logic/src/data/action_id.dart';
 import 'package:logic/src/data/actions.dart';
 import 'package:logic/src/data/melvor_id.dart';
+import 'package:logic/src/solver/estimate_rates.dart';
 import 'package:logic/src/solver/goal.dart';
 import 'package:logic/src/solver/interaction.dart';
 import 'package:logic/src/solver/macro_candidate.dart';
+import 'package:logic/src/solver/next_decision_delta.dart' show infTicks;
 import 'package:logic/src/solver/solver.dart';
+import 'package:logic/src/solver/value_model.dart';
 import 'package:logic/src/state.dart';
 import 'package:logic/src/tick.dart';
 import 'package:meta/meta.dart';
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+/// Calculates the total value of a state (GP + sellable inventory value).
+int _effectiveCredits(GlobalState state) {
+  var total = state.gp;
+  for (final stack in state.inventory.items) {
+    total += stack.sellsFor;
+  }
+  return total;
+}
 
 // ---------------------------------------------------------------------------
 // Wait For (what we're waiting for)
@@ -51,6 +67,12 @@ sealed class WaitFor extends Equatable {
   /// Returns true if this wait condition is satisfied in the given state.
   bool isSatisfied(GlobalState state);
 
+  /// Estimates ticks to satisfy this condition given current rates.
+  ///
+  /// Returns [infTicks] if the condition cannot be reached with current rates.
+  /// Returns 0 if the condition is already satisfied.
+  int estimateTicks(GlobalState state, Rates rates);
+
   /// Human-readable description of what we're waiting for (with values).
   String describe();
 
@@ -71,11 +93,19 @@ class WaitForInventoryValue extends WaitFor {
 
   @override
   bool isSatisfied(GlobalState state) {
-    var total = state.gp;
-    for (final stack in state.inventory.items) {
-      total += stack.sellsFor;
-    }
-    return total >= targetValue;
+    return _effectiveCredits(state) >= targetValue;
+  }
+
+  @override
+  int estimateTicks(GlobalState state, Rates rates) {
+    final currentValue = _effectiveCredits(state);
+    final needed = targetValue - currentValue;
+    if (needed <= 0) return 0;
+
+    final valueRate = defaultValueModel.valuePerTick(state, rates);
+    if (valueRate <= 0) return infTicks;
+
+    return (needed / valueRate).ceil();
   }
 
   @override
@@ -106,6 +136,18 @@ class WaitForSkillXp extends WaitFor {
   }
 
   @override
+  int estimateTicks(GlobalState state, Rates rates) {
+    final currentXp = state.skillState(skill).xp;
+    final needed = targetXp - currentXp;
+    if (needed <= 0) return 0;
+
+    final xpRate = rates.xpPerTickBySkill[skill] ?? 0.0;
+    if (xpRate <= 0) return infTicks;
+
+    return (needed / xpRate).ceil();
+  }
+
+  @override
   String describe() => '${skill.name} XP >= $targetXp';
 
   @override
@@ -126,6 +168,18 @@ class WaitForMasteryXp extends WaitFor {
   @override
   bool isSatisfied(GlobalState state) {
     return state.actionState(actionId).masteryXp >= targetMasteryXp;
+  }
+
+  @override
+  int estimateTicks(GlobalState state, Rates rates) {
+    final currentXp = state.actionState(actionId).masteryXp;
+    final needed = targetMasteryXp - currentXp;
+    if (needed <= 0) return 0;
+
+    final masteryRate = rates.masteryXpPerTick;
+    if (masteryRate <= 0) return infTicks;
+
+    return (needed / masteryRate).ceil();
   }
 
   @override
@@ -158,6 +212,19 @@ class WaitForInventoryThreshold extends WaitFor {
   }
 
   @override
+  int estimateTicks(GlobalState state, Rates rates) {
+    if (state.inventoryCapacity <= 0) return infTicks;
+    final targetSlots = (threshold * state.inventoryCapacity).ceil();
+    final neededSlots = targetSlots - state.inventoryUsed;
+    if (neededSlots <= 0) return 0;
+
+    final slotsPerTick = rates.itemTypesPerTick;
+    if (slotsPerTick <= 0) return infTicks;
+
+    return (neededSlots / slotsPerTick).ceil();
+  }
+
+  @override
   String describe() => 'inventory >= ${(threshold * 100).toInt()}%';
 
   @override
@@ -175,6 +242,17 @@ class WaitForInventoryFull extends WaitFor {
   @override
   bool isSatisfied(GlobalState state) {
     return state.inventoryRemaining <= 0;
+  }
+
+  @override
+  int estimateTicks(GlobalState state, Rates rates) {
+    final neededSlots = state.inventoryRemaining;
+    if (neededSlots <= 0) return 0;
+
+    final slotsPerTick = rates.itemTypesPerTick;
+    if (slotsPerTick <= 0) return infTicks;
+
+    return (neededSlots / slotsPerTick).ceil();
   }
 
   @override
@@ -196,6 +274,17 @@ class WaitForGoal extends WaitFor {
 
   @override
   bool isSatisfied(GlobalState state) => goal.isSatisfied(state);
+
+  @override
+  int estimateTicks(GlobalState state, Rates rates) {
+    final remaining = goal.remaining(state);
+    if (remaining <= 0) return 0;
+
+    final progressRate = goal.progressPerTick(state, rates);
+    if (progressRate <= 0) return infTicks;
+
+    return (remaining / progressRate).ceil();
+  }
 
   @override
   String describe() => goal.describe();
@@ -224,6 +313,39 @@ class WaitForInputsDepleted extends WaitFor {
   }
 
   @override
+  int estimateTicks(GlobalState state, Rates rates) {
+    final action = state.registries.actions.byId(actionId);
+    if (action is! SkillAction) return infTicks;
+
+    final actionStateVal = state.actionState(action.id);
+    final selection = actionStateVal.recipeSelection(action);
+    final inputs = action.inputsForRecipe(selection);
+
+    if (inputs.isEmpty) return infTicks; // Non-consuming action
+
+    // Find minimum ticks based on available inputs
+    var minInputTicks = infTicks;
+    final actionDurationTicks = action.minDuration.inMilliseconds ~/ msPerTick;
+
+    for (final entry in inputs.entries) {
+      final item = state.registries.items.byId(entry.key);
+      final available = state.inventory.countOfItem(item);
+      final consumedPerAction = entry.value;
+      final consumedPerTick =
+          consumedPerAction / actionDurationTicks.toDouble();
+
+      if (consumedPerTick > 0) {
+        final ticksUntilDepleted = (available / consumedPerTick).floor();
+        if (ticksUntilDepleted < minInputTicks) {
+          minInputTicks = ticksUntilDepleted;
+        }
+      }
+    }
+
+    return minInputTicks;
+  }
+
+  @override
   String describe() => 'inputs depleted for ${actionId.localId.name}';
 
   @override
@@ -246,6 +368,19 @@ class WaitForInputsAvailable extends WaitFor {
     final action = state.registries.actions.byId(actionId);
     // Inputs are available when we can start the action
     return state.canStartAction(action);
+  }
+
+  @override
+  int estimateTicks(GlobalState state, Rates rates) {
+    // If inputs are already available, no waiting needed
+    if (isSatisfied(state)) return 0;
+
+    // This is typically used when gathering inputs with a producer action.
+    // The estimate depends on the production rate of the current action.
+    // For now, return infTicks as a conservative fallback - the actual
+    // estimation is usually done at a higher level when planning the
+    // producer/consumer cycle.
+    return infTicks;
   }
 
   @override
@@ -275,6 +410,21 @@ class WaitForInventoryAtLeast extends WaitFor {
         .map((s) => s.count)
         .fold(0, (a, b) => a + b);
     return count >= minCount;
+  }
+
+  @override
+  int estimateTicks(GlobalState state, Rates rates) {
+    final currentCount = state.inventory.items
+        .where((s) => s.item.id == itemId)
+        .map((s) => s.count)
+        .fold(0, (a, b) => a + b);
+    final needed = minCount - currentCount;
+    if (needed <= 0) return 0;
+
+    final productionRate = rates.itemFlowsPerTick[itemId] ?? 0.0;
+    if (productionRate <= 0) return infTicks;
+
+    return (needed / productionRate).ceil();
   }
 
   @override
@@ -323,6 +473,40 @@ class WaitForSufficientInputs extends WaitFor {
   }
 
   @override
+  int estimateTicks(GlobalState state, Rates rates) {
+    if (isSatisfied(state)) return 0;
+
+    final action = state.registries.actions.byId(actionId);
+    if (action is! SkillAction) return infTicks;
+
+    final actionStateVal = state.actionState(action.id);
+    final selection = actionStateVal.recipeSelection(action);
+    final inputs = action.inputsForRecipe(selection);
+
+    if (inputs.isEmpty) return 0;
+
+    // Find the bottleneck input (longest time to gather)
+    var maxTicks = 0;
+    for (final entry in inputs.entries) {
+      final item = state.registries.items.byId(entry.key);
+      final available = state.inventory.countOfItem(item);
+      final neededPerAction = entry.value;
+      final totalNeeded = (targetCount * neededPerAction / inputs.length)
+          .ceil();
+      final needed = totalNeeded - available;
+      if (needed <= 0) continue;
+
+      final productionRate = rates.itemFlowsPerTick[entry.key] ?? 0.0;
+      if (productionRate <= 0) return infTicks;
+
+      final ticks = (needed / productionRate).ceil();
+      if (ticks > maxTicks) maxTicks = ticks;
+    }
+
+    return maxTicks;
+  }
+
+  @override
   String describe() =>
       'sufficient inputs ($targetCount) for ${actionId.localId.name}';
 
@@ -347,6 +531,21 @@ class WaitForAnyOf extends WaitFor {
   bool isSatisfied(GlobalState state) {
     // Satisfied if ANY condition is met
     return conditions.any((condition) => condition.isSatisfied(state));
+  }
+
+  @override
+  int estimateTicks(GlobalState state, Rates rates) {
+    if (conditions.isEmpty) return infTicks;
+
+    // Return minimum ticks among all conditions (first to trigger wins)
+    var minTicks = infTicks;
+    for (final condition in conditions) {
+      final ticks = condition.estimateTicks(state, rates);
+      if (ticks < minTicks) {
+        minTicks = ticks;
+      }
+    }
+    return minTicks;
   }
 
   @override
