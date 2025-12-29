@@ -465,14 +465,23 @@ List<ActionSummary> _findProducersForItem(
 }
 
 /// Stats from consuming skill candidate selection.
+@immutable
 class ConsumingSkillCandidateStats {
-  ConsumingSkillCandidateStats({
+  const ConsumingSkillCandidateStats({
     required this.consumerActionsConsidered,
     required this.producerActionsConsidered,
     required this.pairsConsidered,
     required this.pairsKept,
     required this.topPairs,
   });
+
+  static const empty = ConsumingSkillCandidateStats(
+    consumerActionsConsidered: 0,
+    producerActionsConsidered: 0,
+    pairsConsidered: 0,
+    pairsKept: 0,
+    topPairs: [],
+  );
 
   final int consumerActionsConsidered;
   final int producerActionsConsidered;
@@ -527,15 +536,7 @@ _ConsumingSkillResult _selectConsumingSkillCandidatesWithStats(
   if (consumerActions.isEmpty) {
     return _ConsumingSkillResult(
       candidates: [],
-      stats: collectStats
-          ? ConsumingSkillCandidateStats(
-              consumerActionsConsidered: 0,
-              producerActionsConsidered: 0,
-              pairsConsidered: 0,
-              pairsKept: 0,
-              topPairs: [],
-            )
-          : null,
+      stats: collectStats ? ConsumingSkillCandidateStats.empty : null,
     );
   }
 
