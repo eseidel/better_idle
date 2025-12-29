@@ -1269,6 +1269,21 @@ void main() {
       expect(profile.medianBestRate, 0.5);
     });
 
+    test('recordMacroStopTrigger tracks trigger counts', () {
+      final profile = SolverProfile();
+
+      expect(profile.macroStopTriggers, isEmpty);
+
+      profile.recordMacroStopTrigger('Skill +1');
+      expect(profile.macroStopTriggers, {'Skill +1': 1});
+
+      profile.recordMacroStopTrigger('Skill +1');
+      expect(profile.macroStopTriggers, {'Skill +1': 2});
+
+      profile.recordMacroStopTrigger('Goal reached');
+      expect(profile.macroStopTriggers, {'Skill +1': 2, 'Goal reached': 1});
+    });
+
     test('recordHeuristic tracks values and zero rate count', () {
       final profile = SolverProfile();
 

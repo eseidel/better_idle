@@ -1626,6 +1626,7 @@ typedef MacroExpansionResult = ({
   int ticksElapsed,
   WaitFor waitFor, // Composite WaitFor for plan execution
   int deaths,
+  String? triggeringCondition, // Which stop condition triggered first
 });
 
 /// Expands a macro candidate into a future state by estimating progress.
@@ -1672,7 +1673,8 @@ MacroExpansionResult? _expandTrainSkillUntil(
   }
 
   // Build composite WaitFor from all stop rules (primary + watched)
-  final waitConditions = macro.allStops
+  final stopRules = macro.allStops.toList();
+  final waitConditions = stopRules
       .map((MacroStopRule rule) => rule.toWaitFor(currentState, boundaries))
       .toList();
 
@@ -1689,6 +1691,16 @@ MacroExpansionResult? _expandTrainSkillUntil(
     return null; // No progress possible or already satisfied
   }
 
+  // Find which condition triggered first (has minimum ticks)
+  String? triggeringCondition;
+  for (var i = 0; i < waitConditions.length; i++) {
+    final ticks = waitConditions[i].estimateTicks(currentState, rates);
+    if (ticks == ticksUntilStop) {
+      triggeringCondition = waitConditions[i].shortDescription;
+      break;
+    }
+  }
+
   // Use expected-value advance (already exists!)
   final advanceResult = advance(currentState, ticksUntilStop);
 
@@ -1697,6 +1709,7 @@ MacroExpansionResult? _expandTrainSkillUntil(
     ticksElapsed: ticksUntilStop,
     waitFor: compositeWaitFor, // Execution will respect all conditions
     deaths: advanceResult.deaths,
+    triggeringCondition: triggeringCondition,
   );
 }
 
@@ -1841,6 +1854,7 @@ MacroExpansionResult? _expandTrainConsumingSkillUntil(
     ticksElapsed: ticksUntilStop,
     waitFor: waitFor,
     deaths: 0, // No combat deaths in firemaking/woodcutting
+    triggeringCondition: waitFor.shortDescription,
   );
 }
 
@@ -2220,6 +2234,11 @@ SolverResult solve(
     for (final macro in candidates.macros) {
       final expansionResult = _expandMacro(node.state, macro, goal, boundaries);
       if (expansionResult == null) continue;
+
+      // Record which condition triggered the macro stop
+      if (expansionResult.triggeringCondition != null) {
+        profile.recordMacroStopTrigger(expansionResult.triggeringCondition!);
+      }
 
       final newState = expansionResult.state;
       final newDeaths = node.expectedDeaths + expansionResult.deaths;
