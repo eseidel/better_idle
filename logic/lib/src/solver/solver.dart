@@ -40,6 +40,7 @@ import 'package:logic/src/solver/interaction.dart';
 import 'package:logic/src/solver/macro_candidate.dart';
 import 'package:logic/src/solver/next_decision_delta.dart';
 import 'package:logic/src/solver/plan.dart';
+import 'package:logic/src/solver/replan_boundary.dart';
 import 'package:logic/src/solver/unlock_boundaries.dart';
 import 'package:logic/src/solver/value_model.dart';
 import 'package:logic/src/solver/wait_for.dart';
@@ -1186,11 +1187,27 @@ class ConsumeUntilResult {
     required this.state,
     required this.ticksElapsed,
     required this.deathCount,
+    this.boundary,
   });
 
   final GlobalState state;
   final int ticksElapsed;
   final int deathCount;
+
+  /// The boundary that caused execution to pause, or null if the wait
+  /// condition was satisfied normally.
+  ///
+  /// Expected boundaries (like [InputsDepleted]) are part of normal online
+  /// execution. Unexpected boundaries may indicate bugs.
+  final ReplanBoundary? boundary;
+
+  /// Whether execution stopped at an expected boundary.
+  bool get stoppedAtExpectedBoundary =>
+      boundary != null && boundary!.isExpected;
+
+  /// Whether execution stopped at an unexpected boundary (potential bug).
+  bool get stoppedAtUnexpectedBoundary =>
+      boundary != null && !boundary!.isExpected;
 }
 
 /// Finds actions that produce the input items for a consuming action.
@@ -1259,7 +1276,18 @@ List<SkillAction> _findProducersFor(
 /// condition after each action iteration. Automatically restarts the activity
 /// after death and tracks how many deaths occurred.
 ///
-/// Returns the final state, actual ticks elapsed, and death count.
+/// Returns the final state, actual ticks elapsed, death count, and any
+/// [ReplanBoundary] that caused execution to pause.
+///
+/// ## Boundary Handling
+///
+/// - [Death]: Auto-restarts the activity and continues (expected)
+/// - [InputsDepleted]: For consuming actions, switches to producer to gather
+///   more inputs, then continues (expected)
+/// - [InventoryFull]: Returns with boundary set (caller decides what to do)
+/// - [WaitConditionSatisfied]: Normal completion, boundary is null
+///
+/// Unexpected boundaries indicate potential bugs in the planner.
 ConsumeUntilResult consumeUntil(
   GlobalState originalState,
   WaitFor waitFor, {
@@ -1267,7 +1295,12 @@ ConsumeUntilResult consumeUntil(
 }) {
   var state = originalState;
   if (waitFor.isSatisfied(state)) {
-    return ConsumeUntilResult(state: state, ticksElapsed: 0, deathCount: 0);
+    return ConsumeUntilResult(
+      state: state,
+      ticksElapsed: 0,
+      deathCount: 0,
+      boundary: const WaitConditionSatisfied(),
+    );
   }
 
   final originalActivityId = state.activeAction?.id;
@@ -1294,6 +1327,7 @@ ConsumeUntilResult consumeUntil(
         state: state,
         ticksElapsed: totalTicksElapsed,
         deathCount: deathCount,
+        boundary: const WaitConditionSatisfied(),
       );
     }
 
@@ -1302,13 +1336,21 @@ ConsumeUntilResult consumeUntil(
       if (builder.stopReason == ActionStopReason.playerDied) {
         deathCount++;
 
-        // Auto-restart the activity after death and continue
+        // Auto-restart the activity after death and continue (expected)
         if (originalActivityId != null) {
           final action = state.registries.actions.byId(originalActivityId);
           state = state.startAction(action, random: random);
           continue; // Continue with restarted activity
         }
+        // No activity to restart - return with death boundary
+        return ConsumeUntilResult(
+          state: state,
+          ticksElapsed: totalTicksElapsed,
+          deathCount: deathCount,
+          boundary: const Death(),
+        );
       }
+
       // For other stop reasons (outOfInputs, inventoryFull), try to adapt.
       // For skill goals with consuming actions, switch to producer to gather
       // inputs.
@@ -1339,12 +1381,7 @@ ConsumeUntilResult consumeUntil(
             final bufferCount =
                 ((bufferTicks / ticksPerConsume) * consumptionRate).ceil();
 
-            print(
-              'Switching to ${producer.name} to gather '
-              '$bufferCount+ ${inputItemId.localId}...',
-            );
-
-            // Switch to producer
+            // Switch to producer (this is an expected InputsDepleted boundary)
             state = state.startAction(producer, random: random);
 
             // Gather inputs
@@ -1358,37 +1395,56 @@ ConsumeUntilResult consumeUntil(
             deathCount += gatherResult.deathCount;
 
             // Switch back to consumer
-            print('Switching back to ${currentAction.name}...');
             state = state.startAction(currentAction, random: random);
             continue; // Continue consuming
           }
         }
       }
 
-      // No producer found - return with partial progress
-      print(
-        'WARNING: Activity stopped (${builder.stopReason}) before wait '
-        'condition satisfied: ${waitFor.describe()}',
+      // Cannot adapt - return with the boundary that caused the stop
+      final inputItemId = originalActivityId != null
+          ? () {
+              final action = state.registries.actions.byId(originalActivityId);
+              if (action is SkillAction && action.inputs.isNotEmpty) {
+                return action.inputs.keys.first;
+              }
+              return null;
+            }()
+          : null;
+
+      final boundary = boundaryFromStopReason(
+        builder.stopReason,
+        actionId: originalActivityId,
+        missingItemId: inputItemId,
       );
-      break;
+
+      return ConsumeUntilResult(
+        state: state,
+        ticksElapsed: totalTicksElapsed,
+        deathCount: deathCount,
+        boundary: boundary,
+      );
     }
 
     // No progress possible
     if (builder.ticksElapsed == 0 && state.activeAction == null) {
-      break;
+      return ConsumeUntilResult(
+        state: state,
+        ticksElapsed: totalTicksElapsed,
+        deathCount: deathCount,
+        boundary: const NoProgressPossible(reason: 'No active action'),
+      );
     }
   }
-
-  // Return whatever state we ended up with
-  return ConsumeUntilResult(
-    state: state,
-    ticksElapsed: totalTicksElapsed,
-    deathCount: deathCount,
-  );
 }
 
 /// Result of applying a single step.
-typedef _StepResult = ({GlobalState state, int ticksElapsed, int deaths});
+typedef _StepResult = ({
+  GlobalState state,
+  int ticksElapsed,
+  int deaths,
+  ReplanBoundary? boundary,
+});
 
 /// Executes a coupled produce/consume loop for consuming skills.
 ///
@@ -1415,12 +1471,22 @@ _StepResult _executeCoupledLoop(
     goal,
   );
   if (bestConsumeAction == null) {
-    return (state: currentState, ticksElapsed: 0, deaths: 0);
+    return (
+      state: currentState,
+      ticksElapsed: 0,
+      deaths: 0,
+      boundary: const NoProgressPossible(reason: 'No consuming action found'),
+    );
   }
 
   final consumeAction = currentState.registries.actions.byId(bestConsumeAction);
   if (consumeAction is! SkillAction || consumeAction.inputs.isEmpty) {
-    return (state: currentState, ticksElapsed: 0, deaths: 0);
+    return (
+      state: currentState,
+      ticksElapsed: 0,
+      deaths: 0,
+      boundary: const NoProgressPossible(reason: 'Action has no inputs'),
+    );
   }
 
   final inputItem = consumeAction.inputs.keys.first;
@@ -1430,7 +1496,12 @@ _StepResult _executeCoupledLoop(
     goal,
   );
   if (producerAction == null) {
-    return (state: currentState, ticksElapsed: 0, deaths: 0);
+    return (
+      state: currentState,
+      ticksElapsed: 0,
+      deaths: 0,
+      boundary: const NoProgressPossible(reason: 'No producer action found'),
+    );
   }
 
   // Regenerate actual wait condition from primary stop
@@ -1495,7 +1566,12 @@ _StepResult _executeCoupledLoop(
     // Otherwise, loop back to produce more inputs
   }
 
-  return (state: currentState, ticksElapsed: totalTicks, deaths: totalDeaths);
+  return (
+    state: currentState,
+    ticksElapsed: totalTicks,
+    deaths: totalDeaths,
+    boundary: const WaitConditionSatisfied(),
+  );
 }
 
 _StepResult _applyStep(
@@ -1510,6 +1586,7 @@ _StepResult _applyStep(
         state: applyInteraction(state, interaction),
         ticksElapsed: 0,
         deaths: 0,
+        boundary: null, // Interactions are instant, no boundary
       );
     case WaitStep(:final waitFor):
       // Run until the wait condition is satisfied
@@ -1518,6 +1595,7 @@ _StepResult _applyStep(
         state: result.state,
         ticksElapsed: result.ticksElapsed,
         deaths: result.deathCount,
+        boundary: result.boundary,
       );
     case MacroStep(:final macro, :final waitFor):
       // Execute the macro by running until the composite wait condition
@@ -1561,6 +1639,7 @@ _StepResult _applyStep(
         state: result.state,
         ticksElapsed: result.ticksElapsed,
         deaths: result.deathCount,
+        boundary: result.boundary,
       );
   }
 }
@@ -1570,6 +1649,16 @@ _StepResult _applyStep(
 /// Uses goal-aware waiting: [WaitStep.waitFor] determines when to stop waiting,
 /// which handles variance between expected-value planning and full simulation.
 /// Deaths are automatically handled by restarting the activity and are counted.
+///
+/// ## Replan Boundaries
+///
+/// The result includes all [ReplanBoundary] events encountered during
+/// execution. Expected boundaries (like [WaitConditionSatisfied],
+/// [InputsDepleted]) are normal in online execution. Unexpected boundaries
+/// may indicate bugs.
+///
+/// Use [PlanExecutionResult.hasUnexpectedBoundaries] to check for potential
+/// issues.
 PlanExecutionResult executePlan(
   GlobalState originalState,
   Plan plan, {
@@ -1578,6 +1667,7 @@ PlanExecutionResult executePlan(
   var state = originalState;
   var totalDeaths = 0;
   var actualTicks = 0;
+  final boundariesHit = <ReplanBoundary>[];
 
   // Compute boundaries once for macro execution
   final boundaries = computeUnlockBoundaries(state.registries);
@@ -1594,6 +1684,11 @@ PlanExecutionResult executePlan(
       state = result.state;
       totalDeaths += result.deaths;
       actualTicks += result.ticksElapsed;
+
+      // Collect boundary if one was hit
+      if (result.boundary != null) {
+        boundariesHit.add(result.boundary!);
+      }
     } catch (e) {
       print('Error applying step $i: $e');
       rethrow;
@@ -1604,6 +1699,7 @@ PlanExecutionResult executePlan(
     totalDeaths: totalDeaths,
     actualTicks: actualTicks,
     plannedTicks: plan.totalTicks,
+    boundariesHit: boundariesHit,
   );
 }
 
