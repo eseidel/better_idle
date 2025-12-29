@@ -100,8 +100,8 @@ NextDecisionResult nextDecisionDelta(
     }
   }
 
-  // Check for immediate SellAll availability
-  if (candidates.includeSellAll) {
+  // Check for immediate sell availability
+  if (candidates.sellPolicy != null) {
     final usedFraction = state.inventoryCapacity > 0
         ? state.inventoryUsed / state.inventoryCapacity
         : 0.0;

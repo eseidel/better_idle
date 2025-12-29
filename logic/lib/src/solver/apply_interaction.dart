@@ -5,7 +5,7 @@
 /// Interactions mutate state at **0 ticks**:
 /// - [BuyShopItem]: subtracts GP, updates purchase count
 /// - [SwitchActivity]: sets active action
-/// - [SellAll]: clears inventory, adds GP
+/// - [SellItems]: sells items according to policy, adds GP
 ///
 /// No implicit waiting here. `applyInteraction` must not change policy;
 /// it just applies the chosen action.
@@ -40,7 +40,7 @@ GlobalState applyInteraction(GlobalState state, Interaction interaction) {
       random,
     ),
     BuyShopItem(:final purchaseId) => _applyBuyShopItem(state, purchaseId),
-    SellAll() => _applySellAll(state),
+    SellItems(:final policy) => _applySellItems(state, policy),
   };
 }
 
@@ -101,11 +101,17 @@ GlobalState _applyBuyShopItem(GlobalState state, MelvorId purchaseId) {
   return stateAfterPayment.copyWith(shop: newShop);
 }
 
-/// Sells all items in inventory.
-GlobalState _applySellAll(GlobalState originalState) {
+/// Sells items according to policy.
+GlobalState _applySellItems(GlobalState originalState, SellPolicy policy) {
   var state = originalState;
   for (final stack in state.inventory.items) {
-    state = state.sellItem(stack);
+    final shouldKeep = switch (policy) {
+      SellAllPolicy() => false,
+      SellExceptPolicy(:final keepItems) => keepItems.contains(stack.item.id),
+    };
+    if (!shouldKeep) {
+      state = state.sellItem(stack);
+    }
   }
   return state;
 }

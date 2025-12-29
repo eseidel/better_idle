@@ -27,16 +27,24 @@ import 'package:logic/src/state.dart';
 /// This includes:
 /// - SwitchActivity for each unlocked action that is not the current action
 /// - BuyShopItem for each affordable shop purchase that meets requirements
-/// - SellAll if there are sellable items in inventory
+/// - SellItems with [sellPolicy] if there are sellable items in inventory
 ///
 /// Note: the solver further filters these through [Candidates] to only
 /// consider competitive options.
-List<Interaction> availableInteractions(GlobalState state) {
+List<Interaction> availableInteractions(
+  GlobalState state, {
+  SellPolicy? sellPolicy,
+}) {
   return <Interaction>[
     ..._availableActivitySwitches(state),
     ..._availableShopPurchases(state),
-    if (_canSellAll(state)) const SellAll(),
+    if (sellPolicy != null && _canSell(state)) SellItems(sellPolicy),
   ];
+}
+
+/// Returns true if there are any sellable items in inventory.
+bool _canSell(GlobalState state) {
+  return state.inventory.items.isNotEmpty;
 }
 
 /// Returns SwitchActivity interactions for all unlocked actions
@@ -125,9 +133,4 @@ bool _meetsPurchaseRequirements(GlobalState state, ShopPurchase purchase) {
     }
   }
   return true;
-}
-
-/// Returns true if there are any items in inventory (all items are sellable).
-bool _canSellAll(GlobalState state) {
-  return state.inventory.items.isNotEmpty;
 }

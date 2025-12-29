@@ -3,7 +3,7 @@
 /// ## Two Distinct Outputs
 ///
 /// * **Branch candidates** ([Candidates.switchToActivities],
-///   [Candidates.buyUpgrades], [Candidates.includeSellAll]):
+///   [Candidates.buyUpgrades], [Candidates.sellPolicy]):
 ///   actions we're willing to consider now.
 /// * **Watch candidates** ([WatchList]): events that define "interesting times"
 ///   for waiting (affordability, unlocks, inventory).
@@ -30,6 +30,7 @@ import 'package:logic/src/data/actions.dart';
 import 'package:logic/src/data/melvor_id.dart';
 import 'package:logic/src/data/xp.dart';
 import 'package:logic/src/solver/goal.dart';
+import 'package:logic/src/solver/interaction.dart';
 import 'package:logic/src/solver/macro_candidate.dart';
 import 'package:logic/src/solver/unlock_boundaries.dart';
 import 'package:logic/src/state.dart';
@@ -116,7 +117,7 @@ class Candidates {
   const Candidates({
     required this.switchToActivities,
     required this.buyUpgrades,
-    required this.includeSellAll,
+    required this.sellPolicy,
     required this.watch,
     required this.macros,
     this.consumingSkillStats,
@@ -128,8 +129,12 @@ class Candidates {
   /// Top-K upgrade purchase IDs worth considering (may be unaffordable).
   final List<MelvorId> buyUpgrades;
 
-  /// Whether SellAll should be offered.
-  final bool includeSellAll;
+  /// Sell policy to use, or null if selling is not relevant.
+  ///
+  /// For GP goals: [SellAllPolicy] - sell everything.
+  /// For consuming skill goals: [SellExceptPolicy] - keep inputs.
+  /// For non-GP skill goals: null - selling doesn't help.
+  final SellPolicy? sellPolicy;
 
   /// Events to watch for "wait until interesting time".
   final WatchList watch;
@@ -320,6 +325,94 @@ List<MacroCandidate> _generateMacros(GlobalState state, Goal goal) {
   return macros;
 }
 
+/// Augments macros with upgrade stop conditions.
+///
+/// For each macro, adds [StopWhenUpgradeAffordable] stops for relevant
+/// upgrades from the watch list. This allows macros to break early when
+/// a valuable upgrade becomes affordable.
+List<MacroCandidate> _augmentMacrosWithUpgradeStops(
+  List<MacroCandidate> macros,
+  List<MelvorId> upgradeWatchList,
+  GlobalState state,
+  Goal goal,
+) {
+  if (upgradeWatchList.isEmpty) return macros;
+
+  final shopRegistry = state.registries.shop;
+  final augmented = <MacroCandidate>[];
+
+  for (final macro in macros) {
+    // Determine which skill this macro is training
+    final Skill targetSkill;
+    switch (macro) {
+      case TrainSkillUntil(:final skill):
+        targetSkill = skill;
+      case TrainConsumingSkillUntil(:final consumingSkill):
+        targetSkill = consumingSkill;
+    }
+
+    // Find upgrades relevant to this skill
+    final upgradeStops = <StopWhenUpgradeAffordable>[];
+    for (final purchaseId in upgradeWatchList) {
+      final purchase = shopRegistry.byId(purchaseId);
+      if (purchase == null) continue;
+
+      // Check if this upgrade affects the target skill
+      final skillIds = purchase.contains.modifiers.skillIntervalSkillIds;
+      final affectsTargetSkill = skillIds.any(
+        (id) => Skill.tryFromId(id) == targetSkill,
+      );
+      if (!affectsTargetSkill) continue;
+
+      // Compute cost
+      final currencyCosts = purchase.cost.currencyCosts(
+        bankSlotsPurchased: state.shop.bankSlotsPurchased,
+      );
+      final gpCost = currencyCosts.isEmpty ? 0 : currencyCosts.first.$2;
+      if (gpCost <= 0) continue;
+
+      upgradeStops.add(
+        StopWhenUpgradeAffordable(purchaseId, gpCost, purchase.name),
+      );
+    }
+
+    if (upgradeStops.isEmpty) {
+      augmented.add(macro);
+      continue;
+    }
+
+    // Create new macro with upgrade stops added to watchedStops
+    switch (macro) {
+      case TrainSkillUntil(
+        :final skill,
+        :final primaryStop,
+        :final watchedStops,
+      ):
+        augmented.add(
+          TrainSkillUntil(
+            skill,
+            primaryStop,
+            watchedStops: [...watchedStops, ...upgradeStops],
+          ),
+        );
+      case TrainConsumingSkillUntil(
+        :final consumingSkill,
+        :final primaryStop,
+        :final watchedStops,
+      ):
+        augmented.add(
+          TrainConsumingSkillUntil(
+            consumingSkill,
+            primaryStop,
+            watchedStops: [...watchedStops, ...upgradeStops],
+          ),
+        );
+    }
+  }
+
+  return augmented;
+}
+
 /// Returns a small, cheap, deterministic set of candidate interactions
 /// and future "interesting times". Does NOT simulate.
 ///
@@ -401,12 +494,20 @@ Candidates enumerateCandidates(
     goal: goal,
   );
 
-  // Determine SellAll and inventory watch
+  // Augment macros with upgrade stops from the watch list
+  final augmentedMacros = _augmentMacrosWithUpgradeStops(
+    macros,
+    upgradeResult.toWatch,
+    state,
+    goal,
+  );
+
+  // Determine sell policy and inventory watch
   // For skill goals, selling is less relevant (doesn't contribute to XP)
   final inventoryUsedFraction = state.inventoryCapacity > 0
       ? state.inventoryUsed / state.inventoryCapacity
       : 0.0;
-  final includeSellAll =
+  final shouldConsiderSelling =
       goal.isSellRelevant && inventoryUsedFraction > inventoryThreshold;
 
   // Find consuming activities relevant to the goal.
@@ -420,19 +521,86 @@ Candidates enumerateCandidates(
     consumingActivitiesToWatch.add(summary.actionId);
   }
 
+  // Compute sell policy based on goal type
+  final SellPolicy? sellPolicy;
+  if (!shouldConsiderSelling) {
+    sellPolicy = null;
+  } else {
+    // Compute items to keep (inputs for consuming skill goals)
+    final keepItems = _computeKeepList(goal, state, summaries);
+    if (keepItems.isEmpty) {
+      sellPolicy = const SellAllPolicy();
+    } else {
+      sellPolicy = SellExceptPolicy(keepItems);
+    }
+  }
+
   return Candidates(
     switchToActivities: switchToActivities,
     buyUpgrades: upgradeResult.candidates,
-    includeSellAll: includeSellAll,
+    sellPolicy: sellPolicy,
     watch: WatchList(
       upgradePurchaseIds: upgradeResult.toWatch,
       lockedActivityIds: lockedActivitiesToWatch,
       consumingActivityIds: consumingActivitiesToWatch,
-      inventory: includeSellAll,
+      inventory: sellPolicy != null,
     ),
-    macros: macros,
+    macros: augmentedMacros,
     consumingSkillStats: consumingStats,
   );
+}
+
+/// Computes the set of item IDs to keep (not sell) for the given goal.
+///
+/// For consuming skill goals (Firemaking, Cooking, Smithing), this returns
+/// the input items required by consuming actions for those skills.
+/// For GP goals or non-consuming skill goals, returns an empty set.
+Set<MelvorId> _computeKeepList(
+  Goal goal,
+  GlobalState state,
+  List<ActionSummary> summaries,
+) {
+  final keepItems = <MelvorId>{};
+  final registries = state.registries;
+
+  // Find consuming skills in the goal
+  final consumingSkills = <Skill>{};
+  switch (goal) {
+    case ReachSkillLevelGoal(:final skill):
+      if (skill.isConsuming) {
+        consumingSkills.add(skill);
+      }
+    case MultiSkillGoal(:final subgoals):
+      for (final subgoal in subgoals) {
+        if (subgoal.skill.isConsuming) {
+          consumingSkills.add(subgoal.skill);
+        }
+      }
+    case ReachGpGoal():
+      // GP goals sell everything
+      break;
+  }
+
+  if (consumingSkills.isEmpty) {
+    return keepItems;
+  }
+
+  // Find all consuming actions for the goal skills and collect their inputs
+  for (final summary in summaries) {
+    if (!consumingSkills.contains(summary.skill)) continue;
+    if (!summary.hasInputs) continue;
+
+    final action = registries.actions.byId(summary.actionId);
+    if (action is! SkillAction) continue;
+
+    final actionStateVal = state.actionState(action.id);
+    final selection = actionStateVal.recipeSelection(action);
+    final inputs = action.inputsForRecipe(selection);
+
+    inputs.keys.forEach(keepItems.add);
+  }
+
+  return keepItems;
 }
 
 /// Finds producer actions for a given item.

@@ -178,7 +178,7 @@ class Plan {
               compressed.add(step);
 
             case BuyShopItem():
-            case SellAll():
+            case SellItems():
               compressed.add(step);
           }
 
@@ -255,7 +255,7 @@ class Plan {
               : 'Switch to $actionName';
         }(),
         BuyShopItem(:final purchaseId) => 'Buy upgrade: $purchaseId',
-        SellAll() => 'Sell all items',
+        SellItems(:final policy) => 'Sell items ($policy)',
       },
       WaitStep(:final deltaTicks, :final waitFor) =>
         'Wait ${_formatDuration(durationFromTicks(deltaTicks))} '

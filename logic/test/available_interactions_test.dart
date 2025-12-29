@@ -20,7 +20,7 @@ void main() {
 
       final switches = interactions.whereType<SwitchActivity>().toList();
       final purchases = interactions.whereType<BuyShopItem>().toList();
-      final sells = interactions.whereType<SellAll>().toList();
+      final sells = interactions.whereType<SellItems>().toList();
 
       // Helper to get action name from actionId
       String actionName(SwitchActivity s) => testActions.byId(s.actionId).name;
@@ -94,7 +94,7 @@ void main() {
       expect(switches.map(actionName), contains('Iron'));
     });
 
-    test('inventory with items includes SellAll', () {
+    test('inventory with items includes SellItems when policy provided', () {
       final logs = testItems.byName('Normal Logs');
       final ore = testItems.byName('Copper Ore');
       final state = GlobalState.test(
@@ -105,16 +105,38 @@ void main() {
         ]),
       );
 
-      final interactions = availableInteractions(state);
-      final sells = interactions.whereType<SellAll>().toList();
+      final interactions = availableInteractions(
+        state,
+        sellPolicy: const SellAllPolicy(),
+      );
+      final sells = interactions.whereType<SellItems>().toList();
 
       expect(sells.length, 1);
     });
 
-    test('empty inventory does not include SellAll', () {
+    test('empty inventory does not include SellItems', () {
       final state = GlobalState.empty(testRegistries);
+      final interactions = availableInteractions(
+        state,
+        sellPolicy: const SellAllPolicy(),
+      );
+      final sells = interactions.whereType<SellItems>().toList();
+
+      expect(sells, isEmpty);
+    });
+
+    test('no SellItems when no policy provided', () {
+      final logs = testItems.byName('Normal Logs');
+      final state = GlobalState.test(
+        testRegistries,
+        inventory: Inventory.fromItems(testItems, [
+          ItemStack(logs, count: 100),
+        ]),
+      );
+
+      // Without a sellPolicy, no sell interaction should be returned
       final interactions = availableInteractions(state);
-      final sells = interactions.whereType<SellAll>().toList();
+      final sells = interactions.whereType<SellItems>().toList();
 
       expect(sells, isEmpty);
     });

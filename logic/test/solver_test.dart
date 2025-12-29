@@ -68,7 +68,7 @@ void main() {
       );
     });
 
-    test('SellAll sells all items in inventory', () {
+    test('SellItems with SellAllPolicy sells all items in inventory', () {
       final logs = testItems.byName('Normal Logs');
       final oak = testItems.byName('Oak Logs');
       final inventory = Inventory.fromItems(testItems, [
@@ -76,13 +76,34 @@ void main() {
         ItemStack(oak, count: 5),
       ]);
       final state = GlobalState.test(testRegistries, inventory: inventory);
-      const interaction = SellAll();
+      const interaction = SellItems(SellAllPolicy());
 
       final newState = applyInteraction(state, interaction);
 
       expect(newState.inventory.items, isEmpty);
       // Normal logs sell for 1, oak for 5
       expect(newState.gp, 10 * logs.sellsFor + 5 * oak.sellsFor);
+    });
+
+    test('SellItems with SellExceptPolicy keeps specified items', () {
+      final logs = testItems.byName('Normal Logs');
+      final oak = testItems.byName('Oak Logs');
+      final inventory = Inventory.fromItems(testItems, [
+        ItemStack(logs, count: 10),
+        ItemStack(oak, count: 5),
+      ]);
+      final state = GlobalState.test(testRegistries, inventory: inventory);
+      // Keep Normal Logs, sell Oak Logs
+      final interaction = SellItems(SellExceptPolicy({logs.id}));
+
+      final newState = applyInteraction(state, interaction);
+
+      // Should still have Normal Logs
+      expect(newState.inventory.countById(logs.id), 10);
+      // Oak Logs should be sold
+      expect(newState.inventory.countById(oak.id), 0);
+      // GP should be from oak logs only
+      expect(newState.gp, 5 * oak.sellsFor);
     });
   });
 
@@ -1056,14 +1077,14 @@ void main() {
       expect(compressed.interactionCount, 1);
     });
 
-    test('keeps SellAll and BuyShopItem interactions', () {
+    test('keeps SellItems and BuyShopItem interactions', () {
       final normalTreeAction = testActions.woodcutting('Normal Tree');
       const ironAxeId = MelvorId('melvorD:Iron_Axe');
       final plan = Plan(
         steps: [
           InteractionStep(SwitchActivity(normalTreeAction.id)),
           const WaitStep(100, WaitForInventoryValue(50)),
-          const InteractionStep(SellAll()),
+          const InteractionStep(SellItems(SellAllPolicy())),
           const InteractionStep(BuyShopItem(ironAxeId)),
           const WaitStep(200, WaitForSkillXp(Skill.woodcutting, 100)),
         ],

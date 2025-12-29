@@ -223,7 +223,7 @@ void main() {
       );
     });
 
-    test('includeSellAll true when inventory > 80% full', () {
+    test('sellPolicy non-null when inventory > 80% full', () {
       // Create inventory with 17+ unique items (>80% of 20 slots)
       final state = GlobalState.test(
         testRegistries,
@@ -250,11 +250,11 @@ void main() {
 
       final candidates = enumerateCandidates(state, _defaultGoal);
 
-      expect(candidates.includeSellAll, isTrue);
+      expect(candidates.sellPolicy, isNotNull);
       expect(candidates.watch.inventory, isTrue);
     });
 
-    test('includeSellAll false when inventory < 80% full', () {
+    test('sellPolicy null when inventory < 80% full', () {
       final state = GlobalState.test(
         testRegistries,
         inventory: Inventory.fromItems(testItems, [
@@ -264,7 +264,7 @@ void main() {
 
       final candidates = enumerateCandidates(state, _defaultGoal);
 
-      expect(candidates.includeSellAll, isFalse);
+      expect(candidates.sellPolicy, isNull);
       expect(candidates.watch.inventory, isFalse);
     });
 
@@ -279,7 +279,7 @@ void main() {
         equals(candidates2.switchToActivities),
       );
       expect(candidates1.buyUpgrades, equals(candidates2.buyUpgrades));
-      expect(candidates1.includeSellAll, equals(candidates2.includeSellAll));
+      expect(candidates1.sellPolicy, equals(candidates2.sellPolicy));
       expect(
         candidates1.watch.lockedActivityIds,
         equals(candidates2.watch.lockedActivityIds),

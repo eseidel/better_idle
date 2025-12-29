@@ -32,6 +32,7 @@ import 'package:logic/src/data/currency.dart';
 import 'package:logic/src/data/melvor_id.dart';
 import 'package:logic/src/solver/apply_interaction.dart';
 import 'package:logic/src/solver/available_interactions.dart';
+import 'package:logic/src/solver/candidate_cache.dart';
 import 'package:logic/src/solver/enumerate_candidates.dart';
 import 'package:logic/src/solver/estimate_rates.dart';
 import 'package:logic/src/solver/goal.dart';
@@ -131,6 +132,10 @@ class SolverProfile {
   int dominatedSkipped = 0;
   int frontierInserted = 0;
   int frontierRemoved = 0;
+
+  // Candidate cache stats
+  int candidateCacheHits = 0;
+  int candidateCacheMisses = 0;
 
   // Extended diagnostic stats (populated when diagnostics enabled)
   int peakQueueSize = 0;
@@ -1978,6 +1983,9 @@ SolverResult solve(
   // Rate cache for A* heuristic (caches best unlocked rate by state)
   final rateCache = _RateCache(goal);
 
+  // Candidate cache (disabled when collecting diagnostics for accurate stats)
+  final candidateCache = collectDiagnostics ? null : CandidateCache();
+
   // Dominance pruning frontier
   final frontier = _ParetoFrontier();
 
@@ -2155,17 +2163,28 @@ SolverResult solve(
         ..expandedNodes = expandedNodes
         ..totalTimeUs = totalStopwatch.elapsedMicroseconds
         ..frontierInserted = frontier.inserted
-        ..frontierRemoved = frontier.removed;
+        ..frontierRemoved = frontier.removed
+        ..candidateCacheHits = candidateCache?.hits ?? 0
+        ..candidateCacheMisses = candidateCache?.misses ?? 0;
       return SolverSuccess(plan, profile);
     }
 
-    // Compute candidates for this state
+    // Compute candidates for this state (cached when not collecting stats)
     final enumStopwatch = Stopwatch()..start();
-    final candidates = enumerateCandidates(
-      node.state,
-      goal,
-      collectStats: collectDiagnostics,
-    );
+    final Candidates candidates;
+    if (candidateCache != null) {
+      candidates = candidateCache.getOrCompute(
+        node.state,
+        goal,
+        () => enumerateCandidates(node.state, goal),
+      );
+    } else {
+      candidates = enumerateCandidates(
+        node.state,
+        goal,
+        collectStats: collectDiagnostics,
+      );
+    }
     profile.enumerateCandidatesTimeUs += enumStopwatch.elapsedMicroseconds;
 
     // Record candidate stats when diagnostics enabled
@@ -2183,7 +2202,10 @@ SolverResult solve(
     }
 
     // Expand interaction edges (0 time cost)
-    final interactions = availableInteractions(node.state);
+    final interactions = availableInteractions(
+      node.state,
+      sellPolicy: candidates.sellPolicy,
+    );
     for (final interaction in interactions) {
       // Only consider interactions that are in our candidate set (for pruning)
       if (!_isRelevantInteraction(interaction, candidates)) continue;
@@ -2299,7 +2321,9 @@ SolverResult solve(
             ..expandedNodes = expandedNodes
             ..totalTimeUs = totalStopwatch.elapsedMicroseconds
             ..frontierInserted = frontier.inserted
-            ..frontierRemoved = frontier.removed;
+            ..frontierRemoved = frontier.removed
+            ..candidateCacheHits = candidateCache?.hits ?? 0
+            ..candidateCacheMisses = candidateCache?.misses ?? 0;
           return SolverSuccess(
             _reconstructPlan(nodes, newNodeId, expandedNodes, enqueuedNodes),
             profile,
@@ -2421,7 +2445,7 @@ bool _isRelevantInteraction(Interaction interaction, Candidates candidates) {
     BuyShopItem(:final purchaseId) => candidates.buyUpgrades.contains(
       purchaseId,
     ),
-    SellAll() => candidates.includeSellAll,
+    SellItems() => candidates.sellPolicy != null,
   };
 }
 
@@ -2467,7 +2491,7 @@ Plan _reconstructPlan(
   final processedSteps = <PlanStep>[];
   for (final step in reversedSteps) {
     if (step is InteractionStep && step.interaction is BuyShopItem) {
-      processedSteps.add(const InteractionStep(SellAll()));
+      processedSteps.add(const InteractionStep(SellItems(SellAllPolicy())));
     }
     processedSteps.add(step);
   }
