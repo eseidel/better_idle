@@ -50,6 +50,56 @@ import 'package:logic/src/types/inventory.dart';
 import 'package:logic/src/types/stunned.dart';
 import 'package:logic/src/types/time_away.dart';
 
+// ---------------------------------------------------------------------------
+// Debug invariant assertions
+// ---------------------------------------------------------------------------
+
+/// Asserts that the game state is valid (debug only).
+///
+/// Checks:
+/// - GP is non-negative
+/// - All inventory item counts are non-negative
+/// - Player HP is non-negative
+///
+/// These assertions catch bugs early: if the solver or simulator produces
+/// invalid states, this will fail fast with a clear error message.
+void _assertValidState(GlobalState state) {
+  assert(state.gp >= 0, 'Negative GP: ${state.gp}');
+  assert(state.playerHp >= 0, 'Negative HP: ${state.playerHp}');
+  for (final stack in state.inventory.items) {
+    assert(stack.count >= 0, 'Negative inventory count for ${stack.item.name}');
+  }
+  for (final entry in state.skillStates.entries) {
+    assert(
+      entry.value.xp >= 0,
+      'Negative XP for ${entry.key}: ${entry.value.xp}',
+    );
+  }
+}
+
+/// Asserts that delta ticks are non-negative (debug only).
+void _assertNonNegativeDelta(int deltaTicks, String context) {
+  assert(deltaTicks >= 0, 'Negative deltaTicks ($deltaTicks) in $context');
+}
+
+/// Asserts that progress is monotonic between two states (debug only).
+///
+/// XP should never decrease, GP can decrease (via purchases).
+void _assertMonotonicProgress(
+  GlobalState before,
+  GlobalState after,
+  String context,
+) {
+  for (final skill in before.skillStates.keys) {
+    final beforeXp = before.skillState(skill).xp;
+    final afterXp = after.skillState(skill).xp;
+    assert(
+      afterXp >= beforeXp,
+      'XP decreased for $skill ($beforeXp -> $afterXp) in $context',
+    );
+  }
+}
+
 /// Reasons why bestRate might be zero.
 sealed class RateZeroReason {
   const RateZeroReason();
@@ -1052,6 +1102,9 @@ AdvanceResult _advanceExpected(
   int deltaTicks, {
   ValueModel valueModel = defaultValueModel,
 }) {
+  _assertNonNegativeDelta(deltaTicks, '_advanceExpected');
+  _assertValidState(state);
+
   if (deltaTicks <= 0) return (state: state, deaths: 0);
 
   final rawRates = estimateRates(state);
@@ -1137,15 +1190,17 @@ AdvanceResult _advanceExpected(
 
   // Note: HP is not tracked in the continuous model - death cycles are
   // absorbed into the rate adjustment. Activity continues without stopping.
-  return (
-    state: state.copyWith(
-      currencies: newCurrencies,
-      skillStates: newSkillStates,
-      actionStates: newActionStates,
-      inventory: newInventory,
-    ),
-    deaths: expectedDeaths,
+  final newState = state.copyWith(
+    currencies: newCurrencies,
+    skillStates: newSkillStates,
+    actionStates: newActionStates,
+    inventory: newInventory,
   );
+
+  _assertValidState(newState);
+  _assertMonotonicProgress(state, newState, '_advanceExpected');
+
+  return (state: newState, deaths: expectedDeaths);
 }
 
 /// Full simulation advance using consumeTicks.
@@ -1173,12 +1228,21 @@ GlobalState _advanceFullSim(
 ///
 /// Returns the new state and the number of expected deaths.
 AdvanceResult advance(GlobalState state, int deltaTicks) {
+  _assertNonNegativeDelta(deltaTicks, 'advance');
+  _assertValidState(state);
+
   if (deltaTicks <= 0) return (state: state, deaths: 0);
 
+  final AdvanceResult result;
   if (_isRateModelable(state)) {
-    return _advanceExpected(state, deltaTicks);
+    result = _advanceExpected(state, deltaTicks);
+  } else {
+    result = (state: _advanceFullSim(state, deltaTicks), deaths: 0);
   }
-  return (state: _advanceFullSim(state, deltaTicks), deaths: 0);
+
+  _assertValidState(result.state);
+  _assertMonotonicProgress(state, result.state, 'advance');
+  return result;
 }
 
 /// Result of consuming ticks until a goal is reached.
@@ -1188,7 +1252,9 @@ class ConsumeUntilResult {
     required this.ticksElapsed,
     required this.deathCount,
     this.boundary,
-  });
+  }) {
+    _assertValidState(state);
+  }
 
   final GlobalState state;
   final int ticksElapsed;
@@ -1293,6 +1359,8 @@ ConsumeUntilResult consumeUntil(
   WaitFor waitFor, {
   required Random random,
 }) {
+  _assertValidState(originalState);
+
   var state = originalState;
   if (waitFor.isSatisfied(state)) {
     return ConsumeUntilResult(

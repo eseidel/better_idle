@@ -825,6 +825,11 @@ void main() {
       expect(result.finalState.gp, 500);
       expect(result.actualTicks, 0);
       expect(result.totalDeaths, 0);
+      expect(
+        result.hasUnexpectedBoundaries,
+        isFalse,
+        reason: 'Unexpected boundaries: ${result.unexpectedBoundaries}',
+      );
     });
 
     test('executes plan with switch activity step', () {
@@ -848,6 +853,11 @@ void main() {
       );
       expect(result.actualTicks, greaterThan(0));
       expect(result.totalDeaths, 0);
+      expect(
+        result.hasUnexpectedBoundaries,
+        isFalse,
+        reason: 'Unexpected boundaries: ${result.unexpectedBoundaries}',
+      );
     });
 
     test('tracks deaths during thieving execution', () {
@@ -870,6 +880,11 @@ void main() {
       expect(result.finalState.gp, greaterThan(0));
       // Should have experienced deaths during the long thieving session
       expect(result.totalDeaths, greaterThan(0));
+      expect(
+        result.hasUnexpectedBoundaries,
+        isFalse,
+        reason: 'Unexpected boundaries: ${result.unexpectedBoundaries}',
+      );
     });
 
     test('reports planned vs actual ticks correctly', () {
@@ -892,6 +907,11 @@ void main() {
       expect(result.actualTicks, greaterThan(0));
       // ticksDelta is the difference
       expect(result.ticksDelta, result.actualTicks - result.plannedTicks);
+      expect(
+        result.hasUnexpectedBoundaries,
+        isFalse,
+        reason: 'Unexpected boundaries: ${result.unexpectedBoundaries}',
+      );
     });
 
     test('executes plan from solve result', () {
@@ -908,6 +928,11 @@ void main() {
 
       // Should reach the goal (or close to it due to simulation variance)
       expect(execResult.finalState.gp, greaterThan(50));
+      expect(
+        execResult.hasUnexpectedBoundaries,
+        isFalse,
+        reason: 'Unexpected boundaries: ${execResult.unexpectedBoundaries}',
+      );
     });
   });
 
@@ -962,6 +987,11 @@ void main() {
         greaterThan(0),
         reason: 'Should gain firemaking XP from burning logs',
       );
+      expect(
+        execResult.hasUnexpectedBoundaries,
+        isFalse,
+        reason: 'Unexpected boundaries: ${execResult.unexpectedBoundaries}',
+      );
 
       // Should also have woodcutting XP (the producing skill, if needed)
       // Note: if we started with enough logs, we might not need to chop any,
@@ -992,6 +1022,11 @@ void main() {
         execResult.finalState.skillState(Skill.firemaking).skillLevel,
         greaterThanOrEqualTo(1),
         reason: 'Plan should make progress toward firemaking goal',
+      );
+      expect(
+        execResult.hasUnexpectedBoundaries,
+        isFalse,
+        reason: 'Unexpected boundaries: ${execResult.unexpectedBoundaries}',
       );
     });
   });
