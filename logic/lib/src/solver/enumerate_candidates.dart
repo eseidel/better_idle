@@ -30,6 +30,8 @@ import 'package:logic/src/data/actions.dart';
 import 'package:logic/src/data/melvor_id.dart';
 import 'package:logic/src/data/xp.dart';
 import 'package:logic/src/solver/goal.dart';
+import 'package:logic/src/solver/macro_candidate.dart';
+import 'package:logic/src/solver/unlock_boundaries.dart';
 import 'package:logic/src/state.dart';
 import 'package:logic/src/tick.dart';
 import 'package:logic/src/types/stunned.dart';
@@ -116,6 +118,8 @@ class Candidates {
     required this.buyUpgrades,
     required this.includeSellAll,
     required this.watch,
+    required this.macros,
+    this.consumingSkillStats,
   });
 
   /// Top-K unlocked activities to consider switching to.
@@ -129,6 +133,12 @@ class Candidates {
 
   /// Events to watch for "wait until interesting time".
   final WatchList watch;
+
+  /// Macro-level candidates (train skill until boundary).
+  final List<MacroCandidate> macros;
+
+  /// Stats from consuming skill candidate selection (if collected).
+  final ConsumingSkillCandidateStats? consumingSkillStats;
 }
 
 /// Builds action summaries for all skill actions.
@@ -253,12 +263,71 @@ List<ActionSummary> buildActionSummaries(GlobalState state) {
 
 /// Enumerates candidate interactions for the planner.
 ///
+/// Generates macro candidates for goal-relevant skills.
+///
+/// For each skill relevant to the goal:
+/// - Creates TrainSkillUntil macros with primaryStop = StopAtNextBoundary
+/// - If skill has a goal target, also creates macro with
+///   primaryStop = StopAtGoal
+/// - Adds watchedStops for competitive upgrades (future extension)
+List<MacroCandidate> _generateMacros(GlobalState state, Goal goal) {
+  final macros = <MacroCandidate>[];
+
+  // For MultiSkillGoal, generate macros for each subgoal
+  if (goal is MultiSkillGoal) {
+    for (final subgoal in goal.subgoals) {
+      if (subgoal.isSatisfied(state)) continue;
+
+      // Primary macro: train until next boundary
+      macros.add(
+        TrainSkillUntil(
+          subgoal.skill,
+          StopAtNextBoundary(subgoal.skill),
+          watchedStops: [StopAtGoal(subgoal.skill, subgoal.targetXp)],
+        ),
+      );
+    }
+  }
+
+  // For ReachSkillLevelGoal, generate macros for the target skill
+  if (goal is ReachSkillLevelGoal) {
+    if (!goal.isSatisfied(state)) {
+      // Determine primary stop: use goal if closer than next boundary,
+      // otherwise use boundary
+      final currentLevel = state.skillState(goal.skill).skillLevel;
+      final boundaries = computeUnlockBoundaries(state.registries);
+      final nextBoundary = boundaries[goal.skill]?.nextBoundary(currentLevel);
+
+      // Use goal as primary if no boundary or goal is at/before boundary
+      final primaryStop =
+          nextBoundary == null || goal.targetLevel <= nextBoundary
+          ? StopAtGoal(goal.skill, goal.targetXp)
+          : StopAtNextBoundary(goal.skill);
+
+      // For consuming skills, use coupled produce/consume macro
+      if (goal.skill.isConsuming) {
+        macros.add(TrainConsumingSkillUntil(goal.skill, primaryStop));
+      } else {
+        // For non-consuming skills, use simple train macro
+        macros.add(TrainSkillUntil(goal.skill, primaryStop));
+      }
+    }
+  }
+
+  // For ReachGpGoal, we don't generate macros (use micro-steps instead)
+  // GP goals benefit from frequent re-evaluation for upgrade purchases
+
+  return macros;
+}
+
 /// Returns a small, cheap, deterministic set of candidate interactions
 /// and future "interesting times". Does NOT simulate.
 ///
 /// Activities are ranked by progress rate toward the [goal].
 /// For [ReachGpGoal], this is gold/tick. For [ReachSkillLevelGoal],
 /// this is XP/tick for the target skill.
+///
+/// If [collectStats] is true, populates diagnostic stats for consuming skills.
 Candidates enumerateCandidates(
   GlobalState state,
   Goal goal, {
@@ -266,20 +335,39 @@ Candidates enumerateCandidates(
   int upgradeCount = defaultUpgradeCandidateCount,
   int lockedWatchCount = defaultLockedWatchCount,
   double inventoryThreshold = defaultInventoryThreshold,
+  bool collectStats = false,
 }) {
   final summaries = buildActionSummaries(state);
+
+  // Generate macro candidates for skill goals
+  final macros = _generateMacros(state, goal);
 
   // Ranking function uses goal's activityRate to determine value
   double rankingFn(ActionSummary s) =>
       goal.activityRate(s.skill, s.goldRatePerTick, s.xpRatePerTick);
 
-  // Select unlocked activity candidates (top K by ranking function)
-  final switchToActivities = _selectUnlockedActivitiesByRanking(
-    summaries,
-    state,
-    activityCount,
-    rankingFn,
-  );
+  // Select unlocked activity candidates
+  // For consuming skills, use strict pruning to avoid near-tie explosion
+  List<ActionId> switchToActivities;
+  ConsumingSkillCandidateStats? consumingStats;
+
+  if (goal is ReachSkillLevelGoal && goal.skill.isConsuming) {
+    final result = _selectConsumingSkillCandidatesWithStats(
+      summaries,
+      state,
+      goal.skill,
+      collectStats: collectStats,
+    );
+    switchToActivities = result.candidates;
+    consumingStats = result.stats;
+  } else {
+    switchToActivities = _selectUnlockedActivitiesByRanking(
+      summaries,
+      state,
+      activityCount,
+      rankingFn,
+    );
+  }
 
   // Select locked activities to watch (top L by smallest unlockDeltaTicks)
   // Only watch activities for skills relevant to the goal
@@ -342,6 +430,8 @@ Candidates enumerateCandidates(
       consumingActivityIds: consumingActivitiesToWatch,
       inventory: includeSellAll,
     ),
+    macros: macros,
+    consumingSkillStats: consumingStats,
   );
 }
 
@@ -374,6 +464,203 @@ List<ActionSummary> _findProducersForItem(
   return producers;
 }
 
+/// Stats from consuming skill candidate selection.
+@immutable
+class ConsumingSkillCandidateStats {
+  const ConsumingSkillCandidateStats({
+    required this.consumerActionsConsidered,
+    required this.producerActionsConsidered,
+    required this.pairsConsidered,
+    required this.pairsKept,
+    required this.topPairs,
+  });
+
+  static const empty = ConsumingSkillCandidateStats(
+    consumerActionsConsidered: 0,
+    producerActionsConsidered: 0,
+    pairsConsidered: 0,
+    pairsKept: 0,
+    topPairs: [],
+  );
+
+  final int consumerActionsConsidered;
+  final int producerActionsConsidered;
+  final int pairsConsidered;
+  final int pairsKept;
+  final List<({String consumerId, String producerId, double score})> topPairs;
+}
+
+/// Result of consuming skill candidate selection.
+class _ConsumingSkillResult {
+  _ConsumingSkillResult({required this.candidates, this.stats});
+
+  final List<ActionId> candidates;
+  final ConsumingSkillCandidateStats? stats;
+}
+
+/// Strict pruning for consuming skills.
+///
+/// For consuming skills (e.g., Firemaking, Cooking), we need to avoid the
+/// "near-tie explosion" where multiple consumer actions have similar scores.
+/// This function:
+/// - Calculates sustainable XP/tick for each consumer action (accounting for
+///   production time of inputs)
+/// - Selects top N consumer actions (default N=2)
+/// - For each selected consumer action, finds the best producer (highest
+///   output/tick)
+/// - Applies tie-breaking: sustainable XP/tick > fewer switches > has inputs
+///
+/// Returns a list of activity IDs to consider as switch-to candidates.
+/// If [collectStats] is true, also returns diagnostic stats.
+_ConsumingSkillResult _selectConsumingSkillCandidatesWithStats(
+  List<ActionSummary> summaries,
+  GlobalState state,
+  Skill consumingSkill, {
+  int maxConsumerActions = 2,
+  bool collectStats = false,
+}) {
+  final registries = state.registries;
+  final currentActionId = state.activeAction?.id;
+
+  // Find all unlocked consumer actions for this consuming skill
+  final consumerActions = summaries
+      .where(
+        (s) =>
+            s.skill == consumingSkill &&
+            s.isUnlocked &&
+            s.hasInputs &&
+            s.actionId != currentActionId,
+      )
+      .toList();
+
+  if (consumerActions.isEmpty) {
+    return _ConsumingSkillResult(
+      candidates: [],
+      stats: collectStats ? ConsumingSkillCandidateStats.empty : null,
+    );
+  }
+
+  // Track stats
+  var producerActionsConsidered = 0;
+  var pairsConsidered = 0;
+
+  // Calculate sustainable XP/tick for each consumer action
+  final consumersWithRates =
+      <
+        ({
+          ActionSummary consumer,
+          double sustainableXpPerTick,
+          ActionSummary? producer,
+        })
+      >[];
+
+  for (final consumerSummary in consumerActions) {
+    final consumerAction =
+        registries.actions.byId(consumerSummary.actionId) as SkillAction;
+    final inputItem = consumerAction.inputs.keys.first;
+
+    // Find best producer for this input
+    final producers = _findProducersForItem(summaries, state, inputItem);
+    if (producers.isEmpty) continue;
+
+    producerActionsConsidered += producers.length;
+    pairsConsidered += producers.length; // Each producer forms a pair
+
+    // Best producer is the one with highest output/tick
+    producers.sort((a, b) {
+      final aAction = registries.actions.byId(a.actionId) as SkillAction;
+      final bAction = registries.actions.byId(b.actionId) as SkillAction;
+      final aOutputPerTick =
+          (aAction.outputs[inputItem] ?? 1) / a.expectedTicks;
+      final bOutputPerTick =
+          (bAction.outputs[inputItem] ?? 1) / b.expectedTicks;
+      return bOutputPerTick.compareTo(aOutputPerTick);
+    });
+    final bestProducer = producers.first;
+    final producerAction =
+        registries.actions.byId(bestProducer.actionId) as SkillAction;
+
+    // Calculate sustainable XP rate
+    final consumeTicksPerAction = consumerSummary.expectedTicks;
+    final produceTicksPerAction = bestProducer.expectedTicks;
+    final inputsNeededPerAction = consumerAction.inputs[inputItem] ?? 1;
+    final outputsPerAction = producerAction.outputs[inputItem] ?? 1;
+
+    final produceActionsPerConsumeAction =
+        inputsNeededPerAction / outputsPerAction;
+    final totalTicksPerCycle =
+        (produceActionsPerConsumeAction * produceTicksPerAction) +
+        consumeTicksPerAction;
+
+    final consumeXpPerAction = consumerAction.xp.toDouble();
+    final sustainableXpPerTick = consumeXpPerAction / totalTicksPerCycle;
+
+    consumersWithRates.add((
+      consumer: consumerSummary,
+      sustainableXpPerTick: sustainableXpPerTick,
+      producer: bestProducer,
+    ));
+  }
+
+  // Sort by sustainable XP/tick (descending)
+  consumersWithRates.sort((a, b) {
+    // Primary: sustainable XP/tick
+    final xpCmp = b.sustainableXpPerTick.compareTo(a.sustainableXpPerTick);
+    if (xpCmp != 0) return xpCmp;
+
+    // Tie-breaker 1: Prefer already having inputs in inventory
+    final aHasInputs = a.consumer.canStartNow ? 1 : 0;
+    final bHasInputs = b.consumer.canStartNow ? 1 : 0;
+    final inputsCmp = bHasInputs.compareTo(aHasInputs);
+    if (inputsCmp != 0) return inputsCmp;
+
+    // Tie-breaker 2: Prefer fewer switches (longer macro segments)
+    // Actions with longer duration mean fewer switches
+    final durationCmp = b.consumer.expectedTicks.compareTo(
+      a.consumer.expectedTicks,
+    );
+    return durationCmp;
+  });
+
+  // Select top N consumer actions
+  final selectedConsumers = consumersWithRates
+      .take(maxConsumerActions)
+      .toList();
+
+  // Build result: for each consumer action, include it and its best producer
+  final result = <ActionId>[];
+  for (final entry in selectedConsumers) {
+    result.add(entry.consumer.actionId);
+    if (entry.producer != null) {
+      result.add(entry.producer!.actionId);
+    }
+  }
+
+  // Build stats if requested
+  ConsumingSkillCandidateStats? stats;
+  if (collectStats) {
+    final topPairs = selectedConsumers
+        .map(
+          (e) => (
+            consumerId: e.consumer.actionId.localId.name,
+            producerId: e.producer?.actionId.localId.name ?? 'none',
+            score: e.sustainableXpPerTick,
+          ),
+        )
+        .toList();
+
+    stats = ConsumingSkillCandidateStats(
+      consumerActionsConsidered: consumerActions.length,
+      producerActionsConsidered: producerActionsConsidered,
+      pairsConsidered: pairsConsidered,
+      pairsKept: selectedConsumers.length,
+      topPairs: topPairs,
+    );
+  }
+
+  return _ConsumingSkillResult(candidates: result, stats: stats);
+}
+
 /// Selects top K unlocked activities by a custom ranking function.
 ///
 /// Only includes activities with positive ranking (> 0). This filters out
@@ -391,14 +678,16 @@ List<ActionId> _selectUnlockedActivitiesByRanking(
 ) {
   final currentActionId = state.activeAction?.id;
 
-  // Filter to unlocked actions with positive ranking, excluding current action
+  // Filter to unlocked actions with non-negative ranking, excluding current
+  // action. Include zero-ranked actions to support producer skills for
+  // consuming actions (e.g., Woodcutting for Firemaking goals).
   final unlocked =
       summaries
           .where(
             (s) =>
                 s.isUnlocked &&
                 s.actionId != currentActionId &&
-                rankingFn(s) > 0,
+                rankingFn(s) >= 0,
           )
           .toList()
         ..sort((a, b) => rankingFn(b).compareTo(rankingFn(a)));

@@ -28,8 +28,8 @@ import 'package:logic/src/data/xp.dart';
 import 'package:logic/src/solver/enumerate_candidates.dart';
 import 'package:logic/src/solver/estimate_rates.dart';
 import 'package:logic/src/solver/goal.dart';
-import 'package:logic/src/solver/plan.dart';
 import 'package:logic/src/solver/value_model.dart';
+import 'package:logic/src/solver/wait_for.dart';
 import 'package:logic/src/state.dart';
 
 /// Sentinel value for "infinite" ticks (no progress possible).

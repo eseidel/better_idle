@@ -5,8 +5,8 @@ import 'package:logic/src/solver/enumerate_candidates.dart';
 import 'package:logic/src/solver/estimate_rates.dart';
 import 'package:logic/src/solver/goal.dart';
 import 'package:logic/src/solver/next_decision_delta.dart';
-import 'package:logic/src/solver/plan.dart';
 import 'package:logic/src/solver/value_model.dart';
+import 'package:logic/src/solver/wait_for.dart';
 import 'package:test/test.dart';
 
 import 'test_helper.dart';

@@ -26,22 +26,94 @@ import 'dart:math';
 import 'package:collection/collection.dart';
 import 'package:equatable/equatable.dart';
 import 'package:logic/src/consume_ticks.dart';
+import 'package:logic/src/data/action_id.dart';
 import 'package:logic/src/data/actions.dart';
 import 'package:logic/src/data/currency.dart';
+import 'package:logic/src/data/melvor_id.dart';
 import 'package:logic/src/solver/apply_interaction.dart';
 import 'package:logic/src/solver/available_interactions.dart';
 import 'package:logic/src/solver/enumerate_candidates.dart';
 import 'package:logic/src/solver/estimate_rates.dart';
 import 'package:logic/src/solver/goal.dart';
 import 'package:logic/src/solver/interaction.dart';
+import 'package:logic/src/solver/macro_candidate.dart';
 import 'package:logic/src/solver/next_decision_delta.dart';
 import 'package:logic/src/solver/plan.dart';
+import 'package:logic/src/solver/unlock_boundaries.dart';
 import 'package:logic/src/solver/value_model.dart';
+import 'package:logic/src/solver/wait_for.dart';
 import 'package:logic/src/state.dart';
 import 'package:logic/src/tick.dart';
 import 'package:logic/src/types/inventory.dart';
 import 'package:logic/src/types/stunned.dart';
 import 'package:logic/src/types/time_away.dart';
+
+/// Reasons why bestRate might be zero.
+sealed class RateZeroReason {
+  const RateZeroReason();
+
+  /// Human-readable description of why the rate is zero.
+  String describe();
+}
+
+/// No skills relevant to the goal were found.
+class NoRelevantSkillReason extends RateZeroReason {
+  const NoRelevantSkillReason(this.goalDescription);
+
+  final String goalDescription;
+
+  @override
+  String describe() => 'no relevant skill for goal "$goalDescription"';
+}
+
+/// Skills exist but no actions are unlocked yet.
+class NoUnlockedActionsReason extends RateZeroReason {
+  const NoUnlockedActionsReason({
+    required this.goalDescription,
+    this.missingInputName,
+    this.actionNeedingInput,
+    this.skillName,
+  });
+
+  final String goalDescription;
+
+  /// For consuming skills: the name of the input item that has no producer.
+  final String? missingInputName;
+
+  /// For consuming skills: the name of the action that needs the input.
+  final String? actionNeedingInput;
+
+  /// For consuming skills: the name of the skill.
+  final String? skillName;
+
+  @override
+  String describe() {
+    if (missingInputName != null && actionNeedingInput != null) {
+      return 'no producer for $missingInputName '
+          '(needed by $actionNeedingInput) at current skill levels';
+    }
+    if (skillName != null) {
+      return 'no unlocked actions for $skillName';
+    }
+    return 'no unlocked actions for goal "$goalDescription"';
+  }
+}
+
+/// All unlocked actions require inputs (consuming skill).
+class InputsRequiredReason extends RateZeroReason {
+  const InputsRequiredReason();
+
+  @override
+  String describe() => 'all actions require inputs with no available producers';
+}
+
+/// Action has zero expected ticks (shouldn't happen).
+class ZeroTicksReason extends RateZeroReason {
+  const ZeroTicksReason();
+
+  @override
+  String describe() => 'all actions have zero duration (configuration error)';
+}
 
 /// Profiling stats collected during a solve.
 class SolverProfile {
@@ -59,6 +131,76 @@ class SolverProfile {
   int dominatedSkipped = 0;
   int frontierInserted = 0;
   int frontierRemoved = 0;
+
+  // Extended diagnostic stats (populated when diagnostics enabled)
+  int peakQueueSize = 0;
+  int uniqueBucketKeys = 0;
+  final Set<String> _seenBucketKeys = {};
+
+  // Heuristic health metrics
+  final List<int> heuristicValues = [];
+  int zeroRateCount = 0;
+
+  // Macro stop trigger histogram
+  final Map<String, int> macroStopTriggers = {};
+
+  // Candidate stats per enumeration call
+  final List<CandidateStats> candidateStatsHistory = [];
+
+  // Best rate diagnostics
+  double? rootBestRate;
+  final List<double> bestRateSamples = [];
+
+  // Why bestRate is zero counters
+  int rateZeroBecauseNoRelevantSkill = 0;
+  int rateZeroBecauseNoUnlockedActions = 0;
+  int rateZeroBecauseInputsRequired = 0;
+  int rateZeroBecauseZeroTicks = 0;
+
+  void recordBestRate(double rate, {required bool isRoot}) {
+    bestRateSamples.add(rate);
+    if (isRoot) rootBestRate = rate;
+  }
+
+  void recordRateZeroReason(RateZeroReason reason) {
+    switch (reason) {
+      case NoRelevantSkillReason():
+        rateZeroBecauseNoRelevantSkill++;
+      case NoUnlockedActionsReason():
+        rateZeroBecauseNoUnlockedActions++;
+      case InputsRequiredReason():
+        rateZeroBecauseInputsRequired++;
+      case ZeroTicksReason():
+        rateZeroBecauseZeroTicks++;
+    }
+  }
+
+  double get minBestRate =>
+      bestRateSamples.isEmpty ? 0 : bestRateSamples.reduce(min);
+
+  double get maxBestRate =>
+      bestRateSamples.isEmpty ? 0 : bestRateSamples.reduce(max);
+
+  double get medianBestRate {
+    if (bestRateSamples.isEmpty) return 0;
+    final sorted = List<double>.from(bestRateSamples)..sort();
+    return sorted[sorted.length ~/ 2];
+  }
+
+  void recordBucketKey(String key) {
+    if (_seenBucketKeys.add(key)) {
+      uniqueBucketKeys = _seenBucketKeys.length;
+    }
+  }
+
+  void recordHeuristic(int h, {required bool hasZeroRate}) {
+    heuristicValues.add(h);
+    if (hasZeroRate) zeroRateCount++;
+  }
+
+  void recordMacroStopTrigger(String trigger) {
+    macroStopTriggers[trigger] = (macroStopTriggers[trigger] ?? 0) + 1;
+  }
 
   double get nodesPerSecond =>
       totalTimeUs > 0 ? expandedNodes / (totalTimeUs / 1e6) : 0;
@@ -89,6 +231,41 @@ class SolverProfile {
 
   double get hashingPercent =>
       totalTimeUs > 0 ? 100.0 * hashingTimeUs / totalTimeUs : 0;
+
+  // Heuristic health metrics
+  int get minHeuristic =>
+      heuristicValues.isEmpty ? 0 : heuristicValues.reduce(min);
+
+  int get maxHeuristic =>
+      heuristicValues.isEmpty ? 0 : heuristicValues.reduce(max);
+
+  int get medianHeuristic {
+    if (heuristicValues.isEmpty) return 0;
+    final sorted = List<int>.from(heuristicValues)..sort();
+    return sorted[sorted.length ~/ 2];
+  }
+
+  double get zeroRateFraction =>
+      heuristicValues.isEmpty ? 0 : zeroRateCount / heuristicValues.length;
+
+  int get heuristicSpread => maxHeuristic - minHeuristic;
+}
+
+/// Stats from a single candidate enumeration call.
+class CandidateStats {
+  CandidateStats({
+    required this.consumerActionsConsidered,
+    required this.producerActionsConsidered,
+    required this.pairsConsidered,
+    required this.pairsKept,
+    required this.topPairs,
+  });
+
+  final int consumerActionsConsidered;
+  final int producerActionsConsidered;
+  final int pairsConsidered;
+  final int pairsKept;
+  final List<({String consumerId, String producerId, double score})> topPairs;
 }
 
 /// Gold bucket size for coarse state grouping.
@@ -105,109 +282,103 @@ const int _hpBucketSize = 10;
 const int _inventoryBucketSize = 10;
 
 /// Bucket key for dominance pruning - groups states with same structural
-/// situation. Includes activity, tool tiers, relevant skill levels, mastery
-/// level, and HP bucket.
+/// situation. Goal-scoped: only tracks skills/upgrades relevant to the goal.
+///
+/// For WC=99/Fish=99 goal, tracks: {WC level, Fish level, axe tier, rod tier,
+/// active action}.
+/// For Thieving goal, tracks: {Thieving level, HP, mastery, active action}.
+/// For GP goals, tracks all skills (current behavior).
 class _BucketKey extends Equatable {
   const _BucketKey({
     required this.activityName,
+    required this.skillLevels,
+    // TODO(eseidel): Track axeLevel/rodLevel/pickLevel as purchases instead?
     required this.axeLevel,
     required this.rodLevel,
     required this.pickLevel,
-    required this.woodcuttingLevel,
-    required this.fishingLevel,
-    required this.miningLevel,
-    required this.thievingLevel,
-    required this.firemakingLevel,
-    required this.cookingLevel,
-    required this.smithingLevel,
     required this.hpBucket,
     required this.masteryLevel,
     required this.inventoryBucket,
   });
 
+  /// Active action name - needed to distinguish woodcutting vs fishing states
   final String activityName;
+
+  /// Map of goal-relevant skills to their levels.
+  /// For WC=99/Fish=99: {Skill.woodcutting: 50, Skill.fishing: 40}
+  /// For GP goals: all 7 skills
+  final Map<Skill, int> skillLevels;
+
+  /// Tool tier upgrades (always tracked for their respective skills)
   final int axeLevel;
   final int rodLevel;
   final int pickLevel;
-  final int woodcuttingLevel;
-  final int fishingLevel;
-  final int miningLevel;
-  final int thievingLevel;
-  final int firemakingLevel;
-  final int cookingLevel;
-  final int smithingLevel;
 
-  /// HP bucket for thieving - distinguishes "safe" vs "near death" states.
-  /// Only meaningful when thieving; set to 0 for other activities.
+  /// HP bucket for thieving - only tracked if goal.shouldTrackHp
   final int hpBucket;
 
-  /// Mastery level for the current action - affects rates (e.g. thieving).
+  /// Mastery level for the current action - only tracked if
+  /// goal.shouldTrackMastery
   final int masteryLevel;
 
-  /// Inventory bucket - distinguishes states with different inventory amounts.
-  /// Important for consuming skills where inventory contents affect progress.
+  /// Inventory bucket - only tracked if goal.shouldTrackInventory
   final int inventoryBucket;
 
   @override
   List<Object?> get props => [
     activityName,
+    skillLevels,
     axeLevel,
     rodLevel,
     pickLevel,
-    woodcuttingLevel,
-    fishingLevel,
-    miningLevel,
-    thievingLevel,
-    firemakingLevel,
-    cookingLevel,
-    smithingLevel,
     hpBucket,
     masteryLevel,
     inventoryBucket,
   ];
 }
 
-/// Creates a bucket key from a game state.
-_BucketKey _bucketKeyFromState(GlobalState state) {
-  final registries = state.registries;
-  // Only track HP bucket when thieving (where death is possible)
+/// Creates a goal-scoped bucket key from a game state.
+/// Only tracks skills, HP, mastery, and inventory relevant to the goal.
+_BucketKey _bucketKeyFromState(GlobalState state, Goal goal) {
+  // Track active action - needed to distinguish states
   final actionId = state.activeAction?.id;
-  final isThieving =
-      actionId != null && registries.actions.byId(actionId) is ThievingAction;
-  final hpBucket = isThieving ? state.playerHp ~/ _hpBucketSize : 0;
+  final activityName = actionId != null ? actionId.localId.name : 'none';
 
-  // Get mastery level for current action (0 if no action)
-  final masteryLevel = actionId != null
+  // Build skill levels map for only goal-relevant skills
+  final skillLevels = <Skill, int>{};
+  for (final skill in goal.relevantSkillsForBucketing) {
+    skillLevels[skill] = state.skillState(skill).skillLevel;
+  }
+
+  // Track HP only if goal requires it (thieving goals)
+  final hpBucket = goal.shouldTrackHp ? state.playerHp ~/ _hpBucketSize : 0;
+
+  // Track mastery only if goal requires it (thieving goals)
+  final masteryLevel = goal.shouldTrackMastery && actionId != null
       ? state.actionState(actionId).masteryLevel
       : 0;
 
-  // This isn't the real name, but it's close enough for this logic.
-  final activityName = actionId != null ? actionId.localId.name : 'none';
-
-  // Inventory bucket: count total items to distinguish states with different
-  // inventory. Use exact count for small inventories to avoid false dominance.
-  final totalItems = state.inventory.items.fold<int>(
-    0,
-    (sum, stack) => sum + stack.count,
-  );
-  // For small inventories (< 100 items), use exact count to differentiate
-  // states. For larger inventories, use buckets to reduce state explosion.
-  final inventoryBucket = totalItems < 100
-      ? totalItems
-      : 100 + (totalItems - 100) ~/ _inventoryBucketSize;
+  // Track inventory only if goal requires it (consuming skill goals)
+  final inventoryBucket = goal.shouldTrackInventory
+      ? () {
+          final totalItems = state.inventory.items.fold<int>(
+            0,
+            (sum, stack) => sum + stack.count,
+          );
+          // For small inventories (< 100 items), use exact count
+          // For larger inventories, use buckets
+          return totalItems < 100
+              ? totalItems
+              : 100 + (totalItems - 100) ~/ _inventoryBucketSize;
+        }()
+      : 0;
 
   return _BucketKey(
     activityName: activityName,
+    skillLevels: skillLevels,
     axeLevel: state.shop.axeLevel,
     rodLevel: state.shop.fishingRodLevel,
     pickLevel: state.shop.pickaxeLevel,
-    woodcuttingLevel: state.skillState(Skill.woodcutting).skillLevel,
-    fishingLevel: state.skillState(Skill.fishing).skillLevel,
-    miningLevel: state.skillState(Skill.mining).skillLevel,
-    thievingLevel: state.skillState(Skill.thieving).skillLevel,
-    firemakingLevel: state.skillState(Skill.firemaking).skillLevel,
-    cookingLevel: state.skillState(Skill.cooking).skillLevel,
-    smithingLevel: state.skillState(Skill.smithing).skillLevel,
     hpBucket: hpBucket,
     masteryLevel: masteryLevel,
     inventoryBucket: inventoryBucket,
@@ -275,6 +446,14 @@ int _effectiveCredits(GlobalState state) {
   return total;
 }
 
+/// Result of rate computation with optional diagnostic info.
+class _RateResult {
+  _RateResult(this.rate, {this.zeroReason});
+
+  final double rate;
+  final RateZeroReason? zeroReason;
+}
+
 /// Cache for best unlocked rate by state key (skill levels + tool tiers).
 /// Supports both GP goals (gold/tick) and skill goals (XP/tick).
 class _RateCache {
@@ -283,6 +462,7 @@ class _RateCache {
   final Goal goal;
   final Map<String, double> _cache = {};
   final Map<String, double> _skillCache = {};
+  final Map<String, RateZeroReason?> _reasonCache = {};
 
   String _rateKey(GlobalState state) {
     // Key by skill levels and tool tiers (things that affect unlocks/rates)
@@ -303,9 +483,17 @@ class _RateCache {
     final cached = _cache[key];
     if (cached != null) return cached;
 
-    final rate = _computeBestUnlockedRate(state);
-    _cache[key] = rate;
-    return rate;
+    final result = _computeBestUnlockedRate(state);
+    _cache[key] = result.rate;
+    _reasonCache[key] = result.zeroReason;
+    return result.rate;
+  }
+
+  /// Gets the reason why the rate was zero for this state.
+  /// Returns null if the rate was non-zero or not yet computed.
+  RateZeroReason? getZeroReason(GlobalState state) {
+    final key = _rateKey(state);
+    return _reasonCache[key];
   }
 
   /// Gets the best XP rate for a specific skill.
@@ -420,20 +608,36 @@ class _RateCache {
 
   /// Computes the best rate among currently UNLOCKED actions.
   /// Uses the goal to determine which rate type and skills are relevant.
-  double _computeBestUnlockedRate(GlobalState state) {
+  ///
+  /// For consuming skills (Firemaking, Cooking), calculates the sustainable
+  /// XP rate based on best consumer+producer pairs, not just raw consume rate.
+  /// This ensures the heuristic doesn't return 0 just because inputs
+  /// aren't currently in inventory.
+  ///
+  /// Returns rate and reason if zero.
+  _RateResult _computeBestUnlockedRate(GlobalState state) {
     var maxRate = 0.0;
     final registries = state.registries;
+
+    // Track why rate might be zero
+    var sawRelevantSkill = false;
+    var sawUnlockedAction = false;
+    var sawZeroTicks = false;
+
+    // For consuming skills: track first missing producer for better error msg
+    String? missingInputName;
+    String? actionNeedingInput;
+    String? relevantSkillName;
 
     for (final skill in Skill.values) {
       // Only consider skills relevant to the goal
       if (!goal.isSkillRelevant(skill)) continue;
+      sawRelevantSkill = true;
+      relevantSkillName ??= skill.name;
 
       final skillLevel = state.skillState(skill).skillLevel;
 
       for (final action in registries.actions.forSkill(skill)) {
-        // Skip actions that require inputs
-        if (action.inputs.isNotEmpty) continue;
-
         // Only consider unlocked actions
         if (skillLevel < action.unlockLevel) continue;
 
@@ -443,7 +647,10 @@ class _RateCache {
         ).toDouble();
         final percentModifier = state.shopDurationModifierForSkill(skill);
         final expectedTicks = baseExpectedTicks * (1.0 + percentModifier);
-        if (expectedTicks <= 0) continue;
+        if (expectedTicks <= 0) {
+          sawZeroTicks = true;
+          continue;
+        }
 
         // Compute both gold and XP rates, let goal decide which matters
         double goldRate;
@@ -490,6 +697,26 @@ class _RateCache {
               xpRate *= cycleRatio;
             }
           }
+        } else if (action.inputs.isNotEmpty) {
+          // Consuming action (Firemaking, Cooking): compute sustainable rate
+          // based on best producer throughput, not raw consume rate.
+          final sustainedRate = _computeSustainedRateForConsumingAction(
+            state,
+            action,
+          );
+          if (sustainedRate == null || sustainedRate <= 0) {
+            // No producer available for this action - capture info for error
+            if (missingInputName == null) {
+              final inputId = action.inputs.keys.first;
+              missingInputName = registries.items.byId(inputId).name;
+              actionNeedingInput = action.name;
+            }
+            continue;
+          }
+          xpRate = sustainedRate;
+          // Gold rate for consuming actions is typically 0 (logs don't sell)
+          goldRate = 0;
+          sawUnlockedAction = true;
         } else {
           xpRate = action.xp / expectedTicks;
 
@@ -501,6 +728,8 @@ class _RateCache {
           goldRate = expectedGoldPerAction / expectedTicks;
         }
 
+        sawUnlockedAction = true;
+
         // Let the goal decide which rate matters
         final rate = goal.activityRate(skill, goldRate, xpRate);
         if (rate > maxRate) {
@@ -509,7 +738,117 @@ class _RateCache {
       }
     }
 
-    return maxRate;
+    // Determine reason if rate is zero
+    if (maxRate <= 0) {
+      final goalDesc = goal.describe();
+      RateZeroReason reason;
+      if (!sawRelevantSkill) {
+        reason = NoRelevantSkillReason(goalDesc);
+      } else if (!sawUnlockedAction) {
+        reason = NoUnlockedActionsReason(
+          goalDescription: goalDesc,
+          missingInputName: missingInputName,
+          actionNeedingInput: actionNeedingInput,
+          skillName: relevantSkillName,
+        );
+      } else if (sawZeroTicks) {
+        reason = const ZeroTicksReason();
+      } else {
+        // Rare: saw unlocked actions but all rates were zero
+        reason = NoUnlockedActionsReason(goalDescription: goalDesc);
+      }
+      return _RateResult(0, zeroReason: reason);
+    }
+
+    return _RateResult(maxRate);
+  }
+
+  /// Computes the sustainable XP rate for a consuming action.
+  ///
+  /// For a consuming action (e.g., burning logs, cooking fish), calculates:
+  /// - How fast we can produce inputs with the best unlocked producer
+  /// - The effective XP/tick accounting for production overhead
+  ///
+  /// Returns null if no producer is available for the required inputs.
+  double? _computeSustainedRateForConsumingAction(
+    GlobalState state,
+    SkillAction consumeAction,
+  ) {
+    final registries = state.registries;
+
+    // Get the first input item (logs for firemaking, fish for cooking)
+    if (consumeAction.inputs.isEmpty) return null;
+    final inputItemId = consumeAction.inputs.keys.first;
+    final inputsPerConsumeAction = consumeAction.inputs[inputItemId] ?? 1;
+
+    // Find the best unlocked producer for this input
+    double? bestProducerOutputPerTick;
+    double? bestProducerTicksPerAction;
+
+    for (final skill in Skill.values) {
+      final producerSkillLevel = state.skillState(skill).skillLevel;
+
+      for (final producer in registries.actions.forSkill(skill)) {
+        // Only non-consuming, unlocked producers
+        if (producer.inputs.isNotEmpty) continue;
+        if (producerSkillLevel < producer.unlockLevel) continue;
+
+        // Check if this action produces the needed item
+        final outputCount = producer.outputs[inputItemId];
+        if (outputCount == null || outputCount <= 0) continue;
+
+        // Calculate producer rate
+        final producerBaseTicks = ticksFromDuration(
+          producer.meanDuration,
+        ).toDouble();
+        final modifier = state.shopDurationModifierForSkill(skill);
+        final producerTicks = producerBaseTicks * (1.0 + modifier);
+        if (producerTicks <= 0) continue;
+
+        final outputPerTick = outputCount / producerTicks;
+        if (bestProducerOutputPerTick == null ||
+            outputPerTick > bestProducerOutputPerTick) {
+          bestProducerOutputPerTick = outputPerTick;
+          bestProducerTicksPerAction = producerTicks;
+        }
+      }
+    }
+
+    if (bestProducerOutputPerTick == null ||
+        bestProducerTicksPerAction == null) {
+      return null; // No producer available
+    }
+
+    // Calculate consume action ticks
+    final consumeBaseTicks = ticksFromDuration(
+      consumeAction.meanDuration,
+    ).toDouble();
+    final consumeModifier = state.shopDurationModifierForSkill(
+      consumeAction.skill,
+    );
+    final consumeTicks = consumeBaseTicks * (1.0 + consumeModifier);
+    if (consumeTicks <= 0) return null;
+
+    // Calculate sustainable XP rate:
+    // To do one consume action, we need inputsPerConsumeAction inputs.
+    // Producer makes outputPerTick items/tick.
+    // So we need (inputsPerConsumeAction / bestProducerOutputPerTick) ticks
+    // to produce enough inputs.
+    // Total cycle = produce time + consume time
+    // XP per cycle = consumeAction.xp
+    // Sustained rate = XP / total cycle time
+
+    // How many producer actions needed per consume action?
+    // producer outputs `outputCount` per action taking `producerTicks`
+    // We get bestProducerOutputPerTick = outputCount / producerTicks
+    // To get inputsPerConsumeAction inputs:
+    // ticks needed = inputsPerConsumeAction / bestProducerOutputPerTick
+    final produceTicksPerCycle =
+        inputsPerConsumeAction / bestProducerOutputPerTick;
+    final totalTicksPerCycle = produceTicksPerCycle + consumeTicks;
+
+    final sustainedXpPerTick = consumeAction.xp / totalTicksPerCycle;
+    return sustainedXpPerTick;
   }
 }
 
@@ -579,17 +918,41 @@ class _Node {
   final int expectedDeaths;
 }
 
-/// Computes a coarse hash key for a game state for visited tracking.
+/// Computes a goal-scoped hash key for a game state for visited tracking.
 ///
 /// Uses bucketed gold for coarser grouping to reduce state explosion.
-/// Key includes:
-/// - Bucketed gold (GP / bucket size)
-/// - Current activity
-/// - Upgrade levels
-/// - Skill levels (for level-based gating)
-/// - HP bucket (for thieving, where death is possible)
-/// - Mastery level for current action (affects rates)
-String _stateKey(GlobalState state) {
+/// Only includes fields relevant to the goal to avoid unnecessary distinctions.
+///
+/// ## Design Invariants for Consuming Skills
+///
+/// When scaling to more consuming skills (Cooking, Smithing, Herblore, etc.),
+/// watch for these state explosion risks:
+///
+/// 1. **Inventory bucket granularity**: The inventory bucket must be coarse
+///    enough that small input buffer variations don't create distinct states.
+///    Currently uses [_inventoryBucketSize] for large inventories.
+///    - BAD: Exact log count creates explosion (10 logs vs 11 logs = 2 states)
+///    - GOOD: Bucketed count (0-99 logs vs 100-199 logs = fewer states)
+///
+/// 2. **Don't encode consumer action choice in key**: The active action is
+///    tracked, but the *candidate selection* (which consuming action to do
+///    next) should NOT be in the key. The candidate pruning in
+///    `_selectConsumingSkillCandidatesWithStats` limits branching instead.
+///    - BAD: Key includes "will_burn_willow" vs "will_burn_oak"
+///    - GOOD: Key only has current action, candidates are pruned separately
+///
+/// 3. **Producer skill levels**: For consuming skills, the producer skill
+///    level (e.g., Woodcutting for Firemaking) affects sustainable XP rate
+///    but is NOT directly in the key. Skill levels are only tracked for
+///    goal-relevant skills via [Goal.relevantSkillsForBucketing].
+///
+/// 4. **Multi-input actions**: Some consuming actions need multiple inputs
+///    (e.g., Smithing needs ore + coal). The inventory bucket should aggregate
+///    total items, not track each type separately, to avoid combinatorial
+///    explosion.
+///
+/// See also: `_selectConsumingSkillCandidatesWithStats` for candidate pruning.
+String _stateKey(GlobalState state, Goal goal) {
   final buffer = StringBuffer();
 
   // Bucketed gold (coarse grouping for large goals)
@@ -597,55 +960,51 @@ String _stateKey(GlobalState state) {
   final goldBucket = state.gp ~/ _goldBucketSize;
   buffer.write('gb:$goldBucket|');
 
-  // Active action
+  // Active action (always tracked for state deduplication)
   final actionId = state.activeAction?.id;
   buffer.write('act:${actionId ?? 'none'}|');
 
-  // HP bucket for thieving (where death is possible)
-  final isThieving =
-      actionId != null &&
-      state.registries.actions.byId(actionId) is ThievingAction;
-  if (isThieving) {
+  // HP bucket - only if goal tracks HP (thieving)
+  if (goal.shouldTrackHp && actionId != null) {
     final hpBucket = state.playerHp ~/ _hpBucketSize;
     buffer.write('hp:$hpBucket|');
   }
 
-  // Mastery level bucket for current action (affects rates, especially for
-  // thieving). Use buckets of 10 to reduce state explosion while still
-  // capturing major rate changes.
-  if (actionId != null) {
+  // Mastery level bucket - only if goal tracks mastery (thieving)
+  if (goal.shouldTrackMastery && actionId != null) {
     final masteryLevel = state.actionState(actionId).masteryLevel;
     final masteryBucket = masteryLevel ~/ 10;
     buffer.write('mast:$masteryBucket|');
   }
 
-  // Upgrade levels
+  // Upgrade levels (always tracked - tool tiers affect rates)
   buffer
     ..write('axe:${state.shop.axeLevel}|')
     ..write('rod:${state.shop.fishingRodLevel}|')
     ..write('pick:${state.shop.pickaxeLevel}|');
 
-  // Skill levels (just levels, not full XP for coarser grouping)
-  for (final skill in Skill.values) {
+  // Skill levels - only goal-relevant skills
+  for (final skill in goal.relevantSkillsForBucketing) {
     final level = state.skillState(skill).skillLevel;
     if (level > 1) {
       buffer.write('${skill.name}:$level|');
     }
   }
 
-  // Inventory bucket (important for consuming skills). Use exact count for
-  // small inventories to avoid zero-progress false positives.
-  final totalItems = state.inventory.items.fold<int>(
-    0,
-    (sum, stack) => sum + stack.count,
-  );
-  if (totalItems > 0) {
-    // For small inventories, use exact count; for larger, use buckets
-    if (totalItems < 100) {
-      buffer.write('inv:$totalItems|');
-    } else {
-      final invBucket = totalItems ~/ _inventoryBucketSize;
-      buffer.write('inv:$invBucket|');
+  // Inventory bucket - only if goal tracks inventory (consuming skills)
+  if (goal.shouldTrackInventory) {
+    final totalItems = state.inventory.items.fold<int>(
+      0,
+      (sum, stack) => sum + stack.count,
+    );
+    if (totalItems > 0) {
+      // For small inventories, use exact count; for larger, use buckets
+      if (totalItems < 100) {
+        buffer.write('inv:$totalItems|');
+      } else {
+        final invBucket = totalItems ~/ _inventoryBucketSize;
+        buffer.write('inv:$invBucket|');
+      }
     }
   }
 
@@ -960,16 +1319,16 @@ ConsumeUntilResult consumeUntil(
             final producer = producers.first;
             final inputItemId = currentAction.inputs.keys.first;
 
-            // Calculate buffer: enough to burn for ~5 minutes
+            // Calculate buffer: enough to consume for ~5 minutes
             final consumptionRate = currentAction.inputs.values.first;
-            final ticksPerBurn =
+            final ticksPerConsume =
                 (currentAction.minDuration.inMilliseconds /
                         Duration.millisecondsPerSecond *
                         10)
                     .round();
             const bufferTicks = 3000; // 5 minutes at 100ms/tick
-            final bufferCount = ((bufferTicks / ticksPerBurn) * consumptionRate)
-                .ceil();
+            final bufferCount =
+                ((bufferTicks / ticksPerConsume) * consumptionRate).ceil();
 
             print(
               'Switching to ${producer.name} to gather '
@@ -1022,10 +1381,119 @@ ConsumeUntilResult consumeUntil(
 /// Result of applying a single step.
 typedef _StepResult = ({GlobalState state, int ticksElapsed, int deaths});
 
+/// Executes a coupled produce/consume loop for consuming skills.
+///
+/// Alternates between:
+/// 1. Produce inputs (e.g., cut logs, catch fish) until buffer threshold
+/// 2. Consume inputs (e.g., burn logs, cook fish) until depleted or stop
+/// 3. Repeat until primary stop condition is met
+_StepResult _executeCoupledLoop(
+  GlobalState state,
+  TrainConsumingSkillUntil macro,
+  WaitFor waitFor,
+  Map<Skill, SkillBoundaries>? boundaries,
+  Random random,
+) {
+  var currentState = state;
+  var totalTicks = 0;
+  var totalDeaths = 0;
+
+  // Find best consuming and producing actions
+  final goal = ReachSkillLevelGoal(macro.consumingSkill, 99);
+  final bestConsumeAction = _findBestActionForSkill(
+    currentState,
+    macro.consumingSkill,
+    goal,
+  );
+  if (bestConsumeAction == null) {
+    return (state: currentState, ticksElapsed: 0, deaths: 0);
+  }
+
+  final consumeAction = currentState.registries.actions.byId(bestConsumeAction);
+  if (consumeAction is! SkillAction || consumeAction.inputs.isEmpty) {
+    return (state: currentState, ticksElapsed: 0, deaths: 0);
+  }
+
+  final inputItem = consumeAction.inputs.keys.first;
+  final producerAction = _findProducerActionForItem(
+    currentState,
+    inputItem,
+    goal,
+  );
+  if (producerAction == null) {
+    return (state: currentState, ticksElapsed: 0, deaths: 0);
+  }
+
+  // Regenerate actual wait condition from primary stop
+  final actualWaitFor = boundaries != null
+      ? macro.primaryStop.toWaitFor(currentState, boundaries)
+      : waitFor;
+
+  // Execute coupled loop
+  while (true) {
+    // Check if primary stop condition is met
+    if (actualWaitFor.isSatisfied(currentState)) {
+      break;
+    }
+
+    // Phase 1: Produce inputs until we have some buffer
+    currentState = applyInteraction(
+      currentState,
+      SwitchActivity(producerAction),
+    );
+
+    // Produce until we have at least 10 items (simple buffer policy)
+    const bufferTarget = 10;
+    final currentCount = currentState.inventory.countOfItem(
+      currentState.registries.items.byId(inputItem),
+    );
+    if (currentCount < bufferTarget) {
+      final produceResult = consumeUntil(
+        currentState,
+        WaitForInventoryAtLeast(inputItem, bufferTarget),
+        random: random,
+      );
+      currentState = produceResult.state;
+      totalTicks += produceResult.ticksElapsed;
+      totalDeaths += produceResult.deathCount;
+    }
+
+    // Check stop condition again after producing
+    if (actualWaitFor.isSatisfied(currentState)) {
+      break;
+    }
+
+    // Phase 2: Consume inputs until depleted or stop condition
+    currentState = applyInteraction(
+      currentState,
+      SwitchActivity(bestConsumeAction),
+    );
+
+    final consumeResult = consumeUntil(
+      currentState,
+      WaitForAnyOf([actualWaitFor, WaitForInputsDepleted(bestConsumeAction)]),
+      random: random,
+    );
+    currentState = consumeResult.state;
+    totalTicks += consumeResult.ticksElapsed;
+    totalDeaths += consumeResult.deathCount;
+
+    // If we hit the stop condition, we're done
+    if (actualWaitFor.isSatisfied(currentState)) {
+      break;
+    }
+
+    // Otherwise, loop back to produce more inputs
+  }
+
+  return (state: currentState, ticksElapsed: totalTicks, deaths: totalDeaths);
+}
+
 _StepResult _applyStep(
   GlobalState state,
   PlanStep step, {
   required Random random,
+  Map<Skill, SkillBoundaries>? boundaries,
 }) {
   switch (step) {
     case InteractionStep(:final interaction):
@@ -1037,6 +1505,49 @@ _StepResult _applyStep(
     case WaitStep(:final waitFor):
       // Run until the wait condition is satisfied
       final result = consumeUntil(state, waitFor, random: random);
+      return (
+        state: result.state,
+        ticksElapsed: result.ticksElapsed,
+        deaths: result.deathCount,
+      );
+    case MacroStep(:final macro, :final waitFor):
+      // Execute the macro by running until the composite wait condition
+      // Macros need to set up the action before executing
+      var executionState = state;
+      var executionWaitFor = waitFor;
+
+      if (macro is TrainSkillUntil) {
+        // Find and switch to the best action for this skill
+        final bestAction = _findBestActionForSkill(
+          state,
+          macro.skill,
+          // We don't have the goal here, so create a dummy one
+          ReachSkillLevelGoal(macro.skill, 99),
+        );
+        if (bestAction != null && state.activeAction?.id != bestAction) {
+          executionState = applyInteraction(state, SwitchActivity(bestAction));
+        }
+
+        // Regenerate WaitFor based on actual execution state and action
+        // This ensures StopWhenInputsDepleted references the correct action
+        if (boundaries != null) {
+          final waitConditions = macro.allStops
+              .map((rule) => rule.toWaitFor(executionState, boundaries))
+              .toList();
+          executionWaitFor = waitConditions.length == 1
+              ? waitConditions.first
+              : WaitForAnyOf(waitConditions);
+        }
+      } else if (macro is TrainConsumingSkillUntil) {
+        // Execute coupled produce/consume loop until stop condition
+        return _executeCoupledLoop(state, macro, waitFor, boundaries, random);
+      }
+
+      final result = consumeUntil(
+        executionState,
+        executionWaitFor,
+        random: random,
+      );
       return (
         state: result.state,
         ticksElapsed: result.ticksElapsed,
@@ -1059,10 +1570,18 @@ PlanExecutionResult executePlan(
   var totalDeaths = 0;
   var actualTicks = 0;
 
+  // Compute boundaries once for macro execution
+  final boundaries = computeUnlockBoundaries(state.registries);
+
   for (var i = 0; i < plan.steps.length; i++) {
     final step = plan.steps[i];
     try {
-      final result = _applyStep(state, step, random: random);
+      final result = _applyStep(
+        state,
+        step,
+        random: random,
+        boundaries: boundaries,
+      );
       state = result.state;
       totalDeaths += result.deaths;
       actualTicks += result.ticksElapsed;
@@ -1100,6 +1619,331 @@ SolverResult solveToCredits(
   );
 }
 
+// ---------------------------------------------------------------------------
+// Macro Expansion
+// ---------------------------------------------------------------------------
+
+/// Result of expanding a macro candidate.
+typedef MacroExpansionResult = ({
+  GlobalState state,
+  int ticksElapsed,
+  WaitFor waitFor, // Composite WaitFor for plan execution
+  int deaths,
+  String? triggeringCondition, // Which stop condition triggered first
+});
+
+/// Expands a macro candidate into a future state by estimating progress.
+///
+/// Uses expected-value modeling (same as `advance`) to project forward
+/// until ANY of the macro's stop conditions would trigger.
+///
+/// Returns null if the macro cannot be executed (e.g., no unlocked actions).
+MacroExpansionResult? _expandMacro(
+  GlobalState state,
+  MacroCandidate macro,
+  Goal goal,
+  Map<Skill, SkillBoundaries> boundaries,
+) {
+  if (macro is TrainSkillUntil) {
+    return _expandTrainSkillUntil(state, macro, goal, boundaries);
+  } else if (macro is TrainConsumingSkillUntil) {
+    return _expandTrainConsumingSkillUntil(state, macro, goal, boundaries);
+  }
+  return null;
+}
+
+/// Expands a TrainSkillUntil macro.
+///
+/// 1. Finds the best unlocked action for the skill
+/// 2. Switches to that action (if not already on it)
+/// 3. Builds composite WaitFor from all stop rules (primary + watched)
+/// 4. Estimates ticks until soonest condition triggers
+/// 5. Uses expected-value advance to project state
+MacroExpansionResult? _expandTrainSkillUntil(
+  GlobalState state,
+  TrainSkillUntil macro,
+  Goal goal,
+  Map<Skill, SkillBoundaries> boundaries,
+) {
+  // Find best unlocked action for this skill
+  final bestAction = _findBestActionForSkill(state, macro.skill, goal);
+  if (bestAction == null) return null;
+
+  // Switch to that action (if not already on it)
+  var currentState = state;
+  if (state.activeAction?.id != bestAction) {
+    currentState = applyInteraction(state, SwitchActivity(bestAction));
+  }
+
+  // Build composite WaitFor from all stop rules (primary + watched)
+  final stopRules = macro.allStops.toList();
+  final waitConditions = stopRules
+      .map((MacroStopRule rule) => rule.toWaitFor(currentState, boundaries))
+      .toList();
+
+  // Create composite WaitFor (stops when ANY condition triggers)
+  final compositeWaitFor = waitConditions.length == 1
+      ? waitConditions.first
+      : WaitForAnyOf(waitConditions);
+
+  // Estimate ticks until ANY stop condition triggers (use minimum)
+  final rates = estimateRates(currentState);
+  final ticksUntilStop = compositeWaitFor.estimateTicks(currentState, rates);
+
+  if (ticksUntilStop <= 0 || ticksUntilStop >= infTicks) {
+    return null; // No progress possible or already satisfied
+  }
+
+  // Find which condition triggered first (has minimum ticks)
+  String? triggeringCondition;
+  for (var i = 0; i < waitConditions.length; i++) {
+    final ticks = waitConditions[i].estimateTicks(currentState, rates);
+    if (ticks == ticksUntilStop) {
+      triggeringCondition = waitConditions[i].shortDescription;
+      break;
+    }
+  }
+
+  // Use expected-value advance (already exists!)
+  final advanceResult = advance(currentState, ticksUntilStop);
+
+  return (
+    state: advanceResult.state,
+    ticksElapsed: ticksUntilStop,
+    waitFor: compositeWaitFor, // Execution will respect all conditions
+    deaths: advanceResult.deaths,
+    triggeringCondition: triggeringCondition,
+  );
+}
+
+/// Expands a TrainConsumingSkillUntil macro for consuming skills.
+///
+/// For consuming skills (Firemaking, Cooking, etc.), this models a coupled
+/// produce/consume loop:
+/// 1. Find best consuming action (e.g., burn logs, cook fish)
+/// 2. Find corresponding producer action (e.g., cut logs, catch fish)
+/// 3. Estimate sustainable rate: consumingXP/tick including production time
+/// 4. Project state forward until stop condition
+///
+/// The sustainable rate is:
+///   consumeXP/tick * (produceTime / (produceTime + consumeTime))
+MacroExpansionResult? _expandTrainConsumingSkillUntil(
+  GlobalState state,
+  TrainConsumingSkillUntil macro,
+  Goal goal,
+  Map<Skill, SkillBoundaries> boundaries,
+) {
+  // Find best unlocked consuming action
+  final bestConsumeAction = _findBestActionForSkill(
+    state,
+    macro.consumingSkill,
+    goal,
+  );
+  if (bestConsumeAction == null) return null;
+
+  // Get the consuming action to find its inputs
+  final consumeAction = state.registries.actions.byId(bestConsumeAction);
+  if (consumeAction is! SkillAction || consumeAction.inputs.isEmpty) {
+    return null; // Not a valid consuming action
+  }
+
+  // Find the primary input item (assume first input for now)
+  final inputItem = consumeAction.inputs.keys.first;
+
+  // Find producer action for this input item
+  final producerAction = _findProducerActionForItem(state, inputItem, goal);
+  if (producerAction == null) return null;
+
+  // Switch to the consuming action for state projection
+  final consumeState = applyInteraction(
+    state,
+    SwitchActivity(bestConsumeAction),
+  );
+
+  // Build stop condition from primary stop
+  final waitFor = macro.primaryStop.toWaitFor(state, boundaries);
+
+  // Calculate sustainable XP rate accounting for production time
+  final consumeAction_ =
+      state.registries.actions.byId(bestConsumeAction) as SkillAction;
+  final produceAction_ =
+      state.registries.actions.byId(producerAction) as SkillAction;
+
+  final consumeTicksPerAction = ticksFromDuration(
+    consumeAction_.meanDuration,
+  ).toDouble();
+  final produceTicksPerAction = ticksFromDuration(
+    produceAction_.meanDuration,
+  ).toDouble();
+
+  final inputsNeededPerAction = consumeAction_.inputs[inputItem] ?? 1;
+  final outputsPerAction = produceAction_.outputs[inputItem] ?? 1;
+
+  // How many produce actions needed per consume action
+  final produceActionsPerConsumeAction =
+      inputsNeededPerAction / outputsPerAction;
+
+  // Total time for one consume cycle (produce + consume)
+  final totalTicksPerCycle =
+      (produceActionsPerConsumeAction * produceTicksPerAction) +
+      consumeTicksPerAction;
+
+  // Sustainable XP rate = XP per action / total cycle time
+  final consumeXpPerAction = consumeAction_.xp.toDouble();
+  final sustainableXpPerTick = consumeXpPerAction / totalTicksPerCycle;
+
+  // Calculate ticks needed based on sustainable rate
+  // For XP goals, we need to reach a specific XP target
+  final currentXp = state.skillState(macro.consumingSkill).xp;
+  int ticksUntilStop;
+
+  if (waitFor is WaitForSkillXp) {
+    // Calculate exactly how many ticks needed at sustainable rate
+    final xpNeeded = (waitFor.targetXp - currentXp).toDouble();
+    if (xpNeeded <= 0) return null; // Already satisfied
+    ticksUntilStop = (xpNeeded / sustainableXpPerTick).ceil();
+  } else {
+    // For other stop conditions, estimate then adjust for sustainable rate
+    final consumeRates = estimateRates(consumeState);
+    final estimatedTicks = waitFor.estimateTicks(consumeState, consumeRates);
+    if (estimatedTicks <= 0 || estimatedTicks >= infTicks) {
+      return null;
+    }
+    // The estimate assumes full consume rate, adjust for sustainable rate
+    final consumeXpPerTick = consumeAction_.xp / consumeTicksPerAction;
+    final slowdownFactor = sustainableXpPerTick / consumeXpPerTick;
+    ticksUntilStop = (estimatedTicks / slowdownFactor).ceil();
+  }
+
+  // Project state based on coupled loop dynamics
+  // Calculate XP gains for both consuming and producing skills
+  final consumingSkillXp =
+      currentXp + (sustainableXpPerTick * ticksUntilStop).floor();
+
+  // Calculate producer skill XP (woodcutting gains XP during production phase)
+  final produceSkill = produceAction_.skill;
+  final currentProduceXp = state.skillState(produceSkill).xp;
+
+  // Time spent producing = produceActionsPerConsumeAction *
+  // produceTicksPerAction per cycle.
+  // Number of cycles = ticksUntilStop / totalTicksPerCycle
+  final numCycles = ticksUntilStop / totalTicksPerCycle;
+  final totalProduceTicks =
+      numCycles * produceActionsPerConsumeAction * produceTicksPerAction;
+  final produceXpGained =
+      (totalProduceTicks * (produceAction_.xp / produceTicksPerAction)).floor();
+  final producingSkillXp = currentProduceXp + produceXpGained;
+
+  // Build projected state with both skills updated
+  final projectedState = state.copyWith(
+    skillStates: {
+      for (final skill in Skill.values)
+        skill: skill == macro.consumingSkill
+            ? SkillState(
+                xp: consumingSkillXp,
+                masteryPoolXp: state.skillState(skill).masteryPoolXp,
+              )
+            : skill == produceSkill
+            ? SkillState(
+                xp: producingSkillXp,
+                masteryPoolXp: state.skillState(skill).masteryPoolXp,
+              )
+            : state.skillState(skill),
+    },
+  );
+
+  return (
+    state: projectedState,
+    ticksElapsed: ticksUntilStop,
+    waitFor: waitFor,
+    deaths: 0, // No combat deaths in firemaking/woodcutting
+    triggeringCondition: waitFor.shortDescription,
+  );
+}
+
+/// Finds an action that produces the given item.
+ActionId? _findProducerActionForItem(
+  GlobalState state,
+  MelvorId item,
+  Goal goal,
+) {
+  int skillLevel(Skill skill) => state.skillState(skill).skillLevel;
+
+  // Find all actions that produce this item
+  final producers = state.registries.actions.all
+      .whereType<SkillAction>()
+      .where((action) => action.outputs.containsKey(item))
+      .where((action) => action.unlockLevel <= skillLevel(action.skill));
+
+  if (producers.isEmpty) return null;
+
+  // Rank by production rate (outputs per tick)
+  ActionId? best;
+  double bestRate = 0;
+
+  for (final action in producers) {
+    try {
+      // Test if we can switch to this action
+      applyInteraction(state, SwitchActivity(action.id));
+
+      final ticksPerAction = ticksFromDuration(action.meanDuration).toDouble();
+      final outputsPerAction = action.outputs[item] ?? 1;
+      final outputsPerTick = outputsPerAction / ticksPerAction;
+
+      if (outputsPerTick > bestRate) {
+        bestRate = outputsPerTick;
+        best = action.id;
+      }
+    } on Exception catch (_) {
+      continue; // Skip if can't start
+    }
+  }
+
+  return best;
+}
+
+/// Finds the best action for a skill based on the goal's criteria.
+///
+/// For skill goals, picks the action with highest XP rate.
+/// For GP goals, picks the action with highest gold rate.
+ActionId? _findBestActionForSkill(GlobalState state, Skill skill, Goal goal) {
+  final skillLevel = state.skillState(skill).skillLevel;
+  final actions = state.registries.actions.all
+      .whereType<SkillAction>()
+      .where((action) => action.skill == skill)
+      .where((action) => action.unlockLevel <= skillLevel);
+
+  if (actions.isEmpty) return null;
+
+  // Rank by goal-specific rate
+  ActionId? best;
+  double bestRate = 0;
+
+  for (final action in actions) {
+    // Try to switch to action to estimate rates
+    // Skip actions that can't be started (e.g., missing inputs for consuming)
+    try {
+      final testState = applyInteraction(state, SwitchActivity(action.id));
+      final rates = estimateRates(testState);
+
+      final goldRate = defaultValueModel.valuePerTick(testState, rates);
+      final xpRate = rates.xpPerTickBySkill[skill] ?? 0.0;
+
+      final rate = goal.activityRate(skill, goldRate, xpRate);
+
+      if (rate > bestRate) {
+        bestRate = rate;
+        best = action.id;
+      }
+    } on Exception catch (_) {
+      // Can't start this action (e.g., missing inputs) - skip it
+      continue;
+    }
+  }
+
+  return best;
+}
+
 /// Solves for an optimal plan to satisfy the given [goal].
 ///
 /// Uses A* algorithm to find the minimum-ticks path from the initial
@@ -1108,6 +1952,9 @@ SolverResult solveToCredits(
 /// Supports both [ReachGpGoal] (reach target GP) and [ReachSkillLevelGoal]
 /// (reach target skill level).
 ///
+/// If [collectDiagnostics] is true, collects extended diagnostic stats
+/// including heuristic health, bucket key uniqueness, and candidate stats.
+///
 /// Returns a [SolverResult] which is either [SolverSuccess] with the plan,
 /// or [SolverFailed] with failure information.
 SolverResult solve(
@@ -1115,6 +1962,7 @@ SolverResult solve(
   Goal goal, {
   int maxExpandedNodes = defaultMaxExpandedNodes,
   int maxQueueSize = defaultMaxQueueSize,
+  bool collectDiagnostics = false,
 }) {
   final profile = SolverProfile();
   final totalStopwatch = Stopwatch()..start();
@@ -1123,6 +1971,9 @@ SolverResult solve(
   if (goal.isSatisfied(initial)) {
     return SolverSuccess(const Plan.empty(), profile);
   }
+
+  // Compute unlock boundaries for macro-step planning
+  final boundaries = computeUnlockBoundaries(initial.registries);
 
   // Rate cache for A* heuristic (caches best unlocked rate by state)
   final rateCache = _RateCache(goal);
@@ -1165,9 +2016,40 @@ SolverResult solve(
   enqueuedNodes++;
 
   final hashStopwatch = Stopwatch()..start();
-  final rootKey = _stateKey(initial);
+  final rootKey = _stateKey(initial, goal);
   profile.hashingTimeUs += hashStopwatch.elapsedMicroseconds;
   bestTicks[rootKey] = 0;
+
+  // Record root best rate for diagnostics
+  if (collectDiagnostics) {
+    final rootBestRate = rateCache.getBestUnlockedRate(initial);
+    profile.recordBestRate(rootBestRate, isRoot: true);
+    final zeroReason = rateCache.getZeroReason(initial);
+    if (zeroReason != null) {
+      profile.recordRateZeroReason(zeroReason);
+    }
+  }
+
+  // Diagnostic tripwire: fail fast if heuristic has zero best rate.
+  // This catches configuration errors early (e.g., consuming skill goal
+  // with no unlocked producer for required inputs).
+  final rootBestRate = rateCache.getBestUnlockedRate(initial);
+  if (rootBestRate <= 0) {
+    final zeroReason = rateCache.getZeroReason(initial);
+    final reasonStr =
+        zeroReason?.describe() ?? 'unknown reason (rate computed as zero)';
+    totalStopwatch.stop();
+    profile
+      ..expandedNodes = 0
+      ..totalTimeUs = totalStopwatch.elapsedMicroseconds;
+    return SolverFailed(
+      SolverFailure(
+        reason: 'Heuristic bestRate=0: $reasonStr',
+        enqueuedNodes: enqueuedNodes,
+      ),
+      profile,
+    );
+  }
 
   while (pq.isNotEmpty) {
     // Check limits
@@ -1216,7 +2098,7 @@ SolverResult solve(
     hashStopwatch
       ..reset()
       ..start();
-    final nodeKey = _stateKey(node.state);
+    final nodeKey = _stateKey(node.state, goal);
     profile.hashingTimeUs += hashStopwatch.elapsedMicroseconds;
 
     final nodeReachedGoal = goal.isSatisfied(node.state);
@@ -1228,6 +2110,29 @@ SolverResult solve(
 
     expandedNodes++;
     var neighborsThisNode = 0;
+
+    // Track peak queue size for diagnostics
+    if (pq.length > profile.peakQueueSize) {
+      profile.peakQueueSize = pq.length;
+    }
+
+    // Collect heuristic health metrics when diagnostics enabled
+    if (collectDiagnostics) {
+      final bestRate = rateCache.getBestUnlockedRate(node.state);
+      final h = _heuristic(node.state, goal, rateCache);
+      profile
+        ..recordHeuristic(h, hasZeroRate: bestRate <= 0)
+        ..recordBucketKey(nodeKey)
+        ..recordBestRate(bestRate, isRoot: false);
+
+      // Record zero reason if applicable
+      if (bestRate <= 0) {
+        final zeroReason = rateCache.getZeroReason(node.state);
+        if (zeroReason != null) {
+          profile.recordRateZeroReason(zeroReason);
+        }
+      }
+    }
 
     // Track best credits seen (effective credits = GP + inventory value)
     // Note: For non-GP goals this tracks GP anyway for diagnostics.
@@ -1256,8 +2161,26 @@ SolverResult solve(
 
     // Compute candidates for this state
     final enumStopwatch = Stopwatch()..start();
-    final candidates = enumerateCandidates(node.state, goal);
+    final candidates = enumerateCandidates(
+      node.state,
+      goal,
+      collectStats: collectDiagnostics,
+    );
     profile.enumerateCandidatesTimeUs += enumStopwatch.elapsedMicroseconds;
+
+    // Record candidate stats when diagnostics enabled
+    if (collectDiagnostics && candidates.consumingSkillStats != null) {
+      final stats = candidates.consumingSkillStats!;
+      profile.candidateStatsHistory.add(
+        CandidateStats(
+          consumerActionsConsidered: stats.consumerActionsConsidered,
+          producerActionsConsidered: stats.producerActionsConsidered,
+          pairsConsidered: stats.pairsConsidered,
+          pairsKept: stats.pairsKept,
+          topPairs: stats.topPairs,
+        ),
+      );
+    }
 
     // Expand interaction edges (0 time cost)
     final interactions = availableInteractions(node.state);
@@ -1268,7 +2191,7 @@ SolverResult solve(
       try {
         final newState = applyInteraction(node.state, interaction);
         final newProgress = goal.progress(newState);
-        final newBucketKey = _bucketKeyFromState(newState);
+        final newBucketKey = _bucketKeyFromState(newState, goal);
 
         // Dominance pruning: skip if dominated by existing frontier point
         if (frontier.isDominatedOrInsert(
@@ -1283,7 +2206,7 @@ SolverResult solve(
         hashStopwatch
           ..reset()
           ..start();
-        final newKey = _stateKey(newState);
+        final newKey = _stateKey(newState, goal);
         profile.hashingTimeUs += hashStopwatch.elapsedMicroseconds;
 
         // Only enqueue if this is the best path to this state
@@ -1308,6 +2231,84 @@ SolverResult solve(
       } on Exception catch (_) {
         // Interaction failed (e.g., can't afford upgrade) - skip
         continue;
+      }
+    }
+
+    // Expand macro edges (train skill until boundary/goal)
+    for (final macro in candidates.macros) {
+      final expansionResult = _expandMacro(node.state, macro, goal, boundaries);
+      if (expansionResult == null) continue;
+
+      // Record which condition triggered the macro stop
+      if (expansionResult.triggeringCondition != null) {
+        profile.recordMacroStopTrigger(expansionResult.triggeringCondition!);
+      }
+
+      final newState = expansionResult.state;
+      final newDeaths = node.expectedDeaths + expansionResult.deaths;
+      final newTicks = node.ticks + expansionResult.ticksElapsed;
+      final newProgress = goal.progress(newState);
+      final newBucketKey = _bucketKeyFromState(newState, goal);
+
+      // Check if we've reached the goal
+      final reachedGoal = goal.isSatisfied(newState);
+
+      // Dominance pruning: skip if dominated unless we reached the goal
+      if (!reachedGoal &&
+          frontier.isDominatedOrInsert(newBucketKey, newTicks, newProgress)) {
+        profile.dominatedSkipped++;
+        continue;
+      }
+
+      // Add to frontier if reached goal
+      if (reachedGoal) {
+        frontier.isDominatedOrInsert(newBucketKey, newTicks, newProgress);
+      }
+
+      hashStopwatch
+        ..reset()
+        ..start();
+      final newKey = _stateKey(newState, goal);
+      profile.hashingTimeUs += hashStopwatch.elapsedMicroseconds;
+
+      // Only enqueue if this is the best path to this state
+      final existingBest = bestTicks[newKey];
+      if (existingBest == null || newTicks < existingBest) {
+        bestTicks[newKey] = newTicks;
+
+        final newNode = _Node(
+          state: newState,
+          ticks: newTicks,
+          interactions: node.interactions,
+          expectedDeaths: newDeaths,
+          parentId: nodeId,
+          stepFromParent: MacroStep(
+            macro,
+            expansionResult.ticksElapsed,
+            expansionResult.waitFor,
+          ),
+        );
+
+        final newNodeId = nodes.length;
+        nodes.add(newNode);
+
+        if (reachedGoal) {
+          // Found goal via macro - return immediately
+          totalStopwatch.stop();
+          profile
+            ..expandedNodes = expandedNodes
+            ..totalTimeUs = totalStopwatch.elapsedMicroseconds
+            ..frontierInserted = frontier.inserted
+            ..frontierRemoved = frontier.removed;
+          return SolverSuccess(
+            _reconstructPlan(nodes, newNodeId, expandedNodes, enqueuedNodes),
+            profile,
+          );
+        }
+
+        pq.add(newNodeId);
+        enqueuedNodes++;
+        neighborsThisNode++;
       }
     }
 
@@ -1336,7 +2337,7 @@ SolverResult solve(
       final newDeaths = node.expectedDeaths + advanceResult.deaths;
       final newTicks = node.ticks + deltaResult.deltaTicks;
       final newProgress = goal.progress(newState);
-      final newBucketKey = _bucketKeyFromState(newState);
+      final newBucketKey = _bucketKeyFromState(newState, goal);
 
       // Check if we've reached the goal BEFORE dominance pruning
       final reachedGoal = goal.isSatisfied(newState);
@@ -1354,7 +2355,7 @@ SolverResult solve(
         hashStopwatch
           ..reset()
           ..start();
-        final newKey = _stateKey(newState);
+        final newKey = _stateKey(newState, goal);
         profile.hashingTimeUs += hashStopwatch.elapsedMicroseconds;
 
         // Safety: check for zero-progress waits (same state key after advance)

@@ -21,316 +21,13 @@ library;
 import 'package:equatable/equatable.dart';
 import 'package:logic/src/data/action_id.dart';
 import 'package:logic/src/data/actions.dart';
-import 'package:logic/src/data/melvor_id.dart';
-import 'package:logic/src/solver/goal.dart';
 import 'package:logic/src/solver/interaction.dart';
+import 'package:logic/src/solver/macro_candidate.dart';
 import 'package:logic/src/solver/solver.dart';
+import 'package:logic/src/solver/wait_for.dart';
 import 'package:logic/src/state.dart';
 import 'package:logic/src/tick.dart';
 import 'package:meta/meta.dart';
-
-// ---------------------------------------------------------------------------
-// Wait For (what we're waiting for)
-// ---------------------------------------------------------------------------
-
-/// Describes what a [WaitStep] is waiting for.
-///
-/// During planning, the solver uses expected-value modeling which may differ
-/// from actual simulation due to randomness. WaitFor types allow plan
-/// execution to continue until the condition is actually met, rather than
-/// stopping after a fixed number of ticks.
-///
-/// Each WaitFor type has:
-/// - [isSatisfied] - check if condition is met (for execution)
-/// - [describe] - human-readable description with values
-/// - [shortDescription] - brief label for plan display (e.g., "Skill +1")
-sealed class WaitFor extends Equatable {
-  const WaitFor();
-
-  /// Returns true if this wait condition is satisfied in the given state.
-  bool isSatisfied(GlobalState state);
-
-  /// Human-readable description of what we're waiting for (with values).
-  String describe();
-
-  /// Short description for plan (e.g., "Skill +1", "Upgrade affordable").
-  String get shortDescription;
-}
-
-/// Wait until effective value (GP + inventory sell value) reaches a target.
-/// Used for: upgrade becomes affordable, GP goal reached.
-@immutable
-class WaitForInventoryValue extends WaitFor {
-  const WaitForInventoryValue(this.targetValue, {this.reason = 'Upgrade'});
-
-  final int targetValue;
-
-  /// Why we're waiting for this value (for display).
-  final String reason;
-
-  @override
-  bool isSatisfied(GlobalState state) {
-    var total = state.gp;
-    for (final stack in state.inventory.items) {
-      total += stack.sellsFor;
-    }
-    return total >= targetValue;
-  }
-
-  @override
-  String describe() => 'value >= $targetValue';
-
-  @override
-  String get shortDescription => '$reason affordable';
-
-  @override
-  List<Object?> get props => [targetValue];
-}
-
-/// Wait until a skill reaches a target XP amount.
-/// Used for: skill level up, activity unlock, goal reached.
-@immutable
-class WaitForSkillXp extends WaitFor {
-  const WaitForSkillXp(this.skill, this.targetXp, {this.reason});
-
-  final Skill skill;
-  final int targetXp;
-
-  /// Optional reason (e.g., 'Oak Tree unlocks'). If null, shows 'Skill +1'.
-  final String? reason;
-
-  @override
-  bool isSatisfied(GlobalState state) {
-    return state.skillState(skill).xp >= targetXp;
-  }
-
-  @override
-  String describe() => '${skill.name} XP >= $targetXp';
-
-  @override
-  String get shortDescription => reason ?? 'Skill +1';
-
-  @override
-  List<Object?> get props => [skill, targetXp];
-}
-
-/// Wait until mastery for an action reaches a target XP amount.
-@immutable
-class WaitForMasteryXp extends WaitFor {
-  const WaitForMasteryXp(this.actionId, this.targetMasteryXp);
-
-  final ActionId actionId;
-  final int targetMasteryXp;
-
-  @override
-  bool isSatisfied(GlobalState state) {
-    return state.actionState(actionId).masteryXp >= targetMasteryXp;
-  }
-
-  @override
-  String describe() {
-    // This isn't the real name, but it's close enough for debugging.
-    final actionName = actionId.localId.name;
-    return '$actionName mastery XP >= $targetMasteryXp';
-  }
-
-  @override
-  String get shortDescription => 'Mastery +1';
-
-  @override
-  List<Object?> get props => [actionId, targetMasteryXp];
-}
-
-/// Wait until inventory usage reaches a threshold fraction.
-@immutable
-class WaitForInventoryThreshold extends WaitFor {
-  const WaitForInventoryThreshold(this.threshold);
-
-  /// Fraction of inventory capacity (0.0 to 1.0).
-  final double threshold;
-
-  @override
-  bool isSatisfied(GlobalState state) {
-    if (state.inventoryCapacity <= 0) return false;
-    final usedFraction = state.inventoryUsed / state.inventoryCapacity;
-    return usedFraction >= threshold;
-  }
-
-  @override
-  String describe() => 'inventory >= ${(threshold * 100).toInt()}%';
-
-  @override
-  String get shortDescription => 'Inventory threshold';
-
-  @override
-  List<Object?> get props => [threshold];
-}
-
-/// Wait until inventory is completely full.
-@immutable
-class WaitForInventoryFull extends WaitFor {
-  const WaitForInventoryFull();
-
-  @override
-  bool isSatisfied(GlobalState state) {
-    return state.inventoryRemaining <= 0;
-  }
-
-  @override
-  String describe() => 'inventory full';
-
-  @override
-  String get shortDescription => 'Inventory full';
-
-  @override
-  List<Object?> get props => [];
-}
-
-/// Wait until goal is reached. This is a terminal wait.
-@immutable
-class WaitForGoal extends WaitFor {
-  const WaitForGoal(this.goal);
-
-  final Goal goal;
-
-  @override
-  bool isSatisfied(GlobalState state) => goal.isSatisfied(state);
-
-  @override
-  String describe() => goal.describe();
-
-  @override
-  String get shortDescription => 'Goal reached';
-
-  @override
-  List<Object?> get props => [goal];
-}
-
-/// Wait until inputs for the current action are depleted.
-/// Used for consuming actions (firemaking, cooking, etc.) to signal when
-/// the solver should switch to a producer action.
-@immutable
-class WaitForInputsDepleted extends WaitFor {
-  const WaitForInputsDepleted(this.actionId);
-
-  final ActionId actionId;
-
-  @override
-  bool isSatisfied(GlobalState state) {
-    final action = state.registries.actions.byId(actionId);
-    // Inputs are depleted when we can no longer start the action
-    return !state.canStartAction(action);
-  }
-
-  @override
-  String describe() => 'inputs depleted for ${actionId.localId.name}';
-
-  @override
-  String get shortDescription => 'Inputs depleted';
-
-  @override
-  List<Object?> get props => [actionId];
-}
-
-/// Wait until inputs for a consuming action become available.
-/// Used when a producer action is gathering inputs for a consuming action.
-@immutable
-class WaitForInputsAvailable extends WaitFor {
-  const WaitForInputsAvailable(this.actionId);
-
-  final ActionId actionId;
-
-  @override
-  bool isSatisfied(GlobalState state) {
-    final action = state.registries.actions.byId(actionId);
-    // Inputs are available when we can start the action
-    return state.canStartAction(action);
-  }
-
-  @override
-  String describe() => 'inputs available for ${actionId.localId.name}';
-
-  @override
-  String get shortDescription => 'Inputs available';
-
-  @override
-  List<Object?> get props => [actionId];
-}
-
-/// Wait until inventory has at least a certain count of an item.
-/// Used during adaptive produce/consume cycles to gather enough inputs
-/// before switching back to the consuming action.
-@immutable
-class WaitForInventoryAtLeast extends WaitFor {
-  const WaitForInventoryAtLeast(this.itemId, this.minCount);
-
-  final MelvorId itemId;
-  final int minCount;
-
-  @override
-  bool isSatisfied(GlobalState state) {
-    final count = state.inventory.items
-        .where((s) => s.item.id == itemId)
-        .map((s) => s.count)
-        .fold(0, (a, b) => a + b);
-    return count >= minCount;
-  }
-
-  @override
-  String describe() => '${itemId.localId} count >= $minCount';
-
-  @override
-  String get shortDescription => 'Inventory at least $minCount';
-
-  @override
-  List<Object?> get props => [itemId, minCount];
-}
-
-/// Wait until we have enough inputs to complete the goal via a consuming
-/// action. Used when a producer action needs to gather sufficient inputs before
-/// switching to the consuming action to complete the skill goal.
-@immutable
-class WaitForSufficientInputs extends WaitFor {
-  const WaitForSufficientInputs(this.actionId, this.targetCount);
-
-  final ActionId actionId;
-  final int targetCount;
-
-  @override
-  bool isSatisfied(GlobalState state) {
-    final action = state.registries.actions.byId(actionId);
-    if (action is! SkillAction) return false;
-
-    // Get the inputs needed for this action
-    final actionStateVal = state.actionState(action.id);
-    final selection = actionStateVal.recipeSelection(action);
-    final inputs = action.inputsForRecipe(selection);
-
-    // Check if we have enough of all inputs
-    for (final entry in inputs.entries) {
-      final item = state.registries.items.byId(entry.key);
-      final available = state.inventory.countOfItem(item);
-      // We need at least targetCount of the primary input
-      // (for simplicity, check if we have enough to run targetCount actions)
-      final neededPerAction = entry.value;
-      if (available <
-          targetCount * neededPerAction / inputs.length.toDouble()) {
-        return false;
-      }
-    }
-    return true;
-  }
-
-  @override
-  String describe() =>
-      'sufficient inputs ($targetCount) for ${actionId.localId.name}';
-
-  @override
-  String get shortDescription => 'Sufficient inputs';
-
-  @override
-  List<Object?> get props => [actionId, targetCount];
-}
 
 // ---------------------------------------------------------------------------
 // Plan Steps
@@ -376,6 +73,38 @@ class WaitStep extends PlanStep {
 
   @override
   String toString() => 'WaitStep($deltaTicks ticks, ${waitFor.describe()})';
+}
+
+/// A step that represents executing a macro (train skill until boundary/goal).
+///
+/// Macros are high-level planning primitives that span many ticks and
+/// automatically select the best action for a skill. During execution,
+/// the macro is expanded into concrete interactions and waits.
+@immutable
+class MacroStep extends PlanStep {
+  const MacroStep(this.macro, this.deltaTicks, this.waitFor);
+
+  /// The macro candidate that was expanded.
+  final MacroCandidate macro;
+
+  /// Expected ticks for this macro (from planning).
+  final int deltaTicks;
+
+  /// Composite wait condition (AnyOf the macro's stop conditions).
+  final WaitFor waitFor;
+
+  @override
+  List<Object?> get props => [macro, deltaTicks, waitFor];
+
+  @override
+  String toString() {
+    if (macro is TrainSkillUntil) {
+      final m = macro as TrainSkillUntil;
+      return 'MacroStep(Train ${m.skill.name} for $deltaTicks ticks, '
+          '${waitFor.describe()})';
+    }
+    return 'MacroStep($macro, $deltaTicks ticks, ${waitFor.describe()})';
+  }
 }
 
 /// The result of running the solver.
@@ -471,6 +200,10 @@ class Plan {
           } else {
             compressed.add(step);
           }
+
+        case MacroStep():
+          // Macros are kept as-is, no compression
+          compressed.add(step);
       }
     }
 
@@ -513,14 +246,32 @@ class Plan {
   String _formatStep(PlanStep step, ActionRegistry? actions) {
     return switch (step) {
       InteractionStep(:final interaction) => switch (interaction) {
-        SwitchActivity(:final actionId) =>
-          'Switch to ${actions?.byId(actionId).name ?? actionId}',
+        SwitchActivity(:final actionId) => () {
+          final action = actions?.byId(actionId);
+          final actionName = action?.name ?? actionId.toString();
+          final skillName = action?.skill.name.toLowerCase() ?? '';
+          return skillName.isNotEmpty
+              ? 'Switch to $actionName ($skillName)'
+              : 'Switch to $actionName';
+        }(),
         BuyShopItem(:final purchaseId) => 'Buy upgrade: $purchaseId',
         SellAll() => 'Sell all items',
       },
       WaitStep(:final deltaTicks, :final waitFor) =>
         'Wait ${_formatDuration(durationFromTicks(deltaTicks))} '
             '-> ${waitFor.shortDescription}',
+      MacroStep(:final macro, :final deltaTicks, :final waitFor) =>
+        'Macro: ${_formatMacro(macro)} '
+            '(${_formatDuration(durationFromTicks(deltaTicks))}) '
+            '-> ${waitFor.shortDescription}',
+    };
+  }
+
+  String _formatMacro(MacroCandidate macro) {
+    return switch (macro) {
+      TrainSkillUntil(:final skill) => 'Train ${skill.name}',
+      TrainConsumingSkillUntil(:final consumingSkill) =>
+        'Train ${consumingSkill.name}',
     };
   }
 

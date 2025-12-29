@@ -1,7 +1,9 @@
 // Entry point for the solver - solves for an optimal plan to reach a goal.
 //
 // Usage: dart run bin/solver.dart [goal_credits]
-//        dart run bin/solver.dart -s  # Solve for woodcutting level 70
+//        dart run bin/solver.dart -s  # Solve for firemaking level 30
+//        dart run bin/solver.dart --cliff  # Diagnose FM=55 vs FM=56 cliff
+//        dart run bin/solver.dart -d  # Solve with diagnostics enabled
 //
 // Example: dart run bin/solver.dart 1000
 // ignore_for_file: avoid_print
@@ -21,11 +23,46 @@ void main(List<String> args) async {
       'skills',
       abbr: 'm',
       help: 'Solve for multiple skills (e.g., "Woodcutting=50,Firemaking=50")',
+    )
+    ..addFlag(
+      'diagnostics',
+      abbr: 'd',
+      help: 'Collect and print solver diagnostics',
+      negatable: false,
+    )
+    ..addFlag(
+      'cliff',
+      help: 'Run cliff diagnostic comparing FM=55 vs FM=56',
+      negatable: false,
+    )
+    ..addOption(
+      'cliff-skill',
+      help: 'Skill for cliff diagnostic (default: Firemaking)',
+      defaultsTo: 'Firemaking',
+    )
+    ..addOption(
+      'cliff-level',
+      help: 'Lower level for cliff diagnostic (default: 55)',
+      defaultsTo: '55',
     );
 
   final results = parser.parse(args);
 
   final registries = await loadRegistries();
+
+  // Handle cliff diagnostic mode
+  if (results['cliff'] as bool) {
+    final skillName = (results['cliff-skill'] as String).toLowerCase();
+    final skill = Skill.values.firstWhere(
+      (s) => s.name.toLowerCase() == skillName,
+      orElse: () => throw FormatException('Unknown skill: $skillName'),
+    );
+    final lowerLevel = int.parse(results['cliff-level'] as String);
+    final upperLevel = lowerLevel + 1;
+
+    await _runCliffDiagnostic(registries, skill, lowerLevel, upperLevel);
+    return;
+  }
 
   final Goal goal;
   if (results['skills'] != null) {
@@ -44,10 +81,15 @@ void main(List<String> args) async {
   }
 
   final initialState = GlobalState.empty(registries);
+  final collectDiagnostics = results['diagnostics'] as bool;
 
-  print('Solving...');
+  print('Solving${collectDiagnostics ? ' (with diagnostics)' : ''}...');
   final stopwatch = Stopwatch()..start();
-  final result = solve(initialState, goal);
+  final result = solve(
+    initialState,
+    goal,
+    collectDiagnostics: collectDiagnostics,
+  );
   stopwatch.stop();
 
   print('Solver completed in ${stopwatch.elapsedMilliseconds}ms');
@@ -56,7 +98,7 @@ void main(List<String> args) async {
   // Print result
   if (result is SolverSuccess) {
     print('Uncompressed plan (${result.plan.steps.length} steps):');
-    print(result.plan.prettyPrint(actions: registries.actions, maxSteps: 100));
+    print(result.plan.prettyPrint(actions: registries.actions));
     print('');
     final compressed = result.plan.compress();
     print(
@@ -93,7 +135,7 @@ void main(List<String> args) async {
     final profile = result.profile;
     if (profile != null) {
       print('');
-      _printSolverProfile(profile);
+      _printSolverProfile(profile, extended: collectDiagnostics);
     }
   } else if (result is SolverFailed) {
     print('FAILED: ${result.failure.reason}');
@@ -105,7 +147,7 @@ void main(List<String> args) async {
     final profile = result.profile;
     if (profile != null) {
       print('');
-      _printSolverProfile(profile);
+      _printSolverProfile(profile, extended: collectDiagnostics);
     }
   }
 }
@@ -142,7 +184,7 @@ void _printFinalState(GlobalState state) {
   }
 }
 
-void _printSolverProfile(SolverProfile profile) {
+void _printSolverProfile(SolverProfile profile, {bool extended = false}) {
   print('=== Solver Profile ===');
   print('Expanded nodes: ${profile.expandedNodes}');
   print('Nodes/sec: ${profile.nodesPerSecond.toStringAsFixed(1)}');
@@ -163,6 +205,91 @@ void _printSolverProfile(SolverProfile profile) {
   print('  hashing (_stateKey): ${profile.hashingPercent.toStringAsFixed(1)}%');
   print('Dominance pruning:');
   print('  dominated skipped: ${profile.dominatedSkipped}');
+
+  // Extended diagnostics (only when --diagnostics flag is used)
+  if (!extended) return;
+
+  print('');
+  print('=== Extended Diagnostics ===');
+  print('Unique bucket keys: ${profile.uniqueBucketKeys}');
+  print('Peak queue size: ${profile.peakQueueSize}');
+  print('Frontier inserted: ${profile.frontierInserted}');
+  print('Frontier removed: ${profile.frontierRemoved}');
+
+  // Heuristic health
+  if (profile.heuristicValues.isNotEmpty) {
+    print('');
+    print('Heuristic health:');
+    print('  Root bestRate: ${profile.rootBestRate?.toStringAsFixed(4)}');
+    print(
+      '  bestRate range: ${profile.minBestRate.toStringAsFixed(2)} - '
+      '${profile.maxBestRate.toStringAsFixed(2)} '
+      '(median: ${profile.medianBestRate.toStringAsFixed(2)})',
+    );
+    final hSorted = List<int>.from(profile.heuristicValues)..sort();
+    final minH = hSorted.first;
+    final maxH = hSorted.last;
+    final medH = hSorted[hSorted.length ~/ 2];
+    print('  h() range: $minH - $maxH (median: $medH)');
+    if (profile.zeroRateCount > 0) {
+      final zeroFrac = profile.zeroRateCount / profile.heuristicValues.length;
+      print('  Zero rate fraction: ${zeroFrac.toStringAsFixed(2)}');
+    }
+  }
+
+  // Why bestRate is zero
+  final totalZero =
+      profile.rateZeroBecauseNoRelevantSkill +
+      profile.rateZeroBecauseNoUnlockedActions +
+      profile.rateZeroBecauseInputsRequired +
+      profile.rateZeroBecauseZeroTicks;
+  if (totalZero > 0) {
+    print('');
+    print('Why bestRate == 0:');
+    if (profile.rateZeroBecauseNoRelevantSkill > 0) {
+      print('  noRelevantSkill: ${profile.rateZeroBecauseNoRelevantSkill}');
+    }
+    if (profile.rateZeroBecauseNoUnlockedActions > 0) {
+      print('  noUnlockedActions: ${profile.rateZeroBecauseNoUnlockedActions}');
+    }
+    if (profile.rateZeroBecauseInputsRequired > 0) {
+      print('  inputsRequired: ${profile.rateZeroBecauseInputsRequired}');
+    }
+    if (profile.rateZeroBecauseZeroTicks > 0) {
+      print('  zeroTicks: ${profile.rateZeroBecauseZeroTicks}');
+    }
+  }
+
+  // Consuming skill candidate stats
+  if (profile.candidateStatsHistory.isNotEmpty) {
+    print('');
+    print('Consuming skill candidate stats (last sample):');
+    final stats = profile.candidateStatsHistory.last;
+    print('  Consumer actions considered: ${stats.consumerActionsConsidered}');
+    print('  Producer actions considered: ${stats.producerActionsConsidered}');
+    print('  Pairs considered: ${stats.pairsConsidered}');
+    print('  Pairs kept: ${stats.pairsKept}');
+    if (stats.topPairs.isNotEmpty) {
+      print('  Top pairs:');
+      for (final pair in stats.topPairs) {
+        print(
+          '    ${pair.consumerId} + ${pair.producerId}: '
+          '${pair.score.toStringAsFixed(4)} XP/tick',
+        );
+      }
+    }
+  }
+
+  // Macro stop triggers
+  if (profile.macroStopTriggers.isNotEmpty) {
+    print('');
+    print('Macro stop triggers:');
+    final sorted = profile.macroStopTriggers.entries.toList()
+      ..sort((a, b) => b.value.compareTo(a.value));
+    for (final entry in sorted) {
+      print('  ${entry.key}: ${entry.value}');
+    }
+  }
 }
 
 /// Parses "Skill=Level,Skill=Level,..." into a MultiSkillGoal or single goal.
@@ -212,4 +339,379 @@ void _printMultiSkillProgress(GlobalState state, MultiSkillGoal goal) {
     );
   }
   print('  Total remaining: ${totalRemainingXp.toInt()} XP');
+}
+
+// ---------------------------------------------------------------------------
+// Cliff Diagnostic Mode
+// ---------------------------------------------------------------------------
+
+/// Runs cliff diagnostic comparing two adjacent skill levels.
+Future<void> _runCliffDiagnostic(
+  Registries registries,
+  Skill skill,
+  int lowerLevel,
+  int upperLevel,
+) async {
+  print('=== CLIFF DIAGNOSTIC ===');
+  print('Comparing ${skill.name}=$lowerLevel vs ${skill.name}=$upperLevel');
+  print('');
+
+  // Run solver for lower level
+  print('--- Running ${skill.name}=$lowerLevel ---');
+  final lowerGoal = ReachSkillLevelGoal(skill, lowerLevel);
+  final lowerState = GlobalState.empty(registries);
+
+  final lowerStopwatch = Stopwatch()..start();
+  final lowerResult = solve(lowerState, lowerGoal, collectDiagnostics: true);
+  lowerStopwatch.stop();
+  final lowerTimeMs = lowerStopwatch.elapsedMilliseconds;
+
+  // Run solver for upper level
+  print('--- Running ${skill.name}=$upperLevel ---');
+  final upperGoal = ReachSkillLevelGoal(skill, upperLevel);
+  final upperState = GlobalState.empty(registries);
+
+  final upperStopwatch = Stopwatch()..start();
+  final upperResult = solve(upperState, upperGoal, collectDiagnostics: true);
+  upperStopwatch.stop();
+  final upperTimeMs = upperStopwatch.elapsedMilliseconds;
+
+  // Get profiles from results
+  final lowerProfile = switch (lowerResult) {
+    SolverSuccess(:final profile) => profile,
+    SolverFailed(:final profile) => profile,
+  };
+  final upperProfile = switch (upperResult) {
+    SolverSuccess(:final profile) => profile,
+    SolverFailed(:final profile) => profile,
+  };
+
+  if (lowerProfile == null || upperProfile == null) {
+    print('ERROR: Missing profile data');
+    return;
+  }
+
+  // Print comparison
+  print('');
+  print('=== COMPARISON ===');
+  print('');
+
+  // Timing
+  print('--- Timing ---');
+  print(
+    'Wall time: ${lowerTimeMs}ms -> ${upperTimeMs}ms '
+    '(${_formatDelta(upperTimeMs - lowerTimeMs)}ms, '
+    '${_formatRatio(upperTimeMs, lowerTimeMs)}x)',
+  );
+  print('');
+
+  // Node expansion
+  print('--- Node Expansion ---');
+  _printComparison(
+    'Expanded nodes',
+    lowerProfile.expandedNodes,
+    upperProfile.expandedNodes,
+  );
+  _printComparison(
+    'Unique bucket keys',
+    lowerProfile.uniqueBucketKeys,
+    upperProfile.uniqueBucketKeys,
+  );
+  _printComparison(
+    'Dominated skipped',
+    lowerProfile.dominatedSkipped,
+    upperProfile.dominatedSkipped,
+  );
+  _printComparison(
+    'Peak frontier size',
+    lowerProfile.peakQueueSize,
+    upperProfile.peakQueueSize,
+  );
+  _printComparison(
+    'Frontier inserted',
+    lowerProfile.frontierInserted,
+    upperProfile.frontierInserted,
+  );
+  _printComparison(
+    'Frontier removed',
+    lowerProfile.frontierRemoved,
+    upperProfile.frontierRemoved,
+  );
+  print('');
+
+  // Branching
+  print('--- Branching ---');
+  _printComparisonDouble(
+    'Avg branching factor',
+    lowerProfile.avgBranchingFactor,
+    upperProfile.avgBranchingFactor,
+  );
+  _printComparison(
+    'Total neighbors',
+    lowerProfile.totalNeighborsGenerated,
+    upperProfile.totalNeighborsGenerated,
+  );
+  print('');
+
+  // Heuristic health
+  print('--- Heuristic Health ---');
+  _printComparison(
+    'Min h',
+    lowerProfile.minHeuristic,
+    upperProfile.minHeuristic,
+  );
+  _printComparison(
+    'Median h',
+    lowerProfile.medianHeuristic,
+    upperProfile.medianHeuristic,
+  );
+  _printComparison(
+    'Max h',
+    lowerProfile.maxHeuristic,
+    upperProfile.maxHeuristic,
+  );
+  _printComparison(
+    'h spread',
+    lowerProfile.heuristicSpread,
+    upperProfile.heuristicSpread,
+  );
+  _printComparisonDouble(
+    'Zero rate fraction',
+    lowerProfile.zeroRateFraction,
+    upperProfile.zeroRateFraction,
+  );
+  print('');
+
+  // Best rate diagnostics
+  print('--- Best Rate (heuristic input) ---');
+  print(
+    'Root bestRate: ${lowerProfile.rootBestRate?.toStringAsFixed(4) ?? "?"} '
+    '-> ${upperProfile.rootBestRate?.toStringAsFixed(4) ?? "?"}',
+  );
+  _printComparisonDouble(
+    'Min bestRate',
+    lowerProfile.minBestRate,
+    upperProfile.minBestRate,
+  );
+  _printComparisonDouble(
+    'Median bestRate',
+    lowerProfile.medianBestRate,
+    upperProfile.medianBestRate,
+  );
+  _printComparisonDouble(
+    'Max bestRate',
+    lowerProfile.maxBestRate,
+    upperProfile.maxBestRate,
+  );
+  print('');
+
+  // Why bestRate is zero counters
+  print('--- Why bestRate == 0 ---');
+  _printComparison(
+    'noRelevantSkill',
+    lowerProfile.rateZeroBecauseNoRelevantSkill,
+    upperProfile.rateZeroBecauseNoRelevantSkill,
+  );
+  _printComparison(
+    'noUnlockedActions',
+    lowerProfile.rateZeroBecauseNoUnlockedActions,
+    upperProfile.rateZeroBecauseNoUnlockedActions,
+  );
+  _printComparison(
+    'inputsRequired',
+    lowerProfile.rateZeroBecauseInputsRequired,
+    upperProfile.rateZeroBecauseInputsRequired,
+  );
+  _printComparison(
+    'zeroTicks',
+    lowerProfile.rateZeroBecauseZeroTicks,
+    upperProfile.rateZeroBecauseZeroTicks,
+  );
+  print('');
+
+  // Decision deltas
+  print('--- Decision Deltas ---');
+  _printComparison('Min delta', lowerProfile.minDelta, upperProfile.minDelta);
+  _printComparison(
+    'Median delta',
+    lowerProfile.medianDelta,
+    upperProfile.medianDelta,
+  );
+  _printComparison('P95 delta', lowerProfile.p95Delta, upperProfile.p95Delta);
+  print('');
+
+  // Time breakdown
+  print('--- Time Breakdown ---');
+  _printComparisonDouble(
+    'Advance %',
+    lowerProfile.advancePercent,
+    upperProfile.advancePercent,
+  );
+  _printComparisonDouble(
+    'Enumerate %',
+    lowerProfile.enumeratePercent,
+    upperProfile.enumeratePercent,
+  );
+  _printComparisonDouble(
+    'Hashing %',
+    lowerProfile.hashingPercent,
+    upperProfile.hashingPercent,
+  );
+  print('');
+
+  // Macro stop triggers
+  if (lowerProfile.macroStopTriggers.isNotEmpty ||
+      upperProfile.macroStopTriggers.isNotEmpty) {
+    print('--- Macro Stop Triggers ---');
+    final allTriggers = <String>{
+      ...lowerProfile.macroStopTriggers.keys,
+      ...upperProfile.macroStopTriggers.keys,
+    };
+    for (final trigger in allTriggers) {
+      final lower = lowerProfile.macroStopTriggers[trigger] ?? 0;
+      final upper = upperProfile.macroStopTriggers[trigger] ?? 0;
+      _printComparison(trigger, lower, upper);
+    }
+    print('');
+  }
+
+  // Candidate stats summary
+  if (lowerProfile.candidateStatsHistory.isNotEmpty ||
+      upperProfile.candidateStatsHistory.isNotEmpty) {
+    print('--- Candidate Stats (last sample) ---');
+    final lowerStats = lowerProfile.candidateStatsHistory.isNotEmpty
+        ? lowerProfile.candidateStatsHistory.last
+        : null;
+    final upperStats = upperProfile.candidateStatsHistory.isNotEmpty
+        ? upperProfile.candidateStatsHistory.last
+        : null;
+
+    if (lowerStats != null || upperStats != null) {
+      _printComparison(
+        'Consumer actions considered',
+        lowerStats?.consumerActionsConsidered ?? 0,
+        upperStats?.consumerActionsConsidered ?? 0,
+      );
+      _printComparison(
+        'Producer actions considered',
+        lowerStats?.producerActionsConsidered ?? 0,
+        upperStats?.producerActionsConsidered ?? 0,
+      );
+      _printComparison(
+        'Pairs considered',
+        lowerStats?.pairsConsidered ?? 0,
+        upperStats?.pairsConsidered ?? 0,
+      );
+      _printComparison(
+        'Pairs kept',
+        lowerStats?.pairsKept ?? 0,
+        upperStats?.pairsKept ?? 0,
+      );
+      print('');
+
+      // Print top pairs for each
+      if (lowerStats != null && lowerStats.topPairs.isNotEmpty) {
+        print('Top pairs at level $lowerLevel:');
+        for (final pair in lowerStats.topPairs) {
+          print(
+            '  ${pair.consumerId} + ${pair.producerId}: '
+            '${pair.score.toStringAsFixed(4)} XP/tick',
+          );
+        }
+      }
+      if (upperStats != null && upperStats.topPairs.isNotEmpty) {
+        print('Top pairs at level $upperLevel:');
+        for (final pair in upperStats.topPairs) {
+          print(
+            '  ${pair.consumerId} + ${pair.producerId}: '
+            '${pair.score.toStringAsFixed(4)} XP/tick',
+          );
+        }
+      }
+      print('');
+    }
+  }
+
+  // Newly eligible actions at level boundary
+  print('--- Actions Eligible at Level $upperLevel ---');
+  _printNewlyEligibleActions(registries, skill, lowerLevel, upperLevel);
+  print('');
+
+  // Result summary
+  print('--- Result Summary ---');
+  _printResultSummary('Level $lowerLevel', lowerResult);
+  _printResultSummary('Level $upperLevel', upperResult);
+}
+
+void _printComparison(String label, int lower, int upper) {
+  final delta = upper - lower;
+  print(
+    '$label: $lower -> $upper '
+    '(${_formatDelta(delta)}, ${_formatRatio(upper, lower)}x)',
+  );
+}
+
+void _printComparisonDouble(String label, double lower, double upper) {
+  final delta = upper - lower;
+  print(
+    '$label: ${lower.toStringAsFixed(2)} -> ${upper.toStringAsFixed(2)} '
+    '(${delta >= 0 ? '+' : ''}${delta.toStringAsFixed(2)})',
+  );
+}
+
+String _formatDelta(int delta) => delta >= 0 ? '+$delta' : '$delta';
+
+String _formatRatio(int upper, int lower) {
+  if (lower == 0) return upper == 0 ? '1.00' : 'inf';
+  return (upper / lower).toStringAsFixed(2);
+}
+
+void _printResultSummary(String label, SolverResult result) {
+  if (result is SolverSuccess) {
+    final plan = result.plan;
+    print(
+      '$label: SUCCESS - ${plan.totalTicks} ticks, '
+      '${plan.steps.length} steps',
+    );
+  } else if (result is SolverFailed) {
+    print('$label: FAILED - ${result.failure.reason}');
+  }
+}
+
+void _printNewlyEligibleActions(
+  Registries registries,
+  Skill skill,
+  int lowerLevel,
+  int upperLevel,
+) {
+  // Find actions that unlock at upperLevel
+  final newlyUnlocked = <String>[];
+
+  for (final action in registries.actions.forSkill(skill)) {
+    if (action.unlockLevel > lowerLevel && action.unlockLevel <= upperLevel) {
+      newlyUnlocked.add('${action.name} (unlocks at ${action.unlockLevel})');
+    }
+  }
+
+  if (newlyUnlocked.isEmpty) {
+    print('  No new actions unlock at level $upperLevel');
+  } else {
+    for (final action in newlyUnlocked) {
+      print('  NEW: $action');
+    }
+  }
+
+  // For consuming skills, also check producers
+  if (skill.isConsuming) {
+    // Find the producer skill (woodcutting for firemaking)
+    final producerSkill = skill == Skill.firemaking
+        ? Skill.woodcutting
+        : skill == Skill.cooking
+        ? Skill.fishing
+        : null;
+
+    if (producerSkill != null) {
+      print('  (Producer skill: ${producerSkill.name})');
+    }
+  }
 }

@@ -64,6 +64,21 @@ sealed class Goal extends Equatable {
   /// For GP goals, returns gold rate. For skill goals, returns XP rate
   /// (or 0 if the activity's skill doesn't contribute to the goal).
   double activityRate(Skill skill, double goldRate, double xpRate);
+
+  /// Returns the set of skills that should be tracked in bucket keys for
+  /// dominance pruning. For skill goals, only tracks goal-relevant skills.
+  /// For GP goals, tracks all skills.
+  Set<Skill> get relevantSkillsForBucketing;
+
+  /// Whether to track HP in the bucket key (only for thieving goals).
+  bool get shouldTrackHp;
+
+  /// Whether to track mastery in the bucket key (only for thieving goals).
+  bool get shouldTrackMastery;
+
+  /// Whether to track inventory bucket in the bucket key
+  /// (only for consuming skill goals).
+  bool get shouldTrackInventory;
 }
 
 /// Goal to reach a target amount of GP (gold pieces).
@@ -122,6 +137,18 @@ class ReachGpGoal extends Goal {
   double activityRate(Skill skill, double goldRate, double xpRate) => goldRate;
 
   @override
+  Set<Skill> get relevantSkillsForBucketing => Skill.values.toSet();
+
+  @override
+  bool get shouldTrackHp => true; // Track HP for thieving
+
+  @override
+  bool get shouldTrackMastery => true; // Track mastery for all skills
+
+  @override
+  bool get shouldTrackInventory => true; // Track inventory for all skills
+
+  @override
   List<Object?> get props => [targetGp];
 }
 
@@ -168,6 +195,18 @@ class ReachSkillLevelGoal extends Goal {
   @override
   double activityRate(Skill s, double goldRate, double xpRate) =>
       s == skill ? xpRate : 0.0;
+
+  @override
+  Set<Skill> get relevantSkillsForBucketing => {skill};
+
+  @override
+  bool get shouldTrackHp => skill == Skill.thieving;
+
+  @override
+  bool get shouldTrackMastery => skill == Skill.thieving;
+
+  @override
+  bool get shouldTrackInventory => skill.isConsuming;
 
   @override
   List<Object?> get props => [skill, targetLevel];
@@ -245,6 +284,19 @@ class MultiSkillGoal extends Goal {
     // Return XP rate if this skill is in our goal set
     return isSkillRelevant(skill) ? xpRate : 0.0;
   }
+
+  @override
+  Set<Skill> get relevantSkillsForBucketing =>
+      subgoals.map((g) => g.skill).toSet();
+
+  @override
+  bool get shouldTrackHp => subgoals.any((g) => g.shouldTrackHp);
+
+  @override
+  bool get shouldTrackMastery => subgoals.any((g) => g.shouldTrackMastery);
+
+  @override
+  bool get shouldTrackInventory => subgoals.any((g) => g.shouldTrackInventory);
 
   @override
   List<Object?> get props => [subgoals];
