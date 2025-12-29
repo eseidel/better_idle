@@ -216,7 +216,7 @@ void main() {
         itemFlowsPerTick: {},
         xpPerTickBySkill: {},
         itemTypesPerTick: 0,
-        masteryXpPerTick: 5.0, // 5 mastery XP per tick
+        masteryXpPerTick: 5, // 5 mastery XP per tick
       );
 
       // 100 XP / 5 XP per tick = 20 ticks
@@ -318,7 +318,7 @@ void main() {
         directGpPerTick: 0,
         itemFlowsPerTick: {},
         xpPerTickBySkill: {},
-        itemTypesPerTick: 1.0, // 1 slot per tick
+        itemTypesPerTick: 1, // 1 slot per tick
       );
 
       final remaining = state.inventoryRemaining;
@@ -569,7 +569,7 @@ void main() {
       final rates = Rates(
         directGpPerTick: 0,
         itemFlowsPerTick: {logs.id: 2.0}, // 2 logs per tick
-        xpPerTickBySkill: {},
+        xpPerTickBySkill: const {},
         itemTypesPerTick: 0,
       );
 

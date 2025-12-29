@@ -206,7 +206,7 @@ class ReachSkillLevelGoal extends Goal {
   bool get shouldTrackMastery => skill == Skill.thieving;
 
   @override
-  bool get shouldTrackInventory => skill.isConsuming; // Track inventory for consuming skills
+  bool get shouldTrackInventory => skill.isConsuming;
 
   @override
   List<Object?> get props => [skill, targetLevel];
@@ -290,13 +290,13 @@ class MultiSkillGoal extends Goal {
       subgoals.map((g) => g.skill).toSet();
 
   @override
-  bool get shouldTrackHp => subgoals.any((g) => g.skill == Skill.thieving);
+  bool get shouldTrackHp => subgoals.any((g) => g.shouldTrackHp);
 
   @override
-  bool get shouldTrackMastery => subgoals.any((g) => g.skill == Skill.thieving);
+  bool get shouldTrackMastery => subgoals.any((g) => g.shouldTrackMastery);
 
   @override
-  bool get shouldTrackInventory => subgoals.any((g) => g.skill.isConsuming); // Track if any consuming skills
+  bool get shouldTrackInventory => subgoals.any((g) => g.shouldTrackInventory);
 
   @override
   List<Object?> get props => [subgoals];

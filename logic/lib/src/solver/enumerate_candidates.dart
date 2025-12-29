@@ -491,8 +491,8 @@ class _ConsumingSkillResult {
 
 /// Strict pruning for consuming skills.
 ///
-/// For consuming skills (e.g., Firemaking, Cooking, Smithing), we need to avoid
-/// the "near-tie explosion" where multiple consumer actions have similar scores.
+/// For consuming skills (e.g., Firemaking, Cooking), we need to avoid the
+/// "near-tie explosion" where multiple consumer actions have similar scores.
 /// This function:
 /// - Calculates sustainable XP/tick for each consumer action (accounting for
 ///   production time of inputs)

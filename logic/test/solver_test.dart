@@ -1221,28 +1221,85 @@ void main() {
       expect(profile.rateZeroBecauseZeroTicks, 0);
 
       // Record each reason type
-      profile.recordRateZeroReason(RateZeroReason.noRelevantSkill);
+      profile.recordRateZeroReason(const NoRelevantSkillReason('test goal'));
       expect(profile.rateZeroBecauseNoRelevantSkill, 1);
 
-      profile.recordRateZeroReason(RateZeroReason.noUnlockedActions);
+      profile.recordRateZeroReason(
+        const NoUnlockedActionsReason(goalDescription: 'test goal'),
+      );
       expect(profile.rateZeroBecauseNoUnlockedActions, 1);
 
-      profile.recordRateZeroReason(RateZeroReason.inputsRequired);
+      profile.recordRateZeroReason(const InputsRequiredReason());
       expect(profile.rateZeroBecauseInputsRequired, 1);
 
-      profile.recordRateZeroReason(RateZeroReason.zeroTicks);
+      profile.recordRateZeroReason(const ZeroTicksReason());
       expect(profile.rateZeroBecauseZeroTicks, 1);
 
       // Record same reason multiple times
       profile
-        ..recordRateZeroReason(RateZeroReason.noRelevantSkill)
-        ..recordRateZeroReason(RateZeroReason.noRelevantSkill);
+        ..recordRateZeroReason(const NoRelevantSkillReason('test goal'))
+        ..recordRateZeroReason(const NoRelevantSkillReason('test goal'));
       expect(profile.rateZeroBecauseNoRelevantSkill, 3);
 
       // Other counters unchanged
       expect(profile.rateZeroBecauseNoUnlockedActions, 1);
       expect(profile.rateZeroBecauseInputsRequired, 1);
       expect(profile.rateZeroBecauseZeroTicks, 1);
+    });
+
+    test('RateZeroReason.describe returns appropriate messages', () {
+      // NoRelevantSkillReason
+      const noRelevantSkill = NoRelevantSkillReason('reach 50 GP');
+      expect(
+        noRelevantSkill.describe(),
+        'no relevant skill for goal "reach 50 GP"',
+      );
+
+      // NoUnlockedActionsReason - basic case
+      const noUnlockedBasic = NoUnlockedActionsReason(
+        goalDescription: 'reach level 10',
+      );
+      expect(
+        noUnlockedBasic.describe(),
+        'no unlocked actions for goal "reach level 10"',
+      );
+
+      // NoUnlockedActionsReason - with skill name
+      const noUnlockedWithSkill = NoUnlockedActionsReason(
+        goalDescription: 'reach level 10',
+        skillName: 'Firemaking',
+      );
+      expect(
+        noUnlockedWithSkill.describe(),
+        'no unlocked actions for Firemaking',
+      );
+
+      // NoUnlockedActionsReason - with missing input (consuming skill case)
+      const noUnlockedWithInput = NoUnlockedActionsReason(
+        goalDescription: 'reach level 10',
+        missingInputName: 'Raw Shrimp',
+        actionNeedingInput: 'Cook Shrimp',
+        skillName: 'Cooking',
+      );
+      expect(
+        noUnlockedWithInput.describe(),
+        'no producer for Raw Shrimp '
+        '(needed by Cook Shrimp) at current skill levels',
+      );
+
+      // InputsRequiredReason
+      const inputsRequired = InputsRequiredReason();
+      expect(
+        inputsRequired.describe(),
+        'all actions require inputs with no available producers',
+      );
+
+      // ZeroTicksReason
+      const zeroTicks = ZeroTicksReason();
+      expect(
+        zeroTicks.describe(),
+        'all actions have zero duration (configuration error)',
+      );
     });
 
     test('recordBestRate tracks samples and root rate', () {

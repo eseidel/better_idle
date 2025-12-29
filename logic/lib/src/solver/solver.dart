@@ -49,18 +49,70 @@ import 'package:logic/src/types/stunned.dart';
 import 'package:logic/src/types/time_away.dart';
 
 /// Reasons why bestRate might be zero.
-enum RateZeroReason {
-  /// No skills relevant to the goal were found.
-  noRelevantSkill,
+sealed class RateZeroReason {
+  const RateZeroReason();
 
-  /// Skills exist but no actions are unlocked yet.
-  noUnlockedActions,
+  /// Human-readable description of why the rate is zero.
+  String describe();
+}
 
-  /// All unlocked actions require inputs (consuming skill).
-  inputsRequired,
+/// No skills relevant to the goal were found.
+class NoRelevantSkillReason extends RateZeroReason {
+  const NoRelevantSkillReason(this.goalDescription);
 
-  /// Action has zero expected ticks (shouldn't happen).
-  zeroTicks,
+  final String goalDescription;
+
+  @override
+  String describe() => 'no relevant skill for goal "$goalDescription"';
+}
+
+/// Skills exist but no actions are unlocked yet.
+class NoUnlockedActionsReason extends RateZeroReason {
+  const NoUnlockedActionsReason({
+    required this.goalDescription,
+    this.missingInputName,
+    this.actionNeedingInput,
+    this.skillName,
+  });
+
+  final String goalDescription;
+
+  /// For consuming skills: the name of the input item that has no producer.
+  final String? missingInputName;
+
+  /// For consuming skills: the name of the action that needs the input.
+  final String? actionNeedingInput;
+
+  /// For consuming skills: the name of the skill.
+  final String? skillName;
+
+  @override
+  String describe() {
+    if (missingInputName != null && actionNeedingInput != null) {
+      return 'no producer for $missingInputName '
+          '(needed by $actionNeedingInput) at current skill levels';
+    }
+    if (skillName != null) {
+      return 'no unlocked actions for $skillName';
+    }
+    return 'no unlocked actions for goal "$goalDescription"';
+  }
+}
+
+/// All unlocked actions require inputs (consuming skill).
+class InputsRequiredReason extends RateZeroReason {
+  const InputsRequiredReason();
+
+  @override
+  String describe() => 'all actions require inputs with no available producers';
+}
+
+/// Action has zero expected ticks (shouldn't happen).
+class ZeroTicksReason extends RateZeroReason {
+  const ZeroTicksReason();
+
+  @override
+  String describe() => 'all actions have zero duration (configuration error)';
 }
 
 /// Profiling stats collected during a solve.
@@ -112,13 +164,13 @@ class SolverProfile {
 
   void recordRateZeroReason(RateZeroReason reason) {
     switch (reason) {
-      case RateZeroReason.noRelevantSkill:
+      case NoRelevantSkillReason():
         rateZeroBecauseNoRelevantSkill++;
-      case RateZeroReason.noUnlockedActions:
+      case NoUnlockedActionsReason():
         rateZeroBecauseNoUnlockedActions++;
-      case RateZeroReason.inputsRequired:
+      case InputsRequiredReason():
         rateZeroBecauseInputsRequired++;
-      case RateZeroReason.zeroTicks:
+      case ZeroTicksReason():
         rateZeroBecauseZeroTicks++;
     }
   }
@@ -572,10 +624,16 @@ class _RateCache {
     var sawUnlockedAction = false;
     var sawZeroTicks = false;
 
+    // For consuming skills: track first missing producer for better error msg
+    String? missingInputName;
+    String? actionNeedingInput;
+    String? relevantSkillName;
+
     for (final skill in Skill.values) {
       // Only consider skills relevant to the goal
       if (!goal.isSkillRelevant(skill)) continue;
       sawRelevantSkill = true;
+      relevantSkillName ??= skill.name;
 
       final skillLevel = state.skillState(skill).skillLevel;
 
@@ -647,7 +705,12 @@ class _RateCache {
             action,
           );
           if (sustainedRate == null || sustainedRate <= 0) {
-            // No producer available for this action, skip it
+            // No producer available for this action - capture info for error
+            if (missingInputName == null) {
+              final inputId = action.inputs.keys.first;
+              missingInputName = registries.items.byId(inputId).name;
+              actionNeedingInput = action.name;
+            }
             continue;
           }
           xpRate = sustainedRate;
@@ -677,16 +740,22 @@ class _RateCache {
 
     // Determine reason if rate is zero
     if (maxRate <= 0) {
+      final goalDesc = goal.describe();
       RateZeroReason reason;
       if (!sawRelevantSkill) {
-        reason = RateZeroReason.noRelevantSkill;
+        reason = NoRelevantSkillReason(goalDesc);
       } else if (!sawUnlockedAction) {
-        reason = RateZeroReason.noUnlockedActions;
+        reason = NoUnlockedActionsReason(
+          goalDescription: goalDesc,
+          missingInputName: missingInputName,
+          actionNeedingInput: actionNeedingInput,
+          skillName: relevantSkillName,
+        );
       } else if (sawZeroTicks) {
-        reason = RateZeroReason.zeroTicks;
+        reason = const ZeroTicksReason();
       } else {
         // Rare: saw unlocked actions but all rates were zero
-        reason = RateZeroReason.noUnlockedActions;
+        reason = NoUnlockedActionsReason(goalDescription: goalDesc);
       }
       return _RateResult(0, zeroReason: reason);
     }
@@ -847,72 +916,6 @@ class _Node {
 
   /// Expected number of deaths to reach this node (from planning model).
   final int expectedDeaths;
-}
-
-/// Describes why the best rate is zero for error messages.
-///
-/// Provides actionable context for the tripwire failure, including:
-/// - The reason category (no producers, no unlocked actions, etc.)
-/// - For consuming skills: which input item has no producer
-String _describeZeroRateReason(
-  RateZeroReason? reason,
-  Goal goal,
-  GlobalState state,
-) {
-  final goalDesc = goal.describe();
-
-  switch (reason) {
-    case RateZeroReason.noRelevantSkill:
-      return 'no relevant skill for goal "$goalDesc"';
-
-    case RateZeroReason.noUnlockedActions:
-      // For consuming skills, try to identify which input is missing a producer
-      if (goal is ReachSkillLevelGoal && goal.skill.isConsuming) {
-        final skill = goal.skill;
-        final registries = state.registries;
-        final skillLevel = state.skillState(skill).skillLevel;
-
-        // Find the first consumer action that's unlocked but has no producer
-        for (final action in registries.actions.forSkill(skill)) {
-          if (skillLevel < action.unlockLevel) continue;
-          if (action.inputs.isEmpty) continue;
-
-          final inputId = action.inputs.keys.first;
-          final inputItem = registries.items.byId(inputId);
-
-          // Check if any producer exists for this input
-          var hasProducer = false;
-          for (final prodSkill in Skill.values) {
-            final prodLevel = state.skillState(prodSkill).skillLevel;
-            for (final prod in registries.actions.forSkill(prodSkill)) {
-              if (prodLevel < prod.unlockLevel) continue;
-              if (prod.inputs.isNotEmpty) continue;
-              if (prod.outputs.containsKey(inputId)) {
-                hasProducer = true;
-                break;
-              }
-            }
-            if (hasProducer) break;
-          }
-
-          if (!hasProducer) {
-            return 'no producer for ${inputItem.name} '
-                '(needed by ${action.name}) at current skill levels';
-          }
-        }
-        return 'no unlocked actions for ${skill.name}';
-      }
-      return 'no unlocked actions for goal "$goalDesc"';
-
-    case RateZeroReason.inputsRequired:
-      return 'all actions require inputs with no available producers';
-
-    case RateZeroReason.zeroTicks:
-      return 'all actions have zero duration (configuration error)';
-
-    case null:
-      return 'unknown reason (rate computed as zero)';
-  }
 }
 
 /// Computes a goal-scoped hash key for a game state for visited tracking.
@@ -2033,7 +2036,8 @@ SolverResult solve(
   final rootBestRate = rateCache.getBestUnlockedRate(initial);
   if (rootBestRate <= 0) {
     final zeroReason = rateCache.getZeroReason(initial);
-    final reasonStr = _describeZeroRateReason(zeroReason, goal, initial);
+    final reasonStr =
+        zeroReason?.describe() ?? 'unknown reason (rate computed as zero)';
     totalStopwatch.stop();
     profile
       ..expandedNodes = 0
