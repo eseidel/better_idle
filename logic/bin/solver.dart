@@ -202,9 +202,20 @@ void _printSolverProfile(SolverProfile profile, {bool extended = false}) {
   print(
     '  enumerateCandidates: ${profile.enumeratePercent.toStringAsFixed(1)}%',
   );
+  print('  cache key compute: ${profile.cacheKeyPercent.toStringAsFixed(1)}%');
   print('  hashing (_stateKey): ${profile.hashingPercent.toStringAsFixed(1)}%');
   print('Dominance pruning:');
   print('  dominated skipped: ${profile.dominatedSkipped}');
+  print('Candidate cache:');
+  final cacheTotal = profile.candidateCacheHits + profile.candidateCacheMisses;
+  final cacheHitRate = cacheTotal > 0
+      ? (profile.candidateCacheHits / cacheTotal * 100).toStringAsFixed(1)
+      : '0.0';
+  print(
+    '  hits: ${profile.candidateCacheHits}, '
+    'misses: ${profile.candidateCacheMisses}, '
+    'hit rate: $cacheHitRate%',
+  );
 
   // Extended diagnostics (only when --diagnostics flag is used)
   if (!extended) return;

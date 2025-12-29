@@ -125,6 +125,7 @@ class SolverProfile {
   // Timing in microseconds
   int advanceTimeUs = 0;
   int enumerateCandidatesTimeUs = 0;
+  int cacheKeyTimeUs = 0;
   int hashingTimeUs = 0;
   int totalTimeUs = 0;
 
@@ -233,6 +234,9 @@ class SolverProfile {
 
   double get enumeratePercent =>
       totalTimeUs > 0 ? 100.0 * enumerateCandidatesTimeUs / totalTimeUs : 0;
+
+  double get cacheKeyPercent =>
+      totalTimeUs > 0 ? 100.0 * cacheKeyTimeUs / totalTimeUs : 0;
 
   double get hashingPercent =>
       totalTimeUs > 0 ? 100.0 * hashingTimeUs / totalTimeUs : 0;
@@ -2165,7 +2169,8 @@ SolverResult solve(
         ..frontierInserted = frontier.inserted
         ..frontierRemoved = frontier.removed
         ..candidateCacheHits = candidateCache?.hits ?? 0
-        ..candidateCacheMisses = candidateCache?.misses ?? 0;
+        ..candidateCacheMisses = candidateCache?.misses ?? 0
+        ..cacheKeyTimeUs = candidateCache?.keyTimeUs ?? 0;
       return SolverSuccess(plan, profile);
     }
 
@@ -2323,7 +2328,8 @@ SolverResult solve(
             ..frontierInserted = frontier.inserted
             ..frontierRemoved = frontier.removed
             ..candidateCacheHits = candidateCache?.hits ?? 0
-            ..candidateCacheMisses = candidateCache?.misses ?? 0;
+            ..candidateCacheMisses = candidateCache?.misses ?? 0
+            ..cacheKeyTimeUs = candidateCache?.keyTimeUs ?? 0;
           return SolverSuccess(
             _reconstructPlan(nodes, newNodeId, expandedNodes, enqueuedNodes),
             profile,

@@ -37,6 +37,7 @@ class CandidateCache {
   /// Stats for debugging.
   int hits = 0;
   int misses = 0;
+  int keyTimeUs = 0;
 
   /// Returns cached candidates or computes and caches them.
   Candidates getOrCompute(
@@ -44,7 +45,10 @@ class CandidateCache {
     Goal goal,
     Candidates Function() compute,
   ) {
+    final keyStopwatch = Stopwatch()..start();
     final key = CandidateCacheKey.fromState(state, goal);
+    keyTimeUs += keyStopwatch.elapsedMicroseconds;
+
     final cached = _cache[key];
     if (cached != null) {
       hits++;
