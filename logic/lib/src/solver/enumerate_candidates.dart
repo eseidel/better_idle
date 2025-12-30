@@ -93,7 +93,8 @@ class ActionSummary {
 /// Summary of an action's rates for ranking (capability-level, cacheable).
 ///
 /// Unlike [ActionSummary], this does NOT include state-dependent fields like
-/// [canStartNow] or [missingInputs]. Those are evaluated per-state, not cached.
+/// [ActionSummary.canStartNow] or [ActionSummary.missingInputs]. Those are
+/// evaluated per-state, not cached.
 @immutable
 class ActionRateSummary {
   const ActionRateSummary({
@@ -404,8 +405,9 @@ List<ActionRateSummary> _selectTopProducers(
 
     // Insert into top-N by gpRatePerTick (proxy for throughput)
     if (candidates.length < n) {
-      candidates.add(s);
-      candidates.sort((a, b) => b.goldRatePerTick.compareTo(a.goldRatePerTick));
+      candidates
+        ..add(s)
+        ..sort((a, b) => b.goldRatePerTick.compareTo(a.goldRatePerTick));
     } else if (s.goldRatePerTick > candidates.last.goldRatePerTick) {
       candidates
         ..removeLast()
