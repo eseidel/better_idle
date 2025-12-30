@@ -321,23 +321,21 @@ class SolverFailure {
 
 /// Result of the solver - either a plan or a failure.
 sealed class SolverResult {
-  const SolverResult();
+  const SolverResult([this.profile]);
+
+  final SolverProfile? profile;
 }
 
-// Forward declaration - SolverProfile is defined in solver.dart
-// We use dynamic here to avoid circular imports; callers should cast.
 class SolverSuccess extends SolverResult {
-  const SolverSuccess(this.plan, [this.profile]);
+  const SolverSuccess(this.plan, [super.profile]);
 
   final Plan plan;
-  final SolverProfile? profile;
 }
 
 class SolverFailed extends SolverResult {
-  const SolverFailed(this.failure, [this.profile]);
+  const SolverFailed(this.failure, [super.profile]);
 
   final SolverFailure failure;
-  final SolverProfile? profile;
 }
 
 /// Result of executing a plan via [executePlan()].

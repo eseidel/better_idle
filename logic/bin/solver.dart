@@ -16,37 +16,37 @@ import 'package:logic/src/solver/goal.dart';
 import 'package:logic/src/solver/plan.dart';
 import 'package:logic/src/solver/solver.dart';
 
-void main(List<String> args) async {
-  final parser = ArgParser()
-    ..addFlag('skill', abbr: 's', help: 'Solve for firemaking level 30')
-    ..addOption(
-      'skills',
-      abbr: 'm',
-      help: 'Solve for multiple skills (e.g., "Woodcutting=50,Firemaking=50")',
-    )
-    ..addFlag(
-      'diagnostics',
-      abbr: 'd',
-      help: 'Collect and print solver diagnostics',
-      negatable: false,
-    )
-    ..addFlag(
-      'cliff',
-      help: 'Run cliff diagnostic comparing FM=55 vs FM=56',
-      negatable: false,
-    )
-    ..addOption(
-      'cliff-skill',
-      help: 'Skill for cliff diagnostic (default: Firemaking)',
-      defaultsTo: 'Firemaking',
-    )
-    ..addOption(
-      'cliff-level',
-      help: 'Lower level for cliff diagnostic (default: 55)',
-      defaultsTo: '55',
-    );
+final _parser = ArgParser()
+  ..addFlag('skill', abbr: 's', help: 'Solve for firemaking level 30')
+  ..addOption(
+    'skills',
+    abbr: 'm',
+    help: 'Solve for multiple skills (e.g., "Woodcutting=50,Firemaking=50")',
+  )
+  ..addFlag(
+    'diagnostics',
+    abbr: 'd',
+    help: 'Collect and print solver diagnostics',
+    negatable: false,
+  )
+  ..addFlag(
+    'cliff',
+    help: 'Run cliff diagnostic comparing FM=55 vs FM=56',
+    negatable: false,
+  )
+  ..addOption(
+    'cliff-skill',
+    help: 'Skill for cliff diagnostic (default: Firemaking)',
+    defaultsTo: 'Firemaking',
+  )
+  ..addOption(
+    'cliff-level',
+    help: 'Lower level for cliff diagnostic (default: 55)',
+    defaultsTo: '55',
+  );
 
-  final results = parser.parse(args);
+void main(List<String> args) async {
+  final results = _parser.parse(args);
 
   final registries = await loadRegistries();
 
@@ -64,21 +64,8 @@ void main(List<String> args) async {
     return;
   }
 
-  final Goal goal;
-  if (results['skills'] != null) {
-    goal = _parseMultiSkillGoal(results['skills'] as String);
-    print('Goal: ${goal.describe()}');
-  } else if (results['skill'] as bool) {
-    goal = const ReachSkillLevelGoal(Skill.firemaking, 30);
-    print('Goal: ${goal.describe()}');
-  } else {
-    // Parse gold goal from remaining args, default to 100 GP
-    final goalCredits = results.rest.isNotEmpty
-        ? int.tryParse(results.rest[0]) ?? 100
-        : 100;
-    goal = ReachGpGoal(goalCredits);
-    print('Goal: $goalCredits GP');
-  }
+  final goal = _parseGoalFromArgs(results);
+  print('Goal: ${goal.describe()}');
 
   final initialState = GlobalState.empty(registries);
   final collectDiagnostics = results['diagnostics'] as bool;
@@ -95,60 +82,83 @@ void main(List<String> args) async {
   print('Solver completed in ${stopwatch.elapsedMilliseconds}ms');
   print('');
 
-  // Print result
+  _printSolverResult(
+    result,
+    initialState: initialState,
+    goal: goal,
+    registries: registries,
+    collectDiagnostics: collectDiagnostics,
+  );
+}
+
+void _printSolverResult(
+  SolverResult result, {
+  required GlobalState initialState,
+  required Goal goal,
+  required Registries registries,
+  required bool collectDiagnostics,
+}) {
   if (result is SolverSuccess) {
-    print('Uncompressed plan (${result.plan.steps.length} steps):');
-    print(result.plan.prettyPrint(actions: registries.actions));
-    print('');
-    final compressed = result.plan.compress();
-    print(
-      'Plan (compressed ${result.plan.steps.length} '
-      '-> ${compressed.steps.length} steps):',
-    );
-    print(compressed.prettyPrint(actions: registries.actions));
-    print('Total ticks: ${compressed.totalTicks}');
-    print('Interaction count: ${compressed.interactionCount}');
-
-    // Execute the plan to get the final state
-    final execResult = executePlan(
-      initialState,
-      result.plan,
-      random: Random(42),
-    );
-    print('');
-    _printFinalState(execResult.finalState);
-    if (goal is MultiSkillGoal) {
-      _printMultiSkillProgress(execResult.finalState, goal);
-    }
-    print('');
-    print('=== Execution Stats ===');
-    print('Planned ticks: ${execResult.plannedTicks}');
-    print('Actual ticks: ${execResult.actualTicks}');
-    final delta = execResult.ticksDelta;
-    final deltaSign = delta >= 0 ? '+' : '';
-    print('Delta: $deltaSign$delta ticks');
-    print(
-      'Deaths: ${execResult.totalDeaths} actual, '
-      '${result.plan.expectedDeaths} expected',
-    );
-
-    final profile = result.profile;
-    if (profile != null) {
-      print('');
-      _printSolverProfile(profile, extended: collectDiagnostics);
-    }
+    _printSuccess(result, initialState, goal, registries);
   } else if (result is SolverFailed) {
-    print('FAILED: ${result.failure.reason}');
-    print('  Expanded nodes: ${result.failure.expandedNodes}');
-    print('  Enqueued nodes: ${result.failure.enqueuedNodes}');
-    if (result.failure.bestCredits != null) {
-      print('  Best credits reached: ${result.failure.bestCredits}');
-    }
-    final profile = result.profile;
-    if (profile != null) {
-      print('');
-      _printSolverProfile(profile, extended: collectDiagnostics);
-    }
+    _printFailure(result);
+  }
+
+  final profile = result.profile;
+  if (profile != null) {
+    print('');
+    _printSolverProfile(profile, extended: collectDiagnostics);
+  }
+}
+
+void _printSuccess(
+  SolverSuccess result,
+  GlobalState initialState,
+  Goal goal,
+  Registries registries,
+) {
+  print('Uncompressed plan (${result.plan.steps.length} steps):');
+  print(result.plan.prettyPrint(actions: registries.actions));
+  print('');
+  final compressed = result.plan.compress();
+  print(
+    'Plan (compressed ${result.plan.steps.length} '
+    '-> ${compressed.steps.length} steps):',
+  );
+  print(compressed.prettyPrint(actions: registries.actions));
+  print('Total ticks: ${compressed.totalTicks}');
+  print('Interaction count: ${compressed.interactionCount}');
+
+  // Execute the plan to get the final state
+  print('Executing plan...');
+  final stopwatch = Stopwatch()..start();
+  final execResult = executePlan(initialState, result.plan, random: Random(42));
+  stopwatch.stop();
+  print('Execution completed in ${stopwatch.elapsedMilliseconds}ms');
+  print('');
+  _printFinalState(execResult.finalState);
+  if (goal is MultiSkillGoal) {
+    _printMultiSkillProgress(execResult.finalState, goal);
+  }
+  print('');
+  print('=== Execution Stats ===');
+  print('Planned ticks: ${execResult.plannedTicks}');
+  print('Actual ticks: ${execResult.actualTicks}');
+  final delta = execResult.ticksDelta;
+  final deltaSign = delta >= 0 ? '+' : '';
+  print('Delta: $deltaSign$delta ticks');
+  print(
+    'Deaths: ${execResult.totalDeaths} actual, '
+    '${result.plan.expectedDeaths} expected',
+  );
+}
+
+void _printFailure(SolverFailed result) {
+  print('FAILED: ${result.failure.reason}');
+  print('  Expanded nodes: ${result.failure.expandedNodes}');
+  print('  Enqueued nodes: ${result.failure.enqueuedNodes}');
+  if (result.failure.bestCredits != null) {
+    print('  Best credits reached: ${result.failure.bestCredits}');
   }
 }
 
@@ -300,6 +310,21 @@ void _printSolverProfile(SolverProfile profile, {bool extended = false}) {
     for (final entry in sorted) {
       print('  ${entry.key}: ${entry.value}');
     }
+  }
+}
+
+/// Parses the goal from command-line arguments.
+Goal _parseGoalFromArgs(ArgResults results) {
+  if (results['skills'] != null) {
+    return _parseMultiSkillGoal(results['skills'] as String);
+  } else if (results['skill'] as bool) {
+    return const ReachSkillLevelGoal(Skill.firemaking, 30);
+  } else {
+    // Parse gold goal from remaining args, default to 100 GP
+    final goalCredits = results.rest.isNotEmpty
+        ? int.tryParse(results.rest[0]) ?? 100
+        : 100;
+    return ReachGpGoal(goalCredits);
   }
 }
 
