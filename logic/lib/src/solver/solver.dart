@@ -1123,7 +1123,10 @@ AdvanceResult _advanceExpected(
   // (converts item flows to GP based on the policy)
   final valueRate = valueModel.valuePerTick(state, rates);
   final expectedGold = (valueRate * deltaTicks).floor();
-  final newGp = state.gp + expectedGold;
+  // Floor GP at 0 to prevent negative GP from consuming skills.
+  // The valueModel includes opportunity cost of consumed items, but actual
+  // GP doesn't decrease when burning logs - only the inventory changes.
+  final newGp = (state.gp + expectedGold).clamp(0, double.maxFinite).toInt();
 
   // Compute expected skill XP gains
   final newSkillStates = Map<Skill, SkillState>.from(state.skillStates);
