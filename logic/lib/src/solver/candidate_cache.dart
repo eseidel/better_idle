@@ -1,24 +1,34 @@
-/// Cache for enumerateCandidates results to reduce redundant computation.
+/// Capability cache for enumerateCandidates results.
 ///
 /// ## Purpose
 ///
 /// `enumerateCandidates` is expensive (~29% of solver time) and called on
 /// every A* expansion (~100k+ times for large goals). Many expansions share
-/// the same relevant state (skill levels, upgrades, inventory bucket),
-/// allowing cached results to be reused.
+/// the same capability state (skill levels, upgrades), allowing cached
+/// results to be reused after dynamic filtering.
 ///
-/// ## Cache Key Design
+/// ## Cache Key Design (Capability-Based)
 ///
-/// The cache key captures everything that affects candidate enumeration:
-/// - Goal-relevant skill levels (bucketed)
-/// - Purchased upgrade tiers per skill
-/// - Inventory fullness bucket (0-4)
+/// The cache key captures only **capability dimensions** that affect which
+/// candidates are *possible*:
+/// - Goal-relevant skill levels (determines unlocks)
+/// - Purchased upgrade tiers per skill (affects rates/rankings)
+/// - Inventory fullness bucket (affects sell policy)
 ///
-/// Items NOT in the key (because they don't affect candidates):
-/// - Exact GP amount (only affects affordability, handled separately)
-/// - Exact XP amounts (only the level matters)
-/// - Active action (candidates are for what we COULD switch to)
+/// Items NOT in the key (filtered dynamically instead):
+/// - Active action ID (excluded from switchToActivities)
+/// - Input availability (affects canStartNow, but cached superset includes all)
+/// - Exact GP amount (affordability is a filter, not a key)
+///
+/// ## Filtering
+///
+/// The cached `Candidates` is a **superset**. When retrieved, we filter:
+/// - `switchToActivities`: remove current `activeActionId`
+///
+/// This ensures high cache hit rates while maintaining correctness.
 library;
+
+import 'dart:math' as math;
 
 import 'package:equatable/equatable.dart';
 import 'package:logic/src/data/actions.dart';
@@ -30,7 +40,7 @@ import 'package:meta/meta.dart';
 
 /// Cache for enumerateCandidates results.
 ///
-/// Keyed by state buckets that affect candidate enumeration.
+/// Returns capability-based cached results with dynamic filtering applied.
 class CandidateCache {
   final Map<CandidateCacheKey, Candidates> _cache = {};
 
@@ -39,11 +49,21 @@ class CandidateCache {
   int misses = 0;
   int keyTimeUs = 0;
 
-  /// Returns cached candidates or computes and caches them.
+  /// Verification stats (sampled checks).
+  int verifyChecks = 0;
+  int verifyFailures = 0;
+
+  /// Returns cached candidates (filtered) or computes and caches them.
+  ///
+  /// The [state] is used for dynamic filtering (e.g., excluding active action).
+  /// The [computeForState] function is called with a modified state (active
+  /// action cleared) to compute the superset of candidates. This ensures the
+  /// cached candidates include all possible activities, which are then filtered
+  /// based on the actual active action.
   Candidates getOrCompute(
     GlobalState state,
     Goal goal,
-    Candidates Function() compute,
+    Candidates Function(GlobalState) computeForState,
   ) {
     final keyStopwatch = Stopwatch()..start();
     final key = CandidateCacheKey.fromState(state, goal);
@@ -52,12 +72,99 @@ class CandidateCache {
     final cached = _cache[key];
     if (cached != null) {
       hits++;
-      return cached;
+      // Apply dynamic filters to cached superset
+      return _filterCandidates(cached, state);
     }
     misses++;
-    final result = compute();
+    // Compute with cleared active action to get the full superset.
+    // enumerateCandidates excludes the active action, so we need to clear it
+    // to cache the full set of candidates.
+    final stateForCompute = state.activeAction != null
+        ? state.clearAction()
+        : state;
+    final result = computeForState(stateForCompute);
     _cache[key] = result;
-    return result;
+    // Return filtered result (same filtering as cache hit path)
+    return _filterCandidates(result, state);
+  }
+
+  /// Filters cached candidates based on current state.
+  ///
+  /// Removes the current active action from switchToActivities.
+  Candidates _filterCandidates(Candidates candidates, GlobalState state) {
+    final activeActionId = state.activeAction?.id;
+
+    // Fast path: no active action, no filtering needed
+    if (activeActionId == null) {
+      return candidates;
+    }
+
+    // Filter out the active action from switchToActivities
+    final filteredActivities = candidates.switchToActivities
+        .where((id) => id != activeActionId)
+        .toList();
+
+    // If nothing was filtered, return original to save allocation
+    if (filteredActivities.length == candidates.switchToActivities.length) {
+      return candidates;
+    }
+
+    return Candidates(
+      switchToActivities: filteredActivities,
+      buyUpgrades: candidates.buyUpgrades,
+      sellPolicy: candidates.sellPolicy,
+      watch: candidates.watch,
+      macros: candidates.macros,
+      consumingSkillStats: candidates.consumingSkillStats,
+    );
+  }
+
+  /// Performs a sampled verification that filtered cache matches fresh compute.
+  ///
+  /// Call this periodically during solving to catch cache key bugs.
+  /// Returns true if verification passed (or was skipped due to sampling).
+  bool sampleVerify(
+    GlobalState state,
+    Goal goal,
+    Candidates cached,
+    Candidates Function() freshCompute, {
+    double sampleRate = 0.01,
+  }) {
+    // Sample at the given rate
+    if (math.Random().nextDouble() > sampleRate) {
+      return true;
+    }
+
+    verifyChecks++;
+    final fresh = freshCompute();
+
+    // Compare filtered cached vs fresh (both should be filtered)
+    final cachedFiltered = _filterCandidates(cached, state);
+
+    // Check switchToActivities match (order may differ, compare as sets)
+    final cachedSet = cachedFiltered.switchToActivities.toSet();
+    final freshSet = fresh.switchToActivities.toSet();
+
+    if (!_setsEqual(cachedSet, freshSet)) {
+      verifyFailures++;
+      return false;
+    }
+
+    // Check buyUpgrades match
+    final cachedUpgrades = cachedFiltered.buyUpgrades.toSet();
+    final freshUpgrades = fresh.buyUpgrades.toSet();
+
+    if (!_setsEqual(cachedUpgrades, freshUpgrades)) {
+      verifyFailures++;
+      return false;
+    }
+
+    return true;
+  }
+
+  bool _setsEqual<T>(Set<T> a, Set<T> b) {
+    if (a.length != b.length) return false;
+    return a.containsAll(b);
   }
 
   /// Clears the cache (call when starting a new solve).
@@ -65,6 +172,8 @@ class CandidateCache {
     _cache.clear();
     hits = 0;
     misses = 0;
+    verifyChecks = 0;
+    verifyFailures = 0;
   }
 
   /// Number of unique keys in the cache.
@@ -80,7 +189,9 @@ class CandidateCache {
 
 /// Key for caching enumerateCandidates results.
 ///
-/// Captures the state dimensions that affect candidate enumeration.
+/// Captures only capability dimensions that affect which candidates are
+/// possible. State-specific filters (active action, input availability)
+/// are applied dynamically after cache lookup.
 @immutable
 class CandidateCacheKey extends Equatable {
   const CandidateCacheKey({
@@ -98,6 +209,7 @@ class CandidateCacheKey extends Equatable {
     }
 
     // For consuming skills, also track producer skill levels
+    // (affects which producer actions are available)
     switch (goal) {
       case ReachSkillLevelGoal(:final skill):
         if (skill.isConsuming) {

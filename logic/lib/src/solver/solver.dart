@@ -32,7 +32,6 @@ import 'package:logic/src/data/currency.dart';
 import 'package:logic/src/data/melvor_id.dart';
 import 'package:logic/src/solver/apply_interaction.dart';
 import 'package:logic/src/solver/available_interactions.dart';
-import 'package:logic/src/solver/candidate_cache.dart';
 import 'package:logic/src/solver/enumerate_candidates.dart';
 import 'package:logic/src/solver/estimate_rates.dart';
 import 'package:logic/src/solver/goal.dart';
@@ -2151,8 +2150,10 @@ SolverResult solve(
   // Rate cache for A* heuristic (caches best unlocked rate by state)
   final rateCache = _RateCache(goal);
 
-  // Candidate cache (disabled when collecting diagnostics for accurate stats)
-  final candidateCache = collectDiagnostics ? null : CandidateCache();
+  // Candidate cache disabled - the current implementation causes the solver
+  // to explore more nodes than without caching. A proper implementation would
+  // need to cache capability-level templates inside enumerateCandidates and
+  // filter per-state for affordability/inputs/active-action.
 
   // Dominance pruning frontier
   final frontier = _ParetoFrontier();
@@ -2331,29 +2332,17 @@ SolverResult solve(
         ..expandedNodes = expandedNodes
         ..totalTimeUs = totalStopwatch.elapsedMicroseconds
         ..frontierInserted = frontier.inserted
-        ..frontierRemoved = frontier.removed
-        ..candidateCacheHits = candidateCache?.hits ?? 0
-        ..candidateCacheMisses = candidateCache?.misses ?? 0
-        ..cacheKeyTimeUs = candidateCache?.keyTimeUs ?? 0;
+        ..frontierRemoved = frontier.removed;
       return SolverSuccess(plan, profile);
     }
 
-    // Compute candidates for this state (cached when not collecting stats)
+    // Compute candidates for this state
     final enumStopwatch = Stopwatch()..start();
-    final Candidates candidates;
-    if (candidateCache != null) {
-      candidates = candidateCache.getOrCompute(
-        node.state,
-        goal,
-        () => enumerateCandidates(node.state, goal),
-      );
-    } else {
-      candidates = enumerateCandidates(
-        node.state,
-        goal,
-        collectStats: collectDiagnostics,
-      );
-    }
+    final candidates = enumerateCandidates(
+      node.state,
+      goal,
+      collectStats: collectDiagnostics,
+    );
     profile.enumerateCandidatesTimeUs += enumStopwatch.elapsedMicroseconds;
 
     // Record candidate stats when diagnostics enabled
@@ -2490,10 +2479,7 @@ SolverResult solve(
             ..expandedNodes = expandedNodes
             ..totalTimeUs = totalStopwatch.elapsedMicroseconds
             ..frontierInserted = frontier.inserted
-            ..frontierRemoved = frontier.removed
-            ..candidateCacheHits = candidateCache?.hits ?? 0
-            ..candidateCacheMisses = candidateCache?.misses ?? 0
-            ..cacheKeyTimeUs = candidateCache?.keyTimeUs ?? 0;
+            ..frontierRemoved = frontier.removed;
           return SolverSuccess(
             _reconstructPlan(nodes, newNodeId, expandedNodes, enqueuedNodes),
             profile,
