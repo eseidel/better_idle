@@ -162,7 +162,10 @@ void main() {
       },
     );
 
-    test('respects activity count limit', () {
+    test('respects activity count limit (with producer overhead)', () {
+      // With unconditional producer inclusion, the actual count may exceed
+      // activityCount because we always include producers for consuming goals.
+      // For a GP goal, all consuming skills apply, so we include producers.
       final state = GlobalState.test(
         testRegistries,
         skillStates: const {
@@ -178,7 +181,11 @@ void main() {
         _defaultGoal,
         activityCount: 3,
       );
-      expect(candidates.switchToActivities.length, lessThanOrEqualTo(3));
+      // With producer overhead, we may have more than activityCount, but
+      // should still have a reasonable limit (activityCount + producers).
+      // Each consuming skill adds up to 2 producers, and there are 5 skills
+      // with producer mappings, so max overhead = 10 producers.
+      expect(candidates.switchToActivities.length, lessThanOrEqualTo(3 + 10));
     });
     test('watch list includes upgrades from buyUpgrades', () {
       // The watch list should include upgrades that are candidates

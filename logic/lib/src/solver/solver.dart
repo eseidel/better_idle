@@ -2139,6 +2139,9 @@ SolverResult solve(
   final profile = SolverProfile();
   final totalStopwatch = Stopwatch()..start();
 
+  // Clear the internal rate cache at start of each solve
+  clearRateCache();
+
   // Check if goal is already satisfied (considering inventory value)
   if (goal.isSatisfied(initial)) {
     return SolverSuccess(const Plan.empty(), profile);
@@ -2150,10 +2153,8 @@ SolverResult solve(
   // Rate cache for A* heuristic (caches best unlocked rate by state)
   final rateCache = _RateCache(goal);
 
-  // Candidate cache disabled - the current implementation causes the solver
-  // to explore more nodes than without caching. A proper implementation would
-  // need to cache capability-level templates inside enumerateCandidates and
-  // filter per-state for affordability/inputs/active-action.
+  // Rate cache for enumerateCandidates is now internal to that function.
+  // It caches capability-level rate summaries and filters per-state.
 
   // Dominance pruning frontier
   final frontier = _ParetoFrontier();
@@ -2332,7 +2333,9 @@ SolverResult solve(
         ..expandedNodes = expandedNodes
         ..totalTimeUs = totalStopwatch.elapsedMicroseconds
         ..frontierInserted = frontier.inserted
-        ..frontierRemoved = frontier.removed;
+        ..frontierRemoved = frontier.removed
+        ..candidateCacheHits = rateCacheHits
+        ..candidateCacheMisses = rateCacheMisses;
       return SolverSuccess(plan, profile);
     }
 
@@ -2580,7 +2583,9 @@ SolverResult solve(
     ..expandedNodes = expandedNodes
     ..totalTimeUs = totalStopwatch.elapsedMicroseconds
     ..frontierInserted = frontier.inserted
-    ..frontierRemoved = frontier.removed;
+    ..frontierRemoved = frontier.removed
+    ..candidateCacheHits = rateCacheHits
+    ..candidateCacheMisses = rateCacheMisses;
   return SolverFailed(
     SolverFailure(
       reason: 'No path to goal found',
