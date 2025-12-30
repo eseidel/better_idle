@@ -166,85 +166,45 @@ int get rateCacheHits => _rateCacheHits;
 /// Returns rate cache miss count (for profiling).
 int get rateCacheMisses => _rateCacheMisses;
 
-/// Packs capability state + goal signature into a key.
+/// Packs rate-affecting capability state into a key (goal-independent).
+///
+/// Rate-affecting state includes:
+/// - All skill levels (affect unlocks)
+/// - Tool tiers (affect action speed/yield)
 ///
 /// Layout across (low, high):
-///   low[0-15]   Goal skill mask (16 bits, one per skill)
-///   low[16-19]  Goal type (4 bits: 0=GP, 1-14=single skill, 15=multi)
-///   low[20-63]  Skill levels for first 6 relevant skills (7 bits each)
-///   high[0-...]  Remaining skill levels + tool tiers (3 bits each)
-_PackedCapabilityKey _packCapabilityKey(GlobalState state, Goal goal) {
+///   low[0-48]   Skill levels for all 7 skills (7 bits each = 49 bits)
+///   low[49-57]  Tool tiers for 3 skills (3 bits each = 9 bits)
+///   Total: 58 bits, fits in single int
+_PackedCapabilityKey _packCapabilityKey(GlobalState state) {
   var low = 0;
-  var high = 0;
-  var shift = 0; // Always relative to current word (low or high)
-  var useHigh = false;
+  var shift = 0;
 
   void pack(int value, int bits) {
     final mask = (1 << bits) - 1;
-    if (useHigh) {
-      high |= (value & mask) << shift;
-      shift += bits;
-    } else if (shift + bits > 64) {
-      // Split across low and high
-      final lowBits = 64 - shift;
-      final highBits = bits - lowBits;
-      low |= (value & ((1 << lowBits) - 1)) << shift;
-      high |= (value >> lowBits) & ((1 << highBits) - 1);
-      shift = highBits; // Now relative to high word
-      useHigh = true;
-    } else {
-      low |= (value & mask) << shift;
-      shift += bits;
-      if (shift >= 64) {
-        useHigh = true;
-        shift = 0; // Reset shift for high word
-      }
-    }
+    low |= (value & mask) << shift;
+    shift += bits;
   }
 
-  // 1. Pack goal skill mask (16 bits for up to 16 skills)
-  var goalSkillMask = 0;
-  for (final skill in goal.relevantSkillsForBucketing) {
-    goalSkillMask |= 1 << skill.index;
-  }
-  pack(goalSkillMask, 16);
-
-  // 2. Pack goal type discriminator (4 bits)
-  final goalType = switch (goal) {
-    ReachGpGoal() => 0,
-    ReachSkillLevelGoal(:final skill) => 1 + skill.index,
-    MultiSkillGoal() => 15,
-  };
-  pack(goalType, 4);
-
-  // 3. Pack skill levels for goal-relevant skills (7 bits each, max 120)
-  for (final skill in goal.relevantSkillsForBucketing) {
+  // Pack all skill levels (7 bits each, max 120)
+  // Order matters for consistency - use Skill.values order
+  for (final skill in Skill.values) {
     final level = state.skillState(skill).skillLevel;
     pack(level, 7);
   }
 
-  // 4. Pack tool tiers for relevant skills (3 bits each, max 6)
-  for (final skill in goal.relevantSkillsForBucketing) {
-    final tier = _getToolTier(state, skill);
-    pack(tier, 3);
-  }
+  // Pack tool tiers (3 bits each, max 6)
+  pack(state.shop.axeLevel, 3); // Woodcutting
+  pack(state.shop.fishingRodLevel, 3); // Fishing
+  pack(state.shop.pickaxeLevel, 3); // Mining
 
-  return _PackedCapabilityKey(low, high);
-}
-
-int _getToolTier(GlobalState state, Skill skill) {
-  return switch (skill) {
-    Skill.woodcutting => state.shop.axeLevel,
-    Skill.fishing => state.shop.fishingRodLevel,
-    Skill.mining => state.shop.pickaxeLevel,
-    _ => 0,
-  };
+  return _PackedCapabilityKey(low, 0);
 }
 
 /// Gets or computes rate summaries for current capability state.
-/// Caches results keyed by packed capability key.
-List<ActionRateSummary> _getRateSummaries(GlobalState state, Goal goal) {
-  final capKey = _packCapabilityKey(state, goal);
+/// Caches results keyed by packed capability key (goal-independent).
+List<ActionRateSummary> _getRateSummaries(GlobalState state) {
+  final capKey = _packCapabilityKey(state);
 
   final cached = _rateCache[capKey];
   if (cached != null) {
@@ -765,8 +725,8 @@ Candidates enumerateCandidates(
   double inventoryThreshold = defaultInventoryThreshold,
   bool collectStats = false,
 }) {
-  // 1. Get cached rate summaries (capability-level)
-  final rateSummaries = _getRateSummaries(state, goal);
+  // 1. Get cached rate summaries (capability-level, goal-independent)
+  final rateSummaries = _getRateSummaries(state);
 
   // Also build legacy ActionSummary list for functions not yet migrated
   final summaries = buildActionSummaries(state);
