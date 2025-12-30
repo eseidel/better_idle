@@ -1671,15 +1671,18 @@ _StepResult _applyStep(
       var executionWaitFor = waitFor;
 
       if (macro is TrainSkillUntil) {
-        // Find and switch to the best action for this skill
-        final bestAction = _findBestActionForSkill(
-          state,
-          macro.skill,
-          // We don't have the goal here, so create a dummy one
-          ReachSkillLevelGoal(macro.skill, 99),
-        );
-        if (bestAction != null && state.activeAction?.id != bestAction) {
-          executionState = applyInteraction(state, SwitchActivity(bestAction));
+        // Use the action that was determined during planning
+        // This ensures consistency with subsequent WaitSteps that may
+        // expect this specific action's mastery XP.
+        final actionToUse =
+            macro.actionId ??
+            _findBestActionForSkill(
+              state,
+              macro.skill,
+              ReachSkillLevelGoal(macro.skill, 99),
+            );
+        if (actionToUse != null && state.activeAction?.id != actionToUse) {
+          executionState = applyInteraction(state, SwitchActivity(actionToUse));
         }
 
         // Regenerate WaitFor based on actual execution state and action
@@ -1802,6 +1805,7 @@ typedef MacroExpansionResult = ({
   WaitFor waitFor, // Composite WaitFor for plan execution
   int deaths,
   String? triggeringCondition, // Which stop condition triggered first
+  MacroCandidate macro, // The macro with action filled in (for TrainSkillUntil)
 });
 
 /// Expands a macro candidate into a future state by estimating progress.
@@ -1879,12 +1883,21 @@ MacroExpansionResult? _expandTrainSkillUntil(
   // Use expected-value advance (already exists!)
   final advanceResult = advance(currentState, ticksUntilStop);
 
+  // Create enriched macro with the specific action we chose
+  final enrichedMacro = TrainSkillUntil(
+    macro.skill,
+    macro.primaryStop,
+    watchedStops: macro.watchedStops,
+    actionId: bestAction,
+  );
+
   return (
     state: advanceResult.state,
     ticksElapsed: ticksUntilStop,
     waitFor: compositeWaitFor, // Execution will respect all conditions
     deaths: advanceResult.deaths,
     triggeringCondition: triggeringCondition,
+    macro: enrichedMacro,
   );
 }
 
@@ -2030,6 +2043,7 @@ MacroExpansionResult? _expandTrainConsumingSkillUntil(
     waitFor: waitFor,
     deaths: 0, // No combat deaths in firemaking/woodcutting
     triggeringCondition: waitFor.shortDescription,
+    macro: macro, // Consuming macros don't need action enrichment
   );
 }
 
@@ -2466,7 +2480,7 @@ SolverResult solve(
           expectedDeaths: newDeaths,
           parentId: nodeId,
           stepFromParent: MacroStep(
-            macro,
+            expansionResult.macro,
             expansionResult.ticksElapsed,
             expansionResult.waitFor,
           ),
