@@ -126,6 +126,11 @@ NextDecisionResult nextDecisionDelta(
   // Value rate is still needed for upgrade affordability calculations
   final valueRate = valueModel.valuePerTick(state, rates);
 
+  // Get rates for the ACTIVE action (for inputs depleted calculation)
+  // This is separate from "intended action" rates because we need to know
+  // what the currently running action is consuming, not what we intend to do.
+  final activeRates = estimateRates(state);
+
   // Compute deltas for each category
   final deltas = <_DeltaCandidate>[];
 
@@ -153,7 +158,7 @@ NextDecisionResult nextDecisionDelta(
 
   // D) Time until inventory fills (if watching)
   if (candidates.watch.inventory) {
-    final deltaInv = _deltaUntilInventoryFull(state, rates);
+    final deltaInv = _deltaUntilInventoryFull(state, activeRates);
     if (deltaInv != null && deltaInv > 0) {
       deltas.add(
         _DeltaCandidate(ticks: deltaInv, waitFor: const WaitForInventoryFull()),
@@ -167,27 +172,31 @@ NextDecisionResult nextDecisionDelta(
   // [_advanceExpected].
 
   // E) Time until inputs depleted (for consuming actions)
-  final deltaInputsDepleted = _deltaUntilInputsDepleted(state, rates);
+  // Use activeRates because we want to know if the ACTIVE action runs out of
+  // inputs, not the intended action.
+  final deltaInputsDepleted = _deltaUntilInputsDepleted(state, activeRates);
   if (deltaInputsDepleted != null) {
     deltas.add(deltaInputsDepleted);
   }
 
   // E2) Time until inputs available for watched consuming activities
+  // Use activeRates because we're checking if the ACTIVE action produces inputs
   final deltaInputsAvailable = _deltaUntilInputsAvailable(
     state,
     candidates,
-    rates,
+    activeRates,
   );
   if (deltaInputsAvailable != null) {
     deltas.add(deltaInputsAvailable);
   }
 
   // E3) Time until sufficient inputs to complete goal via consuming activity
+  // Use activeRates because we're checking if the ACTIVE action produces inputs
   final deltaSufficientInputs = _deltaUntilSufficientInputsForGoal(
     state,
     candidates,
     goal,
-    rates,
+    activeRates,
   );
   if (deltaSufficientInputs != null) {
     deltas.add(deltaSufficientInputs);
@@ -339,6 +348,11 @@ ActionId? _findBestActionForGoalSkill(
 /// For multi-skill goals, computes time until the CURRENT skill being trained
 /// reaches its target (not time until all skills are done, which would require
 /// switching activities). Returns appropriate WaitFor for plan execution.
+///
+/// For single skill goals, only returns a delta if the active action is
+/// actually training the goal skill. If you're running a producer action
+/// for a consuming skill goal, the goal delta should not apply (you need to
+/// switch to the consuming action first).
 _DeltaCandidate? _deltaUntilGoalWithWaitFor(
   GlobalState state,
   Goal goal,
@@ -347,18 +361,17 @@ _DeltaCandidate? _deltaUntilGoalWithWaitFor(
   if (progressRate <= 0) return null;
   if (goal.isSatisfied(state)) return null;
 
+  final actionId = state.activeAction?.id;
+  if (actionId == null) return null;
+
+  final registries = state.registries;
+  final action = registries.actions.byId(actionId);
+  if (action is! SkillAction) return null;
+
+  final activeSkill = action.skill;
+
   // For multi-skill goals, only consider skills we're currently training
   if (goal is MultiSkillGoal) {
-    // Find which skill we're currently training
-    final actionId = state.activeAction?.id;
-    if (actionId == null) return null;
-
-    final registries = state.registries;
-    final action = registries.actions.byId(actionId);
-    if (action is! SkillAction) return null;
-
-    final activeSkill = action.skill;
-
     // Find the subgoal for the active skill
     final activeSubgoal = goal.subgoals
         .where((g) => g.skill == activeSkill && !g.isSatisfied(state))
@@ -385,6 +398,14 @@ _DeltaCandidate? _deltaUntilGoalWithWaitFor(
         reason: 'Goal: $skillName $targetLevel',
       ),
     );
+  }
+
+  // For single skill goals, only return a delta if the active action is
+  // actually training the goal skill
+  if (goal is ReachSkillLevelGoal && activeSkill != goal.skill) {
+    // Active action is not training the goal skill (e.g., producing logs for
+    // firemaking goal) - no goal progress from current action
+    return null;
   }
 
   // Single goal: use WaitForGoal

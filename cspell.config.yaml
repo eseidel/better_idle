@@ -49,6 +49,8 @@ words:
   - modelable
   - npcs
   - openables
+  - parameterless
+  - pathfinding
   - pathprovider
   - persistor
   - pickpocketing
@@ -75,6 +77,7 @@ words:
   - tweened
   - unequip
   - unequips
+  - unlockable
   - xcassets
   - xcconfig
   - xcodeproj
