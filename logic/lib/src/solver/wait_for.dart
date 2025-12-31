@@ -4,25 +4,14 @@ import 'package:logic/src/data/actions.dart';
 import 'package:logic/src/data/melvor_id.dart';
 import 'package:logic/src/solver/estimate_rates.dart';
 import 'package:logic/src/solver/goal.dart';
+import 'package:logic/src/solver/interaction.dart'
+    show SellPolicy, effectiveCredits;
 import 'package:logic/src/solver/next_decision_delta.dart' show infTicks;
 import 'package:logic/src/solver/plan.dart' show WaitStep;
 import 'package:logic/src/solver/value_model.dart';
 import 'package:logic/src/state.dart';
 import 'package:logic/src/tick.dart';
 import 'package:meta/meta.dart';
-
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
-
-/// Calculates the total value of a state (GP + sellable inventory value).
-int _effectiveCredits(GlobalState state) {
-  var total = state.gp;
-  for (final stack in state.inventory.items) {
-    total += stack.sellsFor;
-  }
-  return total;
-}
 
 // ---------------------------------------------------------------------------
 // Wait For (what we're waiting for)
@@ -66,28 +55,41 @@ sealed class WaitFor extends Equatable {
   String get shortDescription;
 }
 
-/// Wait until effective value (GP + inventory sell value) reaches a target.
+/// Wait until effective credits (GP + sellable inventory) reaches a target.
 /// Used for: upgrade becomes affordable, GP goal reached.
+///
+/// Carries the [sellPolicy] to ensure consistent semantics between
+/// boundary detection (WatchSet) and satisfaction checking.
 @immutable
-class WaitForInventoryValue extends WaitFor {
-  const WaitForInventoryValue(this.targetValue, {this.reason = 'Upgrade'});
+class WaitForEffectiveCredits extends WaitFor {
+  const WaitForEffectiveCredits(
+    this.targetValue, {
+    required this.sellPolicy,
+    this.reason = 'Upgrade',
+  });
 
   final int targetValue;
 
   /// Why we're waiting for this value (for display).
   final String reason;
 
+  /// The sell policy used to compute effective credits.
+  ///
+  /// This must match the policy used by WatchSet for boundary detection
+  /// to ensure consistent affordability semantics.
+  final SellPolicy sellPolicy;
+
   @override
   bool isSatisfied(GlobalState state) {
-    return _effectiveCredits(state) >= targetValue;
+    return effectiveCredits(state, sellPolicy) >= targetValue;
   }
 
   @override
-  int progress(GlobalState state) => _effectiveCredits(state);
+  int progress(GlobalState state) => effectiveCredits(state, sellPolicy);
 
   @override
   int estimateTicks(GlobalState state, Rates rates) {
-    final currentValue = _effectiveCredits(state);
+    final currentValue = effectiveCredits(state, sellPolicy);
     final needed = targetValue - currentValue;
     if (needed <= 0) return 0;
 
@@ -98,13 +100,13 @@ class WaitForInventoryValue extends WaitFor {
   }
 
   @override
-  String describe() => 'value >= $targetValue';
+  String describe() => 'credits >= $targetValue';
 
   @override
   String get shortDescription => '$reason affordable';
 
   @override
-  List<Object?> get props => [targetValue];
+  List<Object?> get props => [targetValue, sellPolicy];
 }
 
 /// Wait until a skill reaches a target XP amount.

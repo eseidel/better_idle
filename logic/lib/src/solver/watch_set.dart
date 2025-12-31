@@ -27,31 +27,14 @@ import 'package:logic/src/solver/goal.dart';
 import 'package:logic/src/solver/interaction.dart'
     show
         ReserveConsumingInputsSpec,
-        SellExceptPolicy,
         SellPolicy,
-        SellPolicySpec;
+        SellPolicySpec,
+        effectiveCredits;
 import 'package:logic/src/solver/plan.dart';
 import 'package:logic/src/solver/replan_boundary.dart';
 import 'package:logic/src/solver/unlock_boundaries.dart';
 import 'package:logic/src/state.dart';
 import 'package:meta/meta.dart';
-
-/// Calculates the total effective credits (GP + sellable inventory value).
-///
-/// Uses the [sellPolicy] to determine which items count as sellable.
-/// Items that should be kept (per policy) are excluded from the value.
-int _effectiveCredits(GlobalState state, SellPolicy sellPolicy) {
-  var total = state.gp;
-  for (final stack in state.inventory.items) {
-    // Check if this item should be kept per the sell policy
-    if (sellPolicy is SellExceptPolicy &&
-        sellPolicy.keepItems.contains(stack.item.id)) {
-      continue; // Don't count items we need to keep
-    }
-    total += stack.sellsFor;
-  }
-  return total;
-}
 
 /// Configuration for segment stopping behavior.
 @immutable
@@ -193,7 +176,7 @@ class WatchSet {
     // Use effective credits (GP + sellable inventory) since selling is instant
     // The sell policy determines which items are sellable
     if (config.stopAtUpgradeAffordable) {
-      final effectiveGp = _effectiveCredits(state, sellPolicy);
+      final effectiveGp = effectiveCredits(state, sellPolicy);
       for (final upgradeId in upgradePurchaseIds) {
         final purchase = registries.shop.byId(upgradeId);
         if (purchase != null) {

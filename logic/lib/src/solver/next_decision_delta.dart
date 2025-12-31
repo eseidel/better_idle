@@ -28,6 +28,8 @@ import 'package:logic/src/data/xp.dart';
 import 'package:logic/src/solver/enumerate_candidates.dart';
 import 'package:logic/src/solver/estimate_rates.dart';
 import 'package:logic/src/solver/goal.dart';
+import 'package:logic/src/solver/interaction.dart'
+    show SellAllPolicy, SellPolicy;
 import 'package:logic/src/solver/value_model.dart';
 import 'package:logic/src/solver/wait_for.dart';
 import 'package:logic/src/state.dart';
@@ -73,11 +75,16 @@ class NextDecisionResult {
 /// - Time until next mastery level (rates may change, especially for thieving)
 ///
 /// Returns [infTicks] if no progress is possible.
+///
+/// The [sellPolicy] parameter determines how effective GP is calculated for
+/// upgrade affordability. If not provided, defaults to [SellAllPolicy].
+/// In segment mode, pass the segment's concrete policy for consistency.
 NextDecisionResult nextDecisionDelta(
   GlobalState state,
   Goal goal,
   Candidates candidates, {
   ValueModel valueModel = defaultValueModel,
+  SellPolicy sellPolicy = const SellAllPolicy(),
 }) {
   // Check if goal is already satisfied
   if (goal.isSatisfied(state)) {
@@ -87,6 +94,8 @@ NextDecisionResult nextDecisionDelta(
   // Check for immediate availability (upgrades already affordable)
   // Only consider upgrades that are competitive (in buyUpgrades), not the
   // broader watch list which includes all potentially useful upgrades.
+  // Note: We check plain state.gp here because this is "can buy right now"
+  // (shop requires actual GP, not potential GP from selling).
   final shopRegistry = state.registries.shop;
   for (final purchaseId in candidates.buyUpgrades) {
     final purchase = shopRegistry.byId(purchaseId);
@@ -95,7 +104,11 @@ NextDecisionResult nextDecisionDelta(
     if (cost != null && state.gp >= cost) {
       return NextDecisionResult(
         deltaTicks: 0,
-        waitFor: WaitForInventoryValue(cost, reason: purchase.name),
+        waitFor: WaitForEffectiveCredits(
+          cost,
+          sellPolicy: sellPolicy,
+          reason: purchase.name,
+        ),
       );
     }
   }
@@ -145,6 +158,7 @@ NextDecisionResult nextDecisionDelta(
     state,
     candidates,
     valueRate,
+    sellPolicy,
   );
   if (deltaUpgrade != null) {
     deltas.add(deltaUpgrade);
@@ -419,6 +433,7 @@ _DeltaCandidate? _deltaUntilUpgradeAffordable(
   GlobalState state,
   Candidates candidates,
   double valueRate,
+  SellPolicy sellPolicy,
 ) {
   if (valueRate <= 0) return null;
 
@@ -452,7 +467,11 @@ _DeltaCandidate? _deltaUntilUpgradeAffordable(
   if (minDelta == null || minUpgradeCost == null) return null;
   return _DeltaCandidate(
     ticks: minDelta,
-    waitFor: WaitForInventoryValue(minUpgradeCost, reason: minUpgradeName!),
+    waitFor: WaitForEffectiveCredits(
+      minUpgradeCost,
+      sellPolicy: sellPolicy,
+      reason: minUpgradeName!,
+    ),
   );
 }
 

@@ -111,7 +111,7 @@ Stop when enough GP to buy an upgrade.
 StopWhenUpgradeAffordable(ironAxeId, cost, 'Iron Axe')
 ```
 
-Converts to: `WaitForInventoryValue(cost, reason: upgradeName)`
+Converts to: `WaitForEffectiveCredits(cost, reason: upgradeName)`
 
 ### StopWhenInputsDepleted
 

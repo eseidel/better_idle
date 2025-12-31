@@ -1121,7 +1121,10 @@ void main() {
       final plan = Plan(
         steps: [
           InteractionStep(SwitchActivity(normalTreeAction.id)),
-          const WaitStep(100, WaitForInventoryValue(50)),
+          const WaitStep(
+            100,
+            WaitForEffectiveCredits(50, sellPolicy: SellAllPolicy()),
+          ),
           const InteractionStep(SellItems(SellAllPolicy())),
           const InteractionStep(BuyShopItem(ironAxeId)),
           const WaitStep(200, WaitForSkillXp(Skill.woodcutting, 100)),

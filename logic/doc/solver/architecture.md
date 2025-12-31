@@ -128,7 +128,7 @@ sealed class WaitFor extends Equatable {
 }
 
 class WaitForSkillXp extends WaitFor { ... }
-class WaitForInventoryValue extends WaitFor { ... }
+class WaitForEffectiveCredits extends WaitFor { ... }
 class WaitForInputsDepleted extends WaitFor { ... }
 class WaitForAnyOf extends WaitFor { ... }
 class WaitForGoal extends WaitFor { ... }

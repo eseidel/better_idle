@@ -210,3 +210,33 @@ Set<MelvorId> _computeKeepItemsForSkills(
 
   return keepItems;
 }
+
+// ---------------------------------------------------------------------------
+// Effective GP Calculations
+// ---------------------------------------------------------------------------
+
+/// Calculates the value of inventory items that can be sold per [sellPolicy].
+///
+/// This is the GP that would be gained by applying a [SellItems] interaction
+/// with the given policy. Items excluded by the policy are not counted.
+int sellableValue(GlobalState state, SellPolicy sellPolicy) {
+  var total = 0;
+  for (final stack in state.inventory.items) {
+    if (sellPolicy is SellExceptPolicy &&
+        sellPolicy.keepItems.contains(stack.item.id)) {
+      continue;
+    }
+    total += stack.sellsFor;
+  }
+  return total;
+}
+
+/// Calculates effective GP: actual GP + sellable inventory value.
+///
+/// This represents the total GP available if the player sold all items
+/// permitted by [sellPolicy]. Use this for affordability checks in planning.
+///
+/// For immediate purchase checks (can buy right now), use [state.gp] directly.
+int effectiveCredits(GlobalState state, SellPolicy sellPolicy) {
+  return state.gp + sellableValue(state, sellPolicy);
+}

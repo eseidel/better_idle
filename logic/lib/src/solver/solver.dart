@@ -274,15 +274,6 @@ class _ParetoFrontier {
 const int defaultMaxExpandedNodes = 200000;
 const int defaultMaxQueueSize = 500000;
 
-/// Calculates the total value of a state (GP + sellable inventory value).
-int _effectiveCredits(GlobalState state) {
-  var total = state.gp;
-  for (final stack in state.inventory.items) {
-    total += stack.sellsFor;
-  }
-  return total;
-}
-
 /// Result of rate computation with optional diagnostic info.
 class _RateResult {
   _RateResult(this.rate, {this.zeroReason});
@@ -2355,7 +2346,11 @@ SolverResult solve(
 
     // Track best credits seen (effective credits = GP + inventory value)
     // Note: For non-GP goals this tracks GP anyway for diagnostics.
-    final nodeEffectiveCredits = _effectiveCredits(node.state);
+    // Uses SellAllPolicy since this is just measuring potential GP value.
+    final nodeEffectiveCredits = effectiveCredits(
+      node.state,
+      const SellAllPolicy(),
+    );
     if (nodeEffectiveCredits > bestCredits) {
       bestCredits = nodeEffectiveCredits;
     }
@@ -2549,7 +2544,17 @@ SolverResult solve(
     }
 
     // Expand wait edge
-    final deltaResult = nextDecisionDelta(node.state, goal, candidates);
+    // For segment goals, use the WatchSet's sellPolicy for consistent
+    // effectiveCredits calculation. Otherwise use candidates.sellPolicy.
+    final deltaSellPolicy = goal is SegmentGoal
+        ? goal.watchSet.sellPolicy
+        : candidates.sellPolicy;
+    final deltaResult = nextDecisionDelta(
+      node.state,
+      goal,
+      candidates,
+      sellPolicy: deltaSellPolicy,
+    );
 
     // Invariant: dt=0 only when actions exist, dt>0 when no immediate actions.
     // Prevents regression where "affordable watched upgrade" triggers dt=0

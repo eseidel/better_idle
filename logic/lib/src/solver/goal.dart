@@ -20,11 +20,14 @@ library;
 
 import 'package:equatable/equatable.dart';
 import 'package:logic/src/data/actions.dart';
-import 'package:logic/src/data/melvor_id.dart';
 import 'package:logic/src/data/xp.dart';
 import 'package:logic/src/solver/estimate_rates.dart';
 import 'package:logic/src/solver/interaction.dart'
-    show SellAllPolicy, SellExceptPolicy, SellPolicy;
+    show
+        ReserveConsumingInputsSpec,
+        SellAllPolicy,
+        SellPolicy,
+        effectiveCredits;
 import 'package:logic/src/solver/value_model.dart' show ValueModel;
 import 'package:logic/src/solver/watch_set.dart';
 import 'package:logic/src/state.dart';
@@ -103,29 +106,24 @@ sealed class Goal extends Equatable {
 /// Goal to reach a target amount of GP (gold pieces).
 ///
 /// "Effective credits" includes both GP and the sell value of inventory items.
+/// For GP goals, all items count toward progress (uses [SellAllPolicy]).
 @immutable
 class ReachGpGoal extends Goal {
   const ReachGpGoal(this.targetGp);
 
   final int targetGp;
 
-  /// Calculates the total effective credits (GP + sellable inventory value).
-  int effectiveCredits(GlobalState state) {
-    var total = state.gp;
-    for (final stack in state.inventory.items) {
-      total += stack.sellsFor;
-    }
-    return total;
-  }
+  /// The sell policy for GP goals: sell everything.
+  static const _policy = SellAllPolicy();
 
   @override
   bool isSatisfied(GlobalState state) {
-    return effectiveCredits(state) >= targetGp;
+    return effectiveCredits(state, _policy) >= targetGp;
   }
 
   @override
   double remaining(GlobalState state) {
-    final current = effectiveCredits(state);
+    final current = effectiveCredits(state, _policy);
     return (targetGp - current).clamp(0, double.infinity).toDouble();
   }
 
@@ -144,7 +142,7 @@ class ReachGpGoal extends Goal {
   }
 
   @override
-  int progress(GlobalState state) => effectiveCredits(state);
+  int progress(GlobalState state) => effectiveCredits(state, _policy);
 
   @override
   bool get isSellRelevant => true;
@@ -241,12 +239,12 @@ class ReachSkillLevelGoal extends Goal {
 
   @override
   SellPolicy computeSellPolicy(GlobalState state) {
-    // Skill goals keep items that are inputs for consuming skills
-    final keepItems = _computeKeepItemsForSkills(state, consumingSkills);
-    if (keepItems.isEmpty) {
-      return const SellAllPolicy();
-    }
-    return SellExceptPolicy(keepItems);
+    // Delegate to the spec for consistent policy computation.
+    // ReserveConsumingInputsSpec handles the keepItems logic.
+    return const ReserveConsumingInputsSpec().instantiate(
+      state,
+      consumingSkills,
+    );
   }
 
   @override
@@ -345,12 +343,12 @@ class MultiSkillGoal extends Goal {
 
   @override
   SellPolicy computeSellPolicy(GlobalState state) {
-    // Multi-skill goals keep items for all consuming skills across subgoals
-    final keepItems = _computeKeepItemsForSkills(state, consumingSkills);
-    if (keepItems.isEmpty) {
-      return const SellAllPolicy();
-    }
-    return SellExceptPolicy(keepItems);
+    // Delegate to the spec for consistent policy computation.
+    // ReserveConsumingInputsSpec handles the keepItems logic.
+    return const ReserveConsumingInputsSpec().instantiate(
+      state,
+      consumingSkills,
+    );
   }
 
   @override
@@ -425,41 +423,4 @@ class SegmentGoal extends Goal {
 
   @override
   List<Object?> get props => [watchSet];
-}
-
-// ---------------------------------------------------------------------------
-// Helper Functions
-// ---------------------------------------------------------------------------
-
-/// Computes which items to keep (not sell) for the given consuming skills.
-///
-/// Finds all actions for the consuming skills and collects their input items.
-Set<MelvorId> _computeKeepItemsForSkills(
-  GlobalState state,
-  Set<Skill> consumingSkills,
-) {
-  if (consumingSkills.isEmpty) {
-    return const {};
-  }
-
-  final keepItems = <MelvorId>{};
-  final registries = state.registries;
-
-  for (final skill in consumingSkills) {
-    for (final action in registries.actions.forSkill(skill)) {
-      // Check if action is unlocked
-      final skillLevel = state.skillState(skill).skillLevel;
-      if (action.unlockLevel > skillLevel) continue;
-
-      // Get input items for this action
-      final actionState = state.actionState(action.id);
-      final selection = actionState.recipeSelection(action);
-      final inputs = action.inputsForRecipe(selection);
-
-      // Add all input item IDs to keep set
-      keepItems.addAll(inputs.keys);
-    }
-  }
-
-  return keepItems;
 }

@@ -108,12 +108,12 @@ class WaitForSkillXp extends WaitFor {
 }
 ```
 
-### WaitForInventoryValue
+### WaitForEffectiveCredits
 
 Wait until GP + inventory value reaches target:
 
 ```dart
-class WaitForInventoryValue extends WaitFor {
+class WaitForEffectiveCredits extends WaitFor {
   final int targetValue;
 
   bool isSatisfied(GlobalState state) =>
