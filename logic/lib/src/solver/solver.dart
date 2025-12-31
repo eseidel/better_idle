@@ -2805,6 +2805,26 @@ SegmentedSolverResult solveToGoalViaSegments(
         if (segment.stopBoundary is GoalReachedBoundary) {
           break;
         }
+
+        // If we stopped because an upgrade became affordable, buy it
+        // and add a synthetic segment to record the purchase in the plan
+        if (segment.stopBoundary is UpgradeAffordableBoundary) {
+          final boundary = segment.stopBoundary as UpgradeAffordableBoundary;
+          final buyInteraction = BuyShopItem(boundary.purchaseId);
+          currentState = applyInteraction(currentState, buyInteraction);
+
+          // Add a synthetic segment for the purchase (0 ticks, just records
+          // the interaction)
+          segments.add(
+            Segment(
+              steps: [InteractionStep(buyInteraction)],
+              totalTicks: 0,
+              interactionCount: 1,
+              stopBoundary: boundary,
+              description: 'Buy ${boundary.upgradeName}',
+            ),
+          );
+        }
     }
   }
 

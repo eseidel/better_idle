@@ -31,6 +31,11 @@ final _parser = ArgParser()
     negatable: false,
   )
   ..addFlag(
+    'segments',
+    help: 'Use segment-based solver (iterative replanning)',
+    negatable: false,
+  )
+  ..addFlag(
     'cliff',
     help: 'Run cliff diagnostic comparing FM=55 vs FM=56',
     negatable: false,
@@ -70,26 +75,39 @@ void main(List<String> args) async {
 
   final initialState = GlobalState.empty(registries);
   final collectDiagnostics = results['diagnostics'] as bool;
+  final useSegments = results['segments'] as bool;
 
-  print('Solving${collectDiagnostics ? ' (with diagnostics)' : ''}...');
-  final stopwatch = Stopwatch()..start();
-  final result = solve(
-    initialState,
-    goal,
-    collectDiagnostics: collectDiagnostics,
-  );
-  stopwatch.stop();
+  if (useSegments) {
+    print('Solving via segments...');
+    final stopwatch = Stopwatch()..start();
+    final result = solveToGoalViaSegments(initialState, goal);
+    stopwatch.stop();
 
-  print('Solver completed in ${stopwatch.elapsedMilliseconds}ms');
-  print('');
+    print('Solver completed in ${stopwatch.elapsedMilliseconds}ms');
+    print('');
 
-  _printSolverResult(
-    result,
-    initialState: initialState,
-    goal: goal,
-    registries: registries,
-    collectDiagnostics: collectDiagnostics,
-  );
+    _printSegmentedResult(result, initialState, goal, registries);
+  } else {
+    print('Solving${collectDiagnostics ? ' (with diagnostics)' : ''}...');
+    final stopwatch = Stopwatch()..start();
+    final result = solve(
+      initialState,
+      goal,
+      collectDiagnostics: collectDiagnostics,
+    );
+    stopwatch.stop();
+
+    print('Solver completed in ${stopwatch.elapsedMilliseconds}ms');
+    print('');
+
+    _printSolverResult(
+      result,
+      initialState: initialState,
+      goal: goal,
+      registries: registries,
+      collectDiagnostics: collectDiagnostics,
+    );
+  }
 }
 
 void _printSolverResult(
@@ -362,6 +380,86 @@ void _printMultiSkillProgress(GlobalState state, MultiSkillGoal goal) {
     );
   }
   print('  Total remaining: ${totalRemainingXp.toInt()} XP');
+}
+
+/// Prints the result of segment-based solving.
+void _printSegmentedResult(
+  SegmentedSolverResult result,
+  GlobalState initialState,
+  Goal goal,
+  Registries registries,
+) {
+  switch (result) {
+    case SegmentedSuccess(
+      :final segments,
+      :final totalTicks,
+      :final totalReplanCount,
+    ):
+      print('=== Segment-Based Solver Result ===');
+      print('Total segments: ${segments.length}');
+      print('Replan count: $totalReplanCount');
+      print('Total ticks: $totalTicks');
+      print('');
+
+      // Print segment summaries
+      print('--- Segment Boundaries ---');
+      for (var i = 0; i < segments.length; i++) {
+        final segment = segments[i];
+        final boundary = segment.stopBoundary;
+        final ticks = segment.totalTicks;
+        final steps = segment.steps.length;
+        print(
+          '  Segment ${i + 1}: $steps steps, $ticks ticks '
+          '-> ${boundary.describe()}',
+        );
+      }
+      print('');
+
+      // Stitch segments into a full plan
+      final plan = Plan.fromSegments(segments);
+
+      // Print full plan
+      print('=== Stitched Plan ===');
+      print(plan.prettyPrint(actions: registries.actions));
+      print('');
+
+      // Execute the stitched plan
+      print('Executing stitched plan...');
+      final stopwatch = Stopwatch()..start();
+      final execResult = executePlan(initialState, plan, random: Random(42));
+      stopwatch.stop();
+      print('Execution completed in ${stopwatch.elapsedMilliseconds}ms');
+      print('');
+
+      _printFinalState(execResult.finalState);
+      if (goal is MultiSkillGoal) {
+        _printMultiSkillProgress(execResult.finalState, goal);
+      }
+      print('');
+      print('=== Execution Stats ===');
+      print('Planned ticks: ${execResult.plannedTicks}');
+      print('Actual ticks: ${execResult.actualTicks}');
+      final delta = execResult.ticksDelta;
+      final deltaSign = delta >= 0 ? '+' : '';
+      print('Delta: $deltaSign$delta ticks');
+      print('Deaths: ${execResult.totalDeaths}');
+
+    case SegmentedFailed(:final failure, :final completedSegments):
+      print('=== Segment-Based Solver FAILED ===');
+      print('Reason: ${failure.reason}');
+      print('Completed segments before failure: ${completedSegments.length}');
+      if (completedSegments.isNotEmpty) {
+        print('');
+        print('--- Completed Segments ---');
+        for (var i = 0; i < completedSegments.length; i++) {
+          final segment = completedSegments[i];
+          print(
+            '  Segment ${i + 1}: ${segment.steps.length} steps, '
+            '${segment.totalTicks} ticks -> ${segment.stopBoundary.describe()}',
+          );
+        }
+      }
+  }
 }
 
 // ---------------------------------------------------------------------------
