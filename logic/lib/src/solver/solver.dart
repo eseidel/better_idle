@@ -32,7 +32,6 @@ import 'package:logic/src/data/currency.dart';
 import 'package:logic/src/data/melvor_id.dart';
 import 'package:logic/src/solver/apply_interaction.dart';
 import 'package:logic/src/solver/available_interactions.dart';
-import 'package:logic/src/solver/candidate_cache.dart';
 import 'package:logic/src/solver/enumerate_candidates.dart';
 import 'package:logic/src/solver/estimate_rates.dart';
 import 'package:logic/src/solver/goal.dart';
@@ -40,6 +39,8 @@ import 'package:logic/src/solver/interaction.dart';
 import 'package:logic/src/solver/macro_candidate.dart';
 import 'package:logic/src/solver/next_decision_delta.dart';
 import 'package:logic/src/solver/plan.dart';
+import 'package:logic/src/solver/replan_boundary.dart';
+import 'package:logic/src/solver/solver_profile.dart';
 import 'package:logic/src/solver/unlock_boundaries.dart';
 import 'package:logic/src/solver/value_model.dart';
 import 'package:logic/src/solver/wait_for.dart';
@@ -49,228 +50,54 @@ import 'package:logic/src/types/inventory.dart';
 import 'package:logic/src/types/stunned.dart';
 import 'package:logic/src/types/time_away.dart';
 
-/// Reasons why bestRate might be zero.
-sealed class RateZeroReason {
-  const RateZeroReason();
+// ---------------------------------------------------------------------------
+// Debug invariant assertions
+// ---------------------------------------------------------------------------
 
-  /// Human-readable description of why the rate is zero.
-  String describe();
-}
-
-/// No skills relevant to the goal were found.
-class NoRelevantSkillReason extends RateZeroReason {
-  const NoRelevantSkillReason(this.goalDescription);
-
-  final String goalDescription;
-
-  @override
-  String describe() => 'no relevant skill for goal "$goalDescription"';
-}
-
-/// Skills exist but no actions are unlocked yet.
-class NoUnlockedActionsReason extends RateZeroReason {
-  const NoUnlockedActionsReason({
-    required this.goalDescription,
-    this.missingInputName,
-    this.actionNeedingInput,
-    this.skillName,
-  });
-
-  final String goalDescription;
-
-  /// For consuming skills: the name of the input item that has no producer.
-  final String? missingInputName;
-
-  /// For consuming skills: the name of the action that needs the input.
-  final String? actionNeedingInput;
-
-  /// For consuming skills: the name of the skill.
-  final String? skillName;
-
-  @override
-  String describe() {
-    if (missingInputName != null && actionNeedingInput != null) {
-      return 'no producer for $missingInputName '
-          '(needed by $actionNeedingInput) at current skill levels';
-    }
-    if (skillName != null) {
-      return 'no unlocked actions for $skillName';
-    }
-    return 'no unlocked actions for goal "$goalDescription"';
+/// Asserts that the game state is valid (debug only).
+///
+/// Checks:
+/// - GP is non-negative
+/// - All inventory item counts are non-negative
+/// - Player HP is non-negative
+///
+/// These assertions catch bugs early: if the solver or simulator produces
+/// invalid states, this will fail fast with a clear error message.
+void _assertValidState(GlobalState state) {
+  assert(state.gp >= 0, 'Negative GP: ${state.gp}');
+  assert(state.playerHp >= 0, 'Negative HP: ${state.playerHp}');
+  for (final stack in state.inventory.items) {
+    assert(stack.count >= 0, 'Negative inventory count for ${stack.item.name}');
+  }
+  for (final entry in state.skillStates.entries) {
+    assert(
+      entry.value.xp >= 0,
+      'Negative XP for ${entry.key}: ${entry.value.xp}',
+    );
   }
 }
 
-/// All unlocked actions require inputs (consuming skill).
-class InputsRequiredReason extends RateZeroReason {
-  const InputsRequiredReason();
-
-  @override
-  String describe() => 'all actions require inputs with no available producers';
+/// Asserts that delta ticks are non-negative (debug only).
+void _assertNonNegativeDelta(int deltaTicks, String context) {
+  assert(deltaTicks >= 0, 'Negative deltaTicks ($deltaTicks) in $context');
 }
 
-/// Action has zero expected ticks (shouldn't happen).
-class ZeroTicksReason extends RateZeroReason {
-  const ZeroTicksReason();
-
-  @override
-  String describe() => 'all actions have zero duration (configuration error)';
-}
-
-/// Profiling stats collected during a solve.
-class SolverProfile {
-  int expandedNodes = 0;
-  int totalNeighborsGenerated = 0;
-  final List<int> decisionDeltas = [];
-
-  // Timing in microseconds
-  int advanceTimeUs = 0;
-  int enumerateCandidatesTimeUs = 0;
-  int hashingTimeUs = 0;
-  int totalTimeUs = 0;
-
-  // Dominance pruning stats
-  int dominatedSkipped = 0;
-  int frontierInserted = 0;
-  int frontierRemoved = 0;
-
-  // Candidate cache stats
-  int candidateCacheHits = 0;
-  int candidateCacheMisses = 0;
-
-  // Extended diagnostic stats (populated when diagnostics enabled)
-  int peakQueueSize = 0;
-  int uniqueBucketKeys = 0;
-  final Set<String> _seenBucketKeys = {};
-
-  // Heuristic health metrics
-  final List<int> heuristicValues = [];
-  int zeroRateCount = 0;
-
-  // Macro stop trigger histogram
-  final Map<String, int> macroStopTriggers = {};
-
-  // Candidate stats per enumeration call
-  final List<CandidateStats> candidateStatsHistory = [];
-
-  // Best rate diagnostics
-  double? rootBestRate;
-  final List<double> bestRateSamples = [];
-
-  // Why bestRate is zero counters
-  int rateZeroBecauseNoRelevantSkill = 0;
-  int rateZeroBecauseNoUnlockedActions = 0;
-  int rateZeroBecauseInputsRequired = 0;
-  int rateZeroBecauseZeroTicks = 0;
-
-  void recordBestRate(double rate, {required bool isRoot}) {
-    bestRateSamples.add(rate);
-    if (isRoot) rootBestRate = rate;
+/// Asserts that progress is monotonic between two states (debug only).
+///
+/// XP should never decrease, GP can decrease (via purchases).
+void _assertMonotonicProgress(
+  GlobalState before,
+  GlobalState after,
+  String context,
+) {
+  for (final skill in before.skillStates.keys) {
+    final beforeXp = before.skillState(skill).xp;
+    final afterXp = after.skillState(skill).xp;
+    assert(
+      afterXp >= beforeXp,
+      'XP decreased for $skill ($beforeXp -> $afterXp) in $context',
+    );
   }
-
-  void recordRateZeroReason(RateZeroReason reason) {
-    switch (reason) {
-      case NoRelevantSkillReason():
-        rateZeroBecauseNoRelevantSkill++;
-      case NoUnlockedActionsReason():
-        rateZeroBecauseNoUnlockedActions++;
-      case InputsRequiredReason():
-        rateZeroBecauseInputsRequired++;
-      case ZeroTicksReason():
-        rateZeroBecauseZeroTicks++;
-    }
-  }
-
-  double get minBestRate =>
-      bestRateSamples.isEmpty ? 0 : bestRateSamples.reduce(min);
-
-  double get maxBestRate =>
-      bestRateSamples.isEmpty ? 0 : bestRateSamples.reduce(max);
-
-  double get medianBestRate {
-    if (bestRateSamples.isEmpty) return 0;
-    final sorted = List<double>.from(bestRateSamples)..sort();
-    return sorted[sorted.length ~/ 2];
-  }
-
-  void recordBucketKey(String key) {
-    if (_seenBucketKeys.add(key)) {
-      uniqueBucketKeys = _seenBucketKeys.length;
-    }
-  }
-
-  void recordHeuristic(int h, {required bool hasZeroRate}) {
-    heuristicValues.add(h);
-    if (hasZeroRate) zeroRateCount++;
-  }
-
-  void recordMacroStopTrigger(String trigger) {
-    macroStopTriggers[trigger] = (macroStopTriggers[trigger] ?? 0) + 1;
-  }
-
-  double get nodesPerSecond =>
-      totalTimeUs > 0 ? expandedNodes / (totalTimeUs / 1e6) : 0;
-
-  double get avgBranchingFactor =>
-      expandedNodes > 0 ? totalNeighborsGenerated / expandedNodes : 0;
-
-  int get minDelta => decisionDeltas.isEmpty ? 0 : decisionDeltas.reduce(min);
-
-  int get medianDelta {
-    if (decisionDeltas.isEmpty) return 0;
-    final sorted = List<int>.from(decisionDeltas)..sort();
-    return sorted[sorted.length ~/ 2];
-  }
-
-  int get p95Delta {
-    if (decisionDeltas.isEmpty) return 0;
-    final sorted = List<int>.from(decisionDeltas)..sort();
-    final idx = (sorted.length * 0.95).floor().clamp(0, sorted.length - 1);
-    return sorted[idx];
-  }
-
-  double get advancePercent =>
-      totalTimeUs > 0 ? 100.0 * advanceTimeUs / totalTimeUs : 0;
-
-  double get enumeratePercent =>
-      totalTimeUs > 0 ? 100.0 * enumerateCandidatesTimeUs / totalTimeUs : 0;
-
-  double get hashingPercent =>
-      totalTimeUs > 0 ? 100.0 * hashingTimeUs / totalTimeUs : 0;
-
-  // Heuristic health metrics
-  int get minHeuristic =>
-      heuristicValues.isEmpty ? 0 : heuristicValues.reduce(min);
-
-  int get maxHeuristic =>
-      heuristicValues.isEmpty ? 0 : heuristicValues.reduce(max);
-
-  int get medianHeuristic {
-    if (heuristicValues.isEmpty) return 0;
-    final sorted = List<int>.from(heuristicValues)..sort();
-    return sorted[sorted.length ~/ 2];
-  }
-
-  double get zeroRateFraction =>
-      heuristicValues.isEmpty ? 0 : zeroRateCount / heuristicValues.length;
-
-  int get heuristicSpread => maxHeuristic - minHeuristic;
-}
-
-/// Stats from a single candidate enumeration call.
-class CandidateStats {
-  CandidateStats({
-    required this.consumerActionsConsidered,
-    required this.producerActionsConsidered,
-    required this.pairsConsidered,
-    required this.pairsKept,
-    required this.topPairs,
-  });
-
-  final int consumerActionsConsidered;
-  final int producerActionsConsidered;
-  final int pairsConsidered;
-  final int pairsKept;
-  final List<({String consumerId, String producerId, double score})> topPairs;
 }
 
 /// Gold bucket size for coarse state grouping.
@@ -408,8 +235,11 @@ class _ParetoFrontier {
   final Map<_BucketKey, List<_FrontierPoint>> _frontiers = {};
 
   // Stats
-  int inserted = 0;
-  int removed = 0;
+  int _inserted = 0;
+  int _removed = 0;
+
+  FrontierStats get stats =>
+      FrontierStats(inserted: _inserted, removed: _removed);
 
   /// Checks if (ticks, progress) is dominated by existing frontier.
   /// If not dominated, inserts the point and removes any points it dominates.
@@ -428,11 +258,11 @@ class _ParetoFrontier {
     // Not dominated - remove any points that new point dominates
     final originalLength = frontier.length;
     frontier.removeWhere((p) => ticks <= p.ticks && progress >= p.progress);
-    removed += originalLength - frontier.length;
+    _removed += originalLength - frontier.length;
 
     // Insert new point
     frontier.add(_FrontierPoint(ticks, progress));
-    inserted++;
+    _inserted++;
 
     return false; // Not dominated
   }
@@ -957,7 +787,8 @@ class _Node {
 ///    explosion.
 ///
 /// See also: `_selectConsumingSkillCandidatesWithStats` for candidate pruning.
-String _stateKey(GlobalState state, Goal goal) {
+({String key, int elapsedUs}) _stateKey(GlobalState state, Goal goal) {
+  final stopwatch = Stopwatch()..start();
   final buffer = StringBuffer();
 
   // Bucketed gold (coarse grouping for large goals)
@@ -1013,7 +844,7 @@ String _stateKey(GlobalState state, Goal goal) {
     }
   }
 
-  return buffer.toString();
+  return (key: buffer.toString(), elapsedUs: stopwatch.elapsedMicroseconds);
 }
 
 /// Checks if an activity can be modeled with expected-value rates.
@@ -1047,6 +878,9 @@ AdvanceResult _advanceExpected(
   int deltaTicks, {
   ValueModel valueModel = defaultValueModel,
 }) {
+  _assertNonNegativeDelta(deltaTicks, '_advanceExpected');
+  _assertValidState(state);
+
   if (deltaTicks <= 0) return (state: state, deaths: 0);
 
   final rawRates = estimateRates(state);
@@ -1066,7 +900,10 @@ AdvanceResult _advanceExpected(
   // (converts item flows to GP based on the policy)
   final valueRate = valueModel.valuePerTick(state, rates);
   final expectedGold = (valueRate * deltaTicks).floor();
-  final newGp = state.gp + expectedGold;
+  // Floor GP at 0 to prevent negative GP from consuming skills.
+  // The valueModel includes opportunity cost of consumed items, but actual
+  // GP doesn't decrease when burning logs - only the inventory changes.
+  final newGp = (state.gp + expectedGold).clamp(0, double.maxFinite).toInt();
 
   // Compute expected skill XP gains
   final newSkillStates = Map<Skill, SkillState>.from(state.skillStates);
@@ -1132,15 +969,17 @@ AdvanceResult _advanceExpected(
 
   // Note: HP is not tracked in the continuous model - death cycles are
   // absorbed into the rate adjustment. Activity continues without stopping.
-  return (
-    state: state.copyWith(
-      currencies: newCurrencies,
-      skillStates: newSkillStates,
-      actionStates: newActionStates,
-      inventory: newInventory,
-    ),
-    deaths: expectedDeaths,
+  final newState = state.copyWith(
+    currencies: newCurrencies,
+    skillStates: newSkillStates,
+    actionStates: newActionStates,
+    inventory: newInventory,
   );
+
+  _assertValidState(newState);
+  _assertMonotonicProgress(state, newState, '_advanceExpected');
+
+  return (state: newState, deaths: expectedDeaths);
 }
 
 /// Full simulation advance using consumeTicks.
@@ -1168,12 +1007,21 @@ GlobalState _advanceFullSim(
 ///
 /// Returns the new state and the number of expected deaths.
 AdvanceResult advance(GlobalState state, int deltaTicks) {
+  _assertNonNegativeDelta(deltaTicks, 'advance');
+  _assertValidState(state);
+
   if (deltaTicks <= 0) return (state: state, deaths: 0);
 
+  final AdvanceResult result;
   if (_isRateModelable(state)) {
-    return _advanceExpected(state, deltaTicks);
+    result = _advanceExpected(state, deltaTicks);
+  } else {
+    result = (state: _advanceFullSim(state, deltaTicks), deaths: 0);
   }
-  return (state: _advanceFullSim(state, deltaTicks), deaths: 0);
+
+  _assertValidState(result.state);
+  _assertMonotonicProgress(state, result.state, 'advance');
+  return result;
 }
 
 /// Result of consuming ticks until a goal is reached.
@@ -1182,11 +1030,21 @@ class ConsumeUntilResult {
     required this.state,
     required this.ticksElapsed,
     required this.deathCount,
-  });
+    this.boundary,
+  }) {
+    _assertValidState(state);
+  }
 
   final GlobalState state;
   final int ticksElapsed;
   final int deathCount;
+
+  /// The boundary that caused execution to pause, or null if the wait
+  /// condition was satisfied normally.
+  ///
+  /// Expected boundaries (like [InputsDepleted]) are part of normal online
+  /// execution. Unexpected boundaries may indicate bugs.
+  final ReplanBoundary? boundary;
 }
 
 /// Finds actions that produce the input items for a consuming action.
@@ -1255,23 +1113,63 @@ List<SkillAction> _findProducersFor(
 /// condition after each action iteration. Automatically restarts the activity
 /// after death and tracks how many deaths occurred.
 ///
-/// Returns the final state, actual ticks elapsed, and death count.
+/// Returns the final state, actual ticks elapsed, death count, and any
+/// [ReplanBoundary] that caused execution to pause.
+///
+/// ## Boundary Handling
+///
+/// - [Death]: Auto-restarts the activity and continues (expected)
+/// - [InputsDepleted]: For consuming actions, switches to producer to gather
+///   more inputs, then continues (expected)
+/// - [InventoryFull]: Returns with boundary set (caller decides what to do)
+/// - [WaitConditionSatisfied]: Normal completion, boundary is null
+///
+/// Unexpected boundaries indicate potential bugs in the planner.
 ConsumeUntilResult consumeUntil(
   GlobalState originalState,
   WaitFor waitFor, {
   required Random random,
 }) {
+  _assertValidState(originalState);
+
   var state = originalState;
   if (waitFor.isSatisfied(state)) {
-    return ConsumeUntilResult(state: state, ticksElapsed: 0, deathCount: 0);
+    throw Exception('waitFor is already satisfied');
   }
 
   final originalActivityId = state.activeAction?.id;
   var totalTicksElapsed = 0;
   var deathCount = 0;
 
+  // Stuck detection: track progress to detect when we're not making headway
+  int? lastProgress;
+  var stuckIterations = 0;
+  const maxStuckIterations = 3;
+
   // Keep running until the condition is satisfied, restarting after deaths
   while (true) {
+    // Check for stuck state at start of each iteration
+    final currentProgress = waitFor.progress(state);
+    // TODO(eseidel): This should throw immediately on being stuck.
+    // We can't do that until we return why we stopped from consumeTicksUntil
+    // we only need to check for "stuck" if "hit the max ticks" was the reason.
+    if (lastProgress != null && currentProgress <= lastProgress) {
+      stuckIterations++;
+      if (stuckIterations >= maxStuckIterations) {
+        return ConsumeUntilResult(
+          state: state,
+          ticksElapsed: totalTicksElapsed,
+          deathCount: deathCount,
+          boundary: NoProgressPossible(
+            reason: 'No progress after $stuckIterations iterations',
+          ),
+        );
+      }
+    } else {
+      stuckIterations = 0; // Reset if we made progress
+    }
+    lastProgress = currentProgress;
+
     final builder = StateUpdateBuilder(state);
 
     // Use consumeTicksUntil which checks the condition after each action
@@ -1290,6 +1188,7 @@ ConsumeUntilResult consumeUntil(
         state: state,
         ticksElapsed: totalTicksElapsed,
         deathCount: deathCount,
+        boundary: const WaitConditionSatisfied(),
       );
     }
 
@@ -1298,13 +1197,21 @@ ConsumeUntilResult consumeUntil(
       if (builder.stopReason == ActionStopReason.playerDied) {
         deathCount++;
 
-        // Auto-restart the activity after death and continue
+        // Auto-restart the activity after death and continue (expected)
         if (originalActivityId != null) {
           final action = state.registries.actions.byId(originalActivityId);
           state = state.startAction(action, random: random);
           continue; // Continue with restarted activity
         }
+        // No activity to restart - return with death boundary
+        return ConsumeUntilResult(
+          state: state,
+          ticksElapsed: totalTicksElapsed,
+          deathCount: deathCount,
+          boundary: const Death(),
+        );
       }
+
       // For other stop reasons (outOfInputs, inventoryFull), try to adapt.
       // For skill goals with consuming actions, switch to producer to gather
       // inputs.
@@ -1335,12 +1242,7 @@ ConsumeUntilResult consumeUntil(
             final bufferCount =
                 ((bufferTicks / ticksPerConsume) * consumptionRate).ceil();
 
-            print(
-              'Switching to ${producer.name} to gather '
-              '$bufferCount+ ${inputItemId.localId}...',
-            );
-
-            // Switch to producer
+            // Switch to producer (this is an expected InputsDepleted boundary)
             state = state.startAction(producer, random: random);
 
             // Gather inputs
@@ -1354,37 +1256,56 @@ ConsumeUntilResult consumeUntil(
             deathCount += gatherResult.deathCount;
 
             // Switch back to consumer
-            print('Switching back to ${currentAction.name}...');
             state = state.startAction(currentAction, random: random);
             continue; // Continue consuming
           }
         }
       }
 
-      // No producer found - return with partial progress
-      print(
-        'WARNING: Activity stopped (${builder.stopReason}) before wait '
-        'condition satisfied: ${waitFor.describe()}',
+      // Cannot adapt - return with the boundary that caused the stop
+      final inputItemId = originalActivityId != null
+          ? () {
+              final action = state.registries.actions.byId(originalActivityId);
+              if (action is SkillAction && action.inputs.isNotEmpty) {
+                return action.inputs.keys.first;
+              }
+              return null;
+            }()
+          : null;
+
+      final boundary = boundaryFromStopReason(
+        builder.stopReason,
+        actionId: originalActivityId,
+        missingItemId: inputItemId,
       );
-      break;
+
+      return ConsumeUntilResult(
+        state: state,
+        ticksElapsed: totalTicksElapsed,
+        deathCount: deathCount,
+        boundary: boundary,
+      );
     }
 
     // No progress possible
     if (builder.ticksElapsed == 0 && state.activeAction == null) {
-      break;
+      return ConsumeUntilResult(
+        state: state,
+        ticksElapsed: totalTicksElapsed,
+        deathCount: deathCount,
+        boundary: const NoProgressPossible(reason: 'No active action'),
+      );
     }
   }
-
-  // Return whatever state we ended up with
-  return ConsumeUntilResult(
-    state: state,
-    ticksElapsed: totalTicksElapsed,
-    deathCount: deathCount,
-  );
 }
 
 /// Result of applying a single step.
-typedef _StepResult = ({GlobalState state, int ticksElapsed, int deaths});
+typedef _StepResult = ({
+  GlobalState state,
+  int ticksElapsed,
+  int deaths,
+  ReplanBoundary? boundary,
+});
 
 /// Executes a coupled produce/consume loop for consuming skills.
 ///
@@ -1403,31 +1324,7 @@ _StepResult _executeCoupledLoop(
   var totalTicks = 0;
   var totalDeaths = 0;
 
-  // Find best consuming and producing actions
   final goal = ReachSkillLevelGoal(macro.consumingSkill, 99);
-  final bestConsumeAction = _findBestActionForSkill(
-    currentState,
-    macro.consumingSkill,
-    goal,
-  );
-  if (bestConsumeAction == null) {
-    return (state: currentState, ticksElapsed: 0, deaths: 0);
-  }
-
-  final consumeAction = currentState.registries.actions.byId(bestConsumeAction);
-  if (consumeAction is! SkillAction || consumeAction.inputs.isEmpty) {
-    return (state: currentState, ticksElapsed: 0, deaths: 0);
-  }
-
-  final inputItem = consumeAction.inputs.keys.first;
-  final producerAction = _findProducerActionForItem(
-    currentState,
-    inputItem,
-    goal,
-  );
-  if (producerAction == null) {
-    return (state: currentState, ticksElapsed: 0, deaths: 0);
-  }
 
   // Regenerate actual wait condition from primary stop
   final actualWaitFor = boundaries != null
@@ -1439,6 +1336,48 @@ _StepResult _executeCoupledLoop(
     // Check if primary stop condition is met
     if (actualWaitFor.isSatisfied(currentState)) {
       break;
+    }
+
+    // Re-evaluate best actions each iteration as levels may have changed
+    final bestConsumeAction = _findBestActionForSkill(
+      currentState,
+      macro.consumingSkill,
+      goal,
+    );
+    if (bestConsumeAction == null) {
+      return (
+        state: currentState,
+        ticksElapsed: totalTicks,
+        deaths: totalDeaths,
+        boundary: const NoProgressPossible(reason: 'No consuming action found'),
+      );
+    }
+
+    final consumeAction = currentState.registries.actions.byId(
+      bestConsumeAction,
+    );
+    if (consumeAction is! SkillAction || consumeAction.inputs.isEmpty) {
+      return (
+        state: currentState,
+        ticksElapsed: totalTicks,
+        deaths: totalDeaths,
+        boundary: const NoProgressPossible(reason: 'Action has no inputs'),
+      );
+    }
+
+    final inputItem = consumeAction.inputs.keys.first;
+    final producerAction = _findProducerActionForItem(
+      currentState,
+      inputItem,
+      goal,
+    );
+    if (producerAction == null) {
+      return (
+        state: currentState,
+        ticksElapsed: totalTicks,
+        deaths: totalDeaths,
+        boundary: const NoProgressPossible(reason: 'No producer action found'),
+      );
     }
 
     // Phase 1: Produce inputs until we have some buffer
@@ -1491,7 +1430,43 @@ _StepResult _executeCoupledLoop(
     // Otherwise, loop back to produce more inputs
   }
 
-  return (state: currentState, ticksElapsed: totalTicks, deaths: totalDeaths);
+  // After the loop, switch to the producer action so subsequent steps can
+  // produce items. This prevents the situation where we end on a consuming
+  // action with no inputs, causing later steps to fail.
+  // Re-evaluate best producer for final state
+  final finalBestConsume = _findBestActionForSkill(
+    currentState,
+    macro.consumingSkill,
+    goal,
+  );
+  if (finalBestConsume != null) {
+    final finalConsumeAction = currentState.registries.actions.byId(
+      finalBestConsume,
+    );
+    if (finalConsumeAction is SkillAction &&
+        finalConsumeAction.inputs.isNotEmpty) {
+      final inputItem = finalConsumeAction.inputs.keys.first;
+      final producerAction = _findProducerActionForItem(
+        currentState,
+        inputItem,
+        goal,
+      );
+      if (producerAction != null &&
+          currentState.activeAction?.id != producerAction) {
+        currentState = applyInteraction(
+          currentState,
+          SwitchActivity(producerAction),
+        );
+      }
+    }
+  }
+
+  return (
+    state: currentState,
+    ticksElapsed: totalTicks,
+    deaths: totalDeaths,
+    boundary: const WaitConditionSatisfied(),
+  );
 }
 
 _StepResult _applyStep(
@@ -1502,11 +1477,23 @@ _StepResult _applyStep(
 }) {
   switch (step) {
     case InteractionStep(:final interaction):
-      return (
-        state: applyInteraction(state, interaction),
-        ticksElapsed: 0,
-        deaths: 0,
-      );
+      try {
+        return (
+          state: applyInteraction(state, interaction),
+          ticksElapsed: 0,
+          deaths: 0,
+          boundary: null, // Interactions are instant, no boundary
+        );
+      } on Exception catch (e) {
+        // Interaction failed (e.g., can't start action due to missing inputs)
+        // Return boundary indicating we need to replan
+        return (
+          state: state,
+          ticksElapsed: 0,
+          deaths: 0,
+          boundary: NoProgressPossible(reason: e.toString()),
+        );
+      }
     case WaitStep(:final waitFor):
       // Run until the wait condition is satisfied
       final result = consumeUntil(state, waitFor, random: random);
@@ -1514,6 +1501,7 @@ _StepResult _applyStep(
         state: result.state,
         ticksElapsed: result.ticksElapsed,
         deaths: result.deathCount,
+        boundary: result.boundary,
       );
     case MacroStep(:final macro, :final waitFor):
       // Execute the macro by running until the composite wait condition
@@ -1522,15 +1510,18 @@ _StepResult _applyStep(
       var executionWaitFor = waitFor;
 
       if (macro is TrainSkillUntil) {
-        // Find and switch to the best action for this skill
-        final bestAction = _findBestActionForSkill(
-          state,
-          macro.skill,
-          // We don't have the goal here, so create a dummy one
-          ReachSkillLevelGoal(macro.skill, 99),
-        );
-        if (bestAction != null && state.activeAction?.id != bestAction) {
-          executionState = applyInteraction(state, SwitchActivity(bestAction));
+        // Use the action that was determined during planning
+        // This ensures consistency with subsequent WaitSteps that may
+        // expect this specific action's mastery XP.
+        final actionToUse =
+            macro.actionId ??
+            _findBestActionForSkill(
+              state,
+              macro.skill,
+              ReachSkillLevelGoal(macro.skill, 99),
+            );
+        if (actionToUse != null && state.activeAction?.id != actionToUse) {
+          executionState = applyInteraction(state, SwitchActivity(actionToUse));
         }
 
         // Regenerate WaitFor based on actual execution state and action
@@ -1557,6 +1548,7 @@ _StepResult _applyStep(
         state: result.state,
         ticksElapsed: result.ticksElapsed,
         deaths: result.deathCount,
+        boundary: result.boundary,
       );
   }
 }
@@ -1566,6 +1558,16 @@ _StepResult _applyStep(
 /// Uses goal-aware waiting: [WaitStep.waitFor] determines when to stop waiting,
 /// which handles variance between expected-value planning and full simulation.
 /// Deaths are automatically handled by restarting the activity and are counted.
+///
+/// ## Replan Boundaries
+///
+/// The result includes all [ReplanBoundary] events encountered during
+/// execution. Expected boundaries (like [WaitConditionSatisfied],
+/// [InputsDepleted]) are normal in online execution. Unexpected boundaries
+/// may indicate bugs.
+///
+/// Use [PlanExecutionResult.hasUnexpectedBoundaries] to check for potential
+/// issues.
 PlanExecutionResult executePlan(
   GlobalState originalState,
   Plan plan, {
@@ -1574,6 +1576,7 @@ PlanExecutionResult executePlan(
   var state = originalState;
   var totalDeaths = 0;
   var actualTicks = 0;
+  final boundariesHit = <ReplanBoundary>[];
 
   // Compute boundaries once for macro execution
   final boundaries = computeUnlockBoundaries(state.registries);
@@ -1590,6 +1593,11 @@ PlanExecutionResult executePlan(
       state = result.state;
       totalDeaths += result.deaths;
       actualTicks += result.ticksElapsed;
+
+      // Collect boundary if one was hit
+      if (result.boundary != null) {
+        boundariesHit.add(result.boundary!);
+      }
     } catch (e) {
       print('Error applying step $i: $e');
       rethrow;
@@ -1600,6 +1608,7 @@ PlanExecutionResult executePlan(
     totalDeaths: totalDeaths,
     actualTicks: actualTicks,
     plannedTicks: plan.totalTicks,
+    boundariesHit: boundariesHit,
   );
 }
 
@@ -1635,6 +1644,7 @@ typedef MacroExpansionResult = ({
   WaitFor waitFor, // Composite WaitFor for plan execution
   int deaths,
   String? triggeringCondition, // Which stop condition triggered first
+  MacroCandidate macro, // The macro with action filled in (for TrainSkillUntil)
 });
 
 /// Expands a macro candidate into a future state by estimating progress.
@@ -1712,12 +1722,21 @@ MacroExpansionResult? _expandTrainSkillUntil(
   // Use expected-value advance (already exists!)
   final advanceResult = advance(currentState, ticksUntilStop);
 
+  // Create enriched macro with the specific action we chose
+  final enrichedMacro = TrainSkillUntil(
+    macro.skill,
+    macro.primaryStop,
+    watchedStops: macro.watchedStops,
+    actionId: bestAction,
+  );
+
   return (
     state: advanceResult.state,
     ticksElapsed: ticksUntilStop,
     waitFor: compositeWaitFor, // Execution will respect all conditions
     deaths: advanceResult.deaths,
     triggeringCondition: triggeringCondition,
+    macro: enrichedMacro,
   );
 }
 
@@ -1759,14 +1778,13 @@ MacroExpansionResult? _expandTrainConsumingSkillUntil(
   final producerAction = _findProducerActionForItem(state, inputItem, goal);
   if (producerAction == null) return null;
 
-  // Switch to the consuming action for state projection
-  final consumeState = applyInteraction(
-    state,
-    SwitchActivity(bestConsumeAction),
-  );
+  // For state projection, switch to the producer action (which doesn't
+  // require inputs). We'll use this state for planning while modeling
+  // the coupled produce/consume loop.
+  final producerState = applyInteraction(state, SwitchActivity(producerAction));
 
   // Build stop condition from primary stop
-  final waitFor = macro.primaryStop.toWaitFor(state, boundaries);
+  final waitFor = macro.primaryStop.toWaitFor(producerState, boundaries);
 
   // Calculate sustainable XP rate accounting for production time
   final consumeAction_ =
@@ -1809,8 +1827,9 @@ MacroExpansionResult? _expandTrainConsumingSkillUntil(
     ticksUntilStop = (xpNeeded / sustainableXpPerTick).ceil();
   } else {
     // For other stop conditions, estimate then adjust for sustainable rate
-    final consumeRates = estimateRates(consumeState);
-    final estimatedTicks = waitFor.estimateTicks(consumeState, consumeRates);
+    // Use rates for the consuming action (even though we're on producer)
+    final consumeRates = estimateRatesForAction(state, bestConsumeAction);
+    final estimatedTicks = waitFor.estimateTicks(producerState, consumeRates);
     if (estimatedTicks <= 0 || estimatedTicks >= infTicks) {
       return null;
     }
@@ -1839,7 +1858,9 @@ MacroExpansionResult? _expandTrainConsumingSkillUntil(
       (totalProduceTicks * (produceAction_.xp / produceTicksPerAction)).floor();
   final producingSkillXp = currentProduceXp + produceXpGained;
 
-  // Build projected state with both skills updated
+  // Build projected state with both skills updated.
+  // Set the active action to the producer since execution ends with
+  // producer active (to ensure subsequent steps can produce inputs).
   final projectedState = state.copyWith(
     skillStates: {
       for (final skill in Skill.values)
@@ -1855,6 +1876,12 @@ MacroExpansionResult? _expandTrainConsumingSkillUntil(
               )
             : state.skillState(skill),
     },
+    // Set producer as active action - execution ends with producer active
+    activeAction: ActiveAction(
+      id: producerAction,
+      remainingTicks: ticksFromDuration(produceAction_.meanDuration),
+      totalTicks: ticksFromDuration(produceAction_.meanDuration),
+    ),
   );
 
   return (
@@ -1863,6 +1890,7 @@ MacroExpansionResult? _expandTrainConsumingSkillUntil(
     waitFor: waitFor,
     deaths: 0, // No combat deaths in firemaking/woodcutting
     triggeringCondition: waitFor.shortDescription,
+    macro: macro, // Consuming macros don't need action enrichment
   );
 }
 
@@ -1883,24 +1911,19 @@ ActionId? _findProducerActionForItem(
   if (producers.isEmpty) return null;
 
   // Rank by production rate (outputs per tick)
+  // Producer actions (woodcutting, fishing, mining) don't require inputs,
+  // so we can directly calculate rates without testing applyInteraction.
   ActionId? best;
   double bestRate = 0;
 
   for (final action in producers) {
-    try {
-      // Test if we can switch to this action
-      applyInteraction(state, SwitchActivity(action.id));
+    final ticksPerAction = ticksFromDuration(action.meanDuration).toDouble();
+    final outputsPerAction = action.outputs[item] ?? 1;
+    final outputsPerTick = outputsPerAction / ticksPerAction;
 
-      final ticksPerAction = ticksFromDuration(action.meanDuration).toDouble();
-      final outputsPerAction = action.outputs[item] ?? 1;
-      final outputsPerTick = outputsPerAction / ticksPerAction;
-
-      if (outputsPerTick > bestRate) {
-        bestRate = outputsPerTick;
-        best = action.id;
-      }
-    } on Exception catch (_) {
-      continue; // Skip if can't start
+    if (outputsPerTick > bestRate) {
+      bestRate = outputsPerTick;
+      best = action.id;
     }
   }
 
@@ -1911,6 +1934,13 @@ ActionId? _findProducerActionForItem(
 ///
 /// For skill goals, picks the action with highest XP rate.
 /// For GP goals, picks the action with highest gold rate.
+///
+/// Unlike `estimateRates`, this function doesn't require the action to be
+/// startable. This is important for consuming skills where we want to find
+/// the best action even when inputs aren't currently available (because we'll
+/// produce them next).
+///
+/// For consuming actions, this also checks that we can produce the inputs.
 ActionId? _findBestActionForSkill(GlobalState state, Skill skill, Goal goal) {
   final skillLevel = state.skillState(skill).skillLevel;
   final actions = state.registries.actions.all
@@ -1925,24 +1955,29 @@ ActionId? _findBestActionForSkill(GlobalState state, Skill skill, Goal goal) {
   double bestRate = 0;
 
   for (final action in actions) {
-    // Try to switch to action to estimate rates
-    // Skip actions that can't be started (e.g., missing inputs for consuming)
-    try {
-      final testState = applyInteraction(state, SwitchActivity(action.id));
-      final rates = estimateRates(testState);
-
-      final goldRate = defaultValueModel.valuePerTick(testState, rates);
-      final xpRate = rates.xpPerTickBySkill[skill] ?? 0.0;
-
-      final rate = goal.activityRate(skill, goldRate, xpRate);
-
-      if (rate > bestRate) {
-        bestRate = rate;
-        best = action.id;
+    // For consuming actions, check that we can produce the inputs
+    if (action.inputs.isNotEmpty) {
+      final inputItem = action.inputs.keys.first;
+      final producerAction = _findProducerActionForItem(state, inputItem, goal);
+      if (producerAction == null) {
+        // Can't produce inputs for this action, skip it
+        continue;
       }
-    } on Exception catch (_) {
-      // Can't start this action (e.g., missing inputs) - skip it
-      continue;
+    }
+
+    // Use estimateRatesForAction which doesn't require the action to be active
+    // or have inputs available. This allows planning for consuming actions
+    // before inputs are produced.
+    final rates = estimateRatesForAction(state, action.id);
+
+    final goldRate = defaultValueModel.valuePerTick(state, rates);
+    final xpRate = rates.xpPerTickBySkill[skill] ?? 0.0;
+
+    final rate = goal.activityRate(skill, goldRate, xpRate);
+
+    if (rate > bestRate) {
+      bestRate = rate;
+      best = action.id;
     }
   }
 
@@ -1969,11 +2004,18 @@ SolverResult solve(
   int maxQueueSize = defaultMaxQueueSize,
   bool collectDiagnostics = false,
 }) {
-  final profile = SolverProfile();
-  final totalStopwatch = Stopwatch()..start();
+  final profileBuilder = SolverProfileBuilder();
+
+  // Clear the internal rate cache at start of each solve
+  clearRateCache();
 
   // Check if goal is already satisfied (considering inventory value)
   if (goal.isSatisfied(initial)) {
+    // Build a minimal profile for early success
+    final profile = profileBuilder.build(
+      expandedNodes: 0,
+      frontier: FrontierStats.zero,
+    );
     return SolverSuccess(const Plan.empty(), profile);
   }
 
@@ -1983,8 +2025,8 @@ SolverResult solve(
   // Rate cache for A* heuristic (caches best unlocked rate by state)
   final rateCache = _RateCache(goal);
 
-  // Candidate cache (disabled when collecting diagnostics for accurate stats)
-  final candidateCache = collectDiagnostics ? null : CandidateCache();
+  // Rate cache for enumerateCandidates is now internal to that function.
+  // It caches capability-level rate summaries and filters per-state.
 
   // Dominance pruning frontier
   final frontier = _ParetoFrontier();
@@ -2023,18 +2065,17 @@ SolverResult solve(
   pq.add(0);
   enqueuedNodes++;
 
-  final hashStopwatch = Stopwatch()..start();
-  final rootKey = _stateKey(initial, goal);
-  profile.hashingTimeUs += hashStopwatch.elapsedMicroseconds;
+  final (key: rootKey, elapsedUs: rootElapsedUs) = _stateKey(initial, goal);
+  profileBuilder.hashingTimeUs += rootElapsedUs;
   bestTicks[rootKey] = 0;
 
   // Record root best rate for diagnostics
   if (collectDiagnostics) {
     final rootBestRate = rateCache.getBestUnlockedRate(initial);
-    profile.recordBestRate(rootBestRate, isRoot: true);
+    profileBuilder.recordBestRate(rootBestRate, isRoot: true);
     final zeroReason = rateCache.getZeroReason(initial);
     if (zeroReason != null) {
-      profile.recordRateZeroReason(zeroReason);
+      profileBuilder.recordRateZeroReason(zeroReason);
     }
   }
 
@@ -2046,10 +2087,10 @@ SolverResult solve(
     final zeroReason = rateCache.getZeroReason(initial);
     final reasonStr =
         zeroReason?.describe() ?? 'unknown reason (rate computed as zero)';
-    totalStopwatch.stop();
-    profile
-      ..expandedNodes = 0
-      ..totalTimeUs = totalStopwatch.elapsedMicroseconds;
+    final profile = profileBuilder.build(
+      expandedNodes: 0,
+      frontier: frontier.stats,
+    );
     return SolverFailed(
       SolverFailure(
         reason: 'Heuristic bestRate=0: $reasonStr',
@@ -2062,12 +2103,10 @@ SolverResult solve(
   while (pq.isNotEmpty) {
     // Check limits
     if (expandedNodes >= maxExpandedNodes) {
-      totalStopwatch.stop();
-      profile
-        ..expandedNodes = expandedNodes
-        ..totalTimeUs = totalStopwatch.elapsedMicroseconds
-        ..frontierInserted = frontier.inserted
-        ..frontierRemoved = frontier.removed;
+      final profile = profileBuilder.build(
+        expandedNodes: expandedNodes,
+        frontier: frontier.stats,
+      );
       return SolverFailed(
         SolverFailure(
           reason: 'Exceeded max expanded nodes ($maxExpandedNodes)',
@@ -2080,12 +2119,10 @@ SolverResult solve(
     }
 
     if (nodes.length >= maxQueueSize) {
-      totalStopwatch.stop();
-      profile
-        ..expandedNodes = expandedNodes
-        ..totalTimeUs = totalStopwatch.elapsedMicroseconds
-        ..frontierInserted = frontier.inserted
-        ..frontierRemoved = frontier.removed;
+      final profile = profileBuilder.build(
+        expandedNodes: expandedNodes,
+        frontier: frontier.stats,
+      );
       return SolverFailed(
         SolverFailure(
           reason: 'Exceeded max queue size ($maxQueueSize)',
@@ -2103,11 +2140,11 @@ SolverResult solve(
 
     // Skip if we've already found a better path to this state
     // BUT: never skip if this node has reached the goal!
-    hashStopwatch
-      ..reset()
-      ..start();
-    final nodeKey = _stateKey(node.state, goal);
-    profile.hashingTimeUs += hashStopwatch.elapsedMicroseconds;
+    final (key: nodeKey, elapsedUs: nodeElapsedUs) = _stateKey(
+      node.state,
+      goal,
+    );
+    profileBuilder.hashingTimeUs += nodeElapsedUs;
 
     final nodeReachedGoal = goal.isSatisfied(node.state);
 
@@ -2120,15 +2157,15 @@ SolverResult solve(
     var neighborsThisNode = 0;
 
     // Track peak queue size for diagnostics
-    if (pq.length > profile.peakQueueSize) {
-      profile.peakQueueSize = pq.length;
+    if (pq.length > profileBuilder.peakQueueSize) {
+      profileBuilder.peakQueueSize = pq.length;
     }
 
     // Collect heuristic health metrics when diagnostics enabled
     if (collectDiagnostics) {
       final bestRate = rateCache.getBestUnlockedRate(node.state);
       final h = _heuristic(node.state, goal, rateCache);
-      profile
+      profileBuilder
         ..recordHeuristic(h, hasZeroRate: bestRate <= 0)
         ..recordBucketKey(nodeKey)
         ..recordBestRate(bestRate, isRoot: false);
@@ -2137,7 +2174,7 @@ SolverResult solve(
       if (bestRate <= 0) {
         final zeroReason = rateCache.getZeroReason(node.state);
         if (zeroReason != null) {
-          profile.recordRateZeroReason(zeroReason);
+          profileBuilder.recordRateZeroReason(zeroReason);
         }
       }
     }
@@ -2158,39 +2195,29 @@ SolverResult solve(
         expandedNodes,
         enqueuedNodes,
       );
-      totalStopwatch.stop();
-      profile
-        ..expandedNodes = expandedNodes
-        ..totalTimeUs = totalStopwatch.elapsedMicroseconds
-        ..frontierInserted = frontier.inserted
-        ..frontierRemoved = frontier.removed
-        ..candidateCacheHits = candidateCache?.hits ?? 0
-        ..candidateCacheMisses = candidateCache?.misses ?? 0;
+      final profile = profileBuilder.build(
+        expandedNodes: expandedNodes,
+        frontier: frontier.stats,
+        cacheHits: rateCacheHits,
+        cacheMisses: rateCacheMisses,
+      );
       return SolverSuccess(plan, profile);
     }
 
-    // Compute candidates for this state (cached when not collecting stats)
+    // Compute candidates for this state
     final enumStopwatch = Stopwatch()..start();
-    final Candidates candidates;
-    if (candidateCache != null) {
-      candidates = candidateCache.getOrCompute(
-        node.state,
-        goal,
-        () => enumerateCandidates(node.state, goal),
-      );
-    } else {
-      candidates = enumerateCandidates(
-        node.state,
-        goal,
-        collectStats: collectDiagnostics,
-      );
-    }
-    profile.enumerateCandidatesTimeUs += enumStopwatch.elapsedMicroseconds;
+    final candidates = enumerateCandidates(
+      node.state,
+      goal,
+      collectStats: collectDiagnostics,
+    );
+    profileBuilder.enumerateCandidatesTimeUs +=
+        enumStopwatch.elapsedMicroseconds;
 
     // Record candidate stats when diagnostics enabled
     if (collectDiagnostics && candidates.consumingSkillStats != null) {
       final stats = candidates.consumingSkillStats!;
-      profile.candidateStatsHistory.add(
+      profileBuilder.candidateStatsHistory.add(
         CandidateStats(
           consumerActionsConsidered: stats.consumerActionsConsidered,
           producerActionsConsidered: stats.producerActionsConsidered,
@@ -2221,15 +2248,15 @@ SolverResult solve(
           node.ticks,
           newProgress,
         )) {
-          profile.dominatedSkipped++;
+          profileBuilder.dominatedSkipped++;
           continue;
         }
 
-        hashStopwatch
-          ..reset()
-          ..start();
-        final newKey = _stateKey(newState, goal);
-        profile.hashingTimeUs += hashStopwatch.elapsedMicroseconds;
+        final (key: newKey, elapsedUs: newKeyElapsedUs) = _stateKey(
+          newState,
+          goal,
+        );
+        profileBuilder.hashingTimeUs += newKeyElapsedUs;
 
         // Only enqueue if this is the best path to this state
         final existingBest = bestTicks[newKey];
@@ -2263,7 +2290,9 @@ SolverResult solve(
 
       // Record which condition triggered the macro stop
       if (expansionResult.triggeringCondition != null) {
-        profile.recordMacroStopTrigger(expansionResult.triggeringCondition!);
+        profileBuilder.recordMacroStopTrigger(
+          expansionResult.triggeringCondition!,
+        );
       }
 
       final newState = expansionResult.state;
@@ -2278,7 +2307,7 @@ SolverResult solve(
       // Dominance pruning: skip if dominated unless we reached the goal
       if (!reachedGoal &&
           frontier.isDominatedOrInsert(newBucketKey, newTicks, newProgress)) {
-        profile.dominatedSkipped++;
+        profileBuilder.dominatedSkipped++;
         continue;
       }
 
@@ -2287,11 +2316,11 @@ SolverResult solve(
         frontier.isDominatedOrInsert(newBucketKey, newTicks, newProgress);
       }
 
-      hashStopwatch
-        ..reset()
-        ..start();
-      final newKey = _stateKey(newState, goal);
-      profile.hashingTimeUs += hashStopwatch.elapsedMicroseconds;
+      final (key: newKey, elapsedUs: macroElapsedUs) = _stateKey(
+        newState,
+        goal,
+      );
+      profileBuilder.hashingTimeUs += macroElapsedUs;
 
       // Only enqueue if this is the best path to this state
       final existingBest = bestTicks[newKey];
@@ -2305,7 +2334,7 @@ SolverResult solve(
           expectedDeaths: newDeaths,
           parentId: nodeId,
           stepFromParent: MacroStep(
-            macro,
+            expansionResult.macro,
             expansionResult.ticksElapsed,
             expansionResult.waitFor,
           ),
@@ -2316,14 +2345,10 @@ SolverResult solve(
 
         if (reachedGoal) {
           // Found goal via macro - return immediately
-          totalStopwatch.stop();
-          profile
-            ..expandedNodes = expandedNodes
-            ..totalTimeUs = totalStopwatch.elapsedMicroseconds
-            ..frontierInserted = frontier.inserted
-            ..frontierRemoved = frontier.removed
-            ..candidateCacheHits = candidateCache?.hits ?? 0
-            ..candidateCacheMisses = candidateCache?.misses ?? 0;
+          final profile = profileBuilder.build(
+            expandedNodes: expandedNodes,
+            frontier: frontier.stats,
+          );
           return SolverSuccess(
             _reconstructPlan(nodes, newNodeId, expandedNodes, enqueuedNodes),
             profile,
@@ -2351,11 +2376,11 @@ SolverResult solve(
     );
 
     if (!deltaResult.isDeadEnd && deltaResult.deltaTicks > 0) {
-      profile.decisionDeltas.add(deltaResult.deltaTicks);
+      profileBuilder.decisionDeltas.add(deltaResult.deltaTicks);
 
       final advanceStopwatch = Stopwatch()..start();
       final advanceResult = advance(node.state, deltaResult.deltaTicks);
-      profile.advanceTimeUs += advanceStopwatch.elapsedMicroseconds;
+      profileBuilder.advanceTimeUs += advanceStopwatch.elapsedMicroseconds;
 
       final newState = advanceResult.state;
       final newDeaths = node.expectedDeaths + advanceResult.deaths;
@@ -2370,17 +2395,17 @@ SolverResult solve(
       // BUT: never skip if we've reached the goal
       if (!reachedGoal &&
           frontier.isDominatedOrInsert(newBucketKey, newTicks, newProgress)) {
-        profile.dominatedSkipped++;
+        profileBuilder.dominatedSkipped++;
       } else {
         // If we reached goal, still add to frontier for tracking
         if (reachedGoal) {
           frontier.isDominatedOrInsert(newBucketKey, newTicks, newProgress);
         }
-        hashStopwatch
-          ..reset()
-          ..start();
-        final newKey = _stateKey(newState, goal);
-        profile.hashingTimeUs += hashStopwatch.elapsedMicroseconds;
+        final (key: newKey, elapsedUs: waitElapsedUs) = _stateKey(
+          newState,
+          goal,
+        );
+        profileBuilder.hashingTimeUs += waitElapsedUs;
 
         // Safety: check for zero-progress waits (same state key after advance)
         // BUT: allow if we've reached the goal (even if state key unchanged)
@@ -2415,16 +2440,16 @@ SolverResult solve(
       }
     }
 
-    profile.totalNeighborsGenerated += neighborsThisNode;
+    profileBuilder.totalNeighborsGenerated += neighborsThisNode;
   }
 
   // Priority queue exhausted without finding goal
-  totalStopwatch.stop();
-  profile
-    ..expandedNodes = expandedNodes
-    ..totalTimeUs = totalStopwatch.elapsedMicroseconds
-    ..frontierInserted = frontier.inserted
-    ..frontierRemoved = frontier.removed;
+  final profile = profileBuilder.build(
+    expandedNodes: expandedNodes,
+    frontier: frontier.stats,
+    cacheHits: rateCacheHits,
+    cacheMisses: rateCacheMisses,
+  );
   return SolverFailed(
     SolverFailure(
       reason: 'No path to goal found',

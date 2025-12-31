@@ -30,10 +30,12 @@ import 'package:logic/src/state.dart';
 /// This is a pure function that does not modify the input state.
 /// Uses a fixed random seed for deterministic behavior during planning.
 GlobalState applyInteraction(GlobalState state, Interaction interaction) {
+  _assertValidState(state);
+
   // Use a fixed random for deterministic planning
   final random = Random(42);
 
-  return switch (interaction) {
+  final newState = switch (interaction) {
     SwitchActivity(:final actionId) => _applySwitchActivity(
       state,
       actionId,
@@ -42,6 +44,22 @@ GlobalState applyInteraction(GlobalState state, Interaction interaction) {
     BuyShopItem(:final purchaseId) => _applyBuyShopItem(state, purchaseId),
     SellItems(:final policy) => _applySellItems(state, policy),
   };
+
+  _assertValidState(newState);
+  return newState;
+}
+
+// ---------------------------------------------------------------------------
+// Debug invariant assertions
+// ---------------------------------------------------------------------------
+
+/// Asserts that the game state is valid (debug only).
+void _assertValidState(GlobalState state) {
+  assert(state.gp >= 0, 'Negative GP: ${state.gp}');
+  assert(state.playerHp >= 0, 'Negative HP: ${state.playerHp}');
+  for (final stack in state.inventory.items) {
+    assert(stack.count >= 0, 'Negative inventory count for ${stack.item.name}');
+  }
 }
 
 /// Switches to a different activity.

@@ -23,7 +23,8 @@ import 'package:logic/src/data/action_id.dart';
 import 'package:logic/src/data/actions.dart';
 import 'package:logic/src/solver/interaction.dart';
 import 'package:logic/src/solver/macro_candidate.dart';
-import 'package:logic/src/solver/solver.dart';
+import 'package:logic/src/solver/replan_boundary.dart';
+import 'package:logic/src/solver/solver_profile.dart';
 import 'package:logic/src/solver/wait_for.dart';
 import 'package:logic/src/state.dart';
 import 'package:logic/src/tick.dart';
@@ -320,23 +321,21 @@ class SolverFailure {
 
 /// Result of the solver - either a plan or a failure.
 sealed class SolverResult {
-  const SolverResult();
+  const SolverResult([this.profile]);
+
+  final SolverProfile? profile;
 }
 
-// Forward declaration - SolverProfile is defined in solver.dart
-// We use dynamic here to avoid circular imports; callers should cast.
 class SolverSuccess extends SolverResult {
-  const SolverSuccess(this.plan, [this.profile]);
+  const SolverSuccess(this.plan, [super.profile]);
 
   final Plan plan;
-  final SolverProfile? profile;
 }
 
 class SolverFailed extends SolverResult {
-  const SolverFailed(this.failure, [this.profile]);
+  const SolverFailed(this.failure, [super.profile]);
 
   final SolverFailure failure;
-  final SolverProfile? profile;
 }
 
 /// Result of executing a plan via [executePlan()].
@@ -347,6 +346,7 @@ class PlanExecutionResult {
     required this.totalDeaths,
     required this.actualTicks,
     required this.plannedTicks,
+    this.boundariesHit = const [],
   });
 
   /// The final game state after executing the plan.
@@ -362,6 +362,28 @@ class PlanExecutionResult {
   /// Planned ticks from the solver (for comparison).
   final int plannedTicks;
 
+  /// All replan boundaries encountered during execution.
+  ///
+  /// Expected boundaries (like [InputsDepleted], [WaitConditionSatisfied])
+  /// are normal in online execution. Unexpected boundaries may indicate bugs.
+  ///
+  /// This list is useful for:
+  /// - Debugging execution flow
+  /// - Deciding when to replan
+  /// - Detecting potential solver bugs
+  final List<ReplanBoundary> boundariesHit;
+
   /// Difference between actual and planned ticks.
   int get ticksDelta => actualTicks - plannedTicks;
+
+  /// Whether any unexpected boundaries were hit during execution.
+  bool get hasUnexpectedBoundaries => boundariesHit.any((b) => !b.isExpected);
+
+  /// Returns only unexpected boundaries (potential bugs).
+  List<ReplanBoundary> get unexpectedBoundaries =>
+      boundariesHit.where((b) => !b.isExpected).toList();
+
+  /// Returns only expected boundaries (normal flow).
+  List<ReplanBoundary> get expectedBoundaries =>
+      boundariesHit.where((b) => b.isExpected).toList();
 }

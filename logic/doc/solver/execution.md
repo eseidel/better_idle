@@ -9,7 +9,13 @@ class Plan {
   final List<PlanStep> steps;
   final int totalTicks;          // Estimated ticks
   final int interactionCount;    // Number of 0-tick steps
-  final double expectedDeaths;   // For thieving plans
+  final int expandedNodes;       // A* nodes expanded
+  final int enqueuedNodes;       // A* nodes enqueued
+  final int expectedDeaths;      // For thieving plans
+
+  Duration get totalDuration;    // Human-readable time
+  Plan compress();               // Merge consecutive waits
+  String prettyPrint({...});     // Debug output
 }
 ```
 
@@ -36,8 +42,8 @@ Advance time until a condition is met:
 
 ```dart
 class WaitStep extends PlanStep {
-  final int plannedTicks;  // Estimated ticks
-  final WaitFor waitFor;   // Stop condition
+  final int deltaTicks;   // Estimated ticks
+  final WaitFor waitFor;  // Stop condition
 }
 ```
 
@@ -47,7 +53,9 @@ Execute a macro (training sequence):
 
 ```dart
 class MacroStep extends PlanStep {
-  final Macro macro;
+  final MacroCandidate macro;
+  final int deltaTicks;   // Estimated ticks
+  final WaitFor waitFor;  // Composite stop condition
 }
 ```
 
@@ -130,11 +138,11 @@ For consuming skills, wait until inputs run out:
 
 ```dart
 class WaitForInputsDepleted extends WaitFor {
-  final MelvorId actionId;
+  final ActionId actionId;
 
   bool isSatisfied(GlobalState state) {
-    final inputs = action.inputs;
-    return !state.inventory.hasAll(inputs);
+    final action = state.registries.actions.byId(actionId);
+    return !state.canStartAction(action);
   }
 }
 ```
@@ -155,14 +163,33 @@ class WaitForAnyOf extends WaitFor {
 ## Execution Result
 
 ```dart
-class ExecutionResult {
+class PlanExecutionResult {
   final GlobalState finalState;
   final int plannedTicks;    // What solver estimated
   final int actualTicks;     // What actually happened
   final int totalDeaths;     // Deaths during execution
+  final List<ReplanBoundary> boundariesHit;  // Boundaries encountered
+
+  int get ticksDelta => actualTicks - plannedTicks;
+  bool get hasUnexpectedBoundaries;
+  List<ReplanBoundary> get unexpectedBoundaries;
+  List<ReplanBoundary> get expectedBoundaries;
+}
+```
+
+### ReplanBoundary
+
+Indicates when execution hit a point requiring replanning:
+
+```dart
+sealed class ReplanBoundary {
+  bool get isExpected;  // Expected during normal flow
 }
 
-int get ticksDelta => actualTicks - plannedTicks;
+class InputsDepleted extends ReplanBoundary { ... }
+class WaitConditionSatisfied extends ReplanBoundary { ... }
+class GoalReached extends ReplanBoundary { ... }
+// etc.
 ```
 
 ## Planning vs Execution Difference

@@ -81,6 +81,29 @@ void main() {
       const waitFor = WaitForInventoryValue(100);
       expect(waitFor.shortDescription, 'Upgrade affordable');
     });
+
+    test('progress returns effective credits', () {
+      final logs = testItems.byName('Normal Logs');
+      final inventory = Inventory.fromItems(testItems, [
+        ItemStack(logs, count: 50),
+      ]);
+      final state = GlobalState.test(
+        testRegistries,
+        gp: 50,
+        inventory: inventory,
+      );
+      const waitFor = WaitForInventoryValue(100);
+
+      // 50 GP + 50 logs * 1 GP = 100 total
+      expect(waitFor.progress(state), 100);
+    });
+
+    test('progress returns only GP when no items', () {
+      final state = GlobalState.test(testRegistries, gp: 75);
+      const waitFor = WaitForInventoryValue(100);
+
+      expect(waitFor.progress(state), 75);
+    });
   });
 
   group('WaitForSkillXp', () {
@@ -166,6 +189,25 @@ void main() {
       const waitFor = WaitForSkillXp(Skill.woodcutting, 100);
       expect(waitFor.shortDescription, 'Skill +1');
     });
+
+    test('progress returns current skill XP', () {
+      final state = GlobalState.test(
+        testRegistries,
+        skillStates: const {
+          Skill.woodcutting: SkillState(xp: 75, masteryPoolXp: 0),
+        },
+      );
+      const waitFor = WaitForSkillXp(Skill.woodcutting, 100);
+
+      expect(waitFor.progress(state), 75);
+    });
+
+    test('progress returns 0 for empty skill state', () {
+      final state = GlobalState.empty(testRegistries);
+      const waitFor = WaitForSkillXp(Skill.woodcutting, 100);
+
+      expect(waitFor.progress(state), 0);
+    });
   });
 
   group('WaitForMasteryXp', () {
@@ -234,6 +276,25 @@ void main() {
       final waitFor = WaitForMasteryXp(action.id, 100);
       expect(waitFor.shortDescription, 'Mastery +1');
     });
+
+    test('progress returns current mastery XP', () {
+      final action = testActions.woodcutting('Normal Tree');
+      final state = GlobalState.test(
+        testRegistries,
+        actionStates: {action.id: const ActionState(masteryXp: 75)},
+      );
+      final waitFor = WaitForMasteryXp(action.id, 100);
+
+      expect(waitFor.progress(state), 75);
+    });
+
+    test('progress returns 0 for empty action state', () {
+      final action = testActions.woodcutting('Normal Tree');
+      final state = GlobalState.empty(testRegistries);
+      final waitFor = WaitForMasteryXp(action.id, 100);
+
+      expect(waitFor.progress(state), 0);
+    });
   });
 
   group('WaitForInventoryThreshold', () {
@@ -294,6 +355,24 @@ void main() {
       const waitFor = WaitForInventoryThreshold(0.5);
       expect(waitFor.shortDescription, 'Inventory threshold');
     });
+
+    test('progress returns inventory used', () {
+      final logs = testItems.byName('Normal Logs');
+      final inventory = Inventory.fromItems(testItems, [
+        ItemStack(logs, count: 5),
+      ]);
+      final state = GlobalState.test(testRegistries, inventory: inventory);
+      const waitFor = WaitForInventoryThreshold(0.5);
+
+      expect(waitFor.progress(state), state.inventoryUsed);
+    });
+
+    test('progress returns 0 for empty inventory', () {
+      final state = GlobalState.empty(testRegistries);
+      const waitFor = WaitForInventoryThreshold(0.5);
+
+      expect(waitFor.progress(state), 0);
+    });
   });
 
   group('WaitForInventoryFull', () {
@@ -333,6 +412,24 @@ void main() {
     test('shortDescription returns Inventory full', () {
       const waitFor = WaitForInventoryFull();
       expect(waitFor.shortDescription, 'Inventory full');
+    });
+
+    test('progress returns inventory used', () {
+      final logs = testItems.byName('Normal Logs');
+      final inventory = Inventory.fromItems(testItems, [
+        ItemStack(logs, count: 5),
+      ]);
+      final state = GlobalState.test(testRegistries, inventory: inventory);
+      const waitFor = WaitForInventoryFull();
+
+      expect(waitFor.progress(state), state.inventoryUsed);
+    });
+
+    test('progress returns 0 for empty inventory', () {
+      final state = GlobalState.empty(testRegistries);
+      const waitFor = WaitForInventoryFull();
+
+      expect(waitFor.progress(state), 0);
     });
   });
 
@@ -381,6 +478,14 @@ void main() {
       const waitFor = WaitForGoal(goal);
 
       expect(waitFor.shortDescription, 'Goal reached');
+    });
+
+    test('progress delegates to goal', () {
+      final state = GlobalState.test(testRegistries, gp: 75);
+      const goal = ReachGpGoal(100);
+      const waitFor = WaitForGoal(goal);
+
+      expect(waitFor.progress(state), goal.progress(state));
     });
   });
 
@@ -442,6 +547,18 @@ void main() {
 
       expect(waitFor.shortDescription, 'Inputs depleted');
     });
+
+    test('progress returns 0 (not goal-oriented)', () {
+      final logs = testItems.byName('Normal Logs');
+      final inventory = Inventory.fromItems(testItems, [
+        ItemStack(logs, count: 10),
+      ]);
+      final state = GlobalState.test(testRegistries, inventory: inventory);
+      final action = testActions.firemaking('Burn Normal Logs');
+      final waitFor = WaitForInputsDepleted(action.id);
+
+      expect(waitFor.progress(state), 0);
+    });
   });
 
   group('WaitForInputsAvailable', () {
@@ -498,6 +615,14 @@ void main() {
       final waitFor = WaitForInputsAvailable(action.id);
 
       expect(waitFor.shortDescription, 'Inputs available');
+    });
+
+    test('progress returns 0 (binary condition)', () {
+      final state = GlobalState.empty(testRegistries);
+      final action = testActions.firemaking('Burn Normal Logs');
+      final waitFor = WaitForInputsAvailable(action.id);
+
+      expect(waitFor.progress(state), 0);
     });
   });
 
@@ -590,6 +715,25 @@ void main() {
 
       expect(waitFor.shortDescription, 'Inventory at least 10');
     });
+
+    test('progress returns current item count', () {
+      final logs = testItems.byName('Normal Logs');
+      final inventory = Inventory.fromItems(testItems, [
+        ItemStack(logs, count: 7),
+      ]);
+      final state = GlobalState.test(testRegistries, inventory: inventory);
+      final waitFor = WaitForInventoryAtLeast(logs.id, 10);
+
+      expect(waitFor.progress(state), 7);
+    });
+
+    test('progress returns 0 when item not in inventory', () {
+      final logs = testItems.byName('Normal Logs');
+      final state = GlobalState.empty(testRegistries);
+      final waitFor = WaitForInventoryAtLeast(logs.id, 10);
+
+      expect(waitFor.progress(state), 0);
+    });
   });
 
   group('WaitForSufficientInputs', () {
@@ -662,6 +806,36 @@ void main() {
       final waitFor = WaitForSufficientInputs(action.id, 10);
 
       expect(waitFor.shortDescription, 'Sufficient inputs');
+    });
+
+    test('progress returns minimum available input count', () {
+      final logs = testItems.byName('Normal Logs');
+      final inventory = Inventory.fromItems(testItems, [
+        ItemStack(logs, count: 7),
+      ]);
+      final state = GlobalState.test(testRegistries, inventory: inventory);
+      final action = testActions.firemaking('Burn Normal Logs');
+      final waitFor = WaitForSufficientInputs(action.id, 10);
+
+      expect(waitFor.progress(state), 7);
+    });
+
+    test('progress returns 0 for non-skill action', () {
+      final state = GlobalState.empty(testRegistries);
+      final combatAction = testRegistries.actions.all
+          .whereType<CombatAction>()
+          .first;
+      final waitFor = WaitForSufficientInputs(combatAction.id, 5);
+
+      expect(waitFor.progress(state), 0);
+    });
+
+    test('progress returns 0 for action with no inputs', () {
+      final state = GlobalState.empty(testRegistries);
+      final action = testActions.woodcutting('Normal Tree');
+      final waitFor = WaitForSufficientInputs(action.id, 5);
+
+      expect(waitFor.progress(state), 0);
     });
   });
 
@@ -760,6 +934,30 @@ void main() {
       const waitFor = WaitForAnyOf([]);
 
       expect(waitFor.shortDescription, 'Any condition');
+    });
+
+    test('progress returns max progress among all conditions', () {
+      final state = GlobalState.test(
+        testRegistries,
+        gp: 50,
+        skillStates: const {
+          Skill.woodcutting: SkillState(xp: 75, masteryPoolXp: 0),
+        },
+      );
+      const waitFor = WaitForAnyOf([
+        WaitForInventoryValue(100), // progress = 50
+        WaitForSkillXp(Skill.woodcutting, 100), // progress = 75
+      ]);
+
+      // Should return max (75 from woodcutting)
+      expect(waitFor.progress(state), 75);
+    });
+
+    test('progress returns 0 for empty conditions', () {
+      final state = GlobalState.test(testRegistries, gp: 100);
+      const waitFor = WaitForAnyOf([]);
+
+      expect(waitFor.progress(state), 0);
     });
   });
 

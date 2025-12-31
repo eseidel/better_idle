@@ -60,21 +60,34 @@ final goal = MultiSkillGoal([
 ## Goal Interface
 
 ```dart
-abstract class Goal {
+sealed class Goal extends Equatable {
   /// Check if goal is reached
   bool isSatisfied(GlobalState state);
 
   /// How much progress remains (units are goal-specific)
   double remaining(GlobalState state);
 
-  /// Progress per tick given current rates
-  double progressPerTick(Rates rates);
+  /// Progress per tick given current state and rates
+  double progressPerTick(GlobalState state, Rates rates);
+
+  /// Current progress value for dominance pruning
+  int progress(GlobalState state);
 
   /// Should this skill factor into bucketing?
   bool isSkillRelevant(Skill skill);
 
   /// Rate for this activity towards this goal
-  double activityRate(MelvorId actionId, Rates rates);
+  /// Returns gold rate for GP goals, XP rate for skill goals
+  double activityRate(Skill skill, double goldRate, double xpRate);
+
+  /// Skills relevant for state bucketing
+  Set<Skill> get relevantSkillsForBucketing;
+
+  /// Whether selling items contributes to this goal
+  bool get isSellRelevant;
+
+  /// Consuming skills that are part of this goal
+  Set<Skill> get consumingSkills;
 
   /// Human-readable description
   String describe();

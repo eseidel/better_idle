@@ -4,6 +4,7 @@
 /// many ticks, reducing the solver's branching factor and state explosion.
 library;
 
+import 'package:logic/src/data/action_id.dart';
 import 'package:logic/src/data/actions.dart';
 import 'package:logic/src/data/melvor_id.dart';
 import 'package:logic/src/data/xp.dart';
@@ -28,9 +29,15 @@ class TrainSkillUntil extends MacroCandidate {
     this.skill,
     this.primaryStop, {
     this.watchedStops = const [],
+    this.actionId,
   });
 
   final Skill skill;
+
+  /// The specific action to use for training. If null, the best action will
+  /// be computed at execution time (but this may cause inconsistency with
+  /// subsequent WaitSteps that expect a specific action's mastery).
+  final ActionId? actionId;
 
   /// Primary stop condition (usually boundary or goal).
   final MacroStopRule primaryStop;

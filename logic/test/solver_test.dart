@@ -10,6 +10,7 @@ import 'package:logic/src/solver/interaction.dart';
 import 'package:logic/src/solver/next_decision_delta.dart';
 import 'package:logic/src/solver/plan.dart';
 import 'package:logic/src/solver/solver.dart';
+import 'package:logic/src/solver/solver_profile.dart';
 import 'package:logic/src/solver/value_model.dart';
 import 'package:logic/src/solver/wait_for.dart';
 import 'package:test/test.dart';
@@ -825,6 +826,11 @@ void main() {
       expect(result.finalState.gp, 500);
       expect(result.actualTicks, 0);
       expect(result.totalDeaths, 0);
+      expect(
+        result.hasUnexpectedBoundaries,
+        isFalse,
+        reason: 'Unexpected boundaries: ${result.unexpectedBoundaries}',
+      );
     });
 
     test('executes plan with switch activity step', () {
@@ -848,6 +854,11 @@ void main() {
       );
       expect(result.actualTicks, greaterThan(0));
       expect(result.totalDeaths, 0);
+      expect(
+        result.hasUnexpectedBoundaries,
+        isFalse,
+        reason: 'Unexpected boundaries: ${result.unexpectedBoundaries}',
+      );
     });
 
     test('tracks deaths during thieving execution', () {
@@ -870,6 +881,11 @@ void main() {
       expect(result.finalState.gp, greaterThan(0));
       // Should have experienced deaths during the long thieving session
       expect(result.totalDeaths, greaterThan(0));
+      expect(
+        result.hasUnexpectedBoundaries,
+        isFalse,
+        reason: 'Unexpected boundaries: ${result.unexpectedBoundaries}',
+      );
     });
 
     test('reports planned vs actual ticks correctly', () {
@@ -892,6 +908,11 @@ void main() {
       expect(result.actualTicks, greaterThan(0));
       // ticksDelta is the difference
       expect(result.ticksDelta, result.actualTicks - result.plannedTicks);
+      expect(
+        result.hasUnexpectedBoundaries,
+        isFalse,
+        reason: 'Unexpected boundaries: ${result.unexpectedBoundaries}',
+      );
     });
 
     test('executes plan from solve result', () {
@@ -908,6 +929,11 @@ void main() {
 
       // Should reach the goal (or close to it due to simulation variance)
       expect(execResult.finalState.gp, greaterThan(50));
+      expect(
+        execResult.hasUnexpectedBoundaries,
+        isFalse,
+        reason: 'Unexpected boundaries: ${execResult.unexpectedBoundaries}',
+      );
     });
   });
 
@@ -962,6 +988,11 @@ void main() {
         greaterThan(0),
         reason: 'Should gain firemaking XP from burning logs',
       );
+      expect(
+        execResult.hasUnexpectedBoundaries,
+        isFalse,
+        reason: 'Unexpected boundaries: ${execResult.unexpectedBoundaries}',
+      );
 
       // Should also have woodcutting XP (the producing skill, if needed)
       // Note: if we started with enough logs, we might not need to chop any,
@@ -992,6 +1023,11 @@ void main() {
         execResult.finalState.skillState(Skill.firemaking).skillLevel,
         greaterThanOrEqualTo(1),
         reason: 'Plan should make progress toward firemaking goal',
+      );
+      expect(
+        execResult.hasUnexpectedBoundaries,
+        isFalse,
+        reason: 'Unexpected boundaries: ${execResult.unexpectedBoundaries}',
       );
     });
   });
@@ -1207,10 +1243,9 @@ void main() {
       final profile = (result as SolverSuccess).profile!;
 
       // Zero rate counters should be non-negative
-      expect(profile.rateZeroBecauseNoRelevantSkill, greaterThanOrEqualTo(0));
-      expect(profile.rateZeroBecauseNoUnlockedActions, greaterThanOrEqualTo(0));
-      expect(profile.rateZeroBecauseInputsRequired, greaterThanOrEqualTo(0));
-      expect(profile.rateZeroBecauseZeroTicks, greaterThanOrEqualTo(0));
+      for (final count in profile.rateZeroReasonCounts.values) {
+        expect(count, greaterThanOrEqualTo(0));
+      }
     });
 
     test('profile tracks time breakdown percentages', () {
@@ -1226,46 +1261,48 @@ void main() {
       final totalPercent =
           profile.advancePercent +
           profile.enumeratePercent +
+          profile.cacheKeyPercent +
           profile.hashingPercent;
       expect(totalPercent, lessThanOrEqualTo(100.0));
     });
   });
 
-  group('SolverProfile', () {
+  group('SolverProfileBuilder', () {
     test('recordRateZeroReason increments correct counters', () {
-      final profile = SolverProfile();
+      final builder = SolverProfileBuilder();
+      final counts = builder.rateZeroReasonCounts;
 
       // Initially all counters are zero
-      expect(profile.rateZeroBecauseNoRelevantSkill, 0);
-      expect(profile.rateZeroBecauseNoUnlockedActions, 0);
-      expect(profile.rateZeroBecauseInputsRequired, 0);
-      expect(profile.rateZeroBecauseZeroTicks, 0);
+      expect(counts[NoRelevantSkillReason], isNull);
+      expect(counts[NoUnlockedActionsReason], isNull);
+      expect(counts[InputsRequiredReason], isNull);
+      expect(counts[ZeroTicksReason], isNull);
 
       // Record each reason type
-      profile.recordRateZeroReason(const NoRelevantSkillReason('test goal'));
-      expect(profile.rateZeroBecauseNoRelevantSkill, 1);
+      builder.recordRateZeroReason(const NoRelevantSkillReason('test goal'));
+      expect(counts[NoRelevantSkillReason], 1);
 
-      profile.recordRateZeroReason(
+      builder.recordRateZeroReason(
         const NoUnlockedActionsReason(goalDescription: 'test goal'),
       );
-      expect(profile.rateZeroBecauseNoUnlockedActions, 1);
+      expect(counts[NoUnlockedActionsReason], 1);
 
-      profile.recordRateZeroReason(const InputsRequiredReason());
-      expect(profile.rateZeroBecauseInputsRequired, 1);
+      builder.recordRateZeroReason(const InputsRequiredReason());
+      expect(counts[InputsRequiredReason], 1);
 
-      profile.recordRateZeroReason(const ZeroTicksReason());
-      expect(profile.rateZeroBecauseZeroTicks, 1);
+      builder.recordRateZeroReason(const ZeroTicksReason());
+      expect(counts[ZeroTicksReason], 1);
 
       // Record same reason multiple times
-      profile
+      builder
         ..recordRateZeroReason(const NoRelevantSkillReason('test goal'))
         ..recordRateZeroReason(const NoRelevantSkillReason('test goal'));
-      expect(profile.rateZeroBecauseNoRelevantSkill, 3);
+      expect(counts[NoRelevantSkillReason], 3);
 
       // Other counters unchanged
-      expect(profile.rateZeroBecauseNoUnlockedActions, 1);
-      expect(profile.rateZeroBecauseInputsRequired, 1);
-      expect(profile.rateZeroBecauseZeroTicks, 1);
+      expect(counts[NoUnlockedActionsReason], 1);
+      expect(counts[InputsRequiredReason], 1);
+      expect(counts[ZeroTicksReason], 1);
     });
 
     test('RateZeroReason.describe returns appropriate messages', () {
@@ -1324,80 +1361,75 @@ void main() {
     });
 
     test('recordBestRate tracks samples and root rate', () {
-      final profile = SolverProfile();
+      final builder = SolverProfileBuilder();
 
-      expect(profile.bestRateSamples, isEmpty);
-      expect(profile.rootBestRate, isNull);
+      expect(builder.bestRateSamples, isEmpty);
+      expect(builder.rootBestRate, isNull);
 
       // Record root rate
-      profile.recordBestRate(0.5, isRoot: true);
-      expect(profile.bestRateSamples, [0.5]);
-      expect(profile.rootBestRate, 0.5);
+      builder.recordBestRate(0.5, isRoot: true);
+      expect(builder.bestRateSamples, [0.5]);
+      expect(builder.rootBestRate, 0.5);
 
       // Record non-root rates
-      profile
+      builder
         ..recordBestRate(0.3, isRoot: false)
         ..recordBestRate(0.7, isRoot: false);
-      expect(profile.bestRateSamples, [0.5, 0.3, 0.7]);
-      expect(profile.rootBestRate, 0.5); // unchanged
-
-      // Check min/max/median
-      expect(profile.minBestRate, 0.3);
-      expect(profile.maxBestRate, 0.7);
-      expect(profile.medianBestRate, 0.5);
+      expect(builder.bestRateSamples, [0.5, 0.3, 0.7]);
+      expect(builder.rootBestRate, 0.5); // unchanged
     });
 
     test('recordMacroStopTrigger tracks trigger counts', () {
-      final profile = SolverProfile();
+      final builder = SolverProfileBuilder();
 
-      expect(profile.macroStopTriggers, isEmpty);
+      expect(builder.macroStopTriggers, isEmpty);
 
-      profile.recordMacroStopTrigger('Skill +1');
-      expect(profile.macroStopTriggers, {'Skill +1': 1});
+      builder.recordMacroStopTrigger('Skill +1');
+      expect(builder.macroStopTriggers, {'Skill +1': 1});
 
-      profile.recordMacroStopTrigger('Skill +1');
-      expect(profile.macroStopTriggers, {'Skill +1': 2});
+      builder.recordMacroStopTrigger('Skill +1');
+      expect(builder.macroStopTriggers, {'Skill +1': 2});
 
-      profile.recordMacroStopTrigger('Goal reached');
-      expect(profile.macroStopTriggers, {'Skill +1': 2, 'Goal reached': 1});
+      builder.recordMacroStopTrigger('Goal reached');
+      expect(builder.macroStopTriggers, {'Skill +1': 2, 'Goal reached': 1});
     });
 
     test('recordHeuristic tracks values and zero rate count', () {
-      final profile = SolverProfile();
+      final builder = SolverProfileBuilder();
 
-      expect(profile.heuristicValues, isEmpty);
-      expect(profile.zeroRateCount, 0);
+      expect(builder.heuristicValues, isEmpty);
+      expect(builder.zeroRateCount, 0);
 
-      profile.recordHeuristic(100, hasZeroRate: false);
-      expect(profile.heuristicValues, [100]);
-      expect(profile.zeroRateCount, 0);
+      builder.recordHeuristic(100, hasZeroRate: false);
+      expect(builder.heuristicValues, [100]);
+      expect(builder.zeroRateCount, 0);
 
-      profile.recordHeuristic(200, hasZeroRate: true);
-      expect(profile.heuristicValues, [100, 200]);
-      expect(profile.zeroRateCount, 1);
+      builder.recordHeuristic(200, hasZeroRate: true);
+      expect(builder.heuristicValues, [100, 200]);
+      expect(builder.zeroRateCount, 1);
 
-      profile.recordHeuristic(50, hasZeroRate: true);
-      expect(profile.heuristicValues, [100, 200, 50]);
-      expect(profile.zeroRateCount, 2);
+      builder.recordHeuristic(50, hasZeroRate: true);
+      expect(builder.heuristicValues, [100, 200, 50]);
+      expect(builder.zeroRateCount, 2);
     });
 
     test('recordBucketKey tracks unique keys', () {
-      final profile = SolverProfile();
+      final builder = SolverProfileBuilder();
 
-      expect(profile.uniqueBucketKeys, 0);
+      expect(builder.uniqueBucketKeys, 0);
 
-      profile.recordBucketKey('key1');
-      expect(profile.uniqueBucketKeys, 1);
+      builder.recordBucketKey('key1');
+      expect(builder.uniqueBucketKeys, 1);
 
-      profile.recordBucketKey('key2');
-      expect(profile.uniqueBucketKeys, 2);
+      builder.recordBucketKey('key2');
+      expect(builder.uniqueBucketKeys, 2);
 
       // Duplicate key doesn't increment
-      profile.recordBucketKey('key1');
-      expect(profile.uniqueBucketKeys, 2);
+      builder.recordBucketKey('key1');
+      expect(builder.uniqueBucketKeys, 2);
 
-      profile.recordBucketKey('key3');
-      expect(profile.uniqueBucketKeys, 3);
+      builder.recordBucketKey('key3');
+      expect(builder.uniqueBucketKeys, 3);
     });
   });
 }

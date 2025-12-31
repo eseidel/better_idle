@@ -22,17 +22,24 @@ Train a skill using the best available action until a condition is met.
 
 ```dart
 TrainSkillUntil(
-  skill: Skill.woodcutting,
-  primaryStop: StopAtGoal(50),
+  Skill.woodcutting,
+  StopAtGoal(Skill.woodcutting, targetXp),
   watchedStops: [
-    StopWhenUpgradeAffordable(ironAxeId),
-    StopAtNextBoundary(),
+    StopWhenUpgradeAffordable(ironAxeId, cost, 'Iron Axe'),
+    StopAtNextBoundary(Skill.woodcutting),
   ],
+  actionId: specificActionId,  // Optional: use specific action
 )
 ```
 
+**Fields**:
+- `skill`: The skill to train
+- `primaryStop`: Main stop condition
+- `watchedStops`: Additional stop conditions
+- `actionId`: Optional specific action (if null, finds best)
+
 **Expansion**:
-1. Find best unlocked action for the skill
+1. Find best unlocked action for the skill (or use specified actionId)
 2. Switch to that action
 3. Build composite `WaitForAnyOf` from stop rules
 4. Estimate ticks until soonest stop
@@ -44,13 +51,18 @@ Train a consuming skill (Firemaking, Cooking) with producer-consumer modeling.
 
 ```dart
 TrainConsumingSkillUntil(
-  skill: Skill.firemaking,
-  primaryStop: StopAtGoal(30),
+  Skill.firemaking,
+  StopAtGoal(Skill.firemaking, targetXp),
   watchedStops: [
-    StopWhenInputsDepleted(burnNormalLogsId),
+    StopWhenInputsDepleted(),  // Uses active action at execution time
   ],
 )
 ```
+
+**Fields**:
+- `consumingSkill`: The consuming skill to train
+- `primaryStop`: Main stop condition
+- `watchedStops`: Additional stop conditions
 
 **Expansion**:
 1. Find best consumer and producer pair
@@ -59,9 +71,16 @@ TrainConsumingSkillUntil(
 4. Project both skill XP gains
 5. Track inventory for input management
 
-## Stop Rules
+## Stop Rules (MacroStopRule)
 
-Stop rules define when macro execution should pause:
+Stop rules define when macro execution should pause. Each rule can convert itself
+to a `WaitFor` condition for plan execution.
+
+```dart
+sealed class MacroStopRule {
+  WaitFor toWaitFor(GlobalState state, Map<Skill, SkillBoundaries> boundaries);
+}
+```
 
 ### StopAtNextBoundary
 
@@ -69,32 +88,41 @@ Stop when a new action unlocks (typically at skill level boundaries).
 
 ```dart
 // For Woodcutting 35: next boundary is 37 (Maple unlocks)
-StopAtNextBoundary()
+StopAtNextBoundary(Skill.woodcutting)
 ```
+
+Converts to: `WaitForSkillXp(skill, targetXp, reason: 'Boundary L$level')`
 
 ### StopAtGoal
 
-Stop when the goal level/XP is reached.
+Stop when the goal XP is reached.
 
 ```dart
-StopAtGoal(50)  // Stop at level 50
+StopAtGoal(Skill.woodcutting, targetXp)  // Stop at target XP
 ```
+
+Converts to: `WaitForSkillXp(skill, targetXp, reason: 'Goal reached')`
 
 ### StopWhenUpgradeAffordable
 
 Stop when enough GP to buy an upgrade.
 
 ```dart
-StopWhenUpgradeAffordable(ironAxeId)
+StopWhenUpgradeAffordable(ironAxeId, cost, 'Iron Axe')
 ```
+
+Converts to: `WaitForInventoryValue(cost, reason: upgradeName)`
 
 ### StopWhenInputsDepleted
 
-For consuming skills, stop when inputs run out.
+For consuming skills, stop when inputs run out. Uses the currently active action
+at execution time (not a fixed action ID).
 
 ```dart
-StopWhenInputsDepleted(burnOakLogsId)
+StopWhenInputsDepleted()  // Parameterless
 ```
+
+Converts to: `WaitForInputsDepleted(state.activeAction.id)`
 
 ## Macro Expansion Process
 
@@ -190,17 +218,13 @@ In the plan, macros appear as `MacroStep`:
 
 ```dart
 class MacroStep extends PlanStep {
-  final Macro macro;
+  final MacroCandidate macro;
+  final int deltaTicks;   // Estimated ticks
+  final WaitFor waitFor;  // Composite WaitForAnyOf condition
 }
 ```
 
-During execution, macros run full simulation:
-
-```dart
-// In executePlan()
-case MacroStep(:final macro):
-  state = executeWithAdaptiveWait(state, macro);
-```
+During execution, macros run full simulation using the composite wait condition.
 
 ## Stop Trigger Diagnostics
 

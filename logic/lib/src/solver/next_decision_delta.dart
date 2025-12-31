@@ -113,11 +113,23 @@ NextDecisionResult nextDecisionDelta(
     }
   }
 
-  // Get current rates and compute progress rate toward goal
-  final rates = estimateRates(state);
+  // Compute the "intended action" - the action that best advances the goal.
+  // This may differ from state.activeAction (e.g., after a consuming skill
+  // macro ends with producer active, the intent is still the consuming skill).
+  final intendedActionId = _computeIntendedAction(state, goal, candidates);
+
+  // Get rates for the intended action (or active action if no intent)
+  final rates = intendedActionId != null
+      ? estimateRatesForAction(state, intendedActionId)
+      : estimateRates(state);
   final progressRate = goal.progressPerTick(state, rates);
   // Value rate is still needed for upgrade affordability calculations
   final valueRate = valueModel.valuePerTick(state, rates);
+
+  // Get rates for the ACTIVE action (for inputs depleted calculation)
+  // This is separate from "intended action" rates because we need to know
+  // what the currently running action is consuming, not what we intend to do.
+  final activeRates = estimateRates(state);
 
   // Compute deltas for each category
   final deltas = <_DeltaCandidate>[];
@@ -146,7 +158,7 @@ NextDecisionResult nextDecisionDelta(
 
   // D) Time until inventory fills (if watching)
   if (candidates.watch.inventory) {
-    final deltaInv = _deltaUntilInventoryFull(state, rates);
+    final deltaInv = _deltaUntilInventoryFull(state, activeRates);
     if (deltaInv != null && deltaInv > 0) {
       deltas.add(
         _DeltaCandidate(ticks: deltaInv, waitFor: const WaitForInventoryFull()),
@@ -160,27 +172,31 @@ NextDecisionResult nextDecisionDelta(
   // [_advanceExpected].
 
   // E) Time until inputs depleted (for consuming actions)
-  final deltaInputsDepleted = _deltaUntilInputsDepleted(state, rates);
+  // Use activeRates because we want to know if the ACTIVE action runs out of
+  // inputs, not the intended action.
+  final deltaInputsDepleted = _deltaUntilInputsDepleted(state, activeRates);
   if (deltaInputsDepleted != null) {
     deltas.add(deltaInputsDepleted);
   }
 
   // E2) Time until inputs available for watched consuming activities
+  // Use activeRates because we're checking if the ACTIVE action produces inputs
   final deltaInputsAvailable = _deltaUntilInputsAvailable(
     state,
     candidates,
-    rates,
+    activeRates,
   );
   if (deltaInputsAvailable != null) {
     deltas.add(deltaInputsAvailable);
   }
 
   // E3) Time until sufficient inputs to complete goal via consuming activity
+  // Use activeRates because we're checking if the ACTIVE action produces inputs
   final deltaSufficientInputs = _deltaUntilSufficientInputsForGoal(
     state,
     candidates,
     goal,
-    rates,
+    activeRates,
   );
   if (deltaSufficientInputs != null) {
     deltas.add(deltaSufficientInputs);
@@ -192,8 +208,10 @@ NextDecisionResult nextDecisionDelta(
     deltas.add(deltaSkillLevel);
   }
 
-  // G) Time until next mastery level (rates may change, especially thieving)
-  final deltaMasteryLevel = _deltaUntilNextMasteryLevel(state, rates);
+  // G) Time until next mastery level - ONLY for thieving where mastery
+  // directly affects success rate. For other skills, mastery only provides
+  // minor bonuses that don't warrant a replan decision point.
+  final deltaMasteryLevel = _deltaUntilNextMasteryLevel(state, rates, goal);
   if (deltaMasteryLevel != null) {
     deltas.add(deltaMasteryLevel);
   }
@@ -213,11 +231,128 @@ NextDecisionResult nextDecisionDelta(
   return NextDecisionResult(deltaTicks: finalDelta, waitFor: best.waitFor);
 }
 
+/// Computes the "intended action" - the action that best advances the goal.
+///
+/// This may differ from state.activeAction. For example, after a consuming
+/// skill macro ends with producer active, the intent is still the consuming
+/// skill (firemaking), not the producer (woodcutting).
+///
+/// Returns null if the active action is already the best action for the goal.
+ActionId? _computeIntendedAction(
+  GlobalState state,
+  Goal goal,
+  Candidates candidates,
+) {
+  final activeActionId = state.activeAction?.id;
+
+  // For single skill goals, find the best action for that skill
+  if (goal is ReachSkillLevelGoal) {
+    final targetSkill = goal.skill;
+
+    // If active action is for the goal skill, it's the intent
+    if (activeActionId != null) {
+      final activeAction = state.registries.actions.byId(activeActionId);
+      if (activeAction is SkillAction && activeAction.skill == targetSkill) {
+        return activeActionId;
+      }
+    }
+
+    // Find best unlocked action for the target skill
+    return _findBestActionForGoalSkill(state, targetSkill, candidates);
+  }
+
+  // For multi-skill goals, find the best action for the most pressing subgoal
+  if (goal is MultiSkillGoal) {
+    // First check if active action is for an unsatisfied subgoal
+    if (activeActionId != null) {
+      final activeAction = state.registries.actions.byId(activeActionId);
+      if (activeAction is SkillAction) {
+        final activeSkill = activeAction.skill;
+        final matchingSubgoal = goal.subgoals
+            .where((g) => g.skill == activeSkill && !g.isSatisfied(state))
+            .firstOrNull;
+        if (matchingSubgoal != null) {
+          return activeActionId;
+        }
+      }
+    }
+
+    // Find the first unsatisfied subgoal and get best action for it
+    for (final subgoal in goal.subgoals) {
+      if (subgoal.isSatisfied(state)) continue;
+      final bestAction = _findBestActionForGoalSkill(
+        state,
+        subgoal.skill,
+        candidates,
+      );
+      if (bestAction != null) return bestAction;
+    }
+  }
+
+  // Default to active action
+  return activeActionId;
+}
+
+/// Finds the best unlocked action for a given skill.
+ActionId? _findBestActionForGoalSkill(
+  GlobalState state,
+  Skill skill,
+  Candidates candidates,
+) {
+  final registries = state.registries;
+
+  // For consuming skills, look for the best consuming action
+  if (skill.isConsuming) {
+    ActionId? bestAction;
+    double bestXpRate = 0;
+
+    for (final actionId in candidates.switchToActivities) {
+      final action = registries.actions.byId(actionId);
+      if (action is! SkillAction || action.skill != skill) continue;
+
+      // Check if we can start this action (have inputs)
+      if (!state.canStartAction(action)) continue;
+
+      final rates = estimateRatesForAction(state, actionId);
+      final xpRate = rates.xpPerTickBySkill[skill] ?? 0.0;
+      if (xpRate > bestXpRate) {
+        bestXpRate = xpRate;
+        bestAction = actionId;
+      }
+    }
+
+    return bestAction;
+  }
+
+  // For non-consuming skills, find the best producing action
+  ActionId? bestAction;
+  double bestXpRate = 0;
+
+  for (final actionId in candidates.switchToActivities) {
+    final action = registries.actions.byId(actionId);
+    if (action is! SkillAction || action.skill != skill) continue;
+
+    final rates = estimateRatesForAction(state, actionId);
+    final xpRate = rates.xpPerTickBySkill[skill] ?? 0.0;
+    if (xpRate > bestXpRate) {
+      bestXpRate = xpRate;
+      bestAction = actionId;
+    }
+  }
+
+  return bestAction;
+}
+
 /// Computes ticks until goal is reached at current progress rate.
 ///
 /// For multi-skill goals, computes time until the CURRENT skill being trained
 /// reaches its target (not time until all skills are done, which would require
 /// switching activities). Returns appropriate WaitFor for plan execution.
+///
+/// For single skill goals, only returns a delta if the active action is
+/// actually training the goal skill. If you're running a producer action
+/// for a consuming skill goal, the goal delta should not apply (you need to
+/// switch to the consuming action first).
 _DeltaCandidate? _deltaUntilGoalWithWaitFor(
   GlobalState state,
   Goal goal,
@@ -226,18 +361,17 @@ _DeltaCandidate? _deltaUntilGoalWithWaitFor(
   if (progressRate <= 0) return null;
   if (goal.isSatisfied(state)) return null;
 
+  final actionId = state.activeAction?.id;
+  if (actionId == null) return null;
+
+  final registries = state.registries;
+  final action = registries.actions.byId(actionId);
+  if (action is! SkillAction) return null;
+
+  final activeSkill = action.skill;
+
   // For multi-skill goals, only consider skills we're currently training
   if (goal is MultiSkillGoal) {
-    // Find which skill we're currently training
-    final actionId = state.activeAction?.id;
-    if (actionId == null) return null;
-
-    final registries = state.registries;
-    final action = registries.actions.byId(actionId);
-    if (action is! SkillAction) return null;
-
-    final activeSkill = action.skill;
-
     // Find the subgoal for the active skill
     final activeSubgoal = goal.subgoals
         .where((g) => g.skill == activeSkill && !g.isSatisfied(state))
@@ -264,6 +398,14 @@ _DeltaCandidate? _deltaUntilGoalWithWaitFor(
         reason: 'Goal: $skillName $targetLevel',
       ),
     );
+  }
+
+  // For single skill goals, only return a delta if the active action is
+  // actually training the goal skill
+  if (goal is ReachSkillLevelGoal && activeSkill != goal.skill) {
+    // Active action is not training the goal skill (e.g., producing logs for
+    // firemaking goal) - no goal progress from current action
+    return null;
   }
 
   // Single goal: use WaitForGoal
@@ -429,16 +571,26 @@ const int _masteryLevelInterval = 10;
 
 /// Computes ticks until next meaningful mastery level boundary.
 ///
-/// Rather than watching every mastery level up, we watch at intervals
-/// (e.g., every 10 levels: 10, 20, 30, ...). This reduces the number
-/// of wait steps while still allowing rate recalculation at meaningful points.
+/// ONLY returns a delta for thieving, where mastery directly affects success
+/// rate (stealth). For other skills, mastery only provides minor bonuses
+/// (like double drops in woodcutting) that don't warrant interrupting the plan.
 ///
-/// For thieving, mastery affects stealth directly, but the effect is gradual
-/// enough that checking every 10 levels is sufficient for planning purposes.
-_DeltaCandidate? _deltaUntilNextMasteryLevel(GlobalState state, Rates rates) {
+/// For thieving, we watch at intervals (e.g., every 10 levels: 10, 20, 30, ...)
+/// to reduce plan noise while still allowing rate recalculation.
+_DeltaCandidate? _deltaUntilNextMasteryLevel(
+  GlobalState state,
+  Rates rates,
+  Goal goal,
+) {
   if (rates.masteryXpPerTick <= 0 || rates.actionId == null) return null;
 
   final actionId = rates.actionId!;
+  final action = state.registries.actions.byId(actionId);
+
+  // Only track mastery for thieving - it directly affects success rate.
+  // For other skills, mastery bonuses are minor and don't warrant replanning.
+  if (action is! ThievingAction) return null;
+
   final actionState = state.actionState(actionId);
   final currentLevel = actionState.masteryLevel;
 

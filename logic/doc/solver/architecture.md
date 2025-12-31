@@ -37,17 +37,21 @@ Initial State
 
 | File | Purpose |
 |------|---------|
-| `solver.dart` | A* search algorithm, node expansion, heuristics |
+| `solver.dart` | A* search algorithm, node expansion, heuristics, SolverProfile |
 | `goal.dart` | Goal definitions (GP, skill level, multi-skill) |
 | `enumerate_candidates.dart` | Generates candidate actions/upgrades/macros |
 | `estimate_rates.dart` | Calculates expected rates per tick |
 | `value_model.dart` | Converts rates to scalar values |
-| `plan.dart` | Plan representation and compression |
-| `execute_plan.dart` | Plan execution against real game state |
-| `interaction.dart` | 0-tick state mutations |
-| `wait_for.dart` | Wait conditions for macro boundaries |
-| `macro.dart` | Macro definitions and expansion |
-| `solver_profile.dart` | Diagnostics and profiling |
+| `plan.dart` | Plan representation, compression, and execution result types |
+| `interaction.dart` | 0-tick state mutations (SwitchActivity, BuyShopItem, SellItems) |
+| `apply_interaction.dart` | Applies interactions to game state |
+| `available_interactions.dart` | Determines which interactions are currently available |
+| `wait_for.dart` | Wait conditions for plan execution |
+| `macro_candidate.dart` | Macro definitions (TrainSkillUntil, TrainConsumingSkillUntil) |
+| `next_decision_delta.dart` | Computes time until next interesting event |
+| `replan_boundary.dart` | Defines when replanning is needed during execution |
+| `unlock_boundaries.dart` | Tracks skill level boundaries where actions unlock |
+| `candidate_cache.dart` | Caches candidate enumeration results |
 
 ## Data Flow
 
@@ -94,41 +98,61 @@ When goal is reached:
 
 A 0-tick state change:
 ```dart
-sealed class Interaction {
-  GlobalState apply(GlobalState state);
+sealed class Interaction extends Equatable {
+  const Interaction();
 }
 
-class SwitchActivity extends Interaction { ... }
-class BuyShopItem extends Interaction { ... }
-class SellItems extends Interaction { ... }
+class SwitchActivity extends Interaction {
+  final ActionId actionId;
+}
+
+class BuyShopItem extends Interaction {
+  final MelvorId purchaseId;
+}
+
+class SellItems extends Interaction {
+  final SellPolicy policy;  // SellAllPolicy or SellExceptPolicy
+}
 ```
 
 ### WaitFor
 
 Condition for stopping a wait:
 ```dart
-sealed class WaitFor {
+sealed class WaitFor extends Equatable {
   bool isSatisfied(GlobalState state);
+  int progress(GlobalState state);
   int estimateTicks(GlobalState state, Rates rates);
+  String describe();
+  String get shortDescription;
 }
 
 class WaitForSkillXp extends WaitFor { ... }
 class WaitForInventoryValue extends WaitFor { ... }
+class WaitForInputsDepleted extends WaitFor { ... }
 class WaitForAnyOf extends WaitFor { ... }
+class WaitForGoal extends WaitFor { ... }
 ```
 
-### Macro
+### MacroCandidate
 
 High-level training directive:
 ```dart
-sealed class Macro {
-  String describe(ActionRegistry actions);
+sealed class MacroCandidate {
+  const MacroCandidate();
 }
 
-class TrainSkillUntil extends Macro {
+class TrainSkillUntil extends MacroCandidate {
   final Skill skill;
-  final StopRule primaryStop;
-  final List<StopRule> watchedStops;
+  final ActionId? actionId;  // Optional specific action
+  final MacroStopRule primaryStop;
+  final List<MacroStopRule> watchedStops;
+}
+
+class TrainConsumingSkillUntil extends MacroCandidate {
+  final Skill consumingSkill;
+  final MacroStopRule primaryStop;
+  final List<MacroStopRule> watchedStops;
 }
 ```
 

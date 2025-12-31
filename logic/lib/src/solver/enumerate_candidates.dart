@@ -86,6 +86,298 @@ class ActionSummary {
   final Map<MelvorId, int> missingInputs;
 }
 
+// ---------------------------------------------------------------------------
+// Capability-level rate cache
+// ---------------------------------------------------------------------------
+
+/// Summary of an action's rates for ranking (capability-level, cacheable).
+///
+/// Unlike [ActionSummary], this does NOT include state-dependent fields like
+/// [ActionSummary.canStartNow] or [ActionSummary.missingInputs]. Those are
+/// evaluated per-state, not cached.
+@immutable
+class ActionRateSummary {
+  const ActionRateSummary({
+    required this.actionId,
+    required this.skill,
+    required this.unlockLevel,
+    required this.isUnlocked,
+    required this.expectedTicks,
+    required this.goldRatePerTick,
+    required this.xpRatePerTick,
+    required this.hasInputs,
+  });
+
+  final ActionId actionId;
+  final Skill skill;
+  final int unlockLevel;
+  final bool isUnlocked;
+
+  /// Expected ticks per action completion.
+  final double expectedTicks;
+
+  /// Expected gold per tick from selling outputs.
+  final double goldRatePerTick;
+
+  /// Expected skill XP per tick.
+  final double xpRatePerTick;
+
+  /// Whether this action requires inputs (firemaking, cooking, etc).
+  /// This is structural (capability), not inventory-dependent.
+  final bool hasInputs;
+}
+
+/// Packed capability key for rate cache.
+/// Uses two ints to support up to 15+ skills without rework.
+@immutable
+class _PackedCapabilityKey {
+  const _PackedCapabilityKey(this._low, this._high);
+
+  final int _low;
+  final int _high;
+
+  @override
+  int get hashCode => Object.hash(_low, _high);
+
+  @override
+  bool operator ==(Object other) =>
+      other is _PackedCapabilityKey &&
+      _low == other._low &&
+      _high == other._high;
+}
+
+/// Module-private rate cache. Cleared between solver runs.
+final Map<_PackedCapabilityKey, List<ActionRateSummary>> _rateCache = {};
+
+/// Cache statistics for profiling.
+int _rateCacheHits = 0;
+int _rateCacheMisses = 0;
+
+/// Clears the rate cache. Call at start of each solve().
+void clearRateCache() {
+  _rateCache.clear();
+  _rateCacheHits = 0;
+  _rateCacheMisses = 0;
+}
+
+/// Returns rate cache hit count (for profiling).
+int get rateCacheHits => _rateCacheHits;
+
+/// Returns rate cache miss count (for profiling).
+int get rateCacheMisses => _rateCacheMisses;
+
+/// Packs rate-affecting capability state into a key (goal-independent).
+///
+/// Rate-affecting state includes:
+/// - All skill levels (affect unlocks)
+/// - Tool tiers (affect action speed/yield)
+///
+/// Layout across (low, high):
+///   low[0-48]   Skill levels for all 7 skills (7 bits each = 49 bits)
+///   low[49-57]  Tool tiers for 3 skills (3 bits each = 9 bits)
+///   Total: 58 bits, fits in single int
+_PackedCapabilityKey _packCapabilityKey(GlobalState state) {
+  var low = 0;
+  var shift = 0;
+
+  void pack(int value, int bits) {
+    final mask = (1 << bits) - 1;
+    low |= (value & mask) << shift;
+    shift += bits;
+  }
+
+  // Pack all skill levels (7 bits each, max 120)
+  // Order matters for consistency - use Skill.values order
+  for (final skill in Skill.values) {
+    final level = state.skillState(skill).skillLevel;
+    pack(level, 7);
+  }
+
+  // Pack tool tiers (3 bits each, max 6)
+  pack(state.shop.axeLevel, 3); // Woodcutting
+  pack(state.shop.fishingRodLevel, 3); // Fishing
+  pack(state.shop.pickaxeLevel, 3); // Mining
+
+  return _PackedCapabilityKey(low, 0);
+}
+
+/// Gets or computes rate summaries for current capability state.
+/// Caches results keyed by packed capability key (goal-independent).
+List<ActionRateSummary> _getRateSummaries(GlobalState state) {
+  final capKey = _packCapabilityKey(state);
+
+  final cached = _rateCache[capKey];
+  if (cached != null) {
+    _rateCacheHits++;
+    return cached;
+  }
+
+  _rateCacheMisses++;
+  final summaries = _computeRateSummaries(state);
+  _rateCache[capKey] = summaries;
+  return summaries;
+}
+
+/// Computes rate summaries for all skill actions (capability-level).
+/// Does NOT include canStartNow/missingInputs - those are per-state.
+List<ActionRateSummary> _computeRateSummaries(GlobalState state) {
+  final summaries = <ActionRateSummary>[];
+  final registries = state.registries;
+
+  for (final skill in Skill.values) {
+    final skillLevel = state.skillState(skill).skillLevel;
+
+    for (final action in registries.actions.forSkill(skill)) {
+      final isUnlocked = skillLevel >= action.unlockLevel;
+
+      // Check if action has inputs (structural, not availability)
+      final actionStateVal = state.actionState(action.id);
+      final selection = actionStateVal.recipeSelection(action);
+      final inputs = action.inputsForRecipe(selection);
+      final hasInputs = inputs.isNotEmpty;
+
+      // Calculate expected ticks per action (mean duration)
+      final expectedTicks = ticksFromDuration(action.meanDuration).toDouble();
+
+      // Calculate expected gold per action from selling outputs
+      var expectedGoldPerAction = 0.0;
+      for (final output in action.outputs.entries) {
+        final item = registries.items.byId(output.key);
+        expectedGoldPerAction += item.sellsFor * output.value;
+      }
+
+      // For thieving, account for success rate and stun time on failure
+      if (action is ThievingAction) {
+        final thievingLevel = state.skillState(Skill.thieving).skillLevel;
+        final mastery = state.actionState(action.id).masteryLevel;
+        final stealth = calculateStealth(thievingLevel, mastery);
+        final successChance = ((100 + stealth) / (100 + action.perception))
+            .clamp(0.0, 1.0);
+        final failureChance = 1.0 - successChance;
+
+        // Expected gold = successChance * (1 + maxGold) / 2
+        final expectedThievingGold = successChance * (1 + action.maxGold) / 2;
+        expectedGoldPerAction += expectedThievingGold;
+
+        // Effective ticks = action duration + (failure chance * stun)
+        final effectiveTicks =
+            expectedTicks + failureChance * stunnedDurationTicks;
+
+        final goldRatePerTick = effectiveTicks > 0
+            ? expectedGoldPerAction / effectiveTicks
+            : 0.0;
+        final expectedXpPerAction = successChance * action.xp;
+        final xpRatePerTick = effectiveTicks > 0
+            ? expectedXpPerAction / effectiveTicks
+            : 0.0;
+
+        summaries.add(
+          ActionRateSummary(
+            actionId: action.id,
+            skill: action.skill,
+            unlockLevel: action.unlockLevel,
+            isUnlocked: isUnlocked,
+            expectedTicks: effectiveTicks,
+            goldRatePerTick: goldRatePerTick,
+            xpRatePerTick: xpRatePerTick,
+            hasInputs: hasInputs,
+          ),
+        );
+        continue;
+      }
+
+      final goldRatePerTick = expectedTicks > 0
+          ? expectedGoldPerAction / expectedTicks
+          : 0.0;
+      final xpRatePerTick = expectedTicks > 0 ? action.xp / expectedTicks : 0.0;
+
+      summaries.add(
+        ActionRateSummary(
+          actionId: action.id,
+          skill: action.skill,
+          unlockLevel: action.unlockLevel,
+          isUnlocked: isUnlocked,
+          expectedTicks: expectedTicks,
+          goldRatePerTick: goldRatePerTick,
+          xpRatePerTick: xpRatePerTick,
+          hasInputs: hasInputs,
+        ),
+      );
+    }
+  }
+
+  return summaries;
+}
+
+// ---------------------------------------------------------------------------
+// Per-state filtering helpers (NOT cached)
+// ---------------------------------------------------------------------------
+
+/// Checks if an action can start now (has required inputs).
+/// Called per-state, NOT cached.
+bool _canStartNow(GlobalState state, ActionId actionId) {
+  final action = state.registries.actions.byId(actionId);
+  if (action is! SkillAction) return true;
+
+  final selection = state.actionState(actionId).recipeSelection(action);
+  final inputs = action.inputsForRecipe(selection);
+  if (inputs.isEmpty) return true;
+
+  for (final entry in inputs.entries) {
+    final item = state.registries.items.byId(entry.key);
+    if (state.inventory.countOfItem(item) < entry.value) {
+      return false;
+    }
+  }
+  return true;
+}
+
+/// Producer skill mapping (explicit, game-specific).
+/// Returns null for skills without a clear single producer.
+Skill? _producerSkillFor(Skill consumingSkill) {
+  return switch (consumingSkill) {
+    Skill.firemaking => Skill.woodcutting,
+    Skill.cooking => Skill.fishing,
+    Skill.smithing => Skill.mining,
+    Skill.fletching => Skill.woodcutting,
+    Skill.crafting => Skill.mining, // Gems come from mining
+    // Skills with complex/multiple input sources - no single producer
+    Skill.herblore => null,
+    Skill.runecrafting => null,
+    Skill.agility => null,
+    Skill.summoning => null,
+    Skill.altMagic => null,
+    _ => null, // Non-consuming skills
+  };
+}
+
+/// Select top N producers for a skill by throughput (gp/tick as proxy).
+List<ActionRateSummary> _selectTopProducers(
+  List<ActionRateSummary> summaries,
+  Skill producerSkill,
+  int n,
+) {
+  final candidates = <ActionRateSummary>[];
+  for (final s in summaries) {
+    if (s.skill != producerSkill) continue;
+    if (!s.isUnlocked) continue;
+    if (s.hasInputs) continue; // Only non-consuming producers
+
+    // Insert into top-N by gpRatePerTick (proxy for throughput)
+    if (candidates.length < n) {
+      candidates
+        ..add(s)
+        ..sort((a, b) => b.goldRatePerTick.compareTo(a.goldRatePerTick));
+    } else if (s.goldRatePerTick > candidates.last.goldRatePerTick) {
+      candidates
+        ..removeLast()
+        ..add(s)
+        ..sort((a, b) => b.goldRatePerTick.compareTo(a.goldRatePerTick));
+    }
+  }
+  return candidates;
+}
+
 /// What events the planner should watch for to define "wait until interesting".
 @immutable
 class WatchList {
@@ -284,13 +576,24 @@ List<MacroCandidate> _generateMacros(GlobalState state, Goal goal) {
       if (subgoal.isSatisfied(state)) continue;
 
       // Primary macro: train until next boundary
-      macros.add(
-        TrainSkillUntil(
-          subgoal.skill,
-          StopAtNextBoundary(subgoal.skill),
-          watchedStops: [StopAtGoal(subgoal.skill, subgoal.targetXp)],
-        ),
-      );
+      // For consuming skills, use coupled produce/consume macro
+      if (subgoal.skill.isConsuming) {
+        macros.add(
+          TrainConsumingSkillUntil(
+            subgoal.skill,
+            StopAtNextBoundary(subgoal.skill),
+            watchedStops: [StopAtGoal(subgoal.skill, subgoal.targetXp)],
+          ),
+        );
+      } else {
+        macros.add(
+          TrainSkillUntil(
+            subgoal.skill,
+            StopAtNextBoundary(subgoal.skill),
+            watchedStops: [StopAtGoal(subgoal.skill, subgoal.targetXp)],
+          ),
+        );
+      }
     }
   }
 
@@ -420,6 +723,9 @@ List<MacroCandidate> _augmentMacrosWithUpgradeStops(
 /// For [ReachGpGoal], this is gold/tick. For [ReachSkillLevelGoal],
 /// this is XP/tick for the target skill.
 ///
+/// Uses internal rate cache for expensive capability-level computations.
+/// Per-state filtering (canStartNow, active action exclusion) is done fresh.
+///
 /// If [collectStats] is true, populates diagnostic stats for consuming skills.
 Candidates enumerateCandidates(
   GlobalState state,
@@ -430,6 +736,10 @@ Candidates enumerateCandidates(
   double inventoryThreshold = defaultInventoryThreshold,
   bool collectStats = false,
 }) {
+  // 1. Get cached rate summaries (capability-level, goal-independent)
+  final rateSummaries = _getRateSummaries(state);
+
+  // Also build legacy ActionSummary list for functions not yet migrated
   final summaries = buildActionSummaries(state);
 
   // Generate macro candidates for skill goals
@@ -438,12 +748,15 @@ Candidates enumerateCandidates(
   // Ranking function uses goal's activityRate to determine value
   double rankingFn(ActionSummary s) =>
       goal.activityRate(s.skill, s.goldRatePerTick, s.xpRatePerTick);
+  double rateRankingFn(ActionRateSummary s) =>
+      goal.activityRate(s.skill, s.goldRatePerTick, s.xpRatePerTick);
+
+  // Build candidate set
+  final candidateSet = <ActionId>{};
+  ConsumingSkillCandidateStats? consumingStats;
 
   // Select unlocked activity candidates
   // For consuming skills, use strict pruning to avoid near-tie explosion
-  List<ActionId> switchToActivities;
-  ConsumingSkillCandidateStats? consumingStats;
-
   if (goal is ReachSkillLevelGoal && goal.skill.isConsuming) {
     final result = _selectConsumingSkillCandidatesWithStats(
       summaries,
@@ -451,16 +764,64 @@ Candidates enumerateCandidates(
       goal.skill,
       collectStats: collectStats,
     );
-    switchToActivities = result.candidates;
+    candidateSet.addAll(result.candidates);
     consumingStats = result.stats;
   } else {
-    switchToActivities = _selectUnlockedActivitiesByRanking(
+    final selected = _selectUnlockedActivitiesByRanking(
       summaries,
       state,
       activityCount,
       rankingFn,
     );
+    candidateSet.addAll(selected);
   }
+
+  // Per-state filter: exclude current action
+  final currentActionId = state.activeAction?.id;
+  if (currentActionId != null) {
+    candidateSet.remove(currentActionId);
+  }
+
+  // ALWAYS include producers for consuming goal skills (UNCONDITIONAL)
+  // This is the escape hatch - don't gate on topK or feasibility
+  final consumingGoalSkills = goal.consumingSkills;
+  for (final consumingSkill in consumingGoalSkills) {
+    final producerSkill = _producerSkillFor(consumingSkill);
+    if (producerSkill == null) continue; // No clear producer for this skill
+    // N=2 per consuming skill is plenty - just escape hatches
+    final producers = _selectTopProducers(rateSummaries, producerSkill, 2);
+    for (final p in producers) {
+      if (p.actionId != currentActionId) {
+        candidateSet.add(p.actionId);
+      }
+    }
+  }
+
+  // For consuming actions in candidates, add their specific producers
+  // if they can't start now
+  for (final actionId in candidateSet.toList()) {
+    final rateSummary = rateSummaries.firstWhere(
+      (s) => s.actionId == actionId,
+      orElse: () => rateSummaries.first,
+    );
+    if (rateSummary.actionId == actionId &&
+        rateSummary.hasInputs &&
+        !_canStartNow(state, actionId)) {
+      // Find producers for missing inputs
+      final producers = _findProducersForActionByRate(
+        rateSummaries,
+        state,
+        actionId,
+      );
+      for (final p in producers) {
+        if (p != currentActionId) {
+          candidateSet.add(p);
+        }
+      }
+    }
+  }
+
+  final switchToActivities = candidateSet.toList();
 
   // Select locked activities to watch (top L by smallest unlockDeltaTicks)
   // Only watch activities for skills relevant to the goal
@@ -478,10 +839,10 @@ Candidates enumerateCandidates(
   ];
 
   // Find the best current rate among all unlocked activities using ranking fn
-  final unlockedSummaries = summaries.where((s) => s.isUnlocked);
+  final unlockedSummaries = rateSummaries.where((s) => s.isUnlocked);
   final bestCurrentRate = unlockedSummaries.isEmpty
       ? 0.0
-      : unlockedSummaries.map(rankingFn).reduce((a, b) => a > b ? a : b);
+      : unlockedSummaries.map(rateRankingFn).reduce((a, b) => a > b ? a : b);
 
   // Select upgrade candidates
   // Only include upgrades for skills relevant to the goal
@@ -514,7 +875,7 @@ Candidates enumerateCandidates(
   // Include even activities that can start now, because we may need to
   // gather MORE inputs to complete the goal, not just enough to start.
   final consumingActivitiesToWatch = <ActionId>[];
-  for (final summary in summaries) {
+  for (final summary in rateSummaries) {
     if (!summary.isUnlocked) continue;
     if (!summary.hasInputs) continue;
     if (!goal.isSkillRelevant(summary.skill)) continue;
@@ -548,6 +909,39 @@ Candidates enumerateCandidates(
     macros: augmentedMacros,
     consumingSkillStats: consumingStats,
   );
+}
+
+/// Find producers for a specific action's missing inputs.
+/// Uses rate summaries (capability-level).
+List<ActionId> _findProducersForActionByRate(
+  List<ActionRateSummary> summaries,
+  GlobalState state,
+  ActionId actionId,
+) {
+  final action = state.registries.actions.byId(actionId);
+  if (action is! SkillAction) return [];
+
+  final selection = state.actionState(actionId).recipeSelection(action);
+  final inputs = action.inputsForRecipe(selection);
+  if (inputs.isEmpty) return [];
+
+  final producers = <ActionId>[];
+  for (final inputItemId in inputs.keys) {
+    // Find producers for this input
+    for (final s in summaries) {
+      if (!s.isUnlocked) continue;
+      if (s.hasInputs) continue; // Only non-consuming producers
+
+      final producerAction = state.registries.actions.byId(s.actionId);
+      if (producerAction is! SkillAction) continue;
+
+      if (producerAction.outputs.containsKey(inputItemId)) {
+        producers.add(s.actionId);
+        break; // One producer per input is enough
+      }
+    }
+  }
+  return producers;
 }
 
 /// Computes the set of item IDs to keep (not sell) for the given goal.

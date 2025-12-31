@@ -79,6 +79,10 @@ sealed class Goal extends Equatable {
   /// Whether to track inventory bucket in the bucket key
   /// (only for consuming skill goals).
   bool get shouldTrackInventory;
+
+  /// Returns the set of consuming skills that are part of this goal.
+  /// Used to unconditionally include producer activities for these skills.
+  Set<Skill> get consumingSkills;
 }
 
 /// Goal to reach a target amount of GP (gold pieces).
@@ -149,6 +153,9 @@ class ReachGpGoal extends Goal {
   bool get shouldTrackInventory => true; // Track inventory for all skills
 
   @override
+  Set<Skill> get consumingSkills => Skill.consumingSkills;
+
+  @override
   List<Object?> get props => [targetGp];
 }
 
@@ -207,6 +214,9 @@ class ReachSkillLevelGoal extends Goal {
 
   @override
   bool get shouldTrackInventory => skill.isConsuming;
+
+  @override
+  Set<Skill> get consumingSkills => skill.isConsuming ? {skill} : {};
 
   @override
   List<Object?> get props => [skill, targetLevel];
@@ -297,6 +307,10 @@ class MultiSkillGoal extends Goal {
 
   @override
   bool get shouldTrackInventory => subgoals.any((g) => g.shouldTrackInventory);
+
+  @override
+  Set<Skill> get consumingSkills =>
+      subgoals.expand((g) => g.consumingSkills).toSet();
 
   @override
   List<Object?> get props => [subgoals];
