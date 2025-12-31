@@ -44,11 +44,13 @@ import 'package:logic/src/solver/solver_profile.dart';
 import 'package:logic/src/solver/unlock_boundaries.dart';
 import 'package:logic/src/solver/value_model.dart';
 import 'package:logic/src/solver/wait_for.dart';
+import 'package:logic/src/solver/watch_set.dart';
 import 'package:logic/src/state.dart';
 import 'package:logic/src/tick.dart';
 import 'package:logic/src/types/inventory.dart';
 import 'package:logic/src/types/stunned.dart';
 import 'package:logic/src/types/time_away.dart';
+import 'package:meta/meta.dart';
 
 // ---------------------------------------------------------------------------
 // Debug invariant assertions
@@ -2016,7 +2018,7 @@ SolverResult solve(
       expandedNodes: 0,
       frontier: FrontierStats.zero,
     );
-    return SolverSuccess(const Plan.empty(), profile);
+    return SolverSuccess(const Plan.empty(), initial, profile);
   }
 
   // Compute unlock boundaries for macro-step planning
@@ -2201,7 +2203,8 @@ SolverResult solve(
         cacheHits: rateCacheHits,
         cacheMisses: rateCacheMisses,
       );
-      return SolverSuccess(plan, profile);
+      // Return terminal node's state for segment boundary detection
+      return SolverSuccess(plan, node.state, profile);
     }
 
     // Compute candidates for this state
@@ -2351,6 +2354,7 @@ SolverResult solve(
           );
           return SolverSuccess(
             _reconstructPlan(nodes, newNodeId, expandedNodes, enqueuedNodes),
+            newState,
             profile,
           );
         }
@@ -2529,5 +2533,291 @@ Plan _reconstructPlan(
     expandedNodes: expandedNodes,
     enqueuedNodes: enqueuedNodes,
     expectedDeaths: goalNode.expectedDeaths,
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Segment-Based Solving
+// ---------------------------------------------------------------------------
+
+/// Result of solving to the next segment boundary.
+sealed class SegmentResult {
+  const SegmentResult();
+}
+
+/// Successful segment solve.
+class SegmentSuccess extends SegmentResult {
+  const SegmentSuccess({
+    required this.segment,
+    required this.finalState,
+    required this.watchSet,
+  });
+
+  /// The segment (plan portion to boundary).
+  final Segment segment;
+
+  /// Terminal state from solve() - no replay needed.
+  final GlobalState finalState;
+
+  /// The WatchSet used for this segment (pass to executeSegment).
+  final WatchSet watchSet;
+}
+
+/// Segment solve failed.
+class SegmentFailed extends SegmentResult {
+  const SegmentFailed(this.failure);
+
+  final SolverFailure failure;
+}
+
+/// Solves for a single segment: from current state to the first material
+/// boundary.
+///
+/// A segment ends when [WatchSet.detectBoundary] returns non-null on the
+/// terminal state. The boundary is derived from the terminal node's state
+/// (returned by solve()), NOT by replaying the plan.
+///
+/// Returns a [SegmentSuccess] with:
+/// - The segment (steps, ticks, boundary)
+/// - The terminal state (for continuing to next segment)
+/// - The WatchSet (for use by executeSegment)
+SegmentResult solveSegment(
+  GlobalState initial,
+  Goal goal, {
+  SegmentConfig config = const SegmentConfig(),
+  int maxExpandedNodes = defaultMaxExpandedNodes,
+  int maxQueueSize = defaultMaxQueueSize,
+}) {
+  // Build watch set from current state - this is the SINGLE source of truth
+  final watchSet = buildWatchSet(initial, goal, config);
+
+  // Create segment goal that delegates to watchSet.detectBoundary()
+  final segmentGoal = SegmentGoal(watchSet);
+
+  // solve() now returns terminal state directly
+  final result = solve(
+    initial,
+    segmentGoal,
+    maxExpandedNodes: maxExpandedNodes,
+    maxQueueSize: maxQueueSize,
+  );
+
+  return switch (result) {
+    SolverSuccess(:final plan, :final terminalState) => () {
+      // Derive boundary from terminal state (no replay needed!)
+      final boundary =
+          watchSet.detectBoundary(terminalState) ?? const GoalReachedBoundary();
+
+      return SegmentSuccess(
+        segment: Segment(
+          steps: plan.steps,
+          totalTicks: plan.totalTicks,
+          interactionCount: plan.interactionCount,
+          stopBoundary: boundary,
+        ),
+        finalState: terminalState,
+        watchSet: watchSet,
+      );
+    }(),
+    SolverFailed(:final failure) => SegmentFailed(failure),
+  };
+}
+
+/// Result of executing a single segment.
+@immutable
+class SegmentExecutionResult {
+  const SegmentExecutionResult({
+    required this.finalState,
+    required this.boundaryHit,
+    required this.actualTicks,
+    required this.plannedTicks,
+    required this.deaths,
+  });
+
+  /// The state after executing the segment.
+  final GlobalState finalState;
+
+  /// What boundary was hit (same type as planning).
+  final SegmentBoundary? boundaryHit;
+
+  /// Actual ticks elapsed during execution.
+  final int actualTicks;
+
+  /// Planned ticks from the solver (for comparison).
+  final int plannedTicks;
+
+  /// Number of deaths during execution.
+  final int deaths;
+
+  /// Difference between actual and planned ticks.
+  int get ticksDelta => actualTicks - plannedTicks;
+}
+
+/// Executes a segment with stochastic simulation.
+///
+/// Uses the SAME [WatchSet] from planning to determine material boundaries.
+/// Stops when [_applyStep] returns a boundary that [WatchSet.isMaterial]
+/// accepts.
+///
+/// The [random] parameter controls the stochastic simulation. For
+/// deterministic testing, use a seeded Random.
+SegmentExecutionResult executeSegment(
+  GlobalState state,
+  Segment segment,
+  WatchSet watchSet, {
+  required Random random,
+}) {
+  var currentState = state;
+  var totalTicks = 0;
+  var totalDeaths = 0;
+  final unlockBoundaries = computeUnlockBoundaries(state.registries);
+
+  for (final step in segment.steps) {
+    final result = _applyStep(
+      currentState,
+      step,
+      random: random,
+      boundaries: unlockBoundaries,
+    );
+    currentState = result.state;
+    totalTicks += result.ticksElapsed;
+    totalDeaths += result.deaths;
+
+    // Check if _applyStep's boundary is material using the SAME watchSet
+    if (result.boundary != null && watchSet.isMaterial(result.boundary!)) {
+      // Convert ReplanBoundary -> SegmentBoundary using watchSet
+      final segmentBoundary = watchSet.toSegmentBoundary(result.boundary!);
+      return SegmentExecutionResult(
+        finalState: currentState,
+        boundaryHit: segmentBoundary,
+        actualTicks: totalTicks,
+        plannedTicks: segment.totalTicks,
+        deaths: totalDeaths,
+      );
+    }
+  }
+
+  // No early boundary - use the expected boundary from planning
+  return SegmentExecutionResult(
+    finalState: currentState,
+    boundaryHit: segment.stopBoundary,
+    actualTicks: totalTicks,
+    plannedTicks: segment.totalTicks,
+    deaths: totalDeaths,
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Full Segmented Solving
+// ---------------------------------------------------------------------------
+
+/// Result of solving to goal via segments.
+sealed class SegmentedSolverResult {
+  const SegmentedSolverResult();
+}
+
+/// Successfully solved to goal via segments.
+class SegmentedSuccess extends SegmentedSolverResult {
+  const SegmentedSuccess({
+    required this.segments,
+    required this.totalTicks,
+    required this.totalReplanCount,
+    required this.finalState,
+  });
+
+  /// Individual segments for debugging/inspection.
+  final List<Segment> segments;
+
+  /// Total ticks across all segments.
+  final int totalTicks;
+
+  /// Number of times we replanned (= number of segments).
+  final int totalReplanCount;
+
+  /// Final state after all segments.
+  final GlobalState finalState;
+}
+
+/// Failed to solve to goal via segments.
+class SegmentedFailed extends SegmentedSolverResult {
+  const SegmentedFailed(this.failure, {this.completedSegments = const []});
+
+  final SolverFailure failure;
+
+  /// Segments completed before failure.
+  final List<Segment> completedSegments;
+}
+
+/// Solves to goal by iteratively solving segments.
+///
+/// This is the new top-level entry point that makes replanning a normal
+/// part of control flow.
+///
+/// The loop:
+/// 1. Solve for next segment (to boundary)
+/// 2. Use projected state from solve() (no separate execution needed)
+/// 3. Repeat until goal reached
+///
+/// For stochastic execution, call [executeSegment] on each segment with
+/// a Random instance.
+///
+/// Parameters:
+/// - [initial]: Starting state
+/// - [goal]: The goal to reach
+/// - [config]: Segment stopping configuration
+/// - [maxSegments]: Safety limit to prevent infinite loops (default 100)
+/// - [maxExpandedNodesPerSegment]: Node limit per segment search
+SegmentedSolverResult solveToGoalViaSegments(
+  GlobalState initial,
+  Goal goal, {
+  SegmentConfig config = const SegmentConfig(),
+  int maxSegments = 100,
+  int maxExpandedNodesPerSegment = defaultMaxExpandedNodes,
+}) {
+  final segments = <Segment>[];
+  var currentState = initial;
+
+  for (var segmentIndex = 0; segmentIndex < maxSegments; segmentIndex++) {
+    // Check if goal is already satisfied
+    if (goal.isSatisfied(currentState)) {
+      break;
+    }
+
+    // Solve for next segment
+    final segmentResult = solveSegment(
+      currentState,
+      goal,
+      config: config,
+      maxExpandedNodes: maxExpandedNodesPerSegment,
+    );
+
+    switch (segmentResult) {
+      case SegmentFailed(:final failure):
+        return SegmentedFailed(failure, completedSegments: segments);
+
+      case SegmentSuccess(:final segment, :final finalState):
+        segments.add(segment);
+
+        // Use projected state from solve() (deterministic)
+        currentState = finalState;
+
+        // If goal reached, we're done
+        if (segment.stopBoundary is GoalReachedBoundary) {
+          break;
+        }
+    }
+  }
+
+  // Calculate total ticks
+  final totalTicks = segments.fold<int>(
+    0,
+    (sum, segment) => sum + segment.totalTicks,
+  );
+
+  return SegmentedSuccess(
+    segments: segments,
+    totalTicks: totalTicks,
+    totalReplanCount: segments.length,
+    finalState: currentState,
   );
 }

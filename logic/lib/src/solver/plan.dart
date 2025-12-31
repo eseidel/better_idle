@@ -21,6 +21,7 @@ library;
 import 'package:equatable/equatable.dart';
 import 'package:logic/src/data/action_id.dart';
 import 'package:logic/src/data/actions.dart';
+import 'package:logic/src/data/melvor_id.dart';
 import 'package:logic/src/solver/interaction.dart';
 import 'package:logic/src/solver/macro_candidate.dart';
 import 'package:logic/src/solver/replan_boundary.dart';
@@ -108,6 +109,134 @@ class MacroStep extends PlanStep {
   }
 }
 
+// ---------------------------------------------------------------------------
+// Segment Boundaries
+// ---------------------------------------------------------------------------
+
+/// What boundary type triggered a segment to end.
+///
+/// This is planning-time info (what we expect), not execution-time
+/// (what happened). Used to categorize segment stopping points.
+sealed class SegmentBoundary {
+  const SegmentBoundary();
+
+  /// Human-readable description of this boundary.
+  String describe();
+}
+
+/// Goal was reached - plan succeeded.
+@immutable
+class GoalReachedBoundary extends SegmentBoundary {
+  const GoalReachedBoundary();
+
+  @override
+  String describe() => 'Goal reached';
+}
+
+/// An upgrade became affordable.
+@immutable
+class UpgradeAffordableBoundary extends SegmentBoundary {
+  const UpgradeAffordableBoundary(this.purchaseId, this.upgradeName);
+
+  /// The upgrade that became affordable.
+  final MelvorId purchaseId;
+
+  /// Human-readable name of the upgrade.
+  final String upgradeName;
+
+  @override
+  String describe() => 'Upgrade $upgradeName affordable';
+}
+
+/// A skill level crossed an unlock boundary.
+@immutable
+class UnlockBoundary extends SegmentBoundary {
+  const UnlockBoundary(this.skill, this.level, this.unlocks);
+
+  /// The skill that leveled up.
+  final Skill skill;
+
+  /// The level that was reached.
+  final int level;
+
+  /// What gets unlocked at this level (human-readable).
+  final String unlocks;
+
+  @override
+  String describe() => '${skill.name} L$level unlocks $unlocks';
+}
+
+/// Inputs were depleted for a consuming action.
+@immutable
+class InputsDepletedBoundary extends SegmentBoundary {
+  const InputsDepletedBoundary(this.actionId);
+
+  /// The action that ran out of inputs.
+  final ActionId actionId;
+
+  @override
+  String describe() => 'Inputs depleted for ${actionId.localId.name}';
+}
+
+// ---------------------------------------------------------------------------
+// Segments
+// ---------------------------------------------------------------------------
+
+/// A portion of a plan between material boundaries.
+///
+/// Segments represent the natural stopping points where replanning should
+/// occur. Each segment ends at a material boundary (upgrade affordable,
+/// unlock reached, inputs depleted, or goal reached).
+@immutable
+class Segment {
+  const Segment({
+    required this.steps,
+    required this.totalTicks,
+    required this.interactionCount,
+    required this.stopBoundary,
+    this.description,
+  });
+
+  /// The sequence of steps in this segment.
+  final List<PlanStep> steps;
+
+  /// Total ticks for this segment.
+  final int totalTicks;
+
+  /// Number of interactions in this segment.
+  final int interactionCount;
+
+  /// What boundary this segment stops at.
+  final SegmentBoundary stopBoundary;
+
+  /// Human-readable description for rendering.
+  /// E.g., "WC→FM loop until Teak unlocked"
+  final String? description;
+}
+
+/// Marks where a segment starts within a Plan.
+@immutable
+class SegmentMarker {
+  const SegmentMarker({
+    required this.stepIndex,
+    required this.boundary,
+    this.description,
+  });
+
+  /// Index in Plan.steps where this segment starts.
+  final int stepIndex;
+
+  /// What boundary this segment stops at.
+  final SegmentBoundary boundary;
+
+  /// Optional human-readable description.
+  final String? description;
+}
+
+// ---------------------------------------------------------------------------
+// Plan
+// ---------------------------------------------------------------------------
+
 /// The result of running the solver.
 @immutable
 class Plan {
@@ -118,6 +247,7 @@ class Plan {
     this.expandedNodes = 0,
     this.enqueuedNodes = 0,
     this.expectedDeaths = 0,
+    this.segmentMarkers = const <SegmentMarker>[],
   });
 
   /// An empty plan (goal already satisfied).
@@ -127,7 +257,45 @@ class Plan {
       interactionCount = 0,
       expandedNodes = 0,
       enqueuedNodes = 0,
-      expectedDeaths = 0;
+      expectedDeaths = 0,
+      segmentMarkers = const <SegmentMarker>[];
+
+  /// Constructs a Plan from multiple segments.
+  ///
+  /// Stitches segments together into a single plan with segment markers
+  /// for rendering purposes.
+  factory Plan.fromSegments(
+    List<Segment> segments, {
+    int expandedNodes = 0,
+    int enqueuedNodes = 0,
+  }) {
+    final allSteps = <PlanStep>[];
+    final markers = <SegmentMarker>[];
+    var totalTicks = 0;
+    var interactionCount = 0;
+
+    for (final segment in segments) {
+      markers.add(
+        SegmentMarker(
+          stepIndex: allSteps.length,
+          boundary: segment.stopBoundary,
+          description: segment.description,
+        ),
+      );
+      allSteps.addAll(segment.steps);
+      totalTicks += segment.totalTicks;
+      interactionCount += segment.interactionCount;
+    }
+
+    return Plan(
+      steps: allSteps,
+      totalTicks: totalTicks,
+      interactionCount: interactionCount,
+      segmentMarkers: markers,
+      expandedNodes: expandedNodes,
+      enqueuedNodes: enqueuedNodes,
+    );
+  }
 
   /// The sequence of steps to reach the goal.
   final List<PlanStep> steps;
@@ -146,6 +314,10 @@ class Plan {
 
   /// Expected number of deaths during plan execution (from planning model).
   final int expectedDeaths;
+
+  /// Segment boundaries within this plan.
+  /// Used for rendering cycles like "Cycle 3: WC→FM loop until Teak unlocked".
+  final List<SegmentMarker> segmentMarkers;
 
   /// Human-readable total time.
   Duration get totalDuration => durationFromTicks(totalTicks);
@@ -327,9 +499,16 @@ sealed class SolverResult {
 }
 
 class SolverSuccess extends SolverResult {
-  const SolverSuccess(this.plan, [super.profile]);
+  const SolverSuccess(this.plan, this.terminalState, [super.profile]);
 
   final Plan plan;
+
+  /// The terminal node's state from the search.
+  ///
+  /// This is the state at the end of the plan, derived directly from the
+  /// A* search rather than replaying the plan. Used by solveSegment() to
+  /// derive segment boundaries without plan replay.
+  final GlobalState terminalState;
 }
 
 class SolverFailed extends SolverResult {

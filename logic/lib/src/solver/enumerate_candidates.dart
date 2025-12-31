@@ -973,6 +973,9 @@ Set<MelvorId> _computeKeepList(
     case ReachGpGoal():
       // GP goals sell everything
       break;
+    case SegmentGoal():
+      // Delegate to inner goal's consuming skills
+      consumingSkills.addAll(goal.consumingSkills);
   }
 
   if (consumingSkills.isEmpty) {

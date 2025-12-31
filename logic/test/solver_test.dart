@@ -293,11 +293,13 @@ void main() {
   });
 
   group('SolverResult', () {
-    test('SolverSuccess wraps plan', () {
+    test('SolverSuccess wraps plan and terminalState', () {
       const plan = Plan.empty();
-      const result = SolverSuccess(plan);
+      final terminalState = GlobalState.empty(testRegistries);
+      final result = SolverSuccess(plan, terminalState);
 
       expect(result.plan.steps, isEmpty);
+      expect(result.terminalState, terminalState);
     });
 
     test('SolverFailed wraps failure', () {

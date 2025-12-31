@@ -23,6 +23,7 @@ import 'package:logic/src/data/actions.dart';
 import 'package:logic/src/data/xp.dart';
 import 'package:logic/src/solver/estimate_rates.dart';
 import 'package:logic/src/solver/value_model.dart' show ValueModel;
+import 'package:logic/src/solver/watch_set.dart';
 import 'package:logic/src/state.dart';
 import 'package:meta/meta.dart';
 
@@ -314,4 +315,70 @@ class MultiSkillGoal extends Goal {
 
   @override
   List<Object?> get props => [subgoals];
+}
+
+/// A goal wrapper that stops at material boundaries.
+///
+/// This class delegates to a [WatchSet] for boundary detection.
+/// When [isSatisfied] returns true, it means a material boundary was crossed
+/// (goal reached, upgrade affordable, unlock boundary, etc.).
+///
+/// All other Goal methods delegate to the inner goal from the WatchSet.
+@immutable
+class SegmentGoal extends Goal {
+  const SegmentGoal(this.watchSet);
+
+  /// The WatchSet that defines what boundaries are material.
+  final WatchSet watchSet;
+
+  /// Convenience accessor for the inner goal.
+  Goal get innerGoal => watchSet.goal;
+
+  @override
+  bool isSatisfied(GlobalState state) {
+    // Delegate to watchSet - the SINGLE source of truth
+    return watchSet.detectBoundary(state) != null;
+  }
+
+  @override
+  double remaining(GlobalState state) => innerGoal.remaining(state);
+
+  @override
+  String describe() => 'Segment(${innerGoal.describe()})';
+
+  @override
+  double progressPerTick(GlobalState state, Rates rates) =>
+      innerGoal.progressPerTick(state, rates);
+
+  @override
+  int progress(GlobalState state) => innerGoal.progress(state);
+
+  @override
+  bool get isSellRelevant => innerGoal.isSellRelevant;
+
+  @override
+  bool isSkillRelevant(Skill skill) => innerGoal.isSkillRelevant(skill);
+
+  @override
+  double activityRate(Skill skill, double goldRate, double xpRate) =>
+      innerGoal.activityRate(skill, goldRate, xpRate);
+
+  @override
+  Set<Skill> get relevantSkillsForBucketing =>
+      innerGoal.relevantSkillsForBucketing;
+
+  @override
+  bool get shouldTrackHp => innerGoal.shouldTrackHp;
+
+  @override
+  bool get shouldTrackMastery => innerGoal.shouldTrackMastery;
+
+  @override
+  bool get shouldTrackInventory => innerGoal.shouldTrackInventory;
+
+  @override
+  Set<Skill> get consumingSkills => innerGoal.consumingSkills;
+
+  @override
+  List<Object?> get props => [watchSet];
 }
