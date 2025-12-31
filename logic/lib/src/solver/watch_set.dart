@@ -30,6 +30,21 @@ import 'package:logic/src/solver/unlock_boundaries.dart';
 import 'package:logic/src/state.dart';
 import 'package:meta/meta.dart';
 
+/// Calculates the total effective credits (GP + sellable inventory value).
+///
+/// If [keepItems] is provided, items in that set are excluded from the
+/// sellable value (they're needed as inputs for consuming skills).
+int _effectiveCredits(GlobalState state, {Set<MelvorId>? keepItems}) {
+  var total = state.gp;
+  for (final stack in state.inventory.items) {
+    if (keepItems != null && keepItems.contains(stack.item.id)) {
+      continue; // Don't count items we need to keep
+    }
+    total += stack.sellsFor;
+  }
+  return total;
+}
+
 /// Configuration for segment stopping behavior.
 @immutable
 class SegmentConfig {
@@ -68,6 +83,7 @@ class WatchSet {
     required this.watchedSkills,
     required this.previousLevels,
     required this.registries,
+    this.keepItems = const {},
   });
 
   /// The goal we're trying to reach.
@@ -91,6 +107,9 @@ class WatchSet {
   /// Registries for looking up purchase names.
   final Registries registries;
 
+  /// Items to keep (not count as sellable) for consuming skills.
+  final Set<MelvorId> keepItems;
+
   /// Detects if a state has hit a material boundary.
   ///
   /// Used by _SegmentGoal.isSatisfied() during planning.
@@ -103,12 +122,15 @@ class WatchSet {
     }
 
     // 2. Upgrade affordable? (only for watched upgrades)
+    // Use effective credits (GP + sellable inventory) since selling is instant
+    // Exclude items we need to keep for consuming skills
     if (config.stopAtUpgradeAffordable) {
+      final effectiveGp = _effectiveCredits(state, keepItems: keepItems);
       for (final upgradeId in upgradePurchaseIds) {
         final purchase = registries.shop.byId(upgradeId);
         if (purchase != null) {
           final gpCost = purchase.cost.gpCost;
-          if (gpCost != null && state.gp >= gpCost) {
+          if (gpCost != null && effectiveGp >= gpCost) {
             return UpgradeAffordableBoundary(upgradeId, purchase.name);
           }
         }
@@ -232,6 +254,9 @@ WatchSet buildWatchSet(GlobalState state, Goal goal, SegmentConfig config) {
       skill: state.skillState(skill).skillLevel,
   };
 
+  // Compute items to keep for consuming skills
+  final keepItems = _computeKeepItems(registries, goal, state);
+
   return WatchSet(
     goal: goal,
     config: config,
@@ -240,6 +265,7 @@ WatchSet buildWatchSet(GlobalState state, Goal goal, SegmentConfig config) {
     watchedSkills: goal.relevantSkillsForBucketing,
     previousLevels: previousLevels,
     registries: registries,
+    keepItems: keepItems,
   );
 }
 
@@ -274,4 +300,41 @@ Map<Skill, Set<int>> _toUnlockLevelSets(
     for (final entry in skillBoundaries.entries)
       entry.key: entry.value.boundaries.toSet(),
   };
+}
+
+/// Computes which items to keep (not sell) for consuming skill goals.
+///
+/// For goals involving consuming skills (Firemaking, Cooking, Smithing),
+/// we need to keep items that are inputs for those skills.
+Set<MelvorId> _computeKeepItems(
+  Registries registries,
+  Goal goal,
+  GlobalState state,
+) {
+  final keepItems = <MelvorId>{};
+
+  // Get consuming skills from the goal
+  final consumingSkills = goal.consumingSkills;
+  if (consumingSkills.isEmpty) {
+    return keepItems;
+  }
+
+  // Find all consuming actions for those skills and collect their inputs
+  for (final skill in consumingSkills) {
+    for (final action in registries.actions.forSkill(skill)) {
+      // Check if action is unlocked
+      final skillLevel = state.skillState(skill).skillLevel;
+      if (action.unlockLevel > skillLevel) continue;
+
+      // Get input items for this action
+      final actionStateVal = state.actionState(action.id);
+      final selection = actionStateVal.recipeSelection(action);
+      final inputs = action.inputsForRecipe(selection);
+
+      // Add all input item IDs to keep set
+      inputs.keys.forEach(keepItems.add);
+    }
+  }
+
+  return keepItems;
 }

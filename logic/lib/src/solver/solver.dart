@@ -2957,20 +2957,48 @@ SegmentedSolverResult solveToGoalViaSegments(
           break;
         }
 
-        // If we stopped because an upgrade became affordable, buy it
-        // and add a synthetic segment to record the purchase in the plan
+        // If we stopped because an upgrade became affordable, sell items
+        // (if needed) and buy it, then add a synthetic segment
         if (segment.stopBoundary is UpgradeAffordableBoundary) {
           final boundary = segment.stopBoundary as UpgradeAffordableBoundary;
-          final buyInteraction = BuyShopItem(boundary.purchaseId);
-          currentState = applyInteraction(currentState, buyInteraction);
 
-          // Add a synthetic segment for the purchase (0 ticks, just records
-          // the interaction)
+          final purchaseSteps = <PlanStep>[];
+
+          // Check if we need to sell items to afford the upgrade
+          final purchase = currentState.registries.shop.byId(
+            boundary.purchaseId,
+          );
+          final gpCost = purchase?.cost.gpCost ?? 0;
+
+          // Only sell if we don't have enough GP already
+          final needsToSell =
+              currentState.gp < gpCost &&
+              currentState.inventory.items.isNotEmpty;
+          if (needsToSell) {
+            // Use the goal's sell policy - this is a POLICY decision, not a
+            // heuristic. The goal knows which items to keep for consuming
+            // skills.
+            final sellPolicy = goal.computeSellPolicy(currentState);
+            final sellInteraction = SellItems(sellPolicy);
+            currentState = applyInteraction(currentState, sellInteraction);
+            purchaseSteps.add(InteractionStep(sellInteraction));
+          }
+
+          // Only buy if we can now afford it (selling may not have provided
+          // enough GP if using SellExceptPolicy)
+          if (currentState.gp >= gpCost) {
+            final buyInteraction = BuyShopItem(boundary.purchaseId);
+            currentState = applyInteraction(currentState, buyInteraction);
+            purchaseSteps.add(InteractionStep(buyInteraction));
+          }
+
+          // Add a synthetic segment for the sell+purchase (0 ticks, just
+          // records the interactions)
           segments.add(
             Segment(
-              steps: [InteractionStep(buyInteraction)],
+              steps: purchaseSteps,
               totalTicks: 0,
-              interactionCount: 1,
+              interactionCount: purchaseSteps.length,
               stopBoundary: boundary,
               description: 'Buy ${boundary.upgradeName}',
             ),

@@ -20,8 +20,11 @@ library;
 
 import 'package:equatable/equatable.dart';
 import 'package:logic/src/data/actions.dart';
+import 'package:logic/src/data/melvor_id.dart';
 import 'package:logic/src/data/xp.dart';
 import 'package:logic/src/solver/estimate_rates.dart';
+import 'package:logic/src/solver/interaction.dart'
+    show SellAllPolicy, SellExceptPolicy, SellPolicy;
 import 'package:logic/src/solver/value_model.dart' show ValueModel;
 import 'package:logic/src/solver/watch_set.dart';
 import 'package:logic/src/state.dart';
@@ -84,6 +87,17 @@ sealed class Goal extends Equatable {
   /// Returns the set of consuming skills that are part of this goal.
   /// Used to unconditionally include producer activities for these skills.
   Set<Skill> get consumingSkills;
+
+  /// Computes the sell policy for this goal.
+  ///
+  /// This is a POLICY decision, not a heuristic. The sell policy determines
+  /// which items to keep vs sell based on what the goal needs:
+  /// - GP goals: sell everything (all items contribute to GP)
+  /// - Skill goals: keep items that are inputs for consuming skills
+  ///
+  /// The [state] is used to determine which actions are unlocked and what
+  /// inputs they require.
+  SellPolicy computeSellPolicy(GlobalState state);
 }
 
 /// Goal to reach a target amount of GP (gold pieces).
@@ -157,6 +171,12 @@ class ReachGpGoal extends Goal {
   Set<Skill> get consumingSkills => Skill.consumingSkills;
 
   @override
+  SellPolicy computeSellPolicy(GlobalState state) {
+    // GP goals sell everything - all items contribute to GP
+    return const SellAllPolicy();
+  }
+
+  @override
   List<Object?> get props => [targetGp];
 }
 
@@ -218,6 +238,16 @@ class ReachSkillLevelGoal extends Goal {
 
   @override
   Set<Skill> get consumingSkills => skill.isConsuming ? {skill} : {};
+
+  @override
+  SellPolicy computeSellPolicy(GlobalState state) {
+    // Skill goals keep items that are inputs for consuming skills
+    final keepItems = _computeKeepItemsForSkills(state, consumingSkills);
+    if (keepItems.isEmpty) {
+      return const SellAllPolicy();
+    }
+    return SellExceptPolicy(keepItems);
+  }
 
   @override
   List<Object?> get props => [skill, targetLevel];
@@ -314,6 +344,16 @@ class MultiSkillGoal extends Goal {
       subgoals.expand((g) => g.consumingSkills).toSet();
 
   @override
+  SellPolicy computeSellPolicy(GlobalState state) {
+    // Multi-skill goals keep items for all consuming skills across subgoals
+    final keepItems = _computeKeepItemsForSkills(state, consumingSkills);
+    if (keepItems.isEmpty) {
+      return const SellAllPolicy();
+    }
+    return SellExceptPolicy(keepItems);
+  }
+
+  @override
   List<Object?> get props => [subgoals];
 }
 
@@ -380,5 +420,46 @@ class SegmentGoal extends Goal {
   Set<Skill> get consumingSkills => innerGoal.consumingSkills;
 
   @override
+  SellPolicy computeSellPolicy(GlobalState state) =>
+      innerGoal.computeSellPolicy(state);
+
+  @override
   List<Object?> get props => [watchSet];
+}
+
+// ---------------------------------------------------------------------------
+// Helper Functions
+// ---------------------------------------------------------------------------
+
+/// Computes which items to keep (not sell) for the given consuming skills.
+///
+/// Finds all actions for the consuming skills and collects their input items.
+Set<MelvorId> _computeKeepItemsForSkills(
+  GlobalState state,
+  Set<Skill> consumingSkills,
+) {
+  if (consumingSkills.isEmpty) {
+    return const {};
+  }
+
+  final keepItems = <MelvorId>{};
+  final registries = state.registries;
+
+  for (final skill in consumingSkills) {
+    for (final action in registries.actions.forSkill(skill)) {
+      // Check if action is unlocked
+      final skillLevel = state.skillState(skill).skillLevel;
+      if (action.unlockLevel > skillLevel) continue;
+
+      // Get input items for this action
+      final actionState = state.actionState(action.id);
+      final selection = actionState.recipeSelection(action);
+      final inputs = action.inputsForRecipe(selection);
+
+      // Add all input item IDs to keep set
+      keepItems.addAll(inputs.keys);
+    }
+  }
+
+  return keepItems;
 }

@@ -1434,4 +1434,84 @@ void main() {
       expect(builder.uniqueBucketKeys, 3);
     });
   });
+
+  group('solveToGoalViaSegments', () {
+    test('does not sell when GP is already sufficient for upgrade', () {
+      // Start with enough GP to buy Iron Axe (50 GP) plus some items
+      final logs = testItems.byName('Normal Logs');
+      final inventory = Inventory.fromItems(testItems, [
+        ItemStack(logs, count: 10),
+      ]);
+      // Start with 100 GP - enough for the 50 GP Iron Axe
+      final state = GlobalState.test(
+        testRegistries,
+        gp: 100,
+        inventory: inventory,
+      );
+      const goal = ReachSkillLevelGoal(Skill.woodcutting, 10);
+
+      final result = solveToGoalViaSegments(state, goal);
+
+      expect(result, isA<SegmentedSuccess>());
+      final success = result as SegmentedSuccess;
+
+      // Find any sell steps in the segments
+      var sellStepsFound = 0;
+      for (final segment in success.segments) {
+        for (final step in segment.steps) {
+          if (step is InteractionStep && step.interaction is SellItems) {
+            sellStepsFound++;
+          }
+        }
+      }
+
+      // Should have no sell steps since we had enough GP
+      expect(sellStepsFound, 0);
+    });
+
+    test('sells when GP is insufficient for upgrade', () {
+      // Start with no GP but enough items to afford Iron Axe (50 GP)
+      // Oak Logs sell for 5 GP each, so 20 logs = 100 GP
+      final oak = testItems.byName('Oak Logs');
+      final inventory = Inventory.fromItems(testItems, [
+        ItemStack(oak, count: 20), // Worth 100 GP when sold
+      ]);
+      final state = GlobalState.test(testRegistries, inventory: inventory);
+      // Goal higher level to ensure we hit upgrade boundary before goal
+      const goal = ReachSkillLevelGoal(Skill.woodcutting, 20);
+
+      final result = solveToGoalViaSegments(state, goal);
+
+      expect(result, isA<SegmentedSuccess>());
+      final success = result as SegmentedSuccess;
+
+      // Check if there's an upgrade boundary that triggered a sell
+      final hasUpgradeBoundary = success.segments.any(
+        (s) => s.stopBoundary is UpgradeAffordableBoundary,
+      );
+
+      // With 100 GP of sellable items and Iron Axe costing 50 GP,
+      // we should hit the upgrade boundary quickly
+      expect(
+        hasUpgradeBoundary,
+        isTrue,
+        reason: 'Should have upgrade boundary since we have sellable items',
+      );
+
+      // Count sell steps
+      var sellStepsFound = 0;
+      for (final segment in success.segments) {
+        for (final step in segment.steps) {
+          if (step is InteractionStep && step.interaction is SellItems) {
+            sellStepsFound++;
+          }
+        }
+      }
+      expect(
+        sellStepsFound,
+        greaterThan(0),
+        reason: 'Should sell to afford upgrade',
+      );
+    });
+  });
 }
