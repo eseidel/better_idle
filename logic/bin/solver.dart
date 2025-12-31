@@ -27,12 +27,12 @@ final _parser = ArgParser()
   ..addFlag(
     'diagnostics',
     abbr: 'd',
-    help: 'Collect and print solver diagnostics',
+    help: 'Collect and print solver diagnostics (works with both modes)',
     negatable: false,
   )
   ..addFlag(
-    'segments',
-    help: 'Use segment-based solver (iterative replanning)',
+    'offline',
+    help: 'Use single-shot solve (debug/benchmark mode, disables segments)',
     negatable: false,
   )
   ..addFlag(
@@ -75,20 +75,15 @@ void main(List<String> args) async {
 
   final initialState = GlobalState.empty(registries);
   final collectDiagnostics = results['diagnostics'] as bool;
-  final useSegments = results['segments'] as bool;
+  final useOfflineMode = results['offline'] as bool;
 
-  if (useSegments) {
-    print('Solving via segments...');
-    final stopwatch = Stopwatch()..start();
-    final result = solveToGoalViaSegments(initialState, goal);
-    stopwatch.stop();
-
-    print('Solver completed in ${stopwatch.elapsedMilliseconds}ms');
-    print('');
-
-    _printSegmentedResult(result, initialState, goal, registries);
-  } else {
-    print('Solving${collectDiagnostics ? ' (with diagnostics)' : ''}...');
+  // Default: segment-based solving. --offline enables single-shot mode.
+  if (useOfflineMode) {
+    // Single-shot solve (debug/benchmark mode)
+    print(
+      'Solving (offline/single-shot mode)'
+      '${collectDiagnostics ? ' with diagnostics' : ''}...',
+    );
     final stopwatch = Stopwatch()..start();
     final result = solve(
       initialState,
@@ -105,6 +100,30 @@ void main(List<String> args) async {
       initialState: initialState,
       goal: goal,
       registries: registries,
+      collectDiagnostics: collectDiagnostics,
+    );
+  } else {
+    // Segment-based solving (default)
+    print(
+      'Solving via segments'
+      '${collectDiagnostics ? ' with diagnostics' : ''}...',
+    );
+    final stopwatch = Stopwatch()..start();
+    final result = solveToGoal(
+      initialState,
+      goal,
+      collectDiagnostics: collectDiagnostics,
+    );
+    stopwatch.stop();
+
+    print('Solver completed in ${stopwatch.elapsedMilliseconds}ms');
+    print('');
+
+    _printSegmentedResult(
+      result,
+      initialState,
+      goal,
+      registries,
       collectDiagnostics: collectDiagnostics,
     );
   }
@@ -318,6 +337,78 @@ void _printSolverProfile(SolverProfile profile, {bool extended = false}) {
   }
 }
 
+/// Prints aggregate diagnostics for segment-based solving.
+void _printSegmentedDiagnostics(
+  List<SolverProfile> profiles, {
+  bool extended = false,
+}) {
+  // Aggregate stats across all segments
+  final totalNodes = profiles.fold(0, (sum, p) => sum + p.expandedNodes);
+  final totalNeighbors = profiles.fold(
+    0,
+    (sum, p) => sum + p.totalNeighborsGenerated,
+  );
+  final totalTimeUs = profiles.fold(0, (sum, p) => sum + p.totalTimeUs);
+
+  print('=== Aggregate Solver Profile ===');
+  print('Total expanded nodes: $totalNodes');
+  print('Total neighbors generated: $totalNeighbors');
+  if (totalTimeUs > 0) {
+    final nodesPerSec = totalNodes / (totalTimeUs / 1e6);
+    print('Overall nodes/sec: ${nodesPerSec.toStringAsFixed(1)}');
+  }
+  print(
+    'Avg branching factor: '
+    '${(totalNeighbors / totalNodes).toStringAsFixed(2)}',
+  );
+
+  // Extended: per-segment breakdown
+  if (!extended) return;
+
+  print('');
+  print('=== Per-Segment Diagnostics ===');
+  for (var i = 0; i < profiles.length; i++) {
+    final p = profiles[i];
+    print(
+      'Segment ${i + 1}: ${p.expandedNodes} nodes, '
+      '${p.nodesPerSecond.toStringAsFixed(0)} nodes/sec, '
+      'branching ${p.avgBranchingFactor.toStringAsFixed(2)}',
+    );
+  }
+
+  // Aggregate heuristic health across segments
+  final allBestRates = profiles.expand((p) => p.bestRateSamples).toList();
+  if (allBestRates.isNotEmpty) {
+    allBestRates.sort();
+    final minRate = allBestRates.first;
+    final maxRate = allBestRates.last;
+    final medRate = allBestRates[allBestRates.length ~/ 2];
+    print('');
+    print('Aggregate heuristic health:');
+    print(
+      '  bestRate range: ${minRate.toStringAsFixed(2)} - '
+      '${maxRate.toStringAsFixed(2)} (median: ${medRate.toStringAsFixed(2)})',
+    );
+  }
+
+  // Aggregate macro stop triggers
+  final allTriggers = <String, int>{};
+  for (final p in profiles) {
+    for (final entry in p.macroStopTriggers.entries) {
+      allTriggers[entry.key] = (allTriggers[entry.key] ?? 0) + entry.value;
+    }
+  }
+  if (allTriggers.isNotEmpty) {
+    print('');
+    print('Aggregate macro stop triggers:');
+    final sorted = allTriggers.entries.toList()
+      ..sort((a, b) => b.value.compareTo(a.value));
+    for (final entry in sorted) {
+      print('  ${entry.key}: ${entry.value}');
+    }
+  }
+}
+
 /// Parses the goal from command-line arguments.
 Goal _parseGoalFromArgs(ArgResults results) {
   if (results['skills'] != null) {
@@ -387,13 +478,15 @@ void _printSegmentedResult(
   SegmentedSolverResult result,
   GlobalState initialState,
   Goal goal,
-  Registries registries,
-) {
+  Registries registries, {
+  bool collectDiagnostics = false,
+}) {
   switch (result) {
     case SegmentedSuccess(
       :final segments,
       :final totalTicks,
       :final totalReplanCount,
+      :final segmentProfiles,
     ):
       print('=== Segment-Based Solver Result ===');
       print('Total segments: ${segments.length}');
@@ -401,15 +494,22 @@ void _printSegmentedResult(
       print('Total ticks: $totalTicks');
       print('');
 
-      // Print segment summaries
+      // Print segment summaries with optional per-segment diagnostics
       print('--- Segment Boundaries ---');
       for (var i = 0; i < segments.length; i++) {
         final segment = segments[i];
         final boundary = segment.stopBoundary;
         final ticks = segment.totalTicks;
         final steps = segment.steps.length;
+
+        // Include expanded nodes if diagnostics available
+        final profile = i < segmentProfiles.length ? segmentProfiles[i] : null;
+        final nodeInfo = profile != null
+            ? ' (${profile.expandedNodes} nodes)'
+            : '';
+
         print(
-          '  Segment ${i + 1}: $steps steps, $ticks ticks '
+          '  Segment ${i + 1}: $steps steps, $ticks ticks$nodeInfo '
           '-> ${boundary.describe()}',
         );
       }
@@ -443,6 +543,15 @@ void _printSegmentedResult(
       final deltaSign = delta >= 0 ? '+' : '';
       print('Delta: $deltaSign$delta ticks');
       print('Deaths: ${execResult.totalDeaths}');
+
+      // Print aggregate diagnostics if collected
+      if (segmentProfiles.isNotEmpty) {
+        print('');
+        _printSegmentedDiagnostics(
+          segmentProfiles,
+          extended: collectDiagnostics,
+        );
+      }
 
     case SegmentedFailed(:final failure, :final completedSegments):
       print('=== Segment-Based Solver FAILED ===');

@@ -2734,6 +2734,7 @@ class SegmentSuccess extends SegmentResult {
     required this.segment,
     required this.finalState,
     required this.context,
+    this.profile,
   });
 
   /// The segment (plan portion to boundary).
@@ -2744,6 +2745,9 @@ class SegmentSuccess extends SegmentResult {
 
   /// The segment context (includes WatchSet and SellPolicy).
   final SegmentContext context;
+
+  /// Solver profile for this segment (if collectDiagnostics was true).
+  final SolverProfile? profile;
 
   /// The WatchSet used for this segment (pass to executeSegment).
   WatchSet get watchSet => context.watchSet;
@@ -2769,11 +2773,13 @@ class SegmentFailed extends SegmentResult {
 /// Returns a [SegmentSuccess] with:
 /// - The segment (steps, ticks, boundary)
 /// - The terminal state (for continuing to next segment)
-/// - The SegmentContext (includes WatchSet and SellPolicy for boundary handling)
+/// - The SegmentContext (includes WatchSet and SellPolicy for boundary
+///   handling)
 SegmentResult solveSegment(
   GlobalState initial,
   Goal goal, {
   SegmentConfig config = const SegmentConfig(),
+  bool collectDiagnostics = false,
   int maxExpandedNodes = defaultMaxExpandedNodes,
   int maxQueueSize = defaultMaxQueueSize,
 }) {
@@ -2787,12 +2793,13 @@ SegmentResult solveSegment(
   final result = solve(
     initial,
     segmentGoal,
+    collectDiagnostics: collectDiagnostics,
     maxExpandedNodes: maxExpandedNodes,
     maxQueueSize: maxQueueSize,
   );
 
   return switch (result) {
-    SolverSuccess(:final plan, :final terminalState) => () {
+    SolverSuccess(:final plan, :final terminalState, :final profile) => () {
       // Derive boundary from terminal state (no replay needed!)
       final boundary =
           context.watchSet.detectBoundary(
@@ -2810,6 +2817,7 @@ SegmentResult solveSegment(
         ),
         finalState: terminalState,
         context: context,
+        profile: profile,
       );
     }(),
     SolverFailed(:final failure) => SegmentFailed(failure),
@@ -2917,6 +2925,7 @@ class SegmentedSuccess extends SegmentedSolverResult {
     required this.totalTicks,
     required this.totalReplanCount,
     required this.finalState,
+    this.segmentProfiles = const [],
   });
 
   /// Individual segments for debugging/inspection.
@@ -2930,6 +2939,18 @@ class SegmentedSuccess extends SegmentedSolverResult {
 
   /// Final state after all segments.
   final GlobalState finalState;
+
+  /// Per-segment solver profiles (if collectDiagnostics was true).
+  /// Length matches [segments] - each profile corresponds to a segment.
+  final List<SolverProfile> segmentProfiles;
+
+  /// Aggregate stats across all segments for summary display.
+  int get totalExpandedNodes =>
+      segmentProfiles.fold(0, (sum, p) => sum + p.expandedNodes);
+
+  /// Aggregate neighbors generated across all segments.
+  int get totalNeighborsGenerated =>
+      segmentProfiles.fold(0, (sum, p) => sum + p.totalNeighborsGenerated);
 }
 
 /// Failed to solve to goal via segments.
@@ -2942,10 +2963,11 @@ class SegmentedFailed extends SegmentedSolverResult {
   final List<Segment> completedSegments;
 }
 
-/// Solves to goal by iteratively solving segments.
+/// Primary entry point: solves to goal by iteratively solving segments.
 ///
-/// This is the new top-level entry point that makes replanning a normal
-/// part of control flow.
+/// This is the main solver API. Each segment plans to the next material
+/// boundary (upgrade affordable, skill unlock, inputs depleted, etc.),
+/// then replans from the new state.
 ///
 /// The loop:
 /// 1. Solve for next segment (to boundary)
@@ -2959,16 +2981,19 @@ class SegmentedFailed extends SegmentedSolverResult {
 /// - [initial]: Starting state
 /// - [goal]: The goal to reach
 /// - [config]: Segment stopping configuration
+/// - [collectDiagnostics]: If true, collect per-segment solver profiles
 /// - [maxSegments]: Safety limit to prevent infinite loops (default 100)
 /// - [maxExpandedNodesPerSegment]: Node limit per segment search
-SegmentedSolverResult solveToGoalViaSegments(
+SegmentedSolverResult solveToGoal(
   GlobalState initial,
   Goal goal, {
   SegmentConfig config = const SegmentConfig(),
+  bool collectDiagnostics = false,
   int maxSegments = 100,
   int maxExpandedNodesPerSegment = defaultMaxExpandedNodes,
 }) {
   final segments = <Segment>[];
+  final profiles = <SolverProfile>[];
   var currentState = initial;
 
   for (var segmentIndex = 0; segmentIndex < maxSegments; segmentIndex++) {
@@ -2982,6 +3007,7 @@ SegmentedSolverResult solveToGoalViaSegments(
       currentState,
       goal,
       config: config,
+      collectDiagnostics: collectDiagnostics,
       maxExpandedNodes: maxExpandedNodesPerSegment,
     );
 
@@ -2989,8 +3015,16 @@ SegmentedSolverResult solveToGoalViaSegments(
       case SegmentFailed(:final failure):
         return SegmentedFailed(failure, completedSegments: segments);
 
-      case SegmentSuccess(:final segment, :final finalState, :final sellPolicy):
+      case SegmentSuccess(
+        :final segment,
+        :final finalState,
+        :final sellPolicy,
+        :final profile,
+      ):
         segments.add(segment);
+        if (profile != null) {
+          profiles.add(profile);
+        }
 
         // Use projected state from solve() (deterministic)
         currentState = finalState;
@@ -3070,5 +3104,6 @@ SegmentedSolverResult solveToGoalViaSegments(
     totalTicks: totalTicks,
     totalReplanCount: segments.length,
     finalState: currentState,
+    segmentProfiles: profiles,
   );
 }

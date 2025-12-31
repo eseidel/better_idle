@@ -1435,7 +1435,7 @@ void main() {
     });
   });
 
-  group('solveToGoalViaSegments', () {
+  group('solveToGoal', () {
     test('does not sell when GP is already sufficient for upgrade', () {
       // Start with enough GP to buy Iron Axe (50 GP) plus some items
       final logs = testItems.byName('Normal Logs');
@@ -1450,7 +1450,7 @@ void main() {
       );
       const goal = ReachSkillLevelGoal(Skill.woodcutting, 10);
 
-      final result = solveToGoalViaSegments(state, goal);
+      final result = solveToGoal(state, goal);
 
       expect(result, isA<SegmentedSuccess>());
       final success = result as SegmentedSuccess;
@@ -1480,7 +1480,7 @@ void main() {
       // Goal higher level to ensure we hit upgrade boundary before goal
       const goal = ReachSkillLevelGoal(Skill.woodcutting, 20);
 
-      final result = solveToGoalViaSegments(state, goal);
+      final result = solveToGoal(state, goal);
 
       expect(result, isA<SegmentedSuccess>());
       final success = result as SegmentedSuccess;
