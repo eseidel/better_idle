@@ -1243,10 +1243,9 @@ void main() {
       final profile = (result as SolverSuccess).profile!;
 
       // Zero rate counters should be non-negative
-      expect(profile.rateZeroBecauseNoRelevantSkill, greaterThanOrEqualTo(0));
-      expect(profile.rateZeroBecauseNoUnlockedActions, greaterThanOrEqualTo(0));
-      expect(profile.rateZeroBecauseInputsRequired, greaterThanOrEqualTo(0));
-      expect(profile.rateZeroBecauseZeroTicks, greaterThanOrEqualTo(0));
+      for (final count in profile.rateZeroReasonCounts.values) {
+        expect(count, greaterThanOrEqualTo(0));
+      }
     });
 
     test('profile tracks time breakdown percentages', () {
@@ -1271,38 +1270,39 @@ void main() {
   group('SolverProfileBuilder', () {
     test('recordRateZeroReason increments correct counters', () {
       final builder = SolverProfileBuilder();
+      final counts = builder.rateZeroReasonCounts;
 
       // Initially all counters are zero
-      expect(builder.rateZeroBecauseNoRelevantSkill, 0);
-      expect(builder.rateZeroBecauseNoUnlockedActions, 0);
-      expect(builder.rateZeroBecauseInputsRequired, 0);
-      expect(builder.rateZeroBecauseZeroTicks, 0);
+      expect(counts[NoRelevantSkillReason], isNull);
+      expect(counts[NoUnlockedActionsReason], isNull);
+      expect(counts[InputsRequiredReason], isNull);
+      expect(counts[ZeroTicksReason], isNull);
 
       // Record each reason type
       builder.recordRateZeroReason(const NoRelevantSkillReason('test goal'));
-      expect(builder.rateZeroBecauseNoRelevantSkill, 1);
+      expect(counts[NoRelevantSkillReason], 1);
 
       builder.recordRateZeroReason(
         const NoUnlockedActionsReason(goalDescription: 'test goal'),
       );
-      expect(builder.rateZeroBecauseNoUnlockedActions, 1);
+      expect(counts[NoUnlockedActionsReason], 1);
 
       builder.recordRateZeroReason(const InputsRequiredReason());
-      expect(builder.rateZeroBecauseInputsRequired, 1);
+      expect(counts[InputsRequiredReason], 1);
 
       builder.recordRateZeroReason(const ZeroTicksReason());
-      expect(builder.rateZeroBecauseZeroTicks, 1);
+      expect(counts[ZeroTicksReason], 1);
 
       // Record same reason multiple times
       builder
         ..recordRateZeroReason(const NoRelevantSkillReason('test goal'))
         ..recordRateZeroReason(const NoRelevantSkillReason('test goal'));
-      expect(builder.rateZeroBecauseNoRelevantSkill, 3);
+      expect(counts[NoRelevantSkillReason], 3);
 
       // Other counters unchanged
-      expect(builder.rateZeroBecauseNoUnlockedActions, 1);
-      expect(builder.rateZeroBecauseInputsRequired, 1);
-      expect(builder.rateZeroBecauseZeroTicks, 1);
+      expect(counts[NoUnlockedActionsReason], 1);
+      expect(counts[InputsRequiredReason], 1);
+      expect(counts[ZeroTicksReason], 1);
     });
 
     test('RateZeroReason.describe returns appropriate messages', () {

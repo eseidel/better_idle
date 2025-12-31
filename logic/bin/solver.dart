@@ -260,25 +260,11 @@ void _printSolverProfile(SolverProfile profile, {bool extended = false}) {
   }
 
   // Why bestRate is zero
-  final totalZero =
-      profile.rateZeroBecauseNoRelevantSkill +
-      profile.rateZeroBecauseNoUnlockedActions +
-      profile.rateZeroBecauseInputsRequired +
-      profile.rateZeroBecauseZeroTicks;
-  if (totalZero > 0) {
+  if (profile.rateZeroReasonCounts.isNotEmpty) {
     print('');
     print('Why bestRate == 0:');
-    if (profile.rateZeroBecauseNoRelevantSkill > 0) {
-      print('  noRelevantSkill: ${profile.rateZeroBecauseNoRelevantSkill}');
-    }
-    if (profile.rateZeroBecauseNoUnlockedActions > 0) {
-      print('  noUnlockedActions: ${profile.rateZeroBecauseNoUnlockedActions}');
-    }
-    if (profile.rateZeroBecauseInputsRequired > 0) {
-      print('  inputsRequired: ${profile.rateZeroBecauseInputsRequired}');
-    }
-    if (profile.rateZeroBecauseZeroTicks > 0) {
-      print('  zeroTicks: ${profile.rateZeroBecauseZeroTicks}');
+    for (final entry in profile.rateZeroReasonCounts.entries) {
+      print('  ${entry.key}: ${entry.value}');
     }
   }
 
@@ -406,6 +392,10 @@ class _TimedSolverResult {
   /// Get a macro stop trigger count by key.
   int macroStopTrigger(String key) => profile?.macroStopTriggers[key] ?? 0;
 
+  /// Rate zero reason types from the profile.
+  Iterable<Type> get rateZeroReasonTypes =>
+      profile?.rateZeroReasonCounts.keys ?? const [];
+
   /// The last candidate stats sample, if any.
   CandidateStats? get lastCandidateStats =>
       profile?.candidateStatsHistory.lastOrNull;
@@ -522,12 +512,17 @@ Future<void> _runCliffDiagnostic(
   print('');
 
   // Why bestRate is zero counters
-  print('--- Why bestRate == 0 ---');
-  compare('noRelevantSkill', (p) => p.rateZeroBecauseNoRelevantSkill);
-  compare('noUnlockedActions', (p) => p.rateZeroBecauseNoUnlockedActions);
-  compare('inputsRequired', (p) => p.rateZeroBecauseInputsRequired);
-  compare('zeroTicks', (p) => p.rateZeroBecauseZeroTicks);
-  print('');
+  final zeroReasonTypes = <Type>{
+    ...lower.rateZeroReasonTypes,
+    ...upper.rateZeroReasonTypes,
+  };
+  if (zeroReasonTypes.isNotEmpty) {
+    print('--- Why bestRate == 0 ---');
+    for (final type in zeroReasonTypes) {
+      compare('$type', (p) => p.rateZeroReasonCounts[type] ?? 0);
+    }
+    print('');
+  }
 
   // Decision deltas
   print('--- Decision Deltas ---');

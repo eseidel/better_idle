@@ -2013,7 +2013,7 @@ SolverResult solve(
     // Build a minimal profile for early success
     final profile = profileBuilder.build(
       expandedNodes: 0,
-      frontier: const FrontierStats(inserted: 0, removed: 0),
+      frontier: FrontierStats.zero,
     );
     return SolverSuccess(const Plan.empty(), profile);
   }

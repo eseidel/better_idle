@@ -1,6 +1,9 @@
 import 'dart:math';
 
+import 'package:meta/meta.dart';
+
 /// Reasons why bestRate might be zero.
+@immutable
 sealed class RateZeroReason {
   const RateZeroReason();
 
@@ -9,6 +12,7 @@ sealed class RateZeroReason {
 }
 
 /// No skills relevant to the goal were found.
+@immutable
 class NoRelevantSkillReason extends RateZeroReason {
   const NoRelevantSkillReason(this.goalDescription);
 
@@ -19,6 +23,7 @@ class NoRelevantSkillReason extends RateZeroReason {
 }
 
 /// Skills exist but no actions are unlocked yet.
+@immutable
 class NoUnlockedActionsReason extends RateZeroReason {
   const NoUnlockedActionsReason({
     required this.goalDescription,
@@ -52,6 +57,7 @@ class NoUnlockedActionsReason extends RateZeroReason {
 }
 
 /// All unlocked actions require inputs (consuming skill).
+@immutable
 class InputsRequiredReason extends RateZeroReason {
   const InputsRequiredReason();
 
@@ -60,6 +66,7 @@ class InputsRequiredReason extends RateZeroReason {
 }
 
 /// Action has zero expected ticks (shouldn't happen).
+@immutable
 class ZeroTicksReason extends RateZeroReason {
   const ZeroTicksReason();
 
@@ -68,8 +75,9 @@ class ZeroTicksReason extends RateZeroReason {
 }
 
 /// Stats from a single candidate enumeration call.
+@immutable
 class CandidateStats {
-  CandidateStats({
+  const CandidateStats({
     required this.consumerActionsConsidered,
     required this.producerActionsConsidered,
     required this.pairsConsidered,
@@ -85,14 +93,18 @@ class CandidateStats {
 }
 
 /// Frontier statistics from dominance pruning.
+@immutable
 class FrontierStats {
   const FrontierStats({required this.inserted, required this.removed});
+
+  static FrontierStats zero = const FrontierStats(inserted: 0, removed: 0);
 
   final int inserted;
   final int removed;
 }
 
 /// Cache statistics.
+@immutable
 class CacheStats {
   const CacheStats({required this.hits, required this.misses});
 
@@ -101,6 +113,7 @@ class CacheStats {
 }
 
 /// Immutable profiling stats from a completed solve.
+@immutable
 class SolverProfile {
   const SolverProfile({
     required this.expandedNodes,
@@ -122,10 +135,7 @@ class SolverProfile {
     required this.candidateStatsHistory,
     required this.rootBestRate,
     required this.bestRateSamples,
-    required this.rateZeroBecauseNoRelevantSkill,
-    required this.rateZeroBecauseNoUnlockedActions,
-    required this.rateZeroBecauseInputsRequired,
-    required this.rateZeroBecauseZeroTicks,
+    required this.rateZeroReasonCounts,
   });
 
   final int expandedNodes;
@@ -165,10 +175,7 @@ class SolverProfile {
   final List<double> bestRateSamples;
 
   // Why bestRate is zero counters
-  final int rateZeroBecauseNoRelevantSkill;
-  final int rateZeroBecauseNoUnlockedActions;
-  final int rateZeroBecauseInputsRequired;
-  final int rateZeroBecauseZeroTicks;
+  final Map<Type, int> rateZeroReasonCounts;
 
   // Computed getters
   double get minBestRate =>
@@ -270,10 +277,7 @@ class SolverProfileBuilder {
   final List<double> bestRateSamples = [];
 
   // Why bestRate is zero counters
-  int rateZeroBecauseNoRelevantSkill = 0;
-  int rateZeroBecauseNoUnlockedActions = 0;
-  int rateZeroBecauseInputsRequired = 0;
-  int rateZeroBecauseZeroTicks = 0;
+  final Map<Type, int> rateZeroReasonCounts = {};
 
   void recordBestRate(double rate, {required bool isRoot}) {
     bestRateSamples.add(rate);
@@ -281,16 +285,8 @@ class SolverProfileBuilder {
   }
 
   void recordRateZeroReason(RateZeroReason reason) {
-    switch (reason) {
-      case NoRelevantSkillReason():
-        rateZeroBecauseNoRelevantSkill++;
-      case NoUnlockedActionsReason():
-        rateZeroBecauseNoUnlockedActions++;
-      case InputsRequiredReason():
-        rateZeroBecauseInputsRequired++;
-      case ZeroTicksReason():
-        rateZeroBecauseZeroTicks++;
-    }
+    final type = reason.runtimeType;
+    rateZeroReasonCounts[type] = (rateZeroReasonCounts[type] ?? 0) + 1;
   }
 
   void recordBucketKey(String key) {
@@ -335,10 +331,7 @@ class SolverProfileBuilder {
       candidateStatsHistory: List.unmodifiable(candidateStatsHistory),
       rootBestRate: rootBestRate,
       bestRateSamples: List.unmodifiable(bestRateSamples),
-      rateZeroBecauseNoRelevantSkill: rateZeroBecauseNoRelevantSkill,
-      rateZeroBecauseNoUnlockedActions: rateZeroBecauseNoUnlockedActions,
-      rateZeroBecauseInputsRequired: rateZeroBecauseInputsRequired,
-      rateZeroBecauseZeroTicks: rateZeroBecauseZeroTicks,
+      rateZeroReasonCounts: Map.unmodifiable(rateZeroReasonCounts),
     );
   }
 }
