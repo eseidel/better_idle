@@ -787,7 +787,8 @@ class _Node {
 ///    explosion.
 ///
 /// See also: `_selectConsumingSkillCandidatesWithStats` for candidate pruning.
-String _stateKey(GlobalState state, Goal goal) {
+({String key, int elapsedUs}) _stateKey(GlobalState state, Goal goal) {
+  final stopwatch = Stopwatch()..start();
   final buffer = StringBuffer();
 
   // Bucketed gold (coarse grouping for large goals)
@@ -843,7 +844,7 @@ String _stateKey(GlobalState state, Goal goal) {
     }
   }
 
-  return buffer.toString();
+  return (key: buffer.toString(), elapsedUs: stopwatch.elapsedMicroseconds);
 }
 
 /// Checks if an activity can be modeled with expected-value rates.
@@ -2064,9 +2065,8 @@ SolverResult solve(
   pq.add(0);
   enqueuedNodes++;
 
-  final hashStopwatch = Stopwatch()..start();
-  final rootKey = _stateKey(initial, goal);
-  profileBuilder.hashingTimeUs += hashStopwatch.elapsedMicroseconds;
+  final (key: rootKey, elapsedUs: rootElapsedUs) = _stateKey(initial, goal);
+  profileBuilder.hashingTimeUs += rootElapsedUs;
   bestTicks[rootKey] = 0;
 
   // Record root best rate for diagnostics
@@ -2140,11 +2140,11 @@ SolverResult solve(
 
     // Skip if we've already found a better path to this state
     // BUT: never skip if this node has reached the goal!
-    hashStopwatch
-      ..reset()
-      ..start();
-    final nodeKey = _stateKey(node.state, goal);
-    profileBuilder.hashingTimeUs += hashStopwatch.elapsedMicroseconds;
+    final (key: nodeKey, elapsedUs: nodeElapsedUs) = _stateKey(
+      node.state,
+      goal,
+    );
+    profileBuilder.hashingTimeUs += nodeElapsedUs;
 
     final nodeReachedGoal = goal.isSatisfied(node.state);
 
@@ -2252,11 +2252,11 @@ SolverResult solve(
           continue;
         }
 
-        hashStopwatch
-          ..reset()
-          ..start();
-        final newKey = _stateKey(newState, goal);
-        profileBuilder.hashingTimeUs += hashStopwatch.elapsedMicroseconds;
+        final (key: newKey, elapsedUs: newKeyElapsedUs) = _stateKey(
+          newState,
+          goal,
+        );
+        profileBuilder.hashingTimeUs += newKeyElapsedUs;
 
         // Only enqueue if this is the best path to this state
         final existingBest = bestTicks[newKey];
@@ -2316,11 +2316,11 @@ SolverResult solve(
         frontier.isDominatedOrInsert(newBucketKey, newTicks, newProgress);
       }
 
-      hashStopwatch
-        ..reset()
-        ..start();
-      final newKey = _stateKey(newState, goal);
-      profileBuilder.hashingTimeUs += hashStopwatch.elapsedMicroseconds;
+      final (key: newKey, elapsedUs: macroElapsedUs) = _stateKey(
+        newState,
+        goal,
+      );
+      profileBuilder.hashingTimeUs += macroElapsedUs;
 
       // Only enqueue if this is the best path to this state
       final existingBest = bestTicks[newKey];
@@ -2401,11 +2401,11 @@ SolverResult solve(
         if (reachedGoal) {
           frontier.isDominatedOrInsert(newBucketKey, newTicks, newProgress);
         }
-        hashStopwatch
-          ..reset()
-          ..start();
-        final newKey = _stateKey(newState, goal);
-        profileBuilder.hashingTimeUs += hashStopwatch.elapsedMicroseconds;
+        final (key: newKey, elapsedUs: waitElapsedUs) = _stateKey(
+          newState,
+          goal,
+        );
+        profileBuilder.hashingTimeUs += waitElapsedUs;
 
         // Safety: check for zero-progress waits (same state key after advance)
         // BUT: allow if we've reached the goal (even if state key unchanged)

@@ -1,5 +1,6 @@
 import 'dart:math';
 
+import 'package:collection/collection.dart';
 import 'package:meta/meta.dart';
 
 /// Reasons why bestRate might be zero.
@@ -112,6 +113,22 @@ class CacheStats {
   final int misses;
 }
 
+extension IterableDoubleExtension on Iterable<double> {
+  double? get medianOrNull {
+    if (isEmpty) return null;
+    final sorted = List<double>.from(this)..sort();
+    return sorted[sorted.length ~/ 2];
+  }
+}
+
+extension IterableIntExtension on Iterable<int> {
+  int? get medianOrNull {
+    if (isEmpty) return null;
+    final sorted = List<int>.from(this)..sort();
+    return sorted[sorted.length ~/ 2];
+  }
+}
+
 /// Immutable profiling stats from a completed solve.
 @immutable
 class SolverProfile {
@@ -178,17 +195,11 @@ class SolverProfile {
   final Map<Type, int> rateZeroReasonCounts;
 
   // Computed getters
-  double get minBestRate =>
-      bestRateSamples.isEmpty ? 0 : bestRateSamples.reduce(min);
+  double get minBestRate => bestRateSamples.minOrNull ?? 0;
 
-  double get maxBestRate =>
-      bestRateSamples.isEmpty ? 0 : bestRateSamples.reduce(max);
+  double get maxBestRate => bestRateSamples.maxOrNull ?? 0;
 
-  double get medianBestRate {
-    if (bestRateSamples.isEmpty) return 0;
-    final sorted = List<double>.from(bestRateSamples)..sort();
-    return sorted[sorted.length ~/ 2];
-  }
+  double get medianBestRate => bestRateSamples.medianOrNull ?? 0;
 
   double get nodesPerSecond =>
       totalTimeUs > 0 ? expandedNodes / (totalTimeUs / 1e6) : 0;
@@ -198,11 +209,7 @@ class SolverProfile {
 
   int get minDelta => decisionDeltas.isEmpty ? 0 : decisionDeltas.reduce(min);
 
-  int get medianDelta {
-    if (decisionDeltas.isEmpty) return 0;
-    final sorted = List<int>.from(decisionDeltas)..sort();
-    return sorted[sorted.length ~/ 2];
-  }
+  int get medianDelta => decisionDeltas.medianOrNull ?? 0;
 
   int get p95Delta {
     if (decisionDeltas.isEmpty) return 0;
@@ -223,17 +230,11 @@ class SolverProfile {
   double get hashingPercent =>
       totalTimeUs > 0 ? 100.0 * hashingTimeUs / totalTimeUs : 0;
 
-  int get minHeuristic =>
-      heuristicValues.isEmpty ? 0 : heuristicValues.reduce(min);
+  int get minHeuristic => heuristicValues.minOrNull ?? 0;
 
-  int get maxHeuristic =>
-      heuristicValues.isEmpty ? 0 : heuristicValues.reduce(max);
+  int get maxHeuristic => heuristicValues.maxOrNull ?? 0;
 
-  int get medianHeuristic {
-    if (heuristicValues.isEmpty) return 0;
-    final sorted = List<int>.from(heuristicValues)..sort();
-    return sorted[sorted.length ~/ 2];
-  }
+  int get medianHeuristic => heuristicValues.medianOrNull ?? 0;
 
   double get zeroRateFraction =>
       heuristicValues.isEmpty ? 0 : zeroRateCount / heuristicValues.length;
