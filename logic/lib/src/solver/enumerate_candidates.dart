@@ -746,9 +746,15 @@ List<MacroCandidate> _augmentMacrosWithUpgradeStops(
 /// Per-state filtering (canStartNow, active action exclusion) is done fresh.
 ///
 /// If [collectStats] is true, populates diagnostic stats for consuming skills.
+///
+/// If [sellPolicy] is provided, uses that policy for sell candidate emission.
+/// Otherwise, computes the policy from the goal (backward compatibility).
+/// For segment-based solving, pass the segment context's sellPolicy to ensure
+/// consistency with WatchSet boundary detection.
 Candidates enumerateCandidates(
   GlobalState state,
   Goal goal, {
+  SellPolicy? sellPolicy,
   int activityCount = defaultActivityCandidateCount,
   int upgradeCount = defaultUpgradeCandidateCount,
   int lockedWatchCount = defaultLockedWatchCount,
@@ -893,9 +899,11 @@ Candidates enumerateCandidates(
     consumingActivitiesToWatch.add(summary.actionId);
   }
 
-  // Sell policy is ALWAYS available from the goal (policy decision).
-  // This is used by WatchSet for effectiveCredits calculation.
-  final sellPolicy = goal.computeSellPolicy(state);
+  // Use provided sell policy (from SegmentContext) if available.
+  // Fallback to goal.computeSellPolicy only for backward compatibility
+  // with non-segment solves. This fallback should be removed once all
+  // callers pass the policy explicitly.
+  final effectiveSellPolicy = sellPolicy ?? goal.computeSellPolicy(state);
 
   // Whether to emit a sell candidate is a HEURISTIC (pruning) decision.
   // For skill goals, selling doesn't contribute to XP, so we skip it.
@@ -909,7 +917,7 @@ Candidates enumerateCandidates(
   return Candidates(
     switchToActivities: switchToActivities,
     buyUpgrades: upgradeResult.candidates,
-    sellPolicy: sellPolicy,
+    sellPolicy: effectiveSellPolicy,
     shouldEmitSellCandidate: shouldEmitSellCandidate,
     watch: WatchList(
       upgradePurchaseIds: upgradeResult.toWatch,

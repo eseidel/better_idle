@@ -1343,7 +1343,10 @@ _StepResult _executeCoupledLoop(
 
     // Check for material boundary (mid-macro stopping)
     if (watchSet != null) {
-      final boundary = watchSet.detectBoundary(currentState);
+      final boundary = watchSet.detectBoundary(
+        currentState,
+        elapsedTicks: totalTicks,
+      );
       if (boundary != null) {
         return (
           state: currentState,
@@ -1419,7 +1422,10 @@ _StepResult _executeCoupledLoop(
 
       // Check for material boundary after producing
       if (watchSet != null) {
-        final boundary = watchSet.detectBoundary(currentState);
+        final boundary = watchSet.detectBoundary(
+          currentState,
+          elapsedTicks: totalTicks,
+        );
         if (boundary != null) {
           return (
             state: currentState,
@@ -1453,7 +1459,10 @@ _StepResult _executeCoupledLoop(
 
     // Check for material boundary after consuming
     if (watchSet != null) {
-      final boundary = watchSet.detectBoundary(currentState);
+      final boundary = watchSet.detectBoundary(
+        currentState,
+        elapsedTicks: totalTicks,
+      );
       if (boundary != null) {
         return (
           state: currentState,
@@ -1532,6 +1541,12 @@ ReplanBoundary _segmentBoundaryToReplan(SegmentBoundary boundary) {
       // We don't track which item was depleted in SegmentBoundary
       missingItemId: const MelvorId('melvorD:Unknown'),
     ),
+    HorizonCapBoundary() =>
+      // Horizon cap is a planned stop, not an error. Signal as GoalReached.
+      const GoalReached(),
+    InventoryPressureBoundary() =>
+      // Inventory pressure triggers a replan to sell items.
+      const InventoryFull(),
   };
 }
 
@@ -1567,7 +1582,10 @@ _StepResult _applyStep(
 
       // Check for material boundary after waiting (mid-step stopping)
       if (watchSet != null) {
-        final materialBoundary = watchSet.detectBoundary(result.state);
+        final materialBoundary = watchSet.detectBoundary(
+          result.state,
+          elapsedTicks: result.ticksElapsed,
+        );
         if (materialBoundary != null) {
           return (
             state: result.state,
@@ -1663,7 +1681,8 @@ _StepResult _executeTrainSkillWithBoundaryChecks(
   WatchSet watchSet,
 ) {
   // Check for material boundary before starting
-  final initialBoundary = watchSet.detectBoundary(state);
+  // Note: elapsedTicks is 0 at start, so horizon cap won't trigger here
+  final initialBoundary = watchSet.detectBoundary(state, elapsedTicks: 0);
   if (initialBoundary != null) {
     return (
       state: state,
@@ -1677,7 +1696,10 @@ _StepResult _executeTrainSkillWithBoundaryChecks(
   final result = consumeUntil(state, waitFor, random: random);
 
   // Check for material boundary after execution
-  final materialBoundary = watchSet.detectBoundary(result.state);
+  final materialBoundary = watchSet.detectBoundary(
+    result.state,
+    elapsedTicks: result.ticksElapsed,
+  );
   if (materialBoundary != null) {
     return (
       state: result.state,
@@ -2358,10 +2380,17 @@ SolverResult solve(
     }
 
     // Compute candidates for this state
+    // For segment goals, use the WatchSet's sellPolicy to ensure consistency
+    // with boundary detection. For non-segment goals, enumerateCandidates
+    // will compute the policy from the goal (backward compatibility).
+    final segmentSellPolicy = goal is SegmentGoal
+        ? goal.watchSet.sellPolicy
+        : null;
     final enumStopwatch = Stopwatch()..start();
     final candidates = enumerateCandidates(
       node.state,
       goal,
+      sellPolicy: segmentSellPolicy,
       collectStats: collectDiagnostics,
     );
     profileBuilder.enumerateCandidatesTimeUs +=
@@ -2704,7 +2733,7 @@ class SegmentSuccess extends SegmentResult {
   const SegmentSuccess({
     required this.segment,
     required this.finalState,
-    required this.watchSet,
+    required this.context,
   });
 
   /// The segment (plan portion to boundary).
@@ -2713,8 +2742,14 @@ class SegmentSuccess extends SegmentResult {
   /// Terminal state from solve() - no replay needed.
   final GlobalState finalState;
 
+  /// The segment context (includes WatchSet and SellPolicy).
+  final SegmentContext context;
+
   /// The WatchSet used for this segment (pass to executeSegment).
-  final WatchSet watchSet;
+  WatchSet get watchSet => context.watchSet;
+
+  /// The SellPolicy for this segment (use for boundary handling).
+  SellPolicy get sellPolicy => context.sellPolicy;
 }
 
 /// Segment solve failed.
@@ -2734,7 +2769,7 @@ class SegmentFailed extends SegmentResult {
 /// Returns a [SegmentSuccess] with:
 /// - The segment (steps, ticks, boundary)
 /// - The terminal state (for continuing to next segment)
-/// - The WatchSet (for use by executeSegment)
+/// - The SegmentContext (includes WatchSet and SellPolicy for boundary handling)
 SegmentResult solveSegment(
   GlobalState initial,
   Goal goal, {
@@ -2742,11 +2777,11 @@ SegmentResult solveSegment(
   int maxExpandedNodes = defaultMaxExpandedNodes,
   int maxQueueSize = defaultMaxQueueSize,
 }) {
-  // Build watch set from current state - this is the SINGLE source of truth
-  final watchSet = buildWatchSet(initial, goal, config);
+  // Build segment context - computes SellPolicy once and passes to WatchSet
+  final context = SegmentContext.build(initial, goal, config);
 
   // Create segment goal that delegates to watchSet.detectBoundary()
-  final segmentGoal = SegmentGoal(watchSet);
+  final segmentGoal = SegmentGoal(context.watchSet);
 
   // solve() now returns terminal state directly
   final result = solve(
@@ -2760,7 +2795,11 @@ SegmentResult solveSegment(
     SolverSuccess(:final plan, :final terminalState) => () {
       // Derive boundary from terminal state (no replay needed!)
       final boundary =
-          watchSet.detectBoundary(terminalState) ?? const GoalReachedBoundary();
+          context.watchSet.detectBoundary(
+            terminalState,
+            elapsedTicks: plan.totalTicks,
+          ) ??
+          const GoalReachedBoundary();
 
       return SegmentSuccess(
         segment: Segment(
@@ -2770,7 +2809,7 @@ SegmentResult solveSegment(
           stopBoundary: boundary,
         ),
         finalState: terminalState,
-        watchSet: watchSet,
+        context: context,
       );
     }(),
     SolverFailed(:final failure) => SegmentFailed(failure),
@@ -2950,7 +2989,7 @@ SegmentedSolverResult solveToGoalViaSegments(
       case SegmentFailed(:final failure):
         return SegmentedFailed(failure, completedSegments: segments);
 
-      case SegmentSuccess(:final segment, :final finalState):
+      case SegmentSuccess(:final segment, :final finalState, :final sellPolicy):
         segments.add(segment);
 
         // Use projected state from solve() (deterministic)
@@ -2979,17 +3018,26 @@ SegmentedSolverResult solveToGoalViaSegments(
               currentState.gp < gpCost &&
               currentState.inventory.items.isNotEmpty;
           if (needsToSell) {
-            // Use the goal's sell policy - this is a POLICY decision, not a
-            // heuristic. The goal knows which items to keep for consuming
-            // skills.
-            final sellPolicy = goal.computeSellPolicy(currentState);
+            // Use the segment's sell policy - computed once at segment start.
+            // This is the SAME policy used by WatchSet for effectiveCredits,
+            // ensuring the boundary detection and handling are consistent.
             final sellInteraction = SellItems(sellPolicy);
             currentState = applyInteraction(currentState, sellInteraction);
             purchaseSteps.add(InteractionStep(sellInteraction));
+
+            // INVARIANT: If WatchSet reported this upgrade as affordable,
+            // applying the same sell policy must make it purchasable.
+            // If this fails, WatchSet and boundary handling disagree - a bug.
+            assert(
+              currentState.gp >= gpCost,
+              'Invariant violated: WatchSet reported upgrade affordable but '
+              'selling with the same policy only yielded ${currentState.gp} GP '
+              '(need $gpCost). This indicates a bug in effectiveCredits or '
+              'sell policy handling.',
+            );
           }
 
-          // Only buy if we can now afford it (selling may not have provided
-          // enough GP if using SellExceptPolicy)
+          // Buy the upgrade (should always succeed after selling per invariant)
           if (currentState.gp >= gpCost) {
             final buyInteraction = BuyShopItem(boundary.purchaseId);
             currentState = applyInteraction(currentState, buyInteraction);

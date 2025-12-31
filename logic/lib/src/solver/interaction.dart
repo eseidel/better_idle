@@ -17,8 +17,10 @@ library;
 
 import 'package:equatable/equatable.dart';
 import 'package:logic/src/data/action_id.dart';
+import 'package:logic/src/data/actions.dart' show Skill;
 import 'package:logic/src/data/melvor_id.dart';
 import 'package:logic/src/solver/plan.dart' show WaitStep;
+import 'package:logic/src/state.dart' show GlobalState;
 import 'package:meta/meta.dart';
 
 /// Represents a possible interaction that can change game state.
@@ -109,4 +111,102 @@ class SellExceptPolicy extends SellPolicy {
 
   @override
   String toString() => 'SellExceptPolicy(keep: ${keepItems.length} items)';
+}
+
+// ---------------------------------------------------------------------------
+// Sell Policy Specs
+// ---------------------------------------------------------------------------
+
+/// Specification for which sell policy family to use.
+///
+/// This is a stable, immutable description chosen once per solve/segment.
+/// It does not contain state-dependent data like the `keepItems` set.
+///
+/// Use [instantiate] to create a concrete [SellPolicy] from a spec + state.
+@immutable
+sealed class SellPolicySpec extends Equatable {
+  const SellPolicySpec();
+
+  /// Creates a concrete [SellPolicy] from this spec and the current state.
+  ///
+  /// The [state] is used to determine which actions are unlocked and what
+  /// inputs they require (for [ReserveConsumingInputsSpec]).
+  ///
+  /// The [consumingSkills] determines which skills' inputs to preserve.
+  SellPolicy instantiate(GlobalState state, Set<Skill> consumingSkills);
+}
+
+/// Sell all items - no reservations.
+///
+/// Used for GP goals where all items contribute to progress.
+class SellAllSpec extends SellPolicySpec {
+  const SellAllSpec();
+
+  @override
+  SellPolicy instantiate(GlobalState state, Set<Skill> consumingSkills) {
+    return const SellAllPolicy();
+  }
+
+  @override
+  List<Object?> get props => [];
+
+  @override
+  String toString() => 'SellAllSpec()';
+}
+
+/// Reserve inputs for consuming skills before selling.
+///
+/// This is the default spec for skill goals with consuming skills.
+/// Computes the keep set from unlocked actions' inputs.
+class ReserveConsumingInputsSpec extends SellPolicySpec {
+  const ReserveConsumingInputsSpec();
+
+  @override
+  SellPolicy instantiate(GlobalState state, Set<Skill> consumingSkills) {
+    if (consumingSkills.isEmpty) {
+      return const SellAllPolicy();
+    }
+
+    final keepItems = _computeKeepItemsForSkills(state, consumingSkills);
+    if (keepItems.isEmpty) {
+      return const SellAllPolicy();
+    }
+    return SellExceptPolicy(keepItems);
+  }
+
+  @override
+  List<Object?> get props => [];
+
+  @override
+  String toString() => 'ReserveConsumingInputsSpec()';
+}
+
+/// Computes which items to keep (not sell) for the given consuming skills.
+///
+/// Finds all unlocked actions for the consuming skills and collects their
+/// input items.
+Set<MelvorId> _computeKeepItemsForSkills(
+  GlobalState state,
+  Set<Skill> consumingSkills,
+) {
+  final keepItems = <MelvorId>{};
+  final registries = state.registries;
+
+  for (final skill in consumingSkills) {
+    for (final action in registries.actions.forSkill(skill)) {
+      // Check if action is unlocked
+      final skillLevel = state.skillState(skill).skillLevel;
+      if (action.unlockLevel > skillLevel) continue;
+
+      // Get input items for this action
+      final actionState = state.actionState(action.id);
+      final selection = actionState.recipeSelection(action);
+      final inputs = action.inputsForRecipe(selection);
+
+      // Add all input item IDs to keep set
+      keepItems.addAll(inputs.keys);
+    }
+  }
+
+  return keepItems;
 }

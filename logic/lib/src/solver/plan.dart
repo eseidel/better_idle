@@ -178,6 +178,33 @@ class InputsDepletedBoundary extends SegmentBoundary {
   String describe() => 'Inputs depleted for ${actionId.localId.name}';
 }
 
+/// Segment reached the maximum tick horizon.
+@immutable
+class HorizonCapBoundary extends SegmentBoundary {
+  const HorizonCapBoundary(this.ticksElapsed);
+
+  /// How many ticks elapsed before hitting the cap.
+  final int ticksElapsed;
+
+  @override
+  String describe() => 'Horizon cap reached ($ticksElapsed ticks)';
+}
+
+/// Inventory usage exceeded the pressure threshold.
+@immutable
+class InventoryPressureBoundary extends SegmentBoundary {
+  const InventoryPressureBoundary(this.usedSlots, this.totalSlots);
+
+  /// Number of inventory slots in use.
+  final int usedSlots;
+
+  /// Total inventory capacity.
+  final int totalSlots;
+
+  @override
+  String describe() => 'Inventory pressure ($usedSlots/$totalSlots slots)';
+}
+
 // ---------------------------------------------------------------------------
 // Segments
 // ---------------------------------------------------------------------------

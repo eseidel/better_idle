@@ -25,7 +25,11 @@ import 'package:logic/src/data/melvor_id.dart';
 import 'package:logic/src/data/registries.dart';
 import 'package:logic/src/solver/goal.dart';
 import 'package:logic/src/solver/interaction.dart'
-    show SellExceptPolicy, SellPolicy;
+    show
+        ReserveConsumingInputsSpec,
+        SellExceptPolicy,
+        SellPolicy,
+        SellPolicySpec;
 import 'package:logic/src/solver/plan.dart';
 import 'package:logic/src/solver/replan_boundary.dart';
 import 'package:logic/src/solver/unlock_boundaries.dart';
@@ -56,6 +60,10 @@ class SegmentConfig {
     this.stopAtUpgradeAffordable = true,
     this.stopAtUnlockBoundary = true,
     this.stopAtInputsDepleted = true,
+    this.stopAtInventoryPressure = false,
+    this.maxSegmentTicks,
+    this.inventoryPressureThreshold = 0.9,
+    this.sellPolicySpec = const ReserveConsumingInputsSpec(),
   });
 
   /// Whether to stop when a watched upgrade becomes affordable.
@@ -66,6 +74,38 @@ class SegmentConfig {
 
   /// Whether to stop when a consuming action runs out of inputs.
   final bool stopAtInputsDepleted;
+
+  /// Whether to stop when inventory is getting full.
+  ///
+  /// When true, segment will stop when inventory usage exceeds
+  /// [inventoryPressureThreshold]. This allows the solver to plan
+  /// a sell action before hitting hard inventory-full.
+  final bool stopAtInventoryPressure;
+
+  /// Maximum ticks for a single segment (horizon cap).
+  ///
+  /// If set, segments will stop after this many ticks even if no
+  /// other boundary is reached. This prevents unbounded planning
+  /// and allows periodic replanning.
+  ///
+  /// If null, no tick limit is applied.
+  final int? maxSegmentTicks;
+
+  /// Threshold for inventory pressure (0.0 to 1.0).
+  ///
+  /// When [stopAtInventoryPressure] is true, segment stops when
+  /// inventory usage exceeds this percentage. Default is 0.9 (90%).
+  final double inventoryPressureThreshold;
+
+  /// The sell policy specification to use for this segment.
+  ///
+  /// This determines the liquidation philosophy - which items to keep vs sell.
+  /// The concrete [SellPolicy] is computed once at segment start using
+  /// [SellPolicySpec.instantiate].
+  ///
+  /// Defaults to [ReserveConsumingInputsSpec] which preserves inputs for
+  /// consuming skills.
+  final SellPolicySpec sellPolicySpec;
 }
 
 /// A WatchSet defines what boundaries are "material" for a segment.
@@ -120,13 +160,36 @@ class WatchSet {
   /// Used by _SegmentGoal.isSatisfied() during planning.
   /// For unlock boundaries, detects TRANSITIONS
   /// (previousLevel < boundary <= currentLevel).
-  SegmentBoundary? detectBoundary(GlobalState state) {
+  ///
+  /// The optional [elapsedTicks] parameter is used for horizon cap detection.
+  /// If not provided, horizon cap is not checked.
+  SegmentBoundary? detectBoundary(GlobalState state, {int? elapsedTicks}) {
     // 1. Goal reached?
     if (goal.isSatisfied(state)) {
       return const GoalReachedBoundary();
     }
 
-    // 2. Upgrade affordable? (only for watched upgrades)
+    // 2. Horizon cap reached?
+    final maxTicks = config.maxSegmentTicks;
+    if (maxTicks != null && elapsedTicks != null) {
+      if (elapsedTicks >= maxTicks) {
+        return HorizonCapBoundary(elapsedTicks);
+      }
+    }
+
+    // 3. Inventory pressure?
+    if (config.stopAtInventoryPressure) {
+      final usedSlots = state.inventoryUsed;
+      final totalSlots = state.inventoryCapacity;
+      if (totalSlots > 0) {
+        final usage = usedSlots / totalSlots;
+        if (usage >= config.inventoryPressureThreshold) {
+          return InventoryPressureBoundary(usedSlots, totalSlots);
+        }
+      }
+    }
+
+    // 4. Upgrade affordable? (only for watched upgrades)
     // Use effective credits (GP + sellable inventory) since selling is instant
     // The sell policy determines which items are sellable
     if (config.stopAtUpgradeAffordable) {
@@ -142,7 +205,7 @@ class WatchSet {
       }
     }
 
-    // 3. Unlock boundary? Detect level TRANSITION, not snapshot
+    // 5. Unlock boundary? Detect level TRANSITION, not snapshot
     if (config.stopAtUnlockBoundary) {
       for (final skill in watchedSkills) {
         final currentLevel = state.skillState(skill).skillLevel;
@@ -243,7 +306,17 @@ class WatchSet {
 ///
 /// This is decoupled from enumerateCandidates - it computes watches
 /// directly from registries and goal.
-WatchSet buildWatchSet(GlobalState state, Goal goal, SegmentConfig config) {
+///
+/// The [sellPolicy] parameter is required - it must be computed once at
+/// segment start using [SegmentConfig.sellPolicySpec.instantiate] and
+/// passed here. This ensures WatchSet and boundary handling share the
+/// same policy.
+WatchSet buildWatchSet(
+  GlobalState state,
+  Goal goal,
+  SegmentConfig config,
+  SellPolicy sellPolicy,
+) {
   final registries = state.registries;
 
   // Compute upgrade watches from shop registry
@@ -259,10 +332,6 @@ WatchSet buildWatchSet(GlobalState state, Goal goal, SegmentConfig config) {
       skill: state.skillState(skill).skillLevel,
   };
 
-  // Get sell policy from the goal - this is the SINGLE source of truth
-  // for what items to keep vs sell
-  final sellPolicy = goal.computeSellPolicy(state);
-
   return WatchSet(
     goal: goal,
     config: config,
@@ -273,6 +342,80 @@ WatchSet buildWatchSet(GlobalState state, Goal goal, SegmentConfig config) {
     registries: registries,
     sellPolicy: sellPolicy,
   );
+}
+
+// ---------------------------------------------------------------------------
+// Segment Context
+// ---------------------------------------------------------------------------
+
+/// Bundles together the policy and derived objects for a segment.
+///
+/// Created once at segment start, this ensures that WatchSet, candidate
+/// enumeration, and boundary handling all use the SAME [sellPolicy].
+///
+/// ## Design Rationale
+///
+/// Previously, `SellPolicy` was computed in multiple places:
+/// - in `buildWatchSet()` (for effectiveCredits calculation)
+/// - in `enumerateCandidates()` (for sell candidate emission)
+/// - in boundary handling (when buying after UpgradeAffordableBoundary)
+///
+/// This violated a key invariant: if WatchSet reports an upgrade as
+/// affordable (based on one SellPolicy), the boundary handler must be able
+/// to liquidate and buy using the SAME policy.
+///
+/// SegmentContext ensures policy is computed once and reused everywhere.
+@immutable
+class SegmentContext {
+  const SegmentContext({
+    required this.goal,
+    required this.config,
+    required this.sellPolicySpec,
+    required this.sellPolicy,
+    required this.watchSet,
+  });
+
+  /// Creates a SegmentContext by computing the sell policy and watch set.
+  ///
+  /// This is the preferred way to create a SegmentContext - it ensures
+  /// the sell policy is computed from the spec and passed to buildWatchSet.
+  factory SegmentContext.build(
+    GlobalState state,
+    Goal goal,
+    SegmentConfig config,
+  ) {
+    final spec = config.sellPolicySpec;
+    final sellPolicy = spec.instantiate(state, goal.consumingSkills);
+    final watchSet = buildWatchSet(state, goal, config, sellPolicy);
+
+    return SegmentContext(
+      goal: goal,
+      config: config,
+      sellPolicySpec: spec,
+      sellPolicy: sellPolicy,
+      watchSet: watchSet,
+    );
+  }
+
+  /// The goal we're trying to reach.
+  final Goal goal;
+
+  /// Configuration for stopping behavior.
+  final SegmentConfig config;
+
+  /// The stable policy specification (chosen once per solve).
+  final SellPolicySpec sellPolicySpec;
+
+  /// The concrete policy computed from [sellPolicySpec] and current state.
+  ///
+  /// This is the SINGLE source of truth for what items to keep vs sell
+  /// within this segment.
+  final SellPolicy sellPolicy;
+
+  /// The watch set for boundary detection.
+  ///
+  /// Uses [sellPolicy] for effectiveCredits calculation.
+  final WatchSet watchSet;
 }
 
 /// Computes which upgrades to watch based on goal and current state.
