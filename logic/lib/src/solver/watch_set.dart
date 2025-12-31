@@ -24,6 +24,8 @@ import 'package:logic/src/data/actions.dart';
 import 'package:logic/src/data/melvor_id.dart';
 import 'package:logic/src/data/registries.dart';
 import 'package:logic/src/solver/goal.dart';
+import 'package:logic/src/solver/interaction.dart'
+    show SellExceptPolicy, SellPolicy;
 import 'package:logic/src/solver/plan.dart';
 import 'package:logic/src/solver/replan_boundary.dart';
 import 'package:logic/src/solver/unlock_boundaries.dart';
@@ -32,12 +34,14 @@ import 'package:meta/meta.dart';
 
 /// Calculates the total effective credits (GP + sellable inventory value).
 ///
-/// If [keepItems] is provided, items in that set are excluded from the
-/// sellable value (they're needed as inputs for consuming skills).
-int _effectiveCredits(GlobalState state, {Set<MelvorId>? keepItems}) {
+/// Uses the [sellPolicy] to determine which items count as sellable.
+/// Items that should be kept (per policy) are excluded from the value.
+int _effectiveCredits(GlobalState state, SellPolicy sellPolicy) {
   var total = state.gp;
   for (final stack in state.inventory.items) {
-    if (keepItems != null && keepItems.contains(stack.item.id)) {
+    // Check if this item should be kept per the sell policy
+    if (sellPolicy is SellExceptPolicy &&
+        sellPolicy.keepItems.contains(stack.item.id)) {
       continue; // Don't count items we need to keep
     }
     total += stack.sellsFor;
@@ -83,7 +87,7 @@ class WatchSet {
     required this.watchedSkills,
     required this.previousLevels,
     required this.registries,
-    this.keepItems = const {},
+    required this.sellPolicy,
   });
 
   /// The goal we're trying to reach.
@@ -107,8 +111,9 @@ class WatchSet {
   /// Registries for looking up purchase names.
   final Registries registries;
 
-  /// Items to keep (not count as sellable) for consuming skills.
-  final Set<MelvorId> keepItems;
+  /// Sell policy from the goal, used for effectiveCredits calculation.
+  /// This determines which items count as sellable for boundary detection.
+  final SellPolicy sellPolicy;
 
   /// Detects if a state has hit a material boundary.
   ///
@@ -123,9 +128,9 @@ class WatchSet {
 
     // 2. Upgrade affordable? (only for watched upgrades)
     // Use effective credits (GP + sellable inventory) since selling is instant
-    // Exclude items we need to keep for consuming skills
+    // The sell policy determines which items are sellable
     if (config.stopAtUpgradeAffordable) {
-      final effectiveGp = _effectiveCredits(state, keepItems: keepItems);
+      final effectiveGp = _effectiveCredits(state, sellPolicy);
       for (final upgradeId in upgradePurchaseIds) {
         final purchase = registries.shop.byId(upgradeId);
         if (purchase != null) {
@@ -254,8 +259,9 @@ WatchSet buildWatchSet(GlobalState state, Goal goal, SegmentConfig config) {
       skill: state.skillState(skill).skillLevel,
   };
 
-  // Compute items to keep for consuming skills
-  final keepItems = _computeKeepItems(registries, goal, state);
+  // Get sell policy from the goal - this is the SINGLE source of truth
+  // for what items to keep vs sell
+  final sellPolicy = goal.computeSellPolicy(state);
 
   return WatchSet(
     goal: goal,
@@ -265,7 +271,7 @@ WatchSet buildWatchSet(GlobalState state, Goal goal, SegmentConfig config) {
     watchedSkills: goal.relevantSkillsForBucketing,
     previousLevels: previousLevels,
     registries: registries,
-    keepItems: keepItems,
+    sellPolicy: sellPolicy,
   );
 }
 
@@ -300,41 +306,4 @@ Map<Skill, Set<int>> _toUnlockLevelSets(
     for (final entry in skillBoundaries.entries)
       entry.key: entry.value.boundaries.toSet(),
   };
-}
-
-/// Computes which items to keep (not sell) for consuming skill goals.
-///
-/// For goals involving consuming skills (Firemaking, Cooking, Smithing),
-/// we need to keep items that are inputs for those skills.
-Set<MelvorId> _computeKeepItems(
-  Registries registries,
-  Goal goal,
-  GlobalState state,
-) {
-  final keepItems = <MelvorId>{};
-
-  // Get consuming skills from the goal
-  final consumingSkills = goal.consumingSkills;
-  if (consumingSkills.isEmpty) {
-    return keepItems;
-  }
-
-  // Find all consuming actions for those skills and collect their inputs
-  for (final skill in consumingSkills) {
-    for (final action in registries.actions.forSkill(skill)) {
-      // Check if action is unlocked
-      final skillLevel = state.skillState(skill).skillLevel;
-      if (action.unlockLevel > skillLevel) continue;
-
-      // Get input items for this action
-      final actionStateVal = state.actionState(action.id);
-      final selection = actionStateVal.recipeSelection(action);
-      final inputs = action.inputsForRecipe(selection);
-
-      // Add all input item IDs to keep set
-      inputs.keys.forEach(keepItems.add);
-    }
-  }
-
-  return keepItems;
 }

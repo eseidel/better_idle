@@ -2382,9 +2382,13 @@ SolverResult solve(
     }
 
     // Expand interaction edges (0 time cost)
+    // Only pass sellPolicy if we should emit a sell candidate (pruning)
+    final sellPolicy = candidates.shouldEmitSellCandidate
+        ? candidates.sellPolicy
+        : null;
     final interactions = availableInteractions(
       node.state,
-      sellPolicy: candidates.sellPolicy,
+      sellPolicy: sellPolicy,
     );
     for (final interaction in interactions) {
       // Only consider interactions that are in our candidate set (for pruning)
@@ -2624,7 +2628,7 @@ bool _isRelevantInteraction(Interaction interaction, Candidates candidates) {
     BuyShopItem(:final purchaseId) => candidates.buyUpgrades.contains(
       purchaseId,
     ),
-    SellItems() => candidates.sellPolicy != null,
+    SellItems() => candidates.shouldEmitSellCandidate,
   };
 }
 

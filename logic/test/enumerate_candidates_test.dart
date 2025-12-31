@@ -261,7 +261,7 @@ void main() {
       expect(candidates.watch.inventory, isTrue);
     });
 
-    test('sellPolicy null when inventory < 80% full', () {
+    test('shouldEmitSellCandidate false when inventory < 80% full', () {
       final state = GlobalState.test(
         testRegistries,
         inventory: Inventory.fromItems(testItems, [
@@ -271,7 +271,9 @@ void main() {
 
       final candidates = enumerateCandidates(state, _defaultGoal);
 
-      expect(candidates.sellPolicy, isNull);
+      // sellPolicy is always available but we don't emit a sell candidate
+      expect(candidates.sellPolicy, isNotNull);
+      expect(candidates.shouldEmitSellCandidate, isFalse);
       expect(candidates.watch.inventory, isFalse);
     });
 

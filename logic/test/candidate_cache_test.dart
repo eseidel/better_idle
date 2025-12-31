@@ -2,6 +2,7 @@ import 'package:logic/logic.dart';
 import 'package:logic/src/solver/candidate_cache.dart';
 import 'package:logic/src/solver/enumerate_candidates.dart';
 import 'package:logic/src/solver/goal.dart';
+import 'package:logic/src/solver/interaction.dart';
 import 'package:logic/src/solver/macro_candidate.dart';
 import 'package:test/test.dart';
 
@@ -156,7 +157,8 @@ void main() {
         return const Candidates(
           switchToActivities: <ActionId>[],
           buyUpgrades: <MelvorId>[],
-          sellPolicy: null,
+          sellPolicy: SellAllPolicy(),
+          shouldEmitSellCandidate: false,
           watch: WatchList(),
           macros: <MacroCandidate>[],
         );
@@ -189,7 +191,8 @@ void main() {
       final candidatesWithBoth = Candidates(
         switchToActivities: [normalTree.id, oakTree.id],
         buyUpgrades: const <MelvorId>[],
-        sellPolicy: null,
+        sellPolicy: const SellAllPolicy(),
+        shouldEmitSellCandidate: false,
         watch: const WatchList(),
         macros: const <MacroCandidate>[],
       );
@@ -231,7 +234,8 @@ void main() {
       final candidatesWithBoth = Candidates(
         switchToActivities: [normalTree.id, oakTree.id],
         buyUpgrades: const <MelvorId>[],
-        sellPolicy: null,
+        sellPolicy: const SellAllPolicy(),
+        shouldEmitSellCandidate: false,
         watch: const WatchList(),
         macros: const <MacroCandidate>[],
       );
@@ -285,7 +289,8 @@ void main() {
         return const Candidates(
           switchToActivities: <ActionId>[],
           buyUpgrades: <MelvorId>[],
-          sellPolicy: null,
+          sellPolicy: SellAllPolicy(),
+          shouldEmitSellCandidate: false,
           watch: WatchList(),
           macros: <MacroCandidate>[],
         );

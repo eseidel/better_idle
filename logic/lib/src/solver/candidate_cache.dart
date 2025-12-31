@@ -113,6 +113,7 @@ class CandidateCache {
       switchToActivities: filteredActivities,
       buyUpgrades: candidates.buyUpgrades,
       sellPolicy: candidates.sellPolicy,
+      shouldEmitSellCandidate: candidates.shouldEmitSellCandidate,
       watch: candidates.watch,
       macros: candidates.macros,
       consumingSkillStats: candidates.consumingSkillStats,
