@@ -186,6 +186,123 @@ int? ticksUntilNextMasteryLevel(GlobalState state, Rates rates) {
   return (xpNeeded / rates.masteryXpPerTick).ceil();
 }
 
+/// Estimates expected rates for a specific action, regardless of active action.
+///
+/// This allows computing rates for an "intended" action when the current
+/// active action differs (e.g., computing consuming skill rates when
+/// the producer action is active).
+Rates estimateRatesForAction(GlobalState state, ActionId actionId) {
+  final action = state.registries.actions.byId(actionId);
+
+  // Only skill actions have predictable rates
+  if (action is! SkillAction) {
+    return Rates.empty;
+  }
+
+  // Calculate expected ticks per action completion (with upgrades applied)
+  final baseExpectedTicks = ticksFromDuration(action.meanDuration).toDouble();
+
+  // Apply upgrade modifier
+  final percentModifier = state.shopDurationModifierForSkill(action.skill);
+  final expectedTicks = baseExpectedTicks * (1.0 + percentModifier);
+
+  if (expectedTicks <= 0) {
+    return Rates.empty;
+  }
+
+  // Compute item flows per action
+  final actionState = state.actionState(action.id);
+  final selection = actionState.recipeSelection(action);
+  final itemFlowsPerAction = _computeItemFlowsPerAction(
+    state,
+    action,
+    selection,
+  );
+
+  // Compute items consumed per tick for consuming actions
+  final inputs = action.inputsForRecipe(selection);
+  final itemsConsumedPerTick = <MelvorId, double>{};
+  for (final entry in inputs.entries) {
+    itemsConsumedPerTick[entry.key] = entry.value / expectedTicks;
+  }
+
+  // For thieving, calculate rates accounting for stun time on failure.
+  if (action is ThievingAction) {
+    final thievingLevel = state.skillState(Skill.thieving).skillLevel;
+    final mastery = state.actionState(action.id).masteryLevel;
+    final stealth = calculateStealth(thievingLevel, mastery);
+    final successChance = ((100 + stealth) / (100 + action.perception)).clamp(
+      0.0,
+      1.0,
+    );
+    final failureChance = 1.0 - successChance;
+
+    final expectedThievingGold = successChance * (1 + action.maxGold) / 2;
+    final expectedDamagePerAttempt = failureChance * (1 + action.maxHit) / 2;
+    final effectiveTicks = expectedTicks + failureChance * stunnedDurationTicks;
+
+    final directGpPerTick = expectedThievingGold / effectiveTicks;
+    final hpLossPerTick = expectedDamagePerAttempt / effectiveTicks;
+
+    final itemFlowsPerTick = <MelvorId, double>{};
+    for (final entry in itemFlowsPerAction.entries) {
+      itemFlowsPerTick[entry.key] =
+          entry.value * successChance / effectiveTicks;
+    }
+
+    final expectedXpPerAction = successChance * action.xp;
+    final xpPerTick = expectedXpPerAction / effectiveTicks;
+    final xpPerTickBySkill = <Skill, double>{action.skill: xpPerTick};
+
+    final baseMasteryXpPerAction = masteryXpPerAction(state, action);
+    final expectedMasteryXpPerAction = successChance * baseMasteryXpPerAction;
+    final masteryXpPerTick = expectedMasteryXpPerAction / effectiveTicks;
+
+    final uniqueOutputTypes = itemFlowsPerAction.length.toDouble();
+    final itemTypesPerTick = uniqueOutputTypes > 0
+        ? uniqueOutputTypes / effectiveTicks
+        : 0.0;
+
+    return Rates(
+      directGpPerTick: directGpPerTick,
+      itemFlowsPerTick: itemFlowsPerTick,
+      itemsConsumedPerTick: itemsConsumedPerTick,
+      xpPerTickBySkill: xpPerTickBySkill,
+      itemTypesPerTick: itemTypesPerTick,
+      hpLossPerTick: hpLossPerTick,
+      masteryXpPerTick: masteryXpPerTick,
+      actionId: action.id,
+    );
+  }
+
+  // Non-thieving actions
+  final itemFlowsPerTick = <MelvorId, double>{};
+  for (final entry in itemFlowsPerAction.entries) {
+    itemFlowsPerTick[entry.key] = entry.value / expectedTicks;
+  }
+
+  final xpPerTick = action.xp / expectedTicks;
+  final xpPerTickBySkill = <Skill, double>{action.skill: xpPerTick};
+
+  final baseMasteryXpPerAction = masteryXpPerAction(state, action);
+  final masteryXpPerTick = baseMasteryXpPerAction / expectedTicks;
+
+  final uniqueOutputTypes = itemFlowsPerAction.length.toDouble();
+  final itemTypesPerTick = uniqueOutputTypes > 0
+      ? uniqueOutputTypes / expectedTicks
+      : 0.0;
+
+  return Rates(
+    directGpPerTick: 0,
+    itemFlowsPerTick: itemFlowsPerTick,
+    itemsConsumedPerTick: itemsConsumedPerTick,
+    xpPerTickBySkill: xpPerTickBySkill,
+    itemTypesPerTick: itemTypesPerTick,
+    masteryXpPerTick: masteryXpPerTick,
+    actionId: action.id,
+  );
+}
+
 /// Computes expected item flows per action from all drops.
 ///
 /// Returns a map of item name -> expected count per action.

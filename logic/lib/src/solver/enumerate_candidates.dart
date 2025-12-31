@@ -576,13 +576,24 @@ List<MacroCandidate> _generateMacros(GlobalState state, Goal goal) {
       if (subgoal.isSatisfied(state)) continue;
 
       // Primary macro: train until next boundary
-      macros.add(
-        TrainSkillUntil(
-          subgoal.skill,
-          StopAtNextBoundary(subgoal.skill),
-          watchedStops: [StopAtGoal(subgoal.skill, subgoal.targetXp)],
-        ),
-      );
+      // For consuming skills, use coupled produce/consume macro
+      if (subgoal.skill.isConsuming) {
+        macros.add(
+          TrainConsumingSkillUntil(
+            subgoal.skill,
+            StopAtNextBoundary(subgoal.skill),
+            watchedStops: [StopAtGoal(subgoal.skill, subgoal.targetXp)],
+          ),
+        );
+      } else {
+        macros.add(
+          TrainSkillUntil(
+            subgoal.skill,
+            StopAtNextBoundary(subgoal.skill),
+            watchedStops: [StopAtGoal(subgoal.skill, subgoal.targetXp)],
+          ),
+        );
+      }
     }
   }
 

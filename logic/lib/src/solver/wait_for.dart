@@ -37,6 +37,7 @@ int _effectiveCredits(GlobalState state) {
 ///
 /// Each WaitFor type has:
 /// - [isSatisfied] - check if condition is met (for execution)
+/// - [progress] - current progress toward the condition (for stuck detection)
 /// - [describe] - human-readable description with values
 /// - [shortDescription] - brief label for plan display (e.g., "Skill +1")
 sealed class WaitFor extends Equatable {
@@ -44,6 +45,13 @@ sealed class WaitFor extends Equatable {
 
   /// Returns true if this wait condition is satisfied in the given state.
   bool isSatisfied(GlobalState state);
+
+  /// Returns current progress toward this condition.
+  ///
+  /// Higher values mean closer to satisfaction. Used to detect when execution
+  /// is stuck (no progress being made). Returns 0 for conditions that don't
+  /// have meaningful progress tracking.
+  int progress(GlobalState state);
 
   /// Estimates ticks to satisfy this condition given current rates.
   ///
@@ -73,6 +81,9 @@ class WaitForInventoryValue extends WaitFor {
   bool isSatisfied(GlobalState state) {
     return _effectiveCredits(state) >= targetValue;
   }
+
+  @override
+  int progress(GlobalState state) => _effectiveCredits(state);
 
   @override
   int estimateTicks(GlobalState state, Rates rates) {
@@ -114,6 +125,9 @@ class WaitForSkillXp extends WaitFor {
   }
 
   @override
+  int progress(GlobalState state) => state.skillState(skill).xp;
+
+  @override
   int estimateTicks(GlobalState state, Rates rates) {
     final currentXp = state.skillState(skill).xp;
     final needed = targetXp - currentXp;
@@ -147,6 +161,9 @@ class WaitForMasteryXp extends WaitFor {
   bool isSatisfied(GlobalState state) {
     return state.actionState(actionId).masteryXp >= targetMasteryXp;
   }
+
+  @override
+  int progress(GlobalState state) => state.actionState(actionId).masteryXp;
 
   @override
   int estimateTicks(GlobalState state, Rates rates) {
@@ -190,6 +207,9 @@ class WaitForInventoryThreshold extends WaitFor {
   }
 
   @override
+  int progress(GlobalState state) => state.inventoryUsed;
+
+  @override
   int estimateTicks(GlobalState state, Rates rates) {
     if (state.inventoryCapacity <= 0) return infTicks;
     final targetSlots = (threshold * state.inventoryCapacity).ceil();
@@ -223,6 +243,9 @@ class WaitForInventoryFull extends WaitFor {
   }
 
   @override
+  int progress(GlobalState state) => state.inventoryUsed;
+
+  @override
   int estimateTicks(GlobalState state, Rates rates) {
     final neededSlots = state.inventoryRemaining;
     if (neededSlots <= 0) return 0;
@@ -252,6 +275,9 @@ class WaitForGoal extends WaitFor {
 
   @override
   bool isSatisfied(GlobalState state) => goal.isSatisfied(state);
+
+  @override
+  int progress(GlobalState state) => goal.progress(state);
 
   @override
   int estimateTicks(GlobalState state, Rates rates) {
@@ -289,6 +315,9 @@ class WaitForInputsDepleted extends WaitFor {
     // Inputs are depleted when we can no longer start the action
     return !state.canStartAction(action);
   }
+
+  @override
+  int progress(GlobalState state) => 0; // Not a goal-oriented condition
 
   @override
   int estimateTicks(GlobalState state, Rates rates) {
@@ -348,6 +377,10 @@ class WaitForInputsAvailable extends WaitFor {
     return state.canStartAction(action);
   }
 
+  // Binary condition, no meaningful progress
+  @override
+  int progress(GlobalState state) => 0;
+
   @override
   int estimateTicks(GlobalState state, Rates rates) {
     // If inputs are already available, no waiting needed
@@ -388,6 +421,14 @@ class WaitForInventoryAtLeast extends WaitFor {
         .map((s) => s.count)
         .fold(0, (a, b) => a + b);
     return count >= minCount;
+  }
+
+  @override
+  int progress(GlobalState state) {
+    return state.inventory.items
+        .where((s) => s.item.id == itemId)
+        .map((s) => s.count)
+        .fold(0, (a, b) => a + b);
   }
 
   @override
@@ -451,6 +492,27 @@ class WaitForSufficientInputs extends WaitFor {
   }
 
   @override
+  int progress(GlobalState state) {
+    final action = state.registries.actions.byId(actionId);
+    if (action is! SkillAction) return 0;
+
+    final actionStateVal = state.actionState(action.id);
+    final selection = actionStateVal.recipeSelection(action);
+    final inputs = action.inputsForRecipe(selection);
+
+    if (inputs.isEmpty) return 0;
+
+    // Return minimum available count across all inputs
+    var minAvailable = 0x7FFFFFFF; // max int
+    for (final entry in inputs.entries) {
+      final item = state.registries.items.byId(entry.key);
+      final available = state.inventory.countOfItem(item);
+      if (available < minAvailable) minAvailable = available;
+    }
+    return minAvailable;
+  }
+
+  @override
   int estimateTicks(GlobalState state, Rates rates) {
     if (isSatisfied(state)) return 0;
 
@@ -509,6 +571,15 @@ class WaitForAnyOf extends WaitFor {
   bool isSatisfied(GlobalState state) {
     // Satisfied if ANY condition is met
     return conditions.any((condition) => condition.isSatisfied(state));
+  }
+
+  @override
+  int progress(GlobalState state) {
+    if (conditions.isEmpty) return 0;
+    // Return max progress among all conditions (closest to being satisfied)
+    return conditions
+        .map((c) => c.progress(state))
+        .reduce((a, b) => a > b ? a : b);
   }
 
   @override

@@ -1377,8 +1377,32 @@ ConsumeUntilResult consumeUntil(
   var totalTicksElapsed = 0;
   var deathCount = 0;
 
+  // Stuck detection: track progress to detect when we're not making headway
+  int? lastProgress;
+  var stuckIterations = 0;
+  const maxStuckIterations = 3;
+
   // Keep running until the condition is satisfied, restarting after deaths
   while (true) {
+    // Check for stuck state at start of each iteration
+    final currentProgress = waitFor.progress(state);
+    if (lastProgress != null && currentProgress <= lastProgress) {
+      stuckIterations++;
+      if (stuckIterations >= maxStuckIterations) {
+        return ConsumeUntilResult(
+          state: state,
+          ticksElapsed: totalTicksElapsed,
+          deathCount: deathCount,
+          boundary: NoProgressPossible(
+            reason: 'No progress after $stuckIterations iterations',
+          ),
+        );
+      }
+    } else {
+      stuckIterations = 0; // Reset if we made progress
+    }
+    lastProgress = currentProgress;
+
     final builder = StateUpdateBuilder(state);
 
     // Use consumeTicksUntil which checks the condition after each action
@@ -1533,46 +1557,7 @@ _StepResult _executeCoupledLoop(
   var totalTicks = 0;
   var totalDeaths = 0;
 
-  // Find best consuming and producing actions
   final goal = ReachSkillLevelGoal(macro.consumingSkill, 99);
-  final bestConsumeAction = _findBestActionForSkill(
-    currentState,
-    macro.consumingSkill,
-    goal,
-  );
-  if (bestConsumeAction == null) {
-    return (
-      state: currentState,
-      ticksElapsed: 0,
-      deaths: 0,
-      boundary: const NoProgressPossible(reason: 'No consuming action found'),
-    );
-  }
-
-  final consumeAction = currentState.registries.actions.byId(bestConsumeAction);
-  if (consumeAction is! SkillAction || consumeAction.inputs.isEmpty) {
-    return (
-      state: currentState,
-      ticksElapsed: 0,
-      deaths: 0,
-      boundary: const NoProgressPossible(reason: 'Action has no inputs'),
-    );
-  }
-
-  final inputItem = consumeAction.inputs.keys.first;
-  final producerAction = _findProducerActionForItem(
-    currentState,
-    inputItem,
-    goal,
-  );
-  if (producerAction == null) {
-    return (
-      state: currentState,
-      ticksElapsed: 0,
-      deaths: 0,
-      boundary: const NoProgressPossible(reason: 'No producer action found'),
-    );
-  }
 
   // Regenerate actual wait condition from primary stop
   final actualWaitFor = boundaries != null
@@ -1584,6 +1569,48 @@ _StepResult _executeCoupledLoop(
     // Check if primary stop condition is met
     if (actualWaitFor.isSatisfied(currentState)) {
       break;
+    }
+
+    // Re-evaluate best actions each iteration as levels may have changed
+    final bestConsumeAction = _findBestActionForSkill(
+      currentState,
+      macro.consumingSkill,
+      goal,
+    );
+    if (bestConsumeAction == null) {
+      return (
+        state: currentState,
+        ticksElapsed: totalTicks,
+        deaths: totalDeaths,
+        boundary: const NoProgressPossible(reason: 'No consuming action found'),
+      );
+    }
+
+    final consumeAction = currentState.registries.actions.byId(
+      bestConsumeAction,
+    );
+    if (consumeAction is! SkillAction || consumeAction.inputs.isEmpty) {
+      return (
+        state: currentState,
+        ticksElapsed: totalTicks,
+        deaths: totalDeaths,
+        boundary: const NoProgressPossible(reason: 'Action has no inputs'),
+      );
+    }
+
+    final inputItem = consumeAction.inputs.keys.first;
+    final producerAction = _findProducerActionForItem(
+      currentState,
+      inputItem,
+      goal,
+    );
+    if (producerAction == null) {
+      return (
+        state: currentState,
+        ticksElapsed: totalTicks,
+        deaths: totalDeaths,
+        boundary: const NoProgressPossible(reason: 'No producer action found'),
+      );
     }
 
     // Phase 1: Produce inputs until we have some buffer
@@ -1636,6 +1663,37 @@ _StepResult _executeCoupledLoop(
     // Otherwise, loop back to produce more inputs
   }
 
+  // After the loop, switch to the producer action so subsequent steps can
+  // produce items. This prevents the situation where we end on a consuming
+  // action with no inputs, causing later steps to fail.
+  // Re-evaluate best producer for final state
+  final finalBestConsume = _findBestActionForSkill(
+    currentState,
+    macro.consumingSkill,
+    goal,
+  );
+  if (finalBestConsume != null) {
+    final finalConsumeAction = currentState.registries.actions.byId(
+      finalBestConsume,
+    );
+    if (finalConsumeAction is SkillAction &&
+        finalConsumeAction.inputs.isNotEmpty) {
+      final inputItem = finalConsumeAction.inputs.keys.first;
+      final producerAction = _findProducerActionForItem(
+        currentState,
+        inputItem,
+        goal,
+      );
+      if (producerAction != null &&
+          currentState.activeAction?.id != producerAction) {
+        currentState = applyInteraction(
+          currentState,
+          SwitchActivity(producerAction),
+        );
+      }
+    }
+  }
+
   return (
     state: currentState,
     ticksElapsed: totalTicks,
@@ -1652,12 +1710,23 @@ _StepResult _applyStep(
 }) {
   switch (step) {
     case InteractionStep(:final interaction):
-      return (
-        state: applyInteraction(state, interaction),
-        ticksElapsed: 0,
-        deaths: 0,
-        boundary: null, // Interactions are instant, no boundary
-      );
+      try {
+        return (
+          state: applyInteraction(state, interaction),
+          ticksElapsed: 0,
+          deaths: 0,
+          boundary: null, // Interactions are instant, no boundary
+        );
+      } on Exception catch (e) {
+        // Interaction failed (e.g., can't start action due to missing inputs)
+        // Return boundary indicating we need to replan
+        return (
+          state: state,
+          ticksElapsed: 0,
+          deaths: 0,
+          boundary: NoProgressPossible(reason: e.toString()),
+        );
+      }
     case WaitStep(:final waitFor):
       // Run until the wait condition is satisfied
       final result = consumeUntil(state, waitFor, random: random);
@@ -1942,14 +2011,13 @@ MacroExpansionResult? _expandTrainConsumingSkillUntil(
   final producerAction = _findProducerActionForItem(state, inputItem, goal);
   if (producerAction == null) return null;
 
-  // Switch to the consuming action for state projection
-  final consumeState = applyInteraction(
-    state,
-    SwitchActivity(bestConsumeAction),
-  );
+  // For state projection, switch to the producer action (which doesn't
+  // require inputs). We'll use this state for planning while modeling
+  // the coupled produce/consume loop.
+  final producerState = applyInteraction(state, SwitchActivity(producerAction));
 
   // Build stop condition from primary stop
-  final waitFor = macro.primaryStop.toWaitFor(state, boundaries);
+  final waitFor = macro.primaryStop.toWaitFor(producerState, boundaries);
 
   // Calculate sustainable XP rate accounting for production time
   final consumeAction_ =
@@ -1992,8 +2060,9 @@ MacroExpansionResult? _expandTrainConsumingSkillUntil(
     ticksUntilStop = (xpNeeded / sustainableXpPerTick).ceil();
   } else {
     // For other stop conditions, estimate then adjust for sustainable rate
-    final consumeRates = estimateRates(consumeState);
-    final estimatedTicks = waitFor.estimateTicks(consumeState, consumeRates);
+    // Use rates for the consuming action (even though we're on producer)
+    final consumeRates = estimateRatesForAction(state, bestConsumeAction);
+    final estimatedTicks = waitFor.estimateTicks(producerState, consumeRates);
     if (estimatedTicks <= 0 || estimatedTicks >= infTicks) {
       return null;
     }
@@ -2022,7 +2091,9 @@ MacroExpansionResult? _expandTrainConsumingSkillUntil(
       (totalProduceTicks * (produceAction_.xp / produceTicksPerAction)).floor();
   final producingSkillXp = currentProduceXp + produceXpGained;
 
-  // Build projected state with both skills updated
+  // Build projected state with both skills updated.
+  // Set the active action to the producer since execution ends with
+  // producer active (to ensure subsequent steps can produce inputs).
   final projectedState = state.copyWith(
     skillStates: {
       for (final skill in Skill.values)
@@ -2038,6 +2109,12 @@ MacroExpansionResult? _expandTrainConsumingSkillUntil(
               )
             : state.skillState(skill),
     },
+    // Set producer as active action - execution ends with producer active
+    activeAction: ActiveAction(
+      id: producerAction,
+      remainingTicks: ticksFromDuration(produceAction_.meanDuration),
+      totalTicks: ticksFromDuration(produceAction_.meanDuration),
+    ),
   );
 
   return (
@@ -2067,24 +2144,19 @@ ActionId? _findProducerActionForItem(
   if (producers.isEmpty) return null;
 
   // Rank by production rate (outputs per tick)
+  // Producer actions (woodcutting, fishing, mining) don't require inputs,
+  // so we can directly calculate rates without testing applyInteraction.
   ActionId? best;
   double bestRate = 0;
 
   for (final action in producers) {
-    try {
-      // Test if we can switch to this action
-      applyInteraction(state, SwitchActivity(action.id));
+    final ticksPerAction = ticksFromDuration(action.meanDuration).toDouble();
+    final outputsPerAction = action.outputs[item] ?? 1;
+    final outputsPerTick = outputsPerAction / ticksPerAction;
 
-      final ticksPerAction = ticksFromDuration(action.meanDuration).toDouble();
-      final outputsPerAction = action.outputs[item] ?? 1;
-      final outputsPerTick = outputsPerAction / ticksPerAction;
-
-      if (outputsPerTick > bestRate) {
-        bestRate = outputsPerTick;
-        best = action.id;
-      }
-    } on Exception catch (_) {
-      continue; // Skip if can't start
+    if (outputsPerTick > bestRate) {
+      bestRate = outputsPerTick;
+      best = action.id;
     }
   }
 
@@ -2095,6 +2167,13 @@ ActionId? _findProducerActionForItem(
 ///
 /// For skill goals, picks the action with highest XP rate.
 /// For GP goals, picks the action with highest gold rate.
+///
+/// Unlike `estimateRates`, this function doesn't require the action to be
+/// startable. This is important for consuming skills where we want to find
+/// the best action even when inputs aren't currently available (because we'll
+/// produce them next).
+///
+/// For consuming actions, this also checks that we can produce the inputs.
 ActionId? _findBestActionForSkill(GlobalState state, Skill skill, Goal goal) {
   final skillLevel = state.skillState(skill).skillLevel;
   final actions = state.registries.actions.all
@@ -2109,24 +2188,29 @@ ActionId? _findBestActionForSkill(GlobalState state, Skill skill, Goal goal) {
   double bestRate = 0;
 
   for (final action in actions) {
-    // Try to switch to action to estimate rates
-    // Skip actions that can't be started (e.g., missing inputs for consuming)
-    try {
-      final testState = applyInteraction(state, SwitchActivity(action.id));
-      final rates = estimateRates(testState);
-
-      final goldRate = defaultValueModel.valuePerTick(testState, rates);
-      final xpRate = rates.xpPerTickBySkill[skill] ?? 0.0;
-
-      final rate = goal.activityRate(skill, goldRate, xpRate);
-
-      if (rate > bestRate) {
-        bestRate = rate;
-        best = action.id;
+    // For consuming actions, check that we can produce the inputs
+    if (action.inputs.isNotEmpty) {
+      final inputItem = action.inputs.keys.first;
+      final producerAction = _findProducerActionForItem(state, inputItem, goal);
+      if (producerAction == null) {
+        // Can't produce inputs for this action, skip it
+        continue;
       }
-    } on Exception catch (_) {
-      // Can't start this action (e.g., missing inputs) - skip it
-      continue;
+    }
+
+    // Use estimateRatesForAction which doesn't require the action to be active
+    // or have inputs available. This allows planning for consuming actions
+    // before inputs are produced.
+    final rates = estimateRatesForAction(state, action.id);
+
+    final goldRate = defaultValueModel.valuePerTick(state, rates);
+    final xpRate = rates.xpPerTickBySkill[skill] ?? 0.0;
+
+    final rate = goal.activityRate(skill, goldRate, xpRate);
+
+    if (rate > bestRate) {
+      bestRate = rate;
+      best = action.id;
     }
   }
 
