@@ -1320,8 +1320,9 @@ _StepResult _executeCoupledLoop(
   TrainConsumingSkillUntil macro,
   WaitFor waitFor,
   Map<Skill, SkillBoundaries>? boundaries,
-  Random random,
-) {
+  Random random, {
+  WatchSet? watchSet,
+}) {
   var currentState = state;
   var totalTicks = 0;
   var totalDeaths = 0;
@@ -1338,6 +1339,19 @@ _StepResult _executeCoupledLoop(
     // Check if primary stop condition is met
     if (actualWaitFor.isSatisfied(currentState)) {
       break;
+    }
+
+    // Check for material boundary (mid-macro stopping)
+    if (watchSet != null) {
+      final boundary = watchSet.detectBoundary(currentState);
+      if (boundary != null) {
+        return (
+          state: currentState,
+          ticksElapsed: totalTicks,
+          deaths: totalDeaths,
+          boundary: _segmentBoundaryToReplan(boundary),
+        );
+      }
     }
 
     // Re-evaluate best actions each iteration as levels may have changed
@@ -1402,6 +1416,19 @@ _StepResult _executeCoupledLoop(
       currentState = produceResult.state;
       totalTicks += produceResult.ticksElapsed;
       totalDeaths += produceResult.deathCount;
+
+      // Check for material boundary after producing
+      if (watchSet != null) {
+        final boundary = watchSet.detectBoundary(currentState);
+        if (boundary != null) {
+          return (
+            state: currentState,
+            ticksElapsed: totalTicks,
+            deaths: totalDeaths,
+            boundary: _segmentBoundaryToReplan(boundary),
+          );
+        }
+      }
     }
 
     // Check stop condition again after producing
@@ -1423,6 +1450,19 @@ _StepResult _executeCoupledLoop(
     currentState = consumeResult.state;
     totalTicks += consumeResult.ticksElapsed;
     totalDeaths += consumeResult.deathCount;
+
+    // Check for material boundary after consuming
+    if (watchSet != null) {
+      final boundary = watchSet.detectBoundary(currentState);
+      if (boundary != null) {
+        return (
+          state: currentState,
+          ticksElapsed: totalTicks,
+          deaths: totalDeaths,
+          boundary: _segmentBoundaryToReplan(boundary),
+        );
+      }
+    }
 
     // If we hit the stop condition, we're done
     if (actualWaitFor.isSatisfied(currentState)) {
@@ -1471,11 +1511,36 @@ _StepResult _executeCoupledLoop(
   );
 }
 
+/// Converts a SegmentBoundary to a ReplanBoundary for _applyStep return.
+///
+/// This is used when mid-macro stopping detects a material boundary.
+/// Some information may be approximated since SegmentBoundary has less
+/// detail than ReplanBoundary in some cases.
+ReplanBoundary _segmentBoundaryToReplan(SegmentBoundary boundary) {
+  return switch (boundary) {
+    GoalReachedBoundary() => const GoalReached(),
+    UpgradeAffordableBoundary(:final purchaseId) => UpgradeAffordableEarly(
+      purchaseId: purchaseId,
+      cost: 0,
+    ),
+    UnlockBoundary() =>
+      // UnexpectedUnlock needs an actionId, but UnlockBoundary doesn't have it.
+      // Return GoalReached as a signal that we hit a material boundary.
+      const GoalReached(),
+    InputsDepletedBoundary(:final actionId) => InputsDepleted(
+      actionId: actionId,
+      // We don't track which item was depleted in SegmentBoundary
+      missingItemId: const MelvorId('melvorD:Unknown'),
+    ),
+  };
+}
+
 _StepResult _applyStep(
   GlobalState state,
   PlanStep step, {
   required Random random,
   Map<Skill, SkillBoundaries>? boundaries,
+  WatchSet? watchSet,
 }) {
   switch (step) {
     case InteractionStep(:final interaction):
@@ -1499,6 +1564,20 @@ _StepResult _applyStep(
     case WaitStep(:final waitFor):
       // Run until the wait condition is satisfied
       final result = consumeUntil(state, waitFor, random: random);
+
+      // Check for material boundary after waiting (mid-step stopping)
+      if (watchSet != null) {
+        final materialBoundary = watchSet.detectBoundary(result.state);
+        if (materialBoundary != null) {
+          return (
+            state: result.state,
+            ticksElapsed: result.ticksElapsed,
+            deaths: result.deathCount,
+            boundary: _segmentBoundaryToReplan(materialBoundary),
+          );
+        }
+      }
+
       return (
         state: result.state,
         ticksElapsed: result.ticksElapsed,
@@ -1536,9 +1615,26 @@ _StepResult _applyStep(
               ? waitConditions.first
               : WaitForAnyOf(waitConditions);
         }
+
+        // Execute with mid-macro boundary checking if watchSet provided
+        if (watchSet != null) {
+          return _executeTrainSkillWithBoundaryChecks(
+            executionState,
+            executionWaitFor,
+            random,
+            watchSet,
+          );
+        }
       } else if (macro is TrainConsumingSkillUntil) {
         // Execute coupled produce/consume loop until stop condition
-        return _executeCoupledLoop(state, macro, waitFor, boundaries, random);
+        return _executeCoupledLoop(
+          state,
+          macro,
+          waitFor,
+          boundaries,
+          random,
+          watchSet: watchSet,
+        );
       }
 
       final result = consumeUntil(
@@ -1553,6 +1649,60 @@ _StepResult _applyStep(
         boundary: result.boundary,
       );
   }
+}
+
+/// Executes a TrainSkillUntil macro with boundary checking.
+///
+/// This allows mid-macro stopping when a material boundary (upgrade affordable,
+/// unlock reached, etc.) is detected during execution. The boundary check
+/// happens after consumeUntil completes or returns a boundary.
+_StepResult _executeTrainSkillWithBoundaryChecks(
+  GlobalState state,
+  WaitFor waitFor,
+  Random random,
+  WatchSet watchSet,
+) {
+  // Check for material boundary before starting
+  final initialBoundary = watchSet.detectBoundary(state);
+  if (initialBoundary != null) {
+    return (
+      state: state,
+      ticksElapsed: 0,
+      deaths: 0,
+      boundary: _segmentBoundaryToReplan(initialBoundary),
+    );
+  }
+
+  // Execute until the wait condition is satisfied
+  final result = consumeUntil(state, waitFor, random: random);
+
+  // Check for material boundary after execution
+  final materialBoundary = watchSet.detectBoundary(result.state);
+  if (materialBoundary != null) {
+    return (
+      state: result.state,
+      ticksElapsed: result.ticksElapsed,
+      deaths: result.deathCount,
+      boundary: _segmentBoundaryToReplan(materialBoundary),
+    );
+  }
+
+  // If consumeUntil returned a boundary, check if it's material
+  if (result.boundary != null && watchSet.isMaterial(result.boundary!)) {
+    return (
+      state: result.state,
+      ticksElapsed: result.ticksElapsed,
+      deaths: result.deathCount,
+      boundary: result.boundary,
+    );
+  }
+
+  return (
+    state: result.state,
+    ticksElapsed: result.ticksElapsed,
+    deaths: result.deathCount,
+    boundary: result.boundary,
+  );
 }
 
 /// Execute a plan and return the result including death count and actual ticks.
@@ -2678,6 +2828,7 @@ SegmentExecutionResult executeSegment(
       step,
       random: random,
       boundaries: unlockBoundaries,
+      watchSet: watchSet,
     );
     currentState = result.state;
     totalTicks += result.ticksElapsed;

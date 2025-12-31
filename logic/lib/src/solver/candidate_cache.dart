@@ -224,6 +224,24 @@ class CandidateCacheKey extends Equatable {
       case ReachGpGoal():
         // GP goals consider all skills, already included
         break;
+      case SegmentGoal(:final innerGoal):
+        // Delegate to inner goal's consuming skill logic
+        switch (innerGoal) {
+          case ReachSkillLevelGoal(:final skill):
+            if (skill.isConsuming) {
+              _addProducerSkillLevels(skill, state, skillLevelBucket);
+            }
+          case MultiSkillGoal(:final subgoals):
+            for (final subgoal in subgoals) {
+              if (subgoal.skill.isConsuming) {
+                _addProducerSkillLevels(subgoal.skill, state, skillLevelBucket);
+              }
+            }
+          case ReachGpGoal():
+          case SegmentGoal():
+            // GP goals or nested SegmentGoal - no special handling
+            break;
+        }
     }
 
     // Compute inventory bucket (0-4 based on fullness percentage)
