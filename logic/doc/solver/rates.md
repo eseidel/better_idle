@@ -98,23 +98,21 @@ gpPerTick = expectedGpPerAttempt / expectedTicksPerAttempt
 hpLossPerTick = expectedDamage / expectedTicksPerAttempt
 ```
 
-## estimateRates() Function
+## estimateRates() Functions
 
 ```dart
-Rates estimateRates(
-  GlobalState state,
-  MelvorId actionId,
-  ActionRegistry actions,
-  DropRegistry drops,
-  ItemRegistry items,
-)
+/// Estimates rates for the currently active action
+Rates estimateRates(GlobalState state)
+
+/// Estimates rates for a specific action (regardless of active action)
+Rates estimateRatesForAction(GlobalState state, ActionId actionId)
 ```
 
 ### Parameters
 
-- **state**: Current game state (skill levels, equipment)
-- **actionId**: The action to estimate
-- **registries**: Game data registries
+- **state**: Current game state (skill levels, equipment, active action)
+  - Registries are accessed via `state.registries`
+- **actionId**: (For `estimateRatesForAction`) The specific action to estimate
 
 ### Returns
 
@@ -147,21 +145,31 @@ Rates are converted to scalar values by `ValueModel`:
 
 ```dart
 abstract class ValueModel {
-  double valuePerTick(Rates rates, ItemRegistry items);
+  double valuePerTick(GlobalState state, Rates rates);
+  double itemValue(GlobalState state, MelvorId itemId);
 }
 
 class SellEverythingForGpValueModel extends ValueModel {
-  double valuePerTick(Rates rates, ItemRegistry items) {
+  double valuePerTick(GlobalState state, Rates rates) {
     var value = rates.directGpPerTick;
+    // Add value from items produced
     for (final entry in rates.itemFlowsPerTick.entries) {
-      value += entry.value * items.lookup(entry.key).sellValue;
+      value += entry.value * itemValue(state, entry.key);
     }
+    // Subtract value from items consumed (opportunity cost)
     for (final entry in rates.itemsConsumedPerTick.entries) {
-      value -= entry.value * items.lookup(entry.key).sellValue;
+      value -= entry.value * itemValue(state, entry.key);
     }
     return value;
   }
+
+  double itemValue(GlobalState state, MelvorId itemId) {
+    return state.registries.items.byId(itemId).sellsFor.toDouble();
+  }
 }
+
+// Default instance used throughout solver
+const defaultValueModel = SellEverythingForGpValueModel();
 ```
 
 This separation keeps rate calculation mechanical while valuation is goal-dependent.

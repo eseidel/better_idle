@@ -6,11 +6,19 @@ Candidate enumeration proposes a small, deterministic set of actions to try at e
 
 ```dart
 class Candidates {
-  final List<MelvorId> switchToActivities;  // Actions to try
-  final List<MelvorId> buyUpgrades;         // Upgrades to purchase
-  final SellPolicy? sellPolicy;             // How to sell items
-  final WatchList watch;                    // Future events
-  final List<Macro> macros;                 // Macro candidates
+  final List<ActionId> switchToActivities;  // Actions to try
+  final List<MelvorId> buyUpgrades;          // Upgrades to purchase
+  final SellPolicy? sellPolicy;              // How to sell items
+  final WatchList watch;                     // Future events
+  final List<MacroCandidate> macros;         // Macro candidates
+  final ConsumingSkillCandidateStats? consumingSkillStats;  // Diagnostics
+}
+
+class WatchList {
+  final List<MelvorId> upgradePurchaseIds;    // Upgrades to watch
+  final List<ActionId> lockedActivityIds;     // Locked actions to watch
+  final List<ActionId> consumingActivityIds;  // Consuming actions to watch
+  final bool inventory;                       // Watch inventory fill
 }
 ```
 
@@ -66,10 +74,13 @@ Future events that define decision points:
 ```dart
 Candidates enumerateCandidates(
   GlobalState state,
-  Goal goal,
-  Registries registries,
-  {SolverProfile? profile}
-)
+  Goal goal, {
+  int activityCount = defaultActivityCandidateCount,  // K
+  int upgradeCount = defaultUpgradeCandidateCount,    // M
+  int lockedWatchCount = defaultLockedWatchCount,     // L
+  double inventoryThreshold = defaultInventoryThreshold,
+  bool collectStats = false,
+})
 ```
 
 ### Key Logic
@@ -157,11 +168,11 @@ For skill-level goals, macros reduce branching:
 
 ```dart
 TrainSkillUntil(
-  skill: Skill.woodcutting,
-  primaryStop: StopAtGoal(50),
+  Skill.woodcutting,
+  StopAtGoal(Skill.woodcutting, targetXp),
   watchedStops: [
-    StopWhenUpgradeAffordable(ironAxeId),
-    StopAtNextBoundary(),  // New action unlocks
+    StopWhenUpgradeAffordable(ironAxeId, cost, 'Iron Axe'),
+    StopAtNextBoundary(Skill.woodcutting),
   ],
 )
 ```
