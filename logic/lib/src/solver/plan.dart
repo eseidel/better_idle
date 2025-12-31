@@ -24,7 +24,7 @@ import 'package:logic/src/data/actions.dart';
 import 'package:logic/src/solver/interaction.dart';
 import 'package:logic/src/solver/macro_candidate.dart';
 import 'package:logic/src/solver/replan_boundary.dart';
-import 'package:logic/src/solver/solver.dart';
+import 'package:logic/src/solver/solver_profile.dart';
 import 'package:logic/src/solver/wait_for.dart';
 import 'package:logic/src/state.dart';
 import 'package:logic/src/tick.dart';

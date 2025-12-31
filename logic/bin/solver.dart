@@ -15,6 +15,7 @@ import 'package:logic/logic.dart';
 import 'package:logic/src/solver/goal.dart';
 import 'package:logic/src/solver/plan.dart';
 import 'package:logic/src/solver/solver.dart';
+import 'package:logic/src/solver/solver_profile.dart';
 
 final _parser = ArgParser()
   ..addFlag('skill', abbr: 's', help: 'Solve for firemaking level 30')
@@ -217,13 +218,13 @@ void _printSolverProfile(SolverProfile profile, {bool extended = false}) {
   print('Dominance pruning:');
   print('  dominated skipped: ${profile.dominatedSkipped}');
   print('Candidate cache:');
-  final cacheTotal = profile.candidateCacheHits + profile.candidateCacheMisses;
+  final cacheTotal = profile.cache.hits + profile.cache.misses;
   final cacheHitRate = cacheTotal > 0
-      ? (profile.candidateCacheHits / cacheTotal * 100).toStringAsFixed(1)
+      ? (profile.cache.hits / cacheTotal * 100).toStringAsFixed(1)
       : '0.0';
   print(
-    '  hits: ${profile.candidateCacheHits}, '
-    'misses: ${profile.candidateCacheMisses}, '
+    '  hits: ${profile.cache.hits}, '
+    'misses: ${profile.cache.misses}, '
     'hit rate: $cacheHitRate%',
   );
 
@@ -234,8 +235,8 @@ void _printSolverProfile(SolverProfile profile, {bool extended = false}) {
   print('=== Extended Diagnostics ===');
   print('Unique bucket keys: ${profile.uniqueBucketKeys}');
   print('Peak queue size: ${profile.peakQueueSize}');
-  print('Frontier inserted: ${profile.frontierInserted}');
-  print('Frontier removed: ${profile.frontierRemoved}');
+  print('Frontier inserted: ${profile.frontier.inserted}');
+  print('Frontier removed: ${profile.frontier.removed}');
 
   // Heuristic health
   if (profile.heuristicValues.isNotEmpty) {
@@ -465,13 +466,13 @@ Future<void> _runCliffDiagnostic(
   );
   _printComparison(
     'Frontier inserted',
-    lowerProfile.frontierInserted,
-    upperProfile.frontierInserted,
+    lowerProfile.frontier.inserted,
+    upperProfile.frontier.inserted,
   );
   _printComparison(
     'Frontier removed',
-    lowerProfile.frontierRemoved,
-    upperProfile.frontierRemoved,
+    lowerProfile.frontier.removed,
+    upperProfile.frontier.removed,
   );
   print('');
 

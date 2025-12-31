@@ -40,6 +40,7 @@ import 'package:logic/src/solver/macro_candidate.dart';
 import 'package:logic/src/solver/next_decision_delta.dart';
 import 'package:logic/src/solver/plan.dart';
 import 'package:logic/src/solver/replan_boundary.dart';
+import 'package:logic/src/solver/solver_profile.dart';
 import 'package:logic/src/solver/unlock_boundaries.dart';
 import 'package:logic/src/solver/value_model.dart';
 import 'package:logic/src/solver/wait_for.dart';
@@ -97,234 +98,6 @@ void _assertMonotonicProgress(
       'XP decreased for $skill ($beforeXp -> $afterXp) in $context',
     );
   }
-}
-
-/// Reasons why bestRate might be zero.
-sealed class RateZeroReason {
-  const RateZeroReason();
-
-  /// Human-readable description of why the rate is zero.
-  String describe();
-}
-
-/// No skills relevant to the goal were found.
-class NoRelevantSkillReason extends RateZeroReason {
-  const NoRelevantSkillReason(this.goalDescription);
-
-  final String goalDescription;
-
-  @override
-  String describe() => 'no relevant skill for goal "$goalDescription"';
-}
-
-/// Skills exist but no actions are unlocked yet.
-class NoUnlockedActionsReason extends RateZeroReason {
-  const NoUnlockedActionsReason({
-    required this.goalDescription,
-    this.missingInputName,
-    this.actionNeedingInput,
-    this.skillName,
-  });
-
-  final String goalDescription;
-
-  /// For consuming skills: the name of the input item that has no producer.
-  final String? missingInputName;
-
-  /// For consuming skills: the name of the action that needs the input.
-  final String? actionNeedingInput;
-
-  /// For consuming skills: the name of the skill.
-  final String? skillName;
-
-  @override
-  String describe() {
-    if (missingInputName != null && actionNeedingInput != null) {
-      return 'no producer for $missingInputName '
-          '(needed by $actionNeedingInput) at current skill levels';
-    }
-    if (skillName != null) {
-      return 'no unlocked actions for $skillName';
-    }
-    return 'no unlocked actions for goal "$goalDescription"';
-  }
-}
-
-/// All unlocked actions require inputs (consuming skill).
-class InputsRequiredReason extends RateZeroReason {
-  const InputsRequiredReason();
-
-  @override
-  String describe() => 'all actions require inputs with no available producers';
-}
-
-/// Action has zero expected ticks (shouldn't happen).
-class ZeroTicksReason extends RateZeroReason {
-  const ZeroTicksReason();
-
-  @override
-  String describe() => 'all actions have zero duration (configuration error)';
-}
-
-/// Profiling stats collected during a solve.
-class SolverProfile {
-  int expandedNodes = 0;
-  int totalNeighborsGenerated = 0;
-  final List<int> decisionDeltas = [];
-
-  // Timing in microseconds
-  int advanceTimeUs = 0;
-  int enumerateCandidatesTimeUs = 0;
-  int cacheKeyTimeUs = 0;
-  int hashingTimeUs = 0;
-  int totalTimeUs = 0;
-
-  // Dominance pruning stats
-  int dominatedSkipped = 0;
-  int frontierInserted = 0;
-  int frontierRemoved = 0;
-
-  // Candidate cache stats
-  int candidateCacheHits = 0;
-  int candidateCacheMisses = 0;
-
-  // Extended diagnostic stats (populated when diagnostics enabled)
-  int peakQueueSize = 0;
-  int uniqueBucketKeys = 0;
-  final Set<String> _seenBucketKeys = {};
-
-  // Heuristic health metrics
-  final List<int> heuristicValues = [];
-  int zeroRateCount = 0;
-
-  // Macro stop trigger histogram
-  final Map<String, int> macroStopTriggers = {};
-
-  // Candidate stats per enumeration call
-  final List<CandidateStats> candidateStatsHistory = [];
-
-  // Best rate diagnostics
-  double? rootBestRate;
-  final List<double> bestRateSamples = [];
-
-  // Why bestRate is zero counters
-  int rateZeroBecauseNoRelevantSkill = 0;
-  int rateZeroBecauseNoUnlockedActions = 0;
-  int rateZeroBecauseInputsRequired = 0;
-  int rateZeroBecauseZeroTicks = 0;
-
-  void recordBestRate(double rate, {required bool isRoot}) {
-    bestRateSamples.add(rate);
-    if (isRoot) rootBestRate = rate;
-  }
-
-  void recordRateZeroReason(RateZeroReason reason) {
-    switch (reason) {
-      case NoRelevantSkillReason():
-        rateZeroBecauseNoRelevantSkill++;
-      case NoUnlockedActionsReason():
-        rateZeroBecauseNoUnlockedActions++;
-      case InputsRequiredReason():
-        rateZeroBecauseInputsRequired++;
-      case ZeroTicksReason():
-        rateZeroBecauseZeroTicks++;
-    }
-  }
-
-  double get minBestRate =>
-      bestRateSamples.isEmpty ? 0 : bestRateSamples.reduce(min);
-
-  double get maxBestRate =>
-      bestRateSamples.isEmpty ? 0 : bestRateSamples.reduce(max);
-
-  double get medianBestRate {
-    if (bestRateSamples.isEmpty) return 0;
-    final sorted = List<double>.from(bestRateSamples)..sort();
-    return sorted[sorted.length ~/ 2];
-  }
-
-  void recordBucketKey(String key) {
-    if (_seenBucketKeys.add(key)) {
-      uniqueBucketKeys = _seenBucketKeys.length;
-    }
-  }
-
-  void recordHeuristic(int h, {required bool hasZeroRate}) {
-    heuristicValues.add(h);
-    if (hasZeroRate) zeroRateCount++;
-  }
-
-  void recordMacroStopTrigger(String trigger) {
-    macroStopTriggers[trigger] = (macroStopTriggers[trigger] ?? 0) + 1;
-  }
-
-  double get nodesPerSecond =>
-      totalTimeUs > 0 ? expandedNodes / (totalTimeUs / 1e6) : 0;
-
-  double get avgBranchingFactor =>
-      expandedNodes > 0 ? totalNeighborsGenerated / expandedNodes : 0;
-
-  int get minDelta => decisionDeltas.isEmpty ? 0 : decisionDeltas.reduce(min);
-
-  int get medianDelta {
-    if (decisionDeltas.isEmpty) return 0;
-    final sorted = List<int>.from(decisionDeltas)..sort();
-    return sorted[sorted.length ~/ 2];
-  }
-
-  int get p95Delta {
-    if (decisionDeltas.isEmpty) return 0;
-    final sorted = List<int>.from(decisionDeltas)..sort();
-    final idx = (sorted.length * 0.95).floor().clamp(0, sorted.length - 1);
-    return sorted[idx];
-  }
-
-  double get advancePercent =>
-      totalTimeUs > 0 ? 100.0 * advanceTimeUs / totalTimeUs : 0;
-
-  double get enumeratePercent =>
-      totalTimeUs > 0 ? 100.0 * enumerateCandidatesTimeUs / totalTimeUs : 0;
-
-  double get cacheKeyPercent =>
-      totalTimeUs > 0 ? 100.0 * cacheKeyTimeUs / totalTimeUs : 0;
-
-  double get hashingPercent =>
-      totalTimeUs > 0 ? 100.0 * hashingTimeUs / totalTimeUs : 0;
-
-  // Heuristic health metrics
-  int get minHeuristic =>
-      heuristicValues.isEmpty ? 0 : heuristicValues.reduce(min);
-
-  int get maxHeuristic =>
-      heuristicValues.isEmpty ? 0 : heuristicValues.reduce(max);
-
-  int get medianHeuristic {
-    if (heuristicValues.isEmpty) return 0;
-    final sorted = List<int>.from(heuristicValues)..sort();
-    return sorted[sorted.length ~/ 2];
-  }
-
-  double get zeroRateFraction =>
-      heuristicValues.isEmpty ? 0 : zeroRateCount / heuristicValues.length;
-
-  int get heuristicSpread => maxHeuristic - minHeuristic;
-}
-
-/// Stats from a single candidate enumeration call.
-class CandidateStats {
-  CandidateStats({
-    required this.consumerActionsConsidered,
-    required this.producerActionsConsidered,
-    required this.pairsConsidered,
-    required this.pairsKept,
-    required this.topPairs,
-  });
-
-  final int consumerActionsConsidered;
-  final int producerActionsConsidered;
-  final int pairsConsidered;
-  final int pairsKept;
-  final List<({String consumerId, String producerId, double score})> topPairs;
 }
 
 /// Gold bucket size for coarse state grouping.
@@ -462,8 +235,11 @@ class _ParetoFrontier {
   final Map<_BucketKey, List<_FrontierPoint>> _frontiers = {};
 
   // Stats
-  int inserted = 0;
-  int removed = 0;
+  int _inserted = 0;
+  int _removed = 0;
+
+  FrontierStats get stats =>
+      FrontierStats(inserted: _inserted, removed: _removed);
 
   /// Checks if (ticks, progress) is dominated by existing frontier.
   /// If not dominated, inserts the point and removes any points it dominates.
@@ -482,11 +258,11 @@ class _ParetoFrontier {
     // Not dominated - remove any points that new point dominates
     final originalLength = frontier.length;
     frontier.removeWhere((p) => ticks <= p.ticks && progress >= p.progress);
-    removed += originalLength - frontier.length;
+    _removed += originalLength - frontier.length;
 
     // Insert new point
     frontier.add(_FrontierPoint(ticks, progress));
-    inserted++;
+    _inserted++;
 
     return false; // Not dominated
   }
@@ -1268,14 +1044,6 @@ class ConsumeUntilResult {
   /// Expected boundaries (like [InputsDepleted]) are part of normal online
   /// execution. Unexpected boundaries may indicate bugs.
   final ReplanBoundary? boundary;
-
-  /// Whether execution stopped at an expected boundary.
-  bool get stoppedAtExpectedBoundary =>
-      boundary != null && boundary!.isExpected;
-
-  /// Whether execution stopped at an unexpected boundary (potential bug).
-  bool get stoppedAtUnexpectedBoundary =>
-      boundary != null && !boundary!.isExpected;
 }
 
 /// Finds actions that produce the input items for a consuming action.
@@ -1365,12 +1133,7 @@ ConsumeUntilResult consumeUntil(
 
   var state = originalState;
   if (waitFor.isSatisfied(state)) {
-    return ConsumeUntilResult(
-      state: state,
-      ticksElapsed: 0,
-      deathCount: 0,
-      boundary: const WaitConditionSatisfied(),
-    );
+    throw Exception('waitFor is already satisfied');
   }
 
   final originalActivityId = state.activeAction?.id;
@@ -1386,6 +1149,9 @@ ConsumeUntilResult consumeUntil(
   while (true) {
     // Check for stuck state at start of each iteration
     final currentProgress = waitFor.progress(state);
+    // TODO(eseidel): This should throw immediately on being stuck.
+    // We can't do that until we return why we stopped from consumeTicksUntil
+    // we only need to check for "stuck" if "hit the max ticks" was the reason.
     if (lastProgress != null && currentProgress <= lastProgress) {
       stuckIterations++;
       if (stuckIterations >= maxStuckIterations) {
@@ -2237,14 +2003,18 @@ SolverResult solve(
   int maxQueueSize = defaultMaxQueueSize,
   bool collectDiagnostics = false,
 }) {
-  final profile = SolverProfile();
-  final totalStopwatch = Stopwatch()..start();
+  final profileBuilder = SolverProfileBuilder();
 
   // Clear the internal rate cache at start of each solve
   clearRateCache();
 
   // Check if goal is already satisfied (considering inventory value)
   if (goal.isSatisfied(initial)) {
+    // Build a minimal profile for early success
+    final profile = profileBuilder.build(
+      expandedNodes: 0,
+      frontier: const FrontierStats(inserted: 0, removed: 0),
+    );
     return SolverSuccess(const Plan.empty(), profile);
   }
 
@@ -2296,16 +2066,16 @@ SolverResult solve(
 
   final hashStopwatch = Stopwatch()..start();
   final rootKey = _stateKey(initial, goal);
-  profile.hashingTimeUs += hashStopwatch.elapsedMicroseconds;
+  profileBuilder.hashingTimeUs += hashStopwatch.elapsedMicroseconds;
   bestTicks[rootKey] = 0;
 
   // Record root best rate for diagnostics
   if (collectDiagnostics) {
     final rootBestRate = rateCache.getBestUnlockedRate(initial);
-    profile.recordBestRate(rootBestRate, isRoot: true);
+    profileBuilder.recordBestRate(rootBestRate, isRoot: true);
     final zeroReason = rateCache.getZeroReason(initial);
     if (zeroReason != null) {
-      profile.recordRateZeroReason(zeroReason);
+      profileBuilder.recordRateZeroReason(zeroReason);
     }
   }
 
@@ -2317,10 +2087,10 @@ SolverResult solve(
     final zeroReason = rateCache.getZeroReason(initial);
     final reasonStr =
         zeroReason?.describe() ?? 'unknown reason (rate computed as zero)';
-    totalStopwatch.stop();
-    profile
-      ..expandedNodes = 0
-      ..totalTimeUs = totalStopwatch.elapsedMicroseconds;
+    final profile = profileBuilder.build(
+      expandedNodes: 0,
+      frontier: frontier.stats,
+    );
     return SolverFailed(
       SolverFailure(
         reason: 'Heuristic bestRate=0: $reasonStr',
@@ -2333,12 +2103,10 @@ SolverResult solve(
   while (pq.isNotEmpty) {
     // Check limits
     if (expandedNodes >= maxExpandedNodes) {
-      totalStopwatch.stop();
-      profile
-        ..expandedNodes = expandedNodes
-        ..totalTimeUs = totalStopwatch.elapsedMicroseconds
-        ..frontierInserted = frontier.inserted
-        ..frontierRemoved = frontier.removed;
+      final profile = profileBuilder.build(
+        expandedNodes: expandedNodes,
+        frontier: frontier.stats,
+      );
       return SolverFailed(
         SolverFailure(
           reason: 'Exceeded max expanded nodes ($maxExpandedNodes)',
@@ -2351,12 +2119,10 @@ SolverResult solve(
     }
 
     if (nodes.length >= maxQueueSize) {
-      totalStopwatch.stop();
-      profile
-        ..expandedNodes = expandedNodes
-        ..totalTimeUs = totalStopwatch.elapsedMicroseconds
-        ..frontierInserted = frontier.inserted
-        ..frontierRemoved = frontier.removed;
+      final profile = profileBuilder.build(
+        expandedNodes: expandedNodes,
+        frontier: frontier.stats,
+      );
       return SolverFailed(
         SolverFailure(
           reason: 'Exceeded max queue size ($maxQueueSize)',
@@ -2378,7 +2144,7 @@ SolverResult solve(
       ..reset()
       ..start();
     final nodeKey = _stateKey(node.state, goal);
-    profile.hashingTimeUs += hashStopwatch.elapsedMicroseconds;
+    profileBuilder.hashingTimeUs += hashStopwatch.elapsedMicroseconds;
 
     final nodeReachedGoal = goal.isSatisfied(node.state);
 
@@ -2391,15 +2157,15 @@ SolverResult solve(
     var neighborsThisNode = 0;
 
     // Track peak queue size for diagnostics
-    if (pq.length > profile.peakQueueSize) {
-      profile.peakQueueSize = pq.length;
+    if (pq.length > profileBuilder.peakQueueSize) {
+      profileBuilder.peakQueueSize = pq.length;
     }
 
     // Collect heuristic health metrics when diagnostics enabled
     if (collectDiagnostics) {
       final bestRate = rateCache.getBestUnlockedRate(node.state);
       final h = _heuristic(node.state, goal, rateCache);
-      profile
+      profileBuilder
         ..recordHeuristic(h, hasZeroRate: bestRate <= 0)
         ..recordBucketKey(nodeKey)
         ..recordBestRate(bestRate, isRoot: false);
@@ -2408,7 +2174,7 @@ SolverResult solve(
       if (bestRate <= 0) {
         final zeroReason = rateCache.getZeroReason(node.state);
         if (zeroReason != null) {
-          profile.recordRateZeroReason(zeroReason);
+          profileBuilder.recordRateZeroReason(zeroReason);
         }
       }
     }
@@ -2429,14 +2195,12 @@ SolverResult solve(
         expandedNodes,
         enqueuedNodes,
       );
-      totalStopwatch.stop();
-      profile
-        ..expandedNodes = expandedNodes
-        ..totalTimeUs = totalStopwatch.elapsedMicroseconds
-        ..frontierInserted = frontier.inserted
-        ..frontierRemoved = frontier.removed
-        ..candidateCacheHits = rateCacheHits
-        ..candidateCacheMisses = rateCacheMisses;
+      final profile = profileBuilder.build(
+        expandedNodes: expandedNodes,
+        frontier: frontier.stats,
+        cacheHits: rateCacheHits,
+        cacheMisses: rateCacheMisses,
+      );
       return SolverSuccess(plan, profile);
     }
 
@@ -2447,12 +2211,13 @@ SolverResult solve(
       goal,
       collectStats: collectDiagnostics,
     );
-    profile.enumerateCandidatesTimeUs += enumStopwatch.elapsedMicroseconds;
+    profileBuilder.enumerateCandidatesTimeUs +=
+        enumStopwatch.elapsedMicroseconds;
 
     // Record candidate stats when diagnostics enabled
     if (collectDiagnostics && candidates.consumingSkillStats != null) {
       final stats = candidates.consumingSkillStats!;
-      profile.candidateStatsHistory.add(
+      profileBuilder.candidateStatsHistory.add(
         CandidateStats(
           consumerActionsConsidered: stats.consumerActionsConsidered,
           producerActionsConsidered: stats.producerActionsConsidered,
@@ -2483,7 +2248,7 @@ SolverResult solve(
           node.ticks,
           newProgress,
         )) {
-          profile.dominatedSkipped++;
+          profileBuilder.dominatedSkipped++;
           continue;
         }
 
@@ -2491,7 +2256,7 @@ SolverResult solve(
           ..reset()
           ..start();
         final newKey = _stateKey(newState, goal);
-        profile.hashingTimeUs += hashStopwatch.elapsedMicroseconds;
+        profileBuilder.hashingTimeUs += hashStopwatch.elapsedMicroseconds;
 
         // Only enqueue if this is the best path to this state
         final existingBest = bestTicks[newKey];
@@ -2525,7 +2290,9 @@ SolverResult solve(
 
       // Record which condition triggered the macro stop
       if (expansionResult.triggeringCondition != null) {
-        profile.recordMacroStopTrigger(expansionResult.triggeringCondition!);
+        profileBuilder.recordMacroStopTrigger(
+          expansionResult.triggeringCondition!,
+        );
       }
 
       final newState = expansionResult.state;
@@ -2540,7 +2307,7 @@ SolverResult solve(
       // Dominance pruning: skip if dominated unless we reached the goal
       if (!reachedGoal &&
           frontier.isDominatedOrInsert(newBucketKey, newTicks, newProgress)) {
-        profile.dominatedSkipped++;
+        profileBuilder.dominatedSkipped++;
         continue;
       }
 
@@ -2553,7 +2320,7 @@ SolverResult solve(
         ..reset()
         ..start();
       final newKey = _stateKey(newState, goal);
-      profile.hashingTimeUs += hashStopwatch.elapsedMicroseconds;
+      profileBuilder.hashingTimeUs += hashStopwatch.elapsedMicroseconds;
 
       // Only enqueue if this is the best path to this state
       final existingBest = bestTicks[newKey];
@@ -2578,12 +2345,10 @@ SolverResult solve(
 
         if (reachedGoal) {
           // Found goal via macro - return immediately
-          totalStopwatch.stop();
-          profile
-            ..expandedNodes = expandedNodes
-            ..totalTimeUs = totalStopwatch.elapsedMicroseconds
-            ..frontierInserted = frontier.inserted
-            ..frontierRemoved = frontier.removed;
+          final profile = profileBuilder.build(
+            expandedNodes: expandedNodes,
+            frontier: frontier.stats,
+          );
           return SolverSuccess(
             _reconstructPlan(nodes, newNodeId, expandedNodes, enqueuedNodes),
             profile,
@@ -2611,11 +2376,11 @@ SolverResult solve(
     );
 
     if (!deltaResult.isDeadEnd && deltaResult.deltaTicks > 0) {
-      profile.decisionDeltas.add(deltaResult.deltaTicks);
+      profileBuilder.decisionDeltas.add(deltaResult.deltaTicks);
 
       final advanceStopwatch = Stopwatch()..start();
       final advanceResult = advance(node.state, deltaResult.deltaTicks);
-      profile.advanceTimeUs += advanceStopwatch.elapsedMicroseconds;
+      profileBuilder.advanceTimeUs += advanceStopwatch.elapsedMicroseconds;
 
       final newState = advanceResult.state;
       final newDeaths = node.expectedDeaths + advanceResult.deaths;
@@ -2630,7 +2395,7 @@ SolverResult solve(
       // BUT: never skip if we've reached the goal
       if (!reachedGoal &&
           frontier.isDominatedOrInsert(newBucketKey, newTicks, newProgress)) {
-        profile.dominatedSkipped++;
+        profileBuilder.dominatedSkipped++;
       } else {
         // If we reached goal, still add to frontier for tracking
         if (reachedGoal) {
@@ -2640,7 +2405,7 @@ SolverResult solve(
           ..reset()
           ..start();
         final newKey = _stateKey(newState, goal);
-        profile.hashingTimeUs += hashStopwatch.elapsedMicroseconds;
+        profileBuilder.hashingTimeUs += hashStopwatch.elapsedMicroseconds;
 
         // Safety: check for zero-progress waits (same state key after advance)
         // BUT: allow if we've reached the goal (even if state key unchanged)
@@ -2675,18 +2440,16 @@ SolverResult solve(
       }
     }
 
-    profile.totalNeighborsGenerated += neighborsThisNode;
+    profileBuilder.totalNeighborsGenerated += neighborsThisNode;
   }
 
   // Priority queue exhausted without finding goal
-  totalStopwatch.stop();
-  profile
-    ..expandedNodes = expandedNodes
-    ..totalTimeUs = totalStopwatch.elapsedMicroseconds
-    ..frontierInserted = frontier.inserted
-    ..frontierRemoved = frontier.removed
-    ..candidateCacheHits = rateCacheHits
-    ..candidateCacheMisses = rateCacheMisses;
+  final profile = profileBuilder.build(
+    expandedNodes: expandedNodes,
+    frontier: frontier.stats,
+    cacheHits: rateCacheHits,
+    cacheMisses: rateCacheMisses,
+  );
   return SolverFailed(
     SolverFailure(
       reason: 'No path to goal found',
