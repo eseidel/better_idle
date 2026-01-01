@@ -13,6 +13,7 @@ import 'package:logic/src/solver/solver.dart';
 import 'package:logic/src/solver/solver_profile.dart';
 import 'package:logic/src/solver/value_model.dart';
 import 'package:logic/src/solver/wait_for.dart';
+import 'package:logic/src/solver/watch_set.dart';
 import 'package:test/test.dart';
 
 import 'test_helper.dart';
@@ -1517,6 +1518,180 @@ void main() {
         sellStepsFound,
         greaterThan(0),
         reason: 'Should sell to afford upgrade',
+      );
+    });
+  });
+
+  group('executeSegment with boundary detection', () {
+    test('detects upgrade affordable boundary during segment execution', () {
+      // Setup: Start with GP just below Iron Axe cost (50 GP)
+      // and enough items to generate the remaining GP quickly
+      final logs = testItems.byName('Normal Logs');
+      final inventory = Inventory.fromItems(testItems, [
+        ItemStack(logs, count: 100), // Worth 100 GP when sold
+      ]);
+      // Start with 40 GP - need 10 more for Iron Axe (50 GP total)
+      var state = GlobalState.test(
+        testRegistries,
+        gp: 40,
+        inventory: inventory,
+      );
+
+      // Start woodcutting to earn GP toward the upgrade
+      final normalTreeAction = testActions.woodcutting('Normal Tree');
+      state = state.startAction(normalTreeAction, random: Random(42));
+
+      // Create a goal and segment config that watches for upgrade affordability
+      const goal = ReachSkillLevelGoal(Skill.woodcutting, 99);
+      const config = SegmentConfig(
+        stopAtUnlockBoundary: false,
+        stopAtInputsDepleted: false,
+      );
+
+      // Build the segment context which creates the WatchSet
+      final context = SegmentContext.build(state, goal, config);
+
+      // Iron Axe should be in the watched upgrades (costs 50 GP)
+      const ironAxeId = MelvorId('melvorD:Iron_Axe');
+      expect(
+        context.watchSet.upgradePurchaseIds,
+        contains(ironAxeId),
+        reason: 'WatchSet should watch Iron Axe for woodcutting goal',
+      );
+
+      // Create a segment that trains woodcutting for a long time
+      const segment = Segment(
+        steps: [WaitStep(10000, WaitForSkillXp(Skill.woodcutting, 10000))],
+        totalTicks: 10000,
+        interactionCount: 0,
+        stopBoundary: GoalReachedBoundary(),
+      );
+
+      // Execute the segment - should stop when Iron Axe becomes affordable
+      final result = executeSegment(
+        state,
+        segment,
+        context.watchSet,
+        random: Random(42),
+      );
+
+      // Should have stopped at upgrade affordable boundary
+      // The effective credits (GP + sellable logs) should now be >= 50
+      final effectiveGp = effectiveCredits(
+        result.finalState,
+        context.sellPolicy,
+      );
+      expect(
+        effectiveGp,
+        greaterThanOrEqualTo(50),
+        reason: 'Should have enough effective credits to afford Iron Axe',
+      );
+
+      // Verify the boundary was detected and converted correctly
+      // This exercises _segmentBoundaryToReplan via the WatchSet conversion
+      expect(
+        result.boundaryHit,
+        isA<UpgradeAffordableBoundary>(),
+        reason: 'Should stop at upgrade affordable boundary',
+      );
+
+      final boundary = result.boundaryHit! as UpgradeAffordableBoundary;
+      expect(boundary.purchaseId, ironAxeId);
+    });
+
+    test('detects goal reached boundary during segment execution', () {
+      // Setup: Start close to a skill level goal
+      var state = GlobalState.empty(testRegistries);
+      final normalTreeAction = testActions.woodcutting('Normal Tree');
+      state = state.startAction(normalTreeAction, random: Random(42));
+
+      // Goal: reach level 2 woodcutting (very achievable quickly)
+      const goal = ReachSkillLevelGoal(Skill.woodcutting, 2);
+      const config = SegmentConfig(
+        stopAtUpgradeAffordable: false,
+        stopAtUnlockBoundary: false,
+        stopAtInputsDepleted: false,
+      );
+
+      final context = SegmentContext.build(state, goal, config);
+
+      // Create a segment that waits for more XP than needed for level 2
+      const segment = Segment(
+        steps: [WaitStep(50000, WaitForSkillXp(Skill.woodcutting, 50000))],
+        totalTicks: 50000,
+        interactionCount: 0,
+        stopBoundary: GoalReachedBoundary(),
+      );
+
+      // Execute - should stop when goal is reached
+      final result = executeSegment(
+        state,
+        segment,
+        context.watchSet,
+        random: Random(42),
+      );
+
+      // Should have reached level 2+
+      expect(
+        result.finalState.skillState(Skill.woodcutting).skillLevel,
+        greaterThanOrEqualTo(2),
+      );
+
+      // Verify goal reached boundary was detected
+      // This exercises _segmentBoundaryToReplan for GoalReachedBoundary
+      expect(
+        result.boundaryHit,
+        isA<GoalReachedBoundary>(),
+        reason: 'Should stop at goal reached boundary',
+      );
+    });
+
+    test('detects horizon cap boundary during segment execution', () {
+      // Setup: Configure a very short horizon cap
+      var state = GlobalState.empty(testRegistries);
+      final normalTreeAction = testActions.woodcutting('Normal Tree');
+      state = state.startAction(normalTreeAction, random: Random(42));
+
+      // Goal: reach level 99 (will never happen in 100 ticks)
+      const goal = ReachSkillLevelGoal(Skill.woodcutting, 99);
+      const config = SegmentConfig(
+        stopAtUpgradeAffordable: false,
+        stopAtUnlockBoundary: false,
+        stopAtInputsDepleted: false,
+        maxSegmentTicks: 100, // Very short horizon cap
+      );
+
+      final context = SegmentContext.build(state, goal, config);
+
+      // Create a segment that would run for much longer
+      const segment = Segment(
+        steps: [WaitStep(10000, WaitForSkillXp(Skill.woodcutting, 100000))],
+        totalTicks: 10000,
+        interactionCount: 0,
+        stopBoundary: GoalReachedBoundary(),
+      );
+
+      // Execute - should stop at horizon cap
+      final result = executeSegment(
+        state,
+        segment,
+        context.watchSet,
+        random: Random(42),
+      );
+
+      // Should have stopped at or near the horizon cap
+      expect(
+        result.actualTicks,
+        lessThanOrEqualTo(200), // Some buffer for action completion
+        reason: 'Should stop near horizon cap',
+      );
+
+      // Verify horizon cap boundary was detected
+      // This exercises _segmentBoundaryToReplan for HorizonCapBoundary
+      expect(
+        result.boundaryHit,
+        isA<HorizonCapBoundary>(),
+        reason: 'Should stop at horizon cap boundary',
       );
     });
   });

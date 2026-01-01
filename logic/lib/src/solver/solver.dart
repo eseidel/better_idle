@@ -2972,14 +2972,6 @@ class SegmentedSuccess extends SegmentedSolverResult {
   /// Per-segment solver profiles (if collectDiagnostics was true).
   /// Length matches [segments] - each profile corresponds to a segment.
   final List<SolverProfile> segmentProfiles;
-
-  /// Aggregate stats across all segments for summary display.
-  int get totalExpandedNodes =>
-      segmentProfiles.fold(0, (sum, p) => sum + p.expandedNodes);
-
-  /// Aggregate neighbors generated across all segments.
-  int get totalNeighborsGenerated =>
-      segmentProfiles.fold(0, (sum, p) => sum + p.totalNeighborsGenerated);
 }
 
 /// Failed to solve to goal via segments.
