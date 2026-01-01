@@ -44,11 +44,13 @@ import 'package:logic/src/solver/solver_profile.dart';
 import 'package:logic/src/solver/unlock_boundaries.dart';
 import 'package:logic/src/solver/value_model.dart';
 import 'package:logic/src/solver/wait_for.dart';
+import 'package:logic/src/solver/watch_set.dart';
 import 'package:logic/src/state.dart';
 import 'package:logic/src/tick.dart';
 import 'package:logic/src/types/inventory.dart';
 import 'package:logic/src/types/stunned.dart';
 import 'package:logic/src/types/time_away.dart';
+import 'package:meta/meta.dart';
 
 // ---------------------------------------------------------------------------
 // Debug invariant assertions
@@ -271,15 +273,6 @@ class _ParetoFrontier {
 /// Default limits for the solver to prevent runaway searches.
 const int defaultMaxExpandedNodes = 200000;
 const int defaultMaxQueueSize = 500000;
-
-/// Calculates the total value of a state (GP + sellable inventory value).
-int _effectiveCredits(GlobalState state) {
-  var total = state.gp;
-  for (final stack in state.inventory.items) {
-    total += stack.sellsFor;
-  }
-  return total;
-}
 
 /// Result of rate computation with optional diagnostic info.
 class _RateResult {
@@ -791,9 +784,10 @@ class _Node {
   final stopwatch = Stopwatch()..start();
   final buffer = StringBuffer();
 
-  // Bucketed gold (coarse grouping for large goals)
-  // Using GP directly since advanceExpected converts items to gold
-  final goldBucket = state.gp ~/ _goldBucketSize;
+  // Bucketed effective credits (GP + sellable inventory value).
+  // States with equivalent purchasing power should bucket together.
+  final credits = effectiveCredits(state, const SellAllPolicy());
+  final goldBucket = credits ~/ _goldBucketSize;
   buffer.write('gb:$goldBucket|');
 
   // Active action (always tracked for state deduplication)
@@ -871,13 +865,8 @@ typedef AdvanceResult = ({GlobalState state, int deaths});
 /// incorporates death cycles into the effective rates. This avoids discrete
 /// death events that would require activity restarts and cause solver churn.
 ///
-/// Uses [valueModel] to convert item flows into GP value.
 /// Returns the new state and the number of expected deaths.
-AdvanceResult _advanceExpected(
-  GlobalState state,
-  int deltaTicks, {
-  ValueModel valueModel = defaultValueModel,
-}) {
+AdvanceResult _advanceExpected(GlobalState state, int deltaTicks) {
   _assertNonNegativeDelta(deltaTicks, '_advanceExpected');
   _assertValidState(state);
 
@@ -896,14 +885,15 @@ AdvanceResult _advanceExpected(
       ? deathCycleAdjustedRates(state, rawRates)
       : rawRates;
 
-  // Compute expected gold gain using the value model
-  // (converts item flows to GP based on the policy)
-  final valueRate = valueModel.valuePerTick(state, rates);
-  final expectedGold = (valueRate * deltaTicks).floor();
-  // Floor GP at 0 to prevent negative GP from consuming skills.
-  // The valueModel includes opportunity cost of consumed items, but actual
-  // GP doesn't decrease when burning logs - only the inventory changes.
-  final newGp = (state.gp + expectedGold).clamp(0, double.maxFinite).toInt();
+  // GP is NOT updated from item production. Items stay as items in inventory
+  // until explicitly sold via SellItems interaction.
+  //
+  // For affordability checks during planning, use effectiveCredits(state,
+  // policy) which computes: state.gp + sellableValue(inventory).
+  //
+  // This ensures GlobalState.gp always represents actual GP, matching
+  // execution.
+  final newGp = state.gp;
 
   // Compute expected skill XP gains
   final newSkillStates = Map<Skill, SkillState>.from(state.skillStates);
@@ -1134,7 +1124,15 @@ ConsumeUntilResult consumeUntil(
 
   var state = originalState;
   if (waitFor.isSatisfied(state)) {
-    throw Exception('waitFor is already satisfied');
+    // Already satisfied - return immediately with 0 ticks elapsed.
+    // This can happen when a previous step in the plan already satisfied
+    // the condition (e.g., multiple macros targeting the same boundary).
+    return ConsumeUntilResult(
+      state: state,
+      ticksElapsed: 0,
+      deathCount: 0,
+      boundary: const WaitConditionSatisfied(),
+    );
   }
 
   final originalActivityId = state.activeAction?.id;
@@ -1318,8 +1316,9 @@ _StepResult _executeCoupledLoop(
   TrainConsumingSkillUntil macro,
   WaitFor waitFor,
   Map<Skill, SkillBoundaries>? boundaries,
-  Random random,
-) {
+  Random random, {
+  WatchSet? watchSet,
+}) {
   var currentState = state;
   var totalTicks = 0;
   var totalDeaths = 0;
@@ -1336,6 +1335,22 @@ _StepResult _executeCoupledLoop(
     // Check if primary stop condition is met
     if (actualWaitFor.isSatisfied(currentState)) {
       break;
+    }
+
+    // Check for material boundary (mid-macro stopping)
+    if (watchSet != null) {
+      final boundary = watchSet.detectBoundary(
+        currentState,
+        elapsedTicks: totalTicks,
+      );
+      if (boundary != null) {
+        return (
+          state: currentState,
+          ticksElapsed: totalTicks,
+          deaths: totalDeaths,
+          boundary: _segmentBoundaryToReplan(boundary),
+        );
+      }
     }
 
     // Re-evaluate best actions each iteration as levels may have changed
@@ -1400,6 +1415,22 @@ _StepResult _executeCoupledLoop(
       currentState = produceResult.state;
       totalTicks += produceResult.ticksElapsed;
       totalDeaths += produceResult.deathCount;
+
+      // Check for material boundary after producing
+      if (watchSet != null) {
+        final boundary = watchSet.detectBoundary(
+          currentState,
+          elapsedTicks: totalTicks,
+        );
+        if (boundary != null) {
+          return (
+            state: currentState,
+            ticksElapsed: totalTicks,
+            deaths: totalDeaths,
+            boundary: _segmentBoundaryToReplan(boundary),
+          );
+        }
+      }
     }
 
     // Check stop condition again after producing
@@ -1421,6 +1452,22 @@ _StepResult _executeCoupledLoop(
     currentState = consumeResult.state;
     totalTicks += consumeResult.ticksElapsed;
     totalDeaths += consumeResult.deathCount;
+
+    // Check for material boundary after consuming
+    if (watchSet != null) {
+      final boundary = watchSet.detectBoundary(
+        currentState,
+        elapsedTicks: totalTicks,
+      );
+      if (boundary != null) {
+        return (
+          state: currentState,
+          ticksElapsed: totalTicks,
+          deaths: totalDeaths,
+          boundary: _segmentBoundaryToReplan(boundary),
+        );
+      }
+    }
 
     // If we hit the stop condition, we're done
     if (actualWaitFor.isSatisfied(currentState)) {
@@ -1469,11 +1516,42 @@ _StepResult _executeCoupledLoop(
   );
 }
 
+/// Converts a SegmentBoundary to a ReplanBoundary for _applyStep return.
+///
+/// This is used when mid-macro stopping detects a material boundary.
+/// Some information may be approximated since SegmentBoundary has less
+/// detail than ReplanBoundary in some cases.
+ReplanBoundary _segmentBoundaryToReplan(SegmentBoundary boundary) {
+  return switch (boundary) {
+    GoalReachedBoundary() => const GoalReached(),
+    UpgradeAffordableBoundary(:final purchaseId) => UpgradeAffordableEarly(
+      purchaseId: purchaseId,
+      cost: 0,
+    ),
+    UnlockBoundary() =>
+      // UnexpectedUnlock needs an actionId, but UnlockBoundary doesn't have it.
+      // Return GoalReached as a signal that we hit a material boundary.
+      const GoalReached(),
+    InputsDepletedBoundary(:final actionId) => InputsDepleted(
+      actionId: actionId,
+      // We don't track which item was depleted in SegmentBoundary
+      missingItemId: const MelvorId('melvorD:Unknown'),
+    ),
+    HorizonCapBoundary() =>
+      // Horizon cap is a planned stop, not an error. Signal as GoalReached.
+      const GoalReached(),
+    InventoryPressureBoundary() =>
+      // Inventory pressure triggers a replan to sell items.
+      const InventoryFull(),
+  };
+}
+
 _StepResult _applyStep(
   GlobalState state,
   PlanStep step, {
   required Random random,
   Map<Skill, SkillBoundaries>? boundaries,
+  WatchSet? watchSet,
 }) {
   switch (step) {
     case InteractionStep(:final interaction):
@@ -1497,6 +1575,23 @@ _StepResult _applyStep(
     case WaitStep(:final waitFor):
       // Run until the wait condition is satisfied
       final result = consumeUntil(state, waitFor, random: random);
+
+      // Check for material boundary after waiting (mid-step stopping)
+      if (watchSet != null) {
+        final materialBoundary = watchSet.detectBoundary(
+          result.state,
+          elapsedTicks: result.ticksElapsed,
+        );
+        if (materialBoundary != null) {
+          return (
+            state: result.state,
+            ticksElapsed: result.ticksElapsed,
+            deaths: result.deathCount,
+            boundary: _segmentBoundaryToReplan(materialBoundary),
+          );
+        }
+      }
+
       return (
         state: result.state,
         ticksElapsed: result.ticksElapsed,
@@ -1534,9 +1629,26 @@ _StepResult _applyStep(
               ? waitConditions.first
               : WaitForAnyOf(waitConditions);
         }
+
+        // Execute with mid-macro boundary checking if watchSet provided
+        if (watchSet != null) {
+          return _executeTrainSkillWithBoundaryChecks(
+            executionState,
+            executionWaitFor,
+            random,
+            watchSet,
+          );
+        }
       } else if (macro is TrainConsumingSkillUntil) {
         // Execute coupled produce/consume loop until stop condition
-        return _executeCoupledLoop(state, macro, waitFor, boundaries, random);
+        return _executeCoupledLoop(
+          state,
+          macro,
+          waitFor,
+          boundaries,
+          random,
+          watchSet: watchSet,
+        );
       }
 
       final result = consumeUntil(
@@ -1551,6 +1663,64 @@ _StepResult _applyStep(
         boundary: result.boundary,
       );
   }
+}
+
+/// Executes a TrainSkillUntil macro with boundary checking.
+///
+/// This allows mid-macro stopping when a material boundary (upgrade affordable,
+/// unlock reached, etc.) is detected during execution. The boundary check
+/// happens after consumeUntil completes or returns a boundary.
+_StepResult _executeTrainSkillWithBoundaryChecks(
+  GlobalState state,
+  WaitFor waitFor,
+  Random random,
+  WatchSet watchSet,
+) {
+  // Check for material boundary before starting
+  // Note: elapsedTicks is 0 at start, so horizon cap won't trigger here
+  final initialBoundary = watchSet.detectBoundary(state, elapsedTicks: 0);
+  if (initialBoundary != null) {
+    return (
+      state: state,
+      ticksElapsed: 0,
+      deaths: 0,
+      boundary: _segmentBoundaryToReplan(initialBoundary),
+    );
+  }
+
+  // Execute until the wait condition is satisfied
+  final result = consumeUntil(state, waitFor, random: random);
+
+  // Check for material boundary after execution
+  final materialBoundary = watchSet.detectBoundary(
+    result.state,
+    elapsedTicks: result.ticksElapsed,
+  );
+  if (materialBoundary != null) {
+    return (
+      state: result.state,
+      ticksElapsed: result.ticksElapsed,
+      deaths: result.deathCount,
+      boundary: _segmentBoundaryToReplan(materialBoundary),
+    );
+  }
+
+  // If consumeUntil returned a boundary, check if it's material
+  if (result.boundary != null && watchSet.isMaterial(result.boundary!)) {
+    return (
+      state: result.state,
+      ticksElapsed: result.ticksElapsed,
+      deaths: result.deathCount,
+      boundary: result.boundary,
+    );
+  }
+
+  return (
+    state: result.state,
+    ticksElapsed: result.ticksElapsed,
+    deaths: result.deathCount,
+    boundary: result.boundary,
+  );
 }
 
 /// Execute a plan and return the result including death count and actual ticks.
@@ -2016,7 +2186,7 @@ SolverResult solve(
       expandedNodes: 0,
       frontier: FrontierStats.zero,
     );
-    return SolverSuccess(const Plan.empty(), profile);
+    return SolverSuccess(const Plan.empty(), initial, profile);
   }
 
   // Compute unlock boundaries for macro-step planning
@@ -2051,7 +2221,7 @@ SolverResult solve(
   // Stats
   var expandedNodes = 0;
   var enqueuedNodes = 0;
-  var bestCredits = initial.gp;
+  var bestCredits = effectiveCredits(initial, const SellAllPolicy());
 
   // Create and enqueue root node
   final rootNode = _Node(
@@ -2181,7 +2351,11 @@ SolverResult solve(
 
     // Track best credits seen (effective credits = GP + inventory value)
     // Note: For non-GP goals this tracks GP anyway for diagnostics.
-    final nodeEffectiveCredits = _effectiveCredits(node.state);
+    // Uses SellAllPolicy since this is just measuring potential GP value.
+    final nodeEffectiveCredits = effectiveCredits(
+      node.state,
+      const SellAllPolicy(),
+    );
     if (nodeEffectiveCredits > bestCredits) {
       bestCredits = nodeEffectiveCredits;
     }
@@ -2194,6 +2368,7 @@ SolverResult solve(
         nodeId,
         expandedNodes,
         enqueuedNodes,
+        goal: goal,
       );
       final profile = profileBuilder.build(
         expandedNodes: expandedNodes,
@@ -2201,14 +2376,22 @@ SolverResult solve(
         cacheHits: rateCacheHits,
         cacheMisses: rateCacheMisses,
       );
-      return SolverSuccess(plan, profile);
+      // Return terminal node's state for segment boundary detection
+      return SolverSuccess(plan, node.state, profile);
     }
 
     // Compute candidates for this state
+    // For segment goals, use the WatchSet's sellPolicy to ensure consistency
+    // with boundary detection. For non-segment goals, enumerateCandidates
+    // will compute the policy from the goal (backward compatibility).
+    final segmentSellPolicy = goal is SegmentGoal
+        ? goal.watchSet.sellPolicy
+        : null;
     final enumStopwatch = Stopwatch()..start();
     final candidates = enumerateCandidates(
       node.state,
       goal,
+      sellPolicy: segmentSellPolicy,
       collectStats: collectDiagnostics,
     );
     profileBuilder.enumerateCandidatesTimeUs +=
@@ -2229,9 +2412,13 @@ SolverResult solve(
     }
 
     // Expand interaction edges (0 time cost)
+    // Only pass sellPolicy if we should emit a sell candidate (pruning)
+    final sellPolicy = candidates.shouldEmitSellCandidate
+        ? candidates.sellPolicy
+        : null;
     final interactions = availableInteractions(
       node.state,
-      sellPolicy: candidates.sellPolicy,
+      sellPolicy: sellPolicy,
     );
     for (final interaction in interactions) {
       // Only consider interactions that are in our candidate set (for pruning)
@@ -2350,7 +2537,14 @@ SolverResult solve(
             frontier: frontier.stats,
           );
           return SolverSuccess(
-            _reconstructPlan(nodes, newNodeId, expandedNodes, enqueuedNodes),
+            _reconstructPlan(
+              nodes,
+              newNodeId,
+              expandedNodes,
+              enqueuedNodes,
+              goal: goal,
+            ),
+            newState,
             profile,
           );
         }
@@ -2362,7 +2556,17 @@ SolverResult solve(
     }
 
     // Expand wait edge
-    final deltaResult = nextDecisionDelta(node.state, goal, candidates);
+    // For segment goals, use the WatchSet's sellPolicy for consistent
+    // effectiveCredits calculation. Otherwise use candidates.sellPolicy.
+    final deltaSellPolicy = goal is SegmentGoal
+        ? goal.watchSet.sellPolicy
+        : candidates.sellPolicy;
+    final deltaResult = nextDecisionDelta(
+      node.state,
+      goal,
+      candidates,
+      sellPolicy: deltaSellPolicy,
+    );
 
     // Invariant: dt=0 only when actions exist, dt>0 when no immediate actions.
     // Prevents regression where "affordable watched upgrade" triggers dt=0
@@ -2470,17 +2674,21 @@ bool _isRelevantInteraction(Interaction interaction, Candidates candidates) {
     BuyShopItem(:final purchaseId) => candidates.buyUpgrades.contains(
       purchaseId,
     ),
-    SellItems() => candidates.sellPolicy != null,
+    SellItems() => candidates.shouldEmitSellCandidate,
   };
 }
 
 /// Reconstructs a plan from the goal node by walking parent pointers.
+///
+/// If [goal] is a [ReachGpGoal] and the terminal state's actual GP is less
+/// than the target, a sell step is appended to convert inventory to GP.
 Plan _reconstructPlan(
   List<_Node> nodes,
   int goalNodeId,
   int expandedNodes,
-  int enqueuedNodes,
-) {
+  int enqueuedNodes, {
+  Goal? goal,
+}) {
   final steps = <PlanStep>[];
   var currentId = goalNodeId;
 
@@ -2521,7 +2729,15 @@ Plan _reconstructPlan(
     processedSteps.add(step);
   }
 
+  // For GP goals, add a final sell step if actual GP < target.
+  // The solver uses effectiveCredits (GP + inventory value) to determine
+  // goal satisfaction, but execution needs actual GP. This sell step
+  // converts inventory to GP at the end of the plan.
   final goalNode = nodes[goalNodeId];
+  if (goal is ReachGpGoal && goalNode.state.gp < goal.targetGp) {
+    processedSteps.add(const InteractionStep(SellItems(SellAllPolicy())));
+  }
+
   return Plan(
     steps: processedSteps,
     totalTicks: goalNode.ticks,
@@ -2529,5 +2745,410 @@ Plan _reconstructPlan(
     expandedNodes: expandedNodes,
     enqueuedNodes: enqueuedNodes,
     expectedDeaths: goalNode.expectedDeaths,
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Segment-Based Solving
+// ---------------------------------------------------------------------------
+
+/// Result of solving to the next segment boundary.
+sealed class SegmentResult {
+  const SegmentResult();
+}
+
+/// Successful segment solve.
+class SegmentSuccess extends SegmentResult {
+  const SegmentSuccess({
+    required this.segment,
+    required this.finalState,
+    required this.context,
+    this.profile,
+  });
+
+  /// The segment (plan portion to boundary).
+  final Segment segment;
+
+  /// Terminal state from solve() - no replay needed.
+  final GlobalState finalState;
+
+  /// The segment context (includes WatchSet and SellPolicy).
+  final SegmentContext context;
+
+  /// Solver profile for this segment (if collectDiagnostics was true).
+  final SolverProfile? profile;
+
+  /// The WatchSet used for this segment (pass to executeSegment).
+  WatchSet get watchSet => context.watchSet;
+
+  /// The SellPolicy for this segment (use for boundary handling).
+  SellPolicy get sellPolicy => context.sellPolicy;
+}
+
+/// Segment solve failed.
+class SegmentFailed extends SegmentResult {
+  const SegmentFailed(this.failure);
+
+  final SolverFailure failure;
+}
+
+/// Solves for a single segment: from current state to the first material
+/// boundary.
+///
+/// A segment ends when [WatchSet.detectBoundary] returns non-null on the
+/// terminal state. The boundary is derived from the terminal node's state
+/// (returned by solve()), NOT by replaying the plan.
+///
+/// Returns a [SegmentSuccess] with:
+/// - The segment (steps, ticks, boundary)
+/// - The terminal state (for continuing to next segment)
+/// - The SegmentContext (includes WatchSet and SellPolicy for boundary
+///   handling)
+SegmentResult solveSegment(
+  GlobalState initial,
+  Goal goal, {
+  SegmentConfig config = const SegmentConfig(),
+  bool collectDiagnostics = false,
+  int maxExpandedNodes = defaultMaxExpandedNodes,
+  int maxQueueSize = defaultMaxQueueSize,
+}) {
+  // Build segment context - computes SellPolicy once and passes to WatchSet
+  final context = SegmentContext.build(initial, goal, config);
+
+  // Create segment goal that delegates to watchSet.detectBoundary()
+  final segmentGoal = SegmentGoal(context.watchSet);
+
+  // solve() now returns terminal state directly
+  final result = solve(
+    initial,
+    segmentGoal,
+    collectDiagnostics: collectDiagnostics,
+    maxExpandedNodes: maxExpandedNodes,
+    maxQueueSize: maxQueueSize,
+  );
+
+  return switch (result) {
+    SolverSuccess(:final plan, :final terminalState, :final profile) => () {
+      // Derive boundary from terminal state (no replay needed!)
+      final boundary =
+          context.watchSet.detectBoundary(
+            terminalState,
+            elapsedTicks: plan.totalTicks,
+          ) ??
+          const GoalReachedBoundary();
+
+      return SegmentSuccess(
+        segment: Segment(
+          steps: plan.steps,
+          totalTicks: plan.totalTicks,
+          interactionCount: plan.interactionCount,
+          stopBoundary: boundary,
+        ),
+        finalState: terminalState,
+        context: context,
+        profile: profile,
+      );
+    }(),
+    SolverFailed(:final failure) => SegmentFailed(failure),
+  };
+}
+
+/// Result of executing a single segment.
+@immutable
+class SegmentExecutionResult {
+  const SegmentExecutionResult({
+    required this.finalState,
+    required this.boundaryHit,
+    required this.actualTicks,
+    required this.plannedTicks,
+    required this.deaths,
+  });
+
+  /// The state after executing the segment.
+  final GlobalState finalState;
+
+  /// What boundary was hit (same type as planning).
+  final SegmentBoundary? boundaryHit;
+
+  /// Actual ticks elapsed during execution.
+  final int actualTicks;
+
+  /// Planned ticks from the solver (for comparison).
+  final int plannedTicks;
+
+  /// Number of deaths during execution.
+  final int deaths;
+
+  /// Difference between actual and planned ticks.
+  int get ticksDelta => actualTicks - plannedTicks;
+}
+
+/// Executes a segment with stochastic simulation.
+///
+/// Uses the SAME [WatchSet] from planning to determine material boundaries.
+/// Stops when [_applyStep] returns a boundary that [WatchSet.isMaterial]
+/// accepts.
+///
+/// The [random] parameter controls the stochastic simulation. For
+/// deterministic testing, use a seeded Random.
+SegmentExecutionResult executeSegment(
+  GlobalState state,
+  Segment segment,
+  WatchSet watchSet, {
+  required Random random,
+}) {
+  var currentState = state;
+  var totalTicks = 0;
+  var totalDeaths = 0;
+  final unlockBoundaries = computeUnlockBoundaries(state.registries);
+
+  for (final step in segment.steps) {
+    final result = _applyStep(
+      currentState,
+      step,
+      random: random,
+      boundaries: unlockBoundaries,
+      watchSet: watchSet,
+    );
+    currentState = result.state;
+    totalTicks += result.ticksElapsed;
+    totalDeaths += result.deaths;
+
+    // Check if _applyStep's boundary is material using the SAME watchSet
+    if (result.boundary != null && watchSet.isMaterial(result.boundary!)) {
+      // Convert ReplanBoundary -> SegmentBoundary using watchSet
+      final segmentBoundary = watchSet.toSegmentBoundary(result.boundary!);
+      return SegmentExecutionResult(
+        finalState: currentState,
+        boundaryHit: segmentBoundary,
+        actualTicks: totalTicks,
+        plannedTicks: segment.totalTicks,
+        deaths: totalDeaths,
+      );
+    }
+  }
+
+  // No early boundary - use the expected boundary from planning
+  return SegmentExecutionResult(
+    finalState: currentState,
+    boundaryHit: segment.stopBoundary,
+    actualTicks: totalTicks,
+    plannedTicks: segment.totalTicks,
+    deaths: totalDeaths,
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Full Segmented Solving
+// ---------------------------------------------------------------------------
+
+/// Result of solving to goal via segments.
+sealed class SegmentedSolverResult {
+  const SegmentedSolverResult();
+}
+
+/// Successfully solved to goal via segments.
+class SegmentedSuccess extends SegmentedSolverResult {
+  const SegmentedSuccess({
+    required this.segments,
+    required this.totalTicks,
+    required this.totalReplanCount,
+    required this.finalState,
+    this.segmentProfiles = const [],
+  });
+
+  /// Individual segments for debugging/inspection.
+  final List<Segment> segments;
+
+  /// Total ticks across all segments.
+  final int totalTicks;
+
+  /// Number of times we replanned (= number of segments).
+  final int totalReplanCount;
+
+  /// Final state after all segments.
+  final GlobalState finalState;
+
+  /// Per-segment solver profiles (if collectDiagnostics was true).
+  /// Length matches [segments] - each profile corresponds to a segment.
+  final List<SolverProfile> segmentProfiles;
+}
+
+/// Failed to solve to goal via segments.
+class SegmentedFailed extends SegmentedSolverResult {
+  const SegmentedFailed(this.failure, {this.completedSegments = const []});
+
+  final SolverFailure failure;
+
+  /// Segments completed before failure.
+  final List<Segment> completedSegments;
+}
+
+/// Primary entry point: solves to goal by iteratively solving segments.
+///
+/// This is the main solver API. Each segment plans to the next material
+/// boundary (upgrade affordable, skill unlock, inputs depleted, etc.),
+/// then replans from the new state.
+///
+/// The loop:
+/// 1. Solve for next segment (to boundary)
+/// 2. Use projected state from solve() (no separate execution needed)
+/// 3. Repeat until goal reached
+///
+/// For stochastic execution, call [executeSegment] on each segment with
+/// a Random instance.
+///
+/// Parameters:
+/// - [initial]: Starting state
+/// - [goal]: The goal to reach
+/// - [config]: Segment stopping configuration
+/// - [collectDiagnostics]: If true, collect per-segment solver profiles
+/// - [maxSegments]: Safety limit to prevent infinite loops (default 100)
+/// - [maxExpandedNodesPerSegment]: Node limit per segment search
+SegmentedSolverResult solveToGoal(
+  GlobalState initial,
+  Goal goal, {
+  SegmentConfig config = const SegmentConfig(),
+  bool collectDiagnostics = false,
+  int maxSegments = 100,
+  int maxExpandedNodesPerSegment = defaultMaxExpandedNodes,
+}) {
+  final segments = <Segment>[];
+  final profiles = <SolverProfile>[];
+  var currentState = initial;
+
+  for (var segmentIndex = 0; segmentIndex < maxSegments; segmentIndex++) {
+    // Check if goal is already satisfied
+    if (goal.isSatisfied(currentState)) {
+      break;
+    }
+
+    // Solve for next segment
+    final segmentResult = solveSegment(
+      currentState,
+      goal,
+      config: config,
+      collectDiagnostics: collectDiagnostics,
+      maxExpandedNodes: maxExpandedNodesPerSegment,
+    );
+
+    switch (segmentResult) {
+      case SegmentFailed(:final failure):
+        return SegmentedFailed(failure, completedSegments: segments);
+
+      case SegmentSuccess(
+        :final segment,
+        :final finalState,
+        :final sellPolicy,
+        :final profile,
+      ):
+        segments.add(segment);
+        if (profile != null) {
+          profiles.add(profile);
+        }
+
+        // Use projected state from solve() (deterministic)
+        currentState = finalState;
+
+        // If goal reached, we're done - but for GP goals, we may need to sell
+        // items first to convert inventory value to actual GP.
+        if (segment.stopBoundary is GoalReachedBoundary) {
+          if (goal is ReachGpGoal && currentState.gp < goal.targetGp) {
+            // GP goal: effectiveCredits >= target, but actual GP < target.
+            // Sell items to convert inventory value to GP.
+            final sellInteraction = SellItems(sellPolicy);
+            currentState = applyInteraction(currentState, sellInteraction);
+
+            // Add a synthetic segment for the sell step
+            segments.add(
+              Segment(
+                steps: [InteractionStep(sellInteraction)],
+                totalTicks: 0,
+                interactionCount: 1,
+                stopBoundary: const GoalReachedBoundary(),
+                description: 'Sell items to reach GP goal',
+              ),
+            );
+          }
+          break;
+        }
+
+        // If we stopped because an upgrade became affordable, sell items
+        // (if needed) and buy it, then add a synthetic segment
+        if (segment.stopBoundary is UpgradeAffordableBoundary) {
+          final boundary = segment.stopBoundary as UpgradeAffordableBoundary;
+
+          final purchaseSteps = <PlanStep>[];
+
+          // Check if we need to sell items to afford the upgrade
+          final purchase = currentState.registries.shop.byId(
+            boundary.purchaseId,
+          );
+          final gpCost = purchase?.cost.gpCost ?? 0;
+
+          // WatchSet triggered because effectiveCredits >= gpCost. Verify this.
+          final credits = effectiveCredits(currentState, sellPolicy);
+          assert(
+            credits >= gpCost,
+            'WatchSet reported upgrade affordable but effectiveCredits '
+            '($credits) < gpCost ($gpCost)',
+          );
+
+          // Sell if actual GP is insufficient (items need to be converted).
+          final needsToSell = currentState.gp < gpCost;
+          if (needsToSell) {
+            // Use the segment's sell policy - computed once at segment start.
+            // This is the SAME policy used by WatchSet for effectiveCredits,
+            // ensuring the boundary detection and handling are consistent.
+            final sellInteraction = SellItems(sellPolicy);
+            currentState = applyInteraction(currentState, sellInteraction);
+            purchaseSteps.add(InteractionStep(sellInteraction));
+
+            // INVARIANT: If WatchSet reported this upgrade as affordable,
+            // applying the same sell policy must make it purchasable.
+            // If this fails, WatchSet and boundary handling disagree - a bug.
+            assert(
+              currentState.gp >= gpCost,
+              'Invariant violated: WatchSet reported upgrade affordable but '
+              'selling with the same policy only yielded ${currentState.gp} GP '
+              '(need $gpCost). This indicates a bug in effectiveCredits or '
+              'sell policy handling.',
+            );
+          }
+
+          // Buy the upgrade (should always succeed after selling per invariant)
+          if (currentState.gp >= gpCost) {
+            final buyInteraction = BuyShopItem(boundary.purchaseId);
+            currentState = applyInteraction(currentState, buyInteraction);
+            purchaseSteps.add(InteractionStep(buyInteraction));
+          }
+
+          // Add a synthetic segment for the sell+purchase (0 ticks, just
+          // records the interactions)
+          segments.add(
+            Segment(
+              steps: purchaseSteps,
+              totalTicks: 0,
+              interactionCount: purchaseSteps.length,
+              stopBoundary: boundary,
+              description: 'Buy ${boundary.upgradeName}',
+            ),
+          );
+        }
+    }
+  }
+
+  // Calculate total ticks
+  final totalTicks = segments.fold<int>(
+    0,
+    (sum, segment) => sum + segment.totalTicks,
+  );
+
+  return SegmentedSuccess(
+    segments: segments,
+    totalTicks: totalTicks,
+    totalReplanCount: segments.length,
+    finalState: currentState,
+    segmentProfiles: profiles,
   );
 }

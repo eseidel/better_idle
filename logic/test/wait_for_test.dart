@@ -3,35 +3,39 @@ import 'dart:math';
 import 'package:logic/logic.dart';
 import 'package:logic/src/solver/estimate_rates.dart';
 import 'package:logic/src/solver/goal.dart';
+import 'package:logic/src/solver/interaction.dart' show SellAllPolicy;
 import 'package:logic/src/solver/next_decision_delta.dart';
 import 'package:logic/src/solver/wait_for.dart';
 import 'package:test/test.dart';
 
 import 'test_helper.dart';
 
+/// Default sell policy for tests - sells everything.
+const _testPolicy = SellAllPolicy();
+
 void main() {
   setUpAll(() async {
     await loadTestRegistries();
   });
 
-  group('WaitForInventoryValue', () {
+  group('WaitForEffectiveCredits', () {
     test('isSatisfied returns true when GP meets target', () {
       final state = GlobalState.test(testRegistries, gp: 100);
-      const waitFor = WaitForInventoryValue(100);
+      const waitFor = WaitForEffectiveCredits(100, sellPolicy: _testPolicy);
 
       expect(waitFor.isSatisfied(state), isTrue);
     });
 
     test('isSatisfied returns true when GP exceeds target', () {
       final state = GlobalState.test(testRegistries, gp: 150);
-      const waitFor = WaitForInventoryValue(100);
+      const waitFor = WaitForEffectiveCredits(100, sellPolicy: _testPolicy);
 
       expect(waitFor.isSatisfied(state), isTrue);
     });
 
     test('isSatisfied returns false when GP is below target', () {
       final state = GlobalState.test(testRegistries, gp: 50);
-      const waitFor = WaitForInventoryValue(100);
+      const waitFor = WaitForEffectiveCredits(100, sellPolicy: _testPolicy);
 
       expect(waitFor.isSatisfied(state), isFalse);
     });
@@ -47,7 +51,7 @@ void main() {
         gp: 50,
         inventory: inventory,
       );
-      const waitFor = WaitForInventoryValue(100);
+      const waitFor = WaitForEffectiveCredits(100, sellPolicy: _testPolicy);
 
       // 50 GP + 50 logs * 1 GP = 100 total
       expect(waitFor.isSatisfied(state), isTrue);
@@ -55,30 +59,34 @@ void main() {
 
     test('estimateTicks returns 0 when already satisfied', () {
       final state = GlobalState.test(testRegistries, gp: 100);
-      const waitFor = WaitForInventoryValue(100);
+      const waitFor = WaitForEffectiveCredits(100, sellPolicy: _testPolicy);
 
       expect(waitFor.estimateTicks(state, Rates.empty), 0);
     });
 
     test('estimateTicks returns infTicks when no value rate', () {
       final state = GlobalState.test(testRegistries, gp: 50);
-      const waitFor = WaitForInventoryValue(100);
+      const waitFor = WaitForEffectiveCredits(100, sellPolicy: _testPolicy);
 
       expect(waitFor.estimateTicks(state, Rates.empty), infTicks);
     });
 
     test('describe returns formatted string', () {
-      const waitFor = WaitForInventoryValue(100);
-      expect(waitFor.describe(), 'value >= 100');
+      const waitFor = WaitForEffectiveCredits(100, sellPolicy: _testPolicy);
+      expect(waitFor.describe(), 'credits >= 100');
     });
 
     test('shortDescription includes reason', () {
-      const waitFor = WaitForInventoryValue(100, reason: 'Iron Axe');
+      const waitFor = WaitForEffectiveCredits(
+        100,
+        sellPolicy: _testPolicy,
+        reason: 'Iron Axe',
+      );
       expect(waitFor.shortDescription, 'Iron Axe affordable');
     });
 
     test('shortDescription defaults to Upgrade', () {
-      const waitFor = WaitForInventoryValue(100);
+      const waitFor = WaitForEffectiveCredits(100, sellPolicy: _testPolicy);
       expect(waitFor.shortDescription, 'Upgrade affordable');
     });
 
@@ -92,7 +100,7 @@ void main() {
         gp: 50,
         inventory: inventory,
       );
-      const waitFor = WaitForInventoryValue(100);
+      const waitFor = WaitForEffectiveCredits(100, sellPolicy: _testPolicy);
 
       // 50 GP + 50 logs * 1 GP = 100 total
       expect(waitFor.progress(state), 100);
@@ -100,7 +108,7 @@ void main() {
 
     test('progress returns only GP when no items', () {
       final state = GlobalState.test(testRegistries, gp: 75);
-      const waitFor = WaitForInventoryValue(100);
+      const waitFor = WaitForEffectiveCredits(100, sellPolicy: _testPolicy);
 
       expect(waitFor.progress(state), 75);
     });
@@ -843,9 +851,9 @@ void main() {
     test('isSatisfied returns true when any condition met', () {
       final state = GlobalState.test(testRegistries, gp: 100);
       const waitFor = WaitForAnyOf([
-        WaitForInventoryValue(200), // Not met
-        WaitForInventoryValue(100), // Met
-        WaitForInventoryValue(300), // Not met
+        WaitForEffectiveCredits(200, sellPolicy: _testPolicy), // Not met
+        WaitForEffectiveCredits(100, sellPolicy: _testPolicy), // Met
+        WaitForEffectiveCredits(300, sellPolicy: _testPolicy), // Not met
       ]);
 
       expect(waitFor.isSatisfied(state), isTrue);
@@ -854,8 +862,8 @@ void main() {
     test('isSatisfied returns false when no conditions met', () {
       final state = GlobalState.test(testRegistries, gp: 50);
       const waitFor = WaitForAnyOf([
-        WaitForInventoryValue(100),
-        WaitForInventoryValue(200),
+        WaitForEffectiveCredits(100, sellPolicy: _testPolicy),
+        WaitForEffectiveCredits(200, sellPolicy: _testPolicy),
       ]);
 
       expect(waitFor.isSatisfied(state), isFalse);
@@ -912,18 +920,18 @@ void main() {
 
     test('describe joins condition descriptions', () {
       const waitFor = WaitForAnyOf([
-        WaitForInventoryValue(100),
+        WaitForEffectiveCredits(100, sellPolicy: _testPolicy),
         WaitForSkillXp(Skill.woodcutting, 50),
       ]);
 
       expect(waitFor.describe(), contains('OR'));
-      expect(waitFor.describe(), contains('value >= 100'));
+      expect(waitFor.describe(), contains('credits >= 100'));
       expect(waitFor.describe(), contains('Woodcutting XP >= 50'));
     });
 
     test('shortDescription uses first condition', () {
       const waitFor = WaitForAnyOf([
-        WaitForInventoryValue(100, reason: 'Axe'),
+        WaitForEffectiveCredits(100, sellPolicy: _testPolicy, reason: 'Axe'),
         WaitForSkillXp(Skill.woodcutting, 50),
       ]);
 
@@ -945,7 +953,7 @@ void main() {
         },
       );
       const waitFor = WaitForAnyOf([
-        WaitForInventoryValue(100), // progress = 50
+        WaitForEffectiveCredits(100, sellPolicy: _testPolicy), // progress = 50
         WaitForSkillXp(Skill.woodcutting, 100), // progress = 75
       ]);
 
@@ -962,10 +970,10 @@ void main() {
   });
 
   group('WaitFor equality', () {
-    test('WaitForInventoryValue equality', () {
-      const a = WaitForInventoryValue(100);
-      const b = WaitForInventoryValue(100);
-      const c = WaitForInventoryValue(200);
+    test('WaitForEffectiveCredits equality', () {
+      const a = WaitForEffectiveCredits(100, sellPolicy: _testPolicy);
+      const b = WaitForEffectiveCredits(100, sellPolicy: _testPolicy);
+      const c = WaitForEffectiveCredits(200, sellPolicy: _testPolicy);
 
       expect(a, equals(b));
       expect(a, isNot(equals(c)));
@@ -991,9 +999,15 @@ void main() {
     });
 
     test('WaitForAnyOf equality', () {
-      const a = WaitForAnyOf([WaitForInventoryValue(100)]);
-      const b = WaitForAnyOf([WaitForInventoryValue(100)]);
-      const c = WaitForAnyOf([WaitForInventoryValue(200)]);
+      const a = WaitForAnyOf([
+        WaitForEffectiveCredits(100, sellPolicy: _testPolicy),
+      ]);
+      const b = WaitForAnyOf([
+        WaitForEffectiveCredits(100, sellPolicy: _testPolicy),
+      ]);
+      const c = WaitForAnyOf([
+        WaitForEffectiveCredits(200, sellPolicy: _testPolicy),
+      ]);
 
       expect(a, equals(b));
       expect(a, isNot(equals(c)));
@@ -1020,7 +1034,7 @@ void main() {
       state = state.startAction(action, random: Random(42));
 
       final rates = estimateRates(state);
-      const waitFor = WaitForInventoryValue(100);
+      const waitFor = WaitForEffectiveCredits(100, sellPolicy: _testPolicy);
 
       final ticks = waitFor.estimateTicks(state, rates);
       expect(ticks, greaterThan(0));

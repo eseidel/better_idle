@@ -22,7 +22,14 @@ import 'package:equatable/equatable.dart';
 import 'package:logic/src/data/actions.dart';
 import 'package:logic/src/data/xp.dart';
 import 'package:logic/src/solver/estimate_rates.dart';
+import 'package:logic/src/solver/interaction.dart'
+    show
+        ReserveConsumingInputsSpec,
+        SellAllPolicy,
+        SellPolicy,
+        effectiveCredits;
 import 'package:logic/src/solver/value_model.dart' show ValueModel;
+import 'package:logic/src/solver/watch_set.dart';
 import 'package:logic/src/state.dart';
 import 'package:meta/meta.dart';
 
@@ -83,34 +90,40 @@ sealed class Goal extends Equatable {
   /// Returns the set of consuming skills that are part of this goal.
   /// Used to unconditionally include producer activities for these skills.
   Set<Skill> get consumingSkills;
+
+  /// Computes the sell policy for this goal.
+  ///
+  /// This is a POLICY decision, not a heuristic. The sell policy determines
+  /// which items to keep vs sell based on what the goal needs:
+  /// - GP goals: sell everything (all items contribute to GP)
+  /// - Skill goals: keep items that are inputs for consuming skills
+  ///
+  /// The [state] is used to determine which actions are unlocked and what
+  /// inputs they require.
+  SellPolicy computeSellPolicy(GlobalState state);
 }
 
 /// Goal to reach a target amount of GP (gold pieces).
 ///
 /// "Effective credits" includes both GP and the sell value of inventory items.
+/// For GP goals, all items count toward progress (uses [SellAllPolicy]).
 @immutable
 class ReachGpGoal extends Goal {
   const ReachGpGoal(this.targetGp);
 
   final int targetGp;
 
-  /// Calculates the total effective credits (GP + sellable inventory value).
-  int effectiveCredits(GlobalState state) {
-    var total = state.gp;
-    for (final stack in state.inventory.items) {
-      total += stack.sellsFor;
-    }
-    return total;
-  }
+  /// The sell policy for GP goals: sell everything.
+  static const _policy = SellAllPolicy();
 
   @override
   bool isSatisfied(GlobalState state) {
-    return effectiveCredits(state) >= targetGp;
+    return effectiveCredits(state, _policy) >= targetGp;
   }
 
   @override
   double remaining(GlobalState state) {
-    final current = effectiveCredits(state);
+    final current = effectiveCredits(state, _policy);
     return (targetGp - current).clamp(0, double.infinity).toDouble();
   }
 
@@ -129,7 +142,7 @@ class ReachGpGoal extends Goal {
   }
 
   @override
-  int progress(GlobalState state) => effectiveCredits(state);
+  int progress(GlobalState state) => effectiveCredits(state, _policy);
 
   @override
   bool get isSellRelevant => true;
@@ -154,6 +167,12 @@ class ReachGpGoal extends Goal {
 
   @override
   Set<Skill> get consumingSkills => Skill.consumingSkills;
+
+  @override
+  SellPolicy computeSellPolicy(GlobalState state) {
+    // GP goals sell everything - all items contribute to GP
+    return const SellAllPolicy();
+  }
 
   @override
   List<Object?> get props => [targetGp];
@@ -217,6 +236,16 @@ class ReachSkillLevelGoal extends Goal {
 
   @override
   Set<Skill> get consumingSkills => skill.isConsuming ? {skill} : {};
+
+  @override
+  SellPolicy computeSellPolicy(GlobalState state) {
+    // Delegate to the spec for consistent policy computation.
+    // ReserveConsumingInputsSpec handles the keepItems logic.
+    return const ReserveConsumingInputsSpec().instantiate(
+      state,
+      consumingSkills,
+    );
+  }
 
   @override
   List<Object?> get props => [skill, targetLevel];
@@ -313,5 +342,86 @@ class MultiSkillGoal extends Goal {
       subgoals.expand((g) => g.consumingSkills).toSet();
 
   @override
+  SellPolicy computeSellPolicy(GlobalState state) {
+    // Delegate to the spec for consistent policy computation.
+    // ReserveConsumingInputsSpec handles the keepItems logic.
+    return const ReserveConsumingInputsSpec().instantiate(
+      state,
+      consumingSkills,
+    );
+  }
+
+  @override
   List<Object?> get props => [subgoals];
+}
+
+/// A goal wrapper that stops at material boundaries.
+///
+/// This class delegates to a [WatchSet] for boundary detection.
+/// When [isSatisfied] returns true, it means a material boundary was crossed
+/// (goal reached, upgrade affordable, unlock boundary, etc.).
+///
+/// All other Goal methods delegate to the inner goal from the WatchSet.
+@immutable
+class SegmentGoal extends Goal {
+  const SegmentGoal(this.watchSet);
+
+  /// The WatchSet that defines what boundaries are material.
+  final WatchSet watchSet;
+
+  /// Convenience accessor for the inner goal.
+  Goal get innerGoal => watchSet.goal;
+
+  @override
+  bool isSatisfied(GlobalState state) {
+    // Delegate to watchSet - the SINGLE source of truth
+    final boundary = watchSet.detectBoundary(state);
+    return boundary != null;
+  }
+
+  @override
+  double remaining(GlobalState state) => innerGoal.remaining(state);
+
+  @override
+  String describe() => 'Segment(${innerGoal.describe()})';
+
+  @override
+  double progressPerTick(GlobalState state, Rates rates) =>
+      innerGoal.progressPerTick(state, rates);
+
+  @override
+  int progress(GlobalState state) => innerGoal.progress(state);
+
+  @override
+  bool get isSellRelevant => innerGoal.isSellRelevant;
+
+  @override
+  bool isSkillRelevant(Skill skill) => innerGoal.isSkillRelevant(skill);
+
+  @override
+  double activityRate(Skill skill, double goldRate, double xpRate) =>
+      innerGoal.activityRate(skill, goldRate, xpRate);
+
+  @override
+  Set<Skill> get relevantSkillsForBucketing =>
+      innerGoal.relevantSkillsForBucketing;
+
+  @override
+  bool get shouldTrackHp => innerGoal.shouldTrackHp;
+
+  @override
+  bool get shouldTrackMastery => innerGoal.shouldTrackMastery;
+
+  @override
+  bool get shouldTrackInventory => innerGoal.shouldTrackInventory;
+
+  @override
+  Set<Skill> get consumingSkills => innerGoal.consumingSkills;
+
+  @override
+  SellPolicy computeSellPolicy(GlobalState state) =>
+      innerGoal.computeSellPolicy(state);
+
+  @override
+  List<Object?> get props => [watchSet];
 }

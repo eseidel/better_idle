@@ -410,6 +410,7 @@ class Candidates {
     required this.switchToActivities,
     required this.buyUpgrades,
     required this.sellPolicy,
+    required this.shouldEmitSellCandidate,
     required this.watch,
     required this.macros,
     this.consumingSkillStats,
@@ -421,12 +422,25 @@ class Candidates {
   /// Top-K upgrade purchase IDs worth considering (may be unaffordable).
   final List<MelvorId> buyUpgrades;
 
-  /// Sell policy to use, or null if selling is not relevant.
+  /// Sell policy defining what items to keep vs sell.
+  ///
+  /// This is a POLICY decision from the goal, always available for:
+  /// - WatchSet boundary detection (effectiveCredits calculation)
+  /// - Actual sell interactions when emitted
   ///
   /// For GP goals: [SellAllPolicy] - sell everything.
-  /// For consuming skill goals: [SellExceptPolicy] - keep inputs.
-  /// For non-GP skill goals: null - selling doesn't help.
-  final SellPolicy? sellPolicy;
+  /// For skill goals: [SellExceptPolicy] - keep inputs for consuming skills.
+  final SellPolicy sellPolicy;
+
+  /// Whether to emit a sell candidate from this state.
+  ///
+  /// This is a HEURISTIC (pruning) decision, separate from policy:
+  /// - For GP goals: true when inventory is getting full
+  /// - For skill goals: false (selling doesn't contribute to XP)
+  ///
+  /// The solver uses this to decide whether to branch on selling,
+  /// but sellPolicy is always available for boundary calculations.
+  final bool shouldEmitSellCandidate;
 
   /// Events to watch for "wait until interesting time".
   final WatchList watch;
@@ -625,6 +639,11 @@ List<MacroCandidate> _generateMacros(GlobalState state, Goal goal) {
   // For ReachGpGoal, we don't generate macros (use micro-steps instead)
   // GP goals benefit from frequent re-evaluation for upgrade purchases
 
+  // For SegmentGoal, delegate to inner goal's macro generation
+  if (goal is SegmentGoal) {
+    return _generateMacros(state, goal.innerGoal);
+  }
+
   return macros;
 }
 
@@ -727,9 +746,15 @@ List<MacroCandidate> _augmentMacrosWithUpgradeStops(
 /// Per-state filtering (canStartNow, active action exclusion) is done fresh.
 ///
 /// If [collectStats] is true, populates diagnostic stats for consuming skills.
+///
+/// If [sellPolicy] is provided, uses that policy for sell candidate emission.
+/// Otherwise, computes the policy from the goal (backward compatibility).
+/// For segment-based solving, pass the segment context's sellPolicy to ensure
+/// consistency with WatchSet boundary detection.
 Candidates enumerateCandidates(
   GlobalState state,
   Goal goal, {
+  SellPolicy? sellPolicy,
   int activityCount = defaultActivityCandidateCount,
   int upgradeCount = defaultUpgradeCandidateCount,
   int lockedWatchCount = defaultLockedWatchCount,
@@ -863,14 +888,6 @@ Candidates enumerateCandidates(
     goal,
   );
 
-  // Determine sell policy and inventory watch
-  // For skill goals, selling is less relevant (doesn't contribute to XP)
-  final inventoryUsedFraction = state.inventoryCapacity > 0
-      ? state.inventoryUsed / state.inventoryCapacity
-      : 0.0;
-  final shouldConsiderSelling =
-      goal.isSellRelevant && inventoryUsedFraction > inventoryThreshold;
-
   // Find consuming activities relevant to the goal.
   // Include even activities that can start now, because we may need to
   // gather MORE inputs to complete the goal, not just enough to start.
@@ -882,29 +899,31 @@ Candidates enumerateCandidates(
     consumingActivitiesToWatch.add(summary.actionId);
   }
 
-  // Compute sell policy based on goal type
-  final SellPolicy? sellPolicy;
-  if (!shouldConsiderSelling) {
-    sellPolicy = null;
-  } else {
-    // Compute items to keep (inputs for consuming skill goals)
-    final keepItems = _computeKeepList(goal, state, summaries);
-    if (keepItems.isEmpty) {
-      sellPolicy = const SellAllPolicy();
-    } else {
-      sellPolicy = SellExceptPolicy(keepItems);
-    }
-  }
+  // Use provided sell policy (from SegmentContext) if available.
+  // Fallback to goal.computeSellPolicy only for backward compatibility
+  // with non-segment solves. This fallback should be removed once all
+  // callers pass the policy explicitly.
+  final effectiveSellPolicy = sellPolicy ?? goal.computeSellPolicy(state);
+
+  // Whether to emit a sell candidate is a HEURISTIC (pruning) decision.
+  // For skill goals, selling doesn't contribute to XP, so we skip it.
+  // For GP goals, we only consider selling when inventory is getting full.
+  final inventoryUsedFraction = state.inventoryCapacity > 0
+      ? state.inventoryUsed / state.inventoryCapacity
+      : 0.0;
+  final shouldEmitSellCandidate =
+      goal.isSellRelevant && inventoryUsedFraction > inventoryThreshold;
 
   return Candidates(
     switchToActivities: switchToActivities,
     buyUpgrades: upgradeResult.candidates,
-    sellPolicy: sellPolicy,
+    sellPolicy: effectiveSellPolicy,
+    shouldEmitSellCandidate: shouldEmitSellCandidate,
     watch: WatchList(
       upgradePurchaseIds: upgradeResult.toWatch,
       lockedActivityIds: lockedActivitiesToWatch,
       consumingActivityIds: consumingActivitiesToWatch,
-      inventory: sellPolicy != null,
+      inventory: shouldEmitSellCandidate,
     ),
     macros: augmentedMacros,
     consumingSkillStats: consumingStats,
@@ -942,59 +961,6 @@ List<ActionId> _findProducersForActionByRate(
     }
   }
   return producers;
-}
-
-/// Computes the set of item IDs to keep (not sell) for the given goal.
-///
-/// For consuming skill goals (Firemaking, Cooking, Smithing), this returns
-/// the input items required by consuming actions for those skills.
-/// For GP goals or non-consuming skill goals, returns an empty set.
-Set<MelvorId> _computeKeepList(
-  Goal goal,
-  GlobalState state,
-  List<ActionSummary> summaries,
-) {
-  final keepItems = <MelvorId>{};
-  final registries = state.registries;
-
-  // Find consuming skills in the goal
-  final consumingSkills = <Skill>{};
-  switch (goal) {
-    case ReachSkillLevelGoal(:final skill):
-      if (skill.isConsuming) {
-        consumingSkills.add(skill);
-      }
-    case MultiSkillGoal(:final subgoals):
-      for (final subgoal in subgoals) {
-        if (subgoal.skill.isConsuming) {
-          consumingSkills.add(subgoal.skill);
-        }
-      }
-    case ReachGpGoal():
-      // GP goals sell everything
-      break;
-  }
-
-  if (consumingSkills.isEmpty) {
-    return keepItems;
-  }
-
-  // Find all consuming actions for the goal skills and collect their inputs
-  for (final summary in summaries) {
-    if (!consumingSkills.contains(summary.skill)) continue;
-    if (!summary.hasInputs) continue;
-
-    final action = registries.actions.byId(summary.actionId);
-    if (action is! SkillAction) continue;
-
-    final actionStateVal = state.actionState(action.id);
-    final selection = actionStateVal.recipeSelection(action);
-    final inputs = action.inputsForRecipe(selection);
-
-    inputs.keys.forEach(keepItems.add);
-  }
-
-  return keepItems;
 }
 
 /// Finds producer actions for a given item.

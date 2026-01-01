@@ -28,8 +28,6 @@
 /// This ensures high cache hit rates while maintaining correctness.
 library;
 
-import 'dart:math' as math;
-
 import 'package:equatable/equatable.dart';
 import 'package:logic/src/data/actions.dart';
 import 'package:logic/src/data/melvor_id.dart';
@@ -113,58 +111,11 @@ class CandidateCache {
       switchToActivities: filteredActivities,
       buyUpgrades: candidates.buyUpgrades,
       sellPolicy: candidates.sellPolicy,
+      shouldEmitSellCandidate: candidates.shouldEmitSellCandidate,
       watch: candidates.watch,
       macros: candidates.macros,
       consumingSkillStats: candidates.consumingSkillStats,
     );
-  }
-
-  /// Performs a sampled verification that filtered cache matches fresh compute.
-  ///
-  /// Call this periodically during solving to catch cache key bugs.
-  /// Returns true if verification passed (or was skipped due to sampling).
-  bool sampleVerify(
-    GlobalState state,
-    Goal goal,
-    Candidates cached,
-    Candidates Function() freshCompute, {
-    double sampleRate = 0.01,
-  }) {
-    // Sample at the given rate
-    if (math.Random().nextDouble() > sampleRate) {
-      return true;
-    }
-
-    verifyChecks++;
-    final fresh = freshCompute();
-
-    // Compare filtered cached vs fresh (both should be filtered)
-    final cachedFiltered = _filterCandidates(cached, state);
-
-    // Check switchToActivities match (order may differ, compare as sets)
-    final cachedSet = cachedFiltered.switchToActivities.toSet();
-    final freshSet = fresh.switchToActivities.toSet();
-
-    if (!_setsEqual(cachedSet, freshSet)) {
-      verifyFailures++;
-      return false;
-    }
-
-    // Check buyUpgrades match
-    final cachedUpgrades = cachedFiltered.buyUpgrades.toSet();
-    final freshUpgrades = fresh.buyUpgrades.toSet();
-
-    if (!_setsEqual(cachedUpgrades, freshUpgrades)) {
-      verifyFailures++;
-      return false;
-    }
-
-    return true;
-  }
-
-  bool _setsEqual<T>(Set<T> a, Set<T> b) {
-    if (a.length != b.length) return false;
-    return a.containsAll(b);
   }
 
   /// Clears the cache (call when starting a new solve).
@@ -224,6 +175,24 @@ class CandidateCacheKey extends Equatable {
       case ReachGpGoal():
         // GP goals consider all skills, already included
         break;
+      case SegmentGoal(:final innerGoal):
+        // Delegate to inner goal's consuming skill logic
+        switch (innerGoal) {
+          case ReachSkillLevelGoal(:final skill):
+            if (skill.isConsuming) {
+              _addProducerSkillLevels(skill, state, skillLevelBucket);
+            }
+          case MultiSkillGoal(:final subgoals):
+            for (final subgoal in subgoals) {
+              if (subgoal.skill.isConsuming) {
+                _addProducerSkillLevels(subgoal.skill, state, skillLevelBucket);
+              }
+            }
+          case ReachGpGoal():
+          case SegmentGoal():
+            // GP goals or nested SegmentGoal - no special handling
+            break;
+        }
     }
 
     // Compute inventory bucket (0-4 based on fullness percentage)
@@ -253,6 +222,8 @@ class CandidateCacheKey extends Equatable {
 }
 
 /// Adds producer skill levels for a consuming skill.
+// TODO(eseidel): This is the wrong design.  Skills don't always have a
+// single producer skill.
 void _addProducerSkillLevels(
   Skill consumingSkill,
   GlobalState state,

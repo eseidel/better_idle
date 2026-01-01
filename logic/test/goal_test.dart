@@ -210,15 +210,17 @@ void main() {
       expect(fishingActivities, isNotEmpty);
     });
 
-    test('does not include sellPolicy for skill goals', () {
-      // For skill goals, selling is not relevant
+    test('does not emit sell candidate for skill goals', () {
+      // For skill goals, selling is not relevant to progress
       final state = GlobalState.empty(testRegistries);
 
       const goal = ReachSkillLevelGoal(Skill.woodcutting, 10);
       final candidates = enumerateCandidates(state, goal);
 
-      // sellPolicy should be null for skill goals
-      expect(candidates.sellPolicy, isNull);
+      // sellPolicy is always available (for boundary detection)
+      // but shouldEmitSellCandidate should be false (selling doesn't help XP)
+      expect(candidates.sellPolicy, isNotNull);
+      expect(candidates.shouldEmitSellCandidate, isFalse);
     });
 
     test('only watches activities for target skill', () {
@@ -475,7 +477,7 @@ void main() {
       }
     });
 
-    test('does not include sellPolicy for multi-skill goals', () {
+    test('does not emit sell candidate for multi-skill goals', () {
       final state = GlobalState.empty(testRegistries);
 
       final goal = MultiSkillGoal.fromMap(const {
@@ -484,7 +486,10 @@ void main() {
       });
       final candidates = enumerateCandidates(state, goal);
 
-      expect(candidates.sellPolicy, isNull);
+      // sellPolicy is always available (for boundary detection)
+      // but shouldEmitSellCandidate should be false (selling doesn't help XP)
+      expect(candidates.sellPolicy, isNotNull);
+      expect(candidates.shouldEmitSellCandidate, isFalse);
     });
   });
 }

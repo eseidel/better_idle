@@ -8,6 +8,7 @@ import 'package:logic/src/data/action_id.dart';
 import 'package:logic/src/data/actions.dart';
 import 'package:logic/src/data/melvor_id.dart';
 import 'package:logic/src/data/xp.dart';
+import 'package:logic/src/solver/interaction.dart' show SellAllPolicy;
 import 'package:logic/src/solver/unlock_boundaries.dart';
 import 'package:logic/src/solver/wait_for.dart';
 import 'package:logic/src/state.dart';
@@ -133,7 +134,13 @@ class StopWhenUpgradeAffordable extends MacroStopRule {
 
   @override
   WaitFor toWaitFor(GlobalState state, Map<Skill, SkillBoundaries> boundaries) {
-    return WaitForInventoryValue(cost, reason: upgradeName);
+    // Use SellAllPolicy as a conservative default - upgrade affordability
+    // is typically checked with full liquidation potential.
+    return WaitForEffectiveCredits(
+      cost,
+      sellPolicy: const SellAllPolicy(),
+      reason: upgradeName,
+    );
   }
 }
 

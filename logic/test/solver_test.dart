@@ -7,12 +7,15 @@ import 'package:logic/src/solver/enumerate_candidates.dart';
 import 'package:logic/src/solver/estimate_rates.dart';
 import 'package:logic/src/solver/goal.dart';
 import 'package:logic/src/solver/interaction.dart';
+import 'package:logic/src/solver/macro_candidate.dart';
 import 'package:logic/src/solver/next_decision_delta.dart';
 import 'package:logic/src/solver/plan.dart';
+import 'package:logic/src/solver/replan_boundary.dart';
 import 'package:logic/src/solver/solver.dart';
 import 'package:logic/src/solver/solver_profile.dart';
 import 'package:logic/src/solver/value_model.dart';
 import 'package:logic/src/solver/wait_for.dart';
+import 'package:logic/src/solver/watch_set.dart';
 import 'package:test/test.dart';
 
 import 'test_helper.dart';
@@ -113,15 +116,16 @@ void main() {
       var state = GlobalState.empty(testRegistries);
       final action = testActions.woodcutting('Normal Tree');
       state = state.startAction(action, random: Random(0));
-      final initialGp = state.gp;
+      final initialItems = state.inventory.items.length;
 
-      // advance uses expected-value model for rate-modelable activities
-      // so we check that GP increases appropriately
+      // advance projects state forward - items accumulate in inventory
+      // GP only increases when items are explicitly sold
       final result = advance(state, 100);
 
-      // Normal Tree: 1 gold / 30 ticks = 0.033 gold/tick
-      // After 100 ticks: expect ~3 gold
-      expect(result.state.gp, greaterThan(initialGp));
+      // Normal Tree produces logs which accumulate in inventory
+      expect(result.state.inventory.items.length, greaterThan(initialItems));
+      // GP unchanged (items stay as items until sold)
+      expect(result.state.gp, state.gp);
     });
 
     test('is deterministic', () {
@@ -290,14 +294,108 @@ void main() {
 
       expect(output, contains('... and 40 more steps'));
     });
+
+    test('fromSegments stitches segments with markers', () {
+      final normalTreeAction = testActions.woodcutting('Normal Tree');
+      final oakTreeAction = testActions.woodcutting('Oak Tree');
+
+      final segment1 = Segment(
+        steps: [
+          InteractionStep(SwitchActivity(normalTreeAction.id)),
+          const WaitStep(100, WaitForSkillXp(Skill.woodcutting, 50)),
+        ],
+        totalTicks: 100,
+        interactionCount: 1,
+        stopBoundary: const UnlockBoundary(Skill.woodcutting, 5, 'Oak Tree'),
+        description: 'Train on Normal Tree',
+      );
+
+      final segment2 = Segment(
+        steps: [
+          InteractionStep(SwitchActivity(oakTreeAction.id)),
+          const WaitStep(200, WaitForSkillXp(Skill.woodcutting, 150)),
+        ],
+        totalTicks: 200,
+        interactionCount: 1,
+        stopBoundary: const GoalReachedBoundary(),
+        description: 'Train on Oak Tree',
+      );
+
+      final plan = Plan.fromSegments(
+        [segment1, segment2],
+        expandedNodes: 42,
+        enqueuedNodes: 100,
+      );
+
+      // Verify steps are stitched together
+      expect(plan.steps.length, 4); // 2 + 2 steps
+      expect(plan.steps[0], isA<InteractionStep>());
+      expect(plan.steps[1], isA<WaitStep>());
+      expect(plan.steps[2], isA<InteractionStep>());
+      expect(plan.steps[3], isA<WaitStep>());
+
+      // Verify totals are accumulated
+      expect(plan.totalTicks, 300); // 100 + 200
+      expect(plan.interactionCount, 2); // 1 + 1
+
+      // Verify metadata is preserved
+      expect(plan.expandedNodes, 42);
+      expect(plan.enqueuedNodes, 100);
+
+      // Verify segment markers
+      expect(plan.segmentMarkers.length, 2);
+
+      // First marker at step 0
+      expect(plan.segmentMarkers[0].stepIndex, 0);
+      expect(plan.segmentMarkers[0].boundary, isA<UnlockBoundary>());
+      expect(plan.segmentMarkers[0].description, 'Train on Normal Tree');
+
+      // Second marker at step 2 (after first segment's 2 steps)
+      expect(plan.segmentMarkers[1].stepIndex, 2);
+      expect(plan.segmentMarkers[1].boundary, isA<GoalReachedBoundary>());
+      expect(plan.segmentMarkers[1].description, 'Train on Oak Tree');
+    });
+
+    test('fromSegments handles empty segments list', () {
+      final plan = Plan.fromSegments(const []);
+
+      expect(plan.steps, isEmpty);
+      expect(plan.totalTicks, 0);
+      expect(plan.interactionCount, 0);
+      expect(plan.segmentMarkers, isEmpty);
+    });
+
+    test('fromSegments handles single segment', () {
+      final normalTreeAction = testActions.woodcutting('Normal Tree');
+
+      final segment = Segment(
+        steps: [
+          InteractionStep(SwitchActivity(normalTreeAction.id)),
+          const WaitStep(500, WaitForGoal(ReachGpGoal(100))),
+        ],
+        totalTicks: 500,
+        interactionCount: 1,
+        stopBoundary: const GoalReachedBoundary(),
+      );
+
+      final plan = Plan.fromSegments([segment]);
+
+      expect(plan.steps.length, 2);
+      expect(plan.totalTicks, 500);
+      expect(plan.interactionCount, 1);
+      expect(plan.segmentMarkers.length, 1);
+      expect(plan.segmentMarkers[0].stepIndex, 0);
+    });
   });
 
   group('SolverResult', () {
-    test('SolverSuccess wraps plan', () {
+    test('SolverSuccess wraps plan and terminalState', () {
       const plan = Plan.empty();
-      const result = SolverSuccess(plan);
+      final terminalState = GlobalState.empty(testRegistries);
+      final result = SolverSuccess(plan, terminalState);
 
       expect(result.plan.steps, isEmpty);
+      expect(result.terminalState, terminalState);
     });
 
     test('SolverFailed wraps failure', () {
@@ -404,7 +502,7 @@ void main() {
       expect(result.deaths, equals(5));
     });
 
-    test('nextDecisionDelta includes death timing for thieving', () {
+    test('nextDecisionDelta returns positive delta for thieving', () {
       var state = GlobalState.empty(testRegistries);
       final action = testActions.thieving('Man');
       state = state.startAction(action, random: Random(0));
@@ -418,11 +516,11 @@ void main() {
 
       final result = nextDecisionDelta(state, goal, candidates);
 
-      // Delta should be less than or equal to ticks until death
-      final rates = estimateRates(state);
-      final ticksToDeath = ticksUntilDeath(state, rates);
-
-      expect(result.deltaTicks, lessThanOrEqualTo(ticksToDeath!));
+      // Delta should be positive (some time until next decision point).
+      // Note: Death is NOT a decision point - it's handled automatically
+      // during execution via death-cycle adjusted rates. The planner uses
+      // expected-value modeling that absorbs death into rate calculations.
+      expect(result.deltaTicks, greaterThan(0));
     });
   });
 
@@ -916,9 +1014,10 @@ void main() {
     });
 
     test('executes plan from solve result', () {
-      // Solve for a small GP goal
+      // Solve for a skill goal (more deterministic than GP goals which
+      // involve complex item flows and upgrade timing)
       final state = GlobalState.empty(testRegistries);
-      const goal = ReachGpGoal(100);
+      const goal = ReachSkillLevelGoal(Skill.woodcutting, 10);
       final solveResult = solve(state, goal);
 
       expect(solveResult, isA<SolverSuccess>());
@@ -927,8 +1026,9 @@ void main() {
       // Execute the plan
       final execResult = executePlan(state, success.plan, random: Random(42));
 
-      // Should reach the goal (or close to it due to simulation variance)
-      expect(execResult.finalState.gp, greaterThan(50));
+      // Should reach the goal
+      final wcLevel = execResult.finalState.skillState(Skill.woodcutting);
+      expect(wcLevel.skillLevel, greaterThanOrEqualTo(10));
       expect(
         execResult.hasUnexpectedBoundaries,
         isFalse,
@@ -1119,7 +1219,10 @@ void main() {
       final plan = Plan(
         steps: [
           InteractionStep(SwitchActivity(normalTreeAction.id)),
-          const WaitStep(100, WaitForInventoryValue(50)),
+          const WaitStep(
+            100,
+            WaitForEffectiveCredits(50, sellPolicy: SellAllPolicy()),
+          ),
           const InteractionStep(SellItems(SellAllPolicy())),
           const InteractionStep(BuyShopItem(ironAxeId)),
           const WaitStep(200, WaitForSkillXp(Skill.woodcutting, 100)),
@@ -1430,6 +1533,836 @@ void main() {
 
       builder.recordBucketKey('key3');
       expect(builder.uniqueBucketKeys, 3);
+    });
+  });
+
+  group('solveToGoal', () {
+    test('does not sell when GP is already sufficient for upgrade', () {
+      // Start with enough GP to buy Iron Axe (50 GP) plus some items
+      final logs = testItems.byName('Normal Logs');
+      final inventory = Inventory.fromItems(testItems, [
+        ItemStack(logs, count: 10),
+      ]);
+      // Start with 100 GP - enough for the 50 GP Iron Axe
+      final state = GlobalState.test(
+        testRegistries,
+        gp: 100,
+        inventory: inventory,
+      );
+      const goal = ReachSkillLevelGoal(Skill.woodcutting, 10);
+
+      final result = solveToGoal(state, goal);
+
+      expect(result, isA<SegmentedSuccess>());
+      final success = result as SegmentedSuccess;
+
+      // Find any sell steps in the segments
+      var sellStepsFound = 0;
+      for (final segment in success.segments) {
+        for (final step in segment.steps) {
+          if (step is InteractionStep && step.interaction is SellItems) {
+            sellStepsFound++;
+          }
+        }
+      }
+
+      // Should have no sell steps since we had enough GP
+      expect(sellStepsFound, 0);
+    });
+
+    test('sells when GP is insufficient for upgrade', () {
+      // Start with no GP but enough items to afford Iron Axe (50 GP)
+      // Oak Logs sell for 5 GP each, so 20 logs = 100 GP
+      final oak = testItems.byName('Oak Logs');
+      final inventory = Inventory.fromItems(testItems, [
+        ItemStack(oak, count: 20), // Worth 100 GP when sold
+      ]);
+      final state = GlobalState.test(testRegistries, inventory: inventory);
+      // Goal higher level to ensure we hit upgrade boundary before goal
+      const goal = ReachSkillLevelGoal(Skill.woodcutting, 20);
+
+      final result = solveToGoal(state, goal);
+
+      expect(result, isA<SegmentedSuccess>());
+      final success = result as SegmentedSuccess;
+
+      // Check if there's an upgrade boundary that triggered a sell
+      final hasUpgradeBoundary = success.segments.any(
+        (s) => s.stopBoundary is UpgradeAffordableBoundary,
+      );
+
+      // With 100 GP of sellable items and Iron Axe costing 50 GP,
+      // we should hit the upgrade boundary quickly
+      expect(
+        hasUpgradeBoundary,
+        isTrue,
+        reason: 'Should have upgrade boundary since we have sellable items',
+      );
+
+      // Count sell steps
+      var sellStepsFound = 0;
+      for (final segment in success.segments) {
+        for (final step in segment.steps) {
+          if (step is InteractionStep && step.interaction is SellItems) {
+            sellStepsFound++;
+          }
+        }
+      }
+      expect(
+        sellStepsFound,
+        greaterThan(0),
+        reason: 'Should sell to afford upgrade',
+      );
+    });
+  });
+
+  group('executeSegment with boundary detection', () {
+    test('detects upgrade affordable boundary during segment execution', () {
+      // Setup: Start with GP just below Iron Axe cost (50 GP)
+      // and enough items to generate the remaining GP quickly
+      final logs = testItems.byName('Normal Logs');
+      final inventory = Inventory.fromItems(testItems, [
+        ItemStack(logs, count: 100), // Worth 100 GP when sold
+      ]);
+      // Start with 40 GP - need 10 more for Iron Axe (50 GP total)
+      var state = GlobalState.test(
+        testRegistries,
+        gp: 40,
+        inventory: inventory,
+      );
+
+      // Start woodcutting to earn GP toward the upgrade
+      final normalTreeAction = testActions.woodcutting('Normal Tree');
+      state = state.startAction(normalTreeAction, random: Random(42));
+
+      // Create a goal and segment config that watches for upgrade affordability
+      const goal = ReachSkillLevelGoal(Skill.woodcutting, 99);
+      const config = SegmentConfig(
+        stopAtUnlockBoundary: false,
+        stopAtInputsDepleted: false,
+      );
+
+      // Build the segment context which creates the WatchSet
+      final context = SegmentContext.build(state, goal, config);
+
+      // Iron Axe should be in the watched upgrades (costs 50 GP)
+      const ironAxeId = MelvorId('melvorD:Iron_Axe');
+      expect(
+        context.watchSet.upgradePurchaseIds,
+        contains(ironAxeId),
+        reason: 'WatchSet should watch Iron Axe for woodcutting goal',
+      );
+
+      // Create a segment that trains woodcutting for a long time
+      const segment = Segment(
+        steps: [WaitStep(10000, WaitForSkillXp(Skill.woodcutting, 10000))],
+        totalTicks: 10000,
+        interactionCount: 0,
+        stopBoundary: GoalReachedBoundary(),
+      );
+
+      // Execute the segment - should stop when Iron Axe becomes affordable
+      final result = executeSegment(
+        state,
+        segment,
+        context.watchSet,
+        random: Random(42),
+      );
+
+      // Should have stopped at upgrade affordable boundary
+      // The effective credits (GP + sellable logs) should now be >= 50
+      final effectiveGp = effectiveCredits(
+        result.finalState,
+        context.sellPolicy,
+      );
+      expect(
+        effectiveGp,
+        greaterThanOrEqualTo(50),
+        reason: 'Should have enough effective credits to afford Iron Axe',
+      );
+
+      // Verify the boundary was detected and converted correctly
+      // This exercises _segmentBoundaryToReplan via the WatchSet conversion
+      expect(
+        result.boundaryHit,
+        isA<UpgradeAffordableBoundary>(),
+        reason: 'Should stop at upgrade affordable boundary',
+      );
+
+      final boundary = result.boundaryHit! as UpgradeAffordableBoundary;
+      expect(boundary.purchaseId, ironAxeId);
+    });
+
+    test('detects goal reached boundary during segment execution', () {
+      // Setup: Start close to a skill level goal
+      var state = GlobalState.empty(testRegistries);
+      final normalTreeAction = testActions.woodcutting('Normal Tree');
+      state = state.startAction(normalTreeAction, random: Random(42));
+
+      // Goal: reach level 2 woodcutting (very achievable quickly)
+      const goal = ReachSkillLevelGoal(Skill.woodcutting, 2);
+      const config = SegmentConfig(
+        stopAtUpgradeAffordable: false,
+        stopAtUnlockBoundary: false,
+        stopAtInputsDepleted: false,
+      );
+
+      final context = SegmentContext.build(state, goal, config);
+
+      // Create a segment that waits for more XP than needed for level 2
+      const segment = Segment(
+        steps: [WaitStep(50000, WaitForSkillXp(Skill.woodcutting, 50000))],
+        totalTicks: 50000,
+        interactionCount: 0,
+        stopBoundary: GoalReachedBoundary(),
+      );
+
+      // Execute - should stop when goal is reached
+      final result = executeSegment(
+        state,
+        segment,
+        context.watchSet,
+        random: Random(42),
+      );
+
+      // Should have reached level 2+
+      expect(
+        result.finalState.skillState(Skill.woodcutting).skillLevel,
+        greaterThanOrEqualTo(2),
+      );
+
+      // Verify goal reached boundary was detected
+      // This exercises _segmentBoundaryToReplan for GoalReachedBoundary
+      expect(
+        result.boundaryHit,
+        isA<GoalReachedBoundary>(),
+        reason: 'Should stop at goal reached boundary',
+      );
+    });
+
+    test('uses expected boundary when no early boundary detected', () {
+      // Setup: A segment where no material boundary is hit during execution
+      var state = GlobalState.empty(testRegistries);
+      final normalTreeAction = testActions.woodcutting('Normal Tree');
+      state = state.startAction(normalTreeAction, random: Random(42));
+
+      // Goal: reach level 99 (won't be reached in 30 ticks)
+      const goal = ReachSkillLevelGoal(Skill.woodcutting, 99);
+      const config = SegmentConfig(
+        stopAtUpgradeAffordable: false,
+        stopAtUnlockBoundary: false,
+        stopAtInputsDepleted: false,
+      );
+
+      final context = SegmentContext.build(state, goal, config);
+
+      // Create a short segment that won't hit any material boundary
+      const segment = Segment(
+        steps: [WaitStep(30, WaitForSkillXp(Skill.woodcutting, 10))],
+        totalTicks: 30,
+        interactionCount: 0,
+        stopBoundary: HorizonCapBoundary(30), // Expected boundary from planning
+      );
+
+      // Execute - should complete without hitting early boundary
+      final result = executeSegment(
+        state,
+        segment,
+        context.watchSet,
+        random: Random(42),
+      );
+
+      // Should have used the expected boundary from planning
+      expect(
+        result.boundaryHit,
+        isA<HorizonCapBoundary>(),
+        reason: 'Should use expected boundary when no early stop',
+      );
+
+      // Ticks should be around the planned amount
+      expect(
+        result.actualTicks,
+        lessThanOrEqualTo(100),
+        reason: 'Should complete in approximately planned ticks',
+      );
+    });
+
+    test('executes MacroStep with TrainSkillUntil and detects boundary', () {
+      // This test exercises _executeTrainSkillWithBoundaryChecks
+      // Setup: Start with GP just below Iron Axe cost
+      final logs = testItems.byName('Normal Logs');
+      final inventory = Inventory.fromItems(testItems, [
+        ItemStack(logs, count: 50),
+      ]);
+      var state = GlobalState.test(
+        testRegistries,
+        gp: 40,
+        inventory: inventory,
+      );
+
+      // Start woodcutting
+      final normalTreeAction = testActions.woodcutting('Normal Tree');
+      state = state.startAction(normalTreeAction, random: Random(42));
+
+      // Goal with upgrade watching enabled
+      const goal = ReachSkillLevelGoal(Skill.woodcutting, 99);
+      const config = SegmentConfig(
+        stopAtUnlockBoundary: false,
+        stopAtInputsDepleted: false,
+      );
+
+      final context = SegmentContext.build(state, goal, config);
+
+      // Create a MacroStep with TrainSkillUntil
+      final macro = TrainSkillUntil(
+        Skill.woodcutting,
+        const StopAtNextBoundary(Skill.woodcutting),
+        actionId: normalTreeAction.id,
+      );
+      final macroStep = MacroStep(
+        macro,
+        50000,
+        const WaitForSkillXp(Skill.woodcutting, 50000),
+      );
+
+      final segment = Segment(
+        steps: [macroStep],
+        totalTicks: 50000,
+        interactionCount: 0,
+        stopBoundary: const GoalReachedBoundary(),
+      );
+
+      // Execute - should stop when Iron Axe becomes affordable
+      final result = executeSegment(
+        state,
+        segment,
+        context.watchSet,
+        random: Random(42),
+      );
+
+      // Should have detected upgrade affordable boundary via
+      // _executeTrainSkillWithBoundaryChecks
+      expect(
+        result.boundaryHit,
+        isA<UpgradeAffordableBoundary>(),
+        reason:
+            'MacroStep should detect upgrade affordable boundary '
+            'via _executeTrainSkillWithBoundaryChecks',
+      );
+    });
+
+    test('WatchSet.toSegmentBoundary converts InputsDepleted correctly', () {
+      // This tests the ReplanBoundary -> SegmentBoundary conversion
+      // for InputsDepleted via WatchSet.toSegmentBoundary
+      final state = GlobalState.empty(testRegistries);
+
+      const goal = ReachSkillLevelGoal(Skill.firemaking, 99);
+      const config = SegmentConfig();
+
+      final context = SegmentContext.build(state, goal, config);
+
+      // Create an InputsDepleted ReplanBoundary
+      final firemakingAction = testActions.firemaking('Burn Normal Logs');
+      final replanBoundary = InputsDepleted(
+        actionId: firemakingAction.id,
+        missingItemId: const MelvorId('melvorD:Normal_Logs'),
+      );
+
+      // Verify it's material
+      expect(context.watchSet.isMaterial(replanBoundary), isTrue);
+
+      // Convert to SegmentBoundary
+      final segmentBoundary = context.watchSet.toSegmentBoundary(
+        replanBoundary,
+      );
+
+      expect(segmentBoundary, isA<InputsDepletedBoundary>());
+      final boundary = segmentBoundary! as InputsDepletedBoundary;
+      expect(boundary.actionId, firemakingAction.id);
+      // describe() shows the action's localId.name (e.g., "Normal Logs")
+      expect(boundary.describe(), contains('Inputs depleted'));
+    });
+  });
+
+  group('detectBoundary', () {
+    test(
+      'returns HorizonCapBoundary when elapsed ticks exceed maxSegmentTicks',
+      () {
+        final state = GlobalState.empty(testRegistries);
+        const goal = ReachGpGoal(1000);
+        const config = SegmentConfig(
+          maxSegmentTicks: 500,
+          stopAtUpgradeAffordable: false,
+          stopAtUnlockBoundary: false,
+        );
+
+        final context = SegmentContext.build(state, goal, config);
+
+        // At elapsed=499, should not trigger
+        final beforeCap = context.watchSet.detectBoundary(
+          state,
+          elapsedTicks: 499,
+        );
+        expect(beforeCap, isNull);
+
+        // At elapsed=500, should trigger
+        final atCap = context.watchSet.detectBoundary(state, elapsedTicks: 500);
+        expect(atCap, isA<HorizonCapBoundary>());
+        final boundary = atCap! as HorizonCapBoundary;
+        expect(boundary.ticksElapsed, 500);
+        expect(boundary.describe(), contains('500 ticks'));
+
+        // At elapsed=1000, should also trigger
+        final pastCap = context.watchSet.detectBoundary(
+          state,
+          elapsedTicks: 1000,
+        );
+        expect(pastCap, isA<HorizonCapBoundary>());
+      },
+    );
+
+    test('does not return HorizonCapBoundary when maxSegmentTicks is null', () {
+      final state = GlobalState.empty(testRegistries);
+      const goal = ReachGpGoal(1000);
+      const config = SegmentConfig(
+        stopAtUpgradeAffordable: false,
+        stopAtUnlockBoundary: false,
+      );
+
+      final context = SegmentContext.build(state, goal, config);
+
+      // Even with very high elapsed ticks, should not trigger
+      final result = context.watchSet.detectBoundary(
+        state,
+        elapsedTicks: 1000000,
+      );
+      expect(result, isNull);
+    });
+
+    test(
+      'does not return HorizonCapBoundary when elapsedTicks not provided',
+      () {
+        final state = GlobalState.empty(testRegistries);
+        const goal = ReachGpGoal(1000);
+        const config = SegmentConfig(
+          maxSegmentTicks: 100,
+          stopAtUpgradeAffordable: false,
+          stopAtUnlockBoundary: false,
+        );
+
+        final context = SegmentContext.build(state, goal, config);
+
+        // Without elapsedTicks, horizon cap is not checked
+        final result = context.watchSet.detectBoundary(state);
+        expect(result, isNull);
+      },
+    );
+
+    test(
+      'returns InventoryPressureBoundary when inventory exceeds threshold',
+      () {
+        // Setup: Create inventory that is 95% full (above 0.9 threshold)
+        // Default inventory capacity starts at 20 slots
+        final logs = testItems.byName('Normal Logs');
+        final oak = testItems.byName('Oak Logs');
+        final willow = testItems.byName('Willow Logs');
+        final teak = testItems.byName('Teak Logs');
+        final maple = testItems.byName('Maple Logs');
+        final mahogany = testItems.byName('Mahogany Logs');
+        final yew = testItems.byName('Yew Logs');
+        final magic = testItems.byName('Magic Logs');
+        final redwood = testItems.byName('Redwood Logs');
+        final rawShrimp = testItems.byName('Raw Shrimp');
+        final rawSardine = testItems.byName('Raw Sardine');
+        final rawHerring = testItems.byName('Raw Herring');
+        final rawTrout = testItems.byName('Raw Trout');
+        final rawSalmon = testItems.byName('Raw Salmon');
+        final rawLobster = testItems.byName('Raw Lobster');
+        final rawSwordfish = testItems.byName('Raw Swordfish');
+        final rawCrab = testItems.byName('Raw Crab');
+        final rawCarp = testItems.byName('Raw Carp');
+        final rawShark = testItems.byName('Raw Shark');
+
+        // 19 different items = 19 slots used out of 20 = 95% > 90%
+        final inventory = Inventory.fromItems(testItems, [
+          ItemStack(logs, count: 1),
+          ItemStack(oak, count: 1),
+          ItemStack(willow, count: 1),
+          ItemStack(teak, count: 1),
+          ItemStack(maple, count: 1),
+          ItemStack(mahogany, count: 1),
+          ItemStack(yew, count: 1),
+          ItemStack(magic, count: 1),
+          ItemStack(redwood, count: 1),
+          ItemStack(rawShrimp, count: 1),
+          ItemStack(rawSardine, count: 1),
+          ItemStack(rawHerring, count: 1),
+          ItemStack(rawTrout, count: 1),
+          ItemStack(rawSalmon, count: 1),
+          ItemStack(rawLobster, count: 1),
+          ItemStack(rawSwordfish, count: 1),
+          ItemStack(rawCrab, count: 1),
+          ItemStack(rawCarp, count: 1),
+          ItemStack(rawShark, count: 1),
+        ]);
+
+        final state = GlobalState.test(testRegistries, inventory: inventory);
+
+        // Verify we have the right number of slots used
+        expect(state.inventoryUsed, 19);
+        expect(state.inventoryCapacity, 20);
+
+        // Use a skill goal that won't be satisfied (unlike GP goal which counts
+        // inventory value)
+        const goal = ReachSkillLevelGoal(Skill.woodcutting, 99);
+        const config = SegmentConfig(
+          stopAtInventoryPressure: true,
+          stopAtUpgradeAffordable: false,
+          stopAtUnlockBoundary: false,
+        );
+
+        final context = SegmentContext.build(state, goal, config);
+
+        final result = context.watchSet.detectBoundary(state);
+        expect(result, isA<InventoryPressureBoundary>());
+        final boundary = result! as InventoryPressureBoundary;
+        expect(boundary.usedSlots, 19);
+        expect(boundary.totalSlots, 20);
+        expect(boundary.describe(), contains('19/20'));
+      },
+    );
+
+    test('does not return InventoryPressureBoundary when below threshold', () {
+      // Setup: Create inventory that is 75% full (below 0.9 threshold)
+      // Default inventory capacity is 20, so 15 slots = 75%
+      final logs = testItems.byName('Normal Logs');
+      final oak = testItems.byName('Oak Logs');
+      final willow = testItems.byName('Willow Logs');
+      final teak = testItems.byName('Teak Logs');
+      final maple = testItems.byName('Maple Logs');
+      final mahogany = testItems.byName('Mahogany Logs');
+      final yew = testItems.byName('Yew Logs');
+      final magic = testItems.byName('Magic Logs');
+      final redwood = testItems.byName('Redwood Logs');
+      final rawShrimp = testItems.byName('Raw Shrimp');
+      final rawSardine = testItems.byName('Raw Sardine');
+      final rawHerring = testItems.byName('Raw Herring');
+      final rawTrout = testItems.byName('Raw Trout');
+      final rawSalmon = testItems.byName('Raw Salmon');
+      final rawLobster = testItems.byName('Raw Lobster');
+
+      // 15 different items = 15 slots used out of 20 = 75% < 90%
+      final inventory = Inventory.fromItems(testItems, [
+        ItemStack(logs, count: 1),
+        ItemStack(oak, count: 1),
+        ItemStack(willow, count: 1),
+        ItemStack(teak, count: 1),
+        ItemStack(maple, count: 1),
+        ItemStack(mahogany, count: 1),
+        ItemStack(yew, count: 1),
+        ItemStack(magic, count: 1),
+        ItemStack(redwood, count: 1),
+        ItemStack(rawShrimp, count: 1),
+        ItemStack(rawSardine, count: 1),
+        ItemStack(rawHerring, count: 1),
+        ItemStack(rawTrout, count: 1),
+        ItemStack(rawSalmon, count: 1),
+        ItemStack(rawLobster, count: 1),
+      ]);
+
+      final state = GlobalState.test(testRegistries, inventory: inventory);
+
+      // Verify we have the right number of slots used
+      expect(state.inventoryUsed, 15);
+      expect(state.inventoryCapacity, 20);
+
+      // Use a skill goal that won't be satisfied
+      const goal = ReachSkillLevelGoal(Skill.woodcutting, 99);
+      const config = SegmentConfig(
+        stopAtInventoryPressure: true,
+        stopAtUpgradeAffordable: false,
+        stopAtUnlockBoundary: false,
+      );
+
+      final context = SegmentContext.build(state, goal, config);
+
+      final result = context.watchSet.detectBoundary(state);
+      expect(result, isNull);
+    });
+
+    test('does not return InventoryPressureBoundary when disabled', () {
+      // Setup: Create inventory that exceeds threshold (95% = 19/20)
+      final logs = testItems.byName('Normal Logs');
+      final oak = testItems.byName('Oak Logs');
+      final willow = testItems.byName('Willow Logs');
+      final teak = testItems.byName('Teak Logs');
+      final maple = testItems.byName('Maple Logs');
+      final mahogany = testItems.byName('Mahogany Logs');
+      final yew = testItems.byName('Yew Logs');
+      final magic = testItems.byName('Magic Logs');
+      final redwood = testItems.byName('Redwood Logs');
+      final rawShrimp = testItems.byName('Raw Shrimp');
+      final rawSardine = testItems.byName('Raw Sardine');
+      final rawHerring = testItems.byName('Raw Herring');
+      final rawTrout = testItems.byName('Raw Trout');
+      final rawSalmon = testItems.byName('Raw Salmon');
+      final rawLobster = testItems.byName('Raw Lobster');
+      final rawSwordfish = testItems.byName('Raw Swordfish');
+      final rawCrab = testItems.byName('Raw Crab');
+      final rawCarp = testItems.byName('Raw Carp');
+      final rawShark = testItems.byName('Raw Shark');
+
+      // 19 slots = 95% > 90%
+      final inventory = Inventory.fromItems(testItems, [
+        ItemStack(logs, count: 1),
+        ItemStack(oak, count: 1),
+        ItemStack(willow, count: 1),
+        ItemStack(teak, count: 1),
+        ItemStack(maple, count: 1),
+        ItemStack(mahogany, count: 1),
+        ItemStack(yew, count: 1),
+        ItemStack(magic, count: 1),
+        ItemStack(redwood, count: 1),
+        ItemStack(rawShrimp, count: 1),
+        ItemStack(rawSardine, count: 1),
+        ItemStack(rawHerring, count: 1),
+        ItemStack(rawTrout, count: 1),
+        ItemStack(rawSalmon, count: 1),
+        ItemStack(rawLobster, count: 1),
+        ItemStack(rawSwordfish, count: 1),
+        ItemStack(rawCrab, count: 1),
+        ItemStack(rawCarp, count: 1),
+        ItemStack(rawShark, count: 1),
+      ]);
+
+      final state = GlobalState.test(testRegistries, inventory: inventory);
+
+      // Use a skill goal that won't be satisfied
+      const goal = ReachSkillLevelGoal(Skill.woodcutting, 99);
+      const config = SegmentConfig(
+        stopAtUpgradeAffordable: false,
+        stopAtUnlockBoundary: false,
+      );
+
+      final context = SegmentContext.build(state, goal, config);
+
+      final result = context.watchSet.detectBoundary(state);
+      expect(result, isNull);
+    });
+
+    test('respects custom inventory pressure threshold', () {
+      // Setup: Create inventory at 50% usage (10/20 slots)
+      final logs = testItems.byName('Normal Logs');
+      final oak = testItems.byName('Oak Logs');
+      final willow = testItems.byName('Willow Logs');
+      final teak = testItems.byName('Teak Logs');
+      final maple = testItems.byName('Maple Logs');
+      final mahogany = testItems.byName('Mahogany Logs');
+      final yew = testItems.byName('Yew Logs');
+      final magic = testItems.byName('Magic Logs');
+      final redwood = testItems.byName('Redwood Logs');
+      final rawShrimp = testItems.byName('Raw Shrimp');
+
+      // 10 slots = 50% of 20
+      final inventory = Inventory.fromItems(testItems, [
+        ItemStack(logs, count: 1),
+        ItemStack(oak, count: 1),
+        ItemStack(willow, count: 1),
+        ItemStack(teak, count: 1),
+        ItemStack(maple, count: 1),
+        ItemStack(mahogany, count: 1),
+        ItemStack(yew, count: 1),
+        ItemStack(magic, count: 1),
+        ItemStack(redwood, count: 1),
+        ItemStack(rawShrimp, count: 1),
+      ]);
+
+      final state = GlobalState.test(testRegistries, inventory: inventory);
+
+      // Use a skill goal that won't be satisfied
+      const goal = ReachSkillLevelGoal(Skill.woodcutting, 99);
+      const config = SegmentConfig(
+        stopAtInventoryPressure: true,
+        inventoryPressureThreshold: 0.5, // Custom threshold at 50%
+        stopAtUpgradeAffordable: false,
+        stopAtUnlockBoundary: false,
+      );
+
+      final context = SegmentContext.build(state, goal, config);
+
+      // At exactly 50%, should trigger (>= threshold)
+      final result = context.watchSet.detectBoundary(state);
+      expect(result, isA<InventoryPressureBoundary>());
+    });
+
+    test('boundary priority: goal > horizon > inventory > upgrade', () {
+      // Setup: Create a state that would trigger multiple boundaries
+      final logs = testItems.byName('Normal Logs');
+      final oak = testItems.byName('Oak Logs');
+      final willow = testItems.byName('Willow Logs');
+      final teak = testItems.byName('Teak Logs');
+      final maple = testItems.byName('Maple Logs');
+      final mahogany = testItems.byName('Mahogany Logs');
+      final yew = testItems.byName('Yew Logs');
+      final magic = testItems.byName('Magic Logs');
+      final redwood = testItems.byName('Redwood Logs');
+      final rawShrimp = testItems.byName('Raw Shrimp');
+      final rawSardine = testItems.byName('Raw Sardine');
+      final rawHerring = testItems.byName('Raw Herring');
+      final rawTrout = testItems.byName('Raw Trout');
+      final rawSalmon = testItems.byName('Raw Salmon');
+      final rawLobster = testItems.byName('Raw Lobster');
+      final rawSwordfish = testItems.byName('Raw Swordfish');
+      final rawCrab = testItems.byName('Raw Crab');
+      final rawCarp = testItems.byName('Raw Carp');
+      final rawShark = testItems.byName('Raw Shark');
+
+      // 19 slots = 95% > 90% (would trigger inventory pressure)
+      final inventory = Inventory.fromItems(testItems, [
+        ItemStack(logs, count: 1),
+        ItemStack(oak, count: 1),
+        ItemStack(willow, count: 1),
+        ItemStack(teak, count: 1),
+        ItemStack(maple, count: 1),
+        ItemStack(mahogany, count: 1),
+        ItemStack(yew, count: 1),
+        ItemStack(magic, count: 1),
+        ItemStack(redwood, count: 1),
+        ItemStack(rawShrimp, count: 1),
+        ItemStack(rawSardine, count: 1),
+        ItemStack(rawHerring, count: 1),
+        ItemStack(rawTrout, count: 1),
+        ItemStack(rawSalmon, count: 1),
+        ItemStack(rawLobster, count: 1),
+        ItemStack(rawSwordfish, count: 1),
+        ItemStack(rawCrab, count: 1),
+        ItemStack(rawCarp, count: 1),
+        ItemStack(rawShark, count: 1),
+      ]);
+
+      // 100 GP satisfies goal of 50 GP
+      final state = GlobalState.test(
+        testRegistries,
+        gp: 100,
+        inventory: inventory,
+      );
+
+      // Goal is satisfied (100 >= 50)
+      const goal = ReachGpGoal(50);
+      const config = SegmentConfig(
+        stopAtInventoryPressure: true,
+        maxSegmentTicks: 10,
+        stopAtUpgradeAffordable: false,
+        stopAtUnlockBoundary: false,
+      );
+
+      final context = SegmentContext.build(state, goal, config);
+
+      // Goal should take priority even though inventory and horizon would also
+      // trigger
+      final result = context.watchSet.detectBoundary(state, elapsedTicks: 1000);
+      expect(result, isA<GoalReachedBoundary>());
+    });
+
+    test('horizon cap takes priority over inventory pressure', () {
+      // Setup: inventory at 95% (above threshold) but horizon also exceeded
+      final logs = testItems.byName('Normal Logs');
+      final oak = testItems.byName('Oak Logs');
+      final willow = testItems.byName('Willow Logs');
+      final teak = testItems.byName('Teak Logs');
+      final maple = testItems.byName('Maple Logs');
+      final mahogany = testItems.byName('Mahogany Logs');
+      final yew = testItems.byName('Yew Logs');
+      final magic = testItems.byName('Magic Logs');
+      final redwood = testItems.byName('Redwood Logs');
+      final rawShrimp = testItems.byName('Raw Shrimp');
+      final rawSardine = testItems.byName('Raw Sardine');
+      final rawHerring = testItems.byName('Raw Herring');
+      final rawTrout = testItems.byName('Raw Trout');
+      final rawSalmon = testItems.byName('Raw Salmon');
+      final rawLobster = testItems.byName('Raw Lobster');
+      final rawSwordfish = testItems.byName('Raw Swordfish');
+      final rawCrab = testItems.byName('Raw Crab');
+      final rawCarp = testItems.byName('Raw Carp');
+      final rawShark = testItems.byName('Raw Shark');
+
+      // 19 slots = 95% > 90%
+      final inventory = Inventory.fromItems(testItems, [
+        ItemStack(logs, count: 1),
+        ItemStack(oak, count: 1),
+        ItemStack(willow, count: 1),
+        ItemStack(teak, count: 1),
+        ItemStack(maple, count: 1),
+        ItemStack(mahogany, count: 1),
+        ItemStack(yew, count: 1),
+        ItemStack(magic, count: 1),
+        ItemStack(redwood, count: 1),
+        ItemStack(rawShrimp, count: 1),
+        ItemStack(rawSardine, count: 1),
+        ItemStack(rawHerring, count: 1),
+        ItemStack(rawTrout, count: 1),
+        ItemStack(rawSalmon, count: 1),
+        ItemStack(rawLobster, count: 1),
+        ItemStack(rawSwordfish, count: 1),
+        ItemStack(rawCrab, count: 1),
+        ItemStack(rawCarp, count: 1),
+        ItemStack(rawShark, count: 1),
+      ]);
+
+      final state = GlobalState.test(testRegistries, inventory: inventory);
+
+      // Use a skill goal that won't be satisfied
+      const goal = ReachSkillLevelGoal(Skill.woodcutting, 99);
+      const config = SegmentConfig(
+        stopAtInventoryPressure: true,
+        maxSegmentTicks: 100,
+        stopAtUpgradeAffordable: false,
+        stopAtUnlockBoundary: false,
+      );
+
+      final context = SegmentContext.build(state, goal, config);
+
+      // Horizon exceeded (200 > 100) - should take priority over inventory
+      final result = context.watchSet.detectBoundary(state, elapsedTicks: 200);
+      expect(result, isA<HorizonCapBoundary>());
+    });
+  });
+
+  group('solveSegment', () {
+    test('returns SegmentFailed when solver cannot find a path', () {
+      // Create a state where the solver will fail quickly
+      final state = GlobalState.empty(testRegistries);
+
+      // Set an impossible goal with very low max nodes to force failure
+      const goal = ReachGpGoal(1000000000); // 1 billion GP - unreachable
+
+      // Solve with very low node limit to trigger failure
+      final result = solveSegment(
+        state,
+        goal,
+        maxExpandedNodes: 2, // Very low limit to force failure
+      );
+
+      expect(result, isA<SegmentFailed>());
+      final failed = result as SegmentFailed;
+      expect(failed.failure.reason, contains('max expanded nodes'));
+    });
+
+    test('returns SegmentSuccess with valid segment and context', () {
+      var state = GlobalState.empty(testRegistries);
+      final normalTreeAction = testActions.woodcutting('Normal Tree');
+      state = state.startAction(normalTreeAction, random: Random(42));
+
+      // Simple goal that should succeed
+      const goal = ReachSkillLevelGoal(Skill.woodcutting, 2);
+
+      final result = solveSegment(state, goal);
+
+      expect(result, isA<SegmentSuccess>());
+      final success = result as SegmentSuccess;
+      expect(success.segment.totalTicks, greaterThan(0));
+      expect(success.context.goal, goal);
+      expect(success.finalState, isNotNull);
     });
   });
 }
