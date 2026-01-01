@@ -7,8 +7,10 @@ import 'package:logic/src/solver/enumerate_candidates.dart';
 import 'package:logic/src/solver/estimate_rates.dart';
 import 'package:logic/src/solver/goal.dart';
 import 'package:logic/src/solver/interaction.dart';
+import 'package:logic/src/solver/macro_candidate.dart';
 import 'package:logic/src/solver/next_decision_delta.dart';
 import 'package:logic/src/solver/plan.dart';
+import 'package:logic/src/solver/replan_boundary.dart';
 import 'package:logic/src/solver/solver.dart';
 import 'package:logic/src/solver/solver_profile.dart';
 import 'package:logic/src/solver/value_model.dart';
@@ -1691,6 +1693,102 @@ void main() {
         lessThanOrEqualTo(100),
         reason: 'Should complete in approximately planned ticks',
       );
+    });
+
+    test('executes MacroStep with TrainSkillUntil and detects boundary', () {
+      // This test exercises _executeTrainSkillWithBoundaryChecks
+      // Setup: Start with GP just below Iron Axe cost
+      final logs = testItems.byName('Normal Logs');
+      final inventory = Inventory.fromItems(testItems, [
+        ItemStack(logs, count: 50),
+      ]);
+      var state = GlobalState.test(
+        testRegistries,
+        gp: 40,
+        inventory: inventory,
+      );
+
+      // Start woodcutting
+      final normalTreeAction = testActions.woodcutting('Normal Tree');
+      state = state.startAction(normalTreeAction, random: Random(42));
+
+      // Goal with upgrade watching enabled
+      const goal = ReachSkillLevelGoal(Skill.woodcutting, 99);
+      const config = SegmentConfig(
+        stopAtUnlockBoundary: false,
+        stopAtInputsDepleted: false,
+      );
+
+      final context = SegmentContext.build(state, goal, config);
+
+      // Create a MacroStep with TrainSkillUntil
+      final macro = TrainSkillUntil(
+        Skill.woodcutting,
+        const StopAtNextBoundary(Skill.woodcutting),
+        actionId: normalTreeAction.id,
+      );
+      final macroStep = MacroStep(
+        macro,
+        50000,
+        const WaitForSkillXp(Skill.woodcutting, 50000),
+      );
+
+      final segment = Segment(
+        steps: [macroStep],
+        totalTicks: 50000,
+        interactionCount: 0,
+        stopBoundary: const GoalReachedBoundary(),
+      );
+
+      // Execute - should stop when Iron Axe becomes affordable
+      final result = executeSegment(
+        state,
+        segment,
+        context.watchSet,
+        random: Random(42),
+      );
+
+      // Should have detected upgrade affordable boundary via
+      // _executeTrainSkillWithBoundaryChecks
+      expect(
+        result.boundaryHit,
+        isA<UpgradeAffordableBoundary>(),
+        reason:
+            'MacroStep should detect upgrade affordable boundary '
+            'via _executeTrainSkillWithBoundaryChecks',
+      );
+    });
+
+    test('WatchSet.toSegmentBoundary converts InputsDepleted correctly', () {
+      // This tests the ReplanBoundary -> SegmentBoundary conversion
+      // for InputsDepleted via WatchSet.toSegmentBoundary
+      final state = GlobalState.empty(testRegistries);
+
+      const goal = ReachSkillLevelGoal(Skill.firemaking, 99);
+      const config = SegmentConfig();
+
+      final context = SegmentContext.build(state, goal, config);
+
+      // Create an InputsDepleted ReplanBoundary
+      final firemakingAction = testActions.firemaking('Burn Normal Logs');
+      final replanBoundary = InputsDepleted(
+        actionId: firemakingAction.id,
+        missingItemId: const MelvorId('melvorD:Normal_Logs'),
+      );
+
+      // Verify it's material
+      expect(context.watchSet.isMaterial(replanBoundary), isTrue);
+
+      // Convert to SegmentBoundary
+      final segmentBoundary = context.watchSet.toSegmentBoundary(
+        replanBoundary,
+      );
+
+      expect(segmentBoundary, isA<InputsDepletedBoundary>());
+      final boundary = segmentBoundary! as InputsDepletedBoundary;
+      expect(boundary.actionId, firemakingAction.id);
+      // describe() shows the action's localId.name (e.g., "Normal Logs")
+      expect(boundary.describe(), contains('Inputs depleted'));
     });
   });
 

@@ -4,6 +4,7 @@ import 'package:logic/src/solver/enumerate_candidates.dart';
 import 'package:logic/src/solver/goal.dart';
 import 'package:logic/src/solver/interaction.dart';
 import 'package:logic/src/solver/macro_candidate.dart';
+import 'package:logic/src/solver/watch_set.dart';
 import 'package:test/test.dart';
 
 import 'test_helper.dart';
@@ -140,6 +141,219 @@ void main() {
           key2.skillLevelBucket[Skill.woodcutting],
           greaterThan(key1.skillLevelBucket[Skill.woodcutting]!),
         );
+        expect(key1, isNot(equals(key2)));
+      });
+    });
+
+    group('ReachGpGoal', () {
+      test('tracks all skills in key', () {
+        const goal = ReachGpGoal(10000);
+        final state = GlobalState.empty(testRegistries);
+
+        final key = CandidateCacheKey.fromState(state, goal);
+
+        // GP goals track all skills
+        expect(key.skillLevelBucket.keys, containsAll(Skill.values));
+      });
+
+      test('different skill levels produce different keys', () {
+        const goal = ReachGpGoal(10000);
+
+        final state1 = GlobalState.empty(testRegistries);
+        final state2 = GlobalState.test(
+          testRegistries,
+          skillStates: const {
+            Skill.hitpoints: SkillState(xp: 1154, masteryPoolXp: 0),
+            Skill.mining: SkillState(xp: 8740, masteryPoolXp: 0),
+          },
+        );
+
+        final key1 = CandidateCacheKey.fromState(state1, goal);
+        final key2 = CandidateCacheKey.fromState(state2, goal);
+
+        expect(key1, isNot(equals(key2)));
+        expect(key2.skillLevelBucket[Skill.mining], greaterThan(1));
+      });
+
+      test('same state produces equal keys', () {
+        const goal = ReachGpGoal(5000);
+        final state = GlobalState.empty(testRegistries);
+
+        final key1 = CandidateCacheKey.fromState(state, goal);
+        final key2 = CandidateCacheKey.fromState(state, goal);
+
+        expect(key1, equals(key2));
+      });
+    });
+
+    group('MultiSkillGoal', () {
+      test('tracks only goal-relevant skills', () {
+        final goal = MultiSkillGoal.fromMap(const {
+          Skill.woodcutting: 20,
+          Skill.fishing: 15,
+        });
+        final state = GlobalState.empty(testRegistries);
+
+        final key = CandidateCacheKey.fromState(state, goal);
+
+        // Should include woodcutting and fishing
+        expect(key.skillLevelBucket.containsKey(Skill.woodcutting), isTrue);
+        expect(key.skillLevelBucket.containsKey(Skill.fishing), isTrue);
+        // Should not include unrelated skills like mining
+        expect(key.skillLevelBucket.containsKey(Skill.mining), isFalse);
+      });
+
+      test('includes producer skills for consuming skills', () {
+        final goal = MultiSkillGoal.fromMap(const {
+          Skill.firemaking: 30,
+          Skill.cooking: 20,
+        });
+        final state = GlobalState.empty(testRegistries);
+
+        final key = CandidateCacheKey.fromState(state, goal);
+
+        // Should include the consuming skills
+        expect(key.skillLevelBucket.containsKey(Skill.firemaking), isTrue);
+        expect(key.skillLevelBucket.containsKey(Skill.cooking), isTrue);
+        // Should include producer skills (woodcutting for firemaking, fishing
+        // for cooking)
+        expect(key.skillLevelBucket.containsKey(Skill.woodcutting), isTrue);
+        expect(key.skillLevelBucket.containsKey(Skill.fishing), isTrue);
+      });
+
+      test('different skill levels produce different keys', () {
+        final goal = MultiSkillGoal.fromMap(const {
+          Skill.woodcutting: 20,
+          Skill.mining: 15,
+        });
+
+        final state1 = GlobalState.empty(testRegistries);
+        final state2 = GlobalState.test(
+          testRegistries,
+          skillStates: const {
+            Skill.hitpoints: SkillState(xp: 1154, masteryPoolXp: 0),
+            Skill.woodcutting: SkillState(xp: 4470, masteryPoolXp: 0),
+          },
+        );
+
+        final key1 = CandidateCacheKey.fromState(state1, goal);
+        final key2 = CandidateCacheKey.fromState(state2, goal);
+
+        expect(key1, isNot(equals(key2)));
+      });
+
+      test('same state produces equal keys', () {
+        final goal = MultiSkillGoal.fromMap(const {
+          Skill.woodcutting: 20,
+          Skill.fishing: 15,
+        });
+        final state = GlobalState.empty(testRegistries);
+
+        final key1 = CandidateCacheKey.fromState(state, goal);
+        final key2 = CandidateCacheKey.fromState(state, goal);
+
+        expect(key1, equals(key2));
+      });
+    });
+
+    group('SegmentGoal', () {
+      test('delegates to inner goal for skill tracking', () {
+        const innerGoal = ReachSkillLevelGoal(Skill.woodcutting, 50);
+        final state = GlobalState.empty(testRegistries);
+        final sellPolicy = innerGoal.computeSellPolicy(state);
+        final watchSet = buildWatchSet(
+          state,
+          innerGoal,
+          const SegmentConfig(),
+          sellPolicy,
+        );
+        final segmentGoal = SegmentGoal(watchSet);
+
+        final segmentKey = CandidateCacheKey.fromState(state, segmentGoal);
+        final innerKey = CandidateCacheKey.fromState(state, innerGoal);
+
+        // SegmentGoal should produce the same key as its inner goal
+        expect(segmentKey, equals(innerKey));
+      });
+
+      test('tracks producer skills for consuming inner goal', () {
+        const innerGoal = ReachSkillLevelGoal(Skill.firemaking, 30);
+        final state = GlobalState.empty(testRegistries);
+        final sellPolicy = innerGoal.computeSellPolicy(state);
+        final watchSet = buildWatchSet(
+          state,
+          innerGoal,
+          const SegmentConfig(),
+          sellPolicy,
+        );
+        final segmentGoal = SegmentGoal(watchSet);
+
+        final key = CandidateCacheKey.fromState(state, segmentGoal);
+
+        // Should include firemaking and its producer (woodcutting)
+        expect(key.skillLevelBucket.containsKey(Skill.firemaking), isTrue);
+        expect(key.skillLevelBucket.containsKey(Skill.woodcutting), isTrue);
+      });
+
+      test('handles MultiSkillGoal as inner goal', () {
+        final innerGoal = MultiSkillGoal.fromMap(const {
+          Skill.cooking: 20,
+          Skill.smithing: 15,
+        });
+        final state = GlobalState.empty(testRegistries);
+        final sellPolicy = innerGoal.computeSellPolicy(state);
+        final watchSet = buildWatchSet(
+          state,
+          innerGoal,
+          const SegmentConfig(),
+          sellPolicy,
+        );
+        final segmentGoal = SegmentGoal(watchSet);
+
+        final key = CandidateCacheKey.fromState(state, segmentGoal);
+
+        // Should include the consuming skills
+        expect(key.skillLevelBucket.containsKey(Skill.cooking), isTrue);
+        expect(key.skillLevelBucket.containsKey(Skill.smithing), isTrue);
+        // Should include producer skills
+        expect(key.skillLevelBucket.containsKey(Skill.fishing), isTrue);
+        expect(key.skillLevelBucket.containsKey(Skill.mining), isTrue);
+      });
+
+      test('different inner goal skill levels produce different keys', () {
+        const innerGoal = ReachSkillLevelGoal(Skill.mining, 40);
+        final sellPolicy1 = innerGoal.computeSellPolicy(
+          GlobalState.empty(testRegistries),
+        );
+
+        final state1 = GlobalState.empty(testRegistries);
+        final watchSet1 = buildWatchSet(
+          state1,
+          innerGoal,
+          const SegmentConfig(),
+          sellPolicy1,
+        );
+        final segmentGoal1 = SegmentGoal(watchSet1);
+
+        final state2 = GlobalState.test(
+          testRegistries,
+          skillStates: const {
+            Skill.hitpoints: SkillState(xp: 1154, masteryPoolXp: 0),
+            Skill.mining: SkillState(xp: 8740, masteryPoolXp: 0),
+          },
+        );
+        final sellPolicy2 = innerGoal.computeSellPolicy(state2);
+        final watchSet2 = buildWatchSet(
+          state2,
+          innerGoal,
+          const SegmentConfig(),
+          sellPolicy2,
+        );
+        final segmentGoal2 = SegmentGoal(watchSet2);
+
+        final key1 = CandidateCacheKey.fromState(state1, segmentGoal1);
+        final key2 = CandidateCacheKey.fromState(state2, segmentGoal2);
+
         expect(key1, isNot(equals(key2)));
       });
     });
