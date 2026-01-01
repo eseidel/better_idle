@@ -1884,6 +1884,450 @@ void main() {
     });
   });
 
+  group('detectBoundary', () {
+    test(
+      'returns HorizonCapBoundary when elapsed ticks exceed maxSegmentTicks',
+      () {
+        final state = GlobalState.empty(testRegistries);
+        const goal = ReachGpGoal(1000);
+        const config = SegmentConfig(
+          maxSegmentTicks: 500,
+          stopAtUpgradeAffordable: false,
+          stopAtUnlockBoundary: false,
+        );
+
+        final context = SegmentContext.build(state, goal, config);
+
+        // At elapsed=499, should not trigger
+        final beforeCap = context.watchSet.detectBoundary(
+          state,
+          elapsedTicks: 499,
+        );
+        expect(beforeCap, isNull);
+
+        // At elapsed=500, should trigger
+        final atCap = context.watchSet.detectBoundary(state, elapsedTicks: 500);
+        expect(atCap, isA<HorizonCapBoundary>());
+        final boundary = atCap! as HorizonCapBoundary;
+        expect(boundary.ticksElapsed, 500);
+        expect(boundary.describe(), contains('500 ticks'));
+
+        // At elapsed=1000, should also trigger
+        final pastCap = context.watchSet.detectBoundary(
+          state,
+          elapsedTicks: 1000,
+        );
+        expect(pastCap, isA<HorizonCapBoundary>());
+      },
+    );
+
+    test('does not return HorizonCapBoundary when maxSegmentTicks is null', () {
+      final state = GlobalState.empty(testRegistries);
+      const goal = ReachGpGoal(1000);
+      const config = SegmentConfig(
+        stopAtUpgradeAffordable: false,
+        stopAtUnlockBoundary: false,
+      );
+
+      final context = SegmentContext.build(state, goal, config);
+
+      // Even with very high elapsed ticks, should not trigger
+      final result = context.watchSet.detectBoundary(
+        state,
+        elapsedTicks: 1000000,
+      );
+      expect(result, isNull);
+    });
+
+    test(
+      'does not return HorizonCapBoundary when elapsedTicks not provided',
+      () {
+        final state = GlobalState.empty(testRegistries);
+        const goal = ReachGpGoal(1000);
+        const config = SegmentConfig(
+          maxSegmentTicks: 100,
+          stopAtUpgradeAffordable: false,
+          stopAtUnlockBoundary: false,
+        );
+
+        final context = SegmentContext.build(state, goal, config);
+
+        // Without elapsedTicks, horizon cap is not checked
+        final result = context.watchSet.detectBoundary(state);
+        expect(result, isNull);
+      },
+    );
+
+    test(
+      'returns InventoryPressureBoundary when inventory exceeds threshold',
+      () {
+        // Setup: Create inventory that is 95% full (above 0.9 threshold)
+        // Default inventory capacity starts at 20 slots
+        final logs = testItems.byName('Normal Logs');
+        final oak = testItems.byName('Oak Logs');
+        final willow = testItems.byName('Willow Logs');
+        final teak = testItems.byName('Teak Logs');
+        final maple = testItems.byName('Maple Logs');
+        final mahogany = testItems.byName('Mahogany Logs');
+        final yew = testItems.byName('Yew Logs');
+        final magic = testItems.byName('Magic Logs');
+        final redwood = testItems.byName('Redwood Logs');
+        final rawShrimp = testItems.byName('Raw Shrimp');
+        final rawSardine = testItems.byName('Raw Sardine');
+        final rawHerring = testItems.byName('Raw Herring');
+        final rawTrout = testItems.byName('Raw Trout');
+        final rawSalmon = testItems.byName('Raw Salmon');
+        final rawLobster = testItems.byName('Raw Lobster');
+        final rawSwordfish = testItems.byName('Raw Swordfish');
+        final rawCrab = testItems.byName('Raw Crab');
+        final rawCarp = testItems.byName('Raw Carp');
+        final rawShark = testItems.byName('Raw Shark');
+
+        // 19 different items = 19 slots used out of 20 = 95% > 90%
+        final inventory = Inventory.fromItems(testItems, [
+          ItemStack(logs, count: 1),
+          ItemStack(oak, count: 1),
+          ItemStack(willow, count: 1),
+          ItemStack(teak, count: 1),
+          ItemStack(maple, count: 1),
+          ItemStack(mahogany, count: 1),
+          ItemStack(yew, count: 1),
+          ItemStack(magic, count: 1),
+          ItemStack(redwood, count: 1),
+          ItemStack(rawShrimp, count: 1),
+          ItemStack(rawSardine, count: 1),
+          ItemStack(rawHerring, count: 1),
+          ItemStack(rawTrout, count: 1),
+          ItemStack(rawSalmon, count: 1),
+          ItemStack(rawLobster, count: 1),
+          ItemStack(rawSwordfish, count: 1),
+          ItemStack(rawCrab, count: 1),
+          ItemStack(rawCarp, count: 1),
+          ItemStack(rawShark, count: 1),
+        ]);
+
+        final state = GlobalState.test(testRegistries, inventory: inventory);
+
+        // Verify we have the right number of slots used
+        expect(state.inventoryUsed, 19);
+        expect(state.inventoryCapacity, 20);
+
+        // Use a skill goal that won't be satisfied (unlike GP goal which counts
+        // inventory value)
+        const goal = ReachSkillLevelGoal(Skill.woodcutting, 99);
+        const config = SegmentConfig(
+          stopAtInventoryPressure: true,
+          stopAtUpgradeAffordable: false,
+          stopAtUnlockBoundary: false,
+        );
+
+        final context = SegmentContext.build(state, goal, config);
+
+        final result = context.watchSet.detectBoundary(state);
+        expect(result, isA<InventoryPressureBoundary>());
+        final boundary = result! as InventoryPressureBoundary;
+        expect(boundary.usedSlots, 19);
+        expect(boundary.totalSlots, 20);
+        expect(boundary.describe(), contains('19/20'));
+      },
+    );
+
+    test('does not return InventoryPressureBoundary when below threshold', () {
+      // Setup: Create inventory that is 75% full (below 0.9 threshold)
+      // Default inventory capacity is 20, so 15 slots = 75%
+      final logs = testItems.byName('Normal Logs');
+      final oak = testItems.byName('Oak Logs');
+      final willow = testItems.byName('Willow Logs');
+      final teak = testItems.byName('Teak Logs');
+      final maple = testItems.byName('Maple Logs');
+      final mahogany = testItems.byName('Mahogany Logs');
+      final yew = testItems.byName('Yew Logs');
+      final magic = testItems.byName('Magic Logs');
+      final redwood = testItems.byName('Redwood Logs');
+      final rawShrimp = testItems.byName('Raw Shrimp');
+      final rawSardine = testItems.byName('Raw Sardine');
+      final rawHerring = testItems.byName('Raw Herring');
+      final rawTrout = testItems.byName('Raw Trout');
+      final rawSalmon = testItems.byName('Raw Salmon');
+      final rawLobster = testItems.byName('Raw Lobster');
+
+      // 15 different items = 15 slots used out of 20 = 75% < 90%
+      final inventory = Inventory.fromItems(testItems, [
+        ItemStack(logs, count: 1),
+        ItemStack(oak, count: 1),
+        ItemStack(willow, count: 1),
+        ItemStack(teak, count: 1),
+        ItemStack(maple, count: 1),
+        ItemStack(mahogany, count: 1),
+        ItemStack(yew, count: 1),
+        ItemStack(magic, count: 1),
+        ItemStack(redwood, count: 1),
+        ItemStack(rawShrimp, count: 1),
+        ItemStack(rawSardine, count: 1),
+        ItemStack(rawHerring, count: 1),
+        ItemStack(rawTrout, count: 1),
+        ItemStack(rawSalmon, count: 1),
+        ItemStack(rawLobster, count: 1),
+      ]);
+
+      final state = GlobalState.test(testRegistries, inventory: inventory);
+
+      // Verify we have the right number of slots used
+      expect(state.inventoryUsed, 15);
+      expect(state.inventoryCapacity, 20);
+
+      // Use a skill goal that won't be satisfied
+      const goal = ReachSkillLevelGoal(Skill.woodcutting, 99);
+      const config = SegmentConfig(
+        stopAtInventoryPressure: true,
+        stopAtUpgradeAffordable: false,
+        stopAtUnlockBoundary: false,
+      );
+
+      final context = SegmentContext.build(state, goal, config);
+
+      final result = context.watchSet.detectBoundary(state);
+      expect(result, isNull);
+    });
+
+    test('does not return InventoryPressureBoundary when disabled', () {
+      // Setup: Create inventory that exceeds threshold (95% = 19/20)
+      final logs = testItems.byName('Normal Logs');
+      final oak = testItems.byName('Oak Logs');
+      final willow = testItems.byName('Willow Logs');
+      final teak = testItems.byName('Teak Logs');
+      final maple = testItems.byName('Maple Logs');
+      final mahogany = testItems.byName('Mahogany Logs');
+      final yew = testItems.byName('Yew Logs');
+      final magic = testItems.byName('Magic Logs');
+      final redwood = testItems.byName('Redwood Logs');
+      final rawShrimp = testItems.byName('Raw Shrimp');
+      final rawSardine = testItems.byName('Raw Sardine');
+      final rawHerring = testItems.byName('Raw Herring');
+      final rawTrout = testItems.byName('Raw Trout');
+      final rawSalmon = testItems.byName('Raw Salmon');
+      final rawLobster = testItems.byName('Raw Lobster');
+      final rawSwordfish = testItems.byName('Raw Swordfish');
+      final rawCrab = testItems.byName('Raw Crab');
+      final rawCarp = testItems.byName('Raw Carp');
+      final rawShark = testItems.byName('Raw Shark');
+
+      // 19 slots = 95% > 90%
+      final inventory = Inventory.fromItems(testItems, [
+        ItemStack(logs, count: 1),
+        ItemStack(oak, count: 1),
+        ItemStack(willow, count: 1),
+        ItemStack(teak, count: 1),
+        ItemStack(maple, count: 1),
+        ItemStack(mahogany, count: 1),
+        ItemStack(yew, count: 1),
+        ItemStack(magic, count: 1),
+        ItemStack(redwood, count: 1),
+        ItemStack(rawShrimp, count: 1),
+        ItemStack(rawSardine, count: 1),
+        ItemStack(rawHerring, count: 1),
+        ItemStack(rawTrout, count: 1),
+        ItemStack(rawSalmon, count: 1),
+        ItemStack(rawLobster, count: 1),
+        ItemStack(rawSwordfish, count: 1),
+        ItemStack(rawCrab, count: 1),
+        ItemStack(rawCarp, count: 1),
+        ItemStack(rawShark, count: 1),
+      ]);
+
+      final state = GlobalState.test(testRegistries, inventory: inventory);
+
+      // Use a skill goal that won't be satisfied
+      const goal = ReachSkillLevelGoal(Skill.woodcutting, 99);
+      const config = SegmentConfig(
+        stopAtUpgradeAffordable: false,
+        stopAtUnlockBoundary: false,
+      );
+
+      final context = SegmentContext.build(state, goal, config);
+
+      final result = context.watchSet.detectBoundary(state);
+      expect(result, isNull);
+    });
+
+    test('respects custom inventory pressure threshold', () {
+      // Setup: Create inventory at 50% usage (10/20 slots)
+      final logs = testItems.byName('Normal Logs');
+      final oak = testItems.byName('Oak Logs');
+      final willow = testItems.byName('Willow Logs');
+      final teak = testItems.byName('Teak Logs');
+      final maple = testItems.byName('Maple Logs');
+      final mahogany = testItems.byName('Mahogany Logs');
+      final yew = testItems.byName('Yew Logs');
+      final magic = testItems.byName('Magic Logs');
+      final redwood = testItems.byName('Redwood Logs');
+      final rawShrimp = testItems.byName('Raw Shrimp');
+
+      // 10 slots = 50% of 20
+      final inventory = Inventory.fromItems(testItems, [
+        ItemStack(logs, count: 1),
+        ItemStack(oak, count: 1),
+        ItemStack(willow, count: 1),
+        ItemStack(teak, count: 1),
+        ItemStack(maple, count: 1),
+        ItemStack(mahogany, count: 1),
+        ItemStack(yew, count: 1),
+        ItemStack(magic, count: 1),
+        ItemStack(redwood, count: 1),
+        ItemStack(rawShrimp, count: 1),
+      ]);
+
+      final state = GlobalState.test(testRegistries, inventory: inventory);
+
+      // Use a skill goal that won't be satisfied
+      const goal = ReachSkillLevelGoal(Skill.woodcutting, 99);
+      const config = SegmentConfig(
+        stopAtInventoryPressure: true,
+        inventoryPressureThreshold: 0.5, // Custom threshold at 50%
+        stopAtUpgradeAffordable: false,
+        stopAtUnlockBoundary: false,
+      );
+
+      final context = SegmentContext.build(state, goal, config);
+
+      // At exactly 50%, should trigger (>= threshold)
+      final result = context.watchSet.detectBoundary(state);
+      expect(result, isA<InventoryPressureBoundary>());
+    });
+
+    test('boundary priority: goal > horizon > inventory > upgrade', () {
+      // Setup: Create a state that would trigger multiple boundaries
+      final logs = testItems.byName('Normal Logs');
+      final oak = testItems.byName('Oak Logs');
+      final willow = testItems.byName('Willow Logs');
+      final teak = testItems.byName('Teak Logs');
+      final maple = testItems.byName('Maple Logs');
+      final mahogany = testItems.byName('Mahogany Logs');
+      final yew = testItems.byName('Yew Logs');
+      final magic = testItems.byName('Magic Logs');
+      final redwood = testItems.byName('Redwood Logs');
+      final rawShrimp = testItems.byName('Raw Shrimp');
+      final rawSardine = testItems.byName('Raw Sardine');
+      final rawHerring = testItems.byName('Raw Herring');
+      final rawTrout = testItems.byName('Raw Trout');
+      final rawSalmon = testItems.byName('Raw Salmon');
+      final rawLobster = testItems.byName('Raw Lobster');
+      final rawSwordfish = testItems.byName('Raw Swordfish');
+      final rawCrab = testItems.byName('Raw Crab');
+      final rawCarp = testItems.byName('Raw Carp');
+      final rawShark = testItems.byName('Raw Shark');
+
+      // 19 slots = 95% > 90% (would trigger inventory pressure)
+      final inventory = Inventory.fromItems(testItems, [
+        ItemStack(logs, count: 1),
+        ItemStack(oak, count: 1),
+        ItemStack(willow, count: 1),
+        ItemStack(teak, count: 1),
+        ItemStack(maple, count: 1),
+        ItemStack(mahogany, count: 1),
+        ItemStack(yew, count: 1),
+        ItemStack(magic, count: 1),
+        ItemStack(redwood, count: 1),
+        ItemStack(rawShrimp, count: 1),
+        ItemStack(rawSardine, count: 1),
+        ItemStack(rawHerring, count: 1),
+        ItemStack(rawTrout, count: 1),
+        ItemStack(rawSalmon, count: 1),
+        ItemStack(rawLobster, count: 1),
+        ItemStack(rawSwordfish, count: 1),
+        ItemStack(rawCrab, count: 1),
+        ItemStack(rawCarp, count: 1),
+        ItemStack(rawShark, count: 1),
+      ]);
+
+      // 100 GP satisfies goal of 50 GP
+      final state = GlobalState.test(
+        testRegistries,
+        gp: 100,
+        inventory: inventory,
+      );
+
+      // Goal is satisfied (100 >= 50)
+      const goal = ReachGpGoal(50);
+      const config = SegmentConfig(
+        stopAtInventoryPressure: true,
+        maxSegmentTicks: 10,
+        stopAtUpgradeAffordable: false,
+        stopAtUnlockBoundary: false,
+      );
+
+      final context = SegmentContext.build(state, goal, config);
+
+      // Goal should take priority even though inventory and horizon would also
+      // trigger
+      final result = context.watchSet.detectBoundary(state, elapsedTicks: 1000);
+      expect(result, isA<GoalReachedBoundary>());
+    });
+
+    test('horizon cap takes priority over inventory pressure', () {
+      // Setup: inventory at 95% (above threshold) but horizon also exceeded
+      final logs = testItems.byName('Normal Logs');
+      final oak = testItems.byName('Oak Logs');
+      final willow = testItems.byName('Willow Logs');
+      final teak = testItems.byName('Teak Logs');
+      final maple = testItems.byName('Maple Logs');
+      final mahogany = testItems.byName('Mahogany Logs');
+      final yew = testItems.byName('Yew Logs');
+      final magic = testItems.byName('Magic Logs');
+      final redwood = testItems.byName('Redwood Logs');
+      final rawShrimp = testItems.byName('Raw Shrimp');
+      final rawSardine = testItems.byName('Raw Sardine');
+      final rawHerring = testItems.byName('Raw Herring');
+      final rawTrout = testItems.byName('Raw Trout');
+      final rawSalmon = testItems.byName('Raw Salmon');
+      final rawLobster = testItems.byName('Raw Lobster');
+      final rawSwordfish = testItems.byName('Raw Swordfish');
+      final rawCrab = testItems.byName('Raw Crab');
+      final rawCarp = testItems.byName('Raw Carp');
+      final rawShark = testItems.byName('Raw Shark');
+
+      // 19 slots = 95% > 90%
+      final inventory = Inventory.fromItems(testItems, [
+        ItemStack(logs, count: 1),
+        ItemStack(oak, count: 1),
+        ItemStack(willow, count: 1),
+        ItemStack(teak, count: 1),
+        ItemStack(maple, count: 1),
+        ItemStack(mahogany, count: 1),
+        ItemStack(yew, count: 1),
+        ItemStack(magic, count: 1),
+        ItemStack(redwood, count: 1),
+        ItemStack(rawShrimp, count: 1),
+        ItemStack(rawSardine, count: 1),
+        ItemStack(rawHerring, count: 1),
+        ItemStack(rawTrout, count: 1),
+        ItemStack(rawSalmon, count: 1),
+        ItemStack(rawLobster, count: 1),
+        ItemStack(rawSwordfish, count: 1),
+        ItemStack(rawCrab, count: 1),
+        ItemStack(rawCarp, count: 1),
+        ItemStack(rawShark, count: 1),
+      ]);
+
+      final state = GlobalState.test(testRegistries, inventory: inventory);
+
+      // Use a skill goal that won't be satisfied
+      const goal = ReachSkillLevelGoal(Skill.woodcutting, 99);
+      const config = SegmentConfig(
+        stopAtInventoryPressure: true,
+        maxSegmentTicks: 100,
+        stopAtUpgradeAffordable: false,
+        stopAtUnlockBoundary: false,
+      );
+
+      final context = SegmentContext.build(state, goal, config);
+
+      // Horizon exceeded (200 > 100) - should take priority over inventory
+      final result = context.watchSet.detectBoundary(state, elapsedTicks: 200);
+      expect(result, isA<HorizonCapBoundary>());
+    });
+  });
+
   group('solveSegment', () {
     test('returns SegmentFailed when solver cannot find a path', () {
       // Create a state where the solver will fail quickly
