@@ -30,6 +30,7 @@ import 'package:logic/src/data/action_id.dart';
 import 'package:logic/src/data/actions.dart';
 import 'package:logic/src/data/currency.dart';
 import 'package:logic/src/data/melvor_id.dart';
+import 'package:logic/src/data/xp.dart' show startXpForLevel;
 import 'package:logic/src/solver/apply_interaction.dart';
 import 'package:logic/src/solver/available_interactions.dart';
 import 'package:logic/src/solver/enumerate_candidates.dart';
@@ -1940,6 +1941,67 @@ SolverResult solveToCredits(
 // Macro Expansion
 // ---------------------------------------------------------------------------
 
+/// Result of batch size calculation for consuming skills.
+typedef _BatchSizeResult = ({
+  /// Number of craft actions to perform.
+  int craftsNeeded,
+
+  /// Input requirements: itemId -> total count needed (absolute).
+  Map<MelvorId, int> inputRequirements,
+
+  /// The target level we're aiming for.
+  int targetLevel,
+});
+
+/// Computes the batch size to reach the next unlock boundary.
+///
+/// For consuming skills (Smithing, Firemaking, etc.), computes how many
+/// craft actions are needed to reach the next skill level boundary.
+///
+/// Returns null if no boundary exists (at max level) or already satisfied.
+_BatchSizeResult? _computeBatchToNextUnlock({
+  required GlobalState state,
+  required SkillAction consumingAction,
+  required Map<Skill, SkillBoundaries> boundaries,
+  int safetyMargin = 2,
+}) {
+  final skill = consumingAction.skill;
+  final currentLevel = state.skillState(skill).skillLevel;
+  final currentXp = state.skillState(skill).xp;
+
+  // Find next unlock boundary
+  final skillBoundaries = boundaries[skill];
+  if (skillBoundaries == null) return null;
+
+  final nextLevel = skillBoundaries.nextBoundary(currentLevel);
+  if (nextLevel == null) return null; // At or past max
+
+  // Calculate XP needed
+  final targetXp = startXpForLevel(nextLevel);
+  final xpNeeded = targetXp - currentXp;
+  if (xpNeeded <= 0) return null; // Already there
+
+  // Calculate crafts needed
+  final xpPerCraft = consumingAction.xp;
+  final craftsNeeded = (xpNeeded / xpPerCraft).ceil() + safetyMargin;
+
+  // Calculate input requirements (absolute totals)
+  final inputRequirements = <MelvorId, int>{};
+  for (final inputEntry in consumingAction.inputs.entries) {
+    final inputId = inputEntry.key;
+    final perCraft = inputEntry.value;
+
+    final totalNeeded = craftsNeeded * perCraft;
+    inputRequirements[inputId] = totalNeeded;
+  }
+
+  return (
+    craftsNeeded: craftsNeeded,
+    inputRequirements: inputRequirements,
+    targetLevel: nextLevel,
+  );
+}
+
 /// Result of expanding a macro candidate.
 typedef MacroExpansionResult = ({
   GlobalState state,
@@ -1968,6 +2030,8 @@ MacroExpansionResult? _expandMacro(
     return _expandTrainConsumingSkillUntil(state, macro, goal, boundaries);
   } else if (macro is AcquireItem) {
     return _expandAcquireItem(state, macro, goal, boundaries);
+  } else if (macro is EnsureStock) {
+    return _expandEnsureStock(state, macro, goal, boundaries);
   }
   return null;
 }
@@ -2055,6 +2119,100 @@ MacroExpansionResult? _expandAcquireItem(
     waitFor: waitFor,
     deaths: advanceResult.deaths,
     triggeringCondition: 'Acquired ${macro.quantity}x ${macro.itemId.localId}',
+    macro: macro,
+  );
+}
+
+/// Expands an EnsureStock macro.
+///
+/// Similar to AcquireItem but uses absolute semantics:
+/// 1. If inventory already has >= minTotal, returns null (no-op)
+/// 2. Otherwise, produces the delta needed
+///
+/// For multi-tier items (bars), recursively ensures raw inputs first.
+MacroExpansionResult? _expandEnsureStock(
+  GlobalState state,
+  EnsureStock macro,
+  Goal goal,
+  Map<Skill, SkillBoundaries> boundaries,
+) {
+  final item = state.registries.items.byId(macro.itemId);
+  final currentCount = state.inventory.countOfItem(item);
+  final deltaNeeded = macro.minTotal - currentCount;
+  if (deltaNeeded <= 0) {
+    // Already have enough - this is a no-op
+    return null;
+  }
+
+  // Find producer for this item
+  final producer = _findProducerActionForItem(state, macro.itemId, goal);
+
+  if (producer == null) {
+    // Check if a locked producer exists
+    final lockedProducer = _findAnyProducerForItem(state, macro.itemId);
+    if (lockedProducer != null) {
+      // Need to train skill first - expand that prerequisite
+      final trainMacro = TrainSkillUntil(
+        lockedProducer.skill,
+        StopAtLevel(lockedProducer.skill, lockedProducer.unlockLevel),
+      );
+      return _expandMacro(state, trainMacro, goal, boundaries);
+    }
+    return null; // No way to produce this item
+  }
+
+  // Check if producer has prerequisites (skill level requirements)
+  final prereqs = _ensureExecutable(state, producer, goal);
+  if (prereqs.isNotEmpty) {
+    // Expand the first prerequisite
+    return _expandMacro(state, prereqs.first, goal, boundaries);
+  }
+
+  // Check if producer has inputs (consuming action like smelting)
+  final producerAction = state.registries.actions.byId(producer) as SkillAction;
+  if (producerAction.inputs.isNotEmpty) {
+    // Multi-tier chain: compute what we need from producer
+    final outputsPerAction = producerAction.outputs[macro.itemId] ?? 1;
+    final actionsNeeded = (deltaNeeded / outputsPerAction).ceil();
+
+    // Ensure we have producer's inputs first (recursively)
+    for (final prodInput in producerAction.inputs.entries) {
+      final inputNeeded = actionsNeeded * prodInput.value;
+      final inputItem = state.registries.items.byId(prodInput.key);
+      final currentInput = state.inventory.countOfItem(inputItem);
+      if (currentInput < inputNeeded) {
+        // Recursively ensure this input
+        return _expandMacro(
+          state,
+          EnsureStock(prodInput.key, inputNeeded),
+          goal,
+          boundaries,
+        );
+      }
+    }
+  }
+
+  // Producer is ready - switch to it and produce
+  final newState = applyInteraction(state, SwitchActivity(producer));
+
+  // Calculate ticks to produce
+  final ticksPerAction = ticksFromDuration(producerAction.meanDuration);
+  final outputsPerAction = producerAction.outputs[macro.itemId] ?? 1;
+  final actionsNeeded = (deltaNeeded / outputsPerAction).ceil();
+  final ticksNeeded = actionsNeeded * ticksPerAction;
+
+  // Project state forward
+  final advanceResult = advance(newState, ticksNeeded);
+
+  // Use absolute semantics: wait until we have minTotal
+  final waitFor = WaitForInventoryAtLeast(macro.itemId, macro.minTotal);
+
+  return (
+    state: advanceResult.state,
+    ticksElapsed: ticksNeeded,
+    waitFor: waitFor,
+    deaths: advanceResult.deaths,
+    triggeringCondition: 'Stock ${macro.minTotal}x ${macro.itemId.localId}',
     macro: macro,
   );
 }
@@ -2197,11 +2355,25 @@ MacroExpansionResult? _expandTrainConsumingSkillUntil(
       if (producerActionData is SkillAction &&
           producerActionData.inputs.isNotEmpty) {
         // The "producer" is actually a consuming action needing its own inputs.
-        // Generate AcquireItem prerequisite for the input.
-        // The input count here is just an initial buffer - execution will
-        // handle the ongoing produce/consume loop.
-        const bufferSize = 10;
-        allPrereqs.add(AcquireItem(inputItem, bufferSize));
+        // Compute batch size to reach the next unlock boundary, then ensure
+        // we have all inputs for that batch.
+        final batch = _computeBatchToNextUnlock(
+          state: state,
+          consumingAction: consumeAction,
+          boundaries: boundaries,
+        );
+
+        if (batch != null) {
+          // Use batched EnsureStock with full input requirements
+          final inputNeeded = batch.inputRequirements[inputItem] ?? 0;
+          if (inputNeeded > 0) {
+            allPrereqs.add(EnsureStock(inputItem, inputNeeded));
+          }
+        } else {
+          // Fallback: near goal or no boundary, use smaller batches
+          const bufferSize = 10;
+          allPrereqs.add(AcquireItem(inputItem, bufferSize));
+        }
       } else {
         // Track the first simple producer for rate calculations
         primaryProducerAction ??= producer;

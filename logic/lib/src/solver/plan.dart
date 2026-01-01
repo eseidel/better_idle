@@ -495,6 +495,8 @@ class Plan {
       TrainConsumingSkillUntil(:final consumingSkill) => consumingSkill.name,
       AcquireItem(:final itemId, :final quantity) =>
         'Acquire ${quantity}x ${itemId.name}',
+      EnsureStock(:final itemId, :final minTotal) =>
+        'EnsureStock ${itemId.name}: $minTotal',
     };
   }
 

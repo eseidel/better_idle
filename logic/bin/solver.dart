@@ -1031,6 +1031,8 @@ String _formatStepForSegment(
         '${consumingSkill.name} for $deltaTicks ticks',
       AcquireItem(:final itemId, :final quantity) =>
         'Acquire ${quantity}x $itemId ($deltaTicks ticks)',
+      EnsureStock(:final itemId, :final minTotal) =>
+        'EnsureStock ${itemId.name}: $minTotal ($deltaTicks ticks)',
     },
   };
 }

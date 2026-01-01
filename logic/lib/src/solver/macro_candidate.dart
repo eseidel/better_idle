@@ -71,6 +71,28 @@ class AcquireItem extends MacroCandidate {
   final int quantity;
 }
 
+/// Ensure inventory has at least [minTotal] of an item (absolute semantics).
+///
+/// Unlike [AcquireItem] which adds a delta quantity, EnsureStock targets an
+/// absolute inventory count. This is useful for batch planning where we know
+/// the exact total inputs needed for a craft phase.
+///
+/// If inventory already has >= minTotal, this is a no-op (returns null from
+/// expansion).
+///
+/// Used for:
+/// - Batch acquisition of inputs for consuming skills
+/// - Ensuring all raw materials before a craft-until-unlock phase
+class EnsureStock extends MacroCandidate {
+  const EnsureStock(this.itemId, this.minTotal);
+
+  /// The item to ensure stock of.
+  final MelvorId itemId;
+
+  /// The minimum total count required in inventory.
+  final int minTotal;
+}
+
 /// Train a consuming skill via coupled produce/consume loops.
 ///
 /// For consuming skills (Firemaking, Cooking, Smithing), this macro alternates:
