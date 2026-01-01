@@ -294,6 +294,98 @@ void main() {
 
       expect(output, contains('... and 40 more steps'));
     });
+
+    test('fromSegments stitches segments with markers', () {
+      final normalTreeAction = testActions.woodcutting('Normal Tree');
+      final oakTreeAction = testActions.woodcutting('Oak Tree');
+
+      final segment1 = Segment(
+        steps: [
+          InteractionStep(SwitchActivity(normalTreeAction.id)),
+          const WaitStep(100, WaitForSkillXp(Skill.woodcutting, 50)),
+        ],
+        totalTicks: 100,
+        interactionCount: 1,
+        stopBoundary: const UnlockBoundary(Skill.woodcutting, 5, 'Oak Tree'),
+        description: 'Train on Normal Tree',
+      );
+
+      final segment2 = Segment(
+        steps: [
+          InteractionStep(SwitchActivity(oakTreeAction.id)),
+          const WaitStep(200, WaitForSkillXp(Skill.woodcutting, 150)),
+        ],
+        totalTicks: 200,
+        interactionCount: 1,
+        stopBoundary: const GoalReachedBoundary(),
+        description: 'Train on Oak Tree',
+      );
+
+      final plan = Plan.fromSegments(
+        [segment1, segment2],
+        expandedNodes: 42,
+        enqueuedNodes: 100,
+      );
+
+      // Verify steps are stitched together
+      expect(plan.steps.length, 4); // 2 + 2 steps
+      expect(plan.steps[0], isA<InteractionStep>());
+      expect(plan.steps[1], isA<WaitStep>());
+      expect(plan.steps[2], isA<InteractionStep>());
+      expect(plan.steps[3], isA<WaitStep>());
+
+      // Verify totals are accumulated
+      expect(plan.totalTicks, 300); // 100 + 200
+      expect(plan.interactionCount, 2); // 1 + 1
+
+      // Verify metadata is preserved
+      expect(plan.expandedNodes, 42);
+      expect(plan.enqueuedNodes, 100);
+
+      // Verify segment markers
+      expect(plan.segmentMarkers.length, 2);
+
+      // First marker at step 0
+      expect(plan.segmentMarkers[0].stepIndex, 0);
+      expect(plan.segmentMarkers[0].boundary, isA<UnlockBoundary>());
+      expect(plan.segmentMarkers[0].description, 'Train on Normal Tree');
+
+      // Second marker at step 2 (after first segment's 2 steps)
+      expect(plan.segmentMarkers[1].stepIndex, 2);
+      expect(plan.segmentMarkers[1].boundary, isA<GoalReachedBoundary>());
+      expect(plan.segmentMarkers[1].description, 'Train on Oak Tree');
+    });
+
+    test('fromSegments handles empty segments list', () {
+      final plan = Plan.fromSegments(const []);
+
+      expect(plan.steps, isEmpty);
+      expect(plan.totalTicks, 0);
+      expect(plan.interactionCount, 0);
+      expect(plan.segmentMarkers, isEmpty);
+    });
+
+    test('fromSegments handles single segment', () {
+      final normalTreeAction = testActions.woodcutting('Normal Tree');
+
+      final segment = Segment(
+        steps: [
+          InteractionStep(SwitchActivity(normalTreeAction.id)),
+          const WaitStep(500, WaitForGoal(ReachGpGoal(100))),
+        ],
+        totalTicks: 500,
+        interactionCount: 1,
+        stopBoundary: const GoalReachedBoundary(),
+      );
+
+      final plan = Plan.fromSegments([segment]);
+
+      expect(plan.steps.length, 2);
+      expect(plan.totalTicks, 500);
+      expect(plan.interactionCount, 1);
+      expect(plan.segmentMarkers.length, 1);
+      expect(plan.segmentMarkers[0].stepIndex, 0);
+    });
   });
 
   group('SolverResult', () {
