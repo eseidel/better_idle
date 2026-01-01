@@ -7,17 +7,38 @@ Plan execution applies a solver-generated plan to the actual game state, using f
 ```dart
 class Plan {
   final List<PlanStep> steps;
-  final int totalTicks;          // Estimated ticks
-  final int interactionCount;    // Number of 0-tick steps
-  final int expandedNodes;       // A* nodes expanded
-  final int enqueuedNodes;       // A* nodes enqueued
-  final int expectedDeaths;      // For thieving plans
+  final int totalTicks;              // Estimated ticks
+  final int interactionCount;        // Number of 0-tick steps
+  final int expandedNodes;           // A* nodes expanded
+  final int enqueuedNodes;           // A* nodes enqueued
+  final int expectedDeaths;          // For thieving plans
+  final List<SegmentMarker> segmentMarkers;  // Segment boundaries
 
-  Duration get totalDuration;    // Human-readable time
-  Plan compress();               // Merge consecutive waits
-  String prettyPrint({...});     // Debug output
+  Duration get totalDuration;        // Human-readable time
+  Plan compress();                   // Merge consecutive waits
+  String prettyPrint({...});         // Debug output
 }
 ```
+
+### Segment Markers
+
+Plans may contain segment markers indicating natural stopping points:
+
+```dart
+class SegmentMarker {
+  final int stepIndex;         // Where this segment starts
+  final SegmentBoundary boundary;  // What boundary stops this segment
+  final String? description;   // Human-readable description
+}
+```
+
+Segment boundaries indicate why a segment ended:
+- `GoalReachedBoundary` - Goal was reached
+- `UpgradeAffordableBoundary` - Upgrade became affordable
+- `UnlockBoundary` - Skill level crossed an unlock
+- `InputsDepletedBoundary` - Consuming action ran out of inputs
+- `HorizonCapBoundary` - Segment reached max tick horizon
+- `InventoryPressureBoundary` - Inventory getting full
 
 ## Step Types
 
@@ -62,11 +83,12 @@ class MacroStep extends PlanStep {
 ## executePlan() Function
 
 ```dart
-ExecutionResult executePlan(
+PlanExecutionResult executePlan(
   GlobalState state,
-  Plan plan,
-  {Random? random}
-)
+  Plan plan, {
+  Random? random,
+  bool verbose = false,
+})
 ```
 
 ### Execution Loop
@@ -102,6 +124,7 @@ Wait until skill XP reaches target:
 class WaitForSkillXp extends WaitFor {
   final Skill skill;
   final int targetXp;
+  final String? reason;  // Human-readable description
 
   bool isSatisfied(GlobalState state) =>
     state.skillState(skill).xp >= targetXp;
@@ -115,9 +138,32 @@ Wait until GP + inventory value reaches target:
 ```dart
 class WaitForEffectiveCredits extends WaitFor {
   final int targetValue;
+  final String? reason;
+  final SellPolicy sellPolicy;  // Policy for computing inventory value
 
   bool isSatisfied(GlobalState state) =>
-    state.gp + state.inventory.sellValue >= targetValue;
+    effectiveCredits(state, sellPolicy) >= targetValue;
+}
+```
+
+### WaitForMasteryXp
+
+Wait until mastery XP for an action reaches target:
+
+```dart
+class WaitForMasteryXp extends WaitFor {
+  final ActionId actionId;
+  final int targetXp;
+}
+```
+
+### WaitForInventoryThreshold
+
+Wait until inventory usage exceeds a percentage threshold:
+
+```dart
+class WaitForInventoryThreshold extends WaitFor {
+  final double threshold;  // 0.0 to 1.0
 }
 ```
 
@@ -147,6 +193,40 @@ class WaitForInputsDepleted extends WaitFor {
 }
 ```
 
+### WaitForInputsAvailable
+
+Wait until inputs become available for a consuming action:
+
+```dart
+class WaitForInputsAvailable extends WaitFor {
+  final ActionId consumingActionId;
+  final int minimumInputs;
+}
+```
+
+### WaitForInventoryAtLeast
+
+Wait until inventory has at least N items of a specific type:
+
+```dart
+class WaitForInventoryAtLeast extends WaitFor {
+  final MelvorId itemId;
+  final int minimumCount;
+}
+```
+
+### WaitForGoal
+
+Wait until a goal is satisfied:
+
+```dart
+class WaitForGoal extends WaitFor {
+  final Goal goal;
+
+  bool isSatisfied(GlobalState state) => goal.isSatisfied(state);
+}
+```
+
 ### WaitForAnyOf
 
 Composite: stop when any condition is met:
@@ -157,6 +237,8 @@ class WaitForAnyOf extends WaitFor {
 
   bool isSatisfied(GlobalState state) =>
     conditions.any((c) => c.isSatisfied(state));
+
+  String get shortDescription;  // Describes first satisfied condition
 }
 ```
 
@@ -186,11 +268,27 @@ sealed class ReplanBoundary {
   bool get isExpected;  // Expected during normal flow
 }
 
+class GoalReached extends ReplanBoundary { ... }
 class InputsDepleted extends ReplanBoundary { ... }
 class WaitConditionSatisfied extends ReplanBoundary { ... }
-class GoalReached extends ReplanBoundary { ... }
-// etc.
+class InventoryFull extends ReplanBoundary { ... }
+class Death extends ReplanBoundary { ... }
+class UpgradeAffordableEarly extends ReplanBoundary { ... }
+class UnexpectedUnlock extends ReplanBoundary { ... }
+class CannotAfford extends ReplanBoundary { ... }
+class ActionUnavailable extends ReplanBoundary { ... }
+class NoProgressPossible extends ReplanBoundary { ... }
 ```
+
+**Expected boundaries** (normal flow):
+- `GoalReached` - Plan completed successfully
+- `InputsDepleted` - Consuming action ran out of inputs
+- `WaitConditionSatisfied` - Normal wait completion
+
+**Unexpected boundaries** (potential bugs):
+- `CannotAfford` - Couldn't afford a planned purchase
+- `ActionUnavailable` - Action not available when expected
+- `NoProgressPossible` - Stuck state
 
 ## Planning vs Execution Difference
 
@@ -220,13 +318,13 @@ For non-random actions (woodcutting, etc.), delta should be ~0.
 
 ```dart
 // Before:
-[Wait(100), Wait(50), Wait(75)]
+[WaitStep(100, waitFor1), WaitStep(50, waitFor2), WaitStep(75, waitFor3)]
 
-// After:
-[Wait(225)]
+// After (merged):
+[WaitStep(225, waitFor3)]  // Uses final waitFor since that's the target
 ```
 
-This makes plans more readable and slightly faster to execute.
+Compression also removes no-op switches (switching to the same activity).
 
 ## Deterministic Execution
 
@@ -262,16 +360,41 @@ The solver accounts for death overhead in rate calculations.
 ## Pretty Printing
 
 ```dart
-plan.prettyPrint(actions: registries.actions)
+plan.prettyPrint(maxSteps: 30, actions: registries.actions)
 ```
 
 Output:
 ```
-1. Switch to Cut Oak Logs
-2. Wait 1500 ticks (until Woodcutting 25)
-3. Switch to Cut Willow Logs
-4. Wait 3000 ticks (until Woodcutting 37)
-5. Buy Iron Axe
-6. Wait 2000 ticks (until goal)
-Total: 6500 ticks, 3 interactions
+=== Plan ===
+Total ticks: 6500 (1h 48m)
+Interactions: 3
+Expanded nodes: 150
+Enqueued nodes: 500
+Steps (6 total):
+  1. Switch to Cut Oak Logs (woodcutting)
+  2. Cut Oak Logs 25m 0s -> WC 25
+  3. Switch to Cut Willow Logs (woodcutting)
+  4. Cut Willow Logs 50m 0s -> WC 37
+  5. Buy Iron Axe
+  6. Cut Willow Logs 33m 20s -> Goal reached
 ```
+
+## Segment-Based Execution
+
+For online replanning, use `SegmentContext` and `WatchSet`:
+
+```dart
+// Build segment context once at segment start
+final context = SegmentContext.build(state, goal, config);
+
+// Use same sellPolicy everywhere
+final sellPolicy = context.sellPolicy;
+
+// WatchSet detects material boundaries
+final boundary = context.watchSet.detectBoundary(state, elapsedTicks: ticks);
+if (boundary != null) {
+  // Replan at boundary
+}
+```
+
+The `WatchSet` ensures both planning and execution use identical boundary logic.

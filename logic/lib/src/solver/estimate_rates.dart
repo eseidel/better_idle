@@ -231,10 +231,7 @@ Rates estimateRatesForAction(GlobalState state, ActionId actionId) {
     final thievingLevel = state.skillState(Skill.thieving).skillLevel;
     final mastery = state.actionState(action.id).masteryLevel;
     final stealth = calculateStealth(thievingLevel, mastery);
-    final successChance = ((100 + stealth) / (100 + action.perception)).clamp(
-      0.0,
-      1.0,
-    );
+    final successChance = thievingSuccessChance(stealth, action.perception);
     final failureChance = 1.0 - successChance;
 
     final expectedThievingGold = successChance * (1 + action.maxGold) / 2;
@@ -388,10 +385,7 @@ Rates estimateRates(GlobalState state) {
     final thievingLevel = state.skillState(Skill.thieving).skillLevel;
     final mastery = state.actionState(action.id).masteryLevel;
     final stealth = calculateStealth(thievingLevel, mastery);
-    final successChance = ((100 + stealth) / (100 + action.perception)).clamp(
-      0.0,
-      1.0,
-    );
+    final successChance = thievingSuccessChance(stealth, action.perception);
     final failureChance = 1.0 - successChance;
 
     // Direct GP per attempt (only on success) - thieving gold coins

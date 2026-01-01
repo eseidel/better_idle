@@ -251,8 +251,7 @@ List<ActionRateSummary> _computeRateSummaries(GlobalState state) {
         final thievingLevel = state.skillState(Skill.thieving).skillLevel;
         final mastery = state.actionState(action.id).masteryLevel;
         final stealth = calculateStealth(thievingLevel, mastery);
-        final successChance = ((100 + stealth) / (100 + action.perception))
-            .clamp(0.0, 1.0);
+        final successChance = thievingSuccessChance(stealth, action.perception);
         final failureChance = 1.0 - successChance;
 
         // Expected gold = successChance * (1 + maxGold) / 2
@@ -508,8 +507,7 @@ List<ActionSummary> buildActionSummaries(GlobalState state) {
         final thievingLevel = state.skillState(Skill.thieving).skillLevel;
         final mastery = state.actionState(action.id).masteryLevel;
         final stealth = calculateStealth(thievingLevel, mastery);
-        final successChance = ((100 + stealth) / (100 + action.perception))
-            .clamp(0.0, 1.0);
+        final successChance = thievingSuccessChance(stealth, action.perception);
         final failureChance = 1.0 - successChance;
 
         // Expected gold = successChance * (1 + maxGold) / 2

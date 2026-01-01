@@ -489,8 +489,8 @@ class _RateCache {
           final thievingLevel = state.skillState(Skill.thieving).skillLevel;
           final mastery = state.actionState(action.id).masteryLevel;
           final stealth = calculateStealth(thievingLevel, mastery);
-          final successChance = ((100 + stealth) / (100 + action.perception))
-              .clamp(0.0, 1.0);
+          final successChance =
+              thievingSuccessChance(stealth, action.perception);
           final failureChance = 1.0 - successChance;
           final effectiveTicks =
               expectedTicks + failureChance * stunnedDurationTicks;
@@ -2366,7 +2366,10 @@ MacroExpansionResult? _expandTrainConsumingSkillUntil(
         if (batch != null) {
           // Use batched EnsureStock with full input requirements
           final inputNeeded = batch.inputRequirements[inputItem] ?? 0;
-          if (inputNeeded > 0) {
+          // Only add prereq if we don't already have enough
+          final inputItemData = state.registries.items.byId(inputItem);
+          final currentCount = state.inventory.countOfItem(inputItemData);
+          if (inputNeeded > 0 && currentCount < inputNeeded) {
             allPrereqs.add(EnsureStock(inputItem, inputNeeded));
           }
         } else {
@@ -2387,7 +2390,48 @@ MacroExpansionResult? _expandTrainConsumingSkillUntil(
   }
 
   // All prerequisites satisfied - now handle the produce/consume loop
-  final producerAction = primaryProducerAction!;
+  // For multi-tier chains (e.g., Smithing where Bronze Bar production itself
+  // requires ore inputs), primaryProducerAction may be null. In this case,
+  // we need to find the deepest producer (the one that doesn't need inputs).
+  var producerAction = primaryProducerAction;
+  if (producerAction == null) {
+    // Find a producer action for any input that doesn't require inputs itself
+    for (final inputEntry in consumeAction.inputs.entries) {
+      final inputItemId = inputEntry.key;
+      final producer = _findProducerActionForItem(state, inputItemId, goal);
+      if (producer == null) continue;
+      final producerActionData = state.registries.actions.byId(producer);
+      if (producerActionData is SkillAction) {
+        if (producerActionData.inputs.isEmpty) {
+          // This is a simple producer - use it
+          producerAction = producer;
+          break;
+        } else {
+          // This producer has inputs - look for THEIR producers
+          for (final subInput in producerActionData.inputs.keys) {
+            final subProducer = _findProducerActionForItem(
+              state,
+              subInput,
+              goal,
+            );
+            if (subProducer != null) {
+              final subProdData = state.registries.actions.byId(subProducer);
+              if (subProdData is SkillAction && subProdData.inputs.isEmpty) {
+                producerAction = subProducer;
+                break;
+              }
+            }
+          }
+          if (producerAction != null) break;
+        }
+      }
+    }
+  }
+
+  // If still no producer found, return null (can't proceed)
+  if (producerAction == null) {
+    return null;
+  }
 
   // For state projection, switch to the producer action (which doesn't
   // require inputs). We'll use this state for planning while modeling

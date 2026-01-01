@@ -13,8 +13,21 @@ class Rates {
   final double masteryXpPerTick;          // Mastery XP
   final double hpLossPerTick;             // HP damage (thieving)
   final double itemTypesPerTick;          // For inventory estimation
+  final ActionId? actionId;               // Action these rates are for
 }
 ```
+
+## Design Principle: Flows, Not Value
+
+`estimateRates` is a **mechanical model** returning **expected flows per tick**:
+- Direct GP per tick (coins from thieving)
+- Items per tick (including drops from tables)
+- XP per tick (skill and mastery)
+- HP loss per tick (for hazard modeling)
+
+It must NOT encode "sell everything" or any goal policy. Conversion of items → value belongs to `ValueModel`.
+
+Drops are represented in `itemFlowsPerTick` rather than immediately turned into GP. This allows different `ValueModel`s to value items differently.
 
 ## Calculation Flow
 
@@ -35,7 +48,7 @@ Outputs per action / duration = items/tick
 Drop tables (action + skill + global)
   |
   v
-Doubling modifiers (mastery, skill)
+Doubling modifiers (from resolveModifiers)
   |
   v
 Final Rates
@@ -47,11 +60,12 @@ Final Rates
 
 Actions have a base duration, modified by:
 - Tool upgrades (e.g., bronze axe -> iron axe)
-- Skill masteries
-- Global modifiers
+- Shop duration modifiers
 
 ```dart
-effectiveDuration = baseDuration * durationMultiplier
+final baseExpectedTicks = ticksFromDuration(action.meanDuration).toDouble();
+final percentModifier = state.shopDurationModifierForSkill(action.skill);
+final expectedTicks = baseExpectedTicks * (1.0 + percentModifier);
 ```
 
 ### Item Flows
@@ -62,40 +76,61 @@ Items come from:
 3. **Skill drops**: Random drops based on skill level
 4. **Global drops**: Universal random drops
 
+All drops are computed via `allDropsForAction` which combines all sources.
+
+### Drop Handling
+
+```dart
+// allDropsForAction includes:
+// - Action outputs (via rewardsForSelection -> rewardsAtLevel)
+// - Skill-level drops (e.g., Bobby's Pocket for thieving)
+// - Global drops (e.g., gems)
+final dropsForAction = registries.drops.allDropsForAction(action, selection);
+
+// Get doubling chance from modifiers
+final modifiers = state.resolveModifiers(action);
+final doublingChance = (modifiers.skillItemDoublingChance / 100.0).clamp(0.0, 1.0);
+
+final itemFlowsPerAction = expectedItemsForDrops(dropsForAction, doublingChance: doublingChance);
+```
+
 ### Consuming Skills
 
 For skills like Firemaking that consume inputs:
 
 ```dart
-// Find best producer for the input
-producerRate = producer.itemsPerTick
-
-// Consumer requires inputs
-consumerInputsPerTick = consumer.inputsRequired / consumer.duration
-
-// Sustainable rate = min(produce rate, consume rate)
-// But more complex: need to account for coupled cycle time
-cycleTime = (inputsNeeded / producerRate) + consumeDuration
-sustainableXpPerTick = consumeXp / cycleTime
+// Inputs consumed per tick
+final inputs = action.inputsForRecipe(selection);
+final itemsConsumedPerTick = <MelvorId, double>{};
+for (final entry in inputs.entries) {
+  itemsConsumedPerTick[entry.key] = entry.value / expectedTicks;
+}
 ```
 
 ### Thieving Special Case
 
-Thieving has success/failure mechanics:
+Thieving has success/failure mechanics with stun time:
 
 ```dart
-successChance = baseChance + skillBonus
+final stealth = calculateStealth(thievingLevel, mastery);
+final successChance = ((100 + stealth) / (100 + action.perception)).clamp(0.0, 1.0);
+final failureChance = 1.0 - successChance;
 
-// On failure: stunned for N ticks, take damage
-expectedTicksPerAttempt =
-  successChance * baseDuration +
-  (1 - successChance) * (baseDuration + stunDuration)
+// Expected gold per attempt (only on success)
+final expectedThievingGold = successChance * (1 + action.maxGold) / 2;
 
-expectedGpPerAttempt = successChance * gpAmount
-gpPerTick = expectedGpPerAttempt / expectedTicksPerAttempt
+// Expected damage per attempt (only on failure)
+final expectedDamagePerAttempt = failureChance * (1 + action.maxHit) / 2;
 
-// HP modeling for death cycles
-hpLossPerTick = expectedDamage / expectedTicksPerAttempt
+// Effective ticks = action duration + (failure chance * stun)
+final effectiveTicks = expectedTicks + failureChance * stunnedDurationTicks;
+
+final directGpPerTick = expectedThievingGold / effectiveTicks;
+final hpLossPerTick = expectedDamagePerAttempt / effectiveTicks;
+
+// XP and item drops only on success
+final expectedXpPerAction = successChance * action.xp;
+final xpPerTick = expectedXpPerAction / effectiveTicks;
 ```
 
 ## estimateRates() Functions
@@ -108,15 +143,9 @@ Rates estimateRates(GlobalState state)
 Rates estimateRatesForAction(GlobalState state, ActionId actionId)
 ```
 
-### Parameters
-
-- **state**: Current game state (skill levels, equipment, active action)
-  - Registries are accessed via `state.registries`
-- **actionId**: (For `estimateRatesForAction`) The specific action to estimate
-
 ### Returns
 
-`Rates` object with all flow rates normalized to per-tick values.
+`Rates` object with all flow rates normalized to per-tick values. Returns `Rates.empty` if no action is active or action is not a `SkillAction`.
 
 ### Example
 
@@ -130,12 +159,34 @@ rates.xpPerTickBySkill[Skill.woodcutting] = 37.5 / 27  // ~1.39 XP/tick
 rates.itemFlowsPerTick[oakLogsId] = 1 / 27  // ~0.037 logs/tick
 ```
 
+## Utility Functions
+
+### Death Cycle Modeling
+
+```dart
+/// Computes ticks until death for thieving
+int? ticksUntilDeath(GlobalState state, Rates rates)
+
+/// Adjusts rates to account for death cycle overhead
+Rates deathCycleAdjustedRates(GlobalState state, Rates rates, {int restartOverheadTicks = 0})
+```
+
+### Level-Up Timing
+
+```dart
+/// Computes ticks until next skill level
+int? ticksUntilNextSkillLevel(GlobalState state, Rates rates)
+
+/// Computes ticks until next mastery level
+int? ticksUntilNextMasteryLevel(GlobalState state, Rates rates)
+```
+
 ## Rate Caching
 
 Rates only depend on:
 - Action ID
-- Skill levels
-- Tool tiers
+- Skill levels (affect unlocks)
+- Tool tiers (affect durations/yield)
 
 The solver caches `bestUnlockedRate` by state key to avoid recomputation.
 
@@ -167,6 +218,9 @@ class SellEverythingForGpValueModel extends ValueModel {
     return state.registries.items.byId(itemId).sellsFor.toDouble();
   }
 }
+
+/// Stub for future shadow-pricing implementation
+class ShadowPriceValueModel extends ValueModel { ... }
 
 // Default instance used throughout solver
 const defaultValueModel = SellEverythingForGpValueModel();

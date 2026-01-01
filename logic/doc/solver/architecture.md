@@ -38,20 +38,22 @@ Initial State
 | File | Purpose |
 |------|---------|
 | `solver.dart` | A* search algorithm, node expansion, heuristics, SolverProfile |
-| `goal.dart` | Goal definitions (GP, skill level, multi-skill) |
+| `goal.dart` | Goal definitions (GP, skill level, multi-skill, segment) |
 | `enumerate_candidates.dart` | Generates candidate actions/upgrades/macros |
 | `estimate_rates.dart` | Calculates expected rates per tick |
 | `value_model.dart` | Converts rates to scalar values |
-| `plan.dart` | Plan representation, compression, and execution result types |
-| `interaction.dart` | 0-tick state mutations (SwitchActivity, BuyShopItem, SellItems) |
+| `plan.dart` | Plan representation, compression, segments, and execution result types |
+| `interaction.dart` | 0-tick state mutations (SwitchActivity, BuyShopItem, SellItems), sell policies |
 | `apply_interaction.dart` | Applies interactions to game state |
 | `available_interactions.dart` | Determines which interactions are currently available |
 | `wait_for.dart` | Wait conditions for plan execution |
-| `macro_candidate.dart` | Macro definitions (TrainSkillUntil, TrainConsumingSkillUntil) |
+| `macro_candidate.dart` | Macro definitions (TrainSkillUntil, TrainConsumingSkillUntil, AcquireItem, EnsureStock) |
 | `next_decision_delta.dart` | Computes time until next interesting event |
 | `replan_boundary.dart` | Defines when replanning is needed during execution |
 | `unlock_boundaries.dart` | Tracks skill level boundaries where actions unlock |
 | `candidate_cache.dart` | Caches candidate enumeration results |
+| `watch_set.dart` | WatchSet for segment-based boundary detection, SegmentContext |
+| `solver_profile.dart` | Profiling and diagnostics for solver runs |
 
 ## Data Flow
 
@@ -115,6 +117,33 @@ class SellItems extends Interaction {
 }
 ```
 
+### SellPolicy
+
+Determines which items to sell vs keep:
+```dart
+sealed class SellPolicy extends Equatable {
+  const SellPolicy();
+}
+
+class SellAllPolicy extends SellPolicy { ... }
+
+class SellExceptPolicy extends SellPolicy {
+  final Set<MelvorId> keepItems;  // Items to preserve
+}
+```
+
+### SellPolicySpec
+
+Stable policy specification for consistent behavior across a segment:
+```dart
+sealed class SellPolicySpec extends Equatable {
+  SellPolicy instantiate(GlobalState state, Set<Skill> consumingSkills);
+}
+
+class SellAllSpec extends SellPolicySpec { ... }
+class ReserveConsumingInputsSpec extends SellPolicySpec { ... }
+```
+
 ### WaitFor
 
 Condition for stopping a wait:
@@ -129,9 +158,16 @@ sealed class WaitFor extends Equatable {
 
 class WaitForSkillXp extends WaitFor { ... }
 class WaitForEffectiveCredits extends WaitFor { ... }
-class WaitForInputsDepleted extends WaitFor { ... }
-class WaitForAnyOf extends WaitFor { ... }
+class WaitForMasteryXp extends WaitFor { ... }
+class WaitForInventoryThreshold extends WaitFor { ... }
+class WaitForInventoryFull extends WaitFor { ... }
 class WaitForGoal extends WaitFor { ... }
+class WaitForInputsDepleted extends WaitFor { ... }
+class WaitForInputsAvailable extends WaitFor { ... }
+class WaitForInventoryAtLeast extends WaitFor { ... }
+class WaitForInventoryDelta extends WaitFor { ... }
+class WaitForSufficientInputs extends WaitFor { ... }
+class WaitForAnyOf extends WaitFor { ... }
 ```
 
 ### MacroCandidate
@@ -153,6 +189,40 @@ class TrainConsumingSkillUntil extends MacroCandidate {
   final Skill consumingSkill;
   final MacroStopRule primaryStop;
   final List<MacroStopRule> watchedStops;
+}
+
+class AcquireItem extends MacroCandidate {
+  final MelvorId itemId;
+  final int quantity;
+}
+
+class EnsureStock extends MacroCandidate {
+  final MelvorId itemId;
+  final int minTotal;  // Absolute target, not delta
+}
+```
+
+### WatchSet and SegmentContext
+
+For segment-based planning:
+```dart
+class WatchSet {
+  final Goal goal;
+  final SegmentConfig config;
+  final Set<MelvorId> upgradePurchaseIds;
+  final Map<Skill, Set<int>> unlockLevels;
+  final SellPolicy sellPolicy;
+
+  SegmentBoundary? detectBoundary(GlobalState state, {int? elapsedTicks});
+  bool isMaterial(ReplanBoundary boundary);
+}
+
+class SegmentContext {
+  final Goal goal;
+  final SegmentConfig config;
+  final SellPolicySpec sellPolicySpec;
+  final SellPolicy sellPolicy;
+  final WatchSet watchSet;
 }
 ```
 
