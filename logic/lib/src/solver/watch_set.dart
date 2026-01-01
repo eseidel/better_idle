@@ -291,7 +291,7 @@ class WatchSet {
 /// directly from registries and goal.
 ///
 /// The [sellPolicy] parameter is required - it must be computed once at
-/// segment start using [SegmentConfig.sellPolicySpec.instantiate] and
+/// segment start using [SellPolicySpec.instantiate] on [SegmentConfig] and
 /// passed here. This ensures WatchSet and boundary handling share the
 /// same policy.
 WatchSet buildWatchSet(

@@ -236,7 +236,7 @@ int sellableValue(GlobalState state, SellPolicy sellPolicy) {
 /// This represents the total GP available if the player sold all items
 /// permitted by [sellPolicy]. Use this for affordability checks in planning.
 ///
-/// For immediate purchase checks (can buy right now), use [state.gp] directly.
+/// For immediate purchase checks (can buy right now), use [GlobalState.gp].
 int effectiveCredits(GlobalState state, SellPolicy sellPolicy) {
   return state.gp + sellableValue(state, sellPolicy);
 }
