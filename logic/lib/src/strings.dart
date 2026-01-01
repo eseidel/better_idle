@@ -12,11 +12,42 @@ String _rounded(int whole, int part, int units, String unitName) {
   return '${sign * absWhole} $unitName$plural';
 }
 
+/// Create an approximate string for the given tick count.
+///
+/// This is a convenience wrapper around [approximateDuration] that converts
+/// ticks to a Duration first. One tick = 100ms.
+String approximateDurationFromTicks(int ticks) {
+  // 1 tick = 100ms, so ticks * 100 = milliseconds
+  return approximateDuration(Duration(milliseconds: ticks * 100));
+}
+
+/// Formats a tick count as duration with ticks in parentheses.
+///
+/// Example: "29 days (24,933,018 ticks)"
+String durationStringWithTicks(int ticks) {
+  final duration = approximateDurationFromTicks(ticks);
+  final tickStr = preciseNumberString(ticks);
+  return '$duration ($tickStr ticks)';
+}
+
+/// Formats a signed tick delta as duration with ticks in parentheses.
+///
+/// Example: "+11 minutes (+6,601 ticks)" or "-11 minutes (-6,601 ticks)"
+String signedDurationStringWithTicks(int ticks) {
+  final duration = approximateDurationFromTicks(ticks.abs());
+  final sign = ticks >= 0 ? '+' : '-';
+  final tickStr = preciseNumberString(ticks.abs());
+  return '$sign$duration ($sign$tickStr ticks)';
+}
+
 /// Create an approximate string for the given [duration].
 String approximateDuration(Duration duration) {
   final d = duration; // Save some typing.
-  // We only support up to 24 hours of changes, so we can ignore days, etc.
-  if (d.inHours.abs() > 0) {
+  if (d.inDays.abs() > 0) {
+    final absDays = d.inDays.abs();
+    final absHours = d.inHours.abs() - (absDays * 24);
+    return _rounded(d.inDays, absHours, 24, 'day');
+  } else if (d.inHours.abs() > 0) {
     final absHours = d.inHours.abs();
     final absMinutes = d.inMinutes.abs() - (absHours * 60);
     return _rounded(d.inHours, absMinutes, 60, 'hour');

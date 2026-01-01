@@ -2,7 +2,49 @@ import 'package:logic/logic.dart';
 import 'package:test/test.dart';
 
 void main() {
+  group('approximateDurationFromTicks', () {
+    test('converts ticks to duration string', () {
+      // 1 tick = 100ms, so 10 ticks = 1 second
+      expect(approximateDurationFromTicks(10), '1 second');
+      expect(approximateDurationFromTicks(600), '1 minute'); // 60 seconds
+      expect(approximateDurationFromTicks(36000), '1 hour'); // 3600 seconds
+      expect(approximateDurationFromTicks(864000), '1 day'); // 86400 seconds
+    });
+  });
+
+  group('durationStringWithTicks', () {
+    test('formats duration with ticks in parentheses', () {
+      expect(durationStringWithTicks(600), '1 minute (600 ticks)');
+      expect(durationStringWithTicks(36000), '1 hour (36,000 ticks)');
+      expect(durationStringWithTicks(864000), '1 day (864,000 ticks)');
+    });
+  });
+
+  group('signedDurationStringWithTicks', () {
+    test('formats positive delta with plus sign', () {
+      expect(signedDurationStringWithTicks(6000), '+10 minutes (+6,000 ticks)');
+    });
+
+    test('formats negative delta with minus sign', () {
+      expect(
+        signedDurationStringWithTicks(-6000),
+        '-10 minutes (-6,000 ticks)',
+      );
+    });
+
+    test('formats zero as positive', () {
+      expect(signedDurationStringWithTicks(0), '+0 seconds (+0 ticks)');
+    });
+  });
+
   group('approximateDuration', () {
+    test('formats days with rounding', () {
+      expect(approximateDuration(const Duration(days: 1)), '1 day');
+      expect(approximateDuration(const Duration(days: 2)), '2 days');
+      expect(approximateDuration(const Duration(days: 1, hours: 12)), '2 days');
+      expect(approximateDuration(const Duration(days: 1, hours: 11)), '1 day');
+    });
+
     test('formats hours with rounding', () {
       expect(approximateDuration(const Duration(hours: 1)), '1 hour');
       expect(approximateDuration(const Duration(hours: 2)), '2 hours');

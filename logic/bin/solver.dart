@@ -13,6 +13,8 @@ import 'dart:math';
 import 'package:args/args.dart';
 import 'package:logic/logic.dart';
 import 'package:logic/src/solver/goal.dart';
+import 'package:logic/src/solver/interaction.dart';
+import 'package:logic/src/solver/macro_candidate.dart';
 import 'package:logic/src/solver/plan.dart';
 import 'package:logic/src/solver/solver.dart';
 import 'package:logic/src/solver/solver_profile.dart';
@@ -180,11 +182,9 @@ void _printSuccess(
   }
   print('');
   print('=== Execution Stats ===');
-  print('Planned ticks: ${execResult.plannedTicks}');
-  print('Actual ticks: ${execResult.actualTicks}');
-  final delta = execResult.ticksDelta;
-  final deltaSign = delta >= 0 ? '+' : '';
-  print('Delta: $deltaSign$delta ticks');
+  print('Planned: ${durationStringWithTicks(execResult.plannedTicks)}');
+  print('Actual: ${durationStringWithTicks(execResult.actualTicks)}');
+  print('Delta: ${signedDurationStringWithTicks(execResult.ticksDelta)}');
   print(
     'Deaths: ${execResult.totalDeaths} actual, '
     '${result.plan.expectedDeaths} expected',
@@ -203,7 +203,7 @@ void _printFailure(SolverFailed result) {
 /// Prints the final state after executing the plan.
 void _printFinalState(GlobalState state) {
   print('=== Final State ===');
-  print('GP: ${state.gp}');
+  print('GP: ${preciseNumberString(state.gp)}');
   print('');
 
   // Print skill levels
@@ -212,7 +212,8 @@ void _printFinalState(GlobalState state) {
     final skillState = state.skillState(skill);
     if (skillState.skillLevel > 1 || skillState.xp > 0) {
       print(
-        '  ${skill.name}: Level ${skillState.skillLevel} (${skillState.xp} XP)',
+        '  ${skill.name}: Level ${skillState.skillLevel} '
+        '(${preciseNumberString(skillState.xp)} XP)',
       );
     }
   }
@@ -222,13 +223,13 @@ void _printFinalState(GlobalState state) {
     print('');
     print('Inventory:');
     for (final stack in state.inventory.items) {
-      print('  ${stack.item.name}: ${stack.count}');
+      print('  ${stack.item.name}: ${preciseNumberString(stack.count)}');
     }
     final totalValue = state.inventory.items.fold<int>(
       0,
       (sum, stack) => sum + stack.sellsFor,
     );
-    print('Total value: $totalValue gp');
+    print('Total value: ${preciseNumberString(totalValue)} GP');
   }
 }
 
@@ -512,10 +513,12 @@ void _printSegmentedResult(
           '  Segment ${i + 1}: $steps steps, $ticks ticks$nodeInfo '
           '-> ${boundary.describe()}',
         );
-        // Debug: print step types
+        // Print step details
         for (var j = 0; j < segment.steps.length; j++) {
           final step = segment.steps[j];
-          print('    Step ${j + 1}: ${step.runtimeType}');
+          print(
+            '    Step ${j + 1}: ${_formatStepForSegment(step, registries)}',
+          );
         }
       }
       print('');
@@ -542,11 +545,9 @@ void _printSegmentedResult(
       }
       print('');
       print('=== Execution Stats ===');
-      print('Planned ticks: ${execResult.plannedTicks}');
-      print('Actual ticks: ${execResult.actualTicks}');
-      final delta = execResult.ticksDelta;
-      final deltaSign = delta >= 0 ? '+' : '';
-      print('Delta: $deltaSign$delta ticks');
+      print('Planned: ${durationStringWithTicks(execResult.plannedTicks)}');
+      print('Actual: ${durationStringWithTicks(execResult.actualTicks)}');
+      print('Delta: ${signedDurationStringWithTicks(execResult.ticksDelta)}');
       print('Deaths: ${execResult.totalDeaths}');
 
       // Print aggregate diagnostics if collected
@@ -909,4 +910,41 @@ void _printNewlyEligibleActions(
       print('  (Producer skill: ${producerSkill.name})');
     }
   }
+}
+
+/// Formats a sell policy for display.
+String _formatSellPolicy(SellPolicy policy) {
+  return switch (policy) {
+    SellAllPolicy() => 'Sell all',
+    SellExceptPolicy(:final keepItems) => () {
+      final names = keepItems.map((id) => id.name).toList()..sort();
+      if (names.length <= 3) {
+        return 'Sell all except ${names.join(', ')}';
+      }
+      return 'Sell all except ${names.length} items '
+          '(${names.take(3).join(', ')}, ...)';
+    }(),
+  };
+}
+
+/// Formats a plan step for segment display.
+String _formatStepForSegment(PlanStep step, Registries registries) {
+  return switch (step) {
+    InteractionStep(:final interaction) => switch (interaction) {
+      SwitchActivity(:final actionId) => () {
+        final action = registries.actions.byId(actionId);
+        final actionName = action.name;
+        return 'Switch to $actionName';
+      }(),
+      BuyShopItem(:final purchaseId) => 'Buy ${purchaseId.name}',
+      SellItems(:final policy) => _formatSellPolicy(policy),
+    },
+    WaitStep(:final deltaTicks, :final waitFor) =>
+      'Wait $deltaTicks ticks -> ${waitFor.shortDescription}',
+    MacroStep(:final macro, :final deltaTicks) => switch (macro) {
+      TrainSkillUntil(:final skill) => '${skill.name} for $deltaTicks ticks',
+      TrainConsumingSkillUntil(:final consumingSkill) =>
+        '${consumingSkill.name} for $deltaTicks ticks',
+    },
+  };
 }

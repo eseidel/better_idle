@@ -102,7 +102,7 @@ class MacroStep extends PlanStep {
   String toString() {
     if (macro is TrainSkillUntil) {
       final m = macro as TrainSkillUntil;
-      return 'MacroStep(Train ${m.skill.name} for $deltaTicks ticks, '
+      return 'MacroStep(${m.skill.name} for $deltaTicks ticks, '
           '${waitFor.describe()})';
     }
     return 'MacroStep($macro, $deltaTicks ticks, ${waitFor.describe()})';
@@ -454,8 +454,8 @@ class Plan {
               ? 'Switch to $actionName ($skillName)'
               : 'Switch to $actionName';
         }(),
-        BuyShopItem(:final purchaseId) => 'Buy upgrade: $purchaseId',
-        SellItems(:final policy) => 'Sell items ($policy)',
+        BuyShopItem(:final purchaseId) => 'Buy ${purchaseId.name}',
+        SellItems(:final policy) => _formatSellPolicy(policy),
       },
       WaitStep(:final deltaTicks, :final waitFor) =>
         'Wait ${_formatDuration(durationFromTicks(deltaTicks))} '
@@ -469,9 +469,22 @@ class Plan {
 
   String _formatMacro(MacroCandidate macro) {
     return switch (macro) {
-      TrainSkillUntil(:final skill) => 'Train ${skill.name}',
-      TrainConsumingSkillUntil(:final consumingSkill) =>
-        'Train ${consumingSkill.name}',
+      TrainSkillUntil(:final skill) => skill.name,
+      TrainConsumingSkillUntil(:final consumingSkill) => consumingSkill.name,
+    };
+  }
+
+  String _formatSellPolicy(SellPolicy policy) {
+    return switch (policy) {
+      SellAllPolicy() => 'Sell all',
+      SellExceptPolicy(:final keepItems) => () {
+        final names = keepItems.map((id) => id.name).toList()..sort();
+        if (names.length <= 3) {
+          return 'Sell all except ${names.join(', ')}';
+        }
+        return 'Sell all except ${names.length} items '
+            '(${names.take(3).join(', ')}, ...)';
+      }(),
     };
   }
 
