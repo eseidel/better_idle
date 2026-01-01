@@ -51,6 +51,12 @@ final _parser = ArgParser()
     'cliff-level',
     help: 'Lower level for cliff diagnostic (default: 55)',
     defaultsTo: '55',
+  )
+  ..addFlag(
+    'verbose',
+    abbr: 'v',
+    help: 'Print step-by-step progress during execution',
+    negatable: false,
   );
 
 void main(List<String> args) async {
@@ -78,6 +84,7 @@ void main(List<String> args) async {
   final initialState = GlobalState.empty(registries);
   final collectDiagnostics = results['diagnostics'] as bool;
   final useOfflineMode = results['offline'] as bool;
+  final verboseExecution = results['verbose'] as bool;
 
   // Default: segment-based solving. --offline enables single-shot mode.
   if (useOfflineMode) {
@@ -127,6 +134,7 @@ void main(List<String> args) async {
       goal,
       registries,
       collectDiagnostics: collectDiagnostics,
+      verboseExecution: verboseExecution,
     );
   }
 }
@@ -481,6 +489,7 @@ void _printSegmentedResult(
   Goal goal,
   Registries registries, {
   bool collectDiagnostics = false,
+  bool verboseExecution = false,
 }) {
   switch (result) {
     case SegmentedSuccess(
@@ -514,11 +523,25 @@ void _printSegmentedResult(
           '-> ${boundary.describe()}',
         );
         // Print step details
+        ActionId? currentAction;
         for (var j = 0; j < segment.steps.length; j++) {
           final step = segment.steps[j];
-          print(
-            '    Step ${j + 1}: ${_formatStepForSegment(step, registries)}',
+          final formatted = _formatStepForSegment(
+            step,
+            registries,
+            currentAction,
           );
+          print('    Step ${j + 1}: $formatted');
+          // Track current action for context in wait steps
+          if (step case InteractionStep(:final interaction)) {
+            if (interaction case SwitchActivity(:final actionId)) {
+              currentAction = actionId;
+            }
+          } else if (step case MacroStep(:final macro)) {
+            if (macro case TrainSkillUntil(:final actionId)) {
+              currentAction = actionId;
+            }
+          }
         }
       }
       print('');
@@ -534,7 +557,59 @@ void _printSegmentedResult(
       // Execute the stitched plan
       print('Executing stitched plan...');
       final stopwatch = Stopwatch()..start();
-      final execResult = executePlan(initialState, plan, random: Random(42));
+
+      // Track current action for step formatting
+      ActionId? currentAction;
+
+      final execResult = executePlan(
+        initialState,
+        plan,
+        random: Random(42),
+        onStepComplete: verboseExecution
+            ? ({
+                required stepIndex,
+                required step,
+                required plannedTicks,
+                required actualTicks,
+                required cumulativeActualTicks,
+                required cumulativePlannedTicks,
+              }) {
+                // Update current action tracking
+                if (step case InteractionStep(:final interaction)) {
+                  if (interaction case SwitchActivity(:final actionId)) {
+                    currentAction = actionId;
+                  }
+                } else if (step case MacroStep(:final macro)) {
+                  if (macro case TrainSkillUntil(:final actionId)) {
+                    currentAction = actionId;
+                  }
+                }
+
+                final stepDesc = _formatStepForSegment(
+                  step,
+                  registries,
+                  currentAction,
+                );
+                final delta = actualTicks - plannedTicks;
+                final deltaStr = delta >= 0 ? '+$delta' : '$delta';
+                final cumDelta = cumulativeActualTicks - cumulativePlannedTicks;
+                final cumDeltaStr = cumDelta >= 0 ? '+$cumDelta' : '$cumDelta';
+
+                // Only print if there's significant deviation (>10% or >100 ticks)
+                final significantDeviation =
+                    delta.abs() > 100 ||
+                    (plannedTicks > 0 && delta.abs() / plannedTicks > 0.1);
+
+                if (significantDeviation || stepIndex < 5) {
+                  print(
+                    '  Step ${stepIndex + 1}: $stepDesc '
+                    '[actual: $actualTicks, planned: $plannedTicks, delta: $deltaStr, '
+                    'cumulative delta: $cumDeltaStr]',
+                  );
+                }
+              }
+            : null,
+      );
       stopwatch.stop();
       print('Execution completed in ${stopwatch.elapsedMilliseconds}ms');
       print('');
@@ -928,7 +1003,11 @@ String _formatSellPolicy(SellPolicy policy) {
 }
 
 /// Formats a plan step for segment display.
-String _formatStepForSegment(PlanStep step, Registries registries) {
+String _formatStepForSegment(
+  PlanStep step,
+  Registries registries,
+  ActionId? currentAction,
+) {
   return switch (step) {
     InteractionStep(:final interaction) => switch (interaction) {
       SwitchActivity(:final actionId) => () {
@@ -939,8 +1018,13 @@ String _formatStepForSegment(PlanStep step, Registries registries) {
       BuyShopItem(:final purchaseId) => 'Buy ${purchaseId.name}',
       SellItems(:final policy) => _formatSellPolicy(policy),
     },
-    WaitStep(:final deltaTicks, :final waitFor) =>
-      'Wait $deltaTicks ticks -> ${waitFor.shortDescription}',
+    WaitStep(:final deltaTicks, :final waitFor) => () {
+      final actionName = currentAction != null
+          ? registries.actions.byId(currentAction).name
+          : null;
+      final prefix = actionName ?? 'Wait';
+      return '$prefix $deltaTicks ticks -> ${waitFor.shortDescription}';
+    }(),
     MacroStep(:final macro, :final deltaTicks) => switch (macro) {
       TrainSkillUntil(:final skill) => '${skill.name} for $deltaTicks ticks',
       TrainConsumingSkillUntil(:final consumingSkill) =>

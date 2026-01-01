@@ -431,9 +431,22 @@ class Plan {
       ..writeln('Steps (${steps.length} total):');
 
     final stepsToShow = steps.take(maxSteps).toList();
+    ActionId? currentAction;
     for (var i = 0; i < stepsToShow.length; i++) {
       final step = stepsToShow[i];
-      buffer.writeln('  ${i + 1}. ${_formatStep(step, actions)}');
+      final formatted = _formatStep(step, actions, currentAction);
+      buffer.writeln('  ${i + 1}. $formatted');
+      // Track current action for context in wait steps
+      if (step case InteractionStep(:final interaction)) {
+        if (interaction case SwitchActivity(:final actionId)) {
+          currentAction = actionId;
+        }
+      } else if (step case MacroStep(:final macro)) {
+        // Macros may set an action
+        if (macro case TrainSkillUntil(:final actionId)) {
+          currentAction = actionId;
+        }
+      }
     }
 
     if (steps.length > maxSteps) {
@@ -443,7 +456,11 @@ class Plan {
     return buffer.toString();
   }
 
-  String _formatStep(PlanStep step, ActionRegistry? actions) {
+  String _formatStep(
+    PlanStep step,
+    ActionRegistry? actions,
+    ActionId? currentAction,
+  ) {
     return switch (step) {
       InteractionStep(:final interaction) => switch (interaction) {
         SwitchActivity(:final actionId) => () {
@@ -457,9 +474,14 @@ class Plan {
         BuyShopItem(:final purchaseId) => 'Buy ${purchaseId.name}',
         SellItems(:final policy) => _formatSellPolicy(policy),
       },
-      WaitStep(:final deltaTicks, :final waitFor) =>
-        'Wait ${_formatDuration(durationFromTicks(deltaTicks))} '
-            '-> ${waitFor.shortDescription}',
+      WaitStep(:final deltaTicks, :final waitFor) => () {
+        final duration = _formatDuration(durationFromTicks(deltaTicks));
+        final actionName = currentAction != null
+            ? actions?.byId(currentAction).name ?? currentAction.toString()
+            : null;
+        final prefix = actionName != null ? '$actionName ' : 'Wait ';
+        return '$prefix$duration -> ${waitFor.shortDescription}';
+      }(),
       MacroStep(:final macro, :final deltaTicks, :final waitFor) =>
         'Macro: ${_formatMacro(macro)} '
             '(${_formatDuration(durationFromTicks(deltaTicks))}) '

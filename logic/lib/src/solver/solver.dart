@@ -1653,6 +1653,45 @@ _StepResult _applyStep(
           random,
           watchSet: watchSet,
         );
+      } else if (macro is AcquireItem) {
+        // Execute AcquireItem by finding producer and running until target
+        const goal = ReachSkillLevelGoal(Skill.mining, 99); // Placeholder goal
+        final producer = _findProducerActionForItem(
+          executionState,
+          macro.itemId,
+          goal,
+        );
+        if (producer == null) {
+          return (
+            state: executionState,
+            ticksElapsed: 0,
+            deaths: 0,
+            boundary: NoProgressPossible(
+              reason: 'No producer for ${macro.itemId}',
+            ),
+          );
+        }
+
+        // Switch to producer action
+        if (executionState.activeAction?.id != producer) {
+          executionState = applyInteraction(
+            executionState,
+            SwitchActivity(producer),
+          );
+        }
+
+        // Wait until we have the target quantity
+        final result = consumeUntil(
+          executionState,
+          WaitForInventoryAtLeast(macro.itemId, macro.quantity),
+          random: random,
+        );
+        return (
+          state: result.state,
+          ticksElapsed: result.ticksElapsed,
+          deaths: result.deathCount,
+          boundary: result.boundary,
+        );
       }
 
       final result = consumeUntil(
@@ -1742,14 +1781,35 @@ _StepResult _executeTrainSkillWithBoundaryChecks(
 ///
 /// Use [PlanExecutionResult.hasUnexpectedBoundaries] to check for potential
 /// issues.
+/// Callback for step progress during plan execution.
+///
+/// Called after each step with:
+/// - stepIndex: 0-based index of the step
+/// - step: the PlanStep that was executed
+/// - plannedTicks: ticks the step was planned to take
+/// - actualTicks: ticks the step actually took
+/// - cumulativeActualTicks: total actual ticks so far
+/// - cumulativePlannedTicks: total planned ticks so far
+typedef StepProgressCallback =
+    void Function({
+      required int stepIndex,
+      required PlanStep step,
+      required int plannedTicks,
+      required int actualTicks,
+      required int cumulativeActualTicks,
+      required int cumulativePlannedTicks,
+    });
+
 PlanExecutionResult executePlan(
   GlobalState originalState,
   Plan plan, {
   required Random random,
+  StepProgressCallback? onStepComplete,
 }) {
   var state = originalState;
   var totalDeaths = 0;
   var actualTicks = 0;
+  var plannedTicks = 0;
   final boundariesHit = <ReplanBoundary>[];
 
   // Compute boundaries once for macro execution
@@ -1757,6 +1817,11 @@ PlanExecutionResult executePlan(
 
   for (var i = 0; i < plan.steps.length; i++) {
     final step = plan.steps[i];
+    final stepPlannedTicks = switch (step) {
+      InteractionStep() => 0,
+      WaitStep(:final deltaTicks) => deltaTicks,
+      MacroStep(:final deltaTicks) => deltaTicks,
+    };
     try {
       final result = _applyStep(
         state,
@@ -1767,6 +1832,19 @@ PlanExecutionResult executePlan(
       state = result.state;
       totalDeaths += result.deaths;
       actualTicks += result.ticksElapsed;
+      plannedTicks += stepPlannedTicks;
+
+      // Report progress if callback provided
+      if (onStepComplete != null) {
+        onStepComplete(
+          stepIndex: i,
+          step: step,
+          plannedTicks: stepPlannedTicks,
+          actualTicks: result.ticksElapsed,
+          cumulativeActualTicks: actualTicks,
+          cumulativePlannedTicks: plannedTicks,
+        );
+      }
 
       // Collect boundary if one was hit
       if (result.boundary != null) {
@@ -1880,8 +1958,7 @@ MacroExpansionResult? _expandAcquireItem(
   }
 
   // Check if producer has inputs (consuming action)
-  final producerAction =
-      state.registries.actions.byId(producer) as SkillAction;
+  final producerAction = state.registries.actions.byId(producer) as SkillAction;
   if (producerAction.inputs.isNotEmpty) {
     // This is a consuming action - need to acquire its inputs first
     // Generate AcquireItem prerequisites for each input
@@ -1938,11 +2015,7 @@ MacroExpansionResult? _expandTrainSkillUntil(
 ) {
   // Find best unlocked action for this skill
   final bestAction = _findBestActionForSkill(state, macro.skill, goal);
-  if (bestAction == null) {
-    // DEBUG: Why no action?
-    print('DEBUG: TrainSkillUntil(${macro.skill}) - no best action found');
-    return null;
-  }
+  if (bestAction == null) return null;
 
   // Switch to that action (if not already on it)
   var currentState = state;
@@ -2055,11 +2128,7 @@ MacroExpansionResult? _expandTrainConsumingSkillUntil(
       }
     } else {
       // Producer exists - check if it needs prerequisites
-      final ensurePrereqs = _ensureExecutable(state, producer, goal);
-      if (ensurePrereqs.isNotEmpty) {
-        print('DEBUG: _ensureExecutable($producer) returned: $ensurePrereqs');
-      }
-      allPrereqs.addAll(ensurePrereqs);
+      allPrereqs.addAll(_ensureExecutable(state, producer, goal));
 
       // If the producer itself has inputs, this is a multi-tier chain.
       // TrainConsumingSkillUntil expects simple produce actions (mining, etc).
@@ -2083,15 +2152,7 @@ MacroExpansionResult? _expandTrainConsumingSkillUntil(
 
   // If prerequisites exist, expand the first one
   if (allPrereqs.isNotEmpty) {
-    print(
-      'DEBUG: TrainConsumingSkill prereqs (${allPrereqs.length}): '
-      '${allPrereqs.map((p) => p.runtimeType)}',
-    );
-    final result = _expandMacro(state, allPrereqs.first, goal, boundaries);
-    if (result == null) {
-      print('DEBUG: prereq expansion returned null for ${allPrereqs.first}');
-    }
-    return result;
+    return _expandMacro(state, allPrereqs.first, goal, boundaries);
   }
 
   // All prerequisites satisfied - now handle the produce/consume loop
@@ -2126,13 +2187,13 @@ MacroExpansionResult? _expandTrainConsumingSkillUntil(
         state.registries.actions.byId(producer) as SkillAction;
     final outputsPerAction = produceAction.outputs[inputItemId] ?? 1;
     final produceActionsNeeded = inputCount / outputsPerAction;
-    totalProduceTicksPerCycle += produceActionsNeeded *
+    totalProduceTicksPerCycle +=
+        produceActionsNeeded *
         ticksFromDuration(produceAction.meanDuration).toDouble();
   }
 
   // Total time for one consume cycle (produce all inputs + consume)
-  final totalTicksPerCycle =
-      totalProduceTicksPerCycle + consumeTicksPerAction;
+  final totalTicksPerCycle = totalProduceTicksPerCycle + consumeTicksPerAction;
 
   // Sustainable XP rate = XP per action / total cycle time
   final consumeXpPerAction = consumeAction_.xp.toDouble();
@@ -2181,8 +2242,9 @@ MacroExpansionResult? _expandTrainConsumingSkillUntil(
         state.registries.actions.byId(producer) as SkillAction;
     final outputsPerAction = produceAction.outputs[inputItemId] ?? 1;
     final produceActionsNeeded = inputCount / outputsPerAction;
-    final produceTicksPerAction =
-        ticksFromDuration(produceAction.meanDuration).toDouble();
+    final produceTicksPerAction = ticksFromDuration(
+      produceAction.meanDuration,
+    ).toDouble();
 
     // Time spent on this producer per cycle
     final ticksForThisProducerPerCycle =
@@ -2209,12 +2271,11 @@ MacroExpansionResult? _expandTrainConsumingSkillUntil(
                 masteryPoolXp: state.skillState(skill).masteryPoolXp,
               )
             : producerSkillXpGains.containsKey(skill)
-                ? SkillState(
-                    xp: state.skillState(skill).xp +
-                        producerSkillXpGains[skill]!,
-                    masteryPoolXp: state.skillState(skill).masteryPoolXp,
-                  )
-                : state.skillState(skill),
+            ? SkillState(
+                xp: state.skillState(skill).xp + producerSkillXpGains[skill]!,
+                masteryPoolXp: state.skillState(skill).masteryPoolXp,
+              )
+            : state.skillState(skill),
     },
     // Set producer as active action - execution ends with producer active
     activeAction: ActiveAction(
@@ -2305,10 +2366,12 @@ List<MacroCandidate> _ensureExecutable(
     // 1. Check skill level requirement
     final currentLevel = state.skillState(action.skill).skillLevel;
     if (action.unlockLevel > currentLevel) {
-      prerequisites.add(TrainSkillUntil(
-        action.skill,
-        StopAtLevel(action.skill, action.unlockLevel),
-      ));
+      prerequisites.add(
+        TrainSkillUntil(
+          action.skill,
+          StopAtLevel(action.skill, action.unlockLevel),
+        ),
+      );
     }
 
     // 2. Check inputs - recursively ensure each can be produced
@@ -2317,27 +2380,27 @@ List<MacroCandidate> _ensureExecutable(
       final producer = _findProducerActionForItem(state, inputId, goal);
       if (producer != null) {
         // Producer exists and is unlocked, check its prerequisites
-        prerequisites.addAll(_ensureExecutable(
-          state,
-          producer,
-          goal,
-          depth: depth + 1,
-          maxDepth: maxDepth,
-        ));
+        prerequisites.addAll(
+          _ensureExecutable(
+            state,
+            producer,
+            goal,
+            depth: depth + 1,
+            maxDepth: maxDepth,
+          ),
+        );
       } else {
         // No unlocked producer - check if one exists but is locked
         final lockedProducer = _findAnyProducerForItem(state, inputId);
         if (lockedProducer != null) {
           // Producer exists but is locked - need to train that skill
           final neededLevel = lockedProducer.unlockLevel;
-          print(
-            'DEBUG: _ensureExecutable adding TrainSkillUntil('
-            '${lockedProducer.skill}, L$neededLevel) for $inputId',
+          prerequisites.add(
+            TrainSkillUntil(
+              lockedProducer.skill,
+              StopAtLevel(lockedProducer.skill, neededLevel),
+            ),
           );
-          prerequisites.add(TrainSkillUntil(
-            lockedProducer.skill,
-            StopAtLevel(lockedProducer.skill, neededLevel),
-          ));
           // After training, we'll need to acquire the item
           // (This will be handled in the next planning iteration)
         }
