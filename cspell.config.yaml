@@ -29,6 +29,7 @@ words:
   - cooldown
   - craftable
   - cupertino
+  - dedupe
   - defence # Consider removing and forcing all our code to use Defense.
   - dists
   - dragonhide
@@ -57,6 +58,8 @@ words:
   - platebody
   - platelegs
   - podfile
+  - prereq
+  - prereqs
   - proguard
   - regen
   - regens

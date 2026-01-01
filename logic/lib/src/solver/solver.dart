@@ -489,8 +489,10 @@ class _RateCache {
           final thievingLevel = state.skillState(Skill.thieving).skillLevel;
           final mastery = state.actionState(action.id).masteryLevel;
           final stealth = calculateStealth(thievingLevel, mastery);
-          final successChance =
-              thievingSuccessChance(stealth, action.perception);
+          final successChance = thievingSuccessChance(
+            stealth,
+            action.perception,
+          );
           final failureChance = 1.0 - successChance;
           final effectiveTicks =
               expectedTicks + failureChance * stunnedDurationTicks;
@@ -2066,10 +2068,15 @@ MacroExpansionResult? _expandAcquireItem(
   }
 
   // Check if producer has prerequisites (skill level requirements)
-  final prereqs = _ensureExecutable(state, producer, goal);
-  if (prereqs.isNotEmpty) {
-    // Expand the first prerequisite
-    return _expandMacro(state, prereqs.first, goal, boundaries);
+  final prereqResult = _ensureExecutable(state, producer, goal);
+  switch (prereqResult) {
+    case ExecReady():
+      break; // Producer is ready
+    case ExecNeedsMacros(macros: final prereqMacros):
+      // Expand the first prerequisite
+      return _expandMacro(state, prereqMacros.first, goal, boundaries);
+    case ExecUnknown():
+      return null; // Can't determine prerequisites
   }
 
   // Check if producer has inputs (consuming action)
@@ -2162,10 +2169,15 @@ MacroExpansionResult? _expandEnsureStock(
   }
 
   // Check if producer has prerequisites (skill level requirements)
-  final prereqs = _ensureExecutable(state, producer, goal);
-  if (prereqs.isNotEmpty) {
-    // Expand the first prerequisite
-    return _expandMacro(state, prereqs.first, goal, boundaries);
+  final prereqResult = _ensureExecutable(state, producer, goal);
+  switch (prereqResult) {
+    case ExecReady():
+      break; // Producer is ready
+    case ExecNeedsMacros(macros: final prereqMacros):
+      // Expand the first prerequisite
+      return _expandMacro(state, prereqMacros.first, goal, boundaries);
+    case ExecUnknown():
+      return null; // Can't determine prerequisites
   }
 
   // Check if producer has inputs (consuming action like smelting)
@@ -2345,7 +2357,15 @@ MacroExpansionResult? _expandTrainConsumingSkillUntil(
       }
     } else {
       // Producer exists - check if it needs prerequisites
-      allPrereqs.addAll(_ensureExecutable(state, producer, goal));
+      final prereqResult = _ensureExecutable(state, producer, goal);
+      switch (prereqResult) {
+        case ExecReady():
+          break; // Producer is ready
+        case ExecNeedsMacros(macros: final prereqMacros):
+          allPrereqs.addAll(prereqMacros);
+        case ExecUnknown():
+          return null; // Can't determine prerequisites for producer
+      }
 
       // If the producer itself has inputs, this is a multi-tier chain.
       // TrainConsumingSkillUntil expects simple produce actions (mining, etc).
@@ -2626,74 +2646,140 @@ SkillAction? _findAnyProducerForItem(GlobalState state, MelvorId item) {
       .firstOrNull;
 }
 
-/// Returns prerequisite macros needed before an action can run.
+// ---------------------------------------------------------------------------
+// Prerequisite resolution types
+// ---------------------------------------------------------------------------
+
+/// Result of checking if an action's prerequisites are satisfied.
+sealed class EnsureExecResult {
+  const EnsureExecResult();
+}
+
+/// Action is ready to execute now.
+class ExecReady extends EnsureExecResult {
+  const ExecReady();
+}
+
+/// Action needs prerequisite macros before it can execute.
+class ExecNeedsMacros extends EnsureExecResult {
+  const ExecNeedsMacros(this.macros);
+  final List<MacroCandidate> macros;
+}
+
+/// Cannot determine how to make action feasible.
+class ExecUnknown extends EnsureExecResult {
+  const ExecUnknown(this.reason);
+  final String reason;
+}
+
+/// Deduplicates macros, keeping first occurrence of each unique macro.
+List<MacroCandidate> _dedupeMacros(List<MacroCandidate> macros) {
+  final seen = <String>{};
+  final result = <MacroCandidate>[];
+  for (final macro in macros) {
+    final key = switch (macro) {
+      TrainSkillUntil(:final skill, :final primaryStop) =>
+        'train:${skill.name}:${primaryStop.hashCode}',
+      TrainConsumingSkillUntil(:final consumingSkill, :final primaryStop) =>
+        'trainConsuming:${consumingSkill.name}:${primaryStop.hashCode}',
+      AcquireItem(:final itemId, :final quantity) =>
+        'acquire:${itemId.localId}:$quantity',
+      EnsureStock(:final itemId, :final minTotal) =>
+        'ensure:${itemId.localId}:$minTotal',
+    };
+    if (seen.add(key)) result.add(macro);
+  }
+  return result;
+}
+
+/// Returns prerequisite check result for an action.
 ///
 /// Checks:
 /// 1. Skill level requirements - generates TrainSkillUntil if action is locked
 /// 2. Input requirements - recursively checks producers for each input
 ///
-/// Returns empty list if action is already executable.
-List<MacroCandidate> _ensureExecutable(
+/// Returns [ExecReady] if action can execute now, [ExecNeedsMacros] if
+/// prerequisites are needed, or [ExecUnknown] if we can't determine how
+/// to make the action feasible (e.g., no producer exists, cycle detected).
+EnsureExecResult _ensureExecutable(
   GlobalState state,
   ActionId actionId,
   Goal goal, {
   int depth = 0,
-  int maxDepth = 5,
+  int maxDepth = 8,
+  Set<ActionId>? visited,
 }) {
-  if (depth >= maxDepth) return []; // Recursion limit
+  visited ??= <ActionId>{};
+  if (!visited.add(actionId)) {
+    return ExecUnknown('cycle: $actionId');
+  }
+  if (depth >= maxDepth) {
+    return ExecUnknown('depth limit: $actionId');
+  }
 
   final action = state.registries.actions.byId(actionId);
-  final prerequisites = <MacroCandidate>[];
+  if (action is! SkillAction) return const ExecReady();
 
-  if (action is SkillAction) {
-    // 1. Check skill level requirement
-    final currentLevel = state.skillState(action.skill).skillLevel;
-    if (action.unlockLevel > currentLevel) {
-      prerequisites.add(
-        TrainSkillUntil(
-          action.skill,
-          StopAtLevel(action.skill, action.unlockLevel),
-        ),
+  final macros = <MacroCandidate>[];
+
+  // 1. Check skill level requirement
+  final currentLevel = state.skillState(action.skill).skillLevel;
+  if (action.unlockLevel > currentLevel) {
+    macros.add(
+      TrainSkillUntil(
+        action.skill,
+        StopAtLevel(action.skill, action.unlockLevel),
+      ),
+    );
+  }
+
+  // 2. Check inputs - recursively ensure each can be produced
+  for (final inputId in action.inputs.keys) {
+    // First check if there's an unlocked producer
+    final producer = _findProducerActionForItem(state, inputId, goal);
+    if (producer != null) {
+      // Producer exists and is unlocked, check its prerequisites
+      final result = _ensureExecutable(
+        state,
+        producer,
+        goal,
+        depth: depth + 1,
+        maxDepth: maxDepth,
+        visited: visited,
       );
-    }
-
-    // 2. Check inputs - recursively ensure each can be produced
-    for (final inputId in action.inputs.keys) {
-      // First check if there's an unlocked producer
-      final producer = _findProducerActionForItem(state, inputId, goal);
-      if (producer != null) {
-        // Producer exists and is unlocked, check its prerequisites
-        prerequisites.addAll(
-          _ensureExecutable(
-            state,
-            producer,
-            goal,
-            depth: depth + 1,
-            maxDepth: maxDepth,
-          ),
-        );
-      } else {
-        // No unlocked producer - check if one exists but is locked
-        final lockedProducer = _findAnyProducerForItem(state, inputId);
-        if (lockedProducer != null) {
-          // Producer exists but is locked - need to train that skill
-          final neededLevel = lockedProducer.unlockLevel;
-          prerequisites.add(
-            TrainSkillUntil(
-              lockedProducer.skill,
-              StopAtLevel(lockedProducer.skill, neededLevel),
-            ),
-          );
-          // After training, we'll need to acquire the item
-          // (This will be handled in the next planning iteration)
-        }
-        // If no producer exists at all, prerequisites will be incomplete
-        // but we let the caller handle that
+      switch (result) {
+        case ExecReady():
+          break; // Producer is ready
+        case ExecNeedsMacros(macros: final producerMacros):
+          macros.addAll(producerMacros);
+        case ExecUnknown(:final reason):
+          return ExecUnknown('input $inputId blocked: $reason');
       }
+      // Ensure at least 1 item so action can start
+      macros.add(EnsureStock(inputId, 1));
+    } else {
+      // No unlocked producer - check if one exists but is locked
+      final lockedProducer = _findAnyProducerForItem(state, inputId);
+      if (lockedProducer == null) {
+        return ExecUnknown('no producer for $inputId');
+      }
+      // Producer exists but is locked - need to train that skill
+      final neededLevel = lockedProducer.unlockLevel;
+      macros
+        ..add(
+          TrainSkillUntil(
+            lockedProducer.skill,
+            StopAtLevel(lockedProducer.skill, neededLevel),
+          ),
+        )
+        // After training, we'll need to acquire the item
+        ..add(EnsureStock(inputId, 1));
     }
   }
 
-  return prerequisites;
+  return macros.isEmpty
+      ? const ExecReady()
+      : ExecNeedsMacros(_dedupeMacros(macros));
 }
 
 /// Finds the best action for a skill based on the goal's criteria.

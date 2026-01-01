@@ -595,7 +595,7 @@ void _printSegmentedResult(
                 final cumDelta = cumulativeActualTicks - cumulativePlannedTicks;
                 final cumDeltaStr = cumDelta >= 0 ? '+$cumDelta' : '$cumDelta';
 
-                // Only print if there's significant deviation (>10% or >100 ticks)
+                // Only print if significant deviation (>10% or >100 ticks)
                 final significantDeviation =
                     delta.abs() > 100 ||
                     (plannedTicks > 0 && delta.abs() / plannedTicks > 0.1);
@@ -603,8 +603,8 @@ void _printSegmentedResult(
                 if (significantDeviation || stepIndex < 5) {
                   print(
                     '  Step ${stepIndex + 1}: $stepDesc '
-                    '[actual: $actualTicks, planned: $plannedTicks, delta: $deltaStr, '
-                    'cumulative delta: $cumDeltaStr]',
+                    '[actual: $actualTicks, planned: $plannedTicks, '
+                    'delta: $deltaStr, cumulative delta: $cumDeltaStr]',
                   );
                 }
               }
