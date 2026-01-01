@@ -375,7 +375,8 @@ class SegmentGoal extends Goal {
   @override
   bool isSatisfied(GlobalState state) {
     // Delegate to watchSet - the SINGLE source of truth
-    return watchSet.detectBoundary(state) != null;
+    final boundary = watchSet.detectBoundary(state);
+    return boundary != null;
   }
 
   @override

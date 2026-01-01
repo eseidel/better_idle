@@ -113,15 +113,16 @@ void main() {
       var state = GlobalState.empty(testRegistries);
       final action = testActions.woodcutting('Normal Tree');
       state = state.startAction(action, random: Random(0));
-      final initialGp = state.gp;
+      final initialItems = state.inventory.items.length;
 
-      // advance uses expected-value model for rate-modelable activities
-      // so we check that GP increases appropriately
+      // advance projects state forward - items accumulate in inventory
+      // GP only increases when items are explicitly sold
       final result = advance(state, 100);
 
-      // Normal Tree: 1 gold / 30 ticks = 0.033 gold/tick
-      // After 100 ticks: expect ~3 gold
-      expect(result.state.gp, greaterThan(initialGp));
+      // Normal Tree produces logs which accumulate in inventory
+      expect(result.state.inventory.items.length, greaterThan(initialItems));
+      // GP unchanged (items stay as items until sold)
+      expect(result.state.gp, state.gp);
     });
 
     test('is deterministic', () {

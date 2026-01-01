@@ -512,6 +512,11 @@ void _printSegmentedResult(
           '  Segment ${i + 1}: $steps steps, $ticks ticks$nodeInfo '
           '-> ${boundary.describe()}',
         );
+        // Debug: print step types
+        for (var j = 0; j < segment.steps.length; j++) {
+          final step = segment.steps[j];
+          print('    Step ${j + 1}: ${step.runtimeType}');
+        }
       }
       print('');
 

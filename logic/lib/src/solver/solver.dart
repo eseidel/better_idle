@@ -784,9 +784,10 @@ class _Node {
   final stopwatch = Stopwatch()..start();
   final buffer = StringBuffer();
 
-  // Bucketed gold (coarse grouping for large goals)
-  // Using GP directly since advanceExpected converts items to gold
-  final goldBucket = state.gp ~/ _goldBucketSize;
+  // Bucketed effective credits (GP + sellable inventory value).
+  // States with equivalent purchasing power should bucket together.
+  final credits = effectiveCredits(state, const SellAllPolicy());
+  final goldBucket = credits ~/ _goldBucketSize;
   buffer.write('gb:$goldBucket|');
 
   // Active action (always tracked for state deduplication)
@@ -864,13 +865,8 @@ typedef AdvanceResult = ({GlobalState state, int deaths});
 /// incorporates death cycles into the effective rates. This avoids discrete
 /// death events that would require activity restarts and cause solver churn.
 ///
-/// Uses [valueModel] to convert item flows into GP value.
 /// Returns the new state and the number of expected deaths.
-AdvanceResult _advanceExpected(
-  GlobalState state,
-  int deltaTicks, {
-  ValueModel valueModel = defaultValueModel,
-}) {
+AdvanceResult _advanceExpected(GlobalState state, int deltaTicks) {
   _assertNonNegativeDelta(deltaTicks, '_advanceExpected');
   _assertValidState(state);
 
@@ -889,14 +885,15 @@ AdvanceResult _advanceExpected(
       ? deathCycleAdjustedRates(state, rawRates)
       : rawRates;
 
-  // Compute expected gold gain using the value model
-  // (converts item flows to GP based on the policy)
-  final valueRate = valueModel.valuePerTick(state, rates);
-  final expectedGold = (valueRate * deltaTicks).floor();
-  // Floor GP at 0 to prevent negative GP from consuming skills.
-  // The valueModel includes opportunity cost of consumed items, but actual
-  // GP doesn't decrease when burning logs - only the inventory changes.
-  final newGp = (state.gp + expectedGold).clamp(0, double.maxFinite).toInt();
+  // GP is NOT updated from item production. Items stay as items in inventory
+  // until explicitly sold via SellItems interaction.
+  //
+  // For affordability checks during planning, use effectiveCredits(state,
+  // policy) which computes: state.gp + sellableValue(inventory).
+  //
+  // This ensures GlobalState.gp always represents actual GP, matching
+  // execution.
+  final newGp = state.gp;
 
   // Compute expected skill XP gains
   final newSkillStates = Map<Skill, SkillState>.from(state.skillStates);
@@ -1127,7 +1124,15 @@ ConsumeUntilResult consumeUntil(
 
   var state = originalState;
   if (waitFor.isSatisfied(state)) {
-    throw Exception('waitFor is already satisfied');
+    // Already satisfied - return immediately with 0 ticks elapsed.
+    // This can happen when a previous step in the plan already satisfied
+    // the condition (e.g., multiple macros targeting the same boundary).
+    return ConsumeUntilResult(
+      state: state,
+      ticksElapsed: 0,
+      deathCount: 0,
+      boundary: const WaitConditionSatisfied(),
+    );
   }
 
   final originalActivityId = state.activeAction?.id;
@@ -2216,7 +2221,7 @@ SolverResult solve(
   // Stats
   var expandedNodes = 0;
   var enqueuedNodes = 0;
-  var bestCredits = initial.gp;
+  var bestCredits = effectiveCredits(initial, const SellAllPolicy());
 
   // Create and enqueue root node
   final rootNode = _Node(
@@ -2363,6 +2368,7 @@ SolverResult solve(
         nodeId,
         expandedNodes,
         enqueuedNodes,
+        goal: goal,
       );
       final profile = profileBuilder.build(
         expandedNodes: expandedNodes,
@@ -2531,7 +2537,13 @@ SolverResult solve(
             frontier: frontier.stats,
           );
           return SolverSuccess(
-            _reconstructPlan(nodes, newNodeId, expandedNodes, enqueuedNodes),
+            _reconstructPlan(
+              nodes,
+              newNodeId,
+              expandedNodes,
+              enqueuedNodes,
+              goal: goal,
+            ),
             newState,
             profile,
           );
@@ -2667,12 +2679,16 @@ bool _isRelevantInteraction(Interaction interaction, Candidates candidates) {
 }
 
 /// Reconstructs a plan from the goal node by walking parent pointers.
+///
+/// If [goal] is a [ReachGpGoal] and the terminal state's actual GP is less
+/// than the target, a sell step is appended to convert inventory to GP.
 Plan _reconstructPlan(
   List<_Node> nodes,
   int goalNodeId,
   int expandedNodes,
-  int enqueuedNodes,
-) {
+  int enqueuedNodes, {
+  Goal? goal,
+}) {
   final steps = <PlanStep>[];
   var currentId = goalNodeId;
 
@@ -2713,7 +2729,15 @@ Plan _reconstructPlan(
     processedSteps.add(step);
   }
 
+  // For GP goals, add a final sell step if actual GP < target.
+  // The solver uses effectiveCredits (GP + inventory value) to determine
+  // goal satisfaction, but execution needs actual GP. This sell step
+  // converts inventory to GP at the end of the plan.
   final goalNode = nodes[goalNodeId];
+  if (goal is ReachGpGoal && goalNode.state.gp < goal.targetGp) {
+    processedSteps.add(const InteractionStep(SellItems(SellAllPolicy())));
+  }
+
   return Plan(
     steps: processedSteps,
     totalTicks: goalNode.ticks,
@@ -3034,8 +3058,26 @@ SegmentedSolverResult solveToGoal(
         // Use projected state from solve() (deterministic)
         currentState = finalState;
 
-        // If goal reached, we're done
+        // If goal reached, we're done - but for GP goals, we may need to sell
+        // items first to convert inventory value to actual GP.
         if (segment.stopBoundary is GoalReachedBoundary) {
+          if (goal is ReachGpGoal && currentState.gp < goal.targetGp) {
+            // GP goal: effectiveCredits >= target, but actual GP < target.
+            // Sell items to convert inventory value to GP.
+            final sellInteraction = SellItems(sellPolicy);
+            currentState = applyInteraction(currentState, sellInteraction);
+
+            // Add a synthetic segment for the sell step
+            segments.add(
+              Segment(
+                steps: [InteractionStep(sellInteraction)],
+                totalTicks: 0,
+                interactionCount: 1,
+                stopBoundary: const GoalReachedBoundary(),
+                description: 'Sell items to reach GP goal',
+              ),
+            );
+          }
           break;
         }
 
@@ -3052,10 +3094,16 @@ SegmentedSolverResult solveToGoal(
           );
           final gpCost = purchase?.cost.gpCost ?? 0;
 
-          // Only sell if we don't have enough GP already
-          final needsToSell =
-              currentState.gp < gpCost &&
-              currentState.inventory.items.isNotEmpty;
+          // WatchSet triggered because effectiveCredits >= gpCost. Verify this.
+          final credits = effectiveCredits(currentState, sellPolicy);
+          assert(
+            credits >= gpCost,
+            'WatchSet reported upgrade affordable but effectiveCredits '
+            '($credits) < gpCost ($gpCost)',
+          );
+
+          // Sell if actual GP is insufficient (items need to be converted).
+          final needsToSell = currentState.gp < gpCost;
           if (needsToSell) {
             // Use the segment's sell policy - computed once at segment start.
             // This is the SAME policy used by WatchSet for effectiveCredits,
