@@ -1646,32 +1646,31 @@ void main() {
       );
     });
 
-    test('detects horizon cap boundary during segment execution', () {
-      // Setup: Configure a very short horizon cap
+    test('uses expected boundary when no early boundary detected', () {
+      // Setup: A segment where no material boundary is hit during execution
       var state = GlobalState.empty(testRegistries);
       final normalTreeAction = testActions.woodcutting('Normal Tree');
       state = state.startAction(normalTreeAction, random: Random(42));
 
-      // Goal: reach level 99 (will never happen in 100 ticks)
+      // Goal: reach level 99 (won't be reached in 30 ticks)
       const goal = ReachSkillLevelGoal(Skill.woodcutting, 99);
       const config = SegmentConfig(
         stopAtUpgradeAffordable: false,
         stopAtUnlockBoundary: false,
         stopAtInputsDepleted: false,
-        maxSegmentTicks: 100, // Very short horizon cap
       );
 
       final context = SegmentContext.build(state, goal, config);
 
-      // Create a segment that would run for much longer
+      // Create a short segment that won't hit any material boundary
       const segment = Segment(
-        steps: [WaitStep(10000, WaitForSkillXp(Skill.woodcutting, 100000))],
-        totalTicks: 10000,
+        steps: [WaitStep(30, WaitForSkillXp(Skill.woodcutting, 10))],
+        totalTicks: 30,
         interactionCount: 0,
-        stopBoundary: GoalReachedBoundary(),
+        stopBoundary: HorizonCapBoundary(30), // Expected boundary from planning
       );
 
-      // Execute - should stop at horizon cap
+      // Execute - should complete without hitting early boundary
       final result = executeSegment(
         state,
         segment,
@@ -1679,20 +1678,57 @@ void main() {
         random: Random(42),
       );
 
-      // Should have stopped at or near the horizon cap
-      expect(
-        result.actualTicks,
-        lessThanOrEqualTo(200), // Some buffer for action completion
-        reason: 'Should stop near horizon cap',
-      );
-
-      // Verify horizon cap boundary was detected
-      // This exercises _segmentBoundaryToReplan for HorizonCapBoundary
+      // Should have used the expected boundary from planning
       expect(
         result.boundaryHit,
         isA<HorizonCapBoundary>(),
-        reason: 'Should stop at horizon cap boundary',
+        reason: 'Should use expected boundary when no early stop',
       );
+
+      // Ticks should be around the planned amount
+      expect(
+        result.actualTicks,
+        lessThanOrEqualTo(100),
+        reason: 'Should complete in approximately planned ticks',
+      );
+    });
+  });
+
+  group('solveSegment', () {
+    test('returns SegmentFailed when solver cannot find a path', () {
+      // Create a state where the solver will fail quickly
+      final state = GlobalState.empty(testRegistries);
+
+      // Set an impossible goal with very low max nodes to force failure
+      const goal = ReachGpGoal(1000000000); // 1 billion GP - unreachable
+
+      // Solve with very low node limit to trigger failure
+      final result = solveSegment(
+        state,
+        goal,
+        maxExpandedNodes: 2, // Very low limit to force failure
+      );
+
+      expect(result, isA<SegmentFailed>());
+      final failed = result as SegmentFailed;
+      expect(failed.failure.reason, contains('max expanded nodes'));
+    });
+
+    test('returns SegmentSuccess with valid segment and context', () {
+      var state = GlobalState.empty(testRegistries);
+      final normalTreeAction = testActions.woodcutting('Normal Tree');
+      state = state.startAction(normalTreeAction, random: Random(42));
+
+      // Simple goal that should succeed
+      const goal = ReachSkillLevelGoal(Skill.woodcutting, 2);
+
+      final result = solveSegment(state, goal);
+
+      expect(result, isA<SegmentSuccess>());
+      final success = result as SegmentSuccess;
+      expect(success.segment.totalTicks, greaterThan(0));
+      expect(success.context.goal, goal);
+      expect(success.finalState, isNotNull);
     });
   });
 }
