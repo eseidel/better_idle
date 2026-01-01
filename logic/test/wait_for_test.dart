@@ -1041,4 +1041,165 @@ void main() {
       expect(ticks, lessThan(infTicks));
     });
   });
+
+  group('WaitForInventoryDelta', () {
+    test('isSatisfied returns true when count reaches target', () {
+      final logs = testItems.byName('Normal Logs');
+      final inventory = Inventory.fromItems(testItems, [
+        ItemStack(logs, count: 15),
+      ]);
+      final state = GlobalState.test(testRegistries, inventory: inventory);
+
+      // Started with 5, want 10 more, target is 15
+      final waitFor = WaitForInventoryDelta(logs.id, 10, startCount: 5);
+
+      expect(waitFor.isSatisfied(state), isTrue);
+    });
+
+    test('isSatisfied returns true when count exceeds target', () {
+      final logs = testItems.byName('Normal Logs');
+      final inventory = Inventory.fromItems(testItems, [
+        ItemStack(logs, count: 20),
+      ]);
+      final state = GlobalState.test(testRegistries, inventory: inventory);
+
+      // Started with 5, want 10 more, target is 15 (we have 20)
+      final waitFor = WaitForInventoryDelta(logs.id, 10, startCount: 5);
+
+      expect(waitFor.isSatisfied(state), isTrue);
+    });
+
+    test('isSatisfied returns false when count is below target', () {
+      final logs = testItems.byName('Normal Logs');
+      final inventory = Inventory.fromItems(testItems, [
+        ItemStack(logs, count: 10),
+      ]);
+      final state = GlobalState.test(testRegistries, inventory: inventory);
+
+      // Started with 5, want 10 more, target is 15 (we only have 10)
+      final waitFor = WaitForInventoryDelta(logs.id, 10, startCount: 5);
+
+      expect(waitFor.isSatisfied(state), isFalse);
+    });
+
+    test('fromState captures current inventory count', () {
+      final logs = testItems.byName('Normal Logs');
+      final inventory = Inventory.fromItems(testItems, [
+        ItemStack(logs, count: 5),
+      ]);
+      final state = GlobalState.test(testRegistries, inventory: inventory);
+
+      final waitFor = WaitForInventoryDelta.fromState(state, logs.id, 10);
+
+      expect(waitFor.startCount, 5);
+      expect(waitFor.delta, 10);
+      expect(waitFor.targetCount, 15);
+    });
+
+    test('targetCount is startCount plus delta', () {
+      final logs = testItems.byName('Normal Logs');
+      final waitFor = WaitForInventoryDelta(logs.id, 10, startCount: 5);
+
+      expect(waitFor.targetCount, 15);
+    });
+
+    test('estimateTicks returns 0 when already satisfied', () {
+      final logs = testItems.byName('Normal Logs');
+      final inventory = Inventory.fromItems(testItems, [
+        ItemStack(logs, count: 20),
+      ]);
+      final state = GlobalState.test(testRegistries, inventory: inventory);
+
+      final waitFor = WaitForInventoryDelta(logs.id, 10, startCount: 5);
+
+      expect(waitFor.estimateTicks(state, Rates.empty), 0);
+    });
+
+    test('estimateTicks returns infTicks when no production rate', () {
+      final logs = testItems.byName('Normal Logs');
+      final inventory = Inventory.fromItems(testItems, [
+        ItemStack(logs, count: 5),
+      ]);
+      final state = GlobalState.test(testRegistries, inventory: inventory);
+
+      final waitFor = WaitForInventoryDelta(logs.id, 10, startCount: 5);
+
+      expect(waitFor.estimateTicks(state, Rates.empty), infTicks);
+    });
+
+    test('estimateTicks calculates correctly with production rate', () {
+      final logs = testItems.byName('Normal Logs');
+      final inventory = Inventory.fromItems(testItems, [
+        ItemStack(logs, count: 5),
+      ]);
+      final state = GlobalState.test(testRegistries, inventory: inventory);
+
+      final waitFor = WaitForInventoryDelta(logs.id, 10, startCount: 5);
+      final rates = Rates(
+        directGpPerTick: 0,
+        itemFlowsPerTick: {logs.id: 0.5}, // 0.5 logs per tick
+        xpPerTickBySkill: const {},
+        itemTypesPerTick: 0,
+      );
+
+      // Need 10 logs at 0.5/tick = 20 ticks
+      expect(waitFor.estimateTicks(state, rates), 20);
+    });
+
+    test('describe shows delta semantics', () {
+      final logs = testItems.byName('Normal Logs');
+      final waitFor = WaitForInventoryDelta(logs.id, 10, startCount: 5);
+
+      expect(waitFor.describe(), contains('5 + 10 = 15'));
+    });
+
+    test('shortDescription shows delta', () {
+      final logs = testItems.byName('Normal Logs');
+      final waitFor = WaitForInventoryDelta(logs.id, 10, startCount: 5);
+
+      expect(waitFor.shortDescription, 'Acquire +10');
+    });
+
+    test('progress returns current count', () {
+      final logs = testItems.byName('Normal Logs');
+      final inventory = Inventory.fromItems(testItems, [
+        ItemStack(logs, count: 12),
+      ]);
+      final state = GlobalState.test(testRegistries, inventory: inventory);
+
+      final waitFor = WaitForInventoryDelta(logs.id, 10, startCount: 5);
+
+      expect(waitFor.progress(state), 12);
+    });
+
+    test(
+      'delta semantics prevents premature satisfaction with existing items',
+      () {
+        // This is the critical regression test for the Acquire bug
+        // If we already have 100 items and want to acquire 10 more,
+        // delta semantics means target is 110, not 10
+        final logs = testItems.byName('Normal Logs');
+        final inventory = Inventory.fromItems(testItems, [
+          ItemStack(logs, count: 100),
+        ]);
+        final state = GlobalState.test(testRegistries, inventory: inventory);
+
+        // With delta semantics: startCount=100, delta=10, target=110
+        final deltaWaitFor = WaitForInventoryDelta(
+          logs.id,
+          10,
+          startCount: 100,
+        );
+
+        // Should NOT be satisfied with 100 items
+        expect(deltaWaitFor.isSatisfied(state), isFalse);
+        expect(deltaWaitFor.targetCount, 110);
+
+        // Compare to WaitForInventoryAtLeast which would be wrongly satisfied
+        final absoluteWaitFor = WaitForInventoryAtLeast(logs.id, 10);
+        // This would be true (the bug) - having 100 >= 10
+        expect(absoluteWaitFor.isSatisfied(state), isTrue);
+      },
+    );
+  });
 }

@@ -1655,6 +1655,10 @@ _StepResult _applyStep(
         );
       } else if (macro is AcquireItem) {
         // Execute AcquireItem by finding producer and running until target
+        // Use delta semantics: acquire N more items from current count
+        final startCount = _countItem(executionState, macro.itemId);
+        final targetCount = startCount + macro.quantity;
+
         const goal = ReachSkillLevelGoal(Skill.mining, 99); // Placeholder goal
         final producer = _findProducerActionForItem(
           executionState,
@@ -1680,12 +1684,59 @@ _StepResult _applyStep(
           );
         }
 
-        // Wait until we have the target quantity
-        final result = consumeUntil(
-          executionState,
-          WaitForInventoryAtLeast(macro.itemId, macro.quantity),
-          random: random,
+        // Use delta-based wait condition: acquire quantity MORE items
+        final waitFor = WaitForInventoryDelta(
+          macro.itemId,
+          macro.quantity,
+          startCount: startCount,
         );
+
+        final result = consumeUntil(executionState, waitFor, random: random);
+
+        // Validate the result
+        final endCount = _countItem(result.state, macro.itemId);
+        final acquired = endCount - startCount;
+
+        // Log structured information about this acquire
+        assert(() {
+          if (result.boundary is! WaitConditionSatisfied) {
+            print('[Acquire] UNEXPECTED STOP: ${macro.itemId.localId}');
+            print('  requestedQty: ${macro.quantity}');
+            print('  startCount: $startCount');
+            print('  targetCount: $targetCount');
+            print('  endCount: $endCount');
+            print('  acquired: $acquired');
+            print('  stopReason: ${result.boundary}');
+            print('  ticksSpent: ${result.ticksElapsed}');
+          }
+          return true;
+        }(), 'Acquire logging');
+
+        // Assert bounds when running with --enable-asserts
+        assert(() {
+          if (result.boundary is WaitConditionSatisfied) {
+            // Should have acquired at least the requested quantity
+            if (acquired < macro.quantity) {
+              throw StateError(
+                'Acquire ${macro.itemId.localId}: acquired $acquired < '
+                'requested ${macro.quantity}. startCount=$startCount, '
+                'endCount=$endCount, targetCount=$targetCount',
+              );
+            }
+            // Should not have wildly over-acquired (allow small overrun for
+            // discrete action yields)
+            final maxOverrun = macro.quantity * 2 + 100;
+            if (acquired > macro.quantity + maxOverrun) {
+              throw StateError(
+                'Acquire ${macro.itemId.localId}: over-acquired! '
+                'acquired=$acquired >> requested=${macro.quantity}. '
+                'startCount=$startCount, endCount=$endCount',
+              );
+            }
+          }
+          return true;
+        }(), 'Acquire bounds check');
+
         return (
           state: result.state,
           ticksElapsed: result.ticksElapsed,
@@ -1979,6 +2030,9 @@ MacroExpansionResult? _expandAcquireItem(
   // Producer is ready (simple action or inputs available) - switch to it
   final newState = applyInteraction(state, SwitchActivity(producer));
 
+  // Capture start count for delta semantics
+  final startCount = _countItem(state, macro.itemId);
+
   // Calculate ticks to produce the quantity
   final ticksPerAction = ticksFromDuration(producerAction.meanDuration);
   final outputsPerAction = producerAction.outputs[macro.itemId] ?? 1;
@@ -1988,14 +2042,19 @@ MacroExpansionResult? _expandAcquireItem(
   // Project state forward
   final advanceResult = advance(newState, ticksNeeded);
 
-  final waitFor = WaitForInventoryAtLeast(macro.itemId, macro.quantity);
+  // Use delta semantics: acquire quantity MORE items from startCount
+  final waitFor = WaitForInventoryDelta(
+    macro.itemId,
+    macro.quantity,
+    startCount: startCount,
+  );
 
   return (
     state: advanceResult.state,
     ticksElapsed: ticksNeeded,
     waitFor: waitFor,
     deaths: advanceResult.deaths,
-    triggeringCondition: 'Acquired ${macro.quantity}x ${macro.itemId}',
+    triggeringCondition: 'Acquired ${macro.quantity}x ${macro.itemId.localId}',
     macro: macro,
   );
 }
@@ -2293,6 +2352,14 @@ MacroExpansionResult? _expandTrainConsumingSkillUntil(
     triggeringCondition: waitFor.shortDescription,
     macro: macro, // Consuming macros don't need action enrichment
   );
+}
+
+/// Counts inventory items by MelvorId.
+int _countItem(GlobalState state, MelvorId itemId) {
+  return state.inventory.items
+      .where((s) => s.item.id == itemId)
+      .map((s) => s.count)
+      .fold(0, (a, b) => a + b);
 }
 
 /// Finds an action that produces the given item.

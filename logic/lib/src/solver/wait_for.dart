@@ -499,6 +499,85 @@ class WaitForInventoryAtLeast extends WaitFor {
   List<Object?> get props => [itemId, minCount];
 }
 
+/// Wait until inventory count of an item has increased by a delta amount.
+///
+/// Uses delta semantics: targetCount = startCount + delta.
+/// This is the correct semantics for AcquireItem - "acquire N more items".
+///
+/// The [startCount] is captured at creation time and remains fixed.
+/// This prevents the condition from being affected by items already present.
+@immutable
+class WaitForInventoryDelta extends WaitFor {
+  /// Creates a wait condition for acquiring [delta] more of [itemId].
+  ///
+  /// [startCount] is the inventory count at the time this was created.
+  /// The condition is satisfied when count >= startCount + delta.
+  const WaitForInventoryDelta(
+    this.itemId,
+    this.delta, {
+    required this.startCount,
+  });
+
+  /// Factory that captures the current inventory count from state.
+  factory WaitForInventoryDelta.fromState(
+    GlobalState state,
+    MelvorId itemId,
+    int delta,
+  ) {
+    final currentCount = _countItem(state, itemId);
+    return WaitForInventoryDelta(itemId, delta, startCount: currentCount);
+  }
+
+  final MelvorId itemId;
+
+  /// How many items to acquire (delta from startCount).
+  final int delta;
+
+  /// Inventory count at the time this condition was created.
+  final int startCount;
+
+  /// Target count: startCount + delta.
+  int get targetCount => startCount + delta;
+
+  static int _countItem(GlobalState state, MelvorId itemId) {
+    return state.inventory.items
+        .where((s) => s.item.id == itemId)
+        .map((s) => s.count)
+        .fold(0, (a, b) => a + b);
+  }
+
+  @override
+  bool isSatisfied(GlobalState state) {
+    return _countItem(state, itemId) >= targetCount;
+  }
+
+  @override
+  int progress(GlobalState state) {
+    return _countItem(state, itemId);
+  }
+
+  @override
+  int estimateTicks(GlobalState state, Rates rates) {
+    final currentCount = _countItem(state, itemId);
+    final needed = targetCount - currentCount;
+    if (needed <= 0) return 0;
+
+    final productionRate = rates.itemFlowsPerTick[itemId] ?? 0.0;
+    if (productionRate <= 0) return infTicks;
+
+    return (needed / productionRate).ceil();
+  }
+
+  @override
+  String describe() => '${itemId.localId}: $startCount + $delta = $targetCount';
+
+  @override
+  String get shortDescription => 'Acquire +$delta';
+
+  @override
+  List<Object?> get props => [itemId, delta, startCount];
+}
+
 /// Wait until we have enough inputs to complete the goal via a consuming
 /// action. Used when a producer action needs to gather sufficient inputs before
 /// switching to the consuming action to complete the skill goal.
