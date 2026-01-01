@@ -73,7 +73,7 @@ void main() {
 
     test('describe returns formatted string', () {
       const waitFor = WaitForEffectiveCredits(100, sellPolicy: _testPolicy);
-      expect(waitFor.describe(), 'value >= 100');
+      expect(waitFor.describe(), 'credits >= 100');
     });
 
     test('shortDescription includes reason', () {
@@ -925,7 +925,7 @@ void main() {
       ]);
 
       expect(waitFor.describe(), contains('OR'));
-      expect(waitFor.describe(), contains('value >= 100'));
+      expect(waitFor.describe(), contains('credits >= 100'));
       expect(waitFor.describe(), contains('Woodcutting XP >= 50'));
     });
 
