@@ -46,13 +46,23 @@ class _DeltaCandidate {
 
 /// Result of nextDecisionDelta computation with explanation.
 class NextDecisionResult {
-  const NextDecisionResult({required this.deltaTicks, required this.waitFor});
+  const NextDecisionResult({
+    required this.deltaTicks,
+    required this.waitFor,
+    this.intendedAction,
+  });
 
   /// The number of ticks to wait (0 if immediate action available).
   final int deltaTicks;
 
   /// What we're waiting for.
   final WaitFor waitFor;
+
+  /// The action that should be running during the wait.
+  ///
+  /// This is the "intended action" - the action that best advances the goal,
+  /// which may differ from the currently active action.
+  final ActionId? intendedAction;
 
   bool get isImmediate => deltaTicks == 0;
   bool get isDeadEnd => deltaTicks == infTicks;
@@ -229,7 +239,11 @@ NextDecisionResult nextDecisionDelta(
   // Find minimum positive delta
   if (deltas.isEmpty) {
     // Dead end - use the goal but with infinite ticks
-    return NextDecisionResult(deltaTicks: infTicks, waitFor: WaitForGoal(goal));
+    return NextDecisionResult(
+      deltaTicks: infTicks,
+      waitFor: WaitForGoal(goal),
+      intendedAction: intendedActionId,
+    );
   }
 
   deltas.sort((a, b) => a.ticks.compareTo(b.ticks));
@@ -238,7 +252,11 @@ NextDecisionResult nextDecisionDelta(
   // Ensure at least 1 tick (avoid returning 0 unless immediate)
   final finalDelta = best.ticks < 1 ? 1 : best.ticks;
 
-  return NextDecisionResult(deltaTicks: finalDelta, waitFor: best.waitFor);
+  return NextDecisionResult(
+    deltaTicks: finalDelta,
+    waitFor: best.waitFor,
+    intendedAction: intendedActionId,
+  );
 }
 
 /// Computes the "intended action" - the action that best advances the goal.

@@ -1142,39 +1142,13 @@ ConsumeUntilResult consumeUntil(
   var totalTicksElapsed = 0;
   var deathCount = 0;
 
-  // Stuck detection: track progress to detect when we're not making headway
-  int? lastProgress;
-  var stuckIterations = 0;
-  const maxStuckIterations = 3;
-
   // Keep running until the condition is satisfied, restarting after deaths
   while (true) {
-    // Check for stuck state at start of each iteration
-    final currentProgress = waitFor.progress(state);
-    // TODO(eseidel): This should throw immediately on being stuck.
-    // We can't do that until we return why we stopped from consumeTicksUntil
-    // we only need to check for "stuck" if "hit the max ticks" was the reason.
-    if (lastProgress != null && currentProgress <= lastProgress) {
-      stuckIterations++;
-      if (stuckIterations >= maxStuckIterations) {
-        return ConsumeUntilResult(
-          state: state,
-          ticksElapsed: totalTicksElapsed,
-          deathCount: deathCount,
-          boundary: NoProgressPossible(
-            reason: 'No progress after $stuckIterations iterations',
-          ),
-        );
-      }
-    } else {
-      stuckIterations = 0; // Reset if we made progress
-    }
-    lastProgress = currentProgress;
-
     final builder = StateUpdateBuilder(state);
+    final progressBefore = waitFor.progress(state);
 
     // Use consumeTicksUntil which checks the condition after each action
-    consumeTicksUntil(
+    final stopReason = consumeTicksUntil(
       builder,
       random: random,
       stopCondition: (s) => waitFor.isSatisfied(s),
@@ -1182,6 +1156,24 @@ ConsumeUntilResult consumeUntil(
 
     state = builder.build();
     totalTicksElapsed += builder.ticksElapsed;
+
+    // If we hit maxTicks without progress, we're stuck
+    if (stopReason == ConsumeTicksStopReason.maxTicksReached) {
+      final progressAfter = waitFor.progress(state);
+      if (progressAfter <= progressBefore) {
+        return ConsumeUntilResult(
+          state: state,
+          ticksElapsed: totalTicksElapsed,
+          deathCount: deathCount,
+          boundary: NoProgressPossible(
+            reason:
+                'Hit maxTicks (10h) with no progress on '
+                '${waitFor.describe()}',
+          ),
+        );
+      }
+      // Made some progress but not enough - continue
+    }
 
     // Check if we're done
     if (waitFor.isSatisfied(state)) {
@@ -1256,9 +1248,14 @@ ConsumeUntilResult consumeUntil(
             totalTicksElapsed += gatherResult.ticksElapsed;
             deathCount += gatherResult.deathCount;
 
-            // Switch back to consumer
-            state = state.startAction(currentAction, random: random);
-            continue; // Continue consuming
+            // Try to switch back to consumer
+            try {
+              state = state.startAction(currentAction, random: random);
+              continue; // Continue consuming
+            } on Exception {
+              // Can't restart consumer (still missing inputs) - fall through
+              // to return the boundary
+            }
           }
         }
       }
@@ -1385,15 +1382,17 @@ _StepResult _executeCoupledLoop(
 
     // Phase 1: Produce ALL inputs until we have a buffer of each.
     // This handles multi-input actions like Bronze Bar (Copper + Tin).
+    // For multi-tier chains (e.g., Bronze Dagger needs Bronze Bar which needs
+    // ores), we recursively ensure the producer's inputs are available first.
     const bufferTarget = 10;
     for (final inputEntry in consumeAction.inputs.entries) {
       final inputItem = inputEntry.key;
-      final producerAction = _findProducerActionForItem(
+      final producerId = _findProducerActionForItem(
         currentState,
         inputItem,
         goal,
       );
-      if (producerAction == null) {
+      if (producerId == null) {
         return (
           state: currentState,
           ticksElapsed: totalTicks,
@@ -1408,9 +1407,60 @@ _StepResult _executeCoupledLoop(
         currentState.registries.items.byId(inputItem),
       );
       if (currentCount < bufferTarget) {
+        // Check if the producer itself needs inputs (multi-tier chain)
+        final producerAction = currentState.registries.actions.byId(producerId);
+        if (producerAction is SkillAction && producerAction.inputs.isNotEmpty) {
+          // Producer needs inputs - ensure those are available first
+          for (final prodInput in producerAction.inputs.entries) {
+            final prodInputCount = currentState.inventory.countOfItem(
+              currentState.registries.items.byId(prodInput.key),
+            );
+            // Need enough to produce one batch at least
+            if (prodInputCount < prodInput.value) {
+              // Find the raw producer for this intermediate input
+              final rawProducerId = _findProducerActionForItem(
+                currentState,
+                prodInput.key,
+                goal,
+              );
+              if (rawProducerId != null) {
+                currentState = applyInteraction(
+                  currentState,
+                  SwitchActivity(rawProducerId),
+                );
+                // Produce enough for multiple batches
+                final targetCount = prodInput.value * bufferTarget;
+                final produceResult = consumeUntil(
+                  currentState,
+                  WaitForInventoryAtLeast(prodInput.key, targetCount),
+                  random: random,
+                );
+                currentState = produceResult.state;
+                totalTicks += produceResult.ticksElapsed;
+                totalDeaths += produceResult.deathCount;
+
+                if (watchSet != null) {
+                  final boundary = watchSet.detectBoundary(
+                    currentState,
+                    elapsedTicks: totalTicks,
+                  );
+                  if (boundary != null) {
+                    return (
+                      state: currentState,
+                      ticksElapsed: totalTicks,
+                      deaths: totalDeaths,
+                      boundary: _segmentBoundaryToReplan(boundary),
+                    );
+                  }
+                }
+              }
+            }
+          }
+        }
+
         currentState = applyInteraction(
           currentState,
-          SwitchActivity(producerAction),
+          SwitchActivity(producerId),
         );
 
         final produceResult = consumeUntil(
@@ -1446,10 +1496,22 @@ _StepResult _executeCoupledLoop(
     }
 
     // Phase 2: Consume inputs until depleted or stop condition
-    currentState = applyInteraction(
-      currentState,
-      SwitchActivity(bestConsumeAction),
-    );
+    try {
+      currentState = applyInteraction(
+        currentState,
+        SwitchActivity(bestConsumeAction),
+      );
+    } on Exception catch (e) {
+      // Cannot start consuming action (missing inputs)
+      return (
+        state: currentState,
+        ticksElapsed: totalTicks,
+        deaths: totalDeaths,
+        boundary: NoProgressPossible(
+          reason: 'Cannot start consuming action: $e',
+        ),
+      );
+    }
 
     final consumeResult = consumeUntil(
       currentState,
@@ -1484,10 +1546,13 @@ _StepResult _executeCoupledLoop(
     // Otherwise, loop back to produce more inputs
   }
 
-  // After the loop, switch to the producer action so subsequent steps can
+  // After the loop, switch to a producer action so subsequent steps can
   // produce items. This prevents the situation where we end on a consuming
   // action with no inputs, causing later steps to fail.
-  // Re-evaluate best producer for final state
+  //
+  // We try to find a producer that can be started immediately (has inputs
+  // available). If the direct producer needs inputs we don't have, we try
+  // to find a producer for those inputs instead.
   final finalBestConsume = _findBestActionForSkill(
     currentState,
     macro.consumingSkill,
@@ -1499,17 +1564,57 @@ _StepResult _executeCoupledLoop(
     );
     if (finalConsumeAction is SkillAction &&
         finalConsumeAction.inputs.isNotEmpty) {
-      final inputItem = finalConsumeAction.inputs.keys.first;
-      final producerAction = _findProducerActionForItem(
-        currentState,
-        inputItem,
-        goal,
-      );
-      if (producerAction != null &&
-          currentState.activeAction?.id != producerAction) {
+      // Find a producer we can actually start
+      ActionId? targetProducer;
+      var itemToCheck = finalConsumeAction.inputs.keys.first;
+
+      // Walk up the production chain to find a feasible producer
+      for (var depth = 0; depth < 5; depth++) {
+        final producer = _findProducerActionForItem(
+          currentState,
+          itemToCheck,
+          goal,
+        );
+        if (producer == null) break;
+
+        final producerAction = currentState.registries.actions.byId(producer);
+        if (producerAction is! SkillAction) {
+          targetProducer = producer;
+          break;
+        }
+
+        // Check if this producer has all its inputs
+        var hasAllInputs = true;
+        MelvorId? missingInput;
+        for (final input in producerAction.inputs.entries) {
+          final count = currentState.inventory.countOfItem(
+            currentState.registries.items.byId(input.key),
+          );
+          if (count < input.value) {
+            hasAllInputs = false;
+            missingInput = input.key;
+            break;
+          }
+        }
+
+        if (hasAllInputs || producerAction.inputs.isEmpty) {
+          targetProducer = producer;
+          break;
+        }
+
+        // Producer needs inputs, try to produce those instead
+        if (missingInput != null) {
+          itemToCheck = missingInput;
+        } else {
+          break;
+        }
+      }
+
+      if (targetProducer != null &&
+          currentState.activeAction?.id != targetProducer) {
         currentState = applyInteraction(
           currentState,
-          SwitchActivity(producerAction),
+          SwitchActivity(targetProducer),
         );
       }
     }
@@ -1579,9 +1684,30 @@ _StepResult _applyStep(
           boundary: NoProgressPossible(reason: e.toString()),
         );
       }
-    case WaitStep(:final waitFor):
+    case WaitStep(:final waitFor, :final expectedAction):
+      var waitState = state;
+      // Switch to expected action if specified and not already active
+      if (expectedAction != null &&
+          waitState.activeAction?.id != expectedAction) {
+        try {
+          waitState = applyInteraction(
+            waitState,
+            SwitchActivity(expectedAction),
+          );
+        } on Exception catch (e) {
+          // Cannot switch to expected action (missing inputs, locked, etc.)
+          return (
+            state: state,
+            ticksElapsed: 0,
+            deaths: 0,
+            boundary: NoProgressPossible(
+              reason: 'Cannot start expected action: $e',
+            ),
+          );
+        }
+      }
       // Run until the wait condition is satisfied
-      final result = consumeUntil(state, waitFor, random: random);
+      final result = consumeUntil(waitState, waitFor, random: random);
 
       // Check for material boundary after waiting (mid-step stopping)
       if (watchSet != null) {
@@ -1739,6 +1865,75 @@ _StepResult _applyStep(
           }
           return true;
         }(), 'Acquire bounds check');
+
+        return (
+          state: result.state,
+          ticksElapsed: result.ticksElapsed,
+          deaths: result.deathCount,
+          boundary: result.boundary,
+        );
+      } else if (macro is EnsureStock) {
+        // Execute EnsureStock by finding producer and running until target
+        // Uses absolute semantics: ensure inventory has at least minTotal
+        final currentCount = _countItem(executionState, macro.itemId);
+
+        // If we already have enough, no-op
+        if (currentCount >= macro.minTotal) {
+          return (
+            state: executionState,
+            ticksElapsed: 0,
+            deaths: 0,
+            boundary: const WaitConditionSatisfied(),
+          );
+        }
+
+        const goal = ReachSkillLevelGoal(Skill.mining, 99); // Placeholder goal
+        final producer = _findProducerActionForItem(
+          executionState,
+          macro.itemId,
+          goal,
+        );
+        if (producer == null) {
+          return (
+            state: executionState,
+            ticksElapsed: 0,
+            deaths: 0,
+            boundary: NoProgressPossible(
+              reason: 'No producer for ${macro.itemId}',
+            ),
+          );
+        }
+
+        // Switch to producer action
+        if (executionState.activeAction?.id != producer) {
+          try {
+            executionState = applyInteraction(
+              executionState,
+              SwitchActivity(producer),
+            );
+          } on Exception catch (e) {
+            return (
+              state: executionState,
+              ticksElapsed: 0,
+              deaths: 0,
+              boundary: NoProgressPossible(
+                reason: 'Cannot switch to producer for ${macro.itemId}: $e',
+              ),
+            );
+          }
+        }
+
+        // Use absolute wait condition: wait until inventory has minTotal
+        final stockWaitFor = WaitForInventoryAtLeast(
+          macro.itemId,
+          macro.minTotal,
+        );
+
+        final result = consumeUntil(
+          executionState,
+          stockWaitFor,
+          random: random,
+        );
 
         return (
           state: result.state,
@@ -2187,20 +2382,20 @@ MacroExpansionResult? _expandEnsureStock(
     final outputsPerAction = producerAction.outputs[macro.itemId] ?? 1;
     final actionsNeeded = (deltaNeeded / outputsPerAction).ceil();
 
-    // Ensure we have producer's inputs first (recursively)
+    // Collect ALL missing inputs first, then expand the first one
+    // This ensures we make progress towards all inputs rather than
+    // repeatedly expanding the same input in different A* branches.
+    EnsureStock? firstMissingInput;
     for (final prodInput in producerAction.inputs.entries) {
       final inputNeeded = actionsNeeded * prodInput.value;
       final inputItem = state.registries.items.byId(prodInput.key);
       final currentInput = state.inventory.countOfItem(inputItem);
       if (currentInput < inputNeeded) {
-        // Recursively ensure this input
-        return _expandMacro(
-          state,
-          EnsureStock(prodInput.key, inputNeeded),
-          goal,
-          boundaries,
-        );
+        firstMissingInput ??= EnsureStock(prodInput.key, inputNeeded);
       }
+    }
+    if (firstMissingInput != null) {
+      return _expandMacro(state, firstMissingInput, goal, boundaries);
     }
   }
 
@@ -2325,7 +2520,9 @@ MacroExpansionResult? _expandTrainConsumingSkillUntil(
     macro.consumingSkill,
     goal,
   );
-  if (bestConsumeAction == null) return null;
+  if (bestConsumeAction == null) {
+    return null;
+  }
 
   // Get the consuming action to find its inputs
   final consumeAction = state.registries.actions.byId(bestConsumeAction);
@@ -2395,7 +2592,12 @@ MacroExpansionResult? _expandTrainConsumingSkillUntil(
         } else {
           // Fallback: near goal or no boundary, use smaller batches
           const bufferSize = 10;
-          allPrereqs.add(AcquireItem(inputItem, bufferSize));
+          // Only add prereq if we don't already have enough
+          final inputItemData = state.registries.items.byId(inputItem);
+          final currentCount = state.inventory.countOfItem(inputItemData);
+          if (currentCount < bufferSize) {
+            allPrereqs.add(AcquireItem(inputItem, bufferSize - currentCount));
+          }
         }
       } else {
         // Track the first simple producer for rate calculations
@@ -2735,6 +2937,13 @@ EnsureExecResult _ensureExecutable(
 
   // 2. Check inputs - recursively ensure each can be produced
   for (final inputId in action.inputs.keys) {
+    final inputCount = action.inputs[inputId]!;
+    final inputItem = state.registries.items.byId(inputId);
+    final currentCount = state.inventory.countOfItem(inputItem);
+
+    // If we already have enough of this input, no prereq needed
+    if (currentCount >= inputCount) continue;
+
     // First check if there's an unlocked producer
     final producer = _findProducerActionForItem(state, inputId, goal);
     if (producer != null) {
@@ -2756,7 +2965,7 @@ EnsureExecResult _ensureExecutable(
           return ExecUnknown('input $inputId blocked: $reason');
       }
       // Ensure at least 1 item so action can start
-      macros.add(EnsureStock(inputId, 1));
+      macros.add(EnsureStock(inputId, inputCount));
     } else {
       // No unlocked producer - check if one exists but is locked
       final lockedProducer = _findAnyProducerForItem(state, inputId);
@@ -2773,7 +2982,7 @@ EnsureExecResult _ensureExecutable(
           ),
         )
         // After training, we'll need to acquire the item
-        ..add(EnsureStock(inputId, 1));
+        ..add(EnsureStock(inputId, inputCount));
     }
   }
 
@@ -3325,6 +3534,10 @@ SolverResult solve(
               stepFromParent: WaitStep(
                 deltaResult.deltaTicks,
                 deltaResult.waitFor,
+                // Use intendedAction (the action that advances the goal)
+                // rather than activeAction (which may be a different action
+                // like producer after EnsureStock)
+                expectedAction: deltaResult.intendedAction,
               ),
               expectedDeaths: newDeaths,
             );

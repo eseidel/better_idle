@@ -60,9 +60,13 @@ class InteractionStep extends PlanStep {
 /// expected-value modeling. During execution, [waitFor] is used to
 /// determine when to stop waiting, which handles variance in actual
 /// simulation vs expected values.
+///
+/// [expectedAction] is the action that should be running during the wait.
+/// If provided, execution will switch to this action before waiting. This
+/// ensures the wait makes progress on the right skill/action.
 @immutable
 class WaitStep extends PlanStep {
-  const WaitStep(this.deltaTicks, this.waitFor);
+  const WaitStep(this.deltaTicks, this.waitFor, {this.expectedAction});
 
   /// Expected ticks to wait (from planning).
   final int deltaTicks;
@@ -70,8 +74,14 @@ class WaitStep extends PlanStep {
   /// What we're waiting for.
   final WaitFor waitFor;
 
+  /// The action that should be running during this wait.
+  ///
+  /// If null, the current action continues (or no action if idle).
+  /// If non-null, execution will switch to this action before waiting.
+  final ActionId? expectedAction;
+
   @override
-  List<Object?> get props => [deltaTicks, waitFor];
+  List<Object?> get props => [deltaTicks, waitFor, expectedAction];
 
   @override
   String toString() => 'WaitStep($deltaTicks ticks, ${waitFor.describe()})';
@@ -382,7 +392,7 @@ class Plan {
               compressed.add(step);
           }
 
-        case WaitStep(:final deltaTicks, :final waitFor):
+        case WaitStep(:final deltaTicks, :final waitFor, :final expectedAction):
           // Check if we can merge with the previous step
           if (compressed.isNotEmpty && compressed.last is WaitStep) {
             // Check if there's no meaningful interaction between these waits
@@ -392,10 +402,12 @@ class Plan {
             final lastWait = compressed.last as WaitStep;
 
             // Merge consecutive waits - keep the final waitFor since that's
-            // what we're ultimately waiting for
+            // what we're ultimately waiting for, but preserve expectedAction
+            // from the first wait (that's the action that should be running)
             compressed[compressed.length - 1] = WaitStep(
               lastWait.deltaTicks + deltaTicks,
               waitFor, // Use the later wait's condition
+              expectedAction: lastWait.expectedAction ?? expectedAction,
             );
           } else {
             compressed.add(step);
@@ -474,10 +486,12 @@ class Plan {
         BuyShopItem(:final purchaseId) => 'Buy ${purchaseId.name}',
         SellItems(:final policy) => _formatSellPolicy(policy),
       },
-      WaitStep(:final deltaTicks, :final waitFor) => () {
+      WaitStep(:final deltaTicks, :final waitFor, :final expectedAction) => () {
         final duration = _formatDuration(durationFromTicks(deltaTicks));
-        final actionName = currentAction != null
-            ? actions?.byId(currentAction).name ?? currentAction.toString()
+        // Use expectedAction if available, otherwise fall back to currentAction
+        final actionToUse = expectedAction ?? currentAction;
+        final actionName = actionToUse != null
+            ? actions?.byId(actionToUse).name ?? actionToUse.toString()
             : null;
         final prefix = actionName != null ? '$actionName ' : 'Wait ';
         return '$prefix$duration -> ${waitFor.shortDescription}';

@@ -274,8 +274,9 @@ void main() {
       expect(output, contains('Total ticks: 6000'));
       expect(output, contains('Interactions: 2'));
       expect(output, contains('Switch to'));
-      expect(output, contains('Buy upgrade: melvorD:Iron_Axe'));
-      expect(output, contains('Wait'));
+      expect(output, contains('Buy Iron Axe'));
+      // Wait steps now show action name and duration, ending with reason
+      expect(output, contains('Goal reached'));
     });
 
     test('prettyPrint limits steps shown', () {
