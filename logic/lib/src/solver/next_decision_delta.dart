@@ -471,10 +471,7 @@ _DeltaCandidate? _deltaUntilUpgradeAffordable(
   }
 
   if (minDelta == null || minWaitFor == null) return null;
-  return _DeltaCandidate(
-    ticks: minDelta,
-    waitFor: minWaitFor,
-  );
+  return _DeltaCandidate(ticks: minDelta, waitFor: minWaitFor);
 }
 
 /// Computes ticks until soonest watched locked activity unlocks.
