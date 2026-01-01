@@ -8,7 +8,6 @@ import 'package:logic/src/solver/interaction.dart'
     show SellPolicy, effectiveCredits;
 import 'package:logic/src/solver/next_decision_delta.dart' show infTicks;
 import 'package:logic/src/solver/plan.dart' show WaitStep;
-import 'package:logic/src/solver/value_model.dart';
 import 'package:logic/src/state.dart';
 import 'package:logic/src/tick.dart';
 import 'package:meta/meta.dart';
@@ -93,10 +92,52 @@ class WaitForEffectiveCredits extends WaitFor {
     final needed = targetValue - currentValue;
     if (needed <= 0) return 0;
 
-    final valueRate = defaultValueModel.valuePerTick(state, rates);
-    if (valueRate <= 0) return infTicks;
+    // Use floor-corrected rates to match what _advanceExpected actually
+    // produces.
+    //
+    // The issue: valuePerTick uses continuous fractional rates (e.g.,
+    // 0.0001667 bird nests/tick at 350 GP = 0.058 GP/tick). But
+    // _advanceExpected floors item counts, so in 546 ticks we get
+    // floor(0.09) = 0 bird nests = 0 GP.
+    //
+    // Fix: Exclude rare drops that take too long to produce even 1 item.
+    // Only include items where we expect to get at least 1 within a
+    // reasonable horizon. This prevents overestimating income from rare
+    // high-value drops.
+    //
+    // Threshold: 1000 ticks (~1.6 minutes real time). Items that take longer
+    // than this to produce 1 of are excluded from short-term estimates.
+    const maxTicksPerItem = 1000;
 
-    return (needed / valueRate).ceil();
+    var effectiveValueRate = rates.directGpPerTick;
+    for (final entry in rates.itemFlowsPerTick.entries) {
+      final flowRate = entry.value;
+      if (flowRate <= 0) continue;
+
+      final ticksPerItem = 1.0 / flowRate;
+      if (ticksPerItem > maxTicksPerItem) {
+        // Skip rare items - they won't contribute reliably in short term
+        continue;
+      }
+
+      final itemId = entry.key;
+      final item = state.registries.items.byId(itemId);
+      effectiveValueRate += flowRate * item.sellsFor;
+    }
+
+    // Subtract consumed items
+    for (final entry in rates.itemsConsumedPerTick.entries) {
+      final consumeRate = entry.value;
+      if (consumeRate <= 0) continue;
+
+      final itemId = entry.key;
+      final item = state.registries.items.byId(itemId);
+      effectiveValueRate -= consumeRate * item.sellsFor;
+    }
+
+    if (effectiveValueRate <= 0) return infTicks;
+
+    return (needed / effectiveValueRate).ceil();
   }
 
   @override

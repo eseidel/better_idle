@@ -30,7 +30,6 @@ import 'package:logic/src/solver/estimate_rates.dart';
 import 'package:logic/src/solver/goal.dart';
 import 'package:logic/src/solver/interaction.dart'
     show SellAllPolicy, SellPolicy;
-import 'package:logic/src/solver/value_model.dart';
 import 'package:logic/src/solver/wait_for.dart';
 import 'package:logic/src/state.dart';
 
@@ -83,7 +82,6 @@ NextDecisionResult nextDecisionDelta(
   GlobalState state,
   Goal goal,
   Candidates candidates, {
-  ValueModel valueModel = defaultValueModel,
   SellPolicy sellPolicy = const SellAllPolicy(),
 }) {
   // Check if goal is already satisfied
@@ -136,8 +134,6 @@ NextDecisionResult nextDecisionDelta(
       ? estimateRatesForAction(state, intendedActionId)
       : estimateRates(state);
   final progressRate = goal.progressPerTick(state, rates);
-  // Value rate is still needed for upgrade affordability calculations
-  final valueRate = valueModel.valuePerTick(state, rates);
 
   // Get rates for the ACTIVE action (for inputs depleted calculation)
   // This is separate from "intended action" rates because we need to know
@@ -157,7 +153,7 @@ NextDecisionResult nextDecisionDelta(
   final deltaUpgrade = _deltaUntilUpgradeAffordable(
     state,
     candidates,
-    valueRate,
+    rates,
     sellPolicy,
   );
   if (deltaUpgrade != null) {
@@ -429,17 +425,18 @@ _DeltaCandidate? _deltaUntilGoalWithWaitFor(
 }
 
 /// Computes ticks until soonest watched upgrade becomes affordable.
+///
+/// Uses [WaitForEffectiveCredits.estimateTicks] to ensure consistency between
+/// the estimated ticks and the satisfaction check (both account for flooring
+/// of rare item drops).
 _DeltaCandidate? _deltaUntilUpgradeAffordable(
   GlobalState state,
   Candidates candidates,
-  double valueRate,
+  Rates rates,
   SellPolicy sellPolicy,
 ) {
-  if (valueRate <= 0) return null;
-
   int? minDelta;
-  String? minUpgradeName;
-  int? minUpgradeCost;
+  WaitForEffectiveCredits? minWaitFor;
 
   final shopRegistry = state.registries.shop;
   for (final purchaseId in candidates.watch.upgradePurchaseIds) {
@@ -449,29 +446,34 @@ _DeltaCandidate? _deltaUntilUpgradeAffordable(
     final cost = purchase.cost.gpCost;
     if (cost == null) continue; // Skip special pricing
 
-    if (state.gp >= cost) {
+    // Create the WaitFor and use its estimateTicks for consistency
+    final waitFor = WaitForEffectiveCredits(
+      cost,
+      sellPolicy: sellPolicy,
+      reason: purchase.name,
+    );
+
+    // Use the WaitFor's own estimation logic (handles flooring correctly)
+    final delta = waitFor.estimateTicks(state, rates);
+    if (delta == 0) {
       // Already affordable - should have been caught above
       continue;
     }
-
-    final needed = cost - state.gp;
-    final delta = _ceilDiv(needed.toDouble(), valueRate);
+    if (delta == infTicks) {
+      // Can't afford this upgrade with current rates
+      continue;
+    }
 
     if (minDelta == null || delta < minDelta) {
       minDelta = delta;
-      minUpgradeName = purchase.name;
-      minUpgradeCost = cost;
+      minWaitFor = waitFor;
     }
   }
 
-  if (minDelta == null || minUpgradeCost == null) return null;
+  if (minDelta == null || minWaitFor == null) return null;
   return _DeltaCandidate(
     ticks: minDelta,
-    waitFor: WaitForEffectiveCredits(
-      minUpgradeCost,
-      sellPolicy: sellPolicy,
-      reason: minUpgradeName!,
-    ),
+    waitFor: minWaitFor,
   );
 }
 
