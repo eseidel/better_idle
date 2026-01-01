@@ -51,6 +51,26 @@ class TrainSkillUntil extends MacroCandidate {
   List<MacroStopRule> get allStops => [primaryStop, ...watchedStops];
 }
 
+/// Acquire items by producing them (and their prerequisites).
+///
+/// This macro:
+/// 1. Finds the action that produces itemId
+/// 2. Ensures prerequisites are met (skill levels, input items)
+/// 3. Executes the producing action until quantity reached
+///
+/// Used for:
+/// - Gathering inputs for consuming skills (ores for smithing)
+/// - Multi-tier chains (bars need ores, which need mining skill)
+class AcquireItem extends MacroCandidate {
+  const AcquireItem(this.itemId, this.quantity);
+
+  /// The item to acquire.
+  final MelvorId itemId;
+
+  /// How many to acquire.
+  final int quantity;
+}
+
 /// Train a consuming skill via coupled produce/consume loops.
 ///
 /// For consuming skills (Firemaking, Cooking, Smithing), this macro alternates:
@@ -118,6 +138,26 @@ class StopAtGoal extends MacroStopRule {
   @override
   WaitFor toWaitFor(GlobalState state, Map<Skill, SkillBoundaries> boundaries) {
     return WaitForSkillXp(skill, targetXp, reason: 'Goal reached');
+  }
+}
+
+/// Stop when skill reaches a specific level.
+///
+/// Used for prerequisite training (e.g., "train Mining to 50" to unlock
+/// Mithril Ore before smithing Mithril Bars).
+class StopAtLevel extends MacroStopRule {
+  const StopAtLevel(this.skill, this.level);
+
+  final Skill skill;
+  final int level;
+
+  @override
+  WaitFor toWaitFor(GlobalState state, Map<Skill, SkillBoundaries> boundaries) {
+    return WaitForSkillXp(
+      skill,
+      startXpForLevel(level),
+      reason: 'Unlock L$level',
+    );
   }
 }
 

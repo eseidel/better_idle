@@ -671,6 +671,10 @@ List<MacroCandidate> _augmentMacrosWithUpgradeStops(
         targetSkill = skill;
       case TrainConsumingSkillUntil(:final consumingSkill):
         targetSkill = consumingSkill;
+      case AcquireItem():
+        // AcquireItem macros don't need upgrade watching
+        augmented.add(macro);
+        continue;
     }
 
     // Find upgrades relevant to this skill
@@ -729,6 +733,9 @@ List<MacroCandidate> _augmentMacrosWithUpgradeStops(
             watchedStops: [...watchedStops, ...upgradeStops],
           ),
         );
+      case AcquireItem():
+        // Already handled above with continue
+        break;
     }
   }
 

@@ -1380,55 +1380,59 @@ _StepResult _executeCoupledLoop(
       );
     }
 
-    final inputItem = consumeAction.inputs.keys.first;
-    final producerAction = _findProducerActionForItem(
-      currentState,
-      inputItem,
-      goal,
-    );
-    if (producerAction == null) {
-      return (
-        state: currentState,
-        ticksElapsed: totalTicks,
-        deaths: totalDeaths,
-        boundary: const NoProgressPossible(reason: 'No producer action found'),
-      );
-    }
-
-    // Phase 1: Produce inputs until we have some buffer
-    currentState = applyInteraction(
-      currentState,
-      SwitchActivity(producerAction),
-    );
-
-    // Produce until we have at least 10 items (simple buffer policy)
+    // Phase 1: Produce ALL inputs until we have a buffer of each.
+    // This handles multi-input actions like Bronze Bar (Copper + Tin).
     const bufferTarget = 10;
-    final currentCount = currentState.inventory.countOfItem(
-      currentState.registries.items.byId(inputItem),
-    );
-    if (currentCount < bufferTarget) {
-      final produceResult = consumeUntil(
+    for (final inputEntry in consumeAction.inputs.entries) {
+      final inputItem = inputEntry.key;
+      final producerAction = _findProducerActionForItem(
         currentState,
-        WaitForInventoryAtLeast(inputItem, bufferTarget),
-        random: random,
+        inputItem,
+        goal,
       );
-      currentState = produceResult.state;
-      totalTicks += produceResult.ticksElapsed;
-      totalDeaths += produceResult.deathCount;
-
-      // Check for material boundary after producing
-      if (watchSet != null) {
-        final boundary = watchSet.detectBoundary(
-          currentState,
-          elapsedTicks: totalTicks,
+      if (producerAction == null) {
+        return (
+          state: currentState,
+          ticksElapsed: totalTicks,
+          deaths: totalDeaths,
+          boundary: NoProgressPossible(
+            reason: 'No producer action found for $inputItem',
+          ),
         );
-        if (boundary != null) {
-          return (
-            state: currentState,
-            ticksElapsed: totalTicks,
-            deaths: totalDeaths,
-            boundary: _segmentBoundaryToReplan(boundary),
+      }
+
+      final currentCount = currentState.inventory.countOfItem(
+        currentState.registries.items.byId(inputItem),
+      );
+      if (currentCount < bufferTarget) {
+        currentState = applyInteraction(
+          currentState,
+          SwitchActivity(producerAction),
+        );
+
+        final produceResult = consumeUntil(
+          currentState,
+          WaitForInventoryAtLeast(inputItem, bufferTarget),
+          random: random,
+        );
+        currentState = produceResult.state;
+        totalTicks += produceResult.ticksElapsed;
+        totalDeaths += produceResult.deathCount;
+
+        // Check for material boundary after producing
+        if (watchSet != null) {
+          final boundary = watchSet.detectBoundary(
+            currentState,
+            elapsedTicks: totalTicks,
           );
+          if (boundary != null) {
+            return (
+              state: currentState,
+              ticksElapsed: totalTicks,
+              deaths: totalDeaths,
+              boundary: _segmentBoundaryToReplan(boundary),
+            );
+          }
         }
       }
     }
@@ -1833,8 +1837,90 @@ MacroExpansionResult? _expandMacro(
     return _expandTrainSkillUntil(state, macro, goal, boundaries);
   } else if (macro is TrainConsumingSkillUntil) {
     return _expandTrainConsumingSkillUntil(state, macro, goal, boundaries);
+  } else if (macro is AcquireItem) {
+    return _expandAcquireItem(state, macro, goal, boundaries);
   }
   return null;
+}
+
+/// Expands an AcquireItem macro.
+///
+/// 1. Finds the action that produces the item
+/// 2. Checks prerequisites (skill levels, input items)
+/// 3. If prerequisites needed, expands the first one
+/// 4. Otherwise, switches to producer and waits for quantity
+MacroExpansionResult? _expandAcquireItem(
+  GlobalState state,
+  AcquireItem macro,
+  Goal goal,
+  Map<Skill, SkillBoundaries> boundaries,
+) {
+  // Find producer for this item
+  final producer = _findProducerActionForItem(state, macro.itemId, goal);
+
+  if (producer == null) {
+    // Check if a locked producer exists
+    final lockedProducer = _findAnyProducerForItem(state, macro.itemId);
+    if (lockedProducer != null) {
+      // Need to train skill first - expand that prerequisite
+      final trainMacro = TrainSkillUntil(
+        lockedProducer.skill,
+        StopAtLevel(lockedProducer.skill, lockedProducer.unlockLevel),
+      );
+      return _expandMacro(state, trainMacro, goal, boundaries);
+    }
+    return null; // No way to produce this item
+  }
+
+  // Check if producer has prerequisites (skill level requirements)
+  final prereqs = _ensureExecutable(state, producer, goal);
+  if (prereqs.isNotEmpty) {
+    // Expand the first prerequisite
+    return _expandMacro(state, prereqs.first, goal, boundaries);
+  }
+
+  // Check if producer has inputs (consuming action)
+  final producerAction =
+      state.registries.actions.byId(producer) as SkillAction;
+  if (producerAction.inputs.isNotEmpty) {
+    // This is a consuming action - need to acquire its inputs first
+    // Generate AcquireItem prerequisites for each input
+    for (final inputEntry in producerAction.inputs.entries) {
+      final inputId = inputEntry.key;
+      final inputNeeded = inputEntry.value * macro.quantity;
+      final currentCount = state.inventory.countOfItem(
+        state.registries.items.byId(inputId),
+      );
+      if (currentCount < inputNeeded) {
+        // Need to acquire this input
+        final acquireInput = AcquireItem(inputId, inputNeeded);
+        return _expandMacro(state, acquireInput, goal, boundaries);
+      }
+    }
+  }
+
+  // Producer is ready (simple action or inputs available) - switch to it
+  final newState = applyInteraction(state, SwitchActivity(producer));
+
+  // Calculate ticks to produce the quantity
+  final ticksPerAction = ticksFromDuration(producerAction.meanDuration);
+  final outputsPerAction = producerAction.outputs[macro.itemId] ?? 1;
+  final actionsNeeded = (macro.quantity / outputsPerAction).ceil();
+  final ticksNeeded = actionsNeeded * ticksPerAction;
+
+  // Project state forward
+  final advanceResult = advance(newState, ticksNeeded);
+
+  final waitFor = WaitForInventoryAtLeast(macro.itemId, macro.quantity);
+
+  return (
+    state: advanceResult.state,
+    ticksElapsed: ticksNeeded,
+    waitFor: waitFor,
+    deaths: advanceResult.deaths,
+    triggeringCondition: 'Acquired ${macro.quantity}x ${macro.itemId}',
+    macro: macro,
+  );
 }
 
 /// Expands a TrainSkillUntil macro.
@@ -1852,7 +1938,11 @@ MacroExpansionResult? _expandTrainSkillUntil(
 ) {
   // Find best unlocked action for this skill
   final bestAction = _findBestActionForSkill(state, macro.skill, goal);
-  if (bestAction == null) return null;
+  if (bestAction == null) {
+    // DEBUG: Why no action?
+    print('DEBUG: TrainSkillUntil(${macro.skill}) - no best action found');
+    return null;
+  }
 
   // Switch to that action (if not already on it)
   var currentState = state;
@@ -1941,12 +2031,71 @@ MacroExpansionResult? _expandTrainConsumingSkillUntil(
     return null; // Not a valid consuming action
   }
 
-  // Find the primary input item (assume first input for now)
-  final inputItem = consumeAction.inputs.keys.first;
+  // Check ALL inputs and gather prerequisites
+  final allPrereqs = <MacroCandidate>[];
+  ActionId? primaryProducerAction;
 
-  // Find producer action for this input item
-  final producerAction = _findProducerActionForItem(state, inputItem, goal);
-  if (producerAction == null) return null;
+  for (final inputEntry in consumeAction.inputs.entries) {
+    final inputItem = inputEntry.key;
+    final producer = _findProducerActionForItem(state, inputItem, goal);
+
+    if (producer == null) {
+      // Check if a locked producer exists - may need skill training
+      final lockedProducer = _findAnyProducerForItem(state, inputItem);
+      if (lockedProducer != null) {
+        // Need to train skill first
+        allPrereqs.add(
+          TrainSkillUntil(
+            lockedProducer.skill,
+            StopAtLevel(lockedProducer.skill, lockedProducer.unlockLevel),
+          ),
+        );
+      } else {
+        return null; // No way to produce this input
+      }
+    } else {
+      // Producer exists - check if it needs prerequisites
+      final ensurePrereqs = _ensureExecutable(state, producer, goal);
+      if (ensurePrereqs.isNotEmpty) {
+        print('DEBUG: _ensureExecutable($producer) returned: $ensurePrereqs');
+      }
+      allPrereqs.addAll(ensurePrereqs);
+
+      // If the producer itself has inputs, this is a multi-tier chain.
+      // TrainConsumingSkillUntil expects simple produce actions (mining, etc).
+      // For multi-tier chains (Bronze Dagger -> Bronze Bar -> Ores), we need
+      // to first acquire the intermediate item (Bronze Bar).
+      final producerActionData = state.registries.actions.byId(producer);
+      if (producerActionData is SkillAction &&
+          producerActionData.inputs.isNotEmpty) {
+        // The "producer" is actually a consuming action needing its own inputs.
+        // Generate AcquireItem prerequisite for the input.
+        // The input count here is just an initial buffer - execution will
+        // handle the ongoing produce/consume loop.
+        const bufferSize = 10;
+        allPrereqs.add(AcquireItem(inputItem, bufferSize));
+      } else {
+        // Track the first simple producer for rate calculations
+        primaryProducerAction ??= producer;
+      }
+    }
+  }
+
+  // If prerequisites exist, expand the first one
+  if (allPrereqs.isNotEmpty) {
+    print(
+      'DEBUG: TrainConsumingSkill prereqs (${allPrereqs.length}): '
+      '${allPrereqs.map((p) => p.runtimeType)}',
+    );
+    final result = _expandMacro(state, allPrereqs.first, goal, boundaries);
+    if (result == null) {
+      print('DEBUG: prereq expansion returned null for ${allPrereqs.first}');
+    }
+    return result;
+  }
+
+  // All prerequisites satisfied - now handle the produce/consume loop
+  final producerAction = primaryProducerAction!;
 
   // For state projection, switch to the producer action (which doesn't
   // require inputs). We'll use this state for planning while modeling
@@ -1965,21 +2114,25 @@ MacroExpansionResult? _expandTrainConsumingSkillUntil(
   final consumeTicksPerAction = ticksFromDuration(
     consumeAction_.meanDuration,
   ).toDouble();
-  final produceTicksPerAction = ticksFromDuration(
-    produceAction_.meanDuration,
-  ).toDouble();
 
-  final inputsNeededPerAction = consumeAction_.inputs[inputItem] ?? 1;
-  final outputsPerAction = produceAction_.outputs[inputItem] ?? 1;
+  // Calculate total production time for ALL inputs
+  var totalProduceTicksPerCycle = 0.0;
+  for (final inputEntry in consumeAction_.inputs.entries) {
+    final inputItemId = inputEntry.key;
+    final inputCount = inputEntry.value;
+    final producer = _findProducerActionForItem(state, inputItemId, goal);
+    if (producer == null) continue; // Should not happen at this point
+    final produceAction =
+        state.registries.actions.byId(producer) as SkillAction;
+    final outputsPerAction = produceAction.outputs[inputItemId] ?? 1;
+    final produceActionsNeeded = inputCount / outputsPerAction;
+    totalProduceTicksPerCycle += produceActionsNeeded *
+        ticksFromDuration(produceAction.meanDuration).toDouble();
+  }
 
-  // How many produce actions needed per consume action
-  final produceActionsPerConsumeAction =
-      inputsNeededPerAction / outputsPerAction;
-
-  // Total time for one consume cycle (produce + consume)
+  // Total time for one consume cycle (produce all inputs + consume)
   final totalTicksPerCycle =
-      (produceActionsPerConsumeAction * produceTicksPerAction) +
-      consumeTicksPerAction;
+      totalProduceTicksPerCycle + consumeTicksPerAction;
 
   // Sustainable XP rate = XP per action / total cycle time
   final consumeXpPerAction = consumeAction_.xp.toDouble();
@@ -2014,21 +2167,37 @@ MacroExpansionResult? _expandTrainConsumingSkillUntil(
   final consumingSkillXp =
       currentXp + (sustainableXpPerTick * ticksUntilStop).floor();
 
-  // Calculate producer skill XP (woodcutting gains XP during production phase)
-  final produceSkill = produceAction_.skill;
-  final currentProduceXp = state.skillState(produceSkill).xp;
-
-  // Time spent producing = produceActionsPerConsumeAction *
-  // produceTicksPerAction per cycle.
-  // Number of cycles = ticksUntilStop / totalTicksPerCycle
+  // Calculate producer skill XP for each producing skill
+  // For multi-input actions, XP is gained in each producer's skill
   final numCycles = ticksUntilStop / totalTicksPerCycle;
-  final totalProduceTicks =
-      numCycles * produceActionsPerConsumeAction * produceTicksPerAction;
-  final produceXpGained =
-      (totalProduceTicks * (produceAction_.xp / produceTicksPerAction)).floor();
-  final producingSkillXp = currentProduceXp + produceXpGained;
+  final producerSkillXpGains = <Skill, int>{};
 
-  // Build projected state with both skills updated.
+  for (final inputEntry in consumeAction_.inputs.entries) {
+    final inputItemId = inputEntry.key;
+    final inputCount = inputEntry.value;
+    final producer = _findProducerActionForItem(state, inputItemId, goal);
+    if (producer == null) continue;
+    final produceAction =
+        state.registries.actions.byId(producer) as SkillAction;
+    final outputsPerAction = produceAction.outputs[inputItemId] ?? 1;
+    final produceActionsNeeded = inputCount / outputsPerAction;
+    final produceTicksPerAction =
+        ticksFromDuration(produceAction.meanDuration).toDouble();
+
+    // Time spent on this producer per cycle
+    final ticksForThisProducerPerCycle =
+        produceActionsNeeded * produceTicksPerAction;
+    final totalTicksForThisProducer = numCycles * ticksForThisProducerPerCycle;
+    final xpGained =
+        (totalTicksForThisProducer * (produceAction.xp / produceTicksPerAction))
+            .floor();
+
+    // Accumulate XP for this skill (may have multiple inputs from same skill)
+    producerSkillXpGains[produceAction.skill] =
+        (producerSkillXpGains[produceAction.skill] ?? 0) + xpGained;
+  }
+
+  // Build projected state with all skills updated.
   // Set the active action to the producer since execution ends with
   // producer active (to ensure subsequent steps can produce inputs).
   final projectedState = state.copyWith(
@@ -2039,12 +2208,13 @@ MacroExpansionResult? _expandTrainConsumingSkillUntil(
                 xp: consumingSkillXp,
                 masteryPoolXp: state.skillState(skill).masteryPoolXp,
               )
-            : skill == produceSkill
-            ? SkillState(
-                xp: producingSkillXp,
-                masteryPoolXp: state.skillState(skill).masteryPoolXp,
-              )
-            : state.skillState(skill),
+            : producerSkillXpGains.containsKey(skill)
+                ? SkillState(
+                    xp: state.skillState(skill).xp +
+                        producerSkillXpGains[skill]!,
+                    masteryPoolXp: state.skillState(skill).masteryPoolXp,
+                  )
+                : state.skillState(skill),
     },
     // Set producer as active action - execution ends with producer active
     activeAction: ActiveAction(
@@ -2100,6 +2270,86 @@ ActionId? _findProducerActionForItem(
   return best;
 }
 
+/// Finds an action that produces the given item, even if locked.
+///
+/// Returns null if no action produces this item at all.
+/// Unlike [_findProducerActionForItem], this finds producers regardless
+/// of skill level requirements.
+SkillAction? _findAnyProducerForItem(GlobalState state, MelvorId item) {
+  return state.registries.actions.all
+      .whereType<SkillAction>()
+      .where((action) => action.outputs.containsKey(item))
+      .firstOrNull;
+}
+
+/// Returns prerequisite macros needed before an action can run.
+///
+/// Checks:
+/// 1. Skill level requirements - generates TrainSkillUntil if action is locked
+/// 2. Input requirements - recursively checks producers for each input
+///
+/// Returns empty list if action is already executable.
+List<MacroCandidate> _ensureExecutable(
+  GlobalState state,
+  ActionId actionId,
+  Goal goal, {
+  int depth = 0,
+  int maxDepth = 5,
+}) {
+  if (depth >= maxDepth) return []; // Recursion limit
+
+  final action = state.registries.actions.byId(actionId);
+  final prerequisites = <MacroCandidate>[];
+
+  if (action is SkillAction) {
+    // 1. Check skill level requirement
+    final currentLevel = state.skillState(action.skill).skillLevel;
+    if (action.unlockLevel > currentLevel) {
+      prerequisites.add(TrainSkillUntil(
+        action.skill,
+        StopAtLevel(action.skill, action.unlockLevel),
+      ));
+    }
+
+    // 2. Check inputs - recursively ensure each can be produced
+    for (final inputId in action.inputs.keys) {
+      // First check if there's an unlocked producer
+      final producer = _findProducerActionForItem(state, inputId, goal);
+      if (producer != null) {
+        // Producer exists and is unlocked, check its prerequisites
+        prerequisites.addAll(_ensureExecutable(
+          state,
+          producer,
+          goal,
+          depth: depth + 1,
+          maxDepth: maxDepth,
+        ));
+      } else {
+        // No unlocked producer - check if one exists but is locked
+        final lockedProducer = _findAnyProducerForItem(state, inputId);
+        if (lockedProducer != null) {
+          // Producer exists but is locked - need to train that skill
+          final neededLevel = lockedProducer.unlockLevel;
+          print(
+            'DEBUG: _ensureExecutable adding TrainSkillUntil('
+            '${lockedProducer.skill}, L$neededLevel) for $inputId',
+          );
+          prerequisites.add(TrainSkillUntil(
+            lockedProducer.skill,
+            StopAtLevel(lockedProducer.skill, neededLevel),
+          ));
+          // After training, we'll need to acquire the item
+          // (This will be handled in the next planning iteration)
+        }
+        // If no producer exists at all, prerequisites will be incomplete
+        // but we let the caller handle that
+      }
+    }
+  }
+
+  return prerequisites;
+}
+
 /// Finds the best action for a skill based on the goal's criteria.
 ///
 /// For skill goals, picks the action with highest XP rate.
@@ -2124,14 +2374,23 @@ ActionId? _findBestActionForSkill(GlobalState state, Skill skill, Goal goal) {
   ActionId? best;
   double bestRate = 0;
 
+  // Check if this skill is relevant to the goal. If not (e.g., training Mining
+  // as a prerequisite for Smithing), use raw XP rate instead of goal rate.
+  final skillIsGoalRelevant = goal.isSkillRelevant(skill);
+
+  actionLoop:
   for (final action in actions) {
-    // For consuming actions, check that we can produce the inputs
+    // For consuming actions, check that ALL inputs can be produced
+    // (either directly or via prerequisite training).
+    // This handles multi-input actions like Mithril Bar (Mithril Ore + Coal).
     if (action.inputs.isNotEmpty) {
-      final inputItem = action.inputs.keys.first;
-      final producerAction = _findProducerActionForItem(state, inputItem, goal);
-      if (producerAction == null) {
-        // Can't produce inputs for this action, skip it
-        continue;
+      for (final inputItem in action.inputs.keys) {
+        // Check if any producer exists (locked or unlocked)
+        final anyProducer = _findAnyProducerForItem(state, inputItem);
+        if (anyProducer == null) {
+          // No way to produce this input at all, skip this action
+          continue actionLoop;
+        }
       }
     }
 
@@ -2143,7 +2402,11 @@ ActionId? _findBestActionForSkill(GlobalState state, Skill skill, Goal goal) {
     final goldRate = defaultValueModel.valuePerTick(state, rates);
     final xpRate = rates.xpPerTickBySkill[skill] ?? 0.0;
 
-    final rate = goal.activityRate(skill, goldRate, xpRate);
+    // For prerequisite training (skill not in goal), use raw XP rate
+    // to pick the fastest training action.
+    final rate = skillIsGoalRelevant
+        ? goal.activityRate(skill, goldRate, xpRate)
+        : xpRate;
 
     if (rate > bestRate) {
       bestRate = rate;

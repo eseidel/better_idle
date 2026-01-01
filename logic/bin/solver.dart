@@ -945,6 +945,8 @@ String _formatStepForSegment(PlanStep step, Registries registries) {
       TrainSkillUntil(:final skill) => '${skill.name} for $deltaTicks ticks',
       TrainConsumingSkillUntil(:final consumingSkill) =>
         '${consumingSkill.name} for $deltaTicks ticks',
+      AcquireItem(:final itemId, :final quantity) =>
+        'Acquire ${quantity}x $itemId ($deltaTicks ticks)',
     },
   };
 }

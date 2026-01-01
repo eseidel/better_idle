@@ -471,6 +471,8 @@ class Plan {
     return switch (macro) {
       TrainSkillUntil(:final skill) => skill.name,
       TrainConsumingSkillUntil(:final consumingSkill) => consumingSkill.name,
+      AcquireItem(:final itemId, :final quantity) =>
+        'Acquire ${quantity}x ${itemId.name}',
     };
   }
 
