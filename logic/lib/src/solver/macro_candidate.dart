@@ -13,13 +13,115 @@ import 'package:logic/src/solver/unlock_boundaries.dart';
 import 'package:logic/src/solver/wait_for.dart';
 import 'package:logic/src/state.dart';
 
+// ---------------------------------------------------------------------------
+// Provenance - tracks WHY a macro was created
+// ---------------------------------------------------------------------------
+
+/// Tracks the origin of a macro for debugging and explanation.
+///
+/// When macros are generated as prerequisites or batch inputs, provenance
+/// tells us why they were created, enabling better debugging and the
+/// "explain one expansion" feature.
+sealed class MacroProvenance {
+  const MacroProvenance();
+
+  /// Human-readable description of why this macro was created.
+  String describe();
+}
+
+/// Macro generated directly by candidate enumeration (top-level).
+class TopLevelProvenance extends MacroProvenance {
+  const TopLevelProvenance();
+
+  @override
+  String describe() => 'Top-level candidate';
+}
+
+/// Macro generated as a skill level prerequisite.
+///
+/// Example: "Need Mining L15 to unlock Mithril Ore for Smithing"
+class SkillPrereqProvenance extends MacroProvenance {
+  const SkillPrereqProvenance({
+    required this.requiredSkill,
+    required this.requiredLevel,
+    required this.unlocksAction,
+  });
+
+  final Skill requiredSkill;
+  final int requiredLevel;
+  final ActionId unlocksAction;
+
+  @override
+  String describe() =>
+      'Prereq: ${requiredSkill.name} L$requiredLevel unlocks $unlocksAction';
+}
+
+/// Macro generated to acquire inputs for a consuming action.
+///
+/// Example: "Need 50 Bronze Bars for Smithing Bronze Daggers"
+class InputPrereqProvenance extends MacroProvenance {
+  const InputPrereqProvenance({
+    required this.forAction,
+    required this.inputItem,
+    required this.quantityNeeded,
+  });
+
+  final ActionId forAction;
+  final MelvorId inputItem;
+  final int quantityNeeded;
+
+  @override
+  String describe() =>
+      'Input: ${quantityNeeded}x ${inputItem.localId} for $forAction';
+}
+
+/// Macro generated as a batched input for a craft-until-unlock phase.
+///
+/// Example: "Batch: 120 Copper Ore for 40 Bronze Bars to reach Smithing L10"
+class BatchInputProvenance extends MacroProvenance {
+  const BatchInputProvenance({
+    required this.forItem,
+    required this.batchSize,
+    required this.targetLevel,
+  });
+
+  final MelvorId forItem;
+  final int batchSize;
+  final int targetLevel;
+
+  @override
+  String describe() =>
+      'Batch: ${batchSize}x ${forItem.localId} for L$targetLevel unlock';
+}
+
+/// Macro generated as part of a multi-tier production chain.
+///
+/// Example: "Chain: Bronze Bar -> Bronze Dagger, need ores first"
+class ChainProvenance extends MacroProvenance {
+  const ChainProvenance({required this.parentItem, required this.childItem});
+
+  final MelvorId parentItem;
+  final MelvorId childItem;
+
+  @override
+  String describe() =>
+      'Chain: ${childItem.localId} needed for ${parentItem.localId}';
+}
+
+// ---------------------------------------------------------------------------
+// Macro Candidates
+// ---------------------------------------------------------------------------
+
 /// A macro-level planning action that commits to an activity for an
 /// extended period.
 ///
 /// Macros stop when ANY of their stop conditions trigger, allowing the solver
 /// to react to unlock boundaries, goal completion, or upgrade affordability.
 sealed class MacroCandidate {
-  const MacroCandidate();
+  const MacroCandidate({this.provenance});
+
+  /// Why this macro was created (for debugging/explanation).
+  final MacroProvenance? provenance;
 }
 
 /// Train a skill by doing its best action until ANY stop condition triggers.
@@ -31,6 +133,7 @@ class TrainSkillUntil extends MacroCandidate {
     this.primaryStop, {
     this.watchedStops = const [],
     this.actionId,
+    super.provenance,
   });
 
   final Skill skill;
@@ -62,7 +165,7 @@ class TrainSkillUntil extends MacroCandidate {
 /// - Gathering inputs for consuming skills (ores for smithing)
 /// - Multi-tier chains (bars need ores, which need mining skill)
 class AcquireItem extends MacroCandidate {
-  const AcquireItem(this.itemId, this.quantity);
+  const AcquireItem(this.itemId, this.quantity, {super.provenance});
 
   /// The item to acquire.
   final MelvorId itemId;
@@ -77,14 +180,14 @@ class AcquireItem extends MacroCandidate {
 /// absolute inventory count. This is useful for batch planning where we know
 /// the exact total inputs needed for a craft phase.
 ///
-/// If inventory already has >= minTotal, this is a no-op (returns null from
-/// expansion).
+/// If inventory already has >= minTotal, this is a no-op (returns
+/// `MacroAlreadySatisfied` from expansion).
 ///
 /// Used for:
 /// - Batch acquisition of inputs for consuming skills
 /// - Ensuring all raw materials before a craft-until-unlock phase
 class EnsureStock extends MacroCandidate {
-  const EnsureStock(this.itemId, this.minTotal);
+  const EnsureStock(this.itemId, this.minTotal, {super.provenance});
 
   /// The item to ensure stock of.
   final MelvorId itemId;
@@ -107,6 +210,7 @@ class TrainConsumingSkillUntil extends MacroCandidate {
     this.consumingSkill,
     this.primaryStop, {
     this.watchedStops = const [],
+    super.provenance,
   });
 
   final Skill consumingSkill;

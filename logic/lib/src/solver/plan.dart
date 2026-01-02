@@ -18,10 +18,13 @@
 /// dead, restart" loops) into macro steps for UI display.
 library;
 
+import 'dart:convert';
+
 import 'package:equatable/equatable.dart';
 import 'package:logic/src/data/action_id.dart';
 import 'package:logic/src/data/actions.dart';
 import 'package:logic/src/data/melvor_id.dart';
+import 'package:logic/src/solver/goal.dart';
 import 'package:logic/src/solver/interaction.dart';
 import 'package:logic/src/solver/macro_candidate.dart';
 import 'package:logic/src/solver/replan_boundary.dart';
@@ -543,6 +546,139 @@ class Plan {
   }
 }
 
+// ---------------------------------------------------------------------------
+// Repro Bundle for debugging failures
+// ---------------------------------------------------------------------------
+
+/// A bundle of state and goal for reproducing solver failures.
+///
+/// When the solver fails or hits an unexpected boundary, this bundle captures
+/// enough information to reproduce the issue for debugging.
+@immutable
+class ReproBundle {
+  const ReproBundle({
+    required this.state,
+    required this.goal,
+    this.reason,
+    this.boundary,
+    this.plan,
+    this.stepIndex,
+  });
+
+  /// The game state at the point of failure/boundary.
+  final GlobalState state;
+
+  /// The goal the solver was trying to achieve.
+  final Goal goal;
+
+  /// Human-readable reason for the failure (if from solver failure).
+  final String? reason;
+
+  /// The boundary that was hit (if from unexpected boundary).
+  final ReplanBoundary? boundary;
+
+  /// The plan being executed (if from execution failure).
+  final Plan? plan;
+
+  /// The step index where the boundary was hit (if from execution failure).
+  final int? stepIndex;
+
+  /// Converts the bundle to a JSON-serializable map.
+  Map<String, dynamic> toJson() => {
+    'state': state.toJson(),
+    'goal': _goalToJson(goal),
+    if (reason != null) 'reason': reason,
+    if (boundary != null) 'boundary': boundary!.describe(),
+    if (plan != null) 'plan': _planToJson(plan!),
+    if (stepIndex != null) 'stepIndex': stepIndex,
+  };
+
+  /// Converts the bundle to a JSON string.
+  String toJsonString({bool pretty = false}) {
+    final encoder = pretty
+        ? const JsonEncoder.withIndent('  ')
+        : const JsonEncoder();
+    return encoder.convert(toJson());
+  }
+
+  static Map<String, dynamic> _goalToJson(Goal goal) {
+    return switch (goal) {
+      ReachGpGoal(:final targetGp) => {
+        'type': 'ReachGpGoal',
+        'targetGp': targetGp,
+      },
+      ReachSkillLevelGoal(:final skill, :final targetLevel) => {
+        'type': 'ReachSkillLevelGoal',
+        'skill': skill.name,
+        'targetLevel': targetLevel,
+      },
+      MultiSkillGoal(:final subgoals) => {
+        'type': 'MultiSkillGoal',
+        'subgoals': subgoals.map(_goalToJson).toList(),
+      },
+      SegmentGoal(:final innerGoal) => {
+        'type': 'SegmentGoal',
+        'innerGoal': _goalToJson(innerGoal),
+      },
+    };
+  }
+
+  static Map<String, dynamic> _planToJson(Plan plan) {
+    return {
+      'totalTicks': plan.totalTicks,
+      'stepCount': plan.steps.length,
+      'steps': plan.steps.map(_stepToJson).toList(),
+    };
+  }
+
+  static Map<String, dynamic> _stepToJson(PlanStep step) {
+    return switch (step) {
+      InteractionStep(:final interaction) => {
+        'type': 'InteractionStep',
+        'interaction': interaction.toString(),
+      },
+      WaitStep(:final deltaTicks, :final waitFor, :final expectedAction) => {
+        'type': 'WaitStep',
+        'deltaTicks': deltaTicks,
+        'waitFor': waitFor.describe(),
+        if (expectedAction != null) 'expectedAction': expectedAction.toString(),
+      },
+      MacroStep(:final macro, :final deltaTicks, :final waitFor) => {
+        'type': 'MacroStep',
+        'macro': _macroToJson(macro),
+        'deltaTicks': deltaTicks,
+        'waitFor': waitFor.describe(),
+      },
+    };
+  }
+
+  static Map<String, dynamic> _macroToJson(MacroCandidate macro) {
+    return switch (macro) {
+      TrainSkillUntil(:final skill, :final primaryStop, :final actionId) => {
+        'type': 'TrainSkillUntil',
+        'skill': skill.name,
+        'primaryStop': primaryStop.toString(),
+        if (actionId != null) 'actionId': actionId.toString(),
+      },
+      TrainConsumingSkillUntil(:final consumingSkill, :final primaryStop) => {
+        'type': 'TrainConsumingSkillUntil',
+        'consumingSkill': consumingSkill.name,
+        'primaryStop': primaryStop.toString(),
+      },
+      AcquireItem(:final itemId, :final quantity) => {
+        'type': 'AcquireItem',
+        'itemId': itemId.toString(),
+        'quantity': quantity,
+      },
+      EnsureStock(:final itemId, :final minTotal) => {
+        'type': 'EnsureStock',
+        'itemId': itemId.toString(),
+        'minTotal': minTotal,
+      },
+    };
+  }
+}
+
 /// Failure result when the solver cannot find a solution.
 @immutable
 class SolverFailure {
@@ -551,6 +687,7 @@ class SolverFailure {
     this.expandedNodes = 0,
     this.enqueuedNodes = 0,
     this.bestCredits,
+    this.reproBundle,
   });
 
   /// Human-readable reason for failure.
@@ -564,6 +701,9 @@ class SolverFailure {
 
   /// Best credits achieved during search (if any).
   final int? bestCredits;
+
+  /// Optional repro bundle for debugging.
+  final ReproBundle? reproBundle;
 
   @override
   String toString() =>
@@ -645,4 +785,23 @@ class PlanExecutionResult {
   /// Returns only expected boundaries (normal flow).
   List<ReplanBoundary> get expectedBoundaries =>
       boundariesHit.where((b) => b.isExpected).toList();
+
+  /// Creates a repro bundle for debugging unexpected boundaries.
+  ///
+  /// Returns null if there are no unexpected boundaries.
+  /// The [goal] and [plan] parameters are needed since they're not stored
+  /// in the execution result.
+  ReproBundle? createReproBundleForUnexpected({
+    required Goal goal,
+    required Plan plan,
+  }) {
+    if (!hasUnexpectedBoundaries) return null;
+    final firstUnexpected = unexpectedBoundaries.first;
+    return ReproBundle(
+      state: finalState,
+      goal: goal,
+      boundary: firstUnexpected,
+      plan: plan,
+    );
+  }
 }

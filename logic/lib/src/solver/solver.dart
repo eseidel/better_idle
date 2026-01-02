@@ -2257,7 +2257,7 @@ _BatchSizeResult? _computeBatchToNextUnlock({
   );
 }
 
-/// Result of expanding a macro candidate.
+/// Result of expanding a macro candidate (success case).
 typedef MacroExpansionResult = ({
   GlobalState state,
   int ticksElapsed,
@@ -2267,13 +2267,208 @@ typedef MacroExpansionResult = ({
   MacroCandidate macro, // The macro with action filled in (for TrainSkillUntil)
 });
 
+/// Outcome of attempting to expand a macro - tri-state result.
+///
+/// This replaces the nullable MacroExpansionResult to ensure we always know
+/// WHY an expansion failed, rather than silently returning null.
+sealed class MacroExpansionOutcome {
+  const MacroExpansionOutcome();
+}
+
+/// Macro expanded successfully to a future state.
+class MacroExpanded extends MacroExpansionOutcome {
+  const MacroExpanded(this.result);
+  final MacroExpansionResult result;
+}
+
+/// Macro is already satisfied - no expansion needed (legitimate no-op).
+///
+/// This is different from failure: the macro's goal is already met,
+/// so there's nothing to expand.
+class MacroAlreadySatisfied extends MacroExpansionOutcome {
+  const MacroAlreadySatisfied(this.reason);
+  final String reason;
+}
+
+/// Macro cannot be expanded due to missing prerequisites or unsatisfiable
+/// constraints.
+class MacroCannotExpand extends MacroExpansionOutcome {
+  const MacroCannotExpand(this.reason);
+  final String reason;
+}
+
+// ---------------------------------------------------------------------------
+// Explain One Expansion - debugging tool for understanding macro decisions
+// ---------------------------------------------------------------------------
+
+/// Detailed explanation of a macro expansion for debugging.
+class MacroExpansionExplanation {
+  MacroExpansionExplanation({
+    required this.macro,
+    required this.outcome,
+    required this.steps,
+  });
+
+  /// The macro being explained.
+  final MacroCandidate macro;
+
+  /// The outcome of the expansion.
+  final MacroExpansionOutcome outcome;
+
+  /// Step-by-step explanation of what happened.
+  final List<String> steps;
+
+  /// Formats the explanation as a multi-line string.
+  String format() {
+    final buffer = StringBuffer()
+      ..writeln('=== Macro Expansion Explanation ===')
+      ..writeln('Macro: ${_describeMacro(macro)}');
+    if (macro.provenance != null) {
+      buffer.writeln('Provenance: ${macro.provenance!.describe()}');
+    }
+    buffer
+      ..writeln()
+      ..writeln('Steps:');
+    for (var i = 0; i < steps.length; i++) {
+      buffer.writeln('  ${i + 1}. ${steps[i]}');
+    }
+    buffer
+      ..writeln()
+      ..writeln('Outcome: ${_describeOutcome(outcome)}');
+    return buffer.toString();
+  }
+
+  static String _describeMacro(MacroCandidate macro) {
+    return switch (macro) {
+      TrainSkillUntil(:final skill, :final primaryStop) =>
+        'TrainSkillUntil(${skill.name}, ${primaryStop.runtimeType})',
+      TrainConsumingSkillUntil(:final consumingSkill, :final primaryStop) =>
+        'TrainConsumingSkillUntil(${consumingSkill.name}, '
+            '${primaryStop.runtimeType})',
+      AcquireItem(:final itemId, :final quantity) =>
+        'AcquireItem(${itemId.localId}, $quantity)',
+      EnsureStock(:final itemId, :final minTotal) =>
+        'EnsureStock(${itemId.localId}, $minTotal)',
+    };
+  }
+
+  static String _describeOutcome(MacroExpansionOutcome outcome) {
+    return switch (outcome) {
+      MacroExpanded(:final result) =>
+        'SUCCESS: ${result.ticksElapsed} ticks, '
+            'trigger=${result.triggeringCondition}',
+      MacroAlreadySatisfied(:final reason) => 'ALREADY_SATISFIED: $reason',
+      MacroCannotExpand(:final reason) => 'CANNOT_EXPAND: $reason',
+    };
+  }
+}
+
+/// Explains the expansion of a macro with detailed step-by-step output.
+///
+/// This is a debugging tool that traces through the expansion logic and
+/// records what decisions were made and why. Useful for understanding
+/// why a macro expanded in a particular way.
+MacroExpansionExplanation explainMacroExpansion(
+  GlobalState state,
+  MacroCandidate macro,
+  Goal goal,
+) {
+  final steps = <String>[];
+  final boundaries = computeUnlockBoundaries(state.registries);
+
+  // Trace through the expansion based on macro type
+  switch (macro) {
+    case TrainSkillUntil(:final skill):
+      steps.add('Looking for best action for ${skill.name}');
+      final bestAction = _findBestActionForSkill(state, skill, goal);
+      if (bestAction == null) {
+        steps.add('No unlocked action found for ${skill.name}');
+      } else {
+        steps.add('Best action: $bestAction');
+        final rates = estimateRates(state);
+        steps.add(
+          'XP rate: ${rates.xpPerTickBySkill[skill]?.toStringAsFixed(3)} '
+          'XP/tick',
+        );
+      }
+
+    case TrainConsumingSkillUntil(:final consumingSkill):
+      steps.add('Looking for best consuming action for ${consumingSkill.name}');
+      final bestAction = _findBestActionForSkill(state, consumingSkill, goal);
+      if (bestAction == null) {
+        steps.add('No unlocked action found');
+      } else {
+        steps.add('Best consuming action: $bestAction');
+        final action = state.registries.actions.byId(bestAction);
+        if (action is SkillAction && action.inputs.isNotEmpty) {
+          steps.add('Inputs required: ${action.inputs}');
+          for (final input in action.inputs.entries) {
+            final item = state.registries.items.byId(input.key);
+            final count = state.inventory.countOfItem(item);
+            steps.add(
+              '  ${input.key.localId}: have $count, need ${input.value}',
+            );
+          }
+        }
+      }
+
+    case AcquireItem(:final itemId, quantity: _):
+      steps.add('Looking for producer of ${itemId.localId}');
+      final producer = _findProducerActionForItem(state, itemId, goal);
+      if (producer == null) {
+        final locked = _findAnyProducerForItem(state, itemId);
+        if (locked != null) {
+          steps.add(
+            'Found locked producer: $locked (needs ${locked.skill.name} '
+            'L${locked.unlockLevel})',
+          );
+        } else {
+          steps.add('No producer found for ${itemId.localId}');
+        }
+      } else {
+        steps.add('Found producer: $producer');
+        final prereqResult = _ensureExecutable(state, producer, goal);
+        steps.add('Prerequisites: ${prereqResult.runtimeType}');
+      }
+
+    case EnsureStock(:final itemId, :final minTotal):
+      final item = state.registries.items.byId(itemId);
+      final currentCount = state.inventory.countOfItem(item);
+      steps.add(
+        'Checking stock of ${itemId.localId}: have $currentCount, '
+        'need $minTotal',
+      );
+      if (currentCount >= minTotal) {
+        steps.add('Already have enough - no action needed');
+      } else {
+        final delta = minTotal - currentCount;
+        steps.add('Need to produce $delta more');
+        final producer = _findProducerActionForItem(state, itemId, goal);
+        if (producer != null) {
+          steps.add('Found producer: $producer');
+        }
+      }
+  }
+
+  // Actually perform the expansion
+  final outcome = _expandMacro(state, macro, goal, boundaries);
+  steps.add('Expansion complete');
+
+  return MacroExpansionExplanation(
+    macro: macro,
+    outcome: outcome,
+    steps: steps,
+  );
+}
+
 /// Expands a macro candidate into a future state by estimating progress.
 ///
 /// Uses expected-value modeling (same as `advance`) to project forward
 /// until ANY of the macro's stop conditions would trigger.
 ///
-/// Returns null if the macro cannot be executed (e.g., no unlocked actions).
-MacroExpansionResult? _expandMacro(
+/// Returns [MacroExpanded] on success, [MacroAlreadySatisfied] if no work
+/// needed, or [MacroCannotExpand] with a reason if expansion is impossible.
+MacroExpansionOutcome _expandMacro(
   GlobalState state,
   MacroCandidate macro,
   Goal goal,
@@ -2288,7 +2483,7 @@ MacroExpansionResult? _expandMacro(
   } else if (macro is EnsureStock) {
     return _expandEnsureStock(state, macro, goal, boundaries);
   }
-  return null;
+  return MacroCannotExpand('Unknown macro type: ${macro.runtimeType}');
 }
 
 /// Expands an AcquireItem macro.
@@ -2297,7 +2492,7 @@ MacroExpansionResult? _expandMacro(
 /// 2. Checks prerequisites (skill levels, input items)
 /// 3. If prerequisites needed, expands the first one
 /// 4. Otherwise, switches to producer and waits for quantity
-MacroExpansionResult? _expandAcquireItem(
+MacroExpansionOutcome _expandAcquireItem(
   GlobalState state,
   AcquireItem macro,
   Goal goal,
@@ -2317,7 +2512,7 @@ MacroExpansionResult? _expandAcquireItem(
       );
       return _expandMacro(state, trainMacro, goal, boundaries);
     }
-    return null; // No way to produce this item
+    return MacroCannotExpand('No producer for ${macro.itemId.localId}');
   }
 
   // Check if producer has prerequisites (skill level requirements)
@@ -2328,8 +2523,10 @@ MacroExpansionResult? _expandAcquireItem(
     case ExecNeedsMacros(macros: final prereqMacros):
       // Expand the first prerequisite
       return _expandMacro(state, prereqMacros.first, goal, boundaries);
-    case ExecUnknown():
-      return null; // Can't determine prerequisites
+    case ExecUnknown(:final reason):
+      return MacroCannotExpand(
+        'Cannot determine prerequisites for $producer: $reason',
+      );
   }
 
   // Check if producer has inputs (consuming action)
@@ -2373,24 +2570,24 @@ MacroExpansionResult? _expandAcquireItem(
     startCount: startCount,
   );
 
-  return (
+  return MacroExpanded((
     state: advanceResult.state,
     ticksElapsed: ticksNeeded,
     waitFor: waitFor,
     deaths: advanceResult.deaths,
     triggeringCondition: 'Acquired ${macro.quantity}x ${macro.itemId.localId}',
     macro: macro,
-  );
+  ));
 }
 
 /// Expands an EnsureStock macro.
 ///
 /// Similar to AcquireItem but uses absolute semantics:
-/// 1. If inventory already has >= minTotal, returns null (no-op)
+/// 1. If inventory already has >= minTotal, returns [MacroAlreadySatisfied]
 /// 2. Otherwise, produces the delta needed
 ///
 /// For multi-tier items (bars), recursively ensures raw inputs first.
-MacroExpansionResult? _expandEnsureStock(
+MacroExpansionOutcome _expandEnsureStock(
   GlobalState state,
   EnsureStock macro,
   Goal goal,
@@ -2401,7 +2598,9 @@ MacroExpansionResult? _expandEnsureStock(
   final deltaNeeded = macro.minTotal - currentCount;
   if (deltaNeeded <= 0) {
     // Already have enough - this is a no-op
-    return null;
+    return MacroAlreadySatisfied(
+      'Already have $currentCount/${macro.minTotal} ${macro.itemId.localId}',
+    );
   }
 
   // Find producer for this item
@@ -2418,7 +2617,7 @@ MacroExpansionResult? _expandEnsureStock(
       );
       return _expandMacro(state, trainMacro, goal, boundaries);
     }
-    return null; // No way to produce this item
+    return MacroCannotExpand('No producer for ${macro.itemId.localId}');
   }
 
   // Check if producer has inputs (consuming action like smelting)
@@ -2466,8 +2665,10 @@ MacroExpansionResult? _expandEnsureStock(
       case ExecNeedsMacros(macros: final prereqMacros):
         // Expand the first prerequisite
         return _expandMacro(state, prereqMacros.first, goal, boundaries);
-      case ExecUnknown():
-        return null; // Can't determine prerequisites
+      case ExecUnknown(:final reason):
+        return MacroCannotExpand(
+          'Cannot determine prerequisites for $producer: $reason',
+        );
     }
   }
 
@@ -2486,14 +2687,14 @@ MacroExpansionResult? _expandEnsureStock(
   // Use absolute semantics: wait until we have minTotal
   final waitFor = WaitForInventoryAtLeast(macro.itemId, macro.minTotal);
 
-  return (
+  return MacroExpanded((
     state: advanceResult.state,
     ticksElapsed: ticksNeeded,
     waitFor: waitFor,
     deaths: advanceResult.deaths,
     triggeringCondition: 'Stock ${macro.minTotal}x ${macro.itemId.localId}',
     macro: macro,
-  );
+  ));
 }
 
 /// Expands a TrainSkillUntil macro.
@@ -2503,7 +2704,7 @@ MacroExpansionResult? _expandEnsureStock(
 /// 3. Builds composite WaitFor from all stop rules (primary + watched)
 /// 4. Estimates ticks until soonest condition triggers
 /// 5. Uses expected-value advance to project state
-MacroExpansionResult? _expandTrainSkillUntil(
+MacroExpansionOutcome _expandTrainSkillUntil(
   GlobalState state,
   TrainSkillUntil macro,
   Goal goal,
@@ -2511,7 +2712,9 @@ MacroExpansionResult? _expandTrainSkillUntil(
 ) {
   // Find best unlocked action for this skill
   final bestAction = _findBestActionForSkill(state, macro.skill, goal);
-  if (bestAction == null) return null;
+  if (bestAction == null) {
+    return MacroCannotExpand('No unlocked action for ${macro.skill.name}');
+  }
 
   // Switch to that action (if not already on it)
   var currentState = state;
@@ -2534,8 +2737,15 @@ MacroExpansionResult? _expandTrainSkillUntil(
   final rates = estimateRates(currentState);
   final ticksUntilStop = compositeWaitFor.estimateTicks(currentState, rates);
 
-  if (ticksUntilStop <= 0 || ticksUntilStop >= infTicks) {
-    return null; // No progress possible or already satisfied
+  if (ticksUntilStop <= 0) {
+    return MacroAlreadySatisfied(
+      'Stop condition already satisfied for ${macro.skill.name}',
+    );
+  }
+  if (ticksUntilStop >= infTicks) {
+    return MacroCannotExpand(
+      'No progress possible for ${macro.skill.name} (infinite ticks)',
+    );
   }
 
   // Find which condition triggered first (has minimum ticks)
@@ -2559,14 +2769,14 @@ MacroExpansionResult? _expandTrainSkillUntil(
     actionId: bestAction,
   );
 
-  return (
+  return MacroExpanded((
     state: advanceResult.state,
     ticksElapsed: ticksUntilStop,
     waitFor: compositeWaitFor, // Execution will respect all conditions
     deaths: advanceResult.deaths,
     triggeringCondition: triggeringCondition,
     macro: enrichedMacro,
-  );
+  ));
 }
 
 /// Expands a TrainConsumingSkillUntil macro for consuming skills.
@@ -2580,7 +2790,7 @@ MacroExpansionResult? _expandTrainSkillUntil(
 ///
 /// The sustainable rate is:
 ///   consumeXP/tick * (produceTime / (produceTime + consumeTime))
-MacroExpansionResult? _expandTrainConsumingSkillUntil(
+MacroExpansionOutcome _expandTrainConsumingSkillUntil(
   GlobalState state,
   TrainConsumingSkillUntil macro,
   Goal goal,
@@ -2593,13 +2803,17 @@ MacroExpansionResult? _expandTrainConsumingSkillUntil(
     goal,
   );
   if (bestConsumeAction == null) {
-    return null;
+    return MacroCannotExpand(
+      'No unlocked action for ${macro.consumingSkill.name}',
+    );
   }
 
   // Get the consuming action to find its inputs
   final consumeAction = state.registries.actions.byId(bestConsumeAction);
   if (consumeAction is! SkillAction || consumeAction.inputs.isEmpty) {
-    return null; // Not a valid consuming action
+    return MacroCannotExpand(
+      'Action $bestConsumeAction is not a valid consuming action',
+    );
   }
 
   // Check ALL inputs and gather prerequisites
@@ -2622,7 +2836,7 @@ MacroExpansionResult? _expandTrainConsumingSkillUntil(
           ),
         );
       } else {
-        return null; // No way to produce this input
+        return MacroCannotExpand('No producer for input ${inputItem.localId}');
       }
     } else {
       // If the producer itself has inputs, this is a multi-tier chain.
@@ -2674,8 +2888,10 @@ MacroExpansionResult? _expandTrainConsumingSkillUntil(
             break; // Producer is ready
           case ExecNeedsMacros(macros: final prereqMacros):
             allPrereqs.addAll(prereqMacros);
-          case ExecUnknown():
-            return null; // Can't determine prerequisites for producer
+          case ExecUnknown(:final reason):
+            return MacroCannotExpand(
+              'Cannot determine prerequisites for $producer: $reason',
+            );
         }
         // Track the first simple producer for rate calculations
         primaryProducerAction ??= producer;
@@ -2727,9 +2943,11 @@ MacroExpansionResult? _expandTrainConsumingSkillUntil(
     }
   }
 
-  // If still no producer found, return null (can't proceed)
+  // If still no producer found, cannot proceed
   if (producerAction == null) {
-    return null;
+    return MacroCannotExpand(
+      'No simple producer found for ${macro.consumingSkill.name}',
+    );
   }
 
   // For state projection, switch to the producer action (which doesn't
@@ -2781,15 +2999,27 @@ MacroExpansionResult? _expandTrainConsumingSkillUntil(
   if (waitFor is WaitForSkillXp) {
     // Calculate exactly how many ticks needed at sustainable rate
     final xpNeeded = (waitFor.targetXp - currentXp).toDouble();
-    if (xpNeeded <= 0) return null; // Already satisfied
+    if (xpNeeded <= 0) {
+      return MacroAlreadySatisfied(
+        'XP goal already satisfied for ${macro.consumingSkill.name}',
+      );
+    }
     ticksUntilStop = (xpNeeded / sustainableXpPerTick).ceil();
   } else {
     // For other stop conditions, estimate then adjust for sustainable rate
     // Use rates for the consuming action (even though we're on producer)
     final consumeRates = estimateRatesForAction(state, bestConsumeAction);
     final estimatedTicks = waitFor.estimateTicks(producerState, consumeRates);
-    if (estimatedTicks <= 0 || estimatedTicks >= infTicks) {
-      return null;
+    if (estimatedTicks <= 0) {
+      return MacroAlreadySatisfied(
+        'Stop condition already satisfied for ${macro.consumingSkill.name}',
+      );
+    }
+    if (estimatedTicks >= infTicks) {
+      return MacroCannotExpand(
+        'No progress possible for ${macro.consumingSkill.name} '
+        '(infinite ticks)',
+      );
     }
     // The estimate assumes full consume rate, adjust for sustainable rate
     final consumeXpPerTick = consumeAction_.xp / consumeTicksPerAction;
@@ -2859,14 +3089,14 @@ MacroExpansionResult? _expandTrainConsumingSkillUntil(
     ),
   );
 
-  return (
+  return MacroExpanded((
     state: projectedState,
     ticksElapsed: ticksUntilStop,
     waitFor: waitFor,
     deaths: 0, // No combat deaths in firemaking/woodcutting
     triggeringCondition: waitFor.shortDescription,
     macro: macro, // Consuming macros don't need action enrichment
-  );
+  ));
 }
 
 /// Counts inventory items by MelvorId.
@@ -3242,10 +3472,12 @@ SolverResult solve(
       expandedNodes: 0,
       frontier: frontier.stats,
     );
+    final reason = 'Heuristic bestRate=0: $reasonStr';
     return SolverFailed(
       SolverFailure(
-        reason: 'Heuristic bestRate=0: $reasonStr',
+        reason: reason,
         enqueuedNodes: enqueuedNodes,
+        reproBundle: ReproBundle(state: initial, goal: goal, reason: reason),
       ),
       profile,
     );
@@ -3258,12 +3490,14 @@ SolverResult solve(
         expandedNodes: expandedNodes,
         frontier: frontier.stats,
       );
+      final reason = 'Exceeded max expanded nodes ($maxExpandedNodes)';
       return SolverFailed(
         SolverFailure(
-          reason: 'Exceeded max expanded nodes ($maxExpandedNodes)',
+          reason: reason,
           expandedNodes: expandedNodes,
           enqueuedNodes: enqueuedNodes,
           bestCredits: bestCredits,
+          reproBundle: ReproBundle(state: initial, goal: goal, reason: reason),
         ),
         profile,
       );
@@ -3274,12 +3508,14 @@ SolverResult solve(
         expandedNodes: expandedNodes,
         frontier: frontier.stats,
       );
+      final reason = 'Exceeded max queue size ($maxQueueSize)';
       return SolverFailed(
         SolverFailure(
-          reason: 'Exceeded max queue size ($maxQueueSize)',
+          reason: reason,
           expandedNodes: expandedNodes,
           enqueuedNodes: enqueuedNodes,
           bestCredits: bestCredits,
+          reproBundle: ReproBundle(state: initial, goal: goal, reason: reason),
         ),
         profile,
       );
@@ -3453,8 +3689,22 @@ SolverResult solve(
 
     // Expand macro edges (train skill until boundary/goal)
     for (final macro in candidates.macros) {
-      final expansionResult = _expandMacro(node.state, macro, goal, boundaries);
-      if (expansionResult == null) continue;
+      final expansionOutcome = _expandMacro(
+        node.state,
+        macro,
+        goal,
+        boundaries,
+      );
+
+      // Skip macros that can't be expanded or are already satisfied
+      final MacroExpansionResult expansionResult;
+      switch (expansionOutcome) {
+        case MacroExpanded(:final result):
+          expansionResult = result;
+        case MacroAlreadySatisfied():
+        case MacroCannotExpand():
+          continue;
+      }
 
       // Record which condition triggered the macro stop
       if (expansionResult.triggeringCondition != null) {
@@ -3639,12 +3889,14 @@ SolverResult solve(
     cacheHits: rateCacheHits,
     cacheMisses: rateCacheMisses,
   );
+  const reason = 'No path to goal found';
   return SolverFailed(
     SolverFailure(
-      reason: 'No path to goal found',
+      reason: reason,
       expandedNodes: expandedNodes,
       enqueuedNodes: enqueuedNodes,
       bestCredits: bestCredits,
+      reproBundle: ReproBundle(state: initial, goal: goal, reason: reason),
     ),
     profile,
   );
