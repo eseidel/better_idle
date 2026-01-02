@@ -3908,64 +3908,10 @@ SegmentedSolverResult solveToGoal(
         // If we stopped because an upgrade became affordable, sell items
         // (if needed) and buy it, then add a synthetic segment
         if (segment.stopBoundary is UpgradeAffordableBoundary) {
-          final boundary = segment.stopBoundary as UpgradeAffordableBoundary;
-
-          final purchaseSteps = <PlanStep>[];
-
-          // Check if we need to sell items to afford the upgrade
-          final purchase = currentState.registries.shop.byId(
-            boundary.purchaseId,
-          );
-          final gpCost = purchase?.cost.gpCost ?? 0;
-
-          // WatchSet triggered because effectiveCredits >= gpCost. Verify this.
-          final credits = effectiveCredits(currentState, sellPolicy);
-          assert(
-            credits >= gpCost,
-            'WatchSet reported upgrade affordable but effectiveCredits '
-            '($credits) < gpCost ($gpCost)',
-          );
-
-          // Sell if actual GP is insufficient (items need to be converted).
-          final needsToSell = currentState.gp < gpCost;
-          if (needsToSell) {
-            // Use the segment's sell policy - computed once at segment start.
-            // This is the SAME policy used by WatchSet for effectiveCredits,
-            // ensuring the boundary detection and handling are consistent.
-            final sellInteraction = SellItems(sellPolicy);
-            currentState = applyInteraction(currentState, sellInteraction);
-            purchaseSteps.add(InteractionStep(sellInteraction));
-
-            // INVARIANT: If WatchSet reported this upgrade as affordable,
-            // applying the same sell policy must make it purchasable.
-            // If this fails, WatchSet and boundary handling disagree - a bug.
-            assert(
-              currentState.gp >= gpCost,
-              'Invariant violated: WatchSet reported upgrade affordable but '
-              'selling with the same policy only yielded ${currentState.gp} GP '
-              '(need $gpCost). This indicates a bug in effectiveCredits or '
-              'sell policy handling.',
-            );
-          }
-
-          // Buy the upgrade (should always succeed after selling per invariant)
-          if (currentState.gp >= gpCost) {
-            final buyInteraction = BuyShopItem(boundary.purchaseId);
-            currentState = applyInteraction(currentState, buyInteraction);
-            purchaseSteps.add(InteractionStep(buyInteraction));
-          }
-
-          // Add a synthetic segment for the sell+purchase (0 ticks, just
-          // records the interactions)
-          segments.add(
-            Segment(
-              steps: purchaseSteps,
-              totalTicks: 0,
-              interactionCount: purchaseSteps.length,
-              stopBoundary: boundary,
-              sellPolicy: sellPolicy,
-              description: 'Buy ${boundary.upgradeName}',
-            ),
+          currentState = _handleUpgradeAffordableBoundary(
+            segment,
+            currentState,
+            segments,
           );
         }
     }
@@ -3984,4 +3930,71 @@ SegmentedSolverResult solveToGoal(
     finalState: currentState,
     segmentProfiles: profiles,
   );
+}
+
+GlobalState _handleUpgradeAffordableBoundary(
+  Segment segment,
+  GlobalState incomingState,
+  List<Segment> segments,
+) {
+  var currentState = incomingState;
+  final boundary = segment.stopBoundary as UpgradeAffordableBoundary;
+  final sellPolicy = segment.sellPolicy!;
+
+  final purchaseSteps = <PlanStep>[];
+
+  // Check if we need to sell items to afford the upgrade
+  final purchase = currentState.registries.shop.byId(boundary.purchaseId);
+  final gpCost = purchase?.cost.gpCost ?? 0;
+
+  // WatchSet triggered because effectiveCredits >= gpCost. Verify this.
+  final credits = effectiveCredits(currentState, sellPolicy);
+  assert(
+    credits >= gpCost,
+    'WatchSet reported upgrade affordable but effectiveCredits '
+    '($credits) < gpCost ($gpCost)',
+  );
+
+  // Sell if actual GP is insufficient (items need to be converted).
+  final needsToSell = currentState.gp < gpCost;
+  if (needsToSell) {
+    // Use the segment's sell policy - computed once at segment start.
+    // This is the SAME policy used by WatchSet for effectiveCredits,
+    // ensuring the boundary detection and handling are consistent.
+    final sellInteraction = SellItems(sellPolicy);
+    currentState = applyInteraction(currentState, sellInteraction);
+    purchaseSteps.add(InteractionStep(sellInteraction));
+
+    // INVARIANT: If WatchSet reported this upgrade as affordable,
+    // applying the same sell policy must make it purchasable.
+    // If this fails, WatchSet and boundary handling disagree - a bug.
+    assert(
+      currentState.gp >= gpCost,
+      'Invariant violated: WatchSet reported upgrade affordable but '
+      'selling with the same policy only yielded ${currentState.gp} GP '
+      '(need $gpCost). This indicates a bug in effectiveCredits or '
+      'sell policy handling.',
+    );
+  }
+
+  // Buy the upgrade (should always succeed after selling per invariant)
+  if (currentState.gp >= gpCost) {
+    final buyInteraction = BuyShopItem(boundary.purchaseId);
+    currentState = applyInteraction(currentState, buyInteraction);
+    purchaseSteps.add(InteractionStep(buyInteraction));
+  }
+
+  // Add a synthetic segment for the sell+purchase (0 ticks, just
+  // records the interactions)
+  segments.add(
+    Segment(
+      steps: purchaseSteps,
+      totalTicks: 0,
+      interactionCount: purchaseSteps.length,
+      stopBoundary: boundary,
+      sellPolicy: sellPolicy,
+      description: 'Buy ${boundary.upgradeName}',
+    ),
+  );
+  return currentState;
 }

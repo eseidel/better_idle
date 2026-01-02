@@ -494,74 +494,6 @@ class _TriggerEntry {
   return (itemName: trigger, quantity: '?');
 }
 
-/// Prints aggregate diagnostics for segment-based solving.
-void _printSegmentedDiagnostics(
-  List<SolverProfile> profiles, {
-  bool extended = false,
-  bool dumpStopTriggers = false,
-}) {
-  // Aggregate stats across all segments
-  final totalNodes = profiles.fold(0, (sum, p) => sum + p.expandedNodes);
-  final totalNeighbors = profiles.fold(
-    0,
-    (sum, p) => sum + p.totalNeighborsGenerated,
-  );
-  final totalTimeUs = profiles.fold(0, (sum, p) => sum + p.totalTimeUs);
-
-  print('=== Aggregate Solver Profile ===');
-  print('Total expanded nodes: $totalNodes');
-  print('Total neighbors generated: $totalNeighbors');
-  if (totalTimeUs > 0) {
-    final nodesPerSec = totalNodes / (totalTimeUs / 1e6);
-    print('Overall nodes/sec: ${nodesPerSec.toStringAsFixed(1)}');
-  }
-  print(
-    'Avg branching factor: '
-    '${(totalNeighbors / totalNodes).toStringAsFixed(2)}',
-  );
-
-  // Extended: per-segment breakdown
-  if (!extended) return;
-
-  print('');
-  print('=== Per-Segment Diagnostics ===');
-  for (var i = 0; i < profiles.length; i++) {
-    final p = profiles[i];
-    print(
-      'Segment ${i + 1}: ${p.expandedNodes} nodes, '
-      '${p.nodesPerSecond.toStringAsFixed(0)} nodes/sec, '
-      'branching ${p.avgBranchingFactor.toStringAsFixed(2)}',
-    );
-  }
-
-  // Aggregate heuristic health across segments
-  final allBestRates = profiles.expand((p) => p.bestRateSamples).toList();
-  if (allBestRates.isNotEmpty) {
-    allBestRates.sort();
-    final minRate = allBestRates.first;
-    final maxRate = allBestRates.last;
-    final medRate = allBestRates[allBestRates.length ~/ 2];
-    print('');
-    print('Aggregate heuristic health:');
-    print(
-      '  bestRate range: ${minRate.toStringAsFixed(2)} - '
-      '${maxRate.toStringAsFixed(2)} (median: ${medRate.toStringAsFixed(2)})',
-    );
-  }
-
-  // Aggregate macro stop triggers
-  final allTriggers = <String, int>{};
-  for (final p in profiles) {
-    for (final entry in p.macroStopTriggers.entries) {
-      allTriggers[entry.key] = (allTriggers[entry.key] ?? 0) + entry.value;
-    }
-  }
-  if (allTriggers.isNotEmpty) {
-    print('');
-    _printMacroStopTriggers(allTriggers, dump: dumpStopTriggers);
-  }
-}
-
 /// Parses the goal from command-line arguments.
 Goal _parseGoalFromArgs(ArgResults results) {
   if (results['skills'] != null) {
@@ -749,6 +681,74 @@ class _StepCompleteContext {
         print('    Boundary: $boundary');
       }
     }
+  }
+}
+
+/// Prints aggregate diagnostics for segment-based solving.
+void _printSegmentedDiagnostics(
+  List<SolverProfile> profiles, {
+  bool extended = false,
+  bool dumpStopTriggers = false,
+}) {
+  // Aggregate stats across all segments
+  final totalNodes = profiles.fold(0, (sum, p) => sum + p.expandedNodes);
+  final totalNeighbors = profiles.fold(
+    0,
+    (sum, p) => sum + p.totalNeighborsGenerated,
+  );
+  final totalTimeUs = profiles.fold(0, (sum, p) => sum + p.totalTimeUs);
+
+  print('=== Aggregate Solver Profile ===');
+  print('Total expanded nodes: $totalNodes');
+  print('Total neighbors generated: $totalNeighbors');
+  if (totalTimeUs > 0) {
+    final nodesPerSec = totalNodes / (totalTimeUs / 1e6);
+    print('Overall nodes/sec: ${nodesPerSec.toStringAsFixed(1)}');
+  }
+  print(
+    'Avg branching factor: '
+    '${(totalNeighbors / totalNodes).toStringAsFixed(2)}',
+  );
+
+  // Extended: per-segment breakdown
+  if (!extended) return;
+
+  print('');
+  print('=== Per-Segment Diagnostics ===');
+  for (var i = 0; i < profiles.length; i++) {
+    final p = profiles[i];
+    print(
+      'Segment ${i + 1}: ${p.expandedNodes} nodes, '
+      '${p.nodesPerSecond.toStringAsFixed(0)} nodes/sec, '
+      'branching ${p.avgBranchingFactor.toStringAsFixed(2)}',
+    );
+  }
+
+  // Aggregate heuristic health across segments
+  final allBestRates = profiles.expand((p) => p.bestRateSamples).toList();
+  if (allBestRates.isNotEmpty) {
+    allBestRates.sort();
+    final minRate = allBestRates.first;
+    final maxRate = allBestRates.last;
+    final medRate = allBestRates[allBestRates.length ~/ 2];
+    print('');
+    print('Aggregate heuristic health:');
+    print(
+      '  bestRate range: ${minRate.toStringAsFixed(2)} - '
+      '${maxRate.toStringAsFixed(2)} (median: ${medRate.toStringAsFixed(2)})',
+    );
+  }
+
+  // Aggregate macro stop triggers
+  final allTriggers = <String, int>{};
+  for (final p in profiles) {
+    for (final entry in p.macroStopTriggers.entries) {
+      allTriggers[entry.key] = (allTriggers[entry.key] ?? 0) + entry.value;
+    }
+  }
+  if (allTriggers.isNotEmpty) {
+    print('');
+    _printMacroStopTriggers(allTriggers, dump: dumpStopTriggers);
   }
 }
 
