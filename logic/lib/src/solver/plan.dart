@@ -24,6 +24,7 @@ import 'package:equatable/equatable.dart';
 import 'package:logic/src/data/action_id.dart';
 import 'package:logic/src/data/actions.dart';
 import 'package:logic/src/data/melvor_id.dart';
+import 'package:logic/src/data/registries.dart';
 import 'package:logic/src/solver/goal.dart';
 import 'package:logic/src/solver/interaction.dart';
 import 'package:logic/src/solver/macro_candidate.dart';
@@ -565,6 +566,32 @@ class ReproBundle {
     this.stepIndex,
   });
 
+  /// Creates a ReproBundle from a JSON map.
+  ///
+  /// Requires [registries] to deserialize the GlobalState.
+  /// Note: [boundary] and [plan] are not deserialized (they are stored
+  /// as human-readable strings for debugging, not for reconstruction).
+  factory ReproBundle.fromJson(
+    Map<String, dynamic> json,
+    Registries registries,
+  ) {
+    return ReproBundle(
+      state: GlobalState.fromJson(
+        registries,
+        json['state'] as Map<String, dynamic>,
+      ),
+      goal: _goalFromJson(json['goal'] as Map<String, dynamic>),
+      reason: json['reason'] as String?,
+      // boundary and plan are not deserialized - they're debug info only
+    );
+  }
+
+  /// Creates a ReproBundle from a JSON string.
+  factory ReproBundle.fromJsonString(String jsonString, Registries registries) {
+    final json = jsonDecode(jsonString) as Map<String, dynamic>;
+    return ReproBundle.fromJson(json, registries);
+  }
+
   /// The game state at the point of failure/boundary.
   final GlobalState state;
 
@@ -599,6 +626,27 @@ class ReproBundle {
         ? const JsonEncoder.withIndent('  ')
         : const JsonEncoder();
     return encoder.convert(toJson());
+  }
+
+  static Goal _goalFromJson(Map<String, dynamic> json) {
+    final type = json['type'] as String;
+    return switch (type) {
+      'ReachGpGoal' => ReachGpGoal(json['targetGp'] as int),
+      'ReachSkillLevelGoal' => ReachSkillLevelGoal(
+        Skill.fromName(json['skill'] as String),
+        json['targetLevel'] as int,
+      ),
+      'MultiSkillGoal' => MultiSkillGoal(
+        (json['subgoals'] as List<dynamic>)
+            .map((e) => _goalFromJson(e as Map<String, dynamic>))
+            .cast<ReachSkillLevelGoal>()
+            .toList(),
+      ),
+      'SegmentGoal' => throw ArgumentError(
+        'SegmentGoal cannot be deserialized directly',
+      ),
+      _ => throw ArgumentError('Unknown goal type: $type'),
+    };
   }
 
   static Map<String, dynamic> _goalToJson(Goal goal) {

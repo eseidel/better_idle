@@ -8,6 +8,7 @@
 // Example: dart run bin/solver.dart 1000
 // ignore_for_file: avoid_print
 
+import 'dart:io';
 import 'dart:math';
 
 import 'package:args/args.dart';
@@ -150,7 +151,7 @@ void _printSolverResult(
   if (result is SolverSuccess) {
     _printSuccess(result, initialState, goal, registries);
   } else if (result is SolverFailed) {
-    _printFailure(result);
+    _printFailure(result, initialState: initialState, goal: goal);
   }
 
   final profile = result.profile;
@@ -200,13 +201,37 @@ void _printSuccess(
   );
 }
 
-void _printFailure(SolverFailed result) {
+void _printFailure(
+  SolverFailed result, {
+  required GlobalState initialState,
+  required Goal goal,
+}) {
   print('FAILED: ${result.failure.reason}');
   print('  Expanded nodes: ${result.failure.expandedNodes}');
   print('  Enqueued nodes: ${result.failure.enqueuedNodes}');
   if (result.failure.bestCredits != null) {
     print('  Best credits reached: ${result.failure.bestCredits}');
   }
+
+  // Write repro bundle
+  _writeReproBundle(
+    result.failure.reproBundle ??
+        ReproBundle(
+          state: initialState,
+          goal: goal,
+          reason: result.failure.reason,
+        ),
+  );
+}
+
+/// Writes a repro bundle to repro.json for debugging.
+void _writeReproBundle(ReproBundle bundle) {
+  const reproPath = 'repro.json';
+  final jsonString = bundle.toJsonString(pretty: true);
+  File(reproPath).writeAsStringSync(jsonString);
+  print('');
+  print('Repro bundle written to: $reproPath');
+  print('Run: dart run bin/repro.dart $reproPath');
 }
 
 /// Prints the final state after executing the plan.
@@ -696,6 +721,16 @@ void _printSegmentedResult(
           );
         }
       }
+
+      // Write repro bundle
+      _writeReproBundle(
+        failure.reproBundle ??
+            ReproBundle(
+              state: initialState,
+              goal: goal,
+              reason: failure.reason,
+            ),
+      );
   }
 }
 

@@ -80,7 +80,7 @@ Game data is sourced from Melvor Idle's API and cached locally:
 
 ## Workflow
 
-Run `dart format .` upon completion of edits.
+Run `dart format .` and `dart fix --apply .` upon completion of edits.
 
 NEVER use cat << EOF for writing content or generating reports; only use the specific Edit or Write tools to modify files"
 
