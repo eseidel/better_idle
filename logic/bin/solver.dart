@@ -17,6 +17,7 @@ import 'package:logic/src/solver/goal.dart';
 import 'package:logic/src/solver/interaction.dart';
 import 'package:logic/src/solver/macro_candidate.dart';
 import 'package:logic/src/solver/plan.dart';
+import 'package:logic/src/solver/replan_boundary.dart';
 import 'package:logic/src/solver/solver.dart';
 import 'package:logic/src/solver/solver_profile.dart';
 import 'package:logic/src/solver/wait_for.dart';
@@ -448,12 +449,12 @@ void _printMacroStopTriggers(Map<String, int> triggers, {bool dump = false}) {
     // Get example quantities for this item (top 3 by count)
     final examples = byItem[item.key]!
       ..sort((a, b) => b.count.compareTo(a.count));
-    final exampleStrs = examples
+    final exampleStrings = examples
         .take(3)
         .map((e) => '${e.qty}x:${e.count}')
         .join(', ');
 
-    print('  ${item.key}: $percent% (e.g., $exampleStrs)');
+    print('  ${item.key}: $percent% (e.g., $exampleStrings)');
   }
 
   if (sortedItems.length > 10) {
@@ -625,6 +626,132 @@ void _printMultiSkillProgress(GlobalState state, MultiSkillGoal goal) {
   print('  Total remaining: ${totalRemainingXp.toInt()} XP');
 }
 
+class _StepCompleteContext {
+  // Track current action for step formatting
+  ActionId? currentAction;
+
+  void printStepComplete({
+    required int stepIndex,
+    required PlanStep step,
+    required int plannedTicks,
+    required int estimatedTicksAtExecution,
+    required int actualTicks,
+    required int cumulativeActualTicks,
+    required int cumulativePlannedTicks,
+    required GlobalState stateAfter,
+    required GlobalState stateBefore,
+    required ReplanBoundary? boundary,
+  }) {
+    // Registries can't change between states, so use the same one.
+    final registries = stateBefore.registries;
+    // Update current action tracking
+    if (step case InteractionStep(:final interaction)) {
+      if (interaction case SwitchActivity(:final actionId)) {
+        currentAction = actionId;
+      }
+    } else if (step case MacroStep(:final macro)) {
+      if (macro case TrainSkillUntil(:final actionId)) {
+        currentAction = actionId;
+      }
+    }
+
+    final stepDesc = _formatStepForSegment(step, registries, currentAction);
+
+    // Compare: planned vs estimated-at-execution vs actual
+    // - planned != estimatedAtExec: planning snapshot inconsistent
+    // - estimatedAtExec != actual: rate model/termination wrong
+    final planVsEstDelta = plannedTicks - estimatedTicksAtExecution;
+    final estVsActDelta = estimatedTicksAtExecution - actualTicks;
+    final delta = actualTicks - plannedTicks;
+    final deltaStr = delta >= 0 ? '+$delta' : '$delta';
+    final cumDelta = cumulativeActualTicks - cumulativePlannedTicks;
+    final cumDeltaStr = cumDelta >= 0 ? '+$cumDelta' : '$cumDelta';
+
+    // Only print if significant deviation (>10% or >100 ticks)
+    final significantDeviation =
+        delta.abs() > 100 ||
+        (plannedTicks > 0 && delta.abs() / plannedTicks > 0.1);
+
+    if (significantDeviation || stepIndex < 5) {
+      print('  Step ${stepIndex + 1}: $stepDesc');
+      print(
+        '    planned=$plannedTicks, '
+        'estAtExec=$estimatedTicksAtExecution, '
+        'actual=$actualTicks',
+      );
+      print(
+        '    plan-vs-est: ${_formatDelta(planVsEstDelta)}, '
+        'est-vs-actual: ${_formatDelta(estVsActDelta)}, '
+        'total delta: $deltaStr, cumulative: $cumDeltaStr',
+      );
+
+      // Diagnose the source of discrepancy
+      if (delta.abs() > 100) {
+        if (planVsEstDelta.abs() > 50 &&
+            planVsEstDelta.abs() > estVsActDelta.abs()) {
+          print(
+            '    >> SNAPSHOT INCONSISTENCY: state at execution '
+            'differs from planning snapshot',
+          );
+        } else if (estVsActDelta.abs() > 50) {
+          print(
+            '    >> RATE/TERMINATION ISSUE: estimateTicks() '
+            'vs actual execution mismatch',
+          );
+        }
+      }
+
+      String toCheck(WaitFor waitFor, GlobalState state) {
+        return waitFor.isSatisfied(state) ? '✓' : '✗';
+      }
+
+      // Enhanced diagnostics for steps with large deviations
+      if (delta.abs() > 1000) {
+        // Print wait condition details
+        if (step case WaitStep(:final waitFor)) {
+          print('    Wait condition: ${waitFor.describe()}');
+          if (waitFor case WaitForAnyOf(:final conditions)) {
+            print('    Sub-conditions:');
+            for (final cond in conditions) {
+              print(
+                '      before:${toCheck(cond, stateBefore)} '
+                'after:${toCheck(cond, stateAfter)} '
+                '${cond.describe()}',
+              );
+            }
+          }
+        }
+        if (step case MacroStep(:final macro, :final waitFor)) {
+          print('    Macro: $macro');
+          print('    Wait condition: ${waitFor.describe()}');
+          if (waitFor case WaitForAnyOf(:final conditions)) {
+            print('    Sub-conditions:');
+            for (final cond in conditions) {
+              print(
+                '      before:${toCheck(cond, stateBefore)} '
+                'after:${toCheck(cond, stateAfter)} '
+                '${cond.describe()}',
+              );
+            }
+          }
+          // For EnsureStock, show inventory count
+          if (macro is EnsureStock) {
+            final item = registries.items.byId(macro.itemId);
+            final countBefore = stateBefore.inventory.countOfItem(item);
+            final countAfter = stateAfter.inventory.countOfItem(item);
+            print(
+              '    Inventory: ${macro.itemId.localId} '
+              '$countBefore -> $countAfter (target: ${macro.minTotal})',
+            );
+          }
+        }
+        // Show boundary if hit
+        print('    Boundary: $boundary');
+      }
+    }
+  }
+}
+
 /// Prints the result of segment-based solving.
 void _printSegmentedResult(
   SegmentedSolverResult result,
@@ -708,147 +835,14 @@ void _printSegmentedResult(
       print('Executing stitched plan...');
       final stopwatch = Stopwatch()..start();
 
-      // Track current action for step formatting
-      ActionId? currentAction;
+      final stepCompleteContext = _StepCompleteContext();
 
       final execResult = executePlan(
         initialState,
         plan,
         random: Random(42),
         onStepComplete: verboseExecution
-            ? ({
-                required stepIndex,
-                required step,
-                required plannedTicks,
-                required estimatedTicksAtExecution,
-                required actualTicks,
-                required cumulativeActualTicks,
-                required cumulativePlannedTicks,
-                required stateAfter,
-                required stateBefore,
-                required boundary,
-              }) {
-                // Update current action tracking
-                if (step case InteractionStep(:final interaction)) {
-                  if (interaction case SwitchActivity(:final actionId)) {
-                    currentAction = actionId;
-                  }
-                } else if (step case MacroStep(:final macro)) {
-                  if (macro case TrainSkillUntil(:final actionId)) {
-                    currentAction = actionId;
-                  }
-                }
-
-                final stepDesc = _formatStepForSegment(
-                  step,
-                  registries,
-                  currentAction,
-                );
-
-                // Compare: planned vs estimated-at-execution vs actual
-                // - planned != estimatedAtExec: planning snapshot inconsistent
-                // - estimatedAtExec != actual: rate model/termination wrong
-                final planVsEstDelta = plannedTicks - estimatedTicksAtExecution;
-                final estVsActDelta = estimatedTicksAtExecution - actualTicks;
-                final delta = actualTicks - plannedTicks;
-                final deltaStr = delta >= 0 ? '+$delta' : '$delta';
-                final cumDelta = cumulativeActualTicks - cumulativePlannedTicks;
-                final cumDeltaStr = cumDelta >= 0 ? '+$cumDelta' : '$cumDelta';
-
-                // Only print if significant deviation (>10% or >100 ticks)
-                final significantDeviation =
-                    delta.abs() > 100 ||
-                    (plannedTicks > 0 && delta.abs() / plannedTicks > 0.1);
-
-                if (significantDeviation || stepIndex < 5) {
-                  print('  Step ${stepIndex + 1}: $stepDesc');
-                  print(
-                    '    planned=$plannedTicks, '
-                    'estAtExec=$estimatedTicksAtExecution, '
-                    'actual=$actualTicks',
-                  );
-                  print(
-                    '    plan-vs-est: ${planVsEstDelta >= 0 ? '+' : ''}$planVsEstDelta, '
-                    'est-vs-actual: ${estVsActDelta >= 0 ? '+' : ''}$estVsActDelta, '
-                    'total delta: $deltaStr, cumulative: $cumDeltaStr',
-                  );
-
-                  // Diagnose the source of discrepancy
-                  if (delta.abs() > 100) {
-                    if (planVsEstDelta.abs() > 50 &&
-                        planVsEstDelta.abs() > estVsActDelta.abs()) {
-                      print(
-                        '    >> SNAPSHOT INCONSISTENCY: state at execution '
-                        'differs from planning snapshot',
-                      );
-                    } else if (estVsActDelta.abs() > 50) {
-                      print(
-                        '    >> RATE/TERMINATION ISSUE: estimateTicks() '
-                        'vs actual execution mismatch',
-                      );
-                    }
-                  }
-
-                  // Enhanced diagnostics for steps with large deviations
-                  if (delta.abs() > 1000) {
-                    // Print wait condition details
-                    if (step case WaitStep(:final waitFor)) {
-                      print('    Wait condition: ${waitFor.describe()}');
-                      if (waitFor case WaitForAnyOf(:final conditions)) {
-                        print('    Sub-conditions:');
-                        for (final cond in conditions) {
-                          final satisfiedBefore = cond.isSatisfied(stateBefore)
-                              ? '✓'
-                              : '✗';
-                          final satisfiedAfter = cond.isSatisfied(stateAfter)
-                              ? '✓'
-                              : '✗';
-                          print(
-                            '      before:$satisfiedBefore after:$satisfiedAfter '
-                            '${cond.describe()}',
-                          );
-                        }
-                      }
-                    }
-                    if (step case MacroStep(:final macro, :final waitFor)) {
-                      print('    Macro: $macro');
-                      print('    Wait condition: ${waitFor.describe()}');
-                      if (waitFor case WaitForAnyOf(:final conditions)) {
-                        print('    Sub-conditions:');
-                        for (final cond in conditions) {
-                          final satisfiedBefore = cond.isSatisfied(stateBefore)
-                              ? '✓'
-                              : '✗';
-                          final satisfiedAfter = cond.isSatisfied(stateAfter)
-                              ? '✓'
-                              : '✗';
-                          print(
-                            '      before:$satisfiedBefore after:$satisfiedAfter '
-                            '${cond.describe()}',
-                          );
-                        }
-                      }
-                      // For EnsureStock, show inventory count
-                      if (macro is EnsureStock) {
-                        final countBefore = stateBefore.inventory.countOfItem(
-                          stateBefore.registries.items.byId(macro.itemId),
-                        );
-                        final countAfter = stateAfter.inventory.countOfItem(
-                          stateAfter.registries.items.byId(macro.itemId),
-                        );
-                        print(
-                          '    Inventory: ${macro.itemId.localId} '
-                          '$countBefore -> $countAfter (target: ${macro.minTotal})',
-                        );
-                      }
-                    }
-                    // Show boundary if hit
-                    if (boundary != null) {
-                      print('    Boundary: $boundary');
-                    }
-                  }
-                }
-              }
+            ? stepCompleteContext.printStepComplete
             : null,
       );
       stopwatch.stop();
@@ -1301,7 +1295,7 @@ void _printComparisonDouble(
   final delta = upperVal - lowerVal;
   print(
     '$label: ${lowerVal.toStringAsFixed(2)} -> ${upperVal.toStringAsFixed(2)} '
-    '(${delta >= 0 ? '+' : ''}${delta.toStringAsFixed(2)})',
+    '(${_formatDoubleDelta(delta)})',
   );
 }
 
@@ -1314,6 +1308,9 @@ void _printComparisonRaw(String label, int lower, int upper) {
 }
 
 String _formatDelta(int delta) => delta >= 0 ? '+$delta' : '$delta';
+
+String _formatDoubleDelta(double delta) =>
+    '${delta >= 0 ? '+' : ''}${delta.toStringAsFixed(2)}';
 
 String _formatRatio(int upper, int lower) {
   if (lower == 0) return upper == 0 ? '1.00' : 'inf';
