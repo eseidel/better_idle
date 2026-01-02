@@ -9,7 +9,7 @@ import 'package:logic/src/solver/core/goal.dart';
 import 'package:logic/src/solver/core/value_model.dart';
 import 'package:test/test.dart';
 
-import 'test_helper.dart';
+import '../test_helper.dart';
 
 void main() {
   setUpAll(() async {

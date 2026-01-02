@@ -1,7 +1,7 @@
 import 'package:logic/logic.dart';
 import 'package:test/test.dart';
 
-import 'test_helper.dart';
+import '../test_helper.dart';
 
 void main() {
   group('Currency', () {

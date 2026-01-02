@@ -3,7 +3,7 @@ import 'dart:math';
 import 'package:logic/logic.dart';
 import 'package:test/test.dart';
 
-import 'test_helper.dart';
+import '../test_helper.dart';
 
 /// A mock Random that returns predictable values.
 class MockRandom implements Random {

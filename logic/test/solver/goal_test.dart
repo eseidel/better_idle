@@ -7,7 +7,7 @@ import 'package:logic/src/solver/core/solver.dart';
 import 'package:logic/src/solver/execution/plan.dart';
 import 'package:test/test.dart';
 
-import 'test_helper.dart';
+import '../test_helper.dart';
 
 void main() {
   setUpAll(() async {

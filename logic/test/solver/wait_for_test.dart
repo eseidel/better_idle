@@ -9,7 +9,7 @@ import 'package:logic/src/solver/interactions/interaction.dart'
     show SellAllPolicy;
 import 'package:test/test.dart';
 
-import 'test_helper.dart';
+import '../test_helper.dart';
 
 /// Default sell policy for tests - sells everything.
 const _testPolicy = SellAllPolicy();

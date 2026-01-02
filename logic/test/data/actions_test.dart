@@ -4,7 +4,7 @@ import 'package:logic/logic.dart';
 import 'package:logic/src/types/resolved_modifiers.dart';
 import 'package:test/test.dart';
 
-import 'test_helper.dart';
+import '../test_helper.dart';
 
 void main() {
   late SkillAction normalTree;

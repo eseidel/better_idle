@@ -3,7 +3,7 @@ import 'dart:math';
 import 'package:logic/logic.dart';
 import 'package:test/test.dart';
 
-import 'test_helper.dart';
+import '../test_helper.dart';
 
 /// A predictable random number generator for testing.
 class FakeRandom implements Random {

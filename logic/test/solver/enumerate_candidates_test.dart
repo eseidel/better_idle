@@ -9,7 +9,7 @@ import 'package:logic/src/solver/interactions/apply_interaction.dart';
 import 'package:logic/src/solver/interactions/interaction.dart';
 import 'package:test/test.dart';
 
-import 'test_helper.dart';
+import '../test_helper.dart';
 
 /// Default goal for tests - a large GP target that won't be reached
 const _defaultGoal = ReachGpGoal(1000000);
