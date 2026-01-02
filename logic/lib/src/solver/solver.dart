@@ -15,6 +15,16 @@
 /// **Watch lists affect only waiting, never imply we should take an action.**
 /// An upgrade being "watched" (for affordability timing) does NOT mean we
 /// should buy it. Only upgrades in [Candidates.buyUpgrades] are actionable.
+///
+/// ## Module Structure
+///
+/// The solver is split into focused modules:
+/// - rate_cache.dart - Rate caching for the A* heuristic
+/// - state_pruning.dart - Bucket keys and Pareto frontier for pruning
+/// - state_advance.dart - State advancement (expected-value and full sim)
+/// - consume_until.dart - Goal-aware execution with death handling
+/// - execute_plan.dart - Plan execution with step-by-step tracking
+/// - prerequisites.dart - Action prerequisite resolution
 library;
 
 // We should use a logger instead of print statements.
@@ -52,6 +62,53 @@ import 'package:logic/src/types/inventory.dart';
 import 'package:logic/src/types/stunned.dart';
 import 'package:logic/src/types/time_away.dart';
 import 'package:meta/meta.dart';
+
+// Re-export key types from the new modules for backward compatibility
+export 'package:logic/src/solver/consume_until.dart'
+    show ConsumeUntilResult, boundaryFromStopReason, consumeUntil;
+export 'package:logic/src/solver/execute_plan.dart'
+    show
+        StepProgressCallback,
+        StepResult,
+        applyStep,
+        countItem,
+        executeCoupledLoop,
+        executePlan,
+        executeTrainSkillWithBoundaryChecks,
+        segmentBoundaryToReplan;
+export 'package:logic/src/solver/prerequisites.dart'
+    show
+        EnsureExecResult,
+        ExecNeedsMacros,
+        ExecReady,
+        ExecUnknown,
+        dedupeMacros,
+        ensureExecutable,
+        findAnyProducerForItem,
+        findBestActionForSkill,
+        findProducerActionForItem;
+export 'package:logic/src/solver/rate_cache.dart' show RateCache, RateResult;
+export 'package:logic/src/solver/state_advance.dart'
+    show
+        AdvanceResult,
+        advance,
+        advanceExpected,
+        advanceFullSim,
+        assertMonotonicProgress,
+        assertNonNegativeDelta,
+        assertValidState,
+        isRateModelable;
+export 'package:logic/src/solver/state_pruning.dart'
+    show
+        BucketKey,
+        FrontierStats,
+        ParetoFrontier,
+        bucketKeyFromState,
+        computeInputItemMix,
+        goldBucketSize,
+        hpBucketSize,
+        inventoryBucketSize,
+        stateKey;
 
 // ---------------------------------------------------------------------------
 // Debug invariant assertions
