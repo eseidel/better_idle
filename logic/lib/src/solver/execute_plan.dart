@@ -5,7 +5,6 @@ library;
 
 import 'dart:math';
 
-import 'package:logic/src/data/action_id.dart';
 import 'package:logic/src/data/actions.dart' show Skill, SkillAction;
 import 'package:logic/src/data/melvor_id.dart';
 import 'package:logic/src/solver/apply_interaction.dart';
@@ -89,11 +88,448 @@ ReplanBoundary segmentBoundaryToReplan(SegmentBoundary boundary) {
 
 /// Executes a coupled produce/consume loop for consuming skills.
 ///
-/// Alternates between:
-/// 1. Produce inputs (e.g., cut logs, catch fish) until buffer threshold
-/// 2. Consume inputs (e.g., burn logs, cook fish) until depleted or stop
-/// 3. Repeat until primary stop condition is met
+/// ## New Contract (Plan-Authorized Execution)
+///
+/// The executor adapts to randomness only by:
+/// 1. Running until WaitFor triggers
+/// 2. Performing explicitly authorized recovery actions (sell via policy)
+/// 3. Triggering a bounded replan using the same solver
+///
+/// The executor does NOT:
+/// - Search for best actions at runtime
+/// - Recursively plan producer chains
+/// - Make hidden activity switches after the loop
+///
+/// All strategy decisions are made by the planner and encoded in:
+/// - [macro.consumeActionId]: fixed consuming action
+/// - [macro.producerByInputItem]: pre-resolved producers for each input
+/// - [macro.bufferTarget]: quantized batch size
+/// - [macro.sellPolicySpec]: how to handle inventory pressure
 StepResult executeCoupledLoop(
+  GlobalState state,
+  TrainConsumingSkillUntil macro,
+  WaitFor waitFor,
+  Map<Skill, SkillBoundaries>? boundaries,
+  Random random, {
+  WatchSet? watchSet,
+  SellPolicy? segmentSellPolicy,
+}) {
+  var currentState = state;
+  var totalTicks = 0;
+  var totalDeaths = 0;
+  var recoveryAttempts = 0;
+
+  // Use plan-specified action, fallback to legacy for backward compatibility
+  final consumeActionId = macro.consumeActionId ?? macro.actionId;
+  if (consumeActionId == null) {
+    // Legacy path: macro was created without execution details
+    // Fall back to runtime search (deprecated behavior)
+    return _executeCoupledLoopLegacy(
+      state,
+      macro,
+      waitFor,
+      boundaries,
+      random,
+      watchSet: watchSet,
+    );
+  }
+
+  final consumeAction = currentState.registries.actions.byId(consumeActionId);
+  if (consumeAction is! SkillAction || consumeAction.inputs.isEmpty) {
+    return (
+      state: currentState,
+      ticksElapsed: totalTicks,
+      deaths: totalDeaths,
+      boundary: const NoProgressPossible(reason: 'Action has no inputs'),
+    );
+  }
+
+  // Use plan-specified buffer target, fallback to legacy default
+  final bufferTarget = macro.bufferTarget ?? 10;
+
+  // Use plan-specified producers, fallback to empty (will trigger replan)
+  final producerByInputItem = macro.producerByInputItem ?? {};
+
+  // Regenerate actual wait condition from primary stop
+  final actualWaitFor = boundaries != null
+      ? macro.primaryStop.toWaitFor(currentState, boundaries)
+      : waitFor;
+
+  // Execute coupled loop: produce-consume cycles until stop
+  while (true) {
+    // Check if primary stop condition is met
+    if (actualWaitFor.isSatisfied(currentState)) {
+      break;
+    }
+
+    // Check for material boundary (mid-macro stopping)
+    if (watchSet != null) {
+      final boundary = watchSet.detectBoundary(
+        currentState,
+        elapsedTicks: totalTicks,
+      );
+      if (boundary != null) {
+        return (
+          state: currentState,
+          ticksElapsed: totalTicks,
+          deaths: totalDeaths,
+          boundary: segmentBoundaryToReplan(boundary),
+        );
+      }
+    }
+
+    // === PRODUCE PHASE ===
+    // Produce inputs using plan-specified producers (no runtime search)
+    for (final inputEntry in consumeAction.inputs.entries) {
+      final inputItem = inputEntry.key;
+
+      // Get producer from plan - no runtime search
+      final producerId = producerByInputItem[inputItem];
+      if (producerId == null) {
+        // Planner didn't specify a producer - trigger replan
+        return (
+          state: currentState,
+          ticksElapsed: totalTicks,
+          deaths: totalDeaths,
+          boundary: NoProgressPossible(
+            reason:
+                'No producer specified for ${inputItem.name} - needs replan',
+          ),
+        );
+      }
+
+      // Check if we need more of this input
+      final currentCount = currentState.inventory.countOfItem(
+        currentState.registries.items.byId(inputItem),
+      );
+
+      if (currentCount < bufferTarget) {
+        // Check if the producer itself needs inputs (multi-tier chain)
+        // If so, ensure those are available first
+        final producerAction = currentState.registries.actions.byId(producerId);
+        if (producerAction is SkillAction && producerAction.inputs.isNotEmpty) {
+          // Producer needs inputs - ensure those are available first
+          // This handles multi-tier chains like Smithing (ore->bar->item)
+          for (final prodInput in producerAction.inputs.entries) {
+            final prodInputCount = currentState.inventory.countOfItem(
+              currentState.registries.items.byId(prodInput.key),
+            );
+            // Need enough to produce one batch at least
+            if (prodInputCount < prodInput.value) {
+              // Find the raw producer for this intermediate input
+              final rawProducerId = findProducerActionForItem(
+                currentState,
+                prodInput.key,
+                ReachSkillLevelGoal(macro.consumingSkill, 99),
+              );
+              if (rawProducerId != null) {
+                try {
+                  currentState = applyInteraction(
+                    currentState,
+                    SwitchActivity(rawProducerId),
+                  );
+                } on Exception catch (e) {
+                  // Cannot start raw producer - trigger replan
+                  return (
+                    state: currentState,
+                    ticksElapsed: totalTicks,
+                    deaths: totalDeaths,
+                    boundary: NoProgressPossible(
+                      reason:
+                          'Cannot start raw producer $rawProducerId: '
+                          '$e - needs replan',
+                    ),
+                  );
+                }
+                // Produce enough for multiple batches
+                final targetCount = prodInput.value * bufferTarget;
+                final produceResult = consumeUntil(
+                  currentState,
+                  WaitForInventoryAtLeast(prodInput.key, targetCount),
+                  random: random,
+                );
+                currentState = produceResult.state;
+                totalTicks += produceResult.ticksElapsed;
+                totalDeaths += produceResult.deathCount;
+
+                // Handle inventory full during raw production
+                if (produceResult.boundary is InventoryFull) {
+                  final recoveryResult = _attemptRecovery(
+                    currentState,
+                    const InventoryFull(),
+                    segmentSellPolicy,
+                    recoveryAttempts,
+                    macro.maxRecoveryAttempts,
+                  );
+                  if (recoveryResult.shouldReplan) {
+                    return (
+                      state: recoveryResult.state,
+                      ticksElapsed: totalTicks,
+                      deaths: totalDeaths,
+                      boundary: recoveryResult.boundary,
+                    );
+                  }
+                  currentState = recoveryResult.state;
+                  recoveryAttempts = recoveryResult.newAttemptCount;
+                }
+
+                // Check for material boundary after raw producing
+                if (watchSet != null) {
+                  final boundary = watchSet.detectBoundary(
+                    currentState,
+                    elapsedTicks: totalTicks,
+                  );
+                  if (boundary != null) {
+                    return (
+                      state: currentState,
+                      ticksElapsed: totalTicks,
+                      deaths: totalDeaths,
+                      boundary: segmentBoundaryToReplan(boundary),
+                    );
+                  }
+                }
+              }
+            }
+          }
+        }
+
+        // Switch to producer
+        try {
+          currentState = applyInteraction(
+            currentState,
+            SwitchActivity(producerId),
+          );
+        } on Exception catch (e) {
+          // Cannot start producer - missing inputs triggers replan
+          return (
+            state: currentState,
+            ticksElapsed: totalTicks,
+            deaths: totalDeaths,
+            boundary: NoProgressPossible(
+              reason: 'Cannot start producer $producerId: $e - needs replan',
+            ),
+          );
+        }
+
+        // Produce until buffer target
+        final produceResult = consumeUntil(
+          currentState,
+          WaitForInventoryAtLeast(inputItem, bufferTarget),
+          random: random,
+        );
+        currentState = produceResult.state;
+        totalTicks += produceResult.ticksElapsed;
+        totalDeaths += produceResult.deathCount;
+
+        // Handle inventory full during production
+        if (produceResult.boundary is InventoryFull) {
+          final recoveryResult = _attemptRecovery(
+            currentState,
+            const InventoryFull(),
+            segmentSellPolicy,
+            recoveryAttempts,
+            macro.maxRecoveryAttempts,
+          );
+          if (recoveryResult.shouldReplan) {
+            return (
+              state: recoveryResult.state,
+              ticksElapsed: totalTicks,
+              deaths: totalDeaths,
+              boundary: recoveryResult.boundary,
+            );
+          }
+          currentState = recoveryResult.state;
+          recoveryAttempts = recoveryResult.newAttemptCount;
+          continue; // Retry produce phase
+        }
+
+        // Check for material boundary after producing
+        if (watchSet != null) {
+          final boundary = watchSet.detectBoundary(
+            currentState,
+            elapsedTicks: totalTicks,
+          );
+          if (boundary != null) {
+            return (
+              state: currentState,
+              ticksElapsed: totalTicks,
+              deaths: totalDeaths,
+              boundary: segmentBoundaryToReplan(boundary),
+            );
+          }
+        }
+      }
+    }
+
+    // Check stop condition again after producing
+    if (actualWaitFor.isSatisfied(currentState)) {
+      break;
+    }
+
+    // === CONSUME PHASE ===
+    try {
+      currentState = applyInteraction(
+        currentState,
+        SwitchActivity(consumeActionId),
+      );
+    } on Exception catch (e) {
+      // Cannot start consuming action - trigger replan
+      return (
+        state: currentState,
+        ticksElapsed: totalTicks,
+        deaths: totalDeaths,
+        boundary: NoProgressPossible(
+          reason: 'Cannot start consuming action: $e - needs replan',
+        ),
+      );
+    }
+
+    final consumeResult = consumeUntil(
+      currentState,
+      WaitForAnyOf([actualWaitFor, WaitForInputsDepleted(consumeActionId)]),
+      random: random,
+    );
+    currentState = consumeResult.state;
+    totalTicks += consumeResult.ticksElapsed;
+    totalDeaths += consumeResult.deathCount;
+
+    // Handle inventory full during consumption
+    if (consumeResult.boundary is InventoryFull) {
+      final recoveryResult = _attemptRecovery(
+        currentState,
+        const InventoryFull(),
+        segmentSellPolicy,
+        recoveryAttempts,
+        macro.maxRecoveryAttempts,
+      );
+      if (recoveryResult.shouldReplan) {
+        return (
+          state: recoveryResult.state,
+          ticksElapsed: totalTicks,
+          deaths: totalDeaths,
+          boundary: recoveryResult.boundary,
+        );
+      }
+      currentState = recoveryResult.state;
+      recoveryAttempts = recoveryResult.newAttemptCount;
+      continue; // Retry cycle
+    }
+
+    // Check for material boundary after consuming
+    if (watchSet != null) {
+      final boundary = watchSet.detectBoundary(
+        currentState,
+        elapsedTicks: totalTicks,
+      );
+      if (boundary != null) {
+        return (
+          state: currentState,
+          ticksElapsed: totalTicks,
+          deaths: totalDeaths,
+          boundary: segmentBoundaryToReplan(boundary),
+        );
+      }
+    }
+
+    // If we hit the stop condition, we're done
+    if (actualWaitFor.isSatisfied(currentState)) {
+      break;
+    }
+
+    // Otherwise, loop back to produce more inputs
+    // (No hidden activity switches - next cycle handles production)
+  }
+
+  // Done - return final state without hidden post-loop switches
+  return (
+    state: currentState,
+    ticksElapsed: totalTicks,
+    deaths: totalDeaths,
+    boundary: const WaitConditionSatisfied(),
+  );
+}
+
+/// Result of a recovery attempt.
+typedef _RecoveryResult = ({
+  GlobalState state,
+  bool shouldReplan,
+  ReplanBoundary? boundary,
+  int newAttemptCount,
+});
+
+/// Attempts plan-authorized recovery for a boundary.
+///
+/// Only performs recoveries explicitly authorized by the plan:
+/// - InventoryFull: sell using segment's sell policy
+///
+/// Returns whether recovery succeeded and the new state.
+_RecoveryResult _attemptRecovery(
+  GlobalState state,
+  ReplanBoundary boundary,
+  SellPolicy? sellPolicy,
+  int currentAttempts,
+  int maxAttempts,
+) {
+  // Check recovery limit
+  if (currentAttempts >= maxAttempts) {
+    return (
+      state: state,
+      shouldReplan: true,
+      boundary: NoProgressPossible(
+        reason: 'Recovery limit ($maxAttempts) exceeded - triggering replan',
+      ),
+      newAttemptCount: currentAttempts,
+    );
+  }
+
+  // Handle InventoryFull: sell using plan-authorized policy
+  if (boundary is InventoryFull) {
+    if (sellPolicy == null) {
+      return (
+        state: state,
+        shouldReplan: true,
+        boundary: const NoProgressPossible(
+          reason: 'InventoryFull but no sell policy - triggering replan',
+        ),
+        newAttemptCount: currentAttempts + 1,
+      );
+    }
+
+    final sellableValue = effectiveCredits(state, sellPolicy) - state.gp;
+    if (sellableValue <= 0) {
+      return (
+        state: state,
+        shouldReplan: true,
+        boundary: const NoProgressPossible(
+          reason: 'InventoryFull with nothing to sell - triggering replan',
+        ),
+        newAttemptCount: currentAttempts + 1,
+      );
+    }
+
+    final newState = applyInteraction(state, SellItems(sellPolicy));
+    return (
+      state: newState,
+      shouldReplan: false,
+      boundary: null,
+      newAttemptCount: currentAttempts + 1,
+    );
+  }
+
+  // Other boundaries: trigger replan (executor shouldn't handle them)
+  return (
+    state: state,
+    shouldReplan: true,
+    boundary: boundary,
+    newAttemptCount: currentAttempts,
+  );
+}
+
+/// Legacy implementation for backward compatibility.
+///
+/// Used when macro doesn't have plan-specified execution details.
+/// This path uses runtime best-action search and should be deprecated.
+StepResult _executeCoupledLoopLegacy(
   GlobalState state,
   TrainConsumingSkillUntil macro,
   WaitFor waitFor,
@@ -135,12 +571,10 @@ StepResult executeCoupledLoop(
       }
     }
 
-    // Re-evaluate best actions each iteration as levels may have changed
-    final bestConsumeAction = findBestActionForSkill(
-      currentState,
-      macro.consumingSkill,
-      goal,
-    );
+    // Legacy: search for best action at runtime
+    final bestConsumeAction =
+        macro.actionId ??
+        findBestActionForSkill(currentState, macro.consumingSkill, goal);
     if (bestConsumeAction == null) {
       return (
         state: currentState,
@@ -162,13 +596,11 @@ StepResult executeCoupledLoop(
       );
     }
 
-    // Phase 1: Produce ALL inputs until we have a buffer of each.
-    // This handles multi-input actions like Bronze Bar (Copper + Tin).
-    // For multi-tier chains (e.g., Bronze Dagger needs Bronze Bar which needs
-    // ores), we recursively ensure the producer's inputs are available first.
+    // Legacy: hardcoded buffer target
     const bufferTarget = 10;
     for (final inputEntry in consumeAction.inputs.entries) {
       final inputItem = inputEntry.key;
+      // Legacy: runtime producer search
       final producerId = findProducerActionForItem(
         currentState,
         inputItem,
@@ -189,58 +621,6 @@ StepResult executeCoupledLoop(
         currentState.registries.items.byId(inputItem),
       );
       if (currentCount < bufferTarget) {
-        // Check if the producer itself needs inputs (multi-tier chain)
-        final producerAction = currentState.registries.actions.byId(producerId);
-        if (producerAction is SkillAction && producerAction.inputs.isNotEmpty) {
-          // Producer needs inputs - ensure those are available first
-          for (final prodInput in producerAction.inputs.entries) {
-            final prodInputCount = currentState.inventory.countOfItem(
-              currentState.registries.items.byId(prodInput.key),
-            );
-            // Need enough to produce one batch at least
-            if (prodInputCount < prodInput.value) {
-              // Find the raw producer for this intermediate input
-              final rawProducerId = findProducerActionForItem(
-                currentState,
-                prodInput.key,
-                goal,
-              );
-              if (rawProducerId != null) {
-                currentState = applyInteraction(
-                  currentState,
-                  SwitchActivity(rawProducerId),
-                );
-                // Produce enough for multiple batches
-                final targetCount = prodInput.value * bufferTarget;
-                final produceResult = consumeUntil(
-                  currentState,
-                  WaitForInventoryAtLeast(prodInput.key, targetCount),
-                  random: random,
-                );
-                currentState = produceResult.state;
-                totalTicks += produceResult.ticksElapsed;
-                totalDeaths += produceResult.deathCount;
-
-                // Check for material boundary after producing
-                if (watchSet != null) {
-                  final boundary = watchSet.detectBoundary(
-                    currentState,
-                    elapsedTicks: totalTicks,
-                  );
-                  if (boundary != null) {
-                    return (
-                      state: currentState,
-                      ticksElapsed: totalTicks,
-                      deaths: totalDeaths,
-                      boundary: segmentBoundaryToReplan(boundary),
-                    );
-                  }
-                }
-              }
-            }
-          }
-        }
-
         currentState = applyInteraction(
           currentState,
           SwitchActivity(producerId),
@@ -327,75 +707,6 @@ StepResult executeCoupledLoop(
     }
 
     // Otherwise, loop back to produce more inputs
-  }
-
-  // After the loop, switch to a producer action so subsequent steps can
-  // produce items.
-  final finalBestConsume = findBestActionForSkill(
-    currentState,
-    macro.consumingSkill,
-    goal,
-  );
-  if (finalBestConsume != null) {
-    final finalConsumeAction = currentState.registries.actions.byId(
-      finalBestConsume,
-    );
-    if (finalConsumeAction is SkillAction &&
-        finalConsumeAction.inputs.isNotEmpty) {
-      // Find a producer we can actually start
-      ActionId? targetProducer;
-      var itemToCheck = finalConsumeAction.inputs.keys.first;
-
-      // Walk up the production chain to find a feasible producer
-      for (var depth = 0; depth < 5; depth++) {
-        final producer = findProducerActionForItem(
-          currentState,
-          itemToCheck,
-          goal,
-        );
-        if (producer == null) break;
-
-        final producerAction = currentState.registries.actions.byId(producer);
-        if (producerAction is! SkillAction) {
-          targetProducer = producer;
-          break;
-        }
-
-        // Check if this producer has all its inputs
-        var hasAllInputs = true;
-        MelvorId? missingInput;
-        for (final input in producerAction.inputs.entries) {
-          final count = currentState.inventory.countOfItem(
-            currentState.registries.items.byId(input.key),
-          );
-          if (count < input.value) {
-            hasAllInputs = false;
-            missingInput = input.key;
-            break;
-          }
-        }
-
-        if (hasAllInputs || producerAction.inputs.isEmpty) {
-          targetProducer = producer;
-          break;
-        }
-
-        // Producer needs inputs, try to produce those instead
-        if (missingInput != null) {
-          itemToCheck = missingInput;
-        } else {
-          break;
-        }
-      }
-
-      if (targetProducer != null &&
-          currentState.activeAction?.id != targetProducer) {
-        currentState = applyInteraction(
-          currentState,
-          SwitchActivity(targetProducer),
-        );
-      }
-    }
   }
 
   return (
@@ -594,6 +905,7 @@ StepResult applyStep(
           boundaries,
           random,
           watchSet: watchSet,
+          segmentSellPolicy: segmentSellPolicy,
         );
       } else if (macro is AcquireItem) {
         // Execute AcquireItem by finding producer and running until target

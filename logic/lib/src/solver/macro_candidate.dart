@@ -8,7 +8,8 @@ import 'package:logic/src/data/action_id.dart';
 import 'package:logic/src/data/actions.dart';
 import 'package:logic/src/data/melvor_id.dart';
 import 'package:logic/src/data/xp.dart';
-import 'package:logic/src/solver/interaction.dart' show SellAllPolicy;
+import 'package:logic/src/solver/interaction.dart'
+    show SellAllPolicy, SellPolicySpec;
 import 'package:logic/src/solver/unlock_boundaries.dart';
 import 'package:logic/src/solver/wait_for.dart';
 import 'package:logic/src/state.dart';
@@ -205,15 +206,90 @@ class EnsureStock extends MacroCandidate {
 ///
 /// This models the sustainable rate:
 ///   consumingXP/tick = (consumeRate * produceTime) / (produceTime + consumeTime)
+///
+/// ## New contract (plan-authorized execution)
+///
+/// The planner sets these fields to fully specify execution behavior:
+/// - [consumeActionId]: the fixed consuming action (no runtime search)
+/// - [producerByInputItem]: immediate producers for each consume input
+/// - [bufferTarget]: quantized batch size chosen by solver
+/// - [sellPolicySpec]: how to handle inventory pressure during execution
+/// - [maxRecoveryAttempts]: guardrail for recovery loops
+///
+/// The executor adapts to randomness only by:
+/// - Running until WaitFor triggers
+/// - Performing explicitly authorized recovery actions (sell/bank/heal)
+/// - Triggering a bounded replan using the same solver
 class TrainConsumingSkillUntil extends MacroCandidate {
   const TrainConsumingSkillUntil(
     this.consumingSkill,
     this.primaryStop, {
     this.watchedStops = const [],
+    this.actionId,
+    this.consumeActionId,
+    this.producerByInputItem,
+    this.bufferTarget,
+    this.sellPolicySpec,
+    this.maxRecoveryAttempts = 3,
     super.provenance,
   });
 
   final Skill consumingSkill;
+
+  /// The specific consuming action to use. If null, the best action will be
+  /// computed at execution time (but this may cause inconsistency if
+  /// different actions become optimal mid-execution due to level-ups).
+  ///
+  /// @deprecated Use [consumeActionId] instead. This field exists for backward
+  /// compatibility during the transition period.
+  final ActionId? actionId;
+
+  /// The fixed consuming action ID chosen during planning.
+  ///
+  /// When set, the executor uses this action without any runtime best-action
+  /// search. This ensures deterministic execution and prevents strategy drift.
+  ///
+  /// If null, falls back to legacy behavior using [actionId] or runtime search.
+  final ActionId? consumeActionId;
+
+  /// Maps each input item to its immediate producer action.
+  ///
+  /// Example for Bronze Bar:
+  /// ```dart
+  /// {
+  ///   MelvorId('melvorD:Copper_Ore'): ActionId(Skill.mining, 'Copper_Rocks'),
+  ///   MelvorId('melvorD:Tin_Ore'): ActionId(Skill.mining, 'Tin_Rocks'),
+  /// }
+  /// ```
+  ///
+  /// The executor switches to these producers in order when inputs are needed.
+  /// If null, falls back to legacy behavior (runtime producer lookup).
+  final Map<MelvorId, ActionId>? producerByInputItem;
+
+  /// The buffer threshold chosen by the solver during planning.
+  ///
+  /// During the produce phase, the executor gathers inputs until each reaches
+  /// this count before switching to the consume phase.
+  ///
+  /// If null, falls back to legacy hardcoded value (10).
+  final int? bufferTarget;
+
+  /// The sell policy specification for handling inventory pressure.
+  ///
+  /// When inventory fills during execution, the executor uses this policy
+  /// to determine which items to sell. This removes guesswork from the
+  /// executor - the planner has already decided the sell strategy.
+  ///
+  /// If null, executor must get the policy from segment context or fail.
+  final SellPolicySpec? sellPolicySpec;
+
+  /// Maximum recovery attempts before triggering a replan.
+  ///
+  /// Guards against infinite recovery loops. If recovery fails this many
+  /// times without meaningful progress, the executor triggers a replan.
+  ///
+  /// Default: 3
+  final int maxRecoveryAttempts;
 
   /// Primary stop condition (usually boundary or goal).
   final MacroStopRule primaryStop;
@@ -223,6 +299,31 @@ class TrainConsumingSkillUntil extends MacroCandidate {
 
   /// All stop conditions (primary + watched).
   List<MacroStopRule> get allStops => [primaryStop, ...watchedStops];
+
+  /// Creates a copy with updated fields.
+  ///
+  /// Used by the solver to fill in execution details after initial creation.
+  TrainConsumingSkillUntil copyWith({
+    ActionId? consumeActionId,
+    Map<MelvorId, ActionId>? producerByInputItem,
+    int? bufferTarget,
+    SellPolicySpec? sellPolicySpec,
+    int? maxRecoveryAttempts,
+    List<MacroStopRule>? watchedStops,
+  }) {
+    return TrainConsumingSkillUntil(
+      consumingSkill,
+      primaryStop,
+      watchedStops: watchedStops ?? this.watchedStops,
+      actionId: actionId,
+      consumeActionId: consumeActionId ?? this.consumeActionId,
+      producerByInputItem: producerByInputItem ?? this.producerByInputItem,
+      bufferTarget: bufferTarget ?? this.bufferTarget,
+      sellPolicySpec: sellPolicySpec ?? this.sellPolicySpec,
+      maxRecoveryAttempts: maxRecoveryAttempts ?? this.maxRecoveryAttempts,
+      provenance: provenance,
+    );
+  }
 }
 
 /// Stop conditions for macro training.

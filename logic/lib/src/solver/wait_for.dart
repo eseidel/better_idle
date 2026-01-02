@@ -43,8 +43,27 @@ sealed class WaitFor extends Equatable {
 
   /// Estimates ticks to satisfy this condition given current rates.
   ///
-  /// Returns [infTicks] if the condition cannot be reached with current rates.
-  /// Returns 0 if the condition is already satisfied.
+  /// ## Return value semantics
+  ///
+  /// - **0 with [isSatisfied] true**: Condition already met, no waiting needed.
+  /// - **0 with [isSatisfied] false**: "Immediate boundary" - execution would
+  ///   terminate immediately due to a blocking condition (e.g., inventory full,
+  ///   action can't run). The solver should treat this as a replanning signal,
+  ///   not a successful wait. This allows the solver to insert sell/bank/batch
+  ///   interactions before continuing.
+  /// - **Positive value**: Estimated ticks until condition is satisfied.
+  /// - **[infTicks]**: Condition cannot be reached with current rates (e.g.,
+  ///   no production of required item). Unlike 0, this means "truly impossible"
+  ///   rather than "blocked by a boundary we could resolve."
+  ///
+  /// ## Implementation notes
+  ///
+  /// Subclasses that track inventory items should check for immediate
+  /// boundaries before computing the normal estimate:
+  /// 1. If `state.activeAction` exists but `!state.canStartAction(action)`,
+  ///    return 0 (action can't make progress).
+  /// 2. If `state.inventoryRemaining <= 0`, return 0 (inventory full).
+  /// 3. If `rates.itemTypesPerTick > 0`, cap by time to inventory full.
   int estimateTicks(GlobalState state, Rates rates);
 
   /// Human-readable description of what we're waiting for (with values).
@@ -483,10 +502,43 @@ class WaitForInventoryAtLeast extends WaitFor {
     final needed = minCount - currentCount;
     if (needed <= 0) return 0;
 
+    // Step 1: Check if the current action can run. If not, executor will
+    // terminate immediately with NoProgressPossible/ActionUnavailable.
+    final active = state.activeAction;
+    if (active != null) {
+      final action = state.registries.actions.byId(active.id);
+      if (!state.canStartAction(action)) {
+        return 0; // Immediate stop - can't make progress
+      }
+    }
+
+    // Step 2: Check if inventory is full. If no free slots, we'll hit
+    // InventoryFull immediately when trying to produce new item types.
+    final freeSlots = state.inventoryRemaining;
+    if (freeSlots <= 0) {
+      return 0; // Immediate stop - inventory full
+    }
+
+    // Step 3: Normal EV estimate to reach target count.
     final productionRate = rates.itemFlowsPerTick[itemId] ?? 0.0;
     if (productionRate <= 0) return infTicks;
 
-    return (needed / productionRate).ceil();
+    final ticksToTarget = (needed / productionRate).ceil();
+
+    // Step 4: Cap by predicted time to inventory full (if producing new types).
+    // If the action produces new item types, we may fill inventory before
+    // reaching the target count.
+    final typesPerTick = rates.itemTypesPerTick;
+    if (typesPerTick > 0) {
+      final ticksToFull = (freeSlots / typesPerTick).floor();
+      // Return the minimum: either we hit target or inventory fills first.
+      if (ticksToFull < ticksToTarget) {
+        // Cap at ticksToFull, but ensure we return at least 0.
+        return ticksToFull.clamp(0, infTicks);
+      }
+    }
+
+    return ticksToTarget;
   }
 
   @override
@@ -562,10 +614,43 @@ class WaitForInventoryDelta extends WaitFor {
     final needed = targetCount - currentCount;
     if (needed <= 0) return 0;
 
+    // Step 1: Check if the current action can run. If not, executor will
+    // terminate immediately with NoProgressPossible/ActionUnavailable.
+    final active = state.activeAction;
+    if (active != null) {
+      final action = state.registries.actions.byId(active.id);
+      if (!state.canStartAction(action)) {
+        return 0; // Immediate stop - can't make progress
+      }
+    }
+
+    // Step 2: Check if inventory is full. If no free slots, we'll hit
+    // InventoryFull immediately when trying to produce new item types.
+    final freeSlots = state.inventoryRemaining;
+    if (freeSlots <= 0) {
+      return 0; // Immediate stop - inventory full
+    }
+
+    // Step 3: Normal EV estimate to reach target count.
     final productionRate = rates.itemFlowsPerTick[itemId] ?? 0.0;
     if (productionRate <= 0) return infTicks;
 
-    return (needed / productionRate).ceil();
+    final ticksToTarget = (needed / productionRate).ceil();
+
+    // Step 4: Cap by predicted time to inventory full (if producing new types).
+    // If the action produces new item types, we may fill inventory before
+    // reaching the target count.
+    final typesPerTick = rates.itemTypesPerTick;
+    if (typesPerTick > 0) {
+      final ticksToFull = (freeSlots / typesPerTick).floor();
+      // Return the minimum: either we hit target or inventory fills first.
+      if (ticksToFull < ticksToTarget) {
+        // Cap at ticksToFull, but ensure we return at least 0.
+        return ticksToFull.clamp(0, infTicks);
+      }
+    }
+
+    return ticksToTarget;
   }
 
   @override
@@ -641,6 +726,23 @@ class WaitForSufficientInputs extends WaitFor {
     final action = state.registries.actions.byId(actionId);
     if (action is! SkillAction) return infTicks;
 
+    // Step 1: Check if the current action can run. If not, executor will
+    // terminate immediately with NoProgressPossible/ActionUnavailable.
+    final active = state.activeAction;
+    if (active != null) {
+      final activeAction = state.registries.actions.byId(active.id);
+      if (!state.canStartAction(activeAction)) {
+        return 0; // Immediate stop - can't make progress
+      }
+    }
+
+    // Step 2: Check if inventory is full. If no free slots, we'll hit
+    // InventoryFull immediately when trying to produce new item types.
+    final freeSlots = state.inventoryRemaining;
+    if (freeSlots <= 0) {
+      return 0; // Immediate stop - inventory full
+    }
+
     final actionStateVal = state.actionState(action.id);
     final selection = actionStateVal.recipeSelection(action);
     final inputs = action.inputsForRecipe(selection);
@@ -663,6 +765,15 @@ class WaitForSufficientInputs extends WaitFor {
 
       final ticks = (needed / productionRate).ceil();
       if (ticks > maxTicks) maxTicks = ticks;
+    }
+
+    // Step 3: Cap by predicted time to inventory full (if producing new types).
+    final typesPerTick = rates.itemTypesPerTick;
+    if (typesPerTick > 0 && maxTicks > 0) {
+      final ticksToFull = (freeSlots / typesPerTick).floor();
+      if (ticksToFull < maxTicks) {
+        return ticksToFull.clamp(0, infTicks);
+      }
     }
 
     return maxTicks;

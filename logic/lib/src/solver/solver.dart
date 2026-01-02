@@ -2634,13 +2634,53 @@ MacroExpansionOutcome _expandTrainConsumingSkillUntil(
     ),
   );
 
+  // Build producerByInputItem map for deterministic execution.
+  // Include all producers, even multi-tier (consuming) ones.
+  // For multi-tier chains (e.g., Smithing needs Bronze Bars from Smelting),
+  // the planner should have already added EnsureStock prereqs for the
+  // intermediate inputs. If the producer can't start due to missing inputs,
+  // the executor will detect this and trigger a replan.
+  final producerByInputItem = <MelvorId, ActionId>{};
+  for (final inputEntry in consumeAction_.inputs.entries) {
+    final inputItemId = inputEntry.key;
+    final producer = _findProducerActionForItem(state, inputItemId, goal);
+    if (producer != null) {
+      producerByInputItem[inputItemId] = producer;
+    }
+  }
+
+  // Calculate buffer target using quantization
+  // Use the first input's requirements to determine batch size
+  final bufferTarget = _quantizeStockTarget(
+    state,
+    10, // Base buffer size, will be adjusted by quantization
+    consumeAction_,
+  );
+
+  // Determine sell policy spec from goal
+  final sellPolicySpec = goal.isSellRelevant
+      ? const SellAllSpec()
+      : const ReserveConsumingInputsSpec();
+
+  // Create enriched macro with all execution details
+  final enrichedMacro = TrainConsumingSkillUntil(
+    macro.consumingSkill,
+    macro.primaryStop,
+    watchedStops: macro.watchedStops,
+    actionId: bestConsumeAction,
+    consumeActionId: bestConsumeAction,
+    producerByInputItem: producerByInputItem,
+    bufferTarget: bufferTarget,
+    sellPolicySpec: sellPolicySpec,
+  );
+
   return MacroExpanded((
     state: projectedState,
     ticksElapsed: ticksUntilStop,
     waitFor: waitFor,
     deaths: 0, // No combat deaths in firemaking/woodcutting
     triggeringCondition: waitFor.shortDescription,
-    macro: macro, // Consuming macros don't need action enrichment
+    macro: enrichedMacro,
   ));
 }
 
