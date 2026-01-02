@@ -88,23 +88,28 @@ ReplanBoundary segmentBoundaryToReplan(SegmentBoundary boundary) {
 
 /// Executes a coupled produce/consume loop for consuming skills.
 ///
-/// ## New Contract (Plan-Authorized Execution)
+/// ## Strict Plan-Authorized Execution
+///
+/// The macro MUST be fully specified by the solver. Missing fields trigger
+/// immediate failure (NoProgressPossible) rather than legacy fallbacks.
+/// Required fields: consumeActionId, producerByInputItem, bufferTarget.
 ///
 /// The executor adapts to randomness only by:
 /// 1. Running until WaitFor triggers
-/// 2. Performing explicitly authorized recovery actions (sell via policy)
-/// 3. Triggering a bounded replan using the same solver
+/// 2. Performing explicitly authorized recovery actions (sell via policy ONLY)
+/// 3. Triggering a bounded replan for everything else
 ///
 /// The executor does NOT:
-/// - Search for best actions at runtime
-/// - Recursively plan producer chains
+/// - Search for best actions at runtime (fail-fast if not specified)
+/// - Recursively plan producer chains (must be in plan)
 /// - Make hidden activity switches after the loop
+/// - Handle non-policy recovery (banking, healing, etc.)
 ///
 /// All strategy decisions are made by the planner and encoded in:
-/// - [macro.consumeActionId]: fixed consuming action
-/// - [macro.producerByInputItem]: pre-resolved producers for each input
-/// - [macro.bufferTarget]: quantized batch size
-/// - [macro.sellPolicySpec]: how to handle inventory pressure
+/// - `consumeActionId`: fixed consuming action (REQUIRED)
+/// - `producerByInputItem`: pre-resolved producers (REQUIRED)
+/// - `bufferTarget`: quantized batch size (REQUIRED)
+/// - `sellPolicySpec`: how to handle inventory pressure
 StepResult executeCoupledLoop(
   GlobalState state,
   TrainConsumingSkillUntil macro,
@@ -119,18 +124,19 @@ StepResult executeCoupledLoop(
   var totalDeaths = 0;
   var recoveryAttempts = 0;
 
-  // Use plan-specified action, fallback to legacy for backward compatibility
+  // Require plan-specified action - no legacy fallback
   final consumeActionId = macro.consumeActionId ?? macro.actionId;
   if (consumeActionId == null) {
-    // Legacy path: macro was created without execution details
-    // Fall back to runtime search (deprecated behavior)
-    return _executeCoupledLoopLegacy(
-      state,
-      macro,
-      waitFor,
-      boundaries,
-      random,
-      watchSet: watchSet,
+    // Macro was created without execution details - this is a solver bug
+    return (
+      state: state,
+      ticksElapsed: 0,
+      deaths: 0,
+      boundary: const NoProgressPossible(
+        reason:
+            'TrainConsumingSkillUntil macro missing consumeActionId - '
+            'solver must fully specify macro',
+      ),
     );
   }
 
@@ -144,11 +150,35 @@ StepResult executeCoupledLoop(
     );
   }
 
-  // Use plan-specified buffer target, fallback to legacy default
-  final bufferTarget = macro.bufferTarget ?? 10;
+  // Require plan-specified buffer target - no fallback
+  final bufferTarget = macro.bufferTarget;
+  if (bufferTarget == null) {
+    return (
+      state: state,
+      ticksElapsed: 0,
+      deaths: 0,
+      boundary: const NoProgressPossible(
+        reason:
+            'TrainConsumingSkillUntil macro missing bufferTarget - '
+            'solver must fully specify macro',
+      ),
+    );
+  }
 
-  // Use plan-specified producers, fallback to empty (will trigger replan)
-  final producerByInputItem = macro.producerByInputItem ?? {};
+  // Require plan-specified producers - no fallback
+  final producerByInputItem = macro.producerByInputItem;
+  if (producerByInputItem == null) {
+    return (
+      state: state,
+      ticksElapsed: 0,
+      deaths: 0,
+      boundary: const NoProgressPossible(
+        reason:
+            'TrainConsumingSkillUntil macro missing producerByInputItem - '
+            'solver must fully specify macro',
+      ),
+    );
+  }
 
   // Regenerate actual wait condition from primary stop
   final actualWaitFor = boundaries != null
@@ -459,8 +489,12 @@ typedef _RecoveryResult = ({
 
 /// Attempts plan-authorized recovery for a boundary.
 ///
-/// Only performs recoveries explicitly authorized by the plan:
-/// - InventoryFull: sell using segment's sell policy
+/// Recovery is strictly limited to policy-driven actions:
+/// - InventoryFull: sell using segment's sell policy (the ONLY recovery action)
+///
+/// All other boundaries trigger a replan. The executor never makes autonomous
+/// decisions about banking, healing, or other state changes - those must be
+/// explicitly planned.
 ///
 /// Returns whether recovery succeeded and the new state.
 _RecoveryResult _attemptRecovery(
@@ -522,198 +556,6 @@ _RecoveryResult _attemptRecovery(
     shouldReplan: true,
     boundary: boundary,
     newAttemptCount: currentAttempts,
-  );
-}
-
-/// Legacy implementation for backward compatibility.
-///
-/// Used when macro doesn't have plan-specified execution details.
-/// This path uses runtime best-action search and should be deprecated.
-StepResult _executeCoupledLoopLegacy(
-  GlobalState state,
-  TrainConsumingSkillUntil macro,
-  WaitFor waitFor,
-  Map<Skill, SkillBoundaries>? boundaries,
-  Random random, {
-  WatchSet? watchSet,
-}) {
-  var currentState = state;
-  var totalTicks = 0;
-  var totalDeaths = 0;
-
-  final goal = ReachSkillLevelGoal(macro.consumingSkill, 99);
-
-  // Regenerate actual wait condition from primary stop
-  final actualWaitFor = boundaries != null
-      ? macro.primaryStop.toWaitFor(currentState, boundaries)
-      : waitFor;
-
-  // Execute coupled loop
-  while (true) {
-    // Check if primary stop condition is met
-    if (actualWaitFor.isSatisfied(currentState)) {
-      break;
-    }
-
-    // Check for material boundary (mid-macro stopping)
-    if (watchSet != null) {
-      final boundary = watchSet.detectBoundary(
-        currentState,
-        elapsedTicks: totalTicks,
-      );
-      if (boundary != null) {
-        return (
-          state: currentState,
-          ticksElapsed: totalTicks,
-          deaths: totalDeaths,
-          boundary: segmentBoundaryToReplan(boundary),
-        );
-      }
-    }
-
-    // Legacy: search for best action at runtime
-    final bestConsumeAction =
-        macro.actionId ??
-        findBestActionForSkill(currentState, macro.consumingSkill, goal);
-    if (bestConsumeAction == null) {
-      return (
-        state: currentState,
-        ticksElapsed: totalTicks,
-        deaths: totalDeaths,
-        boundary: const NoProgressPossible(reason: 'No consuming action found'),
-      );
-    }
-
-    final consumeAction = currentState.registries.actions.byId(
-      bestConsumeAction,
-    );
-    if (consumeAction is! SkillAction || consumeAction.inputs.isEmpty) {
-      return (
-        state: currentState,
-        ticksElapsed: totalTicks,
-        deaths: totalDeaths,
-        boundary: const NoProgressPossible(reason: 'Action has no inputs'),
-      );
-    }
-
-    // Legacy: hardcoded buffer target
-    const bufferTarget = 10;
-    for (final inputEntry in consumeAction.inputs.entries) {
-      final inputItem = inputEntry.key;
-      // Legacy: runtime producer search
-      final producerId = findProducerActionForItem(
-        currentState,
-        inputItem,
-        goal,
-      );
-      if (producerId == null) {
-        return (
-          state: currentState,
-          ticksElapsed: totalTicks,
-          deaths: totalDeaths,
-          boundary: NoProgressPossible(
-            reason: 'No producer action found for $inputItem',
-          ),
-        );
-      }
-
-      final currentCount = currentState.inventory.countOfItem(
-        currentState.registries.items.byId(inputItem),
-      );
-      if (currentCount < bufferTarget) {
-        currentState = applyInteraction(
-          currentState,
-          SwitchActivity(producerId),
-        );
-
-        final produceResult = consumeUntil(
-          currentState,
-          WaitForInventoryAtLeast(inputItem, bufferTarget),
-          random: random,
-        );
-        currentState = produceResult.state;
-        totalTicks += produceResult.ticksElapsed;
-        totalDeaths += produceResult.deathCount;
-
-        // Check for material boundary after producing
-        if (watchSet != null) {
-          final boundary = watchSet.detectBoundary(
-            currentState,
-            elapsedTicks: totalTicks,
-          );
-          if (boundary != null) {
-            return (
-              state: currentState,
-              ticksElapsed: totalTicks,
-              deaths: totalDeaths,
-              boundary: segmentBoundaryToReplan(boundary),
-            );
-          }
-        }
-      }
-    }
-
-    // Check stop condition again after producing
-    if (actualWaitFor.isSatisfied(currentState)) {
-      break;
-    }
-
-    // Phase 2: Consume inputs until depleted or stop condition
-    try {
-      currentState = applyInteraction(
-        currentState,
-        SwitchActivity(bestConsumeAction),
-      );
-    } on Exception catch (e) {
-      // Cannot start consuming action (missing inputs)
-      return (
-        state: currentState,
-        ticksElapsed: totalTicks,
-        deaths: totalDeaths,
-        boundary: NoProgressPossible(
-          reason: 'Cannot start consuming action: $e',
-        ),
-      );
-    }
-
-    final consumeResult = consumeUntil(
-      currentState,
-      WaitForAnyOf([actualWaitFor, WaitForInputsDepleted(bestConsumeAction)]),
-      random: random,
-    );
-    currentState = consumeResult.state;
-    totalTicks += consumeResult.ticksElapsed;
-    totalDeaths += consumeResult.deathCount;
-
-    // Check for material boundary after consuming
-    if (watchSet != null) {
-      final boundary = watchSet.detectBoundary(
-        currentState,
-        elapsedTicks: totalTicks,
-      );
-      if (boundary != null) {
-        return (
-          state: currentState,
-          ticksElapsed: totalTicks,
-          deaths: totalDeaths,
-          boundary: segmentBoundaryToReplan(boundary),
-        );
-      }
-    }
-
-    // If we hit the stop condition, we're done
-    if (actualWaitFor.isSatisfied(currentState)) {
-      break;
-    }
-
-    // Otherwise, loop back to produce more inputs
-  }
-
-  return (
-    state: currentState,
-    ticksElapsed: totalTicks,
-    deaths: totalDeaths,
-    boundary: const WaitConditionSatisfied(),
   );
 }
 

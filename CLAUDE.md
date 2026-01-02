@@ -85,3 +85,5 @@ Run `dart format .` and `dart fix --apply .` upon completion of edits.
 NEVER use cat << EOF for writing content or generating reports; only use the specific Edit or Write tools to modify files"
 
 Always create tools within the `tool` directory of the Dart project so that they can access package: imports.
+
+Never support legacy paths, or legacy file formats unless explicitly requested.
