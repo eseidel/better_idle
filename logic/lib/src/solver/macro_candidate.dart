@@ -129,6 +129,12 @@ sealed class MacroCandidate {
   /// Why this macro was created (for debugging/explanation).
   final MacroProvenance? provenance;
 
+  /// Unique key for deduplication purposes.
+  ///
+  /// Two macros with the same key are considered equivalent for planning,
+  /// allowing the solver to eliminate duplicates.
+  String get dedupeKey;
+
   /// Expands this macro into concrete execution steps.
   ///
   /// Returns [MacroExpanded] on success, [MacroAlreadySatisfied] if no work
@@ -154,6 +160,9 @@ class TrainSkillUntil extends MacroCandidate {
   /// be computed at execution time (but this may cause inconsistency with
   /// subsequent WaitSteps that expect a specific action's mastery).
   final ActionId? actionId;
+
+  @override
+  String get dedupeKey => 'train:${skill.name}:${primaryStop.hashCode}';
 
   /// Primary stop condition (usually boundary or goal).
   final MacroStopRule primaryStop;
@@ -265,6 +274,9 @@ class AcquireItem extends MacroCandidate {
 
   /// How many to acquire.
   final int quantity;
+
+  @override
+  String get dedupeKey => 'acquire:${itemId.localId}:$quantity';
 
   @override
   MacroExpansionOutcome expand(MacroExpansionContext context) {
@@ -385,6 +397,9 @@ class EnsureStock extends MacroCandidate {
 
   /// The minimum total count required in inventory.
   final int minTotal;
+
+  @override
+  String get dedupeKey => 'ensure:${itemId.localId}:$minTotal';
 
   @override
   MacroExpansionOutcome expand(MacroExpansionContext context) {
@@ -636,6 +651,10 @@ class TrainConsumingSkillUntil extends MacroCandidate {
 
   /// Primary stop condition (usually boundary or goal).
   final MacroStopRule primaryStop;
+
+  @override
+  String get dedupeKey =>
+      'trainConsuming:${consumingSkill.name}:${primaryStop.hashCode}';
 
   /// Additional stop conditions to watch (upgrades, etc.).
   final List<MacroStopRule> watchedStops;
