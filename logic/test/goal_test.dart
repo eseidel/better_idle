@@ -1,3 +1,5 @@
+import 'dart:math';
+
 import 'package:logic/logic.dart';
 import 'package:logic/src/solver/enumerate_candidates.dart';
 import 'package:logic/src/solver/goal.dart';
@@ -162,7 +164,7 @@ void main() {
       );
 
       const goal = ReachSkillLevelGoal(Skill.woodcutting, 10);
-      final result = solve(state, goal);
+      final result = solve(state, goal, random: Random(42));
 
       expect(result, isA<SolverSuccess>());
       final success = result as SolverSuccess;
@@ -174,7 +176,7 @@ void main() {
 
       // Goal: reach woodcutting level 2 (requires 83 XP)
       const goal = ReachSkillLevelGoal(Skill.woodcutting, 2);
-      final result = solve(state, goal);
+      final result = solve(state, goal, random: Random(42));
 
       expect(result, isA<SolverSuccess>());
       final success = result as SolverSuccess;
@@ -413,7 +415,7 @@ void main() {
         Skill.woodcutting: 5,
         Skill.firemaking: 5,
       });
-      final result = solve(state, goal);
+      final result = solve(state, goal, random: Random(42));
 
       expect(result, isA<SolverSuccess>());
       final success = result as SolverSuccess;
@@ -428,7 +430,7 @@ void main() {
         Skill.woodcutting: 2,
         Skill.firemaking: 2,
       });
-      final result = solve(state, goal);
+      final result = solve(state, goal, random: Random(42));
 
       expect(result, isA<SolverSuccess>());
       final success = result as SolverSuccess;

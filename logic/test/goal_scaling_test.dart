@@ -9,6 +9,8 @@
 @Tags(['slow'])
 library;
 
+import 'dart:math';
+
 import 'package:logic/logic.dart';
 import 'package:logic/src/solver/goal.dart';
 import 'package:logic/src/solver/interaction.dart';
@@ -31,7 +33,12 @@ void main() {
         ReachSkillLevelGoal(Skill.fishing, 99),
       ]);
 
-      final result = solve(state, goal, collectDiagnostics: true);
+      final result = solve(
+        state,
+        goal,
+        random: Random(42),
+        collectDiagnostics: true,
+      );
 
       expect(result, isA<SolverSuccess>());
       final success = result as SolverSuccess;
@@ -59,7 +66,12 @@ void main() {
       final state = GlobalState.empty(testRegistries);
       const goal = ReachSkillLevelGoal(Skill.woodcutting, 99);
 
-      final result = solve(state, goal, collectDiagnostics: true);
+      final result = solve(
+        state,
+        goal,
+        random: Random(42),
+        collectDiagnostics: true,
+      );
 
       expect(result, isA<SolverSuccess>());
       final success = result as SolverSuccess;
@@ -81,7 +93,12 @@ void main() {
         ReachSkillLevelGoal(Skill.mining, 50),
       ]);
 
-      final result = solve(state, goal, collectDiagnostics: true);
+      final result = solve(
+        state,
+        goal,
+        random: Random(42),
+        collectDiagnostics: true,
+      );
 
       expect(result, isA<SolverSuccess>());
       final success = result as SolverSuccess;
@@ -104,7 +121,12 @@ void main() {
         ReachSkillLevelGoal(Skill.thieving, 30),
       ]);
 
-      final result = solve(state, goal, collectDiagnostics: true);
+      final result = solve(
+        state,
+        goal,
+        random: Random(42),
+        collectDiagnostics: true,
+      );
 
       expect(result, isA<SolverSuccess>());
       final success = result as SolverSuccess;
@@ -124,7 +146,12 @@ void main() {
       final state = GlobalState.empty(testRegistries);
       const goal = ReachSkillLevelGoal(Skill.firemaking, 50);
 
-      final result = solve(state, goal, collectDiagnostics: true);
+      final result = solve(
+        state,
+        goal,
+        random: Random(42),
+        collectDiagnostics: true,
+      );
 
       expect(result, isA<SolverSuccess>());
       final success = result as SolverSuccess;
@@ -145,7 +172,12 @@ void main() {
       final state = GlobalState.empty(testRegistries);
       const goal = ReachSkillLevelGoal(Skill.cooking, 50);
 
-      final result = solve(state, goal, collectDiagnostics: true);
+      final result = solve(
+        state,
+        goal,
+        random: Random(42),
+        collectDiagnostics: true,
+      );
 
       expect(result, isA<SolverSuccess>());
       final success = result as SolverSuccess;
@@ -165,7 +197,12 @@ void main() {
         ReachSkillLevelGoal(Skill.firemaking, 50),
       ]);
 
-      final result = solve(state, goal, collectDiagnostics: true);
+      final result = solve(
+        state,
+        goal,
+        random: Random(42),
+        collectDiagnostics: true,
+      );
 
       expect(result, isA<SolverSuccess>());
       final success = result as SolverSuccess;
@@ -186,7 +223,12 @@ void main() {
         ReachSkillLevelGoal(Skill.cooking, 50),
       ]);
 
-      final result = solve(state, goal, collectDiagnostics: true);
+      final result = solve(
+        state,
+        goal,
+        random: Random(42),
+        collectDiagnostics: true,
+      );
 
       expect(result, isA<SolverSuccess>());
       final success = result as SolverSuccess;
@@ -211,6 +253,7 @@ void main() {
       final result1 = solve(
         state,
         const ReachSkillLevelGoal(Skill.woodcutting, 30),
+        random: Random(42),
         collectDiagnostics: true,
       );
       expect(result1, isA<SolverSuccess>());
@@ -223,6 +266,7 @@ void main() {
           ReachSkillLevelGoal(Skill.woodcutting, 30),
           ReachSkillLevelGoal(Skill.fishing, 30),
         ]),
+        random: Random(42),
         collectDiagnostics: true,
       );
       expect(result2, isA<SolverSuccess>());
@@ -236,6 +280,7 @@ void main() {
           ReachSkillLevelGoal(Skill.fishing, 30),
           ReachSkillLevelGoal(Skill.mining, 30),
         ]),
+        random: Random(42),
         collectDiagnostics: true,
       );
       expect(result3, isA<SolverSuccess>());
@@ -274,6 +319,7 @@ void main() {
         final result = solve(
           state,
           ReachSkillLevelGoal(Skill.woodcutting, level),
+          random: Random(42),
           collectDiagnostics: true,
         );
         expect(result, isA<SolverSuccess>());
@@ -313,7 +359,7 @@ void main() {
         ReachSkillLevelGoal(Skill.fishing, 50),
       ]);
 
-      final result = solve(state, goal);
+      final result = solve(state, goal, random: Random(42));
 
       expect(result, isA<SolverSuccess>());
       final success = result as SolverSuccess;
@@ -331,7 +377,7 @@ void main() {
       final state = GlobalState.empty(testRegistries);
       const goal = ReachSkillLevelGoal(Skill.firemaking, 30);
 
-      final result = solve(state, goal);
+      final result = solve(state, goal, random: Random(42));
 
       expect(result, isA<SolverSuccess>());
       final success = result as SolverSuccess;

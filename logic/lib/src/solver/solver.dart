@@ -824,6 +824,7 @@ class _SolverContext {
     required this.maxQueueSize,
     required this.collectDiagnostics,
     required this.boundaries,
+    required this.random,
   }) : rateCache = _RateCache(goal),
        bestCredits = effectiveCredits(initial, const SellAllPolicy());
 
@@ -833,7 +834,7 @@ class _SolverContext {
   final int maxQueueSize;
   final bool collectDiagnostics;
   final Map<Skill, SkillBoundaries> boundaries;
-
+  final Random random;
   final SolverProfileBuilder profileBuilder = SolverProfileBuilder();
   final _RateCache rateCache;
   final _ParetoFrontier frontier = _ParetoFrontier();
@@ -1152,12 +1153,9 @@ AdvanceResult _advanceExpected(GlobalState state, int deltaTicks) {
 GlobalState _advanceFullSim(
   GlobalState state,
   int deltaTicks, {
-  Random? random,
+  required Random random,
 }) {
   if (deltaTicks <= 0) return state;
-
-  // Use a fixed random for deterministic planning if not provided
-  random ??= Random(42);
 
   final builder = StateUpdateBuilder(state);
   consumeTicks(builder, deltaTicks, random: random);
@@ -1172,7 +1170,11 @@ GlobalState _advanceFullSim(
 /// game state (e.g. won't add inventory items)
 ///
 /// Returns the new state and the number of expected deaths.
-AdvanceResult advance(GlobalState state, int deltaTicks) {
+AdvanceResult advance(
+  GlobalState state,
+  int deltaTicks, {
+  required Random random,
+}) {
   _assertNonNegativeDelta(deltaTicks, 'advance');
   _assertValidState(state);
 
@@ -1182,7 +1184,10 @@ AdvanceResult advance(GlobalState state, int deltaTicks) {
   if (_isRateModelable(state)) {
     result = _advanceExpected(state, deltaTicks);
   } else {
-    result = (state: _advanceFullSim(state, deltaTicks), deaths: 0);
+    result = (
+      state: _advanceFullSim(state, deltaTicks, random: random),
+      deaths: 0,
+    );
   }
 
   _assertValidState(result.state);
@@ -2101,7 +2106,11 @@ SolverSuccess? _expandWaitEdge(
   ctx.profileBuilder.decisionDeltas.add(deltaResult.deltaTicks);
 
   final advanceStopwatch = Stopwatch()..start();
-  final advanceResult = advance(node.state, deltaResult.deltaTicks);
+  final advanceResult = advance(
+    node.state,
+    deltaResult.deltaTicks,
+    random: ctx.random,
+  );
   ctx.profileBuilder.advanceTimeUs += advanceStopwatch.elapsedMicroseconds;
 
   final newState = advanceResult.state;
@@ -2296,6 +2305,7 @@ void _collectNodeDiagnostics(_SolverContext ctx, _Node node) {
 SolverResult solve(
   GlobalState initial,
   Goal goal, {
+  required Random random,
   int maxExpandedNodes = defaultMaxExpandedNodes,
   int maxQueueSize = defaultMaxQueueSize,
   bool collectDiagnostics = false,
@@ -2307,6 +2317,7 @@ SolverResult solve(
     maxQueueSize: maxQueueSize,
     collectDiagnostics: collectDiagnostics,
     boundaries: computeUnlockBoundaries(initial.registries),
+    random: random,
   );
 
   // Initialize and check for early exit
@@ -2588,6 +2599,7 @@ class SegmentFailed extends SegmentResult {
 SegmentResult solveSegment(
   GlobalState initial,
   Goal goal, {
+  required Random random,
   SegmentConfig config = const SegmentConfig(),
   bool collectDiagnostics = false,
   int maxExpandedNodes = defaultMaxExpandedNodes,
@@ -2603,6 +2615,7 @@ SegmentResult solveSegment(
   final result = solve(
     initial,
     segmentGoal,
+    random: random,
     collectDiagnostics: collectDiagnostics,
     maxExpandedNodes: maxExpandedNodes,
     maxQueueSize: maxQueueSize,
@@ -2791,6 +2804,7 @@ class SegmentedFailed extends SegmentedSolverResult {
 SegmentedSolverResult solveToGoal(
   GlobalState initial,
   Goal goal, {
+  required Random random,
   SegmentConfig config = const SegmentConfig(),
   bool collectDiagnostics = false,
   int maxSegments = 100,
@@ -2810,6 +2824,7 @@ SegmentedSolverResult solveToGoal(
     final segmentResult = solveSegment(
       currentState,
       goal,
+      random: random,
       config: config,
       collectDiagnostics: collectDiagnostics,
       maxExpandedNodes: maxExpandedNodesPerSegment,

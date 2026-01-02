@@ -115,6 +115,7 @@ void main(List<String> args) async {
     final result = solve(
       initialState,
       goal,
+      random: Random(42),
       collectDiagnostics: collectDiagnostics,
     );
     stopwatch.stop();
@@ -140,6 +141,7 @@ void main(List<String> args) async {
     final result = solveToGoal(
       initialState,
       goal,
+      random: Random(42),
       collectDiagnostics: collectDiagnostics,
     );
     stopwatch.stop();
@@ -1080,7 +1082,12 @@ _TimedSolverResult _solveWithTiming(
   final state = GlobalState.empty(registries);
 
   final stopwatch = Stopwatch()..start();
-  final result = solve(state, goal, collectDiagnostics: true);
+  final result = solve(
+    state,
+    goal,
+    random: Random(42),
+    collectDiagnostics: true,
+  );
   stopwatch.stop();
 
   return _TimedSolverResult(

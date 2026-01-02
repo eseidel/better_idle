@@ -57,7 +57,12 @@ void main(List<String> args) async {
   // Run the solver
   print('=== Running Solver ===');
   final stopwatch = Stopwatch()..start();
-  final result = solve(bundle.state, bundle.goal, collectDiagnostics: true);
+  final result = solve(
+    bundle.state,
+    bundle.goal,
+    random: Random(42),
+    collectDiagnostics: true,
+  );
   stopwatch.stop();
 
   print('Solver completed in ${stopwatch.elapsedMilliseconds}ms');

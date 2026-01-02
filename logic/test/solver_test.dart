@@ -121,7 +121,7 @@ void main() {
 
       // advance projects state forward - items accumulate in inventory
       // GP only increases when items are explicitly sold
-      final result = advance(state, 100);
+      final result = advance(state, 100, random: Random(0));
 
       // Normal Tree produces logs which accumulate in inventory
       expect(result.state.inventory.items.length, greaterThan(initialItems));
@@ -134,8 +134,8 @@ void main() {
       final action = testActions.woodcutting('Normal Tree');
       state = state.startAction(action, random: Random(0));
 
-      final result1 = advance(state, 100);
-      final result2 = advance(state, 100);
+      final result1 = advance(state, 100, random: Random(0));
+      final result2 = advance(state, 100, random: Random(0));
 
       expect(result1.state.gp, result2.state.gp);
       // Skill XP should also match
@@ -150,7 +150,7 @@ void main() {
       final action = testActions.woodcutting('Normal Tree');
       state = state.startAction(action, random: Random(0));
 
-      final result = advance(state, 0);
+      final result = advance(state, 0, random: Random(0));
 
       expect(
         result.state.activeAction?.remainingTicks,
@@ -167,6 +167,7 @@ void main() {
       int maxQueueSize = defaultMaxQueueSize,
     }) {
       return solve(
+        random: Random(42),
         initial,
         ReachGpGoal(goalCredits),
         maxExpandedNodes: maxExpandedNodes,
@@ -491,7 +492,7 @@ void main() {
       final ticksToDeath = ticksUntilDeath(state, rates);
 
       // Advance past death - with continuous model, activity continues
-      final result = advance(state, ticksToDeath! + 1000);
+      final result = advance(state, ticksToDeath! + 1000, random: Random(0));
 
       // Activity should continue (continuous model doesn't stop on death)
       expect(result.state.activeAction, isNotNull);
@@ -509,7 +510,7 @@ void main() {
       final ticksToDeath = ticksUntilDeath(state, rates)!;
 
       // Advance for multiple death cycles
-      final result = advance(state, ticksToDeath * 5);
+      final result = advance(state, ticksToDeath * 5, random: Random(0));
 
       // Activity should still be running (continuous model)
       expect(result.state.activeAction, isNotNull);
@@ -1034,7 +1035,7 @@ void main() {
       // involve complex item flows and upgrade timing)
       final state = GlobalState.empty(testRegistries);
       const goal = ReachSkillLevelGoal(Skill.woodcutting, 10);
-      final solveResult = solve(state, goal);
+      final solveResult = solve(state, goal, random: Random(42));
 
       expect(solveResult, isA<SolverSuccess>());
       final success = solveResult as SolverSuccess;
@@ -1067,7 +1068,7 @@ void main() {
       const goal = ReachSkillLevelGoal(Skill.firemaking, 2);
 
       // Solve - this should trigger TrainConsumingSkillUntil macro expansion
-      final result = solve(state, goal);
+      final result = solve(state, goal, random: Random(42));
 
       expect(result, isA<SolverSuccess>());
       final success = result as SolverSuccess;
@@ -1091,7 +1092,7 @@ void main() {
       const goal = ReachSkillLevelGoal(Skill.firemaking, 2);
 
       // Solve and execute the plan
-      final solveResult = solve(state, goal);
+      final solveResult = solve(state, goal, random: Random(42));
       expect(solveResult, isA<SolverSuccess>());
       final success = solveResult as SolverSuccess;
 
@@ -1123,7 +1124,7 @@ void main() {
       const goal = ReachSkillLevelGoal(Skill.firemaking, 2);
 
       // Solve - this tests the coupled produce/consume model
-      final result = solve(state, goal);
+      final result = solve(state, goal, random: Random(42));
 
       expect(result, isA<SolverSuccess>());
       final success = result as SolverSuccess;
@@ -1281,7 +1282,12 @@ void main() {
       final state = GlobalState.empty(testRegistries);
       const goal = ReachGpGoal(100);
 
-      final result = solve(state, goal, collectDiagnostics: true);
+      final result = solve(
+        state,
+        goal,
+        random: Random(42),
+        collectDiagnostics: true,
+      );
 
       expect(result, isA<SolverSuccess>());
       final success = result as SolverSuccess;
@@ -1300,7 +1306,12 @@ void main() {
       final state = GlobalState.empty(testRegistries);
       const goal = ReachSkillLevelGoal(Skill.woodcutting, 5);
 
-      final result = solve(state, goal, collectDiagnostics: true);
+      final result = solve(
+        state,
+        goal,
+        random: Random(42),
+        collectDiagnostics: true,
+      );
 
       expect(result, isA<SolverSuccess>());
       final success = result as SolverSuccess;
@@ -1315,7 +1326,12 @@ void main() {
       final state = GlobalState.empty(testRegistries);
       const goal = ReachSkillLevelGoal(Skill.firemaking, 5);
 
-      final result = solve(state, goal, collectDiagnostics: true);
+      final result = solve(
+        state,
+        goal,
+        random: Random(42),
+        collectDiagnostics: true,
+      );
 
       expect(result, isA<SolverSuccess>());
       final success = result as SolverSuccess;
@@ -1343,7 +1359,12 @@ void main() {
       final state = GlobalState.empty(testRegistries);
       const goal = ReachSkillLevelGoal(Skill.firemaking, 2);
 
-      final result = solve(state, goal, collectDiagnostics: true);
+      final result = solve(
+        state,
+        goal,
+        random: Random(42),
+        collectDiagnostics: true,
+      );
 
       // With real data, firemaking should succeed because woodcutting
       // provides logs. The tripwire would only trigger if no producer exists.
@@ -1356,7 +1377,12 @@ void main() {
       final state = GlobalState.empty(testRegistries);
       const goal = ReachGpGoal(100);
 
-      final result = solve(state, goal, collectDiagnostics: true);
+      final result = solve(
+        state,
+        goal,
+        random: Random(42),
+        collectDiagnostics: true,
+      );
 
       expect(result, isA<SolverSuccess>());
       final profile = (result as SolverSuccess).profile!;
@@ -1371,7 +1397,12 @@ void main() {
       final state = GlobalState.empty(testRegistries);
       const goal = ReachGpGoal(100);
 
-      final result = solve(state, goal, collectDiagnostics: true);
+      final result = solve(
+        state,
+        goal,
+        random: Random(42),
+        collectDiagnostics: true,
+      );
 
       expect(result, isA<SolverSuccess>());
       final profile = (result as SolverSuccess).profile!;
@@ -1567,7 +1598,7 @@ void main() {
       );
       const goal = ReachSkillLevelGoal(Skill.woodcutting, 10);
 
-      final result = solveToGoal(state, goal);
+      final result = solveToGoal(state, goal, random: Random(42));
 
       expect(result, isA<SegmentedSuccess>());
       final success = result as SegmentedSuccess;
@@ -1597,7 +1628,7 @@ void main() {
       // Goal higher level to ensure we hit upgrade boundary before goal
       const goal = ReachSkillLevelGoal(Skill.woodcutting, 20);
 
-      final result = solveToGoal(state, goal);
+      final result = solveToGoal(state, goal, random: Random(42));
 
       expect(result, isA<SegmentedSuccess>());
       final success = result as SegmentedSuccess;
@@ -2357,6 +2388,7 @@ void main() {
         state,
         goal,
         maxExpandedNodes: 2, // Very low limit to force failure
+        random: Random(42),
       );
 
       expect(result, isA<SegmentFailed>());
@@ -2372,7 +2404,7 @@ void main() {
       // Simple goal that should succeed
       const goal = ReachSkillLevelGoal(Skill.woodcutting, 2);
 
-      final result = solveSegment(state, goal);
+      final result = solveSegment(state, goal, random: Random(42));
 
       expect(result, isA<SegmentSuccess>());
       final success = result as SegmentSuccess;
@@ -2399,7 +2431,12 @@ void main() {
       const goal = ReachSkillLevelGoal(Skill.smithing, 10);
 
       // Solve with diagnostics to inspect macro stop triggers
-      final result = solve(state, goal, collectDiagnostics: true);
+      final result = solve(
+        state,
+        goal,
+        random: Random(42),
+        collectDiagnostics: true,
+      );
 
       expect(result, isA<SolverSuccess>());
       final success = result as SolverSuccess;
@@ -2457,7 +2494,12 @@ void main() {
       const goal = ReachSkillLevelGoal(Skill.smithing, 20);
 
       // Solve with diagnostics
-      final result = solve(state, goal, collectDiagnostics: true);
+      final result = solve(
+        state,
+        goal,
+        random: Random(42),
+        collectDiagnostics: true,
+      );
 
       expect(result, isA<SolverSuccess>());
       final success = result as SolverSuccess;
@@ -2495,7 +2537,7 @@ void main() {
       // WaitForInventoryAtLeast instead) should prevent the 90x mismatch.
       final state = GlobalState.empty(testRegistries);
       const goal = ReachSkillLevelGoal(Skill.smithing, 10);
-      final solveResult = solve(state, goal);
+      final solveResult = solve(state, goal, random: Random(42));
 
       expect(solveResult, isA<SolverSuccess>());
       final success = solveResult as SolverSuccess;
@@ -2542,7 +2584,12 @@ void main() {
       // Use mining skill goal to produce copper ore (tests the production path)
       // This indirectly tests EnsureStock behavior via prerequisite expansion
       const goal = ReachSkillLevelGoal(Skill.mining, 5);
-      final solveResult = solve(state, goal);
+      final solveResult = solve(
+        state,
+        goal,
+        random: Random(42),
+        collectDiagnostics: true,
+      );
 
       expect(solveResult, isA<SolverSuccess>());
       final success = solveResult as SolverSuccess;
