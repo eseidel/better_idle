@@ -8,7 +8,7 @@ import 'dart:math';
 import 'package:logic/src/consume_ticks.dart';
 import 'package:logic/src/data/actions.dart' show Skill, SkillAction;
 import 'package:logic/src/data/currency.dart';
-import 'package:logic/src/solver/estimate_rates.dart';
+import 'package:logic/src/solver/analysis/estimate_rates.dart';
 import 'package:logic/src/state.dart';
 import 'package:logic/src/types/inventory.dart';
 

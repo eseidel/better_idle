@@ -13,15 +13,15 @@ import 'dart:math';
 
 import 'package:args/args.dart';
 import 'package:logic/logic.dart';
-import 'package:logic/src/solver/execute_plan.dart';
-import 'package:logic/src/solver/goal.dart';
-import 'package:logic/src/solver/interaction.dart';
-import 'package:logic/src/solver/macro_candidate.dart';
-import 'package:logic/src/solver/plan.dart';
-import 'package:logic/src/solver/replan_boundary.dart';
-import 'package:logic/src/solver/solver.dart';
-import 'package:logic/src/solver/solver_profile.dart';
-import 'package:logic/src/solver/wait_for.dart';
+import 'package:logic/src/solver/analysis/replan_boundary.dart';
+import 'package:logic/src/solver/analysis/wait_for.dart';
+import 'package:logic/src/solver/candidates/macro_candidate.dart';
+import 'package:logic/src/solver/core/goal.dart';
+import 'package:logic/src/solver/core/solver.dart';
+import 'package:logic/src/solver/core/solver_profile.dart';
+import 'package:logic/src/solver/execution/execute_plan.dart';
+import 'package:logic/src/solver/execution/plan.dart';
+import 'package:logic/src/solver/interactions/interaction.dart';
 
 final _parser = ArgParser()
   ..addFlag('skill', abbr: 's', help: 'Solve for firemaking level 30')

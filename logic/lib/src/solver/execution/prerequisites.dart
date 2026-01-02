@@ -8,8 +8,8 @@ import 'package:collection/collection.dart';
 import 'package:logic/src/data/action_id.dart';
 import 'package:logic/src/data/actions.dart' show Skill, SkillAction;
 import 'package:logic/src/data/melvor_id.dart';
-import 'package:logic/src/solver/goal.dart';
-import 'package:logic/src/solver/macro_candidate.dart';
+import 'package:logic/src/solver/candidates/macro_candidate.dart';
+import 'package:logic/src/solver/core/goal.dart';
 import 'package:logic/src/state.dart';
 import 'package:logic/src/tick.dart';
 

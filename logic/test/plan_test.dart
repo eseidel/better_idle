@@ -1,8 +1,8 @@
 import 'package:logic/logic.dart';
-import 'package:logic/src/solver/interaction.dart';
-import 'package:logic/src/solver/macro_candidate.dart';
-import 'package:logic/src/solver/plan.dart';
-import 'package:logic/src/solver/wait_for.dart';
+import 'package:logic/src/solver/analysis/wait_for.dart';
+import 'package:logic/src/solver/candidates/macro_candidate.dart';
+import 'package:logic/src/solver/execution/plan.dart';
+import 'package:logic/src/solver/interactions/interaction.dart';
 import 'package:test/test.dart';
 
 import 'test_helper.dart';

@@ -7,14 +7,14 @@ library;
 import 'package:equatable/equatable.dart';
 import 'package:logic/src/data/actions.dart' show Skill;
 import 'package:logic/src/data/melvor_id.dart';
-import 'package:logic/src/solver/goal.dart';
-import 'package:logic/src/solver/interaction.dart'
+import 'package:logic/src/solver/core/goal.dart';
+import 'package:logic/src/solver/core/solver_profile.dart' show FrontierStats;
+import 'package:logic/src/solver/interactions/interaction.dart'
     show SellAllPolicy, effectiveCredits;
-import 'package:logic/src/solver/solver_profile.dart' show FrontierStats;
 import 'package:logic/src/state.dart';
 
 // Re-export FrontierStats for convenience
-export 'package:logic/src/solver/solver_profile.dart' show FrontierStats;
+export 'package:logic/src/solver/core/solver_profile.dart' show FrontierStats;
 
 /// Gold bucket size for coarse state grouping.
 /// Larger values = fewer unique states = more pruning but less precision.

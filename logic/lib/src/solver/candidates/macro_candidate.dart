@@ -8,14 +8,15 @@ import 'package:logic/src/data/action_id.dart';
 import 'package:logic/src/data/actions.dart';
 import 'package:logic/src/data/melvor_id.dart';
 import 'package:logic/src/data/xp.dart';
-import 'package:logic/src/solver/apply_interaction.dart';
-import 'package:logic/src/solver/estimate_rates.dart';
-import 'package:logic/src/solver/interaction.dart';
-import 'package:logic/src/solver/macro_expansion_context.dart';
-import 'package:logic/src/solver/next_decision_delta.dart' show infTicks;
-import 'package:logic/src/solver/state_advance.dart';
-import 'package:logic/src/solver/unlock_boundaries.dart';
-import 'package:logic/src/solver/wait_for.dart';
+import 'package:logic/src/solver/analysis/estimate_rates.dart';
+import 'package:logic/src/solver/analysis/next_decision_delta.dart'
+    show infTicks;
+import 'package:logic/src/solver/analysis/unlock_boundaries.dart';
+import 'package:logic/src/solver/analysis/wait_for.dart';
+import 'package:logic/src/solver/candidates/macro_expansion_context.dart';
+import 'package:logic/src/solver/execution/state_advance.dart';
+import 'package:logic/src/solver/interactions/apply_interaction.dart';
+import 'package:logic/src/solver/interactions/interaction.dart';
 import 'package:logic/src/state.dart';
 import 'package:logic/src/tick.dart' show ticksFromDuration;
 

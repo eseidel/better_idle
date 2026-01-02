@@ -12,10 +12,10 @@ library;
 import 'dart:math';
 
 import 'package:logic/logic.dart';
-import 'package:logic/src/solver/goal.dart';
-import 'package:logic/src/solver/interaction.dart';
-import 'package:logic/src/solver/plan.dart';
-import 'package:logic/src/solver/solver.dart';
+import 'package:logic/src/solver/core/goal.dart';
+import 'package:logic/src/solver/core/solver.dart';
+import 'package:logic/src/solver/execution/plan.dart';
+import 'package:logic/src/solver/interactions/interaction.dart';
 import 'package:test/test.dart';
 
 import 'test_helper.dart';

@@ -2,21 +2,21 @@
 import 'dart:math';
 
 import 'package:logic/logic.dart';
-import 'package:logic/src/solver/apply_interaction.dart';
-import 'package:logic/src/solver/enumerate_candidates.dart';
-import 'package:logic/src/solver/estimate_rates.dart';
-import 'package:logic/src/solver/execute_plan.dart';
-import 'package:logic/src/solver/goal.dart';
-import 'package:logic/src/solver/interaction.dart';
-import 'package:logic/src/solver/macro_candidate.dart';
-import 'package:logic/src/solver/next_decision_delta.dart';
-import 'package:logic/src/solver/plan.dart';
-import 'package:logic/src/solver/replan_boundary.dart';
-import 'package:logic/src/solver/solver.dart';
-import 'package:logic/src/solver/solver_profile.dart';
-import 'package:logic/src/solver/value_model.dart';
-import 'package:logic/src/solver/wait_for.dart';
-import 'package:logic/src/solver/watch_set.dart';
+import 'package:logic/src/solver/analysis/estimate_rates.dart';
+import 'package:logic/src/solver/analysis/next_decision_delta.dart';
+import 'package:logic/src/solver/analysis/replan_boundary.dart';
+import 'package:logic/src/solver/analysis/wait_for.dart';
+import 'package:logic/src/solver/analysis/watch_set.dart';
+import 'package:logic/src/solver/candidates/enumerate_candidates.dart';
+import 'package:logic/src/solver/candidates/macro_candidate.dart';
+import 'package:logic/src/solver/core/goal.dart';
+import 'package:logic/src/solver/core/solver.dart';
+import 'package:logic/src/solver/core/solver_profile.dart';
+import 'package:logic/src/solver/core/value_model.dart';
+import 'package:logic/src/solver/execution/execute_plan.dart';
+import 'package:logic/src/solver/execution/plan.dart';
+import 'package:logic/src/solver/interactions/apply_interaction.dart';
+import 'package:logic/src/solver/interactions/interaction.dart';
 import 'package:test/test.dart';
 
 import 'test_helper.dart';

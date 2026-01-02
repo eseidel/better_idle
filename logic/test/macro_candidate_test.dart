@@ -1,9 +1,9 @@
 import 'dart:math';
 
 import 'package:logic/logic.dart';
-import 'package:logic/src/solver/macro_candidate.dart';
-import 'package:logic/src/solver/unlock_boundaries.dart';
-import 'package:logic/src/solver/wait_for.dart';
+import 'package:logic/src/solver/analysis/unlock_boundaries.dart';
+import 'package:logic/src/solver/analysis/wait_for.dart';
+import 'package:logic/src/solver/candidates/macro_candidate.dart';
 import 'package:test/test.dart';
 
 import 'test_helper.dart';

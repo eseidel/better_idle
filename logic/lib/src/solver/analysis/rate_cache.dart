@@ -4,14 +4,14 @@
 library;
 
 import 'package:logic/src/data/actions.dart';
-import 'package:logic/src/solver/goal.dart';
-import 'package:logic/src/solver/solver_profile.dart';
+import 'package:logic/src/solver/core/goal.dart';
+import 'package:logic/src/solver/core/solver_profile.dart';
 import 'package:logic/src/state.dart';
 import 'package:logic/src/tick.dart';
 import 'package:logic/src/types/stunned.dart';
 
 // Re-export types from solver_profile.dart for convenience
-export 'package:logic/src/solver/solver_profile.dart'
+export 'package:logic/src/solver/core/solver_profile.dart'
     show
         NoRelevantSkillReason,
         NoUnlockedActionsReason,

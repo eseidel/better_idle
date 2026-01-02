@@ -11,9 +11,9 @@ import 'dart:io';
 import 'dart:math';
 
 import 'package:logic/logic.dart';
-import 'package:logic/src/solver/execute_plan.dart';
-import 'package:logic/src/solver/plan.dart';
-import 'package:logic/src/solver/solver.dart';
+import 'package:logic/src/solver/core/solver.dart';
+import 'package:logic/src/solver/execution/execute_plan.dart';
+import 'package:logic/src/solver/execution/plan.dart';
 
 void main(List<String> args) async {
   // Determine the repro file path

@@ -2,8 +2,8 @@
 import 'dart:math';
 
 import 'package:logic/logic.dart';
-import 'package:logic/src/solver/available_interactions.dart';
-import 'package:logic/src/solver/interaction.dart';
+import 'package:logic/src/solver/interactions/available_interactions.dart';
+import 'package:logic/src/solver/interactions/interaction.dart';
 import 'package:test/test.dart';
 
 import 'test_helper.dart';

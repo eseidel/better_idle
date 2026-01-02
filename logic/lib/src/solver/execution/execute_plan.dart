@@ -7,18 +7,18 @@ import 'dart:math';
 
 import 'package:logic/src/data/actions.dart' show Skill, SkillAction;
 import 'package:logic/src/data/melvor_id.dart';
-import 'package:logic/src/solver/apply_interaction.dart';
-import 'package:logic/src/solver/consume_until.dart';
-import 'package:logic/src/solver/estimate_rates.dart';
-import 'package:logic/src/solver/goal.dart';
-import 'package:logic/src/solver/interaction.dart';
-import 'package:logic/src/solver/macro_candidate.dart';
-import 'package:logic/src/solver/plan.dart';
-import 'package:logic/src/solver/prerequisites.dart';
-import 'package:logic/src/solver/replan_boundary.dart';
-import 'package:logic/src/solver/unlock_boundaries.dart';
-import 'package:logic/src/solver/wait_for.dart';
-import 'package:logic/src/solver/watch_set.dart';
+import 'package:logic/src/solver/analysis/estimate_rates.dart';
+import 'package:logic/src/solver/analysis/replan_boundary.dart';
+import 'package:logic/src/solver/analysis/unlock_boundaries.dart';
+import 'package:logic/src/solver/analysis/wait_for.dart';
+import 'package:logic/src/solver/analysis/watch_set.dart';
+import 'package:logic/src/solver/candidates/macro_candidate.dart';
+import 'package:logic/src/solver/core/goal.dart';
+import 'package:logic/src/solver/execution/consume_until.dart';
+import 'package:logic/src/solver/execution/plan.dart';
+import 'package:logic/src/solver/execution/prerequisites.dart';
+import 'package:logic/src/solver/interactions/apply_interaction.dart';
+import 'package:logic/src/solver/interactions/interaction.dart';
 import 'package:logic/src/state.dart';
 
 /// Result of applying a single step.

@@ -31,8 +31,8 @@ library;
 import 'package:equatable/equatable.dart';
 import 'package:logic/src/data/actions.dart';
 import 'package:logic/src/data/melvor_id.dart';
-import 'package:logic/src/solver/enumerate_candidates.dart';
-import 'package:logic/src/solver/goal.dart';
+import 'package:logic/src/solver/candidates/enumerate_candidates.dart';
+import 'package:logic/src/solver/core/goal.dart';
 import 'package:logic/src/state.dart';
 import 'package:meta/meta.dart';
 

@@ -25,8 +25,13 @@ import 'package:logic/src/data/action_id.dart';
 import 'package:logic/src/data/actions.dart';
 import 'package:logic/src/data/melvor_id.dart';
 import 'package:logic/src/data/registries.dart';
-import 'package:logic/src/solver/goal.dart';
-import 'package:logic/src/solver/interaction.dart'
+import 'package:logic/src/solver/analysis/replan_boundary.dart';
+import 'package:logic/src/solver/analysis/wait_for.dart';
+import 'package:logic/src/solver/analysis/watch_set.dart' show SegmentContext;
+import 'package:logic/src/solver/candidates/macro_candidate.dart';
+import 'package:logic/src/solver/core/goal.dart';
+import 'package:logic/src/solver/core/solver_profile.dart';
+import 'package:logic/src/solver/interactions/interaction.dart'
     show
         BuyShopItem,
         Interaction,
@@ -35,11 +40,6 @@ import 'package:logic/src/solver/interaction.dart'
         SellItems,
         SellPolicy,
         SwitchActivity;
-import 'package:logic/src/solver/macro_candidate.dart';
-import 'package:logic/src/solver/replan_boundary.dart';
-import 'package:logic/src/solver/solver_profile.dart';
-import 'package:logic/src/solver/wait_for.dart';
-import 'package:logic/src/solver/watch_set.dart' show SegmentContext;
 import 'package:logic/src/state.dart';
 import 'package:logic/src/tick.dart';
 import 'package:meta/meta.dart';

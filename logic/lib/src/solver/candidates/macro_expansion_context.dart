@@ -11,11 +11,11 @@ import 'package:logic/src/data/action_id.dart';
 import 'package:logic/src/data/actions.dart';
 import 'package:logic/src/data/melvor_id.dart';
 import 'package:logic/src/data/xp.dart' show startXpForLevel;
-import 'package:logic/src/solver/estimate_rates.dart';
-import 'package:logic/src/solver/goal.dart';
-import 'package:logic/src/solver/macro_candidate.dart';
-import 'package:logic/src/solver/unlock_boundaries.dart';
-import 'package:logic/src/solver/value_model.dart';
+import 'package:logic/src/solver/analysis/estimate_rates.dart';
+import 'package:logic/src/solver/analysis/unlock_boundaries.dart';
+import 'package:logic/src/solver/candidates/macro_candidate.dart';
+import 'package:logic/src/solver/core/goal.dart';
+import 'package:logic/src/solver/core/value_model.dart';
 import 'package:logic/src/state.dart';
 import 'package:logic/src/tick.dart' show ticksFromDuration;
 

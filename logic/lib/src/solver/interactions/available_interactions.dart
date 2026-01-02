@@ -2,7 +2,7 @@
 ///
 /// ## Immediate Actions Only
 ///
-/// @docImport 'package:logic/src/solver/next_decision_delta.dart';
+/// @docImport 'package:logic/src/solver/analysis/next_decision_delta.dart';
 /// This module returns only 0-tick interactions (switch, buy, sell).
 /// It must NOT include "wait" - that is handled by [nextDecisionDelta].
 /// It must NOT include actions just because they are "watched".
@@ -18,8 +18,9 @@ library;
 import 'package:logic/src/data/actions.dart';
 import 'package:logic/src/data/currency.dart';
 import 'package:logic/src/data/shop.dart';
-import 'package:logic/src/solver/enumerate_candidates.dart' show Candidates;
-import 'package:logic/src/solver/interaction.dart';
+import 'package:logic/src/solver/candidates/enumerate_candidates.dart'
+    show Candidates;
+import 'package:logic/src/solver/interactions/interaction.dart';
 import 'package:logic/src/state.dart';
 
 /// Returns all available interactions from the current state.

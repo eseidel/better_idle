@@ -1,10 +1,10 @@
 import 'package:logic/logic.dart';
-import 'package:logic/src/solver/candidate_cache.dart';
-import 'package:logic/src/solver/enumerate_candidates.dart';
-import 'package:logic/src/solver/goal.dart';
-import 'package:logic/src/solver/interaction.dart';
-import 'package:logic/src/solver/macro_candidate.dart';
-import 'package:logic/src/solver/watch_set.dart';
+import 'package:logic/src/solver/analysis/watch_set.dart';
+import 'package:logic/src/solver/candidates/candidate_cache.dart';
+import 'package:logic/src/solver/candidates/enumerate_candidates.dart';
+import 'package:logic/src/solver/candidates/macro_candidate.dart';
+import 'package:logic/src/solver/core/goal.dart';
+import 'package:logic/src/solver/interactions/interaction.dart';
 import 'package:test/test.dart';
 
 import 'test_helper.dart';

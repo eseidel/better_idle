@@ -12,7 +12,7 @@
 ///
 /// ## Upgrade Note
 ///
-/// @docImport 'package:logic/src/solver/enumerate_candidates.dart';
+/// @docImport 'package:logic/src/solver/candidates/enumerate_candidates.dart';
 /// Buying an upgrade does NOT imply it will be used. The solver prevents
 /// irrelevant buys via candidate filtering in [enumerateCandidates].
 library;
@@ -22,7 +22,7 @@ import 'dart:math';
 import 'package:logic/src/data/action_id.dart';
 import 'package:logic/src/data/currency.dart';
 import 'package:logic/src/data/melvor_id.dart';
-import 'package:logic/src/solver/interaction.dart';
+import 'package:logic/src/solver/interactions/interaction.dart';
 import 'package:logic/src/state.dart';
 
 /// Applies an interaction to the game state, returning the new state.

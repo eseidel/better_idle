@@ -1,11 +1,12 @@
 import 'dart:math';
 
 import 'package:logic/logic.dart';
-import 'package:logic/src/solver/estimate_rates.dart';
-import 'package:logic/src/solver/goal.dart';
-import 'package:logic/src/solver/interaction.dart' show SellAllPolicy;
-import 'package:logic/src/solver/next_decision_delta.dart';
-import 'package:logic/src/solver/wait_for.dart';
+import 'package:logic/src/solver/analysis/estimate_rates.dart';
+import 'package:logic/src/solver/analysis/next_decision_delta.dart';
+import 'package:logic/src/solver/analysis/wait_for.dart';
+import 'package:logic/src/solver/core/goal.dart';
+import 'package:logic/src/solver/interactions/interaction.dart'
+    show SellAllPolicy;
 import 'package:test/test.dart';
 
 import 'test_helper.dart';
