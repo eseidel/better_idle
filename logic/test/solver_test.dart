@@ -2472,4 +2472,86 @@ void main() {
       );
     });
   });
+
+  group('Smithing execution regression', () {
+    test('Smithing=10 execution stays within bounds', () {
+      // This test verifies that the planned vs actual tick ratio stays
+      // reasonable. The fix for WaitForInputsAvailable bug (using
+      // WaitForInventoryAtLeast instead) should prevent the 90x mismatch.
+      final state = GlobalState.empty(testRegistries);
+      const goal = ReachSkillLevelGoal(Skill.smithing, 10);
+      final solveResult = solve(state, goal);
+
+      expect(solveResult, isA<SolverSuccess>());
+      final success = solveResult as SolverSuccess;
+
+      // Execute the plan
+      final execResult = executePlan(state, success.plan, random: Random(42));
+
+      // Verify smithing goal was achieved
+      expect(
+        execResult.finalState.skillState(Skill.smithing).skillLevel,
+        greaterThanOrEqualTo(10),
+        reason: 'Smithing level 10 should be reached',
+      );
+
+      // The key regression: actual ticks should be within 2x of planned
+      // (before the fix, it was 90x!)
+      final ratio = execResult.actualTicks / execResult.plannedTicks;
+      expect(
+        ratio,
+        lessThan(2.0),
+        reason:
+            'Actual/planned tick ratio should be <2x. '
+            'Planned: ${execResult.plannedTicks}, '
+            'Actual: ${execResult.actualTicks}, Ratio: $ratio',
+      );
+
+      // No unexpected boundaries during execution
+      expect(
+        execResult.hasUnexpectedBoundaries,
+        isFalse,
+        reason: 'Unexpected boundaries: ${execResult.unexpectedBoundaries}',
+      );
+    });
+
+    test('EnsureStock terminates correctly without massive overshoot', () {
+      // Setup: state with some initial copper ore to test EnsureStock
+      final state = GlobalState.test(
+        testRegistries,
+        inventory: Inventory.fromItems(testItems, [
+          ItemStack(testItems.byName('Copper Ore'), count: 5),
+        ]),
+      );
+
+      // Use mining skill goal to produce copper ore (tests the production path)
+      // This indirectly tests EnsureStock behavior via prerequisite expansion
+      const goal = ReachSkillLevelGoal(Skill.mining, 5);
+      final solveResult = solve(state, goal);
+
+      expect(solveResult, isA<SolverSuccess>());
+      final success = solveResult as SolverSuccess;
+
+      // Execute the plan
+      final execResult = executePlan(state, success.plan, random: Random(42));
+
+      // Verify mining goal was achieved
+      expect(
+        execResult.finalState.skillState(Skill.mining).skillLevel,
+        greaterThanOrEqualTo(5),
+        reason: 'Mining level 5 should be reached',
+      );
+
+      // Actual ticks should be within reasonable bounds of planned
+      final ratio = execResult.actualTicks / execResult.plannedTicks;
+      expect(
+        ratio,
+        lessThan(2.0),
+        reason:
+            'Actual/planned tick ratio should be <2x. '
+            'Planned: ${execResult.plannedTicks}, '
+            'Actual: ${execResult.actualTicks}, Ratio: $ratio',
+      );
+    });
+  });
 }

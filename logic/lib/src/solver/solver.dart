@@ -2307,6 +2307,45 @@ typedef _BatchSizeResult = ({
 
 /// Computes the batch size to reach the next unlock boundary.
 ///
+/// Quantizes a stock target to a coarse bucket to reduce plan thrash.
+///
+/// Buckets: {10, 20, 50, 100, 200}
+/// Selection is based on free inventory slots and action output diversity.
+int _quantizeStockTarget(GlobalState state, int target, SkillAction? action) {
+  const buckets = [10, 20, 50, 100, 200];
+
+  // If target is already large, just round up to nearest bucket
+  if (target >= 200) return target;
+
+  // Determine base bucket from free inventory slots
+  final usedSlots = state.inventory.items.length;
+  final freeSlots = state.inventoryCapacity - usedSlots;
+  int baseBucketIndex;
+  if (freeSlots < 10) {
+    baseBucketIndex = 0; // 10
+  } else if (freeSlots < 20) {
+    baseBucketIndex = 1; // 20
+  } else if (freeSlots < 40) {
+    baseBucketIndex = 2; // 50
+  } else {
+    baseBucketIndex = 3; // 100
+  }
+
+  // Step down one bucket if action produces many distinct outputs
+  if (action != null && action.outputs.length > 2 && baseBucketIndex > 0) {
+    baseBucketIndex--;
+  }
+
+  final bucketSize = buckets[baseBucketIndex];
+
+  // Quantize: round up to nearest bucket
+  // Always round up to at least the minimum bucket size to avoid tiny amounts
+  final quantized = ((target + bucketSize - 1) ~/ bucketSize) * bucketSize;
+
+  // Ensure we return at least the minimum bucket (10) to avoid tiny stocking
+  return quantized < 10 ? 10 : quantized;
+}
+
 /// For consuming skills (Smithing, Firemaking, etc.), computes how many
 /// craft actions are needed to reach the next skill level boundary.
 ///
@@ -2737,7 +2776,13 @@ MacroExpansionOutcome _expandEnsureStock(
       final inputItem = state.registries.items.byId(prodInput.key);
       final currentInput = state.inventory.countOfItem(inputItem);
       if (currentInput < inputNeeded) {
-        firstMissingInput ??= EnsureStock(prodInput.key, inputNeeded);
+        // Quantize the target to reduce plan thrash from tiny stocking amounts
+        final quantizedTarget = _quantizeStockTarget(
+          state,
+          inputNeeded,
+          producerAction,
+        );
+        firstMissingInput ??= EnsureStock(prodInput.key, quantizedTarget);
       }
     }
     if (firstMissingInput != null) {
@@ -2965,7 +3010,13 @@ MacroExpansionOutcome _expandTrainConsumingSkillUntil(
           final inputItemData = state.registries.items.byId(inputItem);
           final currentCount = state.inventory.countOfItem(inputItemData);
           if (inputNeeded > 0 && currentCount < inputNeeded) {
-            allPrereqs.add(EnsureStock(inputItem, inputNeeded));
+            // Quantize to reduce plan thrash from small stocking amounts
+            final quantizedTarget = _quantizeStockTarget(
+              state,
+              inputNeeded,
+              consumeAction,
+            );
+            allPrereqs.add(EnsureStock(inputItem, quantizedTarget));
           }
         } else {
           // Fallback: near goal or no boundary, use smaller batches
@@ -3340,6 +3391,9 @@ EnsureExecResult _ensureExecutable(
   }
 
   // 2. Check inputs - recursively ensure each can be produced
+  // NOTE: We only check feasibility (skill unlocks), NOT stocking.
+  // Stocking amounts should be determined by the caller with proper batch
+  // sizing, not here with minimal amounts that cause plan thrash.
   for (final inputId in action.inputs.keys) {
     final inputCount = action.inputs[inputId]!;
     final inputItem = state.registries.items.byId(inputId);
@@ -3368,8 +3422,9 @@ EnsureExecResult _ensureExecutable(
         case ExecUnknown(:final reason):
           return ExecUnknown('input $inputId blocked: $reason');
       }
-      // Ensure at least 1 item so action can start
-      macros.add(EnsureStock(inputId, inputCount));
+      // NOTE: We do NOT add EnsureStock here. The caller (e.g.,
+      // _expandEnsureStock) handles stocking with proper batch sizing.
+      // Adding small EnsureStock prereqs here causes plan thrash.
     } else {
       // No unlocked producer - check if one exists but is locked
       final lockedProducer = _findAnyProducerForItem(state, inputId);
@@ -3378,15 +3433,14 @@ EnsureExecResult _ensureExecutable(
       }
       // Producer exists but is locked - need to train that skill
       final neededLevel = lockedProducer.unlockLevel;
-      macros
-        ..add(
-          TrainSkillUntil(
-            lockedProducer.skill,
-            StopAtLevel(lockedProducer.skill, neededLevel),
-          ),
-        )
-        // After training, we'll need to acquire the item
-        ..add(EnsureStock(inputId, inputCount));
+      macros.add(
+        TrainSkillUntil(
+          lockedProducer.skill,
+          StopAtLevel(lockedProducer.skill, neededLevel),
+        ),
+      );
+      // NOTE: We do NOT add EnsureStock here. After training, the caller
+      // will handle stocking with proper batch sizing.
     }
   }
 

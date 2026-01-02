@@ -1058,14 +1058,10 @@ _ConsumingSkillResult _selectConsumingSkillCandidatesWithStats(
   final currentActionId = state.activeAction?.id;
 
   // Find all unlocked consumer actions for this consuming skill
+  // NOTE: We include the current action to support stickiness - we want to
+  // keep doing the current action unless a new one is significantly better.
   final consumerActions = summaries
-      .where(
-        (s) =>
-            s.skill == consumingSkill &&
-            s.isUnlocked &&
-            s.hasInputs &&
-            s.actionId != currentActionId,
-      )
+      .where((s) => s.skill == consumingSkill && s.isUnlocked && s.hasInputs)
       .toList();
 
   if (consumerActions.isEmpty) {
@@ -1137,10 +1133,45 @@ _ConsumingSkillResult _selectConsumingSkillCandidatesWithStats(
     ));
   }
 
-  // Sort by sustainable XP/tick (descending)
+  // Stickiness threshold: require new action to be >10% better to switch
+  const stickinessThreshold = 0.10;
+
+  // Calculate inventory pressure (0.0 = empty, 1.0 = full)
+  final usedSlots = state.inventory.items.length;
+  final inventoryPressure = usedSlots / state.inventoryCapacity;
+
+  // Sort by sustainable XP/tick with stickiness and logistics penalties
   consumersWithRates.sort((a, b) {
-    // Primary: sustainable XP/tick
-    final xpCmp = b.sustainableXpPerTick.compareTo(a.sustainableXpPerTick);
+    // Get effective rates, applying stickiness bonus to current action
+    var aRate = a.sustainableXpPerTick;
+    var bRate = b.sustainableXpPerTick;
+
+    // Give current action a stickiness bonus (effectively requires competitors
+    // to be >10% better to outrank it)
+    if (a.consumer.actionId == currentActionId) {
+      aRate *= 1 + stickinessThreshold;
+    }
+    if (b.consumer.actionId == currentActionId) {
+      bRate *= 1 + stickinessThreshold;
+    }
+
+    // Apply soft logistics penalty when inventory is tight (>60% full)
+    // Penalize actions that produce many distinct outputs (more selling churn)
+    if (inventoryPressure > 0.6) {
+      final aOutputs = registries.actions.byId(a.consumer.actionId);
+      final bOutputs = registries.actions.byId(b.consumer.actionId);
+      if (aOutputs is SkillAction && bOutputs is SkillAction) {
+        // Small penalty: 1% per distinct output type, scaled by pressure
+        const penaltyPerOutput = 0.01;
+        final aDistinctOutputs = aOutputs.outputs.length;
+        final bDistinctOutputs = bOutputs.outputs.length;
+        aRate *= 1 - (aDistinctOutputs * penaltyPerOutput * inventoryPressure);
+        bRate *= 1 - (bDistinctOutputs * penaltyPerOutput * inventoryPressure);
+      }
+    }
+
+    // Primary: adjusted XP/tick (with stickiness + logistics)
+    final xpCmp = bRate.compareTo(aRate);
     if (xpCmp != 0) return xpCmp;
 
     // Tie-breaker 1: Prefer already having inputs in inventory
