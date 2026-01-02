@@ -1893,7 +1893,7 @@ int _expandInteractionEdges(
   var neighborsGenerated = 0;
 
   for (final interaction in interactions) {
-    if (!_isRelevantInteraction(interaction, candidates)) continue;
+    if (!candidates.isRelevantInteraction(interaction)) continue;
 
     try {
       final newState = applyInteraction(node.state, interaction);
@@ -2060,7 +2060,7 @@ SolverSuccess? _expandWaitEdge(
 
   // Invariant: dt=0 only when actions exist, dt>0 when no immediate actions.
   final relevantInteractions = interactions
-      .where((i) => _isRelevantInteraction(i, candidates))
+      .where(candidates.isRelevantInteraction)
       .toList();
   assert(
     deltaResult.deltaTicks != 0 || relevantInteractions.isNotEmpty,
@@ -2423,19 +2423,6 @@ SolverResult solve(
 
   // Priority queue exhausted without finding goal
   return ctx.fail('No path to goal found');
-}
-
-/// Checks if an interaction is relevant given the current candidates.
-bool _isRelevantInteraction(Interaction interaction, Candidates candidates) {
-  return switch (interaction) {
-    SwitchActivity(:final actionId) => candidates.switchToActivities.contains(
-      actionId,
-    ),
-    BuyShopItem(:final purchaseId) => candidates.buyUpgrades.contains(
-      purchaseId,
-    ),
-    SellItems() => candidates.shouldEmitSellCandidate,
-  };
 }
 
 /// Reconstructs a plan from the goal node by walking parent pointers.

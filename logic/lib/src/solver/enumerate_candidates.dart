@@ -449,6 +449,15 @@ class Candidates {
 
   /// Stats from consuming skill candidate selection (if collected).
   final ConsumingSkillCandidateStats? consumingSkillStats;
+
+  /// Checks if an interaction is relevant given these candidates.
+  bool isRelevantInteraction(Interaction interaction) {
+    return switch (interaction) {
+      SwitchActivity(:final actionId) => switchToActivities.contains(actionId),
+      BuyShopItem(:final purchaseId) => buyUpgrades.contains(purchaseId),
+      SellItems() => shouldEmitSellCandidate,
+    };
+  }
 }
 
 /// Builds action summaries for all skill actions.
