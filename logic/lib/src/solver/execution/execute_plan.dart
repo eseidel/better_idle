@@ -20,6 +20,7 @@ import 'package:logic/src/solver/execution/prerequisites.dart';
 import 'package:logic/src/solver/interactions/apply_interaction.dart';
 import 'package:logic/src/solver/interactions/interaction.dart';
 import 'package:logic/src/state.dart';
+import 'package:meta/meta.dart';
 
 /// Result of applying a single step.
 typedef StepResult = ({
@@ -88,28 +89,46 @@ ReplanBoundary segmentBoundaryToReplan(SegmentBoundary boundary) {
 
 /// Executes a coupled produce/consume loop for consuming skills.
 ///
-/// ## Strict Plan-Authorized Execution
+/// ## Deterministic Checkpointed Execution
 ///
 /// The macro MUST be fully specified by the solver. Missing fields trigger
 /// immediate failure (NoProgressPossible) rather than legacy fallbacks.
-/// Required fields: consumeActionId, producerByInputItem, bufferTarget.
 ///
-/// The executor adapts to randomness only by:
-/// 1. Running until WaitFor triggers
-/// 2. Performing explicitly authorized recovery actions (sell via policy ONLY)
-/// 3. Triggering a bounded replan for everything else
+/// ### Required fields:
+/// - `consumeActionId`: fixed consuming action ID
+/// - `producerByInputItem`: map from input item ID to producer action ID
+/// - `bufferTarget`: quantized batch size for production
 ///
-/// The executor does NOT:
-/// - Search for best actions at runtime (fail-fast if not specified)
-/// - Recursively plan producer chains (must be in plan)
-/// - Make hidden activity switches after the loop
-/// - Handle non-policy recovery (banking, healing, etc.)
+/// ### Execution Model: "Repeat Cycles Until Stop"
 ///
-/// All strategy decisions are made by the planner and encoded in:
-/// - `consumeActionId`: fixed consuming action (REQUIRED)
-/// - `producerByInputItem`: pre-resolved producers (REQUIRED)
-/// - `bufferTarget`: quantized batch size (REQUIRED)
-/// - `sellPolicySpec`: how to handle inventory pressure
+/// ```dart
+/// while (!primaryStop.isSatisfied) {
+///   // PRODUCE PHASE
+///   for (inputItem in consumeAction.inputs) {
+///     producerId = macro.producerByInputItem[inputItem]  // Fixed ID
+///     SwitchActivity(producerId)
+///     consumeUntil(WaitForInventoryAtLeast(input, bufferTarget) OR boundary)
+///     if (boundary) attemptRecovery or return
+///   }
+///
+///   // CONSUME PHASE
+///   SwitchActivity(macro.consumeActionId)  // Fixed ID
+///   consumeUntil(WaitForAnyOf([
+///     primaryStopWait,
+///     InputsDepleted(consumeActionId),
+///     InventoryPressure,  // Stop early if nearly full
+///   ]))
+///   if (boundary) attemptRecovery or return
+/// }
+/// ```
+///
+/// ### Key Invariants
+///
+/// - **No action searching**: All action IDs come from the macro
+/// - **No recursion**: Producers must be immediately feasible
+/// - **No hidden switches**: Activity only changes via explicit SwitchActivity
+/// - **Deterministic**: Same inputs produce same execution trace
+/// - **Checkpointed**: Each phase boundary is a valid checkpoint
 StepResult executeCoupledLoop(
   GlobalState state,
   TrainConsumingSkillUntil macro,
@@ -124,18 +143,18 @@ StepResult executeCoupledLoop(
   var totalDeaths = 0;
   var recoveryAttempts = 0;
 
-  // Require plan-specified action - no legacy fallback
+  // ---------------------------------------------------------------------------
+  // VALIDATION: Require all plan-specified fields (no fallbacks)
+  // ---------------------------------------------------------------------------
+
   final consumeActionId = macro.consumeActionId ?? macro.actionId;
   if (consumeActionId == null) {
-    // Macro was created without execution details - this is a solver bug
     return (
       state: state,
       ticksElapsed: 0,
       deaths: 0,
       boundary: const NoProgressPossible(
-        reason:
-            'TrainConsumingSkillUntil macro missing consumeActionId - '
-            'solver must fully specify macro',
+        reason: 'Macro missing consumeActionId - solver must specify',
       ),
     );
   }
@@ -144,13 +163,14 @@ StepResult executeCoupledLoop(
   if (consumeAction is! SkillAction || consumeAction.inputs.isEmpty) {
     return (
       state: currentState,
-      ticksElapsed: totalTicks,
-      deaths: totalDeaths,
-      boundary: const NoProgressPossible(reason: 'Action has no inputs'),
+      ticksElapsed: 0,
+      deaths: 0,
+      boundary: const NoProgressPossible(
+        reason: 'Consume action has no inputs',
+      ),
     );
   }
 
-  // Require plan-specified buffer target - no fallback
   final bufferTarget = macro.bufferTarget;
   if (bufferTarget == null) {
     return (
@@ -158,14 +178,11 @@ StepResult executeCoupledLoop(
       ticksElapsed: 0,
       deaths: 0,
       boundary: const NoProgressPossible(
-        reason:
-            'TrainConsumingSkillUntil macro missing bufferTarget - '
-            'solver must fully specify macro',
+        reason: 'Macro missing bufferTarget - solver must specify',
       ),
     );
   }
 
-  // Require plan-specified producers - no fallback
   final producerByInputItem = macro.producerByInputItem;
   if (producerByInputItem == null) {
     return (
@@ -173,26 +190,38 @@ StepResult executeCoupledLoop(
       ticksElapsed: 0,
       deaths: 0,
       boundary: const NoProgressPossible(
-        reason:
-            'TrainConsumingSkillUntil macro missing producerByInputItem - '
-            'solver must fully specify macro',
+        reason: 'Macro missing producerByInputItem - solver must specify',
       ),
     );
   }
 
-  // Regenerate actual wait condition from primary stop
-  final actualWaitFor = boundaries != null
+  // Compute primary stop condition
+  final primaryStop = boundaries != null
       ? macro.primaryStop.toWaitFor(currentState, boundaries)
       : waitFor;
 
-  // Execute coupled loop: produce-consume cycles until stop
+  // Inventory pressure threshold (stop consume phase early if nearly full)
+  const inventoryPressureThreshold = 0.9;
+
+  // ---------------------------------------------------------------------------
+  // MAIN LOOP: Repeat produce-consume cycles until primary stop
+  // ---------------------------------------------------------------------------
+
   while (true) {
-    // Check if primary stop condition is met
-    if (actualWaitFor.isSatisfied(currentState)) {
-      break;
+    // -------------------------------------------------------------------------
+    // CHECKPOINT: Start of cycle - check if done
+    // -------------------------------------------------------------------------
+
+    if (primaryStop.isSatisfied(currentState)) {
+      return (
+        state: currentState,
+        ticksElapsed: totalTicks,
+        deaths: totalDeaths,
+        boundary: const WaitConditionSatisfied(),
+      );
     }
 
-    // Check for material boundary (mid-macro stopping)
+    // Check for material boundary (upgrade affordable, unlock, etc.)
     if (watchSet != null) {
       final boundary = watchSet.detectBoundary(
         currentState,
@@ -208,241 +237,169 @@ StepResult executeCoupledLoop(
       }
     }
 
-    // === PRODUCE PHASE ===
-    // Produce inputs using plan-specified producers (no runtime search)
-    for (final inputEntry in consumeAction.inputs.entries) {
-      final inputItem = inputEntry.key;
+    // -------------------------------------------------------------------------
+    // PRODUCE PHASE: Acquire inputs for consume action
+    // -------------------------------------------------------------------------
 
-      // Get producer from plan - no runtime search
-      final producerId = producerByInputItem[inputItem];
+    for (final inputEntry in consumeAction.inputs.entries) {
+      final inputItemId = inputEntry.key;
+
+      // Get producer from plan (no runtime search)
+      final producerId = producerByInputItem[inputItemId];
       if (producerId == null) {
-        // Planner didn't specify a producer - trigger replan
         return (
           state: currentState,
           ticksElapsed: totalTicks,
           deaths: totalDeaths,
           boundary: NoProgressPossible(
-            reason:
-                'No producer specified for ${inputItem.name} - needs replan',
+            reason: 'No producer for ${inputItemId.name} - needs replan',
           ),
         );
       }
 
-      // Check if we need more of this input
+      // Check current stock
       final currentCount = currentState.inventory.countOfItem(
-        currentState.registries.items.byId(inputItem),
+        currentState.registries.items.byId(inputItemId),
       );
 
-      if (currentCount < bufferTarget) {
-        // Check if the producer itself needs inputs (multi-tier chain)
-        // If so, ensure those are available first
-        final producerAction = currentState.registries.actions.byId(producerId);
-        if (producerAction is SkillAction && producerAction.inputs.isNotEmpty) {
-          // Producer needs inputs - ensure those are available first
-          // This handles multi-tier chains like Smithing (ore->bar->item)
-          for (final prodInput in producerAction.inputs.entries) {
-            final prodInputCount = currentState.inventory.countOfItem(
-              currentState.registries.items.byId(prodInput.key),
-            );
-            // Need enough to produce one batch at least
-            if (prodInputCount < prodInput.value) {
-              // Find the raw producer for this intermediate input
-              final rawProducerId = findProducerActionForItem(
-                currentState,
-                prodInput.key,
-                ReachSkillLevelGoal(macro.consumingSkill, 99),
-              );
-              if (rawProducerId != null) {
-                try {
-                  currentState = applyInteraction(
-                    currentState,
-                    SwitchActivity(rawProducerId),
-                  );
-                } on Exception catch (e) {
-                  // Cannot start raw producer - trigger replan
-                  return (
-                    state: currentState,
-                    ticksElapsed: totalTicks,
-                    deaths: totalDeaths,
-                    boundary: NoProgressPossible(
-                      reason:
-                          'Cannot start raw producer $rawProducerId: '
-                          '$e - needs replan',
-                    ),
-                  );
-                }
-                // Produce enough for multiple batches
-                final targetCount = prodInput.value * bufferTarget;
-                final produceResult = consumeUntil(
-                  currentState,
-                  WaitForInventoryAtLeast(prodInput.key, targetCount),
-                  random: random,
-                );
-                currentState = produceResult.state;
-                totalTicks += produceResult.ticksElapsed;
-                totalDeaths += produceResult.deathCount;
+      if (currentCount >= bufferTarget) {
+        continue; // Have enough, skip to next input
+      }
 
-                // Handle inventory full during raw production
-                if (produceResult.boundary is InventoryFull) {
-                  final recoveryResult = _attemptRecovery(
-                    currentState,
-                    const InventoryFull(),
-                    segmentSellPolicy,
-                    recoveryAttempts,
-                    macro.maxRecoveryAttempts,
-                  );
-                  if (recoveryResult.shouldReplan) {
-                    return (
-                      state: recoveryResult.state,
-                      ticksElapsed: totalTicks,
-                      deaths: totalDeaths,
-                      boundary: recoveryResult.boundary,
-                    );
-                  }
-                  currentState = recoveryResult.state;
-                  recoveryAttempts = recoveryResult.newAttemptCount;
-                }
+      // CHECKPOINT: Switch to producer (fixed ID from plan)
+      try {
+        currentState = applyInteraction(
+          currentState,
+          SwitchActivity(producerId),
+        );
+      } on Exception catch (e) {
+        // Producer not feasible (missing its own inputs) - replan
+        return (
+          state: currentState,
+          ticksElapsed: totalTicks,
+          deaths: totalDeaths,
+          boundary: NoProgressPossible(
+            reason: 'Cannot start producer $producerId: $e',
+          ),
+        );
+      }
 
-                // Check for material boundary after raw producing
-                if (watchSet != null) {
-                  final boundary = watchSet.detectBoundary(
-                    currentState,
-                    elapsedTicks: totalTicks,
-                  );
-                  if (boundary != null) {
-                    return (
-                      state: currentState,
-                      ticksElapsed: totalTicks,
-                      deaths: totalDeaths,
-                      boundary: segmentBoundaryToReplan(boundary),
-                    );
-                  }
-                }
-              }
-            }
-          }
-        }
+      // Produce until buffer target reached
+      final produceResult = consumeUntil(
+        currentState,
+        WaitForInventoryAtLeast(inputItemId, bufferTarget),
+        random: random,
+      );
+      currentState = produceResult.state;
+      totalTicks += produceResult.ticksElapsed;
+      totalDeaths += produceResult.deathCount;
 
-        // Switch to producer
-        try {
-          currentState = applyInteraction(
-            currentState,
-            SwitchActivity(producerId),
+      // CHECKPOINT: Handle production boundaries
+      if (produceResult.boundary is InventoryFull) {
+        final recovery = attemptRecovery(
+          currentState,
+          const InventoryFull(),
+          segmentSellPolicy,
+          recoveryAttempts,
+          macro.maxRecoveryAttempts,
+        );
+        if (recovery.shouldStop) {
+          return (
+            state: recovery.state,
+            ticksElapsed: totalTicks,
+            deaths: totalDeaths,
+            boundary: recovery.boundary,
           );
-        } on Exception catch (e) {
-          // Cannot start producer - missing inputs triggers replan
+        }
+        currentState = recovery.state;
+        recoveryAttempts = recovery.newAttemptCount;
+        // Retry this input's production by breaking to outer loop
+        break;
+      }
+
+      // Check for material boundary after producing
+      if (watchSet != null) {
+        final boundary = watchSet.detectBoundary(
+          currentState,
+          elapsedTicks: totalTicks,
+        );
+        if (boundary != null) {
           return (
             state: currentState,
             ticksElapsed: totalTicks,
             deaths: totalDeaths,
-            boundary: NoProgressPossible(
-              reason: 'Cannot start producer $producerId: $e - needs replan',
-            ),
+            boundary: segmentBoundaryToReplan(boundary),
           );
-        }
-
-        // Produce until buffer target
-        final produceResult = consumeUntil(
-          currentState,
-          WaitForInventoryAtLeast(inputItem, bufferTarget),
-          random: random,
-        );
-        currentState = produceResult.state;
-        totalTicks += produceResult.ticksElapsed;
-        totalDeaths += produceResult.deathCount;
-
-        // Handle inventory full during production
-        if (produceResult.boundary is InventoryFull) {
-          final recoveryResult = _attemptRecovery(
-            currentState,
-            const InventoryFull(),
-            segmentSellPolicy,
-            recoveryAttempts,
-            macro.maxRecoveryAttempts,
-          );
-          if (recoveryResult.shouldReplan) {
-            return (
-              state: recoveryResult.state,
-              ticksElapsed: totalTicks,
-              deaths: totalDeaths,
-              boundary: recoveryResult.boundary,
-            );
-          }
-          currentState = recoveryResult.state;
-          recoveryAttempts = recoveryResult.newAttemptCount;
-          continue; // Retry produce phase
-        }
-
-        // Check for material boundary after producing
-        if (watchSet != null) {
-          final boundary = watchSet.detectBoundary(
-            currentState,
-            elapsedTicks: totalTicks,
-          );
-          if (boundary != null) {
-            return (
-              state: currentState,
-              ticksElapsed: totalTicks,
-              deaths: totalDeaths,
-              boundary: segmentBoundaryToReplan(boundary),
-            );
-          }
         }
       }
     }
 
-    // Check stop condition again after producing
-    if (actualWaitFor.isSatisfied(currentState)) {
-      break;
+    // CHECKPOINT: After produce phase - check stop again
+    if (primaryStop.isSatisfied(currentState)) {
+      return (
+        state: currentState,
+        ticksElapsed: totalTicks,
+        deaths: totalDeaths,
+        boundary: const WaitConditionSatisfied(),
+      );
     }
 
-    // === CONSUME PHASE ===
+    // -------------------------------------------------------------------------
+    // CONSUME PHASE: Use inputs to train skill
+    // -------------------------------------------------------------------------
+
+    // CHECKPOINT: Switch to consumer (fixed ID from plan)
     try {
       currentState = applyInteraction(
         currentState,
         SwitchActivity(consumeActionId),
       );
     } on Exception catch (e) {
-      // Cannot start consuming action - trigger replan
       return (
         state: currentState,
         ticksElapsed: totalTicks,
         deaths: totalDeaths,
         boundary: NoProgressPossible(
-          reason: 'Cannot start consuming action: $e - needs replan',
+          reason: 'Cannot start consumer $consumeActionId: $e',
         ),
       );
     }
 
+    // Consume until: primary stop OR inputs depleted OR inventory pressure
     final consumeResult = consumeUntil(
       currentState,
-      WaitForAnyOf([actualWaitFor, WaitForInputsDepleted(consumeActionId)]),
+      WaitForAnyOf([
+        primaryStop,
+        WaitForInputsDepleted(consumeActionId),
+        const WaitForInventoryThreshold(inventoryPressureThreshold),
+      ]),
       random: random,
     );
     currentState = consumeResult.state;
     totalTicks += consumeResult.ticksElapsed;
     totalDeaths += consumeResult.deathCount;
 
-    // Handle inventory full during consumption
+    // CHECKPOINT: Handle consumption boundaries
     if (consumeResult.boundary is InventoryFull) {
-      final recoveryResult = _attemptRecovery(
+      final recovery = attemptRecovery(
         currentState,
         const InventoryFull(),
         segmentSellPolicy,
         recoveryAttempts,
         macro.maxRecoveryAttempts,
       );
-      if (recoveryResult.shouldReplan) {
+      if (recovery.shouldStop) {
         return (
-          state: recoveryResult.state,
+          state: recovery.state,
           ticksElapsed: totalTicks,
           deaths: totalDeaths,
-          boundary: recoveryResult.boundary,
+          boundary: recovery.boundary,
         );
       }
-      currentState = recoveryResult.state;
-      recoveryAttempts = recoveryResult.newAttemptCount;
-      continue; // Retry cycle
+      currentState = recovery.state;
+      recoveryAttempts = recovery.newAttemptCount;
+      // Continue to next cycle (will produce more inputs)
+      continue;
     }
 
     // Check for material boundary after consuming
@@ -461,101 +418,239 @@ StepResult executeCoupledLoop(
       }
     }
 
-    // If we hit the stop condition, we're done
-    if (actualWaitFor.isSatisfied(currentState)) {
-      break;
-    }
-
-    // Otherwise, loop back to produce more inputs
-    // (No hidden activity switches - next cycle handles production)
+    // Loop continues: next iteration will produce more inputs if needed
   }
-
-  // Done - return final state without hidden post-loop switches
-  return (
-    state: currentState,
-    ticksElapsed: totalTicks,
-    deaths: totalDeaths,
-    boundary: const WaitConditionSatisfied(),
-  );
 }
 
 /// Result of a recovery attempt.
-typedef _RecoveryResult = ({
-  GlobalState state,
-  bool shouldReplan,
-  ReplanBoundary? boundary,
-  int newAttemptCount,
-});
+///
+/// Contains the new state (possibly modified by recovery action), whether
+/// the executor should stop and trigger a replan, and tracking info.
+class RecoveryResult {
+  const RecoveryResult({
+    required this.state,
+    required this.outcome,
+    required this.newAttemptCount,
+    this.boundary,
+  });
+
+  /// The state after recovery (may be modified if recovery succeeded).
+  final GlobalState state;
+
+  /// What happened during recovery.
+  final RecoveryOutcome outcome;
+
+  /// Updated attempt count for tracking.
+  final int newAttemptCount;
+
+  /// The boundary to report if stopping (null if continuing).
+  final ReplanBoundary? boundary;
+
+  /// Whether the executor should stop and potentially replan.
+  bool get shouldStop =>
+      outcome == RecoveryOutcome.replanRequired ||
+      outcome == RecoveryOutcome.completed;
+
+  /// Whether execution can continue (retry the current phase).
+  bool get canContinue => outcome == RecoveryOutcome.recoveredRetry;
+}
+
+/// Outcome of a recovery attempt.
+enum RecoveryOutcome {
+  /// Recovery succeeded, retry the current micro-phase.
+  recoveredRetry,
+
+  /// Boundary indicates normal completion, stop execution.
+  completed,
+
+  /// Boundary requires replanning, stop execution.
+  replanRequired,
+}
 
 /// Attempts plan-authorized recovery for a boundary.
 ///
-/// Recovery is strictly limited to policy-driven actions:
-/// - InventoryFull: sell using segment's sell policy (the ONLY recovery action)
+/// ## Recovery Philosophy
 ///
-/// All other boundaries trigger a replan. The executor never makes autonomous
-/// decisions about banking, healing, or other state changes - those must be
-/// explicitly planned.
+/// The executor adapts to randomness ONLY via explicitly authorized actions.
+/// Recovery is strictly limited to what the plan specifies - the executor
+/// never makes autonomous strategic decisions.
 ///
-/// Returns whether recovery succeeded and the new state.
-_RecoveryResult _attemptRecovery(
+/// ## Supported Recoveries
+///
+/// - **InventoryFull**: Sell using the provided sell policy, then retry.
+///   The policy comes from: macro → segment → plan default.
+///   If no policy is available, triggers replan.
+///
+/// - **WaitConditionSatisfied**: Stop (normal completion).
+///
+/// - **GoalReached**: Stop (plan succeeded).
+///
+/// - **InputsDepleted**: Stop and trigger replan. The executor does NOT
+///   pick alternate producers - that's the planner's job via EnsureStock.
+///
+/// - **NoProgressPossible**: Stop and trigger replan.
+///
+/// - **Death**: Continue (deaths are handled by the simulator automatically).
+///
+/// - **All other boundaries**: Stop and trigger replan.
+///
+/// ## Guardrails
+///
+/// - Max recovery attempts per macro invocation prevents infinite loops.
+/// - State-change detection: if recovery doesn't meaningfully change state
+///   (e.g., selling produced 0 GP), it triggers replan to avoid loops.
+///
+/// ## Policy Hierarchy
+///
+/// The [sellPolicy] parameter should be resolved by the caller using:
+/// 1. Macro's sell policy (if the macro specifies one)
+/// 2. Segment's sell policy (from segment markers)
+/// 3. Plan's default policy
+///
+/// The executor NEVER infers policy from goal during execution.
+RecoveryResult attemptRecovery(
   GlobalState state,
   ReplanBoundary boundary,
   SellPolicy? sellPolicy,
   int currentAttempts,
   int maxAttempts,
 ) {
-  // Check recovery limit
-  if (currentAttempts >= maxAttempts) {
-    return (
+  // Handle completion boundaries first (no recovery needed)
+  if (boundary is WaitConditionSatisfied || boundary is GoalReached) {
+    return RecoveryResult(
       state: state,
-      shouldReplan: true,
+      outcome: RecoveryOutcome.completed,
+      newAttemptCount: currentAttempts,
+      boundary: boundary,
+    );
+  }
+
+  // Check recovery limit before attempting any recovery
+  if (currentAttempts >= maxAttempts) {
+    return RecoveryResult(
+      state: state,
+      outcome: RecoveryOutcome.replanRequired,
+      newAttemptCount: currentAttempts,
       boundary: NoProgressPossible(
         reason: 'Recovery limit ($maxAttempts) exceeded - triggering replan',
       ),
-      newAttemptCount: currentAttempts,
     );
   }
 
   // Handle InventoryFull: sell using plan-authorized policy
   if (boundary is InventoryFull) {
     if (sellPolicy == null) {
-      return (
+      return RecoveryResult(
         state: state,
-        shouldReplan: true,
-        boundary: const NoProgressPossible(
-          reason: 'InventoryFull but no sell policy - triggering replan',
-        ),
+        outcome: RecoveryOutcome.replanRequired,
         newAttemptCount: currentAttempts + 1,
+        boundary: const NoProgressPossible(
+          reason:
+              'InventoryFull but no sell policy provided - '
+              'planner must specify sellPolicySpec',
+        ),
       );
     }
 
-    final sellableValue = effectiveCredits(state, sellPolicy) - state.gp;
+    // Check if selling would actually free up space
+    final gpBefore = state.gp;
+    final inventoryUsedBefore = state.inventoryUsed;
+    final sellableValue = effectiveCredits(state, sellPolicy) - gpBefore;
+
     if (sellableValue <= 0) {
-      return (
+      return RecoveryResult(
         state: state,
-        shouldReplan: true,
-        boundary: const NoProgressPossible(
-          reason: 'InventoryFull with nothing to sell - triggering replan',
-        ),
+        outcome: RecoveryOutcome.replanRequired,
         newAttemptCount: currentAttempts + 1,
+        boundary: const NoProgressPossible(
+          reason:
+              'InventoryFull with nothing to sell per policy - '
+              'triggering replan',
+        ),
       );
     }
 
+    // Perform the sell
     final newState = applyInteraction(state, SellItems(sellPolicy));
-    return (
+
+    // State-change detection: verify we actually freed inventory space
+    if (newState.inventoryUsed >= inventoryUsedBefore) {
+      // Selling didn't free any space - this would loop forever
+      return RecoveryResult(
+        state: newState,
+        outcome: RecoveryOutcome.replanRequired,
+        newAttemptCount: currentAttempts + 1,
+        boundary: const NoProgressPossible(
+          reason: 'Selling did not free inventory space - triggering replan',
+        ),
+      );
+    }
+
+    // Recovery succeeded, retry the current phase
+    return RecoveryResult(
       state: newState,
-      shouldReplan: false,
-      boundary: null,
+      outcome: RecoveryOutcome.recoveredRetry,
       newAttemptCount: currentAttempts + 1,
     );
   }
 
-  // Other boundaries: trigger replan (executor shouldn't handle them)
-  return (
+  // Handle Death: continue (simulator handles restart automatically)
+  if (boundary is Death) {
+    return RecoveryResult(
+      state: state,
+      outcome: RecoveryOutcome.recoveredRetry,
+      newAttemptCount: currentAttempts,
+      // Don't increment attempts for deaths - they're expected
+    );
+  }
+
+  // Handle InputsDepleted: trigger replan
+  // The executor does NOT pick alternate producers - that's the planner's job
+  if (boundary is InputsDepleted) {
+    return RecoveryResult(
+      state: state,
+      outcome: RecoveryOutcome.replanRequired,
+      newAttemptCount: currentAttempts,
+      boundary: boundary,
+    );
+  }
+
+  // Handle NoProgressPossible: trigger replan
+  if (boundary is NoProgressPossible) {
+    return RecoveryResult(
+      state: state,
+      outcome: RecoveryOutcome.replanRequired,
+      newAttemptCount: currentAttempts,
+      boundary: boundary,
+    );
+  }
+
+  // Handle optimization opportunities: trigger replan to take advantage
+  if (boundary is UpgradeAffordableEarly || boundary is UnexpectedUnlock) {
+    return RecoveryResult(
+      state: state,
+      outcome: RecoveryOutcome.replanRequired,
+      newAttemptCount: currentAttempts,
+      boundary: boundary,
+    );
+  }
+
+  // Handle error boundaries: trigger replan
+  if (boundary is CannotAfford || boundary is ActionUnavailable) {
+    return RecoveryResult(
+      state: state,
+      outcome: RecoveryOutcome.replanRequired,
+      newAttemptCount: currentAttempts,
+      boundary: boundary,
+    );
+  }
+
+  // Fallback for any unhandled boundary types: trigger replan
+  return RecoveryResult(
     state: state,
-    shouldReplan: true,
-    boundary: boundary,
+    outcome: RecoveryOutcome.replanRequired,
     newAttemptCount: currentAttempts,
+    boundary: boundary,
   );
 }
 
@@ -1189,4 +1284,189 @@ PlanExecutionResult executePlan(
     plannedTicks: plan.totalTicks,
     boundariesHit: boundariesHit,
   );
+}
+
+// ---------------------------------------------------------------------------
+// Controlled Replanning Infrastructure
+// ---------------------------------------------------------------------------
+
+/// Configuration for controlled replanning during execution.
+///
+/// When execution hits a boundary that requires replanning (e.g., inputs
+/// depleted, inventory full with nothing sellable), the executor can
+/// trigger a replan using the same solver infrastructure.
+///
+/// This provides robustness to randomness while keeping strategy decisions
+/// in the planner, not the executor.
+@immutable
+class ReplanConfig {
+  const ReplanConfig({
+    this.maxReplans = 10,
+    this.maxTotalTicks = 1000000,
+    this.logReplans = false,
+  });
+
+  /// Maximum number of replans allowed per run.
+  ///
+  /// Prevents infinite replan loops. If exceeded, execution stops with
+  /// a [ReplanLimitExceeded] boundary.
+  final int maxReplans;
+
+  /// Maximum total ticks across all segments.
+  ///
+  /// Provides a time budget for the entire run. If exceeded, execution
+  /// stops with a [TimeBudgetExceeded] boundary.
+  final int maxTotalTicks;
+
+  /// Whether to log replan events for debugging.
+  final bool logReplans;
+}
+
+/// Tracks state across replanning cycles.
+///
+/// Maintains:
+/// - Running totals (ticks, deaths, replans)
+/// - History of replan events for debugging
+/// - Budget enforcement
+@immutable
+class ReplanContext {
+  const ReplanContext({
+    required this.config,
+    this.replanCount = 0,
+    this.totalTicks = 0,
+    this.totalDeaths = 0,
+    this.replanHistory = const [],
+  });
+
+  final ReplanConfig config;
+  final int replanCount;
+  final int totalTicks;
+  final int totalDeaths;
+  final List<ReplanEvent> replanHistory;
+
+  /// Whether we've hit the replan limit.
+  bool get replanLimitExceeded => replanCount >= config.maxReplans;
+
+  /// Whether we've hit the time budget.
+  bool get timeBudgetExceeded => totalTicks >= config.maxTotalTicks;
+
+  /// Whether we can continue with another replan.
+  bool get canReplan => !replanLimitExceeded && !timeBudgetExceeded;
+
+  /// Creates a new context after a replan event.
+  ReplanContext afterReplan({
+    required ReplanEvent event,
+    required int ticksElapsed,
+    required int deaths,
+  }) {
+    return ReplanContext(
+      config: config,
+      replanCount: replanCount + 1,
+      totalTicks: totalTicks + ticksElapsed,
+      totalDeaths: totalDeaths + deaths,
+      replanHistory: [...replanHistory, event],
+    );
+  }
+
+  /// Creates a new context after segment completion (no replan).
+  ReplanContext afterSegment({required int ticksElapsed, required int deaths}) {
+    return ReplanContext(
+      config: config,
+      replanCount: replanCount,
+      totalTicks: totalTicks + ticksElapsed,
+      totalDeaths: totalDeaths + deaths,
+      replanHistory: replanHistory,
+    );
+  }
+}
+
+/// Records a replan event for debugging.
+@immutable
+class ReplanEvent {
+  const ReplanEvent({
+    required this.boundary,
+    required this.stateHash,
+    required this.ticksAtReplan,
+    required this.reason,
+  });
+
+  /// The boundary that triggered the replan.
+  final ReplanBoundary boundary;
+
+  /// Hash of the state at replan time (for repro).
+  final int stateHash;
+
+  /// Total ticks elapsed when replan was triggered.
+  final int ticksAtReplan;
+
+  /// Human-readable reason for the replan.
+  final String reason;
+
+  @override
+  String toString() =>
+      'ReplanEvent(${boundary.runtimeType}, ticks=$ticksAtReplan, $reason)';
+}
+
+/// Result of execution with replanning.
+@immutable
+class ReplanExecutionResult {
+  const ReplanExecutionResult({
+    required this.finalState,
+    required this.totalTicks,
+    required this.totalDeaths,
+    required this.replanCount,
+    required this.segments,
+    this.terminatingBoundary,
+  });
+
+  /// Final state after all segments.
+  final GlobalState finalState;
+
+  /// Total ticks across all segments.
+  final int totalTicks;
+
+  /// Total deaths across all segments.
+  final int totalDeaths;
+
+  /// Number of replans that occurred.
+  final int replanCount;
+
+  /// Results from each segment (for diagnostics).
+  final List<ReplanSegmentResult> segments;
+
+  /// The boundary that terminated execution (null if goal reached).
+  final ReplanBoundary? terminatingBoundary;
+
+  /// Whether the goal was reached.
+  bool get goalReached => terminatingBoundary == null;
+}
+
+/// Result of a single segment execution during replanning.
+@immutable
+class ReplanSegmentResult {
+  const ReplanSegmentResult({
+    required this.plannedTicks,
+    required this.actualTicks,
+    required this.deaths,
+    required this.triggeredReplan,
+    this.replanBoundary,
+  });
+
+  final int plannedTicks;
+  final int actualTicks;
+  final int deaths;
+  final bool triggeredReplan;
+  final ReplanBoundary? replanBoundary;
+}
+
+/// Computes a simple state hash for replan logging.
+///
+/// Not cryptographically secure - just for debugging/repro.
+int computeStateHash(GlobalState state) {
+  var hash = state.gp.hashCode;
+  hash ^= state.inventoryUsed.hashCode;
+  for (final skill in Skill.values) {
+    hash ^= state.skillState(skill).xp.hashCode;
+  }
+  return hash ^ (state.activeAction?.id.hashCode ?? 0);
 }

@@ -2920,3 +2920,210 @@ GlobalState _handleUpgradeAffordableBoundary(
   );
   return currentState;
 }
+
+// ---------------------------------------------------------------------------
+// Controlled Replanning Entrypoint
+// ---------------------------------------------------------------------------
+
+/// Solves and executes with automatic replanning on boundary hits.
+///
+/// This is the "online execution" entrypoint that provides robustness to
+/// randomness while keeping all strategy decisions in the solver.
+///
+/// ## How It Works
+///
+/// 1. Solve for an initial plan from `initialState` to `goal`
+/// 2. Execute the plan with full simulation
+/// 3. If execution hits a boundary requiring replan:
+///    - Log the replan event (if configured)
+///    - Re-solve from the current state
+///    - Continue execution with the new plan
+/// 4. Repeat until goal reached or budget exceeded
+///
+/// ## Guardrails
+///
+/// - `config.maxReplans`: Maximum number of replans allowed
+/// - `config.maxTotalTicks`: Maximum total ticks across all segments
+///
+/// ## When to Use
+///
+/// Use this for "fire and forget" execution where you want the solver to
+/// handle unexpected events automatically. For fine-grained control over
+/// replanning, use `solve()` and `executePlan()` directly.
+///
+/// ## Returns
+///
+/// A [ReplanExecutionResult] containing:
+/// - Final state after all segments
+/// - Total ticks and deaths
+/// - Number of replans that occurred
+/// - Segment-by-segment results for diagnostics
+/// - Terminating boundary (null if goal reached)
+ReplanExecutionResult solveWithReplanning(
+  GlobalState initialState,
+  Goal goal, {
+  required Random random,
+  ReplanConfig config = const ReplanConfig(),
+  int maxExpandedNodes = defaultMaxExpandedNodes,
+  int maxQueueSize = defaultMaxQueueSize,
+}) {
+  var context = ReplanContext(config: config);
+  var currentState = initialState;
+  final segments = <ReplanSegmentResult>[];
+
+  while (true) {
+    // Check budget constraints before solving
+    if (context.replanLimitExceeded) {
+      return ReplanExecutionResult(
+        finalState: currentState,
+        totalTicks: context.totalTicks,
+        totalDeaths: context.totalDeaths,
+        replanCount: context.replanCount,
+        segments: segments,
+        terminatingBoundary: ReplanLimitExceeded(config.maxReplans),
+      );
+    }
+
+    if (context.timeBudgetExceeded) {
+      return ReplanExecutionResult(
+        finalState: currentState,
+        totalTicks: context.totalTicks,
+        totalDeaths: context.totalDeaths,
+        replanCount: context.replanCount,
+        segments: segments,
+        terminatingBoundary: TimeBudgetExceeded(
+          config.maxTotalTicks,
+          context.totalTicks,
+        ),
+      );
+    }
+
+    // Check if goal is already satisfied
+    if (goal.isSatisfied(currentState)) {
+      return ReplanExecutionResult(
+        finalState: currentState,
+        totalTicks: context.totalTicks,
+        totalDeaths: context.totalDeaths,
+        replanCount: context.replanCount,
+        segments: segments,
+      );
+    }
+
+    // Solve for a plan from current state
+    final solveResult = solve(
+      currentState,
+      goal,
+      random: random,
+      maxExpandedNodes: maxExpandedNodes,
+      maxQueueSize: maxQueueSize,
+    );
+
+    // Handle solve failure
+    if (solveResult is SolverFailed) {
+      return ReplanExecutionResult(
+        finalState: currentState,
+        totalTicks: context.totalTicks,
+        totalDeaths: context.totalDeaths,
+        replanCount: context.replanCount,
+        segments: segments,
+        terminatingBoundary: NoProgressPossible(
+          reason: 'Solver failed: ${solveResult.failure.reason}',
+        ),
+      );
+    }
+
+    final success = solveResult as SolverSuccess;
+    final plan = success.plan;
+
+    // Execute the plan
+    final execResult = executePlan(currentState, plan, random: random);
+
+    // Determine if we need to replan
+    final needsReplan =
+        execResult.hasUnexpectedBoundaries ||
+        execResult.boundariesHit.any(
+          (b) =>
+              b is NoProgressPossible ||
+              b is InputsDepleted ||
+              (b is InventoryFull),
+        );
+
+    // Find the boundary that triggered replan (if any)
+    final triggeringBoundary = execResult.boundariesHit.lastOrNull;
+    final isGoalReached = goal.isSatisfied(execResult.finalState);
+
+    // Record segment result
+    segments.add(
+      ReplanSegmentResult(
+        plannedTicks: execResult.plannedTicks,
+        actualTicks: execResult.actualTicks,
+        deaths: execResult.totalDeaths,
+        triggeredReplan: needsReplan && !isGoalReached,
+        replanBoundary: needsReplan ? triggeringBoundary : null,
+      ),
+    );
+
+    // Update state
+    currentState = execResult.finalState;
+
+    // If goal reached, we're done
+    if (isGoalReached) {
+      context = context.afterSegment(
+        ticksElapsed: execResult.actualTicks,
+        deaths: execResult.totalDeaths,
+      );
+      return ReplanExecutionResult(
+        finalState: currentState,
+        totalTicks: context.totalTicks,
+        totalDeaths: context.totalDeaths,
+        replanCount: context.replanCount,
+        segments: segments,
+      );
+    }
+
+    // If no replan needed, something is wrong (plan should reach goal)
+    if (!needsReplan) {
+      context = context.afterSegment(
+        ticksElapsed: execResult.actualTicks,
+        deaths: execResult.totalDeaths,
+      );
+      return ReplanExecutionResult(
+        finalState: currentState,
+        totalTicks: context.totalTicks,
+        totalDeaths: context.totalDeaths,
+        replanCount: context.replanCount,
+        segments: segments,
+        terminatingBoundary: const NoProgressPossible(
+          reason: 'Plan completed without reaching goal and no replan needed',
+        ),
+      );
+    }
+
+    // Log replan event if configured
+    if (config.logReplans && triggeringBoundary != null) {
+      final event = ReplanEvent(
+        boundary: triggeringBoundary,
+        stateHash: computeStateHash(currentState),
+        ticksAtReplan: context.totalTicks + execResult.actualTicks,
+        reason: triggeringBoundary.describe(),
+      );
+      // Print is intentional for debugging replan events.
+      // ignore: avoid_print
+      print('[REPLAN] ${event.reason} at tick ${event.ticksAtReplan}');
+    }
+
+    // Update context for replan
+    context = context.afterReplan(
+      event: ReplanEvent(
+        boundary: triggeringBoundary ?? const NoProgressPossible(),
+        stateHash: computeStateHash(currentState),
+        ticksAtReplan: context.totalTicks + execResult.actualTicks,
+        reason: triggeringBoundary?.describe() ?? 'Unknown',
+      ),
+      ticksElapsed: execResult.actualTicks,
+      deaths: execResult.totalDeaths,
+    );
+
+    // Loop back to solve again from current state
+  }
+}

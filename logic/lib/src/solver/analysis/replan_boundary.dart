@@ -290,3 +290,42 @@ ReplanBoundary? boundaryFromStopReason(
     ActionStopReason.playerDied => const Death(),
   };
 }
+
+// ---------------------------------------------------------------------------
+// Controlled replanning boundaries
+// ---------------------------------------------------------------------------
+
+/// Boundary indicating replan limit was exceeded.
+///
+/// This is a guardrail to prevent infinite replan loops. When the executor
+/// hits this limit, execution stops and the caller must decide how to proceed.
+@immutable
+class ReplanLimitExceeded extends ReplanBoundary {
+  const ReplanLimitExceeded(this.limit);
+
+  final int limit;
+
+  @override
+  String describe() => 'Replan limit exceeded ($limit)';
+
+  @override
+  bool get isExpected => false;
+}
+
+/// Boundary indicating time budget was exceeded.
+///
+/// This is a guardrail to prevent runaway execution. When total ticks across
+/// all segments exceeds the budget, execution stops.
+@immutable
+class TimeBudgetExceeded extends ReplanBoundary {
+  const TimeBudgetExceeded(this.budget, this.actual);
+
+  final int budget;
+  final int actual;
+
+  @override
+  String describe() => 'Time budget exceeded ($actual > $budget ticks)';
+
+  @override
+  bool get isExpected => false;
+}

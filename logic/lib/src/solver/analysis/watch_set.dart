@@ -232,6 +232,8 @@ class WatchSet {
       CannotAfford() => true, // Error - always stop
       ActionUnavailable() => true, // Error - always stop
       NoProgressPossible() => true, // Error - always stop
+      ReplanLimitExceeded() => true, // Budget exceeded - always stop
+      TimeBudgetExceeded() => true, // Budget exceeded - always stop
     };
   }
 
