@@ -10,6 +10,7 @@ import 'package:logic/src/data/actions.dart' show Skill, SkillAction;
 import 'package:logic/src/data/melvor_id.dart';
 import 'package:logic/src/solver/apply_interaction.dart';
 import 'package:logic/src/solver/consume_until.dart';
+import 'package:logic/src/solver/estimate_rates.dart';
 import 'package:logic/src/solver/goal.dart';
 import 'package:logic/src/solver/interaction.dart';
 import 'package:logic/src/solver/macro_candidate.dart';
@@ -34,21 +35,25 @@ typedef StepResult = ({
 /// Called after each step with:
 /// - stepIndex: 0-based index of the step
 /// - step: the PlanStep that was executed
-/// - plannedTicks: ticks the step was planned to take
+/// - plannedTicks: ticks the step was planned to take (from solver)
+/// - estimatedTicksAtExecution: ticks estimated right before execution
 /// - actualTicks: ticks the step actually took
 /// - cumulativeActualTicks: total actual ticks so far
 /// - cumulativePlannedTicks: total planned ticks so far
 /// - stateAfter: the state after executing this step (for debugging)
+/// - stateBefore: the state before executing this step (for debugging)
 /// - boundary: the replan boundary hit, if any
 typedef StepProgressCallback =
     void Function({
       required int stepIndex,
       required PlanStep step,
       required int plannedTicks,
+      required int estimatedTicksAtExecution,
       required int actualTicks,
       required int cumulativeActualTicks,
       required int cumulativePlannedTicks,
       required GlobalState stateAfter,
+      required GlobalState stateBefore,
       required ReplanBoundary? boundary,
     });
 
@@ -717,6 +722,58 @@ StepResult applyStep(
   }
 }
 
+/// Estimates ticks for a step at execution time using current state.
+///
+/// This recomputes the expected ticks from the current state, which may differ
+/// from what was planned if the state has diverged. Comparing planned vs
+/// estimated-at-execution vs actual helps diagnose rate model issues:
+/// - planned != estimatedAtExec: planning snapshot inconsistent
+/// - estimatedAtExec != actual: rate model or termination condition wrong
+int _estimateTicksAtExecution(GlobalState state, PlanStep step) {
+  switch (step) {
+    case InteractionStep():
+      return 0; // Interactions are instant
+
+    case WaitStep(:final waitFor, :final expectedAction):
+      // Get rates for the action that will be running
+      final actionId = expectedAction ?? state.activeAction?.id;
+      if (actionId == null) return 0;
+      final rates = estimateRatesForAction(state, actionId);
+      return waitFor.estimateTicks(state, rates);
+
+    case MacroStep(:final macro, :final waitFor):
+      // Get rates for the macro's action
+      final actionId = switch (macro) {
+        TrainSkillUntil(:final actionId, :final skill) =>
+          actionId ??
+              findBestActionForSkill(
+                state,
+                skill,
+                ReachSkillLevelGoal(skill, 99),
+              ),
+        TrainConsumingSkillUntil(:final consumingSkill) =>
+          findBestActionForSkill(
+            state,
+            consumingSkill,
+            ReachSkillLevelGoal(consumingSkill, 99),
+          ),
+        AcquireItem(:final itemId) => findProducerActionForItem(
+          state,
+          itemId,
+          const ReachSkillLevelGoal(Skill.mining, 99),
+        ),
+        EnsureStock(:final itemId) => findProducerActionForItem(
+          state,
+          itemId,
+          const ReachSkillLevelGoal(Skill.mining, 99),
+        ),
+      };
+      if (actionId == null) return 0;
+      final rates = estimateRatesForAction(state, actionId);
+      return waitFor.estimateTicks(state, rates);
+  }
+}
+
 /// Execute a plan and return the result including death count and actual ticks.
 ///
 /// Uses goal-aware waiting: [WaitStep.waitFor] determines when to stop waiting,
@@ -744,6 +801,13 @@ PlanExecutionResult executePlan(
       WaitStep(:final deltaTicks) => deltaTicks,
       MacroStep(:final deltaTicks) => deltaTicks,
     };
+
+    // Capture state before execution for diagnostics
+    final stateBefore = state;
+
+    // Compute estimated ticks at execution time (recompute from current state)
+    final estimatedTicksAtExecution = _estimateTicksAtExecution(state, step);
+
     try {
       final result = applyStep(
         state,
@@ -762,10 +826,12 @@ PlanExecutionResult executePlan(
           stepIndex: i,
           step: step,
           plannedTicks: stepPlannedTicks,
+          estimatedTicksAtExecution: estimatedTicksAtExecution,
           actualTicks: result.ticksElapsed,
           cumulativeActualTicks: actualTicks,
           cumulativePlannedTicks: plannedTicks,
           stateAfter: state,
+          stateBefore: stateBefore,
           boundary: result.boundary,
         );
       }

@@ -59,6 +59,10 @@ final _parser = ArgParser()
     abbr: 'v',
     help: 'Print step-by-step progress during execution',
     negatable: false,
+  )
+  ..addOption(
+    'verbose-segment',
+    help: 'Show full step list for specific segment number (1-indexed)',
   );
 
 void main(List<String> args) async {
@@ -87,6 +91,10 @@ void main(List<String> args) async {
   final collectDiagnostics = results['diagnostics'] as bool;
   final useOfflineMode = results['offline'] as bool;
   final verboseExecution = results['verbose'] as bool;
+  final verboseSegmentStr = results['verbose-segment'] as String?;
+  final verboseSegment = verboseSegmentStr != null
+      ? int.tryParse(verboseSegmentStr)
+      : null;
 
   // Default: segment-based solving. --offline enables single-shot mode.
   if (useOfflineMode) {
@@ -137,6 +145,7 @@ void main(List<String> args) async {
       registries,
       collectDiagnostics: collectDiagnostics,
       verboseExecution: verboseExecution,
+      verboseSegment: verboseSegment,
     );
   }
 }
@@ -516,6 +525,7 @@ void _printSegmentedResult(
   Registries registries, {
   bool collectDiagnostics = false,
   bool verboseExecution = false,
+  int? verboseSegment,
 }) {
   switch (result) {
     case SegmentedSuccess(
@@ -530,42 +540,49 @@ void _printSegmentedResult(
       print('Total ticks: $totalTicks');
       print('');
 
-      // Print segment summaries with optional per-segment diagnostics
-      print('--- Segment Boundaries ---');
+      // Print segment summaries (collapsed by default)
+      print('--- Segments ---');
       for (var i = 0; i < segments.length; i++) {
         final segment = segments[i];
-        final boundary = segment.stopBoundary;
-        final ticks = segment.totalTicks;
-        final steps = segment.steps.length;
-
-        // Include expanded nodes if diagnostics available
         final profile = i < segmentProfiles.length ? segmentProfiles[i] : null;
-        final nodeInfo = profile != null
-            ? ' (${profile.expandedNodes} nodes)'
-            : '';
 
-        print(
-          '  Segment ${i + 1}: $steps steps, $ticks ticks$nodeInfo '
-          '-> ${boundary.describe()}',
+        // Determine if this segment should show full step details
+        final isVerboseSegment = verboseSegment == i + 1;
+        final isWeirdSegment = _isWeirdSegment(segment);
+        final showDetails = isVerboseSegment || isWeirdSegment;
+
+        // Print one-line summary
+        final summary = _formatSegmentSummary(
+          i + 1,
+          segment,
+          profile,
+          registries,
         );
-        // Print step details
-        ActionId? currentAction;
-        for (var j = 0; j < segment.steps.length; j++) {
-          final step = segment.steps[j];
-          final formatted = _formatStepForSegment(
-            step,
-            registries,
-            currentAction,
-          );
-          print('    Step ${j + 1}: $formatted');
-          // Track current action for context in wait steps
-          if (step case InteractionStep(:final interaction)) {
-            if (interaction case SwitchActivity(:final actionId)) {
-              currentAction = actionId;
-            }
-          } else if (step case MacroStep(:final macro)) {
-            if (macro case TrainSkillUntil(:final actionId)) {
-              currentAction = actionId;
+        print(summary);
+
+        // Print full step details if requested or weird
+        if (showDetails) {
+          if (isWeirdSegment && !isVerboseSegment) {
+            print('    [auto-expanded: weird segment]');
+          }
+          ActionId? currentAction;
+          for (var j = 0; j < segment.steps.length; j++) {
+            final step = segment.steps[j];
+            final formatted = _formatStepForSegment(
+              step,
+              registries,
+              currentAction,
+            );
+            print('    ${j + 1}. $formatted');
+            // Track current action for context in wait steps
+            if (step case InteractionStep(:final interaction)) {
+              if (interaction case SwitchActivity(:final actionId)) {
+                currentAction = actionId;
+              }
+            } else if (step case MacroStep(:final macro)) {
+              if (macro case TrainSkillUntil(:final actionId)) {
+                currentAction = actionId;
+              }
             }
           }
         }
@@ -596,10 +613,12 @@ void _printSegmentedResult(
                 required stepIndex,
                 required step,
                 required plannedTicks,
+                required estimatedTicksAtExecution,
                 required actualTicks,
                 required cumulativeActualTicks,
                 required cumulativePlannedTicks,
                 required stateAfter,
+                required stateBefore,
                 required boundary,
               }) {
                 // Update current action tracking
@@ -618,6 +637,12 @@ void _printSegmentedResult(
                   registries,
                   currentAction,
                 );
+
+                // Compare: planned vs estimated-at-execution vs actual
+                // - planned != estimatedAtExec: planning snapshot inconsistent
+                // - estimatedAtExec != actual: rate model/termination wrong
+                final planVsEstDelta = plannedTicks - estimatedTicksAtExecution;
+                final estVsActDelta = estimatedTicksAtExecution - actualTicks;
                 final delta = actualTicks - plannedTicks;
                 final deltaStr = delta >= 0 ? '+$delta' : '$delta';
                 final cumDelta = cumulativeActualTicks - cumulativePlannedTicks;
@@ -629,11 +654,33 @@ void _printSegmentedResult(
                     (plannedTicks > 0 && delta.abs() / plannedTicks > 0.1);
 
                 if (significantDeviation || stepIndex < 5) {
+                  print('  Step ${stepIndex + 1}: $stepDesc');
                   print(
-                    '  Step ${stepIndex + 1}: $stepDesc '
-                    '[actual: $actualTicks, planned: $plannedTicks, '
-                    'delta: $deltaStr, cumulative delta: $cumDeltaStr]',
+                    '    planned=$plannedTicks, '
+                    'estAtExec=$estimatedTicksAtExecution, '
+                    'actual=$actualTicks',
                   );
+                  print(
+                    '    plan-vs-est: ${planVsEstDelta >= 0 ? '+' : ''}$planVsEstDelta, '
+                    'est-vs-actual: ${estVsActDelta >= 0 ? '+' : ''}$estVsActDelta, '
+                    'total delta: $deltaStr, cumulative: $cumDeltaStr',
+                  );
+
+                  // Diagnose the source of discrepancy
+                  if (delta.abs() > 100) {
+                    if (planVsEstDelta.abs() > 50 &&
+                        planVsEstDelta.abs() > estVsActDelta.abs()) {
+                      print(
+                        '    >> SNAPSHOT INCONSISTENCY: state at execution '
+                        'differs from planning snapshot',
+                      );
+                    } else if (estVsActDelta.abs() > 50) {
+                      print(
+                        '    >> RATE/TERMINATION ISSUE: estimateTicks() '
+                        'vs actual execution mismatch',
+                      );
+                    }
+                  }
 
                   // Enhanced diagnostics for steps with large deviations
                   if (delta.abs() > 1000) {
@@ -643,10 +690,16 @@ void _printSegmentedResult(
                       if (waitFor case WaitForAnyOf(:final conditions)) {
                         print('    Sub-conditions:');
                         for (final cond in conditions) {
-                          final satisfied = cond.isSatisfied(stateAfter)
+                          final satisfiedBefore = cond.isSatisfied(stateBefore)
                               ? '✓'
                               : '✗';
-                          print('      $satisfied ${cond.describe()}');
+                          final satisfiedAfter = cond.isSatisfied(stateAfter)
+                              ? '✓'
+                              : '✗';
+                          print(
+                            '      before:$satisfiedBefore after:$satisfiedAfter '
+                            '${cond.describe()}',
+                          );
                         }
                       }
                     }
@@ -656,20 +709,29 @@ void _printSegmentedResult(
                       if (waitFor case WaitForAnyOf(:final conditions)) {
                         print('    Sub-conditions:');
                         for (final cond in conditions) {
-                          final satisfied = cond.isSatisfied(stateAfter)
+                          final satisfiedBefore = cond.isSatisfied(stateBefore)
                               ? '✓'
                               : '✗';
-                          print('      $satisfied ${cond.describe()}');
+                          final satisfiedAfter = cond.isSatisfied(stateAfter)
+                              ? '✓'
+                              : '✗';
+                          print(
+                            '      before:$satisfiedBefore after:$satisfiedAfter '
+                            '${cond.describe()}',
+                          );
                         }
                       }
                       // For EnsureStock, show inventory count
                       if (macro is EnsureStock) {
-                        final count = stateAfter.inventory.countOfItem(
+                        final countBefore = stateBefore.inventory.countOfItem(
+                          stateBefore.registries.items.byId(macro.itemId),
+                        );
+                        final countAfter = stateAfter.inventory.countOfItem(
                           stateAfter.registries.items.byId(macro.itemId),
                         );
                         print(
-                          '    Inventory: ${macro.itemId.localId} = $count '
-                          '(target: ${macro.minTotal})',
+                          '    Inventory: ${macro.itemId.localId} '
+                          '$countBefore -> $countAfter (target: ${macro.minTotal})',
                         );
                       }
                     }
@@ -732,6 +794,137 @@ void _printSegmentedResult(
             ),
       );
   }
+}
+
+// ---------------------------------------------------------------------------
+// Segment Summary Formatting
+// ---------------------------------------------------------------------------
+
+/// Formats a one-line summary for a segment.
+///
+/// Format: `Seg N: ticks, nodes -> boundary reason`
+///         `  Do: primary action + stock: Item1 X, Item2 Y | switches: N`
+String _formatSegmentSummary(
+  int segmentNum,
+  Segment segment,
+  SolverProfile? profile,
+  Registries registries,
+) {
+  final ticks = segment.totalTicks;
+  final nodes = profile?.expandedNodes ?? 0;
+  final boundary = segment.stopBoundary.describe();
+
+  // Extract primary action and stocking info from steps
+  String? primaryAction;
+  final stockEntries = <String>[];
+  var switchCount = 0;
+  var sellCount = 0;
+
+  for (final step in segment.steps) {
+    switch (step) {
+      case InteractionStep(:final interaction):
+        switch (interaction) {
+          case SwitchActivity(:final actionId):
+            switchCount++;
+            // Use the first switch as primary action
+            if (primaryAction == null) {
+              final action = registries.actions.byId(actionId);
+              final skill = action.skill.name.toLowerCase();
+              primaryAction = '${action.name} ($skill)';
+            }
+          case SellItems():
+            sellCount++;
+          case BuyShopItem():
+            break;
+        }
+      case MacroStep(:final macro):
+        switch (macro) {
+          case TrainSkillUntil(:final skill, :final actionId):
+            if (primaryAction == null) {
+              if (actionId != null) {
+                final action = registries.actions.byId(actionId);
+                final skillLower = skill.name.toLowerCase();
+                primaryAction = '${action.name} ($skillLower)';
+              } else {
+                primaryAction = skill.name;
+              }
+            }
+          case TrainConsumingSkillUntil(:final consumingSkill):
+            primaryAction ??= consumingSkill.name;
+          case EnsureStock(:final itemId, :final minTotal):
+            stockEntries.add('${itemId.name} $minTotal');
+          case AcquireItem(:final itemId, :final quantity):
+            stockEntries.add('${itemId.name} $quantity');
+        }
+      case WaitStep():
+        break;
+    }
+  }
+
+  // Build the summary line
+  final buffer = StringBuffer()
+    ..write('Seg $segmentNum: ')
+    ..write('${_formatTicksCompact(ticks)}, ')
+    ..write('$nodes nodes -> $boundary');
+
+  // Build the detail line if we have useful info
+  final details = <String>[];
+  if (primaryAction != null) {
+    details.add('Do: $primaryAction');
+  }
+  if (stockEntries.isNotEmpty) {
+    // Show top 2 stock entries
+    final stockSummary = stockEntries.take(2).join(', ');
+    if (stockEntries.length > 2) {
+      details.add('stock: $stockSummary, +${stockEntries.length - 2} more');
+    } else {
+      details.add('stock: $stockSummary');
+    }
+  }
+
+  // Add interaction counts
+  final interactions = <String>[];
+  if (switchCount > 0) interactions.add('switches: $switchCount');
+  if (sellCount > 0) interactions.add('sells: $sellCount');
+  if (interactions.isNotEmpty) {
+    details.add(interactions.join(', '));
+  }
+
+  if (details.isNotEmpty) {
+    buffer
+      ..writeln()
+      ..write('  ${details.join(' | ')}');
+  }
+
+  return buffer.toString();
+}
+
+/// Formats ticks in a compact form (e.g., "19.5k" or "1.2M").
+String _formatTicksCompact(int ticks) {
+  if (ticks >= 1000000) {
+    return '${(ticks / 1000000).toStringAsFixed(1)}M ticks';
+  } else if (ticks >= 1000) {
+    return '${(ticks / 1000).toStringAsFixed(1)}k ticks';
+  }
+  return '$ticks ticks';
+}
+
+/// Determines if a segment is "weird" and should be auto-expanded.
+///
+/// A segment is weird if:
+/// - It has many switches (>5) suggesting something unusual
+/// - It has very few ticks (<100) suggesting a degenerate case
+bool _isWeirdSegment(Segment segment) {
+  // Count switches
+  var switchCount = 0;
+  for (final step in segment.steps) {
+    if (step case InteractionStep(:final interaction)) {
+      if (interaction is SwitchActivity) switchCount++;
+    }
+  }
+
+  // Weird if too many switches or too few ticks
+  return switchCount > 5 || segment.totalTicks < 100;
 }
 
 // ---------------------------------------------------------------------------
