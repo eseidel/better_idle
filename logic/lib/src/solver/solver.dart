@@ -45,10 +45,10 @@ import 'package:logic/src/solver/execute_plan.dart';
 import 'package:logic/src/solver/goal.dart';
 import 'package:logic/src/solver/interaction.dart';
 import 'package:logic/src/solver/macro_candidate.dart';
+import 'package:logic/src/solver/macro_expansion_context.dart';
 import 'package:logic/src/solver/next_decision_delta.dart';
 import 'package:logic/src/solver/plan.dart';
 import 'package:logic/src/solver/replan_boundary.dart';
-import 'package:logic/src/solver/solver_context.dart';
 import 'package:logic/src/solver/solver_profile.dart';
 import 'package:logic/src/solver/unlock_boundaries.dart';
 import 'package:logic/src/solver/value_model.dart';
@@ -1693,24 +1693,6 @@ MacroExpansionExplanation explainMacroExpansion(
   );
 }
 
-/// Creates a [SolverContext] for macro expansion.
-SolverContext _createSolverContext(
-  GlobalState state,
-  Goal goal,
-  Map<Skill, SkillBoundaries> boundaries,
-) {
-  return SolverContext(
-    state: state,
-    goal: goal,
-    boundaries: boundaries,
-    applyInteraction: applyInteraction,
-    advance: advance,
-    estimateRates: estimateRates,
-    estimateRatesForAction: estimateRatesForAction,
-    effectiveCredits: effectiveCredits,
-  );
-}
-
 /// Expands a macro candidate into a future state by estimating progress.
 ///
 /// Uses expected-value modeling (same as `advance`) to project forward
@@ -1724,7 +1706,11 @@ MacroExpansionOutcome _expandMacro(
   Goal goal,
   Map<Skill, SkillBoundaries> boundaries,
 ) {
-  final context = _createSolverContext(state, goal, boundaries);
+  final context = MacroExpansionContext(
+    state: state,
+    goal: goal,
+    boundaries: boundaries,
+  );
   return macro.expand(context);
 }
 

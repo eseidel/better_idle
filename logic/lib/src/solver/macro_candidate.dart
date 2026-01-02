@@ -8,9 +8,12 @@ import 'package:logic/src/data/action_id.dart';
 import 'package:logic/src/data/actions.dart';
 import 'package:logic/src/data/melvor_id.dart';
 import 'package:logic/src/data/xp.dart';
+import 'package:logic/src/solver/apply_interaction.dart';
+import 'package:logic/src/solver/estimate_rates.dart';
 import 'package:logic/src/solver/interaction.dart';
+import 'package:logic/src/solver/macro_expansion_context.dart';
 import 'package:logic/src/solver/next_decision_delta.dart' show infTicks;
-import 'package:logic/src/solver/solver_context.dart';
+import 'package:logic/src/solver/state_advance.dart';
 import 'package:logic/src/solver/unlock_boundaries.dart';
 import 'package:logic/src/solver/wait_for.dart';
 import 'package:logic/src/state.dart';
@@ -130,7 +133,7 @@ sealed class MacroCandidate {
   ///
   /// Returns [MacroExpanded] on success, [MacroAlreadySatisfied] if no work
   /// needed, or [MacroCannotExpand] with a reason if expansion is impossible.
-  MacroExpansionOutcome expand(SolverContext context);
+  MacroExpansionOutcome expand(MacroExpansionContext context);
 }
 
 /// Train a skill by doing its best action until ANY stop condition triggers.
@@ -163,7 +166,7 @@ class TrainSkillUntil extends MacroCandidate {
   List<MacroStopRule> get allStops => [primaryStop, ...watchedStops];
 
   @override
-  MacroExpansionOutcome expand(SolverContext context) {
+  MacroExpansionOutcome expand(MacroExpansionContext context) {
     final state = context.state;
 
     // Find best unlocked action for this skill
@@ -179,10 +182,7 @@ class TrainSkillUntil extends MacroCandidate {
     // Switch to that action (if not already on it)
     var currentState = state;
     if (state.activeAction?.id != bestAction) {
-      currentState = context.applyInteraction(
-        state,
-        SwitchActivity(bestAction),
-      );
+      currentState = applyInteraction(state, SwitchActivity(bestAction));
     }
 
     // Build composite WaitFor from all stop rules (primary + watched)
@@ -197,7 +197,7 @@ class TrainSkillUntil extends MacroCandidate {
         : WaitForAnyOf(waitConditions);
 
     // Estimate ticks until ANY stop condition triggers (use minimum)
-    final rates = context.estimateRates(currentState);
+    final rates = estimateRates(currentState);
     final ticksUntilStop = compositeWaitFor.estimateTicks(currentState, rates);
 
     if (ticksUntilStop <= 0) {
@@ -222,7 +222,7 @@ class TrainSkillUntil extends MacroCandidate {
     }
 
     // Use expected-value advance
-    final advanceResult = context.advance(currentState, ticksUntilStop);
+    final advanceResult = advance(currentState, ticksUntilStop);
 
     // Create enriched macro with the specific action we chose
     final enrichedMacro = TrainSkillUntil(
@@ -263,7 +263,7 @@ class AcquireItem extends MacroCandidate {
   final int quantity;
 
   @override
-  MacroExpansionOutcome expand(SolverContext context) {
+  MacroExpansionOutcome expand(MacroExpansionContext context) {
     final state = context.state;
 
     // Find producer for this item
@@ -325,7 +325,7 @@ class AcquireItem extends MacroCandidate {
     }
 
     // Producer is ready (simple action or inputs available) - switch to it
-    final newState = context.applyInteraction(state, SwitchActivity(producer));
+    final newState = applyInteraction(state, SwitchActivity(producer));
 
     // Capture start count for delta semantics
     final startCount = context.countItem(state, itemId);
@@ -337,7 +337,7 @@ class AcquireItem extends MacroCandidate {
     final ticksNeeded = actionsNeeded * ticksPerAction;
 
     // Project state forward
-    final advanceResult = context.advance(newState, ticksNeeded);
+    final advanceResult = advance(newState, ticksNeeded);
 
     // Use delta semantics: acquire quantity MORE items from startCount
     final waitFor = WaitForInventoryDelta(
@@ -379,7 +379,7 @@ class EnsureStock extends MacroCandidate {
   final int minTotal;
 
   @override
-  MacroExpansionOutcome expand(SolverContext context) {
+  MacroExpansionOutcome expand(MacroExpansionContext context) {
     final state = context.state;
     final item = state.registries.items.byId(itemId);
     final currentCount = state.inventory.countOfItem(item);
@@ -405,12 +405,11 @@ class EnsureStock extends MacroCandidate {
     if (feasibleBatch == 0 && state.inventoryRemaining <= 2) {
       // Inventory is too full - need to sell before we can produce
       final sellPolicy = context.goal.computeSellPolicy(state);
-      final sellableValue =
-          context.effectiveCredits(state, sellPolicy) - state.gp;
+      final sellableValue = effectiveCredits(state, sellPolicy) - state.gp;
 
       if (sellableValue > 0) {
         // Apply sell interaction to free up inventory space, then continue
-        workingState = context.applyInteraction(state, SellItems(sellPolicy));
+        workingState = applyInteraction(state, SellItems(sellPolicy));
       } else {
         // Nothing to sell - truly stuck
         return MacroCannotExpand(
@@ -504,10 +503,7 @@ class EnsureStock extends MacroCandidate {
     }
 
     // Producer is ready - switch to it and produce
-    final newState = context.applyInteraction(
-      workingState,
-      SwitchActivity(producer),
-    );
+    final newState = applyInteraction(workingState, SwitchActivity(producer));
 
     // Calculate ticks to produce
     final ticksPerAction = ticksFromDuration(producerAction.meanDuration);
@@ -516,7 +512,7 @@ class EnsureStock extends MacroCandidate {
     final ticksNeeded = actionsNeeded * ticksPerAction;
 
     // Project state forward
-    final advanceResult = context.advance(newState, ticksNeeded);
+    final advanceResult = advance(newState, ticksNeeded);
 
     // Use absolute semantics: wait until we have minTotal
     final waitFor = WaitForInventoryAtLeast(itemId, minTotal);
@@ -661,7 +657,7 @@ class TrainConsumingSkillUntil extends MacroCandidate {
   }
 
   @override
-  MacroExpansionOutcome expand(SolverContext context) {
+  MacroExpansionOutcome expand(MacroExpansionContext context) {
     final state = context.state;
 
     // Find best unlocked consuming action
@@ -816,7 +812,7 @@ class TrainConsumingSkillUntil extends MacroCandidate {
     }
 
     // Switch to producer action for state projection
-    final producerState = context.applyInteraction(
+    final producerState = applyInteraction(
       state,
       SwitchActivity(producerAction),
     );
@@ -867,10 +863,7 @@ class TrainConsumingSkillUntil extends MacroCandidate {
       }
       ticksUntilStop = (xpNeeded / sustainableXpPerTick).ceil();
     } else {
-      final consumeRates = context.estimateRatesForAction(
-        state,
-        bestConsumeAction,
-      );
+      final consumeRates = estimateRatesForAction(state, bestConsumeAction);
       final estimatedTicks = waitFor.estimateTicks(producerState, consumeRates);
       if (estimatedTicks <= 0) {
         return MacroAlreadySatisfied(
