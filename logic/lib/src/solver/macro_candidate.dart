@@ -8,11 +8,13 @@ import 'package:logic/src/data/action_id.dart';
 import 'package:logic/src/data/actions.dart';
 import 'package:logic/src/data/melvor_id.dart';
 import 'package:logic/src/data/xp.dart';
-import 'package:logic/src/solver/interaction.dart'
-    show SellAllPolicy, SellPolicySpec;
+import 'package:logic/src/solver/interaction.dart';
+import 'package:logic/src/solver/next_decision_delta.dart' show infTicks;
+import 'package:logic/src/solver/solver_context.dart';
 import 'package:logic/src/solver/unlock_boundaries.dart';
 import 'package:logic/src/solver/wait_for.dart';
 import 'package:logic/src/state.dart';
+import 'package:logic/src/tick.dart' show ticksFromDuration;
 
 // ---------------------------------------------------------------------------
 // Provenance - tracks WHY a macro was created
@@ -123,6 +125,12 @@ sealed class MacroCandidate {
 
   /// Why this macro was created (for debugging/explanation).
   final MacroProvenance? provenance;
+
+  /// Expands this macro into concrete execution steps.
+  ///
+  /// Returns [MacroExpanded] on success, [MacroAlreadySatisfied] if no work
+  /// needed, or [MacroCannotExpand] with a reason if expansion is impossible.
+  MacroExpansionOutcome expand(SolverContext context);
 }
 
 /// Train a skill by doing its best action until ANY stop condition triggers.
@@ -153,6 +161,86 @@ class TrainSkillUntil extends MacroCandidate {
 
   /// All stop conditions (primary + watched).
   List<MacroStopRule> get allStops => [primaryStop, ...watchedStops];
+
+  @override
+  MacroExpansionOutcome expand(SolverContext context) {
+    final state = context.state;
+
+    // Find best unlocked action for this skill
+    final bestAction = context.findBestActionForSkill(
+      state,
+      skill,
+      context.goal,
+    );
+    if (bestAction == null) {
+      return MacroCannotExpand('No unlocked action for ${skill.name}');
+    }
+
+    // Switch to that action (if not already on it)
+    var currentState = state;
+    if (state.activeAction?.id != bestAction) {
+      currentState = context.applyInteraction(
+        state,
+        SwitchActivity(bestAction),
+      );
+    }
+
+    // Build composite WaitFor from all stop rules (primary + watched)
+    final stopRules = allStops.toList();
+    final waitConditions = stopRules
+        .map((rule) => rule.toWaitFor(currentState, context.boundaries))
+        .toList();
+
+    // Create composite WaitFor (stops when ANY condition triggers)
+    final compositeWaitFor = waitConditions.length == 1
+        ? waitConditions.first
+        : WaitForAnyOf(waitConditions);
+
+    // Estimate ticks until ANY stop condition triggers (use minimum)
+    final rates = context.estimateRates(currentState);
+    final ticksUntilStop = compositeWaitFor.estimateTicks(currentState, rates);
+
+    if (ticksUntilStop <= 0) {
+      return MacroAlreadySatisfied(
+        'Stop condition already satisfied for ${skill.name}',
+      );
+    }
+    if (ticksUntilStop >= infTicks) {
+      return MacroCannotExpand(
+        'No progress possible for ${skill.name} (infinite ticks)',
+      );
+    }
+
+    // Find which condition triggered first (has minimum ticks)
+    String? triggeringCondition;
+    for (var i = 0; i < waitConditions.length; i++) {
+      final ticks = waitConditions[i].estimateTicks(currentState, rates);
+      if (ticks == ticksUntilStop) {
+        triggeringCondition = waitConditions[i].shortDescription;
+        break;
+      }
+    }
+
+    // Use expected-value advance
+    final advanceResult = context.advance(currentState, ticksUntilStop);
+
+    // Create enriched macro with the specific action we chose
+    final enrichedMacro = TrainSkillUntil(
+      skill,
+      primaryStop,
+      watchedStops: watchedStops,
+      actionId: bestAction,
+    );
+
+    return MacroExpanded((
+      state: advanceResult.state,
+      ticksElapsed: ticksUntilStop,
+      waitFor: compositeWaitFor,
+      deaths: advanceResult.deaths,
+      triggeringCondition: triggeringCondition,
+      macro: enrichedMacro,
+    ));
+  }
 }
 
 /// Acquire items by producing them (and their prerequisites).
@@ -173,6 +261,100 @@ class AcquireItem extends MacroCandidate {
 
   /// How many to acquire.
   final int quantity;
+
+  @override
+  MacroExpansionOutcome expand(SolverContext context) {
+    final state = context.state;
+
+    // Find producer for this item
+    final producer = context.findProducerActionForItem(
+      state,
+      itemId,
+      context.goal,
+    );
+
+    if (producer == null) {
+      // Check if a locked producer exists
+      final lockedProducer = context.findAnyProducerForItem(state, itemId);
+      if (lockedProducer != null) {
+        // Need to train skill first - expand that prerequisite
+        final trainMacro = TrainSkillUntil(
+          lockedProducer.skill,
+          StopAtLevel(lockedProducer.skill, lockedProducer.unlockLevel),
+        );
+        return trainMacro.expand(context);
+      }
+      return MacroCannotExpand('No producer for ${itemId.localId}');
+    }
+
+    // Check if producer has prerequisites (skill level requirements)
+    final prereqResult = context.ensureExecutable(
+      state,
+      producer,
+      context.goal,
+    );
+    switch (prereqResult) {
+      case ExecReady():
+        break; // Producer is ready
+      case ExecNeedsMacros(macros: final prereqMacros):
+        // Expand the first prerequisite
+        return prereqMacros.first.expand(context);
+      case ExecUnknown(:final reason):
+        return MacroCannotExpand(
+          'Cannot determine prerequisites for $producer: $reason',
+        );
+    }
+
+    // Check if producer has inputs (consuming action)
+    final producerAction =
+        state.registries.actions.byId(producer) as SkillAction;
+    if (producerAction.inputs.isNotEmpty) {
+      // This is a consuming action - need to acquire its inputs first
+      for (final inputEntry in producerAction.inputs.entries) {
+        final inputId = inputEntry.key;
+        final inputNeeded = inputEntry.value * quantity;
+        final currentCount = state.inventory.countOfItem(
+          state.registries.items.byId(inputId),
+        );
+        if (currentCount < inputNeeded) {
+          // Need to acquire this input
+          final acquireInput = AcquireItem(inputId, inputNeeded);
+          return acquireInput.expand(context);
+        }
+      }
+    }
+
+    // Producer is ready (simple action or inputs available) - switch to it
+    final newState = context.applyInteraction(state, SwitchActivity(producer));
+
+    // Capture start count for delta semantics
+    final startCount = context.countItem(state, itemId);
+
+    // Calculate ticks to produce the quantity
+    final ticksPerAction = ticksFromDuration(producerAction.meanDuration);
+    final outputsPerAction = producerAction.outputs[itemId] ?? 1;
+    final actionsNeeded = (quantity / outputsPerAction).ceil();
+    final ticksNeeded = actionsNeeded * ticksPerAction;
+
+    // Project state forward
+    final advanceResult = context.advance(newState, ticksNeeded);
+
+    // Use delta semantics: acquire quantity MORE items from startCount
+    final waitFor = WaitForInventoryDelta(
+      itemId,
+      quantity,
+      startCount: startCount,
+    );
+
+    return MacroExpanded((
+      state: advanceResult.state,
+      ticksElapsed: ticksNeeded,
+      waitFor: waitFor,
+      deaths: advanceResult.deaths,
+      triggeringCondition: 'Acquired ${quantity}x ${itemId.localId}',
+      macro: this,
+    ));
+  }
 }
 
 /// Ensure inventory has at least [minTotal] of an item (absolute semantics).
@@ -195,6 +377,159 @@ class EnsureStock extends MacroCandidate {
 
   /// The minimum total count required in inventory.
   final int minTotal;
+
+  @override
+  MacroExpansionOutcome expand(SolverContext context) {
+    final state = context.state;
+    final item = state.registries.items.byId(itemId);
+    final currentCount = state.inventory.countOfItem(item);
+    final deltaNeeded = minTotal - currentCount;
+
+    if (deltaNeeded <= 0) {
+      // Already have enough - this is a no-op
+      return MacroAlreadySatisfied(
+        'Already have $currentCount/$minTotal ${itemId.localId}',
+      );
+    }
+
+    // Check inventory feasibility BEFORE expanding
+    final feasibleBatch = context.computeFeasibleBatchSize(
+      state,
+      itemId,
+      deltaNeeded,
+      context.goal,
+    );
+
+    // If no batch is feasible and inventory is nearly full, sell first
+    var workingState = state;
+    if (feasibleBatch == 0 && state.inventoryRemaining <= 2) {
+      // Inventory is too full - need to sell before we can produce
+      final sellPolicy = context.goal.computeSellPolicy(state);
+      final sellableValue =
+          context.effectiveCredits(state, sellPolicy) - state.gp;
+
+      if (sellableValue > 0) {
+        // Apply sell interaction to free up inventory space, then continue
+        workingState = context.applyInteraction(state, SellItems(sellPolicy));
+      } else {
+        // Nothing to sell - truly stuck
+        return MacroCannotExpand(
+          'Inventory full (${state.inventoryUsed}/${state.inventoryCapacity}) '
+          'and nothing to sell for ${itemId.localId}',
+        );
+      }
+    }
+
+    // Find producer for this item
+    final producer = context.findProducerActionForItem(
+      workingState,
+      itemId,
+      context.goal,
+    );
+
+    if (producer == null) {
+      // Check if a locked producer exists
+      final lockedProducer = context.findAnyProducerForItem(
+        workingState,
+        itemId,
+      );
+      if (lockedProducer != null) {
+        // Need to train skill first - expand that prerequisite
+        final trainMacro = TrainSkillUntil(
+          lockedProducer.skill,
+          StopAtLevel(lockedProducer.skill, lockedProducer.unlockLevel),
+        );
+        return trainMacro.expand(context.withState(workingState));
+      }
+      return MacroCannotExpand('No producer for ${itemId.localId}');
+    }
+
+    // Check if producer has inputs (consuming action like smelting)
+    final producerAction =
+        workingState.registries.actions.byId(producer) as SkillAction;
+    if (producerAction.inputs.isNotEmpty) {
+      // Multi-tier chain: compute what we need from producer
+      final outputsPerAction = producerAction.outputs[itemId] ?? 1;
+      final actionsNeeded = (deltaNeeded / outputsPerAction).ceil();
+
+      // Collect ALL missing inputs first, then expand the first one
+      EnsureStock? firstMissingInput;
+      for (final prodInput in producerAction.inputs.entries) {
+        final inputNeeded = actionsNeeded * prodInput.value;
+        final inputItem = workingState.registries.items.byId(prodInput.key);
+        final currentInput = workingState.inventory.countOfItem(inputItem);
+        if (currentInput < inputNeeded) {
+          // Quantize the target to reduce plan thrash
+          final quantizedTarget = context.quantizeStockTarget(
+            workingState,
+            inputNeeded,
+            producerAction,
+          );
+          firstMissingInput ??= EnsureStock(prodInput.key, quantizedTarget);
+        }
+      }
+      if (firstMissingInput != null) {
+        return firstMissingInput.expand(context.withState(workingState));
+      }
+
+      // All inputs are available - check skill level requirement only
+      final currentLevel = workingState
+          .skillState(producerAction.skill)
+          .skillLevel;
+      if (producerAction.unlockLevel > currentLevel) {
+        final trainMacro = TrainSkillUntil(
+          producerAction.skill,
+          StopAtLevel(producerAction.skill, producerAction.unlockLevel),
+        );
+        return trainMacro.expand(context.withState(workingState));
+      }
+    } else {
+      // Simple producer (no inputs) - check prerequisites via ensureExecutable
+      final prereqResult = context.ensureExecutable(
+        workingState,
+        producer,
+        context.goal,
+      );
+      switch (prereqResult) {
+        case ExecReady():
+          break; // Producer is ready
+        case ExecNeedsMacros(macros: final prereqMacros):
+          // Expand the first prerequisite
+          return prereqMacros.first.expand(context.withState(workingState));
+        case ExecUnknown(:final reason):
+          return MacroCannotExpand(
+            'Cannot determine prerequisites for $producer: $reason',
+          );
+      }
+    }
+
+    // Producer is ready - switch to it and produce
+    final newState = context.applyInteraction(
+      workingState,
+      SwitchActivity(producer),
+    );
+
+    // Calculate ticks to produce
+    final ticksPerAction = ticksFromDuration(producerAction.meanDuration);
+    final outputsPerAction = producerAction.outputs[itemId] ?? 1;
+    final actionsNeeded = (deltaNeeded / outputsPerAction).ceil();
+    final ticksNeeded = actionsNeeded * ticksPerAction;
+
+    // Project state forward
+    final advanceResult = context.advance(newState, ticksNeeded);
+
+    // Use absolute semantics: wait until we have minTotal
+    final waitFor = WaitForInventoryAtLeast(itemId, minTotal);
+
+    return MacroExpanded((
+      state: advanceResult.state,
+      ticksElapsed: ticksNeeded,
+      waitFor: waitFor,
+      deaths: advanceResult.deaths,
+      triggeringCondition: 'Stock ${minTotal}x ${itemId.localId}',
+      macro: this,
+    ));
+  }
 }
 
 /// Train a consuming skill via coupled produce/consume loops.
@@ -324,6 +659,344 @@ class TrainConsumingSkillUntil extends MacroCandidate {
       provenance: provenance,
     );
   }
+
+  @override
+  MacroExpansionOutcome expand(SolverContext context) {
+    final state = context.state;
+
+    // Find best unlocked consuming action
+    final bestConsumeAction = context.findBestActionForSkill(
+      state,
+      consumingSkill,
+      context.goal,
+    );
+    if (bestConsumeAction == null) {
+      return MacroCannotExpand('No unlocked action for ${consumingSkill.name}');
+    }
+
+    // Get the consuming action to find its inputs
+    final consumeAction = state.registries.actions.byId(bestConsumeAction);
+    if (consumeAction is! SkillAction || consumeAction.inputs.isEmpty) {
+      return MacroCannotExpand(
+        'Action $bestConsumeAction is not a valid consuming action',
+      );
+    }
+
+    // Check ALL inputs and gather prerequisites
+    final allPrereqs = <MacroCandidate>[];
+    ActionId? primaryProducerAction;
+
+    for (final inputEntry in consumeAction.inputs.entries) {
+      final inputItem = inputEntry.key;
+      final producer = context.findProducerActionForItem(
+        state,
+        inputItem,
+        context.goal,
+      );
+
+      if (producer == null) {
+        // Check if a locked producer exists - may need skill training
+        final lockedProducer = context.findAnyProducerForItem(state, inputItem);
+        if (lockedProducer != null) {
+          // Need to train skill first
+          allPrereqs.add(
+            TrainSkillUntil(
+              lockedProducer.skill,
+              StopAtLevel(lockedProducer.skill, lockedProducer.unlockLevel),
+            ),
+          );
+        } else {
+          return MacroCannotExpand(
+            'No producer for input ${inputItem.localId}',
+          );
+        }
+      } else {
+        // Check if producer has inputs (multi-tier chain)
+        final producerActionData = state.registries.actions.byId(producer);
+        if (producerActionData is SkillAction &&
+            producerActionData.inputs.isNotEmpty) {
+          // Multi-tier chain - compute batch size
+          final batch = context.computeBatchToNextUnlock(
+            state: state,
+            consumingAction: consumeAction,
+            boundaries: context.boundaries,
+          );
+
+          if (batch != null) {
+            final inputNeeded = batch.inputRequirements[inputItem] ?? 0;
+            final inputItemData = state.registries.items.byId(inputItem);
+            final currentCount = state.inventory.countOfItem(inputItemData);
+            if (inputNeeded > 0 && currentCount < inputNeeded) {
+              final quantizedTarget = context.quantizeStockTarget(
+                state,
+                inputNeeded,
+                consumeAction,
+              );
+              allPrereqs.add(EnsureStock(inputItem, quantizedTarget));
+            }
+          } else {
+            // Fallback: near goal or no boundary, use smaller batches
+            const bufferSize = 10;
+            final inputItemData = state.registries.items.byId(inputItem);
+            final currentCount = state.inventory.countOfItem(inputItemData);
+            if (currentCount < bufferSize) {
+              allPrereqs.add(AcquireItem(inputItem, bufferSize - currentCount));
+            }
+          }
+        } else {
+          // Simple producer - check prerequisites
+          final prereqResult = context.ensureExecutable(
+            state,
+            producer,
+            context.goal,
+          );
+          switch (prereqResult) {
+            case ExecReady():
+              break;
+            case ExecNeedsMacros(macros: final prereqMacros):
+              allPrereqs.addAll(prereqMacros);
+            case ExecUnknown(:final reason):
+              return MacroCannotExpand(
+                'Cannot determine prerequisites for $producer: $reason',
+              );
+          }
+          primaryProducerAction ??= producer;
+        }
+      }
+    }
+
+    // If prerequisites exist, expand the first one
+    if (allPrereqs.isNotEmpty) {
+      return allPrereqs.first.expand(context);
+    }
+
+    // All prerequisites satisfied - find a producer action
+    var producerAction = primaryProducerAction;
+    if (producerAction == null) {
+      // Find a producer that doesn't require inputs
+      for (final inputEntry in consumeAction.inputs.entries) {
+        final inputItemId = inputEntry.key;
+        final producer = context.findProducerActionForItem(
+          state,
+          inputItemId,
+          context.goal,
+        );
+        if (producer == null) continue;
+        final producerActionData = state.registries.actions.byId(producer);
+        if (producerActionData is SkillAction) {
+          if (producerActionData.inputs.isEmpty) {
+            producerAction = producer;
+            break;
+          } else {
+            // Look for sub-producers
+            for (final subInput in producerActionData.inputs.keys) {
+              final subProducer = context.findProducerActionForItem(
+                state,
+                subInput,
+                context.goal,
+              );
+              if (subProducer != null) {
+                final subProdData = state.registries.actions.byId(subProducer);
+                if (subProdData is SkillAction && subProdData.inputs.isEmpty) {
+                  producerAction = subProducer;
+                  break;
+                }
+              }
+            }
+            if (producerAction != null) break;
+          }
+        }
+      }
+    }
+
+    if (producerAction == null) {
+      return MacroCannotExpand(
+        'No simple producer found for ${consumingSkill.name}',
+      );
+    }
+
+    // Switch to producer action for state projection
+    final producerState = context.applyInteraction(
+      state,
+      SwitchActivity(producerAction),
+    );
+
+    // Build stop condition
+    final waitFor = primaryStop.toWaitFor(producerState, context.boundaries);
+
+    // Calculate sustainable XP rate
+    final consumeTicksPerAction = ticksFromDuration(
+      consumeAction.meanDuration,
+    ).toDouble();
+
+    // Calculate total production time for ALL inputs
+    var totalProduceTicksPerCycle = 0.0;
+    for (final inputEntry in consumeAction.inputs.entries) {
+      final inputItemId = inputEntry.key;
+      final inputCount = inputEntry.value;
+      final producer = context.findProducerActionForItem(
+        state,
+        inputItemId,
+        context.goal,
+      );
+      if (producer == null) continue;
+      final produceAction =
+          state.registries.actions.byId(producer) as SkillAction;
+      final outputsPerAction = produceAction.outputs[inputItemId] ?? 1;
+      final produceActionsNeeded = inputCount / outputsPerAction;
+      totalProduceTicksPerCycle +=
+          produceActionsNeeded *
+          ticksFromDuration(produceAction.meanDuration).toDouble();
+    }
+
+    final totalTicksPerCycle =
+        totalProduceTicksPerCycle + consumeTicksPerAction;
+    final consumeXpPerAction = consumeAction.xp.toDouble();
+    final sustainableXpPerTick = consumeXpPerAction / totalTicksPerCycle;
+
+    // Calculate ticks needed
+    final currentXp = state.skillState(consumingSkill).xp;
+    int ticksUntilStop;
+
+    if (waitFor is WaitForSkillXp) {
+      final xpNeeded = (waitFor.targetXp - currentXp).toDouble();
+      if (xpNeeded <= 0) {
+        return MacroAlreadySatisfied(
+          'XP goal already satisfied for ${consumingSkill.name}',
+        );
+      }
+      ticksUntilStop = (xpNeeded / sustainableXpPerTick).ceil();
+    } else {
+      final consumeRates = context.estimateRatesForAction(
+        state,
+        bestConsumeAction,
+      );
+      final estimatedTicks = waitFor.estimateTicks(producerState, consumeRates);
+      if (estimatedTicks <= 0) {
+        return MacroAlreadySatisfied(
+          'Stop condition already satisfied for ${consumingSkill.name}',
+        );
+      }
+      if (estimatedTicks >= infTicks) {
+        return MacroCannotExpand(
+          'No progress possible for ${consumingSkill.name} (infinite ticks)',
+        );
+      }
+      final consumeXpPerTick = consumeAction.xp / consumeTicksPerAction;
+      final slowdownFactor = sustainableXpPerTick / consumeXpPerTick;
+      ticksUntilStop = (estimatedTicks / slowdownFactor).ceil();
+    }
+
+    // Calculate projected XP
+    final consumingSkillXp =
+        currentXp + (sustainableXpPerTick * ticksUntilStop).floor();
+
+    // Calculate producer skill XP gains
+    final numCycles = ticksUntilStop / totalTicksPerCycle;
+    final producerSkillXpGains = <Skill, int>{};
+
+    for (final inputEntry in consumeAction.inputs.entries) {
+      final inputItemId = inputEntry.key;
+      final inputCount = inputEntry.value;
+      final producer = context.findProducerActionForItem(
+        state,
+        inputItemId,
+        context.goal,
+      );
+      if (producer == null) continue;
+      final produceAction =
+          state.registries.actions.byId(producer) as SkillAction;
+      final outputsPerAction = produceAction.outputs[inputItemId] ?? 1;
+      final produceActionsNeeded = inputCount / outputsPerAction;
+      final produceTicksPerAction = ticksFromDuration(
+        produceAction.meanDuration,
+      ).toDouble();
+
+      final ticksForThisProducerPerCycle =
+          produceActionsNeeded * produceTicksPerAction;
+      final totalTicksForThisProducer =
+          numCycles * ticksForThisProducerPerCycle;
+      final xpGained =
+          (totalTicksForThisProducer *
+                  (produceAction.xp / produceTicksPerAction))
+              .floor();
+
+      producerSkillXpGains[produceAction.skill] =
+          (producerSkillXpGains[produceAction.skill] ?? 0) + xpGained;
+    }
+
+    // Build projected state
+    final produceAction_ =
+        state.registries.actions.byId(producerAction) as SkillAction;
+    final projectedState = state.copyWith(
+      skillStates: {
+        for (final skill in Skill.values)
+          skill: skill == consumingSkill
+              ? SkillState(
+                  xp: consumingSkillXp,
+                  masteryPoolXp: state.skillState(skill).masteryPoolXp,
+                )
+              : producerSkillXpGains.containsKey(skill)
+              ? SkillState(
+                  xp: state.skillState(skill).xp + producerSkillXpGains[skill]!,
+                  masteryPoolXp: state.skillState(skill).masteryPoolXp,
+                )
+              : state.skillState(skill),
+      },
+      activeAction: ActiveAction(
+        id: producerAction,
+        remainingTicks: ticksFromDuration(produceAction_.meanDuration),
+        totalTicks: ticksFromDuration(produceAction_.meanDuration),
+      ),
+    );
+
+    // Build producerByInputItem map
+    final producerByInputItemMap = <MelvorId, ActionId>{};
+    for (final inputEntry in consumeAction.inputs.entries) {
+      final inputItemId = inputEntry.key;
+      final producer = context.findProducerActionForItem(
+        state,
+        inputItemId,
+        context.goal,
+      );
+      if (producer != null) {
+        producerByInputItemMap[inputItemId] = producer;
+      }
+    }
+
+    // Calculate buffer target
+    final computedBufferTarget = context.quantizeStockTarget(
+      state,
+      10,
+      consumeAction,
+    );
+
+    // Determine sell policy spec
+    final sellPolicySpecValue = context.goal.isSellRelevant
+        ? const SellAllSpec()
+        : const ReserveConsumingInputsSpec();
+
+    // Create enriched macro
+    final enrichedMacro = TrainConsumingSkillUntil(
+      consumingSkill,
+      primaryStop,
+      watchedStops: watchedStops,
+      actionId: actionId,
+      consumeActionId: bestConsumeAction,
+      producerByInputItem: producerByInputItemMap,
+      bufferTarget: computedBufferTarget,
+      sellPolicySpec: sellPolicySpecValue,
+    );
+
+    return MacroExpanded((
+      state: projectedState,
+      ticksElapsed: ticksUntilStop,
+      waitFor: waitFor,
+      deaths: 0,
+      triggeringCondition: waitFor.shortDescription,
+      macro: enrichedMacro,
+    ));
+  }
 }
 
 /// Stop conditions for macro training.
@@ -433,4 +1106,48 @@ class StopWhenInputsDepleted extends MacroStopRule {
     }
     return WaitForInputsDepleted(activeActionId);
   }
+}
+
+// ---------------------------------------------------------------------------
+// Macro Expansion Outcomes
+// ---------------------------------------------------------------------------
+
+/// Result of expanding a macro into concrete execution steps.
+typedef MacroExpansionResult = ({
+  GlobalState state,
+  int ticksElapsed,
+  WaitFor waitFor,
+  int deaths,
+  String? triggeringCondition,
+  MacroCandidate macro,
+});
+
+/// Outcome of attempting to expand a macro - tri-state result.
+///
+/// This ensures we always know WHY an expansion failed, rather than silently
+/// returning null.
+sealed class MacroExpansionOutcome {
+  const MacroExpansionOutcome();
+}
+
+/// Macro expanded successfully to a future state.
+class MacroExpanded extends MacroExpansionOutcome {
+  const MacroExpanded(this.result);
+  final MacroExpansionResult result;
+}
+
+/// Macro is already satisfied - no expansion needed (legitimate no-op).
+///
+/// This is different from failure: the macro's goal is already met,
+/// so there's nothing to expand.
+class MacroAlreadySatisfied extends MacroExpansionOutcome {
+  const MacroAlreadySatisfied(this.reason);
+  final String reason;
+}
+
+/// Macro cannot be expanded due to missing prerequisites or unsatisfiable
+/// constraints.
+class MacroCannotExpand extends MacroExpansionOutcome {
+  const MacroCannotExpand(this.reason);
+  final String reason;
 }
