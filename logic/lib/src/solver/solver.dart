@@ -50,6 +50,7 @@ import 'package:logic/src/solver/next_decision_delta.dart';
 import 'package:logic/src/solver/plan.dart';
 import 'package:logic/src/solver/replan_boundary.dart';
 import 'package:logic/src/solver/solver_profile.dart';
+import 'package:logic/src/solver/state_advance.dart';
 import 'package:logic/src/solver/unlock_boundaries.dart';
 import 'package:logic/src/solver/value_model.dart';
 import 'package:logic/src/solver/wait_for.dart';
@@ -169,7 +170,7 @@ class _BucketKey extends Equatable {
     // Track inventory only if goal requires it (consuming skill goals)
     final inventoryBucket = _computeInventoryBucket(state, goal);
 
-    // Track which input item types are present for multi-input consuming skills.
+    // Track which input item types for multi-input consuming skills.
     // This prevents incorrect dominance pruning where states with different ore
     // mixes (e.g., 10 copper vs 5 copper + 5 tin) are treated as equivalent.
     final inputItemMix = _computeInputItemMix(state, goal);
@@ -1149,19 +1150,6 @@ AdvanceResult _advanceExpected(GlobalState state, int deltaTicks) {
   return (state: newState, deaths: expectedDeaths);
 }
 
-/// Full simulation advance using consumeTicks.
-GlobalState _advanceFullSim(
-  GlobalState state,
-  int deltaTicks, {
-  required Random random,
-}) {
-  if (deltaTicks <= 0) return state;
-
-  final builder = StateUpdateBuilder(state);
-  consumeTicks(builder, deltaTicks, random: random);
-  return builder.build();
-}
-
 /// Advances the game state by a given number of ticks.
 /// Uses O(1) expected-value advance for rate-modelable activities,
 /// falls back to full simulation for combat/complex activities.
@@ -1185,7 +1173,7 @@ AdvanceResult advance(
     result = _advanceExpected(state, deltaTicks);
   } else {
     result = (
-      state: _advanceFullSim(state, deltaTicks, random: random),
+      state: advanceFullSim(state, deltaTicks, random: random),
       deaths: 0,
     );
   }
@@ -1561,8 +1549,9 @@ class MacroExpansionExplanation {
 MacroExpansionExplanation explainMacroExpansion(
   GlobalState state,
   MacroCandidate macro,
-  Goal goal,
-) {
+  Goal goal, {
+  required Random random,
+}) {
   final steps = <String>[];
   final boundaries = computeUnlockBoundaries(state.registries);
 
@@ -1641,7 +1630,7 @@ MacroExpansionExplanation explainMacroExpansion(
   }
 
   // Actually perform the expansion
-  final outcome = _expandMacro(state, macro, goal, boundaries);
+  final outcome = _expandMacro(state, macro, goal, boundaries, random: random);
   steps.add('Expansion complete');
 
   return MacroExpansionExplanation(
@@ -1662,12 +1651,14 @@ MacroExpansionOutcome _expandMacro(
   GlobalState state,
   MacroCandidate macro,
   Goal goal,
-  Map<Skill, SkillBoundaries> boundaries,
-) {
+  Map<Skill, SkillBoundaries> boundaries, {
+  required Random random,
+}) {
   final context = MacroExpansionContext(
     state: state,
     goal: goal,
     boundaries: boundaries,
+    random: random,
   );
   return macro.expand(context);
 }
@@ -1977,6 +1968,7 @@ SolverSuccess? _expandMacroEdges(
       macro,
       ctx.goal,
       ctx.boundaries,
+      random: ctx.random,
     );
 
     // Skip macros that can't be expanded or are already satisfied

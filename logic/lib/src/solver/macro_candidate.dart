@@ -222,7 +222,11 @@ class TrainSkillUntil extends MacroCandidate {
     }
 
     // Use expected-value advance
-    final advanceResult = advance(currentState, ticksUntilStop);
+    final advanceResult = advance(
+      currentState,
+      ticksUntilStop,
+      random: context.random,
+    );
 
     // Create enriched macro with the specific action we chose
     final enrichedMacro = TrainSkillUntil(
@@ -337,7 +341,11 @@ class AcquireItem extends MacroCandidate {
     final ticksNeeded = actionsNeeded * ticksPerAction;
 
     // Project state forward
-    final advanceResult = advance(newState, ticksNeeded);
+    final advanceResult = advance(
+      newState,
+      ticksNeeded,
+      random: context.random,
+    );
 
     // Use delta semantics: acquire quantity MORE items from startCount
     final waitFor = WaitForInventoryDelta(
@@ -512,7 +520,11 @@ class EnsureStock extends MacroCandidate {
     final ticksNeeded = actionsNeeded * ticksPerAction;
 
     // Project state forward
-    final advanceResult = advance(newState, ticksNeeded);
+    final advanceResult = advance(
+      newState,
+      ticksNeeded,
+      random: context.random,
+    );
 
     // Use absolute semantics: wait until we have minTotal
     final waitFor = WaitForInventoryAtLeast(itemId, minTotal);

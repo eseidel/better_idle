@@ -197,12 +197,9 @@ AdvanceResult advanceExpected(GlobalState state, int deltaTicks) {
 GlobalState advanceFullSim(
   GlobalState state,
   int deltaTicks, {
-  Random? random,
+  required Random random,
 }) {
   if (deltaTicks <= 0) return state;
-
-  // Use a fixed random for deterministic planning if not provided
-  random ??= Random(42);
 
   final builder = StateUpdateBuilder(state);
   consumeTicks(builder, deltaTicks, random: random);
@@ -217,7 +214,11 @@ GlobalState advanceFullSim(
 /// game state (e.g. won't add inventory items)
 ///
 /// Returns the new state and the number of expected deaths.
-AdvanceResult advance(GlobalState state, int deltaTicks) {
+AdvanceResult advance(
+  GlobalState state,
+  int deltaTicks, {
+  required Random random,
+}) {
   assertNonNegativeDelta(deltaTicks, 'advance');
   assertValidState(state);
 
@@ -227,7 +228,10 @@ AdvanceResult advance(GlobalState state, int deltaTicks) {
   if (isRateModelable(state)) {
     result = advanceExpected(state, deltaTicks);
   } else {
-    result = (state: advanceFullSim(state, deltaTicks), deaths: 0);
+    result = (
+      state: advanceFullSim(state, deltaTicks, random: random),
+      deaths: 0,
+    );
   }
 
   assertValidState(result.state);
