@@ -1533,6 +1533,143 @@ typedef _BatchSizeResult = ({
   int targetLevel,
 });
 
+// ---------------------------------------------------------------------------
+// Inventory-Aware Batch Sizing
+// ---------------------------------------------------------------------------
+
+/// Estimates how many NEW inventory slots a production chain will consume.
+///
+/// For a target item produced by [producerId], this computes:
+/// - New item types from the target item itself (if not already in inventory)
+/// - New item types from intermediate products (e.g., ores for bars)
+/// - New item types from byproducts (e.g., gems from mining)
+///
+/// The result is a conservative estimate that helps ensure EnsureStock
+/// doesn't plan batches that will overflow inventory during execution.
+int _estimateNewSlotsForProduction(
+  GlobalState state,
+  MelvorId targetItemId,
+  int quantity,
+  Goal goal,
+) {
+  var newSlots = 0;
+  final visited = <MelvorId>{};
+
+  void countNewSlots(MelvorId itemId, int qty) {
+    if (visited.contains(itemId)) return;
+    visited.add(itemId);
+
+    // Check if this item is already in inventory
+    final item = state.registries.items.byId(itemId);
+    final currentCount = state.inventory.countOfItem(item);
+    if (currentCount == 0) {
+      newSlots++;
+    }
+
+    // Find the producer for this item to check for intermediates
+    final producerId = _findProducerActionForItem(state, itemId, goal);
+    if (producerId == null) return;
+
+    final producerAction = state.registries.actions.byId(producerId);
+    if (producerAction is! SkillAction) return;
+
+    // For mining actions, add potential gem slots (conservative estimate)
+    if (producerAction.skill == Skill.mining && qty > 20) {
+      // Mining can produce up to 5 gem types over many actions.
+      // With 1% gem chance, expect to see gems after ~100 mining actions.
+      // Be conservative: assume we'll fill some gem slots over large batches.
+      const gemNames = ['Topaz', 'Sapphire', 'Ruby', 'Emerald', 'Diamond'];
+      for (final gemName in gemNames) {
+        final gemId = MelvorId('melvorD:$gemName');
+        if (!visited.contains(gemId)) {
+          visited.add(gemId);
+          // Check if gem is in inventory by searching directly
+          final hasGem = state.inventory.items.any(
+            (stack) => stack.item.id == gemId,
+          );
+          if (!hasGem) {
+            newSlots++;
+          }
+        }
+      }
+    }
+
+    // Recurse into inputs for consuming actions
+    for (final inputEntry in producerAction.inputs.entries) {
+      final inputQty =
+          (qty / (producerAction.outputs[itemId] ?? 1)).ceil() *
+          inputEntry.value;
+      countNewSlots(inputEntry.key, inputQty);
+    }
+  }
+
+  countNewSlots(targetItemId, quantity);
+  return newSlots;
+}
+
+/// Computes the maximum feasible batch size for an EnsureStock macro.
+///
+/// Given a target quantity, this returns the largest batch that can be
+/// produced without overflowing inventory. Returns:
+/// - `target` if the full batch is feasible
+/// - A reduced batch size if inventory is constrained
+/// - 0 if no batch is feasible (inventory too full)
+///
+/// The computation accounts for:
+/// - Current free inventory slots
+/// - New item types that will be created by the production chain
+/// - A safety margin for byproducts (gems, etc.)
+int _computeFeasibleBatchSize(
+  GlobalState state,
+  MelvorId targetItemId,
+  int target,
+  Goal goal,
+) {
+  final freeSlots = state.inventoryRemaining;
+
+  // Estimate new slots needed for the full batch
+  final newSlotsNeeded = _estimateNewSlotsForProduction(
+    state,
+    targetItemId,
+    target,
+    goal,
+  );
+
+  // Reserve some slots for unexpected byproducts
+  const safetyMargin = 2;
+  final slotsAfterProduction = freeSlots - newSlotsNeeded - safetyMargin;
+
+  if (slotsAfterProduction >= 0) {
+    // Full batch is feasible
+    return target;
+  }
+
+  // Need to reduce batch size
+  // Binary search for largest feasible batch
+  var low = 1;
+  var high = target;
+  var feasibleBatch = 0;
+
+  while (low <= high) {
+    final mid = (low + high) ~/ 2;
+    final slotsForMid = _estimateNewSlotsForProduction(
+      state,
+      targetItemId,
+      mid,
+      goal,
+    );
+
+    if (freeSlots - slotsForMid - safetyMargin >= 0) {
+      feasibleBatch = mid;
+      low = mid + 1;
+    } else {
+      high = mid - 1;
+    }
+  }
+
+  return feasibleBatch;
+}
+
 /// Computes the batch size to reach the next unlock boundary.
 ///
 /// Quantizes a stock target to a coarse bucket to reduce plan thrash.
@@ -1948,7 +2085,9 @@ MacroExpansionOutcome _expandAcquireItem(
 ///
 /// Similar to AcquireItem but uses absolute semantics:
 /// 1. If inventory already has >= minTotal, returns [MacroAlreadySatisfied]
-/// 2. Otherwise, produces the delta needed
+/// 2. Checks inventory feasibility and reduces batch if needed
+/// 3. If inventory is too full, inserts a sell step first
+/// 4. Otherwise, produces the delta needed
 ///
 /// For multi-tier items (bars), recursively ensures raw inputs first.
 MacroExpansionOutcome _expandEnsureStock(
@@ -1967,25 +2106,53 @@ MacroExpansionOutcome _expandEnsureStock(
     );
   }
 
+  // Check inventory feasibility BEFORE expanding
+  final feasibleBatch = _computeFeasibleBatchSize(
+    state,
+    macro.itemId,
+    deltaNeeded,
+    goal,
+  );
+
+  // If no batch is feasible and inventory is nearly full, sell first
+  var workingState = state;
+  if (feasibleBatch == 0 && state.inventoryRemaining <= 2) {
+    // Inventory is too full - need to sell before we can produce
+    final sellPolicy = goal.computeSellPolicy(state);
+    final sellableValue = effectiveCredits(state, sellPolicy) - state.gp;
+
+    if (sellableValue > 0) {
+      // Apply sell interaction to free up inventory space, then continue
+      workingState = applyInteraction(state, SellItems(sellPolicy));
+    } else {
+      // Nothing to sell - truly stuck
+      return MacroCannotExpand(
+        'Inventory full (${state.inventoryUsed}/${state.inventoryCapacity}) '
+        'and nothing to sell for ${macro.itemId.localId}',
+      );
+    }
+  }
+
   // Find producer for this item
-  final producer = _findProducerActionForItem(state, macro.itemId, goal);
+  final producer = _findProducerActionForItem(workingState, macro.itemId, goal);
 
   if (producer == null) {
     // Check if a locked producer exists
-    final lockedProducer = _findAnyProducerForItem(state, macro.itemId);
+    final lockedProducer = _findAnyProducerForItem(workingState, macro.itemId);
     if (lockedProducer != null) {
       // Need to train skill first - expand that prerequisite
       final trainMacro = TrainSkillUntil(
         lockedProducer.skill,
         StopAtLevel(lockedProducer.skill, lockedProducer.unlockLevel),
       );
-      return _expandMacro(state, trainMacro, goal, boundaries);
+      return _expandMacro(workingState, trainMacro, goal, boundaries);
     }
     return MacroCannotExpand('No producer for ${macro.itemId.localId}');
   }
 
   // Check if producer has inputs (consuming action like smelting)
-  final producerAction = state.registries.actions.byId(producer) as SkillAction;
+  final producerAction =
+      workingState.registries.actions.byId(producer) as SkillAction;
   if (producerAction.inputs.isNotEmpty) {
     // Multi-tier chain: compute what we need from producer
     // NOTE: We handle inputs with proper batch sizing BEFORE calling
@@ -2001,12 +2168,12 @@ MacroExpansionOutcome _expandEnsureStock(
     EnsureStock? firstMissingInput;
     for (final prodInput in producerAction.inputs.entries) {
       final inputNeeded = actionsNeeded * prodInput.value;
-      final inputItem = state.registries.items.byId(prodInput.key);
-      final currentInput = state.inventory.countOfItem(inputItem);
+      final inputItem = workingState.registries.items.byId(prodInput.key);
+      final currentInput = workingState.inventory.countOfItem(inputItem);
       if (currentInput < inputNeeded) {
         // Quantize the target to reduce plan thrash from tiny stocking amounts
         final quantizedTarget = _quantizeStockTarget(
-          state,
+          workingState,
           inputNeeded,
           producerAction,
         );
@@ -2014,27 +2181,29 @@ MacroExpansionOutcome _expandEnsureStock(
       }
     }
     if (firstMissingInput != null) {
-      return _expandMacro(state, firstMissingInput, goal, boundaries);
+      return _expandMacro(workingState, firstMissingInput, goal, boundaries);
     }
 
     // All inputs are available - check skill level requirement only
-    final currentLevel = state.skillState(producerAction.skill).skillLevel;
+    final currentLevel = workingState
+        .skillState(producerAction.skill)
+        .skillLevel;
     if (producerAction.unlockLevel > currentLevel) {
       final trainMacro = TrainSkillUntil(
         producerAction.skill,
         StopAtLevel(producerAction.skill, producerAction.unlockLevel),
       );
-      return _expandMacro(state, trainMacro, goal, boundaries);
+      return _expandMacro(workingState, trainMacro, goal, boundaries);
     }
   } else {
     // Simple producer (no inputs) - check prerequisites via _ensureExecutable
-    final prereqResult = _ensureExecutable(state, producer, goal);
+    final prereqResult = _ensureExecutable(workingState, producer, goal);
     switch (prereqResult) {
       case ExecReady():
         break; // Producer is ready
       case ExecNeedsMacros(macros: final prereqMacros):
         // Expand the first prerequisite
-        return _expandMacro(state, prereqMacros.first, goal, boundaries);
+        return _expandMacro(workingState, prereqMacros.first, goal, boundaries);
       case ExecUnknown(:final reason):
         return MacroCannotExpand(
           'Cannot determine prerequisites for $producer: $reason',
@@ -2043,7 +2212,7 @@ MacroExpansionOutcome _expandEnsureStock(
   }
 
   // Producer is ready - switch to it and produce
-  final newState = applyInteraction(state, SwitchActivity(producer));
+  final newState = applyInteraction(workingState, SwitchActivity(producer));
 
   // Calculate ticks to produce
   final ticksPerAction = ticksFromDuration(producerAction.meanDuration);
@@ -3463,6 +3632,7 @@ SegmentResult solveSegment(
           totalTicks: plan.totalTicks,
           interactionCount: plan.interactionCount,
           stopBoundary: boundary,
+          sellPolicy: context.sellPolicy,
         ),
         finalState: terminalState,
         context: context,
@@ -3529,6 +3699,7 @@ SegmentExecutionResult executeSegment(
       random: random,
       boundaries: unlockBoundaries,
       watchSet: watchSet,
+      segmentSellPolicy: segment.sellPolicy,
     );
     currentState = result.state;
     totalTicks += result.ticksElapsed;
@@ -3686,6 +3857,7 @@ SegmentedSolverResult solveToGoal(
                 totalTicks: 0,
                 interactionCount: 1,
                 stopBoundary: const GoalReachedBoundary(),
+                sellPolicy: sellPolicy,
                 description: 'Sell items to reach GP goal',
               ),
             );
@@ -3751,6 +3923,7 @@ SegmentedSolverResult solveToGoal(
               totalTicks: 0,
               interactionCount: purchaseSteps.length,
               stopBoundary: boundary,
+              sellPolicy: sellPolicy,
               description: 'Buy ${boundary.upgradeName}',
             ),
           );

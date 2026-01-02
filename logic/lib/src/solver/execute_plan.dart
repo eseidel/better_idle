@@ -471,12 +471,17 @@ int countItem(GlobalState state, MelvorId itemId) {
 }
 
 /// Applies a single plan step.
+///
+/// If [segmentSellPolicy] is provided, it is used for selling decisions
+/// (e.g., when handling inventory full during EnsureStock). If not provided,
+/// a fallback policy is computed on-demand.
 StepResult applyStep(
   GlobalState state,
   PlanStep step, {
   required Random random,
   Map<Skill, SkillBoundaries>? boundaries,
   WatchSet? watchSet,
+  SellPolicy? segmentSellPolicy,
 }) {
   switch (step) {
     case InteractionStep(:final interaction):
@@ -640,72 +645,123 @@ StepResult applyStep(
         );
       } else if (macro is EnsureStock) {
         // Execute EnsureStock by finding producer and running until target
-        final currentCount = countItem(executionState, macro.itemId);
+        // Handles inventory full by selling and continuing in a loop
+        var currentState = executionState;
+        var totalTicks = 0;
+        var totalDeaths = 0;
 
-        // If we already have enough, no-op
-        if (currentCount >= macro.minTotal) {
-          return (
-            state: executionState,
-            ticksElapsed: 0,
-            deaths: 0,
-            boundary: const WaitConditionSatisfied(),
-          );
-        }
+        while (true) {
+          final currentCount = countItem(currentState, macro.itemId);
 
-        const goal = ReachSkillLevelGoal(Skill.mining, 99); // Placeholder goal
-        final producer = findProducerActionForItem(
-          executionState,
-          macro.itemId,
-          goal,
-        );
-        if (producer == null) {
-          return (
-            state: executionState,
-            ticksElapsed: 0,
-            deaths: 0,
-            boundary: NoProgressPossible(
-              reason: 'No producer for ${macro.itemId}',
-            ),
-          );
-        }
-
-        // Switch to producer action
-        if (executionState.activeAction?.id != producer) {
-          try {
-            executionState = applyInteraction(
-              executionState,
-              SwitchActivity(producer),
-            );
-          } on Exception catch (e) {
+          // If we already have enough, done
+          if (currentCount >= macro.minTotal) {
             return (
-              state: executionState,
-              ticksElapsed: 0,
-              deaths: 0,
+              state: currentState,
+              ticksElapsed: totalTicks,
+              deaths: totalDeaths,
+              boundary: const WaitConditionSatisfied(),
+            );
+          }
+
+          const goal = ReachSkillLevelGoal(Skill.mining, 99);
+          final producer = findProducerActionForItem(
+            currentState,
+            macro.itemId,
+            goal,
+          );
+          if (producer == null) {
+            return (
+              state: currentState,
+              ticksElapsed: totalTicks,
+              deaths: totalDeaths,
               boundary: NoProgressPossible(
-                reason: 'Cannot switch to producer for ${macro.itemId}: $e',
+                reason: 'No producer for ${macro.itemId}',
               ),
             );
           }
+
+          // Switch to producer action
+          if (currentState.activeAction?.id != producer) {
+            try {
+              currentState = applyInteraction(
+                currentState,
+                SwitchActivity(producer),
+              );
+            } on Exception catch (e) {
+              return (
+                state: currentState,
+                ticksElapsed: totalTicks,
+                deaths: totalDeaths,
+                boundary: NoProgressPossible(
+                  reason: 'Cannot switch to producer for ${macro.itemId}: $e',
+                ),
+              );
+            }
+          }
+
+          // Use absolute wait condition: wait until inventory has minTotal
+          final stockWaitFor = WaitForInventoryAtLeast(
+            macro.itemId,
+            macro.minTotal,
+          );
+
+          final result = consumeUntil(
+            currentState,
+            stockWaitFor,
+            random: random,
+          );
+
+          currentState = result.state;
+          totalTicks += result.ticksElapsed;
+          totalDeaths += result.deathCount;
+
+          // Check if we hit inventory full - sell and continue
+          if (result.boundary is InventoryFull) {
+            // Use segment's sell policy. If not provided, this is an error -
+            // callers should resolve policy before calling applyStep.
+            if (segmentSellPolicy == null) {
+              return (
+                state: currentState,
+                ticksElapsed: totalTicks,
+                deaths: totalDeaths,
+                boundary: NoProgressPossible(
+                  reason:
+                      'Inventory full during EnsureStock '
+                      '${macro.itemId.name} but no sell policy provided',
+                ),
+              );
+            }
+
+            final sellableValue =
+                effectiveCredits(currentState, segmentSellPolicy) -
+                currentState.gp;
+
+            if (sellableValue > 0) {
+              currentState = applyInteraction(
+                currentState,
+                SellItems(segmentSellPolicy),
+              );
+              // Continue the loop to produce more
+              continue;
+            } else {
+              // Nothing to sell - truly stuck
+              return (
+                state: currentState,
+                ticksElapsed: totalTicks,
+                deaths: totalDeaths,
+                boundary: result.boundary,
+              );
+            }
+          }
+
+          // For any other boundary or success, return
+          return (
+            state: currentState,
+            ticksElapsed: totalTicks,
+            deaths: totalDeaths,
+            boundary: result.boundary,
+          );
         }
-
-        // Use absolute wait condition: wait until inventory has minTotal
-        final stockWaitFor = WaitForInventoryAtLeast(
-          macro.itemId,
-          macro.minTotal,
-        );
-
-        final result = consumeUntil(
-          executionState,
-          stockWaitFor,
-          random: random,
-        );
-
-        return (
-          state: result.state,
-          ticksElapsed: result.ticksElapsed,
-          deaths: result.deathCount,
-          boundary: result.boundary,
-        );
       }
 
       final result = consumeUntil(
@@ -774,6 +830,114 @@ int _estimateTicksAtExecution(GlobalState state, PlanStep step) {
   }
 }
 
+/// Result of resolving a sell policy for execution.
+///
+/// Contains the resolved policy and metadata about where it came from,
+/// useful for debugging and logging.
+class ResolvedSellPolicy {
+  const ResolvedSellPolicy({required this.policy, required this.source});
+
+  /// The resolved sell policy.
+  final SellPolicy policy;
+
+  /// Where this policy came from (for debugging/logging).
+  final SellPolicySource source;
+}
+
+/// Describes where a resolved sell policy came from.
+enum SellPolicySource {
+  /// Policy came from the step itself (e.g., SellItems interaction).
+  step,
+
+  /// Policy came from the segment marker.
+  segment,
+
+  /// Fallback policy computed because no segment policy was available.
+  fallback,
+}
+
+/// Resolves the sell policy for a step during execution.
+///
+/// Resolution hierarchy (first match wins):
+/// 1. Step-level: If the step is a SellItems interaction, use its policy
+/// 2. Segment-level: Use the policy from the segment marker
+/// 3. Fallback: Compute a conservative policy based on context
+///
+/// The [fallbackPolicy] function is called only if no step or segment policy
+/// is available. This allows the caller to provide context-specific fallbacks.
+ResolvedSellPolicy resolveSellPolicy({
+  required PlanStep step,
+  required Plan plan,
+  required int stepIndex,
+  required SellPolicy Function() fallbackPolicy,
+}) {
+  // 1. Step-level: SellItems interactions carry their own policy
+  if (step case InteractionStep(interaction: SellItems(:final policy))) {
+    return ResolvedSellPolicy(policy: policy, source: SellPolicySource.step);
+  }
+
+  // 2. Segment-level: Look up from segment markers
+  final segmentPolicy = _findSegmentSellPolicy(plan, stepIndex);
+  if (segmentPolicy != null) {
+    return ResolvedSellPolicy(
+      policy: segmentPolicy,
+      source: SellPolicySource.segment,
+    );
+  }
+
+  // 3. Fallback: Use provided fallback function
+  return ResolvedSellPolicy(
+    policy: fallbackPolicy(),
+    source: SellPolicySource.fallback,
+  );
+}
+
+/// Finds the sell policy for the segment containing step at [stepIndex].
+///
+/// Walks through segment markers to find which segment the step belongs to,
+/// then returns that segment's sell policy.
+///
+/// Returns null if:
+/// - No segment markers exist (legacy plan without segments)
+/// - The segment doesn't have a sell policy (legacy segment)
+SellPolicy? _findSegmentSellPolicy(Plan plan, int stepIndex) {
+  if (plan.segmentMarkers.isEmpty) return null;
+
+  // Find the segment marker for this step index.
+  // Segment markers are sorted by stepIndex - find the last marker
+  // whose stepIndex is <= our current stepIndex.
+  SegmentMarker? currentMarker;
+  for (final marker in plan.segmentMarkers) {
+    if (marker.stepIndex <= stepIndex) {
+      currentMarker = marker;
+    } else {
+      break; // Markers are sorted, so we're past our segment
+    }
+  }
+
+  return currentMarker?.sellPolicy;
+}
+
+/// Creates a fallback sell policy for a given state.
+///
+/// This is used when no segment-level policy is available (legacy plans).
+/// The fallback policy keeps items that are inputs to unlocked consuming
+/// actions, which is a conservative default.
+SellPolicy createFallbackSellPolicy(GlobalState state) {
+  // Keep all inputs for unlocked consuming actions
+  final keepItems = <MelvorId>{};
+  for (final action in state.registries.actions.all) {
+    if (action is SkillAction) {
+      final skillLevel = state.skillState(action.skill).skillLevel;
+      final isUnlocked = skillLevel >= action.unlockLevel;
+      if (isUnlocked) {
+        keepItems.addAll(action.inputs.keys);
+      }
+    }
+  }
+  return SellExceptPolicy(keepItems);
+}
+
 /// Execute a plan and return the result including death count and actual ticks.
 ///
 /// Uses goal-aware waiting: [WaitStep.waitFor] determines when to stop waiting,
@@ -802,6 +966,22 @@ PlanExecutionResult executePlan(
       MacroStep(:final deltaTicks) => deltaTicks,
     };
 
+    // Resolve the sell policy for this step using the hierarchy:
+    // step → segment → fallback
+    final currentState = state; // Capture for fallback closure
+    final resolved = resolveSellPolicy(
+      step: step,
+      plan: plan,
+      stepIndex: i,
+      fallbackPolicy: () {
+        // Warn when using fallback - indicates legacy plan without segment
+        // policies. This helps diagnose when plans need to be regenerated.
+        // ignore: avoid_print
+        print('[WARN] No segment sellPolicy at step $i; using fallback');
+        return createFallbackSellPolicy(currentState);
+      },
+    );
+
     // Capture state before execution for diagnostics
     final stateBefore = state;
 
@@ -814,6 +994,7 @@ PlanExecutionResult executePlan(
         step,
         random: random,
         boundaries: boundaries,
+        segmentSellPolicy: resolved.policy,
       );
       state = result.state;
       totalDeaths += result.deaths;

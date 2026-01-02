@@ -26,7 +26,15 @@ import 'package:logic/src/data/actions.dart';
 import 'package:logic/src/data/melvor_id.dart';
 import 'package:logic/src/data/registries.dart';
 import 'package:logic/src/solver/goal.dart';
-import 'package:logic/src/solver/interaction.dart';
+import 'package:logic/src/solver/interaction.dart'
+    show
+        BuyShopItem,
+        Interaction,
+        SellAllPolicy,
+        SellExceptPolicy,
+        SellItems,
+        SellPolicy,
+        SwitchActivity;
 import 'package:logic/src/solver/macro_candidate.dart';
 import 'package:logic/src/solver/replan_boundary.dart';
 import 'package:logic/src/solver/solver_profile.dart';
@@ -235,6 +243,7 @@ class Segment {
     required this.totalTicks,
     required this.interactionCount,
     required this.stopBoundary,
+    this.sellPolicy,
     this.description,
   });
 
@@ -250,6 +259,19 @@ class Segment {
   /// What boundary this segment stops at.
   final SegmentBoundary stopBoundary;
 
+  /// The sell policy for this segment.
+  ///
+  /// Computed once at segment start from [SegmentContext]. This is the
+  /// authoritative policy for:
+  /// - Deciding which items to sell during execution
+  /// - Computing effectiveCredits for boundary detection
+  /// - Handling upgrade purchases that require selling first
+  ///
+  /// If null, the executor should fall back to a goal-derived policy
+  /// and log a warning (indicates the plan was created before this field
+  /// was added).
+  final SellPolicy? sellPolicy;
+
   /// Human-readable description for rendering.
   /// E.g., "WC→FM loop until Teak unlocked"
   final String? description;
@@ -261,6 +283,7 @@ class SegmentMarker {
   const SegmentMarker({
     required this.stepIndex,
     required this.boundary,
+    this.sellPolicy,
     this.description,
   });
 
@@ -269,6 +292,12 @@ class SegmentMarker {
 
   /// What boundary this segment stops at.
   final SegmentBoundary boundary;
+
+  /// The sell policy for this segment.
+  ///
+  /// Used by the executor to determine which items to sell when
+  /// handling inventory pressure or upgrade purchases.
+  final SellPolicy? sellPolicy;
 
   /// Optional human-readable description.
   final String? description;
@@ -304,7 +333,8 @@ class Plan {
   /// Constructs a Plan from multiple segments.
   ///
   /// Stitches segments together into a single plan with segment markers
-  /// for rendering purposes.
+  /// for rendering purposes. Each segment's [Segment.sellPolicy] is
+  /// preserved in the corresponding [SegmentMarker.sellPolicy].
   factory Plan.fromSegments(
     List<Segment> segments, {
     int expandedNodes = 0,
@@ -320,6 +350,7 @@ class Plan {
         SegmentMarker(
           stepIndex: allSteps.length,
           boundary: segment.stopBoundary,
+          sellPolicy: segment.sellPolicy,
           description: segment.description,
         ),
       );
