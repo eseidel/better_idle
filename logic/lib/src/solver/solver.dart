@@ -862,6 +862,113 @@ class _Node {
   final int expectedDeaths;
 }
 
+/// Holds mutable state for the A* solver, avoiding excessive parameter passing.
+class _SolverContext {
+  _SolverContext({
+    required this.initial,
+    required this.goal,
+    required this.maxExpandedNodes,
+    required this.maxQueueSize,
+    required this.collectDiagnostics,
+    required this.boundaries,
+  }) : rateCache = _RateCache(goal),
+       bestCredits = effectiveCredits(initial, const SellAllPolicy());
+
+  final GlobalState initial;
+  final Goal goal;
+  final int maxExpandedNodes;
+  final int maxQueueSize;
+  final bool collectDiagnostics;
+  final Map<Skill, SkillBoundaries> boundaries;
+
+  final SolverProfileBuilder profileBuilder = SolverProfileBuilder();
+  final _RateCache rateCache;
+  final _ParetoFrontier frontier = _ParetoFrontier();
+  final List<_Node> nodes = [];
+  final HashMap<String, int> bestTicks = HashMap<String, int>();
+
+  late final PriorityQueue<int> pq = PriorityQueue<int>((a, b) {
+    final fA = nodes[a].ticks + _heuristic(nodes[a].state, goal, rateCache);
+    final fB = nodes[b].ticks + _heuristic(nodes[b].state, goal, rateCache);
+    final cmp = fA.compareTo(fB);
+    if (cmp != 0) return cmp;
+    // Tie-break by lower g (actual ticks)
+    return nodes[a].ticks.compareTo(nodes[b].ticks);
+  });
+
+  int expandedNodes = 0;
+  int enqueuedNodes = 0;
+  int bestCredits;
+
+  /// Creates a failure result with the given reason.
+  SolverFailed fail(String reason) {
+    final profile = profileBuilder.build(
+      expandedNodes: expandedNodes,
+      frontier: frontier.stats,
+    );
+    return SolverFailed(
+      SolverFailure(
+        reason: reason,
+        expandedNodes: expandedNodes,
+        enqueuedNodes: enqueuedNodes,
+        bestCredits: bestCredits,
+        reproBundle: ReproBundle(state: initial, goal: goal, reason: reason),
+      ),
+      profile,
+    );
+  }
+
+  /// Creates a success result with the given plan and terminal state.
+  SolverSuccess succeed(Plan plan, GlobalState terminalState) {
+    final profile = profileBuilder.build(
+      expandedNodes: expandedNodes,
+      frontier: frontier.stats,
+      cacheHits: rateCacheHits,
+      cacheMisses: rateCacheMisses,
+    );
+    return SolverSuccess(plan, terminalState, profile);
+  }
+
+  /// Tries to enqueue a new node if it's the best path to its state.
+  /// Returns true if the node was enqueued.
+  bool tryEnqueue({
+    required GlobalState state,
+    required int ticks,
+    required int interactions,
+    required int parentId,
+    required PlanStep step,
+    int expectedDeaths = 0,
+  }) {
+    final (key: newKey, elapsedUs: elapsed) = _stateKey(state, goal);
+    profileBuilder.hashingTimeUs += elapsed;
+
+    final existingBest = bestTicks[newKey];
+    if (existingBest != null && ticks >= existingBest) {
+      return false;
+    }
+
+    bestTicks[newKey] = ticks;
+    final newNode = _Node(
+      state: state,
+      ticks: ticks,
+      interactions: interactions,
+      parentId: parentId,
+      stepFromParent: step,
+      expectedDeaths: expectedDeaths,
+    );
+    final newNodeId = nodes.length;
+    nodes.add(newNode);
+    pq.add(newNodeId);
+    enqueuedNodes++;
+    return true;
+  }
+
+  /// Records hashing time from a state key computation.
+  void recordHashTime(int elapsedUs) {
+    profileBuilder.hashingTimeUs += elapsedUs;
+  }
+}
+
 /// Computes a goal-scoped hash key for a game state for visited tracking.
 ///
 /// Uses bucketed gold for coarser grouping to reduce state explosion.
@@ -2637,6 +2744,381 @@ ActionId? _findBestActionForSkill(GlobalState state, Skill skill, Goal goal) {
   return best;
 }
 
+// ---------------------------------------------------------------------------
+// Solver edge expansion helpers
+// ---------------------------------------------------------------------------
+
+/// Expands interaction edges (0 time cost) from the given node.
+/// Returns the number of neighbors generated.
+int _expandInteractionEdges(
+  _SolverContext ctx,
+  _Node node,
+  int nodeId,
+  Candidates candidates,
+  List<Interaction> interactions,
+) {
+  var neighborsGenerated = 0;
+
+  for (final interaction in interactions) {
+    if (!_isRelevantInteraction(interaction, candidates)) continue;
+
+    try {
+      final newState = applyInteraction(node.state, interaction);
+      final newProgress = ctx.goal.progress(newState);
+      final newBucketKey = _bucketKeyFromState(newState, ctx.goal);
+
+      // Dominance pruning: skip if dominated by existing frontier point
+      if (ctx.frontier.isDominatedOrInsert(
+        newBucketKey,
+        node.ticks,
+        newProgress,
+      )) {
+        ctx.profileBuilder.dominatedSkipped++;
+        continue;
+      }
+
+      if (ctx.tryEnqueue(
+        state: newState,
+        ticks: node.ticks, // Interactions cost 0 ticks
+        interactions: node.interactions + 1,
+        parentId: nodeId,
+        step: InteractionStep(interaction),
+      )) {
+        neighborsGenerated++;
+      }
+    } on Exception catch (_) {
+      // Interaction failed (e.g., can't afford upgrade) - skip
+      continue;
+    }
+  }
+
+  return neighborsGenerated;
+}
+
+/// Expands macro edges (train skill until boundary/goal) from the given node.
+/// Returns a success result if goal was reached, otherwise returns null
+/// and the number of neighbors generated via the out parameter.
+SolverSuccess? _expandMacroEdges(
+  _SolverContext ctx,
+  _Node node,
+  int nodeId,
+  Candidates candidates, {
+  required _NeighborCounter counter,
+}) {
+  for (final macro in candidates.macros) {
+    final expansionOutcome = _expandMacro(
+      node.state,
+      macro,
+      ctx.goal,
+      ctx.boundaries,
+    );
+
+    // Skip macros that can't be expanded or are already satisfied
+    final MacroExpansionResult expansionResult;
+    switch (expansionOutcome) {
+      case MacroExpanded(:final result):
+        expansionResult = result;
+      case MacroAlreadySatisfied():
+      case MacroCannotExpand():
+        continue;
+    }
+
+    // Record which condition triggered the macro stop
+    if (expansionResult.triggeringCondition != null) {
+      ctx.profileBuilder.recordMacroStopTrigger(
+        expansionResult.triggeringCondition!,
+      );
+    }
+
+    final newState = expansionResult.state;
+    final newDeaths = node.expectedDeaths + expansionResult.deaths;
+    final newTicks = node.ticks + expansionResult.ticksElapsed;
+    final newProgress = ctx.goal.progress(newState);
+    final newBucketKey = _bucketKeyFromState(newState, ctx.goal);
+
+    // Check if we've reached the goal
+    final reachedGoal = ctx.goal.isSatisfied(newState);
+
+    // Dominance pruning: skip if dominated unless we reached the goal
+    if (!reachedGoal &&
+        ctx.frontier.isDominatedOrInsert(newBucketKey, newTicks, newProgress)) {
+      ctx.profileBuilder.dominatedSkipped++;
+      continue;
+    }
+
+    // Add to frontier if reached goal
+    if (reachedGoal) {
+      ctx.frontier.isDominatedOrInsert(newBucketKey, newTicks, newProgress);
+    }
+
+    final (key: newKey, elapsedUs: macroElapsedUs) = _stateKey(
+      newState,
+      ctx.goal,
+    );
+    ctx.recordHashTime(macroElapsedUs);
+
+    // Only enqueue if this is the best path to this state
+    final existingBest = ctx.bestTicks[newKey];
+    if (existingBest == null || newTicks < existingBest) {
+      ctx.bestTicks[newKey] = newTicks;
+
+      final newNode = _Node(
+        state: newState,
+        ticks: newTicks,
+        interactions: node.interactions,
+        expectedDeaths: newDeaths,
+        parentId: nodeId,
+        stepFromParent: MacroStep(
+          expansionResult.macro,
+          expansionResult.ticksElapsed,
+          expansionResult.waitFor,
+        ),
+      );
+
+      final newNodeId = ctx.nodes.length;
+      ctx.nodes.add(newNode);
+
+      if (reachedGoal) {
+        // Found goal via macro - return immediately
+        return ctx.succeed(
+          _reconstructPlan(
+            ctx.nodes,
+            newNodeId,
+            ctx.expandedNodes,
+            ctx.enqueuedNodes,
+            goal: ctx.goal,
+          ),
+          newState,
+        );
+      }
+
+      ctx.pq.add(newNodeId);
+      ctx.enqueuedNodes++;
+      counter.value++;
+    }
+  }
+
+  return null;
+}
+
+/// Expands the wait edge from the given node.
+/// Returns a success result if goal was reached, otherwise null.
+SolverSuccess? _expandWaitEdge(
+  _SolverContext ctx,
+  _Node node,
+  int nodeId,
+  String nodeKey,
+  Candidates candidates,
+  List<Interaction> interactions, {
+  required _NeighborCounter counter,
+}) {
+  // For segment goals, use the WatchSet's sellPolicy for consistent
+  // effectiveCredits calculation. Otherwise use candidates.sellPolicy.
+  final deltaSellPolicy = ctx.goal is SegmentGoal
+      ? (ctx.goal as SegmentGoal).watchSet.sellPolicy
+      : candidates.sellPolicy;
+  final deltaResult = nextDecisionDelta(
+    node.state,
+    ctx.goal,
+    candidates,
+    sellPolicy: deltaSellPolicy,
+  );
+
+  // Invariant: dt=0 only when actions exist, dt>0 when no immediate actions.
+  final relevantInteractions = interactions
+      .where((i) => _isRelevantInteraction(i, candidates))
+      .toList();
+  assert(
+    deltaResult.deltaTicks != 0 || relevantInteractions.isNotEmpty,
+    'dt=0 but no actions; watch ≠ action regression',
+  );
+
+  if (deltaResult.isDeadEnd || deltaResult.deltaTicks <= 0) {
+    return null;
+  }
+
+  ctx.profileBuilder.decisionDeltas.add(deltaResult.deltaTicks);
+
+  final advanceStopwatch = Stopwatch()..start();
+  final advanceResult = advance(node.state, deltaResult.deltaTicks);
+  ctx.profileBuilder.advanceTimeUs += advanceStopwatch.elapsedMicroseconds;
+
+  final newState = advanceResult.state;
+  final newDeaths = node.expectedDeaths + advanceResult.deaths;
+  final newTicks = node.ticks + deltaResult.deltaTicks;
+  final newProgress = ctx.goal.progress(newState);
+  final newBucketKey = _bucketKeyFromState(newState, ctx.goal);
+
+  // Check if we've reached the goal BEFORE dominance pruning
+  final reachedGoal = ctx.goal.isSatisfied(newState);
+
+  // Dominance pruning: skip if dominated by existing frontier point
+  // BUT: never skip if we've reached the goal
+  if (!reachedGoal &&
+      ctx.frontier.isDominatedOrInsert(newBucketKey, newTicks, newProgress)) {
+    ctx.profileBuilder.dominatedSkipped++;
+    return null;
+  }
+
+  // If we reached goal, still add to frontier for tracking
+  if (reachedGoal) {
+    ctx.frontier.isDominatedOrInsert(newBucketKey, newTicks, newProgress);
+  }
+
+  final (key: newKey, elapsedUs: waitElapsedUs) = _stateKey(newState, ctx.goal);
+  ctx.recordHashTime(waitElapsedUs);
+
+  // Safety: check for zero-progress waits (same state key after advance)
+  // BUT: allow if we've reached the goal (even if state key unchanged)
+  if (newKey == nodeKey && !reachedGoal) {
+    return null;
+  }
+
+  final existingBest = ctx.bestTicks[newKey];
+  // Add if we've reached the goal (this is the terminal state we want)
+  // Otherwise, only add if this is a better path to this state key
+  if (!reachedGoal && existingBest != null && newTicks >= existingBest) {
+    return null;
+  }
+
+  if (!reachedGoal) {
+    ctx.bestTicks[newKey] = newTicks;
+  }
+
+  final newNode = _Node(
+    state: newState,
+    ticks: newTicks,
+    interactions: node.interactions,
+    parentId: nodeId,
+    stepFromParent: WaitStep(
+      deltaResult.deltaTicks,
+      deltaResult.waitFor,
+      expectedAction: deltaResult.intendedAction,
+    ),
+    expectedDeaths: newDeaths,
+  );
+
+  final newNodeId = ctx.nodes.length;
+  ctx.nodes.add(newNode);
+
+  if (reachedGoal) {
+    return ctx.succeed(
+      _reconstructPlan(
+        ctx.nodes,
+        newNodeId,
+        ctx.expandedNodes,
+        ctx.enqueuedNodes,
+        goal: ctx.goal,
+      ),
+      newState,
+    );
+  }
+
+  ctx.pq.add(newNodeId);
+  ctx.enqueuedNodes++;
+  counter.value++;
+
+  return null;
+}
+
+/// Simple mutable counter for tracking neighbors across helper calls.
+class _NeighborCounter {
+  int value = 0;
+}
+
+/// Validates initial state and sets up the root node.
+/// Returns early success/failure result if applicable, otherwise null.
+SolverResult? _initializeSolver(_SolverContext ctx) {
+  // Clear the internal rate cache at start of each solve
+  clearRateCache();
+
+  // Check if goal is already satisfied
+  if (ctx.goal.isSatisfied(ctx.initial)) {
+    final profile = ctx.profileBuilder.build(
+      expandedNodes: 0,
+      frontier: FrontierStats.zero,
+    );
+    return SolverSuccess(const Plan.empty(), ctx.initial, profile);
+  }
+
+  // Create and enqueue root node
+  final rootNode = _Node(
+    state: ctx.initial,
+    ticks: 0,
+    interactions: 0,
+    parentId: null,
+    stepFromParent: null,
+  );
+  ctx.nodes.add(rootNode);
+  ctx.pq.add(0);
+  ctx.enqueuedNodes++;
+
+  final (key: rootKey, elapsedUs: rootElapsedUs) = _stateKey(
+    ctx.initial,
+    ctx.goal,
+  );
+  ctx.recordHashTime(rootElapsedUs);
+  ctx.bestTicks[rootKey] = 0;
+
+  // Record root best rate for diagnostics
+  if (ctx.collectDiagnostics) {
+    final rootBestRate = ctx.rateCache.getBestUnlockedRate(ctx.initial);
+    ctx.profileBuilder.recordBestRate(rootBestRate, isRoot: true);
+    final zeroReason = ctx.rateCache.getZeroReason(ctx.initial);
+    if (zeroReason != null) {
+      ctx.profileBuilder.recordRateZeroReason(zeroReason);
+    }
+  }
+
+  // Diagnostic tripwire: fail fast if heuristic has zero best rate.
+  final rootBestRate = ctx.rateCache.getBestUnlockedRate(ctx.initial);
+  if (rootBestRate <= 0) {
+    final zeroReason = ctx.rateCache.getZeroReason(ctx.initial);
+    final reasonStr =
+        zeroReason?.describe() ?? 'unknown reason (rate computed as zero)';
+    final profile = ctx.profileBuilder.build(
+      expandedNodes: 0,
+      frontier: ctx.frontier.stats,
+    );
+    final reason = 'Heuristic bestRate=0: $reasonStr';
+    return SolverFailed(
+      SolverFailure(
+        reason: reason,
+        enqueuedNodes: ctx.enqueuedNodes,
+        reproBundle: ReproBundle(
+          state: ctx.initial,
+          goal: ctx.goal,
+          reason: reason,
+        ),
+      ),
+      profile,
+    );
+  }
+
+  return null;
+}
+
+/// Collects diagnostic metrics for the current node.
+void _collectNodeDiagnostics(_SolverContext ctx, _Node node) {
+  if (!ctx.collectDiagnostics) return;
+
+  final bestRate = ctx.rateCache.getBestUnlockedRate(node.state);
+  final h = _heuristic(node.state, ctx.goal, ctx.rateCache);
+  final nodeKey = _bucketKeyFromState(node.state, ctx.goal).toString();
+
+  ctx.profileBuilder
+    ..recordHeuristic(h, hasZeroRate: bestRate <= 0)
+    ..recordBucketKey(nodeKey)
+    ..recordBestRate(bestRate, isRoot: false);
+
+  if (bestRate <= 0) {
+    final zeroReason = ctx.rateCache.getZeroReason(node.state);
+    if (zeroReason != null) {
+      ctx.profileBuilder.recordRateZeroReason(zeroReason);
+    }
+  }
+}
+
 /// Solves for an optimal plan to satisfy the given [goal].
 ///
 /// Uses A* algorithm to find the minimum-ticks path from the initial
@@ -2657,222 +3139,78 @@ SolverResult solve(
   int maxQueueSize = defaultMaxQueueSize,
   bool collectDiagnostics = false,
 }) {
-  final profileBuilder = SolverProfileBuilder();
-
-  // Clear the internal rate cache at start of each solve
-  clearRateCache();
-
-  // Check if goal is already satisfied (considering inventory value)
-  if (goal.isSatisfied(initial)) {
-    // Build a minimal profile for early success
-    final profile = profileBuilder.build(
-      expandedNodes: 0,
-      frontier: FrontierStats.zero,
-    );
-    return SolverSuccess(const Plan.empty(), initial, profile);
-  }
-
-  // Compute unlock boundaries for macro-step planning
-  final boundaries = computeUnlockBoundaries(initial.registries);
-
-  // Rate cache for A* heuristic (caches best unlocked rate by state)
-  final rateCache = _RateCache(goal);
-
-  // Rate cache for enumerateCandidates is now internal to that function.
-  // It caches capability-level rate summaries and filters per-state.
-
-  // Dominance pruning frontier
-  final frontier = _ParetoFrontier();
-
-  // Node storage - indices are node IDs
-  final nodes = <_Node>[];
-
-  // A* priority: f(n) = g(n) + h(n) = ticksSoFar + heuristic
-  // Break ties by lower ticksSoFar (prefer actual progress over estimates)
-  final pq = PriorityQueue<int>((a, b) {
-    final fA = nodes[a].ticks + _heuristic(nodes[a].state, goal, rateCache);
-    final fB = nodes[b].ticks + _heuristic(nodes[b].state, goal, rateCache);
-    final cmp = fA.compareTo(fB);
-    if (cmp != 0) return cmp;
-    // Tie-break by lower g (actual ticks)
-    return nodes[a].ticks.compareTo(nodes[b].ticks);
-  });
-
-  // Best ticks seen for each state key
-  final bestTicks = HashMap<String, int>();
-
-  // Stats
-  var expandedNodes = 0;
-  var enqueuedNodes = 0;
-  var bestCredits = effectiveCredits(initial, const SellAllPolicy());
-
-  // Create and enqueue root node
-  final rootNode = _Node(
-    state: initial,
-    ticks: 0,
-    interactions: 0,
-    parentId: null,
-    stepFromParent: null,
+  final ctx = _SolverContext(
+    initial: initial,
+    goal: goal,
+    maxExpandedNodes: maxExpandedNodes,
+    maxQueueSize: maxQueueSize,
+    collectDiagnostics: collectDiagnostics,
+    boundaries: computeUnlockBoundaries(initial.registries),
   );
-  nodes.add(rootNode);
-  pq.add(0);
-  enqueuedNodes++;
 
-  final (key: rootKey, elapsedUs: rootElapsedUs) = _stateKey(initial, goal);
-  profileBuilder.hashingTimeUs += rootElapsedUs;
-  bestTicks[rootKey] = 0;
+  // Initialize and check for early exit
+  final initResult = _initializeSolver(ctx);
+  if (initResult != null) return initResult;
 
-  // Record root best rate for diagnostics
-  if (collectDiagnostics) {
-    final rootBestRate = rateCache.getBestUnlockedRate(initial);
-    profileBuilder.recordBestRate(rootBestRate, isRoot: true);
-    final zeroReason = rateCache.getZeroReason(initial);
-    if (zeroReason != null) {
-      profileBuilder.recordRateZeroReason(zeroReason);
-    }
-  }
-
-  // Diagnostic tripwire: fail fast if heuristic has zero best rate.
-  // This catches configuration errors early (e.g., consuming skill goal
-  // with no unlocked producer for required inputs).
-  final rootBestRate = rateCache.getBestUnlockedRate(initial);
-  if (rootBestRate <= 0) {
-    final zeroReason = rateCache.getZeroReason(initial);
-    final reasonStr =
-        zeroReason?.describe() ?? 'unknown reason (rate computed as zero)';
-    final profile = profileBuilder.build(
-      expandedNodes: 0,
-      frontier: frontier.stats,
-    );
-    final reason = 'Heuristic bestRate=0: $reasonStr';
-    return SolverFailed(
-      SolverFailure(
-        reason: reason,
-        enqueuedNodes: enqueuedNodes,
-        reproBundle: ReproBundle(state: initial, goal: goal, reason: reason),
-      ),
-      profile,
-    );
-  }
-
-  while (pq.isNotEmpty) {
+  while (ctx.pq.isNotEmpty) {
     // Check limits
-    if (expandedNodes >= maxExpandedNodes) {
-      final profile = profileBuilder.build(
-        expandedNodes: expandedNodes,
-        frontier: frontier.stats,
-      );
-      final reason = 'Exceeded max expanded nodes ($maxExpandedNodes)';
-      return SolverFailed(
-        SolverFailure(
-          reason: reason,
-          expandedNodes: expandedNodes,
-          enqueuedNodes: enqueuedNodes,
-          bestCredits: bestCredits,
-          reproBundle: ReproBundle(state: initial, goal: goal, reason: reason),
-        ),
-        profile,
-      );
+    if (ctx.expandedNodes >= maxExpandedNodes) {
+      return ctx.fail('Exceeded max expanded nodes ($maxExpandedNodes)');
+    }
+    if (ctx.nodes.length >= maxQueueSize) {
+      return ctx.fail('Exceeded max queue size ($maxQueueSize)');
     }
 
-    if (nodes.length >= maxQueueSize) {
-      final profile = profileBuilder.build(
-        expandedNodes: expandedNodes,
-        frontier: frontier.stats,
-      );
-      final reason = 'Exceeded max queue size ($maxQueueSize)';
-      return SolverFailed(
-        SolverFailure(
-          reason: reason,
-          expandedNodes: expandedNodes,
-          enqueuedNodes: enqueuedNodes,
-          bestCredits: bestCredits,
-          reproBundle: ReproBundle(state: initial, goal: goal, reason: reason),
-        ),
-        profile,
-      );
-    }
-
-    // Pop node with smallest ticks
-    final nodeId = pq.removeFirst();
-    final node = nodes[nodeId];
+    // Pop node with smallest f-score
+    final nodeId = ctx.pq.removeFirst();
+    final node = ctx.nodes[nodeId];
 
     // Skip if we've already found a better path to this state
-    // BUT: never skip if this node has reached the goal!
     final (key: nodeKey, elapsedUs: nodeElapsedUs) = _stateKey(
       node.state,
       goal,
     );
-    profileBuilder.hashingTimeUs += nodeElapsedUs;
+    ctx.recordHashTime(nodeElapsedUs);
 
     final nodeReachedGoal = goal.isSatisfied(node.state);
-
-    final bestForKey = bestTicks[nodeKey];
+    final bestForKey = ctx.bestTicks[nodeKey];
     if (!nodeReachedGoal && bestForKey != null && bestForKey < node.ticks) {
       continue;
     }
 
-    expandedNodes++;
-    var neighborsThisNode = 0;
+    ctx.expandedNodes++;
+    final neighborCounter = _NeighborCounter();
 
     // Track peak queue size for diagnostics
-    if (pq.length > profileBuilder.peakQueueSize) {
-      profileBuilder.peakQueueSize = pq.length;
+    if (ctx.pq.length > ctx.profileBuilder.peakQueueSize) {
+      ctx.profileBuilder.peakQueueSize = ctx.pq.length;
     }
 
-    // Collect heuristic health metrics when diagnostics enabled
-    if (collectDiagnostics) {
-      final bestRate = rateCache.getBestUnlockedRate(node.state);
-      final h = _heuristic(node.state, goal, rateCache);
-      profileBuilder
-        ..recordHeuristic(h, hasZeroRate: bestRate <= 0)
-        ..recordBucketKey(nodeKey)
-        ..recordBestRate(bestRate, isRoot: false);
+    // Collect diagnostics
+    _collectNodeDiagnostics(ctx, node);
 
-      // Record zero reason if applicable
-      if (bestRate <= 0) {
-        final zeroReason = rateCache.getZeroReason(node.state);
-        if (zeroReason != null) {
-          profileBuilder.recordRateZeroReason(zeroReason);
-        }
-      }
-    }
-
-    // Track best credits seen (effective credits = GP + inventory value)
-    // Note: For non-GP goals this tracks GP anyway for diagnostics.
-    // Uses SellAllPolicy since this is just measuring potential GP value.
+    // Track best credits seen
     final nodeEffectiveCredits = effectiveCredits(
       node.state,
       const SellAllPolicy(),
     );
-    if (nodeEffectiveCredits > bestCredits) {
-      bestCredits = nodeEffectiveCredits;
+    if (nodeEffectiveCredits > ctx.bestCredits) {
+      ctx.bestCredits = nodeEffectiveCredits;
     }
 
     // Check if goal is reached
     if (nodeReachedGoal) {
-      // Reconstruct and return the plan
       final plan = _reconstructPlan(
-        nodes,
+        ctx.nodes,
         nodeId,
-        expandedNodes,
-        enqueuedNodes,
+        ctx.expandedNodes,
+        ctx.enqueuedNodes,
         goal: goal,
       );
-      final profile = profileBuilder.build(
-        expandedNodes: expandedNodes,
-        frontier: frontier.stats,
-        cacheHits: rateCacheHits,
-        cacheMisses: rateCacheMisses,
-      );
-      // Return terminal node's state for segment boundary detection
-      return SolverSuccess(plan, node.state, profile);
+      return ctx.succeed(plan, node.state);
     }
 
     // Compute candidates for this state
-    // For segment goals, use the WatchSet's sellPolicy to ensure consistency
-    // with boundary detection. For non-segment goals, enumerateCandidates
-    // will compute the policy from the goal (backward compatibility).
     final segmentSellPolicy = goal is SegmentGoal
         ? goal.watchSet.sellPolicy
         : null;
@@ -2883,13 +3221,13 @@ SolverResult solve(
       sellPolicy: segmentSellPolicy,
       collectStats: collectDiagnostics,
     );
-    profileBuilder.enumerateCandidatesTimeUs +=
+    ctx.profileBuilder.enumerateCandidatesTimeUs +=
         enumStopwatch.elapsedMicroseconds;
 
     // Record candidate stats when diagnostics enabled
     if (collectDiagnostics && candidates.consumingSkillStats != null) {
       final stats = candidates.consumingSkillStats!;
-      profileBuilder.candidateStatsHistory.add(
+      ctx.profileBuilder.candidateStatsHistory.add(
         CandidateStats(
           consumerActionsConsidered: stats.consumerActionsConsidered,
           producerActionsConsidered: stats.producerActionsConsidered,
@@ -2900,8 +3238,7 @@ SolverResult solve(
       );
     }
 
-    // Expand interaction edges (0 time cost)
-    // Only pass sellPolicy if we should emit a sell candidate (pruning)
+    // Get available interactions
     final sellPolicy = candidates.shouldEmitSellCandidate
         ? candidates.sellPolicy
         : null;
@@ -2909,269 +3246,43 @@ SolverResult solve(
       node.state,
       sellPolicy: sellPolicy,
     );
-    for (final interaction in interactions) {
-      // Only consider interactions that are in our candidate set (for pruning)
-      if (!_isRelevantInteraction(interaction, candidates)) continue;
 
-      try {
-        final newState = applyInteraction(node.state, interaction);
-        final newProgress = goal.progress(newState);
-        final newBucketKey = _bucketKeyFromState(newState, goal);
-
-        // Dominance pruning: skip if dominated by existing frontier point
-        if (frontier.isDominatedOrInsert(
-          newBucketKey,
-          node.ticks,
-          newProgress,
-        )) {
-          profileBuilder.dominatedSkipped++;
-          continue;
-        }
-
-        final (key: newKey, elapsedUs: newKeyElapsedUs) = _stateKey(
-          newState,
-          goal,
-        );
-        profileBuilder.hashingTimeUs += newKeyElapsedUs;
-
-        // Only enqueue if this is the best path to this state
-        final existingBest = bestTicks[newKey];
-        if (existingBest == null || node.ticks < existingBest) {
-          bestTicks[newKey] = node.ticks;
-
-          final newNode = _Node(
-            state: newState,
-            ticks: node.ticks, // Interactions cost 0 ticks
-            interactions: node.interactions + 1,
-            parentId: nodeId,
-            stepFromParent: InteractionStep(interaction),
-          );
-
-          final newNodeId = nodes.length;
-          nodes.add(newNode);
-          pq.add(newNodeId);
-          enqueuedNodes++;
-          neighborsThisNode++;
-        }
-      } on Exception catch (_) {
-        // Interaction failed (e.g., can't afford upgrade) - skip
-        continue;
-      }
-    }
+    // Expand interaction edges (0 time cost)
+    neighborCounter.value += _expandInteractionEdges(
+      ctx,
+      node,
+      nodeId,
+      candidates,
+      interactions,
+    );
 
     // Expand macro edges (train skill until boundary/goal)
-    for (final macro in candidates.macros) {
-      final expansionOutcome = _expandMacro(
-        node.state,
-        macro,
-        goal,
-        boundaries,
-      );
-
-      // Skip macros that can't be expanded or are already satisfied
-      final MacroExpansionResult expansionResult;
-      switch (expansionOutcome) {
-        case MacroExpanded(:final result):
-          expansionResult = result;
-        case MacroAlreadySatisfied():
-        case MacroCannotExpand():
-          continue;
-      }
-
-      // Record which condition triggered the macro stop
-      if (expansionResult.triggeringCondition != null) {
-        profileBuilder.recordMacroStopTrigger(
-          expansionResult.triggeringCondition!,
-        );
-      }
-
-      final newState = expansionResult.state;
-      final newDeaths = node.expectedDeaths + expansionResult.deaths;
-      final newTicks = node.ticks + expansionResult.ticksElapsed;
-      final newProgress = goal.progress(newState);
-      final newBucketKey = _bucketKeyFromState(newState, goal);
-
-      // Check if we've reached the goal
-      final reachedGoal = goal.isSatisfied(newState);
-
-      // Dominance pruning: skip if dominated unless we reached the goal
-      if (!reachedGoal &&
-          frontier.isDominatedOrInsert(newBucketKey, newTicks, newProgress)) {
-        profileBuilder.dominatedSkipped++;
-        continue;
-      }
-
-      // Add to frontier if reached goal
-      if (reachedGoal) {
-        frontier.isDominatedOrInsert(newBucketKey, newTicks, newProgress);
-      }
-
-      final (key: newKey, elapsedUs: macroElapsedUs) = _stateKey(
-        newState,
-        goal,
-      );
-      profileBuilder.hashingTimeUs += macroElapsedUs;
-
-      // Only enqueue if this is the best path to this state
-      final existingBest = bestTicks[newKey];
-      if (existingBest == null || newTicks < existingBest) {
-        bestTicks[newKey] = newTicks;
-
-        final newNode = _Node(
-          state: newState,
-          ticks: newTicks,
-          interactions: node.interactions,
-          expectedDeaths: newDeaths,
-          parentId: nodeId,
-          stepFromParent: MacroStep(
-            expansionResult.macro,
-            expansionResult.ticksElapsed,
-            expansionResult.waitFor,
-          ),
-        );
-
-        final newNodeId = nodes.length;
-        nodes.add(newNode);
-
-        if (reachedGoal) {
-          // Found goal via macro - return immediately
-          final profile = profileBuilder.build(
-            expandedNodes: expandedNodes,
-            frontier: frontier.stats,
-          );
-          return SolverSuccess(
-            _reconstructPlan(
-              nodes,
-              newNodeId,
-              expandedNodes,
-              enqueuedNodes,
-              goal: goal,
-            ),
-            newState,
-            profile,
-          );
-        }
-
-        pq.add(newNodeId);
-        enqueuedNodes++;
-        neighborsThisNode++;
-      }
-    }
+    final macroResult = _expandMacroEdges(
+      ctx,
+      node,
+      nodeId,
+      candidates,
+      counter: neighborCounter,
+    );
+    if (macroResult != null) return macroResult;
 
     // Expand wait edge
-    // For segment goals, use the WatchSet's sellPolicy for consistent
-    // effectiveCredits calculation. Otherwise use candidates.sellPolicy.
-    final deltaSellPolicy = goal is SegmentGoal
-        ? goal.watchSet.sellPolicy
-        : candidates.sellPolicy;
-    final deltaResult = nextDecisionDelta(
-      node.state,
-      goal,
+    final waitResult = _expandWaitEdge(
+      ctx,
+      node,
+      nodeId,
+      nodeKey,
       candidates,
-      sellPolicy: deltaSellPolicy,
+      interactions,
+      counter: neighborCounter,
     );
+    if (waitResult != null) return waitResult;
 
-    // Invariant: dt=0 only when actions exist, dt>0 when no immediate actions.
-    // Prevents regression where "affordable watched upgrade" triggers dt=0
-    // but no action is available (watch ≠ action).
-    final relevantInteractions = interactions
-        .where((i) => _isRelevantInteraction(i, candidates))
-        .toList();
-    assert(
-      deltaResult.deltaTicks != 0 || relevantInteractions.isNotEmpty,
-      'dt=0 but no actions; watch ≠ action regression',
-    );
-
-    if (!deltaResult.isDeadEnd && deltaResult.deltaTicks > 0) {
-      profileBuilder.decisionDeltas.add(deltaResult.deltaTicks);
-
-      final advanceStopwatch = Stopwatch()..start();
-      final advanceResult = advance(node.state, deltaResult.deltaTicks);
-      profileBuilder.advanceTimeUs += advanceStopwatch.elapsedMicroseconds;
-
-      final newState = advanceResult.state;
-      final newDeaths = node.expectedDeaths + advanceResult.deaths;
-      final newTicks = node.ticks + deltaResult.deltaTicks;
-      final newProgress = goal.progress(newState);
-      final newBucketKey = _bucketKeyFromState(newState, goal);
-
-      // Check if we've reached the goal BEFORE dominance pruning
-      final reachedGoal = goal.isSatisfied(newState);
-
-      // Dominance pruning: skip if dominated by existing frontier point
-      // BUT: never skip if we've reached the goal
-      if (!reachedGoal &&
-          frontier.isDominatedOrInsert(newBucketKey, newTicks, newProgress)) {
-        profileBuilder.dominatedSkipped++;
-      } else {
-        // If we reached goal, still add to frontier for tracking
-        if (reachedGoal) {
-          frontier.isDominatedOrInsert(newBucketKey, newTicks, newProgress);
-        }
-        final (key: newKey, elapsedUs: waitElapsedUs) = _stateKey(
-          newState,
-          goal,
-        );
-        profileBuilder.hashingTimeUs += waitElapsedUs;
-
-        // Safety: check for zero-progress waits (same state key after advance)
-        // BUT: allow if we've reached the goal (even if state key unchanged)
-        if (newKey != nodeKey || reachedGoal) {
-          final existingBest = bestTicks[newKey];
-          // Add if we've reached the goal (this is the terminal state we want)
-          // Otherwise, only add if this is a better path to this state key
-          if (reachedGoal || existingBest == null || newTicks < existingBest) {
-            if (!reachedGoal) {
-              bestTicks[newKey] = newTicks;
-            }
-
-            final newNode = _Node(
-              state: newState,
-              ticks: newTicks,
-              interactions: node.interactions,
-              parentId: nodeId,
-              stepFromParent: WaitStep(
-                deltaResult.deltaTicks,
-                deltaResult.waitFor,
-                // Use intendedAction (the action that advances the goal)
-                // rather than activeAction (which may be a different action
-                // like producer after EnsureStock)
-                expectedAction: deltaResult.intendedAction,
-              ),
-              expectedDeaths: newDeaths,
-            );
-
-            final newNodeId = nodes.length;
-            nodes.add(newNode);
-            pq.add(newNodeId);
-            enqueuedNodes++;
-            neighborsThisNode++;
-          }
-        }
-      }
-    }
-
-    profileBuilder.totalNeighborsGenerated += neighborsThisNode;
+    ctx.profileBuilder.totalNeighborsGenerated += neighborCounter.value;
   }
 
   // Priority queue exhausted without finding goal
-  final profile = profileBuilder.build(
-    expandedNodes: expandedNodes,
-    frontier: frontier.stats,
-    cacheHits: rateCacheHits,
-    cacheMisses: rateCacheMisses,
-  );
-  const reason = 'No path to goal found';
-  return SolverFailed(
-    SolverFailure(
-      reason: reason,
-      expandedNodes: expandedNodes,
-      enqueuedNodes: enqueuedNodes,
-      bestCredits: bestCredits,
-      reproBundle: ReproBundle(state: initial, goal: goal, reason: reason),
-    ),
-    profile,
-  );
+  return ctx.fail('No path to goal found');
 }
 
 /// Checks if an interaction is relevant given the current candidates.
