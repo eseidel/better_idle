@@ -37,7 +37,6 @@ import 'package:logic/src/data/action_id.dart';
 import 'package:logic/src/data/actions.dart';
 import 'package:logic/src/data/currency.dart';
 import 'package:logic/src/data/melvor_id.dart';
-import 'package:logic/src/data/xp.dart' show startXpForLevel;
 import 'package:logic/src/solver/apply_interaction.dart';
 import 'package:logic/src/solver/available_interactions.dart';
 import 'package:logic/src/solver/enumerate_candidates.dart';
@@ -1524,233 +1523,11 @@ ConsumeUntilResult consumeUntil(
 
 // BatchSizeResult is now defined in solver_context.dart
 
-// ---------------------------------------------------------------------------
-// Inventory-Aware Batch Sizing
-// ---------------------------------------------------------------------------
-
-/// Estimates how many NEW inventory slots a production chain will consume.
-///
-/// For a target item produced by [producerId], this computes:
-/// - New item types from the target item itself (if not already in inventory)
-/// - New item types from intermediate products (e.g., ores for bars)
-/// - New item types from byproducts (e.g., gems from mining)
-///
-/// The result is a conservative estimate that helps ensure EnsureStock
-/// doesn't plan batches that will overflow inventory during execution.
-int _estimateNewSlotsForProduction(
-  GlobalState state,
-  MelvorId targetItemId,
-  int quantity,
-  Goal goal,
-) {
-  var newSlots = 0;
-  final visited = <MelvorId>{};
-
-  void countNewSlots(MelvorId itemId, int qty) {
-    if (visited.contains(itemId)) return;
-    visited.add(itemId);
-
-    // Check if this item is already in inventory
-    final item = state.registries.items.byId(itemId);
-    final currentCount = state.inventory.countOfItem(item);
-    if (currentCount == 0) {
-      newSlots++;
-    }
-
-    // Find the producer for this item to check for intermediates
-    final producerId = _findProducerActionForItem(state, itemId, goal);
-    if (producerId == null) return;
-
-    final producerAction = state.registries.actions.byId(producerId);
-    if (producerAction is! SkillAction) return;
-
-    // For mining actions, add potential gem slots (conservative estimate)
-    if (producerAction.skill == Skill.mining && qty > 20) {
-      // Mining can produce up to 5 gem types over many actions.
-      // With 1% gem chance, expect to see gems after ~100 mining actions.
-      // Be conservative: assume we'll fill some gem slots over large batches.
-      const gemNames = ['Topaz', 'Sapphire', 'Ruby', 'Emerald', 'Diamond'];
-      for (final gemName in gemNames) {
-        final gemId = MelvorId('melvorD:$gemName');
-        if (!visited.contains(gemId)) {
-          visited.add(gemId);
-          // Check if gem is in inventory by searching directly
-          final hasGem = state.inventory.items.any(
-            (stack) => stack.item.id == gemId,
-          );
-          if (!hasGem) {
-            newSlots++;
-          }
-        }
-      }
-    }
-
-    // Recurse into inputs for consuming actions
-    for (final inputEntry in producerAction.inputs.entries) {
-      final inputQty =
-          (qty / (producerAction.outputs[itemId] ?? 1)).ceil() *
-          inputEntry.value;
-      countNewSlots(inputEntry.key, inputQty);
-    }
-  }
-
-  countNewSlots(targetItemId, quantity);
-  return newSlots;
-}
-
-/// Computes the maximum feasible batch size for an EnsureStock macro.
-///
-/// Given a target quantity, this returns the largest batch that can be
-/// produced without overflowing inventory. Returns:
-/// - `target` if the full batch is feasible
-/// - A reduced batch size if inventory is constrained
-/// - 0 if no batch is feasible (inventory too full)
-///
-/// The computation accounts for:
-/// - Current free inventory slots
-/// - New item types that will be created by the production chain
-/// - A safety margin for byproducts (gems, etc.)
-int _computeFeasibleBatchSize(
-  GlobalState state,
-  MelvorId targetItemId,
-  int target,
-  Goal goal,
-) {
-  final freeSlots = state.inventoryRemaining;
-
-  // Estimate new slots needed for the full batch
-  final newSlotsNeeded = _estimateNewSlotsForProduction(
-    state,
-    targetItemId,
-    target,
-    goal,
-  );
-
-  // Reserve some slots for unexpected byproducts
-  const safetyMargin = 2;
-  final slotsAfterProduction = freeSlots - newSlotsNeeded - safetyMargin;
-
-  if (slotsAfterProduction >= 0) {
-    // Full batch is feasible
-    return target;
-  }
-
-  // Need to reduce batch size
-  // Binary search for largest feasible batch
-  var low = 1;
-  var high = target;
-  var feasibleBatch = 0;
-
-  while (low <= high) {
-    final mid = (low + high) ~/ 2;
-    final slotsForMid = _estimateNewSlotsForProduction(
-      state,
-      targetItemId,
-      mid,
-      goal,
-    );
-
-    if (freeSlots - slotsForMid - safetyMargin >= 0) {
-      feasibleBatch = mid;
-      low = mid + 1;
-    } else {
-      high = mid - 1;
-    }
-  }
-
-  return feasibleBatch;
-}
-
-/// Computes the batch size to reach the next unlock boundary.
-///
-/// Quantizes a stock target to a coarse bucket to reduce plan thrash.
-///
-/// Buckets: {10, 20, 50, 100, 200}
-/// Selection is based on free inventory slots and action output diversity.
-int _quantizeStockTarget(GlobalState state, int target, SkillAction? action) {
-  const buckets = [10, 20, 50, 100, 200];
-
-  // If target is already large, just round up to nearest bucket
-  if (target >= 200) return target;
-
-  // Determine base bucket from free inventory slots
-  final usedSlots = state.inventory.items.length;
-  final freeSlots = state.inventoryCapacity - usedSlots;
-  int baseBucketIndex;
-  if (freeSlots < 10) {
-    baseBucketIndex = 0; // 10
-  } else if (freeSlots < 20) {
-    baseBucketIndex = 1; // 20
-  } else if (freeSlots < 40) {
-    baseBucketIndex = 2; // 50
-  } else {
-    baseBucketIndex = 3; // 100
-  }
-
-  // Step down one bucket if action produces many distinct outputs
-  if (action != null && action.outputs.length > 2 && baseBucketIndex > 0) {
-    baseBucketIndex--;
-  }
-
-  final bucketSize = buckets[baseBucketIndex];
-
-  // Quantize: round up to nearest bucket
-  // Always round up to at least the minimum bucket size to avoid tiny amounts
-  final quantized = ((target + bucketSize - 1) ~/ bucketSize) * bucketSize;
-
-  // Ensure we return at least the minimum bucket (10) to avoid tiny stocking
-  return quantized < 10 ? 10 : quantized;
-}
-
-/// For consuming skills (Smithing, Firemaking, etc.), computes how many
-/// craft actions are needed to reach the next skill level boundary.
-///
-/// Returns null if no boundary exists (at max level) or already satisfied.
-BatchSizeResult? _computeBatchToNextUnlock({
-  required GlobalState state,
-  required SkillAction consumingAction,
-  required Map<Skill, SkillBoundaries> boundaries,
-  int safetyMargin = 2,
-}) {
-  final skill = consumingAction.skill;
-  final currentLevel = state.skillState(skill).skillLevel;
-  final currentXp = state.skillState(skill).xp;
-
-  // Find next unlock boundary
-  final skillBoundaries = boundaries[skill];
-  if (skillBoundaries == null) return null;
-
-  final nextLevel = skillBoundaries.nextBoundary(currentLevel);
-  if (nextLevel == null) return null; // At or past max
-
-  // Calculate XP needed
-  final targetXp = startXpForLevel(nextLevel);
-  final xpNeeded = targetXp - currentXp;
-  if (xpNeeded <= 0) return null; // Already there
-
-  // Calculate crafts needed
-  final xpPerCraft = consumingAction.xp;
-  final craftsNeeded = (xpNeeded / xpPerCraft).ceil() + safetyMargin;
-
-  // Calculate input requirements (absolute totals)
-  final inputRequirements = <MelvorId, int>{};
-  for (final inputEntry in consumingAction.inputs.entries) {
-    final inputId = inputEntry.key;
-    final perCraft = inputEntry.value;
-
-    final totalNeeded = craftsNeeded * perCraft;
-    inputRequirements[inputId] = totalNeeded;
-  }
-
-  return BatchSizeResult(
-    craftsNeeded: craftsNeeded,
-    inputRequirements: inputRequirements,
-    targetLevel: nextLevel,
-  );
-}
-
 // MacroExpansionResult, MacroExpansionOutcome, MacroExpanded,
 // MacroAlreadySatisfied, MacroCannotExpand are now in macro_candidate.dart
+// BatchSizeResult, _computeFeasibleBatchSize, _quantizeStockTarget,
+// _computeBatchToNextUnlock, _estimateNewSlotsForProduction are now methods
+// on SolverContext in solver_context.dart
 
 // ---------------------------------------------------------------------------
 // Explain One Expansion - debugging tool for understanding macro decisions
@@ -1926,19 +1703,10 @@ SolverContext _createSolverContext(
     state: state,
     goal: goal,
     boundaries: boundaries,
-    findProducerActionForItem: _findProducerActionForItem,
-    findAnyProducerForItem: _findAnyProducerForItem,
-    ensureExecutable: _ensureExecutable,
-    findBestActionForSkill: _findBestActionForSkill,
-    computeFeasibleBatchSize: _computeFeasibleBatchSize,
-    quantizeStockTarget: _quantizeStockTarget,
-    computeBatchToNextUnlock:
-        _computeBatchToNextUnlock,
     applyInteraction: applyInteraction,
     advance: advance,
     estimateRates: estimateRates,
     estimateRatesForAction: estimateRatesForAction,
-    countItem: _countItem,
     effectiveCredits: effectiveCredits,
   );
 }
@@ -1958,17 +1726,6 @@ MacroExpansionOutcome _expandMacro(
 ) {
   final context = _createSolverContext(state, goal, boundaries);
   return macro.expand(context);
-}
-
-// The _expand* functions have been moved to the MacroCandidate.expand() method
-// in macro_candidate.dart
-
-/// Counts inventory items by MelvorId.
-int _countItem(GlobalState state, MelvorId itemId) {
-  return state.inventory.items
-      .where((s) => s.item.id == itemId)
-      .map((s) => s.count)
-      .fold(0, (a, b) => a + b);
 }
 
 /// Finds an action that produces the given item.
