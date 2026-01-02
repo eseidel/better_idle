@@ -18,6 +18,7 @@ import 'package:logic/src/solver/macro_candidate.dart';
 import 'package:logic/src/solver/plan.dart';
 import 'package:logic/src/solver/solver.dart';
 import 'package:logic/src/solver/solver_profile.dart';
+import 'package:logic/src/solver/wait_for.dart';
 
 final _parser = ArgParser()
   ..addFlag('skill', abbr: 's', help: 'Solve for firemaking level 30')
@@ -573,6 +574,8 @@ void _printSegmentedResult(
                 required actualTicks,
                 required cumulativeActualTicks,
                 required cumulativePlannedTicks,
+                required stateAfter,
+                required boundary,
               }) {
                 // Update current action tracking
                 if (step case InteractionStep(:final interaction)) {
@@ -606,6 +609,50 @@ void _printSegmentedResult(
                     '[actual: $actualTicks, planned: $plannedTicks, '
                     'delta: $deltaStr, cumulative delta: $cumDeltaStr]',
                   );
+
+                  // Enhanced diagnostics for steps with large deviations
+                  if (delta.abs() > 1000) {
+                    // Print wait condition details
+                    if (step case WaitStep(:final waitFor)) {
+                      print('    Wait condition: ${waitFor.describe()}');
+                      if (waitFor case WaitForAnyOf(:final conditions)) {
+                        print('    Sub-conditions:');
+                        for (final cond in conditions) {
+                          final satisfied = cond.isSatisfied(stateAfter)
+                              ? '✓'
+                              : '✗';
+                          print('      $satisfied ${cond.describe()}');
+                        }
+                      }
+                    }
+                    if (step case MacroStep(:final macro, :final waitFor)) {
+                      print('    Macro: $macro');
+                      print('    Wait condition: ${waitFor.describe()}');
+                      if (waitFor case WaitForAnyOf(:final conditions)) {
+                        print('    Sub-conditions:');
+                        for (final cond in conditions) {
+                          final satisfied = cond.isSatisfied(stateAfter)
+                              ? '✓'
+                              : '✗';
+                          print('      $satisfied ${cond.describe()}');
+                        }
+                      }
+                      // For EnsureStock, show inventory count
+                      if (macro is EnsureStock) {
+                        final count = stateAfter.inventory.countOfItem(
+                          stateAfter.registries.items.byId(macro.itemId),
+                        );
+                        print(
+                          '    Inventory: ${macro.itemId.localId} = $count '
+                          '(target: ${macro.minTotal})',
+                        );
+                      }
+                    }
+                    // Show boundary if hit
+                    if (boundary != null) {
+                      print('    Boundary: $boundary');
+                    }
+                  }
                 }
               }
             : null,

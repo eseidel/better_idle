@@ -24,6 +24,7 @@ library;
 
 import 'package:logic/src/data/action_id.dart';
 import 'package:logic/src/data/actions.dart';
+import 'package:logic/src/data/melvor_id.dart';
 import 'package:logic/src/data/xp.dart';
 import 'package:logic/src/solver/enumerate_candidates.dart';
 import 'package:logic/src/solver/estimate_rates.dart';
@@ -680,6 +681,10 @@ _DeltaCandidate? _deltaUntilInputsAvailable(
   int? minTicks;
   ActionId? soonestActionId;
 
+  // Track the limiting item for more robust wait conditions
+  MelvorId? limitingItemId;
+  int? limitingItemTarget;
+
   for (final consumingActionId in candidates.watch.consumingActivityIds) {
     final action = registries.actions.byId(consumingActionId);
     if (action is! SkillAction) continue;
@@ -689,8 +694,11 @@ _DeltaCandidate? _deltaUntilInputsAvailable(
     final selection = actionStateVal.recipeSelection(action);
     final inputs = action.inputsForRecipe(selection);
 
-    // Find the slowest input to acquire (limiting factor)
+    // Check if ALL inputs are either already satisfied or being produced
+    // Track which item is the limiting factor
     int? maxTicksForAction;
+    MelvorId? slowestItemId;
+    int? slowestItemTarget;
 
     for (final entry in inputs.entries) {
       final itemId = entry.key;
@@ -718,6 +726,8 @@ _DeltaCandidate? _deltaUntilInputsAvailable(
       final ticksForInput = (stillNeeded / productionRate).ceil();
       if (maxTicksForAction == null || ticksForInput > maxTicksForAction) {
         maxTicksForAction = ticksForInput;
+        slowestItemId = itemId;
+        slowestItemTarget = needed;
       }
     }
 
@@ -726,12 +736,27 @@ _DeltaCandidate? _deltaUntilInputsAvailable(
       if (minTicks == null || maxTicksForAction < minTicks) {
         minTicks = maxTicksForAction;
         soonestActionId = consumingActionId;
+        limitingItemId = slowestItemId;
+        limitingItemTarget = slowestItemTarget;
       }
     }
   }
 
   if (minTicks == null || soonestActionId == null) return null;
 
+  // Use WaitForInventoryAtLeast for the specific item we're producing.
+  // This is more robust than WaitForInputsAvailable because it doesn't
+  // assume other inputs (that we're not producing) will still be available.
+  // The wait condition is: "have at least N of itemX" rather than
+  // "can start actionY" which depends on ALL inputs being present.
+  if (limitingItemId != null && limitingItemTarget != null) {
+    return _DeltaCandidate(
+      ticks: minTicks,
+      waitFor: WaitForInventoryAtLeast(limitingItemId, limitingItemTarget),
+    );
+  }
+
+  // Fallback to the original behavior if we couldn't track the limiting item
   return _DeltaCandidate(
     ticks: minTicks,
     waitFor: WaitForInputsAvailable(soonestActionId),

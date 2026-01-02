@@ -1764,6 +1764,49 @@ _StepResult _applyStep(
           );
         }
       }
+
+      // Debug assertion: check wait condition compatibility with action
+      assert(() {
+        final activeAction = waitState.activeAction;
+        if (activeAction != null) {
+          final actionData = waitState.registries.actions.byId(activeAction.id);
+          if (actionData is SkillAction) {
+            final hasInputs = actionData.inputs.isNotEmpty;
+            // Warn if using input-based wait for action without inputs
+            if (!hasInputs && waitFor is WaitForInputsAvailable) {
+              print(
+                'WARNING: WaitForInputsAvailable used for action '
+                'with no inputs: ${activeAction.id}',
+              );
+            }
+            if (!hasInputs && waitFor is WaitForInputsDepleted) {
+              print(
+                'WARNING: WaitForInputsDepleted used for action '
+                'with no inputs: ${activeAction.id}',
+              );
+            }
+            // Check AnyOf for nested input-based waits
+            if (waitFor is WaitForAnyOf) {
+              for (final condition in waitFor.conditions) {
+                if (!hasInputs && condition is WaitForInputsAvailable) {
+                  print(
+                    'WARNING: WaitForAnyOf contains WaitForInputsAvailable '
+                    'for action with no inputs: ${activeAction.id}',
+                  );
+                }
+                if (!hasInputs && condition is WaitForInputsDepleted) {
+                  print(
+                    'WARNING: WaitForAnyOf contains WaitForInputsDepleted '
+                    'for action with no inputs: ${activeAction.id}',
+                  );
+                }
+              }
+            }
+          }
+        }
+        return true;
+      }(), 'Wait condition compatibility check');
+
       // Run until the wait condition is satisfied
       final result = consumeUntil(waitState, waitFor, random: random);
 
@@ -1820,6 +1863,39 @@ _StepResult _applyStep(
               ? waitConditions.first
               : WaitForAnyOf(waitConditions);
         }
+
+        // Debug assertion: check wait condition compatibility with action
+        assert(() {
+          final activeAction = executionState.activeAction;
+          if (activeAction != null) {
+            final actionData = executionState.registries.actions.byId(
+              activeAction.id,
+            );
+            if (actionData is SkillAction) {
+              final hasInputs = actionData.inputs.isNotEmpty;
+              // Check AnyOf for nested input-based waits on no-input actions
+              if (executionWaitFor is WaitForAnyOf) {
+                for (final condition in executionWaitFor.conditions) {
+                  if (!hasInputs && condition is WaitForInputsAvailable) {
+                    print(
+                      'WARNING: MacroStep WaitForAnyOf contains '
+                      'WaitForInputsAvailable for action with no inputs: '
+                      '${activeAction.id}',
+                    );
+                  }
+                  if (!hasInputs && condition is WaitForInputsDepleted) {
+                    print(
+                      'WARNING: MacroStep WaitForAnyOf contains '
+                      'WaitForInputsDepleted for action with no inputs: '
+                      '${activeAction.id}',
+                    );
+                  }
+                }
+              }
+            }
+          }
+          return true;
+        }(), 'MacroStep wait condition compatibility check');
 
         // Execute with mid-macro boundary checking if watchSet provided
         if (watchSet != null) {
@@ -1993,6 +2069,21 @@ _StepResult _applyStep(
           random: random,
         );
 
+        // Debug assertion: check for EnsureStock overshoot
+        assert(() {
+          final finalCount = _countItem(result.state, macro.itemId);
+          final overshoot = finalCount - macro.minTotal;
+          // Warn if overshoot is more than 100% of target
+          if (overshoot > macro.minTotal) {
+            print(
+              'EnsureStock overshoot: got $finalCount, '
+              'wanted ${macro.minTotal} (${macro.itemId.localId}). '
+              'Took ${result.ticksElapsed} ticks.',
+            );
+          }
+          return true;
+        }(), 'EnsureStock overshoot check');
+
         return (
           state: result.state,
           ticksElapsed: result.ticksElapsed,
@@ -2097,6 +2188,8 @@ _StepResult _executeTrainSkillWithBoundaryChecks(
 /// - actualTicks: ticks the step actually took
 /// - cumulativeActualTicks: total actual ticks so far
 /// - cumulativePlannedTicks: total planned ticks so far
+/// - stateAfter: the state after executing this step (for debugging)
+/// - boundary: the replan boundary hit, if any
 typedef StepProgressCallback =
     void Function({
       required int stepIndex,
@@ -2105,6 +2198,8 @@ typedef StepProgressCallback =
       required int actualTicks,
       required int cumulativeActualTicks,
       required int cumulativePlannedTicks,
+      required GlobalState stateAfter,
+      required ReplanBoundary? boundary,
     });
 
 PlanExecutionResult executePlan(
@@ -2150,6 +2245,8 @@ PlanExecutionResult executePlan(
           actualTicks: result.ticksElapsed,
           cumulativeActualTicks: actualTicks,
           cumulativePlannedTicks: plannedTicks,
+          stateAfter: state,
+          boundary: result.boundary,
         );
       }
 
