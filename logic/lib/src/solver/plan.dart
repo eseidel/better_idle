@@ -545,6 +545,241 @@ class Plan {
       return '${d.inSeconds}s';
     }
   }
+
+  /// Pretty-prints the plan in compact format.
+  ///
+  /// Shows summary stats, first N steps, segment headers in middle,
+  /// and last M steps. Groups consecutive similar actions.
+  String prettyPrintCompact({
+    int firstSteps = 25,
+    int lastSteps = 10,
+    ActionRegistry? actions,
+  }) {
+    final buffer = StringBuffer()
+      ..writeln('=== Plan ===')
+      ..writeln(
+        'Total: $totalTicks ticks (${_formatDuration(totalDuration)}), '
+        '$interactionCount interactions, ${steps.length} steps',
+      );
+
+    if (steps.isEmpty) {
+      buffer.writeln('  (empty plan)');
+      return buffer.toString();
+    }
+
+    // Group consecutive similar steps for compact display
+    final grouped = _groupSteps(actions);
+
+    // Determine what to show
+    final showAll = grouped.length <= firstSteps + lastSteps + 5;
+    final middleStart = firstSteps;
+    final middleEnd = grouped.length - lastSteps;
+
+    ActionId? currentAction;
+
+    for (var i = 0; i < grouped.length; i++) {
+      final group = grouped[i];
+
+      // Track current action for context
+      if (group.actionId != null) {
+        currentAction = group.actionId;
+      }
+
+      if (showAll || i < middleStart || i >= middleEnd) {
+        // Show this step
+        buffer.writeln('  ${i + 1}. ${group.format(currentAction)}');
+      } else if (i == middleStart) {
+        // Show middle summary with segment markers
+        final skippedCount = middleEnd - middleStart;
+        final segmentsInMiddle = _countSegmentsInRange(middleStart, middleEnd);
+        if (segmentsInMiddle > 0) {
+          buffer.writeln(
+            '  ... $skippedCount more steps ($segmentsInMiddle segments) ...',
+          );
+        } else {
+          buffer.writeln('  ... $skippedCount more steps ...');
+        }
+      }
+      // else: skip middle steps
+    }
+
+    return buffer.toString();
+  }
+
+  /// Groups consecutive similar steps for compact display.
+  List<_StepGroup> _groupSteps(ActionRegistry? actions) {
+    final groups = <_StepGroup>[];
+    if (steps.isEmpty) return groups;
+
+    for (final step in steps) {
+      final canMerge = groups.isNotEmpty && groups.last.canMerge(step);
+      if (canMerge) {
+        groups.last.merge(step);
+      } else {
+        groups.add(_StepGroup.from(step, actions));
+      }
+    }
+
+    return groups;
+  }
+
+  /// Counts segment markers in a range of grouped steps.
+  int _countSegmentsInRange(int start, int end) {
+    // This is approximate - we count markers whose stepIndex falls in range
+    var count = 0;
+    for (final marker in segmentMarkers) {
+      if (marker.stepIndex >= start && marker.stepIndex < end) {
+        count++;
+      }
+    }
+    return count;
+  }
+}
+
+/// A group of consecutive similar steps for compact display.
+class _StepGroup {
+  _StepGroup._({
+    required this.description,
+    required this.totalTicks,
+    required this.stepCount,
+    this.actionId,
+    this.skill,
+  });
+
+  factory _StepGroup.from(PlanStep step, ActionRegistry? actions) {
+    return switch (step) {
+      InteractionStep(:final interaction) => switch (interaction) {
+        SwitchActivity(:final actionId) => _StepGroup._(
+          description: actions?.byId(actionId).name ?? actionId.toString(),
+          totalTicks: 0,
+          stepCount: 1,
+          actionId: actionId,
+          skill: actions?.byId(actionId).skill,
+        ),
+        BuyShopItem(:final purchaseId) => _StepGroup._(
+          description: 'Buy ${purchaseId.name}',
+          totalTicks: 0,
+          stepCount: 1,
+        ),
+        SellItems(:final policy) => _StepGroup._(
+          description: switch (policy) {
+            SellAllPolicy() => 'Sell all',
+            SellExceptPolicy(:final keepItems) =>
+              'Sell except ${keepItems.length} items',
+          },
+          totalTicks: 0,
+          stepCount: 1,
+        ),
+      },
+      WaitStep(:final deltaTicks, :final expectedAction) => _StepGroup._(
+        description: 'Wait',
+        totalTicks: deltaTicks,
+        stepCount: 1,
+        actionId: expectedAction,
+        skill: expectedAction != null
+            ? actions?.byId(expectedAction).skill
+            : null,
+      ),
+      MacroStep(:final macro, :final deltaTicks) => switch (macro) {
+        TrainSkillUntil(:final skill, :final actionId) => _StepGroup._(
+          description: skill.name,
+          totalTicks: deltaTicks,
+          stepCount: 1,
+          actionId: actionId,
+          skill: skill,
+        ),
+        TrainConsumingSkillUntil(:final consumingSkill) => _StepGroup._(
+          description: consumingSkill.name,
+          totalTicks: deltaTicks,
+          stepCount: 1,
+          skill: consumingSkill,
+        ),
+        AcquireItem(:final itemId, :final quantity) => _StepGroup._(
+          description: 'Acquire ${quantity}x ${itemId.name}',
+          totalTicks: deltaTicks,
+          stepCount: 1,
+        ),
+        EnsureStock(:final itemId, :final minTotal) => _StepGroup._(
+          description: 'EnsureStock ${itemId.name}: $minTotal',
+          totalTicks: deltaTicks,
+          stepCount: 1,
+        ),
+      },
+    };
+  }
+
+  String description;
+  int totalTicks;
+  int stepCount;
+  ActionId? actionId;
+  Skill? skill;
+
+  /// Whether we can merge another step into this group.
+  bool canMerge(PlanStep step) {
+    // Only merge waits/macros with same skill
+    if (skill == null) return false;
+
+    return switch (step) {
+      WaitStep(:final expectedAction) =>
+        expectedAction != null && _sameSkill(expectedAction),
+      MacroStep(:final macro) => switch (macro) {
+        TrainSkillUntil(:final skill) => skill == this.skill,
+        TrainConsumingSkillUntil(:final consumingSkill) =>
+          consumingSkill == skill,
+        AcquireItem() => false,
+        EnsureStock() => false,
+      },
+      InteractionStep() => false,
+    };
+  }
+
+  bool _sameSkill(ActionId actionId) {
+    // Simplified: just compare action IDs if we have one
+    return this.actionId == actionId;
+  }
+
+  /// Merge another step into this group.
+  void merge(PlanStep step) {
+    stepCount++;
+    switch (step) {
+      case WaitStep(:final deltaTicks):
+        totalTicks += deltaTicks;
+      case MacroStep(:final deltaTicks):
+        totalTicks += deltaTicks;
+      case InteractionStep():
+        break;
+    }
+  }
+
+  /// Format this group for display.
+  String format(ActionId? currentAction) {
+    if (stepCount == 1 && totalTicks == 0) {
+      // Single interaction
+      return 'Switch to $description';
+    }
+
+    final duration = _formatDurationStatic(durationFromTicks(totalTicks));
+    if (stepCount == 1) {
+      return '$description $duration';
+    }
+
+    // Multiple merged steps
+    return '$description $duration ($stepCount waits merged)';
+  }
+
+  static String _formatDurationStatic(Duration d) {
+    if (d.inHours > 0) {
+      final hours = d.inHours;
+      final minutes = d.inMinutes.remainder(60);
+      return '${hours}h ${minutes}m';
+    } else if (d.inMinutes > 0) {
+      final minutes = d.inMinutes;
+      final seconds = d.inSeconds.remainder(60);
+      return '${minutes}m ${seconds}s';
+    } else {
+      return '${d.inSeconds}s';
+    }
+  }
 }
 
 // ---------------------------------------------------------------------------

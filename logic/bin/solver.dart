@@ -63,6 +63,11 @@ final _parser = ArgParser()
   ..addOption(
     'verbose-segment',
     help: 'Show full step list for specific segment number (1-indexed)',
+  )
+  ..addFlag(
+    'dump-stop-triggers',
+    help: 'Print full histogram of macro stop triggers (default: top 10)',
+    negatable: false,
   );
 
 void main(List<String> args) async {
@@ -95,6 +100,7 @@ void main(List<String> args) async {
   final verboseSegment = verboseSegmentStr != null
       ? int.tryParse(verboseSegmentStr)
       : null;
+  final dumpStopTriggers = results['dump-stop-triggers'] as bool;
 
   // Default: segment-based solving. --offline enables single-shot mode.
   if (useOfflineMode) {
@@ -120,6 +126,7 @@ void main(List<String> args) async {
       goal: goal,
       registries: registries,
       collectDiagnostics: collectDiagnostics,
+      dumpStopTriggers: dumpStopTriggers,
     );
   } else {
     // Segment-based solving (default)
@@ -146,6 +153,7 @@ void main(List<String> args) async {
       collectDiagnostics: collectDiagnostics,
       verboseExecution: verboseExecution,
       verboseSegment: verboseSegment,
+      dumpStopTriggers: dumpStopTriggers,
     );
   }
 }
@@ -156,6 +164,7 @@ void _printSolverResult(
   required Goal goal,
   required Registries registries,
   required bool collectDiagnostics,
+  bool dumpStopTriggers = false,
 }) {
   if (result is SolverSuccess) {
     _printSuccess(result, initialState, goal, registries);
@@ -166,7 +175,11 @@ void _printSolverResult(
   final profile = result.profile;
   if (profile != null) {
     print('');
-    _printSolverProfile(profile, extended: collectDiagnostics);
+    _printSolverProfile(
+      profile,
+      extended: collectDiagnostics,
+      dumpStopTriggers: dumpStopTriggers,
+    );
   }
 }
 
@@ -276,7 +289,11 @@ void _printFinalState(GlobalState state) {
   }
 }
 
-void _printSolverProfile(SolverProfile profile, {bool extended = false}) {
+void _printSolverProfile(
+  SolverProfile profile, {
+  bool extended = false,
+  bool dumpStopTriggers = false,
+}) {
   print('=== Solver Profile ===');
   print('Expanded nodes: ${profile.expandedNodes}');
   print('Nodes/sec: ${profile.nodesPerSecond.toStringAsFixed(1)}');
@@ -372,19 +389,115 @@ void _printSolverProfile(SolverProfile profile, {bool extended = false}) {
   // Macro stop triggers
   if (profile.macroStopTriggers.isNotEmpty) {
     print('');
-    print('Macro stop triggers:');
-    final sorted = profile.macroStopTriggers.entries.toList()
+    _printMacroStopTriggers(profile.macroStopTriggers, dump: dumpStopTriggers);
+  }
+}
+
+/// Prints macro stop triggers in a compact grouped format.
+///
+/// Groups triggers by item name and shows:
+/// - Top 10 items by count (default)
+/// - Percentage of total
+/// - Example quantities for each item
+///
+/// If [dump] is true, prints the full histogram instead.
+void _printMacroStopTriggers(Map<String, int> triggers, {bool dump = false}) {
+  if (triggers.isEmpty) return;
+
+  final total = triggers.values.fold(0, (sum, v) => sum + v);
+
+  if (dump) {
+    // Full histogram mode
+    print('Macro stop triggers (full):');
+    final sorted = triggers.entries.toList()
       ..sort((a, b) => b.value.compareTo(a.value));
     for (final entry in sorted) {
-      print('  ${entry.key}: ${entry.value}');
+      final percent = (entry.value / total * 100).toStringAsFixed(1);
+      print('  ${entry.key}: ${entry.value} ($percent%)');
     }
+    return;
   }
+
+  // Group by item name
+  // Triggers are like: "Stock 358x Coal_Ore", "Acquired 10x Oak_Logs"
+  final byItem = <String, List<_TriggerEntry>>{};
+  for (final entry in triggers.entries) {
+    final parsed = _parseTrigger(entry.key);
+    byItem
+        .putIfAbsent(parsed.itemName, () => [])
+        .add(_TriggerEntry(parsed.quantity, entry.value));
+  }
+
+  // Sum counts per item
+  final itemCounts = <String, int>{};
+  for (final entry in byItem.entries) {
+    itemCounts[entry.key] = entry.value.fold(0, (sum, e) => sum + e.count);
+  }
+
+  // Sort by total count
+  final sortedItems = itemCounts.entries.toList()
+    ..sort((a, b) => b.value.compareTo(a.value));
+
+  print('Stop triggers (top):');
+
+  // Show top 10
+  final topItems = sortedItems.take(10);
+  for (final item in topItems) {
+    final percent = (item.value / total * 100).toStringAsFixed(0);
+
+    // Get example quantities for this item (top 3 by count)
+    final examples = byItem[item.key]!
+      ..sort((a, b) => b.count.compareTo(a.count));
+    final exampleStrs = examples
+        .take(3)
+        .map((e) => '${e.qty}x:${e.count}')
+        .join(', ');
+
+    print('  ${item.key}: $percent% (e.g., $exampleStrs)');
+  }
+
+  if (sortedItems.length > 10) {
+    final remaining = sortedItems.length - 10;
+    final remainingCount = sortedItems
+        .skip(10)
+        .fold(0, (sum, e) => sum + e.value);
+    final remainingPercent = (remainingCount / total * 100).toStringAsFixed(0);
+    print('  ... $remaining more items ($remainingPercent%)');
+  }
+}
+
+/// Parsed trigger info.
+class _TriggerEntry {
+  _TriggerEntry(this.qty, this.count);
+  final String qty;
+  final int count;
+}
+
+/// Parsed trigger with item name and quantity.
+({String itemName, String quantity}) _parseTrigger(String trigger) {
+  // Patterns: "Stock 358x Coal_Ore", "Acquired 10x Oak_Logs", "Level 30"
+  final stockMatch = RegExp(r'^Stock (\d+)x (\S+)$').firstMatch(trigger);
+  if (stockMatch != null) {
+    return (itemName: stockMatch.group(2)!, quantity: stockMatch.group(1)!);
+  }
+
+  final acquiredMatch = RegExp(r'^Acquired (\d+)x (\S+)$').firstMatch(trigger);
+  if (acquiredMatch != null) {
+    return (
+      itemName: acquiredMatch.group(2)!,
+      quantity: acquiredMatch.group(1)!,
+    );
+  }
+
+  // Fallback: use the whole trigger as item name
+  return (itemName: trigger, quantity: '?');
 }
 
 /// Prints aggregate diagnostics for segment-based solving.
 void _printSegmentedDiagnostics(
   List<SolverProfile> profiles, {
   bool extended = false,
+  bool dumpStopTriggers = false,
 }) {
   // Aggregate stats across all segments
   final totalNodes = profiles.fold(0, (sum, p) => sum + p.expandedNodes);
@@ -444,12 +557,7 @@ void _printSegmentedDiagnostics(
   }
   if (allTriggers.isNotEmpty) {
     print('');
-    print('Aggregate macro stop triggers:');
-    final sorted = allTriggers.entries.toList()
-      ..sort((a, b) => b.value.compareTo(a.value));
-    for (final entry in sorted) {
-      print('  ${entry.key}: ${entry.value}');
-    }
+    _printMacroStopTriggers(allTriggers, dump: dumpStopTriggers);
   }
 }
 
@@ -526,6 +634,7 @@ void _printSegmentedResult(
   bool collectDiagnostics = false,
   bool verboseExecution = false,
   int? verboseSegment,
+  bool dumpStopTriggers = false,
 }) {
   switch (result) {
     case SegmentedSuccess(
@@ -592,10 +701,8 @@ void _printSegmentedResult(
       // Stitch segments into a full plan
       final plan = Plan.fromSegments(segments);
 
-      // Print full plan
-      print('=== Stitched Plan ===');
-      print(plan.prettyPrint(actions: registries.actions));
-      print('');
+      // Print full plan (compact format)
+      print(plan.prettyPrintCompact(actions: registries.actions));
 
       // Execute the stitched plan
       print('Executing stitched plan...');
@@ -765,6 +872,7 @@ void _printSegmentedResult(
         _printSegmentedDiagnostics(
           segmentProfiles,
           extended: collectDiagnostics,
+          dumpStopTriggers: dumpStopTriggers,
         );
       }
 
