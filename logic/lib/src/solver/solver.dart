@@ -134,6 +134,7 @@ class _BucketKey extends Equatable {
     required this.hpBucket,
     required this.masteryLevel,
     required this.inventoryBucket,
+    required this.inputItemMix,
   });
 
   /// Active action name - needed to distinguish woodcutting vs fishing states
@@ -159,6 +160,14 @@ class _BucketKey extends Equatable {
   /// Inventory bucket - only tracked if goal.shouldTrackInventory
   final int inventoryBucket;
 
+  /// Hash of which input item types are present (for multi-input consuming
+  /// skills like smithing). This prevents incorrect dominance pruning when
+  /// different ore mixes have the same total count but can't substitute.
+  ///
+  /// For example, 10 copper + 0 tin should not dominate 5 copper + 5 tin,
+  /// even though both have total=10, because only the latter can make bars.
+  final int inputItemMix;
+
   @override
   List<Object?> get props => [
     activityName,
@@ -169,6 +178,7 @@ class _BucketKey extends Equatable {
     hpBucket,
     masteryLevel,
     inventoryBucket,
+    inputItemMix,
   ];
 }
 
@@ -208,6 +218,13 @@ _BucketKey _bucketKeyFromState(GlobalState state, Goal goal) {
         }()
       : 0;
 
+  // Track which input item types are present for multi-input consuming skills.
+  // This prevents incorrect dominance pruning where states with different ore
+  // mixes (e.g., 10 copper vs 5 copper + 5 tin) are treated as equivalent.
+  final inputItemMix = goal.shouldTrackInventory
+      ? _computeInputItemMix(state, goal)
+      : 0;
+
   return _BucketKey(
     activityName: activityName,
     skillLevels: skillLevels,
@@ -217,7 +234,48 @@ _BucketKey _bucketKeyFromState(GlobalState state, Goal goal) {
     hpBucket: hpBucket,
     masteryLevel: masteryLevel,
     inventoryBucket: inventoryBucket,
+    inputItemMix: inputItemMix,
   );
+}
+
+/// Computes a hash representing which input item types are present.
+///
+/// For consuming skills like smithing that require multiple input types
+/// (e.g., copper ore AND tin ore), states with different mixes should not
+/// dominate each other even if they have the same total item count.
+///
+/// This function identifies all items that could be inputs to consuming
+/// actions for the goal's consuming skills, then creates a bitmask of
+/// which of those input types are present (non-zero count) in inventory.
+int _computeInputItemMix(GlobalState state, Goal goal) {
+  final consumingSkills = goal.consumingSkills;
+  if (consumingSkills.isEmpty) return 0;
+
+  // Collect all possible input item IDs for consuming skills
+  final inputItemIds = <MelvorId>{};
+  for (final skill in consumingSkills) {
+    for (final action in state.registries.actions.forSkill(skill)) {
+      inputItemIds.addAll(action.inputs.keys);
+    }
+  }
+
+  if (inputItemIds.isEmpty) return 0;
+
+  // Sort for deterministic ordering, then create a bitmask
+  final sortedIds = inputItemIds.toList()
+    ..sort((a, b) => a.name.compareTo(b.name));
+
+  var mix = 0;
+  for (var i = 0; i < sortedIds.length && i < 30; i++) {
+    // Limit to 30 bits to avoid overflow
+    final itemId = sortedIds[i];
+    final item = state.registries.items.byId(itemId);
+    if (state.inventory.countOfItem(item) > 0) {
+      mix |= 1 << i;
+    }
+  }
+
+  return mix;
 }
 
 /// A point on the Pareto frontier for dominance checking.
@@ -2363,22 +2421,14 @@ MacroExpansionResult? _expandEnsureStock(
     return null; // No way to produce this item
   }
 
-  // Check if producer has prerequisites (skill level requirements)
-  final prereqResult = _ensureExecutable(state, producer, goal);
-  switch (prereqResult) {
-    case ExecReady():
-      break; // Producer is ready
-    case ExecNeedsMacros(macros: final prereqMacros):
-      // Expand the first prerequisite
-      return _expandMacro(state, prereqMacros.first, goal, boundaries);
-    case ExecUnknown():
-      return null; // Can't determine prerequisites
-  }
-
   // Check if producer has inputs (consuming action like smelting)
   final producerAction = state.registries.actions.byId(producer) as SkillAction;
   if (producerAction.inputs.isNotEmpty) {
     // Multi-tier chain: compute what we need from producer
+    // NOTE: We handle inputs with proper batch sizing BEFORE calling
+    // _ensureExecutable, because _ensureExecutable would add small
+    // EnsureStock prereqs (e.g., 1 ore) that would be expanded first,
+    // causing inefficient exploration.
     final outputsPerAction = producerAction.outputs[macro.itemId] ?? 1;
     final actionsNeeded = (deltaNeeded / outputsPerAction).ceil();
 
@@ -2396,6 +2446,28 @@ MacroExpansionResult? _expandEnsureStock(
     }
     if (firstMissingInput != null) {
       return _expandMacro(state, firstMissingInput, goal, boundaries);
+    }
+
+    // All inputs are available - check skill level requirement only
+    final currentLevel = state.skillState(producerAction.skill).skillLevel;
+    if (producerAction.unlockLevel > currentLevel) {
+      final trainMacro = TrainSkillUntil(
+        producerAction.skill,
+        StopAtLevel(producerAction.skill, producerAction.unlockLevel),
+      );
+      return _expandMacro(state, trainMacro, goal, boundaries);
+    }
+  } else {
+    // Simple producer (no inputs) - check prerequisites via _ensureExecutable
+    final prereqResult = _ensureExecutable(state, producer, goal);
+    switch (prereqResult) {
+      case ExecReady():
+        break; // Producer is ready
+      case ExecNeedsMacros(macros: final prereqMacros):
+        // Expand the first prerequisite
+        return _expandMacro(state, prereqMacros.first, goal, boundaries);
+      case ExecUnknown():
+        return null; // Can't determine prerequisites
     }
   }
 
@@ -2553,17 +2625,6 @@ MacroExpansionResult? _expandTrainConsumingSkillUntil(
         return null; // No way to produce this input
       }
     } else {
-      // Producer exists - check if it needs prerequisites
-      final prereqResult = _ensureExecutable(state, producer, goal);
-      switch (prereqResult) {
-        case ExecReady():
-          break; // Producer is ready
-        case ExecNeedsMacros(macros: final prereqMacros):
-          allPrereqs.addAll(prereqMacros);
-        case ExecUnknown():
-          return null; // Can't determine prerequisites for producer
-      }
-
       // If the producer itself has inputs, this is a multi-tier chain.
       // TrainConsumingSkillUntil expects simple produce actions (mining, etc).
       // For multi-tier chains (Bronze Dagger -> Bronze Bar -> Ores), we need
@@ -2574,6 +2635,12 @@ MacroExpansionResult? _expandTrainConsumingSkillUntil(
         // The "producer" is actually a consuming action needing its own inputs.
         // Compute batch size to reach the next unlock boundary, then ensure
         // we have all inputs for that batch.
+        //
+        // NOTE: We do NOT call _ensureExecutable here. The EnsureStock for the
+        // intermediate item (e.g., Bronze Bar) will recursively handle getting
+        // the ores. If we called _ensureExecutable, it would add small
+        // EnsureStock prereqs (e.g., 1 ore) that would be expanded first,
+        // causing inefficient exploration.
         final batch = _computeBatchToNextUnlock(
           state: state,
           consumingAction: consumeAction,
@@ -2600,6 +2667,16 @@ MacroExpansionResult? _expandTrainConsumingSkillUntil(
           }
         }
       } else {
+        // Simple producer (no inputs, like mining) - check prerequisites
+        final prereqResult = _ensureExecutable(state, producer, goal);
+        switch (prereqResult) {
+          case ExecReady():
+            break; // Producer is ready
+          case ExecNeedsMacros(macros: final prereqMacros):
+            allPrereqs.addAll(prereqMacros);
+          case ExecUnknown():
+            return null; // Can't determine prerequisites for producer
+        }
         // Track the first simple producer for rate calculations
         primaryProducerAction ??= producer;
       }

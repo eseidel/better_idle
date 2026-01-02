@@ -377,6 +377,10 @@ class ActionRegistry {
   @visibleForTesting
   ThievingAction thieving(String name) =>
       _bySkillAndName(Skill.thieving, name) as ThievingAction;
+
+  @visibleForTesting
+  SkillAction smithing(String name) =>
+      _bySkillAndName(Skill.smithing, name) as SkillAction;
 }
 
 class DropsRegistry {

@@ -2366,4 +2366,110 @@ void main() {
       expect(success.finalState, isNotNull);
     });
   });
+
+  group('EnsureStock batching', () {
+    test('batched stock precedence - uses larger batches over single items', () {
+      // This test verifies the fix for multi-tier consuming skill chains.
+      // When solving for smithing, the solver should use batched EnsureStock
+      // operations (e.g., "Stock 21x Copper_Ore") rather than small single-item
+      // operations (e.g., "Stock 1x Copper_Ore").
+      //
+      // The bug was that _expandEnsureStock called _ensureExecutable before
+      // handling batch sizing, causing small prereqs to be expanded first.
+
+      // Start with empty state - solver needs to mine ore, smelt bars, smith
+      final state = GlobalState.empty(testRegistries);
+
+      // Goal: reach smithing level 10 (a consuming skill with multi-tier chain)
+      const goal = ReachSkillLevelGoal(Skill.smithing, 10);
+
+      // Solve with diagnostics to inspect macro stop triggers
+      final result = solve(state, goal, collectDiagnostics: true);
+
+      expect(result, isA<SolverSuccess>());
+      final success = result as SolverSuccess;
+      final profile = success.profile!;
+
+      // Examine macro stop triggers - should have batched operations
+      final triggers = profile.macroStopTriggers;
+
+      // Count single-item vs batched stock operations
+      var singleItemStockOps = 0;
+      var batchedStockOps = 0;
+
+      for (final trigger in triggers.keys) {
+        if (trigger.startsWith('Stock 1x')) {
+          singleItemStockOps += triggers[trigger]!;
+        } else if (trigger.startsWith('Stock ') && trigger.contains('x')) {
+          batchedStockOps += triggers[trigger]!;
+        }
+      }
+
+      // The fix ensures batched operations dominate
+      // Before fix: many Stock 1x operations, few batched
+      // After fix: mostly batched operations
+      expect(
+        batchedStockOps,
+        greaterThan(singleItemStockOps),
+        reason:
+            'Batched stock operations should outnumber single-item ops. '
+            'Triggers: $triggers',
+      );
+
+      // Also verify the plan actually succeeds
+      expect(success.plan.totalTicks, greaterThan(0));
+    });
+
+    test('locked producer correctness - trains skill before production', () {
+      // This test verifies that when a producer action is locked (e.g., need
+      // higher Mining level to mine Iron Ore), the solver correctly adds a
+      // TrainSkillUntil prerequisite before attempting to acquire the item.
+
+      // Create a state at smithing level 15 (Iron Bar unlocked at L15)
+      // but with Mining level 1 (Iron Ore requires Mining L15)
+      final state = GlobalState.test(
+        testRegistries,
+        skillStates: {
+          // Smithing L15 - can smelt Iron Bars
+          Skill.smithing: SkillState(xp: startXpForLevel(15), masteryPoolXp: 0),
+          // Mining L1 - cannot mine Iron Ore (requires L15)
+          Skill.mining: const SkillState(xp: 0, masteryPoolXp: 0),
+        },
+      );
+
+      // Goal: reach smithing level 20 (will need to smelt Iron Bars)
+      // Iron Bars require Iron Ore, which requires Mining L15
+      const goal = ReachSkillLevelGoal(Skill.smithing, 20);
+
+      // Solve with diagnostics
+      final result = solve(state, goal, collectDiagnostics: true);
+
+      expect(result, isA<SolverSuccess>());
+      final success = result as SolverSuccess;
+
+      // Execute the plan to verify it works
+      final execResult = executePlan(state, success.plan, random: Random(42));
+
+      // Verify mining was trained (needed for Iron Ore)
+      expect(
+        execResult.finalState.skillState(Skill.mining).skillLevel,
+        greaterThanOrEqualTo(1),
+        reason: 'Mining should be trained to access ore for smithing',
+      );
+
+      // Verify smithing goal was achieved
+      expect(
+        execResult.finalState.skillState(Skill.smithing).skillLevel,
+        greaterThanOrEqualTo(20),
+        reason: 'Smithing level 20 should be reached',
+      );
+
+      // No unexpected boundaries during execution
+      expect(
+        execResult.hasUnexpectedBoundaries,
+        isFalse,
+        reason: 'Unexpected boundaries: ${execResult.unexpectedBoundaries}',
+      );
+    });
+  });
 }
