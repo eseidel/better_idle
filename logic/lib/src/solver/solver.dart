@@ -1242,24 +1242,10 @@ List<SkillAction> _findProducersFor(
 
   // Sort by production rate (items per tick) for the required input
   producers.sort((a, b) {
-    // Get the required input item (same for both since they produce it)
     final inputItemId = consumingAction.inputs.keys.first;
-
-    // Calculate production rate for action a
-    final aOutputCount = a.outputs[inputItemId] ?? 0;
-    final aTicksPerAction =
-        (a.minDuration.inMilliseconds / Duration.millisecondsPerSecond * 10)
-            .round();
-    final aRate = aOutputCount / aTicksPerAction;
-
-    // Calculate production rate for action b
-    final bOutputCount = b.outputs[inputItemId] ?? 0;
-    final bTicksPerAction =
-        (b.minDuration.inMilliseconds / Duration.millisecondsPerSecond * 10)
-            .round();
-    final bRate = bOutputCount / bTicksPerAction;
-
-    // Higher rate is better
+    final aRate = a.expectedOutputPerTick(inputItemId);
+    final bRate = b.expectedOutputPerTick(inputItemId);
+    // Higher is better.
     return bRate.compareTo(aRate);
   });
 
