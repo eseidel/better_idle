@@ -145,6 +145,102 @@ class _BucketKey extends Equatable {
     required this.inputItemMix,
   });
 
+  /// Creates a goal-scoped bucket key from a game state.
+  /// Only tracks skills, HP, mastery, and inventory relevant to the goal.
+  factory _BucketKey.fromState(GlobalState state, Goal goal) {
+    // Track active action - needed to distinguish states
+    final actionId = state.activeAction?.id;
+    final activityName = actionId != null ? actionId.localId.name : 'none';
+
+    // Build skill levels map for only goal-relevant skills
+    final skillLevels = <Skill, int>{};
+    for (final skill in goal.relevantSkillsForBucketing) {
+      skillLevels[skill] = state.skillState(skill).skillLevel;
+    }
+
+    // Track HP only if goal requires it (thieving goals)
+    final hpBucket = goal.shouldTrackHp ? state.playerHp ~/ _hpBucketSize : 0;
+
+    // Track mastery only if goal requires it (thieving goals)
+    final masteryLevel = goal.shouldTrackMastery && actionId != null
+        ? state.actionState(actionId).masteryLevel
+        : 0;
+
+    // Track inventory only if goal requires it (consuming skill goals)
+    final inventoryBucket = _computeInventoryBucket(state, goal);
+
+    // Track which input item types are present for multi-input consuming skills.
+    // This prevents incorrect dominance pruning where states with different ore
+    // mixes (e.g., 10 copper vs 5 copper + 5 tin) are treated as equivalent.
+    final inputItemMix = _computeInputItemMix(state, goal);
+
+    return _BucketKey(
+      activityName: activityName,
+      skillLevels: skillLevels,
+      axeLevel: state.shop.axeLevel,
+      rodLevel: state.shop.fishingRodLevel,
+      pickLevel: state.shop.pickaxeLevel,
+      hpBucket: hpBucket,
+      masteryLevel: masteryLevel,
+      inventoryBucket: inventoryBucket,
+      inputItemMix: inputItemMix,
+    );
+  }
+
+  static int _computeInventoryBucket(GlobalState state, Goal goal) {
+    if (!goal.shouldTrackInventory) return 0;
+    final totalItems = state.inventory.items.fold<int>(
+      0,
+      (sum, stack) => sum + stack.count,
+    );
+    // For small inventories (< 100 items), use exact count
+    // For larger inventories, use buckets
+    return totalItems < 100
+        ? totalItems
+        : 100 + (totalItems - 100) ~/ _inventoryBucketSize;
+  }
+
+  /// Computes a hash representing which input item types are present.
+  ///
+  /// For consuming skills like smithing that require multiple input types
+  /// (e.g., copper ore AND tin ore), states with different mixes should not
+  /// dominate each other even if they have the same total item count.
+  ///
+  /// This function identifies all items that could be inputs to consuming
+  /// actions for the goal's consuming skills, then creates a bitmask of
+  /// which of those input types are present (non-zero count) in inventory.
+  static int _computeInputItemMix(GlobalState state, Goal goal) {
+    if (!goal.shouldTrackInventory) return 0;
+    final consumingSkills = goal.consumingSkills;
+    if (consumingSkills.isEmpty) return 0;
+
+    // Collect all possible input item IDs for consuming skills
+    final inputItemIds = <MelvorId>{};
+    for (final skill in consumingSkills) {
+      for (final action in state.registries.actions.forSkill(skill)) {
+        inputItemIds.addAll(action.inputs.keys);
+      }
+    }
+
+    if (inputItemIds.isEmpty) return 0;
+
+    // Sort for deterministic ordering, then create a bitmask
+    final sortedIds = inputItemIds.toList()
+      ..sort((a, b) => a.name.compareTo(b.name));
+
+    var mix = 0;
+    for (var i = 0; i < sortedIds.length && i < 30; i++) {
+      // Limit to 30 bits to avoid overflow
+      final itemId = sortedIds[i];
+      final item = state.registries.items.byId(itemId);
+      if (state.inventory.countOfItem(item) > 0) {
+        mix |= 1 << i;
+      }
+    }
+
+    return mix;
+  }
+
   /// Active action name - needed to distinguish woodcutting vs fishing states
   final String activityName;
 
@@ -188,102 +284,6 @@ class _BucketKey extends Equatable {
     inventoryBucket,
     inputItemMix,
   ];
-}
-
-/// Creates a goal-scoped bucket key from a game state.
-/// Only tracks skills, HP, mastery, and inventory relevant to the goal.
-_BucketKey _bucketKeyFromState(GlobalState state, Goal goal) {
-  // Track active action - needed to distinguish states
-  final actionId = state.activeAction?.id;
-  final activityName = actionId != null ? actionId.localId.name : 'none';
-
-  // Build skill levels map for only goal-relevant skills
-  final skillLevels = <Skill, int>{};
-  for (final skill in goal.relevantSkillsForBucketing) {
-    skillLevels[skill] = state.skillState(skill).skillLevel;
-  }
-
-  // Track HP only if goal requires it (thieving goals)
-  final hpBucket = goal.shouldTrackHp ? state.playerHp ~/ _hpBucketSize : 0;
-
-  // Track mastery only if goal requires it (thieving goals)
-  final masteryLevel = goal.shouldTrackMastery && actionId != null
-      ? state.actionState(actionId).masteryLevel
-      : 0;
-
-  // Track inventory only if goal requires it (consuming skill goals)
-  final inventoryBucket = goal.shouldTrackInventory
-      ? () {
-          final totalItems = state.inventory.items.fold<int>(
-            0,
-            (sum, stack) => sum + stack.count,
-          );
-          // For small inventories (< 100 items), use exact count
-          // For larger inventories, use buckets
-          return totalItems < 100
-              ? totalItems
-              : 100 + (totalItems - 100) ~/ _inventoryBucketSize;
-        }()
-      : 0;
-
-  // Track which input item types are present for multi-input consuming skills.
-  // This prevents incorrect dominance pruning where states with different ore
-  // mixes (e.g., 10 copper vs 5 copper + 5 tin) are treated as equivalent.
-  final inputItemMix = goal.shouldTrackInventory
-      ? _computeInputItemMix(state, goal)
-      : 0;
-
-  return _BucketKey(
-    activityName: activityName,
-    skillLevels: skillLevels,
-    axeLevel: state.shop.axeLevel,
-    rodLevel: state.shop.fishingRodLevel,
-    pickLevel: state.shop.pickaxeLevel,
-    hpBucket: hpBucket,
-    masteryLevel: masteryLevel,
-    inventoryBucket: inventoryBucket,
-    inputItemMix: inputItemMix,
-  );
-}
-
-/// Computes a hash representing which input item types are present.
-///
-/// For consuming skills like smithing that require multiple input types
-/// (e.g., copper ore AND tin ore), states with different mixes should not
-/// dominate each other even if they have the same total item count.
-///
-/// This function identifies all items that could be inputs to consuming
-/// actions for the goal's consuming skills, then creates a bitmask of
-/// which of those input types are present (non-zero count) in inventory.
-int _computeInputItemMix(GlobalState state, Goal goal) {
-  final consumingSkills = goal.consumingSkills;
-  if (consumingSkills.isEmpty) return 0;
-
-  // Collect all possible input item IDs for consuming skills
-  final inputItemIds = <MelvorId>{};
-  for (final skill in consumingSkills) {
-    for (final action in state.registries.actions.forSkill(skill)) {
-      inputItemIds.addAll(action.inputs.keys);
-    }
-  }
-
-  if (inputItemIds.isEmpty) return 0;
-
-  // Sort for deterministic ordering, then create a bitmask
-  final sortedIds = inputItemIds.toList()
-    ..sort((a, b) => a.name.compareTo(b.name));
-
-  var mix = 0;
-  for (var i = 0; i < sortedIds.length && i < 30; i++) {
-    // Limit to 30 bits to avoid overflow
-    final itemId = sortedIds[i];
-    final item = state.registries.items.byId(itemId);
-    if (state.inventory.countOfItem(item) > 0) {
-      mix |= 1 << i;
-    }
-  }
-
-  return mix;
 }
 
 /// A point on the Pareto frontier for dominance checking.
@@ -1926,7 +1926,7 @@ int _expandInteractionEdges(
     try {
       final newState = applyInteraction(node.state, interaction);
       final newProgress = ctx.goal.progress(newState);
-      final newBucketKey = _bucketKeyFromState(newState, ctx.goal);
+      final newBucketKey = _BucketKey.fromState(newState, ctx.goal);
 
       // Dominance pruning: skip if dominated by existing frontier point
       if (ctx.frontier.isDominatedOrInsert(
@@ -1995,7 +1995,7 @@ SolverSuccess? _expandMacroEdges(
     final newDeaths = node.expectedDeaths + expansionResult.deaths;
     final newTicks = node.ticks + expansionResult.ticksElapsed;
     final newProgress = ctx.goal.progress(newState);
-    final newBucketKey = _bucketKeyFromState(newState, ctx.goal);
+    final newBucketKey = _BucketKey.fromState(newState, ctx.goal);
 
     // Check if we've reached the goal
     final reachedGoal = ctx.goal.isSatisfied(newState);
@@ -2108,7 +2108,7 @@ SolverSuccess? _expandWaitEdge(
   final newDeaths = node.expectedDeaths + advanceResult.deaths;
   final newTicks = node.ticks + deltaResult.deltaTicks;
   final newProgress = ctx.goal.progress(newState);
-  final newBucketKey = _bucketKeyFromState(newState, ctx.goal);
+  final newBucketKey = _BucketKey.fromState(newState, ctx.goal);
 
   // Check if we've reached the goal BEFORE dominance pruning
   final reachedGoal = ctx.goal.isSatisfied(newState);
@@ -2265,7 +2265,7 @@ void _collectNodeDiagnostics(_SolverContext ctx, _Node node) {
 
   final bestRate = ctx.rateCache.getBestUnlockedRate(node.state);
   final h = _heuristic(node.state, ctx.goal, ctx.rateCache);
-  final nodeKey = _bucketKeyFromState(node.state, ctx.goal).toString();
+  final nodeKey = _BucketKey.fromState(node.state, ctx.goal).toString();
 
   ctx.profileBuilder
     ..recordHeuristic(h, hasZeroRate: bestRate <= 0)

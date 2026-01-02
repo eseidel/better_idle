@@ -46,7 +46,6 @@ class ActiveAction {
   final int remainingTicks;
   final int totalTicks;
 
-  // Computed getter for backward compatibility
   int get progressTicks => totalTicks - remainingTicks;
 
   ActiveAction copyWith({ActionId? id, int? remainingTicks, int? totalTicks}) {
