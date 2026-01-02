@@ -11,6 +11,7 @@ import 'dart:io';
 import 'dart:math';
 
 import 'package:logic/logic.dart';
+import 'package:logic/src/solver/execute_plan.dart';
 import 'package:logic/src/solver/plan.dart';
 import 'package:logic/src/solver/solver.dart';
 

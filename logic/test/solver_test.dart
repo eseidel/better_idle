@@ -5,6 +5,7 @@ import 'package:logic/logic.dart';
 import 'package:logic/src/solver/apply_interaction.dart';
 import 'package:logic/src/solver/enumerate_candidates.dart';
 import 'package:logic/src/solver/estimate_rates.dart';
+import 'package:logic/src/solver/execute_plan.dart';
 import 'package:logic/src/solver/goal.dart';
 import 'package:logic/src/solver/interaction.dart';
 import 'package:logic/src/solver/macro_candidate.dart';

@@ -61,53 +61,6 @@ import 'package:logic/src/types/stunned.dart';
 import 'package:logic/src/types/time_away.dart';
 import 'package:meta/meta.dart';
 
-// Re-export key types from the new modules for backward compatibility
-export 'package:logic/src/solver/consume_until.dart'
-    show ConsumeUntilResult, boundaryFromStopReason, consumeUntil;
-export 'package:logic/src/solver/execute_plan.dart'
-    show
-        StepProgressCallback,
-        StepResult,
-        applyStep,
-        countItem,
-        executeCoupledLoop,
-        executePlan,
-        executeTrainSkillWithBoundaryChecks,
-        segmentBoundaryToReplan;
-export 'package:logic/src/solver/prerequisites.dart'
-    show
-        EnsureExecResult,
-        ExecNeedsMacros,
-        ExecReady,
-        ExecUnknown,
-        dedupeMacros,
-        ensureExecutable,
-        findAnyProducerForItem,
-        findBestActionForSkill,
-        findProducerActionForItem;
-export 'package:logic/src/solver/rate_cache.dart' show RateCache, RateResult;
-export 'package:logic/src/solver/state_advance.dart'
-    show
-        AdvanceResult,
-        advance,
-        advanceExpected,
-        advanceFullSim,
-        assertMonotonicProgress,
-        assertNonNegativeDelta,
-        assertValidState,
-        isRateModelable;
-export 'package:logic/src/solver/state_pruning.dart'
-    show
-        BucketKey,
-        FrontierStats,
-        ParetoFrontier,
-        bucketKeyFromState,
-        computeInputItemMix,
-        goldBucketSize,
-        hpBucketSize,
-        inventoryBucketSize,
-        stateKey;
-
 // ---------------------------------------------------------------------------
 // Debug invariant assertions
 // ---------------------------------------------------------------------------
