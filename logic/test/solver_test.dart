@@ -159,6 +159,20 @@ void main() {
   });
 
   group('solveToCredits', () {
+    SolverResult solveToCredits(
+      GlobalState initial,
+      int goalCredits, {
+      int maxExpandedNodes = defaultMaxExpandedNodes,
+      int maxQueueSize = defaultMaxQueueSize,
+    }) {
+      return solve(
+        initial,
+        ReachGpGoal(goalCredits),
+        maxExpandedNodes: maxExpandedNodes,
+        maxQueueSize: maxQueueSize,
+      );
+    }
+
     test('returns empty plan when goal already met', () {
       final state = GlobalState.test(testRegistries, gp: 1000);
 
@@ -2368,7 +2382,7 @@ void main() {
   });
 
   group('EnsureStock batching', () {
-    test('batched stock precedence - uses larger batches over single items', () {
+    test('batched stock precedence - use larger batches over single items', () {
       // This test verifies the fix for multi-tier consuming skill chains.
       // When solving for smithing, the solver should use batched EnsureStock
       // operations (e.g., "Stock 21x Copper_Ore") rather than small single-item

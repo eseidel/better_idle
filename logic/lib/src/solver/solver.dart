@@ -1410,27 +1410,6 @@ ConsumeUntilResult consumeUntil(
   }
 }
 
-/// Solves for an optimal plan to reach the target credits.
-///
-/// Uses A* algorithm to find the minimum-ticks path from the initial
-/// state to a state with at least [goalCredits] GP.
-///
-/// Returns a [SolverResult] which is either [SolverSuccess] with the plan,
-/// or [SolverFailed] with failure information.
-SolverResult solveToCredits(
-  GlobalState initial,
-  int goalCredits, {
-  int maxExpandedNodes = defaultMaxExpandedNodes,
-  int maxQueueSize = defaultMaxQueueSize,
-}) {
-  return solve(
-    initial,
-    ReachGpGoal(goalCredits),
-    maxExpandedNodes: maxExpandedNodes,
-    maxQueueSize: maxQueueSize,
-  );
-}
-
 // ---------------------------------------------------------------------------
 // Macro Expansion
 // ---------------------------------------------------------------------------
