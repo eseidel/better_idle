@@ -180,17 +180,13 @@ class WaitConditionSatisfied extends ReplanBoundary {
 /// This is an optimization opportunity, not a requirement.
 @immutable
 class UpgradeAffordableEarly extends ReplanBoundary {
-  const UpgradeAffordableEarly({required this.purchaseId, required this.cost});
+  const UpgradeAffordableEarly({required this.purchaseId});
 
   /// The upgrade that became affordable.
   final MelvorId purchaseId;
 
-  /// The cost of the upgrade.
-  final int cost;
-
   @override
-  String describe() =>
-      'Upgrade ${purchaseId.name} affordable early (cost: $cost)';
+  String describe() => 'Upgrade ${purchaseId.name} affordable early';
 
   @override
   bool get isExpected => true;

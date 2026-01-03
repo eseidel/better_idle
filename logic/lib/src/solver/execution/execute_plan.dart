@@ -68,7 +68,6 @@ ReplanBoundary segmentBoundaryToReplan(SegmentBoundary boundary) {
     GoalReachedBoundary() => const GoalReached(),
     UpgradeAffordableBoundary(:final purchaseId) => UpgradeAffordableEarly(
       purchaseId: purchaseId,
-      cost: 0,
     ),
     UnlockBoundary() =>
       // UnexpectedUnlock needs an actionId, but UnlockBoundary doesn't have it.

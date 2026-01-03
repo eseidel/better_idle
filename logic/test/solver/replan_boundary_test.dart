@@ -74,7 +74,6 @@ void main() {
     test('describe includes purchase and cost', () {
       const boundary = UpgradeAffordableEarly(
         purchaseId: MelvorId('melvorD:Auto_Eat_Tier_I'),
-        cost: 5000,
       );
       expect(boundary.describe(), contains('Auto Eat Tier I'));
       expect(boundary.describe(), contains('5000'));
@@ -83,7 +82,6 @@ void main() {
     test('isExpected is true', () {
       const boundary = UpgradeAffordableEarly(
         purchaseId: MelvorId('melvorD:Auto_Eat_Tier_I'),
-        cost: 5000,
       );
       expect(boundary.isExpected, isTrue);
     });
