@@ -13,6 +13,7 @@ import 'package:logic/src/solver/analysis/next_decision_delta.dart'
     show infTicks;
 import 'package:logic/src/solver/analysis/unlock_boundaries.dart';
 import 'package:logic/src/solver/analysis/wait_for.dart';
+import 'package:logic/src/solver/candidates/build_chain.dart';
 import 'package:logic/src/solver/candidates/macro_expansion_context.dart';
 import 'package:logic/src/solver/execution/state_advance.dart';
 import 'package:logic/src/solver/interactions/apply_interaction.dart';
@@ -443,97 +444,97 @@ class EnsureStock extends MacroCandidate {
       }
     }
 
-    // Find producer for this item
-    final producer = context.findProducerActionForItem(
+    // Use buildChainForItem to discover the full production chain
+    final chainResult = buildChainForItem(
       workingState,
       itemId,
+      deltaNeeded,
       context.goal,
     );
 
-    if (producer == null) {
-      // Check if a locked producer exists
-      final lockedProducer = context.findAnyProducerForItem(
-        workingState,
-        itemId,
-      );
-      if (lockedProducer != null) {
+    switch (chainResult) {
+      case ChainNeedsUnlock(:final skill, :final requiredLevel):
         // Need to train skill first - expand that prerequisite
         final trainMacro = TrainSkillUntil(
-          lockedProducer.skill,
-          StopAtLevel(lockedProducer.skill, lockedProducer.unlockLevel),
+          skill,
+          StopAtLevel(skill, requiredLevel),
         );
         return trainMacro.expand(context.withState(workingState));
+
+      case ChainFailed(:final reason):
+        return MacroCannotExpand(reason);
+
+      case ChainBuilt(:final chain):
+        // Chain is fully buildable - check if we need to stock inputs first
+        // Walk the chain bottom-up and ensure stock for each level
+        return _expandChainBottomUp(context, workingState, chain);
+    }
+  }
+
+  /// Expands a production chain by ensuring inputs are stocked bottom-up.
+  ///
+  /// For each node in the chain (leaves first), we check if we have enough
+  /// of that item. If not, we emit an EnsureStock for it.
+  ///
+  /// This replaces the old recursive "discover one input at a time" logic
+  /// with explicit chain-based expansion.
+  MacroExpansionOutcome _expandChainBottomUp(
+    MacroExpansionContext context,
+    GlobalState workingState,
+    PlannedChain chain,
+  ) {
+    // For the root node, check if all inputs are available
+    // If not, emit EnsureStock for the first missing input
+    for (final child in chain.children) {
+      final childItem = workingState.registries.items.byId(child.itemId);
+      final currentCount = workingState.inventory.countOfItem(childItem);
+
+      if (currentCount < child.quantity) {
+        // Need to stock this input first
+        // Quantize the target to reduce plan thrash
+        final producerAction =
+            workingState.registries.actions.byId(chain.actionId) as SkillAction;
+        final quantizedTarget = context.quantizeStockTarget(
+          workingState,
+          child.quantity,
+          producerAction,
+        );
+        final stockMacro = EnsureStock(
+          child.itemId,
+          quantizedTarget,
+          provenance: ChainProvenance(
+            parentItem: itemId,
+            childItem: child.itemId,
+          ),
+        );
+        return stockMacro.expand(context.withState(workingState));
       }
-      return MacroCannotExpand('No producer for ${itemId.localId}');
     }
 
-    // Check if producer has inputs (consuming action like smelting)
+    // All inputs are available - produce the target item
     final producerAction =
-        workingState.registries.actions.byId(producer) as SkillAction;
-    if (producerAction.inputs.isNotEmpty) {
-      // Multi-tier chain: compute what we need from producer
-      final outputsPerAction = producerAction.outputs[itemId] ?? 1;
-      final actionsNeeded = (deltaNeeded / outputsPerAction).ceil();
+        workingState.registries.actions.byId(chain.actionId) as SkillAction;
 
-      // Collect ALL missing inputs first, then expand the first one
-      EnsureStock? firstMissingInput;
-      for (final prodInput in producerAction.inputs.entries) {
-        final inputNeeded = actionsNeeded * prodInput.value;
-        final inputItem = workingState.registries.items.byId(prodInput.key);
-        final currentInput = workingState.inventory.countOfItem(inputItem);
-        if (currentInput < inputNeeded) {
-          // Quantize the target to reduce plan thrash
-          final quantizedTarget = context.quantizeStockTarget(
-            workingState,
-            inputNeeded,
-            producerAction,
-          );
-          firstMissingInput ??= EnsureStock(prodInput.key, quantizedTarget);
-        }
-      }
-      if (firstMissingInput != null) {
-        return firstMissingInput.expand(context.withState(workingState));
-      }
-
-      // All inputs are available - check skill level requirement only
-      final currentLevel = workingState
-          .skillState(producerAction.skill)
-          .skillLevel;
-      if (producerAction.unlockLevel > currentLevel) {
-        final trainMacro = TrainSkillUntil(
-          producerAction.skill,
-          StopAtLevel(producerAction.skill, producerAction.unlockLevel),
-        );
-        return trainMacro.expand(context.withState(workingState));
-      }
-    } else {
-      // Simple producer (no inputs) - check prerequisites via ensureExecutable
-      final prereqResult = context.ensureExecutable(
-        workingState,
-        producer,
-        context.goal,
+    // Check skill level requirement
+    final currentLevel = workingState
+        .skillState(producerAction.skill)
+        .skillLevel;
+    if (producerAction.unlockLevel > currentLevel) {
+      final trainMacro = TrainSkillUntil(
+        producerAction.skill,
+        StopAtLevel(producerAction.skill, producerAction.unlockLevel),
       );
-      switch (prereqResult) {
-        case ExecReady():
-          break; // Producer is ready
-        case ExecNeedsMacros(macros: final prereqMacros):
-          // Expand the first prerequisite
-          return prereqMacros.first.expand(context.withState(workingState));
-        case ExecUnknown(:final reason):
-          return MacroCannotExpand(
-            'Cannot determine prerequisites for $producer: $reason',
-          );
-      }
+      return trainMacro.expand(context.withState(workingState));
     }
 
     // Producer is ready - switch to it and produce
-    final newState = applyInteraction(workingState, SwitchActivity(producer));
+    final newState = applyInteraction(
+      workingState,
+      SwitchActivity(chain.actionId),
+    );
 
-    // Calculate ticks to produce
-    final ticksPerAction = ticksFromDuration(producerAction.meanDuration);
-    final outputsPerAction = producerAction.outputs[itemId] ?? 1;
-    final actionsNeeded = (deltaNeeded / outputsPerAction).ceil();
-    final ticksNeeded = actionsNeeded * ticksPerAction;
+    // Calculate ticks to produce using chain's precomputed values
+    final ticksNeeded = chain.ticksNeeded;
 
     // Project state forward
     final advanceResult = advance(
@@ -590,6 +591,7 @@ class TrainConsumingSkillUntil extends MacroCandidate {
     this.bufferTarget,
     this.sellPolicySpec,
     this.maxRecoveryAttempts = 3,
+    this.inputChains,
     super.provenance,
   });
 
@@ -650,6 +652,29 @@ class TrainConsumingSkillUntil extends MacroCandidate {
   /// Default: 3
   final int maxRecoveryAttempts;
 
+  /// Production chains for each input item requiring multi-tier production.
+  ///
+  /// For consuming skills like Smithing where inputs (bars) require their own
+  /// inputs (ores), this stores the complete production chain. The executor
+  /// uses this to run the correct sequence of production steps.
+  ///
+  /// Example for Bronze Dagger training:
+  /// ```dart
+  /// {
+  ///   MelvorId('melvorD:Bronze_Bar'): PlannedChain(
+  ///     itemId: 'Bronze_Bar',
+  ///     actionId: 'Bronze Bar smelting',
+  ///     children: [
+  ///       PlannedChain(itemId: 'Copper_Ore', actionId: 'Copper mining'),
+  ///       PlannedChain(itemId: 'Tin_Ore', actionId: 'Tin mining'),
+  ///     ],
+  ///   ),
+  /// }
+  /// ```
+  ///
+  /// If null or empty, falls back to single-tier producerByInputItem lookup.
+  final Map<MelvorId, PlannedChain>? inputChains;
+
   /// Primary stop condition (usually boundary or goal).
   final MacroStopRule primaryStop;
 
@@ -673,6 +698,7 @@ class TrainConsumingSkillUntil extends MacroCandidate {
     SellPolicySpec? sellPolicySpec,
     int? maxRecoveryAttempts,
     List<MacroStopRule>? watchedStops,
+    Map<MelvorId, PlannedChain>? inputChains,
   }) {
     return TrainConsumingSkillUntil(
       consumingSkill,
@@ -684,6 +710,7 @@ class TrainConsumingSkillUntil extends MacroCandidate {
       bufferTarget: bufferTarget ?? this.bufferTarget,
       sellPolicySpec: sellPolicySpec ?? this.sellPolicySpec,
       maxRecoveryAttempts: maxRecoveryAttempts ?? this.maxRecoveryAttempts,
+      inputChains: inputChains ?? this.inputChains,
       provenance: provenance,
     );
   }
@@ -975,33 +1002,70 @@ class TrainConsumingSkillUntil extends MacroCandidate {
       ),
     );
 
-    // Build producerByInputItem map
-    final producerByInputItemMap = <MelvorId, ActionId>{};
-    for (final inputEntry in consumeAction.inputs.entries) {
-      final inputItemId = inputEntry.key;
-      final producer = context.findProducerActionForItem(
-        state,
-        inputItemId,
-        context.goal,
-      );
-      if (producer != null) {
-        producerByInputItemMap[inputItemId] = producer;
-      }
-    }
-
-    // Calculate buffer target
+    // Calculate buffer target first (needed for chain sizing)
     final computedBufferTarget = context.quantizeStockTarget(
       state,
       10,
       consumeAction,
     );
 
+    // Build producerByInputItem map and inputChains for multi-tier production
+    final producerByInputItemMap = <MelvorId, ActionId>{};
+    final inputChainsMap = <MelvorId, PlannedChain>{};
+
+    for (final inputEntry in consumeAction.inputs.entries) {
+      final inputItemId = inputEntry.key;
+      final inputQty = inputEntry.value;
+
+      // Use buildChainForItem to get the full production chain
+      // Use buffer target quantity for chain sizing
+      final chainResult = buildChainForItem(
+        state,
+        inputItemId,
+        computedBufferTarget * inputQty,
+        context.goal,
+      );
+
+      switch (chainResult) {
+        case ChainBuilt(:final chain):
+          // Store the chain for multi-tier inputs
+          if (!chain.isLeaf) {
+            inputChainsMap[inputItemId] = chain;
+          }
+          // The immediate producer is the chain's action
+          producerByInputItemMap[inputItemId] = chain.actionId;
+
+        case ChainNeedsUnlock():
+          // Should have been caught earlier in prerequisite checking
+          // Fall back to simple lookup
+          final producer = context.findProducerActionForItem(
+            state,
+            inputItemId,
+            context.goal,
+          );
+          if (producer != null) {
+            producerByInputItemMap[inputItemId] = producer;
+          }
+
+        case ChainFailed():
+          // Fall back to simple lookup
+          final producer = context.findProducerActionForItem(
+            state,
+            inputItemId,
+            context.goal,
+          );
+          if (producer != null) {
+            producerByInputItemMap[inputItemId] = producer;
+          }
+      }
+    }
+
     // Determine sell policy spec
     final sellPolicySpecValue = context.goal.isSellRelevant
         ? const SellAllSpec()
         : const ReserveConsumingInputsSpec();
 
-    // Create enriched macro
+    // Create enriched macro with inputChains for multi-tier production
     final enrichedMacro = TrainConsumingSkillUntil(
       consumingSkill,
       primaryStop,
@@ -1011,6 +1075,7 @@ class TrainConsumingSkillUntil extends MacroCandidate {
       producerByInputItem: producerByInputItemMap,
       bufferTarget: computedBufferTarget,
       sellPolicySpec: sellPolicySpecValue,
+      inputChains: inputChainsMap.isEmpty ? null : inputChainsMap,
     );
 
     return MacroExpanded((

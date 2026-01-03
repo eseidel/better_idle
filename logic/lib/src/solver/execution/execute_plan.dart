@@ -12,6 +12,7 @@ import 'package:logic/src/solver/analysis/replan_boundary.dart';
 import 'package:logic/src/solver/analysis/unlock_boundaries.dart';
 import 'package:logic/src/solver/analysis/wait_for.dart';
 import 'package:logic/src/solver/analysis/watch_set.dart';
+import 'package:logic/src/solver/candidates/build_chain.dart';
 import 'package:logic/src/solver/candidates/macro_candidate.dart';
 import 'package:logic/src/solver/core/goal.dart';
 import 'package:logic/src/solver/execution/consume_until.dart';
@@ -244,19 +245,6 @@ StepResult executeCoupledLoop(
     for (final inputEntry in consumeAction.inputs.entries) {
       final inputItemId = inputEntry.key;
 
-      // Get producer from plan (no runtime search)
-      final producerId = producerByInputItem[inputItemId];
-      if (producerId == null) {
-        return (
-          state: currentState,
-          ticksElapsed: totalTicks,
-          deaths: totalDeaths,
-          boundary: NoProgressPossible(
-            reason: 'No producer for ${inputItemId.name} - needs replan',
-          ),
-        );
-      }
-
       // Check current stock
       final currentCount = currentState.inventory.countOfItem(
         currentState.registries.items.byId(inputItemId),
@@ -266,70 +254,115 @@ StepResult executeCoupledLoop(
         continue; // Have enough, skip to next input
       }
 
-      // CHECKPOINT: Switch to producer (fixed ID from plan)
-      try {
-        currentState = applyInteraction(
+      // Check if this input has a multi-tier chain
+      final inputChain = macro.inputChains?[inputItemId];
+      if (inputChain != null && inputChain.children.isNotEmpty) {
+        // Multi-tier chain: produce inputs bottom-up
+        final chainResult = _produceChainBottomUp(
           currentState,
-          SwitchActivity(producerId),
-        );
-      } on Exception catch (e) {
-        // Producer not feasible (missing its own inputs) - replan
-        return (
-          state: currentState,
-          ticksElapsed: totalTicks,
-          deaths: totalDeaths,
-          boundary: NoProgressPossible(
-            reason: 'Cannot start producer $producerId: $e',
-          ),
-        );
-      }
-
-      // Produce until buffer target reached
-      final produceResult = consumeUntil(
-        currentState,
-        WaitForInventoryAtLeast(inputItemId, bufferTarget),
-        random: random,
-      );
-      currentState = produceResult.state;
-      totalTicks += produceResult.ticksElapsed;
-      totalDeaths += produceResult.deathCount;
-
-      // CHECKPOINT: Handle production boundaries
-      if (produceResult.boundary is InventoryFull) {
-        final recovery = attemptRecovery(
-          currentState,
-          const InventoryFull(),
+          inputChain,
+          bufferTarget,
+          random,
+          watchSet,
           segmentSellPolicy,
+          totalTicks,
+          totalDeaths,
           recoveryAttempts,
           macro.maxRecoveryAttempts,
         );
-        if (recovery.shouldStop) {
-          return (
-            state: recovery.state,
-            ticksElapsed: totalTicks,
-            deaths: totalDeaths,
-            boundary: recovery.boundary,
-          );
-        }
-        currentState = recovery.state;
-        recoveryAttempts = recovery.newAttemptCount;
-        // Retry this input's production by breaking to outer loop
-        break;
-      }
+        currentState = chainResult.state;
+        totalTicks = chainResult.totalTicks;
+        totalDeaths = chainResult.totalDeaths;
+        recoveryAttempts = chainResult.recoveryAttempts;
 
-      // Check for material boundary after producing
-      if (watchSet != null) {
-        final boundary = watchSet.detectBoundary(
-          currentState,
-          elapsedTicks: totalTicks,
-        );
-        if (boundary != null) {
+        if (chainResult.boundary != null) {
           return (
             state: currentState,
             ticksElapsed: totalTicks,
             deaths: totalDeaths,
-            boundary: segmentBoundaryToReplan(boundary),
+            boundary: chainResult.boundary!,
           );
+        }
+      } else {
+        // Simple single-tier production
+        // Get producer from plan (no runtime search)
+        final producerId = producerByInputItem[inputItemId];
+        if (producerId == null) {
+          return (
+            state: currentState,
+            ticksElapsed: totalTicks,
+            deaths: totalDeaths,
+            boundary: NoProgressPossible(
+              reason: 'No producer for ${inputItemId.localId} - needs replan',
+            ),
+          );
+        }
+
+        // CHECKPOINT: Switch to producer (fixed ID from plan)
+        try {
+          currentState = applyInteraction(
+            currentState,
+            SwitchActivity(producerId),
+          );
+        } on Exception catch (e) {
+          // Producer not feasible (missing its own inputs) - replan
+          return (
+            state: currentState,
+            ticksElapsed: totalTicks,
+            deaths: totalDeaths,
+            boundary: NoProgressPossible(
+              reason: 'Cannot start producer $producerId: $e',
+            ),
+          );
+        }
+
+        // Produce until buffer target reached
+        final produceResult = consumeUntil(
+          currentState,
+          WaitForInventoryAtLeast(inputItemId, bufferTarget),
+          random: random,
+        );
+        currentState = produceResult.state;
+        totalTicks += produceResult.ticksElapsed;
+        totalDeaths += produceResult.deathCount;
+
+        // CHECKPOINT: Handle production boundaries
+        if (produceResult.boundary is InventoryFull) {
+          final recovery = attemptRecovery(
+            currentState,
+            const InventoryFull(),
+            segmentSellPolicy,
+            recoveryAttempts,
+            macro.maxRecoveryAttempts,
+          );
+          if (recovery.shouldStop) {
+            return (
+              state: recovery.state,
+              ticksElapsed: totalTicks,
+              deaths: totalDeaths,
+              boundary: recovery.boundary,
+            );
+          }
+          currentState = recovery.state;
+          recoveryAttempts = recovery.newAttemptCount;
+          // Retry this input's production by breaking to outer loop
+          break;
+        }
+
+        // Check for material boundary after producing
+        if (watchSet != null) {
+          final boundary = watchSet.detectBoundary(
+            currentState,
+            elapsedTicks: totalTicks,
+          );
+          if (boundary != null) {
+            return (
+              state: currentState,
+              ticksElapsed: totalTicks,
+              deaths: totalDeaths,
+              boundary: segmentBoundaryToReplan(boundary),
+            );
+          }
         }
       }
     }
@@ -420,6 +453,230 @@ StepResult executeCoupledLoop(
 
     // Loop continues: next iteration will produce more inputs if needed
   }
+}
+
+// ---------------------------------------------------------------------------
+// Multi-tier chain production helper
+// ---------------------------------------------------------------------------
+
+/// Result of producing a multi-tier chain.
+typedef _ChainProductionResult = ({
+  GlobalState state,
+  int totalTicks,
+  int totalDeaths,
+  int recoveryAttempts,
+  ReplanBoundary? boundary,
+});
+
+/// Produces items for a multi-tier chain by walking bottom-up.
+///
+/// For a chain like: Bronze Bar (needs Copper Ore + Tin Ore)
+/// This will:
+/// 1. Mine Copper Ore until we have enough
+/// 2. Mine Tin Ore until we have enough
+/// 3. Smelt Bronze Bars until we have bufferTarget
+///
+/// The chain structure captures the full production tree, and this function
+/// executes each level in dependency order (leaves first, root last).
+_ChainProductionResult _produceChainBottomUp(
+  GlobalState state,
+  PlannedChain chain,
+  int bufferTarget,
+  Random random,
+  WatchSet? watchSet,
+  SellPolicy? segmentSellPolicy,
+  int initialTicks,
+  int initialDeaths,
+  int initialRecoveryAttempts,
+  int maxRecoveryAttempts,
+) {
+  var currentState = state;
+  var totalTicks = initialTicks;
+  var totalDeaths = initialDeaths;
+  var recoveryAttempts = initialRecoveryAttempts;
+
+  // First, recursively produce all children (leaf inputs first)
+  for (final child in chain.children) {
+    // Check if we already have enough of this child item
+    final childItem = currentState.registries.items.byId(child.itemId);
+    final childCount = currentState.inventory.countOfItem(childItem);
+
+    // Calculate how many we need for producing bufferTarget of the parent
+    final parentAction =
+        currentState.registries.actions.byId(chain.actionId) as SkillAction;
+    final inputsPerAction = parentAction.inputs[child.itemId] ?? 1;
+    final outputsPerAction = parentAction.outputs[chain.itemId] ?? 1;
+    final actionsNeeded = (bufferTarget / outputsPerAction).ceil();
+    final childNeeded = actionsNeeded * inputsPerAction;
+
+    if (childCount >= childNeeded) {
+      continue; // Have enough of this input
+    }
+
+    if (child.children.isNotEmpty) {
+      // Recursively produce this child's inputs
+      final childResult = _produceChainBottomUp(
+        currentState,
+        child,
+        childNeeded,
+        random,
+        watchSet,
+        segmentSellPolicy,
+        totalTicks,
+        totalDeaths,
+        recoveryAttempts,
+        maxRecoveryAttempts,
+      );
+      currentState = childResult.state;
+      totalTicks = childResult.totalTicks;
+      totalDeaths = childResult.totalDeaths;
+      recoveryAttempts = childResult.recoveryAttempts;
+
+      if (childResult.boundary != null) {
+        return childResult;
+      }
+    } else {
+      // Leaf node: produce directly
+      try {
+        currentState = applyInteraction(
+          currentState,
+          SwitchActivity(child.actionId),
+        );
+      } on Exception catch (e) {
+        return (
+          state: currentState,
+          totalTicks: totalTicks,
+          totalDeaths: totalDeaths,
+          recoveryAttempts: recoveryAttempts,
+          boundary: NoProgressPossible(
+            reason: 'Cannot start leaf producer ${child.actionId}: $e',
+          ),
+        );
+      }
+
+      final produceResult = consumeUntil(
+        currentState,
+        WaitForInventoryAtLeast(child.itemId, childNeeded),
+        random: random,
+      );
+      currentState = produceResult.state;
+      totalTicks += produceResult.ticksElapsed;
+      totalDeaths += produceResult.deathCount;
+
+      // Handle production boundaries
+      if (produceResult.boundary is InventoryFull) {
+        final recovery = attemptRecovery(
+          currentState,
+          const InventoryFull(),
+          segmentSellPolicy,
+          recoveryAttempts,
+          maxRecoveryAttempts,
+        );
+        if (recovery.shouldStop) {
+          return (
+            state: recovery.state,
+            totalTicks: totalTicks,
+            totalDeaths: totalDeaths,
+            recoveryAttempts: recovery.newAttemptCount,
+            boundary: recovery.boundary,
+          );
+        }
+        currentState = recovery.state;
+        recoveryAttempts = recovery.newAttemptCount;
+      }
+
+      // Check for material boundary after producing
+      if (watchSet != null) {
+        final boundary = watchSet.detectBoundary(
+          currentState,
+          elapsedTicks: totalTicks,
+        );
+        if (boundary != null) {
+          return (
+            state: currentState,
+            totalTicks: totalTicks,
+            totalDeaths: totalDeaths,
+            recoveryAttempts: recoveryAttempts,
+            boundary: segmentBoundaryToReplan(boundary),
+          );
+        }
+      }
+    }
+  }
+
+  // All children produced - now produce the root item
+  try {
+    currentState = applyInteraction(
+      currentState,
+      SwitchActivity(chain.actionId),
+    );
+  } on Exception catch (e) {
+    return (
+      state: currentState,
+      totalTicks: totalTicks,
+      totalDeaths: totalDeaths,
+      recoveryAttempts: recoveryAttempts,
+      boundary: NoProgressPossible(
+        reason: 'Cannot start chain root producer ${chain.actionId}: $e',
+      ),
+    );
+  }
+
+  final produceResult = consumeUntil(
+    currentState,
+    WaitForInventoryAtLeast(chain.itemId, bufferTarget),
+    random: random,
+  );
+  currentState = produceResult.state;
+  totalTicks += produceResult.ticksElapsed;
+  totalDeaths += produceResult.deathCount;
+
+  // Handle production boundaries for root
+  if (produceResult.boundary is InventoryFull) {
+    final recovery = attemptRecovery(
+      currentState,
+      const InventoryFull(),
+      segmentSellPolicy,
+      recoveryAttempts,
+      maxRecoveryAttempts,
+    );
+    if (recovery.shouldStop) {
+      return (
+        state: recovery.state,
+        totalTicks: totalTicks,
+        totalDeaths: totalDeaths,
+        recoveryAttempts: recovery.newAttemptCount,
+        boundary: recovery.boundary,
+      );
+    }
+    currentState = recovery.state;
+    recoveryAttempts = recovery.newAttemptCount;
+  }
+
+  // Check for material boundary after producing root
+  if (watchSet != null) {
+    final boundary = watchSet.detectBoundary(
+      currentState,
+      elapsedTicks: totalTicks,
+    );
+    if (boundary != null) {
+      return (
+        state: currentState,
+        totalTicks: totalTicks,
+        totalDeaths: totalDeaths,
+        recoveryAttempts: recoveryAttempts,
+        boundary: segmentBoundaryToReplan(boundary),
+      );
+    }
+  }
+
+  return (
+    state: currentState,
+    totalTicks: totalTicks,
+    totalDeaths: totalDeaths,
+    recoveryAttempts: recoveryAttempts,
+    boundary: null,
+  );
 }
 
 /// Result of a recovery attempt.
