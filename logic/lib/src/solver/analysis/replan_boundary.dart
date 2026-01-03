@@ -46,7 +46,8 @@ library;
 
 import 'package:logic/src/data/action_id.dart';
 import 'package:logic/src/data/melvor_id.dart';
-import 'package:logic/src/solver/analysis/wait_for.dart' show WaitFor, WaitForAnyOf;
+import 'package:logic/src/solver/analysis/wait_for.dart'
+    show WaitFor, WaitForAnyOf;
 import 'package:logic/src/types/time_away.dart';
 import 'package:meta/meta.dart';
 
