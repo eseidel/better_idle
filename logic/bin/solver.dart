@@ -79,7 +79,9 @@ final _parser = ArgParser()
   ..addOption(
     'output-plan',
     abbr: 'o',
-    help: 'Write the plan to a JSON file (e.g., plan.json)',
+    help:
+        'Write the plan to a JSON file (e.g., plan.json). '
+        'Implies --no-execute unless -v is also specified.',
   );
 
 // ---------------------------------------------------------------------------
@@ -115,11 +117,7 @@ class SolverConfig {
 
 /// Result of running the solver (either mode).
 class SolvedPlan {
-  SolvedPlan({
-    required this.plan,
-    required this.profiles,
-    this.segments,
-  });
+  SolvedPlan({required this.plan, required this.profiles, this.segments});
 
   final Plan plan;
   final List<SolverProfile> profiles;
@@ -152,6 +150,12 @@ void main(List<String> args) async {
   // Parse configuration
   final goal = _parseGoalFromArgs(results);
   final verboseSegmentStr = results['verbose-segment'] as String?;
+  final outputPlanPath = results['output-plan'] as String?;
+  // Skip execution when outputting a plan file (unless verbose execution is
+  // requested, which implies the user wants to see execution details)
+  final noExecute =
+      (results['no-execute'] as bool) ||
+      (outputPlanPath != null && !(results['verbose'] as bool));
   final config = SolverConfig(
     goal: goal,
     initialState: GlobalState.empty(registries),
@@ -162,8 +166,8 @@ void main(List<String> args) async {
         ? int.tryParse(verboseSegmentStr)
         : null,
     dumpStopTriggers: results['dump-stop-triggers'] as bool,
-    noExecute: results['no-execute'] as bool,
-    outputPlanPath: results['output-plan'] as String?,
+    noExecute: noExecute,
+    outputPlanPath: outputPlanPath,
   );
 
   print('Goal: ${goal.describe()}');
