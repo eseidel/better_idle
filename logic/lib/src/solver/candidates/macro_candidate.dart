@@ -385,12 +385,13 @@ class AcquireItem extends MacroCandidate {
       // Check if a locked producer exists
       final lockedProducer = context.findAnyProducerForItem(state, itemId);
       if (lockedProducer != null) {
-        // Need to train skill first - expand that prerequisite
-        final trainMacro = TrainSkillUntil(
-          lockedProducer.skill,
-          StopAtLevel(lockedProducer.skill, lockedProducer.unlockLevel),
+        // Need to train skill first - return prerequisite
+        return MacroNeedsPrerequisite(
+          TrainSkillUntil(
+            lockedProducer.skill,
+            StopAtLevel(lockedProducer.skill, lockedProducer.unlockLevel),
+          ),
         );
-        return trainMacro.expand(context);
       }
       return MacroCannotExpand('No producer for ${itemId.localId}');
     }
@@ -405,8 +406,8 @@ class AcquireItem extends MacroCandidate {
       case ExecReady():
         break; // Producer is ready
       case ExecNeedsMacros(macros: final prereqMacros):
-        // Expand the first prerequisite
-        return prereqMacros.first.expand(context);
+        // Return first prerequisite (don't expand recursively)
+        return MacroNeedsPrerequisite(prereqMacros.first);
       case ExecUnknown(:final reason):
         return MacroCannotExpand(
           'Cannot determine prerequisites for $producer: $reason',
@@ -425,9 +426,8 @@ class AcquireItem extends MacroCandidate {
           state.registries.items.byId(inputId),
         );
         if (currentCount < inputNeeded) {
-          // Need to acquire this input
-          final acquireInput = AcquireItem(inputId, inputNeeded);
-          return acquireInput.expand(context);
+          // Need to acquire this input - return prerequisite
+          return MacroNeedsPrerequisite(AcquireItem(inputId, inputNeeded));
         }
       }
     }
@@ -996,9 +996,9 @@ class TrainConsumingSkillUntil extends MacroCandidate {
       }
     }
 
-    // If prerequisites exist, expand the first one
+    // If prerequisites exist, return the first one (don't expand recursively)
     if (allPrereqs.isNotEmpty) {
-      return allPrereqs.first.expand(context);
+      return MacroNeedsPrerequisite(allPrereqs.first);
     }
 
     // All prerequisites satisfied - find a producer action

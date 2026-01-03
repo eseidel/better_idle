@@ -453,7 +453,7 @@ void main() {
           expect(result, isA<MacroCannotExpand>());
         });
 
-        test('expands to training when producer is locked', () {
+        test('returns training prerequisite when producer is locked', () {
           // Start at level 1 - Oak Tree requires level 10
           final state = GlobalState.empty(testRegistries);
           final context = makeContext(state);
@@ -461,14 +461,12 @@ void main() {
 
           final result = macro.expand(context);
 
-          // Should expand to training woodcutting first (since Oak is locked)
-          expect(result, isA<MacroExpanded>());
-          final expanded = result as MacroExpanded;
-          // The expansion trains woodcutting since Oak is locked at L1
-          expect(
-            expanded.result.state.skillState(Skill.woodcutting).xp,
-            greaterThan(0),
-          );
+          // Should return training prerequisite (not expand recursively)
+          expect(result, isA<MacroNeedsPrerequisite>());
+          final prereq = result as MacroNeedsPrerequisite;
+          expect(prereq.prerequisite, isA<TrainSkillUntil>());
+          final train = prereq.prerequisite as TrainSkillUntil;
+          expect(train.skill, Skill.woodcutting);
         });
 
         test('uses unlocked producer when available', () {
@@ -492,30 +490,41 @@ void main() {
           expect(waitFor.itemId, const MelvorId('melvorD:Oak_Logs'));
         });
 
-        test('handles consuming action inputs recursively', () {
-          // Bronze Bar requires Copper Ore and Tin Ore
-          // Smithing starts at L1, Bronze Bar is L1
-          final state = GlobalState.test(
-            testRegistries,
-            skillStates: const {
-              Skill.smithing: SkillState(xp: 0, masteryPoolXp: 0),
-              Skill.mining: SkillState(xp: 0, masteryPoolXp: 0),
-            },
-          );
-          final context = makeContext(
-            state,
-            goal: const ReachSkillLevelGoal(Skill.smithing, 10),
-          );
-          const macro = AcquireItem(MelvorId('melvorD:Bronze_Bar'), 5);
+        test(
+          'returns input prerequisite when consuming action needs inputs',
+          () {
+            // Bronze Bar requires Copper Ore and Tin Ore
+            // Smithing starts at L1, Bronze Bar is L1
+            final state = GlobalState.test(
+              testRegistries,
+              skillStates: const {
+                Skill.smithing: SkillState(xp: 0, masteryPoolXp: 0),
+                Skill.mining: SkillState(xp: 0, masteryPoolXp: 0),
+              },
+            );
+            final context = makeContext(
+              state,
+              goal: const ReachSkillLevelGoal(Skill.smithing, 10),
+            );
+            const macro = AcquireItem(MelvorId('melvorD:Bronze_Bar'), 5);
 
-          final result = macro.expand(context);
+            final result = macro.expand(context);
 
-          // Should need to acquire inputs first (copper ore or tin ore)
-          expect(result, isA<MacroExpanded>());
-          final expanded = result as MacroExpanded;
-          // The result should be acquiring one of the input ores
-          expect(expanded.result.waitFor, isA<WaitForInventoryDelta>());
-        });
+            // Should return input prerequisite (not expand recursively)
+            expect(result, isA<MacroNeedsPrerequisite>());
+            final prereq = result as MacroNeedsPrerequisite;
+            expect(prereq.prerequisite, isA<AcquireItem>());
+            final acquire = prereq.prerequisite as AcquireItem;
+            // Should need one of the input ores (Copper or Tin)
+            expect(
+              acquire.itemId,
+              anyOf(
+                const MelvorId('melvorD:Copper_Ore'),
+                const MelvorId('melvorD:Tin_Ore'),
+              ),
+            );
+          },
+        );
 
         test('produces item when inputs are already available', () {
           // Give enough ores to make Bronze Bars
