@@ -3047,8 +3047,25 @@ ReplanExecutionResult solveWithReplanning(
     // so no segment markers are needed
     final execResult = executePlan(currentState, success.plan, random: random);
 
+    // Find the boundary that triggered replan (if any)
+    final triggeringBoundary = execResult.boundariesHit.lastOrNull;
+    final isGoalReached = goal.isSatisfied(execResult.finalState);
+
     // Determine if we need to replan
+    // Replan is needed if:
+    // 1. WaitConditionSatisfied fired but goal wasn't actually reached
+    //    (XP estimate drift due to random variation)
+    // 2. Unexpected boundaries were hit
+    // 3. Specific boundary types that always require replanning
+    //
+    // Note: Don't replan just because !isGoalReached - multi-segment plans
+    // may stop on expected boundaries (e.g., upgrade watches) where the next
+    // segment would naturally continue.
+    final goalMissedAfterSatisfaction =
+        triggeringBoundary is WaitConditionSatisfied && !isGoalReached;
+
     final needsReplan =
+        goalMissedAfterSatisfaction ||
         execResult.hasUnexpectedBoundaries ||
         execResult.boundariesHit.any(
           (b) =>
@@ -3056,10 +3073,6 @@ ReplanExecutionResult solveWithReplanning(
               b is InputsDepleted ||
               (b is InventoryFull),
         );
-
-    // Find the boundary that triggered replan (if any)
-    final triggeringBoundary = execResult.boundariesHit.lastOrNull;
-    final isGoalReached = goal.isSatisfied(execResult.finalState);
 
     // Record segment result
     segments.add(
