@@ -697,6 +697,8 @@ class Plan {
         'Acquire ${quantity}x ${itemId.name}',
       EnsureStock(:final itemId, :final minTotal) =>
         'EnsureStock ${itemId.name}: $minTotal',
+      ProduceItem(:final itemId, :final minTotal) =>
+        'Produce ${itemId.name}: $minTotal',
     };
   }
 
@@ -899,6 +901,11 @@ class _StepGroup {
           totalTicks: deltaTicks,
           stepCount: 1,
         ),
+        ProduceItem(:final itemId, :final minTotal) => _StepGroup._(
+          description: 'Produce ${itemId.name}: $minTotal',
+          totalTicks: deltaTicks,
+          stepCount: 1,
+        ),
       },
     };
   }
@@ -923,6 +930,7 @@ class _StepGroup {
           consumingSkill == skill,
         AcquireItem() => false,
         EnsureStock() => false,
+        ProduceItem() => false,
       },
       InteractionStep() => false,
     };

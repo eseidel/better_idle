@@ -95,6 +95,8 @@ String describeStep(
         'Acquire ${quantity}x $itemId ($deltaTicks ticks)',
       EnsureStock(:final itemId, :final minTotal) =>
         'EnsureStock ${itemId.name}: $minTotal ($deltaTicks ticks)',
+      ProduceItem(:final itemId, :final minTotal) =>
+        'Produce ${itemId.name}: $minTotal ($deltaTicks ticks)',
     },
   };
 }

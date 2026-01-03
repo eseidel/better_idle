@@ -1409,6 +1409,7 @@ int _estimateTicksAtExecution(GlobalState state, PlanStep step) {
           itemId,
           const ReachSkillLevelGoal(Skill.mining, 99),
         ),
+        ProduceItem(:final actionId) => actionId,
       };
       if (actionId == null) return 0;
       final rates = estimateRatesForAction(state, actionId);

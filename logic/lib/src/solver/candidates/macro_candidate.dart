@@ -12,6 +12,8 @@ import 'package:logic/src/data/xp.dart';
 import 'package:logic/src/solver/analysis/estimate_rates.dart';
 import 'package:logic/src/solver/analysis/next_decision_delta.dart'
     show infTicks;
+import 'package:logic/src/solver/analysis/replan_boundary.dart'
+    show InventoryPressure, ReplanBoundary;
 import 'package:logic/src/solver/analysis/unlock_boundaries.dart';
 import 'package:logic/src/solver/analysis/wait_for.dart';
 import 'package:logic/src/solver/candidates/build_chain.dart';
@@ -168,6 +170,12 @@ sealed class MacroCandidate {
       'EnsureStock' => EnsureStock(
         MelvorId.fromJson(json['itemId'] as String),
         json['minTotal'] as int,
+      ),
+      'ProduceItem' => ProduceItem(
+        itemId: MelvorId.fromJson(json['itemId'] as String),
+        minTotal: json['minTotal'] as int,
+        actionId: ActionId.fromJson(json['actionId'] as String),
+        estimatedTicks: json['estimatedTicks'] as int,
       ),
       'TrainConsumingSkillUntil' => TrainConsumingSkillUntil(
         Skill.fromName(json['consumingSkill'] as String),
@@ -518,19 +526,20 @@ class EnsureStock extends MacroCandidate {
       context.goal,
     );
 
-    // If no batch is feasible and inventory is nearly full, sell first
-    var workingState = state;
+    // If no batch is feasible and inventory is nearly full, return boundary
     if (feasibleBatch == 0 && state.inventoryRemaining <= 2) {
       // Inventory is too full - need to sell before we can produce
       final sellPolicy = context.goal.computeSellPolicy(state);
       final sellableValue = effectiveCredits(state, sellPolicy) - state.gp;
 
       if (sellableValue > 0) {
-        // Apply sell interaction to free up inventory space, then continue
-        workingState = applyInteraction(
-          state,
-          SellItems(sellPolicy),
-          random: context.random,
+        // Return boundary - let solver/executor handle selling
+        return MacroNeedsBoundary(
+          InventoryPressure(
+            usedSlots: state.inventoryUsed,
+            totalSlots: state.inventoryCapacity,
+          ),
+          message: 'Need to sell before stocking ${itemId.localId}',
         );
       } else {
         // Nothing to sell - truly stuck
@@ -543,7 +552,7 @@ class EnsureStock extends MacroCandidate {
 
     // Use buildChainForItem to discover the full production chain
     final chainResult = buildChainForItem(
-      workingState,
+      state,
       itemId,
       deltaNeeded,
       context.goal,
@@ -551,12 +560,10 @@ class EnsureStock extends MacroCandidate {
 
     switch (chainResult) {
       case ChainNeedsUnlock(:final skill, :final requiredLevel):
-        // Need to train skill first - expand that prerequisite
-        final trainMacro = TrainSkillUntil(
-          skill,
-          StopAtLevel(skill, requiredLevel),
+        // Return prerequisite without recursive expand
+        return MacroNeedsPrerequisite(
+          TrainSkillUntil(skill, StopAtLevel(skill, requiredLevel)),
         );
-        return trainMacro.expand(context.withState(workingState));
 
       case ChainFailed(:final reason):
         return MacroCannotExpand(reason);
@@ -564,7 +571,7 @@ class EnsureStock extends MacroCandidate {
       case ChainBuilt(:final chain):
         // Chain is fully buildable - check if we need to stock inputs first
         // Walk the chain bottom-up and ensure stock for each level
-        return _expandChainBottomUp(context, workingState, chain);
+        return _expandChainBottomUp(context, state, chain);
     }
   }
 
@@ -588,23 +595,25 @@ class EnsureStock extends MacroCandidate {
 
       if (currentCount < child.quantity) {
         // Need to stock this input first
-        // Quantize the target to reduce plan thrash
-        final producerAction =
-            workingState.registries.actions.byId(chain.actionId) as SkillAction;
+        // Quantize the target using the CHILD's producer action (not parent's)
+        final childAction =
+            workingState.registries.actions.byId(child.actionId) as SkillAction;
         final quantizedTarget = context.quantizeStockTarget(
           workingState,
           child.quantity,
-          producerAction,
+          childAction,
         );
-        final stockMacro = EnsureStock(
-          child.itemId,
-          quantizedTarget,
-          provenance: ChainProvenance(
-            parentItem: itemId,
-            childItem: child.itemId,
+        // Return prerequisite without recursive expand
+        return MacroNeedsPrerequisite(
+          EnsureStock(
+            child.itemId,
+            quantizedTarget,
+            provenance: ChainProvenance(
+              parentItem: itemId,
+              childItem: child.itemId,
+            ),
           ),
         );
-        return stockMacro.expand(context.withState(workingState));
       }
     }
 
@@ -617,41 +626,26 @@ class EnsureStock extends MacroCandidate {
         .skillState(producerAction.skill)
         .skillLevel;
     if (producerAction.unlockLevel > currentLevel) {
-      final trainMacro = TrainSkillUntil(
-        producerAction.skill,
-        StopAtLevel(producerAction.skill, producerAction.unlockLevel),
+      // Return prerequisite without recursive expand
+      return MacroNeedsPrerequisite(
+        TrainSkillUntil(
+          producerAction.skill,
+          StopAtLevel(producerAction.skill, producerAction.unlockLevel),
+        ),
       );
-      return trainMacro.expand(context.withState(workingState));
     }
 
-    // Producer is ready - switch to it and produce
-    final newState = applyInteraction(
-      workingState,
-      SwitchActivity(chain.actionId),
-      random: context.random,
+    // All prerequisites satisfied - return ProduceItem to do the actual
+    // production. This keeps EnsureStock.expand() pure (no state mutation).
+    return MacroNeedsPrerequisite(
+      ProduceItem(
+        itemId: itemId,
+        minTotal: minTotal,
+        actionId: chain.actionId,
+        estimatedTicks: chain.ticksNeeded,
+        provenance: provenance,
+      ),
     );
-
-    // Calculate ticks to produce using chain's precomputed values
-    final ticksNeeded = chain.ticksNeeded;
-
-    // Project state forward
-    final advanceResult = advance(
-      newState,
-      ticksNeeded,
-      random: context.random,
-    );
-
-    // Use absolute semantics: wait until we have minTotal
-    final waitFor = WaitForInventoryAtLeast(itemId, minTotal);
-
-    return MacroExpanded((
-      state: advanceResult.state,
-      ticksElapsed: ticksNeeded,
-      waitFor: waitFor,
-      deaths: advanceResult.deaths,
-      triggeringCondition: 'Stock ${minTotal}x ${itemId.localId}',
-      macro: this,
-    ));
   }
 
   @override
@@ -659,6 +653,83 @@ class EnsureStock extends MacroCandidate {
     'type': 'EnsureStock',
     'itemId': itemId.toJson(),
     'minTotal': minTotal,
+  };
+}
+
+/// Produce items via a specific action until inventory has minTotal.
+///
+/// This is the "executor" macro that actually does SwitchActivity + advance.
+/// It is returned by [EnsureStock] when all inputs are satisfied.
+///
+/// Unlike [EnsureStock] (which is declarative and pure), [ProduceItem] is
+/// imperative: its `expand()` DOES call `applyInteraction` and `advance`.
+///
+/// ## Design Rationale
+///
+/// Separating planning (EnsureStock) from execution (ProduceItem) ensures:
+/// - `EnsureStock.expand()` remains pure (no state mutation)
+/// - Time passes in exactly one place (ProduceItem.expand)
+/// - The solver can see the full expansion chain before any execution
+class ProduceItem extends MacroCandidate {
+  const ProduceItem({
+    required this.itemId,
+    required this.minTotal,
+    required this.actionId,
+    required this.estimatedTicks,
+    super.provenance,
+  });
+
+  /// The item to produce.
+  final MelvorId itemId;
+
+  /// The minimum total count required in inventory after production.
+  final int minTotal;
+
+  /// The action to use for production.
+  final ActionId actionId;
+
+  /// Estimated ticks to complete production (from chain planning).
+  final int estimatedTicks;
+
+  @override
+  String get dedupeKey =>
+      'produce:${itemId.localId}:$minTotal:${actionId.localId}';
+
+  @override
+  MacroExpansionOutcome expand(MacroExpansionContext context) {
+    final state = context.state;
+
+    // Switch to producer action
+    final newState = applyInteraction(
+      state,
+      SwitchActivity(actionId),
+      random: context.random,
+    );
+
+    // Advance time to produce items
+    final advanceResult = advance(
+      newState,
+      estimatedTicks,
+      random: context.random,
+    );
+
+    return MacroExpanded((
+      state: advanceResult.state,
+      ticksElapsed: estimatedTicks,
+      waitFor: WaitForInventoryAtLeast(itemId, minTotal),
+      deaths: advanceResult.deaths,
+      triggeringCondition: 'Produce ${minTotal}x ${itemId.localId}',
+      macro: this,
+    ));
+  }
+
+  @override
+  Map<String, dynamic> toJson() => {
+    'type': 'ProduceItem',
+    'itemId': itemId.toJson(),
+    'minTotal': minTotal,
+    'actionId': actionId.toJson(),
+    'estimatedTicks': estimatedTicks,
   };
 }
 
@@ -1443,4 +1514,39 @@ class MacroAlreadySatisfied extends MacroExpansionOutcome {
 class MacroCannotExpand extends MacroExpansionOutcome {
   const MacroCannotExpand(this.reason);
   final String reason;
+}
+
+/// Macro expansion requires another macro to be satisfied first.
+///
+/// Unlike recursive `prereq.expand(context)`, this returns the dependency
+/// without expanding it. The solver's outer loop handles expansion ordering.
+///
+/// This keeps `expand()` non-recursive and allows the solver to:
+/// - Order expansions globally (not depth-first)
+/// - Detect cycles across the full expansion queue
+/// - Make prerequisites visible in the expansion trace
+class MacroNeedsPrerequisite extends MacroExpansionOutcome {
+  const MacroNeedsPrerequisite(this.prerequisite);
+
+  /// The macro that must be expanded before retrying this one.
+  final MacroCandidate prerequisite;
+}
+
+/// Macro expansion is blocked by a condition requiring external handling.
+///
+/// Unlike [MacroNeedsPrerequisite] (which emits another macro to expand),
+/// this signals that expansion cannot continue until something external
+/// happens (e.g., sell items to free inventory space).
+///
+/// The solver/executor should handle the boundary appropriately:
+/// - [InventoryPressure]: Execute sell policy, then retry expansion
+/// - Other boundaries: Bubble up for caller handling
+class MacroNeedsBoundary extends MacroExpansionOutcome {
+  const MacroNeedsBoundary(this.boundary, {this.message});
+
+  /// The boundary that must be handled before retrying expansion.
+  final ReplanBoundary boundary;
+
+  /// Optional explanation for debugging.
+  final String? message;
 }

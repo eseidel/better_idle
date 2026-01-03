@@ -953,6 +953,8 @@ String _formatSegmentSummary(
             stockEntries.add('${itemId.name} $minTotal');
           case AcquireItem(:final itemId, :final quantity):
             stockEntries.add('${itemId.name} $quantity');
+          case ProduceItem(:final itemId, :final minTotal):
+            stockEntries.add('Produce ${itemId.name} $minTotal');
         }
       case WaitStep():
         break;

@@ -49,6 +49,8 @@ List<MacroCandidate> dedupeMacros(List<MacroCandidate> macros) {
         'acquire:${itemId.localId}:$quantity',
       EnsureStock(:final itemId, :final minTotal) =>
         'ensure:${itemId.localId}:$minTotal',
+      ProduceItem(:final itemId, :final minTotal, :final actionId) =>
+        'produce:${itemId.localId}:$minTotal:${actionId.localId}',
     };
     if (seen.add(key)) result.add(macro);
   }

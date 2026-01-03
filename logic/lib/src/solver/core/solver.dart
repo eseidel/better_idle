@@ -1512,6 +1512,8 @@ class MacroExpansionExplanation {
         'AcquireItem(${itemId.localId}, $quantity)',
       EnsureStock(:final itemId, :final minTotal) =>
         'EnsureStock(${itemId.localId}, $minTotal)',
+      ProduceItem(:final itemId, :final minTotal) =>
+        'ProduceItem(${itemId.localId}, $minTotal)',
     };
   }
 
@@ -1522,6 +1524,10 @@ class MacroExpansionExplanation {
             'trigger=${result.triggeringCondition}',
       MacroAlreadySatisfied(:final reason) => 'ALREADY_SATISFIED: $reason',
       MacroCannotExpand(:final reason) => 'CANNOT_EXPAND: $reason',
+      MacroNeedsPrerequisite(:final prerequisite) =>
+        'NEEDS_PREREQ: ${prerequisite.dedupeKey}',
+      MacroNeedsBoundary(:final boundary) =>
+        'NEEDS_BOUNDARY: ${boundary.describe()}',
     };
   }
 }
@@ -1612,6 +1618,12 @@ MacroExpansionExplanation explainMacroExpansion(
           steps.add('Found producer: $producer');
         }
       }
+
+    case ProduceItem(:final itemId, :final actionId, :final estimatedTicks):
+      steps.add(
+        'ProduceItem: will produce ${itemId.localId} via $actionId '
+        '(~$estimatedTicks ticks)',
+      );
   }
 
   // Actually perform the expansion
@@ -1632,6 +1644,9 @@ MacroExpansionExplanation explainMacroExpansion(
 ///
 /// Returns [MacroExpanded] on success, [MacroAlreadySatisfied] if no work
 /// needed, or [MacroCannotExpand] with a reason if expansion is impossible.
+/// Maximum prerequisite chain depth to prevent infinite loops.
+const int _maxPrerequisiteDepth = 20;
+
 MacroExpansionOutcome _expandMacro(
   GlobalState state,
   MacroCandidate macro,
@@ -1639,13 +1654,61 @@ MacroExpansionOutcome _expandMacro(
   Map<Skill, SkillBoundaries> boundaries, {
   required Random random,
 }) {
-  final context = MacroExpansionContext(
-    state: state,
-    goal: goal,
-    boundaries: boundaries,
-    random: random,
+  var currentState = state;
+  var currentMacro = macro;
+  var depth = 0;
+
+  // Iteratively resolve prerequisites until we get a final outcome
+  while (depth < _maxPrerequisiteDepth) {
+    final context = MacroExpansionContext(
+      state: currentState,
+      goal: goal,
+      boundaries: boundaries,
+      random: random,
+    );
+
+    final outcome = currentMacro.expand(context);
+
+    switch (outcome) {
+      case MacroNeedsPrerequisite(:final prerequisite):
+        // Expand the prerequisite next iteration
+        currentMacro = prerequisite;
+        depth++;
+        continue;
+
+      case MacroNeedsBoundary(:final boundary):
+        // Handle boundary conditions
+        switch (boundary) {
+          case InventoryPressure():
+            // Execute sell policy and retry
+            final sellPolicy = goal.computeSellPolicy(currentState);
+            currentState = applyInteraction(
+              currentState,
+              SellItems(sellPolicy),
+              random: random,
+            );
+            // Retry same macro with new state
+            depth++;
+            continue;
+
+          default:
+            // Can't handle this boundary - return as failure
+            final msg = 'Unhandled boundary: ${boundary.describe()}';
+            return MacroCannotExpand(msg);
+        }
+
+      case MacroExpanded():
+      case MacroAlreadySatisfied():
+      case MacroCannotExpand():
+        // Terminal outcomes - return directly
+        return outcome;
+    }
+  }
+
+  // Exceeded max depth
+  return const MacroCannotExpand(
+    'Prerequisite chain exceeded max depth ($_maxPrerequisiteDepth)',
   );
-  return macro.expand(context);
 }
 
 /// Finds an action that produces the given item.
@@ -1950,13 +2013,17 @@ SolverSuccess? _expandMacroEdges(
       random: ctx.random,
     );
 
-    // Skip macros that can't be expanded or are already satisfied
+    // Skip macros that can't be expanded or are already satisfied.
+    // Note: MacroNeedsPrerequisite and MacroNeedsBoundary are handled
+    // internally by _expandMacro, so we shouldn't see them here.
     final MacroExpansionResult expansionResult;
     switch (expansionOutcome) {
       case MacroExpanded(:final result):
         expansionResult = result;
       case MacroAlreadySatisfied():
       case MacroCannotExpand():
+      case MacroNeedsPrerequisite():
+      case MacroNeedsBoundary():
         continue;
     }
 
