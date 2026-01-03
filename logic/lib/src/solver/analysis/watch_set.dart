@@ -222,6 +222,7 @@ class WatchSet {
       GoalReached() => true,
       InputsDepleted() => config.stopAtInputsDepleted,
       InventoryFull() => true, // Always stop on full inventory
+      InventoryPressure() => true, // Stop to handle inventory pressure
       Death() => false, // Deaths are handled by restart, not segment stop
       WaitConditionSatisfied() => false, // Normal completion, not a stop
       UpgradeAffordableEarly(:final purchaseId) =>
@@ -229,6 +230,8 @@ class WatchSet {
             upgradePurchaseIds.contains(purchaseId),
       UnexpectedUnlock(:final actionId) =>
         config.stopAtUnlockBoundary && _isWatchedUnlock(actionId),
+      UnlockObserved() => config.stopAtUnlockBoundary, // New unlock observed
+      PlannedSegmentStop() => true, // Planned stop - always material
       CannotAfford() => true, // Error - always stop
       ActionUnavailable() => true, // Error - always stop
       NoProgressPossible() => true, // Error - always stop
@@ -242,12 +245,25 @@ class WatchSet {
     if (!isMaterial(boundary)) return null;
     return switch (boundary) {
       GoalReached() => const GoalReachedBoundary(),
-      InputsDepleted(:final actionId) => InputsDepletedBoundary(actionId),
+      InputsDepleted(:final actionId, :final missingItemId) =>
+        InputsDepletedBoundary(actionId, missingItemId),
       UpgradeAffordableEarly(:final purchaseId) => UpgradeAffordableBoundary(
         purchaseId,
         _upgradeName(purchaseId),
       ),
       UnexpectedUnlock(:final actionId) => _toUnlockBoundary(actionId),
+      UnlockObserved(:final skill, :final level, :final unlocks) =>
+        UnlockBoundary(
+          skill ?? Skill.woodcutting, // Fallback if unknown
+          level ?? 1,
+          unlocks ?? 'unknown',
+        ),
+      InventoryPressure(:final usedSlots, :final totalSlots) =>
+        InventoryPressureBoundary(usedSlots, totalSlots),
+      PlannedSegmentStop(:final boundary) =>
+        boundary is SegmentBoundary
+            ? boundary
+            : const GoalReachedBoundary(), // Extract wrapped boundary
       _ => const GoalReachedBoundary(), // Fallback for errors
     };
   }

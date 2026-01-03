@@ -61,29 +61,43 @@ typedef StepProgressCallback =
 /// Converts a SegmentBoundary to a ReplanBoundary for step return.
 ///
 /// This is used when mid-macro stopping detects a material boundary.
-/// Some information may be approximated since SegmentBoundary has less
-/// detail than ReplanBoundary in some cases.
+/// The mapping preserves the boundary's semantics:
+///
+/// - **Goal completion**: [GoalReachedBoundary] → [GoalReached]
+/// - **Optimization**: [UpgradeAffordableBoundary] → [UpgradeAffordableEarly]
+/// - **Resource issues**: [InputsDepletedBoundary] → [InputsDepleted]
+/// - **Planned stops**: Other boundaries → [PlannedSegmentStop] or specific
+///   types
+///
+/// ## Key Principle
+///
+/// We do NOT map planned stops to [GoalReached] - that would cause the outer
+/// loop to terminate early. Instead, planned stops signal "continue to next
+/// segment" via [PlannedSegmentStop] or specific boundary types.
 ReplanBoundary segmentBoundaryToReplan(SegmentBoundary boundary) {
   return switch (boundary) {
+    // Goal completion - truly done
     GoalReachedBoundary() => const GoalReached(),
+
+    // Optimization opportunity - replan to take advantage
     UpgradeAffordableBoundary(:final purchaseId) => UpgradeAffordableEarly(
       purchaseId: purchaseId,
     ),
-    UnlockBoundary() =>
-      // UnexpectedUnlock needs an actionId, but UnlockBoundary doesn't have it.
-      // Return GoalReached as a signal that we hit a material boundary.
-      const GoalReached(),
-    InputsDepletedBoundary(:final actionId) => InputsDepleted(
-      actionId: actionId,
-      // We don't track which item was depleted in SegmentBoundary
-      missingItemId: const MelvorId('melvorD:Unknown'),
-    ),
-    HorizonCapBoundary() =>
-      // Horizon cap is a planned stop, not an error. Signal as GoalReached.
-      const GoalReached(),
-    InventoryPressureBoundary() =>
-      // Inventory pressure triggers a replan to sell items.
-      const InventoryFull(),
+
+    // Unlock observed - replan to potentially use new actions
+    UnlockBoundary(:final skill, :final level, :final unlocks) =>
+      UnlockObserved(skill: skill, level: level, unlocks: unlocks),
+
+    // Resource issue - needs handling
+    InputsDepletedBoundary(:final actionId, :final missingItemId) =>
+      InputsDepleted(actionId: actionId, missingItemId: missingItemId),
+
+    // Planned stop - continue to next segment (not goal reached!)
+    HorizonCapBoundary() => PlannedSegmentStop(boundary),
+
+    // Inventory pressure - distinct from InventoryFull
+    InventoryPressureBoundary(:final usedSlots, :final totalSlots) =>
+      InventoryPressure(usedSlots: usedSlots, totalSlots: totalSlots),
   };
 }
 
@@ -813,16 +827,21 @@ RecoveryResult attemptRecovery(
     );
   }
 
-  // Handle InventoryFull: sell using plan-authorized policy
-  if (boundary is InventoryFull) {
+  // Handle InventoryFull or InventoryPressure: sell using plan-authorized
+  // policy. InventoryPressure is a softer version - we sell a bit and continue
+  // rather than requiring a full reset.
+  if (boundary is InventoryFull || boundary is InventoryPressure) {
     if (sellPolicy == null) {
+      final boundaryName = boundary is InventoryPressure
+          ? 'InventoryPressure'
+          : 'InventoryFull';
       return RecoveryResult(
         state: state,
         outcome: RecoveryOutcome.replanRequired,
         newAttemptCount: currentAttempts + 1,
-        boundary: const NoProgressPossible(
+        boundary: NoProgressPossible(
           reason:
-              'InventoryFull but no sell policy provided - '
+              '$boundaryName but no sell policy provided - '
               'planner must specify sellPolicySpec',
         ),
       );
@@ -834,6 +853,16 @@ RecoveryResult attemptRecovery(
     final sellableValue = effectiveCredits(state, sellPolicy) - gpBefore;
 
     if (sellableValue <= 0) {
+      // For InventoryPressure, if we can't sell, that's ok - we can continue
+      // until truly full. For InventoryFull, we're stuck.
+      if (boundary is InventoryPressure) {
+        return RecoveryResult(
+          state: state,
+          outcome: RecoveryOutcome.recoveredRetry,
+          newAttemptCount: currentAttempts,
+          // Don't increment - pressure without sellable items is ok
+        );
+      }
       return RecoveryResult(
         state: state,
         outcome: RecoveryOutcome.replanRequired,
@@ -856,6 +885,14 @@ RecoveryResult attemptRecovery(
     // State-change detection: verify we actually freed inventory space
     if (newState.inventoryUsed >= inventoryUsedBefore) {
       // Selling didn't free any space - this would loop forever
+      // For pressure, this is ok to continue without incrementing attempts
+      if (boundary is InventoryPressure) {
+        return RecoveryResult(
+          state: newState,
+          outcome: RecoveryOutcome.recoveredRetry,
+          newAttemptCount: currentAttempts,
+        );
+      }
       return RecoveryResult(
         state: newState,
         outcome: RecoveryOutcome.replanRequired,
@@ -906,7 +943,19 @@ RecoveryResult attemptRecovery(
   }
 
   // Handle optimization opportunities: trigger replan to take advantage
-  if (boundary is UpgradeAffordableEarly || boundary is UnexpectedUnlock) {
+  if (boundary is UpgradeAffordableEarly ||
+      boundary is UnexpectedUnlock ||
+      boundary is UnlockObserved) {
+    return RecoveryResult(
+      state: state,
+      outcome: RecoveryOutcome.replanRequired,
+      newAttemptCount: currentAttempts,
+      boundary: boundary,
+    );
+  }
+
+  // Handle planned segment stops: trigger replan to continue to next segment
+  if (boundary is PlannedSegmentStop) {
     return RecoveryResult(
       state: state,
       outcome: RecoveryOutcome.replanRequired,

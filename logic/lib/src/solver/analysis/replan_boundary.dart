@@ -45,6 +45,7 @@
 library;
 
 import 'package:logic/src/data/action_id.dart';
+import 'package:logic/src/data/actions.dart' show Skill;
 import 'package:logic/src/data/melvor_id.dart';
 import 'package:logic/src/solver/analysis/wait_for.dart'
     show WaitFor, WaitForAnyOf;
@@ -296,15 +297,26 @@ ReplanBoundary? boundaryFromStopReason(
   ActionId? actionId,
   MelvorId? missingItemId,
 }) {
-  return switch (reason) {
-    ActionStopReason.stillRunning => null,
-    ActionStopReason.outOfInputs => InputsDepleted(
-      actionId: actionId!,
-      missingItemId: missingItemId ?? const MelvorId('unknown:unknown'),
-    ),
-    ActionStopReason.inventoryFull => const InventoryFull(),
-    ActionStopReason.playerDied => const Death(),
-  };
+  switch (reason) {
+    case ActionStopReason.stillRunning:
+      return null;
+    case ActionStopReason.outOfInputs:
+      if (actionId == null) {
+        throw ArgumentError(
+          'actionId must not be null when reason is outOfInputs',
+        );
+      }
+      if (missingItemId == null) {
+        throw ArgumentError(
+          'missingItemId must not be null when reason is outOfInputs',
+        );
+      }
+      return InputsDepleted(actionId: actionId, missingItemId: missingItemId);
+    case ActionStopReason.inventoryFull:
+      return const InventoryFull();
+    case ActionStopReason.playerDied:
+      return const Death();
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -344,4 +356,95 @@ class TimeBudgetExceeded extends ReplanBoundary {
 
   @override
   bool get isExpected => false;
+}
+
+// ---------------------------------------------------------------------------
+// Planned segment stops (normal segmentation, not errors or goal completion)
+// ---------------------------------------------------------------------------
+
+/// A planned segment stop that wraps the original segment boundary.
+///
+/// This represents a **planned stop** in online planning - not an error,
+/// not goal completion, just a point where the planner decided to stop
+/// the segment and continue with the next one.
+///
+/// Examples:
+/// - HorizonCapBoundary: Segment reached maximum tick horizon
+/// - InventoryPressureBoundary: Inventory usage exceeded threshold
+/// - UnlockBoundary: Skill level crossed an unlock boundary
+///
+/// The executor should continue to the next segment, not stop execution.
+@immutable
+class PlannedSegmentStop extends ReplanBoundary {
+  const PlannedSegmentStop(this.boundary);
+
+  /// The original segment boundary that triggered this stop.
+  final Object boundary;
+
+  @override
+  String describe() => 'Planned stop: $boundary';
+
+  @override
+  bool get isExpected => true;
+}
+
+/// A skill unlock was observed during execution.
+///
+/// This is used when a skill level crosses an unlock boundary and new
+/// actions become available. Unlike [UnexpectedUnlock], this does NOT
+/// require an actionId - the unlock is identified by skill and level.
+///
+/// The outer loop should replan to potentially use newly unlocked actions.
+@immutable
+class UnlockObserved extends ReplanBoundary {
+  const UnlockObserved({this.skill, this.level, this.unlocks});
+
+  /// The skill that leveled up (if known).
+  final Skill? skill;
+
+  /// The level that was reached (if known).
+  final int? level;
+
+  /// Human-readable description of what gets unlocked (if known).
+  final String? unlocks;
+
+  @override
+  String describe() {
+    final parts = <String>[];
+    if (skill != null) parts.add(skill!.name);
+    if (level != null) parts.add('L$level');
+    if (unlocks != null) parts.add('unlocks $unlocks');
+    return parts.isEmpty ? 'Unlock observed' : 'Unlock: ${parts.join(' ')}';
+  }
+
+  @override
+  bool get isExpected => true;
+}
+
+/// Inventory pressure was detected (nearing full capacity).
+///
+/// This is distinct from [InventoryFull] which means completely full.
+/// Inventory pressure is a planned stopping point to allow selling before
+/// becoming completely stuck.
+///
+/// The executor should attempt recovery (sell per policy) and continue,
+/// or replan if recovery is not possible.
+@immutable
+class InventoryPressure extends ReplanBoundary {
+  const InventoryPressure({required this.usedSlots, required this.totalSlots});
+
+  /// Number of inventory slots in use.
+  final int usedSlots;
+
+  /// Total inventory capacity.
+  final int totalSlots;
+
+  /// Pressure ratio (0.0 to 1.0).
+  double get pressure => usedSlots / totalSlots;
+
+  @override
+  String describe() => 'Inventory pressure ($usedSlots/$totalSlots slots)';
+
+  @override
+  bool get isExpected => true;
 }

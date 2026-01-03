@@ -201,6 +201,7 @@ sealed class SegmentBoundary {
       ),
       'InputsDepletedBoundary' => InputsDepletedBoundary(
         ActionId.fromJson(json['actionId'] as String),
+        MelvorId.fromJson(json['missingItemId'] as String),
       ),
       'HorizonCapBoundary' => HorizonCapBoundary(json['ticksElapsed'] as int),
       'InventoryPressureBoundary' => InventoryPressureBoundary(
@@ -275,10 +276,13 @@ class UnlockBoundary extends SegmentBoundary {
 /// Inputs were depleted for a consuming action.
 @immutable
 class InputsDepletedBoundary extends SegmentBoundary {
-  const InputsDepletedBoundary(this.actionId);
+  const InputsDepletedBoundary(this.actionId, this.missingItemId);
 
   /// The action that ran out of inputs.
   final ActionId actionId;
+
+  /// The item that was depleted.
+  final MelvorId missingItemId;
 
   @override
   String describe() => 'Inputs depleted for ${actionId.localId.name}';
@@ -287,6 +291,7 @@ class InputsDepletedBoundary extends SegmentBoundary {
   Map<String, dynamic> toJson() => {
     'type': 'InputsDepletedBoundary',
     'actionId': actionId.toJson(),
+    'missingItemId': missingItemId.toJson(),
   };
 }
 

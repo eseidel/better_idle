@@ -1,5 +1,7 @@
 import 'package:logic/logic.dart';
 import 'package:logic/src/solver/analysis/replan_boundary.dart';
+import 'package:logic/src/solver/execution/execute_plan.dart';
+import 'package:logic/src/solver/execution/plan.dart';
 import 'package:test/test.dart';
 
 void main() {
@@ -71,12 +73,11 @@ void main() {
   });
 
   group('UpgradeAffordableEarly', () {
-    test('describe includes purchase and cost', () {
+    test('describe includes purchase name', () {
       const boundary = UpgradeAffordableEarly(
         purchaseId: MelvorId('melvorD:Auto_Eat_Tier_I'),
       );
       expect(boundary.describe(), contains('Auto Eat Tier I'));
-      expect(boundary.describe(), contains('5000'));
     });
 
     test('isExpected is true', () {
@@ -175,6 +176,65 @@ void main() {
     });
   });
 
+  group('PlannedSegmentStop', () {
+    test('describe includes wrapped boundary info', () {
+      const boundary = PlannedSegmentStop('HorizonCapBoundary(1000)');
+      expect(boundary.describe(), contains('Planned stop'));
+      expect(boundary.describe(), contains('HorizonCapBoundary'));
+    });
+
+    test('isExpected is true', () {
+      const boundary = PlannedSegmentStop('test');
+      expect(boundary.isExpected, isTrue);
+    });
+  });
+
+  group('UnlockObserved', () {
+    test('describe includes skill and level when provided', () {
+      const boundary = UnlockObserved(
+        skill: Skill.woodcutting,
+        level: 15,
+        unlocks: 'Oak Trees',
+      );
+      expect(boundary.describe(), contains('Woodcutting'));
+      expect(boundary.describe(), contains('L15'));
+      expect(boundary.describe(), contains('Oak Trees'));
+    });
+
+    test('describe works with minimal info', () {
+      const boundary = UnlockObserved();
+      expect(boundary.describe(), 'Unlock observed');
+    });
+
+    test('describe works with partial info', () {
+      const boundary = UnlockObserved(skill: Skill.mining);
+      expect(boundary.describe(), contains('Mining'));
+    });
+
+    test('isExpected is true', () {
+      const boundary = UnlockObserved();
+      expect(boundary.isExpected, isTrue);
+    });
+  });
+
+  group('InventoryPressure', () {
+    test('describe includes slot counts', () {
+      const boundary = InventoryPressure(usedSlots: 18, totalSlots: 20);
+      expect(boundary.describe(), contains('18'));
+      expect(boundary.describe(), contains('20'));
+    });
+
+    test('pressure returns correct ratio', () {
+      const boundary = InventoryPressure(usedSlots: 18, totalSlots: 20);
+      expect(boundary.pressure, closeTo(0.9, 0.001));
+    });
+
+    test('isExpected is true', () {
+      const boundary = InventoryPressure(usedSlots: 18, totalSlots: 20);
+      expect(boundary.isExpected, isTrue);
+    });
+  });
+
   group('boundaryFromStopReason', () {
     test('stillRunning returns null', () {
       final boundary = boundaryFromStopReason(ActionStopReason.stillRunning);
@@ -195,15 +255,15 @@ void main() {
       expect(inputsDepleted.missingItemId, missingItem);
     });
 
-    test('outOfInputs uses unknown when missingItemId not provided', () {
+    test('outOfInputs throws when missingItemId not provided', () {
       final actionId = ActionId.test(Skill.firemaking, 'Burn Logs');
-      final boundary = boundaryFromStopReason(
-        ActionStopReason.outOfInputs,
-        actionId: actionId,
+      expect(
+        () => boundaryFromStopReason(
+          ActionStopReason.outOfInputs,
+          actionId: actionId,
+        ),
+        throwsArgumentError,
       );
-      expect(boundary, isA<InputsDepleted>());
-      final inputsDepleted = boundary! as InputsDepleted;
-      expect(inputsDepleted.missingItemId, const MelvorId('unknown:unknown'));
     });
 
     test('inventoryFull returns InventoryFull', () {
@@ -214,6 +274,75 @@ void main() {
     test('playerDied returns Death', () {
       final boundary = boundaryFromStopReason(ActionStopReason.playerDied);
       expect(boundary, isA<Death>());
+    });
+  });
+
+  group('segmentBoundaryToReplan', () {
+    test('GoalReachedBoundary converts to GoalReached', () {
+      const segmentBoundary = GoalReachedBoundary();
+      final replanBoundary = segmentBoundaryToReplan(segmentBoundary);
+      expect(replanBoundary, isA<GoalReached>());
+    });
+
+    test('UpgradeAffordableBoundary converts to UpgradeAffordableEarly', () {
+      const segmentBoundary = UpgradeAffordableBoundary(
+        MelvorId('melvorD:Auto_Eat_Tier_I'),
+        'Auto Eat Tier I',
+      );
+      final replanBoundary = segmentBoundaryToReplan(segmentBoundary);
+      expect(replanBoundary, isA<UpgradeAffordableEarly>());
+      final upgrade = replanBoundary as UpgradeAffordableEarly;
+      expect(upgrade.purchaseId, const MelvorId('melvorD:Auto_Eat_Tier_I'));
+    });
+
+    test('UnlockBoundary converts to UnlockObserved (not GoalReached)', () {
+      const segmentBoundary = UnlockBoundary(
+        Skill.woodcutting,
+        15,
+        'Oak Trees',
+      );
+      final replanBoundary = segmentBoundaryToReplan(segmentBoundary);
+      // Key test: UnlockBoundary should NOT convert to GoalReached
+      expect(replanBoundary, isNot(isA<GoalReached>()));
+      expect(replanBoundary, isA<UnlockObserved>());
+      final unlock = replanBoundary as UnlockObserved;
+      expect(unlock.skill, Skill.woodcutting);
+      expect(unlock.level, 15);
+      expect(unlock.unlocks, 'Oak Trees');
+    });
+
+    test('InputsDepletedBoundary converts to InputsDepleted', () {
+      final actionId = ActionId.test(Skill.firemaking, 'Burn Logs');
+      const missingItem = MelvorId('melvorD:Normal_Logs');
+      final segmentBoundary = InputsDepletedBoundary(actionId, missingItem);
+      final replanBoundary = segmentBoundaryToReplan(segmentBoundary);
+      expect(replanBoundary, isA<InputsDepleted>());
+      final inputsDepleted = replanBoundary as InputsDepleted;
+      expect(inputsDepleted.actionId, actionId);
+      expect(inputsDepleted.missingItemId, missingItem);
+    });
+
+    test(
+      'HorizonCapBoundary converts to PlannedSegmentStop (not GoalReached)',
+      () {
+        const segmentBoundary = HorizonCapBoundary(10000);
+        final replanBoundary = segmentBoundaryToReplan(segmentBoundary);
+        // Key test: HorizonCapBoundary should NOT convert to GoalReached
+        expect(replanBoundary, isNot(isA<GoalReached>()));
+        expect(replanBoundary, isA<PlannedSegmentStop>());
+      },
+    );
+
+    test('InventoryPressureBoundary converts to InventoryPressure '
+        '(not InventoryFull)', () {
+      const segmentBoundary = InventoryPressureBoundary(18, 20);
+      final replanBoundary = segmentBoundaryToReplan(segmentBoundary);
+      // Key test: InventoryPressureBoundary should NOT convert to InventoryFull
+      expect(replanBoundary, isNot(isA<InventoryFull>()));
+      expect(replanBoundary, isA<InventoryPressure>());
+      final pressure = replanBoundary as InventoryPressure;
+      expect(pressure.usedSlots, 18);
+      expect(pressure.totalSlots, 20);
     });
   });
 }

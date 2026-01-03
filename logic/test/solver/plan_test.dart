@@ -51,13 +51,19 @@ void main() {
   group('InputsDepletedBoundary', () {
     test('describe includes action name', () {
       final actionId = ActionId.test(Skill.firemaking, 'Burn Oak Logs');
-      final boundary = InputsDepletedBoundary(actionId);
+      final boundary = InputsDepletedBoundary(
+        actionId,
+        const MelvorId('melvorD:Oak_Logs'),
+      );
       expect(boundary.describe(), contains('Burn Oak Logs'));
     });
 
     test('stores actionId correctly', () {
       final actionId = ActionId.test(Skill.cooking, 'Cook Shrimp');
-      final boundary = InputsDepletedBoundary(actionId);
+      final boundary = InputsDepletedBoundary(
+        actionId,
+        const MelvorId('melvorD:Shrimp'),
+      );
       expect(boundary.actionId, actionId);
     });
   });
@@ -858,7 +864,10 @@ void main() {
           ),
           SegmentMarker(
             stepIndex: 3,
-            boundary: InputsDepletedBoundary(action.id),
+            boundary: InputsDepletedBoundary(
+              action.id,
+              const MelvorId('melvorD:Normal_Logs'),
+            ),
           ),
           const SegmentMarker(
             stepIndex: 4,

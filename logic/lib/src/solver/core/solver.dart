@@ -3061,6 +3061,14 @@ ReplanExecutionResult solveWithReplanning(
     // Note: Don't replan just because !isGoalReached - multi-segment plans
     // may stop on expected boundaries (e.g., upgrade watches) where the next
     // segment would naturally continue.
+    //
+    // Boundary categories:
+    // - PlannedSegmentStop: Normal segmentation, continue to next segment
+    // - UnlockObserved: Replan to potentially use newly unlocked actions
+    // - InventoryPressure: Sell per policy, then continue (not InventoryFull)
+    // - InventoryFull: Hard stop, need recovery or replan
+    // - InputsDepleted: Need to produce more inputs
+    // - GoalReached: Done!
     final goalMissedAfterSatisfaction =
         triggeringBoundary is WaitConditionSatisfied && !isGoalReached;
 
@@ -3071,7 +3079,13 @@ ReplanExecutionResult solveWithReplanning(
           (b) =>
               b is NoProgressPossible ||
               b is InputsDepleted ||
-              (b is InventoryFull),
+              b is InventoryFull ||
+              // PlannedSegmentStop means "continue to next segment" - replan!
+              b is PlannedSegmentStop ||
+              // UnlockObserved means new actions available - replan to use them
+              b is UnlockObserved ||
+              // InventoryPressure needs recovery (sell) then continue
+              b is InventoryPressure,
         );
 
     // Record segment result
@@ -3129,9 +3143,11 @@ ReplanExecutionResult solveWithReplanning(
         ticksAtReplan: context.totalTicks + execResult.actualTicks,
         reason: triggeringBoundary.describe(),
       );
+      // Categorize the stop for clearer debugging
+      final category = _categorizeBoundary(triggeringBoundary);
       // Print is intentional for debugging replan events.
       // ignore: avoid_print
-      print('[REPLAN] ${event.reason} at tick ${event.ticksAtReplan}');
+      print('STOP($category): ${event.reason} at tick ${event.ticksAtReplan}');
     }
 
     // Update context for replan
@@ -3148,4 +3164,43 @@ ReplanExecutionResult solveWithReplanning(
 
     // Loop back to solve again from current state
   }
+}
+
+/// Categorizes a replan boundary for debug logging.
+///
+/// Returns a short string indicating the category:
+/// - "planned": Normal segmentation stop (e.g., horizon cap)
+/// - "replan": Requires replanning (e.g., inputs depleted)
+/// - "recovery": Needs recovery action (e.g., inventory full)
+/// - "done": Goal reached
+/// - "error": Unexpected error
+String _categorizeBoundary(ReplanBoundary boundary) {
+  return switch (boundary) {
+    // Goal completion
+    GoalReached() => 'done',
+    WaitConditionSatisfied() => 'done',
+
+    // Planned segment stops - normal flow, continue to next segment
+    PlannedSegmentStop() => 'planned',
+
+    // Optimization opportunities - replan to take advantage
+    UnlockObserved() => 'replan',
+    UnexpectedUnlock() => 'replan',
+    UpgradeAffordableEarly() => 'replan',
+
+    // Resource issues - need recovery or replan
+    InputsDepleted() => 'replan',
+    InventoryFull() => 'recovery',
+    InventoryPressure() => 'recovery',
+
+    // Expected events
+    Death() => 'expected',
+
+    // Errors and limits
+    NoProgressPossible() => 'error',
+    CannotAfford() => 'error',
+    ActionUnavailable() => 'error',
+    ReplanLimitExceeded() => 'limit',
+    TimeBudgetExceeded() => 'limit',
+  };
 }
