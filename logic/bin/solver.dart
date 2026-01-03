@@ -8,6 +8,7 @@
 // Example: dart run bin/solver.dart 1000
 // ignore_for_file: avoid_print
 
+import 'dart:convert';
 import 'dart:io';
 import 'dart:math';
 
@@ -70,6 +71,11 @@ final _parser = ArgParser()
     'dump-stop-triggers',
     help: 'Print full histogram of macro stop triggers (default: top 10)',
     negatable: false,
+  )
+  ..addOption(
+    'output-plan',
+    abbr: 'o',
+    help: 'Write the plan to a JSON file (e.g., plan.json)',
   );
 
 void main(List<String> args) async {
@@ -103,6 +109,7 @@ void main(List<String> args) async {
       ? int.tryParse(verboseSegmentStr)
       : null;
   final dumpStopTriggers = results['dump-stop-triggers'] as bool;
+  final outputPlanPath = results['output-plan'] as String?;
 
   // Default: segment-based solving. --offline enables single-shot mode.
   if (useOfflineMode) {
@@ -131,6 +138,11 @@ void main(List<String> args) async {
       collectDiagnostics: collectDiagnostics,
       dumpStopTriggers: dumpStopTriggers,
     );
+
+    // Write plan to JSON if requested
+    if (outputPlanPath != null && result is SolverSuccess) {
+      _writePlanToJson(result.plan, outputPlanPath);
+    }
   } else {
     // Segment-based solving (default)
     print(
@@ -159,6 +171,12 @@ void main(List<String> args) async {
       verboseSegment: verboseSegment,
       dumpStopTriggers: dumpStopTriggers,
     );
+
+    // Write plan to JSON if requested
+    if (outputPlanPath != null && result is SegmentedSuccess) {
+      final plan = Plan.fromSegments(result.segments);
+      _writePlanToJson(plan, outputPlanPath);
+    }
   }
 }
 
@@ -238,26 +256,17 @@ void _printFailure(
   if (result.failure.bestCredits != null) {
     print('  Best credits reached: ${result.failure.bestCredits}');
   }
-
-  // Write repro bundle
-  _writeReproBundle(
-    result.failure.reproBundle ??
-        ReproBundle(
-          state: initialState,
-          goal: goal,
-          reason: result.failure.reason,
-        ),
-  );
 }
 
-/// Writes a repro bundle to repro.json for debugging.
-void _writeReproBundle(ReproBundle bundle) {
-  const reproPath = 'repro.json';
-  final jsonString = bundle.toJsonString(pretty: true);
-  File(reproPath).writeAsStringSync(jsonString);
+/// Writes a plan to a JSON file.
+void _writePlanToJson(Plan plan, String path) {
+  final json = plan.toJson();
+  const encoder = JsonEncoder.withIndent('  ');
+  final jsonString = encoder.convert(json);
+  File(path).writeAsStringSync(jsonString);
   print('');
-  print('Repro bundle written to: $reproPath');
-  print('Run: dart run bin/repro.dart $reproPath');
+  print('Plan written to: $path');
+  print('Run: dart run bin/execute.dart $path');
 }
 
 /// Prints the final state after executing the plan.
@@ -888,16 +897,6 @@ void _printSegmentedResult(
           );
         }
       }
-
-      // Write repro bundle
-      _writeReproBundle(
-        failure.reproBundle ??
-            ReproBundle(
-              state: initialState,
-              goal: goal,
-              reason: failure.reason,
-            ),
-      );
   }
 }
 

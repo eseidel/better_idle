@@ -867,7 +867,6 @@ class _SolverContext {
         expandedNodes: expandedNodes,
         enqueuedNodes: enqueuedNodes,
         bestCredits: bestCredits,
-        reproBundle: ReproBundle(state: initial, goal: goal, reason: reason),
       ),
       profile,
     );
@@ -2220,15 +2219,7 @@ SolverResult? _initializeSolver(_SolverContext ctx) {
     );
     final reason = 'Heuristic bestRate=0: $reasonStr';
     return SolverFailed(
-      SolverFailure(
-        reason: reason,
-        enqueuedNodes: ctx.enqueuedNodes,
-        reproBundle: ReproBundle(
-          state: ctx.initial,
-          goal: ctx.goal,
-          reason: reason,
-        ),
-      ),
+      SolverFailure(reason: reason, enqueuedNodes: ctx.enqueuedNodes),
       profile,
     );
   }

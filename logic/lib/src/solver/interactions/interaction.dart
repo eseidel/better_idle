@@ -29,6 +29,26 @@ import 'package:meta/meta.dart';
 /// modeled separately.
 sealed class Interaction extends Equatable {
   const Interaction();
+
+  /// Serializes this [Interaction] to a JSON-compatible map.
+  Map<String, dynamic> toJson();
+
+  /// Deserializes an [Interaction] from a JSON-compatible map.
+  static Interaction fromJson(Map<String, dynamic> json) {
+    final type = json['type'] as String;
+    return switch (type) {
+      'SwitchActivity' => SwitchActivity(
+        ActionId.fromJson(json['actionId'] as String),
+      ),
+      'BuyShopItem' => BuyShopItem(
+        MelvorId.fromJson(json['purchaseId'] as String),
+      ),
+      'SellItems' => SellItems(
+        SellPolicy.fromJson(json['policy'] as Map<String, dynamic>),
+      ),
+      _ => throw ArgumentError('Unknown Interaction type: $type'),
+    };
+  }
 }
 
 /// Switch to a different activity.
@@ -36,6 +56,12 @@ class SwitchActivity extends Interaction {
   const SwitchActivity(this.actionId);
 
   final ActionId actionId;
+
+  @override
+  Map<String, dynamic> toJson() => {
+    'type': 'SwitchActivity',
+    'actionId': actionId.toJson(),
+  };
 
   @override
   List<Object?> get props => [actionId];
@@ -51,6 +77,12 @@ class BuyShopItem extends Interaction {
   final MelvorId purchaseId;
 
   @override
+  Map<String, dynamic> toJson() => {
+    'type': 'BuyShopItem',
+    'purchaseId': purchaseId.toJson(),
+  };
+
+  @override
   List<Object?> get props => [purchaseId];
 
   @override
@@ -64,6 +96,12 @@ class SellItems extends Interaction {
   const SellItems(this.policy);
 
   final SellPolicy policy;
+
+  @override
+  Map<String, dynamic> toJson() => {
+    'type': 'SellItems',
+    'policy': policy.toJson(),
+  };
 
   @override
   List<Object?> get props => [policy];
@@ -82,6 +120,23 @@ class SellItems extends Interaction {
 @immutable
 sealed class SellPolicy extends Equatable {
   const SellPolicy();
+
+  /// Serializes this [SellPolicy] to a JSON-compatible map.
+  Map<String, dynamic> toJson();
+
+  /// Deserializes a [SellPolicy] from a JSON-compatible map.
+  static SellPolicy fromJson(Map<String, dynamic> json) {
+    final type = json['type'] as String;
+    return switch (type) {
+      'SellAllPolicy' => const SellAllPolicy(),
+      'SellExceptPolicy' => SellExceptPolicy(
+        (json['keepItems'] as List<dynamic>)
+            .map((id) => MelvorId.fromJson(id as String))
+            .toSet(),
+      ),
+      _ => throw ArgumentError('Unknown SellPolicy type: $type'),
+    };
+  }
 }
 
 /// Sell all items in inventory.
@@ -89,6 +144,9 @@ sealed class SellPolicy extends Equatable {
 /// This is the default policy for GP-focused goals.
 class SellAllPolicy extends SellPolicy {
   const SellAllPolicy();
+
+  @override
+  Map<String, dynamic> toJson() => {'type': 'SellAllPolicy'};
 
   @override
   List<Object?> get props => [];
@@ -105,6 +163,12 @@ class SellExceptPolicy extends SellPolicy {
 
   /// Item IDs to keep (not sell).
   final Set<MelvorId> keepItems;
+
+  @override
+  Map<String, dynamic> toJson() => {
+    'type': 'SellExceptPolicy',
+    'keepItems': keepItems.map((id) => id.toJson()).toList(),
+  };
 
   @override
   List<Object?> get props => [keepItems];
@@ -134,6 +198,19 @@ sealed class SellPolicySpec extends Equatable {
   ///
   /// The [consumingSkills] determines which skills' inputs to preserve.
   SellPolicy instantiate(GlobalState state, Set<Skill> consumingSkills);
+
+  /// Serializes this [SellPolicySpec] to a JSON-compatible map.
+  Map<String, dynamic> toJson();
+
+  /// Deserializes a [SellPolicySpec] from a JSON-compatible map.
+  static SellPolicySpec fromJson(Map<String, dynamic> json) {
+    final type = json['type'] as String;
+    return switch (type) {
+      'SellAllSpec' => const SellAllSpec(),
+      'ReserveConsumingInputsSpec' => const ReserveConsumingInputsSpec(),
+      _ => throw ArgumentError('Unknown SellPolicySpec type: $type'),
+    };
+  }
 }
 
 /// Sell all items - no reservations.
@@ -146,6 +223,9 @@ class SellAllSpec extends SellPolicySpec {
   SellPolicy instantiate(GlobalState state, Set<Skill> consumingSkills) {
     return const SellAllPolicy();
   }
+
+  @override
+  Map<String, dynamic> toJson() => {'type': 'SellAllSpec'};
 
   @override
   List<Object?> get props => [];
@@ -175,11 +255,18 @@ class ReserveConsumingInputsSpec extends SellPolicySpec {
   }
 
   @override
+  Map<String, dynamic> toJson() => {'type': 'ReserveConsumingInputsSpec'};
+
+  @override
   List<Object?> get props => [];
 
   @override
   String toString() => 'ReserveConsumingInputsSpec()';
 }
+
+// ---------------------------------------------------------------------------
+// Private Helpers
+// ---------------------------------------------------------------------------
 
 /// Computes which items to keep (not sell) for the given consuming skills.
 ///

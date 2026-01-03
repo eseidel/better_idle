@@ -102,6 +102,28 @@ class PlannedChain {
       child._toStringIndented(buffer, '$indent  ');
     }
   }
+
+  /// Serializes this [PlannedChain] to a JSON-compatible map.
+  Map<String, dynamic> toJson() => {
+    'itemId': itemId.toJson(),
+    'quantity': quantity,
+    'actionId': actionId.toJson(),
+    'actionsNeeded': actionsNeeded,
+    'ticksNeeded': ticksNeeded,
+    'children': children.map((c) => c.toJson()).toList(),
+  };
+
+  /// Deserializes a [PlannedChain] from a JSON-compatible map.
+  static PlannedChain fromJson(Map<String, dynamic> json) => PlannedChain(
+    itemId: MelvorId.fromJson(json['itemId'] as String),
+    quantity: json['quantity'] as int,
+    actionId: ActionId.fromJson(json['actionId'] as String),
+    actionsNeeded: json['actionsNeeded'] as int,
+    ticksNeeded: json['ticksNeeded'] as int,
+    children: (json['children'] as List<dynamic>)
+        .map((c) => PlannedChain.fromJson(c as Map<String, dynamic>))
+        .toList(),
+  );
 }
 
 /// Result of attempting to build a production chain.

@@ -101,6 +101,36 @@ sealed class Goal extends Equatable {
   /// The [state] is used to determine which actions are unlocked and what
   /// inputs they require.
   SellPolicy computeSellPolicy(GlobalState state);
+
+  /// Serializes this [Goal] to a JSON-compatible map.
+  Map<String, dynamic> toJson();
+
+  /// Deserializes a [Goal] from a JSON-compatible map.
+  ///
+  /// Note: [SegmentGoal] cannot be fully deserialized because it requires a
+  /// [WatchSet] which contains state-dependent information. If you need to
+  /// restore a SegmentGoal, use the innerGoal and recreate the WatchSet.
+  static Goal fromJson(Map<String, dynamic> json) {
+    final type = json['type'] as String;
+    return switch (type) {
+      'ReachGpGoal' => ReachGpGoal(json['targetGp'] as int),
+      'ReachSkillLevelGoal' => ReachSkillLevelGoal(
+        Skill.fromName(json['skill'] as String),
+        json['targetLevel'] as int,
+      ),
+      'MultiSkillGoal' => MultiSkillGoal(
+        (json['subgoals'] as List<dynamic>)
+            .map((e) => Goal.fromJson(e as Map<String, dynamic>))
+            .cast<ReachSkillLevelGoal>()
+            .toList(),
+      ),
+      'SegmentGoal' => throw ArgumentError(
+        'SegmentGoal cannot be deserialized - use the innerGoal and recreate '
+        'the WatchSet from state',
+      ),
+      _ => throw ArgumentError('Unknown Goal type: $type'),
+    };
+  }
 }
 
 /// Goal to reach a target amount of GP (gold pieces).
@@ -175,6 +205,12 @@ class ReachGpGoal extends Goal {
   }
 
   @override
+  Map<String, dynamic> toJson() => {
+    'type': 'ReachGpGoal',
+    'targetGp': targetGp,
+  };
+
+  @override
   List<Object?> get props => [targetGp];
 }
 
@@ -246,6 +282,13 @@ class ReachSkillLevelGoal extends Goal {
       consumingSkills,
     );
   }
+
+  @override
+  Map<String, dynamic> toJson() => {
+    'type': 'ReachSkillLevelGoal',
+    'skill': skill.name,
+    'targetLevel': targetLevel,
+  };
 
   @override
   List<Object?> get props => [skill, targetLevel];
@@ -352,6 +395,12 @@ class MultiSkillGoal extends Goal {
   }
 
   @override
+  Map<String, dynamic> toJson() => {
+    'type': 'MultiSkillGoal',
+    'subgoals': subgoals.map((g) => g.toJson()).toList(),
+  };
+
+  @override
   List<Object?> get props => [subgoals];
 }
 
@@ -421,6 +470,12 @@ class SegmentGoal extends Goal {
   @override
   SellPolicy computeSellPolicy(GlobalState state) =>
       innerGoal.computeSellPolicy(state);
+
+  @override
+  Map<String, dynamic> toJson() => {
+    'type': 'SegmentGoal',
+    'innerGoal': innerGoal.toJson(),
+  };
 
   @override
   List<Object?> get props => [watchSet];

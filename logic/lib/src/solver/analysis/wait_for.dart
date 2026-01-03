@@ -5,7 +5,7 @@ import 'package:logic/src/data/melvor_id.dart';
 import 'package:logic/src/solver/analysis/estimate_rates.dart';
 import 'package:logic/src/solver/analysis/next_decision_delta.dart'
     show infTicks;
-import 'package:logic/src/solver/core/goal.dart';
+import 'package:logic/src/solver/core/goal.dart' show Goal;
 import 'package:logic/src/solver/execution/plan.dart' show WaitStep;
 import 'package:logic/src/solver/interactions/interaction.dart'
     show SellPolicy, effectiveCredits;
@@ -72,6 +72,64 @@ sealed class WaitFor extends Equatable {
 
   /// Short description for plan (e.g., "Skill +1", "Upgrade affordable").
   String get shortDescription;
+
+  /// Serializes this [WaitFor] to a JSON-compatible map.
+  Map<String, dynamic> toJson();
+
+  /// Deserializes a [WaitFor] from a JSON-compatible map.
+  static WaitFor fromJson(Map<String, dynamic> json) {
+    final type = json['type'] as String;
+    return switch (type) {
+      'WaitForEffectiveCredits' => WaitForEffectiveCredits(
+        json['targetValue'] as int,
+        reason: json['reason'] as String? ?? 'Upgrade',
+        sellPolicy: SellPolicy.fromJson(
+          json['sellPolicy'] as Map<String, dynamic>,
+        ),
+      ),
+      'WaitForSkillXp' => WaitForSkillXp(
+        Skill.fromName(json['skill'] as String),
+        json['targetXp'] as int,
+        reason: json['reason'] as String?,
+      ),
+      'WaitForMasteryXp' => WaitForMasteryXp(
+        ActionId.fromJson(json['actionId'] as String),
+        json['targetMasteryXp'] as int,
+      ),
+      'WaitForInventoryThreshold' => WaitForInventoryThreshold(
+        (json['threshold'] as num).toDouble(),
+      ),
+      'WaitForInventoryFull' => const WaitForInventoryFull(),
+      'WaitForGoal' => WaitForGoal(
+        Goal.fromJson(json['goal'] as Map<String, dynamic>),
+      ),
+      'WaitForInputsDepleted' => WaitForInputsDepleted(
+        ActionId.fromJson(json['actionId'] as String),
+      ),
+      'WaitForInputsAvailable' => WaitForInputsAvailable(
+        ActionId.fromJson(json['actionId'] as String),
+      ),
+      'WaitForInventoryAtLeast' => WaitForInventoryAtLeast(
+        MelvorId.fromJson(json['itemId'] as String),
+        json['minCount'] as int,
+      ),
+      'WaitForInventoryDelta' => WaitForInventoryDelta(
+        MelvorId.fromJson(json['itemId'] as String),
+        json['delta'] as int,
+        startCount: json['startCount'] as int,
+      ),
+      'WaitForSufficientInputs' => WaitForSufficientInputs(
+        ActionId.fromJson(json['actionId'] as String),
+        json['targetCount'] as int,
+      ),
+      'WaitForAnyOf' => WaitForAnyOf(
+        (json['conditions'] as List<dynamic>)
+            .map((c) => WaitFor.fromJson(c as Map<String, dynamic>))
+            .toList(),
+      ),
+      _ => throw ArgumentError('Unknown WaitFor type: $type'),
+    };
+  }
 }
 
 /// Wait until effective credits (GP + sellable inventory) reaches a target.
@@ -167,6 +225,14 @@ class WaitForEffectiveCredits extends WaitFor {
   String get shortDescription => '$reason affordable';
 
   @override
+  Map<String, dynamic> toJson() => {
+    'type': 'WaitForEffectiveCredits',
+    'targetValue': targetValue,
+    'reason': reason,
+    'sellPolicy': sellPolicy.toJson(),
+  };
+
+  @override
   List<Object?> get props => [targetValue, sellPolicy];
 }
 
@@ -207,6 +273,14 @@ class WaitForSkillXp extends WaitFor {
 
   @override
   String get shortDescription => reason ?? 'Skill +1';
+
+  @override
+  Map<String, dynamic> toJson() => {
+    'type': 'WaitForSkillXp',
+    'skill': skill.name,
+    'targetXp': targetXp,
+    'reason': reason,
+  };
 
   @override
   List<Object?> get props => [skill, targetXp];
@@ -251,6 +325,13 @@ class WaitForMasteryXp extends WaitFor {
   String get shortDescription => 'Mastery +1';
 
   @override
+  Map<String, dynamic> toJson() => {
+    'type': 'WaitForMasteryXp',
+    'actionId': actionId.toJson(),
+    'targetMasteryXp': targetMasteryXp,
+  };
+
+  @override
   List<Object?> get props => [actionId, targetMasteryXp];
 }
 
@@ -292,6 +373,12 @@ class WaitForInventoryThreshold extends WaitFor {
   String get shortDescription => 'Inventory threshold';
 
   @override
+  Map<String, dynamic> toJson() => {
+    'type': 'WaitForInventoryThreshold',
+    'threshold': threshold,
+  };
+
+  @override
   List<Object?> get props => [threshold];
 }
 
@@ -326,6 +413,9 @@ class WaitForInventoryFull extends WaitFor {
   String get shortDescription => 'Inventory full';
 
   @override
+  Map<String, dynamic> toJson() => {'type': 'WaitForInventoryFull'};
+
+  @override
   List<Object?> get props => [];
 }
 
@@ -358,6 +448,12 @@ class WaitForGoal extends WaitFor {
 
   @override
   String get shortDescription => 'Goal reached';
+
+  @override
+  Map<String, dynamic> toJson() => {
+    'type': 'WaitForGoal',
+    'goal': goal.toJson(),
+  };
 
   @override
   List<Object?> get props => [goal];
@@ -422,6 +518,12 @@ class WaitForInputsDepleted extends WaitFor {
   String get shortDescription => 'Inputs depleted';
 
   @override
+  Map<String, dynamic> toJson() => {
+    'type': 'WaitForInputsDepleted',
+    'actionId': actionId.toJson(),
+  };
+
+  @override
   List<Object?> get props => [actionId];
 }
 
@@ -462,6 +564,12 @@ class WaitForInputsAvailable extends WaitFor {
 
   @override
   String get shortDescription => 'Inputs available';
+
+  @override
+  Map<String, dynamic> toJson() => {
+    'type': 'WaitForInputsAvailable',
+    'actionId': actionId.toJson(),
+  };
 
   @override
   List<Object?> get props => [actionId];
@@ -547,6 +655,13 @@ class WaitForInventoryAtLeast extends WaitFor {
 
   @override
   String get shortDescription => 'Inventory at least $minCount';
+
+  @override
+  Map<String, dynamic> toJson() => {
+    'type': 'WaitForInventoryAtLeast',
+    'itemId': itemId.toJson(),
+    'minCount': minCount,
+  };
 
   @override
   List<Object?> get props => [itemId, minCount];
@@ -659,6 +774,14 @@ class WaitForInventoryDelta extends WaitFor {
 
   @override
   String get shortDescription => 'Acquire +$delta';
+
+  @override
+  Map<String, dynamic> toJson() => {
+    'type': 'WaitForInventoryDelta',
+    'itemId': itemId.toJson(),
+    'delta': delta,
+    'startCount': startCount,
+  };
 
   @override
   List<Object?> get props => [itemId, delta, startCount];
@@ -788,6 +911,13 @@ class WaitForSufficientInputs extends WaitFor {
   String get shortDescription => 'Sufficient inputs';
 
   @override
+  Map<String, dynamic> toJson() => {
+    'type': 'WaitForSufficientInputs',
+    'actionId': actionId.toJson(),
+    'targetCount': targetCount,
+  };
+
+  @override
   List<Object?> get props => [actionId, targetCount];
 }
 
@@ -844,6 +974,12 @@ class WaitForAnyOf extends WaitFor {
         ? conditions.first.shortDescription
         : 'Any condition';
   }
+
+  @override
+  Map<String, dynamic> toJson() => {
+    'type': 'WaitForAnyOf',
+    'conditions': conditions.map((c) => c.toJson()).toList(),
+  };
 
   @override
   List<Object?> get props => [conditions];

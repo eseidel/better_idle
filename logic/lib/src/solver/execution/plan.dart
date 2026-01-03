@@ -18,28 +18,16 @@
 /// dead, restart" loops) into macro steps for UI display.
 library;
 
-import 'dart:convert';
-
 import 'package:equatable/equatable.dart';
 import 'package:logic/src/data/action_id.dart';
 import 'package:logic/src/data/actions.dart';
 import 'package:logic/src/data/melvor_id.dart';
-import 'package:logic/src/data/registries.dart';
 import 'package:logic/src/solver/analysis/replan_boundary.dart';
-import 'package:logic/src/solver/analysis/wait_for.dart';
+import 'package:logic/src/solver/analysis/wait_for.dart' show WaitFor;
 import 'package:logic/src/solver/analysis/watch_set.dart' show SegmentContext;
 import 'package:logic/src/solver/candidates/macro_candidate.dart';
-import 'package:logic/src/solver/core/goal.dart';
 import 'package:logic/src/solver/core/solver_profile.dart';
-import 'package:logic/src/solver/interactions/interaction.dart'
-    show
-        BuyShopItem,
-        Interaction,
-        SellAllPolicy,
-        SellExceptPolicy,
-        SellItems,
-        SellPolicy,
-        SwitchActivity;
+import 'package:logic/src/solver/interactions/interaction.dart';
 import 'package:logic/src/state.dart';
 import 'package:logic/src/tick.dart';
 import 'package:meta/meta.dart';
@@ -51,6 +39,32 @@ import 'package:meta/meta.dart';
 /// A single step in a plan.
 sealed class PlanStep extends Equatable {
   const PlanStep();
+
+  /// Serializes this [PlanStep] to a JSON-compatible map.
+  Map<String, dynamic> toJson();
+
+  /// Deserializes a [PlanStep] from a JSON-compatible map.
+  static PlanStep fromJson(Map<String, dynamic> json) {
+    final type = json['type'] as String;
+    return switch (type) {
+      'InteractionStep' => InteractionStep(
+        Interaction.fromJson(json['interaction'] as Map<String, dynamic>),
+      ),
+      'WaitStep' => WaitStep(
+        json['deltaTicks'] as int,
+        WaitFor.fromJson(json['waitFor'] as Map<String, dynamic>),
+        expectedAction: json['expectedAction'] != null
+            ? ActionId.fromJson(json['expectedAction'] as String)
+            : null,
+      ),
+      'MacroStep' => MacroStep(
+        MacroCandidate.fromJson(json['macro'] as Map<String, dynamic>),
+        json['deltaTicks'] as int,
+        WaitFor.fromJson(json['waitFor'] as Map<String, dynamic>),
+      ),
+      _ => throw ArgumentError('Unknown PlanStep type: $type'),
+    };
+  }
 }
 
 /// A step that performs an interaction (switch activity, buy upgrade, sell).
@@ -59,6 +73,12 @@ class InteractionStep extends PlanStep {
   const InteractionStep(this.interaction);
 
   final Interaction interaction;
+
+  @override
+  Map<String, dynamic> toJson() => {
+    'type': 'InteractionStep',
+    'interaction': interaction.toJson(),
+  };
 
   @override
   List<Object?> get props => [interaction];
@@ -94,6 +114,14 @@ class WaitStep extends PlanStep {
   final ActionId? expectedAction;
 
   @override
+  Map<String, dynamic> toJson() => {
+    'type': 'WaitStep',
+    'deltaTicks': deltaTicks,
+    'waitFor': waitFor.toJson(),
+    if (expectedAction != null) 'expectedAction': expectedAction!.toJson(),
+  };
+
+  @override
   List<Object?> get props => [deltaTicks, waitFor, expectedAction];
 
   @override
@@ -117,6 +145,14 @@ class MacroStep extends PlanStep {
 
   /// Composite wait condition (AnyOf the macro's stop conditions).
   final WaitFor waitFor;
+
+  @override
+  Map<String, dynamic> toJson() => {
+    'type': 'MacroStep',
+    'macro': macro.toJson(),
+    'deltaTicks': deltaTicks,
+    'waitFor': waitFor.toJson(),
+  };
 
   @override
   List<Object?> get props => [macro, deltaTicks, waitFor];
@@ -145,6 +181,35 @@ sealed class SegmentBoundary {
 
   /// Human-readable description of this boundary.
   String describe();
+
+  /// Serializes this [SegmentBoundary] to a JSON-compatible map.
+  Map<String, dynamic> toJson();
+
+  /// Deserializes a [SegmentBoundary] from a JSON-compatible map.
+  static SegmentBoundary fromJson(Map<String, dynamic> json) {
+    final type = json['type'] as String;
+    return switch (type) {
+      'GoalReachedBoundary' => const GoalReachedBoundary(),
+      'UpgradeAffordableBoundary' => UpgradeAffordableBoundary(
+        MelvorId.fromJson(json['purchaseId'] as String),
+        json['upgradeName'] as String,
+      ),
+      'UnlockBoundary' => UnlockBoundary(
+        Skill.fromName(json['skill'] as String),
+        json['level'] as int,
+        json['unlocks'] as String,
+      ),
+      'InputsDepletedBoundary' => InputsDepletedBoundary(
+        ActionId.fromJson(json['actionId'] as String),
+      ),
+      'HorizonCapBoundary' => HorizonCapBoundary(json['ticksElapsed'] as int),
+      'InventoryPressureBoundary' => InventoryPressureBoundary(
+        json['usedSlots'] as int,
+        json['totalSlots'] as int,
+      ),
+      _ => throw ArgumentError('Unknown SegmentBoundary type: $type'),
+    };
+  }
 }
 
 /// Goal was reached - plan succeeded.
@@ -154,6 +219,9 @@ class GoalReachedBoundary extends SegmentBoundary {
 
   @override
   String describe() => 'Goal reached';
+
+  @override
+  Map<String, dynamic> toJson() => {'type': 'GoalReachedBoundary'};
 }
 
 /// An upgrade became affordable.
@@ -169,6 +237,13 @@ class UpgradeAffordableBoundary extends SegmentBoundary {
 
   @override
   String describe() => 'Upgrade $upgradeName affordable';
+
+  @override
+  Map<String, dynamic> toJson() => {
+    'type': 'UpgradeAffordableBoundary',
+    'purchaseId': purchaseId.toJson(),
+    'upgradeName': upgradeName,
+  };
 }
 
 /// A skill level crossed an unlock boundary.
@@ -187,6 +262,14 @@ class UnlockBoundary extends SegmentBoundary {
 
   @override
   String describe() => '${skill.name} L$level unlocks $unlocks';
+
+  @override
+  Map<String, dynamic> toJson() => {
+    'type': 'UnlockBoundary',
+    'skill': skill.name,
+    'level': level,
+    'unlocks': unlocks,
+  };
 }
 
 /// Inputs were depleted for a consuming action.
@@ -199,6 +282,12 @@ class InputsDepletedBoundary extends SegmentBoundary {
 
   @override
   String describe() => 'Inputs depleted for ${actionId.localId.name}';
+
+  @override
+  Map<String, dynamic> toJson() => {
+    'type': 'InputsDepletedBoundary',
+    'actionId': actionId.toJson(),
+  };
 }
 
 /// Segment reached the maximum tick horizon.
@@ -211,6 +300,12 @@ class HorizonCapBoundary extends SegmentBoundary {
 
   @override
   String describe() => 'Horizon cap reached ($ticksElapsed ticks)';
+
+  @override
+  Map<String, dynamic> toJson() => {
+    'type': 'HorizonCapBoundary',
+    'ticksElapsed': ticksElapsed,
+  };
 }
 
 /// Inventory usage exceeded the pressure threshold.
@@ -226,6 +321,13 @@ class InventoryPressureBoundary extends SegmentBoundary {
 
   @override
   String describe() => 'Inventory pressure ($usedSlots/$totalSlots slots)';
+
+  @override
+  Map<String, dynamic> toJson() => {
+    'type': 'InventoryPressureBoundary',
+    'usedSlots': usedSlots,
+    'totalSlots': totalSlots,
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -302,6 +404,30 @@ class SegmentMarker {
 
   /// Optional human-readable description.
   final String? description;
+
+  /// Serializes this [SegmentMarker] to a JSON-compatible map.
+  Map<String, dynamic> toJson() {
+    return {
+      'stepIndex': stepIndex,
+      'boundary': boundary.toJson(),
+      if (sellPolicy != null) 'sellPolicy': sellPolicy!.toJson(),
+      if (description != null) 'description': description,
+    };
+  }
+
+  /// Deserializes a [SegmentMarker] from a JSON-compatible map.
+  static SegmentMarker fromJson(Map<String, dynamic> json) {
+    return SegmentMarker(
+      stepIndex: json['stepIndex'] as int,
+      boundary: SegmentBoundary.fromJson(
+        json['boundary'] as Map<String, dynamic>,
+      ),
+      sellPolicy: json['sellPolicy'] != null
+          ? SellPolicy.fromJson(json['sellPolicy'] as Map<String, dynamic>)
+          : null,
+      description: json['description'] as String?,
+    );
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -666,6 +792,38 @@ class Plan {
     }
     return count;
   }
+
+  /// Serializes this [Plan] to a JSON-compatible map.
+  Map<String, dynamic> toJson() {
+    return {
+      'steps': steps.map((s) => s.toJson()).toList(),
+      'totalTicks': totalTicks,
+      'interactionCount': interactionCount,
+      'expandedNodes': expandedNodes,
+      'enqueuedNodes': enqueuedNodes,
+      'expectedDeaths': expectedDeaths,
+      'segmentMarkers': segmentMarkers.map((m) => m.toJson()).toList(),
+    };
+  }
+
+  /// Deserializes a [Plan] from a JSON-compatible map.
+  static Plan fromJson(Map<String, dynamic> json) {
+    return Plan(
+      steps: (json['steps'] as List<dynamic>)
+          .map((s) => PlanStep.fromJson(s as Map<String, dynamic>))
+          .toList(),
+      totalTicks: json['totalTicks'] as int,
+      interactionCount: json['interactionCount'] as int,
+      expandedNodes: json['expandedNodes'] as int,
+      enqueuedNodes: json['enqueuedNodes'] as int,
+      expectedDeaths: json['expectedDeaths'] as int? ?? 0,
+      segmentMarkers:
+          (json['segmentMarkers'] as List<dynamic>?)
+              ?.map((m) => SegmentMarker.fromJson(m as Map<String, dynamic>))
+              .toList() ??
+          [],
+    );
+  }
 }
 
 /// A group of consecutive similar steps for compact display.
@@ -814,186 +972,6 @@ class _StepGroup {
   }
 }
 
-// ---------------------------------------------------------------------------
-// Repro Bundle for debugging failures
-// ---------------------------------------------------------------------------
-
-/// A bundle of state and goal for reproducing solver failures.
-///
-/// When the solver fails or hits an unexpected boundary, this bundle captures
-/// enough information to reproduce the issue for debugging.
-@immutable
-class ReproBundle {
-  const ReproBundle({
-    required this.state,
-    required this.goal,
-    this.reason,
-    this.boundary,
-    this.plan,
-    this.stepIndex,
-  });
-
-  /// Creates a ReproBundle from a JSON map.
-  ///
-  /// Requires [registries] to deserialize the GlobalState.
-  /// Note: [boundary] and [plan] are not deserialized (they are stored
-  /// as human-readable strings for debugging, not for reconstruction).
-  factory ReproBundle.fromJson(
-    Map<String, dynamic> json,
-    Registries registries,
-  ) {
-    return ReproBundle(
-      state: GlobalState.fromJson(
-        registries,
-        json['state'] as Map<String, dynamic>,
-      ),
-      goal: _goalFromJson(json['goal'] as Map<String, dynamic>),
-      reason: json['reason'] as String?,
-      // boundary and plan are not deserialized - they're debug info only
-    );
-  }
-
-  /// Creates a ReproBundle from a JSON string.
-  factory ReproBundle.fromJsonString(String jsonString, Registries registries) {
-    final json = jsonDecode(jsonString) as Map<String, dynamic>;
-    return ReproBundle.fromJson(json, registries);
-  }
-
-  /// The game state at the point of failure/boundary.
-  final GlobalState state;
-
-  /// The goal the solver was trying to achieve.
-  final Goal goal;
-
-  /// Human-readable reason for the failure (if from solver failure).
-  final String? reason;
-
-  /// The boundary that was hit (if from unexpected boundary).
-  final ReplanBoundary? boundary;
-
-  /// The plan being executed (if from execution failure).
-  final Plan? plan;
-
-  /// The step index where the boundary was hit (if from execution failure).
-  final int? stepIndex;
-
-  /// Converts the bundle to a JSON-serializable map.
-  Map<String, dynamic> toJson() => {
-    'state': state.toJson(),
-    'goal': _goalToJson(goal),
-    if (reason != null) 'reason': reason,
-    if (boundary != null) 'boundary': boundary!.describe(),
-    if (plan != null) 'plan': _planToJson(plan!),
-    if (stepIndex != null) 'stepIndex': stepIndex,
-  };
-
-  /// Converts the bundle to a JSON string.
-  String toJsonString({bool pretty = false}) {
-    final encoder = pretty
-        ? const JsonEncoder.withIndent('  ')
-        : const JsonEncoder();
-    return encoder.convert(toJson());
-  }
-
-  static Goal _goalFromJson(Map<String, dynamic> json) {
-    final type = json['type'] as String;
-    return switch (type) {
-      'ReachGpGoal' => ReachGpGoal(json['targetGp'] as int),
-      'ReachSkillLevelGoal' => ReachSkillLevelGoal(
-        Skill.fromName(json['skill'] as String),
-        json['targetLevel'] as int,
-      ),
-      'MultiSkillGoal' => MultiSkillGoal(
-        (json['subgoals'] as List<dynamic>)
-            .map((e) => _goalFromJson(e as Map<String, dynamic>))
-            .cast<ReachSkillLevelGoal>()
-            .toList(),
-      ),
-      'SegmentGoal' => throw ArgumentError(
-        'SegmentGoal cannot be deserialized directly',
-      ),
-      _ => throw ArgumentError('Unknown goal type: $type'),
-    };
-  }
-
-  static Map<String, dynamic> _goalToJson(Goal goal) {
-    return switch (goal) {
-      ReachGpGoal(:final targetGp) => {
-        'type': 'ReachGpGoal',
-        'targetGp': targetGp,
-      },
-      ReachSkillLevelGoal(:final skill, :final targetLevel) => {
-        'type': 'ReachSkillLevelGoal',
-        'skill': skill.name,
-        'targetLevel': targetLevel,
-      },
-      MultiSkillGoal(:final subgoals) => {
-        'type': 'MultiSkillGoal',
-        'subgoals': subgoals.map(_goalToJson).toList(),
-      },
-      SegmentGoal(:final innerGoal) => {
-        'type': 'SegmentGoal',
-        'innerGoal': _goalToJson(innerGoal),
-      },
-    };
-  }
-
-  static Map<String, dynamic> _planToJson(Plan plan) {
-    return {
-      'totalTicks': plan.totalTicks,
-      'stepCount': plan.steps.length,
-      'steps': plan.steps.map(_stepToJson).toList(),
-    };
-  }
-
-  static Map<String, dynamic> _stepToJson(PlanStep step) {
-    return switch (step) {
-      InteractionStep(:final interaction) => {
-        'type': 'InteractionStep',
-        'interaction': interaction.toString(),
-      },
-      WaitStep(:final deltaTicks, :final waitFor, :final expectedAction) => {
-        'type': 'WaitStep',
-        'deltaTicks': deltaTicks,
-        'waitFor': waitFor.describe(),
-        if (expectedAction != null) 'expectedAction': expectedAction.toString(),
-      },
-      MacroStep(:final macro, :final deltaTicks, :final waitFor) => {
-        'type': 'MacroStep',
-        'macro': _macroToJson(macro),
-        'deltaTicks': deltaTicks,
-        'waitFor': waitFor.describe(),
-      },
-    };
-  }
-
-  static Map<String, dynamic> _macroToJson(MacroCandidate macro) {
-    return switch (macro) {
-      TrainSkillUntil(:final skill, :final primaryStop, :final actionId) => {
-        'type': 'TrainSkillUntil',
-        'skill': skill.name,
-        'primaryStop': primaryStop.toString(),
-        if (actionId != null) 'actionId': actionId.toString(),
-      },
-      TrainConsumingSkillUntil(:final consumingSkill, :final primaryStop) => {
-        'type': 'TrainConsumingSkillUntil',
-        'consumingSkill': consumingSkill.name,
-        'primaryStop': primaryStop.toString(),
-      },
-      AcquireItem(:final itemId, :final quantity) => {
-        'type': 'AcquireItem',
-        'itemId': itemId.toString(),
-        'quantity': quantity,
-      },
-      EnsureStock(:final itemId, :final minTotal) => {
-        'type': 'EnsureStock',
-        'itemId': itemId.toString(),
-        'minTotal': minTotal,
-      },
-    };
-  }
-}
-
 /// Failure result when the solver cannot find a solution.
 @immutable
 class SolverFailure {
@@ -1002,7 +980,6 @@ class SolverFailure {
     this.expandedNodes = 0,
     this.enqueuedNodes = 0,
     this.bestCredits,
-    this.reproBundle,
   });
 
   /// Human-readable reason for failure.
@@ -1016,9 +993,6 @@ class SolverFailure {
 
   /// Best credits achieved during search (if any).
   final int? bestCredits;
-
-  /// Optional repro bundle for debugging.
-  final ReproBundle? reproBundle;
 
   @override
   String toString() =>
@@ -1100,23 +1074,4 @@ class PlanExecutionResult {
   /// Returns only expected boundaries (normal flow).
   List<ReplanBoundary> get expectedBoundaries =>
       boundariesHit.where((b) => b.isExpected).toList();
-
-  /// Creates a repro bundle for debugging unexpected boundaries.
-  ///
-  /// Returns null if there are no unexpected boundaries.
-  /// The [goal] and [plan] parameters are needed since they're not stored
-  /// in the execution result.
-  ReproBundle? createReproBundleForUnexpected({
-    required Goal goal,
-    required Plan plan,
-  }) {
-    if (!hasUnexpectedBoundaries) return null;
-    final firstUnexpected = unexpectedBoundaries.first;
-    return ReproBundle(
-      state: finalState,
-      goal: goal,
-      boundary: firstUnexpected,
-      plan: plan,
-    );
-  }
 }

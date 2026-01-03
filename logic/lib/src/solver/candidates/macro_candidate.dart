@@ -142,6 +142,74 @@ sealed class MacroCandidate {
   /// Returns [MacroExpanded] on success, [MacroAlreadySatisfied] if no work
   /// needed, or [MacroCannotExpand] with a reason if expansion is impossible.
   MacroExpansionOutcome expand(MacroExpansionContext context);
+
+  /// Serializes this [MacroCandidate] to a JSON-compatible map.
+  Map<String, dynamic> toJson();
+
+  /// Deserializes a [MacroCandidate] from a JSON-compatible map.
+  static MacroCandidate fromJson(Map<String, dynamic> json) {
+    final type = json['type'] as String;
+    return switch (type) {
+      'TrainSkillUntil' => TrainSkillUntil(
+        Skill.fromName(json['skill'] as String),
+        MacroStopRule.fromJson(json['primaryStop'] as Map<String, dynamic>),
+        watchedStops: (json['watchedStops'] as List<dynamic>)
+            .map((s) => MacroStopRule.fromJson(s as Map<String, dynamic>))
+            .toList(),
+        actionId: json['actionId'] != null
+            ? ActionId.fromJson(json['actionId'] as String)
+            : null,
+      ),
+      'AcquireItem' => AcquireItem(
+        MelvorId.fromJson(json['itemId'] as String),
+        json['quantity'] as int,
+      ),
+      'EnsureStock' => EnsureStock(
+        MelvorId.fromJson(json['itemId'] as String),
+        json['minTotal'] as int,
+      ),
+      'TrainConsumingSkillUntil' => TrainConsumingSkillUntil(
+        Skill.fromName(json['consumingSkill'] as String),
+        MacroStopRule.fromJson(json['primaryStop'] as Map<String, dynamic>),
+        watchedStops: (json['watchedStops'] as List<dynamic>)
+            .map((s) => MacroStopRule.fromJson(s as Map<String, dynamic>))
+            .toList(),
+        actionId: json['actionId'] != null
+            ? ActionId.fromJson(json['actionId'] as String)
+            : null,
+        consumeActionId: json['consumeActionId'] != null
+            ? ActionId.fromJson(json['consumeActionId'] as String)
+            : null,
+        producerByInputItem: json['producerByInputItem'] != null
+            ? {
+                for (final entry
+                    in (json['producerByInputItem'] as Map<String, dynamic>)
+                        .entries)
+                  MelvorId.fromJson(entry.key): ActionId.fromJson(
+                    entry.value as String,
+                  ),
+              }
+            : null,
+        bufferTarget: json['bufferTarget'] as int?,
+        sellPolicySpec: json['sellPolicySpec'] != null
+            ? SellPolicySpec.fromJson(
+                json['sellPolicySpec'] as Map<String, dynamic>,
+              )
+            : null,
+        maxRecoveryAttempts: json['maxRecoveryAttempts'] as int? ?? 3,
+        inputChains: json['inputChains'] != null
+            ? {
+                for (final entry
+                    in (json['inputChains'] as Map<String, dynamic>).entries)
+                  MelvorId.fromJson(entry.key): PlannedChain.fromJson(
+                    entry.value as Map<String, dynamic>,
+                  ),
+              }
+            : null,
+      ),
+      _ => throw ArgumentError('Unknown MacroCandidate type: $type'),
+    };
+  }
 }
 
 /// Train a skill by doing its best action until ANY stop condition triggers.
@@ -256,6 +324,15 @@ class TrainSkillUntil extends MacroCandidate {
       macro: enrichedMacro,
     ));
   }
+
+  @override
+  Map<String, dynamic> toJson() => {
+    'type': 'TrainSkillUntil',
+    'skill': skill.name,
+    'primaryStop': primaryStop.toJson(),
+    'watchedStops': watchedStops.map((s) => s.toJson()).toList(),
+    if (actionId != null) 'actionId': actionId!.toJson(),
+  };
 }
 
 /// Acquire items by producing them (and their prerequisites).
@@ -377,6 +454,13 @@ class AcquireItem extends MacroCandidate {
       macro: this,
     ));
   }
+
+  @override
+  Map<String, dynamic> toJson() => {
+    'type': 'AcquireItem',
+    'itemId': itemId.toJson(),
+    'quantity': quantity,
+  };
 }
 
 /// Ensure inventory has at least [minTotal] of an item (absolute semantics).
@@ -555,6 +639,13 @@ class EnsureStock extends MacroCandidate {
       macro: this,
     ));
   }
+
+  @override
+  Map<String, dynamic> toJson() => {
+    'type': 'EnsureStock',
+    'itemId': itemId.toJson(),
+    'minTotal': minTotal,
+  };
 }
 
 /// Train a consuming skill via coupled produce/consume loops.
@@ -1087,6 +1178,29 @@ class TrainConsumingSkillUntil extends MacroCandidate {
       macro: enrichedMacro,
     ));
   }
+
+  @override
+  Map<String, dynamic> toJson() => {
+    'type': 'TrainConsumingSkillUntil',
+    'consumingSkill': consumingSkill.name,
+    'primaryStop': primaryStop.toJson(),
+    'watchedStops': watchedStops.map((s) => s.toJson()).toList(),
+    if (actionId != null) 'actionId': actionId!.toJson(),
+    if (consumeActionId != null) 'consumeActionId': consumeActionId!.toJson(),
+    if (producerByInputItem != null)
+      'producerByInputItem': {
+        for (final entry in producerByInputItem!.entries)
+          entry.key.toJson(): entry.value.toJson(),
+      },
+    if (bufferTarget != null) 'bufferTarget': bufferTarget,
+    if (sellPolicySpec != null) 'sellPolicySpec': sellPolicySpec!.toJson(),
+    'maxRecoveryAttempts': maxRecoveryAttempts,
+    if (inputChains != null)
+      'inputChains': {
+        for (final entry in inputChains!.entries)
+          entry.key.toJson(): entry.value.toJson(),
+      },
+  };
 }
 
 /// Stop conditions for macro training.
@@ -1097,6 +1211,34 @@ sealed class MacroStopRule {
 
   /// Convert this stop rule to a WaitFor for plan execution.
   WaitFor toWaitFor(GlobalState state, Map<Skill, SkillBoundaries> boundaries);
+
+  /// Serializes this [MacroStopRule] to a JSON-compatible map.
+  Map<String, dynamic> toJson();
+
+  /// Deserializes a [MacroStopRule] from a JSON-compatible map.
+  static MacroStopRule fromJson(Map<String, dynamic> json) {
+    final type = json['type'] as String;
+    return switch (type) {
+      'StopAtNextBoundary' => StopAtNextBoundary(
+        Skill.fromName(json['skill'] as String),
+      ),
+      'StopAtGoal' => StopAtGoal(
+        Skill.fromName(json['skill'] as String),
+        json['targetXp'] as int,
+      ),
+      'StopAtLevel' => StopAtLevel(
+        Skill.fromName(json['skill'] as String),
+        json['level'] as int,
+      ),
+      'StopWhenUpgradeAffordable' => StopWhenUpgradeAffordable(
+        MelvorId.fromJson(json['purchaseId'] as String),
+        json['cost'] as int,
+        json['upgradeName'] as String,
+      ),
+      'StopWhenInputsDepleted' => const StopWhenInputsDepleted(),
+      _ => throw ArgumentError('Unknown MacroStopRule type: $type'),
+    };
+  }
 }
 
 /// Stop at the next unlock boundary for this skill.
@@ -1116,6 +1258,12 @@ class StopAtNextBoundary extends MacroStopRule {
 
     return WaitForSkillXp(skill, targetXp, reason: 'Boundary L$targetLevel');
   }
+
+  @override
+  Map<String, dynamic> toJson() => {
+    'type': 'StopAtNextBoundary',
+    'skill': skill.name,
+  };
 }
 
 /// Stop when skill reaches goal level.
@@ -1129,6 +1277,13 @@ class StopAtGoal extends MacroStopRule {
   WaitFor toWaitFor(GlobalState state, Map<Skill, SkillBoundaries> boundaries) {
     return WaitForSkillXp(skill, targetXp, reason: 'Goal reached');
   }
+
+  @override
+  Map<String, dynamic> toJson() => {
+    'type': 'StopAtGoal',
+    'skill': skill.name,
+    'targetXp': targetXp,
+  };
 }
 
 /// Stop when skill reaches a specific level.
@@ -1149,6 +1304,13 @@ class StopAtLevel extends MacroStopRule {
       reason: 'Unlock L$level',
     );
   }
+
+  @override
+  Map<String, dynamic> toJson() => {
+    'type': 'StopAtLevel',
+    'skill': skill.name,
+    'level': level,
+  };
 }
 
 /// Stop when upgrade becomes affordable.
@@ -1172,6 +1334,14 @@ class StopWhenUpgradeAffordable extends MacroStopRule {
       reason: upgradeName,
     );
   }
+
+  @override
+  Map<String, dynamic> toJson() => {
+    'type': 'StopWhenUpgradeAffordable',
+    'purchaseId': purchaseId.toJson(),
+    'cost': cost,
+    'upgradeName': upgradeName,
+  };
 }
 
 /// Stop when inputs are depleted (for consuming actions like Firemaking).
@@ -1196,6 +1366,9 @@ class StopWhenInputsDepleted extends MacroStopRule {
     }
     return WaitForInputsDepleted(activeActionId);
   }
+
+  @override
+  Map<String, dynamic> toJson() => {'type': 'StopWhenInputsDepleted'};
 }
 
 // ---------------------------------------------------------------------------
