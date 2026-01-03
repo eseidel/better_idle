@@ -1202,7 +1202,8 @@ void main() {
       }
       final plan = Plan(steps: steps, totalTicks: 0, interactionCount: 10);
 
-      // With firstSteps=25 + lastSteps=10 + threshold=5 = 40, 10 steps should all show
+      // With firstSteps=25 + lastSteps=10 + threshold=5 = 40
+      // 10 steps should all show
       final output = plan.prettyPrintCompact();
 
       // Should not have ellipsis

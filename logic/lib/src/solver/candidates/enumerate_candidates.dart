@@ -28,6 +28,7 @@ library;
 import 'package:logic/src/data/action_id.dart';
 import 'package:logic/src/data/actions.dart';
 import 'package:logic/src/data/melvor_id.dart';
+import 'package:logic/src/data/registries.dart';
 import 'package:logic/src/data/xp.dart';
 import 'package:logic/src/solver/analysis/unlock_boundaries.dart';
 import 'package:logic/src/solver/candidates/macro_candidate.dart';
@@ -84,6 +85,16 @@ class ActionSummary {
   /// Items needed but not available in inventory.
   /// Maps item ID to quantity still needed.
   final Map<MelvorId, int> missingInputs;
+
+  /// Returns output per tick for a specific item.
+  ///
+  /// Requires registries to look up the action's outputs.
+  double outputPerTickForItem(Registries registries, MelvorId itemId) {
+    final action = registries.actions.byId(actionId);
+    if (action is! SkillAction) return 0;
+    final outputQty = action.outputs[itemId] ?? 0;
+    return expectedTicks > 0 ? outputQty / expectedTicks : 0;
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -1045,6 +1056,125 @@ class _ConsumingSkillResult {
   final ConsumingSkillCandidateStats? stats;
 }
 
+/// Builds stats for consuming skill candidate selection.
+ConsumingSkillCandidateStats _buildConsumingSkillStats({
+  required List<ActionSummary> consumerActions,
+  required int producerActionsConsidered,
+  required int pairsConsidered,
+  required List<_ConsumerEntry> selectedConsumers,
+}) {
+  final topPairs = selectedConsumers
+      .map(
+        (e) => (
+          consumerId: e.consumer.actionId.localId.name,
+          producerId: e.producer?.actionId.localId.name ?? 'none',
+          score: e.sustainableXpPerTick,
+        ),
+      )
+      .toList();
+
+  return ConsumingSkillCandidateStats(
+    consumerActionsConsidered: consumerActions.length,
+    producerActionsConsidered: producerActionsConsidered,
+    pairsConsidered: pairsConsidered,
+    pairsKept: selectedConsumers.length,
+    topPairs: topPairs,
+  );
+}
+
+/// Computes sustainable XP/tick for a consumer action paired with a producer.
+///
+/// Accounts for the time spent producing inputs, not just consuming them.
+/// Returns the XP rate achievable when alternating between producing and
+/// consuming.
+double _sustainableXpPerTick({
+  required ActionSummary consumer,
+  required ActionSummary producer,
+  required SkillAction consumerAction,
+  required SkillAction producerAction,
+  required MelvorId inputItem,
+}) {
+  final inputsNeeded = consumerAction.inputs[inputItem] ?? 1;
+  final outputsProduced = producerAction.outputs[inputItem] ?? 1;
+  final produceActionsPerConsume = inputsNeeded / outputsProduced;
+
+  final totalTicksPerCycle =
+      (produceActionsPerConsume * producer.expectedTicks) +
+      consumer.expectedTicks;
+
+  return consumerAction.xp / totalTicksPerCycle;
+}
+
+/// Consumer entry with computed sustainable XP rate.
+typedef _ConsumerEntry = ({
+  ActionSummary consumer,
+  double sustainableXpPerTick,
+  ActionSummary? producer,
+});
+
+/// Context for sorting consumer actions by sustainable XP/tick.
+class _ConsumerSortContext {
+  _ConsumerSortContext({
+    required this.registries,
+    required this.currentActionId,
+    required this.inventoryPressure,
+  });
+
+  final Registries registries;
+  final ActionId? currentActionId;
+  final double inventoryPressure;
+
+  /// Stickiness threshold: require new action to be >10% better to switch.
+  static const double _stickinessThreshold = 0.10;
+
+  /// Threshold above which inventory pressure triggers logistics penalties.
+  static const double _inventoryPressureThreshold = 0.6;
+
+  /// Penalty per distinct output type when inventory is tight.
+  static const double _penaltyPerOutput = 0.01;
+
+  /// Computes the effective XP rate for a consumer entry.
+  ///
+  /// Applies stickiness bonus to current action and logistics penalties
+  /// when inventory is tight.
+  double _effectiveRate(_ConsumerEntry entry) {
+    var rate = entry.sustainableXpPerTick;
+
+    // Give current action a stickiness bonus (effectively requires competitors
+    // to be >10% better to outrank it)
+    if (entry.consumer.actionId == currentActionId) {
+      rate *= 1 + _stickinessThreshold;
+    }
+
+    // Apply soft logistics penalty when inventory is tight (>60% full)
+    // Penalize actions that produce many distinct outputs (more selling churn)
+    if (inventoryPressure > _inventoryPressureThreshold) {
+      final action = registries.actions.byId(entry.consumer.actionId);
+      if (action is SkillAction) {
+        final distinctOutputs = action.outputs.length;
+        rate *= 1 - (distinctOutputs * _penaltyPerOutput * inventoryPressure);
+      }
+    }
+
+    return rate;
+  }
+
+  /// Compares two consumer entries by effective XP rate (descending).
+  int compareByEffectiveRate(_ConsumerEntry a, _ConsumerEntry b) {
+    // Primary: adjusted XP/tick (with stickiness + logistics)
+    final rateCmp = _effectiveRate(b).compareTo(_effectiveRate(a));
+    if (rateCmp != 0) return rateCmp;
+
+    // Tie-breaker 1: Prefer already having inputs in inventory
+    final inputsCmp =
+        (b.consumer.canStartNow ? 1 : 0) - (a.consumer.canStartNow ? 1 : 0);
+    if (inputsCmp != 0) return inputsCmp;
+
+    // Tie-breaker 2: Prefer fewer switches (longer macro segments)
+    return b.consumer.expectedTicks.compareTo(a.consumer.expectedTicks);
+  }
+}
+
 /// Strict pruning for consuming skills.
 ///
 /// For consuming skills (e.g., Firemaking, Cooking), we need to avoid the
@@ -1088,14 +1218,7 @@ _ConsumingSkillResult _selectConsumingSkillCandidatesWithStats(
   var pairsConsidered = 0;
 
   // Calculate sustainable XP/tick for each consumer action
-  final consumersWithRates =
-      <
-        ({
-          ActionSummary consumer,
-          double sustainableXpPerTick,
-          ActionSummary? producer,
-        })
-      >[];
+  final consumersWithRates = <_ConsumerEntry>[];
 
   for (final consumerSummary in consumerActions) {
     final consumerAction =
@@ -1111,94 +1234,40 @@ _ConsumingSkillResult _selectConsumingSkillCandidatesWithStats(
 
     // Best producer is the one with highest output/tick
     producers.sort((a, b) {
-      final aAction = registries.actions.byId(a.actionId) as SkillAction;
-      final bAction = registries.actions.byId(b.actionId) as SkillAction;
-      final aOutputPerTick =
-          (aAction.outputs[inputItem] ?? 1) / a.expectedTicks;
-      final bOutputPerTick =
-          (bAction.outputs[inputItem] ?? 1) / b.expectedTicks;
-      return bOutputPerTick.compareTo(aOutputPerTick);
+      final aRate = a.outputPerTickForItem(registries, inputItem);
+      final bRate = b.outputPerTickForItem(registries, inputItem);
+      return bRate.compareTo(aRate);
     });
     final bestProducer = producers.first;
     final producerAction =
         registries.actions.byId(bestProducer.actionId) as SkillAction;
 
-    // Calculate sustainable XP rate
-    final consumeTicksPerAction = consumerSummary.expectedTicks;
-    final produceTicksPerAction = bestProducer.expectedTicks;
-    final inputsNeededPerAction = consumerAction.inputs[inputItem] ?? 1;
-    final outputsPerAction = producerAction.outputs[inputItem] ?? 1;
-
-    final produceActionsPerConsumeAction =
-        inputsNeededPerAction / outputsPerAction;
-    final totalTicksPerCycle =
-        (produceActionsPerConsumeAction * produceTicksPerAction) +
-        consumeTicksPerAction;
-
-    final consumeXpPerAction = consumerAction.xp.toDouble();
-    final sustainableXpPerTick = consumeXpPerAction / totalTicksPerCycle;
+    final sustainableRate = _sustainableXpPerTick(
+      consumer: consumerSummary,
+      producer: bestProducer,
+      consumerAction: consumerAction,
+      producerAction: producerAction,
+      inputItem: inputItem,
+    );
 
     consumersWithRates.add((
       consumer: consumerSummary,
-      sustainableXpPerTick: sustainableXpPerTick,
+      sustainableXpPerTick: sustainableRate,
       producer: bestProducer,
     ));
   }
-
-  // Stickiness threshold: require new action to be >10% better to switch
-  const stickinessThreshold = 0.10;
 
   // Calculate inventory pressure (0.0 = empty, 1.0 = full)
   final usedSlots = state.inventory.items.length;
   final inventoryPressure = usedSlots / state.inventoryCapacity;
 
   // Sort by sustainable XP/tick with stickiness and logistics penalties
-  consumersWithRates.sort((a, b) {
-    // Get effective rates, applying stickiness bonus to current action
-    var aRate = a.sustainableXpPerTick;
-    var bRate = b.sustainableXpPerTick;
-
-    // Give current action a stickiness bonus (effectively requires competitors
-    // to be >10% better to outrank it)
-    if (a.consumer.actionId == currentActionId) {
-      aRate *= 1 + stickinessThreshold;
-    }
-    if (b.consumer.actionId == currentActionId) {
-      bRate *= 1 + stickinessThreshold;
-    }
-
-    // Apply soft logistics penalty when inventory is tight (>60% full)
-    // Penalize actions that produce many distinct outputs (more selling churn)
-    if (inventoryPressure > 0.6) {
-      final aOutputs = registries.actions.byId(a.consumer.actionId);
-      final bOutputs = registries.actions.byId(b.consumer.actionId);
-      if (aOutputs is SkillAction && bOutputs is SkillAction) {
-        // Small penalty: 1% per distinct output type, scaled by pressure
-        const penaltyPerOutput = 0.01;
-        final aDistinctOutputs = aOutputs.outputs.length;
-        final bDistinctOutputs = bOutputs.outputs.length;
-        aRate *= 1 - (aDistinctOutputs * penaltyPerOutput * inventoryPressure);
-        bRate *= 1 - (bDistinctOutputs * penaltyPerOutput * inventoryPressure);
-      }
-    }
-
-    // Primary: adjusted XP/tick (with stickiness + logistics)
-    final xpCmp = bRate.compareTo(aRate);
-    if (xpCmp != 0) return xpCmp;
-
-    // Tie-breaker 1: Prefer already having inputs in inventory
-    final aHasInputs = a.consumer.canStartNow ? 1 : 0;
-    final bHasInputs = b.consumer.canStartNow ? 1 : 0;
-    final inputsCmp = bHasInputs.compareTo(aHasInputs);
-    if (inputsCmp != 0) return inputsCmp;
-
-    // Tie-breaker 2: Prefer fewer switches (longer macro segments)
-    // Actions with longer duration mean fewer switches
-    final durationCmp = b.consumer.expectedTicks.compareTo(
-      a.consumer.expectedTicks,
-    );
-    return durationCmp;
-  });
+  final consumerSortCtx = _ConsumerSortContext(
+    registries: registries,
+    currentActionId: currentActionId,
+    inventoryPressure: inventoryPressure,
+  );
+  consumersWithRates.sort(consumerSortCtx.compareByEffectiveRate);
 
   // Select top N consumer actions
   final selectedConsumers = consumersWithRates
@@ -1214,27 +1283,14 @@ _ConsumingSkillResult _selectConsumingSkillCandidatesWithStats(
     }
   }
 
-  // Build stats if requested
-  ConsumingSkillCandidateStats? stats;
-  if (collectStats) {
-    final topPairs = selectedConsumers
-        .map(
-          (e) => (
-            consumerId: e.consumer.actionId.localId.name,
-            producerId: e.producer?.actionId.localId.name ?? 'none',
-            score: e.sustainableXpPerTick,
-          ),
+  final stats = collectStats
+      ? _buildConsumingSkillStats(
+          consumerActions: consumerActions,
+          producerActionsConsidered: producerActionsConsidered,
+          pairsConsidered: pairsConsidered,
+          selectedConsumers: selectedConsumers,
         )
-        .toList();
-
-    stats = ConsumingSkillCandidateStats(
-      consumerActionsConsidered: consumerActions.length,
-      producerActionsConsidered: producerActionsConsidered,
-      pairsConsidered: pairsConsidered,
-      pairsKept: selectedConsumers.length,
-      topPairs: topPairs,
-    );
-  }
+      : null;
 
   return _ConsumingSkillResult(candidates: result, stats: stats);
 }
