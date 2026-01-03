@@ -5,7 +5,8 @@ import 'package:logic/src/data/melvor_id.dart';
 import 'package:logic/src/solver/analysis/estimate_rates.dart';
 import 'package:logic/src/solver/analysis/next_decision_delta.dart'
     show infTicks;
-import 'package:logic/src/solver/analysis/replan_boundary.dart' show WaitConditionSatisfied;
+import 'package:logic/src/solver/analysis/replan_boundary.dart'
+    show WaitConditionSatisfied;
 import 'package:logic/src/solver/core/goal.dart' show Goal;
 import 'package:logic/src/solver/execution/plan.dart' show WaitStep;
 import 'package:logic/src/solver/interactions/interaction.dart'
@@ -41,7 +42,7 @@ sealed class WaitFor extends Equatable {
   /// For simple waits, returns `this` if satisfied, null otherwise.
   /// For [WaitForAnyOf], returns the first satisfied child condition.
   ///
-  /// This is used by [consumeUntil] to populate [WaitConditionSatisfied]
+  /// This is used by consumeUntil to populate [WaitConditionSatisfied]
   /// with the specific condition that triggered, allowing callers to
   /// determine which branch of a composite wait was satisfied without
   /// re-probing state.

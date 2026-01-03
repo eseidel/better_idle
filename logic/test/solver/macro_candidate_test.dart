@@ -3,9 +3,11 @@ import 'dart:math';
 import 'package:logic/logic.dart';
 import 'package:logic/src/solver/analysis/unlock_boundaries.dart';
 import 'package:logic/src/solver/analysis/wait_for.dart';
+import 'package:logic/src/solver/candidates/build_chain.dart';
 import 'package:logic/src/solver/candidates/macro_candidate.dart';
 import 'package:logic/src/solver/candidates/macro_expansion_context.dart';
 import 'package:logic/src/solver/core/goal.dart';
+import 'package:logic/src/solver/interactions/interaction.dart';
 import 'package:test/test.dart';
 
 import '../test_helper.dart';
@@ -214,7 +216,8 @@ void main() {
           int cost,
           String name,
         ) => StopWhenUpgradeAffordable(id, cost, name);
-        MacroStopRule makeStopWhenInputsDepleted() => const StopWhenInputsDepleted();
+        MacroStopRule makeStopWhenInputsDepleted() =>
+            const StopWhenInputsDepleted();
 
         test('identical non-const macros with StopAtNextBoundary produce same '
             'dedupeKey', () {
@@ -693,7 +696,8 @@ void main() {
           int cost,
           String name,
         ) => StopWhenUpgradeAffordable(id, cost, name);
-        MacroStopRule makeStopWhenInputsDepleted() => const StopWhenInputsDepleted();
+        MacroStopRule makeStopWhenInputsDepleted() =>
+            const StopWhenInputsDepleted();
 
         test('identical non-const macros with StopAtNextBoundary produce same '
             'dedupeKey', () {
@@ -837,6 +841,270 @@ void main() {
           expect(macro1.dedupeKey, isNot(equals(macro2.dedupeKey)));
         });
       });
+    });
+  });
+
+  group('MacroCandidate JSON serialization', () {
+    test('TrainSkillUntil round-trips through JSON', () {
+      final action = testActions.woodcutting('Normal Tree');
+      final original = TrainSkillUntil(
+        Skill.woodcutting,
+        const StopAtNextBoundary(Skill.woodcutting),
+        watchedStops: const [
+          StopWhenUpgradeAffordable(
+            MelvorId('melvorD:Iron_Axe'),
+            50,
+            'Iron Axe',
+          ),
+          StopAtGoal(Skill.woodcutting, 1000),
+        ],
+        actionId: action.id,
+      );
+
+      final json = original.toJson();
+      final restored = MacroCandidate.fromJson(json);
+
+      expect(restored, isA<TrainSkillUntil>());
+      final restoredMacro = restored as TrainSkillUntil;
+      expect(restoredMacro.skill, original.skill);
+      expect(restoredMacro.actionId, original.actionId);
+      expect(restoredMacro.watchedStops, hasLength(2));
+      expect(restoredMacro.primaryStop, isA<StopAtNextBoundary>());
+    });
+
+    test('TrainSkillUntil without actionId round-trips through JSON', () {
+      const original = TrainSkillUntil(
+        Skill.mining,
+        StopAtLevel(Skill.mining, 15),
+      );
+
+      final json = original.toJson();
+      final restored = MacroCandidate.fromJson(json) as TrainSkillUntil;
+
+      expect(restored.skill, Skill.mining);
+      expect(restored.actionId, isNull);
+      expect(restored.primaryStop, isA<StopAtLevel>());
+      final stopRule = restored.primaryStop as StopAtLevel;
+      expect(stopRule.level, 15);
+    });
+
+    test('AcquireItem round-trips through JSON', () {
+      const original = AcquireItem(MelvorId('melvorD:Oak_Logs'), 50);
+
+      final json = original.toJson();
+      final restored = MacroCandidate.fromJson(json);
+
+      expect(restored, isA<AcquireItem>());
+      final restoredMacro = restored as AcquireItem;
+      expect(restoredMacro.itemId, const MelvorId('melvorD:Oak_Logs'));
+      expect(restoredMacro.quantity, 50);
+    });
+
+    test('EnsureStock round-trips through JSON', () {
+      const original = EnsureStock(MelvorId('melvorD:Copper_Ore'), 200);
+
+      final json = original.toJson();
+      final restored = MacroCandidate.fromJson(json);
+
+      expect(restored, isA<EnsureStock>());
+      final restoredMacro = restored as EnsureStock;
+      expect(restoredMacro.itemId, const MelvorId('melvorD:Copper_Ore'));
+      expect(restoredMacro.minTotal, 200);
+    });
+
+    test('TrainConsumingSkillUntil round-trips through JSON', () {
+      final consumeAction = testActions.firemaking('Burn Normal Logs');
+      final producerAction = testActions.woodcutting('Normal Tree');
+      const logsId = MelvorId('melvorD:Normal_Logs');
+
+      final original = TrainConsumingSkillUntil(
+        Skill.firemaking,
+        const StopAtNextBoundary(Skill.firemaking),
+        watchedStops: const [StopAtGoal(Skill.firemaking, 5000)],
+        actionId: consumeAction.id,
+        consumeActionId: consumeAction.id,
+        producerByInputItem: {logsId: producerAction.id},
+        bufferTarget: 20,
+        sellPolicySpec: const SellAllSpec(),
+        maxRecoveryAttempts: 5,
+      );
+
+      final json = original.toJson();
+      final restored = MacroCandidate.fromJson(json);
+
+      expect(restored, isA<TrainConsumingSkillUntil>());
+      final restoredMacro = restored as TrainConsumingSkillUntil;
+      expect(restoredMacro.consumingSkill, Skill.firemaking);
+      expect(restoredMacro.actionId, consumeAction.id);
+      expect(restoredMacro.consumeActionId, consumeAction.id);
+      expect(restoredMacro.producerByInputItem, {logsId: producerAction.id});
+      expect(restoredMacro.bufferTarget, 20);
+      expect(restoredMacro.sellPolicySpec, isA<SellAllSpec>());
+      expect(restoredMacro.maxRecoveryAttempts, 5);
+      expect(restoredMacro.watchedStops, hasLength(1));
+    });
+
+    test(
+      'TrainConsumingSkillUntil with inputChains round-trips through JSON',
+      () {
+        const copperOreId = MelvorId('melvorD:Copper_Ore');
+        const tinOreId = MelvorId('melvorD:Tin_Ore');
+        const bronzeBarId = MelvorId('melvorD:Bronze_Bar');
+
+        final copperMining = testActions.mining('Copper');
+        final tinMining = testActions.mining('Tin');
+        final bronzeSmelting = testActions.smithing('Bronze Bar');
+        final bronzeDagger = testActions.smithing('Bronze Dagger');
+
+        final inputChain = PlannedChain(
+          itemId: bronzeBarId,
+          quantity: 10,
+          actionId: bronzeSmelting.id,
+          actionsNeeded: 10,
+          ticksNeeded: 300,
+          children: [
+            PlannedChain(
+              itemId: copperOreId,
+              quantity: 10,
+              actionId: copperMining.id,
+              actionsNeeded: 10,
+              ticksNeeded: 300,
+              children: const [],
+            ),
+            PlannedChain(
+              itemId: tinOreId,
+              quantity: 10,
+              actionId: tinMining.id,
+              actionsNeeded: 10,
+              ticksNeeded: 300,
+              children: const [],
+            ),
+          ],
+        );
+
+        final original = TrainConsumingSkillUntil(
+          Skill.smithing,
+          const StopAtNextBoundary(Skill.smithing),
+          consumeActionId: bronzeDagger.id,
+          inputChains: {bronzeBarId: inputChain},
+          sellPolicySpec: const ReserveConsumingInputsSpec(),
+        );
+
+        final json = original.toJson();
+        final restored = MacroCandidate.fromJson(json);
+
+        expect(restored, isA<TrainConsumingSkillUntil>());
+        final restoredMacro = restored as TrainConsumingSkillUntil;
+        expect(restoredMacro.inputChains, isNotNull);
+        expect(restoredMacro.inputChains!.containsKey(bronzeBarId), isTrue);
+
+        final restoredChain = restoredMacro.inputChains![bronzeBarId]!;
+        expect(restoredChain.itemId, bronzeBarId);
+        expect(restoredChain.quantity, 10);
+        expect(restoredChain.children, hasLength(2));
+        expect(restoredChain.children[0].itemId, copperOreId);
+        expect(restoredChain.children[1].itemId, tinOreId);
+
+        expect(restoredMacro.sellPolicySpec, isA<ReserveConsumingInputsSpec>());
+      },
+    );
+
+    test('TrainConsumingSkillUntil with minimal fields round-trips', () {
+      const original = TrainConsumingSkillUntil(
+        Skill.cooking,
+        StopWhenInputsDepleted(),
+      );
+
+      final json = original.toJson();
+      final restored = MacroCandidate.fromJson(json);
+
+      expect(restored, isA<TrainConsumingSkillUntil>());
+      final restoredMacro = restored as TrainConsumingSkillUntil;
+      expect(restoredMacro.consumingSkill, Skill.cooking);
+      expect(restoredMacro.consumeActionId, isNull);
+      expect(restoredMacro.producerByInputItem, isNull);
+      expect(restoredMacro.bufferTarget, isNull);
+      expect(restoredMacro.sellPolicySpec, isNull);
+      expect(restoredMacro.inputChains, isNull);
+      expect(restoredMacro.maxRecoveryAttempts, 3); // default value
+    });
+
+    test('fromJson throws for unknown type', () {
+      final json = {'type': 'UnknownMacro', 'foo': 'bar'};
+
+      expect(
+        () => MacroCandidate.fromJson(json),
+        throwsA(isA<ArgumentError>()),
+      );
+    });
+  });
+
+  group('MacroStopRule JSON serialization', () {
+    test('StopAtNextBoundary round-trips through JSON', () {
+      const original = StopAtNextBoundary(Skill.fishing);
+
+      final json = original.toJson();
+      final restored = MacroStopRule.fromJson(json);
+
+      expect(restored, isA<StopAtNextBoundary>());
+      final restoredRule = restored as StopAtNextBoundary;
+      expect(restoredRule.skill, Skill.fishing);
+    });
+
+    test('StopAtGoal round-trips through JSON', () {
+      const original = StopAtGoal(Skill.mining, 10000);
+
+      final json = original.toJson();
+      final restored = MacroStopRule.fromJson(json);
+
+      expect(restored, isA<StopAtGoal>());
+      final restoredRule = restored as StopAtGoal;
+      expect(restoredRule.skill, Skill.mining);
+      expect(restoredRule.targetXp, 10000);
+    });
+
+    test('StopAtLevel round-trips through JSON', () {
+      const original = StopAtLevel(Skill.smithing, 50);
+
+      final json = original.toJson();
+      final restored = MacroStopRule.fromJson(json);
+
+      expect(restored, isA<StopAtLevel>());
+      final restoredRule = restored as StopAtLevel;
+      expect(restoredRule.skill, Skill.smithing);
+      expect(restoredRule.level, 50);
+    });
+
+    test('StopWhenUpgradeAffordable round-trips through JSON', () {
+      const original = StopWhenUpgradeAffordable(
+        MelvorId('melvorD:Steel_Axe'),
+        500,
+        'Steel Axe',
+      );
+
+      final json = original.toJson();
+      final restored = MacroStopRule.fromJson(json);
+
+      expect(restored, isA<StopWhenUpgradeAffordable>());
+      final restoredRule = restored as StopWhenUpgradeAffordable;
+      expect(restoredRule.purchaseId, const MelvorId('melvorD:Steel_Axe'));
+      expect(restoredRule.cost, 500);
+      expect(restoredRule.upgradeName, 'Steel Axe');
+    });
+
+    test('StopWhenInputsDepleted round-trips through JSON', () {
+      const original = StopWhenInputsDepleted();
+
+      final json = original.toJson();
+      final restored = MacroStopRule.fromJson(json);
+
+      expect(restored, isA<StopWhenInputsDepleted>());
+    });
+
+    test('fromJson throws for unknown type', () {
+      final json = {'type': 'UnknownStopRule'};
+
+      expect(() => MacroStopRule.fromJson(json), throwsA(isA<ArgumentError>()));
     });
   });
 
