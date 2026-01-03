@@ -14,10 +14,9 @@ import 'dart:math';
 
 import 'package:args/args.dart';
 import 'package:logic/logic.dart';
-import 'package:logic/src/solver/candidates/macro_candidate.dart';
 import 'package:logic/src/solver/execution/execute_plan.dart';
 import 'package:logic/src/solver/execution/plan.dart';
-import 'package:logic/src/solver/interactions/interaction.dart';
+import 'package:logic/src/solver/execution/utils.dart';
 
 final _parser = ArgParser()
   ..addFlag(
@@ -99,15 +98,11 @@ void main(List<String> args) async {
   print('');
 
   // Print final state
-  _printFinalState(execResult.finalState);
+  printFinalState(execResult.finalState);
   print('');
 
   // Print execution stats
-  print('=== Execution Stats ===');
-  print('Planned: ${durationStringWithTicks(execResult.plannedTicks)}');
-  print('Actual: ${durationStringWithTicks(execResult.actualTicks)}');
-  print('Delta: ${signedDurationStringWithTicks(execResult.ticksDelta)}');
-  print('Deaths: ${execResult.totalDeaths} (expected: ${plan.expectedDeaths})');
+  printExecutionStats(execResult, expectedDeaths: plan.expectedDeaths);
 
   // Report any unexpected boundaries
   if (execResult.hasUnexpectedBoundaries) {
@@ -136,65 +131,10 @@ void _printStepProgress({
 
   // Only print for significant steps or deviations
   if (plannedTicks > 0 || delta.abs() > 100) {
-    final stepDesc = _describeStep(step, stateBefore.registries);
+    final stepDesc = describeStep(step, stateBefore.registries);
     print(
       'Step ${stepIndex + 1}: $stepDesc '
       '(planned=$plannedTicks, actual=$actualTicks, $deltaStr)',
     );
-  }
-}
-
-String _describeStep(PlanStep step, Registries registries) {
-  return switch (step) {
-    InteractionStep(:final interaction) => switch (interaction) {
-      SwitchActivity(:final actionId) =>
-        'Switch to ${registries.actions.byId(actionId).name}',
-      BuyShopItem(:final purchaseId) => 'Buy ${purchaseId.name}',
-      SellItems(:final policy) => 'Sell (${policy.runtimeType})',
-    },
-    WaitStep(:final deltaTicks, :final waitFor) =>
-      'Wait $deltaTicks ticks -> ${waitFor.shortDescription}',
-    MacroStep(:final macro, :final deltaTicks) => switch (macro) {
-      TrainSkillUntil(:final skill) =>
-        'Train ${skill.name} ($deltaTicks ticks)',
-      TrainConsumingSkillUntil(:final consumingSkill) =>
-        'Train ${consumingSkill.name} ($deltaTicks ticks)',
-      AcquireItem(:final itemId, :final quantity) =>
-        'Acquire ${quantity}x ${itemId.name}',
-      EnsureStock(:final itemId, :final minTotal) =>
-        'EnsureStock ${itemId.name}: $minTotal',
-    },
-  };
-}
-
-void _printFinalState(GlobalState state) {
-  print('=== Final State ===');
-  print('GP: ${preciseNumberString(state.gp)}');
-  print('');
-
-  // Print skill levels
-  print('Skills:');
-  for (final skill in Skill.values) {
-    final skillState = state.skillState(skill);
-    if (skillState.skillLevel > 1 || skillState.xp > 0) {
-      print(
-        '  ${skill.name}: Level ${skillState.skillLevel} '
-        '(${preciseNumberString(skillState.xp)} XP)',
-      );
-    }
-  }
-
-  // Print inventory if not empty
-  if (state.inventory.items.isNotEmpty) {
-    print('');
-    print('Inventory:');
-    for (final stack in state.inventory.items) {
-      print('  ${stack.item.name}: ${preciseNumberString(stack.count)}');
-    }
-    final totalValue = state.inventory.items.fold<int>(
-      0,
-      (sum, stack) => sum + stack.sellsFor,
-    );
-    print('Total value: ${preciseNumberString(totalValue)} GP');
   }
 }

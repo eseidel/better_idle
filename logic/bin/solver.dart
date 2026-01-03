@@ -8,8 +8,6 @@
 // Example: dart run bin/solver.dart 1000
 // ignore_for_file: avoid_print
 
-import 'dart:convert';
-import 'dart:io';
 import 'dart:math';
 
 import 'package:args/args.dart';
@@ -22,6 +20,7 @@ import 'package:logic/src/solver/core/solver.dart';
 import 'package:logic/src/solver/core/solver_profile.dart';
 import 'package:logic/src/solver/execution/execute_plan.dart';
 import 'package:logic/src/solver/execution/plan.dart';
+import 'package:logic/src/solver/execution/utils.dart';
 import 'package:logic/src/solver/interactions/interaction.dart';
 
 final _parser = ArgParser()
@@ -142,7 +141,7 @@ void main(List<String> args) async {
 
     // Write plan to JSON if requested
     if (outputPlanPath != null && result is SolverSuccess) {
-      _writePlanToJson(result.plan, outputPlanPath);
+      writePlanToJson(result.plan, outputPlanPath);
     }
   } else {
     // Segment-based solving (default)
@@ -176,7 +175,7 @@ void main(List<String> args) async {
     // Write plan to JSON if requested
     if (outputPlanPath != null && result is SegmentedSuccess) {
       final plan = Plan.fromSegments(result.segments);
-      _writePlanToJson(plan, outputPlanPath);
+      writePlanToJson(plan, outputPlanPath);
     }
   }
 }
@@ -231,19 +230,12 @@ void _printSuccess(
   stopwatch.stop();
   print('Execution completed in ${stopwatch.elapsedMilliseconds}ms');
   print('');
-  _printFinalState(execResult.finalState);
+  printFinalState(execResult.finalState);
   if (goal is MultiSkillGoal) {
     _printMultiSkillProgress(execResult.finalState, goal);
   }
   print('');
-  print('=== Execution Stats ===');
-  print('Planned: ${durationStringWithTicks(execResult.plannedTicks)}');
-  print('Actual: ${durationStringWithTicks(execResult.actualTicks)}');
-  print('Delta: ${signedDurationStringWithTicks(execResult.ticksDelta)}');
-  print(
-    'Deaths: ${execResult.totalDeaths} actual, '
-    '${result.plan.expectedDeaths} expected',
-  );
+  printExecutionStats(execResult, expectedDeaths: result.plan.expectedDeaths);
 }
 
 void _printFailure(
@@ -256,50 +248,6 @@ void _printFailure(
   print('  Enqueued nodes: ${result.failure.enqueuedNodes}');
   if (result.failure.bestCredits != null) {
     print('  Best credits reached: ${result.failure.bestCredits}');
-  }
-}
-
-/// Writes a plan to a JSON file.
-void _writePlanToJson(Plan plan, String path) {
-  final json = plan.toJson();
-  const encoder = JsonEncoder.withIndent('  ');
-  final jsonString = encoder.convert(json);
-  File(path).writeAsStringSync(jsonString);
-  print('');
-  print('Plan written to: $path');
-  print('Run: dart run bin/execute.dart $path');
-}
-
-/// Prints the final state after executing the plan.
-void _printFinalState(GlobalState state) {
-  print('=== Final State ===');
-  print('GP: ${preciseNumberString(state.gp)}');
-  print('');
-
-  // Print skill levels
-  print('Skills:');
-  for (final skill in Skill.values) {
-    final skillState = state.skillState(skill);
-    if (skillState.skillLevel > 1 || skillState.xp > 0) {
-      print(
-        '  ${skill.name}: Level ${skillState.skillLevel} '
-        '(${preciseNumberString(skillState.xp)} XP)',
-      );
-    }
-  }
-
-  // Print inventory if not empty
-  if (state.inventory.items.isNotEmpty) {
-    print('');
-    print('Inventory:');
-    for (final stack in state.inventory.items) {
-      print('  ${stack.item.name}: ${preciseNumberString(stack.count)}');
-    }
-    final totalValue = state.inventory.items.fold<int>(
-      0,
-      (sum, stack) => sum + stack.sellsFor,
-    );
-    print('Total value: ${preciseNumberString(totalValue)} GP');
   }
 }
 
@@ -600,7 +548,11 @@ class _StepCompleteContext {
       }
     }
 
-    final stepDesc = _formatStepForSegment(step, registries, currentAction);
+    final stepDesc = describeStep(
+      step,
+      registries,
+      currentAction: currentAction,
+    );
 
     // Compare: planned vs estimated-at-execution vs actual
     // - planned != estimatedAtExec: planning snapshot inconsistent
@@ -817,10 +769,10 @@ void _printSegmentedResult(
           ActionId? currentAction;
           for (var j = 0; j < segment.steps.length; j++) {
             final step = segment.steps[j];
-            final formatted = _formatStepForSegment(
+            final formatted = describeStep(
               step,
               registries,
-              currentAction,
+              currentAction: currentAction,
             );
             print('    ${j + 1}. $formatted');
             // Track current action for context in wait steps
@@ -862,16 +814,12 @@ void _printSegmentedResult(
       print('Execution completed in ${stopwatch.elapsedMilliseconds}ms');
       print('');
 
-      _printFinalState(execResult.finalState);
+      printFinalState(execResult.finalState);
       if (goal is MultiSkillGoal) {
         _printMultiSkillProgress(execResult.finalState, goal);
       }
       print('');
-      print('=== Execution Stats ===');
-      print('Planned: ${durationStringWithTicks(execResult.plannedTicks)}');
-      print('Actual: ${durationStringWithTicks(execResult.actualTicks)}');
-      print('Delta: ${signedDurationStringWithTicks(execResult.ticksDelta)}');
-      print('Deaths: ${execResult.totalDeaths}');
+      printExecutionStats(execResult);
 
       // Print aggregate diagnostics if collected
       if (segmentProfiles.isNotEmpty) {
@@ -1373,54 +1321,4 @@ void _printNewlyEligibleActions(
       print('  (Producer skill: ${producerSkill.name})');
     }
   }
-}
-
-/// Formats a sell policy for display.
-String _formatSellPolicy(SellPolicy policy) {
-  return switch (policy) {
-    SellAllPolicy() => 'Sell all',
-    SellExceptPolicy(:final keepItems) => () {
-      final names = keepItems.map((id) => id.name).toList()..sort();
-      if (names.length <= 3) {
-        return 'Sell all except ${names.join(', ')}';
-      }
-      return 'Sell all except ${names.length} items '
-          '(${names.take(3).join(', ')}, ...)';
-    }(),
-  };
-}
-
-/// Formats a plan step for segment display.
-String _formatStepForSegment(
-  PlanStep step,
-  Registries registries,
-  ActionId? currentAction,
-) {
-  return switch (step) {
-    InteractionStep(:final interaction) => switch (interaction) {
-      SwitchActivity(:final actionId) => () {
-        final action = registries.actions.byId(actionId);
-        final actionName = action.name;
-        return 'Switch to $actionName';
-      }(),
-      BuyShopItem(:final purchaseId) => 'Buy ${purchaseId.name}',
-      SellItems(:final policy) => _formatSellPolicy(policy),
-    },
-    WaitStep(:final deltaTicks, :final waitFor) => () {
-      final actionName = currentAction != null
-          ? registries.actions.byId(currentAction).name
-          : null;
-      final prefix = actionName ?? 'Wait';
-      return '$prefix $deltaTicks ticks -> ${waitFor.shortDescription}';
-    }(),
-    MacroStep(:final macro, :final deltaTicks) => switch (macro) {
-      TrainSkillUntil(:final skill) => '${skill.name} for $deltaTicks ticks',
-      TrainConsumingSkillUntil(:final consumingSkill) =>
-        '${consumingSkill.name} for $deltaTicks ticks',
-      AcquireItem(:final itemId, :final quantity) =>
-        'Acquire ${quantity}x $itemId ($deltaTicks ticks)',
-      EnsureStock(:final itemId, :final minTotal) =>
-        'EnsureStock ${itemId.name}: $minTotal ($deltaTicks ticks)',
-    },
-  };
 }
