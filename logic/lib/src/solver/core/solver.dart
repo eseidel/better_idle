@@ -3033,10 +3033,10 @@ ReplanExecutionResult solveWithReplanning(
     }
 
     final success = solveResult as SolverSuccess;
-    final plan = success.plan;
 
-    // Execute the plan
-    final execResult = executePlan(currentState, plan, random: random);
+    // Execute the plan - executePlan uses ExecutionContext defaults
+    // so no segment markers are needed
+    final execResult = executePlan(currentState, success.plan, random: random);
 
     // Determine if we need to replan
     final needsReplan =

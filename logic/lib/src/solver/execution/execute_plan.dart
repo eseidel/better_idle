@@ -1336,6 +1336,27 @@ int _estimateTicksAtExecution(GlobalState state, PlanStep step) {
   }
 }
 
+/// Context for plan execution that carries default policies.
+///
+/// This allows executing raw plans (without segment markers) by providing
+/// defaults. Segment markers are still supported for per-segment overrides
+/// or for debugging/logging purposes.
+///
+/// Resolution hierarchy for sell policy:
+/// 1. Step-level: If the step is a SellItems interaction, use its policy
+/// 2. Segment-level: Use the policy from the segment marker (if present)
+/// 3. Context default: Use the context's default sell policy
+class ExecutionContext {
+  /// Creates an execution context with the given defaults.
+  const ExecutionContext({this.defaultSellPolicy = const SellAllPolicy()});
+
+  /// Default context with SellAllPolicy.
+  static const defaultContext = ExecutionContext();
+
+  /// The default sell policy to use when no step or segment policy is set.
+  final SellPolicy defaultSellPolicy;
+}
+
 /// Result of resolving a sell policy for execution.
 ///
 /// Contains the resolved policy and metadata about where it came from,
@@ -1358,8 +1379,8 @@ enum SellPolicySource {
   /// Policy came from the segment marker.
   segment,
 
-  /// Fallback policy computed because no segment policy was available.
-  fallback,
+  /// Policy came from the execution context's default.
+  context,
 }
 
 /// Resolves the sell policy for a step during execution.
@@ -1367,15 +1388,12 @@ enum SellPolicySource {
 /// Resolution hierarchy (first match wins):
 /// 1. Step-level: If the step is a SellItems interaction, use its policy
 /// 2. Segment-level: Use the policy from the segment marker
-/// 3. Fallback: Compute a conservative policy based on context
-///
-/// The [fallbackPolicy] function is called only if no step or segment policy
-/// is available. This allows the caller to provide context-specific fallbacks.
+/// 3. Context default: Use the execution context's default sell policy
 ResolvedSellPolicy resolveSellPolicy({
   required PlanStep step,
   required Plan plan,
   required int stepIndex,
-  required SellPolicy Function() fallbackPolicy,
+  required ExecutionContext executionContext,
 }) {
   // 1. Step-level: SellItems interactions carry their own policy
   if (step case InteractionStep(interaction: SellItems(:final policy))) {
@@ -1391,10 +1409,10 @@ ResolvedSellPolicy resolveSellPolicy({
     );
   }
 
-  // 3. Fallback: Use provided fallback function
+  // 3. Context default: Use the execution context's default
   return ResolvedSellPolicy(
-    policy: fallbackPolicy(),
-    source: SellPolicySource.fallback,
+    policy: executionContext.defaultSellPolicy,
+    source: SellPolicySource.context,
   );
 }
 
@@ -1424,35 +1442,20 @@ SellPolicy? _findSegmentSellPolicy(Plan plan, int stepIndex) {
   return currentMarker?.sellPolicy;
 }
 
-/// Creates a fallback sell policy for a given state.
-///
-/// This is used when no segment-level policy is available (legacy plans).
-/// The fallback policy keeps items that are inputs to unlocked consuming
-/// actions, which is a conservative default.
-SellPolicy createFallbackSellPolicy(GlobalState state) {
-  // Keep all inputs for unlocked consuming actions
-  final keepItems = <MelvorId>{};
-  for (final action in state.registries.actions.all) {
-    if (action is SkillAction) {
-      final skillLevel = state.skillState(action.skill).skillLevel;
-      final isUnlocked = skillLevel >= action.unlockLevel;
-      if (isUnlocked) {
-        keepItems.addAll(action.inputs.keys);
-      }
-    }
-  }
-  return SellExceptPolicy(keepItems);
-}
-
 /// Execute a plan and return the result including death count and actual ticks.
 ///
 /// Uses goal-aware waiting: [WaitStep.waitFor] determines when to stop waiting,
 /// which handles variance between expected-value planning and full simulation.
 /// Deaths are automatically handled by restarting the activity and are counted.
+///
+/// The [context] provides default policies for execution. If not provided,
+/// uses [ExecutionContext.defaultContext] which has a SellAllPolicy default.
+/// Segment markers in the plan can override the context's defaults.
 PlanExecutionResult executePlan(
   GlobalState originalState,
   Plan plan, {
   required Random random,
+  ExecutionContext context = ExecutionContext.defaultContext,
   StepProgressCallback? onStepComplete,
 }) {
   var state = originalState;
@@ -1473,19 +1476,12 @@ PlanExecutionResult executePlan(
     };
 
     // Resolve the sell policy for this step using the hierarchy:
-    // step → segment → fallback
-    final currentState = state; // Capture for fallback closure
+    // step → segment → context default
     final resolved = resolveSellPolicy(
       step: step,
       plan: plan,
       stepIndex: i,
-      fallbackPolicy: () {
-        // Warn when using fallback - indicates legacy plan without segment
-        // policies. This helps diagnose when plans need to be regenerated.
-        // ignore: avoid_print
-        print('[WARN] No segment sellPolicy at step $i; using fallback');
-        return createFallbackSellPolicy(currentState);
-      },
+      executionContext: context,
     );
 
     // Capture state before execution for diagnostics
