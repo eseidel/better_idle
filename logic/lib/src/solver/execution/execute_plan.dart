@@ -739,9 +739,6 @@ class RecoveryResult {
   bool get shouldStop =>
       outcome == RecoveryOutcome.replanRequired ||
       outcome == RecoveryOutcome.completed;
-
-  /// Whether execution can continue (retry the current phase).
-  bool get canContinue => outcome == RecoveryOutcome.recoveredRetry;
 }
 
 /// Outcome of a recovery attempt.
