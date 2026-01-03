@@ -71,11 +71,64 @@ final _parser = ArgParser()
     help: 'Print full histogram of macro stop triggers (default: top 10)',
     negatable: false,
   )
+  ..addFlag(
+    'no-execute',
+    help: 'Skip plan execution (only output the plan)',
+    negatable: false,
+  )
   ..addOption(
     'output-plan',
     abbr: 'o',
     help: 'Write the plan to a JSON file (e.g., plan.json)',
   );
+
+// ---------------------------------------------------------------------------
+// Solver Configuration
+// ---------------------------------------------------------------------------
+
+/// Configuration for the solver run.
+class SolverConfig {
+  SolverConfig({
+    required this.goal,
+    required this.initialState,
+    required this.random,
+    required this.collectDiagnostics,
+    required this.verboseExecution,
+    required this.dumpStopTriggers,
+    required this.noExecute,
+    this.verboseSegment,
+    this.outputPlanPath,
+  });
+
+  final Goal goal;
+  final GlobalState initialState;
+  final Random random;
+  final bool collectDiagnostics;
+  final bool verboseExecution;
+  final int? verboseSegment;
+  final bool dumpStopTriggers;
+  final bool noExecute;
+  final String? outputPlanPath;
+
+  Registries get registries => initialState.registries;
+}
+
+/// Result of running the solver (either mode).
+class SolvedPlan {
+  SolvedPlan({
+    required this.plan,
+    required this.profiles,
+    this.segments,
+  });
+
+  final Plan plan;
+  final List<SolverProfile> profiles;
+
+  /// Segments (only for online/segmented mode).
+  final List<Segment>? segments;
+
+  bool get isSegmented => segments != null;
+}
 
 void main(List<String> args) async {
   final results = _parser.parse(args);
@@ -96,153 +149,273 @@ void main(List<String> args) async {
     return;
   }
 
+  // Parse configuration
   final goal = _parseGoalFromArgs(results);
+  final verboseSegmentStr = results['verbose-segment'] as String?;
+  final config = SolverConfig(
+    goal: goal,
+    initialState: GlobalState.empty(registries),
+    random: Random(42),
+    collectDiagnostics: results['diagnostics'] as bool,
+    verboseExecution: results['verbose'] as bool,
+    verboseSegment: verboseSegmentStr != null
+        ? int.tryParse(verboseSegmentStr)
+        : null,
+    dumpStopTriggers: results['dump-stop-triggers'] as bool,
+    noExecute: results['no-execute'] as bool,
+    outputPlanPath: results['output-plan'] as String?,
+  );
+
   print('Goal: ${goal.describe()}');
 
-  final initialState = GlobalState.empty(registries);
-  final collectDiagnostics = results['diagnostics'] as bool;
+  // Run solver (offline or online mode)
   final useOfflineMode = results['offline'] as bool;
-  final verboseExecution = results['verbose'] as bool;
-  final verboseSegmentStr = results['verbose-segment'] as String?;
-  final verboseSegment = verboseSegmentStr != null
-      ? int.tryParse(verboseSegmentStr)
-      : null;
-  final dumpStopTriggers = results['dump-stop-triggers'] as bool;
-  final outputPlanPath = results['output-plan'] as String?;
-  final random = Random(42);
+  final solvedPlan = useOfflineMode
+      ? _runOfflineSolver(config)
+      : _runOnlineSolver(config);
 
-  // Default: segment-based solving. --offline enables single-shot mode.
-  if (useOfflineMode) {
-    // Single-shot solve (debug/benchmark mode)
-    print(
-      'Solving (offline/single-shot mode)'
-      '${collectDiagnostics ? ' with diagnostics' : ''}...',
-    );
-    final stopwatch = Stopwatch()..start();
-    final result = solve(
-      initialState,
-      goal,
-      random: random,
-      collectDiagnostics: collectDiagnostics,
-    );
-    stopwatch.stop();
+  // Handle failure
+  if (solvedPlan == null) return;
 
-    print('Solver completed in ${stopwatch.elapsedMilliseconds}ms');
+  // Print the plan
+  _printPlan(solvedPlan, config);
+
+  // Execute the plan (unless --no-execute)
+  if (!config.noExecute) {
+    _executePlan(solvedPlan, config);
+  }
+
+  // Print diagnostics
+  if (solvedPlan.profiles.isNotEmpty) {
     print('');
+    _printDiagnostics(solvedPlan, config);
+  }
 
-    _printSolverResult(
-      result,
-      initialState: initialState,
-      goal: goal,
-      registries: registries,
-      collectDiagnostics: collectDiagnostics,
-      dumpStopTriggers: dumpStopTriggers,
-    );
-
-    // Write plan to JSON if requested
-    if (outputPlanPath != null && result is SolverSuccess) {
-      writePlanToJson(result.plan, outputPlanPath);
-    }
-  } else {
-    // Segment-based solving (default)
-    print(
-      'Solving via segments'
-      '${collectDiagnostics ? ' with diagnostics' : ''}...',
-    );
-    final stopwatch = Stopwatch()..start();
-    final result = solveToGoal(
-      initialState,
-      goal,
-      random: random,
-      collectDiagnostics: collectDiagnostics,
-    );
-    stopwatch.stop();
-
-    print('Solver completed in ${stopwatch.elapsedMilliseconds}ms');
-    print('');
-
-    _printSegmentedResult(
-      result,
-      initialState,
-      goal,
-      registries,
-      collectDiagnostics: collectDiagnostics,
-      verboseExecution: verboseExecution,
-      verboseSegment: verboseSegment,
-      dumpStopTriggers: dumpStopTriggers,
-    );
-
-    // Write plan to JSON if requested
-    if (outputPlanPath != null && result is SegmentedSuccess) {
-      final plan = Plan.fromSegments(result.segments);
-      writePlanToJson(plan, outputPlanPath);
-    }
+  // Write plan to JSON if requested
+  if (config.outputPlanPath != null) {
+    writePlanToJson(solvedPlan.plan, config.outputPlanPath!);
   }
 }
 
-void _printSolverResult(
-  SolverResult result, {
-  required GlobalState initialState,
-  required Goal goal,
-  required Registries registries,
-  required bool collectDiagnostics,
-  bool dumpStopTriggers = false,
-}) {
-  if (result is SolverSuccess) {
-    _printSuccess(result, initialState, goal, registries);
-  } else if (result is SolverFailed) {
-    _printFailure(result, initialState: initialState, goal: goal);
-  }
+// ---------------------------------------------------------------------------
+// Solver Runners
+// ---------------------------------------------------------------------------
 
-  final profile = result.profile;
-  if (profile != null) {
-    print('');
-    _printSolverProfile(
-      profile,
-      extended: collectDiagnostics,
-      dumpStopTriggers: dumpStopTriggers,
-    );
-  }
-}
-
-void _printSuccess(
-  SolverSuccess result,
-  GlobalState initialState,
-  Goal goal,
-  Registries registries,
-) {
-  print('Uncompressed plan (${result.plan.steps.length} steps):');
-  print(result.plan.prettyPrint(actions: registries.actions));
-  print('');
-  final compressed = result.plan.compress();
+/// Runs the offline (single-shot) solver.
+SolvedPlan? _runOfflineSolver(SolverConfig config) {
   print(
-    'Plan (compressed ${result.plan.steps.length} '
+    'Solving (offline/single-shot mode)'
+    '${config.collectDiagnostics ? ' with diagnostics' : ''}...',
+  );
+
+  final stopwatch = Stopwatch()..start();
+  final result = solve(
+    config.initialState,
+    config.goal,
+    random: config.random,
+    collectDiagnostics: config.collectDiagnostics,
+  );
+  stopwatch.stop();
+
+  print('Solver completed in ${stopwatch.elapsedMilliseconds}ms');
+  print('');
+
+  if (result is SolverFailed) {
+    _printFailure(result, config);
+    return null;
+  }
+
+  final success = result as SolverSuccess;
+  return SolvedPlan(
+    plan: success.plan,
+    profiles: result.profile != null ? [result.profile!] : [],
+  );
+}
+
+/// Runs the online (segment-based) solver.
+SolvedPlan? _runOnlineSolver(SolverConfig config) {
+  print(
+    'Solving via segments'
+    '${config.collectDiagnostics ? ' with diagnostics' : ''}...',
+  );
+
+  final stopwatch = Stopwatch()..start();
+  final result = solveToGoal(
+    config.initialState,
+    config.goal,
+    random: config.random,
+    collectDiagnostics: config.collectDiagnostics,
+  );
+  stopwatch.stop();
+
+  print('Solver completed in ${stopwatch.elapsedMilliseconds}ms');
+  print('');
+
+  switch (result) {
+    case SegmentedSuccess(:final segments, :final segmentProfiles):
+      print('=== Segment-Based Solver Result ===');
+      print('Total segments: ${segments.length}');
+      print('Replan count: ${result.totalReplanCount}');
+      print('Total ticks: ${result.totalTicks}');
+      print('');
+
+      // Print segment summaries
+      _printSegmentSummaries(segments, segmentProfiles, config);
+
+      return SolvedPlan(
+        plan: Plan.fromSegments(segments),
+        profiles: segmentProfiles,
+        segments: segments,
+      );
+
+    case SegmentedFailed(:final failure, :final completedSegments):
+      print('=== Segment-Based Solver FAILED ===');
+      print('Reason: ${failure.reason}');
+      print('Completed segments before failure: ${completedSegments.length}');
+      if (completedSegments.isNotEmpty) {
+        print('');
+        print('--- Completed Segments ---');
+        for (var i = 0; i < completedSegments.length; i++) {
+          final segment = completedSegments[i];
+          print(
+            '  Segment ${i + 1}: ${segment.steps.length} steps, '
+            '${segment.totalTicks} ticks -> ${segment.stopBoundary.describe()}',
+          );
+        }
+      }
+      return null;
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Printing
+// ---------------------------------------------------------------------------
+
+/// Prints the plan (compressed format).
+void _printPlan(SolvedPlan solvedPlan, SolverConfig config) {
+  final plan = solvedPlan.plan;
+  final compressed = plan.compress();
+
+  print(
+    'Plan (compressed ${plan.steps.length} '
     '-> ${compressed.steps.length} steps):',
   );
-  print(compressed.prettyPrint(actions: registries.actions));
+  print(compressed.prettyPrint(actions: config.registries.actions));
   print('Total ticks: ${compressed.totalTicks}');
   print('Interaction count: ${compressed.interactionCount}');
-
-  // Execute the plan to get the final state
-  print('Executing plan...');
-  final stopwatch = Stopwatch()..start();
-  final execResult = executePlan(initialState, result.plan, random: Random(42));
-  stopwatch.stop();
-  print('Execution completed in ${stopwatch.elapsedMilliseconds}ms');
-  print('');
-  printFinalState(execResult.finalState);
-  if (goal is MultiSkillGoal) {
-    _printMultiSkillProgress(execResult.finalState, goal);
-  }
-  print('');
-  printExecutionStats(execResult, expectedDeaths: result.plan.expectedDeaths);
 }
 
-void _printFailure(
-  SolverFailed result, {
-  required GlobalState initialState,
-  required Goal goal,
-}) {
+/// Executes the plan and prints results.
+void _executePlan(SolvedPlan solvedPlan, SolverConfig config) {
+  print('');
+  print('Executing plan...');
+
+  final stepCompleteContext = _StepCompleteContext();
+  final stopwatch = Stopwatch()..start();
+  final execResult = executePlan(
+    config.initialState,
+    solvedPlan.plan,
+    random: Random(42),
+    onStepComplete: config.verboseExecution
+        ? stepCompleteContext.printStepComplete
+        : null,
+  );
+  stopwatch.stop();
+
+  print('Execution completed in ${stopwatch.elapsedMilliseconds}ms');
+  print('');
+
+  printFinalState(execResult.finalState);
+  if (config.goal is MultiSkillGoal) {
+    _printMultiSkillProgress(
+      execResult.finalState,
+      config.goal as MultiSkillGoal,
+    );
+  }
+  print('');
+  printExecutionStats(
+    execResult,
+    expectedDeaths: solvedPlan.plan.expectedDeaths,
+  );
+}
+
+/// Prints solver diagnostics/profiles.
+void _printDiagnostics(SolvedPlan solvedPlan, SolverConfig config) {
+  if (solvedPlan.isSegmented) {
+    _printSegmentedDiagnostics(
+      solvedPlan.profiles,
+      extended: config.collectDiagnostics,
+      dumpStopTriggers: config.dumpStopTriggers,
+    );
+  } else if (solvedPlan.profiles.isNotEmpty) {
+    _printSolverProfile(
+      solvedPlan.profiles.first,
+      extended: config.collectDiagnostics,
+      dumpStopTriggers: config.dumpStopTriggers,
+    );
+  }
+}
+
+/// Prints segment summaries for online mode.
+void _printSegmentSummaries(
+  List<Segment> segments,
+  List<SolverProfile> profiles,
+  SolverConfig config,
+) {
+  print('--- Segments ---');
+  for (var i = 0; i < segments.length; i++) {
+    final segment = segments[i];
+    final profile = i < profiles.length ? profiles[i] : null;
+
+    // Determine if this segment should show full step details
+    final isVerboseSegment = config.verboseSegment == i + 1;
+    final isWeirdSegment = _isWeirdSegment(segment);
+    final showDetails = isVerboseSegment || isWeirdSegment;
+
+    // Print one-line summary
+    final summary = _formatSegmentSummary(
+      i + 1,
+      segment,
+      profile,
+      config.registries,
+    );
+    print(summary);
+
+    // Print full step details if requested or weird
+    if (showDetails) {
+      if (isWeirdSegment && !isVerboseSegment) {
+        print('    [auto-expanded: weird segment]');
+      }
+      ActionId? currentAction;
+      for (var j = 0; j < segment.steps.length; j++) {
+        final step = segment.steps[j];
+        final formatted = describeStep(
+          step,
+          config.registries,
+          currentAction: currentAction,
+        );
+        print('    ${j + 1}. $formatted');
+        // Track current action for context in wait steps
+        if (step case InteractionStep(:final interaction)) {
+          if (interaction case SwitchActivity(:final actionId)) {
+            currentAction = actionId;
+          }
+        } else if (step case MacroStep(:final macro)) {
+          if (macro case TrainSkillUntil(:final actionId)) {
+            currentAction = actionId;
+          }
+        }
+      }
+    }
+  }
+  print('');
+
+  // Print full plan (compact format)
+  final plan = Plan.fromSegments(segments);
+  print(plan.prettyPrintCompact(actions: config.registries.actions));
+}
+
+void _printFailure(SolverFailed result, SolverConfig config) {
   print('FAILED: ${result.failure.reason}');
   print('  Expanded nodes: ${result.failure.expandedNodes}');
   print('  Enqueued nodes: ${result.failure.enqueuedNodes}');
@@ -714,138 +887,6 @@ void _printSegmentedDiagnostics(
   if (allTriggers.isNotEmpty) {
     print('');
     _printMacroStopTriggers(allTriggers, dump: dumpStopTriggers);
-  }
-}
-
-/// Prints the result of segment-based solving.
-void _printSegmentedResult(
-  SegmentedSolverResult result,
-  GlobalState initialState,
-  Goal goal,
-  Registries registries, {
-  bool collectDiagnostics = false,
-  bool verboseExecution = false,
-  int? verboseSegment,
-  bool dumpStopTriggers = false,
-}) {
-  switch (result) {
-    case SegmentedSuccess(
-      :final segments,
-      :final totalTicks,
-      :final totalReplanCount,
-      :final segmentProfiles,
-    ):
-      print('=== Segment-Based Solver Result ===');
-      print('Total segments: ${segments.length}');
-      print('Replan count: $totalReplanCount');
-      print('Total ticks: $totalTicks');
-      print('');
-
-      // Print segment summaries (collapsed by default)
-      print('--- Segments ---');
-      for (var i = 0; i < segments.length; i++) {
-        final segment = segments[i];
-        final profile = i < segmentProfiles.length ? segmentProfiles[i] : null;
-
-        // Determine if this segment should show full step details
-        final isVerboseSegment = verboseSegment == i + 1;
-        final isWeirdSegment = _isWeirdSegment(segment);
-        final showDetails = isVerboseSegment || isWeirdSegment;
-
-        // Print one-line summary
-        final summary = _formatSegmentSummary(
-          i + 1,
-          segment,
-          profile,
-          registries,
-        );
-        print(summary);
-
-        // Print full step details if requested or weird
-        if (showDetails) {
-          if (isWeirdSegment && !isVerboseSegment) {
-            print('    [auto-expanded: weird segment]');
-          }
-          ActionId? currentAction;
-          for (var j = 0; j < segment.steps.length; j++) {
-            final step = segment.steps[j];
-            final formatted = describeStep(
-              step,
-              registries,
-              currentAction: currentAction,
-            );
-            print('    ${j + 1}. $formatted');
-            // Track current action for context in wait steps
-            if (step case InteractionStep(:final interaction)) {
-              if (interaction case SwitchActivity(:final actionId)) {
-                currentAction = actionId;
-              }
-            } else if (step case MacroStep(:final macro)) {
-              if (macro case TrainSkillUntil(:final actionId)) {
-                currentAction = actionId;
-              }
-            }
-          }
-        }
-      }
-      print('');
-
-      // Stitch segments into a full plan
-      final plan = Plan.fromSegments(segments);
-
-      // Print full plan (compact format)
-      print(plan.prettyPrintCompact(actions: registries.actions));
-
-      // Execute the stitched plan
-      print('Executing stitched plan...');
-      final stopwatch = Stopwatch()..start();
-
-      final stepCompleteContext = _StepCompleteContext();
-
-      final execResult = executePlan(
-        initialState,
-        plan,
-        random: Random(42),
-        onStepComplete: verboseExecution
-            ? stepCompleteContext.printStepComplete
-            : null,
-      );
-      stopwatch.stop();
-      print('Execution completed in ${stopwatch.elapsedMilliseconds}ms');
-      print('');
-
-      printFinalState(execResult.finalState);
-      if (goal is MultiSkillGoal) {
-        _printMultiSkillProgress(execResult.finalState, goal);
-      }
-      print('');
-      printExecutionStats(execResult);
-
-      // Print aggregate diagnostics if collected
-      if (segmentProfiles.isNotEmpty) {
-        print('');
-        _printSegmentedDiagnostics(
-          segmentProfiles,
-          extended: collectDiagnostics,
-          dumpStopTriggers: dumpStopTriggers,
-        );
-      }
-
-    case SegmentedFailed(:final failure, :final completedSegments):
-      print('=== Segment-Based Solver FAILED ===');
-      print('Reason: ${failure.reason}');
-      print('Completed segments before failure: ${completedSegments.length}');
-      if (completedSegments.isNotEmpty) {
-        print('');
-        print('--- Completed Segments ---');
-        for (var i = 0; i < completedSegments.length; i++) {
-          final segment = completedSegments[i];
-          print(
-            '  Segment ${i + 1}: ${segment.steps.length} steps, '
-            '${segment.totalTicks} ticks -> ${segment.stopBoundary.describe()}',
-          );
-        }
-      }
   }
 }
 
