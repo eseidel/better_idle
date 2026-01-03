@@ -418,13 +418,14 @@ StepResult executeCoupledLoop(
     // CHECKPOINT: Handle consumption boundaries
     // Check if we need inventory recovery. This can happen two ways:
     // 1. consumeUntil returned InventoryFull boundary
-    // 2. WaitForInventoryThreshold was already satisfied (0 ticks, no progress)
+    // 2. WaitForInventoryThreshold was satisfied (via satisfiedWaitFor)
+    final satisfiedCondition = switch (consumeResult.boundary) {
+      WaitConditionSatisfied(:final satisfiedWaitFor) => satisfiedWaitFor,
+      _ => null,
+    };
     final needsInventoryRecovery =
         consumeResult.boundary is InventoryFull ||
-        (consumeResult.ticksElapsed == 0 &&
-            const WaitForInventoryThreshold(
-              inventoryPressureThreshold,
-            ).isSatisfied(currentState));
+        satisfiedCondition is WaitForInventoryThreshold;
 
     if (needsInventoryRecovery) {
       final recovery = attemptRecovery(

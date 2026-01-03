@@ -35,6 +35,19 @@ sealed class WaitFor extends Equatable {
   /// Returns true if this wait condition is satisfied in the given state.
   bool isSatisfied(GlobalState state);
 
+  /// Returns the specific [WaitFor] that was satisfied in the given state.
+  ///
+  /// For simple waits, returns `this` if satisfied, null otherwise.
+  /// For [WaitForAnyOf], returns the first satisfied child condition.
+  ///
+  /// This is used by [consumeUntil] to populate [WaitConditionSatisfied]
+  /// with the specific condition that triggered, allowing callers to
+  /// determine which branch of a composite wait was satisfied without
+  /// re-probing state.
+  WaitFor? findSatisfied(GlobalState state) {
+    return isSatisfied(state) ? this : null;
+  }
+
   /// Returns current progress toward this condition.
   ///
   /// Higher values mean closer to satisfaction. Used to detect when execution
@@ -935,6 +948,16 @@ class WaitForAnyOf extends WaitFor {
   bool isSatisfied(GlobalState state) {
     // Satisfied if ANY condition is met
     return conditions.any((condition) => condition.isSatisfied(state));
+  }
+
+  @override
+  WaitFor? findSatisfied(GlobalState state) {
+    // Return the first satisfied child condition (recursively)
+    for (final condition in conditions) {
+      final satisfied = condition.findSatisfied(state);
+      if (satisfied != null) return satisfied;
+    }
+    return null;
   }
 
   @override

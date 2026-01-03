@@ -139,12 +139,30 @@ class Death extends ReplanBoundary {
 ///
 /// This is used when the wait condition is met without hitting any
 /// other boundary. It's the "happy path" - execution completed as planned.
+///
+/// When the wait condition was a [WaitForAnyOf], the [satisfiedWaitFor]
+/// field indicates which specific condition was satisfied first. This
+/// allows callers to determine which branch of a composite wait triggered
+/// without re-probing the state.
 @immutable
 class WaitConditionSatisfied extends ReplanBoundary {
-  const WaitConditionSatisfied();
+  const WaitConditionSatisfied({this.satisfiedWaitFor});
+
+  /// The specific [WaitFor] condition that was satisfied.
+  ///
+  /// For simple waits, this is the wait condition itself.
+  /// For [WaitForAnyOf], this is the first condition that was satisfied.
+  /// May be null for legacy code or when satisfaction was detected via
+  /// ActionStopReason rather than WaitFor.
+  final Object? satisfiedWaitFor;
 
   @override
-  String describe() => 'Wait condition satisfied';
+  String describe() {
+    if (satisfiedWaitFor != null) {
+      return 'Wait satisfied: $satisfiedWaitFor';
+    }
+    return 'Wait condition satisfied';
+  }
 
   @override
   bool get isExpected => true;

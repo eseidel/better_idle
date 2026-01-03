@@ -125,7 +125,8 @@ ConsumeUntilResult consumeUntil(
   assertValidState(originalState);
 
   var state = originalState;
-  if (waitFor.isSatisfied(state)) {
+  final alreadySatisfied = waitFor.findSatisfied(state);
+  if (alreadySatisfied != null) {
     // Already satisfied - return immediately with 0 ticks elapsed.
     // This can happen when a previous step in the plan already satisfied
     // the condition (e.g., multiple macros targeting the same boundary).
@@ -133,13 +134,15 @@ ConsumeUntilResult consumeUntil(
       state: state,
       ticksElapsed: 0,
       deathCount: 0,
-      boundary: const WaitConditionSatisfied(),
+      boundary: WaitConditionSatisfied(satisfiedWaitFor: alreadySatisfied),
     );
   }
 
   final originalActivityId = state.activeAction?.id;
   var totalTicksElapsed = 0;
   var deathCount = 0;
+  var consecutiveZeroTickIterations = 0;
+  const maxConsecutiveZeroTickIterations = 3;
 
   // Keep running until the condition is satisfied, restarting after deaths
   while (true) {
@@ -155,6 +158,25 @@ ConsumeUntilResult consumeUntil(
 
     state = builder.build();
     totalTicksElapsed += builder.ticksElapsed;
+
+    // Track consecutive zero-tick iterations to detect infinite loops
+    if (builder.ticksElapsed == 0) {
+      consecutiveZeroTickIterations++;
+      if (consecutiveZeroTickIterations >= maxConsecutiveZeroTickIterations) {
+        return ConsumeUntilResult(
+          state: state,
+          ticksElapsed: totalTicksElapsed,
+          deathCount: deathCount,
+          boundary: NoProgressPossible(
+            reason:
+                'No ticks elapsed for $consecutiveZeroTickIterations '
+                'consecutive iterations on ${waitFor.describe()}',
+          ),
+        );
+      }
+    } else {
+      consecutiveZeroTickIterations = 0;
+    }
 
     // If we hit maxTicks without progress, we're stuck
     if (stopReason == ConsumeTicksStopReason.maxTicksReached) {
@@ -175,12 +197,13 @@ ConsumeUntilResult consumeUntil(
     }
 
     // Check if we're done
-    if (waitFor.isSatisfied(state)) {
+    final satisfied = waitFor.findSatisfied(state);
+    if (satisfied != null) {
       return ConsumeUntilResult(
         state: state,
         ticksElapsed: totalTicksElapsed,
         deathCount: deathCount,
-        boundary: const WaitConditionSatisfied(),
+        boundary: WaitConditionSatisfied(satisfiedWaitFor: satisfied),
       );
     }
 
