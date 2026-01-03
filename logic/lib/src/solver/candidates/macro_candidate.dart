@@ -4,6 +4,7 @@
 /// many ticks, reducing the solver's branching factor and state explosion.
 library;
 
+import 'package:equatable/equatable.dart';
 import 'package:logic/src/data/action_id.dart';
 import 'package:logic/src/data/actions.dart';
 import 'package:logic/src/data/melvor_id.dart';
@@ -1220,7 +1221,7 @@ class TrainConsumingSkillUntil extends MacroCandidate {
 /// Stop conditions for macro training.
 ///
 /// Each rule knows how to convert itself to a WaitFor for plan execution.
-sealed class MacroStopRule {
+sealed class MacroStopRule extends Equatable {
   const MacroStopRule();
 
   /// Convert this stop rule to a WaitFor for plan execution.
@@ -1264,6 +1265,9 @@ class StopAtNextBoundary extends MacroStopRule {
   final Skill skill;
 
   @override
+  List<Object?> get props => [skill];
+
+  @override
   WaitFor toWaitFor(GlobalState state, Map<Skill, SkillBoundaries> boundaries) {
     final currentLevel = state.skillState(skill).skillLevel;
     final nextBoundary = boundaries[skill]?.nextBoundary(currentLevel);
@@ -1288,6 +1292,9 @@ class StopAtGoal extends MacroStopRule {
   final int targetXp;
 
   @override
+  List<Object?> get props => [skill, targetXp];
+
+  @override
   WaitFor toWaitFor(GlobalState state, Map<Skill, SkillBoundaries> boundaries) {
     return WaitForSkillXp(skill, targetXp, reason: 'Goal reached');
   }
@@ -1309,6 +1316,9 @@ class StopAtLevel extends MacroStopRule {
 
   final Skill skill;
   final int level;
+
+  @override
+  List<Object?> get props => [skill, level];
 
   @override
   WaitFor toWaitFor(GlobalState state, Map<Skill, SkillBoundaries> boundaries) {
@@ -1337,6 +1347,9 @@ class StopWhenUpgradeAffordable extends MacroStopRule {
   final MelvorId purchaseId;
   final int cost;
   final String upgradeName;
+
+  @override
+  List<Object?> get props => [purchaseId, cost, upgradeName];
 
   @override
   WaitFor toWaitFor(GlobalState state, Map<Skill, SkillBoundaries> boundaries) {
@@ -1368,6 +1381,9 @@ class StopWhenUpgradeAffordable extends MacroStopRule {
 /// (e.g., Normal Logs -> Oak Logs as Firemaking level increases).
 class StopWhenInputsDepleted extends MacroStopRule {
   const StopWhenInputsDepleted();
+
+  @override
+  List<Object?> get props => [];
 
   @override
   WaitFor toWaitFor(GlobalState state, Map<Skill, SkillBoundaries> boundaries) {

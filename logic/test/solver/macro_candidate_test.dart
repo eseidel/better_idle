@@ -213,26 +213,22 @@ void main() {
           MelvorId id,
           int cost,
           String name,
-        ) =>
-            StopWhenUpgradeAffordable(id, cost, name);
-        MacroStopRule makeStopWhenInputsDepleted() => StopWhenInputsDepleted();
+        ) => StopWhenUpgradeAffordable(id, cost, name);
+        MacroStopRule makeStopWhenInputsDepleted() => const StopWhenInputsDepleted();
 
-        test(
-          'identical non-const macros with StopAtNextBoundary produce same '
-          'dedupeKey',
-          () {
-            final macro1 = TrainSkillUntil(
-              Skill.woodcutting,
-              makeStopAtNextBoundary(Skill.woodcutting),
-            );
-            final macro2 = TrainSkillUntil(
-              Skill.woodcutting,
-              makeStopAtNextBoundary(Skill.woodcutting),
-            );
+        test('identical non-const macros with StopAtNextBoundary produce same '
+            'dedupeKey', () {
+          final macro1 = TrainSkillUntil(
+            Skill.woodcutting,
+            makeStopAtNextBoundary(Skill.woodcutting),
+          );
+          final macro2 = TrainSkillUntil(
+            Skill.woodcutting,
+            makeStopAtNextBoundary(Skill.woodcutting),
+          );
 
-            expect(macro1.dedupeKey, equals(macro2.dedupeKey));
-          },
-        );
+          expect(macro1.dedupeKey, equals(macro2.dedupeKey));
+        });
 
         test(
           'identical non-const macros with StopAtGoal produce same dedupeKey',
@@ -291,22 +287,19 @@ void main() {
           },
         );
 
-        test(
-          'identical non-const macros with StopWhenInputsDepleted produce '
-          'same dedupeKey',
-          () {
-            final macro1 = TrainSkillUntil(
-              Skill.firemaking,
-              makeStopWhenInputsDepleted(),
-            );
-            final macro2 = TrainSkillUntil(
-              Skill.firemaking,
-              makeStopWhenInputsDepleted(),
-            );
+        test('identical non-const macros with StopWhenInputsDepleted produce '
+            'same dedupeKey', () {
+          final macro1 = TrainSkillUntil(
+            Skill.firemaking,
+            makeStopWhenInputsDepleted(),
+          );
+          final macro2 = TrainSkillUntil(
+            Skill.firemaking,
+            makeStopWhenInputsDepleted(),
+          );
 
-            expect(macro1.dedupeKey, equals(macro2.dedupeKey));
-          },
-        );
+          expect(macro1.dedupeKey, equals(macro2.dedupeKey));
+        });
 
         test(
           'macros with different stop rules produce different dedupeKeys',
@@ -337,39 +330,33 @@ void main() {
           expect(macro1.dedupeKey, isNot(equals(macro2.dedupeKey)));
         });
 
-        test(
-          'non-const StopAtGoal macros with different XP values produce '
-          'different dedupeKeys',
-          () {
-            final macro1 = TrainSkillUntil(
-              Skill.mining,
-              makeStopAtGoal(Skill.mining, 5000),
-            );
-            final macro2 = TrainSkillUntil(
-              Skill.mining,
-              makeStopAtGoal(Skill.mining, 10000),
-            );
+        test('non-const StopAtGoal macros with different XP values produce '
+            'different dedupeKeys', () {
+          final macro1 = TrainSkillUntil(
+            Skill.mining,
+            makeStopAtGoal(Skill.mining, 5000),
+          );
+          final macro2 = TrainSkillUntil(
+            Skill.mining,
+            makeStopAtGoal(Skill.mining, 10000),
+          );
 
-            expect(macro1.dedupeKey, isNot(equals(macro2.dedupeKey)));
-          },
-        );
+          expect(macro1.dedupeKey, isNot(equals(macro2.dedupeKey)));
+        });
 
-        test(
-          'non-const StopAtLevel macros with different levels produce '
-          'different dedupeKeys',
-          () {
-            final macro1 = TrainSkillUntil(
-              Skill.fishing,
-              makeStopAtLevel(Skill.fishing, 25),
-            );
-            final macro2 = TrainSkillUntil(
-              Skill.fishing,
-              makeStopAtLevel(Skill.fishing, 50),
-            );
+        test('non-const StopAtLevel macros with different levels produce '
+            'different dedupeKeys', () {
+          final macro1 = TrainSkillUntil(
+            Skill.fishing,
+            makeStopAtLevel(Skill.fishing, 25),
+          );
+          final macro2 = TrainSkillUntil(
+            Skill.fishing,
+            makeStopAtLevel(Skill.fishing, 50),
+          );
 
-            expect(macro1.dedupeKey, isNot(equals(macro2.dedupeKey)));
-          },
-        );
+          expect(macro1.dedupeKey, isNot(equals(macro2.dedupeKey)));
+        });
       });
     });
 
@@ -705,26 +692,22 @@ void main() {
           MelvorId id,
           int cost,
           String name,
-        ) =>
-            StopWhenUpgradeAffordable(id, cost, name);
-        MacroStopRule makeStopWhenInputsDepleted() => StopWhenInputsDepleted();
+        ) => StopWhenUpgradeAffordable(id, cost, name);
+        MacroStopRule makeStopWhenInputsDepleted() => const StopWhenInputsDepleted();
 
-        test(
-          'identical non-const macros with StopAtNextBoundary produce same '
-          'dedupeKey',
-          () {
-            final macro1 = TrainConsumingSkillUntil(
-              Skill.firemaking,
-              makeStopAtNextBoundary(Skill.firemaking),
-            );
-            final macro2 = TrainConsumingSkillUntil(
-              Skill.firemaking,
-              makeStopAtNextBoundary(Skill.firemaking),
-            );
+        test('identical non-const macros with StopAtNextBoundary produce same '
+            'dedupeKey', () {
+          final macro1 = TrainConsumingSkillUntil(
+            Skill.firemaking,
+            makeStopAtNextBoundary(Skill.firemaking),
+          );
+          final macro2 = TrainConsumingSkillUntil(
+            Skill.firemaking,
+            makeStopAtNextBoundary(Skill.firemaking),
+          );
 
-            expect(macro1.dedupeKey, equals(macro2.dedupeKey));
-          },
-        );
+          expect(macro1.dedupeKey, equals(macro2.dedupeKey));
+        });
 
         test(
           'identical non-const macros with StopAtGoal produce same dedupeKey',
@@ -783,22 +766,19 @@ void main() {
           },
         );
 
-        test(
-          'identical non-const macros with StopWhenInputsDepleted produce '
-          'same dedupeKey',
-          () {
-            final macro1 = TrainConsumingSkillUntil(
-              Skill.smithing,
-              makeStopWhenInputsDepleted(),
-            );
-            final macro2 = TrainConsumingSkillUntil(
-              Skill.smithing,
-              makeStopWhenInputsDepleted(),
-            );
+        test('identical non-const macros with StopWhenInputsDepleted produce '
+            'same dedupeKey', () {
+          final macro1 = TrainConsumingSkillUntil(
+            Skill.smithing,
+            makeStopWhenInputsDepleted(),
+          );
+          final macro2 = TrainConsumingSkillUntil(
+            Skill.smithing,
+            makeStopWhenInputsDepleted(),
+          );
 
-            expect(macro1.dedupeKey, equals(macro2.dedupeKey));
-          },
-        );
+          expect(macro1.dedupeKey, equals(macro2.dedupeKey));
+        });
 
         test('macros with different skills produce different dedupeKeys', () {
           final macro1 = TrainConsumingSkillUntil(
@@ -829,39 +809,33 @@ void main() {
           },
         );
 
-        test(
-          'non-const StopAtGoal macros with different XP values produce '
-          'different dedupeKeys',
-          () {
-            final macro1 = TrainConsumingSkillUntil(
-              Skill.smithing,
-              makeStopAtGoal(Skill.smithing, 5000),
-            );
-            final macro2 = TrainConsumingSkillUntil(
-              Skill.smithing,
-              makeStopAtGoal(Skill.smithing, 10000),
-            );
+        test('non-const StopAtGoal macros with different XP values produce '
+            'different dedupeKeys', () {
+          final macro1 = TrainConsumingSkillUntil(
+            Skill.smithing,
+            makeStopAtGoal(Skill.smithing, 5000),
+          );
+          final macro2 = TrainConsumingSkillUntil(
+            Skill.smithing,
+            makeStopAtGoal(Skill.smithing, 10000),
+          );
 
-            expect(macro1.dedupeKey, isNot(equals(macro2.dedupeKey)));
-          },
-        );
+          expect(macro1.dedupeKey, isNot(equals(macro2.dedupeKey)));
+        });
 
-        test(
-          'non-const StopAtLevel macros with different levels produce '
-          'different dedupeKeys',
-          () {
-            final macro1 = TrainConsumingSkillUntil(
-              Skill.cooking,
-              makeStopAtLevel(Skill.cooking, 20),
-            );
-            final macro2 = TrainConsumingSkillUntil(
-              Skill.cooking,
-              makeStopAtLevel(Skill.cooking, 40),
-            );
+        test('non-const StopAtLevel macros with different levels produce '
+            'different dedupeKeys', () {
+          final macro1 = TrainConsumingSkillUntil(
+            Skill.cooking,
+            makeStopAtLevel(Skill.cooking, 20),
+          );
+          final macro2 = TrainConsumingSkillUntil(
+            Skill.cooking,
+            makeStopAtLevel(Skill.cooking, 40),
+          );
 
-            expect(macro1.dedupeKey, isNot(equals(macro2.dedupeKey)));
-          },
-        );
+          expect(macro1.dedupeKey, isNot(equals(macro2.dedupeKey)));
+        });
       });
     });
   });
