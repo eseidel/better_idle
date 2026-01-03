@@ -4,6 +4,8 @@ import 'package:logic/logic.dart';
 import 'package:logic/src/solver/analysis/unlock_boundaries.dart';
 import 'package:logic/src/solver/analysis/wait_for.dart';
 import 'package:logic/src/solver/candidates/macro_candidate.dart';
+import 'package:logic/src/solver/candidates/macro_expansion_context.dart';
+import 'package:logic/src/solver/core/goal.dart';
 import 'package:test/test.dart';
 
 import '../test_helper.dart';
@@ -195,6 +197,180 @@ void main() {
 
         expect(macro.actionId, action.id);
       });
+
+      // NOTE: Tests using 'const' will pass because Dart canonicalizes const
+      // instances (same arguments = same object = same hashCode). We need
+      // non-const (separate allocations) to properly test dedupeKey behavior.
+      group('dedupeKey', () {
+        // Helper functions that return new instances each call
+        MacroStopRule makeStopAtNextBoundary(Skill skill) =>
+            StopAtNextBoundary(skill);
+        MacroStopRule makeStopAtGoal(Skill skill, int xp) =>
+            StopAtGoal(skill, xp);
+        MacroStopRule makeStopAtLevel(Skill skill, int level) =>
+            StopAtLevel(skill, level);
+        MacroStopRule makeStopWhenUpgradeAffordable(
+          MelvorId id,
+          int cost,
+          String name,
+        ) =>
+            StopWhenUpgradeAffordable(id, cost, name);
+        MacroStopRule makeStopWhenInputsDepleted() => StopWhenInputsDepleted();
+
+        test(
+          'identical non-const macros with StopAtNextBoundary produce same '
+          'dedupeKey',
+          () {
+            final macro1 = TrainSkillUntil(
+              Skill.woodcutting,
+              makeStopAtNextBoundary(Skill.woodcutting),
+            );
+            final macro2 = TrainSkillUntil(
+              Skill.woodcutting,
+              makeStopAtNextBoundary(Skill.woodcutting),
+            );
+
+            expect(macro1.dedupeKey, equals(macro2.dedupeKey));
+          },
+        );
+
+        test(
+          'identical non-const macros with StopAtGoal produce same dedupeKey',
+          () {
+            final macro1 = TrainSkillUntil(
+              Skill.mining,
+              makeStopAtGoal(Skill.mining, 5000),
+            );
+            final macro2 = TrainSkillUntil(
+              Skill.mining,
+              makeStopAtGoal(Skill.mining, 5000),
+            );
+
+            expect(macro1.dedupeKey, equals(macro2.dedupeKey));
+          },
+        );
+
+        test(
+          'identical non-const macros with StopAtLevel produce same dedupeKey',
+          () {
+            final macro1 = TrainSkillUntil(
+              Skill.fishing,
+              makeStopAtLevel(Skill.fishing, 25),
+            );
+            final macro2 = TrainSkillUntil(
+              Skill.fishing,
+              makeStopAtLevel(Skill.fishing, 25),
+            );
+
+            expect(macro1.dedupeKey, equals(macro2.dedupeKey));
+          },
+        );
+
+        test(
+          'identical non-const macros with StopWhenUpgradeAffordable produce '
+          'same dedupeKey',
+          () {
+            final macro1 = TrainSkillUntil(
+              Skill.woodcutting,
+              makeStopWhenUpgradeAffordable(
+                const MelvorId('melvorD:Iron_Axe'),
+                50,
+                'Iron Axe',
+              ),
+            );
+            final macro2 = TrainSkillUntil(
+              Skill.woodcutting,
+              makeStopWhenUpgradeAffordable(
+                const MelvorId('melvorD:Iron_Axe'),
+                50,
+                'Iron Axe',
+              ),
+            );
+
+            expect(macro1.dedupeKey, equals(macro2.dedupeKey));
+          },
+        );
+
+        test(
+          'identical non-const macros with StopWhenInputsDepleted produce '
+          'same dedupeKey',
+          () {
+            final macro1 = TrainSkillUntil(
+              Skill.firemaking,
+              makeStopWhenInputsDepleted(),
+            );
+            final macro2 = TrainSkillUntil(
+              Skill.firemaking,
+              makeStopWhenInputsDepleted(),
+            );
+
+            expect(macro1.dedupeKey, equals(macro2.dedupeKey));
+          },
+        );
+
+        test(
+          'macros with different stop rules produce different dedupeKeys',
+          () {
+            final macro1 = TrainSkillUntil(
+              Skill.woodcutting,
+              makeStopAtNextBoundary(Skill.woodcutting),
+            );
+            final macro2 = TrainSkillUntil(
+              Skill.woodcutting,
+              makeStopAtLevel(Skill.woodcutting, 10),
+            );
+
+            expect(macro1.dedupeKey, isNot(equals(macro2.dedupeKey)));
+          },
+        );
+
+        test('macros with different skills produce different dedupeKeys', () {
+          final macro1 = TrainSkillUntil(
+            Skill.woodcutting,
+            makeStopAtNextBoundary(Skill.woodcutting),
+          );
+          final macro2 = TrainSkillUntil(
+            Skill.mining,
+            makeStopAtNextBoundary(Skill.mining),
+          );
+
+          expect(macro1.dedupeKey, isNot(equals(macro2.dedupeKey)));
+        });
+
+        test(
+          'non-const StopAtGoal macros with different XP values produce '
+          'different dedupeKeys',
+          () {
+            final macro1 = TrainSkillUntil(
+              Skill.mining,
+              makeStopAtGoal(Skill.mining, 5000),
+            );
+            final macro2 = TrainSkillUntil(
+              Skill.mining,
+              makeStopAtGoal(Skill.mining, 10000),
+            );
+
+            expect(macro1.dedupeKey, isNot(equals(macro2.dedupeKey)));
+          },
+        );
+
+        test(
+          'non-const StopAtLevel macros with different levels produce '
+          'different dedupeKeys',
+          () {
+            final macro1 = TrainSkillUntil(
+              Skill.fishing,
+              makeStopAtLevel(Skill.fishing, 25),
+            );
+            final macro2 = TrainSkillUntil(
+              Skill.fishing,
+              makeStopAtLevel(Skill.fishing, 50),
+            );
+
+            expect(macro1.dedupeKey, isNot(equals(macro2.dedupeKey)));
+          },
+        );
+      });
     });
 
     group('AcquireItem', () {
@@ -219,6 +395,205 @@ void main() {
 
         expect(macro.provenance, isA<InputPrereqProvenance>());
       });
+
+      group('dedupeKey', () {
+        test('identical macros produce same dedupeKey', () {
+          const macro1 = AcquireItem(MelvorId('melvorD:Normal_Logs'), 50);
+          const macro2 = AcquireItem(MelvorId('melvorD:Normal_Logs'), 50);
+
+          expect(macro1.dedupeKey, equals(macro2.dedupeKey));
+        });
+
+        test('macros with different items produce different dedupeKeys', () {
+          const macro1 = AcquireItem(MelvorId('melvorD:Normal_Logs'), 50);
+          const macro2 = AcquireItem(MelvorId('melvorD:Oak_Logs'), 50);
+
+          expect(macro1.dedupeKey, isNot(equals(macro2.dedupeKey)));
+        });
+
+        test(
+          'macros with different quantities produce different dedupeKeys',
+          () {
+            const macro1 = AcquireItem(MelvorId('melvorD:Normal_Logs'), 50);
+            const macro2 = AcquireItem(MelvorId('melvorD:Normal_Logs'), 100);
+
+            expect(macro1.dedupeKey, isNot(equals(macro2.dedupeKey)));
+          },
+        );
+      });
+
+      group('expand', () {
+        MacroExpansionContext makeContext(
+          GlobalState state, {
+          Goal? goal,
+          Map<Skill, SkillBoundaries>? boundaries,
+        }) {
+          return MacroExpansionContext(
+            state: state,
+            goal: goal ?? const ReachSkillLevelGoal(Skill.woodcutting, 10),
+            boundaries: boundaries ?? const {},
+            random: Random(42),
+          );
+        }
+
+        test('expands to woodcutting action for Normal Logs', () {
+          final state = GlobalState.empty(testRegistries);
+          final context = makeContext(state);
+          const macro = AcquireItem(MelvorId('melvorD:Normal_Logs'), 10);
+
+          final result = macro.expand(context);
+
+          expect(result, isA<MacroExpanded>());
+          final expanded = result as MacroExpanded;
+          expect(expanded.result.ticksElapsed, greaterThan(0));
+          expect(expanded.result.waitFor, isA<WaitForInventoryDelta>());
+          final waitFor = expanded.result.waitFor as WaitForInventoryDelta;
+          expect(waitFor.itemId, const MelvorId('melvorD:Normal_Logs'));
+          expect(waitFor.delta, 10);
+        });
+
+        test('returns MacroCannotExpand when no producer exists', () {
+          final state = GlobalState.empty(testRegistries);
+          final context = makeContext(state);
+          // Use a non-existent item
+          const macro = AcquireItem(MelvorId('melvorD:NonExistent_Item'), 10);
+
+          final result = macro.expand(context);
+
+          expect(result, isA<MacroCannotExpand>());
+        });
+
+        test('expands to training when producer is locked', () {
+          // Start at level 1 - Oak Tree requires level 10
+          final state = GlobalState.empty(testRegistries);
+          final context = makeContext(state);
+          const macro = AcquireItem(MelvorId('melvorD:Oak_Logs'), 10);
+
+          final result = macro.expand(context);
+
+          // Should expand to training woodcutting first (since Oak is locked)
+          expect(result, isA<MacroExpanded>());
+          final expanded = result as MacroExpanded;
+          // The expansion trains woodcutting since Oak is locked at L1
+          expect(
+            expanded.result.state.skillState(Skill.woodcutting).xp,
+            greaterThan(0),
+          );
+        });
+
+        test('uses unlocked producer when available', () {
+          // Give enough woodcutting level to unlock Oak Tree (L10)
+          final state = GlobalState.test(
+            testRegistries,
+            skillStates: const {
+              Skill.woodcutting: SkillState(xp: 1200, masteryPoolXp: 0),
+            },
+          );
+          final context = makeContext(state);
+          const macro = AcquireItem(MelvorId('melvorD:Oak_Logs'), 10);
+
+          final result = macro.expand(context);
+
+          expect(result, isA<MacroExpanded>());
+          final expanded = result as MacroExpanded;
+          // Should produce oak logs directly
+          expect(expanded.result.waitFor, isA<WaitForInventoryDelta>());
+          final waitFor = expanded.result.waitFor as WaitForInventoryDelta;
+          expect(waitFor.itemId, const MelvorId('melvorD:Oak_Logs'));
+        });
+
+        test('handles consuming action inputs recursively', () {
+          // Bronze Bar requires Copper Ore and Tin Ore
+          // Smithing starts at L1, Bronze Bar is L1
+          final state = GlobalState.test(
+            testRegistries,
+            skillStates: const {
+              Skill.smithing: SkillState(xp: 0, masteryPoolXp: 0),
+              Skill.mining: SkillState(xp: 0, masteryPoolXp: 0),
+            },
+          );
+          final context = makeContext(
+            state,
+            goal: const ReachSkillLevelGoal(Skill.smithing, 10),
+          );
+          const macro = AcquireItem(MelvorId('melvorD:Bronze_Bar'), 5);
+
+          final result = macro.expand(context);
+
+          // Should need to acquire inputs first (copper ore or tin ore)
+          expect(result, isA<MacroExpanded>());
+          final expanded = result as MacroExpanded;
+          // The result should be acquiring one of the input ores
+          expect(expanded.result.waitFor, isA<WaitForInventoryDelta>());
+        });
+
+        test('produces item when inputs are already available', () {
+          // Give enough ores to make Bronze Bars
+          final copperOre = testItems.byName('Copper Ore');
+          final tinOre = testItems.byName('Tin Ore');
+          final inventory = Inventory.fromItems(testItems, [
+            ItemStack(copperOre, count: 20),
+            ItemStack(tinOre, count: 20),
+          ]);
+          final state = GlobalState.test(
+            testRegistries,
+            inventory: inventory,
+            skillStates: const {
+              Skill.smithing: SkillState(xp: 0, masteryPoolXp: 0),
+              Skill.mining: SkillState(xp: 0, masteryPoolXp: 0),
+            },
+          );
+          final context = makeContext(
+            state,
+            goal: const ReachSkillLevelGoal(Skill.smithing, 10),
+          );
+          const macro = AcquireItem(MelvorId('melvorD:Bronze_Bar'), 5);
+
+          final result = macro.expand(context);
+
+          expect(result, isA<MacroExpanded>());
+          final expanded = result as MacroExpanded;
+          // Should wait for Bronze Bars since inputs are available
+          expect(expanded.result.waitFor, isA<WaitForInventoryDelta>());
+          final waitFor = expanded.result.waitFor as WaitForInventoryDelta;
+          expect(waitFor.itemId, const MelvorId('melvorD:Bronze_Bar'));
+          expect(waitFor.delta, 5);
+        });
+
+        test('calculates correct ticks for production', () {
+          final state = GlobalState.empty(testRegistries);
+          final context = makeContext(state);
+          const macro = AcquireItem(MelvorId('melvorD:Normal_Logs'), 10);
+
+          final result = macro.expand(context);
+
+          expect(result, isA<MacroExpanded>());
+          final expanded = result as MacroExpanded;
+          // Normal Tree takes 3 seconds = 30 ticks per log
+          // 10 logs = 300 ticks
+          expect(expanded.result.ticksElapsed, 300);
+        });
+
+        test('uses delta semantics for WaitFor', () {
+          // Start with some logs already in inventory
+          final normalLogs = testItems.byName('Normal Logs');
+          final inventory = Inventory.fromItems(testItems, [
+            ItemStack(normalLogs, count: 5),
+          ]);
+          final state = GlobalState.test(testRegistries, inventory: inventory);
+          final context = makeContext(state);
+          const macro = AcquireItem(MelvorId('melvorD:Normal_Logs'), 10);
+
+          final result = macro.expand(context);
+
+          expect(result, isA<MacroExpanded>());
+          final expanded = result as MacroExpanded;
+          final waitFor = expanded.result.waitFor as WaitForInventoryDelta;
+          // Should acquire 10 MORE logs (delta semantics)
+          expect(waitFor.delta, 10);
+          expect(waitFor.startCount, 5);
+        });
+      });
     });
 
     group('EnsureStock', () {
@@ -241,6 +616,29 @@ void main() {
         );
 
         expect(macro.provenance, isA<BatchInputProvenance>());
+      });
+
+      group('dedupeKey', () {
+        test('identical macros produce same dedupeKey', () {
+          const macro1 = EnsureStock(MelvorId('melvorD:Copper_Ore'), 200);
+          const macro2 = EnsureStock(MelvorId('melvorD:Copper_Ore'), 200);
+
+          expect(macro1.dedupeKey, equals(macro2.dedupeKey));
+        });
+
+        test('macros with different items produce different dedupeKeys', () {
+          const macro1 = EnsureStock(MelvorId('melvorD:Copper_Ore'), 200);
+          const macro2 = EnsureStock(MelvorId('melvorD:Iron_Ore'), 200);
+
+          expect(macro1.dedupeKey, isNot(equals(macro2.dedupeKey)));
+        });
+
+        test('macros with different minTotal produce different dedupeKeys', () {
+          const macro1 = EnsureStock(MelvorId('melvorD:Copper_Ore'), 200);
+          const macro2 = EnsureStock(MelvorId('melvorD:Copper_Ore'), 300);
+
+          expect(macro1.dedupeKey, isNot(equals(macro2.dedupeKey)));
+        });
       });
     });
 
@@ -290,6 +688,180 @@ void main() {
         );
 
         expect(macro.provenance, isA<TopLevelProvenance>());
+      });
+
+      // NOTE: Tests use non-const instances because const instances in Dart are
+      // canonicalized (same arguments = same object = same hashCode). We need
+      // non-const (separate allocations) to properly test dedupeKey behavior.
+      group('dedupeKey', () {
+        // Helper functions that return new instances each call
+        MacroStopRule makeStopAtNextBoundary(Skill skill) =>
+            StopAtNextBoundary(skill);
+        MacroStopRule makeStopAtGoal(Skill skill, int xp) =>
+            StopAtGoal(skill, xp);
+        MacroStopRule makeStopAtLevel(Skill skill, int level) =>
+            StopAtLevel(skill, level);
+        MacroStopRule makeStopWhenUpgradeAffordable(
+          MelvorId id,
+          int cost,
+          String name,
+        ) =>
+            StopWhenUpgradeAffordable(id, cost, name);
+        MacroStopRule makeStopWhenInputsDepleted() => StopWhenInputsDepleted();
+
+        test(
+          'identical non-const macros with StopAtNextBoundary produce same '
+          'dedupeKey',
+          () {
+            final macro1 = TrainConsumingSkillUntil(
+              Skill.firemaking,
+              makeStopAtNextBoundary(Skill.firemaking),
+            );
+            final macro2 = TrainConsumingSkillUntil(
+              Skill.firemaking,
+              makeStopAtNextBoundary(Skill.firemaking),
+            );
+
+            expect(macro1.dedupeKey, equals(macro2.dedupeKey));
+          },
+        );
+
+        test(
+          'identical non-const macros with StopAtGoal produce same dedupeKey',
+          () {
+            final macro1 = TrainConsumingSkillUntil(
+              Skill.smithing,
+              makeStopAtGoal(Skill.smithing, 8000),
+            );
+            final macro2 = TrainConsumingSkillUntil(
+              Skill.smithing,
+              makeStopAtGoal(Skill.smithing, 8000),
+            );
+
+            expect(macro1.dedupeKey, equals(macro2.dedupeKey));
+          },
+        );
+
+        test(
+          'identical non-const macros with StopAtLevel produce same dedupeKey',
+          () {
+            final macro1 = TrainConsumingSkillUntil(
+              Skill.cooking,
+              makeStopAtLevel(Skill.cooking, 30),
+            );
+            final macro2 = TrainConsumingSkillUntil(
+              Skill.cooking,
+              makeStopAtLevel(Skill.cooking, 30),
+            );
+
+            expect(macro1.dedupeKey, equals(macro2.dedupeKey));
+          },
+        );
+
+        test(
+          'identical non-const macros with StopWhenUpgradeAffordable produce '
+          'same dedupeKey',
+          () {
+            final macro1 = TrainConsumingSkillUntil(
+              Skill.firemaking,
+              makeStopWhenUpgradeAffordable(
+                const MelvorId('melvorD:Some_Upgrade'),
+                100,
+                'Some Upgrade',
+              ),
+            );
+            final macro2 = TrainConsumingSkillUntil(
+              Skill.firemaking,
+              makeStopWhenUpgradeAffordable(
+                const MelvorId('melvorD:Some_Upgrade'),
+                100,
+                'Some Upgrade',
+              ),
+            );
+
+            expect(macro1.dedupeKey, equals(macro2.dedupeKey));
+          },
+        );
+
+        test(
+          'identical non-const macros with StopWhenInputsDepleted produce '
+          'same dedupeKey',
+          () {
+            final macro1 = TrainConsumingSkillUntil(
+              Skill.smithing,
+              makeStopWhenInputsDepleted(),
+            );
+            final macro2 = TrainConsumingSkillUntil(
+              Skill.smithing,
+              makeStopWhenInputsDepleted(),
+            );
+
+            expect(macro1.dedupeKey, equals(macro2.dedupeKey));
+          },
+        );
+
+        test('macros with different skills produce different dedupeKeys', () {
+          final macro1 = TrainConsumingSkillUntil(
+            Skill.firemaking,
+            makeStopAtNextBoundary(Skill.firemaking),
+          );
+          final macro2 = TrainConsumingSkillUntil(
+            Skill.cooking,
+            makeStopAtNextBoundary(Skill.cooking),
+          );
+
+          expect(macro1.dedupeKey, isNot(equals(macro2.dedupeKey)));
+        });
+
+        test(
+          'macros with different stop rules produce different dedupeKeys',
+          () {
+            final macro1 = TrainConsumingSkillUntil(
+              Skill.firemaking,
+              makeStopAtNextBoundary(Skill.firemaking),
+            );
+            final macro2 = TrainConsumingSkillUntil(
+              Skill.firemaking,
+              makeStopAtLevel(Skill.firemaking, 15),
+            );
+
+            expect(macro1.dedupeKey, isNot(equals(macro2.dedupeKey)));
+          },
+        );
+
+        test(
+          'non-const StopAtGoal macros with different XP values produce '
+          'different dedupeKeys',
+          () {
+            final macro1 = TrainConsumingSkillUntil(
+              Skill.smithing,
+              makeStopAtGoal(Skill.smithing, 5000),
+            );
+            final macro2 = TrainConsumingSkillUntil(
+              Skill.smithing,
+              makeStopAtGoal(Skill.smithing, 10000),
+            );
+
+            expect(macro1.dedupeKey, isNot(equals(macro2.dedupeKey)));
+          },
+        );
+
+        test(
+          'non-const StopAtLevel macros with different levels produce '
+          'different dedupeKeys',
+          () {
+            final macro1 = TrainConsumingSkillUntil(
+              Skill.cooking,
+              makeStopAtLevel(Skill.cooking, 20),
+            );
+            final macro2 = TrainConsumingSkillUntil(
+              Skill.cooking,
+              makeStopAtLevel(Skill.cooking, 40),
+            );
+
+            expect(macro1.dedupeKey, isNot(equals(macro2.dedupeKey)));
+          },
+        );
       });
     });
   });

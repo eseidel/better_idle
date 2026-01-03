@@ -344,4 +344,666 @@ void main() {
       expect(output, contains('Total ticks: 0'));
     });
   });
+
+  group('Plan.toJson/fromJson', () {
+    test('round trips empty plan', () {
+      const plan = Plan.empty();
+
+      final json = plan.toJson();
+      final restored = Plan.fromJson(json);
+
+      expect(restored.steps, isEmpty);
+      expect(restored.totalTicks, plan.totalTicks);
+      expect(restored.interactionCount, plan.interactionCount);
+      expect(restored.expandedNodes, plan.expandedNodes);
+      expect(restored.enqueuedNodes, plan.enqueuedNodes);
+      expect(restored.expectedDeaths, plan.expectedDeaths);
+      expect(restored.segmentMarkers, isEmpty);
+    });
+
+    test('round trips plan with InteractionSteps', () {
+      final action = testActions.woodcutting('Normal Tree');
+      final plan = Plan(
+        steps: [
+          InteractionStep(SwitchActivity(action.id)),
+          const InteractionStep(BuyShopItem(MelvorId('melvorD:Iron_Axe'))),
+          const InteractionStep(SellItems(SellAllPolicy())),
+          InteractionStep(
+            SellItems(
+              SellExceptPolicy({
+                const MelvorId('melvorD:Normal_Logs'),
+                const MelvorId('melvorD:Oak_Logs'),
+              }),
+            ),
+          ),
+        ],
+        totalTicks: 1000,
+        interactionCount: 4,
+        expandedNodes: 50,
+        enqueuedNodes: 100,
+      );
+
+      final json = plan.toJson();
+      final restored = Plan.fromJson(json);
+
+      expect(restored.steps.length, 4);
+      expect(restored.totalTicks, 1000);
+      expect(restored.interactionCount, 4);
+      expect(restored.expandedNodes, 50);
+      expect(restored.enqueuedNodes, 100);
+
+      // Verify each step type
+      expect(restored.steps[0], isA<InteractionStep>());
+      final step0 = restored.steps[0] as InteractionStep;
+      expect(step0.interaction, isA<SwitchActivity>());
+      expect((step0.interaction as SwitchActivity).actionId, action.id);
+
+      expect(restored.steps[1], isA<InteractionStep>());
+      final step1 = restored.steps[1] as InteractionStep;
+      expect(step1.interaction, isA<BuyShopItem>());
+      expect(
+        (step1.interaction as BuyShopItem).purchaseId,
+        const MelvorId('melvorD:Iron_Axe'),
+      );
+
+      expect(restored.steps[2], isA<InteractionStep>());
+      final step2 = restored.steps[2] as InteractionStep;
+      expect(step2.interaction, isA<SellItems>());
+      expect((step2.interaction as SellItems).policy, isA<SellAllPolicy>());
+
+      expect(restored.steps[3], isA<InteractionStep>());
+      final step3 = restored.steps[3] as InteractionStep;
+      expect(step3.interaction, isA<SellItems>());
+      final policy3 =
+          (step3.interaction as SellItems).policy as SellExceptPolicy;
+      expect(
+        policy3.keepItems,
+        contains(const MelvorId('melvorD:Normal_Logs')),
+      );
+      expect(policy3.keepItems, contains(const MelvorId('melvorD:Oak_Logs')));
+    });
+
+    test('round trips plan with WaitSteps', () {
+      final action = testActions.woodcutting('Oak Tree');
+      final plan = Plan(
+        steps: [
+          const WaitStep(6000, WaitForSkillXp(Skill.woodcutting, 1000)),
+          WaitStep(
+            3000,
+            const WaitForSkillXp(Skill.fishing, 500, reason: 'Level 10'),
+            expectedAction: action.id,
+          ),
+          WaitStep(1000, WaitForMasteryXp(action.id, 200)),
+          const WaitStep(500, WaitForInventoryThreshold(0.9)),
+          const WaitStep(200, WaitForInventoryFull()),
+        ],
+        totalTicks: 10700,
+        interactionCount: 0,
+      );
+
+      final json = plan.toJson();
+      final restored = Plan.fromJson(json);
+
+      expect(restored.steps.length, 5);
+      expect(restored.totalTicks, 10700);
+
+      // WaitForSkillXp without reason
+      final step0 = restored.steps[0] as WaitStep;
+      expect(step0.deltaTicks, 6000);
+      expect(step0.waitFor, isA<WaitForSkillXp>());
+      final wait0 = step0.waitFor as WaitForSkillXp;
+      expect(wait0.skill, Skill.woodcutting);
+      expect(wait0.targetXp, 1000);
+      expect(step0.expectedAction, isNull);
+
+      // WaitForSkillXp with reason and expectedAction
+      final step1 = restored.steps[1] as WaitStep;
+      expect(step1.deltaTicks, 3000);
+      expect(step1.expectedAction, action.id);
+      final wait1 = step1.waitFor as WaitForSkillXp;
+      expect(wait1.reason, 'Level 10');
+
+      // WaitForMasteryXp
+      final step2 = restored.steps[2] as WaitStep;
+      expect(step2.waitFor, isA<WaitForMasteryXp>());
+      final wait2 = step2.waitFor as WaitForMasteryXp;
+      expect(wait2.actionId, action.id);
+      expect(wait2.targetMasteryXp, 200);
+
+      // WaitForInventoryThreshold
+      final step3 = restored.steps[3] as WaitStep;
+      expect(step3.waitFor, isA<WaitForInventoryThreshold>());
+      expect((step3.waitFor as WaitForInventoryThreshold).threshold, 0.9);
+
+      // WaitForInventoryFull
+      final step4 = restored.steps[4] as WaitStep;
+      expect(step4.waitFor, isA<WaitForInventoryFull>());
+    });
+
+    test('round trips plan with WaitForEffectiveCredits', () {
+      final plan = Plan(
+        steps: [
+          const WaitStep(
+            1000,
+            WaitForEffectiveCredits(
+              5000,
+              sellPolicy: SellAllPolicy(),
+              reason: 'Steel Axe',
+            ),
+          ),
+          WaitStep(
+            2000,
+            WaitForEffectiveCredits(
+              10000,
+              sellPolicy: SellExceptPolicy({
+                const MelvorId('melvorD:Oak_Logs'),
+              }),
+            ),
+          ),
+        ],
+        totalTicks: 3000,
+        interactionCount: 0,
+      );
+
+      final json = plan.toJson();
+      final restored = Plan.fromJson(json);
+
+      expect(restored.steps.length, 2);
+
+      final step0 = restored.steps[0] as WaitStep;
+      expect(step0.waitFor, isA<WaitForEffectiveCredits>());
+      final wait0 = step0.waitFor as WaitForEffectiveCredits;
+      expect(wait0.targetValue, 5000);
+      expect(wait0.reason, 'Steel Axe');
+      expect(wait0.sellPolicy, isA<SellAllPolicy>());
+
+      final step1 = restored.steps[1] as WaitStep;
+      final wait1 = step1.waitFor as WaitForEffectiveCredits;
+      expect(wait1.sellPolicy, isA<SellExceptPolicy>());
+    });
+
+    test(
+      'round trips plan with WaitForInputsDepleted and WaitForInputsAvailable',
+      () {
+        final action = testActions.firemaking('Burn Normal Logs');
+        final plan = Plan(
+          steps: [
+            WaitStep(1000, WaitForInputsDepleted(action.id)),
+            WaitStep(2000, WaitForInputsAvailable(action.id)),
+          ],
+          totalTicks: 3000,
+          interactionCount: 0,
+        );
+
+        final json = plan.toJson();
+        final restored = Plan.fromJson(json);
+
+        expect(restored.steps.length, 2);
+
+        final step0 = restored.steps[0] as WaitStep;
+        expect(step0.waitFor, isA<WaitForInputsDepleted>());
+        expect((step0.waitFor as WaitForInputsDepleted).actionId, action.id);
+
+        final step1 = restored.steps[1] as WaitStep;
+        expect(step1.waitFor, isA<WaitForInputsAvailable>());
+        expect((step1.waitFor as WaitForInputsAvailable).actionId, action.id);
+      },
+    );
+
+    test(
+      'round trips plan with WaitForInventoryAtLeast and WaitForInventoryDelta',
+      () {
+        const plan = Plan(
+          steps: [
+            WaitStep(
+              1000,
+              WaitForInventoryAtLeast(MelvorId('melvorD:Normal_Logs'), 50),
+            ),
+            WaitStep(
+              2000,
+              WaitForInventoryDelta(
+                MelvorId('melvorD:Oak_Logs'),
+                25,
+                startCount: 10,
+              ),
+            ),
+          ],
+          totalTicks: 3000,
+          interactionCount: 0,
+        );
+
+        final json = plan.toJson();
+        final restored = Plan.fromJson(json);
+
+        final step0 = restored.steps[0] as WaitStep;
+        expect(step0.waitFor, isA<WaitForInventoryAtLeast>());
+        final wait0 = step0.waitFor as WaitForInventoryAtLeast;
+        expect(wait0.itemId, const MelvorId('melvorD:Normal_Logs'));
+        expect(wait0.minCount, 50);
+
+        final step1 = restored.steps[1] as WaitStep;
+        expect(step1.waitFor, isA<WaitForInventoryDelta>());
+        final wait1 = step1.waitFor as WaitForInventoryDelta;
+        expect(wait1.itemId, const MelvorId('melvorD:Oak_Logs'));
+        expect(wait1.delta, 25);
+        expect(wait1.startCount, 10);
+      },
+    );
+
+    test('round trips plan with WaitForSufficientInputs', () {
+      final action = testActions.firemaking('Burn Normal Logs');
+      final plan = Plan(
+        steps: [WaitStep(1000, WaitForSufficientInputs(action.id, 100))],
+        totalTicks: 1000,
+        interactionCount: 0,
+      );
+
+      final json = plan.toJson();
+      final restored = Plan.fromJson(json);
+
+      final step0 = restored.steps[0] as WaitStep;
+      expect(step0.waitFor, isA<WaitForSufficientInputs>());
+      final wait0 = step0.waitFor as WaitForSufficientInputs;
+      expect(wait0.actionId, action.id);
+      expect(wait0.targetCount, 100);
+    });
+
+    test('round trips plan with WaitForAnyOf', () {
+      const plan = Plan(
+        steps: [
+          WaitStep(
+            5000,
+            WaitForAnyOf([
+              WaitForSkillXp(Skill.woodcutting, 1000),
+              WaitForInventoryFull(),
+              WaitForEffectiveCredits(500, sellPolicy: SellAllPolicy()),
+            ]),
+          ),
+        ],
+        totalTicks: 5000,
+        interactionCount: 0,
+      );
+
+      final json = plan.toJson();
+      final restored = Plan.fromJson(json);
+
+      final step0 = restored.steps[0] as WaitStep;
+      expect(step0.waitFor, isA<WaitForAnyOf>());
+      final anyOf = step0.waitFor as WaitForAnyOf;
+      expect(anyOf.conditions.length, 3);
+      expect(anyOf.conditions[0], isA<WaitForSkillXp>());
+      expect(anyOf.conditions[1], isA<WaitForInventoryFull>());
+      expect(anyOf.conditions[2], isA<WaitForEffectiveCredits>());
+    });
+
+    test('round trips plan with MacroSteps', () {
+      const plan = Plan(
+        steps: [
+          MacroStep(
+            TrainSkillUntil(
+              Skill.mining,
+              StopAtNextBoundary(Skill.mining),
+              watchedStops: [
+                StopWhenUpgradeAffordable(
+                  MelvorId('melvorD:Iron_Pickaxe'),
+                  1000,
+                  'Iron Pickaxe',
+                ),
+              ],
+            ),
+            36000,
+            WaitForSkillXp(Skill.mining, 10000),
+          ),
+          MacroStep(
+            TrainSkillUntil(
+              Skill.woodcutting,
+              StopAtGoal(Skill.woodcutting, 50000),
+            ),
+            72000,
+            WaitForSkillXp(Skill.woodcutting, 50000),
+          ),
+          MacroStep(
+            TrainSkillUntil(Skill.fishing, StopAtLevel(Skill.fishing, 20)),
+            18000,
+            WaitForSkillXp(Skill.fishing, 4470),
+          ),
+        ],
+        totalTicks: 126000,
+        interactionCount: 0,
+      );
+
+      final json = plan.toJson();
+      final restored = Plan.fromJson(json);
+
+      expect(restored.steps.length, 3);
+
+      // TrainSkillUntil with StopAtNextBoundary and watchedStops
+      final step0 = restored.steps[0] as MacroStep;
+      expect(step0.macro, isA<TrainSkillUntil>());
+      final macro0 = step0.macro as TrainSkillUntil;
+      expect(macro0.skill, Skill.mining);
+      expect(macro0.primaryStop, isA<StopAtNextBoundary>());
+      expect(macro0.watchedStops.length, 1);
+      expect(macro0.watchedStops[0], isA<StopWhenUpgradeAffordable>());
+      expect(step0.deltaTicks, 36000);
+
+      // TrainSkillUntil with StopAtGoal
+      final step1 = restored.steps[1] as MacroStep;
+      final macro1 = step1.macro as TrainSkillUntil;
+      expect(macro1.primaryStop, isA<StopAtGoal>());
+      final stop1 = macro1.primaryStop as StopAtGoal;
+      expect(stop1.skill, Skill.woodcutting);
+      expect(stop1.targetXp, 50000);
+
+      // TrainSkillUntil with StopAtLevel
+      final step2 = restored.steps[2] as MacroStep;
+      final macro2 = step2.macro as TrainSkillUntil;
+      expect(macro2.primaryStop, isA<StopAtLevel>());
+      final stop2 = macro2.primaryStop as StopAtLevel;
+      expect(stop2.skill, Skill.fishing);
+      expect(stop2.level, 20);
+    });
+
+    test('round trips plan with AcquireItem and EnsureStock macros', () {
+      const plan = Plan(
+        steps: [
+          MacroStep(
+            AcquireItem(MelvorId('melvorD:Normal_Logs'), 50),
+            1200,
+            WaitForInventoryAtLeast(MelvorId('melvorD:Normal_Logs'), 50),
+          ),
+          MacroStep(
+            EnsureStock(MelvorId('melvorD:Oak_Logs'), 100),
+            2400,
+            WaitForInventoryAtLeast(MelvorId('melvorD:Oak_Logs'), 100),
+          ),
+        ],
+        totalTicks: 3600,
+        interactionCount: 0,
+      );
+
+      final json = plan.toJson();
+      final restored = Plan.fromJson(json);
+
+      expect(restored.steps.length, 2);
+
+      final step0 = restored.steps[0] as MacroStep;
+      expect(step0.macro, isA<AcquireItem>());
+      final macro0 = step0.macro as AcquireItem;
+      expect(macro0.itemId, const MelvorId('melvorD:Normal_Logs'));
+      expect(macro0.quantity, 50);
+
+      final step1 = restored.steps[1] as MacroStep;
+      expect(step1.macro, isA<EnsureStock>());
+      final macro1 = step1.macro as EnsureStock;
+      expect(macro1.itemId, const MelvorId('melvorD:Oak_Logs'));
+      expect(macro1.minTotal, 100);
+    });
+
+    test('round trips plan with TrainConsumingSkillUntil macro', () {
+      final plan = Plan(
+        steps: [
+          MacroStep(
+            TrainConsumingSkillUntil(
+              Skill.firemaking,
+              const StopAtNextBoundary(Skill.firemaking),
+              watchedStops: const [StopWhenInputsDepleted()],
+              consumeActionId: testActions.firemaking('Burn Normal Logs').id,
+              producerByInputItem: {
+                const MelvorId('melvorD:Normal_Logs'): testActions
+                    .woodcutting('Normal Tree')
+                    .id,
+              },
+              bufferTarget: 20,
+              sellPolicySpec: const ReserveConsumingInputsSpec(),
+              maxRecoveryAttempts: 5,
+            ),
+            50000,
+            const WaitForSkillXp(Skill.firemaking, 5000),
+          ),
+        ],
+        totalTicks: 50000,
+        interactionCount: 0,
+      );
+
+      final json = plan.toJson();
+      final restored = Plan.fromJson(json);
+
+      expect(restored.steps.length, 1);
+
+      final step0 = restored.steps[0] as MacroStep;
+      expect(step0.macro, isA<TrainConsumingSkillUntil>());
+      final macro = step0.macro as TrainConsumingSkillUntil;
+      expect(macro.consumingSkill, Skill.firemaking);
+      expect(macro.primaryStop, isA<StopAtNextBoundary>());
+      expect(macro.watchedStops.length, 1);
+      expect(macro.watchedStops[0], isA<StopWhenInputsDepleted>());
+      expect(
+        macro.consumeActionId,
+        testActions.firemaking('Burn Normal Logs').id,
+      );
+      expect(macro.producerByInputItem, isNotNull);
+      expect(
+        macro.producerByInputItem![const MelvorId('melvorD:Normal_Logs')],
+        testActions.woodcutting('Normal Tree').id,
+      );
+      expect(macro.bufferTarget, 20);
+      expect(macro.sellPolicySpec, isA<ReserveConsumingInputsSpec>());
+      expect(macro.maxRecoveryAttempts, 5);
+    });
+
+    test('round trips plan with segment markers', () {
+      final action = testActions.woodcutting('Normal Tree');
+      final plan = Plan(
+        steps: [
+          InteractionStep(SwitchActivity(action.id)),
+          const WaitStep(5000, WaitForSkillXp(Skill.woodcutting, 1000)),
+          const InteractionStep(SellItems(SellAllPolicy())),
+          const WaitStep(3000, WaitForSkillXp(Skill.woodcutting, 2000)),
+        ],
+        totalTicks: 8000,
+        interactionCount: 2,
+        segmentMarkers: const [
+          SegmentMarker(
+            stepIndex: 0,
+            boundary: UnlockBoundary(Skill.woodcutting, 15, 'Oak Trees'),
+            sellPolicy: SellAllPolicy(),
+            description: 'Train WC to 15',
+          ),
+          SegmentMarker(stepIndex: 2, boundary: GoalReachedBoundary()),
+        ],
+      );
+
+      final json = plan.toJson();
+      final restored = Plan.fromJson(json);
+
+      expect(restored.segmentMarkers.length, 2);
+
+      final marker0 = restored.segmentMarkers[0];
+      expect(marker0.stepIndex, 0);
+      expect(marker0.boundary, isA<UnlockBoundary>());
+      final boundary0 = marker0.boundary as UnlockBoundary;
+      expect(boundary0.skill, Skill.woodcutting);
+      expect(boundary0.level, 15);
+      expect(boundary0.unlocks, 'Oak Trees');
+      expect(marker0.sellPolicy, isA<SellAllPolicy>());
+      expect(marker0.description, 'Train WC to 15');
+
+      final marker1 = restored.segmentMarkers[1];
+      expect(marker1.stepIndex, 2);
+      expect(marker1.boundary, isA<GoalReachedBoundary>());
+      expect(marker1.sellPolicy, isNull);
+      expect(marker1.description, isNull);
+    });
+
+    test('round trips plan with all segment boundary types', () {
+      final action = testActions.firemaking('Burn Normal Logs');
+      // Build plan with all boundary types in order
+      final plan = Plan(
+        steps: const [],
+        totalTicks: 0,
+        interactionCount: 0,
+        segmentMarkers: [
+          const SegmentMarker(stepIndex: 0, boundary: GoalReachedBoundary()),
+          const SegmentMarker(
+            stepIndex: 1,
+            boundary: UpgradeAffordableBoundary(
+              MelvorId('melvorD:Steel_Axe'),
+              'Steel Axe',
+            ),
+          ),
+          const SegmentMarker(
+            stepIndex: 2,
+            boundary: UnlockBoundary(Skill.mining, 30, 'Mithril Rocks'),
+          ),
+          SegmentMarker(
+            stepIndex: 3,
+            boundary: InputsDepletedBoundary(action.id),
+          ),
+          const SegmentMarker(
+            stepIndex: 4,
+            boundary: HorizonCapBoundary(100000),
+          ),
+          const SegmentMarker(
+            stepIndex: 5,
+            boundary: InventoryPressureBoundary(45, 50),
+          ),
+        ],
+      );
+
+      final json = plan.toJson();
+      final restored = Plan.fromJson(json);
+
+      expect(restored.segmentMarkers.length, 6);
+
+      // GoalReachedBoundary
+      expect(restored.segmentMarkers[0].boundary, isA<GoalReachedBoundary>());
+
+      // UpgradeAffordableBoundary
+      expect(
+        restored.segmentMarkers[1].boundary,
+        isA<UpgradeAffordableBoundary>(),
+      );
+      final boundary1 =
+          restored.segmentMarkers[1].boundary as UpgradeAffordableBoundary;
+      expect(boundary1.purchaseId, const MelvorId('melvorD:Steel_Axe'));
+      expect(boundary1.upgradeName, 'Steel Axe');
+
+      // UnlockBoundary
+      expect(restored.segmentMarkers[2].boundary, isA<UnlockBoundary>());
+
+      // InputsDepletedBoundary
+      expect(
+        restored.segmentMarkers[3].boundary,
+        isA<InputsDepletedBoundary>(),
+      );
+      final boundary3 =
+          restored.segmentMarkers[3].boundary as InputsDepletedBoundary;
+      expect(boundary3.actionId, action.id);
+
+      // HorizonCapBoundary
+      expect(restored.segmentMarkers[4].boundary, isA<HorizonCapBoundary>());
+      final boundary4 =
+          restored.segmentMarkers[4].boundary as HorizonCapBoundary;
+      expect(boundary4.ticksElapsed, 100000);
+
+      // InventoryPressureBoundary
+      expect(
+        restored.segmentMarkers[5].boundary,
+        isA<InventoryPressureBoundary>(),
+      );
+      final boundary5 =
+          restored.segmentMarkers[5].boundary as InventoryPressureBoundary;
+      expect(boundary5.usedSlots, 45);
+      expect(boundary5.totalSlots, 50);
+    });
+
+    test('round trips plan with expectedDeaths', () {
+      const plan = Plan(
+        steps: [],
+        totalTicks: 10000,
+        interactionCount: 5,
+        expectedDeaths: 3,
+      );
+
+      final json = plan.toJson();
+      final restored = Plan.fromJson(json);
+
+      expect(restored.expectedDeaths, 3);
+    });
+
+    test('round trips complex plan with mixed step types', () {
+      final wcAction = testActions.woodcutting('Normal Tree');
+      final fmAction = testActions.firemaking('Burn Normal Logs');
+
+      final plan = Plan(
+        steps: [
+          InteractionStep(SwitchActivity(wcAction.id)),
+          WaitStep(
+            5000,
+            const WaitForAnyOf([
+              WaitForSkillXp(Skill.woodcutting, 1000),
+              WaitForInventoryThreshold(0.9),
+            ]),
+            expectedAction: wcAction.id,
+          ),
+          const InteractionStep(SellItems(SellAllPolicy())),
+          const MacroStep(
+            TrainSkillUntil(
+              Skill.woodcutting,
+              StopAtNextBoundary(Skill.woodcutting),
+            ),
+            20000,
+            WaitForSkillXp(Skill.woodcutting, 5000),
+          ),
+          InteractionStep(SwitchActivity(fmAction.id)),
+          WaitStep(3000, WaitForInputsDepleted(fmAction.id)),
+        ],
+        totalTicks: 28000,
+        interactionCount: 3,
+        expandedNodes: 150,
+        enqueuedNodes: 300,
+        expectedDeaths: 1,
+        segmentMarkers: [
+          SegmentMarker(
+            stepIndex: 0,
+            boundary: const UnlockBoundary(Skill.woodcutting, 15, 'Oak Trees'),
+            sellPolicy: SellExceptPolicy({
+              const MelvorId('melvorD:Normal_Logs'),
+            }),
+          ),
+          const SegmentMarker(stepIndex: 4, boundary: GoalReachedBoundary()),
+        ],
+      );
+
+      final json = plan.toJson();
+      final restored = Plan.fromJson(json);
+
+      expect(restored.steps.length, 6);
+      expect(restored.totalTicks, 28000);
+      expect(restored.interactionCount, 3);
+      expect(restored.expandedNodes, 150);
+      expect(restored.enqueuedNodes, 300);
+      expect(restored.expectedDeaths, 1);
+      expect(restored.segmentMarkers.length, 2);
+
+      // Verify step types
+      expect(restored.steps[0], isA<InteractionStep>());
+      expect(restored.steps[1], isA<WaitStep>());
+      expect(restored.steps[2], isA<InteractionStep>());
+      expect(restored.steps[3], isA<MacroStep>());
+      expect(restored.steps[4], isA<InteractionStep>());
+      expect(restored.steps[5], isA<WaitStep>());
+
+      // Verify nested WaitForAnyOf
+      final step1 = restored.steps[1] as WaitStep;
+      expect(step1.waitFor, isA<WaitForAnyOf>());
+      final anyOf = step1.waitFor as WaitForAnyOf;
+      expect(anyOf.conditions.length, 2);
+
+      // Verify segment marker sell policy
+      final marker0 = restored.segmentMarkers[0];
+      expect(marker0.sellPolicy, isA<SellExceptPolicy>());
+    });
+  });
 }
