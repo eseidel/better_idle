@@ -438,6 +438,99 @@ void main() {
     });
   });
 
+  group('Goal JSON serialization', () {
+    test('ReachGpGoal round-trips through JSON', () {
+      const original = ReachGpGoal(5000);
+      final json = original.toJson();
+      final restored = Goal.fromJson(json);
+
+      expect(restored, isA<ReachGpGoal>());
+      expect(restored, equals(original));
+      expect((restored as ReachGpGoal).targetGp, 5000);
+    });
+
+    test('ReachSkillLevelGoal round-trips through JSON', () {
+      const original = ReachSkillLevelGoal(Skill.woodcutting, 50);
+      final json = original.toJson();
+      final restored = Goal.fromJson(json);
+
+      expect(restored, isA<ReachSkillLevelGoal>());
+      expect(restored, equals(original));
+      final restoredGoal = restored as ReachSkillLevelGoal;
+      expect(restoredGoal.skill, Skill.woodcutting);
+      expect(restoredGoal.targetLevel, 50);
+    });
+
+    test('MultiSkillGoal round-trips through JSON', () {
+      final original = MultiSkillGoal.fromMap(const {
+        Skill.woodcutting: 50,
+        Skill.firemaking: 40,
+      });
+      final json = original.toJson();
+      final restored = Goal.fromJson(json);
+
+      expect(restored, isA<MultiSkillGoal>());
+      expect(restored, equals(original));
+      final restoredGoal = restored as MultiSkillGoal;
+      expect(restoredGoal.subgoals.length, 2);
+    });
+
+    test('ReachGpGoal toJson has correct structure', () {
+      const goal = ReachGpGoal(1000);
+      final json = goal.toJson();
+
+      expect(json['type'], 'ReachGpGoal');
+      expect(json['targetGp'], 1000);
+    });
+
+    test('ReachSkillLevelGoal toJson has correct structure', () {
+      const goal = ReachSkillLevelGoal(Skill.fishing, 25);
+      final json = goal.toJson();
+
+      expect(json['type'], 'ReachSkillLevelGoal');
+      expect(json['skill'], 'Fishing');
+      expect(json['targetLevel'], 25);
+    });
+
+    test('MultiSkillGoal toJson has correct structure', () {
+      final goal = MultiSkillGoal.fromMap(const {
+        Skill.mining: 30,
+        Skill.smithing: 20,
+      });
+      final json = goal.toJson();
+
+      expect(json['type'], 'MultiSkillGoal');
+      expect(json['subgoals'], isA<List<dynamic>>());
+      expect((json['subgoals'] as List<dynamic>).length, 2);
+    });
+
+    test('fromJson throws for unknown type', () {
+      final json = {'type': 'UnknownGoal'};
+
+      expect(() => Goal.fromJson(json), throwsArgumentError);
+    });
+
+    test('fromJson throws for SegmentGoal', () {
+      final json = <String, dynamic>{
+        'type': 'SegmentGoal',
+        'innerGoal': <String, dynamic>{},
+      };
+
+      expect(() => Goal.fromJson(json), throwsArgumentError);
+    });
+
+    test('fromJson handles all Skill types in ReachSkillLevelGoal', () {
+      for (final skill in Skill.values) {
+        final original = ReachSkillLevelGoal(skill, 10);
+        final json = original.toJson();
+        final restored = Goal.fromJson(json) as ReachSkillLevelGoal;
+
+        expect(restored.skill, skill);
+        expect(restored.targetLevel, 10);
+      }
+    });
+  });
+
   group('enumerateCandidates with MultiSkillGoal', () {
     test('includes activities for all goal skills', () {
       final state = GlobalState.empty(testRegistries);
