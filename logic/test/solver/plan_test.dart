@@ -1015,4 +1015,255 @@ void main() {
       expect(marker0.sellPolicy, isA<SellExceptPolicy>());
     });
   });
+
+  group('Plan.prettyPrintCompact', () {
+    test('prints header with summary stats', () {
+      const plan = Plan(
+        steps: [],
+        totalTicks: 36000,
+        interactionCount: 10,
+        expandedNodes: 100,
+        enqueuedNodes: 200,
+      );
+
+      final output = plan.prettyPrintCompact();
+
+      expect(output, contains('=== Plan ==='));
+      expect(output, contains('36000 ticks'));
+      expect(output, contains('1h 0m'));
+      expect(output, contains('10 interactions'));
+      expect(output, contains('0 steps'));
+    });
+
+    test('shows empty plan message', () {
+      const plan = Plan.empty();
+
+      final output = plan.prettyPrintCompact();
+
+      expect(output, contains('(empty plan)'));
+    });
+
+    test('formats SwitchActivity step', () {
+      final action = testActions.woodcutting('Normal Tree');
+      final plan = Plan(
+        steps: [InteractionStep(SwitchActivity(action.id))],
+        totalTicks: 0,
+        interactionCount: 1,
+      );
+
+      final output = plan.prettyPrintCompact(actions: testActions);
+
+      expect(output, contains('Switch to Normal Tree'));
+    });
+
+    test('formats WaitStep with duration', () {
+      final action = testActions.woodcutting('Normal Tree');
+      final plan = Plan(
+        steps: [
+          InteractionStep(SwitchActivity(action.id)),
+          WaitStep(
+            6000, // 10 minutes
+            const WaitForSkillXp(Skill.woodcutting, 1000),
+            expectedAction: action.id,
+          ),
+        ],
+        totalTicks: 6000,
+        interactionCount: 1,
+      );
+
+      final output = plan.prettyPrintCompact(actions: testActions);
+
+      expect(output, contains('10m 0s'));
+    });
+
+    test('merges consecutive WaitSteps with same skill', () {
+      final action = testActions.woodcutting('Normal Tree');
+      final plan = Plan(
+        steps: [
+          InteractionStep(SwitchActivity(action.id)),
+          WaitStep(
+            3000,
+            const WaitForSkillXp(Skill.woodcutting, 500),
+            expectedAction: action.id,
+          ),
+          WaitStep(
+            3000,
+            const WaitForSkillXp(Skill.woodcutting, 1000),
+            expectedAction: action.id,
+          ),
+          WaitStep(
+            3000,
+            const WaitForSkillXp(Skill.woodcutting, 1500),
+            expectedAction: action.id,
+          ),
+        ],
+        totalTicks: 9000,
+        interactionCount: 1,
+      );
+
+      final output = plan.prettyPrintCompact(actions: testActions);
+
+      // Should show merged duration and count (switch + 3 waits = 4 merged)
+      expect(output, contains('15m 0s'));
+      expect(output, contains('waits merged'));
+    });
+
+    test('groups steps by skill separately', () {
+      final wcAction = testActions.woodcutting('Normal Tree');
+      final fishAction = testActions.fishing('Raw Shrimp');
+      final plan = Plan(
+        steps: [
+          InteractionStep(SwitchActivity(wcAction.id)),
+          WaitStep(
+            3000,
+            const WaitForSkillXp(Skill.woodcutting, 500),
+            expectedAction: wcAction.id,
+          ),
+          InteractionStep(SwitchActivity(fishAction.id)),
+          WaitStep(
+            3000,
+            const WaitForSkillXp(Skill.fishing, 500),
+            expectedAction: fishAction.id,
+          ),
+        ],
+        totalTicks: 6000,
+        interactionCount: 2,
+      );
+
+      final output = plan.prettyPrintCompact(actions: testActions);
+
+      // Should have two separate groups (one for each skill)
+      expect(output, contains('Normal Tree'));
+      expect(output, contains('Raw Shrimp'));
+    });
+
+    test('formats MacroStep for TrainSkillUntil', () {
+      const plan = Plan(
+        steps: [
+          MacroStep(
+            TrainSkillUntil(Skill.mining, StopAtNextBoundary(Skill.mining)),
+            36000,
+            WaitForSkillXp(Skill.mining, 10000),
+          ),
+        ],
+        totalTicks: 36000,
+        interactionCount: 0,
+      );
+
+      final output = plan.prettyPrintCompact();
+
+      expect(output, contains('Mining'));
+      expect(output, contains('1h 0m'));
+    });
+
+    test('formats BuyShopItem step', () {
+      const plan = Plan(
+        steps: [InteractionStep(BuyShopItem(MelvorId('melvorD:Iron_Axe')))],
+        totalTicks: 0,
+        interactionCount: 1,
+      );
+
+      final output = plan.prettyPrintCompact();
+
+      expect(output, contains('Buy Iron Axe'));
+    });
+
+    test('formats SellItems step', () {
+      const plan = Plan(
+        steps: [InteractionStep(SellItems(SellAllPolicy()))],
+        totalTicks: 0,
+        interactionCount: 1,
+      );
+
+      final output = plan.prettyPrintCompact();
+
+      expect(output, contains('Sell all'));
+    });
+
+    test('respects firstSteps and lastSteps parameters', () {
+      // Create a plan with 50 steps
+      final steps = <PlanStep>[];
+      for (var i = 0; i < 50; i++) {
+        steps.add(InteractionStep(BuyShopItem(MelvorId('melvorD:Item_$i'))));
+      }
+      final plan = Plan(steps: steps, totalTicks: 0, interactionCount: 50);
+
+      final output = plan.prettyPrintCompact(firstSteps: 5, lastSteps: 3);
+
+      // Should show ellipsis for skipped middle section
+      expect(output, contains('... '));
+      expect(output, contains(' more steps'));
+    });
+
+    test('shows all steps when within threshold', () {
+      final steps = <PlanStep>[];
+      for (var i = 0; i < 10; i++) {
+        steps.add(InteractionStep(BuyShopItem(MelvorId('melvorD:Item_$i'))));
+      }
+      final plan = Plan(steps: steps, totalTicks: 0, interactionCount: 10);
+
+      // With firstSteps=25 + lastSteps=10 + threshold=5 = 40, 10 steps should all show
+      final output = plan.prettyPrintCompact();
+
+      // Should not have ellipsis
+      expect(output, isNot(contains('... ')));
+    });
+
+    test('numbers steps starting from 1', () {
+      const plan = Plan(
+        steps: [
+          InteractionStep(SellItems(SellAllPolicy())),
+          InteractionStep(BuyShopItem(MelvorId('melvorD:Iron_Axe'))),
+        ],
+        totalTicks: 0,
+        interactionCount: 2,
+      );
+
+      final output = plan.prettyPrintCompact();
+
+      expect(output, contains('1. '));
+      expect(output, contains('2. '));
+    });
+
+    test('formats AcquireItem macro', () {
+      const plan = Plan(
+        steps: [
+          MacroStep(
+            AcquireItem(MelvorId('melvorD:Normal_Logs'), 50),
+            1200,
+            WaitForInventoryAtLeast(MelvorId('melvorD:Normal_Logs'), 50),
+          ),
+        ],
+        totalTicks: 1200,
+        interactionCount: 0,
+      );
+
+      final output = plan.prettyPrintCompact();
+
+      expect(output, contains('Acquire 50x Normal Logs'));
+    });
+
+    test('includes segment count in middle summary when segments exist', () {
+      // Create plan with many steps and segment markers in the middle
+      final steps = <PlanStep>[];
+      for (var i = 0; i < 100; i++) {
+        steps.add(InteractionStep(BuyShopItem(MelvorId('melvorD:Item_$i'))));
+      }
+      final plan = Plan(
+        steps: steps,
+        totalTicks: 0,
+        interactionCount: 100,
+        segmentMarkers: const [
+          SegmentMarker(stepIndex: 30, boundary: GoalReachedBoundary()),
+          SegmentMarker(stepIndex: 50, boundary: GoalReachedBoundary()),
+          SegmentMarker(stepIndex: 70, boundary: GoalReachedBoundary()),
+        ],
+      );
+
+      final output = plan.prettyPrintCompact(firstSteps: 10);
+
+      // Should mention segments in the skipped section
+      expect(output, contains('segments'));
+    });
+  });
 }
