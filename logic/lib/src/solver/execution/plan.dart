@@ -390,6 +390,20 @@ class SegmentMarker {
     this.description,
   });
 
+  /// Deserializes a [SegmentMarker] from a JSON-compatible map.
+  factory SegmentMarker.fromJson(Map<String, dynamic> json) {
+    return SegmentMarker(
+      stepIndex: json['stepIndex'] as int,
+      boundary: SegmentBoundary.fromJson(
+        json['boundary'] as Map<String, dynamic>,
+      ),
+      sellPolicy: json['sellPolicy'] != null
+          ? SellPolicy.fromJson(json['sellPolicy'] as Map<String, dynamic>)
+          : null,
+      description: json['description'] as String?,
+    );
+  }
+
   /// Index in Plan.steps where this segment starts.
   final int stepIndex;
 
@@ -414,20 +428,6 @@ class SegmentMarker {
       if (description != null) 'description': description,
     };
   }
-
-  /// Deserializes a [SegmentMarker] from a JSON-compatible map.
-  static SegmentMarker fromJson(Map<String, dynamic> json) {
-    return SegmentMarker(
-      stepIndex: json['stepIndex'] as int,
-      boundary: SegmentBoundary.fromJson(
-        json['boundary'] as Map<String, dynamic>,
-      ),
-      sellPolicy: json['sellPolicy'] != null
-          ? SellPolicy.fromJson(json['sellPolicy'] as Map<String, dynamic>)
-          : null,
-      description: json['description'] as String?,
-    );
-  }
 }
 
 // ---------------------------------------------------------------------------
@@ -446,6 +446,25 @@ class Plan {
     this.expectedDeaths = 0,
     this.segmentMarkers = const <SegmentMarker>[],
   });
+
+  /// Deserializes a [Plan] from a JSON-compatible map.
+  factory Plan.fromJson(Map<String, dynamic> json) {
+    return Plan(
+      steps: (json['steps'] as List<dynamic>)
+          .map((s) => PlanStep.fromJson(s as Map<String, dynamic>))
+          .toList(),
+      totalTicks: json['totalTicks'] as int,
+      interactionCount: json['interactionCount'] as int,
+      expandedNodes: json['expandedNodes'] as int,
+      enqueuedNodes: json['enqueuedNodes'] as int,
+      expectedDeaths: json['expectedDeaths'] as int? ?? 0,
+      segmentMarkers:
+          (json['segmentMarkers'] as List<dynamic>?)
+              ?.map((m) => SegmentMarker.fromJson(m as Map<String, dynamic>))
+              .toList() ??
+          [],
+    );
+  }
 
   /// An empty plan (goal already satisfied).
   const Plan.empty()
@@ -804,25 +823,6 @@ class Plan {
       'expectedDeaths': expectedDeaths,
       'segmentMarkers': segmentMarkers.map((m) => m.toJson()).toList(),
     };
-  }
-
-  /// Deserializes a [Plan] from a JSON-compatible map.
-  static Plan fromJson(Map<String, dynamic> json) {
-    return Plan(
-      steps: (json['steps'] as List<dynamic>)
-          .map((s) => PlanStep.fromJson(s as Map<String, dynamic>))
-          .toList(),
-      totalTicks: json['totalTicks'] as int,
-      interactionCount: json['interactionCount'] as int,
-      expandedNodes: json['expandedNodes'] as int,
-      enqueuedNodes: json['enqueuedNodes'] as int,
-      expectedDeaths: json['expectedDeaths'] as int? ?? 0,
-      segmentMarkers:
-          (json['segmentMarkers'] as List<dynamic>?)
-              ?.map((m) => SegmentMarker.fromJson(m as Map<String, dynamic>))
-              .toList() ??
-          [],
-    );
   }
 }
 

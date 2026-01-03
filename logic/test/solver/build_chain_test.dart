@@ -120,7 +120,7 @@ void main() {
         expect(unlock.forItem, ironOre);
       });
 
-      test('returns ChainNeedsUnlock for multi-tier chain with locked input', () {
+      test('returns ChainNeedsUnlock, multi-tier chain with locked input', () {
         // Iron Bar needs Iron Ore (Mining level 15)
         // Iron Bar action itself needs Smithing level 10
         // With Smithing unlocked but Mining locked, we should hit Mining unlock

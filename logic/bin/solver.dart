@@ -110,6 +110,7 @@ void main(List<String> args) async {
       : null;
   final dumpStopTriggers = results['dump-stop-triggers'] as bool;
   final outputPlanPath = results['output-plan'] as String?;
+  final random = Random(42);
 
   // Default: segment-based solving. --offline enables single-shot mode.
   if (useOfflineMode) {
@@ -122,7 +123,7 @@ void main(List<String> args) async {
     final result = solve(
       initialState,
       goal,
-      random: Random(42),
+      random: random,
       collectDiagnostics: collectDiagnostics,
     );
     stopwatch.stop();
@@ -153,7 +154,7 @@ void main(List<String> args) async {
     final result = solveToGoal(
       initialState,
       goal,
-      random: Random(42),
+      random: random,
       collectDiagnostics: collectDiagnostics,
     );
     stopwatch.stop();

@@ -346,9 +346,10 @@ void main() {
       final state = GlobalState.test(testRegistries, gp: 100);
       const ironAxeId = MelvorId('melvorD:Iron_Axe');
       const interaction = BuyShopItem(ironAxeId);
+      final random = Random(0);
 
       // Apply the upgrade
-      final newState = applyInteraction(state, interaction);
+      final newState = applyInteraction(state, interaction, random: random);
 
       // Iron Axe costs 50 GP
       expect(newState.gp, equals(50));
@@ -359,14 +360,23 @@ void main() {
       // Test first fishing rod (costs 100)
       const ironRodId = MelvorId('melvorD:Iron_Fishing_Rod');
       var state = GlobalState.test(testRegistries, gp: 200);
-      var newState = applyInteraction(state, const BuyShopItem(ironRodId));
+      final random = Random(0);
+      var newState = applyInteraction(
+        state,
+        const BuyShopItem(ironRodId),
+        random: random,
+      );
       expect(newState.gp, equals(100)); // 200 - 100
       expect(newState.shop.purchaseCount(ironRodId), equals(1));
 
       // Test first pickaxe (costs 250)
       const ironPickaxeId = MelvorId('melvorD:Iron_Pickaxe');
       state = GlobalState.test(testRegistries, gp: 500);
-      newState = applyInteraction(state, const BuyShopItem(ironPickaxeId));
+      newState = applyInteraction(
+        state,
+        const BuyShopItem(ironPickaxeId),
+        random: random,
+      );
       expect(newState.gp, equals(250)); // 500 - 250
       expect(newState.shop.purchaseCount(ironPickaxeId), equals(1));
     });

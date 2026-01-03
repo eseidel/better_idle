@@ -1895,7 +1895,11 @@ int _expandInteractionEdges(
     if (!candidates.isRelevantInteraction(interaction)) continue;
 
     try {
-      final newState = applyInteraction(node.state, interaction);
+      final newState = applyInteraction(
+        node.state,
+        interaction,
+        random: ctx.random,
+      );
       final newProgress = ctx.goal.progress(newState);
       final newBucketKey = _BucketKey.fromState(newState, ctx.goal);
 
@@ -2801,7 +2805,11 @@ SegmentedSolverResult solveToGoal(
             // GP goal: effectiveCredits >= target, but actual GP < target.
             // Sell items to convert inventory value to GP.
             final sellInteraction = SellItems(sellPolicy);
-            currentState = applyInteraction(currentState, sellInteraction);
+            currentState = applyInteraction(
+              currentState,
+              sellInteraction,
+              random: random,
+            );
 
             // Add a synthetic segment for the sell step
             segments.add(
@@ -2825,6 +2833,7 @@ SegmentedSolverResult solveToGoal(
             segment,
             currentState,
             segments,
+            random: random,
           );
         }
     }
@@ -2848,8 +2857,9 @@ SegmentedSolverResult solveToGoal(
 GlobalState _handleUpgradeAffordableBoundary(
   Segment segment,
   GlobalState incomingState,
-  List<Segment> segments,
-) {
+  List<Segment> segments, {
+  required Random random,
+}) {
   var currentState = incomingState;
   final boundary = segment.stopBoundary as UpgradeAffordableBoundary;
   final sellPolicy = segment.sellPolicy!;
@@ -2875,7 +2885,11 @@ GlobalState _handleUpgradeAffordableBoundary(
     // This is the SAME policy used by WatchSet for effectiveCredits,
     // ensuring the boundary detection and handling are consistent.
     final sellInteraction = SellItems(sellPolicy);
-    currentState = applyInteraction(currentState, sellInteraction);
+    currentState = applyInteraction(
+      currentState,
+      sellInteraction,
+      random: random,
+    );
     purchaseSteps.add(InteractionStep(sellInteraction));
 
     // INVARIANT: If WatchSet reported this upgrade as affordable,
@@ -2893,7 +2907,11 @@ GlobalState _handleUpgradeAffordableBoundary(
   // Buy the upgrade (should always succeed after selling per invariant)
   if (currentState.gp >= gpCost) {
     final buyInteraction = BuyShopItem(boundary.purchaseId);
-    currentState = applyInteraction(currentState, buyInteraction);
+    currentState = applyInteraction(
+      currentState,
+      buyInteraction,
+      random: random,
+    );
     purchaseSteps.add(InteractionStep(buyInteraction));
   }
 

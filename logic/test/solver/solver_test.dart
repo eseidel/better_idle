@@ -32,7 +32,7 @@ void main() {
       final action = testActions.woodcutting('Normal Tree');
       final interaction = SwitchActivity(action.id);
 
-      final newState = applyInteraction(state, interaction);
+      final newState = applyInteraction(state, interaction, random: Random(0));
 
       expect(newState.activeAction?.id, action.id);
     });
@@ -46,7 +46,7 @@ void main() {
       final action = testActions.woodcutting('Normal Tree');
       final interaction = SwitchActivity(action.id);
 
-      final newState = applyInteraction(state, interaction);
+      final newState = applyInteraction(state, interaction, random: Random(0));
 
       expect(newState.activeAction?.id, action.id);
     });
@@ -56,7 +56,7 @@ void main() {
       const ironAxeId = MelvorId('melvorD:Iron_Axe');
       const interaction = BuyShopItem(ironAxeId);
 
-      final newState = applyInteraction(state, interaction);
+      final newState = applyInteraction(state, interaction, random: Random(0));
 
       expect(newState.shop.purchaseCount(ironAxeId), 1);
       expect(newState.gp, 50); // Iron Axe costs 50
@@ -68,7 +68,7 @@ void main() {
       const interaction = BuyShopItem(ironAxeId);
 
       expect(
-        () => applyInteraction(state, interaction),
+        () => applyInteraction(state, interaction, random: Random(0)),
         throwsA(isA<StateError>()),
       );
     });
@@ -83,7 +83,7 @@ void main() {
       final state = GlobalState.test(testRegistries, inventory: inventory);
       const interaction = SellItems(SellAllPolicy());
 
-      final newState = applyInteraction(state, interaction);
+      final newState = applyInteraction(state, interaction, random: Random(0));
 
       expect(newState.inventory.items, isEmpty);
       // Normal logs sell for 1, oak for 5
@@ -101,7 +101,7 @@ void main() {
       // Keep Normal Logs, sell Oak Logs
       final interaction = SellItems(SellExceptPolicy({logs.id}));
 
-      final newState = applyInteraction(state, interaction);
+      final newState = applyInteraction(state, interaction, random: Random(0));
 
       // Should still have Normal Logs
       expect(newState.inventory.countById(logs.id), 10);

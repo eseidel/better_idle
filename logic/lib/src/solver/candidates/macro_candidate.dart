@@ -261,7 +261,11 @@ class TrainSkillUntil extends MacroCandidate {
     // Switch to that action (if not already on it)
     var currentState = state;
     if (state.activeAction?.id != bestAction) {
-      currentState = applyInteraction(state, SwitchActivity(bestAction));
+      currentState = applyInteraction(
+        state,
+        SwitchActivity(bestAction),
+        random: context.random,
+      );
     }
 
     // Build composite WaitFor from all stop rules (primary + watched)
@@ -420,7 +424,11 @@ class AcquireItem extends MacroCandidate {
     }
 
     // Producer is ready (simple action or inputs available) - switch to it
-    final newState = applyInteraction(state, SwitchActivity(producer));
+    final newState = applyInteraction(
+      state,
+      SwitchActivity(producer),
+      random: context.random,
+    );
 
     // Capture start count for delta semantics
     final startCount = context.countItem(state, itemId);
@@ -518,7 +526,11 @@ class EnsureStock extends MacroCandidate {
 
       if (sellableValue > 0) {
         // Apply sell interaction to free up inventory space, then continue
-        workingState = applyInteraction(state, SellItems(sellPolicy));
+        workingState = applyInteraction(
+          state,
+          SellItems(sellPolicy),
+          random: context.random,
+        );
       } else {
         // Nothing to sell - truly stuck
         return MacroCannotExpand(
@@ -615,6 +627,7 @@ class EnsureStock extends MacroCandidate {
     final newState = applyInteraction(
       workingState,
       SwitchActivity(chain.actionId),
+      random: context.random,
     );
 
     // Calculate ticks to produce using chain's precomputed values
@@ -965,6 +978,7 @@ class TrainConsumingSkillUntil extends MacroCandidate {
     final producerState = applyInteraction(
       state,
       SwitchActivity(producerAction),
+      random: context.random,
     );
 
     // Build stop condition

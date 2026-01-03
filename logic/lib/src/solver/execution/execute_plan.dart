@@ -303,6 +303,7 @@ StepResult executeCoupledLoop(
           currentState = applyInteraction(
             currentState,
             SwitchActivity(producerId),
+            random: random,
           );
         } on Exception catch (e) {
           // Producer not feasible (missing its own inputs) - replan
@@ -331,9 +332,10 @@ StepResult executeCoupledLoop(
           final recovery = attemptRecovery(
             currentState,
             const InventoryFull(),
-            segmentSellPolicy,
-            recoveryAttempts,
-            macro.maxRecoveryAttempts,
+            sellPolicy: segmentSellPolicy,
+            random: random,
+            currentAttempts: recoveryAttempts,
+            maxAttempts: macro.maxRecoveryAttempts,
           );
           if (recovery.shouldStop) {
             return (
@@ -386,6 +388,7 @@ StepResult executeCoupledLoop(
       currentState = applyInteraction(
         currentState,
         SwitchActivity(consumeActionId),
+        random: random,
       );
     } on Exception catch (e) {
       return (
@@ -417,9 +420,10 @@ StepResult executeCoupledLoop(
       final recovery = attemptRecovery(
         currentState,
         const InventoryFull(),
-        segmentSellPolicy,
-        recoveryAttempts,
-        macro.maxRecoveryAttempts,
+        sellPolicy: segmentSellPolicy,
+        random: random,
+        currentAttempts: recoveryAttempts,
+        maxAttempts: macro.maxRecoveryAttempts,
       );
       if (recovery.shouldStop) {
         return (
@@ -541,6 +545,7 @@ _ChainProductionResult _produceChainBottomUp(
         currentState = applyInteraction(
           currentState,
           SwitchActivity(child.actionId),
+          random: random,
         );
       } on Exception catch (e) {
         return (
@@ -568,9 +573,10 @@ _ChainProductionResult _produceChainBottomUp(
         final recovery = attemptRecovery(
           currentState,
           const InventoryFull(),
-          segmentSellPolicy,
-          recoveryAttempts,
-          maxRecoveryAttempts,
+          sellPolicy: segmentSellPolicy,
+          random: random,
+          currentAttempts: recoveryAttempts,
+          maxAttempts: maxRecoveryAttempts,
         );
         if (recovery.shouldStop) {
           return (
@@ -609,6 +615,7 @@ _ChainProductionResult _produceChainBottomUp(
     currentState = applyInteraction(
       currentState,
       SwitchActivity(chain.actionId),
+      random: random,
     );
   } on Exception catch (e) {
     return (
@@ -636,9 +643,10 @@ _ChainProductionResult _produceChainBottomUp(
     final recovery = attemptRecovery(
       currentState,
       const InventoryFull(),
-      segmentSellPolicy,
-      recoveryAttempts,
-      maxRecoveryAttempts,
+      sellPolicy: segmentSellPolicy,
+      random: random,
+      currentAttempts: recoveryAttempts,
+      maxAttempts: maxRecoveryAttempts,
     );
     if (recovery.shouldStop) {
       return (
@@ -767,11 +775,12 @@ enum RecoveryOutcome {
 /// The executor NEVER infers policy from goal during execution.
 RecoveryResult attemptRecovery(
   GlobalState state,
-  ReplanBoundary boundary,
+  ReplanBoundary boundary, {
+  required Random random,
+  required int currentAttempts,
+  required int maxAttempts,
   SellPolicy? sellPolicy,
-  int currentAttempts,
-  int maxAttempts,
-) {
+}) {
   // Handle completion boundaries first (no recovery needed)
   if (boundary is WaitConditionSatisfied || boundary is GoalReached) {
     return RecoveryResult(
@@ -828,7 +837,11 @@ RecoveryResult attemptRecovery(
     }
 
     // Perform the sell
-    final newState = applyInteraction(state, SellItems(sellPolicy));
+    final newState = applyInteraction(
+      state,
+      SellItems(sellPolicy),
+      random: random,
+    );
 
     // State-change detection: verify we actually freed inventory space
     if (newState.inventoryUsed >= inventoryUsedBefore) {
@@ -992,7 +1005,7 @@ StepResult applyStep(
     case InteractionStep(:final interaction):
       try {
         return (
-          state: applyInteraction(state, interaction),
+          state: applyInteraction(state, interaction, random: random),
           ticksElapsed: 0,
           deaths: 0,
           boundary: null, // Interactions are instant, no boundary
@@ -1015,6 +1028,7 @@ StepResult applyStep(
           waitState = applyInteraction(
             waitState,
             SwitchActivity(expectedAction),
+            random: random,
           );
         } on Exception catch (e) {
           return (
@@ -1068,7 +1082,11 @@ StepResult applyStep(
               ReachSkillLevelGoal(macro.skill, 99),
             );
         if (actionToUse != null && state.activeAction?.id != actionToUse) {
-          executionState = applyInteraction(state, SwitchActivity(actionToUse));
+          executionState = applyInteraction(
+            state,
+            SwitchActivity(actionToUse),
+            random: random,
+          );
         }
 
         // Regenerate WaitFor based on actual execution state and action
@@ -1127,6 +1145,7 @@ StepResult applyStep(
           executionState = applyInteraction(
             executionState,
             SwitchActivity(producer),
+            random: random,
           );
         }
 
@@ -1192,6 +1211,7 @@ StepResult applyStep(
               currentState = applyInteraction(
                 currentState,
                 SwitchActivity(producer),
+                random: random,
               );
             } on Exception catch (e) {
               return (
@@ -1246,6 +1266,7 @@ StepResult applyStep(
               currentState = applyInteraction(
                 currentState,
                 SellItems(segmentSellPolicy),
+                random: random,
               );
               // Continue the loop to produce more
               continue;

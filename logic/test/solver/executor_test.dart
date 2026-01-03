@@ -352,9 +352,10 @@ void main() {
       final result = attemptRecovery(
         state,
         const InventoryFull(),
-        sellPolicy,
-        0, // currentAttempts
-        5, // maxAttempts
+        sellPolicy: sellPolicy,
+        currentAttempts: 0,
+        maxAttempts: 5,
+        random: Random(42),
       );
 
       expect(result.outcome, equals(RecoveryOutcome.recoveredRetry));
@@ -373,9 +374,9 @@ void main() {
       final result = attemptRecovery(
         state,
         const InventoryFull(),
-        null, // No sell policy
-        0,
-        5,
+        random: Random(42),
+        currentAttempts: 0,
+        maxAttempts: 5,
       );
 
       expect(result.outcome, equals(RecoveryOutcome.replanRequired));
@@ -388,9 +389,10 @@ void main() {
       final result = attemptRecovery(
         state,
         const InventoryFull(),
-        const SellAllPolicy(),
-        5, // At the limit
-        5, // Max attempts
+        sellPolicy: const SellAllPolicy(),
+        random: Random(42),
+        currentAttempts: 5,
+        maxAttempts: 5,
       );
 
       expect(result.outcome, equals(RecoveryOutcome.replanRequired));
@@ -409,9 +411,10 @@ void main() {
           actionId: action.id,
           missingItemId: testItems.byName('Bronze Bar').id,
         ),
-        const SellAllPolicy(),
-        0,
-        5,
+        sellPolicy: const SellAllPolicy(),
+        random: Random(42),
+        currentAttempts: 0,
+        maxAttempts: 5,
       );
 
       // Key: should trigger replan, NOT try to find another action
@@ -425,9 +428,10 @@ void main() {
       final result = attemptRecovery(
         state,
         const Death(),
-        const SellAllPolicy(),
-        2, // Some attempts already used
-        5,
+        sellPolicy: const SellAllPolicy(),
+        random: Random(42),
+        currentAttempts: 2,
+        maxAttempts: 5,
       );
 
       expect(result.outcome, equals(RecoveryOutcome.recoveredRetry));
@@ -440,9 +444,10 @@ void main() {
       final result = attemptRecovery(
         state,
         const WaitConditionSatisfied(),
-        const SellAllPolicy(),
-        0,
-        5,
+        sellPolicy: const SellAllPolicy(),
+        random: Random(42),
+        currentAttempts: 0,
+        maxAttempts: 5,
       );
 
       expect(result.outcome, equals(RecoveryOutcome.completed));

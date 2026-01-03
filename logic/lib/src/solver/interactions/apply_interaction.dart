@@ -29,11 +29,12 @@ import 'package:logic/src/state.dart';
 ///
 /// This is a pure function that does not modify the input state.
 /// Uses a fixed random seed for deterministic behavior during planning.
-GlobalState applyInteraction(GlobalState state, Interaction interaction) {
+GlobalState applyInteraction(
+  GlobalState state,
+  Interaction interaction, {
+  required Random random,
+}) {
   _assertValidState(state);
-
-  // Use a fixed random for deterministic planning
-  final random = Random(42);
 
   final newState = switch (interaction) {
     SwitchActivity(:final actionId) => _applySwitchActivity(
