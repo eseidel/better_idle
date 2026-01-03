@@ -416,7 +416,17 @@ StepResult executeCoupledLoop(
     totalDeaths += consumeResult.deathCount;
 
     // CHECKPOINT: Handle consumption boundaries
-    if (consumeResult.boundary is InventoryFull) {
+    // Check if we need inventory recovery. This can happen two ways:
+    // 1. consumeUntil returned InventoryFull boundary
+    // 2. WaitForInventoryThreshold was already satisfied (0 ticks, no progress)
+    final needsInventoryRecovery =
+        consumeResult.boundary is InventoryFull ||
+        (consumeResult.ticksElapsed == 0 &&
+            const WaitForInventoryThreshold(
+              inventoryPressureThreshold,
+            ).isSatisfied(currentState));
+
+    if (needsInventoryRecovery) {
       final recovery = attemptRecovery(
         currentState,
         const InventoryFull(),
