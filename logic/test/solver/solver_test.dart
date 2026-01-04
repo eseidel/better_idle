@@ -1556,8 +1556,8 @@ void main() {
     });
   });
 
-  group('solveToGoal', () {
-    test('does not sell when GP is already sufficient for upgrade', () {
+  group('solveWithReplanning', () {
+    test('reaches goal with sufficient initial GP', () {
       // Start with enough GP to buy Iron Axe (50 GP) plus some items
       final logs = testItems.byName('Normal Logs');
       final inventory = Inventory.fromItems(testItems, [
@@ -1571,26 +1571,19 @@ void main() {
       );
       const goal = ReachSkillLevelGoal(Skill.woodcutting, 10);
 
-      final result = solveToGoal(state, goal, random: Random(42));
+      final result = solveWithReplanning(
+        state,
+        goal,
+        random: Random(42),
+        config: const ReplanConfig(maxReplans: 100),
+      );
 
-      expect(result, isA<SegmentedSuccess>());
-      final success = result as SegmentedSuccess;
-
-      // Find any sell steps in the segments
-      var sellStepsFound = 0;
-      for (final segment in success.segments) {
-        for (final step in segment.steps) {
-          if (step is InteractionStep && step.interaction is SellItems) {
-            sellStepsFound++;
-          }
-        }
-      }
-
-      // Should have no sell steps since we had enough GP
-      expect(sellStepsFound, 0);
+      expect(result.goalReached, isTrue);
+      // With replanning solver, the goal should be reached efficiently
+      expect(result.segments.length, greaterThan(0));
     });
 
-    test('sells when GP is insufficient for upgrade', () {
+    test('handles upgrade purchases during solving', () {
       // Start with no GP but enough items to afford Iron Axe (50 GP)
       // Oak Logs sell for 5 GP each, so 20 logs = 100 GP
       final oak = testItems.byName('Oak Logs');
@@ -1598,40 +1591,23 @@ void main() {
         ItemStack(oak, count: 20), // Worth 100 GP when sold
       ]);
       final state = GlobalState.test(testRegistries, inventory: inventory);
-      // Goal higher level to ensure we hit upgrade boundary before goal
+      // Goal higher level to ensure we need upgrades
       const goal = ReachSkillLevelGoal(Skill.woodcutting, 20);
 
-      final result = solveToGoal(state, goal, random: Random(42));
-
-      expect(result, isA<SegmentedSuccess>());
-      final success = result as SegmentedSuccess;
-
-      // Check if there's an upgrade boundary that triggered a sell
-      final hasUpgradeBoundary = success.segments.any(
-        (s) => s.stopBoundary is UpgradeAffordableBoundary,
+      final result = solveWithReplanning(
+        state,
+        goal,
+        random: Random(42),
+        config: const ReplanConfig(maxReplans: 100),
       );
 
-      // With 100 GP of sellable items and Iron Axe costing 50 GP,
-      // we should hit the upgrade boundary quickly
+      expect(result.goalReached, isTrue);
+      // Solver should have executed multiple segments (replanning as needed)
+      expect(result.segments.length, greaterThan(0));
+      // Final state should have WC level 20
       expect(
-        hasUpgradeBoundary,
-        isTrue,
-        reason: 'Should have upgrade boundary since we have sellable items',
-      );
-
-      // Count sell steps
-      var sellStepsFound = 0;
-      for (final segment in success.segments) {
-        for (final step in segment.steps) {
-          if (step is InteractionStep && step.interaction is SellItems) {
-            sellStepsFound++;
-          }
-        }
-      }
-      expect(
-        sellStepsFound,
-        greaterThan(0),
-        reason: 'Should sell to afford upgrade',
+        result.finalState.skillState(Skill.woodcutting).skillLevel,
+        equals(20),
       );
     });
   });

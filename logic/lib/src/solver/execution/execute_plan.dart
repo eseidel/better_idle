@@ -11,6 +11,7 @@ import 'package:logic/src/solver/analysis/replan_boundary.dart';
 import 'package:logic/src/solver/analysis/unlock_boundaries.dart';
 import 'package:logic/src/solver/candidates/macro_candidate.dart';
 import 'package:logic/src/solver/core/goal.dart';
+import 'package:logic/src/solver/core/solver_profile.dart';
 import 'package:logic/src/solver/execution/plan.dart';
 import 'package:logic/src/solver/execution/prerequisites.dart';
 import 'package:logic/src/solver/interactions/interaction.dart';
@@ -458,18 +459,44 @@ class ReplanExecutionResult {
 @immutable
 class ReplanSegmentResult {
   const ReplanSegmentResult({
+    required this.steps,
     required this.plannedTicks,
     required this.actualTicks,
     required this.deaths,
     required this.triggeredReplan,
     this.replanBoundary,
+    this.sellPolicy,
+    this.profile,
   });
 
+  /// The steps in this segment (for inspection/replay).
+  final List<PlanStep> steps;
+
+  /// Ticks the solver planned for this segment.
   final int plannedTicks;
+
+  /// Ticks the segment actually took during execution.
   final int actualTicks;
+
+  /// Deaths that occurred during this segment.
   final int deaths;
+
+  /// Whether this segment triggered a replan.
   final bool triggeredReplan;
+
+  /// The boundary that triggered the replan (if any).
   final ReplanBoundary? replanBoundary;
+
+  /// The sell policy used for this segment.
+  ///
+  /// This is the policy computed at segment start and used for:
+  /// - Deciding which items to sell during execution
+  /// - Computing effectiveCredits for boundary detection
+  /// - Handling upgrade purchases that require selling first
+  final SellPolicy? sellPolicy;
+
+  /// Solver profile for this segment (if diagnostics enabled).
+  final SolverProfile? profile;
 }
 
 /// Computes a simple state hash for replan logging.

@@ -235,59 +235,109 @@ SolvedPlan? _runOfflineSolver(SolverConfig config) {
   );
 }
 
-/// Runs the online (segment-based) solver.
+/// Runs the online (replanning-based) solver.
 SolvedPlan? _runOnlineSolver(SolverConfig config) {
   print(
-    'Solving via segments'
+    'Solving via replanning'
     '${config.collectDiagnostics ? ' with diagnostics' : ''}...',
   );
 
   final stopwatch = Stopwatch()..start();
-  final result = solveToGoal(
+  final result = solveWithReplanning(
     config.initialState,
     config.goal,
     random: config.random,
     collectDiagnostics: config.collectDiagnostics,
+    config: const ReplanConfig(maxReplans: 100, logReplans: true),
   );
   stopwatch.stop();
 
   print('Solver completed in ${stopwatch.elapsedMilliseconds}ms');
   print('');
 
-  switch (result) {
-    case SegmentedSuccess(:final segments, :final segmentProfiles):
-      print('=== Segment-Based Solver Result ===');
-      print('Total segments: ${segments.length}');
-      print('Replan count: ${result.totalReplanCount}');
-      print('Total ticks: ${result.totalTicks}');
+  if (!result.goalReached) {
+    print('=== Replanning Solver FAILED ===');
+    print('Reason: ${result.terminatingBoundary?.describe() ?? "Unknown"}');
+    print('Completed segments: ${result.segments.length}');
+    if (result.segments.isNotEmpty) {
       print('');
-
-      // Print segment summaries
-      _printSegmentSummaries(segments, segmentProfiles, config);
-
-      return SolvedPlan(
-        plan: Plan.fromSegments(segments),
-        profiles: segmentProfiles,
-        segments: segments,
-      );
-
-    case SegmentedFailed(:final failure, :final completedSegments):
-      print('=== Segment-Based Solver FAILED ===');
-      print('Reason: ${failure.reason}');
-      print('Completed segments before failure: ${completedSegments.length}');
-      if (completedSegments.isNotEmpty) {
-        print('');
-        print('--- Completed Segments ---');
-        for (var i = 0; i < completedSegments.length; i++) {
-          final segment = completedSegments[i];
-          print(
-            '  Segment ${i + 1}: ${segment.steps.length} steps, '
-            '${segment.totalTicks} ticks -> ${segment.stopBoundary.describe()}',
-          );
-        }
+      print('--- Completed Segments ---');
+      for (var i = 0; i < result.segments.length; i++) {
+        final segment = result.segments[i];
+        print(
+          '  Segment ${i + 1}: ${segment.steps.length} steps, '
+          '${segment.actualTicks} ticks -> '
+          '${segment.replanBoundary?.describe() ?? "completed"}',
+        );
       }
-      return null;
+    }
+    return null;
   }
+
+  print('=== Replanning Solver Result ===');
+  print('Total segments: ${result.segments.length}');
+  print('Replan count: ${result.replanCount}');
+  print('Total ticks: ${result.totalTicks}');
+  print('');
+
+  // Convert ReplanSegmentResult to Segment for printing
+  final segments = _convertToSegments(result.segments);
+  final profiles = result.segments
+      .map((s) => s.profile)
+      .whereType<SolverProfile>()
+      .toList();
+
+  // Print segment summaries
+  _printSegmentSummaries(segments, profiles, config);
+
+  return SolvedPlan(
+    plan: Plan.fromSegments(segments),
+    profiles: profiles,
+    segments: segments,
+  );
+}
+
+/// Converts ReplanSegmentResult list to Segment list for backward
+/// compatibility.
+List<Segment> _convertToSegments(List<ReplanSegmentResult> replanSegments) {
+  return replanSegments.map((rs) {
+    // Convert ReplanBoundary to SegmentBoundary
+    final boundary = rs.replanBoundary;
+    final segmentBoundary = boundary != null
+        ? _convertBoundary(boundary)
+        : const GoalReachedBoundary();
+
+    return Segment(
+      steps: rs.steps,
+      totalTicks: rs.actualTicks,
+      interactionCount: rs.steps.whereType<InteractionStep>().length,
+      stopBoundary: segmentBoundary,
+      sellPolicy: rs.sellPolicy,
+    );
+  }).toList();
+}
+
+/// Converts a ReplanBoundary to a SegmentBoundary.
+SegmentBoundary _convertBoundary(ReplanBoundary boundary) {
+  // Map ReplanBoundary types to SegmentBoundary types
+  return switch (boundary) {
+    GoalReached() => const GoalReachedBoundary(),
+    UpgradeAffordableEarly(:final purchaseId) => UpgradeAffordableBoundary(
+      purchaseId,
+      purchaseId.localId,
+    ),
+    UnlockObserved(:final skill, :final level) =>
+      skill != null && level != null
+          ? UnlockBoundary(skill, level, '')
+          : const GoalReachedBoundary(),
+    InputsDepleted(:final actionId, :final missingItemId) =>
+      InputsDepletedBoundary(actionId, missingItemId),
+    InventoryPressure(:final usedSlots, :final totalSlots) =>
+      InventoryPressureBoundary(usedSlots, totalSlots),
+    PlannedSegmentStop() => const HorizonCapBoundary(0),
+    WaitConditionSatisfied() => const GoalReachedBoundary(),
+    _ => const GoalReachedBoundary(),
+  };
 }
 
 // ---------------------------------------------------------------------------

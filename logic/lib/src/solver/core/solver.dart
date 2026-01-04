@@ -1958,6 +1958,7 @@ class SegmentedFailed extends SegmentedSolverResult {
 /// - [collectDiagnostics]: If true, collect per-segment solver profiles
 /// - [maxSegments]: Safety limit to prevent infinite loops (default 100)
 /// - [maxExpandedNodesPerSegment]: Node limit per segment search
+@Deprecated('Use solveWithReplanning instead - this will be removed')
 SegmentedSolverResult solveToGoal(
   GlobalState initial,
   Goal goal, {
@@ -2138,6 +2139,114 @@ GlobalState _handleUpgradeAffordableBoundary(
 }
 
 // ---------------------------------------------------------------------------
+// Recovery Actions for solveWithReplanning
+// ---------------------------------------------------------------------------
+
+/// Executes upgrade purchase recovery when an UpgradeAffordableEarly boundary
+/// is hit during replanning.
+///
+/// Uses the SAME sellPolicy that detected the boundary for consistency.
+/// Records a synthetic segment for the sell+buy interactions.
+GlobalState _executeUpgradeRecovery(
+  GlobalState state,
+  MelvorId purchaseId,
+  SellPolicy sellPolicy,
+  Random random,
+  List<ReplanSegmentResult> segments,
+) {
+  var currentState = state;
+  final recoverySteps = <PlanStep>[];
+
+  // Get purchase cost
+  final purchase = currentState.registries.shop.byId(purchaseId);
+  final gpCost = purchase?.cost.gpCost ?? 0;
+
+  // Verify the boundary was triggered correctly
+  final credits = effectiveCredits(currentState, sellPolicy);
+  assert(
+    credits >= gpCost,
+    'UpgradeAffordableEarly reported but effectiveCredits '
+    '($credits) < gpCost ($gpCost)',
+  );
+
+  // Sell if actual GP is insufficient
+  if (currentState.gp < gpCost) {
+    final sellInteraction = SellItems(sellPolicy);
+    currentState = applyInteraction(
+      currentState,
+      sellInteraction,
+      random: random,
+    );
+    recoverySteps.add(InteractionStep(sellInteraction));
+
+    // Invariant: selling should make it affordable
+    assert(
+      currentState.gp >= gpCost,
+      'Invariant violated: selling with policy only yielded '
+      '${currentState.gp} GP (need $gpCost)',
+    );
+  }
+
+  // Buy the upgrade
+  if (currentState.gp >= gpCost) {
+    final buyInteraction = BuyShopItem(purchaseId);
+    currentState = applyInteraction(
+      currentState,
+      buyInteraction,
+      random: random,
+    );
+    recoverySteps.add(InteractionStep(buyInteraction));
+  }
+
+  // Record synthetic recovery segment (0 ticks)
+  segments.add(
+    ReplanSegmentResult(
+      steps: recoverySteps,
+      plannedTicks: 0,
+      actualTicks: 0,
+      deaths: 0,
+      triggeredReplan: false,
+      replanBoundary: UpgradeAffordableEarly(purchaseId: purchaseId),
+      sellPolicy: sellPolicy,
+    ),
+  );
+
+  return currentState;
+}
+
+/// Executes inventory pressure recovery by selling per policy.
+///
+/// Uses the SAME sellPolicy that detected the boundary for consistency.
+/// Records a synthetic segment for the sell interaction.
+GlobalState _executeInventoryRecovery(
+  GlobalState state,
+  SellPolicy sellPolicy,
+  Random random,
+  List<ReplanSegmentResult> segments,
+) {
+  final sellInteraction = SellItems(sellPolicy);
+  final newState = applyInteraction(state, sellInteraction, random: random);
+
+  // Record synthetic recovery segment (0 ticks)
+  segments.add(
+    ReplanSegmentResult(
+      steps: [InteractionStep(sellInteraction)],
+      plannedTicks: 0,
+      actualTicks: 0,
+      deaths: 0,
+      triggeredReplan: false,
+      replanBoundary: const InventoryPressure(
+        usedSlots: 0, // Not tracked precisely
+        totalSlots: 0,
+      ),
+      sellPolicy: sellPolicy,
+    ),
+  );
+
+  return newState;
+}
+
+// ---------------------------------------------------------------------------
 // Controlled Replanning Entrypoint
 // ---------------------------------------------------------------------------
 
@@ -2180,6 +2289,7 @@ ReplanExecutionResult solveWithReplanning(
   Goal goal, {
   required Random random,
   ReplanConfig config = const ReplanConfig(),
+  bool collectDiagnostics = false,
   int maxExpandedNodes = defaultMaxExpandedNodes,
   int maxQueueSize = defaultMaxQueueSize,
 }) {
@@ -2225,10 +2335,21 @@ ReplanExecutionResult solveWithReplanning(
       );
     }
 
-    // Solve for a plan from current state
+    // Compute sellPolicy using SegmentContext (same as solveSegment does)
+    // This ensures we have a policy for recovery actions
+    final segmentContext = SegmentContext.build(
+      currentState,
+      goal,
+      const SegmentConfig(),
+    );
+    final segmentSellPolicy = segmentContext.sellPolicy;
+
+    // Solve for a plan from current state using the ACTUAL goal
+    // (not SegmentGoal, which stops at boundaries like upgrade affordable)
     final solveResult = solve(
       currentState,
       goal,
+      collectDiagnostics: collectDiagnostics,
       maxExpandedNodes: maxExpandedNodes,
       maxQueueSize: maxQueueSize,
     );
@@ -2248,10 +2369,10 @@ ReplanExecutionResult solveWithReplanning(
     }
 
     final success = solveResult as SolverSuccess;
+    final plan = success.plan;
 
-    // Execute the plan - executePlan uses ExecutionContext defaults
-    // so no segment markers are needed
-    final execResult = executePlan(currentState, success.plan, random: random);
+    // Execute the plan
+    final execResult = executePlan(currentState, plan, random: random);
 
     // Find the boundary that triggered replan (if any)
     final triggeringBoundary = execResult.boundariesHit.lastOrNull;
@@ -2294,19 +2415,94 @@ ReplanExecutionResult solveWithReplanning(
               b is InventoryPressure,
         );
 
-    // Record segment result
+    // Record segment result with steps, sellPolicy, and profile
     segments.add(
       ReplanSegmentResult(
+        steps: plan.steps,
         plannedTicks: execResult.plannedTicks,
         actualTicks: execResult.actualTicks,
         deaths: execResult.totalDeaths,
         triggeredReplan: needsReplan && !isGoalReached,
         replanBoundary: needsReplan ? triggeringBoundary : null,
+        sellPolicy: segmentSellPolicy,
+        profile: success.profile,
       ),
     );
 
     // Update state
     currentState = execResult.finalState;
+
+    // =========================================================================
+    // Recovery Actions
+    // =========================================================================
+    // Handle boundaries that need recovery actions before replanning.
+    // Recovery uses the SAME sellPolicy that the segment used for detection.
+
+    // Recovery 1: UpgradeAffordableEarly - sell if needed, then buy
+    if (triggeringBoundary is UpgradeAffordableEarly) {
+      final recoveryResult = _executeUpgradeRecovery(
+        currentState,
+        triggeringBoundary.purchaseId,
+        segmentSellPolicy,
+        random,
+        segments,
+      );
+      currentState = recoveryResult;
+    }
+
+    // Recovery 2: InventoryPressure - sell per policy
+    if (triggeringBoundary is InventoryPressure) {
+      final recoveryResult = _executeInventoryRecovery(
+        currentState,
+        segmentSellPolicy,
+        random,
+        segments,
+      );
+      currentState = recoveryResult;
+    }
+
+    // Recovery 3: GP Goal - if plan completed but goal not satisfied,
+    // check if selling would reach it
+    if (!isGoalReached && goal is ReachGpGoal) {
+      final gpGoal = goal;
+      final credits = effectiveCredits(currentState, segmentSellPolicy);
+      if (credits >= gpGoal.targetGp && currentState.gp < gpGoal.targetGp) {
+        // Sell to convert inventory to GP
+        final sellInteraction = SellItems(segmentSellPolicy);
+        currentState = applyInteraction(
+          currentState,
+          sellInteraction,
+          random: random,
+        );
+
+        // Record synthetic recovery segment
+        segments.add(
+          ReplanSegmentResult(
+            steps: [InteractionStep(sellInteraction)],
+            plannedTicks: 0,
+            actualTicks: 0,
+            deaths: 0,
+            triggeredReplan: false,
+            sellPolicy: segmentSellPolicy,
+          ),
+        );
+
+        // Re-check goal after selling
+        if (gpGoal.isSatisfied(currentState)) {
+          context = context.afterSegment(
+            ticksElapsed: execResult.actualTicks,
+            deaths: execResult.totalDeaths,
+          );
+          return ReplanExecutionResult(
+            finalState: currentState,
+            totalTicks: context.totalTicks,
+            totalDeaths: context.totalDeaths,
+            replanCount: context.replanCount,
+            segments: segments,
+          );
+        }
+      }
+    }
 
     // If goal reached, we're done
     if (isGoalReached) {
