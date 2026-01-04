@@ -216,7 +216,6 @@ SolvedPlan? _runOfflineSolver(SolverConfig config) {
   final result = solve(
     config.initialState,
     config.goal,
-    random: config.random,
     collectDiagnostics: config.collectDiagnostics,
   );
   stopwatch.stop();
@@ -1080,7 +1079,6 @@ _TimedSolverResult _solveWithTiming(
   final result = solve(
     state,
     goal,
-    random: Random(42),
     collectDiagnostics: true,
   );
   stopwatch.stop();

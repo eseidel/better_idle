@@ -168,7 +168,7 @@ void main() {
       int maxQueueSize = defaultMaxQueueSize,
     }) {
       return solve(
-        random: Random(42),
+
         initial,
         ReachGpGoal(goalCredits),
         maxExpandedNodes: maxExpandedNodes,
@@ -1036,7 +1036,7 @@ void main() {
       // involve complex item flows and upgrade timing)
       final state = GlobalState.empty(testRegistries);
       const goal = ReachSkillLevelGoal(Skill.woodcutting, 10);
-      final solveResult = solve(state, goal, random: Random(42));
+      final solveResult = solve(state, goal);
 
       expect(solveResult, isA<SolverSuccess>());
       final success = solveResult as SolverSuccess;
@@ -1069,7 +1069,7 @@ void main() {
       const goal = ReachSkillLevelGoal(Skill.firemaking, 2);
 
       // Solve - this should trigger TrainConsumingSkillUntil macro expansion
-      final result = solve(state, goal, random: Random(42));
+      final result = solve(state, goal);
 
       expect(result, isA<SolverSuccess>());
       final success = result as SolverSuccess;
@@ -1093,7 +1093,7 @@ void main() {
       const goal = ReachSkillLevelGoal(Skill.firemaking, 2);
 
       // Solve and execute the plan
-      final solveResult = solve(state, goal, random: Random(42));
+      final solveResult = solve(state, goal);
       expect(solveResult, isA<SolverSuccess>());
       final success = solveResult as SolverSuccess;
 
@@ -1125,7 +1125,7 @@ void main() {
       const goal = ReachSkillLevelGoal(Skill.firemaking, 2);
 
       // Solve - this tests the coupled produce/consume model
-      final result = solve(state, goal, random: Random(42));
+      final result = solve(state, goal);
 
       expect(result, isA<SolverSuccess>());
       final success = result as SolverSuccess;
@@ -1286,7 +1286,7 @@ void main() {
       final result = solve(
         state,
         goal,
-        random: Random(42),
+
         collectDiagnostics: true,
       );
 
@@ -1310,7 +1310,7 @@ void main() {
       final result = solve(
         state,
         goal,
-        random: Random(42),
+
         collectDiagnostics: true,
       );
 
@@ -1330,7 +1330,7 @@ void main() {
       final result = solve(
         state,
         goal,
-        random: Random(42),
+
         collectDiagnostics: true,
       );
 
@@ -1363,7 +1363,7 @@ void main() {
       final result = solve(
         state,
         goal,
-        random: Random(42),
+
         collectDiagnostics: true,
       );
 
@@ -1381,7 +1381,7 @@ void main() {
       final result = solve(
         state,
         goal,
-        random: Random(42),
+
         collectDiagnostics: true,
       );
 
@@ -1401,7 +1401,7 @@ void main() {
       final result = solve(
         state,
         goal,
-        random: Random(42),
+
         collectDiagnostics: true,
       );
 
@@ -2435,7 +2435,7 @@ void main() {
       final result = solve(
         state,
         goal,
-        random: Random(42),
+
         collectDiagnostics: true,
       );
 
@@ -2504,7 +2504,7 @@ void main() {
       final result = solve(
         state,
         goal,
-        random: Random(42),
+
         collectDiagnostics: true,
       );
 
@@ -2544,7 +2544,7 @@ void main() {
       // WaitForInventoryAtLeast instead) should prevent the 90x mismatch.
       final state = GlobalState.empty(testRegistries);
       const goal = ReachSkillLevelGoal(Skill.smithing, 10);
-      final solveResult = solve(state, goal, random: Random(42));
+      final solveResult = solve(state, goal);
 
       expect(solveResult, isA<SolverSuccess>());
       final success = solveResult as SolverSuccess;
@@ -2594,7 +2594,7 @@ void main() {
       final solveResult = solve(
         state,
         goal,
-        random: Random(42),
+
         collectDiagnostics: true,
       );
 

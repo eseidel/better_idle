@@ -365,7 +365,6 @@ class _SolverContext {
     required this.maxQueueSize,
     required this.collectDiagnostics,
     required this.boundaries,
-    required this.random,
   }) : rateCache = RateCache(goal),
        bestCredits = effectiveCredits(initial, const SellAllPolicy());
 
@@ -375,7 +374,6 @@ class _SolverContext {
   final int maxQueueSize;
   final bool collectDiagnostics;
   final Map<Skill, SkillBoundaries> boundaries;
-  final Random random;
   final SolverProfileBuilder profileBuilder = SolverProfileBuilder();
   final RateCache rateCache;
   final _ParetoFrontier frontier = _ParetoFrontier();
@@ -1003,7 +1001,7 @@ MacroExpansionExplanation explainMacroExpansion(
   }
 
   // Actually perform the expansion
-  final outcome = _expandMacro(state, macro, goal, boundaries, random: random);
+  final outcome = _expandMacro(state, macro, goal, boundaries);
   steps.add('Expansion complete');
 
   return MacroExpansionExplanation(
@@ -1027,9 +1025,8 @@ MacroExpansionOutcome _expandMacro(
   GlobalState state,
   MacroCandidate macro,
   Goal goal,
-  Map<Skill, SkillBoundaries> boundaries, {
-  required Random random,
-}) {
+  Map<Skill, SkillBoundaries> boundaries,
+) {
   var currentState = state;
   var currentMacro = macro;
   var depth = 0;
@@ -1040,7 +1037,6 @@ MacroExpansionOutcome _expandMacro(
       state: currentState,
       goal: goal,
       boundaries: boundaries,
-      random: random,
     );
 
     final outcome = currentMacro.expand(context);
@@ -1058,10 +1054,9 @@ MacroExpansionOutcome _expandMacro(
           case InventoryPressure():
             // Execute sell policy and retry
             final sellPolicy = goal.computeSellPolicy(currentState);
-            currentState = applyInteraction(
+            currentState = applyInteractionDeterministic(
               currentState,
               SellItems(sellPolicy),
-              random: random,
             );
             // Retry same macro with new state
             depth++;
@@ -1334,10 +1329,9 @@ int _expandInteractionEdges(
     if (!candidates.isRelevantInteraction(interaction)) continue;
 
     try {
-      final newState = applyInteraction(
+      final newState = applyInteractionDeterministic(
         node.state,
         interaction,
-        random: ctx.random,
       );
       final newProgress = ctx.goal.progress(newState);
       final newBucketKey = _BucketKey.fromState(newState, ctx.goal);
@@ -1386,7 +1380,6 @@ SolverSuccess? _expandMacroEdges(
       macro,
       ctx.goal,
       ctx.boundaries,
-      random: ctx.random,
     );
 
     // Skip macros that can't be expanded or are already satisfied.
@@ -1520,10 +1513,9 @@ SolverSuccess? _expandWaitEdge(
   ctx.profileBuilder.decisionDeltas.add(deltaResult.deltaTicks);
 
   final advanceStopwatch = Stopwatch()..start();
-  final advanceResult = advance(
+  final advanceResult = advanceDeterministic(
     node.state,
     deltaResult.deltaTicks,
-    random: ctx.random,
   );
   ctx.profileBuilder.advanceTimeUs += advanceStopwatch.elapsedMicroseconds;
 
@@ -1711,7 +1703,6 @@ void _collectNodeDiagnostics(_SolverContext ctx, _Node node) {
 SolverResult solve(
   GlobalState initial,
   Goal goal, {
-  required Random random,
   int maxExpandedNodes = defaultMaxExpandedNodes,
   int maxQueueSize = defaultMaxQueueSize,
   bool collectDiagnostics = false,
@@ -1723,7 +1714,6 @@ SolverResult solve(
     maxQueueSize: maxQueueSize,
     collectDiagnostics: collectDiagnostics,
     boundaries: computeUnlockBoundaries(initial.registries),
-    random: random,
   );
 
   // Initialize and check for early exit
@@ -2008,7 +1998,6 @@ SegmentResult solveSegment(
   final result = solve(
     initial,
     segmentGoal,
-    random: random,
     collectDiagnostics: collectDiagnostics,
     maxExpandedNodes: maxExpandedNodes,
     maxQueueSize: maxQueueSize,
@@ -2464,7 +2453,6 @@ ReplanExecutionResult solveWithReplanning(
     final solveResult = solve(
       currentState,
       goal,
-      random: random,
       maxExpandedNodes: maxExpandedNodes,
       maxQueueSize: maxQueueSize,
     );

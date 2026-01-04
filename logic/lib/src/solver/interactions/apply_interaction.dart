@@ -28,7 +28,9 @@ import 'package:logic/src/state.dart';
 /// Applies an interaction to the game state, returning the new state.
 ///
 /// This is a pure function that does not modify the input state.
-/// Uses a fixed random seed for deterministic behavior during planning.
+/// Requires [random] for stochastic simulation (action duration rolls).
+///
+/// For deterministic planning, use [applyInteractionDeterministic] instead.
 GlobalState applyInteraction(
   GlobalState state,
   Interaction interaction, {
@@ -50,6 +52,29 @@ GlobalState applyInteraction(
   return newState;
 }
 
+/// Applies an interaction deterministically (no randomness).
+///
+/// Used during planning/solver to get consistent state projections.
+/// Uses mean duration for action starts instead of rolling.
+///
+/// For actual gameplay execution, use [applyInteraction] instead.
+GlobalState applyInteractionDeterministic(
+  GlobalState state,
+  Interaction interaction,
+) {
+  _assertValidState(state);
+
+  final newState = switch (interaction) {
+    SwitchActivity(:final actionId) =>
+      _applySwitchActivityDeterministic(state, actionId),
+    BuyShopItem(:final purchaseId) => _applyBuyShopItem(state, purchaseId),
+    SellItems(:final policy) => _applySellItems(state, policy),
+  };
+
+  _assertValidState(newState);
+  return newState;
+}
+
 // ---------------------------------------------------------------------------
 // Debug invariant assertions
 // ---------------------------------------------------------------------------
@@ -63,7 +88,7 @@ void _assertValidState(GlobalState state) {
   }
 }
 
-/// Switches to a different activity.
+/// Switches to a different activity (stochastic - rolls duration).
 GlobalState _applySwitchActivity(
   GlobalState state,
   ActionId actionId,
@@ -79,6 +104,23 @@ GlobalState _applySwitchActivity(
 
   // Start the new action
   return newState.startAction(action, random: random);
+}
+
+/// Switches to a different activity (deterministic - uses mean duration).
+GlobalState _applySwitchActivityDeterministic(
+  GlobalState state,
+  ActionId actionId,
+) {
+  final action = state.registries.actions.byId(actionId);
+
+  // Clear current action if any (and not stunned)
+  var newState = state;
+  if (state.activeAction != null && !state.isStunned) {
+    newState = state.clearAction();
+  }
+
+  // Start the new action with deterministic duration
+  return newState.startActionDeterministic(action);
 }
 
 /// Buys a shop item.

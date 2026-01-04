@@ -33,7 +33,7 @@ void main() {
       // Setup: simple woodcutting plan
       final state = GlobalState.empty(testRegistries);
       const goal = ReachSkillLevelGoal(Skill.woodcutting, 5);
-      final solveResult = solve(state, goal, random: Random(42));
+      final solveResult = solve(state, goal);
 
       expect(solveResult, isA<SolverSuccess>());
       final success = solveResult as SolverSuccess;
@@ -56,7 +56,7 @@ void main() {
       // Setup: fishing which has more randomness
       final state = GlobalState.empty(testRegistries);
       const goal = ReachSkillLevelGoal(Skill.fishing, 10);
-      final solveResult = solve(state, goal, random: Random(42));
+      final solveResult = solve(state, goal);
 
       expect(solveResult, isA<SolverSuccess>());
       final success = solveResult as SolverSuccess;

@@ -238,3 +238,33 @@ AdvanceResult advance(
   assertMonotonicProgress(state, result.state, 'advance');
   return result;
 }
+
+/// Advances the game state deterministically by a given number of ticks.
+///
+/// Always uses O(1) expected-value advance, never falls back to stochastic
+/// simulation. Use this for planning/solver where deterministic state
+/// projection is required.
+///
+/// For non-rate-modelable activities (combat), returns the state unchanged
+/// with zero deaths - the caller should handle these cases explicitly.
+///
+/// For execution with actual randomness, use [advance] instead.
+AdvanceResult advanceDeterministic(GlobalState state, int deltaTicks) {
+  assertNonNegativeDelta(deltaTicks, 'advanceDeterministic');
+  assertValidState(state);
+
+  if (deltaTicks <= 0) return (state: state, deaths: 0);
+
+  final AdvanceResult result;
+  if (isRateModelable(state)) {
+    result = advanceExpected(state, deltaTicks);
+  } else {
+    // For non-rate-modelable activities, return unchanged state.
+    // The caller should handle combat/complex activities explicitly.
+    result = (state: state, deaths: 0);
+  }
+
+  assertValidState(result.state);
+  assertMonotonicProgress(state, result.state, 'advanceDeterministic');
+  return result;
+}

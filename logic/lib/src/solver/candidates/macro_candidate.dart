@@ -4,6 +4,8 @@
 /// many ticks, reducing the solver's branching factor and state explosion.
 library;
 
+import 'dart:math';
+
 import 'package:equatable/equatable.dart';
 import 'package:logic/src/data/action_id.dart';
 import 'package:logic/src/data/actions.dart';
@@ -13,12 +15,24 @@ import 'package:logic/src/solver/analysis/estimate_rates.dart';
 import 'package:logic/src/solver/analysis/next_decision_delta.dart'
     show infTicks;
 import 'package:logic/src/solver/analysis/replan_boundary.dart'
-    show InventoryPressure, ReplanBoundary;
+    show
+        InventoryFull,
+        InventoryPressure,
+        NoProgressPossible,
+        ReplanBoundary,
+        WaitConditionSatisfied;
 import 'package:logic/src/solver/analysis/unlock_boundaries.dart';
 import 'package:logic/src/solver/analysis/wait_for.dart';
+import 'package:logic/src/solver/analysis/watch_set.dart';
 import 'package:logic/src/solver/candidates/build_chain.dart';
 import 'package:logic/src/solver/candidates/macro_expansion_context.dart';
+import 'package:logic/src/solver/core/goal.dart' show ReachSkillLevelGoal;
+import 'package:logic/src/solver/execution/consume_until.dart';
+import 'package:logic/src/solver/execution/prerequisites.dart'
+    show findBestActionForSkill, findProducerActionForItem;
 import 'package:logic/src/solver/execution/state_advance.dart';
+import 'package:logic/src/solver/execution/step_helpers.dart'
+    show countItem, executeCoupledLoop, executeTrainSkillWithBoundaryChecks;
 import 'package:logic/src/solver/interactions/apply_interaction.dart';
 import 'package:logic/src/solver/interactions/interaction.dart';
 import 'package:logic/src/state.dart';
@@ -128,6 +142,33 @@ class ChainProvenance extends MacroProvenance {
 ///
 /// Macros stop when ANY of their stop conditions trigger, allowing the solver
 /// to react to unlock boundaries, goal completion, or upgrade affordability.
+///
+/// ## Two-Phase Execution Model
+///
+/// Macros have two distinct phases, each with its own method:
+///
+/// ### Planning Phase: [expand]
+/// Used during A* search to estimate costs and project state forward.
+/// - Uses **expected-value modeling** (deterministic averages)
+/// - Called by the solver to evaluate candidate paths
+/// - Returns a [MacroExpansionResult] with projected state and [WaitFor]
+/// - Does NOT use randomness - uses deterministic advance/interaction functions
+///
+/// ### Execution Phase: [apply]
+/// Used when actually executing a plan with real game simulation.
+/// - Uses **stochastic simulation** (actual randomness)
+/// - Called by plan execution after the solver has chosen a path
+/// - Runs until the [WaitFor] condition from planning is satisfied
+/// - Handles real-world concerns like inventory full, deaths, etc.
+///
+/// ## Why Separate Phases?
+///
+/// The solver needs fast, deterministic state projection to explore many
+/// paths. Execution needs accurate simulation with randomness. Separating
+/// these allows:
+/// - Consistent A* cost estimation (expand uses averages)
+/// - Realistic execution (apply uses actual RNG)
+/// - Plan replay/debugging (same plan, different random outcomes)
 sealed class MacroCandidate {
   const MacroCandidate({this.provenance});
 
@@ -140,11 +181,37 @@ sealed class MacroCandidate {
   /// allowing the solver to eliminate duplicates.
   String get dedupeKey;
 
-  /// Expands this macro into concrete execution steps.
+  /// **Planning phase**: Projects state forward using expected-value modeling.
+  ///
+  /// Called by the A* solver during path exploration. Uses deterministic
+  /// averages (not randomness) to estimate how long this macro will take
+  /// and what state will result.
   ///
   /// Returns [MacroExpanded] on success, [MacroAlreadySatisfied] if no work
   /// needed, or [MacroCannotExpand] with a reason if expansion is impossible.
   MacroExpansionOutcome expand(MacroExpansionContext context);
+
+  /// **Execution phase**: Runs actual stochastic simulation.
+  ///
+  /// Called by `MacroStep.apply()` when executing a plan that the solver has
+  /// already chosen. Uses real randomness and runs until the [waitFor]
+  /// condition from planning is satisfied.
+  ///
+  /// - [state]: Current game state before execution.
+  /// - [waitFor]: Composite wait condition from planning (determines when
+  ///   to stop).
+  /// - [random]: RNG for stochastic simulation (drops, combat, etc.).
+  /// - [boundaries]: Skill unlock boundaries for re-evaluating stop rules.
+  /// - [watchSet]: Enables mid-macro boundary detection if provided.
+  /// - [segmentSellPolicy]: Sell policy for handling inventory full.
+  MacroApplyResult apply(
+    GlobalState state,
+    WaitFor waitFor, {
+    required Random random,
+    Map<Skill, SkillBoundaries>? boundaries,
+    WatchSet? watchSet,
+    SellPolicy? segmentSellPolicy,
+  });
 
   /// Serializes this [MacroCandidate] to a JSON-compatible map.
   Map<String, dynamic> toJson();
@@ -270,10 +337,9 @@ class TrainSkillUntil extends MacroCandidate {
     // Switch to that action (if not already on it)
     var currentState = state;
     if (state.activeAction?.id != bestAction) {
-      currentState = applyInteraction(
+      currentState = applyInteractionDeterministic(
         state,
         SwitchActivity(bestAction),
-        random: context.random,
       );
     }
 
@@ -313,12 +379,8 @@ class TrainSkillUntil extends MacroCandidate {
       }
     }
 
-    // Use expected-value advance
-    final advanceResult = advance(
-      currentState,
-      ticksUntilStop,
-      random: context.random,
-    );
+    // Use expected-value advance (deterministic for planning)
+    final advanceResult = advanceDeterministic(currentState, ticksUntilStop);
 
     // Create enriched macro with the specific action we chose
     final enrichedMacro = TrainSkillUntil(
@@ -346,6 +408,70 @@ class TrainSkillUntil extends MacroCandidate {
     'watchedStops': watchedStops.map((s) => s.toJson()).toList(),
     if (actionId != null) 'actionId': actionId!.toJson(),
   };
+
+  @override
+  MacroApplyResult apply(
+    GlobalState state,
+    WaitFor waitFor, {
+    required Random random,
+    Map<Skill, SkillBoundaries>? boundaries,
+    WatchSet? watchSet,
+    SellPolicy? segmentSellPolicy,
+  }) {
+    var executionState = state;
+    var executionWaitFor = waitFor;
+
+    // Use the action that was determined during planning
+    final actionToUse =
+        actionId ??
+        findBestActionForSkill(state, skill, ReachSkillLevelGoal(skill, 99));
+    if (actionToUse != null && state.activeAction?.id != actionToUse) {
+      executionState = applyInteraction(
+        state,
+        SwitchActivity(actionToUse),
+        random: random,
+      );
+    }
+
+    // Regenerate WaitFor based on actual execution state and action
+    if (boundaries != null) {
+      final waitConditions = allStops
+          .map((rule) => rule.toWaitFor(executionState, boundaries))
+          .toList();
+      executionWaitFor = waitConditions.length == 1
+          ? waitConditions.first
+          : WaitForAnyOf(waitConditions);
+    }
+
+    // Execute with mid-macro boundary checking if watchSet provided
+    if (watchSet != null) {
+      final stepResult = executeTrainSkillWithBoundaryChecks(
+        executionState,
+        executionWaitFor,
+        random,
+        watchSet,
+      );
+      return MacroApplyResult(
+        state: stepResult.state,
+        ticksElapsed: stepResult.ticksElapsed,
+        deaths: stepResult.deaths,
+        boundary: stepResult.boundary,
+      );
+    }
+
+    // Simple execution without boundary checking
+    final result = consumeUntil(
+      executionState,
+      executionWaitFor,
+      random: random,
+    );
+    return MacroApplyResult(
+      state: result.state,
+      ticksElapsed: result.ticksElapsed,
+      deaths: result.deathCount,
+      boundary: result.boundary,
+    );
+  }
 }
 
 /// Acquire items by producing them (and their prerequisites).
@@ -433,10 +559,9 @@ class AcquireItem extends MacroCandidate {
     }
 
     // Producer is ready (simple action or inputs available) - switch to it
-    final newState = applyInteraction(
+    final newState = applyInteractionDeterministic(
       state,
       SwitchActivity(producer),
-      random: context.random,
     );
 
     // Capture start count for delta semantics
@@ -448,12 +573,8 @@ class AcquireItem extends MacroCandidate {
     final actionsNeeded = (quantity / outputsPerAction).ceil();
     final ticksNeeded = actionsNeeded * ticksPerAction;
 
-    // Project state forward
-    final advanceResult = advance(
-      newState,
-      ticksNeeded,
-      random: context.random,
-    );
+    // Project state forward (deterministic for planning)
+    final advanceResult = advanceDeterministic(newState, ticksNeeded);
 
     // Use delta semantics: acquire quantity MORE items from startCount
     final waitFor = WaitForInventoryDelta(
@@ -478,6 +599,55 @@ class AcquireItem extends MacroCandidate {
     'itemId': itemId.toJson(),
     'quantity': quantity,
   };
+
+  @override
+  MacroApplyResult apply(
+    GlobalState state,
+    WaitFor waitFor, {
+    required Random random,
+    Map<Skill, SkillBoundaries>? boundaries,
+    WatchSet? watchSet,
+    SellPolicy? segmentSellPolicy,
+  }) {
+    var executionState = state;
+
+    // Execute AcquireItem by finding producer and running until target
+    final startCount = countItem(executionState, itemId);
+
+    const goal = ReachSkillLevelGoal(Skill.mining, 99); // Placeholder goal
+    final producer = findProducerActionForItem(executionState, itemId, goal);
+    if (producer == null) {
+      return MacroApplyResult(
+        state: executionState,
+        boundary: NoProgressPossible(reason: 'No producer for $itemId'),
+      );
+    }
+
+    // Switch to producer action
+    if (executionState.activeAction?.id != producer) {
+      executionState = applyInteraction(
+        executionState,
+        SwitchActivity(producer),
+        random: random,
+      );
+    }
+
+    // Use delta-based wait condition: acquire quantity MORE items
+    final acquireWaitFor = WaitForInventoryDelta(
+      itemId,
+      quantity,
+      startCount: startCount,
+    );
+
+    final result = consumeUntil(executionState, acquireWaitFor, random: random);
+
+    return MacroApplyResult(
+      state: result.state,
+      ticksElapsed: result.ticksElapsed,
+      deaths: result.deathCount,
+      boundary: result.boundary,
+    );
+  }
 }
 
 /// Ensure inventory has at least [minTotal] of an item (absolute semantics).
@@ -654,6 +824,123 @@ class EnsureStock extends MacroCandidate {
     'itemId': itemId.toJson(),
     'minTotal': minTotal,
   };
+
+  @override
+  MacroApplyResult apply(
+    GlobalState state,
+    WaitFor waitFor, {
+    required Random random,
+    Map<Skill, SkillBoundaries>? boundaries,
+    WatchSet? watchSet,
+    SellPolicy? segmentSellPolicy,
+  }) {
+    // Execute EnsureStock by finding producer and running until target
+    // Handles inventory full by selling and continuing in a loop
+    var currentState = state;
+    var totalTicks = 0;
+    var totalDeaths = 0;
+
+    while (true) {
+      final currentCount = countItem(currentState, itemId);
+
+      // If we already have enough, done
+      if (currentCount >= minTotal) {
+        return MacroApplyResult(
+          state: currentState,
+          ticksElapsed: totalTicks,
+          deaths: totalDeaths,
+          boundary: const WaitConditionSatisfied(),
+        );
+      }
+
+      const goal = ReachSkillLevelGoal(Skill.mining, 99);
+      final producer = findProducerActionForItem(currentState, itemId, goal);
+      if (producer == null) {
+        return MacroApplyResult(
+          state: currentState,
+          ticksElapsed: totalTicks,
+          deaths: totalDeaths,
+          boundary: NoProgressPossible(reason: 'No producer for $itemId'),
+        );
+      }
+
+      // Switch to producer action
+      if (currentState.activeAction?.id != producer) {
+        try {
+          currentState = applyInteraction(
+            currentState,
+            SwitchActivity(producer),
+            random: random,
+          );
+        } on Exception catch (e) {
+          return MacroApplyResult(
+            state: currentState,
+            ticksElapsed: totalTicks,
+            deaths: totalDeaths,
+            boundary: NoProgressPossible(
+              reason: 'Cannot switch to producer for $itemId: $e',
+            ),
+          );
+        }
+      }
+
+      // Use absolute wait condition: wait until inventory has minTotal
+      final stockWaitFor = WaitForInventoryAtLeast(itemId, minTotal);
+
+      final result = consumeUntil(currentState, stockWaitFor, random: random);
+
+      currentState = result.state;
+      totalTicks += result.ticksElapsed;
+      totalDeaths += result.deathCount;
+
+      // Check if we hit inventory full - sell and continue
+      if (result.boundary is InventoryFull) {
+        // Use segment's sell policy. If not provided, this is an error -
+        // callers should resolve policy before calling apply.
+        if (segmentSellPolicy == null) {
+          return MacroApplyResult(
+            state: currentState,
+            ticksElapsed: totalTicks,
+            deaths: totalDeaths,
+            boundary: NoProgressPossible(
+              reason:
+                  'Inventory full during EnsureStock '
+                  '${itemId.name} but no sell policy provided',
+            ),
+          );
+        }
+
+        final sellableValue =
+            effectiveCredits(currentState, segmentSellPolicy) - currentState.gp;
+
+        if (sellableValue > 0) {
+          currentState = applyInteraction(
+            currentState,
+            SellItems(segmentSellPolicy),
+            random: random,
+          );
+          // Continue the loop to produce more
+          continue;
+        } else {
+          // Nothing to sell - truly stuck
+          return MacroApplyResult(
+            state: currentState,
+            ticksElapsed: totalTicks,
+            deaths: totalDeaths,
+            boundary: result.boundary,
+          );
+        }
+      }
+
+      // For any other boundary or success, return
+      return MacroApplyResult(
+        state: currentState,
+        ticksElapsed: totalTicks,
+        deaths: totalDeaths,
+        boundary: result.boundary,
+      );
+    }
+  }
 }
 
 /// Produce items via a specific action until inventory has minTotal.
@@ -699,19 +986,14 @@ class ProduceItem extends MacroCandidate {
   MacroExpansionOutcome expand(MacroExpansionContext context) {
     final state = context.state;
 
-    // Switch to producer action
-    final newState = applyInteraction(
+    // Switch to producer action (deterministic for planning)
+    final newState = applyInteractionDeterministic(
       state,
       SwitchActivity(actionId),
-      random: context.random,
     );
 
-    // Advance time to produce items
-    final advanceResult = advance(
-      newState,
-      estimatedTicks,
-      random: context.random,
-    );
+    // Advance time to produce items (deterministic for planning)
+    final advanceResult = advanceDeterministic(newState, estimatedTicks);
 
     return MacroExpanded((
       state: advanceResult.state,
@@ -731,6 +1013,107 @@ class ProduceItem extends MacroCandidate {
     'actionId': actionId.toJson(),
     'estimatedTicks': estimatedTicks,
   };
+
+  @override
+  MacroApplyResult apply(
+    GlobalState state,
+    WaitFor waitFor, {
+    required Random random,
+    Map<Skill, SkillBoundaries>? boundaries,
+    WatchSet? watchSet,
+    SellPolicy? segmentSellPolicy,
+  }) {
+    // ProduceItem has a specific actionId - switch to it and produce
+    var currentState = state;
+    var totalTicks = 0;
+    var totalDeaths = 0;
+
+    // Switch to the producer action specified in the macro
+    if (currentState.activeAction?.id != actionId) {
+      try {
+        currentState = applyInteraction(
+          currentState,
+          SwitchActivity(actionId),
+          random: random,
+        );
+      } on Exception catch (e) {
+        return MacroApplyResult(
+          state: currentState,
+          boundary: NoProgressPossible(
+            reason: 'Cannot switch to producer $actionId: $e',
+          ),
+        );
+      }
+    }
+
+    // Wait until we have minTotal of the item
+    final produceWaitFor = WaitForInventoryAtLeast(itemId, minTotal);
+
+    while (true) {
+      final currentCount = countItem(currentState, itemId);
+
+      // If we already have enough, done
+      if (currentCount >= minTotal) {
+        return MacroApplyResult(
+          state: currentState,
+          ticksElapsed: totalTicks,
+          deaths: totalDeaths,
+          boundary: const WaitConditionSatisfied(),
+        );
+      }
+
+      final result = consumeUntil(currentState, produceWaitFor, random: random);
+
+      currentState = result.state;
+      totalTicks += result.ticksElapsed;
+      totalDeaths += result.deathCount;
+
+      // Check if we hit inventory full - sell and continue
+      if (result.boundary is InventoryFull) {
+        if (segmentSellPolicy == null) {
+          return MacroApplyResult(
+            state: currentState,
+            ticksElapsed: totalTicks,
+            deaths: totalDeaths,
+            boundary: NoProgressPossible(
+              reason:
+                  'Inventory full during ProduceItem '
+                  '${itemId.name} but no sell policy provided',
+            ),
+          );
+        }
+
+        final sellableValue =
+            effectiveCredits(currentState, segmentSellPolicy) - currentState.gp;
+
+        if (sellableValue > 0) {
+          currentState = applyInteraction(
+            currentState,
+            SellItems(segmentSellPolicy),
+            random: random,
+          );
+          // Continue the loop to produce more
+          continue;
+        } else {
+          // Nothing to sell - truly stuck
+          return MacroApplyResult(
+            state: currentState,
+            ticksElapsed: totalTicks,
+            deaths: totalDeaths,
+            boundary: result.boundary,
+          );
+        }
+      }
+
+      // For any other boundary or success, return
+      return MacroApplyResult(
+        state: currentState,
+        ticksElapsed: totalTicks,
+        deaths: totalDeaths,
+        boundary: result.boundary,
+      );
+    }
+  }
 }
 
 /// Train a consuming skill via coupled produce/consume loops.
@@ -1046,11 +1429,10 @@ class TrainConsumingSkillUntil extends MacroCandidate {
       );
     }
 
-    // Switch to producer action for state projection
-    final producerState = applyInteraction(
+    // Switch to producer action for state projection (deterministic)
+    final producerState = applyInteractionDeterministic(
       state,
       SwitchActivity(producerAction),
-      random: context.random,
     );
 
     // Build stop condition
@@ -1287,6 +1669,33 @@ class TrainConsumingSkillUntil extends MacroCandidate {
           entry.key.toJson(): entry.value.toJson(),
       },
   };
+
+  @override
+  MacroApplyResult apply(
+    GlobalState state,
+    WaitFor waitFor, {
+    required Random random,
+    Map<Skill, SkillBoundaries>? boundaries,
+    WatchSet? watchSet,
+    SellPolicy? segmentSellPolicy,
+  }) {
+    // Execute coupled produce/consume loop until stop condition
+    final stepResult = executeCoupledLoop(
+      state,
+      this,
+      waitFor,
+      boundaries,
+      random,
+      watchSet: watchSet,
+      segmentSellPolicy: segmentSellPolicy,
+    );
+    return MacroApplyResult(
+      state: stepResult.state,
+      ticksElapsed: stepResult.ticksElapsed,
+      deaths: stepResult.deaths,
+      boundary: stepResult.boundary,
+    );
+  }
 }
 
 /// Stop conditions for macro training.
@@ -1549,4 +1958,37 @@ class MacroNeedsBoundary extends MacroExpansionOutcome {
 
   /// Optional explanation for debugging.
   final String? message;
+}
+
+// ---------------------------------------------------------------------------
+// Macro Apply Result (Execution Time)
+// ---------------------------------------------------------------------------
+
+/// Result of applying (executing) a macro with stochastic simulation.
+///
+/// This is the execution-time counterpart to [MacroExpansionResult], which
+/// uses expected-value modeling for planning. [MacroApplyResult] contains
+/// actual simulation results with randomness.
+class MacroApplyResult {
+  const MacroApplyResult({
+    required this.state,
+    this.ticksElapsed = 0,
+    this.deaths = 0,
+    this.boundary,
+  });
+
+  /// The game state after executing the macro.
+  final GlobalState state;
+
+  /// Number of ticks elapsed during macro execution.
+  final int ticksElapsed;
+
+  /// Number of deaths that occurred during macro execution.
+  final int deaths;
+
+  /// The boundary hit during execution, if any.
+  ///
+  /// Null means normal completion. Various boundary types indicate
+  /// different outcomes (goal reached, inputs depleted, etc.).
+  final ReplanBoundary? boundary;
 }

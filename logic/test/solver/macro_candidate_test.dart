@@ -422,7 +422,6 @@ void main() {
             state: state,
             goal: goal ?? const ReachSkillLevelGoal(Skill.woodcutting, 10),
             boundaries: boundaries ?? const {},
-            random: Random(42),
           );
         }
 

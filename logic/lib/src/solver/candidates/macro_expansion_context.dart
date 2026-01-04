@@ -5,8 +5,6 @@
 /// internals.
 library;
 
-import 'dart:math';
-
 import 'package:logic/src/data/action_id.dart';
 import 'package:logic/src/data/actions.dart';
 import 'package:logic/src/data/melvor_id.dart';
@@ -24,12 +22,14 @@ import 'package:logic/src/tick.dart' show ticksFromDuration;
 /// Provides access to solver state and helper methods that macros need during
 /// expansion. This decouples the macro expansion logic from the solver
 /// implementation while still allowing access to solver utilities.
+///
+/// Note: This context is used for deterministic planning. All macro expansion
+/// uses expected-value modeling (deterministic averages), not randomness.
 class MacroExpansionContext {
   MacroExpansionContext({
     required this.state,
     required this.goal,
     required this.boundaries,
-    required this.random,
   });
 
   /// Current game state.
@@ -40,9 +40,6 @@ class MacroExpansionContext {
 
   /// Skill boundaries for unlock detection.
   final Map<Skill, SkillBoundaries> boundaries;
-
-  /// Random number generator for deterministic planning.
-  final Random random;
 
   /// Counts inventory items by MelvorId.
   int countItem(GlobalState s, MelvorId itemId) {
@@ -514,7 +511,6 @@ class MacroExpansionContext {
       state: newState,
       goal: goal,
       boundaries: boundaries,
-      random: random,
     );
   }
 }

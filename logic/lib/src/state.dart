@@ -720,6 +720,86 @@ class GlobalState {
     }
   }
 
+  /// Starts an action using deterministic mean duration (no randomness).
+  ///
+  /// Used during planning/solver to get consistent state projections.
+  /// For actual gameplay execution, use [startAction] instead.
+  GlobalState startActionDeterministic(Action action) {
+    if (isStunned) {
+      throw const StunnedException('Cannot start action while stunned');
+    }
+
+    final actionId = action.id;
+    int totalTicks;
+
+    if (action is SkillAction) {
+      final actionStateVal = actionState(actionId);
+      final selection = actionStateVal.recipeSelection(action);
+      final inputs = action.inputsForRecipe(selection);
+
+      // Validate that all required items are available for skill actions
+      for (final requirement in inputs.entries) {
+        final item = registries.items.byId(requirement.key);
+        final itemCount = inventory.countOfItem(item);
+        if (itemCount < requirement.value) {
+          throw Exception(
+            'Cannot start ${action.name}: Need ${requirement.value} '
+            '${requirement.key.name}, but only have $itemCount',
+          );
+        }
+      }
+      // Use mean duration instead of rolling
+      totalTicks = _meanDurationWithModifiers(action);
+      return copyWith(
+        activeAction: ActiveAction(
+          id: actionId,
+          remainingTicks: totalTicks,
+          totalTicks: totalTicks,
+        ),
+      );
+    } else if (action is CombatAction) {
+      // Combat actions don't have inputs or duration-based completion.
+      // The tick represents the time until the first player attack.
+      final pStats = playerStats(this);
+      totalTicks = ticksFromDuration(
+        Duration(milliseconds: (pStats.attackSpeed * 1000).round()),
+      );
+      // Initialize combat state with the combat action, starting with respawn
+      final combatState = CombatActionState.start(action, pStats);
+      final newActionStates = Map<ActionId, ActionState>.from(actionStates);
+      final existingState = actionState(actionId);
+      newActionStates[actionId] = existingState.copyWith(combat: combatState);
+      return copyWith(
+        activeAction: ActiveAction(
+          id: actionId,
+          remainingTicks: totalTicks,
+          totalTicks: totalTicks,
+        ),
+        actionStates: newActionStates,
+      );
+    } else {
+      throw Exception('Unknown action type: ${action.runtimeType}');
+    }
+  }
+
+  /// Calculates mean duration with modifiers applied (deterministic).
+  int _meanDurationWithModifiers(SkillAction action) {
+    final ticks = ticksFromDuration(action.meanDuration);
+    final modifiers = resolveModifiers(action);
+
+    // skillInterval is percentage points (e.g., -5 = 5% reduction)
+    final percentPoints = modifiers.skillInterval;
+
+    // flatSkillInterval is milliseconds, convert to ticks (100ms = 1 tick)
+    final flatTicks = modifiers.flatSkillInterval / 100.0;
+
+    // Apply: percentage first, then flat adjustment
+    final result = ticks * (1.0 + percentPoints / 100.0) + flatTicks;
+
+    // Round and clamp to at least 1 tick
+    return result.round().clamp(1, double.maxFinite.toInt());
+  }
+
   GlobalState clearAction() {
     if (isStunned) {
       throw const StunnedException('Cannot stop action while stunned');
