@@ -223,10 +223,7 @@ class ThievingAction extends SkillAction {
   /// where stealth = 40 + thievingLevel + actionMasteryLevel
   bool rollSuccess(Random random, int thievingLevel, int actionMasteryLevel) {
     final stealth = calculateStealth(thievingLevel, actionMasteryLevel);
-    final successChance = ((100 + stealth) / (100 + perception)).clamp(
-      0.0,
-      1.0,
-    );
+    final successChance = thievingSuccessChance(stealth, perception);
     final roll = random.nextDouble();
     return roll < successChance;
   }
@@ -239,4 +236,14 @@ const int baseStealth = 40;
 /// Stealth = 40 + thieving level + action mastery level
 int calculateStealth(int thievingLevel, int actionMasteryLevel) {
   return baseStealth + thievingLevel + actionMasteryLevel;
+}
+
+/// Calculates the success chance for a thieving attempt.
+///
+/// Success chance = min(1, (100 + stealth) / (100 + perception))
+/// where stealth = 40 + thievingLevel + actionMasteryLevel
+///
+/// Returns a value between 0.0 and 1.0.
+double thievingSuccessChance(int stealth, int perception) {
+  return ((100 + stealth) / (100 + perception)).clamp(0.0, 1.0);
 }

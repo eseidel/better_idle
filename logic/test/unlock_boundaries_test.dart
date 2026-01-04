@@ -1,5 +1,5 @@
 import 'package:logic/src/data/actions.dart';
-import 'package:logic/src/solver/unlock_boundaries.dart';
+import 'package:logic/src/solver/analysis/unlock_boundaries.dart';
 import 'package:test/test.dart';
 
 import 'test_helper.dart';

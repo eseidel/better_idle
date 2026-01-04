@@ -2,6 +2,12 @@
 
 The solver uses A* search to find the minimum-tick plan to reach a goal.
 
+## Key Pipeline Invariant
+
+**Watch lists affect only waiting, never imply we should take an action.**
+
+An upgrade being "watched" (for affordability timing) does NOT mean we should buy it. Only upgrades in `Candidates.buyUpgrades` are actionable.
+
 ## Algorithm Overview
 
 ```
@@ -72,11 +78,14 @@ h = remaining / bestRate
 h = sum of h(subgoal) for each unfinished subgoal
 ```
 
+Uses `getBestRateForSkill()` to compute per-skill estimates.
+
 ### For Consuming Skills
 
-Account for producer throughput:
+Account for producer throughput to keep heuristic admissible but less optimistic:
 
 ```dart
+// For each unlocked consumer, find best producer and cap rate
 sustainableRate = consumerXp / (producerTime + consumerTime)
 h = remaining / sustainableRate
 ```
@@ -95,9 +104,15 @@ for upgrade in candidates.buyUpgrades:
   if affordable(upgrade, state):
     yield BuyShopItem(upgrade)
 
-if candidates.sellPolicy != null:
+if candidates.shouldEmitSellCandidate && goal.isSellRelevant:
   yield SellItems(candidates.sellPolicy)
 ```
+
+Interactions are generated via `availableInteractions()` which checks:
+- Action is unlocked
+- Not already on that action
+- Can afford purchase
+- Has inventory to sell
 
 ### 2. Wait Edge (N-tick)
 
@@ -114,12 +129,14 @@ yield WaitStep(dt, waitFor)
 ```dart
 dt = min(
   timeUntilGoal,
-  timeUntilUpgradeAffordable,
-  timeUntilActionUnlocks,
-  timeUntilInventoryFull,
-  timeUntilInputsDepleted,
+  timeUntilUpgradeAffordable,     // From watch.upgradePurchaseIds
+  timeUntilActionUnlocks,         // From watch.lockedActivityIds
+  timeUntilInventoryFull,         // If watch.inventory
+  timeUntilInputsDepleted,        // For consuming actions
+  timeUntilInputsAvailable,       // For watch.consumingActivityIds
   timeUntilNextLevel,
   timeUntilNextMasteryBoundary,
+  timeUntilDeath,                 // For thieving
 )
 ```
 
@@ -149,16 +166,22 @@ This dramatically reduces the state space.
 States are grouped by structural features (not exact values):
 
 ```dart
-bucketKey = hash(
-  activeAction,
-  goldBucket(gp),         // 50 GP intervals
-  skillLevels[relevantSkills],
-  toolTiers,
-  hpBucket(hp),           // For thieving
-  masteryBucket(mastery), // For thieving
-  inventoryBucket,        // For consuming skills
-)
+class _BucketKey {
+  final String activityName;
+  final Map<Skill, int> skillLevels;  // Goal-relevant only
+  final int axeLevel;
+  final int rodLevel;
+  final int pickLevel;
+  final int hpBucket;         // For thieving (if shouldTrackHp)
+  final int masteryLevel;     // For thieving (if shouldTrackMastery)
+  final int inventoryBucket;  // For consuming skills (if shouldTrackInventory)
+}
 ```
+
+Bucket sizes:
+- Gold: 50 GP intervals (`_goldBucketSize`)
+- HP: 10 HP intervals (`_hpBucketSize`)
+- Inventory: 10 item intervals (`_inventoryBucketSize`)
 
 ### Goal-Scoped Bucketing
 
@@ -167,12 +190,31 @@ Only track skills relevant to the goal:
 - Skill goal: only target skill
 - Multi-skill goal: only target skills
 
+## Debug Assertions
+
+The solver includes debug-only assertions that catch bugs early:
+
+```dart
+// Check state validity (non-negative GP, HP, inventory)
+_assertValidState(state);
+
+// Check delta ticks are non-negative
+_assertNonNegativeDelta(deltaTicks, context);
+
+// Check progress is monotonic (XP never decreases)
+_assertMonotonicProgress(before, after, context);
+```
+
 ## Caching
 
 ### Rate Cache
 
 ```dart
-rateCache[stateKey] = bestUnlockedRate
+class _RateCache {
+  double getBestUnlockedRate(GlobalState state);
+  double getBestRateForSkill(GlobalState state, Skill targetSkill);
+  RateZeroReason? getZeroReason(GlobalState state);
+}
 
 // Key includes:
 // - Skill levels (affect unlocks)
@@ -181,13 +223,13 @@ rateCache[stateKey] = bestUnlockedRate
 
 ### Candidate Cache
 
-```dart
-candidateCache[stateKey] = candidates
-
-// Disabled during diagnostics to get accurate profiling
-```
+Candidates are cached per capability level in `enumerate_candidates.dart`.
 
 ## Algorithm Performance
+
+Default limits to prevent runaway searches:
+- Max expanded nodes: 200,000 (`defaultMaxExpandedNodes`)
+- Max queue size: 500,000 (`defaultMaxQueueSize`)
 
 Typical metrics:
 - Expanded nodes: 100-10,000
@@ -211,29 +253,42 @@ Typical metrics:
 ```dart
 SolverResult solve(
   GlobalState initialState,
-  Goal goal,
-  {bool collectDiagnostics = false}
-)
+  Goal goal, {
+  bool collectDiagnostics = false,
+  int maxExpandedNodes = defaultMaxExpandedNodes,
+  int maxQueueSize = defaultMaxQueueSize,
+})
 ```
 
 ### Returns
 
 ```dart
-sealed class SolverResult {}
+sealed class SolverResult {
+  final SolverProfile? profile;
+}
 
 class SolverSuccess extends SolverResult {
   final Plan plan;
-  final SolverProfile? profile;
+  final GlobalState terminalState;  // State at end of plan (from search)
 }
 
 class SolverFailed extends SolverResult {
   final SolverFailure failure;
-  final SolverProfile? profile;
 }
 ```
 
 ### Failure Modes
 
-- `nodeLimit`: Expanded too many nodes
-- `emptyQueue`: No path to goal exists
-- `zeroRate`: Can't make progress (stuck state)
+```dart
+class SolverFailure {
+  final String reason;
+  final int expandedNodes;
+  final int enqueuedNodes;
+  final int? bestCredits;  // Best progress achieved
+}
+```
+
+- Node limit exceeded
+- Queue size limit exceeded
+- Empty queue (no path to goal exists)
+- Zero rate (can't make progress - stuck state)
