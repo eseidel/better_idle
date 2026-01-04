@@ -2698,7 +2698,7 @@ class SegmentExecutionResult {
 /// Executes a segment with stochastic simulation.
 ///
 /// Uses the SAME [WatchSet] from planning to determine material boundaries.
-/// Stops when [applyStep] returns a boundary that [WatchSet.isMaterial]
+/// Stops when [PlanStep.apply] returns a boundary that [WatchSet.isMaterial]
 /// accepts.
 ///
 /// The [random] parameter controls the stochastic simulation. For
@@ -2715,9 +2715,8 @@ SegmentExecutionResult executeSegment(
   final unlockBoundaries = computeUnlockBoundaries(state.registries);
 
   for (final step in segment.steps) {
-    final result = applyStep(
+    final result = step.apply(
       currentState,
-      step,
       random: random,
       boundaries: unlockBoundaries,
       watchSet: watchSet,
@@ -2727,7 +2726,7 @@ SegmentExecutionResult executeSegment(
     totalTicks += result.ticksElapsed;
     totalDeaths += result.deaths;
 
-    // Check if applyStep's boundary is material using the SAME watchSet
+    // Check if step.apply's boundary is material using the SAME watchSet
     if (result.boundary != null && watchSet.isMaterial(result.boundary!)) {
       // Convert ReplanBoundary -> SegmentBoundary using watchSet
       final segmentBoundary = watchSet.toSegmentBoundary(result.boundary!);

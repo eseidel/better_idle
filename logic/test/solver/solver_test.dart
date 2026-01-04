@@ -2445,26 +2445,32 @@ void main() {
       // Examine macro stop triggers - should have batched operations
       final triggers = profile.macroStopTriggers;
 
-      // Count single-item vs batched stock operations
-      var singleItemStockOps = 0;
-      var batchedStockOps = 0;
+      // Count single-item vs batched stock/produce operations
+      // Both "Stock" and "Produce" prefixes are used for item acquisition
+      var singleItemOps = 0;
+      var batchedOps = 0;
 
       for (final trigger in triggers.keys) {
-        if (trigger.startsWith('Stock 1x')) {
-          singleItemStockOps += triggers[trigger]!;
-        } else if (trigger.startsWith('Stock ') && trigger.contains('x')) {
-          batchedStockOps += triggers[trigger]!;
+        // Check for single-item operations (Stock 1x or Produce 1x)
+        if (trigger.startsWith('Stock 1x') ||
+            trigger.startsWith('Produce 1x')) {
+          singleItemOps += triggers[trigger]!;
+        } else if ((trigger.startsWith('Stock ') ||
+                trigger.startsWith('Produce ')) &&
+            trigger.contains('x')) {
+          // Batched operations have quantity > 1
+          batchedOps += triggers[trigger]!;
         }
       }
 
       // The fix ensures batched operations dominate
-      // Before fix: many Stock 1x operations, few batched
+      // Before fix: many single-item operations, few batched
       // After fix: mostly batched operations
       expect(
-        batchedStockOps,
-        greaterThan(singleItemStockOps),
+        batchedOps,
+        greaterThan(singleItemOps),
         reason:
-            'Batched stock operations should outnumber single-item ops. '
+            'Batched stock/produce operations should outnumber single-item ops. '
             'Triggers: $triggers',
       );
 

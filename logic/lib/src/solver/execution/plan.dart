@@ -18,19 +18,57 @@
 /// dead, restart" loops) into macro steps for UI display.
 library;
 
+import 'dart:math';
+
 import 'package:equatable/equatable.dart';
 import 'package:logic/src/data/action_id.dart';
 import 'package:logic/src/data/actions.dart';
 import 'package:logic/src/data/melvor_id.dart';
 import 'package:logic/src/solver/analysis/replan_boundary.dart';
-import 'package:logic/src/solver/analysis/wait_for.dart' show WaitFor;
-import 'package:logic/src/solver/analysis/watch_set.dart' show SegmentContext;
+import 'package:logic/src/solver/analysis/unlock_boundaries.dart';
+import 'package:logic/src/solver/analysis/wait_for.dart';
+import 'package:logic/src/solver/analysis/watch_set.dart';
 import 'package:logic/src/solver/candidates/macro_candidate.dart';
+import 'package:logic/src/solver/core/goal.dart';
 import 'package:logic/src/solver/core/solver_profile.dart';
+import 'package:logic/src/solver/execution/consume_until.dart';
+import 'package:logic/src/solver/execution/prerequisites.dart';
+import 'package:logic/src/solver/execution/step_helpers.dart';
+import 'package:logic/src/solver/interactions/apply_interaction.dart';
 import 'package:logic/src/solver/interactions/interaction.dart';
 import 'package:logic/src/state.dart';
 import 'package:logic/src/tick.dart';
 import 'package:meta/meta.dart';
+
+// ---------------------------------------------------------------------------
+// Step Result
+// ---------------------------------------------------------------------------
+
+/// Result of applying a single step.
+@immutable
+class StepResult {
+  const StepResult({
+    required this.state,
+    this.ticksElapsed = 0,
+    this.deaths = 0,
+    this.boundary,
+  });
+
+  /// The game state after executing the step.
+  final GlobalState state;
+
+  /// Number of ticks elapsed during step execution.
+  final int ticksElapsed;
+
+  /// Number of deaths that occurred during step execution.
+  final int deaths;
+
+  /// The boundary hit during execution, if any.
+  ///
+  /// Null means normal completion. Various boundary types indicate
+  /// different outcomes (goal reached, inputs depleted, etc.).
+  final ReplanBoundary? boundary;
+}
 
 // ---------------------------------------------------------------------------
 // Plan Steps
@@ -39,6 +77,21 @@ import 'package:meta/meta.dart';
 /// A single step in a plan.
 sealed class PlanStep extends Equatable {
   const PlanStep();
+
+  /// Executes this step and returns the result.
+  ///
+  /// [state] is the current game state before execution.
+  /// [random] is the random number generator for stochastic simulation.
+  /// [boundaries] contains skill unlock boundaries for macro execution.
+  /// [watchSet] enables mid-step boundary detection if provided.
+  /// [segmentSellPolicy] is the sell policy for handling inventory full.
+  StepResult apply(
+    GlobalState state, {
+    required Random random,
+    Map<Skill, SkillBoundaries>? boundaries,
+    WatchSet? watchSet,
+    SellPolicy? segmentSellPolicy,
+  });
 
   /// Serializes this [PlanStep] to a JSON-compatible map.
   Map<String, dynamic> toJson();
@@ -73,6 +126,26 @@ class InteractionStep extends PlanStep {
   const InteractionStep(this.interaction);
 
   final Interaction interaction;
+
+  @override
+  StepResult apply(
+    GlobalState state, {
+    required Random random,
+    Map<Skill, SkillBoundaries>? boundaries,
+    WatchSet? watchSet,
+    SellPolicy? segmentSellPolicy,
+  }) {
+    try {
+      return StepResult(
+        state: applyInteraction(state, interaction, random: random),
+      );
+    } on Exception catch (e) {
+      return StepResult(
+        state: state,
+        boundary: NoProgressPossible(reason: e.toString()),
+      );
+    }
+  }
 
   @override
   Map<String, dynamic> toJson() => {
@@ -114,6 +187,61 @@ class WaitStep extends PlanStep {
   final ActionId? expectedAction;
 
   @override
+  StepResult apply(
+    GlobalState state, {
+    required Random random,
+    Map<Skill, SkillBoundaries>? boundaries,
+    WatchSet? watchSet,
+    SellPolicy? segmentSellPolicy,
+  }) {
+    var waitState = state;
+    // Switch to expected action if specified and not already active
+    if (expectedAction != null &&
+        waitState.activeAction?.id != expectedAction) {
+      try {
+        waitState = applyInteraction(
+          waitState,
+          SwitchActivity(expectedAction!),
+          random: random,
+        );
+      } on Exception catch (e) {
+        return StepResult(
+          state: state,
+          boundary: NoProgressPossible(
+            reason: 'Cannot start expected action: $e',
+          ),
+        );
+      }
+    }
+
+    // Run until the wait condition is satisfied
+    final result = consumeUntil(waitState, waitFor, random: random);
+
+    // Check for material boundary after waiting (mid-step stopping)
+    if (watchSet != null) {
+      final materialBoundary = watchSet.detectBoundary(
+        result.state,
+        elapsedTicks: result.ticksElapsed,
+      );
+      if (materialBoundary != null) {
+        return StepResult(
+          state: result.state,
+          ticksElapsed: result.ticksElapsed,
+          deaths: result.deathCount,
+          boundary: segmentBoundaryToReplan(materialBoundary),
+        );
+      }
+    }
+
+    return StepResult(
+      state: result.state,
+      ticksElapsed: result.ticksElapsed,
+      deaths: result.deathCount,
+      boundary: result.boundary,
+    );
+  }
+
+  @override
   Map<String, dynamic> toJson() => {
     'type': 'WaitStep',
     'deltaTicks': deltaTicks,
@@ -145,6 +273,348 @@ class MacroStep extends PlanStep {
 
   /// Composite wait condition (AnyOf the macro's stop conditions).
   final WaitFor waitFor;
+
+  @override
+  StepResult apply(
+    GlobalState state, {
+    required Random random,
+    Map<Skill, SkillBoundaries>? boundaries,
+    WatchSet? watchSet,
+    SellPolicy? segmentSellPolicy,
+  }) {
+    // Execute the macro by running until the composite wait condition
+    var executionState = state;
+    var executionWaitFor = waitFor;
+
+    if (macro is TrainSkillUntil) {
+      final trainMacro = macro as TrainSkillUntil;
+      // Use the action that was determined during planning
+      final actionToUse =
+          trainMacro.actionId ??
+          findBestActionForSkill(
+            state,
+            trainMacro.skill,
+            ReachSkillLevelGoal(trainMacro.skill, 99),
+          );
+      if (actionToUse != null && state.activeAction?.id != actionToUse) {
+        executionState = applyInteraction(
+          state,
+          SwitchActivity(actionToUse),
+          random: random,
+        );
+      }
+
+      // Regenerate WaitFor based on actual execution state and action
+      if (boundaries != null) {
+        final waitConditions = trainMacro.allStops
+            .map((rule) => rule.toWaitFor(executionState, boundaries))
+            .toList();
+        executionWaitFor = waitConditions.length == 1
+            ? waitConditions.first
+            : WaitForAnyOf(waitConditions);
+      }
+
+      // Execute with mid-macro boundary checking if watchSet provided
+      if (watchSet != null) {
+        return executeTrainSkillWithBoundaryChecks(
+          executionState,
+          executionWaitFor,
+          random,
+          watchSet,
+        );
+      }
+    } else if (macro is TrainConsumingSkillUntil) {
+      // Execute coupled produce/consume loop until stop condition
+      return executeCoupledLoop(
+        state,
+        macro as TrainConsumingSkillUntil,
+        waitFor,
+        boundaries,
+        random,
+        watchSet: watchSet,
+        segmentSellPolicy: segmentSellPolicy,
+      );
+    } else if (macro is AcquireItem) {
+      final acquireMacro = macro as AcquireItem;
+      // Execute AcquireItem by finding producer and running until target
+      final startCount = countItem(executionState, acquireMacro.itemId);
+
+      const goal = ReachSkillLevelGoal(Skill.mining, 99); // Placeholder goal
+      final producer = findProducerActionForItem(
+        executionState,
+        acquireMacro.itemId,
+        goal,
+      );
+      if (producer == null) {
+        return StepResult(
+          state: executionState,
+          boundary: NoProgressPossible(
+            reason: 'No producer for ${acquireMacro.itemId}',
+          ),
+        );
+      }
+
+      // Switch to producer action
+      if (executionState.activeAction?.id != producer) {
+        executionState = applyInteraction(
+          executionState,
+          SwitchActivity(producer),
+          random: random,
+        );
+      }
+
+      // Use delta-based wait condition: acquire quantity MORE items
+      final acquireWaitFor = WaitForInventoryDelta(
+        acquireMacro.itemId,
+        acquireMacro.quantity,
+        startCount: startCount,
+      );
+
+      final result = consumeUntil(
+        executionState,
+        acquireWaitFor,
+        random: random,
+      );
+
+      return StepResult(
+        state: result.state,
+        ticksElapsed: result.ticksElapsed,
+        deaths: result.deathCount,
+        boundary: result.boundary,
+      );
+    } else if (macro is EnsureStock) {
+      final stockMacro = macro as EnsureStock;
+      // Execute EnsureStock by finding producer and running until target
+      // Handles inventory full by selling and continuing in a loop
+      var currentState = executionState;
+      var totalTicks = 0;
+      var totalDeaths = 0;
+
+      while (true) {
+        final currentCount = countItem(currentState, stockMacro.itemId);
+
+        // If we already have enough, done
+        if (currentCount >= stockMacro.minTotal) {
+          return StepResult(
+            state: currentState,
+            ticksElapsed: totalTicks,
+            deaths: totalDeaths,
+            boundary: const WaitConditionSatisfied(),
+          );
+        }
+
+        const goal = ReachSkillLevelGoal(Skill.mining, 99);
+        final producer = findProducerActionForItem(
+          currentState,
+          stockMacro.itemId,
+          goal,
+        );
+        if (producer == null) {
+          return StepResult(
+            state: currentState,
+            ticksElapsed: totalTicks,
+            deaths: totalDeaths,
+            boundary: NoProgressPossible(
+              reason: 'No producer for ${stockMacro.itemId}',
+            ),
+          );
+        }
+
+        // Switch to producer action
+        if (currentState.activeAction?.id != producer) {
+          try {
+            currentState = applyInteraction(
+              currentState,
+              SwitchActivity(producer),
+              random: random,
+            );
+          } on Exception catch (e) {
+            return StepResult(
+              state: currentState,
+              ticksElapsed: totalTicks,
+              deaths: totalDeaths,
+              boundary: NoProgressPossible(
+                reason:
+                    'Cannot switch to producer for ${stockMacro.itemId}: $e',
+              ),
+            );
+          }
+        }
+
+        // Use absolute wait condition: wait until inventory has minTotal
+        final stockWaitFor = WaitForInventoryAtLeast(
+          stockMacro.itemId,
+          stockMacro.minTotal,
+        );
+
+        final result = consumeUntil(currentState, stockWaitFor, random: random);
+
+        currentState = result.state;
+        totalTicks += result.ticksElapsed;
+        totalDeaths += result.deathCount;
+
+        // Check if we hit inventory full - sell and continue
+        if (result.boundary is InventoryFull) {
+          // Use segment's sell policy. If not provided, this is an error -
+          // callers should resolve policy before calling apply.
+          if (segmentSellPolicy == null) {
+            return StepResult(
+              state: currentState,
+              ticksElapsed: totalTicks,
+              deaths: totalDeaths,
+              boundary: NoProgressPossible(
+                reason:
+                    'Inventory full during EnsureStock '
+                    '${stockMacro.itemId.name} but no sell policy provided',
+              ),
+            );
+          }
+
+          final sellableValue =
+              effectiveCredits(currentState, segmentSellPolicy) -
+              currentState.gp;
+
+          if (sellableValue > 0) {
+            currentState = applyInteraction(
+              currentState,
+              SellItems(segmentSellPolicy),
+              random: random,
+            );
+            // Continue the loop to produce more
+            continue;
+          } else {
+            // Nothing to sell - truly stuck
+            return StepResult(
+              state: currentState,
+              ticksElapsed: totalTicks,
+              deaths: totalDeaths,
+              boundary: result.boundary,
+            );
+          }
+        }
+
+        // For any other boundary or success, return
+        return StepResult(
+          state: currentState,
+          ticksElapsed: totalTicks,
+          deaths: totalDeaths,
+          boundary: result.boundary,
+        );
+      }
+    } else if (macro is ProduceItem) {
+      final produceMacro = macro as ProduceItem;
+      // ProduceItem has a specific actionId - switch to it and produce
+      var currentState = executionState;
+      var totalTicks = 0;
+      var totalDeaths = 0;
+
+      // Switch to the producer action specified in the macro
+      if (currentState.activeAction?.id != produceMacro.actionId) {
+        try {
+          currentState = applyInteraction(
+            currentState,
+            SwitchActivity(produceMacro.actionId),
+            random: random,
+          );
+        } on Exception catch (e) {
+          return StepResult(
+            state: currentState,
+            boundary: NoProgressPossible(
+              reason: 'Cannot switch to producer ${produceMacro.actionId}: $e',
+            ),
+          );
+        }
+      }
+
+      // Wait until we have minTotal of the item
+      final produceWaitFor = WaitForInventoryAtLeast(
+        produceMacro.itemId,
+        produceMacro.minTotal,
+      );
+
+      while (true) {
+        final currentCount = countItem(currentState, produceMacro.itemId);
+
+        // If we already have enough, done
+        if (currentCount >= produceMacro.minTotal) {
+          return StepResult(
+            state: currentState,
+            ticksElapsed: totalTicks,
+            deaths: totalDeaths,
+            boundary: const WaitConditionSatisfied(),
+          );
+        }
+
+        final result = consumeUntil(
+          currentState,
+          produceWaitFor,
+          random: random,
+        );
+
+        currentState = result.state;
+        totalTicks += result.ticksElapsed;
+        totalDeaths += result.deathCount;
+
+        // Check if we hit inventory full - sell and continue
+        if (result.boundary is InventoryFull) {
+          if (segmentSellPolicy == null) {
+            return StepResult(
+              state: currentState,
+              ticksElapsed: totalTicks,
+              deaths: totalDeaths,
+              boundary: NoProgressPossible(
+                reason:
+                    'Inventory full during ProduceItem '
+                    '${produceMacro.itemId.name} but no sell policy provided',
+              ),
+            );
+          }
+
+          final sellableValue =
+              effectiveCredits(currentState, segmentSellPolicy) -
+              currentState.gp;
+
+          if (sellableValue > 0) {
+            currentState = applyInteraction(
+              currentState,
+              SellItems(segmentSellPolicy),
+              random: random,
+            );
+            // Continue the loop to produce more
+            continue;
+          } else {
+            // Nothing to sell - truly stuck
+            return StepResult(
+              state: currentState,
+              ticksElapsed: totalTicks,
+              deaths: totalDeaths,
+              boundary: result.boundary,
+            );
+          }
+        }
+
+        // For any other boundary or success, return
+        return StepResult(
+          state: currentState,
+          ticksElapsed: totalTicks,
+          deaths: totalDeaths,
+          boundary: result.boundary,
+        );
+      }
+    }
+
+    final result = consumeUntil(
+      executionState,
+      executionWaitFor,
+      random: random,
+    );
+    return StepResult(
+      state: result.state,
+      ticksElapsed: result.ticksElapsed,
+      deaths: result.deathCount,
+      boundary: result.boundary,
+    );
+  }
 
   @override
   Map<String, dynamic> toJson() => {

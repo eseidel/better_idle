@@ -17,6 +17,7 @@ import 'package:logic/src/solver/core/goal.dart';
 import 'package:logic/src/solver/core/solver.dart';
 import 'package:logic/src/solver/execution/execute_plan.dart';
 import 'package:logic/src/solver/execution/plan.dart';
+import 'package:logic/src/solver/execution/step_helpers.dart';
 import 'package:logic/src/solver/interactions/interaction.dart';
 import 'package:test/test.dart';
 

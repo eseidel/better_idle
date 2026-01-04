@@ -1,7 +1,7 @@
 import 'package:logic/logic.dart';
 import 'package:logic/src/solver/analysis/replan_boundary.dart';
-import 'package:logic/src/solver/execution/execute_plan.dart';
 import 'package:logic/src/solver/execution/plan.dart';
+import 'package:logic/src/solver/execution/step_helpers.dart';
 import 'package:test/test.dart';
 
 void main() {
