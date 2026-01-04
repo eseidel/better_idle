@@ -9,19 +9,10 @@ import 'package:logic/src/data/action_id.dart';
 import 'package:logic/src/data/actions.dart';
 import 'package:logic/src/data/melvor_id.dart';
 import 'package:logic/src/data/xp.dart' show startXpForLevel;
-import 'package:logic/src/solver/analysis/estimate_rates.dart';
 import 'package:logic/src/solver/analysis/unlock_boundaries.dart';
 import 'package:logic/src/solver/candidates/macro_candidate.dart';
 import 'package:logic/src/solver/core/goal.dart';
-import 'package:logic/src/solver/core/value_model.dart';
-import 'package:logic/src/solver/execution/prerequisites.dart'
-    show
-        EnsureExecResult,
-        ExecNeedsMacros,
-        ExecReady,
-        ExecUnknown,
-        findAnyProducerForItem,
-        findProducerActionForItem;
+import 'package:logic/src/solver/execution/prerequisites.dart';
 import 'package:logic/src/state.dart';
 
 /// Context for macro expansion operations.
@@ -164,73 +155,6 @@ class MacroExpansionContext {
     }
 
     return macros.isEmpty ? const ExecReady() : ExecNeedsMacros(macros);
-  }
-
-  /// Finds the best action for a skill based on the goal's criteria.
-  ///
-  /// For skill goals, picks the action with highest XP rate.
-  /// For GP goals, picks the action with highest gold rate.
-  ///
-  /// Unlike `estimateRates`, this function doesn't require the action to be
-  /// startable. This is important for consuming skills where we want to find
-  /// the best action even when inputs aren't currently available (because we'll
-  /// produce them next).
-  ///
-  /// For consuming actions, this also checks that we can produce the inputs.
-  ActionId? findBestActionForSkill(GlobalState s, Skill skill, Goal g) {
-    final skillLevel = s.skillState(skill).skillLevel;
-    final actions = s.registries.actions.all
-        .whereType<SkillAction>()
-        .where((action) => action.skill == skill)
-        .where((action) => action.unlockLevel <= skillLevel);
-
-    if (actions.isEmpty) return null;
-
-    // Rank by goal-specific rate
-    ActionId? best;
-    double bestRate = 0;
-
-    // Check if this skill is relevant to the goal. If not (e.g., training
-    // Mining as a prerequisite for Smithing), use raw XP rate instead.
-    final skillIsGoalRelevant = g.isSkillRelevant(skill);
-
-    actionLoop:
-    for (final action in actions) {
-      // For consuming actions, check that ALL inputs can be produced
-      // (either directly or via prerequisite training).
-      // This handles multi-input actions like Mithril Bar (Mithril Ore + Coal).
-      if (action.inputs.isNotEmpty) {
-        for (final inputItem in action.inputs.keys) {
-          // Check if any producer exists (locked or unlocked)
-          final anyProducer = findAnyProducerForItem(s, inputItem);
-          if (anyProducer == null) {
-            // No way to produce this input at all, skip this action
-            continue actionLoop;
-          }
-        }
-      }
-
-      // Use estimateRatesForAction which doesn't require action to be active
-      // or have inputs available. Allows planning for consuming actions
-      // before inputs are produced.
-      final rates = estimateRatesForAction(s, action.id);
-
-      final goldRate = defaultValueModel.valuePerTick(s, rates);
-      final xpRate = rates.xpPerTickBySkill[skill] ?? 0.0;
-
-      // For prerequisite training (skill not in goal), use raw XP rate
-      // to pick the fastest training action.
-      final rate = skillIsGoalRelevant
-          ? g.activityRate(skill, goldRate, xpRate)
-          : xpRate;
-
-      if (rate > bestRate) {
-        bestRate = rate;
-        best = action.id;
-      }
-    }
-
-    return best;
   }
 
   /// Computes the maximum feasible batch size for an EnsureStock macro.

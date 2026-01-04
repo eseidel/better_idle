@@ -33,7 +33,6 @@ import 'dart:math';
 import 'package:collection/collection.dart';
 import 'package:equatable/equatable.dart';
 import 'package:logic/src/consume_ticks.dart';
-import 'package:logic/src/data/action_id.dart';
 import 'package:logic/src/data/actions.dart';
 import 'package:logic/src/data/melvor_id.dart';
 import 'package:logic/src/solver/analysis/estimate_rates.dart';
@@ -55,6 +54,7 @@ import 'package:logic/src/solver/execution/prerequisites.dart'
     show
         ensureExecutable,
         findAnyProducerForItem,
+        findBestActionForSkill,
         findProducerActionForItem;
 import 'package:logic/src/solver/execution/state_advance.dart';
 import 'package:logic/src/solver/interactions/apply_interaction.dart';
@@ -931,7 +931,7 @@ MacroExpansionExplanation explainMacroExpansion(
   switch (macro) {
     case TrainSkillUntil(:final skill):
       steps.add('Looking for best action for ${skill.name}');
-      final bestAction = _findBestActionForSkill(state, skill, goal);
+      final bestAction = findBestActionForSkill(state, skill, goal);
       if (bestAction == null) {
         steps.add('No unlocked action found for ${skill.name}');
       } else {
@@ -945,7 +945,7 @@ MacroExpansionExplanation explainMacroExpansion(
 
     case TrainConsumingSkillUntil(:final consumingSkill):
       steps.add('Looking for best consuming action for ${consumingSkill.name}');
-      final bestAction = _findBestActionForSkill(state, consumingSkill, goal);
+      final bestAction = findBestActionForSkill(state, consumingSkill, goal);
       if (bestAction == null) {
         steps.add('No unlocked action found');
       } else {
@@ -1087,73 +1087,6 @@ MacroExpansionOutcome _expandMacro(
   return const MacroCannotExpand(
     'Prerequisite chain exceeded max depth ($_maxPrerequisiteDepth)',
   );
-}
-
-/// Finds the best action for a skill based on the goal's criteria.
-///
-/// For skill goals, picks the action with highest XP rate.
-/// For GP goals, picks the action with highest gold rate.
-///
-/// Unlike `estimateRates`, this function doesn't require the action to be
-/// startable. This is important for consuming skills where we want to find
-/// the best action even when inputs aren't currently available (because we'll
-/// produce them next).
-///
-/// For consuming actions, this also checks that we can produce the inputs.
-ActionId? _findBestActionForSkill(GlobalState state, Skill skill, Goal goal) {
-  final skillLevel = state.skillState(skill).skillLevel;
-  final actions = state.registries.actions.all
-      .whereType<SkillAction>()
-      .where((action) => action.skill == skill)
-      .where((action) => action.unlockLevel <= skillLevel);
-
-  if (actions.isEmpty) return null;
-
-  // Rank by goal-specific rate
-  ActionId? best;
-  double bestRate = 0;
-
-  // Check if this skill is relevant to the goal. If not (e.g., training Mining
-  // as a prerequisite for Smithing), use raw XP rate instead of goal rate.
-  final skillIsGoalRelevant = goal.isSkillRelevant(skill);
-
-  actionLoop:
-  for (final action in actions) {
-    // For consuming actions, check that ALL inputs can be produced
-    // (either directly or via prerequisite training).
-    // This handles multi-input actions like Mithril Bar (Mithril Ore + Coal).
-    if (action.inputs.isNotEmpty) {
-      for (final inputItem in action.inputs.keys) {
-        // Check if any producer exists (locked or unlocked)
-        final anyProducer = findAnyProducerForItem(state, inputItem);
-        if (anyProducer == null) {
-          // No way to produce this input at all, skip this action
-          continue actionLoop;
-        }
-      }
-    }
-
-    // Use estimateRatesForAction which doesn't require the action to be active
-    // or have inputs available. This allows planning for consuming actions
-    // before inputs are produced.
-    final rates = estimateRatesForAction(state, action.id);
-
-    final goldRate = defaultValueModel.valuePerTick(state, rates);
-    final xpRate = rates.xpPerTickBySkill[skill] ?? 0.0;
-
-    // For prerequisite training (skill not in goal), use raw XP rate
-    // to pick the fastest training action.
-    final rate = skillIsGoalRelevant
-        ? goal.activityRate(skill, goldRate, xpRate)
-        : xpRate;
-
-    if (rate > bestRate) {
-      bestRate = rate;
-      best = action.id;
-    }
-  }
-
-  return best;
 }
 
 // ---------------------------------------------------------------------------

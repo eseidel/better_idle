@@ -330,11 +330,7 @@ class TrainSkillUntil extends MacroCandidate {
     final state = context.state;
 
     // Find best unlocked action for this skill
-    final bestAction = context.findBestActionForSkill(
-      state,
-      skill,
-      context.goal,
-    );
+    final bestAction = findBestActionForSkill(state, skill, context.goal);
     if (bestAction == null) {
       return MacroCannotExpand('No unlocked action for ${skill.name}');
     }
@@ -1283,7 +1279,7 @@ class TrainConsumingSkillUntil extends MacroCandidate {
     final itemRegistry = registries.items;
 
     // Find best unlocked consuming action
-    final bestConsumeAction = context.findBestActionForSkill(
+    final bestConsumeAction = findBestActionForSkill(
       state,
       consumingSkill,
       context.goal,
