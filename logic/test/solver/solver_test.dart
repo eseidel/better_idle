@@ -15,6 +15,7 @@ import 'package:logic/src/solver/core/solver_profile.dart';
 import 'package:logic/src/solver/core/value_model.dart';
 import 'package:logic/src/solver/execution/execute_plan.dart';
 import 'package:logic/src/solver/execution/plan.dart';
+import 'package:logic/src/solver/execution/state_advance.dart';
 import 'package:logic/src/solver/interactions/apply_interaction.dart';
 import 'package:logic/src/solver/interactions/interaction.dart';
 import 'package:test/test.dart';
