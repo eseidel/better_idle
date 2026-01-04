@@ -25,7 +25,17 @@ class ExecReady extends EnsureExecResult {
 
 /// Action needs prerequisite macros before it can execute.
 class ExecNeedsMacros extends EnsureExecResult {
-  const ExecNeedsMacros(this.macros);
+  /// Creates an ExecNeedsMacros, deduplicating macros by their dedupeKey.
+  factory ExecNeedsMacros(List<MacroCandidate> macros) {
+    final seen = <String>{};
+    final deduped = <MacroCandidate>[];
+    for (final macro in macros) {
+      if (seen.add(macro.dedupeKey)) deduped.add(macro);
+    }
+    return ExecNeedsMacros._(deduped);
+  }
+
+  const ExecNeedsMacros._(this.macros);
   final List<MacroCandidate> macros;
 }
 
@@ -33,16 +43,6 @@ class ExecNeedsMacros extends EnsureExecResult {
 class ExecUnknown extends EnsureExecResult {
   const ExecUnknown(this.reason);
   final String reason;
-}
-
-/// Deduplicates macros, keeping first occurrence of each unique macro.
-List<MacroCandidate> dedupeMacros(List<MacroCandidate> macros) {
-  final seen = <String>{};
-  final result = <MacroCandidate>[];
-  for (final macro in macros) {
-    if (seen.add(macro.dedupeKey)) result.add(macro);
-  }
-  return result;
 }
 
 /// Finds an action that produces the given item.
@@ -176,9 +176,7 @@ EnsureExecResult ensureExecutable(
     }
   }
 
-  return macros.isEmpty
-      ? const ExecReady()
-      : ExecNeedsMacros(dedupeMacros(macros));
+  return macros.isEmpty ? const ExecReady() : ExecNeedsMacros(macros);
 }
 
 /// Finds the best action for a skill based on the goal's criteria.

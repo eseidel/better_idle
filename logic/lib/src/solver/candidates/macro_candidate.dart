@@ -29,7 +29,12 @@ import 'package:logic/src/solver/candidates/macro_expansion_context.dart';
 import 'package:logic/src/solver/core/goal.dart' show ReachSkillLevelGoal;
 import 'package:logic/src/solver/execution/consume_until.dart';
 import 'package:logic/src/solver/execution/prerequisites.dart'
-    show findBestActionForSkill, findProducerActionForItem;
+    show
+        ExecNeedsMacros,
+        ExecReady,
+        ExecUnknown,
+        findBestActionForSkill,
+        findProducerActionForItem;
 import 'package:logic/src/solver/execution/state_advance.dart';
 import 'package:logic/src/solver/execution/step_helpers.dart'
     show countItem, executeCoupledLoop, executeTrainSkillWithBoundaryChecks;

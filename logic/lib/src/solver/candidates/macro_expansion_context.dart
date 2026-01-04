@@ -15,7 +15,13 @@ import 'package:logic/src/solver/candidates/macro_candidate.dart';
 import 'package:logic/src/solver/core/goal.dart';
 import 'package:logic/src/solver/core/value_model.dart';
 import 'package:logic/src/solver/execution/prerequisites.dart'
-    show dedupeMacros, findAnyProducerForItem, findProducerActionForItem;
+    show
+        EnsureExecResult,
+        ExecNeedsMacros,
+        ExecReady,
+        ExecUnknown,
+        findAnyProducerForItem,
+        findProducerActionForItem;
 import 'package:logic/src/state.dart';
 
 /// Context for macro expansion operations.
@@ -157,9 +163,7 @@ class MacroExpansionContext {
       }
     }
 
-    return macros.isEmpty
-        ? const ExecReady()
-        : ExecNeedsMacros(dedupeMacros(macros));
+    return macros.isEmpty ? const ExecReady() : ExecNeedsMacros(macros);
   }
 
   /// Finds the best action for a skill based on the goal's criteria.
@@ -460,28 +464,6 @@ class MacroExpansionContext {
       boundaries: boundaries,
     );
   }
-}
-
-/// Result of checking if an action's prerequisites are satisfied.
-sealed class EnsureExecResult {
-  const EnsureExecResult();
-}
-
-/// Action is ready to execute now.
-class ExecReady extends EnsureExecResult {
-  const ExecReady();
-}
-
-/// Action needs prerequisite macros before it can execute.
-class ExecNeedsMacros extends EnsureExecResult {
-  const ExecNeedsMacros(this.macros);
-  final List<MacroCandidate> macros;
-}
-
-/// Cannot determine how to make action feasible.
-class ExecUnknown extends EnsureExecResult {
-  const ExecUnknown(this.reason);
-  final String reason;
 }
 
 /// Result of computing batch size to next unlock.

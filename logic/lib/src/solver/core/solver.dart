@@ -52,7 +52,13 @@ import 'package:logic/src/solver/core/value_model.dart';
 import 'package:logic/src/solver/execution/execute_plan.dart';
 import 'package:logic/src/solver/execution/plan.dart';
 import 'package:logic/src/solver/execution/prerequisites.dart'
-    show dedupeMacros, findAnyProducerForItem, findProducerActionForItem;
+    show
+        EnsureExecResult,
+        ExecNeedsMacros,
+        ExecReady,
+        ExecUnknown,
+        findAnyProducerForItem,
+        findProducerActionForItem;
 import 'package:logic/src/solver/execution/state_advance.dart';
 import 'package:logic/src/solver/interactions/apply_interaction.dart';
 import 'package:logic/src/solver/interactions/available_interactions.dart';
@@ -1181,9 +1187,7 @@ EnsureExecResult _ensureExecutable(
     }
   }
 
-  return macros.isEmpty
-      ? const ExecReady()
-      : ExecNeedsMacros(dedupeMacros(macros));
+  return macros.isEmpty ? const ExecReady() : ExecNeedsMacros(macros);
 }
 
 /// Finds the best action for a skill based on the goal's criteria.
