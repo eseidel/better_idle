@@ -222,41 +222,33 @@ class MacroExpansionContext {
 
   /// Quantizes a stock target to a coarse bucket to reduce plan thrash.
   ///
-  /// Buckets: {10, 20, 50, 100, 200}
-  /// Selection is based on free inventory slots and action output diversity.
+  /// Uses power-of-2 based buckets: {20, 40, 80, 160, 320, 640, 1280, ...}
+  /// This ensures at most ~6 distinct target levels per item, preventing
+  /// the solver from exploring many similar EnsureStock variants.
+  ///
+  /// The minimum bucket is 20 to avoid micro-stocking (8, 9, 10 style jitter).
   int quantizeStockTarget(GlobalState s, int target, SkillAction? action) {
-    const buckets = [10, 20, 50, 100, 200];
+    // Minimum batch size to avoid micro-stocking
+    const minBucket = 20;
 
-    // If target is already large, just round up to nearest bucket
-    if (target >= 200) return target;
+    if (target <= minBucket) return minBucket;
 
-    // Determine base bucket from free inventory slots
-    final usedSlots = s.inventory.items.length;
-    final freeSlots = s.inventoryCapacity - usedSlots;
-    int baseBucketIndex;
-    if (freeSlots < 10) {
-      baseBucketIndex = 0; // 10
-    } else if (freeSlots < 20) {
-      baseBucketIndex = 1; // 20
-    } else if (freeSlots < 40) {
-      baseBucketIndex = 2; // 50
-    } else {
-      baseBucketIndex = 3; // 100
+    // Find next power of 2 >= target, then use that as bucket
+    // This gives buckets: 20, 40, 80, 160, 320, 640, 1280, 2560, ...
+    var bucket = minBucket;
+    while (bucket < target) {
+      bucket *= 2;
     }
 
-    // Step down one bucket if action produces many distinct outputs
-    if (action != null && action.outputs.length > 2 && baseBucketIndex > 0) {
-      baseBucketIndex--;
+    // Optional: step down bucket if inventory is constrained
+    final freeSlots = s.inventoryCapacity - s.inventory.items.length;
+    if (freeSlots < 10 && bucket > minBucket) {
+      // Tight on inventory - use smaller bucket
+      bucket = bucket ~/ 2;
+      if (bucket < target) bucket = target; // But at least cover target
     }
 
-    final bucketSize = buckets[baseBucketIndex];
-
-    // Quantize: round up to nearest bucket
-    // Always round up to at least the minimum bucket size to avoid tiny amounts
-    final quantized = ((target + bucketSize - 1) ~/ bucketSize) * bucketSize;
-
-    // Ensure we return at least the minimum bucket (10) to avoid tiny stocking
-    return quantized < 10 ? 10 : quantized;
+    return bucket;
   }
 
   /// For consuming skills (Smithing, Firemaking, etc.), computes how many

@@ -829,18 +829,6 @@ ConsumeUntilResult consumeUntil(
 }
 
 // ---------------------------------------------------------------------------
-// Macro Expansion
-// ---------------------------------------------------------------------------
-
-// BatchSizeResult is now defined in solver_context.dart
-
-// MacroExpansionResult, MacroExpansionOutcome, MacroExpanded,
-// MacroAlreadySatisfied, MacroCannotExpand are now in macro_candidate.dart
-// BatchSizeResult, _computeFeasibleBatchSize, _quantizeStockTarget,
-// _computeBatchToNextUnlock, _estimateNewSlotsForProduction are now methods
-// on SolverContext in solver_context.dart
-
-// ---------------------------------------------------------------------------
 // Explain One Expansion - debugging tool for understanding macro decisions
 // ---------------------------------------------------------------------------
 
