@@ -967,7 +967,8 @@ List<ActionId> _findProducersForActionByRate(
   GlobalState state,
   ActionId actionId,
 ) {
-  final action = state.registries.actions.byId(actionId);
+  final actionRegistry = state.registries.actions;
+  final action = actionRegistry.byId(actionId);
   if (action is! SkillAction) return [];
 
   final selection = state.actionState(actionId).recipeSelection(action);
@@ -981,7 +982,7 @@ List<ActionId> _findProducersForActionByRate(
       if (!s.isUnlocked) continue;
       if (s.hasInputs) continue; // Only non-consuming producers
 
-      final producerAction = state.registries.actions.byId(s.actionId);
+      final producerAction = actionRegistry.byId(s.actionId);
       if (producerAction is! SkillAction) continue;
 
       if (producerAction.outputs.containsKey(inputItemId)) {

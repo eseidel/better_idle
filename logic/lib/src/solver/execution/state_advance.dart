@@ -151,13 +151,14 @@ AdvanceResult advanceExpected(GlobalState state, int deltaTicks) {
   // Update inventory with expected item gains
   // This is important for consuming skills where items need to be tracked
   // Skip items not in the registry (e.g., skill drops like Ash)
+  final itemRegistry = state.registries.items;
   var newInventory = state.inventory;
   for (final entry in rates.itemFlowsPerTick.entries) {
     final itemId = entry.key;
     final flowRate = entry.value;
     final expectedCount = (flowRate * deltaTicks).floor();
     if (expectedCount > 0) {
-      final item = state.registries.items.byId(itemId);
+      final item = itemRegistry.byId(itemId);
       newInventory = newInventory.adding(ItemStack(item, count: expectedCount));
     }
   }
@@ -168,7 +169,7 @@ AdvanceResult advanceExpected(GlobalState state, int deltaTicks) {
     final consumeRate = entry.value;
     final consumedCount = (consumeRate * deltaTicks).floor();
     if (consumedCount > 0) {
-      final item = state.registries.items.byId(itemId);
+      final item = itemRegistry.byId(itemId);
       newInventory = newInventory.removing(
         ItemStack(item, count: consumedCount),
       );

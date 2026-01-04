@@ -542,15 +542,15 @@ class AcquireItem extends MacroCandidate {
     }
 
     // Check if producer has inputs (consuming action)
-    final producerAction =
-        state.registries.actions.byId(producer) as SkillAction;
+    final registries = state.registries;
+    final producerAction = registries.actions.byId(producer) as SkillAction;
     if (producerAction.inputs.isNotEmpty) {
       // This is a consuming action - need to acquire its inputs first
       for (final inputEntry in producerAction.inputs.entries) {
         final inputId = inputEntry.key;
         final inputNeeded = inputEntry.value * quantity;
         final currentCount = state.inventory.countOfItem(
-          state.registries.items.byId(inputId),
+          registries.items.byId(inputId),
         );
         if (currentCount < inputNeeded) {
           // Need to acquire this input - return prerequisite
@@ -1278,6 +1278,9 @@ class TrainConsumingSkillUntil extends MacroCandidate {
   @override
   MacroExpansionOutcome expand(MacroExpansionContext context) {
     final state = context.state;
+    final registries = state.registries;
+    final actionRegistry = registries.actions;
+    final itemRegistry = registries.items;
 
     // Find best unlocked consuming action
     final bestConsumeAction = context.findBestActionForSkill(
@@ -1290,7 +1293,7 @@ class TrainConsumingSkillUntil extends MacroCandidate {
     }
 
     // Get the consuming action to find its inputs
-    final consumeAction = state.registries.actions.byId(bestConsumeAction);
+    final consumeAction = actionRegistry.byId(bestConsumeAction);
     if (consumeAction is! SkillAction || consumeAction.inputs.isEmpty) {
       return MacroCannotExpand(
         'Action $bestConsumeAction is not a valid consuming action',
@@ -1327,7 +1330,7 @@ class TrainConsumingSkillUntil extends MacroCandidate {
         }
       } else {
         // Check if producer has inputs (multi-tier chain)
-        final producerActionData = state.registries.actions.byId(producer);
+        final producerActionData = actionRegistry.byId(producer);
         if (producerActionData is SkillAction &&
             producerActionData.inputs.isNotEmpty) {
           // Multi-tier chain - compute batch size
@@ -1339,7 +1342,7 @@ class TrainConsumingSkillUntil extends MacroCandidate {
 
           if (batch != null) {
             final inputNeeded = batch.inputRequirements[inputItem] ?? 0;
-            final inputItemData = state.registries.items.byId(inputItem);
+            final inputItemData = itemRegistry.byId(inputItem);
             final currentCount = state.inventory.countOfItem(inputItemData);
             if (inputNeeded > 0 && currentCount < inputNeeded) {
               final quantizedTarget = context.quantizeStockTarget(
@@ -1352,7 +1355,7 @@ class TrainConsumingSkillUntil extends MacroCandidate {
           } else {
             // Fallback: near goal or no boundary, use smaller batches
             const bufferSize = 10;
-            final inputItemData = state.registries.items.byId(inputItem);
+            final inputItemData = itemRegistry.byId(inputItem);
             final currentCount = state.inventory.countOfItem(inputItemData);
             if (currentCount < bufferSize) {
               allPrereqs.add(AcquireItem(inputItem, bufferSize - currentCount));
@@ -1397,7 +1400,7 @@ class TrainConsumingSkillUntil extends MacroCandidate {
           context.goal,
         );
         if (producer == null) continue;
-        final producerActionData = state.registries.actions.byId(producer);
+        final producerActionData = actionRegistry.byId(producer);
         if (producerActionData is SkillAction) {
           if (producerActionData.inputs.isEmpty) {
             producerAction = producer;
@@ -1411,7 +1414,7 @@ class TrainConsumingSkillUntil extends MacroCandidate {
                 context.goal,
               );
               if (subProducer != null) {
-                final subProdData = state.registries.actions.byId(subProducer);
+                final subProdData = actionRegistry.byId(subProducer);
                 if (subProdData is SkillAction && subProdData.inputs.isEmpty) {
                   producerAction = subProducer;
                   break;
@@ -1455,8 +1458,7 @@ class TrainConsumingSkillUntil extends MacroCandidate {
         context.goal,
       );
       if (producer == null) continue;
-      final produceAction =
-          state.registries.actions.byId(producer) as SkillAction;
+      final produceAction = actionRegistry.byId(producer) as SkillAction;
       final outputsPerAction = produceAction.outputs[inputItemId] ?? 1;
       final produceActionsNeeded = inputCount / outputsPerAction;
       totalProduceTicksPerCycle +=
@@ -1516,8 +1518,7 @@ class TrainConsumingSkillUntil extends MacroCandidate {
         context.goal,
       );
       if (producer == null) continue;
-      final produceAction =
-          state.registries.actions.byId(producer) as SkillAction;
+      final produceAction = actionRegistry.byId(producer) as SkillAction;
       final outputsPerAction = produceAction.outputs[inputItemId] ?? 1;
       final produceActionsNeeded = inputCount / outputsPerAction;
       final produceTicksPerAction = ticksFromDuration(

@@ -114,7 +114,8 @@ EnsureExecResult ensureExecutable(
     return ExecUnknown('depth limit: $actionId');
   }
 
-  final action = state.registries.actions.byId(actionId);
+  final registries = state.registries;
+  final action = registries.actions.byId(actionId);
   if (action is! SkillAction) return const ExecReady();
 
   final macros = <MacroCandidate>[];
@@ -133,7 +134,7 @@ EnsureExecResult ensureExecutable(
   // 2. Check inputs - recursively ensure each can be produced
   for (final inputId in action.inputs.keys) {
     final inputCount = action.inputs[inputId]!;
-    final inputItem = state.registries.items.byId(inputId);
+    final inputItem = registries.items.byId(inputId);
     final currentCount = state.inventory.countOfItem(inputItem);
 
     // If we already have enough of this input, no prereq needed
@@ -186,8 +187,9 @@ EnsureExecResult ensureExecutable(
 ///
 /// For consuming actions, this also checks that we can produce the inputs.
 ActionId? findBestActionForSkill(GlobalState state, Skill skill, Goal goal) {
+  final registries = state.registries;
   final skillLevel = state.skillState(skill).skillLevel;
-  final actions = state.registries.actions.all
+  final actions = registries.actions.all
       .whereType<SkillAction>()
       .where((action) => action.skill == skill)
       .where((action) => action.unlockLevel <= skillLevel);
@@ -225,7 +227,7 @@ ActionId? findBestActionForSkill(GlobalState state, Skill skill, Goal goal) {
       // For GP goals or non-relevant skills, use gold rate
       var goldPerAction = 0.0;
       for (final output in action.outputs.entries) {
-        final item = state.registries.items.byId(output.key);
+        final item = registries.items.byId(output.key);
         goldPerAction += item.sellsFor * output.value;
       }
       rate = goldPerAction / ticksPerAction;

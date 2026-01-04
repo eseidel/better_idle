@@ -495,7 +495,8 @@ class WaitForInputsDepleted extends WaitFor {
 
   @override
   int estimateTicks(GlobalState state, Rates rates) {
-    final action = state.registries.actions.byId(actionId);
+    final registries = state.registries;
+    final action = registries.actions.byId(actionId);
     if (action is! SkillAction) return infTicks;
 
     final actionStateVal = state.actionState(action.id);
@@ -509,7 +510,7 @@ class WaitForInputsDepleted extends WaitFor {
     final actionDurationTicks = action.minDuration.inMilliseconds ~/ msPerTick;
 
     for (final entry in inputs.entries) {
-      final item = state.registries.items.byId(entry.key);
+      final item = registries.items.byId(entry.key);
       final available = state.inventory.countOfItem(item);
       final consumedPerAction = entry.value;
       final consumedPerTick =
@@ -814,7 +815,8 @@ class WaitForSufficientInputs extends WaitFor {
 
   @override
   bool isSatisfied(GlobalState state) {
-    final action = state.registries.actions.byId(actionId);
+    final registries = state.registries;
+    final action = registries.actions.byId(actionId);
     if (action is! SkillAction) return false;
 
     // Get the inputs needed for this action
@@ -824,7 +826,7 @@ class WaitForSufficientInputs extends WaitFor {
 
     // Check if we have enough of all inputs
     for (final entry in inputs.entries) {
-      final item = state.registries.items.byId(entry.key);
+      final item = registries.items.byId(entry.key);
       final available = state.inventory.countOfItem(item);
       // We need at least targetCount of the primary input
       // (for simplicity, check if we have enough to run targetCount actions)
@@ -839,7 +841,8 @@ class WaitForSufficientInputs extends WaitFor {
 
   @override
   int progress(GlobalState state) {
-    final action = state.registries.actions.byId(actionId);
+    final registries = state.registries;
+    final action = registries.actions.byId(actionId);
     if (action is! SkillAction) return 0;
 
     final actionStateVal = state.actionState(action.id);
@@ -851,7 +854,7 @@ class WaitForSufficientInputs extends WaitFor {
     // Return minimum available count across all inputs
     var minAvailable = 0x7FFFFFFF; // max int
     for (final entry in inputs.entries) {
-      final item = state.registries.items.byId(entry.key);
+      final item = registries.items.byId(entry.key);
       final available = state.inventory.countOfItem(item);
       if (available < minAvailable) minAvailable = available;
     }
@@ -862,14 +865,15 @@ class WaitForSufficientInputs extends WaitFor {
   int estimateTicks(GlobalState state, Rates rates) {
     if (isSatisfied(state)) return 0;
 
-    final action = state.registries.actions.byId(actionId);
+    final registries = state.registries;
+    final action = registries.actions.byId(actionId);
     if (action is! SkillAction) return infTicks;
 
     // Step 1: Check if the current action can run. If not, executor will
     // terminate immediately with NoProgressPossible/ActionUnavailable.
     final active = state.activeAction;
     if (active != null) {
-      final activeAction = state.registries.actions.byId(active.id);
+      final activeAction = registries.actions.byId(active.id);
       if (!state.canStartAction(activeAction)) {
         return 0; // Immediate stop - can't make progress
       }
@@ -891,7 +895,7 @@ class WaitForSufficientInputs extends WaitFor {
     // Find the bottleneck input (longest time to gather)
     var maxTicks = 0;
     for (final entry in inputs.entries) {
-      final item = state.registries.items.byId(entry.key);
+      final item = registries.items.byId(entry.key);
       final available = state.inventory.countOfItem(item);
       final neededPerAction = entry.value;
       final totalNeeded = (targetCount * neededPerAction / inputs.length)

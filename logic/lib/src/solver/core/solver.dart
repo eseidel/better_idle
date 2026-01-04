@@ -170,10 +170,12 @@ class _BucketKey extends Equatable {
     final consumingSkills = goal.consumingSkills;
     if (consumingSkills.isEmpty) return 0;
 
+    final registries = state.registries;
+
     // Collect all possible input item IDs for consuming skills
     final inputItemIds = <MelvorId>{};
     for (final skill in consumingSkills) {
-      for (final action in state.registries.actions.forSkill(skill)) {
+      for (final action in registries.actions.forSkill(skill)) {
         inputItemIds.addAll(action.inputs.keys);
       }
     }
@@ -188,7 +190,7 @@ class _BucketKey extends Equatable {
     for (var i = 0; i < sortedIds.length && i < 30; i++) {
       // Limit to 30 bits to avoid overflow
       final itemId = sortedIds[i];
-      final item = state.registries.items.byId(itemId);
+      final item = registries.items.byId(itemId);
       if (state.inventory.countOfItem(item) > 0) {
         mix |= 1 << i;
       }
@@ -925,7 +927,8 @@ MacroExpansionExplanation explainMacroExpansion(
   required Random random,
 }) {
   final steps = <String>[];
-  final boundaries = computeUnlockBoundaries(state.registries);
+  final registries = state.registries;
+  final boundaries = computeUnlockBoundaries(registries);
 
   // Trace through the expansion based on macro type
   switch (macro) {
@@ -950,11 +953,11 @@ MacroExpansionExplanation explainMacroExpansion(
         steps.add('No unlocked action found');
       } else {
         steps.add('Best consuming action: $bestAction');
-        final action = state.registries.actions.byId(bestAction);
+        final action = registries.actions.byId(bestAction);
         if (action is SkillAction && action.inputs.isNotEmpty) {
           steps.add('Inputs required: ${action.inputs}');
           for (final input in action.inputs.entries) {
-            final item = state.registries.items.byId(input.key);
+            final item = registries.items.byId(input.key);
             final count = state.inventory.countOfItem(item);
             steps.add(
               '  ${input.key.localId}: have $count, need ${input.value}',
@@ -983,7 +986,7 @@ MacroExpansionExplanation explainMacroExpansion(
       }
 
     case EnsureStock(:final itemId, :final minTotal):
-      final item = state.registries.items.byId(itemId);
+      final item = registries.items.byId(itemId);
       final currentCount = state.inventory.countOfItem(item);
       steps.add(
         'Checking stock of ${itemId.localId}: have $currentCount, '
@@ -1117,7 +1120,8 @@ EnsureExecResult _ensureExecutable(
     return ExecUnknown('depth limit: $actionId');
   }
 
-  final action = state.registries.actions.byId(actionId);
+  final registries = state.registries;
+  final action = registries.actions.byId(actionId);
   if (action is! SkillAction) return const ExecReady();
 
   final macros = <MacroCandidate>[];
@@ -1139,7 +1143,7 @@ EnsureExecResult _ensureExecutable(
   // sizing, not here with minimal amounts that cause plan thrash.
   for (final inputId in action.inputs.keys) {
     final inputCount = action.inputs[inputId]!;
-    final inputItem = state.registries.items.byId(inputId);
+    final inputItem = registries.items.byId(inputId);
     final currentCount = state.inventory.countOfItem(inputItem);
 
     // If we already have enough of this input, no prereq needed

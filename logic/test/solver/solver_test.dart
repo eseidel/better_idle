@@ -2580,4 +2580,512 @@ void main() {
       );
     });
   });
+
+  group('MacroExpansionExplanation.format', () {
+    test('formats basic TrainSkillUntil macro with MacroExpanded outcome', () {
+      final state = GlobalState.empty(testRegistries);
+      const macro = TrainSkillUntil(
+        Skill.woodcutting,
+        StopAtNextBoundary(Skill.woodcutting),
+      );
+      final expansionResult = (
+        state: state,
+        ticksElapsed: 1000,
+        waitFor: const WaitForSkillXp(Skill.woodcutting, 1000, reason: 'test'),
+        deaths: 0,
+        triggeringCondition: 'Boundary L10',
+        macro: macro,
+      );
+      final outcome = MacroExpanded(expansionResult);
+
+      final explanation = MacroExpansionExplanation(
+        macro: macro,
+        outcome: outcome,
+        steps: ['Step 1: Found best action', 'Step 2: Advanced state'],
+      );
+
+      final formatted = explanation.format();
+
+      expect(formatted, contains('=== Macro Expansion Explanation ==='));
+      expect(formatted, contains('Macro: TrainSkillUntil(Woodcutting,'));
+      expect(formatted, contains('Steps:'));
+      expect(formatted, contains('1. Step 1: Found best action'));
+      expect(formatted, contains('2. Step 2: Advanced state'));
+      expect(formatted, contains('Outcome: SUCCESS: 1000 ticks'));
+      expect(formatted, contains('trigger=Boundary L10'));
+    });
+
+    test('formats AcquireItem macro with MacroCannotExpand outcome', () {
+      const itemId = MelvorId('melvorD:Normal_Logs');
+      const macro = AcquireItem(itemId, 100);
+      const outcome = MacroCannotExpand('No producer found');
+
+      final explanation = MacroExpansionExplanation(
+        macro: macro,
+        outcome: outcome,
+        steps: [
+          'Looking for producer of Normal_Logs',
+          'No unlocked action produces this item',
+        ],
+      );
+
+      final formatted = explanation.format();
+
+      expect(formatted, contains('Macro: AcquireItem(Normal_Logs, 100)'));
+      expect(formatted, contains('1. Looking for producer of Normal_Logs'));
+      expect(formatted, contains('2. No unlocked action produces this item'));
+      expect(formatted, contains('Outcome: CANNOT_EXPAND: No producer found'));
+    });
+
+    test('formats macro with MacroAlreadySatisfied outcome', () {
+      const macro = EnsureStock(MelvorId('melvorD:Oak_Logs'), 50);
+      const outcome = MacroAlreadySatisfied('Already have 50 Oak Logs');
+
+      final explanation = MacroExpansionExplanation(
+        macro: macro,
+        outcome: outcome,
+        steps: ['Checked inventory', 'Have sufficient stock'],
+      );
+
+      final formatted = explanation.format();
+
+      expect(formatted, contains('Macro: EnsureStock(Oak_Logs, 50)'));
+      expect(
+        formatted,
+        contains('Outcome: ALREADY_SATISFIED: Already have 50 Oak Logs'),
+      );
+    });
+
+    test('formats macro with provenance', () {
+      const macro = TrainSkillUntil(
+        Skill.mining,
+        StopAtLevel(Skill.mining, 15),
+        provenance: TopLevelProvenance(),
+      );
+      final state = GlobalState.empty(testRegistries);
+      final expansionResult = (
+        state: state,
+        ticksElapsed: 500,
+        waitFor: const WaitForSkillXp(Skill.mining, 5000, reason: 'L15'),
+        deaths: 0,
+        triggeringCondition: 'Level 15 reached',
+        macro: macro,
+      );
+
+      final explanation = MacroExpansionExplanation(
+        macro: macro,
+        outcome: MacroExpanded(expansionResult),
+        steps: ['Training mining'],
+      );
+
+      final formatted = explanation.format();
+
+      expect(formatted, contains('Provenance: Top-level candidate'));
+    });
+
+    test('formats TrainConsumingSkillUntil macro', () {
+      const macro = TrainConsumingSkillUntil(
+        Skill.cooking,
+        StopAtNextBoundary(Skill.cooking),
+      );
+      final state = GlobalState.empty(testRegistries);
+      final expansionResult = (
+        state: state,
+        ticksElapsed: 200,
+        waitFor: const WaitForSkillXp(Skill.cooking, 2000, reason: 'test'),
+        deaths: 0,
+        triggeringCondition: 'Inputs depleted',
+        macro: macro,
+      );
+
+      final explanation = MacroExpansionExplanation(
+        macro: macro,
+        outcome: MacroExpanded(expansionResult),
+        steps: ['Found consuming action', 'Processed inputs'],
+      );
+
+      final formatted = explanation.format();
+
+      expect(formatted, contains('Macro: TrainConsumingSkillUntil(Cooking,'));
+      expect(formatted, contains('StopAtNextBoundary'));
+    });
+
+    test('formats ProduceItem macro', () {
+      final macro = ProduceItem(
+        itemId: const MelvorId('melvorD:Bronze_Bar'),
+        minTotal: 10,
+        actionId: ActionId.test(Skill.smithing, 'Bronze Bars'),
+        estimatedTicks: 150,
+      );
+      const outcome = MacroCannotExpand('Missing Bronze Ore');
+
+      final explanation = MacroExpansionExplanation(
+        macro: macro,
+        outcome: outcome,
+        steps: ['Need Bronze Ore to produce Bronze Bar'],
+      );
+
+      final formatted = explanation.format();
+
+      expect(formatted, contains('Macro: ProduceItem(Bronze_Bar, 10)'));
+      expect(formatted, contains('Outcome: CANNOT_EXPAND: Missing Bronze Ore'));
+    });
+
+    test('formats MacroNeedsPrerequisite outcome', () {
+      const macro = AcquireItem(MelvorId('melvorD:Iron_Bar'), 5);
+      const prereq = AcquireItem(MelvorId('melvorD:Iron_Ore'), 5);
+      const outcome = MacroNeedsPrerequisite(prereq);
+
+      final explanation = MacroExpansionExplanation(
+        macro: macro,
+        outcome: outcome,
+        steps: ['Iron Bar requires Iron Ore'],
+      );
+
+      final formatted = explanation.format();
+
+      expect(formatted, contains('Macro: AcquireItem(Iron_Bar, 5)'));
+      expect(formatted, contains('Outcome: NEEDS_PREREQ:'));
+      expect(formatted, contains('acquire:Iron_Ore:5'));
+    });
+
+    test('formats MacroNeedsBoundary outcome', () {
+      const macro = TrainSkillUntil(
+        Skill.woodcutting,
+        StopAtNextBoundary(Skill.woodcutting),
+      );
+      const boundary = InventoryPressure(usedSlots: 19, totalSlots: 20);
+      const outcome = MacroNeedsBoundary(boundary);
+
+      final explanation = MacroExpansionExplanation(
+        macro: macro,
+        outcome: outcome,
+        steps: ['Inventory nearly full'],
+      );
+
+      final formatted = explanation.format();
+
+      expect(formatted, contains('Outcome: NEEDS_BOUNDARY:'));
+      expect(formatted, contains('19/20'));
+    });
+
+    test('formats with empty steps list', () {
+      const macro = AcquireItem(MelvorId('melvorD:Logs'), 1);
+      const outcome = MacroAlreadySatisfied('Already have it');
+
+      final explanation = MacroExpansionExplanation(
+        macro: macro,
+        outcome: outcome,
+        steps: [],
+      );
+
+      final formatted = explanation.format();
+
+      expect(formatted, contains('Steps:'));
+      expect(formatted, contains('Outcome:'));
+      // No numbered steps should appear
+      expect(formatted.contains('1.'), isFalse);
+    });
+  });
+
+  group('explainMacroExpansion', () {
+    test('explains TrainSkillUntil expansion with steps', () {
+      final state = GlobalState.empty(testRegistries);
+      const goal = ReachSkillLevelGoal(Skill.woodcutting, 10);
+      const macro = TrainSkillUntil(
+        Skill.woodcutting,
+        StopAtNextBoundary(Skill.woodcutting),
+      );
+
+      final explanation = explainMacroExpansion(
+        state,
+        macro,
+        goal,
+        random: Random(42),
+      );
+
+      expect(explanation.macro, same(macro));
+      expect(explanation.steps, isNotEmpty);
+      expect(
+        explanation.steps.first,
+        contains('Looking for best action for Woodcutting'),
+      );
+      expect(explanation.steps, contains(matches('Best action:.*')));
+      expect(explanation.steps.last, equals('Expansion complete'));
+    });
+
+    test('explains TrainSkillUntil when no action available', () {
+      // Create state with no unlocked actions for thieving (requires area access)
+      final state = GlobalState.empty(testRegistries);
+      const goal = ReachSkillLevelGoal(Skill.thieving, 10);
+      const macro = TrainSkillUntil(
+        Skill.thieving,
+        StopAtNextBoundary(Skill.thieving),
+      );
+
+      final explanation = explainMacroExpansion(
+        state,
+        macro,
+        goal,
+        random: Random(42),
+      );
+
+      expect(explanation.steps, isNotEmpty);
+      expect(
+        explanation.steps.first,
+        contains('Looking for best action for Thieving'),
+      );
+    });
+
+    test('explains TrainConsumingSkillUntil expansion', () {
+      // Give some logs for firemaking
+      final logs = testItems.byName('Normal Logs');
+      final inventory = Inventory.fromItems(testItems, [
+        ItemStack(logs, count: 100),
+      ]);
+      final state = GlobalState.test(testRegistries, inventory: inventory);
+      const goal = ReachSkillLevelGoal(Skill.firemaking, 10);
+      const macro = TrainConsumingSkillUntil(
+        Skill.firemaking,
+        StopAtNextBoundary(Skill.firemaking),
+      );
+
+      final explanation = explainMacroExpansion(
+        state,
+        macro,
+        goal,
+        random: Random(42),
+      );
+
+      expect(explanation.macro, same(macro));
+      expect(explanation.steps, isNotEmpty);
+      expect(
+        explanation.steps.first,
+        contains('Looking for best consuming action for Firemaking'),
+      );
+      expect(explanation.steps.last, equals('Expansion complete'));
+    });
+
+    test('explains TrainConsumingSkillUntil with input details', () {
+      // Give some shrimp for cooking
+      final shrimp = testItems.byName('Raw Shrimp');
+      final inventory = Inventory.fromItems(testItems, [
+        ItemStack(shrimp, count: 50),
+      ]);
+      final state = GlobalState.test(testRegistries, inventory: inventory);
+      const goal = ReachSkillLevelGoal(Skill.cooking, 10);
+      const macro = TrainConsumingSkillUntil(
+        Skill.cooking,
+        StopAtNextBoundary(Skill.cooking),
+      );
+
+      final explanation = explainMacroExpansion(
+        state,
+        macro,
+        goal,
+        random: Random(42),
+      );
+
+      expect(explanation.steps, isNotEmpty);
+      // Should show inputs required
+      expect(
+        explanation.steps.any((s) => s.contains('Inputs required:')),
+        isTrue,
+      );
+    });
+
+    test('explains AcquireItem expansion', () {
+      final state = GlobalState.empty(testRegistries);
+      const goal = ReachSkillLevelGoal(Skill.woodcutting, 10);
+      const macro = AcquireItem(MelvorId('melvorD:Normal_Logs'), 10);
+
+      final explanation = explainMacroExpansion(
+        state,
+        macro,
+        goal,
+        random: Random(42),
+      );
+
+      expect(explanation.steps, isNotEmpty);
+      expect(
+        explanation.steps.first,
+        contains('Looking for producer of Normal_Logs'),
+      );
+      expect(explanation.steps, contains(matches('Found producer:.*')));
+    });
+
+    test('explains AcquireItem when producer is locked', () {
+      final state = GlobalState.empty(testRegistries);
+      const goal = ReachSkillLevelGoal(Skill.woodcutting, 15);
+      // Oak Logs require level 10 woodcutting
+      const macro = AcquireItem(MelvorId('melvorD:Oak_Logs'), 10);
+
+      final explanation = explainMacroExpansion(
+        state,
+        macro,
+        goal,
+        random: Random(42),
+      );
+
+      expect(explanation.steps, isNotEmpty);
+      expect(
+        explanation.steps.any((s) => s.contains('Found locked producer')),
+        isTrue,
+      );
+    });
+
+    test('explains EnsureStock expansion when already satisfied', () {
+      // Give enough copper ore that EnsureStock is already satisfied
+      final copperOre = testItems.byName('Copper Ore');
+      final inventory = Inventory.fromItems(testItems, [
+        ItemStack(copperOre, count: 50),
+      ]);
+      final state = GlobalState.test(testRegistries, inventory: inventory);
+      const goal = ReachSkillLevelGoal(Skill.mining, 10);
+      const macro = EnsureStock(MelvorId('melvorD:Copper_Ore'), 20);
+
+      final explanation = explainMacroExpansion(
+        state,
+        macro,
+        goal,
+        random: Random(42),
+      );
+
+      expect(explanation.steps, isNotEmpty);
+      expect(
+        explanation.steps.first,
+        contains('Checking stock of Copper_Ore: have 50, need 20'),
+      );
+      expect(
+        explanation.steps.any((s) => s.contains('Already have enough')),
+        isTrue,
+      );
+    });
+
+    test('explains EnsureStock expansion when production needed', () {
+      final state = GlobalState.empty(testRegistries);
+      const goal = ReachSkillLevelGoal(Skill.mining, 10);
+      const macro = EnsureStock(MelvorId('melvorD:Copper_Ore'), 50);
+
+      final explanation = explainMacroExpansion(
+        state,
+        macro,
+        goal,
+        random: Random(42),
+      );
+
+      expect(explanation.steps, isNotEmpty);
+      expect(
+        explanation.steps.any((s) => s.contains('Need to produce')),
+        isTrue,
+      );
+    });
+
+    test('explains ProduceItem expansion', () {
+      final state = GlobalState.empty(testRegistries);
+      const goal = ReachSkillLevelGoal(Skill.woodcutting, 10);
+      final normalTree = testActions.woodcutting('Normal Tree');
+      final macro = ProduceItem(
+        itemId: const MelvorId('melvorD:Normal_Logs'),
+        minTotal: 10,
+        actionId: normalTree.id,
+        estimatedTicks: 300,
+      );
+
+      final explanation = explainMacroExpansion(
+        state,
+        macro,
+        goal,
+        random: Random(42),
+      );
+
+      expect(explanation.steps, isNotEmpty);
+      expect(
+        explanation.steps.first,
+        contains('ProduceItem: will produce Normal_Logs'),
+      );
+      expect(explanation.steps.first, contains('~300 ticks'));
+    });
+
+    test('outcome reflects successful expansion', () {
+      final state = GlobalState.empty(testRegistries);
+      const goal = ReachSkillLevelGoal(Skill.woodcutting, 10);
+      const macro = TrainSkillUntil(
+        Skill.woodcutting,
+        StopAtNextBoundary(Skill.woodcutting),
+      );
+
+      final explanation = explainMacroExpansion(
+        state,
+        macro,
+        goal,
+        random: Random(42),
+      );
+
+      expect(explanation.outcome, isA<MacroExpanded>());
+      final expanded = explanation.outcome as MacroExpanded;
+      expect(expanded.result.ticksElapsed, greaterThan(0));
+    });
+
+    test('outcome reflects cannot expand for non-producible item', () {
+      // Use a non-existent item that has no producer
+      final state = GlobalState.empty(testRegistries);
+      const goal = ReachSkillLevelGoal(Skill.woodcutting, 10);
+      const macro = AcquireItem(MelvorId('melvorD:NonExistent_Item'), 10);
+
+      final explanation = explainMacroExpansion(
+        state,
+        macro,
+        goal,
+        random: Random(42),
+      );
+
+      expect(explanation.outcome, isA<MacroCannotExpand>());
+    });
+
+    test('outcome reflects already satisfied', () {
+      // Give enough copper ore
+      final copperOre = testItems.byName('Copper Ore');
+      final inventory = Inventory.fromItems(testItems, [
+        ItemStack(copperOre, count: 100),
+      ]);
+      final state = GlobalState.test(testRegistries, inventory: inventory);
+      const goal = ReachSkillLevelGoal(Skill.mining, 10);
+      const macro = EnsureStock(MelvorId('melvorD:Copper_Ore'), 50);
+
+      final explanation = explainMacroExpansion(
+        state,
+        macro,
+        goal,
+        random: Random(42),
+      );
+
+      expect(explanation.outcome, isA<MacroAlreadySatisfied>());
+    });
+
+    test('includes provenance in format output', () {
+      final state = GlobalState.empty(testRegistries);
+      const goal = ReachSkillLevelGoal(Skill.woodcutting, 10);
+      final action = testActions.woodcutting('Oak Tree');
+      final macro = TrainSkillUntil(
+        Skill.woodcutting,
+        const StopAtNextBoundary(Skill.woodcutting),
+        provenance: SkillPrereqProvenance(
+          requiredSkill: Skill.woodcutting,
+          requiredLevel: 10,
+          unlocksAction: action.id,
+        ),
+      );
+
+      final explanation = explainMacroExpansion(
+        state,
+        macro,
+        goal,
+        random: Random(42),
+      );
+
+      final formatted = explanation.format();
+      expect(formatted, contains('Provenance:'));
+    });
+  });
 }

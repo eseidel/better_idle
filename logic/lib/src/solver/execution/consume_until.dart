@@ -139,6 +139,7 @@ ConsumeUntilResult consumeUntil(
   }
 
   final originalActivityId = state.activeAction?.id;
+  final actionRegistry = state.registries.actions;
   var totalTicksElapsed = 0;
   var deathCount = 0;
   var consecutiveZeroTickIterations = 0;
@@ -214,7 +215,7 @@ ConsumeUntilResult consumeUntil(
 
         // Auto-restart the activity after death and continue (expected)
         if (originalActivityId != null) {
-          final action = state.registries.actions.byId(originalActivityId);
+          final action = actionRegistry.byId(originalActivityId);
           state = state.startAction(action, random: random);
           continue; // Continue with restarted activity
         }
@@ -231,7 +232,7 @@ ConsumeUntilResult consumeUntil(
       // For skill goals with consuming actions, switch to producer to gather
       // inputs.
       if (waitFor is WaitForSkillXp && originalActivityId != null) {
-        final currentAction = state.registries.actions.byId(originalActivityId);
+        final currentAction = actionRegistry.byId(originalActivityId);
 
         // Check if this is a consuming action (has inputs)
         if (currentAction is SkillAction && currentAction.inputs.isNotEmpty) {
@@ -239,7 +240,7 @@ ConsumeUntilResult consumeUntil(
           final producers = findProducersFor(
             state,
             currentAction,
-            state.registries.actions,
+            actionRegistry,
           );
 
           if (producers.isNotEmpty) {
@@ -285,7 +286,7 @@ ConsumeUntilResult consumeUntil(
       // Cannot adapt - return with the boundary that caused the stop
       final inputItemId = originalActivityId != null
           ? () {
-              final action = state.registries.actions.byId(originalActivityId);
+              final action = actionRegistry.byId(originalActivityId);
               if (action is SkillAction && action.inputs.isNotEmpty) {
                 return action.inputs.keys.first;
               }
