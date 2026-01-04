@@ -1,11 +1,8 @@
 /// State advancement for the solver.
 ///
-/// Provides both O(1) expected-value advancement and full simulation.
+/// Provides O(1) expected-value advancement for planning.
 library;
 
-import 'dart:math';
-
-import 'package:logic/src/consume_ticks.dart';
 import 'package:logic/src/data/actions.dart' show Skill, SkillAction;
 import 'package:logic/src/data/currency.dart';
 import 'package:logic/src/solver/analysis/estimate_rates.dart';
@@ -193,52 +190,6 @@ AdvanceResult advanceExpected(GlobalState state, int deltaTicks) {
   return (state: newState, deaths: expectedDeaths);
 }
 
-/// Full simulation advance using consumeTicks.
-GlobalState advanceFullSim(
-  GlobalState state,
-  int deltaTicks, {
-  required Random random,
-}) {
-  if (deltaTicks <= 0) return state;
-
-  final builder = StateUpdateBuilder(state);
-  consumeTicks(builder, deltaTicks, random: random);
-  return builder.build();
-}
-
-/// Advances the game state by a given number of ticks.
-/// Uses O(1) expected-value advance for rate-modelable activities,
-/// falls back to full simulation for combat/complex activities.
-///
-/// Only should be used for planning, since it will not perfectly match
-/// game state (e.g. won't add inventory items)
-///
-/// Returns the new state and the number of expected deaths.
-AdvanceResult advance(
-  GlobalState state,
-  int deltaTicks, {
-  required Random random,
-}) {
-  assertNonNegativeDelta(deltaTicks, 'advance');
-  assertValidState(state);
-
-  if (deltaTicks <= 0) return (state: state, deaths: 0);
-
-  final AdvanceResult result;
-  if (isRateModelable(state)) {
-    result = advanceExpected(state, deltaTicks);
-  } else {
-    result = (
-      state: advanceFullSim(state, deltaTicks, random: random),
-      deaths: 0,
-    );
-  }
-
-  assertValidState(result.state);
-  assertMonotonicProgress(state, result.state, 'advance');
-  return result;
-}
-
 /// Advances the game state deterministically by a given number of ticks.
 ///
 /// Always uses O(1) expected-value advance, never falls back to stochastic
@@ -247,8 +198,6 @@ AdvanceResult advance(
 ///
 /// For non-rate-modelable activities (combat), returns the state unchanged
 /// with zero deaths - the caller should handle these cases explicitly.
-///
-/// For execution with actual randomness, use [advance] instead.
 AdvanceResult advanceDeterministic(GlobalState state, int deltaTicks) {
   assertNonNegativeDelta(deltaTicks, 'advanceDeterministic');
   assertValidState(state);

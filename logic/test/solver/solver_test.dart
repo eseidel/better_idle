@@ -113,16 +113,16 @@ void main() {
     });
   });
 
-  group('advance', () {
+  group('advanceDeterministic', () {
     test('advances state by specified ticks', () {
       var state = GlobalState.empty(testRegistries);
       final action = testActions.woodcutting('Normal Tree');
       state = state.startAction(action, random: Random(0));
       final initialItems = state.inventory.items.length;
 
-      // advance projects state forward - items accumulate in inventory
+      // advanceDeterministic projects state forward - items accumulate
       // GP only increases when items are explicitly sold
-      final result = advance(state, 100, random: Random(0));
+      final result = advanceDeterministic(state, 100);
 
       // Normal Tree produces logs which accumulate in inventory
       expect(result.state.inventory.items.length, greaterThan(initialItems));
@@ -135,8 +135,8 @@ void main() {
       final action = testActions.woodcutting('Normal Tree');
       state = state.startAction(action, random: Random(0));
 
-      final result1 = advance(state, 100, random: Random(0));
-      final result2 = advance(state, 100, random: Random(0));
+      final result1 = advanceDeterministic(state, 100);
+      final result2 = advanceDeterministic(state, 100);
 
       expect(result1.state.gp, result2.state.gp);
       // Skill XP should also match
@@ -151,7 +151,7 @@ void main() {
       final action = testActions.woodcutting('Normal Tree');
       state = state.startAction(action, random: Random(0));
 
-      final result = advance(state, 0, random: Random(0));
+      final result = advanceDeterministic(state, 0);
 
       expect(
         result.state.activeAction?.remainingTicks,
@@ -478,7 +478,7 @@ void main() {
       expect(ticks, isNull);
     });
 
-    test('advance uses continuous model for thieving (activity continues)', () {
+    test('advanceDeterministic uses continuous model for thieving', () {
       // Create state with low HP thieving
       var state = GlobalState.empty(testRegistries);
       final action = testActions.thieving('Man');
@@ -492,7 +492,7 @@ void main() {
       final ticksToDeath = ticksUntilDeath(state, rates);
 
       // Advance past death - with continuous model, activity continues
-      final result = advance(state, ticksToDeath! + 1000, random: Random(0));
+      final result = advanceDeterministic(state, ticksToDeath! + 1000);
 
       // Activity should continue (continuous model doesn't stop on death)
       expect(result.state.activeAction, isNotNull);
@@ -501,23 +501,26 @@ void main() {
       expect(result.deaths, greaterThan(0));
     });
 
-    test('advance tracks expected deaths proportional to time', () {
-      var state = GlobalState.empty(testRegistries);
-      final action = testActions.thieving('Man');
-      state = state.startAction(action, random: Random(0));
+    test(
+      'advanceDeterministic tracks expected deaths proportional to time',
+      () {
+        var state = GlobalState.empty(testRegistries);
+        final action = testActions.thieving('Man');
+        state = state.startAction(action, random: Random(0));
 
-      final rates = estimateRates(state);
-      final ticksToDeath = ticksUntilDeath(state, rates)!;
+        final rates = estimateRates(state);
+        final ticksToDeath = ticksUntilDeath(state, rates)!;
 
-      // Advance for multiple death cycles
-      final result = advance(state, ticksToDeath * 5, random: Random(0));
+        // Advance for multiple death cycles
+        final result = advanceDeterministic(state, ticksToDeath * 5);
 
-      // Activity should still be running (continuous model)
-      expect(result.state.activeAction, isNotNull);
-      expect(result.state.activeAction!.id, action.id);
-      // Should track approximately 5 deaths
-      expect(result.deaths, equals(5));
-    });
+        // Activity should still be running (continuous model)
+        expect(result.state.activeAction, isNotNull);
+        expect(result.state.activeAction!.id, action.id);
+        // Should track approximately 5 deaths
+        expect(result.deaths, equals(5));
+      },
+    );
 
     test('nextDecisionDelta returns positive delta for thieving', () {
       var state = GlobalState.empty(testRegistries);
