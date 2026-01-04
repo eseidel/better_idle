@@ -14,8 +14,9 @@ import 'package:logic/src/solver/analysis/unlock_boundaries.dart';
 import 'package:logic/src/solver/candidates/macro_candidate.dart';
 import 'package:logic/src/solver/core/goal.dart';
 import 'package:logic/src/solver/core/value_model.dart';
+import 'package:logic/src/solver/execution/prerequisites.dart'
+    show dedupeMacros, findAnyProducerForItem, findProducerActionForItem;
 import 'package:logic/src/state.dart';
-import 'package:logic/src/tick.dart' show ticksFromDuration;
 
 /// Context for macro expansion operations.
 ///
@@ -50,48 +51,16 @@ class MacroExpansionContext {
   }
 
   /// Finds an action that produces the given item.
-  ActionId? findProducerActionForItem(GlobalState s, MelvorId item, Goal g) {
-    int skillLevel(Skill skill) => s.skillState(skill).skillLevel;
-
-    // Find all actions that produce this item
-    final producers = s.registries.actions.all
-        .whereType<SkillAction>()
-        .where((action) => action.outputs.containsKey(item))
-        .where((action) => action.unlockLevel <= skillLevel(action.skill));
-
-    if (producers.isEmpty) return null;
-
-    // Rank by production rate (outputs per tick)
-    // Producer actions (woodcutting, fishing, mining) don't require inputs,
-    // so we can directly calculate rates without testing applyInteraction.
-    ActionId? best;
-    double bestRate = 0;
-
-    for (final action in producers) {
-      final ticksPerAction = ticksFromDuration(action.meanDuration).toDouble();
-      final outputsPerAction = action.outputs[item] ?? 1;
-      final outputsPerTick = outputsPerAction / ticksPerAction;
-
-      if (outputsPerTick > bestRate) {
-        bestRate = outputsPerTick;
-        best = action.id;
-      }
-    }
-
-    return best;
-  }
+  ActionId? findProducerAction(GlobalState s, MelvorId item, Goal g) =>
+      findProducerActionForItem(s, item, g);
 
   /// Finds an action that produces the given item, even if locked.
   ///
   /// Returns null if no action produces this item at all.
-  /// Unlike [findProducerActionForItem], this finds producers regardless
+  /// Unlike [findProducerAction], this finds producers regardless
   /// of skill level requirements.
-  SkillAction? findAnyProducerForItem(GlobalState s, MelvorId item) {
-    return s.registries.actions.all
-        .whereType<SkillAction>()
-        .where((action) => action.outputs.containsKey(item))
-        .firstOrNull;
-  }
+  SkillAction? findAnyProducer(GlobalState s, MelvorId item) =>
+      findAnyProducerForItem(s, item);
 
   /// Returns prerequisite check result for an action.
   ///
@@ -190,7 +159,7 @@ class MacroExpansionContext {
 
     return macros.isEmpty
         ? const ExecReady()
-        : ExecNeedsMacros(_dedupeMacros(macros));
+        : ExecNeedsMacros(dedupeMacros(macros));
   }
 
   /// Finds the best action for a skill based on the goal's criteria.
@@ -481,28 +450,6 @@ class MacroExpansionContext {
 
     countNewSlots(targetItemId, quantity);
     return newSlots;
-  }
-
-  /// Deduplicates macros, keeping first occurrence of each unique macro.
-  static List<MacroCandidate> _dedupeMacros(List<MacroCandidate> macros) {
-    final seen = <String>{};
-    final result = <MacroCandidate>[];
-    for (final macro in macros) {
-      final key = switch (macro) {
-        TrainSkillUntil(:final skill, :final primaryStop) =>
-          'train:${skill.name}:${primaryStop.hashCode}',
-        TrainConsumingSkillUntil(:final consumingSkill, :final primaryStop) =>
-          'trainConsuming:${consumingSkill.name}:${primaryStop.hashCode}',
-        AcquireItem(:final itemId, :final quantity) =>
-          'acquire:${itemId.localId}:$quantity',
-        EnsureStock(:final itemId, :final minTotal) =>
-          'ensure:${itemId.localId}:$minTotal',
-        ProduceItem(:final itemId, :final minTotal, :final actionId) =>
-          'produce:${itemId.localId}:$minTotal:${actionId.localId}',
-      };
-      if (seen.add(key)) result.add(macro);
-    }
-    return result;
   }
 
   /// Creates a new context with updated state.

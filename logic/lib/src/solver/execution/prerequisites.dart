@@ -40,19 +40,7 @@ List<MacroCandidate> dedupeMacros(List<MacroCandidate> macros) {
   final seen = <String>{};
   final result = <MacroCandidate>[];
   for (final macro in macros) {
-    final key = switch (macro) {
-      TrainSkillUntil(:final skill, :final primaryStop) =>
-        'train:${skill.name}:${primaryStop.hashCode}',
-      TrainConsumingSkillUntil(:final consumingSkill, :final primaryStop) =>
-        'trainConsuming:${consumingSkill.name}:${primaryStop.hashCode}',
-      AcquireItem(:final itemId, :final quantity) =>
-        'acquire:${itemId.localId}:$quantity',
-      EnsureStock(:final itemId, :final minTotal) =>
-        'ensure:${itemId.localId}:$minTotal',
-      ProduceItem(:final itemId, :final minTotal, :final actionId) =>
-        'produce:${itemId.localId}:$minTotal:${actionId.localId}',
-    };
-    if (seen.add(key)) result.add(macro);
+    if (seen.add(macro.dedupeKey)) result.add(macro);
   }
   return result;
 }

@@ -51,12 +51,13 @@ import 'package:logic/src/solver/core/solver_profile.dart';
 import 'package:logic/src/solver/core/value_model.dart';
 import 'package:logic/src/solver/execution/execute_plan.dart';
 import 'package:logic/src/solver/execution/plan.dart';
+import 'package:logic/src/solver/execution/prerequisites.dart'
+    show dedupeMacros, findAnyProducerForItem, findProducerActionForItem;
 import 'package:logic/src/solver/execution/state_advance.dart';
 import 'package:logic/src/solver/interactions/apply_interaction.dart';
 import 'package:logic/src/solver/interactions/available_interactions.dart';
 import 'package:logic/src/solver/interactions/interaction.dart';
 import 'package:logic/src/state.dart';
-import 'package:logic/src/tick.dart';
 import 'package:logic/src/types/time_away.dart';
 import 'package:meta/meta.dart';
 
@@ -958,9 +959,9 @@ MacroExpansionExplanation explainMacroExpansion(
 
     case AcquireItem(:final itemId, quantity: _):
       steps.add('Looking for producer of ${itemId.localId}');
-      final producer = _findProducerActionForItem(state, itemId, goal);
+      final producer = findProducerActionForItem(state, itemId, goal);
       if (producer == null) {
-        final locked = _findAnyProducerForItem(state, itemId);
+        final locked = findAnyProducerForItem(state, itemId);
         if (locked != null) {
           steps.add(
             'Found locked producer: $locked (needs ${locked.skill.name} '
@@ -987,7 +988,7 @@ MacroExpansionExplanation explainMacroExpansion(
       } else {
         final delta = minTotal - currentCount;
         steps.add('Need to produce $delta more');
-        final producer = _findProducerActionForItem(state, itemId, goal);
+        final producer = findProducerActionForItem(state, itemId, goal);
         if (producer != null) {
           steps.add('Found producer: $producer');
         }
@@ -1082,66 +1083,8 @@ MacroExpansionOutcome _expandMacro(
   );
 }
 
-/// Finds an action that produces the given item.
-ActionId? _findProducerActionForItem(
-  GlobalState state,
-  MelvorId item,
-  Goal goal,
-) {
-  int skillLevel(Skill skill) => state.skillState(skill).skillLevel;
-
-  // Find all actions that produce this item
-  final producers = state.registries.actions.all
-      .whereType<SkillAction>()
-      .where((action) => action.outputs.containsKey(item))
-      .where((action) => action.unlockLevel <= skillLevel(action.skill));
-
-  if (producers.isEmpty) return null;
-
-  // Rank by production rate (outputs per tick)
-  // Producer actions (woodcutting, fishing, mining) don't require inputs,
-  // so we can directly calculate rates without testing applyInteraction.
-  ActionId? best;
-  double bestRate = 0;
-
-  for (final action in producers) {
-    final ticksPerAction = ticksFromDuration(action.meanDuration).toDouble();
-    final outputsPerAction = action.outputs[item] ?? 1;
-    final outputsPerTick = outputsPerAction / ticksPerAction;
-
-    if (outputsPerTick > bestRate) {
-      bestRate = outputsPerTick;
-      best = action.id;
-    }
-  }
-
-  return best;
-}
-
-/// Finds an action that produces the given item, even if locked.
-///
-/// Returns null if no action produces this item at all.
-/// Unlike [_findProducerActionForItem], this finds producers regardless
-/// of skill level requirements.
-SkillAction? _findAnyProducerForItem(GlobalState state, MelvorId item) {
-  return state.registries.actions.all
-      .whereType<SkillAction>()
-      .where((action) => action.outputs.containsKey(item))
-      .firstOrNull;
-}
-
 // EnsureExecResult, ExecReady, ExecNeedsMacros, ExecUnknown are now in
 // solver_context.dart
-
-/// Deduplicates macros, keeping first occurrence of each unique macro.
-List<MacroCandidate> _dedupeMacros(List<MacroCandidate> macros) {
-  final seen = <String>{};
-  final result = <MacroCandidate>[];
-  for (final macro in macros) {
-    if (seen.add(macro.dedupeKey)) result.add(macro);
-  }
-  return result;
-}
 
 /// Returns prerequisite check result for an action.
 ///
@@ -1197,7 +1140,7 @@ EnsureExecResult _ensureExecutable(
     if (currentCount >= inputCount) continue;
 
     // First check if there's an unlocked producer
-    final producer = _findProducerActionForItem(state, inputId, goal);
+    final producer = findProducerActionForItem(state, inputId, goal);
     if (producer != null) {
       // Producer exists and is unlocked, check its prerequisites
       final result = _ensureExecutable(
@@ -1221,7 +1164,7 @@ EnsureExecResult _ensureExecutable(
       // Adding small EnsureStock prereqs here causes plan thrash.
     } else {
       // No unlocked producer - check if one exists but is locked
-      final lockedProducer = _findAnyProducerForItem(state, inputId);
+      final lockedProducer = findAnyProducerForItem(state, inputId);
       if (lockedProducer == null) {
         return ExecUnknown('no producer for $inputId');
       }
@@ -1240,7 +1183,7 @@ EnsureExecResult _ensureExecutable(
 
   return macros.isEmpty
       ? const ExecReady()
-      : ExecNeedsMacros(_dedupeMacros(macros));
+      : ExecNeedsMacros(dedupeMacros(macros));
 }
 
 /// Finds the best action for a skill based on the goal's criteria.
@@ -1279,7 +1222,7 @@ ActionId? _findBestActionForSkill(GlobalState state, Skill skill, Goal goal) {
     if (action.inputs.isNotEmpty) {
       for (final inputItem in action.inputs.keys) {
         // Check if any producer exists (locked or unlocked)
-        final anyProducer = _findAnyProducerForItem(state, inputItem);
+        final anyProducer = findAnyProducerForItem(state, inputItem);
         if (anyProducer == null) {
           // No way to produce this input at all, skip this action
           continue actionLoop;

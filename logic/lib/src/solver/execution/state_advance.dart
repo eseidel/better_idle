@@ -64,7 +64,7 @@ typedef AdvanceResult = ({GlobalState state, int deaths});
 
 /// Checks if an activity can be modeled with expected-value rates.
 /// Returns true for non-combat skill activities (including consuming actions).
-bool isRateModelable(GlobalState state) {
+bool _isRateModelable(GlobalState state) {
   final activeAction = state.activeAction;
   if (activeAction == null) return false;
 
@@ -205,7 +205,7 @@ AdvanceResult advanceDeterministic(GlobalState state, int deltaTicks) {
   if (deltaTicks <= 0) return (state: state, deaths: 0);
 
   final AdvanceResult result;
-  if (isRateModelable(state)) {
+  if (_isRateModelable(state)) {
     result = advanceExpected(state, deltaTicks);
   } else {
     // For non-rate-modelable activities, return unchanged state.
