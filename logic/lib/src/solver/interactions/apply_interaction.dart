@@ -65,8 +65,10 @@ GlobalState applyInteractionDeterministic(
   _assertValidState(state);
 
   final newState = switch (interaction) {
-    SwitchActivity(:final actionId) =>
-      _applySwitchActivityDeterministic(state, actionId),
+    SwitchActivity(:final actionId) => _applySwitchActivityDeterministic(
+      state,
+      actionId,
+    ),
     BuyShopItem(:final purchaseId) => _applyBuyShopItem(state, purchaseId),
     SellItems(:final policy) => _applySellItems(state, policy),
   };

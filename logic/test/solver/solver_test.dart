@@ -168,7 +168,6 @@ void main() {
       int maxQueueSize = defaultMaxQueueSize,
     }) {
       return solve(
-
         initial,
         ReachGpGoal(goalCredits),
         maxExpandedNodes: maxExpandedNodes,
@@ -1283,12 +1282,7 @@ void main() {
       final state = GlobalState.empty(testRegistries);
       const goal = ReachGpGoal(100);
 
-      final result = solve(
-        state,
-        goal,
-
-        collectDiagnostics: true,
-      );
+      final result = solve(state, goal, collectDiagnostics: true);
 
       expect(result, isA<SolverSuccess>());
       final success = result as SolverSuccess;
@@ -1307,12 +1301,7 @@ void main() {
       final state = GlobalState.empty(testRegistries);
       const goal = ReachSkillLevelGoal(Skill.woodcutting, 5);
 
-      final result = solve(
-        state,
-        goal,
-
-        collectDiagnostics: true,
-      );
+      final result = solve(state, goal, collectDiagnostics: true);
 
       expect(result, isA<SolverSuccess>());
       final success = result as SolverSuccess;
@@ -1327,12 +1316,7 @@ void main() {
       final state = GlobalState.empty(testRegistries);
       const goal = ReachSkillLevelGoal(Skill.firemaking, 5);
 
-      final result = solve(
-        state,
-        goal,
-
-        collectDiagnostics: true,
-      );
+      final result = solve(state, goal, collectDiagnostics: true);
 
       expect(result, isA<SolverSuccess>());
       final success = result as SolverSuccess;
@@ -1360,12 +1344,7 @@ void main() {
       final state = GlobalState.empty(testRegistries);
       const goal = ReachSkillLevelGoal(Skill.firemaking, 2);
 
-      final result = solve(
-        state,
-        goal,
-
-        collectDiagnostics: true,
-      );
+      final result = solve(state, goal, collectDiagnostics: true);
 
       // With real data, firemaking should succeed because woodcutting
       // provides logs. The tripwire would only trigger if no producer exists.
@@ -1378,12 +1357,7 @@ void main() {
       final state = GlobalState.empty(testRegistries);
       const goal = ReachGpGoal(100);
 
-      final result = solve(
-        state,
-        goal,
-
-        collectDiagnostics: true,
-      );
+      final result = solve(state, goal, collectDiagnostics: true);
 
       expect(result, isA<SolverSuccess>());
       final profile = (result as SolverSuccess).profile!;
@@ -1398,12 +1372,7 @@ void main() {
       final state = GlobalState.empty(testRegistries);
       const goal = ReachGpGoal(100);
 
-      final result = solve(
-        state,
-        goal,
-
-        collectDiagnostics: true,
-      );
+      final result = solve(state, goal, collectDiagnostics: true);
 
       expect(result, isA<SolverSuccess>());
       final profile = (result as SolverSuccess).profile!;
@@ -2432,12 +2401,7 @@ void main() {
       const goal = ReachSkillLevelGoal(Skill.smithing, 10);
 
       // Solve with diagnostics to inspect macro stop triggers
-      final result = solve(
-        state,
-        goal,
-
-        collectDiagnostics: true,
-      );
+      final result = solve(state, goal, collectDiagnostics: true);
 
       expect(result, isA<SolverSuccess>());
       final success = result as SolverSuccess;
@@ -2501,12 +2465,7 @@ void main() {
       const goal = ReachSkillLevelGoal(Skill.smithing, 20);
 
       // Solve with diagnostics
-      final result = solve(
-        state,
-        goal,
-
-        collectDiagnostics: true,
-      );
+      final result = solve(state, goal, collectDiagnostics: true);
 
       expect(result, isA<SolverSuccess>());
       final success = result as SolverSuccess;
@@ -2591,12 +2550,7 @@ void main() {
       // Use mining skill goal to produce copper ore (tests the production path)
       // This indirectly tests EnsureStock behavior via prerequisite expansion
       const goal = ReachSkillLevelGoal(Skill.mining, 5);
-      final solveResult = solve(
-        state,
-        goal,
-
-        collectDiagnostics: true,
-      );
+      final solveResult = solve(state, goal, collectDiagnostics: true);
 
       expect(solveResult, isA<SolverSuccess>());
       final success = solveResult as SolverSuccess;

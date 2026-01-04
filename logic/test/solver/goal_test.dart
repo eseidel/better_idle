@@ -1,4 +1,3 @@
-
 import 'package:logic/logic.dart';
 import 'package:logic/src/solver/candidates/enumerate_candidates.dart';
 import 'package:logic/src/solver/core/goal.dart';

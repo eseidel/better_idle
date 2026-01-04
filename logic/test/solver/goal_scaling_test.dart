@@ -9,7 +9,6 @@
 @Tags(['slow'])
 library;
 
-
 import 'package:logic/logic.dart';
 import 'package:logic/src/solver/core/goal.dart';
 import 'package:logic/src/solver/core/solver.dart';
@@ -32,12 +31,7 @@ void main() {
         ReachSkillLevelGoal(Skill.fishing, 99),
       ]);
 
-      final result = solve(
-        state,
-        goal,
-        
-        collectDiagnostics: true,
-      );
+      final result = solve(state, goal, collectDiagnostics: true);
 
       expect(result, isA<SolverSuccess>());
       final success = result as SolverSuccess;
@@ -65,12 +59,7 @@ void main() {
       final state = GlobalState.empty(testRegistries);
       const goal = ReachSkillLevelGoal(Skill.woodcutting, 99);
 
-      final result = solve(
-        state,
-        goal,
-        
-        collectDiagnostics: true,
-      );
+      final result = solve(state, goal, collectDiagnostics: true);
 
       expect(result, isA<SolverSuccess>());
       final success = result as SolverSuccess;
@@ -92,12 +81,7 @@ void main() {
         ReachSkillLevelGoal(Skill.mining, 50),
       ]);
 
-      final result = solve(
-        state,
-        goal,
-        
-        collectDiagnostics: true,
-      );
+      final result = solve(state, goal, collectDiagnostics: true);
 
       expect(result, isA<SolverSuccess>());
       final success = result as SolverSuccess;
@@ -120,12 +104,7 @@ void main() {
         ReachSkillLevelGoal(Skill.thieving, 30),
       ]);
 
-      final result = solve(
-        state,
-        goal,
-        
-        collectDiagnostics: true,
-      );
+      final result = solve(state, goal, collectDiagnostics: true);
 
       expect(result, isA<SolverSuccess>());
       final success = result as SolverSuccess;
@@ -145,12 +124,7 @@ void main() {
       final state = GlobalState.empty(testRegistries);
       const goal = ReachSkillLevelGoal(Skill.firemaking, 50);
 
-      final result = solve(
-        state,
-        goal,
-        
-        collectDiagnostics: true,
-      );
+      final result = solve(state, goal, collectDiagnostics: true);
 
       expect(result, isA<SolverSuccess>());
       final success = result as SolverSuccess;
@@ -171,12 +145,7 @@ void main() {
       final state = GlobalState.empty(testRegistries);
       const goal = ReachSkillLevelGoal(Skill.cooking, 50);
 
-      final result = solve(
-        state,
-        goal,
-        
-        collectDiagnostics: true,
-      );
+      final result = solve(state, goal, collectDiagnostics: true);
 
       expect(result, isA<SolverSuccess>());
       final success = result as SolverSuccess;
@@ -196,12 +165,7 @@ void main() {
         ReachSkillLevelGoal(Skill.firemaking, 50),
       ]);
 
-      final result = solve(
-        state,
-        goal,
-        
-        collectDiagnostics: true,
-      );
+      final result = solve(state, goal, collectDiagnostics: true);
 
       expect(result, isA<SolverSuccess>());
       final success = result as SolverSuccess;
@@ -222,12 +186,7 @@ void main() {
         ReachSkillLevelGoal(Skill.cooking, 50),
       ]);
 
-      final result = solve(
-        state,
-        goal,
-        
-        collectDiagnostics: true,
-      );
+      final result = solve(state, goal, collectDiagnostics: true);
 
       expect(result, isA<SolverSuccess>());
       final success = result as SolverSuccess;
@@ -252,7 +211,7 @@ void main() {
       final result1 = solve(
         state,
         const ReachSkillLevelGoal(Skill.woodcutting, 30),
-        
+
         collectDiagnostics: true,
       );
       expect(result1, isA<SolverSuccess>());
@@ -265,7 +224,7 @@ void main() {
           ReachSkillLevelGoal(Skill.woodcutting, 30),
           ReachSkillLevelGoal(Skill.fishing, 30),
         ]),
-        
+
         collectDiagnostics: true,
       );
       expect(result2, isA<SolverSuccess>());
@@ -279,7 +238,7 @@ void main() {
           ReachSkillLevelGoal(Skill.fishing, 30),
           ReachSkillLevelGoal(Skill.mining, 30),
         ]),
-        
+
         collectDiagnostics: true,
       );
       expect(result3, isA<SolverSuccess>());
@@ -318,7 +277,7 @@ void main() {
         final result = solve(
           state,
           ReachSkillLevelGoal(Skill.woodcutting, level),
-          
+
           collectDiagnostics: true,
         );
         expect(result, isA<SolverSuccess>());

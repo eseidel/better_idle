@@ -1329,10 +1329,7 @@ int _expandInteractionEdges(
     if (!candidates.isRelevantInteraction(interaction)) continue;
 
     try {
-      final newState = applyInteractionDeterministic(
-        node.state,
-        interaction,
-      );
+      final newState = applyInteractionDeterministic(node.state, interaction);
       final newProgress = ctx.goal.progress(newState);
       final newBucketKey = _BucketKey.fromState(newState, ctx.goal);
 

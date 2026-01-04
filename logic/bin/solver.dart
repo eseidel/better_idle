@@ -1076,11 +1076,7 @@ _TimedSolverResult _solveWithTiming(
   final state = GlobalState.empty(registries);
 
   final stopwatch = Stopwatch()..start();
-  final result = solve(
-    state,
-    goal,
-    collectDiagnostics: true,
-  );
+  final result = solve(state, goal, collectDiagnostics: true);
   stopwatch.stop();
 
   return _TimedSolverResult(
