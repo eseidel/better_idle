@@ -300,6 +300,36 @@ class MacroExpansionContext {
     return bucket;
   }
 
+  /// Computes a discrete bucket target for hard prerequisites.
+  ///
+  /// Unlike [quantizeStockTarget] which caps at maxChunkSize (for soft hints),
+  /// this function ensures the returned value is >= [needed] while using
+  /// discrete buckets to limit state space explosion.
+  ///
+  /// Strategy:
+  /// - For needed <= maxChunkSize: use next power-of-2 bucket >= needed
+  /// - For needed > maxChunkSize: round up to next multiple of maxChunkSize
+  ///
+  /// This guarantees forward progress (target >= needed) while keeping
+  /// the number of distinct targets bounded.
+  static int discreteHardTarget(int needed) {
+    const minBucket = 20;
+
+    if (needed <= minBucket) return minBucket;
+
+    if (needed <= maxChunkSize) {
+      // Use power-of-2 buckets for small targets
+      var bucket = minBucket;
+      while (bucket < needed) {
+        bucket *= 2;
+      }
+      return bucket;
+    }
+
+    // For large targets, round up to next multiple of maxChunkSize
+    return ((needed + maxChunkSize - 1) ~/ maxChunkSize) * maxChunkSize;
+  }
+
   /// Maximum items to produce per EnsureStock expansion chunk.
   ///
   /// This limits work-per-expansion to prevent state explosion while

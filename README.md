@@ -48,3 +48,4 @@ is written in a different language than the mods.
 - Implement mastery tokens.
 - Gems should not drop for rune essence.
 - Recipes with multiple inputs should show last selection in list views.
+- Cooking should support all 3 types.

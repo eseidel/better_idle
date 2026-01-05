@@ -278,11 +278,24 @@ ActionId? _computeIntendedAction(
   if (goal is ReachSkillLevelGoal) {
     final targetSkill = goal.skill;
 
-    // If active action is for the goal skill, it's the intent
+    // For consuming skills, don't set expectedAction from wait edge.
+    // TrainConsumingSkillUntil macro handles action selection with proper
+    // prerequisite/coupled-loop logic. Setting expectedAction here causes
+    // conflicts (e.g., wait edge picks Gold Bar while macro picks Mithril
+    // Platebody, leading to thrash loops when Gold Ore depletes).
+    if (targetSkill.isConsuming) {
+      return null;
+    }
+
+    // If active action is for the goal skill and can continue, it's the intent
     if (activeActionId != null) {
       final activeAction = state.registries.actions.byId(activeActionId);
       if (activeAction is SkillAction && activeAction.skill == targetSkill) {
-        return activeActionId;
+        // Verify we can still run this action
+        if (state.canStartAction(activeAction)) {
+          return activeActionId;
+        }
+        // Active action can't continue (e.g., inputs depleted), find another
       }
     }
 
@@ -292,16 +305,19 @@ ActionId? _computeIntendedAction(
 
   // For multi-skill goals, find the best action for the most pressing subgoal
   if (goal is MultiSkillGoal) {
-    // First check if active action is for an unsatisfied subgoal
+    // First check if active action is for an unsatisfied subgoal and can run
     if (activeActionId != null) {
       final activeAction = state.registries.actions.byId(activeActionId);
-      if (activeAction is SkillAction) {
+      if (activeAction is SkillAction && state.canStartAction(activeAction)) {
         final activeSkill = activeAction.skill;
-        final matchingSubgoal = goal.subgoals
-            .where((g) => g.skill == activeSkill && !g.isSatisfied(state))
-            .firstOrNull;
-        if (matchingSubgoal != null) {
-          return activeActionId;
+        // Skip consuming skills - let macro handle action selection
+        if (!activeSkill.isConsuming) {
+          final matchingSubgoal = goal.subgoals
+              .where((g) => g.skill == activeSkill && !g.isSatisfied(state))
+              .firstOrNull;
+          if (matchingSubgoal != null) {
+            return activeActionId;
+          }
         }
       }
     }
@@ -309,6 +325,8 @@ ActionId? _computeIntendedAction(
     // Find the first unsatisfied subgoal and get best action for it
     for (final subgoal in goal.subgoals) {
       if (subgoal.isSatisfied(state)) continue;
+      // Skip consuming skills - let macro handle action selection
+      if (subgoal.skill.isConsuming) continue;
       final bestAction = _findBestActionForGoalSkill(
         state,
         subgoal.skill,

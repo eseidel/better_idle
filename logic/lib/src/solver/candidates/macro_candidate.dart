@@ -753,6 +753,11 @@ class EnsureStock extends MacroCandidate {
         return MacroCannotExpand(reason);
 
       case ChainBuilt(:final chain):
+        // Check for cycles in the chain (should not happen with correct data)
+        final cycleCheck = assertNoCycles(chain);
+        if (cycleCheck != null) {
+          return MacroCannotExpand('Chain cycle: $cycleCheck');
+        }
         // Chain is fully buildable - check if we need to stock inputs first
         // Walk the chain bottom-up and ensure stock for each level
         // Pass chunkedTarget so ProduceItem knows the per-chunk goal
@@ -1353,6 +1358,7 @@ class TrainConsumingSkillUntil extends MacroCandidate {
       consumingSkill,
       context.goal,
     );
+
     if (bestConsumeAction == null) {
       return MacroCannotExpand('No unlocked action for ${consumingSkill.name}');
     }
@@ -1369,8 +1375,14 @@ class TrainConsumingSkillUntil extends MacroCandidate {
     final allPrereqs = <MacroCandidate>[];
     ActionId? primaryProducerAction;
 
+    // Minimum buffer to start execution - once we have this much, proceed.
+    // This prevents infinite escalation where each boundary requires more.
+    const minBufferToStart = 20;
+
     for (final inputEntry in consumeAction.inputs.entries) {
       final inputItem = inputEntry.key;
+      final inputItemData = itemRegistry.byId(inputItem);
+      final currentCount = state.inventory.countOfItem(inputItemData);
       final producer = context.findProducerAction(
         state,
         inputItem,
@@ -1398,36 +1410,25 @@ class TrainConsumingSkillUntil extends MacroCandidate {
         final producerActionData = actionRegistry.byId(producer);
         if (producerActionData is SkillAction &&
             producerActionData.inputs.isNotEmpty) {
-          // Multi-tier chain - compute batch size
-          final batch = context.computeBatchToNextUnlock(
-            state: state,
-            consumingAction: consumeAction,
-            boundaries: context.boundaries,
-          );
-
-          if (batch != null) {
-            final inputNeeded = batch.inputRequirements[inputItem] ?? 0;
-            final inputItemData = itemRegistry.byId(inputItem);
-            final currentCount = state.inventory.countOfItem(inputItemData);
-            if (inputNeeded > 0 && currentCount < inputNeeded) {
-              final quantizedTarget = context.quantizeStockTarget(
-                state,
-                inputNeeded,
-                consumeAction,
-              );
-              allPrereqs.add(EnsureStock(inputItem, quantizedTarget));
-            }
-          } else {
-            // Fallback: near goal or no boundary, use smaller batches
-            const bufferSize = 10;
-            final inputItemData = itemRegistry.byId(inputItem);
-            final currentCount = state.inventory.countOfItem(inputItemData);
-            if (currentCount < bufferSize) {
-              allPrereqs.add(AcquireItem(inputItem, bufferSize - currentCount));
-            }
+          // Multi-tier chain - only require minimum buffer to start.
+          // Once we have minBufferToStart, proceed to execution.
+          // The coupled loop will produce more as needed.
+          if (currentCount < minBufferToStart) {
+            // Use discrete bucket for the minimum buffer
+            final target = MacroExpansionContext.discreteHardTarget(
+              minBufferToStart,
+            );
+            // INVARIANT: TCU prereq targets are bounded by minBufferToStart's
+            // discrete bucket, preventing escalation across re-expansions.
+            assert(
+              target == 20, // discreteHardTarget(20) == 20
+              'TCU prereq target should be exactly 20 for minBufferToStart=20, '
+              'got $target',
+            );
+            allPrereqs.add(EnsureStock(inputItem, target));
           }
         } else {
-          // Simple producer - check prerequisites
+          // Simple producer (no inputs, e.g., Mining) - check prerequisites
           final prereqResult = context.ensureExecutable(
             state,
             producer,
@@ -1435,7 +1436,19 @@ class TrainConsumingSkillUntil extends MacroCandidate {
           );
           switch (prereqResult) {
             case ExecReady():
-              break;
+              // Producer is ready - only require minimum buffer to start
+              if (currentCount < minBufferToStart) {
+                final target = MacroExpansionContext.discreteHardTarget(
+                  minBufferToStart,
+                );
+                // INVARIANT: Same as multi-tier case - bounded prereqs.
+                assert(
+                  target == 20,
+                  'TCU prereq target should be exactly 20 for '
+                  'minBufferToStart=20, got $target',
+                );
+                allPrereqs.add(EnsureStock(inputItem, target));
+              }
             case ExecNeedsMacros(macros: final prereqMacros):
               allPrereqs.addAll(prereqMacros);
             case ExecUnknown(:final reason):

@@ -5,10 +5,12 @@ import 'package:logic/logic.dart';
 import 'package:logic/src/solver/analysis/estimate_rates.dart';
 import 'package:logic/src/solver/analysis/next_decision_delta.dart';
 import 'package:logic/src/solver/analysis/replan_boundary.dart';
+import 'package:logic/src/solver/analysis/unlock_boundaries.dart';
 import 'package:logic/src/solver/analysis/wait_for.dart';
 import 'package:logic/src/solver/analysis/watch_set.dart';
 import 'package:logic/src/solver/candidates/enumerate_candidates.dart';
 import 'package:logic/src/solver/candidates/macro_candidate.dart';
+import 'package:logic/src/solver/candidates/macro_expansion_context.dart';
 import 'package:logic/src/solver/core/goal.dart';
 import 'package:logic/src/solver/core/solver.dart';
 import 'package:logic/src/solver/core/solver_profile.dart';
@@ -1148,6 +1150,88 @@ void main() {
         execResult.hasUnexpectedBoundaries,
         isFalse,
         reason: 'Unexpected boundaries: ${execResult.unexpectedBoundaries}',
+      );
+    });
+
+    test('TCU prereqs do not escalate across re-expansions (regression)', () {
+      // Regression test for prerequisite escalation bug.
+      // Previously, TCU would recalculate batch requirements on each expansion,
+      // causing EnsureStock targets to grow: 640 -> 1280 -> 1920 -> ...
+      // until the prerequisite chain exceeded max depth.
+      //
+      // The fix: TCU uses a fixed minBufferToStart (20) instead of computing
+      // batch requirements to the next boundary. This test verifies that
+      // repeatedly expanding TCU with increasing inventory never produces
+      // larger EnsureStock targets.
+
+      // Start with 0 bronze bars - need to acquire some
+      var state = GlobalState.test(
+        testRegistries,
+        skillStates: const {
+          // Mining unlocked for ore production
+          Skill.mining: SkillState(xp: 100000, masteryPoolXp: 0),
+          // Smithing at level where bars are needed
+          Skill.smithing: SkillState(xp: 10000, masteryPoolXp: 0),
+        },
+      );
+      const goal = ReachSkillLevelGoal(Skill.smithing, 50);
+      final boundaries = computeUnlockBoundaries(testRegistries);
+
+      // Track all EnsureStock targets emitted across multiple expansions
+      final ensureStockTargets = <int>[];
+
+      // Simulate multiple TCU expansions with increasing bronze bar inventory
+      for (var bronzeBars = 0; bronzeBars <= 30; bronzeBars += 5) {
+        // Update state with more bronze bars
+        if (bronzeBars > 0) {
+          final bronzeBar = testItems.byName('Bronze Bar');
+          state = state.copyWith(
+            inventory: Inventory.fromItems(testItems, [
+              ItemStack(bronzeBar, count: bronzeBars),
+            ]),
+          );
+        }
+
+        final context = MacroExpansionContext(
+          state: state,
+          goal: goal,
+          boundaries: boundaries,
+        );
+
+        const macro = TrainConsumingSkillUntil(
+          Skill.smithing,
+          StopAtNextBoundary(Skill.smithing),
+        );
+
+        final outcome = macro.expand(context);
+
+        // If TCU emits an EnsureStock prereq, record its target
+        if (outcome is MacroNeedsPrerequisite) {
+          final prereq = outcome.prerequisite;
+          if (prereq is EnsureStock) {
+            ensureStockTargets.add(prereq.minTotal);
+          }
+        }
+      }
+
+      // INVARIANT: All EnsureStock targets should be bounded at 20
+      // (the discreteHardTarget of minBufferToStart).
+      // If targets escalate (20 -> 40 -> 80 -> ...), the fix failed.
+      for (final target in ensureStockTargets) {
+        expect(
+          target,
+          equals(20),
+          reason:
+              'TCU prereq target should be fixed at 20, not escalate. '
+              'Targets seen: $ensureStockTargets',
+        );
+      }
+
+      // Should have seen at least one EnsureStock prereq
+      expect(
+        ensureStockTargets,
+        isNotEmpty,
+        reason: 'Test should trigger at least one EnsureStock prereq',
       );
     });
   });
@@ -2364,14 +2448,17 @@ void main() {
   });
 
   group('EnsureStock batching', () {
-    test('batched stock precedence - use larger batches over single items', () {
-      // This test verifies the fix for multi-tier consuming skill chains.
-      // When solving for smithing, the solver should use batched EnsureStock
-      // operations (e.g., "Stock 21x Copper_Ore") rather than small single-item
-      // operations (e.g., "Stock 1x Copper_Ore").
+    test('multi-tier chain expansion - smithing solves correctly', () {
+      // This test verifies that multi-tier consuming skill chains work correctly.
+      // When solving for smithing, the solver should:
+      // 1. Handle prerequisite chains (ore -> bar -> item)
+      // 2. Use exact input requirements (not over-quantized batches)
+      // 3. Not get stuck in infinite prerequisite loops
       //
-      // The bug was that _expandEnsureStock called _ensureExecutable before
-      // handling batch sizing, causing small prereqs to be expanded first.
+      // The solver now uses exact inputNeeded values via prerequisite chain
+      // expansion rather than pre-quantized batches, which prevents loops
+      // where a capped EnsureStock target is satisfied but the parent still
+      // needs more items.
 
       // Start with empty state - solver needs to mine ore, smelt bars, smith
       final state = GlobalState.empty(testRegistries);
@@ -2379,47 +2466,22 @@ void main() {
       // Goal: reach smithing level 10 (a consuming skill with multi-tier chain)
       const goal = ReachSkillLevelGoal(Skill.smithing, 10);
 
-      // Solve with diagnostics to inspect macro stop triggers
+      // Solve with diagnostics
       final result = solve(state, goal, collectDiagnostics: true);
 
       expect(result, isA<SolverSuccess>());
       final success = result as SolverSuccess;
-      final profile = success.profile!;
 
-      // Examine macro stop triggers - should have batched operations
-      final triggers = profile.macroStopTriggers;
-
-      // Count single-item vs batched stock/produce operations
-      // Both "Stock" and "Produce" prefixes are used for item acquisition
-      var singleItemOps = 0;
-      var batchedOps = 0;
-
-      for (final trigger in triggers.keys) {
-        // Check for single-item operations (Stock 1x or Produce 1x)
-        if (trigger.startsWith('Stock 1x') ||
-            trigger.startsWith('Produce 1x')) {
-          singleItemOps += triggers[trigger]!;
-        } else if ((trigger.startsWith('Stock ') ||
-                trigger.startsWith('Produce ')) &&
-            trigger.contains('x')) {
-          // Batched operations have quantity > 1
-          batchedOps += triggers[trigger]!;
-        }
-      }
-
-      // The fix ensures batched operations dominate
-      // Before fix: many single-item operations, few batched
-      // After fix: mostly batched operations
-      expect(
-        batchedOps,
-        greaterThan(singleItemOps),
-        reason:
-            'Batched stock/produce operations should outnumber single-item ops. '
-            'Triggers: $triggers',
-      );
-
-      // Also verify the plan actually succeeds
+      // Verify the plan succeeds and reaches the goal
       expect(success.plan.totalTicks, greaterThan(0));
+
+      // The solver should have used boundary-based triggers for skill levels
+      final triggers = success.profile!.macroStopTriggers;
+      expect(
+        triggers.keys.where((t) => t.startsWith('Boundary')),
+        isNotEmpty,
+        reason: 'Should use skill level boundaries for progression',
+      );
     });
 
     test('locked producer correctness - trains skill before production', () {

@@ -1022,7 +1022,10 @@ MacroExpansionExplanation explainMacroExpansion(
 /// Returns [MacroExpanded] on success, [MacroAlreadySatisfied] if no work
 /// needed, or [MacroCannotExpand] with a reason if expansion is impossible.
 /// Maximum prerequisite chain depth to prevent infinite loops.
-const int _maxPrerequisiteDepth = 20;
+/// Multi-tier production chains (e.g., Mithril Platebody) can legitimately
+/// require deep chains when each tier has multiple inputs that must be
+/// produced sequentially.
+const int _maxPrerequisiteDepth = 50;
 
 MacroExpansionOutcome _expandMacro(
   GlobalState state,
@@ -1033,6 +1036,13 @@ MacroExpansionOutcome _expandMacro(
   var currentState = state;
   var currentMacro = macro;
   var depth = 0;
+  var accumulatedTicks = 0;
+  var accumulatedDeaths = 0;
+
+  // Stack of parent macros waiting for prerequisites to complete.
+  // When a macro returns MacroNeedsPrerequisite, we push the macro here
+  // and switch to expanding the prerequisite.
+  final parentStack = <MacroCandidate>[];
 
   // Iteratively resolve prerequisites until we get a final outcome
   while (depth < _maxPrerequisiteDepth) {
@@ -1046,7 +1056,8 @@ MacroExpansionOutcome _expandMacro(
 
     switch (outcome) {
       case MacroNeedsPrerequisite(:final prerequisite):
-        // Expand the prerequisite next iteration
+        // Push current macro to parent stack and expand prerequisite
+        parentStack.add(currentMacro);
         currentMacro = prerequisite;
         depth++;
         continue;
@@ -1071,10 +1082,41 @@ MacroExpansionOutcome _expandMacro(
             return MacroCannotExpand(msg);
         }
 
-      case MacroExpanded():
+      case MacroExpanded(:final result):
+        // Macro expanded - accumulate its effects
+        currentState = result.state;
+        accumulatedTicks += result.ticksElapsed;
+        accumulatedDeaths += result.deaths;
+
+        // Check if there's a parent waiting
+        if (parentStack.isEmpty) {
+          // No parent - this is the final result
+          return MacroExpanded((
+            state: result.state,
+            ticksElapsed: accumulatedTicks,
+            waitFor: result.waitFor,
+            deaths: accumulatedDeaths,
+            triggeringCondition: result.triggeringCondition,
+            macro: result.macro,
+          ));
+        }
+        // Pop parent and continue expanding with updated state
+        currentMacro = parentStack.removeLast();
+        depth++;
+        continue;
+
       case MacroAlreadySatisfied():
+        // Check if there's a parent waiting
+        if (parentStack.isEmpty) {
+          return outcome;
+        }
+        // Pop parent and continue
+        currentMacro = parentStack.removeLast();
+        depth++;
+        continue;
+
       case MacroCannotExpand():
-        // Terminal outcomes - return directly
+        // Return failure directly
         return outcome;
     }
   }
@@ -1162,9 +1204,10 @@ SolverSuccess? _expandMacroEdges(
       case MacroExpanded(:final result):
         expansionResult = result;
       case MacroAlreadySatisfied():
-      case MacroCannotExpand():
       case MacroNeedsPrerequisite():
       case MacroNeedsBoundary():
+        continue;
+      case MacroCannotExpand():
         continue;
     }
 
@@ -1206,7 +1249,6 @@ SolverSuccess? _expandMacroEdges(
     final existingBest = ctx.bestTicks[newKey];
     if (existingBest == null || newTicks < existingBest) {
       ctx.bestTicks[newKey] = newTicks;
-
       final newNode = _Node(
         state: newState,
         ticks: newTicks,

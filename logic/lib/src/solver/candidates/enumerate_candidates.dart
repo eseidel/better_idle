@@ -1320,9 +1320,7 @@ _ConsumingSkillResult _selectConsumingSkillCandidatesWithStats(
   cappedConsumers.sort(consumerSortCtx.compareByEffectiveRate);
 
   // Select top N consumer actions from the capped list
-  final selectedConsumers = cappedConsumers
-      .take(maxConsumerActions)
-      .toList();
+  final selectedConsumers = cappedConsumers.take(maxConsumerActions).toList();
 
   // Build result: for each consumer action, include it and its best producer
   final result = <ActionId>[];

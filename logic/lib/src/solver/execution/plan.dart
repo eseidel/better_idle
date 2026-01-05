@@ -196,20 +196,28 @@ class WaitStep extends PlanStep {
     // Switch to expected action if specified and not already active
     if (expectedAction != null &&
         waitState.activeAction?.id != expectedAction) {
-      try {
-        waitState = applyInteraction(
-          waitState,
-          SwitchActivity(expectedAction!),
-          random: random,
-        );
-      } on Exception catch (e) {
-        return StepResult(
-          state: state,
-          boundary: NoProgressPossible(
-            reason: 'Cannot start expected action: $e',
-          ),
-        );
+      // Check if we can start the expected action (inputs available)
+      final action = state.registries.actions.byId(expectedAction!);
+      if (state.canStartAction(action)) {
+        try {
+          waitState = applyInteraction(
+            waitState,
+            SwitchActivity(expectedAction!),
+            random: random,
+          );
+        } on Exception catch (e) {
+          return StepResult(
+            state: state,
+            boundary: NoProgressPossible(
+              reason: 'Cannot start expected action: $e',
+            ),
+          );
+        }
       }
+      // If we can't start expectedAction (inputs depleted), just continue
+      // with whatever action is currently running. The wait will complete
+      // and a replan will occur at the next boundary. This is better than
+      // immediately triggering a replan which may cause loops.
     }
 
     // Run until the wait condition is satisfied

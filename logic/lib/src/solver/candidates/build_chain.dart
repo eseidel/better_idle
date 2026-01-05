@@ -415,6 +415,27 @@ Map<MelvorId, ActionId> chainToProducerMap(PlannedChain chain) {
   return result;
 }
 
+/// Debug: asserts that a chain has no cycles (item appearing in descendants).
+///
+/// Returns null if no cycle, or a description of the cycle if found.
+String? assertNoCycles(PlannedChain chain) {
+  final seen = <MelvorId>{};
+
+  String? checkNode(PlannedChain node) {
+    if (seen.contains(node.itemId)) {
+      return 'Cycle detected: ${node.itemId.localId} appears multiple times';
+    }
+    seen.add(node.itemId);
+    for (final child in node.children) {
+      final childCycle = checkNode(child);
+      if (childCycle != null) return childCycle;
+    }
+    return null;
+  }
+
+  return checkNode(chain);
+}
+
 /// Computes total input requirements from a chain (all leaf quantities).
 ///
 /// Returns a map from raw input item ID to total quantity needed.

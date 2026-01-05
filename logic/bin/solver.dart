@@ -586,7 +586,8 @@ void _printSolverProfile(
 
 /// Prints prerequisite cache and macro diagnostics.
 void _printPrereqDiagnostics(SolverProfile profile) {
-  final hasPrereqData = profile.prereqCacheHits > 0 ||
+  final hasPrereqData =
+      profile.prereqCacheHits > 0 ||
       profile.prereqCacheMisses > 0 ||
       profile.prereqMacrosByType.isNotEmpty ||
       profile.blockedChainsByItem.isNotEmpty;
