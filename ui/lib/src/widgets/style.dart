@@ -86,8 +86,8 @@ class Style {
   static Color masteryPoolBackgroundColor = Colors.amber.shade100;
 
   // Rock type colors
-  static Color rockTypeEssenceColor = Colors.purple.shade100;
-  static Color rockTypOrColor = Colors.brown.shade200;
+  static Color rockTypeEssenceColor = Colors.green.shade200;
+  static Color rockTypeOreColor = Colors.orange.shade200;
 
   // Combat/food slot colors
   static Color foodSlotFilledColor = Colors.green.shade500;

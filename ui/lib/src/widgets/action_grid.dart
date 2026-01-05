@@ -284,7 +284,7 @@ class MiningActionCell extends StatelessWidget {
     if (!isUnlocked) {
       return LockedActionCell(
         unlockLevel: action.unlockLevel,
-        imageAsset: action.media,
+        imageAsset: 'assets/media/skills/mining/mining.png',
         hasBorder: true,
       );
     }
@@ -339,7 +339,7 @@ class MiningActionCell extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 4),
-          CachedImage(assetPath: action.media, size: 48),
+          CachedImage(assetPath: action.media, size: 64),
           const SizedBox(height: 4),
           if (respawnTimeRemaining case final respawnTime?) ...[
             Text(
@@ -485,7 +485,7 @@ class RockTypeBadge extends StatelessWidget {
   Widget build(BuildContext context) {
     final (label, color) = switch (rockType) {
       RockType.essence => ('Essence', Style.rockTypeEssenceColor),
-      RockType.ore => ('Ore', Style.rockTypOrColor),
+      RockType.ore => ('Ore', Style.rockTypeOreColor),
     };
 
     return Container(
