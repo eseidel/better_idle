@@ -43,6 +43,10 @@ import 'package:logic/src/solver/interactions/interaction.dart';
 import 'package:logic/src/state.dart';
 import 'package:logic/src/tick.dart' show ticksFromDuration;
 
+/// Debug flag for EnsureStock quantization and termination logging.
+/// Set to true to trace EnsureStock behavior during solver runs.
+const bool _debugEnsureStock = false;
+
 // ---------------------------------------------------------------------------
 // Provenance - tracks WHY a macro was created
 // ---------------------------------------------------------------------------
@@ -680,16 +684,28 @@ class EnsureStock extends MacroCandidate {
 
     if (deltaNeeded <= 0) {
       // Already have enough - this is a no-op
+      if (_debugEnsureStock) {
+        // ignore: avoid_print
+        print(
+          'EnsureStock satisfied: ${itemId.localId} '
+          'have=$currentCount need=$minTotal',
+        );
+      }
       return MacroAlreadySatisfied(
         'Already have $currentCount/$minTotal ${itemId.localId}',
       );
     }
 
+    // Cap work-per-expansion to prevent state explosion.
+    // This limits how much we produce in one expansion, not the hard minimum.
+    // After producing a chunk, replanning will re-evaluate and continue.
+    final chunkSize = min(deltaNeeded, MacroExpansionContext.maxChunkSize);
+
     // Check inventory feasibility BEFORE expanding
     final feasibleBatch = context.computeFeasibleBatchSize(
       state,
       itemId,
-      deltaNeeded,
+      chunkSize,
       context.goal,
     );
 
@@ -718,10 +734,11 @@ class EnsureStock extends MacroCandidate {
     }
 
     // Use buildChainForItem to discover the full production chain
+    // Use chunkSize for planning to limit work per expansion
     final chainResult = buildChainForItem(
       state,
       itemId,
-      deltaNeeded,
+      chunkSize,
       context.goal,
     );
 
@@ -738,7 +755,9 @@ class EnsureStock extends MacroCandidate {
       case ChainBuilt(:final chain):
         // Chain is fully buildable - check if we need to stock inputs first
         // Walk the chain bottom-up and ensure stock for each level
-        return _expandChainBottomUp(context, state, chain);
+        // Pass chunkedTarget so ProduceItem knows the per-chunk goal
+        final chunkedTarget = currentCount + chunkSize;
+        return _expandChainBottomUp(context, state, chain, chunkedTarget);
     }
   }
 
@@ -747,12 +766,16 @@ class EnsureStock extends MacroCandidate {
   /// For each node in the chain (leaves first), we check if we have enough
   /// of that item. If not, we emit an EnsureStock for it.
   ///
+  /// [chunkedTarget] is the inventory count to reach in this expansion chunk.
+  /// This may be less than [minTotal] when chunking large requirements.
+  ///
   /// This replaces the old recursive "discover one input at a time" logic
   /// with explicit chain-based expansion.
   MacroExpansionOutcome _expandChainBottomUp(
     MacroExpansionContext context,
     GlobalState workingState,
     PlannedChain chain,
+    int chunkedTarget,
   ) {
     // For the root node, check if all inputs are available
     // If not, emit EnsureStock for the first missing input
@@ -761,20 +784,65 @@ class EnsureStock extends MacroCandidate {
       final currentCount = workingState.inventory.countOfItem(childItem);
 
       if (currentCount < child.quantity) {
-        // Need to stock this input first
-        // Quantize the target using the CHILD's producer action (not parent's)
-        final childAction =
-            workingState.registries.actions.byId(child.actionId) as SkillAction;
-        final quantizedTarget = context.quantizeStockTarget(
-          workingState,
-          child.quantity,
-          childAction,
+        // Need to stock this input first.
+        // Limit the per-attempt increment to prevent state explosion from
+        // unbounded EnsureStock targets. child.quantity remains the hard
+        // requirement checked by the parent; attemptCap just bounds how much
+        // we try to produce in one EnsureStock expansion.
+        //
+        // We cap attemptTarget at attemptCap to ensure quantization never
+        // reduces the target (quantizeStockTarget returns >= target when
+        // target <= maxChunkSize).
+        const attemptCap = MacroExpansionContext.maxChunkSize;
+        final deltaNeeded = child.quantity - currentCount;
+        // Cap the delta to limit work per EnsureStock expansion
+        final cappedDelta = min(deltaNeeded, attemptCap);
+
+        // Compute absolute target and round UP to discrete bucket.
+        // Buckets: {20, 40, 80, 160, 320, 640, 1280, 1920, 2560, ...}
+        // For targets <= 640: power of 2
+        // For targets > 640: multiples of 640
+        final rawTarget = currentCount + cappedDelta;
+        int ensureStockTarget;
+        if (rawTarget <= attemptCap) {
+          // Use power-of-2 quantization for small targets
+          final childAction =
+              workingState.registries.actions.byId(child.actionId)
+                  as SkillAction;
+          ensureStockTarget = context.quantizeStockTarget(
+            workingState,
+            rawTarget,
+            childAction,
+          );
+        } else {
+          // Round up to next multiple of attemptCap for large targets
+          ensureStockTarget =
+              ((rawTarget + attemptCap - 1) ~/ attemptCap) * attemptCap;
+        }
+
+        // Critical invariant: target must be >= rawTarget to ensure we
+        // produce enough items for the parent's requirement.
+        assert(
+          ensureStockTarget >= rawTarget,
+          'EnsureStock target must be >= rawTarget: '
+          'rawTarget=$rawTarget, ensureStockTarget=$ensureStockTarget',
         );
+
+        // Debug: log EnsureStock creation with quantization details
+        if (_debugEnsureStock) {
+          // Debug print for tracing EnsureStock quantization behavior.
+          // ignore: avoid_print
+          print(
+            'EnsureStock emit: ${child.itemId.localId} '
+            'need=${child.quantity} raw=$rawTarget target=$ensureStockTarget '
+            'have=$currentCount free=${workingState.inventoryRemaining}',
+          );
+        }
         // Return prerequisite without recursive expand
         return MacroNeedsPrerequisite(
           EnsureStock(
             child.itemId,
-            quantizedTarget,
+            ensureStockTarget,
             provenance: ChainProvenance(
               parentItem: itemId,
               childItem: child.itemId,
@@ -803,11 +871,12 @@ class EnsureStock extends MacroCandidate {
     }
 
     // All prerequisites satisfied - return ProduceItem to do the actual
-    // production. This keeps EnsureStock.expand() pure (no state mutation).
+    // production. Use chunkedTarget to limit work per expansion.
+    // This keeps EnsureStock.expand() pure (no state mutation).
     return MacroNeedsPrerequisite(
       ProduceItem(
         itemId: itemId,
-        minTotal: minTotal,
+        minTotal: chunkedTarget,
         actionId: chain.actionId,
         estimatedTicks: chain.ticksNeeded,
         provenance: provenance,

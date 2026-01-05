@@ -222,34 +222,41 @@ class MacroExpansionContext {
 
   /// Quantizes a stock target to a coarse bucket to reduce plan thrash.
   ///
-  /// Uses power-of-2 based buckets: {20, 40, 80, 160, 320, 640, 1280, ...}
-  /// This ensures at most ~6 distinct target levels per item, preventing
+  /// Uses power-of-2 buckets capped at 640: {20, 40, 80, 160, 320, 640}
+  /// This ensures at most 6 distinct target levels per item, preventing
   /// the solver from exploring many similar EnsureStock variants.
   ///
   /// The minimum bucket is 20 to avoid micro-stocking (8, 9, 10 style jitter).
+  /// The maximum bucket is 640 to limit state explosion.
+  ///
+  /// IMPORTANT: This function always returns a value >= target. Inventory
+  /// pressure handling is done elsewhere (EnsureStock.expand returns
+  /// MacroNeedsBoundary, or execution hits inventory pressure naturally).
+  /// Do NOT add step-down logic here - it can violate EnsureStock invariants.
   int quantizeStockTarget(GlobalState s, int target, SkillAction? action) {
     // Minimum batch size to avoid micro-stocking
     const minBucket = 20;
 
     if (target <= minBucket) return minBucket;
 
-    // Find next power of 2 >= target, then use that as bucket
-    // This gives buckets: 20, 40, 80, 160, 320, 640, 1280, 2560, ...
+    // Find next power of 2 >= target, capped at maxChunkSize
     var bucket = minBucket;
-    while (bucket < target) {
+    while (bucket < target && bucket < maxChunkSize) {
       bucket *= 2;
     }
-
-    // Optional: step down bucket if inventory is constrained
-    final freeSlots = s.inventoryCapacity - s.inventory.items.length;
-    if (freeSlots < 10 && bucket > minBucket) {
-      // Tight on inventory - use smaller bucket
-      bucket = bucket ~/ 2;
-      if (bucket < target) bucket = target; // But at least cover target
-    }
+    // Cap at maxChunkSize (bucket will be >= target since we stop when
+    // bucket >= target OR bucket >= maxChunkSize)
+    if (bucket > maxChunkSize) bucket = maxChunkSize;
 
     return bucket;
   }
+
+  /// Maximum items to produce per EnsureStock expansion chunk.
+  ///
+  /// This limits work-per-expansion to prevent state explosion while
+  /// preserving hard EnsureStock semantics. Large requirements are
+  /// fulfilled across multiple replan cycles.
+  static const int maxChunkSize = 640;
 
   /// For consuming skills (Smithing, Firemaking, etc.), computes how many
   /// craft actions are needed to reach the next skill level boundary.
