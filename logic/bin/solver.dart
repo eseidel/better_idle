@@ -579,6 +579,45 @@ void _printSolverProfile(
     print('');
     _printMacroStopTriggers(profile.macroStopTriggers, dump: dumpStopTriggers);
   }
+
+  // Prerequisite diagnostics
+  _printPrereqDiagnostics(profile);
+}
+
+/// Prints prerequisite cache and macro diagnostics.
+void _printPrereqDiagnostics(SolverProfile profile) {
+  final hasPrereqData = profile.prereqCacheHits > 0 ||
+      profile.prereqCacheMisses > 0 ||
+      profile.prereqMacrosByType.isNotEmpty ||
+      profile.blockedChainsByItem.isNotEmpty;
+
+  if (!hasPrereqData) return;
+
+  print('');
+  print('=== Prerequisite Diagnostics ===');
+  print(
+    'Forbidden cache: ${profile.prereqCacheHits} hits, '
+    '${profile.prereqCacheMisses} misses',
+  );
+
+  if (profile.prereqMacrosByType.isNotEmpty) {
+    print('Prerequisite macros by type:');
+    for (final entry in profile.prereqMacrosByType.entries) {
+      print('  ${entry.key}: ${entry.value}');
+    }
+  }
+
+  if (profile.blockedChainsByItem.isNotEmpty) {
+    print('Blocked chains by item:');
+    final sorted = profile.blockedChainsByItem.entries.toList()
+      ..sort((a, b) => b.value.compareTo(a.value));
+    for (final entry in sorted.take(10)) {
+      print('  ${entry.key}: ${entry.value}');
+    }
+    if (sorted.length > 10) {
+      print('  ... and ${sorted.length - 10} more');
+    }
+  }
 }
 
 /// Prints macro stop triggers in a compact grouped format.

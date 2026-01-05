@@ -1,6 +1,9 @@
 import 'dart:math';
 
 import 'package:collection/collection.dart';
+import 'package:logic/src/data/actions.dart' show Skill;
+import 'package:logic/src/data/melvor_id.dart';
+import 'package:logic/src/solver/candidates/macro_candidate.dart';
 import 'package:meta/meta.dart';
 
 /// Reasons why bestRate might be zero.
@@ -153,6 +156,10 @@ class SolverProfile {
     required this.rootBestRate,
     required this.bestRateSamples,
     required this.rateZeroReasonCounts,
+    required this.prereqCacheHits,
+    required this.prereqCacheMisses,
+    required this.prereqMacrosByType,
+    required this.blockedChainsByItem,
   });
 
   final int expandedNodes;
@@ -193,6 +200,12 @@ class SolverProfile {
 
   // Why bestRate is zero counters
   final Map<Type, int> rateZeroReasonCounts;
+
+  // Prerequisite tracking
+  final int prereqCacheHits;
+  final int prereqCacheMisses;
+  final Map<String, int> prereqMacrosByType;
+  final Map<String, int> blockedChainsByItem;
 
   // Computed getters
   double get minBestRate => bestRateSamples.minOrNull ?? 0;
@@ -280,6 +293,22 @@ class SolverProfileBuilder {
   // Why bestRate is zero counters
   final Map<Type, int> rateZeroReasonCounts = {};
 
+  // Prerequisite tracking
+  int prereqCacheHits = 0;
+  int prereqCacheMisses = 0;
+  final Map<String, int> prereqMacrosByType = {};
+  final Map<String, int> blockedChainsByItem = {};
+
+  void recordPrereqMacro(MacroCandidate prereq) {
+    final key = prereq.runtimeType.toString();
+    prereqMacrosByType[key] = (prereqMacrosByType[key] ?? 0) + 1;
+  }
+
+  void recordBlockedChain(MelvorId itemId, Skill skill, int level) {
+    final key = '${itemId.localId} (${skill.name} L$level)';
+    blockedChainsByItem[key] = (blockedChainsByItem[key] ?? 0) + 1;
+  }
+
   void recordBestRate(double rate, {required bool isRoot}) {
     bestRateSamples.add(rate);
     if (isRoot) rootBestRate = rate;
@@ -333,6 +362,10 @@ class SolverProfileBuilder {
       rootBestRate: rootBestRate,
       bestRateSamples: List.unmodifiable(bestRateSamples),
       rateZeroReasonCounts: Map.unmodifiable(rateZeroReasonCounts),
+      prereqCacheHits: prereqCacheHits,
+      prereqCacheMisses: prereqCacheMisses,
+      prereqMacrosByType: Map.unmodifiable(prereqMacrosByType),
+      blockedChainsByItem: Map.unmodifiable(blockedChainsByItem),
     );
   }
 }

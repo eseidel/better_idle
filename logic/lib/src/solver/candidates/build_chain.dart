@@ -15,6 +15,8 @@ library;
 import 'package:logic/src/data/action_id.dart';
 import 'package:logic/src/data/actions.dart';
 import 'package:logic/src/data/melvor_id.dart';
+import 'package:logic/src/solver/candidates/macro_expansion_context.dart'
+    show isForbiddenUntil, recordForbiddenItem;
 import 'package:logic/src/solver/core/goal.dart';
 import 'package:logic/src/state.dart';
 import 'package:logic/src/tick.dart' show ticksFromDuration;
@@ -323,6 +325,9 @@ class _NoProducer extends _ProducerSearchResult {
 /// Prefers unlocked producers, ranked by production rate.
 /// If no unlocked producer exists, returns the first locked producer found.
 /// If no producer exists at all, returns [_NoProducer].
+///
+/// Uses the forbidden-until cache to skip producers known to be blocked,
+/// and records newly discovered blocked producers in the cache.
 _ProducerSearchResult _findBestProducer(
   GlobalState state,
   MelvorId itemId,
@@ -340,11 +345,19 @@ _ProducerSearchResult _findBestProducer(
     return _NoProducer('No action produces ${itemId.localId}');
   }
 
-  // Separate into unlocked and locked
+  // Separate into unlocked, locked, and cached-as-blocked
   final unlocked = <SkillAction>[];
   final locked = <SkillAction>[];
 
   for (final action in allProducers) {
+    // Check forbidden-until cache first - skip if still blocked
+    if (isForbiddenUntil(itemId, action.id, state)) {
+      // This (item, action) pair is cached as blocked and still blocked
+      // Add to locked list so we can report it if no unlocked producers
+      locked.add(action);
+      continue;
+    }
+
     if (action.unlockLevel <= skillLevel(action.skill)) {
       unlocked.add(action);
     } else {
@@ -372,8 +385,19 @@ _ProducerSearchResult _findBestProducer(
   }
 
   // No unlocked producers - return the locked one with lowest level requirement
+  // and record it in the forbidden-until cache
   locked.sort((a, b) => a.unlockLevel.compareTo(b.unlockLevel));
-  return _ProducerLocked(locked.first);
+  final bestLocked = locked.first;
+
+  // Record in cache for future lookups
+  recordForbiddenItem(
+    itemId,
+    bestLocked.id,
+    bestLocked.skill,
+    bestLocked.unlockLevel,
+  );
+
+  return _ProducerLocked(bestLocked);
 }
 
 /// Converts a PlannedChain to a map of inputItem -> producerAction.

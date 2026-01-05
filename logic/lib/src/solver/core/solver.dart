@@ -42,9 +42,17 @@ import 'package:logic/src/solver/analysis/replan_boundary.dart';
 import 'package:logic/src/solver/analysis/unlock_boundaries.dart';
 import 'package:logic/src/solver/analysis/wait_for.dart';
 import 'package:logic/src/solver/analysis/watch_set.dart';
-import 'package:logic/src/solver/candidates/enumerate_candidates.dart';
+import 'package:logic/src/solver/candidates/enumerate_candidates.dart'
+    show
+        Candidates,
+        clearEmittedPrereqKeys,
+        clearRateCache,
+        enumerateCandidates,
+        rateCacheHits,
+        rateCacheMisses;
 import 'package:logic/src/solver/candidates/macro_candidate.dart';
-import 'package:logic/src/solver/candidates/macro_expansion_context.dart';
+import 'package:logic/src/solver/candidates/macro_expansion_context.dart'
+    show MacroExpansionContext, clearForbiddenUntilCache;
 import 'package:logic/src/solver/core/goal.dart';
 import 'package:logic/src/solver/core/solver_profile.dart';
 import 'package:logic/src/solver/core/value_model.dart';
@@ -1369,8 +1377,10 @@ class _NeighborCounter {
 /// Validates initial state and sets up the root node.
 /// Returns early success/failure result if applicable, otherwise null.
 SolverResult? _initializeSolver(_SolverContext ctx) {
-  // Clear the internal rate cache at start of each solve
+  // Clear all module-level caches at start of each solve
   clearRateCache();
+  clearForbiddenUntilCache();
+  clearEmittedPrereqKeys();
 
   // Check if goal is already satisfied
   if (ctx.goal.isSatisfied(ctx.initial)) {

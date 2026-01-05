@@ -45,6 +45,34 @@ const int defaultUpgradeCandidateCount = 8; // M
 const int defaultLockedWatchCount = 3; // L
 const double defaultInventoryThreshold = 0.8;
 
+/// Maximum recipe variants per tier (for consuming skill candidate capping).
+const int maxRecipeVariantsPerTier = 3;
+
+// ---------------------------------------------------------------------------
+// Prerequisite Macro Deduplication
+// ---------------------------------------------------------------------------
+
+/// Tracks emitted prerequisite macros per solve to dedupe by (skill, level).
+final Set<String> _emittedPrereqKeys = {};
+
+/// Clears the emitted prereq keys. Call at start of each solve().
+void clearEmittedPrereqKeys() => _emittedPrereqKeys.clear();
+
+/// Returns true if this is a new prereq, false if already emitted.
+///
+/// Used to ensure only one TrainSkillUntil(Mining, 70) is emitted even if
+/// multiple Adamantite-dependent recipes trigger it.
+bool shouldEmitPrereqMacro(Skill skill, int level) {
+  final key = '${skill.name}:$level';
+  return _emittedPrereqKeys.add(key);
+}
+
+/// Deduplicates macros by dedupeKey.
+List<MacroCandidate> _deduplicateMacros(List<MacroCandidate> macros) {
+  final seen = <String>{};
+  return macros.where((m) => seen.add(m.dedupeKey)).toList();
+}
+
 /// Summary of an action's expected rates for the planner.
 @immutable
 class ActionSummary {
@@ -918,6 +946,9 @@ Candidates enumerateCandidates(
     goal,
   );
 
+  // Deduplicate macros by dedupeKey to avoid redundant candidates
+  final dedupedMacros = _deduplicateMacros(augmentedMacros);
+
   // Find consuming activities relevant to the goal.
   // Include even activities that can start now, because we may need to
   // gather MORE inputs to complete the goal, not just enough to start.
@@ -955,7 +986,7 @@ Candidates enumerateCandidates(
       consumingActivityIds: consumingActivitiesToWatch,
       inventory: shouldEmitSellCandidate,
     ),
-    macros: augmentedMacros,
+    macros: dedupedMacros,
     consumingSkillStats: consumingStats,
   );
 }
@@ -1270,8 +1301,26 @@ _ConsumingSkillResult _selectConsumingSkillCandidatesWithStats(
   );
   consumersWithRates.sort(consumerSortCtx.compareByEffectiveRate);
 
-  // Select top N consumer actions
-  final selectedConsumers = consumersWithRates
+  // Cap recipe variants per tier (AFTER sorting, so we keep the best)
+  // This controls branching by limiting variants at each unlock level tier.
+  // Group by tier (unlock level / 10) and keep top N per tier.
+  final byTier = <int, List<_ConsumerEntry>>{};
+  for (final entry in consumersWithRates) {
+    final tier = entry.consumer.unlockLevel ~/ 10;
+    byTier.putIfAbsent(tier, () => []).add(entry);
+  }
+
+  final cappedConsumers = <_ConsumerEntry>[];
+  for (final tierEntries in byTier.values) {
+    // Already sorted by effective rate, just take top N per tier
+    cappedConsumers.addAll(tierEntries.take(maxRecipeVariantsPerTier));
+  }
+
+  // Re-sort the capped list to maintain overall order
+  cappedConsumers.sort(consumerSortCtx.compareByEffectiveRate);
+
+  // Select top N consumer actions from the capped list
+  final selectedConsumers = cappedConsumers
       .take(maxConsumerActions)
       .toList();
 
