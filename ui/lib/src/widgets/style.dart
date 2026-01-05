@@ -78,6 +78,9 @@ class Style {
   static Color xpBadgeBackgroundColor = Colors.grey.shade700;
   static Color xpBadgeIconColor = Colors.grey.shade200;
 
+  // Duration badge colors
+  static Color durationBadgeBackgroundColor = Colors.grey.shade700;
+
   // Mastery pool colors
   static Color masteryPoolBorderColor = Colors.amber.shade700;
   static Color masteryPoolBackgroundColor = Colors.amber.shade100;

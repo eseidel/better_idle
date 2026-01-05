@@ -9,17 +9,29 @@ import 'package:flutter/material.dart';
 /// border. The xp amount is displayed in a pill-shaped badge overlapping
 /// the bottom border.
 class XpBadgeCell extends StatelessWidget {
-  const XpBadgeCell({required this.xp, super.key});
+  const XpBadgeCell({
+    required this.xp,
+    this.inradius = TextBadgeCell.defaultInradius,
+    super.key,
+  });
 
   final int xp;
 
+  /// The size of the cell (width and height). Defaults to 48.
+  final double inradius;
+
   @override
   Widget build(BuildContext context) {
+    final iconSize = inradius * 28 / TextBadgeCell.defaultInradius;
     return CountBadgeCell(
       backgroundColor: Style.xpBadgeBackgroundColor,
       count: xp,
-      child: const Center(
-        child: CachedImage(assetPath: 'assets/media/main/xp.png', size: 28),
+      inradius: inradius,
+      child: Center(
+        child: CachedImage(
+          assetPath: 'assets/media/main/xp.png',
+          size: iconSize,
+        ),
       ),
     );
   }
