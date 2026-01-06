@@ -3,14 +3,11 @@ import 'package:logic/src/data/action_id.dart';
 import 'package:logic/src/data/actions.dart';
 import 'package:logic/src/data/melvor_id.dart';
 import 'package:logic/src/solver/analysis/estimate_rates.dart';
-import 'package:logic/src/solver/analysis/next_decision_delta.dart'
-    show infTicks;
-import 'package:logic/src/solver/analysis/replan_boundary.dart'
-    show WaitConditionSatisfied;
-import 'package:logic/src/solver/core/goal.dart' show Goal;
-import 'package:logic/src/solver/execution/plan.dart' show WaitStep;
-import 'package:logic/src/solver/interactions/interaction.dart'
-    show SellPolicy, effectiveCredits;
+import 'package:logic/src/solver/analysis/next_decision_delta.dart';
+import 'package:logic/src/solver/analysis/replan_boundary.dart';
+import 'package:logic/src/solver/core/goal.dart';
+import 'package:logic/src/solver/execution/plan.dart';
+import 'package:logic/src/solver/interactions/interaction.dart';
 import 'package:logic/src/state.dart';
 import 'package:logic/src/tick.dart';
 import 'package:meta/meta.dart';

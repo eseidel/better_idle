@@ -8,13 +8,13 @@ import 'dart:math';
 
 import 'package:logic/src/consume_ticks.dart';
 import 'package:logic/src/data/action_id.dart';
-import 'package:logic/src/data/actions.dart' show ActionRegistry, SkillAction;
+import 'package:logic/src/data/actions.dart';
 import 'package:logic/src/data/melvor_id.dart';
 import 'package:logic/src/solver/analysis/replan_boundary.dart';
 import 'package:logic/src/solver/analysis/wait_for.dart';
 import 'package:logic/src/solver/execution/state_advance.dart';
 import 'package:logic/src/state.dart';
-import 'package:logic/src/types/time_away.dart' show ActionStopReason;
+import 'package:logic/src/types/time_away.dart';
 
 /// Result of consuming ticks until a goal is reached.
 class ConsumeUntilResult {

@@ -5,7 +5,7 @@ library;
 
 import 'dart:math';
 
-import 'package:logic/src/data/actions.dart' show Skill;
+import 'package:logic/src/data/actions.dart';
 import 'package:logic/src/solver/analysis/estimate_rates.dart';
 import 'package:logic/src/solver/analysis/replan_boundary.dart';
 import 'package:logic/src/solver/analysis/unlock_boundaries.dart';

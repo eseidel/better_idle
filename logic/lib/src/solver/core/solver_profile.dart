@@ -1,7 +1,7 @@
 import 'dart:math';
 
 import 'package:collection/collection.dart';
-import 'package:logic/src/data/actions.dart' show Skill;
+import 'package:logic/src/data/actions.dart';
 import 'package:logic/src/data/melvor_id.dart';
 import 'package:logic/src/solver/candidates/macro_candidate.dart';
 import 'package:meta/meta.dart';

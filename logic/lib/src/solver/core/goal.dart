@@ -22,13 +22,8 @@ import 'package:equatable/equatable.dart';
 import 'package:logic/src/data/actions.dart';
 import 'package:logic/src/data/xp.dart';
 import 'package:logic/src/solver/analysis/estimate_rates.dart';
-import 'package:logic/src/solver/core/value_model.dart' show ValueModel;
-import 'package:logic/src/solver/interactions/interaction.dart'
-    show
-        ReserveConsumingInputsSpec,
-        SellAllPolicy,
-        SellPolicy,
-        effectiveCredits;
+import 'package:logic/src/solver/core/value_model.dart';
+import 'package:logic/src/solver/interactions/interaction.dart';
 import 'package:logic/src/state.dart';
 import 'package:meta/meta.dart';
 

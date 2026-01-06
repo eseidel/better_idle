@@ -11,7 +11,7 @@ import 'package:logic/src/data/actions.dart';
 import 'package:logic/src/solver/analysis/unlock_boundaries.dart';
 import 'package:logic/src/solver/analysis/wait_for.dart';
 import 'package:logic/src/solver/analysis/watch_set.dart';
-import 'package:logic/src/solver/interactions/interaction.dart' show SellPolicy;
+import 'package:logic/src/solver/interactions/interaction.dart';
 import 'package:logic/src/state.dart';
 
 /// Context for macro execution operations.

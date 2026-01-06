@@ -7,7 +7,7 @@ library;
 
 import 'dart:math';
 
-import 'package:logic/src/data/actions.dart' show SkillAction;
+import 'package:logic/src/data/actions.dart';
 import 'package:logic/src/data/melvor_id.dart';
 import 'package:logic/src/solver/analysis/replan_boundary.dart';
 import 'package:logic/src/solver/analysis/wait_for.dart';

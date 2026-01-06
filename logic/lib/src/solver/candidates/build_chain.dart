@@ -17,7 +17,7 @@ import 'package:logic/src/data/actions.dart';
 import 'package:logic/src/data/melvor_id.dart';
 import 'package:logic/src/solver/core/goal.dart';
 import 'package:logic/src/state.dart';
-import 'package:logic/src/tick.dart' show ticksFromDuration;
+import 'package:logic/src/tick.dart';
 
 // ---------------------------------------------------------------------------
 // Forbidden-Until Cache

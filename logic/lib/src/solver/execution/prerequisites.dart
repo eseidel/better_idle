@@ -6,7 +6,7 @@ library;
 
 import 'package:collection/collection.dart';
 import 'package:logic/src/data/action_id.dart';
-import 'package:logic/src/data/actions.dart' show Skill, SkillAction;
+import 'package:logic/src/data/actions.dart';
 import 'package:logic/src/data/melvor_id.dart';
 import 'package:logic/src/solver/analysis/estimate_rates.dart';
 import 'package:logic/src/solver/candidates/macro_candidate.dart';

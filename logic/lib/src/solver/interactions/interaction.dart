@@ -17,10 +17,10 @@ library;
 
 import 'package:equatable/equatable.dart';
 import 'package:logic/src/data/action_id.dart';
-import 'package:logic/src/data/actions.dart' show Skill;
+import 'package:logic/src/data/actions.dart';
 import 'package:logic/src/data/melvor_id.dart';
-import 'package:logic/src/solver/execution/plan.dart' show WaitStep;
-import 'package:logic/src/state.dart' show GlobalState;
+import 'package:logic/src/solver/execution/plan.dart';
+import 'package:logic/src/state.dart';
 import 'package:meta/meta.dart';
 
 /// Represents a possible interaction that can change game state.

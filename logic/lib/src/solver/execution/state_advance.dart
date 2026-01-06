@@ -3,7 +3,7 @@
 /// Provides O(1) expected-value advancement for planning.
 library;
 
-import 'package:logic/src/data/actions.dart' show Skill, SkillAction;
+import 'package:logic/src/data/actions.dart';
 import 'package:logic/src/data/currency.dart';
 import 'package:logic/src/solver/analysis/estimate_rates.dart';
 import 'package:logic/src/state.dart';
