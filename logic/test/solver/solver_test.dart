@@ -269,6 +269,32 @@ void main() {
     });
   });
 
+  group('solve', () {
+    test('succeeds for skill level goal', () {
+      final state = GlobalState.empty(testRegistries);
+      const goal = ReachSkillLevelGoal(Skill.woodcutting, 5);
+
+      final result = solve(state, goal);
+
+      expect(result, isA<SolverSuccess>());
+      final success = result as SolverSuccess;
+
+      // Verify plan has steps and positive duration
+      expect(success.plan.steps, isNotEmpty);
+      expect(success.plan.totalTicks, greaterThan(0));
+
+      // Verify terminal state satisfies the goal
+      expect(goal.isSatisfied(success.terminalState), isTrue);
+
+      // Execute the plan to verify it works in practice
+      final execResult = executePlan(state, success.plan, random: Random(42));
+      expect(
+        execResult.finalState.skillState(Skill.woodcutting).skillLevel,
+        greaterThanOrEqualTo(5),
+      );
+    });
+  });
+
   group('Plan', () {
     test('prettyPrint outputs plan summary', () {
       const testGoal = ReachGpGoal(100);
