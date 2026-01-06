@@ -1931,6 +1931,49 @@ GlobalState executeInventoryRecovery(
   return newState;
 }
 
+/// Executes GP goal recovery by selling items to reach target GP.
+///
+/// Returns `null` if recovery is not applicable (not a GP goal, already
+/// satisfied, or selling wouldn't help). Otherwise returns the new state
+/// and whether the goal is now satisfied.
+@visibleForTesting
+({GlobalState state, bool goalSatisfied})? executeGpGoalRecovery(
+  GlobalState state,
+  Goal goal,
+  SellPolicy sellPolicy,
+  Random random,
+  List<ReplanSegmentResult> segments,
+) {
+  if (goal is! ReachGpGoal) return null;
+
+  final gpGoal = goal;
+  final credits = effectiveCredits(state, sellPolicy);
+
+  // Check if selling would help: need enough effective credits but not enough
+  // actual GP
+  if (credits < gpGoal.targetGp || state.gp >= gpGoal.targetGp) {
+    return null;
+  }
+
+  // Sell to convert inventory to GP
+  final sellInteraction = SellItems(sellPolicy);
+  final newState = applyInteraction(state, sellInteraction, random: random);
+
+  // Record synthetic recovery segment
+  segments.add(
+    ReplanSegmentResult(
+      steps: [InteractionStep(sellInteraction)],
+      plannedTicks: 0,
+      actualTicks: 0,
+      deaths: 0,
+      triggeredReplan: false,
+      sellPolicy: sellPolicy,
+    ),
+  );
+
+  return (state: newState, goalSatisfied: gpGoal.isSatisfied(newState));
+}
+
 // ---------------------------------------------------------------------------
 // Controlled Replanning Entrypoint
 // ---------------------------------------------------------------------------
@@ -2122,32 +2165,17 @@ ReplanExecutionResult solveWithReplanning(
 
     // Recovery 3: GP Goal - if plan completed but goal not satisfied,
     // check if selling would reach it
-    if (!isGoalReached && goal is ReachGpGoal) {
-      final gpGoal = goal;
-      final credits = effectiveCredits(currentState, segmentSellPolicy);
-      if (credits >= gpGoal.targetGp && currentState.gp < gpGoal.targetGp) {
-        // Sell to convert inventory to GP
-        final sellInteraction = SellItems(segmentSellPolicy);
-        currentState = applyInteraction(
-          currentState,
-          sellInteraction,
-          random: random,
-        );
-
-        // Record synthetic recovery segment
-        segments.add(
-          ReplanSegmentResult(
-            steps: [InteractionStep(sellInteraction)],
-            plannedTicks: 0,
-            actualTicks: 0,
-            deaths: 0,
-            triggeredReplan: false,
-            sellPolicy: segmentSellPolicy,
-          ),
-        );
-
-        // Re-check goal after selling
-        if (gpGoal.isSatisfied(currentState)) {
+    if (!isGoalReached) {
+      final gpRecovery = executeGpGoalRecovery(
+        currentState,
+        goal,
+        segmentSellPolicy,
+        random,
+        segments,
+      );
+      if (gpRecovery != null) {
+        currentState = gpRecovery.state;
+        if (gpRecovery.goalSatisfied) {
           context = context.afterSegment(
             ticksElapsed: execResult.actualTicks,
             deaths: execResult.totalDeaths,
