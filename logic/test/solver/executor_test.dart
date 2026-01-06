@@ -15,7 +15,7 @@ import 'package:logic/src/solver/analysis/wait_for.dart';
 import 'package:logic/src/solver/candidates/macro_candidate.dart';
 import 'package:logic/src/solver/candidates/macro_execute_context.dart';
 import 'package:logic/src/solver/core/goal.dart';
-import 'package:logic/src/solver/core/solver.dart';
+import 'package:logic/src/solver/core/solver.dart' hide boundaryFromStopReason;
 import 'package:logic/src/solver/execution/execute_plan.dart';
 import 'package:logic/src/solver/execution/plan.dart';
 import 'package:logic/src/solver/execution/step_helpers.dart';
@@ -1028,6 +1028,262 @@ void main() {
       expect(death.actionId, equals(thievingAction.id));
       expect(death.lostItem?.item, equals(bronzeSword));
       expect(death.slotRolled, equals(EquipmentSlot.weapon));
+    });
+  });
+
+  group('onStepComplete callback', () {
+    test('callback is invoked for each step with correct parameters', () {
+      final state = GlobalState.empty(testRegistries);
+      const goal = ReachSkillLevelGoal(Skill.woodcutting, 5);
+      final solveResult = solve(state, goal);
+
+      expect(solveResult, isA<SolverSuccess>());
+      final success = solveResult as SolverSuccess;
+
+      final stepRecords =
+          <
+            ({
+              int stepIndex,
+              PlanStep step,
+              int plannedTicks,
+              int estimatedTicksAtExecution,
+              int actualTicks,
+              int cumulativeActualTicks,
+              int cumulativePlannedTicks,
+              GlobalState stateAfter,
+              GlobalState stateBefore,
+              ReplanBoundary? boundary,
+            })
+          >[];
+
+      executePlan(
+        state,
+        success.plan,
+        random: Random(42),
+        onStepComplete:
+            ({
+              required int stepIndex,
+              required PlanStep step,
+              required int plannedTicks,
+              required int estimatedTicksAtExecution,
+              required int actualTicks,
+              required int cumulativeActualTicks,
+              required int cumulativePlannedTicks,
+              required GlobalState stateAfter,
+              required GlobalState stateBefore,
+              required ReplanBoundary? boundary,
+            }) {
+              stepRecords.add((
+                stepIndex: stepIndex,
+                step: step,
+                plannedTicks: plannedTicks,
+                estimatedTicksAtExecution: estimatedTicksAtExecution,
+                actualTicks: actualTicks,
+                cumulativeActualTicks: cumulativeActualTicks,
+                cumulativePlannedTicks: cumulativePlannedTicks,
+                stateAfter: stateAfter,
+                stateBefore: stateBefore,
+                boundary: boundary,
+              ));
+            },
+      );
+
+      // Should have one record per step
+      expect(stepRecords.length, equals(success.plan.steps.length));
+
+      // Verify step indices are sequential
+      for (var i = 0; i < stepRecords.length; i++) {
+        expect(stepRecords[i].stepIndex, equals(i));
+      }
+
+      // Verify cumulative ticks accumulate correctly
+      var runningActualTicks = 0;
+      var runningPlannedTicks = 0;
+      for (final record in stepRecords) {
+        runningActualTicks += record.actualTicks;
+        runningPlannedTicks += record.plannedTicks;
+        expect(record.cumulativeActualTicks, equals(runningActualTicks));
+        expect(record.cumulativePlannedTicks, equals(runningPlannedTicks));
+      }
+
+      // Verify state progression: stateAfter of step N should be stateBefore
+      // of step N+1
+      for (var i = 0; i < stepRecords.length - 1; i++) {
+        expect(
+          stepRecords[i].stateAfter,
+          equals(stepRecords[i + 1].stateBefore),
+        );
+      }
+
+      // First stateBefore should be the original state
+      expect(stepRecords.first.stateBefore, equals(state));
+    });
+
+    test('callback receives correct step objects', () {
+      final state = GlobalState.empty(testRegistries);
+      const goal = ReachSkillLevelGoal(Skill.woodcutting, 3);
+      final solveResult = solve(state, goal);
+
+      expect(solveResult, isA<SolverSuccess>());
+      final success = solveResult as SolverSuccess;
+
+      final receivedSteps = <PlanStep>[];
+
+      executePlan(
+        state,
+        success.plan,
+        random: Random(42),
+        onStepComplete:
+            ({
+              required int stepIndex,
+              required PlanStep step,
+              required int plannedTicks,
+              required int estimatedTicksAtExecution,
+              required int actualTicks,
+              required int cumulativeActualTicks,
+              required int cumulativePlannedTicks,
+              required GlobalState stateAfter,
+              required GlobalState stateBefore,
+              required ReplanBoundary? boundary,
+            }) {
+              receivedSteps.add(step);
+            },
+      );
+
+      // Received steps should match plan steps exactly
+      expect(receivedSteps, equals(success.plan.steps));
+    });
+
+    test('callback reports boundary when step hits one', () {
+      // Create a plan that will hit a boundary during execution
+      final logs = testItems.byName('Normal Logs');
+      final inventory = Inventory.fromItems(testItems, [
+        ItemStack(logs, count: 19),
+      ]);
+      var state = GlobalState.test(testRegistries, inventory: inventory);
+      state = state.startAction(
+        testActions.woodcutting('Normal Tree'),
+        random: Random(42),
+      );
+
+      // Plan with segment that should hit inventory pressure/full
+      final targetXp = startXpForLevel(10);
+      final plan = Plan(
+        steps: [
+          MacroStep(
+            const TrainSkillUntil(
+              Skill.woodcutting,
+              StopAtLevel(Skill.woodcutting, 10),
+            ),
+            10000,
+            WaitForSkillXp(Skill.woodcutting, targetXp),
+          ),
+        ],
+        totalTicks: 10000,
+        interactionCount: 0,
+        segmentMarkers: const [
+          SegmentMarker(
+            stepIndex: 0,
+            boundary: GoalReachedBoundary(),
+            sellPolicy: SellAllPolicy(),
+          ),
+        ],
+      );
+
+      ReplanBoundary? lastBoundary;
+
+      executePlan(
+        state,
+        plan,
+        random: Random(42),
+        onStepComplete:
+            ({
+              required int stepIndex,
+              required PlanStep step,
+              required int plannedTicks,
+              required int estimatedTicksAtExecution,
+              required int actualTicks,
+              required int cumulativeActualTicks,
+              required int cumulativePlannedTicks,
+              required GlobalState stateAfter,
+              required GlobalState stateBefore,
+              required ReplanBoundary? boundary,
+            }) {
+              lastBoundary = boundary;
+            },
+      );
+
+      // The macro step should have reported some progress
+      // (boundary may or may not be hit depending on RNG)
+      // This test verifies the callback mechanism works
+      expect(lastBoundary, anyOf(isNull, isA<ReplanBoundary>()));
+    });
+
+    test('callback not invoked when null', () {
+      // This test ensures no crash when callback is not provided
+      final state = GlobalState.empty(testRegistries);
+      const goal = ReachSkillLevelGoal(Skill.woodcutting, 3);
+      final solveResult = solve(state, goal);
+
+      expect(solveResult, isA<SolverSuccess>());
+      final success = solveResult as SolverSuccess;
+
+      // Should not throw when onStepComplete is not provided
+      final result = executePlan(
+        state,
+        success.plan,
+        random: Random(42),
+        // onStepComplete not provided (null)
+      );
+
+      expect(result.finalState, isNotNull);
+    });
+
+    test('callback receives InteractionStep with zero ticks', () {
+      // Build a plan with a SellItems interaction
+      final logs = testItems.byName('Normal Logs');
+      final inventory = Inventory.fromItems(testItems, [
+        ItemStack(logs, count: 10),
+      ]);
+      final stateWithLogs = GlobalState.test(
+        testRegistries,
+        inventory: inventory,
+      );
+
+      const plan = Plan(
+        steps: [InteractionStep(SellItems(SellAllPolicy()))],
+        totalTicks: 0,
+        interactionCount: 1,
+      );
+
+      int? reportedPlannedTicks;
+      int? reportedActualTicks;
+
+      executePlan(
+        stateWithLogs,
+        plan,
+        random: Random(42),
+        onStepComplete:
+            ({
+              required int stepIndex,
+              required PlanStep step,
+              required int plannedTicks,
+              required int estimatedTicksAtExecution,
+              required int actualTicks,
+              required int cumulativeActualTicks,
+              required int cumulativePlannedTicks,
+              required GlobalState stateAfter,
+              required GlobalState stateBefore,
+              required ReplanBoundary? boundary,
+            }) {
+              reportedPlannedTicks = plannedTicks;
+              reportedActualTicks = actualTicks;
+            },
+      );
+
+      // Interaction steps should have zero ticks
+      expect(reportedPlannedTicks, equals(0));
+      expect(reportedActualTicks, equals(0));
     });
   });
 

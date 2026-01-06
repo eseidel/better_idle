@@ -962,6 +962,70 @@ void main() {
       expect(result.ticksElapsed, greaterThan(0));
     });
 
+    test('switches to producer and restarts consumer when '
+        'inputs depleted during WaitForSkillXp', () {
+      // This test explicitly verifies the code path at consume_until.dart:157
+      // where `waitFor is WaitForSkillXp && originalActivityId != null`.
+      //
+      // Setup: Start firemaking with only 1 log.
+      // After burning that log, consumeUntil should:
+      // 1. Detect the InputsDepleted stop reason
+      // 2. Check that waitFor is WaitForSkillXp and originalActivityId != null
+      // 3. Find a producer (woodcutting) for the missing input (logs)
+      // 4. Switch to woodcutting to gather logs
+      // 5. Switch back to firemaking and continue
+      // 6. Eventually reach the XP goal
+
+      // Start with exactly 1 log - just enough to start, but will run out
+      final normalLogs = testItems.byName('Normal Logs');
+      final state = GlobalState.test(
+        testRegistries,
+        inventory: Inventory.fromItems(testItems, [
+          ItemStack(normalLogs, count: 1),
+        ]),
+      );
+
+      // Start firemaking (a consuming action that needs logs)
+      final firemakingAction = testActions.firemaking('Burn Normal Logs');
+      final runningState = state.startAction(
+        firemakingAction,
+        random: Random(42),
+      );
+
+      // Verify we're starting with exactly 1 log
+      expect(runningState.inventory.countById(normalLogs.id), 1);
+
+      // Wait for 80 firemaking XP (requires 2 burns = 2 logs)
+      // We only have 1 log, so the producer-switching logic must kick in
+      const waitFor = WaitForSkillXp(Skill.firemaking, 80);
+      final result = consumeUntil(runningState, waitFor, random: Random(42));
+
+      // Should have reached the firemaking XP goal
+      expect(
+        result.state.skillState(Skill.firemaking).xp,
+        greaterThanOrEqualTo(80),
+        reason: 'Should have reached 80 firemaking XP after gathering logs',
+      );
+
+      // Should have gained woodcutting XP from gathering logs
+      expect(
+        result.state.skillState(Skill.woodcutting).xp,
+        greaterThan(0),
+        reason:
+            'Should have gained woodcutting XP from producer action '
+            '(cutting logs)',
+      );
+
+      // The boundary should indicate success (WaitConditionSatisfied)
+      expect(
+        result.boundary,
+        isA<WaitConditionSatisfied>(),
+        reason:
+            'Should complete with WaitConditionSatisfied, '
+            'got: ${result.boundary}',
+      );
+    });
+
     test('returns NoProgressPossible when action does not progress goal', () {
       // Start woodcutting but wait for fishing XP - no progress possible
       var state = GlobalState.empty(testRegistries);
@@ -1751,6 +1815,125 @@ void main() {
         result.finalState.skillState(Skill.woodcutting).skillLevel,
         equals(20),
       );
+    });
+  });
+
+  group('ReplanContext.afterReplan', () {
+    test('accumulates ticks, deaths, and history', () {
+      const config = ReplanConfig(maxReplans: 5);
+      var context = const ReplanContext(config: config);
+
+      // Initial state
+      expect(context.replanCount, 0);
+      expect(context.totalTicks, 0);
+      expect(context.totalDeaths, 0);
+      expect(context.replanHistory, isEmpty);
+      expect(context.canReplan, isTrue);
+
+      // First replan event - use InventoryFull which has simple construction
+      const event1 = ReplanEvent(
+        boundary: InventoryFull(),
+        stateHash: 12345,
+        ticksAtReplan: 100,
+        reason: 'Inventory full',
+      );
+      context = context.afterReplan(
+        event: event1,
+        ticksElapsed: 100,
+        deaths: 0,
+      );
+
+      expect(context.replanCount, 1);
+      expect(context.totalTicks, 100);
+      expect(context.totalDeaths, 0);
+      expect(context.replanHistory.length, 1);
+      expect(context.replanHistory[0].boundary, isA<InventoryFull>());
+      expect(context.replanHistory[0].ticksAtReplan, 100);
+
+      // Second replan event with deaths
+      const event2 = ReplanEvent(
+        boundary: Death(),
+        stateHash: 67890,
+        ticksAtReplan: 350,
+        reason: 'Player died',
+      );
+      context = context.afterReplan(
+        event: event2,
+        ticksElapsed: 250,
+        deaths: 1,
+      );
+
+      expect(context.replanCount, 2);
+      expect(context.totalTicks, 350);
+      expect(context.totalDeaths, 1);
+      expect(context.replanHistory.length, 2);
+      expect(context.replanHistory[1].boundary, isA<Death>());
+
+      // Third replan with more deaths
+      const event3 = ReplanEvent(
+        boundary: NoProgressPossible(reason: 'Stuck'),
+        stateHash: 11111,
+        ticksAtReplan: 500,
+        reason: 'No progress possible',
+      );
+      context = context.afterReplan(
+        event: event3,
+        ticksElapsed: 150,
+        deaths: 2,
+      );
+
+      expect(context.replanCount, 3);
+      expect(context.totalTicks, 500);
+      expect(context.totalDeaths, 3);
+      expect(context.replanHistory.length, 3);
+    });
+
+    test('respects replan limit', () {
+      const config = ReplanConfig(maxReplans: 2);
+      var context = const ReplanContext(config: config);
+
+      const event = ReplanEvent(
+        boundary: InventoryFull(),
+        stateHash: 12345,
+        ticksAtReplan: 50,
+        reason: 'Inventory full',
+      );
+
+      // First replan - still can replan
+      context = context.afterReplan(event: event, ticksElapsed: 50, deaths: 0);
+      expect(context.replanCount, 1);
+      expect(context.canReplan, isTrue);
+      expect(context.replanLimitExceeded, isFalse);
+
+      // Second replan - hits limit
+      context = context.afterReplan(event: event, ticksElapsed: 50, deaths: 0);
+      expect(context.replanCount, 2);
+      expect(context.canReplan, isFalse);
+      expect(context.replanLimitExceeded, isTrue);
+    });
+
+    test('respects time budget', () {
+      const config = ReplanConfig(maxReplans: 100, maxTotalTicks: 200);
+      var context = const ReplanContext(config: config);
+
+      const event = ReplanEvent(
+        boundary: InventoryFull(),
+        stateHash: 12345,
+        ticksAtReplan: 100,
+        reason: 'Inventory full',
+      );
+
+      // First replan - within budget
+      context = context.afterReplan(event: event, ticksElapsed: 100, deaths: 0);
+      expect(context.totalTicks, 100);
+      expect(context.canReplan, isTrue);
+      expect(context.timeBudgetExceeded, isFalse);
+
+      // Second replan - exceeds budget
+      context = context.afterReplan(event: event, ticksElapsed: 150, deaths: 0);
+      expect(context.totalTicks, 250);
+      expect(context.canReplan, isFalse);
+      expect(context.timeBudgetExceeded, isTrue);
     });
   });
 
