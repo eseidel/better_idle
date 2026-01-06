@@ -1985,22 +1985,16 @@ ReplanExecutionResult solveWithReplanning(
   while (true) {
     // Check budget constraints before solving
     if (context.replanLimitExceeded) {
-      return ReplanExecutionResult(
+      return context.toResult(
         finalState: currentState,
-        totalTicks: context.totalTicks,
-        totalDeaths: context.totalDeaths,
-        replanCount: context.replanCount,
         segments: segments,
         terminatingBoundary: ReplanLimitExceeded(config.maxReplans),
       );
     }
 
     if (context.timeBudgetExceeded) {
-      return ReplanExecutionResult(
+      return context.toResult(
         finalState: currentState,
-        totalTicks: context.totalTicks,
-        totalDeaths: context.totalDeaths,
-        replanCount: context.replanCount,
         segments: segments,
         terminatingBoundary: TimeBudgetExceeded(
           config.maxTotalTicks,
@@ -2011,13 +2005,7 @@ ReplanExecutionResult solveWithReplanning(
 
     // Check if goal is already satisfied
     if (goal.isSatisfied(currentState)) {
-      return ReplanExecutionResult(
-        finalState: currentState,
-        totalTicks: context.totalTicks,
-        totalDeaths: context.totalDeaths,
-        replanCount: context.replanCount,
-        segments: segments,
-      );
+      return context.toResult(finalState: currentState, segments: segments);
     }
 
     // Compute sellPolicy using SegmentContext (same as solveSegment does)
@@ -2041,11 +2029,8 @@ ReplanExecutionResult solveWithReplanning(
 
     // Handle solve failure
     if (solveResult is SolverFailed) {
-      return ReplanExecutionResult(
+      return context.toResult(
         finalState: currentState,
-        totalTicks: context.totalTicks,
-        totalDeaths: context.totalDeaths,
-        replanCount: context.replanCount,
         segments: segments,
         terminatingBoundary: NoProgressPossible(
           reason: 'Solver failed: ${solveResult.failure.reason}',
@@ -2178,13 +2163,7 @@ ReplanExecutionResult solveWithReplanning(
             ticksElapsed: execResult.actualTicks,
             deaths: execResult.totalDeaths,
           );
-          return ReplanExecutionResult(
-            finalState: currentState,
-            totalTicks: context.totalTicks,
-            totalDeaths: context.totalDeaths,
-            replanCount: context.replanCount,
-            segments: segments,
-          );
+          return context.toResult(finalState: currentState, segments: segments);
         }
       }
     }
@@ -2195,13 +2174,7 @@ ReplanExecutionResult solveWithReplanning(
         ticksElapsed: execResult.actualTicks,
         deaths: execResult.totalDeaths,
       );
-      return ReplanExecutionResult(
-        finalState: currentState,
-        totalTicks: context.totalTicks,
-        totalDeaths: context.totalDeaths,
-        replanCount: context.replanCount,
-        segments: segments,
-      );
+      return context.toResult(finalState: currentState, segments: segments);
     }
 
     // If no replan needed, something is wrong (plan should reach goal)
@@ -2210,11 +2183,8 @@ ReplanExecutionResult solveWithReplanning(
         ticksElapsed: execResult.actualTicks,
         deaths: execResult.totalDeaths,
       );
-      return ReplanExecutionResult(
+      return context.toResult(
         finalState: currentState,
-        totalTicks: context.totalTicks,
-        totalDeaths: context.totalDeaths,
-        replanCount: context.replanCount,
         segments: segments,
         terminatingBoundary: const NoProgressPossible(
           reason: 'Plan completed without reaching goal and no replan needed',

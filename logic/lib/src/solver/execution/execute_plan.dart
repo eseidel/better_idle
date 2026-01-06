@@ -392,6 +392,22 @@ class ReplanContext {
       replanHistory: replanHistory,
     );
   }
+
+  /// Creates a [ReplanExecutionResult] from this context.
+  ReplanExecutionResult toResult({
+    required GlobalState finalState,
+    required List<ReplanSegmentResult> segments,
+    ReplanBoundary? terminatingBoundary,
+  }) {
+    return ReplanExecutionResult(
+      finalState: finalState,
+      totalTicks: totalTicks,
+      totalDeaths: totalDeaths,
+      replanCount: replanCount,
+      segments: segments,
+      terminatingBoundary: terminatingBoundary,
+    );
+  }
 }
 
 /// Records a replan event for debugging.
