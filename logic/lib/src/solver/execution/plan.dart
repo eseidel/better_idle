@@ -29,6 +29,7 @@ import 'package:logic/src/solver/analysis/unlock_boundaries.dart';
 import 'package:logic/src/solver/analysis/wait_for.dart';
 import 'package:logic/src/solver/analysis/watch_set.dart';
 import 'package:logic/src/solver/candidates/macro_candidate.dart';
+import 'package:logic/src/solver/candidates/macro_execute_context.dart';
 import 'package:logic/src/solver/core/solver_profile.dart';
 import 'package:logic/src/solver/execution/consume_until.dart';
 import 'package:logic/src/solver/execution/step_helpers.dart';
@@ -289,14 +290,15 @@ class MacroStep extends PlanStep {
     SellPolicy? segmentSellPolicy,
   }) {
     // Delegate to macro.execute() which handles the execution logic
-    final result = macro.execute(
-      state,
-      waitFor,
+    final context = MacroExecuteContext(
+      state: state,
+      waitFor: waitFor,
       random: random,
       boundaries: boundaries,
       watchSet: watchSet,
       segmentSellPolicy: segmentSellPolicy,
     );
+    final result = macro.execute(context);
     return StepResult(
       state: result.state,
       ticksElapsed: result.ticksElapsed,

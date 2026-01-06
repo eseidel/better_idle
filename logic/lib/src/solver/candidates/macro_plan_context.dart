@@ -5,17 +5,13 @@
 /// internals.
 library;
 
-import 'dart:math';
-
 import 'package:logic/src/data/action_id.dart';
 import 'package:logic/src/data/actions.dart';
 import 'package:logic/src/data/melvor_id.dart';
 import 'package:logic/src/solver/analysis/unlock_boundaries.dart';
-import 'package:logic/src/solver/analysis/watch_set.dart';
 import 'package:logic/src/solver/candidates/macro_candidate.dart';
 import 'package:logic/src/solver/core/goal.dart';
 import 'package:logic/src/solver/execution/prerequisites.dart';
-import 'package:logic/src/solver/interactions/interaction.dart' show SellPolicy;
 import 'package:logic/src/state.dart';
 
 /// Context for macro planning operations.
@@ -364,37 +360,4 @@ class MacroPlanContext {
     countNewSlots(targetItemId, quantity);
     return newSlots;
   }
-}
-
-// ---------------------------------------------------------------------------
-// Macro Execute Context
-// ---------------------------------------------------------------------------
-
-/// Context for macro execution operations.
-///
-/// Provides access to execution-time utilities that macros need during
-/// stochastic simulation. This bundles the parameters that would otherwise
-/// be passed individually to [MacroCandidate.execute].
-///
-/// Unlike [MacroPlanContext] which uses expected-value modeling,
-/// [MacroExecuteContext] is used for actual execution with randomness.
-class MacroExecuteContext {
-  const MacroExecuteContext({
-    required this.random,
-    this.boundaries,
-    this.watchSet,
-    this.segmentSellPolicy,
-  });
-
-  /// Random number generator for stochastic simulation.
-  final Random random;
-
-  /// Skill unlock boundaries for re-evaluating stop rules.
-  final Map<Skill, SkillBoundaries>? boundaries;
-
-  /// Enables mid-macro boundary detection if provided.
-  final WatchSet? watchSet;
-
-  /// Sell policy for handling inventory full during execution.
-  final SellPolicy? segmentSellPolicy;
 }

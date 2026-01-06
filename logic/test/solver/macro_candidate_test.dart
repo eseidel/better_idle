@@ -6,6 +6,7 @@ import 'package:logic/src/solver/analysis/unlock_boundaries.dart';
 import 'package:logic/src/solver/analysis/wait_for.dart';
 import 'package:logic/src/solver/candidates/build_chain.dart';
 import 'package:logic/src/solver/candidates/macro_candidate.dart';
+import 'package:logic/src/solver/candidates/macro_execute_context.dart';
 import 'package:logic/src/solver/candidates/macro_plan_context.dart';
 import 'package:logic/src/solver/core/goal.dart';
 import 'package:logic/src/solver/interactions/interaction.dart';
@@ -976,7 +977,13 @@ void main() {
             startCount: 0,
           );
 
-          final result = macro.execute(state, waitFor, random: Random(42));
+          final result = macro.execute(
+            MacroExecuteContext(
+              state: state,
+              waitFor: waitFor,
+              random: Random(42),
+            ),
+          );
 
           // Should have produced some logs
           final logsCount = result.state.inventory.countOfItem(
@@ -998,7 +1005,13 @@ void main() {
             startCount: 0,
           );
 
-          final result = macro.execute(state, waitFor, random: Random(42));
+          final result = macro.execute(
+            MacroExecuteContext(
+              state: state,
+              waitFor: waitFor,
+              random: Random(42),
+            ),
+          );
 
           expect(result.boundary, isA<NoProgressPossible>());
           expect(result.ticksElapsed, 0);
@@ -1015,7 +1028,13 @@ void main() {
             startCount: 0,
           );
 
-          final result = macro.execute(state, waitFor, random: Random(42));
+          final result = macro.execute(
+            MacroExecuteContext(
+              state: state,
+              waitFor: waitFor,
+              random: Random(42),
+            ),
+          );
 
           // Execution should have switched to woodcutting action
           expect(result.state.activeAction, isNotNull);
@@ -1042,7 +1061,13 @@ void main() {
             startCount: 10,
           );
 
-          final result = macro.execute(state, waitFor, random: Random(42));
+          final result = macro.execute(
+            MacroExecuteContext(
+              state: state,
+              waitFor: waitFor,
+              random: Random(42),
+            ),
+          );
 
           // Should have at least 15 logs total (10 + 5 delta)
           final logsCount = result.state.inventory.countOfItem(normalLogs);
@@ -1063,7 +1088,13 @@ void main() {
             startCount: 0,
           );
 
-          final result = macro.execute(state, waitFor, random: Random(42));
+          final result = macro.execute(
+            MacroExecuteContext(
+              state: state,
+              waitFor: waitFor,
+              random: Random(42),
+            ),
+          );
 
           // Should have produced logs
           final logsCount = result.state.inventory.countOfItem(
@@ -1102,7 +1133,13 @@ void main() {
             startCount: 2,
           );
 
-          final result = macro.execute(state, waitFor, random: Random(42));
+          final result = macro.execute(
+            MacroExecuteContext(
+              state: state,
+              waitFor: waitFor,
+              random: Random(42),
+            ),
+          );
 
           // Should be able to produce logs since they stack on existing slot
           final logsCount = result.state.inventory.countOfItem(normalLogs);
@@ -1168,7 +1205,13 @@ void main() {
             10,
           );
 
-          final result = macro.execute(state, waitFor, random: Random(42));
+          final result = macro.execute(
+            MacroExecuteContext(
+              state: state,
+              waitFor: waitFor,
+              random: Random(42),
+            ),
+          );
 
           // Should have produced at least 10 copper ore
           final oreCount = result.state.inventory.countOfItem(
@@ -1193,7 +1236,13 @@ void main() {
             10,
           );
 
-          final result = macro.execute(state, waitFor, random: Random(42));
+          final result = macro.execute(
+            MacroExecuteContext(
+              state: state,
+              waitFor: waitFor,
+              random: Random(42),
+            ),
+          );
 
           // Should return immediately with no ticks elapsed
           expect(result.ticksElapsed, 0);
@@ -1215,7 +1264,13 @@ void main() {
             15,
           );
 
-          final result = macro.execute(state, waitFor, random: Random(42));
+          final result = macro.execute(
+            MacroExecuteContext(
+              state: state,
+              waitFor: waitFor,
+              random: Random(42),
+            ),
+          );
 
           // Should have produced to reach at least 15
           final oreCount = result.state.inventory.countOfItem(copperOre);
@@ -1233,7 +1288,13 @@ void main() {
             10,
           );
 
-          final result = macro.execute(state, waitFor, random: Random(42));
+          final result = macro.execute(
+            MacroExecuteContext(
+              state: state,
+              waitFor: waitFor,
+              random: Random(42),
+            ),
+          );
 
           expect(result.boundary, isA<NoProgressPossible>());
           expect(result.ticksElapsed, 0);
@@ -1248,7 +1309,13 @@ void main() {
             5,
           );
 
-          final result = macro.execute(state, waitFor, random: Random(42));
+          final result = macro.execute(
+            MacroExecuteContext(
+              state: state,
+              waitFor: waitFor,
+              random: Random(42),
+            ),
+          );
 
           // Should have switched to woodcutting and produced logs
           expect(result.state.activeAction, isNotNull);
@@ -1298,10 +1365,12 @@ void main() {
 
           // With sell policy, should be able to make room and produce
           final result = macro.execute(
-            state,
-            waitFor,
-            random: Random(42),
-            segmentSellPolicy: const SellAllPolicy(),
+            MacroExecuteContext(
+              state: state,
+              waitFor: waitFor,
+              random: Random(42),
+              segmentSellPolicy: const SellAllPolicy(),
+            ),
           );
 
           // Should have sold items and produced ore
@@ -1352,9 +1421,11 @@ void main() {
 
           // Without sell policy, should fail with inventory full
           final result = macro.execute(
-            state,
-            waitFor,
-            random: Random(42),
+            MacroExecuteContext(
+              state: state,
+              waitFor: waitFor,
+              random: Random(42),
+            ),
             // No segmentSellPolicy
           );
 
@@ -1470,7 +1541,13 @@ void main() {
             10,
           );
 
-          final result = macro.execute(state, waitFor, random: Random(42));
+          final result = macro.execute(
+            MacroExecuteContext(
+              state: state,
+              waitFor: waitFor,
+              random: Random(42),
+            ),
+          );
 
           // Should have produced at least 10 copper ore
           final oreCount = result.state.inventory.countOfItem(
@@ -1501,7 +1578,13 @@ void main() {
             10,
           );
 
-          final result = macro.execute(state, waitFor, random: Random(42));
+          final result = macro.execute(
+            MacroExecuteContext(
+              state: state,
+              waitFor: waitFor,
+              random: Random(42),
+            ),
+          );
 
           // Should return immediately with no ticks elapsed
           expect(result.ticksElapsed, 0);
@@ -1529,7 +1612,13 @@ void main() {
             15,
           );
 
-          final result = macro.execute(state, waitFor, random: Random(42));
+          final result = macro.execute(
+            MacroExecuteContext(
+              state: state,
+              waitFor: waitFor,
+              random: Random(42),
+            ),
+          );
 
           // Should have produced to reach at least 15
           final oreCount = result.state.inventory.countOfItem(copperOre);
@@ -1557,7 +1646,13 @@ void main() {
             5,
           );
 
-          final result = macro.execute(state, waitFor, random: Random(42));
+          final result = macro.execute(
+            MacroExecuteContext(
+              state: state,
+              waitFor: waitFor,
+              random: Random(42),
+            ),
+          );
 
           // Should have switched to mining and produced ore
           expect(result.state.activeAction?.id, miningAction.id);
@@ -1583,7 +1678,13 @@ void main() {
             5,
           );
 
-          final result = macro.execute(state, waitFor, random: Random(42));
+          final result = macro.execute(
+            MacroExecuteContext(
+              state: state,
+              waitFor: waitFor,
+              random: Random(42),
+            ),
+          );
 
           // Should have switched to tin mining specifically
           expect(result.state.activeAction?.id, miningAction.id);
@@ -1639,10 +1740,12 @@ void main() {
 
           // With sell policy, should be able to make room and produce
           final result = macro.execute(
-            state,
-            waitFor,
-            random: Random(42),
-            segmentSellPolicy: const SellAllPolicy(),
+            MacroExecuteContext(
+              state: state,
+              waitFor: waitFor,
+              random: Random(42),
+              segmentSellPolicy: const SellAllPolicy(),
+            ),
           );
 
           // Should have sold items and produced ore
@@ -1699,9 +1802,11 @@ void main() {
 
           // Without sell policy, should fail with inventory full
           final result = macro.execute(
-            state,
-            waitFor,
-            random: Random(42),
+            MacroExecuteContext(
+              state: state,
+              waitFor: waitFor,
+              random: Random(42),
+            ),
             // No segmentSellPolicy
           );
 

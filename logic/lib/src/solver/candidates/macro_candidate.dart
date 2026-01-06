@@ -23,8 +23,8 @@ import 'package:logic/src/solver/analysis/replan_boundary.dart'
         WaitConditionSatisfied;
 import 'package:logic/src/solver/analysis/unlock_boundaries.dart';
 import 'package:logic/src/solver/analysis/wait_for.dart';
-import 'package:logic/src/solver/analysis/watch_set.dart';
 import 'package:logic/src/solver/candidates/build_chain.dart';
+import 'package:logic/src/solver/candidates/macro_execute_context.dart';
 import 'package:logic/src/solver/candidates/macro_plan_context.dart';
 import 'package:logic/src/solver/core/goal.dart' show ReachSkillLevelGoal;
 import 'package:logic/src/solver/execution/consume_until.dart';
@@ -203,24 +203,12 @@ sealed class MacroCandidate {
   /// **Execution phase**: Runs actual stochastic simulation.
   ///
   /// Called by `MacroStep.execute()` when executing a plan that the solver has
-  /// already chosen. Uses real randomness and runs until the [waitFor]
-  /// condition from planning is satisfied.
+  /// already chosen. Uses real randomness and runs until the wait condition
+  /// from planning is satisfied.
   ///
-  /// - [state]: Current game state before execution.
-  /// - [waitFor]: Composite wait condition from planning (determines when
-  ///   to stop).
-  /// - [random]: RNG for stochastic simulation (drops, combat, etc.).
-  /// - [boundaries]: Skill unlock boundaries for re-evaluating stop rules.
-  /// - [watchSet]: Enables mid-macro boundary detection if provided.
-  /// - [segmentSellPolicy]: Sell policy for handling inventory full.
-  MacroExecuteResult execute(
-    GlobalState state,
-    WaitFor waitFor, {
-    required Random random,
-    Map<Skill, SkillBoundaries>? boundaries,
-    WatchSet? watchSet,
-    SellPolicy? segmentSellPolicy,
-  });
+  /// - [context]: Execution context containing state, wait condition, RNG,
+  ///   boundaries, and policies.
+  MacroExecuteResult execute(MacroExecuteContext context);
 
   /// Serializes this [MacroCandidate] to a JSON-compatible map.
   Map<String, dynamic> toJson();
@@ -415,33 +403,30 @@ class TrainSkillUntil extends MacroCandidate {
   };
 
   @override
-  MacroExecuteResult execute(
-    GlobalState state,
-    WaitFor waitFor, {
-    required Random random,
-    Map<Skill, SkillBoundaries>? boundaries,
-    WatchSet? watchSet,
-    SellPolicy? segmentSellPolicy,
-  }) {
-    var executionState = state;
-    var executionWaitFor = waitFor;
+  MacroExecuteResult execute(MacroExecuteContext context) {
+    var executionState = context.state;
+    var executionWaitFor = context.waitFor;
 
     // Use the action that was determined during planning
     final actionToUse =
         actionId ??
-        findBestActionForSkill(state, skill, ReachSkillLevelGoal(skill, 99));
-    if (actionToUse != null && state.activeAction?.id != actionToUse) {
+        findBestActionForSkill(
+          context.state,
+          skill,
+          ReachSkillLevelGoal(skill, 99),
+        );
+    if (actionToUse != null && context.state.activeAction?.id != actionToUse) {
       executionState = applyInteraction(
-        state,
+        context.state,
         SwitchActivity(actionToUse),
-        random: random,
+        random: context.random,
       );
     }
 
     // Regenerate WaitFor based on actual execution state and action
-    if (boundaries != null) {
+    if (context.boundaries != null) {
       final waitConditions = allStops
-          .map((rule) => rule.toWaitFor(executionState, boundaries))
+          .map((rule) => rule.toWaitFor(executionState, context.boundaries!))
           .toList();
       executionWaitFor = waitConditions.length == 1
           ? waitConditions.first
@@ -449,12 +434,12 @@ class TrainSkillUntil extends MacroCandidate {
     }
 
     // Execute with mid-macro boundary checking if watchSet provided
-    if (watchSet != null) {
+    if (context.watchSet != null) {
       final stepResult = executeTrainSkillWithBoundaryChecks(
         executionState,
         executionWaitFor,
-        random,
-        watchSet,
+        context.random,
+        context.watchSet!,
       );
       return MacroExecuteResult(
         state: stepResult.state,
@@ -468,7 +453,7 @@ class TrainSkillUntil extends MacroCandidate {
     final result = consumeUntil(
       executionState,
       executionWaitFor,
-      random: random,
+      random: context.random,
     );
     return MacroExecuteResult(
       state: result.state,
@@ -602,15 +587,8 @@ class AcquireItem extends MacroCandidate {
   };
 
   @override
-  MacroExecuteResult execute(
-    GlobalState state,
-    WaitFor waitFor, {
-    required Random random,
-    Map<Skill, SkillBoundaries>? boundaries,
-    WatchSet? watchSet,
-    SellPolicy? segmentSellPolicy,
-  }) {
-    var executionState = state;
+  MacroExecuteResult execute(MacroExecuteContext context) {
+    var executionState = context.state;
 
     // Execute AcquireItem by finding producer and running until target
     final startCount = countItem(executionState, itemId);
@@ -629,7 +607,7 @@ class AcquireItem extends MacroCandidate {
       executionState = applyInteraction(
         executionState,
         SwitchActivity(producer),
-        random: random,
+        random: context.random,
       );
     }
 
@@ -640,7 +618,11 @@ class AcquireItem extends MacroCandidate {
       startCount: startCount,
     );
 
-    final result = consumeUntil(executionState, acquireWaitFor, random: random);
+    final result = consumeUntil(
+      executionState,
+      acquireWaitFor,
+      random: context.random,
+    );
 
     return MacroExecuteResult(
       state: result.state,
@@ -891,17 +873,10 @@ class EnsureStock extends MacroCandidate {
   };
 
   @override
-  MacroExecuteResult execute(
-    GlobalState state,
-    WaitFor waitFor, {
-    required Random random,
-    Map<Skill, SkillBoundaries>? boundaries,
-    WatchSet? watchSet,
-    SellPolicy? segmentSellPolicy,
-  }) {
+  MacroExecuteResult execute(MacroExecuteContext context) {
     // Execute EnsureStock by finding producer and running until target
     // Handles inventory full by selling and continuing in a loop
-    var currentState = state;
+    var currentState = context.state;
     var totalTicks = 0;
     var totalDeaths = 0;
 
@@ -935,7 +910,7 @@ class EnsureStock extends MacroCandidate {
           currentState = applyInteraction(
             currentState,
             SwitchActivity(producer),
-            random: random,
+            random: context.random,
           );
         } on Exception catch (e) {
           return MacroExecuteResult(
@@ -952,7 +927,11 @@ class EnsureStock extends MacroCandidate {
       // Use absolute wait condition: wait until inventory has minTotal
       final stockWaitFor = WaitForInventoryAtLeast(itemId, minTotal);
 
-      final result = consumeUntil(currentState, stockWaitFor, random: random);
+      final result = consumeUntil(
+        currentState,
+        stockWaitFor,
+        random: context.random,
+      );
 
       currentState = result.state;
       totalTicks += result.ticksElapsed;
@@ -962,7 +941,7 @@ class EnsureStock extends MacroCandidate {
       if (result.boundary is InventoryFull) {
         // Use segment's sell policy. If not provided, this is an error -
         // callers should resolve policy before calling apply.
-        if (segmentSellPolicy == null) {
+        if (context.segmentSellPolicy == null) {
           return MacroExecuteResult(
             state: currentState,
             ticksElapsed: totalTicks,
@@ -976,13 +955,14 @@ class EnsureStock extends MacroCandidate {
         }
 
         final sellableValue =
-            effectiveCredits(currentState, segmentSellPolicy) - currentState.gp;
+            effectiveCredits(currentState, context.segmentSellPolicy!) -
+            currentState.gp;
 
         if (sellableValue > 0) {
           currentState = applyInteraction(
             currentState,
-            SellItems(segmentSellPolicy),
-            random: random,
+            SellItems(context.segmentSellPolicy!),
+            random: context.random,
           );
           // Continue the loop to produce more
           continue;
@@ -1080,16 +1060,9 @@ class ProduceItem extends MacroCandidate {
   };
 
   @override
-  MacroExecuteResult execute(
-    GlobalState state,
-    WaitFor waitFor, {
-    required Random random,
-    Map<Skill, SkillBoundaries>? boundaries,
-    WatchSet? watchSet,
-    SellPolicy? segmentSellPolicy,
-  }) {
+  MacroExecuteResult execute(MacroExecuteContext context) {
     // ProduceItem has a specific actionId - switch to it and produce
-    var currentState = state;
+    var currentState = context.state;
     var totalTicks = 0;
     var totalDeaths = 0;
 
@@ -1099,7 +1072,7 @@ class ProduceItem extends MacroCandidate {
         currentState = applyInteraction(
           currentState,
           SwitchActivity(actionId),
-          random: random,
+          random: context.random,
         );
       } on Exception catch (e) {
         return MacroExecuteResult(
@@ -1127,7 +1100,11 @@ class ProduceItem extends MacroCandidate {
         );
       }
 
-      final result = consumeUntil(currentState, produceWaitFor, random: random);
+      final result = consumeUntil(
+        currentState,
+        produceWaitFor,
+        random: context.random,
+      );
 
       currentState = result.state;
       totalTicks += result.ticksElapsed;
@@ -1135,7 +1112,7 @@ class ProduceItem extends MacroCandidate {
 
       // Check if we hit inventory full - sell and continue
       if (result.boundary is InventoryFull) {
-        if (segmentSellPolicy == null) {
+        if (context.segmentSellPolicy == null) {
           return MacroExecuteResult(
             state: currentState,
             ticksElapsed: totalTicks,
@@ -1149,13 +1126,14 @@ class ProduceItem extends MacroCandidate {
         }
 
         final sellableValue =
-            effectiveCredits(currentState, segmentSellPolicy) - currentState.gp;
+            effectiveCredits(currentState, context.segmentSellPolicy!) -
+            currentState.gp;
 
         if (sellableValue > 0) {
           currentState = applyInteraction(
             currentState,
-            SellItems(segmentSellPolicy),
-            random: random,
+            SellItems(context.segmentSellPolicy!),
+            random: context.random,
           );
           // Continue the loop to produce more
           continue;
@@ -1716,23 +1694,16 @@ class TrainConsumingSkillUntil extends MacroCandidate {
   };
 
   @override
-  MacroExecuteResult execute(
-    GlobalState state,
-    WaitFor waitFor, {
-    required Random random,
-    Map<Skill, SkillBoundaries>? boundaries,
-    WatchSet? watchSet,
-    SellPolicy? segmentSellPolicy,
-  }) {
+  MacroExecuteResult execute(MacroExecuteContext context) {
     // Execute coupled produce/consume loop until stop condition
     final stepResult = executeCoupledLoop(
-      state,
+      context.state,
       this,
-      waitFor,
-      boundaries,
-      random,
-      watchSet: watchSet,
-      segmentSellPolicy: segmentSellPolicy,
+      context.waitFor,
+      context.boundaries,
+      context.random,
+      watchSet: context.watchSet,
+      segmentSellPolicy: context.segmentSellPolicy,
     );
     return MacroExecuteResult(
       state: stepResult.state,
