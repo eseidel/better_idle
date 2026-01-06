@@ -9,9 +9,8 @@ import 'package:logic/src/data/action_id.dart';
 import 'package:logic/src/data/actions.dart';
 import 'package:logic/src/data/melvor_id.dart';
 import 'package:logic/src/solver/analysis/unlock_boundaries.dart';
-import 'package:logic/src/solver/candidates/macro_candidate.dart';
 import 'package:logic/src/solver/core/goal.dart';
-import 'package:logic/src/solver/execution/prerequisites.dart';
+import 'package:logic/src/solver/execution/prerequisites.dart' as prereqs;
 import 'package:logic/src/state.dart';
 
 /// Context for macro planning operations.
@@ -48,7 +47,7 @@ class MacroPlanContext {
 
   /// Finds an action that produces the given item.
   ActionId? findProducerAction(GlobalState s, MelvorId item, Goal g) =>
-      findProducerActionForItem(s, item, g);
+      prereqs.findProducerActionForItem(s, item, g);
 
   /// Finds an action that produces the given item, even if locked.
   ///
@@ -56,105 +55,26 @@ class MacroPlanContext {
   /// Unlike [findProducerAction], this finds producers regardless
   /// of skill level requirements.
   SkillAction? findAnyProducer(GlobalState s, MelvorId item) =>
-      findAnyProducerForItem(s, item);
+      prereqs.findAnyProducerForItem(s, item);
 
   /// Returns prerequisite check result for an action.
   ///
-  /// Checks:
-  /// 1. Skill level requirements - generates TrainSkillUntil if locked
-  /// 2. Input requirements - recursively checks producers for each input
-  ///
-  /// Returns [ExecReady] if action can execute now, [ExecNeedsMacros] if
-  /// prerequisites are needed, or [ExecUnknown] if we can't determine how
-  /// to make the action feasible (e.g., no producer exists, cycle detected).
-  EnsureExecResult ensureExecutable(
+  /// Delegates to [prereqs.ensureExecutable].
+  prereqs.EnsureExecResult ensureExecutable(
     GlobalState s,
     ActionId actionId,
     Goal g, {
     int depth = 0,
     int maxDepth = 8,
     Set<ActionId>? visited,
-  }) {
-    visited ??= <ActionId>{};
-    if (!visited.add(actionId)) {
-      return ExecUnknown('cycle: $actionId');
-    }
-    if (depth >= maxDepth) {
-      return ExecUnknown('depth limit: $actionId');
-    }
-
-    final action = s.registries.actions.byId(actionId);
-    if (action is! SkillAction) return const ExecReady();
-
-    final macros = <MacroCandidate>[];
-
-    // 1. Check skill level requirement
-    final currentLevel = s.skillState(action.skill).skillLevel;
-    if (action.unlockLevel > currentLevel) {
-      macros.add(
-        TrainSkillUntil(
-          action.skill,
-          StopAtLevel(action.skill, action.unlockLevel),
-        ),
-      );
-    }
-
-    // 2. Check inputs - recursively ensure each can be produced
-    // NOTE: We only check feasibility (skill unlocks), NOT stocking.
-    // Stocking amounts should be determined by the caller with proper batch
-    // sizing, not here with minimal amounts that cause plan thrash.
-    for (final inputId in action.inputs.keys) {
-      final inputCount = action.inputs[inputId]!;
-      final inputItem = s.registries.items.byId(inputId);
-      final currentCount = s.inventory.countOfItem(inputItem);
-
-      // If we already have enough of this input, no prereq needed
-      if (currentCount >= inputCount) continue;
-
-      // First check if there's an unlocked producer
-      final producer = findProducerActionForItem(s, inputId, g);
-      if (producer != null) {
-        // Producer exists and is unlocked, check its prerequisites
-        final result = ensureExecutable(
-          s,
-          producer,
-          g,
-          depth: depth + 1,
-          maxDepth: maxDepth,
-          visited: visited,
-        );
-        switch (result) {
-          case ExecReady():
-            break; // Producer is ready
-          case ExecNeedsMacros(macros: final producerMacros):
-            macros.addAll(producerMacros);
-          case ExecUnknown(:final reason):
-            return ExecUnknown('input $inputId blocked: $reason');
-        }
-        // NOTE: We do NOT add EnsureStock here. The caller (e.g.,
-        // _expandEnsureStock) handles stocking with proper batch sizing.
-        // Adding small EnsureStock prereqs here causes plan thrash.
-      } else {
-        // No unlocked producer - check if one exists but is locked
-        final lockedProducer = findAnyProducerForItem(s, inputId);
-        if (lockedProducer == null) {
-          return ExecUnknown('no producer for $inputId');
-        }
-        // Producer exists but is locked - need to train that skill
-        final neededLevel = lockedProducer.unlockLevel;
-        macros.add(
-          TrainSkillUntil(
-            lockedProducer.skill,
-            StopAtLevel(lockedProducer.skill, neededLevel),
-          ),
-        );
-        // NOTE: We do NOT add EnsureStock here. After training, the caller
-        // will handle stocking with proper batch sizing.
-      }
-    }
-
-    return macros.isEmpty ? const ExecReady() : ExecNeedsMacros(macros);
-  }
+  }) => prereqs.ensureExecutable(
+    s,
+    actionId,
+    g,
+    depth: depth,
+    maxDepth: maxDepth,
+    visited: visited,
+  );
 
   /// Computes the maximum feasible batch size for an EnsureStock macro.
   ///
@@ -321,7 +241,7 @@ class MacroPlanContext {
       }
 
       // Find the producer for this item to check for intermediates
-      final producerId = findProducerActionForItem(s, itemId, g);
+      final producerId = prereqs.findProducerActionForItem(s, itemId, g);
       if (producerId == null) return;
 
       final producerAction = s.registries.actions.byId(producerId);
