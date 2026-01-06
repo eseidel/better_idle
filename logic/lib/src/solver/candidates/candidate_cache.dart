@@ -43,13 +43,10 @@ class CandidateCache {
   final Map<CandidateCacheKey, Candidates> _cache = {};
 
   /// Stats for debugging.
+  @visibleForTesting
   int hits = 0;
+  @visibleForTesting
   int misses = 0;
-  int keyTimeUs = 0;
-
-  /// Verification stats (sampled checks).
-  int verifyChecks = 0;
-  int verifyFailures = 0;
 
   /// Returns cached candidates (filtered) or computes and caches them.
   ///
@@ -63,9 +60,7 @@ class CandidateCache {
     Goal goal,
     Candidates Function(GlobalState) computeForState,
   ) {
-    final keyStopwatch = Stopwatch()..start();
     final key = CandidateCacheKey.fromState(state, goal);
-    keyTimeUs += keyStopwatch.elapsedMicroseconds;
 
     final cached = _cache[key];
     if (cached != null) {
@@ -116,25 +111,6 @@ class CandidateCache {
       macros: candidates.macros,
       consumingSkillStats: candidates.consumingSkillStats,
     );
-  }
-
-  /// Clears the cache (call when starting a new solve).
-  void clear() {
-    _cache.clear();
-    hits = 0;
-    misses = 0;
-    verifyChecks = 0;
-    verifyFailures = 0;
-  }
-
-  /// Number of unique keys in the cache.
-  int get size => _cache.length;
-
-  /// Cache hit rate as a percentage (0-100).
-  double get hitRate {
-    final total = hits + misses;
-    if (total == 0) return 0;
-    return (hits / total) * 100;
   }
 }
 
