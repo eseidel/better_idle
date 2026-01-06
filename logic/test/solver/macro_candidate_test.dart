@@ -1,6 +1,7 @@
 import 'dart:math';
 
 import 'package:logic/logic.dart';
+import 'package:logic/src/solver/analysis/replan_boundary.dart';
 import 'package:logic/src/solver/analysis/unlock_boundaries.dart';
 import 'package:logic/src/solver/analysis/wait_for.dart';
 import 'package:logic/src/solver/candidates/build_chain.dart';
@@ -590,6 +591,154 @@ void main() {
           // Should acquire 10 MORE logs (delta semantics)
           expect(waitFor.delta, 10);
           expect(waitFor.startCount, 5);
+        });
+      });
+
+      group('execute', () {
+        test('produces items via producer action', () {
+          final state = GlobalState.empty(testRegistries);
+          const macro = AcquireItem(MelvorId('melvorD:Normal_Logs'), 5);
+
+          // Create a WaitFor condition (would come from plan())
+          const waitFor = WaitForInventoryDelta(
+            MelvorId('melvorD:Normal_Logs'),
+            5,
+            startCount: 0,
+          );
+
+          final result = macro.execute(state, waitFor, random: Random(42));
+
+          // Should have produced some logs
+          final logsCount = result.state.inventory.countOfItem(
+            testItems.byName('Normal Logs'),
+          );
+          expect(logsCount, greaterThanOrEqualTo(5));
+          expect(result.ticksElapsed, greaterThan(0));
+          expect(result.deaths, 0);
+        });
+
+        test('returns NoProgressPossible when no producer exists', () {
+          final state = GlobalState.empty(testRegistries);
+          // Non-existent item
+          const macro = AcquireItem(MelvorId('melvorD:NonExistent_Item'), 5);
+
+          const waitFor = WaitForInventoryDelta(
+            MelvorId('melvorD:NonExistent_Item'),
+            5,
+            startCount: 0,
+          );
+
+          final result = macro.execute(state, waitFor, random: Random(42));
+
+          expect(result.boundary, isA<NoProgressPossible>());
+          expect(result.ticksElapsed, 0);
+        });
+
+        test('switches to producer action when not already active', () {
+          // Start with no active action
+          final state = GlobalState.empty(testRegistries);
+          const macro = AcquireItem(MelvorId('melvorD:Normal_Logs'), 5);
+
+          const waitFor = WaitForInventoryDelta(
+            MelvorId('melvorD:Normal_Logs'),
+            5,
+            startCount: 0,
+          );
+
+          final result = macro.execute(state, waitFor, random: Random(42));
+
+          // Execution should have switched to woodcutting action
+          expect(result.state.activeAction, isNotNull);
+          // And produced logs
+          final logsCount = result.state.inventory.countOfItem(
+            testItems.byName('Normal Logs'),
+          );
+          expect(logsCount, greaterThanOrEqualTo(5));
+        });
+
+        test('uses delta semantics from start count', () {
+          // Start with some logs already
+          final normalLogs = testItems.byName('Normal Logs');
+          final inventory = Inventory.fromItems(testItems, [
+            ItemStack(normalLogs, count: 10),
+          ]);
+          final state = GlobalState.test(testRegistries, inventory: inventory);
+          const macro = AcquireItem(MelvorId('melvorD:Normal_Logs'), 5);
+
+          // WaitFor uses delta semantics: acquire 5 MORE from startCount=10
+          const waitFor = WaitForInventoryDelta(
+            MelvorId('melvorD:Normal_Logs'),
+            5,
+            startCount: 10,
+          );
+
+          final result = macro.execute(state, waitFor, random: Random(42));
+
+          // Should have at least 15 logs total (10 + 5 delta)
+          final logsCount = result.state.inventory.countOfItem(normalLogs);
+          expect(logsCount, greaterThanOrEqualTo(15));
+        });
+
+        test('executes with existing active action', () {
+          // Start already doing woodcutting
+          var state = GlobalState.empty(testRegistries);
+          final woodcuttingAction = testActions.woodcutting('Normal Tree');
+          state = state.startAction(woodcuttingAction, random: Random(0));
+
+          const macro = AcquireItem(MelvorId('melvorD:Normal_Logs'), 3);
+
+          const waitFor = WaitForInventoryDelta(
+            MelvorId('melvorD:Normal_Logs'),
+            3,
+            startCount: 0,
+          );
+
+          final result = macro.execute(state, waitFor, random: Random(42));
+
+          // Should have produced logs
+          final logsCount = result.state.inventory.countOfItem(
+            testItems.byName('Normal Logs'),
+          );
+          expect(logsCount, greaterThanOrEqualTo(3));
+          expect(result.ticksElapsed, greaterThan(0));
+        });
+
+        test('completes successfully even with tight inventory', () {
+          // Start with some logs already and limited slots
+          // Execute should be able to stack more logs on existing slot
+          final normalLogs = testItems.byName('Normal Logs');
+          final items = <ItemStack>[
+            ItemStack(normalLogs, count: 2),
+            // Fill remaining slots
+            ItemStack(testItems.byName('Raw Shrimp'), count: 1),
+            ItemStack(testItems.byName('Raw Sardine'), count: 1),
+            ItemStack(testItems.byName('Raw Herring'), count: 1),
+            ItemStack(testItems.byName('Raw Trout'), count: 1),
+            ItemStack(testItems.byName('Raw Salmon'), count: 1),
+            ItemStack(testItems.byName('Raw Lobster'), count: 1),
+            ItemStack(testItems.byName('Raw Swordfish'), count: 1),
+            ItemStack(testItems.byName('Raw Crab'), count: 1),
+            ItemStack(testItems.byName('Copper Ore'), count: 1),
+            ItemStack(testItems.byName('Tin Ore'), count: 1),
+          ];
+          final inventory = Inventory.fromItems(testItems, items);
+
+          final state = GlobalState.test(testRegistries, inventory: inventory);
+          const macro = AcquireItem(MelvorId('melvorD:Normal_Logs'), 5);
+
+          const waitFor = WaitForInventoryDelta(
+            MelvorId('melvorD:Normal_Logs'),
+            5,
+            startCount: 2,
+          );
+
+          final result = macro.execute(state, waitFor, random: Random(42));
+
+          // Should be able to produce logs since they stack on existing slot
+          final logsCount = result.state.inventory.countOfItem(normalLogs);
+          // Started with 2, need 5 more = 7 total
+          expect(logsCount, greaterThanOrEqualTo(7));
+          expect(result.ticksElapsed, greaterThan(0));
         });
       });
     });
