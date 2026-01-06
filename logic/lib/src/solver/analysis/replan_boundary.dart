@@ -68,6 +68,17 @@ sealed class ReplanBoundary {
   /// Expected boundaries are handled gracefully (e.g., by switching actions).
   /// Unexpected boundaries may indicate bugs or invalid plans.
   bool get isExpected;
+
+  /// Whether hitting this boundary should trigger replanning.
+  ///
+  /// Some boundaries require the solver to create a new plan from the current
+  /// state (e.g., inputs depleted, new actions unlocked). Others don't require
+  /// replanning (e.g., goal reached, wait condition satisfied).
+  ///
+  /// Note: This is distinct from [isExpected]. An expected boundary like
+  /// [InputsDepleted] still requires replanning, while [GoalReached] is
+  /// expected but doesn't require a new plan.
+  bool get causesReplan;
 }
 
 // ---------------------------------------------------------------------------
@@ -84,6 +95,9 @@ class GoalReached extends ReplanBoundary {
 
   @override
   bool get isExpected => true;
+
+  @override
+  bool get causesReplan => false;
 }
 
 /// A consuming action ran out of inputs.
@@ -107,6 +121,9 @@ class InputsDepleted extends ReplanBoundary {
 
   @override
   bool get isExpected => true;
+
+  @override
+  bool get causesReplan => true;
 }
 
 /// Inventory is full and cannot add new item types.
@@ -121,6 +138,9 @@ class InventoryFull extends ReplanBoundary {
 
   @override
   bool get isExpected => true;
+
+  @override
+  bool get causesReplan => true;
 }
 
 /// Player died during thieving or combat.
@@ -136,6 +156,9 @@ class Death extends ReplanBoundary {
 
   @override
   bool get isExpected => true;
+
+  @override
+  bool get causesReplan => false; // Auto-restarts, no replan needed
 }
 
 /// Wait condition was satisfied (not a replan trigger, just completion).
@@ -169,6 +192,9 @@ class WaitConditionSatisfied extends ReplanBoundary {
 
   @override
   bool get isExpected => true;
+
+  @override
+  bool get causesReplan => false;
 }
 
 // ---------------------------------------------------------------------------
@@ -191,6 +217,9 @@ class UpgradeAffordableEarly extends ReplanBoundary {
 
   @override
   bool get isExpected => true;
+
+  @override
+  bool get causesReplan => false; // Recovery action buys it, no replan needed
 }
 
 /// A new action unlocked earlier than expected.
@@ -208,6 +237,9 @@ class UnexpectedUnlock extends ReplanBoundary {
 
   @override
   bool get isExpected => true;
+
+  @override
+  bool get causesReplan => true; // Should replan to potentially use new action
 }
 
 // ---------------------------------------------------------------------------
@@ -242,6 +274,9 @@ class CannotAfford extends ReplanBoundary {
 
   @override
   bool get isExpected => false;
+
+  @override
+  bool get causesReplan => true; // Error state, need to recover
 }
 
 /// Tried to start an action that isn't available.
@@ -265,6 +300,9 @@ class ActionUnavailable extends ReplanBoundary {
 
   @override
   bool get isExpected => false;
+
+  @override
+  bool get causesReplan => true; // Error state, need to recover
 }
 
 /// Execution stalled with no progress possible.
@@ -283,6 +321,9 @@ class NoProgressPossible extends ReplanBoundary {
 
   @override
   bool get isExpected => false;
+
+  @override
+  bool get causesReplan => true; // Error state, need to recover
 }
 
 // ---------------------------------------------------------------------------
@@ -338,6 +379,9 @@ class ReplanLimitExceeded extends ReplanBoundary {
 
   @override
   bool get isExpected => false;
+
+  @override
+  bool get causesReplan => false; // Terminal - execution stops
 }
 
 /// Boundary indicating time budget was exceeded.
@@ -356,6 +400,9 @@ class TimeBudgetExceeded extends ReplanBoundary {
 
   @override
   bool get isExpected => false;
+
+  @override
+  bool get causesReplan => false; // Terminal - execution stops
 }
 
 // ---------------------------------------------------------------------------
@@ -386,6 +433,9 @@ class PlannedSegmentStop extends ReplanBoundary {
 
   @override
   bool get isExpected => true;
+
+  @override
+  bool get causesReplan => true; // Continue to next segment = replan
 }
 
 /// A skill unlock was observed during execution.
@@ -419,6 +469,9 @@ class UnlockObserved extends ReplanBoundary {
 
   @override
   bool get isExpected => true;
+
+  @override
+  bool get causesReplan => true; // New actions available - replan to use them
 }
 
 /// Inventory pressure was detected (nearing full capacity).
@@ -447,4 +500,7 @@ class InventoryPressure extends ReplanBoundary {
 
   @override
   bool get isExpected => true;
+
+  @override
+  bool get causesReplan => true; // Needs recovery (sell) then continue
 }

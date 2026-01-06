@@ -2072,18 +2072,7 @@ ReplanExecutionResult solveWithReplanning(
     final needsReplan =
         goalMissedAfterSatisfaction ||
         execResult.hasUnexpectedBoundaries ||
-        execResult.boundariesHit.any(
-          (b) =>
-              b is NoProgressPossible ||
-              b is InputsDepleted ||
-              b is InventoryFull ||
-              // PlannedSegmentStop means "continue to next segment" - replan!
-              b is PlannedSegmentStop ||
-              // UnlockObserved means new actions available - replan to use them
-              b is UnlockObserved ||
-              // InventoryPressure needs recovery (sell) then continue
-              b is InventoryPressure,
-        );
+        execResult.boundariesHit.any((b) => b.causesReplan);
 
     // Record segment result with steps, sellPolicy, and profile
     segments.add(
