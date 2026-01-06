@@ -709,36 +709,29 @@ class EnsureStock extends MacroCandidate {
       context.goal,
     );
 
-    // If no batch is feasible and inventory is nearly full, return boundary
-    if (feasibleBatch == 0 && state.inventoryRemaining <= 2) {
-      // Inventory is too full - need to sell before we can produce
-      final sellPolicy = context.goal.computeSellPolicy(state);
-      final sellableValue = effectiveCredits(state, sellPolicy) - state.gp;
-
-      if (sellableValue > 0) {
-        // Return boundary - let solver/executor handle selling
-        return MacroNeedsBoundary(
-          InventoryPressure(
-            usedSlots: state.inventoryUsed,
-            totalSlots: state.inventoryCapacity,
-          ),
-          message: 'Need to sell before stocking ${itemId.localId}',
-        );
-      } else {
-        // Nothing to sell - truly stuck
-        return MacroCannotPlan(
-          'Inventory full (${state.inventoryUsed}/${state.inventoryCapacity}) '
-          'and nothing to sell for ${itemId.localId}',
-        );
-      }
+    // If no batch is feasible, return boundary for solver to handle
+    // The solver will compute sell policy and decide how to recover
+    if (feasibleBatch == 0) {
+      return MacroNeedsBoundary(
+        InventoryPressure(
+          usedSlots: state.inventoryUsed,
+          totalSlots: state.inventoryCapacity,
+          blockedItemId: itemId,
+        ),
+        message: 'Inventory full while stocking ${itemId.localId}',
+      );
     }
 
+    // Use the minimum of chunkSize and feasibleBatch to respect inventory
+    // constraints. This ensures we don't plan a batch larger than what fits.
+    final plannedBatch = min(chunkSize, feasibleBatch);
+
     // Use buildChainForItem to discover the full production chain
-    // Use chunkSize for planning to limit work per expansion
+    // Use plannedBatch for planning to respect both chunk limits and inventory
     final chainResult = buildChainForItem(
       state,
       itemId,
-      chunkSize,
+      plannedBatch,
       context.goal,
     );
 
@@ -761,7 +754,7 @@ class EnsureStock extends MacroCandidate {
         // Chain is fully buildable - check if we need to stock inputs first
         // Walk the chain bottom-up and ensure stock for each level
         // Pass chunkedTarget so ProduceItem knows the per-chunk goal
-        final chunkedTarget = currentCount + chunkSize;
+        final chunkedTarget = currentCount + plannedBatch;
         return _planChainBottomUp(context, state, chain, chunkedTarget);
     }
   }

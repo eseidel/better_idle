@@ -60,8 +60,16 @@ ReplanBoundary segmentBoundaryToReplan(SegmentBoundary boundary) {
     HorizonCapBoundary() => PlannedSegmentStop(boundary),
 
     // Inventory pressure - distinct from InventoryFull
-    InventoryPressureBoundary(:final usedSlots, :final totalSlots) =>
-      InventoryPressure(usedSlots: usedSlots, totalSlots: totalSlots),
+    InventoryPressureBoundary(
+      :final usedSlots,
+      :final totalSlots,
+      :final blockedItemId,
+    ) =>
+      InventoryPressure(
+        usedSlots: usedSlots,
+        totalSlots: totalSlots,
+        blockedItemId: blockedItemId,
+      ),
   };
 }
 

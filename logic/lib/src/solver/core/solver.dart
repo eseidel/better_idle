@@ -1059,18 +1059,38 @@ MacroPlanOutcome _planMacro(
         continue;
 
       case MacroNeedsBoundary(:final boundary):
-        // Handle boundary conditions
+        // Handle boundary conditions at solver level
         switch (boundary) {
           case InventoryPressure():
-            // Execute sell policy and retry planning
+          case InventoryFull():
+            // Compute sell policy and check if selling would help
             final sellPolicy = goal.computeSellPolicy(currentState);
-            currentState = applyInteractionDeterministic(
-              currentState,
-              SellItems(sellPolicy),
-            );
-            // Retry same macro with new state
-            depth++;
-            continue;
+            final sellableValue =
+                effectiveCredits(currentState, sellPolicy) - currentState.gp;
+
+            if (sellableValue > 0) {
+              // Sellable items exist - apply sell and retry planning
+              currentState = applyInteractionDeterministic(
+                currentState,
+                SellItems(sellPolicy),
+              );
+              // Retry same macro with new state
+              depth++;
+              continue;
+            } else {
+              // Nothing to sell - truly stuck
+              final blockedItemId = boundary is InventoryPressure
+                  ? boundary.blockedItemId
+                  : null;
+              final itemInfo = blockedItemId != null
+                  ? ' for ${blockedItemId.localId}'
+                  : '';
+              return MacroCannotPlan(
+                'Inventory full (${currentState.inventoryUsed}/'
+                '${currentState.inventoryCapacity}) and nothing sellable'
+                '$itemInfo',
+              );
+            }
 
           default:
             // Can't handle this boundary - return as failure

@@ -475,7 +475,11 @@ class HorizonCapBoundary extends SegmentBoundary {
 /// Inventory usage exceeded the pressure threshold.
 @immutable
 class InventoryPressureBoundary extends SegmentBoundary {
-  const InventoryPressureBoundary(this.usedSlots, this.totalSlots);
+  const InventoryPressureBoundary(
+    this.usedSlots,
+    this.totalSlots, {
+    this.blockedItemId,
+  });
 
   /// Number of inventory slots in use.
   final int usedSlots;
@@ -483,14 +487,23 @@ class InventoryPressureBoundary extends SegmentBoundary {
   /// Total inventory capacity.
   final int totalSlots;
 
+  /// The item that was being stocked when pressure was detected (if known).
+  final MelvorId? blockedItemId;
+
   @override
-  String describe() => 'Inventory pressure ($usedSlots/$totalSlots slots)';
+  String describe() {
+    final itemInfo = blockedItemId != null
+        ? ' while stocking ${blockedItemId!.localId}'
+        : '';
+    return 'Inventory pressure ($usedSlots/$totalSlots slots)$itemInfo';
+  }
 
   @override
   Map<String, dynamic> toJson() => {
     'type': 'InventoryPressureBoundary',
     'usedSlots': usedSlots,
     'totalSlots': totalSlots,
+    if (blockedItemId != null) 'blockedItemId': blockedItemId!.toJson(),
   };
 }
 

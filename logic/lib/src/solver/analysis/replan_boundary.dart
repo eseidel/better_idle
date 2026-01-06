@@ -480,11 +480,19 @@ class UnlockObserved extends ReplanBoundary {
 /// Inventory pressure is a planned stopping point to allow selling before
 /// becoming completely stuck.
 ///
-/// The executor should attempt recovery (sell per policy) and continue,
-/// or replan if recovery is not possible.
+/// The solver handles this boundary by:
+/// 1. Computing sell policy via `goal.computeSellPolicy(state)`
+/// 2. If sellable items exist, applying sell and retrying planning
+/// 3. If nothing to sell, returning NoProgressPossible
+///
+/// This keeps selling decisions at the solver level, not in individual macros.
 @immutable
 class InventoryPressure extends ReplanBoundary {
-  const InventoryPressure({required this.usedSlots, required this.totalSlots});
+  const InventoryPressure({
+    required this.usedSlots,
+    required this.totalSlots,
+    this.blockedItemId,
+  });
 
   /// Number of inventory slots in use.
   final int usedSlots;
@@ -492,11 +500,20 @@ class InventoryPressure extends ReplanBoundary {
   /// Total inventory capacity.
   final int totalSlots;
 
+  /// The item that was being stocked when pressure was detected (if known).
+  /// Useful for debugging and error messages.
+  final MelvorId? blockedItemId;
+
   /// Pressure ratio (0.0 to 1.0).
   double get pressure => usedSlots / totalSlots;
 
   @override
-  String describe() => 'Inventory pressure ($usedSlots/$totalSlots slots)';
+  String describe() {
+    final itemInfo = blockedItemId != null
+        ? ' while stocking ${blockedItemId!.localId}'
+        : '';
+    return 'Inventory pressure ($usedSlots/$totalSlots slots)$itemInfo';
+  }
 
   @override
   bool get isExpected => true;
