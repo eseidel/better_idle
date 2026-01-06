@@ -476,7 +476,7 @@ class AcquireItem extends MacroCandidate {
     final state = context.state;
 
     // Find producer for this item
-    final producer = findProducerActionForItem(state, itemId, context.goal);
+    final producer = findProducerActionForItem(state, itemId);
 
     if (producer == null) {
       // Check if a locked producer exists
@@ -572,8 +572,7 @@ class AcquireItem extends MacroCandidate {
     var state = context.state;
     final startCount = countItem(state, itemId);
 
-    const goal = ReachSkillLevelGoal(Skill.mining, 99); // Placeholder goal
-    final producer = findProducerActionForItem(state, itemId, goal);
+    final producer = findProducerActionForItem(state, itemId);
     if (producer == null) {
       return StepResult(
         state: state,
@@ -864,8 +863,7 @@ class EnsureStock extends MacroCandidate {
         );
       }
 
-      const goal = ReachSkillLevelGoal(Skill.mining, 99);
-      final producer = findProducerActionForItem(state, itemId, goal);
+      final producer = findProducerActionForItem(state, itemId);
       if (producer == null) {
         return StepResult(
           state: state,
@@ -1270,11 +1268,7 @@ class TrainConsumingSkillUntil extends MacroCandidate {
       final inputItem = inputEntry.key;
       final inputItemData = itemRegistry.byId(inputItem);
       final currentCount = state.inventory.countOfItem(inputItemData);
-      final producer = findProducerActionForItem(
-        state,
-        inputItem,
-        context.goal,
-      );
+      final producer = findProducerActionForItem(state, inputItem);
 
       if (producer == null) {
         // Check if a locked producer exists - may need skill training
@@ -1353,11 +1347,7 @@ class TrainConsumingSkillUntil extends MacroCandidate {
       // Find a producer that doesn't require inputs
       for (final inputEntry in consumeAction.inputs.entries) {
         final inputItemId = inputEntry.key;
-        final producer = findProducerActionForItem(
-          state,
-          inputItemId,
-          context.goal,
-        );
+        final producer = findProducerActionForItem(state, inputItemId);
         if (producer == null) continue;
         final producerActionData = actionRegistry.byId(producer);
         if (producerActionData is SkillAction) {
@@ -1367,11 +1357,7 @@ class TrainConsumingSkillUntil extends MacroCandidate {
           } else {
             // Look for sub-producers
             for (final subInput in producerActionData.inputs.keys) {
-              final subProducer = findProducerActionForItem(
-                state,
-                subInput,
-                context.goal,
-              );
+              final subProducer = findProducerActionForItem(state, subInput);
               if (subProducer != null) {
                 final subProdData = actionRegistry.byId(subProducer);
                 if (subProdData is SkillAction && subProdData.inputs.isEmpty) {
@@ -1411,11 +1397,7 @@ class TrainConsumingSkillUntil extends MacroCandidate {
     for (final inputEntry in consumeAction.inputs.entries) {
       final inputItemId = inputEntry.key;
       final inputCount = inputEntry.value;
-      final producer = findProducerActionForItem(
-        state,
-        inputItemId,
-        context.goal,
-      );
+      final producer = findProducerActionForItem(state, inputItemId);
       if (producer == null) continue;
       final produceAction = actionRegistry.byId(producer) as SkillAction;
       final outputsPerAction = produceAction.outputs[inputItemId] ?? 1;
@@ -1471,11 +1453,7 @@ class TrainConsumingSkillUntil extends MacroCandidate {
     for (final inputEntry in consumeAction.inputs.entries) {
       final inputItemId = inputEntry.key;
       final inputCount = inputEntry.value;
-      final producer = findProducerActionForItem(
-        state,
-        inputItemId,
-        context.goal,
-      );
+      final producer = findProducerActionForItem(state, inputItemId);
       if (producer == null) continue;
       final produceAction = actionRegistry.byId(producer) as SkillAction;
       final outputsPerAction = produceAction.outputs[inputItemId] ?? 1;
@@ -1558,22 +1536,14 @@ class TrainConsumingSkillUntil extends MacroCandidate {
         case ChainNeedsUnlock():
           // Should have been caught earlier in prerequisite checking
           // Fall back to simple lookup
-          final producer = findProducerActionForItem(
-            state,
-            inputItemId,
-            context.goal,
-          );
+          final producer = findProducerActionForItem(state, inputItemId);
           if (producer != null) {
             producerByInputItemMap[inputItemId] = producer;
           }
 
         case ChainFailed():
           // Fall back to simple lookup
-          final producer = findProducerActionForItem(
-            state,
-            inputItemId,
-            context.goal,
-          );
+          final producer = findProducerActionForItem(state, inputItemId);
           if (producer != null) {
             producerByInputItemMap[inputItemId] = producer;
           }

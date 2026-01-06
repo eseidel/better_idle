@@ -728,7 +728,7 @@ MacroPlanExplanation explainMacroPlan(
 
     case AcquireItem(:final itemId, quantity: _):
       steps.add('Looking for producer of ${itemId.localId}');
-      final producer = findProducerActionForItem(state, itemId, goal);
+      final producer = findProducerActionForItem(state, itemId);
       if (producer == null) {
         final locked = findAnyProducerForItem(state, itemId);
         if (locked != null) {
@@ -757,7 +757,7 @@ MacroPlanExplanation explainMacroPlan(
       } else {
         final delta = minTotal - currentCount;
         steps.add('Need to produce $delta more');
-        final producer = findProducerActionForItem(state, itemId, goal);
+        final producer = findProducerActionForItem(state, itemId);
         if (producer != null) {
           steps.add('Found producer: $producer');
         }

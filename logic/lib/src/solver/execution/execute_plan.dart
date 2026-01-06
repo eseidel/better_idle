@@ -80,16 +80,8 @@ int _estimateTicksAtExecution(GlobalState state, PlanStep step) {
             consumingSkill,
             ReachSkillLevelGoal(consumingSkill, 99),
           ),
-        AcquireItem(:final itemId) => findProducerActionForItem(
-          state,
-          itemId,
-          const ReachSkillLevelGoal(Skill.mining, 99),
-        ),
-        EnsureStock(:final itemId) => findProducerActionForItem(
-          state,
-          itemId,
-          const ReachSkillLevelGoal(Skill.mining, 99),
-        ),
+        AcquireItem(:final itemId) => findProducerActionForItem(state, itemId),
+        EnsureStock(:final itemId) => findProducerActionForItem(state, itemId),
         ProduceItem(:final actionId) => actionId,
       };
       if (actionId == null) return 0;

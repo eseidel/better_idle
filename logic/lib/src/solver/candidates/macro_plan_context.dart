@@ -209,7 +209,7 @@ class MacroPlanContext {
       }
 
       // Find the producer for this item to check for intermediates
-      final producerId = prereqs.findProducerActionForItem(s, itemId, g);
+      final producerId = prereqs.findProducerActionForItem(s, itemId);
       if (producerId == null) return;
 
       final producerAction = s.registries.actions.byId(producerId);

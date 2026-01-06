@@ -48,11 +48,7 @@ class ExecUnknown extends EnsureExecResult {
 }
 
 /// Finds an action that produces the given item.
-ActionId? findProducerActionForItem(
-  GlobalState state,
-  MelvorId item,
-  Goal goal,
-) {
+ActionId? findProducerActionForItem(GlobalState state, MelvorId item) {
   int skillLevel(Skill skill) => state.skillState(skill).skillLevel;
 
   // Find all actions that produce this item
@@ -143,7 +139,7 @@ EnsureExecResult ensureExecutable(
     if (currentCount >= inputCount) continue;
 
     // First check if there's an unlocked producer
-    final producer = findProducerActionForItem(state, inputId, goal);
+    final producer = findProducerActionForItem(state, inputId);
     if (producer != null) {
       // Producer exists and is unlocked, check its prerequisites
       final result = ensureExecutable(

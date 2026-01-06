@@ -1040,31 +1040,253 @@ List<ActionSummary> _findProducersForItem(
   return producers;
 }
 
-/// Finds the best producer for a given item by output rate.
-///
-/// Returns the producer with the highest output/tick for [itemId], or null
-/// if no unlocked producers exist. Also returns the count of producers
-/// considered for stats tracking.
-///
-/// NOTE: Currently no items have multiple producers in the implemented
-/// skills (each log/fish/ore comes from exactly one action). This sorting
-/// logic would matter for Herblore (herbs from multiple sources), Summoning
-/// (gems from fishing/mining), or Alt. Magic, but those aren't implemented.
-({ActionSummary? best, int producerCount}) _findBestProducerForItem(
-  List<ActionSummary> summaries,
-  GlobalState state,
-  MelvorId itemId,
-) {
-  final producers = _findProducersForItem(summaries, state, itemId);
-  if (producers.isEmpty) return (best: null, producerCount: 0);
+// ---------------------------------------------------------------------------
+// ProducerPlan and ProducerResolver for multi-input candidate selection
+// ---------------------------------------------------------------------------
 
-  final registries = state.registries;
-  producers.sort((a, b) {
-    final aRate = a.outputPerTickForItem(registries, itemId);
-    final bRate = b.outputPerTickForItem(registries, itemId);
-    return bRate.compareTo(aRate);
+/// Result of resolving how to produce an item.
+@immutable
+class ProducerPlan {
+  const ProducerPlan({
+    required this.primaryProducer,
+    required this.ticksPerUnit,
+    this.chainActions = const {},
   });
-  return (best: producers.first, producerCount: producers.length);
+
+  /// The direct producer action for this item.
+  final ActionSummary primaryProducer;
+
+  /// Estimated ticks to produce one unit (including ALL upstream costs).
+  final double ticksPerUnit;
+
+  /// All action IDs in the production chain (for multi-tier).
+  final Set<ActionId> chainActions;
+}
+
+/// Resolves the best producer for an item with caching.
+///
+/// **IMPORTANT: Lifetime invariant**
+/// This resolver MUST be constructed per-selection-pass (i.e., per call to
+/// `_selectConsumingSkillCandidatesWithStats`). Do NOT reuse across A* nodes
+/// or solver iterations. The cache assumes:
+/// - Summaries reflect current unlock state (skill levels, equipment)
+/// - Rates (expectedTicks) are fixed for this state snapshot
+/// Reusing across nodes would return stale plans when unlocks/gear change.
+///
+/// Key design decisions:
+/// - Evaluates top-K direct producers before choosing best by ticksPerUnit
+/// - Uses visiting set for cycle detection (not just depth limit)
+/// - Cache keyed by item ID (valid only within single selection pass)
+/// - O(1) summary lookup via summaryById map (avoids N² in sort comparator)
+class ProducerResolver {
+  /// Creates a resolver for a single selection pass.
+  ///
+  /// The resolver caches results keyed by itemId. This cache is only valid
+  /// for this specific state snapshot - do not reuse across A* expansions.
+  ProducerResolver(List<ActionSummary> summaries, this._state)
+    : _summaries = summaries;
+
+  final List<ActionSummary> _summaries;
+  final GlobalState _state;
+
+  /// Cache keyed by item ID.
+  /// Valid only for this selection pass - do not persist across nodes.
+  final _cache = <MelvorId, ProducerPlan?>{};
+
+  /// Depth limit to prevent deep recursion.
+  static const int _maxDepth = 5;
+
+  /// Number of direct producers to evaluate before choosing best.
+  static const int _topKProducers = 3;
+
+  /// Resolves the best producer for [itemId].
+  /// Returns null if no producer exists, is locked, or would create a cycle.
+  ProducerPlan? resolve(MelvorId itemId) {
+    return _resolveWithVisiting(itemId, depth: 0, visiting: {});
+  }
+
+  ProducerPlan? _resolveWithVisiting(
+    MelvorId itemId, {
+    required int depth,
+    required Set<MelvorId> visiting,
+  }) {
+    // Cycle detection: if we're already resolving this item, abort
+    if (visiting.contains(itemId)) return null;
+
+    // Depth guard
+    if (depth >= _maxDepth) return null;
+
+    // Check cache (only valid if not in a cycle path)
+    if (_cache.containsKey(itemId)) return _cache[itemId];
+
+    // Mark as visiting for cycle detection
+    visiting.add(itemId);
+
+    final result = _resolveUncached(itemId, depth, visiting);
+
+    // Remove from visiting set (backtrack)
+    visiting.remove(itemId);
+
+    // Cache the result
+    _cache[itemId] = result;
+    return result;
+  }
+
+  ProducerPlan? _resolveUncached(
+    MelvorId itemId,
+    int depth,
+    Set<MelvorId> visiting,
+  ) {
+    // Find top-K direct producers for this item
+    final candidates = _findTopKProducersForItem(itemId, _topKProducers);
+    if (candidates.isEmpty) return null;
+
+    // Evaluate each candidate and pick best by ticksPerUnit (with chaining)
+    ProducerPlan? bestPlan;
+
+    for (final candidate in candidates) {
+      final producerAction = _state.registries.actions.byId(candidate.actionId);
+      if (producerAction is! SkillAction) continue;
+
+      final outputsPerAction = producerAction.outputs[itemId] ?? 1;
+      var ticksPerUnit = candidate.expectedTicks / outputsPerAction;
+      final chainActions = <ActionId>{candidate.actionId};
+      var feasible = true;
+
+      // Recursively resolve producer's inputs
+      if (producerAction.inputs.isNotEmpty) {
+        for (final inputEntry in producerAction.inputs.entries) {
+          final inputItemId = inputEntry.key;
+          final inputQty = inputEntry.value;
+
+          final inputPlan = _resolveWithVisiting(
+            inputItemId,
+            depth: depth + 1,
+            visiting: visiting,
+          );
+
+          if (inputPlan == null) {
+            // Can't produce this input - skip this candidate
+            feasible = false;
+            break;
+          }
+
+          ticksPerUnit += inputPlan.ticksPerUnit * inputQty / outputsPerAction;
+          chainActions.addAll(inputPlan.chainActions);
+        }
+      }
+
+      if (!feasible) continue;
+
+      final plan = ProducerPlan(
+        primaryProducer: candidate,
+        ticksPerUnit: ticksPerUnit,
+        chainActions: chainActions,
+      );
+
+      // Keep best by lowest ticksPerUnit (full chain cost)
+      // If tied, prefer simpler chains (fewer actions)
+      if (bestPlan == null ||
+          plan.ticksPerUnit < bestPlan.ticksPerUnit ||
+          (plan.ticksPerUnit == bestPlan.ticksPerUnit &&
+              plan.chainActions.length < bestPlan.chainActions.length)) {
+        bestPlan = plan;
+      }
+    }
+
+    return bestPlan;
+  }
+
+  /// Finds top-K unlocked producers for [itemId] by naive output rate.
+  ///
+  /// Does NOT partition by hasInputs - considers all producers that output
+  /// the item. The top-K are selected by direct output rate as an initial
+  /// candidate set; ticksPerUnit (with full chaining) decides the winner.
+  /// Shallow chains are preferred via tie-breaker, not hard filter.
+  List<ActionSummary> _findTopKProducersForItem(MelvorId itemId, int k) {
+    // Consider ALL unlocked producers for this item (no hasInputs filter)
+    final producers = _summaries
+        .where((s) => s.isUnlocked && _producesItem(s.actionId, itemId))
+        .toList();
+
+    if (producers.isEmpty) return [];
+
+    // Sort by naive output rate (items per tick) - this is just for
+    // selecting top-K candidates. Final selection uses ticksPerUnit
+    // which includes full upstream chaining costs.
+    producers.sort((a, b) {
+      final aRate = _outputRatePerTick(a, itemId);
+      final bRate = _outputRatePerTick(b, itemId);
+      return bRate.compareTo(aRate); // Descending
+    });
+
+    return producers.take(k).toList();
+  }
+
+  bool _producesItem(ActionId actionId, MelvorId itemId) {
+    final action = _state.registries.actions.byId(actionId);
+    if (action is! SkillAction) return false;
+    return action.outputs.containsKey(itemId);
+  }
+
+  /// Calculates naive output rate (items per tick) for initial candidate
+  /// ranking. Uses the summary directly (no lookup needed).
+  double _outputRatePerTick(ActionSummary summary, MelvorId itemId) {
+    final action = _state.registries.actions.byId(summary.actionId);
+    if (action is! SkillAction) return 0;
+    final outputsPerAction = action.outputs[itemId] ?? 1;
+    return outputsPerAction / summary.expectedTicks;
+  }
+}
+
+// ---------------------------------------------------------------------------
+// ConsumerBundle for multi-input consuming skill candidates
+// ---------------------------------------------------------------------------
+
+/// Bundle of a consumer action with all its required producers.
+///
+/// Stores full ProducerPlan per input (not just primary producer summary)
+/// to preserve ticksPerUnit and chainActions for accurate rate calculation
+/// and complete action ID collection.
+@immutable
+class _ConsumerBundle {
+  const _ConsumerBundle({
+    required this.consumer,
+    required this.sustainableXpPerTick,
+    required this.inputPlans,
+    required this.isFeasible,
+    this.infeasibleReason,
+  });
+
+  final ActionSummary consumer;
+  final double sustainableXpPerTick;
+
+  /// Map from input item ID to its full ProducerPlan.
+  /// Contains ticksPerUnit (including chaining) and all chainActions.
+  final Map<MelvorId, ProducerPlan> inputPlans;
+
+  /// True if ALL required inputs have producible sources.
+  final bool isFeasible;
+
+  /// Reason why bundle is infeasible (for debugging).
+  final String? infeasibleReason;
+
+  /// All action IDs in full production chains (de-duplicated).
+  /// Includes all chain actions, not just primary producers.
+  Set<ActionId> get allChainActionIds {
+    final result = <ActionId>{};
+    for (final plan in inputPlans.values) {
+      result.addAll(plan.chainActions);
+    }
+    return result;
+  }
+
+  /// Chain complexity: total number of distinct actions across all chains.
+  /// Used for tie-breaking (prefer simpler chains).
+  int get chainComplexity => allChainActionIds.length;
+
+  /// True if consumer can start now (has all inputs in inventory).
+  bool get canStartNow => consumer.canStartNow;
 }
 
 /// Stats from consuming skill candidate selection.
@@ -1075,6 +1297,8 @@ class ConsumingSkillCandidateStats {
     required this.pairsConsidered,
     required this.pairsKept,
     required this.topPairs,
+    this.infeasibleBundles = 0,
+    this.excludedReasons = const [],
   });
 
   static const empty = ConsumingSkillCandidateStats(
@@ -1086,12 +1310,16 @@ class ConsumingSkillCandidateStats {
 
   final int consumerActionsConsidered;
 
-  /// Number of consumer-producer pairs evaluated. Currently equal to the
-  /// number of producer actions considered since each consumer has at most
-  /// one producer per input item in the implemented skills.
+  /// Number of consumer-producer pairs evaluated.
   final int pairsConsidered;
   final int pairsKept;
   final List<({String consumerId, String producerId, double score})> topPairs;
+
+  /// Number of bundles excluded due to missing producers.
+  final int infeasibleBundles;
+
+  /// Breakdown of why bundles were excluded.
+  final List<({String consumerId, String reason})> excludedReasons;
 }
 
 /// Result of consuming skill candidate selection.
@@ -1106,14 +1334,28 @@ class _ConsumingSkillResult {
 ConsumingSkillCandidateStats _buildConsumingSkillStats({
   required List<ActionSummary> consumerActions,
   required int pairsConsidered,
-  required List<_ConsumerEntry> selectedConsumers,
+  required List<_ConsumerBundle> selectedBundles,
+  required List<_ConsumerBundle> allBundles,
 }) {
-  final topPairs = selectedConsumers
+  final topPairs = selectedBundles
       .map(
-        (e) => (
-          consumerId: e.consumer.actionId.localId.name,
-          producerId: e.producer?.actionId.localId.name ?? 'none',
-          score: e.sustainableXpPerTick,
+        (b) => (
+          consumerId: b.consumer.actionId.localId.name,
+          // Use first producer name or 'none' for display
+          producerId: b.inputPlans.isNotEmpty
+              ? b.inputPlans.values.first.primaryProducer.actionId.localId.name
+              : 'none',
+          score: b.sustainableXpPerTick,
+        ),
+      )
+      .toList();
+
+  final infeasible = allBundles.where((b) => !b.isFeasible).toList();
+  final excludedReasons = infeasible
+      .map(
+        (b) => (
+          consumerId: b.consumer.actionId.localId.name,
+          reason: b.infeasibleReason ?? 'unknown',
         ),
       )
       .toList();
@@ -1121,44 +1363,49 @@ ConsumingSkillCandidateStats _buildConsumingSkillStats({
   return ConsumingSkillCandidateStats(
     consumerActionsConsidered: consumerActions.length,
     pairsConsidered: pairsConsidered,
-    pairsKept: selectedConsumers.length,
+    pairsKept: selectedBundles.length,
     topPairs: topPairs,
+    infeasibleBundles: infeasible.length,
+    excludedReasons: excludedReasons,
   );
 }
 
-/// Computes sustainable XP/tick for a consumer action paired with a producer.
+/// Calculates sustainable XP/tick accounting for ALL input production times.
 ///
-/// Accounts for the time spent producing inputs, not just consuming them.
-/// Returns the XP rate achievable when alternating between producing and
-/// consuming.
-double _sustainableXpPerTick({
+/// Uses ProducerPlan.ticksPerUnit which already includes upstream chaining
+/// costs.
+///
+/// For each input:
+/// 1. Get ticksPerUnit from ProducerPlan (includes full chain time)
+/// 2. Multiply by quantity needed per consume
+/// 3. Sum all upstream production time
+///
+/// Formula: consumerXP / (consumerTicks + sum(qty * ticksPerUnit))
+double _sustainableXpPerTickMultiInput({
   required ActionSummary consumer,
-  required ActionSummary producer,
+  required Map<MelvorId, ProducerPlan> inputPlans,
   required SkillAction consumerAction,
-  required SkillAction producerAction,
-  required MelvorId inputItem,
 }) {
-  final inputsNeeded = consumerAction.inputs[inputItem] ?? 1;
-  final outputsProduced = producerAction.outputs[inputItem] ?? 1;
-  final produceActionsPerConsume = inputsNeeded / outputsProduced;
+  var upstreamTicksPerConsume = 0.0;
 
-  final totalTicksPerCycle =
-      (produceActionsPerConsume * producer.expectedTicks) +
-      consumer.expectedTicks;
+  for (final inputEntry in consumerAction.inputs.entries) {
+    final inputItemId = inputEntry.key;
+    final qtyPerConsume = inputEntry.value;
 
-  return consumerAction.xp / totalTicksPerCycle;
+    final plan = inputPlans[inputItemId];
+    if (plan == null) continue; // Will be marked infeasible elsewhere
+
+    // ticksPerUnit already includes full chain cost (upstream producers)
+    upstreamTicksPerConsume += qtyPerConsume * plan.ticksPerUnit;
+  }
+
+  final totalTicksPerConsume = consumer.expectedTicks + upstreamTicksPerConsume;
+  return consumerAction.xp / totalTicksPerConsume;
 }
 
-/// Consumer entry with computed sustainable XP rate.
-typedef _ConsumerEntry = ({
-  ActionSummary consumer,
-  double sustainableXpPerTick,
-  ActionSummary? producer,
-});
-
-/// Context for sorting consumer actions by sustainable XP/tick.
-class _ConsumerSortContext {
-  _ConsumerSortContext({
+/// Context for sorting consumer bundles by sustainable XP/tick.
+class _BundleSortContext {
+  _BundleSortContext({
     required this.registries,
     required this.currentActionId,
     required this.inventoryPressure,
@@ -1177,23 +1424,25 @@ class _ConsumerSortContext {
   /// Penalty per distinct output type when inventory is tight.
   static const double _penaltyPerOutput = 0.01;
 
-  /// Computes the effective XP rate for a consumer entry.
+  /// Computes the effective XP rate for a consumer bundle.
   ///
   /// Applies stickiness bonus to current action and logistics penalties
   /// when inventory is tight.
-  double _effectiveRate(_ConsumerEntry entry) {
-    var rate = entry.sustainableXpPerTick;
+  double _effectiveRate(_ConsumerBundle bundle) {
+    var rate = bundle.sustainableXpPerTick;
 
-    // Give current action a stickiness bonus (effectively requires competitors
-    // to be >10% better to outrank it)
-    if (entry.consumer.actionId == currentActionId) {
+    // Stickiness: boost if consumer OR any chain action is current action
+    final isCurrentAction =
+        bundle.consumer.actionId == currentActionId ||
+        bundle.allChainActionIds.contains(currentActionId);
+    if (isCurrentAction) {
       rate *= 1 + _stickinessThreshold;
     }
 
     // Apply soft logistics penalty when inventory is tight (>60% full)
     // Penalize actions that produce many distinct outputs (more selling churn)
     if (inventoryPressure > _inventoryPressureThreshold) {
-      final action = registries.actions.byId(entry.consumer.actionId);
+      final action = registries.actions.byId(bundle.consumer.actionId);
       if (action is SkillAction) {
         final distinctOutputs = action.outputs.length;
         rate *= 1 - (distinctOutputs * _penaltyPerOutput * inventoryPressure);
@@ -1203,33 +1452,36 @@ class _ConsumerSortContext {
     return rate;
   }
 
-  /// Compares two consumer entries by effective XP rate (descending).
-  int compareByEffectiveRate(_ConsumerEntry a, _ConsumerEntry b) {
+  /// Compares two consumer bundles by effective XP rate (descending).
+  int compareByEffectiveRate(_ConsumerBundle a, _ConsumerBundle b) {
     // Primary: adjusted XP/tick (with stickiness + logistics)
     final rateCmp = _effectiveRate(b).compareTo(_effectiveRate(a));
     if (rateCmp != 0) return rateCmp;
 
-    // Tie-breaker 1: Prefer already having inputs in inventory
-    final inputsCmp =
-        (b.consumer.canStartNow ? 1 : 0) - (a.consumer.canStartNow ? 1 : 0);
+    // Tie-breaker 1: Prefer having inputs ready (reduces initial wait)
+    final inputsCmp = (b.canStartNow ? 1 : 0) - (a.canStartNow ? 1 : 0);
     if (inputsCmp != 0) return inputsCmp;
 
-    // Tie-breaker 2: Prefer fewer switches (longer macro segments)
+    // Tie-breaker 2: Prefer simpler chains (fewer total chain actions)
+    final complexityCmp = a.chainComplexity.compareTo(b.chainComplexity);
+    if (complexityCmp != 0) return complexityCmp;
+
+    // Tie-breaker 3: Prefer longer actions (fewer overall switches)
     return b.consumer.expectedTicks.compareTo(a.consumer.expectedTicks);
   }
 }
 
 /// Strict pruning for consuming skills.
 ///
-/// For consuming skills (e.g., Firemaking, Cooking), we need to avoid the
-/// "near-tie explosion" where multiple consumer actions have similar scores.
-/// This function:
-/// - Calculates sustainable XP/tick for each consumer action (accounting for
-///   production time of inputs)
-/// - Selects top N consumer actions (default N=2)
-/// - For each selected consumer action, finds the best producer (highest
-///   output/tick)
-/// - Applies tie-breaking: sustainable XP/tick > fewer switches > has inputs
+/// For consuming skills (e.g., Firemaking, Cooking, Smithing), we need to
+/// avoid the "near-tie explosion" where multiple consumer actions have
+/// similar scores.
+///
+/// This function handles multi-input recipes correctly by:
+/// - Resolving ALL inputs for each consumer (not just the first)
+/// - Computing sustainable XP/tick accounting for full production chain costs
+/// - Marking consumers as infeasible if ANY input cannot be produced
+/// - Including all chain actions (not just primary producers) in results
 ///
 /// Returns a list of activity IDs to consider as switch-to candidates.
 /// If [collectStats] is true, also returns diagnostic stats.
@@ -1257,91 +1509,117 @@ _ConsumingSkillResult _selectConsumingSkillCandidatesWithStats(
     );
   }
 
+  // Create resolver for this selection pass (do NOT reuse across A* nodes)
+  final resolver = ProducerResolver(summaries, state);
+
   // Track stats
   var pairsConsidered = 0;
 
-  // Calculate sustainable XP/tick for each consumer action
-  final consumersWithRates = <_ConsumerEntry>[];
+  // Calculate bundles for each consumer action
+  final bundles = <_ConsumerBundle>[];
 
   for (final consumerSummary in consumerActions) {
     final consumerAction =
         registries.actions.byId(consumerSummary.actionId) as SkillAction;
-    final inputItem = consumerAction.inputs.keys.first;
 
-    final (:best, :producerCount) = _findBestProducerForItem(
-      summaries,
-      state,
-      inputItem,
-    );
-    if (best == null) continue;
+    // Resolve ALL inputs - store full ProducerPlan, not just primary producer
+    final inputPlans = <MelvorId, ProducerPlan>{};
+    String? infeasibleReason;
 
-    pairsConsidered += producerCount;
+    for (final inputEntry in consumerAction.inputs.entries) {
+      final inputItemId = inputEntry.key;
+      final plan = resolver.resolve(inputItemId);
 
-    final producerAction =
-        registries.actions.byId(best.actionId) as SkillAction;
+      if (plan == null) {
+        infeasibleReason = 'Cannot produce ${inputItemId.localId}';
+        break;
+      }
+      inputPlans[inputItemId] = plan;
+      pairsConsidered += 1;
+    }
 
-    final sustainableRate = _sustainableXpPerTick(
+    // Create bundle (feasible or not)
+    if (infeasibleReason != null) {
+      bundles.add(
+        _ConsumerBundle(
+          consumer: consumerSummary,
+          sustainableXpPerTick: 0,
+          inputPlans: const {},
+          isFeasible: false,
+          infeasibleReason: infeasibleReason,
+        ),
+      );
+      continue;
+    }
+
+    // Calculate sustainable rate using full chain costs from ProducerPlans
+    final sustainableRate = _sustainableXpPerTickMultiInput(
       consumer: consumerSummary,
-      producer: best,
+      inputPlans: inputPlans,
       consumerAction: consumerAction,
-      producerAction: producerAction,
-      inputItem: inputItem,
     );
 
-    consumersWithRates.add((
-      consumer: consumerSummary,
-      sustainableXpPerTick: sustainableRate,
-      producer: best,
-    ));
+    bundles.add(
+      _ConsumerBundle(
+        consumer: consumerSummary,
+        sustainableXpPerTick: sustainableRate,
+        inputPlans: inputPlans,
+        isFeasible: true,
+      ),
+    );
   }
+
+  // Filter to feasible bundles
+  final feasibleBundles = bundles.where((b) => b.isFeasible).toList();
 
   // Calculate inventory pressure (0.0 = empty, 1.0 = full)
   final usedSlots = state.inventory.items.length;
   final inventoryPressure = usedSlots / state.inventoryCapacity;
 
   // Sort by sustainable XP/tick with stickiness and logistics penalties
-  final consumerSortCtx = _ConsumerSortContext(
+  final bundleSortCtx = _BundleSortContext(
     registries: registries,
     currentActionId: currentActionId,
     inventoryPressure: inventoryPressure,
   );
-  consumersWithRates.sort(consumerSortCtx.compareByEffectiveRate);
+  feasibleBundles.sort(bundleSortCtx.compareByEffectiveRate);
 
   // Cap recipe variants per tier (AFTER sorting, so we keep the best)
   // This controls branching by limiting variants at each unlock level tier.
   // Group by tier (unlock level / 10) and keep top N per tier.
-  final byTier = <int, List<_ConsumerEntry>>{};
-  for (final entry in consumersWithRates) {
-    final tier = entry.consumer.unlockLevel ~/ 10;
-    byTier.putIfAbsent(tier, () => []).add(entry);
+  final byTier = <int, List<_ConsumerBundle>>{};
+  for (final bundle in feasibleBundles) {
+    final tier = bundle.consumer.unlockLevel ~/ 10;
+    byTier.putIfAbsent(tier, () => []).add(bundle);
   }
 
-  final cappedConsumers = <_ConsumerEntry>[];
-  for (final tierEntries in byTier.values) {
+  final cappedBundles = <_ConsumerBundle>[];
+  for (final tierBundles in byTier.values) {
     // Already sorted by effective rate, just take top N per tier
-    cappedConsumers.addAll(tierEntries.take(maxRecipeVariantsPerTier));
+    cappedBundles.addAll(tierBundles.take(maxRecipeVariantsPerTier));
   }
 
   // Re-sort the capped list to maintain overall order
-  cappedConsumers.sort(consumerSortCtx.compareByEffectiveRate);
+  cappedBundles.sort(bundleSortCtx.compareByEffectiveRate);
 
   // Select top N consumer actions from the capped list
-  final selectedConsumers = cappedConsumers.take(maxConsumerActions).toList();
+  final selectedBundles = cappedBundles.take(maxConsumerActions).toList();
 
-  // Build result: for each consumer action, include it and its best producer
-  final result = <ActionId>[];
-  for (final entry in selectedConsumers) {
-    result.add(entry.consumer.actionId);
-    if (entry.producer != null) {
-      result.add(entry.producer!.actionId);
-    }
+  // Build result: include consumer + FULL chain actions (not just primaries)
+  final resultSet = <ActionId>{};
+  for (final bundle in selectedBundles) {
+    resultSet
+      ..add(bundle.consumer.actionId)
+      ..addAll(bundle.allChainActionIds);
   }
+  final result = resultSet.toList();
 
   final stats = collectStats
       ? _buildConsumingSkillStats(
           consumerActions: consumerActions,
           pairsConsidered: pairsConsidered,
-          selectedConsumers: selectedConsumers,
+          selectedBundles: selectedBundles,
+          allBundles: bundles,
         )
       : null;
 

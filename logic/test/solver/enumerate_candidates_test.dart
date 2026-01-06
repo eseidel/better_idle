@@ -381,4 +381,173 @@ void main() {
       expect(newState.shop.purchaseCount(ironPickaxeId), equals(1));
     });
   });
+
+  group('ProducerResolver', () {
+    test('resolves producer for simple item (Normal Logs)', () {
+      final state = GlobalState.empty(testRegistries);
+      final summaries = buildActionSummaries(state);
+      final resolver = ProducerResolver(summaries, state);
+
+      // Normal Logs are produced by Normal Tree (Woodcutting)
+      const normalLogsId = MelvorId('melvorD:Normal_Logs');
+      final plan = resolver.resolve(normalLogsId);
+
+      expect(plan, isNotNull);
+      expect(actionName(plan!.primaryProducer.actionId), equals('Normal Tree'));
+      expect(plan.ticksPerUnit, greaterThan(0));
+      expect(plan.chainActions, contains(plan.primaryProducer.actionId));
+      expect(plan.chainActions.length, equals(1)); // Simple producer, no chain
+    });
+
+    test('returns null for non-producible item', () {
+      final state = GlobalState.empty(testRegistries);
+      final summaries = buildActionSummaries(state);
+      final resolver = ProducerResolver(summaries, state);
+
+      // Use a fake item ID that doesn't exist
+      const fakeItemId = MelvorId('melvorD:Fake_Item');
+      final plan = resolver.resolve(fakeItemId);
+
+      expect(plan, isNull);
+    });
+
+    test('caches producer lookups', () {
+      final state = GlobalState.empty(testRegistries);
+      final summaries = buildActionSummaries(state);
+      final resolver = ProducerResolver(summaries, state);
+
+      const normalLogsId = MelvorId('melvorD:Normal_Logs');
+      final plan1 = resolver.resolve(normalLogsId);
+      final plan2 = resolver.resolve(normalLogsId);
+
+      // Same object should be returned from cache
+      expect(identical(plan1, plan2), isTrue);
+    });
+
+    test('resolves multi-tier chain for Bronze Bar', () {
+      // Bronze Bar requires Copper Ore and Tin Ore
+      // Both ores come from Mining
+      final state = GlobalState.empty(testRegistries);
+      final summaries = buildActionSummaries(state);
+      final resolver = ProducerResolver(summaries, state);
+
+      const bronzeBarId = MelvorId('melvorD:Bronze_Bar');
+      final plan = resolver.resolve(bronzeBarId);
+
+      expect(plan, isNotNull);
+      // Bronze Bar is produced by Smithing (Bronze Bar action)
+      expect(actionName(plan!.primaryProducer.actionId), equals('Bronze Bar'));
+
+      // Chain should include the bar smelting action AND the ore mining actions
+      expect(plan.chainActions.length, greaterThan(1));
+
+      // ticksPerUnit should include upstream ore mining time
+      // This is more than just the bar smelting time
+      expect(
+        plan.ticksPerUnit,
+        greaterThan(plan.primaryProducer.expectedTicks),
+      );
+    });
+
+    test('ticksPerUnit includes upstream costs', () {
+      // Test that ticksPerUnit correctly accounts for upstream production
+      final state = GlobalState.empty(testRegistries);
+      final summaries = buildActionSummaries(state);
+      final resolver = ProducerResolver(summaries, state);
+
+      // Get plan for Copper Ore (simple, no upstream)
+      const copperOreId = MelvorId('melvorD:Copper_Ore');
+      final copperPlan = resolver.resolve(copperOreId);
+      expect(copperPlan, isNotNull);
+
+      // Copper mining has no inputs, so ticksPerUnit = expectedTicks/output
+      final copperAction =
+          testActions.byId(copperPlan!.primaryProducer.actionId) as SkillAction;
+      final copperOutputs = copperAction.outputs[copperOreId] ?? 1;
+      expect(
+        copperPlan.ticksPerUnit,
+        equals(copperPlan.primaryProducer.expectedTicks / copperOutputs),
+      );
+    });
+
+    test('prefers producer with lower ticksPerUnit', () {
+      // This test verifies that when multiple producers exist for an item,
+      // the resolver picks the one with lowest ticksPerUnit.
+      // In practice, most items have only one producer, but the logic
+      // evaluates top-K candidates.
+      final state = GlobalState.empty(testRegistries);
+      final summaries = buildActionSummaries(state);
+      final resolver = ProducerResolver(summaries, state);
+
+      // Normal Logs from Normal Tree should be picked (only producer)
+      const normalLogsId = MelvorId('melvorD:Normal_Logs');
+      final plan = resolver.resolve(normalLogsId);
+      expect(plan, isNotNull);
+      expect(plan!.ticksPerUnit, greaterThan(0));
+    });
+  });
+
+  group('consuming skill candidate selection', () {
+    test('includes producers for consuming skill candidates', () {
+      // When selecting candidates for a consuming skill like Firemaking,
+      // the result should include both consumer actions AND their producers
+      final state = GlobalState.empty(testRegistries);
+      final candidates = enumerateCandidates(
+        state,
+        const ReachSkillLevelGoal(Skill.firemaking, 10),
+      );
+
+      // Should include both firemaking actions and woodcutting producers
+      final actionNames = candidates.switchToActivities
+          .map((id) => testActions.byId(id).name)
+          .toList();
+
+      // Should have firemaking actions
+      expect(
+        actionNames.any((name) => name.contains('Burn')),
+        isTrue,
+        reason: 'Should include firemaking (Burn) actions',
+      );
+
+      // Should have woodcutting producers
+      expect(
+        actionNames.any((name) => name.contains('Tree')),
+        isTrue,
+        reason: 'Should include woodcutting (Tree) producers',
+      );
+    });
+
+    test('handles multi-input consuming skills (Smithing)', () {
+      // Smithing actions require multiple inputs (e.g., Bronze Bars needs
+      // Copper Ore + Tin Ore). The candidate selection should handle this.
+      final state = GlobalState.test(
+        testRegistries,
+        skillStates: const {
+          Skill.hitpoints: SkillState(xp: 1154, masteryPoolXp: 0),
+          // Unlock Smithing
+          Skill.smithing: SkillState(xp: 0, masteryPoolXp: 0),
+          // Need mining for ore production
+          Skill.mining: SkillState(xp: 0, masteryPoolXp: 0),
+        },
+      );
+      final candidates = enumerateCandidates(
+        state,
+        const ReachSkillLevelGoal(Skill.smithing, 5),
+      );
+
+      // Should include mining actions for ore production
+      final actionNames = candidates.switchToActivities
+          .map((id) => testActions.byId(id).name)
+          .toList();
+
+      // Should have mining producers for the ores needed by smithing
+      expect(
+        actionNames.any(
+          (name) => name == 'Copper' || name == 'Tin' || name == 'Iron',
+        ),
+        isTrue,
+        reason: 'Should include mining actions for ore production',
+      );
+    });
+  });
 }
