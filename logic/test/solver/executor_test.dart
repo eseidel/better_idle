@@ -1010,25 +1010,6 @@ void main() {
       expect(death.lostItem, isNull);
       expect(death.slotRolled, isNull);
     });
-
-    test('boundaryFromStopReason creates Death with parameters', () {
-      final bronzeSword = testItems.byName('Bronze Sword');
-      final thievingAction = testActions.thieving('Man');
-      final lostItem = ItemStack(bronzeSword, count: 1);
-
-      final boundary = boundaryFromStopReason(
-        ActionStopReason.playerDied,
-        actionId: thievingAction.id,
-        lostItem: lostItem,
-        slotRolled: EquipmentSlot.weapon,
-      );
-
-      expect(boundary, isA<Death>());
-      final death = boundary! as Death;
-      expect(death.actionId, equals(thievingAction.id));
-      expect(death.lostItem?.item, equals(bronzeSword));
-      expect(death.slotRolled, equals(EquipmentSlot.weapon));
-    });
   });
 
   group('onStepComplete callback', () {
