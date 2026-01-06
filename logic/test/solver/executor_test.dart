@@ -509,7 +509,7 @@ void main() {
     );
   });
 
-  group('attemptRecovery behavior', () {
+  group('handleBoundary behavior', () {
     test('InventoryFull with sell policy frees space and continues', () {
       final logs = testItems.byName('Normal Logs');
       final inventory = Inventory.fromItems(testItems, [
@@ -519,7 +519,7 @@ void main() {
 
       const sellPolicy = SellAllPolicy();
 
-      final result = attemptRecovery(
+      final result = handleBoundary(
         state,
         const InventoryFull(),
         sellPolicy: sellPolicy,
@@ -541,7 +541,7 @@ void main() {
       ]);
       final state = GlobalState.test(testRegistries, inventory: inventory);
 
-      final result = attemptRecovery(
+      final result = handleBoundary(
         state,
         const InventoryFull(),
         random: Random(42),
@@ -556,7 +556,7 @@ void main() {
     test('recovery limit exceeded triggers replan', () {
       final state = GlobalState.empty(testRegistries);
 
-      final result = attemptRecovery(
+      final result = handleBoundary(
         state,
         const InventoryFull(),
         sellPolicy: const SellAllPolicy(),
@@ -575,7 +575,7 @@ void main() {
       final state = GlobalState.empty(testRegistries);
       final action = testActions.smithing('Bronze Dagger');
 
-      final result = attemptRecovery(
+      final result = handleBoundary(
         state,
         InputsDepleted(
           actionId: action.id,
@@ -595,7 +595,7 @@ void main() {
     test('Death continues without incrementing attempts', () {
       final state = GlobalState.empty(testRegistries);
 
-      final result = attemptRecovery(
+      final result = handleBoundary(
         state,
         const Death(),
         sellPolicy: const SellAllPolicy(),
@@ -611,7 +611,7 @@ void main() {
     test('WaitConditionSatisfied signals completion', () {
       final state = GlobalState.empty(testRegistries);
 
-      final result = attemptRecovery(
+      final result = handleBoundary(
         state,
         const WaitConditionSatisfied(),
         sellPolicy: const SellAllPolicy(),
@@ -622,6 +622,230 @@ void main() {
 
       expect(result.outcome, equals(RecoveryOutcome.completed));
       expect(result.boundary, isA<WaitConditionSatisfied>());
+    });
+
+    test('GoalReached signals completion', () {
+      final state = GlobalState.empty(testRegistries);
+
+      final result = handleBoundary(
+        state,
+        const GoalReached(),
+        random: Random(42),
+        currentAttempts: 0,
+        maxAttempts: 5,
+      );
+
+      expect(result.outcome, equals(RecoveryOutcome.completed));
+      expect(result.boundary, isA<GoalReached>());
+      expect(result.newAttemptCount, equals(0)); // Not incremented
+    });
+
+    test('UpgradeAffordableEarly triggers replan', () {
+      final state = GlobalState.empty(testRegistries);
+      const axeUpgradeId = MelvorId('melvorD:Axe_Upgrade');
+
+      final result = handleBoundary(
+        state,
+        const UpgradeAffordableEarly(purchaseId: axeUpgradeId),
+        random: Random(42),
+        currentAttempts: 1,
+        maxAttempts: 5,
+      );
+
+      expect(result.outcome, equals(RecoveryOutcome.replanRequired));
+      expect(result.boundary, isA<UpgradeAffordableEarly>());
+      final boundary = result.boundary! as UpgradeAffordableEarly;
+      expect(boundary.purchaseId, equals(axeUpgradeId));
+      expect(result.newAttemptCount, equals(1)); // Not incremented
+    });
+
+    test('UnlockObserved triggers replan', () {
+      final state = GlobalState.empty(testRegistries);
+
+      final result = handleBoundary(
+        state,
+        const UnlockObserved(
+          skill: Skill.woodcutting,
+          level: 15,
+          unlocks: 'Oak Tree',
+        ),
+        random: Random(42),
+        currentAttempts: 2,
+        maxAttempts: 5,
+      );
+
+      expect(result.outcome, equals(RecoveryOutcome.replanRequired));
+      expect(result.boundary, isA<UnlockObserved>());
+      final boundary = result.boundary! as UnlockObserved;
+      expect(boundary.skill, equals(Skill.woodcutting));
+      expect(boundary.level, equals(15));
+      expect(result.newAttemptCount, equals(2)); // Not incremented
+    });
+
+    test('UnexpectedUnlock triggers replan', () {
+      final state = GlobalState.empty(testRegistries);
+      final actionId = testActions.woodcutting('Oak Tree').id;
+
+      final result = handleBoundary(
+        state,
+        UnexpectedUnlock(actionId: actionId),
+        random: Random(42),
+        currentAttempts: 0,
+        maxAttempts: 5,
+      );
+
+      expect(result.outcome, equals(RecoveryOutcome.replanRequired));
+      expect(result.boundary, isA<UnexpectedUnlock>());
+      final boundary = result.boundary! as UnexpectedUnlock;
+      expect(boundary.actionId, equals(actionId));
+    });
+
+    test('PlannedSegmentStop triggers replan', () {
+      final state = GlobalState.empty(testRegistries);
+      const segmentBoundary = HorizonCapBoundary(10000);
+
+      final result = handleBoundary(
+        state,
+        const PlannedSegmentStop(segmentBoundary),
+        random: Random(42),
+        currentAttempts: 0,
+        maxAttempts: 5,
+      );
+
+      expect(result.outcome, equals(RecoveryOutcome.replanRequired));
+      expect(result.boundary, isA<PlannedSegmentStop>());
+      final boundary = result.boundary! as PlannedSegmentStop;
+      expect(boundary.boundary, equals(segmentBoundary));
+    });
+
+    test('CannotAfford triggers replan', () {
+      final state = GlobalState.empty(testRegistries);
+      const purchaseId = MelvorId('melvorD:Axe_Upgrade');
+
+      final result = handleBoundary(
+        state,
+        const CannotAfford(purchaseId: purchaseId, cost: 1000, available: 500),
+        random: Random(42),
+        currentAttempts: 0,
+        maxAttempts: 5,
+      );
+
+      expect(result.outcome, equals(RecoveryOutcome.replanRequired));
+      expect(result.boundary, isA<CannotAfford>());
+      final boundary = result.boundary! as CannotAfford;
+      expect(boundary.purchaseId, equals(purchaseId));
+      expect(boundary.cost, equals(1000));
+      expect(boundary.available, equals(500));
+    });
+
+    test('ActionUnavailable triggers replan', () {
+      final state = GlobalState.empty(testRegistries);
+      final actionId = testActions.woodcutting('Oak Tree').id;
+
+      final result = handleBoundary(
+        state,
+        ActionUnavailable(actionId: actionId, reason: 'Level too low'),
+        random: Random(42),
+        currentAttempts: 0,
+        maxAttempts: 5,
+      );
+
+      expect(result.outcome, equals(RecoveryOutcome.replanRequired));
+      expect(result.boundary, isA<ActionUnavailable>());
+      final boundary = result.boundary! as ActionUnavailable;
+      expect(boundary.actionId, equals(actionId));
+      expect(boundary.reason, equals('Level too low'));
+    });
+
+    test('NoProgressPossible triggers replan', () {
+      final state = GlobalState.empty(testRegistries);
+
+      final result = handleBoundary(
+        state,
+        const NoProgressPossible(reason: 'Stuck in a loop'),
+        random: Random(42),
+        currentAttempts: 0,
+        maxAttempts: 5,
+      );
+
+      expect(result.outcome, equals(RecoveryOutcome.replanRequired));
+      expect(result.boundary, isA<NoProgressPossible>());
+      final boundary = result.boundary! as NoProgressPossible;
+      expect(boundary.reason, equals('Stuck in a loop'));
+    });
+
+    test('InventoryPressure with sell policy recovers and continues', () {
+      final logs = testItems.byName('Normal Logs');
+      final inventory = Inventory.fromItems(testItems, [
+        ItemStack(logs, count: 18), // 18 of 20 slots = 90% pressure
+      ]);
+      final state = GlobalState.test(testRegistries, inventory: inventory);
+
+      const sellPolicy = SellAllPolicy();
+
+      final result = handleBoundary(
+        state,
+        const InventoryPressure(usedSlots: 18, totalSlots: 20),
+        sellPolicy: sellPolicy,
+        random: Random(42),
+        currentAttempts: 0,
+        maxAttempts: 5,
+      );
+
+      expect(result.outcome, equals(RecoveryOutcome.recoveredRetry));
+      expect(result.state.inventoryUsed, lessThan(state.inventoryUsed));
+      expect(result.newAttemptCount, equals(1));
+    });
+
+    test('InventoryPressure without sellable items continues anyway', () {
+      // Empty inventory means nothing to sell, but pressure is ok to continue
+      final state = GlobalState.empty(testRegistries);
+
+      final result = handleBoundary(
+        state,
+        const InventoryPressure(usedSlots: 18, totalSlots: 20),
+        sellPolicy: const SellAllPolicy(),
+        random: Random(42),
+        currentAttempts: 0,
+        maxAttempts: 5,
+      );
+
+      // InventoryPressure is soft - should continue even if nothing to sell
+      expect(result.outcome, equals(RecoveryOutcome.recoveredRetry));
+      expect(result.newAttemptCount, equals(0)); // Not incremented for pressure
+    });
+
+    test('InventoryPressure without sell policy triggers replan', () {
+      final state = GlobalState.empty(testRegistries);
+
+      final result = handleBoundary(
+        state,
+        const InventoryPressure(usedSlots: 18, totalSlots: 20),
+        // No sell policy provided
+        random: Random(42),
+        currentAttempts: 0,
+        maxAttempts: 5,
+      );
+
+      expect(result.outcome, equals(RecoveryOutcome.replanRequired));
+      expect(result.boundary, isA<NoProgressPossible>());
+    });
+
+    test('completion boundaries checked before recovery limit', () {
+      // Even at max attempts, GoalReached should still signal completion
+      final state = GlobalState.empty(testRegistries);
+
+      final result = handleBoundary(
+        state,
+        const GoalReached(),
+        random: Random(42),
+        currentAttempts: 5,
+        maxAttempts: 5, // At limit
+      );
+
+      // Should be completed, not replan due to limit
+      expect(result.outcome, equals(RecoveryOutcome.completed));
+      expect(result.boundary, isA<GoalReached>());
     });
   });
 

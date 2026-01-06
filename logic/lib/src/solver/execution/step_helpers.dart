@@ -146,6 +146,28 @@ class RecoveryResult {
     this.boundary,
   });
 
+  /// Creates a result indicating normal completion (goal reached, etc.).
+  const RecoveryResult.completed(
+    this.state, {
+    required this.boundary,
+    required int attemptCount,
+  }) : outcome = RecoveryOutcome.completed,
+       newAttemptCount = attemptCount;
+
+  /// Creates a result indicating a replan is required.
+  const RecoveryResult.replan(
+    this.state, {
+    required this.boundary,
+    required int attemptCount,
+  }) : outcome = RecoveryOutcome.replanRequired,
+       newAttemptCount = attemptCount;
+
+  /// Creates a result indicating recovery succeeded, retry the current phase.
+  const RecoveryResult.retry(this.state, {required int attemptCount})
+    : outcome = RecoveryOutcome.recoveredRetry,
+      newAttemptCount = attemptCount,
+      boundary = null;
+
   /// The state after recovery (may be modified if recovery succeeded).
   final GlobalState state;
 
@@ -176,38 +198,40 @@ enum RecoveryOutcome {
   replanRequired,
 }
 
-/// Attempts plan-authorized recovery for a boundary.
+/// Handles a boundary by determining the appropriate recovery outcome.
 ///
-/// ## Recovery Philosophy
+/// This function classifies boundaries and attempts recovery where applicable.
+/// It maps each boundary type to one of three outcomes:
 ///
-/// The executor adapts to randomness ONLY via explicitly authorized actions.
-/// Recovery is strictly limited to what the plan specifies - the executor
-/// never makes autonomous strategic decisions.
+/// - **completed**: Normal completion, stop execution successfully
+/// - **recoveredRetry**: Recovery succeeded (or not needed), retry current
+///   phase
+/// - **replanRequired**: Cannot continue, need to replan
 ///
-/// ## Supported Recoveries
+/// ## Boundary Classification
 ///
-/// - **InventoryFull**: Sell using the provided sell policy, then retry.
-///   The policy comes from: macro → segment → plan default.
-///   If no policy is available, triggers replan.
+/// | Boundary Type | Outcome | Recovery Action |
+/// |--------------|---------|-----------------|
+/// | WaitConditionSatisfied | completed | None |
+/// | GoalReached | completed | None |
+/// | InventoryFull | recoveredRetry* | Sell items per policy |
+/// | InventoryPressure | recoveredRetry* | Sell items per policy |
+/// | Death | recoveredRetry | None (simulator handles) |
+/// | InputsDepleted | replanRequired | None |
+/// | NoProgressPossible | replanRequired | None |
+/// | UpgradeAffordableEarly | replanRequired | None |
+/// | UnlockObserved | replanRequired | None |
+/// | UnexpectedUnlock | replanRequired | None |
+/// | PlannedSegmentStop | replanRequired | None |
+/// | CannotAfford | replanRequired | None |
+/// | ActionUnavailable | replanRequired | None |
 ///
-/// - **WaitConditionSatisfied**: Stop (normal completion).
-///
-/// - **GoalReached**: Stop (plan succeeded).
-///
-/// - **InputsDepleted**: Stop and trigger replan. The executor does NOT
-///   pick alternate producers - that's the planner's job via EnsureStock.
-///
-/// - **NoProgressPossible**: Stop and trigger replan.
-///
-/// - **Death**: Continue (deaths are handled by the simulator automatically).
-///
-/// - **All other boundaries**: Stop and trigger replan.
+/// *Inventory boundaries trigger replan if no sell policy or selling fails.
 ///
 /// ## Guardrails
 ///
 /// - Max recovery attempts per macro invocation prevents infinite loops.
-/// - State-change detection: if recovery doesn't meaningfully change state
-///   (e.g., selling produced 0 GP), it triggers replan to avoid loops.
+/// - State-change detection: if selling doesn't free space, triggers replan.
 ///
 /// ## Policy Hierarchy
 ///
@@ -217,7 +241,7 @@ enum RecoveryOutcome {
 /// 3. Plan's default policy
 ///
 /// The executor NEVER infers policy from goal during execution.
-RecoveryResult attemptRecovery(
+RecoveryResult handleBoundary(
   GlobalState state,
   ReplanBoundary boundary, {
   required Random random,
@@ -227,23 +251,21 @@ RecoveryResult attemptRecovery(
 }) {
   // Handle completion boundaries first (no recovery needed)
   if (boundary is WaitConditionSatisfied || boundary is GoalReached) {
-    return RecoveryResult(
-      state: state,
-      outcome: RecoveryOutcome.completed,
-      newAttemptCount: currentAttempts,
+    return RecoveryResult.completed(
+      state,
       boundary: boundary,
+      attemptCount: currentAttempts,
     );
   }
 
   // Check recovery limit before attempting any recovery
   if (currentAttempts >= maxAttempts) {
-    return RecoveryResult(
-      state: state,
-      outcome: RecoveryOutcome.replanRequired,
-      newAttemptCount: currentAttempts,
+    return RecoveryResult.replan(
+      state,
       boundary: NoProgressPossible(
         reason: 'Recovery limit ($maxAttempts) exceeded - triggering replan',
       ),
+      attemptCount: currentAttempts,
     );
   }
 
@@ -255,15 +277,14 @@ RecoveryResult attemptRecovery(
       final boundaryName = boundary is InventoryPressure
           ? 'InventoryPressure'
           : 'InventoryFull';
-      return RecoveryResult(
-        state: state,
-        outcome: RecoveryOutcome.replanRequired,
-        newAttemptCount: currentAttempts + 1,
+      return RecoveryResult.replan(
+        state,
         boundary: NoProgressPossible(
           reason:
               '$boundaryName but no sell policy provided - '
               'planner must specify sellPolicySpec',
         ),
+        attemptCount: currentAttempts + 1,
       );
     }
 
@@ -276,22 +297,17 @@ RecoveryResult attemptRecovery(
       // For InventoryPressure, if we can't sell, that's ok - we can continue
       // until truly full. For InventoryFull, we're stuck.
       if (boundary is InventoryPressure) {
-        return RecoveryResult(
-          state: state,
-          outcome: RecoveryOutcome.recoveredRetry,
-          newAttemptCount: currentAttempts,
-          // Don't increment - pressure without sellable items is ok
-        );
+        // Don't increment - pressure without sellable items is ok
+        return RecoveryResult.retry(state, attemptCount: currentAttempts);
       }
-      return RecoveryResult(
-        state: state,
-        outcome: RecoveryOutcome.replanRequired,
-        newAttemptCount: currentAttempts + 1,
+      return RecoveryResult.replan(
+        state,
         boundary: const NoProgressPossible(
           reason:
               'InventoryFull with nothing to sell per policy - '
               'triggering replan',
         ),
+        attemptCount: currentAttempts + 1,
       );
     }
 
@@ -307,58 +323,43 @@ RecoveryResult attemptRecovery(
       // Selling didn't free any space - this would loop forever
       // For pressure, this is ok to continue without incrementing attempts
       if (boundary is InventoryPressure) {
-        return RecoveryResult(
-          state: newState,
-          outcome: RecoveryOutcome.recoveredRetry,
-          newAttemptCount: currentAttempts,
-        );
+        return RecoveryResult.retry(newState, attemptCount: currentAttempts);
       }
-      return RecoveryResult(
-        state: newState,
-        outcome: RecoveryOutcome.replanRequired,
-        newAttemptCount: currentAttempts + 1,
+      return RecoveryResult.replan(
+        newState,
         boundary: const NoProgressPossible(
           reason: 'Selling did not free inventory space - triggering replan',
         ),
+        attemptCount: currentAttempts + 1,
       );
     }
 
     // Recovery succeeded, retry the current phase
-    return RecoveryResult(
-      state: newState,
-      outcome: RecoveryOutcome.recoveredRetry,
-      newAttemptCount: currentAttempts + 1,
-    );
+    return RecoveryResult.retry(newState, attemptCount: currentAttempts + 1);
   }
 
   // Handle Death: continue (simulator handles restart automatically)
+  // Don't increment attempts for deaths - they're expected
   if (boundary is Death) {
-    return RecoveryResult(
-      state: state,
-      outcome: RecoveryOutcome.recoveredRetry,
-      newAttemptCount: currentAttempts,
-      // Don't increment attempts for deaths - they're expected
-    );
+    return RecoveryResult.retry(state, attemptCount: currentAttempts);
   }
 
   // Handle InputsDepleted: trigger replan
   // The executor does NOT pick alternate producers - that's the planner's job
   if (boundary is InputsDepleted) {
-    return RecoveryResult(
-      state: state,
-      outcome: RecoveryOutcome.replanRequired,
-      newAttemptCount: currentAttempts,
+    return RecoveryResult.replan(
+      state,
       boundary: boundary,
+      attemptCount: currentAttempts,
     );
   }
 
   // Handle NoProgressPossible: trigger replan
   if (boundary is NoProgressPossible) {
-    return RecoveryResult(
-      state: state,
-      outcome: RecoveryOutcome.replanRequired,
-      newAttemptCount: currentAttempts,
+    return RecoveryResult.replan(
+      state,
       boundary: boundary,
+      attemptCount: currentAttempts,
     );
   }
 
@@ -366,40 +367,36 @@ RecoveryResult attemptRecovery(
   if (boundary is UpgradeAffordableEarly ||
       boundary is UnexpectedUnlock ||
       boundary is UnlockObserved) {
-    return RecoveryResult(
-      state: state,
-      outcome: RecoveryOutcome.replanRequired,
-      newAttemptCount: currentAttempts,
+    return RecoveryResult.replan(
+      state,
       boundary: boundary,
+      attemptCount: currentAttempts,
     );
   }
 
   // Handle planned segment stops: trigger replan to continue to next segment
   if (boundary is PlannedSegmentStop) {
-    return RecoveryResult(
-      state: state,
-      outcome: RecoveryOutcome.replanRequired,
-      newAttemptCount: currentAttempts,
+    return RecoveryResult.replan(
+      state,
       boundary: boundary,
+      attemptCount: currentAttempts,
     );
   }
 
   // Handle error boundaries: trigger replan
   if (boundary is CannotAfford || boundary is ActionUnavailable) {
-    return RecoveryResult(
-      state: state,
-      outcome: RecoveryOutcome.replanRequired,
-      newAttemptCount: currentAttempts,
+    return RecoveryResult.replan(
+      state,
       boundary: boundary,
+      attemptCount: currentAttempts,
     );
   }
 
   // Fallback for any unhandled boundary types: trigger replan
-  return RecoveryResult(
-    state: state,
-    outcome: RecoveryOutcome.replanRequired,
-    newAttemptCount: currentAttempts,
+  return RecoveryResult.replan(
+    state,
     boundary: boundary,
+    attemptCount: currentAttempts,
   );
 }
 
@@ -514,7 +511,7 @@ ChainProductionResult produceChainBottomUp(
 
       // Handle production boundaries
       if (produceResult.boundary is InventoryFull) {
-        final recovery = attemptRecovery(
+        final recovery = handleBoundary(
           currentState,
           const InventoryFull(),
           sellPolicy: segmentSellPolicy,
@@ -584,7 +581,7 @@ ChainProductionResult produceChainBottomUp(
 
   // Handle production boundaries for root
   if (produceResult.boundary is InventoryFull) {
-    final recovery = attemptRecovery(
+    final recovery = handleBoundary(
       currentState,
       const InventoryFull(),
       sellPolicy: segmentSellPolicy,
@@ -652,7 +649,7 @@ ChainProductionResult produceChainBottomUp(
 ///     producerId = macro.producerByInputItem[inputItem]  // Fixed ID
 ///     SwitchActivity(producerId)
 ///     consumeUntil(WaitForInventoryAtLeast(input, bufferTarget) OR boundary)
-///     if (boundary) attemptRecovery or return
+///     if (boundary) handleBoundary or return
 ///   }
 ///
 ///   // CONSUME PHASE
@@ -662,7 +659,7 @@ ChainProductionResult produceChainBottomUp(
 ///     InputsDepleted(consumeActionId),
 ///     InventoryPressure,  // Stop early if nearly full
 ///   ]))
-///   if (boundary) attemptRecovery or return
+///   if (boundary) handleBoundary or return
 /// }
 /// ```
 ///
@@ -859,7 +856,7 @@ StepResult executeCoupledLoop(
 
         // CHECKPOINT: Handle production boundaries
         if (produceResult.boundary is InventoryFull) {
-          final recovery = attemptRecovery(
+          final recovery = handleBoundary(
             state,
             const InventoryFull(),
             sellPolicy: context.segmentSellPolicy,
@@ -958,7 +955,7 @@ StepResult executeCoupledLoop(
         satisfiedCondition is WaitForInventoryThreshold;
 
     if (needsInventoryRecovery) {
-      final recovery = attemptRecovery(
+      final recovery = handleBoundary(
         state,
         const InventoryFull(),
         sellPolicy: context.segmentSellPolicy,
