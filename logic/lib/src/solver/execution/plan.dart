@@ -288,8 +288,8 @@ class MacroStep extends PlanStep {
     WatchSet? watchSet,
     SellPolicy? segmentSellPolicy,
   }) {
-    // Delegate to macro.apply() which handles the execution logic
-    final result = macro.apply(
+    // Delegate to macro.execute() which handles the execution logic
+    final result = macro.execute(
       state,
       waitFor,
       random: random,

@@ -51,8 +51,8 @@ import 'package:logic/src/solver/candidates/enumerate_candidates.dart'
         rateCacheHits,
         rateCacheMisses;
 import 'package:logic/src/solver/candidates/macro_candidate.dart';
-import 'package:logic/src/solver/candidates/macro_expansion_context.dart'
-    show MacroExpansionContext, clearForbiddenUntilCache;
+import 'package:logic/src/solver/candidates/macro_plan_context.dart'
+    show MacroPlanContext, clearForbiddenUntilCache;
 import 'package:logic/src/solver/core/goal.dart';
 import 'package:logic/src/solver/core/solver_profile.dart';
 import 'package:logic/src/solver/core/value_model.dart';
@@ -841,8 +841,8 @@ ConsumeUntilResult consumeUntil(
 // ---------------------------------------------------------------------------
 
 /// Detailed explanation of a macro expansion for debugging.
-class MacroExpansionExplanation {
-  MacroExpansionExplanation({
+class MacroPlanExplanation {
+  MacroPlanExplanation({
     required this.macro,
     required this.outcome,
     required this.steps,
@@ -852,7 +852,7 @@ class MacroExpansionExplanation {
   final MacroCandidate macro;
 
   /// The outcome of the expansion.
-  final MacroExpansionOutcome outcome;
+  final MacroPlanOutcome outcome;
 
   /// Step-by-step explanation of what happened.
   final List<String> steps;
@@ -893,13 +893,13 @@ class MacroExpansionExplanation {
     };
   }
 
-  static String _describeOutcome(MacroExpansionOutcome outcome) {
+  static String _describeOutcome(MacroPlanOutcome outcome) {
     return switch (outcome) {
-      MacroExpanded(:final result) =>
+      MacroPlanned(:final result) =>
         'SUCCESS: ${result.ticksElapsed} ticks, '
             'trigger=${result.triggeringCondition}',
       MacroAlreadySatisfied(:final reason) => 'ALREADY_SATISFIED: $reason',
-      MacroCannotExpand(:final reason) => 'CANNOT_EXPAND: $reason',
+      MacroCannotPlan(:final reason) => 'CANNOT_EXPAND: $reason',
       MacroNeedsPrerequisite(:final prerequisite) =>
         'NEEDS_PREREQ: ${prerequisite.dedupeKey}',
       MacroNeedsBoundary(:final boundary) =>
@@ -913,7 +913,7 @@ class MacroExpansionExplanation {
 /// This is a debugging tool that traces through the expansion logic and
 /// records what decisions were made and why. Useful for understanding
 /// why a macro expanded in a particular way.
-MacroExpansionExplanation explainMacroExpansion(
+MacroPlanExplanation explainMacroPlan(
   GlobalState state,
   MacroCandidate macro,
   Goal goal, {
@@ -1004,30 +1004,26 @@ MacroExpansionExplanation explainMacroExpansion(
   }
 
   // Actually perform the expansion
-  final outcome = _expandMacro(state, macro, goal, boundaries);
+  final outcome = _planMacro(state, macro, goal, boundaries);
   steps.add('Expansion complete');
 
-  return MacroExpansionExplanation(
-    macro: macro,
-    outcome: outcome,
-    steps: steps,
-  );
+  return MacroPlanExplanation(macro: macro, outcome: outcome, steps: steps);
 }
 
-/// Expands a macro candidate into a future state by estimating progress.
+/// Plans a macro candidate into a future state by estimating progress.
 ///
 /// Uses expected-value modeling (same as `advance`) to project forward
 /// until ANY of the macro's stop conditions would trigger.
 ///
-/// Returns [MacroExpanded] on success, [MacroAlreadySatisfied] if no work
-/// needed, or [MacroCannotExpand] with a reason if expansion is impossible.
+/// Returns [MacroPlanned] on success, [MacroAlreadySatisfied] if no work
+/// needed, or [MacroCannotPlan] with a reason if planning is impossible.
 /// Maximum prerequisite chain depth to prevent infinite loops.
 /// Multi-tier production chains (e.g., Mithril Platebody) can legitimately
 /// require deep chains when each tier has multiple inputs that must be
 /// produced sequentially.
 const int _maxPrerequisiteDepth = 50;
 
-MacroExpansionOutcome _expandMacro(
+MacroPlanOutcome _planMacro(
   GlobalState state,
   MacroCandidate macro,
   Goal goal,
@@ -1046,17 +1042,17 @@ MacroExpansionOutcome _expandMacro(
 
   // Iteratively resolve prerequisites until we get a final outcome
   while (depth < _maxPrerequisiteDepth) {
-    final context = MacroExpansionContext(
+    final context = MacroPlanContext(
       state: currentState,
       goal: goal,
       boundaries: boundaries,
     );
 
-    final outcome = currentMacro.expand(context);
+    final outcome = currentMacro.plan(context);
 
     switch (outcome) {
       case MacroNeedsPrerequisite(:final prerequisite):
-        // Push current macro to parent stack and expand prerequisite
+        // Push current macro to parent stack and plan prerequisite
         parentStack.add(currentMacro);
         currentMacro = prerequisite;
         depth++;
@@ -1066,7 +1062,7 @@ MacroExpansionOutcome _expandMacro(
         // Handle boundary conditions
         switch (boundary) {
           case InventoryPressure():
-            // Execute sell policy and retry
+            // Execute sell policy and retry planning
             final sellPolicy = goal.computeSellPolicy(currentState);
             currentState = applyInteractionDeterministic(
               currentState,
@@ -1079,11 +1075,11 @@ MacroExpansionOutcome _expandMacro(
           default:
             // Can't handle this boundary - return as failure
             final msg = 'Unhandled boundary: ${boundary.describe()}';
-            return MacroCannotExpand(msg);
+            return MacroCannotPlan(msg);
         }
 
-      case MacroExpanded(:final result):
-        // Macro expanded - accumulate its effects
+      case MacroPlanned(:final result):
+        // Macro planned - accumulate its effects
         currentState = result.state;
         accumulatedTicks += result.ticksElapsed;
         accumulatedDeaths += result.deaths;
@@ -1091,7 +1087,7 @@ MacroExpansionOutcome _expandMacro(
         // Check if there's a parent waiting
         if (parentStack.isEmpty) {
           // No parent - this is the final result
-          return MacroExpanded((
+          return MacroPlanned((
             state: result.state,
             ticksElapsed: accumulatedTicks,
             waitFor: result.waitFor,
@@ -1100,7 +1096,7 @@ MacroExpansionOutcome _expandMacro(
             macro: result.macro,
           ));
         }
-        // Pop parent and continue expanding with updated state
+        // Pop parent and continue planning with updated state
         currentMacro = parentStack.removeLast();
         depth++;
         continue;
@@ -1115,14 +1111,14 @@ MacroExpansionOutcome _expandMacro(
         depth++;
         continue;
 
-      case MacroCannotExpand():
+      case MacroCannotPlan():
         // Return failure directly
         return outcome;
     }
   }
 
   // Exceeded max depth
-  return const MacroCannotExpand(
+  return const MacroCannotPlan(
     'Prerequisite chain exceeded max depth ($_maxPrerequisiteDepth)',
   );
 }
@@ -1189,7 +1185,7 @@ SolverSuccess? _expandMacroEdges(
   required _NeighborCounter counter,
 }) {
   for (final macro in candidates.macros) {
-    final expansionOutcome = _expandMacro(
+    final expansionOutcome = _planMacro(
       node.state,
       macro,
       ctx.goal,
@@ -1199,15 +1195,15 @@ SolverSuccess? _expandMacroEdges(
     // Skip macros that can't be expanded or are already satisfied.
     // Note: MacroNeedsPrerequisite and MacroNeedsBoundary are handled
     // internally by _expandMacro, so we shouldn't see them here.
-    final MacroExpansionResult expansionResult;
+    final MacroPlanResult expansionResult;
     switch (expansionOutcome) {
-      case MacroExpanded(:final result):
+      case MacroPlanned(:final result):
         expansionResult = result;
       case MacroAlreadySatisfied():
       case MacroNeedsPrerequisite():
       case MacroNeedsBoundary():
         continue;
-      case MacroCannotExpand():
+      case MacroCannotPlan():
         continue;
     }
 

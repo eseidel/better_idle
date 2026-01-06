@@ -5,7 +5,7 @@ import 'package:logic/src/solver/analysis/unlock_boundaries.dart';
 import 'package:logic/src/solver/analysis/wait_for.dart';
 import 'package:logic/src/solver/candidates/build_chain.dart';
 import 'package:logic/src/solver/candidates/macro_candidate.dart';
-import 'package:logic/src/solver/candidates/macro_expansion_context.dart';
+import 'package:logic/src/solver/candidates/macro_plan_context.dart';
 import 'package:logic/src/solver/core/goal.dart';
 import 'package:logic/src/solver/interactions/interaction.dart';
 import 'package:test/test.dart';
@@ -413,12 +413,12 @@ void main() {
       });
 
       group('expand', () {
-        MacroExpansionContext makeContext(
+        MacroPlanContext makeContext(
           GlobalState state, {
           Goal? goal,
           Map<Skill, SkillBoundaries>? boundaries,
         }) {
-          return MacroExpansionContext(
+          return MacroPlanContext(
             state: state,
             goal: goal ?? const ReachSkillLevelGoal(Skill.woodcutting, 10),
             boundaries: boundaries ?? const {},
@@ -430,10 +430,10 @@ void main() {
           final context = makeContext(state);
           const macro = AcquireItem(MelvorId('melvorD:Normal_Logs'), 10);
 
-          final result = macro.expand(context);
+          final result = macro.plan(context);
 
-          expect(result, isA<MacroExpanded>());
-          final expanded = result as MacroExpanded;
+          expect(result, isA<MacroPlanned>());
+          final expanded = result as MacroPlanned;
           expect(expanded.result.ticksElapsed, greaterThan(0));
           expect(expanded.result.waitFor, isA<WaitForInventoryDelta>());
           final waitFor = expanded.result.waitFor as WaitForInventoryDelta;
@@ -441,15 +441,15 @@ void main() {
           expect(waitFor.delta, 10);
         });
 
-        test('returns MacroCannotExpand when no producer exists', () {
+        test('returns MacroCannotPlan when no producer exists', () {
           final state = GlobalState.empty(testRegistries);
           final context = makeContext(state);
           // Use a non-existent item
           const macro = AcquireItem(MelvorId('melvorD:NonExistent_Item'), 10);
 
-          final result = macro.expand(context);
+          final result = macro.plan(context);
 
-          expect(result, isA<MacroCannotExpand>());
+          expect(result, isA<MacroCannotPlan>());
         });
 
         test('returns training prerequisite when producer is locked', () {
@@ -458,7 +458,7 @@ void main() {
           final context = makeContext(state);
           const macro = AcquireItem(MelvorId('melvorD:Oak_Logs'), 10);
 
-          final result = macro.expand(context);
+          final result = macro.plan(context);
 
           // Should return training prerequisite (not expand recursively)
           expect(result, isA<MacroNeedsPrerequisite>());
@@ -479,10 +479,10 @@ void main() {
           final context = makeContext(state);
           const macro = AcquireItem(MelvorId('melvorD:Oak_Logs'), 10);
 
-          final result = macro.expand(context);
+          final result = macro.plan(context);
 
-          expect(result, isA<MacroExpanded>());
-          final expanded = result as MacroExpanded;
+          expect(result, isA<MacroPlanned>());
+          final expanded = result as MacroPlanned;
           // Should produce oak logs directly
           expect(expanded.result.waitFor, isA<WaitForInventoryDelta>());
           final waitFor = expanded.result.waitFor as WaitForInventoryDelta;
@@ -507,7 +507,7 @@ void main() {
             );
             const macro = AcquireItem(MelvorId('melvorD:Bronze_Bar'), 5);
 
-            final result = macro.expand(context);
+            final result = macro.plan(context);
 
             // Should return input prerequisite (not expand recursively)
             expect(result, isA<MacroNeedsPrerequisite>());
@@ -547,10 +547,10 @@ void main() {
           );
           const macro = AcquireItem(MelvorId('melvorD:Bronze_Bar'), 5);
 
-          final result = macro.expand(context);
+          final result = macro.plan(context);
 
-          expect(result, isA<MacroExpanded>());
-          final expanded = result as MacroExpanded;
+          expect(result, isA<MacroPlanned>());
+          final expanded = result as MacroPlanned;
           // Should wait for Bronze Bars since inputs are available
           expect(expanded.result.waitFor, isA<WaitForInventoryDelta>());
           final waitFor = expanded.result.waitFor as WaitForInventoryDelta;
@@ -563,10 +563,10 @@ void main() {
           final context = makeContext(state);
           const macro = AcquireItem(MelvorId('melvorD:Normal_Logs'), 10);
 
-          final result = macro.expand(context);
+          final result = macro.plan(context);
 
-          expect(result, isA<MacroExpanded>());
-          final expanded = result as MacroExpanded;
+          expect(result, isA<MacroPlanned>());
+          final expanded = result as MacroPlanned;
           // Normal Tree takes 3 seconds = 30 ticks per log
           // 10 logs = 300 ticks
           expect(expanded.result.ticksElapsed, 300);
@@ -582,10 +582,10 @@ void main() {
           final context = makeContext(state);
           const macro = AcquireItem(MelvorId('melvorD:Normal_Logs'), 10);
 
-          final result = macro.expand(context);
+          final result = macro.plan(context);
 
-          expect(result, isA<MacroExpanded>());
-          final expanded = result as MacroExpanded;
+          expect(result, isA<MacroPlanned>());
+          final expanded = result as MacroPlanned;
           final waitFor = expanded.result.waitFor as WaitForInventoryDelta;
           // Should acquire 10 MORE logs (delta semantics)
           expect(waitFor.delta, 10);

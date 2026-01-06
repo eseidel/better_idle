@@ -1,18 +1,22 @@
-/// Context object for macro expansion in the solver.
+/// Context object for macro planning in the solver.
 ///
-/// Bundles state, goal, boundaries, and helper methods needed to expand macros.
-/// This allows MacroCandidate.expand() to be a method while accessing solver
+/// Bundles state, goal, boundaries, and helper methods needed to plan macros.
+/// This allows MacroCandidate.plan() to be a method while accessing solver
 /// internals.
 library;
+
+import 'dart:math';
 
 import 'package:logic/src/data/action_id.dart';
 import 'package:logic/src/data/actions.dart';
 import 'package:logic/src/data/melvor_id.dart';
 import 'package:logic/src/data/xp.dart' show startXpForLevel;
 import 'package:logic/src/solver/analysis/unlock_boundaries.dart';
+import 'package:logic/src/solver/analysis/watch_set.dart';
 import 'package:logic/src/solver/candidates/macro_candidate.dart';
 import 'package:logic/src/solver/core/goal.dart';
 import 'package:logic/src/solver/execution/prerequisites.dart';
+import 'package:logic/src/solver/interactions/interaction.dart' show SellPolicy;
 import 'package:logic/src/state.dart';
 
 // ---------------------------------------------------------------------------
@@ -64,16 +68,16 @@ int get forbiddenCacheHits => _forbiddenCacheHits;
 /// Returns forbidden cache miss count (for profiling).
 int get forbiddenCacheMisses => _forbiddenCacheMisses;
 
-/// Context for macro expansion operations.
+/// Context for macro planning operations.
 ///
 /// Provides access to solver state and helper methods that macros need during
-/// expansion. This decouples the macro expansion logic from the solver
+/// planning. This decouples the macro planning logic from the solver
 /// implementation while still allowing access to solver utilities.
 ///
-/// Note: This context is used for deterministic planning. All macro expansion
+/// Note: This context is used for deterministic planning. All macro planning
 /// uses expected-value modeling (deterministic averages), not randomness.
-class MacroExpansionContext {
-  MacroExpansionContext({
+class MacroPlanContext {
+  MacroPlanContext({
     required this.state,
     required this.goal,
     required this.boundaries,
@@ -459,8 +463,8 @@ class MacroExpansionContext {
   }
 
   /// Creates a new context with updated state.
-  MacroExpansionContext withState(GlobalState newState) {
-    return MacroExpansionContext(
+  MacroPlanContext withState(GlobalState newState) {
+    return MacroPlanContext(
       state: newState,
       goal: goal,
       boundaries: boundaries,
@@ -479,4 +483,37 @@ class BatchSizeResult {
   final int craftsNeeded;
   final Map<MelvorId, int> inputRequirements;
   final int targetLevel;
+}
+
+// ---------------------------------------------------------------------------
+// Macro Execute Context
+// ---------------------------------------------------------------------------
+
+/// Context for macro execution operations.
+///
+/// Provides access to execution-time utilities that macros need during
+/// stochastic simulation. This bundles the parameters that would otherwise
+/// be passed individually to [MacroCandidate.execute].
+///
+/// Unlike [MacroPlanContext] which uses expected-value modeling,
+/// [MacroExecuteContext] is used for actual execution with randomness.
+class MacroExecuteContext {
+  const MacroExecuteContext({
+    required this.random,
+    this.boundaries,
+    this.watchSet,
+    this.segmentSellPolicy,
+  });
+
+  /// Random number generator for stochastic simulation.
+  final Random random;
+
+  /// Skill unlock boundaries for re-evaluating stop rules.
+  final Map<Skill, SkillBoundaries>? boundaries;
+
+  /// Enables mid-macro boundary detection if provided.
+  final WatchSet? watchSet;
+
+  /// Sell policy for handling inventory full during execution.
+  final SellPolicy? segmentSellPolicy;
 }

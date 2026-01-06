@@ -10,7 +10,7 @@ import 'package:logic/src/solver/analysis/wait_for.dart';
 import 'package:logic/src/solver/analysis/watch_set.dart';
 import 'package:logic/src/solver/candidates/enumerate_candidates.dart';
 import 'package:logic/src/solver/candidates/macro_candidate.dart';
-import 'package:logic/src/solver/candidates/macro_expansion_context.dart';
+import 'package:logic/src/solver/candidates/macro_plan_context.dart';
 import 'package:logic/src/solver/core/goal.dart';
 import 'package:logic/src/solver/core/solver.dart';
 import 'package:logic/src/solver/core/solver_profile.dart';
@@ -1192,7 +1192,7 @@ void main() {
           );
         }
 
-        final context = MacroExpansionContext(
+        final context = MacroPlanContext(
           state: state,
           goal: goal,
           boundaries: boundaries,
@@ -1203,7 +1203,7 @@ void main() {
           StopAtNextBoundary(Skill.smithing),
         );
 
-        final outcome = macro.expand(context);
+        final outcome = macro.plan(context);
 
         // If TCU emits an EnsureStock prereq, record its target
         if (outcome is MacroNeedsPrerequisite) {
@@ -2449,7 +2449,7 @@ void main() {
 
   group('EnsureStock batching', () {
     test('multi-tier chain expansion - smithing solves correctly', () {
-      // This test verifies that multi-tier consuming skill chains work correctly.
+      // Verifies that multi-tier consuming skill chains work correctly.
       // When solving for smithing, the solver should:
       // 1. Handle prerequisite chains (ore -> bar -> item)
       // 2. Use exact input requirements (not over-quantized batches)
@@ -2619,8 +2619,8 @@ void main() {
     });
   });
 
-  group('MacroExpansionExplanation.format', () {
-    test('formats basic TrainSkillUntil macro with MacroExpanded outcome', () {
+  group('MacroPlanExplanation.format', () {
+    test('formats basic TrainSkillUntil macro with MacroPlanned outcome', () {
       final state = GlobalState.empty(testRegistries);
       const macro = TrainSkillUntil(
         Skill.woodcutting,
@@ -2634,9 +2634,9 @@ void main() {
         triggeringCondition: 'Boundary L10',
         macro: macro,
       );
-      final outcome = MacroExpanded(expansionResult);
+      final outcome = MacroPlanned(expansionResult);
 
-      final explanation = MacroExpansionExplanation(
+      final explanation = MacroPlanExplanation(
         macro: macro,
         outcome: outcome,
         steps: ['Step 1: Found best action', 'Step 2: Advanced state'],
@@ -2653,12 +2653,12 @@ void main() {
       expect(formatted, contains('trigger=Boundary L10'));
     });
 
-    test('formats AcquireItem macro with MacroCannotExpand outcome', () {
+    test('formats AcquireItem macro with MacroCannotPlan outcome', () {
       const itemId = MelvorId('melvorD:Normal_Logs');
       const macro = AcquireItem(itemId, 100);
-      const outcome = MacroCannotExpand('No producer found');
+      const outcome = MacroCannotPlan('No producer found');
 
-      final explanation = MacroExpansionExplanation(
+      final explanation = MacroPlanExplanation(
         macro: macro,
         outcome: outcome,
         steps: [
@@ -2679,7 +2679,7 @@ void main() {
       const macro = EnsureStock(MelvorId('melvorD:Oak_Logs'), 50);
       const outcome = MacroAlreadySatisfied('Already have 50 Oak Logs');
 
-      final explanation = MacroExpansionExplanation(
+      final explanation = MacroPlanExplanation(
         macro: macro,
         outcome: outcome,
         steps: ['Checked inventory', 'Have sufficient stock'],
@@ -2710,9 +2710,9 @@ void main() {
         macro: macro,
       );
 
-      final explanation = MacroExpansionExplanation(
+      final explanation = MacroPlanExplanation(
         macro: macro,
-        outcome: MacroExpanded(expansionResult),
+        outcome: MacroPlanned(expansionResult),
         steps: ['Training mining'],
       );
 
@@ -2736,9 +2736,9 @@ void main() {
         macro: macro,
       );
 
-      final explanation = MacroExpansionExplanation(
+      final explanation = MacroPlanExplanation(
         macro: macro,
-        outcome: MacroExpanded(expansionResult),
+        outcome: MacroPlanned(expansionResult),
         steps: ['Found consuming action', 'Processed inputs'],
       );
 
@@ -2755,9 +2755,9 @@ void main() {
         actionId: ActionId.test(Skill.smithing, 'Bronze Bars'),
         estimatedTicks: 150,
       );
-      const outcome = MacroCannotExpand('Missing Bronze Ore');
+      const outcome = MacroCannotPlan('Missing Bronze Ore');
 
-      final explanation = MacroExpansionExplanation(
+      final explanation = MacroPlanExplanation(
         macro: macro,
         outcome: outcome,
         steps: ['Need Bronze Ore to produce Bronze Bar'],
@@ -2774,7 +2774,7 @@ void main() {
       const prereq = AcquireItem(MelvorId('melvorD:Iron_Ore'), 5);
       const outcome = MacroNeedsPrerequisite(prereq);
 
-      final explanation = MacroExpansionExplanation(
+      final explanation = MacroPlanExplanation(
         macro: macro,
         outcome: outcome,
         steps: ['Iron Bar requires Iron Ore'],
@@ -2795,7 +2795,7 @@ void main() {
       const boundary = InventoryPressure(usedSlots: 19, totalSlots: 20);
       const outcome = MacroNeedsBoundary(boundary);
 
-      final explanation = MacroExpansionExplanation(
+      final explanation = MacroPlanExplanation(
         macro: macro,
         outcome: outcome,
         steps: ['Inventory nearly full'],
@@ -2811,7 +2811,7 @@ void main() {
       const macro = AcquireItem(MelvorId('melvorD:Logs'), 1);
       const outcome = MacroAlreadySatisfied('Already have it');
 
-      final explanation = MacroExpansionExplanation(
+      final explanation = MacroPlanExplanation(
         macro: macro,
         outcome: outcome,
         steps: [],
@@ -2826,7 +2826,7 @@ void main() {
     });
   });
 
-  group('explainMacroExpansion', () {
+  group('explainMacroPlan', () {
     test('explains TrainSkillUntil expansion with steps', () {
       final state = GlobalState.empty(testRegistries);
       const goal = ReachSkillLevelGoal(Skill.woodcutting, 10);
@@ -2835,7 +2835,7 @@ void main() {
         StopAtNextBoundary(Skill.woodcutting),
       );
 
-      final explanation = explainMacroExpansion(
+      final explanation = explainMacroPlan(
         state,
         macro,
         goal,
@@ -2853,7 +2853,7 @@ void main() {
     });
 
     test('explains TrainSkillUntil when no action available', () {
-      // Create state with no unlocked actions for thieving (requires area access)
+      // State with no unlocked actions for thieving (requires area access)
       final state = GlobalState.empty(testRegistries);
       const goal = ReachSkillLevelGoal(Skill.thieving, 10);
       const macro = TrainSkillUntil(
@@ -2861,7 +2861,7 @@ void main() {
         StopAtNextBoundary(Skill.thieving),
       );
 
-      final explanation = explainMacroExpansion(
+      final explanation = explainMacroPlan(
         state,
         macro,
         goal,
@@ -2888,7 +2888,7 @@ void main() {
         StopAtNextBoundary(Skill.firemaking),
       );
 
-      final explanation = explainMacroExpansion(
+      final explanation = explainMacroPlan(
         state,
         macro,
         goal,
@@ -2917,7 +2917,7 @@ void main() {
         StopAtNextBoundary(Skill.cooking),
       );
 
-      final explanation = explainMacroExpansion(
+      final explanation = explainMacroPlan(
         state,
         macro,
         goal,
@@ -2937,7 +2937,7 @@ void main() {
       const goal = ReachSkillLevelGoal(Skill.woodcutting, 10);
       const macro = AcquireItem(MelvorId('melvorD:Normal_Logs'), 10);
 
-      final explanation = explainMacroExpansion(
+      final explanation = explainMacroPlan(
         state,
         macro,
         goal,
@@ -2958,7 +2958,7 @@ void main() {
       // Oak Logs require level 10 woodcutting
       const macro = AcquireItem(MelvorId('melvorD:Oak_Logs'), 10);
 
-      final explanation = explainMacroExpansion(
+      final explanation = explainMacroPlan(
         state,
         macro,
         goal,
@@ -2982,7 +2982,7 @@ void main() {
       const goal = ReachSkillLevelGoal(Skill.mining, 10);
       const macro = EnsureStock(MelvorId('melvorD:Copper_Ore'), 20);
 
-      final explanation = explainMacroExpansion(
+      final explanation = explainMacroPlan(
         state,
         macro,
         goal,
@@ -3005,7 +3005,7 @@ void main() {
       const goal = ReachSkillLevelGoal(Skill.mining, 10);
       const macro = EnsureStock(MelvorId('melvorD:Copper_Ore'), 50);
 
-      final explanation = explainMacroExpansion(
+      final explanation = explainMacroPlan(
         state,
         macro,
         goal,
@@ -3030,7 +3030,7 @@ void main() {
         estimatedTicks: 300,
       );
 
-      final explanation = explainMacroExpansion(
+      final explanation = explainMacroPlan(
         state,
         macro,
         goal,
@@ -3053,15 +3053,15 @@ void main() {
         StopAtNextBoundary(Skill.woodcutting),
       );
 
-      final explanation = explainMacroExpansion(
+      final explanation = explainMacroPlan(
         state,
         macro,
         goal,
         random: Random(42),
       );
 
-      expect(explanation.outcome, isA<MacroExpanded>());
-      final expanded = explanation.outcome as MacroExpanded;
+      expect(explanation.outcome, isA<MacroPlanned>());
+      final expanded = explanation.outcome as MacroPlanned;
       expect(expanded.result.ticksElapsed, greaterThan(0));
     });
 
@@ -3071,14 +3071,14 @@ void main() {
       const goal = ReachSkillLevelGoal(Skill.woodcutting, 10);
       const macro = AcquireItem(MelvorId('melvorD:NonExistent_Item'), 10);
 
-      final explanation = explainMacroExpansion(
+      final explanation = explainMacroPlan(
         state,
         macro,
         goal,
         random: Random(42),
       );
 
-      expect(explanation.outcome, isA<MacroCannotExpand>());
+      expect(explanation.outcome, isA<MacroCannotPlan>());
     });
 
     test('outcome reflects already satisfied', () {
@@ -3091,7 +3091,7 @@ void main() {
       const goal = ReachSkillLevelGoal(Skill.mining, 10);
       const macro = EnsureStock(MelvorId('melvorD:Copper_Ore'), 50);
 
-      final explanation = explainMacroExpansion(
+      final explanation = explainMacroPlan(
         state,
         macro,
         goal,
@@ -3115,7 +3115,7 @@ void main() {
         ),
       );
 
-      final explanation = explainMacroExpansion(
+      final explanation = explainMacroPlan(
         state,
         macro,
         goal,

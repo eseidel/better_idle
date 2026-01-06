@@ -25,7 +25,7 @@ import 'package:logic/src/solver/analysis/unlock_boundaries.dart';
 import 'package:logic/src/solver/analysis/wait_for.dart';
 import 'package:logic/src/solver/analysis/watch_set.dart';
 import 'package:logic/src/solver/candidates/build_chain.dart';
-import 'package:logic/src/solver/candidates/macro_expansion_context.dart';
+import 'package:logic/src/solver/candidates/macro_plan_context.dart';
 import 'package:logic/src/solver/core/goal.dart' show ReachSkillLevelGoal;
 import 'package:logic/src/solver/execution/consume_until.dart';
 import 'package:logic/src/solver/execution/prerequisites.dart'
@@ -152,18 +152,18 @@ class ChainProvenance extends MacroProvenance {
 /// Macros stop when ANY of their stop conditions trigger, allowing the solver
 /// to react to unlock boundaries, goal completion, or upgrade affordability.
 ///
-/// ## Two-Phase Execution Model
+/// ## Two-Phase Model
 ///
 /// Macros have two distinct phases, each with its own method:
 ///
-/// ### Planning Phase: [expand]
+/// ### Planning Phase: [plan]
 /// Used during A* search to estimate costs and project state forward.
 /// - Uses **expected-value modeling** (deterministic averages)
 /// - Called by the solver to evaluate candidate paths
-/// - Returns a [MacroExpansionResult] with projected state and [WaitFor]
+/// - Returns a [MacroPlanResult] with projected state and [WaitFor]
 /// - Does NOT use randomness - uses deterministic advance/interaction functions
 ///
-/// ### Execution Phase: [apply]
+/// ### Execution Phase: [execute]
 /// Used when actually executing a plan with real game simulation.
 /// - Uses **stochastic simulation** (actual randomness)
 /// - Called by plan execution after the solver has chosen a path
@@ -175,8 +175,8 @@ class ChainProvenance extends MacroProvenance {
 /// The solver needs fast, deterministic state projection to explore many
 /// paths. Execution needs accurate simulation with randomness. Separating
 /// these allows:
-/// - Consistent A* cost estimation (expand uses averages)
-/// - Realistic execution (apply uses actual RNG)
+/// - Consistent A* cost estimation (plan uses averages)
+/// - Realistic execution (execute uses actual RNG)
 /// - Plan replay/debugging (same plan, different random outcomes)
 sealed class MacroCandidate {
   const MacroCandidate({this.provenance});
@@ -196,13 +196,13 @@ sealed class MacroCandidate {
   /// averages (not randomness) to estimate how long this macro will take
   /// and what state will result.
   ///
-  /// Returns [MacroExpanded] on success, [MacroAlreadySatisfied] if no work
-  /// needed, or [MacroCannotExpand] with a reason if expansion is impossible.
-  MacroExpansionOutcome expand(MacroExpansionContext context);
+  /// Returns [MacroPlanned] on success, [MacroAlreadySatisfied] if no work
+  /// needed, or [MacroCannotPlan] with a reason if planning is impossible.
+  MacroPlanOutcome plan(MacroPlanContext context);
 
   /// **Execution phase**: Runs actual stochastic simulation.
   ///
-  /// Called by `MacroStep.apply()` when executing a plan that the solver has
+  /// Called by `MacroStep.execute()` when executing a plan that the solver has
   /// already chosen. Uses real randomness and runs until the [waitFor]
   /// condition from planning is satisfied.
   ///
@@ -213,7 +213,7 @@ sealed class MacroCandidate {
   /// - [boundaries]: Skill unlock boundaries for re-evaluating stop rules.
   /// - [watchSet]: Enables mid-macro boundary detection if provided.
   /// - [segmentSellPolicy]: Sell policy for handling inventory full.
-  MacroApplyResult apply(
+  MacroExecuteResult execute(
     GlobalState state,
     WaitFor waitFor, {
     required Random random,
@@ -330,13 +330,13 @@ class TrainSkillUntil extends MacroCandidate {
   List<MacroStopRule> get allStops => [primaryStop, ...watchedStops];
 
   @override
-  MacroExpansionOutcome expand(MacroExpansionContext context) {
+  MacroPlanOutcome plan(MacroPlanContext context) {
     final state = context.state;
 
     // Find best unlocked action for this skill
     final bestAction = findBestActionForSkill(state, skill, context.goal);
     if (bestAction == null) {
-      return MacroCannotExpand('No unlocked action for ${skill.name}');
+      return MacroCannotPlan('No unlocked action for ${skill.name}');
     }
 
     // Switch to that action (if not already on it)
@@ -369,7 +369,7 @@ class TrainSkillUntil extends MacroCandidate {
       );
     }
     if (ticksUntilStop >= infTicks) {
-      return MacroCannotExpand(
+      return MacroCannotPlan(
         'No progress possible for ${skill.name} (infinite ticks)',
       );
     }
@@ -395,7 +395,7 @@ class TrainSkillUntil extends MacroCandidate {
       actionId: bestAction,
     );
 
-    return MacroExpanded((
+    return MacroPlanned((
       state: advanceResult.state,
       ticksElapsed: ticksUntilStop,
       waitFor: compositeWaitFor,
@@ -415,7 +415,7 @@ class TrainSkillUntil extends MacroCandidate {
   };
 
   @override
-  MacroApplyResult apply(
+  MacroExecuteResult execute(
     GlobalState state,
     WaitFor waitFor, {
     required Random random,
@@ -456,7 +456,7 @@ class TrainSkillUntil extends MacroCandidate {
         random,
         watchSet,
       );
-      return MacroApplyResult(
+      return MacroExecuteResult(
         state: stepResult.state,
         ticksElapsed: stepResult.ticksElapsed,
         deaths: stepResult.deaths,
@@ -470,7 +470,7 @@ class TrainSkillUntil extends MacroCandidate {
       executionWaitFor,
       random: random,
     );
-    return MacroApplyResult(
+    return MacroExecuteResult(
       state: result.state,
       ticksElapsed: result.ticksElapsed,
       deaths: result.deathCount,
@@ -502,7 +502,7 @@ class AcquireItem extends MacroCandidate {
   String get dedupeKey => 'acquire:${itemId.localId}:$quantity';
 
   @override
-  MacroExpansionOutcome expand(MacroExpansionContext context) {
+  MacroPlanOutcome plan(MacroPlanContext context) {
     final state = context.state;
 
     // Find producer for this item
@@ -520,7 +520,7 @@ class AcquireItem extends MacroCandidate {
           ),
         );
       }
-      return MacroCannotExpand('No producer for ${itemId.localId}');
+      return MacroCannotPlan('No producer for ${itemId.localId}');
     }
 
     // Check if producer has prerequisites (skill level requirements)
@@ -536,7 +536,7 @@ class AcquireItem extends MacroCandidate {
         // Return first prerequisite (don't expand recursively)
         return MacroNeedsPrerequisite(prereqMacros.first);
       case ExecUnknown(:final reason):
-        return MacroCannotExpand(
+        return MacroCannotPlan(
           'Cannot determine prerequisites for $producer: $reason',
         );
     }
@@ -584,7 +584,7 @@ class AcquireItem extends MacroCandidate {
       startCount: startCount,
     );
 
-    return MacroExpanded((
+    return MacroPlanned((
       state: advanceResult.state,
       ticksElapsed: ticksNeeded,
       waitFor: waitFor,
@@ -602,7 +602,7 @@ class AcquireItem extends MacroCandidate {
   };
 
   @override
-  MacroApplyResult apply(
+  MacroExecuteResult execute(
     GlobalState state,
     WaitFor waitFor, {
     required Random random,
@@ -618,7 +618,7 @@ class AcquireItem extends MacroCandidate {
     const goal = ReachSkillLevelGoal(Skill.mining, 99); // Placeholder goal
     final producer = findProducerActionForItem(executionState, itemId, goal);
     if (producer == null) {
-      return MacroApplyResult(
+      return MacroExecuteResult(
         state: executionState,
         boundary: NoProgressPossible(reason: 'No producer for $itemId'),
       );
@@ -642,7 +642,7 @@ class AcquireItem extends MacroCandidate {
 
     final result = consumeUntil(executionState, acquireWaitFor, random: random);
 
-    return MacroApplyResult(
+    return MacroExecuteResult(
       state: result.state,
       ticksElapsed: result.ticksElapsed,
       deaths: result.deathCount,
@@ -676,7 +676,7 @@ class EnsureStock extends MacroCandidate {
   String get dedupeKey => 'ensure:${itemId.localId}:$minTotal';
 
   @override
-  MacroExpansionOutcome expand(MacroExpansionContext context) {
+  MacroPlanOutcome plan(MacroPlanContext context) {
     final state = context.state;
     final item = state.registries.items.byId(itemId);
     final currentCount = state.inventory.countOfItem(item);
@@ -699,7 +699,7 @@ class EnsureStock extends MacroCandidate {
     // Cap work-per-expansion to prevent state explosion.
     // This limits how much we produce in one expansion, not the hard minimum.
     // After producing a chunk, replanning will re-evaluate and continue.
-    final chunkSize = min(deltaNeeded, MacroExpansionContext.maxChunkSize);
+    final chunkSize = min(deltaNeeded, MacroPlanContext.maxChunkSize);
 
     // Check inventory feasibility BEFORE expanding
     final feasibleBatch = context.computeFeasibleBatchSize(
@@ -726,7 +726,7 @@ class EnsureStock extends MacroCandidate {
         );
       } else {
         // Nothing to sell - truly stuck
-        return MacroCannotExpand(
+        return MacroCannotPlan(
           'Inventory full (${state.inventoryUsed}/${state.inventoryCapacity}) '
           'and nothing to sell for ${itemId.localId}',
         );
@@ -750,34 +750,34 @@ class EnsureStock extends MacroCandidate {
         );
 
       case ChainFailed(:final reason):
-        return MacroCannotExpand(reason);
+        return MacroCannotPlan(reason);
 
       case ChainBuilt(:final chain):
         // Check for cycles in the chain (should not happen with correct data)
         final cycleCheck = assertNoCycles(chain);
         if (cycleCheck != null) {
-          return MacroCannotExpand('Chain cycle: $cycleCheck');
+          return MacroCannotPlan('Chain cycle: $cycleCheck');
         }
         // Chain is fully buildable - check if we need to stock inputs first
         // Walk the chain bottom-up and ensure stock for each level
         // Pass chunkedTarget so ProduceItem knows the per-chunk goal
         final chunkedTarget = currentCount + chunkSize;
-        return _expandChainBottomUp(context, state, chain, chunkedTarget);
+        return _planChainBottomUp(context, state, chain, chunkedTarget);
     }
   }
 
-  /// Expands a production chain by ensuring inputs are stocked bottom-up.
+  /// Plans a production chain by ensuring inputs are stocked bottom-up.
   ///
   /// For each node in the chain (leaves first), we check if we have enough
   /// of that item. If not, we emit an EnsureStock for it.
   ///
-  /// [chunkedTarget] is the inventory count to reach in this expansion chunk.
+  /// [chunkedTarget] is the inventory count to reach in this planning chunk.
   /// This may be less than [minTotal] when chunking large requirements.
   ///
   /// This replaces the old recursive "discover one input at a time" logic
-  /// with explicit chain-based expansion.
-  MacroExpansionOutcome _expandChainBottomUp(
-    MacroExpansionContext context,
+  /// with explicit chain-based planning.
+  MacroPlanOutcome _planChainBottomUp(
+    MacroPlanContext context,
     GlobalState workingState,
     PlannedChain chain,
     int chunkedTarget,
@@ -798,7 +798,7 @@ class EnsureStock extends MacroCandidate {
         // We cap attemptTarget at attemptCap to ensure quantization never
         // reduces the target (quantizeStockTarget returns >= target when
         // target <= maxChunkSize).
-        const attemptCap = MacroExpansionContext.maxChunkSize;
+        const attemptCap = MacroPlanContext.maxChunkSize;
         final deltaNeeded = child.quantity - currentCount;
         // Cap the delta to limit work per EnsureStock expansion
         final cappedDelta = min(deltaNeeded, attemptCap);
@@ -897,7 +897,7 @@ class EnsureStock extends MacroCandidate {
   };
 
   @override
-  MacroApplyResult apply(
+  MacroExecuteResult execute(
     GlobalState state,
     WaitFor waitFor, {
     required Random random,
@@ -916,7 +916,7 @@ class EnsureStock extends MacroCandidate {
 
       // If we already have enough, done
       if (currentCount >= minTotal) {
-        return MacroApplyResult(
+        return MacroExecuteResult(
           state: currentState,
           ticksElapsed: totalTicks,
           deaths: totalDeaths,
@@ -927,7 +927,7 @@ class EnsureStock extends MacroCandidate {
       const goal = ReachSkillLevelGoal(Skill.mining, 99);
       final producer = findProducerActionForItem(currentState, itemId, goal);
       if (producer == null) {
-        return MacroApplyResult(
+        return MacroExecuteResult(
           state: currentState,
           ticksElapsed: totalTicks,
           deaths: totalDeaths,
@@ -944,7 +944,7 @@ class EnsureStock extends MacroCandidate {
             random: random,
           );
         } on Exception catch (e) {
-          return MacroApplyResult(
+          return MacroExecuteResult(
             state: currentState,
             ticksElapsed: totalTicks,
             deaths: totalDeaths,
@@ -969,7 +969,7 @@ class EnsureStock extends MacroCandidate {
         // Use segment's sell policy. If not provided, this is an error -
         // callers should resolve policy before calling apply.
         if (segmentSellPolicy == null) {
-          return MacroApplyResult(
+          return MacroExecuteResult(
             state: currentState,
             ticksElapsed: totalTicks,
             deaths: totalDeaths,
@@ -994,7 +994,7 @@ class EnsureStock extends MacroCandidate {
           continue;
         } else {
           // Nothing to sell - truly stuck
-          return MacroApplyResult(
+          return MacroExecuteResult(
             state: currentState,
             ticksElapsed: totalTicks,
             deaths: totalDeaths,
@@ -1004,7 +1004,7 @@ class EnsureStock extends MacroCandidate {
       }
 
       // For any other boundary or success, return
-      return MacroApplyResult(
+      return MacroExecuteResult(
         state: currentState,
         ticksElapsed: totalTicks,
         deaths: totalDeaths,
@@ -1054,7 +1054,7 @@ class ProduceItem extends MacroCandidate {
       'produce:${itemId.localId}:$minTotal:${actionId.localId}';
 
   @override
-  MacroExpansionOutcome expand(MacroExpansionContext context) {
+  MacroPlanOutcome plan(MacroPlanContext context) {
     final state = context.state;
 
     // Switch to producer action (deterministic for planning)
@@ -1066,7 +1066,7 @@ class ProduceItem extends MacroCandidate {
     // Advance time to produce items (deterministic for planning)
     final advanceResult = advanceDeterministic(newState, estimatedTicks);
 
-    return MacroExpanded((
+    return MacroPlanned((
       state: advanceResult.state,
       ticksElapsed: estimatedTicks,
       waitFor: WaitForInventoryAtLeast(itemId, minTotal),
@@ -1086,7 +1086,7 @@ class ProduceItem extends MacroCandidate {
   };
 
   @override
-  MacroApplyResult apply(
+  MacroExecuteResult execute(
     GlobalState state,
     WaitFor waitFor, {
     required Random random,
@@ -1108,7 +1108,7 @@ class ProduceItem extends MacroCandidate {
           random: random,
         );
       } on Exception catch (e) {
-        return MacroApplyResult(
+        return MacroExecuteResult(
           state: currentState,
           boundary: NoProgressPossible(
             reason: 'Cannot switch to producer $actionId: $e',
@@ -1125,7 +1125,7 @@ class ProduceItem extends MacroCandidate {
 
       // If we already have enough, done
       if (currentCount >= minTotal) {
-        return MacroApplyResult(
+        return MacroExecuteResult(
           state: currentState,
           ticksElapsed: totalTicks,
           deaths: totalDeaths,
@@ -1142,7 +1142,7 @@ class ProduceItem extends MacroCandidate {
       // Check if we hit inventory full - sell and continue
       if (result.boundary is InventoryFull) {
         if (segmentSellPolicy == null) {
-          return MacroApplyResult(
+          return MacroExecuteResult(
             state: currentState,
             ticksElapsed: totalTicks,
             deaths: totalDeaths,
@@ -1167,7 +1167,7 @@ class ProduceItem extends MacroCandidate {
           continue;
         } else {
           // Nothing to sell - truly stuck
-          return MacroApplyResult(
+          return MacroExecuteResult(
             state: currentState,
             ticksElapsed: totalTicks,
             deaths: totalDeaths,
@@ -1177,7 +1177,7 @@ class ProduceItem extends MacroCandidate {
       }
 
       // For any other boundary or success, return
-      return MacroApplyResult(
+      return MacroExecuteResult(
         state: currentState,
         ticksElapsed: totalTicks,
         deaths: totalDeaths,
@@ -1346,7 +1346,7 @@ class TrainConsumingSkillUntil extends MacroCandidate {
   }
 
   @override
-  MacroExpansionOutcome expand(MacroExpansionContext context) {
+  MacroPlanOutcome plan(MacroPlanContext context) {
     final state = context.state;
     final registries = state.registries;
     final actionRegistry = registries.actions;
@@ -1360,13 +1360,13 @@ class TrainConsumingSkillUntil extends MacroCandidate {
     );
 
     if (bestConsumeAction == null) {
-      return MacroCannotExpand('No unlocked action for ${consumingSkill.name}');
+      return MacroCannotPlan('No unlocked action for ${consumingSkill.name}');
     }
 
     // Get the consuming action to find its inputs
     final consumeAction = actionRegistry.byId(bestConsumeAction);
     if (consumeAction is! SkillAction || consumeAction.inputs.isEmpty) {
-      return MacroCannotExpand(
+      return MacroCannotPlan(
         'Action $bestConsumeAction is not a valid consuming action',
       );
     }
@@ -1401,9 +1401,7 @@ class TrainConsumingSkillUntil extends MacroCandidate {
             ),
           );
         } else {
-          return MacroCannotExpand(
-            'No producer for input ${inputItem.localId}',
-          );
+          return MacroCannotPlan('No producer for input ${inputItem.localId}');
         }
       } else {
         // Check if producer has inputs (multi-tier chain)
@@ -1415,7 +1413,7 @@ class TrainConsumingSkillUntil extends MacroCandidate {
           // The coupled loop will produce more as needed.
           if (currentCount < minBufferToStart) {
             // Use discrete bucket for the minimum buffer
-            final target = MacroExpansionContext.discreteHardTarget(
+            final target = MacroPlanContext.discreteHardTarget(
               minBufferToStart,
             );
             // INVARIANT: TCU prereq targets are bounded by minBufferToStart's
@@ -1438,7 +1436,7 @@ class TrainConsumingSkillUntil extends MacroCandidate {
             case ExecReady():
               // Producer is ready - only require minimum buffer to start
               if (currentCount < minBufferToStart) {
-                final target = MacroExpansionContext.discreteHardTarget(
+                final target = MacroPlanContext.discreteHardTarget(
                   minBufferToStart,
                 );
                 // INVARIANT: Same as multi-tier case - bounded prereqs.
@@ -1452,7 +1450,7 @@ class TrainConsumingSkillUntil extends MacroCandidate {
             case ExecNeedsMacros(macros: final prereqMacros):
               allPrereqs.addAll(prereqMacros);
             case ExecUnknown(:final reason):
-              return MacroCannotExpand(
+              return MacroCannotPlan(
                 'Cannot determine prerequisites for $producer: $reason',
               );
           }
@@ -1506,7 +1504,7 @@ class TrainConsumingSkillUntil extends MacroCandidate {
     }
 
     if (producerAction == null) {
-      return MacroCannotExpand(
+      return MacroCannotPlan(
         'No simple producer found for ${consumingSkill.name}',
       );
     }
@@ -1570,7 +1568,7 @@ class TrainConsumingSkillUntil extends MacroCandidate {
         );
       }
       if (estimatedTicks >= infTicks) {
-        return MacroCannotExpand(
+        return MacroCannotPlan(
           'No progress possible for ${consumingSkill.name} (infinite ticks)',
         );
       }
@@ -1717,7 +1715,7 @@ class TrainConsumingSkillUntil extends MacroCandidate {
       inputChains: inputChainsMap.isEmpty ? null : inputChainsMap,
     );
 
-    return MacroExpanded((
+    return MacroPlanned((
       state: projectedState,
       ticksElapsed: ticksUntilStop,
       waitFor: waitFor,
@@ -1751,7 +1749,7 @@ class TrainConsumingSkillUntil extends MacroCandidate {
   };
 
   @override
-  MacroApplyResult apply(
+  MacroExecuteResult execute(
     GlobalState state,
     WaitFor waitFor, {
     required Random random,
@@ -1769,7 +1767,7 @@ class TrainConsumingSkillUntil extends MacroCandidate {
       watchSet: watchSet,
       segmentSellPolicy: segmentSellPolicy,
     );
-    return MacroApplyResult(
+    return MacroExecuteResult(
       state: stepResult.state,
       ticksElapsed: stepResult.ticksElapsed,
       deaths: stepResult.deaths,
@@ -1962,11 +1960,11 @@ class StopWhenInputsDepleted extends MacroStopRule {
 }
 
 // ---------------------------------------------------------------------------
-// Macro Expansion Outcomes
+// Macro Plan Outcomes
 // ---------------------------------------------------------------------------
 
-/// Result of expanding a macro into concrete execution steps.
-typedef MacroExpansionResult = ({
+/// Result of planning a macro into concrete execution steps.
+typedef MacroPlanResult = ({
   GlobalState state,
   int ticksElapsed,
   WaitFor waitFor,
@@ -1975,65 +1973,65 @@ typedef MacroExpansionResult = ({
   MacroCandidate macro,
 });
 
-/// Outcome of attempting to expand a macro - tri-state result.
+/// Outcome of attempting to plan a macro - tri-state result.
 ///
-/// This ensures we always know WHY an expansion failed, rather than silently
+/// This ensures we always know WHY planning failed, rather than silently
 /// returning null.
-sealed class MacroExpansionOutcome {
-  const MacroExpansionOutcome();
+sealed class MacroPlanOutcome {
+  const MacroPlanOutcome();
 }
 
-/// Macro expanded successfully to a future state.
-class MacroExpanded extends MacroExpansionOutcome {
-  const MacroExpanded(this.result);
-  final MacroExpansionResult result;
+/// Macro planned successfully to a future state.
+class MacroPlanned extends MacroPlanOutcome {
+  const MacroPlanned(this.result);
+  final MacroPlanResult result;
 }
 
-/// Macro is already satisfied - no expansion needed (legitimate no-op).
+/// Macro is already satisfied - no planning needed (legitimate no-op).
 ///
 /// This is different from failure: the macro's goal is already met,
-/// so there's nothing to expand.
-class MacroAlreadySatisfied extends MacroExpansionOutcome {
+/// so there's nothing to plan.
+class MacroAlreadySatisfied extends MacroPlanOutcome {
   const MacroAlreadySatisfied(this.reason);
   final String reason;
 }
 
-/// Macro cannot be expanded due to missing prerequisites or unsatisfiable
+/// Macro cannot be planned due to missing prerequisites or unsatisfiable
 /// constraints.
-class MacroCannotExpand extends MacroExpansionOutcome {
-  const MacroCannotExpand(this.reason);
+class MacroCannotPlan extends MacroPlanOutcome {
+  const MacroCannotPlan(this.reason);
   final String reason;
 }
 
-/// Macro expansion requires another macro to be satisfied first.
+/// Macro planning requires another macro to be satisfied first.
 ///
-/// Unlike recursive `prereq.expand(context)`, this returns the dependency
-/// without expanding it. The solver's outer loop handles expansion ordering.
+/// Unlike recursive `prereq.plan(context)`, this returns the dependency
+/// without planning it. The solver's outer loop handles planning ordering.
 ///
-/// This keeps `expand()` non-recursive and allows the solver to:
-/// - Order expansions globally (not depth-first)
-/// - Detect cycles across the full expansion queue
-/// - Make prerequisites visible in the expansion trace
-class MacroNeedsPrerequisite extends MacroExpansionOutcome {
+/// This keeps `plan()` non-recursive and allows the solver to:
+/// - Order planning globally (not depth-first)
+/// - Detect cycles across the full planning queue
+/// - Make prerequisites visible in the planning trace
+class MacroNeedsPrerequisite extends MacroPlanOutcome {
   const MacroNeedsPrerequisite(this.prerequisite);
 
-  /// The macro that must be expanded before retrying this one.
+  /// The macro that must be planned before retrying this one.
   final MacroCandidate prerequisite;
 }
 
-/// Macro expansion is blocked by a condition requiring external handling.
+/// Macro planning is blocked by a condition requiring external handling.
 ///
-/// Unlike [MacroNeedsPrerequisite] (which emits another macro to expand),
-/// this signals that expansion cannot continue until something external
+/// Unlike [MacroNeedsPrerequisite] (which emits another macro to plan),
+/// this signals that planning cannot continue until something external
 /// happens (e.g., sell items to free inventory space).
 ///
 /// The solver/executor should handle the boundary appropriately:
-/// - [InventoryPressure]: Execute sell policy, then retry expansion
+/// - [InventoryPressure]: Execute sell policy, then retry planning
 /// - Other boundaries: Bubble up for caller handling
-class MacroNeedsBoundary extends MacroExpansionOutcome {
+class MacroNeedsBoundary extends MacroPlanOutcome {
   const MacroNeedsBoundary(this.boundary, {this.message});
 
-  /// The boundary that must be handled before retrying expansion.
+  /// The boundary that must be handled before retrying planning.
   final ReplanBoundary boundary;
 
   /// Optional explanation for debugging.
@@ -2041,16 +2039,16 @@ class MacroNeedsBoundary extends MacroExpansionOutcome {
 }
 
 // ---------------------------------------------------------------------------
-// Macro Apply Result (Execution Time)
+// Macro Execute Result (Execution Time)
 // ---------------------------------------------------------------------------
 
-/// Result of applying (executing) a macro with stochastic simulation.
+/// Result of executing a macro with stochastic simulation.
 ///
-/// This is the execution-time counterpart to [MacroExpansionResult], which
-/// uses expected-value modeling for planning. [MacroApplyResult] contains
+/// This is the execution-time counterpart to [MacroPlanResult], which
+/// uses expected-value modeling for planning. [MacroExecuteResult] contains
 /// actual simulation results with randomness.
-class MacroApplyResult {
-  const MacroApplyResult({
+class MacroExecuteResult {
+  const MacroExecuteResult({
     required this.state,
     this.ticksElapsed = 0,
     this.deaths = 0,

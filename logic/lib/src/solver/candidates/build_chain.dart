@@ -15,7 +15,7 @@ library;
 import 'package:logic/src/data/action_id.dart';
 import 'package:logic/src/data/actions.dart';
 import 'package:logic/src/data/melvor_id.dart';
-import 'package:logic/src/solver/candidates/macro_expansion_context.dart'
+import 'package:logic/src/solver/candidates/macro_plan_context.dart'
     show isForbiddenUntil, recordForbiddenItem;
 import 'package:logic/src/solver/core/goal.dart';
 import 'package:logic/src/state.dart';
