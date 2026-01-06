@@ -30,6 +30,7 @@ words:
   - cooldown
   - craftable
   - cupertino
+  - dedup
   - dedupe
   - defence # Consider removing and forcing all our code to use Defense.
   - dists
@@ -75,6 +76,7 @@ words:
   - shortbows
   - skillcapes
   - smithing
+  - stackable
   - startable
   - subgoal
   - subgoals
