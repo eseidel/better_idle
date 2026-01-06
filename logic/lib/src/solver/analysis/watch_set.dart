@@ -27,12 +27,7 @@ import 'package:logic/src/solver/analysis/replan_boundary.dart';
 import 'package:logic/src/solver/analysis/unlock_boundaries.dart';
 import 'package:logic/src/solver/core/goal.dart';
 import 'package:logic/src/solver/execution/plan.dart';
-import 'package:logic/src/solver/interactions/interaction.dart'
-    show
-        ReserveConsumingInputsSpec,
-        SellPolicy,
-        SellPolicySpec,
-        effectiveCredits;
+import 'package:logic/src/solver/interactions/interaction.dart';
 import 'package:logic/src/state.dart';
 import 'package:meta/meta.dart';
 

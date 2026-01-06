@@ -961,6 +961,37 @@ void main() {
       // The total ticks should reflect both gathering and burning
       expect(result.ticksElapsed, greaterThan(0));
     });
+
+    test('returns NoProgressPossible when action does not progress goal', () {
+      // Start woodcutting but wait for fishing XP - no progress possible
+      var state = GlobalState.empty(testRegistries);
+      final woodcuttingAction = testActions.woodcutting('Normal Tree');
+      state = state.startAction(woodcuttingAction, random: Random(42));
+
+      // Wait for fishing XP, which woodcutting will never provide
+      const waitFor = WaitForSkillXp(Skill.fishing, 10);
+
+      // Use a small maxTicks to avoid waiting 10 hours
+      final result = consumeUntil(
+        state,
+        waitFor,
+        random: Random(42),
+        maxTicks: 100, // 10 seconds of game time
+      );
+
+      // Should return with NoProgressPossible boundary
+      expect(result.boundary, isA<NoProgressPossible>());
+      expect(
+        (result.boundary! as NoProgressPossible).reason,
+        contains('no progress'),
+      );
+
+      // Should have gained woodcutting XP (the action ran)
+      expect(result.state.skillState(Skill.woodcutting).xp, greaterThan(0));
+
+      // But no fishing XP
+      expect(result.state.skillState(Skill.fishing).xp, 0);
+    });
   });
 
   group('executePlan', () {

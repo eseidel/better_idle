@@ -30,8 +30,7 @@ import 'package:logic/src/solver/analysis/estimate_rates.dart';
 import 'package:logic/src/solver/analysis/wait_for.dart';
 import 'package:logic/src/solver/candidates/enumerate_candidates.dart';
 import 'package:logic/src/solver/core/goal.dart';
-import 'package:logic/src/solver/interactions/interaction.dart'
-    show SellAllPolicy, SellPolicy;
+import 'package:logic/src/solver/interactions/interaction.dart';
 import 'package:logic/src/state.dart';
 
 /// Sentinel value for "infinite" ticks (no progress possible).

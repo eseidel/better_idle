@@ -5,8 +5,7 @@ import 'package:logic/src/solver/analysis/estimate_rates.dart';
 import 'package:logic/src/solver/analysis/next_decision_delta.dart';
 import 'package:logic/src/solver/analysis/wait_for.dart';
 import 'package:logic/src/solver/core/goal.dart';
-import 'package:logic/src/solver/interactions/interaction.dart'
-    show SellAllPolicy;
+import 'package:logic/src/solver/interactions/interaction.dart';
 import 'package:test/test.dart';
 
 import '../test_helper.dart';
