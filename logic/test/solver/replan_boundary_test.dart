@@ -235,48 +235,6 @@ void main() {
     });
   });
 
-  group('boundaryFromStopReason', () {
-    test('stillRunning returns null', () {
-      final boundary = boundaryFromStopReason(ActionStopReason.stillRunning);
-      expect(boundary, isNull);
-    });
-
-    test('outOfInputs returns InputsDepleted', () {
-      final actionId = ActionId.test(Skill.firemaking, 'Burn Logs');
-      const missingItem = MelvorId('melvorD:Normal_Logs');
-      final boundary = boundaryFromStopReason(
-        ActionStopReason.outOfInputs,
-        actionId: actionId,
-        missingItemId: missingItem,
-      );
-      expect(boundary, isA<InputsDepleted>());
-      final inputsDepleted = boundary! as InputsDepleted;
-      expect(inputsDepleted.actionId, actionId);
-      expect(inputsDepleted.missingItemId, missingItem);
-    });
-
-    test('outOfInputs throws when missingItemId not provided', () {
-      final actionId = ActionId.test(Skill.firemaking, 'Burn Logs');
-      expect(
-        () => boundaryFromStopReason(
-          ActionStopReason.outOfInputs,
-          actionId: actionId,
-        ),
-        throwsArgumentError,
-      );
-    });
-
-    test('inventoryFull returns InventoryFull', () {
-      final boundary = boundaryFromStopReason(ActionStopReason.inventoryFull);
-      expect(boundary, isA<InventoryFull>());
-    });
-
-    test('playerDied returns Death', () {
-      final boundary = boundaryFromStopReason(ActionStopReason.playerDied);
-      expect(boundary, isA<Death>());
-    });
-  });
-
   group('segmentBoundaryToReplan', () {
     test('GoalReachedBoundary converts to GoalReached', () {
       const segmentBoundary = GoalReachedBoundary();

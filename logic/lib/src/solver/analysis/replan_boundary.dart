@@ -50,7 +50,6 @@ import 'package:logic/src/data/melvor_id.dart';
 import 'package:logic/src/solver/analysis/wait_for.dart';
 import 'package:logic/src/types/equipment_slot.dart';
 import 'package:logic/src/types/inventory.dart';
-import 'package:logic/src/types/time_away.dart';
 import 'package:meta/meta.dart';
 
 /// An event that can interrupt plan execution.
@@ -349,46 +348,6 @@ class NoProgressPossible extends ReplanBoundary {
 
   @override
   bool get causesReplan => true; // Error state, need to recover
-}
-
-// ---------------------------------------------------------------------------
-// Conversion from ActionStopReason
-// ---------------------------------------------------------------------------
-
-/// Converts an [ActionStopReason] to a [ReplanBoundary].
-///
-/// This bridges the simulator's stop reasons to the solver's boundary model.
-ReplanBoundary? boundaryFromStopReason(
-  ActionStopReason reason, {
-  ActionId? actionId,
-  MelvorId? missingItemId,
-  ItemStack? lostItem,
-  EquipmentSlot? slotRolled,
-}) {
-  switch (reason) {
-    case ActionStopReason.stillRunning:
-      return null;
-    case ActionStopReason.outOfInputs:
-      if (actionId == null) {
-        throw ArgumentError(
-          'actionId must not be null when reason is outOfInputs',
-        );
-      }
-      if (missingItemId == null) {
-        throw ArgumentError(
-          'missingItemId must not be null when reason is outOfInputs',
-        );
-      }
-      return InputsDepleted(actionId: actionId, missingItemId: missingItemId);
-    case ActionStopReason.inventoryFull:
-      return const InventoryFull();
-    case ActionStopReason.playerDied:
-      return Death(
-        actionId: actionId,
-        lostItem: lostItem,
-        slotRolled: slotRolled,
-      );
-  }
 }
 
 // ---------------------------------------------------------------------------
