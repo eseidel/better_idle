@@ -1640,6 +1640,10 @@ class TrainConsumingSkillUntil extends MacroCandidate {
 /// Stop conditions for macro training.
 ///
 /// Each rule knows how to convert itself to a WaitFor for plan execution.
+///
+/// Extends [Equatable] because [TrainConsumingSkillUntil.dedupeKey] uses
+/// `primaryStop.hashCode` for deduplication. Without Equatable, identical
+/// stop rules would produce different hashCodes, breaking solver caching.
 sealed class MacroStopRule extends Equatable {
   const MacroStopRule();
 

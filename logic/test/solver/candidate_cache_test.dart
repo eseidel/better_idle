@@ -96,6 +96,109 @@ void main() {
       });
     });
 
+    group('upgrade tiers', () {
+      test('tracks multiple upgrades for woodcutting goal', () {
+        const goal = ReachSkillLevelGoal(Skill.woodcutting, 50);
+
+        // State with no upgrades
+        final state1 = GlobalState.empty(testRegistries);
+
+        // State with Iron and Steel axes purchased
+        final state2 = GlobalState.test(
+          testRegistries,
+          shop: ShopState(
+            purchaseCounts: {
+              const MelvorId('melvorD:Iron_Axe'): 1,
+              const MelvorId('melvorD:Steel_Axe'): 1,
+            },
+          ),
+        );
+
+        final key1 = CandidateCacheKey.fromState(state1, goal);
+        final key2 = CandidateCacheKey.fromState(state2, goal);
+
+        expect(key1.upgradeTiers[Skill.woodcutting], equals(0));
+        expect(key2.upgradeTiers[Skill.woodcutting], equals(2));
+        expect(key1, isNot(equals(key2)));
+      });
+
+      test('tracks multiple upgrades across different skills', () {
+        const goal = ReachGpGoal(10000);
+
+        // State with upgrades for multiple skills
+        final state = GlobalState.test(
+          testRegistries,
+          shop: ShopState(
+            purchaseCounts: {
+              // 3 woodcutting upgrades
+              const MelvorId('melvorD:Iron_Axe'): 1,
+              const MelvorId('melvorD:Steel_Axe'): 1,
+              const MelvorId('melvorD:Mithril_Axe'): 1,
+              // 2 mining upgrades
+              const MelvorId('melvorD:Iron_Pickaxe'): 1,
+              const MelvorId('melvorD:Steel_Pickaxe'): 1,
+            },
+          ),
+        );
+
+        final key = CandidateCacheKey.fromState(state, goal);
+
+        expect(key.upgradeTiers[Skill.woodcutting], equals(3));
+        expect(key.upgradeTiers[Skill.mining], equals(2));
+      });
+
+      test('different upgrade counts produce different keys', () {
+        const goal = ReachSkillLevelGoal(Skill.mining, 30);
+
+        // State with 1 pickaxe upgrade
+        final state1 = GlobalState.test(
+          testRegistries,
+          shop: ShopState(
+            purchaseCounts: {const MelvorId('melvorD:Iron_Pickaxe'): 1},
+          ),
+        );
+
+        // State with 3 pickaxe upgrades
+        final state2 = GlobalState.test(
+          testRegistries,
+          shop: ShopState(
+            purchaseCounts: {
+              const MelvorId('melvorD:Iron_Pickaxe'): 1,
+              const MelvorId('melvorD:Steel_Pickaxe'): 1,
+              const MelvorId('melvorD:Mithril_Pickaxe'): 1,
+            },
+          ),
+        );
+
+        final key1 = CandidateCacheKey.fromState(state1, goal);
+        final key2 = CandidateCacheKey.fromState(state2, goal);
+
+        expect(key1.upgradeTiers[Skill.mining], equals(1));
+        expect(key2.upgradeTiers[Skill.mining], equals(3));
+        expect(key1, isNot(equals(key2)));
+      });
+
+      test('same upgrades produce equal keys', () {
+        const goal = ReachSkillLevelGoal(Skill.woodcutting, 50);
+
+        final shopState = ShopState(
+          purchaseCounts: {
+            const MelvorId('melvorD:Iron_Axe'): 1,
+            const MelvorId('melvorD:Steel_Axe'): 1,
+          },
+        );
+
+        final state1 = GlobalState.test(testRegistries, shop: shopState);
+        final state2 = GlobalState.test(testRegistries, shop: shopState);
+
+        final key1 = CandidateCacheKey.fromState(state1, goal);
+        final key2 = CandidateCacheKey.fromState(state2, goal);
+
+        expect(key1, equals(key2));
+        expect(key1.hashCode, equals(key2.hashCode));
+      });
+    });
+
     group('producer skill levels', () {
       test('includes woodcutting level for firemaking goal', () {
         const goal = ReachSkillLevelGoal(Skill.firemaking, 30);

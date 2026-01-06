@@ -15,7 +15,6 @@
 /// passing) is handled separately via [WaitStep] in plans.
 library;
 
-import 'package:equatable/equatable.dart';
 import 'package:logic/src/data/action_id.dart';
 import 'package:logic/src/data/actions.dart';
 import 'package:logic/src/data/melvor_id.dart';
@@ -27,7 +26,7 @@ import 'package:meta/meta.dart';
 ///
 /// All interactions are instantaneous (0 ticks). Time advancement is
 /// modeled separately.
-sealed class Interaction extends Equatable {
+sealed class Interaction {
   const Interaction();
 
   /// Serializes this [Interaction] to a JSON-compatible map.
@@ -64,9 +63,6 @@ class SwitchActivity extends Interaction {
   };
 
   @override
-  List<Object?> get props => [actionId];
-
-  @override
   String toString() => 'SwitchActivity($actionId)';
 }
 
@@ -81,9 +77,6 @@ class BuyShopItem extends Interaction {
     'type': 'BuyShopItem',
     'purchaseId': purchaseId.toJson(),
   };
-
-  @override
-  List<Object?> get props => [purchaseId];
 
   @override
   String toString() => 'BuyShopItem($purchaseId)';
@@ -104,9 +97,6 @@ class SellItems extends Interaction {
   };
 
   @override
-  List<Object?> get props => [policy];
-
-  @override
   String toString() => 'SellItems($policy)';
 }
 
@@ -118,7 +108,7 @@ class SellItems extends Interaction {
 ///
 /// Used by [SellItems] to filter items before selling.
 @immutable
-sealed class SellPolicy extends Equatable {
+sealed class SellPolicy {
   const SellPolicy();
 
   /// Serializes this [SellPolicy] to a JSON-compatible map.
@@ -149,9 +139,6 @@ class SellAllPolicy extends SellPolicy {
   Map<String, dynamic> toJson() => {'type': 'SellAllPolicy'};
 
   @override
-  List<Object?> get props => [];
-
-  @override
   String toString() => 'SellAllPolicy()';
 }
 
@@ -171,9 +158,6 @@ class SellExceptPolicy extends SellPolicy {
   };
 
   @override
-  List<Object?> get props => [keepItems];
-
-  @override
   String toString() => 'SellExceptPolicy(keep: ${keepItems.length} items)';
 }
 
@@ -188,7 +172,7 @@ class SellExceptPolicy extends SellPolicy {
 ///
 /// Use [instantiate] to create a concrete [SellPolicy] from a spec + state.
 @immutable
-sealed class SellPolicySpec extends Equatable {
+sealed class SellPolicySpec {
   const SellPolicySpec();
 
   /// Creates a concrete [SellPolicy] from this spec and the current state.
@@ -228,9 +212,6 @@ class SellAllSpec extends SellPolicySpec {
   Map<String, dynamic> toJson() => {'type': 'SellAllSpec'};
 
   @override
-  List<Object?> get props => [];
-
-  @override
   String toString() => 'SellAllSpec()';
 }
 
@@ -256,9 +237,6 @@ class ReserveConsumingInputsSpec extends SellPolicySpec {
 
   @override
   Map<String, dynamic> toJson() => {'type': 'ReserveConsumingInputsSpec'};
-
-  @override
-  List<Object?> get props => [];
 
   @override
   String toString() => 'ReserveConsumingInputsSpec()';
