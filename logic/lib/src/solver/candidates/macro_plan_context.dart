@@ -5,7 +5,6 @@
 /// internals.
 library;
 
-import 'package:logic/src/data/action_id.dart';
 import 'package:logic/src/data/actions.dart';
 import 'package:logic/src/data/melvor_id.dart';
 import 'package:logic/src/solver/analysis/unlock_boundaries.dart';
@@ -44,37 +43,6 @@ class MacroPlanContext {
         .map((slot) => slot.count)
         .fold(0, (a, b) => a + b);
   }
-
-  /// Finds an action that produces the given item.
-  ActionId? findProducerAction(GlobalState s, MelvorId item, Goal g) =>
-      prereqs.findProducerActionForItem(s, item, g);
-
-  /// Finds an action that produces the given item, even if locked.
-  ///
-  /// Returns null if no action produces this item at all.
-  /// Unlike [findProducerAction], this finds producers regardless
-  /// of skill level requirements.
-  SkillAction? findAnyProducer(GlobalState s, MelvorId item) =>
-      prereqs.findAnyProducerForItem(s, item);
-
-  /// Returns prerequisite check result for an action.
-  ///
-  /// Delegates to [prereqs.ensureExecutable].
-  prereqs.EnsureExecResult ensureExecutable(
-    GlobalState s,
-    ActionId actionId,
-    Goal g, {
-    int depth = 0,
-    int maxDepth = 8,
-    Set<ActionId>? visited,
-  }) => prereqs.ensureExecutable(
-    s,
-    actionId,
-    g,
-    depth: depth,
-    maxDepth: maxDepth,
-    visited: visited,
-  );
 
   /// Computes the maximum feasible batch size for an EnsureStock macro.
   ///

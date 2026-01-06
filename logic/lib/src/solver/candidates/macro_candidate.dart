@@ -12,37 +12,23 @@ import 'package:logic/src/data/actions.dart';
 import 'package:logic/src/data/melvor_id.dart';
 import 'package:logic/src/data/xp.dart';
 import 'package:logic/src/solver/analysis/estimate_rates.dart';
-import 'package:logic/src/solver/analysis/next_decision_delta.dart'
-    show infTicks;
-import 'package:logic/src/solver/analysis/replan_boundary.dart'
-    show
-        InventoryFull,
-        InventoryPressure,
-        NoProgressPossible,
-        ReplanBoundary,
-        WaitConditionSatisfied;
+import 'package:logic/src/solver/analysis/next_decision_delta.dart';
+import 'package:logic/src/solver/analysis/replan_boundary.dart';
 import 'package:logic/src/solver/analysis/unlock_boundaries.dart';
 import 'package:logic/src/solver/analysis/wait_for.dart';
 import 'package:logic/src/solver/candidates/build_chain.dart';
 import 'package:logic/src/solver/candidates/macro_execute_context.dart';
 import 'package:logic/src/solver/candidates/macro_plan_context.dart';
-import 'package:logic/src/solver/core/goal.dart' show ReachSkillLevelGoal;
+import 'package:logic/src/solver/core/goal.dart';
 import 'package:logic/src/solver/execution/consume_until.dart';
-import 'package:logic/src/solver/execution/plan.dart' show StepResult;
-import 'package:logic/src/solver/execution/prerequisites.dart'
-    show
-        ExecNeedsMacros,
-        ExecReady,
-        ExecUnknown,
-        findBestActionForSkill,
-        findProducerActionForItem;
+import 'package:logic/src/solver/execution/plan.dart';
+import 'package:logic/src/solver/execution/prerequisites.dart';
 import 'package:logic/src/solver/execution/state_advance.dart';
-import 'package:logic/src/solver/execution/step_helpers.dart'
-    show countItem, executeCoupledLoop, executeTrainSkillWithBoundaryChecks;
+import 'package:logic/src/solver/execution/step_helpers.dart';
 import 'package:logic/src/solver/interactions/apply_interaction.dart';
 import 'package:logic/src/solver/interactions/interaction.dart';
 import 'package:logic/src/state.dart';
-import 'package:logic/src/tick.dart' show ticksFromDuration;
+import 'package:logic/src/tick.dart';
 
 /// Debug flag for EnsureStock quantization and termination logging.
 /// Set to true to trace EnsureStock behavior during solver runs.
@@ -490,11 +476,11 @@ class AcquireItem extends MacroCandidate {
     final state = context.state;
 
     // Find producer for this item
-    final producer = context.findProducerAction(state, itemId, context.goal);
+    final producer = findProducerActionForItem(state, itemId, context.goal);
 
     if (producer == null) {
       // Check if a locked producer exists
-      final lockedProducer = context.findAnyProducer(state, itemId);
+      final lockedProducer = findAnyProducerForItem(state, itemId);
       if (lockedProducer != null) {
         // Need to train skill first - return prerequisite
         return MacroNeedsPrerequisite(
@@ -508,11 +494,7 @@ class AcquireItem extends MacroCandidate {
     }
 
     // Check if producer has prerequisites (skill level requirements)
-    final prereqResult = context.ensureExecutable(
-      state,
-      producer,
-      context.goal,
-    );
+    final prereqResult = ensureExecutable(state, producer, context.goal);
     switch (prereqResult) {
       case ExecReady():
         break; // Producer is ready
@@ -1288,7 +1270,7 @@ class TrainConsumingSkillUntil extends MacroCandidate {
       final inputItem = inputEntry.key;
       final inputItemData = itemRegistry.byId(inputItem);
       final currentCount = state.inventory.countOfItem(inputItemData);
-      final producer = context.findProducerAction(
+      final producer = findProducerActionForItem(
         state,
         inputItem,
         context.goal,
@@ -1296,7 +1278,7 @@ class TrainConsumingSkillUntil extends MacroCandidate {
 
       if (producer == null) {
         // Check if a locked producer exists - may need skill training
-        final lockedProducer = context.findAnyProducer(state, inputItem);
+        final lockedProducer = findAnyProducerForItem(state, inputItem);
         if (lockedProducer != null) {
           // Need to train skill first
           allPrereqs.add(
@@ -1332,11 +1314,7 @@ class TrainConsumingSkillUntil extends MacroCandidate {
           }
         } else {
           // Simple producer (no inputs, e.g., Mining) - check prerequisites
-          final prereqResult = context.ensureExecutable(
-            state,
-            producer,
-            context.goal,
-          );
+          final prereqResult = ensureExecutable(state, producer, context.goal);
           switch (prereqResult) {
             case ExecReady():
               // Producer is ready - only require minimum buffer to start
@@ -1375,7 +1353,7 @@ class TrainConsumingSkillUntil extends MacroCandidate {
       // Find a producer that doesn't require inputs
       for (final inputEntry in consumeAction.inputs.entries) {
         final inputItemId = inputEntry.key;
-        final producer = context.findProducerAction(
+        final producer = findProducerActionForItem(
           state,
           inputItemId,
           context.goal,
@@ -1389,7 +1367,7 @@ class TrainConsumingSkillUntil extends MacroCandidate {
           } else {
             // Look for sub-producers
             for (final subInput in producerActionData.inputs.keys) {
-              final subProducer = context.findProducerAction(
+              final subProducer = findProducerActionForItem(
                 state,
                 subInput,
                 context.goal,
@@ -1433,7 +1411,7 @@ class TrainConsumingSkillUntil extends MacroCandidate {
     for (final inputEntry in consumeAction.inputs.entries) {
       final inputItemId = inputEntry.key;
       final inputCount = inputEntry.value;
-      final producer = context.findProducerAction(
+      final producer = findProducerActionForItem(
         state,
         inputItemId,
         context.goal,
@@ -1493,7 +1471,7 @@ class TrainConsumingSkillUntil extends MacroCandidate {
     for (final inputEntry in consumeAction.inputs.entries) {
       final inputItemId = inputEntry.key;
       final inputCount = inputEntry.value;
-      final producer = context.findProducerAction(
+      final producer = findProducerActionForItem(
         state,
         inputItemId,
         context.goal,
@@ -1580,7 +1558,7 @@ class TrainConsumingSkillUntil extends MacroCandidate {
         case ChainNeedsUnlock():
           // Should have been caught earlier in prerequisite checking
           // Fall back to simple lookup
-          final producer = context.findProducerAction(
+          final producer = findProducerActionForItem(
             state,
             inputItemId,
             context.goal,
@@ -1591,7 +1569,7 @@ class TrainConsumingSkillUntil extends MacroCandidate {
 
         case ChainFailed():
           // Fall back to simple lookup
-          final producer = context.findProducerAction(
+          final producer = findProducerActionForItem(
             state,
             inputItemId,
             context.goal,
