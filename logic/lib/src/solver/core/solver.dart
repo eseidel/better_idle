@@ -2183,17 +2183,8 @@ ReplanExecutionResult solveWithReplanning(
 
     // Log replan event if configured
     if (config.logReplans && triggeringBoundary != null) {
-      final event = ReplanEvent(
-        boundary: triggeringBoundary,
-        stateHash: computeStateHash(currentState),
-        ticksAtReplan: context.totalTicks + execResult.actualTicks,
-        reason: triggeringBoundary.describe(),
-      );
-      // Categorize the stop for clearer debugging
-      final category = _categorizeBoundary(triggeringBoundary);
-      // Print is intentional for debugging replan events.
-      // ignore: avoid_print
-      print('STOP($category): ${event.reason} at tick ${event.ticksAtReplan}');
+      final ticks = context.totalTicks + execResult.actualTicks;
+      _logReplanEvent(triggeringBoundary, ticks);
     }
 
     // Update context for replan
@@ -2212,16 +2203,9 @@ ReplanExecutionResult solveWithReplanning(
   }
 }
 
-/// Categorizes a replan boundary for debug logging.
-///
-/// Returns a short string indicating the category:
-/// - "planned": Normal segmentation stop (e.g., horizon cap)
-/// - "replan": Requires replanning (e.g., inputs depleted)
-/// - "recovery": Needs recovery action (e.g., inventory full)
-/// - "done": Goal reached
-/// - "error": Unexpected error
-String _categorizeBoundary(ReplanBoundary boundary) {
-  return switch (boundary) {
+/// Logs a replan event for debugging.
+void _logReplanEvent(ReplanBoundary boundary, int ticksAtReplan) {
+  final category = switch (boundary) {
     // Goal completion
     GoalReached() => 'done',
     WaitConditionSatisfied() => 'done',
@@ -2249,4 +2233,7 @@ String _categorizeBoundary(ReplanBoundary boundary) {
     ReplanLimitExceeded() => 'limit',
     TimeBudgetExceeded() => 'limit',
   };
+  // Print is intentional for debugging replan events.
+  // ignore: avoid_print
+  print('STOP($category): ${boundary.describe()} at tick $ticksAtReplan');
 }
