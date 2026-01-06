@@ -1040,12 +1040,38 @@ List<ActionSummary> _findProducersForItem(
   return producers;
 }
 
+/// Finds the best producer for a given item by output rate.
+///
+/// Returns the producer with the highest output/tick for [itemId], or null
+/// if no unlocked producers exist. Also returns the count of producers
+/// considered for stats tracking.
+///
+/// NOTE: Currently no items have multiple producers in the implemented
+/// skills (each log/fish/ore comes from exactly one action). This sorting
+/// logic would matter for Herblore (herbs from multiple sources), Summoning
+/// (gems from fishing/mining), or Alt. Magic, but those aren't implemented.
+({ActionSummary? best, int producerCount}) _findBestProducerForItem(
+  List<ActionSummary> summaries,
+  GlobalState state,
+  MelvorId itemId,
+) {
+  final producers = _findProducersForItem(summaries, state, itemId);
+  if (producers.isEmpty) return (best: null, producerCount: 0);
+
+  final registries = state.registries;
+  producers.sort((a, b) {
+    final aRate = a.outputPerTickForItem(registries, itemId);
+    final bRate = b.outputPerTickForItem(registries, itemId);
+    return bRate.compareTo(aRate);
+  });
+  return (best: producers.first, producerCount: producers.length);
+}
+
 /// Stats from consuming skill candidate selection.
 @immutable
 class ConsumingSkillCandidateStats {
   const ConsumingSkillCandidateStats({
     required this.consumerActionsConsidered,
-    required this.producerActionsConsidered,
     required this.pairsConsidered,
     required this.pairsKept,
     required this.topPairs,
@@ -1053,14 +1079,16 @@ class ConsumingSkillCandidateStats {
 
   static const empty = ConsumingSkillCandidateStats(
     consumerActionsConsidered: 0,
-    producerActionsConsidered: 0,
     pairsConsidered: 0,
     pairsKept: 0,
     topPairs: [],
   );
 
   final int consumerActionsConsidered;
-  final int producerActionsConsidered;
+
+  /// Number of consumer-producer pairs evaluated. Currently equal to the
+  /// number of producer actions considered since each consumer has at most
+  /// one producer per input item in the implemented skills.
   final int pairsConsidered;
   final int pairsKept;
   final List<({String consumerId, String producerId, double score})> topPairs;
@@ -1077,7 +1105,6 @@ class _ConsumingSkillResult {
 /// Builds stats for consuming skill candidate selection.
 ConsumingSkillCandidateStats _buildConsumingSkillStats({
   required List<ActionSummary> consumerActions,
-  required int producerActionsConsidered,
   required int pairsConsidered,
   required List<_ConsumerEntry> selectedConsumers,
 }) {
@@ -1093,7 +1120,6 @@ ConsumingSkillCandidateStats _buildConsumingSkillStats({
 
   return ConsumingSkillCandidateStats(
     consumerActionsConsidered: consumerActions.length,
-    producerActionsConsidered: producerActionsConsidered,
     pairsConsidered: pairsConsidered,
     pairsKept: selectedConsumers.length,
     topPairs: topPairs,
@@ -1232,7 +1258,6 @@ _ConsumingSkillResult _selectConsumingSkillCandidatesWithStats(
   }
 
   // Track stats
-  var producerActionsConsidered = 0;
   var pairsConsidered = 0;
 
   // Calculate sustainable XP/tick for each consumer action
@@ -1243,26 +1268,21 @@ _ConsumingSkillResult _selectConsumingSkillCandidatesWithStats(
         registries.actions.byId(consumerSummary.actionId) as SkillAction;
     final inputItem = consumerAction.inputs.keys.first;
 
-    // Find best producer for this input
-    final producers = _findProducersForItem(summaries, state, inputItem);
-    if (producers.isEmpty) continue;
+    final (:best, :producerCount) = _findBestProducerForItem(
+      summaries,
+      state,
+      inputItem,
+    );
+    if (best == null) continue;
 
-    producerActionsConsidered += producers.length;
-    pairsConsidered += producers.length; // Each producer forms a pair
+    pairsConsidered += producerCount;
 
-    // Best producer is the one with highest output/tick
-    producers.sort((a, b) {
-      final aRate = a.outputPerTickForItem(registries, inputItem);
-      final bRate = b.outputPerTickForItem(registries, inputItem);
-      return bRate.compareTo(aRate);
-    });
-    final bestProducer = producers.first;
     final producerAction =
-        registries.actions.byId(bestProducer.actionId) as SkillAction;
+        registries.actions.byId(best.actionId) as SkillAction;
 
     final sustainableRate = _sustainableXpPerTick(
       consumer: consumerSummary,
-      producer: bestProducer,
+      producer: best,
       consumerAction: consumerAction,
       producerAction: producerAction,
       inputItem: inputItem,
@@ -1271,7 +1291,7 @@ _ConsumingSkillResult _selectConsumingSkillCandidatesWithStats(
     consumersWithRates.add((
       consumer: consumerSummary,
       sustainableXpPerTick: sustainableRate,
-      producer: bestProducer,
+      producer: best,
     ));
   }
 
@@ -1320,7 +1340,6 @@ _ConsumingSkillResult _selectConsumingSkillCandidatesWithStats(
   final stats = collectStats
       ? _buildConsumingSkillStats(
           consumerActions: consumerActions,
-          producerActionsConsidered: producerActionsConsidered,
           pairsConsidered: pairsConsidered,
           selectedConsumers: selectedConsumers,
         )

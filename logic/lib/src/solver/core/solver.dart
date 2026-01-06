@@ -1624,7 +1624,6 @@ SolverResult solve(
       ctx.profileBuilder.candidateStatsHistory.add(
         CandidateStats(
           consumerActionsConsidered: stats.consumerActionsConsidered,
-          producerActionsConsidered: stats.producerActionsConsidered,
           pairsConsidered: stats.pairsConsidered,
           pairsKept: stats.pairsKept,
           topPairs: stats.topPairs,

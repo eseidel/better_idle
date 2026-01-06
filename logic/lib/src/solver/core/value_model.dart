@@ -10,7 +10,7 @@
 /// - [SellEverythingForGpValueModel]: Values items at sell price (GP-goal
 ///   default). Every item produced is treated as immediately sold.
 ///
-/// - [ShadowPriceValueModel]: (Stub for future) Can value items differently
+/// - ShadowPriceValueModel: (Idea for future) Can value items differently
 ///   when crafting chains/milestones matter. Example: raw shrimp sell price
 ///   is 2 GP, but shadow value may be higher if cooking chain is profitable.
 ///
@@ -59,35 +59,6 @@ class SellEverythingForGpValueModel extends ValueModel {
 
   @override
   double itemValue(GlobalState state, MelvorId itemId) {
-    return state.registries.items.byId(itemId).sellsFor.toDouble();
-  }
-
-  @override
-  double valuePerTick(GlobalState state, Rates rates) {
-    var value = rates.directGpPerTick;
-    // Add value from items produced
-    for (final entry in rates.itemFlowsPerTick.entries) {
-      value += entry.value * itemValue(state, entry.key);
-    }
-    // Subtract value from items consumed (opportunity cost)
-    for (final entry in rates.itemsConsumedPerTick.entries) {
-      value -= entry.value * itemValue(state, entry.key);
-    }
-    return value;
-  }
-}
-
-/// Stub ValueModel for future shadow-pricing implementation.
-///
-/// Currently behaves like [SellEverythingForGpValueModel], but exists
-/// to prove the abstraction works and enable future enhancements.
-@immutable
-class ShadowPriceValueModel extends ValueModel {
-  const ShadowPriceValueModel();
-
-  @override
-  double itemValue(GlobalState state, MelvorId itemId) {
-    // TODO(future): Implement shadow pricing based on unlocks/recipes
     return state.registries.items.byId(itemId).sellsFor.toDouble();
   }
 

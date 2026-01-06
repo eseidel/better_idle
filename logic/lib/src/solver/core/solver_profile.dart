@@ -80,14 +80,16 @@ class ZeroTicksReason extends RateZeroReason {
 class CandidateStats {
   const CandidateStats({
     required this.consumerActionsConsidered,
-    required this.producerActionsConsidered,
     required this.pairsConsidered,
     required this.pairsKept,
     required this.topPairs,
   });
 
   final int consumerActionsConsidered;
-  final int producerActionsConsidered;
+
+  /// Number of consumer-producer pairs evaluated. Currently equal to the
+  /// number of producer actions considered since each consumer has at most
+  /// one producer per input item in the implemented skills.
   final int pairsConsidered;
   final int pairsKept;
   final List<({String consumerId, String producerId, double score})> topPairs;

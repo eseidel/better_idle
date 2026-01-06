@@ -1443,7 +1443,7 @@ void main() {
       // Verify consumer action stats are populated
       final stats = profile.candidateStatsHistory.first;
       expect(stats.consumerActionsConsidered, greaterThan(0));
-      expect(stats.producerActionsConsidered, greaterThan(0));
+      expect(stats.pairsConsidered, greaterThan(0));
       expect(stats.topPairs, isNotEmpty);
     });
 

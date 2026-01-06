@@ -560,9 +560,8 @@ void _printSolverProfile(
     print('Consuming skill candidate stats (last sample):');
     final stats = profile.candidateStatsHistory.last;
     print('  Consumer actions considered: ${stats.consumerActionsConsidered}');
-    print('  Producer actions considered: ${stats.producerActionsConsidered}');
-    print('  Pairs considered: ${stats.pairsConsidered}');
-    print('  Pairs kept: ${stats.pairsKept}');
+    print('  Consumer-producer pairs considered: ${stats.pairsConsidered}');
+    print('  Consumer-producer pairs kept: ${stats.pairsKept}');
     if (stats.topPairs.isNotEmpty) {
       print('  Top pairs:');
       for (final pair in stats.topPairs) {
@@ -1319,11 +1318,10 @@ Future<void> _runCliffDiagnostic(
       (s) => s?.consumerActionsConsidered,
     );
     compareStats(
-      'Producer actions considered',
-      (s) => s?.producerActionsConsidered,
+      'Consumer-producer pairs considered',
+      (s) => s?.pairsConsidered,
     );
-    compareStats('Pairs considered', (s) => s?.pairsConsidered);
-    compareStats('Pairs kept', (s) => s?.pairsKept);
+    compareStats('Consumer-producer pairs kept', (s) => s?.pairsKept);
     print('');
 
     void printTopPairs(CandidateStats? stats, int level) {
