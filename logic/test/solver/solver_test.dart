@@ -18,6 +18,7 @@ import 'package:logic/src/solver/core/value_model.dart';
 import 'package:logic/src/solver/execution/execute_plan.dart';
 import 'package:logic/src/solver/execution/plan.dart';
 import 'package:logic/src/solver/execution/state_advance.dart';
+import 'package:logic/src/solver/execution/step_helpers.dart';
 import 'package:logic/src/solver/interactions/apply_interaction.dart';
 import 'package:logic/src/solver/interactions/interaction.dart';
 import 'package:test/test.dart';
@@ -2583,6 +2584,242 @@ void main() {
       // Horizon exceeded (200 > 100) - should take priority over inventory
       final result = context.watchSet.detectBoundary(state, elapsedTicks: 200);
       expect(result, isA<HorizonCapBoundary>());
+    });
+  });
+
+  group('executeTrainSkillWithBoundaryChecks', () {
+    test('returns initial boundary when detected before execution', () {
+      // Setup: State where a boundary is already satisfied
+      final logs = testItems.byName('Normal Logs');
+      final inventory = Inventory.fromItems(testItems, [
+        ItemStack(logs, count: 100), // Worth 100 GP when sold
+      ]);
+      // Already have enough effective credits for Iron Axe (50 GP)
+      var state = GlobalState.test(
+        testRegistries,
+        gp: 50,
+        inventory: inventory,
+      );
+
+      // Start woodcutting
+      final normalTreeAction = testActions.woodcutting('Normal Tree');
+      state = state.startAction(normalTreeAction, random: Random(42));
+
+      // Create WatchSet that watches for Iron Axe affordability
+      const goal = ReachSkillLevelGoal(Skill.woodcutting, 99);
+      const config = SegmentConfig(
+        stopAtUnlockBoundary: false,
+        stopAtInputsDepleted: false,
+      );
+      final context = SegmentContext.build(state, goal, config);
+
+      // Execute with a wait condition
+      final waitFor = WaitForSkillXp(
+        Skill.woodcutting,
+        state.skillState(Skill.woodcutting).xp + 10000,
+      );
+      final result = executeTrainSkillWithBoundaryChecks(
+        state,
+        waitFor,
+        Random(42),
+        context.watchSet,
+      );
+
+      // Should detect boundary immediately before any execution
+      expect(result.ticksElapsed, 0);
+      expect(result.boundary, isA<UpgradeAffordableEarly>());
+    });
+
+    test('detects boundary after execution completes', () {
+      // Setup: Start with GP and inventory that aren't yet enough for Iron Axe
+      // Iron Axe costs 50 GP. Start with 0 GP and 5 logs (worth 5 GP).
+      // Need to earn more logs through woodcutting to afford it.
+      final logs = testItems.byName('Normal Logs');
+      final inventory = Inventory.fromItems(testItems, [
+        ItemStack(logs, count: 5), // Worth 5 GP when sold
+      ]);
+      var state = GlobalState.test(
+        testRegistries,
+        gp: 40, // Total effective: 40 + 5 = 45 GP (need 50 for Iron Axe)
+        inventory: inventory,
+      );
+
+      // Start woodcutting
+      final normalTreeAction = testActions.woodcutting('Normal Tree');
+      state = state.startAction(normalTreeAction, random: Random(42));
+
+      // Create WatchSet that watches for Iron Axe affordability
+      const goal = ReachSkillLevelGoal(Skill.woodcutting, 99);
+      const config = SegmentConfig(
+        stopAtUnlockBoundary: false,
+        stopAtInputsDepleted: false,
+      );
+      final context = SegmentContext.build(state, goal, config);
+
+      // Verify we don't have enough yet
+      expect(
+        effectiveCredits(state, context.sellPolicy),
+        lessThan(50),
+        reason: 'Should not have enough for Iron Axe initially',
+      );
+
+      // Execute with a wait condition for significant XP gain
+      final waitFor = WaitForSkillXp(
+        Skill.woodcutting,
+        state.skillState(Skill.woodcutting).xp + 50000,
+      );
+      final result = executeTrainSkillWithBoundaryChecks(
+        state,
+        waitFor,
+        Random(42),
+        context.watchSet,
+      );
+
+      // Should have executed some ticks and detected boundary
+      expect(result.ticksElapsed, greaterThan(0));
+      expect(result.boundary, isA<UpgradeAffordableEarly>());
+
+      // State should have progressed
+      expect(
+        result.state.skillState(Skill.woodcutting).xp,
+        greaterThan(state.skillState(Skill.woodcutting).xp),
+      );
+    });
+
+    test('completes normally when wait condition satisfied first', () {
+      // Setup: No upgrades close to affordable
+      var state = GlobalState.empty(testRegistries);
+
+      // Start woodcutting
+      final normalTreeAction = testActions.woodcutting('Normal Tree');
+      state = state.startAction(normalTreeAction, random: Random(42));
+
+      // Create WatchSet with upgrade watching disabled
+      const goal = ReachSkillLevelGoal(Skill.woodcutting, 99);
+      const config = SegmentConfig(
+        stopAtUpgradeAffordable: false,
+        stopAtUnlockBoundary: false,
+        stopAtInputsDepleted: false,
+      );
+      final context = SegmentContext.build(state, goal, config);
+
+      // Execute with a small XP target that should be reached quickly
+      final targetXp = state.skillState(Skill.woodcutting).xp + 100;
+      final waitFor = WaitForSkillXp(Skill.woodcutting, targetXp);
+      final result = executeTrainSkillWithBoundaryChecks(
+        state,
+        waitFor,
+        Random(42),
+        context.watchSet,
+      );
+
+      // Should have completed without a material boundary
+      expect(result.ticksElapsed, greaterThan(0));
+      expect(
+        result.state.skillState(Skill.woodcutting).xp,
+        greaterThanOrEqualTo(targetXp),
+      );
+      // Boundary should be WaitConditionSatisfied (not a stopping boundary)
+      expect(result.boundary, isA<WaitConditionSatisfied>());
+    });
+
+    test('detects goal reached boundary', () {
+      // Setup: Close to goal
+      var state = GlobalState.empty(testRegistries);
+
+      // Start woodcutting
+      final normalTreeAction = testActions.woodcutting('Normal Tree');
+      state = state.startAction(normalTreeAction, random: Random(42));
+
+      // Create WatchSet with a very easy goal (level 2)
+      const goal = ReachSkillLevelGoal(Skill.woodcutting, 2);
+      const config = SegmentConfig(
+        stopAtUpgradeAffordable: false,
+        stopAtUnlockBoundary: false,
+        stopAtInputsDepleted: false,
+      );
+      final context = SegmentContext.build(state, goal, config);
+
+      // Execute with a large XP target (should hit goal first)
+      final waitFor = WaitForSkillXp(
+        Skill.woodcutting,
+        state.skillState(Skill.woodcutting).xp + 100000,
+      );
+      final result = executeTrainSkillWithBoundaryChecks(
+        state,
+        waitFor,
+        Random(42),
+        context.watchSet,
+      );
+
+      // Should stop at goal reached
+      expect(result.boundary, isA<GoalReached>());
+      expect(
+        result.state.skillState(Skill.woodcutting).skillLevel,
+        greaterThanOrEqualTo(2),
+      );
+    });
+
+    test('detects unlock boundary when skill levels up', () {
+      // Setup: Start at level 1, oak trees unlock at level 15
+      var state = GlobalState.empty(testRegistries);
+
+      // Start woodcutting
+      final normalTreeAction = testActions.woodcutting('Normal Tree');
+      state = state.startAction(normalTreeAction, random: Random(42));
+
+      // Create WatchSet with unlock boundary watching enabled (default)
+      const goal = ReachSkillLevelGoal(Skill.woodcutting, 99);
+      const config = SegmentConfig(
+        stopAtUpgradeAffordable: false,
+        stopAtInputsDepleted: false,
+      );
+      final context = SegmentContext.build(state, goal, config);
+
+      // Execute with a very large XP target
+      final waitFor = WaitForSkillXp(
+        Skill.woodcutting,
+        state.skillState(Skill.woodcutting).xp + 1000000,
+      );
+      final result = executeTrainSkillWithBoundaryChecks(
+        state,
+        waitFor,
+        Random(42),
+        context.watchSet,
+      );
+
+      // Should have detected an unlock boundary when reaching level 15 (Oak)
+      expect(result.boundary, isA<UnlockObserved>());
+      expect(result.ticksElapsed, greaterThan(0));
+    });
+
+    test('tracks deaths during execution', () {
+      // This test is tricky because deaths require combat.
+      // For now, we verify death count is returned (0 for non-combat)
+      var state = GlobalState.empty(testRegistries);
+
+      final normalTreeAction = testActions.woodcutting('Normal Tree');
+      state = state.startAction(normalTreeAction, random: Random(42));
+
+      const goal = ReachSkillLevelGoal(Skill.woodcutting, 99);
+      const config = SegmentConfig(
+        stopAtUpgradeAffordable: false,
+        stopAtUnlockBoundary: false,
+        stopAtInputsDepleted: false,
+      );
+      final context = SegmentContext.build(state, goal, config);
+
+      final targetXp = state.skillState(Skill.woodcutting).xp + 100;
+      final waitFor = WaitForSkillXp(Skill.woodcutting, targetXp);
+      final result = executeTrainSkillWithBoundaryChecks(
+        state,
+        waitFor,
+        Random(42),
+        context.watchSet,
+      );
+
+      // Non-combat action should have 0 deaths
+      expect(result.deaths, 0);
     });
   });
 
