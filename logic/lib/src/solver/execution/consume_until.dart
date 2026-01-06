@@ -84,8 +84,6 @@ ConsumeUntilResult consumeUntil(
   final actionRegistry = state.registries.actions;
   var totalTicksElapsed = 0;
   var deathCount = 0;
-  var consecutiveZeroTickIterations = 0;
-  const maxConsecutiveZeroTickIterations = 3;
 
   // Keep running until the condition is satisfied, restarting after deaths
   while (true) {
@@ -101,25 +99,6 @@ ConsumeUntilResult consumeUntil(
 
     state = builder.build();
     totalTicksElapsed += builder.ticksElapsed;
-
-    // Track consecutive zero-tick iterations to detect infinite loops
-    if (builder.ticksElapsed == 0) {
-      consecutiveZeroTickIterations++;
-      if (consecutiveZeroTickIterations >= maxConsecutiveZeroTickIterations) {
-        return ConsumeUntilResult(
-          state: state,
-          ticksElapsed: totalTicksElapsed,
-          deathCount: deathCount,
-          boundary: NoProgressPossible(
-            reason:
-                'No ticks elapsed for $consecutiveZeroTickIterations '
-                'consecutive iterations on ${waitFor.describe()}',
-          ),
-        );
-      }
-    } else {
-      consecutiveZeroTickIterations = 0;
-    }
 
     // If we hit maxTicks without progress, we're stuck
     if (stopReason == ConsumeTicksStopReason.maxTicksReached) {
@@ -249,13 +228,12 @@ ConsumeUntilResult consumeUntil(
       );
     }
 
-    // No progress possible
-    if (builder.ticksElapsed == 0 && state.activeAction == null) {
-      return ConsumeUntilResult(
-        state: state,
-        ticksElapsed: totalTicksElapsed,
-        deathCount: deathCount,
-        boundary: const NoProgressPossible(reason: 'No active action'),
+    // Zero ticks with action still running is an engine bug - the condition
+    // wasn't satisfied but no ticks were consumed and the action didn't stop.
+    if (builder.ticksElapsed == 0) {
+      throw StateError(
+        'consumeTicksUntil returned 0 ticks without satisfying condition '
+        'and action still running: ${waitFor.describe()}',
       );
     }
   }
