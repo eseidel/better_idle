@@ -685,6 +685,7 @@ class EnsureStock extends MacroCandidate {
     if (deltaNeeded <= 0) {
       // Already have enough - this is a no-op
       if (_debugEnsureStock) {
+        // We should use a logging framework or collect these in a list.
         // ignore: avoid_print
         print(
           'EnsureStock satisfied: ${itemId.localId} '

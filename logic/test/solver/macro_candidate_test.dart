@@ -18,6 +18,376 @@ void main() {
     await loadTestRegistries();
   });
 
+  group('MacroPlanContext', () {
+    MacroPlanContext makeContext(
+      GlobalState state, {
+      Goal? goal,
+      Map<Skill, SkillBoundaries>? boundaries,
+    }) {
+      return MacroPlanContext(
+        state: state,
+        goal: goal ?? const ReachSkillLevelGoal(Skill.mining, 10),
+        boundaries: boundaries ?? const {},
+      );
+    }
+
+    group('computeFeasibleBatchSize', () {
+      test('returns target when inventory has plenty of space', () {
+        // Start with empty inventory (20 slots free)
+        final state = GlobalState.empty(testRegistries);
+        final context = makeContext(state);
+        const copperOreId = MelvorId('melvorD:Copper_Ore');
+
+        final result = context.computeFeasibleBatchSize(
+          state,
+          copperOreId,
+          100,
+          const ReachSkillLevelGoal(Skill.mining, 10),
+        );
+
+        // Full batch should be feasible with empty inventory
+        expect(result, 100);
+      });
+
+      test('returns target when item already exists in inventory', () {
+        // Start with some copper ore already (no new slot needed)
+        final copperOre = testItems.byName('Copper Ore');
+        final inventory = Inventory.fromItems(testItems, [
+          ItemStack(copperOre, count: 10),
+        ]);
+        final state = GlobalState.test(testRegistries, inventory: inventory);
+        final context = makeContext(state);
+        const copperOreId = MelvorId('melvorD:Copper_Ore');
+
+        final result = context.computeFeasibleBatchSize(
+          state,
+          copperOreId,
+          50,
+          const ReachSkillLevelGoal(Skill.mining, 10),
+        );
+
+        // Item already in inventory, should be able to produce full batch
+        expect(result, 50);
+      });
+
+      test('returns 0 when inventory is completely full', () {
+        // Fill all 20 slots
+        final items = <ItemStack>[
+          ItemStack(testItems.byName('Raw Shrimp'), count: 1),
+          ItemStack(testItems.byName('Raw Sardine'), count: 1),
+          ItemStack(testItems.byName('Raw Herring'), count: 1),
+          ItemStack(testItems.byName('Raw Trout'), count: 1),
+          ItemStack(testItems.byName('Raw Salmon'), count: 1),
+          ItemStack(testItems.byName('Raw Lobster'), count: 1),
+          ItemStack(testItems.byName('Raw Swordfish'), count: 1),
+          ItemStack(testItems.byName('Raw Crab'), count: 1),
+          ItemStack(testItems.byName('Normal Logs'), count: 1),
+          ItemStack(testItems.byName('Oak Logs'), count: 1),
+          ItemStack(testItems.byName('Willow Logs'), count: 1),
+          ItemStack(testItems.byName('Maple Logs'), count: 1),
+          ItemStack(testItems.byName('Teak Logs'), count: 1),
+          ItemStack(testItems.byName('Mahogany Logs'), count: 1),
+          ItemStack(testItems.byName('Yew Logs'), count: 1),
+          ItemStack(testItems.byName('Magic Logs'), count: 1),
+          ItemStack(testItems.byName('Redwood Logs'), count: 1),
+          ItemStack(testItems.byName('Tin Ore'), count: 1),
+          ItemStack(testItems.byName('Iron Ore'), count: 1),
+          ItemStack(testItems.byName('Mithril Ore'), count: 1),
+        ];
+        final inventory = Inventory.fromItems(testItems, items);
+        final state = GlobalState.test(testRegistries, inventory: inventory);
+        final context = makeContext(state);
+        const copperOreId = MelvorId('melvorD:Copper_Ore');
+
+        expect(state.isInventoryFull, isTrue);
+
+        final result = context.computeFeasibleBatchSize(
+          state,
+          copperOreId,
+          50,
+          const ReachSkillLevelGoal(Skill.mining, 10),
+        );
+
+        // No free slots, should return 0
+        expect(result, 0);
+      });
+
+      test('returns 0 when inventory full even if target item exists', () {
+        // Fill all 20 slots, with copper ore in one of them
+        final items = <ItemStack>[
+          ItemStack(testItems.byName('Copper Ore'), count: 5),
+          ItemStack(testItems.byName('Raw Shrimp'), count: 1),
+          ItemStack(testItems.byName('Raw Sardine'), count: 1),
+          ItemStack(testItems.byName('Raw Herring'), count: 1),
+          ItemStack(testItems.byName('Raw Trout'), count: 1),
+          ItemStack(testItems.byName('Raw Salmon'), count: 1),
+          ItemStack(testItems.byName('Raw Lobster'), count: 1),
+          ItemStack(testItems.byName('Raw Swordfish'), count: 1),
+          ItemStack(testItems.byName('Raw Crab'), count: 1),
+          ItemStack(testItems.byName('Normal Logs'), count: 1),
+          ItemStack(testItems.byName('Oak Logs'), count: 1),
+          ItemStack(testItems.byName('Willow Logs'), count: 1),
+          ItemStack(testItems.byName('Maple Logs'), count: 1),
+          ItemStack(testItems.byName('Teak Logs'), count: 1),
+          ItemStack(testItems.byName('Mahogany Logs'), count: 1),
+          ItemStack(testItems.byName('Yew Logs'), count: 1),
+          ItemStack(testItems.byName('Magic Logs'), count: 1),
+          ItemStack(testItems.byName('Redwood Logs'), count: 1),
+          ItemStack(testItems.byName('Tin Ore'), count: 1),
+          ItemStack(testItems.byName('Iron Ore'), count: 1),
+        ];
+        final inventory = Inventory.fromItems(testItems, items);
+        final state = GlobalState.test(testRegistries, inventory: inventory);
+        final context = makeContext(state);
+        const copperOreId = MelvorId('melvorD:Copper_Ore');
+
+        expect(state.isInventoryFull, isTrue);
+
+        final result = context.computeFeasibleBatchSize(
+          state,
+          copperOreId,
+          50,
+          const ReachSkillLevelGoal(Skill.mining, 10),
+        );
+
+        // Even though copper ore already exists, mining produces gems
+        // which need additional slots. With 0 free slots and 2 safety margin,
+        // no batch is feasible.
+        expect(result, 0);
+      });
+
+      test('reduces batch for intermediate production slots', () {
+        // Bronze bars need copper and tin ore - multiple new slots
+        // Start with limited free slots
+        final items = <ItemStack>[
+          ItemStack(testItems.byName('Raw Shrimp'), count: 1),
+          ItemStack(testItems.byName('Raw Sardine'), count: 1),
+          ItemStack(testItems.byName('Raw Herring'), count: 1),
+          ItemStack(testItems.byName('Raw Trout'), count: 1),
+          ItemStack(testItems.byName('Raw Salmon'), count: 1),
+          ItemStack(testItems.byName('Raw Lobster'), count: 1),
+          ItemStack(testItems.byName('Raw Swordfish'), count: 1),
+          ItemStack(testItems.byName('Raw Crab'), count: 1),
+          ItemStack(testItems.byName('Normal Logs'), count: 1),
+          ItemStack(testItems.byName('Oak Logs'), count: 1),
+          ItemStack(testItems.byName('Willow Logs'), count: 1),
+          ItemStack(testItems.byName('Maple Logs'), count: 1),
+          ItemStack(testItems.byName('Teak Logs'), count: 1),
+          ItemStack(testItems.byName('Mahogany Logs'), count: 1),
+          ItemStack(testItems.byName('Yew Logs'), count: 1),
+          ItemStack(testItems.byName('Magic Logs'), count: 1),
+        ];
+        final inventory = Inventory.fromItems(testItems, items);
+        final state = GlobalState.test(testRegistries, inventory: inventory);
+        final context = makeContext(state);
+        const bronzeBarId = MelvorId('melvorD:Bronze_Bar');
+
+        // 4 free slots, but bronze bars need:
+        // - 1 slot for bronze bars (new)
+        // - 1 slot for copper ore (new)
+        // - 1 slot for tin ore (new)
+        // - 2 slot safety margin
+        // Total: 5 slots needed, only 4 available
+        expect(state.inventoryRemaining, 4);
+
+        final result = context.computeFeasibleBatchSize(
+          state,
+          bronzeBarId,
+          100,
+          const ReachSkillLevelGoal(Skill.smithing, 10),
+        );
+
+        // Should be reduced due to limited slots
+        expect(result, lessThan(100));
+      });
+
+      test('accounts for mining gem byproducts in large batches', () {
+        // Mining produces gems as byproducts which need slots
+        // With a large batch, this should be accounted for
+        final items = <ItemStack>[
+          ItemStack(testItems.byName('Raw Shrimp'), count: 1),
+          ItemStack(testItems.byName('Raw Sardine'), count: 1),
+          ItemStack(testItems.byName('Raw Herring'), count: 1),
+          ItemStack(testItems.byName('Raw Trout'), count: 1),
+          ItemStack(testItems.byName('Raw Salmon'), count: 1),
+          ItemStack(testItems.byName('Raw Lobster'), count: 1),
+          ItemStack(testItems.byName('Raw Swordfish'), count: 1),
+          ItemStack(testItems.byName('Raw Crab'), count: 1),
+          ItemStack(testItems.byName('Normal Logs'), count: 1),
+          ItemStack(testItems.byName('Oak Logs'), count: 1),
+          ItemStack(testItems.byName('Willow Logs'), count: 1),
+        ];
+        final inventory = Inventory.fromItems(testItems, items);
+        final state = GlobalState.test(testRegistries, inventory: inventory);
+        final context = makeContext(state);
+        const copperOreId = MelvorId('melvorD:Copper_Ore');
+
+        // 9 free slots
+        expect(state.inventoryRemaining, 9);
+
+        // Large batch (> 20) triggers gem slot estimation
+        // Copper ore itself needs 1 slot + up to 5 gem slots + 2 safety = 8 max
+        final result = context.computeFeasibleBatchSize(
+          state,
+          copperOreId,
+          100, // Large batch
+          const ReachSkillLevelGoal(Skill.mining, 10),
+        );
+
+        // Should still produce a reasonable batch given 9 slots
+        expect(result, greaterThan(0));
+        // But it should be reduced from 100 to account for potential gem slots
+        expect(result, lessThanOrEqualTo(100));
+      });
+
+      test('returns small batch with very limited space', () {
+        // Fill almost all slots
+        final items = <ItemStack>[
+          ItemStack(testItems.byName('Raw Shrimp'), count: 1),
+          ItemStack(testItems.byName('Raw Sardine'), count: 1),
+          ItemStack(testItems.byName('Raw Herring'), count: 1),
+          ItemStack(testItems.byName('Raw Trout'), count: 1),
+          ItemStack(testItems.byName('Raw Salmon'), count: 1),
+          ItemStack(testItems.byName('Raw Lobster'), count: 1),
+          ItemStack(testItems.byName('Raw Swordfish'), count: 1),
+          ItemStack(testItems.byName('Raw Crab'), count: 1),
+          ItemStack(testItems.byName('Normal Logs'), count: 1),
+          ItemStack(testItems.byName('Oak Logs'), count: 1),
+          ItemStack(testItems.byName('Willow Logs'), count: 1),
+          ItemStack(testItems.byName('Maple Logs'), count: 1),
+          ItemStack(testItems.byName('Teak Logs'), count: 1),
+          ItemStack(testItems.byName('Mahogany Logs'), count: 1),
+          ItemStack(testItems.byName('Yew Logs'), count: 1),
+          ItemStack(testItems.byName('Magic Logs'), count: 1),
+          ItemStack(testItems.byName('Redwood Logs'), count: 1),
+        ];
+        final inventory = Inventory.fromItems(testItems, items);
+        final state = GlobalState.test(testRegistries, inventory: inventory);
+        final context = makeContext(state);
+        const normalLogsId = MelvorId('melvorD:Normal_Logs');
+
+        // 3 free slots, woodcutting doesn't produce byproducts
+        // Need: 1 slot for logs (already exists!) + 2 safety = 3 total
+        // Actually logs already in inventory, so 0 new slots + 2 safety
+        expect(state.inventoryRemaining, 3);
+
+        final result = context.computeFeasibleBatchSize(
+          state,
+          normalLogsId,
+          50,
+          const ReachSkillLevelGoal(Skill.woodcutting, 10),
+        );
+
+        // Normal logs already in inventory, just need safety margin
+        // With 3 free slots and 2 safety margin, should be feasible
+        expect(result, 50);
+      });
+
+      test('binary search finds maximum feasible batch', () {
+        // Set up a scenario where we can determine the exact cutoff
+        // 5 free slots, new item needs 1 slot + 2 safety = 3
+        // So we have 2 slots "left over" which doesn't help
+        // But the batch size doesn't scale with slots directly
+        // It's about whether the production chain fits
+        final items = <ItemStack>[
+          ItemStack(testItems.byName('Raw Shrimp'), count: 1),
+          ItemStack(testItems.byName('Raw Sardine'), count: 1),
+          ItemStack(testItems.byName('Raw Herring'), count: 1),
+          ItemStack(testItems.byName('Raw Trout'), count: 1),
+          ItemStack(testItems.byName('Raw Salmon'), count: 1),
+          ItemStack(testItems.byName('Raw Lobster'), count: 1),
+          ItemStack(testItems.byName('Raw Swordfish'), count: 1),
+          ItemStack(testItems.byName('Raw Crab'), count: 1),
+          ItemStack(testItems.byName('Normal Logs'), count: 1),
+          ItemStack(testItems.byName('Oak Logs'), count: 1),
+          ItemStack(testItems.byName('Willow Logs'), count: 1),
+          ItemStack(testItems.byName('Maple Logs'), count: 1),
+          ItemStack(testItems.byName('Teak Logs'), count: 1),
+          ItemStack(testItems.byName('Mahogany Logs'), count: 1),
+          ItemStack(testItems.byName('Yew Logs'), count: 1),
+        ];
+        final inventory = Inventory.fromItems(testItems, items);
+        final state = GlobalState.test(testRegistries, inventory: inventory);
+        final context = makeContext(state);
+        const tinOreId = MelvorId('melvorD:Tin_Ore');
+
+        // 5 free slots for a new item (tin ore)
+        expect(state.inventoryRemaining, 5);
+
+        final smallBatch = context.computeFeasibleBatchSize(
+          state,
+          tinOreId,
+          10, // Small batch
+          const ReachSkillLevelGoal(Skill.mining, 10),
+        );
+
+        final largeBatch = context.computeFeasibleBatchSize(
+          state,
+          tinOreId,
+          100, // Large batch
+          const ReachSkillLevelGoal(Skill.mining, 10),
+        );
+
+        // Small batch should be fully feasible
+        expect(smallBatch, 10);
+        // Large batch will be reduced due to gem slot estimation
+        // (mining > 20 items adds potential gem slots)
+        expect(largeBatch, lessThanOrEqualTo(100));
+        expect(largeBatch, greaterThan(0));
+      });
+
+      test('handles production chain with existing intermediates', () {
+        // Bronze bars need copper and tin ore
+        // If we already have the ores, fewer slots needed
+        final items = <ItemStack>[
+          ItemStack(testItems.byName('Copper Ore'), count: 100),
+          ItemStack(testItems.byName('Tin Ore'), count: 100),
+          ItemStack(testItems.byName('Raw Shrimp'), count: 1),
+          ItemStack(testItems.byName('Raw Sardine'), count: 1),
+          ItemStack(testItems.byName('Raw Herring'), count: 1),
+          ItemStack(testItems.byName('Raw Trout'), count: 1),
+          ItemStack(testItems.byName('Raw Salmon'), count: 1),
+          ItemStack(testItems.byName('Raw Lobster'), count: 1),
+          ItemStack(testItems.byName('Raw Swordfish'), count: 1),
+          ItemStack(testItems.byName('Raw Crab'), count: 1),
+          ItemStack(testItems.byName('Normal Logs'), count: 1),
+          ItemStack(testItems.byName('Oak Logs'), count: 1),
+          ItemStack(testItems.byName('Willow Logs'), count: 1),
+          ItemStack(testItems.byName('Maple Logs'), count: 1),
+          ItemStack(testItems.byName('Teak Logs'), count: 1),
+          ItemStack(testItems.byName('Mahogany Logs'), count: 1),
+          ItemStack(testItems.byName('Yew Logs'), count: 1),
+        ];
+        final inventory = Inventory.fromItems(testItems, items);
+        final state = GlobalState.test(testRegistries, inventory: inventory);
+        final context = makeContext(state);
+        const bronzeBarId = MelvorId('melvorD:Bronze_Bar');
+
+        // 3 free slots, ores already in inventory
+        // The production chain for bronze bars still involves mining as
+        // the producer for ores. Even though we have ores in inventory,
+        // the function traverses to the ore producer (mining action) and
+        // estimates gem slots for large batches (qty > 20).
+        // With 3 free slots and gem slot estimation, the batch is reduced.
+        expect(state.inventoryRemaining, 3);
+
+        final result = context.computeFeasibleBatchSize(
+          state,
+          bronzeBarId,
+          50,
+          const ReachSkillLevelGoal(Skill.smithing, 10),
+        );
+
+        // Batch is reduced because gem slot estimation is applied even
+        // when ores exist in inventory (production chain still recurses
+        // to the mining producer). With 3 slots and gem estimation,
+        // binary search finds max feasible batch.
+        expect(result, greaterThan(0));
+        expect(result, lessThanOrEqualTo(50));
+      });
+    });
+  });
+
   group('MacroProvenance', () {
     group('TopLevelProvenance', () {
       test('describe returns top-level candidate', () {

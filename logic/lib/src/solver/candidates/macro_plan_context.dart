@@ -10,7 +10,6 @@ import 'dart:math';
 import 'package:logic/src/data/action_id.dart';
 import 'package:logic/src/data/actions.dart';
 import 'package:logic/src/data/melvor_id.dart';
-import 'package:logic/src/data/xp.dart' show startXpForLevel;
 import 'package:logic/src/solver/analysis/unlock_boundaries.dart';
 import 'package:logic/src/solver/analysis/watch_set.dart';
 import 'package:logic/src/solver/candidates/macro_candidate.dart';
@@ -292,53 +291,6 @@ class MacroPlanContext {
   /// fulfilled across multiple replan cycles.
   static const int maxChunkSize = 640;
 
-  /// For consuming skills (Smithing, Firemaking, etc.), computes how many
-  /// craft actions are needed to reach the next skill level boundary.
-  ///
-  /// Returns null if no boundary exists (at max level) or already satisfied.
-  BatchSizeResult? computeBatchToNextUnlock({
-    required GlobalState state,
-    required SkillAction consumingAction,
-    required Map<Skill, SkillBoundaries> boundaries,
-    int safetyMargin = 2,
-  }) {
-    final skill = consumingAction.skill;
-    final currentLevel = state.skillState(skill).skillLevel;
-    final currentXp = state.skillState(skill).xp;
-
-    // Find next unlock boundary
-    final skillBoundaries = boundaries[skill];
-    if (skillBoundaries == null) return null;
-
-    final nextLevel = skillBoundaries.nextBoundary(currentLevel);
-    if (nextLevel == null) return null; // At or past max
-
-    // Calculate XP needed
-    final targetXp = startXpForLevel(nextLevel);
-    final xpNeeded = targetXp - currentXp;
-    if (xpNeeded <= 0) return null; // Already there
-
-    // Calculate crafts needed
-    final xpPerCraft = consumingAction.xp;
-    final craftsNeeded = (xpNeeded / xpPerCraft).ceil() + safetyMargin;
-
-    // Calculate input requirements (absolute totals)
-    final inputRequirements = <MelvorId, int>{};
-    for (final inputEntry in consumingAction.inputs.entries) {
-      final inputId = inputEntry.key;
-      final perCraft = inputEntry.value;
-
-      final totalNeeded = craftsNeeded * perCraft;
-      inputRequirements[inputId] = totalNeeded;
-    }
-
-    return BatchSizeResult(
-      craftsNeeded: craftsNeeded,
-      inputRequirements: inputRequirements,
-      targetLevel: nextLevel,
-    );
-  }
-
   // ---------------------------------------------------------------------------
   // Private helper methods
   // ---------------------------------------------------------------------------
@@ -412,28 +364,6 @@ class MacroPlanContext {
     countNewSlots(targetItemId, quantity);
     return newSlots;
   }
-
-  /// Creates a new context with updated state.
-  MacroPlanContext withState(GlobalState newState) {
-    return MacroPlanContext(
-      state: newState,
-      goal: goal,
-      boundaries: boundaries,
-    );
-  }
-}
-
-/// Result of computing batch size to next unlock.
-class BatchSizeResult {
-  BatchSizeResult({
-    required this.craftsNeeded,
-    required this.inputRequirements,
-    required this.targetLevel,
-  });
-
-  final int craftsNeeded;
-  final Map<MelvorId, int> inputRequirements;
-  final int targetLevel;
 }
 
 // ---------------------------------------------------------------------------
