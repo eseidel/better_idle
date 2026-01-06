@@ -408,6 +408,41 @@ class ReplanContext {
       terminatingBoundary: terminatingBoundary,
     );
   }
+
+  /// Checks if execution should terminate early.
+  ///
+  /// Returns a result if termination is needed (replan limit exceeded,
+  /// time budget exceeded, or goal already satisfied), null otherwise.
+  ReplanExecutionResult? checkTermination({
+    required GlobalState currentState,
+    required Goal goal,
+    required List<ReplanSegmentResult> segments,
+  }) {
+    if (replanLimitExceeded) {
+      return toResult(
+        finalState: currentState,
+        segments: segments,
+        terminatingBoundary: ReplanLimitExceeded(config.maxReplans),
+      );
+    }
+
+    if (timeBudgetExceeded) {
+      return toResult(
+        finalState: currentState,
+        segments: segments,
+        terminatingBoundary: TimeBudgetExceeded(
+          config.maxTotalTicks,
+          totalTicks,
+        ),
+      );
+    }
+
+    if (goal.isSatisfied(currentState)) {
+      return toResult(finalState: currentState, segments: segments);
+    }
+
+    return null;
+  }
 }
 
 /// Records a replan event for debugging.

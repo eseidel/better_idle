@@ -1245,4 +1245,11 @@ class PlanExecutionResult {
   /// Returns only expected boundaries (normal flow).
   List<ReplanBoundary> get expectedBoundaries =>
       boundariesHit.where((b) => b.isExpected).toList();
+
+  /// Whether execution hit a state requiring replanning.
+  ///
+  /// True if any unexpected boundaries were hit, or if any boundary
+  /// explicitly requests a replan (e.g., [InputsDepleted]).
+  bool get causesReplan =>
+      hasUnexpectedBoundaries || boundariesHit.any((b) => b.causesReplan);
 }

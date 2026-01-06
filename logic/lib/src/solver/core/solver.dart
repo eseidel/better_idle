@@ -1931,6 +1931,64 @@ GlobalState executeInventoryRecovery(
   return newState;
 }
 
+/// Executes all recovery actions for a segment.
+///
+/// Handles:
+/// - UpgradeAffordableEarly: sell if needed, then buy
+/// - InventoryPressure: sell per policy
+/// - GP Goal: check if selling would reach the goal
+///
+/// Returns the updated state and whether the goal was satisfied by recovery.
+({GlobalState state, bool goalSatisfied}) _executeRecoveryActions({
+  required GlobalState state,
+  required Goal goal,
+  required bool isGoalReached,
+  required ReplanBoundary? triggeringBoundary,
+  required SellPolicy sellPolicy,
+  required Random random,
+  required List<ReplanSegmentResult> segments,
+}) {
+  var currentState = state;
+
+  // Recovery 1: UpgradeAffordableEarly - sell if needed, then buy
+  if (triggeringBoundary is UpgradeAffordableEarly) {
+    currentState = executeUpgradeRecovery(
+      currentState,
+      triggeringBoundary.purchaseId,
+      sellPolicy,
+      random,
+      segments,
+    );
+  }
+
+  // Recovery 2: InventoryPressure - sell per policy
+  if (triggeringBoundary is InventoryPressure) {
+    currentState = executeInventoryRecovery(
+      currentState,
+      sellPolicy,
+      random,
+      segments,
+    );
+  }
+
+  // Recovery 3: GP Goal - if plan completed but goal not satisfied,
+  // check if selling would reach it
+  if (!isGoalReached) {
+    final gpRecovery = executeGpGoalRecovery(
+      currentState,
+      goal,
+      sellPolicy,
+      random,
+      segments,
+    );
+    if (gpRecovery != null) {
+      return (state: gpRecovery.state, goalSatisfied: gpRecovery.goalSatisfied);
+    }
+  }
+
+  return (state: currentState, goalSatisfied: false);
+}
+
 /// Executes GP goal recovery by selling items to reach target GP.
 ///
 /// Returns `null` if recovery is not applicable (not a GP goal, already
@@ -2026,30 +2084,13 @@ ReplanExecutionResult solveWithReplanning(
   final segments = <ReplanSegmentResult>[];
 
   while (true) {
-    // Check budget constraints before solving
-    if (context.replanLimitExceeded) {
-      return context.toResult(
-        finalState: currentState,
-        segments: segments,
-        terminatingBoundary: ReplanLimitExceeded(config.maxReplans),
-      );
-    }
-
-    if (context.timeBudgetExceeded) {
-      return context.toResult(
-        finalState: currentState,
-        segments: segments,
-        terminatingBoundary: TimeBudgetExceeded(
-          config.maxTotalTicks,
-          context.totalTicks,
-        ),
-      );
-    }
-
-    // Check if goal is already satisfied
-    if (goal.isSatisfied(currentState)) {
-      return context.toResult(finalState: currentState, segments: segments);
-    }
+    // Check for early termination (budget exceeded or goal satisfied)
+    final termination = context.checkTermination(
+      currentState: currentState,
+      goal: goal,
+      segments: segments,
+    );
+    if (termination != null) return termination;
 
     // Compute sellPolicy using SegmentContext (same as solveSegment does)
     // This ensures we have a policy for recovery actions
@@ -2087,35 +2128,15 @@ ReplanExecutionResult solveWithReplanning(
     // Execute the plan
     final execResult = executePlan(currentState, plan, random: random);
 
-    // Find the boundary that triggered replan (if any)
     final triggeringBoundary = execResult.boundariesHit.lastOrNull;
     final isGoalReached = goal.isSatisfied(execResult.finalState);
 
-    // Determine if we need to replan
-    // Replan is needed if:
-    // 1. WaitConditionSatisfied fired but goal wasn't actually reached
-    //    (XP estimate drift due to random variation)
-    // 2. Unexpected boundaries were hit
-    // 3. Specific boundary types that always require replanning
-    //
-    // Note: Don't replan just because !isGoalReached - multi-segment plans
-    // may stop on expected boundaries (e.g., upgrade watches) where the next
-    // segment would naturally continue.
-    //
-    // Boundary categories:
-    // - PlannedSegmentStop: Normal segmentation, continue to next segment
-    // - UnlockObserved: Replan to potentially use newly unlocked actions
-    // - InventoryPressure: Sell per policy, then continue (not InventoryFull)
-    // - InventoryFull: Hard stop, need recovery or replan
-    // - InputsDepleted: Need to produce more inputs
-    // - GoalReached: Done!
+    // WaitConditionSatisfied normally means goal reached, but XP estimate
+    // drift from random variation can cause it to fire early.
     final goalMissedAfterSatisfaction =
         triggeringBoundary is WaitConditionSatisfied && !isGoalReached;
 
-    final needsReplan =
-        goalMissedAfterSatisfaction ||
-        execResult.hasUnexpectedBoundaries ||
-        execResult.boundariesHit.any((b) => b.causesReplan);
+    final needsReplan = goalMissedAfterSatisfaction || execResult.causesReplan;
 
     // Record segment result with steps, sellPolicy, and profile
     segments.add(
@@ -2134,59 +2155,20 @@ ReplanExecutionResult solveWithReplanning(
     // Update state
     currentState = execResult.finalState;
 
-    // =========================================================================
-    // Recovery Actions
-    // =========================================================================
-    // Handle boundaries that need recovery actions before replanning.
-    // Recovery uses the SAME sellPolicy that the segment used for detection.
+    // Execute trigger boundary specific actions.
+    final recovery = _executeRecoveryActions(
+      state: currentState,
+      goal: goal,
+      isGoalReached: isGoalReached,
+      triggeringBoundary: triggeringBoundary,
+      sellPolicy: segmentSellPolicy,
+      random: random,
+      segments: segments,
+    );
+    currentState = recovery.state;
 
-    // Recovery 1: UpgradeAffordableEarly - sell if needed, then buy
-    if (triggeringBoundary is UpgradeAffordableEarly) {
-      final recoveryResult = executeUpgradeRecovery(
-        currentState,
-        triggeringBoundary.purchaseId,
-        segmentSellPolicy,
-        random,
-        segments,
-      );
-      currentState = recoveryResult;
-    }
-
-    // Recovery 2: InventoryPressure - sell per policy
-    if (triggeringBoundary is InventoryPressure) {
-      final recoveryResult = executeInventoryRecovery(
-        currentState,
-        segmentSellPolicy,
-        random,
-        segments,
-      );
-      currentState = recoveryResult;
-    }
-
-    // Recovery 3: GP Goal - if plan completed but goal not satisfied,
-    // check if selling would reach it
-    if (!isGoalReached) {
-      final gpRecovery = executeGpGoalRecovery(
-        currentState,
-        goal,
-        segmentSellPolicy,
-        random,
-        segments,
-      );
-      if (gpRecovery != null) {
-        currentState = gpRecovery.state;
-        if (gpRecovery.goalSatisfied) {
-          context = context.afterSegment(
-            ticksElapsed: execResult.actualTicks,
-            deaths: execResult.totalDeaths,
-          );
-          return context.toResult(finalState: currentState, segments: segments);
-        }
-      }
-    }
-
-    // If goal reached, we're done
-    if (isGoalReached) {
+    // If goal reached (either from execution or recovery), we're done
+    if (isGoalReached || recovery.goalSatisfied) {
       context = context.afterSegment(
         ticksElapsed: execResult.actualTicks,
         deaths: execResult.totalDeaths,
