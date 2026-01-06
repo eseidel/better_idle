@@ -685,11 +685,6 @@ List<MacroCandidate> _generateMacros(GlobalState state, Goal goal) {
   // For ReachGpGoal, we don't generate macros (use micro-steps instead)
   // GP goals benefit from frequent re-evaluation for upgrade purchases
 
-  // For SegmentGoal, delegate to inner goal's macro generation
-  if (goal is SegmentGoal) {
-    return _generateMacros(state, goal.innerGoal);
-  }
-
   return macros;
 }
 

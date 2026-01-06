@@ -1315,11 +1315,7 @@ SolverSuccess? _expandWaitEdge(
   List<Interaction> interactions, {
   required _NeighborCounter counter,
 }) {
-  // For segment goals, use the WatchSet's sellPolicy for consistent
-  // effectiveCredits calculation. Otherwise use candidates.sellPolicy.
-  final deltaSellPolicy = ctx.goal is SegmentGoal
-      ? (ctx.goal as SegmentGoal).watchSet.sellPolicy
-      : candidates.sellPolicy;
+  final deltaSellPolicy = candidates.sellPolicy;
   final deltaResult = nextDecisionDelta(
     node.state,
     ctx.goal,
@@ -1611,14 +1607,10 @@ SolverResult solve(
     }
 
     // Compute candidates for this state
-    final segmentSellPolicy = goal is SegmentGoal
-        ? goal.watchSet.sellPolicy
-        : null;
     final enumStopwatch = Stopwatch()..start();
     final candidates = enumerateCandidates(
       node.state,
       goal,
-      sellPolicy: segmentSellPolicy,
       collectStats: collectDiagnostics,
     );
     ctx.profileBuilder.enumerateCandidatesTimeUs +=

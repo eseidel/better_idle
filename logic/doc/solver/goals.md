@@ -64,18 +64,6 @@ final goal = MultiSkillGoal.fromMap({
 
 **Heuristic**: Sum of estimated times for each unfinished skill
 
-### SegmentGoal
-
-A goal wrapper that stops at material boundaries (used internally by segment-based planning).
-
-```dart
-final segmentGoal = SegmentGoal(watchSet);
-```
-
-**Purpose**: Delegates to a WatchSet for boundary detection. When `isSatisfied` returns true, it means a material boundary was crossed (goal reached, upgrade affordable, unlock boundary, etc.).
-
-**Delegation**: All other Goal methods delegate to the inner goal from the WatchSet.
-
 ## Goal Interface
 
 ```dart

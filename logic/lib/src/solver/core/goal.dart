@@ -22,7 +22,6 @@ import 'package:equatable/equatable.dart';
 import 'package:logic/src/data/actions.dart';
 import 'package:logic/src/data/xp.dart';
 import 'package:logic/src/solver/analysis/estimate_rates.dart';
-import 'package:logic/src/solver/analysis/watch_set.dart';
 import 'package:logic/src/solver/core/value_model.dart' show ValueModel;
 import 'package:logic/src/solver/interactions/interaction.dart'
     show
@@ -106,10 +105,6 @@ sealed class Goal extends Equatable {
   Map<String, dynamic> toJson();
 
   /// Deserializes a [Goal] from a JSON-compatible map.
-  ///
-  /// Note: [SegmentGoal] cannot be fully deserialized because it requires a
-  /// [WatchSet] which contains state-dependent information. If you need to
-  /// restore a SegmentGoal, use the innerGoal and recreate the WatchSet.
   static Goal fromJson(Map<String, dynamic> json) {
     final type = json['type'] as String;
     return switch (type) {
@@ -123,10 +118,6 @@ sealed class Goal extends Equatable {
             .map((e) => Goal.fromJson(e as Map<String, dynamic>))
             .cast<ReachSkillLevelGoal>()
             .toList(),
-      ),
-      'SegmentGoal' => throw ArgumentError(
-        'SegmentGoal cannot be deserialized - use the innerGoal and recreate '
-        'the WatchSet from state',
       ),
       _ => throw ArgumentError('Unknown Goal type: $type'),
     };
@@ -402,81 +393,4 @@ class MultiSkillGoal extends Goal {
 
   @override
   List<Object?> get props => [subgoals];
-}
-
-/// A goal wrapper that stops at material boundaries.
-///
-/// This class delegates to a [WatchSet] for boundary detection.
-/// When [isSatisfied] returns true, it means a material boundary was crossed
-/// (goal reached, upgrade affordable, unlock boundary, etc.).
-///
-/// All other Goal methods delegate to the inner goal from the WatchSet.
-@immutable
-class SegmentGoal extends Goal {
-  const SegmentGoal(this.watchSet);
-
-  /// The WatchSet that defines what boundaries are material.
-  final WatchSet watchSet;
-
-  /// Convenience accessor for the inner goal.
-  Goal get innerGoal => watchSet.goal;
-
-  @override
-  bool isSatisfied(GlobalState state) {
-    // Delegate to watchSet - the SINGLE source of truth
-    final boundary = watchSet.detectBoundary(state);
-    return boundary != null;
-  }
-
-  @override
-  double remaining(GlobalState state) => innerGoal.remaining(state);
-
-  @override
-  String describe() => 'Segment(${innerGoal.describe()})';
-
-  @override
-  double progressPerTick(GlobalState state, Rates rates) =>
-      innerGoal.progressPerTick(state, rates);
-
-  @override
-  int progress(GlobalState state) => innerGoal.progress(state);
-
-  @override
-  bool get isSellRelevant => innerGoal.isSellRelevant;
-
-  @override
-  bool isSkillRelevant(Skill skill) => innerGoal.isSkillRelevant(skill);
-
-  @override
-  double activityRate(Skill skill, double goldRate, double xpRate) =>
-      innerGoal.activityRate(skill, goldRate, xpRate);
-
-  @override
-  Set<Skill> get relevantSkillsForBucketing =>
-      innerGoal.relevantSkillsForBucketing;
-
-  @override
-  bool get shouldTrackHp => innerGoal.shouldTrackHp;
-
-  @override
-  bool get shouldTrackMastery => innerGoal.shouldTrackMastery;
-
-  @override
-  bool get shouldTrackInventory => innerGoal.shouldTrackInventory;
-
-  @override
-  Set<Skill> get consumingSkills => innerGoal.consumingSkills;
-
-  @override
-  SellPolicy computeSellPolicy(GlobalState state) =>
-      innerGoal.computeSellPolicy(state);
-
-  @override
-  Map<String, dynamic> toJson() => {
-    'type': 'SegmentGoal',
-    'innerGoal': innerGoal.toJson(),
-  };
-
-  @override
-  List<Object?> get props => [watchSet];
 }
