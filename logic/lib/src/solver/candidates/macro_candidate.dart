@@ -404,9 +404,6 @@ class TrainSkillUntil extends MacroCandidate {
 
   @override
   MacroExecuteResult execute(MacroExecuteContext context) {
-    var executionState = context.state;
-    var executionWaitFor = context.waitFor;
-
     // Use the action that was determined during planning
     final actionToUse =
         actionId ??
@@ -415,29 +412,27 @@ class TrainSkillUntil extends MacroCandidate {
           skill,
           ReachSkillLevelGoal(skill, 99),
         );
-    if (actionToUse != null && context.state.activeAction?.id != actionToUse) {
-      executionState = applyInteraction(
-        context.state,
+
+    // Switch to action if needed
+    var state = context.state;
+    if (actionToUse != null && state.activeAction?.id != actionToUse) {
+      state = applyInteraction(
+        state,
         SwitchActivity(actionToUse),
         random: context.random,
       );
     }
 
-    // Regenerate WaitFor based on actual execution state and action
-    if (context.boundaries != null) {
-      final waitConditions = allStops
-          .map((rule) => rule.toWaitFor(executionState, context.boundaries!))
-          .toList();
-      executionWaitFor = waitConditions.length == 1
-          ? waitConditions.first
-          : WaitForAnyOf(waitConditions);
-    }
+    // Regenerate WaitFor based on actual execution state
+    final waitFor = context.boundaries != null
+        ? _buildCompositeWaitFor(state, context.boundaries!)
+        : context.waitFor;
 
     // Execute with mid-macro boundary checking if watchSet provided
     if (context.watchSet != null) {
       final stepResult = executeTrainSkillWithBoundaryChecks(
-        executionState,
-        executionWaitFor,
+        state,
+        waitFor,
         context.random,
         context.watchSet!,
       );
@@ -450,17 +445,26 @@ class TrainSkillUntil extends MacroCandidate {
     }
 
     // Simple execution without boundary checking
-    final result = consumeUntil(
-      executionState,
-      executionWaitFor,
-      random: context.random,
-    );
+    final result = consumeUntil(state, waitFor, random: context.random);
     return MacroExecuteResult(
       state: result.state,
       ticksElapsed: result.ticksElapsed,
       deaths: result.deathCount,
       boundary: result.boundary,
     );
+  }
+
+  /// Builds composite WaitFor from all stop rules.
+  WaitFor _buildCompositeWaitFor(
+    GlobalState state,
+    Map<Skill, SkillBoundaries> boundaries,
+  ) {
+    final waitConditions = allStops
+        .map((rule) => rule.toWaitFor(state, boundaries))
+        .toList();
+    return waitConditions.length == 1
+        ? waitConditions.first
+        : WaitForAnyOf(waitConditions);
   }
 }
 
@@ -588,41 +592,34 @@ class AcquireItem extends MacroCandidate {
 
   @override
   MacroExecuteResult execute(MacroExecuteContext context) {
-    var executionState = context.state;
-
-    // Execute AcquireItem by finding producer and running until target
-    final startCount = countItem(executionState, itemId);
+    var state = context.state;
+    final startCount = countItem(state, itemId);
 
     const goal = ReachSkillLevelGoal(Skill.mining, 99); // Placeholder goal
-    final producer = findProducerActionForItem(executionState, itemId, goal);
+    final producer = findProducerActionForItem(state, itemId, goal);
     if (producer == null) {
       return MacroExecuteResult(
-        state: executionState,
+        state: state,
         boundary: NoProgressPossible(reason: 'No producer for $itemId'),
       );
     }
 
-    // Switch to producer action
-    if (executionState.activeAction?.id != producer) {
-      executionState = applyInteraction(
-        executionState,
+    // Switch to producer action if needed
+    if (state.activeAction?.id != producer) {
+      state = applyInteraction(
+        state,
         SwitchActivity(producer),
         random: context.random,
       );
     }
 
     // Use delta-based wait condition: acquire quantity MORE items
-    final acquireWaitFor = WaitForInventoryDelta(
+    final waitFor = WaitForInventoryDelta(
       itemId,
       quantity,
       startCount: startCount,
     );
-
-    final result = consumeUntil(
-      executionState,
-      acquireWaitFor,
-      random: context.random,
-    );
+    final result = consumeUntil(state, waitFor, random: context.random);
 
     return MacroExecuteResult(
       state: result.state,
@@ -874,19 +871,16 @@ class EnsureStock extends MacroCandidate {
 
   @override
   MacroExecuteResult execute(MacroExecuteContext context) {
-    // Execute EnsureStock by finding producer and running until target
     // Handles inventory full by selling and continuing in a loop
-    var currentState = context.state;
+    var state = context.state;
     var totalTicks = 0;
     var totalDeaths = 0;
 
     while (true) {
-      final currentCount = countItem(currentState, itemId);
-
       // If we already have enough, done
-      if (currentCount >= minTotal) {
+      if (countItem(state, itemId) >= minTotal) {
         return MacroExecuteResult(
-          state: currentState,
+          state: state,
           ticksElapsed: totalTicks,
           deaths: totalDeaths,
           boundary: const WaitConditionSatisfied(),
@@ -894,27 +888,27 @@ class EnsureStock extends MacroCandidate {
       }
 
       const goal = ReachSkillLevelGoal(Skill.mining, 99);
-      final producer = findProducerActionForItem(currentState, itemId, goal);
+      final producer = findProducerActionForItem(state, itemId, goal);
       if (producer == null) {
         return MacroExecuteResult(
-          state: currentState,
+          state: state,
           ticksElapsed: totalTicks,
           deaths: totalDeaths,
           boundary: NoProgressPossible(reason: 'No producer for $itemId'),
         );
       }
 
-      // Switch to producer action
-      if (currentState.activeAction?.id != producer) {
+      // Switch to producer action if needed
+      if (state.activeAction?.id != producer) {
         try {
-          currentState = applyInteraction(
-            currentState,
+          state = applyInteraction(
+            state,
             SwitchActivity(producer),
             random: context.random,
           );
         } on Exception catch (e) {
           return MacroExecuteResult(
-            state: currentState,
+            state: state,
             ticksElapsed: totalTicks,
             deaths: totalDeaths,
             boundary: NoProgressPossible(
@@ -924,67 +918,54 @@ class EnsureStock extends MacroCandidate {
         }
       }
 
-      // Use absolute wait condition: wait until inventory has minTotal
-      final stockWaitFor = WaitForInventoryAtLeast(itemId, minTotal);
-
       final result = consumeUntil(
-        currentState,
-        stockWaitFor,
+        state,
+        WaitForInventoryAtLeast(itemId, minTotal),
         random: context.random,
       );
 
-      currentState = result.state;
+      state = result.state;
       totalTicks += result.ticksElapsed;
       totalDeaths += result.deathCount;
 
       // Check if we hit inventory full - sell and continue
       if (result.boundary is InventoryFull) {
-        // Use segment's sell policy. If not provided, this is an error -
-        // callers should resolve policy before calling apply.
-        if (context.segmentSellPolicy == null) {
+        if (!_canSellToFreeSpace(context, state)) {
           return MacroExecuteResult(
-            state: currentState,
+            state: state,
             ticksElapsed: totalTicks,
             deaths: totalDeaths,
             boundary: NoProgressPossible(
               reason:
                   'Inventory full during EnsureStock '
-                  '${itemId.name} but no sell policy provided',
+                  '${itemId.name} - cannot sell to free space',
             ),
           );
         }
-
-        final sellableValue =
-            effectiveCredits(currentState, context.segmentSellPolicy!) -
-            currentState.gp;
-
-        if (sellableValue > 0) {
-          currentState = applyInteraction(
-            currentState,
-            SellItems(context.segmentSellPolicy!),
-            random: context.random,
-          );
-          // Continue the loop to produce more
-          continue;
-        } else {
-          // Nothing to sell - truly stuck
-          return MacroExecuteResult(
-            state: currentState,
-            ticksElapsed: totalTicks,
-            deaths: totalDeaths,
-            boundary: result.boundary,
-          );
-        }
+        state = applyInteraction(
+          state,
+          SellItems(context.segmentSellPolicy!),
+          random: context.random,
+        );
+        continue;
       }
 
       // For any other boundary or success, return
       return MacroExecuteResult(
-        state: currentState,
+        state: state,
         ticksElapsed: totalTicks,
         deaths: totalDeaths,
         boundary: result.boundary,
       );
     }
+  }
+
+  /// Checks if we can sell items to free inventory space.
+  bool _canSellToFreeSpace(MacroExecuteContext context, GlobalState state) {
+    if (context.segmentSellPolicy == null) return false;
+    final sellableValue =
+        effectiveCredits(state, context.segmentSellPolicy!) - state.gp;
+    return sellableValue > 0;
   }
 }
 
@@ -1061,22 +1042,21 @@ class ProduceItem extends MacroCandidate {
 
   @override
   MacroExecuteResult execute(MacroExecuteContext context) {
-    // ProduceItem has a specific actionId - switch to it and produce
-    var currentState = context.state;
+    var state = context.state;
     var totalTicks = 0;
     var totalDeaths = 0;
 
     // Switch to the producer action specified in the macro
-    if (currentState.activeAction?.id != actionId) {
+    if (state.activeAction?.id != actionId) {
       try {
-        currentState = applyInteraction(
-          currentState,
+        state = applyInteraction(
+          state,
           SwitchActivity(actionId),
           random: context.random,
         );
       } on Exception catch (e) {
         return MacroExecuteResult(
-          state: currentState,
+          state: state,
           boundary: NoProgressPossible(
             reason: 'Cannot switch to producer $actionId: $e',
           ),
@@ -1084,78 +1064,63 @@ class ProduceItem extends MacroCandidate {
       }
     }
 
-    // Wait until we have minTotal of the item
-    final produceWaitFor = WaitForInventoryAtLeast(itemId, minTotal);
+    final waitFor = WaitForInventoryAtLeast(itemId, minTotal);
 
     while (true) {
-      final currentCount = countItem(currentState, itemId);
-
       // If we already have enough, done
-      if (currentCount >= minTotal) {
+      if (countItem(state, itemId) >= minTotal) {
         return MacroExecuteResult(
-          state: currentState,
+          state: state,
           ticksElapsed: totalTicks,
           deaths: totalDeaths,
           boundary: const WaitConditionSatisfied(),
         );
       }
 
-      final result = consumeUntil(
-        currentState,
-        produceWaitFor,
-        random: context.random,
-      );
+      final result = consumeUntil(state, waitFor, random: context.random);
 
-      currentState = result.state;
+      state = result.state;
       totalTicks += result.ticksElapsed;
       totalDeaths += result.deathCount;
 
       // Check if we hit inventory full - sell and continue
       if (result.boundary is InventoryFull) {
-        if (context.segmentSellPolicy == null) {
+        if (!_canSellToFreeSpace(context, state)) {
           return MacroExecuteResult(
-            state: currentState,
+            state: state,
             ticksElapsed: totalTicks,
             deaths: totalDeaths,
             boundary: NoProgressPossible(
               reason:
                   'Inventory full during ProduceItem '
-                  '${itemId.name} but no sell policy provided',
+                  '${itemId.name} - cannot sell to free space',
             ),
           );
         }
-
-        final sellableValue =
-            effectiveCredits(currentState, context.segmentSellPolicy!) -
-            currentState.gp;
-
-        if (sellableValue > 0) {
-          currentState = applyInteraction(
-            currentState,
-            SellItems(context.segmentSellPolicy!),
-            random: context.random,
-          );
-          // Continue the loop to produce more
-          continue;
-        } else {
-          // Nothing to sell - truly stuck
-          return MacroExecuteResult(
-            state: currentState,
-            ticksElapsed: totalTicks,
-            deaths: totalDeaths,
-            boundary: result.boundary,
-          );
-        }
+        state = applyInteraction(
+          state,
+          SellItems(context.segmentSellPolicy!),
+          random: context.random,
+        );
+        continue;
       }
 
       // For any other boundary or success, return
       return MacroExecuteResult(
-        state: currentState,
+        state: state,
         ticksElapsed: totalTicks,
         deaths: totalDeaths,
         boundary: result.boundary,
       );
     }
+  }
+
+  /// Checks if we can sell items to free inventory space.
+  bool _canSellToFreeSpace(MacroExecuteContext context, GlobalState state) {
+    if (context.segmentSellPolicy == null) return false;
+    final sellableValue =
+        effectiveCredits(state, context.segmentSellPolicy!) - state.gp;
+    return sellableValue > 0;
   }
 }
 
@@ -1695,16 +1660,7 @@ class TrainConsumingSkillUntil extends MacroCandidate {
 
   @override
   MacroExecuteResult execute(MacroExecuteContext context) {
-    // Execute coupled produce/consume loop until stop condition
-    final stepResult = executeCoupledLoop(
-      context.state,
-      this,
-      context.waitFor,
-      context.boundaries,
-      context.random,
-      watchSet: context.watchSet,
-      segmentSellPolicy: context.segmentSellPolicy,
-    );
+    final stepResult = executeCoupledLoop(context, this);
     return MacroExecuteResult(
       state: stepResult.state,
       ticksElapsed: stepResult.ticksElapsed,

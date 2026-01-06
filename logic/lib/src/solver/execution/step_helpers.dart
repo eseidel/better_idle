@@ -7,15 +7,14 @@ library;
 
 import 'dart:math';
 
-import 'package:logic/src/data/actions.dart' show Skill, SkillAction;
+import 'package:logic/src/data/actions.dart' show SkillAction;
 import 'package:logic/src/data/melvor_id.dart';
 import 'package:logic/src/solver/analysis/replan_boundary.dart';
-import 'package:logic/src/solver/analysis/unlock_boundaries.dart'
-    show SkillBoundaries;
 import 'package:logic/src/solver/analysis/wait_for.dart';
 import 'package:logic/src/solver/analysis/watch_set.dart';
 import 'package:logic/src/solver/candidates/build_chain.dart';
 import 'package:logic/src/solver/candidates/macro_candidate.dart';
+import 'package:logic/src/solver/candidates/macro_execute_context.dart';
 import 'package:logic/src/solver/execution/consume_until.dart';
 import 'package:logic/src/solver/execution/plan.dart';
 import 'package:logic/src/solver/interactions/apply_interaction.dart';
@@ -675,15 +674,10 @@ ChainProductionResult produceChainBottomUp(
 /// - **Deterministic**: Same inputs produce same execution trace
 /// - **Checkpointed**: Each phase boundary is a valid checkpoint
 StepResult executeCoupledLoop(
-  GlobalState state,
+  MacroExecuteContext context,
   TrainConsumingSkillUntil macro,
-  WaitFor waitFor,
-  Map<Skill, SkillBoundaries>? boundaries,
-  Random random, {
-  WatchSet? watchSet,
-  SellPolicy? segmentSellPolicy,
-}) {
-  var currentState = state;
+) {
+  var state = context.state;
   var totalTicks = 0;
   var totalDeaths = 0;
   var recoveryAttempts = 0;
@@ -702,10 +696,10 @@ StepResult executeCoupledLoop(
     );
   }
 
-  final consumeAction = currentState.registries.actions.byId(consumeActionId);
+  final consumeAction = state.registries.actions.byId(consumeActionId);
   if (consumeAction is! SkillAction || consumeAction.inputs.isEmpty) {
     return StepResult(
-      state: currentState,
+      state: state,
       boundary: const NoProgressPossible(
         reason: 'Consume action has no inputs',
       ),
@@ -733,9 +727,9 @@ StepResult executeCoupledLoop(
   }
 
   // Compute primary stop condition
-  final primaryStop = boundaries != null
-      ? macro.primaryStop.toWaitFor(currentState, boundaries)
-      : waitFor;
+  final primaryStop = context.boundaries != null
+      ? macro.primaryStop.toWaitFor(state, context.boundaries!)
+      : context.waitFor;
 
   // Inventory pressure threshold (stop consume phase early if nearly full)
   const inventoryPressureThreshold = 0.9;
@@ -749,9 +743,9 @@ StepResult executeCoupledLoop(
     // CHECKPOINT: Start of cycle - check if done
     // -------------------------------------------------------------------------
 
-    if (primaryStop.isSatisfied(currentState)) {
+    if (primaryStop.isSatisfied(state)) {
       return StepResult(
-        state: currentState,
+        state: state,
         ticksElapsed: totalTicks,
         deaths: totalDeaths,
         boundary: const WaitConditionSatisfied(),
@@ -759,14 +753,14 @@ StepResult executeCoupledLoop(
     }
 
     // Check for material boundary (upgrade affordable, unlock, etc.)
-    if (watchSet != null) {
-      final boundary = watchSet.detectBoundary(
-        currentState,
+    if (context.watchSet != null) {
+      final boundary = context.watchSet!.detectBoundary(
+        state,
         elapsedTicks: totalTicks,
       );
       if (boundary != null) {
         return StepResult(
-          state: currentState,
+          state: state,
           ticksElapsed: totalTicks,
           deaths: totalDeaths,
           boundary: segmentBoundaryToReplan(boundary),
@@ -782,8 +776,8 @@ StepResult executeCoupledLoop(
       final inputItemId = inputEntry.key;
 
       // Check current stock
-      final currentCount = currentState.inventory.countOfItem(
-        currentState.registries.items.byId(inputItemId),
+      final currentCount = state.inventory.countOfItem(
+        state.registries.items.byId(inputItemId),
       );
 
       if (currentCount >= bufferTarget) {
@@ -795,25 +789,25 @@ StepResult executeCoupledLoop(
       if (inputChain != null && inputChain.children.isNotEmpty) {
         // Multi-tier chain: produce inputs bottom-up
         final chainResult = produceChainBottomUp(
-          currentState,
+          state,
           inputChain,
           bufferTarget,
-          random,
-          watchSet,
-          segmentSellPolicy,
+          context.random,
+          context.watchSet,
+          context.segmentSellPolicy,
           totalTicks,
           totalDeaths,
           recoveryAttempts,
           macro.maxRecoveryAttempts,
         );
-        currentState = chainResult.state;
+        state = chainResult.state;
         totalTicks = chainResult.totalTicks;
         totalDeaths = chainResult.totalDeaths;
         recoveryAttempts = chainResult.recoveryAttempts;
 
         if (chainResult.boundary != null) {
           return StepResult(
-            state: currentState,
+            state: state,
             ticksElapsed: totalTicks,
             deaths: totalDeaths,
             boundary: chainResult.boundary,
@@ -825,7 +819,7 @@ StepResult executeCoupledLoop(
         final producerId = producerByInputItem[inputItemId];
         if (producerId == null) {
           return StepResult(
-            state: currentState,
+            state: state,
             ticksElapsed: totalTicks,
             deaths: totalDeaths,
             boundary: NoProgressPossible(
@@ -836,15 +830,15 @@ StepResult executeCoupledLoop(
 
         // CHECKPOINT: Switch to producer (fixed ID from plan)
         try {
-          currentState = applyInteraction(
-            currentState,
+          state = applyInteraction(
+            state,
             SwitchActivity(producerId),
-            random: random,
+            random: context.random,
           );
         } on Exception catch (e) {
           // Producer not feasible (missing its own inputs) - replan
           return StepResult(
-            state: currentState,
+            state: state,
             ticksElapsed: totalTicks,
             deaths: totalDeaths,
             boundary: NoProgressPossible(
@@ -855,21 +849,21 @@ StepResult executeCoupledLoop(
 
         // Produce until buffer target reached
         final produceResult = consumeUntil(
-          currentState,
+          state,
           WaitForInventoryAtLeast(inputItemId, bufferTarget),
-          random: random,
+          random: context.random,
         );
-        currentState = produceResult.state;
+        state = produceResult.state;
         totalTicks += produceResult.ticksElapsed;
         totalDeaths += produceResult.deathCount;
 
         // CHECKPOINT: Handle production boundaries
         if (produceResult.boundary is InventoryFull) {
           final recovery = attemptRecovery(
-            currentState,
+            state,
             const InventoryFull(),
-            sellPolicy: segmentSellPolicy,
-            random: random,
+            sellPolicy: context.segmentSellPolicy,
+            random: context.random,
             currentAttempts: recoveryAttempts,
             maxAttempts: macro.maxRecoveryAttempts,
           );
@@ -881,21 +875,21 @@ StepResult executeCoupledLoop(
               boundary: recovery.boundary,
             );
           }
-          currentState = recovery.state;
+          state = recovery.state;
           recoveryAttempts = recovery.newAttemptCount;
           // Retry this input's production by breaking to outer loop
           break;
         }
 
         // Check for material boundary after producing
-        if (watchSet != null) {
-          final boundary = watchSet.detectBoundary(
-            currentState,
+        if (context.watchSet != null) {
+          final boundary = context.watchSet!.detectBoundary(
+            state,
             elapsedTicks: totalTicks,
           );
           if (boundary != null) {
             return StepResult(
-              state: currentState,
+              state: state,
               ticksElapsed: totalTicks,
               deaths: totalDeaths,
               boundary: segmentBoundaryToReplan(boundary),
@@ -906,9 +900,9 @@ StepResult executeCoupledLoop(
     }
 
     // CHECKPOINT: After produce phase - check stop again
-    if (primaryStop.isSatisfied(currentState)) {
+    if (primaryStop.isSatisfied(state)) {
       return StepResult(
-        state: currentState,
+        state: state,
         ticksElapsed: totalTicks,
         deaths: totalDeaths,
         boundary: const WaitConditionSatisfied(),
@@ -921,14 +915,14 @@ StepResult executeCoupledLoop(
 
     // CHECKPOINT: Switch to consumer (fixed ID from plan)
     try {
-      currentState = applyInteraction(
-        currentState,
+      state = applyInteraction(
+        state,
         SwitchActivity(consumeActionId),
-        random: random,
+        random: context.random,
       );
     } on Exception catch (e) {
       return StepResult(
-        state: currentState,
+        state: state,
         ticksElapsed: totalTicks,
         deaths: totalDeaths,
         boundary: NoProgressPossible(
@@ -939,15 +933,15 @@ StepResult executeCoupledLoop(
 
     // Consume until: primary stop OR inputs depleted OR inventory pressure
     final consumeResult = consumeUntil(
-      currentState,
+      state,
       WaitForAnyOf([
         primaryStop,
         WaitForInputsDepleted(consumeActionId),
         const WaitForInventoryThreshold(inventoryPressureThreshold),
       ]),
-      random: random,
+      random: context.random,
     );
-    currentState = consumeResult.state;
+    state = consumeResult.state;
     totalTicks += consumeResult.ticksElapsed;
     totalDeaths += consumeResult.deathCount;
 
@@ -965,10 +959,10 @@ StepResult executeCoupledLoop(
 
     if (needsInventoryRecovery) {
       final recovery = attemptRecovery(
-        currentState,
+        state,
         const InventoryFull(),
-        sellPolicy: segmentSellPolicy,
-        random: random,
+        sellPolicy: context.segmentSellPolicy,
+        random: context.random,
         currentAttempts: recoveryAttempts,
         maxAttempts: macro.maxRecoveryAttempts,
       );
@@ -980,21 +974,21 @@ StepResult executeCoupledLoop(
           boundary: recovery.boundary,
         );
       }
-      currentState = recovery.state;
+      state = recovery.state;
       recoveryAttempts = recovery.newAttemptCount;
       // Continue to next cycle (will produce more inputs)
       continue;
     }
 
     // Check for material boundary after consuming
-    if (watchSet != null) {
-      final boundary = watchSet.detectBoundary(
-        currentState,
+    if (context.watchSet != null) {
+      final boundary = context.watchSet!.detectBoundary(
+        state,
         elapsedTicks: totalTicks,
       );
       if (boundary != null) {
         return StepResult(
-          state: currentState,
+          state: state,
           ticksElapsed: totalTicks,
           deaths: totalDeaths,
           boundary: segmentBoundaryToReplan(boundary),

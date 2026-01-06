@@ -13,6 +13,7 @@ import 'package:logic/logic.dart';
 import 'package:logic/src/solver/analysis/replan_boundary.dart';
 import 'package:logic/src/solver/analysis/wait_for.dart';
 import 'package:logic/src/solver/candidates/macro_candidate.dart';
+import 'package:logic/src/solver/candidates/macro_execute_context.dart';
 import 'package:logic/src/solver/core/goal.dart';
 import 'package:logic/src/solver/core/solver.dart';
 import 'package:logic/src/solver/execution/execute_plan.dart';
@@ -208,13 +209,12 @@ void main() {
 
       // Execute the macro directly
       final targetXp = startXpForLevel(5);
-      final result = executeCoupledLoop(
-        state,
-        macro,
-        WaitForSkillXp(Skill.smithing, targetXp),
-        null,
-        Random(42),
+      final context = MacroExecuteContext(
+        state: state,
+        waitFor: WaitForSkillXp(Skill.smithing, targetXp),
+        random: Random(42),
       );
+      final result = executeCoupledLoop(context, macro);
 
       // Should return NoProgressPossible because smelting Bronze Bar
       // requires Copper Ore and Tin Ore which we don't have
@@ -240,13 +240,12 @@ void main() {
       );
 
       final targetXp = startXpForLevel(5);
-      final result = executeCoupledLoop(
-        state,
-        macro,
-        WaitForSkillXp(Skill.smithing, targetXp),
-        null,
-        Random(42),
+      final context = MacroExecuteContext(
+        state: state,
+        waitFor: WaitForSkillXp(Skill.smithing, targetXp),
+        random: Random(42),
       );
+      final result = executeCoupledLoop(context, macro);
 
       // Verify the executor didn't switch to some other action
       // (e.g., mining copper ore) - it should just fail
@@ -272,13 +271,12 @@ void main() {
       );
 
       final targetXp = startXpForLevel(5);
-      final result = executeCoupledLoop(
-        state,
-        macro,
-        WaitForSkillXp(Skill.smithing, targetXp),
-        null,
-        Random(42),
+      final context = MacroExecuteContext(
+        state: state,
+        waitFor: WaitForSkillXp(Skill.smithing, targetXp),
+        random: Random(42),
       );
+      final result = executeCoupledLoop(context, macro);
 
       expect(result.boundary, isA<NoProgressPossible>());
       final npp = result.boundary! as NoProgressPossible;
@@ -299,13 +297,12 @@ void main() {
       );
 
       final targetXp = startXpForLevel(5);
-      final result = executeCoupledLoop(
-        state,
-        macro,
-        WaitForSkillXp(Skill.smithing, targetXp),
-        null,
-        Random(42),
+      final context = MacroExecuteContext(
+        state: state,
+        waitFor: WaitForSkillXp(Skill.smithing, targetXp),
+        random: Random(42),
       );
+      final result = executeCoupledLoop(context, macro);
 
       expect(result.boundary, isA<NoProgressPossible>());
       final npp = result.boundary! as NoProgressPossible;
@@ -326,13 +323,12 @@ void main() {
       );
 
       final targetXp = startXpForLevel(5);
-      final result = executeCoupledLoop(
-        state,
-        macro,
-        WaitForSkillXp(Skill.smithing, targetXp),
-        null,
-        Random(42),
+      final context = MacroExecuteContext(
+        state: state,
+        waitFor: WaitForSkillXp(Skill.smithing, targetXp),
+        random: Random(42),
       );
+      final result = executeCoupledLoop(context, macro);
 
       expect(result.boundary, isA<NoProgressPossible>());
       final npp = result.boundary! as NoProgressPossible;
@@ -385,14 +381,13 @@ void main() {
       );
 
       final targetXp = startXpForLevel(5);
-      final result = executeCoupledLoop(
-        state,
-        macro,
-        WaitForSkillXp(Skill.firemaking, targetXp),
-        null,
-        Random(42),
+      final context = MacroExecuteContext(
+        state: state,
+        waitFor: WaitForSkillXp(Skill.firemaking, targetXp),
+        random: Random(42),
         segmentSellPolicy: const SellAllPolicy(),
       );
+      final result = executeCoupledLoop(context, macro);
 
       // Should make progress - the key is it doesn't crash or get stuck
       expect(result.ticksElapsed, greaterThan(0));
@@ -429,14 +424,13 @@ void main() {
         );
 
         final targetXp = startXpForLevel(3);
-        final result = executeCoupledLoop(
-          state,
-          macro,
-          WaitForSkillXp(Skill.firemaking, targetXp),
-          null,
-          Random(42),
+        final context = MacroExecuteContext(
+          state: state,
+          waitFor: WaitForSkillXp(Skill.firemaking, targetXp),
+          random: Random(42),
           segmentSellPolicy: const SellAllPolicy(),
         );
+        final result = executeCoupledLoop(context, macro);
 
         // Should make progress (ticks > 0)
         expect(result.ticksElapsed, greaterThan(0));
@@ -493,14 +487,13 @@ void main() {
         );
 
         final targetXp = startXpForLevel(5);
-        final result = executeCoupledLoop(
-          state,
-          macro,
-          WaitForSkillXp(Skill.firemaking, targetXp),
-          null,
-          Random(42),
+        final context = MacroExecuteContext(
+          state: state,
+          waitFor: WaitForSkillXp(Skill.firemaking, targetXp),
+          random: Random(42),
           // segmentSellPolicy: null - no policy provided
         );
+        final result = executeCoupledLoop(context, macro);
 
         // Should hit NoProgressPossible because no sell policy
         // The exact boundary depends on whether it hits InventoryFull
