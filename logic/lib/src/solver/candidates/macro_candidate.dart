@@ -1311,33 +1311,6 @@ class TrainConsumingSkillUntil extends MacroCandidate {
   /// All stop conditions (primary + watched).
   List<MacroStopRule> get allStops => [primaryStop, ...watchedStops];
 
-  /// Creates a copy with updated fields.
-  ///
-  /// Used by the solver to fill in execution details after initial creation.
-  TrainConsumingSkillUntil copyWith({
-    ActionId? consumeActionId,
-    Map<MelvorId, ActionId>? producerByInputItem,
-    int? bufferTarget,
-    SellPolicySpec? sellPolicySpec,
-    int? maxRecoveryAttempts,
-    List<MacroStopRule>? watchedStops,
-    Map<MelvorId, PlannedChain>? inputChains,
-  }) {
-    return TrainConsumingSkillUntil(
-      consumingSkill,
-      primaryStop,
-      watchedStops: watchedStops ?? this.watchedStops,
-      actionId: actionId,
-      consumeActionId: consumeActionId ?? this.consumeActionId,
-      producerByInputItem: producerByInputItem ?? this.producerByInputItem,
-      bufferTarget: bufferTarget ?? this.bufferTarget,
-      sellPolicySpec: sellPolicySpec ?? this.sellPolicySpec,
-      maxRecoveryAttempts: maxRecoveryAttempts ?? this.maxRecoveryAttempts,
-      inputChains: inputChains ?? this.inputChains,
-      provenance: provenance,
-    );
-  }
-
   @override
   MacroPlanOutcome plan(MacroPlanContext context) {
     final state = context.state;

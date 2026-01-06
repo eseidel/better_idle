@@ -58,15 +58,6 @@ final Set<String> _emittedPrereqKeys = {};
 /// Clears the emitted prereq keys. Call at start of each solve().
 void clearEmittedPrereqKeys() => _emittedPrereqKeys.clear();
 
-/// Returns true if this is a new prereq, false if already emitted.
-///
-/// Used to ensure only one TrainSkillUntil(Mining, 70) is emitted even if
-/// multiple Adamantite-dependent recipes trigger it.
-bool shouldEmitPrereqMacro(Skill skill, int level) {
-  final key = '${skill.name}:$level';
-  return _emittedPrereqKeys.add(key);
-}
-
 /// Deduplicates macros by dedupeKey.
 List<MacroCandidate> _deduplicateMacros(List<MacroCandidate> macros) {
   final seen = <String>{};

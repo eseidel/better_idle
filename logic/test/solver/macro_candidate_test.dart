@@ -787,6 +787,558 @@ void main() {
           expect(macro1.dedupeKey, isNot(equals(macro2.dedupeKey)));
         });
       });
+
+      group('execute', () {
+        test('produces items until minTotal is reached', () {
+          final state = GlobalState.empty(testRegistries);
+          const macro = EnsureStock(MelvorId('melvorD:Copper_Ore'), 10);
+
+          const waitFor = WaitForInventoryAtLeast(
+            MelvorId('melvorD:Copper_Ore'),
+            10,
+          );
+
+          final result = macro.execute(state, waitFor, random: Random(42));
+
+          // Should have produced at least 10 copper ore
+          final oreCount = result.state.inventory.countOfItem(
+            testItems.byName('Copper Ore'),
+          );
+          expect(oreCount, greaterThanOrEqualTo(10));
+          expect(result.ticksElapsed, greaterThan(0));
+          expect(result.deaths, 0);
+          expect(result.boundary, isA<WaitConditionSatisfied>());
+        });
+
+        test('returns immediately when already have enough items', () {
+          final copperOre = testItems.byName('Copper Ore');
+          final inventory = Inventory.fromItems(testItems, [
+            ItemStack(copperOre, count: 20),
+          ]);
+          final state = GlobalState.test(testRegistries, inventory: inventory);
+          const macro = EnsureStock(MelvorId('melvorD:Copper_Ore'), 10);
+
+          const waitFor = WaitForInventoryAtLeast(
+            MelvorId('melvorD:Copper_Ore'),
+            10,
+          );
+
+          final result = macro.execute(state, waitFor, random: Random(42));
+
+          // Should return immediately with no ticks elapsed
+          expect(result.ticksElapsed, 0);
+          expect(result.boundary, isA<WaitConditionSatisfied>());
+          // Inventory should be unchanged
+          expect(result.state.inventory.countOfItem(copperOre), 20);
+        });
+
+        test('continues producing when starting with partial inventory', () {
+          final copperOre = testItems.byName('Copper Ore');
+          final inventory = Inventory.fromItems(testItems, [
+            ItemStack(copperOre, count: 5),
+          ]);
+          final state = GlobalState.test(testRegistries, inventory: inventory);
+          const macro = EnsureStock(MelvorId('melvorD:Copper_Ore'), 15);
+
+          const waitFor = WaitForInventoryAtLeast(
+            MelvorId('melvorD:Copper_Ore'),
+            15,
+          );
+
+          final result = macro.execute(state, waitFor, random: Random(42));
+
+          // Should have produced to reach at least 15
+          final oreCount = result.state.inventory.countOfItem(copperOre);
+          expect(oreCount, greaterThanOrEqualTo(15));
+          expect(result.ticksElapsed, greaterThan(0));
+          expect(result.boundary, isA<WaitConditionSatisfied>());
+        });
+
+        test('returns NoProgressPossible when no producer exists', () {
+          final state = GlobalState.empty(testRegistries);
+          const macro = EnsureStock(MelvorId('melvorD:NonExistent_Item'), 10);
+
+          const waitFor = WaitForInventoryAtLeast(
+            MelvorId('melvorD:NonExistent_Item'),
+            10,
+          );
+
+          final result = macro.execute(state, waitFor, random: Random(42));
+
+          expect(result.boundary, isA<NoProgressPossible>());
+          expect(result.ticksElapsed, 0);
+        });
+
+        test('switches to producer action when not already active', () {
+          final state = GlobalState.empty(testRegistries);
+          const macro = EnsureStock(MelvorId('melvorD:Normal_Logs'), 5);
+
+          const waitFor = WaitForInventoryAtLeast(
+            MelvorId('melvorD:Normal_Logs'),
+            5,
+          );
+
+          final result = macro.execute(state, waitFor, random: Random(42));
+
+          // Should have switched to woodcutting and produced logs
+          expect(result.state.activeAction, isNotNull);
+          final logsCount = result.state.inventory.countOfItem(
+            testItems.byName('Normal Logs'),
+          );
+          expect(logsCount, greaterThanOrEqualTo(5));
+        });
+
+        test('sells items when inventory full and sell policy provided', () {
+          // Fill inventory completely (20 slots) with non-stackable items
+          final items = <ItemStack>[
+            ItemStack(testItems.byName('Raw Shrimp'), count: 1),
+            ItemStack(testItems.byName('Raw Sardine'), count: 1),
+            ItemStack(testItems.byName('Raw Herring'), count: 1),
+            ItemStack(testItems.byName('Raw Trout'), count: 1),
+            ItemStack(testItems.byName('Raw Salmon'), count: 1),
+            ItemStack(testItems.byName('Raw Lobster'), count: 1),
+            ItemStack(testItems.byName('Raw Swordfish'), count: 1),
+            ItemStack(testItems.byName('Raw Crab'), count: 1),
+            ItemStack(testItems.byName('Normal Logs'), count: 1),
+            ItemStack(testItems.byName('Oak Logs'), count: 1),
+            ItemStack(testItems.byName('Willow Logs'), count: 1),
+            ItemStack(testItems.byName('Maple Logs'), count: 1),
+            ItemStack(testItems.byName('Teak Logs'), count: 1),
+            ItemStack(testItems.byName('Mahogany Logs'), count: 1),
+            ItemStack(testItems.byName('Yew Logs'), count: 1),
+            ItemStack(testItems.byName('Magic Logs'), count: 1),
+            ItemStack(testItems.byName('Redwood Logs'), count: 1),
+            ItemStack(testItems.byName('Copper Ore'), count: 1),
+            ItemStack(testItems.byName('Tin Ore'), count: 1),
+            ItemStack(testItems.byName('Iron Ore'), count: 1),
+          ];
+          final inventory = Inventory.fromItems(testItems, items);
+
+          final state = GlobalState.test(testRegistries, inventory: inventory);
+          // Target more than current so it needs to produce more
+          const macro = EnsureStock(MelvorId('melvorD:Copper_Ore'), 10);
+
+          const waitFor = WaitForInventoryAtLeast(
+            MelvorId('melvorD:Copper_Ore'),
+            10,
+          );
+
+          // Verify inventory is actually full
+          expect(state.isInventoryFull, isTrue);
+
+          // With sell policy, should be able to make room and produce
+          final result = macro.execute(
+            state,
+            waitFor,
+            random: Random(42),
+            segmentSellPolicy: const SellAllPolicy(),
+          );
+
+          // Should have sold items and produced ore
+          final oreCount = result.state.inventory.countOfItem(
+            testItems.byName('Copper Ore'),
+          );
+          expect(oreCount, greaterThanOrEqualTo(10));
+          expect(result.boundary, isA<WaitConditionSatisfied>());
+        });
+
+        test('returns NoProgressPossible when no sell policy and inventory '
+            'full', () {
+          // Fill inventory completely (20 slots) with non-stackable items
+          final items = <ItemStack>[
+            ItemStack(testItems.byName('Raw Shrimp'), count: 1),
+            ItemStack(testItems.byName('Raw Sardine'), count: 1),
+            ItemStack(testItems.byName('Raw Herring'), count: 1),
+            ItemStack(testItems.byName('Raw Trout'), count: 1),
+            ItemStack(testItems.byName('Raw Salmon'), count: 1),
+            ItemStack(testItems.byName('Raw Lobster'), count: 1),
+            ItemStack(testItems.byName('Raw Swordfish'), count: 1),
+            ItemStack(testItems.byName('Raw Crab'), count: 1),
+            ItemStack(testItems.byName('Normal Logs'), count: 1),
+            ItemStack(testItems.byName('Oak Logs'), count: 1),
+            ItemStack(testItems.byName('Willow Logs'), count: 1),
+            ItemStack(testItems.byName('Maple Logs'), count: 1),
+            ItemStack(testItems.byName('Teak Logs'), count: 1),
+            ItemStack(testItems.byName('Mahogany Logs'), count: 1),
+            ItemStack(testItems.byName('Yew Logs'), count: 1),
+            ItemStack(testItems.byName('Magic Logs'), count: 1),
+            ItemStack(testItems.byName('Redwood Logs'), count: 1),
+            ItemStack(testItems.byName('Tin Ore'), count: 1),
+            ItemStack(testItems.byName('Iron Ore'), count: 1),
+            ItemStack(testItems.byName('Mithril Ore'), count: 1),
+          ];
+          final inventory = Inventory.fromItems(testItems, items);
+
+          final state = GlobalState.test(testRegistries, inventory: inventory);
+          const macro = EnsureStock(MelvorId('melvorD:Copper_Ore'), 5);
+
+          const waitFor = WaitForInventoryAtLeast(
+            MelvorId('melvorD:Copper_Ore'),
+            5,
+          );
+
+          // Verify inventory is actually full
+          expect(state.isInventoryFull, isTrue);
+
+          // Without sell policy, should fail with inventory full
+          final result = macro.execute(
+            state,
+            waitFor,
+            random: Random(42),
+            // No segmentSellPolicy
+          );
+
+          // Should hit NoProgressPossible (inventory full, no sell policy)
+          expect(result.boundary, isA<NoProgressPossible>());
+        });
+      });
+    });
+
+    group('ProduceItem', () {
+      test('stores item, minTotal, actionId, and estimatedTicks', () {
+        final miningAction = testActions.mining('Copper');
+        final macro = ProduceItem(
+          itemId: const MelvorId('melvorD:Copper_Ore'),
+          minTotal: 100,
+          actionId: miningAction.id,
+          estimatedTicks: 3000,
+        );
+
+        expect(macro.itemId, const MelvorId('melvorD:Copper_Ore'));
+        expect(macro.minTotal, 100);
+        expect(macro.actionId, miningAction.id);
+        expect(macro.estimatedTicks, 3000);
+      });
+
+      test('stores provenance', () {
+        final miningAction = testActions.mining('Copper');
+        final macro = ProduceItem(
+          itemId: const MelvorId('melvorD:Copper_Ore'),
+          minTotal: 100,
+          actionId: miningAction.id,
+          estimatedTicks: 3000,
+          provenance: const BatchInputProvenance(
+            forItem: MelvorId('melvorD:Copper_Ore'),
+            batchSize: 100,
+            targetLevel: 10,
+          ),
+        );
+
+        expect(macro.provenance, isA<BatchInputProvenance>());
+      });
+
+      group('dedupeKey', () {
+        test('identical macros produce same dedupeKey', () {
+          final miningAction = testActions.mining('Copper');
+          final macro1 = ProduceItem(
+            itemId: const MelvorId('melvorD:Copper_Ore'),
+            minTotal: 100,
+            actionId: miningAction.id,
+            estimatedTicks: 3000,
+          );
+          final macro2 = ProduceItem(
+            itemId: const MelvorId('melvorD:Copper_Ore'),
+            minTotal: 100,
+            actionId: miningAction.id,
+            estimatedTicks: 3000,
+          );
+
+          expect(macro1.dedupeKey, equals(macro2.dedupeKey));
+        });
+
+        test('macros with different items produce different dedupeKeys', () {
+          final copperAction = testActions.mining('Copper');
+          final tinAction = testActions.mining('Tin');
+          final macro1 = ProduceItem(
+            itemId: const MelvorId('melvorD:Copper_Ore'),
+            minTotal: 100,
+            actionId: copperAction.id,
+            estimatedTicks: 3000,
+          );
+          final macro2 = ProduceItem(
+            itemId: const MelvorId('melvorD:Tin_Ore'),
+            minTotal: 100,
+            actionId: tinAction.id,
+            estimatedTicks: 3000,
+          );
+
+          expect(macro1.dedupeKey, isNot(equals(macro2.dedupeKey)));
+        });
+
+        test('macros with different minTotal produce different dedupeKeys', () {
+          final miningAction = testActions.mining('Copper');
+          final macro1 = ProduceItem(
+            itemId: const MelvorId('melvorD:Copper_Ore'),
+            minTotal: 100,
+            actionId: miningAction.id,
+            estimatedTicks: 3000,
+          );
+          final macro2 = ProduceItem(
+            itemId: const MelvorId('melvorD:Copper_Ore'),
+            minTotal: 200,
+            actionId: miningAction.id,
+            estimatedTicks: 3000,
+          );
+
+          expect(macro1.dedupeKey, isNot(equals(macro2.dedupeKey)));
+        });
+      });
+
+      group('execute', () {
+        test('produces items until minTotal is reached', () {
+          final state = GlobalState.empty(testRegistries);
+          final miningAction = testActions.mining('Copper');
+          final macro = ProduceItem(
+            itemId: const MelvorId('melvorD:Copper_Ore'),
+            minTotal: 10,
+            actionId: miningAction.id,
+            estimatedTicks: 300,
+          );
+
+          const waitFor = WaitForInventoryAtLeast(
+            MelvorId('melvorD:Copper_Ore'),
+            10,
+          );
+
+          final result = macro.execute(state, waitFor, random: Random(42));
+
+          // Should have produced at least 10 copper ore
+          final oreCount = result.state.inventory.countOfItem(
+            testItems.byName('Copper Ore'),
+          );
+          expect(oreCount, greaterThanOrEqualTo(10));
+          expect(result.ticksElapsed, greaterThan(0));
+          expect(result.deaths, 0);
+          expect(result.boundary, isA<WaitConditionSatisfied>());
+        });
+
+        test('returns immediately when already have enough items', () {
+          final copperOre = testItems.byName('Copper Ore');
+          final inventory = Inventory.fromItems(testItems, [
+            ItemStack(copperOre, count: 20),
+          ]);
+          final state = GlobalState.test(testRegistries, inventory: inventory);
+          final miningAction = testActions.mining('Copper');
+          final macro = ProduceItem(
+            itemId: const MelvorId('melvorD:Copper_Ore'),
+            minTotal: 10,
+            actionId: miningAction.id,
+            estimatedTicks: 300,
+          );
+
+          const waitFor = WaitForInventoryAtLeast(
+            MelvorId('melvorD:Copper_Ore'),
+            10,
+          );
+
+          final result = macro.execute(state, waitFor, random: Random(42));
+
+          // Should return immediately with no ticks elapsed
+          expect(result.ticksElapsed, 0);
+          expect(result.boundary, isA<WaitConditionSatisfied>());
+          // Inventory should be unchanged
+          expect(result.state.inventory.countOfItem(copperOre), 20);
+        });
+
+        test('continues producing when starting with partial inventory', () {
+          final copperOre = testItems.byName('Copper Ore');
+          final inventory = Inventory.fromItems(testItems, [
+            ItemStack(copperOre, count: 5),
+          ]);
+          final state = GlobalState.test(testRegistries, inventory: inventory);
+          final miningAction = testActions.mining('Copper');
+          final macro = ProduceItem(
+            itemId: const MelvorId('melvorD:Copper_Ore'),
+            minTotal: 15,
+            actionId: miningAction.id,
+            estimatedTicks: 300,
+          );
+
+          const waitFor = WaitForInventoryAtLeast(
+            MelvorId('melvorD:Copper_Ore'),
+            15,
+          );
+
+          final result = macro.execute(state, waitFor, random: Random(42));
+
+          // Should have produced to reach at least 15
+          final oreCount = result.state.inventory.countOfItem(copperOre);
+          expect(oreCount, greaterThanOrEqualTo(15));
+          expect(result.ticksElapsed, greaterThan(0));
+          expect(result.boundary, isA<WaitConditionSatisfied>());
+        });
+
+        test('switches to specified action when not already active', () {
+          // Start with a different action active
+          var state = GlobalState.empty(testRegistries);
+          final woodcuttingAction = testActions.woodcutting('Normal Tree');
+          state = state.startAction(woodcuttingAction, random: Random(0));
+
+          final miningAction = testActions.mining('Copper');
+          final macro = ProduceItem(
+            itemId: const MelvorId('melvorD:Copper_Ore'),
+            minTotal: 5,
+            actionId: miningAction.id,
+            estimatedTicks: 150,
+          );
+
+          const waitFor = WaitForInventoryAtLeast(
+            MelvorId('melvorD:Copper_Ore'),
+            5,
+          );
+
+          final result = macro.execute(state, waitFor, random: Random(42));
+
+          // Should have switched to mining and produced ore
+          expect(result.state.activeAction?.id, miningAction.id);
+          final oreCount = result.state.inventory.countOfItem(
+            testItems.byName('Copper Ore'),
+          );
+          expect(oreCount, greaterThanOrEqualTo(5));
+        });
+
+        test('uses the specific actionId from macro, not a lookup', () {
+          // ProduceItem should use its explicit actionId, not find a producer
+          final state = GlobalState.empty(testRegistries);
+          final miningAction = testActions.mining('Tin');
+          final macro = ProduceItem(
+            itemId: const MelvorId('melvorD:Tin_Ore'),
+            minTotal: 5,
+            actionId: miningAction.id,
+            estimatedTicks: 150,
+          );
+
+          const waitFor = WaitForInventoryAtLeast(
+            MelvorId('melvorD:Tin_Ore'),
+            5,
+          );
+
+          final result = macro.execute(state, waitFor, random: Random(42));
+
+          // Should have switched to tin mining specifically
+          expect(result.state.activeAction?.id, miningAction.id);
+          final oreCount = result.state.inventory.countOfItem(
+            testItems.byName('Tin Ore'),
+          );
+          expect(oreCount, greaterThanOrEqualTo(5));
+        });
+
+        test('sells items when inventory full and sell policy provided', () {
+          // Fill inventory completely (20 slots) with non-stackable items
+          final items = <ItemStack>[
+            ItemStack(testItems.byName('Raw Shrimp'), count: 1),
+            ItemStack(testItems.byName('Raw Sardine'), count: 1),
+            ItemStack(testItems.byName('Raw Herring'), count: 1),
+            ItemStack(testItems.byName('Raw Trout'), count: 1),
+            ItemStack(testItems.byName('Raw Salmon'), count: 1),
+            ItemStack(testItems.byName('Raw Lobster'), count: 1),
+            ItemStack(testItems.byName('Raw Swordfish'), count: 1),
+            ItemStack(testItems.byName('Raw Crab'), count: 1),
+            ItemStack(testItems.byName('Normal Logs'), count: 1),
+            ItemStack(testItems.byName('Oak Logs'), count: 1),
+            ItemStack(testItems.byName('Willow Logs'), count: 1),
+            ItemStack(testItems.byName('Maple Logs'), count: 1),
+            ItemStack(testItems.byName('Teak Logs'), count: 1),
+            ItemStack(testItems.byName('Mahogany Logs'), count: 1),
+            ItemStack(testItems.byName('Yew Logs'), count: 1),
+            ItemStack(testItems.byName('Magic Logs'), count: 1),
+            ItemStack(testItems.byName('Redwood Logs'), count: 1),
+            ItemStack(testItems.byName('Copper Ore'), count: 1),
+            ItemStack(testItems.byName('Tin Ore'), count: 1),
+            ItemStack(testItems.byName('Iron Ore'), count: 1),
+          ];
+          final inventory = Inventory.fromItems(testItems, items);
+
+          final state = GlobalState.test(testRegistries, inventory: inventory);
+          final miningAction = testActions.mining('Copper');
+          // Target more than current so it needs to produce more
+          final macro = ProduceItem(
+            itemId: const MelvorId('melvorD:Copper_Ore'),
+            minTotal: 10,
+            actionId: miningAction.id,
+            estimatedTicks: 300,
+          );
+
+          const waitFor = WaitForInventoryAtLeast(
+            MelvorId('melvorD:Copper_Ore'),
+            10,
+          );
+
+          // Verify inventory is actually full
+          expect(state.isInventoryFull, isTrue);
+
+          // With sell policy, should be able to make room and produce
+          final result = macro.execute(
+            state,
+            waitFor,
+            random: Random(42),
+            segmentSellPolicy: const SellAllPolicy(),
+          );
+
+          // Should have sold items and produced ore
+          final oreCount = result.state.inventory.countOfItem(
+            testItems.byName('Copper Ore'),
+          );
+          expect(oreCount, greaterThanOrEqualTo(10));
+          expect(result.boundary, isA<WaitConditionSatisfied>());
+        });
+
+        test('returns NoProgressPossible when no sell policy and inventory '
+            'full', () {
+          // Fill inventory completely (20 slots) with non-stackable items
+          final items = <ItemStack>[
+            ItemStack(testItems.byName('Raw Shrimp'), count: 1),
+            ItemStack(testItems.byName('Raw Sardine'), count: 1),
+            ItemStack(testItems.byName('Raw Herring'), count: 1),
+            ItemStack(testItems.byName('Raw Trout'), count: 1),
+            ItemStack(testItems.byName('Raw Salmon'), count: 1),
+            ItemStack(testItems.byName('Raw Lobster'), count: 1),
+            ItemStack(testItems.byName('Raw Swordfish'), count: 1),
+            ItemStack(testItems.byName('Raw Crab'), count: 1),
+            ItemStack(testItems.byName('Normal Logs'), count: 1),
+            ItemStack(testItems.byName('Oak Logs'), count: 1),
+            ItemStack(testItems.byName('Willow Logs'), count: 1),
+            ItemStack(testItems.byName('Maple Logs'), count: 1),
+            ItemStack(testItems.byName('Teak Logs'), count: 1),
+            ItemStack(testItems.byName('Mahogany Logs'), count: 1),
+            ItemStack(testItems.byName('Yew Logs'), count: 1),
+            ItemStack(testItems.byName('Magic Logs'), count: 1),
+            ItemStack(testItems.byName('Redwood Logs'), count: 1),
+            ItemStack(testItems.byName('Tin Ore'), count: 1),
+            ItemStack(testItems.byName('Iron Ore'), count: 1),
+            ItemStack(testItems.byName('Mithril Ore'), count: 1),
+          ];
+          final inventory = Inventory.fromItems(testItems, items);
+
+          final state = GlobalState.test(testRegistries, inventory: inventory);
+          final miningAction = testActions.mining('Copper');
+          final macro = ProduceItem(
+            itemId: const MelvorId('melvorD:Copper_Ore'),
+            minTotal: 5,
+            actionId: miningAction.id,
+            estimatedTicks: 150,
+          );
+
+          const waitFor = WaitForInventoryAtLeast(
+            MelvorId('melvorD:Copper_Ore'),
+            5,
+          );
+
+          // Verify inventory is actually full
+          expect(state.isInventoryFull, isTrue);
+
+          // Without sell policy, should fail with inventory full
+          final result = macro.execute(
+            state,
+            waitFor,
+            random: Random(42),
+            // No segmentSellPolicy
+          );
+
+          // Should hit NoProgressPossible (inventory full, no sell policy)
+          expect(result.boundary, isA<NoProgressPossible>());
+        });
+      });
     });
 
     group('TrainConsumingSkillUntil', () {
