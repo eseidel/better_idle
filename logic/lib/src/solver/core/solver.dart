@@ -42,6 +42,8 @@ import 'package:logic/src/solver/analysis/replan_boundary.dart';
 import 'package:logic/src/solver/analysis/unlock_boundaries.dart';
 import 'package:logic/src/solver/analysis/wait_for.dart';
 import 'package:logic/src/solver/analysis/watch_set.dart';
+import 'package:logic/src/solver/candidates/build_chain.dart'
+    show clearForbiddenUntilCache;
 import 'package:logic/src/solver/candidates/enumerate_candidates.dart'
     show
         Candidates,
@@ -52,7 +54,7 @@ import 'package:logic/src/solver/candidates/enumerate_candidates.dart'
         rateCacheMisses;
 import 'package:logic/src/solver/candidates/macro_candidate.dart';
 import 'package:logic/src/solver/candidates/macro_plan_context.dart'
-    show MacroPlanContext, clearForbiddenUntilCache;
+    show MacroPlanContext;
 import 'package:logic/src/solver/core/goal.dart';
 import 'package:logic/src/solver/core/solver_profile.dart';
 import 'package:logic/src/solver/core/value_model.dart';

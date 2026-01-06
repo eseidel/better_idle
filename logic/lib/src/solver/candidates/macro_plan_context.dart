@@ -19,55 +19,6 @@ import 'package:logic/src/solver/execution/prerequisites.dart';
 import 'package:logic/src/solver/interactions/interaction.dart' show SellPolicy;
 import 'package:logic/src/state.dart';
 
-// ---------------------------------------------------------------------------
-// Forbidden-Until Cache
-// ---------------------------------------------------------------------------
-
-/// Cache of blocked (item, action) pairs: (itemId, actionId) -> (skill, level)
-/// Keyed by actionId to avoid blocking alternate production paths.
-/// Cleared at solve() start.
-final Map<(MelvorId, ActionId), (Skill, int)> _forbiddenUntilCache = {};
-int _forbiddenCacheHits = 0;
-int _forbiddenCacheMisses = 0;
-
-/// Returns unlock requirement if (item, action) is cached as blocked.
-(Skill, int)? getForbiddenReason(MelvorId itemId, ActionId actionId) {
-  final result = _forbiddenUntilCache[(itemId, actionId)];
-  if (result != null) _forbiddenCacheHits++;
-  return result;
-}
-
-/// Records that producing item via action requires skill unlock.
-void recordForbiddenItem(
-  MelvorId itemId,
-  ActionId actionId,
-  Skill skill,
-  int level,
-) {
-  _forbiddenCacheMisses++;
-  _forbiddenUntilCache[(itemId, actionId)] = (skill, level);
-}
-
-/// Checks if (item, action) is still blocked given current state.
-bool isForbiddenUntil(MelvorId itemId, ActionId actionId, GlobalState state) {
-  final req = _forbiddenUntilCache[(itemId, actionId)];
-  if (req == null) return false;
-  return state.skillState(req.$1).skillLevel < req.$2;
-}
-
-/// Clears the forbidden-until cache. Call at start of each solve().
-void clearForbiddenUntilCache() {
-  _forbiddenUntilCache.clear();
-  _forbiddenCacheHits = 0;
-  _forbiddenCacheMisses = 0;
-}
-
-/// Returns forbidden cache hit count (for profiling).
-int get forbiddenCacheHits => _forbiddenCacheHits;
-
-/// Returns forbidden cache miss count (for profiling).
-int get forbiddenCacheMisses => _forbiddenCacheMisses;
-
 /// Context for macro planning operations.
 ///
 /// Provides access to solver state and helper methods that macros need during

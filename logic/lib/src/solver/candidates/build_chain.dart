@@ -15,11 +15,40 @@ library;
 import 'package:logic/src/data/action_id.dart';
 import 'package:logic/src/data/actions.dart';
 import 'package:logic/src/data/melvor_id.dart';
-import 'package:logic/src/solver/candidates/macro_plan_context.dart'
-    show isForbiddenUntil, recordForbiddenItem;
 import 'package:logic/src/solver/core/goal.dart';
 import 'package:logic/src/state.dart';
 import 'package:logic/src/tick.dart' show ticksFromDuration;
+
+// ---------------------------------------------------------------------------
+// Forbidden-Until Cache
+// ---------------------------------------------------------------------------
+
+/// Cache of blocked (item, action) pairs: (itemId, actionId) -> (skill, level)
+/// Keyed by actionId to avoid blocking alternate production paths.
+/// Cleared at solve() start.
+final Map<(MelvorId, ActionId), (Skill, int)> _forbiddenUntilCache = {};
+
+/// Records that producing item via action requires skill unlock.
+void recordForbiddenItem(
+  MelvorId itemId,
+  ActionId actionId,
+  Skill skill,
+  int level,
+) {
+  _forbiddenUntilCache[(itemId, actionId)] = (skill, level);
+}
+
+/// Checks if (item, action) is still blocked given current state.
+bool isForbiddenUntil(MelvorId itemId, ActionId actionId, GlobalState state) {
+  final req = _forbiddenUntilCache[(itemId, actionId)];
+  if (req == null) return false;
+  return state.skillState(req.$1).skillLevel < req.$2;
+}
+
+/// Clears the forbidden-until cache. Call at start of each solve().
+void clearForbiddenUntilCache() {
+  _forbiddenUntilCache.clear();
+}
 
 /// Maximum depth for chain building to prevent stack overflow.
 const int maxChainDepth = 10;
