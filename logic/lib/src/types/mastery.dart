@@ -23,7 +23,6 @@
 // When false, the modifier applies globally without action substitution
 // (e.g., Firemaking's level 99 bonus gives +0.25% Mastery XP to all skills).
 
-import 'package:equatable/equatable.dart';
 import 'package:logic/src/data/melvor_id.dart';
 import 'package:logic/src/types/modifier.dart';
 import 'package:meta/meta.dart';
@@ -33,7 +32,7 @@ import 'package:meta/meta.dart';
 /// Represents a bonus that activates at a certain mastery level, optionally
 /// repeating at intervals up to a maximum level.
 @immutable
-class MasteryLevelBonus extends Equatable {
+class MasteryLevelBonus {
   const MasteryLevelBonus({
     required this.modifiers,
     required this.level,
@@ -95,20 +94,11 @@ class MasteryLevelBonus extends Equatable {
     // Count triggers: (effectiveMax - level) / slope + 1
     return ((effectiveMax - level) ~/ levelScalingSlope!) + 1;
   }
-
-  @override
-  List<Object?> get props => [
-    modifiers,
-    level,
-    levelScalingSlope,
-    levelScalingMax,
-    autoScopeToAction,
-  ];
 }
 
 /// Collection of mastery level bonuses for a single skill.
 @immutable
-class SkillMasteryBonuses extends Equatable {
+class SkillMasteryBonuses {
   const SkillMasteryBonuses({required this.skillId, required this.bonuses});
 
   /// The skill these bonuses belong to.
@@ -116,9 +106,6 @@ class SkillMasteryBonuses extends Equatable {
 
   /// All mastery level bonuses for this skill.
   final List<MasteryLevelBonus> bonuses;
-
-  @override
-  List<Object?> get props => [skillId, bonuses];
 }
 
 /// Registry for looking up mastery bonuses by skill.
@@ -133,9 +120,6 @@ class MasteryBonusRegistry {
 
   /// All skills with mastery bonuses.
   Iterable<MelvorId> get skillIds => _bySkillId.keys;
-
-  /// Total number of skills with mastery bonuses.
-  int get length => _bySkillId.length;
 }
 
 /// Parses masteryLevelBonuses from a skill's data entry.

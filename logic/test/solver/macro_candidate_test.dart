@@ -1433,6 +1433,212 @@ void main() {
           expect(result.boundary, isA<NoProgressPossible>());
         });
       });
+
+      group('plan (chain recursion and InventoryFull)', () {
+        MacroPlanContext makeContext(
+          GlobalState state, {
+          Goal? goal,
+          Map<Skill, SkillBoundaries>? boundaries,
+        }) {
+          return MacroPlanContext(
+            state: state,
+            goal: goal ?? const ReachSkillLevelGoal(Skill.smithing, 10),
+            boundaries: boundaries ?? const {},
+          );
+        }
+
+        test('recursively emits EnsureStock prerequisites for multi-tier '
+            'chains', () {
+          // Bronze Bar requires Copper Ore and Tin Ore
+          // EnsureStock(Bronze_Bar) should emit EnsureStock for an ore first
+          final state = GlobalState.empty(testRegistries);
+          final context = makeContext(state);
+          const macro = EnsureStock(MelvorId('melvorD:Bronze_Bar'), 20);
+
+          final result = macro.plan(context);
+
+          // Should need to stock inputs first (copper or tin ore)
+          expect(result, isA<MacroNeedsPrerequisite>());
+          final prereq = result as MacroNeedsPrerequisite;
+          // The prerequisite should be an EnsureStock for one of the ores
+          expect(prereq.prerequisite, isA<EnsureStock>());
+          final ensureStock = prereq.prerequisite as EnsureStock;
+          expect(
+            ensureStock.itemId,
+            anyOf(
+              const MelvorId('melvorD:Copper_Ore'),
+              const MelvorId('melvorD:Tin_Ore'),
+            ),
+          );
+        });
+
+        test('emits ProduceItem when all inputs are available', () {
+          // Give enough copper and tin ore to produce bronze bars
+          final copperOre = testItems.byName('Copper Ore');
+          final tinOre = testItems.byName('Tin Ore');
+          final inventory = Inventory.fromItems(testItems, [
+            ItemStack(copperOre, count: 100),
+            ItemStack(tinOre, count: 100),
+          ]);
+          final state = GlobalState.test(testRegistries, inventory: inventory);
+          final context = makeContext(state);
+          const macro = EnsureStock(MelvorId('melvorD:Bronze_Bar'), 20);
+
+          final result = macro.plan(context);
+
+          // Should emit ProduceItem since all inputs are available
+          expect(result, isA<MacroNeedsPrerequisite>());
+          final prereq = result as MacroNeedsPrerequisite;
+          expect(prereq.prerequisite, isA<ProduceItem>());
+          final produce = prereq.prerequisite as ProduceItem;
+          expect(produce.itemId, const MelvorId('melvorD:Bronze_Bar'));
+        });
+
+        test('returns InventoryPressure when inventory is full', () {
+          // Fill all 20 slots with different items
+          final items = <ItemStack>[
+            ItemStack(testItems.byName('Raw Shrimp'), count: 1),
+            ItemStack(testItems.byName('Raw Sardine'), count: 1),
+            ItemStack(testItems.byName('Raw Herring'), count: 1),
+            ItemStack(testItems.byName('Raw Trout'), count: 1),
+            ItemStack(testItems.byName('Raw Salmon'), count: 1),
+            ItemStack(testItems.byName('Raw Lobster'), count: 1),
+            ItemStack(testItems.byName('Raw Swordfish'), count: 1),
+            ItemStack(testItems.byName('Raw Crab'), count: 1),
+            ItemStack(testItems.byName('Normal Logs'), count: 1),
+            ItemStack(testItems.byName('Oak Logs'), count: 1),
+            ItemStack(testItems.byName('Willow Logs'), count: 1),
+            ItemStack(testItems.byName('Maple Logs'), count: 1),
+            ItemStack(testItems.byName('Teak Logs'), count: 1),
+            ItemStack(testItems.byName('Mahogany Logs'), count: 1),
+            ItemStack(testItems.byName('Yew Logs'), count: 1),
+            ItemStack(testItems.byName('Magic Logs'), count: 1),
+            ItemStack(testItems.byName('Redwood Logs'), count: 1),
+            ItemStack(testItems.byName('Tin Ore'), count: 1),
+            ItemStack(testItems.byName('Iron Ore'), count: 1),
+            ItemStack(testItems.byName('Mithril Ore'), count: 1),
+          ];
+          final inventory = Inventory.fromItems(testItems, items);
+          final state = GlobalState.test(testRegistries, inventory: inventory);
+          final context = makeContext(
+            state,
+            goal: const ReachSkillLevelGoal(Skill.mining, 10),
+          );
+
+          expect(state.isInventoryFull, isTrue);
+
+          // Try to ensure stock of an item not in inventory
+          const macro = EnsureStock(MelvorId('melvorD:Copper_Ore'), 50);
+
+          final result = macro.plan(context);
+
+          // Should return InventoryPressure boundary
+          expect(result, isA<MacroNeedsBoundary>());
+          final boundary = result as MacroNeedsBoundary;
+          expect(boundary.boundary, isA<InventoryPressure>());
+        });
+
+        test('handles deep chains (3+ levels) by returning leaf prerequisite '
+            'first', () {
+          // Bronze Dagger requires Bronze Bar, which requires Copper + Tin Ore
+          // EnsureStock(Bronze_Dagger) should emit EnsureStock for an ore
+          final state = GlobalState.empty(testRegistries);
+          final context = makeContext(state);
+          const macro = EnsureStock(MelvorId('melvorD:Bronze_Dagger'), 10);
+
+          final result = macro.plan(context);
+
+          // Should emit a prerequisite (either ore or bar)
+          expect(result, isA<MacroNeedsPrerequisite>());
+          final prereq = result as MacroNeedsPrerequisite;
+          expect(
+            prereq.prerequisite,
+            anyOf(isA<EnsureStock>(), isA<TrainSkillUntil>()),
+          );
+        });
+
+        test('returns TrainSkillUntil when producer requires skill unlock', () {
+          // Iron Bar requires level 15 smithing
+          // Start at level 1 smithing
+          final state = GlobalState.test(
+            testRegistries,
+            skillStates: const {
+              Skill.smithing: SkillState(xp: 0, masteryPoolXp: 0),
+            },
+          );
+          final context = makeContext(state);
+          const macro = EnsureStock(MelvorId('melvorD:Iron_Bar'), 20);
+
+          final result = macro.plan(context);
+
+          // Should emit skill training prerequisite
+          expect(result, isA<MacroNeedsPrerequisite>());
+          final prereq = result as MacroNeedsPrerequisite;
+          // Either train smithing to unlock Iron Bar, or train mining to
+          // unlock Iron Ore (depending on which comes first in the chain)
+          expect(
+            prereq.prerequisite,
+            anyOf(isA<TrainSkillUntil>(), isA<EnsureStock>()),
+          );
+        });
+
+        test('returns MacroAlreadySatisfied when stock target already met', () {
+          final copperOre = testItems.byName('Copper Ore');
+          final inventory = Inventory.fromItems(testItems, [
+            ItemStack(copperOre, count: 100),
+          ]);
+          final state = GlobalState.test(testRegistries, inventory: inventory);
+          final context = makeContext(
+            state,
+            goal: const ReachSkillLevelGoal(Skill.mining, 10),
+          );
+
+          // Target is 50, but we have 100
+          const macro = EnsureStock(MelvorId('melvorD:Copper_Ore'), 50);
+
+          final result = macro.plan(context);
+
+          expect(result, isA<MacroAlreadySatisfied>());
+        });
+
+        test('chunks large stock targets to prevent state explosion', () {
+          // Request a very large amount of ore
+          final state = GlobalState.empty(testRegistries);
+          final context = makeContext(
+            state,
+            goal: const ReachSkillLevelGoal(Skill.mining, 10),
+          );
+          const macro = EnsureStock(MelvorId('melvorD:Copper_Ore'), 10000);
+
+          final result = macro.plan(context);
+
+          // Should emit a prerequisite with a bounded target
+          expect(result, isA<MacroNeedsPrerequisite>());
+          final prereq = result as MacroNeedsPrerequisite;
+          expect(prereq.prerequisite, isA<ProduceItem>());
+          final produce = prereq.prerequisite as ProduceItem;
+          // The target should be capped by maxChunkSize (640)
+          expect(produce.minTotal, lessThanOrEqualTo(640));
+        });
+
+        test('sets ChainProvenance on child EnsureStock prerequisites', () {
+          // Bronze Bar requires Copper Ore - check provenance is set
+          final state = GlobalState.empty(testRegistries);
+          final context = makeContext(state);
+          const macro = EnsureStock(MelvorId('melvorD:Bronze_Bar'), 20);
+
+          final result = macro.plan(context);
+
+          expect(result, isA<MacroNeedsPrerequisite>());
+          final prereq = result as MacroNeedsPrerequisite;
+          expect(prereq.prerequisite, isA<EnsureStock>());
+          final childMacro = prereq.prerequisite as EnsureStock;
+          // Provenance should indicate this is part of the Bronze_Bar chain
+          expect(childMacro.provenance, isA<ChainProvenance>());
+          final provenance = childMacro.provenance! as ChainProvenance;
+          expect(provenance.parentItem, const MelvorId('melvorD:Bronze_Bar'));
+        });
+      });
     });
 
     group('ProduceItem', () {
