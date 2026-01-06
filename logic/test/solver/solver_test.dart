@@ -2560,45 +2560,6 @@ void main() {
     });
   });
 
-  group('solveSegment', () {
-    test('returns SegmentFailed when solver cannot find a path', () {
-      // Create a state where the solver will fail quickly
-      final state = GlobalState.empty(testRegistries);
-
-      // Set an impossible goal with very low max nodes to force failure
-      const goal = ReachGpGoal(1000000000); // 1 billion GP - unreachable
-
-      // Solve with very low node limit to trigger failure
-      final result = solveSegment(
-        state,
-        goal,
-        maxExpandedNodes: 2, // Very low limit to force failure
-        random: Random(42),
-      );
-
-      expect(result, isA<SegmentFailed>());
-      final failed = result as SegmentFailed;
-      expect(failed.failure.reason, contains('max expanded nodes'));
-    });
-
-    test('returns SegmentSuccess with valid segment and context', () {
-      var state = GlobalState.empty(testRegistries);
-      final normalTreeAction = testActions.woodcutting('Normal Tree');
-      state = state.startAction(normalTreeAction, random: Random(42));
-
-      // Simple goal that should succeed
-      const goal = ReachSkillLevelGoal(Skill.woodcutting, 2);
-
-      final result = solveSegment(state, goal, random: Random(42));
-
-      expect(result, isA<SegmentSuccess>());
-      final success = result as SegmentSuccess;
-      expect(success.segment.totalTicks, greaterThan(0));
-      expect(success.context.goal, goal);
-      expect(success.finalState, isNotNull);
-    });
-  });
-
   group('EnsureStock batching', () {
     test('multi-tier chain expansion - smithing solves correctly', () {
       // Verifies that multi-tier consuming skill chains work correctly.

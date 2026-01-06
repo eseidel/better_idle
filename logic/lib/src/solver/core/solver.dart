@@ -1739,103 +1739,6 @@ Plan _reconstructPlan(
 // Segment-Based Solving
 // ---------------------------------------------------------------------------
 
-/// Result of solving to the next segment boundary.
-sealed class SegmentResult {
-  const SegmentResult();
-}
-
-/// Successful segment solve.
-class SegmentSuccess extends SegmentResult {
-  const SegmentSuccess({
-    required this.segment,
-    required this.finalState,
-    required this.context,
-    this.profile,
-  });
-
-  /// The segment (plan portion to boundary).
-  final Segment segment;
-
-  /// Terminal state from solve() - no replay needed.
-  final GlobalState finalState;
-
-  /// The segment context (includes WatchSet and SellPolicy).
-  final SegmentContext context;
-
-  /// Solver profile for this segment (if collectDiagnostics was true).
-  final SolverProfile? profile;
-}
-
-/// Segment solve failed.
-class SegmentFailed extends SegmentResult {
-  const SegmentFailed(this.failure);
-
-  final SolverFailure failure;
-}
-
-/// Solves for a single segment: from current state to the first material
-/// boundary.
-///
-/// A segment ends when [WatchSet.detectBoundary] returns non-null on the
-/// terminal state. The boundary is derived from the terminal node's state
-/// (returned by solve()), NOT by replaying the plan.
-///
-/// Returns a [SegmentSuccess] with:
-/// - The segment (steps, ticks, boundary)
-/// - The terminal state (for continuing to next segment)
-/// - The SegmentContext (includes WatchSet and SellPolicy for boundary
-///   handling)
-SegmentResult solveSegment(
-  GlobalState initial,
-  Goal goal, {
-  required Random random,
-  SegmentConfig config = const SegmentConfig(),
-  bool collectDiagnostics = false,
-  int maxExpandedNodes = defaultMaxExpandedNodes,
-  int maxQueueSize = defaultMaxQueueSize,
-}) {
-  // Build segment context - computes SellPolicy once and passes to WatchSet
-  final context = SegmentContext.build(initial, goal, config);
-
-  // Create segment goal that delegates to watchSet.detectBoundary()
-  final segmentGoal = SegmentGoal(context.watchSet);
-
-  // solve() now returns terminal state directly
-  final result = solve(
-    initial,
-    segmentGoal,
-    collectDiagnostics: collectDiagnostics,
-    maxExpandedNodes: maxExpandedNodes,
-    maxQueueSize: maxQueueSize,
-  );
-
-  return switch (result) {
-    SolverSuccess(:final plan, :final terminalState, :final profile) => () {
-      // Derive boundary from terminal state (no replay needed!)
-      final boundary =
-          context.watchSet.detectBoundary(
-            terminalState,
-            elapsedTicks: plan.totalTicks,
-          ) ??
-          const GoalReachedBoundary();
-
-      return SegmentSuccess(
-        segment: Segment(
-          steps: plan.steps,
-          totalTicks: plan.totalTicks,
-          interactionCount: plan.interactionCount,
-          stopBoundary: boundary,
-          sellPolicy: context.sellPolicy,
-        ),
-        finalState: terminalState,
-        context: context,
-        profile: profile,
-      );
-    }(),
-    SolverFailed(:final failure) => SegmentFailed(failure),
-  };
-}
-
 /// Result of executing a single segment.
 @immutable
 class SegmentExecutionResult {
@@ -2122,7 +2025,7 @@ ReplanExecutionResult solveWithReplanning(
     final segmentContext = SegmentContext.build(
       currentState,
       goal,
-      config.segmentConfig,
+      const SegmentConfig(),
     );
     final segmentSellPolicy = segmentContext.sellPolicy;
 

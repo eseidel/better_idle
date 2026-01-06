@@ -1187,8 +1187,7 @@ class SolverSuccess extends SolverResult {
   /// The terminal node's state from the search.
   ///
   /// This is the state at the end of the plan, derived directly from the
-  /// A* search rather than replaying the plan. Used by solveSegment() to
-  /// derive segment boundaries without plan replay.
+  /// A* search rather than replaying the plan.
   final GlobalState terminalState;
 }
 
