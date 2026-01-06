@@ -48,6 +48,8 @@ import 'package:logic/src/data/action_id.dart';
 import 'package:logic/src/data/actions.dart';
 import 'package:logic/src/data/melvor_id.dart';
 import 'package:logic/src/solver/analysis/wait_for.dart';
+import 'package:logic/src/types/equipment_slot.dart';
+import 'package:logic/src/types/inventory.dart';
 import 'package:logic/src/types/time_away.dart';
 import 'package:meta/meta.dart';
 
@@ -144,20 +146,44 @@ class InventoryFull extends ReplanBoundary {
 
 /// Player died during thieving or combat.
 ///
-/// Expected behavior: restart the activity automatically.
-/// Death is modeled in the planner, so this is anticipated.
+/// The boundary resolver handles recovery by attempting to re-equip lost items
+/// or food, then restarting the activity. Deaths may trigger replanning if
+/// recovery fails repeatedly.
 @immutable
 class Death extends ReplanBoundary {
-  const Death();
+  const Death({this.actionId, this.lostItem, this.slotRolled});
+
+  /// The action that was running when death occurred.
+  final ActionId? actionId;
+
+  /// The item that was lost due to the death penalty (null if lucky).
+  final ItemStack? lostItem;
+
+  /// The equipment slot that was rolled for the death penalty.
+  final EquipmentSlot? slotRolled;
+
+  /// True if the player was lucky and lost nothing.
+  bool get wasLucky => lostItem == null && slotRolled != null;
 
   @override
-  String describe() => 'Player died';
+  String describe() {
+    final parts = <String>['Player died'];
+    if (lostItem != null) {
+      parts.add('lost ${lostItem!.item.name}');
+    } else if (slotRolled != null) {
+      parts.add('lucky (empty ${slotRolled!.name})');
+    }
+    if (actionId != null) {
+      parts.add('during ${actionId!.localId.name}');
+    }
+    return parts.join(' ');
+  }
 
   @override
   bool get isExpected => true;
 
   @override
-  bool get causesReplan => false; // Auto-restarts, no replan needed
+  bool get causesReplan => false; // Boundary resolver handles recovery
 }
 
 /// Wait condition was satisfied (not a replan trigger, just completion).
@@ -336,6 +362,8 @@ ReplanBoundary? boundaryFromStopReason(
   ActionStopReason reason, {
   ActionId? actionId,
   MelvorId? missingItemId,
+  ItemStack? lostItem,
+  EquipmentSlot? slotRolled,
 }) {
   switch (reason) {
     case ActionStopReason.stillRunning:
@@ -355,7 +383,11 @@ ReplanBoundary? boundaryFromStopReason(
     case ActionStopReason.inventoryFull:
       return const InventoryFull();
     case ActionStopReason.playerDied:
-      return const Death();
+      return Death(
+        actionId: actionId,
+        lostItem: lostItem,
+        slotRolled: slotRolled,
+      );
   }
 }
 

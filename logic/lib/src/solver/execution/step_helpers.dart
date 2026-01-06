@@ -338,10 +338,65 @@ RecoveryResult handleBoundary(
     return RecoveryResult.retry(newState, attemptCount: currentAttempts + 1);
   }
 
-  // Handle Death: continue (simulator handles restart automatically)
-  // Don't increment attempts for deaths - they're expected
+  // Handle Death: attempt recovery (re-equip lost item, restart activity)
   if (boundary is Death) {
-    return RecoveryResult.retry(state, attemptCount: currentAttempts);
+    var newState = state;
+
+    // Attempt to re-equip lost item from inventory if available
+    final lostItem = boundary.lostItem;
+    final slotRolled = boundary.slotRolled;
+    if (lostItem != null && slotRolled != null) {
+      final item = lostItem.item;
+      final hasInInventory = newState.inventory.countOfItem(item) >= 1;
+      if (hasInInventory && item.canEquipInSlot(slotRolled)) {
+        // Re-equip the lost item
+        newState = newState.equipGear(item, slotRolled);
+      }
+      // If we can't re-equip, increment attempts (potential escalation)
+      if (!hasInInventory || !item.canEquipInSlot(slotRolled)) {
+        // Track this as a recovery attempt since we couldn't fully recover
+        final newAttempts = currentAttempts + 1;
+        if (newAttempts >= maxAttempts) {
+          return RecoveryResult.replan(
+            newState,
+            boundary: NoProgressPossible(
+              reason:
+                  'Death recovery limit ($maxAttempts) exceeded - '
+                  'lost ${lostItem.item.name} cannot be re-equipped',
+            ),
+            attemptCount: newAttempts,
+          );
+        }
+        return RecoveryResult.retry(newState, attemptCount: newAttempts);
+      }
+    }
+
+    // Restart the activity if we know what was running
+    final actionId = boundary.actionId;
+    if (actionId != null) {
+      try {
+        newState = applyInteraction(
+          newState,
+          SwitchActivity(actionId),
+          random: random,
+        );
+      } on Exception {
+        // Can't restart the action - trigger replan
+        return RecoveryResult.replan(
+          newState,
+          boundary: NoProgressPossible(
+            reason:
+                'Death recovery failed - cannot restart action '
+                '${actionId.localId.name}',
+          ),
+          attemptCount: currentAttempts + 1,
+        );
+      }
+    }
+
+    // Successfully recovered - retry without incrementing attempts
+    // (deaths with successful recovery are expected in risky actions)
+    return RecoveryResult.retry(newState, attemptCount: currentAttempts);
   }
 
   // Handle InputsDepleted: trigger replan

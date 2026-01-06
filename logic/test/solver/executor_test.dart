@@ -592,7 +592,7 @@ void main() {
       expect(result.boundary, isA<InputsDepleted>());
     });
 
-    test('Death continues without incrementing attempts', () {
+    test('Death with no lost item continues without incrementing attempts', () {
       final state = GlobalState.empty(testRegistries);
 
       final result = handleBoundary(
@@ -606,6 +606,127 @@ void main() {
 
       expect(result.outcome, equals(RecoveryOutcome.recoveredRetry));
       expect(result.newAttemptCount, equals(2)); // Not incremented
+    });
+
+    test('Death with recoverable lost item re-equips from inventory', () {
+      // Setup: state with a Bronze Sword equipped and another in inventory
+      final bronzeSword = testItems.byName('Bronze Sword');
+      final inventory = Inventory.fromItems(testItems, [
+        ItemStack(bronzeSword, count: 1),
+      ]);
+      final equipment = Equipment(
+        foodSlots: const [null, null, null],
+        selectedFoodSlot: 0,
+        gearSlots: {EquipmentSlot.weapon: bronzeSword},
+      );
+      final state = GlobalState.test(
+        testRegistries,
+        inventory: inventory,
+        equipment: equipment,
+      );
+
+      // Create death boundary indicating we lost the weapon
+      final deathBoundary = Death(
+        actionId: testActions.combat('Chicken').id,
+        lostItem: ItemStack(bronzeSword, count: 1),
+        slotRolled: EquipmentSlot.weapon,
+      );
+
+      final result = handleBoundary(
+        state,
+        deathBoundary,
+        sellPolicy: const SellAllPolicy(),
+        random: Random(42),
+        currentAttempts: 0,
+        maxAttempts: 5,
+      );
+
+      expect(result.outcome, equals(RecoveryOutcome.recoveredRetry));
+      // Successfully re-equipped, so attempts not incremented
+      expect(result.newAttemptCount, equals(0));
+      // Item should be re-equipped
+      expect(
+        result.state.equipment.gearInSlot(EquipmentSlot.weapon),
+        equals(bronzeSword),
+      );
+    });
+
+    test('Death with unrecoverable lost item increments attempts', () {
+      // Setup: state with no spare equipment in inventory
+      final bronzeSword = testItems.byName('Bronze Sword');
+      final state = GlobalState.empty(testRegistries);
+
+      // Create death boundary indicating we lost a weapon we don't have spare
+      final deathBoundary = Death(
+        actionId: testActions.combat('Chicken').id,
+        lostItem: ItemStack(bronzeSword, count: 1),
+        slotRolled: EquipmentSlot.weapon,
+      );
+
+      final result = handleBoundary(
+        state,
+        deathBoundary,
+        sellPolicy: const SellAllPolicy(),
+        random: Random(42),
+        currentAttempts: 2,
+        maxAttempts: 5,
+      );
+
+      expect(result.outcome, equals(RecoveryOutcome.recoveredRetry));
+      // Couldn't re-equip, so attempts incremented
+      expect(result.newAttemptCount, equals(3));
+    });
+
+    test('Death recovery limit exceeded triggers replan', () {
+      final bronzeSword = testItems.byName('Bronze Sword');
+      final state = GlobalState.empty(testRegistries);
+
+      final deathBoundary = Death(
+        actionId: testActions.combat('Chicken').id,
+        lostItem: ItemStack(bronzeSword, count: 1),
+        slotRolled: EquipmentSlot.weapon,
+      );
+
+      final result = handleBoundary(
+        state,
+        deathBoundary,
+        sellPolicy: const SellAllPolicy(),
+        random: Random(42),
+        currentAttempts: 4, // At limit - 1
+        maxAttempts: 5,
+      );
+
+      // Should trigger replan because we can't recover and hit limit
+      expect(result.outcome, equals(RecoveryOutcome.replanRequired));
+      expect(result.boundary, isA<NoProgressPossible>());
+      final npp = result.boundary! as NoProgressPossible;
+      expect(npp.reason, contains('Death recovery limit'));
+    });
+
+    test('Death restarts activity after successful recovery', () {
+      final combatAction = testActions.combat('Chicken');
+      var state = GlobalState.empty(testRegistries);
+      state = state.startAction(combatAction, random: Random(42));
+
+      // Death boundary with action ID
+      final deathBoundary = Death(
+        actionId: combatAction.id,
+        // Lucky - no item lost
+        slotRolled: EquipmentSlot.weapon,
+      );
+
+      final result = handleBoundary(
+        state,
+        deathBoundary,
+        sellPolicy: const SellAllPolicy(),
+        random: Random(42),
+        currentAttempts: 0,
+        maxAttempts: 5,
+      );
+
+      expect(result.outcome, equals(RecoveryOutcome.recoveredRetry));
+      // Activity should be restarted
+      expect(result.state.activeAction?.id, equals(combatAction.id));
     });
 
     test('WaitConditionSatisfied signals completion', () {
@@ -846,6 +967,67 @@ void main() {
       // Should be completed, not replan due to limit
       expect(result.outcome, equals(RecoveryOutcome.completed));
       expect(result.boundary, isA<GoalReached>());
+    });
+  });
+
+  group('Death boundary structure', () {
+    test('Death boundary describe includes action and lost item', () {
+      final bronzeSword = testItems.byName('Bronze Sword');
+      final thievingAction = testActions.thieving('Man');
+
+      final death = Death(
+        actionId: thievingAction.id,
+        lostItem: ItemStack(bronzeSword, count: 1),
+        slotRolled: EquipmentSlot.weapon,
+      );
+
+      expect(death.describe(), contains('Player died'));
+      expect(death.describe(), contains('lost Bronze Sword'));
+      expect(death.describe(), contains('MAN')); // Action local ID is uppercase
+      expect(death.wasLucky, isFalse);
+    });
+
+    test('Death boundary wasLucky is true when slot empty', () {
+      final thievingAction = testActions.thieving('Man');
+
+      final death = Death(
+        actionId: thievingAction.id,
+        // No lostItem - slot was empty
+        slotRolled: EquipmentSlot.weapon,
+      );
+
+      expect(death.wasLucky, isTrue);
+      expect(death.describe(), contains('lucky'));
+    });
+
+    test('Death boundary with actionId only', () {
+      final thievingAction = testActions.thieving('Man');
+
+      final death = Death(actionId: thievingAction.id);
+
+      expect(death.describe(), contains('Player died'));
+      expect(death.describe(), contains('MAN')); // Action local ID is uppercase
+      expect(death.lostItem, isNull);
+      expect(death.slotRolled, isNull);
+    });
+
+    test('boundaryFromStopReason creates Death with parameters', () {
+      final bronzeSword = testItems.byName('Bronze Sword');
+      final thievingAction = testActions.thieving('Man');
+      final lostItem = ItemStack(bronzeSword, count: 1);
+
+      final boundary = boundaryFromStopReason(
+        ActionStopReason.playerDied,
+        actionId: thievingAction.id,
+        lostItem: lostItem,
+        slotRolled: EquipmentSlot.weapon,
+      );
+
+      expect(boundary, isA<Death>());
+      final death = boundary! as Death;
+      expect(death.actionId, equals(thievingAction.id));
+      expect(death.lostItem?.item, equals(bronzeSword));
+      expect(death.slotRolled, equals(EquipmentSlot.weapon));
     });
   });
 

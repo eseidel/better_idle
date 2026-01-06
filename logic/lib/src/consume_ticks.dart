@@ -355,6 +355,7 @@ class StateUpdateBuilder {
   ActionStopReason _stopReason = ActionStopReason.stillRunning;
   Tick _ticksElapsed = 0;
   Tick? _stoppedAtTick;
+  DeathPenaltyResult? _lastDeathPenalty;
 
   Registries get registries => _state.registries;
 
@@ -362,6 +363,7 @@ class StateUpdateBuilder {
   ActionStopReason get stopReason => _stopReason;
   Tick? get stoppedAtTick => _stoppedAtTick;
   Tick get ticksElapsed => _ticksElapsed;
+  DeathPenaltyResult? get lastDeathPenalty => _lastDeathPenalty;
 
   void addElapsedTicks(Tick ticks) {
     _ticksElapsed += ticks;
@@ -478,6 +480,7 @@ class StateUpdateBuilder {
   DeathPenaltyResult applyDeathPenalty(Random rng) {
     final result = _state.equipment.applyDeathPenalty(rng);
     _state = _state.copyWith(equipment: result.equipment);
+    _lastDeathPenalty = result;
 
     // Record the death occurrence
     _changes = _changes.recordingDeath();

@@ -15,6 +15,7 @@ import 'package:logic/src/solver/analysis/wait_for.dart';
 import 'package:logic/src/solver/core/solver.dart' show findProducersFor;
 import 'package:logic/src/solver/execution/state_advance.dart';
 import 'package:logic/src/state.dart';
+import 'package:logic/src/types/equipment.dart';
 import 'package:logic/src/types/time_away.dart';
 
 /// Result of consuming ticks until a goal is reached.
@@ -154,18 +155,17 @@ ConsumeUntilResult consumeUntil(
       if (builder.stopReason == ActionStopReason.playerDied) {
         deathCount++;
 
-        // Auto-restart the activity after death and continue (expected)
-        if (originalActivityId != null) {
-          final action = actionRegistry.byId(originalActivityId);
-          state = state.startAction(action, random: random);
-          continue; // Continue with restarted activity
-        }
-        // No activity to restart - return with death boundary
+        // Return Death boundary immediately with post-death state.
+        // The boundary resolver layer handles re-equip/food recovery.
         return ConsumeUntilResult(
           state: state,
           ticksElapsed: totalTicksElapsed,
           deathCount: deathCount,
-          boundary: const Death(),
+          boundary: Death(
+            actionId: originalActivityId,
+            lostItem: builder.lastDeathPenalty?.itemLost,
+            slotRolled: builder.lastDeathPenalty?.slotRolled,
+          ),
         );
       }
 
@@ -266,10 +266,15 @@ ReplanBoundary boundaryFromStopReason(
   ActionStopReason stopReason, {
   ActionId? actionId,
   MelvorId? missingItemId,
+  DeathPenaltyResult? deathPenalty,
 }) {
   return switch (stopReason) {
     ActionStopReason.stillRunning => const WaitConditionSatisfied(),
-    ActionStopReason.playerDied => const Death(),
+    ActionStopReason.playerDied => Death(
+      actionId: actionId,
+      lostItem: deathPenalty?.itemLost,
+      slotRolled: deathPenalty?.slotRolled,
+    ),
     ActionStopReason.outOfInputs =>
       actionId != null && missingItemId != null
           ? InputsDepleted(actionId: actionId, missingItemId: missingItemId)
