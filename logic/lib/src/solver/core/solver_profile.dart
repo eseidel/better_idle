@@ -1,9 +1,6 @@
 import 'dart:math';
 
 import 'package:collection/collection.dart';
-import 'package:logic/src/data/actions.dart';
-import 'package:logic/src/data/melvor_id.dart';
-import 'package:logic/src/solver/candidates/macro_candidate.dart';
 import 'package:meta/meta.dart';
 
 /// Reasons why bestRate might be zero.
@@ -298,16 +295,6 @@ class SolverProfileBuilder {
   int prereqCacheMisses = 0;
   final Map<String, int> prereqMacrosByType = {};
   final Map<String, int> blockedChainsByItem = {};
-
-  void recordPrereqMacro(MacroCandidate prereq) {
-    final key = prereq.runtimeType.toString();
-    prereqMacrosByType[key] = (prereqMacrosByType[key] ?? 0) + 1;
-  }
-
-  void recordBlockedChain(MelvorId itemId, Skill skill, int level) {
-    final key = '${itemId.localId} (${skill.name} L$level)';
-    blockedChainsByItem[key] = (blockedChainsByItem[key] ?? 0) + 1;
-  }
 
   void recordBestRate(double rate, {required bool isRoot}) {
     bestRateSamples.add(rate);

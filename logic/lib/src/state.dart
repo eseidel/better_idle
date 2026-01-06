@@ -664,60 +664,11 @@ class GlobalState {
   }
 
   GlobalState startAction(Action action, {required Random random}) {
-    if (isStunned) {
-      throw const StunnedException('Cannot start action while stunned');
-    }
-
-    final actionId = action.id;
-    int totalTicks;
-
-    if (action is SkillAction) {
-      final actionStateVal = actionState(actionId);
-      final selection = actionStateVal.recipeSelection(action);
-      final inputs = action.inputsForRecipe(selection);
-
-      // Validate that all required items are available for skill actions
-      for (final requirement in inputs.entries) {
-        final item = registries.items.byId(requirement.key);
-        final itemCount = inventory.countOfItem(item);
-        if (itemCount < requirement.value) {
-          throw Exception(
-            'Cannot start ${action.name}: Need ${requirement.value} '
-            '${requirement.key.name}, but only have $itemCount',
-          );
-        }
-      }
-      totalTicks = rollDurationWithModifiers(action, random, registries.shop);
-      return copyWith(
-        activeAction: ActiveAction(
-          id: actionId,
-          remainingTicks: totalTicks,
-          totalTicks: totalTicks,
-        ),
-      );
-    } else if (action is CombatAction) {
-      // Combat actions don't have inputs or duration-based completion.
-      // The tick represents the time until the first player attack.
-      final pStats = playerStats(this);
-      totalTicks = ticksFromDuration(
-        Duration(milliseconds: (pStats.attackSpeed * 1000).round()),
-      );
-      // Initialize combat state with the combat action, starting with respawn
-      final combatState = CombatActionState.start(action, pStats);
-      final newActionStates = Map<ActionId, ActionState>.from(actionStates);
-      final existingState = actionState(actionId);
-      newActionStates[actionId] = existingState.copyWith(combat: combatState);
-      return copyWith(
-        activeAction: ActiveAction(
-          id: actionId,
-          remainingTicks: totalTicks,
-          totalTicks: totalTicks,
-        ),
-        actionStates: newActionStates,
-      );
-    } else {
-      throw Exception('Unknown action type: ${action.runtimeType}');
-    }
+    return _startActionImpl(
+      action,
+      skillDuration: (a) =>
+          rollDurationWithModifiers(a, random, registries.shop),
+    );
   }
 
   /// Starts an action using deterministic mean duration (no randomness).
@@ -725,6 +676,16 @@ class GlobalState {
   /// Used during planning/solver to get consistent state projections.
   /// For actual gameplay execution, use [startAction] instead.
   GlobalState startActionDeterministic(Action action) {
+    return _startActionImpl(
+      action,
+      skillDuration: _meanDurationWithModifiers,
+    );
+  }
+
+  GlobalState _startActionImpl(
+    Action action, {
+    required int Function(SkillAction) skillDuration,
+  }) {
     if (isStunned) {
       throw const StunnedException('Cannot start action while stunned');
     }
@@ -748,8 +709,7 @@ class GlobalState {
           );
         }
       }
-      // Use mean duration instead of rolling
-      totalTicks = _meanDurationWithModifiers(action);
+      totalTicks = skillDuration(action);
       return copyWith(
         activeAction: ActiveAction(
           id: actionId,
