@@ -1764,12 +1764,6 @@ class SegmentSuccess extends SegmentResult {
 
   /// Solver profile for this segment (if collectDiagnostics was true).
   final SolverProfile? profile;
-
-  /// The WatchSet used for this segment (pass to executeSegment).
-  WatchSet get watchSet => context.watchSet;
-
-  /// The SellPolicy for this segment (use for boundary handling).
-  SellPolicy get sellPolicy => context.sellPolicy;
 }
 
 /// Segment solve failed.
@@ -1867,9 +1861,6 @@ class SegmentExecutionResult {
 
   /// Number of deaths during execution.
   final int deaths;
-
-  /// Difference between actual and planned ticks.
-  int get ticksDelta => actualTicks - plannedTicks;
 }
 
 /// Executes a segment with stochastic simulation.
@@ -1936,7 +1927,8 @@ SegmentExecutionResult executeSegment(
 ///
 /// Uses the SAME sellPolicy that detected the boundary for consistency.
 /// Records a synthetic segment for the sell+buy interactions.
-GlobalState _executeUpgradeRecovery(
+@visibleForTesting
+GlobalState executeUpgradeRecovery(
   GlobalState state,
   MelvorId purchaseId,
   SellPolicy sellPolicy,
@@ -2007,7 +1999,8 @@ GlobalState _executeUpgradeRecovery(
 ///
 /// Uses the SAME sellPolicy that detected the boundary for consistency.
 /// Records a synthetic segment for the sell interaction.
-GlobalState _executeInventoryRecovery(
+@visibleForTesting
+GlobalState executeInventoryRecovery(
   GlobalState state,
   SellPolicy sellPolicy,
   Random random,
@@ -2129,7 +2122,7 @@ ReplanExecutionResult solveWithReplanning(
     final segmentContext = SegmentContext.build(
       currentState,
       goal,
-      const SegmentConfig(),
+      config.segmentConfig,
     );
     final segmentSellPolicy = segmentContext.sellPolicy;
 
@@ -2229,7 +2222,7 @@ ReplanExecutionResult solveWithReplanning(
 
     // Recovery 1: UpgradeAffordableEarly - sell if needed, then buy
     if (triggeringBoundary is UpgradeAffordableEarly) {
-      final recoveryResult = _executeUpgradeRecovery(
+      final recoveryResult = executeUpgradeRecovery(
         currentState,
         triggeringBoundary.purchaseId,
         segmentSellPolicy,
@@ -2241,7 +2234,7 @@ ReplanExecutionResult solveWithReplanning(
 
     // Recovery 2: InventoryPressure - sell per policy
     if (triggeringBoundary is InventoryPressure) {
-      final recoveryResult = _executeInventoryRecovery(
+      final recoveryResult = executeInventoryRecovery(
         currentState,
         segmentSellPolicy,
         random,

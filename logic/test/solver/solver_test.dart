@@ -1696,6 +1696,158 @@ void main() {
     });
   });
 
+  group('executeUpgradeRecovery', () {
+    test('sells items and buys upgrade when GP insufficient', () {
+      // Setup: Start with GP below Iron Axe cost (50 GP) but with items
+      // that can be sold to afford it.
+      final logs = testItems.byName('Normal Logs');
+      final inventory = Inventory.fromItems(testItems, [
+        ItemStack(logs, count: 100), // Worth 100 GP when sold (sell for 1 each)
+      ]);
+      // Start with 40 GP - need to sell 10 logs to afford Iron Axe (50 GP)
+      final state = GlobalState.test(
+        testRegistries,
+        gp: 40,
+        inventory: inventory,
+      );
+
+      const ironAxeId = MelvorId('melvorD:Iron_Axe');
+      const sellPolicy = SellAllPolicy();
+      final segments = <ReplanSegmentResult>[];
+
+      final resultState = executeUpgradeRecovery(
+        state,
+        ironAxeId,
+        sellPolicy,
+        Random(42),
+        segments,
+      );
+
+      // Should have purchased Iron Axe
+      expect(resultState.shop.purchaseCount(ironAxeId), 1);
+
+      // Should have sold all logs (inventory empty)
+      expect(resultState.inventory.countById(logs.id), 0);
+
+      // GP should be: 40 (initial) + 100 (sold logs) - 50 (Iron Axe) = 90
+      expect(resultState.gp, 90);
+
+      // Should have recorded a synthetic recovery segment
+      expect(segments.length, 1);
+      expect(segments[0].plannedTicks, 0);
+      expect(segments[0].actualTicks, 0);
+      expect(segments[0].replanBoundary, isA<UpgradeAffordableEarly>());
+
+      // Recovery segment should have 2 steps: sell + buy
+      expect(segments[0].steps.length, 2);
+      expect(segments[0].steps[0], isA<InteractionStep>());
+      expect(segments[0].steps[1], isA<InteractionStep>());
+    });
+
+    test('buys upgrade directly when GP sufficient', () {
+      // Setup: Start with enough GP to buy Iron Axe (50 GP) directly
+      final state = GlobalState.test(testRegistries, gp: 100);
+
+      const ironAxeId = MelvorId('melvorD:Iron_Axe');
+      const sellPolicy = SellAllPolicy();
+      final segments = <ReplanSegmentResult>[];
+
+      final resultState = executeUpgradeRecovery(
+        state,
+        ironAxeId,
+        sellPolicy,
+        Random(42),
+        segments,
+      );
+
+      // Should have purchased Iron Axe
+      expect(resultState.shop.purchaseCount(ironAxeId), 1);
+
+      // GP should be: 100 - 50 = 50
+      expect(resultState.gp, 50);
+
+      // Should have recorded a synthetic recovery segment
+      expect(segments.length, 1);
+
+      // Recovery segment should have only 1 step: buy (no sell needed)
+      expect(segments[0].steps.length, 1);
+      expect(segments[0].steps[0], isA<InteractionStep>());
+    });
+  });
+
+  group('executeInventoryRecovery', () {
+    test('sells items per policy and records recovery segment', () {
+      // Setup: Create an inventory with items to sell
+      final logs = testItems.byName('Normal Logs');
+      final oak = testItems.byName('Oak Logs');
+      final inventory = Inventory.fromItems(testItems, [
+        ItemStack(logs, count: 50), // Worth 50 GP
+        ItemStack(oak, count: 20), // Worth 100 GP (5 each)
+      ]);
+      final state = GlobalState.test(testRegistries, inventory: inventory);
+
+      const sellPolicy = SellAllPolicy();
+      final segments = <ReplanSegmentResult>[];
+
+      final resultState = executeInventoryRecovery(
+        state,
+        sellPolicy,
+        Random(42),
+        segments,
+      );
+
+      // Should have sold all items
+      expect(resultState.inventory.items, isEmpty);
+
+      // GP should be: 50 (logs) + 100 (oak) = 150
+      expect(resultState.gp, 150);
+
+      // Should have recorded a synthetic recovery segment
+      expect(segments.length, 1);
+      expect(segments[0].plannedTicks, 0);
+      expect(segments[0].actualTicks, 0);
+      expect(segments[0].replanBoundary, isA<InventoryPressure>());
+
+      // Recovery segment should have 1 step: sell
+      expect(segments[0].steps.length, 1);
+      expect(segments[0].steps[0], isA<InteractionStep>());
+    });
+
+    test('uses sell policy to determine what to sell', () {
+      // Setup: Create an inventory with items, use policy that keeps some
+      final logs = testItems.byName('Normal Logs');
+      final oak = testItems.byName('Oak Logs');
+      final inventory = Inventory.fromItems(testItems, [
+        ItemStack(logs, count: 50), // Worth 50 GP
+        ItemStack(oak, count: 20), // Worth 100 GP (5 each)
+      ]);
+      final state = GlobalState.test(testRegistries, inventory: inventory);
+
+      // Keep logs, sell oak
+      final sellPolicy = SellExceptPolicy({logs.id});
+      final segments = <ReplanSegmentResult>[];
+
+      final resultState = executeInventoryRecovery(
+        state,
+        sellPolicy,
+        Random(42),
+        segments,
+      );
+
+      // Should still have logs
+      expect(resultState.inventory.countById(logs.id), 50);
+
+      // Oak should be sold
+      expect(resultState.inventory.countById(oak.id), 0);
+
+      // GP should be: 100 (oak only)
+      expect(resultState.gp, 100);
+
+      // Should have recorded a synthetic recovery segment
+      expect(segments.length, 1);
+    });
+  });
+
   group('executeSegment with boundary detection', () {
     test('detects upgrade affordable boundary during segment execution', () {
       // Setup: Start with GP just below Iron Axe cost (50 GP)

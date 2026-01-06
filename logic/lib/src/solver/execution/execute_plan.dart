@@ -9,6 +9,7 @@ import 'package:logic/src/data/actions.dart' show Skill;
 import 'package:logic/src/solver/analysis/estimate_rates.dart';
 import 'package:logic/src/solver/analysis/replan_boundary.dart';
 import 'package:logic/src/solver/analysis/unlock_boundaries.dart';
+import 'package:logic/src/solver/analysis/watch_set.dart' show SegmentConfig;
 import 'package:logic/src/solver/candidates/macro_candidate.dart';
 import 'package:logic/src/solver/core/goal.dart';
 import 'package:logic/src/solver/core/solver_profile.dart';
@@ -318,6 +319,7 @@ class ReplanConfig {
     this.maxReplans = 10,
     this.maxTotalTicks = 1000000,
     this.logReplans = false,
+    this.segmentConfig = const SegmentConfig(),
   });
 
   /// Maximum number of replans allowed per run.
@@ -334,6 +336,12 @@ class ReplanConfig {
 
   /// Whether to log replan events for debugging.
   final bool logReplans;
+
+  /// Configuration for segment stopping behavior.
+  ///
+  /// Controls when segments stop for replanning (e.g., when upgrades
+  /// become affordable, when inventory pressure is high).
+  final SegmentConfig segmentConfig;
 }
 
 /// Tracks state across replanning cycles.
