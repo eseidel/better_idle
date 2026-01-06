@@ -676,10 +676,7 @@ class GlobalState {
   /// Used during planning/solver to get consistent state projections.
   /// For actual gameplay execution, use [startAction] instead.
   GlobalState startActionDeterministic(Action action) {
-    return _startActionImpl(
-      action,
-      skillDuration: _meanDurationWithModifiers,
-    );
+    return _startActionImpl(action, skillDuration: _meanDurationWithModifiers);
   }
 
   GlobalState _startActionImpl(
