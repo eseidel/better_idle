@@ -28,6 +28,7 @@ import 'package:logic/src/solver/candidates/macro_execute_context.dart';
 import 'package:logic/src/solver/candidates/macro_plan_context.dart';
 import 'package:logic/src/solver/core/goal.dart' show ReachSkillLevelGoal;
 import 'package:logic/src/solver/execution/consume_until.dart';
+import 'package:logic/src/solver/execution/plan.dart' show StepResult;
 import 'package:logic/src/solver/execution/prerequisites.dart'
     show
         ExecNeedsMacros,
@@ -208,7 +209,7 @@ sealed class MacroCandidate {
   ///
   /// - [context]: Execution context containing state, wait condition, RNG,
   ///   boundaries, and policies.
-  MacroExecuteResult execute(MacroExecuteContext context);
+  StepResult execute(MacroExecuteContext context);
 
   /// Serializes this [MacroCandidate] to a JSON-compatible map.
   Map<String, dynamic> toJson();
@@ -403,7 +404,7 @@ class TrainSkillUntil extends MacroCandidate {
   };
 
   @override
-  MacroExecuteResult execute(MacroExecuteContext context) {
+  StepResult execute(MacroExecuteContext context) {
     // Use the action that was determined during planning
     final actionToUse =
         actionId ??
@@ -430,23 +431,17 @@ class TrainSkillUntil extends MacroCandidate {
 
     // Execute with mid-macro boundary checking if watchSet provided
     if (context.watchSet != null) {
-      final stepResult = executeTrainSkillWithBoundaryChecks(
+      return executeTrainSkillWithBoundaryChecks(
         state,
         waitFor,
         context.random,
         context.watchSet!,
       );
-      return MacroExecuteResult(
-        state: stepResult.state,
-        ticksElapsed: stepResult.ticksElapsed,
-        deaths: stepResult.deaths,
-        boundary: stepResult.boundary,
-      );
     }
 
     // Simple execution without boundary checking
     final result = consumeUntil(state, waitFor, random: context.random);
-    return MacroExecuteResult(
+    return StepResult(
       state: result.state,
       ticksElapsed: result.ticksElapsed,
       deaths: result.deathCount,
@@ -591,14 +586,14 @@ class AcquireItem extends MacroCandidate {
   };
 
   @override
-  MacroExecuteResult execute(MacroExecuteContext context) {
+  StepResult execute(MacroExecuteContext context) {
     var state = context.state;
     final startCount = countItem(state, itemId);
 
     const goal = ReachSkillLevelGoal(Skill.mining, 99); // Placeholder goal
     final producer = findProducerActionForItem(state, itemId, goal);
     if (producer == null) {
-      return MacroExecuteResult(
+      return StepResult(
         state: state,
         boundary: NoProgressPossible(reason: 'No producer for $itemId'),
       );
@@ -621,7 +616,7 @@ class AcquireItem extends MacroCandidate {
     );
     final result = consumeUntil(state, waitFor, random: context.random);
 
-    return MacroExecuteResult(
+    return StepResult(
       state: result.state,
       ticksElapsed: result.ticksElapsed,
       deaths: result.deathCount,
@@ -870,7 +865,7 @@ class EnsureStock extends MacroCandidate {
   };
 
   @override
-  MacroExecuteResult execute(MacroExecuteContext context) {
+  StepResult execute(MacroExecuteContext context) {
     // Handles inventory full by selling and continuing in a loop
     var state = context.state;
     var totalTicks = 0;
@@ -879,7 +874,7 @@ class EnsureStock extends MacroCandidate {
     while (true) {
       // If we already have enough, done
       if (countItem(state, itemId) >= minTotal) {
-        return MacroExecuteResult(
+        return StepResult(
           state: state,
           ticksElapsed: totalTicks,
           deaths: totalDeaths,
@@ -890,7 +885,7 @@ class EnsureStock extends MacroCandidate {
       const goal = ReachSkillLevelGoal(Skill.mining, 99);
       final producer = findProducerActionForItem(state, itemId, goal);
       if (producer == null) {
-        return MacroExecuteResult(
+        return StepResult(
           state: state,
           ticksElapsed: totalTicks,
           deaths: totalDeaths,
@@ -907,7 +902,7 @@ class EnsureStock extends MacroCandidate {
             random: context.random,
           );
         } on Exception catch (e) {
-          return MacroExecuteResult(
+          return StepResult(
             state: state,
             ticksElapsed: totalTicks,
             deaths: totalDeaths,
@@ -931,7 +926,7 @@ class EnsureStock extends MacroCandidate {
       // Check if we hit inventory full - sell and continue
       if (result.boundary is InventoryFull) {
         if (!_canSellToFreeSpace(context, state)) {
-          return MacroExecuteResult(
+          return StepResult(
             state: state,
             ticksElapsed: totalTicks,
             deaths: totalDeaths,
@@ -951,7 +946,7 @@ class EnsureStock extends MacroCandidate {
       }
 
       // For any other boundary or success, return
-      return MacroExecuteResult(
+      return StepResult(
         state: state,
         ticksElapsed: totalTicks,
         deaths: totalDeaths,
@@ -1041,7 +1036,7 @@ class ProduceItem extends MacroCandidate {
   };
 
   @override
-  MacroExecuteResult execute(MacroExecuteContext context) {
+  StepResult execute(MacroExecuteContext context) {
     var state = context.state;
     var totalTicks = 0;
     var totalDeaths = 0;
@@ -1055,7 +1050,7 @@ class ProduceItem extends MacroCandidate {
           random: context.random,
         );
       } on Exception catch (e) {
-        return MacroExecuteResult(
+        return StepResult(
           state: state,
           boundary: NoProgressPossible(
             reason: 'Cannot switch to producer $actionId: $e',
@@ -1069,7 +1064,7 @@ class ProduceItem extends MacroCandidate {
     while (true) {
       // If we already have enough, done
       if (countItem(state, itemId) >= minTotal) {
-        return MacroExecuteResult(
+        return StepResult(
           state: state,
           ticksElapsed: totalTicks,
           deaths: totalDeaths,
@@ -1086,7 +1081,7 @@ class ProduceItem extends MacroCandidate {
       // Check if we hit inventory full - sell and continue
       if (result.boundary is InventoryFull) {
         if (!_canSellToFreeSpace(context, state)) {
-          return MacroExecuteResult(
+          return StepResult(
             state: state,
             ticksElapsed: totalTicks,
             deaths: totalDeaths,
@@ -1106,7 +1101,7 @@ class ProduceItem extends MacroCandidate {
       }
 
       // For any other boundary or success, return
-      return MacroExecuteResult(
+      return StepResult(
         state: state,
         ticksElapsed: totalTicks,
         deaths: totalDeaths,
@@ -1659,14 +1654,8 @@ class TrainConsumingSkillUntil extends MacroCandidate {
   };
 
   @override
-  MacroExecuteResult execute(MacroExecuteContext context) {
-    final stepResult = executeCoupledLoop(context, this);
-    return MacroExecuteResult(
-      state: stepResult.state,
-      ticksElapsed: stepResult.ticksElapsed,
-      deaths: stepResult.deaths,
-      boundary: stepResult.boundary,
-    );
+  StepResult execute(MacroExecuteContext context) {
+    return executeCoupledLoop(context, this);
   }
 }
 
@@ -1930,37 +1919,4 @@ class MacroNeedsBoundary extends MacroPlanOutcome {
 
   /// Optional explanation for debugging.
   final String? message;
-}
-
-// ---------------------------------------------------------------------------
-// Macro Execute Result (Execution Time)
-// ---------------------------------------------------------------------------
-
-/// Result of executing a macro with stochastic simulation.
-///
-/// This is the execution-time counterpart to [MacroPlanResult], which
-/// uses expected-value modeling for planning. [MacroExecuteResult] contains
-/// actual simulation results with randomness.
-class MacroExecuteResult {
-  const MacroExecuteResult({
-    required this.state,
-    this.ticksElapsed = 0,
-    this.deaths = 0,
-    this.boundary,
-  });
-
-  /// The game state after executing the macro.
-  final GlobalState state;
-
-  /// Number of ticks elapsed during macro execution.
-  final int ticksElapsed;
-
-  /// Number of deaths that occurred during macro execution.
-  final int deaths;
-
-  /// The boundary hit during execution, if any.
-  ///
-  /// Null means normal completion. Various boundary types indicate
-  /// different outcomes (goal reached, inputs depleted, etc.).
-  final ReplanBoundary? boundary;
 }

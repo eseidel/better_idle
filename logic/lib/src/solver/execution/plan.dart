@@ -298,13 +298,7 @@ class MacroStep extends PlanStep {
       watchSet: watchSet,
       segmentSellPolicy: segmentSellPolicy,
     );
-    final result = macro.execute(context);
-    return StepResult(
-      state: result.state,
-      ticksElapsed: result.ticksElapsed,
-      deaths: result.deaths,
-      boundary: result.boundary,
-    );
+    return macro.execute(context);
   }
 
   @override
