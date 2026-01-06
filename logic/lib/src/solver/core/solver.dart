@@ -604,7 +604,7 @@ class ConsumeUntilResult {
 /// - Sorted by production rate (prefer faster producers)
 ///
 /// Returns empty list if no suitable producers exist.
-List<SkillAction> _findProducersFor(
+List<SkillAction> findProducersFor(
   GlobalState state,
   SkillAction consumingAction,
   ActionRegistry actionRegistry,
@@ -755,7 +755,7 @@ ConsumeUntilResult consumeUntil(
         // Check if this is a consuming action (has inputs)
         if (currentAction is SkillAction && currentAction.inputs.isNotEmpty) {
           // Find producers for the inputs this action needs
-          final producers = _findProducersFor(
+          final producers = findProducersFor(
             state,
             currentAction,
             state.registries.actions,

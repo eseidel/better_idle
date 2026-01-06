@@ -12,6 +12,7 @@ import 'package:logic/src/data/actions.dart';
 import 'package:logic/src/data/melvor_id.dart';
 import 'package:logic/src/solver/analysis/replan_boundary.dart';
 import 'package:logic/src/solver/analysis/wait_for.dart';
+import 'package:logic/src/solver/core/solver.dart' show findProducersFor;
 import 'package:logic/src/solver/execution/state_advance.dart';
 import 'package:logic/src/state.dart';
 import 'package:logic/src/types/time_away.dart';
@@ -37,66 +38,6 @@ class ConsumeUntilResult {
   /// Expected boundaries (like [InputsDepleted]) are part of normal online
   /// execution. Unexpected boundaries may indicate bugs.
   final ReplanBoundary? boundary;
-}
-
-/// Finds actions that produce the input items for a consuming action.
-///
-/// Returns a list of producer actions that:
-/// - Output at least one of the consuming action's required inputs
-/// - Can be started with current resources
-/// - Are unlocked (player meets level requirements for the producer skill)
-/// - Sorted by production rate (prefer faster producers)
-///
-/// Returns empty list if no suitable producers exist.
-List<SkillAction> findProducersFor(
-  GlobalState state,
-  SkillAction consumingAction,
-  ActionRegistry actionRegistry,
-) {
-  final producers = <SkillAction>[];
-
-  // For each input item the consumer needs
-  for (final inputItemId in consumingAction.inputs.keys) {
-    // Find all actions that output this item
-    for (final action in actionRegistry.all) {
-      if (action is! SkillAction) continue;
-      if (!action.outputs.containsKey(inputItemId)) continue;
-
-      // Check if producer is unlocked for its skill
-      final producerSkillLevel = state.skillState(action.skill).skillLevel;
-      if (action.unlockLevel > producerSkillLevel) continue;
-
-      // Check if we can start this producer (has no missing inputs)
-      if (!state.canStartAction(action)) continue;
-
-      producers.add(action);
-    }
-  }
-
-  // Sort by production rate (items per tick) for the required input
-  producers.sort((a, b) {
-    // Get the required input item (same for both since they produce it)
-    final inputItemId = consumingAction.inputs.keys.first;
-
-    // Calculate production rate for action a
-    final aOutputCount = a.outputs[inputItemId] ?? 0;
-    final aTicksPerAction =
-        (a.minDuration.inMilliseconds / Duration.millisecondsPerSecond * 10)
-            .round();
-    final aRate = aOutputCount / aTicksPerAction;
-
-    // Calculate production rate for action b
-    final bOutputCount = b.outputs[inputItemId] ?? 0;
-    final bTicksPerAction =
-        (b.minDuration.inMilliseconds / Duration.millisecondsPerSecond * 10)
-            .round();
-    final bRate = bOutputCount / bTicksPerAction;
-
-    // Higher rate is better
-    return bRate.compareTo(aRate);
-  });
-
-  return producers;
 }
 
 /// Advances state until a condition is satisfied.
