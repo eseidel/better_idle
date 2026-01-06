@@ -23,6 +23,8 @@ import 'package:logic/src/data/action_id.dart';
 import 'package:logic/src/data/actions.dart';
 import 'package:logic/src/data/melvor_id.dart';
 import 'package:logic/src/data/xp.dart';
+import 'package:logic/src/solver/analysis/next_decision_delta.dart'
+    show infTicks;
 import 'package:logic/src/solver/core/value_model.dart' show ValueModel;
 import 'package:logic/src/state.dart';
 import 'package:logic/src/tick.dart';
@@ -82,6 +84,26 @@ class Rates {
 
   /// The name of the action these rates are for (for mastery tracking).
   final ActionId? actionId;
+
+  /// Computes ticks to produce [needed] units at [rate] per tick.
+  ///
+  /// Returns 0 if already satisfied ([needed] <= 0).
+  /// Returns [infTicks] if [rate] is zero or negative (impossible to produce).
+  int ticksForRate(num needed, double rate) {
+    if (needed <= 0) return 0;
+    if (rate <= 0) return infTicks;
+    return (needed / rate).ceil();
+  }
+
+  /// Computes ticks until inventory fills given current [freeSlots].
+  ///
+  /// Returns 0 if already full ([freeSlots] <= 0).
+  /// Returns [infTicks] if no new item types are being produced.
+  int ticksUntilInventoryFull(int freeSlots) {
+    if (freeSlots <= 0) return 0;
+    if (itemTypesPerTick <= 0) return infTicks;
+    return (freeSlots / itemTypesPerTick).floor();
+  }
 }
 
 /// Computes the expected ticks until death for thieving.
