@@ -15,6 +15,11 @@ void main() {
       const boundary = GoalReached();
       expect(boundary.isExpected, isTrue);
     });
+
+    test('causesReplan is false', () {
+      const boundary = GoalReached();
+      expect(boundary.causesReplan, isFalse);
+    });
   });
 
   group('InputsDepleted', () {
@@ -34,6 +39,14 @@ void main() {
       );
       expect(boundary.isExpected, isTrue);
     });
+
+    test('causesReplan is true', () {
+      final boundary = InputsDepleted(
+        actionId: ActionId.test(Skill.firemaking, 'Burn Oak Logs'),
+        missingItemId: const MelvorId('melvorD:Oak_Logs'),
+      );
+      expect(boundary.causesReplan, isTrue);
+    });
   });
 
   group('InventoryFull', () {
@@ -45,6 +58,11 @@ void main() {
     test('isExpected is true', () {
       const boundary = InventoryFull();
       expect(boundary.isExpected, isTrue);
+    });
+
+    test('causesReplan is true', () {
+      const boundary = InventoryFull();
+      expect(boundary.causesReplan, isTrue);
     });
   });
 
@@ -58,6 +76,11 @@ void main() {
       const boundary = Death();
       expect(boundary.isExpected, isTrue);
     });
+
+    test('causesReplan is false', () {
+      const boundary = Death();
+      expect(boundary.causesReplan, isFalse);
+    });
   });
 
   group('WaitConditionSatisfied', () {
@@ -69,6 +92,11 @@ void main() {
     test('isExpected is true', () {
       const boundary = WaitConditionSatisfied();
       expect(boundary.isExpected, isTrue);
+    });
+
+    test('causesReplan is false', () {
+      const boundary = WaitConditionSatisfied();
+      expect(boundary.causesReplan, isFalse);
     });
   });
 
@@ -86,6 +114,13 @@ void main() {
       );
       expect(boundary.isExpected, isTrue);
     });
+
+    test('causesReplan is false', () {
+      const boundary = UpgradeAffordableEarly(
+        purchaseId: MelvorId('melvorD:Auto_Eat_Tier_I'),
+      );
+      expect(boundary.causesReplan, isFalse);
+    });
   });
 
   group('UnexpectedUnlock', () {
@@ -101,6 +136,13 @@ void main() {
         actionId: ActionId.test(Skill.woodcutting, 'Cut Oak'),
       );
       expect(boundary.isExpected, isTrue);
+    });
+
+    test('causesReplan is true', () {
+      final boundary = UnexpectedUnlock(
+        actionId: ActionId.test(Skill.woodcutting, 'Cut Oak'),
+      );
+      expect(boundary.causesReplan, isTrue);
     });
   });
 
@@ -123,6 +165,15 @@ void main() {
         available: 1000,
       );
       expect(boundary.isExpected, isFalse);
+    });
+
+    test('causesReplan is true', () {
+      const boundary = CannotAfford(
+        purchaseId: MelvorId('melvorD:Auto_Eat_Tier_I'),
+        cost: 5000,
+        available: 1000,
+      );
+      expect(boundary.causesReplan, isTrue);
     });
   });
 
@@ -157,6 +208,13 @@ void main() {
       );
       expect(boundary.isExpected, isFalse);
     });
+
+    test('causesReplan is true', () {
+      final boundary = ActionUnavailable(
+        actionId: ActionId.test(Skill.woodcutting, 'Cut Oak'),
+      );
+      expect(boundary.causesReplan, isTrue);
+    });
   });
 
   group('NoProgressPossible', () {
@@ -174,6 +232,11 @@ void main() {
       const boundary = NoProgressPossible();
       expect(boundary.isExpected, isFalse);
     });
+
+    test('causesReplan is true', () {
+      const boundary = NoProgressPossible();
+      expect(boundary.causesReplan, isTrue);
+    });
   });
 
   group('PlannedSegmentStop', () {
@@ -186,6 +249,11 @@ void main() {
     test('isExpected is true', () {
       const boundary = PlannedSegmentStop('test');
       expect(boundary.isExpected, isTrue);
+    });
+
+    test('causesReplan is true', () {
+      const boundary = PlannedSegmentStop('test');
+      expect(boundary.causesReplan, isTrue);
     });
   });
 
@@ -215,6 +283,11 @@ void main() {
       const boundary = UnlockObserved();
       expect(boundary.isExpected, isTrue);
     });
+
+    test('causesReplan is true', () {
+      const boundary = UnlockObserved();
+      expect(boundary.causesReplan, isTrue);
+    });
   });
 
   group('InventoryPressure', () {
@@ -232,6 +305,48 @@ void main() {
     test('isExpected is true', () {
       const boundary = InventoryPressure(usedSlots: 18, totalSlots: 20);
       expect(boundary.isExpected, isTrue);
+    });
+
+    test('causesReplan is true', () {
+      const boundary = InventoryPressure(usedSlots: 18, totalSlots: 20);
+      expect(boundary.causesReplan, isTrue);
+    });
+  });
+
+  group('ReplanLimitExceeded', () {
+    test('describe includes limit', () {
+      const boundary = ReplanLimitExceeded(10);
+      expect(boundary.describe(), contains('10'));
+      expect(boundary.describe(), contains('exceeded'));
+    });
+
+    test('isExpected is false', () {
+      const boundary = ReplanLimitExceeded(10);
+      expect(boundary.isExpected, isFalse);
+    });
+
+    test('causesReplan is false', () {
+      const boundary = ReplanLimitExceeded(10);
+      expect(boundary.causesReplan, isFalse);
+    });
+  });
+
+  group('TimeBudgetExceeded', () {
+    test('describe includes budget and actual', () {
+      const boundary = TimeBudgetExceeded(1000, 1500);
+      expect(boundary.describe(), contains('1000'));
+      expect(boundary.describe(), contains('1500'));
+      expect(boundary.describe(), contains('exceeded'));
+    });
+
+    test('isExpected is false', () {
+      const boundary = TimeBudgetExceeded(1000, 1500);
+      expect(boundary.isExpected, isFalse);
+    });
+
+    test('causesReplan is false', () {
+      const boundary = TimeBudgetExceeded(1000, 1500);
+      expect(boundary.causesReplan, isFalse);
     });
   });
 
