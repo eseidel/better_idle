@@ -5,6 +5,7 @@ import 'package:logic/src/data/melvor_id.dart';
 import 'package:logic/src/types/drop.dart';
 import 'package:logic/src/types/equipment_slot.dart';
 import 'package:logic/src/types/inventory.dart';
+import 'package:logic/src/types/modifier.dart';
 import 'package:meta/meta.dart';
 
 /// An entry in a drop table from the Melvor JSON data.
@@ -100,6 +101,7 @@ class Item extends Equatable {
     this.dropTable,
     this.media,
     this.validSlots = const [],
+    this.modifiers = const ModifierDataSet([]),
   });
 
   /// Creates a simple test item with minimal required fields.
@@ -119,7 +121,8 @@ class Item extends Equatable {
        description = null,
        dropTable = null,
        media = null,
-       validSlots = const [];
+       validSlots = const [],
+       modifiers = const ModifierDataSet([]);
 
   /// Creates an Item from a JSON map.
   factory Item.fromJson(
@@ -167,6 +170,12 @@ class Item extends Equatable {
       defaultNamespace: namespace,
     );
 
+    // Parse modifiers if present.
+    final modifiersJson = json['modifiers'] as Map<String, dynamic>?;
+    final modifiers = modifiersJson != null
+        ? ModifierDataSet.fromJson(modifiersJson, namespace: namespace)
+        : const ModifierDataSet([]);
+
     return Item(
       id: id,
       name: json['name'] as String,
@@ -181,6 +190,7 @@ class Item extends Equatable {
       media: media,
       validSlots: validSlots,
       description: json['customDescription'] as String?,
+      modifiers: modifiers,
     );
   }
 
@@ -224,6 +234,10 @@ class Item extends Equatable {
   /// Empty list means the item cannot be equipped.
   final List<EquipmentSlot> validSlots;
 
+  /// The modifiers this item provides when equipped.
+  /// Empty set means no modifiers.
+  final ModifierDataSet modifiers;
+
   /// Whether this item can be consumed for healing.
   bool get isConsumable => healsFor != null;
 
@@ -260,6 +274,7 @@ class Item extends Equatable {
     media,
     validSlots,
     description,
+    modifiers,
   ];
 }
 

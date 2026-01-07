@@ -476,7 +476,7 @@ void main() {
       final costs = glovesPurchase.cost.currencyCosts(bankSlotsPurchased: 0);
       final gpCost = costs.firstWhere((c) => c.$1 == Currency.gp).$2;
 
-      var state = GlobalState.test(testRegistries, gp: gpCost);
+      final state = GlobalState.test(testRegistries, gp: gpCost);
 
       // Verify starting conditions
       expect(state.inventory.countOfItem(glovesItem), 0);

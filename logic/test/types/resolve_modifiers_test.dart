@@ -662,4 +662,188 @@ void main() {
       expect(ticks, 25);
     });
   });
+
+  group('equipment modifiers', () {
+    test('equipped item modifiers are applied to action duration', () {
+      // Create a fishing amulet with -15% skillInterval for fishing
+      final fishingAmulet = Item(
+        id: const MelvorId('test:FishingAmulet'),
+        name: 'Fishing Amulet',
+        itemType: 'Equipment',
+        sellsFor: 100000,
+        validSlots: const [EquipmentSlot.amulet],
+        modifiers: ModifierDataSet([
+          ModifierData(
+            name: 'skillInterval',
+            entries: [
+              ModifierEntry(
+                value: -15, // -15%
+                scope: ModifierScope(skillId: Skill.fishing.id),
+              ),
+            ],
+          ),
+        ]),
+      );
+
+      final registries = Registries.test(items: [fishingAmulet]);
+
+      // 3 second fishing action = 30 ticks
+      final fishingAction = SkillAction(
+        id: ActionId.test(Skill.fishing, 'TestFish'),
+        skill: Skill.fishing,
+        name: 'Catch Test Fish',
+        duration: const Duration(seconds: 3),
+        xp: 10,
+        unlockLevel: 1,
+      );
+
+      final random = Random(42);
+
+      // Without equipment, duration is 30 ticks
+      final stateNoEquipment = GlobalState.test(registries);
+      final ticksNoEquipment = stateNoEquipment.rollDurationWithModifiers(
+        fishingAction,
+        random,
+        registries.shop,
+      );
+      expect(ticksNoEquipment, 30);
+
+      // With fishing amulet equipped, duration is reduced by 15%
+      // 30 * 0.85 = 25.5, rounds to 26 ticks
+      final (equipment, _) = const Equipment.empty().equipGear(
+        fishingAmulet,
+        EquipmentSlot.amulet,
+      );
+      final stateWithAmulet = GlobalState.test(
+        registries,
+        equipment: equipment,
+      );
+      final ticksWithAmulet = stateWithAmulet.rollDurationWithModifiers(
+        fishingAction,
+        random,
+        registries.shop,
+      );
+      expect(ticksWithAmulet, 26);
+    });
+
+    test('equipment modifier is removed when item is unequipped', () {
+      // Create a fishing amulet with -15% skillInterval for fishing
+      final fishingAmulet = Item(
+        id: const MelvorId('test:FishingAmulet'),
+        name: 'Fishing Amulet',
+        itemType: 'Equipment',
+        sellsFor: 100000,
+        validSlots: const [EquipmentSlot.amulet],
+        modifiers: ModifierDataSet([
+          ModifierData(
+            name: 'skillInterval',
+            entries: [
+              ModifierEntry(
+                value: -15, // -15%
+                scope: ModifierScope(skillId: Skill.fishing.id),
+              ),
+            ],
+          ),
+        ]),
+      );
+
+      final registries = Registries.test(items: [fishingAmulet]);
+
+      final fishingAction = SkillAction(
+        id: ActionId.test(Skill.fishing, 'TestFish'),
+        skill: Skill.fishing,
+        name: 'Catch Test Fish',
+        duration: const Duration(seconds: 3),
+        xp: 10,
+        unlockLevel: 1,
+      );
+
+      final random = Random(42);
+
+      // Equip the amulet
+      final (equippedState, _) = const Equipment.empty().equipGear(
+        fishingAmulet,
+        EquipmentSlot.amulet,
+      );
+      final stateWithAmulet = GlobalState.test(
+        registries,
+        equipment: equippedState,
+      );
+      final ticksWithAmulet = stateWithAmulet.rollDurationWithModifiers(
+        fishingAction,
+        random,
+        registries.shop,
+      );
+      expect(ticksWithAmulet, 26); // 30 * 0.85 = 25.5 → 26
+
+      // Unequip the amulet
+      final (_, unequippedState) = equippedState.unequipGear(
+        EquipmentSlot.amulet,
+      )!;
+      final stateWithoutAmulet = GlobalState.test(
+        registries,
+        equipment: unequippedState,
+      );
+      final ticksWithoutAmulet = stateWithoutAmulet.rollDurationWithModifiers(
+        fishingAction,
+        random,
+        registries.shop,
+      );
+      expect(ticksWithoutAmulet, 30); // Back to base duration
+    });
+
+    test('equipment modifier does not affect other skills', () {
+      // Create a fishing amulet with -15% skillInterval for fishing
+      final fishingAmulet = Item(
+        id: const MelvorId('test:FishingAmulet'),
+        name: 'Fishing Amulet',
+        itemType: 'Equipment',
+        sellsFor: 100000,
+        validSlots: const [EquipmentSlot.amulet],
+        modifiers: ModifierDataSet([
+          ModifierData(
+            name: 'skillInterval',
+            entries: [
+              ModifierEntry(
+                value: -15, // -15%
+                scope: ModifierScope(skillId: Skill.fishing.id),
+              ),
+            ],
+          ),
+        ]),
+      );
+
+      final registries = Registries.test(items: [fishingAmulet]);
+
+      // Create a woodcutting action
+      final woodcuttingAction = SkillAction(
+        id: ActionId.test(Skill.woodcutting, 'TestTree'),
+        skill: Skill.woodcutting,
+        name: 'Cut Test Tree',
+        duration: const Duration(seconds: 3),
+        xp: 10,
+        unlockLevel: 1,
+      );
+
+      final random = Random(42);
+
+      // Equip the fishing amulet
+      final (equipment, _) = const Equipment.empty().equipGear(
+        fishingAmulet,
+        EquipmentSlot.amulet,
+      );
+      final stateWithAmulet = GlobalState.test(
+        registries,
+        equipment: equipment,
+      );
+
+      // Woodcutting should not be affected by fishing amulet
+      final ticksWoodcutting = stateWithAmulet.rollDurationWithModifiers(
+        woodcuttingAction,
+        random,
+        registries.shop,
+      );
+      expect(ticksWoodcutting, 30); // No reduction
+    });
+  });
 }

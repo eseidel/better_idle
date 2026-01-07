@@ -652,7 +652,8 @@ class GlobalState {
   /// Combines modifiers from:
   /// - Shop purchases (e.g., axe upgrades for woodcutting)
   /// - Mastery bonuses (based on current mastery level)
-  /// - (Future: equipment, potions, prayers, etc.)
+  /// - Equipped gear (e.g., Fishing Amulet for fishing)
+  /// - (Future: potions, prayers, etc.)
   ///
   /// Returns a [ResolvedModifiers] containing all modifier values by name.
   /// Values are stored as raw numbers from the data (e.g., skillInterval
@@ -698,7 +699,19 @@ class GlobalState {
       }
     }
 
-    // --- Future: equipment, potions, prayers, etc. ---
+    // --- Equipment modifiers ---
+    for (final item in equipment.gearSlots.values) {
+      // Add all modifiers from equipped items that match this skill
+      for (final mod in item.modifiers.modifiers) {
+        for (final entry in mod.entries) {
+          if (entry.appliesToSkill(skillId)) {
+            builder.add(mod.name, entry.value);
+          }
+        }
+      }
+    }
+
+    // --- Future: potions, prayers, etc. ---
 
     return builder.build();
   }
