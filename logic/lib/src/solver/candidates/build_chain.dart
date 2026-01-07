@@ -262,8 +262,7 @@ BuildChainResult buildChainForItem(
       visited.add(key);
 
       // Calculate how many actions needed
-      final outputsPerAction = action.outputs[itemId] ?? 1;
-      final actionsNeeded = (quantity / outputsPerAction).ceil();
+      final actionsNeeded = action.actionsNeededForOutput(itemId, quantity);
       final ticksPerAction = ticksFromDuration(action.meanDuration);
       final ticksNeeded = actionsNeeded * ticksPerAction;
 
@@ -400,9 +399,7 @@ _ProducerSearchResult _findBestProducer(
     double bestRate = 0;
 
     for (final action in unlocked) {
-      final ticksPerAction = ticksFromDuration(action.meanDuration).toDouble();
-      final outputsPerAction = action.outputs[itemId] ?? 1;
-      final outputsPerTick = outputsPerAction / ticksPerAction;
+      final outputsPerTick = action.expectedOutputPerTick(itemId);
 
       if (outputsPerTick > bestRate) {
         bestRate = outputsPerTick;

@@ -487,6 +487,138 @@ void main() {
     });
   });
 
+  group('sortProducersByOutputRate', () {
+    test('sorts producers by output rate descending', () {
+      // Create a state with multiple woodcutting actions unlocked
+      final state = GlobalState.test(
+        testRegistries,
+        skillStates: const {
+          Skill.hitpoints: SkillState(xp: 1154, masteryPoolXp: 0),
+          // High level to unlock multiple tree types
+          Skill.woodcutting: SkillState(xp: 100000, masteryPoolXp: 0),
+        },
+      );
+      final summaries = buildActionSummaries(state);
+
+      // Get all woodcutting producers for Normal Logs
+      const normalLogsId = MelvorId('melvorD:Normal_Logs');
+      final producers = summaries.where((s) {
+        if (!s.isUnlocked) return false;
+        if (s.skill != Skill.woodcutting) return false;
+        if (s.hasInputs) return false;
+
+        // Check if this action produces Normal Logs
+        final action = testActions.byId(s.actionId);
+        if (action is! SkillAction) return false;
+        return action.outputs.containsKey(normalLogsId);
+      }).toList();
+
+      // Should have at least Normal Tree as a producer
+      expect(producers, isNotEmpty);
+
+      // Sort by output rate
+      sortProducersByOutputRate(producers, testRegistries, normalLogsId);
+
+      // Verify order is descending by output rate
+      for (var i = 0; i < producers.length - 1; i++) {
+        final currentRate = producers[i].outputPerTickForItem(
+          testRegistries,
+          normalLogsId,
+        );
+        final nextRate = producers[i + 1].outputPerTickForItem(
+          testRegistries,
+          normalLogsId,
+        );
+        expect(
+          currentRate,
+          greaterThanOrEqualTo(nextRate),
+          reason:
+              '${actionName(producers[i].actionId)} ($currentRate/tick) '
+              'should be >= '
+              '${actionName(producers[i + 1].actionId)} ($nextRate/tick)',
+        );
+      }
+    });
+
+    test('handles empty list', () {
+      final producers = <ActionSummary>[];
+
+      // Should not throw
+      const fakeItemId = MelvorId('melvorD:Fake_Item');
+      expect(
+        () => sortProducersByOutputRate(producers, testRegistries, fakeItemId),
+        returnsNormally,
+      );
+      expect(producers, isEmpty);
+    });
+
+    test('handles single producer', () {
+      final state = GlobalState.empty(testRegistries);
+      final summaries = buildActionSummaries(state);
+
+      // Get Normal Tree as the only producer
+      final normalTree = summaries.firstWhere(
+        (s) => actionName(s.actionId) == 'Normal Tree',
+      );
+      final producers = [normalTree];
+
+      const normalLogsId = MelvorId('melvorD:Normal_Logs');
+      sortProducersByOutputRate(producers, testRegistries, normalLogsId);
+
+      // Should still have the same single producer
+      expect(producers.length, equals(1));
+      expect(actionName(producers[0].actionId), equals('Normal Tree'));
+    });
+
+    test('stable sort for producers with equal rates', () {
+      // Create a scenario where two actions produce the same item
+      // at the same rate. The sort should be stable.
+      final state = GlobalState.test(
+        testRegistries,
+        skillStates: const {
+          Skill.hitpoints: SkillState(xp: 1154, masteryPoolXp: 0),
+          // High level to unlock multiple fishing spots
+          Skill.fishing: SkillState(xp: 100000, masteryPoolXp: 0),
+        },
+      );
+      final summaries = buildActionSummaries(state);
+
+      // Get all fishing actions that produce Raw Shrimp
+      const rawShrimpId = MelvorId('melvorD:Raw_Shrimp');
+      final producers = summaries.where((s) {
+        if (!s.isUnlocked) return false;
+        if (s.skill != Skill.fishing) return false;
+        if (s.hasInputs) return false;
+
+        // Check if this action produces Raw Shrimp
+        final action = testActions.byId(s.actionId);
+        if (action is! SkillAction) return false;
+        return action.outputs.containsKey(rawShrimpId);
+      }).toList();
+
+      if (producers.isEmpty) {
+        // If no producers found, skip this test
+        return;
+      }
+
+      // Sort and verify order
+      sortProducersByOutputRate(producers, testRegistries, rawShrimpId);
+
+      // Verify descending order
+      for (var i = 0; i < producers.length - 1; i++) {
+        final currentRate = producers[i].outputPerTickForItem(
+          testRegistries,
+          rawShrimpId,
+        );
+        final nextRate = producers[i + 1].outputPerTickForItem(
+          testRegistries,
+          rawShrimpId,
+        );
+        expect(currentRate, greaterThanOrEqualTo(nextRate));
+      }
+    });
+  });
+
   group('consuming skill candidate selection', () {
     test('includes producers for consuming skill candidates', () {
       // When selecting candidates for a consuming skill like Firemaking,

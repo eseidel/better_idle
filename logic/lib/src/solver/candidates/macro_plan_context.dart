@@ -238,9 +238,11 @@ class MacroPlanContext {
 
       // Recurse into inputs for consuming actions
       for (final inputEntry in producerAction.inputs.entries) {
-        final inputQty =
-            (qty / (producerAction.outputs[itemId] ?? 1)).ceil() *
-            inputEntry.value;
+        final actionsNeeded = producerAction.actionsNeededForOutput(
+          itemId,
+          qty,
+        );
+        final inputQty = actionsNeeded * inputEntry.value;
         countNewSlots(inputEntry.key, inputQty);
       }
     }

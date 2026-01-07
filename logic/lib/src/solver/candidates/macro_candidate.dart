@@ -536,8 +536,10 @@ class AcquireItem extends MacroCandidate {
 
     // Calculate ticks to produce the quantity
     final ticksPerAction = ticksFromDuration(producerAction.meanDuration);
-    final outputsPerAction = producerAction.outputs[itemId] ?? 1;
-    final actionsNeeded = (quantity / outputsPerAction).ceil();
+    final actionsNeeded = producerAction.actionsNeededForOutput(
+      itemId,
+      quantity,
+    );
     final ticksNeeded = actionsNeeded * ticksPerAction;
 
     // Project state forward (deterministic for planning)

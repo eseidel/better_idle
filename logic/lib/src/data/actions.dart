@@ -226,6 +226,13 @@ class SkillAction extends Action {
     return (outputs[itemId] ?? 0) / ticksFromDuration(meanDuration).toDouble();
   }
 
+  /// Returns how many times this action must run to produce [quantity] of
+  /// [itemId].
+  int actionsNeededForOutput(MelvorId itemId, int quantity) {
+    final outputsPerAction = outputs[itemId] ?? 1;
+    return (quantity / outputsPerAction).ceil();
+  }
+
   /// Alternative recipes (from alternativeCosts in Melvor JSON).
   /// When non-null, this replaces the `inputs` field - the user selects
   /// which recipe to use, and each recipe may have a quantity multiplier.

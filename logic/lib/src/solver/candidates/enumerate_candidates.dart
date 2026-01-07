@@ -1044,6 +1044,28 @@ List<ActionSummary> _findProducersForItem(
 // ProducerPlan and ProducerResolver for multi-input candidate selection
 // ---------------------------------------------------------------------------
 
+/// Sorts producer action summaries by naive output rate (descending).
+///
+/// This is used for selecting top-K producer candidates. Final selection
+/// uses ticksPerUnit which includes full upstream chaining costs.
+///
+/// This code is currently never hit in our system because we don't have
+/// producer/consumer pairs with more than one producer (e.g., Cut Oak is
+/// the only source for Oak Logs). However, the logic should be correct for
+/// future expansion, so it's extracted for testing.
+@visibleForTesting
+void sortProducersByOutputRate(
+  List<ActionSummary> producers,
+  Registries registries,
+  MelvorId itemId,
+) {
+  producers.sort((a, b) {
+    final aRate = a.outputPerTickForItem(registries, itemId);
+    final bRate = b.outputPerTickForItem(registries, itemId);
+    return bRate.compareTo(aRate); // Descending
+  });
+}
+
 /// Result of resolving how to produce an item.
 @immutable
 class ProducerPlan {
@@ -1211,14 +1233,7 @@ class ProducerResolver {
 
     if (producers.isEmpty) return [];
 
-    // Sort by naive output rate (items per tick) - this is just for
-    // selecting top-K candidates. Final selection uses ticksPerUnit
-    // which includes full upstream chaining costs.
-    producers.sort((a, b) {
-      final aRate = _outputRatePerTick(a, itemId);
-      final bRate = _outputRatePerTick(b, itemId);
-      return bRate.compareTo(aRate); // Descending
-    });
+    sortProducersByOutputRate(producers, _state.registries, itemId);
 
     return producers.take(k).toList();
   }
@@ -1227,15 +1242,6 @@ class ProducerResolver {
     final action = _state.registries.actions.byId(actionId);
     if (action is! SkillAction) return false;
     return action.outputs.containsKey(itemId);
-  }
-
-  /// Calculates naive output rate (items per tick) for initial candidate
-  /// ranking. Uses the summary directly (no lookup needed).
-  double _outputRatePerTick(ActionSummary summary, MelvorId itemId) {
-    final action = _state.registries.actions.byId(summary.actionId);
-    if (action is! SkillAction) return 0;
-    final outputsPerAction = action.outputs[itemId] ?? 1;
-    return outputsPerAction / summary.expectedTicks;
   }
 }
 
