@@ -1733,4 +1733,36 @@ void main() {
       expect(loaded.equipment.gearInSlot(EquipmentSlot.shield), isNull);
     });
   });
+
+  group('GlobalState.validate', () {
+    test('returns true when no active action', () {
+      final state = GlobalState.test(testRegistries);
+      expect(state.validate(), true);
+    });
+
+    test('returns true when active action has valid ID', () {
+      final state = GlobalState.test(
+        testRegistries,
+        activeAction: ActiveAction(
+          id: normalTree.id,
+          remainingTicks: 15,
+          totalTicks: 30,
+        ),
+      );
+      expect(state.validate(), true);
+    });
+
+    test('throws when active action ID is not in registry', () {
+      final invalidActionId = ActionId.test(Skill.woodcutting, 'NonExistent');
+      final state = GlobalState.test(
+        testRegistries,
+        activeAction: ActiveAction(
+          id: invalidActionId,
+          remainingTicks: 15,
+          totalTicks: 30,
+        ),
+      );
+      expect(state.validate, throwsStateError);
+    });
+  });
 }
