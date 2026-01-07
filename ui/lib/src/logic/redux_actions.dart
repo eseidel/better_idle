@@ -242,9 +242,28 @@ class PurchaseShopItemAction extends ReduxAction<GlobalState> {
       );
     }
 
+    // Handle itemCharges purchases
+    var newItemCharges = newState.itemCharges;
+    final itemCharges = purchase.contains.itemCharges;
+    if (itemCharges != null) {
+      // Get the item to receive charges
+      final chargeItem = state.registries.items.byId(itemCharges.itemId);
+
+      // If player doesn't have the item, add it to inventory first
+      if (newInventory.countOfItem(chargeItem) == 0) {
+        newInventory = newInventory.adding(ItemStack(chargeItem, count: 1));
+      }
+
+      // Add charges to the item
+      newItemCharges = Map<MelvorId, int>.from(newItemCharges);
+      newItemCharges[itemCharges.itemId] =
+          (newItemCharges[itemCharges.itemId] ?? 0) + itemCharges.quantity;
+    }
+
     // Apply purchase
     return newState.copyWith(
       inventory: newInventory,
+      itemCharges: newItemCharges,
       shop: newState.shop.withPurchase(purchaseId),
     );
   }

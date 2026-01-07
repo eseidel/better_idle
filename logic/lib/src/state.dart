@@ -248,6 +248,7 @@ class GlobalState {
     this.plotStates = const {},
     this.unlockedPlots = const {},
     this.dungeonCompletions = const {},
+    this.itemCharges = const {},
     this.timeAway,
     this.stunned = const StunnedState.fresh(),
   });
@@ -269,6 +270,7 @@ class GlobalState {
         equipment: const Equipment.empty(),
         registries: registries,
         dungeonCompletions: const {},
+        itemCharges: const {},
         // Unlock all free starter plots (level 1, 0 GP cost)
         unlockedPlots: registries.farmingPlots.initialPlots(),
       );
@@ -283,6 +285,7 @@ class GlobalState {
     Map<MelvorId, PlotState> plotStates = const {},
     Set<MelvorId> unlockedPlots = const {},
     Map<MelvorId, int> dungeonCompletions = const {},
+    Map<MelvorId, int> itemCharges = const {},
     DateTime? updatedAt,
     int gp = 0,
     Map<Currency, int>? currencies,
@@ -303,6 +306,7 @@ class GlobalState {
       plotStates: plotStates,
       unlockedPlots: unlockedPlots,
       dungeonCompletions: dungeonCompletions,
+      itemCharges: itemCharges,
       updatedAt: updatedAt ?? DateTime.timestamp(),
       currencies: currenciesMap,
       timeAway: timeAway,
@@ -352,6 +356,7 @@ class GlobalState {
               .toSet() ??
           const {},
       dungeonCompletions = _dungeonCompletionsFromJson(json),
+      itemCharges = _itemChargesFromJson(json),
       currencies = _currenciesFromJson(json),
       timeAway = TimeAway.maybeFromJson(registries, json['timeAway']),
       shop = ShopState.maybeFromJson(json['shop']) ?? const ShopState.empty(),
@@ -382,6 +387,13 @@ class GlobalState {
     });
   }
 
+  static Map<MelvorId, int> _itemChargesFromJson(Map<String, dynamic> json) {
+    final chargesJson = json['itemCharges'] as Map<String, dynamic>? ?? {};
+    return chargesJson.map((key, value) {
+      return MapEntry(MelvorId.fromJson(key), value as int);
+    });
+  }
+
   bool validate() {
     // Confirm that activeAction.id is a valid action.
     final actionId = activeAction?.id;
@@ -408,6 +420,9 @@ class GlobalState {
       ),
       'unlockedPlots': unlockedPlots.map((e) => e.toJson()).toList(),
       'dungeonCompletions': dungeonCompletions.map(
+        (key, value) => MapEntry(key.toJson(), value),
+      ),
+      'itemCharges': itemCharges.map(
         (key, value) => MapEntry(key.toJson(), value),
       ),
       'currencies': currencies.map((key, value) => MapEntry(key.id, value)),
@@ -446,6 +461,13 @@ class GlobalState {
   /// Returns how many times a dungeon has been completed.
   int dungeonCompletionCount(MelvorId dungeonId) =>
       dungeonCompletions[dungeonId] ?? 0;
+
+  /// Map of item ID to number of charges for items with charge mechanics.
+  /// Used for items like Thieving Gloves that have consumable charges.
+  final Map<MelvorId, int> itemCharges;
+
+  /// Returns the number of charges for an item.
+  int itemChargeCount(MelvorId itemId) => itemCharges[itemId] ?? 0;
 
   /// Returns how many Township tasks have been completed.
   /// Always returns 0 since Township tasks are not yet supported.
@@ -814,6 +836,7 @@ class GlobalState {
       plotStates: plotStates,
       unlockedPlots: unlockedPlots,
       dungeonCompletions: dungeonCompletions,
+      itemCharges: itemCharges,
       updatedAt: DateTime.timestamp(),
       currencies: currencies,
       health: health,
@@ -833,6 +856,7 @@ class GlobalState {
       plotStates: plotStates,
       unlockedPlots: unlockedPlots,
       dungeonCompletions: dungeonCompletions,
+      itemCharges: itemCharges,
       updatedAt: DateTime.timestamp(),
       currencies: currencies,
       shop: shop,
@@ -1294,6 +1318,7 @@ class GlobalState {
     Map<MelvorId, PlotState>? plotStates,
     Set<MelvorId>? unlockedPlots,
     Map<MelvorId, int>? dungeonCompletions,
+    Map<MelvorId, int>? itemCharges,
     Map<Currency, int>? currencies,
     TimeAway? timeAway,
     ShopState? shop,
@@ -1310,6 +1335,7 @@ class GlobalState {
       plotStates: plotStates ?? this.plotStates,
       unlockedPlots: unlockedPlots ?? this.unlockedPlots,
       dungeonCompletions: dungeonCompletions ?? this.dungeonCompletions,
+      itemCharges: itemCharges ?? this.itemCharges,
       updatedAt: DateTime.timestamp(),
       currencies: currencies ?? this.currencies,
       timeAway: timeAway ?? this.timeAway,

@@ -194,6 +194,45 @@ void main() {
       expect(purchase.description, 'This is a custom description');
     });
 
+    test('fromJson parses contains.items correctly', () {
+      final json = {
+        'id': 'Test_Resupply',
+        'customName': 'Test Resupply',
+        'customDescription': r'+${qty1} Arrows, +${qty2} Bolts, +${qty3} Runes',
+        'category': 'melvorD:General',
+        'cost': {'items': <dynamic>[], 'currencies': <dynamic>[]},
+        'contains': {
+          'modifiers': <String, dynamic>{},
+          'items': [
+            {'id': 'melvorD:Adamant_Arrows', 'quantity': 200},
+            {'id': 'melvorD:Sapphire_Bolts', 'quantity': 150},
+            {'id': 'melvorD:Light_Rune', 'quantity': 500},
+          ],
+        },
+        'unlockRequirements': <dynamic>[],
+        'purchaseRequirements': <dynamic>[],
+        'defaultBuyLimit': 1,
+      };
+      final purchase = ShopPurchase.fromJson(json, namespace: 'melvorD');
+
+      expect(purchase.contains.items.length, 3);
+      expect(
+        purchase.contains.items[0].itemId,
+        const MelvorId('melvorD:Adamant_Arrows'),
+      );
+      expect(purchase.contains.items[0].quantity, 200);
+      expect(
+        purchase.contains.items[1].itemId,
+        const MelvorId('melvorD:Sapphire_Bolts'),
+      );
+      expect(purchase.contains.items[1].quantity, 150);
+      expect(
+        purchase.contains.items[2].itemId,
+        const MelvorId('melvorD:Light_Rune'),
+      );
+      expect(purchase.contains.items[2].quantity, 500);
+    });
+
     test('fromJson uses ID name when customName is missing', () {
       final json = {
         'id': 'Test_Item',
@@ -327,6 +366,31 @@ void main() {
     });
   });
 
+  group('ShopContents', () {
+    test('fromJson parses itemCharges correctly', () {
+      final json = {
+        'modifiers': <String, dynamic>{},
+        'items': <dynamic>[],
+        'itemCharges': {'id': 'melvorF:Thieving_Gloves', 'quantity': 500},
+      };
+      final contents = ShopContents.fromJson(json, namespace: 'melvorD');
+
+      expect(contents.itemCharges, isNotNull);
+      expect(
+        contents.itemCharges!.itemId,
+        const MelvorId('melvorF:Thieving_Gloves'),
+      );
+      expect(contents.itemCharges!.quantity, 500);
+    });
+
+    test('fromJson handles missing itemCharges', () {
+      final json = {'modifiers': <String, dynamic>{}, 'items': <dynamic>[]};
+      final contents = ShopContents.fromJson(json, namespace: 'melvorD');
+
+      expect(contents.itemCharges, isNull);
+    });
+  });
+
   group('ShopState', () {
     test('nextBankSlotCost returns correct costs for first 10 slots', () {
       void expectSlotCost(int slot, int expectedCost) {
@@ -390,6 +454,206 @@ void main() {
 
       expect(loaded.bankSlotsPurchased, original.bankSlotsPurchased);
       expect(loaded.nextBankSlotCost(), original.nextBankSlotCost());
+    });
+  });
+
+  group('ItemCharges purchases', () {
+    setUpAll(() async {
+      await loadTestRegistries();
+    });
+
+    test('purchasing gloves adds item to inventory and sets charges', () {
+      // Find a gloves purchase with itemCharges from the registry
+      final glovesPurchase = testRegistries.shop.all.firstWhere(
+        (p) => p.contains.itemCharges != null,
+        orElse: () => throw StateError('No itemCharges purchase found'),
+      );
+
+      final itemCharges = glovesPurchase.contains.itemCharges!;
+      final glovesItem = testRegistries.items.byId(itemCharges.itemId);
+
+      // Start with empty state and enough GP
+      final costs = glovesPurchase.cost.currencyCosts(bankSlotsPurchased: 0);
+      final gpCost = costs.firstWhere((c) => c.$1 == Currency.gp).$2;
+
+      var state = GlobalState.test(testRegistries, gp: gpCost);
+
+      // Verify starting conditions
+      expect(state.inventory.countOfItem(glovesItem), 0);
+      expect(state.itemChargeCount(itemCharges.itemId), 0);
+
+      // Simulate purchase by applying the changes manually
+      // (mimicking what PurchaseShopItemAction does)
+      var newState = state.addCurrency(Currency.gp, -gpCost);
+
+      // Add item to inventory if not present
+      if (newState.inventory.countOfItem(glovesItem) == 0) {
+        newState = newState.copyWith(
+          inventory: newState.inventory.adding(ItemStack(glovesItem, count: 1)),
+        );
+      }
+
+      // Add charges
+      final newCharges = Map<MelvorId, int>.from(newState.itemCharges);
+      newCharges[itemCharges.itemId] =
+          (newCharges[itemCharges.itemId] ?? 0) + itemCharges.quantity;
+      newState = newState.copyWith(itemCharges: newCharges);
+
+      // Verify: should have 1 gloves and the charges
+      expect(newState.inventory.countOfItem(glovesItem), 1);
+      expect(
+        newState.itemChargeCount(itemCharges.itemId),
+        itemCharges.quantity,
+      );
+    });
+
+    test('purchasing gloves again adds charges but not more items', () {
+      final glovesPurchase = testRegistries.shop.all.firstWhere(
+        (p) => p.contains.itemCharges != null,
+        orElse: () => throw StateError('No itemCharges purchase found'),
+      );
+
+      final itemCharges = glovesPurchase.contains.itemCharges!;
+      final glovesItem = testRegistries.items.byId(itemCharges.itemId);
+
+      final costs = glovesPurchase.cost.currencyCosts(bankSlotsPurchased: 0);
+      final gpCost = costs.firstWhere((c) => c.$1 == Currency.gp).$2;
+
+      // Start with state already having gloves and some charges
+      var state = GlobalState.test(testRegistries, gp: gpCost * 2);
+
+      // First purchase - adds item and charges
+      state = state.copyWith(
+        inventory: state.inventory.adding(ItemStack(glovesItem, count: 1)),
+        itemCharges: {itemCharges.itemId: itemCharges.quantity},
+      );
+
+      expect(state.inventory.countOfItem(glovesItem), 1);
+      expect(state.itemChargeCount(itemCharges.itemId), itemCharges.quantity);
+
+      // Second purchase - should only add charges, not items
+      var newState = state.addCurrency(Currency.gp, -gpCost);
+
+      // Check if item already exists (it does)
+      if (newState.inventory.countOfItem(glovesItem) == 0) {
+        newState = newState.copyWith(
+          inventory: newState.inventory.adding(ItemStack(glovesItem, count: 1)),
+        );
+      }
+
+      // Add more charges
+      final newCharges = Map<MelvorId, int>.from(newState.itemCharges);
+      newCharges[itemCharges.itemId] =
+          (newCharges[itemCharges.itemId] ?? 0) + itemCharges.quantity;
+      newState = newState.copyWith(itemCharges: newCharges);
+
+      // Verify: should still have only 1 gloves but double the charges
+      expect(newState.inventory.countOfItem(glovesItem), 1);
+      expect(
+        newState.itemChargeCount(itemCharges.itemId),
+        itemCharges.quantity * 2,
+      );
+    });
+
+    test('selling gloves then buying again gives gloves back', () {
+      final glovesPurchase = testRegistries.shop.all.firstWhere(
+        (p) => p.contains.itemCharges != null,
+        orElse: () => throw StateError('No itemCharges purchase found'),
+      );
+
+      final itemCharges = glovesPurchase.contains.itemCharges!;
+      final glovesItem = testRegistries.items.byId(itemCharges.itemId);
+
+      final costs = glovesPurchase.cost.currencyCosts(bankSlotsPurchased: 0);
+      final gpCost = costs.firstWhere((c) => c.$1 == Currency.gp).$2;
+
+      // Start with gloves and charges
+      var state = GlobalState.test(
+        testRegistries,
+        gp: gpCost,
+        itemCharges: {itemCharges.itemId: itemCharges.quantity},
+      );
+      state = state.copyWith(
+        inventory: state.inventory.adding(ItemStack(glovesItem, count: 1)),
+      );
+
+      expect(state.inventory.countOfItem(glovesItem), 1);
+      expect(state.itemChargeCount(itemCharges.itemId), itemCharges.quantity);
+
+      // Sell the gloves
+      state = state.sellItem(ItemStack(glovesItem, count: 1));
+      expect(state.inventory.countOfItem(glovesItem), 0);
+      // Charges remain even after selling
+      expect(state.itemChargeCount(itemCharges.itemId), itemCharges.quantity);
+
+      // Buy again
+      var newState = state.addCurrency(Currency.gp, -gpCost);
+
+      // Add item to inventory if not present (it's not)
+      if (newState.inventory.countOfItem(glovesItem) == 0) {
+        newState = newState.copyWith(
+          inventory: newState.inventory.adding(ItemStack(glovesItem, count: 1)),
+        );
+      }
+
+      // Add more charges
+      final newCharges = Map<MelvorId, int>.from(newState.itemCharges);
+      newCharges[itemCharges.itemId] =
+          (newCharges[itemCharges.itemId] ?? 0) + itemCharges.quantity;
+      newState = newState.copyWith(itemCharges: newCharges);
+
+      // Verify: should have gloves again with additional charges
+      expect(newState.inventory.countOfItem(glovesItem), 1);
+      expect(
+        newState.itemChargeCount(itemCharges.itemId),
+        itemCharges.quantity * 2,
+      );
+    });
+  });
+
+  group('GlobalState itemCharges', () {
+    setUpAll(() async {
+      await loadTestRegistries();
+    });
+
+    test('itemChargeCount returns 0 for items with no charges', () {
+      final state = GlobalState.test(testRegistries);
+      expect(
+        state.itemChargeCount(const MelvorId('melvorF:Thieving_Gloves')),
+        0,
+      );
+    });
+
+    test('itemChargeCount returns correct value for items with charges', () {
+      final state = GlobalState.test(
+        testRegistries,
+        itemCharges: {const MelvorId('melvorF:Thieving_Gloves'): 500},
+      );
+      expect(
+        state.itemChargeCount(const MelvorId('melvorF:Thieving_Gloves')),
+        500,
+      );
+    });
+
+    test('itemCharges serialization round-trip', () {
+      final original = GlobalState.test(
+        testRegistries,
+        itemCharges: {
+          const MelvorId('melvorF:Thieving_Gloves'): 500,
+          const MelvorId('melvorD:Some_Other_Item'): 100,
+        },
+      );
+      final json = original.toJson();
+      final loaded = GlobalState.fromJson(testRegistries, json);
+
+      expect(
+        loaded.itemChargeCount(const MelvorId('melvorF:Thieving_Gloves')),
+        500,
+      );
+      expect(
+        loaded.itemChargeCount(const MelvorId('melvorD:Some_Other_Item')),
+        100,
+      );
     });
   });
 }

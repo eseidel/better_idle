@@ -214,7 +214,20 @@ class _ShopPageState extends State<ShopPage> {
   /// Handles:
   /// - <br> tags (line breaks)
   /// - <span class="text-warning"> tags (highlighted text in orange)
-  InlineSpan _parseDescription(String description) {
+  InlineSpan _parseDescription(String description, {ShopPurchase? purchase}) {
+    // First, substitute template variables like ${qty1}, ${qty2}, etc.
+    var processedDescription = description;
+    if (purchase != null && purchase.contains.items.isNotEmpty) {
+      for (var i = 0; i < purchase.contains.items.length; i++) {
+        final quantity = purchase.contains.items[i].quantity;
+        final qtyVar = '\${qty${i + 1}}';
+        processedDescription = processedDescription.replaceAll(
+          qtyVar,
+          quantity.toString(),
+        );
+      }
+    }
+
     final spans = <InlineSpan>[];
     final regex = RegExp(
       r'<br\s*/?>|<span class="text-warning">(.*?)</span>',
@@ -223,10 +236,12 @@ class _ShopPageState extends State<ShopPage> {
     );
 
     var lastEnd = 0;
-    for (final match in regex.allMatches(description)) {
+    for (final match in regex.allMatches(processedDescription)) {
       // Add text before this match
       if (match.start > lastEnd) {
-        spans.add(TextSpan(text: description.substring(lastEnd, match.start)));
+        spans.add(
+          TextSpan(text: processedDescription.substring(lastEnd, match.start)),
+        );
       }
 
       // Handle the matched tag
@@ -251,13 +266,13 @@ class _ShopPageState extends State<ShopPage> {
     }
 
     // Add any remaining text after the last match
-    if (lastEnd < description.length) {
-      spans.add(TextSpan(text: description.substring(lastEnd)));
+    if (lastEnd < processedDescription.length) {
+      spans.add(TextSpan(text: processedDescription.substring(lastEnd)));
     }
 
     // If no spans were created, return a simple TextSpan
     if (spans.isEmpty) {
-      return TextSpan(text: description);
+      return TextSpan(text: processedDescription);
     }
 
     // If only one span and it's plain text, return it directly
@@ -275,7 +290,17 @@ class _ShopPageState extends State<ShopPage> {
     // Prefer custom description if available
     // (e.g., Magic Pot has detailed modifier info)
     if (purchase.description != null) {
-      return _parseDescription(purchase.description!);
+      return _parseDescription(purchase.description!, purchase: purchase);
+    }
+
+    // Handle itemCharges purchases
+    final itemCharges = purchase.contains.itemCharges;
+    if (itemCharges != null) {
+      final item = viewModel.itemById(itemCharges.itemId);
+      final chargeCount = itemCharges.quantity;
+      final itemDescription = item.description ?? item.name;
+
+      return TextSpan(text: '+$chargeCount charges: $itemDescription');
     }
 
     // Otherwise build description from modifiers we understand

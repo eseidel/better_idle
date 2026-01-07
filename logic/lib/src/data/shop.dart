@@ -109,7 +109,11 @@ class ShopCost extends Equatable {
 /// What a shop purchase contains/grants.
 @immutable
 class ShopContents extends Equatable {
-  const ShopContents({required this.modifiers, this.items = const []});
+  const ShopContents({
+    required this.modifiers,
+    this.items = const [],
+    this.itemCharges,
+  });
 
   factory ShopContents.fromJson(
     Map<String, dynamic> json, {
@@ -117,6 +121,8 @@ class ShopContents extends Equatable {
   }) {
     final modifiersJson = json['modifiers'] as Map<String, dynamic>? ?? {};
     final itemsJson = json['items'] as List<dynamic>? ?? [];
+    final itemChargesJson = json['itemCharges'] as Map<String, dynamic>?;
+
     return ShopContents(
       modifiers: ModifierDataSet.fromJson(modifiersJson, namespace: namespace),
       items: itemsJson
@@ -127,6 +133,9 @@ class ShopContents extends Equatable {
             ),
           )
           .toList(),
+      itemCharges: itemChargesJson != null
+          ? ItemCost.fromJson(itemChargesJson, namespace: namespace)
+          : null,
     );
   }
 
@@ -135,11 +144,17 @@ class ShopContents extends Equatable {
   /// Items granted by this purchase.
   final List<ItemCost> items;
 
+  /// Item charges granted by this purchase.
+  /// When present, purchasing this adds charges to the specified item
+  /// instead of adding items to inventory. If the player doesn't own
+  /// the item, they receive it first.
+  final ItemCost? itemCharges;
+
   /// Bank space modifier value, or null if not present.
   int? get bankSpace => modifiers.byName('bankSpace')?.totalValue.toInt();
 
   @override
-  List<Object?> get props => [modifiers, items];
+  List<Object?> get props => [modifiers, items, itemCharges];
 }
 
 /// Base class for shop requirements.
