@@ -156,18 +156,6 @@ class MilestoneGraph {
     return null;
   }
 
-  /// Get all milestones that depend on this one.
-  List<MilestoneNode> dependents(String milestoneId) {
-    final result = <MilestoneNode>[];
-    for (final edge in edges) {
-      if (edge.from == milestoneId) {
-        final node = nodeById(edge.to);
-        if (node != null) result.add(node);
-      }
-    }
-    return result;
-  }
-
   /// Get all milestones this one depends on.
   List<MilestoneNode> dependencies(String milestoneId) {
     final result = <MilestoneNode>[];
@@ -193,16 +181,6 @@ class MilestoneGraph {
       final deps = dependencies(node.milestone.id);
       return deps.every((d) => d.milestone.isSatisfied(state));
     }).toList();
-  }
-
-  /// Get all unsatisfied milestones (regardless of dependencies).
-  List<MilestoneNode> unsatisfied(GlobalState state) {
-    return nodes.where((node) => !node.milestone.isSatisfied(state)).toList();
-  }
-
-  /// Get all satisfied milestones.
-  List<MilestoneNode> satisfied(GlobalState state) {
-    return nodes.where((node) => node.milestone.isSatisfied(state)).toList();
   }
 
   /// Count of milestones by satisfaction status.
