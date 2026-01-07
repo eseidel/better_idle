@@ -64,7 +64,6 @@ class NextDecisionResult {
   /// which may differ from the currently active action.
   final ActionId? intendedAction;
 
-  bool get isImmediate => deltaTicks == 0;
   bool get isDeadEnd => deltaTicks == infTicks;
 }
 

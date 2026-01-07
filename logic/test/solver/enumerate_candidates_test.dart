@@ -489,55 +489,104 @@ void main() {
 
   group('sortProducersByOutputRate', () {
     test('sorts producers by output rate descending', () {
-      // Create a state with multiple woodcutting actions unlocked
-      final state = GlobalState.test(
-        testRegistries,
-        skillStates: const {
-          Skill.hitpoints: SkillState(xp: 1154, masteryPoolXp: 0),
-          // High level to unlock multiple tree types
-          Skill.woodcutting: SkillState(xp: 100000, masteryPoolXp: 0),
-        },
+      // Create a test registry with multiple actions that produce the same item
+      // We need to create fake actions for this test since the real game
+      // doesn't have multiple producers for the same item
+      // Use an existing item from the test registry
+      final normalLogs = testItems.byName('Normal Logs');
+
+      // Create three fake action IDs using ActionId.test factory
+      final fastActionId = ActionId.test(Skill.woodcutting, 'Fast Producer');
+      final mediumActionId = ActionId.test(
+        Skill.woodcutting,
+        'Medium Producer',
       );
+      final slowActionId = ActionId.test(Skill.woodcutting, 'Slow Producer');
+
+      // Create fake actions in the registry
+      final fastAction = SkillAction(
+        id: fastActionId,
+        name: 'Fast Producer',
+        skill: Skill.woodcutting,
+        unlockLevel: 1,
+        duration: const Duration(seconds: 2),
+        xp: 10,
+        outputs: {normalLogs.id: 2}, // 2 outputs per action
+      );
+
+      final mediumAction = SkillAction(
+        id: mediumActionId,
+        name: 'Medium Producer',
+        skill: Skill.woodcutting,
+        unlockLevel: 1,
+        duration: const Duration(seconds: 3),
+        xp: 12,
+        outputs: {normalLogs.id: 2}, // 2 outputs per action
+      );
+
+      final slowAction = SkillAction(
+        id: slowActionId,
+        name: 'Slow Producer',
+        skill: Skill.woodcutting,
+        unlockLevel: 1,
+        duration: const Duration(seconds: 5),
+        xp: 15,
+        outputs: {normalLogs.id: 2}, // 2 outputs per action
+      );
+
+      // Create a test registry with these actions and the item
+      final customRegistries = Registries.test(
+        items: [normalLogs],
+        actions: [fastAction, mediumAction, slowAction],
+      );
+
+      // Create a state with these actions
+      final state = GlobalState.empty(customRegistries);
       final summaries = buildActionSummaries(state);
 
-      // Get all woodcutting producers for Normal Logs
-      const normalLogsId = MelvorId('melvorD:Normal_Logs');
-      final producers = summaries.where((s) {
-        if (!s.isUnlocked) return false;
-        if (s.skill != Skill.woodcutting) return false;
-        if (s.hasInputs) return false;
+      // Get the producer summaries for our three test actions
+      final fastProducer = summaries.firstWhere(
+        (s) => s.actionId == fastActionId,
+      );
+      final mediumProducer = summaries.firstWhere(
+        (s) => s.actionId == mediumActionId,
+      );
+      final slowProducer = summaries.firstWhere(
+        (s) => s.actionId == slowActionId,
+      );
 
-        // Check if this action produces Normal Logs
-        final action = testActions.byId(s.actionId);
-        if (action is! SkillAction) return false;
-        return action.outputs.containsKey(normalLogsId);
-      }).toList();
-
-      // Should have at least Normal Tree as a producer
-      expect(producers, isNotEmpty);
+      // Create producers list in wrong order (slow, fast, medium)
+      final producers = [slowProducer, fastProducer, mediumProducer];
 
       // Sort by output rate
-      sortProducersByOutputRate(producers, testRegistries, normalLogsId);
+      sortProducersByOutputRate(producers, customRegistries, normalLogs.id);
 
-      // Verify order is descending by output rate
-      for (var i = 0; i < producers.length - 1; i++) {
-        final currentRate = producers[i].outputPerTickForItem(
-          testRegistries,
-          normalLogsId,
-        );
-        final nextRate = producers[i + 1].outputPerTickForItem(
-          testRegistries,
-          normalLogsId,
-        );
-        expect(
-          currentRate,
-          greaterThanOrEqualTo(nextRate),
-          reason:
-              '${actionName(producers[i].actionId)} ($currentRate/tick) '
-              'should be >= '
-              '${actionName(producers[i + 1].actionId)} ($nextRate/tick)',
-        );
-      }
+      // Verify order is now: fast, medium, slow (descending by rate)
+      expect(producers[0].actionId, equals(fastActionId));
+      expect(producers[1].actionId, equals(mediumActionId));
+      expect(producers[2].actionId, equals(slowActionId));
+
+      // Verify the actual rates are in descending order
+      final rate0 = producers[0].outputPerTickForItem(
+        customRegistries,
+        normalLogs.id,
+      );
+      final rate1 = producers[1].outputPerTickForItem(
+        customRegistries,
+        normalLogs.id,
+      );
+      final rate2 = producers[2].outputPerTickForItem(
+        customRegistries,
+        normalLogs.id,
+      );
+
+      expect(rate0, greaterThan(rate1));
+      expect(rate1, greaterThan(rate2));
+
+      // Verify the expected values
+      expect(rate0, closeTo(0.1, 0.001)); // 2 / 20 = 0.1
+      expect(rate1, closeTo(0.067, 0.001)); // 2 / 30 ≈ 0.067
+      expect(rate2, closeTo(0.04, 0.001)); // 2 / 50 = 0.04
     });
 
     test('handles empty list', () {
