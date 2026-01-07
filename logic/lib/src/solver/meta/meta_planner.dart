@@ -358,7 +358,7 @@ class MetaPlanner {
     }).toList();
 
     return MetaPhase(
-      id: 'phase_${phaseIndex}_roundrobin',
+      id: 'phase_${phaseIndex}_round_robin',
       targets: PhaseTargets(hardTargets: milestones),
       activeProjects: projects,
       policy: policy,
