@@ -2,6 +2,7 @@
 //
 // Usage: dart run bin/solver.dart [goal_credits]
 //        dart run bin/solver.dart -s  # Solve for firemaking level 30
+//        dart run bin/solver.dart -a  # Solve all skills to level 99
 //        dart run bin/solver.dart --cliff  # Diagnose FM=55 vs FM=56 cliff
 //        dart run bin/solver.dart -d  # Solve with diagnostics enabled
 //
@@ -29,6 +30,12 @@ final _parser = ArgParser()
     'skills',
     abbr: 'm',
     help: 'Solve for multiple skills (e.g., "Woodcutting=50,Firemaking=50")',
+  )
+  ..addFlag(
+    'all',
+    abbr: 'a',
+    help: 'Solve all skills to level 99',
+    negatable: false,
   )
   ..addFlag(
     'diagnostics',
@@ -83,6 +90,26 @@ final _parser = ArgParser()
         'Write the plan to a JSON file (e.g., plan.json). '
         'Implies --no-execute unless -v is also specified.',
   );
+
+// ---------------------------------------------------------------------------
+// Constants
+// ---------------------------------------------------------------------------
+
+/// Skills included in the "All=99" mode.
+/// This list can be easily edited to add or remove skills.
+const List<Skill> allSkillsFor99 = [
+  Skill.woodcutting,
+  Skill.fishing,
+  Skill.firemaking,
+  Skill.cooking,
+  // Skill.mining,
+  // Skill.smithing,
+  // Skill.fletching,
+  // Skill.crafting,
+  // Skill.runecrafting,
+  // Skill.thieving,
+  // Skill.herblore,
+];
 
 // ---------------------------------------------------------------------------
 // Solver Configuration
@@ -722,7 +749,13 @@ class _TriggerEntry {
 
 /// Parses the goal from command-line arguments.
 Goal _parseGoalFromArgs(ArgResults results) {
-  if (results['skills'] != null) {
+  if (results['all'] as bool) {
+    // Create a MultiSkillGoal with all skills set to level 99
+    final skillMap = <Skill, int>{
+      for (final skill in allSkillsFor99) skill: 99,
+    };
+    return MultiSkillGoal.fromMap(skillMap);
+  } else if (results['skills'] != null) {
     return _parseMultiSkillGoal(results['skills'] as String);
   } else if (results['skill'] as bool) {
     return const ReachSkillLevelGoal(Skill.firemaking, 30);
