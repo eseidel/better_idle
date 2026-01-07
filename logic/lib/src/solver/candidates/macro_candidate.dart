@@ -1427,8 +1427,11 @@ class TrainConsumingSkillUntil extends MacroCandidate {
       }
       ticksUntilStop = (xpNeeded / sustainableXpPerTick).ceil();
     } else {
-      final consumeRates = estimateRatesForAction(state, bestConsumeAction);
-      final estimatedTicks = waitFor.estimateTicks(producerState, consumeRates);
+      final estimatedTicks = estimateTicksForActionWait(
+        producerState,
+        bestConsumeAction,
+        waitFor,
+      );
       if (estimatedTicks <= 0) {
         return MacroAlreadySatisfied(
           'Stop condition already satisfied for ${consumingSkill.name}',

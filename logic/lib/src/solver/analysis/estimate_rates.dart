@@ -24,6 +24,7 @@ import 'package:logic/src/data/actions.dart';
 import 'package:logic/src/data/melvor_id.dart';
 import 'package:logic/src/data/xp.dart';
 import 'package:logic/src/solver/analysis/next_decision_delta.dart';
+import 'package:logic/src/solver/analysis/wait_for.dart';
 import 'package:logic/src/solver/core/value_model.dart';
 import 'package:logic/src/state.dart';
 import 'package:logic/src/tick.dart';
@@ -487,4 +488,61 @@ Rates estimateRates(GlobalState state) {
     masteryXpPerTick: masteryXpPerTick,
     actionId: action.id,
   );
+}
+
+/// Finds the best action from [actionIds] that maximizes a rate function.
+///
+/// This is a generic helper for "find best action by rate" patterns.
+/// Returns null if no actions match the criteria.
+///
+/// Parameters:
+/// - [state]: Current game state
+/// - [actionIds]: Candidate action IDs to consider
+/// - [rateExtractor]: Function to extract the rate to maximize from [Rates]
+/// - [skill]: Filter actions to this skill (optional)
+/// - [canStartAction]: Additional filter for action viability (optional)
+ActionId? findBestActionByRate(
+  GlobalState state,
+  Iterable<ActionId> actionIds, {
+  required double Function(Rates) rateExtractor,
+  Skill? skill,
+  bool Function(GlobalState, Action)? canStartAction,
+}) {
+  final registries = state.registries;
+  ActionId? best;
+  double bestRate = 0;
+
+  for (final actionId in actionIds) {
+    final action = registries.actions.byId(actionId);
+
+    // Filter by skill if specified
+    if (skill != null) {
+      if (action is! SkillAction || action.skill != skill) continue;
+    }
+
+    // Check if action can be started (if filter specified)
+    if (canStartAction != null && !canStartAction(state, action)) continue;
+
+    final rates = estimateRatesForAction(state, actionId);
+    final rate = rateExtractor(rates);
+    if (rate > bestRate) {
+      bestRate = rate;
+      best = actionId;
+    }
+  }
+
+  return best;
+}
+
+/// Estimates the number of ticks for an action to satisfy a wait condition.
+///
+/// This is a helper for the common pattern of:
+/// `estimateRatesForAction(state, actionId)` -> `waitFor.estimateTicks()`
+int estimateTicksForActionWait(
+  GlobalState state,
+  ActionId actionId,
+  WaitFor waitFor,
+) {
+  final rates = estimateRatesForAction(state, actionId);
+  return waitFor.estimateTicks(state, rates);
 }

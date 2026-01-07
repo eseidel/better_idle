@@ -198,49 +198,43 @@ ActionId? findBestActionForSkill(GlobalState state, Skill skill, Goal goal) {
 
   if (actions.isEmpty) return null;
 
-  // Rank by goal-specific rate
-  ActionId? best;
-  double bestRate = 0;
-
   // Check if this skill is relevant to the goal. If not (e.g., training Mining
   // as a prerequisite for Smithing), use raw XP rate instead of goal rate.
   final skillIsGoalRelevant = goal.isSkillRelevant(skill);
 
-  actionLoop:
-  for (final action in actions) {
-    // For consuming actions, check that ALL inputs can be produced
-    // (either directly or via prerequisite training).
-    // This handles multi-input actions like Mithril Bar (Mithril Ore + Coal).
-    if (action.inputs.isNotEmpty) {
-      for (final inputItem in action.inputs.keys) {
-        // Check if any producer exists (locked or unlocked)
-        final anyProducer = findAnyProducerForItem(state, inputItem);
-        if (anyProducer == null) {
-          // No way to produce this input at all, skip this action
-          continue actionLoop;
+  // Filter out actions with inputs that have no producer at all
+  final viableActions = actions
+      .where((action) {
+        if (action.inputs.isEmpty) return true;
+
+        // For consuming actions, check that ALL inputs can be produced
+        // (either directly or via prerequisite training).
+        // This handles multi-input actions like Mithril Bar (Mithril Ore + Coal).
+        for (final inputItem in action.inputs.keys) {
+          // Check if any producer exists (locked or unlocked)
+          final anyProducer = findAnyProducerForItem(state, inputItem);
+          if (anyProducer == null) {
+            // No way to produce this input at all, skip this action
+            return false;
+          }
         }
-      }
-    }
+        return true;
+      })
+      .map((a) => a.id);
 
-    // Use estimateRatesForAction which doesn't require the action to be active
-    // or have inputs available. This allows planning for consuming actions
-    // before inputs are produced.
-    final rates = estimateRatesForAction(state, action.id);
+  // Rank by goal-specific rate
+  return findBestActionByRate(
+    state,
+    viableActions,
+    rateExtractor: (rates) {
+      final goldRate = defaultValueModel.valuePerTick(state, rates);
+      final xpRate = rates.xpPerTickBySkill[skill] ?? 0.0;
 
-    final goldRate = defaultValueModel.valuePerTick(state, rates);
-    final xpRate = rates.xpPerTickBySkill[skill] ?? 0.0;
-
-    // For prerequisite training (skill not in goal), use raw XP rate
-    // to pick the fastest training action.
-    final rate = skillIsGoalRelevant
-        ? goal.activityRate(skill, goldRate, xpRate)
-        : xpRate;
-
-    if (rate > bestRate) {
-      bestRate = rate;
-      best = action.id;
-    }
-  }
-
-  return best;
+      // For prerequisite training (skill not in goal), use raw XP rate
+      // to pick the fastest training action.
+      return skillIsGoalRelevant
+          ? goal.activityRate(skill, goldRate, xpRate)
+          : xpRate;
+    },
+  );
 }

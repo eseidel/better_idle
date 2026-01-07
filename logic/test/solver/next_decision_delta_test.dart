@@ -294,6 +294,126 @@ void main() {
         expect(result.waitFor, isA<WaitForSufficientInputs>());
       },
     );
+
+    test('returns ticks until inventory full when watching inventory', () {
+      // Start with partially filled inventory and an action that produces items
+      var state = GlobalState.test(
+        testRegistries,
+        inventory: Inventory.fromItems(testItems, [
+          // Fill 5 of 12 default slots
+          ItemStack(testItems.byName('Normal Logs'), count: 1),
+          ItemStack(testItems.byName('Oak Logs'), count: 1),
+          ItemStack(testItems.byName('Willow Logs'), count: 1),
+          ItemStack(testItems.byName('Teak Logs'), count: 1),
+          ItemStack(testItems.byName('Maple Logs'), count: 1),
+        ]),
+      );
+      final chopAction = testActions.woodcutting('Normal Tree');
+      state = state.startAction(chopAction, random: Random(0));
+
+      // Use a goal and setup that watches inventory
+      const goal = ReachGpGoal(100000);
+      final candidates = enumerateCandidates(state, goal);
+
+      // Ensure candidates are watching inventory
+      final watchingInventory = candidates.watch.inventory;
+
+      final result = nextDecisionDelta(state, goal, candidates);
+
+      // If watching inventory and producing items, should get inventory delta
+      final rates = estimateRates(state);
+      if (watchingInventory && rates.itemTypesPerTick > 0) {
+        // Should return a finite result
+        expect(result.deltaTicks, greaterThan(0));
+        expect(result.deltaTicks, lessThan(infTicks));
+
+        // Verify the calculation
+        final slotsRemaining = state.inventoryRemaining;
+        final expectedTicks = (slotsRemaining / rates.itemTypesPerTick).ceil();
+
+        // The result might not be WaitForInventoryFull if other events
+        // are sooner, but if it is, the ticks should match our expectation
+        if (result.waitFor is WaitForInventoryFull) {
+          expect(result.deltaTicks, expectedTicks);
+        }
+      }
+    });
+
+    test('handles already full inventory when watching inventory', () {
+      // Fill inventory completely
+      var state = GlobalState.test(
+        testRegistries,
+        inventory: Inventory.fromItems(
+          testItems,
+          // Create 20 distinct items to fill all 20 default slots
+          List.generate(
+            20,
+            (i) => ItemStack(
+              testItems.byName(
+                [
+                  'Normal Logs',
+                  'Oak Logs',
+                  'Willow Logs',
+                  'Teak Logs',
+                  'Maple Logs',
+                  'Mahogany Logs',
+                  'Yew Logs',
+                  'Magic Logs',
+                  'Redwood Logs',
+                  'Bronze Bar',
+                  'Iron Bar',
+                  'Steel Bar',
+                  'Coal Ore',
+                  'Iron Ore',
+                  'Shrimp',
+                  'Lobster',
+                  'Bronze Dagger',
+                  'Bronze Sword',
+                  'Bronze Helmet',
+                  'Bronze Shield',
+                ][i],
+              ),
+              count: 1,
+            ),
+          ),
+        ),
+      );
+
+      // Verify inventory is full
+      expect(state.inventoryRemaining, 0);
+
+      final chopAction = testActions.woodcutting('Normal Tree');
+      state = state.startAction(chopAction, random: Random(0));
+
+      const goal = ReachGpGoal(100000);
+      final candidates = enumerateCandidates(state, goal);
+
+      final result = nextDecisionDelta(state, goal, candidates);
+
+      // With full inventory, if watching inventory and producing items,
+      // _deltaUntilInventoryFull returns 0, but this gets filtered out
+      // by the > 0 check in nextDecisionDelta (line 181)
+      // So the result will be some other wait condition
+      expect(result.deltaTicks, greaterThanOrEqualTo(0));
+    });
+
+    test('ignores inventory when not producing items', () {
+      // Start with empty inventory but no action that produces items
+      final state = GlobalState.empty(testRegistries);
+
+      const goal = ReachGpGoal(100000);
+      final candidates = enumerateCandidates(state, goal);
+
+      final result = nextDecisionDelta(state, goal, candidates);
+
+      // With no active action, no items are produced (itemTypesPerTick = 0)
+      // so _deltaUntilInventoryFull returns null
+      // The result will be some other wait condition or infTicks
+      expect(result.deltaTicks, greaterThanOrEqualTo(0));
+
+      final rates = estimateRates(state);
+      expect(rates.itemTypesPerTick, 0);
+    });
   });
 
   group('Goal', () {

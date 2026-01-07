@@ -61,8 +61,7 @@ int _estimateTicksAtExecution(GlobalState state, PlanStep step) {
       // Get rates for the action that will be running
       final actionId = expectedAction ?? state.activeAction?.id;
       if (actionId == null) return 0;
-      final rates = estimateRatesForAction(state, actionId);
-      return waitFor.estimateTicks(state, rates);
+      return estimateTicksForActionWait(state, actionId, waitFor);
 
     case MacroStep(:final macro, :final waitFor):
       // Get rates for the macro's action
@@ -85,8 +84,7 @@ int _estimateTicksAtExecution(GlobalState state, PlanStep step) {
         ProduceItem(:final actionId) => actionId,
       };
       if (actionId == null) return 0;
-      final rates = estimateRatesForAction(state, actionId);
-      return waitFor.estimateTicks(state, rates);
+      return estimateTicksForActionWait(state, actionId, waitFor);
   }
 }
 

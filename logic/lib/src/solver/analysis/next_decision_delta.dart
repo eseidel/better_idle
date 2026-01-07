@@ -344,48 +344,24 @@ ActionId? _findBestActionForGoalSkill(
   Skill skill,
   Candidates candidates,
 ) {
-  final registries = state.registries;
-
   // For consuming skills, look for the best consuming action
   if (skill.isConsuming) {
-    ActionId? bestAction;
-    double bestXpRate = 0;
-
-    for (final actionId in candidates.switchToActivities) {
-      final action = registries.actions.byId(actionId);
-      if (action is! SkillAction || action.skill != skill) continue;
-
-      // Check if we can start this action (have inputs)
-      if (!state.canStartAction(action)) continue;
-
-      final rates = estimateRatesForAction(state, actionId);
-      final xpRate = rates.xpPerTickBySkill[skill] ?? 0.0;
-      if (xpRate > bestXpRate) {
-        bestXpRate = xpRate;
-        bestAction = actionId;
-      }
-    }
-
-    return bestAction;
+    return findBestActionByRate(
+      state,
+      candidates.switchToActivities,
+      rateExtractor: (rates) => rates.xpPerTickBySkill[skill] ?? 0.0,
+      skill: skill,
+      canStartAction: (state, action) => state.canStartAction(action),
+    );
   }
 
   // For non-consuming skills, find the best producing action
-  ActionId? bestAction;
-  double bestXpRate = 0;
-
-  for (final actionId in candidates.switchToActivities) {
-    final action = registries.actions.byId(actionId);
-    if (action is! SkillAction || action.skill != skill) continue;
-
-    final rates = estimateRatesForAction(state, actionId);
-    final xpRate = rates.xpPerTickBySkill[skill] ?? 0.0;
-    if (xpRate > bestXpRate) {
-      bestXpRate = xpRate;
-      bestAction = actionId;
-    }
-  }
-
-  return bestAction;
+  return findBestActionByRate(
+    state,
+    candidates.switchToActivities,
+    rateExtractor: (rates) => rates.xpPerTickBySkill[skill] ?? 0.0,
+    skill: skill,
+  );
 }
 
 /// Computes ticks until goal is reached at current progress rate.
