@@ -175,6 +175,42 @@ void main() {
     });
   });
 
+  group('ShopPurchase', () {
+    test('fromJson parses customName and customDescription', () {
+      final json = {
+        'id': 'Test_Item',
+        'customName': 'Custom Name',
+        'customDescription': 'This is a custom description',
+        'category': 'melvorD:General',
+        'cost': {'items': <dynamic>[], 'currencies': <dynamic>[]},
+        'contains': {'modifiers': <String, dynamic>{}},
+        'unlockRequirements': <dynamic>[],
+        'purchaseRequirements': <dynamic>[],
+        'defaultBuyLimit': 1,
+      };
+      final purchase = ShopPurchase.fromJson(json, namespace: 'melvorD');
+
+      expect(purchase.name, 'Custom Name');
+      expect(purchase.description, 'This is a custom description');
+    });
+
+    test('fromJson uses ID name when customName is missing', () {
+      final json = {
+        'id': 'Test_Item',
+        'category': 'melvorD:General',
+        'cost': {'items': <dynamic>[], 'currencies': <dynamic>[]},
+        'contains': {'modifiers': <String, dynamic>{}},
+        'unlockRequirements': <dynamic>[],
+        'purchaseRequirements': <dynamic>[],
+        'defaultBuyLimit': 1,
+      };
+      final purchase = ShopPurchase.fromJson(json, namespace: 'melvorD');
+
+      expect(purchase.name, 'Test Item'); // ID converted to name format
+      expect(purchase.description, isNull);
+    });
+  });
+
   group('ShopCategory', () {
     test('fromJson parses correctly', () {
       final json = {

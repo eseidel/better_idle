@@ -247,6 +247,7 @@ class GlobalState {
     required this.registries,
     this.plotStates = const {},
     this.unlockedPlots = const {},
+    this.dungeonCompletions = const {},
     this.timeAway,
     this.stunned = const StunnedState.fresh(),
   });
@@ -267,6 +268,7 @@ class GlobalState {
         health: const HealthState.full(),
         equipment: const Equipment.empty(),
         registries: registries,
+        dungeonCompletions: const {},
         // Unlock all free starter plots (level 1, 0 GP cost)
         unlockedPlots: registries.farmingPlots.initialPlots(),
       );
@@ -280,6 +282,7 @@ class GlobalState {
     Map<ActionId, ActionState> actionStates = const {},
     Map<MelvorId, PlotState> plotStates = const {},
     Set<MelvorId> unlockedPlots = const {},
+    Map<MelvorId, int> dungeonCompletions = const {},
     DateTime? updatedAt,
     int gp = 0,
     Map<Currency, int>? currencies,
@@ -299,6 +302,7 @@ class GlobalState {
       actionStates: actionStates,
       plotStates: plotStates,
       unlockedPlots: unlockedPlots,
+      dungeonCompletions: dungeonCompletions,
       updatedAt: updatedAt ?? DateTime.timestamp(),
       currencies: currenciesMap,
       timeAway: timeAway,
@@ -347,6 +351,7 @@ class GlobalState {
               ?.map((e) => MelvorId.fromJson(e as String))
               .toSet() ??
           const {},
+      dungeonCompletions = _dungeonCompletionsFromJson(json),
       currencies = _currenciesFromJson(json),
       timeAway = TimeAway.maybeFromJson(registries, json['timeAway']),
       shop = ShopState.maybeFromJson(json['shop']) ?? const ShopState.empty(),
@@ -364,6 +369,16 @@ class GlobalState {
     return currenciesJson.map((key, value) {
       final currency = Currency.fromId(key);
       return MapEntry(currency, value as int);
+    });
+  }
+
+  static Map<MelvorId, int> _dungeonCompletionsFromJson(
+    Map<String, dynamic> json,
+  ) {
+    final completionsJson =
+        json['dungeonCompletions'] as Map<String, dynamic>? ?? {};
+    return completionsJson.map((key, value) {
+      return MapEntry(MelvorId.fromJson(key), value as int);
     });
   }
 
@@ -392,6 +407,9 @@ class GlobalState {
         (key, value) => MapEntry(key.toJson(), value.toJson()),
       ),
       'unlockedPlots': unlockedPlots.map((e) => e.toJson()).toList(),
+      'dungeonCompletions': dungeonCompletions.map(
+        (key, value) => MapEntry(key.toJson(), value),
+      ),
       'currencies': currencies.map((key, value) => MapEntry(key.id, value)),
       'timeAway': timeAway?.toJson(),
       'shop': shop.toJson(),
@@ -421,6 +439,13 @@ class GlobalState {
 
   /// The set of unlocked farming plots.
   final Set<MelvorId> unlockedPlots;
+
+  /// Map of dungeon ID to number of completions.
+  final Map<MelvorId, int> dungeonCompletions;
+
+  /// Returns how many times a dungeon has been completed.
+  int dungeonCompletionCount(MelvorId dungeonId) =>
+      dungeonCompletions[dungeonId] ?? 0;
 
   /// The player's currencies (GP, Slayer Coins, etc.).
   final Map<Currency, int> currencies;
@@ -770,6 +795,9 @@ class GlobalState {
       activeAction: null,
       skillStates: skillStates,
       actionStates: actionStates,
+      plotStates: plotStates,
+      unlockedPlots: unlockedPlots,
+      dungeonCompletions: dungeonCompletions,
       updatedAt: DateTime.timestamp(),
       currencies: currencies,
       health: health,
@@ -786,6 +814,9 @@ class GlobalState {
       activeAction: activeAction,
       skillStates: skillStates,
       actionStates: actionStates,
+      plotStates: plotStates,
+      unlockedPlots: unlockedPlots,
+      dungeonCompletions: dungeonCompletions,
       updatedAt: DateTime.timestamp(),
       currencies: currencies,
       shop: shop,
@@ -1246,6 +1277,7 @@ class GlobalState {
     Map<ActionId, ActionState>? actionStates,
     Map<MelvorId, PlotState>? plotStates,
     Set<MelvorId>? unlockedPlots,
+    Map<MelvorId, int>? dungeonCompletions,
     Map<Currency, int>? currencies,
     TimeAway? timeAway,
     ShopState? shop,
@@ -1261,6 +1293,7 @@ class GlobalState {
       actionStates: actionStates ?? this.actionStates,
       plotStates: plotStates ?? this.plotStates,
       unlockedPlots: unlockedPlots ?? this.unlockedPlots,
+      dungeonCompletions: dungeonCompletions ?? this.dungeonCompletions,
       updatedAt: DateTime.timestamp(),
       currencies: currencies ?? this.currencies,
       timeAway: timeAway ?? this.timeAway,

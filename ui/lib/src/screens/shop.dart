@@ -112,7 +112,7 @@ class _ShopPageState extends State<ShopPage> {
     final rows = <Widget>[];
 
     for (final purchase in purchases) {
-      final unmetRequirements = viewModel.unmetSkillRequirements(purchase);
+      final unmetRequirements = viewModel.unmetRequirements(purchase);
       final meetsAllReqs = unmetRequirements.isEmpty;
 
       // Get all costs (handles both fixed and bank slot pricing)
@@ -145,6 +145,7 @@ class _ShopPageState extends State<ShopPage> {
           itemCosts: resolvedItemCosts,
           description: description,
           unmetRequirements: unmetRequirements,
+          dungeonRegistry: viewModel._state.registries.dungeons,
           onTap: canPurchase
               ? () => _showPurchaseDialog(
                   context,
@@ -210,6 +211,13 @@ class _ShopPageState extends State<ShopPage> {
   }
 
   String? _buildDescription(ShopPurchase purchase) {
+    // Prefer custom description if available
+    // (e.g., Magic Pot has detailed modifier info)
+    if (purchase.description != null) {
+      return purchase.description;
+    }
+
+    // Otherwise build description from modifiers we understand
     final parts = <String>[];
 
     // Add skill interval modifiers
@@ -226,11 +234,6 @@ class _ShopPageState extends State<ShopPage> {
     final bankSpace = purchase.contains.bankSpace;
     if (bankSpace != null) {
       parts.add('+$bankSpace bank space');
-    }
-
-    // Fall back to custom description if no modifiers
-    if (parts.isEmpty && purchase.description != null) {
-      return purchase.description;
     }
 
     return parts.isEmpty ? null : parts.join(', ');
@@ -326,12 +329,30 @@ class ShopViewModel {
     return result;
   }
 
-  /// Get skill level requirements that the player doesn't meet.
-  List<SkillLevelRequirement> unmetSkillRequirements(ShopPurchase purchase) {
-    final requirements = _shopRegistry.skillLevelRequirements(purchase);
-    return requirements
-        .where((r) => _state.skillState(r.skill).skillLevel < r.level)
-        .toList();
+  /// Get all requirements that the player doesn't meet.
+  List<ShopRequirement> unmetRequirements(ShopPurchase purchase) {
+    final unmet = <ShopRequirement>[];
+
+    // Check all unlock and purchase requirements
+    final allReqs = [
+      ...purchase.unlockRequirements,
+      ...purchase.purchaseRequirements,
+    ];
+
+    for (final req in allReqs) {
+      if (req is SkillLevelRequirement) {
+        if (_state.skillState(req.skill).skillLevel < req.level) {
+          unmet.add(req);
+        }
+      } else if (req is DungeonCompletionRequirement) {
+        if (_state.dungeonCompletionCount(req.dungeonId) < req.count) {
+          unmet.add(req);
+        }
+      }
+      // ShopPurchaseRequirement is already checked for visibility
+    }
+
+    return unmet;
   }
 
   /// Get the player's skill level for a skill.
@@ -394,6 +415,7 @@ class _ShopItemRow extends StatelessWidget {
     required this.currencyCosts,
     required this.canAffordCosts,
     required this.itemCosts,
+    required this.dungeonRegistry,
     this.onTap,
     this.media,
     this.description,
@@ -420,8 +442,11 @@ class _ShopItemRow extends StatelessWidget {
   /// Optional description shown below the name.
   final String? description;
 
-  /// Skill level requirements the player hasn't met yet.
-  final List<SkillLevelRequirement> unmetRequirements;
+  /// Requirements the player hasn't met yet.
+  final List<ShopRequirement> unmetRequirements;
+
+  /// Registry for looking up dungeon data.
+  final DungeonRegistry dungeonRegistry;
 
   @override
   Widget build(BuildContext context) {
@@ -472,18 +497,43 @@ class _ShopItemRow extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: unmetRequirements.map((req) {
-        return Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text('Requires ', style: TextStyle(color: color, fontSize: 12)),
-            CachedImage(assetPath: req.skill.assetPath, size: 14),
-            const SizedBox(width: 4),
-            Text(
-              'Level ${req.level}',
-              style: TextStyle(color: color, fontSize: 12),
-            ),
-          ],
-        );
+        if (req is SkillLevelRequirement) {
+          return Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text('Requires ', style: TextStyle(color: color, fontSize: 12)),
+              CachedImage(assetPath: req.skill.assetPath, size: 14),
+              const SizedBox(width: 4),
+              Text(
+                'Level ${req.level}',
+                style: TextStyle(color: color, fontSize: 12),
+              ),
+            ],
+          );
+        } else if (req is DungeonCompletionRequirement) {
+          // Look up dungeon from registry
+          final dungeon = dungeonRegistry.byId(req.dungeonId);
+          final dungeonName =
+              dungeon?.name ?? req.dungeonId.name.replaceAll('_', ' ');
+          final completionText = req.count == 1 ? 'once' : '${req.count} times';
+
+          return Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text('Complete ', style: TextStyle(color: color, fontSize: 12)),
+              if (dungeon?.media != null) ...[
+                CachedImage(assetPath: dungeon!.media!, size: 14),
+                const SizedBox(width: 4),
+              ],
+              Text(
+                '$dungeonName $completionText',
+                style: TextStyle(color: color, fontSize: 12),
+              ),
+            ],
+          );
+        }
+        // Unknown requirement type, skip it
+        return const SizedBox.shrink();
       }).toList(),
     );
   }

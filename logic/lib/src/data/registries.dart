@@ -23,6 +23,7 @@ class Registries {
     this.runecraftingCategories,
     this.thievingAreas,
     this.combatAreas,
+    this.dungeons,
     this.agilityCourses,
     this.agilityPillars,
     this.farmingCrops,
@@ -54,6 +55,7 @@ class Registries {
       RunecraftingCategoryRegistry(const []),
       const ThievingAreaRegistry([]),
       CombatAreaRegistry(const []),
+      DungeonRegistry(const []),
       AgilityCourseRegistry([]),
       AgilityPillarRegistry([]),
       FarmingCropRegistry([]),
@@ -77,6 +79,7 @@ class Registries {
   final RunecraftingCategoryRegistry runecraftingCategories;
   final ThievingAreaRegistry thievingAreas;
   final CombatAreaRegistry combatAreas;
+  final DungeonRegistry dungeons;
   final AgilityCourseRegistry agilityCourses;
   final AgilityPillarRegistry agilityPillars;
   final FarmingCropRegistry farmingCrops;
@@ -135,6 +138,7 @@ Future<Registries> loadRegistriesFromCache(Cache cache) async {
     melvorData.runecraftingCategories,
     melvorData.thievingAreas,
     melvorData.combatAreas,
+    melvorData.dungeons,
     melvorData.agilityCourses,
     melvorData.agilityPillars,
     melvorData.farmingCrops,

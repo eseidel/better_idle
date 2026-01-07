@@ -31,6 +31,7 @@ class MelvorData {
     final items = <Item>[];
     final skillDataById = <String, List<SkillDataEntry>>{};
     final combatAreas = <CombatArea>[];
+    final dungeons = <Dungeon>[];
     final bankSortEntries = <BankSortEntry>[];
 
     // Step 1: Collect items and skill data entries (preserving namespace)
@@ -62,6 +63,9 @@ class MelvorData {
 
       // Combat areas (not skill-based)
       combatAreas.addAll(parseCombatAreas(json, namespace: namespace));
+
+      // Dungeons (not skill-based)
+      dungeons.addAll(parseDungeons(json, namespace: namespace));
 
       // Collect bank sort order entries
       final sortOrder = data['bankSortOrder'] as List<dynamic>? ?? [];
@@ -158,6 +162,7 @@ class MelvorData {
 
     _actions = ActionRegistry(actions);
     _combatAreas = CombatAreaRegistry(combatAreas);
+    _dungeons = DungeonRegistry(dungeons);
 
     // Parse shop data
     _shop = parseShop(dataFiles);
@@ -201,6 +206,7 @@ class MelvorData {
   late final RunecraftingCategoryRegistry _runecraftingCategories;
   late final ThievingAreaRegistry _thievingAreas;
   late final CombatAreaRegistry _combatAreas;
+  late final DungeonRegistry _dungeons;
   late final AgilityCourseRegistry _agilityCourses;
   late final AgilityPillarRegistry _agilityPillars;
   late final MasteryBonusRegistry _masteryBonuses;
@@ -233,6 +239,8 @@ class MelvorData {
   ThievingAreaRegistry get thievingAreas => _thievingAreas;
 
   CombatAreaRegistry get combatAreas => _combatAreas;
+
+  DungeonRegistry get dungeons => _dungeons;
 
   AgilityCourseRegistry get agilityCourses => _agilityCourses;
 
@@ -735,6 +743,22 @@ List<CombatArea> parseCombatAreas(
   return areas
       .map((areaJson) => areaJson as Map<String, dynamic>)
       .map((areaJson) => CombatArea.fromJson(areaJson, namespace: namespace))
+      .toList();
+}
+
+List<Dungeon> parseDungeons(
+  Map<String, dynamic> json, {
+  required String namespace,
+}) {
+  final data = json['data'] as Map<String, dynamic>?;
+  if (data == null) {
+    return [];
+  }
+
+  final dungeons = data['dungeons'] as List<dynamic>? ?? [];
+  return dungeons
+      .map((dungeonJson) => dungeonJson as Map<String, dynamic>)
+      .map((dungeonJson) => Dungeon.fromJson(dungeonJson, namespace: namespace))
       .toList();
 }
 

@@ -184,15 +184,29 @@ class PurchaseShopItemAction extends ReduxAction<GlobalState> {
         if (state.shop.purchaseCount(req.purchaseId) < req.count) {
           throw Exception('Must own prerequisite purchase first');
         }
+      } else if (req is DungeonCompletionRequirement) {
+        if (state.dungeonCompletionCount(req.dungeonId) < req.count) {
+          throw Exception(
+            'Must complete dungeon ${req.dungeonId.name} '
+            '${req.count} time(s)',
+          );
+        }
       }
     }
 
-    // Check purchase requirements (skill levels)
+    // Check purchase requirements (skill levels and dungeon completions)
     for (final req in purchase.purchaseRequirements) {
       if (req is SkillLevelRequirement) {
         final skillLevel = state.skillState(req.skill).skillLevel;
         if (skillLevel < req.level) {
           throw Exception('Requires ${req.skill.name} level ${req.level}');
+        }
+      } else if (req is DungeonCompletionRequirement) {
+        if (state.dungeonCompletionCount(req.dungeonId) < req.count) {
+          throw Exception(
+            'Must complete dungeon ${req.dungeonId.name} '
+            '${req.count} time(s)',
+          );
         }
       }
     }

@@ -356,3 +356,66 @@ class CombatAreaRegistry {
   /// Returns a combat area by ID, or null if not found.
   CombatArea? byId(MelvorId id) => _byId[id];
 }
+
+/// A dungeon (similar structure to combat area).
+@immutable
+class Dungeon {
+  const Dungeon({
+    required this.id,
+    required this.name,
+    required this.monsterIds,
+    this.difficulty = const [],
+    this.media,
+  });
+
+  factory Dungeon.fromJson(
+    Map<String, dynamic> json, {
+    required String namespace,
+  }) {
+    final monsterIds = (json['monsterIDs'] as List<dynamic>)
+        .map(
+          (id) => MelvorId.fromJsonWithNamespace(
+            id as String,
+            defaultNamespace: namespace,
+          ),
+        )
+        .toList();
+
+    final difficultyRaw = json['difficulty'] as List<dynamic>? ?? [];
+    final difficulty = difficultyRaw.map((e) => e as int).toList();
+
+    return Dungeon(
+      id: MelvorId.fromJsonWithNamespace(
+        json['id'] as String,
+        defaultNamespace: namespace,
+      ),
+      name: json['name'] as String,
+      monsterIds: monsterIds,
+      difficulty: difficulty,
+      media: json['media'] as String?,
+    );
+  }
+
+  final MelvorId id;
+  final String name;
+  final List<MelvorId> monsterIds;
+  final List<int> difficulty;
+  final String? media;
+}
+
+/// Registry for dungeons.
+@immutable
+class DungeonRegistry {
+  DungeonRegistry(List<Dungeon> dungeons) : _dungeons = dungeons {
+    _byId = {for (final dungeon in _dungeons) dungeon.id: dungeon};
+  }
+
+  final List<Dungeon> _dungeons;
+  late final Map<MelvorId, Dungeon> _byId;
+
+  /// Returns all dungeons.
+  List<Dungeon> get all => _dungeons;
+
+  /// Returns a dungeon by ID, or null if not found.
+  Dungeon? byId(MelvorId id) => _byId[id];
+}

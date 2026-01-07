@@ -114,6 +114,8 @@ bool _meetsUnlockRequirements(GlobalState state, ShopPurchase purchase) {
     switch (req) {
       case ShopPurchaseRequirement(:final purchaseId, :final count):
         if (state.shop.purchaseCount(purchaseId) < count) return false;
+      case DungeonCompletionRequirement(:final dungeonId, :final count):
+        if (state.dungeonCompletionCount(dungeonId) < count) return false;
       case SkillLevelRequirement():
         // Skill requirements are typically in purchaseRequirements, not unlock
         break;
@@ -130,6 +132,8 @@ bool _meetsPurchaseRequirements(GlobalState state, ShopPurchase purchase) {
         if (state.skillState(skill).skillLevel < level) return false;
       case ShopPurchaseRequirement(:final purchaseId, :final count):
         if (state.shop.purchaseCount(purchaseId) < count) return false;
+      case DungeonCompletionRequirement(:final dungeonId, :final count):
+        if (state.dungeonCompletionCount(dungeonId) < count) return false;
     }
   }
   return true;

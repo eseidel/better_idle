@@ -145,6 +145,10 @@ sealed class ShopRequirement extends Equatable {
         json,
         namespace: namespace,
       ),
+      'DungeonCompletion' => DungeonCompletionRequirement.fromJson(
+        json,
+        namespace: namespace,
+      ),
       _ => null, // Ignore unsupported requirement types
     };
   }
@@ -195,6 +199,34 @@ class ShopPurchaseRequirement extends ShopRequirement {
 
   @override
   List<Object?> get props => [purchaseId, count];
+}
+
+/// Requires completing a dungeon a certain number of times.
+@immutable
+class DungeonCompletionRequirement extends ShopRequirement {
+  const DungeonCompletionRequirement({
+    required this.dungeonId,
+    required this.count,
+  });
+
+  factory DungeonCompletionRequirement.fromJson(
+    Map<String, dynamic> json, {
+    required String namespace,
+  }) {
+    return DungeonCompletionRequirement(
+      dungeonId: MelvorId.fromJsonWithNamespace(
+        json['dungeonID'] as String,
+        defaultNamespace: namespace,
+      ),
+      count: json['count'] as int,
+    );
+  }
+
+  final MelvorId dungeonId;
+  final int count;
+
+  @override
+  List<Object?> get props => [dungeonId, count];
 }
 
 /// A shop category.
