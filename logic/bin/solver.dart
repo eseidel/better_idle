@@ -104,6 +104,8 @@ const List<Skill> allSkillsFor99 = [
   Skill.cooking,
   // Skill.mining,
   // Skill.smithing,
+
+  // We should be able to do the ones above all at once.
   // Skill.fletching,
   // Skill.crafting,
   // Skill.runecrafting,
@@ -275,7 +277,11 @@ SolvedPlan? _runOnlineSolver(SolverConfig config) {
     config.goal,
     random: config.random,
     collectDiagnostics: config.collectDiagnostics,
-    config: const ReplanConfig(maxReplans: 100, logReplans: true),
+    config: const ReplanConfig(
+      maxReplans: 100,
+      logReplans: true,
+      maxTotalTicks: 100000000, // ~1157 days, enough for multi-skill goals
+    ),
   );
   stopwatch.stop();
 
