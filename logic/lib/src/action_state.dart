@@ -243,16 +243,6 @@ class ActionState {
     );
   }
 
-  /// Create a new state for this action, as though it restarted fresh.
-  /// Preserves the selectedRecipeIndex and cumulativeTicks (lifetime stats).
-  ActionState copyRestarting() {
-    return ActionState(
-      masteryXp: masteryXp,
-      cumulativeTicks: cumulativeTicks,
-      selectedRecipeIndex: selectedRecipeIndex,
-    );
-  }
-
   Map<String, dynamic> toJson() {
     return {
       'masteryXp': masteryXp,
