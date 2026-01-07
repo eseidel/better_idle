@@ -209,7 +209,7 @@ ActionId? findBestActionForSkill(GlobalState state, Skill skill, Goal goal) {
 
         // For consuming actions, check that ALL inputs can be produced
         // (either directly or via prerequisite training).
-        // This handles multi-input actions like Mithril Bar (Mithril Ore + Coal).
+        // Handles multi-input actions like Mithril Bar (Mithril Ore + Coal).
         for (final inputItem in action.inputs.keys) {
           // Check if any producer exists (locked or unlocked)
           final anyProducer = findAnyProducerForItem(state, inputItem);

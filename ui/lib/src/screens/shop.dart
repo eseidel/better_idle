@@ -340,16 +340,9 @@ class ShopViewModel {
     ];
 
     for (final req in allReqs) {
-      if (req is SkillLevelRequirement) {
-        if (_state.skillState(req.skill).skillLevel < req.level) {
-          unmet.add(req);
-        }
-      } else if (req is DungeonCompletionRequirement) {
-        if (_state.dungeonCompletionCount(req.dungeonId) < req.count) {
-          unmet.add(req);
-        }
+      if (!req.isMet(_state)) {
+        unmet.add(req);
       }
-      // ShopPurchaseRequirement is already checked for visibility
     }
 
     return unmet;
@@ -530,6 +523,36 @@ class _ShopItemRow extends StatelessWidget {
                 style: TextStyle(color: color, fontSize: 12),
               ),
             ],
+          );
+        } else if (req is TownshipTaskRequirement) {
+          final taskText = req.count == 1 ? 'task' : 'tasks';
+          return Text(
+            'Complete ${req.count} Township $taskText',
+            style: TextStyle(color: color, fontSize: 12),
+          );
+        } else if (req is CompletionRequirement) {
+          return Text(
+            'Requires ${req.percent}% game completion',
+            style: TextStyle(color: color, fontSize: 12),
+          );
+        } else if (req is SlayerTaskRequirement) {
+          final categoryName = req.category.name.replaceAll('_', ' ');
+          final taskText = req.count == 1 ? 'task' : 'tasks';
+          return Text(
+            'Complete ${req.count} $categoryName Slayer $taskText',
+            style: TextStyle(color: color, fontSize: 12),
+          );
+        } else if (req is TownshipBuildingRequirement) {
+          final buildingName = req.buildingId.name.replaceAll('_', ' ');
+          final buildingText = req.count == 1 ? 'building' : 'buildings';
+          return Text(
+            'Build ${req.count} $buildingName $buildingText',
+            style: TextStyle(color: color, fontSize: 12),
+          );
+        } else if (req is AllSkillLevelsRequirement) {
+          return Text(
+            'Requires all skills at level ${req.level}',
+            style: TextStyle(color: color, fontSize: 12),
           );
         }
         // Unknown requirement type, skip it

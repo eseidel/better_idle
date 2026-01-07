@@ -111,15 +111,9 @@ List<BuyShopItem> _availableShopPurchases(GlobalState state) {
 /// Checks if unlock requirements are met (e.g., owning prerequisite purchases).
 bool _meetsUnlockRequirements(GlobalState state, ShopPurchase purchase) {
   for (final req in purchase.unlockRequirements) {
-    switch (req) {
-      case ShopPurchaseRequirement(:final purchaseId, :final count):
-        if (state.shop.purchaseCount(purchaseId) < count) return false;
-      case DungeonCompletionRequirement(:final dungeonId, :final count):
-        if (state.dungeonCompletionCount(dungeonId) < count) return false;
-      case SkillLevelRequirement():
-        // Skill requirements are typically in purchaseRequirements, not unlock
-        break;
-    }
+    // Skip skill level requirements - they're typically in purchaseRequirements
+    if (req is SkillLevelRequirement) continue;
+    if (!req.isMet(state)) return false;
   }
   return true;
 }
@@ -127,14 +121,7 @@ bool _meetsUnlockRequirements(GlobalState state, ShopPurchase purchase) {
 /// Checks if purchase requirements are met (e.g., skill levels).
 bool _meetsPurchaseRequirements(GlobalState state, ShopPurchase purchase) {
   for (final req in purchase.purchaseRequirements) {
-    switch (req) {
-      case SkillLevelRequirement(:final skill, :final level):
-        if (state.skillState(skill).skillLevel < level) return false;
-      case ShopPurchaseRequirement(:final purchaseId, :final count):
-        if (state.shop.purchaseCount(purchaseId) < count) return false;
-      case DungeonCompletionRequirement(:final dungeonId, :final count):
-        if (state.dungeonCompletionCount(dungeonId) < count) return false;
-    }
+    if (!req.isMet(state)) return false;
   }
   return true;
 }

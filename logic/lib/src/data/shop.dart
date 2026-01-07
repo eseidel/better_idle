@@ -4,6 +4,7 @@ import 'package:equatable/equatable.dart';
 import 'package:logic/src/data/actions.dart';
 import 'package:logic/src/data/currency.dart';
 import 'package:logic/src/data/melvor_id.dart';
+import 'package:logic/src/state.dart';
 import 'package:logic/src/types/modifier.dart';
 import 'package:meta/meta.dart';
 
@@ -134,6 +135,9 @@ class ShopContents extends Equatable {
 sealed class ShopRequirement extends Equatable {
   const ShopRequirement();
 
+  /// Returns true if the requirement is met by the current game state.
+  bool isMet(GlobalState state);
+
   static ShopRequirement? fromJson(
     Map<String, dynamic> json, {
     required String namespace,
@@ -149,6 +153,11 @@ sealed class ShopRequirement extends Equatable {
         json,
         namespace: namespace,
       ),
+      'TownshipTask' => TownshipTaskRequirement.fromJson(json),
+      'Completion' => CompletionRequirement.fromJson(json),
+      'SlayerTask' => SlayerTaskRequirement.fromJson(json),
+      'TownshipBuilding' => TownshipBuildingRequirement.fromJson(json),
+      'AllSkillLevels' => AllSkillLevelsRequirement.fromJson(json),
       _ => null, // Ignore unsupported requirement types
     };
   }
@@ -168,6 +177,9 @@ class SkillLevelRequirement extends ShopRequirement {
 
   final Skill skill;
   final int level;
+
+  @override
+  bool isMet(GlobalState state) => state.skillState(skill).skillLevel >= level;
 
   @override
   List<Object?> get props => [skill, level];
@@ -198,6 +210,10 @@ class ShopPurchaseRequirement extends ShopRequirement {
   final int count;
 
   @override
+  bool isMet(GlobalState state) =>
+      state.shop.purchaseCount(purchaseId) >= count;
+
+  @override
   List<Object?> get props => [purchaseId, count];
 }
 
@@ -226,7 +242,122 @@ class DungeonCompletionRequirement extends ShopRequirement {
   final int count;
 
   @override
+  bool isMet(GlobalState state) =>
+      state.dungeonCompletionCount(dungeonId) >= count;
+
+  @override
   List<Object?> get props => [dungeonId, count];
+}
+
+/// Requires completing a certain number of Township tasks.
+@immutable
+class TownshipTaskRequirement extends ShopRequirement {
+  const TownshipTaskRequirement({required this.count});
+
+  factory TownshipTaskRequirement.fromJson(Map<String, dynamic> json) {
+    return TownshipTaskRequirement(count: json['count'] as int);
+  }
+
+  final int count;
+
+  @override
+  bool isMet(GlobalState state) => state.tasksCompleted >= count;
+
+  @override
+  List<Object?> get props => [count];
+}
+
+/// Requires a certain percentage of game completion.
+@immutable
+class CompletionRequirement extends ShopRequirement {
+  const CompletionRequirement({required this.percent});
+
+  factory CompletionRequirement.fromJson(Map<String, dynamic> json) {
+    return CompletionRequirement(percent: json['percent'] as int);
+  }
+
+  /// The required completion percentage (0-100).
+  final int percent;
+
+  @override
+  bool isMet(GlobalState state) => state.completionPercent >= percent;
+
+  @override
+  List<Object?> get props => [percent];
+}
+
+/// Requires completing a certain number of Slayer tasks in a category.
+@immutable
+class SlayerTaskRequirement extends ShopRequirement {
+  const SlayerTaskRequirement({required this.category, required this.count});
+
+  factory SlayerTaskRequirement.fromJson(Map<String, dynamic> json) {
+    return SlayerTaskRequirement(
+      category: MelvorId.fromJson(json['category'] as String),
+      count: json['count'] as int,
+    );
+  }
+
+  final MelvorId category;
+  final int count;
+
+  @override
+  bool isMet(GlobalState state) =>
+      state.completedSlayerTaskCount(category) >= count;
+
+  @override
+  List<Object?> get props => [category, count];
+}
+
+/// Requires building a certain number of a Township building.
+@immutable
+class TownshipBuildingRequirement extends ShopRequirement {
+  const TownshipBuildingRequirement({
+    required this.buildingId,
+    required this.count,
+  });
+
+  factory TownshipBuildingRequirement.fromJson(Map<String, dynamic> json) {
+    return TownshipBuildingRequirement(
+      buildingId: MelvorId.fromJson(json['buildingID'] as String),
+      count: json['count'] as int,
+    );
+  }
+
+  final MelvorId buildingId;
+  final int count;
+
+  @override
+  bool isMet(GlobalState state) => state.buildingCount(buildingId) >= count;
+
+  @override
+  List<Object?> get props => [buildingId, count];
+}
+
+/// Requires all skills to be at or above a certain level.
+@immutable
+class AllSkillLevelsRequirement extends ShopRequirement {
+  const AllSkillLevelsRequirement({required this.level});
+
+  factory AllSkillLevelsRequirement.fromJson(Map<String, dynamic> json) {
+    return AllSkillLevelsRequirement(level: json['level'] as int);
+  }
+
+  final int level;
+
+  @override
+  bool isMet(GlobalState state) {
+    // Check all skills in the Skill enum
+    for (final skill in Skill.values) {
+      if (state.skillState(skill).skillLevel < level) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  @override
+  List<Object?> get props => [level];
 }
 
 /// A shop category.

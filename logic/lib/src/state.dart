@@ -447,6 +447,22 @@ class GlobalState {
   int dungeonCompletionCount(MelvorId dungeonId) =>
       dungeonCompletions[dungeonId] ?? 0;
 
+  /// Returns how many Township tasks have been completed.
+  /// Always returns 0 since Township tasks are not yet supported.
+  int get tasksCompleted => 0;
+
+  /// Returns the game completion percentage (0.0 to 100.0).
+  /// Always returns 0.0 since completion tracking is not yet supported.
+  double get completionPercent => 0;
+
+  /// Returns how many Slayer tasks have been completed in a category.
+  /// Always returns 0 since Slayer task tracking is not yet supported.
+  int completedSlayerTaskCount(MelvorId category) => 0;
+
+  /// Returns how many of a Township building have been built.
+  /// Always returns 0 since Township buildings are not yet supported.
+  int buildingCount(MelvorId building) => 0;
+
   /// The player's currencies (GP, Slayer Coins, etc.).
   final Map<Currency, int> currencies;
 
