@@ -4,7 +4,7 @@ import 'package:better_idle/src/widgets/context_extensions.dart';
 import 'package:better_idle/src/widgets/mastery_pool.dart';
 import 'package:better_idle/src/widgets/mastery_unlocks_dialog.dart';
 import 'package:better_idle/src/widgets/navigation_drawer.dart';
-import 'package:better_idle/src/widgets/skill_action_display.dart';
+import 'package:better_idle/src/widgets/production_action_display.dart';
 import 'package:better_idle/src/widgets/skill_milestones_dialog.dart';
 import 'package:better_idle/src/widgets/skill_progress.dart';
 import 'package:flutter/material.dart' hide Action;
@@ -71,13 +71,14 @@ class _CraftingPageState extends State<CraftingPage> {
               padding: const EdgeInsets.all(16),
               child: Column(
                 children: [
-                  SkillActionDisplay(
+                  ProductionActionDisplay(
                     action: selectedAction!,
-                    skill: skill,
-                    skillLevel: skillLevel,
+                    productId: selectedAction.productId,
+                    skill: Skill.crafting,
                     headerText: 'Create',
                     buttonText: 'Create',
-                    badgeStyle: BadgeStyle.recycleAndDouble,
+                    showRecycleBadge: true,
+                    skillLevel: skillLevel,
                     onStart: () {
                       context.dispatch(
                         ToggleActionAction(action: selectedAction),

@@ -12,25 +12,37 @@ import 'package:better_idle/src/widgets/xp_badges_row.dart';
 import 'package:flutter/material.dart' hide Action;
 import 'package:logic/logic.dart';
 
-/// A specialized action display widget for smithing.
+/// A generic action display widget for production-based skills.
+///
+/// Supports smithing, fletching, crafting, runecrafting, and herblore.
 ///
 /// Layout:
-/// - Row 1: 1/3 product icon with count, 2/3 "Create\nName" + badges
+/// - Row 1: 1/3 product icon with count, 2/3 "Action\nName" + badges
 /// - Row 2: Mastery progress bar
 /// - Row 3: Two columns - "Requires:" with items | "You Have:" with items
 /// - Row 4: Two columns - "Produces:" with items | "Grants:" with XP badges
-/// - Row 5: Create button with duration badge
+/// - Row 5: Action button with duration badge
 /// - Row 6: Active progress bar (when active)
-class SmithingActionDisplay extends StatelessWidget {
-  const SmithingActionDisplay({
+class ProductionActionDisplay extends StatelessWidget {
+  const ProductionActionDisplay({
     required this.action,
+    required this.productId,
+    required this.skill,
     required this.onStart,
+    required this.headerText,
+    required this.buttonText,
+    required this.showRecycleBadge,
     this.skillLevel,
     super.key,
   });
 
-  final SmithingAction action;
+  final SkillAction action;
+  final MelvorId productId;
+  final Skill skill;
   final VoidCallback onStart;
+  final String headerText;
+  final String buttonText;
+  final bool showRecycleBadge;
   final int? skillLevel;
 
   bool get _isUnlocked =>
@@ -67,7 +79,7 @@ class SmithingActionDisplay extends StatelessWidget {
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               const Text('Unlocked at '),
-              const SkillImage(skill: Skill.smithing, size: 16),
+              SkillImage(skill: skill, size: 16),
               Text(' Level ${action.unlockLevel}'),
             ],
           ),
@@ -86,7 +98,7 @@ class SmithingActionDisplay extends StatelessWidget {
     final outputs = action.outputs;
 
     // Get product for the icon
-    final productItem = state.registries.items.byId(action.productId);
+    final productItem = state.registries.items.byId(productId);
     final inventoryCount = state.inventory.countOfItem(productItem);
 
     return Container(
@@ -120,7 +132,7 @@ class SmithingActionDisplay extends StatelessWidget {
           _buildProducesGrantsRow(context, outputs),
           const SizedBox(height: 16),
 
-          // Row 5: Create button with duration
+          // Row 5: Action button with duration
           _buildButtonRow(context, isActive, canStart),
         ],
       ),
@@ -146,9 +158,12 @@ class SmithingActionDisplay extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text(
-                'Create',
-                style: TextStyle(fontSize: 14, color: Style.textColorSecondary),
+              Text(
+                headerText,
+                style: const TextStyle(
+                  fontSize: 14,
+                  color: Style.textColorSecondary,
+                ),
               ),
               Text(
                 action.name,
@@ -158,11 +173,13 @@ class SmithingActionDisplay extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: 8),
-              const Row(
+              Row(
                 children: [
-                  RecycleChanceBadgeCell(chance: '0%'),
-                  SizedBox(width: 16),
-                  DoubleChanceBadgeCell(chance: '0%'),
+                  if (showRecycleBadge) ...[
+                    const RecycleChanceBadgeCell(chance: '0%'),
+                    const SizedBox(width: 16),
+                  ],
+                  const DoubleChanceBadgeCell(chance: '0%'),
                 ],
               ),
             ],
@@ -279,7 +296,7 @@ class SmithingActionDisplay extends StatelessWidget {
           style: ElevatedButton.styleFrom(
             backgroundColor: isActive ? Style.activeColor : null,
           ),
-          child: Text(isActive ? 'Stop' : 'Create'),
+          child: Text(isActive ? 'Stop' : buttonText),
         ),
         const SizedBox(width: 16),
         DurationBadgeCell(seconds: action.minDuration.inSeconds),
