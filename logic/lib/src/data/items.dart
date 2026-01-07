@@ -93,6 +93,7 @@ class Item extends Equatable {
     required this.sellsFor,
     this.category,
     this.type,
+    this.description,
     this.healsFor,
     this.compostValue,
     this.harvestBonus,
@@ -115,6 +116,7 @@ class Item extends Equatable {
        sellsFor = gp,
        category = null,
        type = null,
+       description = null,
        dropTable = null,
        media = null,
        validSlots = const [];
@@ -178,6 +180,7 @@ class Item extends Equatable {
       dropTable: dropTable,
       media: media,
       validSlots: validSlots,
+      description: json['customDescription'] as String?,
     );
   }
 
@@ -198,6 +201,9 @@ class Item extends Equatable {
 
   /// The sub-type of this item (e.g., "Logs", "Raw Fish", "Food").
   final String? type;
+
+  /// Custom description for this item.
+  final String? description;
 
   /// The amount of HP this item heals when consumed. Null if not consumable.
   final int? healsFor;
@@ -253,6 +259,7 @@ class Item extends Equatable {
     dropTable,
     media,
     validSlots,
+    description,
   ];
 }
 

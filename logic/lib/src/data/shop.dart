@@ -109,25 +109,37 @@ class ShopCost extends Equatable {
 /// What a shop purchase contains/grants.
 @immutable
 class ShopContents extends Equatable {
-  const ShopContents({required this.modifiers});
+  const ShopContents({required this.modifiers, this.items = const []});
 
   factory ShopContents.fromJson(
     Map<String, dynamic> json, {
     required String namespace,
   }) {
     final modifiersJson = json['modifiers'] as Map<String, dynamic>? ?? {};
+    final itemsJson = json['items'] as List<dynamic>? ?? [];
     return ShopContents(
       modifiers: ModifierDataSet.fromJson(modifiersJson, namespace: namespace),
+      items: itemsJson
+          .map(
+            (e) => ItemCost.fromJson(
+              e as Map<String, dynamic>,
+              namespace: namespace,
+            ),
+          )
+          .toList(),
     );
   }
 
   final ModifierDataSet modifiers;
 
+  /// Items granted by this purchase.
+  final List<ItemCost> items;
+
   /// Bank space modifier value, or null if not present.
   int? get bankSpace => modifiers.byName('bankSpace')?.totalValue.toInt();
 
   @override
-  List<Object?> get props => [modifiers];
+  List<Object?> get props => [modifiers, items];
 }
 
 /// Base class for shop requirements.

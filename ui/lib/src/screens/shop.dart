@@ -127,7 +127,7 @@ class _ShopPageState extends State<ShopPage> {
       final canPurchase = meetsAllReqs && canAffordCurrency && canAffordItems;
 
       // Build description from purchase
-      final description = _buildDescription(purchase);
+      final descriptionSpan = _buildDescriptionSpan(purchase, viewModel);
 
       // Resolve item costs to (Item, quantity, canAfford) tuples
       final resolvedItemCosts = itemCosts.map((cost) {
@@ -143,7 +143,7 @@ class _ShopPageState extends State<ShopPage> {
           currencyCosts: currencyCosts,
           canAffordCosts: viewModel.canAffordEachCost(currencyCosts),
           itemCosts: resolvedItemCosts,
-          description: description,
+          descriptionSpan: descriptionSpan,
           unmetRequirements: unmetRequirements,
           dungeonRegistry: viewModel._state.registries.dungeons,
           onTap: canPurchase
@@ -154,7 +154,7 @@ class _ShopPageState extends State<ShopPage> {
                     currencyCosts,
                     resolvedItemCosts,
                   ),
-                  description: description,
+                  descriptionSpan: descriptionSpan,
                   createAction: () =>
                       PurchaseShopItemAction(purchaseId: purchase.id),
                 )
@@ -210,11 +210,72 @@ class _ShopPageState extends State<ShopPage> {
     );
   }
 
-  String? _buildDescription(ShopPurchase purchase) {
+  /// Parses simple HTML in description text and converts to TextSpan.
+  /// Handles:
+  /// - <br> tags (line breaks)
+  /// - <span class="text-warning"> tags (highlighted text in orange)
+  InlineSpan _parseDescription(String description) {
+    final spans = <InlineSpan>[];
+    final regex = RegExp(
+      r'<br\s*/?>|<span class="text-warning">(.*?)</span>',
+      caseSensitive: false,
+      dotAll: true,
+    );
+
+    var lastEnd = 0;
+    for (final match in regex.allMatches(description)) {
+      // Add text before this match
+      if (match.start > lastEnd) {
+        spans.add(TextSpan(text: description.substring(lastEnd, match.start)));
+      }
+
+      // Handle the matched tag
+      final matchedText = match.group(0)!.toLowerCase();
+      if (matchedText.startsWith('<br')) {
+        // Add a newline
+        spans.add(const TextSpan(text: '\n'));
+      } else if (matchedText.contains('text-warning')) {
+        // Add warning text (group 1 contains the content)
+        final warningText = match.group(1);
+        if (warningText != null) {
+          spans.add(
+            TextSpan(
+              text: warningText,
+              style: const TextStyle(color: Colors.orange),
+            ),
+          );
+        }
+      }
+
+      lastEnd = match.end;
+    }
+
+    // Add any remaining text after the last match
+    if (lastEnd < description.length) {
+      spans.add(TextSpan(text: description.substring(lastEnd)));
+    }
+
+    // If no spans were created, return a simple TextSpan
+    if (spans.isEmpty) {
+      return TextSpan(text: description);
+    }
+
+    // If only one span and it's plain text, return it directly
+    if (spans.length == 1 && spans[0] is TextSpan) {
+      return spans[0];
+    }
+
+    return TextSpan(children: spans);
+  }
+
+  InlineSpan? _buildDescriptionSpan(
+    ShopPurchase purchase,
+    ShopViewModel viewModel,
+  ) {
     // Prefer custom description if available
     // (e.g., Magic Pot has detailed modifier info)
     if (purchase.description != null) {
-      return purchase.description;
+      return _parseDescription(purchase.description!);
     }
 
     // Otherwise build description from modifiers we understand
@@ -236,7 +297,18 @@ class _ShopPageState extends State<ShopPage> {
       parts.add('+$bankSpace bank space');
     }
 
-    return parts.isEmpty ? null : parts.join(', ');
+    // If no auto-generated description, check if purchase contains a single
+    // item with a custom description (e.g., Feathers)
+    if (parts.isEmpty && purchase.contains.items.length == 1) {
+      final itemId = purchase.contains.items.first.itemId;
+      final item = viewModel.itemById(itemId);
+      if (item.description != null) {
+        return _parseDescription(item.description!);
+      }
+    }
+
+    if (parts.isEmpty) return null;
+    return TextSpan(text: parts.join(', '));
   }
 
   void _showPurchaseDialog(
@@ -244,7 +316,7 @@ class _ShopPageState extends State<ShopPage> {
     required String name,
     required Widget costWidget,
     required ReduxAction<GlobalState> Function() createAction,
-    String? description,
+    InlineSpan? descriptionSpan,
   }) {
     showDialog<void>(
       context: context,
@@ -262,10 +334,10 @@ class _ShopPageState extends State<ShopPage> {
                 const Text('?'),
               ],
             ),
-            if (description != null) ...[
+            if (descriptionSpan != null) ...[
               const SizedBox(height: 8),
-              Text(
-                description,
+              Text.rich(
+                descriptionSpan,
                 style: const TextStyle(color: Style.successColor),
               ),
             ],
@@ -411,7 +483,7 @@ class _ShopItemRow extends StatelessWidget {
     required this.dungeonRegistry,
     this.onTap,
     this.media,
-    this.description,
+    this.descriptionSpan,
     this.unmetRequirements = const [],
   });
 
@@ -432,8 +504,8 @@ class _ShopItemRow extends StatelessWidget {
   /// Called when tapped. Null if the item cannot be purchased.
   final VoidCallback? onTap;
 
-  /// Optional description shown below the name.
-  final String? description;
+  /// Optional description shown below the name (as rich text).
+  final InlineSpan? descriptionSpan;
 
   /// Requirements the player hasn't met yet.
   final List<ShopRequirement> unmetRequirements;
@@ -459,10 +531,10 @@ class _ShopItemRow extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(name, style: Theme.of(context).textTheme.titleMedium),
-                  if (description != null) ...[
+                  if (descriptionSpan != null) ...[
                     const SizedBox(height: 2),
-                    Text(
-                      description!,
+                    Text.rich(
+                      descriptionSpan!,
                       style: Theme.of(context).textTheme.bodySmall,
                     ),
                   ],
