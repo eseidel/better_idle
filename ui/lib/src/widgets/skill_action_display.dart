@@ -1,5 +1,7 @@
 import 'package:better_idle/src/logic/redux_actions.dart';
+import 'package:better_idle/src/widgets/cached_image.dart';
 import 'package:better_idle/src/widgets/context_extensions.dart';
+import 'package:better_idle/src/widgets/count_badge_cell.dart';
 import 'package:better_idle/src/widgets/double_chance_badge_cell.dart';
 import 'package:better_idle/src/widgets/item_count_badge_cell.dart';
 import 'package:better_idle/src/widgets/mastery_pool.dart';
@@ -48,6 +50,7 @@ class SkillActionDisplay extends StatelessWidget {
     this.showInputsOutputs = true,
     this.additionalContent,
     this.durationBuilder,
+    this.productId,
     super.key,
   });
 
@@ -77,6 +80,10 @@ class SkillActionDisplay extends StatelessWidget {
 
   /// Custom duration builder. If null, shows default duration.
   final Widget Function(SkillAction action)? durationBuilder;
+
+  /// The product item ID to show with inventory count badge in the header.
+  /// If null, no product icon is shown.
+  final MelvorId? productId;
 
   bool get _isUnlocked =>
       skill == null || skillLevel == null || skillLevel! >= action.unlockLevel;
@@ -121,6 +128,50 @@ class SkillActionDisplay extends StatelessWidget {
     );
   }
 
+  Widget _buildHeader(BuildContext context, GlobalState state) {
+    final headerColumn = Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(
+          headerText,
+          textAlign: TextAlign.center,
+          style: const TextStyle(fontSize: 14, color: Style.textColorSecondary),
+        ),
+        Text(
+          action.name,
+          textAlign: TextAlign.center,
+          style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+        ),
+      ],
+    );
+
+    // If no productId, just show the centered header.
+    if (productId == null) {
+      return headerColumn;
+    }
+
+    // Show product icon with inventory count badge to the left.
+    final productItem = state.registries.items.byId(productId!);
+    final inventoryCount = state.inventory.countOfItem(productItem);
+
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        CountBadgeCell(
+          count: inventoryCount > 0 ? inventoryCount : null,
+          child: CachedImage(
+            assetPath: productItem.media ?? '',
+            size: TextBadgeCell.defaultInradius - 8,
+          ),
+        ),
+        const SizedBox(width: 12),
+        Expanded(child: headerColumn),
+        // Balance the layout with an invisible spacer.
+        const SizedBox(width: TextBadgeCell.defaultInradius + 12),
+      ],
+    );
+  }
+
   Widget _buildUnlocked(BuildContext context) {
     final state = context.state;
     final actionState = state.actionState(action.id);
@@ -147,20 +198,8 @@ class SkillActionDisplay extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          // Header
-          Text(
-            headerText,
-            textAlign: TextAlign.center,
-            style: const TextStyle(
-              fontSize: 14,
-              color: Style.textColorSecondary,
-            ),
-          ),
-          Text(
-            action.name,
-            textAlign: TextAlign.center,
-            style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-          ),
+          // Header with optional product icon
+          _buildHeader(context, state),
           const SizedBox(height: 12),
 
           // Badges

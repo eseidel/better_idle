@@ -10,7 +10,7 @@ class MiningPage extends StatelessWidget {
     return const SimpleSkillPage(
       skill: Skill.mining,
       skillName: 'Mining',
-      cellSize: Size(300, 250),
+      cellSize: Size(300, 290),
     );
   }
 }

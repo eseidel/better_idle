@@ -78,13 +78,16 @@ class Style {
   static Color xpBadgeBackgroundColor = Colors.grey.shade700;
   static Color xpBadgeIconColor = Colors.grey.shade200;
 
+  // Duration badge colors
+  static Color durationBadgeBackgroundColor = Colors.grey.shade700;
+
   // Mastery pool colors
   static Color masteryPoolBorderColor = Colors.amber.shade700;
   static Color masteryPoolBackgroundColor = Colors.amber.shade100;
 
   // Rock type colors
-  static Color rockTypeEssenceColor = Colors.purple.shade100;
-  static Color rockTypOrColor = Colors.brown.shade200;
+  static Color rockTypeEssenceColor = Colors.green.shade200;
+  static Color rockTypeOreColor = Colors.orange.shade200;
 
   // Combat/food slot colors
   static Color foodSlotFilledColor = Colors.green.shade500;

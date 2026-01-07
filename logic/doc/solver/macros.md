@@ -47,7 +47,7 @@ TrainSkillUntil(
 
 ### TrainConsumingSkillUntil
 
-Train a consuming skill (Firemaking, Cooking) with producer-consumer modeling.
+Train a consuming skill (Firemaking, Cooking, Smithing) with producer-consumer modeling.
 
 ```dart
 TrainConsumingSkillUntil(
@@ -70,6 +70,40 @@ TrainConsumingSkillUntil(
 3. Calculate sustainable XP rate
 4. Project both skill XP gains
 5. Track inventory for input management
+
+### AcquireItem
+
+Acquire a specific quantity of an item via the best producing action.
+
+```dart
+AcquireItem(
+  itemId: MelvorId('melvorD:Oak_Logs'),
+  quantity: 100,
+)
+```
+
+**Fields**:
+- `itemId`: The item to acquire
+- `quantity`: How many to produce
+
+**Use case**: Building up input stock for consuming skills, or acquiring items for goals.
+
+### EnsureStock
+
+Ensure minimum inventory level of an item before proceeding. Different from `AcquireItem` in that it specifies an absolute target, not a delta.
+
+```dart
+EnsureStock(
+  itemId: MelvorId('melvorD:Oak_Logs'),
+  minTotal: 50,  // Ensure at least 50 in inventory
+)
+```
+
+**Fields**:
+- `itemId`: The item to stock
+- `minTotal`: Minimum quantity to have in inventory
+
+**Use case**: Pre-flight checks before consuming skills, ensuring inputs are available.
 
 ## Stop Rules (MacroStopRule)
 
@@ -105,13 +139,19 @@ Converts to: `WaitForSkillXp(skill, targetXp, reason: 'Goal reached')`
 
 ### StopWhenUpgradeAffordable
 
-Stop when enough GP to buy an upgrade.
+Stop when enough effective credits to buy an upgrade.
 
 ```dart
-StopWhenUpgradeAffordable(ironAxeId, cost, 'Iron Axe')
+StopWhenUpgradeAffordable(ironAxeId, cost, 'Iron Axe', sellPolicy)
 ```
 
-Converts to: `WaitForEffectiveCredits(cost, reason: upgradeName)`
+**Fields**:
+- `purchaseId`: The upgrade ID
+- `cost`: GP cost of the upgrade
+- `upgradeName`: Human-readable name
+- `sellPolicy`: Policy for computing effective credits
+
+Converts to: `WaitForEffectiveCredits(cost, reason: upgradeName, sellPolicy: sellPolicy)`
 
 ### StopWhenInputsDepleted
 
@@ -225,6 +265,20 @@ class MacroStep extends PlanStep {
 ```
 
 During execution, macros run full simulation using the composite wait condition.
+
+### Macro Augmentation
+
+Macros are augmented with upgrade stops based on the watch list:
+
+```dart
+final augmentedMacros = _augmentMacrosWithUpgradeStops(
+  macros,
+  upgradeResult.watchedUpgrades,
+  sellPolicy,
+);
+```
+
+This allows macros to break early when valuable upgrades become affordable.
 
 ## Stop Trigger Diagnostics
 

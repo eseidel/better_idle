@@ -54,3 +54,98 @@ The game has a huge state space (inventory items, skill levels, equipment, etc.)
 - Macro-level jumps reduce branching dramatically
 
 A* with dominance pruning and macro expansion efficiently finds optimal solutions.
+
+## Key Design Principles
+
+### 1. Flows vs Value
+
+Rate estimation (`estimateRates`) produces **flows** (items/tick, XP/tick), not value. The `ValueModel` layer converts flows to scalar values based on the goal.
+
+### 2. Watch ≠ Action
+
+**Key invariant**: Watch lists affect only waiting, never imply we should take an action.
+
+An upgrade being "watched" (for affordability timing) does NOT mean we should buy it. Only upgrades in `Candidates.buyUpgrades` are actionable.
+
+### 3. Policy Consistency
+
+`SellPolicy` is computed once per segment via `SellPolicySpec` and used consistently across:
+- `WatchSet` (for `effectiveCredits` calculation)
+- `enumerateCandidates` (for sell candidate emission)
+- Boundary handling (when buying after `UpgradeAffordableBoundary`)
+
+### 4. Goal-Scoped Bucketing
+
+State buckets track only what's relevant to the goal:
+- GP goal: all skills, coarse GP bucket
+- Skill goal: only target skill
+- Thieving goal: HP and mastery levels
+
+## Core Types
+
+### SolverResult
+
+```dart
+sealed class SolverResult {
+  final SolverProfile? profile;
+}
+
+class SolverSuccess extends SolverResult {
+  final Plan plan;
+  final GlobalState terminalState;
+}
+
+class SolverFailed extends SolverResult {
+  final SolverFailure failure;
+}
+```
+
+### Plan
+
+```dart
+class Plan {
+  final List<PlanStep> steps;
+  final int totalTicks;
+  final int interactionCount;
+  final int expandedNodes;
+  final int enqueuedNodes;
+  final int expectedDeaths;
+  final List<SegmentMarker> segmentMarkers;
+}
+```
+
+### PlanStep
+
+```dart
+sealed class PlanStep { }
+class InteractionStep extends PlanStep { ... }
+class WaitStep extends PlanStep { ... }
+class MacroStep extends PlanStep { ... }
+```
+
+## Performance
+
+Default limits:
+- Max expanded nodes: 200,000
+- Max queue size: 500,000
+
+Typical metrics:
+- Expanded nodes: 100-10,000
+- Branching factor: 3-8
+- Nodes/second: 1,000-10,000
+
+## Files
+
+| File | Purpose |
+|------|---------|
+| `solver.dart` | A* search, node expansion, heuristics |
+| `goal.dart` | Goal definitions |
+| `enumerate_candidates.dart` | Candidate generation |
+| `estimate_rates.dart` | Rate calculations |
+| `value_model.dart` | Rates → scalar value |
+| `plan.dart` | Plan representation and segments |
+| `interaction.dart` | 0-tick mutations, sell policies |
+| `wait_for.dart` | Wait conditions |
+| `macro_candidate.dart` | Macro definitions |
+| `watch_set.dart` | Segment boundary detection |
+| `replan_boundary.dart` | Execution boundary types |

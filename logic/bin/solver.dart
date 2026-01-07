@@ -12,12 +12,16 @@ import 'dart:math';
 
 import 'package:args/args.dart';
 import 'package:logic/logic.dart';
-import 'package:logic/src/solver/goal.dart';
-import 'package:logic/src/solver/interaction.dart';
-import 'package:logic/src/solver/macro_candidate.dart';
-import 'package:logic/src/solver/plan.dart';
-import 'package:logic/src/solver/solver.dart';
-import 'package:logic/src/solver/solver_profile.dart';
+import 'package:logic/src/solver/analysis/replan_boundary.dart';
+import 'package:logic/src/solver/analysis/wait_for.dart';
+import 'package:logic/src/solver/candidates/macro_candidate.dart';
+import 'package:logic/src/solver/core/goal.dart';
+import 'package:logic/src/solver/core/solver.dart';
+import 'package:logic/src/solver/core/solver_profile.dart';
+import 'package:logic/src/solver/execution/execute_plan.dart';
+import 'package:logic/src/solver/execution/plan.dart';
+import 'package:logic/src/solver/execution/utils.dart';
+import 'package:logic/src/solver/interactions/interaction.dart';
 
 final _parser = ArgParser()
   ..addFlag('skill', abbr: 's', help: 'Solve for firemaking level 30')
@@ -51,7 +55,78 @@ final _parser = ArgParser()
     'cliff-level',
     help: 'Lower level for cliff diagnostic (default: 55)',
     defaultsTo: '55',
+  )
+  ..addFlag(
+    'verbose',
+    abbr: 'v',
+    help: 'Print step-by-step progress during execution',
+    negatable: false,
+  )
+  ..addOption(
+    'verbose-segment',
+    help: 'Show full step list for specific segment number (1-indexed)',
+  )
+  ..addFlag(
+    'dump-stop-triggers',
+    help: 'Print full histogram of macro stop triggers (default: top 10)',
+    negatable: false,
+  )
+  ..addFlag(
+    'no-execute',
+    help: 'Skip plan execution (only output the plan)',
+    negatable: false,
+  )
+  ..addOption(
+    'output-plan',
+    abbr: 'o',
+    help:
+        'Write the plan to a JSON file (e.g., plan.json). '
+        'Implies --no-execute unless -v is also specified.',
   );
+
+// ---------------------------------------------------------------------------
+// Solver Configuration
+// ---------------------------------------------------------------------------
+
+/// Configuration for the solver run.
+class SolverConfig {
+  SolverConfig({
+    required this.goal,
+    required this.initialState,
+    required this.random,
+    required this.collectDiagnostics,
+    required this.verboseExecution,
+    required this.dumpStopTriggers,
+    required this.noExecute,
+    this.verboseSegment,
+    this.outputPlanPath,
+  });
+
+  final Goal goal;
+  final GlobalState initialState;
+  final Random random;
+  final bool collectDiagnostics;
+  final bool verboseExecution;
+  final int? verboseSegment;
+  final bool dumpStopTriggers;
+  final bool noExecute;
+  final String? outputPlanPath;
+
+  Registries get registries => initialState.registries;
+}
+
+/// Result of running the solver (either mode).
+class SolvedPlan {
+  SolvedPlan({required this.plan, required this.profiles, this.segments});
+
+  final Plan plan;
+  final List<SolverProfile> profiles;
+
+  /// Segments (only for online/segmented mode).
+  final List<Segment>? segments;
+
+  bool get isSegmented => segments != null;
+}
 
 void main(List<String> args) async {
   final results = _parser.parse(args);
@@ -72,126 +147,328 @@ void main(List<String> args) async {
     return;
   }
 
+  // Parse configuration
   final goal = _parseGoalFromArgs(results);
+  final verboseSegmentStr = results['verbose-segment'] as String?;
+  final outputPlanPath = results['output-plan'] as String?;
+  // Skip execution when outputting a plan file (unless verbose execution is
+  // requested, which implies the user wants to see execution details)
+  final noExecute =
+      (results['no-execute'] as bool) ||
+      (outputPlanPath != null && !(results['verbose'] as bool));
+  final config = SolverConfig(
+    goal: goal,
+    initialState: GlobalState.empty(registries),
+    random: Random(42),
+    collectDiagnostics: results['diagnostics'] as bool,
+    verboseExecution: results['verbose'] as bool,
+    verboseSegment: verboseSegmentStr != null
+        ? int.tryParse(verboseSegmentStr)
+        : null,
+    dumpStopTriggers: results['dump-stop-triggers'] as bool,
+    noExecute: noExecute,
+    outputPlanPath: outputPlanPath,
+  );
+
   print('Goal: ${goal.describe()}');
 
-  final initialState = GlobalState.empty(registries);
-  final collectDiagnostics = results['diagnostics'] as bool;
+  // Run solver (offline or online mode)
   final useOfflineMode = results['offline'] as bool;
+  final solvedPlan = useOfflineMode
+      ? _runOfflineSolver(config)
+      : _runOnlineSolver(config);
 
-  // Default: segment-based solving. --offline enables single-shot mode.
-  if (useOfflineMode) {
-    // Single-shot solve (debug/benchmark mode)
-    print(
-      'Solving (offline/single-shot mode)'
-      '${collectDiagnostics ? ' with diagnostics' : ''}...',
-    );
-    final stopwatch = Stopwatch()..start();
-    final result = solve(
-      initialState,
-      goal,
-      collectDiagnostics: collectDiagnostics,
-    );
-    stopwatch.stop();
+  // Handle failure
+  if (solvedPlan == null) return;
 
-    print('Solver completed in ${stopwatch.elapsedMilliseconds}ms');
+  // Print the plan
+  _printPlan(solvedPlan, config);
+
+  // Execute the plan (unless --no-execute)
+  if (!config.noExecute) {
+    _executePlan(solvedPlan, config);
+  }
+
+  // Print diagnostics
+  if (solvedPlan.profiles.isNotEmpty) {
     print('');
+    _printDiagnostics(solvedPlan, config);
+  }
 
-    _printSolverResult(
-      result,
-      initialState: initialState,
-      goal: goal,
-      registries: registries,
-      collectDiagnostics: collectDiagnostics,
-    );
-  } else {
-    // Segment-based solving (default)
-    print(
-      'Solving via segments'
-      '${collectDiagnostics ? ' with diagnostics' : ''}...',
-    );
-    final stopwatch = Stopwatch()..start();
-    final result = solveToGoal(
-      initialState,
-      goal,
-      collectDiagnostics: collectDiagnostics,
-    );
-    stopwatch.stop();
-
-    print('Solver completed in ${stopwatch.elapsedMilliseconds}ms');
-    print('');
-
-    _printSegmentedResult(
-      result,
-      initialState,
-      goal,
-      registries,
-      collectDiagnostics: collectDiagnostics,
-    );
+  // Write plan to JSON if requested
+  if (config.outputPlanPath != null) {
+    writePlanToJson(solvedPlan.plan, config.outputPlanPath!);
   }
 }
 
-void _printSolverResult(
-  SolverResult result, {
-  required GlobalState initialState,
-  required Goal goal,
-  required Registries registries,
-  required bool collectDiagnostics,
-}) {
-  if (result is SolverSuccess) {
-    _printSuccess(result, initialState, goal, registries);
-  } else if (result is SolverFailed) {
-    _printFailure(result);
-  }
+// ---------------------------------------------------------------------------
+// Solver Runners
+// ---------------------------------------------------------------------------
 
-  final profile = result.profile;
-  if (profile != null) {
-    print('');
-    _printSolverProfile(profile, extended: collectDiagnostics);
-  }
-}
-
-void _printSuccess(
-  SolverSuccess result,
-  GlobalState initialState,
-  Goal goal,
-  Registries registries,
-) {
-  print('Uncompressed plan (${result.plan.steps.length} steps):');
-  print(result.plan.prettyPrint(actions: registries.actions));
-  print('');
-  final compressed = result.plan.compress();
+/// Runs the offline (single-shot) solver.
+SolvedPlan? _runOfflineSolver(SolverConfig config) {
   print(
-    'Plan (compressed ${result.plan.steps.length} '
+    'Solving (offline/single-shot mode)'
+    '${config.collectDiagnostics ? ' with diagnostics' : ''}...',
+  );
+
+  final stopwatch = Stopwatch()..start();
+  final result = solve(
+    config.initialState,
+    config.goal,
+    collectDiagnostics: config.collectDiagnostics,
+  );
+  stopwatch.stop();
+
+  print('Solver completed in ${stopwatch.elapsedMilliseconds}ms');
+  print('');
+
+  if (result is SolverFailed) {
+    _printFailure(result, config);
+    return null;
+  }
+
+  final success = result as SolverSuccess;
+  return SolvedPlan(
+    plan: success.plan,
+    profiles: result.profile != null ? [result.profile!] : [],
+  );
+}
+
+/// Runs the online (replanning-based) solver.
+SolvedPlan? _runOnlineSolver(SolverConfig config) {
+  print(
+    'Solving via replanning'
+    '${config.collectDiagnostics ? ' with diagnostics' : ''}...',
+  );
+
+  final stopwatch = Stopwatch()..start();
+  final result = solveWithReplanning(
+    config.initialState,
+    config.goal,
+    random: config.random,
+    collectDiagnostics: config.collectDiagnostics,
+    config: const ReplanConfig(maxReplans: 100, logReplans: true),
+  );
+  stopwatch.stop();
+
+  print('Solver completed in ${stopwatch.elapsedMilliseconds}ms');
+  print('');
+
+  if (!result.goalReached) {
+    print('=== Replanning Solver FAILED ===');
+    print('Reason: ${result.terminatingBoundary?.describe() ?? "Unknown"}');
+    print('Completed segments: ${result.segments.length}');
+    if (result.segments.isNotEmpty) {
+      print('');
+      print('--- Completed Segments ---');
+      for (var i = 0; i < result.segments.length; i++) {
+        final segment = result.segments[i];
+        print(
+          '  Segment ${i + 1}: ${segment.steps.length} steps, '
+          '${segment.actualTicks} ticks -> '
+          '${segment.replanBoundary?.describe() ?? "completed"}',
+        );
+      }
+    }
+    return null;
+  }
+
+  print('=== Replanning Solver Result ===');
+  print('Total segments: ${result.segments.length}');
+  print('Replan count: ${result.replanCount}');
+  print('Total ticks: ${result.totalTicks}');
+  print('');
+
+  // Convert ReplanSegmentResult to Segment for printing
+  final segments = _convertToSegments(result.segments);
+  final profiles = result.segments
+      .map((s) => s.profile)
+      .whereType<SolverProfile>()
+      .toList();
+
+  // Print segment summaries
+  _printSegmentSummaries(segments, profiles, config);
+
+  return SolvedPlan(
+    plan: Plan.fromSegments(segments),
+    profiles: profiles,
+    segments: segments,
+  );
+}
+
+/// Converts ReplanSegmentResult list to Segment list for backward
+/// compatibility.
+List<Segment> _convertToSegments(List<ReplanSegmentResult> replanSegments) {
+  return replanSegments.map((rs) {
+    // Convert ReplanBoundary to SegmentBoundary
+    final boundary = rs.replanBoundary;
+    final segmentBoundary = boundary != null
+        ? _convertBoundary(boundary)
+        : const GoalReachedBoundary();
+
+    return Segment(
+      steps: rs.steps,
+      totalTicks: rs.actualTicks,
+      interactionCount: rs.steps.whereType<InteractionStep>().length,
+      stopBoundary: segmentBoundary,
+      sellPolicy: rs.sellPolicy,
+    );
+  }).toList();
+}
+
+/// Converts a ReplanBoundary to a SegmentBoundary.
+SegmentBoundary _convertBoundary(ReplanBoundary boundary) {
+  // Map ReplanBoundary types to SegmentBoundary types
+  return switch (boundary) {
+    GoalReached() => const GoalReachedBoundary(),
+    UpgradeAffordableEarly(:final purchaseId) => UpgradeAffordableBoundary(
+      purchaseId,
+      purchaseId.localId,
+    ),
+    UnlockObserved(:final skill, :final level) =>
+      skill != null && level != null
+          ? UnlockBoundary(skill, level, '')
+          : const GoalReachedBoundary(),
+    InputsDepleted(:final actionId, :final missingItemId) =>
+      InputsDepletedBoundary(actionId, missingItemId),
+    InventoryPressure(:final usedSlots, :final totalSlots) =>
+      InventoryPressureBoundary(usedSlots, totalSlots),
+    PlannedSegmentStop() => const HorizonCapBoundary(0),
+    WaitConditionSatisfied() => const GoalReachedBoundary(),
+    _ => const GoalReachedBoundary(),
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Printing
+// ---------------------------------------------------------------------------
+
+/// Prints the plan (compressed format).
+void _printPlan(SolvedPlan solvedPlan, SolverConfig config) {
+  final plan = solvedPlan.plan;
+  final compressed = plan.compress();
+
+  print(
+    'Plan (compressed ${plan.steps.length} '
     '-> ${compressed.steps.length} steps):',
   );
-  print(compressed.prettyPrint(actions: registries.actions));
+  print(compressed.prettyPrint(actions: config.registries.actions));
   print('Total ticks: ${compressed.totalTicks}');
   print('Interaction count: ${compressed.interactionCount}');
+}
 
-  // Execute the plan to get the final state
+/// Executes the plan and prints results.
+void _executePlan(SolvedPlan solvedPlan, SolverConfig config) {
+  print('');
   print('Executing plan...');
+
+  final stepCompleteContext = _StepCompleteContext();
   final stopwatch = Stopwatch()..start();
-  final execResult = executePlan(initialState, result.plan, random: Random(42));
+  final execResult = executePlan(
+    config.initialState,
+    solvedPlan.plan,
+    random: Random(42),
+    onStepComplete: config.verboseExecution
+        ? stepCompleteContext.printStepComplete
+        : null,
+  );
   stopwatch.stop();
+
   print('Execution completed in ${stopwatch.elapsedMilliseconds}ms');
   print('');
-  _printFinalState(execResult.finalState);
-  if (goal is MultiSkillGoal) {
-    _printMultiSkillProgress(execResult.finalState, goal);
+
+  printFinalState(execResult.finalState);
+  if (config.goal is MultiSkillGoal) {
+    _printMultiSkillProgress(
+      execResult.finalState,
+      config.goal as MultiSkillGoal,
+    );
   }
   print('');
-  print('=== Execution Stats ===');
-  print('Planned: ${durationStringWithTicks(execResult.plannedTicks)}');
-  print('Actual: ${durationStringWithTicks(execResult.actualTicks)}');
-  print('Delta: ${signedDurationStringWithTicks(execResult.ticksDelta)}');
-  print(
-    'Deaths: ${execResult.totalDeaths} actual, '
-    '${result.plan.expectedDeaths} expected',
+  printExecutionStats(
+    execResult,
+    expectedDeaths: solvedPlan.plan.expectedDeaths,
   );
 }
 
-void _printFailure(SolverFailed result) {
+/// Prints solver diagnostics/profiles.
+void _printDiagnostics(SolvedPlan solvedPlan, SolverConfig config) {
+  if (solvedPlan.isSegmented) {
+    _printSegmentedDiagnostics(
+      solvedPlan.profiles,
+      extended: config.collectDiagnostics,
+      dumpStopTriggers: config.dumpStopTriggers,
+    );
+  } else if (solvedPlan.profiles.isNotEmpty) {
+    _printSolverProfile(
+      solvedPlan.profiles.first,
+      extended: config.collectDiagnostics,
+      dumpStopTriggers: config.dumpStopTriggers,
+    );
+  }
+}
+
+/// Prints segment summaries for online mode.
+void _printSegmentSummaries(
+  List<Segment> segments,
+  List<SolverProfile> profiles,
+  SolverConfig config,
+) {
+  print('--- Segments ---');
+  for (var i = 0; i < segments.length; i++) {
+    final segment = segments[i];
+    final profile = i < profiles.length ? profiles[i] : null;
+
+    // Determine if this segment should show full step details
+    final isVerboseSegment = config.verboseSegment == i + 1;
+    final isWeirdSegment = _isWeirdSegment(segment);
+    final showDetails = isVerboseSegment || isWeirdSegment;
+
+    // Print one-line summary
+    final summary = _formatSegmentSummary(
+      i + 1,
+      segment,
+      profile,
+      config.registries,
+    );
+    print(summary);
+
+    // Print full step details if requested or weird
+    if (showDetails) {
+      if (isWeirdSegment && !isVerboseSegment) {
+        print('    [auto-expanded: weird segment]');
+      }
+      ActionId? currentAction;
+      for (var j = 0; j < segment.steps.length; j++) {
+        final step = segment.steps[j];
+        final formatted = describeStep(
+          step,
+          config.registries,
+          currentAction: currentAction,
+        );
+        print('    ${j + 1}. $formatted');
+        // Track current action for context in wait steps
+        if (step case InteractionStep(:final interaction)) {
+          if (interaction case SwitchActivity(:final actionId)) {
+            currentAction = actionId;
+          }
+        } else if (step case MacroStep(:final macro)) {
+          if (macro case TrainSkillUntil(:final actionId)) {
+            currentAction = actionId;
+          }
+        }
+      }
+    }
+  }
+  print('');
+
+  // Print full plan (compact format)
+  final plan = Plan.fromSegments(segments);
+  print(plan.prettyPrintCompact(actions: config.registries.actions));
+}
+
+void _printFailure(SolverFailed result, SolverConfig config) {
   print('FAILED: ${result.failure.reason}');
   print('  Expanded nodes: ${result.failure.expandedNodes}');
   print('  Enqueued nodes: ${result.failure.enqueuedNodes}');
@@ -200,40 +477,11 @@ void _printFailure(SolverFailed result) {
   }
 }
 
-/// Prints the final state after executing the plan.
-void _printFinalState(GlobalState state) {
-  print('=== Final State ===');
-  print('GP: ${preciseNumberString(state.gp)}');
-  print('');
-
-  // Print skill levels
-  print('Skills:');
-  for (final skill in Skill.values) {
-    final skillState = state.skillState(skill);
-    if (skillState.skillLevel > 1 || skillState.xp > 0) {
-      print(
-        '  ${skill.name}: Level ${skillState.skillLevel} '
-        '(${preciseNumberString(skillState.xp)} XP)',
-      );
-    }
-  }
-
-  // Print inventory if not empty
-  if (state.inventory.items.isNotEmpty) {
-    print('');
-    print('Inventory:');
-    for (final stack in state.inventory.items) {
-      print('  ${stack.item.name}: ${preciseNumberString(stack.count)}');
-    }
-    final totalValue = state.inventory.items.fold<int>(
-      0,
-      (sum, stack) => sum + stack.sellsFor,
-    );
-    print('Total value: ${preciseNumberString(totalValue)} GP');
-  }
-}
-
-void _printSolverProfile(SolverProfile profile, {bool extended = false}) {
+void _printSolverProfile(
+  SolverProfile profile, {
+  bool extended = false,
+  bool dumpStopTriggers = false,
+}) {
   print('=== Solver Profile ===');
   print('Expanded nodes: ${profile.expandedNodes}');
   print('Nodes/sec: ${profile.nodesPerSecond.toStringAsFixed(1)}');
@@ -312,9 +560,8 @@ void _printSolverProfile(SolverProfile profile, {bool extended = false}) {
     print('Consuming skill candidate stats (last sample):');
     final stats = profile.candidateStatsHistory.last;
     print('  Consumer actions considered: ${stats.consumerActionsConsidered}');
-    print('  Producer actions considered: ${stats.producerActionsConsidered}');
-    print('  Pairs considered: ${stats.pairsConsidered}');
-    print('  Pairs kept: ${stats.pairsKept}');
+    print('  Consumer-producer pairs considered: ${stats.pairsConsidered}');
+    print('  Consumer-producer pairs kept: ${stats.pairsKept}');
     if (stats.topPairs.isNotEmpty) {
       print('  Top pairs:');
       for (final pair in stats.topPairs) {
@@ -329,85 +576,148 @@ void _printSolverProfile(SolverProfile profile, {bool extended = false}) {
   // Macro stop triggers
   if (profile.macroStopTriggers.isNotEmpty) {
     print('');
-    print('Macro stop triggers:');
-    final sorted = profile.macroStopTriggers.entries.toList()
-      ..sort((a, b) => b.value.compareTo(a.value));
-    for (final entry in sorted) {
+    _printMacroStopTriggers(profile.macroStopTriggers, dump: dumpStopTriggers);
+  }
+
+  // Prerequisite diagnostics
+  _printPrereqDiagnostics(profile);
+}
+
+/// Prints prerequisite cache and macro diagnostics.
+void _printPrereqDiagnostics(SolverProfile profile) {
+  final hasPrereqData =
+      profile.prereqCacheHits > 0 ||
+      profile.prereqCacheMisses > 0 ||
+      profile.prereqMacrosByType.isNotEmpty ||
+      profile.blockedChainsByItem.isNotEmpty;
+
+  if (!hasPrereqData) return;
+
+  print('');
+  print('=== Prerequisite Diagnostics ===');
+  print(
+    'Forbidden cache: ${profile.prereqCacheHits} hits, '
+    '${profile.prereqCacheMisses} misses',
+  );
+
+  if (profile.prereqMacrosByType.isNotEmpty) {
+    print('Prerequisite macros by type:');
+    for (final entry in profile.prereqMacrosByType.entries) {
       print('  ${entry.key}: ${entry.value}');
+    }
+  }
+
+  if (profile.blockedChainsByItem.isNotEmpty) {
+    print('Blocked chains by item:');
+    final sorted = profile.blockedChainsByItem.entries.toList()
+      ..sort((a, b) => b.value.compareTo(a.value));
+    for (final entry in sorted.take(10)) {
+      print('  ${entry.key}: ${entry.value}');
+    }
+    if (sorted.length > 10) {
+      print('  ... and ${sorted.length - 10} more');
     }
   }
 }
 
-/// Prints aggregate diagnostics for segment-based solving.
-void _printSegmentedDiagnostics(
-  List<SolverProfile> profiles, {
-  bool extended = false,
-}) {
-  // Aggregate stats across all segments
-  final totalNodes = profiles.fold(0, (sum, p) => sum + p.expandedNodes);
-  final totalNeighbors = profiles.fold(
-    0,
-    (sum, p) => sum + p.totalNeighborsGenerated,
-  );
-  final totalTimeUs = profiles.fold(0, (sum, p) => sum + p.totalTimeUs);
+/// Prints macro stop triggers in a compact grouped format.
+///
+/// Groups triggers by item name and shows:
+/// - Top 10 items by count (default)
+/// - Percentage of total
+/// - Example quantities for each item
+///
+/// If [dump] is true, prints the full histogram instead.
+void _printMacroStopTriggers(Map<String, int> triggers, {bool dump = false}) {
+  if (triggers.isEmpty) return;
 
-  print('=== Aggregate Solver Profile ===');
-  print('Total expanded nodes: $totalNodes');
-  print('Total neighbors generated: $totalNeighbors');
-  if (totalTimeUs > 0) {
-    final nodesPerSec = totalNodes / (totalTimeUs / 1e6);
-    print('Overall nodes/sec: ${nodesPerSec.toStringAsFixed(1)}');
-  }
-  print(
-    'Avg branching factor: '
-    '${(totalNeighbors / totalNodes).toStringAsFixed(2)}',
-  );
+  final total = triggers.values.fold(0, (sum, v) => sum + v);
 
-  // Extended: per-segment breakdown
-  if (!extended) return;
-
-  print('');
-  print('=== Per-Segment Diagnostics ===');
-  for (var i = 0; i < profiles.length; i++) {
-    final p = profiles[i];
-    print(
-      'Segment ${i + 1}: ${p.expandedNodes} nodes, '
-      '${p.nodesPerSecond.toStringAsFixed(0)} nodes/sec, '
-      'branching ${p.avgBranchingFactor.toStringAsFixed(2)}',
-    );
-  }
-
-  // Aggregate heuristic health across segments
-  final allBestRates = profiles.expand((p) => p.bestRateSamples).toList();
-  if (allBestRates.isNotEmpty) {
-    allBestRates.sort();
-    final minRate = allBestRates.first;
-    final maxRate = allBestRates.last;
-    final medRate = allBestRates[allBestRates.length ~/ 2];
-    print('');
-    print('Aggregate heuristic health:');
-    print(
-      '  bestRate range: ${minRate.toStringAsFixed(2)} - '
-      '${maxRate.toStringAsFixed(2)} (median: ${medRate.toStringAsFixed(2)})',
-    );
-  }
-
-  // Aggregate macro stop triggers
-  final allTriggers = <String, int>{};
-  for (final p in profiles) {
-    for (final entry in p.macroStopTriggers.entries) {
-      allTriggers[entry.key] = (allTriggers[entry.key] ?? 0) + entry.value;
-    }
-  }
-  if (allTriggers.isNotEmpty) {
-    print('');
-    print('Aggregate macro stop triggers:');
-    final sorted = allTriggers.entries.toList()
+  if (dump) {
+    // Full histogram mode
+    print('Macro stop triggers (full):');
+    final sorted = triggers.entries.toList()
       ..sort((a, b) => b.value.compareTo(a.value));
     for (final entry in sorted) {
-      print('  ${entry.key}: ${entry.value}');
+      final percent = (entry.value / total * 100).toStringAsFixed(1);
+      print('  ${entry.key}: ${entry.value} ($percent%)');
     }
+    return;
   }
+
+  // Group by item name
+  // Triggers are like: "Stock 358x Coal_Ore", "Acquired 10x Oak_Logs"
+  final byItem = <String, List<_TriggerEntry>>{};
+  for (final entry in triggers.entries) {
+    final parsed = _parseTrigger(entry.key);
+    byItem
+        .putIfAbsent(parsed.itemName, () => [])
+        .add(_TriggerEntry(parsed.quantity, entry.value));
+  }
+
+  // Sum counts per item
+  final itemCounts = <String, int>{};
+  for (final entry in byItem.entries) {
+    itemCounts[entry.key] = entry.value.fold(0, (sum, e) => sum + e.count);
+  }
+
+  // Sort by total count
+  final sortedItems = itemCounts.entries.toList()
+    ..sort((a, b) => b.value.compareTo(a.value));
+
+  print('Stop triggers (top):');
+
+  // Show top 10
+  final topItems = sortedItems.take(10);
+  for (final item in topItems) {
+    final percent = (item.value / total * 100).toStringAsFixed(0);
+
+    // Get example quantities for this item (top 3 by count)
+    final examples = byItem[item.key]!
+      ..sort((a, b) => b.count.compareTo(a.count));
+    final exampleStrings = examples
+        .take(3)
+        .map((e) => '${e.qty}x:${e.count}')
+        .join(', ');
+
+    print('  ${item.key}: $percent% (e.g., $exampleStrings)');
+  }
+
+  if (sortedItems.length > 10) {
+    final remaining = sortedItems.length - 10;
+    final remainingCount = sortedItems
+        .skip(10)
+        .fold(0, (sum, e) => sum + e.value);
+    final remainingPercent = (remainingCount / total * 100).toStringAsFixed(0);
+    print('  ... $remaining more items ($remainingPercent%)');
+  }
+}
+
+/// Parsed trigger info.
+class _TriggerEntry {
+  _TriggerEntry(this.qty, this.count);
+  final String qty;
+  final int count;
+}
+
+/// Parsed trigger with item name and quantity.
+({String itemName, String quantity}) _parseTrigger(String trigger) {
+  // Patterns: "Stock 358x Coal_Ore", "Acquired 10x Oak_Logs", "Level 30"
+  final stockMatch = RegExp(r'^Stock (\d+)x (\S+)$').firstMatch(trigger);
+  if (stockMatch != null) {
+    return (itemName: stockMatch.group(2)!, quantity: stockMatch.group(1)!);
+  }
+
+  final acquiredMatch = RegExp(r'^Acquired (\d+)x (\S+)$').firstMatch(trigger);
+  if (acquiredMatch != null) {
+    return (
+      itemName: acquiredMatch.group(2)!,
+      quantity: acquiredMatch.group(1)!,
+    );
+  }
+
+  // Fallback: use the whole trigger as item name
+  return (itemName: trigger, quantity: '?');
 }
 
 /// Parses the goal from command-line arguments.
@@ -474,107 +784,335 @@ void _printMultiSkillProgress(GlobalState state, MultiSkillGoal goal) {
   print('  Total remaining: ${totalRemainingXp.toInt()} XP');
 }
 
-/// Prints the result of segment-based solving.
-void _printSegmentedResult(
-  SegmentedSolverResult result,
-  GlobalState initialState,
-  Goal goal,
-  Registries registries, {
-  bool collectDiagnostics = false,
-}) {
-  switch (result) {
-    case SegmentedSuccess(
-      :final segments,
-      :final totalTicks,
-      :final totalReplanCount,
-      :final segmentProfiles,
-    ):
-      print('=== Segment-Based Solver Result ===');
-      print('Total segments: ${segments.length}');
-      print('Replan count: $totalReplanCount');
-      print('Total ticks: $totalTicks');
-      print('');
+class _StepCompleteContext {
+  // Track current action for step formatting
+  ActionId? currentAction;
 
-      // Print segment summaries with optional per-segment diagnostics
-      print('--- Segment Boundaries ---');
-      for (var i = 0; i < segments.length; i++) {
-        final segment = segments[i];
-        final boundary = segment.stopBoundary;
-        final ticks = segment.totalTicks;
-        final steps = segment.steps.length;
+  void printStepComplete({
+    required int stepIndex,
+    required PlanStep step,
+    required int plannedTicks,
+    required int estimatedTicksAtExecution,
+    required int actualTicks,
+    required int cumulativeActualTicks,
+    required int cumulativePlannedTicks,
+    required GlobalState stateAfter,
+    required GlobalState stateBefore,
+    required ReplanBoundary? boundary,
+  }) {
+    // Registries can't change between states, so use the same one.
+    final registries = stateBefore.registries;
+    // Update current action tracking
+    if (step case InteractionStep(:final interaction)) {
+      if (interaction case SwitchActivity(:final actionId)) {
+        currentAction = actionId;
+      }
+    } else if (step case MacroStep(:final macro)) {
+      if (macro case TrainSkillUntil(:final actionId)) {
+        currentAction = actionId;
+      }
+    }
 
-        // Include expanded nodes if diagnostics available
-        final profile = i < segmentProfiles.length ? segmentProfiles[i] : null;
-        final nodeInfo = profile != null
-            ? ' (${profile.expandedNodes} nodes)'
-            : '';
+    final stepDesc = describeStep(
+      step,
+      registries,
+      currentAction: currentAction,
+    );
 
-        print(
-          '  Segment ${i + 1}: $steps steps, $ticks ticks$nodeInfo '
-          '-> ${boundary.describe()}',
-        );
-        // Print step details
-        for (var j = 0; j < segment.steps.length; j++) {
-          final step = segment.steps[j];
+    // Compare: planned vs estimated-at-execution vs actual
+    // - planned != estimatedAtExec: planning snapshot inconsistent
+    // - estimatedAtExec != actual: rate model/termination wrong
+    final planVsEstDelta = plannedTicks - estimatedTicksAtExecution;
+    final estVsActDelta = estimatedTicksAtExecution - actualTicks;
+    final delta = actualTicks - plannedTicks;
+    final deltaStr = delta >= 0 ? '+$delta' : '$delta';
+    final cumDelta = cumulativeActualTicks - cumulativePlannedTicks;
+    final cumDeltaStr = cumDelta >= 0 ? '+$cumDelta' : '$cumDelta';
+
+    // Only print if significant deviation (>10% or >100 ticks)
+    final significantDeviation =
+        delta.abs() > 100 ||
+        (plannedTicks > 0 && delta.abs() / plannedTicks > 0.1);
+
+    if (significantDeviation || stepIndex < 5) {
+      print('  Step ${stepIndex + 1}: $stepDesc');
+      print(
+        '    planned=$plannedTicks, '
+        'estAtExec=$estimatedTicksAtExecution, '
+        'actual=$actualTicks',
+      );
+      print(
+        '    plan-vs-est: ${_formatDelta(planVsEstDelta)}, '
+        'est-vs-actual: ${_formatDelta(estVsActDelta)}, '
+        'total delta: $deltaStr, cumulative: $cumDeltaStr',
+      );
+
+      // Diagnose the source of discrepancy
+      if (delta.abs() > 100) {
+        if (planVsEstDelta.abs() > 50 &&
+            planVsEstDelta.abs() > estVsActDelta.abs()) {
           print(
-            '    Step ${j + 1}: ${_formatStepForSegment(step, registries)}',
+            '    >> SNAPSHOT INCONSISTENCY: state at execution '
+            'differs from planning snapshot',
+          );
+        } else if (estVsActDelta.abs() > 50) {
+          print(
+            '    >> RATE/TERMINATION ISSUE: estimateTicks() '
+            'vs actual execution mismatch',
           );
         }
       }
-      print('');
 
-      // Stitch segments into a full plan
-      final plan = Plan.fromSegments(segments);
-
-      // Print full plan
-      print('=== Stitched Plan ===');
-      print(plan.prettyPrint(actions: registries.actions));
-      print('');
-
-      // Execute the stitched plan
-      print('Executing stitched plan...');
-      final stopwatch = Stopwatch()..start();
-      final execResult = executePlan(initialState, plan, random: Random(42));
-      stopwatch.stop();
-      print('Execution completed in ${stopwatch.elapsedMilliseconds}ms');
-      print('');
-
-      _printFinalState(execResult.finalState);
-      if (goal is MultiSkillGoal) {
-        _printMultiSkillProgress(execResult.finalState, goal);
-      }
-      print('');
-      print('=== Execution Stats ===');
-      print('Planned: ${durationStringWithTicks(execResult.plannedTicks)}');
-      print('Actual: ${durationStringWithTicks(execResult.actualTicks)}');
-      print('Delta: ${signedDurationStringWithTicks(execResult.ticksDelta)}');
-      print('Deaths: ${execResult.totalDeaths}');
-
-      // Print aggregate diagnostics if collected
-      if (segmentProfiles.isNotEmpty) {
-        print('');
-        _printSegmentedDiagnostics(
-          segmentProfiles,
-          extended: collectDiagnostics,
-        );
+      String toCheck(WaitFor waitFor, GlobalState state) {
+        return waitFor.isSatisfied(state) ? '✓' : '✗';
       }
 
-    case SegmentedFailed(:final failure, :final completedSegments):
-      print('=== Segment-Based Solver FAILED ===');
-      print('Reason: ${failure.reason}');
-      print('Completed segments before failure: ${completedSegments.length}');
-      if (completedSegments.isNotEmpty) {
-        print('');
-        print('--- Completed Segments ---');
-        for (var i = 0; i < completedSegments.length; i++) {
-          final segment = completedSegments[i];
-          print(
-            '  Segment ${i + 1}: ${segment.steps.length} steps, '
-            '${segment.totalTicks} ticks -> ${segment.stopBoundary.describe()}',
-          );
+      // Enhanced diagnostics for steps with large deviations
+      if (delta.abs() > 1000) {
+        // Print wait condition details
+        if (step case WaitStep(:final waitFor)) {
+          print('    Wait condition: ${waitFor.describe()}');
+          if (waitFor case WaitForAnyOf(:final conditions)) {
+            print('    Sub-conditions:');
+            for (final cond in conditions) {
+              print(
+                '      before:${toCheck(cond, stateBefore)} '
+                'after:${toCheck(cond, stateAfter)} '
+                '${cond.describe()}',
+              );
+            }
+          }
         }
+        if (step case MacroStep(:final macro, :final waitFor)) {
+          print('    Macro: $macro');
+          print('    Wait condition: ${waitFor.describe()}');
+          if (waitFor case WaitForAnyOf(:final conditions)) {
+            print('    Sub-conditions:');
+            for (final cond in conditions) {
+              print(
+                '      before:${toCheck(cond, stateBefore)} '
+                'after:${toCheck(cond, stateAfter)} '
+                '${cond.describe()}',
+              );
+            }
+          }
+          // For EnsureStock, show inventory count
+          if (macro is EnsureStock) {
+            final item = registries.items.byId(macro.itemId);
+            final countBefore = stateBefore.inventory.countOfItem(item);
+            final countAfter = stateAfter.inventory.countOfItem(item);
+            print(
+              '    Inventory: ${macro.itemId.localId} '
+              '$countBefore -> $countAfter (target: ${macro.minTotal})',
+            );
+          }
+        }
+        // Show boundary if hit
+        print('    Boundary: $boundary');
       }
+    }
   }
+}
+
+/// Prints aggregate diagnostics for segment-based solving.
+void _printSegmentedDiagnostics(
+  List<SolverProfile> profiles, {
+  bool extended = false,
+  bool dumpStopTriggers = false,
+}) {
+  // Aggregate stats across all segments
+  final totalNodes = profiles.fold(0, (sum, p) => sum + p.expandedNodes);
+  final totalNeighbors = profiles.fold(
+    0,
+    (sum, p) => sum + p.totalNeighborsGenerated,
+  );
+  final totalTimeUs = profiles.fold(0, (sum, p) => sum + p.totalTimeUs);
+
+  print('=== Aggregate Solver Profile ===');
+  print('Total expanded nodes: $totalNodes');
+  print('Total neighbors generated: $totalNeighbors');
+  if (totalTimeUs > 0) {
+    final nodesPerSec = totalNodes / (totalTimeUs / 1e6);
+    print('Overall nodes/sec: ${nodesPerSec.toStringAsFixed(1)}');
+  }
+  print(
+    'Avg branching factor: '
+    '${(totalNeighbors / totalNodes).toStringAsFixed(2)}',
+  );
+
+  // Extended: per-segment breakdown
+  if (!extended) return;
+
+  print('');
+  print('=== Per-Segment Diagnostics ===');
+  for (var i = 0; i < profiles.length; i++) {
+    final p = profiles[i];
+    print(
+      'Segment ${i + 1}: ${p.expandedNodes} nodes, '
+      '${p.nodesPerSecond.toStringAsFixed(0)} nodes/sec, '
+      'branching ${p.avgBranchingFactor.toStringAsFixed(2)}',
+    );
+  }
+
+  // Aggregate heuristic health across segments
+  final allBestRates = profiles.expand((p) => p.bestRateSamples).toList();
+  if (allBestRates.isNotEmpty) {
+    allBestRates.sort();
+    final minRate = allBestRates.first;
+    final maxRate = allBestRates.last;
+    final medRate = allBestRates[allBestRates.length ~/ 2];
+    print('');
+    print('Aggregate heuristic health:');
+    print(
+      '  bestRate range: ${minRate.toStringAsFixed(2)} - '
+      '${maxRate.toStringAsFixed(2)} (median: ${medRate.toStringAsFixed(2)})',
+    );
+  }
+
+  // Aggregate macro stop triggers
+  final allTriggers = <String, int>{};
+  for (final p in profiles) {
+    for (final entry in p.macroStopTriggers.entries) {
+      allTriggers[entry.key] = (allTriggers[entry.key] ?? 0) + entry.value;
+    }
+  }
+  if (allTriggers.isNotEmpty) {
+    print('');
+    _printMacroStopTriggers(allTriggers, dump: dumpStopTriggers);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Segment Summary Formatting
+// ---------------------------------------------------------------------------
+
+/// Formats a one-line summary for a segment.
+///
+/// Format: `Seg N: ticks, nodes -> boundary reason`
+///         `  Do: primary action + stock: Item1 X, Item2 Y | switches: N`
+String _formatSegmentSummary(
+  int segmentNum,
+  Segment segment,
+  SolverProfile? profile,
+  Registries registries,
+) {
+  final ticks = segment.totalTicks;
+  final nodes = profile?.expandedNodes ?? 0;
+  final boundary = segment.stopBoundary.describe();
+
+  // Extract primary action and stocking info from steps
+  String? primaryAction;
+  final stockEntries = <String>[];
+  var switchCount = 0;
+  var sellCount = 0;
+
+  for (final step in segment.steps) {
+    switch (step) {
+      case InteractionStep(:final interaction):
+        switch (interaction) {
+          case SwitchActivity(:final actionId):
+            switchCount++;
+            // Use the first switch as primary action
+            if (primaryAction == null) {
+              final action = registries.actions.byId(actionId);
+              final skill = action.skill.name.toLowerCase();
+              primaryAction = '${action.name} ($skill)';
+            }
+          case SellItems():
+            sellCount++;
+          case BuyShopItem():
+            break;
+        }
+      case MacroStep(:final macro):
+        switch (macro) {
+          case TrainSkillUntil(:final skill, :final actionId):
+            if (primaryAction == null) {
+              if (actionId != null) {
+                final action = registries.actions.byId(actionId);
+                final skillLower = skill.name.toLowerCase();
+                primaryAction = '${action.name} ($skillLower)';
+              } else {
+                primaryAction = skill.name;
+              }
+            }
+          case TrainConsumingSkillUntil(:final consumingSkill):
+            primaryAction ??= consumingSkill.name;
+          case EnsureStock(:final itemId, :final minTotal):
+            stockEntries.add('${itemId.name} $minTotal');
+          case AcquireItem(:final itemId, :final quantity):
+            stockEntries.add('${itemId.name} $quantity');
+          case ProduceItem(:final itemId, :final minTotal):
+            stockEntries.add('Produce ${itemId.name} $minTotal');
+        }
+      case WaitStep():
+        break;
+    }
+  }
+
+  // Build the summary line
+  final buffer = StringBuffer()
+    ..write('Seg $segmentNum: ')
+    ..write('${_formatTicksCompact(ticks)}, ')
+    ..write('$nodes nodes -> $boundary');
+
+  // Build the detail line if we have useful info
+  final details = <String>[];
+  if (primaryAction != null) {
+    details.add('Do: $primaryAction');
+  }
+  if (stockEntries.isNotEmpty) {
+    // Show top 2 stock entries
+    final stockSummary = stockEntries.take(2).join(', ');
+    if (stockEntries.length > 2) {
+      details.add('stock: $stockSummary, +${stockEntries.length - 2} more');
+    } else {
+      details.add('stock: $stockSummary');
+    }
+  }
+
+  // Add interaction counts
+  final interactions = <String>[];
+  if (switchCount > 0) interactions.add('switches: $switchCount');
+  if (sellCount > 0) interactions.add('sells: $sellCount');
+  if (interactions.isNotEmpty) {
+    details.add(interactions.join(', '));
+  }
+
+  if (details.isNotEmpty) {
+    buffer
+      ..writeln()
+      ..write('  ${details.join(' | ')}');
+  }
+
+  return buffer.toString();
+}
+
+/// Formats ticks in a compact form (e.g., "19.5k" or "1.2M").
+String _formatTicksCompact(int ticks) {
+  if (ticks >= 1000000) {
+    return '${(ticks / 1000000).toStringAsFixed(1)}M ticks';
+  } else if (ticks >= 1000) {
+    return '${(ticks / 1000).toStringAsFixed(1)}k ticks';
+  }
+  return '$ticks ticks';
+}
+
+/// Determines if a segment is "weird" and should be auto-expanded.
+///
+/// A segment is weird if:
+/// - It has many switches (>5) suggesting something unusual
+/// - It has very few ticks (<100) suggesting a degenerate case
+bool _isWeirdSegment(Segment segment) {
+  // Count switches
+  var switchCount = 0;
+  for (final step in segment.steps) {
+    if (step case InteractionStep(:final interaction)) {
+      if (interaction is SwitchActivity) switchCount++;
+    }
+  }
+
+  // Weird if too many switches or too few ticks
+  return switchCount > 5 || segment.totalTicks < 100;
 }
 
 // ---------------------------------------------------------------------------
@@ -780,11 +1318,10 @@ Future<void> _runCliffDiagnostic(
       (s) => s?.consumerActionsConsidered,
     );
     compareStats(
-      'Producer actions considered',
-      (s) => s?.producerActionsConsidered,
+      'Consumer-producer pairs considered',
+      (s) => s?.pairsConsidered,
     );
-    compareStats('Pairs considered', (s) => s?.pairsConsidered);
-    compareStats('Pairs kept', (s) => s?.pairsKept);
+    compareStats('Consumer-producer pairs kept', (s) => s?.pairsKept);
     print('');
 
     void printTopPairs(CandidateStats? stats, int level) {
@@ -843,7 +1380,7 @@ void _printComparisonDouble(
   final delta = upperVal - lowerVal;
   print(
     '$label: ${lowerVal.toStringAsFixed(2)} -> ${upperVal.toStringAsFixed(2)} '
-    '(${delta >= 0 ? '+' : ''}${delta.toStringAsFixed(2)})',
+    '(${_formatDoubleDelta(delta)})',
   );
 }
 
@@ -856,6 +1393,9 @@ void _printComparisonRaw(String label, int lower, int upper) {
 }
 
 String _formatDelta(int delta) => delta >= 0 ? '+$delta' : '$delta';
+
+String _formatDoubleDelta(double delta) =>
+    '${delta >= 0 ? '+' : ''}${delta.toStringAsFixed(2)}';
 
 String _formatRatio(int upper, int lower) {
   if (lower == 0) return upper == 0 ? '1.00' : 'inf';
@@ -910,41 +1450,4 @@ void _printNewlyEligibleActions(
       print('  (Producer skill: ${producerSkill.name})');
     }
   }
-}
-
-/// Formats a sell policy for display.
-String _formatSellPolicy(SellPolicy policy) {
-  return switch (policy) {
-    SellAllPolicy() => 'Sell all',
-    SellExceptPolicy(:final keepItems) => () {
-      final names = keepItems.map((id) => id.name).toList()..sort();
-      if (names.length <= 3) {
-        return 'Sell all except ${names.join(', ')}';
-      }
-      return 'Sell all except ${names.length} items '
-          '(${names.take(3).join(', ')}, ...)';
-    }(),
-  };
-}
-
-/// Formats a plan step for segment display.
-String _formatStepForSegment(PlanStep step, Registries registries) {
-  return switch (step) {
-    InteractionStep(:final interaction) => switch (interaction) {
-      SwitchActivity(:final actionId) => () {
-        final action = registries.actions.byId(actionId);
-        final actionName = action.name;
-        return 'Switch to $actionName';
-      }(),
-      BuyShopItem(:final purchaseId) => 'Buy ${purchaseId.name}',
-      SellItems(:final policy) => _formatSellPolicy(policy),
-    },
-    WaitStep(:final deltaTicks, :final waitFor) =>
-      'Wait $deltaTicks ticks -> ${waitFor.shortDescription}',
-    MacroStep(:final macro, :final deltaTicks) => switch (macro) {
-      TrainSkillUntil(:final skill) => '${skill.name} for $deltaTicks ticks',
-      TrainConsumingSkillUntil(:final consumingSkill) =>
-        '${consumingSkill.name} for $deltaTicks ticks',
-    },
-  };
 }

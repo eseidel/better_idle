@@ -1,11 +1,12 @@
+import 'package:better_idle/src/widgets/cached_image.dart';
 import 'package:better_idle/src/widgets/count_badge_cell.dart';
 import 'package:better_idle/src/widgets/style.dart';
 import 'package:flutter/material.dart';
 
-/// A small square widget displaying a double arrow icon with a chance
+/// A small square widget displaying a double chance icon with a chance
 /// percentage badge.
 ///
-/// Shows a double arrow icon centered on a light-grey background with
+/// Shows a double icon centered on a light-grey background with
 /// a dark-grey border. The chance percentage is displayed in a
 /// pill-shaped badge overlapping the bottom border.
 class DoubleChanceBadgeCell extends StatelessWidget {
@@ -15,10 +16,18 @@ class DoubleChanceBadgeCell extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Icon size is roughly 60% of the inradius, matching item badges.
+    const iconSize = TextBadgeCell.defaultInradius * 0.6;
+
     return TextBadgeCell(
       backgroundColor: Style.xpBadgeBackgroundColor,
       text: chance,
-      child: Icon(Icons.call_split, size: 24, color: Style.xpBadgeIconColor),
+      child: const Center(
+        child: CachedImage(
+          assetPath: 'assets/media/main/double.png',
+          size: iconSize,
+        ),
+      ),
     );
   }
 }

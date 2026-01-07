@@ -9,19 +9,28 @@ import 'package:flutter/material.dart';
 /// border. The mastery xp amount is displayed in a pill-shaped badge
 /// overlapping the bottom border.
 class MasteryXpBadgeCell extends StatelessWidget {
-  const MasteryXpBadgeCell({required this.masteryXp, super.key});
+  const MasteryXpBadgeCell({
+    required this.masteryXp,
+    this.inradius = TextBadgeCell.defaultInradius,
+    super.key,
+  });
 
   final int masteryXp;
 
+  /// The size of the cell (width and height). Defaults to 48.
+  final double inradius;
+
   @override
   Widget build(BuildContext context) {
+    final iconSize = inradius * 28 / TextBadgeCell.defaultInradius;
     return CountBadgeCell(
       backgroundColor: Style.xpBadgeBackgroundColor,
       count: masteryXp,
-      child: const Center(
+      inradius: inradius,
+      child: Center(
         child: CachedImage(
           assetPath: 'assets/media/main/mastery_header.png',
-          size: 28,
+          size: iconSize,
         ),
       ),
     );

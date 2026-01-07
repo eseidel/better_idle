@@ -10,19 +10,28 @@ import 'package:flutter/material.dart';
 /// dark-grey border. The mastery pool xp amount is displayed in a pill-shaped
 /// badge overlapping the bottom border.
 class MasteryPoolXpBadgeCell extends StatelessWidget {
-  const MasteryPoolXpBadgeCell({required this.masteryPoolXp, super.key});
+  const MasteryPoolXpBadgeCell({
+    required this.masteryPoolXp,
+    this.inradius = TextBadgeCell.defaultInradius,
+    super.key,
+  });
 
   final int masteryPoolXp;
 
+  /// The size of the cell (width and height). Defaults to 48.
+  final double inradius;
+
   @override
   Widget build(BuildContext context) {
+    final iconSize = inradius * 28 / TextBadgeCell.defaultInradius;
     return CountBadgeCell(
       backgroundColor: Style.xpBadgeBackgroundColor,
       count: masteryPoolXp,
-      child: const Center(
+      inradius: inradius,
+      child: Center(
         child: CachedImage(
           assetPath: 'assets/media/main/mastery_pool.png',
-          size: 28,
+          size: iconSize,
         ),
       ),
     );

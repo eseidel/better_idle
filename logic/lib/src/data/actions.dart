@@ -222,6 +222,17 @@ class SkillAction extends Action {
   final Map<MelvorId, int> inputs;
   final Map<MelvorId, int> outputs;
 
+  double expectedOutputPerTick(MelvorId itemId) {
+    return (outputs[itemId] ?? 0) / ticksFromDuration(meanDuration).toDouble();
+  }
+
+  /// Returns how many times this action must run to produce [quantity] of
+  /// [itemId].
+  int actionsNeededForOutput(MelvorId itemId, int quantity) {
+    final outputsPerAction = outputs[itemId] ?? 1;
+    return (quantity / outputsPerAction).ceil();
+  }
+
   /// Alternative recipes (from alternativeCosts in Melvor JSON).
   /// When non-null, this replaces the `inputs` field - the user selects
   /// which recipe to use, and each recipe may have a quantity multiplier.
@@ -377,6 +388,10 @@ class ActionRegistry {
   @visibleForTesting
   ThievingAction thieving(String name) =>
       _bySkillAndName(Skill.thieving, name) as ThievingAction;
+
+  @visibleForTesting
+  SkillAction smithing(String name) =>
+      _bySkillAndName(Skill.smithing, name) as SkillAction;
 }
 
 class DropsRegistry {

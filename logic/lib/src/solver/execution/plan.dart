@@ -1,0 +1,1264 @@
+/// Plan representation: recorded steps for explanation/debugging.
+///
+/// ## Purpose
+///
+/// Plan steps are recorded for explanation, debugging, and UI display.
+/// They reconstruct what the solver decided at each point.
+///
+/// ## Wait Steps
+///
+/// [WaitStep]s correspond to "interesting events" (goal, unlock, affordability,
+/// death, skill/mastery level ups). Each wait may cross level boundaries where
+/// rates change, so consecutive waits are NOT merged.
+///
+/// ## Future: Compression
+///
+/// A plan may be long if modeling micro-events (e.g., many short waits for
+/// mastery gains). Later we may compress repeated cycles (e.g., "thieve until
+/// dead, restart" loops) into macro steps for UI display.
+library;
+
+import 'dart:math';
+
+import 'package:equatable/equatable.dart';
+import 'package:logic/src/data/action_id.dart';
+import 'package:logic/src/data/actions.dart';
+import 'package:logic/src/data/melvor_id.dart';
+import 'package:logic/src/solver/analysis/replan_boundary.dart';
+import 'package:logic/src/solver/analysis/unlock_boundaries.dart';
+import 'package:logic/src/solver/analysis/wait_for.dart';
+import 'package:logic/src/solver/analysis/watch_set.dart';
+import 'package:logic/src/solver/candidates/macro_candidate.dart';
+import 'package:logic/src/solver/candidates/macro_execute_context.dart';
+import 'package:logic/src/solver/core/solver_profile.dart';
+import 'package:logic/src/solver/execution/consume_until.dart';
+import 'package:logic/src/solver/execution/step_helpers.dart';
+import 'package:logic/src/solver/interactions/apply_interaction.dart';
+import 'package:logic/src/solver/interactions/interaction.dart';
+import 'package:logic/src/state.dart';
+import 'package:logic/src/tick.dart';
+import 'package:meta/meta.dart';
+
+// ---------------------------------------------------------------------------
+// Step Result
+// ---------------------------------------------------------------------------
+
+/// Result of applying a single step.
+@immutable
+class StepResult {
+  const StepResult({
+    required this.state,
+    this.ticksElapsed = 0,
+    this.deaths = 0,
+    this.boundary,
+  });
+
+  /// The game state after executing the step.
+  final GlobalState state;
+
+  /// Number of ticks elapsed during step execution.
+  final int ticksElapsed;
+
+  /// Number of deaths that occurred during step execution.
+  final int deaths;
+
+  /// The boundary hit during execution, if any.
+  ///
+  /// Null means normal completion. Various boundary types indicate
+  /// different outcomes (goal reached, inputs depleted, etc.).
+  final ReplanBoundary? boundary;
+}
+
+// ---------------------------------------------------------------------------
+// Plan Steps
+// ---------------------------------------------------------------------------
+
+/// A single step in a plan.
+sealed class PlanStep extends Equatable {
+  const PlanStep();
+
+  /// Executes this step and returns the result.
+  ///
+  /// [state] is the current game state before execution.
+  /// [random] is the random number generator for stochastic simulation.
+  /// [boundaries] contains skill unlock boundaries for macro execution.
+  /// [watchSet] enables mid-step boundary detection if provided.
+  /// [segmentSellPolicy] is the sell policy for handling inventory full.
+  StepResult apply(
+    GlobalState state, {
+    required Random random,
+    Map<Skill, SkillBoundaries>? boundaries,
+    WatchSet? watchSet,
+    SellPolicy? segmentSellPolicy,
+  });
+
+  /// Serializes this [PlanStep] to a JSON-compatible map.
+  Map<String, dynamic> toJson();
+
+  /// Deserializes a [PlanStep] from a JSON-compatible map.
+  static PlanStep fromJson(Map<String, dynamic> json) {
+    final type = json['type'] as String;
+    return switch (type) {
+      'InteractionStep' => InteractionStep(
+        Interaction.fromJson(json['interaction'] as Map<String, dynamic>),
+      ),
+      'WaitStep' => WaitStep(
+        json['deltaTicks'] as int,
+        WaitFor.fromJson(json['waitFor'] as Map<String, dynamic>),
+        expectedAction: json['expectedAction'] != null
+            ? ActionId.fromJson(json['expectedAction'] as String)
+            : null,
+      ),
+      'MacroStep' => MacroStep(
+        MacroCandidate.fromJson(json['macro'] as Map<String, dynamic>),
+        json['deltaTicks'] as int,
+        WaitFor.fromJson(json['waitFor'] as Map<String, dynamic>),
+      ),
+      _ => throw ArgumentError('Unknown PlanStep type: $type'),
+    };
+  }
+}
+
+/// A step that performs an interaction (switch activity, buy upgrade, sell).
+@immutable
+class InteractionStep extends PlanStep {
+  const InteractionStep(this.interaction);
+
+  final Interaction interaction;
+
+  @override
+  StepResult apply(
+    GlobalState state, {
+    required Random random,
+    Map<Skill, SkillBoundaries>? boundaries,
+    WatchSet? watchSet,
+    SellPolicy? segmentSellPolicy,
+  }) {
+    try {
+      return StepResult(
+        state: applyInteraction(state, interaction, random: random),
+      );
+    } on Exception catch (e) {
+      return StepResult(
+        state: state,
+        boundary: NoProgressPossible(reason: e.toString()),
+      );
+    }
+  }
+
+  @override
+  Map<String, dynamic> toJson() => {
+    'type': 'InteractionStep',
+    'interaction': interaction.toJson(),
+  };
+
+  @override
+  List<Object?> get props => [interaction];
+
+  @override
+  String toString() => 'InteractionStep($interaction)';
+}
+
+/// A step that waits for a condition to be met.
+///
+/// During planning, [deltaTicks] is the expected time to wait based on
+/// expected-value modeling. During execution, [waitFor] is used to
+/// determine when to stop waiting, which handles variance in actual
+/// simulation vs expected values.
+///
+/// [expectedAction] is the action that should be running during the wait.
+/// If provided, execution will switch to this action before waiting. This
+/// ensures the wait makes progress on the right skill/action.
+@immutable
+class WaitStep extends PlanStep {
+  const WaitStep(this.deltaTicks, this.waitFor, {this.expectedAction});
+
+  /// Expected ticks to wait (from planning).
+  final int deltaTicks;
+
+  /// What we're waiting for.
+  final WaitFor waitFor;
+
+  /// The action that should be running during this wait.
+  ///
+  /// If null, the current action continues (or no action if idle).
+  /// If non-null, execution will switch to this action before waiting.
+  final ActionId? expectedAction;
+
+  @override
+  StepResult apply(
+    GlobalState state, {
+    required Random random,
+    Map<Skill, SkillBoundaries>? boundaries,
+    WatchSet? watchSet,
+    SellPolicy? segmentSellPolicy,
+  }) {
+    var waitState = state;
+    // Switch to expected action if specified and not already active
+    if (expectedAction != null &&
+        waitState.activeAction?.id != expectedAction) {
+      // Check if we can start the expected action (inputs available)
+      final action = state.registries.actions.byId(expectedAction!);
+      if (state.canStartAction(action)) {
+        try {
+          waitState = applyInteraction(
+            waitState,
+            SwitchActivity(expectedAction!),
+            random: random,
+          );
+        } on Exception catch (e) {
+          return StepResult(
+            state: state,
+            boundary: NoProgressPossible(
+              reason: 'Cannot start expected action: $e',
+            ),
+          );
+        }
+      }
+      // If we can't start expectedAction (inputs depleted), just continue
+      // with whatever action is currently running. The wait will complete
+      // and a replan will occur at the next boundary. This is better than
+      // immediately triggering a replan which may cause loops.
+    }
+
+    // Run until the wait condition is satisfied
+    final result = consumeUntil(waitState, waitFor, random: random);
+
+    // Check for material boundary after waiting (mid-step stopping)
+    if (watchSet != null) {
+      final materialBoundary = watchSet.detectBoundary(
+        result.state,
+        elapsedTicks: result.ticksElapsed,
+      );
+      if (materialBoundary != null) {
+        return StepResult(
+          state: result.state,
+          ticksElapsed: result.ticksElapsed,
+          deaths: result.deathCount,
+          boundary: segmentBoundaryToReplan(materialBoundary),
+        );
+      }
+    }
+
+    return StepResult(
+      state: result.state,
+      ticksElapsed: result.ticksElapsed,
+      deaths: result.deathCount,
+      boundary: result.boundary,
+    );
+  }
+
+  @override
+  Map<String, dynamic> toJson() => {
+    'type': 'WaitStep',
+    'deltaTicks': deltaTicks,
+    'waitFor': waitFor.toJson(),
+    if (expectedAction != null) 'expectedAction': expectedAction!.toJson(),
+  };
+
+  @override
+  List<Object?> get props => [deltaTicks, waitFor, expectedAction];
+
+  @override
+  String toString() => 'WaitStep($deltaTicks ticks, ${waitFor.describe()})';
+}
+
+/// A step that represents executing a macro (train skill until boundary/goal).
+///
+/// Macros are high-level planning primitives that span many ticks and
+/// automatically select the best action for a skill. During execution,
+/// the macro is expanded into concrete interactions and waits.
+@immutable
+class MacroStep extends PlanStep {
+  const MacroStep(this.macro, this.deltaTicks, this.waitFor);
+
+  /// The macro candidate that was expanded.
+  final MacroCandidate macro;
+
+  /// Expected ticks for this macro (from planning).
+  final int deltaTicks;
+
+  /// Composite wait condition (AnyOf the macro's stop conditions).
+  final WaitFor waitFor;
+
+  @override
+  StepResult apply(
+    GlobalState state, {
+    required Random random,
+    Map<Skill, SkillBoundaries>? boundaries,
+    WatchSet? watchSet,
+    SellPolicy? segmentSellPolicy,
+  }) {
+    // Delegate to macro.execute() which handles the execution logic
+    final context = MacroExecuteContext(
+      state: state,
+      waitFor: waitFor,
+      random: random,
+      boundaries: boundaries,
+      watchSet: watchSet,
+      segmentSellPolicy: segmentSellPolicy,
+    );
+    return macro.execute(context);
+  }
+
+  @override
+  Map<String, dynamic> toJson() => {
+    'type': 'MacroStep',
+    'macro': macro.toJson(),
+    'deltaTicks': deltaTicks,
+    'waitFor': waitFor.toJson(),
+  };
+
+  @override
+  List<Object?> get props => [macro, deltaTicks, waitFor];
+
+  @override
+  String toString() {
+    if (macro is TrainSkillUntil) {
+      final m = macro as TrainSkillUntil;
+      return 'MacroStep(${m.skill.name} for $deltaTicks ticks, '
+          '${waitFor.describe()})';
+    }
+    return 'MacroStep($macro, $deltaTicks ticks, ${waitFor.describe()})';
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Segment Boundaries
+// ---------------------------------------------------------------------------
+
+/// What boundary type triggered a segment to end.
+///
+/// This is planning-time info (what we expect), not execution-time
+/// (what happened). Used to categorize segment stopping points.
+sealed class SegmentBoundary {
+  const SegmentBoundary();
+
+  /// Human-readable description of this boundary.
+  String describe();
+
+  /// Serializes this [SegmentBoundary] to a JSON-compatible map.
+  Map<String, dynamic> toJson();
+
+  /// Deserializes a [SegmentBoundary] from a JSON-compatible map.
+  static SegmentBoundary fromJson(Map<String, dynamic> json) {
+    final type = json['type'] as String;
+    return switch (type) {
+      'GoalReachedBoundary' => const GoalReachedBoundary(),
+      'UpgradeAffordableBoundary' => UpgradeAffordableBoundary(
+        MelvorId.fromJson(json['purchaseId'] as String),
+        json['upgradeName'] as String,
+      ),
+      'UnlockBoundary' => UnlockBoundary(
+        Skill.fromName(json['skill'] as String),
+        json['level'] as int,
+        json['unlocks'] as String,
+      ),
+      'InputsDepletedBoundary' => InputsDepletedBoundary(
+        ActionId.fromJson(json['actionId'] as String),
+        MelvorId.fromJson(json['missingItemId'] as String),
+      ),
+      'HorizonCapBoundary' => HorizonCapBoundary(json['ticksElapsed'] as int),
+      'InventoryPressureBoundary' => InventoryPressureBoundary(
+        json['usedSlots'] as int,
+        json['totalSlots'] as int,
+      ),
+      _ => throw ArgumentError('Unknown SegmentBoundary type: $type'),
+    };
+  }
+}
+
+/// Goal was reached - plan succeeded.
+@immutable
+class GoalReachedBoundary extends SegmentBoundary {
+  const GoalReachedBoundary();
+
+  @override
+  String describe() => 'Goal reached';
+
+  @override
+  Map<String, dynamic> toJson() => {'type': 'GoalReachedBoundary'};
+}
+
+/// An upgrade became affordable.
+@immutable
+class UpgradeAffordableBoundary extends SegmentBoundary {
+  const UpgradeAffordableBoundary(this.purchaseId, this.upgradeName);
+
+  /// The upgrade that became affordable.
+  final MelvorId purchaseId;
+
+  /// Human-readable name of the upgrade.
+  final String upgradeName;
+
+  @override
+  String describe() => 'Upgrade $upgradeName affordable';
+
+  @override
+  Map<String, dynamic> toJson() => {
+    'type': 'UpgradeAffordableBoundary',
+    'purchaseId': purchaseId.toJson(),
+    'upgradeName': upgradeName,
+  };
+}
+
+/// A skill level crossed an unlock boundary.
+@immutable
+class UnlockBoundary extends SegmentBoundary {
+  const UnlockBoundary(this.skill, this.level, this.unlocks);
+
+  /// The skill that leveled up.
+  final Skill skill;
+
+  /// The level that was reached.
+  final int level;
+
+  /// What gets unlocked at this level (human-readable).
+  final String unlocks;
+
+  @override
+  String describe() => '${skill.name} L$level unlocks $unlocks';
+
+  @override
+  Map<String, dynamic> toJson() => {
+    'type': 'UnlockBoundary',
+    'skill': skill.name,
+    'level': level,
+    'unlocks': unlocks,
+  };
+}
+
+/// Inputs were depleted for a consuming action.
+@immutable
+class InputsDepletedBoundary extends SegmentBoundary {
+  const InputsDepletedBoundary(this.actionId, this.missingItemId);
+
+  /// The action that ran out of inputs.
+  final ActionId actionId;
+
+  /// The item that was depleted.
+  final MelvorId missingItemId;
+
+  @override
+  String describe() => 'Inputs depleted for ${actionId.localId.name}';
+
+  @override
+  Map<String, dynamic> toJson() => {
+    'type': 'InputsDepletedBoundary',
+    'actionId': actionId.toJson(),
+    'missingItemId': missingItemId.toJson(),
+  };
+}
+
+/// Segment reached the maximum tick horizon.
+@immutable
+class HorizonCapBoundary extends SegmentBoundary {
+  const HorizonCapBoundary(this.ticksElapsed);
+
+  /// How many ticks elapsed before hitting the cap.
+  final int ticksElapsed;
+
+  @override
+  String describe() => 'Horizon cap reached ($ticksElapsed ticks)';
+
+  @override
+  Map<String, dynamic> toJson() => {
+    'type': 'HorizonCapBoundary',
+    'ticksElapsed': ticksElapsed,
+  };
+}
+
+/// Inventory usage exceeded the pressure threshold.
+@immutable
+class InventoryPressureBoundary extends SegmentBoundary {
+  const InventoryPressureBoundary(
+    this.usedSlots,
+    this.totalSlots, {
+    this.blockedItemId,
+  });
+
+  /// Number of inventory slots in use.
+  final int usedSlots;
+
+  /// Total inventory capacity.
+  final int totalSlots;
+
+  /// The item that was being stocked when pressure was detected (if known).
+  final MelvorId? blockedItemId;
+
+  @override
+  String describe() {
+    final itemInfo = blockedItemId != null
+        ? ' while stocking ${blockedItemId!.localId}'
+        : '';
+    return 'Inventory pressure ($usedSlots/$totalSlots slots)$itemInfo';
+  }
+
+  @override
+  Map<String, dynamic> toJson() => {
+    'type': 'InventoryPressureBoundary',
+    'usedSlots': usedSlots,
+    'totalSlots': totalSlots,
+    if (blockedItemId != null) 'blockedItemId': blockedItemId!.toJson(),
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Segments
+// ---------------------------------------------------------------------------
+
+/// A portion of a plan between material boundaries.
+///
+/// Segments represent the natural stopping points where replanning should
+/// occur. Each segment ends at a material boundary (upgrade affordable,
+/// unlock reached, inputs depleted, or goal reached).
+@immutable
+class Segment {
+  const Segment({
+    required this.steps,
+    required this.totalTicks,
+    required this.interactionCount,
+    required this.stopBoundary,
+    this.sellPolicy,
+    this.description,
+  });
+
+  /// The sequence of steps in this segment.
+  final List<PlanStep> steps;
+
+  /// Total ticks for this segment.
+  final int totalTicks;
+
+  /// Number of interactions in this segment.
+  final int interactionCount;
+
+  /// What boundary this segment stops at.
+  final SegmentBoundary stopBoundary;
+
+  /// The sell policy for this segment.
+  ///
+  /// Computed once at segment start from [SegmentContext]. This is the
+  /// authoritative policy for:
+  /// - Deciding which items to sell during execution
+  /// - Computing effectiveCredits for boundary detection
+  /// - Handling upgrade purchases that require selling first
+  ///
+  /// If null, the executor should fall back to a goal-derived policy
+  /// and log a warning (indicates the plan was created before this field
+  /// was added).
+  final SellPolicy? sellPolicy;
+
+  /// Human-readable description for rendering.
+  /// E.g., "WC→FM loop until Teak unlocked"
+  final String? description;
+}
+
+/// Marks where a segment starts within a Plan.
+@immutable
+class SegmentMarker {
+  const SegmentMarker({
+    required this.stepIndex,
+    required this.boundary,
+    this.sellPolicy,
+    this.description,
+  });
+
+  /// Deserializes a [SegmentMarker] from a JSON-compatible map.
+  factory SegmentMarker.fromJson(Map<String, dynamic> json) {
+    return SegmentMarker(
+      stepIndex: json['stepIndex'] as int,
+      boundary: SegmentBoundary.fromJson(
+        json['boundary'] as Map<String, dynamic>,
+      ),
+      sellPolicy: json['sellPolicy'] != null
+          ? SellPolicy.fromJson(json['sellPolicy'] as Map<String, dynamic>)
+          : null,
+      description: json['description'] as String?,
+    );
+  }
+
+  /// Index in Plan.steps where this segment starts.
+  final int stepIndex;
+
+  /// What boundary this segment stops at.
+  final SegmentBoundary boundary;
+
+  /// The sell policy for this segment.
+  ///
+  /// Used by the executor to determine which items to sell when
+  /// handling inventory pressure or upgrade purchases.
+  final SellPolicy? sellPolicy;
+
+  /// Optional human-readable description.
+  final String? description;
+
+  /// Serializes this [SegmentMarker] to a JSON-compatible map.
+  Map<String, dynamic> toJson() {
+    return {
+      'stepIndex': stepIndex,
+      'boundary': boundary.toJson(),
+      if (sellPolicy != null) 'sellPolicy': sellPolicy!.toJson(),
+      if (description != null) 'description': description,
+    };
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Plan
+// ---------------------------------------------------------------------------
+
+/// The result of running the solver.
+@immutable
+class Plan {
+  const Plan({
+    required this.steps,
+    required this.totalTicks,
+    required this.interactionCount,
+    this.expandedNodes = 0,
+    this.enqueuedNodes = 0,
+    this.expectedDeaths = 0,
+    this.segmentMarkers = const <SegmentMarker>[],
+  });
+
+  /// Deserializes a [Plan] from a JSON-compatible map.
+  factory Plan.fromJson(Map<String, dynamic> json) {
+    return Plan(
+      steps: (json['steps'] as List<dynamic>)
+          .map((s) => PlanStep.fromJson(s as Map<String, dynamic>))
+          .toList(),
+      totalTicks: json['totalTicks'] as int,
+      interactionCount: json['interactionCount'] as int,
+      expandedNodes: json['expandedNodes'] as int,
+      enqueuedNodes: json['enqueuedNodes'] as int,
+      expectedDeaths: json['expectedDeaths'] as int? ?? 0,
+      segmentMarkers:
+          (json['segmentMarkers'] as List<dynamic>?)
+              ?.map((m) => SegmentMarker.fromJson(m as Map<String, dynamic>))
+              .toList() ??
+          [],
+    );
+  }
+
+  /// An empty plan (goal already satisfied).
+  const Plan.empty()
+    : steps = const [],
+      totalTicks = 0,
+      interactionCount = 0,
+      expandedNodes = 0,
+      enqueuedNodes = 0,
+      expectedDeaths = 0,
+      segmentMarkers = const <SegmentMarker>[];
+
+  /// Constructs a Plan from multiple segments.
+  ///
+  /// Stitches segments together into a single plan with segment markers
+  /// for rendering purposes. Each segment's [Segment.sellPolicy] is
+  /// preserved in the corresponding [SegmentMarker.sellPolicy].
+  factory Plan.fromSegments(
+    List<Segment> segments, {
+    int expandedNodes = 0,
+    int enqueuedNodes = 0,
+  }) {
+    final allSteps = <PlanStep>[];
+    final markers = <SegmentMarker>[];
+    var totalTicks = 0;
+    var interactionCount = 0;
+
+    for (final segment in segments) {
+      markers.add(
+        SegmentMarker(
+          stepIndex: allSteps.length,
+          boundary: segment.stopBoundary,
+          sellPolicy: segment.sellPolicy,
+          description: segment.description,
+        ),
+      );
+      allSteps.addAll(segment.steps);
+      totalTicks += segment.totalTicks;
+      interactionCount += segment.interactionCount;
+    }
+
+    return Plan(
+      steps: allSteps,
+      totalTicks: totalTicks,
+      interactionCount: interactionCount,
+      segmentMarkers: markers,
+      expandedNodes: expandedNodes,
+      enqueuedNodes: enqueuedNodes,
+    );
+  }
+
+  /// The sequence of steps to reach the goal.
+  final List<PlanStep> steps;
+
+  /// Total ticks required to reach the goal.
+  final int totalTicks;
+
+  /// Number of interactions (non-wait steps) in the plan.
+  final int interactionCount;
+
+  /// Number of nodes expanded during search (for debugging).
+  final int expandedNodes;
+
+  /// Number of nodes enqueued during search (for debugging).
+  final int enqueuedNodes;
+
+  /// Expected number of deaths during plan execution (from planning model).
+  final int expectedDeaths;
+
+  /// Segment boundaries within this plan.
+  /// Used for rendering cycles like "Cycle 3: WC→FM loop until Teak unlocked".
+  final List<SegmentMarker> segmentMarkers;
+
+  /// Human-readable total time.
+  Duration get totalDuration => durationFromTicks(totalTicks);
+
+  /// Returns a compressed version of this plan for display purposes.
+  ///
+  /// Compression rules:
+  /// 1. Merges consecutive WaitSteps into a single wait with combined ticks
+  /// 2. Removes no-op switches (SwitchActivity to the same activity)
+  /// 3. Collapses "wake-only" waits where no interaction occurs between wakes
+  ///    (e.g., consecutive mastery level-ups with no activity change)
+  ///
+  /// The compressed plan is for display only - it may not be directly
+  /// executable since merged waits lose their intermediate WaitFor conditions.
+  Plan compress() {
+    if (steps.isEmpty) return this;
+
+    final compressed = <PlanStep>[];
+    ActionId? currentActivity;
+
+    for (var i = 0; i < steps.length; i++) {
+      final step = steps[i];
+
+      switch (step) {
+        case InteractionStep(:final interaction):
+          switch (interaction) {
+            case SwitchActivity(:final actionId):
+              // Remove no-op switches (switching to same activity)
+              if (actionId == currentActivity) continue;
+              currentActivity = actionId;
+              compressed.add(step);
+
+            case BuyShopItem():
+            case SellItems():
+              compressed.add(step);
+          }
+
+        case WaitStep(:final deltaTicks, :final waitFor, :final expectedAction):
+          // Check if we can merge with the previous step
+          if (compressed.isNotEmpty && compressed.last is WaitStep) {
+            // Check if there's no meaningful interaction between these waits
+            // A meaningful interaction is anything except the wait itself
+            // Since we're iterating in order, if the last compressed step
+            // is a WaitStep, we can try to merge.
+            final lastWait = compressed.last as WaitStep;
+
+            // Merge consecutive waits - keep the final waitFor since that's
+            // what we're ultimately waiting for, but preserve expectedAction
+            // from the first wait (that's the action that should be running)
+            compressed[compressed.length - 1] = WaitStep(
+              lastWait.deltaTicks + deltaTicks,
+              waitFor, // Use the later wait's condition
+              expectedAction: lastWait.expectedAction ?? expectedAction,
+            );
+          } else {
+            compressed.add(step);
+          }
+
+        case MacroStep():
+          // Macros are kept as-is, no compression
+          compressed.add(step);
+      }
+    }
+
+    // Recalculate interaction count (non-wait steps)
+    final newInteractionCount = compressed.whereType<InteractionStep>().length;
+
+    return Plan(
+      steps: compressed,
+      totalTicks: totalTicks,
+      interactionCount: newInteractionCount,
+      expandedNodes: expandedNodes,
+      enqueuedNodes: enqueuedNodes,
+      expectedDeaths: expectedDeaths,
+    );
+  }
+
+  /// Pretty-prints the plan for debugging.
+  String prettyPrint({int maxSteps = 30, ActionRegistry? actions}) {
+    final buffer = StringBuffer()
+      ..writeln('=== Plan ===')
+      ..writeln('Total ticks: $totalTicks (${_formatDuration(totalDuration)})')
+      ..writeln('Interactions: $interactionCount')
+      ..writeln('Expanded nodes: $expandedNodes')
+      ..writeln('Enqueued nodes: $enqueuedNodes')
+      ..writeln('Steps (${steps.length} total):');
+
+    final stepsToShow = steps.take(maxSteps).toList();
+    ActionId? currentAction;
+    for (var i = 0; i < stepsToShow.length; i++) {
+      final step = stepsToShow[i];
+      final formatted = _formatStep(step, actions, currentAction);
+      buffer.writeln('  ${i + 1}. $formatted');
+      // Track current action for context in wait steps
+      if (step case InteractionStep(:final interaction)) {
+        if (interaction case SwitchActivity(:final actionId)) {
+          currentAction = actionId;
+        }
+      } else if (step case MacroStep(:final macro)) {
+        // Macros may set an action
+        if (macro case TrainSkillUntil(:final actionId)) {
+          currentAction = actionId;
+        }
+      }
+    }
+
+    if (steps.length > maxSteps) {
+      buffer.writeln('  ... and ${steps.length - maxSteps} more steps');
+    }
+
+    return buffer.toString();
+  }
+
+  String _formatStep(
+    PlanStep step,
+    ActionRegistry? actions,
+    ActionId? currentAction,
+  ) {
+    return switch (step) {
+      InteractionStep(:final interaction) => switch (interaction) {
+        SwitchActivity(:final actionId) => () {
+          final action = actions?.byId(actionId);
+          final actionName = action?.name ?? actionId.toString();
+          final skillName = action?.skill.name.toLowerCase() ?? '';
+          return skillName.isNotEmpty
+              ? 'Switch to $actionName ($skillName)'
+              : 'Switch to $actionName';
+        }(),
+        BuyShopItem(:final purchaseId) => 'Buy ${purchaseId.name}',
+        SellItems(:final policy) => _formatSellPolicy(policy),
+      },
+      WaitStep(:final deltaTicks, :final waitFor, :final expectedAction) => () {
+        final duration = _formatDuration(durationFromTicks(deltaTicks));
+        // Use expectedAction if available, otherwise fall back to currentAction
+        final actionToUse = expectedAction ?? currentAction;
+        final actionName = actionToUse != null
+            ? actions?.byId(actionToUse).name ?? actionToUse.toString()
+            : null;
+        final prefix = actionName != null ? '$actionName ' : 'Wait ';
+        return '$prefix$duration -> ${waitFor.shortDescription}';
+      }(),
+      MacroStep(:final macro, :final deltaTicks, :final waitFor) =>
+        'Macro: ${_formatMacro(macro)} '
+            '(${_formatDuration(durationFromTicks(deltaTicks))}) '
+            '-> ${waitFor.shortDescription}',
+    };
+  }
+
+  String _formatMacro(MacroCandidate macro) {
+    return switch (macro) {
+      TrainSkillUntil(:final skill) => skill.name,
+      TrainConsumingSkillUntil(:final consumingSkill) => consumingSkill.name,
+      AcquireItem(:final itemId, :final quantity) =>
+        'Acquire ${quantity}x ${itemId.name}',
+      EnsureStock(:final itemId, :final minTotal) =>
+        'EnsureStock ${itemId.name}: $minTotal',
+      ProduceItem(:final itemId, :final minTotal) =>
+        'Produce ${itemId.name}: $minTotal',
+    };
+  }
+
+  String _formatSellPolicy(SellPolicy policy) {
+    return switch (policy) {
+      SellAllPolicy() => 'Sell all',
+      SellExceptPolicy(:final keepItems) => () {
+        final names = keepItems.map((id) => id.name).toList()..sort();
+        if (names.length <= 3) {
+          return 'Sell all except ${names.join(', ')}';
+        }
+        return 'Sell all except ${names.length} items '
+            '(${names.take(3).join(', ')}, ...)';
+      }(),
+    };
+  }
+
+  String _formatDuration(Duration d) {
+    if (d.inHours > 0) {
+      final hours = d.inHours;
+      final minutes = d.inMinutes.remainder(60);
+      return '${hours}h ${minutes}m';
+    } else if (d.inMinutes > 0) {
+      final minutes = d.inMinutes;
+      final seconds = d.inSeconds.remainder(60);
+      return '${minutes}m ${seconds}s';
+    } else {
+      return '${d.inSeconds}s';
+    }
+  }
+
+  /// Pretty-prints the plan in compact format.
+  ///
+  /// Shows summary stats, first N steps, segment headers in middle,
+  /// and last M steps. Groups consecutive similar actions.
+  String prettyPrintCompact({
+    int firstSteps = 25,
+    int lastSteps = 10,
+    ActionRegistry? actions,
+  }) {
+    final buffer = StringBuffer()
+      ..writeln('=== Plan ===')
+      ..writeln(
+        'Total: $totalTicks ticks (${_formatDuration(totalDuration)}), '
+        '$interactionCount interactions, ${steps.length} steps',
+      );
+
+    if (steps.isEmpty) {
+      buffer.writeln('  (empty plan)');
+      return buffer.toString();
+    }
+
+    // Group consecutive similar steps for compact display
+    final grouped = _groupSteps(actions);
+
+    // Determine what to show
+    final showAll = grouped.length <= firstSteps + lastSteps + 5;
+    final middleStart = firstSteps;
+    final middleEnd = grouped.length - lastSteps;
+
+    ActionId? currentAction;
+
+    for (var i = 0; i < grouped.length; i++) {
+      final group = grouped[i];
+
+      // Track current action for context
+      if (group.actionId != null) {
+        currentAction = group.actionId;
+      }
+
+      if (showAll || i < middleStart || i >= middleEnd) {
+        // Show this step
+        buffer.writeln('  ${i + 1}. ${group.format(currentAction)}');
+      } else if (i == middleStart) {
+        // Show middle summary with segment markers
+        final skippedCount = middleEnd - middleStart;
+        final segmentsInMiddle = _countSegmentsInRange(middleStart, middleEnd);
+        if (segmentsInMiddle > 0) {
+          buffer.writeln(
+            '  ... $skippedCount more steps ($segmentsInMiddle segments) ...',
+          );
+        } else {
+          buffer.writeln('  ... $skippedCount more steps ...');
+        }
+      }
+      // else: skip middle steps
+    }
+
+    return buffer.toString();
+  }
+
+  /// Groups consecutive similar steps for compact display.
+  List<_StepGroup> _groupSteps(ActionRegistry? actions) {
+    final groups = <_StepGroup>[];
+    if (steps.isEmpty) return groups;
+
+    for (final step in steps) {
+      final canMerge = groups.isNotEmpty && groups.last.canMerge(step);
+      if (canMerge) {
+        groups.last.merge(step);
+      } else {
+        groups.add(_StepGroup.from(step, actions));
+      }
+    }
+
+    return groups;
+  }
+
+  /// Counts segment markers in a range of grouped steps.
+  int _countSegmentsInRange(int start, int end) {
+    // This is approximate - we count markers whose stepIndex falls in range
+    var count = 0;
+    for (final marker in segmentMarkers) {
+      if (marker.stepIndex >= start && marker.stepIndex < end) {
+        count++;
+      }
+    }
+    return count;
+  }
+
+  /// Serializes this [Plan] to a JSON-compatible map.
+  Map<String, dynamic> toJson() {
+    return {
+      'steps': steps.map((s) => s.toJson()).toList(),
+      'totalTicks': totalTicks,
+      'interactionCount': interactionCount,
+      'expandedNodes': expandedNodes,
+      'enqueuedNodes': enqueuedNodes,
+      'expectedDeaths': expectedDeaths,
+      'segmentMarkers': segmentMarkers.map((m) => m.toJson()).toList(),
+    };
+  }
+}
+
+/// A group of consecutive similar steps for compact display.
+class _StepGroup {
+  _StepGroup._({
+    required this.description,
+    required this.totalTicks,
+    required this.stepCount,
+    this.actionId,
+    this.skill,
+  });
+
+  factory _StepGroup.from(PlanStep step, ActionRegistry? actions) {
+    return switch (step) {
+      InteractionStep(:final interaction) => switch (interaction) {
+        SwitchActivity(:final actionId) => _StepGroup._(
+          description: actions?.byId(actionId).name ?? actionId.toString(),
+          totalTicks: 0,
+          stepCount: 1,
+          actionId: actionId,
+          skill: actions?.byId(actionId).skill,
+        ),
+        BuyShopItem(:final purchaseId) => _StepGroup._(
+          description: 'Buy ${purchaseId.name}',
+          totalTicks: 0,
+          stepCount: 1,
+        ),
+        SellItems(:final policy) => _StepGroup._(
+          description: switch (policy) {
+            SellAllPolicy() => 'Sell all',
+            SellExceptPolicy(:final keepItems) =>
+              'Sell except ${keepItems.length} items',
+          },
+          totalTicks: 0,
+          stepCount: 1,
+        ),
+      },
+      WaitStep(:final deltaTicks, :final expectedAction) => _StepGroup._(
+        description: 'Wait',
+        totalTicks: deltaTicks,
+        stepCount: 1,
+        actionId: expectedAction,
+        skill: expectedAction != null
+            ? actions?.byId(expectedAction).skill
+            : null,
+      ),
+      MacroStep(:final macro, :final deltaTicks) => switch (macro) {
+        TrainSkillUntil(:final skill, :final actionId) => _StepGroup._(
+          description: skill.name,
+          totalTicks: deltaTicks,
+          stepCount: 1,
+          actionId: actionId,
+          skill: skill,
+        ),
+        TrainConsumingSkillUntil(:final consumingSkill) => _StepGroup._(
+          description: consumingSkill.name,
+          totalTicks: deltaTicks,
+          stepCount: 1,
+          skill: consumingSkill,
+        ),
+        AcquireItem(:final itemId, :final quantity) => _StepGroup._(
+          description: 'Acquire ${quantity}x ${itemId.name}',
+          totalTicks: deltaTicks,
+          stepCount: 1,
+        ),
+        EnsureStock(:final itemId, :final minTotal) => _StepGroup._(
+          description: 'EnsureStock ${itemId.name}: $minTotal',
+          totalTicks: deltaTicks,
+          stepCount: 1,
+        ),
+        ProduceItem(:final itemId, :final minTotal) => _StepGroup._(
+          description: 'Produce ${itemId.name}: $minTotal',
+          totalTicks: deltaTicks,
+          stepCount: 1,
+        ),
+      },
+    };
+  }
+
+  String description;
+  int totalTicks;
+  int stepCount;
+  ActionId? actionId;
+  Skill? skill;
+
+  /// Whether we can merge another step into this group.
+  bool canMerge(PlanStep step) {
+    // Only merge waits/macros with same skill
+    if (skill == null) return false;
+
+    return switch (step) {
+      WaitStep(:final expectedAction) =>
+        expectedAction != null && _sameSkill(expectedAction),
+      MacroStep(:final macro) => switch (macro) {
+        TrainSkillUntil(:final skill) => skill == this.skill,
+        TrainConsumingSkillUntil(:final consumingSkill) =>
+          consumingSkill == skill,
+        AcquireItem() => false,
+        EnsureStock() => false,
+        ProduceItem() => false,
+      },
+      InteractionStep() => false,
+    };
+  }
+
+  bool _sameSkill(ActionId actionId) {
+    // Simplified: just compare action IDs if we have one
+    return this.actionId == actionId;
+  }
+
+  /// Merge another step into this group.
+  void merge(PlanStep step) {
+    stepCount++;
+    switch (step) {
+      case WaitStep(:final deltaTicks):
+        totalTicks += deltaTicks;
+      case MacroStep(:final deltaTicks):
+        totalTicks += deltaTicks;
+      case InteractionStep():
+        break;
+    }
+  }
+
+  /// Format this group for display.
+  String format(ActionId? currentAction) {
+    if (stepCount == 1 && totalTicks == 0) {
+      // Single interaction
+      return 'Switch to $description';
+    }
+
+    final duration = _formatDurationStatic(durationFromTicks(totalTicks));
+    if (stepCount == 1) {
+      return '$description $duration';
+    }
+
+    // Multiple merged steps
+    return '$description $duration ($stepCount waits merged)';
+  }
+
+  static String _formatDurationStatic(Duration d) {
+    if (d.inHours > 0) {
+      final hours = d.inHours;
+      final minutes = d.inMinutes.remainder(60);
+      return '${hours}h ${minutes}m';
+    } else if (d.inMinutes > 0) {
+      final minutes = d.inMinutes;
+      final seconds = d.inSeconds.remainder(60);
+      return '${minutes}m ${seconds}s';
+    } else {
+      return '${d.inSeconds}s';
+    }
+  }
+}
+
+/// Failure result when the solver cannot find a solution.
+@immutable
+class SolverFailure {
+  const SolverFailure({
+    required this.reason,
+    this.expandedNodes = 0,
+    this.enqueuedNodes = 0,
+    this.bestCredits,
+  });
+
+  /// Human-readable reason for failure.
+  final String reason;
+
+  /// Number of nodes expanded before failure.
+  final int expandedNodes;
+
+  /// Number of nodes enqueued before failure.
+  final int enqueuedNodes;
+
+  /// Best credits achieved during search (if any).
+  final int? bestCredits;
+
+  @override
+  String toString() =>
+      'SolverFailure($reason, expanded=$expandedNodes, '
+      'enqueued=$enqueuedNodes, bestCredits=$bestCredits)';
+}
+
+/// Result of the solver - either a plan or a failure.
+sealed class SolverResult {
+  const SolverResult([this.profile]);
+
+  final SolverProfile? profile;
+}
+
+class SolverSuccess extends SolverResult {
+  const SolverSuccess(this.plan, this.terminalState, [super.profile]);
+
+  final Plan plan;
+
+  /// The terminal node's state from the search.
+  ///
+  /// This is the state at the end of the plan, derived directly from the
+  /// A* search rather than replaying the plan.
+  final GlobalState terminalState;
+}
+
+class SolverFailed extends SolverResult {
+  const SolverFailed(this.failure, [super.profile]);
+
+  final SolverFailure failure;
+}
+
+/// Result of executing a plan via [executePlan()].
+@immutable
+class PlanExecutionResult {
+  const PlanExecutionResult({
+    required this.finalState,
+    required this.totalDeaths,
+    required this.actualTicks,
+    required this.plannedTicks,
+    this.boundariesHit = const [],
+  });
+
+  /// The final game state after executing the plan.
+  final GlobalState finalState;
+
+  /// Total number of deaths that occurred during plan execution.
+  /// Deaths are automatically handled by restarting the activity.
+  final int totalDeaths;
+
+  /// Actual ticks elapsed during execution.
+  final int actualTicks;
+
+  /// Planned ticks from the solver (for comparison).
+  final int plannedTicks;
+
+  /// All replan boundaries encountered during execution.
+  ///
+  /// Expected boundaries (like [InputsDepleted], [WaitConditionSatisfied])
+  /// are normal in online execution. Unexpected boundaries may indicate bugs.
+  ///
+  /// This list is useful for:
+  /// - Debugging execution flow
+  /// - Deciding when to replan
+  /// - Detecting potential solver bugs
+  final List<ReplanBoundary> boundariesHit;
+
+  /// Difference between actual and planned ticks.
+  int get ticksDelta => actualTicks - plannedTicks;
+
+  /// Whether any unexpected boundaries were hit during execution.
+  bool get hasUnexpectedBoundaries => boundariesHit.any((b) => !b.isExpected);
+
+  /// Returns only unexpected boundaries (potential bugs).
+  List<ReplanBoundary> get unexpectedBoundaries =>
+      boundariesHit.where((b) => !b.isExpected).toList();
+
+  /// Returns only expected boundaries (normal flow).
+  List<ReplanBoundary> get expectedBoundaries =>
+      boundariesHit.where((b) => b.isExpected).toList();
+
+  /// Whether execution hit a state requiring replanning.
+  ///
+  /// True if any unexpected boundaries were hit, or if any boundary
+  /// explicitly requests a replan (e.g., [InputsDepleted]).
+  bool get causesReplan =>
+      hasUnexpectedBoundaries || boundariesHit.any((b) => b.causesReplan);
+}

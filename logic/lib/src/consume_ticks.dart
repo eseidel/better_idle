@@ -35,6 +35,21 @@ int masteryXpPerAction(GlobalState state, SkillAction action) {
   );
 }
 
+/// Why [consumeTicksUntil] stopped processing.
+enum ConsumeTicksStopReason {
+  /// The stop condition was satisfied.
+  conditionSatisfied,
+
+  /// The maximum tick limit was reached before the condition was satisfied.
+  maxTicksReached,
+
+  /// The foreground action stopped (death, inventory full, inputs depleted).
+  actionStopped,
+
+  /// No progress could be made (no action, no background tasks, full health).
+  noProgressPossible,
+}
+
 /// Result of applying ticks to mining state.
 typedef MiningTickResult = ({MiningState state, Tick ticksConsumed});
 
@@ -340,6 +355,7 @@ class StateUpdateBuilder {
   ActionStopReason _stopReason = ActionStopReason.stillRunning;
   Tick _ticksElapsed = 0;
   Tick? _stoppedAtTick;
+  DeathPenaltyResult? _lastDeathPenalty;
 
   Registries get registries => _state.registries;
 
@@ -347,6 +363,7 @@ class StateUpdateBuilder {
   ActionStopReason get stopReason => _stopReason;
   Tick? get stoppedAtTick => _stoppedAtTick;
   Tick get ticksElapsed => _ticksElapsed;
+  DeathPenaltyResult? get lastDeathPenalty => _lastDeathPenalty;
 
   void addElapsedTicks(Tick ticks) {
     _ticksElapsed += ticks;
@@ -463,6 +480,7 @@ class StateUpdateBuilder {
   DeathPenaltyResult applyDeathPenalty(Random rng) {
     final result = _state.equipment.applyDeathPenalty(rng);
     _state = _state.copyWith(equipment: result.equipment);
+    _lastDeathPenalty = result;
 
     // Record the death occurrence
     _changes = _changes.recordingDeath();
@@ -972,7 +990,9 @@ typedef StopCondition = bool Function(GlobalState state);
 /// - [stopCondition] returns true (if provided)
 /// - The foreground action stops (death, inventory full, etc.)
 /// - No progress can be made
-void _consumeTicksCore(
+///
+/// Returns why processing stopped.
+ConsumeTicksStopReason _consumeTicksCore(
   StateUpdateBuilder builder,
   Tick maxTicks, {
   required Random random,
@@ -984,7 +1004,7 @@ void _consumeTicksCore(
   while (ticksRemaining > 0) {
     // Check stop condition at the start of each iteration
     if (stopCondition != null && stopCondition(builder.state)) {
-      break;
+      return ConsumeTicksStopReason.conditionSatisfied;
     }
 
     final activeAction = builder.state.activeAction;
@@ -1017,7 +1037,7 @@ void _consumeTicksCore(
         // Apply remaining ticks to background before exiting
         // Note: activeAction is now null after stopped, so pass null
         _applyBackgroundTicks(builder, backgroundActions, ticksRemaining);
-        break;
+        return ConsumeTicksStopReason.actionStopped;
       }
       if (foregroundResult == ForegroundResult.justStunned) {
         // Stun was just applied - ticks were for action completion, not stun
@@ -1047,14 +1067,17 @@ void _consumeTicksCore(
     if (activeAction == null &&
         backgroundActions.isEmpty &&
         !hasPlayerHpRegen) {
-      break;
+      return ConsumeTicksStopReason.noProgressPossible;
     }
 
     // Safety: if no ticks were consumed, break to avoid infinite loop
     if (ticksThisIteration == 0) {
-      break;
+      return ConsumeTicksStopReason.noProgressPossible;
     }
   }
+
+  // Exhausted all ticks without condition being satisfied
+  return ConsumeTicksStopReason.maxTicksReached;
 }
 
 /// Main tick processing - handles foreground action (if any) and all
@@ -1077,21 +1100,27 @@ void consumeTicks(
 ///
 /// [maxTicks] provides a safety limit to prevent infinite loops.
 ///
+/// Returns why processing stopped, which callers can use to detect when
+/// maxTicks was hit without the condition being satisfied.
+///
 /// Example:
 /// ```dart
-/// consumeTicksUntil(
+/// final reason = consumeTicksUntil(
 ///   builder,
 ///   random: random,
 ///   stopCondition: (state) => state.skillState(Skill.woodcutting).xp >= 100,
 /// );
+/// if (reason == ConsumeTicksStopReason.maxTicksReached) {
+///   // Handle stuck state
+/// }
 /// ```
-void consumeTicksUntil(
+ConsumeTicksStopReason consumeTicksUntil(
   StateUpdateBuilder builder, {
   required Random random,
   required StopCondition stopCondition,
   Tick maxTicks = 360000, // 10 hours of game time
 }) {
-  _consumeTicksCore(
+  return _consumeTicksCore(
     builder,
     maxTicks,
     random: random,

@@ -46,7 +46,6 @@ class ActiveAction {
   final int remainingTicks;
   final int totalTicks;
 
-  // Computed getter for backward compatibility
   int get progressTicks => totalTicks - remainingTicks;
 
   ActiveAction copyWith({ActionId? id, int? remainingTicks, int? totalTicks}) {
@@ -665,6 +664,25 @@ class GlobalState {
   }
 
   GlobalState startAction(Action action, {required Random random}) {
+    return _startActionImpl(
+      action,
+      skillDuration: (a) =>
+          rollDurationWithModifiers(a, random, registries.shop),
+    );
+  }
+
+  /// Starts an action using deterministic mean duration (no randomness).
+  ///
+  /// Used during planning/solver to get consistent state projections.
+  /// For actual gameplay execution, use [startAction] instead.
+  GlobalState startActionDeterministic(Action action) {
+    return _startActionImpl(action, skillDuration: _meanDurationWithModifiers);
+  }
+
+  GlobalState _startActionImpl(
+    Action action, {
+    required int Function(SkillAction) skillDuration,
+  }) {
     if (isStunned) {
       throw const StunnedException('Cannot start action while stunned');
     }
@@ -688,7 +706,7 @@ class GlobalState {
           );
         }
       }
-      totalTicks = rollDurationWithModifiers(action, random, registries.shop);
+      totalTicks = skillDuration(action);
       return copyWith(
         activeAction: ActiveAction(
           id: actionId,
@@ -719,6 +737,24 @@ class GlobalState {
     } else {
       throw Exception('Unknown action type: ${action.runtimeType}');
     }
+  }
+
+  /// Calculates mean duration with modifiers applied (deterministic).
+  int _meanDurationWithModifiers(SkillAction action) {
+    final ticks = ticksFromDuration(action.meanDuration);
+    final modifiers = resolveModifiers(action);
+
+    // skillInterval is percentage points (e.g., -5 = 5% reduction)
+    final percentPoints = modifiers.skillInterval;
+
+    // flatSkillInterval is milliseconds, convert to ticks (100ms = 1 tick)
+    final flatTicks = modifiers.flatSkillInterval / 100.0;
+
+    // Apply: percentage first, then flat adjustment
+    final result = ticks * (1.0 + percentPoints / 100.0) + flatTicks;
+
+    // Round and clamp to at least 1 tick
+    return result.round().clamp(1, double.maxFinite.toInt());
   }
 
   GlobalState clearAction() {

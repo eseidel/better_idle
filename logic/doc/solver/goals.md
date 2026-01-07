@@ -5,6 +5,7 @@ Goals define what the solver is trying to achieve. Each goal type affects:
 - What actions are considered relevant
 - How the heuristic is computed
 - How states are bucketed for deduplication
+- What sell policy to use
 
 ## Goal Types
 
@@ -20,7 +21,7 @@ final goal = ReachGpGoal(1000);  // Reach 1000 GP
 
 **Rate metric**: Gold per tick (from sales + direct GP gains)
 
-**Selling**: Relevant (converts items to GP)
+**Selling**: Relevant (uses `SellAllPolicy` - all items contribute to GP)
 
 **Relevant skills**: All (any skill can produce sellable items)
 
@@ -36,7 +37,7 @@ final goal = ReachSkillLevelGoal(Skill.woodcutting, 50);
 
 **Rate metric**: XP per tick for the target skill
 
-**Selling**: Irrelevant (doesn't contribute XP)
+**Selling**: Irrelevant for progress (uses `SellExceptPolicy` to keep inputs for consuming skills)
 
 **Relevant skills**: Only the target skill (for bucketing)
 
@@ -49,6 +50,12 @@ final goal = MultiSkillGoal([
   ReachSkillLevelGoal(Skill.woodcutting, 50),
   ReachSkillLevelGoal(Skill.firemaking, 50),
 ]);
+
+// Or using the convenience constructor:
+final goal = MultiSkillGoal.fromMap({
+  Skill.woodcutting: 50,
+  Skill.firemaking: 50,
+});
 ```
 
 **Progress**: Sum of XP remaining across unfinished skills
@@ -83,11 +90,23 @@ sealed class Goal extends Equatable {
   /// Skills relevant for state bucketing
   Set<Skill> get relevantSkillsForBucketing;
 
+  /// Whether to track HP in bucket key (for thieving goals)
+  bool get shouldTrackHp;
+
+  /// Whether to track mastery in bucket key (for thieving goals)
+  bool get shouldTrackMastery;
+
+  /// Whether to track inventory in bucket key (for consuming skills)
+  bool get shouldTrackInventory;
+
   /// Whether selling items contributes to this goal
   bool get isSellRelevant;
 
   /// Consuming skills that are part of this goal
   Set<Skill> get consumingSkills;
+
+  /// Computes the sell policy for this goal
+  SellPolicy computeSellPolicy(GlobalState state);
 
   /// Human-readable description
   String describe();
