@@ -563,16 +563,16 @@ class _ShopItemRow extends StatelessWidget {
                       style: Theme.of(context).textTheme.bodySmall,
                     ),
                   ],
+                  if (unmetRequirements.isNotEmpty) ...[
+                    const SizedBox(height: 4),
+                    _buildRequirementsRow(),
+                  ],
                   const SizedBox(height: 4),
                   CostRow(
                     currencyCosts: currencyCosts,
                     canAffordCosts: canAffordCosts,
                     itemCosts: itemCosts,
                   ),
-                  if (unmetRequirements.isNotEmpty) ...[
-                    const SizedBox(height: 2),
-                    _buildRequirementsRow(),
-                  ],
                 ],
               ),
             ),
