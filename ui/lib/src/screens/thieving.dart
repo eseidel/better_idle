@@ -1,9 +1,11 @@
 import 'package:better_idle/src/logic/redux_actions.dart';
+import 'package:better_idle/src/widgets/cached_image.dart';
 import 'package:better_idle/src/widgets/context_extensions.dart';
 import 'package:better_idle/src/widgets/hp_bar.dart';
 import 'package:better_idle/src/widgets/mastery_pool.dart';
 import 'package:better_idle/src/widgets/mastery_unlocks_dialog.dart';
 import 'package:better_idle/src/widgets/navigation_drawer.dart';
+import 'package:better_idle/src/widgets/skill_image.dart';
 import 'package:better_idle/src/widgets/skill_milestones_dialog.dart';
 import 'package:better_idle/src/widgets/skill_progress.dart';
 import 'package:better_idle/src/widgets/style.dart';
@@ -171,7 +173,11 @@ class _SelectedActionDisplay extends StatelessWidget {
             ),
             const SizedBox(height: 4),
           ],
-          // Header: Pickpocket + NPC Name
+          // Header: NPC Image + Pickpocket + NPC Name
+          if (action.media != null) ...[
+            Center(child: CachedImage(assetPath: action.media!, size: 64)),
+            const SizedBox(height: 8),
+          ],
           const Text(
             'Pickpocket',
             textAlign: TextAlign.center,
@@ -413,41 +419,72 @@ class _ActionList extends StatelessWidget {
                 ...actions.map((action) {
                   final isSelected = action.name == selectedAction.name;
                   final isUnlocked = skillLevel >= action.unlockLevel;
-                  return Card(
-                    margin: const EdgeInsets.only(left: 16, top: 4, bottom: 4),
-                    color: isSelected
-                        ? Style.selectedColorLight
-                        : isUnlocked
-                        ? null
-                        : Style.thievingNpcUnlockedColor,
-                    child: ListTile(
-                      title: Text(
-                        action.name,
-                        style: TextStyle(
-                          color: isUnlocked ? null : Style.textColorSecondary,
+
+                  if (!isUnlocked) {
+                    return Card(
+                      margin: const EdgeInsets.only(
+                        left: 16,
+                        top: 4,
+                        bottom: 4,
+                      ),
+                      color: Style.cellBackgroundColorLocked,
+                      child: ListTile(
+                        leading: const Icon(
+                          Icons.lock,
+                          color: Style.textColorSecondary,
+                        ),
+                        title: Row(
+                          children: [
+                            const Text(
+                              'Unlocked at ',
+                              style: TextStyle(color: Style.textColorSecondary),
+                            ),
+                            const SkillImage(skill: Skill.thieving, size: 14),
+                            Text(
+                              ' Level ${action.unlockLevel}',
+                              style: const TextStyle(
+                                color: Style.textColorSecondary,
+                              ),
+                            ),
+                          ],
                         ),
                       ),
+                    );
+                  }
+
+                  // Calculate success chance for this action
+                  final state = context.state;
+                  final actionState = state.actionState(action.id);
+                  final thievingLevel = levelForXp(
+                    state.skillState(Skill.thieving).xp,
+                  );
+                  final masteryLevel = levelForXp(actionState.masteryXp);
+                  final stealth = calculateStealth(thievingLevel, masteryLevel);
+                  final successChance = thievingSuccessChance(
+                    stealth,
+                    action.perception,
+                  );
+
+                  return Card(
+                    margin: const EdgeInsets.only(left: 16, top: 4, bottom: 4),
+                    color: isSelected ? Style.selectedColorLight : null,
+                    child: ListTile(
+                      leading: action.media != null
+                          ? CachedImage(assetPath: action.media!)
+                          : null,
+                      title: Text(action.name),
                       subtitle: Text(
-                        isUnlocked
-                            ? 'Lvl ${action.unlockLevel} • '
-                                  'Max ${action.maxGold} GP'
-                            : 'Requires Level ${action.unlockLevel}',
-                        style: TextStyle(
-                          color: isUnlocked ? null : Style.textColorSecondary,
-                        ),
+                        'Perception ${action.perception} • '
+                        '${percentToString(successChance)} Success • '
+                        'Max Hit ${action.maxHit}',
                       ),
                       trailing: isSelected
                           ? const Icon(
                               Icons.check_circle,
                               color: Style.selectedColor,
                             )
-                          : isUnlocked
-                          ? null
-                          : const Icon(
-                              Icons.lock,
-                              color: Style.textColorSecondary,
-                            ),
-                      onTap: isUnlocked ? () => onSelect(action) : null,
+                          : null,
+                      onTap: () => onSelect(action),
                     ),
                   );
                 }),
