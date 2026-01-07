@@ -716,6 +716,33 @@ class GlobalState {
     return builder.build();
   }
 
+  /// Resolves global modifiers from shop purchases that are not skill-scoped.
+  ///
+  /// These include modifiers like autoEat which apply to all combat situations,
+  /// not to specific skills.
+  ResolvedModifiers resolveGlobalModifiers() {
+    final builder = ResolvedModifiersBuilder();
+
+    // Iterate through all owned shop purchases
+    for (final entry in shop.purchaseCounts.entries) {
+      if (entry.value <= 0) continue;
+      final purchase = registries.shop.byId(entry.key);
+      if (purchase == null) continue;
+
+      // Add all global (unscoped) modifiers from the purchase
+      for (final mod in purchase.contains.modifiers.modifiers) {
+        for (final modEntry in mod.entries) {
+          // Include modifiers without skill scope (global modifiers)
+          if (modEntry.scope == null || modEntry.scope!.skillId == null) {
+            builder.add(mod.name, modEntry.value);
+          }
+        }
+      }
+    }
+
+    return builder.build();
+  }
+
   /// Rolls duration for a skill action and applies all relevant modifiers.
   /// Percentage modifiers are applied first, then flat modifiers.
   int rollDurationWithModifiers(

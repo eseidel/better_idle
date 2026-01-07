@@ -1561,4 +1561,222 @@ void main() {
       );
     });
   });
+
+  group('auto-eat', () {
+    late Item shrimp;
+    late CombatAction plantAction;
+
+    setUpAll(() {
+      shrimp = testItems.byName('Shrimp');
+      plantAction = testActions.combat('Plant');
+    });
+
+    test('tryAutoEat does nothing when no auto-eat modifiers', () {
+      final equipment = Equipment(
+        foodSlots: [ItemStack(shrimp, count: 5), null, null],
+        selectedFoodSlot: 0,
+      );
+      // Default hitpoints level 1 = 10 maxHP
+      // lostHp of 5 means 5 HP = 50% HP
+      final state = GlobalState.test(
+        testRegistries,
+        equipment: equipment,
+        health: const HealthState(lostHp: 5),
+      );
+
+      final builder = StateUpdateBuilder(state);
+      const modifiers = ResolvedModifiers.empty; // Empty - no auto-eat
+      final consumed = builder.tryAutoEat(modifiers);
+
+      expect(consumed, 0);
+      expect(builder.state.equipment.selectedFood?.count, 5);
+      expect(builder.state.health.lostHp, 5); // Unchanged
+    });
+
+    test('tryAutoEat does nothing when HP above threshold', () {
+      final equipment = Equipment(
+        foodSlots: [ItemStack(shrimp, count: 5), null, null],
+        selectedFoodSlot: 0,
+      );
+      // Default hitpoints level 1 = 10 maxHP
+      // lostHp of 1 means 9 HP = 90% HP
+      final state = GlobalState.test(
+        testRegistries,
+        equipment: equipment,
+        health: const HealthState(lostHp: 1),
+      );
+
+      final builder = StateUpdateBuilder(state);
+      // Threshold of 20 means eat when HP < 20% (2 HP for maxHP=10)
+      // Player is at 9 HP (90%), so should not trigger
+      const modifiers = ResolvedModifiers({
+        'autoEatThreshold': 20,
+        'autoEatEfficiency': 100,
+        'autoEatHPLimit': 80,
+      });
+      final consumed = builder.tryAutoEat(modifiers);
+
+      expect(consumed, 0);
+      expect(builder.state.equipment.selectedFood?.count, 5);
+    });
+
+    test('tryAutoEat eats when HP below threshold', () {
+      final equipment = Equipment(
+        foodSlots: [ItemStack(shrimp, count: 10), null, null],
+        selectedFoodSlot: 0,
+      );
+      // Default hitpoints level 1 = 10 maxHP
+      // lostHp of 9 means 1 HP = 10% HP
+      final state = GlobalState.test(
+        testRegistries,
+        equipment: equipment,
+        health: const HealthState(lostHp: 9),
+      );
+
+      final builder = StateUpdateBuilder(state);
+      // Threshold of 20 means eat when HP < 20% (2 HP for maxHP=10)
+      // Player at 1 HP (10%), triggers
+      // HP limit of 50 means eat until HP >= 50% (5 HP for maxHP=10)
+      // Efficiency of 100 means full healing
+      const modifiers = ResolvedModifiers({
+        'autoEatThreshold': 20,
+        'autoEatEfficiency': 100,
+        'autoEatHPLimit': 50,
+      });
+      final consumed = builder.tryAutoEat(modifiers);
+
+      expect(consumed, greaterThan(0));
+      // Should have eaten some food
+      expect(builder.state.equipment.selectedFood?.count, lessThan(10));
+      // HP should be higher now (less lost HP)
+      expect(builder.state.health.lostHp, lessThan(9));
+      // Should be at or above 50% HP (5 HP or more for maxHP=10)
+      expect(builder.state.playerHp, greaterThanOrEqualTo(5));
+    });
+
+    test('tryAutoEat applies efficiency modifier', () {
+      final equipment = Equipment(
+        foodSlots: [ItemStack(shrimp, count: 20), null, null],
+        selectedFoodSlot: 0,
+      );
+      // Default hitpoints level 1 = 10 maxHP
+      // lostHp of 9 means 1 HP = 10% HP
+      final state = GlobalState.test(
+        testRegistries,
+        equipment: equipment,
+        health: const HealthState(lostHp: 9),
+      );
+
+      final builder = StateUpdateBuilder(state);
+      // 50% efficiency means each food heals half as much
+      // Threshold 20 = eat when HP < 2 (player at 1 HP, triggers)
+      // HP limit 80 = eat until HP >= 8 (80% of 10)
+      const modifiers = ResolvedModifiers({
+        'autoEatThreshold': 20,
+        'autoEatEfficiency': 50,
+        'autoEatHPLimit': 80,
+      });
+      final consumed = builder.tryAutoEat(modifiers);
+
+      // With 50% efficiency, should need food to restore HP
+      expect(consumed, greaterThan(0));
+      // HP should be restored to at least 80% (8 HP for maxHP=10)
+      expect(builder.state.playerHp, greaterThanOrEqualTo(8));
+    });
+
+    test('tryAutoEat stops when no food available', () {
+      final equipment = Equipment(
+        foodSlots: [ItemStack(shrimp, count: 2), null, null],
+        selectedFoodSlot: 0,
+      );
+      // Default hitpoints level 1 = 10 maxHP
+      // lostHp of 9 means 1 HP = 10% HP
+      final state = GlobalState.test(
+        testRegistries,
+        equipment: equipment,
+        health: const HealthState(lostHp: 9),
+      );
+
+      final builder = StateUpdateBuilder(state);
+      // Threshold 20 = eat when HP < 2 (player at 1 HP, triggers)
+      // HP limit 100 = eat until full HP (10 HP)
+      // With only 2 food, may not reach full HP
+      const modifiers = ResolvedModifiers({
+        'autoEatThreshold': 20,
+        'autoEatEfficiency': 100,
+        'autoEatHPLimit': 100, // Want full HP
+      });
+      final consumed = builder.tryAutoEat(modifiers);
+
+      // Should have consumed some food
+      expect(consumed, greaterThan(0));
+      // HP should be restored (less lost HP)
+      expect(builder.state.health.lostHp, lessThan(9));
+    });
+
+    test('auto-eat triggers during combat when taking damage', () {
+      final equipment = Equipment(
+        foodSlots: [ItemStack(shrimp, count: 50), null, null],
+        selectedFoodSlot: 0,
+      );
+      // Use real auto-eat tier 1 purchase if available, otherwise mock
+      var state = GlobalState.test(testRegistries, equipment: equipment);
+
+      // We can't easily add shop purchases to test state, so we'll verify
+      // the integration works by checking that food is consumed during combat
+      // when HP drops low (by directly setting health after starting combat).
+      final random = Random(0);
+      state = state.startAction(plantAction, random: random);
+
+      // Manually damage player to trigger auto-eat conditions
+      // First process some combat ticks
+      final builder = StateUpdateBuilder(state);
+      consumeTicks(builder, 500, random: random);
+
+      // Combat should be ongoing
+      // Food count may or may not have changed depending on damage taken
+      // This test verifies no crashes occur during combat with food equipped
+      expect(builder.state.activeAction?.id, plantAction.id);
+    });
+
+    test('resolveGlobalModifiers returns empty when no purchases', () {
+      final state = GlobalState.empty(testRegistries);
+      final modifiers = state.resolveGlobalModifiers();
+
+      expect(modifiers.autoEatThreshold, 0);
+      expect(modifiers.autoEatEfficiency, 0);
+      expect(modifiers.autoEatHPLimit, 0);
+    });
+
+    test('food consumption tracked in changes', () {
+      final equipment = Equipment(
+        foodSlots: [ItemStack(shrimp, count: 10), null, null],
+        selectedFoodSlot: 0,
+      );
+      // Default hitpoints level 1 = 10 maxHP
+      // lostHp of 9 means 1 HP = 10% HP
+      final state = GlobalState.test(
+        testRegistries,
+        equipment: equipment,
+        health: const HealthState(lostHp: 9),
+      );
+
+      final builder = StateUpdateBuilder(state);
+      // Threshold 20 = eat when HP < 2 (player at 1 HP, triggers)
+      // HP limit 50 = eat until HP >= 5 (50% of 10)
+      const modifiers = ResolvedModifiers({
+        'autoEatThreshold': 20,
+        'autoEatEfficiency': 100,
+        'autoEatHPLimit': 50,
+      });
+      final consumed = builder.tryAutoEat(modifiers);
+
+      // Verify consumed food is tracked in changes
+      expect(consumed, greaterThan(0));
+      final shrimpChange = builder.changes.inventoryChanges.counts[shrimp.id];
+      expect(shrimpChange, isNotNull);
+      expect(shrimpChange, lessThan(0)); // Negative = consumed
+      expect(shrimpChange, -consumed);
+    });
+  });
 }

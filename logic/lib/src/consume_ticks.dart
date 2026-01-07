@@ -2,7 +2,6 @@ import 'dart:math';
 
 import 'package:logic/logic.dart';
 import 'package:logic/src/farming_background.dart';
-import 'package:logic/src/types/resolved_modifiers.dart';
 import 'package:meta/meta.dart';
 
 /// Ticks required to regenerate 1 HP (10 seconds = 100 ticks).
@@ -541,6 +540,69 @@ class StateUpdateBuilder {
     updateActionState(actionId, actionState.copyWith(mining: newMining));
   }
 
+  /// Attempts auto-eat if player has the modifier and HP is below threshold.
+  ///
+  /// Auto-eat triggers when:
+  /// 1. Player has autoEatThreshold modifier > 0 (from shop purchase)
+  /// 2. Current HP is below (maxHP * threshold / 100)
+  ///
+  /// When triggered, consumes food from selected slot until:
+  /// - HP reaches (maxHP * hpLimit / 100), or
+  /// - No more food available in selected slot
+  ///
+  /// Returns number of food items consumed.
+  int tryAutoEat(ResolvedModifiers modifiers) {
+    final threshold = modifiers.autoEatThreshold;
+    if (threshold <= 0) return 0;
+
+    final maxHp = _state.maxPlayerHp;
+    final currentHp = _state.playerHp;
+    final thresholdHp = (maxHp * threshold / 100).ceil();
+
+    // Check if we're below threshold
+    if (currentHp >= thresholdHp) return 0;
+
+    // Calculate target HP
+    final hpLimit = modifiers.autoEatHPLimit;
+    final targetHp = (maxHp * hpLimit / 100).ceil();
+
+    // Calculate efficiency
+    final efficiency = modifiers.autoEatEfficiency;
+
+    var foodConsumed = 0;
+    var hp = currentHp;
+
+    // Eat until we reach target HP or run out of food
+    while (hp < targetHp) {
+      final food = _state.equipment.selectedFood;
+      if (food == null) break;
+
+      final healAmount = food.item.healsFor;
+      if (healAmount == null || healAmount <= 0) break;
+
+      // Apply efficiency to heal amount
+      final effectiveHeal = (healAmount * efficiency / 100).ceil();
+
+      // Consume the food
+      final newEquipment = _state.equipment.consumeSelectedFood();
+      if (newEquipment == null) break;
+
+      // Track the consumption in changes
+      _changes = _changes.removing(ItemStack(food.item, count: 1));
+
+      // Apply the heal
+      _state = _state.copyWith(
+        equipment: newEquipment,
+        health: _state.health.heal(effectiveHeal),
+      );
+
+      hp = _state.playerHp;
+      foodConsumed++;
+    }
+
+    return foodConsumed;
+  }
+
   GlobalState build() => _state;
 
   Changes get changes => _changes;
@@ -632,7 +694,11 @@ bool completeThievingAction(
     final damage = action.rollDamage(rng);
     builder.damagePlayer(damage);
 
-    // Check if player died
+    // Try auto-eat after taking damage
+    final modifiers = builder.state.resolveGlobalModifiers();
+    builder.tryAutoEat(modifiers);
+
+    // Check if player died (after auto-eat attempt)
     if (builder.state.playerHp <= 0) {
       builder
         ..applyDeathPenalty(rng)
@@ -951,9 +1017,14 @@ enum ForegroundResult {
     resetMonsterTicks = ticksFromDuration(
       Duration(milliseconds: (mStats.attackSpeed * 1000).round()),
     );
+
+    // Try auto-eat after taking damage
+    final modifiers = builder.state.resolveGlobalModifiers();
+    builder.tryAutoEat(modifiers);
   }
 
   // Check if player died (lostHp >= maxHp means playerHp <= 0)
+  // This happens AFTER auto-eat, so player can survive if food available
   if (builder.state.playerHp <= 0) {
     builder
       ..applyDeathPenalty(rng)
