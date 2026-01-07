@@ -385,6 +385,63 @@ void _printPlan(SolvedPlan solvedPlan, SolverConfig config) {
   print('Interaction count: ${compressed.interactionCount}');
 }
 
+/// Prints skill duration statistics showing time spent per skill.
+void _printSkillDurations(
+  GlobalState initialState,
+  GlobalState finalState,
+  Registries registries,
+  bool verbose,
+) {
+  final actionDurations = <ActionId, Tick>{};
+
+  for (final entry in finalState.actionStates.entries) {
+    final actionId = entry.key;
+    final finalTicks = entry.value.cumulativeTicks;
+    final initialTicks = initialState.actionState(actionId).cumulativeTicks;
+    final delta = finalTicks - initialTicks;
+
+    if (delta > 0) {
+      actionDurations[actionId] = delta;
+    }
+  }
+
+  if (actionDurations.isEmpty) return;
+
+  // Aggregate by skill
+  final skillDurations = <Skill, Tick>{};
+  for (final entry in actionDurations.entries) {
+    final action = registries.actions.byId(entry.key);
+    skillDurations[action.skill] =
+        (skillDurations[action.skill] ?? 0) + entry.value;
+  }
+
+  print('');
+  print('=== Time Spent Per Skill ===');
+
+  final sortedSkills = skillDurations.entries.toList()
+    ..sort((a, b) => b.value.compareTo(a.value));
+
+  for (final entry in sortedSkills) {
+    final timeStr = durationStringWithTicks(entry.value);
+    print('  ${entry.key.name}: $timeStr');
+  }
+
+  // Print per-action breakdown in verbose mode
+  if (verbose) {
+    print('');
+    print('=== Time Spent Per Action (Verbose) ===');
+
+    final sortedActions = actionDurations.entries.toList()
+      ..sort((a, b) => b.value.compareTo(a.value));
+
+    for (final entry in sortedActions) {
+      final action = registries.actions.byId(entry.key);
+      final timeStr = durationStringWithTicks(entry.value);
+      print('  ${action.name} (${action.skill.name}): $timeStr');
+    }
+  }
+}
+
 /// Executes the plan and prints results.
 void _executePlan(SolvedPlan solvedPlan, SolverConfig config) {
   print('');
@@ -416,6 +473,14 @@ void _executePlan(SolvedPlan solvedPlan, SolverConfig config) {
   printExecutionStats(
     execResult,
     expectedDeaths: solvedPlan.plan.expectedDeaths,
+  );
+
+  // Print skill duration statistics
+  _printSkillDurations(
+    config.initialState,
+    execResult.finalState,
+    config.registries,
+    config.verboseExecution,
   );
 }
 
@@ -1120,14 +1185,14 @@ String _formatSegmentSummary(
   return buffer.toString();
 }
 
-/// Formats ticks in a compact form (e.g., "19.5k" or "1.2M").
+/// Formats ticks in a compact form with proper number formatting.
 String _formatTicksCompact(int ticks) {
   if (ticks >= 1000000) {
     return '${(ticks / 1000000).toStringAsFixed(1)}M ticks';
   } else if (ticks >= 1000) {
     return '${(ticks / 1000).toStringAsFixed(1)}k ticks';
   }
-  return '$ticks ticks';
+  return '${preciseNumberString(ticks)} ticks';
 }
 
 /// Determines if a segment is "weird" and should be auto-expanded.

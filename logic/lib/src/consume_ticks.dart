@@ -439,6 +439,14 @@ class StateUpdateBuilder {
     // Probably getting to 99 is?
   }
 
+  void addActionTicks(ActionId actionId, Tick ticks) {
+    final oldState = _state.actionState(actionId);
+    final newState = oldState.copyWith(
+      cumulativeTicks: oldState.cumulativeTicks + ticks,
+    );
+    updateActionState(actionId, newState);
+  }
+
   void updateActionState(ActionId actionId, ActionState newState) {
     final newActionStates = Map<ActionId, ActionState>.from(
       _state.actionStates,
@@ -775,7 +783,9 @@ enum ForegroundResult {
   // Process action progress
   final ticksToApply = min(ticksAvailable, currentAction.remainingTicks);
   final newRemainingTicks = currentAction.remainingTicks - ticksToApply;
-  builder.setActionProgress(action, remainingTicks: newRemainingTicks);
+  builder
+    ..setActionProgress(action, remainingTicks: newRemainingTicks)
+    ..addActionTicks(action.id, ticksToApply);
 
   if (newRemainingTicks <= 0) {
     // Action completed - handle differently based on action type
@@ -897,6 +907,7 @@ enum ForegroundResult {
   final ticksConsumed = nextEventTicks;
   final newPlayerTicks = playerTicks - nextEventTicks;
   final newMonsterTicks = monsterTicks - nextEventTicks;
+  builder.addActionTicks(activeAction.id, ticksConsumed);
 
   // Process player attack if ready
   var monsterHp = currentCombat.monsterHp;

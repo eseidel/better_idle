@@ -168,6 +168,7 @@ class SelectedRecipe extends RecipeSelection {
 class ActionState {
   const ActionState({
     required this.masteryXp,
+    this.cumulativeTicks = 0,
     this.mining,
     this.combat,
     this.selectedRecipeIndex,
@@ -178,6 +179,7 @@ class ActionState {
   factory ActionState.fromJson(Map<String, dynamic> json) {
     return ActionState(
       masteryXp: json['masteryXp'] as int,
+      cumulativeTicks: json['cumulativeTicks'] as int? ?? 0,
       mining: json['mining'] != null
           ? MiningState.fromJson(json['mining'] as Map<String, dynamic>)
           : null,
@@ -190,6 +192,9 @@ class ActionState {
 
   /// How much accumulated mastery xp this action has.
   final int masteryXp;
+
+  /// Cumulative ticks spent performing this action.
+  final int cumulativeTicks;
 
   /// Mining-specific state (null for non-mining actions).
   final MiningState? mining;
@@ -224,12 +229,14 @@ class ActionState {
 
   ActionState copyWith({
     int? masteryXp,
+    int? cumulativeTicks,
     MiningState? mining,
     CombatActionState? combat,
     int? selectedRecipeIndex,
   }) {
     return ActionState(
       masteryXp: masteryXp ?? this.masteryXp,
+      cumulativeTicks: cumulativeTicks ?? this.cumulativeTicks,
       mining: mining ?? this.mining,
       combat: combat ?? this.combat,
       selectedRecipeIndex: selectedRecipeIndex ?? this.selectedRecipeIndex,
@@ -237,10 +244,11 @@ class ActionState {
   }
 
   /// Create a new state for this action, as though it restarted fresh.
-  /// Preserves the selectedRecipeIndex since the user chose it.
+  /// Preserves the selectedRecipeIndex and cumulativeTicks (lifetime stats).
   ActionState copyRestarting() {
     return ActionState(
       masteryXp: masteryXp,
+      cumulativeTicks: cumulativeTicks,
       selectedRecipeIndex: selectedRecipeIndex,
     );
   }
@@ -248,6 +256,7 @@ class ActionState {
   Map<String, dynamic> toJson() {
     return {
       'masteryXp': masteryXp,
+      'cumulativeTicks': cumulativeTicks,
       if (mining != null) 'mining': mining!.toJson(),
       if (combat != null) 'combat': combat!.toJson(),
       if (selectedRecipeIndex != null)
