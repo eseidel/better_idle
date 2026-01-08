@@ -311,12 +311,111 @@ void main() {
       expect(playerAlive, isTrue);
 
       final newState = builder.build();
-      // Should have gained gold (1 + 49 = 50)
-      expect(newState.gp, 50);
+      // Base gold = 1 + 49 = 50
+      // Thieving mastery level 1 gives +1% currencyGain:
+      // 50 * 1.01 = 50.5 → 51
+      expect(newState.gp, 51);
       // Should have gained XP
       expect(newState.skillState(Skill.thieving).xp, manAction.xp);
       // Should NOT be stunned
       expect(newState.isStunned, isFalse);
+    });
+
+    test('thieving gold is boosted by currencyGain modifier', () {
+      // Create a gloves item with +50% currencyGain for thieving
+      final gloves = Item(
+        id: const MelvorId('test:ThievingGloves'),
+        name: 'Thieving Gloves',
+        itemType: 'Equipment',
+        sellsFor: 1000,
+        validSlots: const [EquipmentSlot.gloves],
+        modifiers: ModifierDataSet([
+          ModifierData(
+            name: 'currencyGain',
+            entries: [
+              ModifierEntry(
+                value: 50, // +50%
+                scope: ModifierScope(skillId: Skill.thieving.id),
+              ),
+            ],
+          ),
+        ]),
+      );
+
+      // Equip the gloves
+      final (equipment, _) = const Equipment.empty().equipGear(
+        gloves,
+        EquipmentSlot.gloves,
+      );
+
+      final random = Random(0);
+      final state = GlobalState.test(
+        testRegistries,
+        equipment: equipment,
+      ).startAction(manAction, random: random);
+
+      final builder = StateUpdateBuilder(state);
+
+      // Use a mock random that always succeeds and grants specific gold
+      final rng = MockRandom(
+        nextIntValue: 49, // Base gold = 1 + 49 = 50
+      );
+
+      final playerAlive = completeThievingAction(builder, manAction, rng);
+
+      expect(playerAlive, isTrue);
+
+      final newState = builder.build();
+      // Base gold = 50, +50% from gloves, +1% from mastery level 1
+      // 50 * (1.0 + 0.50 + 0.01) = 50 * 1.51 = 75.5 → 76
+      expect(newState.gp, 76);
+    });
+
+    test('thieving XP is affected by skillXP modifier', () {
+      // Create a cape with -20% skillXP for thieving (penalty)
+      final cape = Item(
+        id: const MelvorId('test:ThievingCape'),
+        name: 'Thieving Cape',
+        itemType: 'Equipment',
+        sellsFor: 1000,
+        validSlots: const [EquipmentSlot.cape],
+        modifiers: ModifierDataSet([
+          ModifierData(
+            name: 'skillXP',
+            entries: [
+              ModifierEntry(
+                value: -20, // -20%
+                scope: ModifierScope(skillId: Skill.thieving.id),
+              ),
+            ],
+          ),
+        ]),
+      );
+
+      // Equip the cape
+      final (equipment, _) = const Equipment.empty().equipGear(
+        cape,
+        EquipmentSlot.cape,
+      );
+
+      final random = Random(0);
+      final state = GlobalState.test(
+        testRegistries,
+        equipment: equipment,
+      ).startAction(manAction, random: random);
+
+      final builder = StateUpdateBuilder(state);
+
+      // Use a mock random that always succeeds
+      final rng = MockRandom(nextIntValue: 49);
+
+      final playerAlive = completeThievingAction(builder, manAction, rng);
+
+      expect(playerAlive, isTrue);
+
+      final newState = builder.build();
+      // Man action gives 5 XP, with -20% modifier: 5 * 0.8 = 4
+      expect(newState.skillState(Skill.thieving).xp, 4);
     });
 
     test('thieving success through tick processing', () {
@@ -336,8 +435,9 @@ void main() {
       consumeTicks(builder, 30, random: rng);
 
       final newState = builder.build();
-      // Should have gained gold (1 + 99 = 100)
-      expect(newState.gp, 100);
+      // Base gold = 1 + 99 = 100, +1% from mastery level 1
+      // 100 * 1.01 = 101
+      expect(newState.gp, 101);
       // Should have gained XP
       expect(newState.skillState(Skill.thieving).xp, manAction.xp);
       // Should NOT be stunned
@@ -551,8 +651,9 @@ void main() {
       consumeTicks(builder2, 30, random: rng);
 
       newState = builder2.build();
-      // Should have gained gold from successful theft (1 + 49 = 50)
-      expect(newState.gp, 50);
+      // Base gold = 1 + 49 = 50, +1% from mastery level 1
+      // 50 * 1.01 = 50.5 → 51
+      expect(newState.gp, 51);
     });
   });
 }

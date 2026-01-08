@@ -615,9 +615,21 @@ class XpPerAction {
   int get masteryPoolXp => max(1, (0.25 * masteryXp).toInt());
 }
 
-XpPerAction xpPerAction(GlobalState state, SkillAction action) {
+XpPerAction xpPerAction(
+  GlobalState state,
+  SkillAction action,
+  ResolvedModifiers modifiers,
+) {
+  // Apply skillXP modifier (percentage points, e.g., -10 = 10% reduction)
+  final xpModifier = modifiers.skillXP;
+  final baseXp = action.xp;
+  final adjustedXp = (baseXp * (1.0 + xpModifier / 100.0)).round().clamp(
+    1,
+    baseXp * 10,
+  );
+
   return XpPerAction(
-    xp: action.xp,
+    xp: adjustedXp,
     masteryXp: masteryXpPerAction(state, action),
   );
 }
@@ -678,20 +690,23 @@ bool completeThievingAction(
 
   if (success) {
     // Grant XP on success
-    final perAction = xpPerAction(builder.state, action);
+    final perAction = xpPerAction(builder.state, action, modifiers);
     builder
       ..addSkillXp(action.skill, perAction.xp)
       ..addActionMasteryXp(action.id, perAction.masteryXp)
       ..addSkillMasteryXp(action.skill, perAction.masteryPoolXp);
 
-    // Grant gold
-    final gold = action.rollGold(random);
-    builder.addCurrency(Currency.gp, gold);
+    // Grant gold with currencyGain modifier
+    final baseGold = action.rollGold(random);
+    final currencyGainMod = modifiers.currencyGain;
+    final adjustedGold = (baseGold * (1.0 + currencyGainMod / 100.0))
+        .round()
+        .clamp(1, baseGold * 10);
+    builder.addCurrency(Currency.gp, adjustedGold);
 
     // Roll drops with doubling applied
     final actionState = builder.state.actionState(action.id);
     final selection = actionState.recipeSelection(action);
-    final modifiers = builder.state.resolveSkillModifiers(action);
     rollAndCollectDrops(builder, action, modifiers, random, selection);
 
     return true;
@@ -747,7 +762,7 @@ bool completeAction(
     selection,
   );
 
-  final perAction = xpPerAction(builder.state, action);
+  final perAction = xpPerAction(builder.state, action, modifiers);
 
   builder
     ..addSkillXp(action.skill, perAction.xp)

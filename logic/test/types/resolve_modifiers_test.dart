@@ -685,6 +685,259 @@ void main() {
     });
   });
 
+  group('skillXP modifier', () {
+    test('skillXP modifier increases XP gain', () {
+      final action = SkillAction(
+        id: ActionId.test(Skill.firemaking, 'TestBurn'),
+        skill: Skill.firemaking,
+        name: 'Test Burn',
+        duration: const Duration(seconds: 2),
+        xp: 100,
+        unlockLevel: 1,
+      );
+
+      final registries = Registries.test(actions: [action]);
+      final state = GlobalState.test(registries);
+
+      // Without modifier, XP should be base value
+      final xpNoMod = xpPerAction(state, action, ResolvedModifiers.empty);
+      expect(xpNoMod.xp, 100);
+
+      // With +20% skillXP modifier
+      const modifiers = ResolvedModifiers({'skillXP': 20});
+      final xpWithMod = xpPerAction(state, action, modifiers);
+      expect(xpWithMod.xp, 120); // 100 * 1.20 = 120
+    });
+
+    test('skillXP modifier decreases XP gain', () {
+      final action = SkillAction(
+        id: ActionId.test(Skill.firemaking, 'TestBurn'),
+        skill: Skill.firemaking,
+        name: 'Test Burn',
+        duration: const Duration(seconds: 2),
+        xp: 100,
+        unlockLevel: 1,
+      );
+
+      final registries = Registries.test(actions: [action]);
+      final state = GlobalState.test(registries);
+
+      // With -10% skillXP modifier (like Burning Amulet of Gold)
+      const modifiers = ResolvedModifiers({'skillXP': -10});
+      final xpWithMod = xpPerAction(state, action, modifiers);
+      expect(xpWithMod.xp, 90); // 100 * 0.90 = 90
+    });
+
+    test('skillXP modifier clamps to minimum of 1', () {
+      final action = SkillAction(
+        id: ActionId.test(Skill.firemaking, 'TestBurn'),
+        skill: Skill.firemaking,
+        name: 'Test Burn',
+        duration: const Duration(seconds: 2),
+        xp: 10,
+        unlockLevel: 1,
+      );
+
+      final registries = Registries.test(actions: [action]);
+      final state = GlobalState.test(registries);
+
+      // With -95% skillXP modifier (extreme reduction)
+      const modifiers = ResolvedModifiers({'skillXP': -95});
+      final xpWithMod = xpPerAction(state, action, modifiers);
+      expect(xpWithMod.xp, 1); // Should clamp to 1, not 0.5
+    });
+
+    test('equipment with skillXP modifier resolves correctly', () {
+      // Create an amulet with -10% skillXP for firemaking
+      final amulet = Item(
+        id: const MelvorId('test:BurningAmuletOfGold'),
+        name: 'Burning Amulet of Gold',
+        itemType: 'Equipment',
+        sellsFor: 12000,
+        validSlots: const [EquipmentSlot.amulet],
+        modifiers: ModifierDataSet([
+          ModifierData(
+            name: 'skillXP',
+            entries: [
+              ModifierEntry(
+                value: -10, // -10%
+                scope: ModifierScope(skillId: Skill.firemaking.id),
+              ),
+            ],
+          ),
+        ]),
+      );
+
+      final firemakingAction = SkillAction(
+        id: ActionId.test(Skill.firemaking, 'TestBurn'),
+        skill: Skill.firemaking,
+        name: 'Burn Test Logs',
+        duration: const Duration(seconds: 2),
+        xp: 100,
+        unlockLevel: 1,
+      );
+
+      final registries = Registries.test(
+        items: [amulet],
+        actions: [firemakingAction],
+      );
+
+      // Equip the amulet
+      final (equipment, _) = const Equipment.empty().equipGear(
+        amulet,
+        EquipmentSlot.amulet,
+      );
+      final state = GlobalState.test(registries, equipment: equipment);
+
+      // Resolve modifiers for firemaking action
+      final modifiers = state.resolveSkillModifiers(firemakingAction);
+      expect(modifiers.skillXP, -10);
+
+      // XP should be reduced
+      final xp = xpPerAction(state, firemakingAction, modifiers);
+      expect(xp.xp, 90); // 100 * 0.90 = 90
+    });
+
+    test('skillXP modifier scoped to one skill does not affect others', () {
+      // Create an amulet with -10% skillXP for firemaking only
+      final amulet = Item(
+        id: const MelvorId('test:BurningAmuletOfGold'),
+        name: 'Burning Amulet of Gold',
+        itemType: 'Equipment',
+        sellsFor: 12000,
+        validSlots: const [EquipmentSlot.amulet],
+        modifiers: ModifierDataSet([
+          ModifierData(
+            name: 'skillXP',
+            entries: [
+              ModifierEntry(
+                value: -10,
+                scope: ModifierScope(skillId: Skill.firemaking.id),
+              ),
+            ],
+          ),
+        ]),
+      );
+
+      final registries = Registries.test(items: [amulet]);
+
+      final woodcuttingAction = SkillAction(
+        id: ActionId.test(Skill.woodcutting, 'TestChop'),
+        skill: Skill.woodcutting,
+        name: 'Chop Test Tree',
+        duration: const Duration(seconds: 3),
+        xp: 100,
+        unlockLevel: 1,
+      );
+
+      // Equip the amulet
+      final (equipment, _) = const Equipment.empty().equipGear(
+        amulet,
+        EquipmentSlot.amulet,
+      );
+      final state = GlobalState.test(registries, equipment: equipment);
+
+      // Resolve modifiers for woodcutting (should NOT be affected)
+      final modifiers = state.resolveSkillModifiers(woodcuttingAction);
+      expect(modifiers.skillXP, 0); // No skillXP modifier for woodcutting
+    });
+  });
+
+  group('currencyGain modifier', () {
+    test('currencyGain modifier resolves from equipment', () {
+      // Create an amulet with +20% currencyGain for firemaking
+      final amulet = Item(
+        id: const MelvorId('test:BurningAmuletOfGold'),
+        name: 'Burning Amulet of Gold',
+        itemType: 'Equipment',
+        sellsFor: 12000,
+        validSlots: const [EquipmentSlot.amulet],
+        modifiers: ModifierDataSet([
+          ModifierData(
+            name: 'currencyGain',
+            entries: [
+              ModifierEntry(
+                value: 20, // +20%
+                scope: ModifierScope(skillId: Skill.firemaking.id),
+              ),
+            ],
+          ),
+        ]),
+      );
+
+      final registries = Registries.test(items: [amulet]);
+
+      final firemakingAction = SkillAction(
+        id: ActionId.test(Skill.firemaking, 'TestBurn'),
+        skill: Skill.firemaking,
+        name: 'Burn Test Logs',
+        duration: const Duration(seconds: 2),
+        xp: 100,
+        unlockLevel: 1,
+      );
+
+      // Equip the amulet
+      final (equipment, _) = const Equipment.empty().equipGear(
+        amulet,
+        EquipmentSlot.amulet,
+      );
+      final state = GlobalState.test(registries, equipment: equipment);
+
+      // Resolve modifiers for firemaking action
+      final modifiers = state.resolveSkillModifiers(firemakingAction);
+      expect(modifiers.currencyGain, 20);
+    });
+
+    test(
+      'currencyGain modifier scoped to one skill does not affect others',
+      () {
+        // Create an amulet with +20% currencyGain for firemaking only
+        final amulet = Item(
+          id: const MelvorId('test:BurningAmuletOfGold'),
+          name: 'Burning Amulet of Gold',
+          itemType: 'Equipment',
+          sellsFor: 12000,
+          validSlots: const [EquipmentSlot.amulet],
+          modifiers: ModifierDataSet([
+            ModifierData(
+              name: 'currencyGain',
+              entries: [
+                ModifierEntry(
+                  value: 20,
+                  scope: ModifierScope(skillId: Skill.firemaking.id),
+                ),
+              ],
+            ),
+          ]),
+        );
+
+        final registries = Registries.test(items: [amulet]);
+
+        // Use a woodcutting action instead of thieving to avoid constructor
+        // complexity
+        final woodcuttingAction = SkillAction(
+          id: ActionId.test(Skill.woodcutting, 'TestChop'),
+          skill: Skill.woodcutting,
+          name: 'Chop Test Tree',
+          duration: const Duration(seconds: 3),
+          xp: 10,
+          unlockLevel: 1,
+        );
+
+        // Equip the amulet
+        final (equipment, _) = const Equipment.empty().equipGear(
+          amulet,
+          EquipmentSlot.amulet,
+        );
+        final state = GlobalState.test(registries, equipment: equipment);
+
+        // Resolve modifiers for woodcutting (should NOT be affected)
+        final modifiers = state.resolveSkillModifiers(woodcuttingAction);
+        expect(modifiers.currencyGain, 0); // No currencyGain for woodcutting
+      },
+    );
+  });
+
   group('equipment modifiers', () {
     test('equipped item modifiers are applied to action duration', () {
       // Create a fishing amulet with -15% skillInterval for fishing
