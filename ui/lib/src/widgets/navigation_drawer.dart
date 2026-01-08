@@ -1,3 +1,4 @@
+import 'package:better_idle/src/widgets/cached_image.dart';
 import 'package:better_idle/src/widgets/context_extensions.dart';
 import 'package:better_idle/src/widgets/page_image.dart';
 import 'package:better_idle/src/widgets/router.dart';
@@ -61,11 +62,42 @@ class SkillTile extends StatelessWidget {
     final skillState = context.state.skillState(skill);
     final level = levelForXp(skillState.xp);
 
+    const valueStyle = TextStyle(color: Style.currencyValueColor);
+    final slayerCoins = context.state.currency(Currency.slayerCoins);
+    final titleWidget = switch (skill) {
+      Skill.hitpoints => Text.rich(
+        TextSpan(
+          children: [
+            TextSpan(text: skill.name),
+            TextSpan(text: ' (${context.state.playerHp})', style: valueStyle),
+          ],
+        ),
+      ),
+      Skill.prayer => Text.rich(
+        TextSpan(
+          children: [
+            TextSpan(text: '${skill.name} '),
+            TextSpan(text: '${context.state.prayerPoints}', style: valueStyle),
+          ],
+        ),
+      ),
+      Skill.slayer => Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text('${skill.name} '),
+          CachedImage(assetPath: Currency.slayerCoins.assetPath, size: 16),
+          const SizedBox(width: 2),
+          Text(approximateCreditString(slayerCoins), style: valueStyle),
+        ],
+      ),
+      _ => Text(skill.name),
+    };
+
     return ListTile(
       dense: true,
       visualDensity: VisualDensity.compact,
       leading: SkillImage(skill: skill, size: 24),
-      title: Text(skill.name),
+      title: titleWidget,
       trailing: Text('$level / $maxLevel'),
       selected: isSelected,
       tileColor: isActiveSkill && !isSelected ? Style.activeColorLight : null,
@@ -111,7 +143,17 @@ class AppNavigationDrawer extends StatelessWidget {
               fallbackIcon: Icons.shopping_cart,
             ),
             title: const Text('Shop'),
-            trailing: Text(approximateCreditString(gp)),
+            trailing: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                CachedImage(assetPath: Currency.gp.assetPath, size: 16),
+                const SizedBox(width: 2),
+                Text(
+                  approximateCreditString(gp),
+                  style: const TextStyle(color: Style.currencyValueColor),
+                ),
+              ],
+            ),
             selected: currentLocation == '/shop',
             onTap: () {
               Navigator.pop(context);
@@ -134,8 +176,14 @@ class AppNavigationDrawer extends StatelessWidget {
             },
           ),
           _SectionHeader(title: 'Combat', trailing: 'Lv. ${state.combatLevel}'),
-          const SkillTile(skill: Skill.hitpoints),
           const SkillTile(skill: Skill.attack),
+          const SkillTile(skill: Skill.strength),
+          const SkillTile(skill: Skill.defence),
+          const SkillTile(skill: Skill.hitpoints),
+          const SkillTile(skill: Skill.ranged),
+          const SkillTile(skill: Skill.magic),
+          const SkillTile(skill: Skill.prayer),
+          const SkillTile(skill: Skill.slayer),
           const _SectionHeader(title: 'Passive'),
           const SkillTile(skill: Skill.farming),
           const _SectionHeader(title: 'Skills'),

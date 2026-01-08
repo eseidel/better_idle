@@ -2,8 +2,14 @@ import 'package:logic/logic.dart';
 
 extension SkillExtensions on Skill {
   String get routeName => switch (this) {
-    Skill.hitpoints => 'combat',
-    Skill.attack => 'combat',
+    Skill.hitpoints ||
+    Skill.attack ||
+    Skill.strength ||
+    Skill.defence ||
+    Skill.ranged ||
+    Skill.magic ||
+    Skill.prayer ||
+    Skill.slayer => 'combat',
     Skill.altMagic => 'alt_magic',
     _ => name.toLowerCase(),
   };

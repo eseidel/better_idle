@@ -650,6 +650,10 @@ class GlobalState {
   /// The current player HP (computed from maxPlayerHp - lostHp).
   int get playerHp => (maxPlayerHp - health.lostHp).clamp(0, maxPlayerHp);
 
+  /// The current prayer points.
+  // TODO(eseidel): Implement prayer points system.
+  int get prayerPoints => 0;
+
   /// The player's equipped items.
   final Equipment equipment;
 

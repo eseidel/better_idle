@@ -126,4 +126,7 @@ class Style {
 
   // Stunned text color
   static Color stunnedTextColor = Colors.red.shade800;
+
+  // Currency/stat value text color (used in nav drawer for GP, SC, HP, Prayer)
+  static const Color currencyValueColor = Colors.green;
 }
