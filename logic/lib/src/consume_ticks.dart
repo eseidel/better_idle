@@ -994,8 +994,17 @@ enum ForegroundResult {
     if (CombatCalculator.rollHit(random, hitChance)) {
       final damage = pStats.rollDamage(random);
       monsterHp -= damage;
+
+      // Grant combat XP based on damage dealt and attack style
+      final xpGrant = CombatXpGrant.fromDamage(
+        damage,
+        builder.state.attackStyle,
+      );
+      for (final entry in xpGrant.xpGrants.entries) {
+        builder.addSkillXp(entry.key, entry.value);
+      }
     }
-    // Miss: no damage dealt
+    // Miss: no damage dealt, no XP granted
 
     resetPlayerTicks = ticksFromDuration(
       Duration(milliseconds: (pStats.attackSpeed * 1000).round()),

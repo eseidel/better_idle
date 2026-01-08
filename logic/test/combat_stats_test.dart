@@ -165,4 +165,117 @@ void main() {
       expect(modifiers.isEmpty, isTrue);
     });
   });
+
+  group('CombatXpGrant', () {
+    test('stab style grants Attack XP and Hitpoints XP', () {
+      final grant = CombatXpGrant.fromDamage(10, AttackStyle.stab);
+
+      // Hitpoints: floor(10 * 1.33) = 13
+      expect(grant.xpGrants[Skill.hitpoints], equals(13));
+      // Attack: 10 * 4 = 40
+      expect(grant.xpGrants[Skill.attack], equals(40));
+      // No Strength or Defence XP
+      expect(grant.xpGrants[Skill.strength], isNull);
+      expect(grant.xpGrants[Skill.defence], isNull);
+    });
+
+    test('slash style grants Strength XP and Hitpoints XP', () {
+      final grant = CombatXpGrant.fromDamage(10, AttackStyle.slash);
+
+      // Hitpoints: floor(10 * 1.33) = 13
+      expect(grant.xpGrants[Skill.hitpoints], equals(13));
+      // Strength: 10 * 4 = 40
+      expect(grant.xpGrants[Skill.strength], equals(40));
+      // No Attack or Defence XP
+      expect(grant.xpGrants[Skill.attack], isNull);
+      expect(grant.xpGrants[Skill.defence], isNull);
+    });
+
+    test('block style grants Defence XP and Hitpoints XP', () {
+      final grant = CombatXpGrant.fromDamage(10, AttackStyle.block);
+
+      // Hitpoints: floor(10 * 1.33) = 13
+      expect(grant.xpGrants[Skill.hitpoints], equals(13));
+      // Defence: 10 * 4 = 40
+      expect(grant.xpGrants[Skill.defence], equals(40));
+      // No Attack or Strength XP
+      expect(grant.xpGrants[Skill.attack], isNull);
+      expect(grant.xpGrants[Skill.strength], isNull);
+    });
+
+    test(
+      'controlled style splits XP evenly between Attack, Strength, Defence',
+      () {
+        final grant = CombatXpGrant.fromDamage(12, AttackStyle.controlled);
+
+        // Hitpoints: floor(12 * 1.33) = 15
+        expect(grant.xpGrants[Skill.hitpoints], equals(15));
+        // Combat XP = 12 * 4 = 48, split 3 ways = 16 each
+        expect(grant.xpGrants[Skill.attack], equals(16));
+        expect(grant.xpGrants[Skill.strength], equals(16));
+        expect(grant.xpGrants[Skill.defence], equals(16));
+      },
+    );
+
+    test('totalXp returns sum of all XP grants', () {
+      final grant = CombatXpGrant.fromDamage(10, AttackStyle.stab);
+      // Hitpoints: 13, Attack: 40, total = 53
+      expect(grant.totalXp, equals(53));
+    });
+
+    test('isEmpty returns false when XP is granted', () {
+      final grant = CombatXpGrant.fromDamage(10, AttackStyle.stab);
+      expect(grant.isEmpty, isFalse);
+    });
+
+    test('zero damage grants zero XP', () {
+      final grant = CombatXpGrant.fromDamage(0, AttackStyle.stab);
+      expect(grant.xpGrants[Skill.hitpoints], equals(0));
+      expect(grant.xpGrants[Skill.attack], equals(0));
+    });
+  });
+
+  group('AttackStyle', () {
+    test('can be serialized and deserialized', () {
+      for (final style in AttackStyle.values) {
+        final json = style.toJson();
+        final restored = AttackStyle.fromJson(json);
+        expect(restored, equals(style));
+      }
+    });
+
+    test('GlobalState stores and retrieves attackStyle', () {
+      final state = GlobalState.test(
+        testRegistries,
+        attackStyle: AttackStyle.slash,
+      );
+
+      expect(state.attackStyle, equals(AttackStyle.slash));
+
+      final updated = state.setAttackStyle(AttackStyle.controlled);
+      expect(updated.attackStyle, equals(AttackStyle.controlled));
+    });
+
+    test('attackStyle persists through JSON serialization', () {
+      final state = GlobalState.test(
+        testRegistries,
+        attackStyle: AttackStyle.block,
+      );
+
+      final json = state.toJson();
+      final restored = GlobalState.fromJson(testRegistries, json);
+
+      expect(restored.attackStyle, equals(AttackStyle.block));
+    });
+
+    test('attackStyle defaults to stab when not in JSON', () {
+      final state = GlobalState.test(testRegistries);
+      final json = state.toJson();
+      // Remove attackStyle from JSON to simulate old save data
+      json.remove('attackStyle');
+
+      final restored = GlobalState.fromJson(testRegistries, json);
+      expect(restored.attackStyle, equals(AttackStyle.stab));
+    });
+  });
 }

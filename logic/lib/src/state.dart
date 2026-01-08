@@ -22,6 +22,28 @@ import 'package:logic/src/types/stunned.dart';
 import 'package:logic/src/types/time_away.dart';
 import 'package:meta/meta.dart';
 
+/// The player's selected melee attack style for combat XP distribution.
+///
+/// Each style determines which combat skill receives XP from damage dealt:
+/// - [stab]: Attack XP (4 XP per damage)
+/// - [slash]: Strength XP (4 XP per damage)
+/// - [block]: Defence XP (4 XP per damage)
+/// - [controlled]: Split XP to all three (1.33 XP per damage each)
+///
+/// Hitpoints always receives XP regardless of style (1.33 XP per damage).
+enum AttackStyle {
+  stab,
+  slash,
+  block,
+  controlled;
+
+  factory AttackStyle.fromJson(String value) {
+    return AttackStyle.values.firstWhere((e) => e.name == value);
+  }
+
+  String toJson() => name;
+}
+
 @immutable
 class ActiveAction {
   const ActiveAction({
@@ -247,6 +269,7 @@ class GlobalState {
     this.itemCharges = const {},
     this.timeAway,
     this.stunned = const StunnedState.fresh(),
+    this.attackStyle = AttackStyle.stab,
   });
 
   GlobalState.empty(Registries registries)
@@ -290,6 +313,7 @@ class GlobalState {
     HealthState health = const HealthState.full(),
     Equipment equipment = const Equipment.empty(),
     StunnedState stunned = const StunnedState.fresh(),
+    AttackStyle attackStyle = AttackStyle.stab,
   }) {
     // Support both gp parameter (for existing tests) and currencies map
     final currenciesMap = currencies ?? (gp > 0 ? {Currency.gp: gp} : const {});
@@ -310,6 +334,7 @@ class GlobalState {
       health: health,
       equipment: equipment,
       stunned: stunned,
+      attackStyle: attackStyle,
     );
   }
 
@@ -363,7 +388,10 @@ class GlobalState {
           const Equipment.empty(),
       stunned =
           StunnedState.maybeFromJson(json['stunned']) ??
-          const StunnedState.fresh();
+          const StunnedState.fresh(),
+      attackStyle = json['attackStyle'] != null
+          ? AttackStyle.fromJson(json['attackStyle'] as String)
+          : AttackStyle.stab;
 
   static Map<Currency, int> _currenciesFromJson(Map<String, dynamic> json) {
     final currenciesJson = json['currencies'] as Map<String, dynamic>? ?? {};
@@ -427,6 +455,7 @@ class GlobalState {
       'health': health.toJson(),
       'equipment': equipment.toJson(),
       'stunned': stunned.toJson(),
+      'attackStyle': attackStyle.toJson(),
     };
   }
 
@@ -520,6 +549,9 @@ class GlobalState {
 
   /// The player's stunned state.
   final StunnedState stunned;
+
+  /// The player's selected attack style for combat XP distribution.
+  final AttackStyle attackStyle;
 
   /// Whether the player is currently stunned.
   bool get isStunned => stunned.isStunned;
@@ -910,6 +942,7 @@ class GlobalState {
       health: health,
       equipment: equipment,
       stunned: stunned,
+      attackStyle: attackStyle,
     );
   }
 
@@ -931,6 +964,7 @@ class GlobalState {
       health: health,
       equipment: equipment,
       stunned: stunned,
+      attackStyle: attackStyle,
     );
   }
 
@@ -1393,6 +1427,7 @@ class GlobalState {
     HealthState? health,
     Equipment? equipment,
     StunnedState? stunned,
+    AttackStyle? attackStyle,
   }) {
     return GlobalState(
       registries: registries,
@@ -1411,6 +1446,12 @@ class GlobalState {
       health: health ?? this.health,
       equipment: equipment ?? this.equipment,
       stunned: stunned ?? this.stunned,
+      attackStyle: attackStyle ?? this.attackStyle,
     );
+  }
+
+  /// Sets the player's attack style for combat XP distribution.
+  GlobalState setAttackStyle(AttackStyle style) {
+    return copyWith(attackStyle: style);
   }
 }
