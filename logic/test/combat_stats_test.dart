@@ -412,5 +412,158 @@ void main() {
       final restored = GlobalState.fromJson(testRegistries, json);
       expect(restored.attackStyle, equals(AttackStyle.stab));
     });
+
+    test('combatType returns correct type for each style', () {
+      // Melee styles
+      expect(AttackStyle.stab.combatType, equals(CombatType.melee));
+      expect(AttackStyle.slash.combatType, equals(CombatType.melee));
+      expect(AttackStyle.block.combatType, equals(CombatType.melee));
+      expect(AttackStyle.controlled.combatType, equals(CombatType.melee));
+
+      // Ranged styles
+      expect(AttackStyle.accurate.combatType, equals(CombatType.ranged));
+      expect(AttackStyle.rapid.combatType, equals(CombatType.ranged));
+      expect(AttackStyle.longRange.combatType, equals(CombatType.ranged));
+    });
+
+    test('isMelee and isRanged return correct values', () {
+      expect(AttackStyle.stab.isMelee, isTrue);
+      expect(AttackStyle.stab.isRanged, isFalse);
+
+      expect(AttackStyle.accurate.isMelee, isFalse);
+      expect(AttackStyle.accurate.isRanged, isTrue);
+    });
+  });
+
+  group('Ranged Combat XP', () {
+    test('accurate style grants Ranged XP and Hitpoints XP', () {
+      final grant = CombatXpGrant.fromDamage(10, AttackStyle.accurate);
+
+      // Hitpoints: floor(10 * 1.33) = 13
+      expect(grant.xpGrants[Skill.hitpoints], equals(13));
+      // Ranged: 10 * 4 = 40
+      expect(grant.xpGrants[Skill.ranged], equals(40));
+      // No melee XP
+      expect(grant.xpGrants[Skill.attack], isNull);
+      expect(grant.xpGrants[Skill.strength], isNull);
+      expect(grant.xpGrants[Skill.defence], isNull);
+    });
+
+    test('rapid style grants Ranged XP and Hitpoints XP', () {
+      final grant = CombatXpGrant.fromDamage(10, AttackStyle.rapid);
+
+      expect(grant.xpGrants[Skill.hitpoints], equals(13));
+      expect(grant.xpGrants[Skill.ranged], equals(40));
+    });
+
+    test('longRange style splits XP between Ranged and Defence', () {
+      final grant = CombatXpGrant.fromDamage(10, AttackStyle.longRange);
+
+      // Hitpoints: floor(10 * 1.33) = 13
+      expect(grant.xpGrants[Skill.hitpoints], equals(13));
+      // Combat XP = 10 * 4 = 40, split 2 ways = 20 each
+      expect(grant.xpGrants[Skill.ranged], equals(20));
+      expect(grant.xpGrants[Skill.defence], equals(20));
+      // No attack/strength XP
+      expect(grant.xpGrants[Skill.attack], isNull);
+      expect(grant.xpGrants[Skill.strength], isNull);
+    });
+  });
+
+  group('Ranged PlayerCombatStats', () {
+    test('ranged style uses Ranged level for max hit', () {
+      final lowRanged = GlobalState.test(
+        testRegistries,
+        attackStyle: AttackStyle.accurate,
+        skillStates: const {
+          Skill.ranged: SkillState(xp: 0, masteryPoolXp: 0), // Level 1
+        },
+      );
+
+      final highRanged = GlobalState.test(
+        testRegistries,
+        attackStyle: AttackStyle.accurate,
+        skillStates: const {
+          Skill.ranged: SkillState(xp: 13034431, masteryPoolXp: 0), // Level 99
+        },
+      );
+
+      final lowStats = PlayerCombatStats.fromState(lowRanged);
+      final highStats = PlayerCombatStats.fromState(highRanged);
+
+      expect(highStats.maxHit, greaterThan(lowStats.maxHit));
+    });
+
+    test('ranged style uses Ranged level for accuracy', () {
+      final lowRanged = GlobalState.test(
+        testRegistries,
+        attackStyle: AttackStyle.accurate,
+        skillStates: const {
+          Skill.ranged: SkillState(xp: 0, masteryPoolXp: 0), // Level 1
+        },
+      );
+
+      final highRanged = GlobalState.test(
+        testRegistries,
+        attackStyle: AttackStyle.accurate,
+        skillStates: const {
+          Skill.ranged: SkillState(xp: 13034431, masteryPoolXp: 0), // Level 99
+        },
+      );
+
+      final lowStats = PlayerCombatStats.fromState(lowRanged);
+      final highStats = PlayerCombatStats.fromState(highRanged);
+
+      expect(highStats.accuracy, greaterThan(lowStats.accuracy));
+    });
+
+    test('rapid style has faster attack speed', () {
+      final accurateState = GlobalState.test(
+        testRegistries,
+        attackStyle: AttackStyle.accurate,
+      );
+      final rapidState = GlobalState.test(
+        testRegistries,
+        attackStyle: AttackStyle.rapid,
+      );
+
+      final accurateStats = PlayerCombatStats.fromState(accurateState);
+      final rapidStats = PlayerCombatStats.fromState(rapidState);
+
+      // Rapid should be 20% faster (lower attack speed value)
+      expect(rapidStats.attackSpeed, lessThan(accurateStats.attackSpeed));
+      // Verify it's approximately 80% of the accurate speed
+      expect(
+        rapidStats.attackSpeed,
+        closeTo(accurateStats.attackSpeed * 0.8, 0.01),
+      );
+    });
+
+    test('accurate style gives +3 effective ranged level', () {
+      // Both have same ranged level, but accurate should have better stats
+      // due to +3 effective level bonus
+      final rapidState = GlobalState.test(
+        testRegistries,
+        attackStyle: AttackStyle.rapid,
+        skillStates: const {
+          Skill.ranged: SkillState(xp: 1154, masteryPoolXp: 0), // Level 10
+        },
+      );
+      final accurateState = GlobalState.test(
+        testRegistries,
+        attackStyle: AttackStyle.accurate,
+        skillStates: const {
+          Skill.ranged: SkillState(xp: 1154, masteryPoolXp: 0), // Level 10
+        },
+      );
+
+      final rapidStats = PlayerCombatStats.fromState(rapidState);
+      final accurateStats = PlayerCombatStats.fromState(accurateState);
+
+      // Accurate should have higher accuracy due to +3 effective level
+      expect(accurateStats.accuracy, greaterThan(rapidStats.accuracy));
+      // Accurate should also have higher max hit due to +3 effective level
+      expect(accurateStats.maxHit, greaterThan(rapidStats.maxHit));
+    });
   });
 }

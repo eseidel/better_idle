@@ -7,12 +7,21 @@ import 'package:meta/meta.dart';
 /// Computes accuracy or evasion rating using Melvor formula.
 ///
 /// Formula: floor((effectiveLevel + 9) * (bonus + 64) * (1 + modifier/100))
-int _computeEvasion({
+int _computeAccuracyOrEvasion({
   required int effectiveLevel,
   required num bonus,
   required num modifier,
 }) {
   return ((effectiveLevel + 9) * (bonus + 64) * (1 + modifier / 100)).floor();
+}
+
+/// Computes base max hit using Melvor formula.
+///
+/// Formula: floor(10 * (2.2 + effectiveLevel/10 + (effectiveLevel+17)*bonus/640))
+int _computeBaseMaxHit({required int effectiveLevel, required int bonus}) {
+  return (10 *
+          (2.2 + effectiveLevel / 10 + (effectiveLevel + 17) * bonus / 640))
+      .floor();
 }
 
 /// Computed player combat stats based on skill levels and equipment.
@@ -35,30 +44,48 @@ class PlayerCombatStats extends Stats {
   factory PlayerCombatStats.fromState(GlobalState state) {
     // Resolve all combat-relevant modifiers (equipment, shop purchases, etc.)
     final bonuses = state.resolveCombatModifiers();
+    final attackStyle = state.attackStyle;
 
     // Get skill levels
     final attackLevel = state.skillState(Skill.attack).skillLevel;
     final strengthLevel = state.skillState(Skill.strength).skillLevel;
     final defenceLevel = state.skillState(Skill.defence).skillLevel;
+    final rangedLevel = state.skillState(Skill.ranged).skillLevel;
 
     // --- Max Hit Calculation ---
     // Melvor formula:
     // floor(M * (2.2 + EffectiveLevel/10 + (EffectiveLevel+17)*StrBonus/640))
     // M = 10 for normal attacks
-    // For simplicity, we use effective strength level = strength level
-    // (In full Melvor, attack styles add +3 to effective level)
-    final effectiveStrength = strengthLevel;
-    final strengthBonus = bonuses.flatMeleeStrengthBonus.toInt();
+    //
+    // Each combat type uses different skill levels and bonuses.
+    // Attack styles can add +3 to effective level (accurate for ranged).
+    final int maxHitLevel;
+    final int maxHitBonus;
+    final num maxHitPercent;
 
-    var maxHit =
-        (10 *
-                (2.2 +
-                    effectiveStrength / 10 +
-                    (effectiveStrength + 17) * strengthBonus / 640))
-            .floor();
+    switch (attackStyle.combatType) {
+      case CombatType.melee:
+        maxHitLevel = strengthLevel;
+        maxHitBonus = bonuses.flatMeleeStrengthBonus.toInt();
+        maxHitPercent = bonuses.maxHit + bonuses.meleeMaxHit;
+      case CombatType.ranged:
+        // Accurate style gives +3 effective level
+        maxHitLevel =
+            rangedLevel + (attackStyle == AttackStyle.accurate ? 3 : 0);
+        maxHitBonus = bonuses.flatRangedStrengthBonus.toInt();
+        maxHitPercent = bonuses.maxHit + bonuses.rangedMaxHit;
+      case CombatType.magic:
+        // TODO(eseidel): Implement magic max hit with magic level
+        maxHitLevel = 1;
+        maxHitBonus = 0;
+        maxHitPercent = bonuses.maxHit + bonuses.magicMaxHit;
+    }
 
+    var maxHit = _computeBaseMaxHit(
+      effectiveLevel: maxHitLevel,
+      bonus: maxHitBonus,
+    );
     // Apply percentage max hit modifiers
-    final maxHitPercent = bonuses.maxHit + bonuses.meleeMaxHit;
     maxHit = (maxHit * (1 + maxHitPercent / 100)).floor();
 
     // Apply flat max hit modifiers
@@ -89,6 +116,11 @@ class PlayerCombatStats extends Stats {
     final intervalPercent = bonuses.attackInterval;
     attackSpeedMs *= 1 + intervalPercent / 100;
 
+    // Rapid ranged style reduces attack speed by 20% (faster attacks)
+    if (attackStyle == AttackStyle.rapid) {
+      attackSpeedMs *= 0.8;
+    }
+
     // Apply flat modifier (in milliseconds)
     attackSpeedMs += bonuses.flatAttackInterval.toDouble();
 
@@ -103,18 +135,37 @@ class PlayerCombatStats extends Stats {
 
     // --- Accuracy Rating ---
     // Formula: floor((EffectiveLevel + 9) * (BaseAccuracyBonus + 64) * (1 + Mod/100))
-    final effectiveAttack = attackLevel;
-    // Equipment accuracy bonuses (stab, slash, block attacks)
-    // TODO(eseidel): Summing all bonuses here is wrong!
-    // https://wiki.melvoridle.com/w/Combat#Accuracy_Rating
-    final baseAccuracyBonus =
-        bonuses.flatStabAttackBonus +
-        bonuses.flatSlashAttackBonus +
-        bonuses.flatBlockAttackBonus;
-    final accuracyModifier = bonuses.meleeAccuracyRating;
-    final accuracy = _computeEvasion(
-      effectiveLevel: effectiveAttack,
-      bonus: baseAccuracyBonus,
+    final int accuracyLevel;
+    final num accuracyBonus;
+    final num accuracyModifier;
+
+    switch (attackStyle.combatType) {
+      case CombatType.melee:
+        accuracyLevel = attackLevel;
+        // Equipment accuracy bonuses (stab, slash, block attacks)
+        // TODO(eseidel): Summing all bonuses here is wrong!
+        // https://wiki.melvoridle.com/w/Combat#Accuracy_Rating
+        accuracyBonus =
+            bonuses.flatStabAttackBonus +
+            bonuses.flatSlashAttackBonus +
+            bonuses.flatBlockAttackBonus;
+        accuracyModifier = bonuses.meleeAccuracyRating;
+      case CombatType.ranged:
+        // Accurate style gives +3 effective level for accuracy
+        accuracyLevel =
+            rangedLevel + (attackStyle == AttackStyle.accurate ? 3 : 0);
+        accuracyBonus = bonuses.flatRangedAttackBonus;
+        accuracyModifier = bonuses.rangedAccuracyRating;
+      case CombatType.magic:
+        // TODO(eseidel): Implement magic accuracy with magic level
+        accuracyLevel = 1;
+        accuracyBonus = 0; // TODO(eseidel): Add flatMagicAttackBonus
+        accuracyModifier = bonuses.magicAccuracyRating;
+    }
+
+    final accuracy = _computeAccuracyOrEvasion(
+      effectiveLevel: accuracyLevel,
+      bonus: accuracyBonus,
       modifier: accuracyModifier,
     );
 
@@ -122,13 +173,13 @@ class PlayerCombatStats extends Stats {
     // Formula: floor((EffLevel + 9) * (Bonus + 64) * (1 + Mod/100))
     final effectiveDefence = defenceLevel;
 
-    final meleeEvasion = _computeEvasion(
+    final meleeEvasion = _computeAccuracyOrEvasion(
       effectiveLevel: effectiveDefence,
       bonus: bonuses.flatMeleeDefenceBonus,
       modifier: bonuses.meleeEvasion,
     );
 
-    final rangedEvasion = _computeEvasion(
+    final rangedEvasion = _computeAccuracyOrEvasion(
       effectiveLevel: effectiveDefence,
       bonus: bonuses.flatRangedDefenceBonus,
       modifier: bonuses.rangedEvasion,
@@ -138,7 +189,7 @@ class PlayerCombatStats extends Stats {
     // Since we don't have magic level yet, use defence only
     // TODO(eseidel): Add magic level and use it here
     final effectiveMagicDefence = effectiveDefence; // Simplified
-    final magicEvasion = _computeEvasion(
+    final magicEvasion = _computeAccuracyOrEvasion(
       effectiveLevel: effectiveMagicDefence,
       bonus: bonuses.flatMagicDefenceBonus,
       modifier: bonuses.magicEvasion,
@@ -308,10 +359,17 @@ PlayerCombatStats computePlayerStats(GlobalState state) {
 ///
 /// Hitpoints XP is always granted: floor(damage * 1.33) per hit.
 /// Combat style XP depends on the selected [AttackStyle]:
+///
+/// Melee styles:
 /// - Stab: 4 XP per damage to Attack
 /// - Slash: 4 XP per damage to Strength
 /// - Block: 4 XP per damage to Defence
 /// - Controlled: ~1.33 XP per damage to Attack, Strength, and Defence
+///
+/// Ranged styles:
+/// - Accurate: 4 XP per damage to Ranged
+/// - Rapid: 4 XP per damage to Ranged
+/// - Longrange: 2 XP per damage to Ranged and Defence each
 @immutable
 class CombatXpGrant {
   const CombatXpGrant(this.xpGrants);
@@ -326,6 +384,7 @@ class CombatXpGrant {
     final combatXp = damage * 4;
 
     return switch (style) {
+      // Melee styles
       AttackStyle.stab => CombatXpGrant({
         Skill.hitpoints: hitpointsXp,
         Skill.attack: combatXp,
@@ -343,6 +402,17 @@ class CombatXpGrant {
         Skill.attack: (combatXp / 3).floor(),
         Skill.strength: (combatXp / 3).floor(),
         Skill.defence: (combatXp / 3).floor(),
+      }),
+      // Ranged styles
+      AttackStyle.accurate || AttackStyle.rapid => CombatXpGrant({
+        Skill.hitpoints: hitpointsXp,
+        Skill.ranged: combatXp,
+      }),
+      // Longrange splits XP between Ranged and Defence // cspell:ignore longrange
+      AttackStyle.longRange => CombatXpGrant({
+        Skill.hitpoints: hitpointsXp,
+        Skill.ranged: (combatXp / 2).floor(),
+        Skill.defence: (combatXp / 2).floor(),
       }),
     };
   }

@@ -22,6 +22,27 @@ import 'package:logic/src/types/stunned.dart';
 import 'package:logic/src/types/time_away.dart';
 import 'package:meta/meta.dart';
 
+/// The type of combat the player is using.
+///
+/// Determines which skill levels affect combat calculations and which
+/// equipment bonuses apply.
+enum CombatType {
+  /// Melee combat using Attack, Strength, Defence skills.
+  melee,
+
+  /// Ranged combat using Ranged skill.
+  ranged,
+
+  /// Magic combat using Magic skill.
+  magic;
+
+  factory CombatType.fromJson(String value) {
+    return CombatType.values.firstWhere((e) => e.name == value);
+  }
+
+  String toJson() => name;
+}
+
 /// The player's selected melee attack style for combat XP distribution.
 ///
 /// Each style determines which combat skill receives XP from damage dealt:
@@ -32,16 +53,54 @@ import 'package:meta/meta.dart';
 ///
 /// Hitpoints always receives XP regardless of style (1.33 XP per damage).
 enum AttackStyle {
+  // Melee styles
   stab,
   slash,
   block,
-  controlled;
+  controlled,
+
+  // Ranged styles
+  /// Accurate: Ranged XP, +3 effective Ranged level for accuracy.
+  accurate,
+
+  /// Rapid: Ranged XP, faster attack speed.
+  rapid,
+
+  /// LongRange: Ranged + Defence XP, +3 effective Defence level.
+  longRange;
 
   factory AttackStyle.fromJson(String value) {
-    return AttackStyle.values.firstWhere((e) => e.name == value);
+    return switch (value) {
+      // Melee styles
+      'stab' => AttackStyle.stab,
+      'slash' => AttackStyle.slash,
+      'block' => AttackStyle.block,
+      'controlled' => AttackStyle.controlled,
+      // Ranged styles
+      'accurate' => AttackStyle.accurate,
+      'rapid' => AttackStyle.rapid,
+      // Melvor Idle uses "longrange" for longRange.
+      // cspell:ignore longrange
+      'longrange' || 'longRange' => AttackStyle.longRange,
+      _ => throw ArgumentError('Invalid attack style: $value'),
+    };
   }
 
   String toJson() => name;
+
+  /// Returns the combat type for this attack style.
+  CombatType get combatType {
+    return switch (this) {
+      stab || slash || block || controlled => CombatType.melee,
+      accurate || rapid || longRange => CombatType.ranged,
+    };
+  }
+
+  /// Returns true if this is a melee attack style.
+  bool get isMelee => combatType == CombatType.melee;
+
+  /// Returns true if this is a ranged attack style.
+  bool get isRanged => combatType == CombatType.ranged;
 }
 
 @immutable
