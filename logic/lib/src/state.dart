@@ -1,6 +1,7 @@
 import 'dart:math';
 
 import 'package:logic/src/action_state.dart';
+import 'package:logic/src/combat_stats.dart';
 import 'package:logic/src/data/action_id.dart';
 import 'package:logic/src/data/actions.dart';
 import 'package:logic/src/data/currency.dart';
@@ -225,11 +226,6 @@ class ShopState {
 
 /// The initial number of free bank slots.
 const int initialBankSlots = 20;
-
-/// Fixed player stats for now.
-Stats playerStats(GlobalState state) {
-  return const Stats(minHit: 1, maxHit: 23, damageReduction: 0, attackSpeed: 4);
-}
 
 /// Primary state object serialized to disk and used in memory.
 @immutable
@@ -820,7 +816,7 @@ class GlobalState {
     } else if (action is CombatAction) {
       // Combat actions don't have inputs or duration-based completion.
       // The tick represents the time until the first player attack.
-      final pStats = playerStats(this);
+      final pStats = computePlayerStats(this);
       totalTicks = ticksFromDuration(
         Duration(milliseconds: (pStats.attackSpeed * 1000).round()),
       );

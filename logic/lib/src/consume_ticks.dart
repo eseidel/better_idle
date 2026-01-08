@@ -484,8 +484,8 @@ class StateUpdateBuilder {
   /// Applies the death penalty: randomly selects an equipment slot and
   /// removes any item in it. Tracks the lost item and death in changes.
   /// Returns the result indicating what was lost (if anything).
-  DeathPenaltyResult applyDeathPenalty(Random rng) {
-    final result = _state.equipment.applyDeathPenalty(rng);
+  DeathPenaltyResult applyDeathPenalty(Random random) {
+    final result = _state.equipment.applyDeathPenalty(random);
     _state = _state.copyWith(equipment: result.equipment);
     _lastDeathPenalty = result;
 
@@ -664,11 +664,11 @@ bool rollAndCollectDrops(
 bool completeThievingAction(
   StateUpdateBuilder builder,
   ThievingAction action,
-  Random rng,
+  Random random,
 ) {
   final thievingLevel = builder.state.skillState(Skill.thieving).skillLevel;
   final actionMasteryLevel = builder.currentMasteryLevel(action);
-  final success = action.rollSuccess(rng, thievingLevel, actionMasteryLevel);
+  final success = action.rollSuccess(random, thievingLevel, actionMasteryLevel);
 
   if (success) {
     // Grant XP on success
@@ -679,19 +679,19 @@ bool completeThievingAction(
       ..addSkillMasteryXp(action.skill, perAction.masteryPoolXp);
 
     // Grant gold
-    final gold = action.rollGold(rng);
+    final gold = action.rollGold(random);
     builder.addCurrency(Currency.gp, gold);
 
     // Roll drops with doubling applied
     final actionState = builder.state.actionState(action.id);
     final selection = actionState.recipeSelection(action);
     final modifiers = builder.state.resolveModifiers(action);
-    rollAndCollectDrops(builder, action, modifiers, rng, selection);
+    rollAndCollectDrops(builder, action, modifiers, random, selection);
 
     return true;
   } else {
     // Thieving failed - deal damage
-    final damage = action.rollDamage(rng);
+    final damage = action.rollDamage(random);
     builder.damagePlayer(damage);
 
     // Try auto-eat after taking damage
@@ -701,7 +701,7 @@ bool completeThievingAction(
     // Check if player died (after auto-eat attempt)
     if (builder.state.playerHp <= 0) {
       builder
-        ..applyDeathPenalty(rng)
+        ..applyDeathPenalty(random)
         ..resetPlayerHealth();
       return false;
     }
@@ -795,7 +795,7 @@ enum ForegroundResult {
   StateUpdateBuilder builder,
   SkillAction action,
   Tick ticksAvailable,
-  Random rng,
+  Random random,
 ) {
   var currentAction = builder.state.activeAction;
   if (currentAction == null) {
@@ -817,7 +817,7 @@ enum ForegroundResult {
   // This happens when an action (e.g., thieving) completed but was stunned,
   // leaving it at remainingTicks=0 until stun cleared.
   if (currentAction.remainingTicks == 0) {
-    builder.restartCurrentAction(action, random: rng);
+    builder.restartCurrentAction(action, random: random);
     currentAction = builder.state.activeAction;
   }
   if (currentAction == null) {
@@ -840,7 +840,7 @@ enum ForegroundResult {
         return (ForegroundResult.continued, ticksAvailable);
       } else {
         // Respawn complete, restart action and continue
-        builder.restartCurrentAction(action, random: rng);
+        builder.restartCurrentAction(action, random: random);
         return (ForegroundResult.continued, respawnResult.ticksConsumed);
       }
     }
@@ -856,7 +856,7 @@ enum ForegroundResult {
   if (newRemainingTicks <= 0) {
     // Action completed - handle differently based on action type
     if (action is ThievingAction) {
-      final playerAlive = completeThievingAction(builder, action, rng);
+      final playerAlive = completeThievingAction(builder, action, random);
       if (playerAlive) {
         if (builder.state.isStunned) {
           // Failed - leave at remainingTicks=0, return justStunned so
@@ -864,7 +864,7 @@ enum ForegroundResult {
           return (ForegroundResult.justStunned, ticksToApply);
         } else {
           // Success - restart action normally
-          builder.restartCurrentAction(action, random: rng);
+          builder.restartCurrentAction(action, random: random);
           return (ForegroundResult.continued, ticksToApply);
         }
       } else {
@@ -874,7 +874,7 @@ enum ForegroundResult {
       }
     }
 
-    final canRepeat = completeAction(builder, action, random: rng);
+    final canRepeat = completeAction(builder, action, random: random);
 
     // For mining, check if node just depleted
     if (action is MiningAction && !canRepeat) {
@@ -889,7 +889,7 @@ enum ForegroundResult {
 
     // Restart action if possible, otherwise stop
     if (canRepeat && builder.state.canStartAction(action)) {
-      builder.restartCurrentAction(action, random: rng);
+      builder.restartCurrentAction(action, random: random);
       return (ForegroundResult.continued, ticksToApply);
     } else {
       // Determine stop reason: inventory full (can't repeat) or out of inputs
@@ -911,7 +911,7 @@ enum ForegroundResult {
   StateUpdateBuilder builder,
   CombatAction action,
   Tick ticksAvailable,
-  Random rng,
+  Random random,
 ) {
   final activeAction = builder.state.activeAction;
   if (activeAction == null) {
@@ -932,7 +932,7 @@ enum ForegroundResult {
   if (spawnTicks != null) {
     if (remainingTicks >= spawnTicks) {
       // Monster spawns
-      final pStats = playerStats(builder.state);
+      final pStats = computePlayerStats(builder.state);
       final playerAttackTicks = secondsToTicks(pStats.attackSpeed);
       final monsterAttackTicks = secondsToTicks(action.stats.attackSpeed);
 
@@ -979,9 +979,23 @@ enum ForegroundResult {
   var monsterHp = currentCombat.monsterHp;
   var resetPlayerTicks = newPlayerTicks;
   if (newPlayerTicks <= 0) {
-    final pStats = playerStats(builder.state);
-    final damage = pStats.rollDamage(rng);
-    monsterHp -= damage;
+    final pStats = computePlayerStats(builder.state);
+    final mStats = MonsterCombatStats.fromAction(action);
+
+    // Calculate hit chance and roll to see if attack hits
+    // Player attacks monster's melee evasion (simplified)
+    final hitChance = CombatCalculator.playerHitChance(
+      pStats,
+      mStats,
+      AttackType.melee,
+    );
+
+    if (CombatCalculator.rollHit(random, hitChance)) {
+      final damage = pStats.rollDamage(random);
+      monsterHp -= damage;
+    }
+    // Miss: no damage dealt
+
     resetPlayerTicks = ticksFromDuration(
       Duration(milliseconds: (pStats.attackSpeed * 1000).round()),
     );
@@ -989,7 +1003,7 @@ enum ForegroundResult {
 
   // Check if monster died
   if (monsterHp <= 0) {
-    final gpDrop = action.rollGpDrop(rng);
+    final gpDrop = action.rollGpDrop(random);
     builder.addCurrency(Currency.gp, gpDrop);
     // Reset monster attack timer to full duration for when it spawns
     final fullMonsterAttackTicks = ticksFromDuration(
@@ -1008,17 +1022,29 @@ enum ForegroundResult {
   // Process monster attack if ready
   var resetMonsterTicks = newMonsterTicks;
   if (newMonsterTicks <= 0) {
-    final mStats = action.stats;
-    final damage = mStats.rollDamage(rng);
-    final pStats = playerStats(builder.state);
-    final reducedDamage = (damage * (1 - pStats.damageReduction)).round();
-    health = health.takeDamage(reducedDamage);
-    builder.setHealth(health);
+    final mStats = MonsterCombatStats.fromAction(action);
+    final pStats = computePlayerStats(builder.state);
+
+    // Calculate hit chance and roll to see if monster hits
+    final hitChance = CombatCalculator.monsterHitChance(
+      mStats,
+      pStats,
+      action.attackType,
+    );
+
+    if (CombatCalculator.rollHit(random, hitChance)) {
+      final damage = mStats.rollDamage(random);
+      final reducedDamage = (damage * (1 - pStats.damageReduction)).round();
+      health = health.takeDamage(reducedDamage);
+      builder.setHealth(health);
+    }
+    // Miss: no damage taken
+
     resetMonsterTicks = ticksFromDuration(
       Duration(milliseconds: (mStats.attackSpeed * 1000).round()),
     );
 
-    // Try auto-eat after taking damage
+    // Try auto-eat after attack (whether hit or miss, player may need healing)
     final modifiers = builder.state.resolveGlobalModifiers();
     builder.tryAutoEat(modifiers);
   }
@@ -1027,7 +1053,7 @@ enum ForegroundResult {
   // This happens AFTER auto-eat, so player can survive if food available
   if (builder.state.playerHp <= 0) {
     builder
-      ..applyDeathPenalty(rng)
+      ..applyDeathPenalty(random)
       ..resetPlayerHealth()
       ..stopAction(ActionStopReason.playerDied);
     return (ForegroundResult.stopped, ticksConsumed);
@@ -1048,12 +1074,12 @@ enum ForegroundResult {
   StateUpdateBuilder builder,
   Action action,
   Tick ticksAvailable,
-  Random rng,
+  Random random,
 ) {
   if (action is CombatAction) {
-    return _processCombatForeground(builder, action, ticksAvailable, rng);
+    return _processCombatForeground(builder, action, ticksAvailable, random);
   } else if (action is SkillAction) {
-    return _processSkillForeground(builder, action, ticksAvailable, rng);
+    return _processSkillForeground(builder, action, ticksAvailable, random);
   } else {
     throw StateError('Unknown action type: ${action.runtimeType}');
   }

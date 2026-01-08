@@ -249,10 +249,10 @@ class Equipment {
   /// - If the slot has an item, it is lost forever
   /// - If the slot is empty, nothing is lost ("Luck was on your side")
   /// - For ammo (quiver) or summons, the entire stack is lost
-  DeathPenaltyResult applyDeathPenalty(Random rng) {
+  DeathPenaltyResult applyDeathPenalty(Random random) {
     // Roll a random equipment slot (excluding food slots)
     const slots = EquipmentSlot.values;
-    final slotIndex = rng.nextInt(slots.length);
+    final slotIndex = random.nextInt(slots.length);
     final slot = slots[slotIndex];
 
     // Check if there's an item in this slot

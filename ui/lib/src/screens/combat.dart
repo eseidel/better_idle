@@ -57,12 +57,7 @@ class CombatPage extends StatelessWidget {
               animateAttack: state.isPlayerActive,
               attackTicksRemaining: combatState?.playerAttackTicksRemaining,
               totalAttackTicks: activeMonster != null
-                  ? ticksFromDuration(
-                      Duration(
-                        milliseconds: (playerStats(state).attackSpeed * 1000)
-                            .round(),
-                      ),
-                    )
+                  ? secondsToTicks(computePlayerStats(state).attackSpeed)
                   : null,
             ),
             const SizedBox(height: 16),
