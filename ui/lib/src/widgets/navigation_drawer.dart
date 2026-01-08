@@ -9,21 +9,37 @@ import 'package:go_router/go_router.dart';
 import 'package:logic/logic.dart';
 
 class _SectionHeader extends StatelessWidget {
-  const _SectionHeader({required this.title});
+  const _SectionHeader({required this.title, this.trailing});
 
   final String title;
+  final String? trailing;
 
   @override
   Widget build(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 16, 16, 4),
-      child: Text(
-        title,
-        style: const TextStyle(
-          fontSize: 12,
-          fontWeight: FontWeight.bold,
-          color: Style.textColorSecondary,
-        ),
+      child: Row(
+        children: [
+          Text(
+            title,
+            style: const TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.bold,
+              color: Style.textColorSecondary,
+            ),
+          ),
+          if (trailing != null) ...[
+            const Spacer(),
+            Text(
+              trailing!,
+              style: const TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.bold,
+                color: Style.textColorSecondary,
+              ),
+            ),
+          ],
+        ],
       ),
     );
   }
@@ -117,7 +133,7 @@ class AppNavigationDrawer extends StatelessWidget {
               router.goNamed('bank');
             },
           ),
-          const _SectionHeader(title: 'Combat'),
+          _SectionHeader(title: 'Combat', trailing: 'Lv. ${state.combatLevel}'),
           const SkillTile(skill: Skill.hitpoints),
           const SkillTile(skill: Skill.attack),
           const _SectionHeader(title: 'Passive'),

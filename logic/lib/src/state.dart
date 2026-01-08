@@ -614,6 +614,39 @@ class GlobalState {
     return hitpointsLevel * 10;
   }
 
+  /// The player's combat level using Melvor Idle formula.
+  ///
+  /// Formula:
+  /// Base = 0.25 * (Defence + Hitpoints + floor(0.5 * Prayer))
+  /// Melee = Attack + Strength
+  /// Ranged = floor(1.5 * Ranged)
+  /// Magic = floor(1.5 * Magic)
+  /// Combat Level = floor(Base + 0.325 * max(Melee, Ranged, Magic))
+  int get combatLevel {
+    final defenceLevel = skillState(Skill.defence).skillLevel;
+    final hitpointsLevel = skillState(Skill.hitpoints).skillLevel;
+    final prayerLevel = skillState(Skill.prayer).skillLevel;
+    final attackLevel = skillState(Skill.attack).skillLevel;
+    final strengthLevel = skillState(Skill.strength).skillLevel;
+    final rangedLevel = skillState(Skill.ranged).skillLevel;
+    final magicLevel = skillState(Skill.magic).skillLevel;
+
+    final baseCombatLevel =
+        0.25 * (defenceLevel + hitpointsLevel + (0.5 * prayerLevel).floor());
+
+    final meleeCombatLevel = attackLevel + strengthLevel;
+    final rangedCombatLevel = (1.5 * rangedLevel).floor();
+    final magicCombatLevel = (1.5 * magicLevel).floor();
+
+    final highestOffensive = [
+      meleeCombatLevel,
+      rangedCombatLevel,
+      magicCombatLevel,
+    ].reduce((a, b) => a > b ? a : b);
+
+    return (baseCombatLevel + 0.325 * highestOffensive).floor();
+  }
+
   /// The current player HP (computed from maxPlayerHp - lostHp).
   int get playerHp => (maxPlayerHp - health.lostHp).clamp(0, maxPlayerHp);
 

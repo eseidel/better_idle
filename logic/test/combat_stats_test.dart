@@ -676,8 +676,8 @@ void main() {
       final statsHighDefence = PlayerCombatStats.fromState(lowMagicHighDefence);
       final statsBoth = PlayerCombatStats.fromState(highBoth);
 
-      // Since magic is 70% weighted, high magic should give better magic evasion
-      // than high defence alone
+      // Since magic is 70% weighted, high magic should give better magic
+      // evasion than high defence alone
       expect(
         statsHighMagic.magicEvasion,
         greaterThan(statsHighDefence.magicEvasion),
