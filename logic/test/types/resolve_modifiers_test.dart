@@ -72,7 +72,7 @@ void main() {
       final registries = Registries.test();
       final action = createFakeAction(skill: Skill.woodcutting);
       final state = GlobalState.test(registries);
-      final modifiers = state.resolveModifiers(action);
+      final modifiers = state.resolveSkillModifiers(action);
 
       expect(modifiers.isEmpty, isTrue);
     });
@@ -110,7 +110,7 @@ void main() {
         registries,
         actionStates: {action.id: ActionState(masteryXp: startXpForLevel(98))},
       );
-      final modifiersLevel98 = stateLevel98.resolveModifiers(action);
+      final modifiersLevel98 = stateLevel98.resolveSkillModifiers(action);
       expect(modifiersLevel98.flatSkillInterval, 0);
 
       // At level 99, bonus should apply
@@ -118,7 +118,7 @@ void main() {
         registries,
         actionStates: {action.id: ActionState(masteryXp: startXpForLevel(99))},
       );
-      final modifiersLevel99 = stateLevel99.resolveModifiers(action);
+      final modifiersLevel99 = stateLevel99.resolveSkillModifiers(action);
       expect(modifiersLevel99.flatSkillInterval, -200);
     });
 
@@ -161,7 +161,7 @@ void main() {
             firemakingAction.id: ActionState(masteryXp: startXpForLevel(99)),
           },
         );
-        final modifiers = state.resolveModifiers(firemakingAction);
+        final modifiers = state.resolveSkillModifiers(firemakingAction);
         expect(modifiers.masteryXP, 0.25);
       },
     );
@@ -202,35 +202,50 @@ void main() {
         registries,
         actionStates: {action.id: ActionState(masteryXp: startXpForLevel(5))},
       );
-      expect(stateLevel5.resolveModifiers(action).skillItemDoublingChance, 0);
+      expect(
+        stateLevel5.resolveSkillModifiers(action).skillItemDoublingChance,
+        0,
+      );
 
       // At level 10, bonus applies once (5%)
       final stateLevel10 = GlobalState.test(
         registries,
         actionStates: {action.id: ActionState(masteryXp: startXpForLevel(10))},
       );
-      expect(stateLevel10.resolveModifiers(action).skillItemDoublingChance, 5);
+      expect(
+        stateLevel10.resolveSkillModifiers(action).skillItemDoublingChance,
+        5,
+      );
 
       // At level 50, bonus applies 5 times (25%)
       final stateLevel50 = GlobalState.test(
         registries,
         actionStates: {action.id: ActionState(masteryXp: startXpForLevel(50))},
       );
-      expect(stateLevel50.resolveModifiers(action).skillItemDoublingChance, 25);
+      expect(
+        stateLevel50.resolveSkillModifiers(action).skillItemDoublingChance,
+        25,
+      );
 
       // At level 90 (max), bonus applies 9 times (45%)
       final stateLevel90 = GlobalState.test(
         registries,
         actionStates: {action.id: ActionState(masteryXp: startXpForLevel(90))},
       );
-      expect(stateLevel90.resolveModifiers(action).skillItemDoublingChance, 45);
+      expect(
+        stateLevel90.resolveSkillModifiers(action).skillItemDoublingChance,
+        45,
+      );
 
       // At level 99 (past max), bonus still only applies 9 times (45%)
       final stateLevel99 = GlobalState.test(
         registries,
         actionStates: {action.id: ActionState(masteryXp: startXpForLevel(99))},
       );
-      expect(stateLevel99.resolveModifiers(action).skillItemDoublingChance, 45);
+      expect(
+        stateLevel99.resolveSkillModifiers(action).skillItemDoublingChance,
+        45,
+      );
     });
 
     test('shop purchase modifiers are resolved', () {
@@ -266,14 +281,14 @@ void main() {
 
       // Without purchase, no modifier
       final stateNoPurchase = GlobalState.test(registries);
-      expect(stateNoPurchase.resolveModifiers(action).skillInterval, 0);
+      expect(stateNoPurchase.resolveSkillModifiers(action).skillInterval, 0);
 
       // With purchase, modifier applies
       final stateWithPurchase = GlobalState.test(
         registries,
         shop: ShopState(purchaseCounts: {fakeShopPurchaseId: 1}),
       );
-      expect(stateWithPurchase.resolveModifiers(action).skillInterval, -5);
+      expect(stateWithPurchase.resolveSkillModifiers(action).skillInterval, -5);
     });
 
     test('global scope within skillInterval modifier applies', () {
@@ -320,7 +335,9 @@ void main() {
       );
 
       // Both the woodcutting-scoped (-5) and global (-2) entries should apply
-      final modifiers = stateWithPurchase.resolveModifiers(woodcuttingAction);
+      final modifiers = stateWithPurchase.resolveSkillModifiers(
+        woodcuttingAction,
+      );
       expect(modifiers.skillInterval, -7);
     });
 
@@ -391,7 +408,7 @@ void main() {
         actionStates: {action.id: ActionState(masteryXp: startXpForLevel(50))},
       );
 
-      final modifiers = state.resolveModifiers(action);
+      final modifiers = state.resolveSkillModifiers(action);
 
       // Shop (-5) + Mastery (-3) = -8
       expect(modifiers.skillInterval, -8);
@@ -435,7 +452,7 @@ void main() {
       );
 
       // The fishing-scoped modifier should NOT apply to woodcutting
-      final modifiers = state.resolveModifiers(woodcuttingAction);
+      final modifiers = state.resolveSkillModifiers(woodcuttingAction);
       expect(modifiers.skillInterval, 0);
     });
   });
@@ -493,7 +510,9 @@ void main() {
           firemakingAction.id: ActionState(masteryXp: startXpForLevel(1)),
         },
       );
-      final modifiersLevel1 = stateLevel1.resolveModifiers(firemakingAction);
+      final modifiersLevel1 = stateLevel1.resolveSkillModifiers(
+        firemakingAction,
+      );
       expect(modifiersLevel1.skillInterval, closeTo(-0.1, 0.001));
 
       // At mastery level 50, bonus applies 50 times: -5%
@@ -503,7 +522,9 @@ void main() {
           firemakingAction.id: ActionState(masteryXp: startXpForLevel(50)),
         },
       );
-      final modifiersLevel50 = stateLevel50.resolveModifiers(firemakingAction);
+      final modifiersLevel50 = stateLevel50.resolveSkillModifiers(
+        firemakingAction,
+      );
       expect(modifiersLevel50.skillInterval, closeTo(-5.0, 0.001));
 
       // At mastery level 99, bonus applies 99 times: -9.9%
@@ -513,7 +534,9 @@ void main() {
           firemakingAction.id: ActionState(masteryXp: startXpForLevel(99)),
         },
       );
-      final modifiersLevel99 = stateLevel99.resolveModifiers(firemakingAction);
+      final modifiersLevel99 = stateLevel99.resolveSkillModifiers(
+        firemakingAction,
+      );
       expect(modifiersLevel99.skillInterval, closeTo(-9.9, 0.001));
     });
 

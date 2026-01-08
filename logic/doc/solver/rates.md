@@ -88,7 +88,7 @@ All drops are computed via `allDropsForAction` which combines all sources.
 final dropsForAction = registries.drops.allDropsForAction(action, selection);
 
 // Get doubling chance from modifiers
-final modifiers = state.resolveModifiers(action);
+final modifiers = state.resolveSkillModifiers(action);
 final doublingChance = (modifiers.skillItemDoublingChance / 100.0).clamp(0.0, 1.0);
 
 final itemFlowsPerAction = expectedItemsForDrops(dropsForAction, doublingChance: doublingChance);

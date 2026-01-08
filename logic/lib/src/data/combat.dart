@@ -260,6 +260,7 @@ class CombatAction extends Action {
 
   /// Calculate monster stats for combat.
   /// This is a simplified calculation - full Melvor has more complex formulas.
+  // TODO(eseidel): Add more complete formulas.
   Stats get stats {
     // Calculate max hit based on attack type and levels.
     // Simplified formula: strength-based for melee, ranged/magic for others.
