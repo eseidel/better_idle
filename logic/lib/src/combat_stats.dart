@@ -79,10 +79,11 @@ class PlayerCombatStats extends Stats {
     minHit = minHit.clamp(1, maxHit);
 
     // --- Attack Speed ---
-    // Base attack speed is 4 seconds for unarmed
-    // Equipment can modify this via attackInterval (percentage) and
-    // flatAttackInterval (milliseconds)
-    var attackSpeedMs = 4000.0;
+    // Base attack speed comes from weapon (equipmentAttackSpeed) or 4000ms
+    // if unarmed. Equipment can modify this via attackInterval (percentage)
+    // and flatAttackInterval (milliseconds).
+    final weaponSpeed = bonuses.equipmentAttackSpeed;
+    var attackSpeedMs = (weaponSpeed > 0 ? weaponSpeed : 4000).toDouble();
 
     // Apply percentage modifier first
     final intervalPercent = bonuses.attackInterval;
@@ -92,7 +93,7 @@ class PlayerCombatStats extends Stats {
     attackSpeedMs += bonuses.flatAttackInterval.toDouble();
 
     // Convert to seconds, clamp to reasonable bounds
-    final attackSpeed = (attackSpeedMs / 1000).clamp(2.0, 10.0);
+    final attackSpeed = (attackSpeedMs / 1000).clamp(0.5, 10.0);
 
     // --- Damage Reduction ---
     // In Melvor, this comes from the "resistance" modifier

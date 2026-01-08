@@ -706,12 +706,20 @@ class GlobalState {
   ///
   /// This combines:
   /// - Global shop modifiers (autoEat, etc.)
-  /// - Equipment modifiers (strength bonus, defence bonus, etc.)
+  /// - Equipment modifiers (from item.modifiers)
+  /// - Equipment stats (from item.equipmentStats, converted to modifiers)
   /// - (Future: potions, prayers, etc.)
   ///
   /// Used for calculating player combat stats like max hit, accuracy, evasion.
   ResolvedModifiers resolveCombatModifiers() {
-    return _resolveModifiers();
+    var result = _resolveModifiers();
+
+    // Combine equipment stats from all equipped items
+    for (final item in equipment.gearSlots.values) {
+      result = result.combine(item.equipmentStats.toModifiers());
+    }
+
+    return result;
   }
 
   /// Internal shared implementation for modifier resolution.
@@ -797,8 +805,6 @@ class GlobalState {
         }
       }
     }
-
-    // --- Future: potions, prayers, etc. ---
 
     return builder.build();
   }

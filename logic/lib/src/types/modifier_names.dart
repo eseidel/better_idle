@@ -116,6 +116,7 @@ class ModifiersBase {
   num get elementalRuneChance => values['elementalRuneChance'] ?? 0;
   num get elementalRuneQuantity => values['elementalRuneQuantity'] ?? 0;
   num get enableNightfallSeason => values['enableNightfallSeason'] ?? 0;
+  num get equipmentAttackSpeed => values['equipmentAttackSpeed'] ?? 0;
   num get equipmentSets => values['equipmentSets'] ?? 0;
   num get evasion => values['evasion'] ?? 0;
   num get farmingCropsCannotDie => values['farmingCropsCannotDie'] ?? 0;

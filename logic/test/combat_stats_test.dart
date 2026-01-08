@@ -166,6 +166,141 @@ void main() {
     });
   });
 
+  group('equipment combat effects', () {
+    late Item bronzeSword;
+    late Item bronzeHelmet;
+
+    setUpAll(() {
+      bronzeSword = testItems.byName('Bronze Sword');
+      bronzeHelmet = testItems.byName('Bronze Helmet');
+    });
+
+    test('weapon attack speed affects player attack speed', () {
+      // Bronze Sword has 2400ms attack speed
+      expect(bronzeSword.equipmentStats.attackSpeed, 2400);
+
+      final equipment = Equipment(
+        foodSlots: const [null, null, null],
+        selectedFoodSlot: 0,
+        gearSlots: {EquipmentSlot.weapon: bronzeSword},
+      );
+      final stateWithWeapon = GlobalState.test(
+        testRegistries,
+        equipment: equipment,
+      );
+      final stateUnarmed = GlobalState.test(testRegistries);
+
+      final statsWithWeapon = PlayerCombatStats.fromState(stateWithWeapon);
+      final statsUnarmed = PlayerCombatStats.fromState(stateUnarmed);
+
+      // Unarmed = 4 seconds, Bronze Sword = 2.4 seconds
+      expect(statsUnarmed.attackSpeed, 4.0);
+      expect(statsWithWeapon.attackSpeed, 2.4);
+    });
+
+    test('weapon strength bonus affects max hit', () {
+      // Bronze Sword has meleeStrengthBonus in equipmentStats
+      expect(bronzeSword.equipmentStats.meleeStrengthBonus, greaterThan(0));
+
+      final equipment = Equipment(
+        foodSlots: const [null, null, null],
+        selectedFoodSlot: 0,
+        gearSlots: {EquipmentSlot.weapon: bronzeSword},
+      );
+      final stateWithWeapon = GlobalState.test(
+        testRegistries,
+        equipment: equipment,
+      );
+      final stateUnarmed = GlobalState.test(testRegistries);
+
+      final statsWithWeapon = PlayerCombatStats.fromState(stateWithWeapon);
+      final statsUnarmed = PlayerCombatStats.fromState(stateUnarmed);
+
+      // Max hit should be higher with weapon strength bonus
+      expect(statsWithWeapon.maxHit, greaterThan(statsUnarmed.maxHit));
+    });
+
+    test('weapon attack bonus affects accuracy', () {
+      // Bronze Sword has stabAttackBonus in equipmentStats
+      expect(bronzeSword.equipmentStats.stabAttackBonus, greaterThan(0));
+
+      final equipment = Equipment(
+        foodSlots: const [null, null, null],
+        selectedFoodSlot: 0,
+        gearSlots: {EquipmentSlot.weapon: bronzeSword},
+      );
+      final stateWithWeapon = GlobalState.test(
+        testRegistries,
+        equipment: equipment,
+      );
+      final stateUnarmed = GlobalState.test(testRegistries);
+
+      final statsWithWeapon = PlayerCombatStats.fromState(stateWithWeapon);
+      final statsUnarmed = PlayerCombatStats.fromState(stateUnarmed);
+
+      // Accuracy should be higher with attack bonus
+      expect(statsWithWeapon.accuracy, greaterThan(statsUnarmed.accuracy));
+    });
+
+    test('armor defence bonus affects evasion', () {
+      // Bronze Helmet has meleeDefenceBonus in equipmentStats
+      expect(bronzeHelmet.equipmentStats.meleeDefenceBonus, greaterThan(0));
+
+      final equipment = Equipment(
+        foodSlots: const [null, null, null],
+        selectedFoodSlot: 0,
+        gearSlots: {EquipmentSlot.helmet: bronzeHelmet},
+      );
+      final stateWithArmor = GlobalState.test(
+        testRegistries,
+        equipment: equipment,
+      );
+      final stateNaked = GlobalState.test(testRegistries);
+
+      final statsWithArmor = PlayerCombatStats.fromState(stateWithArmor);
+      final statsNaked = PlayerCombatStats.fromState(stateNaked);
+
+      // Evasion should be higher with defence bonus
+      expect(statsWithArmor.meleeEvasion, greaterThan(statsNaked.meleeEvasion));
+    });
+
+    test('multiple equipment pieces stack bonuses', () {
+      // Equip both weapon and helmet
+      final equipment = Equipment(
+        foodSlots: const [null, null, null],
+        selectedFoodSlot: 0,
+        gearSlots: {
+          EquipmentSlot.weapon: bronzeSword,
+          EquipmentSlot.helmet: bronzeHelmet,
+        },
+      );
+      final stateFullGear = GlobalState.test(
+        testRegistries,
+        equipment: equipment,
+      );
+      final weaponOnly = Equipment(
+        foodSlots: const [null, null, null],
+        selectedFoodSlot: 0,
+        gearSlots: {EquipmentSlot.weapon: bronzeSword},
+      );
+      final stateWeaponOnly = GlobalState.test(
+        testRegistries,
+        equipment: weaponOnly,
+      );
+
+      final statsFullGear = PlayerCombatStats.fromState(stateFullGear);
+      final statsWeaponOnly = PlayerCombatStats.fromState(stateWeaponOnly);
+
+      // With helmet, should have higher evasion
+      expect(
+        statsFullGear.meleeEvasion,
+        greaterThan(statsWeaponOnly.meleeEvasion),
+      );
+      // Attack speed should be same (determined by weapon)
+      expect(statsFullGear.attackSpeed, statsWeaponOnly.attackSpeed);
+    });
+  });
+
   group('CombatXpGrant', () {
     test('stab style grants Attack XP and Hitpoints XP', () {
       final grant = CombatXpGrant.fromDamage(10, AttackStyle.stab);
@@ -270,9 +405,9 @@ void main() {
 
     test('attackStyle defaults to stab when not in JSON', () {
       final state = GlobalState.test(testRegistries);
-      final json = state.toJson();
-      // Remove attackStyle from JSON to simulate old save data
-      json.remove('attackStyle');
+      final json = state.toJson()
+        // Remove attackStyle from JSON to simulate old save data
+        ..remove('attackStyle');
 
       final restored = GlobalState.fromJson(testRegistries, json);
       expect(restored.attackStyle, equals(AttackStyle.stab));

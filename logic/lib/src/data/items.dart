@@ -1,3 +1,4 @@
+// cspell:words summoningMaxhit
 import 'dart:math';
 
 import 'package:equatable/equatable.dart';
@@ -6,7 +7,90 @@ import 'package:logic/src/types/drop.dart';
 import 'package:logic/src/types/equipment_slot.dart';
 import 'package:logic/src/types/inventory.dart';
 import 'package:logic/src/types/modifier.dart';
+import 'package:logic/src/types/resolved_modifiers.dart';
 import 'package:meta/meta.dart';
+
+/// Combat stats provided by equipment items.
+/// Parsed from the `equipmentStats` array in Melvor JSON.
+///
+/// Uses a map internally for simplicity. Stats are accessed via typed getters.
+@immutable
+class EquipmentStats extends Equatable {
+  const EquipmentStats(this._values);
+
+  /// Parses equipment stats from JSON array.
+  factory EquipmentStats.fromJson(List<dynamic>? json) {
+    if (json == null || json.isEmpty) return empty;
+
+    final values = <String, int>{};
+    for (final stat in json.cast<Map<String, dynamic>>()) {
+      final key = stat['key'] as String;
+      final value = (stat['value'] as num).toInt();
+      values[key] = value;
+    }
+    return EquipmentStats(values);
+  }
+
+  static const empty = EquipmentStats({});
+
+  final Map<String, int> _values;
+
+  /// Weapon attack speed in milliseconds. Null for non-weapons.
+  int? get attackSpeed => _values['attackSpeed'];
+
+  // Attack bonuses
+  int get stabAttackBonus => _values['stabAttackBonus'] ?? 0;
+  int get slashAttackBonus => _values['slashAttackBonus'] ?? 0;
+  int get blockAttackBonus => _values['blockAttackBonus'] ?? 0;
+
+  // Strength bonuses
+  int get meleeStrengthBonus => _values['meleeStrengthBonus'] ?? 0;
+  int get rangedStrengthBonus => _values['rangedStrengthBonus'] ?? 0;
+
+  // Attack bonuses (ranged/magic)
+  int get rangedAttackBonus => _values['rangedAttackBonus'] ?? 0;
+  int get magicAttackBonus => _values['magicAttackBonus'] ?? 0;
+  int get magicDamageBonus => _values['magicDamageBonus'] ?? 0;
+
+  // Defence bonuses
+  int get meleeDefenceBonus => _values['meleeDefenceBonus'] ?? 0;
+  int get rangedDefenceBonus => _values['rangedDefenceBonus'] ?? 0;
+  int get magicDefenceBonus => _values['magicDefenceBonus'] ?? 0;
+
+  // Damage reduction (resistance)
+  int get damageReduction => _values['damageReduction'] ?? 0;
+
+  /// Maps equipment stat keys to modifier names.
+  static const _statToModifier = {
+    'attackSpeed': 'equipmentAttackSpeed',
+    'stabAttackBonus': 'flatStabAttackBonus',
+    'slashAttackBonus': 'flatSlashAttackBonus',
+    'blockAttackBonus': 'flatBlockAttackBonus',
+    'meleeStrengthBonus': 'flatMeleeStrengthBonus',
+    'rangedStrengthBonus': 'flatRangedStrengthBonus',
+    'rangedAttackBonus': 'flatRangedAttackBonus',
+    'magicDamageBonus': 'magicDamageBonus',
+    'meleeDefenceBonus': 'flatMeleeDefenceBonus',
+    'rangedDefenceBonus': 'flatRangedDefenceBonus',
+    'magicDefenceBonus': 'flatMagicDefenceBonus',
+    'damageReduction': 'flatResistance',
+  };
+
+  /// Converts equipment stats to resolved modifiers for combat calculations.
+  ResolvedModifiers toModifiers() {
+    final result = <String, num>{};
+    for (final entry in _values.entries) {
+      final modifierName = _statToModifier[entry.key];
+      if (modifierName != null && entry.value != 0) {
+        result[modifierName] = entry.value;
+      }
+    }
+    return ResolvedModifiers(result);
+  }
+
+  @override
+  List<Object?> get props => [_values];
+}
 
 /// An entry in a drop table from the Melvor JSON data.
 /// Used for weighted drops within a DropTable.
@@ -102,6 +186,7 @@ class Item extends Equatable {
     this.media,
     this.validSlots = const [],
     this.modifiers = const ModifierDataSet([]),
+    this.equipmentStats = EquipmentStats.empty,
   });
 
   /// Creates a simple test item with minimal required fields.
@@ -122,7 +207,8 @@ class Item extends Equatable {
        dropTable = null,
        media = null,
        validSlots = const [],
-       modifiers = const ModifierDataSet([]);
+       modifiers = const ModifierDataSet([]),
+       equipmentStats = EquipmentStats.empty;
 
   /// Creates an Item from a JSON map.
   factory Item.fromJson(
@@ -176,6 +262,10 @@ class Item extends Equatable {
         ? ModifierDataSet.fromJson(modifiersJson, namespace: namespace)
         : const ModifierDataSet([]);
 
+    // Parse equipmentStats into EquipmentStats class.
+    final equipmentStatsJson = json['equipmentStats'] as List<dynamic>?;
+    final equipmentStats = EquipmentStats.fromJson(equipmentStatsJson);
+
     return Item(
       id: id,
       name: json['name'] as String,
@@ -191,6 +281,7 @@ class Item extends Equatable {
       validSlots: validSlots,
       description: json['customDescription'] as String?,
       modifiers: modifiers,
+      equipmentStats: equipmentStats,
     );
   }
 
@@ -238,6 +329,10 @@ class Item extends Equatable {
   /// Empty set means no modifiers.
   final ModifierDataSet modifiers;
 
+  /// Combat stats provided by this equipment item.
+  /// Contains attack bonuses, strength bonuses, defence bonuses, etc.
+  final EquipmentStats equipmentStats;
+
   /// Whether this item can be consumed for healing.
   bool get isConsumable => healsFor != null;
 
@@ -275,6 +370,7 @@ class Item extends Equatable {
     validSlots,
     description,
     modifiers,
+    equipmentStats,
   ];
 }
 
