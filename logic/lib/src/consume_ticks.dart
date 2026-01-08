@@ -1015,6 +1015,23 @@ enum ForegroundResult {
   if (monsterHp <= 0) {
     final gpDrop = action.rollGpDrop(random);
     builder.addCurrency(Currency.gp, gpDrop);
+
+    // Drop bones if the monster has them
+    final bones = action.bones;
+    if (bones != null) {
+      final item = builder.registries.items.byId(bones.itemId);
+      builder.addInventory(ItemStack(item, count: bones.quantity));
+    }
+
+    // Roll loot table if present
+    final lootTable = action.lootTable;
+    if (lootTable != null) {
+      final loot = lootTable.roll(builder.registries.items, random);
+      if (loot != null) {
+        builder.addInventory(loot);
+      }
+    }
+
     // Reset monster attack timer to full duration for when it spawns
     final fullMonsterAttackTicks = ticksFromDuration(
       Duration(milliseconds: (action.stats.attackSpeed * 1000).round()),
