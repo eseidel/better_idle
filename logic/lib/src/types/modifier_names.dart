@@ -159,6 +159,7 @@ class ModifiersBase {
   num get flatHPRegenBasedOnRangedMaxHit =>
       values['flatHPRegenBasedOnRangedMaxHit'] ?? 0;
   num get flatHiddenSkillLevel => values['flatHiddenSkillLevel'] ?? 0;
+  num get flatMagicAttackBonus => values['flatMagicAttackBonus'] ?? 0;
   num get flatMagicDefenceBonus => values['flatMagicDefenceBonus'] ?? 0;
   num get flatMagicMaxHit => values['flatMagicMaxHit'] ?? 0;
   num get flatMagicMinHit => values['flatMagicMinHit'] ?? 0;

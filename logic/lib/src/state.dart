@@ -67,7 +67,14 @@ enum AttackStyle {
   rapid,
 
   /// LongRange: Ranged + Defence XP, +3 effective Defence level.
-  longRange;
+  longRange,
+
+  // Magic styles
+  /// Standard: Magic XP, balanced magic combat.
+  standard,
+
+  /// Defensive: Magic + Defence XP, +3 effective Defence level.
+  defensive;
 
   factory AttackStyle.fromJson(String value) {
     return switch (value) {
@@ -82,6 +89,9 @@ enum AttackStyle {
       // Melvor Idle uses "longrange" for longRange.
       // cspell:ignore longrange
       'longrange' || 'longRange' => AttackStyle.longRange,
+      // Magic styles
+      'standard' => AttackStyle.standard,
+      'defensive' => AttackStyle.defensive,
       _ => throw ArgumentError('Invalid attack style: $value'),
     };
   }
@@ -93,6 +103,7 @@ enum AttackStyle {
     return switch (this) {
       stab || slash || block || controlled => CombatType.melee,
       accurate || rapid || longRange => CombatType.ranged,
+      standard || defensive => CombatType.magic,
     };
   }
 
@@ -101,6 +112,9 @@ enum AttackStyle {
 
   /// Returns true if this is a ranged attack style.
   bool get isRanged => combatType == CombatType.ranged;
+
+  /// Returns true if this is a magic attack style.
+  bool get isMagic => combatType == CombatType.magic;
 }
 
 @immutable

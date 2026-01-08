@@ -51,6 +51,7 @@ class PlayerCombatStats extends Stats {
     final strengthLevel = state.skillState(Skill.strength).skillLevel;
     final defenceLevel = state.skillState(Skill.defence).skillLevel;
     final rangedLevel = state.skillState(Skill.ranged).skillLevel;
+    final magicLevel = state.skillState(Skill.magic).skillLevel;
 
     // --- Max Hit Calculation ---
     // Melvor formula:
@@ -75,9 +76,9 @@ class PlayerCombatStats extends Stats {
         maxHitBonus = bonuses.flatRangedStrengthBonus.toInt();
         maxHitPercent = bonuses.maxHit + bonuses.rangedMaxHit;
       case CombatType.magic:
-        // TODO(eseidel): Implement magic max hit with magic level
-        maxHitLevel = 1;
-        maxHitBonus = 0;
+        // Magic uses magic level for max hit calculation
+        maxHitLevel = magicLevel;
+        maxHitBonus = bonuses.flatMagicMaxHit.toInt();
         maxHitPercent = bonuses.maxHit + bonuses.magicMaxHit;
     }
 
@@ -157,9 +158,9 @@ class PlayerCombatStats extends Stats {
         accuracyBonus = bonuses.flatRangedAttackBonus;
         accuracyModifier = bonuses.rangedAccuracyRating;
       case CombatType.magic:
-        // TODO(eseidel): Implement magic accuracy with magic level
-        accuracyLevel = 1;
-        accuracyBonus = 0; // TODO(eseidel): Add flatMagicAttackBonus
+        // Magic uses magic level for accuracy calculation
+        accuracyLevel = magicLevel;
+        accuracyBonus = bonuses.flatMagicAttackBonus;
         accuracyModifier = bonuses.magicAccuracyRating;
     }
 
@@ -185,10 +186,9 @@ class PlayerCombatStats extends Stats {
       modifier: bonuses.rangedEvasion,
     );
 
-    // Magic evasion uses 30% Defence + 70% Magic level
-    // Since we don't have magic level yet, use defence only
-    // TODO(eseidel): Add magic level and use it here
-    final effectiveMagicDefence = effectiveDefence; // Simplified
+    // Magic evasion uses 30% Defence + 70% Magic level per Melvor formula
+    final effectiveMagicDefence = ((defenceLevel * 0.3) + (magicLevel * 0.7))
+        .floor();
     final magicEvasion = _computeAccuracyOrEvasion(
       effectiveLevel: effectiveMagicDefence,
       bonus: bonuses.flatMagicDefenceBonus,
@@ -412,6 +412,17 @@ class CombatXpGrant {
       AttackStyle.longRange => CombatXpGrant({
         Skill.hitpoints: hitpointsXp,
         Skill.ranged: (combatXp / 2).floor(),
+        Skill.defence: (combatXp / 2).floor(),
+      }),
+      // Magic styles
+      AttackStyle.standard => CombatXpGrant({
+        Skill.hitpoints: hitpointsXp,
+        Skill.magic: combatXp,
+      }),
+      // Defensive splits XP between Magic and Defence
+      AttackStyle.defensive => CombatXpGrant({
+        Skill.hitpoints: hitpointsXp,
+        Skill.magic: (combatXp / 2).floor(),
         Skill.defence: (combatXp / 2).floor(),
       }),
     };

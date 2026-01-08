@@ -566,4 +566,148 @@ void main() {
       expect(accurateStats.maxHit, greaterThan(rapidStats.maxHit));
     });
   });
+
+  group('Magic Combat XP', () {
+    test('standard style grants Magic XP and Hitpoints XP', () {
+      final grant = CombatXpGrant.fromDamage(10, AttackStyle.standard);
+
+      // Hitpoints: floor(10 * 1.33) = 13
+      expect(grant.xpGrants[Skill.hitpoints], equals(13));
+      // Magic: 10 * 4 = 40
+      expect(grant.xpGrants[Skill.magic], equals(40));
+      // No melee or ranged XP
+      expect(grant.xpGrants[Skill.attack], isNull);
+      expect(grant.xpGrants[Skill.strength], isNull);
+      expect(grant.xpGrants[Skill.defence], isNull);
+      expect(grant.xpGrants[Skill.ranged], isNull);
+    });
+
+    test('defensive style splits XP between Magic and Defence', () {
+      final grant = CombatXpGrant.fromDamage(10, AttackStyle.defensive);
+
+      // Hitpoints: floor(10 * 1.33) = 13
+      expect(grant.xpGrants[Skill.hitpoints], equals(13));
+      // Combat XP = 10 * 4 = 40, split 2 ways = 20 each
+      expect(grant.xpGrants[Skill.magic], equals(20));
+      expect(grant.xpGrants[Skill.defence], equals(20));
+      // No attack/strength/ranged XP
+      expect(grant.xpGrants[Skill.attack], isNull);
+      expect(grant.xpGrants[Skill.strength], isNull);
+      expect(grant.xpGrants[Skill.ranged], isNull);
+    });
+  });
+
+  group('Magic PlayerCombatStats', () {
+    test('magic style uses Magic level for max hit', () {
+      final lowMagic = GlobalState.test(
+        testRegistries,
+        attackStyle: AttackStyle.standard,
+        skillStates: const {
+          Skill.magic: SkillState(xp: 0, masteryPoolXp: 0), // Level 1
+        },
+      );
+
+      final highMagic = GlobalState.test(
+        testRegistries,
+        attackStyle: AttackStyle.standard,
+        skillStates: const {
+          Skill.magic: SkillState(xp: 13034431, masteryPoolXp: 0), // Level 99
+        },
+      );
+
+      final lowStats = PlayerCombatStats.fromState(lowMagic);
+      final highStats = PlayerCombatStats.fromState(highMagic);
+
+      expect(highStats.maxHit, greaterThan(lowStats.maxHit));
+    });
+
+    test('magic style uses Magic level for accuracy', () {
+      final lowMagic = GlobalState.test(
+        testRegistries,
+        attackStyle: AttackStyle.standard,
+        skillStates: const {
+          Skill.magic: SkillState(xp: 0, masteryPoolXp: 0), // Level 1
+        },
+      );
+
+      final highMagic = GlobalState.test(
+        testRegistries,
+        attackStyle: AttackStyle.standard,
+        skillStates: const {
+          Skill.magic: SkillState(xp: 13034431, masteryPoolXp: 0), // Level 99
+        },
+      );
+
+      final lowStats = PlayerCombatStats.fromState(lowMagic);
+      final highStats = PlayerCombatStats.fromState(highMagic);
+
+      expect(highStats.accuracy, greaterThan(lowStats.accuracy));
+    });
+
+    test('magic evasion uses Magic level (70%) and Defence level (30%)', () {
+      // Player with high magic but low defence
+      final highMagicLowDefence = GlobalState.test(
+        testRegistries,
+        skillStates: const {
+          Skill.magic: SkillState(xp: 13034431, masteryPoolXp: 0), // Level 99
+          Skill.defence: SkillState(xp: 0, masteryPoolXp: 0), // Level 1
+        },
+      );
+
+      // Player with low magic but high defence
+      final lowMagicHighDefence = GlobalState.test(
+        testRegistries,
+        skillStates: const {
+          Skill.magic: SkillState(xp: 0, masteryPoolXp: 0), // Level 1
+          Skill.defence: SkillState(xp: 13034431, masteryPoolXp: 0), // Level 99
+        },
+      );
+
+      // Player with both high
+      final highBoth = GlobalState.test(
+        testRegistries,
+        skillStates: const {
+          Skill.magic: SkillState(xp: 13034431, masteryPoolXp: 0), // Level 99
+          Skill.defence: SkillState(xp: 13034431, masteryPoolXp: 0), // Level 99
+        },
+      );
+
+      final statsHighMagic = PlayerCombatStats.fromState(highMagicLowDefence);
+      final statsHighDefence = PlayerCombatStats.fromState(lowMagicHighDefence);
+      final statsBoth = PlayerCombatStats.fromState(highBoth);
+
+      // Since magic is 70% weighted, high magic should give better magic evasion
+      // than high defence alone
+      expect(
+        statsHighMagic.magicEvasion,
+        greaterThan(statsHighDefence.magicEvasion),
+      );
+      // Both high should be best
+      expect(statsBoth.magicEvasion, greaterThan(statsHighMagic.magicEvasion));
+    });
+  });
+
+  group('Magic AttackStyle', () {
+    test('combatType returns magic for magic styles', () {
+      expect(AttackStyle.standard.combatType, equals(CombatType.magic));
+      expect(AttackStyle.defensive.combatType, equals(CombatType.magic));
+    });
+
+    test('isMagic returns true for magic styles', () {
+      expect(AttackStyle.standard.isMagic, isTrue);
+      expect(AttackStyle.defensive.isMagic, isTrue);
+
+      // And false for others
+      expect(AttackStyle.stab.isMagic, isFalse);
+      expect(AttackStyle.accurate.isMagic, isFalse);
+    });
+
+    test('magic styles can be serialized and deserialized', () {
+      for (final style in [AttackStyle.standard, AttackStyle.defensive]) {
+        final json = style.toJson();
+        final restored = AttackStyle.fromJson(json);
+        expect(restored, equals(style));
+      }
+    });
+  });
 }

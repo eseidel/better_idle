@@ -69,6 +69,7 @@ class EquipmentStats extends Equatable {
     'meleeStrengthBonus': 'flatMeleeStrengthBonus',
     'rangedStrengthBonus': 'flatRangedStrengthBonus',
     'rangedAttackBonus': 'flatRangedAttackBonus',
+    'magicAttackBonus': 'flatMagicAttackBonus',
     'magicDamageBonus': 'magicDamageBonus',
     'meleeDefenceBonus': 'flatMeleeDefenceBonus',
     'rangedDefenceBonus': 'flatRangedDefenceBonus',
