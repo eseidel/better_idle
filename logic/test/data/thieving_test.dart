@@ -259,7 +259,10 @@ void main() {
       // Success chance = (100 + 42) / (100 + 110) = 142/210 = ~67.6%
       // Roll of 0.70 (70%) should fail
       final rng = MockRandom(nextDoubleValue: 0.70);
-      expect(manAction.rollSuccess(rng, 1, 1), isFalse);
+      expect(
+        manAction.rollSuccess(rng, 1, 1, ResolvedModifiers.empty),
+        isFalse,
+      );
     });
 
     test('rollSuccess succeeds at level 1, mastery 1 vs perception 110', () {
@@ -267,7 +270,24 @@ void main() {
       // Success chance = (100 + 42) / (100 + 110) = 142/210 = ~67.6%
       // Roll of 0.60 (60%) should succeed
       final rng = MockRandom(nextDoubleValue: 0.60);
-      expect(manAction.rollSuccess(rng, 1, 1), isTrue);
+      expect(manAction.rollSuccess(rng, 1, 1, ResolvedModifiers.empty), isTrue);
+    });
+
+    test('rollSuccess applies thievingStealth modifier', () {
+      // Without modifier: Stealth = 40 + 1 + 1 = 42
+      // Success chance = (100 + 42) / (100 + 110) = 142/210 = ~67.6%
+      // Roll of 0.70 should fail without modifier
+      final rng = MockRandom(nextDoubleValue: 0.70);
+      expect(
+        manAction.rollSuccess(rng, 1, 1, ResolvedModifiers.empty),
+        isFalse,
+      );
+
+      // With +20 thievingStealth: Stealth = 40 + 1 + 1 + 20 = 62
+      // Success chance = (100 + 62) / (100 + 110) = 162/210 = ~77.1%
+      // Roll of 0.70 should now succeed
+      const modifiers = ResolvedModifiers({'thievingStealth': 20});
+      expect(manAction.rollSuccess(rng, 1, 1, modifiers), isTrue);
     });
   });
 

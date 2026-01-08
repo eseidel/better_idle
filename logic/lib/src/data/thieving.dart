@@ -4,6 +4,7 @@ import 'package:logic/src/data/action_id.dart';
 import 'package:logic/src/data/actions.dart';
 import 'package:logic/src/data/melvor_id.dart';
 import 'package:logic/src/types/drop.dart';
+import 'package:logic/src/types/resolved_modifiers.dart';
 import 'package:meta/meta.dart';
 
 /// Duration for all thieving actions.
@@ -220,9 +221,18 @@ class ThievingAction extends SkillAction {
 
   /// Determines if the thieving attempt succeeds.
   /// Success chance = min(1, (100 + stealth) / (100 + perception))
-  /// where stealth = 40 + thievingLevel + actionMasteryLevel
-  bool rollSuccess(Random random, int thievingLevel, int actionMasteryLevel) {
-    final stealth = calculateStealth(thievingLevel, actionMasteryLevel);
+  /// where stealth = 40 + thievingLevel + actionMasteryLevel + thievingStealth
+  bool rollSuccess(
+    Random random,
+    int thievingLevel,
+    int actionMasteryLevel,
+    ResolvedModifiers modifiers,
+  ) {
+    final stealth = calculateStealth(
+      thievingLevel,
+      actionMasteryLevel,
+      thievingStealthBonus: modifiers.thievingStealth.toInt(),
+    );
     final successChance = thievingSuccessChance(stealth, perception);
     final roll = random.nextDouble();
     return roll < successChance;
@@ -233,9 +243,16 @@ class ThievingAction extends SkillAction {
 const int baseStealth = 40;
 
 /// Calculates stealth value for thieving.
-/// Stealth = 40 + thieving level + action mastery level
-int calculateStealth(int thievingLevel, int actionMasteryLevel) {
-  return baseStealth + thievingLevel + actionMasteryLevel;
+/// Stealth = 40 + thieving level + action mastery level + thievingStealth bonus
+int calculateStealth(
+  int thievingLevel,
+  int actionMasteryLevel, {
+  int thievingStealthBonus = 0,
+}) {
+  return baseStealth +
+      thievingLevel +
+      actionMasteryLevel +
+      thievingStealthBonus;
 }
 
 /// Calculates the success chance for a thieving attempt.
