@@ -302,3 +302,56 @@ class CombatCalculator {
 PlayerCombatStats computePlayerStats(GlobalState state) {
   return PlayerCombatStats.fromState(state);
 }
+
+/// XP grants from combat damage.
+///
+/// Hitpoints XP is always granted: floor(damage * 1.33) per hit.
+/// Combat style XP depends on the selected [AttackStyle]:
+/// - Stab: 4 XP per damage to Attack
+/// - Slash: 4 XP per damage to Strength
+/// - Block: 4 XP per damage to Defence
+/// - Controlled: ~1.33 XP per damage to Attack, Strength, and Defence
+@immutable
+class CombatXpGrant {
+  const CombatXpGrant(this.xpGrants);
+
+  /// Creates XP grants based on damage dealt and attack style.
+  ///
+  /// Uses Melvor Idle formulas:
+  /// - Hitpoints: floor(damage * 1.33)
+  /// - Combat skill: damage * 4 (distributed based on style)
+  factory CombatXpGrant.fromDamage(int damage, AttackStyle style) {
+    final hitpointsXp = (damage * 1.33).floor();
+    final combatXp = damage * 4;
+
+    return switch (style) {
+      AttackStyle.stab => CombatXpGrant({
+        Skill.hitpoints: hitpointsXp,
+        Skill.attack: combatXp,
+      }),
+      AttackStyle.slash => CombatXpGrant({
+        Skill.hitpoints: hitpointsXp,
+        Skill.strength: combatXp,
+      }),
+      AttackStyle.block => CombatXpGrant({
+        Skill.hitpoints: hitpointsXp,
+        Skill.defence: combatXp,
+      }),
+      AttackStyle.controlled => CombatXpGrant({
+        Skill.hitpoints: hitpointsXp,
+        Skill.attack: (combatXp / 3).floor(),
+        Skill.strength: (combatXp / 3).floor(),
+        Skill.defence: (combatXp / 3).floor(),
+      }),
+    };
+  }
+
+  /// Map of skill to XP amount to grant.
+  final Map<Skill, int> xpGrants;
+
+  /// Returns true if no XP would be granted.
+  bool get isEmpty => xpGrants.isEmpty;
+
+  /// Total XP across all skills.
+  int get totalXp => xpGrants.values.fold(0, (a, b) => a + b);
+}
