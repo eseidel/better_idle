@@ -156,21 +156,13 @@ void main() {
     });
   });
 
-  group('EquipmentBonuses', () {
-    test('empty returns zero for all modifiers', () {
-      const bonuses = EquipmentBonuses.empty;
-
-      expect(bonuses.flatMeleeStrengthBonus, equals(0));
-      expect(bonuses.flatMaxHit, equals(0));
-      expect(bonuses.resistance, equals(0));
-    });
-
-    test('fromEquipment sums modifiers from equipped gear', () {
+  group('resolveCombatModifiers', () {
+    test('returns empty modifiers with no equipment or shop purchases', () {
       final state = GlobalState.test(testRegistries);
-      final bonuses = EquipmentBonuses.fromEquipment(state);
+      final modifiers = state.resolveCombatModifiers();
 
-      // With no equipment, should have empty bonuses
-      expect(bonuses.isEmpty, isTrue);
+      // With no equipment or purchases, should have empty modifiers
+      expect(modifiers.isEmpty, isTrue);
     });
   });
 }

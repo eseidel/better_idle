@@ -685,7 +685,7 @@ bool completeThievingAction(
     // Roll drops with doubling applied
     final actionState = builder.state.actionState(action.id);
     final selection = actionState.recipeSelection(action);
-    final modifiers = builder.state.resolveModifiers(action);
+    final modifiers = builder.state.resolveSkillModifiers(action);
     rollAndCollectDrops(builder, action, modifiers, random, selection);
 
     return true;
@@ -732,7 +732,7 @@ bool completeAction(
   }
 
   // Roll drops with doubling applied (using recipe for output multiplier)
-  final modifiers = builder.state.resolveModifiers(action);
+  final modifiers = builder.state.resolveSkillModifiers(action);
   var canRepeatAction = rollAndCollectDrops(
     builder,
     action,
@@ -984,6 +984,7 @@ enum ForegroundResult {
 
     // Calculate hit chance and roll to see if attack hits
     // Player attacks monster's melee evasion (simplified)
+    // TODO(eseidel): Should respect attack type
     final hitChance = CombatCalculator.playerHitChance(
       pStats,
       mStats,
@@ -1269,7 +1270,7 @@ ConsumeTicksStopReason consumeTicksUntil(
   var doublingChance = 0.0;
   RecipeSelection recipeSelection = const NoSelectedRecipe();
   if (action is SkillAction) {
-    final modifiers = state.resolveModifiers(action);
+    final modifiers = state.resolveSkillModifiers(action);
     doublingChance = (modifiers.skillItemDoublingChance / 100.0).clamp(
       0.0,
       1.0,

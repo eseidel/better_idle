@@ -654,41 +654,99 @@ class GlobalState {
   /// Returns a [ResolvedModifiers] containing all modifier values by name.
   /// Values are stored as raw numbers from the data (e.g., skillInterval
   /// is in percentage points like -5, flatSkillInterval is in milliseconds).
-  ResolvedModifiers resolveModifiers(SkillAction action) {
+  ResolvedModifiers resolveSkillModifiers(SkillAction action) {
+    return _resolveModifiers(
+      skillId: action.skill.id,
+      skill: action.skill,
+      actionId: action.id,
+    );
+  }
+
+  /// Resolves global modifiers from shop purchases that are not skill-scoped.
+  ///
+  /// These include modifiers like autoEat which apply to all combat situations,
+  /// not to specific skills.
+  ResolvedModifiers resolveGlobalModifiers() {
+    return _resolveModifiers();
+  }
+
+  /// Resolves all combat-relevant modifiers from all sources.
+  ///
+  /// This combines:
+  /// - Global shop modifiers (autoEat, etc.)
+  /// - Equipment modifiers (strength bonus, defence bonus, etc.)
+  /// - (Future: potions, prayers, etc.)
+  ///
+  /// Used for calculating player combat stats like max hit, accuracy, evasion.
+  ResolvedModifiers resolveCombatModifiers() {
+    return _resolveModifiers();
+  }
+
+  /// Internal shared implementation for modifier resolution.
+  ///
+  /// When [skillId] is provided, only modifiers scoped to that skill are
+  /// included. When [skillId] is null, only global (unscoped) modifiers are
+  /// included.
+  ///
+  /// [skill] and [actionId] are needed for skill-scoped resolution to look up
+  /// shop purchases and mastery bonuses.
+  ResolvedModifiers _resolveModifiers({
+    MelvorId? skillId,
+    Skill? skill,
+    ActionId? actionId,
+  }) {
     final builder = ResolvedModifiersBuilder();
-    final skillId = action.skill.id;
 
     // --- Shop modifiers ---
-    for (final purchase in shop.ownedPurchasesAffectingSkill(
-      action.skill,
-      registries.shop,
-    )) {
-      // Add all modifiers from the purchase that match this skill
-      for (final mod in purchase.contains.modifiers.modifiers) {
-        for (final entry in mod.entries) {
-          if (entry.appliesToSkill(skillId)) {
-            builder.add(mod.name, entry.value);
+    if (skill != null) {
+      // Skill-scoped: get purchases affecting this skill
+      for (final purchase in shop.ownedPurchasesAffectingSkill(
+        skill,
+        registries.shop,
+      )) {
+        for (final mod in purchase.contains.modifiers.modifiers) {
+          for (final entry in mod.entries) {
+            if (entry.appliesToSkill(skillId!)) {
+              builder.add(mod.name, entry.value);
+            }
+          }
+        }
+      }
+    } else {
+      // Global: iterate all owned purchases, include unscoped modifiers
+      for (final entry in shop.purchaseCounts.entries) {
+        if (entry.value <= 0) continue;
+        final purchase = registries.shop.byId(entry.key);
+        if (purchase == null) continue;
+
+        for (final mod in purchase.contains.modifiers.modifiers) {
+          for (final modEntry in mod.entries) {
+            // Include modifiers without skill scope (global modifiers)
+            if (modEntry.scope == null || modEntry.scope!.skillId == null) {
+              builder.add(mod.name, modEntry.value);
+            }
           }
         }
       }
     }
 
-    // --- Mastery modifiers ---
-    final masteryLevel = actionState(action.id).masteryLevel;
-    final skillBonuses = registries.masteryBonuses.forSkill(skillId);
-    if (skillBonuses != null) {
-      for (final bonus in skillBonuses.bonuses) {
-        final count = bonus.countAtLevel(masteryLevel);
-        if (count == 0) continue;
+    // --- Mastery modifiers (only for skill-scoped resolution) ---
+    if (skillId != null && actionId != null) {
+      final masteryLevel = actionState(actionId).masteryLevel;
+      final skillBonuses = registries.masteryBonuses.forSkill(skillId);
+      if (skillBonuses != null) {
+        for (final bonus in skillBonuses.bonuses) {
+          final count = bonus.countAtLevel(masteryLevel);
+          if (count == 0) continue;
 
-        // Add all modifiers from this bonus
-        for (final mod in bonus.modifiers.modifiers) {
-          for (final entry in mod.entries) {
-            if (entry.appliesToSkill(
-              skillId,
-              autoScopeToAction: bonus.autoScopeToAction,
-            )) {
-              builder.add(mod.name, entry.value * count);
+          for (final mod in bonus.modifiers.modifiers) {
+            for (final entry in mod.entries) {
+              if (entry.appliesToSkill(
+                skillId,
+                autoScopeToAction: bonus.autoScopeToAction,
+              )) {
+                builder.add(mod.name, entry.value * count);
+              }
             }
           }
         }
@@ -697,10 +755,11 @@ class GlobalState {
 
     // --- Equipment modifiers ---
     for (final item in equipment.gearSlots.values) {
-      // Add all modifiers from equipped items that match this skill
       for (final mod in item.modifiers.modifiers) {
         for (final entry in mod.entries) {
-          if (entry.appliesToSkill(skillId)) {
+          // For skill-scoped: only include if applies to skill
+          // For global: include all (combat gear is typically unscoped)
+          if (skillId == null || entry.appliesToSkill(skillId)) {
             builder.add(mod.name, entry.value);
           }
         }
@@ -708,33 +767,6 @@ class GlobalState {
     }
 
     // --- Future: potions, prayers, etc. ---
-
-    return builder.build();
-  }
-
-  /// Resolves global modifiers from shop purchases that are not skill-scoped.
-  ///
-  /// These include modifiers like autoEat which apply to all combat situations,
-  /// not to specific skills.
-  ResolvedModifiers resolveGlobalModifiers() {
-    final builder = ResolvedModifiersBuilder();
-
-    // Iterate through all owned shop purchases
-    for (final entry in shop.purchaseCounts.entries) {
-      if (entry.value <= 0) continue;
-      final purchase = registries.shop.byId(entry.key);
-      if (purchase == null) continue;
-
-      // Add all global (unscoped) modifiers from the purchase
-      for (final mod in purchase.contains.modifiers.modifiers) {
-        for (final modEntry in mod.entries) {
-          // Include modifiers without skill scope (global modifiers)
-          if (modEntry.scope == null || modEntry.scope!.skillId == null) {
-            builder.add(mod.name, modEntry.value);
-          }
-        }
-      }
-    }
 
     return builder.build();
   }
@@ -747,7 +779,7 @@ class GlobalState {
     ShopRegistry shopRegistry,
   ) {
     final ticks = action.rollDuration(random);
-    final modifiers = resolveModifiers(action);
+    final modifiers = resolveSkillModifiers(action);
 
     // skillInterval is percentage points (e.g., -5 = 5% reduction)
     final percentPoints = modifiers.skillInterval;
@@ -841,7 +873,7 @@ class GlobalState {
   /// Calculates mean duration with modifiers applied (deterministic).
   int _meanDurationWithModifiers(SkillAction action) {
     final ticks = ticksFromDuration(action.meanDuration);
-    final modifiers = resolveModifiers(action);
+    final modifiers = resolveSkillModifiers(action);
 
     // skillInterval is percentage points (e.g., -5 = 5% reduction)
     final percentPoints = modifiers.skillInterval;

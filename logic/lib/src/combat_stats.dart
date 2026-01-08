@@ -2,41 +2,17 @@ import 'dart:math';
 
 import 'package:logic/src/data/actions.dart';
 import 'package:logic/src/state.dart';
-import 'package:logic/src/types/modifier_names.dart';
 import 'package:meta/meta.dart';
 
-/// Equipment bonuses aggregated from all equipped gear.
+/// Computes accuracy or evasion rating using Melvor formula.
 ///
-/// This represents the sum of all combat-relevant modifiers from equipment.
-/// Values use the same units as the Melvor modifier system.
-@immutable
-class EquipmentBonuses extends ModifiersBase {
-  const EquipmentBonuses(super.values);
-
-  /// Calculates equipment bonuses by summing modifiers from all equipped gear.
-  factory EquipmentBonuses.fromEquipment(GlobalState state) {
-    final values = <String, num>{};
-
-    void addModifier(String name, num value) {
-      values[name] = (values[name] ?? 0) + value;
-    }
-
-    // Sum modifiers from all equipped gear
-    for (final item in state.equipment.gearSlots.values) {
-      for (final mod in item.modifiers.modifiers) {
-        for (final entry in mod.entries) {
-          // For combat stats, we include all entries regardless of scope
-          // since equipment modifiers typically don't have skill scopes
-          addModifier(mod.name, entry.value);
-        }
-      }
-    }
-
-    return EquipmentBonuses(values);
-  }
-
-  /// Empty equipment bonuses (no gear equipped).
-  static const empty = EquipmentBonuses({});
+/// Formula: floor((effectiveLevel + 9) * (bonus + 64) * (1 + modifier/100))
+int _computeEvasion({
+  required int effectiveLevel,
+  required num bonus,
+  required num modifier,
+}) {
+  return ((effectiveLevel + 9) * (bonus + 64) * (1 + modifier / 100)).floor();
 }
 
 /// Computed player combat stats based on skill levels and equipment.
@@ -57,7 +33,8 @@ class PlayerCombatStats extends Stats {
 
   /// Computes player stats from current game state.
   factory PlayerCombatStats.fromState(GlobalState state) {
-    final bonuses = EquipmentBonuses.fromEquipment(state);
+    // Resolve all combat-relevant modifiers (equipment, shop purchases, etc.)
+    final bonuses = state.resolveCombatModifiers();
 
     // Get skill levels
     final attackLevel = state.skillState(Skill.attack).skillLevel;
@@ -127,49 +104,44 @@ class PlayerCombatStats extends Stats {
     // Formula: floor((EffectiveLevel + 9) * (BaseAccuracyBonus + 64) * (1 + Mod/100))
     final effectiveAttack = attackLevel;
     // Equipment accuracy bonuses (stab, slash, block attacks)
-    // For simplicity, we sum all attack bonuses
+    // TODO(eseidel): Summing all bonuses here is wrong!
+    // https://wiki.melvoridle.com/w/Combat#Accuracy_Rating
     final baseAccuracyBonus =
         bonuses.flatStabAttackBonus +
         bonuses.flatSlashAttackBonus +
         bonuses.flatBlockAttackBonus;
     final accuracyModifier = bonuses.meleeAccuracyRating;
-
-    final accuracy =
-        ((effectiveAttack + 9) *
-                (baseAccuracyBonus + 64) *
-                (1 + accuracyModifier / 100))
-            .floor();
+    final accuracy = _computeEvasion(
+      effectiveLevel: effectiveAttack,
+      bonus: baseAccuracyBonus,
+      modifier: accuracyModifier,
+    );
 
     // --- Evasion Ratings ---
-    // Melee evasion: floor((EffDefence + 9) * (DefenceBonus + 64) * (1 + Mod/100))
+    // Formula: floor((EffLevel + 9) * (Bonus + 64) * (1 + Mod/100))
     final effectiveDefence = defenceLevel;
-    final meleeDefenceBonus = bonuses.flatMeleeDefenceBonus;
-    final meleeEvasionMod = bonuses.meleeEvasion;
-    final meleeEvasion =
-        ((effectiveDefence + 9) *
-                (meleeDefenceBonus + 64) *
-                (1 + meleeEvasionMod / 100))
-            .floor();
 
-    // Ranged evasion
-    final rangedDefenceBonus = bonuses.flatRangedDefenceBonus;
-    final rangedEvasionMod = bonuses.rangedEvasion;
-    final rangedEvasion =
-        ((effectiveDefence + 9) *
-                (rangedDefenceBonus + 64) *
-                (1 + rangedEvasionMod / 100))
-            .floor();
+    final meleeEvasion = _computeEvasion(
+      effectiveLevel: effectiveDefence,
+      bonus: bonuses.flatMeleeDefenceBonus,
+      modifier: bonuses.meleeEvasion,
+    );
+
+    final rangedEvasion = _computeEvasion(
+      effectiveLevel: effectiveDefence,
+      bonus: bonuses.flatRangedDefenceBonus,
+      modifier: bonuses.rangedEvasion,
+    );
 
     // Magic evasion uses 30% Defence + 70% Magic level
     // Since we don't have magic level yet, use defence only
-    final magicDefenceBonus = bonuses.flatMagicDefenceBonus;
-    final magicEvasionMod = bonuses.magicEvasion;
+    // TODO(eseidel): Add magic level and use it here
     final effectiveMagicDefence = effectiveDefence; // Simplified
-    final magicEvasion =
-        ((effectiveMagicDefence + 9) *
-                (magicDefenceBonus + 64) *
-                (1 + magicEvasionMod / 100))
-            .floor();
+    final magicEvasion = _computeEvasion(
+      effectiveLevel: effectiveMagicDefence,
+      bonus: bonuses.flatMagicDefenceBonus,
+      modifier: bonuses.magicEvasion,
+    );
 
     return PlayerCombatStats._(
       minHit: minHit,
