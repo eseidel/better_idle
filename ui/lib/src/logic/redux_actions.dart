@@ -533,3 +533,14 @@ class ClearPlotAction extends ReduxAction<GlobalState> {
     return state.clearPlot(plotId);
   }
 }
+
+/// Sets the player's attack style for combat XP distribution.
+class SetAttackStyleAction extends ReduxAction<GlobalState> {
+  SetAttackStyleAction({required this.attackStyle});
+  final AttackStyle attackStyle;
+
+  @override
+  GlobalState reduce() {
+    return state.setAttackStyle(attackStyle);
+  }
+}

@@ -339,20 +339,6 @@ void main() {
       expect(grant.xpGrants[Skill.strength], isNull);
     });
 
-    test(
-      'controlled style splits XP evenly between Attack, Strength, Defence',
-      () {
-        final grant = CombatXpGrant.fromDamage(300, AttackStyle.controlled);
-
-        // Hitpoints: floor(300 * 0.133) = 39
-        expect(grant.xpGrants[Skill.hitpoints], equals(39));
-        // Each skill: floor(300 * 0.04 / 3) = floor(4) = 4
-        expect(grant.xpGrants[Skill.attack], equals(4));
-        expect(grant.xpGrants[Skill.strength], equals(4));
-        expect(grant.xpGrants[Skill.defence], equals(4));
-      },
-    );
-
     test('totalXp returns sum of all XP grants', () {
       final grant = CombatXpGrant.fromDamage(100, AttackStyle.stab);
       // Hitpoints: 13, Attack: 4, total = 17
@@ -394,8 +380,8 @@ void main() {
 
       expect(state.attackStyle, equals(AttackStyle.slash));
 
-      final updated = state.setAttackStyle(AttackStyle.controlled);
-      expect(updated.attackStyle, equals(AttackStyle.controlled));
+      final updated = state.setAttackStyle(AttackStyle.block);
+      expect(updated.attackStyle, equals(AttackStyle.block));
     });
 
     test('attackStyle persists through JSON serialization', () {
@@ -425,7 +411,6 @@ void main() {
       expect(AttackStyle.stab.combatType, equals(CombatType.melee));
       expect(AttackStyle.slash.combatType, equals(CombatType.melee));
       expect(AttackStyle.block.combatType, equals(CombatType.melee));
-      expect(AttackStyle.controlled.combatType, equals(CombatType.melee));
 
       // Ranged styles
       expect(AttackStyle.accurate.combatType, equals(CombatType.ranged));

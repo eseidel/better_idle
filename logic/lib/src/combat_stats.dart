@@ -392,8 +392,6 @@ class CombatXpGrant {
     final singleSkillXp = (damage * 0.04).floor().clamp(1, damage);
     // Hybrid: 2% = 0.02 per damage per skill
     final hybridXp = (damage * 0.02).floor().clamp(1, damage);
-    // Controlled: 4% / 3 = ~1.33% = 0.0133 per damage per skill
-    final controlledXp = (damage * 0.04 / 3).floor().clamp(1, damage);
 
     return switch (style) {
       // Melee styles
@@ -408,12 +406,6 @@ class CombatXpGrant {
       AttackStyle.block => CombatXpGrant({
         Skill.hitpoints: hitpointsXp,
         Skill.defence: singleSkillXp,
-      }),
-      AttackStyle.controlled => CombatXpGrant({
-        Skill.hitpoints: hitpointsXp,
-        Skill.attack: controlledXp,
-        Skill.strength: controlledXp,
-        Skill.defence: controlledXp,
       }),
       // Ranged styles
       AttackStyle.accurate || AttackStyle.rapid => CombatXpGrant({

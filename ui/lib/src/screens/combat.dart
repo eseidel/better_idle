@@ -1,4 +1,5 @@
 import 'package:better_idle/src/logic/redux_actions.dart';
+import 'package:better_idle/src/widgets/attack_style_selector.dart';
 import 'package:better_idle/src/widgets/cached_image.dart';
 import 'package:better_idle/src/widgets/context_extensions.dart';
 import 'package:better_idle/src/widgets/equipment_slots.dart';
@@ -60,6 +61,10 @@ class CombatPage extends StatelessWidget {
                   ? secondsToTicks(computePlayerStats(state).attackSpeed)
                   : null,
             ),
+            const SizedBox(height: 16),
+
+            // Attack style selector
+            const AttackStyleSelector(),
             const SizedBox(height: 16),
 
             // Active combat section

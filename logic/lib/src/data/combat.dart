@@ -3,6 +3,7 @@ import 'dart:math';
 import 'package:logic/src/data/action_id.dart';
 import 'package:logic/src/data/actions.dart';
 import 'package:logic/src/data/melvor_id.dart';
+import 'package:logic/src/state.dart' show CombatType;
 import 'package:logic/src/types/drop.dart';
 import 'package:meta/meta.dart';
 
@@ -116,6 +117,15 @@ enum AttackType {
   factory AttackType.fromJson(String value) {
     return AttackType.values.firstWhere((e) => e.name == value);
   }
+
+  /// Returns the corresponding CombatType for this attack type.
+  /// For random, defaults to melee.
+  CombatType get combatType => switch (this) {
+    // TODO(eseidel): mapping random here seems wrong?
+    AttackType.melee || AttackType.random => CombatType.melee,
+    AttackType.ranged => CombatType.ranged,
+    AttackType.magic => CombatType.magic,
+  };
 }
 
 /// A combat action for fighting a specific monster.

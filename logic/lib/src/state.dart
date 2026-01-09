@@ -41,6 +41,23 @@ enum CombatType {
   }
 
   String toJson() => name;
+
+  /// Returns the valid attack styles for this combat type.
+  List<AttackStyle> get attackStyles {
+    return switch (this) {
+      CombatType.melee => [
+        AttackStyle.stab,
+        AttackStyle.slash,
+        AttackStyle.block,
+      ],
+      CombatType.ranged => [
+        AttackStyle.accurate,
+        AttackStyle.rapid,
+        AttackStyle.longRange,
+      ],
+      CombatType.magic => [AttackStyle.standard, AttackStyle.defensive],
+    };
+  }
 }
 
 /// The player's selected melee attack style for combat XP distribution.
@@ -49,7 +66,6 @@ enum CombatType {
 /// - [stab]: Attack XP (4 XP per damage)
 /// - [slash]: Strength XP (4 XP per damage)
 /// - [block]: Defence XP (4 XP per damage)
-/// - [controlled]: Split XP to all three (1.33 XP per damage each)
 ///
 /// Hitpoints always receives XP regardless of style (1.33 XP per damage).
 enum AttackStyle {
@@ -57,7 +73,6 @@ enum AttackStyle {
   stab,
   slash,
   block,
-  controlled,
 
   // Ranged styles
   /// Accurate: Ranged XP, +3 effective Ranged level for accuracy.
@@ -82,7 +97,6 @@ enum AttackStyle {
       'stab' => AttackStyle.stab,
       'slash' => AttackStyle.slash,
       'block' => AttackStyle.block,
-      'controlled' => AttackStyle.controlled,
       // Ranged styles
       'accurate' => AttackStyle.accurate,
       'rapid' => AttackStyle.rapid,
@@ -101,7 +115,7 @@ enum AttackStyle {
   /// Returns the combat type for this attack style.
   CombatType get combatType {
     return switch (this) {
-      stab || slash || block || controlled => CombatType.melee,
+      stab || slash || block => CombatType.melee,
       accurate || rapid || longRange => CombatType.ranged,
       standard || defensive => CombatType.magic,
     };

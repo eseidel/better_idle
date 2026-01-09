@@ -2,6 +2,7 @@
 import 'dart:math';
 
 import 'package:equatable/equatable.dart';
+import 'package:logic/src/data/combat.dart' show AttackType;
 import 'package:logic/src/data/melvor_id.dart';
 import 'package:logic/src/types/drop.dart';
 import 'package:logic/src/types/equipment_slot.dart';
@@ -188,6 +189,7 @@ class Item extends Equatable {
     this.validSlots = const [],
     this.modifiers = const ModifierDataSet([]),
     this.equipmentStats = EquipmentStats.empty,
+    this.attackType,
   });
 
   /// Creates a simple test item with minimal required fields.
@@ -199,6 +201,7 @@ class Item extends Equatable {
     this.healsFor,
     this.compostValue,
     this.harvestBonus,
+    this.attackType,
   }) : id = MelvorId('melvorD:${name.replaceAll(' ', '_')}'),
        itemType = 'Item',
        sellsFor = gp,
@@ -283,6 +286,9 @@ class Item extends Equatable {
       description: json['customDescription'] as String?,
       modifiers: modifiers,
       equipmentStats: equipmentStats,
+      attackType: json['attackType'] != null
+          ? AttackType.fromJson(json['attackType'] as String)
+          : null,
     );
   }
 
@@ -334,6 +340,10 @@ class Item extends Equatable {
   /// Contains attack bonuses, strength bonuses, defence bonuses, etc.
   final EquipmentStats equipmentStats;
 
+  /// The attack type for weapon items (melee, ranged, magic).
+  /// Null for non-weapon items.
+  final AttackType? attackType;
+
   /// Whether this item can be consumed for healing.
   bool get isConsumable => healsFor != null;
 
@@ -372,6 +382,7 @@ class Item extends Equatable {
     description,
     modifiers,
     equipmentStats,
+    attackType,
   ];
 }
 
