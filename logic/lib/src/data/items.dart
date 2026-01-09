@@ -4,6 +4,7 @@ import 'dart:math';
 import 'package:equatable/equatable.dart';
 import 'package:logic/src/data/combat.dart' show AttackType;
 import 'package:logic/src/data/melvor_id.dart';
+import 'package:logic/src/data/shop.dart' show ShopRequirement;
 import 'package:logic/src/types/drop.dart';
 import 'package:logic/src/types/equipment_slot.dart';
 import 'package:logic/src/types/inventory.dart';
@@ -190,6 +191,7 @@ class Item extends Equatable {
     this.modifiers = const ModifierDataSet([]),
     this.equipmentStats = EquipmentStats.empty,
     this.attackType,
+    this.equipRequirements = const [],
   });
 
   /// Creates a simple test item with minimal required fields.
@@ -202,6 +204,7 @@ class Item extends Equatable {
     this.compostValue,
     this.harvestBonus,
     this.attackType,
+    this.equipRequirements = const [],
   }) : id = MelvorId('melvorD:${name.replaceAll(' ', '_')}'),
        itemType = 'Item',
        sellsFor = gp,
@@ -270,6 +273,18 @@ class Item extends Equatable {
     final equipmentStatsJson = json['equipmentStats'] as List<dynamic>?;
     final equipmentStats = EquipmentStats.fromJson(equipmentStatsJson);
 
+    // Parse equipment requirements (same format as shop requirements).
+    final equipReqsJson = json['equipRequirements'] as List<dynamic>? ?? [];
+    final equipRequirements = equipReqsJson
+        .map(
+          (e) => ShopRequirement.fromJson(
+            e as Map<String, dynamic>,
+            namespace: namespace,
+          ),
+        )
+        .whereType<ShopRequirement>()
+        .toList();
+
     return Item(
       id: id,
       name: json['name'] as String,
@@ -289,6 +304,7 @@ class Item extends Equatable {
       attackType: json['attackType'] != null
           ? AttackType.fromJson(json['attackType'] as String)
           : null,
+      equipRequirements: equipRequirements,
     );
   }
 
@@ -344,6 +360,10 @@ class Item extends Equatable {
   /// Null for non-weapon items.
   final AttackType? attackType;
 
+  /// Requirements that must be met to equip this item.
+  /// Empty list means no requirements.
+  final List<ShopRequirement> equipRequirements;
+
   /// Whether this item can be consumed for healing.
   bool get isConsumable => healsFor != null;
 
@@ -383,6 +403,7 @@ class Item extends Equatable {
     modifiers,
     equipmentStats,
     attackType,
+    equipRequirements,
   ];
 }
 

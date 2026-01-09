@@ -1,10 +1,12 @@
 import 'package:better_idle/src/logic/redux_actions.dart';
 import 'package:better_idle/src/services/toast_service.dart';
+import 'package:better_idle/src/widgets/cached_image.dart';
 import 'package:better_idle/src/widgets/context_extensions.dart';
 import 'package:better_idle/src/widgets/count_badge_cell.dart';
 import 'package:better_idle/src/widgets/item_image.dart';
 import 'package:better_idle/src/widgets/navigation_drawer.dart';
 import 'package:better_idle/src/widgets/open_result_dialog.dart';
+import 'package:better_idle/src/widgets/skills.dart';
 import 'package:better_idle/src/widgets/style.dart';
 import 'package:collection/collection.dart';
 import 'package:flutter/material.dart';
@@ -728,7 +730,8 @@ class _EquipGearSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final equipment = context.state.equipment;
+    final state = context.state;
+    final equipment = state.equipment;
     final validSlots = item.validSlots;
 
     // Find which slot this item is currently equipped in (if any)
@@ -739,6 +742,10 @@ class _EquipGearSection extends StatelessWidget {
         break;
       }
     }
+
+    // Get unmet equipment requirements
+    final unmetRequirements = state.unmetEquipRequirements(item);
+    final canEquip = unmetRequirements.isEmpty;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -757,10 +764,20 @@ class _EquipGearSection extends StatelessWidget {
               style: TextStyle(color: Style.textColorInfo),
             ),
           ),
+        // Show unmet requirements if any
+        if (unmetRequirements.isNotEmpty) ...[
+          const SizedBox(height: 8),
+          _EquipRequirementsDisplay(requirements: unmetRequirements),
+        ],
         const SizedBox(height: 16),
         // Show an equip button for each valid slot
         for (final slot in validSlots) ...[
-          _EquipSlotButton(item: item, slot: slot, equipment: equipment),
+          _EquipSlotButton(
+            item: item,
+            slot: slot,
+            equipment: equipment,
+            canEquip: canEquip,
+          ),
           const SizedBox(height: 8),
         ],
       ],
@@ -773,11 +790,13 @@ class _EquipSlotButton extends StatelessWidget {
     required this.item,
     required this.slot,
     required this.equipment,
+    required this.canEquip,
   });
 
   final Item item;
   final EquipmentSlot slot;
   final Equipment equipment;
+  final bool canEquip;
 
   @override
   Widget build(BuildContext context) {
@@ -793,10 +812,13 @@ class _EquipSlotButton extends StatelessWidget {
       buttonText = 'Equip in ${slot.displayName}';
     }
 
+    // Disable if already equipped OR requirements not met
+    final isDisabled = isAlreadyEquipped || !canEquip;
+
     return SizedBox(
       width: double.infinity,
       child: ElevatedButton(
-        onPressed: isAlreadyEquipped
+        onPressed: isDisabled
             ? null
             : () {
                 context.dispatch(EquipGearAction(item: item, slot: slot));
@@ -804,6 +826,56 @@ class _EquipSlotButton extends StatelessWidget {
               },
         child: Text(buttonText),
       ),
+    );
+  }
+}
+
+/// Displays unmet equipment requirements with a similar style to shop
+/// requirements.
+class _EquipRequirementsDisplay extends StatelessWidget {
+  const _EquipRequirementsDisplay({required this.requirements});
+
+  final List<ShopRequirement> requirements;
+
+  @override
+  Widget build(BuildContext context) {
+    final color = Style.unmetRequirementColor;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Requirements not met:',
+          style: TextStyle(color: color, fontSize: 12),
+        ),
+        const SizedBox(height: 4),
+        ...requirements.map((req) {
+          if (req is SkillLevelRequirement) {
+            return Padding(
+              padding: const EdgeInsets.only(left: 8, bottom: 2),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  CachedImage(assetPath: req.skill.assetPath, size: 14),
+                  const SizedBox(width: 4),
+                  Text(
+                    'Level ${req.level}',
+                    style: TextStyle(color: color, fontSize: 12),
+                  ),
+                ],
+              ),
+            );
+          } else {
+            // Fallback for other requirement types
+            return Padding(
+              padding: const EdgeInsets.only(left: 8, bottom: 2),
+              child: Text(
+                'Unknown requirement',
+                style: TextStyle(color: color, fontSize: 12),
+              ),
+            );
+          }
+        }),
+      ],
     );
   }
 }
