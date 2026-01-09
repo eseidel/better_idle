@@ -69,8 +69,9 @@ void parseItemEquipmentStats(
     final value = stat['value'] as num?;
     if (key == null || value == null) continue;
 
-    final info = statInfo.putIfAbsent(key, EquipmentStatInfo.new);
-    info.record(itemType, value.toInt());
+    statInfo
+        .putIfAbsent(key, EquipmentStatInfo.new)
+        .record(itemType, value.toInt());
   }
 }
 
@@ -113,9 +114,9 @@ void main() async {
     print(
       'Implemented: ${knownStats.intersection(statInfo.keys.toSet()).length}',
     );
-    print(
-      'Missing: ${statInfo.length - knownStats.intersection(statInfo.keys.toSet()).length}',
-    );
+    final missing =
+        statInfo.length - knownStats.intersection(statInfo.keys.toSet()).length;
+    print('Missing: $missing');
 
     print('\n--- IMPLEMENTED ---\n');
     for (final entry in sortedStats) {

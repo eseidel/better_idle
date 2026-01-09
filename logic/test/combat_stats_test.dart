@@ -177,7 +177,10 @@ void main() {
 
     test('weapon attack speed affects player attack speed', () {
       // Bronze Sword has 2400ms attack speed
-      expect(bronzeSword.equipmentStats.attackSpeed, 2400);
+      expect(
+        bronzeSword.equipmentStats.toModifiers().equipmentAttackSpeed,
+        2400,
+      );
 
       final equipment = Equipment(
         foodSlots: const [null, null, null],
@@ -200,7 +203,10 @@ void main() {
 
     test('weapon strength bonus affects max hit', () {
       // Bronze Sword has meleeStrengthBonus in equipmentStats
-      expect(bronzeSword.equipmentStats.meleeStrengthBonus, greaterThan(0));
+      expect(
+        bronzeSword.equipmentStats.toModifiers().flatMeleeStrengthBonus,
+        greaterThan(0),
+      );
 
       final equipment = Equipment(
         foodSlots: const [null, null, null],
@@ -222,7 +228,10 @@ void main() {
 
     test('weapon attack bonus affects accuracy', () {
       // Bronze Sword has stabAttackBonus in equipmentStats
-      expect(bronzeSword.equipmentStats.stabAttackBonus, greaterThan(0));
+      expect(
+        bronzeSword.equipmentStats.toModifiers().flatStabAttackBonus,
+        greaterThan(0),
+      );
 
       final equipment = Equipment(
         foodSlots: const [null, null, null],
@@ -244,7 +253,10 @@ void main() {
 
     test('armor defence bonus affects evasion', () {
       // Bronze Helmet has meleeDefenceBonus in equipmentStats
-      expect(bronzeHelmet.equipmentStats.meleeDefenceBonus, greaterThan(0));
+      expect(
+        bronzeHelmet.equipmentStats.toModifiers().flatMeleeDefenceBonus,
+        greaterThan(0),
+      );
 
       final equipment = Equipment(
         foodSlots: const [null, null, null],

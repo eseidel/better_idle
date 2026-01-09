@@ -37,31 +37,6 @@ class EquipmentStats extends Equatable {
 
   final Map<String, int> _values;
 
-  /// Weapon attack speed in milliseconds. Null for non-weapons.
-  int? get attackSpeed => _values['attackSpeed'];
-
-  // Attack bonuses
-  int get stabAttackBonus => _values['stabAttackBonus'] ?? 0;
-  int get slashAttackBonus => _values['slashAttackBonus'] ?? 0;
-  int get blockAttackBonus => _values['blockAttackBonus'] ?? 0;
-
-  // Strength bonuses
-  int get meleeStrengthBonus => _values['meleeStrengthBonus'] ?? 0;
-  int get rangedStrengthBonus => _values['rangedStrengthBonus'] ?? 0;
-
-  // Attack bonuses (ranged/magic)
-  int get rangedAttackBonus => _values['rangedAttackBonus'] ?? 0;
-  int get magicAttackBonus => _values['magicAttackBonus'] ?? 0;
-  int get magicDamageBonus => _values['magicDamageBonus'] ?? 0;
-
-  // Defence bonuses
-  int get meleeDefenceBonus => _values['meleeDefenceBonus'] ?? 0;
-  int get rangedDefenceBonus => _values['rangedDefenceBonus'] ?? 0;
-  int get magicDefenceBonus => _values['magicDefenceBonus'] ?? 0;
-
-  // Damage reduction (resistance)
-  int get damageReduction => _values['damageReduction'] ?? 0;
-
   /// Maps equipment stat keys to modifier names.
   static const _statToModifier = {
     'attackSpeed': 'equipmentAttackSpeed',

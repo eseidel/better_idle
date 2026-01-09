@@ -175,12 +175,14 @@ void main() async {
 
     print('=== ITEM MODIFIERS ANALYSIS ===\n');
     print('Total unique modifier types on items: ${modifierInfo.length}');
-    print(
-      'Implemented: ${implementedModifiers.intersection(modifierInfo.keys.toSet()).length}',
-    );
-    print(
-      'Missing: ${modifierInfo.length - implementedModifiers.intersection(modifierInfo.keys.toSet()).length}',
-    );
+    final implemented = implementedModifiers
+        .intersection(modifierInfo.keys.toSet())
+        .length;
+    print('Implemented: $implemented');
+    final missing =
+        modifierInfo.length -
+        implementedModifiers.intersection(modifierInfo.keys.toSet()).length;
+    print('Missing: $missing');
 
     print('\n--- IMPLEMENTED ---\n');
     for (final entry in sortedModifiers) {
