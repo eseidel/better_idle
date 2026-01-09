@@ -25,6 +25,13 @@ class MiningState {
     );
   }
 
+  /// Deserializes a [MiningState] from a dynamic JSON value.
+  /// Returns null if [json] is null.
+  static MiningState? maybeFromJson(dynamic json) {
+    if (json == null) return null;
+    return MiningState.fromJson(json as Map<String, dynamic>);
+  }
+
   /// Gets the current HP of a mining node.
   int currentHp(MiningAction action, int masteryXp) {
     final masteryLevel = levelForXp(masteryXp);
@@ -107,6 +114,13 @@ class CombatActionState {
     );
   }
 
+  /// Deserializes a [CombatActionState] from a dynamic JSON value.
+  /// Returns null if [json] is null.
+  static CombatActionState? maybeFromJson(dynamic json) {
+    if (json == null) return null;
+    return CombatActionState.fromJson(json as Map<String, dynamic>);
+  }
+
   /// The ID of the monster being fought.
   final ActionId monsterId;
   final int monsterHp;
@@ -180,12 +194,8 @@ class ActionState {
     return ActionState(
       masteryXp: json['masteryXp'] as int,
       cumulativeTicks: json['cumulativeTicks'] as int? ?? 0,
-      mining: json['mining'] != null
-          ? MiningState.fromJson(json['mining'] as Map<String, dynamic>)
-          : null,
-      combat: json['combat'] != null
-          ? CombatActionState.fromJson(json['combat'] as Map<String, dynamic>)
-          : null,
+      mining: MiningState.maybeFromJson(json['mining']),
+      combat: CombatActionState.maybeFromJson(json['combat']),
       selectedRecipeIndex: json['selectedRecipeIndex'] as int?,
     );
   }
