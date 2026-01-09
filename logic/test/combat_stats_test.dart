@@ -702,4 +702,244 @@ void main() {
       }
     });
   });
+
+  group('CombatTriangle', () {
+    group('getModifiers', () {
+      test('returns neutral modifiers for same combat type', () {
+        // Melee vs Melee
+        var mods = CombatTriangle.getModifiers(
+          CombatType.melee,
+          AttackType.melee,
+        );
+        expect(mods.damageModifier, equals(1.0));
+        expect(mods.damageReductionModifier, equals(1.0));
+
+        // Ranged vs Ranged
+        mods = CombatTriangle.getModifiers(
+          CombatType.ranged,
+          AttackType.ranged,
+        );
+        expect(mods.damageModifier, equals(1.0));
+        expect(mods.damageReductionModifier, equals(1.0));
+
+        // Magic vs Magic
+        mods = CombatTriangle.getModifiers(CombatType.magic, AttackType.magic);
+        expect(mods.damageModifier, equals(1.0));
+        expect(mods.damageReductionModifier, equals(1.0));
+      });
+
+      test('melee beats ranged (player advantage)', () {
+        final mods = CombatTriangle.getModifiers(
+          CombatType.melee,
+          AttackType.ranged,
+        );
+        // Player deals 10% more damage
+        expect(mods.damageModifier, equals(1.10));
+        // Player's damage reduction is 25% more effective
+        expect(mods.damageReductionModifier, equals(1.25));
+      });
+
+      test('ranged beats magic (player advantage)', () {
+        final mods = CombatTriangle.getModifiers(
+          CombatType.ranged,
+          AttackType.magic,
+        );
+        expect(mods.damageModifier, equals(1.10));
+        expect(mods.damageReductionModifier, equals(1.25));
+      });
+
+      test('magic beats melee (player advantage)', () {
+        final mods = CombatTriangle.getModifiers(
+          CombatType.magic,
+          AttackType.melee,
+        );
+        expect(mods.damageModifier, equals(1.10));
+        expect(mods.damageReductionModifier, equals(1.25));
+      });
+
+      test('melee vs magic (player disadvantage)', () {
+        final mods = CombatTriangle.getModifiers(
+          CombatType.melee,
+          AttackType.magic,
+        );
+        // Player deals 15% less damage
+        expect(mods.damageModifier, equals(0.85));
+        // Player's damage reduction is 25% less effective
+        expect(mods.damageReductionModifier, equals(0.75));
+      });
+
+      test('ranged vs melee (player disadvantage)', () {
+        final mods = CombatTriangle.getModifiers(
+          CombatType.ranged,
+          AttackType.melee,
+        );
+        expect(mods.damageModifier, equals(0.85));
+        // Ranged vs Melee has less severe DR penalty (0.95)
+        expect(mods.damageReductionModifier, equals(0.95));
+      });
+
+      test('magic vs ranged (player disadvantage)', () {
+        final mods = CombatTriangle.getModifiers(
+          CombatType.magic,
+          AttackType.ranged,
+        );
+        expect(mods.damageModifier, equals(0.85));
+        expect(mods.damageReductionModifier, equals(0.85));
+      });
+
+      test('random attack type converts to melee for triangle', () {
+        // Random attack type converts to melee in AttackType.combatType
+        final mods = CombatTriangle.getModifiers(
+          CombatType.magic,
+          AttackType.random,
+        );
+        // Magic vs Melee (random -> melee) = advantage
+        expect(mods.damageModifier, equals(1.10));
+        expect(mods.damageReductionModifier, equals(1.25));
+      });
+    });
+
+    group('applyDamageModifier', () {
+      test('applies neutral modifier correctly', () {
+        final damage = CombatTriangle.applyDamageModifier(
+          100,
+          CombatTriangleModifiers.neutral,
+        );
+        expect(damage, equals(100));
+      });
+
+      test('applies advantage damage modifier (1.10x)', () {
+        const advantageMods = CombatTriangleModifiers(
+          damageModifier: 1.10,
+          damageReductionModifier: 1.25,
+        );
+        final damage = CombatTriangle.applyDamageModifier(100, advantageMods);
+        expect(damage, equals(110));
+      });
+
+      test('applies disadvantage damage modifier (0.85x)', () {
+        const disadvantageMods = CombatTriangleModifiers(
+          damageModifier: 0.85,
+          damageReductionModifier: 0.75,
+        );
+        final damage = CombatTriangle.applyDamageModifier(
+          100,
+          disadvantageMods,
+        );
+        expect(damage, equals(85));
+      });
+
+      test('rounds correctly for non-integer results', () {
+        const mods = CombatTriangleModifiers(
+          damageModifier: 1.10,
+          damageReductionModifier: 1,
+        );
+        // 77 * 1.10 = 84.7, should round to 85
+        expect(CombatTriangle.applyDamageModifier(77, mods), equals(85));
+        // 73 * 1.10 = 80.3, should round to 80
+        expect(CombatTriangle.applyDamageModifier(73, mods), equals(80));
+      });
+    });
+
+    group('applyDamageReduction', () {
+      test('applies damage reduction with neutral modifier', () {
+        // 100 damage, 20% DR, neutral modifier
+        // Result = 100 * (1 - 0.20 * 1.0) = 100 * 0.80 = 80
+        final result = CombatTriangle.applyDamageReduction(
+          100,
+          0.20,
+          CombatTriangleModifiers.neutral,
+        );
+        expect(result, equals(80));
+      });
+
+      test('advantage makes damage reduction more effective', () {
+        const advantageMods = CombatTriangleModifiers(
+          damageModifier: 1.10,
+          damageReductionModifier: 1.25,
+        );
+        // 100 damage, 20% DR, advantage modifier
+        // Effective DR = 0.20 * 1.25 = 0.25
+        // Result = 100 * (1 - 0.25) = 75
+        final result = CombatTriangle.applyDamageReduction(
+          100,
+          0.20,
+          advantageMods,
+        );
+        expect(result, equals(75));
+      });
+
+      test('disadvantage makes damage reduction less effective', () {
+        const disadvantageMods = CombatTriangleModifiers(
+          damageModifier: 0.85,
+          damageReductionModifier: 0.75,
+        );
+        // 100 damage, 20% DR, disadvantage modifier
+        // Effective DR = 0.20 * 0.75 = 0.15
+        // Result = 100 * (1 - 0.15) = 85
+        final result = CombatTriangle.applyDamageReduction(
+          100,
+          0.20,
+          disadvantageMods,
+        );
+        expect(result, equals(85));
+      });
+
+      test('caps effective damage reduction at 95%', () {
+        const advantageMods = CombatTriangleModifiers(
+          damageModifier: 1.10,
+          damageReductionModifier: 1.25,
+        );
+        // 100 damage, 90% DR, advantage modifier
+        // Without cap: effective DR = 0.90 * 1.25 = 1.125 (>100%!)
+        // With cap: effective DR = 0.95
+        // Result = 100 * (1 - 0.95) = 5
+        final result = CombatTriangle.applyDamageReduction(
+          100,
+          0.90,
+          advantageMods,
+        );
+        expect(result, equals(5));
+      });
+
+      test('does not go below 0% damage reduction', () {
+        const badMods = CombatTriangleModifiers(
+          damageModifier: 0.85,
+          damageReductionModifier: -1, // Hypothetical negative modifier
+        );
+        // Should clamp to 0% DR, meaning full damage taken
+        final result = CombatTriangle.applyDamageReduction(100, 0.20, badMods);
+        expect(result, equals(100));
+      });
+    });
+
+    group('integration with AttackStyle', () {
+      test('melee style against ranged monster has advantage', () {
+        final mods = CombatTriangle.getModifiers(
+          AttackStyle.stab.combatType, // Melee
+          AttackType.ranged,
+        );
+        expect(mods.damageModifier, greaterThan(1.0));
+        expect(mods.damageReductionModifier, greaterThan(1.0));
+      });
+
+      test('ranged style against melee monster has disadvantage', () {
+        final mods = CombatTriangle.getModifiers(
+          AttackStyle.accurate.combatType, // Ranged
+          AttackType.melee,
+        );
+        expect(mods.damageModifier, lessThan(1.0));
+        expect(mods.damageReductionModifier, lessThan(1.0));
+      });
+
+      test('magic style against melee monster has advantage', () {
+        final mods = CombatTriangle.getModifiers(
+          AttackStyle.standard.combatType, // Magic
+          AttackType.melee,
+        );
+        expect(mods.damageModifier, greaterThan(1.0));
+        expect(mods.damageReductionModifier, greaterThan(1.0));
+      });
+    });
+  });
 }
