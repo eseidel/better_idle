@@ -22,9 +22,9 @@ class ActionId extends Equatable {
 
   String toJson() => '${skillId.toJson()}/$localId';
 
-  static ActionId? maybeFromJson(String? json) {
+  static ActionId? maybeFromJson(dynamic json) {
     if (json == null) return null;
-    return ActionId.fromJson(json);
+    return ActionId.fromJson(json as String);
   }
 
   @override

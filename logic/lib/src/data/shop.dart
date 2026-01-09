@@ -29,6 +29,16 @@ class ItemCost extends Equatable {
   final MelvorId itemId;
   final int quantity;
 
+  /// Deserializes an [ItemCost] from a dynamic JSON value.
+  /// Returns null if [json] is null.
+  static ItemCost? maybeFromJson(dynamic json, {required String namespace}) {
+    if (json == null) return null;
+    return ItemCost.fromJson(
+      json as Map<String, dynamic>,
+      namespace: namespace,
+    );
+  }
+
   @override
   List<Object?> get props => [itemId, quantity];
 }
@@ -133,9 +143,10 @@ class ShopContents extends Equatable {
             ),
           )
           .toList(),
-      itemCharges: itemChargesJson != null
-          ? ItemCost.fromJson(itemChargesJson, namespace: namespace)
-          : null,
+      itemCharges: ItemCost.maybeFromJson(
+        itemChargesJson,
+        namespace: namespace,
+      ),
     );
   }
 

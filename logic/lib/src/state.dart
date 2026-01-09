@@ -1235,11 +1235,22 @@ class GlobalState {
     return copyWith(equipment: equipment.copyWith(selectedFoodSlot: slotIndex));
   }
 
+  /// Returns true if the player meets all requirements to equip the item.
+  bool canEquipGear(Item item) {
+    return item.equipRequirements.every((req) => req.isMet(this));
+  }
+
+  /// Returns the list of equipment requirements not met by the player.
+  /// Returns an empty list if all requirements are met.
+  List<ShopRequirement> unmetEquipRequirements(Item item) {
+    return item.equipRequirements.where((req) => !req.isMet(this)).toList();
+  }
+
   /// Equips a gear item from inventory to a specific equipment slot.
   /// Removes one item from inventory and equips it.
   /// If there was an item in that slot, it's returned to inventory.
-  /// Throws StateError if player doesn't have the item or inventory is full
-  /// when swapping.
+  /// Throws StateError if player doesn't have the item, doesn't meet
+  /// requirements, or inventory is full when swapping.
   GlobalState equipGear(Item item, EquipmentSlot slot) {
     if (!item.isEquippable) {
       throw StateError('Cannot equip ${item.name}: not equippable');
@@ -1249,6 +1260,9 @@ class GlobalState {
         'Cannot equip ${item.name} in $slot slot. '
         'Valid slots: ${item.validSlots}',
       );
+    }
+    if (!canEquipGear(item)) {
+      throw StateError('Cannot equip ${item.name}: requirements not met');
     }
     if (inventory.countOfItem(item) < 1) {
       throw StateError('Cannot equip ${item.name}: not in inventory');

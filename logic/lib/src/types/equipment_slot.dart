@@ -51,6 +51,13 @@ enum EquipmentSlot {
     };
   }
 
+  /// Deserializes an [EquipmentSlot] from a dynamic JSON value.
+  /// Returns null if [json] is null.
+  static EquipmentSlot? maybeFromJson(dynamic json) {
+    if (json == null) return null;
+    return EquipmentSlot.fromJson(json as String);
+  }
+
   /// Returns the JSON representation of this slot.
   String toJson() => displayName;
 }

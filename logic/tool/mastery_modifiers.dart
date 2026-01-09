@@ -203,9 +203,10 @@ void main() async {
     print('=== MASTERY MODIFIERS ANALYSIS ===\n');
     print('Total unique modifier types: ${modifierInfo.length}');
     print('Implemented: ${implementedModifiers.length}');
-    print(
-      'Missing: ${modifierInfo.length - implementedModifiers.intersection(modifierInfo.keys.toSet()).length}',
-    );
+    final missing =
+        modifierInfo.length -
+        implementedModifiers.intersection(modifierInfo.keys.toSet()).length;
+    print('Missing: $missing');
 
     print('\n--- IMPLEMENTED ---\n');
     for (final entry in sortedModifiers) {

@@ -16,13 +16,12 @@ class PlotState {
   const PlotState.empty() : this();
 
   factory PlotState.fromJson(ItemRegistry items, Map<String, dynamic> json) {
-    final cropIdJson = json['cropId'] as String?;
     final compostItemsJson = json['compostItems'] as List<dynamic>? ?? [];
     final compostItems = compostItemsJson
         .map((id) => items.byId(MelvorId.fromJson(id as String)))
         .toList();
     return PlotState(
-      cropId: cropIdJson != null ? ActionId.fromJson(cropIdJson) : null,
+      cropId: ActionId.maybeFromJson(json['cropId']),
       growthTicksRemaining: json['growthTicksRemaining'] as int?,
       compostItems: compostItems,
     );
