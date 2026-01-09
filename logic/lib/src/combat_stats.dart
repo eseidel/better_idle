@@ -211,7 +211,6 @@ class PlayerCombatStats extends Stats {
 
     // --- Min Hit Calculation ---
     // Start at 1, apply flat modifiers.
-    // Note: flatMinHit and flatMagicMinHit are scaled by 10 during parsing.
     var minHit = 1 + bonuses.flatMinHit.toInt();
 
     // Add style-specific flat min hit modifiers
