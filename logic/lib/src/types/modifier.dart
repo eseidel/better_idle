@@ -219,10 +219,11 @@ class ModifierData extends Equatable {
     required String namespace,
   }) {
     final entries = <ModifierEntry>[];
+    final scale = _scale10Modifiers.contains(key) ? 10 : 1;
 
     if (value is num) {
       // Scalar value - single entry with no scope
-      entries.add(ModifierEntry(value: value));
+      entries.add(ModifierEntry(value: value * scale));
     } else if (value is List) {
       // Array of scoped values
       for (final item in value) {
@@ -230,7 +231,7 @@ class ModifierData extends Equatable {
           final entryValue = item['value'];
           if (entryValue is num) {
             final scope = ModifierScope.fromJson(item, namespace: namespace);
-            entries.add(ModifierEntry(value: entryValue, scope: scope));
+            entries.add(ModifierEntry(value: entryValue * scale, scope: scope));
           } else {
             // Value field is missing or not a number
             throw FormatException(
@@ -247,6 +248,10 @@ class ModifierData extends Equatable {
 
     return ModifierData(name: key, entries: entries);
   }
+
+  /// Modifiers that need to be scaled by 10 during parsing.
+  /// These are stored at 1/10 scale in the data (e.g., flatMinHit=1 means +10).
+  static const _scale10Modifiers = {'flatMinHit', 'flatMagicMinHit'};
 
   /// The modifier name/key (e.g., "skillXP", "skillInterval").
   final String name;
