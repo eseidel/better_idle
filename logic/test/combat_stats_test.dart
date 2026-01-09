@@ -364,10 +364,16 @@ void main() {
       expect(grant.isEmpty, isFalse);
     });
 
-    test('zero damage grants zero XP', () {
+    test('zero damage grants no XP', () {
       final grant = CombatXpGrant.fromDamage(0, AttackStyle.stab);
-      expect(grant.xpGrants[Skill.hitpoints], equals(0));
-      expect(grant.xpGrants[Skill.attack], equals(0));
+      expect(grant.xpGrants, isEmpty);
+    });
+
+    test('low damage grants minimum 1 XP per skill', () {
+      // 1 damage would give floor(1 * 0.04) = 0, but minimum is 1
+      final grant = CombatXpGrant.fromDamage(1, AttackStyle.stab);
+      expect(grant.xpGrants[Skill.hitpoints], equals(1));
+      expect(grant.xpGrants[Skill.attack], equals(1));
     });
   });
 

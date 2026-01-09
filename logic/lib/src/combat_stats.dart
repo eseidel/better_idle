@@ -380,14 +380,20 @@ class CombatXpGrant {
   /// - Hitpoints: 0.133 XP per damage (1.3%)
   /// - Single skill style: 0.04 XP per damage (4%)
   /// - Hybrid style: 0.02 XP per damage per skill (2%)
+  ///
+  /// Minimum 1 XP is granted per skill when any damage is dealt.
   factory CombatXpGrant.fromDamage(int damage, AttackStyle style) {
-    final hitpointsXp = (damage * 0.133).floor();
+    if (damage <= 0) {
+      return const CombatXpGrant({});
+    }
+    // Minimum 1 XP per skill when damage is dealt
+    final hitpointsXp = (damage * 0.133).floor().clamp(1, damage);
     // Single skill: 4% = 0.04 per damage
-    final singleSkillXp = (damage * 0.04).floor();
+    final singleSkillXp = (damage * 0.04).floor().clamp(1, damage);
     // Hybrid: 2% = 0.02 per damage per skill
-    final hybridXp = (damage * 0.02).floor();
+    final hybridXp = (damage * 0.02).floor().clamp(1, damage);
     // Controlled: 4% / 3 = ~1.33% = 0.0133 per damage per skill
-    final controlledXp = (damage * 0.04 / 3).floor();
+    final controlledXp = (damage * 0.04 / 3).floor().clamp(1, damage);
 
     return switch (style) {
       // Melee styles
