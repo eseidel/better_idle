@@ -210,11 +210,32 @@ class PlayerCombatStats extends Stats {
     maxHit = maxHit.clamp(1, 99999);
 
     // --- Min Hit Calculation ---
-    // Start at 1, apply flat modifiers
-    var minHit = 1 + bonuses.flatMinHit.toInt();
+    // Start at 1, apply flat modifiers.
+    // flatMinHit and flatMagicMinHit are stored at 1/10 scale in the data,
+    // so we multiply by 10 to get the actual min hit value.
+    var minHit = 1 + (bonuses.flatMinHit * 10).toInt();
 
-    // minHitBasedOnMaxHit is a percentage of max hit added to min hit
-    final minHitPercent = bonuses.minHitBasedOnMaxHit;
+    // Add style-specific flat min hit modifiers
+    switch (attackStyle.combatType) {
+      case CombatType.magic:
+        minHit += (bonuses.flatMagicMinHit * 10).toInt();
+      case CombatType.melee:
+      case CombatType.ranged:
+        // No style-specific flat min hit modifiers for melee/ranged
+        break;
+    }
+
+    // minHitBasedOnMaxHit is a percentage of max hit added to min hit.
+    // Also check for style-specific variants (currently only magic has one).
+    var minHitPercent = bonuses.minHitBasedOnMaxHit;
+    switch (attackStyle.combatType) {
+      case CombatType.magic:
+        minHitPercent += bonuses.magicMinHitBasedOnMaxHit;
+      case CombatType.melee:
+      case CombatType.ranged:
+        // No style-specific minHitBasedOnMaxHit modifiers for melee/ranged
+        break;
+    }
     if (minHitPercent > 0) {
       minHit += (maxHit * minHitPercent / 100).floor();
     }

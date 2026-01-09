@@ -715,6 +715,279 @@ void main() {
     });
   });
 
+  group('Min Hit Modifiers', () {
+    test('flatMinHit multiplied by 10 increases minHit for all styles', () {
+      // flatMinHit is stored at 1/10 scale in data, so value of 1 = +10 min hit
+      const itemWithFlatMinHit = Item(
+        id: MelvorId('test:flatMinHitItem'),
+        name: 'Test Flat Min Hit',
+        itemType: 'Equipment',
+        sellsFor: 1000,
+        validSlots: [EquipmentSlot.ring],
+        modifiers: ModifierDataSet([
+          ModifierData(name: 'flatMinHit', entries: [ModifierEntry(value: 2)]),
+        ]),
+      );
+
+      const equipment = Equipment(
+        foodSlots: [null, null, null],
+        selectedFoodSlot: 0,
+        gearSlots: {EquipmentSlot.ring: itemWithFlatMinHit},
+      );
+      final stateWithItem = GlobalState.test(
+        testRegistries,
+        equipment: equipment,
+      );
+      final stateWithout = GlobalState.test(testRegistries);
+
+      final statsWithItem = PlayerCombatStats.fromState(stateWithItem);
+      final statsWithout = PlayerCombatStats.fromState(stateWithout);
+
+      // flatMinHit=2 * 10 = +20 min hit
+      expect(statsWithItem.minHit, equals(statsWithout.minHit + 20));
+    });
+
+    test(
+      'flatMagicMinHit multiplied by 10 increases minHit for magic style',
+      () {
+        // flatMagicMinHit is stored at 1/10 scale in data
+        const itemWithFlatMagicMinHit = Item(
+          id: MelvorId('test:flatMagicMinHitItem'),
+          name: 'Test Flat Magic Min Hit',
+          itemType: 'Equipment',
+          sellsFor: 1000,
+          validSlots: [EquipmentSlot.ring],
+          modifiers: ModifierDataSet([
+            ModifierData(
+              name: 'flatMagicMinHit',
+              entries: [ModifierEntry(value: 1.5)],
+            ),
+          ]),
+        );
+
+        const equipment = Equipment(
+          foodSlots: [null, null, null],
+          selectedFoodSlot: 0,
+          gearSlots: {EquipmentSlot.ring: itemWithFlatMagicMinHit},
+        );
+
+        // Magic style should benefit from flatMagicMinHit
+        final magicStateWithItem = GlobalState.test(
+          testRegistries,
+          equipment: equipment,
+          attackStyle: AttackStyle.standard,
+        );
+        final magicStateWithout = GlobalState.test(
+          testRegistries,
+          attackStyle: AttackStyle.standard,
+        );
+
+        final magicStatsWithItem = PlayerCombatStats.fromState(
+          magicStateWithItem,
+        );
+        final magicStatsWithout = PlayerCombatStats.fromState(
+          magicStateWithout,
+        );
+
+        // flatMagicMinHit=1.5 * 10 = +15 min hit for magic
+        expect(
+          magicStatsWithItem.minHit,
+          equals(magicStatsWithout.minHit + 15),
+        );
+
+        // Melee style should NOT benefit from flatMagicMinHit
+        final meleeStateWithItem = GlobalState.test(
+          testRegistries,
+          equipment: equipment,
+        );
+        final meleeStateWithout = GlobalState.test(testRegistries);
+
+        final meleeStatsWithItem = PlayerCombatStats.fromState(
+          meleeStateWithItem,
+        );
+        final meleeStatsWithout = PlayerCombatStats.fromState(
+          meleeStateWithout,
+        );
+
+        // Melee should have same minHit with or without the magic-specific
+        // modifier
+        expect(meleeStatsWithItem.minHit, equals(meleeStatsWithout.minHit));
+      },
+    );
+
+    test('minHitBasedOnMaxHit adds percentage of maxHit to minHit', () {
+      const itemWithMinHitPercent = Item(
+        id: MelvorId('test:minHitBasedOnMaxHitItem'),
+        name: 'Test Min Hit Based On Max',
+        itemType: 'Equipment',
+        sellsFor: 1000,
+        validSlots: [EquipmentSlot.ring],
+        modifiers: ModifierDataSet([
+          ModifierData(
+            name: 'minHitBasedOnMaxHit',
+            entries: [ModifierEntry(value: 10)],
+          ),
+        ]),
+      );
+
+      const equipment = Equipment(
+        foodSlots: [null, null, null],
+        selectedFoodSlot: 0,
+        gearSlots: {EquipmentSlot.ring: itemWithMinHitPercent},
+      );
+      final stateWithItem = GlobalState.test(
+        testRegistries,
+        equipment: equipment,
+      );
+      final stateWithout = GlobalState.test(testRegistries);
+
+      final statsWithItem = PlayerCombatStats.fromState(stateWithItem);
+      final statsWithout = PlayerCombatStats.fromState(stateWithout);
+
+      // minHitBasedOnMaxHit=10 means +10% of maxHit added to minHit
+      // minHit should be base + 10% of maxHit
+      final expectedMinHit = 1 + (statsWithItem.maxHit * 10 / 100).floor();
+      expect(statsWithItem.minHit, equals(expectedMinHit));
+      // Without the modifier, minHit should just be base (1)
+      expect(statsWithout.minHit, equals(1));
+    });
+
+    test('magicMinHitBasedOnMaxHit adds percentage only for magic style', () {
+      const itemWithMagicMinHitPercent = Item(
+        id: MelvorId('test:magicMinHitBasedOnMaxHitItem'),
+        name: 'Test Magic Min Hit Based On Max',
+        itemType: 'Equipment',
+        sellsFor: 1000,
+        validSlots: [EquipmentSlot.ring],
+        modifiers: ModifierDataSet([
+          ModifierData(
+            name: 'magicMinHitBasedOnMaxHit',
+            entries: [ModifierEntry(value: 15)],
+          ),
+        ]),
+      );
+
+      const equipment = Equipment(
+        foodSlots: [null, null, null],
+        selectedFoodSlot: 0,
+        gearSlots: {EquipmentSlot.ring: itemWithMagicMinHitPercent},
+      );
+
+      // Magic style should benefit
+      final magicStateWithItem = GlobalState.test(
+        testRegistries,
+        equipment: equipment,
+        attackStyle: AttackStyle.standard,
+      );
+
+      final magicStats = PlayerCombatStats.fromState(magicStateWithItem);
+
+      // minHit should be base + 15% of maxHit
+      final expectedMagicMinHit = 1 + (magicStats.maxHit * 15 / 100).floor();
+      expect(magicStats.minHit, equals(expectedMagicMinHit));
+
+      // Melee style should NOT benefit
+      final meleeStateWithItem = GlobalState.test(
+        testRegistries,
+        equipment: equipment,
+      );
+
+      final meleeStats = PlayerCombatStats.fromState(meleeStateWithItem);
+
+      // minHit should just be base (1) for melee
+      expect(meleeStats.minHit, equals(1));
+    });
+
+    test('minHit modifiers stack correctly', () {
+      // Item with multiple min hit modifiers
+      const itemWithMultipleMinHitMods = Item(
+        id: MelvorId('test:multiMinHitItem'),
+        name: 'Test Multi Min Hit',
+        itemType: 'Equipment',
+        sellsFor: 1000,
+        validSlots: [EquipmentSlot.ring],
+        modifiers: ModifierDataSet([
+          // +10
+          ModifierData(name: 'flatMinHit', entries: [ModifierEntry(value: 1)]),
+          // +5 for magic
+          ModifierData(
+            name: 'flatMagicMinHit',
+            entries: [ModifierEntry(value: 0.5)],
+          ),
+          // +5% of maxHit
+          ModifierData(
+            name: 'minHitBasedOnMaxHit',
+            entries: [ModifierEntry(value: 5)],
+          ),
+          // +5% of maxHit for magic
+          ModifierData(
+            name: 'magicMinHitBasedOnMaxHit',
+            entries: [ModifierEntry(value: 5)],
+          ),
+        ]),
+      );
+
+      const equipment = Equipment(
+        foodSlots: [null, null, null],
+        selectedFoodSlot: 0,
+        gearSlots: {EquipmentSlot.ring: itemWithMultipleMinHitMods},
+      );
+
+      // Magic style: gets all modifiers
+      final magicState = GlobalState.test(
+        testRegistries,
+        equipment: equipment,
+        attackStyle: AttackStyle.standard,
+      );
+      final magicStats = PlayerCombatStats.fromState(magicState);
+
+      // Expected: 1 + 10 (flatMinHit) + 5 (flatMagicMinHit) + 10% of maxHit
+      // (5% minHitBasedOnMaxHit + 5% magicMinHitBasedOnMaxHit = 10%)
+      final expectedMagicMinHit =
+          1 + 10 + 5 + (magicStats.maxHit * 10 / 100).floor();
+      expect(magicStats.minHit, equals(expectedMagicMinHit));
+
+      // Melee style: only gets generic modifiers
+      final meleeState = GlobalState.test(testRegistries, equipment: equipment);
+      final meleeStats = PlayerCombatStats.fromState(meleeState);
+
+      // Expected: 1 + 10 (flatMinHit) + 5% of maxHit (only generic)
+      final expectedMeleeMinHit =
+          1 + 10 + (meleeStats.maxHit * 5 / 100).floor();
+      expect(meleeStats.minHit, equals(expectedMeleeMinHit));
+    });
+
+    test('minHit is clamped to maxHit', () {
+      // Item with very high minHit modifiers that would exceed maxHit
+      const itemWithHighMinHit = Item(
+        id: MelvorId('test:highMinHitItem'),
+        name: 'Test High Min Hit',
+        itemType: 'Equipment',
+        sellsFor: 1000,
+        validSlots: [EquipmentSlot.ring],
+        modifiers: ModifierDataSet([
+          // 200% of maxHit!
+          ModifierData(
+            name: 'minHitBasedOnMaxHit',
+            entries: [ModifierEntry(value: 200)],
+          ),
+        ]),
+      );
+
+      const equipment = Equipment(
+        foodSlots: [null, null, null],
+        selectedFoodSlot: 0,
+        gearSlots: {EquipmentSlot.ring: itemWithHighMinHit},
+      );
+
+      final state = GlobalState.test(testRegistries, equipment: equipment);
+      final stats = PlayerCombatStats.fromState(state);
+
+      // minHit should be clamped to maxHit
+      expect(stats.minHit, equals(stats.maxHit));
+    });
+  });
+
   group('CombatTriangle', () {
     group('getModifiers', () {
       test('returns neutral modifiers for same combat type', () {
