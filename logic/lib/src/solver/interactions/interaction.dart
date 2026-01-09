@@ -127,6 +127,13 @@ sealed class SellPolicy {
       _ => throw ArgumentError('Unknown SellPolicy type: $type'),
     };
   }
+
+  /// Deserializes a [SellPolicy] from a dynamic JSON value.
+  /// Returns null if [json] is null.
+  static SellPolicy? maybeFromJson(dynamic json) {
+    if (json == null) return null;
+    return SellPolicy.fromJson(json as Map<String, dynamic>);
+  }
 }
 
 /// Sell all items in inventory.
@@ -194,6 +201,13 @@ sealed class SellPolicySpec {
       'ReserveConsumingInputsSpec' => const ReserveConsumingInputsSpec(),
       _ => throw ArgumentError('Unknown SellPolicySpec type: $type'),
     };
+  }
+
+  /// Deserializes a [SellPolicySpec] from a dynamic JSON value.
+  /// Returns null if [json] is null.
+  static SellPolicySpec? maybeFromJson(dynamic json) {
+    if (json == null) return null;
+    return SellPolicySpec.fromJson(json as Map<String, dynamic>);
   }
 }
 

@@ -210,9 +210,7 @@ sealed class MacroCandidate {
         watchedStops: (json['watchedStops'] as List<dynamic>)
             .map((s) => MacroStopRule.fromJson(s as Map<String, dynamic>))
             .toList(),
-        actionId: json['actionId'] != null
-            ? ActionId.fromJson(json['actionId'] as String)
-            : null,
+        actionId: ActionId.maybeFromJson(json['actionId']),
       ),
       'AcquireItem' => AcquireItem(
         MelvorId.fromJson(json['itemId'] as String),
@@ -234,12 +232,8 @@ sealed class MacroCandidate {
         watchedStops: (json['watchedStops'] as List<dynamic>)
             .map((s) => MacroStopRule.fromJson(s as Map<String, dynamic>))
             .toList(),
-        actionId: json['actionId'] != null
-            ? ActionId.fromJson(json['actionId'] as String)
-            : null,
-        consumeActionId: json['consumeActionId'] != null
-            ? ActionId.fromJson(json['consumeActionId'] as String)
-            : null,
+        actionId: ActionId.maybeFromJson(json['actionId']),
+        consumeActionId: ActionId.maybeFromJson(json['consumeActionId']),
         producerByInputItem: json['producerByInputItem'] != null
             ? {
                 for (final entry
@@ -251,11 +245,7 @@ sealed class MacroCandidate {
               }
             : null,
         bufferTarget: json['bufferTarget'] as int?,
-        sellPolicySpec: json['sellPolicySpec'] != null
-            ? SellPolicySpec.fromJson(
-                json['sellPolicySpec'] as Map<String, dynamic>,
-              )
-            : null,
+        sellPolicySpec: SellPolicySpec.maybeFromJson(json['sellPolicySpec']),
         maxRecoveryAttempts: json['maxRecoveryAttempts'] as int? ?? 3,
         inputChains: json['inputChains'] != null
             ? {

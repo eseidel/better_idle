@@ -105,9 +105,7 @@ sealed class PlanStep extends Equatable {
       'WaitStep' => WaitStep(
         json['deltaTicks'] as int,
         WaitFor.fromJson(json['waitFor'] as Map<String, dynamic>),
-        expectedAction: json['expectedAction'] != null
-            ? ActionId.fromJson(json['expectedAction'] as String)
-            : null,
+        expectedAction: ActionId.maybeFromJson(json['expectedAction']),
       ),
       'MacroStep' => MacroStep(
         MacroCandidate.fromJson(json['macro'] as Map<String, dynamic>),
@@ -570,9 +568,7 @@ class SegmentMarker {
       boundary: SegmentBoundary.fromJson(
         json['boundary'] as Map<String, dynamic>,
       ),
-      sellPolicy: json['sellPolicy'] != null
-          ? SellPolicy.fromJson(json['sellPolicy'] as Map<String, dynamic>)
-          : null,
+      sellPolicy: SellPolicy.maybeFromJson(json['sellPolicy']),
       description: json['description'] as String?,
     );
   }
@@ -600,6 +596,13 @@ class SegmentMarker {
       if (sellPolicy != null) 'sellPolicy': sellPolicy!.toJson(),
       if (description != null) 'description': description,
     };
+  }
+
+  /// Deserializes a [SegmentMarker] from a dynamic JSON value.
+  /// Returns null if [json] is null.
+  static SegmentMarker? maybeFromJson(dynamic json) {
+    if (json == null) return null;
+    return SegmentMarker.fromJson(json as Map<String, dynamic>);
   }
 }
 
