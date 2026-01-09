@@ -1734,6 +1734,139 @@ void main() {
     });
   });
 
+  group('GlobalState.combatLevel', () {
+    test('returns 1 with default level 1 skills', () {
+      // GlobalState.test has all skills at level 1 by default
+      final state = GlobalState.test(testRegistries);
+
+      // Base = 0.25 * (1 + 1 + floor(0.5 * 1)) = 0.25 * (1 + 1 + 0) = 0.5
+      // Melee = 1 + 1 = 2
+      // Ranged = floor(1.5 * 1) = 1
+      // Magic = floor(1.5 * 1) = 1
+      // Combat Level = floor(0.5 + 0.325 * 2) = floor(0.5 + 0.65) = floor(1.15) = 1
+      expect(state.combatLevel, 1);
+    });
+
+    test('calculates combat level with melee as highest offensive', () {
+      // Set up state with specific skill levels
+      // Attack 20, Strength 20, Defence 10, Hitpoints 20, others at 1
+      final state = GlobalState.test(
+        testRegistries,
+        skillStates: {
+          Skill.attack: SkillState(xp: startXpForLevel(20), masteryPoolXp: 0),
+          Skill.strength: SkillState(xp: startXpForLevel(20), masteryPoolXp: 0),
+          Skill.defence: SkillState(xp: startXpForLevel(10), masteryPoolXp: 0),
+          Skill.hitpoints: SkillState(
+            xp: startXpForLevel(20),
+            masteryPoolXp: 0,
+          ),
+          Skill.prayer: const SkillState(xp: 0, masteryPoolXp: 0),
+          Skill.ranged: const SkillState(xp: 0, masteryPoolXp: 0),
+          Skill.magic: const SkillState(xp: 0, masteryPoolXp: 0),
+        },
+      );
+
+      // Base = 0.25 * (10 + 20 + floor(0.5 * 1)) = 0.25 * (10 + 20 + 0) = 7.5
+      // Melee = 20 + 20 = 40
+      // Ranged = floor(1.5 * 1) = 1
+      // Magic = floor(1.5 * 1) = 1
+      // Combat Level = floor(7.5 + 0.325 * 40) = floor(7.5 + 13) = floor(20.5) = 20
+      expect(state.combatLevel, 20);
+    });
+
+    test('calculates combat level with ranged as highest offensive', () {
+      // Set up state with high ranged
+      // Ranged 50, others low
+      final state = GlobalState.test(
+        testRegistries,
+        skillStates: {
+          Skill.attack: const SkillState(xp: 0, masteryPoolXp: 0),
+          Skill.strength: const SkillState(xp: 0, masteryPoolXp: 0),
+          Skill.defence: SkillState(xp: startXpForLevel(10), masteryPoolXp: 0),
+          Skill.hitpoints: SkillState(
+            xp: startXpForLevel(20),
+            masteryPoolXp: 0,
+          ),
+          Skill.prayer: const SkillState(xp: 0, masteryPoolXp: 0),
+          Skill.ranged: SkillState(xp: startXpForLevel(50), masteryPoolXp: 0),
+          Skill.magic: const SkillState(xp: 0, masteryPoolXp: 0),
+        },
+      );
+
+      // Base = 0.25 * (10 + 20 + 0) = 7.5
+      // Melee = 1 + 1 = 2
+      // Ranged = floor(1.5 * 50) = 75
+      // Magic = floor(1.5 * 1) = 1
+      // Combat Level = floor(7.5 + 0.325 * 75) = floor(7.5 + 24.375) = floor(31.875) = 31
+      expect(state.combatLevel, 31);
+    });
+
+    test('calculates combat level with magic as highest offensive', () {
+      // Set up state with high magic
+      final state = GlobalState.test(
+        testRegistries,
+        skillStates: {
+          Skill.attack: const SkillState(xp: 0, masteryPoolXp: 0),
+          Skill.strength: const SkillState(xp: 0, masteryPoolXp: 0),
+          Skill.defence: SkillState(xp: startXpForLevel(10), masteryPoolXp: 0),
+          Skill.hitpoints: SkillState(
+            xp: startXpForLevel(20),
+            masteryPoolXp: 0,
+          ),
+          Skill.prayer: const SkillState(xp: 0, masteryPoolXp: 0),
+          Skill.ranged: const SkillState(xp: 0, masteryPoolXp: 0),
+          Skill.magic: SkillState(xp: startXpForLevel(50), masteryPoolXp: 0),
+        },
+      );
+
+      // Base = 0.25 * (10 + 20 + 0) = 7.5
+      // Melee = 1 + 1 = 2
+      // Ranged = floor(1.5 * 1) = 1
+      // Magic = floor(1.5 * 50) = 75
+      // Combat Level = floor(7.5 + 0.325 * 75) = floor(31.875) = 31
+      expect(state.combatLevel, 31);
+    });
+
+    test('prayer contributes to base combat level', () {
+      // Compare two states: one with prayer, one without
+      final stateNoPrayer = GlobalState.test(
+        testRegistries,
+        skillStates: {
+          Skill.defence: SkillState(xp: startXpForLevel(10), masteryPoolXp: 0),
+          Skill.hitpoints: SkillState(
+            xp: startXpForLevel(20),
+            masteryPoolXp: 0,
+          ),
+          Skill.prayer: const SkillState(xp: 0, masteryPoolXp: 0),
+          Skill.attack: SkillState(xp: startXpForLevel(10), masteryPoolXp: 0),
+          Skill.strength: SkillState(xp: startXpForLevel(10), masteryPoolXp: 0),
+        },
+      );
+
+      final stateWithPrayer = GlobalState.test(
+        testRegistries,
+        skillStates: {
+          Skill.defence: SkillState(xp: startXpForLevel(10), masteryPoolXp: 0),
+          Skill.hitpoints: SkillState(
+            xp: startXpForLevel(20),
+            masteryPoolXp: 0,
+          ),
+          Skill.prayer: SkillState(xp: startXpForLevel(40), masteryPoolXp: 0),
+          Skill.attack: SkillState(xp: startXpForLevel(10), masteryPoolXp: 0),
+          Skill.strength: SkillState(xp: startXpForLevel(10), masteryPoolXp: 0),
+        },
+      );
+
+      // Base no prayer = 0.25 * (10 + 20 + 0) = 7.5
+      // Base with prayer = 0.25 * (10 + 20 + floor(0.5 * 40)) = 0.25 * (10 + 20 + 20) = 12.5
+      // The prayer contribution should increase combat level
+      expect(
+        stateWithPrayer.combatLevel,
+        greaterThan(stateNoPrayer.combatLevel),
+      );
+    });
+  });
+
   group('GlobalState.validate', () {
     test('returns true when no active action', () {
       final state = GlobalState.test(testRegistries);
