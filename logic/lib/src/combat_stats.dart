@@ -357,19 +357,19 @@ PlayerCombatStats computePlayerStats(GlobalState state) {
 
 /// XP grants from combat damage.
 ///
-/// Hitpoints XP is always granted: floor(damage * 1.33) per hit.
+/// Hitpoints XP is always granted: 0.133 XP per damage (1.3% per damage).
 /// Combat style XP depends on the selected [AttackStyle]:
 ///
 /// Melee styles:
-/// - Stab: 4 XP per damage to Attack
-/// - Slash: 4 XP per damage to Strength
-/// - Block: 4 XP per damage to Defence
-/// - Controlled: ~1.33 XP per damage to Attack, Strength, and Defence
+/// - Stab: 0.04 XP per damage (4%) to Attack
+/// - Slash: 0.04 XP per damage (4%) to Strength
+/// - Block: 0.04 XP per damage (4%) to Defence
+/// - Controlled: ~0.0133 XP per damage to Attack, Strength, and Defence each
 ///
 /// Ranged styles:
-/// - Accurate: 4 XP per damage to Ranged
-/// - Rapid: 4 XP per damage to Ranged
-/// - Longrange: 2 XP per damage to Ranged and Defence each
+/// - Accurate: 0.04 XP per damage (4%) to Ranged
+/// - Rapid: 0.04 XP per damage (4%) to Ranged
+/// - Longrange: 0.02 XP per damage (2%) to Ranged and Defence each
 @immutable
 class CombatXpGrant {
   const CombatXpGrant(this.xpGrants);
@@ -377,53 +377,59 @@ class CombatXpGrant {
   /// Creates XP grants based on damage dealt and attack style.
   ///
   /// Uses Melvor Idle formulas:
-  /// - Hitpoints: floor(damage * 1.33)
-  /// - Combat skill: damage * 4 (distributed based on style)
+  /// - Hitpoints: 0.133 XP per damage (1.3%)
+  /// - Single skill style: 0.04 XP per damage (4%)
+  /// - Hybrid style: 0.02 XP per damage per skill (2%)
   factory CombatXpGrant.fromDamage(int damage, AttackStyle style) {
-    final hitpointsXp = (damage * 1.33).floor();
-    final combatXp = damage * 4;
+    final hitpointsXp = (damage * 0.133).floor();
+    // Single skill: 4% = 0.04 per damage
+    final singleSkillXp = (damage * 0.04).floor();
+    // Hybrid: 2% = 0.02 per damage per skill
+    final hybridXp = (damage * 0.02).floor();
+    // Controlled: 4% / 3 = ~1.33% = 0.0133 per damage per skill
+    final controlledXp = (damage * 0.04 / 3).floor();
 
     return switch (style) {
       // Melee styles
       AttackStyle.stab => CombatXpGrant({
         Skill.hitpoints: hitpointsXp,
-        Skill.attack: combatXp,
+        Skill.attack: singleSkillXp,
       }),
       AttackStyle.slash => CombatXpGrant({
         Skill.hitpoints: hitpointsXp,
-        Skill.strength: combatXp,
+        Skill.strength: singleSkillXp,
       }),
       AttackStyle.block => CombatXpGrant({
         Skill.hitpoints: hitpointsXp,
-        Skill.defence: combatXp,
+        Skill.defence: singleSkillXp,
       }),
       AttackStyle.controlled => CombatXpGrant({
         Skill.hitpoints: hitpointsXp,
-        Skill.attack: (combatXp / 3).floor(),
-        Skill.strength: (combatXp / 3).floor(),
-        Skill.defence: (combatXp / 3).floor(),
+        Skill.attack: controlledXp,
+        Skill.strength: controlledXp,
+        Skill.defence: controlledXp,
       }),
       // Ranged styles
       AttackStyle.accurate || AttackStyle.rapid => CombatXpGrant({
         Skill.hitpoints: hitpointsXp,
-        Skill.ranged: combatXp,
+        Skill.ranged: singleSkillXp,
       }),
       // Longrange splits XP between Ranged and Defence // cspell:ignore longrange
       AttackStyle.longRange => CombatXpGrant({
         Skill.hitpoints: hitpointsXp,
-        Skill.ranged: (combatXp / 2).floor(),
-        Skill.defence: (combatXp / 2).floor(),
+        Skill.ranged: hybridXp,
+        Skill.defence: hybridXp,
       }),
       // Magic styles
       AttackStyle.standard => CombatXpGrant({
         Skill.hitpoints: hitpointsXp,
-        Skill.magic: combatXp,
+        Skill.magic: singleSkillXp,
       }),
       // Defensive splits XP between Magic and Defence
       AttackStyle.defensive => CombatXpGrant({
         Skill.hitpoints: hitpointsXp,
-        Skill.magic: (combatXp / 2).floor(),
-        Skill.defence: (combatXp / 2).floor(),
+        Skill.magic: hybridXp,
+        Skill.defence: hybridXp,
       }),
     };
   }
