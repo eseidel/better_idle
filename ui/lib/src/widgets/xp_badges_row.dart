@@ -27,7 +27,11 @@ class XpBadgesRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final perAction = xpPerAction(context.state, action);
+    final perAction = xpPerAction(
+      context.state,
+      action,
+      context.state.resolveSkillModifiers(action),
+    );
     final spacing = inradius * 8 / TextBadgeCell.defaultInradius;
     return Row(
       mainAxisAlignment: MainAxisAlignment.center,
