@@ -1003,17 +1003,33 @@ enum ForegroundResult {
     final pStats = computePlayerStats(builder.state);
     final mStats = MonsterCombatStats.fromAction(action);
 
+    // Get combat triangle modifiers based on player vs monster combat types
+    final playerCombatType = builder.state.attackStyle.combatType;
+    final triangleModifiers = CombatTriangle.getModifiers(
+      playerCombatType,
+      action.attackType,
+    );
+
     // Calculate hit chance and roll to see if attack hits
-    // Player attacks monster's melee evasion (simplified)
-    // TODO(eseidel): Should respect attack type
+    // Player attacks monster using the player's combat type for evasion lookup
+    final monsterDefenceType = playerCombatType == CombatType.melee
+        ? AttackType.melee
+        : playerCombatType == CombatType.ranged
+        ? AttackType.ranged
+        : AttackType.magic;
     final hitChance = CombatCalculator.playerHitChance(
       pStats,
       mStats,
-      AttackType.melee,
+      monsterDefenceType,
     );
 
     if (CombatCalculator.rollHit(random, hitChance)) {
-      final damage = pStats.rollDamage(random);
+      final baseDamage = pStats.rollDamage(random);
+      // Apply combat triangle damage modifier
+      final damage = CombatTriangle.applyDamageModifier(
+        baseDamage,
+        triangleModifiers,
+      );
       monsterHp -= damage;
 
       // Grant combat XP based on damage dealt and attack style
@@ -1073,6 +1089,13 @@ enum ForegroundResult {
     final mStats = MonsterCombatStats.fromAction(action);
     final pStats = computePlayerStats(builder.state);
 
+    // Get combat triangle modifiers for damage reduction calculation
+    final playerCombatType = builder.state.attackStyle.combatType;
+    final triangleModifiers = CombatTriangle.getModifiers(
+      playerCombatType,
+      action.attackType,
+    );
+
     // Calculate hit chance and roll to see if monster hits
     final hitChance = CombatCalculator.monsterHitChance(
       mStats,
@@ -1082,7 +1105,12 @@ enum ForegroundResult {
 
     if (CombatCalculator.rollHit(random, hitChance)) {
       final damage = mStats.rollDamage(random);
-      final reducedDamage = (damage * (1 - pStats.damageReduction)).round();
+      // Apply combat triangle to damage reduction
+      final reducedDamage = CombatTriangle.applyDamageReduction(
+        damage,
+        pStats.damageReduction,
+        triangleModifiers,
+      );
       health = health.takeDamage(reducedDamage);
       builder.setHealth(health);
     }

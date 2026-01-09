@@ -4,6 +4,120 @@ import 'package:logic/src/data/actions.dart';
 import 'package:logic/src/state.dart';
 import 'package:meta/meta.dart';
 
+/// Combat triangle modifiers for a specific matchup.
+///
+/// In Melvor Idle's Normal mode, the combat triangle provides damage and
+/// damage reduction bonuses/penalties based on player vs monster combat types.
+@immutable
+class CombatTriangleModifiers {
+  const CombatTriangleModifiers({
+    required this.damageModifier,
+    required this.damageReductionModifier,
+  });
+
+  /// Multiplier applied to player damage (1.0 = no change).
+  /// > 1.0 means player deals more damage (advantage).
+  /// < 1.0 means player deals less damage (disadvantage).
+  final double damageModifier;
+
+  /// Multiplier applied to incoming damage after player's damage reduction.
+  /// > 1.0 means player takes less damage (advantage).
+  /// < 1.0 means player takes more damage (disadvantage).
+  ///
+  /// This is applied as:
+  ///   finalDamage = damage * (1 - DR * damageReductionModifier)
+  /// So higher values mean the player's DR is more effective.
+  final double damageReductionModifier;
+
+  /// Neutral modifiers (no advantage or disadvantage).
+  static const neutral = CombatTriangleModifiers(
+    damageModifier: 1,
+    damageReductionModifier: 1,
+  );
+}
+
+/// Combat triangle system from Melvor Idle.
+///
+/// In Normal mode:
+/// - Melee beats Ranged (player deals 1.10x damage, takes 0.80x damage)
+/// - Ranged beats Magic (player deals 1.10x damage, takes 0.80x damage)
+/// - Magic beats Melee (player deals 1.10x damage, takes 0.80x damage)
+///
+/// When at a disadvantage:
+/// - Player deals 0.85x damage
+/// - Player's damage reduction is less effective (0.75x to 0.95x)
+class CombatTriangle {
+  CombatTriangle._();
+
+  /// Gets combat triangle modifiers for a player vs monster matchup.
+  ///
+  /// [playerCombatType] is the player's current combat style.
+  /// [monsterAttackType] is the monster's attack type.
+  ///
+  /// Returns modifiers that affect player damage dealt and damage taken.
+  static CombatTriangleModifiers getModifiers(
+    CombatType playerCombatType,
+    AttackType monsterAttackType,
+  ) {
+    final monsterCombatType = monsterAttackType.combatType;
+
+    // Same type = neutral
+    if (playerCombatType == monsterCombatType) {
+      return CombatTriangleModifiers.neutral;
+    }
+
+    // Check if player has advantage (player type beats monster type)
+    final hasAdvantage = switch ((playerCombatType, monsterCombatType)) {
+      (CombatType.melee, CombatType.ranged) => true,
+      (CombatType.ranged, CombatType.magic) => true,
+      (CombatType.magic, CombatType.melee) => true,
+      _ => false,
+    };
+
+    if (hasAdvantage) {
+      // Player has advantage: deal more damage, take less damage
+      return const CombatTriangleModifiers(
+        damageModifier: 1.10,
+        damageReductionModifier: 1.25,
+      );
+    } else {
+      // Player has disadvantage: deal less damage, take more damage
+      // Damage reduction modifier varies by matchup in Melvor
+      final drModifier = switch ((playerCombatType, monsterCombatType)) {
+        (CombatType.melee, CombatType.magic) => 0.75,
+        (CombatType.ranged, CombatType.melee) => 0.95,
+        (CombatType.magic, CombatType.ranged) => 0.85,
+        _ => 1.0, // Shouldn't happen
+      };
+      return CombatTriangleModifiers(
+        damageModifier: 0.85,
+        damageReductionModifier: drModifier,
+      );
+    }
+  }
+
+  /// Applies damage modifier from combat triangle to player damage.
+  static int applyDamageModifier(int damage, CombatTriangleModifiers mods) {
+    return (damage * mods.damageModifier).round();
+  }
+
+  /// Applies damage reduction with combat triangle modifier.
+  ///
+  /// The combat triangle affects how effective the player's damage reduction
+  /// is. With advantage (modifier > 1.0), DR is more effective.
+  /// With disadvantage (modifier < 1.0), DR is less effective.
+  static int applyDamageReduction(
+    int damage,
+    double baseDamageReduction,
+    CombatTriangleModifiers mods,
+  ) {
+    // Effective DR = base DR * modifier, capped at 95%
+    final effectiveDR = (baseDamageReduction * mods.damageReductionModifier)
+        .clamp(0.0, 0.95);
+    return (damage * (1 - effectiveDR)).round();
+  }
+}
+
 /// Computes accuracy or evasion rating using Melvor formula.
 ///
 /// Formula: floor((effectiveLevel + 9) * (bonus + 64) * (1 + modifier/100))
