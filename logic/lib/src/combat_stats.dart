@@ -211,14 +211,13 @@ class PlayerCombatStats extends Stats {
 
     // --- Min Hit Calculation ---
     // Start at 1, apply flat modifiers.
-    // flatMinHit and flatMagicMinHit are stored at 1/10 scale in the data,
-    // so we multiply by 10 to get the actual min hit value.
-    var minHit = 1 + (bonuses.flatMinHit * 10).toInt();
+    // Note: flatMinHit and flatMagicMinHit are scaled by 10 during parsing.
+    var minHit = 1 + bonuses.flatMinHit.toInt();
 
     // Add style-specific flat min hit modifiers
     switch (attackStyle.combatType) {
       case CombatType.magic:
-        minHit += (bonuses.flatMagicMinHit * 10).toInt();
+        minHit += bonuses.flatMagicMinHit.toInt();
       case CombatType.melee:
       case CombatType.ranged:
         // No style-specific flat min hit modifiers for melee/ranged

@@ -375,6 +375,62 @@ void main() {
     });
   });
 
+  group('ModifierData.fromJson', () {
+    test('parses scalar value', () {
+      final data = ModifierData.fromJson('skillXP', 5, namespace: 'melvorD');
+      expect(data.name, 'skillXP');
+      expect(data.entries.length, 1);
+      expect(data.entries.first.value, 5);
+      expect(data.entries.first.scope, isNull);
+    });
+
+    test('parses array of scoped values', () {
+      final data = ModifierData.fromJson('skillInterval', const [
+        {'value': -5, 'skillID': 'melvorD:Woodcutting'},
+        {'value': -3, 'skillID': 'melvorD:Fishing'},
+      ], namespace: 'melvorD');
+      expect(data.name, 'skillInterval');
+      expect(data.entries.length, 2);
+      expect(data.entries[0].value, -5);
+      expect(
+        data.entries[0].scope?.skillId,
+        const MelvorId('melvorD:Woodcutting'),
+      );
+      expect(data.entries[1].value, -3);
+      expect(data.entries[1].scope?.skillId, const MelvorId('melvorD:Fishing'));
+    });
+
+    test('flatMinHit is scaled by 10 during parsing', () {
+      // In the raw data, flatMinHit=2 means +20 min hit
+      final data = ModifierData.fromJson('flatMinHit', 2, namespace: 'melvorD');
+      expect(data.name, 'flatMinHit');
+      expect(data.entries.first.value, 20); // 2 * 10
+    });
+
+    test('flatMagicMinHit is scaled by 10 during parsing', () {
+      // In the raw data, flatMagicMinHit=1.5 means +15 min hit
+      final data = ModifierData.fromJson(
+        'flatMagicMinHit',
+        1.5,
+        namespace: 'melvorD',
+      );
+      expect(data.name, 'flatMagicMinHit');
+      expect(data.entries.first.value, 15); // 1.5 * 10
+    });
+
+    test('flatMinHit scaling works with array values', () {
+      final data = ModifierData.fromJson('flatMinHit', const [
+        {'value': 1},
+      ], namespace: 'melvorD');
+      expect(data.entries.first.value, 10); // 1 * 10
+    });
+
+    test('other modifiers are not scaled', () {
+      final data = ModifierData.fromJson('skillXP', 5, namespace: 'melvorD');
+      expect(data.entries.first.value, 5); // No scaling
+    });
+  });
+
   group('ModifierDataSet', () {
     test('equality with same modifiers', () {
       const set1 = ModifierDataSet([

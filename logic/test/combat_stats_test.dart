@@ -716,8 +716,9 @@ void main() {
   });
 
   group('Min Hit Modifiers', () {
-    test('flatMinHit multiplied by 10 increases minHit for all styles', () {
-      // flatMinHit is stored at 1/10 scale in data, so value of 1 = +10 min hit
+    test('flatMinHit increases minHit for all styles', () {
+      // flatMinHit is scaled by 10 during parsing, so we provide the
+      // already-scaled value here (simulating post-parsing data).
       const itemWithFlatMinHit = Item(
         id: MelvorId('test:flatMinHitItem'),
         name: 'Test Flat Min Hit',
@@ -725,7 +726,8 @@ void main() {
         sellsFor: 1000,
         validSlots: [EquipmentSlot.ring],
         modifiers: ModifierDataSet([
-          ModifierData(name: 'flatMinHit', entries: [ModifierEntry(value: 2)]),
+          // Value of 20 means +20 min hit (already scaled)
+          ModifierData(name: 'flatMinHit', entries: [ModifierEntry(value: 20)]),
         ]),
       );
 
@@ -743,77 +745,69 @@ void main() {
       final statsWithItem = PlayerCombatStats.fromState(stateWithItem);
       final statsWithout = PlayerCombatStats.fromState(stateWithout);
 
-      // flatMinHit=2 * 10 = +20 min hit
+      // flatMinHit=20 means +20 min hit
       expect(statsWithItem.minHit, equals(statsWithout.minHit + 20));
     });
 
-    test(
-      'flatMagicMinHit multiplied by 10 increases minHit for magic style',
-      () {
-        // flatMagicMinHit is stored at 1/10 scale in data
-        const itemWithFlatMagicMinHit = Item(
-          id: MelvorId('test:flatMagicMinHitItem'),
-          name: 'Test Flat Magic Min Hit',
-          itemType: 'Equipment',
-          sellsFor: 1000,
-          validSlots: [EquipmentSlot.ring],
-          modifiers: ModifierDataSet([
-            ModifierData(
-              name: 'flatMagicMinHit',
-              entries: [ModifierEntry(value: 1.5)],
-            ),
-          ]),
-        );
+    test('flatMagicMinHit increases minHit for magic style only', () {
+      // flatMagicMinHit is scaled by 10 during parsing, so we provide the
+      // already-scaled value here.
+      const itemWithFlatMagicMinHit = Item(
+        id: MelvorId('test:flatMagicMinHitItem'),
+        name: 'Test Flat Magic Min Hit',
+        itemType: 'Equipment',
+        sellsFor: 1000,
+        validSlots: [EquipmentSlot.ring],
+        modifiers: ModifierDataSet([
+          // Value of 15 means +15 min hit for magic (already scaled)
+          ModifierData(
+            name: 'flatMagicMinHit',
+            entries: [ModifierEntry(value: 15)],
+          ),
+        ]),
+      );
 
-        const equipment = Equipment(
-          foodSlots: [null, null, null],
-          selectedFoodSlot: 0,
-          gearSlots: {EquipmentSlot.ring: itemWithFlatMagicMinHit},
-        );
+      const equipment = Equipment(
+        foodSlots: [null, null, null],
+        selectedFoodSlot: 0,
+        gearSlots: {EquipmentSlot.ring: itemWithFlatMagicMinHit},
+      );
 
-        // Magic style should benefit from flatMagicMinHit
-        final magicStateWithItem = GlobalState.test(
-          testRegistries,
-          equipment: equipment,
-          attackStyle: AttackStyle.standard,
-        );
-        final magicStateWithout = GlobalState.test(
-          testRegistries,
-          attackStyle: AttackStyle.standard,
-        );
+      // Magic style should benefit from flatMagicMinHit
+      final magicStateWithItem = GlobalState.test(
+        testRegistries,
+        equipment: equipment,
+        attackStyle: AttackStyle.standard,
+      );
+      final magicStateWithout = GlobalState.test(
+        testRegistries,
+        attackStyle: AttackStyle.standard,
+      );
 
-        final magicStatsWithItem = PlayerCombatStats.fromState(
-          magicStateWithItem,
-        );
-        final magicStatsWithout = PlayerCombatStats.fromState(
-          magicStateWithout,
-        );
+      final magicStatsWithItem = PlayerCombatStats.fromState(
+        magicStateWithItem,
+      );
+      final magicStatsWithout = PlayerCombatStats.fromState(magicStateWithout);
 
-        // flatMagicMinHit=1.5 * 10 = +15 min hit for magic
-        expect(
-          magicStatsWithItem.minHit,
-          equals(magicStatsWithout.minHit + 15),
-        );
+      // flatMagicMinHit=15 means +15 min hit for magic
+      expect(magicStatsWithItem.minHit, equals(magicStatsWithout.minHit + 15));
 
-        // Melee style should NOT benefit from flatMagicMinHit
-        final meleeStateWithItem = GlobalState.test(
-          testRegistries,
-          equipment: equipment,
-        );
-        final meleeStateWithout = GlobalState.test(testRegistries);
+      // Melee style should NOT benefit from flatMagicMinHit
+      final meleeStateWithItem = GlobalState.test(
+        testRegistries,
+        equipment: equipment,
+      );
+      final meleeStateWithout = GlobalState.test(testRegistries);
 
-        final meleeStatsWithItem = PlayerCombatStats.fromState(
-          meleeStateWithItem,
-        );
-        final meleeStatsWithout = PlayerCombatStats.fromState(
-          meleeStateWithout,
-        );
+      final meleeStatsWithItem = PlayerCombatStats.fromState(
+        meleeStateWithItem,
+      );
+      final meleeStatsWithout = PlayerCombatStats.fromState(meleeStateWithout);
 
-        // Melee should have same minHit with or without the magic-specific
-        // modifier
-        expect(meleeStatsWithItem.minHit, equals(meleeStatsWithout.minHit));
-      },
-    );
+      // Melee should have same minHit with or without the magic-specific
+      // modifier
+      expect(meleeStatsWithItem.minHit, equals(meleeStatsWithout.minHit));
+    });
 
     test('minHitBasedOnMaxHit adds percentage of maxHit to minHit', () {
       const itemWithMinHitPercent = Item(
@@ -899,7 +893,9 @@ void main() {
     });
 
     test('minHit modifiers stack correctly', () {
-      // Item with multiple min hit modifiers
+      // Item with multiple min hit modifiers.
+      // flatMinHit and flatMagicMinHit are scaled by 10 during parsing,
+      // so we provide already-scaled values here.
       const itemWithMultipleMinHitMods = Item(
         id: MelvorId('test:multiMinHitItem'),
         name: 'Test Multi Min Hit',
@@ -907,12 +903,12 @@ void main() {
         sellsFor: 1000,
         validSlots: [EquipmentSlot.ring],
         modifiers: ModifierDataSet([
-          // +10
-          ModifierData(name: 'flatMinHit', entries: [ModifierEntry(value: 1)]),
-          // +5 for magic
+          // +10 (already scaled)
+          ModifierData(name: 'flatMinHit', entries: [ModifierEntry(value: 10)]),
+          // +5 for magic (already scaled)
           ModifierData(
             name: 'flatMagicMinHit',
-            entries: [ModifierEntry(value: 0.5)],
+            entries: [ModifierEntry(value: 5)],
           ),
           // +5% of maxHit
           ModifierData(
