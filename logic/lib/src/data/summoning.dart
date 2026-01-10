@@ -117,4 +117,8 @@ class SummoningAction extends SkillAction {
   /// When performing actions in these skills, players have a chance to
   /// discover marks for this familiar.
   final List<MelvorId> markSkillIds;
+
+  /// The summon/recipe ID for this familiar (e.g., "melvorF:GolbinThief").
+  /// This is used for synergy lookups.
+  MelvorId get summonId => id.localId;
 }

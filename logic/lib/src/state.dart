@@ -9,6 +9,7 @@ import 'package:logic/src/data/currency.dart';
 import 'package:logic/src/data/melvor_id.dart';
 import 'package:logic/src/data/registries.dart';
 import 'package:logic/src/data/shop.dart';
+import 'package:logic/src/data/summoning_synergy.dart';
 import 'package:logic/src/data/xp.dart';
 import 'package:logic/src/json.dart';
 import 'package:logic/src/plot_state.dart';
@@ -981,7 +982,57 @@ class GlobalState {
       }
     }
 
+    // --- Synergy modifiers ---
+    // Apply synergy if both summon slots have tablets equipped and both
+    // familiars have mark level >= 3.
+    final synergy = _getActiveSynergy();
+    if (synergy != null) {
+      for (final mod in synergy.modifiers.modifiers) {
+        for (final modEntry in mod.entries) {
+          // For skill-scoped: only include if applies to skill
+          // For global: include all
+          if (skillId == null || modEntry.appliesToSkill(skillId)) {
+            builder.add(mod.name, modEntry.value);
+          }
+        }
+      }
+    }
+
     return builder.build();
+  }
+
+  /// Returns the active synergy if both summon slots have tablets equipped,
+  /// both familiars have mark level >= 3, and a synergy exists for the pair.
+  ///
+  /// Returns null if:
+  /// - Either summon slot is empty
+  /// - Either item is not a summoning tablet
+  /// - Either familiar has mark level < 3
+  /// - No synergy exists for the pair of familiars
+  SummoningSynergy? getActiveSynergy() => _getActiveSynergy();
+
+  SummoningSynergy? _getActiveSynergy() {
+    final tablet1 = equipment.gearInSlot(EquipmentSlot.summon1);
+    final tablet2 = equipment.gearInSlot(EquipmentSlot.summon2);
+
+    // Both slots must have tablets
+    if (tablet1 == null || tablet2 == null) return null;
+    if (!tablet1.isSummonTablet || !tablet2.isSummonTablet) return null;
+
+    // Get the summoning actions for each tablet
+    final action1 = registries.actions.summoningActionForTablet(tablet1.id);
+    final action2 = registries.actions.summoningActionForTablet(tablet2.id);
+    if (action1 == null || action2 == null) return null;
+
+    // Both familiars must have mark level >= 3
+    if (summoning.markLevel(action1.productId) < 3) return null;
+    if (summoning.markLevel(action2.productId) < 3) return null;
+
+    // Look up synergy for this pair
+    return registries.summoningSynergies.findSynergy(
+      action1.summonId,
+      action2.summonId,
+    );
   }
 
   /// Rolls duration for a skill action and applies all relevant modifiers.

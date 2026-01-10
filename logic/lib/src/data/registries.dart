@@ -5,6 +5,7 @@ import 'package:logic/src/data/cache.dart';
 import 'package:logic/src/data/melvor_data.dart';
 import 'package:logic/src/data/melvor_id.dart';
 import 'package:logic/src/data/shop.dart';
+import 'package:logic/src/data/summoning_synergy.dart';
 import 'package:logic/src/types/mastery.dart';
 import 'package:logic/src/types/mastery_unlock.dart';
 import 'package:meta/meta.dart';
@@ -33,6 +34,7 @@ class Registries {
     this.shop,
     this.masteryBonuses,
     this.masteryUnlocks,
+    this.summoningSynergies,
     this._bankSortIndex,
   );
 
@@ -42,6 +44,7 @@ class Registries {
     ShopRegistry? shop,
     MasteryBonusRegistry? masteryBonuses,
     MasteryUnlockRegistry? masteryUnlocks,
+    SummoningSynergyRegistry? summoningSynergies,
     Map<MelvorId, int>? bankSortIndex,
   }) {
     return Registries(
@@ -66,6 +69,7 @@ class Registries {
       shop ?? ShopRegistry(const [], const []),
       masteryBonuses ?? MasteryBonusRegistry([]),
       masteryUnlocks ?? MasteryUnlockRegistry(const []),
+      summoningSynergies ?? const SummoningSynergyRegistry([]),
       bankSortIndex ?? {},
     );
   }
@@ -91,6 +95,7 @@ class Registries {
   final ShopRegistry shop;
   final MasteryBonusRegistry masteryBonuses;
   final MasteryUnlockRegistry masteryUnlocks;
+  final SummoningSynergyRegistry summoningSynergies;
   final Map<MelvorId, int> _bankSortIndex;
 
   /// Comparator for sorting items according to bank sort order.
@@ -151,6 +156,7 @@ Future<Registries> loadRegistriesFromCache(Cache cache) async {
     melvorData.shop,
     melvorData.masteryBonuses,
     melvorData.masteryUnlocks,
+    melvorData.summoningSynergies,
     melvorData.bankSortIndex,
   );
 }

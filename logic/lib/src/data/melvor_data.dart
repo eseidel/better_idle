@@ -5,6 +5,7 @@ import 'package:logic/src/data/bank_sort.dart';
 import 'package:logic/src/data/cache.dart';
 import 'package:logic/src/data/melvor_id.dart';
 import 'package:logic/src/data/shop.dart';
+import 'package:logic/src/data/summoning_synergy.dart';
 import 'package:logic/src/types/mastery.dart';
 import 'package:logic/src/types/mastery_unlock.dart';
 import 'package:meta/meta.dart';
@@ -166,6 +167,11 @@ class MelvorData {
       ..addAll(parseAltMagic(skillDataById['melvorD:Magic']));
 
     _actions = ActionRegistry(actions);
+
+    // Parse summoning synergies
+    _summoningSynergies = parseSummoningSynergies(
+      skillDataById['melvorD:Summoning'],
+    );
     _combatAreas = CombatAreaRegistry(combatAreas);
     _dungeons = DungeonRegistry(dungeons);
 
@@ -217,6 +223,7 @@ class MelvorData {
   late final AgilityPillarRegistry _agilityPillars;
   late final MasteryBonusRegistry _masteryBonuses;
   late final MasteryUnlockRegistry _masteryUnlocks;
+  late final SummoningSynergyRegistry _summoningSynergies;
 
   /// Returns the item registry.
   ItemRegistry get items => _items;
@@ -259,6 +266,8 @@ class MelvorData {
   MasteryBonusRegistry get masteryBonuses => _masteryBonuses;
 
   MasteryUnlockRegistry get masteryUnlocks => _masteryUnlocks;
+
+  SummoningSynergyRegistry get summoningSynergies => _summoningSynergies;
 
   /// Returns the bank sort index map for passing to Registries.
   Map<MelvorId, int> get bankSortIndex => _bankSortIndex;

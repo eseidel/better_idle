@@ -19,6 +19,8 @@ export 'src/data/melvor_data.dart';
 export 'src/data/melvor_id.dart';
 export 'src/data/registries.dart';
 export 'src/data/shop.dart';
+export 'src/data/summoning.dart';
+export 'src/data/summoning_synergy.dart';
 export 'src/data/xp.dart';
 export 'src/plot_state.dart';
 export 'src/progress_at.dart';

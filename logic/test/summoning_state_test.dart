@@ -941,4 +941,161 @@ void main() {
       expect(magicState.resolveCombatModifiers().flatResistance, 1);
     });
   });
+
+  group('Summoning Synergies', () {
+    late Item golbinThiefTablet;
+    late Item occultistTablet;
+    late SummoningAction golbinThiefAction;
+    late SummoningAction occultistAction;
+
+    setUpAll(() async {
+      await loadTestRegistries();
+      // Get Golbin Thief and Occultist familiars (they have a synergy)
+      golbinThiefAction = testActions
+          .forSkill(Skill.summoning)
+          .whereType<SummoningAction>()
+          .firstWhere((a) => a.name.contains('Golbin Thief'));
+      occultistAction = testActions
+          .forSkill(Skill.summoning)
+          .whereType<SummoningAction>()
+          .firstWhere((a) => a.name.contains('Occultist'));
+
+      golbinThiefTablet = testItems.byId(golbinThiefAction.productId);
+      occultistTablet = testItems.byId(occultistAction.productId);
+    });
+
+    test('no synergy when only one tablet equipped', () {
+      const equipment = Equipment.empty();
+      final (equipped, _) = equipment.equipSummonTablet(
+        golbinThiefTablet,
+        EquipmentSlot.summon1,
+        10,
+      );
+
+      // Even with high mark levels, no synergy with only one tablet
+      final summoningState = const SummoningState.empty().withMarks(
+        golbinThiefAction.productId,
+        61,
+      ); // Mark level 6
+
+      final state = GlobalState.test(
+        testRegistries,
+        equipment: equipped,
+        summoning: summoningState,
+      );
+
+      expect(state.getActiveSynergy(), isNull);
+    });
+
+    test('no synergy when mark levels too low', () {
+      const equipment = Equipment.empty();
+      final (equipped1, _) = equipment.equipSummonTablet(
+        golbinThiefTablet,
+        EquipmentSlot.summon1,
+        10,
+      );
+      final (equipped2, _) = equipped1.equipSummonTablet(
+        occultistTablet,
+        EquipmentSlot.summon2,
+        10,
+      );
+
+      // Only mark level 2 for each (need level 3)
+      final summoningState = const SummoningState.empty()
+          .withMarks(golbinThiefAction.productId, 15) // Mark level 2
+          .withMarks(occultistAction.productId, 15); // Mark level 2
+
+      final state = GlobalState.test(
+        testRegistries,
+        equipment: equipped2,
+        summoning: summoningState,
+      );
+
+      expect(state.getActiveSynergy(), isNull);
+    });
+
+    test('synergy activates with mark level 3 for both familiars', () {
+      const equipment = Equipment.empty();
+      final (equipped1, _) = equipment.equipSummonTablet(
+        golbinThiefTablet,
+        EquipmentSlot.summon1,
+        10,
+      );
+      final (equipped2, _) = equipped1.equipSummonTablet(
+        occultistTablet,
+        EquipmentSlot.summon2,
+        10,
+      );
+
+      // Mark level 3 for both (16 marks = level 3)
+      final summoningState = const SummoningState.empty()
+          .withMarks(golbinThiefAction.productId, 16)
+          .withMarks(occultistAction.productId, 16);
+
+      final state = GlobalState.test(
+        testRegistries,
+        equipment: equipped2,
+        summoning: summoningState,
+      );
+
+      final synergy = state.getActiveSynergy();
+      expect(synergy, isNotNull);
+      // Golbin Thief + Occultist synergy has currencyGainOnMonsterKillBasedOnEvasion
+      expect(synergy!.modifiers.modifiers, isNotEmpty);
+    });
+
+    test('synergy modifiers are included in resolved modifiers', () {
+      const equipment = Equipment.empty();
+      final (equipped1, _) = equipment.equipSummonTablet(
+        golbinThiefTablet,
+        EquipmentSlot.summon1,
+        10,
+      );
+      final (equipped2, _) = equipped1.equipSummonTablet(
+        occultistTablet,
+        EquipmentSlot.summon2,
+        10,
+      );
+
+      // Mark level 3 for both
+      final summoningState = const SummoningState.empty()
+          .withMarks(golbinThiefAction.productId, 16)
+          .withMarks(occultistAction.productId, 16);
+
+      final state = GlobalState.test(
+        testRegistries,
+        equipment: equipped2,
+        summoning: summoningState,
+      );
+
+      // Verify synergy is active
+      expect(state.getActiveSynergy(), isNotNull);
+
+      // Resolve combat modifiers - synergy modifiers should be included
+      final modifiers = state.resolveCombatModifiers();
+
+      // The Golbin Thief + Occultist synergy provides
+      // currencyGainOnMonsterKillBasedOnEvasion which should be in modifiers
+      expect(modifiers.values.isNotEmpty, true);
+    });
+
+    test('synergy registry finds synergies correctly', () {
+      // Test the synergy lookup directly
+      final synergy = testRegistries.summoningSynergies.findSynergy(
+        golbinThiefAction.summonId,
+        occultistAction.summonId,
+      );
+      expect(synergy, isNotNull);
+
+      // Test reverse order
+      final synergyReverse = testRegistries.summoningSynergies.findSynergy(
+        occultistAction.summonId,
+        golbinThiefAction.summonId,
+      );
+      expect(synergyReverse, isNotNull);
+
+      // Both should be the same synergy
+      expect(synergy, equals(synergyReverse));
+    });
+  });
 }
