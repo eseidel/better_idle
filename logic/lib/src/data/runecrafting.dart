@@ -121,5 +121,6 @@ class RunecraftingAction extends SkillAction {
   final int baseQuantity;
 
   /// The category ID ("melvorF:StandardRunes", "melvorF:CombinationRunes").
+  @override
   final MelvorId? categoryId;
 }

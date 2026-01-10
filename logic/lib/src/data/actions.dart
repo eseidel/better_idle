@@ -222,6 +222,11 @@ class SkillAction extends Action {
   final Map<MelvorId, int> inputs;
   final Map<MelvorId, int> outputs;
 
+  /// The category ID for this action, if applicable.
+  /// Used for category-scoped modifiers (e.g., cooking Fire/Furnace/Pot).
+  /// Override in subclasses that have categories.
+  MelvorId? get categoryId => null;
+
   double expectedOutputPerTick(MelvorId itemId) {
     return (outputs[itemId] ?? 0) / ticksFromDuration(meanDuration).toDouble();
   }

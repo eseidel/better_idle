@@ -123,5 +123,6 @@ class SmithingAction extends SkillAction {
   final int baseQuantity;
 
   /// The category ID (e.g., "melvorD:Bars", "melvorD:Weapons").
+  @override
   final MelvorId? categoryId;
 }

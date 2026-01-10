@@ -819,11 +819,15 @@ class GlobalState {
   /// Returns a [ResolvedModifiers] containing all modifier values by name.
   /// Values are stored as raw numbers from the data (e.g., skillInterval
   /// is in percentage points like -5, flatSkillInterval is in milliseconds).
+  ///
+  /// For cooking actions, the category (Fire/Furnace/Pot) is used to filter
+  /// modifiers from cooking area upgrades.
   ResolvedModifiers resolveSkillModifiers(SkillAction action) {
     return _resolveModifiers(
       skillId: action.skill.id,
       skill: action.skill,
       actionId: action.id,
+      categoryId: action.categoryId,
     );
   }
 
@@ -863,24 +867,33 @@ class GlobalState {
   ///
   /// [skill] and [actionId] are needed for skill-scoped resolution to look up
   /// shop purchases and mastery bonuses.
+  ///
+  /// [categoryId] is used for cooking actions to filter modifiers scoped to
+  /// specific cooking areas (Fire, Furnace, Pot).
   ResolvedModifiers _resolveModifiers({
     MelvorId? skillId,
     Skill? skill,
     ActionId? actionId,
+    MelvorId? categoryId,
   }) {
     final builder = ResolvedModifiersBuilder();
 
     // --- Shop modifiers ---
     if (skill != null) {
-      // Skill-scoped: get purchases affecting this skill
-      for (final purchase in shop.ownedPurchasesAffectingSkill(
-        skill,
-        registries.shop,
-      )) {
+      // Skill-scoped: iterate all owned purchases and include modifiers that
+      // apply to this skill/category context.
+      for (final entry in shop.purchaseCounts.entries) {
+        if (entry.value <= 0) continue;
+        final purchase = registries.shop.byId(entry.key);
+        if (purchase == null) continue;
+
         for (final mod in purchase.contains.modifiers.modifiers) {
-          for (final entry in mod.entries) {
-            if (entry.appliesToSkill(skillId!)) {
-              builder.add(mod.name, entry.value);
+          for (final modEntry in mod.entries) {
+            if (modEntry.appliesToContext(
+              skillId: skillId!,
+              categoryId: categoryId,
+            )) {
+              builder.add(mod.name, modEntry.value);
             }
           }
         }

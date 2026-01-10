@@ -137,5 +137,6 @@ class FletchingAction extends SkillAction {
   final int baseQuantity;
 
   /// The category ID (e.g., "melvorF:Arrows", "melvorF:Shortbows").
+  @override
   final MelvorId? categoryId;
 }

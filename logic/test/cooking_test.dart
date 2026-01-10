@@ -335,4 +335,44 @@ void main() {
       expect(cleared.fireArea.totalTicks, isNull);
     });
   });
+
+  group('Cooking category-scoped modifiers', () {
+    test('resolveSkillModifiers includes category-scoped shop modifiers', () {
+      // Find a Furnace recipe to test with
+      final furnaceRecipe = testActions
+          .forSkill(Skill.cooking)
+          .whereType<CookingAction>()
+          .firstWhere((a) => a.isInCategory('Furnace'));
+
+      // Find the Basic Furnace shop upgrade (has perfectCookChance for Furnace)
+      final basicFurnace = testRegistries.shop.all.firstWhere(
+        (p) => p.name == 'Basic Furnace',
+      );
+
+      // Create state with the shop upgrade purchased
+      var state = GlobalState.empty(testRegistries);
+      state = state.copyWith(shop: state.shop.withPurchase(basicFurnace.id));
+
+      // Resolve modifiers for a Furnace recipe - should include the upgrade
+      final modifiers = state.resolveSkillModifiers(furnaceRecipe);
+      expect(modifiers.perfectCookChance, greaterThan(0));
+    });
+
+    test('category-scoped modifiers do not apply to other categories', () {
+      // Find a Furnace upgrade
+      final basicFurnace = testRegistries.shop.all.firstWhere(
+        (p) => p.name == 'Basic Furnace',
+      );
+
+      // Create state with the Furnace upgrade purchased
+      var state = GlobalState.empty(testRegistries);
+      state = state.copyWith(shop: state.shop.withPurchase(basicFurnace.id));
+
+      // Resolve modifiers for a Fire recipe - should NOT get Furnace bonus
+      final modifiers = state.resolveSkillModifiers(shrimpRecipe);
+      // The perfectCookChance should be 0 (or whatever from other sources)
+      // since the Furnace upgrade doesn't apply to Fire
+      expect(modifiers.perfectCookChance, 0);
+    });
+  });
 }

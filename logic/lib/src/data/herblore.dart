@@ -129,5 +129,6 @@ class HerbloreAction extends SkillAction {
   final List<MelvorId> potionIds;
 
   /// The category ID (e.g., "melvorF:CombatPotions", "melvorF:SkillPotions").
+  @override
   final MelvorId? categoryId;
 }

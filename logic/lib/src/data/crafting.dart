@@ -121,5 +121,6 @@ class CraftingAction extends SkillAction {
   final int baseQuantity;
 
   /// The category ID (e.g., "melvorD:Leather", "melvorD:Dragonhide").
+  @override
   final MelvorId? categoryId;
 }

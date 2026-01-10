@@ -97,6 +97,7 @@ class CookingAction extends SkillAction {
   final MelvorId? perfectCookId;
 
   /// The cooking category (e.g., "melvorD:Fire").
+  @override
   final MelvorId? categoryId;
 
   /// The cooking subcategory (e.g., "melvorD:Fish").

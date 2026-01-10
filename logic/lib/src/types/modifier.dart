@@ -179,6 +179,29 @@ class ModifierScope extends Equatable {
     // Check if skillId matches (null skillId means applies to all skills)
     return this.skillId == null || this.skillId == skillId;
   }
+
+  /// Checks if this scope applies to the given skill and optional category.
+  ///
+  /// When [categoryId] is provided (e.g., for cooking areas like Fire/Furnace),
+  /// also checks that the scope's categoryId matches.
+  bool appliesToContext({
+    required MelvorId skillId,
+    MelvorId? categoryId,
+    bool autoScopeToAction = true,
+  }) {
+    if (isGlobal) return true;
+    if (!autoScopeToAction) return true;
+
+    // Check skill matches
+    if (this.skillId != null && this.skillId != skillId) return false;
+
+    // Check category matches (if scope specifies a category)
+    if (this.categoryId != null && categoryId != null) {
+      if (this.categoryId != categoryId) return false;
+    }
+
+    return true;
+  }
 }
 
 /// A single modifier entry with optional scope.
@@ -198,6 +221,22 @@ class ModifierEntry extends Equatable {
   bool appliesToSkill(MelvorId skillId, {bool autoScopeToAction = true}) {
     return scope?.appliesToSkill(
           skillId,
+          autoScopeToAction: autoScopeToAction,
+        ) ??
+        true;
+  }
+
+  /// Checks if this entry applies to the given skill and optional category.
+  ///
+  /// Returns true if scope is null (global) or if scope matches the context.
+  bool appliesToContext({
+    required MelvorId skillId,
+    MelvorId? categoryId,
+    bool autoScopeToAction = true,
+  }) {
+    return scope?.appliesToContext(
+          skillId: skillId,
+          categoryId: categoryId,
           autoScopeToAction: autoScopeToAction,
         ) ??
         true;
