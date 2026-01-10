@@ -22,6 +22,7 @@ class SummoningAction extends SkillAction {
     required this.productId,
     required this.tier,
     required this.markMedia,
+    required this.markSkillIds,
     super.alternativeRecipes,
   }) : super(skill: Skill.summoning, duration: _summoningDuration);
 
@@ -71,11 +72,22 @@ class SummoningAction extends SkillAction {
       defaultNamespace: namespace,
     );
 
+    // Parse skillIDs - the skills where marks for this familiar can be found.
+    final skillIdsJson = json['skillIDs'] as List<dynamic>? ?? [];
+    final markSkillIds = skillIdsJson
+        .map(
+          (id) => MelvorId.fromJsonWithNamespace(
+            id as String,
+            defaultNamespace: namespace,
+          ),
+        )
+        .toList();
+
     // For display, use shards as base inputs (first alternative is default).
     final baseInputs =
         alternativeRecipes != null && alternativeRecipes.isNotEmpty
-        ? alternativeRecipes.first.inputs
-        : shardInputs;
+            ? alternativeRecipes.first.inputs
+            : shardInputs;
 
     return SummoningAction(
       id: ActionId(Skill.summoning.id, localId),
@@ -88,6 +100,7 @@ class SummoningAction extends SkillAction {
       productId: productId,
       tier: json['tier'] as int? ?? 1,
       markMedia: json['markMedia'] as String?,
+      markSkillIds: markSkillIds,
     );
   }
 
@@ -99,4 +112,9 @@ class SummoningAction extends SkillAction {
 
   /// Media path for the summoning mark icon.
   final String? markMedia;
+
+  /// The skill IDs that can discover marks for this familiar.
+  /// When performing actions in these skills, players have a chance to
+  /// discover marks for this familiar.
+  final List<MelvorId> markSkillIds;
 }

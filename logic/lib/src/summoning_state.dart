@@ -17,6 +17,26 @@ int markLevelForCount(int marks) {
   return 0;
 }
 
+/// Calculates the chance of discovering a summoning mark.
+///
+/// Formula: (actionTimeSeconds / ((tier + 1)² × 200)) × equipmentModifier
+///
+/// [actionTimeSeconds] - Duration of the action in seconds
+/// [tier] - Familiar tier (1, 2, or 3)
+/// [equipmentModifier] - 2.5 for non-combat skills with familiar equipped,
+///                       2.0 for combat skills, 1.0 otherwise
+///
+/// Returns a probability between 0 and 1.
+double markDiscoveryChance({
+  required double actionTimeSeconds,
+  required int tier,
+  double equipmentModifier = 1.0,
+}) {
+  final tierFactor = (tier + 1) * (tier + 1); // (tier + 1)²
+  final baseChance = actionTimeSeconds / (tierFactor * 200);
+  return baseChance * equipmentModifier;
+}
+
 /// State for tracking discovered summoning marks per familiar.
 ///
 /// Marks are discovered while performing skill actions. Once the first mark
