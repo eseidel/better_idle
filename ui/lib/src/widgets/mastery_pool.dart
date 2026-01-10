@@ -18,7 +18,11 @@ class MasteryPoolProgress extends StatelessWidget {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          const Text('🏆'),
+          const CachedImage(
+            assetPath: 'assets/media/main/mastery_header.png',
+            size: 24,
+          ),
+          const SizedBox(width: 8),
           Expanded(
             child: Column(
               children: [

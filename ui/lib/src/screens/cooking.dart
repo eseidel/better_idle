@@ -18,28 +18,8 @@ import 'package:better_idle/src/widgets/xp_badges_row.dart';
 import 'package:flutter/material.dart' hide Action;
 import 'package:logic/logic.dart';
 
-class CookingPage extends StatefulWidget {
+class CookingPage extends StatelessWidget {
   const CookingPage({super.key});
-
-  @override
-  State<CookingPage> createState() => _CookingPageState();
-}
-
-class _CookingPageState extends State<CookingPage>
-    with SingleTickerProviderStateMixin {
-  late TabController _tabController;
-
-  @override
-  void initState() {
-    super.initState();
-    _tabController = TabController(length: 3, vsync: this);
-  }
-
-  @override
-  void dispose() {
-    _tabController.dispose();
-    super.dispose();
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -48,55 +28,51 @@ class _CookingPageState extends State<CookingPage>
     final skillState = state.skillState(skill);
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Cooking'),
-        bottom: TabBar(
-          controller: _tabController,
-          tabs: const [
-            Tab(text: 'Fire'),
-            Tab(text: 'Furnace'),
-            Tab(text: 'Pot'),
-          ],
-        ),
-      ),
+      appBar: AppBar(title: const Text('Cooking')),
       drawer: const AppNavigationDrawer(),
-      body: Column(
-        children: [
-          SkillProgress(xp: skillState.xp),
-          MasteryPoolProgress(xp: skillState.masteryPoolXp),
-          const Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              MasteryUnlocksButton(skill: skill),
-              SkillMilestonesButton(skill: skill),
-            ],
-          ),
-          Expanded(
-            child: TabBarView(
-              controller: _tabController,
-              children: const [
-                _CookingAreaTab(area: CookingArea.fire),
-                _CookingAreaTab(area: CookingArea.furnace),
-                _CookingAreaTab(area: CookingArea.pot),
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          children: [
+            SkillProgress(xp: skillState.xp),
+            MasteryPoolProgress(xp: skillState.masteryPoolXp),
+            const Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                MasteryUnlocksButton(skill: skill),
+                SkillMilestonesButton(skill: skill),
               ],
             ),
-          ),
-        ],
+            const SizedBox(height: 16),
+            const Wrap(
+              spacing: 16,
+              runSpacing: 16,
+              children: [
+                _CookingAreaCard(area: CookingArea.fire),
+                _CookingAreaCard(area: CookingArea.furnace),
+                _CookingAreaCard(area: CookingArea.pot),
+              ],
+            ),
+          ],
+        ),
       ),
     );
   }
 }
 
-class _CookingAreaTab extends StatefulWidget {
-  const _CookingAreaTab({required this.area});
+class _CookingAreaCard extends StatefulWidget {
+  const _CookingAreaCard({required this.area});
 
   final CookingArea area;
 
+  /// Maximum width for each cooking area card.
+  static const double maxWidth = 400;
+
   @override
-  State<_CookingAreaTab> createState() => _CookingAreaTabState();
+  State<_CookingAreaCard> createState() => _CookingAreaCardState();
 }
 
-class _CookingAreaTabState extends State<_CookingAreaTab> {
+class _CookingAreaCardState extends State<_CookingAreaCard> {
   CookingArea get area => widget.area;
 
   @override
@@ -154,8 +130,8 @@ class _CookingAreaTabState extends State<_CookingAreaTab> {
     final isPassivelyCooking =
         !isActivelyCooking && areaState.isActive && activeCookingAction != null;
 
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(16),
+    return ConstrainedBox(
+      constraints: const BoxConstraints(maxWidth: _CookingAreaCard.maxWidth),
       child: _AreaStatusCard(
         area: area,
         areaState: areaState,
@@ -191,6 +167,22 @@ class _AreaStatusCard extends StatelessWidget {
   /// Returns the cooking category for this area.
   CookingCategory? _getCategory(GlobalState state) {
     return state.registries.cookingCategories.byId(area.categoryId);
+  }
+
+  /// Returns true if this cooking area is available to use.
+  /// Fire is always available, but furnace/pot require purchasing upgrades.
+  bool _isAreaAvailable(GlobalState state) {
+    final category = _getCategory(state);
+    if (category == null) return false;
+    // If no upgrade required, area is always available (fire)
+    if (!category.upgradeRequired) return true;
+    // Otherwise, check if player has purchased an upgrade
+    final id = switch (area) {
+      CookingArea.fire => state.highestCookingFireId,
+      CookingArea.furnace => state.highestCookingFurnaceId,
+      CookingArea.pot => state.highestCookingPotId,
+    };
+    return id != null;
   }
 
   /// Returns the display name for the cooking area equipment level.
@@ -260,15 +252,17 @@ class _AreaStatusCard extends StatelessWidget {
         ),
         // Select Recipe button
         ElevatedButton(
-          onPressed: () {
-            showRecipeSelectionDialog(
-              context: context,
-              area: area,
-              recipes: recipes,
-              assignedRecipe: assignedRecipe,
-              skillLevel: skillLevel,
-            );
-          },
+          onPressed: _isAreaAvailable(state)
+              ? () {
+                  showRecipeSelectionDialog(
+                    context: context,
+                    area: area,
+                    recipes: recipes,
+                    assignedRecipe: assignedRecipe,
+                    skillLevel: skillLevel,
+                  );
+                }
+              : null,
           child: const Text('Select Recipe to Cook'),
         ),
       ],
@@ -281,7 +275,7 @@ class _AreaStatusCard extends StatelessWidget {
         padding: const EdgeInsets.all(24),
         child: Center(
           child: Text(
-            'Select a recipe below to start cooking',
+            'Select a recipe to start cooking',
             style: Theme.of(
               context,
             ).textTheme.titleMedium?.copyWith(color: Style.textColorSecondary),
@@ -526,6 +520,7 @@ class _CookButton extends StatelessWidget {
     final durationText = '${seconds.toStringAsFixed(2)}s';
 
     return Stack(
+      clipBehavior: Clip.none,
       alignment: Alignment.bottomCenter,
       children: [
         SizedBox(
@@ -540,9 +535,9 @@ class _CookButton extends StatelessWidget {
             child: Text(label),
           ),
         ),
-        // Duration badge
+        // Duration badge positioned below the button
         Positioned(
-          bottom: 4,
+          bottom: -10,
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
             decoration: BoxDecoration(
