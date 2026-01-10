@@ -156,27 +156,14 @@ class _CookingAreaTabState extends State<_CookingAreaTab> {
 
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          // Area status card
-          _AreaStatusCard(
-            area: area,
-            areaState: areaState,
-            assignedRecipe: assignedRecipe,
-            isActivelyCooking: isActivelyCooking,
-            isPassivelyCooking: isPassivelyCooking,
-            skillLevel: skillLevel,
-          ),
-          const SizedBox(height: 24),
-          // Recipe list
-          _RecipeList(
-            area: area,
-            recipes: recipes,
-            assignedRecipe: assignedRecipe,
-            skillLevel: skillLevel,
-          ),
-        ],
+      child: _AreaStatusCard(
+        area: area,
+        areaState: areaState,
+        assignedRecipe: assignedRecipe,
+        isActivelyCooking: isActivelyCooking,
+        isPassivelyCooking: isPassivelyCooking,
+        skillLevel: skillLevel,
+        recipes: recipes,
       ),
     );
   }
@@ -190,6 +177,7 @@ class _AreaStatusCard extends StatelessWidget {
     required this.isActivelyCooking,
     required this.isPassivelyCooking,
     required this.skillLevel,
+    required this.recipes,
   });
 
   final CookingArea area;
@@ -198,6 +186,7 @@ class _AreaStatusCard extends StatelessWidget {
   final bool isActivelyCooking;
   final bool isPassivelyCooking;
   final int skillLevel;
+  final List<CookingAction> recipes;
 
   /// Returns the cooking category for this area.
   CookingCategory? _getCategory(GlobalState state) {
@@ -272,7 +261,13 @@ class _AreaStatusCard extends StatelessWidget {
         // Select Recipe button
         ElevatedButton(
           onPressed: () {
-            // Scroll to recipe list (handled by parent)
+            showRecipeSelectionDialog(
+              context: context,
+              area: area,
+              recipes: recipes,
+              assignedRecipe: assignedRecipe,
+              skillLevel: skillLevel,
+            );
           },
           child: const Text('Select Recipe to Cook'),
         ),
@@ -569,8 +564,27 @@ class _CookButton extends StatelessWidget {
   }
 }
 
-class _RecipeList extends StatelessWidget {
-  const _RecipeList({
+/// Shows a dialog for selecting a recipe to cook in a specific area.
+Future<void> showRecipeSelectionDialog({
+  required BuildContext context,
+  required CookingArea area,
+  required List<CookingAction> recipes,
+  required CookingAction? assignedRecipe,
+  required int skillLevel,
+}) async {
+  await showDialog<void>(
+    context: context,
+    builder: (dialogContext) => _RecipeSelectionDialog(
+      area: area,
+      recipes: recipes,
+      assignedRecipe: assignedRecipe,
+      skillLevel: skillLevel,
+    ),
+  );
+}
+
+class _RecipeSelectionDialog extends StatelessWidget {
+  const _RecipeSelectionDialog({
     required this.area,
     required this.recipes,
     required this.assignedRecipe,
@@ -584,63 +598,71 @@ class _RecipeList extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        Text(
-          'Available Recipes',
-          style: Theme.of(context).textTheme.titleMedium,
-        ),
-        const SizedBox(height: 8),
-        ...recipes.map((recipe) {
-          final isSelected = recipe.id == assignedRecipe?.id;
-          final isUnlocked = skillLevel >= recipe.unlockLevel;
+    return AlertDialog(
+      title: Text('Select ${area.displayName} Recipe'),
+      content: SizedBox(
+        width: double.maxFinite,
+        child: ListView.builder(
+          shrinkWrap: true,
+          itemCount: recipes.length,
+          itemBuilder: (context, index) {
+            final recipe = recipes[index];
+            final isSelected = recipe.id == assignedRecipe?.id;
+            final isUnlocked = skillLevel >= recipe.unlockLevel;
 
-          if (!isUnlocked) {
+            if (!isUnlocked) {
+              return Card(
+                color: Style.cellBackgroundColorLocked,
+                child: ListTile(
+                  leading: const Icon(
+                    Icons.lock,
+                    color: Style.textColorSecondary,
+                  ),
+                  title: Row(
+                    children: [
+                      const Text(
+                        'Unlocked at ',
+                        style: TextStyle(color: Style.textColorSecondary),
+                      ),
+                      const SkillImage(skill: Skill.cooking, size: 14),
+                      Text(
+                        ' Level ${recipe.unlockLevel}',
+                        style: const TextStyle(color: Style.textColorSecondary),
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            }
+
+            final productItem = context.state.registries.items.byId(
+              recipe.productId,
+            );
             return Card(
-              color: Style.cellBackgroundColorLocked,
+              color: isSelected ? Style.selectedColorLight : null,
               child: ListTile(
-                leading: const Icon(
-                  Icons.lock,
-                  color: Style.textColorSecondary,
-                ),
-                title: Row(
-                  children: [
-                    const Text(
-                      'Unlocked at ',
-                      style: TextStyle(color: Style.textColorSecondary),
-                    ),
-                    const SkillImage(skill: Skill.cooking, size: 14),
-                    Text(
-                      ' Level ${recipe.unlockLevel}',
-                      style: const TextStyle(color: Style.textColorSecondary),
-                    ),
-                  ],
-                ),
+                leading: ItemImage(item: productItem),
+                title: Text(recipe.name),
+                subtitle: InputItemsRow(items: recipe.inputs),
+                trailing: isSelected
+                    ? const Icon(Icons.check_circle, color: Style.selectedColor)
+                    : null,
+                onTap: () {
+                  context.dispatch(
+                    AssignCookingRecipeAction(area: area, recipe: recipe),
+                  );
+                  Navigator.of(context).pop();
+                },
               ),
             );
-          }
-
-          final productItem = context.state.registries.items.byId(
-            recipe.productId,
-          );
-          return Card(
-            color: isSelected ? Style.selectedColorLight : null,
-            child: ListTile(
-              leading: ItemImage(item: productItem),
-              title: Text(recipe.name),
-              subtitle: InputItemsRow(items: recipe.inputs),
-              trailing: isSelected
-                  ? const Icon(Icons.check_circle, color: Style.selectedColor)
-                  : null,
-              onTap: () {
-                context.dispatch(
-                  AssignCookingRecipeAction(area: area, recipe: recipe),
-                );
-              },
-            ),
-          );
-        }),
+          },
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('Cancel'),
+        ),
       ],
     );
   }
