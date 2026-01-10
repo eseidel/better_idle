@@ -3,10 +3,6 @@
 /// These tests verify that solver performance scales reasonably (linearly-ish,
 /// not exponentially) as goal complexity increases. They use generous bounds
 /// to avoid flakiness while catching exponential blowups.
-///
-/// Run with: dart test test/goal_scaling_test.dart
-/// Skip in quick runs: dart test --exclude-tags slow
-@Tags(['slow'])
 library;
 
 import 'package:logic/logic.dart';

@@ -3,6 +3,7 @@ import 'dart:math';
 import 'package:logic/logic.dart';
 import 'package:logic/src/farming_background.dart';
 import 'package:logic/src/passive_cooking.dart';
+import 'package:logic/src/township_update.dart';
 import 'package:meta/meta.dart';
 
 /// Ticks required to regenerate 1 HP (10 seconds = 100 ticks).
@@ -285,7 +286,8 @@ List<BackgroundTickConsumer> _getBackgroundActions(
 void _applyBackgroundTicks(
   StateUpdateBuilder builder,
   List<BackgroundTickConsumer> backgrounds,
-  Tick ticks, {
+  Tick ticks,
+  Random random, {
   ActionId? activeActionId,
   bool skipStunCountdown = false,
 }) {
@@ -345,6 +347,60 @@ void _applyBackgroundTicks(
     final result = farmingBg.applyTicks(ticks);
     builder.updatePlotState(plotId, result.newState);
   }
+
+  // Apply township background processing (seasons and town updates)
+  _applyTownshipTicks(builder, ticks, random);
+}
+
+/// Applies ticks to Township: season countdown and hourly town updates.
+void _applyTownshipTicks(
+  StateUpdateBuilder builder,
+  Tick ticks,
+  Random random,
+) {
+  var township = builder.state.township;
+  final registry = builder.registries.township;
+
+  var remainingTicks = ticks;
+
+  // Process season timer
+  while (remainingTicks > 0 &&
+      township.seasonTicksRemaining <= remainingTicks) {
+    remainingTicks -= township.seasonTicksRemaining;
+    township = township.advanceSeason();
+  }
+  if (remainingTicks > 0) {
+    township = township.copyWith(
+      seasonTicksRemaining: township.seasonTicksRemaining - remainingTicks,
+    );
+  }
+
+  // Reset for update timer processing
+  remainingTicks = ticks;
+
+  // Process town update timer
+  while (remainingTicks > 0 && township.ticksUntilUpdate <= remainingTicks) {
+    remainingTicks -= township.ticksUntilUpdate;
+
+    // Process the town update
+    final result = processTownUpdate(township, registry, random);
+    township = result.state.copyWith(ticksUntilUpdate: ticksPerHour);
+
+    // Add GP and XP from the update
+    if (result.gpProduced > 0) {
+      builder.addCurrency(Currency.gp, result.gpProduced);
+    }
+    if (result.xpGained > 0) {
+      builder.addSkillXp(Skill.town, result.xpGained.round());
+    }
+  }
+  if (remainingTicks > 0) {
+    township = township.copyWith(
+      ticksUntilUpdate: township.ticksUntilUpdate - remainingTicks,
+    );
+  }
+
+  builder.setTownship(township);
 }
 
 /// Applies ticks to passive cooking areas (non-active cooking areas with
@@ -538,6 +594,10 @@ class StateUpdateBuilder {
 
   void setStunned(StunnedState stunned) {
     _state = _state.copyWith(stunned: stunned);
+  }
+
+  void setTownship(TownshipState township) {
+    _state = _state.copyWith(township: township);
   }
 
   void damagePlayer(int damage) {
@@ -1522,7 +1582,12 @@ ConsumeTicksStopReason _consumeTicksCore(
       if (foregroundResult == ForegroundResult.stopped) {
         // Apply remaining ticks to background before exiting
         // Note: activeAction is now null after stopped, so pass null
-        _applyBackgroundTicks(builder, backgroundActions, ticksRemaining);
+        _applyBackgroundTicks(
+          builder,
+          backgroundActions,
+          ticksRemaining,
+          random,
+        );
         return ConsumeTicksStopReason.actionStopped;
       }
       if (foregroundResult == ForegroundResult.justStunned) {
@@ -1540,6 +1605,7 @@ ConsumeTicksStopReason _consumeTicksCore(
       builder,
       backgroundActions,
       ticksThisIteration,
+      random,
       activeActionId: activeAction?.id,
       skipStunCountdown: skipStunCountdown,
     );

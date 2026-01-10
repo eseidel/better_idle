@@ -16,6 +16,7 @@ import 'package:logic/src/plot_state.dart';
 import 'package:logic/src/summoning_state.dart';
 import 'package:logic/src/tick.dart';
 import 'package:logic/src/township_state.dart';
+import 'package:logic/src/township_update.dart';
 import 'package:logic/src/types/equipment.dart';
 import 'package:logic/src/types/equipment_slot.dart';
 import 'package:logic/src/types/health.dart';
@@ -1319,6 +1320,138 @@ class GlobalState {
     final newCurrencies = Map<Currency, int>.from(currencies);
     newCurrencies[type] = (newCurrencies[type] ?? 0) + amount;
     return copyWith(currencies: newCurrencies);
+  }
+
+  // ---------------------------------------------------------------------------
+  // Township Building Methods
+  // ---------------------------------------------------------------------------
+
+  /// Checks if a Township building can be built in a biome.
+  /// Returns null if valid, or an error message if not.
+  String? canBuildTownshipBuilding(MelvorId biomeId, MelvorId buildingId) {
+    final building = registries.township.buildingById(buildingId);
+    if (building == null) return 'Unknown building: $buildingId';
+
+    final biome = registries.township.biomeById(biomeId);
+    if (biome == null) return 'Unknown biome: $biomeId';
+
+    // Check if building is valid for this biome
+    if (!building.canBuildInBiome(biomeId)) {
+      return '${building.name} cannot be built in ${biome.name}';
+    }
+
+    // Check level requirement
+    final townshipLevel = skillState(Skill.town).skillLevel;
+    if (townshipLevel < building.levelRequired) {
+      return 'Requires Township level ${building.levelRequired}';
+    }
+
+    // Check population requirement
+    final stats = TownshipStats.calculate(township, registries.township);
+    if (stats.population < building.populationRequired) {
+      return 'Requires ${building.populationRequired} population';
+    }
+
+    // Check GP cost
+    if (gp < building.gpCost) {
+      return 'Not enough GP (need ${building.gpCost})';
+    }
+
+    // Check resource costs
+    for (final entry in building.costs.entries) {
+      final resourceId = entry.key;
+      final required = entry.value;
+      final available = township.resourceAmount(resourceId);
+      if (available < required) {
+        final resource = registries.township.resourceById(resourceId);
+        final name = resource?.name ?? resourceId.toString();
+        return 'Not enough $name (need $required, have $available)';
+      }
+    }
+
+    return null; // All checks passed
+  }
+
+  /// Builds a Township building in a biome.
+  /// Throws StateError if validation fails.
+  GlobalState buildTownshipBuilding(MelvorId biomeId, MelvorId buildingId) {
+    final error = canBuildTownshipBuilding(biomeId, buildingId);
+    if (error != null) throw StateError(error);
+
+    final building = registries.township.buildingById(buildingId)!;
+
+    // Deduct GP
+    final state = addCurrency(Currency.gp, -building.gpCost);
+
+    // Deduct township resources
+    var newTownship = state.township;
+    for (final entry in building.costs.entries) {
+      newTownship = newTownship.removeResource(entry.key, entry.value);
+    }
+
+    // Increment building count
+    final biomeState = newTownship.biomeState(biomeId);
+    final buildingState = biomeState.buildingState(buildingId);
+    final newBuildingState = buildingState.copyWith(
+      count: buildingState.count + 1,
+    );
+    final newBiomeState = biomeState.withBuildingState(
+      buildingId,
+      newBuildingState,
+    );
+    newTownship = newTownship.withBiomeState(biomeId, newBiomeState);
+
+    return state.copyWith(township: newTownship);
+  }
+
+  /// Repairs a Township building in a biome, restoring efficiency to 100%.
+  /// Cost is proportional to how degraded the building is.
+  GlobalState repairTownshipBuilding(MelvorId biomeId, MelvorId buildingId) {
+    final building = registries.township.buildingById(buildingId);
+    if (building == null) throw StateError('Unknown building: $buildingId');
+
+    final biomeState = township.biomeState(biomeId);
+    final buildingState = biomeState.buildingState(buildingId);
+
+    if (buildingState.count == 0) {
+      throw StateError('No ${building.name} to repair');
+    }
+
+    if (buildingState.efficiency >= 100) {
+      throw StateError('${building.name} is already at full efficiency');
+    }
+
+    // Calculate repair cost: proportion of original cost based on damage
+    final damagePercent = (100 - buildingState.efficiency) / 100;
+
+    // Deduct GP repair cost
+    final gpRepairCost = (building.gpCost * damagePercent).ceil();
+    if (gp < gpRepairCost) {
+      throw StateError('Not enough GP for repair (need $gpRepairCost)');
+    }
+    final state = addCurrency(Currency.gp, -gpRepairCost);
+
+    // Deduct resource repair costs
+    var newTownship = state.township;
+    for (final entry in building.costs.entries) {
+      final repairCost = (entry.value * damagePercent).ceil();
+      final available = newTownship.resourceAmount(entry.key);
+      if (available < repairCost) {
+        final resource = registries.township.resourceById(entry.key);
+        throw StateError('Not enough ${resource?.name ?? entry.key}');
+      }
+      newTownship = newTownship.removeResource(entry.key, repairCost);
+    }
+
+    // Restore efficiency to 100%
+    final newBuildingState = buildingState.copyWith(efficiency: 100);
+    final newBiomeState = biomeState.withBuildingState(
+      buildingId,
+      newBuildingState,
+    );
+    newTownship = newTownship.withBiomeState(biomeId, newBiomeState);
+
+    return state.copyWith(township: newTownship);
   }
 
   /// Equips food from the inventory to an equipment slot.

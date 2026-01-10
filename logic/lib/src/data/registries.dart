@@ -47,6 +47,7 @@ class Registries {
     MasteryBonusRegistry? masteryBonuses,
     MasteryUnlockRegistry? masteryUnlocks,
     SummoningSynergyRegistry? summoningSynergies,
+    TownshipRegistry? township,
     Map<MelvorId, int>? bankSortIndex,
   }) {
     return Registries(
@@ -72,7 +73,7 @@ class Registries {
       masteryBonuses ?? MasteryBonusRegistry([]),
       masteryUnlocks ?? MasteryUnlockRegistry(const []),
       summoningSynergies ?? const SummoningSynergyRegistry([]),
-      const TownshipRegistry.empty(),
+      township ?? const TownshipRegistry.empty(),
       bankSortIndex ?? {},
     );
   }
