@@ -3,7 +3,7 @@ import 'package:better_idle/src/widgets/cached_image.dart';
 import 'package:better_idle/src/widgets/context_extensions.dart';
 import 'package:better_idle/src/widgets/count_badge_cell.dart';
 import 'package:better_idle/src/widgets/double_chance_badge_cell.dart';
-import 'package:better_idle/src/widgets/input_items_row.dart';
+import 'package:better_idle/src/widgets/duration_badge_cell.dart';
 import 'package:better_idle/src/widgets/item_count_badge_cell.dart';
 import 'package:better_idle/src/widgets/item_image.dart';
 import 'package:better_idle/src/widgets/mastery_pool.dart';
@@ -333,15 +333,24 @@ class _AreaStatusCard extends StatelessWidget {
                         Row(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            const Icon(
-                              Icons.favorite,
+                            const CachedImage(
+                              assetPath:
+                                  'assets/media/skills/hitpoints/hitpoints.png',
                               size: 16,
-                              color: Style.healColor,
                             ),
                             const SizedBox(width: 4),
-                            Text(
-                              '+$healsFor Base Healing Value',
-                              style: const TextStyle(color: Style.healColor),
+                            Text.rich(
+                              TextSpan(
+                                children: [
+                                  TextSpan(
+                                    text: '+$healsFor',
+                                    style: const TextStyle(
+                                      color: Style.healColor,
+                                    ),
+                                  ),
+                                  const TextSpan(text: ' Base Healing Value'),
+                                ],
+                              ),
                             ),
                           ],
                         ),
@@ -596,61 +605,20 @@ class _RecipeSelectionDialog extends StatelessWidget {
     return AlertDialog(
       title: Text('Select ${area.displayName} Recipe'),
       content: SizedBox(
-        width: double.maxFinite,
-        child: ListView.builder(
-          shrinkWrap: true,
-          itemCount: recipes.length,
-          itemBuilder: (context, index) {
-            final recipe = recipes[index];
-            final isSelected = recipe.id == assignedRecipe?.id;
-            final isUnlocked = skillLevel >= recipe.unlockLevel;
-
-            if (!isUnlocked) {
-              return Card(
-                color: Style.cellBackgroundColorLocked,
-                child: ListTile(
-                  leading: const Icon(
-                    Icons.lock,
-                    color: Style.textColorSecondary,
-                  ),
-                  title: Row(
-                    children: [
-                      const Text(
-                        'Unlocked at ',
-                        style: TextStyle(color: Style.textColorSecondary),
-                      ),
-                      const SkillImage(skill: Skill.cooking, size: 14),
-                      Text(
-                        ' Level ${recipe.unlockLevel}',
-                        style: const TextStyle(color: Style.textColorSecondary),
-                      ),
-                    ],
-                  ),
-                ),
+        width: 800,
+        child: SingleChildScrollView(
+          child: Wrap(
+            spacing: 16,
+            runSpacing: 16,
+            children: recipes.map((recipe) {
+              return _RecipeCard(
+                recipe: recipe,
+                area: area,
+                isSelected: recipe.id == assignedRecipe?.id,
+                isUnlocked: skillLevel >= recipe.unlockLevel,
               );
-            }
-
-            final productItem = context.state.registries.items.byId(
-              recipe.productId,
-            );
-            return Card(
-              color: isSelected ? Style.selectedColorLight : null,
-              child: ListTile(
-                leading: ItemImage(item: productItem),
-                title: Text(recipe.name),
-                subtitle: InputItemsRow(items: recipe.inputs),
-                trailing: isSelected
-                    ? const Icon(Icons.check_circle, color: Style.selectedColor)
-                    : null,
-                onTap: () {
-                  context.dispatch(
-                    AssignCookingRecipeAction(area: area, recipe: recipe),
-                  );
-                  Navigator.of(context).pop();
-                },
-              ),
-            );
-          },
+            }).toList(),
+          ),
         ),
       ),
       actions: [
@@ -661,6 +629,210 @@ class _RecipeSelectionDialog extends StatelessWidget {
       ],
     );
   }
+}
+
+/// A card displaying a cooking recipe in the selection dialog.
+class _RecipeCard extends StatelessWidget {
+  const _RecipeCard({
+    required this.recipe,
+    required this.area,
+    required this.isSelected,
+    required this.isUnlocked,
+  });
+
+  final CookingAction recipe;
+  final CookingArea area;
+  final bool isSelected;
+  final bool isUnlocked;
+
+  static const double _cardWidth = 380;
+
+  @override
+  Widget build(BuildContext context) {
+    if (!isUnlocked) {
+      return SizedBox(
+        width: _cardWidth,
+        child: Card(
+          color: Style.cellBackgroundColorLocked,
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Row(
+              children: [
+                const Icon(Icons.lock, color: Style.textColorSecondary),
+                const SizedBox(width: 8),
+                const Text(
+                  'Unlocked at ',
+                  style: TextStyle(color: Style.textColorSecondary),
+                ),
+                const SkillImage(skill: Skill.cooking, size: 14),
+                Text(
+                  ' Level ${recipe.unlockLevel}',
+                  style: const TextStyle(color: Style.textColorSecondary),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+
+    final state = context.state;
+    final productItem = state.registries.items.byId(recipe.productId);
+    final healsFor = productItem.healsFor;
+    final actionState = state.actionState(recipe.id);
+    final masteryProgress = xpProgressForXp(actionState.masteryXp);
+    final perAction = xpPerAction(
+      state,
+      recipe,
+      state.resolveSkillModifiers(recipe),
+    );
+    final durationSeconds = recipe.minDuration.inSeconds;
+
+    return SizedBox(
+      width: _cardWidth,
+      child: Card(
+        color: isSelected ? Style.selectedColorLight : null,
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Header: Title + Select button
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      '${recipe.baseQuantity} x ${recipe.name}',
+                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                  ElevatedButton(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Style.successColor,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 8,
+                      ),
+                    ),
+                    onPressed: () {
+                      context.dispatch(
+                        AssignCookingRecipeAction(area: area, recipe: recipe),
+                      );
+                      Navigator.of(context).pop();
+                    },
+                    child: const Text('Select'),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              // Main content row: Image with mastery + details
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Product image with mastery below
+                  Column(
+                    children: [
+                      ItemImage(item: productItem, size: 64),
+                      const SizedBox(height: 8),
+                      // Mastery level with trophy
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(
+                            Icons.emoji_events,
+                            size: 16,
+                            color: Colors.amber,
+                          ),
+                          const SizedBox(width: 4),
+                          Text(
+                            '${masteryProgress.level}',
+                            style: const TextStyle(fontWeight: FontWeight.bold),
+                          ),
+                        ],
+                      ),
+                      Text(
+                        '(${_formatPercent(masteryProgress.progress)})',
+                        style: const TextStyle(
+                          color: Style.textColorSecondary,
+                          fontSize: 12,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(width: 16),
+                  // Details column
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        // Duration badge + Output item badge
+                        Row(
+                          children: [
+                            DurationBadgeCell(
+                              seconds: durationSeconds,
+                              inradius: TextBadgeCell.smallInradius,
+                            ),
+                            const SizedBox(width: 8),
+                            ItemCountBadgeCell(
+                              item: productItem,
+                              count: recipe.baseQuantity,
+                              inradius: TextBadgeCell.smallInradius,
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 12),
+                        // Skill XP + Healing value
+                        Row(
+                          children: [
+                            const SkillImage(skill: Skill.cooking, size: 14),
+                            const SizedBox(width: 4),
+                            Text('${perAction.xp} Skill XP'),
+                          ],
+                        ),
+                        if (healsFor != null) ...[
+                          const SizedBox(height: 4),
+                          Row(
+                            children: [
+                              const CachedImage(
+                                assetPath:
+                                    'assets/media/skills/hitpoints/hitpoints.png',
+                                size: 14,
+                              ),
+                              const SizedBox(width: 4),
+                              Text.rich(
+                                TextSpan(
+                                  children: [
+                                    TextSpan(
+                                      text: '+$healsFor',
+                                      style: const TextStyle(
+                                        color: Style.healColor,
+                                      ),
+                                    ),
+                                    const TextSpan(text: ' Base Healing Value'),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+String _formatPercent(double progress) {
+  return '${(progress * 100).toStringAsFixed(2)}%';
 }
 
 extension on String {

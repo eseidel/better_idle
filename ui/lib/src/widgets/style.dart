@@ -72,7 +72,7 @@ class Style {
 
   // Health bar colors
   static const Color healthBarColor = Colors.red;
-  static const Color healColor = Colors.red;
+  static const Color healColor = Colors.green;
 
   // XP badge colors
   static Color xpBadgeBackgroundColor = Colors.grey.shade700;
