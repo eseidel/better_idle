@@ -15,6 +15,7 @@ import 'package:logic/src/json.dart';
 import 'package:logic/src/plot_state.dart';
 import 'package:logic/src/summoning_state.dart';
 import 'package:logic/src/tick.dart';
+import 'package:logic/src/township_state.dart';
 import 'package:logic/src/types/equipment.dart';
 import 'package:logic/src/types/equipment_slot.dart';
 import 'package:logic/src/types/health.dart';
@@ -324,6 +325,7 @@ class GlobalState {
     this.attackStyle = AttackStyle.stab,
     this.cooking = const CookingState.empty(),
     this.summoning = const SummoningState.empty(),
+    this.township = const TownshipState.empty(),
   });
 
   GlobalState.empty(Registries registries)
@@ -369,6 +371,7 @@ class GlobalState {
     StunnedState stunned = const StunnedState.fresh(),
     AttackStyle attackStyle = AttackStyle.stab,
     SummoningState summoning = const SummoningState.empty(),
+    TownshipState township = const TownshipState.empty(),
   }) {
     // Support both gp parameter (for existing tests) and currencies map
     final currenciesMap = currencies ?? (gp > 0 ? {Currency.gp: gp} : const {});
@@ -391,6 +394,7 @@ class GlobalState {
       stunned: stunned,
       attackStyle: attackStyle,
       summoning: summoning,
+      township: township,
     );
   }
 
@@ -453,7 +457,10 @@ class GlobalState {
           const CookingState.empty(),
       summoning =
           SummoningState.maybeFromJson(json['summoning']) ??
-          const SummoningState.empty();
+          const SummoningState.empty(),
+      township =
+          TownshipState.maybeFromJson(json['township']) ??
+          const TownshipState.empty();
 
   static Map<Currency, int> _currenciesFromJson(Map<String, dynamic> json) {
     final currenciesJson = json['currencies'] as Map<String, dynamic>? ?? {};
@@ -520,6 +527,7 @@ class GlobalState {
       'attackStyle': attackStyle.toJson(),
       'cooking': cooking.toJson(),
       'summoning': summoning.toJson(),
+      'township': township.toJson(),
     };
   }
 
@@ -558,9 +566,8 @@ class GlobalState {
   /// Returns the number of charges for an item.
   int itemChargeCount(MelvorId itemId) => itemCharges[itemId] ?? 0;
 
-  /// Returns how many Township tasks have been completed.
-  /// Always returns 0 since Township tasks are not yet supported.
-  int get tasksCompleted => 0;
+  /// Returns how many Township main tasks have been completed.
+  int get tasksCompleted => township.completedMainTaskCount;
 
   /// Returns the game completion percentage (0.0 to 100.0).
   /// Always returns 0.0 since completion tracking is not yet supported.
@@ -570,9 +577,9 @@ class GlobalState {
   /// Always returns 0 since Slayer task tracking is not yet supported.
   int completedSlayerTaskCount(MelvorId category) => 0;
 
-  /// Returns how many of a Township building have been built.
-  /// Always returns 0 since Township buildings are not yet supported.
-  int buildingCount(MelvorId building) => 0;
+  /// Returns how many of a Township building have been built
+  /// (across all biomes).
+  int buildingCount(MelvorId building) => township.totalBuildingCount(building);
 
   /// The player's currencies (GP, Slayer Coins, etc.).
   final Map<Currency, int> currencies;
@@ -597,6 +604,9 @@ class GlobalState {
 
   /// The summoning state (tracks discovered marks per familiar).
   final SummoningState summoning;
+
+  /// The township state (town management skill).
+  final TownshipState township;
 
   /// The player's health state.
   final HealthState health;
@@ -1200,6 +1210,7 @@ class GlobalState {
       attackStyle: attackStyle,
       cooking: updatedCooking,
       summoning: summoning,
+      township: township,
     );
   }
 
@@ -1223,6 +1234,7 @@ class GlobalState {
       stunned: stunned,
       attackStyle: attackStyle,
       summoning: summoning,
+      township: township,
     );
   }
 
@@ -1702,6 +1714,7 @@ class GlobalState {
     AttackStyle? attackStyle,
     CookingState? cooking,
     SummoningState? summoning,
+    TownshipState? township,
   }) {
     return GlobalState(
       registries: registries,
@@ -1723,6 +1736,7 @@ class GlobalState {
       attackStyle: attackStyle ?? this.attackStyle,
       cooking: cooking ?? this.cooking,
       summoning: summoning ?? this.summoning,
+      township: township ?? this.township,
     );
   }
 

@@ -6,6 +6,7 @@ import 'package:logic/src/data/melvor_data.dart';
 import 'package:logic/src/data/melvor_id.dart';
 import 'package:logic/src/data/shop.dart';
 import 'package:logic/src/data/summoning_synergy.dart';
+import 'package:logic/src/data/township.dart';
 import 'package:logic/src/types/mastery.dart';
 import 'package:logic/src/types/mastery_unlock.dart';
 import 'package:meta/meta.dart';
@@ -35,6 +36,7 @@ class Registries {
     this.masteryBonuses,
     this.masteryUnlocks,
     this.summoningSynergies,
+    this.township,
     this._bankSortIndex,
   );
 
@@ -70,6 +72,7 @@ class Registries {
       masteryBonuses ?? MasteryBonusRegistry([]),
       masteryUnlocks ?? MasteryUnlockRegistry(const []),
       summoningSynergies ?? const SummoningSynergyRegistry([]),
+      const TownshipRegistry.empty(),
       bankSortIndex ?? {},
     );
   }
@@ -96,6 +99,7 @@ class Registries {
   final MasteryBonusRegistry masteryBonuses;
   final MasteryUnlockRegistry masteryUnlocks;
   final SummoningSynergyRegistry summoningSynergies;
+  final TownshipRegistry township;
   final Map<MelvorId, int> _bankSortIndex;
 
   /// Comparator for sorting items according to bank sort order.
@@ -157,6 +161,8 @@ Future<Registries> loadRegistriesFromCache(Cache cache) async {
     melvorData.masteryBonuses,
     melvorData.masteryUnlocks,
     melvorData.summoningSynergies,
+    // TODO(eseidel): Parse township data from Melvor API.
+    const TownshipRegistry.empty(),
     melvorData.bankSortIndex,
   );
 }

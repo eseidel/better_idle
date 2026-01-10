@@ -20,6 +20,8 @@ dart run bin/simulate_day.dart  # Run simulation tool
 dart analyze                    # Run analyzer
 ```
 
+Use `dart test -r failures-only` to reduce `dart test` output.
+
 ### UI Package (from `ui/` directory)
 ```bash
 flutter pub get       # Install dependencies
