@@ -1743,7 +1743,7 @@ void main() {
       // Melee = 1 + 1 = 2
       // Ranged = floor(1.5 * 1) = 1
       // Magic = floor(1.5 * 1) = 1
-      // Combat Level = floor(0.5 + 0.325 * 2) = floor(0.5 + 0.65) = floor(1.15) = 1
+      // Combat Level = floor(0.5 + 0.325 * 2) = floor(1.15) = 1
       expect(state.combatLevel, 1);
     });
 
@@ -1770,7 +1770,7 @@ void main() {
       // Melee = 20 + 20 = 40
       // Ranged = floor(1.5 * 1) = 1
       // Magic = floor(1.5 * 1) = 1
-      // Combat Level = floor(7.5 + 0.325 * 40) = floor(7.5 + 13) = floor(20.5) = 20
+      // Combat Level = floor(7.5 + 0.325 * 40) = floor(20.5) = 20
       expect(state.combatLevel, 20);
     });
 
@@ -1797,7 +1797,7 @@ void main() {
       // Melee = 1 + 1 = 2
       // Ranged = floor(1.5 * 50) = 75
       // Magic = floor(1.5 * 1) = 1
-      // Combat Level = floor(7.5 + 0.325 * 75) = floor(7.5 + 24.375) = floor(31.875) = 31
+      // Combat Level = floor(7.5 + 0.325 * 75) = floor(31.875) = 31
       expect(state.combatLevel, 31);
     });
 
@@ -1858,7 +1858,7 @@ void main() {
       );
 
       // Base no prayer = 0.25 * (10 + 20 + 0) = 7.5
-      // Base with prayer = 0.25 * (10 + 20 + floor(0.5 * 40)) = 0.25 * (10 + 20 + 20) = 12.5
+      // Base with prayer = 0.25 * (10 + 20 + 20) = 12.5
       // The prayer contribution should increase combat level
       expect(
         stateWithPrayer.combatLevel,
