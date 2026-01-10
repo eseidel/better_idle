@@ -60,4 +60,7 @@ enum EquipmentSlot {
 
   /// Returns the JSON representation of this slot.
   String toJson() => displayName;
+
+  /// Returns true if this slot is for summoning tablets.
+  bool get isSummonSlot => this == summon1 || this == summon2;
 }

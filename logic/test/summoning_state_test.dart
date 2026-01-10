@@ -326,4 +326,199 @@ void main() {
       },
     );
   });
+
+  group('Tablet Equipment', () {
+    late Item tablet;
+    late SummoningAction summoningAction;
+
+    setUpAll(() async {
+      await loadTestRegistries();
+      // Get a summoning action and its product (tablet)
+      summoningAction = testActions
+          .forSkill(Skill.summoning)
+          .whereType<SummoningAction>()
+          .first;
+      tablet = testItems.byId(summoningAction.productId);
+    });
+
+    test('isSummonTablet returns true for tablet items', () {
+      expect(tablet.isSummonTablet, isTrue);
+    });
+
+    test('isSummonTablet returns false for non-tablet items', () {
+      final logs = testItems.byName('Normal Logs');
+      expect(logs.isSummonTablet, isFalse);
+    });
+
+    test('equipSummonTablet equips tablet with count', () {
+      const equipment = Equipment.empty();
+
+      final (newEquipment, previousStack) = equipment.equipSummonTablet(
+        tablet,
+        EquipmentSlot.summon1,
+        25,
+      );
+
+      expect(newEquipment.gearInSlot(EquipmentSlot.summon1), tablet);
+      expect(newEquipment.summonCountInSlot(EquipmentSlot.summon1), 25);
+      expect(previousStack, isNull);
+    });
+
+    test('equipSummonTablet returns previous tablet stack', () {
+      const equipment = Equipment.empty();
+
+      // Equip first tablet
+      final (equippedOnce, _) = equipment.equipSummonTablet(
+        tablet,
+        EquipmentSlot.summon1,
+        25,
+      );
+
+      // Equip different tablet (using same for simplicity, but with diff count)
+      final (equippedTwice, previousStack) = equippedOnce.equipSummonTablet(
+        tablet,
+        EquipmentSlot.summon1,
+        50,
+      );
+
+      expect(previousStack, isNotNull);
+      expect(previousStack!.item, tablet);
+      expect(previousStack.count, 25);
+      expect(equippedTwice.summonCountInSlot(EquipmentSlot.summon1), 50);
+    });
+
+    test('unequipSummonTablet returns tablet stack', () {
+      const equipment = Equipment.empty();
+
+      final (equipped, _) = equipment.equipSummonTablet(
+        tablet,
+        EquipmentSlot.summon1,
+        25,
+      );
+
+      final result = equipped.unequipSummonTablet(EquipmentSlot.summon1);
+
+      expect(result, isNotNull);
+      final (stack, newEquipment) = result!;
+      expect(stack.item, tablet);
+      expect(stack.count, 25);
+      expect(newEquipment.gearInSlot(EquipmentSlot.summon1), isNull);
+      expect(newEquipment.summonCountInSlot(EquipmentSlot.summon1), 0);
+    });
+
+    test('unequipSummonTablet returns null for empty slot', () {
+      const equipment = Equipment.empty();
+
+      final result = equipment.unequipSummonTablet(EquipmentSlot.summon1);
+
+      expect(result, isNull);
+    });
+
+    test('consumeSummonCharges decrements count', () {
+      const equipment = Equipment.empty();
+
+      final (equipped, _) = equipment.equipSummonTablet(
+        tablet,
+        EquipmentSlot.summon1,
+        25,
+      );
+
+      final afterConsume = equipped.consumeSummonCharges(
+        EquipmentSlot.summon1,
+        5,
+      );
+
+      expect(afterConsume.summonCountInSlot(EquipmentSlot.summon1), 20);
+      expect(afterConsume.gearInSlot(EquipmentSlot.summon1), tablet);
+    });
+
+    test('consumeSummonCharges unequips when depleted', () {
+      const equipment = Equipment.empty();
+
+      final (equipped, _) = equipment.equipSummonTablet(
+        tablet,
+        EquipmentSlot.summon1,
+        5,
+      );
+
+      final afterConsume = equipped.consumeSummonCharges(
+        EquipmentSlot.summon1,
+        5,
+      );
+
+      expect(afterConsume.gearInSlot(EquipmentSlot.summon1), isNull);
+      expect(afterConsume.summonCountInSlot(EquipmentSlot.summon1), 0);
+    });
+
+    test('consumeSummonCharges unequips when over-consuming', () {
+      const equipment = Equipment.empty();
+
+      final (equipped, _) = equipment.equipSummonTablet(
+        tablet,
+        EquipmentSlot.summon1,
+        3,
+      );
+
+      final afterConsume = equipped.consumeSummonCharges(
+        EquipmentSlot.summon1,
+        10,
+      );
+
+      expect(afterConsume.gearInSlot(EquipmentSlot.summon1), isNull);
+      expect(afterConsume.summonCountInSlot(EquipmentSlot.summon1), 0);
+    });
+
+    test('summon slots can have different tablets', () {
+      const equipment = Equipment.empty();
+
+      final (equipped1, _) = equipment.equipSummonTablet(
+        tablet,
+        EquipmentSlot.summon1,
+        25,
+      );
+
+      final (equipped2, _) = equipped1.equipSummonTablet(
+        tablet,
+        EquipmentSlot.summon2,
+        50,
+      );
+
+      expect(equipped2.gearInSlot(EquipmentSlot.summon1), tablet);
+      expect(equipped2.summonCountInSlot(EquipmentSlot.summon1), 25);
+      expect(equipped2.gearInSlot(EquipmentSlot.summon2), tablet);
+      expect(equipped2.summonCountInSlot(EquipmentSlot.summon2), 50);
+    });
+
+    test('equipment toJson/fromJson preserves summon counts', () {
+      const equipment = Equipment.empty();
+
+      final (equipped, _) = equipment.equipSummonTablet(
+        tablet,
+        EquipmentSlot.summon1,
+        42,
+      );
+
+      final json = equipped.toJson();
+      final loaded = Equipment.fromJson(testItems, json);
+
+      expect(loaded.gearInSlot(EquipmentSlot.summon1), tablet);
+      expect(loaded.summonCountInSlot(EquipmentSlot.summon1), 42);
+    });
+
+    test('equipSummonTablet throws for non-summon slot', () {
+      const equipment = Equipment.empty();
+
+      expect(
+        () => equipment.equipSummonTablet(tablet, EquipmentSlot.weapon, 25),
+        throwsArgumentError,
+      );
+    });
+
+    test('isSummonSlot returns true only for summon slots', () {
+      expect(EquipmentSlot.summon1.isSummonSlot, isTrue);
+      expect(EquipmentSlot.summon2.isSummonSlot, isTrue);
+      expect(EquipmentSlot.weapon.isSummonSlot, isFalse);
+      expect(EquipmentSlot.helmet.isSummonSlot, isFalse);
+    });
+  });
 }

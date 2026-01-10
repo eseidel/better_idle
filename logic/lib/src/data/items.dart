@@ -348,6 +348,10 @@ class Item extends Equatable {
   /// Whether this item can be equipped (has valid slots).
   bool get isEquippable => validSlots.isNotEmpty;
 
+  /// Whether this item is a summoning tablet (familiar).
+  /// Tablets are equipped in summon slots and track charge counts.
+  bool get isSummonTablet => type == 'Familiar';
+
   /// Returns true if this item can be equipped in the given slot.
   bool canEquipInSlot(EquipmentSlot slot) => validSlots.contains(slot);
 

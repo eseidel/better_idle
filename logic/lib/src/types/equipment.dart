@@ -39,6 +39,7 @@ class Equipment {
     required this.foodSlots,
     required this.selectedFoodSlot,
     this.gearSlots = const {},
+    this.summonCounts = const {},
   });
 
   factory Equipment.fromJson(ItemRegistry items, Map<String, dynamic> json) {
@@ -66,17 +67,29 @@ class Equipment {
       }
     }
 
+    // Parse summon counts (charges for summoning tablets)
+    final summonCountsJson = json['summonCounts'] as Map<String, dynamic>?;
+    final summonCounts = <EquipmentSlot, int>{};
+    if (summonCountsJson != null) {
+      for (final entry in summonCountsJson.entries) {
+        final slot = EquipmentSlot.fromJson(entry.key);
+        summonCounts[slot] = entry.value as int;
+      }
+    }
+
     return Equipment(
       foodSlots: foodSlots,
       selectedFoodSlot: json['selectedFoodSlot'] as int? ?? 0,
       gearSlots: gearSlots,
+      summonCounts: summonCounts,
     );
   }
 
   const Equipment.empty()
     : foodSlots = const [null, null, null],
       selectedFoodSlot = 0,
-      gearSlots = const {};
+      gearSlots = const {},
+      summonCounts = const {};
 
   static Equipment? maybeFromJson(ItemRegistry items, dynamic json) {
     if (json == null) return null;
@@ -93,6 +106,10 @@ class Equipment {
   /// the equipped items. Empty slots are not present in the map.
   final Map<EquipmentSlot, Item> gearSlots;
 
+  /// The counts for summoning tablet slots (charges remaining).
+  /// Only populated for summon1/summon2 slots. Other slots always have count 1.
+  final Map<EquipmentSlot, int> summonCounts;
+
   Map<String, dynamic> toJson() {
     return {
       'foodSlots': foodSlots
@@ -106,6 +123,10 @@ class Equipment {
       'gearSlots': gearSlots.map(
         (slot, item) => MapEntry(slot.toJson(), item.id.toJson()),
       ),
+      if (summonCounts.isNotEmpty)
+        'summonCounts': summonCounts.map(
+          (slot, count) => MapEntry(slot.toJson(), count),
+        ),
     };
   }
 
@@ -265,24 +286,120 @@ class Equipment {
     // Remove the item from equipment (it's lost forever)
     final newGearSlots = Map<EquipmentSlot, Item>.from(gearSlots)..remove(slot);
 
-    // For now, count is always 1 since gear slots hold single items
-    // (ammo/summons would need stack tracking if we implement that)
+    // For summon slots, include the full stack count
+    final count = slot.isSummonSlot ? (summonCounts[slot] ?? 1) : 1;
+    final newSummonCounts = slot.isSummonSlot
+        ? (Map<EquipmentSlot, int>.from(summonCounts)..remove(slot))
+        : summonCounts;
+
     return DeathPenaltyResult(
-      equipment: copyWith(gearSlots: newGearSlots),
+      equipment: copyWith(
+        gearSlots: newGearSlots,
+        summonCounts: newSummonCounts,
+      ),
       slotRolled: slot,
-      itemLost: ItemStack(item, count: 1),
+      itemLost: ItemStack(item, count: count),
     );
+  }
+
+  /// Returns the count for a summon slot, or 0 if not equipped.
+  int summonCountInSlot(EquipmentSlot slot) => summonCounts[slot] ?? 0;
+
+  /// Equips a summoning tablet in the given slot with the specified count.
+  /// Returns the updated equipment and any previously equipped tablet stack.
+  (Equipment, ItemStack?) equipSummonTablet(
+    Item item,
+    EquipmentSlot slot,
+    int count,
+  ) {
+    if (!slot.isSummonSlot) {
+      throw ArgumentError('$slot is not a summon slot');
+    }
+    if (!item.isSummonTablet) {
+      throw ArgumentError('${item.name} is not a summoning tablet');
+    }
+    if (!item.canEquipInSlot(slot)) {
+      throw ArgumentError(
+        'Cannot equip ${item.name} in $slot slot. '
+        'Valid slots: ${item.validSlots}',
+      );
+    }
+
+    final previousItem = gearSlots[slot];
+    final previousCount = summonCounts[slot] ?? 0;
+    ItemStack? previousStack;
+    if (previousItem != null && previousCount > 0) {
+      previousStack = ItemStack(previousItem, count: previousCount);
+    }
+
+    final newGearSlots = Map<EquipmentSlot, Item>.from(gearSlots);
+    final newSummonCounts = Map<EquipmentSlot, int>.from(summonCounts);
+    newGearSlots[slot] = item;
+    newSummonCounts[slot] = count;
+
+    return (
+      copyWith(gearSlots: newGearSlots, summonCounts: newSummonCounts),
+      previousStack,
+    );
+  }
+
+  /// Unequips a summoning tablet from the given slot.
+  /// Returns the tablet stack and updated equipment, or null if slot is empty.
+  (ItemStack, Equipment)? unequipSummonTablet(EquipmentSlot slot) {
+    if (!slot.isSummonSlot) {
+      throw ArgumentError('$slot is not a summon slot');
+    }
+
+    final item = gearSlots[slot];
+    if (item == null) return null;
+
+    final count = summonCounts[slot] ?? 1;
+    final newGearSlots = Map<EquipmentSlot, Item>.from(gearSlots)..remove(slot);
+    final newSummonCounts = Map<EquipmentSlot, int>.from(summonCounts)
+      ..remove(slot);
+
+    return (
+      ItemStack(item, count: count),
+      copyWith(gearSlots: newGearSlots, summonCounts: newSummonCounts),
+    );
+  }
+
+  /// Consumes charges from a summon slot. Returns updated equipment.
+  /// If charges reach 0, the tablet is unequipped.
+  Equipment consumeSummonCharges(EquipmentSlot slot, int amount) {
+    if (!slot.isSummonSlot) {
+      throw ArgumentError('$slot is not a summon slot');
+    }
+
+    final currentCount = summonCounts[slot] ?? 0;
+    if (currentCount <= 0) return this;
+
+    final newCount = currentCount - amount;
+    if (newCount <= 0) {
+      // Charges depleted - unequip the tablet
+      final newGearSlots = Map<EquipmentSlot, Item>.from(gearSlots)
+        ..remove(slot);
+      final newSummonCounts = Map<EquipmentSlot, int>.from(summonCounts)
+        ..remove(slot);
+      return copyWith(gearSlots: newGearSlots, summonCounts: newSummonCounts);
+    }
+
+    final newSummonCounts = Map<EquipmentSlot, int>.from(summonCounts);
+    newSummonCounts[slot] = newCount;
+    return copyWith(summonCounts: newSummonCounts);
   }
 
   Equipment copyWith({
     List<ItemStack?>? foodSlots,
     int? selectedFoodSlot,
     Map<EquipmentSlot, Item>? gearSlots,
+    Map<EquipmentSlot, int>? summonCounts,
   }) {
     return Equipment(
       foodSlots: foodSlots ?? this.foodSlots,
       selectedFoodSlot: selectedFoodSlot ?? this.selectedFoodSlot,
       gearSlots: gearSlots ?? this.gearSlots,
+      summonCounts: summonCounts ?? this.summonCounts,
     );
   }
 }
