@@ -125,9 +125,9 @@ class _BucketKey extends Equatable {
     return _BucketKey(
       activityName: activityName,
       skillLevels: skillLevels,
-      axeLevel: state.shop.axeLevel,
-      rodLevel: state.shop.fishingRodLevel,
-      pickLevel: state.shop.pickaxeLevel,
+      axeLevel: state.axeLevel,
+      rodLevel: state.fishingRodLevel,
+      pickLevel: state.pickaxeLevel,
       hpBucket: hpBucket,
       masteryLevel: masteryLevel,
       inventoryBucket: inventoryBucket,
@@ -524,10 +524,12 @@ class _SolverContext {
   }
 
   // Upgrade levels (always tracked - tool tiers affect rates)
+  final shopReg = state.registries.shop;
+  final pc = state.shop.purchaseCounts;
   buffer
-    ..write('axe:${state.shop.axeLevel}|')
-    ..write('rod:${state.shop.fishingRodLevel}|')
-    ..write('pick:${state.shop.pickaxeLevel}|');
+    ..write('axe:${shopReg.axeLevel(pc)}|')
+    ..write('rod:${shopReg.fishingRodLevel(pc)}|')
+    ..write('pick:${shopReg.pickaxeLevel(pc)}|');
 
   // Skill levels - only goal-relevant skills
   for (final skill in goal.relevantSkillsForBucketing) {

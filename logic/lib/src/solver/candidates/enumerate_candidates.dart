@@ -224,9 +224,9 @@ _PackedCapabilityKey _packCapabilityKey(GlobalState state) {
   }
 
   // Pack tool tiers (3 bits each, max 6)
-  pack(state.shop.axeLevel, 3); // Woodcutting
-  pack(state.shop.fishingRodLevel, 3); // Fishing
-  pack(state.shop.pickaxeLevel, 3); // Mining
+  pack(state.axeLevel, 3); // Woodcutting
+  pack(state.fishingRodLevel, 3); // Fishing
+  pack(state.pickaxeLevel, 3); // Mining
 
   return _PackedCapabilityKey(low, 0);
 }

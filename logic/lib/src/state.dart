@@ -241,114 +241,6 @@ class ShopState {
   int get bankSlotsPurchased =>
       purchaseCount(const MelvorId('melvorD:Extra_Bank_Slot'));
 
-  // Axe tier IDs in order
-  static const _axeIds = [
-    'melvorD:Iron_Axe',
-    'melvorD:Steel_Axe',
-    'melvorD:Black_Axe',
-    'melvorD:Mithril_Axe',
-    'melvorD:Adamant_Axe',
-    'melvorD:Rune_Axe',
-    'melvorD:Dragon_Axe',
-  ];
-
-  // Fishing rod tier IDs in order
-  static const _rodIds = [
-    'melvorD:Iron_Fishing_Rod',
-    'melvorD:Steel_Fishing_Rod',
-    'melvorD:Black_Fishing_Rod',
-    'melvorD:Mithril_Fishing_Rod',
-    'melvorD:Adamant_Fishing_Rod',
-    'melvorD:Rune_Fishing_Rod',
-    'melvorD:Dragon_Fishing_Rod',
-  ];
-
-  // Pickaxe tier IDs in order
-  static const _pickaxeIds = [
-    'melvorD:Iron_Pickaxe',
-    'melvorD:Steel_Pickaxe',
-    'melvorD:Black_Pickaxe',
-    'melvorD:Mithril_Pickaxe',
-    'melvorD:Adamant_Pickaxe',
-    'melvorD:Rune_Pickaxe',
-    'melvorD:Dragon_Pickaxe',
-  ];
-
-  // Cooking fire tier IDs in order
-  static const cookingFireIds = [
-    'melvorD:Normal_Cooking_Fire',
-    'melvorD:Oak_Cooking_Fire',
-    'melvorD:Willow_Cooking_Fire',
-    'melvorD:Teak_Cooking_Fire',
-    'melvorD:Maple_Cooking_Fire',
-    'melvorD:Mahogany_Cooking_Fire',
-    'melvorD:Yew_Cooking_Fire',
-    'melvorD:Magic_Cooking_Fire',
-    'melvorD:Redwood_Cooking_Fire',
-  ];
-
-  // Cooking furnace tier IDs in order
-  static const cookingFurnaceIds = [
-    'melvorD:Basic_Furnace',
-    'melvorD:Iron_Furnace',
-    'melvorD:Steel_Furnace',
-    'melvorD:Mithril_Furnace',
-    'melvorD:Adamant_Furnace',
-    'melvorD:Rune_Furnace',
-    'melvorD:Dragon_Furnace',
-  ];
-
-  // Cooking pot tier IDs in order
-  static const cookingPotIds = [
-    'melvorD:Basic_Pot',
-    'melvorD:Iron_Pot',
-    'melvorD:Steel_Pot',
-    'melvorD:Mithril_Pot',
-    'melvorD:Adamant_Pot',
-    'melvorD:Rune_Pot',
-    'melvorD:Dragon_Pot',
-  ];
-
-  /// Returns how many axe tiers have been purchased (0-7).
-  int get axeLevel => _countTiersOwned(_axeIds);
-
-  /// Returns how many fishing rod tiers have been purchased (0-7).
-  int get fishingRodLevel => _countTiersOwned(_rodIds);
-
-  /// Returns how many pickaxe tiers have been purchased (0-7).
-  int get pickaxeLevel => _countTiersOwned(_pickaxeIds);
-
-  /// Returns how many cooking fire tiers have been purchased (0-9).
-  int get cookingFireLevel => _countTiersOwned(cookingFireIds);
-
-  /// Returns how many cooking furnace tiers have been purchased (0-7).
-  int get cookingFurnaceLevel => _countTiersOwned(cookingFurnaceIds);
-
-  /// Returns how many cooking pot tiers have been purchased (0-7).
-  int get cookingPotLevel => _countTiersOwned(cookingPotIds);
-
-  /// Returns the ID of the highest owned cooking fire tier, or null if none.
-  MelvorId? get highestCookingFireId => cookingFireLevel > 0
-      ? MelvorId(cookingFireIds[cookingFireLevel - 1])
-      : null;
-
-  /// Returns the ID of the highest owned cooking furnace tier, or null if none.
-  MelvorId? get highestCookingFurnaceId => cookingFurnaceLevel > 0
-      ? MelvorId(cookingFurnaceIds[cookingFurnaceLevel - 1])
-      : null;
-
-  /// Returns the ID of the highest owned cooking pot tier, or null if none.
-  MelvorId? get highestCookingPotId =>
-      cookingPotLevel > 0 ? MelvorId(cookingPotIds[cookingPotLevel - 1]) : null;
-
-  int _countTiersOwned(List<String> tierIds) {
-    var count = 0;
-    for (final id in tierIds) {
-      if (owns(MelvorId(id))) count++;
-    }
-    return count;
-  }
-
   /// Returns a new ShopState with the given purchase incremented.
   ShopState withPurchase(MelvorId purchaseId, {int count = 1}) {
     final newCounts = Map<MelvorId, int>.from(purchaseCounts);
@@ -865,6 +757,32 @@ class GlobalState {
   double shopDurationModifierForSkill(Skill skill) {
     return shop.totalSkillIntervalModifier(skill, registries.shop) / 100.0;
   }
+
+  // ---------------------------------------------------------------------------
+  // Shop upgrade level convenience methods
+  // ---------------------------------------------------------------------------
+
+  /// Returns the number of axe upgrades owned (woodcutting).
+  int get axeLevel => registries.shop.axeLevel(shop.purchaseCounts);
+
+  /// Returns the number of fishing rod upgrades owned.
+  int get fishingRodLevel =>
+      registries.shop.fishingRodLevel(shop.purchaseCounts);
+
+  /// Returns the number of pickaxe upgrades owned (mining).
+  int get pickaxeLevel => registries.shop.pickaxeLevel(shop.purchaseCounts);
+
+  /// Returns the ID of the highest owned cooking fire, or null if none owned.
+  MelvorId? get highestCookingFireId =>
+      registries.shop.highestCookingFireId(shop.purchaseCounts);
+
+  /// Returns the ID of the highest owned cooking furnace, or null if none.
+  MelvorId? get highestCookingFurnaceId =>
+      registries.shop.highestCookingFurnaceId(shop.purchaseCounts);
+
+  /// Returns the ID of the highest owned cooking pot, or null if none owned.
+  MelvorId? get highestCookingPotId =>
+      registries.shop.highestCookingPotId(shop.purchaseCounts);
 
   /// Resolves all modifiers for a skill action from all sources.
   ///

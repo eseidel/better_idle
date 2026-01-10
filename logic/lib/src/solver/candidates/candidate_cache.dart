@@ -30,7 +30,6 @@ library;
 
 import 'package:equatable/equatable.dart';
 import 'package:logic/src/data/actions.dart';
-import 'package:logic/src/data/melvor_id.dart';
 import 'package:logic/src/solver/candidates/enumerate_candidates.dart';
 import 'package:logic/src/solver/core/goal.dart';
 import 'package:logic/src/state.dart';
@@ -225,35 +224,7 @@ Map<Skill, int> _computeUpgradeTiers(GlobalState state, Goal goal) {
 
 /// Counts the number of tool upgrades purchased for a skill.
 int _countToolUpgrades(GlobalState state, Skill skill) {
-  // Tool upgrade purchase IDs follow a pattern: melvorD:{Material}_{ToolName}
-  // We count how many tiers are purchased.
-  final toolPurchases = switch (skill) {
-    Skill.woodcutting => [
-      'melvorD:Iron_Axe',
-      'melvorD:Steel_Axe',
-      'melvorD:Mithril_Axe',
-      'melvorD:Adamant_Axe',
-      'melvorD:Rune_Axe',
-      'melvorD:Dragon_Axe',
-    ],
-    Skill.fishing => ['melvorD:Amulet_of_Fishing'],
-    Skill.mining => [
-      'melvorD:Iron_Pickaxe',
-      'melvorD:Steel_Pickaxe',
-      'melvorD:Mithril_Pickaxe',
-      'melvorD:Adamant_Pickaxe',
-      'melvorD:Rune_Pickaxe',
-      'melvorD:Dragon_Pickaxe',
-    ],
-    _ => <String>[],
-  };
-
-  var count = 0;
-  for (final purchaseId in toolPurchases) {
-    final melvorId = MelvorId(purchaseId);
-    if (state.shop.purchaseCount(melvorId) > 0) {
-      count++;
-    }
-  }
-  return count;
+  final shopRegistry = state.registries.shop;
+  final purchaseCounts = state.shop.purchaseCounts;
+  return shopRegistry.skillUpgradeLevel(skill, purchaseCounts);
 }

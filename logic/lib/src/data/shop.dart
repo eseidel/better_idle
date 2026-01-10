@@ -541,11 +541,118 @@ class ShopPurchase extends Equatable {
 class ShopRegistry {
   ShopRegistry(this._purchases, this._categories) {
     _byId = {for (final p in _purchases) p.id.toJson(): p};
+    _buildUpgradeChains();
   }
 
   final List<ShopPurchase> _purchases;
   final List<ShopCategory> _categories;
   late final Map<String, ShopPurchase> _byId;
+
+  /// Ordered upgrade chains keyed by skill (for skillInterval upgrades).
+  late final Map<Skill, List<MelvorId>> _skillUpgradeChains;
+
+  /// Ordered upgrade chains keyed by cooking category ID.
+  late final Map<MelvorId, List<MelvorId>> _cookingUpgradeChains;
+
+  static const _skillUpgradesCategory = MelvorId('melvorD:SkillUpgrades');
+
+  /// Builds ordered upgrade chains from the requirement graph.
+  void _buildUpgradeChains() {
+    // Find all single-purchase upgrades in SkillUpgrades category
+    final upgrades = _purchases.where(
+      (p) => p.category == _skillUpgradesCategory && p.buyLimit == 1,
+    );
+
+    // Build graph: prerequisite ID -> list of purchases that require it
+    final dependents = <MelvorId, List<ShopPurchase>>{};
+    final hasPrerequisite = <MelvorId>{};
+
+    for (final purchase in upgrades) {
+      for (final req in purchase.unlockRequirements) {
+        if (req is ShopPurchaseRequirement) {
+          dependents.putIfAbsent(req.purchaseId, () => []).add(purchase);
+          hasPrerequisite.add(purchase.id);
+        }
+      }
+    }
+
+    // Find chain roots (purchases with no ShopPurchaseRequirement)
+    final roots = upgrades
+        .where((p) => !hasPrerequisite.contains(p.id))
+        .toList();
+
+    // Build chains by walking from roots
+    final skillChains = <Skill, List<MelvorId>>{};
+    final cookingChains = <MelvorId, List<MelvorId>>{};
+
+    for (final root in roots) {
+      final chain = <MelvorId>[root.id];
+      var current = root;
+
+      // Walk the chain forward
+      while (true) {
+        final nextList = dependents[current.id];
+        if (nextList == null || nextList.isEmpty) break;
+        // Assume single successor per chain
+        current = nextList.first;
+        chain.add(current.id);
+      }
+
+      // Only consider actual chains (length > 1) to avoid standalone purchases
+      // like Master_of_Nature overwriting tool chains like Iron_Pickaxe.
+      if (chain.length == 1) continue;
+
+      // Identify chain type by root's modifiers
+      _categorizeChain(root, chain, skillChains, cookingChains);
+    }
+
+    _skillUpgradeChains = skillChains;
+    _cookingUpgradeChains = cookingChains;
+  }
+
+  /// Categorizes a chain by its root purchase's modifiers.
+  void _categorizeChain(
+    ShopPurchase root,
+    List<MelvorId> chain,
+    Map<Skill, List<MelvorId>> skillChains,
+    Map<MelvorId, List<MelvorId>> cookingChains,
+  ) {
+    // Check for skillInterval modifier (axes, pickaxes, fishing rods)
+    final skillIds = root.contains.modifiers.skillIntervalSkillIds;
+    if (skillIds.isNotEmpty) {
+      final skill = Skill.tryFromId(skillIds.first);
+      if (skill != null) {
+        skillChains[skill] = chain;
+        return;
+      }
+    }
+
+    // Check for cooking equipment (skillXP for Cooking, or perfectCookChance)
+    final modifiers = root.contains.modifiers;
+
+    // Cooking fires have skillXP for Cooking
+    final skillXP = modifiers.byName('skillXP');
+    if (skillXP != null) {
+      for (final entry in skillXP.entries) {
+        if (entry.scope?.skillId == const MelvorId('melvorD:Cooking')) {
+          cookingChains[const MelvorId('melvorD:Fire')] = chain;
+          return;
+        }
+      }
+    }
+
+    // Furnaces and pots have perfectCookChance with categoryID
+    final perfectCook = modifiers.byName('perfectCookChance');
+    if (perfectCook != null) {
+      for (final entry in perfectCook.entries) {
+        final categoryId = entry.scope?.categoryId;
+        if (categoryId != null) {
+          cookingChains[categoryId] = chain;
+          return;
+        }
+      }
+    }
+  }
 
   /// All registered purchases.
   List<ShopPurchase> get all => _purchases;
@@ -668,6 +775,83 @@ class ShopRegistry {
     final totalPercent = purchase.contains.modifiers.totalSkillInterval;
     // Value of -5 means -5%, so multiplier is 1.0 + (-5/100) = 0.95
     return 1.0 + (totalPercent / 100.0);
+  }
+
+  // ---------------------------------------------------------------------------
+  // Skill upgrade chain methods
+  // ---------------------------------------------------------------------------
+
+  /// Returns the ordered list of purchase IDs for a skill's upgrade chain.
+  List<MelvorId> skillUpgradeChain(Skill skill) =>
+      _skillUpgradeChains[skill] ?? const [];
+
+  /// Counts how many skill upgrade purchases are owned for a skill.
+  int skillUpgradeLevel(Skill skill, Map<MelvorId, int> purchaseCounts) {
+    return skillUpgradeChain(
+      skill,
+    ).where((id) => (purchaseCounts[id] ?? 0) > 0).length;
+  }
+
+  /// Returns the number of axe upgrades owned (woodcutting).
+  int axeLevel(Map<MelvorId, int> purchaseCounts) =>
+      skillUpgradeLevel(Skill.woodcutting, purchaseCounts);
+
+  /// Returns the number of fishing rod upgrades owned.
+  int fishingRodLevel(Map<MelvorId, int> purchaseCounts) =>
+      skillUpgradeLevel(Skill.fishing, purchaseCounts);
+
+  /// Returns the number of pickaxe upgrades owned (mining).
+  int pickaxeLevel(Map<MelvorId, int> purchaseCounts) =>
+      skillUpgradeLevel(Skill.mining, purchaseCounts);
+
+  // ---------------------------------------------------------------------------
+  // Cooking equipment chain methods
+  // ---------------------------------------------------------------------------
+
+  static const _cookingFireCategory = MelvorId('melvorD:Fire');
+  static const _cookingFurnaceCategory = MelvorId('melvorD:Furnace');
+  static const _cookingPotCategory = MelvorId('melvorD:Pot');
+
+  /// Returns the ordered list of cooking fire purchase IDs.
+  List<MelvorId> get cookingFireChain =>
+      _cookingUpgradeChains[_cookingFireCategory] ?? const [];
+
+  /// Returns the ordered list of cooking furnace purchase IDs.
+  List<MelvorId> get cookingFurnaceChain =>
+      _cookingUpgradeChains[_cookingFurnaceCategory] ?? const [];
+
+  /// Returns the ordered list of cooking pot purchase IDs.
+  List<MelvorId> get cookingPotChain =>
+      _cookingUpgradeChains[_cookingPotCategory] ?? const [];
+
+  /// Returns the number of cooking fire upgrades owned.
+  int cookingFireLevel(Map<MelvorId, int> purchaseCounts) =>
+      cookingFireChain.where((id) => (purchaseCounts[id] ?? 0) > 0).length;
+
+  /// Returns the number of cooking furnace upgrades owned.
+  int cookingFurnaceLevel(Map<MelvorId, int> purchaseCounts) =>
+      cookingFurnaceChain.where((id) => (purchaseCounts[id] ?? 0) > 0).length;
+
+  /// Returns the number of cooking pot upgrades owned.
+  int cookingPotLevel(Map<MelvorId, int> purchaseCounts) =>
+      cookingPotChain.where((id) => (purchaseCounts[id] ?? 0) > 0).length;
+
+  /// Returns the ID of the highest owned cooking fire, or null if none owned.
+  MelvorId? highestCookingFireId(Map<MelvorId, int> purchaseCounts) {
+    final level = cookingFireLevel(purchaseCounts);
+    return level > 0 ? cookingFireChain[level - 1] : null;
+  }
+
+  /// Returns the ID of the highest owned cooking furnace, or null if none.
+  MelvorId? highestCookingFurnaceId(Map<MelvorId, int> purchaseCounts) {
+    final level = cookingFurnaceLevel(purchaseCounts);
+    return level > 0 ? cookingFurnaceChain[level - 1] : null;
+  }
+
+  /// Returns the ID of the highest owned cooking pot, or null if none owned.
+  MelvorId? highestCookingPotId(Map<MelvorId, int> purchaseCounts) {
+    final level = cookingPotLevel(purchaseCounts);
+    return level > 0 ? cookingPotChain[level - 1] : null;
   }
 }
 

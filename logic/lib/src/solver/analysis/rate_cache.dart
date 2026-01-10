@@ -45,9 +45,9 @@ class RateCache {
         '${state.skillState(Skill.firemaking).skillLevel}|'
         '${state.skillState(Skill.cooking).skillLevel}|'
         '${state.skillState(Skill.smithing).skillLevel}|'
-        '${state.shop.axeLevel}|'
-        '${state.shop.fishingRodLevel}|'
-        '${state.shop.pickaxeLevel}';
+        '${state.axeLevel}|'
+        '${state.fishingRodLevel}|'
+        '${state.pickaxeLevel}';
   }
 
   double getBestUnlockedRate(GlobalState state) {

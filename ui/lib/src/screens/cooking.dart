@@ -180,9 +180,9 @@ class _AreaStatusCard extends StatelessWidget {
   /// Returns the display name for the cooking area equipment level.
   String _getCookingAreaName(GlobalState state) {
     final id = switch (area) {
-      CookingArea.fire => state.shop.highestCookingFireId,
-      CookingArea.furnace => state.shop.highestCookingFurnaceId,
-      CookingArea.pot => state.shop.highestCookingPotId,
+      CookingArea.fire => state.highestCookingFireId,
+      CookingArea.furnace => state.highestCookingFurnaceId,
+      CookingArea.pot => state.highestCookingPotId,
     };
     if (id == null) {
       return 'No ${area.displayName}';
