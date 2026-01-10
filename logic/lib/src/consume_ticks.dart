@@ -670,6 +670,22 @@ class StateUpdateBuilder {
     return foodConsumed;
   }
 
+  /// Adds a summoning mark for a familiar.
+  void addSummoningMark(MelvorId familiarId) {
+    _state = _state.copyWith(
+      summoning: _state.summoning.withMarks(familiarId, 1),
+    );
+    // Marks are not tracked in changes for now.
+  }
+
+  /// Records that a tablet was crafted for a familiar.
+  /// This unblocks further mark discovery for that familiar.
+  void markTabletCrafted(MelvorId familiarId) {
+    _state = _state.copyWith(
+      summoning: _state.summoning.withTabletCrafted(familiarId),
+    );
+  }
+
   GlobalState build() => _state;
 
   Changes get changes => _changes;
@@ -882,6 +898,61 @@ void completeCookingAction(
   builder.addInventory(ItemStack(outputItem, count: quantity));
 }
 
+/// Rolls for summoning mark discovery after completing a skill action.
+///
+/// Mark discovery follows this formula:
+/// Chance = (actionTimeSeconds / ((tier + 1)² × 200)) × equipmentModifier
+///
+/// Mark discovery is blocked if:
+/// - The skill doesn't have any associated familiars
+/// - The player doesn't have the required summoning level for the familiar
+/// - The player has found one mark but hasn't crafted a tablet yet
+void _rollMarkDiscovery(
+  StateUpdateBuilder builder,
+  SkillAction action,
+  Random random,
+) {
+  final state = builder.state;
+  final registries = builder.registries;
+
+  // Get familiars that can be discovered in this skill
+  final familiars = registries.actions.summoningFamiliarsForSkill(action.skill);
+  if (familiars.isEmpty) return;
+
+  // Get player's summoning level
+  final summoningLevel = state.skillState(Skill.summoning).skillLevel;
+
+  // Calculate action time in seconds (use average of min/max duration)
+  final avgDurationMs =
+      (action.minDuration.inMilliseconds + action.maxDuration.inMilliseconds) /
+      2;
+  final actionTimeSeconds = avgDurationMs / 1000.0;
+
+  // TODO(eseidel): Calculate equipment modifier based on equipped familiars
+  // 2.5× for non-combat skills with familiar equipped, 2× for combat
+  const equipmentModifier = 1.0;
+
+  for (final familiar in familiars) {
+    // Check if player has required summoning level
+    if (summoningLevel < familiar.unlockLevel) continue;
+
+    // Check if mark discovery is blocked for this familiar
+    if (state.summoning.isMarkDiscoveryBlocked(familiar.productId)) continue;
+
+    // Calculate discovery chance
+    final chance = markDiscoveryChance(
+      actionTimeSeconds: actionTimeSeconds,
+      tier: familiar.tier,
+      equipmentModifier: equipmentModifier,
+    );
+
+    // Roll for discovery
+    if (random.nextDouble() < chance) {
+      builder.addSummoningMark(familiar.productId);
+    }
+  }
+}
+
 /// Completes a skill action, consuming inputs, adding outputs, and awarding XP.
 /// Returns true if the action can repeat (no items were dropped).
 bool completeAction(
@@ -916,6 +987,15 @@ bool completeAction(
     ..addSkillXp(action.skill, perAction.xp)
     ..addActionMasteryXp(action.id, perAction.masteryXp)
     ..addSkillMasteryXp(action.skill, perAction.masteryPoolXp);
+
+  // Roll for summoning mark discovery
+  _rollMarkDiscovery(builder, action, random);
+
+  // Mark tablet as crafted when completing a summoning action
+  // This unblocks further mark discovery for that familiar
+  if (action is SummoningAction) {
+    builder.markTabletCrafted(action.productId);
+  }
 
   // Handle resource depletion for mining
   if (action is MiningAction) {

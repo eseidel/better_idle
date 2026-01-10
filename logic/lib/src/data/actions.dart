@@ -5,6 +5,7 @@ import 'package:logic/src/data/action_id.dart';
 import 'package:logic/src/data/combat.dart';
 import 'package:logic/src/data/melvor_id.dart';
 import 'package:logic/src/data/mining.dart';
+import 'package:logic/src/data/summoning.dart';
 import 'package:logic/src/data/thieving.dart';
 import 'package:logic/src/tick.dart';
 import 'package:logic/src/types/drop.dart';
@@ -397,6 +398,14 @@ class ActionRegistry {
   @visibleForTesting
   SkillAction smithing(String name) =>
       _bySkillAndName(Skill.smithing, name) as SkillAction;
+
+  /// Returns all summoning familiars that can have marks discovered while
+  /// performing actions in the given skill.
+  Iterable<SummoningAction> summoningFamiliarsForSkill(Skill skill) {
+    return forSkill(Skill.summoning).whereType<SummoningAction>().where(
+      (action) => action.markSkillIds.contains(skill.id),
+    );
+  }
 }
 
 class DropsRegistry {

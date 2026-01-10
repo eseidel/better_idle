@@ -611,6 +611,162 @@ void main() {
     });
   });
 
+  group('ShopRegistry cooking equipment chains', () {
+    setUpAll(() async {
+      await loadTestRegistries();
+    });
+
+    test('cookingFireChain returns ordered list of fire upgrades', () {
+      final chain = testRegistries.shop.cookingFireChain;
+      expect(chain, isNotEmpty);
+      // Verify it's a list of MelvorIds
+      for (final id in chain) {
+        expect(id, isA<MelvorId>());
+      }
+    });
+
+    test('cookingFurnaceChain returns ordered list of furnace upgrades', () {
+      final chain = testRegistries.shop.cookingFurnaceChain;
+      expect(chain, isNotEmpty);
+      for (final id in chain) {
+        expect(id, isA<MelvorId>());
+      }
+    });
+
+    test('cookingPotChain returns ordered list of pot upgrades', () {
+      final chain = testRegistries.shop.cookingPotChain;
+      expect(chain, isNotEmpty);
+      for (final id in chain) {
+        expect(id, isA<MelvorId>());
+      }
+    });
+
+    test('cookingFireLevel returns 0 with no purchases', () {
+      final level = testRegistries.shop.cookingFireLevel({});
+      expect(level, 0);
+    });
+
+    test('cookingFireLevel counts owned upgrades', () {
+      final chain = testRegistries.shop.cookingFireChain;
+      if (chain.isEmpty) return; // Skip if no fire upgrades defined
+
+      // With first upgrade purchased
+      var level = testRegistries.shop.cookingFireLevel({chain.first: 1});
+      expect(level, 1);
+
+      // With first two upgrades purchased
+      if (chain.length >= 2) {
+        level = testRegistries.shop.cookingFireLevel({
+          chain[0]: 1,
+          chain[1]: 1,
+        });
+        expect(level, 2);
+      }
+    });
+
+    test('cookingFurnaceLevel counts owned upgrades', () {
+      final chain = testRegistries.shop.cookingFurnaceChain;
+      if (chain.isEmpty) return;
+
+      var level = testRegistries.shop.cookingFurnaceLevel({chain.first: 1});
+      expect(level, 1);
+
+      if (chain.length >= 2) {
+        level = testRegistries.shop.cookingFurnaceLevel({
+          chain[0]: 1,
+          chain[1]: 1,
+        });
+        expect(level, 2);
+      }
+    });
+
+    test('cookingPotLevel counts owned upgrades', () {
+      final chain = testRegistries.shop.cookingPotChain;
+      if (chain.isEmpty) return;
+
+      var level = testRegistries.shop.cookingPotLevel({chain.first: 1});
+      expect(level, 1);
+
+      if (chain.length >= 2) {
+        level = testRegistries.shop.cookingPotLevel({chain[0]: 1, chain[1]: 1});
+        expect(level, 2);
+      }
+    });
+
+    test('highestCookingFireId returns null with no purchases', () {
+      final highest = testRegistries.shop.highestCookingFireId({});
+      expect(highest, isNull);
+    });
+
+    test('highestCookingFireId returns highest owned upgrade', () {
+      final chain = testRegistries.shop.cookingFireChain;
+      if (chain.isEmpty) return;
+
+      // With first upgrade only
+      var highest = testRegistries.shop.highestCookingFireId({chain.first: 1});
+      expect(highest, chain.first);
+
+      // With first two upgrades
+      if (chain.length >= 2) {
+        highest = testRegistries.shop.highestCookingFireId({
+          chain[0]: 1,
+          chain[1]: 1,
+        });
+        expect(highest, chain[1]);
+      }
+    });
+
+    test('highestCookingFurnaceId returns highest owned upgrade', () {
+      final chain = testRegistries.shop.cookingFurnaceChain;
+      if (chain.isEmpty) return;
+
+      var highest = testRegistries.shop.highestCookingFurnaceId({
+        chain.first: 1,
+      });
+      expect(highest, chain.first);
+
+      if (chain.length >= 2) {
+        highest = testRegistries.shop.highestCookingFurnaceId({
+          chain[0]: 1,
+          chain[1]: 1,
+        });
+        expect(highest, chain[1]);
+      }
+    });
+
+    test('highestCookingPotId returns highest owned upgrade', () {
+      final chain = testRegistries.shop.cookingPotChain;
+      if (chain.isEmpty) return;
+
+      var highest = testRegistries.shop.highestCookingPotId({chain.first: 1});
+      expect(highest, chain.first);
+
+      if (chain.length >= 2) {
+        highest = testRegistries.shop.highestCookingPotId({
+          chain[0]: 1,
+          chain[1]: 1,
+        });
+        expect(highest, chain[1]);
+      }
+    });
+
+    test('level method counts non-contiguous purchases', () {
+      final chain = testRegistries.shop.cookingFireChain;
+      if (chain.length < 3) return;
+
+      // Only own the second item in the chain (skipping first)
+      // Level is the count of owned items, regardless of which ones
+      final level = testRegistries.shop.cookingFireLevel({chain[1]: 1});
+      expect(level, 1);
+
+      // highestCookingFireId uses level as an index, assuming purchases
+      // are made in order. With level=1, it returns chain[0].
+      // This tests the current behavior (which assumes sequential purchase).
+      final highest = testRegistries.shop.highestCookingFireId({chain[1]: 1});
+      expect(highest, chain[0]);
+    });
+  });
+
   group('GlobalState itemCharges', () {
     setUpAll(() async {
       await loadTestRegistries();
