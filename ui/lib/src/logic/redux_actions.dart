@@ -544,3 +544,72 @@ class SetAttackStyleAction extends ReduxAction<GlobalState> {
     return state.setAttackStyle(attackStyle);
   }
 }
+
+// ============================================================================
+// Cooking Actions
+// ============================================================================
+
+/// Assigns a recipe to a cooking area.
+class AssignCookingRecipeAction extends ReduxAction<GlobalState> {
+  AssignCookingRecipeAction({required this.area, required this.recipe});
+  final CookingArea area;
+  final CookingAction recipe;
+
+  @override
+  GlobalState reduce() {
+    // Create area state with recipe assigned (no progress until cooking starts)
+    final areaState = CookingAreaState(recipeId: recipe.id);
+    return state.copyWith(
+      cooking: state.cooking.withAreaState(area, areaState),
+    );
+  }
+}
+
+/// Clears a recipe from a cooking area.
+class ClearCookingRecipeAction extends ReduxAction<GlobalState> {
+  ClearCookingRecipeAction({required this.area});
+  final CookingArea area;
+
+  @override
+  GlobalState reduce() {
+    return state.copyWith(
+      cooking: state.cooking.withAreaState(
+        area,
+        const CookingAreaState.empty(),
+      ),
+    );
+  }
+}
+
+/// Starts cooking in a specific area (makes it the active cooking action).
+class StartCookingAction extends ReduxAction<GlobalState> {
+  StartCookingAction({required this.area});
+  final CookingArea area;
+
+  @override
+  GlobalState? reduce() {
+    // If stunned, do nothing
+    if (state.isStunned) {
+      return null;
+    }
+
+    // Get the recipe assigned to this area
+    final areaState = state.cooking.areaState(area);
+    if (areaState.recipeId == null) {
+      return null; // No recipe assigned
+    }
+
+    // Find the cooking action
+    final recipe = state.registries.actions
+        .forSkill(Skill.cooking)
+        .whereType<CookingAction>()
+        .firstWhere(
+          (a) => a.id == areaState.recipeId,
+          orElse: () => throw Exception('Recipe not found'),
+        );
+
+    // Start the cooking action (this will set up progress in the area)
+    final random = Random();
+    return state.startAction(recipe, random: random);
+  }
+}
