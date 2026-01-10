@@ -250,38 +250,42 @@ class StackCell extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onLongPress: onLongPress,
-      child: Stack(
-        children: [
-          CountBadgeCell(
-            inradius: _inradius,
-            onTap: onTap,
-            backgroundColor: Style.cellBackgroundColor,
-            borderColor: isSelected
-                ? Style.cellBorderColorSelected
-                : Style.cellBorderColorSuccess,
-            count: stack.count,
-            child: Center(
-              child: ItemImage(item: stack.item, size: _inradius * 0.6),
-            ),
-          ),
-          // Selection checkmark overlay
-          if (isSelected)
-            Positioned(
-              top: 2,
-              right: 2,
-              child: Container(
-                width: 18,
-                height: 18,
-                decoration: const BoxDecoration(
-                  color: Style.selectedColor,
-                  shape: BoxShape.circle,
-                ),
-                child: const Icon(Icons.check, size: 12, color: Colors.white),
+    return Tooltip(
+      message: stack.item.name,
+      preferBelow: false,
+      child: GestureDetector(
+        onLongPress: onLongPress,
+        child: Stack(
+          children: [
+            CountBadgeCell(
+              inradius: _inradius,
+              onTap: onTap,
+              backgroundColor: Style.cellBackgroundColor,
+              borderColor: isSelected
+                  ? Style.cellBorderColorSelected
+                  : Style.cellBorderColorSuccess,
+              count: stack.count,
+              child: Center(
+                child: ItemImage(item: stack.item, size: _inradius * 0.6),
               ),
             ),
-        ],
+            // Selection checkmark overlay
+            if (isSelected)
+              Positioned(
+                top: 2,
+                right: 2,
+                child: Container(
+                  width: 18,
+                  height: 18,
+                  decoration: const BoxDecoration(
+                    color: Style.selectedColor,
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(Icons.check, size: 12, color: Colors.white),
+                ),
+              ),
+          ],
+        ),
       ),
     );
   }
