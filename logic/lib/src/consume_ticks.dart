@@ -2,6 +2,7 @@ import 'dart:math';
 
 import 'package:logic/logic.dart';
 import 'package:logic/src/farming_background.dart';
+import 'package:logic/src/passive_cooking.dart';
 import 'package:meta/meta.dart';
 
 /// Ticks required to regenerate 1 HP (10 seconds = 100 ticks).
@@ -346,6 +347,67 @@ void _applyBackgroundTicks(
   }
 }
 
+/// Applies ticks to passive cooking areas (non-active cooking areas with
+/// recipes assigned). Passive cooking runs at 5x the normal rate and does
+/// not grant XP, mastery, or bonuses.
+///
+/// IMPORTANT: Passive cooking ONLY runs when the player is actively cooking
+/// in one of the three cooking areas. If the player switches to any other
+/// skill, passive cooking stops completely.
+void _applyPassiveCookingTicks(
+  StateUpdateBuilder builder,
+  Tick ticks,
+  ActionId? activeActionId,
+  Random random,
+) {
+  // Passive cooking only runs when the active action is a CookingAction
+  if (activeActionId == null) return;
+
+  final actions = builder.state.registries.actions;
+  final activeAction = actions.byId(activeActionId);
+
+  // If not cooking, passive cooking doesn't run
+  if (activeAction is! CookingAction) return;
+
+  final cookingState = builder.state.cooking;
+  final activeCookingArea = CookingArea.fromCategoryId(activeAction.categoryId);
+
+  // Process each non-active cooking area
+  for (final (area, areaState) in cookingState.allAreas) {
+    // Skip the active cooking area (handled by foreground)
+    if (area == activeCookingArea) continue;
+
+    // Skip areas without a recipe or not actively cooking
+    if (!areaState.isActive || areaState.recipeId == null) continue;
+
+    final recipeId = areaState.recipeId!;
+    final action = actions.byId(recipeId);
+    if (action is! CookingAction) continue;
+
+    // Check if we have inputs to cook
+    if (!builder.state.canStartAction(action)) continue;
+
+    final recipeDuration = ticksFromDuration(action.maxDuration);
+    final passiveProcessor = PassiveCookingTickProcessor(
+      area: area,
+      areaState: areaState,
+      recipeDuration: recipeDuration,
+    );
+
+    if (!passiveProcessor.isActive) continue;
+
+    final result = passiveProcessor.applyTicks(ticks);
+
+    if (result.completed) {
+      // Cook completed - produce output (no XP/mastery/bonuses)
+      completeCookingAction(builder, action, random, isPassive: true);
+    }
+
+    // Update the cooking area state
+    builder.updateCookingAreaState(area, result.newState);
+  }
+}
+
 class StateUpdateBuilder {
   StateUpdateBuilder(this._state);
 
@@ -458,6 +520,11 @@ class StateUpdateBuilder {
     final newPlotStates = Map<MelvorId, PlotState>.from(_state.plotStates);
     newPlotStates[plotId] = newState;
     _state = _state.copyWith(plotStates: newPlotStates);
+  }
+
+  void updateCookingAreaState(CookingArea area, CookingAreaState newState) {
+    final cooking = _state.cooking.withAreaState(area, newState);
+    _state = _state.copyWith(cooking: cooking);
   }
 
   void addCurrency(Currency currency, int amount) {
@@ -734,6 +801,87 @@ bool completeThievingAction(
   }
 }
 
+/// Completes a cooking action with success/fail mechanics.
+///
+/// Cooking has unique mechanics compared to other skills:
+/// - Base 70% success rate, +0.6% per mastery level (capped at level 50)
+/// - On failure: consumes inputs, awards only 1 XP, no output produced
+/// - On success: normal XP/mastery, roll for perfect cook output
+/// - Passive cooking (from non-active areas) skips XP, mastery, and bonuses
+void completeCookingAction(
+  StateUpdateBuilder builder,
+  CookingAction action,
+  Random random, {
+  required bool isPassive,
+}) {
+  final registries = builder.registries;
+  final actionState = builder.state.actionState(action.id);
+  final selection = actionState.recipeSelection(action);
+  final masteryLevel = builder.currentMasteryLevel(action);
+  final modifiers = builder.state.resolveSkillModifiers(action);
+
+  // Calculate success chance: 70% base + 0.6% per mastery level (capped at 50)
+  // Total possible from mastery: 70% + 30% = 100% at level 50
+  final masteryBonus = masteryLevel.clamp(0, 50) * 0.6;
+  final baseSuccessChance = 70.0 + masteryBonus;
+  // cookingSuccessCap modifier can increase the cap above 100%
+  final successCap = 100.0 + modifiers.cookingSuccessCap;
+  final successChance = baseSuccessChance.clamp(0.0, successCap) / 100.0;
+
+  final success = random.nextDouble() < successChance;
+
+  // Always consume inputs (preservation doesn't apply to cooking failures)
+  final inputs = action.inputsForRecipe(selection);
+  for (final requirement in inputs.entries) {
+    final item = registries.items.byId(requirement.key);
+    builder.removeInventory(ItemStack(item, count: requirement.value));
+  }
+
+  if (!success) {
+    // Failed cook: award only 1 XP, no mastery, no output
+    // Note: Burnt items are NOT received in Melvor Idle
+    builder.addSkillXp(Skill.cooking, 1);
+    return;
+  }
+
+  // Success path
+  // Passive cooking gets NO XP, mastery, preservation, doubling, or perfect
+  if (!isPassive) {
+    final perAction = xpPerAction(builder.state, action, modifiers);
+    builder
+      ..addSkillXp(action.skill, perAction.xp)
+      ..addActionMasteryXp(action.id, perAction.masteryXp)
+      ..addSkillMasteryXp(action.skill, perAction.masteryPoolXp);
+  }
+
+  // Determine output item (perfect cook or normal)
+  MelvorId outputId;
+  if (!isPassive && action.perfectCookId != null) {
+    // Roll for perfect cook using perfectCookChance modifier
+    final perfectChance = modifiers.perfectCookChance / 100.0;
+    final isPerfect = random.nextDouble() < perfectChance;
+    outputId = isPerfect ? action.perfectCookId! : action.productId;
+  } else {
+    outputId = action.productId;
+  }
+
+  final outputItem = registries.items.byId(outputId);
+  var quantity = action.baseQuantity;
+
+  // Apply doubling for active cooking only
+  if (!isPassive) {
+    final doublingChance = (modifiers.skillItemDoublingChance / 100.0).clamp(
+      0.0,
+      1.0,
+    );
+    if (doublingChance > 0 && random.nextDouble() < doublingChance) {
+      quantity *= 2;
+    }
+  }
+
+  builder.addInventory(ItemStack(outputItem, count: quantity));
+}
+
 /// Completes a skill action, consuming inputs, adding outputs, and awarding XP.
 /// Returns true if the action can repeat (no items were dropped).
 bool completeAction(
@@ -874,6 +1022,13 @@ enum ForegroundResult {
     ..setActionProgress(action, remainingTicks: newRemainingTicks)
     ..addActionTicks(action.id, ticksToApply);
 
+  // For cooking, process passive cooking areas continuously (not just at
+  // completion). This ensures passive cooking completes at the right time
+  // even if the passive duration doesn't align with active completion events.
+  if (action is CookingAction) {
+    _applyPassiveCookingTicks(builder, ticksToApply, action.id, random);
+  }
+
   if (newRemainingTicks <= 0) {
     // Action completed - handle differently based on action type
     if (action is ThievingAction) {
@@ -891,6 +1046,20 @@ enum ForegroundResult {
       } else {
         // Player died - stop action
         builder.stopAction(ActionStopReason.playerDied);
+        return (ForegroundResult.stopped, ticksToApply);
+      }
+    }
+
+    // Handle cooking with success/fail mechanics
+    if (action is CookingAction) {
+      completeCookingAction(builder, action, random, isPassive: false);
+      // Passive cooking is processed above (before completion check) so it
+      // runs continuously, not just at active completion events.
+      if (builder.state.canStartAction(action)) {
+        builder.restartCurrentAction(action, random: random);
+        return (ForegroundResult.continued, ticksToApply);
+      } else {
+        builder.stopAction(ActionStopReason.outOfInputs);
         return (ForegroundResult.stopped, ticksToApply);
       }
     }

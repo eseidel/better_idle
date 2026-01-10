@@ -13,4 +13,9 @@ pubspec.lock
 .cache
 
 # Produced by tool/parse_modifiers.dart
+item_modifiers_report.json
 modifier_report.json
+mastery_modifiers_report.json
+
+# Produced by bin/solver.dart
+plan.json

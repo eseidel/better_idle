@@ -104,4 +104,11 @@ class CookingAction extends SkillAction {
 
   /// Base quantity produced per action.
   final int baseQuantity;
+
+  /// Returns true if this cooking action belongs to the specified category.
+  ///
+  /// Categories are: Fire, Furnace, Pot (matched by localId).
+  bool isInCategory(String categoryLocalId) {
+    return categoryId?.localId == categoryLocalId;
+  }
 }

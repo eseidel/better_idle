@@ -2,6 +2,7 @@ import 'dart:math';
 
 import 'package:logic/src/action_state.dart';
 import 'package:logic/src/combat_stats.dart';
+import 'package:logic/src/cooking_state.dart';
 import 'package:logic/src/data/action_id.dart';
 import 'package:logic/src/data/actions.dart';
 import 'package:logic/src/data/currency.dart';
@@ -357,6 +358,7 @@ class GlobalState {
     this.timeAway,
     this.stunned = const StunnedState.fresh(),
     this.attackStyle = AttackStyle.stab,
+    this.cooking = const CookingState.empty(),
   });
 
   GlobalState.empty(Registries registries)
@@ -478,7 +480,10 @@ class GlobalState {
           const StunnedState.fresh(),
       attackStyle = json['attackStyle'] != null
           ? AttackStyle.fromJson(json['attackStyle'] as String)
-          : AttackStyle.stab;
+          : AttackStyle.stab,
+      cooking =
+          CookingState.maybeFromJson(json['cooking']) ??
+          const CookingState.empty();
 
   static Map<Currency, int> _currenciesFromJson(Map<String, dynamic> json) {
     final currenciesJson = json['currencies'] as Map<String, dynamic>? ?? {};
@@ -543,6 +548,7 @@ class GlobalState {
       'equipment': equipment.toJson(),
       'stunned': stunned.toJson(),
       'attackStyle': attackStyle.toJson(),
+      'cooking': cooking.toJson(),
     };
   }
 
@@ -614,6 +620,9 @@ class GlobalState {
 
   /// The shop state.
   final ShopState shop;
+
+  /// The cooking state (tracks all 3 cooking areas).
+  final CookingState cooking;
 
   /// The player's health state.
   final HealthState health;
@@ -980,6 +989,18 @@ class GlobalState {
       throw const StunnedException('Cannot start action while stunned');
     }
 
+    // Check if we're switching away from cooking to a non-cooking action.
+    // If so, reset all cooking area progress (recipes remain assigned).
+    // Use skill ID directly to avoid looking up actions that may not exist
+    // (e.g., in test scenarios with ActionId.test()).
+    var updatedCooking = cooking;
+    final currentActionId = activeAction?.id;
+    final isSwitchingFromCooking = currentActionId?.skillId == Skill.cooking.id;
+    final isSwitchingToCooking = action is CookingAction;
+    if (isSwitchingFromCooking && !isSwitchingToCooking) {
+      updatedCooking = cooking.withAllProgressCleared();
+    }
+
     final actionId = action.id;
     int totalTicks;
 
@@ -1006,6 +1027,7 @@ class GlobalState {
           remainingTicks: totalTicks,
           totalTicks: totalTicks,
         ),
+        cooking: updatedCooking,
       );
     } else if (action is CombatAction) {
       // Combat actions don't have inputs or duration-based completion.
@@ -1026,6 +1048,7 @@ class GlobalState {
           totalTicks: totalTicks,
         ),
         actionStates: newActionStates,
+        cooking: updatedCooking,
       );
     } else {
       throw Exception('Unknown action type: ${action.runtimeType}');
@@ -1055,6 +1078,15 @@ class GlobalState {
       throw const StunnedException('Cannot stop action while stunned');
     }
 
+    // If we're clearing a cooking action, reset all cooking area progress.
+    // Check the skill ID directly to avoid looking up actions that may not
+    // exist (e.g., in test scenarios with ActionId.test()).
+    var updatedCooking = cooking;
+    final currentActionId = activeAction?.id;
+    if (currentActionId?.skillId == Skill.cooking.id) {
+      updatedCooking = cooking.withAllProgressCleared();
+    }
+
     // This can't be copyWith since null means no-update.
     return GlobalState(
       registries: registries,
@@ -1073,6 +1105,7 @@ class GlobalState {
       equipment: equipment,
       stunned: stunned,
       attackStyle: attackStyle,
+      cooking: updatedCooking,
     );
   }
 
@@ -1572,6 +1605,7 @@ class GlobalState {
     Equipment? equipment,
     StunnedState? stunned,
     AttackStyle? attackStyle,
+    CookingState? cooking,
   }) {
     return GlobalState(
       registries: registries,
@@ -1591,6 +1625,7 @@ class GlobalState {
       equipment: equipment ?? this.equipment,
       stunned: stunned ?? this.stunned,
       attackStyle: attackStyle ?? this.attackStyle,
+      cooking: cooking ?? this.cooking,
     );
   }
 
