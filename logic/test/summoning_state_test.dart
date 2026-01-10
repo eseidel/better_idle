@@ -688,7 +688,7 @@ void main() {
       consumeTicks(builder, 5000, random: Random(42));
       final newState = builder.build();
 
-      // Combat tablet should NOT have consumed charges (not relevant to woodcutting)
+      // Combat tablet should NOT have consumed charges while woodcutting.
       expect(newState.equipment.summonCountInSlot(EquipmentSlot.summon1), 10);
     });
   });
@@ -1040,7 +1040,7 @@ void main() {
 
       final synergy = state.getActiveSynergy();
       expect(synergy, isNotNull);
-      // Golbin Thief + Occultist synergy has currencyGainOnMonsterKillBasedOnEvasion
+      // Golbin Thief + Occultist has currencyGainOnMonsterKillBasedOnEvasion
       expect(synergy!.modifiers.modifiers, isNotEmpty);
     });
 

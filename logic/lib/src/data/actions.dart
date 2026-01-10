@@ -131,8 +131,8 @@ enum Skill {
     Skill.slayer,
   };
 
-  /// Skills that apply to all combat types (Defence, Hitpoints, Prayer, Slayer).
-  /// These are used regardless of whether player is using melee, ranged, or magic.
+  /// Skills that apply to all combat (Defence, Hitpoints, Prayer, Slayer).
+  /// These are used regardless of CombatType.
   static const Set<Skill> universalCombatSkills = {
     Skill.defence,
     Skill.hitpoints,

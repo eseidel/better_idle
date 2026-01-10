@@ -692,7 +692,7 @@ class StateUpdateBuilder {
   /// being performed (i.e., the skill is in the familiar's markSkillIds).
   ///
   /// For non-combat skills: 1 charge per action.
-  /// For combat: 1 charge per attack (2 during synergies - not yet implemented).
+  /// For combat: 1 charge per attack (2 during synergies - not implemented).
   ///
   // TODO(eseidel): Add charge preservation modifier support.
   // TODO(eseidel): Increase to 2 charges for combat when synergy is active.
@@ -1035,10 +1035,8 @@ bool completeAction(
   builder
     ..addSkillXp(action.skill, perAction.xp)
     ..addActionMasteryXp(action.id, perAction.masteryXp)
-    ..addSkillMasteryXp(action.skill, perAction.masteryPoolXp);
-
-  // Consume summoning tablet charges (1 per skill action, only for relevant familiars)
-  builder.consumeSummonCharges(action);
+    ..addSkillMasteryXp(action.skill, perAction.masteryPoolXp)
+    ..consumeSummonCharges(action);
 
   // Roll for summoning mark discovery
   _rollMarkDiscovery(builder, action, random);
@@ -1301,7 +1299,7 @@ enum ForegroundResult {
   var monsterHp = currentCombat.monsterHp;
   var resetPlayerTicks = newPlayerTicks;
   if (newPlayerTicks <= 0) {
-    // Consume summoning tablet charges (1 per attack, only for relevant familiars)
+    // Consume summoning tablet charges (1 per attack, for relevant familiars)
     builder.consumeSummonCharges(action);
 
     final pStats = computePlayerStats(builder.state);

@@ -416,7 +416,7 @@ void main() {
         // Get the initial passive progress
         final initialProgress = state.cooking.fireArea.progressTicksRemaining!;
 
-        // Consume 50 ticks (passive cooking is 5x slower, so 10 effective ticks)
+        // Consume 50 ticks (passive cooking is 5x slower)
         final builder = StateUpdateBuilder(state);
         consumeTicks(builder, 50, random: random);
         state = builder.build();
