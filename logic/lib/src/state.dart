@@ -274,6 +274,41 @@ class ShopState {
     'melvorD:Dragon_Pickaxe',
   ];
 
+  // Cooking fire tier IDs in order
+  static const cookingFireIds = [
+    'melvorD:Normal_Cooking_Fire',
+    'melvorD:Oak_Cooking_Fire',
+    'melvorD:Willow_Cooking_Fire',
+    'melvorD:Teak_Cooking_Fire',
+    'melvorD:Maple_Cooking_Fire',
+    'melvorD:Mahogany_Cooking_Fire',
+    'melvorD:Yew_Cooking_Fire',
+    'melvorD:Magic_Cooking_Fire',
+    'melvorD:Redwood_Cooking_Fire',
+  ];
+
+  // Cooking furnace tier IDs in order
+  static const cookingFurnaceIds = [
+    'melvorD:Basic_Furnace',
+    'melvorD:Iron_Furnace',
+    'melvorD:Steel_Furnace',
+    'melvorD:Mithril_Furnace',
+    'melvorD:Adamant_Furnace',
+    'melvorD:Rune_Furnace',
+    'melvorD:Dragon_Furnace',
+  ];
+
+  // Cooking pot tier IDs in order
+  static const cookingPotIds = [
+    'melvorD:Basic_Pot',
+    'melvorD:Iron_Pot',
+    'melvorD:Steel_Pot',
+    'melvorD:Mithril_Pot',
+    'melvorD:Adamant_Pot',
+    'melvorD:Rune_Pot',
+    'melvorD:Dragon_Pot',
+  ];
+
   /// Returns how many axe tiers have been purchased (0-7).
   int get axeLevel => _countTiersOwned(_axeIds);
 
@@ -282,6 +317,29 @@ class ShopState {
 
   /// Returns how many pickaxe tiers have been purchased (0-7).
   int get pickaxeLevel => _countTiersOwned(_pickaxeIds);
+
+  /// Returns how many cooking fire tiers have been purchased (0-9).
+  int get cookingFireLevel => _countTiersOwned(cookingFireIds);
+
+  /// Returns how many cooking furnace tiers have been purchased (0-7).
+  int get cookingFurnaceLevel => _countTiersOwned(cookingFurnaceIds);
+
+  /// Returns how many cooking pot tiers have been purchased (0-7).
+  int get cookingPotLevel => _countTiersOwned(cookingPotIds);
+
+  /// Returns the ID of the highest owned cooking fire tier, or null if none.
+  MelvorId? get highestCookingFireId => cookingFireLevel > 0
+      ? MelvorId(cookingFireIds[cookingFireLevel - 1])
+      : null;
+
+  /// Returns the ID of the highest owned cooking furnace tier, or null if none.
+  MelvorId? get highestCookingFurnaceId => cookingFurnaceLevel > 0
+      ? MelvorId(cookingFurnaceIds[cookingFurnaceLevel - 1])
+      : null;
+
+  /// Returns the ID of the highest owned cooking pot tier, or null if none.
+  MelvorId? get highestCookingPotId =>
+      cookingPotLevel > 0 ? MelvorId(cookingPotIds[cookingPotLevel - 1]) : null;
 
   int _countTiersOwned(List<String> tierIds) {
     var count = 0;

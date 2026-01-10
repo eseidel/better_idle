@@ -1,14 +1,20 @@
 import 'package:better_idle/src/logic/redux_actions.dart';
+import 'package:better_idle/src/widgets/cached_image.dart';
 import 'package:better_idle/src/widgets/context_extensions.dart';
+import 'package:better_idle/src/widgets/count_badge_cell.dart';
+import 'package:better_idle/src/widgets/double_chance_badge_cell.dart';
 import 'package:better_idle/src/widgets/input_items_row.dart';
+import 'package:better_idle/src/widgets/item_count_badge_cell.dart';
 import 'package:better_idle/src/widgets/item_image.dart';
 import 'package:better_idle/src/widgets/mastery_pool.dart';
 import 'package:better_idle/src/widgets/mastery_unlocks_dialog.dart';
 import 'package:better_idle/src/widgets/navigation_drawer.dart';
+import 'package:better_idle/src/widgets/recycle_chance_badge_cell.dart';
 import 'package:better_idle/src/widgets/skill_image.dart';
 import 'package:better_idle/src/widgets/skill_milestones_dialog.dart';
 import 'package:better_idle/src/widgets/skill_progress.dart';
 import 'package:better_idle/src/widgets/style.dart';
+import 'package:better_idle/src/widgets/xp_badges_row.dart';
 import 'package:flutter/material.dart' hide Action;
 import 'package:logic/logic.dart';
 
@@ -92,12 +98,14 @@ class _CookingAreaTab extends StatelessWidget {
     final skillLevel = state.skillState(Skill.cooking).skillLevel;
     final areaState = state.cooking.areaState(area);
 
-    // Get recipes for this area
-    final recipes = state.registries.actions
-        .forSkill(Skill.cooking)
-        .whereType<CookingAction>()
-        .where((a) => a.categoryId?.localId == area.name.capitalize())
-        .toList();
+    // Get recipes for this area, sorted by level
+    final recipes =
+        state.registries.actions
+            .forSkill(Skill.cooking)
+            .whereType<CookingAction>()
+            .where((a) => a.categoryId?.localId == area.name.capitalize())
+            .toList()
+          ..sort((a, b) => a.unlockLevel.compareTo(b.unlockLevel));
 
     // Get the currently assigned recipe
     final assignedRecipe = areaState.recipeId != null
@@ -169,159 +177,349 @@ class _AreaStatusCard extends StatelessWidget {
   final bool isPassivelyCooking;
   final int skillLevel;
 
-  String _formatProgress() {
-    if (areaState.progressTicksRemaining == null ||
-        areaState.totalTicks == null) {
-      return '';
+  /// Returns the display name for the cooking area equipment level.
+  String _getCookingAreaName(GlobalState state) {
+    final id = switch (area) {
+      CookingArea.fire => state.shop.highestCookingFireId,
+      CookingArea.furnace => state.shop.highestCookingFurnaceId,
+      CookingArea.pot => state.shop.highestCookingPotId,
+    };
+    if (id == null) {
+      return 'No ${area.displayName}';
     }
-    final remaining = areaState.progressTicksRemaining!;
-    final total = areaState.totalTicks!;
-    final elapsed = total - remaining;
-    final percent = (elapsed / total * 100).toStringAsFixed(0);
-    return '$percent%';
+    return state.registries.shop.byId(id)?.name ?? area.displayName;
   }
 
   @override
   Widget build(BuildContext context) {
     final state = context.state;
 
-    if (assignedRecipe == null) {
-      return Card(
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            children: [
-              const Icon(Icons.add_circle_outline, size: 48),
-              const SizedBox(height: 8),
-              Text(
-                'Select a recipe below',
-                style: Theme.of(context).textTheme.titleMedium,
-              ),
-            ],
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        // Header row: Fire icon + name, Select Recipe button
+        _buildHeader(context, state),
+        const SizedBox(height: 16),
+        // Recipe details card (only if recipe assigned)
+        if (assignedRecipe != null)
+          _buildRecipeCard(context, state)
+        else
+          _buildEmptyRecipeCard(context),
+      ],
+    );
+  }
+
+  Widget _buildHeader(BuildContext context, GlobalState state) {
+    return Row(
+      children: [
+        // Fire/Furnace/Pot icon
+        const CachedImage(
+          assetPath: 'assets/media/skills/cooking/cooking.png',
+          size: 48,
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Text(
+            _getCookingAreaName(state),
+            style: Theme.of(context).textTheme.titleLarge,
           ),
         ),
-      );
-    }
+        // Select Recipe button
+        ElevatedButton(
+          onPressed: () {
+            // Scroll to recipe list (handled by parent)
+          },
+          child: const Text('Select Recipe to Cook'),
+        ),
+      ],
+    );
+  }
 
-    final productItem = state.registries.items.byId(assignedRecipe!.productId);
+  Widget _buildEmptyRecipeCard(BuildContext context) {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Center(
+          child: Text(
+            'Select a recipe below to start cooking',
+            style: Theme.of(
+              context,
+            ).textTheme.titleMedium?.copyWith(color: Style.textColorSecondary),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildRecipeCard(BuildContext context, GlobalState state) {
+    final recipe = assignedRecipe!;
+    final productItem = state.registries.items.byId(recipe.productId);
     final healsFor = productItem.healsFor;
+    final actionState = state.actionState(recipe.id);
 
     // Check if player has inputs
-    final hasInputs = assignedRecipe!.inputs.entries.every((entry) {
+    final hasInputs = recipe.inputs.entries.every((entry) {
       final item = state.registries.items.byId(entry.key);
       return state.inventory.countOfItem(item) >= entry.value;
     });
 
-    final canCook = skillLevel >= assignedRecipe!.unlockLevel && hasInputs;
+    final canCook = skillLevel >= recipe.unlockLevel && hasInputs;
+
+    // Get inventory count of the product
+    final productCount = state.inventory.countOfItem(productItem);
 
     return Card(
-      color: isActivelyCooking ? Style.selectedColorLight : null,
+      color: isActivelyCooking ? Style.activeColorLight : null,
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            // Header with recipe name and status
+            // Product icon + name + healing value
             Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                ItemImage(item: productItem, size: 48),
-                const SizedBox(width: 12),
+                // Product icon with count badge (left)
+                CountBadgeCell(
+                  count: productCount > 0 ? productCount : null,
+                  backgroundColor: Style.xpBadgeBackgroundColor,
+                  child: Center(child: ItemImage(item: productItem)),
+                ),
+                const SizedBox(width: 16),
+                // Name and healing value (center)
                 Expanded(
                   child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        assignedRecipe!.name,
+                        '${recipe.baseQuantity}x ${recipe.name}',
                         style: Theme.of(context).textTheme.titleLarge,
+                        textAlign: TextAlign.center,
                       ),
-                      if (isActivelyCooking)
-                        const Text(
-                          'Active',
-                          style: TextStyle(
-                            color: Style.successColor,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        )
-                      else if (isPassivelyCooking)
-                        const Text(
-                          'Passive (5x slower)',
-                          style: TextStyle(
-                            color: Style.warningColor,
-                            fontWeight: FontWeight.bold,
-                          ),
+                      if (healsFor != null)
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            const Icon(
+                              Icons.favorite,
+                              size: 16,
+                              color: Style.healColor,
+                            ),
+                            const SizedBox(width: 4),
+                            Text(
+                              '+$healsFor Base Healing Value',
+                              style: const TextStyle(color: Style.healColor),
+                            ),
+                          ],
                         ),
                     ],
                   ),
                 ),
-                IconButton(
-                  onPressed: () {
-                    context.dispatch(ClearCookingRecipeAction(area: area));
-                  },
-                  icon: const Icon(Icons.close),
-                  tooltip: 'Clear recipe',
-                ),
               ],
             ),
-            const SizedBox(height: 12),
-            // Stats
-            Row(
-              children: [
-                if (healsFor != null) ...[
-                  const Icon(Icons.favorite, size: 16, color: Style.healColor),
-                  const SizedBox(width: 4),
-                  Text('Heals $healsFor HP'),
-                  const SizedBox(width: 16),
-                ],
-                const Icon(Icons.star, size: 16, color: Colors.amber),
-                const SizedBox(width: 4),
-                Text('${assignedRecipe!.xp} XP'),
-              ],
+            const SizedBox(height: 16),
+
+            // Requires section
+            const Text(
+              'Requires:',
+              style: TextStyle(fontWeight: FontWeight.bold),
+              textAlign: TextAlign.center,
             ),
             const SizedBox(height: 8),
-            // Inputs
-            InputItemsRow(items: assignedRecipe!.inputs),
-            // Progress bar (if cooking)
-            if (areaState.isActive &&
-                areaState.progressTicksRemaining != null) ...[
-              const SizedBox(height: 12),
-              Row(
-                children: [
-                  Expanded(
-                    child: LinearProgressIndicator(
-                      value: areaState.totalTicks != null
-                          ? (areaState.totalTicks! -
-                                    areaState.progressTicksRemaining!) /
-                                areaState.totalTicks!
-                          : 0,
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Text(_formatProgress()),
-                ],
-              ),
-            ],
+            Center(child: ItemCountBadgesRow.required(items: recipe.inputs)),
             const SizedBox(height: 16),
-            // Cook button
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton(
-                onPressed: canCook
-                    ? () {
-                        if (isActivelyCooking) {
-                          // Stop cooking
-                          context.dispatch(StopCombatAction());
-                        } else {
-                          // Start cooking this area
-                          context.dispatch(StartCookingAction(area: area));
-                        }
+
+            // Grants section
+            const Text(
+              'Grants:',
+              style: TextStyle(fontWeight: FontWeight.bold),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 8),
+            Center(child: XpBadgesRow(action: recipe)),
+            const SizedBox(height: 16),
+
+            // Mastery progress
+            MasteryProgressCell(masteryXp: actionState.masteryXp),
+            const SizedBox(height: 16),
+
+            // You Have section
+            const Text(
+              'You Have:',
+              style: TextStyle(fontWeight: FontWeight.bold),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 8),
+            Center(child: ItemCountBadgesRow.inventory(items: recipe.inputs)),
+            const SizedBox(height: 16),
+
+            // Bonuses section
+            const Text(
+              'Bonuses:',
+              style: TextStyle(fontWeight: FontWeight.bold),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 8),
+            const Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                // Preserve (recycle) chance
+                RecycleChanceBadgeCell(chance: '0%'),
+                SizedBox(width: 8),
+                // Double chance
+                DoubleChanceBadgeCell(chance: '0%'),
+                SizedBox(width: 8),
+                // Perfect cook chance
+                _PerfectCookChanceBadgeCell(chance: '0%'),
+                SizedBox(width: 8),
+                // Cook success chance
+                _CookSuccessChanceBadgeCell(chance: '75%'),
+              ],
+            ),
+            const SizedBox(height: 16),
+
+            // Active Cook / Passive Cook buttons
+            Row(
+              children: [
+                Expanded(
+                  child: _CookButton(
+                    label: 'Active Cook',
+                    duration: recipe.minDuration,
+                    isActive: isActivelyCooking,
+                    isEnabled: canCook,
+                    color: Style.successColor,
+                    onPressed: () {
+                      if (isActivelyCooking) {
+                        context.dispatch(StopCombatAction());
+                      } else {
+                        context.dispatch(StartCookingAction(area: area));
                       }
-                    : null,
-                child: Text(isActivelyCooking ? 'Stop' : 'Cook'),
-              ),
+                    },
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: _CookButton(
+                    label: 'Passive Cook',
+                    duration: recipe.minDuration * 5,
+                    isActive: isPassivelyCooking,
+                    isEnabled: canCook && !isActivelyCooking,
+                    color: Style.selectedColor,
+                    onPressed: () {
+                      // Passive cooking starts when another area is active
+                    },
+                  ),
+                ),
+              ],
             ),
           ],
         ),
       ),
+    );
+  }
+}
+
+/// Badge cell showing perfect cook chance with a star icon.
+class _PerfectCookChanceBadgeCell extends StatelessWidget {
+  const _PerfectCookChanceBadgeCell({required this.chance});
+
+  final String chance;
+
+  @override
+  Widget build(BuildContext context) {
+    const iconSize = TextBadgeCell.defaultInradius * 0.6;
+
+    return TextBadgeCell(
+      backgroundColor: Style.xpBadgeBackgroundColor,
+      text: chance,
+      child: const Center(
+        child: Icon(Icons.star, size: iconSize, color: Colors.amber),
+      ),
+    );
+  }
+}
+
+/// Badge cell showing cook success chance with a checkmark icon.
+class _CookSuccessChanceBadgeCell extends StatelessWidget {
+  const _CookSuccessChanceBadgeCell({required this.chance});
+
+  final String chance;
+
+  @override
+  Widget build(BuildContext context) {
+    const iconSize = TextBadgeCell.defaultInradius * 0.6;
+
+    return TextBadgeCell(
+      backgroundColor: Style.xpBadgeBackgroundColor,
+      text: chance,
+      child: const Center(
+        child: Icon(
+          Icons.check_circle,
+          size: iconSize,
+          color: Style.successColor,
+        ),
+      ),
+    );
+  }
+}
+
+/// A cook button with a duration badge overlay.
+class _CookButton extends StatelessWidget {
+  const _CookButton({
+    required this.label,
+    required this.duration,
+    required this.isActive,
+    required this.isEnabled,
+    required this.color,
+    required this.onPressed,
+  });
+
+  final String label;
+  final Duration duration;
+  final bool isActive;
+  final bool isEnabled;
+  final Color color;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    final seconds = duration.inMilliseconds / 1000;
+    final durationText = '${seconds.toStringAsFixed(2)}s';
+
+    return Stack(
+      alignment: Alignment.bottomCenter,
+      children: [
+        SizedBox(
+          width: double.infinity,
+          child: ElevatedButton(
+            onPressed: isEnabled ? onPressed : null,
+            style: ElevatedButton.styleFrom(
+              backgroundColor: isActive ? color : color.withValues(alpha: 0.7),
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(vertical: 16),
+            ),
+            child: Text(label),
+          ),
+        ),
+        // Duration badge
+        Positioned(
+          bottom: 4,
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+            decoration: BoxDecoration(
+              color: Style.badgeBackgroundColor,
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Text(
+              durationText,
+              style: const TextStyle(
+                color: Style.badgeTextColor,
+                fontSize: 10,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ),
+        ),
+      ],
     );
   }
 }
