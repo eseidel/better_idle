@@ -1404,6 +1404,79 @@ class GlobalState {
     return state.copyWith(township: newTownship);
   }
 
+  // ---------------------------------------------------------------------------
+  // Township Trading Methods
+  // ---------------------------------------------------------------------------
+
+  /// Checks if a Township trade can be executed.
+  /// Returns null if valid, or an error message if not.
+  String? canExecuteTownshipTrade(MelvorId tradeId, {int quantity = 1}) {
+    final trade = registries.township.tradeById(tradeId);
+    if (trade == null) return 'Unknown trade: $tradeId';
+
+    if (quantity < 1) return 'Quantity must be at least 1';
+
+    // Get Trading Post count for discount calculation
+    // TODO(eseidel): Use actual Trading Post building ID from data.
+    const tradingPostId = MelvorId('melvorF:Trading_Post');
+    final tradingPostCount = township.totalBuildingCount(tradingPostId);
+
+    // Calculate costs with discount
+    final costs = trade.costsWithDiscount(tradingPostCount);
+
+    // Check if player has enough township resources
+    for (final entry in costs.entries) {
+      final resourceId = entry.key;
+      final required = entry.value * quantity;
+      final available = township.resourceAmount(resourceId);
+      if (available < required) {
+        final resource = registries.township.resourceById(resourceId);
+        final name = resource?.name ?? resourceId.toString();
+        return 'Not enough $name (need $required, have $available)';
+      }
+    }
+
+    // Check if inventory has space for the item
+    final item = registries.items.byId(trade.itemId);
+    if (!inventory.canAdd(item, capacity: inventoryCapacity)) {
+      return 'Inventory is full';
+    }
+
+    return null; // All checks passed
+  }
+
+  /// Executes a Township trade, converting resources to items.
+  /// Throws StateError if validation fails.
+  GlobalState executeTownshipTrade(MelvorId tradeId, {int quantity = 1}) {
+    final error = canExecuteTownshipTrade(tradeId, quantity: quantity);
+    if (error != null) throw StateError(error);
+
+    final trade = registries.township.tradeById(tradeId)!;
+
+    // Get Trading Post count for discount
+    const tradingPostId = MelvorId('melvorF:Trading_Post');
+    final tradingPostCount = township.totalBuildingCount(tradingPostId);
+    final costs = trade.costsWithDiscount(tradingPostCount);
+
+    // Deduct township resources
+    var newTownship = township;
+    for (final entry in costs.entries) {
+      newTownship = newTownship.removeResource(
+        entry.key,
+        entry.value * quantity,
+      );
+    }
+
+    // Add items to inventory
+    final item = registries.items.byId(trade.itemId);
+    final totalQuantity = trade.itemQuantity * quantity;
+    final newInventory = inventory.adding(
+      ItemStack(item, count: totalQuantity),
+    );
+
+    return copyWith(township: newTownship, inventory: newInventory);
+  }
+
   /// Repairs a Township building in a biome, restoring efficiency to 100%.
   /// Cost is proportional to how degraded the building is.
   GlobalState repairTownshipBuilding(MelvorId biomeId, MelvorId buildingId) {
