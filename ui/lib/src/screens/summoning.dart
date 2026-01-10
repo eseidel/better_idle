@@ -1,4 +1,5 @@
 import 'package:better_idle/src/logic/redux_actions.dart';
+import 'package:better_idle/src/widgets/cached_image.dart';
 import 'package:better_idle/src/widgets/context_extensions.dart';
 import 'package:better_idle/src/widgets/input_items_row.dart';
 import 'package:better_idle/src/widgets/item_image.dart';
@@ -56,6 +57,7 @@ class _SummoningPageState extends State<SummoningPage> {
         children: [
           SkillProgress(xp: skillState.xp),
           MasteryPoolProgress(xp: skillState.masteryPoolXp),
+          const _EquippedFamiliarsSection(),
           const Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
@@ -68,12 +70,9 @@ class _SummoningPageState extends State<SummoningPage> {
               padding: const EdgeInsets.all(16),
               child: Column(
                 children: [
-                  SkillActionDisplay(
-                    action: selectedAction,
-                    skill: skill,
+                  _SummoningActionDisplay(
+                    action: selectedAction as SummoningAction,
                     skillLevel: skillLevel,
-                    headerText: 'Create',
-                    buttonText: 'Create',
                     onStart: () {
                       context.dispatch(
                         ToggleActionAction(action: selectedAction),
@@ -97,6 +96,275 @@ class _SummoningPageState extends State<SummoningPage> {
           ),
         ],
       ),
+    );
+  }
+}
+
+/// Custom action display for Summoning that shows mark requirements.
+class _SummoningActionDisplay extends StatelessWidget {
+  const _SummoningActionDisplay({
+    required this.action,
+    required this.skillLevel,
+    required this.onStart,
+  });
+
+  final SummoningAction action;
+  final int skillLevel;
+  final VoidCallback onStart;
+
+  @override
+  Widget build(BuildContext context) {
+    final state = context.state;
+    final summoningState = state.summoning;
+    final canCraft = summoningState.canCraftTablet(action.productId);
+    final marks = summoningState.marksFor(action.productId);
+    final markLevel = summoningState.markLevel(action.productId);
+
+    // If player doesn't have marks yet, show a "discover marks" message
+    if (!canCraft) {
+      return _buildNeedMarksDisplay(context, action, marks, markLevel);
+    }
+
+    // Otherwise show the normal skill action display
+    return SkillActionDisplay(
+      action: action,
+      skill: Skill.summoning,
+      skillLevel: skillLevel,
+      headerText: 'Create',
+      buttonText: 'Create',
+      onStart: onStart,
+      additionalContent: _MarkProgressRow(
+        marks: marks,
+        markLevel: markLevel,
+        markMedia: action.markMedia,
+      ),
+    );
+  }
+
+  Widget _buildNeedMarksDisplay(
+    BuildContext context,
+    SummoningAction action,
+    int marks,
+    int markLevel,
+  ) {
+    final productItem = context.state.registries.items.byId(action.productId);
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Style.cellBackgroundColorLocked,
+        border: Border.all(color: Style.textColorSecondary),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          ItemImage(item: productItem, size: 48),
+          const SizedBox(height: 8),
+          Text(
+            action.name,
+            textAlign: TextAlign.center,
+            style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+          ),
+          const SizedBox(height: 16),
+          _MarkProgressRow(
+            marks: marks,
+            markLevel: markLevel,
+            markMedia: action.markMedia,
+          ),
+          const SizedBox(height: 16),
+          const Icon(
+            Icons.help_outline,
+            size: 32,
+            color: Style.textColorSecondary,
+          ),
+          const SizedBox(height: 8),
+          const Text(
+            'Discover marks to unlock',
+            style: TextStyle(color: Style.textColorSecondary),
+          ),
+          const SizedBox(height: 4),
+          _MarkDiscoverySkillsRow(skillIds: action.markSkillIds),
+        ],
+      ),
+    );
+  }
+}
+
+/// Shows which skills can discover marks for a familiar.
+class _MarkDiscoverySkillsRow extends StatelessWidget {
+  const _MarkDiscoverySkillsRow({required this.skillIds});
+
+  final List<MelvorId> skillIds;
+
+  @override
+  Widget build(BuildContext context) {
+    if (skillIds.isEmpty) {
+      return const Text(
+        'Train skills to find marks',
+        style: TextStyle(color: Style.textColorSecondary, fontSize: 12),
+      );
+    }
+
+    return Wrap(
+      alignment: WrapAlignment.center,
+      spacing: 4,
+      runSpacing: 4,
+      children: [
+        const Text(
+          'Found in: ',
+          style: TextStyle(color: Style.textColorSecondary, fontSize: 12),
+        ),
+        for (final skillId in skillIds)
+          if (Skill.tryFromId(skillId) case final skill?)
+            Tooltip(
+              message: skill.name,
+              child: SkillImage(skill: skill, size: 16),
+            ),
+      ],
+    );
+  }
+}
+
+/// Displays currently equipped familiars and active synergy.
+class _EquippedFamiliarsSection extends StatelessWidget {
+  const _EquippedFamiliarsSection();
+
+  @override
+  Widget build(BuildContext context) {
+    final state = context.state;
+    final equipment = state.equipment;
+    final summon1 = equipment.gearInSlot(EquipmentSlot.summon1);
+    final summon2 = equipment.gearInSlot(EquipmentSlot.summon2);
+
+    // Don't show section if nothing equipped
+    if (summon1 == null && summon2 == null) {
+      return const SizedBox.shrink();
+    }
+
+    final synergy = state.getActiveSynergy();
+    final summon1Count = equipment.summonCountInSlot(EquipmentSlot.summon1);
+    final summon2Count = equipment.summonCountInSlot(EquipmentSlot.summon2);
+
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: synergy != null
+            ? Colors.purple.withAlpha(30)
+            : Style.containerBackgroundLight,
+        border: Border.all(
+          color: synergy != null ? Colors.purple : Style.cellBorderColor,
+        ),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Column(
+        children: [
+          const Text(
+            'Equipped Familiars',
+            style: TextStyle(fontWeight: FontWeight.bold),
+          ),
+          const SizedBox(height: 8),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+            children: [
+              _EquippedFamiliarCell(
+                slot: EquipmentSlot.summon1,
+                item: summon1,
+                count: summon1Count,
+              ),
+              if (synergy != null)
+                const Icon(Icons.link, color: Colors.purple)
+              else
+                const Icon(Icons.add, color: Style.textColorSecondary),
+              _EquippedFamiliarCell(
+                slot: EquipmentSlot.summon2,
+                item: summon2,
+                count: summon2Count,
+              ),
+            ],
+          ),
+          if (synergy != null) ...[
+            const SizedBox(height: 8),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              decoration: BoxDecoration(
+                color: Colors.purple.withAlpha(50),
+                borderRadius: BorderRadius.circular(4),
+              ),
+              child: const Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.auto_awesome, size: 16, color: Colors.purple),
+                  SizedBox(width: 4),
+                  Text(
+                    'Synergy Active',
+                    style: TextStyle(
+                      color: Colors.purple,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 12,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+/// Displays a single equipped familiar slot.
+class _EquippedFamiliarCell extends StatelessWidget {
+  const _EquippedFamiliarCell({
+    required this.slot,
+    required this.item,
+    required this.count,
+  });
+
+  final EquipmentSlot slot;
+  final Item? item;
+  final int count;
+
+  @override
+  Widget build(BuildContext context) {
+    if (item == null) {
+      return Container(
+        width: 48,
+        height: 48,
+        decoration: BoxDecoration(
+          color: Style.containerBackgroundEmpty,
+          border: Border.all(color: Style.iconColorDefault),
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: const Center(
+          child: Icon(Icons.add, color: Style.textColorSecondary),
+        ),
+      );
+    }
+
+    return Column(
+      children: [
+        Container(
+          width: 48,
+          height: 48,
+          decoration: BoxDecoration(
+            color: Style.containerBackgroundFilled,
+            border: Border.all(color: Style.cellBorderColorSuccess),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.all(4),
+            child: ItemImage(item: item!),
+          ),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          '$count charges',
+          style: const TextStyle(fontSize: 10, color: Style.textColorSecondary),
+        ),
+      ],
     );
   }
 }
@@ -146,9 +414,15 @@ class _ActionList extends StatelessWidget {
     BuildContext context,
     List<SummoningAction> tierActions,
   ) {
+    final state = context.state;
+    final summoningState = state.summoning;
+
     return tierActions.map((action) {
       final isSelected = action.name == selectedAction.name;
       final isUnlocked = skillLevel >= action.unlockLevel;
+      final marks = summoningState.marksFor(action.productId);
+      final markLevel = summoningState.markLevel(action.productId);
+      final canCraft = summoningState.canCraftTablet(action.productId);
 
       if (!isUnlocked) {
         return Card(
@@ -173,13 +447,44 @@ class _ActionList extends StatelessWidget {
         );
       }
 
-      final productItem = context.state.registries.items.byId(action.productId);
+      final productItem = state.registries.items.byId(action.productId);
       return Card(
         color: isSelected ? Style.selectedColorLight : null,
         child: ListTile(
-          leading: ItemImage(item: productItem),
-          title: Text(action.name),
-          subtitle: InputItemsRow(items: action.inputs),
+          leading: Stack(
+            children: [
+              ItemImage(item: productItem),
+              if (!canCraft)
+                Positioned.fill(
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: Colors.black.withAlpha(150),
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                    child: const Icon(
+                      Icons.help_outline,
+                      color: Style.textColorSecondary,
+                      size: 20,
+                    ),
+                  ),
+                ),
+            ],
+          ),
+          title: Text(
+            action.name,
+            style: TextStyle(color: canCraft ? null : Style.textColorSecondary),
+          ),
+          subtitle: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _MarkProgressRow(
+                marks: marks,
+                markLevel: markLevel,
+                markMedia: action.markMedia,
+              ),
+              if (canCraft) InputItemsRow(items: action.inputs),
+            ],
+          ),
           trailing: isSelected
               ? const Icon(Icons.check_circle, color: Style.selectedColor)
               : null,
@@ -203,6 +508,64 @@ class _TierHeader extends StatelessWidget {
         'Tier $tier Familiars',
         style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
       ),
+    );
+  }
+}
+
+/// Displays mark progress for a summoning familiar.
+class _MarkProgressRow extends StatelessWidget {
+  const _MarkProgressRow({
+    required this.marks,
+    required this.markLevel,
+    this.markMedia,
+  });
+
+  final int marks;
+  final int markLevel;
+  final String? markMedia;
+
+  @override
+  Widget build(BuildContext context) {
+    // Calculate progress to next mark level
+    final nextThreshold = markLevel < markLevelThresholds.length
+        ? markLevelThresholds[markLevel]
+        : markLevelThresholds.last;
+    final prevThreshold = markLevel > 0
+        ? markLevelThresholds[markLevel - 1]
+        : 0;
+    final progressInLevel = marks - prevThreshold;
+    final levelRange = nextThreshold - prevThreshold;
+    final progress = markLevel >= markLevelThresholds.length
+        ? 1.0
+        : (progressInLevel / levelRange).clamp(0.0, 1.0);
+
+    return Row(
+      children: [
+        if (markMedia != null)
+          CachedImage(assetPath: markMedia!, size: 16)
+        else
+          const Icon(Icons.star, size: 16, color: Colors.amber),
+        const SizedBox(width: 4),
+        Text('Lv $markLevel', style: const TextStyle(fontSize: 12)),
+        const SizedBox(width: 8),
+        Expanded(
+          child: SizedBox(
+            height: 8,
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(4),
+              child: LinearProgressIndicator(
+                value: progress,
+                backgroundColor: Style.progressBackgroundColor,
+                valueColor: AlwaysStoppedAnimation<Color>(
+                  marks == 0 ? Style.textColorSecondary : Colors.amber,
+                ),
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(width: 8),
+        Text('$marks / $nextThreshold', style: const TextStyle(fontSize: 12)),
+      ],
     );
   }
 }
