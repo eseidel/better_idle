@@ -12,6 +12,7 @@ import 'package:logic/src/data/shop.dart';
 import 'package:logic/src/data/xp.dart';
 import 'package:logic/src/json.dart';
 import 'package:logic/src/plot_state.dart';
+import 'package:logic/src/summoning_state.dart';
 import 'package:logic/src/tick.dart';
 import 'package:logic/src/types/equipment.dart';
 import 'package:logic/src/types/equipment_slot.dart';
@@ -309,6 +310,7 @@ class GlobalState {
     this.stunned = const StunnedState.fresh(),
     this.attackStyle = AttackStyle.stab,
     this.cooking = const CookingState.empty(),
+    this.summoning = const SummoningState.empty(),
   });
 
   GlobalState.empty(Registries registries)
@@ -353,6 +355,7 @@ class GlobalState {
     Equipment equipment = const Equipment.empty(),
     StunnedState stunned = const StunnedState.fresh(),
     AttackStyle attackStyle = AttackStyle.stab,
+    SummoningState summoning = const SummoningState.empty(),
   }) {
     // Support both gp parameter (for existing tests) and currencies map
     final currenciesMap = currencies ?? (gp > 0 ? {Currency.gp: gp} : const {});
@@ -374,6 +377,7 @@ class GlobalState {
       equipment: equipment,
       stunned: stunned,
       attackStyle: attackStyle,
+      summoning: summoning,
     );
   }
 
@@ -433,7 +437,10 @@ class GlobalState {
           : AttackStyle.stab,
       cooking =
           CookingState.maybeFromJson(json['cooking']) ??
-          const CookingState.empty();
+          const CookingState.empty(),
+      summoning =
+          SummoningState.maybeFromJson(json['summoning']) ??
+          const SummoningState.empty();
 
   static Map<Currency, int> _currenciesFromJson(Map<String, dynamic> json) {
     final currenciesJson = json['currencies'] as Map<String, dynamic>? ?? {};
@@ -499,6 +506,7 @@ class GlobalState {
       'stunned': stunned.toJson(),
       'attackStyle': attackStyle.toJson(),
       'cooking': cooking.toJson(),
+      'summoning': summoning.toJson(),
     };
   }
 
@@ -573,6 +581,9 @@ class GlobalState {
 
   /// The cooking state (tracks all 3 cooking areas).
   final CookingState cooking;
+
+  /// The summoning state (tracks discovered marks per familiar).
+  final SummoningState summoning;
 
   /// The player's health state.
   final HealthState health;
@@ -1095,6 +1106,7 @@ class GlobalState {
       stunned: stunned,
       attackStyle: attackStyle,
       cooking: updatedCooking,
+      summoning: summoning,
     );
   }
 
@@ -1117,6 +1129,7 @@ class GlobalState {
       equipment: equipment,
       stunned: stunned,
       attackStyle: attackStyle,
+      summoning: summoning,
     );
   }
 
@@ -1595,6 +1608,7 @@ class GlobalState {
     StunnedState? stunned,
     AttackStyle? attackStyle,
     CookingState? cooking,
+    SummoningState? summoning,
   }) {
     return GlobalState(
       registries: registries,
@@ -1615,6 +1629,7 @@ class GlobalState {
       stunned: stunned ?? this.stunned,
       attackStyle: attackStyle ?? this.attackStyle,
       cooking: cooking ?? this.cooking,
+      summoning: summoning ?? this.summoning,
     );
   }
 
