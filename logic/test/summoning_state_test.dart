@@ -1,3 +1,5 @@
+import 'dart:math';
+
 import 'package:logic/logic.dart';
 import 'package:test/test.dart';
 
@@ -519,6 +521,175 @@ void main() {
       expect(EquipmentSlot.summon2.isSummonSlot, isTrue);
       expect(EquipmentSlot.weapon.isSummonSlot, isFalse);
       expect(EquipmentSlot.helmet.isSummonSlot, isFalse);
+    });
+  });
+
+  group('Charge Consumption', () {
+    late Item entTablet; // Ent is relevant to Woodcutting
+    late SkillAction woodcuttingAction;
+
+    setUpAll(() async {
+      await loadTestRegistries();
+      // Get the Ent summoning tablet (relevant to Woodcutting)
+      final entAction = testActions
+          .forSkill(Skill.summoning)
+          .whereType<SummoningAction>()
+          .firstWhere((a) => a.markSkillIds.contains(Skill.woodcutting.id));
+      entTablet = testItems.byId(entAction.productId);
+
+      // Get a woodcutting action for testing
+      woodcuttingAction = testActions
+          .forSkill(Skill.woodcutting)
+          .whereType<SkillAction>()
+          .first;
+    });
+
+    test('skill action consumes 1 charge from equipped tablets', () {
+      // Set up state with equipped tablet
+      const equipment = Equipment.empty();
+      final (equippedEquipment, _) = equipment.equipSummonTablet(
+        entTablet,
+        EquipmentSlot.summon1,
+        10,
+      );
+
+      // Give player enough inputs for the action
+      var inventory = Inventory.empty(testItems);
+      for (final input in woodcuttingAction.inputs.entries) {
+        final item = testItems.byId(input.key);
+        inventory = inventory.adding(ItemStack(item, count: input.value * 100));
+      }
+
+      final state = GlobalState.test(
+        testRegistries,
+        equipment: equippedEquipment,
+        inventory: inventory,
+      ).startAction(woodcuttingAction, random: Random(42));
+
+      // Run enough ticks to complete one action
+      final builder = StateUpdateBuilder(state);
+      consumeTicks(builder, 1000, random: Random(42));
+      final newState = builder.build();
+
+      // Should have consumed at least 1 charge (could be more if multiple
+      // actions completed)
+      expect(
+        newState.equipment.summonCountInSlot(EquipmentSlot.summon1),
+        lessThan(10),
+      );
+    });
+
+    test('charges deplete and tablet unequips', () {
+      // Set up state with equipped tablet with only 2 charges
+      const equipment = Equipment.empty();
+      final (equippedEquipment, _) = equipment.equipSummonTablet(
+        entTablet,
+        EquipmentSlot.summon1,
+        2,
+      );
+
+      // Give player enough inputs for the action
+      var inventory = Inventory.empty(testItems);
+      for (final input in woodcuttingAction.inputs.entries) {
+        final item = testItems.byId(input.key);
+        inventory = inventory.adding(ItemStack(item, count: input.value * 100));
+      }
+
+      final state = GlobalState.test(
+        testRegistries,
+        equipment: equippedEquipment,
+        inventory: inventory,
+      ).startAction(woodcuttingAction, random: Random(42));
+
+      // Run enough ticks for several actions to deplete the tablet
+      final builder = StateUpdateBuilder(state);
+      consumeTicks(builder, 5000, random: Random(42));
+      final newState = builder.build();
+
+      // Tablet should be unequipped (0 charges)
+      expect(newState.equipment.summonCountInSlot(EquipmentSlot.summon1), 0);
+      expect(newState.equipment.gearInSlot(EquipmentSlot.summon1), isNull);
+    });
+
+    test('both summon slots consume charges', () {
+      // Set up state with tablets in both slots
+      const equipment = Equipment.empty();
+      final (equipped1, _) = equipment.equipSummonTablet(
+        entTablet,
+        EquipmentSlot.summon1,
+        10,
+      );
+      final (equipped2, _) = equipped1.equipSummonTablet(
+        entTablet,
+        EquipmentSlot.summon2,
+        10,
+      );
+
+      // Give player enough inputs for the action
+      var inventory = Inventory.empty(testItems);
+      for (final input in woodcuttingAction.inputs.entries) {
+        final item = testItems.byId(input.key);
+        inventory = inventory.adding(ItemStack(item, count: input.value * 100));
+      }
+
+      final state = GlobalState.test(
+        testRegistries,
+        equipment: equipped2,
+        inventory: inventory,
+      ).startAction(woodcuttingAction, random: Random(42));
+
+      // Run enough ticks to complete one action
+      final builder = StateUpdateBuilder(state);
+      consumeTicks(builder, 1000, random: Random(42));
+      final newState = builder.build();
+
+      // Both slots should have consumed charges
+      expect(
+        newState.equipment.summonCountInSlot(EquipmentSlot.summon1),
+        lessThan(10),
+      );
+      expect(
+        newState.equipment.summonCountInSlot(EquipmentSlot.summon2),
+        lessThan(10),
+      );
+    });
+
+    test('irrelevant familiar does not consume charges', () {
+      // Get a combat familiar (Golbin Thief - relevant to Attack/Strength/Defence)
+      final combatAction = testActions
+          .forSkill(Skill.summoning)
+          .whereType<SummoningAction>()
+          .firstWhere((a) => a.markSkillIds.contains(Skill.attack.id));
+      final combatTablet = testItems.byId(combatAction.productId);
+
+      // Set up state with combat tablet equipped
+      const equipment = Equipment.empty();
+      final (equippedEquipment, _) = equipment.equipSummonTablet(
+        combatTablet,
+        EquipmentSlot.summon1,
+        10,
+      );
+
+      // Give player enough inputs for woodcutting
+      var inventory = Inventory.empty(testItems);
+      for (final input in woodcuttingAction.inputs.entries) {
+        final item = testItems.byId(input.key);
+        inventory = inventory.adding(ItemStack(item, count: input.value * 100));
+      }
+
+      final state = GlobalState.test(
+        testRegistries,
+        equipment: equippedEquipment,
+        inventory: inventory,
+      ).startAction(woodcuttingAction, random: Random(42));
+
+      // Run enough ticks to complete several actions
+      final builder = StateUpdateBuilder(state);
+      consumeTicks(builder, 5000, random: Random(42));
+      final newState = builder.build();
+
+      // Combat tablet should NOT have consumed charges (not relevant to woodcutting)
+      expect(newState.equipment.summonCountInSlot(EquipmentSlot.summon1), 10);
     });
   });
 }

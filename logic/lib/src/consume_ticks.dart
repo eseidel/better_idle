@@ -686,6 +686,64 @@ class StateUpdateBuilder {
     );
   }
 
+  /// Consumes charges from equipped summoning tablets relevant to [action].
+  ///
+  /// Only consumes charges if the equipped familiar is relevant to the skill
+  /// being performed (i.e., the skill is in the familiar's markSkillIds).
+  ///
+  /// For non-combat skills: 1 charge per action.
+  /// For combat: 1 charge per attack (2 during synergies - not yet implemented).
+  ///
+  // TODO(eseidel): Add charge preservation modifier support.
+  // TODO(eseidel): Increase to 2 charges for combat when synergy is active.
+  void consumeSummonCharges(Action action) {
+    var equipment = _state.equipment;
+
+    // Check each summon slot
+    for (final slot in [EquipmentSlot.summon1, EquipmentSlot.summon2]) {
+      final tablet = equipment.gearInSlot(slot);
+      if (tablet == null) continue;
+
+      // Find the SummoningAction for this tablet to check skill relevance
+      final summoningAction = _findSummoningActionForTablet(tablet.id);
+      if (summoningAction == null) continue;
+
+      // Only consume if this familiar is relevant to the current action
+      final isRelevant = _isFamiliarRelevantToAction(summoningAction, action);
+      if (!isRelevant) continue;
+
+      equipment = equipment.consumeSummonCharges(slot, 1);
+    }
+
+    _state = _state.copyWith(equipment: equipment);
+  }
+
+  /// Returns true if the familiar is relevant to the given action.
+  bool _isFamiliarRelevantToAction(SummoningAction familiar, Action action) {
+    final markSkillIds = familiar.markSkillIds;
+
+    if (action is SkillAction) {
+      return markSkillIds.contains(action.skill.id);
+    }
+
+    if (action is CombatAction) {
+      // Combat familiars are relevant if they mark any combat skill
+      return Skill.combatSkills.any((s) => markSkillIds.contains(s.id));
+    }
+
+    return false;
+  }
+
+  /// Finds the SummoningAction that produces a tablet with the given ID.
+  SummoningAction? _findSummoningActionForTablet(MelvorId tabletId) {
+    for (final action in registries.actions.forSkill(Skill.summoning)) {
+      if (action is SummoningAction && action.productId == tabletId) {
+        return action;
+      }
+    }
+    return null;
+  }
+
   GlobalState build() => _state;
 
   Changes get changes => _changes;
@@ -988,6 +1046,9 @@ bool completeAction(
     ..addActionMasteryXp(action.id, perAction.masteryXp)
     ..addSkillMasteryXp(action.skill, perAction.masteryPoolXp);
 
+  // Consume summoning tablet charges (1 per skill action, only for relevant familiars)
+  builder.consumeSummonCharges(action);
+
   // Roll for summoning mark discovery
   _rollMarkDiscovery(builder, action, random);
 
@@ -1249,6 +1310,9 @@ enum ForegroundResult {
   var monsterHp = currentCombat.monsterHp;
   var resetPlayerTicks = newPlayerTicks;
   if (newPlayerTicks <= 0) {
+    // Consume summoning tablet charges (1 per attack, only for relevant familiars)
+    builder.consumeSummonCharges(action);
+
     final pStats = computePlayerStats(builder.state);
     final mStats = MonsterCombatStats.fromAction(action);
 

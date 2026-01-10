@@ -118,6 +118,21 @@ enum Skill {
 
   /// Returns true if this skill requires inputs to train.
   bool get isConsuming => consumingSkills.contains(this);
+
+  /// Combat-related skills that familiars can provide bonuses for.
+  static const Set<Skill> combatSkills = {
+    Skill.attack,
+    Skill.strength,
+    Skill.defence,
+    Skill.hitpoints,
+    Skill.ranged,
+    Skill.magic,
+    Skill.prayer,
+    Skill.slayer,
+  };
+
+  /// Returns true if this is a combat-related skill.
+  bool get isCombatSkill => combatSkills.contains(this);
 }
 
 /// Base class for all actions that can occupy the "active" slot.
