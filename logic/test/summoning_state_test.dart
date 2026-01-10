@@ -1,6 +1,8 @@
 import 'package:logic/logic.dart';
 import 'package:test/test.dart';
 
+import 'test_helper.dart';
+
 void main() {
   group('markLevelForCount', () {
     test('returns 0 for no marks', () {
@@ -266,5 +268,62 @@ void main() {
       );
       expect(boostedChance, closeTo(baseChance * 2.5, 0.0001));
     });
+  });
+
+  group('Gated tablet creation', () {
+    late SummoningAction summoningAction;
+
+    setUpAll(() async {
+      await loadTestRegistries();
+      // Get a summoning action from the registry
+      summoningAction = testActions
+          .forSkill(Skill.summoning)
+          .whereType<SummoningAction>()
+          .first;
+    });
+
+    test('canStartAction returns false without marks', () {
+      final state = GlobalState.test(testRegistries);
+      expect(state.canStartAction(summoningAction), isFalse);
+    });
+
+    test('canStartAction returns true with at least 1 mark', () {
+      final summoningState = const SummoningState.empty().withMarks(
+        summoningAction.productId,
+        1,
+      );
+      // Give the player enough ingredients to craft
+      final inventory = Inventory.empty(testItems);
+      var inventoryWithItems = inventory;
+      for (final input in summoningAction.inputs.entries) {
+        final item = testItems.byId(input.key);
+        inventoryWithItems = inventoryWithItems.adding(
+          ItemStack(item, count: input.value * 10),
+        );
+      }
+
+      final state = GlobalState.test(
+        testRegistries,
+        summoning: summoningState,
+        inventory: inventoryWithItems,
+      );
+      expect(state.canStartAction(summoningAction), isTrue);
+    });
+
+    test(
+      'canStartAction returns false without ingredients even with marks',
+      () {
+        final summoningState = const SummoningState.empty().withMarks(
+          summoningAction.productId,
+          1,
+        );
+        final state = GlobalState.test(
+          testRegistries,
+          summoning: summoningState,
+          // Empty inventory - no ingredients
+        );
+        expect(state.canStartAction(summoningAction), isFalse);
+      },
+    );
   });
 }

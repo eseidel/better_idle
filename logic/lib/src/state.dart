@@ -756,6 +756,13 @@ class GlobalState {
           return false; // Can't mine depleted node
         }
       }
+
+      // Check if summoning action requires marks
+      if (action is SummoningAction) {
+        if (!summoning.canCraftTablet(action.productId)) {
+          return false; // Need at least 1 mark to craft tablets
+        }
+      }
     }
 
     // CombatActions can always be started
