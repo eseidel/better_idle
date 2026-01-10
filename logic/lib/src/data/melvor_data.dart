@@ -89,9 +89,14 @@ class MelvorData {
     final actions = <Action>[
       ...parseWoodcutting(skillDataById['melvorD:Woodcutting']),
       ...parseMining(skillDataById['melvorD:Mining']),
-      ...parseCooking(skillDataById['melvorD:Cooking']),
       ...parseFiremaking(skillDataById['melvorD:Firemaking']),
     ];
+
+    final (cookingActions, cookingCategories) = parseCooking(
+      skillDataById['melvorD:Cooking'],
+    );
+    actions.addAll(cookingActions);
+    _cookingCategories = cookingCategories;
 
     final (fishingActions, fishingAreas) = parseFishing(
       skillDataById['melvorD:Fishing'],
@@ -164,8 +169,8 @@ class MelvorData {
     _combatAreas = CombatAreaRegistry(combatAreas);
     _dungeons = DungeonRegistry(dungeons);
 
-    // Parse shop data
-    _shop = parseShop(dataFiles);
+    // Parse shop data (pass cooking categories for upgrade chain building)
+    _shop = parseShop(dataFiles, cookingCategories: _cookingCategories);
 
     // Parse mastery bonuses for all skills
     _masteryBonuses = parseMasteryBonuses(skillDataById);
@@ -195,6 +200,7 @@ class MelvorData {
   late final ActionRegistry _actions;
   late final ShopRegistry _shop;
   late final Map<MelvorId, int> _bankSortIndex;
+  late final CookingCategoryRegistry _cookingCategories;
   late final FishingAreaRegistry _fishingAreas;
   late final SmithingCategoryRegistry _smithingCategories;
   late final FarmingCropRegistry _farmingCrops;
@@ -216,6 +222,8 @@ class MelvorData {
   ItemRegistry get items => _items;
 
   ActionRegistry get actions => _actions;
+
+  CookingCategoryRegistry get cookingCategories => _cookingCategories;
 
   FishingAreaRegistry get fishingAreas => _fishingAreas;
 
@@ -357,11 +365,17 @@ List<MiningAction> parseMining(List<SkillDataEntry>? entries) {
   return (actions, FishingAreaRegistry(areas));
 }
 
-/// Parses all cooking data. Returns actions list.
-List<CookingAction> parseCooking(List<SkillDataEntry>? entries) {
-  if (entries == null) return [];
+/// Parses all cooking data. Returns (actions, categoriesRegistry).
+(List<CookingAction>, CookingCategoryRegistry) parseCooking(
+  List<SkillDataEntry>? entries,
+) {
+  if (entries == null) {
+    return ([], CookingCategoryRegistry(const []));
+  }
 
   final actions = <CookingAction>[];
+  final categories = <CookingCategory>[];
+
   for (final entry in entries) {
     final recipes = entry.data['recipes'] as List<dynamic>?;
     if (recipes != null) {
@@ -374,8 +388,20 @@ List<CookingAction> parseCooking(List<SkillDataEntry>? entries) {
         ),
       );
     }
+
+    final cats = entry.data['categories'] as List<dynamic>?;
+    if (cats != null) {
+      categories.addAll(
+        cats.map(
+          (json) => CookingCategory.fromJson(
+            json as Map<String, dynamic>,
+            namespace: entry.namespace,
+          ),
+        ),
+      );
+    }
   }
-  return actions;
+  return (actions, CookingCategoryRegistry(categories));
 }
 
 /// Parses all firemaking data. Returns actions list.
@@ -763,7 +789,10 @@ List<Dungeon> parseDungeons(
 }
 
 /// Parses all shop data from multiple data files.
-ShopRegistry parseShop(List<Map<String, dynamic>> dataFiles) {
+ShopRegistry parseShop(
+  List<Map<String, dynamic>> dataFiles, {
+  CookingCategoryRegistry? cookingCategories,
+}) {
   final purchases = <ShopPurchase>[];
   final categories = <ShopCategory>[];
 
@@ -795,7 +824,11 @@ ShopRegistry parseShop(List<Map<String, dynamic>> dataFiles) {
     }
   }
 
-  return ShopRegistry(purchases, categories);
+  return ShopRegistry(
+    purchases,
+    categories,
+    cookingCategories: cookingCategories,
+  );
 }
 
 /// Parses mastery level bonuses for all skills.

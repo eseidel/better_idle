@@ -539,13 +539,18 @@ class ShopPurchase extends Equatable {
 /// Registry of all shop purchases and categories.
 @immutable
 class ShopRegistry {
-  ShopRegistry(this._purchases, this._categories) {
+  ShopRegistry(
+    this._purchases,
+    this._categories, {
+    CookingCategoryRegistry? cookingCategories,
+  }) : _cookingCategoryRegistry = cookingCategories {
     _byId = {for (final p in _purchases) p.id.toJson(): p};
     _buildUpgradeChains();
   }
 
   final List<ShopPurchase> _purchases;
   final List<ShopCategory> _categories;
+  final CookingCategoryRegistry? _cookingCategoryRegistry;
   late final Map<String, ShopPurchase> _byId;
 
   /// Ordered upgrade chains keyed by skill (for skillInterval upgrades).
@@ -581,9 +586,8 @@ class ShopRegistry {
         .where((p) => !hasPrerequisite.contains(p.id))
         .toList();
 
-    // Build chains by walking from roots
+    // Build skill chains by walking from roots
     final skillChains = <Skill, List<MelvorId>>{};
-    final cookingChains = <MelvorId, List<MelvorId>>{};
 
     for (final root in roots) {
       final chain = <MelvorId>[root.id];
@@ -602,20 +606,38 @@ class ShopRegistry {
       // like Master_of_Nature overwriting tool chains like Iron_Pickaxe.
       if (chain.length == 1) continue;
 
-      // Identify chain type by root's modifiers
-      _categorizeChain(root, chain, skillChains, cookingChains);
+      // Identify skill chain type by root's modifiers
+      _categorizeSkillChain(root, chain, skillChains);
     }
 
     _skillUpgradeChains = skillChains;
-    _cookingUpgradeChains = cookingChains;
+
+    // Build cooking chains from category data if available
+    _cookingUpgradeChains = _buildCookingChainsFromCategories();
   }
 
-  /// Categorizes a chain by its root purchase's modifiers.
-  void _categorizeChain(
+  /// Builds cooking upgrade chains from the cooking category registry.
+  /// The category data contains shopUpgradeIDs in order from highest to lowest,
+  /// so we reverse them to get lowest to highest tier order.
+  Map<MelvorId, List<MelvorId>> _buildCookingChainsFromCategories() {
+    final cookingChains = <MelvorId, List<MelvorId>>{};
+    final categories = _cookingCategoryRegistry;
+    if (categories == null) return cookingChains;
+
+    for (final category in categories.all) {
+      if (category.shopUpgradeIds.isNotEmpty) {
+        // Reverse: data is highest-to-lowest, we want lowest-to-highest
+        cookingChains[category.id] = category.shopUpgradeIds.reversed.toList();
+      }
+    }
+    return cookingChains;
+  }
+
+  /// Categorizes a skill chain by its root purchase's modifiers.
+  void _categorizeSkillChain(
     ShopPurchase root,
     List<MelvorId> chain,
     Map<Skill, List<MelvorId>> skillChains,
-    Map<MelvorId, List<MelvorId>> cookingChains,
   ) {
     // Check for skillInterval modifier (axes, pickaxes, fishing rods)
     final skillIds = root.contains.modifiers.skillIntervalSkillIds;
@@ -623,33 +645,6 @@ class ShopRegistry {
       final skill = Skill.tryFromId(skillIds.first);
       if (skill != null) {
         skillChains[skill] = chain;
-        return;
-      }
-    }
-
-    // Check for cooking equipment (skillXP for Cooking, or perfectCookChance)
-    final modifiers = root.contains.modifiers;
-
-    // Cooking fires have skillXP for Cooking
-    final skillXP = modifiers.byName('skillXP');
-    if (skillXP != null) {
-      for (final entry in skillXP.entries) {
-        if (entry.scope?.skillId == const MelvorId('melvorD:Cooking')) {
-          cookingChains[const MelvorId('melvorD:Fire')] = chain;
-          return;
-        }
-      }
-    }
-
-    // Furnaces and pots have perfectCookChance with categoryID
-    final perfectCook = modifiers.byName('perfectCookChance');
-    if (perfectCook != null) {
-      for (final entry in perfectCook.entries) {
-        final categoryId = entry.scope?.categoryId;
-        if (categoryId != null) {
-          cookingChains[categoryId] = chain;
-          return;
-        }
       }
     }
   }

@@ -87,10 +87,17 @@ class _CookingPageState extends State<CookingPage>
   }
 }
 
-class _CookingAreaTab extends StatelessWidget {
+class _CookingAreaTab extends StatefulWidget {
   const _CookingAreaTab({required this.area});
 
   final CookingArea area;
+
+  @override
+  State<_CookingAreaTab> createState() => _CookingAreaTabState();
+}
+
+class _CookingAreaTabState extends State<_CookingAreaTab> {
+  CookingArea get area => widget.area;
 
   @override
   Widget build(BuildContext context) {
@@ -106,6 +113,21 @@ class _CookingAreaTab extends StatelessWidget {
             .where((a) => a.categoryId?.localId == area.name.capitalize())
             .toList()
           ..sort((a, b) => a.unlockLevel.compareTo(b.unlockLevel));
+
+    // Get unlocked recipes
+    final unlockedRecipes = recipes
+        .where((r) => skillLevel >= r.unlockLevel)
+        .toList();
+
+    // Auto-select the first unlocked recipe if none is selected
+    if (areaState.recipeId == null && unlockedRecipes.isNotEmpty) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        context.dispatch(
+          AssignCookingRecipeAction(area: area, recipe: unlockedRecipes.first),
+        );
+      });
+    }
 
     // Get the currently assigned recipe
     final assignedRecipe = areaState.recipeId != null
@@ -177,17 +199,43 @@ class _AreaStatusCard extends StatelessWidget {
   final bool isPassivelyCooking;
   final int skillLevel;
 
+  /// Returns the cooking category for this area.
+  CookingCategory? _getCategory(GlobalState state) {
+    return state.registries.cookingCategories.byId(area.categoryId);
+  }
+
   /// Returns the display name for the cooking area equipment level.
   String _getCookingAreaName(GlobalState state) {
+    final category = _getCategory(state);
     final id = switch (area) {
       CookingArea.fire => state.highestCookingFireId,
       CookingArea.furnace => state.highestCookingFurnaceId,
       CookingArea.pot => state.highestCookingPotId,
     };
     if (id == null) {
+      // Use category name for base level (e.g., "Basic" for fire)
+      // If upgradeRequired, show "No {displayName}" instead
+      if (category != null && !category.upgradeRequired) {
+        return category.name;
+      }
       return 'No ${area.displayName}';
     }
     return state.registries.shop.byId(id)?.name ?? area.displayName;
+  }
+
+  /// Returns the asset path for the cooking area icon.
+  String _getCookingAreaIconPath(GlobalState state) {
+    final category = _getCategory(state);
+    final id = switch (area) {
+      CookingArea.fire => state.highestCookingFireId,
+      CookingArea.furnace => state.highestCookingFurnaceId,
+      CookingArea.pot => state.highestCookingPotId,
+    };
+    // Use category media for base level, otherwise use default cooking icon
+    if (id == null && category != null) {
+      return category.media;
+    }
+    return 'assets/media/skills/cooking/cooking.png';
   }
 
   @override
@@ -213,10 +261,7 @@ class _AreaStatusCard extends StatelessWidget {
     return Row(
       children: [
         // Fire/Furnace/Pot icon
-        const CachedImage(
-          assetPath: 'assets/media/skills/cooking/cooking.png',
-          size: 48,
-        ),
+        CachedImage(assetPath: _getCookingAreaIconPath(state), size: 48),
         const SizedBox(width: 12),
         Expanded(
           child: Text(

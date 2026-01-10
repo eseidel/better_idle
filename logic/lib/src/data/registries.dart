@@ -15,6 +15,7 @@ class Registries {
     this.items,
     this.actions,
     this.drops,
+    this.cookingCategories,
     this.fishingAreas,
     this.smithingCategories,
     this.fletchingCategories,
@@ -47,6 +48,7 @@ class Registries {
       ItemRegistry(items),
       ActionRegistry(actions),
       DropsRegistry({}),
+      CookingCategoryRegistry(const []),
       FishingAreaRegistry(const []),
       SmithingCategoryRegistry(const []),
       FletchingCategoryRegistry(const []),
@@ -71,6 +73,7 @@ class Registries {
   final ItemRegistry items;
   final ActionRegistry actions;
   final DropsRegistry drops;
+  final CookingCategoryRegistry cookingCategories;
   final FishingAreaRegistry fishingAreas;
   final SmithingCategoryRegistry smithingCategories;
   final FletchingCategoryRegistry fletchingCategories;
@@ -130,6 +133,7 @@ Future<Registries> loadRegistriesFromCache(Cache cache) async {
     melvorData.items,
     melvorData.actions,
     DropsRegistry(skillDrops),
+    melvorData.cookingCategories,
     melvorData.fishingAreas,
     melvorData.smithingCategories,
     melvorData.fletchingCategories,
