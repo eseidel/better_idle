@@ -692,4 +692,253 @@ void main() {
       expect(newState.equipment.summonCountInSlot(EquipmentSlot.summon1), 10);
     });
   });
+
+  group('Familiar Modifier Bonuses', () {
+    late Item
+    entTablet; // Ent has additionalPrimaryProductChance for Woodcutting
+    late SkillAction woodcuttingAction;
+
+    setUpAll(() async {
+      await loadTestRegistries();
+      // Get the Ent summoning tablet (relevant to Woodcutting)
+      final entAction = testActions
+          .forSkill(Skill.summoning)
+          .whereType<SummoningAction>()
+          .firstWhere((a) => a.markSkillIds.contains(Skill.woodcutting.id));
+      entTablet = testItems.byId(entAction.productId);
+
+      // Get a woodcutting action for testing
+      woodcuttingAction = testActions
+          .forSkill(Skill.woodcutting)
+          .whereType<SkillAction>()
+          .first;
+    });
+
+    test('relevant familiar modifiers are included in skill modifiers', () {
+      // Set up state with Ent tablet equipped
+      const equipment = Equipment.empty();
+      final (equippedEquipment, _) = equipment.equipSummonTablet(
+        entTablet,
+        EquipmentSlot.summon1,
+        10,
+      );
+
+      final state = GlobalState.test(
+        testRegistries,
+        equipment: equippedEquipment,
+      );
+
+      // Resolve modifiers for woodcutting action
+      final modifiers = state.resolveSkillModifiers(woodcuttingAction);
+
+      // Ent provides additionalPrimaryProductChance of 10
+      expect(modifiers.additionalPrimaryProductChance, 10);
+    });
+
+    test('irrelevant familiar modifiers are NOT included', () {
+      // Get a combat familiar (Golbin Thief - relevant to Attack/Strength/Defence)
+      final combatAction = testActions
+          .forSkill(Skill.summoning)
+          .whereType<SummoningAction>()
+          .firstWhere((a) => a.markSkillIds.contains(Skill.attack.id));
+      final combatTablet = testItems.byId(combatAction.productId);
+
+      // Set up state with combat tablet equipped
+      const equipment = Equipment.empty();
+      final (equippedEquipment, _) = equipment.equipSummonTablet(
+        combatTablet,
+        EquipmentSlot.summon1,
+        10,
+      );
+
+      final state = GlobalState.test(
+        testRegistries,
+        equipment: equippedEquipment,
+      );
+
+      // Resolve modifiers for woodcutting action
+      final modifiers = state.resolveSkillModifiers(woodcuttingAction);
+
+      // Combat familiar should NOT contribute to woodcutting
+      // (Golbin Thief has flatCurrencyGainOnEnemyHit, not relevant here)
+      expect(modifiers.additionalPrimaryProductChance, 0);
+    });
+
+    test('combat familiar modifiers are included in combat modifiers', () {
+      // Get a combat familiar with combat modifiers (e.g., Wolf with lifesteal)
+      final wolfAction = testActions
+          .forSkill(Skill.summoning)
+          .whereType<SummoningAction>()
+          .firstWhere(
+            (a) =>
+                a.name.contains('Wolf') &&
+                a.markSkillIds.contains(Skill.attack.id),
+          );
+      final wolfTablet = testItems.byId(wolfAction.productId);
+
+      // Set up state with Wolf tablet equipped
+      const equipment = Equipment.empty();
+      final (equippedEquipment, _) = equipment.equipSummonTablet(
+        wolfTablet,
+        EquipmentSlot.summon1,
+        10,
+      );
+
+      final state = GlobalState.test(
+        testRegistries,
+        equipment: equippedEquipment,
+      );
+
+      // Resolve combat modifiers
+      final modifiers = state.resolveCombatModifiers();
+
+      // Wolf provides lifesteal of 2
+      expect(modifiers.lifesteal, 2);
+    });
+
+    test('non-combat familiar modifiers are NOT in combat modifiers', () {
+      // Set up state with Ent tablet equipped (woodcutting familiar)
+      const equipment = Equipment.empty();
+      final (equippedEquipment, _) = equipment.equipSummonTablet(
+        entTablet,
+        EquipmentSlot.summon1,
+        10,
+      );
+
+      final state = GlobalState.test(
+        testRegistries,
+        equipment: equippedEquipment,
+      );
+
+      // Resolve combat modifiers
+      final modifiers = state.resolveCombatModifiers();
+
+      // Ent's additionalPrimaryProductChance should NOT apply to combat
+      expect(modifiers.additionalPrimaryProductChance, 0);
+    });
+
+    test('melee familiar applies when using melee attack style', () {
+      // Minotaur is a melee familiar (Strength skill)
+      final minotaurAction = testActions
+          .forSkill(Skill.summoning)
+          .whereType<SummoningAction>()
+          .firstWhere((a) => a.name.contains('Minotaur'));
+      final minotaurTablet = testItems.byId(minotaurAction.productId);
+
+      const equipment = Equipment.empty();
+      final (equippedEquipment, _) = equipment.equipSummonTablet(
+        minotaurTablet,
+        EquipmentSlot.summon1,
+        10,
+      );
+
+      // Default attack style is melee (stab)
+      final state = GlobalState.test(
+        testRegistries,
+        equipment: equippedEquipment,
+      );
+
+      final modifiers = state.resolveCombatModifiers();
+
+      // Minotaur provides meleeMaxHit and meleeAccuracyRating
+      expect(modifiers.meleeMaxHit, 3);
+      expect(modifiers.meleeAccuracyRating, 3);
+    });
+
+    test('melee familiar does NOT apply when using ranged attack style', () {
+      // Minotaur is a melee familiar (Strength skill)
+      final minotaurAction = testActions
+          .forSkill(Skill.summoning)
+          .whereType<SummoningAction>()
+          .firstWhere((a) => a.name.contains('Minotaur'));
+      final minotaurTablet = testItems.byId(minotaurAction.productId);
+
+      const equipment = Equipment.empty();
+      final (equippedEquipment, _) = equipment.equipSummonTablet(
+        minotaurTablet,
+        EquipmentSlot.summon1,
+        10,
+      );
+
+      // Use ranged attack style
+      final state = GlobalState.test(
+        testRegistries,
+        equipment: equippedEquipment,
+        attackStyle: AttackStyle.accurate, // Ranged style
+      );
+
+      final modifiers = state.resolveCombatModifiers();
+
+      // Minotaur should NOT apply to ranged combat
+      expect(modifiers.meleeMaxHit, 0);
+      expect(modifiers.meleeAccuracyRating, 0);
+    });
+
+    test('ranged familiar applies when using ranged attack style', () {
+      // Centaur is a ranged familiar
+      final centaurAction = testActions
+          .forSkill(Skill.summoning)
+          .whereType<SummoningAction>()
+          .firstWhere((a) => a.name.contains('Centaur'));
+      final centaurTablet = testItems.byId(centaurAction.productId);
+
+      const equipment = Equipment.empty();
+      final (equippedEquipment, _) = equipment.equipSummonTablet(
+        centaurTablet,
+        EquipmentSlot.summon1,
+        10,
+      );
+
+      final state = GlobalState.test(
+        testRegistries,
+        equipment: equippedEquipment,
+        attackStyle: AttackStyle.accurate, // Ranged style
+      );
+
+      final modifiers = state.resolveCombatModifiers();
+
+      // Centaur provides rangedMaxHit and rangedAccuracyRating
+      expect(modifiers.rangedMaxHit, 3);
+      expect(modifiers.rangedAccuracyRating, 3);
+    });
+
+    test('defence familiar applies to all combat types', () {
+      // Yak is a Defence familiar - applies to all combat
+      final yakAction = testActions
+          .forSkill(Skill.summoning)
+          .whereType<SummoningAction>()
+          .firstWhere((a) => a.name.contains('Yak'));
+      final yakTablet = testItems.byId(yakAction.productId);
+
+      const equipment = Equipment.empty();
+      final (equippedEquipment, _) = equipment.equipSummonTablet(
+        yakTablet,
+        EquipmentSlot.summon1,
+        10,
+      );
+
+      // Test with melee
+      final meleeState = GlobalState.test(
+        testRegistries,
+        equipment: equippedEquipment,
+      );
+      expect(meleeState.resolveCombatModifiers().flatResistance, 1);
+
+      // Test with ranged
+      final rangedState = GlobalState.test(
+        testRegistries,
+        equipment: equippedEquipment,
+        attackStyle: AttackStyle.accurate,
+      );
+      expect(rangedState.resolveCombatModifiers().flatResistance, 1);
+
+      // Test with magic
+      final magicState = GlobalState.test(
+        testRegistries,
+        equipment: equippedEquipment,
+        attackStyle: AttackStyle.standard,
+      );
+      expect(magicState.resolveCombatModifiers().flatResistance, 1);
+    });
+  });
 }

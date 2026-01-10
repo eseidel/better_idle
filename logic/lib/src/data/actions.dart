@@ -131,8 +131,20 @@ enum Skill {
     Skill.slayer,
   };
 
+  /// Skills that apply to all combat types (Defence, Hitpoints, Prayer, Slayer).
+  /// These are used regardless of whether player is using melee, ranged, or magic.
+  static const Set<Skill> universalCombatSkills = {
+    Skill.defence,
+    Skill.hitpoints,
+    Skill.prayer,
+    Skill.slayer,
+  };
+
   /// Returns true if this is a combat-related skill.
   bool get isCombatSkill => combatSkills.contains(this);
+
+  /// Returns true if this skill applies to all combat types.
+  bool get isUniversalCombatSkill => universalCombatSkills.contains(this);
 }
 
 /// Base class for all actions that can occupy the "active" slot.
@@ -420,6 +432,55 @@ class ActionRegistry {
     return forSkill(Skill.summoning).whereType<SummoningAction>().where(
       (action) => action.markSkillIds.contains(skill.id),
     );
+  }
+
+  /// Finds the SummoningAction that produces a tablet with the given ID.
+  /// Returns null if no matching action is found.
+  SummoningAction? summoningActionForTablet(MelvorId tabletId) {
+    for (final action in forSkill(Skill.summoning)) {
+      if (action is SummoningAction && action.productId == tabletId) {
+        return action;
+      }
+    }
+    return null;
+  }
+
+  /// Returns true if the familiar (tablet) is relevant to the given skill.
+  ///
+  /// A familiar is relevant if the skill is in its markSkillIds.
+  bool isFamiliarRelevantToSkill(MelvorId tabletId, Skill skill) {
+    final action = summoningActionForTablet(tabletId);
+    if (action == null) return false;
+    return action.markSkillIds.contains(skill.id);
+  }
+
+  /// Returns true if the familiar (tablet) is relevant to combat with the
+  /// given combat type skills.
+  ///
+  /// [combatTypeSkills] should be the skills specific to the combat type
+  /// (e.g., Attack/Strength for melee, Ranged for ranged, Magic for magic).
+  ///
+  /// A familiar is combat-relevant if any of its markSkillIds matches:
+  /// - The combat type's specific skills
+  /// - Universal combat skills (Defence, Hitpoints, Prayer, Slayer)
+  bool isFamiliarRelevantToCombat(
+    MelvorId tabletId,
+    Set<Skill> combatTypeSkills,
+  ) {
+    final action = summoningActionForTablet(tabletId);
+    if (action == null) return false;
+
+    // Check universal combat skills first
+    for (final skill in Skill.universalCombatSkills) {
+      if (action.markSkillIds.contains(skill.id)) return true;
+    }
+
+    // Check combat type specific skills
+    for (final skill in combatTypeSkills) {
+      if (action.markSkillIds.contains(skill.id)) return true;
+    }
+
+    return false;
   }
 }
 

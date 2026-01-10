@@ -60,6 +60,18 @@ enum CombatType {
       CombatType.magic => [AttackStyle.standard, AttackStyle.defensive],
     };
   }
+
+  /// Returns the skills relevant to this combat type.
+  ///
+  /// Used to determine which familiars are relevant when fighting with
+  /// this combat type.
+  Set<Skill> get skills {
+    return switch (this) {
+      CombatType.melee => {Skill.attack, Skill.strength, Skill.defence},
+      CombatType.ranged => {Skill.ranged},
+      CombatType.magic => {Skill.magic},
+    };
+  }
 }
 
 /// The player's selected melee attack style for combat XP distribution.
@@ -843,7 +855,9 @@ class GlobalState {
   ///
   /// Used for calculating player combat stats like max hit, accuracy, evasion.
   ResolvedModifiers resolveCombatModifiers() {
-    var result = _resolveModifiers();
+    var result = _resolveModifiers(
+      combatTypeSkills: attackStyle.combatType.skills,
+    );
 
     // Combine equipment stats from all equipped items
     for (final item in equipment.gearSlots.values) {
@@ -864,11 +878,16 @@ class GlobalState {
   ///
   /// [categoryId] is used for cooking actions to filter modifiers scoped to
   /// specific cooking areas (Fire, Furnace, Pot).
+  ///
+  /// [combatTypeSkills] should be provided for combat contexts - familiars
+  /// relevant to these skills (plus universal combat skills) will have their
+  /// modifiers included.
   ResolvedModifiers _resolveModifiers({
     MelvorId? skillId,
     Skill? skill,
     ActionId? actionId,
     MelvorId? categoryId,
+    Set<Skill>? combatTypeSkills,
   }) {
     final builder = ResolvedModifiersBuilder();
 
@@ -934,13 +953,29 @@ class GlobalState {
     }
 
     // --- Equipment modifiers ---
-    for (final item in equipment.gearSlots.values) {
+    for (final entry in equipment.gearSlots.entries) {
+      final slot = entry.key;
+      final item = entry.value;
+
+      // For summoning tablets, only include modifiers if the familiar is
+      // relevant to the current skill being performed.
+      if (slot.isSummonSlot && item.isSummonTablet) {
+        final isRelevant = combatTypeSkills != null
+            ? registries.actions.isFamiliarRelevantToCombat(
+                item.id,
+                combatTypeSkills,
+              )
+            : skill != null &&
+                  registries.actions.isFamiliarRelevantToSkill(item.id, skill);
+        if (!isRelevant) continue;
+      }
+
       for (final mod in item.modifiers.modifiers) {
-        for (final entry in mod.entries) {
+        for (final modEntry in mod.entries) {
           // For skill-scoped: only include if applies to skill
           // For global: include all (combat gear is typically unscoped)
-          if (skillId == null || entry.appliesToSkill(skillId)) {
-            builder.add(mod.name, entry.value);
+          if (skillId == null || modEntry.appliesToSkill(skillId)) {
+            builder.add(mod.name, modEntry.value);
           }
         }
       }

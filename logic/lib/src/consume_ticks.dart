@@ -704,12 +704,8 @@ class StateUpdateBuilder {
       final tablet = equipment.gearInSlot(slot);
       if (tablet == null) continue;
 
-      // Find the SummoningAction for this tablet to check skill relevance
-      final summoningAction = _findSummoningActionForTablet(tablet.id);
-      if (summoningAction == null) continue;
-
-      // Only consume if this familiar is relevant to the current action
-      final isRelevant = _isFamiliarRelevantToAction(summoningAction, action);
+      // Check if this familiar is relevant to the current action
+      final isRelevant = _isFamiliarRelevantToAction(tablet.id, action);
       if (!isRelevant) continue;
 
       equipment = equipment.consumeSummonCharges(slot, 1);
@@ -719,29 +715,24 @@ class StateUpdateBuilder {
   }
 
   /// Returns true if the familiar is relevant to the given action.
-  bool _isFamiliarRelevantToAction(SummoningAction familiar, Action action) {
-    final markSkillIds = familiar.markSkillIds;
-
+  bool _isFamiliarRelevantToAction(MelvorId tabletId, Action action) {
     if (action is SkillAction) {
-      return markSkillIds.contains(action.skill.id);
+      return registries.actions.isFamiliarRelevantToSkill(
+        tabletId,
+        action.skill,
+      );
     }
 
     if (action is CombatAction) {
-      // Combat familiars are relevant if they mark any combat skill
-      return Skill.combatSkills.any((s) => markSkillIds.contains(s.id));
+      // Use the player's current combat type to determine relevance
+      final combatTypeSkills = _state.attackStyle.combatType.skills;
+      return registries.actions.isFamiliarRelevantToCombat(
+        tabletId,
+        combatTypeSkills,
+      );
     }
 
     return false;
-  }
-
-  /// Finds the SummoningAction that produces a tablet with the given ID.
-  SummoningAction? _findSummoningActionForTablet(MelvorId tabletId) {
-    for (final action in registries.actions.forSkill(Skill.summoning)) {
-      if (action is SummoningAction && action.productId == tabletId) {
-        return action;
-      }
-    }
-    return null;
   }
 
   GlobalState build() => _state;
