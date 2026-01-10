@@ -403,8 +403,8 @@ class ActionRegistry {
   /// performing actions in the given skill.
   Iterable<SummoningAction> summoningFamiliarsForSkill(Skill skill) {
     return forSkill(Skill.summoning).whereType<SummoningAction>().where(
-          (action) => action.markSkillIds.contains(skill.id),
-        );
+      (action) => action.markSkillIds.contains(skill.id),
+    );
   }
 }
 

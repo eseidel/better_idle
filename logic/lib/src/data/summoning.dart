@@ -86,8 +86,8 @@ class SummoningAction extends SkillAction {
     // For display, use shards as base inputs (first alternative is default).
     final baseInputs =
         alternativeRecipes != null && alternativeRecipes.isNotEmpty
-            ? alternativeRecipes.first.inputs
-            : shardInputs;
+        ? alternativeRecipes.first.inputs
+        : shardInputs;
 
     return SummoningAction(
       id: ActionId(Skill.summoning.id, localId),

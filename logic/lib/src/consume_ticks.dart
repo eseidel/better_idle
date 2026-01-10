@@ -925,7 +925,7 @@ void _rollMarkDiscovery(
   // Calculate action time in seconds (use average of min/max duration)
   final avgDurationMs =
       (action.minDuration.inMilliseconds + action.maxDuration.inMilliseconds) /
-          2;
+      2;
   final actionTimeSeconds = avgDurationMs / 1000.0;
 
   // TODO(eseidel): Calculate equipment modifier based on equipped familiars

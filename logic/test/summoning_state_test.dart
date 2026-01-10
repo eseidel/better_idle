@@ -201,34 +201,66 @@ void main() {
     test('tier 1 familiar with 3 second action has expected chance', () {
       // Formula: actionTime / ((tier + 1)² × 200)
       // 3 / ((1 + 1)² × 200) = 3 / (4 × 200) = 3 / 800 = 0.00375
-      final chance = markDiscoveryChance(actionTimeSeconds: 3.0, tier: 1);
+      final chance = markDiscoveryChance(
+        actionTimeSeconds: 3,
+        tier: 1,
+        equipmentModifier: 1,
+      );
       expect(chance, closeTo(0.00375, 0.0001));
     });
 
     test('tier 2 familiar has lower chance than tier 1', () {
-      final chanceTier1 = markDiscoveryChance(actionTimeSeconds: 3.0, tier: 1);
-      final chanceTier2 = markDiscoveryChance(actionTimeSeconds: 3.0, tier: 2);
+      final chanceTier1 = markDiscoveryChance(
+        actionTimeSeconds: 3,
+        tier: 1,
+        equipmentModifier: 1,
+      );
+      final chanceTier2 = markDiscoveryChance(
+        actionTimeSeconds: 3,
+        tier: 2,
+        equipmentModifier: 1,
+      );
       expect(chanceTier2, lessThan(chanceTier1));
     });
 
     test('tier 3 familiar has lowest chance', () {
-      final chanceTier1 = markDiscoveryChance(actionTimeSeconds: 3.0, tier: 1);
-      final chanceTier3 = markDiscoveryChance(actionTimeSeconds: 3.0, tier: 3);
+      final chanceTier1 = markDiscoveryChance(
+        actionTimeSeconds: 3,
+        tier: 1,
+        equipmentModifier: 1,
+      );
+      final chanceTier3 = markDiscoveryChance(
+        actionTimeSeconds: 3,
+        tier: 3,
+        equipmentModifier: 1,
+      );
       // Tier 3: 3 / ((3 + 1)² × 200) = 3 / (16 × 200) = 3 / 3200 = 0.0009375
       expect(chanceTier3, closeTo(0.0009375, 0.0001));
       expect(chanceTier3, lessThan(chanceTier1));
     });
 
     test('longer actions have higher discovery chance', () {
-      final chance3s = markDiscoveryChance(actionTimeSeconds: 3.0, tier: 1);
-      final chance6s = markDiscoveryChance(actionTimeSeconds: 6.0, tier: 1);
+      final chance3s = markDiscoveryChance(
+        actionTimeSeconds: 3,
+        tier: 1,
+        equipmentModifier: 1,
+      );
+      final chance6s = markDiscoveryChance(
+        actionTimeSeconds: 6,
+        tier: 1,
+        equipmentModifier: 1,
+      );
       expect(chance6s, closeTo(chance3s * 2, 0.0001));
     });
 
     test('equipment modifier increases chance', () {
-      final baseChance = markDiscoveryChance(actionTimeSeconds: 3.0, tier: 1);
+      final baseChance = markDiscoveryChance(
+        actionTimeSeconds: 3,
+        tier: 1,
+        equipmentModifier: 1,
+      );
       final boostedChance = markDiscoveryChance(
-        actionTimeSeconds: 3.0,
+        actionTimeSeconds: 3,
         tier: 1,
         equipmentModifier: 2.5,
       );

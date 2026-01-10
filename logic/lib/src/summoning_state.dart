@@ -30,7 +30,7 @@ int markLevelForCount(int marks) {
 double markDiscoveryChance({
   required double actionTimeSeconds,
   required int tier,
-  double equipmentModifier = 1.0,
+  required double equipmentModifier,
 }) {
   final tierFactor = (tier + 1) * (tier + 1); // (tier + 1)²
   final baseChance = actionTimeSeconds / (tierFactor * 200);
