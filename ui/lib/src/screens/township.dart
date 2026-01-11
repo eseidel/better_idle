@@ -590,11 +590,20 @@ class _BiomeSection extends StatelessWidget {
           ),
         ),
         if (isUnlocked && !isCollapsed)
-          ...buildings.map(
-            (building) => _BuildingRow(
-              viewModel: viewModel,
-              biomeId: biome.id,
-              building: building,
+          Padding(
+            padding: const EdgeInsets.all(8),
+            child: Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: buildings
+                  .map(
+                    (building) => _BuildingCard(
+                      viewModel: viewModel,
+                      biomeId: biome.id,
+                      building: building,
+                    ),
+                  )
+                  .toList(),
             ),
           ),
       ],
@@ -602,8 +611,8 @@ class _BiomeSection extends StatelessWidget {
   }
 }
 
-class _BuildingRow extends StatelessWidget {
-  const _BuildingRow({
+class _BuildingCard extends StatelessWidget {
+  const _BuildingCard({
     required this.viewModel,
     required this.biomeId,
     required this.building,
@@ -619,88 +628,109 @@ class _BuildingRow extends StatelessWidget {
     final error = viewModel.canBuild(biomeId, building.id);
     final canBuild = error == null;
 
-    return InkWell(
-      onTap: () => _showBuildDialog(context),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        child: Row(
-          children: [
-            const SizedBox(width: 32), // Indent under biome header
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
+    return SizedBox(
+      width: 140,
+      child: Card(
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: () => _showBuildDialog(context),
+          child: Padding(
+            padding: const EdgeInsets.all(8),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // Building image
+                if (building.media != null)
+                  CachedImage(assetPath: building.media!, size: 48)
+                else
+                  const Icon(Icons.home, size: 48),
+                const SizedBox(height: 4),
+                // Building name
+                Text(
+                  building.name,
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w500,
+                    color: canBuild
+                        ? Style.textColorPrimary
+                        : Style.textColorMuted,
+                  ),
+                  textAlign: TextAlign.center,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                const SizedBox(height: 2),
+                // Count or description
+                if (buildingState.count > 0)
                   Text(
-                    building.name,
-                    style: TextStyle(
-                      fontWeight: FontWeight.w500,
-                      color: canBuild
-                          ? Style.textColorPrimary
-                          : Style.textColorMuted,
+                    '${buildingState.count} built',
+                    style: const TextStyle(
+                      fontSize: 10,
+                      color: Style.textColorSecondary,
+                    ),
+                  )
+                else
+                  Text(
+                    _getShortDescription(),
+                    style: const TextStyle(
+                      fontSize: 10,
+                      color: Style.textColorSecondary,
+                    ),
+                    textAlign: TextAlign.center,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                const SizedBox(height: 4),
+                // Purchase button
+                SizedBox(
+                  width: double.infinity,
+                  height: 28,
+                  child: ElevatedButton(
+                    onPressed: canBuild ? () => _buildBuilding(context) : null,
+                    style: ElevatedButton.styleFrom(
+                      padding: EdgeInsets.zero,
+                      backgroundColor: canBuild
+                          ? Style.successColor
+                          : Colors.grey,
+                    ),
+                    child: const Text(
+                      'Build',
+                      style: TextStyle(fontSize: 11, color: Colors.white),
                     ),
                   ),
-                  if (buildingState.count > 0)
-                    Text(
-                      '${buildingState.count} built '
-                      '(${buildingState.efficiency.toStringAsFixed(0)}% eff)',
-                      style: const TextStyle(
-                        fontSize: 12,
-                        color: Style.textColorSecondary,
-                      ),
-                    )
-                  else
-                    Text(
-                      _getBuildingDescription(),
-                      style: const TextStyle(
-                        fontSize: 12,
-                        color: Style.textColorSecondary,
-                      ),
-                    ),
-                  if (!canBuild)
-                    Text(
-                      error,
-                      style: TextStyle(
-                        fontSize: 11,
-                        color: Style.unmetRequirementColor,
-                      ),
-                    ),
-                ],
-              ),
+                ),
+              ],
             ),
-            IconButton(
-              icon: Icon(
-                Icons.add_circle_outline,
-                color: canBuild ? Style.successColor : Style.textColorMuted,
-              ),
-              onPressed: canBuild ? () => _showBuildDialog(context) : null,
-            ),
-          ],
+          ),
         ),
       ),
     );
   }
 
-  String _getBuildingDescription() {
+  String _getShortDescription() {
     final biomeData = building.dataForBiome(biomeId);
-    if (biomeData == null) return 'No data for this biome';
+    if (biomeData == null) return '';
 
-    final parts = <String>[];
-    if (biomeData.population > 0) {
-      parts.add('+${biomeData.population} pop');
-    }
-    if (biomeData.production.isNotEmpty) {
-      parts.add('produces resources');
-    }
+    if (biomeData.population > 0) return '+${biomeData.population} pop';
+    if (biomeData.production.isNotEmpty) return 'Produces';
     if (biomeData.happiness != 0) {
-      parts.add('+${biomeData.happiness} happiness');
+      return '+${biomeData.happiness.toInt()} happy';
     }
-    if (biomeData.education != 0) {
-      parts.add('+${biomeData.education} education');
+    if (biomeData.education != 0) return '+${biomeData.education.toInt()} edu';
+    if (biomeData.storage > 0) return '+${biomeData.storage} storage';
+    return '';
+  }
+
+  void _buildBuilding(BuildContext context) {
+    try {
+      context.dispatch(
+        BuildTownshipBuildingAction(biomeId: biomeId, buildingId: building.id),
+      );
+    } on Exception catch (e) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(e.toString())));
     }
-    if (biomeData.storage > 0) {
-      parts.add('+${biomeData.storage} storage');
-    }
-    return parts.isEmpty ? 'No bonuses' : parts.join(', ');
   }
 
   void _showBuildDialog(BuildContext context) {

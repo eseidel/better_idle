@@ -91,6 +91,7 @@ class TownshipBuilding {
     required this.tier,
     required this.biomeData,
     required this.validBiomes,
+    this.media,
     this.maxUpgrades = 0,
     this.upgradesFrom,
     this.canDegrade = true,
@@ -144,12 +145,16 @@ class TownshipBuilding {
       biomeData[data.biomeId] = data;
     }
 
+    // Parse media path, stripping query params (e.g., "?2").
+    final media = (json['media'] as String?)?.split('?').first;
+
     return TownshipBuilding(
       id: id,
       name: json['name'] as String,
       tier: json['tier'] as int? ?? 1,
       biomeData: biomeData,
       validBiomes: validBiomes,
+      media: media,
       maxUpgrades: json['maxUpgrades'] as int? ?? 0,
       upgradesFrom: json['upgradesFrom'] != null
           ? MelvorId.fromJsonWithNamespace(
@@ -172,6 +177,9 @@ class TownshipBuilding {
 
   /// Biomes where this building can be built.
   final Set<MelvorId> validBiomes;
+
+  /// The asset path for this building's icon.
+  final String? media;
 
   /// Maximum number of this building that can be built.
   final int maxUpgrades;
