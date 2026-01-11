@@ -40,6 +40,34 @@ TownshipBuilding testBuilding({
 }
 
 void main() {
+  group('TownshipTaskState', () {
+    test('toJson/fromJson round trip preserves state', () {
+      const state = TownshipTaskState(
+        taskId: MelvorId('melvorD:Test_Task'),
+        progress: {'population': 50, 'buildBuilding': 3},
+        completed: true,
+      );
+
+      final json = state.toJson();
+      final restored = TownshipTaskState.fromJson(json);
+
+      expect(restored.taskId, const MelvorId('melvorD:Test_Task'));
+      expect(restored.progress, {'population': 50, 'buildBuilding': 3});
+      expect(restored.completed, isTrue);
+    });
+
+    test('toJson/fromJson round trip with empty progress', () {
+      const state = TownshipTaskState(taskId: MelvorId('melvorD:Simple_Task'));
+
+      final json = state.toJson();
+      final restored = TownshipTaskState.fromJson(json);
+
+      expect(restored.taskId, const MelvorId('melvorD:Simple_Task'));
+      expect(restored.progress, isEmpty);
+      expect(restored.completed, isFalse);
+    });
+  });
+
   group('TownshipState', () {
     test('empty state has default values', () {
       const state = TownshipState.empty();
@@ -1686,9 +1714,7 @@ void main() {
             TownshipTask(
               id: taskId,
               name: 'Test Task',
-              requirements: [
-                TaskRequirement(type: 'population', target: 0),
-              ],
+              requirements: [TaskRequirement(type: 'population', target: 0)],
               rewards: [
                 TaskReward(
                   type: 'townshipResource',
