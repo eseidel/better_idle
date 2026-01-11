@@ -1,72 +1,192 @@
 import 'package:logic/src/data/melvor_id.dart';
 import 'package:meta/meta.dart';
 
+/// Costs and provides for a building in a specific biome.
+@immutable
+class BuildingBiomeData {
+  const BuildingBiomeData({
+    required this.biomeId,
+    required this.costs,
+    required this.population,
+    required this.happiness,
+    required this.education,
+    required this.storage,
+    required this.production,
+  });
+
+  factory BuildingBiomeData.fromJson(
+    Map<String, dynamic> costJson,
+    Map<String, dynamic> providesJson, {
+    required String namespace,
+  }) {
+    final biomeId = MelvorId.fromJsonWithNamespace(
+      costJson['biomeID'] as String,
+      defaultNamespace: namespace,
+    );
+
+    // Parse costs
+    final costsJson = costJson['cost'] as List<dynamic>? ?? [];
+    final costs = <MelvorId, int>{};
+    for (final cost in costsJson) {
+      final costMap = cost as Map<String, dynamic>;
+      final resourceId = MelvorId.fromJsonWithNamespace(
+        costMap['id'] as String,
+        defaultNamespace: namespace,
+      );
+      final quantity = (costMap['quantity'] as num).toInt();
+      costs[resourceId] = quantity;
+    }
+
+    // Parse provides
+    final resourcesJson = providesJson['resources'] as List<dynamic>? ?? [];
+    final production = <MelvorId, double>{};
+    for (final resource in resourcesJson) {
+      final resourceMap = resource as Map<String, dynamic>;
+      final resourceId = MelvorId.fromJsonWithNamespace(
+        resourceMap['id'] as String,
+        defaultNamespace: namespace,
+      );
+      final quantity = (resourceMap['quantity'] as num).toDouble();
+      production[resourceId] = quantity;
+    }
+
+    return BuildingBiomeData(
+      biomeId: biomeId,
+      costs: costs,
+      population: providesJson['population'] as int? ?? 0,
+      happiness: (providesJson['happiness'] as num?)?.toDouble() ?? 0,
+      education: (providesJson['education'] as num?)?.toDouble() ?? 0,
+      storage: providesJson['storage'] as int? ?? 0,
+      production: production,
+    );
+  }
+
+  final MelvorId biomeId;
+
+  /// Resource costs (resourceId -> amount). Includes GP.
+  final Map<MelvorId, int> costs;
+
+  /// Population provided by this building in this biome.
+  final int population;
+
+  /// Happiness provided by this building in this biome.
+  final double happiness;
+
+  /// Education provided by this building in this biome.
+  final double education;
+
+  /// Storage provided by this building in this biome.
+  final int storage;
+
+  /// Resources produced per town update (resourceId -> amount per tick).
+  final Map<MelvorId, double> production;
+}
+
 /// A Township building definition.
 @immutable
 class TownshipBuilding {
   const TownshipBuilding({
     required this.id,
     required this.name,
-    required this.levelRequired,
-    required this.populationRequired,
-    required this.costs,
-    required this.gpCost,
-    this.production = const {},
-    this.populationBonus = 0,
-    this.happinessBonus = 0,
-    this.educationBonus = 0,
-    this.healthBonus = 0,
-    this.storageBonus = 0,
-    this.worshipBonus = 0,
-    this.validBiomes = const {},
-    this.degradable = true,
+    required this.tier,
+    required this.biomeData,
+    required this.validBiomes,
+    this.maxUpgrades = 0,
+    this.upgradesFrom,
+    this.canDegrade = true,
   });
+
+  factory TownshipBuilding.fromJson(
+    Map<String, dynamic> json, {
+    required String namespace,
+  }) {
+    final id = MelvorId.fromJsonWithNamespace(
+      json['id'] as String,
+      defaultNamespace: namespace,
+    );
+
+    // Parse biome list
+    final biomesJson = json['biomes'] as List<dynamic>? ?? [];
+    final validBiomes = <MelvorId>{};
+    for (final biome in biomesJson) {
+      validBiomes.add(
+        MelvorId.fromJsonWithNamespace(
+          biome as String,
+          defaultNamespace: namespace,
+        ),
+      );
+    }
+
+    // Parse costs and provides (paired by biomeID)
+    final costsJson = json['cost'] as List<dynamic>? ?? [];
+    final providesJson = json['provides'] as List<dynamic>? ?? [];
+
+    // Build a map of biomeID -> provides data
+    final providesMap = <String, Map<String, dynamic>>{};
+    for (final provides in providesJson) {
+      final providesData = provides as Map<String, dynamic>;
+      final biomeId = providesData['biomeID'] as String;
+      providesMap[biomeId] = providesData;
+    }
+
+    // Parse biome data
+    final biomeData = <MelvorId, BuildingBiomeData>{};
+    for (final cost in costsJson) {
+      final costMap = cost as Map<String, dynamic>;
+      final biomeIdStr = costMap['biomeID'] as String;
+      final providesData = providesMap[biomeIdStr] ?? {};
+
+      final data = BuildingBiomeData.fromJson(
+        costMap,
+        providesData,
+        namespace: namespace,
+      );
+      biomeData[data.biomeId] = data;
+    }
+
+    return TownshipBuilding(
+      id: id,
+      name: json['name'] as String,
+      tier: json['tier'] as int? ?? 1,
+      biomeData: biomeData,
+      validBiomes: validBiomes,
+      maxUpgrades: json['maxUpgrades'] as int? ?? 0,
+      upgradesFrom: json['upgradesFrom'] != null
+          ? MelvorId.fromJsonWithNamespace(
+              json['upgradesFrom'] as String,
+              defaultNamespace: namespace,
+            )
+          : null,
+      canDegrade: json['canDegrade'] as bool? ?? true,
+    );
+  }
 
   final MelvorId id;
   final String name;
 
-  /// Township level required to build.
-  final int levelRequired;
+  /// Building tier (1-4), determines unlock requirements.
+  final int tier;
 
-  /// Population required to build.
-  final int populationRequired;
-
-  /// Resource costs (resourceId -> amount).
-  final Map<MelvorId, int> costs;
-
-  /// GP cost to build.
-  final int gpCost;
-
-  /// Resources produced per town update (resourceId -> amount).
-  final Map<MelvorId, int> production;
-
-  /// Population bonus per building.
-  final int populationBonus;
-
-  /// Happiness bonus per building (percentage points).
-  final double happinessBonus;
-
-  /// Education bonus per building (percentage points).
-  final double educationBonus;
-
-  /// Health bonus per building (percentage points).
-  final double healthBonus;
-
-  /// Storage capacity bonus per building.
-  final int storageBonus;
-
-  /// Worship points bonus per building.
-  final int worshipBonus;
+  /// Biome-specific costs and provides.
+  final Map<MelvorId, BuildingBiomeData> biomeData;
 
   /// Biomes where this building can be built.
   final Set<MelvorId> validBiomes;
 
+  /// Maximum number of this building that can be built.
+  final int maxUpgrades;
+
+  /// The building this upgrades from, if any.
+  final MelvorId? upgradesFrom;
+
   /// Whether this building degrades over time.
-  /// Storage buildings typically don't degrade.
-  final bool degradable;
+  final bool canDegrade;
 
   /// Returns true if this building can be built in the given biome.
   bool canBuildInBiome(MelvorId biomeId) => validBiomes.contains(biomeId);
+
+  /// Returns the biome data for the given biome, or null if not found.
+  BuildingBiomeData? dataForBiome(MelvorId biomeId) => biomeData[biomeId];
 }
 
 /// A Township biome definition.
@@ -75,18 +195,44 @@ class TownshipBiome {
   const TownshipBiome({
     required this.id,
     required this.name,
-    this.populationRequired = 0,
-    this.bonuses = const {},
+    required this.tier,
   });
+
+  factory TownshipBiome.fromJson(
+    Map<String, dynamic> json, {
+    required String namespace,
+  }) {
+    return TownshipBiome(
+      id: MelvorId.fromJsonWithNamespace(
+        json['id'] as String,
+        defaultNamespace: namespace,
+      ),
+      name: json['name'] as String,
+      tier: json['tier'] as int? ?? 1,
+    );
+  }
 
   final MelvorId id;
   final String name;
 
-  /// Population required to unlock this biome.
-  final int populationRequired;
+  /// Biome tier (1-3). Tier 1 biomes are available immediately.
+  /// Higher tiers require more population.
+  final int tier;
 
-  /// Modifier bonuses for this biome (modifier name -> value).
-  final Map<String, double> bonuses;
+  /// Returns the population required to unlock this biome.
+  /// Tier 1: 0, Tier 2: 100, Tier 3: 500 (approximate values).
+  int get populationRequired {
+    switch (tier) {
+      case 1:
+        return 0;
+      case 2:
+        return 100;
+      case 3:
+        return 500;
+      default:
+        return 0;
+    }
+  }
 }
 
 /// A Township resource definition.
@@ -95,14 +241,36 @@ class TownshipResource {
   const TownshipResource({
     required this.id,
     required this.name,
-    this.depositsToBank = false,
+    required this.type,
+    this.startingAmount = 0,
   });
+
+  factory TownshipResource.fromJson(
+    Map<String, dynamic> json, {
+    required String namespace,
+  }) {
+    return TownshipResource(
+      id: MelvorId.fromJsonWithNamespace(
+        json['id'] as String,
+        defaultNamespace: namespace,
+      ),
+      name: json['name'] as String,
+      type: json['type'] as String? ?? 'Raw',
+      startingAmount: json['startingAmount'] as int? ?? 0,
+    );
+  }
 
   final MelvorId id;
   final String name;
 
+  /// Resource type (e.g., 'Currency', 'Raw').
+  final String type;
+
+  /// Starting amount when Township is unlocked.
+  final int startingAmount;
+
   /// If true, this resource (like GP) deposits directly to player bank.
-  final bool depositsToBank;
+  bool get depositsToBank => type == 'Currency';
 }
 
 /// A Township deity for worship.
@@ -111,29 +279,40 @@ class TownshipDeity {
   const TownshipDeity({
     required this.id,
     required this.name,
-    this.bonuses = const {},
-    this.seasonBonuses = const {},
+    this.isHidden = false,
+    this.statueName = '',
   });
+
+  factory TownshipDeity.fromJson(
+    Map<String, dynamic> json, {
+    required String namespace,
+  }) {
+    return TownshipDeity(
+      id: MelvorId.fromJsonWithNamespace(
+        json['id'] as String,
+        defaultNamespace: namespace,
+      ),
+      name: json['name'] as String,
+      isHidden: json['isHidden'] as bool? ?? false,
+      statueName: json['statueName'] as String? ?? '',
+    );
+  }
 
   final MelvorId id;
   final String name;
 
-  /// Worship bonuses at different thresholds.
-  /// Map of threshold percentage (5, 25, 50, 85, 95) to modifiers.
-  final Map<int, Map<String, double>> bonuses;
+  /// Whether this deity is hidden from the UI.
+  final bool isHidden;
 
-  /// Season-specific bonuses (season name -> modifiers).
-  final Map<String, Map<String, double>> seasonBonuses;
+  /// Name of the statue for this deity.
+  final String statueName;
 
   /// Returns the total bonus for a modifier at the given worship percentage.
+  // TODO(eseidel): Parse and implement actual checkpoint bonuses.
   double bonusAtWorshipPercent(String modifierName, double worshipPercent) {
-    var total = 0.0;
-    for (final entry in bonuses.entries) {
-      if (worshipPercent >= entry.key) {
-        total += entry.value[modifierName] ?? 0;
-      }
-    }
-    return total;
+    // Worship bonuses are not yet parsed from the JSON data.
+    // The checkpoint system has thresholds at 5%, 25%, 50%, 85%, 95%.
+    return 0;
   }
 }
 
@@ -142,14 +321,18 @@ class TownshipDeity {
 class TownshipTrade {
   const TownshipTrade({
     required this.id,
+    required this.resourceId,
     required this.itemId,
-    required this.costs,
     this.itemQuantity = 1,
+    this.costs = const {},
   });
 
   final MelvorId id;
 
-  /// The item received from the trade.
+  /// Resource that is traded (spent).
+  final MelvorId resourceId;
+
+  /// Item that is received.
   final MelvorId itemId;
 
   /// Quantity of items received.
@@ -166,6 +349,75 @@ class TownshipTrade {
       (key, value) => MapEntry(key, (value * (1 - discount)).ceil()),
     );
   }
+}
+
+/// A Township season definition.
+@immutable
+class TownshipSeason {
+  const TownshipSeason({
+    required this.id,
+    required this.name,
+    required this.seasonLength,
+    required this.order,
+  });
+
+  factory TownshipSeason.fromJson(
+    Map<String, dynamic> json, {
+    required String namespace,
+  }) {
+    return TownshipSeason(
+      id: MelvorId.fromJsonWithNamespace(
+        json['id'] as String,
+        defaultNamespace: namespace,
+      ),
+      name: json['name'] as String,
+      seasonLength: json['seasonLength'] as int? ?? 72,
+      order: json['order'] as int? ?? 0,
+    );
+  }
+
+  final MelvorId id;
+  final String name;
+
+  /// Season length in hours.
+  final int seasonLength;
+
+  /// Display order.
+  final int order;
+}
+
+/// A requirement for a Township task.
+@immutable
+class TaskRequirement {
+  const TaskRequirement({
+    required this.type,
+    required this.target,
+    this.targetId,
+  });
+
+  /// Type of requirement (e.g., 'buildBuilding', 'population').
+  final String type;
+
+  /// Target value to reach.
+  final int target;
+
+  /// Optional target ID (e.g., building ID for 'buildBuilding').
+  final MelvorId? targetId;
+}
+
+/// A reward for completing a Township task.
+@immutable
+class TaskReward {
+  const TaskReward({required this.type, required this.amount, this.itemId});
+
+  /// Type of reward (e.g., 'xp', 'gp', 'item').
+  final String type;
+
+  /// Amount of reward.
+  final int amount;
+
+  /// Optional item ID for item rewards.
+  final MelvorId? itemId;
 }
 
 /// A Township task definition.
@@ -194,40 +446,6 @@ class TownshipTask {
   final bool isMainTask;
 }
 
-/// A requirement for a Township task.
-@immutable
-class TaskRequirement {
-  const TaskRequirement({
-    required this.type,
-    required this.target,
-    this.targetId,
-  });
-
-  /// Type of requirement (e.g., 'buildBuilding', 'reachPopulation').
-  final String type;
-
-  /// Target value to reach.
-  final int target;
-
-  /// Optional target ID (e.g., building ID for 'buildBuilding').
-  final MelvorId? targetId;
-}
-
-/// A reward for completing a Township task.
-@immutable
-class TaskReward {
-  const TaskReward({required this.type, required this.amount, this.itemId});
-
-  /// Type of reward (e.g., 'xp', 'gp', 'item').
-  final String type;
-
-  /// Amount of reward.
-  final int amount;
-
-  /// Optional item ID for item rewards.
-  final MelvorId? itemId;
-}
-
 /// Registry containing all Township data.
 @immutable
 class TownshipRegistry {
@@ -237,6 +455,7 @@ class TownshipRegistry {
     this.resources = const [],
     this.deities = const [],
     this.trades = const [],
+    this.seasons = const [],
     this.tasks = const [],
   });
 
@@ -247,6 +466,7 @@ class TownshipRegistry {
   final List<TownshipResource> resources;
   final List<TownshipDeity> deities;
   final List<TownshipTrade> trades;
+  final List<TownshipSeason> seasons;
   final List<TownshipTask> tasks;
 
   // ---------------------------------------------------------------------------
@@ -307,6 +527,11 @@ class TownshipRegistry {
     return null;
   }
 
+  /// Returns all visible deities.
+  List<TownshipDeity> get visibleDeities {
+    return deities.where((d) => !d.isHidden).toList();
+  }
+
   // ---------------------------------------------------------------------------
   // Trade lookups
   // ---------------------------------------------------------------------------
@@ -317,6 +542,37 @@ class TownshipRegistry {
       if (trade.id == id) return trade;
     }
     return null;
+  }
+
+  /// Returns a trade by item ID, or null if not found.
+  TownshipTrade? tradeByItemId(MelvorId itemId) {
+    for (final trade in trades) {
+      if (trade.itemId == itemId) return trade;
+    }
+    return null;
+  }
+
+  /// Returns all trades for a resource.
+  List<TownshipTrade> tradesForResource(MelvorId resourceId) {
+    return trades.where((t) => t.resourceId == resourceId).toList();
+  }
+
+  // ---------------------------------------------------------------------------
+  // Season lookups
+  // ---------------------------------------------------------------------------
+
+  /// Returns a season by ID, or null if not found.
+  TownshipSeason? seasonById(MelvorId id) {
+    for (final season in seasons) {
+      if (season.id == id) return season;
+    }
+    return null;
+  }
+
+  /// Returns seasons in order.
+  List<TownshipSeason> get orderedSeasons {
+    return List<TownshipSeason>.from(seasons)
+      ..sort((a, b) => a.order.compareTo(b.order));
   }
 
   // ---------------------------------------------------------------------------

@@ -17,6 +17,7 @@ import 'package:better_idle/src/screens/shop.dart';
 import 'package:better_idle/src/screens/smithing.dart';
 import 'package:better_idle/src/screens/summoning.dart';
 import 'package:better_idle/src/screens/thieving.dart';
+import 'package:better_idle/src/screens/township.dart';
 import 'package:better_idle/src/screens/woodcutting.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
@@ -82,6 +83,11 @@ final GoRouter router = GoRouter(
       path: '/herblore',
       name: 'herblore',
       builder: (context, _) => const HerblorePage(),
+    ),
+    GoRoute(
+      path: '/township',
+      name: 'township',
+      builder: (context, _) => const TownshipPage(),
     ),
     GoRoute(
       path: '/farming',

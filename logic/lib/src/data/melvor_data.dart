@@ -6,6 +6,7 @@ import 'package:logic/src/data/cache.dart';
 import 'package:logic/src/data/melvor_id.dart';
 import 'package:logic/src/data/shop.dart';
 import 'package:logic/src/data/summoning_synergy.dart';
+import 'package:logic/src/data/township.dart';
 import 'package:logic/src/types/mastery.dart';
 import 'package:logic/src/types/mastery_unlock.dart';
 import 'package:meta/meta.dart';
@@ -183,6 +184,9 @@ class MelvorData {
 
     // Parse mastery unlocks (display-only descriptions) for all skills
     _masteryUnlocks = parseMasteryUnlocks(skillDataById);
+
+    // Parse township data
+    _township = parseTownship(skillDataById['melvorD:Township']);
   }
 
   /// Loads MelvorData from the cache, fetching from CDN if needed.
@@ -224,6 +228,7 @@ class MelvorData {
   late final MasteryBonusRegistry _masteryBonuses;
   late final MasteryUnlockRegistry _masteryUnlocks;
   late final SummoningSynergyRegistry _summoningSynergies;
+  late final TownshipRegistry _township;
 
   /// Returns the item registry.
   ItemRegistry get items => _items;
@@ -268,6 +273,8 @@ class MelvorData {
   MasteryUnlockRegistry get masteryUnlocks => _masteryUnlocks;
 
   SummoningSynergyRegistry get summoningSynergies => _summoningSynergies;
+
+  TownshipRegistry get township => _township;
 
   /// Returns the bank sort index map for passing to Registries.
   Map<MelvorId, int> get bankSortIndex => _bankSortIndex;
@@ -1013,4 +1020,120 @@ List<AltMagicAction> parseAltMagic(List<SkillDataEntry>? entries) {
     }
   }
   return actions;
+}
+
+/// Parses all township data. Returns TownshipRegistry.
+TownshipRegistry parseTownship(List<SkillDataEntry>? entries) {
+  if (entries == null) return const TownshipRegistry.empty();
+
+  final buildings = <TownshipBuilding>[];
+  final biomes = <TownshipBiome>[];
+  final resources = <TownshipResource>[];
+  final deities = <TownshipDeity>[];
+  final trades = <TownshipTrade>[];
+  final seasons = <TownshipSeason>[];
+
+  for (final entry in entries) {
+    // Parse buildings
+    final buildingsJson = entry.data['buildings'] as List<dynamic>?;
+    if (buildingsJson != null) {
+      buildings.addAll(
+        buildingsJson.map(
+          (json) => TownshipBuilding.fromJson(
+            json as Map<String, dynamic>,
+            namespace: entry.namespace,
+          ),
+        ),
+      );
+    }
+
+    // Parse biomes
+    final biomesJson = entry.data['biomes'] as List<dynamic>?;
+    if (biomesJson != null) {
+      biomes.addAll(
+        biomesJson.map(
+          (json) => TownshipBiome.fromJson(
+            json as Map<String, dynamic>,
+            namespace: entry.namespace,
+          ),
+        ),
+      );
+    }
+
+    // Parse resources
+    final resourcesJson = entry.data['resources'] as List<dynamic>?;
+    if (resourcesJson != null) {
+      resources.addAll(
+        resourcesJson.map(
+          (json) => TownshipResource.fromJson(
+            json as Map<String, dynamic>,
+            namespace: entry.namespace,
+          ),
+        ),
+      );
+    }
+
+    // Parse deities (worships)
+    final worshipsJson = entry.data['worships'] as List<dynamic>?;
+    if (worshipsJson != null) {
+      deities.addAll(
+        worshipsJson.map(
+          (json) => TownshipDeity.fromJson(
+            json as Map<String, dynamic>,
+            namespace: entry.namespace,
+          ),
+        ),
+      );
+    }
+
+    // Parse seasons
+    final seasonsJson = entry.data['seasons'] as List<dynamic>?;
+    if (seasonsJson != null) {
+      seasons.addAll(
+        seasonsJson.map(
+          (json) => TownshipSeason.fromJson(
+            json as Map<String, dynamic>,
+            namespace: entry.namespace,
+          ),
+        ),
+      );
+    }
+
+    // Parse trades (itemConversions.fromTownship)
+    final itemConversions =
+        entry.data['itemConversions'] as Map<String, dynamic>?;
+    if (itemConversions != null) {
+      final fromTownship = itemConversions['fromTownship'] as List<dynamic>?;
+      if (fromTownship != null) {
+        for (final conversion in fromTownship) {
+          final conversionMap = conversion as Map<String, dynamic>;
+          final resourceId = MelvorId.fromJsonWithNamespace(
+            conversionMap['resourceID'] as String,
+            defaultNamespace: entry.namespace,
+          );
+          final items = conversionMap['items'] as List<dynamic>? ?? [];
+          for (final item in items) {
+            final itemMap = item as Map<String, dynamic>;
+            final itemId = MelvorId.fromJsonWithNamespace(
+              itemMap['itemID'] as String,
+              defaultNamespace: entry.namespace,
+            );
+            // Use item ID as trade ID since trades don't have explicit IDs
+            trades.add(
+              TownshipTrade(id: itemId, resourceId: resourceId, itemId: itemId),
+            );
+          }
+        }
+      }
+    }
+  }
+
+  return TownshipRegistry(
+    buildings: buildings,
+    biomes: biomes,
+    resources: resources,
+    deities: deities,
+    trades: trades,
+    seasons: seasons,
+  );
 }

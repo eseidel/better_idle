@@ -186,6 +186,7 @@ class AppNavigationDrawer extends StatelessWidget {
           const SkillTile(skill: Skill.slayer),
           const _SectionHeader(title: 'Passive'),
           const SkillTile(skill: Skill.farming),
+          const SkillTile(skill: Skill.town),
           const _SectionHeader(title: 'Skills'),
           const SkillTile(skill: Skill.woodcutting),
           const SkillTile(skill: Skill.fishing),

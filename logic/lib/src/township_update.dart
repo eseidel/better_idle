@@ -46,30 +46,30 @@ class TownshipStats {
 
     // Sum up bonuses from all buildings in all biomes
     for (final biomeEntry in state.biomes.entries) {
+      final biomeId = biomeEntry.key;
       final biomeState = biomeEntry.value;
 
       for (final buildingEntry in biomeState.buildings.entries) {
         final building = registry.buildingById(buildingEntry.key);
         if (building == null) continue;
 
+        // Get biome-specific data for this building
+        final biomeData = building.dataForBiome(biomeId);
+        if (biomeData == null) continue;
+
         final buildingState = buildingEntry.value;
         final count = buildingState.count;
         final efficiencyMultiplier = buildingState.efficiency / 100.0;
 
         // Population bonus is not affected by efficiency
-        population += building.populationBonus * count;
+        population += biomeData.population * count;
 
         // Other bonuses are scaled by efficiency
-        happiness += building.happinessBonus * count * efficiencyMultiplier;
-        education += building.educationBonus * count * efficiencyMultiplier;
-        health += building.healthBonus * count * efficiencyMultiplier;
+        happiness += biomeData.happiness * count * efficiencyMultiplier;
+        education += biomeData.education * count * efficiencyMultiplier;
 
         // Storage bonus is not affected by efficiency
-        storage += building.storageBonus * count;
-
-        // Worship bonus scaled by efficiency
-        worship += (building.worshipBonus * count * efficiencyMultiplier)
-            .round();
+        storage += biomeData.storage * count;
       }
     }
 
@@ -126,8 +126,8 @@ BiomeState _degradeBuildings(
     final building = registry.buildingById(entry.key);
     final buildingState = entry.value;
 
-    // Storage buildings don't degrade
-    if (building == null || !building.degradable) {
+    // Storage buildings don't degrade (canDegrade = false)
+    if (building == null || !building.canDegrade) {
       newBuildings[entry.key] = buildingState;
       continue;
     }
@@ -155,18 +155,23 @@ Map<MelvorId, int> _calculateProduction(
   final production = <MelvorId, int>{};
 
   for (final biomeEntry in state.biomes.entries) {
+    final biomeId = biomeEntry.key;
     final biomeState = biomeEntry.value;
 
     for (final buildingEntry in biomeState.buildings.entries) {
       final building = registry.buildingById(buildingEntry.key);
       if (building == null) continue;
 
+      // Get biome-specific data for this building
+      final biomeData = building.dataForBiome(biomeId);
+      if (biomeData == null) continue;
+
       final buildingState = buildingEntry.value;
       final count = buildingState.count;
       final efficiencyMultiplier = buildingState.efficiency / 100.0;
 
       // Calculate production for each resource this building produces
-      for (final prodEntry in building.production.entries) {
+      for (final prodEntry in biomeData.production.entries) {
         final resourceId = prodEntry.key;
         final baseAmount = prodEntry.value;
 

@@ -3,7 +3,6 @@ import 'dart:math';
 import 'package:logic/logic.dart';
 import 'package:logic/src/farming_background.dart';
 import 'package:logic/src/passive_cooking.dart';
-import 'package:logic/src/township_update.dart';
 import 'package:meta/meta.dart';
 
 /// Ticks required to regenerate 1 HP (10 seconds = 100 ticks).
