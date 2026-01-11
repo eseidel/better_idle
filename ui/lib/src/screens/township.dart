@@ -867,7 +867,7 @@ class _BuildingPurchaseDialog extends StatelessWidget {
     final reqs = <Widget>[];
 
     // Level requirement based on tier
-    final levelRequired = _tierToLevel(building.tier);
+    final levelRequired = GlobalState.tierToLevel(building.tier);
     if (levelRequired > 1) {
       final met = viewModel.townshipLevel >= levelRequired;
       reqs.add(
@@ -881,21 +881,6 @@ class _BuildingPurchaseDialog extends StatelessWidget {
     }
 
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: reqs);
-  }
-
-  int _tierToLevel(int tier) {
-    switch (tier) {
-      case 1:
-        return 1;
-      case 2:
-        return 30;
-      case 3:
-        return 60;
-      case 4:
-        return 80;
-      default:
-        return 1;
-    }
   }
 
   Widget _buildBonuses(BuildContext context) {

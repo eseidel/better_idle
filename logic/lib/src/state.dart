@@ -1349,7 +1349,7 @@ class GlobalState {
 
     // Check level requirement (tier 1 = level 1, tier 2 = level 30, etc.)
     final townshipLevel = skillState(Skill.town).skillLevel;
-    final levelRequired = _tierToLevel(building.tier);
+    final levelRequired = tierToLevel(building.tier);
     if (townshipLevel < levelRequired) {
       return 'Requires Township level $levelRequired';
     }
@@ -1378,7 +1378,7 @@ class GlobalState {
   }
 
   /// Converts building tier to required Township level.
-  static int _tierToLevel(int tier) {
+  static int tierToLevel(int tier) {
     switch (tier) {
       case 1:
         return 1;
