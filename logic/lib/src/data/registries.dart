@@ -162,8 +162,7 @@ Future<Registries> loadRegistriesFromCache(Cache cache) async {
     melvorData.masteryBonuses,
     melvorData.masteryUnlocks,
     melvorData.summoningSynergies,
-    // TODO(eseidel): Parse township data from Melvor API.
-    const TownshipRegistry.empty(),
+    melvorData.township,
     melvorData.bankSortIndex,
   );
 }

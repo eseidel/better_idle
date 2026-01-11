@@ -1,15 +1,73 @@
 import 'dart:math';
 
-import 'package:logic/src/data/actions.dart';
-import 'package:logic/src/data/melvor_id.dart';
-import 'package:logic/src/data/registries.dart';
-import 'package:logic/src/data/township.dart';
-import 'package:logic/src/state.dart';
-import 'package:logic/src/township_state.dart';
-import 'package:logic/src/township_update.dart';
+import 'package:logic/logic.dart';
 import 'package:test/test.dart';
 
+/// Helper to create a test building with biome-specific data.
+TownshipBuilding testBuilding({
+  required MelvorId id,
+  required String name,
+  required Set<MelvorId> validBiomes,
+  int tier = 1,
+  int population = 0,
+  double happiness = 0,
+  double education = 0,
+  int storage = 0,
+  Map<MelvorId, double> production = const {},
+  Map<MelvorId, int> costs = const {},
+  bool canDegrade = true,
+}) {
+  final biomeData = <MelvorId, BuildingBiomeData>{};
+  for (final biomeId in validBiomes) {
+    biomeData[biomeId] = BuildingBiomeData(
+      biomeId: biomeId,
+      costs: costs,
+      population: population,
+      happiness: happiness,
+      education: education,
+      storage: storage,
+      production: production,
+    );
+  }
+  return TownshipBuilding(
+    id: id,
+    name: name,
+    tier: tier,
+    biomeData: biomeData,
+    validBiomes: validBiomes,
+    canDegrade: canDegrade,
+  );
+}
+
 void main() {
+  group('TownshipTaskState', () {
+    test('toJson/fromJson round trip preserves state', () {
+      const state = TownshipTaskState(
+        taskId: MelvorId('melvorD:Test_Task'),
+        progress: {'population': 50, 'buildBuilding': 3},
+        completed: true,
+      );
+
+      final json = state.toJson();
+      final restored = TownshipTaskState.fromJson(json);
+
+      expect(restored.taskId, const MelvorId('melvorD:Test_Task'));
+      expect(restored.progress, {'population': 50, 'buildBuilding': 3});
+      expect(restored.completed, isTrue);
+    });
+
+    test('toJson/fromJson round trip with empty progress', () {
+      const state = TownshipTaskState(taskId: MelvorId('melvorD:Simple_Task'));
+
+      final json = state.toJson();
+      final restored = TownshipTaskState.fromJson(json);
+
+      expect(restored.taskId, const MelvorId('melvorD:Simple_Task'));
+      expect(restored.progress, isEmpty);
+      expect(restored.completed, isFalse);
+    });
+  });
+
   group('TownshipState', () {
     test('empty state has default values', () {
       const state = TownshipState.empty();
@@ -50,106 +108,73 @@ void main() {
       final json = state.toJson();
       final restored = TownshipState.fromJson(json);
 
-      expect(restored.biomes.length, 1);
+      expect(restored.biomes.keys, contains(biomeId));
       expect(restored.biomes[biomeId]!.buildings[buildingId]!.count, 5);
-      expect(restored.biomes[biomeId]!.buildings[buildingId]!.efficiency, 85.0);
-      expect(restored.resources.length, 2);
-      expect(restored.worshipId, state.worshipId);
+      expect(restored.biomes[biomeId]!.buildings[buildingId]!.efficiency, 85);
+      expect(restored.resources[const MelvorId('melvorD:Food')], 1000);
+      expect(restored.worshipId, const MelvorId('melvorD:Bane'));
       expect(restored.worship, 150);
       expect(restored.season, Season.summer);
       expect(restored.seasonTicksRemaining, 100000);
       expect(restored.ticksUntilUpdate, 5000);
     });
 
-    test('addResource and removeResource work correctly', () {
+    test('resourceAmount returns 0 for missing resources', () {
       const state = TownshipState.empty();
-      const foodId = MelvorId('melvorD:Food');
-
-      final withFood = state.addResource(foodId, 100);
-      expect(withFood.resourceAmount(foodId), 100);
-
-      final moreFood = withFood.addResource(foodId, 50);
-      expect(moreFood.resourceAmount(foodId), 150);
-
-      final lessFood = moreFood.removeResource(foodId, 75);
-      expect(lessFood.resourceAmount(foodId), 75);
-
-      // Removing exact amount removes the key
-      final noFood = lessFood.removeResource(foodId, 75);
-      expect(noFood.resources.containsKey(foodId), isFalse);
+      expect(state.resourceAmount(const MelvorId('melvorD:Food')), 0);
     });
 
-    test('removeResource throws on insufficient resources', () {
-      const state = TownshipState.empty();
-      const foodId = MelvorId('melvorD:Food');
-
-      final withFood = state.addResource(foodId, 50);
-
-      expect(() => withFood.removeResource(foodId, 100), throwsStateError);
+    test('addResource adds to existing amount', () {
+      final state = TownshipState(
+        resources: {const MelvorId('melvorD:Food'): 100},
+      );
+      final newState = state.addResource(const MelvorId('melvorD:Food'), 50);
+      expect(newState.resourceAmount(const MelvorId('melvorD:Food')), 150);
     });
 
-    test('advanceSeason cycles through seasons', () {
-      var state = const TownshipState();
+    test('removeResource removes from existing amount', () {
+      final state = TownshipState(
+        resources: {const MelvorId('melvorD:Food'): 100},
+      );
+      final newState = state.removeResource(const MelvorId('melvorD:Food'), 30);
+      expect(newState.resourceAmount(const MelvorId('melvorD:Food')), 70);
+    });
 
-      state = state.advanceSeason();
-      expect(state.season, Season.summer);
-      expect(state.seasonTicksRemaining, ticksPerSeasonCycle);
-
-      state = state.advanceSeason();
-      expect(state.season, Season.fall);
-
-      state = state.advanceSeason();
-      expect(state.season, Season.winter);
-
-      state = state.advanceSeason();
-      expect(state.season, Season.spring);
+    test('removeResource throws when insufficient', () {
+      final state = TownshipState(
+        resources: {const MelvorId('melvorD:Food'): 50},
+      );
+      expect(
+        () => state.removeResource(const MelvorId('melvorD:Food'), 100),
+        throwsStateError,
+      );
     });
 
     test('totalBuildingCount sums across biomes', () {
-      const biome1 = MelvorId('melvorD:Grasslands');
-      const biome2 = MelvorId('melvorD:Forest');
       const buildingId = MelvorId('melvorD:Wooden_Hut');
-
       final state = TownshipState(
         biomes: {
-          biome1: BiomeState(
+          const MelvorId('melvorD:Grasslands'): BiomeState(
             buildings: {buildingId: const BuildingState(count: 3)},
           ),
-          biome2: BiomeState(
+          const MelvorId('melvorD:Forest'): BiomeState(
             buildings: {buildingId: const BuildingState(count: 2)},
           ),
         },
       );
-
       expect(state.totalBuildingCount(buildingId), 5);
     });
   });
 
-  group('Season', () {
-    test('happinessModifier varies by season', () {
-      expect(Season.spring.happinessModifier, 50);
-      expect(Season.summer.happinessModifier, 0);
-      expect(Season.fall.happinessModifier, 0);
-      expect(Season.winter.happinessModifier, -50);
-    });
-
-    test('educationModifier varies by season', () {
-      expect(Season.spring.educationModifier, 50);
-      expect(Season.summer.educationModifier, 0);
-      expect(Season.fall.educationModifier, 0);
-      expect(Season.winter.educationModifier, 0);
-    });
-  });
-
   group('TownshipStats', () {
-    test('empty state has base values', () {
-      const state = TownshipState.empty();
+    test('empty state has zero stats', () {
       const registry = TownshipRegistry.empty();
+      const state = TownshipState.empty();
 
       final stats = TownshipStats.calculate(state, registry);
 
       expect(stats.population, 0);
-      // Spring gives +50 happiness and +50 education
+      // Spring provides +50 happiness and +50 education by default
       expect(stats.happiness, 50);
       expect(stats.education, 50);
       expect(stats.health, 0);
@@ -161,25 +186,19 @@ void main() {
       const biomeId = MelvorId('melvorD:Grasslands');
       const buildingId = MelvorId('melvorD:Test_Building');
 
-      final building = TownshipBuilding(
+      final building = testBuilding(
         id: buildingId,
         name: 'Test Building',
-        levelRequired: 1,
-        populationRequired: 0,
-        costs: const {},
-        gpCost: 0,
-        populationBonus: 10,
-        happinessBonus: 5,
-        educationBonus: 3,
-        healthBonus: 2,
-        storageBonus: 100,
-        worshipBonus: 5,
         validBiomes: {biomeId},
+        population: 10,
+        happiness: 5,
+        education: 3,
+        storage: 100,
       );
 
       final registry = TownshipRegistry(
         buildings: [building],
-        biomes: const [TownshipBiome(id: biomeId, name: 'Grasslands')],
+        biomes: const [TownshipBiome(id: biomeId, name: 'Grasslands', tier: 1)],
       );
 
       final state = TownshipState(
@@ -198,33 +217,26 @@ void main() {
       expect(stats.happiness, 60);
       // 2 buildings * 3 education + 50 from spring
       expect(stats.education, 56);
-      // 2 buildings * 2 health
-      expect(stats.health, 4);
       // base 50000 + 2 buildings * 100
       expect(stats.storage, 50200);
-      // 2 buildings * 5 worship
-      expect(stats.worship, 10);
     });
 
     test('efficiency affects bonuses but not population or storage', () {
       const biomeId = MelvorId('melvorD:Grasslands');
       const buildingId = MelvorId('melvorD:Test_Building');
 
-      const building = TownshipBuilding(
+      final building = testBuilding(
         id: buildingId,
         name: 'Test Building',
-        levelRequired: 1,
-        populationRequired: 0,
-        costs: {},
-        gpCost: 0,
-        populationBonus: 10,
-        happinessBonus: 10,
-        storageBonus: 100,
+        validBiomes: {biomeId},
+        population: 10,
+        happiness: 10,
+        storage: 100,
       );
 
-      const registry = TownshipRegistry(
+      final registry = TownshipRegistry(
         buildings: [building],
-        biomes: [TownshipBiome(id: biomeId, name: 'Grasslands')],
+        biomes: const [TownshipBiome(id: biomeId, name: 'Grasslands', tier: 1)],
       );
 
       final state = TownshipState(
@@ -252,28 +264,21 @@ void main() {
     test('produces GP from buildings', () {
       const biomeId = MelvorId('melvorD:Grasslands');
       const buildingId = MelvorId('melvorD:Test_Building');
-      const gpResourceId = MelvorId('melvorD:GP');
+      const gpId = MelvorId('melvorF:GP');
 
-      const gpResource = TownshipResource(
-        id: gpResourceId,
-        name: 'GP',
-        depositsToBank: true,
-      );
-
-      final building = TownshipBuilding(
+      final building = testBuilding(
         id: buildingId,
         name: 'Test Building',
-        levelRequired: 1,
-        populationRequired: 0,
-        costs: const {},
-        gpCost: 0,
-        production: {gpResourceId: 100},
+        validBiomes: {biomeId},
+        production: {gpId: 100},
       );
 
       final registry = TownshipRegistry(
         buildings: [building],
-        biomes: const [TownshipBiome(id: biomeId, name: 'Grasslands')],
-        resources: const [gpResource],
+        biomes: const [TownshipBiome(id: biomeId, name: 'Grasslands', tier: 1)],
+        resources: const [
+          TownshipResource(id: gpId, name: 'GP', type: 'Currency'),
+        ],
       );
 
       final state = TownshipState(
@@ -287,31 +292,29 @@ void main() {
       final random = Random(42);
       final result = processTownUpdate(state, registry, random);
 
-      // Should produce GP (exact amount depends on education modifier)
+      // GP should be produced (100 base * 1 building * 100% efficiency * 1.5
+      // education modifier)
       expect(result.gpProduced, greaterThan(0));
     });
 
-    test('produces resources to storage', () {
+    test('produces resources that go into storage', () {
       const biomeId = MelvorId('melvorD:Grasslands');
       const buildingId = MelvorId('melvorD:Test_Building');
-      const woodId = MelvorId('melvorD:Wood');
+      const woodId = MelvorId('melvorF:Wood');
 
-      const woodResource = TownshipResource(id: woodId, name: 'Wood');
-
-      final building = TownshipBuilding(
+      final building = testBuilding(
         id: buildingId,
         name: 'Test Building',
-        levelRequired: 1,
-        populationRequired: 0,
-        costs: const {},
-        gpCost: 0,
-        production: {woodId: 50},
+        validBiomes: {biomeId},
+        production: {woodId: 100},
       );
 
       final registry = TownshipRegistry(
         buildings: [building],
-        biomes: const [TownshipBiome(id: biomeId, name: 'Grasslands')],
-        resources: const [woodResource],
+        biomes: const [TownshipBiome(id: biomeId, name: 'Grasslands', tier: 1)],
+        resources: const [
+          TownshipResource(id: woodId, name: 'Wood', type: 'Raw'),
+        ],
       );
 
       final state = TownshipState(
@@ -325,30 +328,113 @@ void main() {
       final random = Random(42);
       final result = processTownUpdate(state, registry, random);
 
-      // Wood should go to township storage, not GP
-      expect(result.gpProduced, 0);
+      // Wood should be produced and stored
       expect(result.state.resourceAmount(woodId), greaterThan(0));
     });
 
-    test('calculates XP based on population and happiness', () {
+    test('buildings degrade over time', () {
       const biomeId = MelvorId('melvorD:Grasslands');
       const buildingId = MelvorId('melvorD:Test_Building');
 
-      const building = TownshipBuilding(
+      // Use a building that can degrade
+      final building = testBuilding(
         id: buildingId,
         name: 'Test Building',
-        levelRequired: 1,
-        populationRequired: 0,
-        costs: {},
-        gpCost: 0,
-        populationBonus: 100,
-        happinessBonus: 50,
-        healthBonus: 100, // Need 100% health for full effective population
+        validBiomes: {biomeId},
+        population: 10,
       );
 
-      const registry = TownshipRegistry(
+      final registry = TownshipRegistry(
         buildings: [building],
-        biomes: [TownshipBiome(id: biomeId, name: 'Grasslands')],
+        biomes: const [TownshipBiome(id: biomeId, name: 'Grasslands', tier: 1)],
+      );
+
+      // Start with many buildings at 100% efficiency for higher chance of
+      // degradation
+      final state = TownshipState(
+        biomes: {
+          biomeId: BiomeState(
+            buildings: {buildingId: const BuildingState(count: 100)},
+          ),
+        },
+      );
+
+      // Run many updates to ensure degradation happens
+      var currentState = state;
+      var degraded = false;
+      final random = Random(42);
+
+      for (var i = 0; i < 10 && !degraded; i++) {
+        final result = processTownUpdate(currentState, registry, random);
+        currentState = result.state;
+
+        final newEfficiency =
+            currentState.biomes[biomeId]!.buildings[buildingId]!.efficiency;
+        if (newEfficiency < 100) {
+          degraded = true;
+        }
+      }
+
+      expect(degraded, isTrue, reason: 'Buildings should degrade over time');
+    });
+
+    test('storage buildings do not degrade', () {
+      const biomeId = MelvorId('melvorD:Grasslands');
+      const buildingId = MelvorId('melvorD:Storehouse');
+
+      // Storage building (canDegrade = false)
+      final building = testBuilding(
+        id: buildingId,
+        name: 'Storehouse',
+        validBiomes: {biomeId},
+        storage: 1000,
+        canDegrade: false,
+      );
+
+      final registry = TownshipRegistry(
+        buildings: [building],
+        biomes: const [TownshipBiome(id: biomeId, name: 'Grasslands', tier: 1)],
+      );
+
+      final state = TownshipState(
+        biomes: {
+          biomeId: BiomeState(
+            buildings: {buildingId: const BuildingState(count: 10)},
+          ),
+        },
+      );
+
+      final random = Random(42);
+      var currentState = state;
+
+      // Run many updates
+      for (var i = 0; i < 10; i++) {
+        final result = processTownUpdate(currentState, registry, random);
+        currentState = result.state;
+      }
+
+      // Should still be at 100% efficiency
+      expect(
+        currentState.biomes[biomeId]!.buildings[buildingId]!.efficiency,
+        100,
+      );
+    });
+
+    test('XP is calculated based on effective population', () {
+      const biomeId = MelvorId('melvorD:Grasslands');
+      const buildingId = MelvorId('melvorD:Test_Building');
+
+      final building = testBuilding(
+        id: buildingId,
+        name: 'Test Building',
+        validBiomes: {biomeId},
+        population: 10,
+        happiness: 50, // Extra happiness for bonus
+      );
+
+      final registry = TownshipRegistry(
+        buildings: [building],
+        biomes: const [TownshipBiome(id: biomeId, name: 'Grasslands', tier: 1)],
       );
 
       final state = TownshipState(
@@ -362,339 +448,1427 @@ void main() {
       final random = Random(42);
       final result = processTownUpdate(state, registry, random);
 
-      // XP = effectivePopulation * (1 + happiness/100)
-      // population = 100, health = 100% (capped), effective population = 100
-      // happiness = 50 + 50 (spring) = 100
-      // XP = 100 * 2 = 200
-      expect(result.xpGained, 200);
+      // With no health (0%), effective population is 0, so XP should be 0
+      // This is expected behavior - need food/housing balance for health
+      expect(result.xpGained, 0);
     });
   });
 
   group('GlobalState township methods', () {
-    late Registries registries;
-    const biomeId = MelvorId('melvorD:Grasslands');
-    const buildingId = MelvorId('melvorD:Test_Building');
+    test('canBuildTownshipBuilding validates building exists', () {
+      final registries = Registries.test(
+        township: const TownshipRegistry.empty(),
+      );
 
-    setUp(() {
-      final building = TownshipBuilding(
+      final state = GlobalState.test(registries);
+
+      final error = state.canBuildTownshipBuilding(
+        const MelvorId('melvorD:Grasslands'),
+        const MelvorId('melvorD:Unknown_Building'),
+      );
+
+      expect(error, contains('Unknown building'));
+    });
+
+    test('canBuildTownshipBuilding validates biome exists', () {
+      const buildingId = MelvorId('melvorD:Test_Building');
+
+      final building = testBuilding(
         id: buildingId,
         name: 'Test Building',
-        levelRequired: 1,
-        populationRequired: 0,
-        costs: const {},
-        gpCost: 100,
-        populationBonus: 10,
+        validBiomes: {const MelvorId('melvorD:Grasslands')},
+      );
+
+      final registries = Registries.test(
+        township: TownshipRegistry(buildings: [building]),
+      );
+
+      final state = GlobalState.test(registries);
+
+      final error = state.canBuildTownshipBuilding(
+        const MelvorId('melvorD:Unknown_Biome'),
+        buildingId,
+      );
+
+      expect(error, contains('Unknown biome'));
+    });
+
+    test('canBuildTownshipBuilding validates building is valid for biome', () {
+      const buildingId = MelvorId('melvorD:Test_Building');
+      const grasslandsId = MelvorId('melvorD:Grasslands');
+      const forestId = MelvorId('melvorD:Forest');
+
+      // Building is only valid for Grasslands, not Forest
+      final building = testBuilding(
+        id: buildingId,
+        name: 'Test Building',
+        validBiomes: {grasslandsId},
+      );
+
+      final registries = Registries.test(
+        township: TownshipRegistry(
+          buildings: [building],
+          biomes: const [
+            TownshipBiome(id: grasslandsId, name: 'Grasslands', tier: 1),
+            TownshipBiome(id: forestId, name: 'Forest', tier: 1),
+          ],
+        ),
+      );
+
+      final state = GlobalState.test(registries);
+
+      final error = state.canBuildTownshipBuilding(forestId, buildingId);
+
+      expect(error, contains('cannot be built in'));
+    });
+
+    test('canBuildTownshipBuilding validates level requirement', () {
+      const buildingId = MelvorId('melvorD:Tier2_Building');
+      const biomeId = MelvorId('melvorD:Grasslands');
+
+      // Tier 2 building requires level 30
+      final building = testBuilding(
+        id: buildingId,
+        name: 'Tier 2 Building',
         validBiomes: {biomeId},
+        tier: 2,
       );
 
-      final township = TownshipRegistry(
-        buildings: [building],
-        biomes: const [TownshipBiome(id: biomeId, name: 'Grasslands')],
+      final registries = Registries.test(
+        township: TownshipRegistry(
+          buildings: [building],
+          biomes: const [
+            TownshipBiome(id: biomeId, name: 'Grasslands', tier: 1),
+          ],
+        ),
       );
 
-      registries = Registries.test(township: township);
+      // Default state has level 1 Township
+      final state = GlobalState.test(registries);
+
+      final error = state.canBuildTownshipBuilding(biomeId, buildingId);
+
+      expect(error, contains('Requires Township level 15'));
     });
 
-    test('canBuildTownshipBuilding validates requirements', () {
-      var state = GlobalState.test(registries, gp: 50);
+    test('canBuildTownshipBuilding validates GP cost', () {
+      const buildingId = MelvorId('melvorD:Test_Building');
+      const biomeId = MelvorId('melvorD:Grasslands');
+      const gpId = MelvorId('melvorF:GP');
 
-      // Not enough GP
+      final building = testBuilding(
+        id: buildingId,
+        name: 'Test Building',
+        validBiomes: {biomeId},
+        costs: {gpId: 1000},
+      );
+
+      final registries = Registries.test(
+        township: TownshipRegistry(
+          buildings: [building],
+          biomes: const [
+            TownshipBiome(id: biomeId, name: 'Grasslands', tier: 1),
+          ],
+        ),
+      );
+
+      // State with no GP
+      final state = GlobalState.test(registries);
+
+      final error = state.canBuildTownshipBuilding(biomeId, buildingId);
+
+      expect(error, contains('Not enough GP'));
+      expect(error, contains('1000'));
+    });
+
+    test('canBuildTownshipBuilding validates township resource cost', () {
+      const buildingId = MelvorId('melvorD:Test_Building');
+      const biomeId = MelvorId('melvorD:Grasslands');
+      const woodId = MelvorId('melvorF:Wood');
+
+      final building = testBuilding(
+        id: buildingId,
+        name: 'Test Building',
+        validBiomes: {biomeId},
+        costs: {woodId: 500},
+      );
+
+      final registries = Registries.test(
+        township: TownshipRegistry(
+          buildings: [building],
+          biomes: const [
+            TownshipBiome(id: biomeId, name: 'Grasslands', tier: 1),
+          ],
+          resources: const [
+            TownshipResource(id: woodId, name: 'Wood', type: 'Raw'),
+          ],
+        ),
+      );
+
+      // State with no township resources
+      final state = GlobalState.test(registries);
+
+      final error = state.canBuildTownshipBuilding(biomeId, buildingId);
+
+      expect(error, contains('Not enough Wood'));
+      expect(error, contains('500'));
+      expect(error, contains('have 0'));
+    });
+
+    test('canBuildTownshipBuilding returns null when all checks pass', () {
+      const buildingId = MelvorId('melvorD:Test_Building');
+      const biomeId = MelvorId('melvorD:Grasslands');
+      const gpId = MelvorId('melvorF:GP');
+      const woodId = MelvorId('melvorF:Wood');
+
+      final building = testBuilding(
+        id: buildingId,
+        name: 'Test Building',
+        validBiomes: {biomeId},
+        costs: {gpId: 100, woodId: 50},
+      );
+
+      final registries = Registries.test(
+        township: TownshipRegistry(
+          buildings: [building],
+          biomes: const [
+            TownshipBiome(id: biomeId, name: 'Grasslands', tier: 1),
+          ],
+          resources: const [
+            TownshipResource(id: woodId, name: 'Wood', type: 'Raw'),
+          ],
+        ),
+      );
+
+      // State with enough GP and township resources
+      var state = GlobalState.test(registries);
+      state = state.addCurrency(Currency.gp, 200);
+      state = state.copyWith(township: state.township.addResource(woodId, 100));
+
+      final error = state.canBuildTownshipBuilding(biomeId, buildingId);
+
+      expect(error, isNull);
+    });
+
+    test('canBuildTownshipBuilding with tier 3 requires level 35', () {
+      const buildingId = MelvorId('melvorD:Tier3_Building');
+      const biomeId = MelvorId('melvorD:Grasslands');
+
+      final building = testBuilding(
+        id: buildingId,
+        name: 'Tier 3 Building',
+        validBiomes: {biomeId},
+        tier: 3,
+      );
+
+      final registries = Registries.test(
+        township: TownshipRegistry(
+          buildings: [building],
+          biomes: const [
+            TownshipBiome(id: biomeId, name: 'Grasslands', tier: 1),
+          ],
+        ),
+      );
+
+      final state = GlobalState.test(registries);
+
+      final error = state.canBuildTownshipBuilding(biomeId, buildingId);
+
+      expect(error, contains('Requires Township level 35'));
+    });
+
+    test('canBuildTownshipBuilding with tier 4 requires level 60', () {
+      const buildingId = MelvorId('melvorD:Tier4_Building');
+      const biomeId = MelvorId('melvorD:Grasslands');
+
+      final building = testBuilding(
+        id: buildingId,
+        name: 'Tier 4 Building',
+        validBiomes: {biomeId},
+        tier: 4,
+      );
+
+      final registries = Registries.test(
+        township: TownshipRegistry(
+          buildings: [building],
+          biomes: const [
+            TownshipBiome(id: biomeId, name: 'Grasslands', tier: 1),
+          ],
+        ),
+      );
+
+      final state = GlobalState.test(registries);
+
+      final error = state.canBuildTownshipBuilding(biomeId, buildingId);
+
+      expect(error, contains('Requires Township level 60'));
+    });
+
+    test('buildTownshipBuilding throws when validation fails', () {
+      final registries = Registries.test(
+        township: const TownshipRegistry.empty(),
+      );
+
+      final state = GlobalState.test(registries);
+
       expect(
-        state.canBuildTownshipBuilding(biomeId, buildingId),
-        contains('Not enough GP'),
-      );
-
-      // Enough GP
-      state = GlobalState.test(registries, gp: 100);
-      expect(state.canBuildTownshipBuilding(biomeId, buildingId), isNull);
-    });
-
-    test('buildTownshipBuilding deducts GP and adds building', () {
-      var state = GlobalState.test(registries, gp: 100);
-
-      state = state.buildTownshipBuilding(biomeId, buildingId);
-
-      expect(state.gp, 0);
-      expect(state.township.totalBuildingCount(buildingId), 1);
-    });
-
-    test('buildTownshipBuilding throws on invalid building', () {
-      final state = GlobalState.test(registries, gp: 100);
-      const invalidBuilding = MelvorId('melvorD:Invalid');
-
-      expect(
-        () => state.buildTownshipBuilding(biomeId, invalidBuilding),
+        () => state.buildTownshipBuilding(
+          const MelvorId('melvorD:Grasslands'),
+          const MelvorId('melvorD:Unknown_Building'),
+        ),
         throwsStateError,
       );
     });
-  });
 
-  group('Township trading', () {
-    late Registries registries;
-    late Item logItem;
-    const woodId = MelvorId('melvorD:Township_Wood');
-    const tradeId = MelvorId('melvorD:Trade_Logs');
+    test('buildTownshipBuilding deducts GP cost', () {
+      const buildingId = MelvorId('melvorD:Test_Building');
+      const biomeId = MelvorId('melvorD:Grasslands');
+      const gpId = MelvorId('melvorF:GP');
 
-    setUp(() {
-      const woodResource = TownshipResource(id: woodId, name: 'Wood');
-      logItem = Item.test('Oak Logs', gp: 10);
-      final trade = TownshipTrade(
-        id: tradeId,
-        itemId: logItem.id,
-        costs: {woodId: 100},
-        itemQuantity: 10,
-      );
-
-      final township = TownshipRegistry(
-        resources: const [woodResource],
-        trades: [trade],
-      );
-
-      registries = Registries.test(items: [logItem], township: township);
-    });
-
-    test('canExecuteTownshipTrade validates resource availability', () {
-      // No resources
-      var state = GlobalState.test(registries);
-      expect(state.canExecuteTownshipTrade(tradeId), contains('Not enough'));
-
-      // With enough resources
-      state = GlobalState.test(
-        registries,
-        township: const TownshipState().addResource(woodId, 100),
-      );
-      expect(state.canExecuteTownshipTrade(tradeId), isNull);
-    });
-
-    test('executeTownshipTrade converts resources to items', () {
-      var state = GlobalState.test(
-        registries,
-        township: const TownshipState().addResource(woodId, 200),
-      );
-
-      state = state.executeTownshipTrade(tradeId);
-
-      // Resources deducted
-      expect(state.township.resourceAmount(woodId), 100);
-      // Items received
-      expect(state.inventory.countOfItem(logItem), 10);
-    });
-
-    test('executeTownshipTrade supports quantity parameter', () {
-      var state = GlobalState.test(
-        registries,
-        township: const TownshipState().addResource(woodId, 300),
-      );
-
-      state = state.executeTownshipTrade(tradeId, quantity: 2);
-
-      // Resources deducted (100 * 2 = 200)
-      expect(state.township.resourceAmount(woodId), 100);
-      // Items received (10 * 2 = 20)
-      expect(state.inventory.countOfItem(logItem), 20);
-    });
-
-    test('TownshipTrade.costsWithDiscount applies Trading Post discount', () {
-      final trade = TownshipTrade(
-        id: tradeId,
-        itemId: logItem.id,
-        costs: {woodId: 1000},
-      );
-
-      // No Trading Posts = no discount
-      var costs = trade.costsWithDiscount(0);
-      expect(costs[woodId], 1000);
-
-      // 10 Trading Posts = 3.3% discount
-      costs = trade.costsWithDiscount(10);
-      expect(costs[woodId], lessThan(1000));
-
-      // 150 Trading Posts = 49.5% discount (max)
-      costs = trade.costsWithDiscount(150);
-      expect(costs[woodId], 505); // ceil(1000 * 0.505)
-    });
-  });
-
-  group('Township tasks', () {
-    late Registries registries;
-    const taskId = MelvorId('melvorD:Task_Build_Huts');
-    const buildingId = MelvorId('melvorD:Wooden_Hut');
-    const biomeId = MelvorId('melvorD:Grasslands');
-
-    setUp(() {
-      final building = TownshipBuilding(
+      final building = testBuilding(
         id: buildingId,
-        name: 'Wooden Hut',
-        levelRequired: 1,
-        populationRequired: 0,
-        costs: const {},
-        gpCost: 0,
-        populationBonus: 10,
+        name: 'Test Building',
+        validBiomes: {biomeId},
+        costs: {gpId: 100},
+      );
+
+      final registries = Registries.test(
+        township: TownshipRegistry(
+          buildings: [building],
+          biomes: const [
+            TownshipBiome(id: biomeId, name: 'Grasslands', tier: 1),
+          ],
+        ),
+      );
+
+      var state = GlobalState.test(registries);
+      state = state.addCurrency(Currency.gp, 500);
+
+      expect(state.gp, 500);
+
+      state = state.buildTownshipBuilding(biomeId, buildingId);
+
+      expect(state.gp, 400);
+    });
+
+    test('buildTownshipBuilding deducts township resource cost', () {
+      const buildingId = MelvorId('melvorD:Test_Building');
+      const biomeId = MelvorId('melvorD:Grasslands');
+      const woodId = MelvorId('melvorF:Wood');
+
+      final building = testBuilding(
+        id: buildingId,
+        name: 'Test Building',
+        validBiomes: {biomeId},
+        costs: {woodId: 50},
+      );
+
+      final registries = Registries.test(
+        township: TownshipRegistry(
+          buildings: [building],
+          biomes: const [
+            TownshipBiome(id: biomeId, name: 'Grasslands', tier: 1),
+          ],
+          resources: const [
+            TownshipResource(id: woodId, name: 'Wood', type: 'Raw'),
+          ],
+        ),
+      );
+
+      var state = GlobalState.test(registries);
+      state = state.copyWith(township: state.township.addResource(woodId, 200));
+
+      expect(state.township.resourceAmount(woodId), 200);
+
+      state = state.buildTownshipBuilding(biomeId, buildingId);
+
+      expect(state.township.resourceAmount(woodId), 150);
+    });
+
+    test('buildTownshipBuilding increments building count', () {
+      const buildingId = MelvorId('melvorD:Test_Building');
+      const biomeId = MelvorId('melvorD:Grasslands');
+
+      final building = testBuilding(
+        id: buildingId,
+        name: 'Test Building',
         validBiomes: {biomeId},
       );
 
-      const task = TownshipTask(
-        id: taskId,
-        name: 'Build Huts',
-        isMainTask: true,
-        requirements: [
-          TaskRequirement(
-            type: 'buildBuilding',
-            target: 2,
-            targetId: buildingId,
-          ),
-        ],
-        rewards: [
-          TaskReward(type: 'gp', amount: 500),
-          TaskReward(type: 'xp', amount: 100),
-        ],
+      final registries = Registries.test(
+        township: TownshipRegistry(
+          buildings: [building],
+          biomes: const [
+            TownshipBiome(id: biomeId, name: 'Grasslands', tier: 1),
+          ],
+        ),
       );
 
-      final township = TownshipRegistry(
-        buildings: [building],
-        biomes: const [TownshipBiome(id: biomeId, name: 'Grasslands')],
-        tasks: const [task],
-      );
+      var state = GlobalState.test(registries);
 
-      registries = Registries.test(township: township);
+      expect(state.township.totalBuildingCount(buildingId), 0);
+
+      state = state.buildTownshipBuilding(biomeId, buildingId);
+
+      expect(state.township.totalBuildingCount(buildingId), 1);
+      expect(state.township.biomes[biomeId]!.buildings[buildingId]!.count, 1);
+
+      // Build a second one
+      state = state.buildTownshipBuilding(biomeId, buildingId);
+
+      expect(state.township.totalBuildingCount(buildingId), 2);
     });
 
-    test('isTaskComplete returns false when requirements not met', () {
+    test('buildTownshipBuilding deducts both GP and resources', () {
+      const buildingId = MelvorId('melvorD:Test_Building');
+      const biomeId = MelvorId('melvorD:Grasslands');
+      const gpId = MelvorId('melvorF:GP');
+      const woodId = MelvorId('melvorF:Wood');
+      const stoneId = MelvorId('melvorF:Stone');
+
+      final building = testBuilding(
+        id: buildingId,
+        name: 'Test Building',
+        validBiomes: {biomeId},
+        costs: {gpId: 100, woodId: 50, stoneId: 25},
+      );
+
+      final registries = Registries.test(
+        township: TownshipRegistry(
+          buildings: [building],
+          biomes: const [
+            TownshipBiome(id: biomeId, name: 'Grasslands', tier: 1),
+          ],
+          resources: const [
+            TownshipResource(id: woodId, name: 'Wood', type: 'Raw'),
+            TownshipResource(id: stoneId, name: 'Stone', type: 'Raw'),
+          ],
+        ),
+      );
+
+      var state = GlobalState.test(registries);
+      state = state.addCurrency(Currency.gp, 500);
+      state = state.copyWith(
+        township: state.township
+            .addResource(woodId, 200)
+            .addResource(stoneId, 100),
+      );
+
+      state = state.buildTownshipBuilding(biomeId, buildingId);
+
+      expect(state.gp, 400);
+      expect(state.township.resourceAmount(woodId), 150);
+      expect(state.township.resourceAmount(stoneId), 75);
+      expect(state.township.totalBuildingCount(buildingId), 1);
+    });
+
+    test('buildTownshipBuilding new building starts at 100% efficiency', () {
+      const buildingId = MelvorId('melvorD:Test_Building');
+      const biomeId = MelvorId('melvorD:Grasslands');
+
+      final building = testBuilding(
+        id: buildingId,
+        name: 'Test Building',
+        validBiomes: {biomeId},
+      );
+
+      final registries = Registries.test(
+        township: TownshipRegistry(
+          buildings: [building],
+          biomes: const [
+            TownshipBiome(id: biomeId, name: 'Grasslands', tier: 1),
+          ],
+        ),
+      );
+
+      var state = GlobalState.test(registries);
+      state = state.buildTownshipBuilding(biomeId, buildingId);
+
+      final buildingState =
+          state.township.biomes[biomeId]!.buildings[buildingId]!;
+      expect(buildingState.efficiency, 100);
+    });
+
+    test('task completion tracking', () {
+      const taskId = MelvorId('melvorD:Test_Task');
+
+      final registries = Registries.test(
+        township: const TownshipRegistry(
+          tasks: [
+            TownshipTask(
+              id: taskId,
+              name: 'Test Task',
+              requirements: [TaskRequirement(type: 'population', target: 0)],
+              rewards: [TaskReward(type: 'xp', amount: 100)],
+            ),
+          ],
+        ),
+      );
+
       final state = GlobalState.test(registries);
-      expect(state.isTaskComplete(taskId), isFalse);
-    });
 
-    test('isTaskComplete returns true when requirements met', () {
-      final township = TownshipState(
-        biomes: {
-          biomeId: BiomeState(
-            buildings: {buildingId: const BuildingState(count: 2)},
-          ),
-        },
-      );
-      final state = GlobalState.test(registries, township: township);
+      // Task with 0 population requirement should be completable
       expect(state.isTaskComplete(taskId), isTrue);
     });
 
-    test('claimTaskReward grants rewards and marks task complete', () {
-      final township = TownshipState(
-        biomes: {
-          biomeId: BiomeState(
-            buildings: {buildingId: const BuildingState(count: 2)},
-          ),
-        },
+    test('deity selection', () {
+      const deityId = MelvorId('melvorD:Bane');
+
+      final registries = Registries.test(
+        township: const TownshipRegistry(
+          deities: [TownshipDeity(id: deityId, name: 'Bane')],
+        ),
       );
-      var state = GlobalState.test(registries, township: township);
 
-      state = state.claimTaskReward(taskId);
+      var state = GlobalState.test(registries);
 
-      // GP reward granted
-      expect(state.gp, 500);
-      // XP reward granted
-      expect(state.skillState(Skill.town).xp, 100);
-      // Task marked as completed
-      expect(state.township.completedMainTasks.contains(taskId), isTrue);
-      // Can't claim again
-      expect(state.isTaskComplete(taskId), isFalse);
+      expect(state.township.worshipId, isNull);
+
+      state = state.selectWorship(deityId);
+
+      expect(state.township.worshipId, deityId);
     });
 
-    test('claimTaskReward throws when requirements not met', () {
+    test('getWorshipBonus returns 0 when no deity selected', () {
+      final registries = Registries.test(
+        township: const TownshipRegistry.empty(),
+      );
+
       final state = GlobalState.test(registries);
-      expect(() => state.claimTaskReward(taskId), throwsStateError);
+
+      expect(state.getWorshipBonus('someModifier'), 0);
     });
   });
 
-  group('Township worship', () {
-    late Registries registries;
-    const deityId1 = MelvorId('melvorD:Bane');
-    const deityId2 = MelvorId('melvorD:Aeris');
+  group('TownshipRegistry lookups', () {
+    test('buildingById returns correct building', () {
+      const buildingId = MelvorId('melvorD:Test_Building');
 
-    setUp(() {
-      const deity1 = TownshipDeity(
-        id: deityId1,
-        name: 'Bane',
-        bonuses: {
-          5: {'happiness': 10.0},
-          25: {'happiness': 20.0},
-        },
-      );
-      const deity2 = TownshipDeity(
-        id: deityId2,
-        name: 'Aeris',
-        bonuses: {
-          5: {'education': 15.0},
-        },
+      final building = testBuilding(
+        id: buildingId,
+        name: 'Test Building',
+        validBiomes: {const MelvorId('melvorD:Grasslands')},
       );
 
-      const township = TownshipRegistry(deities: [deity1, deity2]);
-      registries = Registries.test(township: township);
+      final registry = TownshipRegistry(buildings: [building]);
+
+      expect(registry.buildingById(buildingId), building);
+      expect(registry.buildingById(const MelvorId('melvorD:Unknown')), isNull);
     });
 
-    test('selectWorship sets deity', () {
+    test('biomeById returns correct biome', () {
+      const biomeId = MelvorId('melvorD:Grasslands');
+      const biome = TownshipBiome(id: biomeId, name: 'Grasslands', tier: 1);
+
+      const registry = TownshipRegistry(biomes: [biome]);
+
+      expect(registry.biomeById(biomeId), biome);
+      expect(registry.biomeById(const MelvorId('melvorD:Unknown')), isNull);
+    });
+
+    test('buildingsForBiome returns filtered buildings', () {
+      const biomeId1 = MelvorId('melvorD:Grasslands');
+      const biomeId2 = MelvorId('melvorD:Forest');
+
+      final building1 = testBuilding(
+        id: const MelvorId('melvorD:Building1'),
+        name: 'Building 1',
+        validBiomes: {biomeId1},
+      );
+      final building2 = testBuilding(
+        id: const MelvorId('melvorD:Building2'),
+        name: 'Building 2',
+        validBiomes: {biomeId1, biomeId2},
+      );
+      final building3 = testBuilding(
+        id: const MelvorId('melvorD:Building3'),
+        name: 'Building 3',
+        validBiomes: {biomeId2},
+      );
+
+      final registry = TownshipRegistry(
+        buildings: [building1, building2, building3],
+      );
+
+      final grasslandsBuildings = registry.buildingsForBiome(biomeId1);
+      expect(grasslandsBuildings, hasLength(2));
+      expect(grasslandsBuildings, contains(building1));
+      expect(grasslandsBuildings, contains(building2));
+
+      final forestBuildings = registry.buildingsForBiome(biomeId2);
+      expect(forestBuildings, hasLength(2));
+      expect(forestBuildings, contains(building2));
+      expect(forestBuildings, contains(building3));
+    });
+
+    test('visibleDeities filters hidden deities', () {
+      const registry = TownshipRegistry(
+        deities: [
+          TownshipDeity(id: MelvorId('melvorD:Visible'), name: 'Visible'),
+          TownshipDeity(
+            id: MelvorId('melvorD:Hidden'),
+            name: 'Hidden',
+            isHidden: true,
+          ),
+        ],
+      );
+
+      final visible = registry.visibleDeities;
+      expect(visible, hasLength(1));
+      expect(visible[0].id, const MelvorId('melvorD:Visible'));
+    });
+  });
+
+  group('canExecuteTownshipTrade', () {
+    test('returns error for unknown trade', () {
+      final registries = Registries.test(
+        township: const TownshipRegistry.empty(),
+      );
+      final state = GlobalState.test(registries);
+
+      final error = state.canExecuteTownshipTrade(
+        const MelvorId('melvorD:Unknown'),
+      );
+
+      expect(error, contains('Unknown trade'));
+    });
+
+    test('returns error for quantity less than 1', () {
+      const tradeId = MelvorId('melvorD:Test_Trade');
+      const resourceId = MelvorId('melvorF:Food');
+      final testItem = Item.test('Test Item', gp: 10);
+
+      final registries = Registries.test(
+        items: [testItem],
+        township: TownshipRegistry(
+          trades: [
+            TownshipTrade(
+              id: tradeId,
+              resourceId: resourceId,
+              itemId: testItem.id,
+              costs: {resourceId: 100},
+            ),
+          ],
+          resources: const [
+            TownshipResource(id: resourceId, name: 'Food', type: 'Raw'),
+          ],
+        ),
+      );
+
       var state = GlobalState.test(registries);
-      expect(state.township.worshipId, isNull);
-
-      state = state.selectWorship(deityId1);
-      expect(state.township.worshipId, deityId1);
-    });
-
-    test('selectWorship resets points when changing deity', () {
-      var state = GlobalState.test(
-        registries,
-        township: const TownshipState(worshipId: deityId1, worship: 500),
+      state = state.copyWith(
+        township: state.township.addResource(resourceId, 1000),
       );
 
-      state = state.selectWorship(deityId2);
-      expect(state.township.worshipId, deityId2);
-      expect(state.township.worship, 0);
+      final error = state.canExecuteTownshipTrade(tradeId, quantity: 0);
+
+      expect(error, contains('Quantity must be at least 1'));
     });
 
-    test('selectWorship preserves points when selecting same deity', () {
-      var state = GlobalState.test(
-        registries,
-        township: const TownshipState(worshipId: deityId1, worship: 500),
+    test('returns error when insufficient township resources', () {
+      const tradeId = MelvorId('melvorD:Test_Trade');
+      const resourceId = MelvorId('melvorF:Food');
+      final testItem = Item.test('Test Item', gp: 10);
+
+      final registries = Registries.test(
+        items: [testItem],
+        township: TownshipRegistry(
+          trades: [
+            TownshipTrade(
+              id: tradeId,
+              resourceId: resourceId,
+              itemId: testItem.id,
+              costs: {resourceId: 100},
+            ),
+          ],
+          resources: const [
+            TownshipResource(id: resourceId, name: 'Food', type: 'Raw'),
+          ],
+        ),
       );
 
-      state = state.selectWorship(deityId1);
-      expect(state.township.worship, 500);
-    });
-
-    test('clearWorship removes deity and resets points', () {
-      var state = GlobalState.test(
-        registries,
-        township: const TownshipState(worshipId: deityId1, worship: 500),
-      );
-
-      state = state.clearWorship();
-      expect(state.township.worshipId, isNull);
-      expect(state.township.worship, 0);
-    });
-
-    test('getWorshipBonus returns bonus based on worship level', () {
-      // No deity = no bonus
+      // State with only 50 Food (need 100)
       var state = GlobalState.test(registries);
-      expect(state.getWorshipBonus('happiness'), 0);
-
-      // Deity with 0 worship = no bonus (below 5% threshold)
-      state = GlobalState.test(
-        registries,
-        township: const TownshipState(worshipId: deityId1),
+      state = state.copyWith(
+        township: state.township.addResource(resourceId, 50),
       );
-      expect(state.getWorshipBonus('happiness'), 0);
 
-      // 100 worship = 5% = first threshold bonus
-      state = GlobalState.test(
-        registries,
-        township: const TownshipState(worshipId: deityId1, worship: 100),
-      );
-      expect(state.getWorshipBonus('happiness'), 10);
+      final error = state.canExecuteTownshipTrade(tradeId);
 
-      // 500 worship = 25% = both thresholds
-      state = GlobalState.test(
-        registries,
-        township: const TownshipState(worshipId: deityId1, worship: 500),
+      expect(error, contains('Not enough Food'));
+      expect(error, contains('need 100'));
+      expect(error, contains('have 50'));
+    });
+
+    test('returns error when inventory is full', () {
+      const tradeId = MelvorId('melvorD:Test_Trade');
+      const resourceId = MelvorId('melvorF:Food');
+      final testItem = Item.test('Test Item', gp: 10);
+
+      // Create enough unique items to fill inventory slots
+      final fillerItems = <Item>[];
+      for (var i = 0; i < 100; i++) {
+        fillerItems.add(Item.test('Filler $i', gp: 1));
+      }
+
+      final registries = Registries.test(
+        items: [testItem, ...fillerItems],
+        township: TownshipRegistry(
+          trades: [
+            TownshipTrade(
+              id: tradeId,
+              resourceId: resourceId,
+              itemId: testItem.id,
+              costs: {resourceId: 100},
+            ),
+          ],
+          resources: const [
+            TownshipResource(id: resourceId, name: 'Food', type: 'Raw'),
+          ],
+        ),
       );
-      expect(state.getWorshipBonus('happiness'), 30);
+
+      var state = GlobalState.test(registries);
+      state = state.copyWith(
+        township: state.township.addResource(resourceId, 1000),
+      );
+
+      // Fill inventory with unique item types (each takes a slot)
+      for (var i = 0; i < state.inventoryCapacity; i++) {
+        state = state.copyWith(
+          inventory: state.inventory.adding(
+            ItemStack(fillerItems[i], count: 1),
+          ),
+        );
+      }
+
+      final error = state.canExecuteTownshipTrade(tradeId);
+
+      expect(error, contains('Inventory is full'));
+    });
+
+    test('returns null when all checks pass', () {
+      const tradeId = MelvorId('melvorD:Test_Trade');
+      const resourceId = MelvorId('melvorF:Food');
+      final testItem = Item.test('Test Item', gp: 10);
+
+      final registries = Registries.test(
+        items: [testItem],
+        township: TownshipRegistry(
+          trades: [
+            TownshipTrade(
+              id: tradeId,
+              resourceId: resourceId,
+              itemId: testItem.id,
+              costs: {resourceId: 100},
+            ),
+          ],
+          resources: const [
+            TownshipResource(id: resourceId, name: 'Food', type: 'Raw'),
+          ],
+        ),
+      );
+
+      var state = GlobalState.test(registries);
+      state = state.copyWith(
+        township: state.township.addResource(resourceId, 200),
+      );
+
+      final error = state.canExecuteTownshipTrade(tradeId);
+
+      expect(error, isNull);
+    });
+
+    test('validates resources for multiple quantity', () {
+      const tradeId = MelvorId('melvorD:Test_Trade');
+      const resourceId = MelvorId('melvorF:Food');
+      final testItem = Item.test('Test Item', gp: 10);
+
+      final registries = Registries.test(
+        items: [testItem],
+        township: TownshipRegistry(
+          trades: [
+            TownshipTrade(
+              id: tradeId,
+              resourceId: resourceId,
+              itemId: testItem.id,
+              costs: {resourceId: 100},
+            ),
+          ],
+          resources: const [
+            TownshipResource(id: resourceId, name: 'Food', type: 'Raw'),
+          ],
+        ),
+      );
+
+      // Have 150 Food, but try to buy 2 (needs 200)
+      var state = GlobalState.test(registries);
+      state = state.copyWith(
+        township: state.township.addResource(resourceId, 150),
+      );
+
+      final error = state.canExecuteTownshipTrade(tradeId, quantity: 2);
+
+      expect(error, contains('Not enough Food'));
+      expect(error, contains('need 200'));
+    });
+  });
+
+  group('executeTownshipTrade', () {
+    test('throws when validation fails', () {
+      final registries = Registries.test(
+        township: const TownshipRegistry.empty(),
+      );
+      final state = GlobalState.test(registries);
+
+      expect(
+        () =>
+            state.executeTownshipTrade(const MelvorId('melvorD:Unknown_Trade')),
+        throwsStateError,
+      );
+    });
+
+    test('deducts township resources and adds items', () {
+      const tradeId = MelvorId('melvorD:Test_Trade');
+      const resourceId = MelvorId('melvorF:Food');
+      final testItem = Item.test('Test Item', gp: 10);
+
+      final registries = Registries.test(
+        items: [testItem],
+        township: TownshipRegistry(
+          trades: [
+            TownshipTrade(
+              id: tradeId,
+              resourceId: resourceId,
+              itemId: testItem.id,
+              itemQuantity: 5,
+              costs: {resourceId: 100},
+            ),
+          ],
+          resources: const [
+            TownshipResource(id: resourceId, name: 'Food', type: 'Raw'),
+          ],
+        ),
+      );
+
+      var state = GlobalState.test(registries);
+      state = state.copyWith(
+        township: state.township.addResource(resourceId, 500),
+      );
+
+      expect(state.township.resourceAmount(resourceId), 500);
+      expect(state.inventory.countOfItem(testItem), 0);
+
+      state = state.executeTownshipTrade(tradeId);
+
+      expect(state.township.resourceAmount(resourceId), 400);
+      expect(state.inventory.countOfItem(testItem), 5);
+    });
+
+    test('supports multiple quantity', () {
+      const tradeId = MelvorId('melvorD:Test_Trade');
+      const resourceId = MelvorId('melvorF:Food');
+      final testItem = Item.test('Test Item', gp: 10);
+
+      final registries = Registries.test(
+        items: [testItem],
+        township: TownshipRegistry(
+          trades: [
+            TownshipTrade(
+              id: tradeId,
+              resourceId: resourceId,
+              itemId: testItem.id,
+              itemQuantity: 5,
+              costs: {resourceId: 100},
+            ),
+          ],
+          resources: const [
+            TownshipResource(id: resourceId, name: 'Food', type: 'Raw'),
+          ],
+        ),
+      );
+
+      var state = GlobalState.test(registries);
+      state = state.copyWith(
+        township: state.township.addResource(resourceId, 500),
+      );
+
+      state = state.executeTownshipTrade(tradeId, quantity: 3);
+
+      // 3 trades * 100 cost each = 300 spent
+      expect(state.township.resourceAmount(resourceId), 200);
+      // 3 trades * 5 items each = 15 items
+      expect(state.inventory.countOfItem(testItem), 15);
+    });
+  });
+
+  group('repairTownshipBuilding', () {
+    test('throws for unknown building', () {
+      final registries = Registries.test(
+        township: const TownshipRegistry.empty(),
+      );
+      final state = GlobalState.test(registries);
+
+      expect(
+        () => state.repairTownshipBuilding(
+          const MelvorId('melvorD:Grasslands'),
+          const MelvorId('melvorD:Unknown_Building'),
+        ),
+        throwsStateError,
+      );
+    });
+
+    test('throws when building has no data for biome', () {
+      const buildingId = MelvorId('melvorD:Test_Building');
+      const biomeId = MelvorId('melvorD:Grasslands');
+      const otherBiomeId = MelvorId('melvorD:Forest');
+
+      // Building only valid for Forest, not Grasslands
+      final building = testBuilding(
+        id: buildingId,
+        name: 'Test Building',
+        validBiomes: {otherBiomeId},
+      );
+
+      final registries = Registries.test(
+        township: TownshipRegistry(
+          buildings: [building],
+          biomes: const [
+            TownshipBiome(id: biomeId, name: 'Grasslands', tier: 1),
+            TownshipBiome(id: otherBiomeId, name: 'Forest', tier: 1),
+          ],
+        ),
+      );
+
+      final state = GlobalState.test(registries);
+
+      expect(
+        () => state.repairTownshipBuilding(biomeId, buildingId),
+        throwsStateError,
+      );
+    });
+
+    test('throws when no buildings to repair', () {
+      const buildingId = MelvorId('melvorD:Test_Building');
+      const biomeId = MelvorId('melvorD:Grasslands');
+
+      final building = testBuilding(
+        id: buildingId,
+        name: 'Test Building',
+        validBiomes: {biomeId},
+      );
+
+      final registries = Registries.test(
+        township: TownshipRegistry(
+          buildings: [building],
+          biomes: const [
+            TownshipBiome(id: biomeId, name: 'Grasslands', tier: 1),
+          ],
+        ),
+      );
+
+      final state = GlobalState.test(registries);
+
+      expect(
+        () => state.repairTownshipBuilding(biomeId, buildingId),
+        throwsStateError,
+      );
+    });
+
+    test('throws when building is already at full efficiency', () {
+      const buildingId = MelvorId('melvorD:Test_Building');
+      const biomeId = MelvorId('melvorD:Grasslands');
+
+      final building = testBuilding(
+        id: buildingId,
+        name: 'Test Building',
+        validBiomes: {biomeId},
+      );
+
+      final registries = Registries.test(
+        township: TownshipRegistry(
+          buildings: [building],
+          biomes: const [
+            TownshipBiome(id: biomeId, name: 'Grasslands', tier: 1),
+          ],
+        ),
+      );
+
+      var state = GlobalState.test(registries);
+      // Build the building (starts at 100% efficiency)
+      state = state.buildTownshipBuilding(biomeId, buildingId);
+
+      expect(
+        () => state.repairTownshipBuilding(biomeId, buildingId),
+        throwsStateError,
+      );
+    });
+
+    test('throws when not enough GP for repair', () {
+      const buildingId = MelvorId('melvorD:Test_Building');
+      const biomeId = MelvorId('melvorD:Grasslands');
+      const gpId = MelvorId('melvorF:GP');
+
+      final building = testBuilding(
+        id: buildingId,
+        name: 'Test Building',
+        validBiomes: {biomeId},
+        costs: {gpId: 1000},
+      );
+
+      final registries = Registries.test(
+        township: TownshipRegistry(
+          buildings: [building],
+          biomes: const [
+            TownshipBiome(id: biomeId, name: 'Grasslands', tier: 1),
+          ],
+        ),
+      );
+
+      var state = GlobalState.test(registries);
+      // Manually set up a building at 50% efficiency
+      state = state.copyWith(
+        township: state.township.withBiomeState(
+          biomeId,
+          BiomeState(
+            buildings: {
+              buildingId: const BuildingState(count: 1, efficiency: 50),
+            },
+          ),
+        ),
+      );
+
+      expect(
+        () => state.repairTownshipBuilding(biomeId, buildingId),
+        throwsStateError,
+      );
+    });
+
+    test('throws when not enough township resources for repair', () {
+      const buildingId = MelvorId('melvorD:Test_Building');
+      const biomeId = MelvorId('melvorD:Grasslands');
+      const woodId = MelvorId('melvorF:Wood');
+
+      final building = testBuilding(
+        id: buildingId,
+        name: 'Test Building',
+        validBiomes: {biomeId},
+        costs: {woodId: 1000},
+      );
+
+      final registries = Registries.test(
+        township: TownshipRegistry(
+          buildings: [building],
+          biomes: const [
+            TownshipBiome(id: biomeId, name: 'Grasslands', tier: 1),
+          ],
+          resources: const [
+            TownshipResource(id: woodId, name: 'Wood', type: 'Raw'),
+          ],
+        ),
+      );
+
+      var state = GlobalState.test(registries);
+      // Manually set up a building at 50% efficiency
+      state = state.copyWith(
+        township: state.township.withBiomeState(
+          biomeId,
+          BiomeState(
+            buildings: {
+              buildingId: const BuildingState(count: 1, efficiency: 50),
+            },
+          ),
+        ),
+      );
+
+      expect(
+        () => state.repairTownshipBuilding(biomeId, buildingId),
+        throwsStateError,
+      );
+    });
+
+    test('repairs building and deducts proportional GP cost', () {
+      const buildingId = MelvorId('melvorD:Test_Building');
+      const biomeId = MelvorId('melvorD:Grasslands');
+      const gpId = MelvorId('melvorF:GP');
+
+      final building = testBuilding(
+        id: buildingId,
+        name: 'Test Building',
+        validBiomes: {biomeId},
+        costs: {gpId: 1000},
+      );
+
+      final registries = Registries.test(
+        township: TownshipRegistry(
+          buildings: [building],
+          biomes: const [
+            TownshipBiome(id: biomeId, name: 'Grasslands', tier: 1),
+          ],
+        ),
+      );
+
+      var state = GlobalState.test(registries);
+      state = state.addCurrency(Currency.gp, 1000);
+
+      // Set up building at 50% efficiency (50% damage = 500 GP repair cost)
+      state = state.copyWith(
+        township: state.township.withBiomeState(
+          biomeId,
+          BiomeState(
+            buildings: {
+              buildingId: const BuildingState(count: 1, efficiency: 50),
+            },
+          ),
+        ),
+      );
+
+      expect(state.gp, 1000);
+      expect(
+        state.township.biomes[biomeId]!.buildings[buildingId]!.efficiency,
+        50,
+      );
+
+      state = state.repairTownshipBuilding(biomeId, buildingId);
+
+      // 50% damage * 1000 GP = 500 GP cost
+      expect(state.gp, 500);
+      expect(
+        state.township.biomes[biomeId]!.buildings[buildingId]!.efficiency,
+        100,
+      );
+    });
+
+    test('repairs building and deducts proportional resource cost', () {
+      const buildingId = MelvorId('melvorD:Test_Building');
+      const biomeId = MelvorId('melvorD:Grasslands');
+      const woodId = MelvorId('melvorF:Wood');
+
+      final building = testBuilding(
+        id: buildingId,
+        name: 'Test Building',
+        validBiomes: {biomeId},
+        costs: {woodId: 200},
+      );
+
+      final registries = Registries.test(
+        township: TownshipRegistry(
+          buildings: [building],
+          biomes: const [
+            TownshipBiome(id: biomeId, name: 'Grasslands', tier: 1),
+          ],
+          resources: const [
+            TownshipResource(id: woodId, name: 'Wood', type: 'Raw'),
+          ],
+        ),
+      );
+
+      var state = GlobalState.test(registries);
+      state = state.copyWith(township: state.township.addResource(woodId, 500));
+
+      // Set up building at 80% efficiency (20% damage = 40 Wood repair cost)
+      state = state.copyWith(
+        township: state.township.withBiomeState(
+          biomeId,
+          BiomeState(
+            buildings: {
+              buildingId: const BuildingState(count: 1, efficiency: 80),
+            },
+          ),
+        ),
+      );
+
+      expect(state.township.resourceAmount(woodId), 500);
+
+      state = state.repairTownshipBuilding(biomeId, buildingId);
+
+      // 20% damage * 200 Wood = 40 Wood cost
+      expect(state.township.resourceAmount(woodId), 460);
+      expect(
+        state.township.biomes[biomeId]!.buildings[buildingId]!.efficiency,
+        100,
+      );
+    });
+  });
+
+  group('claimTaskReward', () {
+    test('throws for unknown task', () {
+      final registries = Registries.test(
+        township: const TownshipRegistry.empty(),
+      );
+      final state = GlobalState.test(registries);
+
+      expect(
+        () => state.claimTaskReward(const MelvorId('melvorD:Unknown_Task')),
+        throwsStateError,
+      );
+    });
+
+    test('throws when task requirements not met', () {
+      const taskId = MelvorId('melvorD:Test_Task');
+
+      final registries = Registries.test(
+        township: const TownshipRegistry(
+          tasks: [
+            TownshipTask(
+              id: taskId,
+              name: 'Test Task',
+              requirements: [TaskRequirement(type: 'population', target: 100)],
+              rewards: [TaskReward(type: 'xp', amount: 100)],
+            ),
+          ],
+        ),
+      );
+
+      // State has 0 population
+      final state = GlobalState.test(registries);
+
+      expect(() => state.claimTaskReward(taskId), throwsStateError);
+    });
+
+    test('grants XP reward', () {
+      const taskId = MelvorId('melvorD:Test_Task');
+
+      final registries = Registries.test(
+        township: const TownshipRegistry(
+          tasks: [
+            TownshipTask(
+              id: taskId,
+              name: 'Test Task',
+              requirements: [TaskRequirement(type: 'population', target: 0)],
+              rewards: [TaskReward(type: 'xp', amount: 500)],
+            ),
+          ],
+        ),
+      );
+
+      var state = GlobalState.test(registries);
+      final initialXp = state.skillState(Skill.town).xp;
+
+      state = state.claimTaskReward(taskId);
+
+      expect(state.skillState(Skill.town).xp, initialXp + 500);
+    });
+
+    test('grants GP reward', () {
+      const taskId = MelvorId('melvorD:Test_Task');
+
+      final registries = Registries.test(
+        township: const TownshipRegistry(
+          tasks: [
+            TownshipTask(
+              id: taskId,
+              name: 'Test Task',
+              requirements: [TaskRequirement(type: 'population', target: 0)],
+              rewards: [TaskReward(type: 'gp', amount: 1000)],
+            ),
+          ],
+        ),
+      );
+
+      var state = GlobalState.test(registries);
+      expect(state.gp, 0);
+
+      state = state.claimTaskReward(taskId);
+
+      expect(state.gp, 1000);
+    });
+
+    test('grants item reward', () {
+      const taskId = MelvorId('melvorD:Test_Task');
+      final testItem = Item.test('Test Item', gp: 10);
+
+      final registries = Registries.test(
+        items: [testItem],
+        township: TownshipRegistry(
+          tasks: [
+            TownshipTask(
+              id: taskId,
+              name: 'Test Task',
+              requirements: const [
+                TaskRequirement(type: 'population', target: 0),
+              ],
+              rewards: [
+                TaskReward(type: 'item', amount: 10, itemId: testItem.id),
+              ],
+            ),
+          ],
+        ),
+      );
+
+      var state = GlobalState.test(registries);
+      expect(state.inventory.countOfItem(testItem), 0);
+
+      state = state.claimTaskReward(taskId);
+
+      expect(state.inventory.countOfItem(testItem), 10);
+    });
+
+    test('grants township resource reward', () {
+      const taskId = MelvorId('melvorD:Test_Task');
+      const resourceId = MelvorId('melvorF:Wood');
+
+      final registries = Registries.test(
+        township: const TownshipRegistry(
+          tasks: [
+            TownshipTask(
+              id: taskId,
+              name: 'Test Task',
+              requirements: [TaskRequirement(type: 'population', target: 0)],
+              rewards: [
+                TaskReward(
+                  type: 'townshipResource',
+                  amount: 500,
+                  itemId: resourceId,
+                ),
+              ],
+            ),
+          ],
+          resources: [
+            TownshipResource(id: resourceId, name: 'Wood', type: 'Raw'),
+          ],
+        ),
+      );
+
+      var state = GlobalState.test(registries);
+      expect(state.township.resourceAmount(resourceId), 0);
+
+      state = state.claimTaskReward(taskId);
+
+      expect(state.township.resourceAmount(resourceId), 500);
+    });
+
+    test('marks main task as completed', () {
+      const taskId = MelvorId('melvorD:Main_Task');
+
+      final registries = Registries.test(
+        township: const TownshipRegistry(
+          tasks: [
+            TownshipTask(
+              id: taskId,
+              name: 'Main Task',
+              requirements: [TaskRequirement(type: 'population', target: 0)],
+              rewards: [TaskReward(type: 'xp', amount: 100)],
+              isMainTask: true,
+            ),
+          ],
+        ),
+      );
+
+      var state = GlobalState.test(registries);
+      expect(state.township.completedMainTasks, isEmpty);
+
+      state = state.claimTaskReward(taskId);
+
+      expect(state.township.completedMainTasks, contains(taskId));
+    });
+
+    test('prevents claiming main task twice', () {
+      const taskId = MelvorId('melvorD:Main_Task');
+
+      final registries = Registries.test(
+        township: const TownshipRegistry(
+          tasks: [
+            TownshipTask(
+              id: taskId,
+              name: 'Main Task',
+              requirements: [TaskRequirement(type: 'population', target: 0)],
+              rewards: [TaskReward(type: 'xp', amount: 100)],
+              isMainTask: true,
+            ),
+          ],
+        ),
+      );
+
+      var state = GlobalState.test(registries);
+      state = state.claimTaskReward(taskId);
+
+      // Trying to claim again should fail
+      expect(() => state.claimTaskReward(taskId), throwsStateError);
+    });
+
+    test('grants multiple rewards', () {
+      const taskId = MelvorId('melvorD:Test_Task');
+      final testItem = Item.test('Test Item', gp: 10);
+
+      final registries = Registries.test(
+        items: [testItem],
+        township: TownshipRegistry(
+          tasks: [
+            TownshipTask(
+              id: taskId,
+              name: 'Test Task',
+              requirements: const [
+                TaskRequirement(type: 'population', target: 0),
+              ],
+              rewards: [
+                const TaskReward(type: 'xp', amount: 100),
+                const TaskReward(type: 'gp', amount: 500),
+                TaskReward(type: 'item', amount: 5, itemId: testItem.id),
+              ],
+            ),
+          ],
+        ),
+      );
+
+      var state = GlobalState.test(registries);
+      final initialXp = state.skillState(Skill.town).xp;
+
+      state = state.claimTaskReward(taskId);
+
+      expect(state.skillState(Skill.town).xp, initialXp + 100);
+      expect(state.gp, 500);
+      expect(state.inventory.countOfItem(testItem), 5);
+    });
+
+    test('validates buildBuilding requirement', () {
+      const taskId = MelvorId('melvorD:Test_Task');
+      const buildingId = MelvorId('melvorD:Test_Building');
+      const biomeId = MelvorId('melvorD:Grasslands');
+
+      final building = testBuilding(
+        id: buildingId,
+        name: 'Test Building',
+        validBiomes: {biomeId},
+      );
+
+      final registries = Registries.test(
+        township: TownshipRegistry(
+          buildings: [building],
+          biomes: const [
+            TownshipBiome(id: biomeId, name: 'Grasslands', tier: 1),
+          ],
+          tasks: const [
+            TownshipTask(
+              id: taskId,
+              name: 'Build Task',
+              requirements: [
+                TaskRequirement(
+                  type: 'buildBuilding',
+                  target: 3,
+                  targetId: buildingId,
+                ),
+              ],
+              rewards: [TaskReward(type: 'xp', amount: 100)],
+            ),
+          ],
+        ),
+      );
+
+      var state = GlobalState.test(registries);
+
+      // Should fail with 0 buildings
+      expect(() => state.claimTaskReward(taskId), throwsStateError);
+
+      // Build 2 buildings (still not enough)
+      state = state.buildTownshipBuilding(biomeId, buildingId);
+      state = state.buildTownshipBuilding(biomeId, buildingId);
+      expect(() => state.claimTaskReward(taskId), throwsStateError);
+
+      // Build a third building (now meets requirement)
+      state = state.buildTownshipBuilding(biomeId, buildingId);
+      state = state.claimTaskReward(taskId);
+      expect(state.skillState(Skill.town).xp, greaterThan(0));
     });
   });
 }

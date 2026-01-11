@@ -1341,32 +1341,36 @@ class GlobalState {
       return '${building.name} cannot be built in ${biome.name}';
     }
 
-    // Check level requirement
+    // Get biome-specific data
+    final biomeData = building.dataForBiome(biomeId);
+    if (biomeData == null) {
+      return '${building.name} has no data for ${biome.name}';
+    }
+
+    // Check level requirement (tier 1 = level 1, tier 2 = level 30, etc.)
     final townshipLevel = skillState(Skill.town).skillLevel;
-    if (townshipLevel < building.levelRequired) {
-      return 'Requires Township level ${building.levelRequired}';
+    final levelRequired = TownshipRegistry.tierToLevel(building.tier);
+    if (townshipLevel < levelRequired) {
+      return 'Requires Township level $levelRequired';
     }
 
-    // Check population requirement
-    final stats = TownshipStats.calculate(township, registries.township);
-    if (stats.population < building.populationRequired) {
-      return 'Requires ${building.populationRequired} population';
-    }
-
-    // Check GP cost
-    if (gp < building.gpCost) {
-      return 'Not enough GP (need ${building.gpCost})';
-    }
-
-    // Check resource costs
-    for (final entry in building.costs.entries) {
+    // Check resource costs (including GP)
+    for (final entry in biomeData.costs.entries) {
       final resourceId = entry.key;
       final required = entry.value;
-      final available = township.resourceAmount(resourceId);
-      if (available < required) {
-        final resource = registries.township.resourceById(resourceId);
-        final name = resource?.name ?? resourceId.toString();
-        return 'Not enough $name (need $required, have $available)';
+
+      // GP is a special case - check against player currencies
+      if (resourceId.localId == 'GP') {
+        if (gp < required) {
+          return 'Not enough GP (need $required)';
+        }
+      } else {
+        final available = township.resourceAmount(resourceId);
+        if (available < required) {
+          final resource = registries.township.resourceById(resourceId);
+          final name = resource?.name ?? resourceId.localId;
+          return 'Not enough $name (need $required, have $available)';
+        }
       }
     }
 
@@ -1380,14 +1384,23 @@ class GlobalState {
     if (error != null) throw StateError(error);
 
     final building = registries.township.buildingById(buildingId)!;
+    final biomeData = building.dataForBiome(biomeId)!;
 
-    // Deduct GP
-    final state = addCurrency(Currency.gp, -building.gpCost);
+    // Deduct costs (GP and township resources)
+    var state = this;
+    var newTownship = township;
 
-    // Deduct township resources
-    var newTownship = state.township;
-    for (final entry in building.costs.entries) {
-      newTownship = newTownship.removeResource(entry.key, entry.value);
+    for (final entry in biomeData.costs.entries) {
+      final resourceId = entry.key;
+      final cost = entry.value;
+
+      if (resourceId.localId == 'GP') {
+        // Deduct GP from player currencies
+        state = state.addCurrency(Currency.gp, -cost);
+      } else {
+        // Deduct township resources
+        newTownship = newTownship.removeResource(resourceId, cost);
+      }
     }
 
     // Increment building count
@@ -1619,6 +1632,11 @@ class GlobalState {
     final building = registries.township.buildingById(buildingId);
     if (building == null) throw StateError('Unknown building: $buildingId');
 
+    final biomeData = building.dataForBiome(biomeId);
+    if (biomeData == null) {
+      throw StateError('${building.name} has no data for biome $biomeId');
+    }
+
     final biomeState = township.biomeState(biomeId);
     final buildingState = biomeState.buildingState(buildingId);
 
@@ -1633,23 +1651,30 @@ class GlobalState {
     // Calculate repair cost: proportion of original cost based on damage
     final damagePercent = (100 - buildingState.efficiency) / 100;
 
-    // Deduct GP repair cost
-    final gpRepairCost = (building.gpCost * damagePercent).ceil();
-    if (gp < gpRepairCost) {
-      throw StateError('Not enough GP for repair (need $gpRepairCost)');
-    }
-    final state = addCurrency(Currency.gp, -gpRepairCost);
+    // Deduct repair costs (proportional to original costs)
+    var state = this;
+    var newTownship = township;
 
-    // Deduct resource repair costs
-    var newTownship = state.township;
-    for (final entry in building.costs.entries) {
+    for (final entry in biomeData.costs.entries) {
+      final resourceId = entry.key;
       final repairCost = (entry.value * damagePercent).ceil();
-      final available = newTownship.resourceAmount(entry.key);
-      if (available < repairCost) {
-        final resource = registries.township.resourceById(entry.key);
-        throw StateError('Not enough ${resource?.name ?? entry.key}');
+
+      if (resourceId.localId == 'GP') {
+        // Deduct GP from player currencies
+        if (gp < repairCost) {
+          throw StateError('Not enough GP for repair (need $repairCost)');
+        }
+        state = state.addCurrency(Currency.gp, -repairCost);
+      } else {
+        // Deduct township resources
+        final available = newTownship.resourceAmount(resourceId);
+        if (available < repairCost) {
+          final resource = registries.township.resourceById(resourceId);
+          final name = resource?.name ?? resourceId.localId;
+          throw StateError('Not enough $name');
+        }
+        newTownship = newTownship.removeResource(resourceId, repairCost);
       }
-      newTownship = newTownship.removeResource(entry.key, repairCost);
     }
 
     // Restore efficiency to 100%

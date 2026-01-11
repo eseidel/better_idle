@@ -613,3 +613,33 @@ class StartCookingAction extends ReduxAction<GlobalState> {
     return state.startAction(recipe, random: random);
   }
 }
+
+// ============================================================================
+// Township Actions
+// ============================================================================
+
+/// Selects a deity for Township worship.
+class SelectTownshipDeityAction extends ReduxAction<GlobalState> {
+  SelectTownshipDeityAction({required this.deityId});
+  final MelvorId deityId;
+
+  @override
+  GlobalState reduce() {
+    return state.selectWorship(deityId);
+  }
+}
+
+/// Builds a Township building in a biome.
+class BuildTownshipBuildingAction extends ReduxAction<GlobalState> {
+  BuildTownshipBuildingAction({
+    required this.biomeId,
+    required this.buildingId,
+  });
+  final MelvorId biomeId;
+  final MelvorId buildingId;
+
+  @override
+  GlobalState reduce() {
+    return state.buildTownshipBuilding(biomeId, buildingId);
+  }
+}
