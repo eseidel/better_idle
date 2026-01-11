@@ -473,6 +473,26 @@ class TownshipRegistry {
   // Building lookups
   // ---------------------------------------------------------------------------
 
+  /// Converts building tier to required Township level.
+  static int tierToLevel(int tier) {
+    switch (tier) {
+      case 1:
+        return 1;
+      case 2:
+        return 15;
+      case 3:
+        return 35;
+      case 4:
+        return 60;
+      case 5:
+        return 80;
+      case 6:
+        return 100;
+      default:
+        throw UnimplementedError('Unknown building tier: $tier');
+    }
+  }
+
   /// Returns a building by ID, or null if not found.
   TownshipBuilding? buildingById(MelvorId id) {
     for (final building in buildings) {

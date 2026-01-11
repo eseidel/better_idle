@@ -526,7 +526,7 @@ void main() {
 
       final error = state.canBuildTownshipBuilding(biomeId, buildingId);
 
-      expect(error, contains('Requires Township level 30'));
+      expect(error, contains('Requires Township level 15'));
     });
 
     test('canBuildTownshipBuilding validates GP cost', () {
@@ -628,7 +628,7 @@ void main() {
       expect(error, isNull);
     });
 
-    test('canBuildTownshipBuilding with tier 3 requires level 60', () {
+    test('canBuildTownshipBuilding with tier 3 requires level 35', () {
       const buildingId = MelvorId('melvorD:Tier3_Building');
       const biomeId = MelvorId('melvorD:Grasslands');
 
@@ -652,10 +652,10 @@ void main() {
 
       final error = state.canBuildTownshipBuilding(biomeId, buildingId);
 
-      expect(error, contains('Requires Township level 60'));
+      expect(error, contains('Requires Township level 35'));
     });
 
-    test('canBuildTownshipBuilding with tier 4 requires level 80', () {
+    test('canBuildTownshipBuilding with tier 4 requires level 60', () {
       const buildingId = MelvorId('melvorD:Tier4_Building');
       const biomeId = MelvorId('melvorD:Grasslands');
 
@@ -679,7 +679,7 @@ void main() {
 
       final error = state.canBuildTownshipBuilding(biomeId, buildingId);
 
-      expect(error, contains('Requires Township level 80'));
+      expect(error, contains('Requires Township level 60'));
     });
 
     test('buildTownshipBuilding throws when validation fails', () {

@@ -867,7 +867,7 @@ class _BuildingPurchaseDialog extends StatelessWidget {
     final reqs = <Widget>[];
 
     // Level requirement based on tier
-    final levelRequired = GlobalState.tierToLevel(building.tier);
+    final levelRequired = TownshipRegistry.tierToLevel(building.tier);
     if (levelRequired > 1) {
       final met = viewModel.townshipLevel >= levelRequired;
       reqs.add(

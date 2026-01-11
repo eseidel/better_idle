@@ -1349,7 +1349,7 @@ class GlobalState {
 
     // Check level requirement (tier 1 = level 1, tier 2 = level 30, etc.)
     final townshipLevel = skillState(Skill.town).skillLevel;
-    final levelRequired = tierToLevel(building.tier);
+    final levelRequired = TownshipRegistry.tierToLevel(building.tier);
     if (townshipLevel < levelRequired) {
       return 'Requires Township level $levelRequired';
     }
@@ -1375,22 +1375,6 @@ class GlobalState {
     }
 
     return null; // All checks passed
-  }
-
-  /// Converts building tier to required Township level.
-  static int tierToLevel(int tier) {
-    switch (tier) {
-      case 1:
-        return 1;
-      case 2:
-        return 30;
-      case 3:
-        return 60;
-      case 4:
-        return 80;
-      default:
-        return 1;
-    }
   }
 
   /// Builds a Township building in a biome.
