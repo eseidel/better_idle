@@ -177,7 +177,7 @@ void main() {
       // Spring provides +50 happiness and +50 education by default
       expect(stats.happiness, 50);
       expect(stats.education, 50);
-      expect(stats.health, 0);
+      expect(stats.health, TownshipStats.maxHealth);
       expect(stats.storage, TownshipState.baseStorage);
       expect(stats.worship, 0);
     });
@@ -219,6 +219,22 @@ void main() {
       expect(stats.education, 56);
       // base 50000 + 2 buildings * 100
       expect(stats.storage, 50200);
+    });
+
+    test('health cannot fall below 20%', () {
+      // Currently health starts at 100% and nothing decreases it,
+      // but the constraint ensures it can never go below 20%.
+      const registry = TownshipRegistry.empty();
+      const state = TownshipState.empty();
+
+      final stats = TownshipStats.calculate(state, registry);
+
+      // Verify the minimum health constant exists and is 20
+      expect(TownshipStats.minHealth, 20);
+      // Health should be at least minHealth
+      expect(stats.health, greaterThanOrEqualTo(TownshipStats.minHealth));
+      // Health should be at most maxHealth
+      expect(stats.health, lessThanOrEqualTo(TownshipStats.maxHealth));
     });
 
     test('efficiency affects bonuses but not population or storage', () {
@@ -448,9 +464,11 @@ void main() {
       final random = Random(42);
       final result = processTownUpdate(state, registry, random);
 
-      // With no health (0%), effective population is 0, so XP should be 0
-      // This is expected behavior - need food/housing balance for health
-      expect(result.xpGained, 0);
+      // Population: 7 base + 10 from building = 17
+      // Health: 100% (base), so effective population = 17
+      // Happiness: 50 from spring + 50 from building = 100 (2x XP multiplier)
+      // XP = 17 * 2.0 = 34
+      expect(result.xpGained, 34);
     });
   });
 

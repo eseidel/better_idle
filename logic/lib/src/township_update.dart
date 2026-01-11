@@ -40,7 +40,7 @@ class TownshipStats {
     var population = basePopulation;
     var happiness = 0.0;
     var education = 0.0;
-    var health = 0.0;
+    var health = maxHealth;
     var storage = TownshipState.baseStorage;
     var worship = 0;
 
@@ -80,7 +80,7 @@ class TownshipStats {
     // Clamp values
     happiness = happiness.clamp(0, double.infinity);
     education = education.clamp(0, double.infinity);
-    health = health.clamp(0, 100);
+    health = health.clamp(minHealth, maxHealth);
     worship = worship.clamp(0, 2000);
 
     return TownshipStats(
@@ -96,6 +96,12 @@ class TownshipStats {
   /// Base population when Township starts (matches Melvor Idle).
   static const int basePopulation = 7;
 
+  /// Minimum health percentage (health can never fall below this).
+  static const double minHealth = 20;
+
+  /// Maximum health percentage.
+  static const double maxHealth = 100;
+
   final int population;
   final double happiness; // Can exceed 100%
   final double education; // Can exceed 100%
@@ -109,8 +115,8 @@ class TownshipStats {
   /// Education modifier for resource production (1% bonus per 1% education).
   double get educationProductionMultiplier => 1.0 + (education / 100.0);
 
-  /// Health modifier for population (reduces if below 100%).
-  double get healthPopulationMultiplier => health / 100.0;
+  /// Health modifier for population (reduces if below maxHealth%).
+  double get healthPopulationMultiplier => health / maxHealth;
 
   /// Effective population after health modifier.
   int get effectivePopulation =>
