@@ -350,6 +350,8 @@ class GlobalState {
         itemCharges: const {},
         // Unlock all free starter plots (level 1, 0 GP cost)
         unlockedPlots: registries.farmingPlots.initialPlots(),
+        // Initialize township resources with starting amounts
+        township: TownshipState.initial(registries.township),
       );
 
   @visibleForTesting

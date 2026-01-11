@@ -1,4 +1,5 @@
 import 'package:logic/src/data/melvor_id.dart';
+import 'package:logic/src/data/township.dart';
 import 'package:logic/src/tick.dart';
 import 'package:meta/meta.dart';
 
@@ -201,6 +202,18 @@ class TownshipState {
   });
 
   const TownshipState.empty() : this();
+
+  /// Creates a new TownshipState with resources initialized to their starting
+  /// amounts from the registry.
+  factory TownshipState.initial(TownshipRegistry registry) {
+    final resources = <MelvorId, int>{};
+    for (final resource in registry.resources) {
+      if (resource.startingAmount > 0) {
+        resources[resource.id] = resource.startingAmount;
+      }
+    }
+    return TownshipState(resources: resources);
+  }
 
   factory TownshipState.fromJson(Map<String, dynamic> json) {
     // Parse biomes

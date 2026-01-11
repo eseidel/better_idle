@@ -250,6 +250,7 @@ class TownshipResource {
     required this.id,
     required this.name,
     required this.type,
+    this.media,
     this.startingAmount = 0,
   });
 
@@ -257,6 +258,9 @@ class TownshipResource {
     Map<String, dynamic> json, {
     required String namespace,
   }) {
+    // Parse media path, stripping query params (e.g., "?2").
+    final media = (json['media'] as String?)?.split('?').first;
+
     return TownshipResource(
       id: MelvorId.fromJsonWithNamespace(
         json['id'] as String,
@@ -264,6 +268,7 @@ class TownshipResource {
       ),
       name: json['name'] as String,
       type: json['type'] as String? ?? 'Raw',
+      media: media,
       startingAmount: json['startingAmount'] as int? ?? 0,
     );
   }
@@ -273,6 +278,9 @@ class TownshipResource {
 
   /// Resource type (e.g., 'Currency', 'Raw').
   final String type;
+
+  /// The asset path for this resource's icon.
+  final String? media;
 
   /// Starting amount when Township is unlocked.
   final int startingAmount;
