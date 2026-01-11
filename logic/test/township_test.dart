@@ -173,7 +173,7 @@ void main() {
 
       final stats = TownshipStats.calculate(state, registry);
 
-      expect(stats.population, 0);
+      expect(stats.population, TownshipStats.basePopulation);
       // Spring provides +50 happiness and +50 education by default
       expect(stats.happiness, 50);
       expect(stats.education, 50);
@@ -211,8 +211,8 @@ void main() {
 
       final stats = TownshipStats.calculate(state, registry);
 
-      // 2 buildings * 10 population each
-      expect(stats.population, 20);
+      // base 7 + 2 buildings * 10 population each
+      expect(stats.population, TownshipStats.basePopulation + 20);
       // 2 buildings * 5 happiness + 50 from spring
       expect(stats.happiness, 60);
       // 2 buildings * 3 education + 50 from spring
@@ -251,8 +251,8 @@ void main() {
 
       final stats = TownshipStats.calculate(state, registry);
 
-      // Population is NOT affected by efficiency
-      expect(stats.population, 10);
+      // Population is NOT affected by efficiency (base 7 + 10 from building)
+      expect(stats.population, TownshipStats.basePopulation + 10);
       // Happiness IS affected: 10 * 0.5 + 50 from spring
       expect(stats.happiness, 55);
       // Storage is NOT affected by efficiency

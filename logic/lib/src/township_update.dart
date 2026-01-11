@@ -37,7 +37,7 @@ class TownshipStats {
     TownshipState state,
     TownshipRegistry registry,
   ) {
-    var population = 0;
+    var population = basePopulation;
     var happiness = 0.0;
     var education = 0.0;
     var health = 0.0;
@@ -92,6 +92,9 @@ class TownshipStats {
       worship: worship,
     );
   }
+
+  /// Base population when Township starts (matches Melvor Idle).
+  static const int basePopulation = 7;
 
   final int population;
   final double happiness; // Can exceed 100%
