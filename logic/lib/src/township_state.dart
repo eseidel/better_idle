@@ -381,6 +381,19 @@ class TownshipState {
     );
   }
 
+  /// Clears worship selection and resets points.
+  TownshipState clearWorship() {
+    return TownshipState(
+      biomes: biomes,
+      resources: resources,
+      season: season,
+      seasonTicksRemaining: seasonTicksRemaining,
+      ticksUntilUpdate: ticksUntilUpdate,
+      tasks: tasks,
+      completedMainTasks: completedMainTasks,
+    );
+  }
+
   Map<String, dynamic> toJson() {
     return {
       if (biomes.isNotEmpty)

@@ -514,4 +514,187 @@ void main() {
       expect(costs[woodId], 505); // ceil(1000 * 0.505)
     });
   });
+
+  group('Township tasks', () {
+    late Registries registries;
+    const taskId = MelvorId('melvorD:Task_Build_Huts');
+    const buildingId = MelvorId('melvorD:Wooden_Hut');
+    const biomeId = MelvorId('melvorD:Grasslands');
+
+    setUp(() {
+      final building = TownshipBuilding(
+        id: buildingId,
+        name: 'Wooden Hut',
+        levelRequired: 1,
+        populationRequired: 0,
+        costs: const {},
+        gpCost: 0,
+        populationBonus: 10,
+        validBiomes: {biomeId},
+      );
+
+      const task = TownshipTask(
+        id: taskId,
+        name: 'Build Huts',
+        isMainTask: true,
+        requirements: [
+          TaskRequirement(
+            type: 'buildBuilding',
+            target: 2,
+            targetId: buildingId,
+          ),
+        ],
+        rewards: [
+          TaskReward(type: 'gp', amount: 500),
+          TaskReward(type: 'xp', amount: 100),
+        ],
+      );
+
+      final township = TownshipRegistry(
+        buildings: [building],
+        biomes: const [TownshipBiome(id: biomeId, name: 'Grasslands')],
+        tasks: const [task],
+      );
+
+      registries = Registries.test(township: township);
+    });
+
+    test('isTaskComplete returns false when requirements not met', () {
+      final state = GlobalState.test(registries);
+      expect(state.isTaskComplete(taskId), isFalse);
+    });
+
+    test('isTaskComplete returns true when requirements met', () {
+      final township = TownshipState(
+        biomes: {
+          biomeId: BiomeState(
+            buildings: {buildingId: const BuildingState(count: 2)},
+          ),
+        },
+      );
+      final state = GlobalState.test(registries, township: township);
+      expect(state.isTaskComplete(taskId), isTrue);
+    });
+
+    test('claimTaskReward grants rewards and marks task complete', () {
+      final township = TownshipState(
+        biomes: {
+          biomeId: BiomeState(
+            buildings: {buildingId: const BuildingState(count: 2)},
+          ),
+        },
+      );
+      var state = GlobalState.test(registries, township: township);
+
+      state = state.claimTaskReward(taskId);
+
+      // GP reward granted
+      expect(state.gp, 500);
+      // XP reward granted
+      expect(state.skillState(Skill.town).xp, 100);
+      // Task marked as completed
+      expect(state.township.completedMainTasks.contains(taskId), isTrue);
+      // Can't claim again
+      expect(state.isTaskComplete(taskId), isFalse);
+    });
+
+    test('claimTaskReward throws when requirements not met', () {
+      final state = GlobalState.test(registries);
+      expect(() => state.claimTaskReward(taskId), throwsStateError);
+    });
+  });
+
+  group('Township worship', () {
+    late Registries registries;
+    const deityId1 = MelvorId('melvorD:Bane');
+    const deityId2 = MelvorId('melvorD:Aeris');
+
+    setUp(() {
+      const deity1 = TownshipDeity(
+        id: deityId1,
+        name: 'Bane',
+        bonuses: {
+          5: {'happiness': 10.0},
+          25: {'happiness': 20.0},
+        },
+      );
+      const deity2 = TownshipDeity(
+        id: deityId2,
+        name: 'Aeris',
+        bonuses: {
+          5: {'education': 15.0},
+        },
+      );
+
+      const township = TownshipRegistry(deities: [deity1, deity2]);
+      registries = Registries.test(township: township);
+    });
+
+    test('selectWorship sets deity', () {
+      var state = GlobalState.test(registries);
+      expect(state.township.worshipId, isNull);
+
+      state = state.selectWorship(deityId1);
+      expect(state.township.worshipId, deityId1);
+    });
+
+    test('selectWorship resets points when changing deity', () {
+      var state = GlobalState.test(
+        registries,
+        township: const TownshipState(worshipId: deityId1, worship: 500),
+      );
+
+      state = state.selectWorship(deityId2);
+      expect(state.township.worshipId, deityId2);
+      expect(state.township.worship, 0);
+    });
+
+    test('selectWorship preserves points when selecting same deity', () {
+      var state = GlobalState.test(
+        registries,
+        township: const TownshipState(worshipId: deityId1, worship: 500),
+      );
+
+      state = state.selectWorship(deityId1);
+      expect(state.township.worship, 500);
+    });
+
+    test('clearWorship removes deity and resets points', () {
+      var state = GlobalState.test(
+        registries,
+        township: const TownshipState(worshipId: deityId1, worship: 500),
+      );
+
+      state = state.clearWorship();
+      expect(state.township.worshipId, isNull);
+      expect(state.township.worship, 0);
+    });
+
+    test('getWorshipBonus returns bonus based on worship level', () {
+      // No deity = no bonus
+      var state = GlobalState.test(registries);
+      expect(state.getWorshipBonus('happiness'), 0);
+
+      // Deity with 0 worship = no bonus (below 5% threshold)
+      state = GlobalState.test(
+        registries,
+        township: const TownshipState(worshipId: deityId1),
+      );
+      expect(state.getWorshipBonus('happiness'), 0);
+
+      // 100 worship = 5% = first threshold bonus
+      state = GlobalState.test(
+        registries,
+        township: const TownshipState(worshipId: deityId1, worship: 100),
+      );
+      expect(state.getWorshipBonus('happiness'), 10);
+
+      // 500 worship = 25% = both thresholds
+      state = GlobalState.test(
+        registries,
+        township: const TownshipState(worshipId: deityId1, worship: 500),
+      );
+      expect(state.getWorshipBonus('happiness'), 30);
+    });
+  });
 }

@@ -10,6 +10,7 @@ import 'package:logic/src/data/melvor_id.dart';
 import 'package:logic/src/data/registries.dart';
 import 'package:logic/src/data/shop.dart';
 import 'package:logic/src/data/summoning_synergy.dart';
+import 'package:logic/src/data/township.dart';
 import 'package:logic/src/data/xp.dart';
 import 'package:logic/src/json.dart';
 import 'package:logic/src/plot_state.dart';
@@ -1475,6 +1476,141 @@ class GlobalState {
     );
 
     return copyWith(township: newTownship, inventory: newInventory);
+  }
+
+  // ---------------------------------------------------------------------------
+  // Township Task Methods
+  // ---------------------------------------------------------------------------
+
+  /// Checks if a task requirement is met.
+  bool _isTaskRequirementMet(TaskRequirement req) {
+    return switch (req.type) {
+      'population' =>
+        TownshipStats.calculate(township, registries.township).population >=
+            req.target,
+      'buildBuilding' =>
+        req.targetId != null &&
+            township.totalBuildingCount(req.targetId!) >= req.target,
+      'townshipLevel' => skillState(Skill.town).skillLevel >= req.target,
+      'resource' =>
+        req.targetId != null &&
+            township.resourceAmount(req.targetId!) >= req.target,
+      _ => false, // Unknown requirement type
+    };
+  }
+
+  /// Checks if all requirements for a task are met.
+  bool isTaskComplete(MelvorId taskId) {
+    final task = registries.township.taskById(taskId);
+    if (task == null) return false;
+
+    // Check if already completed (for main tasks)
+    if (task.isMainTask && township.completedMainTasks.contains(taskId)) {
+      return false; // Already claimed
+    }
+
+    return task.requirements.every(_isTaskRequirementMet);
+  }
+
+  /// Claims rewards for a completed task.
+  /// Throws StateError if task is not complete or already claimed.
+  GlobalState claimTaskReward(MelvorId taskId) {
+    final task = registries.township.taskById(taskId);
+    if (task == null) throw StateError('Unknown task: $taskId');
+
+    if (!isTaskComplete(taskId)) {
+      throw StateError('Task requirements not met');
+    }
+
+    var state = this;
+
+    // Grant rewards
+    for (final reward in task.rewards) {
+      switch (reward.type) {
+        case 'xp':
+          state = state.addSkillXp(Skill.town, reward.amount);
+        case 'gp':
+          state = state.addCurrency(Currency.gp, reward.amount);
+        case 'item':
+          if (reward.itemId != null) {
+            final item = registries.items.byId(reward.itemId!);
+            state = state.copyWith(
+              inventory: state.inventory.adding(
+                ItemStack(item, count: reward.amount),
+              ),
+            );
+          }
+        case 'townshipResource':
+          if (reward.itemId != null) {
+            state = state.copyWith(
+              township: state.township.addResource(
+                reward.itemId!,
+                reward.amount,
+              ),
+            );
+          }
+      }
+    }
+
+    // Mark main tasks as completed
+    if (task.isMainTask) {
+      final newCompleted = Set<MelvorId>.from(township.completedMainTasks)
+        ..add(taskId);
+      state = state.copyWith(
+        township: state.township.copyWith(completedMainTasks: newCompleted),
+      );
+    } else {
+      // Remove casual task from active tasks
+      final newTasks = Map<MelvorId, TownshipTaskState>.from(township.tasks)
+        ..remove(taskId);
+      state = state.copyWith(
+        township: state.township.copyWith(tasks: newTasks),
+      );
+    }
+
+    return state;
+  }
+
+  // ---------------------------------------------------------------------------
+  // Township Worship Methods
+  // ---------------------------------------------------------------------------
+
+  /// Selects a deity for worship.
+  /// Resets worship points if changing to a different deity.
+  GlobalState selectWorship(MelvorId deityId) {
+    final deity = registries.township.deityById(deityId);
+    if (deity == null) throw StateError('Unknown deity: $deityId');
+
+    // Reset worship points if changing deity
+    final resetPoints =
+        township.worshipId != null && township.worshipId != deityId;
+
+    return copyWith(
+      township: township.copyWith(
+        worshipId: deityId,
+        worship: resetPoints ? 0 : township.worship,
+      ),
+    );
+  }
+
+  /// Clears worship selection.
+  GlobalState clearWorship() {
+    return copyWith(township: township.clearWorship());
+  }
+
+  /// Gets the current worship bonus for a modifier.
+  /// Returns 0 if no deity is selected.
+  double getWorshipBonus(String modifierName) {
+    final deityId = township.worshipId;
+    if (deityId == null) return 0;
+
+    final deity = registries.township.deityById(deityId);
+    if (deity == null) return 0;
+
+    // Calculate worship percentage (0-100 based on 0-2000 points)
+    final worshipPercent = (township.worship / 20).clamp(0.0, 100.0);
+
+    return deity.bonusAtWorshipPercent(modifierName, worshipPercent);
   }
 
   /// Repairs a Township building in a biome, restoring efficiency to 100%.
