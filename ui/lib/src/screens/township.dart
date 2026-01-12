@@ -101,7 +101,8 @@ class TownshipViewModel {
   bool isBiomeUnlocked(TownshipBiome biome) => _township.isBiomeUnlocked(biome);
 
   List<TownshipBuilding> buildingsForBiome(MelvorId biomeId) {
-    return _township.registry.buildingsForBiome(biomeId);
+    return _township.registry.buildingsForBiome(biomeId)
+      ..sort((a, b) => _registry.compareBuildings(a.id, b.id));
   }
 
   BuildingState buildingState(MelvorId biomeId, MelvorId buildingId) {
