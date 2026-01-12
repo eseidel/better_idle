@@ -643,3 +643,18 @@ class BuildTownshipBuildingAction extends ReduxAction<GlobalState> {
     return state.buildTownshipBuilding(biomeId, buildingId);
   }
 }
+
+/// Repairs a Township building in a biome.
+class RepairTownshipBuildingAction extends ReduxAction<GlobalState> {
+  RepairTownshipBuildingAction({
+    required this.biomeId,
+    required this.buildingId,
+  });
+  final MelvorId biomeId;
+  final MelvorId buildingId;
+
+  @override
+  GlobalState reduce() {
+    return state.repairTownshipBuilding(biomeId, buildingId);
+  }
+}

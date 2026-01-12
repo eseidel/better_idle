@@ -1326,8 +1326,17 @@ class GlobalState {
   }
 
   // ---------------------------------------------------------------------------
-  // Township Building Methods
+  // Township Methods
   // ---------------------------------------------------------------------------
+
+  /// Returns the current township stats.
+  TownshipStats get townshipStats =>
+      TownshipStats.calculate(township, registries.township);
+
+  /// Returns true if a biome is unlocked based on current population.
+  bool isTownshipBiomeUnlocked(TownshipBiome biome) {
+    return townshipStats.population >= biome.populationRequired;
+  }
 
   /// Checks if a Township building can be built in a biome.
   /// Returns null if valid, or an error message if not.
@@ -1628,16 +1637,48 @@ class GlobalState {
     return deity.bonusAtWorshipPercent(modifierName, worshipPercent);
   }
 
+  /// Calculates the repair costs for a Township building.
+  /// Returns a map of resourceId -> cost.
+  /// Formula: (Base Cost / 3) × Buildings Built × (1 - Efficiency%)
+  /// Minimum cost is 1 per resource.
+  Map<MelvorId, int> townshipRepairCosts(
+    MelvorId biomeId,
+    MelvorId buildingId,
+  ) {
+    final building = registries.township.buildingById(buildingId);
+    if (building == null) return {};
+
+    final biomeData = building.dataForBiome(biomeId);
+    if (biomeData == null) return {};
+
+    final biomeState = township.biomeState(biomeId);
+    final buildingState = biomeState.buildingState(buildingId);
+
+    if (buildingState.count == 0 || buildingState.efficiency >= 100) {
+      return {};
+    }
+
+    final damagePercent = (100 - buildingState.efficiency) / 100;
+    final costs = <MelvorId, int>{};
+
+    for (final entry in biomeData.costs.entries) {
+      // Repair cost = (base cost / 3) × buildings built × damage%
+      final repairCost = (entry.value / 3 * buildingState.count * damagePercent)
+          .ceil();
+      // Minimum cost is 1
+      costs[entry.key] = repairCost < 1 ? 1 : repairCost;
+    }
+
+    return costs;
+  }
+
   /// Repairs a Township building in a biome, restoring efficiency to 100%.
-  /// Cost is proportional to how degraded the building is.
+  /// Cost formula: (Base Cost / 3) × Buildings Built × (1 - Efficiency%)
+  /// Throws StateError if building doesn't exist, doesn't need repair,
+  /// or player can't afford the repair costs.
   GlobalState repairTownshipBuilding(MelvorId biomeId, MelvorId buildingId) {
     final building = registries.township.buildingById(buildingId);
     if (building == null) throw StateError('Unknown building: $buildingId');
-
-    final biomeData = building.dataForBiome(biomeId);
-    if (biomeData == null) {
-      throw StateError('${building.name} has no data for biome $biomeId');
-    }
 
     final biomeState = township.biomeState(biomeId);
     final buildingState = biomeState.buildingState(buildingId);
@@ -1650,32 +1691,35 @@ class GlobalState {
       throw StateError('${building.name} is already at full efficiency');
     }
 
-    // Calculate repair cost: proportion of original cost based on damage
-    final damagePercent = (100 - buildingState.efficiency) / 100;
-
-    // Deduct repair costs (proportional to original costs)
+    // Get repair costs and deduct them
+    final repairCosts = townshipRepairCosts(biomeId, buildingId);
     var state = this;
     var newTownship = township;
 
-    for (final entry in biomeData.costs.entries) {
+    for (final entry in repairCosts.entries) {
       final resourceId = entry.key;
-      final repairCost = (entry.value * damagePercent).ceil();
+      final cost = entry.value;
 
       if (resourceId.localId == 'GP') {
-        // Deduct GP from player currencies
-        if (gp < repairCost) {
-          throw StateError('Not enough GP for repair (need $repairCost)');
+        if (gp < cost) {
+          throw StateError('Not enough GP');
         }
-        state = state.addCurrency(Currency.gp, -repairCost);
       } else {
-        // Deduct township resources
-        final available = newTownship.resourceAmount(resourceId);
-        if (available < repairCost) {
-          final resource = registries.township.resourceById(resourceId);
-          final name = resource?.name ?? resourceId.localId;
-          throw StateError('Not enough $name');
+        if (newTownship.resourceAmount(resourceId) < cost) {
+          throw StateError('Not enough resources');
         }
-        newTownship = newTownship.removeResource(resourceId, repairCost);
+      }
+    }
+
+    // Deduct costs
+    for (final entry in repairCosts.entries) {
+      final resourceId = entry.key;
+      final cost = entry.value;
+
+      if (resourceId.localId == 'GP') {
+        state = state.addCurrency(Currency.gp, -cost);
+      } else {
+        newTownship = newTownship.removeResource(resourceId, cost);
       }
     }
 
@@ -1688,6 +1732,19 @@ class GlobalState {
     newTownship = newTownship.withBiomeState(biomeId, newBiomeState);
 
     return state.copyWith(township: newTownship);
+  }
+
+  /// Returns true if the player can afford all repair costs for a building.
+  bool canAffordTownshipRepair(MelvorId biomeId, MelvorId buildingId) {
+    final costs = townshipRepairCosts(biomeId, buildingId);
+    for (final entry in costs.entries) {
+      if (entry.key.localId == 'GP') {
+        if (gp < entry.value) return false;
+      } else {
+        if (township.resourceAmount(entry.key) < entry.value) return false;
+      }
+    }
+    return true;
   }
 
   /// Equips food from the inventory to an equipment slot.

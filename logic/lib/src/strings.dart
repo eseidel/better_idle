@@ -41,6 +41,7 @@ String signedDurationStringWithTicks(int ticks) {
 }
 
 /// Create an approximate string for the given [duration].
+/// Rounds to the nearest unit and shows a single unit (e.g., "2 days").
 String approximateDuration(Duration duration) {
   final d = duration; // Save some typing.
   if (d.inDays.abs() > 0) {
@@ -60,6 +61,31 @@ String approximateDuration(Duration duration) {
     final absMilliseconds = d.inMilliseconds.abs() - (absSeconds * 1000);
     return _rounded(d.inSeconds, absMilliseconds, 1000, 'second');
   }
+}
+
+/// Formats a duration as a compact string showing two units of precision.
+/// Examples: "3d 12h", "5h 30m", "45m", "30s"
+String compactDuration(Duration duration) {
+  final days = duration.inDays;
+  final hours = duration.inHours % 24;
+  final minutes = duration.inMinutes % 60;
+  final seconds = duration.inSeconds % 60;
+
+  if (days > 0) {
+    return hours > 0 ? '${days}d ${hours}h' : '${days}d';
+  } else if (hours > 0) {
+    return minutes > 0 ? '${hours}h ${minutes}m' : '${hours}h';
+  } else if (minutes > 0) {
+    return seconds > 0 ? '${minutes}m ${seconds}s' : '${minutes}m';
+  } else {
+    return '${seconds}s';
+  }
+}
+
+/// Formats a tick count as a compact duration string.
+/// Examples: "3d 12h", "5h 30m", "45m"
+String compactDurationFromTicks(int ticks) {
+  return compactDuration(Duration(milliseconds: ticks * 100));
 }
 
 /// The correct string for a credit value.  Does not include the "GP" suffix.

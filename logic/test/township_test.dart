@@ -1529,7 +1529,8 @@ void main() {
       var state = GlobalState.test(registries);
       state = state.addCurrency(Currency.gp, 1000);
 
-      // Set up building at 50% efficiency (50% damage = 500 GP repair cost)
+      // Set up building at 50% efficiency (50% damage)
+      // Repair cost = (1000 / 3) × 1 × 0.5 = 166.67 → ceil = 167 GP
       state = state.copyWith(
         township: state.township.withBiomeState(
           biomeId,
@@ -1549,8 +1550,8 @@ void main() {
 
       state = state.repairTownshipBuilding(biomeId, buildingId);
 
-      // 50% damage * 1000 GP = 500 GP cost
-      expect(state.gp, 500);
+      // Repair cost = (1000 / 3) × 1 × 0.5 = 167 GP (rounded up)
+      expect(state.gp, 833);
       expect(
         state.township.biomes[biomeId]!.buildings[buildingId]!.efficiency,
         100,
@@ -1584,7 +1585,8 @@ void main() {
       var state = GlobalState.test(registries);
       state = state.copyWith(township: state.township.addResource(woodId, 500));
 
-      // Set up building at 80% efficiency (20% damage = 40 Wood repair cost)
+      // Set up building at 80% efficiency (20% damage)
+      // Repair cost = (200 / 3) × 1 × 0.2 = 13.33 → ceil = 14 Wood
       state = state.copyWith(
         township: state.township.withBiomeState(
           biomeId,
@@ -1600,8 +1602,8 @@ void main() {
 
       state = state.repairTownshipBuilding(biomeId, buildingId);
 
-      // 20% damage * 200 Wood = 40 Wood cost
-      expect(state.township.resourceAmount(woodId), 460);
+      // Repair cost = (200 / 3) × 1 × 0.2 = 14 Wood (rounded up)
+      expect(state.township.resourceAmount(woodId), 486);
       expect(
         state.township.biomes[biomeId]!.buildings[buildingId]!.efficiency,
         100,

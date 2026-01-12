@@ -70,7 +70,7 @@ class TownshipViewModel {
   int get townshipXp => _state.skillState(Skill.town).xp;
   int get townshipLevel => levelForXp(townshipXp);
 
-  TownshipStats get stats => TownshipStats.calculate(_township, _registry);
+  TownshipStats get stats => _state.townshipStats;
 
   int get gp => _state.gp;
 
@@ -104,43 +104,41 @@ class TownshipViewModel {
 
   Season get season => _township.season;
 
-  String get seasonTimeRemaining {
-    final ticks = _township.seasonTicksRemaining;
-    final seconds = ticks ~/ 10;
-    final minutes = seconds ~/ 60;
-    final hours = minutes ~/ 60;
-    final days = hours ~/ 24;
-    if (days > 0) return '${days}d ${hours % 24}h';
-    if (hours > 0) return '${hours}h ${minutes % 60}m';
-    return '${minutes}m';
-  }
+  String get seasonTimeRemaining =>
+      compactDurationFromTicks(_township.seasonTicksRemaining);
 
-  String get nextUpdateTime {
-    final ticks = _township.ticksUntilUpdate;
-    final seconds = ticks ~/ 10;
-    final minutes = seconds ~/ 60;
-    if (minutes >= 60) {
-      final hours = minutes ~/ 60;
-      return '${hours}h ${minutes % 60}m';
-    }
-    return '${minutes}m';
-  }
+  String get nextUpdateTime =>
+      compactDurationFromTicks(_township.ticksUntilUpdate);
 
-  bool isBiomeUnlocked(TownshipBiome biome) {
-    return stats.population >= biome.populationRequired;
-  }
+  bool isBiomeUnlocked(TownshipBiome biome) =>
+      _state.isTownshipBiomeUnlocked(biome);
 
   List<TownshipBuilding> buildingsForBiome(MelvorId biomeId) {
     return _registry.buildingsForBiome(biomeId);
   }
 
   BuildingState buildingState(MelvorId biomeId, MelvorId buildingId) {
-    return _township.biomeState(biomeId).buildingState(buildingId);
+    return _township.buildingState(biomeId, buildingId);
   }
 
   String? canBuild(MelvorId biomeId, MelvorId buildingId) {
     return _state.canBuildTownshipBuilding(biomeId, buildingId);
   }
+
+  /// Returns true if the building needs repair (efficiency < 100).
+  bool needsRepair(MelvorId biomeId, MelvorId buildingId) {
+    return _township.buildingNeedsRepair(biomeId, buildingId);
+  }
+
+  /// Returns the repair costs for a building.
+  /// Uses the formula: (Base Cost / 3) × Buildings Built × (1 - Efficiency%)
+  Map<MelvorId, int> repairCosts(MelvorId biomeId, MelvorId buildingId) {
+    return _state.townshipRepairCosts(biomeId, buildingId);
+  }
+
+  /// Returns true if the player can afford all repair costs.
+  bool canAffordRepair(MelvorId biomeId, MelvorId buildingId) =>
+      _state.canAffordTownshipRepair(biomeId, buildingId);
 
   bool canAffordGp(int cost) => gp >= cost;
 
@@ -625,8 +623,12 @@ class _BuildingCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final buildingState = viewModel.buildingState(biomeId, building.id);
-    final error = viewModel.canBuild(biomeId, building.id);
-    final canBuild = error == null;
+    final needsRepair = viewModel.needsRepair(biomeId, building.id);
+
+    // Determine if we can perform the action (build or repair)
+    final canPerformAction = needsRepair
+        ? viewModel.canAffordRepair(biomeId, building.id)
+        : viewModel.canBuild(biomeId, building.id) == null;
 
     return SizedBox(
       width: 140,
@@ -651,7 +653,7 @@ class _BuildingCard extends StatelessWidget {
                   style: TextStyle(
                     fontSize: 12,
                     fontWeight: FontWeight.w500,
-                    color: canBuild
+                    color: canPerformAction
                         ? Style.textColorPrimary
                         : Style.textColorMuted,
                   ),
@@ -660,37 +662,49 @@ class _BuildingCard extends StatelessWidget {
                   overflow: TextOverflow.ellipsis,
                 ),
                 const SizedBox(height: 2),
-                // Count display
+                // Count and efficiency display
                 if (buildingState.count > 0)
                   Text(
-                    '${buildingState.count} built',
-                    style: const TextStyle(
+                    needsRepair
+                        ? '${buildingState.count} built '
+                              '(${buildingState.efficiency.toStringAsFixed(0)}%)'
+                        : '${buildingState.count} built',
+                    style: TextStyle(
                       fontSize: 10,
-                      color: Style.textColorSecondary,
+                      color: needsRepair
+                          ? Style.unmetRequirementColor
+                          : Style.textColorSecondary,
                     ),
                   ),
                 const SizedBox(height: 4),
-                // Costs section
-                _buildCostsSection(context),
+                // Costs section (repair costs if needs repair)
+                if (needsRepair)
+                  _buildRepairCostsSection(context)
+                else
+                  _buildCostsSection(context),
                 const SizedBox(height: 4),
-                // Benefits section
-                _buildBenefitsSection(context),
-                const SizedBox(height: 4),
-                // Purchase button
+                // Benefits section (hide when repairing)
+                if (!needsRepair) _buildBenefitsSection(context),
+                if (!needsRepair) const SizedBox(height: 4),
+                // Action button (Repair or Build)
                 SizedBox(
                   width: double.infinity,
                   height: 28,
                   child: ElevatedButton(
-                    onPressed: canBuild ? () => _buildBuilding(context) : null,
+                    onPressed: canPerformAction
+                        ? () => needsRepair
+                              ? _repairBuilding(context)
+                              : _buildBuilding(context)
+                        : null,
                     style: ElevatedButton.styleFrom(
                       padding: EdgeInsets.zero,
-                      backgroundColor: canBuild
-                          ? Style.successColor
+                      backgroundColor: canPerformAction
+                          ? (needsRepair ? Colors.orange : Style.successColor)
                           : Colors.grey,
                     ),
-                    child: const Text(
-                      'Build',
-                      style: TextStyle(fontSize: 11, color: Colors.white),
+                    child: Text(
+                      needsRepair ? 'Repair' : 'Build',
+                      style: const TextStyle(fontSize: 11, color: Colors.white),
                     ),
                   ),
                 ),
@@ -836,10 +850,70 @@ class _BuildingCard extends StatelessWidget {
     );
   }
 
+  Widget _buildRepairCostsSection(BuildContext context) {
+    final repairCosts = viewModel.repairCosts(biomeId, building.id);
+    if (repairCosts.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
+    final costWidgets = <Widget>[
+      const Text(
+        'Repair:',
+        style: TextStyle(fontSize: 9, color: Style.textColorSecondary),
+      ),
+    ];
+
+    for (final entry in repairCosts.entries) {
+      final resourceId = entry.key;
+      final amount = entry.value;
+
+      if (resourceId.localId == 'GP') {
+        final canAfford = viewModel.canAffordGp(amount);
+        costWidgets.add(
+          _CostBenefitChip(
+            assetPath: Currency.gp.assetPath,
+            value: approximateCreditString(amount),
+            isAffordable: canAfford,
+          ),
+        );
+      } else {
+        final resource = viewModel._registry.resourceById(resourceId);
+        final canAfford = viewModel.canAffordResource(resourceId, amount);
+        costWidgets.add(
+          _CostBenefitChip(
+            assetPath: resource?.media,
+            value: approximateCreditString(amount),
+            isAffordable: canAfford,
+          ),
+        );
+      }
+    }
+
+    return Wrap(
+      spacing: 4,
+      runSpacing: 2,
+      alignment: WrapAlignment.center,
+      crossAxisAlignment: WrapCrossAlignment.center,
+      children: costWidgets,
+    );
+  }
+
   void _buildBuilding(BuildContext context) {
     try {
       context.dispatch(
         BuildTownshipBuildingAction(biomeId: biomeId, buildingId: building.id),
+      );
+    } on Exception catch (e) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(e.toString())));
+    }
+  }
+
+  void _repairBuilding(BuildContext context) {
+    try {
+      context.dispatch(
+        RepairTownshipBuildingAction(biomeId: biomeId, buildingId: building.id),
       );
     } on Exception catch (e) {
       ScaffoldMessenger.of(
@@ -874,11 +948,16 @@ class _BuildingPurchaseDialog extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final buildingState = viewModel.buildingState(biomeId, building.id);
-    final error = viewModel.canBuild(biomeId, building.id);
-    final canBuild = error == null;
+    final needsRepair = viewModel.needsRepair(biomeId, building.id);
+
+    final canPerformAction = needsRepair
+        ? viewModel.canAffordRepair(biomeId, building.id)
+        : viewModel.canBuild(biomeId, building.id) == null;
+
+    final actionLabel = needsRepair ? 'Repair' : 'Build';
 
     return AlertDialog(
-      title: Text('Build ${building.name}'),
+      title: Text('$actionLabel ${building.name}'),
       content: SingleChildScrollView(
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -888,15 +967,23 @@ class _BuildingPurchaseDialog extends StatelessWidget {
               Text(
                 'Currently: ${buildingState.count} built '
                 '(${buildingState.efficiency.toStringAsFixed(0)}% efficiency)',
-                style: Theme.of(context).textTheme.bodySmall,
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: needsRepair ? Style.unmetRequirementColor : null,
+                ),
               ),
               const SizedBox(height: 12),
             ],
-            Text('Costs', style: Theme.of(context).textTheme.titleSmall),
+            Text(
+              needsRepair ? 'Repair Costs' : 'Costs',
+              style: Theme.of(context).textTheme.titleSmall,
+            ),
             const SizedBox(height: 4),
-            _buildCosts(context),
+            if (needsRepair)
+              _buildRepairCosts(context)
+            else
+              _buildCosts(context),
             const SizedBox(height: 12),
-            if (building.tier > 1) ...[
+            if (!needsRepair && building.tier > 1) ...[
               Text(
                 'Requirements',
                 style: Theme.of(context).textTheme.titleSmall,
@@ -905,9 +992,11 @@ class _BuildingPurchaseDialog extends StatelessWidget {
               _buildRequirements(context),
               const SizedBox(height: 12),
             ],
-            Text('Bonuses', style: Theme.of(context).textTheme.titleSmall),
-            const SizedBox(height: 4),
-            _buildBonuses(context),
+            if (!needsRepair) ...[
+              Text('Bonuses', style: Theme.of(context).textTheme.titleSmall),
+              const SizedBox(height: 4),
+              _buildBonuses(context),
+            ],
           ],
         ),
       ),
@@ -917,15 +1006,24 @@ class _BuildingPurchaseDialog extends StatelessWidget {
           child: const Text('Cancel'),
         ),
         TextButton(
-          onPressed: canBuild
+          onPressed: canPerformAction
               ? () {
                   try {
-                    context.dispatch(
-                      BuildTownshipBuildingAction(
-                        biomeId: biomeId,
-                        buildingId: building.id,
-                      ),
-                    );
+                    if (needsRepair) {
+                      context.dispatch(
+                        RepairTownshipBuildingAction(
+                          biomeId: biomeId,
+                          buildingId: building.id,
+                        ),
+                      );
+                    } else {
+                      context.dispatch(
+                        BuildTownshipBuildingAction(
+                          biomeId: biomeId,
+                          buildingId: building.id,
+                        ),
+                      );
+                    }
                     Navigator.of(context).pop();
                   } on Exception catch (e) {
                     Navigator.of(context).pop();
@@ -935,10 +1033,67 @@ class _BuildingPurchaseDialog extends StatelessWidget {
                   }
                 }
               : null,
-          child: const Text('Build'),
+          child: Text(actionLabel),
         ),
       ],
     );
+  }
+
+  Widget _buildRepairCosts(BuildContext context) {
+    final repairCosts = viewModel.repairCosts(biomeId, building.id);
+    if (repairCosts.isEmpty) {
+      return const Text('Free', style: TextStyle(color: Style.successColor));
+    }
+
+    final costs = <Widget>[];
+
+    for (final entry in repairCosts.entries) {
+      final resourceId = entry.key;
+      final amount = entry.value;
+
+      if (resourceId.localId == 'GP') {
+        final canAfford = viewModel.canAffordGp(amount);
+        costs.add(
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              CachedImage(assetPath: Currency.gp.assetPath, size: 16),
+              const SizedBox(width: 4),
+              Text(
+                approximateCreditString(amount),
+                style: TextStyle(
+                  color: canAfford ? Style.successColor : Style.errorColor,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ],
+          ),
+        );
+      } else {
+        final resource = viewModel._registry.resourceById(resourceId);
+        final canAfford = viewModel.canAffordResource(resourceId, amount);
+        costs.add(
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                '${resource?.name ?? resourceId.localId}: ',
+                style: const TextStyle(fontSize: 13),
+              ),
+              Text(
+                approximateCreditString(amount),
+                style: TextStyle(
+                  color: canAfford ? Style.successColor : Style.errorColor,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ],
+          ),
+        );
+      }
+    }
+
+    return Wrap(spacing: 12, runSpacing: 4, children: costs);
   }
 
   Widget _buildCosts(BuildContext context) {

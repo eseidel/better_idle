@@ -310,6 +310,17 @@ class TownshipState {
     return biomes[biomeId] ?? const BiomeState.empty();
   }
 
+  /// Returns the state for a specific building in a biome.
+  BuildingState buildingState(MelvorId biomeId, MelvorId buildingId) {
+    return biomeState(biomeId).buildingState(buildingId);
+  }
+
+  /// Returns true if a building in a biome needs repair (efficiency < 100).
+  bool buildingNeedsRepair(MelvorId biomeId, MelvorId buildingId) {
+    final state = buildingState(biomeId, buildingId);
+    return state.count > 0 && state.efficiency < 100;
+  }
+
   /// Returns the total count of a building across all biomes.
   int totalBuildingCount(MelvorId buildingId) {
     var count = 0;
