@@ -36,6 +36,20 @@ class DebugPage extends StatelessWidget {
                 child: const Text('Fast Forward 30m'),
               ),
               ElevatedButton(
+                onPressed: () {
+                  context.dispatch(DebugAddCurrencyAction(Currency.gp, 1000));
+                },
+                child: const Text('Add 1000 GP'),
+              ),
+              ElevatedButton(
+                onPressed: () {
+                  context.dispatch(
+                    DebugAddCurrencyAction(Currency.slayerCoins, 1000),
+                  );
+                },
+                child: const Text('Add 1000 SC'),
+              ),
+              ElevatedButton(
                 onPressed: () => _confirmResetState(context),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: Colors.red,

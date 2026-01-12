@@ -1,35 +1,40 @@
 import 'package:logic/logic.dart';
-import 'package:logic/src/data/bank_sort.dart';
 import 'package:test/test.dart';
 
 void main() {
-  group('BankSortInsertType', () {
+  group('DisplayOrderInsertType', () {
     test('fromString parses Start', () {
-      expect(BankSortInsertType.fromString('Start'), BankSortInsertType.start);
+      expect(
+        DisplayOrderInsertType.fromString('Start'),
+        DisplayOrderInsertType.start,
+      );
     });
 
     test('fromString parses After', () {
-      expect(BankSortInsertType.fromString('After'), BankSortInsertType.after);
+      expect(
+        DisplayOrderInsertType.fromString('After'),
+        DisplayOrderInsertType.after,
+      );
     });
 
     test('fromString throws on unknown type', () {
       expect(
-        () => BankSortInsertType.fromString('Unknown'),
+        () => DisplayOrderInsertType.fromString('Unknown'),
         throwsArgumentError,
       );
     });
   });
 
-  group('BankSortEntry', () {
+  group('DisplayOrderEntry', () {
     test('fromJson parses Start entry', () {
       final json = {
         'insertAt': 'Start',
         'ids': ['Normal_Logs', 'Oak_Logs', 'Willow_Logs'],
       };
 
-      final entry = BankSortEntry.fromJson(json, namespace: 'melvorD');
+      final entry = DisplayOrderEntry.fromJson(json, namespace: 'melvorD');
 
-      expect(entry.insertAt, BankSortInsertType.start);
+      expect(entry.insertAt, DisplayOrderInsertType.start);
       expect(entry.afterId, isNull);
       expect(entry.ids.length, 3);
       expect(entry.ids[0], const MelvorId('melvorD:Normal_Logs'));
@@ -44,9 +49,9 @@ void main() {
         'ids': ['Ash'],
       };
 
-      final entry = BankSortEntry.fromJson(json, namespace: 'melvorF');
+      final entry = DisplayOrderEntry.fromJson(json, namespace: 'melvorF');
 
-      expect(entry.insertAt, BankSortInsertType.after);
+      expect(entry.insertAt, DisplayOrderInsertType.after);
       expect(entry.afterId, const MelvorId('melvorD:Redwood_Logs'));
       expect(entry.ids.length, 1);
       expect(entry.ids[0], const MelvorId('melvorF:Ash'));
@@ -59,18 +64,18 @@ void main() {
         'ids': ['melvorF:Dragon_Claw', 'Ancient_Claw'],
       };
 
-      final entry = BankSortEntry.fromJson(json, namespace: 'melvorF');
+      final entry = DisplayOrderEntry.fromJson(json, namespace: 'melvorF');
 
       expect(entry.ids[0], const MelvorId('melvorF:Dragon_Claw'));
       expect(entry.ids[1], const MelvorId('melvorF:Ancient_Claw'));
     });
   });
 
-  group('computeBankSortOrder', () {
+  group('computeDisplayOrder', () {
     test('processes Start entry as base order', () {
       final entries = [
-        const BankSortEntry(
-          insertAt: BankSortInsertType.start,
+        const DisplayOrderEntry(
+          insertAt: DisplayOrderInsertType.start,
           ids: [
             MelvorId('melvorD:A'),
             MelvorId('melvorD:B'),
@@ -79,7 +84,7 @@ void main() {
         ),
       ];
 
-      final result = computeBankSortOrder(entries);
+      final result = computeDisplayOrder(entries);
 
       expect(result, [
         const MelvorId('melvorD:A'),
@@ -90,22 +95,22 @@ void main() {
 
     test('inserts After entry items after reference', () {
       final entries = [
-        const BankSortEntry(
-          insertAt: BankSortInsertType.start,
+        const DisplayOrderEntry(
+          insertAt: DisplayOrderInsertType.start,
           ids: [
             MelvorId('melvorD:A'),
             MelvorId('melvorD:B'),
             MelvorId('melvorD:C'),
           ],
         ),
-        const BankSortEntry(
-          insertAt: BankSortInsertType.after,
+        const DisplayOrderEntry(
+          insertAt: DisplayOrderInsertType.after,
           afterId: MelvorId('melvorD:A'),
           ids: [MelvorId('melvorF:X')],
         ),
       ];
 
-      final result = computeBankSortOrder(entries);
+      final result = computeDisplayOrder(entries);
 
       expect(result, [
         const MelvorId('melvorD:A'),
@@ -117,12 +122,12 @@ void main() {
 
     test('inserts multiple items in order', () {
       final entries = [
-        const BankSortEntry(
-          insertAt: BankSortInsertType.start,
+        const DisplayOrderEntry(
+          insertAt: DisplayOrderInsertType.start,
           ids: [MelvorId('melvorD:A'), MelvorId('melvorD:B')],
         ),
-        const BankSortEntry(
-          insertAt: BankSortInsertType.after,
+        const DisplayOrderEntry(
+          insertAt: DisplayOrderInsertType.after,
           afterId: MelvorId('melvorD:A'),
           ids: [
             MelvorId('melvorF:X'),
@@ -132,7 +137,7 @@ void main() {
         ),
       ];
 
-      final result = computeBankSortOrder(entries);
+      final result = computeDisplayOrder(entries);
 
       expect(result, [
         const MelvorId('melvorD:A'),
@@ -145,23 +150,23 @@ void main() {
 
     test('handles chained After entries', () {
       final entries = [
-        const BankSortEntry(
-          insertAt: BankSortInsertType.start,
+        const DisplayOrderEntry(
+          insertAt: DisplayOrderInsertType.start,
           ids: [MelvorId('melvorD:A'), MelvorId('melvorD:B')],
         ),
-        const BankSortEntry(
-          insertAt: BankSortInsertType.after,
+        const DisplayOrderEntry(
+          insertAt: DisplayOrderInsertType.after,
           afterId: MelvorId('melvorD:A'),
           ids: [MelvorId('melvorF:X')],
         ),
-        const BankSortEntry(
-          insertAt: BankSortInsertType.after,
+        const DisplayOrderEntry(
+          insertAt: DisplayOrderInsertType.after,
           afterId: MelvorId('melvorF:X'),
           ids: [MelvorId('melvorF:Y')],
         ),
       ];
 
-      final result = computeBankSortOrder(entries);
+      final result = computeDisplayOrder(entries);
 
       expect(result, [
         const MelvorId('melvorD:A'),
@@ -173,18 +178,18 @@ void main() {
 
     test('appends to end when afterId not found', () {
       final entries = [
-        const BankSortEntry(
-          insertAt: BankSortInsertType.start,
+        const DisplayOrderEntry(
+          insertAt: DisplayOrderInsertType.start,
           ids: [MelvorId('melvorD:A')],
         ),
-        const BankSortEntry(
-          insertAt: BankSortInsertType.after,
+        const DisplayOrderEntry(
+          insertAt: DisplayOrderInsertType.after,
           afterId: MelvorId('melvorD:NotFound'),
           ids: [MelvorId('melvorF:X')],
         ),
       ];
 
-      final result = computeBankSortOrder(entries);
+      final result = computeDisplayOrder(entries);
 
       expect(result, [
         const MelvorId('melvorD:A'),
@@ -193,12 +198,12 @@ void main() {
     });
 
     test('handles empty entries', () {
-      final result = computeBankSortOrder([]);
+      final result = computeDisplayOrder(<DisplayOrderEntry>[]);
       expect(result, isEmpty);
     });
   });
 
-  group('buildBankSortIndex', () {
+  group('buildDisplayOrderIndex', () {
     test('creates index map from sort order', () {
       final sortOrder = [
         const MelvorId('melvorD:A'),
@@ -206,7 +211,7 @@ void main() {
         const MelvorId('melvorD:C'),
       ];
 
-      final index = buildBankSortIndex(sortOrder);
+      final index = buildDisplayOrderIndex(sortOrder);
 
       expect(index[const MelvorId('melvorD:A')], 0);
       expect(index[const MelvorId('melvorD:B')], 1);
@@ -215,7 +220,7 @@ void main() {
     });
 
     test('handles empty list', () {
-      final index = buildBankSortIndex([]);
+      final index = buildDisplayOrderIndex(<MelvorId>[]);
       expect(index, isEmpty);
     });
   });

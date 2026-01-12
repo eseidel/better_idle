@@ -1,7 +1,6 @@
 import 'dart:io';
 
 import 'package:logic/src/data/actions.dart';
-import 'package:logic/src/data/bank_sort.dart';
 import 'package:logic/src/data/cache.dart';
 import 'package:logic/src/data/melvor_id.dart';
 import 'package:logic/src/data/shop.dart';
@@ -34,7 +33,7 @@ class MelvorData {
     final skillDataById = <String, List<SkillDataEntry>>{};
     final combatAreas = <CombatArea>[];
     final dungeons = <Dungeon>[];
-    final bankSortEntries = <BankSortEntry>[];
+    final bankSortEntries = <DisplayOrderEntry>[];
 
     // Step 1: Collect items and skill data entries (preserving namespace)
     for (final json in dataFiles) {
@@ -73,7 +72,7 @@ class MelvorData {
       final sortOrder = data['bankSortOrder'] as List<dynamic>? ?? [];
       for (final entry in sortOrder) {
         bankSortEntries.add(
-          BankSortEntry.fromJson(
+          DisplayOrderEntry.fromJson(
             entry as Map<String, dynamic>,
             namespace: namespace,
           ),
@@ -84,8 +83,8 @@ class MelvorData {
     _items = ItemRegistry(items);
 
     // Compute bank sort order
-    final bankSortOrder = computeBankSortOrder(bankSortEntries);
-    _bankSortIndex = buildBankSortIndex(bankSortOrder);
+    final bankSortOrder = computeDisplayOrder(bankSortEntries);
+    _bankSortIndex = buildDisplayOrderIndex(bankSortOrder);
 
     // Step 2: Parse each skill (null-safe, returns empty on missing)
     final actions = <Action>[
@@ -1032,6 +1031,7 @@ TownshipRegistry parseTownship(List<SkillDataEntry>? entries) {
   final deities = <TownshipDeity>[];
   final trades = <TownshipTrade>[];
   final seasons = <TownshipSeason>[];
+  final buildingDisplayOrderEntries = <DisplayOrderEntry>[];
 
   for (final entry in entries) {
     // Parse buildings
@@ -1040,6 +1040,20 @@ TownshipRegistry parseTownship(List<SkillDataEntry>? entries) {
       buildings.addAll(
         buildingsJson.map(
           (json) => TownshipBuilding.fromJson(
+            json as Map<String, dynamic>,
+            namespace: entry.namespace,
+          ),
+        ),
+      );
+    }
+
+    // Parse building display order
+    final displayOrderJson =
+        entry.data['buildingDisplayOrder'] as List<dynamic>?;
+    if (displayOrderJson != null) {
+      buildingDisplayOrderEntries.addAll(
+        displayOrderJson.map(
+          (json) => DisplayOrderEntry.fromJson(
             json as Map<String, dynamic>,
             namespace: entry.namespace,
           ),
@@ -1128,6 +1142,10 @@ TownshipRegistry parseTownship(List<SkillDataEntry>? entries) {
     }
   }
 
+  // Compute building display order
+  final buildingDisplayOrder = computeDisplayOrder(buildingDisplayOrderEntries);
+  final buildingSortIndex = buildDisplayOrderIndex(buildingDisplayOrder);
+
   return TownshipRegistry(
     buildings: buildings,
     biomes: biomes,
@@ -1135,5 +1153,6 @@ TownshipRegistry parseTownship(List<SkillDataEntry>? entries) {
     deities: deities,
     trades: trades,
     seasons: seasons,
+    buildingSortIndex: buildingSortIndex,
   );
 }

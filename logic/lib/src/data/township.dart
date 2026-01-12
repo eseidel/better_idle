@@ -1,6 +1,8 @@
 import 'package:logic/src/data/melvor_id.dart';
 import 'package:meta/meta.dart';
 
+export 'package:logic/src/data/display_order.dart';
+
 /// Costs and provides for a building in a specific biome.
 @immutable
 class BuildingBiomeData {
@@ -473,6 +475,7 @@ class TownshipRegistry {
     this.trades = const [],
     this.seasons = const [],
     this.tasks = const [],
+    this.buildingSortIndex = const {},
   });
 
   // TODO(eseidel): copyWith could end up with an empty registry.
@@ -485,6 +488,9 @@ class TownshipRegistry {
   final List<TownshipTrade> trades;
   final List<TownshipSeason> seasons;
   final List<TownshipTask> tasks;
+
+  /// Maps building ID to its display order index.
+  final Map<MelvorId, int> buildingSortIndex;
 
   // ---------------------------------------------------------------------------
   // Building lookups
@@ -521,6 +527,22 @@ class TownshipRegistry {
   /// Returns all buildings that can be built in a biome.
   List<TownshipBuilding> buildingsForBiome(MelvorId biomeId) {
     return buildings.where((b) => b.canBuildInBiome(biomeId)).toList();
+  }
+
+  /// Comparator for sorting building IDs according to display order.
+  /// Buildings in sort order come before buildings not in sort order.
+  /// Buildings not in sort order maintain stable relative ordering.
+  int compareBuildings(MelvorId a, MelvorId b) {
+    final indexA = buildingSortIndex[a];
+    final indexB = buildingSortIndex[b];
+
+    // Both not in sort order - maintain original order (return 0)
+    if (indexA == null && indexB == null) return 0;
+    // Buildings in sort order come before buildings not in sort order
+    if (indexA == null) return 1;
+    if (indexB == null) return -1;
+
+    return indexA.compareTo(indexB);
   }
 
   // ---------------------------------------------------------------------------

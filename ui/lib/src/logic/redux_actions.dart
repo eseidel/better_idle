@@ -445,6 +445,17 @@ class DebugResetStateAction extends ReduxAction<GlobalState> {
   }
 }
 
+class DebugAddCurrencyAction extends ReduxAction<GlobalState> {
+  DebugAddCurrencyAction(this.currency, this.amount);
+  final Currency currency;
+  final int amount;
+
+  @override
+  GlobalState reduce() {
+    return state.addCurrency(currency, amount);
+  }
+}
+
 // ============================================================================
 // Farming Actions
 // ============================================================================
