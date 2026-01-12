@@ -475,6 +475,7 @@ class TownshipRegistry {
     this.tasks = const [],
   });
 
+  // TODO(eseidel): copyWith could end up with an empty registry.
   const TownshipRegistry.empty() : this();
 
   final List<TownshipBuilding> buildings;

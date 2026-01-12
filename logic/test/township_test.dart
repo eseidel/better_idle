@@ -85,8 +85,10 @@ void main() {
     test('toJson/fromJson round trip preserves state', () {
       const biomeId = MelvorId('melvorD:Grasslands');
       const buildingId = MelvorId('melvorD:Wooden_Hut');
+      const registry = TownshipRegistry.empty();
 
       final state = TownshipState(
+        registry: registry,
         biomes: {
           biomeId: BiomeState(
             buildings: {
@@ -106,7 +108,7 @@ void main() {
       );
 
       final json = state.toJson();
-      final restored = TownshipState.fromJson(json);
+      final restored = TownshipState.fromJson(registry, json);
 
       expect(restored.biomes.keys, contains(biomeId));
       expect(restored.biomes[biomeId]!.buildings[buildingId]!.count, 5);
@@ -126,6 +128,7 @@ void main() {
 
     test('addResource adds to existing amount', () {
       final state = TownshipState(
+        registry: const TownshipRegistry.empty(),
         resources: {const MelvorId('melvorD:Food'): 100},
       );
       final newState = state.addResource(const MelvorId('melvorD:Food'), 50);
@@ -134,6 +137,7 @@ void main() {
 
     test('removeResource removes from existing amount', () {
       final state = TownshipState(
+        registry: const TownshipRegistry.empty(),
         resources: {const MelvorId('melvorD:Food'): 100},
       );
       final newState = state.removeResource(const MelvorId('melvorD:Food'), 30);
@@ -142,6 +146,7 @@ void main() {
 
     test('removeResource throws when insufficient', () {
       final state = TownshipState(
+        registry: const TownshipRegistry.empty(),
         resources: {const MelvorId('melvorD:Food'): 50},
       );
       expect(
@@ -153,6 +158,7 @@ void main() {
     test('totalBuildingCount sums across biomes', () {
       const buildingId = MelvorId('melvorD:Wooden_Hut');
       final state = TownshipState(
+        registry: const TownshipRegistry.empty(),
         biomes: {
           const MelvorId('melvorD:Grasslands'): BiomeState(
             buildings: {buildingId: const BuildingState(count: 3)},
@@ -202,6 +208,7 @@ void main() {
       );
 
       final state = TownshipState(
+        registry: registry,
         biomes: {
           biomeId: BiomeState(
             buildings: {buildingId: const BuildingState(count: 2)},
@@ -256,6 +263,7 @@ void main() {
       );
 
       final state = TownshipState(
+        registry: registry,
         biomes: {
           biomeId: BiomeState(
             buildings: {
@@ -298,6 +306,7 @@ void main() {
       );
 
       final state = TownshipState(
+        registry: registry,
         biomes: {
           biomeId: BiomeState(
             buildings: {buildingId: const BuildingState(count: 1)},
@@ -334,6 +343,7 @@ void main() {
       );
 
       final state = TownshipState(
+        registry: registry,
         biomes: {
           biomeId: BiomeState(
             buildings: {buildingId: const BuildingState(count: 1)},
@@ -368,6 +378,7 @@ void main() {
       // Start with many buildings at 100% efficiency for higher chance of
       // degradation
       final state = TownshipState(
+        registry: registry,
         biomes: {
           biomeId: BiomeState(
             buildings: {buildingId: const BuildingState(count: 100)},
@@ -413,6 +424,7 @@ void main() {
       );
 
       final state = TownshipState(
+        registry: registry,
         biomes: {
           biomeId: BiomeState(
             buildings: {buildingId: const BuildingState(count: 10)},
@@ -454,6 +466,7 @@ void main() {
       );
 
       final state = TownshipState(
+        registry: registry,
         biomes: {
           biomeId: BiomeState(
             buildings: {buildingId: const BuildingState(count: 1)},
@@ -954,7 +967,7 @@ void main() {
 
       final state = GlobalState.test(registries);
 
-      expect(state.getWorshipBonus('someModifier'), 0);
+      expect(state.township.getWorshipBonus('someModifier'), 0);
     });
   });
 

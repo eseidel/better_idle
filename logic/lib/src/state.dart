@@ -17,7 +17,6 @@ import 'package:logic/src/plot_state.dart';
 import 'package:logic/src/summoning_state.dart';
 import 'package:logic/src/tick.dart';
 import 'package:logic/src/township_state.dart';
-import 'package:logic/src/township_update.dart';
 import 'package:logic/src/types/equipment.dart';
 import 'package:logic/src/types/equipment_slot.dart';
 import 'package:logic/src/types/health.dart';
@@ -375,7 +374,7 @@ class GlobalState {
     StunnedState stunned = const StunnedState.fresh(),
     AttackStyle attackStyle = AttackStyle.stab,
     SummoningState summoning = const SummoningState.empty(),
-    TownshipState township = const TownshipState.empty(),
+    TownshipState? township,
   }) {
     // Support both gp parameter (for existing tests) and currencies map
     final currenciesMap = currencies ?? (gp > 0 ? {Currency.gp: gp} : const {});
@@ -398,7 +397,7 @@ class GlobalState {
       stunned: stunned,
       attackStyle: attackStyle,
       summoning: summoning,
-      township: township,
+      township: township ?? TownshipState.initial(registries.township),
     );
   }
 
@@ -463,8 +462,8 @@ class GlobalState {
           SummoningState.maybeFromJson(json['summoning']) ??
           const SummoningState.empty(),
       township =
-          TownshipState.maybeFromJson(json['township']) ??
-          const TownshipState.empty();
+          TownshipState.maybeFromJson(registries.township, json['township']) ??
+          TownshipState.initial(registries.township);
 
   static Map<Currency, int> _currenciesFromJson(Map<String, dynamic> json) {
     final currenciesJson = json['currencies'] as Map<String, dynamic>? ?? {};
@@ -570,9 +569,6 @@ class GlobalState {
   /// Returns the number of charges for an item.
   int itemChargeCount(MelvorId itemId) => itemCharges[itemId] ?? 0;
 
-  /// Returns how many Township main tasks have been completed.
-  int get tasksCompleted => township.completedMainTaskCount;
-
   /// Returns the game completion percentage (0.0 to 100.0).
   /// Always returns 0.0 since completion tracking is not yet supported.
   double get completionPercent => 0;
@@ -580,10 +576,6 @@ class GlobalState {
   /// Returns how many Slayer tasks have been completed in a category.
   /// Always returns 0 since Slayer task tracking is not yet supported.
   int completedSlayerTaskCount(MelvorId category) => 0;
-
-  /// Returns how many of a Township building have been built
-  /// (across all biomes).
-  int buildingCount(MelvorId building) => township.totalBuildingCount(building);
 
   /// The player's currencies (GP, Slayer Coins, etc.).
   final Map<Currency, int> currencies;
@@ -1329,15 +1321,6 @@ class GlobalState {
   // Township Methods
   // ---------------------------------------------------------------------------
 
-  /// Returns the current township stats.
-  TownshipStats get townshipStats =>
-      TownshipStats.calculate(township, registries.township);
-
-  /// Returns true if a biome is unlocked based on current population.
-  bool isTownshipBiomeUnlocked(TownshipBiome biome) {
-    return townshipStats.population >= biome.populationRequired;
-  }
-
   /// Checks if a Township building can be built in a biome.
   /// Returns null if valid, or an error message if not.
   String? canBuildTownshipBuilding(MelvorId biomeId, MelvorId buildingId) {
@@ -1506,34 +1489,12 @@ class GlobalState {
   // Township Task Methods
   // ---------------------------------------------------------------------------
 
-  /// Checks if a task requirement is met.
-  bool _isTaskRequirementMet(TaskRequirement req) {
-    return switch (req.type) {
-      'population' =>
-        TownshipStats.calculate(township, registries.township).population >=
-            req.target,
-      'buildBuilding' =>
-        req.targetId != null &&
-            township.totalBuildingCount(req.targetId!) >= req.target,
-      'townshipLevel' => skillState(Skill.town).skillLevel >= req.target,
-      'resource' =>
-        req.targetId != null &&
-            township.resourceAmount(req.targetId!) >= req.target,
-      _ => false, // Unknown requirement type
-    };
-  }
-
   /// Checks if all requirements for a task are met.
   bool isTaskComplete(MelvorId taskId) {
-    final task = registries.township.taskById(taskId);
-    if (task == null) return false;
-
-    // Check if already completed (for main tasks)
-    if (task.isMainTask && township.completedMainTasks.contains(taskId)) {
-      return false; // Already claimed
-    }
-
-    return task.requirements.every(_isTaskRequirementMet);
+    return township.isTaskComplete(
+      taskId,
+      townshipLevel: skillState(Skill.town).skillLevel,
+    );
   }
 
   /// Claims rewards for a completed task.
@@ -1602,74 +1563,12 @@ class GlobalState {
   /// Selects a deity for worship.
   /// Resets worship points if changing to a different deity.
   GlobalState selectWorship(MelvorId deityId) {
-    final deity = registries.township.deityById(deityId);
-    if (deity == null) throw StateError('Unknown deity: $deityId');
-
-    // Reset worship points if changing deity
-    final resetPoints =
-        township.worshipId != null && township.worshipId != deityId;
-
-    return copyWith(
-      township: township.copyWith(
-        worshipId: deityId,
-        worship: resetPoints ? 0 : township.worship,
-      ),
-    );
+    return copyWith(township: township.selectWorship(deityId));
   }
 
   /// Clears worship selection.
   GlobalState clearWorship() {
     return copyWith(township: township.clearWorship());
-  }
-
-  /// Gets the current worship bonus for a modifier.
-  /// Returns 0 if no deity is selected.
-  double getWorshipBonus(String modifierName) {
-    final deityId = township.worshipId;
-    if (deityId == null) return 0;
-
-    final deity = registries.township.deityById(deityId);
-    if (deity == null) return 0;
-
-    // Calculate worship percentage (0-100 based on 0-2000 points)
-    final worshipPercent = (township.worship / 20).clamp(0.0, 100.0);
-
-    return deity.bonusAtWorshipPercent(modifierName, worshipPercent);
-  }
-
-  /// Calculates the repair costs for a Township building.
-  /// Returns a map of resourceId -> cost.
-  /// Formula: (Base Cost / 3) × Buildings Built × (1 - Efficiency%)
-  /// Minimum cost is 1 per resource.
-  Map<MelvorId, int> townshipRepairCosts(
-    MelvorId biomeId,
-    MelvorId buildingId,
-  ) {
-    final building = registries.township.buildingById(buildingId);
-    if (building == null) return {};
-
-    final biomeData = building.dataForBiome(biomeId);
-    if (biomeData == null) return {};
-
-    final biomeState = township.biomeState(biomeId);
-    final buildingState = biomeState.buildingState(buildingId);
-
-    if (buildingState.count == 0 || buildingState.efficiency >= 100) {
-      return {};
-    }
-
-    final damagePercent = (100 - buildingState.efficiency) / 100;
-    final costs = <MelvorId, int>{};
-
-    for (final entry in biomeData.costs.entries) {
-      // Repair cost = (base cost / 3) × buildings built × damage%
-      final repairCost = (entry.value / 3 * buildingState.count * damagePercent)
-          .ceil();
-      // Minimum cost is 1
-      costs[entry.key] = repairCost < 1 ? 1 : repairCost;
-    }
-
-    return costs;
   }
 
   /// Repairs a Township building in a biome, restoring efficiency to 100%.
@@ -1692,7 +1591,7 @@ class GlobalState {
     }
 
     // Get repair costs and deduct them
-    final repairCosts = townshipRepairCosts(biomeId, buildingId);
+    final repairCosts = township.repairCosts(biomeId, buildingId);
     var state = this;
     var newTownship = township;
 
@@ -1736,7 +1635,7 @@ class GlobalState {
 
   /// Returns true if the player can afford all repair costs for a building.
   bool canAffordTownshipRepair(MelvorId biomeId, MelvorId buildingId) {
-    final costs = townshipRepairCosts(biomeId, buildingId);
+    final costs = township.repairCosts(biomeId, buildingId);
     for (final entry in costs.entries) {
       if (entry.key.localId == 'GP') {
         if (gp < entry.value) return false;

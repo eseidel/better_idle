@@ -121,8 +121,16 @@ String signedCountString(int value) {
   return approximateCountString(value);
 }
 
+/// Formats a decimal value (0.0-1.0) as a percentage string.
+/// Example: 0.5 → "50%"
 String percentToString(double value) {
   return '${(value * 100).toStringAsFixed(0)}%';
+}
+
+/// Formats a percentage value (0-100) as a percentage string.
+/// Example: 80.0 → "80%"
+String percentValueToString(num value) {
+  return '${value.toStringAsFixed(0)}%';
 }
 
 String signedPercentToString(double value) {

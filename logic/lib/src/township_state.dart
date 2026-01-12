@@ -1,6 +1,7 @@
 import 'package:logic/src/data/melvor_id.dart';
 import 'package:logic/src/data/township.dart';
 import 'package:logic/src/tick.dart';
+import 'package:logic/src/township_update.dart';
 import 'package:meta/meta.dart';
 
 /// The four seasons in Township, rotating every 3 days.
@@ -190,6 +191,7 @@ class TownshipTaskState {
 @immutable
 class TownshipState {
   const TownshipState({
+    required this.registry,
     this.biomes = const {},
     this.resources = const {},
     this.worshipId,
@@ -201,7 +203,7 @@ class TownshipState {
     this.completedMainTasks = const {},
   });
 
-  const TownshipState.empty() : this();
+  const TownshipState.empty() : this(registry: const TownshipRegistry.empty());
 
   /// Creates a new TownshipState with resources initialized to their starting
   /// amounts from the registry.
@@ -212,10 +214,13 @@ class TownshipState {
         resources[resource.id] = resource.startingAmount;
       }
     }
-    return TownshipState(resources: resources);
+    return TownshipState(registry: registry, resources: resources);
   }
 
-  factory TownshipState.fromJson(Map<String, dynamic> json) {
+  factory TownshipState.fromJson(
+    TownshipRegistry registry,
+    Map<String, dynamic> json,
+  ) {
     // Parse biomes
     final biomesJson = json['biomes'] as Map<String, dynamic>? ?? {};
     final biomes = <MelvorId, BiomeState>{};
@@ -248,6 +253,7 @@ class TownshipState {
         .toSet();
 
     return TownshipState(
+      registry: registry,
       biomes: biomes,
       resources: resources,
       worshipId: json['worshipId'] != null
@@ -265,10 +271,13 @@ class TownshipState {
     );
   }
 
-  static TownshipState? maybeFromJson(dynamic json) {
+  static TownshipState? maybeFromJson(TownshipRegistry registry, dynamic json) {
     if (json == null) return null;
-    return TownshipState.fromJson(json as Map<String, dynamic>);
+    return TownshipState.fromJson(registry, json as Map<String, dynamic>);
   }
+
+  /// The township registry containing all static data.
+  final TownshipRegistry registry;
 
   /// Biome states (biomeId -> biome state).
   final Map<MelvorId, BiomeState> biomes;
@@ -338,6 +347,133 @@ class TownshipState {
   /// Returns the number of completed main tasks.
   int get completedMainTaskCount => completedMainTasks.length;
 
+  /// Returns the current township stats.
+  TownshipStats get stats => TownshipStats.calculate(this, registry);
+
+  /// Returns true if a biome is unlocked based on current population.
+  bool isBiomeUnlocked(TownshipBiome biome) {
+    return stats.population >= biome.populationRequired;
+  }
+
+  /// Returns the selected deity for worship, or null if none selected.
+  TownshipDeity? get selectedDeity {
+    final id = worshipId;
+    if (id == null) return null;
+    return registry.deityById(id);
+  }
+
+  /// Returns the total resources stored in the township (excluding bank items).
+  int get totalResourcesStored {
+    var total = 0;
+    for (final resource in registry.resources) {
+      if (!resource.depositsToBank) {
+        total += resourceAmount(resource.id);
+      }
+    }
+    return total;
+  }
+
+  // ---------------------------------------------------------------------------
+  // Task Methods
+  // ---------------------------------------------------------------------------
+
+  /// Checks if a task requirement is met.
+  /// [townshipLevel] is the player's Township skill level, needed for
+  /// 'townshipLevel' requirement type.
+  bool isTaskRequirementMet(TaskRequirement req, {required int townshipLevel}) {
+    return switch (req.type) {
+      'population' => stats.population >= req.target,
+      'buildBuilding' =>
+        req.targetId != null && totalBuildingCount(req.targetId!) >= req.target,
+      'townshipLevel' => townshipLevel >= req.target,
+      'resource' =>
+        req.targetId != null && resourceAmount(req.targetId!) >= req.target,
+      _ => false, // Unknown requirement type
+    };
+  }
+
+  /// Checks if all requirements for a task are met.
+  /// [townshipLevel] is the player's Township skill level.
+  bool isTaskComplete(MelvorId taskId, {required int townshipLevel}) {
+    final task = registry.taskById(taskId);
+    if (task == null) return false;
+
+    // Check if already completed (for main tasks)
+    if (task.isMainTask && completedMainTasks.contains(taskId)) {
+      return false; // Already claimed
+    }
+
+    return task.requirements.every(
+      (req) => isTaskRequirementMet(req, townshipLevel: townshipLevel),
+    );
+  }
+
+  // ---------------------------------------------------------------------------
+  // Worship Methods
+  // ---------------------------------------------------------------------------
+
+  /// Selects a deity for worship.
+  /// Resets worship points if changing to a different deity.
+  TownshipState selectWorship(MelvorId deityId) {
+    final deity = registry.deityById(deityId);
+    if (deity == null) throw StateError('Unknown deity: $deityId');
+
+    // Reset worship points if changing deity
+    final resetPoints = worshipId != null && worshipId != deityId;
+
+    return copyWith(worshipId: deityId, worship: resetPoints ? 0 : worship);
+  }
+
+  /// Gets the current worship bonus for a modifier.
+  /// Returns 0 if no deity is selected.
+  double getWorshipBonus(String modifierName) {
+    final deityId = worshipId;
+    if (deityId == null) return 0;
+
+    final deity = registry.deityById(deityId);
+    if (deity == null) return 0;
+
+    // Calculate worship percentage (0-100 based on 0-2000 points)
+    final worshipPercent = (worship / 20).clamp(0.0, 100.0);
+
+    return deity.bonusAtWorshipPercent(modifierName, worshipPercent);
+  }
+
+  // ---------------------------------------------------------------------------
+  // Repair Methods
+  // ---------------------------------------------------------------------------
+
+  /// Calculates the repair costs for a Township building.
+  /// Returns a map of resourceId -> cost.
+  /// Formula: (Base Cost / 3) × Buildings Built × (1 - Efficiency%)
+  /// Minimum cost is 1 per resource.
+  Map<MelvorId, int> repairCosts(MelvorId biomeId, MelvorId buildingId) {
+    final building = registry.buildingById(buildingId);
+    if (building == null) return {};
+
+    final biomeData = building.dataForBiome(biomeId);
+    if (biomeData == null) return {};
+
+    final bState = buildingState(biomeId, buildingId);
+
+    if (bState.count == 0 || bState.efficiency >= 100) {
+      return {};
+    }
+
+    final damagePercent = (100 - bState.efficiency) / 100;
+    final costs = <MelvorId, int>{};
+
+    for (final entry in biomeData.costs.entries) {
+      // Repair cost = (base cost / 3) × buildings built × damage%
+      final repairCost = (entry.value / 3 * bState.count * damagePercent)
+          .ceil();
+      // Minimum cost is 1
+      costs[entry.key] = repairCost < 1 ? 1 : repairCost;
+    }
+
+    return costs;
+  }
+
   // ---------------------------------------------------------------------------
   // State Updates
   // ---------------------------------------------------------------------------
@@ -354,6 +490,7 @@ class TownshipState {
     Set<MelvorId>? completedMainTasks,
   }) {
     return TownshipState(
+      registry: registry,
       biomes: biomes ?? this.biomes,
       resources: resources ?? this.resources,
       worshipId: worshipId ?? this.worshipId,
@@ -408,6 +545,7 @@ class TownshipState {
   /// Clears worship selection and resets points.
   TownshipState clearWorship() {
     return TownshipState(
+      registry: registry,
       biomes: biomes,
       resources: resources,
       season: season,

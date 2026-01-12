@@ -64,43 +64,31 @@ class TownshipViewModel {
 
   final GlobalState _state;
 
-  TownshipRegistry get _registry => _state.registries.township;
   TownshipState get _township => _state.township;
+  TownshipRegistry get _registry => _township.registry;
 
   int get townshipXp => _state.skillState(Skill.town).xp;
-  int get townshipLevel => levelForXp(townshipXp);
+  int get townshipLevel => _state.skillState(Skill.town).skillLevel;
 
-  TownshipStats get stats => _state.townshipStats;
+  TownshipStats get stats => _township.stats;
 
   int get gp => _state.gp;
 
   // Deity/worship
   MelvorId? get selectedDeityId => _township.worshipId;
   bool get hasSelectedDeity => selectedDeityId != null;
-  List<TownshipDeity> get deities => _registry.deities;
+  List<TownshipDeity> get deities => _township.registry.deities;
 
-  TownshipDeity? get selectedDeity {
-    final id = selectedDeityId;
-    if (id == null) return null;
-    return _registry.deityById(id);
-  }
+  TownshipDeity? get selectedDeity => _township.selectedDeity;
 
-  List<TownshipBiome> get biomes => _registry.biomes;
+  List<TownshipBiome> get biomes => _township.registry.biomes;
 
-  List<TownshipResource> get resources => _registry.resources;
+  List<TownshipResource> get resources => _township.registry.resources;
 
   int resourceAmount(MelvorId resourceId) =>
       _township.resourceAmount(resourceId);
 
-  int totalResourcesStored() {
-    var total = 0;
-    for (final resource in resources) {
-      if (!resource.depositsToBank) {
-        total += resourceAmount(resource.id);
-      }
-    }
-    return total;
-  }
+  int get totalResourcesStored => _township.totalResourcesStored;
 
   Season get season => _township.season;
 
@@ -110,11 +98,10 @@ class TownshipViewModel {
   String get nextUpdateTime =>
       compactDurationFromTicks(_township.ticksUntilUpdate);
 
-  bool isBiomeUnlocked(TownshipBiome biome) =>
-      _state.isTownshipBiomeUnlocked(biome);
+  bool isBiomeUnlocked(TownshipBiome biome) => _township.isBiomeUnlocked(biome);
 
   List<TownshipBuilding> buildingsForBiome(MelvorId biomeId) {
-    return _registry.buildingsForBiome(biomeId);
+    return _township.registry.buildingsForBiome(biomeId);
   }
 
   BuildingState buildingState(MelvorId biomeId, MelvorId buildingId) {
@@ -133,7 +120,7 @@ class TownshipViewModel {
   /// Returns the repair costs for a building.
   /// Uses the formula: (Base Cost / 3) × Buildings Built × (1 - Efficiency%)
   Map<MelvorId, int> repairCosts(MelvorId biomeId, MelvorId buildingId) {
-    return _state.townshipRepairCosts(biomeId, buildingId);
+    return _township.repairCosts(biomeId, buildingId);
   }
 
   /// Returns true if the player can afford all repair costs.
@@ -300,7 +287,7 @@ class _TownshipStatsCard extends StatelessWidget {
                 Expanded(
                   child: _StatItem(
                     label: 'Health',
-                    value: '${stats.health.toStringAsFixed(0)}%',
+                    value: percentValueToString(stats.health),
                     labelStyle: labelStyle,
                     valueStyle: valueStyle,
                   ),
@@ -314,7 +301,7 @@ class _TownshipStatsCard extends StatelessWidget {
                   child: _StatItem(
                     label: 'Happiness',
                     value:
-                        '${stats.happiness.toStringAsFixed(0)}%'
+                        '${percentValueToString(stats.happiness)}'
                         '$happinessIndicator',
                     labelStyle: labelStyle,
                     valueStyle: valueStyle,
@@ -324,7 +311,7 @@ class _TownshipStatsCard extends StatelessWidget {
                   child: _StatItem(
                     label: 'Education',
                     value:
-                        '${stats.education.toStringAsFixed(0)}%'
+                        '${percentValueToString(stats.education)}'
                         '$educationIndicator',
                     labelStyle: labelStyle,
                     valueStyle: valueStyle,
@@ -393,7 +380,7 @@ class _TownshipStatsCard extends StatelessWidget {
   }
 
   String _formatStorage(TownshipViewModel viewModel, TownshipStats stats) {
-    final used = approximateCreditString(viewModel.totalResourcesStored());
+    final used = approximateCreditString(viewModel.totalResourcesStored);
     final capacity = approximateCreditString(stats.storage);
     return '$used / $capacity';
   }
@@ -667,7 +654,7 @@ class _BuildingCard extends StatelessWidget {
                   Text(
                     needsRepair
                         ? '${buildingState.count} built '
-                              '(${buildingState.efficiency.toStringAsFixed(0)}%)'
+                              '(${percentValueToString(buildingState.efficiency)})'
                         : '${buildingState.count} built',
                     style: TextStyle(
                       fontSize: 10,
@@ -818,7 +805,7 @@ class _BuildingCard extends StatelessWidget {
       benefitWidgets.add(
         _CostBenefitChip(
           assetPath: 'assets/media/skills/township/happiness.png',
-          value: '$sign${biomeData.happiness.toStringAsFixed(0)}%',
+          value: '$sign${percentValueToString(biomeData.happiness)}',
           isAffordable: true,
           isBenefit: true,
         ),
@@ -831,7 +818,7 @@ class _BuildingCard extends StatelessWidget {
       benefitWidgets.add(
         _CostBenefitChip(
           assetPath: 'assets/media/skills/township/education.png',
-          value: '$sign${biomeData.education.toStringAsFixed(0)}%',
+          value: '$sign${percentValueToString(biomeData.education)}',
           isAffordable: true,
           isBenefit: true,
         ),
@@ -966,7 +953,8 @@ class _BuildingPurchaseDialog extends StatelessWidget {
             if (buildingState.count > 0) ...[
               Text(
                 'Currently: ${buildingState.count} built '
-                '(${buildingState.efficiency.toStringAsFixed(0)}% efficiency)',
+                '(${percentValueToString(buildingState.efficiency)} '
+                'efficiency)',
                 style: Theme.of(context).textTheme.bodySmall?.copyWith(
                   color: needsRepair ? Style.unmetRequirementColor : null,
                 ),
@@ -1196,11 +1184,15 @@ class _BuildingPurchaseDialog extends StatelessWidget {
     }
     if (biomeData.happiness != 0) {
       final sign = biomeData.happiness > 0 ? '+' : '';
-      bonuses.add('$sign${biomeData.happiness.toStringAsFixed(0)}% Happiness');
+      bonuses.add(
+        '$sign${percentValueToString(biomeData.happiness)} Happiness',
+      );
     }
     if (biomeData.education != 0) {
       final sign = biomeData.education > 0 ? '+' : '';
-      bonuses.add('$sign${biomeData.education.toStringAsFixed(0)}% Education');
+      bonuses.add(
+        '$sign${percentValueToString(biomeData.education)} Education',
+      );
     }
     if (biomeData.storage > 0) {
       bonuses.add('+${biomeData.storage} Storage');

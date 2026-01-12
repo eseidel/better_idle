@@ -299,7 +299,8 @@ class TownshipTaskRequirement extends ShopRequirement {
   final int count;
 
   @override
-  bool isMet(GlobalState state) => state.tasksCompleted >= count;
+  bool isMet(GlobalState state) =>
+      state.township.completedMainTaskCount >= count;
 
   @override
   List<Object?> get props => [count];
@@ -366,7 +367,8 @@ class TownshipBuildingRequirement extends ShopRequirement {
   final int count;
 
   @override
-  bool isMet(GlobalState state) => state.buildingCount(buildingId) >= count;
+  bool isMet(GlobalState state) =>
+      state.township.totalBuildingCount(buildingId) >= count;
 
   @override
   List<Object?> get props => [buildingId, count];
