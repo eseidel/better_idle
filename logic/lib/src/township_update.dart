@@ -167,6 +167,10 @@ Map<MelvorId, int> _calculateProduction(
     final biomeId = biomeEntry.key;
     final biomeState = biomeEntry.value;
 
+    // Get deity production modifier for this biome (e.g., 25 = +25%)
+    final deityModifier = state.getProductionModifierForBiome(biomeId);
+    final deityMultiplier = 1.0 + (deityModifier / 100.0);
+
     for (final buildingEntry in biomeState.buildings.entries) {
       final building = registry.buildingById(buildingEntry.key);
       if (building == null) continue;
@@ -188,11 +192,13 @@ Map<MelvorId, int> _calculateProduction(
         // - Building count
         // - Building efficiency
         // - Education bonus
+        // - Deity worship bonus (per-biome)
         final amount =
             (baseAmount *
                     count *
                     efficiencyMultiplier *
-                    stats.educationProductionMultiplier)
+                    stats.educationProductionMultiplier *
+                    deityMultiplier)
                 .floor();
 
         production[resourceId] = (production[resourceId] ?? 0) + amount;

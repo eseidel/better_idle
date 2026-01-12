@@ -960,14 +960,159 @@ void main() {
       expect(state.township.worshipId, deityId);
     });
 
-    test('getWorshipBonus returns 0 when no deity selected', () {
+    test('getProductionModifierForBiome returns 0 when no deity selected', () {
       final registries = Registries.test(
         township: const TownshipRegistry.empty(),
       );
 
       final state = GlobalState.test(registries);
 
-      expect(state.township.getWorshipBonus('someModifier'), 0);
+      expect(
+        state.township.getProductionModifierForBiome(
+          const MelvorId('melvorF:Grasslands'),
+        ),
+        0,
+      );
+    });
+
+    test('deity base modifiers apply to production', () {
+      const deityId = MelvorId('melvorD:TestDeity');
+      const grasslandsId = MelvorId('melvorF:Grasslands');
+      const desertId = MelvorId('melvorF:Desert');
+
+      final registries = Registries.test(
+        township: const TownshipRegistry(
+          deities: [
+            TownshipDeity(
+              id: deityId,
+              name: 'Test Deity',
+              baseModifiers: DeityModifiers(
+                buildingProduction: [
+                  BiomeProductionModifier(biomeId: grasslandsId, value: 25),
+                  BiomeProductionModifier(biomeId: desertId, value: -50),
+                ],
+                buildingCost: -15,
+              ),
+            ),
+          ],
+        ),
+      );
+
+      var state = GlobalState.test(registries);
+      state = state.selectWorship(deityId);
+
+      // Base modifiers apply immediately (no worship needed)
+      expect(state.township.getProductionModifierForBiome(grasslandsId), 25);
+      expect(state.township.getProductionModifierForBiome(desertId), -50);
+      expect(state.township.getBuildingCostModifier(), -15);
+    });
+
+    test('deity checkpoint modifiers unlock at thresholds', () {
+      const deityId = MelvorId('melvorD:TestDeity');
+      const mountainsId = MelvorId('melvorF:Mountains');
+
+      final registries = Registries.test(
+        township: const TownshipRegistry(
+          deities: [
+            TownshipDeity(
+              id: deityId,
+              name: 'Test Deity',
+              checkpoints: [
+                // Checkpoint 0: unlocks at 5%
+                DeityModifiers(
+                  buildingProduction: [
+                    BiomeProductionModifier(biomeId: mountainsId, value: 10),
+                  ],
+                ),
+                // Checkpoint 1: unlocks at 25%
+                DeityModifiers(
+                  buildingProduction: [
+                    BiomeProductionModifier(biomeId: mountainsId, value: 15),
+                  ],
+                ),
+                // Checkpoint 2: unlocks at 50%
+                DeityModifiers(buildingCost: -10),
+                // Checkpoint 3: unlocks at 85%
+                DeityModifiers(
+                  buildingProduction: [
+                    BiomeProductionModifier(biomeId: mountainsId, value: 20),
+                  ],
+                ),
+                // Checkpoint 4: unlocks at 95%
+                DeityModifiers(
+                  buildingProduction: [
+                    BiomeProductionModifier(biomeId: mountainsId, value: 25),
+                  ],
+                  buildingCost: -15,
+                ),
+              ],
+            ),
+          ],
+        ),
+      );
+
+      var state = GlobalState.test(registries);
+      state = state.selectWorship(deityId);
+
+      // At 0% worship - no checkpoints unlocked
+      expect(state.township.worshipPercent, 0);
+      expect(state.township.getProductionModifierForBiome(mountainsId), 0);
+      expect(state.township.getBuildingCostModifier(), 0);
+
+      // At 5% worship (100 points) - checkpoint 0 unlocked
+      state = state.copyWith(township: state.township.copyWith(worship: 100));
+      expect(state.township.worshipPercent, 5);
+      expect(state.township.getProductionModifierForBiome(mountainsId), 10);
+
+      // At 25% worship (500 points) - checkpoints 0 + 1 unlocked
+      state = state.copyWith(township: state.township.copyWith(worship: 500));
+      expect(state.township.worshipPercent, 25);
+      expect(state.township.getProductionModifierForBiome(mountainsId), 25);
+
+      // At 50% worship (1000 points) - checkpoints 0 + 1 + 2 unlocked
+      state = state.copyWith(township: state.township.copyWith(worship: 1000));
+      expect(state.township.worshipPercent, 50);
+      expect(state.township.getProductionModifierForBiome(mountainsId), 25);
+      expect(state.township.getBuildingCostModifier(), -10);
+
+      // At 95% worship (1900 points) - all checkpoints unlocked
+      state = state.copyWith(township: state.township.copyWith(worship: 1900));
+      expect(state.township.worshipPercent, 95);
+      expect(
+        state.township.getProductionModifierForBiome(mountainsId),
+        70, // 10 + 15 + 20 + 25
+      );
+      expect(state.township.getBuildingCostModifier(), -25); // -10 + -15
+    });
+
+    test('buildingCostsWithModifier applies deity discount', () {
+      const deityId = MelvorId('melvorD:TestDeity');
+
+      final registries = Registries.test(
+        township: const TownshipRegistry(
+          deities: [
+            TownshipDeity(
+              id: deityId,
+              name: 'Test Deity',
+              baseModifiers: DeityModifiers(buildingCost: -25),
+            ),
+          ],
+        ),
+      );
+
+      var state = GlobalState.test(registries);
+      state = state.selectWorship(deityId);
+
+      final baseCosts = {
+        const MelvorId('melvorF:Food'): 100,
+        const MelvorId('melvorF:Wood'): 200,
+      };
+
+      final modifiedCosts = state.township.buildingCostsWithModifier(baseCosts);
+
+      // -25% cost modifier means 75% of original
+      expect(modifiedCosts[const MelvorId('melvorF:Food')], 75);
+      expect(modifiedCosts[const MelvorId('melvorF:Wood')], 150);
     });
   });
 

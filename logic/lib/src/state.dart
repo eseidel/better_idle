@@ -1348,8 +1348,9 @@ class GlobalState {
       return 'Requires Township level $levelRequired';
     }
 
-    // Check resource costs (including GP)
-    for (final entry in biomeData.costs.entries) {
+    // Check resource costs (including GP) with deity modifier applied
+    final costs = township.buildingCostsWithModifier(biomeData.costs);
+    for (final entry in costs.entries) {
       final resourceId = entry.key;
       final required = entry.value;
 
@@ -1380,11 +1381,12 @@ class GlobalState {
     final building = registries.township.buildingById(buildingId)!;
     final biomeData = building.dataForBiome(biomeId)!;
 
-    // Deduct costs (GP and township resources)
+    // Deduct costs (GP and township resources) with deity modifier applied
     var state = this;
     var newTownship = township;
 
-    for (final entry in biomeData.costs.entries) {
+    final costs = township.buildingCostsWithModifier(biomeData.costs);
+    for (final entry in costs.entries) {
       final resourceId = entry.key;
       final cost = entry.value;
 

@@ -424,19 +424,50 @@ class TownshipState {
     return copyWith(worshipId: deityId, worship: resetPoints ? 0 : worship);
   }
 
-  /// Gets the current worship bonus for a modifier.
+  /// Returns the current worship percentage (0-100).
+  double get worshipPercent => (worship / 20).clamp(0.0, 100.0);
+
+  /// Gets the production modifier for a specific biome from the selected deity.
   /// Returns 0 if no deity is selected.
-  double getWorshipBonus(String modifierName) {
+  /// The value is a percentage (e.g., 25 for +25%, -50 for -50%).
+  double getProductionModifierForBiome(MelvorId biomeId) {
     final deityId = worshipId;
     if (deityId == null) return 0;
 
     final deity = registry.deityById(deityId);
     if (deity == null) return 0;
 
-    // Calculate worship percentage (0-100 based on 0-2000 points)
-    final worshipPercent = (worship / 20).clamp(0.0, 100.0);
+    return deity.productionModifierForBiome(biomeId, worshipPercent);
+  }
 
-    return deity.bonusAtWorshipPercent(modifierName, worshipPercent);
+  /// Gets the building cost modifier from the selected deity.
+  /// Returns 0 if no deity is selected.
+  /// The value is a percentage (e.g., -25 for -25% cost).
+  double getBuildingCostModifier() {
+    final deityId = worshipId;
+    if (deityId == null) return 0;
+
+    final deity = registry.deityById(deityId);
+    if (deity == null) return 0;
+
+    return deity.buildingCostModifier(worshipPercent);
+  }
+
+  // ---------------------------------------------------------------------------
+  // Building Cost Methods
+  // ---------------------------------------------------------------------------
+
+  /// Returns building costs with deity cost modifier applied.
+  /// The modifier reduces costs (e.g., -25 means 25% reduction).
+  Map<MelvorId, int> buildingCostsWithModifier(Map<MelvorId, int> baseCosts) {
+    final modifier = getBuildingCostModifier();
+    if (modifier == 0) return baseCosts;
+
+    // Modifier is negative for cost reduction (e.g., -25 = 25% cheaper)
+    final multiplier = 1.0 + (modifier / 100.0);
+    return baseCosts.map(
+      (key, value) => MapEntry(key, (value * multiplier).ceil()),
+    );
   }
 
   // ---------------------------------------------------------------------------

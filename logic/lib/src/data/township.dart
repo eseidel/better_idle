@@ -291,6 +291,78 @@ class TownshipResource {
   bool get depositsToBank => type == 'Currency';
 }
 
+/// A biome-specific production modifier (e.g., +25% production in Mountains).
+@immutable
+class BiomeProductionModifier {
+  const BiomeProductionModifier({required this.biomeId, required this.value});
+
+  factory BiomeProductionModifier.fromJson(
+    Map<String, dynamic> json, {
+    required String namespace,
+  }) {
+    return BiomeProductionModifier(
+      biomeId: MelvorId.fromJsonWithNamespace(
+        json['categoryID'] as String,
+        defaultNamespace: namespace,
+      ),
+      value: (json['value'] as num).toDouble(),
+    );
+  }
+
+  /// The biome this modifier applies to.
+  final MelvorId biomeId;
+
+  /// The percentage modifier value (e.g., 25 for +25%, -50 for -50%).
+  final double value;
+}
+
+/// Modifiers for a deity (base or checkpoint).
+@immutable
+class DeityModifiers {
+  const DeityModifiers({
+    this.buildingProduction = const [],
+    this.buildingCost = 0,
+  });
+
+  factory DeityModifiers.fromJson(
+    Map<String, dynamic> json, {
+    required String namespace,
+  }) {
+    final productionJson =
+        json['townshipBuildingProduction'] as List<dynamic>? ?? [];
+    final production = productionJson
+        .map(
+          (e) => BiomeProductionModifier.fromJson(
+            e as Map<String, dynamic>,
+            namespace: namespace,
+          ),
+        )
+        .toList();
+
+    return DeityModifiers(
+      buildingProduction: production,
+      buildingCost: (json['townshipBuildingCost'] as num?)?.toDouble() ?? 0,
+    );
+  }
+
+  /// Per-biome production modifiers.
+  final List<BiomeProductionModifier> buildingProduction;
+
+  /// Global building cost modifier (percentage, e.g., -25 for -25% cost).
+  final double buildingCost;
+
+  /// Returns true if this modifier set has no effects.
+  bool get isEmpty => buildingProduction.isEmpty && buildingCost == 0;
+
+  /// Returns the production modifier for a specific biome, or 0 if none.
+  double productionModifierForBiome(MelvorId biomeId) {
+    for (final mod in buildingProduction) {
+      if (mod.biomeId == biomeId) return mod.value;
+    }
+    return 0;
+  }
+}
+
 /// A Township deity for worship.
 @immutable
 class TownshipDeity {
@@ -299,12 +371,32 @@ class TownshipDeity {
     required this.name,
     this.isHidden = false,
     this.statueName = '',
+    this.baseModifiers = const DeityModifiers(),
+    this.checkpoints = const [],
   });
 
   factory TownshipDeity.fromJson(
     Map<String, dynamic> json, {
     required String namespace,
   }) {
+    // Parse base modifiers (always active when deity is selected)
+    final modifiersJson = json['modifiers'] as Map<String, dynamic>? ?? {};
+    final baseModifiers = DeityModifiers.fromJson(
+      modifiersJson,
+      namespace: namespace,
+    );
+
+    // Parse checkpoint modifiers (unlocked at 5%, 25%, 50%, 85%, 95%)
+    final checkpointsJson = json['checkpoints'] as List<dynamic>? ?? [];
+    final checkpoints = checkpointsJson
+        .map(
+          (e) => DeityModifiers.fromJson(
+            e as Map<String, dynamic>,
+            namespace: namespace,
+          ),
+        )
+        .toList();
+
     return TownshipDeity(
       id: MelvorId.fromJsonWithNamespace(
         json['id'] as String,
@@ -313,8 +405,14 @@ class TownshipDeity {
       name: json['name'] as String,
       isHidden: json['isHidden'] as bool? ?? false,
       statueName: json['statueName'] as String? ?? '',
+      baseModifiers: baseModifiers,
+      checkpoints: checkpoints,
     );
   }
+
+  /// Worship checkpoint thresholds (percentages).
+  /// Checkpoints unlock at 5%, 25%, 50%, 85%, and 95% worship.
+  static const List<double> checkpointThresholds = [5, 25, 50, 85, 95];
 
   final MelvorId id;
   final String name;
@@ -325,12 +423,49 @@ class TownshipDeity {
   /// Name of the statue for this deity.
   final String statueName;
 
-  /// Returns the total bonus for a modifier at the given worship percentage.
-  // TODO(eseidel): Parse and implement actual checkpoint bonuses.
-  double bonusAtWorshipPercent(String modifierName, double worshipPercent) {
-    // Worship bonuses are not yet parsed from the JSON data.
-    // The checkpoint system has thresholds at 5%, 25%, 50%, 85%, 95%.
-    return 0;
+  /// Base modifiers that are always active when this deity is selected.
+  final DeityModifiers baseModifiers;
+
+  /// Checkpoint modifiers unlocked at increasing worship levels.
+  /// Index 0 = 5%, Index 1 = 25%, Index 2 = 50%, Index 3 = 85%, Index 4 = 95%.
+  final List<DeityModifiers> checkpoints;
+
+  /// Returns the total production modifier for a biome at the given worship %.
+  /// Includes base modifiers plus all unlocked checkpoint bonuses.
+  double productionModifierForBiome(MelvorId biomeId, double worshipPercent) {
+    var total = baseModifiers.productionModifierForBiome(biomeId);
+
+    // Add checkpoint bonuses that are unlocked
+    for (
+      var i = 0;
+      i < checkpoints.length && i < checkpointThresholds.length;
+      i++
+    ) {
+      if (worshipPercent >= checkpointThresholds[i]) {
+        total += checkpoints[i].productionModifierForBiome(biomeId);
+      }
+    }
+
+    return total;
+  }
+
+  /// Returns the total building cost modifier at the given worship %.
+  /// Includes base modifiers plus all unlocked checkpoint bonuses.
+  double buildingCostModifier(double worshipPercent) {
+    var total = baseModifiers.buildingCost;
+
+    // Add checkpoint bonuses that are unlocked
+    for (
+      var i = 0;
+      i < checkpoints.length && i < checkpointThresholds.length;
+      i++
+    ) {
+      if (worshipPercent >= checkpointThresholds[i]) {
+        total += checkpoints[i].buildingCost;
+      }
+    }
+
+    return total;
   }
 }
 
