@@ -474,7 +474,7 @@ class _TownshipResourcesCard extends StatelessWidget {
               runSpacing: 8,
               children: nonZeroResources.map((resource) {
                 final amount = viewModel.resourceAmount(resource.id);
-                return _ResourceChip(name: resource.name, amount: amount);
+                return _ResourceChip(media: resource.media, amount: amount);
               }).toList(),
             ),
           ],
@@ -485,9 +485,9 @@ class _TownshipResourcesCard extends StatelessWidget {
 }
 
 class _ResourceChip extends StatelessWidget {
-  const _ResourceChip({required this.name, required this.amount});
+  const _ResourceChip({required this.media, required this.amount});
 
-  final String name;
+  final String? media;
   final int amount;
 
   @override
@@ -501,10 +501,10 @@ class _ResourceChip extends StatelessWidget {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Text(
-            name,
-            style: const TextStyle(fontSize: 12, color: Style.textColorPrimary),
-          ),
+          if (media != null)
+            CachedImage(assetPath: media!, size: 16)
+          else
+            const Icon(Icons.inventory_2, size: 16),
           const SizedBox(width: 4),
           Text(
             approximateCreditString(amount),
@@ -660,7 +660,7 @@ class _BuildingCard extends StatelessWidget {
                   overflow: TextOverflow.ellipsis,
                 ),
                 const SizedBox(height: 2),
-                // Count or description
+                // Count display
                 if (buildingState.count > 0)
                   Text(
                     '${buildingState.count} built',
@@ -668,18 +668,13 @@ class _BuildingCard extends StatelessWidget {
                       fontSize: 10,
                       color: Style.textColorSecondary,
                     ),
-                  )
-                else
-                  Text(
-                    _getShortDescription(),
-                    style: const TextStyle(
-                      fontSize: 10,
-                      color: Style.textColorSecondary,
-                    ),
-                    textAlign: TextAlign.center,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
                   ),
+                const SizedBox(height: 4),
+                // Costs section
+                _buildCostsSection(context),
+                const SizedBox(height: 4),
+                // Benefits section
+                _buildBenefitsSection(context),
                 const SizedBox(height: 4),
                 // Purchase button
                 SizedBox(
@@ -707,18 +702,138 @@ class _BuildingCard extends StatelessWidget {
     );
   }
 
-  String _getShortDescription() {
+  Widget _buildCostsSection(BuildContext context) {
     final biomeData = building.dataForBiome(biomeId);
-    if (biomeData == null) return '';
-
-    if (biomeData.population > 0) return '+${biomeData.population} pop';
-    if (biomeData.production.isNotEmpty) return 'Produces';
-    if (biomeData.happiness != 0) {
-      return '+${biomeData.happiness.toInt()} happy';
+    if (biomeData == null || biomeData.costs.isEmpty) {
+      return const SizedBox.shrink();
     }
-    if (biomeData.education != 0) return '+${biomeData.education.toInt()} edu';
-    if (biomeData.storage > 0) return '+${biomeData.storage} storage';
-    return '';
+
+    final costWidgets = <Widget>[
+      const Text(
+        'Cost:',
+        style: TextStyle(fontSize: 9, color: Style.textColorSecondary),
+      ),
+    ];
+    for (final entry in biomeData.costs.entries) {
+      final resourceId = entry.key;
+      final amount = entry.value;
+
+      if (resourceId.localId == 'GP') {
+        final canAfford = viewModel.canAffordGp(amount);
+        costWidgets.add(
+          _CostBenefitChip(
+            assetPath: Currency.gp.assetPath,
+            value: approximateCreditString(amount),
+            isAffordable: canAfford,
+          ),
+        );
+      } else {
+        final resource = viewModel._registry.resourceById(resourceId);
+        final canAfford = viewModel.canAffordResource(resourceId, amount);
+        costWidgets.add(
+          _CostBenefitChip(
+            assetPath: resource?.media,
+            value: approximateCreditString(amount),
+            isAffordable: canAfford,
+          ),
+        );
+      }
+    }
+
+    return Wrap(
+      spacing: 4,
+      runSpacing: 2,
+      alignment: WrapAlignment.center,
+      crossAxisAlignment: WrapCrossAlignment.center,
+      children: costWidgets,
+    );
+  }
+
+  Widget _buildBenefitsSection(BuildContext context) {
+    final biomeData = building.dataForBiome(biomeId);
+    if (biomeData == null) return const SizedBox.shrink();
+
+    final benefitWidgets = <Widget>[
+      const Text(
+        'Per Upgrade:',
+        style: TextStyle(fontSize: 9, color: Style.textColorSecondary),
+      ),
+    ];
+
+    // Population bonus
+    if (biomeData.population > 0) {
+      benefitWidgets.add(
+        _CostBenefitChip(
+          assetPath: 'assets/media/skills/township/population.png',
+          value: '+${biomeData.population}',
+          isAffordable: true,
+          isBenefit: true,
+        ),
+      );
+    }
+
+    // Storage bonus
+    if (biomeData.storage > 0) {
+      benefitWidgets.add(
+        _CostBenefitChip(
+          assetPath: 'assets/media/skills/township/storage.png',
+          value: '+${approximateCreditString(biomeData.storage)}',
+          isAffordable: true,
+          isBenefit: true,
+        ),
+      );
+    }
+
+    // Production bonuses
+    for (final entry in biomeData.production.entries) {
+      final resource = viewModel._registry.resourceById(entry.key);
+      final perHour = entry.value.toStringAsFixed(0);
+      benefitWidgets.add(
+        _CostBenefitChip(
+          assetPath: resource?.media,
+          value: '+$perHour/h',
+          isAffordable: true,
+          isBenefit: true,
+        ),
+      );
+    }
+
+    // Happiness bonus
+    if (biomeData.happiness != 0) {
+      final sign = biomeData.happiness > 0 ? '+' : '';
+      benefitWidgets.add(
+        _CostBenefitChip(
+          assetPath: 'assets/media/skills/township/happiness.png',
+          value: '$sign${biomeData.happiness.toStringAsFixed(0)}%',
+          isAffordable: true,
+          isBenefit: true,
+        ),
+      );
+    }
+
+    // Education bonus
+    if (biomeData.education != 0) {
+      final sign = biomeData.education > 0 ? '+' : '';
+      benefitWidgets.add(
+        _CostBenefitChip(
+          assetPath: 'assets/media/skills/township/education.png',
+          value: '$sign${biomeData.education.toStringAsFixed(0)}%',
+          isAffordable: true,
+          isBenefit: true,
+        ),
+      );
+    }
+
+    // Only show label, no benefits
+    if (benefitWidgets.length == 1) return const SizedBox.shrink();
+
+    return Wrap(
+      spacing: 4,
+      runSpacing: 2,
+      alignment: WrapAlignment.center,
+      crossAxisAlignment: WrapCrossAlignment.center,
+      children: benefitWidgets,
+    );
   }
 
   void _buildBuilding(BuildContext context) {
@@ -956,6 +1071,47 @@ class _BuildingPurchaseDialog extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: bonuses.map(Text.new).toList(),
+    );
+  }
+}
+
+/// A compact chip showing a cost or benefit with an image.
+class _CostBenefitChip extends StatelessWidget {
+  const _CostBenefitChip({
+    required this.assetPath,
+    required this.value,
+    required this.isAffordable,
+    this.isBenefit = false,
+  });
+
+  final String? assetPath;
+  final String value;
+  final bool isAffordable;
+  final bool isBenefit;
+
+  @override
+  Widget build(BuildContext context) {
+    final color = isBenefit
+        ? Style.successColor
+        : (isAffordable ? Style.successColor : Style.errorColor);
+
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        if (assetPath != null)
+          CachedImage(assetPath: assetPath!, size: 14)
+        else
+          const Icon(Icons.inventory_2, size: 14),
+        const SizedBox(width: 2),
+        Text(
+          value,
+          style: TextStyle(
+            fontSize: 10,
+            fontWeight: FontWeight.bold,
+            color: color,
+          ),
+        ),
+      ],
     );
   }
 }
