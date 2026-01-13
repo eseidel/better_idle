@@ -40,7 +40,8 @@ class TownshipStats {
     var population = basePopulation;
     var happiness = 0.0;
     var education = 0.0;
-    var health = maxHealth;
+    // Use stored health from state (persisted value that can decrease/increase)
+    var health = state.health;
     var storage = TownshipState.baseStorage;
     var worship = 0;
 
@@ -97,10 +98,10 @@ class TownshipStats {
   static const int basePopulation = 7;
 
   /// Minimum health percentage (health can never fall below this).
-  static const double minHealth = 20;
+  static const double minHealth = TownshipState.minHealth;
 
   /// Maximum health percentage.
-  static const double maxHealth = 100;
+  static const double maxHealth = TownshipState.maxHealth;
 
   final int population;
   final double happiness; // Can exceed 100%
@@ -212,11 +213,13 @@ Map<MelvorId, int> _calculateProduction(
 /// Processes a single Township update (called hourly).
 ///
 /// Returns the updated state along with GP produced and XP gained.
+/// [townshipLevel] is used to determine if health can decrease (level 15+).
 TownshipUpdateResult processTownUpdate(
   TownshipState state,
   TownshipRegistry registry,
-  Random random,
-) {
+  Random random, {
+  required int townshipLevel,
+}) {
   // 1. Calculate current stats before degradation
   final stats = TownshipStats.calculate(state, registry);
 
@@ -255,10 +258,20 @@ TownshipUpdateResult processTownUpdate(
   // 5. Calculate XP gained (1 XP per effective citizen, modified by happiness)
   final xpGained = stats.effectivePopulation * stats.happinessXpMultiplier;
 
-  // 6. Create updated state
+  // 6. Health decrease chance (25% chance to lose 1% at level 15+)
+  var newHealth = state.health;
+  if (townshipLevel >= 15 && random.nextDouble() < 0.25) {
+    newHealth = (newHealth - 1).clamp(
+      TownshipState.minHealth,
+      TownshipState.maxHealth,
+    );
+  }
+
+  // 7. Create updated state
   final newState = state.copyWith(
     biomes: newBiomes,
     resources: newResources,
+    health: newHealth,
     worship: stats.worship.clamp(0, 2000),
   );
 

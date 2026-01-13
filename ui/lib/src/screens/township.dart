@@ -146,6 +146,51 @@ class TownshipViewModel {
 
   /// Returns true if the player can afford all repair costs for all buildings.
   bool get canAffordAllRepairs => _state.canAffordAllTownshipRepairs();
+
+  // ---------------------------------------------------------------------------
+  // Health / Healing
+  // ---------------------------------------------------------------------------
+
+  /// Current health percentage (20-100).
+  double get health => _township.health;
+
+  /// Returns true if health is below 100%.
+  bool get needsHealing => health < TownshipState.maxHealth;
+
+  /// Amount of Herbs available.
+  int get herbsAmount => _township.herbsAmount;
+
+  /// Amount of Potions available.
+  int get potionsAmount => _township.potionsAmount;
+
+  /// Cost in Herbs to heal 1% health.
+  int get herbsCostPerHealthPercent => _township.herbsCostPerHealthPercent;
+
+  /// Cost in Potions to heal 1% health.
+  int get potionsCostPerHealthPercent => _township.potionsCostPerHealthPercent;
+
+  /// Maximum health percent that can be healed with current Herbs.
+  int get maxHealableWithHerbs => _township.maxHealableWithHerbs();
+
+  /// Maximum health percent that can be healed with current Potions.
+  int get maxHealableWithPotions => _township.maxHealableWithPotions();
+
+  /// Returns true if we can afford to heal 1% with herbs.
+  bool get canHealOneWithHerbs => herbsAmount >= herbsCostPerHealthPercent;
+
+  /// Returns true if we can afford to heal 1% with potions.
+  bool get canHealOneWithPotions =>
+      potionsAmount >= potionsCostPerHealthPercent;
+
+  /// Returns true if we have any herbs (for showing the heal section).
+  bool get hasHerbs => herbsAmount > 0;
+
+  /// Returns true if we have any potions (for showing the heal section).
+  bool get hasPotions => potionsAmount > 0;
+
+  /// Returns true if we should show the heal section.
+  /// Only show if health < 100% AND we have either herbs or potions.
+  bool get shouldShowHealSection => needsHealing && (hasHerbs || hasPotions);
 }
 
 class _DeitySelectionView extends StatelessWidget {
@@ -380,6 +425,10 @@ class _TownshipStatsCard extends StatelessWidget {
               const Divider(),
               _RepairAllSection(viewModel: viewModel),
             ],
+            if (viewModel.shouldShowHealSection) ...[
+              const Divider(),
+              _HealSection(viewModel: viewModel),
+            ],
           ],
         ),
       ),
@@ -504,6 +553,162 @@ class _RepairAllSection extends StatelessWidget {
         context,
       ).showSnackBar(SnackBar(content: Text(e.toString())));
     }
+  }
+}
+
+class _HealSection extends StatelessWidget {
+  const _HealSection({required this.viewModel});
+
+  final TownshipViewModel viewModel;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Heal Town (${viewModel.health.toStringAsFixed(0)}%)',
+          style: Theme.of(context).textTheme.titleSmall,
+        ),
+        const SizedBox(height: 8),
+        // Herbs row
+        if (viewModel.hasHerbs) _buildHerbsRow(context),
+        // Potions row
+        if (viewModel.hasPotions) ...[
+          if (viewModel.hasHerbs) const SizedBox(height: 8),
+          _buildPotionsRow(context),
+        ],
+      ],
+    );
+  }
+
+  Widget _buildHerbsRow(BuildContext context) {
+    final maxHeal = viewModel.maxHealableWithHerbs;
+    final canHealOne = viewModel.canHealOneWithHerbs;
+    final cost = viewModel.herbsCostPerHealthPercent;
+
+    return Row(
+      children: [
+        // +1 button (always shown if we have herbs)
+        _HealButton(
+          label: '+1%',
+          subtitle: '-$cost Herbs',
+          enabled: canHealOne,
+          onPressed: canHealOne ? () => _healWithHerbs(context, 1) : null,
+        ),
+        const SizedBox(width: 8),
+        // Max button (show amount we can heal, or disabled +1 if we can't)
+        if (maxHeal > 1)
+          _HealButton(
+            label: '+$maxHeal%',
+            subtitle: '-${cost * maxHeal} Herbs',
+            enabled: true,
+            onPressed: () => _healWithHerbs(context, maxHeal),
+          )
+        else if (!canHealOne)
+          _HealButton(
+            label: '+1%',
+            subtitle: '-$cost Herbs',
+            enabled: false,
+            onPressed: null,
+          ),
+      ],
+    );
+  }
+
+  Widget _buildPotionsRow(BuildContext context) {
+    final maxHeal = viewModel.maxHealableWithPotions;
+    final canHealOne = viewModel.canHealOneWithPotions;
+    final cost = viewModel.potionsCostPerHealthPercent;
+
+    return Row(
+      children: [
+        // +1 button (always shown if we have potions)
+        _HealButton(
+          label: '+1%',
+          subtitle: '-$cost Potions',
+          enabled: canHealOne,
+          onPressed: canHealOne ? () => _healWithPotions(context, 1) : null,
+        ),
+        const SizedBox(width: 8),
+        // Max button (show amount we can heal, or disabled +1 if we can't)
+        if (maxHeal > 1)
+          _HealButton(
+            label: '+$maxHeal%',
+            subtitle: '-${cost * maxHeal} Potions',
+            enabled: true,
+            onPressed: () => _healWithPotions(context, maxHeal),
+          )
+        else if (!canHealOne)
+          _HealButton(
+            label: '+1%',
+            subtitle: '-$cost Potions',
+            enabled: false,
+            onPressed: null,
+          ),
+      ],
+    );
+  }
+
+  void _healWithHerbs(BuildContext context, int amount) {
+    try {
+      context.dispatch(HealTownshipWithHerbsAction(amount: amount));
+    } on Exception catch (e) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(e.toString())));
+    }
+  }
+
+  void _healWithPotions(BuildContext context, int amount) {
+    try {
+      context.dispatch(HealTownshipWithPotionsAction(amount: amount));
+    } on Exception catch (e) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(e.toString())));
+    }
+  }
+}
+
+class _HealButton extends StatelessWidget {
+  const _HealButton({
+    required this.label,
+    required this.subtitle,
+    required this.enabled,
+    required this.onPressed,
+  });
+
+  final String label;
+  final String subtitle;
+  final bool enabled;
+  final VoidCallback? onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return ElevatedButton(
+      onPressed: onPressed,
+      style: ElevatedButton.styleFrom(
+        backgroundColor: enabled ? Colors.green : Colors.grey,
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            label,
+            style: const TextStyle(
+              color: Colors.white,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          Text(
+            subtitle,
+            style: const TextStyle(color: Colors.white70, fontSize: 10),
+          ),
+        ],
+      ),
+    );
   }
 }
 

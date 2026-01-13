@@ -196,6 +196,7 @@ class TownshipState {
     this.resources = const {},
     this.worshipId,
     this.worship = 0,
+    this.health = 100.0,
     this.season = Season.spring,
     this.seasonTicksRemaining = ticksPerSeasonCycle,
     this.ticksUntilUpdate = ticksPerHour,
@@ -260,6 +261,7 @@ class TownshipState {
           ? MelvorId.fromJson(json['worshipId'] as String)
           : null,
       worship: json['worship'] as int? ?? 0,
+      health: (json['health'] as num?)?.toDouble() ?? 100.0,
       season: json['season'] != null
           ? Season.fromJson(json['season'] as String)
           : Season.spring,
@@ -292,6 +294,11 @@ class TownshipState {
   /// Current worship points (0-2000).
   final int worship;
 
+  /// Current town health percentage (20-100%).
+  /// Health decreases over time at Township level 15+ and can be restored
+  /// by converting Herbs or Potions.
+  final double health;
+
   /// Current season.
   final Season season;
 
@@ -309,6 +316,18 @@ class TownshipState {
 
   /// Base storage capacity.
   static const int baseStorage = 50000;
+
+  /// Minimum health percentage (health can never fall below this).
+  static const double minHealth = 20;
+
+  /// Maximum health percentage.
+  static const double maxHealth = 100;
+
+  /// Well-known resource ID for Herbs.
+  static const herbsId = MelvorId('melvorF:Township_Herbs');
+
+  /// Well-known resource ID for Potions.
+  static const potionsId = MelvorId('melvorF:Township_Potions');
 
   // ---------------------------------------------------------------------------
   // Computed Properties
@@ -597,6 +616,7 @@ class TownshipState {
     Map<MelvorId, int>? resources,
     MelvorId? worshipId,
     int? worship,
+    double? health,
     Season? season,
     Tick? seasonTicksRemaining,
     Tick? ticksUntilUpdate,
@@ -609,6 +629,7 @@ class TownshipState {
       resources: resources ?? this.resources,
       worshipId: worshipId ?? this.worshipId,
       worship: worship ?? this.worship,
+      health: health ?? this.health,
       season: season ?? this.season,
       seasonTicksRemaining: seasonTicksRemaining ?? this.seasonTicksRemaining,
       ticksUntilUpdate: ticksUntilUpdate ?? this.ticksUntilUpdate,
@@ -656,12 +677,91 @@ class TownshipState {
     );
   }
 
+  // ---------------------------------------------------------------------------
+  // Health / Healing Methods
+  // ---------------------------------------------------------------------------
+
+  /// Returns the amount of Herbs currently stored.
+  int get herbsAmount => resourceAmount(herbsId);
+
+  /// Returns the amount of Potions currently stored.
+  int get potionsAmount => resourceAmount(potionsId);
+
+  /// Returns the hourly production rate for Herbs.
+  double get herbsProductionPerHour => productionRatesPerHour[herbsId] ?? 0;
+
+  /// Returns the hourly production rate for Potions.
+  double get potionsProductionPerHour => productionRatesPerHour[potionsId] ?? 0;
+
+  /// Returns the cost in Herbs to heal 1% health.
+  /// Cost = 10% of hourly production rate (minimum 1).
+  int get herbsCostPerHealthPercent {
+    final cost = (herbsProductionPerHour * 0.1).ceil();
+    return cost < 1 ? 1 : cost;
+  }
+
+  /// Returns the cost in Potions to heal 1% health.
+  /// Cost = 10% of hourly production rate (minimum 1).
+  int get potionsCostPerHealthPercent {
+    final cost = (potionsProductionPerHour * 0.1).ceil();
+    return cost < 1 ? 1 : cost;
+  }
+
+  /// Returns the maximum health percent that can be gained with current Herbs.
+  /// Returns 0 if no herbs available or no production.
+  int maxHealableWithHerbs() {
+    if (herbsAmount == 0) return 0;
+    final costPer = herbsCostPerHealthPercent;
+    if (costPer == 0) return 0;
+    final maxFromResources = herbsAmount ~/ costPer;
+    final healthNeeded = (maxHealth - health).ceil();
+    return maxFromResources.clamp(0, healthNeeded);
+  }
+
+  /// Returns the maximum health percent that can be gained with current
+  /// Potions. Returns 0 if no potions available or no production.
+  int maxHealableWithPotions() {
+    if (potionsAmount == 0) return 0;
+    final costPer = potionsCostPerHealthPercent;
+    if (costPer == 0) return 0;
+    final maxFromResources = potionsAmount ~/ costPer;
+    final healthNeeded = (maxHealth - health).ceil();
+    return maxFromResources.clamp(0, healthNeeded);
+  }
+
+  /// Heals the town using Herbs.
+  /// [amount] is the number of health percent to restore.
+  /// Throws if insufficient herbs.
+  TownshipState healWithHerbs(int amount) {
+    if (amount <= 0) return this;
+    final cost = herbsCostPerHealthPercent * amount;
+    if (herbsAmount < cost) {
+      throw StateError('Insufficient Herbs: have $herbsAmount, need $cost');
+    }
+    final newHealth = (health + amount).clamp(minHealth, maxHealth);
+    return removeResource(herbsId, cost).copyWith(health: newHealth);
+  }
+
+  /// Heals the town using Potions.
+  /// [amount] is the number of health percent to restore.
+  /// Throws if insufficient potions.
+  TownshipState healWithPotions(int amount) {
+    if (amount <= 0) return this;
+    final cost = potionsCostPerHealthPercent * amount;
+    if (potionsAmount < cost) {
+      throw StateError('Insufficient Potions: have $potionsAmount, need $cost');
+    }
+    final newHealth = (health + amount).clamp(minHealth, maxHealth);
+    return removeResource(potionsId, cost).copyWith(health: newHealth);
+  }
+
   /// Clears worship selection and resets points.
   TownshipState clearWorship() {
     return TownshipState(
       registry: registry,
       biomes: biomes,
       resources: resources,
+      health: health,
       season: season,
       seasonTicksRemaining: seasonTicksRemaining,
       ticksUntilUpdate: ticksUntilUpdate,
@@ -682,6 +782,7 @@ class TownshipState {
         ),
       if (worshipId != null) 'worshipId': worshipId!.toJson(),
       if (worship != 0) 'worship': worship,
+      if (health != 100.0) 'health': health,
       if (season != Season.spring) 'season': season.toJson(),
       if (seasonTicksRemaining != ticksPerSeasonCycle)
         'seasonTicksRemaining': seasonTicksRemaining,

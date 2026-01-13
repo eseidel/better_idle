@@ -677,3 +677,27 @@ class RepairAllTownshipBuildingsAction extends ReduxAction<GlobalState> {
     return state.repairAllTownshipBuildings();
   }
 }
+
+/// Heals Township health using Herbs.
+class HealTownshipWithHerbsAction extends ReduxAction<GlobalState> {
+  HealTownshipWithHerbsAction({required this.amount});
+
+  final int amount;
+
+  @override
+  GlobalState reduce() {
+    return state.copyWith(township: state.township.healWithHerbs(amount));
+  }
+}
+
+/// Heals Township health using Potions.
+class HealTownshipWithPotionsAction extends ReduxAction<GlobalState> {
+  HealTownshipWithPotionsAction({required this.amount});
+
+  final int amount;
+
+  @override
+  GlobalState reduce() {
+    return state.copyWith(township: state.township.healWithPotions(amount));
+  }
+}

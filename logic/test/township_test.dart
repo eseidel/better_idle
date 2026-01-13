@@ -315,7 +315,12 @@ void main() {
       );
 
       final random = Random(42);
-      final result = processTownUpdate(state, registry, random);
+      final result = processTownUpdate(
+        state,
+        registry,
+        random,
+        townshipLevel: 1,
+      );
 
       // GP should be produced (100 base * 1 building * 100% efficiency * 1.5
       // education modifier)
@@ -352,7 +357,12 @@ void main() {
       );
 
       final random = Random(42);
-      final result = processTownUpdate(state, registry, random);
+      final result = processTownUpdate(
+        state,
+        registry,
+        random,
+        townshipLevel: 1,
+      );
 
       // Wood should be produced and stored
       expect(result.state.resourceAmount(woodId), greaterThan(0));
@@ -392,7 +402,12 @@ void main() {
       final random = Random(42);
 
       for (var i = 0; i < 10 && !degraded; i++) {
-        final result = processTownUpdate(currentState, registry, random);
+        final result = processTownUpdate(
+          currentState,
+          registry,
+          random,
+          townshipLevel: 1,
+        );
         currentState = result.state;
 
         final newEfficiency =
@@ -437,7 +452,12 @@ void main() {
 
       // Run many updates
       for (var i = 0; i < 10; i++) {
-        final result = processTownUpdate(currentState, registry, random);
+        final result = processTownUpdate(
+          currentState,
+          registry,
+          random,
+          townshipLevel: 1,
+        );
         currentState = result.state;
       }
 
@@ -475,13 +495,67 @@ void main() {
       );
 
       final random = Random(42);
-      final result = processTownUpdate(state, registry, random);
+      final result = processTownUpdate(
+        state,
+        registry,
+        random,
+        townshipLevel: 1,
+      );
 
       // Population: 7 base + 10 from building = 17
       // Health: 100% (base), so effective population = 17
       // Happiness: 50 from spring + 50 from building = 100 (2x XP multiplier)
       // XP = 17 * 2.0 = 34
       expect(result.xpGained, 34);
+    });
+
+    test('health does not decrease below level 15', () {
+      const registry = TownshipRegistry.empty();
+      const state = TownshipState(registry: registry);
+
+      final random = Random(42);
+      // Run many updates at level 1 - health should never decrease
+      var currentState = state;
+      for (var i = 0; i < 100; i++) {
+        final result = processTownUpdate(
+          currentState,
+          registry,
+          random,
+          townshipLevel: 1,
+        );
+        currentState = result.state;
+      }
+
+      expect(currentState.health, 100);
+    });
+
+    test('health can decrease at level 15+', () {
+      const registry = TownshipRegistry.empty();
+      const state = TownshipState(registry: registry);
+
+      final random = Random(42);
+      // Run many updates at level 15 - health should eventually decrease
+      var currentState = state;
+      var healthDecreased = false;
+      for (var i = 0; i < 100 && !healthDecreased; i++) {
+        final result = processTownUpdate(
+          currentState,
+          registry,
+          random,
+          townshipLevel: 15,
+        );
+        currentState = result.state;
+        if (currentState.health < 100) {
+          healthDecreased = true;
+        }
+      }
+
+      expect(healthDecreased, isTrue);
+      expect(currentState.health, lessThan(100));
+      expect(
+        currentState.health,
+        greaterThanOrEqualTo(TownshipState.minHealth),
+      );
     });
   });
 

@@ -378,11 +378,17 @@ void _applyTownshipTicks(
   remainingTicks = ticks;
 
   // Process town update timer
+  final townshipLevel = builder.state.skillState(Skill.town).skillLevel;
   while (remainingTicks > 0 && township.ticksUntilUpdate <= remainingTicks) {
     remainingTicks -= township.ticksUntilUpdate;
 
     // Process the town update
-    final result = processTownUpdate(township, registry, random);
+    final result = processTownUpdate(
+      township,
+      registry,
+      random,
+      townshipLevel: townshipLevel,
+    );
     township = result.state.copyWith(ticksUntilUpdate: ticksPerHour);
 
     // Add GP and XP from the update
