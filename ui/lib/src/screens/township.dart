@@ -189,8 +189,16 @@ class TownshipViewModel {
   bool get hasPotions => potionsAmount > 0;
 
   /// Returns true if we should show the heal section.
-  /// Only show if health < 100% AND we have either herbs or potions.
-  bool get shouldShowHealSection => needsHealing && (hasHerbs || hasPotions);
+  /// Show if health < 100% (we'll show a message if no herbs/potions).
+  bool get shouldShowHealSection => needsHealing;
+
+  /// Media path for Herbs resource.
+  String? get herbsMedia =>
+      _registry.resourceById(TownshipState.herbsId)?.media;
+
+  /// Media path for Potions resource.
+  String? get potionsMedia =>
+      _registry.resourceById(TownshipState.potionsId)?.media;
 }
 
 class _DeitySelectionView extends StatelessWidget {
@@ -563,6 +571,8 @@ class _HealSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final hasResources = viewModel.hasHerbs || viewModel.hasPotions;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -571,13 +581,39 @@ class _HealSection extends StatelessWidget {
           style: Theme.of(context).textTheme.titleSmall,
         ),
         const SizedBox(height: 8),
-        // Herbs row
-        if (viewModel.hasHerbs) _buildHerbsRow(context),
-        // Potions row
-        if (viewModel.hasPotions) ...[
-          if (viewModel.hasHerbs) const SizedBox(height: 8),
-          _buildPotionsRow(context),
+        if (!hasResources)
+          _buildNeedResourcesMessage(context)
+        else ...[
+          // Herbs row
+          if (viewModel.hasHerbs) _buildHerbsRow(context),
+          // Potions row
+          if (viewModel.hasPotions) ...[
+            if (viewModel.hasHerbs) const SizedBox(height: 8),
+            _buildPotionsRow(context),
+          ],
         ],
+      ],
+    );
+  }
+
+  Widget _buildNeedResourcesMessage(BuildContext context) {
+    final textStyle = Theme.of(
+      context,
+    ).textTheme.bodySmall?.copyWith(color: Style.textColorSecondary);
+
+    return Row(
+      children: [
+        Text('Need ', style: textStyle),
+        if (viewModel.herbsMedia != null)
+          CachedImage(assetPath: viewModel.herbsMedia!, size: 16)
+        else
+          const Icon(Icons.grass, size: 16),
+        Text(' or ', style: textStyle),
+        if (viewModel.potionsMedia != null)
+          CachedImage(assetPath: viewModel.potionsMedia!, size: 16)
+        else
+          const Icon(Icons.science, size: 16),
+        Text(' to heal', style: textStyle),
       ],
     );
   }
@@ -586,13 +622,15 @@ class _HealSection extends StatelessWidget {
     final maxHeal = viewModel.maxHealableWithHerbs;
     final canHealOne = viewModel.canHealOneWithHerbs;
     final cost = viewModel.herbsCostPerHealthPercent;
+    final assetPath = viewModel.herbsMedia;
 
     return Row(
       children: [
         // +1 button (always shown if we have herbs)
         _HealButton(
           label: '+1%',
-          subtitle: '-$cost Herbs',
+          cost: cost,
+          assetPath: assetPath,
           enabled: canHealOne,
           onPressed: canHealOne ? () => _healWithHerbs(context, 1) : null,
         ),
@@ -601,14 +639,16 @@ class _HealSection extends StatelessWidget {
         if (maxHeal > 1)
           _HealButton(
             label: '+$maxHeal%',
-            subtitle: '-${cost * maxHeal} Herbs',
+            cost: cost * maxHeal,
+            assetPath: assetPath,
             enabled: true,
             onPressed: () => _healWithHerbs(context, maxHeal),
           )
         else if (!canHealOne)
           _HealButton(
             label: '+1%',
-            subtitle: '-$cost Herbs',
+            cost: cost,
+            assetPath: assetPath,
             enabled: false,
             onPressed: null,
           ),
@@ -620,13 +660,15 @@ class _HealSection extends StatelessWidget {
     final maxHeal = viewModel.maxHealableWithPotions;
     final canHealOne = viewModel.canHealOneWithPotions;
     final cost = viewModel.potionsCostPerHealthPercent;
+    final assetPath = viewModel.potionsMedia;
 
     return Row(
       children: [
         // +1 button (always shown if we have potions)
         _HealButton(
           label: '+1%',
-          subtitle: '-$cost Potions',
+          cost: cost,
+          assetPath: assetPath,
           enabled: canHealOne,
           onPressed: canHealOne ? () => _healWithPotions(context, 1) : null,
         ),
@@ -635,14 +677,16 @@ class _HealSection extends StatelessWidget {
         if (maxHeal > 1)
           _HealButton(
             label: '+$maxHeal%',
-            subtitle: '-${cost * maxHeal} Potions',
+            cost: cost * maxHeal,
+            assetPath: assetPath,
             enabled: true,
             onPressed: () => _healWithPotions(context, maxHeal),
           )
         else if (!canHealOne)
           _HealButton(
             label: '+1%',
-            subtitle: '-$cost Potions',
+            cost: cost,
+            assetPath: assetPath,
             enabled: false,
             onPressed: null,
           ),
@@ -674,37 +718,45 @@ class _HealSection extends StatelessWidget {
 class _HealButton extends StatelessWidget {
   const _HealButton({
     required this.label,
-    required this.subtitle,
+    required this.cost,
+    required this.assetPath,
     required this.enabled,
     required this.onPressed,
   });
 
   final String label;
-  final String subtitle;
+  final int cost;
+  final String? assetPath;
   final bool enabled;
   final VoidCallback? onPressed;
 
   @override
   Widget build(BuildContext context) {
-    return ElevatedButton(
+    final borderColor = enabled ? Style.successColor : Colors.grey;
+    final textColor = enabled ? Style.textColorPrimary : Style.textColorMuted;
+
+    return OutlinedButton(
       onPressed: onPressed,
-      style: ElevatedButton.styleFrom(
-        backgroundColor: enabled ? Colors.green : Colors.grey,
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      style: OutlinedButton.styleFrom(
+        side: BorderSide(color: borderColor),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       ),
-      child: Column(
+      child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
           Text(
             label,
-            style: const TextStyle(
-              color: Colors.white,
-              fontWeight: FontWeight.bold,
-            ),
+            style: TextStyle(color: textColor, fontWeight: FontWeight.bold),
           ),
+          const SizedBox(width: 8),
+          if (assetPath != null)
+            CachedImage(assetPath: assetPath!, size: 14)
+          else
+            Icon(Icons.inventory_2, size: 14, color: textColor),
+          const SizedBox(width: 4),
           Text(
-            subtitle,
-            style: const TextStyle(color: Colors.white70, fontSize: 10),
+            '$cost',
+            style: TextStyle(color: textColor, fontWeight: FontWeight.bold),
           ),
         ],
       ),

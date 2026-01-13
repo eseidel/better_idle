@@ -324,10 +324,10 @@ class TownshipState {
   static const double maxHealth = 100;
 
   /// Well-known resource ID for Herbs.
-  static const herbsId = MelvorId('melvorF:Township_Herbs');
+  static const herbsId = MelvorId('melvorF:Herbs');
 
   /// Well-known resource ID for Potions.
-  static const potionsId = MelvorId('melvorF:Township_Potions');
+  static const potionsId = MelvorId('melvorF:Potions');
 
   // ---------------------------------------------------------------------------
   // Computed Properties

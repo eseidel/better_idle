@@ -28,7 +28,6 @@ class DebugPage extends StatelessWidget {
           children: [
             _DebugActionsTab(
               onShowWelcomeBack: () => _showWelcomeBackDialog(context),
-              onFastForward: () => _fastForward30Minutes(context),
               onResetState: () => _confirmResetState(context),
             ),
             const _DebugItemsTab(),
@@ -87,19 +86,6 @@ class DebugPage extends StatelessWidget {
     );
   }
 
-  Future<void> _fastForward30Minutes(BuildContext context) async {
-    const thirtyMinutesInTicks = 30 * 60 * 10; // 30 min * 60 sec * 10 ticks/sec
-    final action = AdvanceTicksAction(ticks: thirtyMinutesInTicks);
-    context.dispatch(action);
-
-    if (context.mounted) {
-      await showDialog<void>(
-        context: context,
-        builder: (context) => WelcomeBackDialog(timeAway: action.timeAway),
-      );
-    }
-  }
-
   Future<void> _confirmResetState(BuildContext context) async {
     final confirmed = await showDialog<bool>(
       context: context,
@@ -143,58 +129,102 @@ class DebugPage extends StatelessWidget {
 class _DebugActionsTab extends StatelessWidget {
   const _DebugActionsTab({
     required this.onShowWelcomeBack,
-    required this.onFastForward,
     required this.onResetState,
   });
 
   final VoidCallback onShowWelcomeBack;
-  final VoidCallback onFastForward;
   final VoidCallback onResetState;
+
+  Future<void> _fastForward(BuildContext context, Duration duration) async {
+    final ticks = duration.inMilliseconds ~/ 100; // 10 ticks per second
+    final action = AdvanceTicksAction(ticks: ticks);
+    context.dispatch(action);
+
+    if (context.mounted) {
+      await showDialog<void>(
+        context: context,
+        builder: (context) => WelcomeBackDialog(timeAway: action.timeAway),
+      );
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16),
-      child: Wrap(
-        spacing: 8,
-        runSpacing: 8,
-        alignment: WrapAlignment.center,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          ElevatedButton(
-            onPressed: onShowWelcomeBack,
-            child: const Text('Show Welcome Back Dialog'),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            alignment: WrapAlignment.center,
+            children: [
+              ElevatedButton(
+                onPressed: onShowWelcomeBack,
+                child: const Text('Show Welcome Back Dialog'),
+              ),
+              ElevatedButton(
+                onPressed: () {
+                  context.dispatch(DebugFillInventoryAction());
+                },
+                child: const Text('Fill Inventory'),
+              ),
+              ElevatedButton(
+                onPressed: () {
+                  context.dispatch(DebugAddCurrencyAction(Currency.gp, 1000));
+                },
+                child: const Text('Add 1000 GP'),
+              ),
+              ElevatedButton(
+                onPressed: () {
+                  context.dispatch(
+                    DebugAddCurrencyAction(Currency.slayerCoins, 1000),
+                  );
+                },
+                child: const Text('Add 1000 SC'),
+              ),
+              ElevatedButton(
+                onPressed: onResetState,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.red,
+                  foregroundColor: Colors.white,
+                ),
+                child: const Text('Reset State'),
+              ),
+            ],
           ),
-          ElevatedButton(
-            onPressed: () {
-              context.dispatch(DebugFillInventoryAction());
-            },
-            child: const Text('Fill Inventory'),
+          const SizedBox(height: 24),
+          const Text(
+            'Time Advance',
+            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
           ),
-          ElevatedButton(
-            onPressed: onFastForward,
-            child: const Text('Fast Forward 30m'),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              context.dispatch(DebugAddCurrencyAction(Currency.gp, 1000));
-            },
-            child: const Text('Add 1000 GP'),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              context.dispatch(
-                DebugAddCurrencyAction(Currency.slayerCoins, 1000),
-              );
-            },
-            child: const Text('Add 1000 SC'),
-          ),
-          ElevatedButton(
-            onPressed: onResetState,
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.red,
-              foregroundColor: Colors.white,
-            ),
-            child: const Text('Reset State'),
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              ElevatedButton(
+                onPressed: () =>
+                    _fastForward(context, const Duration(minutes: 30)),
+                child: const Text('30m'),
+              ),
+              ElevatedButton(
+                onPressed: () =>
+                    _fastForward(context, const Duration(minutes: 60)),
+                child: const Text('60m'),
+              ),
+              ElevatedButton(
+                onPressed: () =>
+                    _fastForward(context, const Duration(hours: 10)),
+                child: const Text('10hr'),
+              ),
+              ElevatedButton(
+                onPressed: () =>
+                    _fastForward(context, const Duration(hours: 24)),
+                child: const Text('24hr'),
+              ),
+            ],
           ),
         ],
       ),
