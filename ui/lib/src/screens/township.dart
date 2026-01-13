@@ -1537,10 +1537,11 @@ class _IconValueChip extends StatelessWidget {
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        if (assetPath != null)
-          CachedImage(assetPath: assetPath, size: 14)
-        else
-          const Icon(Icons.inventory_2, size: 14),
+        CachedImage(
+          assetPath: assetPath,
+          size: 14,
+          fallback: const Icon(Icons.inventory_2, size: 14),
+        ),
         const SizedBox(width: 2),
         Text(
           value,
