@@ -34,18 +34,28 @@ I currently am only targeting the base "full" game with no current plans to
 implement expansions.  Mods have no (easy) path to working since this implementation
 is written in a different language than the mods.
 
-### TODO
+### To Fix
 
-- Handle global and per-action modifiers (e.g. mastery levels).
-- Complete support for mastery benefits.
 - Fix Firemaking to put log selection behind a pop-up.
-- Add Township
 - Fix fishing regions to drop junk/specials.
-- Add more Thieving drops.
-- Add global drops.
-- Implement mastery rewards (and UI) for all actions.
-- Implement mastery pool checkpoints.
-- Implement mastery tokens.
 - Gems should not drop for rune essence.
 - Recipes with multiple inputs should show last selection in list views.
-- Cooking should support all 3 types.
+- Get rid of Icon usage.
+- Change GameLoop to use timers rather than spinning hot.
+- Improve combat ui (e.g. stats display)
+- Improve equipment UI
+
+### To Implement
+- more Thieving drops.
+- global drops.
+- mastery rewards (and UI) for all actions.
+- mastery pool checkpoints.
+- mastery tokens.
+- Astrology UI (including store)
+- Alt. Magic
+- potions
+- Dungeons
+- Slayer Tasks
+- Statistics tracking
+- township tasks
+- township storage control
