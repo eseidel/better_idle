@@ -510,6 +510,7 @@ class TownshipSeason {
   const TownshipSeason({
     required this.id,
     required this.name,
+    required this.media,
     required this.seasonLength,
     required this.order,
   });
@@ -524,6 +525,7 @@ class TownshipSeason {
         defaultNamespace: namespace,
       ),
       name: json['name'] as String,
+      media: json['media'] as String?,
       seasonLength: json['seasonLength'] as int? ?? 72,
       order: json['order'] as int? ?? 0,
     );
@@ -531,6 +533,9 @@ class TownshipSeason {
 
   final MelvorId id;
   final String name;
+
+  /// Media path for the season icon.
+  final String? media;
 
   /// Season length in hours.
   final int seasonLength;

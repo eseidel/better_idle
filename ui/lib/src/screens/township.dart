@@ -6,6 +6,22 @@ import 'package:better_idle/src/widgets/style.dart';
 import 'package:flutter/material.dart';
 import 'package:logic/logic.dart';
 
+/// Township statistics that can be displayed with icons.
+enum TownshipStat {
+  population,
+  health,
+  happiness,
+  education,
+  worship,
+  storage;
+
+  /// Returns the display label for this stat.
+  String get label => '${name[0].toUpperCase()}${name.substring(1)}';
+
+  /// Returns the asset path for this stat's icon.
+  String get assetPath => 'assets/media/skills/township/$name.png';
+}
+
 class TownshipPage extends StatefulWidget {
   const TownshipPage({super.key});
 
@@ -96,6 +112,13 @@ class TownshipViewModel {
       productionRates[resourceId] ?? 0;
 
   Season get season => _township.season;
+
+  String? get seasonMedia {
+    final name = season.name;
+    final capitalized = '${name[0].toUpperCase()}${name.substring(1)}';
+    final seasonId = MelvorId('melvorF:$capitalized');
+    return _registry.seasonById(seasonId)?.media;
+  }
 
   String get seasonTimeRemaining =>
       compactDurationFromTicks(_township.seasonTicksRemaining);
@@ -314,17 +337,10 @@ class _TownshipStatsCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final stats = viewModel.stats;
-    final labelStyle = Theme.of(
-      context,
-    ).textTheme.bodySmall?.copyWith(color: Style.textColorSecondary);
-    final valueStyle = Theme.of(
-      context,
-    ).textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.bold);
-
-    final happinessIndicator = _seasonIndicator(
+    final happinessIndicator = _formatModifier(
       viewModel.season.happinessModifier,
     );
-    final educationIndicator = _seasonIndicator(
+    final educationIndicator = _formatModifier(
       viewModel.season.educationModifier,
     );
 
@@ -344,20 +360,16 @@ class _TownshipStatsCard extends StatelessWidget {
               children: [
                 Expanded(
                   child: _StatItem(
-                    label: 'Population',
+                    stat: TownshipStat.population,
                     value:
                         '${stats.population} '
                         '(eff: ${stats.effectivePopulation})',
-                    labelStyle: labelStyle,
-                    valueStyle: valueStyle,
                   ),
                 ),
                 Expanded(
                   child: _StatItem(
-                    label: 'Health',
+                    stat: TownshipStat.health,
                     value: percentValueToString(stats.health),
-                    labelStyle: labelStyle,
-                    valueStyle: valueStyle,
                   ),
                 ),
               ],
@@ -367,46 +379,26 @@ class _TownshipStatsCard extends StatelessWidget {
               children: [
                 Expanded(
                   child: _StatItem(
-                    label: 'Happiness',
+                    stat: TownshipStat.happiness,
                     value:
                         '${percentValueToString(stats.happiness)}'
                         '$happinessIndicator',
-                    labelStyle: labelStyle,
-                    valueStyle: valueStyle,
                   ),
                 ),
                 Expanded(
                   child: _StatItem(
-                    label: 'Education',
+                    stat: TownshipStat.education,
                     value:
                         '${percentValueToString(stats.education)}'
                         '$educationIndicator',
-                    labelStyle: labelStyle,
-                    valueStyle: valueStyle,
                   ),
                 ),
               ],
             ),
             const SizedBox(height: 4),
-            Row(
-              children: [
-                Expanded(
-                  child: _StatItem(
-                    label: 'Storage',
-                    value: _formatStorage(viewModel, stats),
-                    labelStyle: labelStyle,
-                    valueStyle: valueStyle,
-                  ),
-                ),
-                Expanded(
-                  child: _StatItem(
-                    label: 'Worship',
-                    value: '${stats.worship} / 2000',
-                    labelStyle: labelStyle,
-                    valueStyle: valueStyle,
-                  ),
-                ),
-              ],
+            _StatItem(
+              stat: TownshipStat.worship,
+              value: '${stats.worship} / 2000',
             ),
             const Divider(),
             Row(
@@ -415,16 +407,13 @@ class _TownshipStatsCard extends StatelessWidget {
                   child: _StatItem(
                     label: 'Season',
                     value: _formatSeason(viewModel),
-                    labelStyle: labelStyle,
-                    valueStyle: valueStyle,
+                    valueIconPath: viewModel.seasonMedia,
                   ),
                 ),
                 Expanded(
                   child: _StatItem(
                     label: 'Next Update',
                     value: viewModel.nextUpdateTime,
-                    labelStyle: labelStyle,
-                    valueStyle: valueStyle,
                   ),
                 ),
               ],
@@ -443,10 +432,9 @@ class _TownshipStatsCard extends StatelessWidget {
     );
   }
 
-  String _seasonIndicator(double modifier) {
-    if (modifier > 0) return ' (+${modifier.toStringAsFixed(0)})';
-    if (modifier < 0) return ' (${modifier.toStringAsFixed(0)})';
-    return '';
+  String _formatModifier(double modifier) {
+    if (modifier == 0) return '';
+    return ' (${signedCountString(modifier.toInt())})';
   }
 
   String _formatSeason(TownshipViewModel viewModel) {
@@ -454,34 +442,53 @@ class _TownshipStatsCard extends StatelessWidget {
     final capitalized = '${name[0].toUpperCase()}${name.substring(1)}';
     return '$capitalized (${viewModel.seasonTimeRemaining})';
   }
-
-  String _formatStorage(TownshipViewModel viewModel, TownshipStats stats) {
-    final used = approximateCreditString(viewModel.totalResourcesStored);
-    final capacity = approximateCreditString(stats.storage);
-    return '$used / $capacity';
-  }
 }
 
 class _StatItem extends StatelessWidget {
   const _StatItem({
-    required this.label,
     required this.value,
-    this.labelStyle,
-    this.valueStyle,
-  });
+    this.stat,
+    this.label,
+    this.valueIconPath,
+  }) : assert(stat != null || label != null, 'Either stat or label required');
 
-  final String label;
+  final TownshipStat? stat;
+  final String? label;
   final String value;
-  final TextStyle? labelStyle;
-  final TextStyle? valueStyle;
+  final String? valueIconPath;
 
   @override
   Widget build(BuildContext context) {
+    final labelStyle = Theme.of(
+      context,
+    ).textTheme.bodySmall?.copyWith(color: Style.textColorSecondary);
+    final valueStyle = Theme.of(
+      context,
+    ).textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.bold);
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(label, style: labelStyle),
-        Text(value, style: valueStyle),
+        Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (stat != null) ...[
+              CachedImage(assetPath: stat!.assetPath, size: 14),
+              const SizedBox(width: 4),
+            ],
+            Text(stat?.label ?? label!, style: labelStyle),
+          ],
+        ),
+        Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (valueIconPath != null) ...[
+              CachedImage(assetPath: valueIconPath!, size: 14),
+              const SizedBox(width: 4),
+            ],
+            Text(value, style: valueStyle),
+          ],
+        ),
       ],
     );
   }
@@ -528,10 +535,10 @@ class _RepairAllSection extends StatelessWidget {
       final resourceId = entry.key;
       final amount = entry.value;
 
-      if (resourceId.localId == 'GP') {
+      if (Currency.gp.matches(resourceId)) {
         final canAfford = viewModel.canAffordGp(amount);
         chips.add(
-          _CostBenefitChip(
+          _CostChip(
             assetPath: Currency.gp.assetPath,
             value: approximateCreditString(amount),
             isAffordable: canAfford,
@@ -541,7 +548,7 @@ class _RepairAllSection extends StatelessWidget {
         final resource = viewModel._registry.resourceById(resourceId);
         final canAfford = viewModel.canAffordResource(resourceId, amount);
         chips.add(
-          _CostBenefitChip(
+          _CostChip(
             assetPath: resource?.media,
             value: approximateCreditString(amount),
             isAffordable: canAfford,
@@ -777,6 +784,8 @@ class _TownshipResourcesCard extends StatelessWidget {
       return viewModel.resourceAmount(r.id) > 0;
     }).toList();
 
+    final storageTitle = _buildStorageTitle(context);
+
     if (nonZeroResources.isEmpty) {
       return Card(
         margin: const EdgeInsets.all(8),
@@ -785,7 +794,7 @@ class _TownshipResourcesCard extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text('Resources', style: Theme.of(context).textTheme.titleMedium),
+              storageTitle,
               const SizedBox(height: 8),
               Text(
                 'No resources yet. Build production buildings to '
@@ -805,7 +814,7 @@ class _TownshipResourcesCard extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('Resources', style: Theme.of(context).textTheme.titleMedium),
+            storageTitle,
             const SizedBox(height: 8),
             Wrap(
               spacing: 16,
@@ -823,6 +832,21 @@ class _TownshipResourcesCard extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+
+  Widget _buildStorageTitle(BuildContext context) {
+    final used = approximateCreditString(viewModel.totalResourcesStored);
+    final capacity = approximateCreditString(viewModel.stats.storage);
+    return Row(
+      children: [
+        CachedImage(assetPath: TownshipStat.storage.assetPath, size: 20),
+        const SizedBox(width: 6),
+        Text(
+          'Storage ($used / $capacity)',
+          style: Theme.of(context).textTheme.titleMedium,
+        ),
+      ],
     );
   }
 }
@@ -1096,10 +1120,10 @@ class _BuildingCard extends StatelessWidget {
       final resourceId = entry.key;
       final amount = entry.value;
 
-      if (resourceId.localId == 'GP') {
+      if (Currency.gp.matches(resourceId)) {
         final canAfford = viewModel.canAffordGp(amount);
         costWidgets.add(
-          _CostBenefitChip(
+          _CostChip(
             assetPath: Currency.gp.assetPath,
             value: approximateCreditString(amount),
             isAffordable: canAfford,
@@ -1109,7 +1133,7 @@ class _BuildingCard extends StatelessWidget {
         final resource = viewModel._registry.resourceById(resourceId);
         final canAfford = viewModel.canAffordResource(resourceId, amount);
         costWidgets.add(
-          _CostBenefitChip(
+          _CostChip(
             assetPath: resource?.media,
             value: approximateCreditString(amount),
             isAffordable: canAfford,
@@ -1141,11 +1165,9 @@ class _BuildingCard extends StatelessWidget {
     // Population bonus
     if (biomeData.population > 0) {
       benefitWidgets.add(
-        _CostBenefitChip(
-          assetPath: 'assets/media/skills/township/population.png',
+        _BenefitChip(
+          assetPath: TownshipStat.population.assetPath,
           value: '+${biomeData.population}',
-          isAffordable: true,
-          isBenefit: true,
         ),
       );
     }
@@ -1153,11 +1175,9 @@ class _BuildingCard extends StatelessWidget {
     // Storage bonus
     if (biomeData.storage > 0) {
       benefitWidgets.add(
-        _CostBenefitChip(
-          assetPath: 'assets/media/skills/township/storage.png',
+        _BenefitChip(
+          assetPath: TownshipStat.storage.assetPath,
           value: '+${approximateCreditString(biomeData.storage)}',
-          isAffordable: true,
-          isBenefit: true,
         ),
       );
     }
@@ -1167,12 +1187,7 @@ class _BuildingCard extends StatelessWidget {
       final resource = viewModel._registry.resourceById(entry.key);
       final perHour = entry.value.toStringAsFixed(0);
       benefitWidgets.add(
-        _CostBenefitChip(
-          assetPath: resource?.media,
-          value: '+$perHour/h',
-          isAffordable: true,
-          isBenefit: true,
-        ),
+        _BenefitChip(assetPath: resource?.media, value: '+$perHour/h'),
       );
     }
 
@@ -1180,11 +1195,9 @@ class _BuildingCard extends StatelessWidget {
     if (biomeData.happiness != 0) {
       final sign = biomeData.happiness > 0 ? '+' : '';
       benefitWidgets.add(
-        _CostBenefitChip(
-          assetPath: 'assets/media/skills/township/happiness.png',
+        _BenefitChip(
+          assetPath: TownshipStat.happiness.assetPath,
           value: '$sign${percentValueToString(biomeData.happiness)}',
-          isAffordable: true,
-          isBenefit: true,
         ),
       );
     }
@@ -1193,11 +1206,9 @@ class _BuildingCard extends StatelessWidget {
     if (biomeData.education != 0) {
       final sign = biomeData.education > 0 ? '+' : '';
       benefitWidgets.add(
-        _CostBenefitChip(
-          assetPath: 'assets/media/skills/township/education.png',
+        _BenefitChip(
+          assetPath: TownshipStat.education.assetPath,
           value: '$sign${percentValueToString(biomeData.education)}',
-          isAffordable: true,
-          isBenefit: true,
         ),
       );
     }
@@ -1231,10 +1242,10 @@ class _BuildingCard extends StatelessWidget {
       final resourceId = entry.key;
       final amount = entry.value;
 
-      if (resourceId.localId == 'GP') {
+      if (Currency.gp.matches(resourceId)) {
         final canAfford = viewModel.canAffordGp(amount);
         costWidgets.add(
-          _CostBenefitChip(
+          _CostChip(
             assetPath: Currency.gp.assetPath,
             value: approximateCreditString(amount),
             isAffordable: canAfford,
@@ -1244,7 +1255,7 @@ class _BuildingCard extends StatelessWidget {
         final resource = viewModel._registry.resourceById(resourceId);
         final canAfford = viewModel.canAffordResource(resourceId, amount);
         costWidgets.add(
-          _CostBenefitChip(
+          _CostChip(
             assetPath: resource?.media,
             value: approximateCreditString(amount),
             isAffordable: canAfford,
@@ -1416,7 +1427,7 @@ class _BuildingPurchaseDialog extends StatelessWidget {
       final resourceId = entry.key;
       final amount = entry.value;
 
-      if (resourceId.localId == 'GP') {
+      if (Currency.gp.matches(resourceId)) {
         final canAfford = viewModel.canAffordGp(amount);
         costs.add(
           Row(
@@ -1477,7 +1488,7 @@ class _BuildingPurchaseDialog extends StatelessWidget {
       final resourceId = entry.key;
       final amount = entry.value;
 
-      if (resourceId.localId == 'GP') {
+      if (Currency.gp.matches(resourceId)) {
         // GP cost
         final canAfford = viewModel.canAffordGp(amount);
         costs.add(
@@ -1599,26 +1610,60 @@ class _BuildingPurchaseDialog extends StatelessWidget {
   }
 }
 
-/// A compact chip showing a cost or benefit with an image.
-class _CostBenefitChip extends StatelessWidget {
-  const _CostBenefitChip({
+/// A compact chip showing a benefit with an image (always green).
+class _BenefitChip extends StatelessWidget {
+  const _BenefitChip({required this.assetPath, required this.value});
+
+  final String? assetPath;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    return _IconValueChip(
+      assetPath: assetPath,
+      value: value,
+      color: Style.successColor,
+    );
+  }
+}
+
+/// A compact chip showing a cost with an image.
+/// Green if affordable, red if not.
+class _CostChip extends StatelessWidget {
+  const _CostChip({
     required this.assetPath,
     required this.value,
     required this.isAffordable,
-    this.isBenefit = false,
   });
 
   final String? assetPath;
   final String value;
   final bool isAffordable;
-  final bool isBenefit;
 
   @override
   Widget build(BuildContext context) {
-    final color = isBenefit
-        ? Style.successColor
-        : (isAffordable ? Style.successColor : Style.errorColor);
+    return _IconValueChip(
+      assetPath: assetPath,
+      value: value,
+      color: isAffordable ? Style.successColor : Style.errorColor,
+    );
+  }
+}
 
+/// Base chip widget showing an icon and value with a specified color.
+class _IconValueChip extends StatelessWidget {
+  const _IconValueChip({
+    required this.assetPath,
+    required this.value,
+    required this.color,
+  });
+
+  final String? assetPath;
+  final String value;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [

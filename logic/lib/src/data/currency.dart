@@ -1,4 +1,5 @@
 import 'package:equatable/equatable.dart';
+import 'package:logic/src/data/melvor_id.dart';
 import 'package:meta/meta.dart';
 
 /// A currency type in the game.
@@ -26,6 +27,9 @@ enum Currency {
 
   /// Asset path for the currency icon
   final String assetPath;
+
+  /// Returns true if this currency matches the given [MelvorId].
+  bool matches(MelvorId melvorId) => melvorId.fullId == id;
 
   /// Look up a currency by its Melvor ID.
   /// Throws if not found.
