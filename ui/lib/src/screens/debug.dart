@@ -11,65 +11,29 @@ class DebugPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text('Debug')),
-      drawer: const AppNavigationDrawer(),
-      body: Column(
-        children: [
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            alignment: WrapAlignment.center,
-            children: [
-              ElevatedButton(
-                onPressed: () => _showWelcomeBackDialog(context),
-                child: const Text('Show Welcome Back Dialog'),
-              ),
-              ElevatedButton(
-                onPressed: () {
-                  context.dispatch(DebugFillInventoryAction());
-                },
-                child: const Text('Fill Inventory'),
-              ),
-              ElevatedButton(
-                onPressed: () => _fastForward30Minutes(context),
-                child: const Text('Fast Forward 30m'),
-              ),
-              ElevatedButton(
-                onPressed: () {
-                  context.dispatch(DebugAddCurrencyAction(Currency.gp, 1000));
-                },
-                child: const Text('Add 1000 GP'),
-              ),
-              ElevatedButton(
-                onPressed: () {
-                  context.dispatch(
-                    DebugAddCurrencyAction(Currency.slayerCoins, 1000),
-                  );
-                },
-                child: const Text('Add 1000 SC'),
-              ),
-              ElevatedButton(
-                onPressed: () => _confirmResetState(context),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.red,
-                  foregroundColor: Colors.white,
-                ),
-                child: const Text('Reset State'),
-              ),
+    return DefaultTabController(
+      length: 2,
+      child: Scaffold(
+        appBar: AppBar(
+          title: const Text('Debug'),
+          bottom: const TabBar(
+            tabs: [
+              Tab(text: 'Actions'),
+              Tab(text: 'Items'),
             ],
           ),
-          const SizedBox(height: 16),
-          const Padding(
-            padding: EdgeInsets.symmetric(horizontal: 16),
-            child: Text(
-              'Tap an item to add it to inventory:',
-              style: TextStyle(fontWeight: FontWeight.bold),
+        ),
+        drawer: const AppNavigationDrawer(),
+        body: TabBarView(
+          children: [
+            _DebugActionsTab(
+              onShowWelcomeBack: () => _showWelcomeBackDialog(context),
+              onFastForward: () => _fastForward30Minutes(context),
+              onResetState: () => _confirmResetState(context),
             ),
-          ),
-          const SizedBox(height: 8),
-          const Expanded(child: ItemCatalogGrid()),
-        ],
+            const _DebugItemsTab(),
+          ],
+        ),
       ),
     );
   }
@@ -173,5 +137,76 @@ class DebugPage extends StatelessWidget {
         builder: (context) => WelcomeBackDialog(timeAway: timeAway),
       );
     }
+  }
+}
+
+class _DebugActionsTab extends StatelessWidget {
+  const _DebugActionsTab({
+    required this.onShowWelcomeBack,
+    required this.onFastForward,
+    required this.onResetState,
+  });
+
+  final VoidCallback onShowWelcomeBack;
+  final VoidCallback onFastForward;
+  final VoidCallback onResetState;
+
+  @override
+  Widget build(BuildContext context) {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(16),
+      child: Wrap(
+        spacing: 8,
+        runSpacing: 8,
+        alignment: WrapAlignment.center,
+        children: [
+          ElevatedButton(
+            onPressed: onShowWelcomeBack,
+            child: const Text('Show Welcome Back Dialog'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              context.dispatch(DebugFillInventoryAction());
+            },
+            child: const Text('Fill Inventory'),
+          ),
+          ElevatedButton(
+            onPressed: onFastForward,
+            child: const Text('Fast Forward 30m'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              context.dispatch(DebugAddCurrencyAction(Currency.gp, 1000));
+            },
+            child: const Text('Add 1000 GP'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              context.dispatch(
+                DebugAddCurrencyAction(Currency.slayerCoins, 1000),
+              );
+            },
+            child: const Text('Add 1000 SC'),
+          ),
+          ElevatedButton(
+            onPressed: onResetState,
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red,
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('Reset State'),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _DebugItemsTab extends StatelessWidget {
+  const _DebugItemsTab();
+
+  @override
+  Widget build(BuildContext context) {
+    return const ItemCatalogGrid();
   }
 }
