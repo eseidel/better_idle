@@ -135,11 +135,11 @@ class TownshipViewModel {
 
   bool get hasPotions => township.potionsAmount > 0;
 
-  String? get herbsMedia =>
-      township.registry.resourceById(TownshipState.herbsId)?.media;
+  TownshipResource? get herbsResource =>
+      township.registry.resourceById(TownshipState.herbsId);
 
-  String? get potionsMedia =>
-      township.registry.resourceById(TownshipState.potionsId)?.media;
+  TownshipResource? get potionsResource =>
+      township.registry.resourceById(TownshipState.potionsId);
 }
 
 class _DeitySelectionView extends StatelessWidget {
@@ -531,15 +531,9 @@ class _HealSection extends StatelessWidget {
     return Row(
       children: [
         Text('Need ', style: textStyle),
-        if (viewModel.herbsMedia != null)
-          CachedImage(assetPath: viewModel.herbsMedia!, size: 16)
-        else
-          const Icon(Icons.grass, size: 16),
+        CachedImage(assetPath: viewModel.herbsResource?.media, size: 16),
         Text(' or ', style: textStyle),
-        if (viewModel.potionsMedia != null)
-          CachedImage(assetPath: viewModel.potionsMedia!, size: 16)
-        else
-          const Icon(Icons.science, size: 16),
+        CachedImage(assetPath: viewModel.potionsResource?.media, size: 16),
         Text(' to heal', style: textStyle),
       ],
     );
@@ -549,37 +543,28 @@ class _HealSection extends StatelessWidget {
     final township = viewModel.township;
     final maxHeal = township.maxHealableWithHerbs();
     final canHealOne = viewModel.canHealOneWithHerbs;
-    final cost = township.herbsCostPerHealthPercent;
-    final assetPath = viewModel.herbsMedia;
+    final costPerPercent = township.herbsCostPerHealthPercent;
+    final resource = viewModel.herbsResource;
 
     return Row(
       children: [
-        // +1 button (always shown if we have herbs)
+        // +1 button (always shown)
         _HealButton(
-          label: '+1%',
-          cost: cost,
-          assetPath: assetPath,
-          enabled: canHealOne,
+          healAmount: 1,
+          costPerPercent: costPerPercent,
+          resource: resource,
           onPressed: canHealOne ? () => _healWithHerbs(context, 1) : null,
         ),
-        const SizedBox(width: 8),
-        // Max button (show amount we can heal, or disabled +1 if we can't)
-        if (maxHeal > 1)
+        // Max button (only show if we can heal more than 1)
+        if (maxHeal > 1) ...[
+          const SizedBox(width: 8),
           _HealButton(
-            label: '+$maxHeal%',
-            cost: cost * maxHeal,
-            assetPath: assetPath,
-            enabled: true,
+            healAmount: maxHeal,
+            costPerPercent: costPerPercent,
+            resource: resource,
             onPressed: () => _healWithHerbs(context, maxHeal),
-          )
-        else if (!canHealOne)
-          _HealButton(
-            label: '+1%',
-            cost: cost,
-            assetPath: assetPath,
-            enabled: false,
-            onPressed: null,
           ),
+        ],
       ],
     );
   }
@@ -588,37 +573,28 @@ class _HealSection extends StatelessWidget {
     final township = viewModel.township;
     final maxHeal = township.maxHealableWithPotions();
     final canHealOne = viewModel.canHealOneWithPotions;
-    final cost = township.potionsCostPerHealthPercent;
-    final assetPath = viewModel.potionsMedia;
+    final costPerPercent = township.potionsCostPerHealthPercent;
+    final resource = viewModel.potionsResource;
 
     return Row(
       children: [
-        // +1 button (always shown if we have potions)
+        // +1 button (always shown)
         _HealButton(
-          label: '+1%',
-          cost: cost,
-          assetPath: assetPath,
-          enabled: canHealOne,
+          healAmount: 1,
+          costPerPercent: costPerPercent,
+          resource: resource,
           onPressed: canHealOne ? () => _healWithPotions(context, 1) : null,
         ),
-        const SizedBox(width: 8),
-        // Max button (show amount we can heal, or disabled +1 if we can't)
-        if (maxHeal > 1)
+        // Max button (only show if we can heal more than 1)
+        if (maxHeal > 1) ...[
+          const SizedBox(width: 8),
           _HealButton(
-            label: '+$maxHeal%',
-            cost: cost * maxHeal,
-            assetPath: assetPath,
-            enabled: true,
+            healAmount: maxHeal,
+            costPerPercent: costPerPercent,
+            resource: resource,
             onPressed: () => _healWithPotions(context, maxHeal),
-          )
-        else if (!canHealOne)
-          _HealButton(
-            label: '+1%',
-            cost: cost,
-            assetPath: assetPath,
-            enabled: false,
-            onPressed: null,
           ),
+        ],
       ],
     );
   }
@@ -646,23 +622,23 @@ class _HealSection extends StatelessWidget {
 
 class _HealButton extends StatelessWidget {
   const _HealButton({
-    required this.label,
-    required this.cost,
-    required this.assetPath,
-    required this.enabled,
+    required this.healAmount,
+    required this.costPerPercent,
+    required this.resource,
     required this.onPressed,
   });
 
-  final String label;
-  final int cost;
-  final String? assetPath;
-  final bool enabled;
+  final int healAmount;
+  final int costPerPercent;
+  final TownshipResource? resource;
   final VoidCallback? onPressed;
 
   @override
   Widget build(BuildContext context) {
+    final enabled = onPressed != null;
     final borderColor = enabled ? Style.successColor : Colors.grey;
     final textColor = enabled ? Style.textColorPrimary : Style.textColorMuted;
+    final totalCost = costPerPercent * healAmount;
 
     return OutlinedButton(
       onPressed: onPressed,
@@ -674,17 +650,14 @@ class _HealButton extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           Text(
-            label,
+            '+$healAmount%',
             style: TextStyle(color: textColor, fontWeight: FontWeight.bold),
           ),
           const SizedBox(width: 8),
-          if (assetPath != null)
-            CachedImage(assetPath: assetPath!, size: 14)
-          else
-            Icon(Icons.inventory_2, size: 14, color: textColor),
+          CachedImage(assetPath: resource?.media, size: 14),
           const SizedBox(width: 4),
           Text(
-            '$cost',
+            '$totalCost',
             style: TextStyle(color: textColor, fontWeight: FontWeight.bold),
           ),
         ],

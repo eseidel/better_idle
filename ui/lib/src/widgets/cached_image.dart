@@ -6,7 +6,8 @@ import 'package:flutter/material.dart';
 
 /// A widget that displays an image from the Melvor CDN with caching.
 ///
-/// Shows a placeholder while loading and a fallback if the image fails to load.
+/// Shows a placeholder while loading and a fallback if the image fails to load
+/// or if [assetPath] is null.
 class CachedImage extends StatefulWidget {
   const CachedImage({
     required this.assetPath,
@@ -17,7 +18,8 @@ class CachedImage extends StatefulWidget {
   });
 
   /// The asset path relative to the CDN (e.g., "assets/media/bank/logs.png").
-  final String assetPath;
+  /// If null, the fallback widget is shown immediately.
+  final String? assetPath;
 
   /// The size of the image (width and height).
   final double size;
@@ -61,10 +63,13 @@ class _CachedImageState extends State<CachedImage> {
   }
 
   void _loadImage() {
+    final assetPath = widget.assetPath;
+    if (assetPath == null) return;
+
     final service = context.imageCacheService;
 
     // Check if already cached.
-    final cached = service.getCachedFile(widget.assetPath);
+    final cached = service.getCachedFile(assetPath);
     if (cached != null) {
       setState(() {
         _cachedFile = cached;
@@ -77,7 +82,7 @@ class _CachedImageState extends State<CachedImage> {
       _isLoading = true;
     });
 
-    service.ensureAsset(widget.assetPath).then((file) {
+    service.ensureAsset(assetPath).then((file) {
       if (mounted) {
         setState(() {
           _isLoading = false;
@@ -89,6 +94,11 @@ class _CachedImageState extends State<CachedImage> {
 
   @override
   Widget build(BuildContext context) {
+    // Show fallback if no asset path.
+    if (widget.assetPath == null) {
+      return _buildFallback();
+    }
+
     // Show cached image if available.
     if (_cachedFile != null) {
       return Image.file(
