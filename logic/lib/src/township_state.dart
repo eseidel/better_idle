@@ -373,6 +373,57 @@ class TownshipState {
     return total;
   }
 
+  /// Calculates hourly production rates for all resources.
+  /// Returns a map of resourceId -> production per hour.
+  Map<MelvorId, double> get productionRatesPerHour {
+    final currentStats = stats;
+    final production = <MelvorId, double>{};
+
+    for (final biomeEntry in biomes.entries) {
+      final biomeId = biomeEntry.key;
+      final biomeState = biomeEntry.value;
+
+      // Get deity production modifier for this biome (e.g., 25 = +25%)
+      final deityModifier = getProductionModifierForBiome(biomeId);
+      final deityMultiplier = 1.0 + (deityModifier / 100.0);
+
+      for (final buildingEntry in biomeState.buildings.entries) {
+        final building = registry.buildingById(buildingEntry.key);
+        if (building == null) continue;
+
+        // Get biome-specific data for this building
+        final biomeData = building.dataForBiome(biomeId);
+        if (biomeData == null) continue;
+
+        final buildingState = buildingEntry.value;
+        final count = buildingState.count;
+        final efficiencyMultiplier = buildingState.efficiency / 100.0;
+
+        // Calculate production for each resource this building produces
+        for (final prodEntry in biomeData.production.entries) {
+          final resourceId = prodEntry.key;
+          final baseAmount = prodEntry.value;
+
+          // Production is scaled by:
+          // - Building count
+          // - Building efficiency
+          // - Education bonus
+          // - Deity worship bonus (per-biome)
+          final amount =
+              baseAmount *
+              count *
+              efficiencyMultiplier *
+              currentStats.educationProductionMultiplier *
+              deityMultiplier;
+
+          production[resourceId] = (production[resourceId] ?? 0) + amount;
+        }
+      }
+    }
+
+    return production;
+  }
+
   // ---------------------------------------------------------------------------
   // Task Methods
   // ---------------------------------------------------------------------------
@@ -503,6 +554,38 @@ class TownshipState {
     }
 
     return costs;
+  }
+
+  /// Calculates the total repair costs for all buildings across all biomes.
+  /// Returns a map of resourceId -> total cost.
+  Map<MelvorId, int> get totalRepairCosts {
+    final costs = <MelvorId, int>{};
+
+    for (final biomeEntry in biomes.entries) {
+      final biomeId = biomeEntry.key;
+      final biomeState = biomeEntry.value;
+
+      for (final buildingId in biomeState.buildings.keys) {
+        final buildingCosts = repairCosts(biomeId, buildingId);
+        for (final costEntry in buildingCosts.entries) {
+          costs[costEntry.key] = (costs[costEntry.key] ?? 0) + costEntry.value;
+        }
+      }
+    }
+
+    return costs;
+  }
+
+  /// Returns true if any building needs repair.
+  bool get hasAnyBuildingNeedingRepair {
+    for (final biomeEntry in biomes.entries) {
+      for (final buildingEntry in biomeEntry.value.buildings.entries) {
+        if (buildingEntry.value.efficiency < 100) {
+          return true;
+        }
+      }
+    }
+    return false;
   }
 
   // ---------------------------------------------------------------------------

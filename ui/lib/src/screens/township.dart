@@ -90,6 +90,11 @@ class TownshipViewModel {
 
   int get totalResourcesStored => _township.totalResourcesStored;
 
+  Map<MelvorId, double> get productionRates => _township.productionRatesPerHour;
+
+  double resourceProductionRate(MelvorId resourceId) =>
+      productionRates[resourceId] ?? 0;
+
   Season get season => _township.season;
 
   String get seasonTimeRemaining =>
@@ -132,6 +137,15 @@ class TownshipViewModel {
 
   bool canAffordResource(MelvorId resourceId, int cost) =>
       resourceAmount(resourceId) >= cost;
+
+  /// Returns true if any building needs repair.
+  bool get hasAnyBuildingNeedingRepair => _township.hasAnyBuildingNeedingRepair;
+
+  /// Returns the total repair costs for all buildings.
+  Map<MelvorId, int> get totalRepairCosts => _township.totalRepairCosts;
+
+  /// Returns true if the player can afford all repair costs for all buildings.
+  bool get canAffordAllRepairs => _state.canAffordAllTownshipRepairs();
 }
 
 class _DeitySelectionView extends StatelessWidget {
@@ -362,6 +376,10 @@ class _TownshipStatsCard extends StatelessWidget {
                 ),
               ],
             ),
+            if (viewModel.hasAnyBuildingNeedingRepair) ...[
+              const Divider(),
+              _RepairAllSection(viewModel: viewModel),
+            ],
           ],
         ),
       ),
@@ -409,6 +427,83 @@ class _StatItem extends StatelessWidget {
         Text(value, style: valueStyle),
       ],
     );
+  }
+}
+
+class _RepairAllSection extends StatelessWidget {
+  const _RepairAllSection({required this.viewModel});
+
+  final TownshipViewModel viewModel;
+
+  @override
+  Widget build(BuildContext context) {
+    final canAfford = viewModel.canAffordAllRepairs;
+    final totalCosts = viewModel.totalRepairCosts;
+
+    return Row(
+      children: [
+        ElevatedButton(
+          onPressed: canAfford ? () => _repairAll(context) : null,
+          style: ElevatedButton.styleFrom(
+            backgroundColor: canAfford ? Colors.orange : Colors.grey,
+          ),
+          child: const Text(
+            'Repair All',
+            style: TextStyle(color: Colors.white),
+          ),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Wrap(
+            spacing: 8,
+            runSpacing: 4,
+            children: _buildCostChips(totalCosts),
+          ),
+        ),
+      ],
+    );
+  }
+
+  List<Widget> _buildCostChips(Map<MelvorId, int> costs) {
+    final chips = <Widget>[];
+
+    for (final entry in costs.entries) {
+      final resourceId = entry.key;
+      final amount = entry.value;
+
+      if (resourceId.localId == 'GP') {
+        final canAfford = viewModel.canAffordGp(amount);
+        chips.add(
+          _CostBenefitChip(
+            assetPath: Currency.gp.assetPath,
+            value: approximateCreditString(amount),
+            isAffordable: canAfford,
+          ),
+        );
+      } else {
+        final resource = viewModel._registry.resourceById(resourceId);
+        final canAfford = viewModel.canAffordResource(resourceId, amount);
+        chips.add(
+          _CostBenefitChip(
+            assetPath: resource?.media,
+            value: approximateCreditString(amount),
+            isAffordable: canAfford,
+          ),
+        );
+      }
+    }
+
+    return chips;
+  }
+
+  void _repairAll(BuildContext context) {
+    try {
+      context.dispatch(RepairAllTownshipBuildingsAction());
+    } on Exception catch (e) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(e.toString())));
+    }
   }
 }
 
@@ -460,7 +555,12 @@ class _TownshipResourcesCard extends StatelessWidget {
               runSpacing: 8,
               children: nonZeroResources.map((resource) {
                 final amount = viewModel.resourceAmount(resource.id);
-                return _ResourceChip(media: resource.media, amount: amount);
+                final rate = viewModel.resourceProductionRate(resource.id);
+                return _ResourceChip(
+                  media: resource.media,
+                  amount: amount,
+                  ratePerHour: rate,
+                );
               }).toList(),
             ),
           ],
@@ -471,10 +571,15 @@ class _TownshipResourcesCard extends StatelessWidget {
 }
 
 class _ResourceChip extends StatelessWidget {
-  const _ResourceChip({required this.media, required this.amount});
+  const _ResourceChip({
+    required this.media,
+    required this.amount,
+    this.ratePerHour = 0,
+  });
 
   final String? media;
   final int amount;
+  final double ratePerHour;
 
   @override
   Widget build(BuildContext context) {
@@ -492,13 +597,27 @@ class _ResourceChip extends StatelessWidget {
           else
             const Icon(Icons.inventory_2, size: 16),
           const SizedBox(width: 4),
-          Text(
-            approximateCreditString(amount),
-            style: const TextStyle(
-              fontSize: 12,
-              fontWeight: FontWeight.bold,
-              color: Style.currencyValueColor,
-            ),
+          Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                approximateCreditString(amount),
+                style: const TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.white,
+                ),
+              ),
+              if (ratePerHour > 0)
+                Text(
+                  '+${approximateCreditString(ratePerHour.round())}/hr',
+                  style: TextStyle(
+                    fontSize: 9,
+                    color: Style.successColor.withValues(alpha: 0.8),
+                  ),
+                ),
+            ],
           ),
         ],
       ),

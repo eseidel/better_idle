@@ -1648,6 +1648,78 @@ class GlobalState {
     return true;
   }
 
+  /// Returns true if the player can afford all repair costs for all buildings.
+  bool canAffordAllTownshipRepairs() {
+    final costs = township.totalRepairCosts;
+    for (final entry in costs.entries) {
+      if (entry.key.localId == 'GP') {
+        if (gp < entry.value) return false;
+      } else {
+        if (township.resourceAmount(entry.key) < entry.value) return false;
+      }
+    }
+    return true;
+  }
+
+  /// Repairs all Township buildings across all biomes, restoring efficiency
+  /// to 100%. Throws StateError if player can't afford the total repair costs.
+  GlobalState repairAllTownshipBuildings() {
+    if (!township.hasAnyBuildingNeedingRepair) {
+      throw StateError('No buildings need repair');
+    }
+
+    // Get total costs and verify we can afford them
+    final totalCosts = township.totalRepairCosts;
+    for (final entry in totalCosts.entries) {
+      if (entry.key.localId == 'GP') {
+        if (gp < entry.value) {
+          throw StateError('Cannot afford repair: insufficient GP');
+        }
+      } else {
+        if (township.resourceAmount(entry.key) < entry.value) {
+          throw StateError(
+            'Cannot afford repair: insufficient ${entry.key.localId}',
+          );
+        }
+      }
+    }
+
+    // Deduct all costs
+    var state = this;
+    var newTownship = township;
+
+    for (final entry in totalCosts.entries) {
+      final resourceId = entry.key;
+      final cost = entry.value;
+
+      if (resourceId.localId == 'GP') {
+        state = state.addCurrency(Currency.gp, -cost);
+      } else {
+        newTownship = newTownship.removeResource(resourceId, cost);
+      }
+    }
+
+    // Restore all buildings to 100% efficiency
+    final newBiomes = <MelvorId, BiomeState>{};
+    for (final biomeEntry in newTownship.biomes.entries) {
+      final biomeId = biomeEntry.key;
+      final biomeState = biomeEntry.value;
+
+      final newBuildings = <MelvorId, BuildingState>{};
+      for (final buildingEntry in biomeState.buildings.entries) {
+        final buildingState = buildingEntry.value;
+        newBuildings[buildingEntry.key] = buildingState.copyWith(
+          efficiency: 100,
+        );
+      }
+
+      newBiomes[biomeId] = biomeState.copyWith(buildings: newBuildings);
+    }
+
+    newTownship = newTownship.copyWith(biomes: newBiomes);
+    return state.copyWith(township: newTownship);
+  }
+
   /// Equips food from the inventory to an equipment slot.
   /// Removes the item from inventory and adds it to equipment.
   GlobalState equipFood(ItemStack stack) {

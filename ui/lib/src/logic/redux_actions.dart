@@ -669,3 +669,11 @@ class RepairTownshipBuildingAction extends ReduxAction<GlobalState> {
     return state.repairTownshipBuilding(biomeId, buildingId);
   }
 }
+
+/// Repairs all Township buildings across all biomes.
+class RepairAllTownshipBuildingsAction extends ReduxAction<GlobalState> {
+  @override
+  GlobalState reduce() {
+    return state.repairAllTownshipBuildings();
+  }
+}
