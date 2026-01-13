@@ -70,7 +70,7 @@ class _ShopPageState extends State<ShopPage> {
                 ),
                 const SizedBox(width: 8),
                 if (category.media != null)
-                  CachedImage(assetPath: category.media!, size: 20)
+                  CachedImage(assetPath: category.media, size: 20)
                 else
                   const Icon(Icons.category, size: 20),
                 const SizedBox(width: 8),
@@ -193,7 +193,7 @@ class _ShopPageState extends State<ShopPage> {
           mainAxisSize: MainAxisSize.min,
           children: [
             if (item.media != null)
-              CachedImage(assetPath: item.media!, size: 16)
+              CachedImage(assetPath: item.media, size: 16)
             else
               const Icon(Icons.inventory_2, size: 16),
             const SizedBox(width: 4),
@@ -547,7 +547,7 @@ class _ShopItemRow extends StatelessWidget {
         child: Row(
           children: [
             if (media != null)
-              CachedImage(assetPath: media!)
+              CachedImage(assetPath: media)
             else
               const Icon(Icons.shopping_cart, size: 32),
             const SizedBox(width: 16),
@@ -612,7 +612,7 @@ class _ShopItemRow extends StatelessWidget {
             children: [
               Text('Complete ', style: TextStyle(color: color, fontSize: 12)),
               if (dungeon?.media != null) ...[
-                CachedImage(assetPath: dungeon!.media!, size: 14),
+                CachedImage(assetPath: dungeon!.media, size: 14),
                 const SizedBox(width: 4),
               ],
               Text(

@@ -84,7 +84,7 @@ class CostRow extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           children: [
             if (item.media != null)
-              CachedImage(assetPath: item.media!, size: iconSize)
+              CachedImage(assetPath: item.media, size: iconSize)
             else
               Icon(Icons.inventory_2, size: iconSize, color: color),
             const SizedBox(width: 4),

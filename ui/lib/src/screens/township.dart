@@ -125,21 +125,15 @@ class TownshipViewModel {
 
   bool get needsHealing => township.health < TownshipState.maxHealth;
 
-  bool get canHealOneWithHerbs =>
-      township.herbsAmount >= township.herbsCostPerHealthPercent;
+  bool canHealOneWith(HealingResource resource) =>
+      township.healingResourceAmount(resource) >=
+      township.costPerHealthPercent(resource);
 
-  bool get canHealOneWithPotions =>
-      township.potionsAmount >= township.potionsCostPerHealthPercent;
+  bool hasHealingResource(HealingResource resource) =>
+      township.healingResourceAmount(resource) > 0;
 
-  bool get hasHerbs => township.herbsAmount > 0;
-
-  bool get hasPotions => township.potionsAmount > 0;
-
-  TownshipResource? get herbsResource =>
-      township.registry.resourceById(TownshipState.herbsId);
-
-  TownshipResource? get potionsResource =>
-      township.registry.resourceById(TownshipState.potionsId);
+  TownshipResource? healingResourceData(HealingResource resource) =>
+      township.registry.resourceById(resource.id);
 }
 
 class _DeitySelectionView extends StatelessWidget {
@@ -402,7 +396,7 @@ class _StatItem extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           children: [
             if (valueIconPath != null) ...[
-              CachedImage(assetPath: valueIconPath!, size: 14),
+              CachedImage(assetPath: valueIconPath, size: 14),
               const SizedBox(width: 4),
             ],
             Text(value, style: valueStyle),
@@ -498,7 +492,9 @@ class _HealSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final hasResources = viewModel.hasHerbs || viewModel.hasPotions;
+    final hasHerbs = viewModel.hasHealingResource(HealingResource.herbs);
+    final hasPotions = viewModel.hasHealingResource(HealingResource.potions);
+    final hasResources = hasHerbs || hasPotions;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -511,12 +507,10 @@ class _HealSection extends StatelessWidget {
         if (!hasResources)
           _buildNeedResourcesMessage(context)
         else ...[
-          // Herbs row
-          if (viewModel.hasHerbs) _buildHerbsRow(context),
-          // Potions row
-          if (viewModel.hasPotions) ...[
-            if (viewModel.hasHerbs) const SizedBox(height: 8),
-            _buildPotionsRow(context),
+          if (hasHerbs) _buildResourceRow(context, HealingResource.herbs),
+          if (hasPotions) ...[
+            if (hasHerbs) const SizedBox(height: 8),
+            _buildResourceRow(context, HealingResource.potions),
           ],
         ],
       ],
@@ -531,87 +525,55 @@ class _HealSection extends StatelessWidget {
     return Row(
       children: [
         Text('Need ', style: textStyle),
-        CachedImage(assetPath: viewModel.herbsResource?.media, size: 16),
+        CachedImage(
+          assetPath: viewModel
+              .healingResourceData(HealingResource.herbs)
+              ?.media,
+          size: 16,
+        ),
         Text(' or ', style: textStyle),
-        CachedImage(assetPath: viewModel.potionsResource?.media, size: 16),
+        CachedImage(
+          assetPath: viewModel
+              .healingResourceData(HealingResource.potions)
+              ?.media,
+          size: 16,
+        ),
         Text(' to heal', style: textStyle),
       ],
     );
   }
 
-  Widget _buildHerbsRow(BuildContext context) {
+  Widget _buildResourceRow(BuildContext context, HealingResource resource) {
     final township = viewModel.township;
-    final maxHeal = township.maxHealableWithHerbs();
-    final canHealOne = viewModel.canHealOneWithHerbs;
-    final costPerPercent = township.herbsCostPerHealthPercent;
-    final resource = viewModel.herbsResource;
+    final maxHeal = township.maxHealableWith(resource);
+    final canHealOne = viewModel.canHealOneWith(resource);
+    final costPerPercent = township.costPerHealthPercent(resource);
+    final resourceData = viewModel.healingResourceData(resource);
 
     return Row(
       children: [
-        // +1 button (always shown)
         _HealButton(
           healAmount: 1,
           costPerPercent: costPerPercent,
-          resource: resource,
-          onPressed: canHealOne ? () => _healWithHerbs(context, 1) : null,
+          resource: resourceData,
+          onPressed: canHealOne ? () => _healWith(context, resource, 1) : null,
         ),
-        // Max button (only show if we can heal more than 1)
         if (maxHeal > 1) ...[
           const SizedBox(width: 8),
           _HealButton(
             healAmount: maxHeal,
             costPerPercent: costPerPercent,
-            resource: resource,
-            onPressed: () => _healWithHerbs(context, maxHeal),
+            resource: resourceData,
+            onPressed: () => _healWith(context, resource, maxHeal),
           ),
         ],
       ],
     );
   }
 
-  Widget _buildPotionsRow(BuildContext context) {
-    final township = viewModel.township;
-    final maxHeal = township.maxHealableWithPotions();
-    final canHealOne = viewModel.canHealOneWithPotions;
-    final costPerPercent = township.potionsCostPerHealthPercent;
-    final resource = viewModel.potionsResource;
-
-    return Row(
-      children: [
-        // +1 button (always shown)
-        _HealButton(
-          healAmount: 1,
-          costPerPercent: costPerPercent,
-          resource: resource,
-          onPressed: canHealOne ? () => _healWithPotions(context, 1) : null,
-        ),
-        // Max button (only show if we can heal more than 1)
-        if (maxHeal > 1) ...[
-          const SizedBox(width: 8),
-          _HealButton(
-            healAmount: maxHeal,
-            costPerPercent: costPerPercent,
-            resource: resource,
-            onPressed: () => _healWithPotions(context, maxHeal),
-          ),
-        ],
-      ],
-    );
-  }
-
-  void _healWithHerbs(BuildContext context, int amount) {
+  void _healWith(BuildContext context, HealingResource resource, int amount) {
     try {
-      context.dispatch(HealTownshipWithHerbsAction(amount: amount));
-    } on Exception catch (e) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text(e.toString())));
-    }
-  }
-
-  void _healWithPotions(BuildContext context, int amount) {
-    try {
-      context.dispatch(HealTownshipWithPotionsAction(amount: amount));
+      context.dispatch(HealTownshipAction(resource: resource, amount: amount));
     } on Exception catch (e) {
       ScaffoldMessenger.of(
         context,
@@ -774,7 +736,7 @@ class _ResourceChip extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           if (media != null)
-            CachedImage(assetPath: media!, size: 16)
+            CachedImage(assetPath: media, size: 16)
           else
             const Icon(Icons.inventory_2, size: 16),
           const SizedBox(width: 4),
@@ -933,7 +895,7 @@ class _BuildingCard extends StatelessWidget {
               children: [
                 // Building image
                 if (building.media != null)
-                  CachedImage(assetPath: building.media!, size: 48)
+                  CachedImage(assetPath: building.media, size: 48)
                 else
                   const Icon(Icons.home, size: 48),
                 const SizedBox(height: 4),
@@ -1576,7 +1538,7 @@ class _IconValueChip extends StatelessWidget {
       mainAxisSize: MainAxisSize.min,
       children: [
         if (assetPath != null)
-          CachedImage(assetPath: assetPath!, size: 14)
+          CachedImage(assetPath: assetPath, size: 14)
         else
           const Icon(Icons.inventory_2, size: 14),
         const SizedBox(width: 2),

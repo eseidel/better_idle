@@ -678,26 +678,15 @@ class RepairAllTownshipBuildingsAction extends ReduxAction<GlobalState> {
   }
 }
 
-/// Heals Township health using Herbs.
-class HealTownshipWithHerbsAction extends ReduxAction<GlobalState> {
-  HealTownshipWithHerbsAction({required this.amount});
+/// Heals Township health using a healing resource (herbs or potions).
+class HealTownshipAction extends ReduxAction<GlobalState> {
+  HealTownshipAction({required this.resource, required this.amount});
 
+  final HealingResource resource;
   final int amount;
 
   @override
   GlobalState reduce() {
-    return state.copyWith(township: state.township.healWithHerbs(amount));
-  }
-}
-
-/// Heals Township health using Potions.
-class HealTownshipWithPotionsAction extends ReduxAction<GlobalState> {
-  HealTownshipWithPotionsAction({required this.amount});
-
-  final int amount;
-
-  @override
-  GlobalState reduce() {
-    return state.copyWith(township: state.township.healWithPotions(amount));
+    return state.copyWith(township: state.township.healWith(resource, amount));
   }
 }

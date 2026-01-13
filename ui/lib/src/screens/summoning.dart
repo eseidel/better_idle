@@ -542,7 +542,7 @@ class _MarkProgressRow extends StatelessWidget {
     return Row(
       children: [
         if (markMedia != null)
-          CachedImage(assetPath: markMedia!, size: 16)
+          CachedImage(assetPath: markMedia, size: 16)
         else
           const Icon(Icons.star, size: 16, color: Colors.amber),
         const SizedBox(width: 4),

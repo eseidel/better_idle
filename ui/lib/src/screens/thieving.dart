@@ -175,7 +175,7 @@ class _SelectedActionDisplay extends StatelessWidget {
           ],
           // Header: NPC Image + Pickpocket + NPC Name
           if (action.media != null) ...[
-            Center(child: CachedImage(assetPath: action.media!, size: 64)),
+            Center(child: CachedImage(assetPath: action.media, size: 64)),
             const SizedBox(height: 8),
           ],
           const Text(
@@ -470,7 +470,7 @@ class _ActionList extends StatelessWidget {
                     color: isSelected ? Style.selectedColorLight : null,
                     child: ListTile(
                       leading: action.media != null
-                          ? CachedImage(assetPath: action.media!)
+                          ? CachedImage(assetPath: action.media)
                           : null,
                       title: Text(action.name),
                       subtitle: Text(

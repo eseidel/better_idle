@@ -43,6 +43,23 @@ enum Season {
   }
 }
 
+/// Resources that can be used for healing township health.
+enum HealingResource {
+  herbs(id: MelvorId('melvorF:Herbs')),
+  potions(id: MelvorId('melvorF:Potions'));
+
+  const HealingResource({required this.id});
+
+  factory HealingResource.fromJson(String value) {
+    return HealingResource.values.firstWhere((e) => e.name == value);
+  }
+
+  /// The MelvorId for this healing resource.
+  final MelvorId id;
+
+  String toJson() => name;
+}
+
 /// Ticks per hour (3600 seconds * 10 ticks/second).
 const int ticksPerHour = 36000;
 
@@ -322,12 +339,6 @@ class TownshipState {
 
   /// Maximum health percentage.
   static const double maxHealth = 100;
-
-  /// Well-known resource ID for Herbs.
-  static const herbsId = MelvorId('melvorF:Herbs');
-
-  /// Well-known resource ID for Potions.
-  static const potionsId = MelvorId('melvorF:Potions');
 
   // ---------------------------------------------------------------------------
   // Computed Properties
@@ -681,78 +692,47 @@ class TownshipState {
   // Health / Healing Methods
   // ---------------------------------------------------------------------------
 
-  /// Returns the amount of Herbs currently stored.
-  int get herbsAmount => resourceAmount(herbsId);
+  /// Returns the amount of a healing resource currently stored.
+  int healingResourceAmount(HealingResource resource) =>
+      resourceAmount(resource.id);
 
-  /// Returns the amount of Potions currently stored.
-  int get potionsAmount => resourceAmount(potionsId);
+  /// Returns the hourly production rate for a healing resource.
+  double healingResourceProductionPerHour(HealingResource resource) =>
+      productionRatesPerHour[resource.id] ?? 0;
 
-  /// Returns the hourly production rate for Herbs.
-  double get herbsProductionPerHour => productionRatesPerHour[herbsId] ?? 0;
-
-  /// Returns the hourly production rate for Potions.
-  double get potionsProductionPerHour => productionRatesPerHour[potionsId] ?? 0;
-
-  /// Returns the cost in Herbs to heal 1% health.
+  /// Returns the cost in resource to heal 1% health.
   /// Cost = 10% of hourly production rate (minimum 1).
-  int get herbsCostPerHealthPercent {
-    final cost = (herbsProductionPerHour * 0.1).ceil();
+  int costPerHealthPercent(HealingResource resource) {
+    final cost = (healingResourceProductionPerHour(resource) * 0.1).ceil();
     return cost < 1 ? 1 : cost;
   }
 
-  /// Returns the cost in Potions to heal 1% health.
-  /// Cost = 10% of hourly production rate (minimum 1).
-  int get potionsCostPerHealthPercent {
-    final cost = (potionsProductionPerHour * 0.1).ceil();
-    return cost < 1 ? 1 : cost;
-  }
-
-  /// Returns the maximum health percent that can be gained with current Herbs.
-  /// Returns 0 if no herbs available or no production.
-  int maxHealableWithHerbs() {
-    if (herbsAmount == 0) return 0;
-    final costPer = herbsCostPerHealthPercent;
+  /// Returns the maximum health percent that can be gained with the resource.
+  /// Returns 0 if no resource available or no production.
+  int maxHealableWith(HealingResource resource) {
+    final amount = healingResourceAmount(resource);
+    if (amount == 0) return 0;
+    final costPer = costPerHealthPercent(resource);
     if (costPer == 0) return 0;
-    final maxFromResources = herbsAmount ~/ costPer;
+    final maxFromResources = amount ~/ costPer;
     final healthNeeded = (maxHealth - health).ceil();
     return maxFromResources.clamp(0, healthNeeded);
   }
 
-  /// Returns the maximum health percent that can be gained with current
-  /// Potions. Returns 0 if no potions available or no production.
-  int maxHealableWithPotions() {
-    if (potionsAmount == 0) return 0;
-    final costPer = potionsCostPerHealthPercent;
-    if (costPer == 0) return 0;
-    final maxFromResources = potionsAmount ~/ costPer;
-    final healthNeeded = (maxHealth - health).ceil();
-    return maxFromResources.clamp(0, healthNeeded);
-  }
-
-  /// Heals the town using Herbs.
+  /// Heals the town using the specified healing resource.
   /// [amount] is the number of health percent to restore.
-  /// Throws if insufficient herbs.
-  TownshipState healWithHerbs(int amount) {
+  /// Throws if insufficient resources.
+  TownshipState healWith(HealingResource resource, int amount) {
     if (amount <= 0) return this;
-    final cost = herbsCostPerHealthPercent * amount;
-    if (herbsAmount < cost) {
-      throw StateError('Insufficient Herbs: have $herbsAmount, need $cost');
+    final cost = costPerHealthPercent(resource) * amount;
+    final available = healingResourceAmount(resource);
+    if (available < cost) {
+      throw StateError(
+        'Insufficient ${resource.name}: have $available, need $cost',
+      );
     }
     final newHealth = (health + amount).clamp(minHealth, maxHealth);
-    return removeResource(herbsId, cost).copyWith(health: newHealth);
-  }
-
-  /// Heals the town using Potions.
-  /// [amount] is the number of health percent to restore.
-  /// Throws if insufficient potions.
-  TownshipState healWithPotions(int amount) {
-    if (amount <= 0) return this;
-    final cost = potionsCostPerHealthPercent * amount;
-    if (potionsAmount < cost) {
-      throw StateError('Insufficient Potions: have $potionsAmount, need $cost');
-    }
-    final newHealth = (health + amount).clamp(minHealth, maxHealth);
-    return removeResource(potionsId, cost).copyWith(health: newHealth);
+    return removeResource(resource.id, cost).copyWith(health: newHealth);
   }
 
   /// Clears worship selection and resets points.

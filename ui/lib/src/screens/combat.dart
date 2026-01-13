@@ -164,7 +164,7 @@ class _CombatAreaTile extends StatelessWidget {
       color: hasActiveMonster ? Style.activeColorLight : null,
       child: ExpansionTile(
         leading: area.media != null
-            ? CachedImage(assetPath: area.media!, size: 40)
+            ? CachedImage(assetPath: area.media, size: 40)
             : null,
         title: Text(area.name),
         subtitle: Text('${monsters.length} monsters'),
@@ -200,7 +200,7 @@ class _MonsterListTile extends StatelessWidget {
       color: isActive ? Style.activeColorLight : null,
       child: ListTile(
         leading: monster.media != null
-            ? CachedImage(assetPath: monster.media!, size: 40)
+            ? CachedImage(assetPath: monster.media, size: 40)
             : null,
         title: Row(
           children: [
