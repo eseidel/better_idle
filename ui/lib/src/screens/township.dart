@@ -51,8 +51,8 @@ class _TownshipPageState extends State<TownshipPage> {
               _TownshipStatsCard(viewModel: viewModel),
               _TownshipResourcesCard(viewModel: viewModel),
               const Divider(),
-              ...viewModel.biomes.map(
-                (biome) => _BiomeSection(
+              ...viewModel.township.registry.biomes.map(
+                (TownshipBiome biome) => _BiomeSection(
                   viewModel: viewModel,
                   biome: biome,
                   isCollapsed: _collapsedBiomes.contains(biome.id),
@@ -80,148 +80,66 @@ class TownshipViewModel {
 
   final GlobalState _state;
 
-  TownshipState get _township => _state.township;
-  TownshipRegistry get _registry => _township.registry;
+  /// The township state - use this for direct access to township data.
+  TownshipState get township => _state.township;
 
   int get townshipXp => _state.skillState(Skill.town).xp;
   int get townshipLevel => _state.skillState(Skill.town).skillLevel;
 
-  TownshipStats get stats => _township.stats;
-
   int get gp => _state.gp;
 
-  // Deity/worship
-  MelvorId? get selectedDeityId => _township.worshipId;
-  bool get hasSelectedDeity => selectedDeityId != null;
-  List<TownshipDeity> get deities => _township.registry.deities;
-
-  TownshipDeity? get selectedDeity => _township.selectedDeity;
-
-  List<TownshipBiome> get biomes => _township.registry.biomes;
-
-  List<TownshipResource> get resources => _township.registry.resources;
-
-  int resourceAmount(MelvorId resourceId) =>
-      _township.resourceAmount(resourceId);
-
-  int get totalResourcesStored => _township.totalResourcesStored;
-
-  Map<MelvorId, double> get productionRates => _township.productionRatesPerHour;
-
-  double resourceProductionRate(MelvorId resourceId) =>
-      productionRates[resourceId] ?? 0;
-
-  Season get season => _township.season;
+  bool get hasSelectedDeity => township.worshipId != null;
 
   String? get seasonMedia {
-    final name = season.name;
+    final name = township.season.name;
     final capitalized = '${name[0].toUpperCase()}${name.substring(1)}';
     final seasonId = MelvorId('melvorF:$capitalized');
-    return _registry.seasonById(seasonId)?.media;
+    return township.registry.seasonById(seasonId)?.media;
   }
 
   String get seasonTimeRemaining =>
-      compactDurationFromTicks(_township.seasonTicksRemaining);
+      compactDurationFromTicks(township.seasonTicksRemaining);
 
   String get nextUpdateTime =>
-      compactDurationFromTicks(_township.ticksUntilUpdate);
-
-  bool isBiomeUnlocked(TownshipBiome biome) => _township.isBiomeUnlocked(biome);
+      compactDurationFromTicks(township.ticksUntilUpdate);
 
   List<TownshipBuilding> buildingsForBiome(MelvorId biomeId) {
-    return _township.registry.buildingsForBiome(biomeId)
-      ..sort((a, b) => _registry.compareBuildings(a.id, b.id));
-  }
-
-  BuildingState buildingState(MelvorId biomeId, MelvorId buildingId) {
-    return _township.buildingState(biomeId, buildingId);
+    final registry = township.registry;
+    return registry.buildingsForBiome(biomeId)
+      ..sort((a, b) => registry.compareBuildings(a.id, b.id));
   }
 
   String? canBuild(MelvorId biomeId, MelvorId buildingId) {
     return _state.canBuildTownshipBuilding(biomeId, buildingId);
   }
 
-  /// Returns true if the building needs repair (efficiency < 100).
-  bool needsRepair(MelvorId biomeId, MelvorId buildingId) {
-    return _township.buildingNeedsRepair(biomeId, buildingId);
-  }
-
-  /// Returns the repair costs for a building.
-  /// Uses the formula: (Base Cost / 3) × Buildings Built × (1 - Efficiency%)
-  Map<MelvorId, int> repairCosts(MelvorId biomeId, MelvorId buildingId) {
-    return _township.repairCosts(biomeId, buildingId);
-  }
-
-  /// Returns true if the player can afford all repair costs.
   bool canAffordRepair(MelvorId biomeId, MelvorId buildingId) =>
       _state.canAffordTownshipRepair(biomeId, buildingId);
 
   bool canAffordGp(int cost) => gp >= cost;
 
   bool canAffordResource(MelvorId resourceId, int cost) =>
-      resourceAmount(resourceId) >= cost;
+      township.resourceAmount(resourceId) >= cost;
 
-  /// Returns true if any building needs repair.
-  bool get hasAnyBuildingNeedingRepair => _township.hasAnyBuildingNeedingRepair;
-
-  /// Returns the total repair costs for all buildings.
-  Map<MelvorId, int> get totalRepairCosts => _township.totalRepairCosts;
-
-  /// Returns true if the player can afford all repair costs for all buildings.
   bool get canAffordAllRepairs => _state.canAffordAllTownshipRepairs();
 
-  // ---------------------------------------------------------------------------
-  // Health / Healing
-  // ---------------------------------------------------------------------------
+  bool get needsHealing => township.health < TownshipState.maxHealth;
 
-  /// Current health percentage (20-100).
-  double get health => _township.health;
+  bool get canHealOneWithHerbs =>
+      township.herbsAmount >= township.herbsCostPerHealthPercent;
 
-  /// Returns true if health is below 100%.
-  bool get needsHealing => health < TownshipState.maxHealth;
-
-  /// Amount of Herbs available.
-  int get herbsAmount => _township.herbsAmount;
-
-  /// Amount of Potions available.
-  int get potionsAmount => _township.potionsAmount;
-
-  /// Cost in Herbs to heal 1% health.
-  int get herbsCostPerHealthPercent => _township.herbsCostPerHealthPercent;
-
-  /// Cost in Potions to heal 1% health.
-  int get potionsCostPerHealthPercent => _township.potionsCostPerHealthPercent;
-
-  /// Maximum health percent that can be healed with current Herbs.
-  int get maxHealableWithHerbs => _township.maxHealableWithHerbs();
-
-  /// Maximum health percent that can be healed with current Potions.
-  int get maxHealableWithPotions => _township.maxHealableWithPotions();
-
-  /// Returns true if we can afford to heal 1% with herbs.
-  bool get canHealOneWithHerbs => herbsAmount >= herbsCostPerHealthPercent;
-
-  /// Returns true if we can afford to heal 1% with potions.
   bool get canHealOneWithPotions =>
-      potionsAmount >= potionsCostPerHealthPercent;
+      township.potionsAmount >= township.potionsCostPerHealthPercent;
 
-  /// Returns true if we have any herbs (for showing the heal section).
-  bool get hasHerbs => herbsAmount > 0;
+  bool get hasHerbs => township.herbsAmount > 0;
 
-  /// Returns true if we have any potions (for showing the heal section).
-  bool get hasPotions => potionsAmount > 0;
+  bool get hasPotions => township.potionsAmount > 0;
 
-  /// Returns true if we should show the heal section.
-  /// Show if health < 100% (we'll show a message if no herbs/potions).
-  bool get shouldShowHealSection => needsHealing;
-
-  /// Media path for Herbs resource.
   String? get herbsMedia =>
-      _registry.resourceById(TownshipState.herbsId)?.media;
+      township.registry.resourceById(TownshipState.herbsId)?.media;
 
-  /// Media path for Potions resource.
   String? get potionsMedia =>
-      _registry.resourceById(TownshipState.potionsId)?.media;
+      township.registry.resourceById(TownshipState.potionsId)?.media;
 }
 
 class _DeitySelectionView extends StatelessWidget {
@@ -231,7 +149,7 @@ class _DeitySelectionView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final deities = viewModel.deities;
+    final deities = viewModel.township.registry.deities;
 
     return ListView(
       padding: const EdgeInsets.all(16),
@@ -260,7 +178,7 @@ class _DeitySelectionView extends StatelessWidget {
             ),
           )
         else
-          ...deities.map((deity) => _DeityCard(deity: deity)),
+          ...deities.map((TownshipDeity deity) => _DeityCard(deity: deity)),
       ],
     );
   }
@@ -336,12 +254,13 @@ class _TownshipStatsCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final stats = viewModel.stats;
+    final township = viewModel.township;
+    final stats = township.stats;
     final happinessIndicator = _formatModifier(
-      viewModel.season.happinessModifier,
+      township.season.happinessModifier,
     );
     final educationIndicator = _formatModifier(
-      viewModel.season.educationModifier,
+      township.season.educationModifier,
     );
 
     return Card(
@@ -418,11 +337,11 @@ class _TownshipStatsCard extends StatelessWidget {
                 ),
               ],
             ),
-            if (viewModel.hasAnyBuildingNeedingRepair) ...[
+            if (township.hasAnyBuildingNeedingRepair) ...[
               const Divider(),
               _RepairAllSection(viewModel: viewModel),
             ],
-            if (viewModel.shouldShowHealSection) ...[
+            if (viewModel.needsHealing) ...[
               const Divider(),
               _HealSection(viewModel: viewModel),
             ],
@@ -438,7 +357,7 @@ class _TownshipStatsCard extends StatelessWidget {
   }
 
   String _formatSeason(TownshipViewModel viewModel) {
-    final name = viewModel.season.name;
+    final name = viewModel.township.season.name;
     final capitalized = '${name[0].toUpperCase()}${name.substring(1)}';
     return '$capitalized (${viewModel.seasonTimeRemaining})';
   }
@@ -502,7 +421,7 @@ class _RepairAllSection extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final canAfford = viewModel.canAffordAllRepairs;
-    final totalCosts = viewModel.totalRepairCosts;
+    final totalCosts = viewModel.township.totalRepairCosts;
 
     return Row(
       children: [
@@ -545,7 +464,8 @@ class _RepairAllSection extends StatelessWidget {
           ),
         );
       } else {
-        final resource = viewModel._registry.resourceById(resourceId);
+        final registry = viewModel.township.registry;
+        final resource = registry.resourceById(resourceId);
         final canAfford = viewModel.canAffordResource(resourceId, amount);
         chips.add(
           _CostChip(
@@ -584,7 +504,7 @@ class _HealSection extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          'Heal Town (${viewModel.health.toStringAsFixed(0)}%)',
+          'Heal Town (${viewModel.township.health.toStringAsFixed(0)}%)',
           style: Theme.of(context).textTheme.titleSmall,
         ),
         const SizedBox(height: 8),
@@ -626,9 +546,10 @@ class _HealSection extends StatelessWidget {
   }
 
   Widget _buildHerbsRow(BuildContext context) {
-    final maxHeal = viewModel.maxHealableWithHerbs;
+    final township = viewModel.township;
+    final maxHeal = township.maxHealableWithHerbs();
     final canHealOne = viewModel.canHealOneWithHerbs;
-    final cost = viewModel.herbsCostPerHealthPercent;
+    final cost = township.herbsCostPerHealthPercent;
     final assetPath = viewModel.herbsMedia;
 
     return Row(
@@ -664,9 +585,10 @@ class _HealSection extends StatelessWidget {
   }
 
   Widget _buildPotionsRow(BuildContext context) {
-    final maxHeal = viewModel.maxHealableWithPotions;
+    final township = viewModel.township;
+    final maxHeal = township.maxHealableWithPotions();
     final canHealOne = viewModel.canHealOneWithPotions;
-    final cost = viewModel.potionsCostPerHealthPercent;
+    final cost = township.potionsCostPerHealthPercent;
     final assetPath = viewModel.potionsMedia;
 
     return Row(
@@ -778,10 +700,13 @@ class _TownshipResourcesCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final nonZeroResources = viewModel.resources.where((r) {
+    final township = viewModel.township;
+    final nonZeroResources = township.registry.resources.where((
+      TownshipResource r,
+    ) {
       // Exclude GP (depositsToBank) as it's shown elsewhere
       if (r.depositsToBank) return false;
-      return viewModel.resourceAmount(r.id) > 0;
+      return township.resourceAmount(r.id) > 0;
     }).toList();
 
     final storageTitle = _buildStorageTitle(context);
@@ -820,8 +745,9 @@ class _TownshipResourcesCard extends StatelessWidget {
               spacing: 16,
               runSpacing: 8,
               children: nonZeroResources.map((resource) {
-                final amount = viewModel.resourceAmount(resource.id);
-                final rate = viewModel.resourceProductionRate(resource.id);
+                final amount = township.resourceAmount(resource.id);
+                final rates = township.productionRatesPerHour;
+                final rate = rates[resource.id] ?? 0;
                 return _ResourceChip(
                   media: resource.media,
                   amount: amount,
@@ -836,8 +762,9 @@ class _TownshipResourcesCard extends StatelessWidget {
   }
 
   Widget _buildStorageTitle(BuildContext context) {
-    final used = approximateCreditString(viewModel.totalResourcesStored);
-    final capacity = approximateCreditString(viewModel.stats.storage);
+    final township = viewModel.township;
+    final used = approximateCreditString(township.totalResourcesStored);
+    final capacity = approximateCreditString(township.stats.storage);
     return Row(
       children: [
         CachedImage(assetPath: TownshipStat.storage.assetPath, size: 20),
@@ -883,7 +810,7 @@ class _ResourceChip extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                approximateCreditString(amount),
+                approximateCountString(amount),
                 style: const TextStyle(
                   fontSize: 12,
                   fontWeight: FontWeight.bold,
@@ -892,7 +819,7 @@ class _ResourceChip extends StatelessWidget {
               ),
               if (ratePerHour > 0)
                 Text(
-                  '+${approximateCreditString(ratePerHour.round())}/hr',
+                  '+${approximateCountString(ratePerHour.round())}/hr',
                   style: TextStyle(
                     fontSize: 9,
                     color: Style.successColor.withValues(alpha: 0.8),
@@ -921,7 +848,7 @@ class _BiomeSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isUnlocked = viewModel.isBiomeUnlocked(biome);
+    final isUnlocked = viewModel.township.isBiomeUnlocked(biome);
     final buildings = viewModel.buildingsForBiome(biome.id);
 
     return Column(
@@ -1010,8 +937,10 @@ class _BuildingCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final buildingState = viewModel.buildingState(biomeId, building.id);
-    final needsRepair = viewModel.needsRepair(biomeId, building.id);
+    final township = viewModel.township;
+    final buildingState = township.buildingState(biomeId, building.id);
+    final needsRepair = township.buildingNeedsRepair(biomeId, building.id);
+    final efficiencyStr = percentValueToString(buildingState.efficiency);
 
     // Determine if we can perform the action (build or repair)
     final canPerformAction = needsRepair
@@ -1054,8 +983,7 @@ class _BuildingCard extends StatelessWidget {
                 if (buildingState.count > 0)
                   Text(
                     needsRepair
-                        ? '${buildingState.count} built '
-                              '(${percentValueToString(buildingState.efficiency)})'
+                        ? '${buildingState.count} built ($efficiencyStr)'
                         : '${buildingState.count} built',
                     style: TextStyle(
                       fontSize: 10,
@@ -1110,6 +1038,7 @@ class _BuildingCard extends StatelessWidget {
       return const SizedBox.shrink();
     }
 
+    final registry = viewModel.township.registry;
     final costWidgets = <Widget>[
       const Text(
         'Cost:',
@@ -1130,12 +1059,12 @@ class _BuildingCard extends StatelessWidget {
           ),
         );
       } else {
-        final resource = viewModel._registry.resourceById(resourceId);
+        final resource = registry.resourceById(resourceId);
         final canAfford = viewModel.canAffordResource(resourceId, amount);
         costWidgets.add(
           _CostChip(
             assetPath: resource?.media,
-            value: approximateCreditString(amount),
+            value: approximateCountString(amount),
             isAffordable: canAfford,
           ),
         );
@@ -1155,6 +1084,7 @@ class _BuildingCard extends StatelessWidget {
     final biomeData = building.dataForBiome(biomeId);
     if (biomeData == null) return const SizedBox.shrink();
 
+    final registry = viewModel.township.registry;
     final benefitWidgets = <Widget>[
       const Text(
         'Per Upgrade:',
@@ -1184,7 +1114,7 @@ class _BuildingCard extends StatelessWidget {
 
     // Production bonuses
     for (final entry in biomeData.production.entries) {
-      final resource = viewModel._registry.resourceById(entry.key);
+      final resource = registry.resourceById(entry.key);
       final perHour = entry.value.toStringAsFixed(0);
       benefitWidgets.add(
         _BenefitChip(assetPath: resource?.media, value: '+$perHour/h'),
@@ -1226,7 +1156,8 @@ class _BuildingCard extends StatelessWidget {
   }
 
   Widget _buildRepairCostsSection(BuildContext context) {
-    final repairCosts = viewModel.repairCosts(biomeId, building.id);
+    final township = viewModel.township;
+    final repairCosts = township.repairCosts(biomeId, building.id);
     if (repairCosts.isEmpty) {
       return const SizedBox.shrink();
     }
@@ -1252,7 +1183,7 @@ class _BuildingCard extends StatelessWidget {
           ),
         );
       } else {
-        final resource = viewModel._registry.resourceById(resourceId);
+        final resource = township.registry.resourceById(resourceId);
         final canAfford = viewModel.canAffordResource(resourceId, amount);
         costWidgets.add(
           _CostChip(
@@ -1322,8 +1253,9 @@ class _BuildingPurchaseDialog extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final buildingState = viewModel.buildingState(biomeId, building.id);
-    final needsRepair = viewModel.needsRepair(biomeId, building.id);
+    final township = viewModel.township;
+    final buildingState = township.buildingState(biomeId, building.id);
+    final needsRepair = township.buildingNeedsRepair(biomeId, building.id);
 
     final canPerformAction = needsRepair
         ? viewModel.canAffordRepair(biomeId, building.id)
@@ -1416,7 +1348,8 @@ class _BuildingPurchaseDialog extends StatelessWidget {
   }
 
   Widget _buildRepairCosts(BuildContext context) {
-    final repairCosts = viewModel.repairCosts(biomeId, building.id);
+    final township = viewModel.township;
+    final repairCosts = township.repairCosts(biomeId, building.id);
     if (repairCosts.isEmpty) {
       return const Text('Free', style: TextStyle(color: Style.successColor));
     }
@@ -1446,7 +1379,7 @@ class _BuildingPurchaseDialog extends StatelessWidget {
           ),
         );
       } else {
-        final resource = viewModel._registry.resourceById(resourceId);
+        final resource = township.registry.resourceById(resourceId);
         final canAfford = viewModel.canAffordResource(resourceId, amount);
         costs.add(
           Row(
@@ -1481,6 +1414,7 @@ class _BuildingPurchaseDialog extends StatelessWidget {
       );
     }
 
+    final registry = viewModel.township.registry;
     final costs = <Widget>[];
 
     // All costs including GP (GP has localId 'GP')
@@ -1509,7 +1443,7 @@ class _BuildingPurchaseDialog extends StatelessWidget {
         );
       } else {
         // Resource cost
-        final resource = viewModel._registry.resourceById(resourceId);
+        final resource = registry.resourceById(resourceId);
         final canAfford = viewModel.canAffordResource(resourceId, amount);
         costs.add(
           Row(
@@ -1588,8 +1522,9 @@ class _BuildingPurchaseDialog extends StatelessWidget {
 
     // Production
     if (biomeData.production.isNotEmpty) {
+      final registry = viewModel.township.registry;
       for (final entry in biomeData.production.entries) {
-        final resource = viewModel._registry.resourceById(entry.key);
+        final resource = registry.resourceById(entry.key);
         bonuses.add(
           'Produces ${entry.value} ${resource?.name ?? entry.key.localId}/hr',
         );
