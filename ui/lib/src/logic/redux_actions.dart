@@ -10,12 +10,16 @@ class UpdateActivityProgressAction extends ReduxAction<GlobalState> {
   UpdateActivityProgressAction({required this.now});
   final DateTime now;
 
+  /// Set by reduce() - ticks until next scheduled event.
+  /// Used by GameLoop to schedule the next wake time.
+  Tick? ticksUntilNextEvent;
+
   @override
   GlobalState reduce() {
     final ticks = ticksFromDuration(now.difference(state.updatedAt));
     final builder = StateUpdateBuilder(state);
     final random = Random();
-    consumeTicks(builder, ticks, random: random);
+    ticksUntilNextEvent = consumeTicks(builder, ticks, random: random);
 
     final changes = builder.changes;
     final newState = builder.build();
