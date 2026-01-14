@@ -1496,12 +1496,32 @@ class GlobalState {
   // Township Task Methods
   // ---------------------------------------------------------------------------
 
-  /// Checks if all requirements for a task are met.
+  /// Checks if a task goal is satisfied.
+  bool isTaskGoalMet(MelvorId taskId, TaskGoal goal) {
+    switch (goal.type) {
+      case TaskGoalType.items:
+        // Check if player has the required items in inventory
+        final item = registries.items.byId(goal.id);
+        return inventory.countOfItem(item) >= goal.quantity;
+      case TaskGoalType.skillXP:
+      case TaskGoalType.monsters:
+        // Check progress tracked in township state
+        return township.getGoalProgress(taskId, goal) >= goal.quantity;
+    }
+  }
+
+  /// Checks if all goals for a task are met.
   bool isTaskComplete(MelvorId taskId) {
-    return township.isTaskComplete(
-      taskId,
-      townshipLevel: skillState(Skill.town).skillLevel,
-    );
+    final task = registries.township.taskById(taskId);
+    if (task == null) return false;
+
+    // Check if already completed
+    if (township.completedMainTasks.contains(taskId)) {
+      return false; // Already claimed
+    }
+
+    // Check all goals are met
+    return task.goals.every((goal) => isTaskGoalMet(taskId, goal));
   }
 
   /// Claims rewards for a completed task.
@@ -1516,49 +1536,54 @@ class GlobalState {
 
     var state = this;
 
-    // Grant rewards
-    for (final reward in task.rewards) {
-      switch (reward.type) {
-        case 'xp':
-          state = state.addSkillXp(Skill.town, reward.amount);
-        case 'gp':
-          state = state.addCurrency(Currency.gp, reward.amount);
-        case 'item':
-          if (reward.itemId != null) {
-            final item = registries.items.byId(reward.itemId!);
-            state = state.copyWith(
-              inventory: state.inventory.adding(
-                ItemStack(item, count: reward.amount),
-              ),
-            );
-          }
-        case 'townshipResource':
-          if (reward.itemId != null) {
-            state = state.copyWith(
-              township: state.township.addResource(
-                reward.itemId!,
-                reward.amount,
-              ),
-            );
-          }
+    // Consume required items for item goals
+    for (final goal in task.goals) {
+      if (goal.type == TaskGoalType.items) {
+        final item = registries.items.byId(goal.id);
+        state = state.copyWith(
+          inventory: state.inventory.removing(
+            ItemStack(item, count: goal.quantity),
+          ),
+        );
       }
     }
 
-    // Mark main tasks as completed
-    if (task.isMainTask) {
-      final newCompleted = Set<MelvorId>.from(township.completedMainTasks)
-        ..add(taskId);
-      state = state.copyWith(
-        township: state.township.copyWith(completedMainTasks: newCompleted),
-      );
-    } else {
-      // Remove casual task from active tasks
-      final newTasks = Map<MelvorId, TownshipTaskState>.from(township.tasks)
-        ..remove(taskId);
-      state = state.copyWith(
-        township: state.township.copyWith(tasks: newTasks),
-      );
+    // Grant rewards
+    for (final reward in task.rewards) {
+      switch (reward.type) {
+        case TaskRewardType.skillXP:
+          // Map skill ID to Skill enum
+          final skill = Skill.tryFromId(reward.id);
+          if (skill != null) {
+            state = state.addSkillXp(skill, reward.quantity);
+          }
+        case TaskRewardType.currency:
+          // Map currency ID to Currency enum
+          if (reward.id.localId == 'GP') {
+            state = state.addCurrency(Currency.gp, reward.quantity);
+          } else if (reward.id.localId == 'SlayerCoins') {
+            state = state.addCurrency(Currency.slayerCoins, reward.quantity);
+          }
+        case TaskRewardType.item:
+          final item = registries.items.byId(reward.id);
+          state = state.copyWith(
+            inventory: state.inventory.adding(
+              ItemStack(item, count: reward.quantity),
+            ),
+          );
+        case TaskRewardType.townshipResource:
+          state = state.copyWith(
+            township: state.township.addResource(reward.id, reward.quantity),
+          );
+      }
     }
+
+    // Mark task as completed (all main tasks go to completedMainTasks)
+    final newCompleted = Set<MelvorId>.from(township.completedMainTasks)
+      ..add(taskId);
+    state = state.copyWith(
+      township: state.township.copyWith(completedMainTasks: newCompleted),
+    );
 
     return state;
   }

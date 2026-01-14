@@ -44,6 +44,7 @@ is written in a different language than the mods.
 - Change GameLoop to use timers rather than spinning hot.
 - Improve combat ui (e.g. stats display)
 - Improve equipment UI
+- scrolling jumps around when scrolling township
 
 ### To Implement
 - more Thieving drops.

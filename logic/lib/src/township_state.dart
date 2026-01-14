@@ -452,35 +452,34 @@ class TownshipState {
   // Task Methods
   // ---------------------------------------------------------------------------
 
-  /// Checks if a task requirement is met.
-  /// [townshipLevel] is the player's Township skill level, needed for
-  /// 'townshipLevel' requirement type.
-  bool isTaskRequirementMet(TaskRequirement req, {required int townshipLevel}) {
-    return switch (req.type) {
-      'population' => stats.population >= req.target,
-      'buildBuilding' =>
-        req.targetId != null && totalBuildingCount(req.targetId!) >= req.target,
-      'townshipLevel' => townshipLevel >= req.target,
-      'resource' =>
-        req.targetId != null && resourceAmount(req.targetId!) >= req.target,
-      _ => false, // Unknown requirement type
-    };
+  /// Returns the current progress for a task.
+  /// Returns null if the task doesn't exist.
+  TownshipTaskState? taskProgress(MelvorId taskId) => tasks[taskId];
+
+  /// Updates progress for a task goal.
+  TownshipState updateTaskProgress(
+    MelvorId taskId,
+    TaskGoalType goalType,
+    MelvorId targetId,
+    int amount,
+  ) {
+    final currentProgress = tasks[taskId] ?? TownshipTaskState(taskId: taskId);
+    final goalKey = '${goalType.name}:${targetId.fullId}';
+    final newProgress = Map<String, int>.from(currentProgress.progress);
+    newProgress[goalKey] = (newProgress[goalKey] ?? 0) + amount;
+
+    final updatedTasks = Map<MelvorId, TownshipTaskState>.from(tasks);
+    updatedTasks[taskId] = currentProgress.copyWith(progress: newProgress);
+
+    return copyWith(tasks: updatedTasks);
   }
 
-  /// Checks if all requirements for a task are met.
-  /// [townshipLevel] is the player's Township skill level.
-  bool isTaskComplete(MelvorId taskId, {required int townshipLevel}) {
-    final task = registry.taskById(taskId);
-    if (task == null) return false;
-
-    // Check if already completed (for main tasks)
-    if (task.isMainTask && completedMainTasks.contains(taskId)) {
-      return false; // Already claimed
-    }
-
-    return task.requirements.every(
-      (req) => isTaskRequirementMet(req, townshipLevel: townshipLevel),
-    );
+  /// Gets the current progress toward a specific goal within a task.
+  int getGoalProgress(MelvorId taskId, TaskGoal goal) {
+    final progress = tasks[taskId];
+    if (progress == null) return 0;
+    final goalKey = '${goal.type.name}:${goal.id.fullId}';
+    return progress.progress[goalKey] ?? 0;
   }
 
   // ---------------------------------------------------------------------------

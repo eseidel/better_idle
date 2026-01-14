@@ -683,6 +683,16 @@ class RepairAllTownshipBuildingsAction extends ReduxAction<GlobalState> {
 }
 
 /// Heals Township health using a healing resource (herbs or potions).
+class ClaimTownshipTaskAction extends ReduxAction<GlobalState> {
+  ClaimTownshipTaskAction(this.taskId);
+  final MelvorId taskId;
+
+  @override
+  GlobalState reduce() {
+    return state.claimTaskReward(taskId);
+  }
+}
+
 class HealTownshipAction extends ReduxAction<GlobalState> {
   HealTownshipAction({required this.resource, required this.amount});
 

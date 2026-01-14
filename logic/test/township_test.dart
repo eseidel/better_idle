@@ -2307,9 +2307,15 @@ void main() {
           tasks: [
             TownshipTask(
               id: taskId,
-              name: 'Test Task',
-              requirements: [TaskRequirement(type: 'population', target: 0)],
-              rewards: [TaskReward(type: 'xp', amount: 100)],
+              category: TaskCategory.easy,
+              // No goals means immediately completable
+              rewards: [
+                TaskReward(
+                  type: TaskRewardType.currency,
+                  id: MelvorId('melvorD:GP'),
+                  quantity: 100,
+                ),
+              ],
             ),
           ],
         ),
@@ -2317,7 +2323,7 @@ void main() {
 
       final state = GlobalState.test(registries);
 
-      // Task with 0 population requirement should be completable
+      // Task with no goals should be completable
       expect(state.isTaskComplete(taskId), isTrue);
     });
 
@@ -3161,79 +3167,9 @@ void main() {
       );
     });
 
-    test('throws when task requirements not met', () {
+    test('throws when item goal not met', () {
       const taskId = MelvorId('melvorD:Test_Task');
-
-      final registries = Registries.test(
-        township: const TownshipRegistry(
-          tasks: [
-            TownshipTask(
-              id: taskId,
-              name: 'Test Task',
-              requirements: [TaskRequirement(type: 'population', target: 100)],
-              rewards: [TaskReward(type: 'xp', amount: 100)],
-            ),
-          ],
-        ),
-      );
-
-      // State has 0 population
-      final state = GlobalState.test(registries);
-
-      expect(() => state.claimTaskReward(taskId), throwsStateError);
-    });
-
-    test('grants XP reward', () {
-      const taskId = MelvorId('melvorD:Test_Task');
-
-      final registries = Registries.test(
-        township: const TownshipRegistry(
-          tasks: [
-            TownshipTask(
-              id: taskId,
-              name: 'Test Task',
-              requirements: [TaskRequirement(type: 'population', target: 0)],
-              rewards: [TaskReward(type: 'xp', amount: 500)],
-            ),
-          ],
-        ),
-      );
-
-      var state = GlobalState.test(registries);
-      final initialXp = state.skillState(Skill.town).xp;
-
-      state = state.claimTaskReward(taskId);
-
-      expect(state.skillState(Skill.town).xp, initialXp + 500);
-    });
-
-    test('grants GP reward', () {
-      const taskId = MelvorId('melvorD:Test_Task');
-
-      final registries = Registries.test(
-        township: const TownshipRegistry(
-          tasks: [
-            TownshipTask(
-              id: taskId,
-              name: 'Test Task',
-              requirements: [TaskRequirement(type: 'population', target: 0)],
-              rewards: [TaskReward(type: 'gp', amount: 1000)],
-            ),
-          ],
-        ),
-      );
-
-      var state = GlobalState.test(registries);
-      expect(state.gp, 0);
-
-      state = state.claimTaskReward(taskId);
-
-      expect(state.gp, 1000);
-    });
-
-    test('grants item reward', () {
-      const taskId = MelvorId('melvorD:Test_Task');
-      final testItem = Item.test('Test Item', gp: 10);
+      final testItem = Item.test('Oak Logs', gp: 10);
 
       final registries = Registries.test(
         items: [testItem],
@@ -3241,12 +3177,56 @@ void main() {
           tasks: [
             TownshipTask(
               id: taskId,
-              name: 'Test Task',
-              requirements: const [
-                TaskRequirement(type: 'population', target: 0),
+              category: TaskCategory.easy,
+              goals: [
+                TaskGoal(
+                  type: TaskGoalType.items,
+                  id: testItem.id,
+                  quantity: 100,
+                ),
               ],
-              rewards: [
-                TaskReward(type: 'item', amount: 10, itemId: testItem.id),
+              rewards: const [
+                TaskReward(
+                  type: TaskRewardType.currency,
+                  id: MelvorId('melvorD:GP'),
+                  quantity: 1000,
+                ),
+              ],
+            ),
+          ],
+        ),
+      );
+
+      // State has no items
+      final state = GlobalState.test(registries);
+
+      expect(() => state.claimTaskReward(taskId), throwsStateError);
+    });
+
+    test('grants GP reward and consumes items', () {
+      const taskId = MelvorId('melvorD:Test_Task');
+      final testItem = Item.test('Oak Logs', gp: 10);
+
+      final registries = Registries.test(
+        items: [testItem],
+        township: TownshipRegistry(
+          tasks: [
+            TownshipTask(
+              id: taskId,
+              category: TaskCategory.easy,
+              goals: [
+                TaskGoal(
+                  type: TaskGoalType.items,
+                  id: testItem.id,
+                  quantity: 50,
+                ),
+              ],
+              rewards: const [
+                TaskReward(
+                  type: TaskRewardType.currency,
+                  id: MelvorId('melvorD:GP'),
+                  quantity: 1000,
+                ),
               ],
             ),
           ],
@@ -3254,11 +3234,50 @@ void main() {
       );
 
       var state = GlobalState.test(registries);
-      expect(state.inventory.countOfItem(testItem), 0);
+      // Add required items to inventory
+      state = state.copyWith(
+        inventory: state.inventory.adding(ItemStack(testItem, count: 100)),
+      );
+      expect(state.gp, 0);
+      expect(state.inventory.countOfItem(testItem), 100);
 
       state = state.claimTaskReward(taskId);
 
-      expect(state.inventory.countOfItem(testItem), 10);
+      expect(state.gp, 1000);
+      // Items should be consumed
+      expect(state.inventory.countOfItem(testItem), 50);
+    });
+
+    test('grants item reward', () {
+      const taskId = MelvorId('melvorD:Test_Task');
+      final rewardItem = Item.test('Reward Item', gp: 100);
+
+      final registries = Registries.test(
+        items: [rewardItem],
+        township: TownshipRegistry(
+          tasks: [
+            TownshipTask(
+              id: taskId,
+              category: TaskCategory.easy,
+              // No goals means immediately completable
+              rewards: [
+                TaskReward(
+                  type: TaskRewardType.item,
+                  id: rewardItem.id,
+                  quantity: 10,
+                ),
+              ],
+            ),
+          ],
+        ),
+      );
+
+      var state = GlobalState.test(registries);
+      expect(state.inventory.countOfItem(rewardItem), 0);
+
+      state = state.claimTaskReward(taskId);
+
+      expect(state.inventory.countOfItem(rewardItem), 10);
     });
 
     test('grants township resource reward', () {
@@ -3270,13 +3289,12 @@ void main() {
           tasks: [
             TownshipTask(
               id: taskId,
-              name: 'Test Task',
-              requirements: [TaskRequirement(type: 'population', target: 0)],
+              category: TaskCategory.normal,
               rewards: [
                 TaskReward(
-                  type: 'townshipResource',
-                  amount: 500,
-                  itemId: resourceId,
+                  type: TaskRewardType.townshipResource,
+                  id: resourceId,
+                  quantity: 500,
                 ),
               ],
             ),
@@ -3295,7 +3313,7 @@ void main() {
       expect(state.township.resourceAmount(resourceId), 500);
     });
 
-    test('marks main task as completed', () {
+    test('marks task as completed', () {
       const taskId = MelvorId('melvorD:Main_Task');
 
       final registries = Registries.test(
@@ -3303,10 +3321,14 @@ void main() {
           tasks: [
             TownshipTask(
               id: taskId,
-              name: 'Main Task',
-              requirements: [TaskRequirement(type: 'population', target: 0)],
-              rewards: [TaskReward(type: 'xp', amount: 100)],
-              isMainTask: true,
+              category: TaskCategory.hard,
+              rewards: [
+                TaskReward(
+                  type: TaskRewardType.currency,
+                  id: MelvorId('melvorD:GP'),
+                  quantity: 100,
+                ),
+              ],
             ),
           ],
         ),
@@ -3320,7 +3342,7 @@ void main() {
       expect(state.township.completedMainTasks, contains(taskId));
     });
 
-    test('prevents claiming main task twice', () {
+    test('prevents claiming task twice', () {
       const taskId = MelvorId('melvorD:Main_Task');
 
       final registries = Registries.test(
@@ -3328,10 +3350,14 @@ void main() {
           tasks: [
             TownshipTask(
               id: taskId,
-              name: 'Main Task',
-              requirements: [TaskRequirement(type: 'population', target: 0)],
-              rewards: [TaskReward(type: 'xp', amount: 100)],
-              isMainTask: true,
+              category: TaskCategory.elite,
+              rewards: [
+                TaskReward(
+                  type: TaskRewardType.currency,
+                  id: MelvorId('melvorD:GP'),
+                  quantity: 100,
+                ),
+              ],
             ),
           ],
         ),
@@ -3354,14 +3380,23 @@ void main() {
           tasks: [
             TownshipTask(
               id: taskId,
-              name: 'Test Task',
-              requirements: const [
-                TaskRequirement(type: 'population', target: 0),
-              ],
+              category: TaskCategory.veryHard,
               rewards: [
-                const TaskReward(type: 'xp', amount: 100),
-                const TaskReward(type: 'gp', amount: 500),
-                TaskReward(type: 'item', amount: 5, itemId: testItem.id),
+                const TaskReward(
+                  type: TaskRewardType.currency,
+                  id: MelvorId('melvorD:GP'),
+                  quantity: 500,
+                ),
+                const TaskReward(
+                  type: TaskRewardType.currency,
+                  id: MelvorId('melvorD:SlayerCoins'),
+                  quantity: 100,
+                ),
+                TaskReward(
+                  type: TaskRewardType.item,
+                  id: testItem.id,
+                  quantity: 5,
+                ),
               ],
             ),
           ],
@@ -3369,44 +3404,38 @@ void main() {
       );
 
       var state = GlobalState.test(registries);
-      final initialXp = state.skillState(Skill.town).xp;
 
       state = state.claimTaskReward(taskId);
 
-      expect(state.skillState(Skill.town).xp, initialXp + 100);
       expect(state.gp, 500);
+      expect(state.currency(Currency.slayerCoins), 100);
       expect(state.inventory.countOfItem(testItem), 5);
     });
 
-    test('validates buildBuilding requirement', () {
+    test('validates skillXP goal with progress tracking', () {
       const taskId = MelvorId('melvorD:Test_Task');
-      const buildingId = MelvorId('melvorD:Test_Building');
-      const biomeId = MelvorId('melvorD:Grasslands');
-
-      final building = testBuilding(
-        id: buildingId,
-        name: 'Test Building',
-        validBiomes: {biomeId},
-      );
+      const skillId = MelvorId('melvorD:Woodcutting');
 
       final registries = Registries.test(
-        township: TownshipRegistry(
-          buildings: [building],
-          biomes: const [
-            TownshipBiome(id: biomeId, name: 'Grasslands', tier: 1),
-          ],
-          tasks: const [
+        township: const TownshipRegistry(
+          tasks: [
             TownshipTask(
               id: taskId,
-              name: 'Build Task',
-              requirements: [
-                TaskRequirement(
-                  type: 'buildBuilding',
-                  target: 3,
-                  targetId: buildingId,
+              category: TaskCategory.easy,
+              goals: [
+                TaskGoal(
+                  type: TaskGoalType.skillXP,
+                  id: skillId,
+                  quantity: 1000,
                 ),
               ],
-              rewards: [TaskReward(type: 'xp', amount: 100)],
+              rewards: [
+                TaskReward(
+                  type: TaskRewardType.currency,
+                  id: MelvorId('melvorD:GP'),
+                  quantity: 500,
+                ),
+              ],
             ),
           ],
         ),
@@ -3414,18 +3443,82 @@ void main() {
 
       var state = GlobalState.test(registries);
 
-      // Should fail with 0 buildings
+      // Should fail with no progress
       expect(() => state.claimTaskReward(taskId), throwsStateError);
 
-      // Build 2 buildings (still not enough)
-      state = state.buildTownshipBuilding(biomeId, buildingId);
-      state = state.buildTownshipBuilding(biomeId, buildingId);
+      // Add progress toward the goal
+      state = state.copyWith(
+        township: state.township.updateTaskProgress(
+          taskId,
+          TaskGoalType.skillXP,
+          skillId,
+          500,
+        ),
+      );
+      // Still not enough
       expect(() => state.claimTaskReward(taskId), throwsStateError);
 
-      // Build a third building (now meets requirement)
-      state = state.buildTownshipBuilding(biomeId, buildingId);
+      // Add more progress to meet the goal
+      state = state.copyWith(
+        township: state.township.updateTaskProgress(
+          taskId,
+          TaskGoalType.skillXP,
+          skillId,
+          500,
+        ),
+      );
+      // Now it should work
       state = state.claimTaskReward(taskId);
-      expect(state.skillState(Skill.town).xp, greaterThan(0));
+      expect(state.gp, 500);
+    });
+
+    test('validates monster kill goal with progress tracking', () {
+      const taskId = MelvorId('melvorD:Test_Task');
+      const monsterId = MelvorId('melvorD:Golbin');
+
+      final registries = Registries.test(
+        township: const TownshipRegistry(
+          tasks: [
+            TownshipTask(
+              id: taskId,
+              category: TaskCategory.normal,
+              goals: [
+                TaskGoal(
+                  type: TaskGoalType.monsters,
+                  id: monsterId,
+                  quantity: 25,
+                ),
+              ],
+              rewards: [
+                TaskReward(
+                  type: TaskRewardType.currency,
+                  id: MelvorId('melvorD:GP'),
+                  quantity: 1000,
+                ),
+              ],
+            ),
+          ],
+        ),
+      );
+
+      var state = GlobalState.test(registries);
+
+      // Should fail with no kills
+      expect(() => state.claimTaskReward(taskId), throwsStateError);
+
+      // Add 25 kills
+      state = state.copyWith(
+        township: state.township.updateTaskProgress(
+          taskId,
+          TaskGoalType.monsters,
+          monsterId,
+          25,
+        ),
+      );
+
+      // Now it should work
+      state = state.claimTaskReward(taskId);
+      expect(state.gp, 1000);
     });
   });
 }
