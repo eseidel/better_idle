@@ -2,6 +2,7 @@ import 'dart:math';
 
 import 'package:async_redux/async_redux.dart';
 import 'package:better_idle/src/logic/game_loop.dart';
+import 'package:fake_async/fake_async.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:logic/logic.dart';
 
@@ -25,8 +26,20 @@ const _longAction = SkillAction(
   unlockLevel: 1,
 );
 
+/// A very short action for testing timer firing (minimum 1 tick = 100ms).
+const _quickAction = SkillAction(
+  id: ActionId(MelvorId('melvorD:Woodcutting'), MelvorId('test:QuickAction')),
+  skill: Skill.woodcutting,
+  name: 'Quick Action',
+  duration: Duration(milliseconds: 100), // 1 tick
+  xp: 1,
+  unlockLevel: 1,
+);
+
 void main() {
-  final registries = Registries.test(actions: const [_testAction, _longAction]);
+  final registries = Registries.test(
+    actions: const [_testAction, _longAction, _quickAction],
+  );
 
   group('GameLoop suspend/resume', () {
     test('suspend prevents auto-start from state changes', () {
@@ -446,6 +459,284 @@ void main() {
       expect(gameLoop.isRunning, isFalse);
 
       gameLoop.dispose();
+    });
+  });
+
+  group('GameLoop timer firing', () {
+    // Note: These tests use fakeAsync to control timer execution.
+    // However, DateTime.timestamp() is not controlled by fakeAsync,
+    // so we test behavior (timer fires, loop state) rather than time-based
+    // state changes.
+
+    test('timer fires when time elapses', () {
+      fakeAsync((async) {
+        final initialState = GlobalState.empty(registries);
+        final store = Store<GlobalState>(initialState: initialState);
+        final testRandom = Random(42);
+
+        // Start a quick action (100ms = 1 tick)
+        store.dispatch(
+          _SetStateAction(
+            initialState.startAction(_quickAction, random: testRandom),
+          ),
+        );
+
+        var dispatchCount = 0;
+        store.onChange.listen((_) => dispatchCount++);
+
+        final gameLoop = GameLoop(store);
+        expect(gameLoop.isRunning, isTrue);
+
+        // Initial dispatch from setting up action
+        final initialDispatchCount = dispatchCount;
+
+        // Advance time past the timer (minimum delay is 100ms)
+        async.elapse(const Duration(milliseconds: 150));
+
+        // A dispatch should have occurred from timer firing
+        expect(dispatchCount, greaterThan(initialDispatchCount));
+
+        gameLoop.dispose();
+      });
+    });
+
+    test('timer does not fire when loop is paused', () {
+      fakeAsync((async) {
+        final initialState = GlobalState.empty(registries);
+        final store = Store<GlobalState>(initialState: initialState);
+        final testRandom = Random(42);
+
+        store.dispatch(
+          _SetStateAction(
+            initialState.startAction(_quickAction, random: testRandom),
+          ),
+        );
+
+        var dispatchCount = 0;
+        store.onChange.listen((_) => dispatchCount++);
+
+        final gameLoop = GameLoop(store);
+        expect(gameLoop.isRunning, isTrue);
+
+        // Pause immediately before timer can fire
+        gameLoop.pause();
+        expect(gameLoop.isRunning, isFalse);
+
+        final dispatchCountAfterPause = dispatchCount;
+
+        // Advance time past when the timer would have fired
+        async.elapse(const Duration(milliseconds: 200));
+
+        // No additional dispatches should have occurred
+        expect(dispatchCount, equals(dispatchCountAfterPause));
+
+        gameLoop.dispose();
+      });
+    });
+
+    test('timer does not fire when loop is suspended', () {
+      fakeAsync((async) {
+        final initialState = GlobalState.empty(registries);
+        final store = Store<GlobalState>(initialState: initialState);
+        final testRandom = Random(42);
+
+        store.dispatch(
+          _SetStateAction(
+            initialState.startAction(_quickAction, random: testRandom),
+          ),
+        );
+
+        var dispatchCount = 0;
+        store.onChange.listen((_) => dispatchCount++);
+
+        final gameLoop = GameLoop(store);
+        expect(gameLoop.isRunning, isTrue);
+
+        // Suspend immediately before timer can fire
+        gameLoop.suspend();
+        expect(gameLoop.isRunning, isFalse);
+
+        final dispatchCountAfterSuspend = dispatchCount;
+
+        // Advance time past when the timer would have fired
+        async.elapse(const Duration(milliseconds: 200));
+
+        // No additional dispatches should have occurred
+        expect(dispatchCount, equals(dispatchCountAfterSuspend));
+
+        gameLoop.dispose();
+      });
+    });
+
+    test('timer reschedules after firing (loop stays running)', () {
+      fakeAsync((async) {
+        final initialState = GlobalState.empty(registries);
+        final store = Store<GlobalState>(initialState: initialState);
+        final testRandom = Random(42);
+
+        // Start a 1-second action that will need multiple timer fires
+        store.dispatch(
+          _SetStateAction(
+            initialState.startAction(_testAction, random: testRandom),
+          ),
+        );
+
+        final gameLoop = GameLoop(store);
+        expect(gameLoop.isRunning, isTrue);
+
+        // Advance time for one tick (100ms)
+        async.elapse(const Duration(milliseconds: 150));
+
+        // Loop should still be running (timer rescheduled)
+        expect(gameLoop.isRunning, isTrue);
+
+        // Advance more time
+        async.elapse(const Duration(milliseconds: 150));
+
+        // Loop should still be running
+        expect(gameLoop.isRunning, isTrue);
+
+        gameLoop.dispose();
+      });
+    });
+
+    test('loop handles shouldTick becoming false via state change', () {
+      fakeAsync((async) {
+        final initialState = GlobalState.empty(registries);
+        final store = Store<GlobalState>(initialState: initialState);
+        final testRandom = Random(42);
+
+        // Start a quick action
+        store.dispatch(
+          _SetStateAction(
+            initialState.startAction(_quickAction, random: testRandom),
+          ),
+        );
+
+        final gameLoop = GameLoop(store);
+        expect(gameLoop.isRunning, isTrue);
+
+        // Clear the action - this will cause shouldTick to be false
+        store.dispatch(_SetStateAction(store.state.clearAction()));
+
+        // Flush microtasks so the state change listener fires
+        async.flushMicrotasks();
+
+        // Loop should have paused since shouldTick is now false
+        expect(gameLoop.isRunning, isFalse);
+
+        // Advance time - timer should not fire since loop is paused
+        async.elapse(const Duration(milliseconds: 200));
+
+        // Still paused
+        expect(gameLoop.isRunning, isFalse);
+
+        gameLoop.dispose();
+      });
+    });
+
+    test('timer fires at scheduled time based on next event', () {
+      fakeAsync((async) {
+        final initialState = GlobalState.empty(registries);
+        final store = Store<GlobalState>(initialState: initialState);
+        final testRandom = Random(42);
+
+        // Subscribe to changes before any dispatches
+        var dispatchCount = 0;
+        store.onChange.listen((_) => dispatchCount++);
+
+        // Start a 1-second action (10 ticks = 1000ms)
+        store.dispatch(
+          _SetStateAction(
+            initialState.startAction(_testAction, random: testRandom),
+          ),
+        );
+
+        // Flush microtasks to count the initial dispatch
+        async.flushMicrotasks();
+        final initialCount = dispatchCount;
+
+        final gameLoop = GameLoop(store);
+
+        // The timer should be scheduled for ~1 second (action duration)
+        // Advance time by 500ms - timer should NOT have fired yet
+        async.elapse(const Duration(milliseconds: 500));
+        expect(dispatchCount, equals(initialCount));
+
+        // Advance past the 1 second mark - timer should fire
+        async.elapse(const Duration(milliseconds: 600));
+        expect(dispatchCount, greaterThan(initialCount));
+
+        gameLoop.dispose();
+      });
+    });
+
+    test('timer callback checks isRunning before dispatching', () {
+      fakeAsync((async) {
+        final initialState = GlobalState.empty(registries);
+        final store = Store<GlobalState>(initialState: initialState);
+        final testRandom = Random(42);
+
+        store.dispatch(
+          _SetStateAction(
+            initialState.startAction(_quickAction, random: testRandom),
+          ),
+        );
+
+        var dispatchCount = 0;
+        store.onChange.listen((_) => dispatchCount++);
+
+        final gameLoop = GameLoop(store);
+
+        // Advance partway to timer
+        async.elapse(const Duration(milliseconds: 50));
+
+        // Pause while timer is pending
+        gameLoop.pause();
+        final countAfterPause = dispatchCount;
+
+        // Advance past when timer would fire
+        async.elapse(const Duration(milliseconds: 100));
+
+        // No dispatch should occur because we paused
+        expect(dispatchCount, equals(countAfterPause));
+
+        gameLoop.dispose();
+      });
+    });
+
+    test('timer callback checks isSuspended before dispatching', () {
+      fakeAsync((async) {
+        final initialState = GlobalState.empty(registries);
+        final store = Store<GlobalState>(initialState: initialState);
+        final testRandom = Random(42);
+
+        store.dispatch(
+          _SetStateAction(
+            initialState.startAction(_quickAction, random: testRandom),
+          ),
+        );
+
+        var dispatchCount = 0;
+        store.onChange.listen((_) => dispatchCount++);
+
+        final gameLoop = GameLoop(store);
+
+        // Advance partway to timer
+        async.elapse(const Duration(milliseconds: 50));
+
+        // Suspend while timer is pending
+        gameLoop.suspend();
+        final countAfterSuspend = dispatchCount;
+
+        // Advance past when timer would fire
+        async.elapse(const Duration(milliseconds: 100));
+
+        // No dispatch should occur because we suspended
+        expect(dispatchCount, equals(countAfterSuspend));
+
+        gameLoop.dispose();
+      });
     });
   });
 

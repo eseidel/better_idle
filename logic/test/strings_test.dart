@@ -160,4 +160,79 @@ void main() {
       expect(signedPercentToString(0), '0%');
     });
   });
+
+  group('compactDuration', () {
+    test('formats days with optional hours', () {
+      expect(compactDuration(const Duration(days: 1)), '1d');
+      expect(compactDuration(const Duration(days: 3)), '3d');
+      expect(compactDuration(const Duration(days: 1, hours: 12)), '1d 12h');
+      expect(compactDuration(const Duration(days: 2)), '2d');
+    });
+
+    test('formats hours with optional minutes', () {
+      expect(compactDuration(const Duration(hours: 1)), '1h');
+      expect(compactDuration(const Duration(hours: 5)), '5h');
+      expect(compactDuration(const Duration(hours: 2, minutes: 30)), '2h 30m');
+      expect(compactDuration(const Duration(hours: 12)), '12h');
+    });
+
+    test('formats minutes with optional seconds', () {
+      expect(compactDuration(const Duration(minutes: 1)), '1m');
+      expect(compactDuration(const Duration(minutes: 45)), '45m');
+      expect(
+        compactDuration(const Duration(minutes: 5, seconds: 30)),
+        '5m 30s',
+      );
+      expect(compactDuration(const Duration(minutes: 10)), '10m');
+    });
+
+    test('formats seconds only', () {
+      expect(compactDuration(const Duration(seconds: 1)), '1s');
+      expect(compactDuration(const Duration(seconds: 45)), '45s');
+      expect(compactDuration(Duration.zero), '0s');
+    });
+
+    test('shows only two most significant units', () {
+      // Days + hours, ignores minutes/seconds
+      expect(
+        compactDuration(const Duration(days: 1, hours: 2, minutes: 30)),
+        '1d 2h',
+      );
+      // Hours + minutes, ignores seconds
+      expect(
+        compactDuration(const Duration(hours: 3, minutes: 15, seconds: 45)),
+        '3h 15m',
+      );
+    });
+  });
+
+  group('compactDurationFromTicks', () {
+    test('converts ticks to compact duration string', () {
+      // 1 tick = 100ms, so 10 ticks = 1 second
+      expect(compactDurationFromTicks(10), '1s');
+      expect(compactDurationFromTicks(600), '1m'); // 60 seconds
+      expect(compactDurationFromTicks(36000), '1h'); // 3600 seconds
+      expect(compactDurationFromTicks(864000), '1d'); // 86400 seconds
+      expect(compactDurationFromTicks(1296000), '1d 12h'); // 1 day + 12 hours
+    });
+  });
+
+  group('percentValueToString', () {
+    test('formats integer values as percentage', () {
+      expect(percentValueToString(0), '0%');
+      expect(percentValueToString(50), '50%');
+      expect(percentValueToString(100), '100%');
+    });
+
+    test('rounds decimal values', () {
+      expect(percentValueToString(50.4), '50%');
+      expect(percentValueToString(50.5), '51%');
+      expect(percentValueToString(99.9), '100%');
+    });
+
+    test('handles negative values', () {
+      expect(percentValueToString(-10), '-10%');
+      expect(percentValueToString(-5.5), '-6%');
+    });
+  });
 }
