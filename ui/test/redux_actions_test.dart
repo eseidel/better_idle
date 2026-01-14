@@ -81,9 +81,8 @@ void main() {
       final registries = Registries.test();
       var initialState = GlobalState.empty(registries);
       initialState = initialState.addCurrency(Currency.gp, 100);
-      final store = Store<GlobalState>(initialState: initialState);
-
-      store.dispatch(DebugAddCurrencyAction(Currency.gp, -30));
+      final store = Store<GlobalState>(initialState: initialState)
+        ..dispatch(DebugAddCurrencyAction(Currency.gp, -30));
 
       expect(store.state.gp, 70);
     });
@@ -299,9 +298,8 @@ void main() {
             ),
       );
 
-      final store = Store<GlobalState>(initialState: initialState);
-
-      store.dispatch(RepairAllTownshipBuildingsAction());
+      final store = Store<GlobalState>(initialState: initialState)
+        ..dispatch(RepairAllTownshipBuildingsAction());
 
       expect(
         store
@@ -377,7 +375,7 @@ void main() {
       // But wait, with 1 building at 100% efficiency and education = 1.0,
       // production is 100/hr, so costPerHealthPercent = ceil(100 * 0.1) = 10
       // Total cost = 5 * 10 = 50 herbs, but with education multiplier
-      // Actually production is 100 * 1 * 1.0 = 100, cost = ceil(10) = 10, 5*10=50
+      // production is 100 * 1 * 1.0 = 100, cost = ceil(10) = 10, 5*10=50
       // This depends on the actual formula in healWith
       expect(store.state.township.resourceAmount(herbsId), lessThan(100));
     });
@@ -468,11 +466,10 @@ void main() {
             ),
       );
 
-      final store = Store<GlobalState>(initialState: initialState);
-
-      store.dispatch(
-        HealTownshipAction(resource: HealingResource.herbs, amount: 10),
-      );
+      final store = Store<GlobalState>(initialState: initialState)
+        ..dispatch(
+          HealTownshipAction(resource: HealingResource.herbs, amount: 10),
+        );
 
       // Health should cap at 100, not 105
       expect(store.state.township.health, 100);
@@ -496,11 +493,10 @@ void main() {
             .copyWith(health: 80),
       );
 
-      final store = Store<GlobalState>(initialState: initialState);
-
-      store.dispatch(
-        HealTownshipAction(resource: HealingResource.herbs, amount: 0),
-      );
+      final store = Store<GlobalState>(initialState: initialState)
+        ..dispatch(
+          HealTownshipAction(resource: HealingResource.herbs, amount: 0),
+        );
 
       expect(store.state.township.health, 80);
       expect(store.state.township.resourceAmount(herbsId), 100);
