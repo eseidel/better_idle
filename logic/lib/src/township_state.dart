@@ -50,14 +50,8 @@ enum HealingResource {
 
   const HealingResource({required this.id});
 
-  factory HealingResource.fromJson(String value) {
-    return HealingResource.values.firstWhere((e) => e.name == value);
-  }
-
   /// The MelvorId for this healing resource.
   final MelvorId id;
-
-  String toJson() => name;
 }
 
 /// Ticks per hour (3600 seconds * 10 ticks/second).

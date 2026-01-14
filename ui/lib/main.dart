@@ -307,8 +307,7 @@ class _GameApp extends StatefulWidget {
   State<_GameApp> createState() => _GameAppState();
 }
 
-class _GameAppState extends State<_GameApp>
-    with SingleTickerProviderStateMixin {
+class _GameAppState extends State<_GameApp> {
   late final MyPersistor _persistor;
   bool _isInitialized = false;
   late final Store<GlobalState> _store;
@@ -324,8 +323,7 @@ class _GameAppState extends State<_GameApp>
           initialState: initialState,
           persistor: _persistor,
         );
-        _gameLoop = GameLoop(this, _store);
-        _gameLoop.updateInterval = const Duration(milliseconds: 100);
+        _gameLoop = GameLoop(_store);
         _isInitialized = true;
       });
     });

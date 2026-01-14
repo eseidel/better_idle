@@ -728,6 +728,11 @@ class GlobalState {
       }
     }
 
+    // Township timers are active once a deity is chosen
+    if (township.worshipId != null) {
+      return true;
+    }
+
     return false;
   }
 

@@ -803,6 +803,99 @@ class StateUpdateBuilder {
   GlobalState build() => _state;
 
   Changes get changes => _changes;
+
+  /// Calculates ticks until the next scheduled event from all active timers.
+  /// Returns null if no events are scheduled.
+  ///
+  /// This is used by GameLoop to schedule the next wake time, avoiding
+  /// unnecessary polling when nothing will happen for a while.
+  Tick? calculateTicksUntilNextEvent() {
+    Tick? minTicks;
+
+    void updateMin(Tick? ticks) {
+      if (ticks == null || ticks <= 0) return;
+      if (minTicks == null || ticks < minTicks!) {
+        minTicks = ticks;
+      }
+    }
+
+    // 1. Foreground action completion
+    final activeAction = _state.activeAction;
+    if (activeAction != null) {
+      updateMin(activeAction.remainingTicks);
+
+      // Combat timers (if in combat)
+      final combatState = _state.actionState(activeAction.id).combat;
+      if (combatState != null) {
+        updateMin(combatState.spawnTicksRemaining);
+        if (!combatState.isSpawning) {
+          updateMin(combatState.playerAttackTicksRemaining);
+          updateMin(combatState.monsterAttackTicksRemaining);
+        }
+      }
+    }
+
+    // 2. Stun countdown
+    if (_state.isStunned) {
+      updateMin(_state.stunned.ticksRemaining);
+    }
+
+    // 3. Player HP regen
+    if (!_state.health.isFullHealth) {
+      updateMin(_state.health.hpRegenTicksRemaining);
+    }
+
+    // 4. Mining node timers (all nodes, not just active)
+    for (final entry in _state.actionStates.entries) {
+      final actionState = entry.value;
+      final mining = actionState.mining;
+      if (mining == null) continue;
+
+      // Respawn timer
+      updateMin(mining.respawnTicksRemaining);
+
+      // HP regen timer (only if damaged)
+      if (mining.totalHpLost > 0) {
+        updateMin(mining.hpRegenTicksRemaining);
+      }
+    }
+
+    // 5. Farming plot timers
+    for (final plotState in _state.plotStates.values) {
+      if (plotState.isGrowing) {
+        updateMin(plotState.growthTicksRemaining);
+      }
+    }
+
+    // 6. Township timers (active once a deity is chosen)
+    if (_state.township.worshipId != null) {
+      updateMin(_state.township.seasonTicksRemaining);
+      updateMin(_state.township.ticksUntilUpdate);
+    }
+
+    // 7. Passive cooking timers (only when actively cooking)
+    if (activeAction != null) {
+      final action = registries.actions.byId(activeAction.id);
+      if (action is CookingAction) {
+        final activeCookingArea = CookingArea.fromCategoryId(action.categoryId);
+        for (final (area, areaState) in _state.cooking.allAreas) {
+          // Skip active area (handled by foreground)
+          if (area == activeCookingArea) continue;
+
+          // Check for passive cooking progress
+          if (areaState.isActive) {
+            final effectiveTicks = areaState.progressTicksRemaining;
+            if (effectiveTicks != null && effectiveTicks > 0) {
+              // Passive cooking runs at 5x slower rate
+              updateMin(effectiveTicks * passiveCookingMultiplier);
+            }
+          }
+        }
+      }
+    }
+
+    return minTicks;
+  }
 }
 
 class XpPerAction {
@@ -1641,12 +1734,14 @@ ConsumeTicksStopReason _consumeTicksCore(
 /// background actions in parallel.
 ///
 /// Consumes exactly [ticks] ticks (or stops early if the action stops).
-void consumeTicks(
+/// Returns ticks until the next scheduled event (for scheduling next wake).
+Tick? consumeTicks(
   StateUpdateBuilder builder,
   Tick ticks, {
   required Random random,
 }) {
   _consumeTicksCore(builder, ticks, random: random);
+  return builder.calculateTicksUntilNextEvent();
 }
 
 /// Consumes ticks until a condition is met.

@@ -1867,6 +1867,66 @@ void main() {
     });
   });
 
+  group('GlobalState.addCurrency', () {
+    test('adds currency to empty balance', () {
+      final state = GlobalState.test(testRegistries);
+      expect(state.gp, 0);
+
+      final newState = state.addCurrency(Currency.gp, 100);
+      expect(newState.gp, 100);
+    });
+
+    test('adds currency to existing balance', () {
+      final state = GlobalState.test(testRegistries, gp: 50);
+      expect(state.gp, 50);
+
+      final newState = state.addCurrency(Currency.gp, 100);
+      expect(newState.gp, 150);
+    });
+
+    test('subtracts currency with negative amount', () {
+      final state = GlobalState.test(testRegistries, gp: 100);
+      expect(state.gp, 100);
+
+      final newState = state.addCurrency(Currency.gp, -30);
+      expect(newState.gp, 70);
+    });
+
+    test('allows currency to go negative', () {
+      final state = GlobalState.test(testRegistries, gp: 50);
+
+      final newState = state.addCurrency(Currency.gp, -100);
+      expect(newState.gp, -50);
+    });
+
+    test('adds zero currency without change', () {
+      final state = GlobalState.test(testRegistries, gp: 100);
+
+      final newState = state.addCurrency(Currency.gp, 0);
+      expect(newState.gp, 100);
+    });
+
+    test('works with slayer coins', () {
+      final state = GlobalState.test(testRegistries);
+      expect(state.currency(Currency.slayerCoins), 0);
+
+      final newState = state.addCurrency(Currency.slayerCoins, 50);
+      expect(newState.currency(Currency.slayerCoins), 50);
+    });
+
+    test('preserves other currencies when adding one', () {
+      var state = GlobalState.test(testRegistries, gp: 100);
+      state = state.addCurrency(Currency.slayerCoins, 25);
+
+      expect(state.gp, 100);
+      expect(state.currency(Currency.slayerCoins), 25);
+
+      final newState = state.addCurrency(Currency.gp, 50);
+      expect(newState.gp, 150);
+      expect(newState.currency(Currency.slayerCoins), 25);
+    });
+  });
+
   group('GlobalState.validate', () {
     test('returns true when no active action', () {
       final state = GlobalState.test(testRegistries);
