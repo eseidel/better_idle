@@ -877,6 +877,12 @@ class _BuildingCard extends StatelessWidget {
     final needsRepair = township.buildingNeedsRepair(biomeId, building.id);
     final efficiencyStr = percentValueToString(buildingState.efficiency);
 
+    // Resolve statue building name/media based on selected deity
+    final registry = township.registry;
+    final deity = township.selectedDeity;
+    final displayName = registry.buildingDisplayName(building, deity);
+    final displayMedia = registry.buildingDisplayMedia(building, deity);
+
     // Determine if we can perform the action (build or repair)
     final canPerformAction = needsRepair
         ? viewModel.canAffordRepair(biomeId, building.id)
@@ -894,14 +900,14 @@ class _BuildingCard extends StatelessWidget {
               mainAxisSize: MainAxisSize.min,
               children: [
                 // Building image
-                if (building.media != null)
-                  CachedImage(assetPath: building.media, size: 48)
+                if (displayMedia != null)
+                  CachedImage(assetPath: displayMedia, size: 48)
                 else
                   const Icon(Icons.home, size: 48),
                 const SizedBox(height: 4),
                 // Building name
                 Text(
-                  building.name,
+                  displayName,
                   style: TextStyle(
                     fontSize: 12,
                     fontWeight: FontWeight.w500,
@@ -1192,6 +1198,11 @@ class _BuildingPurchaseDialog extends StatelessWidget {
     final buildingState = township.buildingState(biomeId, building.id);
     final needsRepair = township.buildingNeedsRepair(biomeId, building.id);
 
+    // Resolve statue building name based on selected deity
+    final registry = township.registry;
+    final deity = township.selectedDeity;
+    final displayName = registry.buildingDisplayName(building, deity);
+
     final canPerformAction = needsRepair
         ? viewModel.canAffordRepair(biomeId, building.id)
         : viewModel.canBuild(biomeId, building.id) == null;
@@ -1199,7 +1210,7 @@ class _BuildingPurchaseDialog extends StatelessWidget {
     final actionLabel = needsRepair ? 'Repair' : 'Build';
 
     return AlertDialog(
-      title: Text('$actionLabel ${building.name}'),
+      title: Text('$actionLabel $displayName'),
       content: SingleChildScrollView(
         child: Column(
           mainAxisSize: MainAxisSize.min,

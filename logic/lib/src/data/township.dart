@@ -371,6 +371,7 @@ class TownshipDeity {
     required this.name,
     this.isHidden = false,
     this.statueName = '',
+    this.statueMedia,
     this.baseModifiers = const DeityModifiers(),
     this.checkpoints = const [],
   });
@@ -397,6 +398,9 @@ class TownshipDeity {
         )
         .toList();
 
+    // Parse media path, stripping query params (e.g., "?2").
+    final statueMedia = (json['statueMedia'] as String?)?.split('?').first;
+
     return TownshipDeity(
       id: MelvorId.fromJsonWithNamespace(
         json['id'] as String,
@@ -405,6 +409,7 @@ class TownshipDeity {
       name: json['name'] as String,
       isHidden: json['isHidden'] as bool? ?? false,
       statueName: json['statueName'] as String? ?? '',
+      statueMedia: statueMedia,
       baseModifiers: baseModifiers,
       checkpoints: checkpoints,
     );
@@ -422,6 +427,9 @@ class TownshipDeity {
 
   /// Name of the statue for this deity.
   final String statueName;
+
+  /// Media path for this deity's statue.
+  final String? statueMedia;
 
   /// Base modifiers that are always active when this deity is selected.
   final DeityModifiers baseModifiers;
@@ -794,5 +802,39 @@ class TownshipRegistry {
   /// Returns all casual tasks.
   List<TownshipTask> get casualTasks {
     return tasks.where((t) => !t.isMainTask).toList();
+  }
+
+  // ---------------------------------------------------------------------------
+  // Statue building resolution
+  // ---------------------------------------------------------------------------
+
+  /// The ID of the Statue building which has dynamic name/media based on deity.
+  static const statuesBuildingId = MelvorId('melvorF:Statues');
+
+  /// Returns the display name for a building, resolving the Statue building's
+  /// name based on the selected deity.
+  ///
+  /// If [deity] is null or the building is not the Statue, returns the
+  /// building's default name.
+  String buildingDisplayName(TownshipBuilding building, TownshipDeity? deity) {
+    if (building.id == statuesBuildingId && deity != null) {
+      return deity.statueName.isNotEmpty ? deity.statueName : building.name;
+    }
+    return building.name;
+  }
+
+  /// Returns the display media for a building, resolving the Statue building's
+  /// media based on the selected deity.
+  ///
+  /// If [deity] is null or the building is not the Statue, returns the
+  /// building's default media.
+  String? buildingDisplayMedia(
+    TownshipBuilding building,
+    TownshipDeity? deity,
+  ) {
+    if (building.id == statuesBuildingId && deity != null) {
+      return deity.statueMedia ?? building.media;
+    }
+    return building.media;
   }
 }
