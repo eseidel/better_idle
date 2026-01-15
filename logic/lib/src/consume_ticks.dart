@@ -856,6 +856,62 @@ class StateUpdateBuilder {
     return false;
   }
 
+  /// Consumes one charge from the selected potion for the skill.
+  ///
+  /// When charges reach the potion's max charges, consumes one potion from
+  /// inventory and resets charges. Clears selection when inventory is depleted.
+  void consumePotionCharge(SkillAction action, Random random) {
+    final skill = action.skill;
+    final skillId = skill.id;
+    final potionId = _state.selectedPotions[skillId];
+    if (potionId == null) return;
+
+    final potion = registries.items.byId(potionId);
+    final maxCharges = potion.potionCharges ?? 1;
+
+    // Check charge preservation chance
+    final modifiers = _state.resolveSkillModifiers(action);
+    final preserveChance = modifiers.potionChargePreservationChance;
+    if (preserveChance > 0 && random.nextDouble() * 100 < preserveChance) {
+      return; // Charge preserved, don't consume
+    }
+
+    // Increment charges used for this skill
+    final usedCharges = (_state.potionChargesUsed[skillId] ?? 0) + 1;
+
+    if (usedCharges >= maxCharges) {
+      // This potion is fully used - consume one from inventory
+      final potionStack = ItemStack(potion, count: 1);
+      final newInventory = _state.inventory.removing(potionStack);
+      final newChargesUsed = Map<MelvorId, int>.from(_state.potionChargesUsed)
+        ..remove(skillId);
+
+      // Check if we still have potions in inventory
+      final remainingCount = newInventory.countOfItem(potion);
+      if (remainingCount <= 0) {
+        // No more potions - clear selection
+        final newSelectedPotions = Map<MelvorId, MelvorId>.from(
+          _state.selectedPotions,
+        )..remove(skillId);
+        _state = _state.copyWith(
+          inventory: newInventory,
+          selectedPotions: newSelectedPotions,
+          potionChargesUsed: newChargesUsed,
+        );
+      } else {
+        _state = _state.copyWith(
+          inventory: newInventory,
+          potionChargesUsed: newChargesUsed,
+        );
+      }
+    } else {
+      // Just update charges used
+      final newChargesUsed = Map<MelvorId, int>.from(_state.potionChargesUsed)
+        ..[skillId] = usedCharges;
+      _state = _state.copyWith(potionChargesUsed: newChargesUsed);
+    }
+  }
+
   GlobalState build() => _state;
 
   Changes get changes => _changes;
@@ -1250,7 +1306,8 @@ bool completeAction(
     ..addSkillXp(action.skill, perAction.xp)
     ..addActionMasteryXp(action.id, perAction.masteryXp)
     ..addSkillMasteryXp(action.skill, perAction.masteryPoolXp)
-    ..consumeSummonCharges(action);
+    ..consumeSummonCharges(action)
+    ..consumePotionCharge(action, random);
 
   // Roll for summoning mark discovery
   _rollMarkDiscovery(builder, action, random);

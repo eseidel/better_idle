@@ -321,6 +321,8 @@ class GlobalState {
     this.unlockedPlots = const {},
     this.dungeonCompletions = const {},
     this.itemCharges = const {},
+    this.selectedPotions = const {},
+    this.potionChargesUsed = const {},
     this.timeAway,
     this.stunned = const StunnedState.fresh(),
     this.attackStyle = AttackStyle.stab,
@@ -347,6 +349,8 @@ class GlobalState {
         registries: registries,
         dungeonCompletions: const {},
         itemCharges: const {},
+        selectedPotions: const {},
+        potionChargesUsed: const {},
         // Unlock all free starter plots (level 1, 0 GP cost)
         unlockedPlots: registries.farmingPlots.initialPlots(),
         // Initialize township resources with starting amounts
@@ -364,6 +368,8 @@ class GlobalState {
     Set<MelvorId> unlockedPlots = const {},
     Map<MelvorId, int> dungeonCompletions = const {},
     Map<MelvorId, int> itemCharges = const {},
+    Map<MelvorId, MelvorId> selectedPotions = const {},
+    Map<MelvorId, int> potionChargesUsed = const {},
     DateTime? updatedAt,
     int gp = 0,
     Map<Currency, int>? currencies,
@@ -388,6 +394,8 @@ class GlobalState {
       unlockedPlots: unlockedPlots,
       dungeonCompletions: dungeonCompletions,
       itemCharges: itemCharges,
+      selectedPotions: selectedPotions,
+      potionChargesUsed: potionChargesUsed,
       updatedAt: updatedAt ?? DateTime.timestamp(),
       currencies: currenciesMap,
       timeAway: timeAway,
@@ -441,6 +449,8 @@ class GlobalState {
           const {},
       dungeonCompletions = _dungeonCompletionsFromJson(json),
       itemCharges = _itemChargesFromJson(json),
+      selectedPotions = _selectedPotionsFromJson(json),
+      potionChargesUsed = _potionChargesUsedFromJson(json),
       currencies = _currenciesFromJson(json),
       timeAway = TimeAway.maybeFromJson(registries, json['timeAway']),
       shop = ShopState.maybeFromJson(json['shop']) ?? const ShopState.empty(),
@@ -490,6 +500,28 @@ class GlobalState {
     });
   }
 
+  static Map<MelvorId, MelvorId> _selectedPotionsFromJson(
+    Map<String, dynamic> json,
+  ) {
+    final potionsJson = json['selectedPotions'] as Map<String, dynamic>? ?? {};
+    return potionsJson.map((key, value) {
+      return MapEntry(
+        MelvorId.fromJson(key),
+        MelvorId.fromJson(value as String),
+      );
+    });
+  }
+
+  static Map<MelvorId, int> _potionChargesUsedFromJson(
+    Map<String, dynamic> json,
+  ) {
+    final chargesJson =
+        json['potionChargesUsed'] as Map<String, dynamic>? ?? {};
+    return chargesJson.map((key, value) {
+      return MapEntry(MelvorId.fromJson(key), value as int);
+    });
+  }
+
   bool validate() {
     // Confirm that activeAction.id is a valid action.
     final actionId = activeAction?.id;
@@ -519,6 +551,12 @@ class GlobalState {
         (key, value) => MapEntry(key.toJson(), value),
       ),
       'itemCharges': itemCharges.map(
+        (key, value) => MapEntry(key.toJson(), value),
+      ),
+      'selectedPotions': selectedPotions.map(
+        (key, value) => MapEntry(key.toJson(), value.toJson()),
+      ),
+      'potionChargesUsed': potionChargesUsed.map(
         (key, value) => MapEntry(key.toJson(), value),
       ),
       'currencies': currencies.map(
@@ -570,6 +608,17 @@ class GlobalState {
 
   /// Returns the number of charges for an item.
   int itemChargeCount(MelvorId itemId) => itemCharges[itemId] ?? 0;
+
+  /// Selected potion per skill.
+  /// Key is skill MelvorId (e.g. melvorD:Woodcutting), value is potion item
+  /// MelvorId (e.g. melvorF:Bird_Nest_Potion_I). Potions remain in inventory
+  /// and are consumed from there.
+  final Map<MelvorId, MelvorId> selectedPotions;
+
+  /// Charges consumed from current potion per skill. Key is skill MelvorId.
+  /// When this reaches potion.potionCharges, one potion is removed from
+  /// inventory and this resets to 0.
+  final Map<MelvorId, int> potionChargesUsed;
 
   /// Returns the game completion percentage (0.0 to 100.0).
   /// Always returns 0.0 since completion tracking is not yet supported.
@@ -1006,6 +1055,25 @@ class GlobalState {
           // For global: include all
           if (skillId == null || modEntry.appliesToSkill(skillId)) {
             builder.add(mod.name, modEntry.value);
+          }
+        }
+      }
+    }
+
+    // --- Potion modifiers ---
+    // Apply modifiers from selected potion for this skill.
+    if (skillId != null) {
+      final potionId = selectedPotions[skillId];
+      if (potionId != null) {
+        // Only apply if we have the potion in inventory (or are using one)
+        final inventoryCount = inventory.countById(potionId);
+        final chargesUsed = potionChargesUsed[skillId] ?? 0;
+        if (inventoryCount > 0 || chargesUsed > 0) {
+          final potion = registries.items.byId(potionId);
+          for (final mod in potion.modifiers.modifiers) {
+            for (final modEntry in mod.entries) {
+              builder.add(mod.name, modEntry.value);
+            }
           }
         }
       }
@@ -2180,6 +2248,8 @@ class GlobalState {
     Set<MelvorId>? unlockedPlots,
     Map<MelvorId, int>? dungeonCompletions,
     Map<MelvorId, int>? itemCharges,
+    Map<MelvorId, MelvorId>? selectedPotions,
+    Map<MelvorId, int>? potionChargesUsed,
     Map<Currency, int>? currencies,
     TimeAway? timeAway,
     ShopState? shop,
@@ -2201,6 +2271,8 @@ class GlobalState {
       unlockedPlots: unlockedPlots ?? this.unlockedPlots,
       dungeonCompletions: dungeonCompletions ?? this.dungeonCompletions,
       itemCharges: itemCharges ?? this.itemCharges,
+      selectedPotions: selectedPotions ?? this.selectedPotions,
+      potionChargesUsed: potionChargesUsed ?? this.potionChargesUsed,
       updatedAt: DateTime.timestamp(),
       currencies: currencies ?? this.currencies,
       timeAway: timeAway ?? this.timeAway,
@@ -2218,5 +2290,62 @@ class GlobalState {
   /// Sets the player's attack style for combat XP distribution.
   GlobalState setAttackStyle(AttackStyle style) {
     return copyWith(attackStyle: style);
+  }
+
+  // =========================================================================
+  // Potion Selection
+  // =========================================================================
+
+  /// Returns the selected potion for a skill, or null if none selected.
+  Item? selectedPotionForSkill(MelvorId skillId) {
+    final potionId = selectedPotions[skillId];
+    if (potionId == null) return null;
+    return registries.items.byId(potionId);
+  }
+
+  /// Returns the number of charges used on the current potion for a skill.
+  int potionChargesUsedForSkill(MelvorId skillId) {
+    return potionChargesUsed[skillId] ?? 0;
+  }
+
+  /// Selects a potion for a skill. The potion must be in inventory.
+  GlobalState selectPotion(MelvorId skillId, MelvorId potionId) {
+    final newSelectedPotions = Map<MelvorId, MelvorId>.from(selectedPotions)
+      ..[skillId] = potionId;
+    // Reset charges used when selecting a new potion
+    final newChargesUsed = Map<MelvorId, int>.from(potionChargesUsed)
+      ..remove(skillId);
+    return copyWith(
+      selectedPotions: newSelectedPotions,
+      potionChargesUsed: newChargesUsed,
+    );
+  }
+
+  /// Clears the potion selection for a skill.
+  GlobalState clearSelectedPotion(MelvorId skillId) {
+    final newSelectedPotions = Map<MelvorId, MelvorId>.from(selectedPotions)
+      ..remove(skillId);
+    final newChargesUsed = Map<MelvorId, int>.from(potionChargesUsed)
+      ..remove(skillId);
+    return copyWith(
+      selectedPotions: newSelectedPotions,
+      potionChargesUsed: newChargesUsed,
+    );
+  }
+
+  /// Returns the total remaining uses for a potion (charges left on current
+  /// potion plus inventory count times charges per potion).
+  int potionUsesRemaining(MelvorId skillId) {
+    final potionId = selectedPotions[skillId];
+    if (potionId == null) return 0;
+
+    final potion = registries.items.byId(potionId);
+    final chargesPerPotion = potion.potionCharges ?? 1;
+    final chargesUsed = potionChargesUsed[skillId] ?? 0;
+    final chargesLeft = chargesPerPotion - chargesUsed;
+    final inventoryCount = inventory.countById(potionId);
+
+    // Current potion charges + remaining inventory potions worth of charges
+    return chargesLeft + (inventoryCount - 1) * chargesPerPotion;
   }
 }

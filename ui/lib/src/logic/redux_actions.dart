@@ -733,3 +733,30 @@ class HealTownshipAction extends ReduxAction<GlobalState> {
     return state.copyWith(township: state.township.healWith(resource, amount));
   }
 }
+
+// ============================================================================
+// Potion Actions
+// ============================================================================
+
+/// Selects a potion to use for a specific skill.
+class SelectPotionAction extends ReduxAction<GlobalState> {
+  SelectPotionAction(this.skillId, this.potionId);
+  final MelvorId skillId;
+  final MelvorId potionId;
+
+  @override
+  GlobalState reduce() {
+    return state.selectPotion(skillId, potionId);
+  }
+}
+
+/// Clears the selected potion for a specific skill.
+class ClearPotionSelectionAction extends ReduxAction<GlobalState> {
+  ClearPotionSelectionAction(this.skillId);
+  final MelvorId skillId;
+
+  @override
+  GlobalState reduce() {
+    return state.clearSelectedPotion(skillId);
+  }
+}

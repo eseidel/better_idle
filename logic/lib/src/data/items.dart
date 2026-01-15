@@ -156,6 +156,9 @@ class Item extends Equatable {
     this.equipmentStats = EquipmentStats.empty,
     this.attackType,
     this.equipRequirements = const [],
+    this.potionCharges,
+    this.potionTier,
+    this.potionAction,
   });
 
   /// Creates a simple test item with minimal required fields.
@@ -169,6 +172,9 @@ class Item extends Equatable {
     this.harvestBonus,
     this.attackType,
     this.equipRequirements = const [],
+    this.potionCharges,
+    this.potionTier,
+    this.potionAction,
   }) : id = MelvorId('melvorD:${name.replaceAll(' ', '_')}'),
        itemType = 'Item',
        sellsFor = gp,
@@ -249,6 +255,17 @@ class Item extends Equatable {
         .whereType<ShopRequirement>()
         .toList();
 
+    // Parse potion-specific fields (only for Potion itemType).
+    final isPotion = json['itemType'] == 'Potion';
+    final potionAction = isPotion && json['action'] != null
+        ? MelvorId.fromJsonWithNamespace(
+            json['action'] as String,
+            defaultNamespace: namespace,
+          )
+        : null;
+    final potionCharges = isPotion ? json['charges'] as int? : null;
+    final potionTier = isPotion ? json['tier'] as int? : null;
+
     return Item(
       id: id,
       name: json['name'] as String,
@@ -269,6 +286,9 @@ class Item extends Equatable {
           ? AttackType.fromJson(json['attackType'] as String)
           : null,
       equipRequirements: equipRequirements,
+      potionCharges: potionCharges,
+      potionTier: potionTier,
+      potionAction: potionAction,
     );
   }
 
@@ -328,6 +348,17 @@ class Item extends Equatable {
   /// Empty list means no requirements.
   final List<ShopRequirement> equipRequirements;
 
+  /// Number of charges per potion. Null for non-potion items.
+  /// Each charge is consumed on a skill action before the potion is depleted.
+  final int? potionCharges;
+
+  /// Potion tier (0-3 for tiers I-IV). Null for non-potion items.
+  final int? potionTier;
+
+  /// The skill/action this potion applies to (e.g., "melvorD:Woodcutting").
+  /// Null for non-potion items.
+  final MelvorId? potionAction;
+
   /// Whether this item can be consumed for healing.
   bool get isConsumable => healsFor != null;
 
@@ -340,6 +371,9 @@ class Item extends Equatable {
   /// Whether this item is a summoning tablet (familiar).
   /// Tablets are equipped in summon slots and track charge counts.
   bool get isSummonTablet => type == 'Familiar';
+
+  /// Whether this item is a potion.
+  bool get isPotion => itemType == 'Potion';
 
   /// Returns true if this item can be equipped in the given slot.
   bool canEquipInSlot(EquipmentSlot slot) => validSlots.contains(slot);
@@ -372,6 +406,9 @@ class Item extends Equatable {
     equipmentStats,
     attackType,
     equipRequirements,
+    potionCharges,
+    potionTier,
+    potionAction,
   ];
 }
 
