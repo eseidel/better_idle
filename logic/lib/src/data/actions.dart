@@ -88,14 +88,6 @@ enum Skill {
 
   final String name;
 
-  /// Returns the skill for the given ID, or null if not recognized.
-  static Skill? tryFromId(MelvorId id) {
-    for (final skill in values) {
-      if (skill.id == id) return skill;
-    }
-    return null;
-  }
-
   /// The Melvor ID for this skill (e.g., melvorD:Woodcutting).
   /// All skills use the melvorD namespace (e.g., melvorD:Woodcutting).
   MelvorId get id => MelvorId('melvorD:$name');
@@ -143,8 +135,14 @@ enum Skill {
   /// Returns true if this is a combat-related skill.
   bool get isCombatSkill => combatSkills.contains(this);
 
-  /// Returns true if this skill applies to all combat types.
-  bool get isUniversalCombatSkill => universalCombatSkills.contains(this);
+  /// Returns the asset path for this skill's icon.
+  String get assetPath {
+    final lower = name.toLowerCase();
+    if (this == Skill.altMagic) {
+      return 'assets/media/skills/magic/magic.png';
+    }
+    return 'assets/media/skills/$lower/$lower.png';
+  }
 }
 
 /// Base class for all actions that can occupy the "active" slot.

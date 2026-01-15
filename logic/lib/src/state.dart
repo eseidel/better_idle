@@ -468,7 +468,7 @@ class GlobalState {
   static Map<Currency, int> _currenciesFromJson(Map<String, dynamic> json) {
     final currenciesJson = json['currencies'] as Map<String, dynamic>? ?? {};
     return currenciesJson.map((key, value) {
-      final currency = Currency.fromId(key);
+      final currency = Currency.fromIdString(key);
       return MapEntry(currency, value as int);
     });
   }
@@ -521,7 +521,9 @@ class GlobalState {
       'itemCharges': itemCharges.map(
         (key, value) => MapEntry(key.toJson(), value),
       ),
-      'currencies': currencies.map((key, value) => MapEntry(key.id, value)),
+      'currencies': currencies.map(
+        (key, value) => MapEntry(key.id.toJson(), value),
+      ),
       'timeAway': timeAway?.toJson(),
       'shop': shop.toJson(),
       'health': health.toJson(),
@@ -1360,7 +1362,7 @@ class GlobalState {
       final required = entry.value;
 
       // GP is a special case - check against player currencies
-      if (resourceId.localId == 'GP') {
+      if (Currency.gp.id == resourceId) {
         if (gp < required) {
           return 'Not enough GP (need $required)';
         }
@@ -1368,8 +1370,8 @@ class GlobalState {
         final available = township.resourceAmount(resourceId);
         if (available < required) {
           final resource = registries.township.resourceById(resourceId);
-          final name = resource?.name ?? resourceId.localId;
-          return 'Not enough $name (need $required, have $available)';
+          return 'Not enough ${resource.name} '
+              '(need $required, have $available)';
         }
       }
     }
@@ -1395,7 +1397,7 @@ class GlobalState {
       final resourceId = entry.key;
       final cost = entry.value;
 
-      if (resourceId.localId == 'GP') {
+      if (Currency.gp.id == resourceId) {
         // Deduct GP from player currencies
         state = state.addCurrency(Currency.gp, -cost);
       } else {
@@ -1446,8 +1448,8 @@ class GlobalState {
       final available = township.resourceAmount(resourceId);
       if (available < required) {
         final resource = registries.township.resourceById(resourceId);
-        final name = resource?.name ?? resourceId.toString();
-        return 'Not enough $name (need $required, have $available)';
+        return 'Not enough ${resource.name} '
+            '(need $required, have $available)';
       }
     }
 
@@ -1496,19 +1498,37 @@ class GlobalState {
   // Township Task Methods
   // ---------------------------------------------------------------------------
 
-  /// Checks if all requirements for a task are met.
+  /// Checks if a task goal is satisfied.
+  bool isTaskGoalMet(MelvorId taskId, TaskGoal goal) {
+    switch (goal.type) {
+      case TaskGoalType.items:
+        // Check if player has the required items in inventory
+        final item = registries.items.byId(goal.id);
+        return inventory.countOfItem(item) >= goal.quantity;
+      case TaskGoalType.skillXP:
+      case TaskGoalType.monsters:
+        // Check progress tracked in township state
+        return township.getGoalProgress(taskId, goal) >= goal.quantity;
+    }
+  }
+
+  /// Checks if all goals for a task are met.
   bool isTaskComplete(MelvorId taskId) {
-    return township.isTaskComplete(
-      taskId,
-      townshipLevel: skillState(Skill.town).skillLevel,
-    );
+    final task = registries.township.taskById(taskId);
+
+    // Check if already completed
+    if (township.completedMainTasks.contains(taskId)) {
+      return false; // Already claimed
+    }
+
+    // Check all goals are met
+    return task.goals.every((goal) => isTaskGoalMet(taskId, goal));
   }
 
   /// Claims rewards for a completed task.
   /// Throws StateError if task is not complete or already claimed.
   GlobalState claimTaskReward(MelvorId taskId) {
     final task = registries.township.taskById(taskId);
-    if (task == null) throw StateError('Unknown task: $taskId');
 
     if (!isTaskComplete(taskId)) {
       throw StateError('Task requirements not met');
@@ -1516,51 +1536,48 @@ class GlobalState {
 
     var state = this;
 
-    // Grant rewards
-    for (final reward in task.rewards) {
-      switch (reward.type) {
-        case 'xp':
-          state = state.addSkillXp(Skill.town, reward.amount);
-        case 'gp':
-          state = state.addCurrency(Currency.gp, reward.amount);
-        case 'item':
-          if (reward.itemId != null) {
-            final item = registries.items.byId(reward.itemId!);
-            state = state.copyWith(
-              inventory: state.inventory.adding(
-                ItemStack(item, count: reward.amount),
-              ),
-            );
-          }
-        case 'townshipResource':
-          if (reward.itemId != null) {
-            state = state.copyWith(
-              township: state.township.addResource(
-                reward.itemId!,
-                reward.amount,
-              ),
-            );
-          }
+    // Consume required items for item goals
+    for (final goal in task.goals) {
+      if (goal.type == TaskGoalType.items) {
+        final item = registries.items.byId(goal.id);
+        state = state.copyWith(
+          inventory: state.inventory.removing(
+            ItemStack(item, count: goal.quantity),
+          ),
+        );
       }
     }
 
-    // Mark main tasks as completed
-    if (task.isMainTask) {
-      final newCompleted = Set<MelvorId>.from(township.completedMainTasks)
-        ..add(taskId);
-      state = state.copyWith(
-        township: state.township.copyWith(completedMainTasks: newCompleted),
-      );
-    } else {
-      // Remove casual task from active tasks
-      final newTasks = Map<MelvorId, TownshipTaskState>.from(township.tasks)
-        ..remove(taskId);
-      state = state.copyWith(
-        township: state.township.copyWith(tasks: newTasks),
-      );
+    // Grant rewards
+    for (final reward in task.rewards) {
+      switch (reward.type) {
+        case TaskRewardType.skillXP:
+          // Map skill ID to Skill enum
+          final skill = Skill.fromId(reward.id);
+          state = state.addSkillXp(skill, reward.quantity);
+        case TaskRewardType.currency:
+          final currency = Currency.fromIdString(reward.id.fullId);
+          state = state.addCurrency(currency, reward.quantity);
+        case TaskRewardType.item:
+          final item = registries.items.byId(reward.id);
+          state = state.copyWith(
+            inventory: state.inventory.adding(
+              ItemStack(item, count: reward.quantity),
+            ),
+          );
+        case TaskRewardType.townshipResource:
+          state = state.copyWith(
+            township: state.township.addResource(reward.id, reward.quantity),
+          );
+      }
     }
 
-    return state;
+    // Mark task as completed (all main tasks go to completedMainTasks)
+    final newCompleted = Set<MelvorId>.from(township.completedMainTasks)
+      ..add(taskId);
+    return state.copyWith(
+      township: state.township.copyWith(completedMainTasks: newCompleted),
+    );
   }
 
   // ---------------------------------------------------------------------------
@@ -1569,14 +1586,11 @@ class GlobalState {
 
   /// Selects a deity for worship.
   /// Resets worship points if changing to a different deity.
-  GlobalState selectWorship(MelvorId deityId) {
-    return copyWith(township: township.selectWorship(deityId));
-  }
+  GlobalState selectWorship(MelvorId deityId) =>
+      copyWith(township: township.selectWorship(deityId));
 
   /// Clears worship selection.
-  GlobalState clearWorship() {
-    return copyWith(township: township.clearWorship());
-  }
+  GlobalState clearWorship() => copyWith(township: township.clearWorship());
 
   /// Repairs a Township building in a biome, restoring efficiency to 100%.
   /// Cost formula: (Base Cost / 3) × Buildings Built × (1 - Efficiency%)
@@ -1622,7 +1636,7 @@ class GlobalState {
       final resourceId = entry.key;
       final cost = entry.value;
 
-      if (resourceId.localId == 'GP') {
+      if (Currency.gp.id == resourceId) {
         state = state.addCurrency(Currency.gp, -cost);
       } else {
         newTownship = newTownship.removeResource(resourceId, cost);
@@ -1640,11 +1654,11 @@ class GlobalState {
     return state.copyWith(township: newTownship);
   }
 
-  /// Returns true if the player can afford all repair costs for a building.
-  bool canAffordTownshipRepair(MelvorId biomeId, MelvorId buildingId) {
-    final costs = township.repairCosts(biomeId, buildingId);
+  /// Returns true if the player can afford the given costs
+  /// (GP + township resources).
+  bool canAffordTownshipCosts(Map<MelvorId, int> costs) {
     for (final entry in costs.entries) {
-      if (entry.key.localId == 'GP') {
+      if (Currency.gp.id == entry.key) {
         if (gp < entry.value) return false;
       } else {
         if (township.resourceAmount(entry.key) < entry.value) return false;
@@ -1652,41 +1666,24 @@ class GlobalState {
     }
     return true;
   }
+
+  /// Returns true if the player can afford all repair costs for a building.
+  bool canAffordTownshipRepair(MelvorId biomeId, MelvorId buildingId) =>
+      canAffordTownshipCosts(township.repairCosts(biomeId, buildingId));
 
   /// Returns true if the player can afford all repair costs for all buildings.
-  bool canAffordAllTownshipRepairs() {
-    final costs = township.totalRepairCosts;
-    for (final entry in costs.entries) {
-      if (entry.key.localId == 'GP') {
-        if (gp < entry.value) return false;
-      } else {
-        if (township.resourceAmount(entry.key) < entry.value) return false;
-      }
-    }
-    return true;
-  }
+  bool canAffordAllTownshipRepairs() =>
+      canAffordTownshipCosts(township.totalRepairCosts);
 
   /// Repairs all Township buildings across all biomes, restoring efficiency
-  /// to 100%. Throws StateError if player can't afford the total repair costs.
+  /// to 100%. Throws if no buildings need repair or player can't afford costs.
   GlobalState repairAllTownshipBuildings() {
     if (!township.hasAnyBuildingNeedingRepair) {
       throw StateError('No buildings need repair');
     }
-
-    // Get total costs and verify we can afford them
     final totalCosts = township.totalRepairCosts;
-    for (final entry in totalCosts.entries) {
-      if (entry.key.localId == 'GP') {
-        if (gp < entry.value) {
-          throw StateError('Cannot afford repair: insufficient GP');
-        }
-      } else {
-        if (township.resourceAmount(entry.key) < entry.value) {
-          throw StateError(
-            'Cannot afford repair: insufficient ${entry.key.localId}',
-          );
-        }
-      }
+    if (!canAffordTownshipCosts(totalCosts)) {
+      throw StateError('Cannot afford repair costs');
     }
 
     // Deduct all costs
@@ -1697,7 +1694,7 @@ class GlobalState {
       final resourceId = entry.key;
       final cost = entry.value;
 
-      if (resourceId.localId == 'GP') {
+      if (Currency.gp.id == resourceId) {
         state = state.addCurrency(Currency.gp, -cost);
       } else {
         newTownship = newTownship.removeResource(resourceId, cost);

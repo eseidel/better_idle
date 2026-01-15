@@ -81,17 +81,6 @@ class DropTableEntry extends Equatable {
     required this.weight,
   });
 
-  /// Creates a DropTableEntry from a simple name string with equal min/max.
-  DropTableEntry.fromName(String name, {required this.weight, int count = 1})
-    : itemID = MelvorId.fromName(name),
-      minQuantity = count,
-      maxQuantity = count;
-
-  DropTableEntry.test(String name, {int min = 1, int max = 1, this.weight = 1})
-    : itemID = MelvorId.fromName(name),
-      minQuantity = min,
-      maxQuantity = max;
-
   /// Creates a DropTableEntry from a JSON map (standard format).
   factory DropTableEntry.fromJson(Map<String, dynamic> json) {
     return DropTableEntry(

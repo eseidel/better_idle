@@ -1,6 +1,8 @@
 import 'package:better_idle/src/logic/redux_actions.dart';
+import 'package:better_idle/src/services/toast_service.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:logic/logic.dart';
+import 'package:scoped_deps/scoped_deps.dart';
 
 /// Helper to create a test building with biome-specific data.
 TownshipBuilding _testBuilding({
@@ -92,7 +94,7 @@ void main() {
     test('repairs building and deducts GP cost', () {
       const buildingId = MelvorId('melvorD:Test_Building');
       const biomeId = MelvorId('melvorD:Grasslands');
-      const gpId = MelvorId('melvorF:GP');
+      final gpId = Currency.gp.id;
 
       final building = _testBuilding(
         id: buildingId,
@@ -204,7 +206,7 @@ void main() {
     test('repairs all buildings and deducts GP', () {
       const buildingId = MelvorId('melvorD:Test_Building');
       const biomeId = MelvorId('melvorD:Grasslands');
-      const gpId = MelvorId('melvorF:GP');
+      final gpId = Currency.gp.id;
 
       final building = _testBuilding(
         id: buildingId,
@@ -257,7 +259,7 @@ void main() {
       const buildingId = MelvorId('melvorD:Test_Building');
       const biomeId1 = MelvorId('melvorD:Grasslands');
       const biomeId2 = MelvorId('melvorD:Forest');
-      const gpId = MelvorId('melvorF:GP');
+      final gpId = Currency.gp.id;
 
       final building = _testBuilding(
         id: buildingId,
@@ -500,6 +502,247 @@ void main() {
 
       expect(store.state.township.health, 80);
       expect(store.state.township.resourceAmount(herbsId), 100);
+    });
+  });
+
+  group('ClaimTownshipTaskAction', () {
+    test('claims task and grants GP reward', () {
+      runScoped(() {
+        const taskId = MelvorId('melvorD:Test_Task');
+        final testItem = Item.test('Oak Logs', gp: 10);
+
+        final registries = Registries.test(
+          items: [testItem],
+          township: TownshipRegistry(
+            tasks: [
+              TownshipTask(
+                id: taskId,
+                category: TaskCategory.easy,
+                goals: [
+                  TaskGoal(
+                    type: TaskGoalType.items,
+                    id: testItem.id,
+                    quantity: 50,
+                  ),
+                ],
+                rewards: const [
+                  TaskReward(
+                    type: TaskRewardType.currency,
+                    id: MelvorId('melvorD:GP'),
+                    quantity: 1000,
+                  ),
+                ],
+              ),
+            ],
+          ),
+        );
+
+        var initialState = GlobalState.empty(registries);
+        initialState = initialState.copyWith(
+          inventory: initialState.inventory.adding(
+            ItemStack(testItem, count: 100),
+          ),
+        );
+
+        final store = Store<GlobalState>(initialState: initialState)
+          ..dispatch(ClaimTownshipTaskAction(taskId));
+
+        expect(store.state.gp, 1000);
+        expect(store.state.inventory.countOfItem(testItem), 50);
+        expect(store.state.township.completedMainTasks, contains(taskId));
+      }, values: {toastServiceRef});
+    });
+
+    test('claims task and grants item reward', () {
+      runScoped(() {
+        const taskId = MelvorId('melvorD:Test_Task');
+        final rewardItem = Item.test('Reward Item', gp: 100);
+
+        final registries = Registries.test(
+          items: [rewardItem],
+          township: TownshipRegistry(
+            tasks: [
+              TownshipTask(
+                id: taskId,
+                category: TaskCategory.easy,
+                // No goals means immediately completable
+                rewards: [
+                  TaskReward(
+                    type: TaskRewardType.item,
+                    id: rewardItem.id,
+                    quantity: 10,
+                  ),
+                ],
+              ),
+            ],
+          ),
+        );
+
+        final store = Store<GlobalState>(
+          initialState: GlobalState.empty(registries),
+        )..dispatch(ClaimTownshipTaskAction(taskId));
+
+        expect(store.state.inventory.countOfItem(rewardItem), 10);
+        expect(store.state.township.completedMainTasks, contains(taskId));
+      }, values: {toastServiceRef});
+    });
+
+    test('claims task and grants township resource reward', () {
+      runScoped(() {
+        const taskId = MelvorId('melvorD:Test_Task');
+        const resourceId = MelvorId('melvorF:Wood');
+
+        final registries = Registries.test(
+          township: const TownshipRegistry(
+            tasks: [
+              TownshipTask(
+                id: taskId,
+                category: TaskCategory.normal,
+                rewards: [
+                  TaskReward(
+                    type: TaskRewardType.townshipResource,
+                    id: resourceId,
+                    quantity: 500,
+                  ),
+                ],
+              ),
+            ],
+            resources: [
+              TownshipResource(id: resourceId, name: 'Wood', type: 'Raw'),
+            ],
+          ),
+        );
+
+        final store = Store<GlobalState>(
+          initialState: GlobalState.empty(registries),
+        )..dispatch(ClaimTownshipTaskAction(taskId));
+
+        expect(store.state.township.resourceAmount(resourceId), 500);
+        expect(store.state.township.completedMainTasks, contains(taskId));
+      }, values: {toastServiceRef});
+    });
+
+    test('throws when task requirements not met', () {
+      runScoped(() {
+        const taskId = MelvorId('melvorD:Test_Task');
+        final testItem = Item.test('Oak Logs', gp: 10);
+
+        final registries = Registries.test(
+          items: [testItem],
+          township: TownshipRegistry(
+            tasks: [
+              TownshipTask(
+                id: taskId,
+                category: TaskCategory.easy,
+                goals: [
+                  TaskGoal(
+                    type: TaskGoalType.items,
+                    id: testItem.id,
+                    quantity: 100,
+                  ),
+                ],
+                rewards: const [
+                  TaskReward(
+                    type: TaskRewardType.currency,
+                    id: MelvorId('melvorD:GP'),
+                    quantity: 1000,
+                  ),
+                ],
+              ),
+            ],
+          ),
+        );
+
+        // State has no items
+        final store = Store<GlobalState>(
+          initialState: GlobalState.empty(registries),
+        );
+
+        expect(
+          () => store.dispatch(ClaimTownshipTaskAction(taskId)),
+          throwsStateError,
+        );
+      }, values: {toastServiceRef});
+    });
+
+    test('throws when claiming already completed task', () {
+      runScoped(() {
+        const taskId = MelvorId('melvorD:Test_Task');
+
+        final registries = Registries.test(
+          township: const TownshipRegistry(
+            tasks: [
+              TownshipTask(
+                id: taskId,
+                category: TaskCategory.hard,
+                rewards: [
+                  TaskReward(
+                    type: TaskRewardType.currency,
+                    id: MelvorId('melvorD:GP'),
+                    quantity: 100,
+                  ),
+                ],
+              ),
+            ],
+          ),
+        );
+
+        final store = Store<GlobalState>(
+          initialState: GlobalState.empty(registries),
+        )..dispatch(ClaimTownshipTaskAction(taskId));
+        expect(store.state.township.completedMainTasks, contains(taskId));
+
+        // Try to claim again
+        expect(
+          () => store.dispatch(ClaimTownshipTaskAction(taskId)),
+          throwsStateError,
+        );
+      }, values: {toastServiceRef});
+    });
+
+    test('grants multiple rewards', () {
+      runScoped(() {
+        const taskId = MelvorId('melvorD:Test_Task');
+        final testItem = Item.test('Test Item', gp: 10);
+
+        final registries = Registries.test(
+          items: [testItem],
+          township: TownshipRegistry(
+            tasks: [
+              TownshipTask(
+                id: taskId,
+                category: TaskCategory.veryHard,
+                rewards: [
+                  const TaskReward(
+                    type: TaskRewardType.currency,
+                    id: MelvorId('melvorD:GP'),
+                    quantity: 500,
+                  ),
+                  const TaskReward(
+                    type: TaskRewardType.currency,
+                    id: MelvorId('melvorD:SlayerCoins'),
+                    quantity: 100,
+                  ),
+                  TaskReward(
+                    type: TaskRewardType.item,
+                    id: testItem.id,
+                    quantity: 5,
+                  ),
+                ],
+              ),
+            ],
+          ),
+        );
+
+        final store = Store<GlobalState>(
+          initialState: GlobalState.empty(registries),
+        )..dispatch(ClaimTownshipTaskAction(taskId));
+
+        expect(store.state.gp, 500);
+        expect(store.state.currency(Currency.slayerCoins), 100);
+        expect(store.state.inventory.countOfItem(testItem), 5);
+        expect(store.state.township.completedMainTasks, contains(taskId));
+      }, values: {toastServiceRef});
     });
   });
 }

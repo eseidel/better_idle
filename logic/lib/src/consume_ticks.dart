@@ -548,6 +548,62 @@ class StateUpdateBuilder {
     if (newLevel > oldLevel) {
       _changes = _changes.addingSkillLevel(skill, oldLevel, newLevel);
     }
+
+    // Track task progress for skillXP goals
+    _updateTaskProgressForSkillXP(skill, amount);
+  }
+
+  /// Updates task progress for all uncompleted tasks with skillXP goals.
+  void _updateTaskProgressForSkillXP(Skill skill, int amount) {
+    final township = _state.township;
+    final completedTasks = township.completedMainTasks;
+
+    for (final task in township.registry.tasks) {
+      // Skip completed tasks
+      if (completedTasks.contains(task.id)) continue;
+
+      // Check if this task has a goal for this skill's XP
+      for (final goal in task.goals) {
+        if (goal.type == TaskGoalType.skillXP && goal.id == skill.id) {
+          _state = _state.copyWith(
+            township: township.updateTaskProgress(
+              task.id,
+              TaskGoalType.skillXP,
+              skill.id,
+              amount,
+            ),
+          );
+          // Re-get township for next iteration
+          break;
+        }
+      }
+    }
+  }
+
+  /// Tracks a monster kill for task progress.
+  void trackMonsterKill(MelvorId monsterId) {
+    final township = _state.township;
+    final completedTasks = township.completedMainTasks;
+
+    for (final task in township.registry.tasks) {
+      // Skip completed tasks
+      if (completedTasks.contains(task.id)) continue;
+
+      // Check if this task has a goal for this monster
+      for (final goal in task.goals) {
+        if (goal.type == TaskGoalType.monsters && goal.id == monsterId) {
+          _state = _state.copyWith(
+            township: township.updateTaskProgress(
+              task.id,
+              TaskGoalType.monsters,
+              monsterId,
+              1,
+            ),
+          );
+          break;
+        }
+      }
+    }
   }
 
   void addSkillMasteryXp(Skill skill, int amount) {
@@ -1528,6 +1584,9 @@ enum ForegroundResult {
         builder.addInventory(loot);
       }
     }
+
+    // Track monster kill for task progress
+    builder.trackMonsterKill(action.id.localId);
 
     // Reset monster attack timer to full duration for when it spawns
     final fullMonsterAttackTicks = ticksFromDuration(

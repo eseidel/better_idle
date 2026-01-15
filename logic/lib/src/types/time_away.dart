@@ -528,7 +528,7 @@ class Changes {
     final currenciesJson =
         json['currenciesGained'] as Map<String, dynamic>? ?? {};
     return currenciesJson.map((key, value) {
-      final currency = Currency.fromId(key);
+      final currency = Currency.fromIdString(key);
       return MapEntry(currency, value as int);
     });
   }
@@ -687,7 +687,7 @@ class Changes {
       'droppedItems': droppedItems.toJson(),
       'skillLevelChanges': skillLevelChanges.toJson(),
       'currenciesGained': currenciesGained.map(
-        (key, value) => MapEntry(key.id, value),
+        (key, value) => MapEntry(key.id.toJson(), value),
       ),
       'lostOnDeath': lostOnDeath.toJson(),
       'deathCount': deathCount,

@@ -11,8 +11,11 @@ void main() {
       expect(Currency.slayerCoins, isNot(equals(Currency.raidCoins)));
     });
 
-    test('fromId throws for unknown id', () {
-      expect(() => Currency.fromId('unknown:Currency'), throwsArgumentError);
+    test('fromIdString throws for unknown id', () {
+      expect(
+        () => Currency.fromIdString('unknown:Currency'),
+        throwsArgumentError,
+      );
     });
   });
 

@@ -22,7 +22,7 @@ void main() {
         // Woodcutting now uses defaultRewards (1 item per action).
         // The doubling mechanic is applied via skillItemDoublingChance modifier
         // at roll time in rollAndCollectDrops(), not in the rewards themselves.
-        final normalLogsId = MelvorId.fromName('Normal Logs');
+        const normalLogsId = MelvorId('melvorD:Normal_Logs');
 
         // Base rewards are always 1 item (doubling applied via modifiers)
         final rewards = normalTree.rewardsForSelection(
@@ -35,7 +35,7 @@ void main() {
     );
 
     test('expectedItemsForDrops applies doubling chance multiplier', () {
-      final normalLogsId = MelvorId.fromName('Normal Logs');
+      const normalLogsId = MelvorId('melvorD:Normal_Logs');
       final drops = testDrops.allDropsForAction(
         normalTree,
         const NoSelectedRecipe(),
@@ -249,7 +249,7 @@ void main() {
 
   group('rollAndCollectDrops', () {
     test('doubles items when random triggers doubling chance', () {
-      final normalLogsId = MelvorId.fromName('Normal Logs');
+      const normalLogsId = MelvorId('melvorD:Normal_Logs');
       final state = GlobalState.test(testRegistries);
       final builder = StateUpdateBuilder(state);
 
@@ -275,7 +275,7 @@ void main() {
     });
 
     test('does not double items when doubling chance is 0', () {
-      final normalLogsId = MelvorId.fromName('Normal Logs');
+      const normalLogsId = MelvorId('melvorD:Normal_Logs');
       final state = GlobalState.test(testRegistries);
       final builder = StateUpdateBuilder(state);
 

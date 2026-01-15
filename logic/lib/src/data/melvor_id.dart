@@ -18,11 +18,6 @@ class MelvorId extends Equatable {
     return MelvorId('$defaultNamespace:$json');
   }
 
-  /// Creates a MelvorId from a human-readable name.
-  /// Converts "Normal Logs" to "melvorD:Normal_Logs".
-  factory MelvorId.fromName(String name) =>
-      MelvorId('melvorD:${name.replaceAll(' ', '_')}');
-
   /// Creates a MelvorId from a JSON string.
   factory MelvorId.fromJson(String json) => MelvorId(json);
 

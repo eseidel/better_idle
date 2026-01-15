@@ -64,18 +64,18 @@ class DebugPage extends StatelessWidget {
         // Inventory changes (positive and negative)
         inventoryChanges: Counts<MelvorId>(
           counts: {
-            MelvorId.fromName('Normal Logs'): 150, // Gained
-            MelvorId.fromName('Oak Logs'): 75, // Gained
-            MelvorId.fromName('Coal Ore'): 12, // Gained (from drops)
-            MelvorId.fromName('Bird Nest'): 3, // Gained (from drops)
-            MelvorId.fromName('Ash'): -45, // Consumed
+            const MelvorId('melvorD:Normal_Logs'): 150, // Gained
+            const MelvorId('melvorD:Oak_Logs'): 75, // Gained
+            const MelvorId('melvorD:Coal_Ore'): 12, // Gained (from drops)
+            const MelvorId('melvorD:Bird_Nest'): 3, // Gained (from drops)
+            const MelvorId('melvorD:Ash'): -45, // Consumed
           },
         ),
         // Dropped items (inventory was full)
         droppedItems: Counts<MelvorId>(
           counts: {
-            MelvorId.fromName('Willow Logs'): 5,
-            MelvorId.fromName('Teak Logs'): 2,
+            const MelvorId('melvorD:Willow_Logs'): 5,
+            const MelvorId('melvorD:Teak_Logs'): 2,
           },
         ),
       ),

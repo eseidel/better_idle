@@ -34,42 +34,434 @@ class _TownshipPageState extends State<TownshipPage> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text('Township')),
-      drawer: const AppNavigationDrawer(),
-      body: StoreConnector<GlobalState, TownshipViewModel>(
-        converter: (store) => TownshipViewModel(store.state),
-        builder: (context, viewModel) {
-          // Show deity selection if no deity chosen yet
-          if (!viewModel.hasSelectedDeity) {
-            return _DeitySelectionView(viewModel: viewModel);
-          }
+    return DefaultTabController(
+      length: 2,
+      child: Scaffold(
+        appBar: AppBar(
+          title: const Text('Township'),
+          bottom: const TabBar(
+            tabs: [
+              Tab(
+                icon: CachedImage(
+                  assetPath: 'assets/media/skills/township/menu_town.png',
+                  size: 24,
+                ),
+                text: 'Town',
+              ),
+              Tab(
+                icon: CachedImage(
+                  assetPath: 'assets/media/skills/township/menu_tasks.png',
+                  size: 24,
+                ),
+                text: 'Tasks',
+              ),
+            ],
+          ),
+        ),
+        drawer: const AppNavigationDrawer(),
+        body: StoreConnector<GlobalState, TownshipViewModel>(
+          converter: (store) => TownshipViewModel(store.state),
+          builder: (context, viewModel) {
+            // Show deity selection if no deity chosen yet
+            if (!viewModel.hasSelectedDeity) {
+              return _DeitySelectionView(viewModel: viewModel);
+            }
 
-          return ListView(
-            children: [
-              SkillProgress(xp: viewModel.townshipXp),
-              _TownshipStatsCard(viewModel: viewModel),
-              _TownshipResourcesCard(viewModel: viewModel),
-              const Divider(),
-              ...viewModel.township.registry.biomes.map(
-                (TownshipBiome biome) => _BiomeSection(
+            return TabBarView(
+              children: [
+                _TownView(
                   viewModel: viewModel,
-                  biome: biome,
-                  isCollapsed: _collapsedBiomes.contains(biome.id),
-                  onToggleCollapse: () {
+                  collapsedBiomes: _collapsedBiomes,
+                  onToggleBiome: (biomeId) {
                     setState(() {
-                      if (_collapsedBiomes.contains(biome.id)) {
-                        _collapsedBiomes.remove(biome.id);
+                      if (_collapsedBiomes.contains(biomeId)) {
+                        _collapsedBiomes.remove(biomeId);
                       } else {
-                        _collapsedBiomes.add(biome.id);
+                        _collapsedBiomes.add(biomeId);
                       }
                     });
                   },
                 ),
+                _TasksView(viewModel: viewModel),
+              ],
+            );
+          },
+        ),
+      ),
+    );
+  }
+}
+
+/// The main town view with biomes and buildings.
+class _TownView extends StatelessWidget {
+  const _TownView({
+    required this.viewModel,
+    required this.collapsedBiomes,
+    required this.onToggleBiome,
+  });
+
+  final TownshipViewModel viewModel;
+  final Set<MelvorId> collapsedBiomes;
+  final void Function(MelvorId) onToggleBiome;
+
+  @override
+  Widget build(BuildContext context) {
+    return ListView(
+      children: [
+        SkillProgress(xp: viewModel.townshipXp),
+        _TownshipStatsCard(viewModel: viewModel),
+        _TownshipResourcesCard(viewModel: viewModel),
+        const Divider(),
+        ...viewModel.township.registry.biomes.map(
+          (TownshipBiome biome) => _BiomeSection(
+            viewModel: viewModel,
+            biome: biome,
+            isCollapsed: collapsedBiomes.contains(biome.id),
+            onToggleCollapse: () => onToggleBiome(biome.id),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// Sort modes for tasks.
+enum _TaskSortMode { difficulty, completion }
+
+/// The tasks view showing township tasks.
+class _TasksView extends StatefulWidget {
+  const _TasksView({required this.viewModel});
+
+  final TownshipViewModel viewModel;
+
+  @override
+  State<_TasksView> createState() => _TasksViewState();
+}
+
+class _TasksViewState extends State<_TasksView> {
+  _TaskSortMode _sortMode = _TaskSortMode.difficulty;
+
+  @override
+  Widget build(BuildContext context) {
+    final viewModel = widget.viewModel;
+    final allTasks = <TownshipTask>[];
+    for (final category in TaskCategory.values) {
+      allTasks.addAll(viewModel.township.registry.tasksForCategory(category));
+    }
+
+    // Filter out completed tasks.
+    final completedTasks = viewModel.township.completedMainTasks;
+    final incompleteTasks = allTasks
+        .where((t) => !completedTasks.contains(t.id))
+        .toList();
+
+    // Sort based on mode.
+    if (_sortMode == _TaskSortMode.completion) {
+      incompleteTasks.sort((a, b) {
+        final aProgress = _taskCompletionProgress(viewModel, a);
+        final bProgress = _taskCompletionProgress(viewModel, b);
+        return bProgress.compareTo(aProgress); // Higher progress first.
+      });
+    }
+    // For difficulty mode, tasks are already in category order.
+
+    final totalCount = allTasks.length;
+    final completedCount = completedTasks.length;
+
+    return ListView(
+      children: [
+        SkillProgress(xp: viewModel.townshipXp),
+        _TaskSortHeader(
+          sortMode: _sortMode,
+          onSortChanged: (mode) => setState(() => _sortMode = mode),
+          completedCount: completedCount,
+          totalCount: totalCount,
+        ),
+        for (final task in incompleteTasks)
+          _TaskCard(viewModel: viewModel, task: task),
+      ],
+    );
+  }
+
+  /// Returns completion progress as a ratio (0.0 to 1.0).
+  double _taskCompletionProgress(
+    TownshipViewModel viewModel,
+    TownshipTask task,
+  ) {
+    if (task.goals.isEmpty) return 0;
+    var totalProgress = 0.0;
+    for (final goal in task.goals) {
+      final current = viewModel.getGoalProgress(task.id, goal);
+      final progress = (current / goal.quantity).clamp(0.0, 1.0);
+      totalProgress += progress;
+    }
+    return totalProgress / task.goals.length;
+  }
+}
+
+/// Header with sort toggle for tasks.
+class _TaskSortHeader extends StatelessWidget {
+  const _TaskSortHeader({
+    required this.sortMode,
+    required this.onSortChanged,
+    required this.completedCount,
+    required this.totalCount,
+  });
+
+  final _TaskSortMode sortMode;
+  final void Function(_TaskSortMode) onSortChanged;
+  final int completedCount;
+  final int totalCount;
+
+  @override
+  Widget build(BuildContext context) {
+    final sortLabel = switch (sortMode) {
+      _TaskSortMode.difficulty => 'Difficulty',
+      _TaskSortMode.completion => 'Completion',
+    };
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      child: Row(
+        children: [
+          Text(
+            '$completedCount / $totalCount completed',
+            style: Theme.of(context).textTheme.bodySmall,
+          ),
+          const Spacer(),
+          PopupMenuButton<_TaskSortMode>(
+            initialValue: sortMode,
+            onSelected: onSortChanged,
+            itemBuilder: (context) => const [
+              PopupMenuItem(
+                value: _TaskSortMode.difficulty,
+                child: Text('Difficulty'),
+              ),
+              PopupMenuItem(
+                value: _TaskSortMode.completion,
+                child: Text('Completion'),
               ),
             ],
-          );
-        },
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(Icons.sort, size: 18),
+                const SizedBox(width: 4),
+                Text(sortLabel, style: Theme.of(context).textTheme.bodySmall),
+                const Icon(Icons.arrow_drop_down, size: 18),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// A card showing a single task with its goals and rewards.
+class _TaskCard extends StatelessWidget {
+  const _TaskCard({required this.viewModel, required this.task});
+
+  final TownshipViewModel viewModel;
+  final TownshipTask task;
+
+  @override
+  Widget build(BuildContext context) {
+    final canClaim = viewModel.isTaskClaimable(task.id);
+    final categoryName = '${task.category.displayName} Task';
+
+    return Card(
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Category header (e.g., "Easy Task")
+            Text(categoryName, style: Theme.of(context).textTheme.titleSmall),
+            const SizedBox(height: 4),
+            Wrap(
+              spacing: 8,
+              runSpacing: 4,
+              children: [
+                for (final goal in task.goals)
+                  _GoalChip(viewModel: viewModel, task: task, goal: goal),
+              ],
+            ),
+            const SizedBox(height: 8),
+
+            // Rewards section with Claim button
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Rewards:',
+                        style: Theme.of(context).textTheme.titleSmall,
+                      ),
+                      const SizedBox(height: 4),
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 4,
+                        children: [
+                          // Show currencies first, then other rewards.
+                          for (final reward in task.rewards.where(
+                            (r) => r.type == TaskRewardType.currency,
+                          ))
+                            _RewardChip(reward: reward, viewModel: viewModel),
+                          for (final reward in task.rewards.where(
+                            (r) => r.type != TaskRewardType.currency,
+                          ))
+                            _RewardChip(reward: reward, viewModel: viewModel),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 8),
+                StoreConnector<GlobalState, VoidCallback?>(
+                  converter: (store) => canClaim
+                      ? () => store.dispatch(ClaimTownshipTaskAction(task.id))
+                      : null,
+                  builder: (context, onPressed) => ElevatedButton(
+                    onPressed: onPressed,
+                    child: const Text('Claim'),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Shows a single goal as a chip.
+/// Format: "Defeat 0 / 50 icon Kraken" or "Give 0 / 300 icon Bones"
+class _GoalChip extends StatelessWidget {
+  const _GoalChip({
+    required this.viewModel,
+    required this.task,
+    required this.goal,
+  });
+
+  final TownshipViewModel viewModel;
+  final TownshipTask task;
+  final TaskGoal goal;
+
+  @override
+  Widget build(BuildContext context) {
+    final current = viewModel.getGoalProgress(task.id, goal);
+    final isMet = current >= goal.quantity;
+    final registries = viewModel.registries;
+    final goalName = goal.displayName(registries.items, registries.actions);
+    final goalAsset = goal.asset(registries.items, registries.actions);
+
+    final progress = _formatProgress(current, goal.quantity);
+    final verb = switch (goal.type) {
+      TaskGoalType.monsters => 'Defeat',
+      TaskGoalType.items => 'Donate',
+      TaskGoalType.skillXP => 'Earn',
+    };
+
+    final textStyle = TextStyle(
+      fontSize: 12,
+      decoration: isMet ? TextDecoration.lineThrough : null,
+      color: isMet ? Colors.grey : Style.textColorPrimary,
+    );
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: Style.containerBackgroundLight,
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Text.rich(
+        TextSpan(
+          children: [
+            TextSpan(text: '$verb $progress ', style: textStyle),
+            WidgetSpan(
+              alignment: PlaceholderAlignment.middle,
+              child: CachedImage(assetPath: goalAsset, size: 20),
+            ),
+            TextSpan(text: ' $goalName', style: textStyle),
+          ],
+        ),
+      ),
+    );
+  }
+
+  String _formatProgress(int current, int total) {
+    return '${approximateCountString(current)} / '
+        '${approximateCountString(total)}';
+  }
+}
+
+/// Shows a reward as a chip.
+/// Currencies display as "icon 5,000", others as "25 icon Stardust".
+class _RewardChip extends StatelessWidget {
+  const _RewardChip({required this.reward, required this.viewModel});
+
+  final TaskReward reward;
+  final TownshipViewModel viewModel;
+
+  @override
+  Widget build(BuildContext context) {
+    final registries = viewModel.registries;
+    final rewardName = reward.displayName(
+      registries.items,
+      registries.township,
+    );
+    final rewardAsset = reward.asset(registries.items, registries.township);
+
+    final qty = approximateCountString(reward.quantity);
+    final isCurrency = reward.type == TaskRewardType.currency;
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: Style.containerBackgroundLight,
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (isCurrency) ...[
+            // Currencies: [icon] 5,000
+            CachedImage(assetPath: rewardAsset, size: 20),
+            const SizedBox(width: 4),
+            Text(
+              qty,
+              style: const TextStyle(
+                fontSize: 12,
+                color: Style.textColorPrimary,
+              ),
+            ),
+          ] else ...[
+            // Others: 25 [icon] Stardust
+            Text(
+              qty,
+              style: const TextStyle(
+                fontSize: 12,
+                color: Style.textColorPrimary,
+              ),
+            ),
+            const SizedBox(width: 4),
+            CachedImage(assetPath: rewardAsset, size: 20),
+            const SizedBox(width: 4),
+            Text(
+              rewardName,
+              style: const TextStyle(
+                fontSize: 12,
+                color: Style.textColorPrimary,
+              ),
+            ),
+          ],
+        ],
       ),
     );
   }
@@ -82,6 +474,9 @@ class TownshipViewModel {
 
   /// The township state - use this for direct access to township data.
   TownshipState get township => _state.township;
+
+  /// Access to all game registries.
+  Registries get registries => _state.registries;
 
   int get townshipXp => _state.skillState(Skill.town).xp;
   int get townshipLevel => _state.skillState(Skill.town).skillLevel;
@@ -125,6 +520,22 @@ class TownshipViewModel {
 
   bool get needsHealing => township.health < TownshipState.maxHealth;
 
+  // Task-related methods
+
+  /// Returns whether a task can be claimed (all goals met, not completed).
+  bool isTaskClaimable(MelvorId taskId) => _state.isTaskComplete(taskId);
+
+  /// Gets the current progress toward a specific goal within a task.
+  int getGoalProgress(MelvorId taskId, TaskGoal goal) {
+    // For item goals, check inventory
+    if (goal.type == TaskGoalType.items) {
+      final item = _state.registries.items.byId(goal.id);
+      return _state.inventory.countOfItem(item);
+    }
+    // For XP and monster goals, check tracked progress
+    return township.getGoalProgress(taskId, goal);
+  }
+
   bool canHealOneWith(HealingResource resource) =>
       township.healingResourceAmount(resource) >=
       township.costPerHealthPercent(resource);
@@ -132,7 +543,7 @@ class TownshipViewModel {
   bool hasHealingResource(HealingResource resource) =>
       township.healingResourceAmount(resource) > 0;
 
-  TownshipResource? healingResourceData(HealingResource resource) =>
+  TownshipResource healingResourceData(HealingResource resource) =>
       township.registry.resourceById(resource.id);
 }
 
@@ -448,7 +859,7 @@ class _RepairAllSection extends StatelessWidget {
       final resourceId = entry.key;
       final amount = entry.value;
 
-      if (Currency.gp.matches(resourceId)) {
+      if (Currency.gp.id == resourceId) {
         final canAfford = viewModel.canAffordGp(amount);
         chips.add(
           _CostChip(
@@ -463,7 +874,7 @@ class _RepairAllSection extends StatelessWidget {
         final canAfford = viewModel.canAffordResource(resourceId, amount);
         chips.add(
           _CostChip(
-            assetPath: resource?.media,
+            assetPath: resource.media,
             value: approximateCreditString(amount),
             isAffordable: canAfford,
           ),
@@ -526,16 +937,14 @@ class _HealSection extends StatelessWidget {
       children: [
         Text('Need ', style: textStyle),
         CachedImage(
-          assetPath: viewModel
-              .healingResourceData(HealingResource.herbs)
-              ?.media,
+          assetPath: viewModel.healingResourceData(HealingResource.herbs).media,
           size: 16,
         ),
         Text(' or ', style: textStyle),
         CachedImage(
           assetPath: viewModel
               .healingResourceData(HealingResource.potions)
-              ?.media,
+              .media,
           size: 16,
         ),
         Text(' to heal', style: textStyle),
@@ -990,7 +1399,7 @@ class _BuildingCard extends StatelessWidget {
       final resourceId = entry.key;
       final amount = entry.value;
 
-      if (Currency.gp.matches(resourceId)) {
+      if (Currency.gp.id == resourceId) {
         final canAfford = viewModel.canAffordGp(amount);
         costWidgets.add(
           _CostChip(
@@ -1004,7 +1413,7 @@ class _BuildingCard extends StatelessWidget {
         final canAfford = viewModel.canAffordResource(resourceId, amount);
         costWidgets.add(
           _CostChip(
-            assetPath: resource?.media,
+            assetPath: resource.media,
             value: approximateCountString(amount),
             isAffordable: canAfford,
           ),
@@ -1058,7 +1467,7 @@ class _BuildingCard extends StatelessWidget {
       final resource = registry.resourceById(entry.key);
       final perHour = entry.value.toStringAsFixed(0);
       benefitWidgets.add(
-        _BenefitChip(assetPath: resource?.media, value: '+$perHour/h'),
+        _BenefitChip(assetPath: resource.media, value: '+$perHour/h'),
       );
     }
 
@@ -1114,7 +1523,7 @@ class _BuildingCard extends StatelessWidget {
       final resourceId = entry.key;
       final amount = entry.value;
 
-      if (Currency.gp.matches(resourceId)) {
+      if (Currency.gp.id == resourceId) {
         final canAfford = viewModel.canAffordGp(amount);
         costWidgets.add(
           _CostChip(
@@ -1128,7 +1537,7 @@ class _BuildingCard extends StatelessWidget {
         final canAfford = viewModel.canAffordResource(resourceId, amount);
         costWidgets.add(
           _CostChip(
-            assetPath: resource?.media,
+            assetPath: resource.media,
             value: approximateCreditString(amount),
             isAffordable: canAfford,
           ),
@@ -1306,7 +1715,7 @@ class _BuildingPurchaseDialog extends StatelessWidget {
       final resourceId = entry.key;
       final amount = entry.value;
 
-      if (Currency.gp.matches(resourceId)) {
+      if (Currency.gp.id == resourceId) {
         final canAfford = viewModel.canAffordGp(amount);
         costs.add(
           Row(
@@ -1331,10 +1740,7 @@ class _BuildingPurchaseDialog extends StatelessWidget {
           Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Text(
-                '${resource?.name ?? resourceId.localId}: ',
-                style: const TextStyle(fontSize: 13),
-              ),
+              Text('${resource.name}: ', style: const TextStyle(fontSize: 13)),
               Text(
                 approximateCreditString(amount),
                 style: TextStyle(
@@ -1368,7 +1774,7 @@ class _BuildingPurchaseDialog extends StatelessWidget {
       final resourceId = entry.key;
       final amount = entry.value;
 
-      if (Currency.gp.matches(resourceId)) {
+      if (Currency.gp.id == resourceId) {
         // GP cost
         final canAfford = viewModel.canAffordGp(amount);
         costs.add(
@@ -1395,10 +1801,7 @@ class _BuildingPurchaseDialog extends StatelessWidget {
           Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Text(
-                '${resource?.name ?? resourceId.localId}: ',
-                style: const TextStyle(fontSize: 13),
-              ),
+              Text('${resource.name}: ', style: const TextStyle(fontSize: 13)),
               Text(
                 approximateCreditString(amount),
                 style: TextStyle(
@@ -1471,9 +1874,7 @@ class _BuildingPurchaseDialog extends StatelessWidget {
       final registry = viewModel.township.registry;
       for (final entry in biomeData.production.entries) {
         final resource = registry.resourceById(entry.key);
-        bonuses.add(
-          'Produces ${entry.value} ${resource?.name ?? entry.key.localId}/hr',
-        );
+        bonuses.add('Produces ${entry.value} ${resource.name}/hr');
       }
     }
 

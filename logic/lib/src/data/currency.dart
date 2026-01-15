@@ -5,22 +5,26 @@ import 'package:meta/meta.dart';
 /// A currency type in the game.
 enum Currency {
   /// Gold Pieces - primary currency
-  gp('melvorD:GP', 'GP', 'assets/media/main/coins.png'),
+  gp(MelvorId('melvorD:GP'), 'GP', 'assets/media/main/coins.png'),
 
   /// Slayer Coins - earned from slayer tasks
   slayerCoins(
-    'melvorD:SlayerCoins',
+    MelvorId('melvorD:SlayerCoins'),
     'SC',
     'assets/media/main/slayer_coins.png',
   ),
 
   /// Raid Coins - earned from Golbin Raid
-  raidCoins('melvorD:RaidCoins', 'RC', 'assets/media/main/raid_coins.png');
+  raidCoins(
+    MelvorId('melvorD:RaidCoins'),
+    'RC',
+    'assets/media/main/raid_coins.png',
+  );
 
   const Currency(this.id, this.abbreviation, this.assetPath);
 
-  /// The Melvor ID for this currency (e.g., "melvorD:GP")
-  final String id;
+  /// The [MelvorId] for this currency.
+  final MelvorId id;
 
   /// Short display abbreviation (e.g., "GP", "SC")
   final String abbreviation;
@@ -28,18 +32,15 @@ enum Currency {
   /// Asset path for the currency icon
   final String assetPath;
 
-  /// Returns true if this currency matches the given [MelvorId].
-  bool matches(MelvorId melvorId) => melvorId.fullId == id;
-
-  /// Look up a currency by its Melvor ID.
+  /// Look up a currency by its Melvor ID string.
   /// Throws if not found.
-  static Currency fromId(String id) {
+  static Currency fromIdString(String idString) {
     for (final currency in Currency.values) {
-      if (currency.id == id) {
+      if (currency.id.fullId == idString) {
         return currency;
       }
     }
-    throw ArgumentError('Unknown currency ID: $id');
+    throw ArgumentError('Unknown currency ID: $idString');
   }
 }
 
@@ -81,7 +82,7 @@ class CurrencyCost extends Equatable {
 
   factory CurrencyCost.fromJson(Map<String, dynamic> json) {
     final currencyId = json['currency'] as String;
-    final currency = Currency.fromId(currencyId);
+    final currency = Currency.fromIdString(currencyId);
     final typeStr = json['type'] as String;
     final type = typeStr == 'BankSlot' ? CostType.bankSlot : CostType.fixed;
     final fixedCost = json['cost'] as int?;
@@ -112,7 +113,7 @@ class CurrencyCosts extends Equatable {
     for (final cost in json) {
       final costMap = cost as Map<String, dynamic>;
       final currencyId = costMap['id'] as String;
-      final currency = Currency.fromId(currencyId);
+      final currency = Currency.fromIdString(currencyId);
       final quantity = costMap['quantity'] as int;
       costs.add(CurrencyStack(currency, quantity));
     }
@@ -163,7 +164,7 @@ List<CurrencyStack> parseCurrencyStacks(List<dynamic>? json) {
   for (final item in json) {
     final itemMap = item as Map<String, dynamic>;
     final currencyId = itemMap['id'] as String;
-    final currency = Currency.fromId(currencyId);
+    final currency = Currency.fromIdString(currencyId);
     final quantity = itemMap['quantity'] as int;
     stacks.add(CurrencyStack(currency, quantity));
   }

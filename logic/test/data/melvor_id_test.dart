@@ -91,12 +91,5 @@ void main() {
       expect(id.fullId, 'melvorD:Woodcutting');
       expect(id.namespace, 'melvorD');
     });
-
-    test('fromName converts name to MelvorId', () {
-      final id = MelvorId.fromName('Normal Logs');
-      expect(id.fullId, 'melvorD:Normal_Logs');
-      expect(id.namespace, 'melvorD');
-      expect(id.localId, 'Normal_Logs');
-    });
   });
 }

@@ -123,7 +123,7 @@ void main() {
       // Only the Golbin drop table is wrapped in DropChance
       final dropChances = drops.whereType<DropChance>().toList();
       expect(dropChances, hasLength(1));
-      final copperOreId = MelvorId.fromName('Copper Ore');
+      const copperOreId = MelvorId('melvorD:Copper_Ore');
       expect(dropChances.first.expectedItems[copperOreId], greaterThan(0));
     });
 

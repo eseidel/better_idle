@@ -2,7 +2,6 @@ import 'package:better_idle/src/logic/redux_actions.dart';
 import 'package:better_idle/src/widgets/cached_image.dart';
 import 'package:better_idle/src/widgets/cost_row.dart';
 import 'package:better_idle/src/widgets/navigation_drawer.dart';
-import 'package:better_idle/src/widgets/skills.dart';
 import 'package:better_idle/src/widgets/style.dart';
 import 'package:flutter/material.dart';
 import 'package:logic/logic.dart';
@@ -309,8 +308,7 @@ class _ShopPageState extends State<ShopPage> {
     // Add skill interval modifiers
     final modifiers = purchase.contains.modifiers;
     for (final skillId in modifiers.skillIntervalSkillIds) {
-      final skill = Skill.tryFromId(skillId);
-      if (skill == null) continue;
+      final skill = Skill.fromId(skillId);
       final value = modifiers.skillIntervalForSkill(skillId);
       final percent = value < 0 ? '$value%' : '+$value%';
       parts.add('$percent ${skill.name} time');

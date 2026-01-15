@@ -111,12 +111,37 @@ class MiningAction extends SkillAction {
 /// Gem drop table for mining - 1% chance to trigger, then weighted selection.
 // TODO(eseidel): Read this from JSON under data.randomGems.
 final miningGemTable = DropChance(
-  DropTable(<DropTableEntry>[
-    DropTableEntry.fromName('Topaz', weight: 100), // 100 / 200 = 5%
-    DropTableEntry.fromName('Sapphire', weight: 35), // 35 / 200 = 17.5%
-    DropTableEntry.fromName('Ruby', weight: 35), // 35 / 200 = 17.5%
-    DropTableEntry.fromName('Emerald', weight: 20), // 20 / 200 = 10%
-    DropTableEntry.fromName('Diamond', weight: 10), // 10 / 200 = 5%
+  DropTable(const <DropTableEntry>[
+    DropTableEntry(
+      itemID: MelvorId('melvorD:Topaz'),
+      minQuantity: 1,
+      maxQuantity: 1,
+      weight: 100,
+    ), // 100 / 200 = 5%
+    DropTableEntry(
+      itemID: MelvorId('melvorD:Sapphire'),
+      minQuantity: 1,
+      maxQuantity: 1,
+      weight: 35,
+    ), // 35 / 200 = 17.5%
+    DropTableEntry(
+      itemID: MelvorId('melvorD:Ruby'),
+      minQuantity: 1,
+      maxQuantity: 1,
+      weight: 35,
+    ), // 35 / 200 = 17.5%
+    DropTableEntry(
+      itemID: MelvorId('melvorD:Emerald'),
+      minQuantity: 1,
+      maxQuantity: 1,
+      weight: 20,
+    ), // 20 / 200 = 10%
+    DropTableEntry(
+      itemID: MelvorId('melvorD:Diamond'),
+      minQuantity: 1,
+      maxQuantity: 1,
+      weight: 10,
+    ), // 10 / 200 = 5%
   ]),
   rate: 0.01, // 1% chance to get a gem
 );
