@@ -92,7 +92,7 @@ void main() {
     test('repairs building and deducts GP cost', () {
       const buildingId = MelvorId('melvorD:Test_Building');
       const biomeId = MelvorId('melvorD:Grasslands');
-      const gpId = MelvorId('melvorF:GP');
+      final gpId = Currency.gp.id;
 
       final building = _testBuilding(
         id: buildingId,
@@ -204,7 +204,7 @@ void main() {
     test('repairs all buildings and deducts GP', () {
       const buildingId = MelvorId('melvorD:Test_Building');
       const biomeId = MelvorId('melvorD:Grasslands');
-      const gpId = MelvorId('melvorF:GP');
+      final gpId = Currency.gp.id;
 
       final building = _testBuilding(
         id: buildingId,
@@ -257,7 +257,7 @@ void main() {
       const buildingId = MelvorId('melvorD:Test_Building');
       const biomeId1 = MelvorId('melvorD:Grasslands');
       const biomeId2 = MelvorId('melvorD:Forest');
-      const gpId = MelvorId('melvorF:GP');
+      final gpId = Currency.gp.id;
 
       final building = _testBuilding(
         id: buildingId,
