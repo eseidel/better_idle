@@ -799,7 +799,7 @@ void main() {
       // Normal Tree has 3s duration = 30 ticks
       final expectedTicks = ticksFromDuration(const Duration(seconds: 3));
       final expectedLogsPerTick = 1.0 / expectedTicks;
-      final normalLogsId = MelvorId.fromName('Normal Logs');
+      const normalLogsId = MelvorId('melvorD:Normal_Logs');
       expect(
         rates.itemFlowsPerTick[normalLogsId],
         closeTo(expectedLogsPerTick, 0.0001),
@@ -826,7 +826,7 @@ void main() {
       // Verify the rate is correct (0.5% per action)
       final expectedTicks = ticksFromDuration(const Duration(seconds: 3));
       final expectedBirdNestPerTick = 0.005 / expectedTicks;
-      final birdNestId = MelvorId.fromName('Bird Nest');
+      const birdNestId = MelvorId('melvorD:Bird_Nest');
       expect(
         rates.itemFlowsPerTick[birdNestId],
         closeTo(expectedBirdNestPerTick, 0.00001),

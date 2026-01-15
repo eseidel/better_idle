@@ -29,9 +29,24 @@ void main() {
 
   group('DropTableEntry', () {
     test('equality compares all fields', () {
-      final entry1 = DropTableEntry.test('Normal Logs', max: 5, weight: 10);
-      final entry2 = DropTableEntry.test('Normal Logs', max: 5, weight: 10);
-      final different = DropTableEntry.test('Oak Logs', max: 5, weight: 10);
+      const entry1 = DropTableEntry(
+        itemID: MelvorId('melvorD:Normal_Logs'),
+        minQuantity: 1,
+        maxQuantity: 5,
+        weight: 10,
+      );
+      const entry2 = DropTableEntry(
+        itemID: MelvorId('melvorD:Normal_Logs'),
+        minQuantity: 1,
+        maxQuantity: 5,
+        weight: 10,
+      );
+      const different = DropTableEntry(
+        itemID: MelvorId('melvorD:Oak_Logs'),
+        minQuantity: 1,
+        maxQuantity: 5,
+        weight: 10,
+      );
 
       expect(entry1, equals(entry2));
       expect(entry1, isNot(equals(different)));
@@ -48,7 +63,12 @@ void main() {
     });
 
     test('expectedCount returns average of min and max', () {
-      final entry = DropTableEntry.test('Test', min: 2, max: 10);
+      const entry = DropTableEntry(
+        itemID: MelvorId('melvorD:Test'),
+        minQuantity: 2,
+        maxQuantity: 10,
+        weight: 1,
+      );
 
       expect(entry.expectedCount, 6.0);
     });
