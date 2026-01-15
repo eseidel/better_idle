@@ -1368,8 +1368,8 @@ class GlobalState {
         final available = township.resourceAmount(resourceId);
         if (available < required) {
           final resource = registries.township.resourceById(resourceId);
-          final name = resource?.name ?? resourceId.localId;
-          return 'Not enough $name (need $required, have $available)';
+          return 'Not enough ${resource.name} '
+              '(need $required, have $available)';
         }
       }
     }
@@ -1446,8 +1446,8 @@ class GlobalState {
       final available = township.resourceAmount(resourceId);
       if (available < required) {
         final resource = registries.township.resourceById(resourceId);
-        final name = resource?.name ?? resourceId.toString();
-        return 'Not enough $name (need $required, have $available)';
+        return 'Not enough ${resource.name} '
+            '(need $required, have $available)';
       }
     }
 
@@ -1513,7 +1513,6 @@ class GlobalState {
   /// Checks if all goals for a task are met.
   bool isTaskComplete(MelvorId taskId) {
     final task = registries.township.taskById(taskId);
-    if (task == null) return false;
 
     // Check if already completed
     if (township.completedMainTasks.contains(taskId)) {
@@ -1528,7 +1527,6 @@ class GlobalState {
   /// Throws StateError if task is not complete or already claimed.
   GlobalState claimTaskReward(MelvorId taskId) {
     final task = registries.township.taskById(taskId);
-    if (task == null) throw StateError('Unknown task: $taskId');
 
     if (!isTaskComplete(taskId)) {
       throw StateError('Task requirements not met');

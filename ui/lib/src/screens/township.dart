@@ -192,7 +192,8 @@ class _TaskCard extends StatelessWidget {
               spacing: 8,
               runSpacing: 4,
               children: [
-                for (final reward in task.rewards) _RewardChip(reward: reward),
+                for (final reward in task.rewards)
+                  _RewardChip(reward: reward, viewModel: viewModel),
               ],
             ),
 
@@ -230,7 +231,7 @@ class _TaskCard extends StatelessWidget {
   }
 }
 
-/// Shows a single goal with progress indicator.
+/// Shows a single goal with progress indicator and icon.
 class _GoalRow extends StatelessWidget {
   const _GoalRow({
     required this.viewModel,
@@ -246,7 +247,9 @@ class _GoalRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final current = viewModel.getGoalProgress(task.id, goal);
     final isMet = current >= goal.quantity;
-    final goalName = _goalName(goal);
+    final registries = viewModel.registries;
+    final goalName = goal.displayName(registries.items, registries.actions);
+    final goalAsset = goal.asset(registries.items, registries.actions);
 
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 2),
@@ -258,6 +261,8 @@ class _GoalRow extends StatelessWidget {
             color: isMet ? Colors.green : Colors.grey,
           ),
           const SizedBox(width: 8),
+          CachedImage(assetPath: goalAsset, size: 20),
+          const SizedBox(width: 4),
           Expanded(
             child: Text(
               goalName,
@@ -268,7 +273,7 @@ class _GoalRow extends StatelessWidget {
             ),
           ),
           Text(
-            '$current / ${goal.quantity}',
+            _formatProgress(current, goal.quantity),
             style: TextStyle(
               fontWeight: isMet ? FontWeight.bold : FontWeight.normal,
               color: isMet ? Colors.green : null,
@@ -279,36 +284,49 @@ class _GoalRow extends StatelessWidget {
     );
   }
 
-  String _goalName(TaskGoal goal) {
-    final typeName = switch (goal.type) {
-      TaskGoalType.skillXP => 'XP in',
-      TaskGoalType.items => 'Collect',
-      TaskGoalType.monsters => 'Kill',
-    };
-    return '$typeName ${goal.id.localId}';
+  String _formatProgress(int current, int total) {
+    return '${approximateCountString(current)} / ${approximateCountString(total)}';
   }
 }
 
-/// Shows a reward as a chip.
+/// Shows a reward as a chip with an icon.
 class _RewardChip extends StatelessWidget {
-  const _RewardChip({required this.reward});
+  const _RewardChip({required this.reward, required this.viewModel});
 
   final TaskReward reward;
+  final TownshipViewModel viewModel;
 
   @override
   Widget build(BuildContext context) {
+    final registries = viewModel.registries;
+    final rewardName = reward.displayName(
+      registries.items,
+      registries.township,
+    );
+    final rewardAsset = reward.asset(registries.items, registries.township);
+
+    final qty = approximateCountString(reward.quantity);
     final label = switch (reward.type) {
-      TaskRewardType.currency => '${reward.quantity} ${reward.id.localId}',
-      TaskRewardType.item => '${reward.quantity}x ${reward.id.localId}',
-      TaskRewardType.skillXP => '${reward.quantity} ${reward.id.localId} XP',
-      TaskRewardType.townshipResource =>
-        '${reward.quantity} ${reward.id.localId}',
+      TaskRewardType.item => '${qty}x $rewardName',
+      TaskRewardType.currency ||
+      TaskRewardType.skillXP ||
+      TaskRewardType.townshipResource => '$qty $rewardName',
     };
 
-    return Chip(
-      label: Text(label, style: const TextStyle(fontSize: 12)),
-      padding: EdgeInsets.zero,
-      visualDensity: VisualDensity.compact,
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: Colors.grey.shade100,
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          CachedImage(assetPath: rewardAsset, size: 20),
+          const SizedBox(width: 4),
+          Text(label, style: const TextStyle(fontSize: 12)),
+        ],
+      ),
     );
   }
 }
@@ -320,6 +338,9 @@ class TownshipViewModel {
 
   /// The township state - use this for direct access to township data.
   TownshipState get township => _state.township;
+
+  /// Access to all game registries.
+  Registries get registries => _state.registries;
 
   int get townshipXp => _state.skillState(Skill.town).xp;
   int get townshipLevel => _state.skillState(Skill.town).skillLevel;
@@ -386,7 +407,7 @@ class TownshipViewModel {
   bool hasHealingResource(HealingResource resource) =>
       township.healingResourceAmount(resource) > 0;
 
-  TownshipResource? healingResourceData(HealingResource resource) =>
+  TownshipResource healingResourceData(HealingResource resource) =>
       township.registry.resourceById(resource.id);
 }
 
@@ -717,7 +738,7 @@ class _RepairAllSection extends StatelessWidget {
         final canAfford = viewModel.canAffordResource(resourceId, amount);
         chips.add(
           _CostChip(
-            assetPath: resource?.media,
+            assetPath: resource.media,
             value: approximateCreditString(amount),
             isAffordable: canAfford,
           ),
@@ -780,16 +801,14 @@ class _HealSection extends StatelessWidget {
       children: [
         Text('Need ', style: textStyle),
         CachedImage(
-          assetPath: viewModel
-              .healingResourceData(HealingResource.herbs)
-              ?.media,
+          assetPath: viewModel.healingResourceData(HealingResource.herbs).media,
           size: 16,
         ),
         Text(' or ', style: textStyle),
         CachedImage(
           assetPath: viewModel
               .healingResourceData(HealingResource.potions)
-              ?.media,
+              .media,
           size: 16,
         ),
         Text(' to heal', style: textStyle),
@@ -1258,7 +1277,7 @@ class _BuildingCard extends StatelessWidget {
         final canAfford = viewModel.canAffordResource(resourceId, amount);
         costWidgets.add(
           _CostChip(
-            assetPath: resource?.media,
+            assetPath: resource.media,
             value: approximateCountString(amount),
             isAffordable: canAfford,
           ),
@@ -1312,7 +1331,7 @@ class _BuildingCard extends StatelessWidget {
       final resource = registry.resourceById(entry.key);
       final perHour = entry.value.toStringAsFixed(0);
       benefitWidgets.add(
-        _BenefitChip(assetPath: resource?.media, value: '+$perHour/h'),
+        _BenefitChip(assetPath: resource.media, value: '+$perHour/h'),
       );
     }
 
@@ -1382,7 +1401,7 @@ class _BuildingCard extends StatelessWidget {
         final canAfford = viewModel.canAffordResource(resourceId, amount);
         costWidgets.add(
           _CostChip(
-            assetPath: resource?.media,
+            assetPath: resource.media,
             value: approximateCreditString(amount),
             isAffordable: canAfford,
           ),
@@ -1585,10 +1604,7 @@ class _BuildingPurchaseDialog extends StatelessWidget {
           Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Text(
-                '${resource?.name ?? resourceId.localId}: ',
-                style: const TextStyle(fontSize: 13),
-              ),
+              Text('${resource.name}: ', style: const TextStyle(fontSize: 13)),
               Text(
                 approximateCreditString(amount),
                 style: TextStyle(
@@ -1649,10 +1665,7 @@ class _BuildingPurchaseDialog extends StatelessWidget {
           Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Text(
-                '${resource?.name ?? resourceId.localId}: ',
-                style: const TextStyle(fontSize: 13),
-              ),
+              Text('${resource.name}: ', style: const TextStyle(fontSize: 13)),
               Text(
                 approximateCreditString(amount),
                 style: TextStyle(
@@ -1725,9 +1738,7 @@ class _BuildingPurchaseDialog extends StatelessWidget {
       final registry = viewModel.township.registry;
       for (final entry in biomeData.production.entries) {
         final resource = registry.resourceById(entry.key);
-        bonuses.add(
-          'Produces ${entry.value} ${resource?.name ?? entry.key.localId}/hr',
-        );
+        bonuses.add('Produces ${entry.value} ${resource.name}/hr');
       }
     }
 

@@ -241,7 +241,7 @@ TownshipUpdateResult processTownUpdate(
     final resource = registry.resourceById(entry.key);
     final amount = entry.value;
 
-    if (resource?.depositsToBank ?? false) {
+    if (resource.depositsToBank) {
       // GP goes directly to player
       gpProduced += amount;
     } else {

@@ -6,7 +6,6 @@ import 'package:better_idle/src/widgets/count_badge_cell.dart';
 import 'package:better_idle/src/widgets/item_image.dart';
 import 'package:better_idle/src/widgets/navigation_drawer.dart';
 import 'package:better_idle/src/widgets/open_result_dialog.dart';
-import 'package:better_idle/src/widgets/skills.dart';
 import 'package:better_idle/src/widgets/style.dart';
 import 'package:collection/collection.dart';
 import 'package:flutter/material.dart';

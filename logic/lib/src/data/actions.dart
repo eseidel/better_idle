@@ -145,6 +145,15 @@ enum Skill {
 
   /// Returns true if this skill applies to all combat types.
   bool get isUniversalCombatSkill => universalCombatSkills.contains(this);
+
+  /// Returns the asset path for this skill's icon.
+  String get assetPath {
+    final lower = name.toLowerCase();
+    if (this == Skill.altMagic) {
+      return 'assets/media/skills/magic/magic.png';
+    }
+    return 'assets/media/skills/$lower/$lower.png';
+  }
 }
 
 /// Base class for all actions that can occupy the "active" slot.

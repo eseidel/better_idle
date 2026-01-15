@@ -1,4 +1,8 @@
+import 'package:logic/src/data/actions.dart';
+import 'package:logic/src/data/currency.dart';
 import 'package:logic/src/data/melvor_id.dart';
+import 'package:logic/src/types/inventory.dart';
+import 'package:logic/src/types/time_away.dart';
 import 'package:meta/meta.dart';
 
 export 'package:logic/src/data/display_order.dart';
@@ -596,6 +600,29 @@ class TaskGoal {
 
   /// Required quantity (XP amount, item count, or kill count).
   final int quantity;
+
+  /// Returns the display name for this goal.
+  ///
+  /// For skill XP goals, returns the skill name + " XP".
+  /// For item goals, returns the item name.
+  /// For monster goals, returns the monster name.
+  String displayName(ItemRegistry items, ActionRegistry actions) =>
+      switch (type) {
+        TaskGoalType.skillXP => '${id.localId} XP',
+        TaskGoalType.items => items.byId(id).name,
+        TaskGoalType.monsters => actions.combatWithId(id).name,
+      };
+
+  /// Returns the asset path for this goal's icon.
+  ///
+  /// For skill XP goals, returns the skill icon path.
+  /// For item goals, returns the item's media path.
+  /// For monster goals, returns the monster's media path.
+  String asset(ItemRegistry items, ActionRegistry actions) => switch (type) {
+    TaskGoalType.skillXP => Skill.fromId(id).assetPath,
+    TaskGoalType.items => items.byId(id).media!,
+    TaskGoalType.monsters => actions.combatWithId(id).media!,
+  };
 }
 
 /// Types of rewards for Township tasks.
@@ -645,6 +672,34 @@ class TaskReward {
 
   /// Quantity of the reward.
   final int quantity;
+
+  /// Returns the display name for this reward.
+  ///
+  /// For item rewards, returns the item name.
+  /// For currency rewards, returns the currency abbreviation.
+  /// For skill XP rewards, returns the skill name + " XP".
+  /// For township resource rewards, returns the resource name.
+  String displayName(ItemRegistry items, TownshipRegistry township) =>
+      switch (type) {
+        TaskRewardType.item => items.byId(id).name,
+        TaskRewardType.currency => Currency.fromId(id.fullId).abbreviation,
+        TaskRewardType.skillXP => '${Skill.fromId(id).name} XP',
+        TaskRewardType.townshipResource => township.resourceById(id).name,
+      };
+
+  /// Returns the asset path for this reward's icon.
+  ///
+  /// For item rewards, returns the item's media path.
+  /// For currency rewards, returns the currency's asset path.
+  /// For skill XP rewards, returns the skill's icon path.
+  /// For township resource rewards, returns the resource's media path.
+  String? asset(ItemRegistry items, TownshipRegistry township) =>
+      switch (type) {
+        TaskRewardType.item => items.byId(id).media,
+        TaskRewardType.currency => Currency.fromId(id.fullId).assetPath,
+        TaskRewardType.skillXP => Skill.fromId(id).assetPath,
+        TaskRewardType.townshipResource => township.resourceById(id).media,
+      };
 }
 
 /// Task difficulty categories.
@@ -812,6 +867,31 @@ class TownshipTask {
 
   /// Rewards for completing this task.
   final List<TaskReward> rewards;
+
+  /// Converts task rewards to Changes for display in toasts/dialogs.
+  ///
+  /// Note: Township resource rewards are not included since they don't
+  /// appear in the standard toast display.
+  Changes rewardsToChanges(ItemRegistry items) {
+    var changes = const Changes.empty();
+    for (final reward in rewards) {
+      switch (reward.type) {
+        case TaskRewardType.item:
+          final item = items.byId(reward.id);
+          changes = changes.adding(ItemStack(item, count: reward.quantity));
+        case TaskRewardType.currency:
+          final currency = Currency.fromId(reward.id.fullId);
+          changes = changes.addingCurrency(currency, reward.quantity);
+        case TaskRewardType.skillXP:
+          final skill = Skill.fromId(reward.id);
+          changes = changes.addingSkillXp(skill, reward.quantity);
+        case TaskRewardType.townshipResource:
+          // Township resources don't show in the standard toast
+          break;
+      }
+    }
+    return changes;
+  }
 }
 
 /// Registry containing all Township data.
@@ -916,12 +996,12 @@ class TownshipRegistry {
   // Resource lookups
   // ---------------------------------------------------------------------------
 
-  /// Returns a resource by ID, or null if not found.
-  TownshipResource? resourceById(MelvorId id) {
+  /// Returns a resource by ID, or throws if not found.
+  TownshipResource resourceById(MelvorId id) {
     for (final resource in resources) {
       if (resource.id == id) return resource;
     }
-    return null;
+    throw StateError('Unknown township resource: $id');
   }
 
   // ---------------------------------------------------------------------------
@@ -988,12 +1068,12 @@ class TownshipRegistry {
   // Task lookups
   // ---------------------------------------------------------------------------
 
-  /// Returns a task by ID, or null if not found.
-  TownshipTask? taskById(MelvorId id) {
+  /// Returns a task by ID, or throws if not found.
+  TownshipTask taskById(MelvorId id) {
     for (final task in tasks) {
       if (task.id == id) return task;
     }
-    return null;
+    throw StateError('Unknown township task: $id');
   }
 
   /// Returns all tasks for a specific category.
