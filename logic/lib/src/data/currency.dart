@@ -32,6 +32,15 @@ enum Currency {
   /// Asset path for the currency icon
   final String assetPath;
 
+  // Township data explicitly uses the "melvorF" namespace for GP.
+  // Which I suspect is modeled in the real game by having a separate
+  // "township gp" that then proxies to the underlying player GP.
+  // For now instead we have this (error-prone) check to allow for both.
+  static const gpAltId = MelvorId('melvorF:GP');
+
+  /// Returns true if the given ID represents GP (either namespace).
+  static bool isGpId(MelvorId id) => id == gp.id || id == gpAltId;
+
   /// Look up a currency by its Melvor ID string.
   /// Throws if not found.
   static Currency fromIdString(String idString) {

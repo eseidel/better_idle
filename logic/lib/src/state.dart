@@ -1362,7 +1362,7 @@ class GlobalState {
       final required = entry.value;
 
       // GP is a special case - check against player currencies
-      if (Currency.gp.id == resourceId) {
+      if (Currency.isGpId(resourceId)) {
         if (gp < required) {
           return 'Not enough GP (need $required)';
         }
@@ -1397,7 +1397,7 @@ class GlobalState {
       final resourceId = entry.key;
       final cost = entry.value;
 
-      if (Currency.gp.id == resourceId) {
+      if (Currency.isGpId(resourceId)) {
         // Deduct GP from player currencies
         state = state.addCurrency(Currency.gp, -cost);
       } else {
@@ -1636,7 +1636,7 @@ class GlobalState {
       final resourceId = entry.key;
       final cost = entry.value;
 
-      if (Currency.gp.id == resourceId) {
+      if (Currency.isGpId(resourceId)) {
         state = state.addCurrency(Currency.gp, -cost);
       } else {
         newTownship = newTownship.removeResource(resourceId, cost);
@@ -1658,7 +1658,7 @@ class GlobalState {
   /// (GP + township resources).
   bool canAffordTownshipCosts(Map<MelvorId, int> costs) {
     for (final entry in costs.entries) {
-      if (Currency.gp.id == entry.key) {
+      if (Currency.isGpId(entry.key)) {
         if (gp < entry.value) return false;
       } else {
         if (township.resourceAmount(entry.key) < entry.value) return false;
@@ -1670,6 +1670,19 @@ class GlobalState {
   /// Returns true if the player can afford all repair costs for a building.
   bool canAffordTownshipRepair(MelvorId biomeId, MelvorId buildingId) =>
       canAffordTownshipCosts(township.repairCosts(biomeId, buildingId));
+
+  /// Returns true if the player can afford the building costs (ignoring level
+  /// requirements). Returns false if building/biome data is invalid.
+  bool canAffordTownshipBuildingCosts(MelvorId biomeId, MelvorId buildingId) {
+    final building = registries.township.buildingById(buildingId);
+    if (building == null) return false;
+
+    final biomeData = building.dataForBiome(biomeId);
+    if (biomeData == null) return false;
+
+    final costs = township.buildingCostsWithModifier(biomeData.costs);
+    return canAffordTownshipCosts(costs);
+  }
 
   /// Returns true if the player can afford all repair costs for all buildings.
   bool canAffordAllTownshipRepairs() =>
@@ -1694,7 +1707,7 @@ class GlobalState {
       final resourceId = entry.key;
       final cost = entry.value;
 
-      if (Currency.gp.id == resourceId) {
+      if (Currency.isGpId(resourceId)) {
         state = state.addCurrency(Currency.gp, -cost);
       } else {
         newTownship = newTownship.removeResource(resourceId, cost);

@@ -31,6 +31,7 @@ class TownshipPage extends StatefulWidget {
 
 class _TownshipPageState extends State<TownshipPage> {
   final Set<MelvorId> _collapsedBiomes = {};
+  _BuildingFilter _buildingFilter = _BuildingFilter.all;
 
   @override
   Widget build(BuildContext context) {
@@ -81,6 +82,9 @@ class _TownshipPageState extends State<TownshipPage> {
                       }
                     });
                   },
+                  buildingFilter: _buildingFilter,
+                  onFilterChanged: (filter) =>
+                      setState(() => _buildingFilter = filter),
                 ),
                 _TasksView(viewModel: viewModel),
               ],
@@ -98,11 +102,15 @@ class _TownView extends StatelessWidget {
     required this.viewModel,
     required this.collapsedBiomes,
     required this.onToggleBiome,
+    required this.buildingFilter,
+    required this.onFilterChanged,
   });
 
   final TownshipViewModel viewModel;
   final Set<MelvorId> collapsedBiomes;
   final void Function(MelvorId) onToggleBiome;
+  final _BuildingFilter buildingFilter;
+  final void Function(_BuildingFilter) onFilterChanged;
 
   @override
   Widget build(BuildContext context) {
@@ -111,6 +119,10 @@ class _TownView extends StatelessWidget {
         SkillProgress(xp: viewModel.townshipXp),
         _TownshipStatsCard(viewModel: viewModel),
         _TownshipResourcesCard(viewModel: viewModel),
+        _BuildingFilterHeader(
+          filter: buildingFilter,
+          onFilterChanged: onFilterChanged,
+        ),
         const Divider(),
         ...viewModel.township.registry.biomes.map(
           (TownshipBiome biome) => _BiomeSection(
@@ -118,11 +130,23 @@ class _TownView extends StatelessWidget {
             biome: biome,
             isCollapsed: collapsedBiomes.contains(biome.id),
             onToggleCollapse: () => onToggleBiome(biome.id),
+            buildingFilter: buildingFilter,
           ),
         ),
       ],
     );
   }
+}
+
+/// Filter modes for buildings.
+enum _BuildingFilter {
+  all,
+  affordable;
+
+  String get label => switch (this) {
+    all => 'All',
+    affordable => 'Affordable',
+  };
 }
 
 /// Sort modes for tasks.
@@ -248,6 +272,49 @@ class _TaskSortHeader extends StatelessWidget {
                 const Icon(Icons.sort, size: 18),
                 const SizedBox(width: 4),
                 Text(sortLabel, style: Theme.of(context).textTheme.bodySmall),
+                const Icon(Icons.arrow_drop_down, size: 18),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Header with filter toggle for buildings.
+class _BuildingFilterHeader extends StatelessWidget {
+  const _BuildingFilterHeader({
+    required this.filter,
+    required this.onFilterChanged,
+  });
+
+  final _BuildingFilter filter;
+  final void Function(_BuildingFilter) onFilterChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      child: Row(
+        children: [
+          const Spacer(),
+          PopupMenuButton<_BuildingFilter>(
+            initialValue: filter,
+            onSelected: onFilterChanged,
+            itemBuilder: (context) => [
+              for (final f in _BuildingFilter.values)
+                PopupMenuItem(value: f, child: Text(f.label)),
+            ],
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(Icons.filter_list, size: 18),
+                const SizedBox(width: 4),
+                Text(
+                  filter.label,
+                  style: Theme.of(context).textTheme.bodySmall,
+                ),
                 const Icon(Icons.arrow_drop_down, size: 18),
               ],
             ),
@@ -510,6 +577,11 @@ class TownshipViewModel {
 
   bool canAffordRepair(MelvorId biomeId, MelvorId buildingId) =>
       _state.canAffordTownshipRepair(biomeId, buildingId);
+
+  /// Returns true if the player can afford the building costs (ignoring level
+  /// requirements).
+  bool canAffordBuildingCosts(MelvorId biomeId, MelvorId buildingId) =>
+      _state.canAffordTownshipBuildingCosts(biomeId, buildingId);
 
   bool canAffordGp(int cost) => gp >= cost;
 
@@ -859,7 +931,7 @@ class _RepairAllSection extends StatelessWidget {
       final resourceId = entry.key;
       final amount = entry.value;
 
-      if (Currency.gp.id == resourceId) {
+      if (Currency.isGpId(resourceId)) {
         final canAfford = viewModel.canAffordGp(amount);
         chips.add(
           _CostChip(
@@ -1183,17 +1255,33 @@ class _BiomeSection extends StatelessWidget {
     required this.biome,
     required this.isCollapsed,
     required this.onToggleCollapse,
+    required this.buildingFilter,
   });
 
   final TownshipViewModel viewModel;
   final TownshipBiome biome;
   final bool isCollapsed;
   final VoidCallback onToggleCollapse;
+  final _BuildingFilter buildingFilter;
+
+  bool _isBuildingAffordable(TownshipBuilding building) {
+    final township = viewModel.township;
+    final needsRepair = township.buildingNeedsRepair(biome.id, building.id);
+    // Check cost affordability only (ignoring level requirements).
+    return needsRepair
+        ? viewModel.canAffordRepair(biome.id, building.id)
+        : viewModel.canAffordBuildingCosts(biome.id, building.id);
+  }
 
   @override
   Widget build(BuildContext context) {
     final isUnlocked = viewModel.township.isBiomeUnlocked(biome);
-    final buildings = viewModel.buildingsForBiome(biome.id);
+    var buildings = viewModel.buildingsForBiome(biome.id);
+
+    // Apply affordability filter.
+    if (buildingFilter == _BuildingFilter.affordable) {
+      buildings = buildings.where(_isBuildingAffordable).toList();
+    }
 
     return Column(
       children: [
@@ -1399,7 +1487,7 @@ class _BuildingCard extends StatelessWidget {
       final resourceId = entry.key;
       final amount = entry.value;
 
-      if (Currency.gp.id == resourceId) {
+      if (Currency.isGpId(resourceId)) {
         final canAfford = viewModel.canAffordGp(amount);
         costWidgets.add(
           _CostChip(
@@ -1523,7 +1611,7 @@ class _BuildingCard extends StatelessWidget {
       final resourceId = entry.key;
       final amount = entry.value;
 
-      if (Currency.gp.id == resourceId) {
+      if (Currency.isGpId(resourceId)) {
         final canAfford = viewModel.canAffordGp(amount);
         costWidgets.add(
           _CostChip(
@@ -1715,7 +1803,7 @@ class _BuildingPurchaseDialog extends StatelessWidget {
       final resourceId = entry.key;
       final amount = entry.value;
 
-      if (Currency.gp.id == resourceId) {
+      if (Currency.isGpId(resourceId)) {
         final canAfford = viewModel.canAffordGp(amount);
         costs.add(
           Row(
@@ -1774,7 +1862,7 @@ class _BuildingPurchaseDialog extends StatelessWidget {
       final resourceId = entry.key;
       final amount = entry.value;
 
-      if (Currency.gp.id == resourceId) {
+      if (Currency.isGpId(resourceId)) {
         // GP cost
         final canAfford = viewModel.canAffordGp(amount);
         costs.add(
