@@ -3478,4 +3478,613 @@ void main() {
       expect(state.gp, 1000);
     });
   });
+
+  group('TaskGoal', () {
+    group('displayName', () {
+      test('returns skill name + XP for skillXP goals', () {
+        const goal = TaskGoal(
+          type: TaskGoalType.skillXP,
+          id: MelvorId('melvorD:Woodcutting'),
+          quantity: 1000,
+        );
+
+        final items = ItemRegistry(const []);
+        final actions = ActionRegistry([]);
+
+        expect(goal.displayName(items, actions), 'Woodcutting XP');
+      });
+
+      test('returns item name for items goals', () {
+        const itemId = MelvorId('melvorD:Oak_Logs');
+        const item = Item(
+          id: itemId,
+          name: 'Oak Logs',
+          itemType: 'Logs',
+          sellsFor: 5,
+          media: 'assets/media/bank/logs_oak.png',
+        );
+
+        const goal = TaskGoal(
+          type: TaskGoalType.items,
+          id: itemId,
+          quantity: 100,
+        );
+
+        final items = ItemRegistry(const [item]);
+        final actions = ActionRegistry([]);
+
+        expect(goal.displayName(items, actions), 'Oak Logs');
+      });
+
+      test('returns monster name for monsters goals', () {
+        const monsterId = MelvorId('melvorD:Golbin');
+        final monster = CombatAction(
+          id: ActionId(Skill.combat.id, monsterId),
+          name: 'Golbin',
+          levels: const MonsterLevels(
+            hitpoints: 10,
+            attack: 1,
+            strength: 1,
+            defense: 1,
+            ranged: 1,
+            magic: 1,
+          ),
+          attackType: AttackType.melee,
+          attackSpeed: 2.4,
+          lootChance: 0,
+          minGpDrop: 0,
+          maxGpDrop: 0,
+          media: 'assets/media/monsters/golbin.png',
+        );
+
+        const goal = TaskGoal(
+          type: TaskGoalType.monsters,
+          id: monsterId,
+          quantity: 25,
+        );
+
+        final items = ItemRegistry(const []);
+        final actions = ActionRegistry([monster]);
+
+        expect(goal.displayName(items, actions), 'Golbin');
+      });
+    });
+
+    group('asset', () {
+      test('returns skill asset path for skillXP goals', () {
+        const goal = TaskGoal(
+          type: TaskGoalType.skillXP,
+          id: MelvorId('melvorD:Woodcutting'),
+          quantity: 1000,
+        );
+
+        final items = ItemRegistry(const []);
+        final actions = ActionRegistry([]);
+
+        expect(goal.asset(items, actions), Skill.woodcutting.assetPath);
+      });
+
+      test('returns item media for items goals', () {
+        const itemId = MelvorId('melvorD:Oak_Logs');
+        const item = Item(
+          id: itemId,
+          name: 'Oak Logs',
+          itemType: 'Logs',
+          sellsFor: 5,
+          media: 'assets/media/bank/logs_oak.png',
+        );
+
+        const goal = TaskGoal(
+          type: TaskGoalType.items,
+          id: itemId,
+          quantity: 100,
+        );
+
+        final items = ItemRegistry(const [item]);
+        final actions = ActionRegistry([]);
+
+        expect(goal.asset(items, actions), 'assets/media/bank/logs_oak.png');
+      });
+
+      test('returns monster media for monsters goals', () {
+        const monsterId = MelvorId('melvorD:Golbin');
+        final monster = CombatAction(
+          id: ActionId(Skill.combat.id, monsterId),
+          name: 'Golbin',
+          levels: const MonsterLevels(
+            hitpoints: 10,
+            attack: 1,
+            strength: 1,
+            defense: 1,
+            ranged: 1,
+            magic: 1,
+          ),
+          attackType: AttackType.melee,
+          attackSpeed: 2.4,
+          lootChance: 0,
+          minGpDrop: 0,
+          maxGpDrop: 0,
+          media: 'assets/media/monsters/golbin.png',
+        );
+
+        const goal = TaskGoal(
+          type: TaskGoalType.monsters,
+          id: monsterId,
+          quantity: 25,
+        );
+
+        final items = ItemRegistry(const []);
+        final actions = ActionRegistry([monster]);
+
+        expect(goal.asset(items, actions), 'assets/media/monsters/golbin.png');
+      });
+    });
+  });
+
+  group('TaskReward', () {
+    group('displayName', () {
+      test('returns item name for item rewards', () {
+        const itemId = MelvorId('melvorD:Oak_Logs');
+        const item = Item(
+          id: itemId,
+          name: 'Oak Logs',
+          itemType: 'Logs',
+          sellsFor: 5,
+          media: 'assets/media/bank/logs_oak.png',
+        );
+
+        const reward = TaskReward(
+          type: TaskRewardType.item,
+          id: itemId,
+          quantity: 50,
+        );
+
+        final items = ItemRegistry(const [item]);
+        const township = TownshipRegistry.empty();
+
+        expect(reward.displayName(items, township), 'Oak Logs');
+      });
+
+      test('returns currency abbreviation for currency rewards', () {
+        const reward = TaskReward(
+          type: TaskRewardType.currency,
+          id: MelvorId('melvorD:GP'),
+          quantity: 1000,
+        );
+
+        final items = ItemRegistry(const []);
+        const township = TownshipRegistry.empty();
+
+        expect(reward.displayName(items, township), 'GP');
+      });
+
+      test('returns slayer coins abbreviation for SC rewards', () {
+        const reward = TaskReward(
+          type: TaskRewardType.currency,
+          id: MelvorId('melvorD:SlayerCoins'),
+          quantity: 500,
+        );
+
+        final items = ItemRegistry(const []);
+        const township = TownshipRegistry.empty();
+
+        expect(reward.displayName(items, township), 'SC');
+      });
+
+      test('returns skill name + XP for skillXP rewards', () {
+        const reward = TaskReward(
+          type: TaskRewardType.skillXP,
+          id: MelvorId('melvorD:Mining'),
+          quantity: 5000,
+        );
+
+        final items = ItemRegistry(const []);
+        const township = TownshipRegistry.empty();
+
+        expect(reward.displayName(items, township), 'Mining XP');
+      });
+
+      test('returns resource name for townshipResource rewards', () {
+        const resourceId = MelvorId('melvorF:Wood');
+        const resource = TownshipResource(
+          id: resourceId,
+          name: 'Wood',
+          type: 'Raw',
+          media: 'assets/media/township/wood.png',
+        );
+
+        const reward = TaskReward(
+          type: TaskRewardType.townshipResource,
+          id: resourceId,
+          quantity: 200,
+        );
+
+        final items = ItemRegistry(const []);
+        const township = TownshipRegistry(resources: [resource]);
+
+        expect(reward.displayName(items, township), 'Wood');
+      });
+    });
+
+    group('asset', () {
+      test('returns item media for item rewards', () {
+        const itemId = MelvorId('melvorD:Oak_Logs');
+        const item = Item(
+          id: itemId,
+          name: 'Oak Logs',
+          itemType: 'Logs',
+          sellsFor: 5,
+          media: 'assets/media/bank/logs_oak.png',
+        );
+
+        const reward = TaskReward(
+          type: TaskRewardType.item,
+          id: itemId,
+          quantity: 50,
+        );
+
+        final items = ItemRegistry(const [item]);
+        const township = TownshipRegistry.empty();
+
+        expect(reward.asset(items, township), 'assets/media/bank/logs_oak.png');
+      });
+
+      test('returns currency asset path for currency rewards', () {
+        const reward = TaskReward(
+          type: TaskRewardType.currency,
+          id: MelvorId('melvorD:GP'),
+          quantity: 1000,
+        );
+
+        final items = ItemRegistry(const []);
+        const township = TownshipRegistry.empty();
+
+        expect(reward.asset(items, township), Currency.gp.assetPath);
+      });
+
+      test('returns skill asset path for skillXP rewards', () {
+        const reward = TaskReward(
+          type: TaskRewardType.skillXP,
+          id: MelvorId('melvorD:Fishing'),
+          quantity: 3000,
+        );
+
+        final items = ItemRegistry(const []);
+        const township = TownshipRegistry.empty();
+
+        expect(reward.asset(items, township), Skill.fishing.assetPath);
+      });
+
+      test('returns resource media for townshipResource rewards', () {
+        const resourceId = MelvorId('melvorF:Wood');
+        const resource = TownshipResource(
+          id: resourceId,
+          name: 'Wood',
+          type: 'Raw',
+          media: 'assets/media/township/wood.png',
+        );
+
+        const reward = TaskReward(
+          type: TaskRewardType.townshipResource,
+          id: resourceId,
+          quantity: 200,
+        );
+
+        final items = ItemRegistry(const []);
+        const township = TownshipRegistry(resources: [resource]);
+
+        expect(reward.asset(items, township), 'assets/media/township/wood.png');
+      });
+    });
+  });
+
+  group('TaskCategory', () {
+    test('displayName returns correct values for all categories', () {
+      expect(TaskCategory.easy.displayName, 'Easy');
+      expect(TaskCategory.normal.displayName, 'Normal');
+      expect(TaskCategory.hard.displayName, 'Hard');
+      expect(TaskCategory.veryHard.displayName, 'Very Hard');
+      expect(TaskCategory.elite.displayName, 'Elite');
+    });
+  });
+
+  group('TownshipTask', () {
+    group('rewardsToChanges', () {
+      test('converts item rewards to Changes', () {
+        const itemId = MelvorId('melvorD:Oak_Logs');
+        const item = Item(
+          id: itemId,
+          name: 'Oak Logs',
+          itemType: 'Logs',
+          sellsFor: 5,
+        );
+
+        const task = TownshipTask(
+          id: MelvorId('melvorD:Test_Task'),
+          category: TaskCategory.easy,
+          rewards: [
+            TaskReward(type: TaskRewardType.item, id: itemId, quantity: 100),
+          ],
+        );
+
+        final items = ItemRegistry(const [item]);
+        final changes = task.rewardsToChanges(items);
+
+        expect(changes.inventoryChanges.counts.length, 1);
+        expect(changes.inventoryChanges.counts[itemId], 100);
+      });
+
+      test('converts currency rewards to Changes', () {
+        const task = TownshipTask(
+          id: MelvorId('melvorD:Test_Task'),
+          category: TaskCategory.normal,
+          rewards: [
+            TaskReward(
+              type: TaskRewardType.currency,
+              id: MelvorId('melvorD:GP'),
+              quantity: 5000,
+            ),
+          ],
+        );
+
+        final items = ItemRegistry(const []);
+        final changes = task.rewardsToChanges(items);
+
+        expect(changes.currenciesGained.length, 1);
+        expect(changes.currenciesGained[Currency.gp], 5000);
+      });
+
+      test('converts skillXP rewards to Changes', () {
+        const task = TownshipTask(
+          id: MelvorId('melvorD:Test_Task'),
+          category: TaskCategory.hard,
+          rewards: [
+            TaskReward(
+              type: TaskRewardType.skillXP,
+              id: MelvorId('melvorD:Mining'),
+              quantity: 10000,
+            ),
+          ],
+        );
+
+        final items = ItemRegistry(const []);
+        final changes = task.rewardsToChanges(items);
+
+        expect(changes.skillXpChanges.counts.length, 1);
+        expect(changes.skillXpChanges.counts[Skill.mining], 10000);
+      });
+
+      test('excludes townshipResource rewards from Changes', () {
+        const task = TownshipTask(
+          id: MelvorId('melvorD:Test_Task'),
+          category: TaskCategory.elite,
+          rewards: [
+            TaskReward(
+              type: TaskRewardType.townshipResource,
+              id: MelvorId('melvorF:Wood'),
+              quantity: 500,
+            ),
+          ],
+        );
+
+        final items = ItemRegistry(const []);
+        final changes = task.rewardsToChanges(items);
+
+        expect(changes.inventoryChanges.isEmpty, isTrue);
+        expect(changes.currenciesGained.isEmpty, isTrue);
+        expect(changes.skillXpChanges.isEmpty, isTrue);
+      });
+
+      test('converts multiple mixed rewards to Changes', () {
+        const itemId = MelvorId('melvorD:Oak_Logs');
+        const item = Item(
+          id: itemId,
+          name: 'Oak Logs',
+          itemType: 'Logs',
+          sellsFor: 5,
+        );
+
+        const task = TownshipTask(
+          id: MelvorId('melvorD:Test_Task'),
+          category: TaskCategory.veryHard,
+          rewards: [
+            TaskReward(type: TaskRewardType.item, id: itemId, quantity: 50),
+            TaskReward(
+              type: TaskRewardType.currency,
+              id: MelvorId('melvorD:GP'),
+              quantity: 2000,
+            ),
+            TaskReward(
+              type: TaskRewardType.skillXP,
+              id: MelvorId('melvorD:Woodcutting'),
+              quantity: 5000,
+            ),
+            TaskReward(
+              type: TaskRewardType.townshipResource,
+              id: MelvorId('melvorF:Stone'),
+              quantity: 100,
+            ),
+          ],
+        );
+
+        final items = ItemRegistry(const [item]);
+        final changes = task.rewardsToChanges(items);
+
+        expect(changes.inventoryChanges.counts.length, 1);
+        expect(changes.inventoryChanges.counts[itemId], 50);
+        expect(changes.currenciesGained.length, 1);
+        expect(changes.currenciesGained[Currency.gp], 2000);
+        expect(changes.skillXpChanges.counts.length, 1);
+        expect(changes.skillXpChanges.counts[Skill.woodcutting], 5000);
+      });
+    });
+  });
+
+  group('TownshipRegistry', () {
+    group('buildingDisplayName', () {
+      test('returns building name for non-statue buildings', () {
+        const building = TownshipBuilding(
+          id: MelvorId('melvorD:House'),
+          name: 'House',
+          tier: 1,
+          biomeData: {},
+          validBiomes: {},
+        );
+
+        const deity = TownshipDeity(
+          id: MelvorId('melvorD:Bane'),
+          name: 'Bane',
+          statueName: 'Statue of Bane',
+        );
+
+        const registry = TownshipRegistry(buildings: [building]);
+
+        expect(registry.buildingDisplayName(building, deity), 'House');
+      });
+
+      test('returns statue name from deity for statue building', () {
+        const statue = TownshipBuilding(
+          id: TownshipRegistry.statuesBuildingId,
+          name: 'Statues',
+          tier: 1,
+          biomeData: {},
+          validBiomes: {},
+        );
+
+        const deity = TownshipDeity(
+          id: MelvorId('melvorD:Aeris'),
+          name: 'Aeris',
+          statueName: 'Statue of Aeris',
+        );
+
+        const registry = TownshipRegistry(buildings: [statue]);
+
+        expect(registry.buildingDisplayName(statue, deity), 'Statue of Aeris');
+      });
+
+      test('returns building name for statue when deity is null', () {
+        const statue = TownshipBuilding(
+          id: TownshipRegistry.statuesBuildingId,
+          name: 'Statues',
+          tier: 1,
+          biomeData: {},
+          validBiomes: {},
+        );
+
+        const registry = TownshipRegistry(buildings: [statue]);
+
+        expect(registry.buildingDisplayName(statue, null), 'Statues');
+      });
+
+      test('returns building name when deity has empty statueName', () {
+        const statue = TownshipBuilding(
+          id: TownshipRegistry.statuesBuildingId,
+          name: 'Statues',
+          tier: 1,
+          biomeData: {},
+          validBiomes: {},
+        );
+
+        const deity = TownshipDeity(
+          id: MelvorId('melvorD:NoStatue'),
+          name: 'No Statue Deity',
+        );
+
+        const registry = TownshipRegistry(buildings: [statue]);
+
+        expect(registry.buildingDisplayName(statue, deity), 'Statues');
+      });
+    });
+
+    group('buildingDisplayMedia', () {
+      test('returns building media for non-statue buildings', () {
+        const building = TownshipBuilding(
+          id: MelvorId('melvorD:House'),
+          name: 'House',
+          tier: 1,
+          biomeData: {},
+          validBiomes: {},
+          media: 'assets/media/township/house.png',
+        );
+
+        const deity = TownshipDeity(
+          id: MelvorId('melvorD:Bane'),
+          name: 'Bane',
+          statueMedia: 'assets/media/township/bane_statue.png',
+        );
+
+        const registry = TownshipRegistry(buildings: [building]);
+
+        expect(
+          registry.buildingDisplayMedia(building, deity),
+          'assets/media/township/house.png',
+        );
+      });
+
+      test('returns statue media from deity for statue building', () {
+        const statue = TownshipBuilding(
+          id: TownshipRegistry.statuesBuildingId,
+          name: 'Statues',
+          tier: 1,
+          biomeData: {},
+          validBiomes: {},
+          media: 'assets/media/township/statues.png',
+        );
+
+        const deity = TownshipDeity(
+          id: MelvorId('melvorD:Aeris'),
+          name: 'Aeris',
+          statueMedia: 'assets/media/township/aeris_statue.png',
+        );
+
+        const registry = TownshipRegistry(buildings: [statue]);
+
+        expect(
+          registry.buildingDisplayMedia(statue, deity),
+          'assets/media/township/aeris_statue.png',
+        );
+      });
+
+      test('returns building media for statue when deity is null', () {
+        const statue = TownshipBuilding(
+          id: TownshipRegistry.statuesBuildingId,
+          name: 'Statues',
+          tier: 1,
+          biomeData: {},
+          validBiomes: {},
+          media: 'assets/media/township/statues.png',
+        );
+
+        const registry = TownshipRegistry(buildings: [statue]);
+
+        expect(
+          registry.buildingDisplayMedia(statue, null),
+          'assets/media/township/statues.png',
+        );
+      });
+
+      test('returns building media when deity has null statueMedia', () {
+        const statue = TownshipBuilding(
+          id: TownshipRegistry.statuesBuildingId,
+          name: 'Statues',
+          tier: 1,
+          biomeData: {},
+          validBiomes: {},
+          media: 'assets/media/township/statues.png',
+        );
+
+        const deity = TownshipDeity(
+          id: MelvorId('melvorD:NoMedia'),
+          name: 'No Media Deity',
+        );
+
+        const registry = TownshipRegistry(buildings: [statue]);
+
+        expect(
+          registry.buildingDisplayMedia(statue, deity),
+          'assets/media/township/statues.png',
+        );
+      });
+    });
+  });
 }
