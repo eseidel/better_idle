@@ -135,9 +135,6 @@ enum Skill {
   /// Returns true if this is a combat-related skill.
   bool get isCombatSkill => combatSkills.contains(this);
 
-  /// Returns true if this skill applies to all combat types.
-  bool get isUniversalCombatSkill => universalCombatSkills.contains(this);
-
   /// Returns the asset path for this skill's icon.
   String get assetPath {
     final lower = name.toLowerCase();
