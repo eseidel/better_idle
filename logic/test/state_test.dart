@@ -1249,6 +1249,226 @@ void main() {
     });
   });
 
+  group('GlobalState.equipGear for summoning tablets', () {
+    late Item tablet;
+
+    setUpAll(() {
+      // Get a summoning tablet from the registry
+      final summoningAction = testActions
+          .forSkill(Skill.summoning)
+          .whereType<SummoningAction>()
+          .first;
+      tablet = testItems.byId(summoningAction.productId);
+    });
+
+    test('equips entire stack of summoning tablets', () {
+      final state = GlobalState.test(
+        testRegistries,
+        inventory: Inventory.fromItems(testItems, [
+          ItemStack(tablet, count: 50),
+        ]),
+      );
+
+      final newState = state.equipGear(tablet, EquipmentSlot.summon1);
+
+      // Entire stack should be removed from inventory
+      expect(newState.inventory.countOfItem(tablet), 0);
+      // Tablet should be equipped with full count
+      expect(newState.equipment.gearInSlot(EquipmentSlot.summon1), tablet);
+      expect(newState.equipment.summonCountInSlot(EquipmentSlot.summon1), 50);
+    });
+
+    test('swaps summoning tablets and returns previous stack to inventory', () {
+      // Get a second tablet type
+      final summoningActions = testActions
+          .forSkill(Skill.summoning)
+          .whereType<SummoningAction>()
+          .toList();
+      // Skip first action to get a different tablet
+      final tablet2 = testItems.byId(summoningActions[1].productId);
+
+      // Start with tablet1 equipped (25 count) and tablet2 in inventory (30)
+      final equipment = Equipment(
+        foodSlots: const [null, null, null],
+        selectedFoodSlot: 0,
+        gearSlots: {EquipmentSlot.summon1: tablet},
+        summonCounts: const {EquipmentSlot.summon1: 25},
+      );
+      final state = GlobalState.test(
+        testRegistries,
+        inventory: Inventory.fromItems(testItems, [
+          ItemStack(tablet2, count: 30),
+        ]),
+        equipment: equipment,
+      );
+
+      final newState = state.equipGear(tablet2, EquipmentSlot.summon1);
+
+      // New tablet should be equipped with full count
+      expect(newState.equipment.gearInSlot(EquipmentSlot.summon1), tablet2);
+      expect(newState.equipment.summonCountInSlot(EquipmentSlot.summon1), 30);
+      // Old tablet stack should be back in inventory
+      expect(newState.inventory.countOfItem(tablet), 25);
+      // New tablet should be removed from inventory
+      expect(newState.inventory.countOfItem(tablet2), 0);
+    });
+  });
+
+  group('GlobalState.unequipGear for summoning tablets', () {
+    late Item tablet;
+
+    setUpAll(() {
+      // Get a summoning tablet from the registry
+      final summoningAction = testActions
+          .forSkill(Skill.summoning)
+          .whereType<SummoningAction>()
+          .first;
+      tablet = testItems.byId(summoningAction.productId);
+    });
+
+    test('returns full stack of summoning tablets to inventory', () {
+      final equipment = Equipment(
+        foodSlots: const [null, null, null],
+        selectedFoodSlot: 0,
+        gearSlots: {EquipmentSlot.summon1: tablet},
+        summonCounts: const {EquipmentSlot.summon1: 75},
+      );
+      final state = GlobalState.test(testRegistries, equipment: equipment);
+
+      final newState = state.unequipGear(EquipmentSlot.summon1);
+
+      expect(newState, isNotNull);
+      expect(newState!.equipment.gearInSlot(EquipmentSlot.summon1), isNull);
+      expect(newState.equipment.summonCountInSlot(EquipmentSlot.summon1), 0);
+      // Full stack should be in inventory
+      expect(newState.inventory.countOfItem(tablet), 75);
+    });
+
+    test('stacks with existing tablets in inventory', () {
+      final equipment = Equipment(
+        foodSlots: const [null, null, null],
+        selectedFoodSlot: 0,
+        gearSlots: {EquipmentSlot.summon1: tablet},
+        summonCounts: const {EquipmentSlot.summon1: 50},
+      );
+      final state = GlobalState.test(
+        testRegistries,
+        inventory: Inventory.fromItems(testItems, [
+          ItemStack(tablet, count: 25),
+        ]),
+        equipment: equipment,
+      );
+
+      final newState = state.unequipGear(EquipmentSlot.summon1);
+
+      expect(newState, isNotNull);
+      // 25 + 50 = 75 tablets in inventory
+      expect(newState!.inventory.countOfItem(tablet), 75);
+    });
+  });
+
+  group('GlobalState.equipGear for quiver slot (ammo)', () {
+    late Item bronzeArrows;
+    late Item ironArrows;
+
+    setUpAll(() {
+      bronzeArrows = testItems.byName('Bronze Arrows');
+      ironArrows = testItems.byName('Iron Arrows');
+    });
+
+    test('equips entire stack of arrows', () {
+      final state = GlobalState.test(
+        testRegistries,
+        inventory: Inventory.fromItems(testItems, [
+          ItemStack(bronzeArrows, count: 100),
+        ]),
+      );
+
+      final newState = state.equipGear(bronzeArrows, EquipmentSlot.quiver);
+
+      // Entire stack should be removed from inventory
+      expect(newState.inventory.countOfItem(bronzeArrows), 0);
+      // Arrows should be equipped with full count
+      expect(newState.equipment.gearInSlot(EquipmentSlot.quiver), bronzeArrows);
+      expect(newState.equipment.stackCountInSlot(EquipmentSlot.quiver), 100);
+    });
+
+    test('swaps arrows and returns previous stack to inventory', () {
+      // Start with bronze arrows equipped and iron arrows in inventory
+      final equipment = Equipment(
+        foodSlots: const [null, null, null],
+        selectedFoodSlot: 0,
+        gearSlots: {EquipmentSlot.quiver: bronzeArrows},
+        summonCounts: const {EquipmentSlot.quiver: 50},
+      );
+      final state = GlobalState.test(
+        testRegistries,
+        inventory: Inventory.fromItems(testItems, [
+          ItemStack(ironArrows, count: 75),
+        ]),
+        equipment: equipment,
+      );
+
+      final newState = state.equipGear(ironArrows, EquipmentSlot.quiver);
+
+      // New arrows should be equipped with full count
+      expect(newState.equipment.gearInSlot(EquipmentSlot.quiver), ironArrows);
+      expect(newState.equipment.stackCountInSlot(EquipmentSlot.quiver), 75);
+      // Old arrows should be back in inventory
+      expect(newState.inventory.countOfItem(bronzeArrows), 50);
+      // New arrows should be removed from inventory
+      expect(newState.inventory.countOfItem(ironArrows), 0);
+    });
+  });
+
+  group('GlobalState.unequipGear for quiver slot (ammo)', () {
+    late Item bronzeArrows;
+
+    setUpAll(() {
+      bronzeArrows = testItems.byName('Bronze Arrows');
+    });
+
+    test('returns full stack of arrows to inventory', () {
+      final equipment = Equipment(
+        foodSlots: const [null, null, null],
+        selectedFoodSlot: 0,
+        gearSlots: {EquipmentSlot.quiver: bronzeArrows},
+        summonCounts: const {EquipmentSlot.quiver: 200},
+      );
+      final state = GlobalState.test(testRegistries, equipment: equipment);
+
+      final newState = state.unequipGear(EquipmentSlot.quiver);
+
+      expect(newState, isNotNull);
+      expect(newState!.equipment.gearInSlot(EquipmentSlot.quiver), isNull);
+      expect(newState.equipment.stackCountInSlot(EquipmentSlot.quiver), 0);
+      // Full stack should be in inventory
+      expect(newState.inventory.countOfItem(bronzeArrows), 200);
+    });
+
+    test('stacks with existing arrows in inventory', () {
+      final equipment = Equipment(
+        foodSlots: const [null, null, null],
+        selectedFoodSlot: 0,
+        gearSlots: {EquipmentSlot.quiver: bronzeArrows},
+        summonCounts: const {EquipmentSlot.quiver: 100},
+      );
+      final state = GlobalState.test(
+        testRegistries,
+        inventory: Inventory.fromItems(testItems, [
+          ItemStack(bronzeArrows, count: 50),
+        ]),
+        equipment: equipment,
+      );
+
+      final newState = state.unequipGear(EquipmentSlot.quiver);
+
+      expect(newState, isNotNull);
+      // 50 + 100 = 150 arrows in inventory
+      expect(newState!.inventory.countOfItem(bronzeArrows), 150);
+    });
+  });
+
   group('GlobalState.setRecipeIndex', () {
     test('sets the selected recipe index for an action', () {
       final state = GlobalState.test(testRegistries);

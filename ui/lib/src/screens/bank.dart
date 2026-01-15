@@ -495,8 +495,15 @@ class _ItemDetailsDrawerState extends State<ItemDetailsDrawer> {
                 const SizedBox(height: 16),
                 _EquipFoodSection(item: itemData, maxCount: maxCount),
               ],
-              // Show Equip button for gear items
-              if (itemData.isEquippable) ...[
+              // Show Equip button for summoning tablets
+              if (itemData.isSummonTablet) ...[
+                const SizedBox(height: 32),
+                const Divider(),
+                const SizedBox(height: 16),
+                _EquipSummonSection(item: itemData, maxCount: maxCount),
+              ]
+              // Show Equip button for other gear items
+              else if (itemData.isEquippable) ...[
                 const SizedBox(height: 32),
                 const Divider(),
                 const SizedBox(height: 16),
@@ -829,6 +836,158 @@ class _EquipSlotButton extends StatelessWidget {
               },
         child: Text(buttonText),
       ),
+    );
+  }
+}
+
+class _EquipSummonSection extends StatelessWidget {
+  const _EquipSummonSection({required this.item, required this.maxCount});
+
+  final Item item;
+  final int maxCount;
+
+  @override
+  Widget build(BuildContext context) {
+    final state = context.state;
+    final equipment = state.equipment;
+
+    // Get unmet equipment requirements
+    final unmetRequirements = state.unmetEquipRequirements(item);
+    final canEquip = unmetRequirements.isEmpty;
+
+    // Check what's in each summon slot
+    final summon1Item = equipment.gearInSlot(EquipmentSlot.summon1);
+    final summon1Count = equipment.summonCountInSlot(EquipmentSlot.summon1);
+    final summon2Item = equipment.gearInSlot(EquipmentSlot.summon2);
+    final summon2Count = equipment.summonCountInSlot(EquipmentSlot.summon2);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text('Equip Summon', style: Theme.of(context).textTheme.titleMedium),
+        const SizedBox(height: 8),
+        Text(
+          'In inventory: ${approximateCountString(maxCount)}',
+          style: Theme.of(context).textTheme.bodyMedium,
+        ),
+        // Show unmet requirements if any
+        if (unmetRequirements.isNotEmpty) ...[
+          const SizedBox(height: 8),
+          _EquipRequirementsDisplay(requirements: unmetRequirements),
+        ],
+        const SizedBox(height: 16),
+        // Show current summon slots
+        Text('Summon Slots:', style: Theme.of(context).textTheme.titleSmall),
+        const SizedBox(height: 8),
+        _SummonSlotRow(
+          slotName: 'Slot 1',
+          slot: EquipmentSlot.summon1,
+          equippedItem: summon1Item,
+          equippedCount: summon1Count,
+          itemToEquip: item,
+          canEquip: canEquip,
+        ),
+        const SizedBox(height: 8),
+        _SummonSlotRow(
+          slotName: 'Slot 2',
+          slot: EquipmentSlot.summon2,
+          equippedItem: summon2Item,
+          equippedCount: summon2Count,
+          itemToEquip: item,
+          canEquip: canEquip,
+        ),
+      ],
+    );
+  }
+}
+
+class _SummonSlotRow extends StatelessWidget {
+  const _SummonSlotRow({
+    required this.slotName,
+    required this.slot,
+    required this.equippedItem,
+    required this.equippedCount,
+    required this.itemToEquip,
+    required this.canEquip,
+  });
+
+  final String slotName;
+  final EquipmentSlot slot;
+  final Item? equippedItem;
+  final int equippedCount;
+  final Item itemToEquip;
+  final bool canEquip;
+
+  @override
+  Widget build(BuildContext context) {
+    final isEmpty = equippedItem == null;
+    final isSameItem = equippedItem == itemToEquip;
+
+    String buttonText;
+    VoidCallback? onPressed;
+
+    if (isEmpty) {
+      buttonText = 'Equip';
+    } else if (isSameItem) {
+      buttonText = 'Add More';
+    } else {
+      buttonText = 'Replace';
+    }
+
+    onPressed = canEquip
+        ? () {
+            context.dispatch(EquipGearAction(item: itemToEquip, slot: slot));
+            Navigator.of(context).pop();
+          }
+        : null;
+
+    return Row(
+      children: [
+        // Slot icon/status
+        Container(
+          width: 48,
+          height: 48,
+          decoration: BoxDecoration(
+            color: Style.cellBackgroundColor,
+            borderRadius: BorderRadius.circular(4),
+            border: Border.all(color: Style.cellBorderColor),
+          ),
+          child: isEmpty
+              ? const Center(
+                  child: Icon(Icons.add, color: Colors.grey, size: 24),
+                )
+              : Center(child: ItemImage(item: equippedItem!, size: 36)),
+        ),
+        const SizedBox(width: 12),
+        // Slot info
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                slotName,
+                style: Theme.of(
+                  context,
+                ).textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.bold),
+              ),
+              if (isEmpty)
+                Text(
+                  'Empty',
+                  style: TextStyle(color: Style.textColorMuted, fontSize: 12),
+                )
+              else
+                Text(
+                  '${equippedItem!.name} x$equippedCount',
+                  style: TextStyle(color: Style.textColorInfo, fontSize: 12),
+                  overflow: TextOverflow.ellipsis,
+                ),
+            ],
+          ),
+        ),
+        const SizedBox(width: 8),
+        // Action button
+        ElevatedButton(onPressed: onPressed, child: Text(buttonText)),
+      ],
     );
   }
 }

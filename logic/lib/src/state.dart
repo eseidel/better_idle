@@ -1801,7 +1801,8 @@ class GlobalState {
   }
 
   /// Equips a gear item from inventory to a specific equipment slot.
-  /// Removes one item from inventory and equips it.
+  /// For summoning tablets, equips the entire stack from inventory.
+  /// For other items, removes one item from inventory and equips it.
   /// If there was an item in that slot, it's returned to inventory.
   /// Throws StateError if player doesn't have the item, doesn't meet
   /// requirements, or inventory is full when swapping.
@@ -1818,10 +1819,53 @@ class GlobalState {
     if (!canEquipGear(item)) {
       throw StateError('Cannot equip ${item.name}: requirements not met');
     }
-    if (inventory.countOfItem(item) < 1) {
+    final itemCount = inventory.countOfItem(item);
+    if (itemCount < 1) {
       throw StateError('Cannot equip ${item.name}: not in inventory');
     }
 
+    // For stack slots (summon tablets, ammo), equip the entire stack
+    if (slot.isStackSlot) {
+      final previousItem = equipment.gearInSlot(slot);
+
+      // If same item is already equipped, add to the existing stack
+      if (previousItem == item) {
+        final newInventory = inventory.removing(
+          ItemStack(item, count: itemCount),
+        );
+        final newEquipment = equipment.addToStackedItem(item, slot, itemCount);
+        return copyWith(inventory: newInventory, equipment: newEquipment);
+      }
+
+      // Different item - check if we have room for a swap
+      if (previousItem != null) {
+        if (!inventory.canAdd(previousItem, capacity: inventoryCapacity)) {
+          throw StateError(
+            'Inventory is full, cannot swap ${previousItem.name} for '
+            '${item.name}',
+          );
+        }
+      }
+
+      // Remove the entire stack from inventory
+      var newInventory = inventory.removing(ItemStack(item, count: itemCount));
+
+      // Equip the item with its full count
+      final (newEquipment, previousStack) = equipment.equipStackedItem(
+        item,
+        slot,
+        itemCount,
+      );
+
+      // Add previous item stack back to inventory if there was one
+      if (previousStack != null) {
+        newInventory = newInventory.adding(previousStack);
+      }
+
+      return copyWith(inventory: newInventory, equipment: newEquipment);
+    }
+
+    // Regular equipment: remove one item
     // Check if we're swapping and have room in inventory
     final previousItem = equipment.gearInSlot(slot);
     if (previousItem != null) {
@@ -1848,9 +1892,26 @@ class GlobalState {
   }
 
   /// Unequips gear from a specific slot and moves it to inventory.
+  /// For stack slots (summon tablets, ammo), returns the full stack.
   /// Throws StateError if inventory is full.
   /// Returns null if the slot is empty.
   GlobalState? unequipGear(EquipmentSlot slot) {
+    // For stack slots, use unequipStackedItem to get the full stack
+    if (slot.isStackSlot) {
+      final result = equipment.unequipStackedItem(slot);
+      if (result == null) return null;
+
+      final (stack, newEquipment) = result;
+      if (!inventory.canAdd(stack.item, capacity: inventoryCapacity)) {
+        throw StateError(
+          'Inventory is full, cannot unequip ${stack.item.name}',
+        );
+      }
+      final newInventory = inventory.adding(stack);
+      return copyWith(inventory: newInventory, equipment: newEquipment);
+    }
+
+    // Regular equipment: unequip single item
     final result = equipment.unequipGear(slot);
     if (result == null) return null;
 

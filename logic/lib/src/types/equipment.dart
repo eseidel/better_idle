@@ -286,9 +286,9 @@ class Equipment {
     // Remove the item from equipment (it's lost forever)
     final newGearSlots = Map<EquipmentSlot, Item>.from(gearSlots)..remove(slot);
 
-    // For summon slots, include the full stack count
-    final count = slot.isSummonSlot ? (summonCounts[slot] ?? 1) : 1;
-    final newSummonCounts = slot.isSummonSlot
+    // For stack slots (summon or quiver), include the full stack count
+    final count = slot.isStackSlot ? (summonCounts[slot] ?? 1) : 1;
+    final newSummonCounts = slot.isStackSlot
         ? (Map<EquipmentSlot, int>.from(summonCounts)..remove(slot))
         : summonCounts;
 
@@ -304,6 +304,95 @@ class Equipment {
 
   /// Returns the count for a summon slot, or 0 if not equipped.
   int summonCountInSlot(EquipmentSlot slot) => summonCounts[slot] ?? 0;
+
+  /// Returns the stack count for a slot that tracks stacks (summon or quiver).
+  /// Returns 0 if nothing is equipped in the slot.
+  int stackCountInSlot(EquipmentSlot slot) => summonCounts[slot] ?? 0;
+
+  /// Equips a stacked item (ammo or summoning tablet) in the given slot.
+  /// Returns the updated equipment and any previously equipped item stack.
+  /// Throws ArgumentError if the slot doesn't support stacking.
+  (Equipment, ItemStack?) equipStackedItem(
+    Item item,
+    EquipmentSlot slot,
+    int count,
+  ) {
+    if (!slot.isStackSlot) {
+      throw ArgumentError('$slot does not support stacked items');
+    }
+    if (!item.canEquipInSlot(slot)) {
+      throw ArgumentError(
+        'Cannot equip ${item.name} in $slot slot. '
+        'Valid slots: ${item.validSlots}',
+      );
+    }
+
+    final previousItem = gearSlots[slot];
+    final previousCount = summonCounts[slot] ?? 0;
+    ItemStack? previousStack;
+    if (previousItem != null && previousCount > 0) {
+      previousStack = ItemStack(previousItem, count: previousCount);
+    }
+
+    final newGearSlots = Map<EquipmentSlot, Item>.from(gearSlots);
+    final newSummonCounts = Map<EquipmentSlot, int>.from(summonCounts);
+    newGearSlots[slot] = item;
+    newSummonCounts[slot] = count;
+
+    return (
+      copyWith(gearSlots: newGearSlots, summonCounts: newSummonCounts),
+      previousStack,
+    );
+  }
+
+  /// Adds to an existing stacked item in the given slot.
+  /// The item must match what's already equipped.
+  /// Returns the updated equipment.
+  /// Throws ArgumentError if the slot doesn't support stacking or item doesn't
+  /// match.
+  Equipment addToStackedItem(Item item, EquipmentSlot slot, int count) {
+    if (!slot.isStackSlot) {
+      throw ArgumentError('$slot does not support stacked items');
+    }
+    final currentItem = gearSlots[slot];
+    if (currentItem == null) {
+      throw ArgumentError('No item equipped in $slot slot');
+    }
+    if (currentItem != item) {
+      throw ArgumentError(
+        'Cannot add ${item.name} to $slot slot: '
+        '${currentItem.name} is already equipped',
+      );
+    }
+
+    final currentCount = summonCounts[slot] ?? 0;
+    final newSummonCounts = Map<EquipmentSlot, int>.from(summonCounts);
+    newSummonCounts[slot] = currentCount + count;
+
+    return copyWith(summonCounts: newSummonCounts);
+  }
+
+  /// Unequips a stacked item from the given slot.
+  /// Returns the item stack and updated equipment, or null if slot is empty.
+  /// Throws ArgumentError if the slot doesn't support stacking.
+  (ItemStack, Equipment)? unequipStackedItem(EquipmentSlot slot) {
+    if (!slot.isStackSlot) {
+      throw ArgumentError('$slot does not support stacked items');
+    }
+
+    final item = gearSlots[slot];
+    if (item == null) return null;
+
+    final count = summonCounts[slot] ?? 1;
+    final newGearSlots = Map<EquipmentSlot, Item>.from(gearSlots)..remove(slot);
+    final newSummonCounts = Map<EquipmentSlot, int>.from(summonCounts)
+      ..remove(slot);
+
+    return (
+      ItemStack(item, count: count),
+      copyWith(gearSlots: newGearSlots, summonCounts: newSummonCounts),
+    );
+  }
 
   /// Equips a summoning tablet in the given slot with the specified count.
   /// Returns the updated equipment and any previously equipped tablet stack.

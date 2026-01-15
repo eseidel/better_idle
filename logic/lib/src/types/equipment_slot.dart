@@ -63,4 +63,11 @@ enum EquipmentSlot {
 
   /// Returns true if this slot is for summoning tablets.
   bool get isSummonSlot => this == summon1 || this == summon2;
+
+  /// Returns true if this slot is for the quiver (ammo).
+  bool get isQuiverSlot => this == quiver;
+
+  /// Returns true if this slot tracks stack counts (summon slots and quiver).
+  /// Items in these slots are equipped as entire stacks rather than singles.
+  bool get isStackSlot => isSummonSlot || isQuiverSlot;
 }
