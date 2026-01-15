@@ -60,23 +60,39 @@ class ItemCountBadgesRow extends StatelessWidget {
   const ItemCountBadgesRow._({
     required this.items,
     required this.showInventory,
+    this.onItemTap,
     super.key,
   });
 
   /// Creates a row showing required item counts (no inventory comparison).
   const ItemCountBadgesRow.required({
     required Map<MelvorId, int> items,
+    void Function(Item item)? onItemTap,
     Key? key,
-  }) : this._(items: items, showInventory: false, key: key);
+  }) : this._(
+         items: items,
+         showInventory: false,
+         onItemTap: onItemTap,
+         key: key,
+       );
 
   /// Creates a row showing inventory counts with color-coded borders.
   const ItemCountBadgesRow.inventory({
     required Map<MelvorId, int> items,
+    void Function(Item item)? onItemTap,
     Key? key,
-  }) : this._(items: items, showInventory: true, key: key);
+  }) : this._(
+         items: items,
+         showInventory: true,
+         onItemTap: onItemTap,
+         key: key,
+       );
 
   final Map<MelvorId, int> items;
   final bool showInventory;
+
+  /// Optional callback when an item is tapped.
+  final void Function(Item item)? onItemTap;
 
   @override
   Widget build(BuildContext context) {
@@ -96,17 +112,23 @@ class ItemCountBadgesRow extends StatelessWidget {
         final item = state.registries.items.byId(entry.key);
         final requiredCount = entry.value;
 
+        Widget cell;
         if (showInventory) {
           final inventoryCount = state.inventory.countOfItem(item);
           final hasEnough = inventoryCount >= requiredCount;
-          return ItemCountBadgeCell(
+          cell = ItemCountBadgeCell(
             item: item,
             count: inventoryCount,
             hasEnough: hasEnough,
           );
+        } else {
+          cell = ItemCountBadgeCell(item: item, count: requiredCount);
         }
 
-        return ItemCountBadgeCell(item: item, count: requiredCount);
+        if (onItemTap != null) {
+          return GestureDetector(onTap: () => onItemTap!(item), child: cell);
+        }
+        return cell;
       }).toList(),
     );
   }

@@ -51,6 +51,7 @@ class SkillActionDisplay extends StatelessWidget {
     this.additionalContent,
     this.durationBuilder,
     this.productId,
+    this.onInputItemTap,
     super.key,
   });
 
@@ -84,6 +85,9 @@ class SkillActionDisplay extends StatelessWidget {
   /// The product item ID to show with inventory count badge in the header.
   /// If null, no product icon is shown.
   final MelvorId? productId;
+
+  /// Callback when an input item is tapped. Used to show purchase dialogs.
+  final void Function(Item item)? onInputItemTap;
 
   bool get _isUnlocked =>
       skill == null || skillLevel == null || skillLevel! >= action.unlockLevel;
@@ -239,7 +243,10 @@ class SkillActionDisplay extends StatelessWidget {
                 style: TextStyle(fontWeight: FontWeight.bold),
               ),
               const SizedBox(height: 4),
-              ItemCountBadgesRow.required(items: inputs),
+              ItemCountBadgesRow.required(
+                items: inputs,
+                onItemTap: onInputItemTap,
+              ),
               const SizedBox(height: 8),
 
               // You Have section
@@ -248,7 +255,10 @@ class SkillActionDisplay extends StatelessWidget {
                 style: TextStyle(fontWeight: FontWeight.bold),
               ),
               const SizedBox(height: 4),
-              ItemCountBadgesRow.inventory(items: inputs),
+              ItemCountBadgesRow.inventory(
+                items: inputs,
+                onItemTap: onInputItemTap,
+              ),
               const SizedBox(height: 8),
             ],
 

@@ -6,6 +6,7 @@ import 'package:better_idle/src/widgets/item_image.dart';
 import 'package:better_idle/src/widgets/mastery_pool.dart';
 import 'package:better_idle/src/widgets/mastery_unlocks_dialog.dart';
 import 'package:better_idle/src/widgets/navigation_drawer.dart';
+import 'package:better_idle/src/widgets/shard_purchase_dialog.dart';
 import 'package:better_idle/src/widgets/skill_action_display.dart';
 import 'package:better_idle/src/widgets/skill_image.dart';
 import 'package:better_idle/src/widgets/skill_milestones_dialog.dart';
@@ -21,8 +22,29 @@ class SummoningPage extends StatefulWidget {
   State<SummoningPage> createState() => _SummoningPageState();
 }
 
-class _SummoningPageState extends State<SummoningPage> {
-  SkillAction? _selectedAction;
+class _SummoningPageState extends State<SummoningPage>
+    with SingleTickerProviderStateMixin {
+  late TabController _tabController;
+  SummoningAction? _selectedAction;
+
+  @override
+  void initState() {
+    super.initState();
+    _tabController = TabController(length: 2, vsync: this);
+  }
+
+  @override
+  void dispose() {
+    _tabController.dispose();
+    super.dispose();
+  }
+
+  void _navigateToTabletForAction(SummoningAction action) {
+    setState(() {
+      _selectedAction = action;
+    });
+    _tabController.animateTo(1); // Switch to Tablets tab
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -51,7 +73,28 @@ class _SummoningPageState extends State<SummoningPage> {
         (unlockedActions.isNotEmpty ? unlockedActions.first : actions.first);
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Summoning')),
+      appBar: AppBar(
+        title: const Text('Summoning'),
+        bottom: TabBar(
+          controller: _tabController,
+          tabs: const [
+            Tab(
+              icon: CachedImage(
+                assetPath: 'assets/media/skills/summoning/mark_4_256.png',
+                size: 24,
+              ),
+              text: 'Marks',
+            ),
+            Tab(
+              icon: CachedImage(
+                assetPath: 'assets/media/skills/summoning/summoning.png',
+                size: 24,
+              ),
+              text: 'Tablets',
+            ),
+          ],
+        ),
+      ),
       drawer: const AppNavigationDrawer(),
       body: Column(
         children: [
@@ -66,33 +109,345 @@ class _SummoningPageState extends State<SummoningPage> {
             ],
           ),
           Expanded(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                children: [
-                  _SummoningActionDisplay(
-                    action: selectedAction as SummoningAction,
-                    skillLevel: skillLevel,
-                    onStart: () {
-                      context.dispatch(
-                        ToggleActionAction(action: selectedAction),
-                      );
-                    },
+            child: TabBarView(
+              controller: _tabController,
+              children: [
+                _MarksTab(
+                  actions: actions,
+                  skillLevel: skillLevel,
+                  onCreateTablets: _navigateToTabletForAction,
+                ),
+                _TabletsTab(
+                  actions: actions,
+                  selectedAction: selectedAction,
+                  skillLevel: skillLevel,
+                  onSelectAction: (action) {
+                    setState(() {
+                      _selectedAction = action;
+                    });
+                  },
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// The Marks tab showing all summoning marks and their discovery progress.
+class _MarksTab extends StatelessWidget {
+  const _MarksTab({
+    required this.actions,
+    required this.skillLevel,
+    required this.onCreateTablets,
+  });
+
+  final List<SummoningAction> actions;
+  final int skillLevel;
+  final void Function(SummoningAction) onCreateTablets;
+
+  @override
+  Widget build(BuildContext context) {
+    // Group actions by tier
+    final tier1 = actions.where((a) => a.tier == 1).toList();
+    final tier2 = actions.where((a) => a.tier == 2).toList();
+    final tier3 = actions.where((a) => a.tier == 3).toList();
+
+    return ListView(
+      padding: const EdgeInsets.all(16),
+      children: [
+        if (tier1.isNotEmpty) ...[
+          const _TierHeader(tier: 1),
+          _buildMarkGrid(context, tier1),
+        ],
+        if (tier2.isNotEmpty) ...[
+          const SizedBox(height: 16),
+          const _TierHeader(tier: 2),
+          _buildMarkGrid(context, tier2),
+        ],
+        if (tier3.isNotEmpty) ...[
+          const SizedBox(height: 16),
+          const _TierHeader(tier: 3),
+          _buildMarkGrid(context, tier3),
+        ],
+      ],
+    );
+  }
+
+  Widget _buildMarkGrid(
+    BuildContext context,
+    List<SummoningAction> tierActions,
+  ) {
+    return Wrap(
+      spacing: 8,
+      runSpacing: 8,
+      children: tierActions.map((action) {
+        return _MarkCard(
+          action: action,
+          skillLevel: skillLevel,
+          onCreateTablets: () => onCreateTablets(action),
+        );
+      }).toList(),
+    );
+  }
+}
+
+/// A card displaying a summoning mark with its progress and discovery info.
+class _MarkCard extends StatelessWidget {
+  const _MarkCard({
+    required this.action,
+    required this.skillLevel,
+    required this.onCreateTablets,
+  });
+
+  final SummoningAction action;
+  final int skillLevel;
+  final VoidCallback onCreateTablets;
+
+  @override
+  Widget build(BuildContext context) {
+    final isUnlocked = skillLevel >= action.unlockLevel;
+
+    if (!isUnlocked) {
+      return _LockedMarkCard(action: action);
+    }
+
+    final state = context.state;
+    final summoningState = state.summoning;
+    final marks = summoningState.marksFor(action.productId);
+    final markLevel = summoningState.markLevel(action.productId);
+    final canCraft = summoningState.canCraftTablet(action.productId);
+    final maxMarkLevel = markLevelThresholds.length;
+
+    // Calculate progress to next mark level
+    final nextThreshold = markLevel < markLevelThresholds.length
+        ? markLevelThresholds[markLevel]
+        : markLevelThresholds.last;
+    final prevThreshold = markLevel > 0
+        ? markLevelThresholds[markLevel - 1]
+        : 0;
+    final progressInLevel = marks - prevThreshold;
+    final levelRange = nextThreshold - prevThreshold;
+    final progress = markLevel >= markLevelThresholds.length
+        ? 1.0
+        : (progressInLevel / levelRange).clamp(0.0, 1.0);
+
+    return SizedBox(
+      width: 160,
+      child: Card(
+        color: canCraft ? null : Style.cellBackgroundColorLocked,
+        child: Padding(
+          padding: const EdgeInsets.all(12),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Mark level header
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: marks > 0
+                      ? Colors.amber.withAlpha(50)
+                      : Style.containerBackgroundLight,
+                  borderRadius: BorderRadius.circular(4),
+                ),
+                child: Text(
+                  'Mark Level $markLevel',
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.bold,
+                    color: marks > 0 ? Colors.amber : Style.textColorSecondary,
                   ),
-                  const SizedBox(height: 24),
-                  _ActionList(
-                    actions: actions,
-                    selectedAction: selectedAction,
-                    skillLevel: skillLevel,
-                    onSelect: (action) {
-                      setState(() {
-                        _selectedAction = action;
-                      });
-                    },
+                ),
+              ),
+              const SizedBox(height: 8),
+              // "Mark of the" label
+              const Text(
+                'Mark of the',
+                style: TextStyle(fontSize: 10, color: Style.textColorSecondary),
+              ),
+              // Familiar name
+              Text(
+                action.name,
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.bold,
+                ),
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+              ),
+              const SizedBox(height: 8),
+              // Mark image
+              if (action.markMedia != null)
+                CachedImage(assetPath: action.markMedia, size: 48)
+              else
+                Container(
+                  width: 48,
+                  height: 48,
+                  decoration: BoxDecoration(
+                    color: Style.containerBackgroundLight,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: const Icon(Icons.star, size: 32, color: Colors.amber),
+                ),
+              const SizedBox(height: 8),
+              // Progress bar
+              SizedBox(
+                height: 8,
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(4),
+                  child: LinearProgressIndicator(
+                    value: progress,
+                    backgroundColor: Style.progressBackgroundColor,
+                    valueColor: AlwaysStoppedAnimation<Color>(
+                      marks == 0 ? Style.textColorSecondary : Colors.amber,
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 4),
+              // Progress text
+              Text(
+                markLevel >= maxMarkLevel
+                    ? 'MAX ($marks marks)'
+                    : '$marks / $nextThreshold',
+                style: const TextStyle(fontSize: 10),
+              ),
+              const SizedBox(height: 8),
+              // Discovered in section
+              const Text(
+                'Discovered In:',
+                style: TextStyle(fontSize: 10, color: Style.textColorSecondary),
+              ),
+              const SizedBox(height: 4),
+              _MarkDiscoverySkillsRow(skillIds: action.markSkillIds),
+              const SizedBox(height: 12),
+              // Create Tablets button
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: canCraft ? onCreateTablets : null,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: canCraft ? Style.successColor : null,
+                    padding: const EdgeInsets.symmetric(vertical: 8),
+                  ),
+                  child: const Text(
+                    'Create Tablets',
+                    style: TextStyle(fontSize: 12, color: Colors.white),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// A locked mark card showing the level requirement.
+class _LockedMarkCard extends StatelessWidget {
+  const _LockedMarkCard({required this.action});
+
+  final SummoningAction action;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: 160,
+      child: Card(
+        color: Style.cellBackgroundColorLocked,
+        child: Padding(
+          padding: const EdgeInsets.all(12),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text(
+                'Locked',
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.bold,
+                  color: Style.textColorSecondary,
+                ),
+              ),
+              const SizedBox(height: 16),
+              Container(
+                width: 48,
+                height: 48,
+                decoration: BoxDecoration(
+                  color: Style.containerBackgroundLight,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: const Icon(
+                  Icons.help_outline,
+                  size: 32,
+                  color: Style.textColorSecondary,
+                ),
+              ),
+              const SizedBox(height: 16),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Text(
+                    'Requires ',
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: Style.textColorSecondary,
+                    ),
+                  ),
+                  const SkillImage(skill: Skill.summoning, size: 14),
+                  Text(
+                    ' Level ${action.unlockLevel}',
+                    style: const TextStyle(
+                      fontSize: 11,
+                      color: Style.textColorSecondary,
+                    ),
                   ),
                 ],
               ),
-            ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// The Tablets tab for creating summoning tablets.
+class _TabletsTab extends StatelessWidget {
+  const _TabletsTab({
+    required this.actions,
+    required this.selectedAction,
+    required this.skillLevel,
+    required this.onSelectAction,
+  });
+
+  final List<SummoningAction> actions;
+  final SummoningAction selectedAction;
+  final int skillLevel;
+  final void Function(SummoningAction) onSelectAction;
+
+  @override
+  Widget build(BuildContext context) {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        children: [
+          _SummoningActionDisplay(
+            action: selectedAction,
+            skillLevel: skillLevel,
+            onStart: () {
+              context.dispatch(ToggleActionAction(action: selectedAction));
+            },
+          ),
+          const SizedBox(height: 24),
+          _ActionList(
+            actions: actions,
+            selectedAction: selectedAction,
+            skillLevel: skillLevel,
+            onSelect: onSelectAction,
           ),
         ],
       ),
@@ -133,12 +488,23 @@ class _SummoningActionDisplay extends StatelessWidget {
       headerText: 'Create',
       buttonText: 'Create',
       onStart: onStart,
+      onInputItemTap: (item) => _onShardTap(context, item),
       additionalContent: _MarkProgressRow(
         marks: marks,
         markLevel: markLevel,
         markMedia: action.markMedia,
       ),
     );
+  }
+
+  void _onShardTap(BuildContext context, Item item) {
+    // Check if this item has any shop purchases available
+    final purchases = context.state.registries.shop.purchasesContainingItem(
+      item.id,
+    );
+    if (purchases.isNotEmpty) {
+      showShardPurchaseDialog(context, item);
+    }
   }
 
   Widget _buildNeedMarksDisplay(
@@ -211,10 +577,6 @@ class _MarkDiscoverySkillsRow extends StatelessWidget {
       spacing: 4,
       runSpacing: 4,
       children: [
-        const Text(
-          'Found in: ',
-          style: TextStyle(color: Style.textColorSecondary, fontSize: 12),
-        ),
         for (final skill in skillIds.map(Skill.fromId))
           Tooltip(
             message: skill.name,
@@ -481,7 +843,11 @@ class _ActionList extends StatelessWidget {
                 markLevel: markLevel,
                 markMedia: action.markMedia,
               ),
-              if (canCraft) InputItemsRow(items: action.inputs),
+              if (canCraft)
+                InputItemsRow(
+                  items: action.inputs,
+                  onItemTap: (item) => _onShardTap(context, item),
+                ),
             ],
           ),
           trailing: isSelected
@@ -491,6 +857,16 @@ class _ActionList extends StatelessWidget {
         ),
       );
     }).toList();
+  }
+
+  void _onShardTap(BuildContext context, Item item) {
+    // Check if this item has any shop purchases available
+    final purchases = context.state.registries.shop.purchasesContainingItem(
+      item.id,
+    );
+    if (purchases.isNotEmpty) {
+      showShardPurchaseDialog(context, item);
+    }
   }
 }
 

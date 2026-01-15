@@ -215,6 +215,18 @@ class PurchaseShopItemAction extends ReduxAction<GlobalState> {
       }
     }
 
+    // Check inventory space for granted items before processing
+    final grantedItems = purchase.contains.items;
+    if (grantedItems.isNotEmpty) {
+      final capacity = state.inventoryCapacity;
+      for (final grantedItem in grantedItems) {
+        final item = state.registries.items.byId(grantedItem.itemId);
+        if (!state.inventory.canAdd(item, capacity: capacity)) {
+          throw Exception('Not enough bank space for ${item.name}');
+        }
+      }
+    }
+
     // Calculate and apply currency costs
     var newState = state;
     final currencyCosts = purchase.cost.currencyCosts(
@@ -243,6 +255,14 @@ class PurchaseShopItemAction extends ReduxAction<GlobalState> {
       }
       newInventory = newInventory.removing(
         ItemStack(item, count: itemCost.quantity),
+      );
+    }
+
+    // Add items granted by the purchase
+    for (final grantedItem in purchase.contains.items) {
+      final item = state.registries.items.byId(grantedItem.itemId);
+      newInventory = newInventory.adding(
+        ItemStack(item, count: grantedItem.quantity),
       );
     }
 

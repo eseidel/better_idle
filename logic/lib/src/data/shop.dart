@@ -658,6 +658,16 @@ class ShopRegistry {
   /// Returns the purchase by ID, or null if not found.
   ShopPurchase? byId(MelvorId id) => _byId[id.toJson()];
 
+  /// Returns all purchases that contain the given item.
+  ///
+  /// This finds shop purchases where `contains.items` includes the specified
+  /// item ID. Used to find where summoning shards can be purchased.
+  List<ShopPurchase> purchasesContainingItem(MelvorId itemId) {
+    return _purchases.where((p) {
+      return p.contains.items.any((cost) => cost.itemId == itemId);
+    }).toList();
+  }
+
   /// Returns purchases that affect the given skill via interval modifiers.
   List<ShopPurchase> purchasesAffectingSkill(Skill skill) {
     return _purchases.where((p) => p.hasSkillIntervalFor(skill.id)).toList();
