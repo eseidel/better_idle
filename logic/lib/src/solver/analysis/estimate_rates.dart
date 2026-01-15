@@ -327,7 +327,8 @@ Rates estimateRatesForAction(GlobalState state, ActionId actionId) {
 /// Returns a map of item name -> expected count per action.
 /// Uses allDropsForAction which includes action outputs (via rewardsAtLevel),
 /// skill-level drops, and global drops.
-/// Applies skillItemDoublingChance from resolved modifiers.
+/// Applies skillItemDoublingChance and other modifiers (e.g.,
+/// randomProductChance for SkillDrops).
 Map<MelvorId, double> _computeItemFlowsPerAction(
   GlobalState state,
   SkillAction action,
@@ -342,14 +343,29 @@ Map<MelvorId, double> _computeItemFlowsPerAction(
     selection,
   );
 
-  // Get doubling chance from modifiers
+  // Get modifiers for rate calculations
   final modifiers = state.resolveSkillModifiers(action);
   final doublingChance = (modifiers.skillItemDoublingChance / 100.0).clamp(
     0.0,
     1.0,
   );
+  final multiplier = 1.0 + doublingChance;
 
-  return expectedItemsForDrops(dropsForAction, doublingChance: doublingChance);
+  // Compute expected items, accounting for SkillDrop modifiers
+  final result = <MelvorId, double>{};
+  for (final drop in dropsForAction) {
+    final Map<MelvorId, double> expectedItems;
+    if (drop is SkillDrop) {
+      // Use modifier-aware expected items for SkillDrops
+      expectedItems = drop.expectedItemsWithModifiers(modifiers);
+    } else {
+      expectedItems = drop.expectedItems;
+    }
+    for (final entry in expectedItems.entries) {
+      result[entry.key] = (result[entry.key] ?? 0) + entry.value * multiplier;
+    }
+  }
+  return result;
 }
 
 /// Estimates expected rates (flows) for the current state.

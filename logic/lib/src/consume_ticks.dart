@@ -1038,6 +1038,8 @@ XpPerAction xpPerAction(
 
 /// Rolls all drops for an action and adds them to inventory.
 /// Applies skillItemDoublingChance from modifiers to double items.
+/// For SkillDrops, applies modifier-based rate boosts (e.g.,
+/// randomProductChance for bird nests).
 /// Returns false if any item was dropped due to full inventory.
 bool rollAndCollectDrops(
   StateUpdateBuilder builder,
@@ -1056,7 +1058,14 @@ bool rollAndCollectDrops(
   );
 
   for (final drop in registries.drops.allDropsForAction(action, selection)) {
-    var itemStack = drop.roll(registries.items, random);
+    // Roll the drop, using modifiers for SkillDrops
+    ItemStack? itemStack;
+    if (drop is SkillDrop) {
+      itemStack = drop.rollWithModifiers(registries.items, random, modifiers);
+    } else {
+      itemStack = drop.roll(registries.items, random);
+    }
+
     if (itemStack != null) {
       // Apply doubling chance
       if (doublingChance > 0 && random.nextDouble() < doublingChance) {

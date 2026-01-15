@@ -331,8 +331,16 @@ class SkillAction extends Action {
 
 // Skill-level drops: shared across all actions in a skill.
 // This can include both simple Drops and DropTables.
+// Use SkillDrop for drops that can be boosted by modifiers.
 final skillDrops = <Skill, List<Droppable>>{
-  Skill.woodcutting: [const Drop(MelvorId('melvorD:Bird_Nest'), rate: 0.005)],
+  Skill.woodcutting: [
+    // Bird nest drop rate is boosted by randomProductChance (e.g., Bird Nest
+    // Potion). Base rate 0.5%, potion adds +5% to +30% depending on tier.
+    const SkillDrop(
+      Drop(MelvorId('melvorD:Bird_Nest'), rate: 0.005),
+      modifierName: 'randomProductChance',
+    ),
+  ],
   Skill.firemaking: [
     const Drop(MelvorId('melvorD:Coal_Ore'), rate: 0.40),
     const Drop(MelvorId('melvorF:Ash'), rate: 0.20),
