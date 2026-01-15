@@ -41,8 +41,20 @@ class _TownshipPageState extends State<TownshipPage> {
           title: const Text('Township'),
           bottom: const TabBar(
             tabs: [
-              Tab(text: 'Town'),
-              Tab(text: 'Tasks'),
+              Tab(
+                icon: CachedImage(
+                  assetPath: 'assets/media/skills/township/menu_town.png',
+                  size: 24,
+                ),
+                text: 'Town',
+              ),
+              Tab(
+                icon: CachedImage(
+                  assetPath: 'assets/media/skills/township/menu_tasks.png',
+                  size: 24,
+                ),
+                text: 'Tasks',
+              ),
             ],
           ),
         ),
@@ -113,47 +125,135 @@ class _TownView extends StatelessWidget {
   }
 }
 
-/// The tasks view showing township tasks by category.
-class _TasksView extends StatelessWidget {
+/// Sort modes for tasks.
+enum _TaskSortMode { difficulty, completion }
+
+/// The tasks view showing township tasks.
+class _TasksView extends StatefulWidget {
   const _TasksView({required this.viewModel});
 
   final TownshipViewModel viewModel;
 
   @override
-  Widget build(BuildContext context) {
-    return ListView(
-      children: [
-        SkillProgress(xp: viewModel.townshipXp),
-        for (final category in TaskCategory.values)
-          _TaskCategorySection(viewModel: viewModel, category: category),
-      ],
-    );
-  }
+  State<_TasksView> createState() => _TasksViewState();
 }
 
-/// A section showing tasks for a specific category.
-class _TaskCategorySection extends StatelessWidget {
-  const _TaskCategorySection({required this.viewModel, required this.category});
-
-  final TownshipViewModel viewModel;
-  final TaskCategory category;
+class _TasksViewState extends State<_TasksView> {
+  _TaskSortMode _sortMode = _TaskSortMode.difficulty;
 
   @override
   Widget build(BuildContext context) {
-    final tasks = viewModel.township.registry.tasksForCategory(category);
-    if (tasks.isEmpty) return const SizedBox.shrink();
+    final viewModel = widget.viewModel;
+    final allTasks = <TownshipTask>[];
+    for (final category in TaskCategory.values) {
+      allTasks.addAll(viewModel.township.registry.tasksForCategory(category));
+    }
 
+    // Filter out completed tasks.
     final completedTasks = viewModel.township.completedMainTasks;
-    final completedCount = tasks
-        .where((t) => completedTasks.contains(t.id))
-        .length;
+    final incompleteTasks = allTasks
+        .where((t) => !completedTasks.contains(t.id))
+        .toList();
 
-    return ExpansionTile(
-      title: Text(category.displayName),
-      subtitle: Text('$completedCount / ${tasks.length} completed'),
+    // Sort based on mode.
+    if (_sortMode == _TaskSortMode.completion) {
+      incompleteTasks.sort((a, b) {
+        final aProgress = _taskCompletionProgress(viewModel, a);
+        final bProgress = _taskCompletionProgress(viewModel, b);
+        return bProgress.compareTo(aProgress); // Higher progress first.
+      });
+    }
+    // For difficulty mode, tasks are already in category order.
+
+    final totalCount = allTasks.length;
+    final completedCount = completedTasks.length;
+
+    return ListView(
       children: [
-        for (final task in tasks) _TaskCard(viewModel: viewModel, task: task),
+        SkillProgress(xp: viewModel.townshipXp),
+        _TaskSortHeader(
+          sortMode: _sortMode,
+          onSortChanged: (mode) => setState(() => _sortMode = mode),
+          completedCount: completedCount,
+          totalCount: totalCount,
+        ),
+        for (final task in incompleteTasks)
+          _TaskCard(viewModel: viewModel, task: task),
       ],
+    );
+  }
+
+  /// Returns completion progress as a ratio (0.0 to 1.0).
+  double _taskCompletionProgress(
+    TownshipViewModel viewModel,
+    TownshipTask task,
+  ) {
+    if (task.goals.isEmpty) return 0;
+    var totalProgress = 0.0;
+    for (final goal in task.goals) {
+      final current = viewModel.getGoalProgress(task.id, goal);
+      final progress = (current / goal.quantity).clamp(0.0, 1.0);
+      totalProgress += progress;
+    }
+    return totalProgress / task.goals.length;
+  }
+}
+
+/// Header with sort toggle for tasks.
+class _TaskSortHeader extends StatelessWidget {
+  const _TaskSortHeader({
+    required this.sortMode,
+    required this.onSortChanged,
+    required this.completedCount,
+    required this.totalCount,
+  });
+
+  final _TaskSortMode sortMode;
+  final void Function(_TaskSortMode) onSortChanged;
+  final int completedCount;
+  final int totalCount;
+
+  @override
+  Widget build(BuildContext context) {
+    final sortLabel = switch (sortMode) {
+      _TaskSortMode.difficulty => 'Difficulty',
+      _TaskSortMode.completion => 'Completion',
+    };
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      child: Row(
+        children: [
+          Text(
+            '$completedCount / $totalCount completed',
+            style: Theme.of(context).textTheme.bodySmall,
+          ),
+          const Spacer(),
+          PopupMenuButton<_TaskSortMode>(
+            initialValue: sortMode,
+            onSelected: onSortChanged,
+            itemBuilder: (context) => const [
+              PopupMenuItem(
+                value: _TaskSortMode.difficulty,
+                child: Text('Difficulty'),
+              ),
+              PopupMenuItem(
+                value: _TaskSortMode.completion,
+                child: Text('Completion'),
+              ),
+            ],
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(Icons.sort, size: 18),
+                const SizedBox(width: 4),
+                Text(sortLabel, style: Theme.of(context).textTheme.bodySmall),
+                const Icon(Icons.arrow_drop_down, size: 18),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -167,22 +267,27 @@ class _TaskCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isCompleted = viewModel.township.completedMainTasks.contains(task.id);
     final canClaim = viewModel.isTaskClaimable(task.id);
+    final categoryName = '${task.category.displayName} Task';
 
     return Card(
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-      color: isCompleted ? Colors.grey.shade200 : null,
       child: Padding(
         padding: const EdgeInsets.all(12),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Goals section
-            Text('Goals:', style: Theme.of(context).textTheme.titleSmall),
+            // Category header (e.g., "Easy Task")
+            Text(categoryName, style: Theme.of(context).textTheme.titleSmall),
             const SizedBox(height: 4),
-            for (final goal in task.goals)
-              _GoalRow(viewModel: viewModel, task: task, goal: goal),
+            Wrap(
+              spacing: 8,
+              runSpacing: 4,
+              children: [
+                for (final goal in task.goals)
+                  _GoalChip(viewModel: viewModel, task: task, goal: goal),
+              ],
+            ),
             const SizedBox(height: 8),
 
             // Rewards section
@@ -192,38 +297,32 @@ class _TaskCard extends StatelessWidget {
               spacing: 8,
               runSpacing: 4,
               children: [
-                for (final reward in task.rewards)
+                // Show currencies first, then other rewards.
+                for (final reward in task.rewards.where(
+                  (r) => r.type == TaskRewardType.currency,
+                ))
+                  _RewardChip(reward: reward, viewModel: viewModel),
+                for (final reward in task.rewards.where(
+                  (r) => r.type != TaskRewardType.currency,
+                ))
                   _RewardChip(reward: reward, viewModel: viewModel),
               ],
             ),
 
             // Claim button
-            if (!isCompleted) ...[
-              const SizedBox(height: 8),
-              Align(
-                alignment: Alignment.centerRight,
-                child: StoreConnector<GlobalState, VoidCallback?>(
-                  converter: (store) => canClaim
-                      ? () => store.dispatch(ClaimTownshipTaskAction(task.id))
-                      : null,
-                  builder: (context, onPressed) => ElevatedButton(
-                    onPressed: onPressed,
-                    child: const Text('Claim'),
-                  ),
+            const SizedBox(height: 8),
+            Align(
+              alignment: Alignment.centerRight,
+              child: StoreConnector<GlobalState, VoidCallback?>(
+                converter: (store) => canClaim
+                    ? () => store.dispatch(ClaimTownshipTaskAction(task.id))
+                    : null,
+                builder: (context, onPressed) => ElevatedButton(
+                  onPressed: onPressed,
+                  child: const Text('Claim'),
                 ),
               ),
-            ],
-            if (isCompleted)
-              const Padding(
-                padding: EdgeInsets.only(top: 8),
-                child: Text(
-                  'Completed',
-                  style: TextStyle(
-                    color: Colors.green,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ),
+            ),
           ],
         ),
       ),
@@ -231,9 +330,10 @@ class _TaskCard extends StatelessWidget {
   }
 }
 
-/// Shows a single goal with progress indicator and icon.
-class _GoalRow extends StatelessWidget {
-  const _GoalRow({
+/// Shows a single goal as a chip.
+/// Format: "Defeat 0 / 50 icon Kraken" or "Give 0 / 300 icon Bones"
+class _GoalChip extends StatelessWidget {
+  const _GoalChip({
     required this.viewModel,
     required this.task,
     required this.goal,
@@ -251,35 +351,37 @@ class _GoalRow extends StatelessWidget {
     final goalName = goal.displayName(registries.items, registries.actions);
     final goalAsset = goal.asset(registries.items, registries.actions);
 
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 2),
-      child: Row(
-        children: [
-          Icon(
-            isMet ? Icons.check_circle : Icons.radio_button_unchecked,
-            size: 16,
-            color: isMet ? Colors.green : Colors.grey,
-          ),
-          const SizedBox(width: 8),
-          CachedImage(assetPath: goalAsset, size: 20),
-          const SizedBox(width: 4),
-          Expanded(
-            child: Text(
-              goalName,
-              style: TextStyle(
-                decoration: isMet ? TextDecoration.lineThrough : null,
-                color: isMet ? Colors.grey : null,
-              ),
+    final progress = _formatProgress(current, goal.quantity);
+    final verb = switch (goal.type) {
+      TaskGoalType.monsters => 'Defeat',
+      TaskGoalType.items => 'Give',
+      TaskGoalType.skillXP => 'Earn',
+    };
+    final suffix = goal.type == TaskGoalType.items ? ' to your town' : '';
+
+    final textStyle = TextStyle(
+      fontSize: 12,
+      decoration: isMet ? TextDecoration.lineThrough : null,
+      color: isMet ? Colors.grey : Style.textColorPrimary,
+    );
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: Style.containerBackgroundLight,
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Text.rich(
+        TextSpan(
+          children: [
+            TextSpan(text: '$verb $progress ', style: textStyle),
+            WidgetSpan(
+              alignment: PlaceholderAlignment.middle,
+              child: CachedImage(assetPath: goalAsset, size: 20),
             ),
-          ),
-          Text(
-            _formatProgress(current, goal.quantity),
-            style: TextStyle(
-              fontWeight: isMet ? FontWeight.bold : FontWeight.normal,
-              color: isMet ? Colors.green : null,
-            ),
-          ),
-        ],
+            TextSpan(text: ' $goalName$suffix', style: textStyle),
+          ],
+        ),
       ),
     );
   }
@@ -289,7 +391,8 @@ class _GoalRow extends StatelessWidget {
   }
 }
 
-/// Shows a reward as a chip with an icon.
+/// Shows a reward as a chip.
+/// Currencies display as "icon 5,000", others as "25 icon Stardust".
 class _RewardChip extends StatelessWidget {
   const _RewardChip({required this.reward, required this.viewModel});
 
@@ -306,25 +409,48 @@ class _RewardChip extends StatelessWidget {
     final rewardAsset = reward.asset(registries.items, registries.township);
 
     final qty = approximateCountString(reward.quantity);
-    final label = switch (reward.type) {
-      TaskRewardType.item => '${qty}x $rewardName',
-      TaskRewardType.currency ||
-      TaskRewardType.skillXP ||
-      TaskRewardType.townshipResource => '$qty $rewardName',
-    };
+    final isCurrency = reward.type == TaskRewardType.currency;
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
-        color: Colors.grey.shade100,
+        color: Style.containerBackgroundLight,
         borderRadius: BorderRadius.circular(16),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          CachedImage(assetPath: rewardAsset, size: 20),
-          const SizedBox(width: 4),
-          Text(label, style: const TextStyle(fontSize: 12)),
+          if (isCurrency) ...[
+            // Currencies: [icon] 5,000
+            CachedImage(assetPath: rewardAsset, size: 20),
+            const SizedBox(width: 4),
+            Text(
+              qty,
+              style: const TextStyle(
+                fontSize: 12,
+                color: Style.textColorPrimary,
+              ),
+            ),
+          ] else ...[
+            // Others: 25 [icon] Stardust
+            Text(
+              qty,
+              style: const TextStyle(
+                fontSize: 12,
+                color: Style.textColorPrimary,
+              ),
+            ),
+            const SizedBox(width: 4),
+            CachedImage(assetPath: rewardAsset, size: 20),
+            const SizedBox(width: 4),
+            Text(
+              rewardName,
+              style: const TextStyle(
+                fontSize: 12,
+                color: Style.textColorPrimary,
+              ),
+            ),
+          ],
         ],
       ),
     );
