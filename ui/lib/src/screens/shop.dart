@@ -308,8 +308,7 @@ class _ShopPageState extends State<ShopPage> {
     // Add skill interval modifiers
     final modifiers = purchase.contains.modifiers;
     for (final skillId in modifiers.skillIntervalSkillIds) {
-      final skill = Skill.tryFromId(skillId);
-      if (skill == null) continue;
+      final skill = Skill.fromId(skillId);
       final value = modifiers.skillIntervalForSkill(skillId);
       final percent = value < 0 ? '$value%' : '+$value%';
       parts.add('$percent ${skill.name} time');

@@ -644,10 +644,8 @@ class ShopRegistry {
     // Check for skillInterval modifier (axes, pickaxes, fishing rods)
     final skillIds = root.contains.modifiers.skillIntervalSkillIds;
     if (skillIds.isNotEmpty) {
-      final skill = Skill.tryFromId(skillIds.first);
-      if (skill != null) {
-        skillChains[skill] = chain;
-      }
+      final skill = Skill.fromId(skillIds.first);
+      skillChains[skill] = chain;
     }
   }
 
@@ -732,13 +730,8 @@ class ShopRegistry {
       if (skillIds.isEmpty) continue;
 
       // Find the first supported skill
-      for (final skillId in skillIds) {
-        final skill = Skill.tryFromId(skillId);
-        if (skill != null) {
-          result.add((purchase, skill));
-          break;
-        }
-      }
+      final skill = Skill.fromId(skillIds.first);
+      result.add((purchase, skill));
     }
     return result;
   }

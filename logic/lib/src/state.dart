@@ -468,7 +468,7 @@ class GlobalState {
   static Map<Currency, int> _currenciesFromJson(Map<String, dynamic> json) {
     final currenciesJson = json['currencies'] as Map<String, dynamic>? ?? {};
     return currenciesJson.map((key, value) {
-      final currency = Currency.fromId(key);
+      final currency = Currency.fromIdString(key);
       return MapEntry(currency, value as int);
     });
   }
@@ -521,7 +521,9 @@ class GlobalState {
       'itemCharges': itemCharges.map(
         (key, value) => MapEntry(key.toJson(), value),
       ),
-      'currencies': currencies.map((key, value) => MapEntry(key.id, value)),
+      'currencies': currencies.map(
+        (key, value) => MapEntry(key.id.toJson(), value),
+      ),
       'timeAway': timeAway?.toJson(),
       'shop': shop.toJson(),
       'health': health.toJson(),
@@ -1360,7 +1362,7 @@ class GlobalState {
       final required = entry.value;
 
       // GP is a special case - check against player currencies
-      if (resourceId.localId == 'GP') {
+      if (Currency.gp.id == resourceId) {
         if (gp < required) {
           return 'Not enough GP (need $required)';
         }
@@ -1395,7 +1397,7 @@ class GlobalState {
       final resourceId = entry.key;
       final cost = entry.value;
 
-      if (resourceId.localId == 'GP') {
+      if (Currency.gp.id == resourceId) {
         // Deduct GP from player currencies
         state = state.addCurrency(Currency.gp, -cost);
       } else {
@@ -1551,17 +1553,11 @@ class GlobalState {
       switch (reward.type) {
         case TaskRewardType.skillXP:
           // Map skill ID to Skill enum
-          final skill = Skill.tryFromId(reward.id);
-          if (skill != null) {
-            state = state.addSkillXp(skill, reward.quantity);
-          }
+          final skill = Skill.fromId(reward.id);
+          state = state.addSkillXp(skill, reward.quantity);
         case TaskRewardType.currency:
-          // Map currency ID to Currency enum
-          if (reward.id.localId == 'GP') {
-            state = state.addCurrency(Currency.gp, reward.quantity);
-          } else if (reward.id.localId == 'SlayerCoins') {
-            state = state.addCurrency(Currency.slayerCoins, reward.quantity);
-          }
+          final currency = Currency.fromIdString(reward.id.fullId);
+          state = state.addCurrency(currency, reward.quantity);
         case TaskRewardType.item:
           final item = registries.items.byId(reward.id);
           state = state.copyWith(
@@ -1590,14 +1586,11 @@ class GlobalState {
 
   /// Selects a deity for worship.
   /// Resets worship points if changing to a different deity.
-  GlobalState selectWorship(MelvorId deityId) {
-    return copyWith(township: township.selectWorship(deityId));
-  }
+  GlobalState selectWorship(MelvorId deityId) =>
+      copyWith(township: township.selectWorship(deityId));
 
   /// Clears worship selection.
-  GlobalState clearWorship() {
-    return copyWith(township: township.clearWorship());
-  }
+  GlobalState clearWorship() => copyWith(township: township.clearWorship());
 
   /// Repairs a Township building in a biome, restoring efficiency to 100%.
   /// Cost formula: (Base Cost / 3) × Buildings Built × (1 - Efficiency%)
@@ -1643,7 +1636,7 @@ class GlobalState {
       final resourceId = entry.key;
       final cost = entry.value;
 
-      if (resourceId.localId == 'GP') {
+      if (Currency.gp.id == resourceId) {
         state = state.addCurrency(Currency.gp, -cost);
       } else {
         newTownship = newTownship.removeResource(resourceId, cost);
@@ -1661,11 +1654,11 @@ class GlobalState {
     return state.copyWith(township: newTownship);
   }
 
-  /// Returns true if the player can afford all repair costs for a building.
-  bool canAffordTownshipRepair(MelvorId biomeId, MelvorId buildingId) {
-    final costs = township.repairCosts(biomeId, buildingId);
+  /// Returns true if the player can afford the given costs
+  /// (GP + township resources).
+  bool canAffordTownshipCosts(Map<MelvorId, int> costs) {
     for (final entry in costs.entries) {
-      if (entry.key.localId == 'GP') {
+      if (Currency.gp.id == entry.key) {
         if (gp < entry.value) return false;
       } else {
         if (township.resourceAmount(entry.key) < entry.value) return false;
@@ -1673,41 +1666,24 @@ class GlobalState {
     }
     return true;
   }
+
+  /// Returns true if the player can afford all repair costs for a building.
+  bool canAffordTownshipRepair(MelvorId biomeId, MelvorId buildingId) =>
+      canAffordTownshipCosts(township.repairCosts(biomeId, buildingId));
 
   /// Returns true if the player can afford all repair costs for all buildings.
-  bool canAffordAllTownshipRepairs() {
-    final costs = township.totalRepairCosts;
-    for (final entry in costs.entries) {
-      if (entry.key.localId == 'GP') {
-        if (gp < entry.value) return false;
-      } else {
-        if (township.resourceAmount(entry.key) < entry.value) return false;
-      }
-    }
-    return true;
-  }
+  bool canAffordAllTownshipRepairs() =>
+      canAffordTownshipCosts(township.totalRepairCosts);
 
   /// Repairs all Township buildings across all biomes, restoring efficiency
-  /// to 100%. Throws StateError if player can't afford the total repair costs.
+  /// to 100%. Throws if no buildings need repair or player can't afford costs.
   GlobalState repairAllTownshipBuildings() {
     if (!township.hasAnyBuildingNeedingRepair) {
       throw StateError('No buildings need repair');
     }
-
-    // Get total costs and verify we can afford them
     final totalCosts = township.totalRepairCosts;
-    for (final entry in totalCosts.entries) {
-      if (entry.key.localId == 'GP') {
-        if (gp < entry.value) {
-          throw StateError('Cannot afford repair: insufficient GP');
-        }
-      } else {
-        if (township.resourceAmount(entry.key) < entry.value) {
-          throw StateError(
-            'Cannot afford repair: insufficient ${entry.key.localId}',
-          );
-        }
-      }
+    if (!canAffordTownshipCosts(totalCosts)) {
+      throw StateError('Cannot afford repair costs');
     }
 
     // Deduct all costs
@@ -1718,7 +1694,7 @@ class GlobalState {
       final resourceId = entry.key;
       final cost = entry.value;
 
-      if (resourceId.localId == 'GP') {
+      if (Currency.gp.id == resourceId) {
         state = state.addCurrency(Currency.gp, -cost);
       } else {
         newTownship = newTownship.removeResource(resourceId, cost);

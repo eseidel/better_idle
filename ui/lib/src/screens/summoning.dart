@@ -215,12 +215,11 @@ class _MarkDiscoverySkillsRow extends StatelessWidget {
           'Found in: ',
           style: TextStyle(color: Style.textColorSecondary, fontSize: 12),
         ),
-        for (final skillId in skillIds)
-          if (Skill.tryFromId(skillId) case final skill?)
-            Tooltip(
-              message: skill.name,
-              child: SkillImage(skill: skill, size: 16),
-            ),
+        for (final skill in skillIds.map(Skill.fromId))
+          Tooltip(
+            message: skill.name,
+            child: SkillImage(skill: skill, size: 16),
+          ),
       ],
     );
   }

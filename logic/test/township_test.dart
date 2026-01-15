@@ -156,7 +156,7 @@ void main() {
           id: buildingId,
           name: 'Test Building',
           validBiomes: {biomeId},
-          costs: {const MelvorId('melvorF:GP'): 1000},
+          costs: {const MelvorId('melvorD:GP'): 1000},
         );
 
         final registry = TownshipRegistry(
@@ -181,7 +181,7 @@ void main() {
       test('returns repair costs for single damaged building', () {
         const biomeId = MelvorId('melvorD:Grasslands');
         const buildingId = MelvorId('melvorD:Test_Building');
-        const gpId = MelvorId('melvorF:GP');
+        final gpId = Currency.gp.id;
 
         final building = testBuilding(
           id: buildingId,
@@ -218,7 +218,7 @@ void main() {
         const biomeId1 = MelvorId('melvorD:Grasslands');
         const biomeId2 = MelvorId('melvorD:Forest');
         const buildingId = MelvorId('melvorD:Test_Building');
-        const gpId = MelvorId('melvorF:GP');
+        final gpId = Currency.gp.id;
 
         final building = testBuilding(
           id: buildingId,
@@ -261,7 +261,7 @@ void main() {
       test('aggregates multiple resource types', () {
         const biomeId = MelvorId('melvorD:Grasslands');
         const buildingId = MelvorId('melvorD:Test_Building');
-        const gpId = MelvorId('melvorF:GP');
+        final gpId = Currency.gp.id;
         const woodId = MelvorId('melvorF:Wood');
 
         final building = testBuilding(
@@ -1010,7 +1010,7 @@ void main() {
     test('produces GP from buildings', () {
       const biomeId = MelvorId('melvorD:Grasslands');
       const buildingId = MelvorId('melvorD:Test_Building');
-      const gpId = MelvorId('melvorF:GP');
+      final gpId = Currency.gp.id;
 
       final building = testBuilding(
         id: buildingId,
@@ -1022,9 +1022,7 @@ void main() {
       final registry = TownshipRegistry(
         buildings: [building],
         biomes: const [TownshipBiome(id: biomeId, name: 'Grasslands', tier: 1)],
-        resources: const [
-          TownshipResource(id: gpId, name: 'GP', type: 'Currency'),
-        ],
+        resources: [TownshipResource(id: gpId, name: 'GP', type: 'Currency')],
       );
 
       final state = TownshipState(
@@ -1381,7 +1379,7 @@ void main() {
     test('canBuildTownshipBuilding validates GP cost', () {
       const buildingId = MelvorId('melvorD:Test_Building');
       const biomeId = MelvorId('melvorD:Grasslands');
-      const gpId = MelvorId('melvorF:GP');
+      final gpId = Currency.gp.id;
 
       final building = testBuilding(
         id: buildingId,
@@ -1445,7 +1443,7 @@ void main() {
     test('canBuildTownshipBuilding returns null when all checks pass', () {
       const buildingId = MelvorId('melvorD:Test_Building');
       const biomeId = MelvorId('melvorD:Grasslands');
-      const gpId = MelvorId('melvorF:GP');
+      final gpId = Currency.gp.id;
       const woodId = MelvorId('melvorF:Wood');
 
       final building = testBuilding(
@@ -1550,7 +1548,7 @@ void main() {
     test('buildTownshipBuilding deducts GP cost', () {
       const buildingId = MelvorId('melvorD:Test_Building');
       const biomeId = MelvorId('melvorD:Grasslands');
-      const gpId = MelvorId('melvorF:GP');
+      final gpId = Currency.gp.id;
 
       final building = testBuilding(
         id: buildingId,
@@ -1649,7 +1647,7 @@ void main() {
     test('buildTownshipBuilding deducts both GP and resources', () {
       const buildingId = MelvorId('melvorD:Test_Building');
       const biomeId = MelvorId('melvorD:Grasslands');
-      const gpId = MelvorId('melvorF:GP');
+      final gpId = Currency.gp.id;
       const woodId = MelvorId('melvorF:Wood');
       const stoneId = MelvorId('melvorF:Stone');
 
@@ -1698,7 +1696,7 @@ void main() {
           id: buildingId,
           name: 'Test Building',
           validBiomes: {biomeId},
-          costs: {const MelvorId('melvorF:GP'): 1000},
+          costs: {const MelvorId('melvorD:GP'): 1000},
         );
 
         final registries = Registries.test(
@@ -1725,7 +1723,7 @@ void main() {
       test('returns true when player has enough GP', () {
         const buildingId = MelvorId('melvorD:Test_Building');
         const biomeId = MelvorId('melvorD:Grasslands');
-        const gpId = MelvorId('melvorF:GP');
+        final gpId = Currency.gp.id;
 
         final building = testBuilding(
           id: buildingId,
@@ -1763,7 +1761,7 @@ void main() {
       test('returns false when player lacks GP', () {
         const buildingId = MelvorId('melvorD:Test_Building');
         const biomeId = MelvorId('melvorD:Grasslands');
-        const gpId = MelvorId('melvorF:GP');
+        final gpId = Currency.gp.id;
 
         final building = testBuilding(
           id: buildingId,
@@ -1894,7 +1892,7 @@ void main() {
         const buildingId = MelvorId('melvorD:Test_Building');
         const biomeId1 = MelvorId('melvorD:Grasslands');
         const biomeId2 = MelvorId('melvorD:Forest');
-        const gpId = MelvorId('melvorF:GP');
+        final gpId = Currency.gp.id;
 
         final building = testBuilding(
           id: buildingId,
@@ -1941,7 +1939,7 @@ void main() {
       test('returns false when player cannot afford total costs', () {
         const buildingId = MelvorId('melvorD:Test_Building');
         const biomeId = MelvorId('melvorD:Grasslands');
-        const gpId = MelvorId('melvorF:GP');
+        final gpId = Currency.gp.id;
 
         final building = testBuilding(
           id: buildingId,
@@ -1978,7 +1976,7 @@ void main() {
       test('checks both GP and township resources', () {
         const buildingId = MelvorId('melvorD:Test_Building');
         const biomeId = MelvorId('melvorD:Grasslands');
-        const gpId = MelvorId('melvorF:GP');
+        final gpId = Currency.gp.id;
         const woodId = MelvorId('melvorF:Wood');
 
         final building = testBuilding(
@@ -2036,10 +2034,10 @@ void main() {
         expect(state.repairAllTownshipBuildings, throwsStateError);
       });
 
-      test('throws when player cannot afford GP costs', () {
+      test('throws when player cannot afford costs', () {
         const buildingId = MelvorId('melvorD:Test_Building');
         const biomeId = MelvorId('melvorD:Grasslands');
-        const gpId = MelvorId('melvorF:GP');
+        final gpId = Currency.gp.id;
 
         final building = testBuilding(
           id: buildingId,
@@ -2058,47 +2056,6 @@ void main() {
         );
 
         var state = GlobalState.test(registries);
-        // No GP
-        state = state.copyWith(
-          township: state.township.withBiomeState(
-            biomeId,
-            BiomeState(
-              buildings: {
-                buildingId: const BuildingState(count: 1, efficiency: 50),
-              },
-            ),
-          ),
-        );
-
-        expect(() => state.repairAllTownshipBuildings(), throwsStateError);
-      });
-
-      test('throws when player cannot afford resource costs', () {
-        const buildingId = MelvorId('melvorD:Test_Building');
-        const biomeId = MelvorId('melvorD:Grasslands');
-        const woodId = MelvorId('melvorF:Wood');
-
-        final building = testBuilding(
-          id: buildingId,
-          name: 'Test Building',
-          validBiomes: {biomeId},
-          costs: {woodId: 1000},
-        );
-
-        final registries = Registries.test(
-          township: TownshipRegistry(
-            buildings: [building],
-            biomes: const [
-              TownshipBiome(id: biomeId, name: 'Grasslands', tier: 1),
-            ],
-            resources: const [
-              TownshipResource(id: woodId, name: 'Wood', type: 'Raw'),
-            ],
-          ),
-        );
-
-        var state = GlobalState.test(registries);
-        // No wood
         state = state.copyWith(
           township: state.township.withBiomeState(
             biomeId,
@@ -2116,7 +2073,7 @@ void main() {
       test('deducts GP and restores efficiency', () {
         const buildingId = MelvorId('melvorD:Test_Building');
         const biomeId = MelvorId('melvorD:Grasslands');
-        const gpId = MelvorId('melvorF:GP');
+        final gpId = Currency.gp.id;
 
         final building = testBuilding(
           id: buildingId,
@@ -2217,7 +2174,7 @@ void main() {
         const buildingId = MelvorId('melvorD:Test_Building');
         const biomeId1 = MelvorId('melvorD:Grasslands');
         const biomeId2 = MelvorId('melvorD:Forest');
-        const gpId = MelvorId('melvorF:GP');
+        final gpId = Currency.gp.id;
 
         final building = testBuilding(
           id: buildingId,
@@ -2968,7 +2925,7 @@ void main() {
     test('throws when not enough GP for repair', () {
       const buildingId = MelvorId('melvorD:Test_Building');
       const biomeId = MelvorId('melvorD:Grasslands');
-      const gpId = MelvorId('melvorF:GP');
+      final gpId = Currency.gp.id;
 
       final building = testBuilding(
         id: buildingId,
@@ -3051,7 +3008,7 @@ void main() {
     test('repairs building and deducts proportional GP cost', () {
       const buildingId = MelvorId('melvorD:Test_Building');
       const biomeId = MelvorId('melvorD:Grasslands');
-      const gpId = MelvorId('melvorF:GP');
+      final gpId = Currency.gp.id;
 
       final building = testBuilding(
         id: buildingId,

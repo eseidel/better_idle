@@ -859,7 +859,7 @@ class _RepairAllSection extends StatelessWidget {
       final resourceId = entry.key;
       final amount = entry.value;
 
-      if (Currency.gp.matches(resourceId)) {
+      if (Currency.gp.id == resourceId) {
         final canAfford = viewModel.canAffordGp(amount);
         chips.add(
           _CostChip(
@@ -1399,7 +1399,7 @@ class _BuildingCard extends StatelessWidget {
       final resourceId = entry.key;
       final amount = entry.value;
 
-      if (Currency.gp.matches(resourceId)) {
+      if (Currency.gp.id == resourceId) {
         final canAfford = viewModel.canAffordGp(amount);
         costWidgets.add(
           _CostChip(
@@ -1523,7 +1523,7 @@ class _BuildingCard extends StatelessWidget {
       final resourceId = entry.key;
       final amount = entry.value;
 
-      if (Currency.gp.matches(resourceId)) {
+      if (Currency.gp.id == resourceId) {
         final canAfford = viewModel.canAffordGp(amount);
         costWidgets.add(
           _CostChip(
@@ -1715,7 +1715,7 @@ class _BuildingPurchaseDialog extends StatelessWidget {
       final resourceId = entry.key;
       final amount = entry.value;
 
-      if (Currency.gp.matches(resourceId)) {
+      if (Currency.gp.id == resourceId) {
         final canAfford = viewModel.canAffordGp(amount);
         costs.add(
           Row(
@@ -1774,7 +1774,7 @@ class _BuildingPurchaseDialog extends StatelessWidget {
       final resourceId = entry.key;
       final amount = entry.value;
 
-      if (Currency.gp.matches(resourceId)) {
+      if (Currency.gp.id == resourceId) {
         // GP cost
         final canAfford = viewModel.canAffordGp(amount);
         costs.add(

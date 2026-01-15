@@ -682,7 +682,9 @@ class TaskReward {
   String displayName(ItemRegistry items, TownshipRegistry township) =>
       switch (type) {
         TaskRewardType.item => items.byId(id).name,
-        TaskRewardType.currency => Currency.fromId(id.fullId).abbreviation,
+        TaskRewardType.currency => Currency.fromIdString(
+          id.fullId,
+        ).abbreviation,
         TaskRewardType.skillXP => '${Skill.fromId(id).name} XP',
         TaskRewardType.townshipResource => township.resourceById(id).name,
       };
@@ -696,7 +698,7 @@ class TaskReward {
   String? asset(ItemRegistry items, TownshipRegistry township) =>
       switch (type) {
         TaskRewardType.item => items.byId(id).media,
-        TaskRewardType.currency => Currency.fromId(id.fullId).assetPath,
+        TaskRewardType.currency => Currency.fromIdString(id.fullId).assetPath,
         TaskRewardType.skillXP => Skill.fromId(id).assetPath,
         TaskRewardType.townshipResource => township.resourceById(id).media,
       };
@@ -880,7 +882,7 @@ class TownshipTask {
           final item = items.byId(reward.id);
           changes = changes.adding(ItemStack(item, count: reward.quantity));
         case TaskRewardType.currency:
-          final currency = Currency.fromId(reward.id.fullId);
+          final currency = Currency.fromIdString(reward.id.fullId);
           changes = changes.addingCurrency(currency, reward.quantity);
         case TaskRewardType.skillXP:
           final skill = Skill.fromId(reward.id);

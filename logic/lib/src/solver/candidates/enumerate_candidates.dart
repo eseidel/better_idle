@@ -720,9 +720,7 @@ List<MacroCandidate> _augmentMacrosWithUpgradeStops(
 
       // Check if this upgrade affects the target skill
       final skillIds = purchase.contains.modifiers.skillIntervalSkillIds;
-      final affectsTargetSkill = skillIds.any(
-        (id) => Skill.tryFromId(id) == targetSkill,
-      );
+      final affectsTargetSkill = skillIds.any((id) => id == targetSkill.id);
       if (!affectsTargetSkill) continue;
 
       // Compute cost
