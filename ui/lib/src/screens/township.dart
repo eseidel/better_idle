@@ -290,38 +290,48 @@ class _TaskCard extends StatelessWidget {
             ),
             const SizedBox(height: 8),
 
-            // Rewards section
-            Text('Rewards:', style: Theme.of(context).textTheme.titleSmall),
-            const SizedBox(height: 4),
-            Wrap(
-              spacing: 8,
-              runSpacing: 4,
+            // Rewards section with Claim button
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.end,
               children: [
-                // Show currencies first, then other rewards.
-                for (final reward in task.rewards.where(
-                  (r) => r.type == TaskRewardType.currency,
-                ))
-                  _RewardChip(reward: reward, viewModel: viewModel),
-                for (final reward in task.rewards.where(
-                  (r) => r.type != TaskRewardType.currency,
-                ))
-                  _RewardChip(reward: reward, viewModel: viewModel),
-              ],
-            ),
-
-            // Claim button
-            const SizedBox(height: 8),
-            Align(
-              alignment: Alignment.centerRight,
-              child: StoreConnector<GlobalState, VoidCallback?>(
-                converter: (store) => canClaim
-                    ? () => store.dispatch(ClaimTownshipTaskAction(task.id))
-                    : null,
-                builder: (context, onPressed) => ElevatedButton(
-                  onPressed: onPressed,
-                  child: const Text('Claim'),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Rewards:',
+                        style: Theme.of(context).textTheme.titleSmall,
+                      ),
+                      const SizedBox(height: 4),
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 4,
+                        children: [
+                          // Show currencies first, then other rewards.
+                          for (final reward in task.rewards.where(
+                            (r) => r.type == TaskRewardType.currency,
+                          ))
+                            _RewardChip(reward: reward, viewModel: viewModel),
+                          for (final reward in task.rewards.where(
+                            (r) => r.type != TaskRewardType.currency,
+                          ))
+                            _RewardChip(reward: reward, viewModel: viewModel),
+                        ],
+                      ),
+                    ],
+                  ),
                 ),
-              ),
+                const SizedBox(width: 8),
+                StoreConnector<GlobalState, VoidCallback?>(
+                  converter: (store) => canClaim
+                      ? () => store.dispatch(ClaimTownshipTaskAction(task.id))
+                      : null,
+                  builder: (context, onPressed) => ElevatedButton(
+                    onPressed: onPressed,
+                    child: const Text('Claim'),
+                  ),
+                ),
+              ],
             ),
           ],
         ),
@@ -354,10 +364,9 @@ class _GoalChip extends StatelessWidget {
     final progress = _formatProgress(current, goal.quantity);
     final verb = switch (goal.type) {
       TaskGoalType.monsters => 'Defeat',
-      TaskGoalType.items => 'Give',
+      TaskGoalType.items => 'Donate',
       TaskGoalType.skillXP => 'Earn',
     };
-    final suffix = goal.type == TaskGoalType.items ? ' to your town' : '';
 
     final textStyle = TextStyle(
       fontSize: 12,
@@ -379,7 +388,7 @@ class _GoalChip extends StatelessWidget {
               alignment: PlaceholderAlignment.middle,
               child: CachedImage(assetPath: goalAsset, size: 20),
             ),
-            TextSpan(text: ' $goalName$suffix', style: textStyle),
+            TextSpan(text: ' $goalName', style: textStyle),
           ],
         ),
       ),
@@ -387,7 +396,8 @@ class _GoalChip extends StatelessWidget {
   }
 
   String _formatProgress(int current, int total) {
-    return '${approximateCountString(current)} / ${approximateCountString(total)}';
+    return '${approximateCountString(current)} / '
+        '${approximateCountString(total)}';
   }
 }
 

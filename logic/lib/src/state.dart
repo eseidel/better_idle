@@ -1579,11 +1579,9 @@ class GlobalState {
     // Mark task as completed (all main tasks go to completedMainTasks)
     final newCompleted = Set<MelvorId>.from(township.completedMainTasks)
       ..add(taskId);
-    state = state.copyWith(
+    return state.copyWith(
       township: state.township.copyWith(completedMainTasks: newCompleted),
     );
-
-    return state;
   }
 
   // ---------------------------------------------------------------------------
