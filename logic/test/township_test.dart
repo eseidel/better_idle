@@ -3381,7 +3381,7 @@ void main() {
     });
   });
 
-  group('claimTaskReward', () {
+  group('claimTaskRewardWithChanges', () {
     test('throws for unknown task', () {
       final registries = Registries.test(
         township: const TownshipRegistry.empty(),
@@ -3389,7 +3389,9 @@ void main() {
       final state = GlobalState.test(registries);
 
       expect(
-        () => state.claimTaskReward(const MelvorId('melvorD:Unknown_Task')),
+        () => state.claimTaskRewardWithChanges(
+          const MelvorId('melvorD:Unknown_Task'),
+        ),
         throwsStateError,
       );
     });
@@ -3427,7 +3429,7 @@ void main() {
       // State has no items
       final state = GlobalState.test(registries);
 
-      expect(() => state.claimTaskReward(taskId), throwsStateError);
+      expect(() => state.claimTaskRewardWithChanges(taskId), throwsStateError);
     });
 
     test('grants GP reward and consumes items', () {
@@ -3468,7 +3470,7 @@ void main() {
       expect(state.gp, 0);
       expect(state.inventory.countOfItem(testItem), 100);
 
-      state = state.claimTaskReward(taskId);
+      (state, _) = state.claimTaskRewardWithChanges(taskId);
 
       expect(state.gp, 1000);
       // Items should be consumed
@@ -3502,7 +3504,7 @@ void main() {
       var state = GlobalState.test(registries);
       expect(state.inventory.countOfItem(rewardItem), 0);
 
-      state = state.claimTaskReward(taskId);
+      (state, _) = state.claimTaskRewardWithChanges(taskId);
 
       expect(state.inventory.countOfItem(rewardItem), 10);
     });
@@ -3535,7 +3537,7 @@ void main() {
       var state = GlobalState.test(registries);
       expect(state.township.resourceAmount(resourceId), 0);
 
-      state = state.claimTaskReward(taskId);
+      (state, _) = state.claimTaskRewardWithChanges(taskId);
 
       expect(state.township.resourceAmount(resourceId), 500);
     });
@@ -3564,7 +3566,7 @@ void main() {
       var state = GlobalState.test(registries);
       expect(state.township.completedMainTasks, isEmpty);
 
-      state = state.claimTaskReward(taskId);
+      (state, _) = state.claimTaskRewardWithChanges(taskId);
 
       expect(state.township.completedMainTasks, contains(taskId));
     });
@@ -3591,10 +3593,10 @@ void main() {
       );
 
       var state = GlobalState.test(registries);
-      state = state.claimTaskReward(taskId);
+      (state, _) = state.claimTaskRewardWithChanges(taskId);
 
       // Trying to claim again should fail
-      expect(() => state.claimTaskReward(taskId), throwsStateError);
+      expect(() => state.claimTaskRewardWithChanges(taskId), throwsStateError);
     });
 
     test('grants multiple rewards', () {
@@ -3632,7 +3634,7 @@ void main() {
 
       var state = GlobalState.test(registries);
 
-      state = state.claimTaskReward(taskId);
+      (state, _) = state.claimTaskRewardWithChanges(taskId);
 
       expect(state.gp, 500);
       expect(state.currency(Currency.slayerCoins), 100);
@@ -3671,7 +3673,7 @@ void main() {
       var state = GlobalState.test(registries);
 
       // Should fail with no progress
-      expect(() => state.claimTaskReward(taskId), throwsStateError);
+      expect(() => state.claimTaskRewardWithChanges(taskId), throwsStateError);
 
       // Add progress toward the goal
       state = state.copyWith(
@@ -3683,7 +3685,7 @@ void main() {
         ),
       );
       // Still not enough
-      expect(() => state.claimTaskReward(taskId), throwsStateError);
+      expect(() => state.claimTaskRewardWithChanges(taskId), throwsStateError);
 
       // Add more progress to meet the goal
       state = state.copyWith(
@@ -3695,7 +3697,7 @@ void main() {
         ),
       );
       // Now it should work
-      state = state.claimTaskReward(taskId);
+      (state, _) = state.claimTaskRewardWithChanges(taskId);
       expect(state.gp, 500);
     });
 
@@ -3731,7 +3733,7 @@ void main() {
       var state = GlobalState.test(registries);
 
       // Should fail with no kills
-      expect(() => state.claimTaskReward(taskId), throwsStateError);
+      expect(() => state.claimTaskRewardWithChanges(taskId), throwsStateError);
 
       // Add 25 kills
       state = state.copyWith(
@@ -3744,7 +3746,7 @@ void main() {
       );
 
       // Now it should work
-      state = state.claimTaskReward(taskId);
+      (state, _) = state.claimTaskRewardWithChanges(taskId);
       expect(state.gp, 1000);
     });
   });

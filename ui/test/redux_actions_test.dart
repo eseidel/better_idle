@@ -897,12 +897,11 @@ void main() {
             .adding(ItemStack(woodcuttingPotion, count: 1))
             .adding(ItemStack(fishingPotion, count: 1)),
       );
-      final store = Store<GlobalState>(initialState: initialState);
-
-      store.dispatch(
-        SelectPotionAction(Skill.woodcutting.id, woodcuttingPotion.id),
-      );
-      store.dispatch(SelectPotionAction(Skill.fishing.id, fishingPotion.id));
+      final store = Store<GlobalState>(initialState: initialState)
+        ..dispatch(
+          SelectPotionAction(Skill.woodcutting.id, woodcuttingPotion.id),
+        )
+        ..dispatch(SelectPotionAction(Skill.fishing.id, fishingPotion.id));
 
       expect(
         store.state.selectedPotions[Skill.woodcutting.id],
@@ -996,9 +995,8 @@ void main() {
           Skill.fishing.id: fishingPotion.id,
         },
       );
-      final store = Store<GlobalState>(initialState: initialState);
-
-      store.dispatch(ClearPotionSelectionAction(Skill.woodcutting.id));
+      final store = Store<GlobalState>(initialState: initialState)
+        ..dispatch(ClearPotionSelectionAction(Skill.woodcutting.id));
 
       expect(store.state.selectedPotions[Skill.woodcutting.id], isNull);
       expect(store.state.selectedPotions[Skill.fishing.id], fishingPotion.id);
@@ -1271,11 +1269,10 @@ void main() {
 
       var initialState = GlobalState.empty(registries);
       initialState = initialState.addCurrency(Currency.gp, 500);
-      final store = Store<GlobalState>(initialState: initialState);
-
-      store.dispatch(
-        BuildTownshipBuildingAction(biomeId: biomeId, buildingId: buildingId),
-      );
+      final store = Store<GlobalState>(initialState: initialState)
+        ..dispatch(
+          BuildTownshipBuildingAction(biomeId: biomeId, buildingId: buildingId),
+        );
       expect(
         store.state.township
             .biomeState(biomeId)
@@ -1398,10 +1395,9 @@ void main() {
               CookingAreaState(recipeId: potRecipe.id),
             ),
       );
-      final store = Store<GlobalState>(initialState: initialState);
-
-      // Start fire cooking
-      store.dispatch(StartCookingAction(area: CookingArea.fire));
+      final store = Store<GlobalState>(initialState: initialState)
+        // Start fire cooking
+        ..dispatch(StartCookingAction(area: CookingArea.fire));
       expect(store.state.activeAction!.id, fireRecipe.id);
 
       // Switch to pot cooking
@@ -1483,14 +1479,13 @@ void main() {
       final potRecipe = testCookingAction('Pot Recipe', CookingArea.pot);
       final registries = Registries.test(actions: [fireRecipe, potRecipe]);
       final initialState = GlobalState.empty(registries);
-      final store = Store<GlobalState>(initialState: initialState);
-
-      store.dispatch(
-        AssignCookingRecipeAction(area: CookingArea.fire, recipe: fireRecipe),
-      );
-      store.dispatch(
-        AssignCookingRecipeAction(area: CookingArea.pot, recipe: potRecipe),
-      );
+      final store = Store<GlobalState>(initialState: initialState)
+        ..dispatch(
+          AssignCookingRecipeAction(area: CookingArea.fire, recipe: fireRecipe),
+        )
+        ..dispatch(
+          AssignCookingRecipeAction(area: CookingArea.pot, recipe: potRecipe),
+        );
 
       expect(
         store.state.cooking.areaState(CookingArea.fire).recipeId,
@@ -1533,9 +1528,9 @@ void main() {
     test('can set ranged attack styles', () {
       final registries = Registries.test();
       final initialState = GlobalState.empty(registries);
-      final store = Store<GlobalState>(initialState: initialState);
+      final store = Store<GlobalState>(initialState: initialState)
+        ..dispatch(SetAttackStyleAction(attackStyle: AttackStyle.accurate));
 
-      store.dispatch(SetAttackStyleAction(attackStyle: AttackStyle.accurate));
       expect(store.state.attackStyle, AttackStyle.accurate);
 
       store.dispatch(SetAttackStyleAction(attackStyle: AttackStyle.rapid));
@@ -1548,9 +1543,9 @@ void main() {
     test('can set magic attack styles', () {
       final registries = Registries.test();
       final initialState = GlobalState.empty(registries);
-      final store = Store<GlobalState>(initialState: initialState);
+      final store = Store<GlobalState>(initialState: initialState)
+        ..dispatch(SetAttackStyleAction(attackStyle: AttackStyle.standard));
 
-      store.dispatch(SetAttackStyleAction(attackStyle: AttackStyle.standard));
       expect(store.state.attackStyle, AttackStyle.standard);
 
       store.dispatch(SetAttackStyleAction(attackStyle: AttackStyle.defensive));
@@ -1606,9 +1601,8 @@ void main() {
           plotId2: PlotState(cropId: cropId, growthTicksRemaining: 200),
         },
       );
-      final store = Store<GlobalState>(initialState: initialState);
-
-      store.dispatch(ClearPlotAction(plotId: plotId1));
+      final store = Store<GlobalState>(initialState: initialState)
+        ..dispatch(ClearPlotAction(plotId: plotId1));
 
       expect(store.state.plotStates[plotId1], isNull);
       expect(store.state.plotStates[plotId2], isNotNull);

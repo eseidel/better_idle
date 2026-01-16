@@ -1460,9 +1460,10 @@ class GlobalState {
     return task.goals.every((goal) => isTaskGoalMet(taskId, goal));
   }
 
-  /// Claims rewards for a completed task.
+  /// Claims rewards for a completed task, returning new state and changes.
+  /// The changes can be used by the UI to display a toast.
   /// Throws StateError if task is not complete or already claimed.
-  GlobalState claimTaskReward(MelvorId taskId) {
+  (GlobalState, Changes) claimTaskRewardWithChanges(MelvorId taskId) {
     final task = registries.township.taskById(taskId);
 
     if (!isTaskComplete(taskId)) {
@@ -1510,9 +1511,14 @@ class GlobalState {
     // Mark task as completed (all main tasks go to completedMainTasks)
     final newCompleted = Set<MelvorId>.from(township.completedMainTasks)
       ..add(taskId);
-    return state.copyWith(
+    final newState = state.copyWith(
       township: state.township.copyWith(completedMainTasks: newCompleted),
     );
+
+    // Get changes for the UI to display
+    final changes = task.rewardsToChanges(registries.items);
+
+    return (newState, changes);
   }
 
   // ---------------------------------------------------------------------------
@@ -2104,6 +2110,215 @@ class GlobalState {
     final newPlotStates = Map<MelvorId, PlotState>.from(plotStates)
       ..remove(plotId);
     return copyWith(plotStates: newPlotStates);
+  }
+
+  // =========================================================================
+  // Shop Purchases
+  // =========================================================================
+
+  /// Purchases a shop item, validating all requirements and costs.
+  /// Throws [StateError] if:
+  /// - The purchase ID is unknown
+  /// - The buy limit has been reached
+  /// - Unlock requirements are not met
+  /// - Purchase requirements are not met
+  /// - Not enough inventory space for granted items
+  /// - Not enough currency or items to pay the cost
+  GlobalState purchaseShopItem(MelvorId purchaseId) {
+    final shopRegistry = registries.shop;
+    final purchase = shopRegistry.byId(purchaseId);
+
+    if (purchase == null) {
+      throw StateError('Unknown shop purchase: $purchaseId');
+    }
+
+    // Check buy limit
+    final currentCount = shop.purchaseCount(purchaseId);
+    if (!purchase.isUnlimited && currentCount >= purchase.buyLimit) {
+      throw StateError('Already purchased maximum of ${purchase.name}');
+    }
+
+    // Check unlock requirements
+    for (final req in purchase.unlockRequirements) {
+      if (!req.isMet(this)) {
+        throw StateError('Unlock requirement not met for ${purchase.name}');
+      }
+    }
+
+    // Check purchase requirements
+    for (final req in purchase.purchaseRequirements) {
+      if (!req.isMet(this)) {
+        throw StateError('Purchase requirement not met for ${purchase.name}');
+      }
+    }
+
+    // Check inventory space for granted items before processing
+    final grantedItems = purchase.contains.items;
+    if (grantedItems.isNotEmpty) {
+      final capacity = inventoryCapacity;
+      for (final grantedItem in grantedItems) {
+        final item = registries.items.byId(grantedItem.itemId);
+        if (!inventory.canAdd(item, capacity: capacity)) {
+          throw StateError('Not enough bank space for ${item.name}');
+        }
+      }
+    }
+
+    // Calculate and apply currency costs
+    var newState = this;
+    final currencyCosts = purchase.cost.currencyCosts(
+      bankSlotsPurchased: shop.bankSlotsPurchased,
+    );
+    for (final (currency, amount) in currencyCosts) {
+      final balance = newState.currency(currency);
+      if (balance < amount) {
+        throw StateError(
+          'Not enough ${currency.abbreviation}. '
+          'Need $amount, have $balance',
+        );
+      }
+      newState = newState.addCurrency(currency, -amount);
+    }
+
+    // Check and apply item costs
+    final itemCosts = purchase.cost.items;
+    var newInventory = newState.inventory;
+    for (final itemCost in itemCosts) {
+      final item = registries.items.byId(itemCost.itemId);
+      final count = newInventory.countOfItem(item);
+      if (count < itemCost.quantity) {
+        throw StateError(
+          'Not enough ${item.name}. Need ${itemCost.quantity}, have $count',
+        );
+      }
+      newInventory = newInventory.removing(
+        ItemStack(item, count: itemCost.quantity),
+      );
+    }
+
+    // Add items granted by the purchase
+    for (final grantedItem in purchase.contains.items) {
+      final item = registries.items.byId(grantedItem.itemId);
+      newInventory = newInventory.adding(
+        ItemStack(item, count: grantedItem.quantity),
+      );
+    }
+
+    // Handle itemCharges purchases
+    var newItemCharges = newState.itemCharges;
+    final itemCharges = purchase.contains.itemCharges;
+    if (itemCharges != null) {
+      // Get the item to receive charges
+      final chargeItem = registries.items.byId(itemCharges.itemId);
+
+      // If player doesn't have the item, add it to inventory first
+      if (newInventory.countOfItem(chargeItem) == 0) {
+        newInventory = newInventory.adding(ItemStack(chargeItem, count: 1));
+      }
+
+      // Add charges to the item
+      newItemCharges = Map<MelvorId, int>.from(newItemCharges);
+      newItemCharges[itemCharges.itemId] =
+          (newItemCharges[itemCharges.itemId] ?? 0) + itemCharges.quantity;
+    }
+
+    // Apply purchase
+    return newState.copyWith(
+      inventory: newInventory,
+      itemCharges: newItemCharges,
+      shop: newState.shop.withPurchase(purchaseId),
+    );
+  }
+
+  // =========================================================================
+  // Farming Plot Unlocking
+  // =========================================================================
+
+  /// Unlocks a farming plot, deducting the required costs.
+  /// Returns null if:
+  /// - The plot ID is unknown
+  /// - The player doesn't meet the level requirement
+  /// - The player can't afford the currency costs
+  GlobalState? unlockPlot(MelvorId plotId) {
+    final plot = registries.farmingPlots.byId(plotId);
+    if (plot == null) {
+      return null;
+    }
+
+    // Check level requirement
+    final farmingLevel = skillState(Skill.farming).skillLevel;
+    if (farmingLevel < plot.level) {
+      return null;
+    }
+
+    // Check currency costs
+    for (final cost in plot.currencyCosts.costs) {
+      if (currency(cost.currency) < cost.amount) {
+        return null;
+      }
+    }
+
+    // Deduct costs and unlock plot
+    var newState = this;
+    for (final cost in plot.currencyCosts.costs) {
+      newState = newState.addCurrency(cost.currency, -cost.amount);
+    }
+
+    final newUnlockedPlots = Set<MelvorId>.from(newState.unlockedPlots)
+      ..add(plotId);
+
+    return newState.copyWith(unlockedPlots: newUnlockedPlots);
+  }
+
+  // =========================================================================
+  // Batch Operations
+  // =========================================================================
+
+  /// Sells multiple item stacks at once.
+  GlobalState sellItems(List<ItemStack> stacks) {
+    var newState = this;
+    for (final stack in stacks) {
+      newState = newState.sellItem(stack);
+    }
+    return newState;
+  }
+
+  /// Sorts the inventory by bank sort order.
+  GlobalState sortInventory() {
+    return copyWith(inventory: inventory.sorted(registries.compareBankItems));
+  }
+
+  // =========================================================================
+  // Cooking
+  // =========================================================================
+
+  /// Starts cooking in a specific area.
+  /// Returns null if:
+  /// - The player is stunned
+  /// - No recipe is assigned to the area
+  GlobalState? startCookingInArea(CookingArea area, {required Random random}) {
+    // If stunned, do nothing
+    if (isStunned) {
+      return null;
+    }
+
+    // Get the recipe assigned to this area
+    final areaState = cooking.areaState(area);
+    if (areaState.recipeId == null) {
+      return null; // No recipe assigned
+    }
+
+    // Find the cooking action
+    final recipe = registries.actions
+        .forSkill(Skill.cooking)
+        .whereType<CookingAction>()
+        .firstWhere(
+          (a) => a.id == areaState.recipeId,
+          orElse: () => throw StateError('Recipe not found'),
+        );
+
+    // Start the cooking action
+    return startAction(recipe, random: random);
   }
 
   GlobalState copyWith({
