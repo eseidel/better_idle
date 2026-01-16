@@ -137,7 +137,7 @@ class _DebugActionsTab extends StatelessWidget {
 
   Future<void> _fastForward(BuildContext context, Duration duration) async {
     final ticks = duration.inMilliseconds ~/ 100; // 10 ticks per second
-    final action = AdvanceTicksAction(ticks: ticks);
+    final action = DebugAdvanceTicksAction(ticks: ticks);
     context.dispatch(action);
 
     if (context.mounted) {

@@ -197,5 +197,79 @@ void main() {
         expect(result.equipment.foodSlots[0]?.count, 10);
       });
     });
+
+    group('addToStackedItem', () {
+      late Item bronzeArrows;
+      late Item ironArrows;
+
+      setUpAll(() {
+        bronzeArrows = testItems.byName('Bronze Arrows');
+        ironArrows = testItems.byName('Iron Arrows');
+      });
+
+      test('adds to existing stack in quiver slot', () {
+        // Start with 50 bronze arrows equipped
+        final (equipment, _) = const Equipment.empty().equipStackedItem(
+          bronzeArrows,
+          EquipmentSlot.quiver,
+          50,
+        );
+
+        // Add 30 more arrows
+        final updated = equipment.addToStackedItem(
+          bronzeArrows,
+          EquipmentSlot.quiver,
+          30,
+        );
+
+        expect(updated.gearInSlot(EquipmentSlot.quiver), bronzeArrows);
+        expect(updated.stackCountInSlot(EquipmentSlot.quiver), 80);
+      });
+
+      test('throws when slot does not support stacking', () {
+        final (equipment, _) = const Equipment.empty().equipGear(
+          testItems.byName('Bronze Sword'),
+          EquipmentSlot.weapon,
+        );
+
+        expect(
+          () => equipment.addToStackedItem(
+            testItems.byName('Bronze Sword'),
+            EquipmentSlot.weapon,
+            10,
+          ),
+          throwsArgumentError,
+        );
+      });
+
+      test('throws when no item is equipped in slot', () {
+        const equipment = Equipment.empty();
+
+        expect(
+          () => equipment.addToStackedItem(
+            bronzeArrows,
+            EquipmentSlot.quiver,
+            10,
+          ),
+          throwsArgumentError,
+        );
+      });
+
+      test('throws when item does not match equipped item', () {
+        // Start with bronze arrows equipped
+        final (equipment, _) = const Equipment.empty().equipStackedItem(
+          bronzeArrows,
+          EquipmentSlot.quiver,
+          50,
+        );
+
+        // Try to add iron arrows
+        expect(
+          () =>
+              equipment.addToStackedItem(ironArrows, EquipmentSlot.quiver, 10),
+          throwsArgumentError,
+        );
+      });
+    });
   });
 }

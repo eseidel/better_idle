@@ -41,6 +41,322 @@ TownshipBuilding _testBuilding({
 }
 
 void main() {
+  group('ToggleActionAction', () {
+    test('starts action when no action is active', () {
+      final testAction = SkillAction(
+        id: ActionId.test(Skill.woodcutting, 'Test Tree'),
+        skill: Skill.woodcutting,
+        name: 'Test Tree',
+        unlockLevel: 1,
+        duration: const Duration(seconds: 3),
+        xp: 10,
+      );
+      final registries = Registries.test(actions: [testAction]);
+      final initialState = GlobalState.empty(registries);
+      final store = Store<GlobalState>(initialState: initialState);
+
+      expect(store.state.activeAction, isNull);
+
+      store.dispatch(ToggleActionAction(action: testAction));
+
+      expect(store.state.activeAction, isNotNull);
+      expect(store.state.activeAction!.id, testAction.id);
+    });
+
+    test('stops action when same action is active', () {
+      final testAction = SkillAction(
+        id: ActionId.test(Skill.woodcutting, 'Test Tree'),
+        skill: Skill.woodcutting,
+        name: 'Test Tree',
+        unlockLevel: 1,
+        duration: const Duration(seconds: 3),
+        xp: 10,
+      );
+      final registries = Registries.test(actions: [testAction]);
+      var initialState = GlobalState.empty(registries);
+      // Start with the action already active
+      initialState = initialState.copyWith(
+        activeAction: ActiveAction(
+          id: testAction.id,
+          remainingTicks: 30,
+          totalTicks: 30,
+        ),
+      );
+      final store = Store<GlobalState>(initialState: initialState);
+
+      expect(store.state.activeAction, isNotNull);
+      expect(store.state.activeAction!.id, testAction.id);
+
+      store.dispatch(ToggleActionAction(action: testAction));
+
+      expect(store.state.activeAction, isNull);
+    });
+
+    test('switches to new action when different action is active', () {
+      final action1 = SkillAction(
+        id: ActionId.test(Skill.woodcutting, 'Tree 1'),
+        skill: Skill.woodcutting,
+        name: 'Tree 1',
+        unlockLevel: 1,
+        duration: const Duration(seconds: 3),
+        xp: 10,
+      );
+      final action2 = SkillAction(
+        id: ActionId.test(Skill.woodcutting, 'Tree 2'),
+        skill: Skill.woodcutting,
+        name: 'Tree 2',
+        unlockLevel: 1,
+        duration: const Duration(seconds: 3),
+        xp: 10,
+      );
+      final registries = Registries.test(actions: [action1, action2]);
+      var initialState = GlobalState.empty(registries);
+      // Start with action1 active
+      initialState = initialState.copyWith(
+        activeAction: ActiveAction(
+          id: action1.id,
+          remainingTicks: 30,
+          totalTicks: 30,
+        ),
+      );
+      final store = Store<GlobalState>(initialState: initialState);
+
+      expect(store.state.activeAction!.id, action1.id);
+
+      store.dispatch(ToggleActionAction(action: action2));
+
+      expect(store.state.activeAction, isNotNull);
+      expect(store.state.activeAction!.id, action2.id);
+    });
+
+    test('does nothing when stunned', () {
+      final testAction = SkillAction(
+        id: ActionId.test(Skill.woodcutting, 'Test Tree'),
+        skill: Skill.woodcutting,
+        name: 'Test Tree',
+        unlockLevel: 1,
+        duration: const Duration(seconds: 3),
+        xp: 10,
+      );
+      final registries = Registries.test(actions: [testAction]);
+      var initialState = GlobalState.empty(registries);
+      initialState = initialState.copyWith(
+        stunned: const StunnedState.fresh().stun(),
+      );
+      final store = Store<GlobalState>(initialState: initialState);
+
+      expect(store.state.activeAction, isNull);
+      expect(store.state.isStunned, isTrue);
+
+      store.dispatch(ToggleActionAction(action: testAction));
+
+      // Action should not have started because player is stunned
+      expect(store.state.activeAction, isNull);
+    });
+
+    test('cannot stop action when stunned', () {
+      final testAction = SkillAction(
+        id: ActionId.test(Skill.woodcutting, 'Test Tree'),
+        skill: Skill.woodcutting,
+        name: 'Test Tree',
+        unlockLevel: 1,
+        duration: const Duration(seconds: 3),
+        xp: 10,
+      );
+      final registries = Registries.test(actions: [testAction]);
+      var initialState = GlobalState.empty(registries);
+      // Start with action active AND stunned
+      initialState = initialState.copyWith(
+        activeAction: ActiveAction(
+          id: testAction.id,
+          remainingTicks: 30,
+          totalTicks: 30,
+        ),
+        stunned: const StunnedState.fresh().stun(),
+      );
+      final store = Store<GlobalState>(initialState: initialState);
+
+      expect(store.state.activeAction, isNotNull);
+      expect(store.state.isStunned, isTrue);
+
+      store.dispatch(ToggleActionAction(action: testAction));
+
+      // Action should still be active because player is stunned
+      expect(store.state.activeAction, isNotNull);
+      expect(store.state.activeAction!.id, testAction.id);
+    });
+  });
+
+  group('SetRecipeAction', () {
+    test('sets recipe index for action', () {
+      final testAction = SkillAction(
+        id: ActionId.test(Skill.smithing, 'Test Smithing'),
+        skill: Skill.smithing,
+        name: 'Test Smithing',
+        unlockLevel: 1,
+        duration: const Duration(seconds: 3),
+        xp: 10,
+      );
+      final registries = Registries.test(actions: [testAction]);
+      final initialState = GlobalState.empty(registries);
+      final store = Store<GlobalState>(initialState: initialState);
+
+      // Default recipe index should be null (not yet set)
+      expect(
+        store.state.actionState(testAction.id).selectedRecipeIndex,
+        isNull,
+      );
+
+      store.dispatch(SetRecipeAction(actionId: testAction.id, recipeIndex: 2));
+
+      expect(store.state.actionState(testAction.id).selectedRecipeIndex, 2);
+    });
+
+    test('changes recipe index from non-zero value', () {
+      final testAction = SkillAction(
+        id: ActionId.test(Skill.smithing, 'Test Smithing'),
+        skill: Skill.smithing,
+        name: 'Test Smithing',
+        unlockLevel: 1,
+        duration: const Duration(seconds: 3),
+        xp: 10,
+      );
+      final registries = Registries.test(actions: [testAction]);
+      var initialState = GlobalState.empty(registries);
+      // Set initial recipe index to 1
+      initialState = initialState.setRecipeIndex(testAction.id, 1);
+      final store = Store<GlobalState>(initialState: initialState);
+
+      expect(store.state.actionState(testAction.id).selectedRecipeIndex, 1);
+
+      store.dispatch(SetRecipeAction(actionId: testAction.id, recipeIndex: 3));
+
+      expect(store.state.actionState(testAction.id).selectedRecipeIndex, 3);
+    });
+
+    test('sets recipe index back to 0', () {
+      final testAction = SkillAction(
+        id: ActionId.test(Skill.smithing, 'Test Smithing'),
+        skill: Skill.smithing,
+        name: 'Test Smithing',
+        unlockLevel: 1,
+        duration: const Duration(seconds: 3),
+        xp: 10,
+      );
+      final registries = Registries.test(actions: [testAction]);
+      var initialState = GlobalState.empty(registries);
+      initialState = initialState.setRecipeIndex(testAction.id, 5);
+      final store = Store<GlobalState>(initialState: initialState);
+
+      expect(store.state.actionState(testAction.id).selectedRecipeIndex, 5);
+
+      store.dispatch(SetRecipeAction(actionId: testAction.id, recipeIndex: 0));
+
+      expect(store.state.actionState(testAction.id).selectedRecipeIndex, 0);
+    });
+  });
+
+  group('DismissWelcomeBackDialogAction', () {
+    test('clears timeAway from state', () {
+      final registries = Registries.test();
+      var initialState = GlobalState.empty(registries);
+      // Set up state with timeAway
+      initialState = initialState.copyWith(timeAway: TimeAway.test(registries));
+      final store = Store<GlobalState>(initialState: initialState);
+
+      expect(store.state.timeAway, isNotNull);
+
+      store.dispatch(DismissWelcomeBackDialogAction());
+
+      expect(store.state.timeAway, isNull);
+    });
+
+    test('does nothing when timeAway is already null', () {
+      final registries = Registries.test();
+      final initialState = GlobalState.empty(registries);
+      final store = Store<GlobalState>(initialState: initialState);
+
+      expect(store.state.timeAway, isNull);
+
+      store.dispatch(DismissWelcomeBackDialogAction());
+
+      expect(store.state.timeAway, isNull);
+    });
+  });
+
+  group('SellItemAction', () {
+    test('sells item and adds GP', () {
+      final testItem = Item.test('Test Item', gp: 50);
+      final registries = Registries.test(items: [testItem]);
+      var initialState = GlobalState.empty(registries);
+      initialState = initialState.copyWith(
+        inventory: initialState.inventory.adding(
+          ItemStack(testItem, count: 10),
+        ),
+      );
+      final store = Store<GlobalState>(initialState: initialState);
+
+      expect(store.state.inventory.countOfItem(testItem), 10);
+      expect(store.state.gp, 0);
+
+      store.dispatch(SellItemAction(item: testItem, count: 5));
+
+      expect(store.state.inventory.countOfItem(testItem), 5);
+      expect(store.state.gp, 250); // 5 * 50 GP
+    });
+
+    test('sells all of an item', () {
+      final testItem = Item.test('Test Item', gp: 100);
+      final registries = Registries.test(items: [testItem]);
+      var initialState = GlobalState.empty(registries);
+      initialState = initialState.copyWith(
+        inventory: initialState.inventory.adding(ItemStack(testItem, count: 3)),
+      );
+      final store = Store<GlobalState>(initialState: initialState)
+        ..dispatch(SellItemAction(item: testItem, count: 3));
+
+      expect(store.state.inventory.countOfItem(testItem), 0);
+      expect(store.state.gp, 300);
+    });
+  });
+
+  group('SellMultipleItemsAction', () {
+    test('sells multiple different items', () {
+      final item1 = Item.test('Item 1', gp: 10);
+      final item2 = Item.test('Item 2', gp: 20);
+      final registries = Registries.test(items: [item1, item2]);
+      var initialState = GlobalState.empty(registries);
+      initialState = initialState.copyWith(
+        inventory: initialState.inventory
+            .adding(ItemStack(item1, count: 5))
+            .adding(ItemStack(item2, count: 3)),
+      );
+      final store = Store<GlobalState>(initialState: initialState);
+
+      expect(store.state.inventory.countOfItem(item1), 5);
+      expect(store.state.inventory.countOfItem(item2), 3);
+
+      store.dispatch(
+        SellMultipleItemsAction(
+          stacks: [ItemStack(item1, count: 2), ItemStack(item2, count: 1)],
+        ),
+      );
+
+      expect(store.state.inventory.countOfItem(item1), 3);
+      expect(store.state.inventory.countOfItem(item2), 2);
+      expect(store.state.gp, 40); // (2 * 10) + (1 * 20)
+    });
+
+    test('sells empty list does nothing', () {
+      final registries = Registries.test();
+      final initialState = GlobalState.empty(registries);
+      final store = Store<GlobalState>(initialState: initialState)
+        ..dispatch(SellMultipleItemsAction(stacks: []));
+
+      expect(store.state.gp, 0);
+    });
+  });
+
   group('DebugAddCurrencyAction', () {
     test('adds GP to empty balance', () {
       final registries = Registries.test();

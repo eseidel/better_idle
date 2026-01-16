@@ -2023,6 +2023,276 @@ void main() {
       });
     });
 
+    group('canAffordTownshipBuildingCosts', () {
+      test('returns false for invalid building', () {
+        final registries = Registries.test(
+          township: const TownshipRegistry.empty(),
+        );
+
+        final state = GlobalState.test(registries);
+        expect(
+          state.canAffordTownshipBuildingCosts(
+            const MelvorId('melvorD:Grasslands'),
+            const MelvorId('melvorD:Nonexistent'),
+          ),
+          isFalse,
+        );
+      });
+
+      test('returns false for invalid biome', () {
+        const buildingId = MelvorId('melvorD:Test_Building');
+        const biomeId = MelvorId('melvorD:Grasslands');
+
+        final building = testBuilding(
+          id: buildingId,
+          name: 'Test Building',
+          validBiomes: {biomeId},
+          costs: {const MelvorId('melvorD:GP'): 1000},
+        );
+
+        final registries = Registries.test(
+          township: TownshipRegistry(
+            buildings: [building],
+            biomes: const [
+              TownshipBiome(id: biomeId, name: 'Grasslands', tier: 1),
+            ],
+          ),
+        );
+
+        final state = GlobalState.test(registries);
+        // Building exists but biome is invalid for this building
+        expect(
+          state.canAffordTownshipBuildingCosts(
+            const MelvorId('melvorD:InvalidBiome'),
+            buildingId,
+          ),
+          isFalse,
+        );
+      });
+
+      test('returns true when player has enough GP', () {
+        const buildingId = MelvorId('melvorD:Test_Building');
+        const biomeId = MelvorId('melvorD:Grasslands');
+        final gpId = Currency.gp.id;
+
+        final building = testBuilding(
+          id: buildingId,
+          name: 'Test Building',
+          validBiomes: {biomeId},
+          costs: {gpId: 1000},
+        );
+
+        final registries = Registries.test(
+          township: TownshipRegistry(
+            buildings: [building],
+            biomes: const [
+              TownshipBiome(id: biomeId, name: 'Grasslands', tier: 1),
+            ],
+          ),
+        );
+
+        var state = GlobalState.test(registries);
+        state = state.addCurrency(Currency.gp, 1000);
+
+        expect(
+          state.canAffordTownshipBuildingCosts(biomeId, buildingId),
+          isTrue,
+        );
+      });
+
+      test('returns false when player lacks GP', () {
+        const buildingId = MelvorId('melvorD:Test_Building');
+        const biomeId = MelvorId('melvorD:Grasslands');
+        final gpId = Currency.gp.id;
+
+        final building = testBuilding(
+          id: buildingId,
+          name: 'Test Building',
+          validBiomes: {biomeId},
+          costs: {gpId: 1000},
+        );
+
+        final registries = Registries.test(
+          township: TownshipRegistry(
+            buildings: [building],
+            biomes: const [
+              TownshipBiome(id: biomeId, name: 'Grasslands', tier: 1),
+            ],
+          ),
+        );
+
+        var state = GlobalState.test(registries);
+        state = state.addCurrency(Currency.gp, 500); // Not enough
+
+        expect(
+          state.canAffordTownshipBuildingCosts(biomeId, buildingId),
+          isFalse,
+        );
+      });
+
+      test('returns true when player has enough township resources', () {
+        const buildingId = MelvorId('melvorD:Test_Building');
+        const biomeId = MelvorId('melvorD:Grasslands');
+        const woodId = MelvorId('melvorF:Wood');
+
+        final building = testBuilding(
+          id: buildingId,
+          name: 'Test Building',
+          validBiomes: {biomeId},
+          costs: {woodId: 100},
+        );
+
+        final registries = Registries.test(
+          township: TownshipRegistry(
+            buildings: [building],
+            biomes: const [
+              TownshipBiome(id: biomeId, name: 'Grasslands', tier: 1),
+            ],
+            resources: const [
+              TownshipResource(id: woodId, name: 'Wood', type: 'Raw'),
+            ],
+          ),
+        );
+
+        var state = GlobalState.test(registries);
+        state = state.copyWith(
+          township: state.township.addResource(woodId, 100),
+        );
+
+        expect(
+          state.canAffordTownshipBuildingCosts(biomeId, buildingId),
+          isTrue,
+        );
+      });
+
+      test('returns false when player lacks township resources', () {
+        const buildingId = MelvorId('melvorD:Test_Building');
+        const biomeId = MelvorId('melvorD:Grasslands');
+        const woodId = MelvorId('melvorF:Wood');
+
+        final building = testBuilding(
+          id: buildingId,
+          name: 'Test Building',
+          validBiomes: {biomeId},
+          costs: {woodId: 100},
+        );
+
+        final registries = Registries.test(
+          township: TownshipRegistry(
+            buildings: [building],
+            biomes: const [
+              TownshipBiome(id: biomeId, name: 'Grasslands', tier: 1),
+            ],
+            resources: const [
+              TownshipResource(id: woodId, name: 'Wood', type: 'Raw'),
+            ],
+          ),
+        );
+
+        var state = GlobalState.test(registries);
+        state = state.copyWith(
+          township: state.township.addResource(woodId, 50), // Not enough
+        );
+
+        expect(
+          state.canAffordTownshipBuildingCosts(biomeId, buildingId),
+          isFalse,
+        );
+      });
+
+      test('checks both GP and township resources', () {
+        const buildingId = MelvorId('melvorD:Test_Building');
+        const biomeId = MelvorId('melvorD:Grasslands');
+        final gpId = Currency.gp.id;
+        const woodId = MelvorId('melvorF:Wood');
+
+        final building = testBuilding(
+          id: buildingId,
+          name: 'Test Building',
+          validBiomes: {biomeId},
+          costs: {gpId: 500, woodId: 100},
+        );
+
+        final registries = Registries.test(
+          township: TownshipRegistry(
+            buildings: [building],
+            biomes: const [
+              TownshipBiome(id: biomeId, name: 'Grasslands', tier: 1),
+            ],
+            resources: const [
+              TownshipResource(id: woodId, name: 'Wood', type: 'Raw'),
+            ],
+          ),
+        );
+
+        // Has GP but no wood
+        var state = GlobalState.test(registries);
+        state = state.addCurrency(Currency.gp, 500);
+        expect(
+          state.canAffordTownshipBuildingCosts(biomeId, buildingId),
+          isFalse,
+        );
+
+        // Add wood - now should pass
+        state = state.copyWith(
+          township: state.township.addResource(woodId, 100),
+        );
+        expect(
+          state.canAffordTownshipBuildingCosts(biomeId, buildingId),
+          isTrue,
+        );
+      });
+
+      test('applies deity building cost modifier', () {
+        const buildingId = MelvorId('melvorD:Test_Building');
+        const biomeId = MelvorId('melvorD:Grasslands');
+        const deityId = MelvorId('melvorD:TestDeity');
+        final gpId = Currency.gp.id;
+
+        final building = testBuilding(
+          id: buildingId,
+          name: 'Test Building',
+          validBiomes: {biomeId},
+          costs: {gpId: 1000},
+        );
+
+        final registries = Registries.test(
+          township: TownshipRegistry(
+            buildings: [building],
+            biomes: const [
+              TownshipBiome(id: biomeId, name: 'Grasslands', tier: 1),
+            ],
+            deities: const [
+              TownshipDeity(
+                id: deityId,
+                name: 'Test Deity',
+                baseModifiers: DeityModifiers(buildingCost: -25),
+              ),
+            ],
+          ),
+        );
+
+        // With -25% cost modifier, 1000 GP cost becomes 750 GP
+        var state = GlobalState.test(registries);
+        state = state.copyWith(
+          township: state.township.copyWith(worshipId: deityId),
+        );
+        state = state.addCurrency(Currency.gp, 750);
+
+        expect(
+          state.canAffordTownshipBuildingCosts(biomeId, buildingId),
+          isTrue,
+        );
+
+        // With 749 GP, should not be able to afford
+        state = state.addCurrency(Currency.gp, -1);
+        expect(
+          state.canAffordTownshipBuildingCosts(biomeId, buildingId),
+          isFalse,
+        );
+      });
+    });
+
     group('repairAllTownshipBuildings', () {
       test('throws when no buildings need repair', () {
         final registries = Registries.test(

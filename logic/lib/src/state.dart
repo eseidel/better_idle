@@ -2208,7 +2208,7 @@ class GlobalState {
 
     final potion = registries.items.byId(potionId);
     final chargesPerPotion = potion.potionCharges ?? 1;
-    final chargesUsed = potionChargesUsed[skillId] ?? 0;
+    final chargesUsed = potionChargesUsedForSkill(skillId);
     final chargesLeft = chargesPerPotion - chargesUsed;
     final inventoryCount = inventory.countById(potionId);
 

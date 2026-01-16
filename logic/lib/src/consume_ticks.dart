@@ -877,7 +877,7 @@ class StateUpdateBuilder {
     }
 
     // Increment charges used for this skill
-    final usedCharges = (_state.potionChargesUsed[skillId] ?? 0) + 1;
+    final usedCharges = _state.potionChargesUsedForSkill(skillId) + 1;
 
     if (usedCharges >= maxCharges) {
       // This potion is fully used - consume one from inventory

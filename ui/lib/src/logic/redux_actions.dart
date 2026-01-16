@@ -88,8 +88,8 @@ class SetRecipeAction extends ReduxAction<GlobalState> {
 
 /// Advances the game by a specified number of ticks and returns the changes.
 /// Unlike UpdateActivityProgressAction, this does not show toasts.
-class AdvanceTicksAction extends ReduxAction<GlobalState> {
-  AdvanceTicksAction({required this.ticks});
+class DebugAdvanceTicksAction extends ReduxAction<GlobalState> {
+  DebugAdvanceTicksAction({required this.ticks});
   final Tick ticks;
 
   /// The time away that occurred during this advancement.
