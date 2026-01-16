@@ -1051,10 +1051,7 @@ bool rollAndCollectDrops(
   final registries = builder.registries;
   var allItemsAdded = true;
 
-  // Get doubling chance from modifiers (percentage -> 0.0-1.0)
-  final doublingChance =
-      (modifiers.skillItemDoublingChance(skillId: action.skill.id) / 100.0)
-          .clamp(0.0, 1.0);
+  final doublingChance = action.doublingChance(modifiers);
 
   for (final drop in registries.drops.allDropsForAction(action, selection)) {
     ItemStack? itemStack;
@@ -1103,7 +1100,9 @@ bool completeThievingAction(
   final thievingLevel = builder.state.skillState(Skill.thieving).skillLevel;
   final actionMasteryLevel = builder.currentMasteryLevel(action);
   final modifierProvider = builder.state.createActionModifierProvider(action);
-  final thievingStealth = modifierProvider.thievingStealth();
+  final thievingStealth = modifierProvider.thievingStealth(
+    actionId: action.id.localId,
+  );
   final success = action.rollSuccess(
     random,
     thievingLevel,
@@ -1123,6 +1122,7 @@ bool completeThievingAction(
     final baseGold = action.rollGold(random);
     final currencyGainMod = modifierProvider.currencyGain(
       skillId: action.skill.id,
+      actionId: action.id.localId,
     );
     final adjustedGold = (baseGold * (1.0 + currencyGainMod / 100.0))
         .round()
@@ -1216,7 +1216,12 @@ void completeCookingAction(
   MelvorId outputId;
   if (!isPassive && action.perfectCookId != null) {
     // Roll for perfect cook using perfectCookChance modifier
-    final perfectChance = modifiers.perfectCookChance() / 100.0;
+    final perfectChance =
+        modifiers.perfectCookChance(
+          actionId: action.id.localId,
+          categoryId: action.categoryId,
+        ) /
+        100.0;
     final isPerfect = random.nextDouble() < perfectChance;
     outputId = isPerfect ? action.perfectCookId! : action.productId;
   } else {
@@ -1228,9 +1233,7 @@ void completeCookingAction(
 
   // Apply doubling for active cooking only
   if (!isPassive) {
-    final doublingChance =
-        (modifiers.skillItemDoublingChance(skillId: action.skill.id) / 100.0)
-            .clamp(0.0, 1.0);
+    final doublingChance = action.doublingChance(modifiers);
     if (doublingChance > 0 && random.nextDouble() < doublingChance) {
       quantity *= 2;
     }
@@ -1952,10 +1955,7 @@ ConsumeTicksStopReason consumeTicksUntil(
   RecipeSelection recipeSelection = const NoSelectedRecipe();
   if (action is SkillAction) {
     final modifierProvider = state.createActionModifierProvider(action);
-    doublingChance =
-        (modifierProvider.skillItemDoublingChance(skillId: action.skill.id) /
-                100.0)
-            .clamp(0.0, 1.0);
+    doublingChance = action.doublingChance(modifierProvider);
     final actionState = state.actionState(action.id);
     recipeSelection = actionState.recipeSelection(action);
   }

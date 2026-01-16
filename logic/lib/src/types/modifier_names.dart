@@ -29,29 +29,29 @@ mixin ModifierAccessors {
 
   int get accuracyRating => getModifier('accuracyRating').toInt();
   int additionalItemBasedOnPrimaryQuantityChance({
-    required MelvorId skillId,
-    required MelvorId actionId,
-    required MelvorId itemId,
+    required MelvorId? skillId,
+    required MelvorId? actionId,
+    required MelvorId? itemId,
   }) => getModifier(
     'additionalItemBasedOnPrimaryQuantityChance',
     skillId: skillId,
     actionId: actionId,
     itemId: itemId,
   ).toInt();
-  int additionalPrimaryProductChance({required MelvorId skillId}) =>
+  int additionalPrimaryProductChance({required MelvorId? skillId}) =>
       getModifier('additionalPrimaryProductChance', skillId: skillId).toInt();
   int additionalRandomGemChance({
-    required MelvorId skillId,
-    MelvorId? actionId,
+    required MelvorId? skillId,
+    required MelvorId? actionId,
   }) => getModifier(
     'additionalRandomGemChance',
     skillId: skillId,
     actionId: actionId,
   ).toInt();
   int additionalRandomSkillItemChance({
-    required MelvorId skillId,
-    required MelvorId itemId,
-    MelvorId? actionId,
+    required MelvorId? skillId,
+    required MelvorId? actionId,
+    required MelvorId? itemId,
   }) => getModifier(
     'additionalRandomSkillItemChance',
     skillId: skillId,
@@ -60,7 +60,7 @@ mixin ModifierAccessors {
   ).toInt();
   int get agilityItemCostReductionCanReach100 =>
       getModifier('agilityItemCostReductionCanReach100').toInt();
-  int agilityObstacleCost({MelvorId? actionId}) =>
+  int agilityObstacleCost({required MelvorId? actionId}) =>
       getModifier('agilityObstacleCost', actionId: actionId).toInt();
   int get agilityObstacleItemCost =>
       getModifier('agilityObstacleItemCost').toInt();
@@ -86,8 +86,8 @@ mixin ModifierAccessors {
   int get autoSwapFoodUnlocked => getModifier('autoSwapFoodUnlocked').toInt();
   int get bankSpace => getModifier('bankSpace').toInt();
   int basePrimaryProductQuantity({
-    required MelvorId skillId,
-    MelvorId? actionId,
+    required MelvorId? skillId,
+    required MelvorId? actionId,
   }) => getModifier(
     'basePrimaryProductQuantity',
     skillId: skillId,
@@ -97,11 +97,11 @@ mixin ModifierAccessors {
   int get bonusCoalMining => getModifier('bonusCoalMining').toInt();
   int get bonusCoalOnDungeonCompletion =>
       getModifier('bonusCoalOnDungeonCompletion').toInt();
-  int bonusFishingSpecialChance({MelvorId? actionId}) =>
+  int bonusFishingSpecialChance({required MelvorId? actionId}) =>
       getModifier('bonusFishingSpecialChance', actionId: actionId).toInt();
   int get burnLifesteal => getModifier('burnLifesteal').toInt();
   int get bypassSlayerItems => getModifier('bypassSlayerItems').toInt();
-  int cannotFishJunk({MelvorId? actionId}) =>
+  int cannotFishJunk({required MelvorId? actionId}) =>
       getModifier('cannotFishJunk', actionId: actionId).toInt();
   int get cantAttack => getModifier('cantAttack').toInt();
   int get cantEvade => getModifier('cantEvade').toInt();
@@ -119,7 +119,7 @@ mixin ModifierAccessors {
   int get convertBoneDropsIntoCake =>
       getModifier('convertBoneDropsIntoCake').toInt();
   int get cookingSuccessCap => getModifier('cookingSuccessCap').toInt();
-  int currencyGain({MelvorId? skillId, MelvorId? actionId}) =>
+  int currencyGain({required MelvorId? skillId, required MelvorId? actionId}) =>
       getModifier('currencyGain', skillId: skillId, actionId: actionId).toInt();
   int get currencyGainFromCombat =>
       getModifier('currencyGainFromCombat').toInt();
@@ -151,7 +151,7 @@ mixin ModifierAccessors {
   int get damageDealtToAllMonsters =>
       getModifier('damageDealtToAllMonsters').toInt();
   int get damageDealtToBosses => getModifier('damageDealtToBosses').toInt();
-  int damageDealtToMonstersInArea({required MelvorId categoryId}) =>
+  int damageDealtToMonstersInArea({required MelvorId? categoryId}) =>
       getModifier(
         'damageDealtToMonstersInArea',
         categoryId: categoryId,
@@ -161,9 +161,9 @@ mixin ModifierAccessors {
   int get damageTaken => getModifier('damageTaken').toInt();
   int get disableAttackDamage => getModifier('disableAttackDamage').toInt();
   int doubleItemsSkill({
-    required MelvorId skillId,
-    MelvorId? actionId,
-    MelvorId? categoryId,
+    required MelvorId? skillId,
+    required MelvorId? actionId,
+    required MelvorId? categoryId,
   }) => getModifier(
     'doubleItemsSkill',
     skillId: skillId,
@@ -182,9 +182,9 @@ mixin ModifierAccessors {
   int get equipmentAttackSpeed => getModifier('equipmentAttackSpeed').toInt();
   int get equipmentSets => getModifier('equipmentSets').toInt();
   int get evasion => getModifier('evasion').toInt();
-  int farmingCropsCannotDie({MelvorId? actionId}) =>
+  int farmingCropsCannotDie({required MelvorId? actionId}) =>
       getModifier('farmingCropsCannotDie', actionId: actionId).toInt();
-  double farmingSeedReturn({required MelvorId actionId}) =>
+  double farmingSeedReturn({required MelvorId? actionId}) =>
       getModifier('farmingSeedReturn', actionId: actionId).toDouble();
   int get firemakingBonfireInterval =>
       getModifier('firemakingBonfireInterval').toInt();
@@ -193,21 +193,21 @@ mixin ModifierAccessors {
   int get fishingAdditionalSpecialItemChance =>
       getModifier('fishingAdditionalSpecialItemChance').toInt();
   int get fishingCookedChance => getModifier('fishingCookedChance').toInt();
-  double fishingMasteryDoublingChance({required MelvorId actionId}) =>
+  double fishingMasteryDoublingChance({required MelvorId? actionId}) =>
       getModifier(
         'fishingMasteryDoublingChance',
         actionId: actionId,
       ).toDouble();
   int get fishingSpecialChance => getModifier('fishingSpecialChance').toInt();
-  int flatAdditionalPrimaryProductQuantity({required MelvorId skillId}) =>
+  int flatAdditionalPrimaryProductQuantity({required MelvorId? skillId}) =>
       getModifier(
         'flatAdditionalPrimaryProductQuantity',
         skillId: skillId,
       ).toInt();
   int flatAdditionalSkillItem({
-    required MelvorId skillId,
-    required MelvorId itemId,
-    MelvorId? actionId,
+    required MelvorId? skillId,
+    required MelvorId? actionId,
+    required MelvorId? itemId,
   }) => getModifier(
     'flatAdditionalSkillItem',
     skillId: skillId,
@@ -216,23 +216,23 @@ mixin ModifierAccessors {
   ).toInt();
   int get flatAttackInterval => getModifier('flatAttackInterval').toInt();
   double flatBasePrimaryProductQuantity({
-    required MelvorId skillId,
-    MelvorId? actionId,
-    MelvorId? categoryId,
+    required MelvorId? skillId,
+    required MelvorId? actionId,
+    required MelvorId? categoryId,
   }) => getModifier(
     'flatBasePrimaryProductQuantity',
     skillId: skillId,
     actionId: actionId,
     categoryId: categoryId,
   ).toDouble();
-  int flatBasePrimaryProductQuantityChance({required MelvorId skillId}) =>
+  int flatBasePrimaryProductQuantityChance({required MelvorId? skillId}) =>
       getModifier(
         'flatBasePrimaryProductQuantityChance',
         skillId: skillId,
       ).toInt();
   int flatBaseRandomProductQuantity({
-    required MelvorId skillId,
-    required MelvorId itemId,
+    required MelvorId? skillId,
+    required MelvorId? itemId,
   }) => getModifier(
     'flatBaseRandomProductQuantity',
     skillId: skillId,
@@ -249,7 +249,7 @@ mixin ModifierAccessors {
       getModifier('flatCurrencyGainOnEnemyHit').toInt();
   int get flatCurrencyGainWhenHitBasedOnResistance =>
       getModifier('flatCurrencyGainWhenHitBasedOnResistance').toInt();
-  int flatFarmingSeedCost({required MelvorId categoryId}) =>
+  int flatFarmingSeedCost({required MelvorId? categoryId}) =>
       getModifier('flatFarmingSeedCost', categoryId: categoryId).toInt();
   double get flatHPRegen => getModifier('flatHPRegen').toDouble();
   int get flatHPRegenBasedOnMagicMaxHit =>
@@ -258,7 +258,7 @@ mixin ModifierAccessors {
       getModifier('flatHPRegenBasedOnMeleeMaxHit').toInt();
   int get flatHPRegenBasedOnRangedMaxHit =>
       getModifier('flatHPRegenBasedOnRangedMaxHit').toInt();
-  int flatHiddenSkillLevel({required MelvorId skillId}) =>
+  int flatHiddenSkillLevel({required MelvorId? skillId}) =>
       getModifier('flatHiddenSkillLevel', skillId: skillId).toInt();
   int get flatMagicAttackBonus => getModifier('flatMagicAttackBonus').toInt();
   int get flatMagicDefenceBonus => getModifier('flatMagicDefenceBonus').toInt();
@@ -273,7 +273,7 @@ mixin ModifierAccessors {
   int get flatMeleeStrengthBonus =>
       getModifier('flatMeleeStrengthBonus').toInt();
   int get flatMinHit => getModifier('flatMinHit').toInt();
-  int flatMiningNodeHP({MelvorId? actionId}) =>
+  int flatMiningNodeHP({required MelvorId? actionId}) =>
       getModifier('flatMiningNodeHP', actionId: actionId).toInt();
   int get flatMonsterRespawnInterval =>
       getModifier('flatMonsterRespawnInterval').toInt();
@@ -298,18 +298,20 @@ mixin ModifierAccessors {
       getModifier('flatResistanceAgainstRanged').toInt();
   int get flatResistanceAgainstSlayerTasks =>
       getModifier('flatResistanceAgainstSlayerTasks').toInt();
-  int flatSkillInterval({required MelvorId skillId, MelvorId? actionId}) =>
-      getModifier(
-        'flatSkillInterval',
-        skillId: skillId,
-        actionId: actionId,
-      ).toInt();
+  int flatSkillInterval({
+    required MelvorId? skillId,
+    required MelvorId? actionId,
+  }) => getModifier(
+    'flatSkillInterval',
+    skillId: skillId,
+    actionId: actionId,
+  ).toInt();
   int get flatSlashAttackBonus => getModifier('flatSlashAttackBonus').toInt();
   int get flatSlayerAreaEffectNegation =>
       getModifier('flatSlayerAreaEffectNegation').toInt();
   int get flatSmithingCoalCost => getModifier('flatSmithingCoalCost').toInt();
   int get flatStabAttackBonus => getModifier('flatStabAttackBonus').toInt();
-  int flatSummoningShardCost({MelvorId? actionId}) =>
+  int flatSummoningShardCost({required MelvorId? actionId}) =>
       getModifier('flatSummoningShardCost', actionId: actionId).toInt();
   int get flatThievingCurrencyGain =>
       getModifier('flatThievingCurrencyGain').toInt();
@@ -321,7 +323,7 @@ mixin ModifierAccessors {
       getModifier('flatTier3SummoningShardCost').toInt();
   int get flatTownshipEducation => getModifier('flatTownshipEducation').toInt();
   int get flatTownshipHappiness => getModifier('flatTownshipHappiness').toInt();
-  int foodHealingValue({MelvorId? actionId}) =>
+  int foodHealingValue({required MelvorId? actionId}) =>
       getModifier('foodHealingValue', actionId: actionId).toInt();
   int get foodPreservationChance =>
       getModifier('foodPreservationChance').toInt();
@@ -352,7 +354,7 @@ mixin ModifierAccessors {
       getModifier('golbinRaidStartingWeapon').toInt();
   int get golbinRaidWaveSkipCost =>
       getModifier('golbinRaidWaveSkipCost').toInt();
-  int halveAgilityObstacleNegatives({required MelvorId actionId}) =>
+  int halveAgilityObstacleNegatives({required MelvorId? actionId}) =>
       getModifier('halveAgilityObstacleNegatives', actionId: actionId).toInt();
   int get halveWoodcuttingDoubleChance =>
       getModifier('halveWoodcuttingDoubleChance').toInt();
@@ -364,7 +366,7 @@ mixin ModifierAccessors {
       getModifier('hitpointRegenerationAgainstSlayerTasks').toInt();
   int get hpRegenWhenEnemyHasMoreEvasion =>
       getModifier('hpRegenWhenEnemyHasMoreEvasion').toInt();
-  int ignoreThievingDamage({required MelvorId actionId}) =>
+  int ignoreThievingDamage({required MelvorId? actionId}) =>
       getModifier('ignoreThievingDamage', actionId: actionId).toInt();
   int get itemProtection => getModifier('itemProtection').toInt();
   int get lifesteal => getModifier('lifesteal').toInt();
@@ -381,7 +383,7 @@ mixin ModifierAccessors {
       getModifier('magicMinHitBasedOnMaxHitSlayerTask').toInt();
   int get magicProtection => getModifier('magicProtection').toInt();
   int get masteryPoolCap => getModifier('masteryPoolCap').toInt();
-  double masteryXP({MelvorId? skillId}) =>
+  double masteryXP({required MelvorId? skillId}) =>
       getModifier('masteryXP', skillId: skillId).toDouble();
   int get maxCurrencyMultiplierPerDamage =>
       getModifier('maxCurrencyMultiplierPerDamage').toInt();
@@ -408,24 +410,26 @@ mixin ModifierAccessors {
   int get miningGemChance => getModifier('miningGemChance').toInt();
   int get miningNodeRespawnInterval =>
       getModifier('miningNodeRespawnInterval').toInt();
-  int noMiningNodeDamageChance({required MelvorId categoryId}) =>
+  int noMiningNodeDamageChance({required MelvorId? categoryId}) =>
       getModifier('noMiningNodeDamageChance', categoryId: categoryId).toInt();
   int get nonCombatSkillXP => getModifier('nonCombatSkillXP').toInt();
-  int nonShardSummoningCostReduction({required MelvorId actionId}) =>
+  int nonShardSummoningCostReduction({required MelvorId? actionId}) =>
       getModifier('nonShardSummoningCostReduction', actionId: actionId).toInt();
   int get offItemChance => getModifier('offItemChance').toInt();
   int get onHitSlowMagnitude => getModifier('onHitSlowMagnitude').toInt();
   int get otherStyleImmunity => getModifier('otherStyleImmunity').toInt();
-  int perfectCookChance({MelvorId? actionId, MelvorId? categoryId}) =>
-      getModifier(
-        'perfectCookChance',
-        actionId: actionId,
-        categoryId: categoryId,
-      ).toInt();
+  int perfectCookChance({
+    required MelvorId? actionId,
+    required MelvorId? categoryId,
+  }) => getModifier(
+    'perfectCookChance',
+    actionId: actionId,
+    categoryId: categoryId,
+  ).toInt();
   int get poisonLifesteal => getModifier('poisonLifesteal').toInt();
   int get potionChargePreservationChance =>
       getModifier('potionChargePreservationChance').toInt();
-  int potionCharges({required MelvorId actionId}) =>
+  int potionCharges({required MelvorId? actionId}) =>
       getModifier('potionCharges', actionId: actionId).toInt();
   int get prayerPointCost => getModifier('prayerPointCost').toInt();
   int get prayerPointPreservationChance =>
@@ -433,8 +437,8 @@ mixin ModifierAccessors {
   int get randomHerblorePotionChance =>
       getModifier('randomHerblorePotionChance').toInt();
   double randomProductChance({
-    required MelvorId skillId,
-    required MelvorId itemId,
+    required MelvorId? skillId,
+    required MelvorId? itemId,
   }) => getModifier(
     'randomProductChance',
     skillId: skillId,
@@ -458,39 +462,41 @@ mixin ModifierAccessors {
       getModifier('runePreservationChance').toInt();
   int get runecraftingBaseXPForRunes =>
       getModifier('runecraftingBaseXPForRunes').toInt();
-  int runecraftingRuneCostReduction({required MelvorId actionId}) =>
+  int runecraftingRuneCostReduction({required MelvorId? actionId}) =>
       getModifier('runecraftingRuneCostReduction', actionId: actionId).toInt();
   int get seedDropConversionChance =>
       getModifier('seedDropConversionChance').toInt();
-  double skillInterval({required MelvorId skillId, MelvorId? actionId}) =>
-      getModifier(
-        'skillInterval',
-        skillId: skillId,
-        actionId: actionId,
-      ).toDouble();
+  double skillInterval({
+    required MelvorId? skillId,
+    required MelvorId? actionId,
+  }) => getModifier(
+    'skillInterval',
+    skillId: skillId,
+    actionId: actionId,
+  ).toDouble();
   int skillItemDoublingChance({
-    required MelvorId skillId,
-    MelvorId? actionId,
-    MelvorId? categoryId,
+    required MelvorId? skillId,
+    required MelvorId? actionId,
+    required MelvorId? categoryId,
   }) => getModifier(
     'skillItemDoublingChance',
     skillId: skillId,
     actionId: actionId,
     categoryId: categoryId,
   ).toInt();
-  int skillPreservationCap({required MelvorId skillId}) =>
+  int skillPreservationCap({required MelvorId? skillId}) =>
       getModifier('skillPreservationCap', skillId: skillId).toInt();
   double skillPreservationChance({
-    MelvorId? skillId,
-    MelvorId? actionId,
-    MelvorId? categoryId,
+    required MelvorId? skillId,
+    required MelvorId? actionId,
+    required MelvorId? categoryId,
   }) => getModifier(
     'skillPreservationChance',
     skillId: skillId,
     actionId: actionId,
     categoryId: categoryId,
   ).toDouble();
-  int skillXP({MelvorId? skillId}) =>
+  int skillXP({required MelvorId? skillId}) =>
       getModifier('skillXP', skillId: skillId).toInt();
   int get slayerTaskLength => getModifier('slayerTaskLength').toInt();
   int get smithingCoalCost => getModifier('smithingCoalCost').toInt();
@@ -498,7 +504,7 @@ mixin ModifierAccessors {
       getModifier('strongholdEquipmentSwapping').toInt();
   int get stunDurationIncreaseChance =>
       getModifier('stunDurationIncreaseChance').toInt();
-  double successfulCookChance({MelvorId? actionId}) =>
+  double successfulCookChance({required MelvorId? actionId}) =>
       getModifier('successfulCookChance', actionId: actionId).toDouble();
   int get summoningAttackInterval =>
       getModifier('summoningAttackInterval').toInt();
@@ -521,15 +527,15 @@ mixin ModifierAccessors {
       getModifier('thievingFarmerHerbSackChance').toInt();
   int get thievingMinerRandomBarChance =>
       getModifier('thievingMinerRandomBarChance').toInt();
-  int thievingStealth({MelvorId? actionId}) =>
+  int thievingStealth({required MelvorId? actionId}) =>
       getModifier('thievingStealth', actionId: actionId).toInt();
   int get townshipBuildingCost => getModifier('townshipBuildingCost').toInt();
-  int townshipBuildingProduction({required MelvorId categoryId}) =>
+  int townshipBuildingProduction({required MelvorId? categoryId}) =>
       getModifier('townshipBuildingProduction', categoryId: categoryId).toInt();
   int get townshipGPProduction => getModifier('townshipGPProduction').toInt();
   int get townshipMaxStorage => getModifier('townshipMaxStorage').toInt();
   double get townshipRepairCost => getModifier('townshipRepairCost').toDouble();
-  int townshipResourceProduction({MelvorId? actionId}) =>
+  int townshipResourceProduction({required MelvorId? actionId}) =>
       getModifier('townshipResourceProduction', actionId: actionId).toInt();
   int get townshipTaxPerCitizen => getModifier('townshipTaxPerCitizen').toInt();
   double get townshipTraderCost => getModifier('townshipTraderCost').toDouble();

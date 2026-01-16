@@ -316,39 +316,34 @@ String generateDartFile(Map<String, ModifierScopeInfo> scopes) {
     final info = scopes[name]!;
     final methodName = lowercaseCamelFromSnake(name);
 
-    // Determine which parameters should be required vs optional
-    // A parameter is required if the modifier ALWAYS has that scope field
-    // and was never seen as a scalar
-    final requireSkillId = info.alwaysHasSkillId && !info.seenAsScalar;
-    final requireActionId = info.alwaysHasActionId && !info.seenAsScalar;
-    final requireItemId = info.alwaysHasItemId && !info.seenAsScalar;
-    final requireCategoryId = info.alwaysHasCategoryId && !info.seenAsScalar;
+    // If ANY occurrence of this modifier uses a scope field, require it.
+    // This forces callers to explicitly provide scope context, preventing
+    // bugs where scope is accidentally omitted.
+    //
+    // For nullable action fields (e.g., categoryId on SkillAction), callers
+    // must handle null explicitly - either by using a sentinel value or by
+    // conditionally calling the modifier method.
+    //
+    // Parameters are nullable to allow callers to pass null when the scope
+    // genuinely doesn't apply (e.g., action has no category).
+    final hasSkillId = info.hasSkillId;
+    final hasActionId = info.hasActionId;
+    final hasItemId = info.hasItemId;
+    final hasCategoryId = info.hasCategoryId;
 
-    // Build parameter list
+    // Build parameter list - all used scope params are required but nullable
     final params = <String>[];
-
-    // Required parameters first (no default)
-    if (requireSkillId) params.add('required MelvorId skillId');
-    if (requireActionId) params.add('required MelvorId actionId');
-    if (requireItemId) params.add('required MelvorId itemId');
-    if (requireCategoryId) params.add('required MelvorId categoryId');
-
-    // Optional parameters (nullable with no default)
-    if (!requireSkillId && info.hasSkillId) params.add('MelvorId? skillId');
-    if (!requireActionId && info.hasActionId) params.add('MelvorId? actionId');
-    if (!requireItemId && info.hasItemId) params.add('MelvorId? itemId');
-    if (!requireCategoryId && info.hasCategoryId) {
-      params.add('MelvorId? categoryId');
-    }
+    if (hasSkillId) params.add('required MelvorId? skillId');
+    if (hasActionId) params.add('required MelvorId? actionId');
+    if (hasItemId) params.add('required MelvorId? itemId');
+    if (hasCategoryId) params.add('required MelvorId? categoryId');
 
     // Build the getModifier call arguments
     final args = <String>["'$name'"];
-    if (info.hasSkillId || requireSkillId) args.add('skillId: skillId');
-    if (info.hasActionId || requireActionId) args.add('actionId: actionId');
-    if (info.hasItemId || requireItemId) args.add('itemId: itemId');
-    if (info.hasCategoryId || requireCategoryId) {
-      args.add('categoryId: categoryId');
-    }
+    if (hasSkillId) args.add('skillId: skillId');
+    if (hasActionId) args.add('actionId: actionId');
+    if (hasItemId) args.add('itemId: itemId');
+    if (hasCategoryId) args.add('categoryId: categoryId');
 
     // Determine return type based on observed values
     final returnType = info.alwaysInteger ? 'int' : 'double';

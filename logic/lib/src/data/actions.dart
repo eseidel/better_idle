@@ -9,6 +9,7 @@ import 'package:logic/src/data/summoning.dart';
 import 'package:logic/src/data/thieving.dart';
 import 'package:logic/src/tick.dart';
 import 'package:logic/src/types/drop.dart';
+import 'package:logic/src/types/modifier_names.dart';
 import 'package:meta/meta.dart';
 
 export 'package:logic/src/action_state.dart'
@@ -327,6 +328,20 @@ class SkillAction extends Action {
   /// Returns the drops for this action given the recipe selection.
   List<Droppable> rewardsForSelection(RecipeSelection selection) =>
       rewardsAtLevel(this, selection);
+
+  /// Returns the item doubling probability (0.0-1.0) for this action.
+  ///
+  /// Queries the skillItemDoublingChance modifier with the action's skill,
+  /// action ID, and category, then converts from percentage to probability.
+  double doublingChance(ModifierAccessors modifiers) {
+    return (modifiers.skillItemDoublingChance(
+              skillId: skill.id,
+              actionId: id.localId,
+              categoryId: categoryId,
+            ) /
+            100.0)
+        .clamp(0.0, 1.0);
+  }
 }
 
 // Skill-level drops: shared across all actions in a skill.

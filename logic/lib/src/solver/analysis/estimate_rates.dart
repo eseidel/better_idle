@@ -344,9 +344,7 @@ Map<MelvorId, double> _computeItemFlowsPerAction(
 
   // Get modifiers for rate calculations
   final modifiers = state.createActionModifierProvider(action);
-  final doublingChance =
-      (modifiers.skillItemDoublingChance(skillId: action.skill.id) / 100.0)
-          .clamp(0.0, 1.0);
+  final doublingChance = action.doublingChance(modifiers);
   final multiplier = 1.0 + doublingChance;
 
   // Compute expected items using base drop rates

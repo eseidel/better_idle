@@ -978,11 +978,18 @@ class GlobalState {
     final modifiers = createActionModifierProvider(action);
 
     // skillInterval is percentage points (e.g., -5 = 5% reduction)
-    final percentPoints = modifiers.skillInterval(skillId: action.skill.id);
+    final percentPoints = modifiers.skillInterval(
+      skillId: action.skill.id,
+      actionId: action.id.localId,
+    );
 
     // flatSkillInterval is milliseconds, convert to ticks (100ms = 1 tick)
     final flatTicks =
-        modifiers.flatSkillInterval(skillId: action.skill.id) / 100.0;
+        modifiers.flatSkillInterval(
+          skillId: action.skill.id,
+          actionId: action.id.localId,
+        ) /
+        100.0;
 
     // Apply: percentage first, then flat adjustment
     final result = ticks * (1.0 + percentPoints / 100.0) + flatTicks;
@@ -1087,11 +1094,18 @@ class GlobalState {
     final modifiers = createActionModifierProvider(action);
 
     // skillInterval is percentage points (e.g., -5 = 5% reduction)
-    final percentPoints = modifiers.skillInterval(skillId: action.skill.id);
+    final percentPoints = modifiers.skillInterval(
+      skillId: action.skill.id,
+      actionId: action.id.localId,
+    );
 
     // flatSkillInterval is milliseconds, convert to ticks (100ms = 1 tick)
     final flatTicks =
-        modifiers.flatSkillInterval(skillId: action.skill.id) / 100.0;
+        modifiers.flatSkillInterval(
+          skillId: action.skill.id,
+          actionId: action.id.localId,
+        ) /
+        100.0;
 
     // Apply: percentage first, then flat adjustment
     final result = ticks * (1.0 + percentPoints / 100.0) + flatTicks;

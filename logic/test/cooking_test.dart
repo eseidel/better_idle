@@ -356,7 +356,10 @@ void main() {
       // Resolve modifiers for a Furnace recipe - should include the upgrade
       final modifiers = state.createActionModifierProvider(furnaceRecipe);
       expect(
-        modifiers.perfectCookChance(categoryId: furnaceRecipe.categoryId),
+        modifiers.perfectCookChance(
+          actionId: furnaceRecipe.id.localId,
+          categoryId: furnaceRecipe.categoryId,
+        ),
         greaterThan(0),
       );
     });
@@ -376,7 +379,10 @@ void main() {
       // The perfectCookChance should be 0 (or whatever from other sources)
       // since the Furnace upgrade doesn't apply to Fire
       expect(
-        modifiers.perfectCookChance(categoryId: shrimpRecipe.categoryId),
+        modifiers.perfectCookChance(
+          actionId: shrimpRecipe.id.localId,
+          categoryId: shrimpRecipe.categoryId,
+        ),
         0,
       );
     });

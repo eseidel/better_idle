@@ -27,8 +27,20 @@ void main() {
       final state = GlobalState.test(registries);
       final modifiers = state.createActionModifierProvider(action);
 
-      expect(modifiers.skillInterval(skillId: action.skill.id), 0);
-      expect(modifiers.flatSkillInterval(skillId: action.skill.id), 0);
+      expect(
+        modifiers.skillInterval(
+          skillId: action.skill.id,
+          actionId: action.id.localId,
+        ),
+        0,
+      );
+      expect(
+        modifiers.flatSkillInterval(
+          skillId: action.skill.id,
+          actionId: action.id.localId,
+        ),
+        0,
+      );
     });
 
     test('resolves mastery bonus with skill-scoped modifier', () {
@@ -67,7 +79,13 @@ void main() {
       final modifiersLevel98 = stateLevel98.createActionModifierProvider(
         action,
       );
-      expect(modifiersLevel98.flatSkillInterval(skillId: action.skill.id), 0);
+      expect(
+        modifiersLevel98.flatSkillInterval(
+          skillId: action.skill.id,
+          actionId: action.id.localId,
+        ),
+        0,
+      );
 
       // At level 99, bonus should apply
       final stateLevel99 = GlobalState.test(
@@ -78,7 +96,10 @@ void main() {
         action,
       );
       expect(
-        modifiersLevel99.flatSkillInterval(skillId: action.skill.id),
+        modifiersLevel99.flatSkillInterval(
+          skillId: action.skill.id,
+          actionId: action.id.localId,
+        ),
         -200,
       );
     });
@@ -167,7 +188,11 @@ void main() {
       expect(
         stateLevel5
             .createActionModifierProvider(action)
-            .skillItemDoublingChance(skillId: skillId),
+            .skillItemDoublingChance(
+              skillId: skillId,
+              actionId: action.id.localId,
+              categoryId: action.categoryId,
+            ),
         0,
       );
 
@@ -179,7 +204,11 @@ void main() {
       expect(
         stateLevel10
             .createActionModifierProvider(action)
-            .skillItemDoublingChance(skillId: skillId),
+            .skillItemDoublingChance(
+              skillId: skillId,
+              actionId: action.id.localId,
+              categoryId: action.categoryId,
+            ),
         5,
       );
 
@@ -191,7 +220,11 @@ void main() {
       expect(
         stateLevel50
             .createActionModifierProvider(action)
-            .skillItemDoublingChance(skillId: skillId),
+            .skillItemDoublingChance(
+              skillId: skillId,
+              actionId: action.id.localId,
+              categoryId: action.categoryId,
+            ),
         25,
       );
 
@@ -203,7 +236,11 @@ void main() {
       expect(
         stateLevel90
             .createActionModifierProvider(action)
-            .skillItemDoublingChance(skillId: skillId),
+            .skillItemDoublingChance(
+              skillId: skillId,
+              actionId: action.id.localId,
+              categoryId: action.categoryId,
+            ),
         45,
       );
 
@@ -215,7 +252,11 @@ void main() {
       expect(
         stateLevel99
             .createActionModifierProvider(action)
-            .skillItemDoublingChance(skillId: skillId),
+            .skillItemDoublingChance(
+              skillId: skillId,
+              actionId: action.id.localId,
+              categoryId: action.categoryId,
+            ),
         45,
       );
     });
@@ -257,7 +298,7 @@ void main() {
       expect(
         stateNoPurchase
             .createActionModifierProvider(action)
-            .skillInterval(skillId: skillId),
+            .skillInterval(skillId: skillId, actionId: action.id.localId),
         0,
       );
 
@@ -269,7 +310,7 @@ void main() {
       expect(
         stateWithPurchase
             .createActionModifierProvider(action)
-            .skillInterval(skillId: skillId),
+            .skillInterval(skillId: skillId, actionId: action.id.localId),
         -5,
       );
     });
@@ -321,7 +362,13 @@ void main() {
       final modifiers = stateWithPurchase.createActionModifierProvider(
         woodcuttingAction,
       );
-      expect(modifiers.skillInterval(skillId: woodcuttingAction.skill.id), -7);
+      expect(
+        modifiers.skillInterval(
+          skillId: woodcuttingAction.skill.id,
+          actionId: woodcuttingAction.id.localId,
+        ),
+        -7,
+      );
     });
 
     test('combines modifiers from multiple sources', () {
@@ -395,9 +442,18 @@ void main() {
       final modifiers = state.createActionModifierProvider(action);
 
       // Shop (-5) + Mastery (-3) = -8
-      expect(modifiers.skillInterval(skillId: skillId), -8);
+      expect(
+        modifiers.skillInterval(skillId: skillId, actionId: action.id.localId),
+        -8,
+      );
       // Only from mastery
-      expect(modifiers.flatSkillInterval(skillId: skillId), -200);
+      expect(
+        modifiers.flatSkillInterval(
+          skillId: skillId,
+          actionId: action.id.localId,
+        ),
+        -200,
+      );
     });
 
     test('modifier scoped to different skill does not apply', () {
@@ -437,7 +493,13 @@ void main() {
 
       // The fishing-scoped modifier should NOT apply to woodcutting
       final modifiers = state.createActionModifierProvider(woodcuttingAction);
-      expect(modifiers.skillInterval(skillId: woodcuttingAction.skill.id), 0);
+      expect(
+        modifiers.skillInterval(
+          skillId: woodcuttingAction.skill.id,
+          actionId: woodcuttingAction.id.localId,
+        ),
+        0,
+      );
     });
   });
 
@@ -500,7 +562,10 @@ void main() {
         firemakingAction,
       );
       expect(
-        modifiersLevel1.skillInterval(skillId: skillId),
+        modifiersLevel1.skillInterval(
+          skillId: skillId,
+          actionId: firemakingAction.id.localId,
+        ),
         closeTo(-0.1, 0.001),
       );
 
@@ -515,7 +580,10 @@ void main() {
         firemakingAction,
       );
       expect(
-        modifiersLevel50.skillInterval(skillId: skillId),
+        modifiersLevel50.skillInterval(
+          skillId: skillId,
+          actionId: firemakingAction.id.localId,
+        ),
         closeTo(-5.0, 0.001),
       );
 
@@ -530,7 +598,10 @@ void main() {
         firemakingAction,
       );
       expect(
-        modifiersLevel99.skillInterval(skillId: skillId),
+        modifiersLevel99.skillInterval(
+          skillId: skillId,
+          actionId: firemakingAction.id.localId,
+        ),
         closeTo(-9.9, 0.001),
       );
     });
@@ -878,7 +949,13 @@ void main() {
 
       // Resolve modifiers for firemaking action
       final modifiers = state.createActionModifierProvider(firemakingAction);
-      expect(modifiers.currencyGain(skillId: firemakingAction.skill.id), 20);
+      expect(
+        modifiers.currencyGain(
+          skillId: firemakingAction.skill.id,
+          actionId: firemakingAction.id.localId,
+        ),
+        20,
+      );
     });
 
     test(
@@ -927,7 +1004,13 @@ void main() {
         // Resolve modifiers for woodcutting (should NOT be affected)
         final modifiers = state.createActionModifierProvider(woodcuttingAction);
         // No currencyGain for woodcutting
-        expect(modifiers.currencyGain(skillId: woodcuttingAction.skill.id), 0);
+        expect(
+          modifiers.currencyGain(
+            skillId: woodcuttingAction.skill.id,
+            actionId: woodcuttingAction.id.localId,
+          ),
+          0,
+        );
       },
     );
   });
