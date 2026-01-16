@@ -1934,12 +1934,13 @@ ConsumeTicksStopReason consumeTicksUntil(
   final stoppedAfter = builder.stoppedAtTick != null
       ? durationFromTicks(builder.stoppedAtTick!)
       : null;
-  // Compute doubling chance and recipe selection for predictions
+  // Compute doubling chance, modifiers, and recipe selection for predictions
   var doublingChance = 0.0;
+  var resolvedModifiers = ResolvedModifiers.empty;
   RecipeSelection recipeSelection = const NoSelectedRecipe();
   if (action is SkillAction) {
-    final modifiers = state.resolveSkillModifiers(action);
-    doublingChance = (modifiers.skillItemDoublingChance / 100.0).clamp(
+    resolvedModifiers = state.resolveSkillModifiers(action);
+    doublingChance = (resolvedModifiers.skillItemDoublingChance / 100.0).clamp(
       0.0,
       1.0,
     );
@@ -1961,6 +1962,7 @@ ConsumeTicksStopReason consumeTicksUntil(
     stopReason: builder.stopReason,
     stoppedAfter: stoppedAfter,
     doublingChance: doublingChance,
+    modifiers: resolvedModifiers,
   );
   return (timeAway, builder.build());
 }
