@@ -247,8 +247,9 @@ void collectModifierScopesFromMap(
 /// Custom modifier names for equipment stats.
 /// Derived from [EquipmentStatModifier] enum values.
 /// They don't appear in Melvor JSON but are used for uniform modifier access.
-final List<String> customEquipmentStatModifiers =
-    EquipmentStatModifier.values.map((e) => e.name).toList();
+final List<String> customEquipmentStatModifiers = EquipmentStatModifier.values
+    .map((e) => e.name)
+    .toList();
 
 /// Generates the Dart file content with modifier accessor mixin.
 String generateDartFile(Map<String, ModifierScopeInfo> scopes) {

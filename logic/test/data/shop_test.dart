@@ -394,39 +394,43 @@ void main() {
       }
     });
 
-    test('purchasesContainingItem returns empty list for non-existent item',
-        () {
-      final results = testRegistries.shop.purchasesContainingItem(
-        const MelvorId('melvorD:Non_Existent_Item'),
-      );
+    test(
+      'purchasesContainingItem returns empty list for non-existent item',
+      () {
+        final results = testRegistries.shop.purchasesContainingItem(
+          const MelvorId('melvorD:Non_Existent_Item'),
+        );
 
-      expect(results, isEmpty);
-    });
+        expect(results, isEmpty);
+      },
+    );
 
-    test('purchasesContainingItem returns multiple purchases for common items',
-        () {
-      // Build a map of itemId -> count of purchases containing it
-      final itemPurchaseCounts = <MelvorId, int>{};
-      for (final purchase in testRegistries.shop.all) {
-        for (final item in purchase.contains.items) {
-          itemPurchaseCounts[item.itemId] =
-              (itemPurchaseCounts[item.itemId] ?? 0) + 1;
+    test(
+      'purchasesContainingItem returns multiple purchases for common items',
+      () {
+        // Build a map of itemId -> count of purchases containing it
+        final itemPurchaseCounts = <MelvorId, int>{};
+        for (final purchase in testRegistries.shop.all) {
+          for (final item in purchase.contains.items) {
+            itemPurchaseCounts[item.itemId] =
+                (itemPurchaseCounts[item.itemId] ?? 0) + 1;
+          }
         }
-      }
 
-      // Find an item that appears in multiple purchases (if any)
-      final multiPurchaseEntry = itemPurchaseCounts.entries
-          .where((e) => e.value > 1)
-          .firstOrNull;
+        // Find an item that appears in multiple purchases (if any)
+        final multiPurchaseEntry = itemPurchaseCounts.entries
+            .where((e) => e.value > 1)
+            .firstOrNull;
 
-      if (multiPurchaseEntry != null) {
-        final itemId = multiPurchaseEntry.key;
-        final expectedCount = multiPurchaseEntry.value;
+        if (multiPurchaseEntry != null) {
+          final itemId = multiPurchaseEntry.key;
+          final expectedCount = multiPurchaseEntry.value;
 
-        final results = testRegistries.shop.purchasesContainingItem(itemId);
-        expect(results.length, expectedCount);
-      }
-    });
+          final results = testRegistries.shop.purchasesContainingItem(itemId);
+          expect(results.length, expectedCount);
+        }
+      },
+    );
   });
 
   group('ShopContents', () {
