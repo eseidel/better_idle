@@ -11,6 +11,52 @@ import 'package:logic/src/types/inventory.dart';
 import 'package:logic/src/types/modifier.dart';
 import 'package:logic/src/types/modifier_names.dart';
 
+/// Context for scope matching within a single getModifier call.
+///
+/// Holds the query parameters and provides scope matching methods.
+class _ScopeContext {
+  _ScopeContext({this.skillId, this.actionId, this.itemId, this.categoryId});
+
+  final MelvorId? skillId;
+  final MelvorId? actionId;
+  final MelvorId? itemId;
+  final MelvorId? categoryId;
+
+  /// Check if a modifier scope matches the query context.
+  bool matches(ModifierScope? scope) {
+    if (scope == null) return true; // Global modifier
+
+    // Each scope field acts as a filter - if specified, it must match
+    if (scope.skillId != null && scope.skillId != skillId) return false;
+    if (scope.actionId != null && scope.actionId != actionId) return false;
+    if (scope.itemId != null && scope.itemId != itemId) return false;
+    if (scope.categoryId != null && scope.categoryId != categoryId) {
+      return false;
+    }
+
+    return true;
+  }
+
+  /// Check scope matches for mastery bonuses, which have special template
+  /// behavior.
+  bool matchesMastery(ModifierScope? scope, {required bool autoScopeToAction}) {
+    if (scope == null) return true;
+    if (!autoScopeToAction) return true; // Global modifier, no filtering
+
+    // For autoScopeToAction = true, the actionId in scope is a template
+    // placeholder. We only check skillId and categoryId.
+    if (scope.skillId != null && scope.skillId != skillId) return false;
+    if (scope.categoryId != null && scope.categoryId != categoryId) {
+      return false;
+    }
+
+    // itemId scope still applies (e.g., for item-specific bonuses)
+    if (scope.itemId != null && scope.itemId != itemId) return false;
+
+    return true;
+  }
+}
+
 /// Resolves modifier values on-demand with full context.
 ///
 /// Created fresh for each query context - holds references to sources but
@@ -69,6 +115,12 @@ class ModifierProvider with ModifierAccessors {
     MelvorId? itemId,
     MelvorId? categoryId,
   }) {
+    final scope = _ScopeContext(
+      skillId: skillId,
+      actionId: actionId,
+      itemId: itemId,
+      categoryId: categoryId,
+    );
     num total = 0;
 
     // --- Shop modifiers ---
@@ -80,13 +132,7 @@ class ModifierProvider with ModifierAccessors {
       for (final mod in purchase.contains.modifiers.modifiers) {
         if (mod.name != name) continue;
         for (final modEntry in mod.entries) {
-          if (_scopeMatches(
-            modEntry.scope,
-            skillId,
-            actionId,
-            itemId,
-            categoryId,
-          )) {
+          if (scope.matches(modEntry.scope)) {
             total += modEntry.value;
           }
         }
@@ -107,12 +153,8 @@ class ModifierProvider with ModifierAccessors {
           for (final mod in bonus.modifiers.modifiers) {
             if (mod.name != name) continue;
             for (final entry in mod.entries) {
-              if (_scopeMatchesMastery(
+              if (scope.matchesMastery(
                 entry.scope,
-                skillId,
-                actionId,
-                itemId,
-                categoryId,
                 autoScopeToAction: bonus.autoScopeToAction,
               )) {
                 total += entry.value * count;
@@ -144,13 +186,7 @@ class ModifierProvider with ModifierAccessors {
       for (final mod in item.modifiers.modifiers) {
         if (mod.name != name) continue;
         for (final modEntry in mod.entries) {
-          if (_scopeMatches(
-            modEntry.scope,
-            skillId,
-            actionId,
-            itemId,
-            categoryId,
-          )) {
+          if (scope.matches(modEntry.scope)) {
             total += modEntry.value;
           }
         }
@@ -169,13 +205,7 @@ class ModifierProvider with ModifierAccessors {
       for (final mod in activeSynergy!.modifiers.modifiers) {
         if (mod.name != name) continue;
         for (final modEntry in mod.entries) {
-          if (_scopeMatches(
-            modEntry.scope,
-            skillId,
-            actionId,
-            itemId,
-            categoryId,
-          )) {
+          if (scope.matches(modEntry.scope)) {
             total += modEntry.value;
           }
         }
@@ -193,13 +223,7 @@ class ModifierProvider with ModifierAccessors {
           for (final mod in potion.modifiers.modifiers) {
             if (mod.name != name) continue;
             for (final modEntry in mod.entries) {
-              if (_scopeMatches(
-                modEntry.scope,
-                skillId,
-                actionId,
-                itemId,
-                categoryId,
-              )) {
+              if (scope.matches(modEntry.scope)) {
                 total += modEntry.value;
               }
             }
@@ -209,52 +233,5 @@ class ModifierProvider with ModifierAccessors {
     }
 
     return total;
-  }
-
-  /// Check if a modifier scope matches the query context.
-  bool _scopeMatches(
-    ModifierScope? scope,
-    MelvorId? skillId,
-    MelvorId? actionId,
-    MelvorId? itemId,
-    MelvorId? categoryId,
-  ) {
-    if (scope == null) return true; // Global modifier
-
-    // Each scope field acts as a filter - if specified, it must match
-    if (scope.skillId != null && scope.skillId != skillId) return false;
-    if (scope.actionId != null && scope.actionId != actionId) return false;
-    if (scope.itemId != null && scope.itemId != itemId) return false;
-    if (scope.categoryId != null && scope.categoryId != categoryId) {
-      return false;
-    }
-
-    return true;
-  }
-
-  /// Check scope matches for mastery bonuses, which have special template
-  /// behavior.
-  bool _scopeMatchesMastery(
-    ModifierScope? scope,
-    MelvorId? skillId,
-    MelvorId? actionId,
-    MelvorId? itemId,
-    MelvorId? categoryId, {
-    required bool autoScopeToAction,
-  }) {
-    if (scope == null) return true;
-    if (!autoScopeToAction) return true; // Global modifier, no filtering
-
-    // For autoScopeToAction = true, the actionId in scope is a template
-    // placeholder. We only check skillId and categoryId.
-    if (scope.skillId != null && scope.skillId != skillId) return false;
-    if (scope.categoryId != null && scope.categoryId != categoryId) {
-      return false;
-    }
-
-    // itemId scope still applies (e.g., for item-specific bonuses)
-    if (scope.itemId != null && scope.itemId != itemId) return false;
-
-    return true;
   }
 }
