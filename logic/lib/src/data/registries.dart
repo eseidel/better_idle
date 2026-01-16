@@ -142,7 +142,7 @@ Future<Registries> loadRegistriesFromCache(Cache cache) async {
   return Registries(
     melvorData.items,
     melvorData.actions,
-    DropsRegistry(skillDrops),
+    melvorData.drops,
     melvorData.cookingCategories,
     melvorData.fishingAreas,
     melvorData.smithingCategories,

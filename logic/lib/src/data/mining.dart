@@ -3,7 +3,6 @@ import 'package:logic/src/data/action_id.dart';
 import 'package:logic/src/data/actions.dart';
 import 'package:logic/src/data/melvor_id.dart';
 import 'package:logic/src/tick.dart';
-import 'package:logic/src/types/drop.dart';
 import 'package:meta/meta.dart';
 
 const _miningSwingDuration = Duration(seconds: 3);
@@ -107,41 +106,3 @@ class MiningAction extends SkillAction {
     return 1.0 - (remaining / respawnTicks);
   }
 }
-
-/// Gem drop table for mining - 1% chance to trigger, then weighted selection.
-// TODO(eseidel): Read this from JSON under data.randomGems.
-final miningGemTable = DropChance(
-  DropTable(const <DropTableEntry>[
-    DropTableEntry(
-      itemID: MelvorId('melvorD:Topaz'),
-      minQuantity: 1,
-      maxQuantity: 1,
-      weight: 100,
-    ), // 100 / 200 = 5%
-    DropTableEntry(
-      itemID: MelvorId('melvorD:Sapphire'),
-      minQuantity: 1,
-      maxQuantity: 1,
-      weight: 35,
-    ), // 35 / 200 = 17.5%
-    DropTableEntry(
-      itemID: MelvorId('melvorD:Ruby'),
-      minQuantity: 1,
-      maxQuantity: 1,
-      weight: 35,
-    ), // 35 / 200 = 17.5%
-    DropTableEntry(
-      itemID: MelvorId('melvorD:Emerald'),
-      minQuantity: 1,
-      maxQuantity: 1,
-      weight: 20,
-    ), // 20 / 200 = 10%
-    DropTableEntry(
-      itemID: MelvorId('melvorD:Diamond'),
-      minQuantity: 1,
-      maxQuantity: 1,
-      weight: 10,
-    ), // 10 / 200 = 5%
-  ]),
-  rate: 0.01, // 1% chance to get a gem
-);

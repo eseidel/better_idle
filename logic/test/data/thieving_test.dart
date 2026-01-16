@@ -117,9 +117,10 @@ void main() {
         golbinAction,
         const NoSelectedRecipe(),
       );
-      // Should have 3 drops: Golbin drop table (action-level) +
-      // area drop (Crate of Basic Supplies) + Bobby's Pocket (skill-level)
-      expect(drops.length, 3);
+      // Should have 5 drops: Golbin drop table (action-level) +
+      // area drop (Crate of Basic Supplies) + 3 generalRareItems (skill-level)
+      // (Bobby's Pocket, Chapeau Noir, Boots of Stealth)
+      expect(drops.length, 5);
       // Only the Golbin drop table is wrapped in DropChance
       final dropChances = drops.whereType<DropChance>().toList();
       expect(dropChances, hasLength(1));

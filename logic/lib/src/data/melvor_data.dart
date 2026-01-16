@@ -6,6 +6,7 @@ import 'package:logic/src/data/melvor_id.dart';
 import 'package:logic/src/data/shop.dart';
 import 'package:logic/src/data/summoning_synergy.dart';
 import 'package:logic/src/data/township.dart';
+import 'package:logic/src/types/drop.dart';
 import 'package:logic/src/types/mastery.dart';
 import 'package:logic/src/types/mastery_unlock.dart';
 import 'package:meta/meta.dart';
@@ -186,6 +187,9 @@ class MelvorData {
 
     // Parse township data
     _township = parseTownship(skillDataById['melvorD:Township']);
+
+    // Parse skill drops from all sources
+    _drops = buildDropsRegistry(skillDataById, dataFiles);
   }
 
   /// Loads MelvorData from the cache, fetching from CDN if needed.
@@ -228,6 +232,7 @@ class MelvorData {
   late final MasteryUnlockRegistry _masteryUnlocks;
   late final SummoningSynergyRegistry _summoningSynergies;
   late final TownshipRegistry _township;
+  late final DropsRegistry _drops;
 
   /// Returns the item registry.
   ItemRegistry get items => _items;
@@ -274,6 +279,8 @@ class MelvorData {
   SummoningSynergyRegistry get summoningSynergies => _summoningSynergies;
 
   TownshipRegistry get township => _township;
+
+  DropsRegistry get drops => _drops;
 
   /// Returns the bank sort index map for passing to Registries.
   Map<MelvorId, int> get bankSortIndex => _bankSortIndex;
@@ -1170,4 +1177,130 @@ TownshipRegistry parseTownship(List<SkillDataEntry>? entries) {
     tasks: tasks,
     buildingSortIndex: buildingSortIndex,
   );
+}
+
+/// Parses the global randomGems drop table from data files.
+/// Returns a DropTable if found, or null if not present.
+DropTable? parseRandomGems(List<Map<String, dynamic>> dataFiles) {
+  for (final json in dataFiles) {
+    final data = json['data'] as Map<String, dynamic>?;
+    if (data == null) continue;
+
+    final randomGems = data['randomGems'] as List<dynamic>?;
+    if (randomGems == null || randomGems.isEmpty) continue;
+
+    final entries = randomGems
+        .map((gem) => DropTableEntry.fromJson(gem as Map<String, dynamic>))
+        .toList();
+    return DropTable(entries);
+  }
+  return null;
+}
+
+/// Parses all skill-level drops from multiple JSON sources.
+/// Returns a map from Skill to list of Droppable items.
+Map<Skill, List<Droppable>> parseSkillDrops(
+  Map<String, List<SkillDataEntry>> skillDataById, {
+  required DropTable? randomGems,
+}) {
+  final result = <Skill, List<Droppable>>{};
+
+  for (final entry in skillDataById.entries) {
+    final skillIdString = entry.key;
+    final dataEntries = entry.value;
+
+    // Determine the Skill enum from the skill ID
+    final skillId = MelvorId.fromJson(skillIdString);
+    final skill = Skill.values.where((e) => e.id == skillId).firstOrNull;
+    if (skill == null) {
+      // Skip unknown skills (e.g., combat sub-skills without actions)
+      continue;
+    }
+
+    final drops = <Droppable>[];
+
+    for (final dataEntry in dataEntries) {
+      final namespace = dataEntry.namespace;
+      final data = dataEntry.data;
+
+      // Parse randomProducts (e.g., Woodcutting's Bird Nest)
+      // Chance is in %, e.g., 0.5 means 0.5% = 0.005
+      final randomProducts = data['randomProducts'] as List<dynamic>?;
+      if (randomProducts != null) {
+        for (final product in randomProducts) {
+          final productMap = product as Map<String, dynamic>;
+          final itemId = MelvorId.fromJsonWithNamespace(
+            productMap['itemID'] as String,
+            defaultNamespace: namespace,
+          );
+          final chancePercent = (productMap['chance'] as num).toDouble();
+          final quantity = productMap['quantity'] as int? ?? 1;
+          drops.add(Drop(itemId, rate: chancePercent / 100, count: quantity));
+        }
+      }
+
+      // Parse primaryProducts (e.g., Firemaking's Coal/Ash)
+      // Chance is in %, e.g., 40 means 40% = 0.40
+      final primaryProducts = data['primaryProducts'] as List<dynamic>?;
+      if (primaryProducts != null) {
+        for (final product in primaryProducts) {
+          // Can be either a simple string ID or an object with chance
+          if (product is String) {
+            // Simple string means 100% chance (e.g., per-log overrides)
+            continue; // Skip these, they're per-action not per-skill
+          }
+          final productMap = product as Map<String, dynamic>;
+          final itemId = MelvorId.fromJsonWithNamespace(
+            productMap['itemID'] as String,
+            defaultNamespace: namespace,
+          );
+          final chancePercent = (productMap['chance'] as num).toDouble();
+          final quantity = productMap['quantity'] as int? ?? 1;
+          drops.add(Drop(itemId, rate: chancePercent / 100, count: quantity));
+        }
+      }
+
+      // Parse generalRareItems (e.g., Thieving's Bobby's Pocket)
+      // Chance is already in 0-1 range (approximately), but represents %
+      // e.g., 0.833... means ~0.833% = 0.00833
+      final generalRareItems = data['generalRareItems'] as List<dynamic>?;
+      if (generalRareItems != null) {
+        for (final item in generalRareItems) {
+          final itemMap = item as Map<String, dynamic>;
+          final itemId = MelvorId.fromJsonWithNamespace(
+            itemMap['itemID'] as String,
+            defaultNamespace: namespace,
+          );
+          // Chance is percentage, divide by 100
+          final chancePercent = (itemMap['chance'] as num).toDouble();
+          drops.add(Drop(itemId, rate: chancePercent / 100));
+        }
+      }
+    }
+
+    if (drops.isNotEmpty) {
+      result[skill] = drops;
+    }
+  }
+
+  // Add mining gems from the global randomGems table
+  // Wrapped in DropChance with 1% trigger rate
+  if (randomGems != null) {
+    result[Skill.mining] = [
+      ...result[Skill.mining] ?? [],
+      DropChance(randomGems, rate: 0.01),
+    ];
+  }
+
+  return result;
+}
+
+/// Builds a DropsRegistry from parsed skill drops data.
+DropsRegistry buildDropsRegistry(
+  Map<String, List<SkillDataEntry>> skillDataById,
+  List<Map<String, dynamic>> dataFiles,
+) {
+  final randomGems = parseRandomGems(dataFiles);
+  final skillDrops = parseSkillDrops(skillDataById, randomGems: randomGems);
+  return DropsRegistry(skillDrops);
 }
