@@ -156,8 +156,10 @@ class PlayerCombatStats extends Stats {
 
   /// Computes player stats from current game state.
   factory PlayerCombatStats.fromState(GlobalState state) {
-    // Resolve all combat-relevant modifiers (equipment, shop purchases, etc.)
-    final bonuses = state.resolveCombatModifiers();
+    // Create modifier provider for combat-relevant modifiers
+    final bonuses = state.createModifierProvider(
+      combatTypeSkills: state.attackStyle.combatType.skills,
+    );
     final attackStyle = state.attackStyle;
 
     // Get skill levels
@@ -181,18 +183,18 @@ class PlayerCombatStats extends Stats {
     switch (attackStyle.combatType) {
       case CombatType.melee:
         maxHitLevel = strengthLevel;
-        maxHitBonus = bonuses.flatMeleeStrengthBonus.toInt();
+        maxHitBonus = bonuses.flatMeleeStrengthBonus;
         maxHitPercent = bonuses.maxHit + bonuses.meleeMaxHit;
       case CombatType.ranged:
         // Accurate style gives +3 effective level
         maxHitLevel =
             rangedLevel + (attackStyle == AttackStyle.accurate ? 3 : 0);
-        maxHitBonus = bonuses.flatRangedStrengthBonus.toInt();
+        maxHitBonus = bonuses.flatRangedStrengthBonus;
         maxHitPercent = bonuses.maxHit + bonuses.rangedMaxHit;
       case CombatType.magic:
         // Magic uses magic level for max hit calculation
         maxHitLevel = magicLevel;
-        maxHitBonus = bonuses.flatMagicMaxHit.toInt();
+        maxHitBonus = bonuses.flatMagicMaxHit;
         maxHitPercent = bonuses.maxHit + bonuses.magicMaxHit;
     }
 
@@ -211,7 +213,7 @@ class PlayerCombatStats extends Stats {
 
     // --- Min Hit Calculation ---
     // Start at 1, apply flat modifiers.
-    var minHit = 1 + bonuses.flatMinHit.toInt();
+    var minHit = 1 + bonuses.flatMinHit;
 
     // Add style-specific flat min hit modifiers
     switch (attackStyle.combatType) {

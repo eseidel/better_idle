@@ -4,6 +4,7 @@ import 'package:logic/logic.dart';
 import 'package:test/test.dart';
 
 import 'test_helper.dart';
+import 'test_modifiers.dart';
 
 void main() {
   late SkillAction normalTree;
@@ -1585,7 +1586,7 @@ void main() {
       );
 
       final builder = StateUpdateBuilder(state);
-      const modifiers = ResolvedModifiers.empty; // Empty - no auto-eat
+      const modifiers = TestModifiers.empty; // Empty - no auto-eat
       final consumed = builder.tryAutoEat(modifiers);
 
       expect(consumed, 0);
@@ -1609,7 +1610,7 @@ void main() {
       final builder = StateUpdateBuilder(state);
       // Threshold of 20 means eat when HP < 20% (2 HP for maxHP=10)
       // Player is at 9 HP (90%), so should not trigger
-      const modifiers = ResolvedModifiers({
+      const modifiers = TestModifiers({
         'autoEatThreshold': 20,
         'autoEatEfficiency': 100,
         'autoEatHPLimit': 80,
@@ -1638,7 +1639,7 @@ void main() {
       // Player at 1 HP (10%), triggers
       // HP limit of 50 means eat until HP >= 50% (5 HP for maxHP=10)
       // Efficiency of 100 means full healing
-      const modifiers = ResolvedModifiers({
+      const modifiers = TestModifiers({
         'autoEatThreshold': 20,
         'autoEatEfficiency': 100,
         'autoEatHPLimit': 50,
@@ -1671,7 +1672,7 @@ void main() {
       // 50% efficiency means each food heals half as much
       // Threshold 20 = eat when HP < 2 (player at 1 HP, triggers)
       // HP limit 80 = eat until HP >= 8 (80% of 10)
-      const modifiers = ResolvedModifiers({
+      const modifiers = TestModifiers({
         'autoEatThreshold': 20,
         'autoEatEfficiency': 50,
         'autoEatHPLimit': 80,
@@ -1701,7 +1702,7 @@ void main() {
       // Threshold 20 = eat when HP < 2 (player at 1 HP, triggers)
       // HP limit 100 = eat until full HP (10 HP)
       // With only 2 food, may not reach full HP
-      const modifiers = ResolvedModifiers({
+      const modifiers = TestModifiers({
         'autoEatThreshold': 20,
         'autoEatEfficiency': 100,
         'autoEatHPLimit': 100, // Want full HP
@@ -1739,9 +1740,9 @@ void main() {
       expect(builder.state.activeAction?.id, plantAction.id);
     });
 
-    test('resolveGlobalModifiers returns empty when no purchases', () {
+    test('createModifierProvider returns zero when no purchases', () {
       final state = GlobalState.empty(testRegistries);
-      final modifiers = state.resolveGlobalModifiers();
+      final modifiers = state.createModifierProvider();
 
       expect(modifiers.autoEatThreshold, 0);
       expect(modifiers.autoEatEfficiency, 0);
@@ -1764,7 +1765,7 @@ void main() {
       final builder = StateUpdateBuilder(state);
       // Threshold 20 = eat when HP < 2 (player at 1 HP, triggers)
       // HP limit 50 = eat until HP >= 5 (50% of 10)
-      const modifiers = ResolvedModifiers({
+      const modifiers = TestModifiers({
         'autoEatThreshold': 20,
         'autoEatEfficiency': 100,
         'autoEatHPLimit': 50,

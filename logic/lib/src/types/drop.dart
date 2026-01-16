@@ -3,7 +3,6 @@ import 'dart:math';
 import 'package:logic/src/data/items.dart';
 import 'package:logic/src/data/melvor_id.dart';
 import 'package:logic/src/types/inventory.dart';
-import 'package:logic/src/types/resolved_modifiers.dart';
 import 'package:meta/meta.dart';
 
 /// Base class for anything that can be dropped.
@@ -89,70 +88,6 @@ class DropChance extends Droppable {
   Map<MelvorId, double> get expectedItems {
     final childItems = child.expectedItems;
     return childItems.map((key, value) => MapEntry(key, value * rate));
-  }
-}
-
-/// A skill-level drop whose rate can be boosted by a named modifier.
-///
-/// The modifier value (percentage points) is added to the base rate.
-/// For example, with a base rate of 0.5% and a +5% modifier bonus,
-/// the effective rate becomes 5.5%.
-///
-/// Use [rollWithModifiers] when modifiers are available, or [roll] for
-/// the base rate behavior.
-@immutable
-class SkillDrop extends Droppable {
-  const SkillDrop(this.baseDrop, {required this.modifierName});
-
-  /// The underlying drop with base rate and item info.
-  final Drop baseDrop;
-
-  /// The modifier name to look up (e.g., 'randomProductChance').
-  final String modifierName;
-
-  @override
-  ItemStack? roll(ItemRegistry items, Random random) {
-    // Without modifiers, use base rate
-    if (baseDrop.rate < 1.0 && random.nextDouble() >= baseDrop.rate) {
-      return null;
-    }
-    return baseDrop.toItemStack(items);
-  }
-
-  /// Roll with modifiers applied to boost the base rate.
-  ///
-  /// The modifier value is treated as percentage points added to the base rate.
-  /// For example, a modifier value of 5 adds 5% (0.05) to the base rate.
-  ItemStack? rollWithModifiers(
-    ItemRegistry items,
-    Random random,
-    ResolvedModifiers modifiers,
-  ) {
-    final modifierBonus = modifiers.values[modifierName] ?? 0;
-    final effectiveRate = (baseDrop.rate + modifierBonus / 100.0).clamp(
-      0.0,
-      1.0,
-    );
-
-    if (random.nextDouble() >= effectiveRate) {
-      return null;
-    }
-    return baseDrop.toItemStack(items);
-  }
-
-  @override
-  Map<MelvorId, double> get expectedItems => baseDrop.expectedItems;
-
-  /// Expected items accounting for modifier boost.
-  Map<MelvorId, double> expectedItemsWithModifiers(
-    ResolvedModifiers modifiers,
-  ) {
-    final modifierBonus = modifiers.values[modifierName] ?? 0;
-    final effectiveRate = (baseDrop.rate + modifierBonus / 100.0).clamp(
-      0.0,
-      1.0,
-    );
-    return {baseDrop.itemId: baseDrop.count * effectiveRate};
   }
 }
 

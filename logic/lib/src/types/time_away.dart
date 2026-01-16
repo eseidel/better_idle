@@ -4,9 +4,7 @@ import 'package:logic/src/data/currency.dart';
 import 'package:logic/src/data/melvor_id.dart';
 import 'package:logic/src/data/registries.dart';
 import 'package:logic/src/json.dart';
-import 'package:logic/src/types/drop.dart';
 import 'package:logic/src/types/inventory.dart';
-import 'package:logic/src/types/resolved_modifiers.dart';
 
 /// Reason why an action stopped during time away processing.
 enum ActionStopReason {
@@ -61,7 +59,6 @@ class TimeAway {
     this.stopReason = ActionStopReason.stillRunning,
     this.stoppedAfter,
     this.doublingChance = 0.0,
-    this.modifiers = ResolvedModifiers.empty,
   });
 
   factory TimeAway.fromJson(Registries registries, Map<String, dynamic> json) {
@@ -87,11 +84,6 @@ class TimeAway {
     final recipeSelection = recipeIndex != null
         ? SelectedRecipe(index: recipeIndex)
         : const NoSelectedRecipe();
-    // Parse modifiers from JSON if present
-    final modifiersJson = json['modifiers'] as Map<String, dynamic>?;
-    final modifiers = modifiersJson != null
-        ? ResolvedModifiers(modifiersJson.map((k, v) => MapEntry(k, v as num)))
-        : ResolvedModifiers.empty;
 
     return TimeAway(
       registries: registries,
@@ -110,7 +102,6 @@ class TimeAway {
       stoppedAfter: stoppedAfterMs != null
           ? Duration(milliseconds: stoppedAfterMs)
           : null,
-      modifiers: modifiers,
     );
   }
 
@@ -126,7 +117,6 @@ class TimeAway {
     ActionStopReason? stopReason,
     Duration? stoppedAfter,
     double? doublingChance,
-    ResolvedModifiers? modifiers,
   }) {
     return TimeAway(
       registries: registries,
@@ -140,7 +130,6 @@ class TimeAway {
       stopReason: stopReason ?? ActionStopReason.stillRunning,
       stoppedAfter: stoppedAfter,
       doublingChance: doublingChance ?? 0.0,
-      modifiers: modifiers ?? ResolvedModifiers.empty,
     );
   }
 
@@ -175,10 +164,6 @@ class TimeAway {
 
   /// The item doubling chance (0.0-1.0) from skillItemDoublingChance modifier.
   final double doublingChance;
-
-  /// Resolved modifiers for the active skill action at the time of creation.
-  /// Used for accurate predictions (e.g., randomProductChance for bird nests).
-  final ResolvedModifiers modifiers;
 
   Duration get duration => endTime.difference(startTime);
 
@@ -236,16 +221,10 @@ class TimeAway {
     final multiplier = 1.0 + doublingChance;
     final result = <MelvorId, double>{};
 
-    // Compute expected items, accounting for SkillDrop modifiers
+    // Compute expected items using base drop rates
+    // TODO(future): Account for randomProductChance modifiers for more accuracy
     for (final drop in allDrops) {
-      final Map<MelvorId, double> expectedItems;
-      if (drop is SkillDrop) {
-        // Use modifier-aware expected items for SkillDrops
-        expectedItems = drop.expectedItemsWithModifiers(modifiers);
-      } else {
-        expectedItems = drop.expectedItems;
-      }
-      for (final entry in expectedItems.entries) {
+      for (final entry in drop.expectedItems.entries) {
         final value = entry.value * multiplier * actionsPerHour;
         result[entry.key] = (result[entry.key] ?? 0) + value;
       }
@@ -297,7 +276,6 @@ class TimeAway {
     ActionStopReason? stopReason,
     Duration? stoppedAfter,
     double? doublingChance,
-    ResolvedModifiers? modifiers,
   }) {
     return TimeAway(
       registries: registries,
@@ -311,7 +289,6 @@ class TimeAway {
       stopReason: stopReason ?? this.stopReason,
       stoppedAfter: stoppedAfter ?? this.stoppedAfter,
       doublingChance: doublingChance ?? this.doublingChance,
-      modifiers: modifiers ?? this.modifiers,
     );
   }
 
@@ -355,10 +332,6 @@ class TimeAway {
     final mergedRecipeSelection = recipeSelection is SelectedRecipe
         ? recipeSelection
         : other.recipeSelection;
-    // Prefer this modifiers (most recent state)
-    final mergedModifiers = modifiers.values.isNotEmpty
-        ? modifiers
-        : other.modifiers;
     return TimeAway(
       registries: registries,
       startTime: mergedStartTime,
@@ -371,7 +344,6 @@ class TimeAway {
       stopReason: mergedStopReason,
       stoppedAfter: mergedStoppedAfter,
       doublingChance: mergedDoublingChance,
-      modifiers: mergedModifiers,
     );
   }
 
@@ -380,8 +352,6 @@ class TimeAway {
       NoSelectedRecipe() => null,
       SelectedRecipe(:final index) => index,
     };
-    // Only serialize modifiers if non-empty
-    final modifiersJson = modifiers.values.isNotEmpty ? modifiers.values : null;
     return {
       'startTime': startTime.millisecondsSinceEpoch,
       'endTime': endTime.millisecondsSinceEpoch,
@@ -391,7 +361,6 @@ class TimeAway {
       'changes': changes.toJson(),
       'stopReason': stopReason.name,
       'stoppedAfterMs': stoppedAfter?.inMilliseconds,
-      'modifiers': ?modifiersJson,
     };
   }
 }

@@ -21,8 +21,8 @@ import 'package:logic/src/types/equipment.dart';
 import 'package:logic/src/types/equipment_slot.dart';
 import 'package:logic/src/types/health.dart';
 import 'package:logic/src/types/inventory.dart';
+import 'package:logic/src/types/modifier_provider.dart';
 import 'package:logic/src/types/open_result.dart';
-import 'package:logic/src/types/resolved_modifiers.dart';
 import 'package:logic/src/types/stunned.dart';
 import 'package:logic/src/types/time_away.dart';
 import 'package:meta/meta.dart';
@@ -877,209 +877,30 @@ class GlobalState {
   MelvorId? get highestCookingPotId =>
       registries.shop.highestCookingPotId(shop.purchaseCounts);
 
-  /// Resolves all modifiers for a skill action from all sources.
+  /// Creates a ModifierProvider for on-demand modifier resolution.
   ///
-  /// Combines modifiers from:
-  /// - Shop purchases (e.g., axe upgrades for woodcutting)
-  /// - Mastery bonuses (based on current mastery level)
-  /// - Equipped gear (e.g., Fishing Amulet for fishing)
-  /// - (Future: potions, prayers, etc.)
+  /// Preserves full scope information and resolves modifiers lazily when
+  /// queried with specific context (skillId, actionId, itemId, etc.).
   ///
-  /// Returns a [ResolvedModifiers] containing all modifier values by name.
-  /// Values are stored as raw numbers from the data (e.g., skillInterval
-  /// is in percentage points like -5, flatSkillInterval is in milliseconds).
-  ///
-  /// For cooking actions, the category (Fire/Furnace/Pot) is used to filter
-  /// modifiers from cooking area upgrades.
-  ResolvedModifiers resolveSkillModifiers(SkillAction action) {
-    return _resolveModifiers(
-      skillId: action.skill.id,
-      skill: action.skill,
-      actionId: action.id,
-      categoryId: action.categoryId,
-    );
-  }
-
-  /// Resolves global modifiers from shop purchases that are not skill-scoped.
-  ///
-  /// These include modifiers like autoEat which apply to all combat situations,
-  /// not to specific skills.
-  ResolvedModifiers resolveGlobalModifiers() {
-    return _resolveModifiers();
-  }
-
-  /// Resolves all combat-relevant modifiers from all sources.
-  ///
-  /// This combines:
-  /// - Global shop modifiers (autoEat, etc.)
-  /// - Equipment modifiers (from item.modifiers)
-  /// - Equipment stats (from item.equipmentStats, converted to modifiers)
-  /// - (Future: potions, prayers, etc.)
-  ///
-  /// Used for calculating player combat stats like max hit, accuracy, evasion.
-  ResolvedModifiers resolveCombatModifiers() {
-    var result = _resolveModifiers(
-      combatTypeSkills: attackStyle.combatType.skills,
-    );
-
-    // Combine equipment stats from all equipped items
-    for (final item in equipment.gearSlots.values) {
-      result = result.combine(item.equipmentStats.toModifiers());
-    }
-
-    return result;
-  }
-
-  /// Internal shared implementation for modifier resolution.
-  ///
-  /// When [skillId] is provided, only modifiers scoped to that skill are
-  /// included. When [skillId] is null, only global (unscoped) modifiers are
-  /// included.
-  ///
-  /// [skill] and [actionId] are needed for skill-scoped resolution to look up
-  /// shop purchases and mastery bonuses.
-  ///
-  /// [categoryId] is used for cooking actions to filter modifiers scoped to
-  /// specific cooking areas (Fire, Furnace, Pot).
-  ///
-  /// [combatTypeSkills] should be provided for combat contexts - familiars
-  /// relevant to these skills (plus universal combat skills) will have their
-  /// modifiers included.
-  ResolvedModifiers _resolveModifiers({
-    MelvorId? skillId,
-    Skill? skill,
-    ActionId? actionId,
-    MelvorId? categoryId,
+  /// Use this when you need to query modifiers with different scope contexts,
+  /// such as checking randomProductChance for specific item drops.
+  ModifierProvider createModifierProvider({
+    ActionId? currentActionId,
     Set<Skill>? combatTypeSkills,
   }) {
-    final builder = ResolvedModifiersBuilder();
-
-    // --- Shop modifiers ---
-    if (skill != null) {
-      // Skill-scoped: iterate all owned purchases and include modifiers that
-      // apply to this skill/category context.
-      for (final entry in shop.purchaseCounts.entries) {
-        if (entry.value <= 0) continue;
-        final purchase = registries.shop.byId(entry.key);
-        if (purchase == null) continue;
-
-        for (final mod in purchase.contains.modifiers.modifiers) {
-          for (final modEntry in mod.entries) {
-            if (modEntry.appliesToContext(
-              skillId: skillId!,
-              categoryId: categoryId,
-            )) {
-              builder.add(mod.name, modEntry.value);
-            }
-          }
-        }
-      }
-    } else {
-      // Global: iterate all owned purchases, include unscoped modifiers
-      for (final entry in shop.purchaseCounts.entries) {
-        if (entry.value <= 0) continue;
-        final purchase = registries.shop.byId(entry.key);
-        if (purchase == null) continue;
-
-        for (final mod in purchase.contains.modifiers.modifiers) {
-          for (final modEntry in mod.entries) {
-            // Include modifiers without skill scope (global modifiers)
-            if (modEntry.scope == null || modEntry.scope!.skillId == null) {
-              builder.add(mod.name, modEntry.value);
-            }
-          }
-        }
-      }
-    }
-
-    // --- Mastery modifiers (only for skill-scoped resolution) ---
-    if (skillId != null && actionId != null) {
-      final masteryLevel = actionState(actionId).masteryLevel;
-      final skillBonuses = registries.masteryBonuses.forSkill(skillId);
-      if (skillBonuses != null) {
-        for (final bonus in skillBonuses.bonuses) {
-          final count = bonus.countAtLevel(masteryLevel);
-          if (count == 0) continue;
-
-          for (final mod in bonus.modifiers.modifiers) {
-            for (final entry in mod.entries) {
-              if (entry.appliesToSkill(
-                skillId,
-                autoScopeToAction: bonus.autoScopeToAction,
-              )) {
-                builder.add(mod.name, entry.value * count);
-              }
-            }
-          }
-        }
-      }
-    }
-
-    // --- Equipment modifiers ---
-    for (final entry in equipment.gearSlots.entries) {
-      final slot = entry.key;
-      final item = entry.value;
-
-      // For summoning tablets, only include modifiers if the familiar is
-      // relevant to the current skill being performed.
-      if (slot.isSummonSlot && item.isSummonTablet) {
-        final isRelevant = combatTypeSkills != null
-            ? registries.actions.isFamiliarRelevantToCombat(
-                item.id,
-                combatTypeSkills,
-              )
-            : skill != null &&
-                  registries.actions.isFamiliarRelevantToSkill(item.id, skill);
-        if (!isRelevant) continue;
-      }
-
-      for (final mod in item.modifiers.modifiers) {
-        for (final modEntry in mod.entries) {
-          // For skill-scoped: only include if applies to skill
-          // For global: include all (combat gear is typically unscoped)
-          if (skillId == null || modEntry.appliesToSkill(skillId)) {
-            builder.add(mod.name, modEntry.value);
-          }
-        }
-      }
-    }
-
-    // --- Synergy modifiers ---
-    // Apply synergy if both summon slots have tablets equipped and both
-    // familiars have mark level >= 3.
-    final synergy = _getActiveSynergy();
-    if (synergy != null) {
-      for (final mod in synergy.modifiers.modifiers) {
-        for (final modEntry in mod.entries) {
-          // For skill-scoped: only include if applies to skill
-          // For global: include all
-          if (skillId == null || modEntry.appliesToSkill(skillId)) {
-            builder.add(mod.name, modEntry.value);
-          }
-        }
-      }
-    }
-
-    // --- Potion modifiers ---
-    // Apply modifiers from selected potion for this skill.
-    if (skillId != null) {
-      final potionId = selectedPotions[skillId];
-      if (potionId != null) {
-        // Only apply if we have the potion in inventory (or are using one)
-        final inventoryCount = inventory.countById(potionId);
-        final chargesUsed = potionChargesUsed[skillId] ?? 0;
-        if (inventoryCount > 0 || chargesUsed > 0) {
-          final potion = registries.items.byId(potionId);
-          for (final mod in potion.modifiers.modifiers) {
-            for (final modEntry in mod.entries) {
-              builder.add(mod.name, modEntry.value);
-            }
-          }
-        }
-      }
-    }
-
-    return builder.build();
+    return ModifierProvider(
+      registries: registries,
+      equipment: equipment,
+      selectedPotions: selectedPotions,
+      potionChargesUsed: potionChargesUsed,
+      inventory: inventory,
+      summoning: summoning,
+      shopPurchases: shop,
+      actionStateGetter: actionState,
+      activeSynergy: _getActiveSynergy(),
+      combatTypeSkills: combatTypeSkills,
+      currentActionId: currentActionId,
+    );
   }
 
   /// Returns the active synergy if both summon slots have tablets equipped,
@@ -1124,13 +945,14 @@ class GlobalState {
     ShopRegistry shopRegistry,
   ) {
     final ticks = action.rollDuration(random);
-    final modifiers = resolveSkillModifiers(action);
+    final modifiers = createModifierProvider(currentActionId: action.id);
 
     // skillInterval is percentage points (e.g., -5 = 5% reduction)
-    final percentPoints = modifiers.skillInterval;
+    final percentPoints = modifiers.skillInterval(skillId: action.skill.id);
 
     // flatSkillInterval is milliseconds, convert to ticks (100ms = 1 tick)
-    final flatTicks = modifiers.flatSkillInterval / 100.0;
+    final flatTicks =
+        modifiers.flatSkillInterval(skillId: action.skill.id) / 100.0;
 
     // Apply: percentage first, then flat adjustment
     final result = ticks * (1.0 + percentPoints / 100.0) + flatTicks;
@@ -1232,13 +1054,14 @@ class GlobalState {
   /// Calculates mean duration with modifiers applied (deterministic).
   int _meanDurationWithModifiers(SkillAction action) {
     final ticks = ticksFromDuration(action.meanDuration);
-    final modifiers = resolveSkillModifiers(action);
+    final modifiers = createModifierProvider(currentActionId: action.id);
 
     // skillInterval is percentage points (e.g., -5 = 5% reduction)
-    final percentPoints = modifiers.skillInterval;
+    final percentPoints = modifiers.skillInterval(skillId: action.skill.id);
 
     // flatSkillInterval is milliseconds, convert to ticks (100ms = 1 tick)
-    final flatTicks = modifiers.flatSkillInterval / 100.0;
+    final flatTicks =
+        modifiers.flatSkillInterval(skillId: action.skill.id) / 100.0;
 
     // Apply: percentage first, then flat adjustment
     final result = ticks * (1.0 + percentPoints / 100.0) + flatTicks;

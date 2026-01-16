@@ -684,7 +684,7 @@ class _RecipeCard extends StatelessWidget {
     final perAction = xpPerAction(
       state,
       recipe,
-      state.resolveSkillModifiers(recipe),
+      state.createModifierProvider(currentActionId: recipe.id),
     );
     final durationSeconds = recipe.minDuration.inSeconds;
 

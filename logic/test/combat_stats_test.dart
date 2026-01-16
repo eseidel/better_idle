@@ -156,13 +156,14 @@ void main() {
     });
   });
 
-  group('resolveCombatModifiers', () {
-    test('returns empty modifiers with no equipment or shop purchases', () {
+  group('createModifierProvider for combat', () {
+    test('returns zero modifiers with no equipment or shop purchases', () {
       final state = GlobalState.test(testRegistries);
-      final modifiers = state.resolveCombatModifiers();
+      final modifiers = state.createModifierProvider();
 
-      // With no equipment or purchases, should have empty modifiers
-      expect(modifiers.isEmpty, isTrue);
+      // With no equipment or purchases, should have zero for combat modifiers
+      expect(modifiers.lifesteal, 0);
+      expect(modifiers.flatMeleeStrengthBonus, 0);
     });
   });
 
@@ -178,7 +179,7 @@ void main() {
     test('weapon attack speed affects player attack speed', () {
       // Bronze Sword has 2400ms attack speed
       expect(
-        bronzeSword.equipmentStats.toModifiers().equipmentAttackSpeed,
+        bronzeSword.equipmentStats.getAsModifier('equipmentAttackSpeed'),
         2400,
       );
 
@@ -204,7 +205,7 @@ void main() {
     test('weapon strength bonus affects max hit', () {
       // Bronze Sword has meleeStrengthBonus in equipmentStats
       expect(
-        bronzeSword.equipmentStats.toModifiers().flatMeleeStrengthBonus,
+        bronzeSword.equipmentStats.getAsModifier('flatMeleeStrengthBonus'),
         greaterThan(0),
       );
 
@@ -229,7 +230,7 @@ void main() {
     test('weapon attack bonus affects accuracy', () {
       // Bronze Sword has stabAttackBonus in equipmentStats
       expect(
-        bronzeSword.equipmentStats.toModifiers().flatStabAttackBonus,
+        bronzeSword.equipmentStats.getAsModifier('flatStabAttackBonus'),
         greaterThan(0),
       );
 
@@ -254,7 +255,7 @@ void main() {
     test('armor defence bonus affects evasion', () {
       // Bronze Helmet has meleeDefenceBonus in equipmentStats
       expect(
-        bronzeHelmet.equipmentStats.toModifiers().flatMeleeDefenceBonus,
+        bronzeHelmet.equipmentStats.getAsModifier('flatMeleeDefenceBonus'),
         greaterThan(0),
       );
 

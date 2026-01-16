@@ -9,7 +9,6 @@ import 'package:logic/src/types/drop.dart';
 import 'package:logic/src/types/equipment_slot.dart';
 import 'package:logic/src/types/inventory.dart';
 import 'package:logic/src/types/modifier.dart';
-import 'package:logic/src/types/resolved_modifiers.dart';
 import 'package:meta/meta.dart';
 
 /// Combat stats provided by equipment items.
@@ -54,16 +53,19 @@ class EquipmentStats extends Equatable {
     'damageReduction': 'flatResistance',
   };
 
-  /// Converts equipment stats to resolved modifiers for combat calculations.
-  ResolvedModifiers toModifiers() {
-    final result = <String, num>{};
-    for (final entry in _values.entries) {
-      final modifierName = _statToModifier[entry.key];
-      if (modifierName != null && entry.value != 0) {
-        result[modifierName] = entry.value;
-      }
-    }
-    return ResolvedModifiers(result);
+  /// Maps modifier names back to equipment stat keys.
+  static final Map<String, String> _modifierToStat = {
+    for (final entry in _statToModifier.entries) entry.value: entry.key,
+  };
+
+  /// Gets an equipment stat value by modifier name.
+  /// Returns null if this stat doesn't exist or is zero.
+  int? getAsModifier(String modifierName) {
+    final statKey = _modifierToStat[modifierName];
+    if (statKey == null) return null;
+    final value = _values[statKey];
+    if (value == null || value == 0) return null;
+    return value;
   }
 
   @override

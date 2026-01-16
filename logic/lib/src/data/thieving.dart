@@ -4,7 +4,6 @@ import 'package:logic/src/data/action_id.dart';
 import 'package:logic/src/data/actions.dart';
 import 'package:logic/src/data/melvor_id.dart';
 import 'package:logic/src/types/drop.dart';
-import 'package:logic/src/types/resolved_modifiers.dart';
 import 'package:meta/meta.dart';
 
 /// Duration for all thieving actions.
@@ -226,12 +225,12 @@ class ThievingAction extends SkillAction {
     Random random,
     int thievingLevel,
     int actionMasteryLevel,
-    ResolvedModifiers modifiers,
+    int thievingStealthBonus,
   ) {
     final stealth = calculateStealth(
       thievingLevel,
       actionMasteryLevel,
-      thievingStealthBonus: modifiers.thievingStealth.toInt(),
+      thievingStealthBonus: thievingStealthBonus,
     );
     final successChance = thievingSuccessChance(stealth, perception);
     final roll = random.nextDouble();

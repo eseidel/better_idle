@@ -28,7 +28,6 @@ import 'package:logic/src/solver/analysis/wait_for.dart';
 import 'package:logic/src/solver/core/value_model.dart';
 import 'package:logic/src/state.dart';
 import 'package:logic/src/tick.dart';
-import 'package:logic/src/types/drop.dart';
 import 'package:logic/src/types/stunned.dart';
 import 'package:meta/meta.dart';
 
@@ -344,24 +343,17 @@ Map<MelvorId, double> _computeItemFlowsPerAction(
   );
 
   // Get modifiers for rate calculations
-  final modifiers = state.resolveSkillModifiers(action);
-  final doublingChance = (modifiers.skillItemDoublingChance / 100.0).clamp(
-    0.0,
-    1.0,
-  );
+  final modifiers = state.createModifierProvider(currentActionId: action.id);
+  final doublingChance =
+      (modifiers.skillItemDoublingChance(skillId: action.skill.id) / 100.0)
+          .clamp(0.0, 1.0);
   final multiplier = 1.0 + doublingChance;
 
-  // Compute expected items, accounting for SkillDrop modifiers
+  // Compute expected items using base drop rates
+  // TODO(future): Account for randomProductChance modifiers for more accuracy
   final result = <MelvorId, double>{};
   for (final drop in dropsForAction) {
-    final Map<MelvorId, double> expectedItems;
-    if (drop is SkillDrop) {
-      // Use modifier-aware expected items for SkillDrops
-      expectedItems = drop.expectedItemsWithModifiers(modifiers);
-    } else {
-      expectedItems = drop.expectedItems;
-    }
-    for (final entry in expectedItems.entries) {
+    for (final entry in drop.expectedItems.entries) {
       result[entry.key] = (result[entry.key] ?? 0) + entry.value * multiplier;
     }
   }

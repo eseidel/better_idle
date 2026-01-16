@@ -739,7 +739,7 @@ class StateUpdateBuilder {
   /// - No more food available in selected slot
   ///
   /// Returns number of food items consumed.
-  int tryAutoEat(ResolvedModifiers modifiers) {
+  int tryAutoEat(ModifierAccessors modifiers) {
     final threshold = modifiers.autoEatThreshold;
     if (threshold <= 0) return 0;
 
@@ -870,7 +870,7 @@ class StateUpdateBuilder {
     final maxCharges = potion.potionCharges ?? 1;
 
     // Check charge preservation chance
-    final modifiers = _state.resolveSkillModifiers(action);
+    final modifiers = _state.createModifierProvider(currentActionId: action.id);
     final preserveChance = modifiers.potionChargePreservationChance;
     if (preserveChance > 0 && random.nextDouble() * 100 < preserveChance) {
       return; // Charge preserved, don't consume
@@ -1020,10 +1020,10 @@ class XpPerAction {
 XpPerAction xpPerAction(
   GlobalState state,
   SkillAction action,
-  ResolvedModifiers modifiers,
+  ModifierAccessors modifiers,
 ) {
   // Apply skillXP modifier (percentage points, e.g., -10 = 10% reduction)
-  final xpModifier = modifiers.skillXP;
+  final xpModifier = modifiers.skillXP(skillId: action.skill.id);
   final baseXp = action.xp;
   final adjustedXp = (baseXp * (1.0 + xpModifier / 100.0)).round().clamp(
     1,
@@ -1038,13 +1038,13 @@ XpPerAction xpPerAction(
 
 /// Rolls all drops for an action and adds them to inventory.
 /// Applies skillItemDoublingChance from modifiers to double items.
-/// For SkillDrops, applies modifier-based rate boosts (e.g.,
-/// randomProductChance for bird nests).
+/// For Drop items, applies randomProductChance modifier bonus based on
+/// the item's ID and skill (e.g., bird nest potion boosts bird nest drops).
 /// Returns false if any item was dropped due to full inventory.
 bool rollAndCollectDrops(
   StateUpdateBuilder builder,
   SkillAction action,
-  ResolvedModifiers modifiers,
+  ModifierAccessors modifiers,
   Random random,
   RecipeSelection selection,
 ) {
@@ -1052,17 +1052,28 @@ bool rollAndCollectDrops(
   var allItemsAdded = true;
 
   // Get doubling chance from modifiers (percentage -> 0.0-1.0)
-  final doublingChance = (modifiers.skillItemDoublingChance / 100.0).clamp(
-    0.0,
-    1.0,
-  );
+  final doublingChance =
+      (modifiers.skillItemDoublingChance(skillId: action.skill.id) / 100.0)
+          .clamp(0.0, 1.0);
 
   for (final drop in registries.drops.allDropsForAction(action, selection)) {
-    // Roll the drop, using modifiers for SkillDrops
     ItemStack? itemStack;
-    if (drop is SkillDrop) {
-      itemStack = drop.rollWithModifiers(registries.items, random, modifiers);
+
+    if (drop is Drop) {
+      // For simple drops, apply randomProductChance modifier
+      // The modifier is scoped by itemId and skillId in Melvor data
+      final modifierBonus = modifiers.randomProductChance(
+        itemId: drop.itemId,
+        skillId: action.skill.id,
+      );
+      final effectiveRate = (drop.rate + modifierBonus / 100.0).clamp(0.0, 1.0);
+
+      // Only roll if rate < 1.0 to preserve random sequence for other drops
+      if (effectiveRate >= 1.0 || random.nextDouble() < effectiveRate) {
+        itemStack = drop.toItemStack(registries.items);
+      }
     } else {
+      // For other Droppable types (DropTable, DropChance), use base roll
       itemStack = drop.roll(registries.items, random);
     }
 
@@ -1091,17 +1102,20 @@ bool completeThievingAction(
 ) {
   final thievingLevel = builder.state.skillState(Skill.thieving).skillLevel;
   final actionMasteryLevel = builder.currentMasteryLevel(action);
-  final modifiers = builder.state.resolveSkillModifiers(action);
+  final modifierProvider = builder.state.createModifierProvider(
+    currentActionId: action.id,
+  );
+  final thievingStealth = modifierProvider.thievingStealth();
   final success = action.rollSuccess(
     random,
     thievingLevel,
     actionMasteryLevel,
-    modifiers,
+    thievingStealth,
   );
 
   if (success) {
     // Grant XP on success
-    final perAction = xpPerAction(builder.state, action, modifiers);
+    final perAction = xpPerAction(builder.state, action, modifierProvider);
     builder
       ..addSkillXp(action.skill, perAction.xp)
       ..addActionMasteryXp(action.id, perAction.masteryXp)
@@ -1109,7 +1123,9 @@ bool completeThievingAction(
 
     // Grant gold with currencyGain modifier
     final baseGold = action.rollGold(random);
-    final currencyGainMod = modifiers.currencyGain;
+    final currencyGainMod = modifierProvider.currencyGain(
+      skillId: action.skill.id,
+    );
     final adjustedGold = (baseGold * (1.0 + currencyGainMod / 100.0))
         .round()
         .clamp(1, baseGold * 10);
@@ -1118,7 +1134,7 @@ bool completeThievingAction(
     // Roll drops with doubling applied
     final actionState = builder.state.actionState(action.id);
     final selection = actionState.recipeSelection(action);
-    rollAndCollectDrops(builder, action, modifiers, random, selection);
+    rollAndCollectDrops(builder, action, modifierProvider, random, selection);
 
     return true;
   } else {
@@ -1127,7 +1143,7 @@ bool completeThievingAction(
     builder.damagePlayer(damage);
 
     // Try auto-eat after taking damage
-    final modifiers = builder.state.resolveGlobalModifiers();
+    final modifiers = builder.state.createModifierProvider();
     builder.tryAutoEat(modifiers);
 
     // Check if player died (after auto-eat attempt)
@@ -1162,7 +1178,9 @@ void completeCookingAction(
   final actionState = builder.state.actionState(action.id);
   final selection = actionState.recipeSelection(action);
   final masteryLevel = builder.currentMasteryLevel(action);
-  final modifiers = builder.state.resolveSkillModifiers(action);
+  final modifiers = builder.state.createModifierProvider(
+    currentActionId: action.id,
+  );
 
   // Calculate success chance: 70% base + 0.6% per mastery level (capped at 50)
   // Total possible from mastery: 70% + 30% = 100% at level 50
@@ -1202,7 +1220,7 @@ void completeCookingAction(
   MelvorId outputId;
   if (!isPassive && action.perfectCookId != null) {
     // Roll for perfect cook using perfectCookChance modifier
-    final perfectChance = modifiers.perfectCookChance / 100.0;
+    final perfectChance = modifiers.perfectCookChance() / 100.0;
     final isPerfect = random.nextDouble() < perfectChance;
     outputId = isPerfect ? action.perfectCookId! : action.productId;
   } else {
@@ -1214,10 +1232,9 @@ void completeCookingAction(
 
   // Apply doubling for active cooking only
   if (!isPassive) {
-    final doublingChance = (modifiers.skillItemDoublingChance / 100.0).clamp(
-      0.0,
-      1.0,
-    );
+    final doublingChance =
+        (modifiers.skillItemDoublingChance(skillId: action.skill.id) / 100.0)
+            .clamp(0.0, 1.0);
     if (doublingChance > 0 && random.nextDouble() < doublingChance) {
       quantity *= 2;
     }
@@ -1300,16 +1317,18 @@ bool completeAction(
   }
 
   // Roll drops with doubling applied (using recipe for output multiplier)
-  final modifiers = builder.state.resolveSkillModifiers(action);
+  final modifierProvider = builder.state.createModifierProvider(
+    currentActionId: action.id,
+  );
   var canRepeatAction = rollAndCollectDrops(
     builder,
     action,
-    modifiers,
+    modifierProvider,
     random,
     selection,
   );
 
-  final perAction = xpPerAction(builder.state, action, modifiers);
+  final perAction = xpPerAction(builder.state, action, modifierProvider);
 
   builder
     ..addSkillXp(action.skill, perAction.xp)
@@ -1706,7 +1725,7 @@ enum ForegroundResult {
     );
 
     // Try auto-eat after attack (whether hit or miss, player may need healing)
-    final modifiers = builder.state.resolveGlobalModifiers();
+    final modifiers = builder.state.createModifierProvider();
     builder.tryAutoEat(modifiers);
   }
 
@@ -1934,16 +1953,17 @@ ConsumeTicksStopReason consumeTicksUntil(
   final stoppedAfter = builder.stoppedAtTick != null
       ? durationFromTicks(builder.stoppedAtTick!)
       : null;
-  // Compute doubling chance, modifiers, and recipe selection for predictions
+  // Compute doubling chance and recipe selection for predictions
   var doublingChance = 0.0;
-  var resolvedModifiers = ResolvedModifiers.empty;
   RecipeSelection recipeSelection = const NoSelectedRecipe();
   if (action is SkillAction) {
-    resolvedModifiers = state.resolveSkillModifiers(action);
-    doublingChance = (resolvedModifiers.skillItemDoublingChance / 100.0).clamp(
-      0.0,
-      1.0,
+    final modifierProvider = state.createModifierProvider(
+      currentActionId: action.id,
     );
+    doublingChance =
+        (modifierProvider.skillItemDoublingChance(skillId: action.skill.id) /
+                100.0)
+            .clamp(0.0, 1.0);
     final actionState = state.actionState(action.id);
     recipeSelection = actionState.recipeSelection(action);
   }
@@ -1962,7 +1982,6 @@ ConsumeTicksStopReason consumeTicksUntil(
     stopReason: builder.stopReason,
     stoppedAfter: stoppedAfter,
     doublingChance: doublingChance,
-    modifiers: resolvedModifiers,
   );
   return (timeAway, builder.build());
 }

@@ -354,8 +354,13 @@ void main() {
       state = state.copyWith(shop: state.shop.withPurchase(basicFurnace.id));
 
       // Resolve modifiers for a Furnace recipe - should include the upgrade
-      final modifiers = state.resolveSkillModifiers(furnaceRecipe);
-      expect(modifiers.perfectCookChance, greaterThan(0));
+      final modifiers = state.createModifierProvider(
+        currentActionId: furnaceRecipe.id,
+      );
+      expect(
+        modifiers.perfectCookChance(categoryId: furnaceRecipe.categoryId),
+        greaterThan(0),
+      );
     });
 
     test('category-scoped modifiers do not apply to other categories', () {
@@ -369,10 +374,15 @@ void main() {
       state = state.copyWith(shop: state.shop.withPurchase(basicFurnace.id));
 
       // Resolve modifiers for a Fire recipe - should NOT get Furnace bonus
-      final modifiers = state.resolveSkillModifiers(shrimpRecipe);
+      final modifiers = state.createModifierProvider(
+        currentActionId: shrimpRecipe.id,
+      );
       // The perfectCookChance should be 0 (or whatever from other sources)
       // since the Furnace upgrade doesn't apply to Fire
-      expect(modifiers.perfectCookChance, 0);
+      expect(
+        modifiers.perfectCookChance(categoryId: shrimpRecipe.categoryId),
+        0,
+      );
     });
   });
 
