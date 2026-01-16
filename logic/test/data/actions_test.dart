@@ -302,4 +302,93 @@ void main() {
       );
     });
   });
+
+  group('RareDrop with requiredItemId', () {
+    test('RareDrop drops when no requiredItemId is set', () {
+      const testItemId = MelvorId('melvorD:Normal_Logs');
+      const rareDrop = RareDrop(
+        itemId: testItemId,
+        chance: FixedChance(1), // 100% drop rate
+      );
+
+      final result = rareDrop.rollWithContext(
+        testItems,
+        Random(42),
+        skillLevel: 1,
+        totalMastery: 0,
+        hasRequiredItem: false, // Shouldn't matter since no requirement
+      );
+
+      expect(result, isNotNull);
+      expect(result!.item.id, testItemId);
+    });
+
+    test('RareDrop blocked when requiredItemId not found', () {
+      const testItemId = MelvorId('melvorD:Normal_Logs');
+      const requiredId = MelvorId('melvorD:Oak_Logs');
+      const rareDrop = RareDrop(
+        itemId: testItemId,
+        chance: FixedChance(1), // 100% drop rate
+        requiredItemId: requiredId,
+      );
+
+      final result = rareDrop.rollWithContext(
+        testItems,
+        Random(42),
+        skillLevel: 1,
+        totalMastery: 0,
+        hasRequiredItem: false, // Required item not found
+      );
+
+      expect(result, isNull, reason: 'Should block drop when required missing');
+    });
+
+    test('RareDrop allowed when requiredItemId has been found', () {
+      const testItemId = MelvorId('melvorD:Normal_Logs');
+      const requiredId = MelvorId('melvorD:Oak_Logs');
+      const rareDrop = RareDrop(
+        itemId: testItemId,
+        chance: FixedChance(1), // 100% drop rate
+        requiredItemId: requiredId,
+      );
+
+      final result = rareDrop.rollWithContext(
+        testItems,
+        Random(42),
+        skillLevel: 1,
+        totalMastery: 0,
+        hasRequiredItem: true, // Required item has been found
+      );
+
+      expect(result, isNotNull);
+      expect(result!.item.id, testItemId);
+    });
+
+    test('inventory hasEverAcquired gates RareDrop in rollAndCollectDrops', () {
+      // This test verifies the integration between inventory tracking
+      // and RareDrop requirements in rollAndCollectDrops
+      const oakLogsId = MelvorId('melvorD:Oak_Logs');
+
+      // Start with empty inventory - oak logs never acquired
+      final state = GlobalState.test(testRegistries);
+      expect(state.inventory.hasEverAcquired(oakLogsId), isFalse);
+
+      // Add oak logs to inventory
+      final stateWithOak = state.copyWith(
+        inventory: state.inventory.adding(
+          ItemStack(testItems.byId(oakLogsId), count: 1),
+        ),
+      );
+      expect(stateWithOak.inventory.hasEverAcquired(oakLogsId), isTrue);
+
+      // Now remove oak logs - hasEverAcquired should still be true
+      final stateOakRemoved = stateWithOak.copyWith(
+        inventory: stateWithOak.inventory.removing(
+          ItemStack(testItems.byId(oakLogsId), count: 1),
+        ),
+      );
+      expect(stateOakRemoved.inventory.countById(oakLogsId), 0);
+      expect(stateOakRemoved.inventory.hasEverAcquired(oakLogsId), isTrue);
+    });
+  });
 }

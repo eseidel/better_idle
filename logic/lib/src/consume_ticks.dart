@@ -1069,6 +1069,24 @@ bool rollAndCollectDrops(
       if (effectiveRate >= 1.0 || random.nextDouble() < effectiveRate) {
         itemStack = drop.toItemStack(registries.items);
       }
+    } else if (drop is RareDrop) {
+      // Use rollWithContext for RareDrops to check requiredItemId
+      final skillLevel = builder.state.skillState(action.skill).skillLevel;
+      final totalMastery = playerTotalMasteryForSkill(
+        builder.state,
+        action.skill,
+      );
+      final hasRequiredItem =
+          drop.requiredItemId == null ||
+          builder.state.inventory.hasEverAcquired(drop.requiredItemId!);
+
+      itemStack = drop.rollWithContext(
+        registries.items,
+        random,
+        skillLevel: skillLevel,
+        totalMastery: totalMastery,
+        hasRequiredItem: hasRequiredItem,
+      );
     } else {
       // For other Droppable types (DropTable, DropChance), use base roll
       itemStack = drop.roll(registries.items, random);

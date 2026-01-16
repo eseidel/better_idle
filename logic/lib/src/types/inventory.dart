@@ -17,8 +17,9 @@ class ItemStack {
 class Inventory {
   Inventory.fromJson(ItemRegistry items, Map<String, dynamic> json)
     : _items = items,
-      _counts = {},
-      _orderedItems = [] {
+      _counts = <Item, int>{},
+      _orderedItems = [],
+      _totalAcquired = <MelvorId, int>{} {
     final countsJson = json['counts'] as Map<String, dynamic>;
     final orderedItemsJson = json['orderedItems'] as List<dynamic>;
 
@@ -30,17 +31,27 @@ class Inventory {
       _counts[item] = countsJson[idString] as int;
       _orderedItems.add(item);
     }
+
+    // Parse totalAcquired (optional for backwards compatibility)
+    final totalAcquiredJson =
+        json['totalAcquired'] as Map<String, dynamic>? ?? {};
+    for (final entry in totalAcquiredJson.entries) {
+      _totalAcquired[MelvorId.fromJson(entry.key)] = entry.value as int;
+    }
   }
+
   const Inventory.empty(ItemRegistry items)
     : _items = items,
-      _counts = const {},
-      _orderedItems = const [];
+      _counts = const <Item, int>{},
+      _orderedItems = const [],
+      _totalAcquired = const <MelvorId, int>{};
 
   @visibleForTesting
   Inventory.fromItems(ItemRegistry items, List<ItemStack> stacks)
     : _items = items,
-      _counts = {},
-      _orderedItems = [] {
+      _counts = <Item, int>{},
+      _orderedItems = [],
+      _totalAcquired = <MelvorId, int>{} {
     for (final stack in stacks) {
       _counts[stack.item] = stack.count;
       _orderedItems.add(stack.item);
@@ -51,21 +62,32 @@ class Inventory {
     required ItemRegistry items,
     required Map<Item, int> counts,
     required List<Item> orderedItems,
+    required Map<MelvorId, int> totalAcquired,
   }) : _items = items,
        _counts = counts,
-       _orderedItems = orderedItems;
+       _orderedItems = orderedItems,
+       _totalAcquired = totalAcquired;
 
   final ItemRegistry _items;
+  final Map<Item, int> _counts;
+  final List<Item> _orderedItems;
+  final Map<MelvorId, int> _totalAcquired;
 
   Map<String, dynamic> toJson() {
     return {
       'counts': _counts.map((key, value) => MapEntry(key.id.toJson(), value)),
       'orderedItems': _orderedItems.map((item) => item.id.toJson()).toList(),
+      'totalAcquired': _totalAcquired.map(
+        (key, value) => MapEntry(key.toJson(), value),
+      ),
     };
   }
 
-  final Map<Item, int> _counts;
-  final List<Item> _orderedItems;
+  /// Returns true if this item has ever been acquired.
+  bool hasEverAcquired(MelvorId itemId) => _totalAcquired.containsKey(itemId);
+
+  /// Returns total count of this item ever acquired.
+  int totalAcquiredCount(MelvorId itemId) => _totalAcquired[itemId] ?? 0;
 
   List<ItemStack> get items => _orderedItems
       .map((item) => ItemStack(item, count: _counts[item]!))
@@ -93,6 +115,8 @@ class Inventory {
   Inventory adding(ItemStack stack) {
     final counts = Map<Item, int>.from(_counts);
     final orderedItems = List<Item>.from(_orderedItems);
+    final totalAcquired = Map<MelvorId, int>.from(_totalAcquired);
+
     final existingCount = counts[stack.item];
     if (existingCount == null) {
       counts[stack.item] = stack.count;
@@ -100,10 +124,16 @@ class Inventory {
     } else {
       counts[stack.item] = existingCount + stack.count;
     }
+
+    // Track cumulative acquisition
+    final itemId = stack.item.id;
+    totalAcquired[itemId] = (totalAcquired[itemId] ?? 0) + stack.count;
+
     return Inventory._(
       items: _items,
       counts: counts,
       orderedItems: orderedItems,
+      totalAcquired: totalAcquired,
     );
   }
 
@@ -125,6 +155,7 @@ class Inventory {
       items: _items,
       counts: counts,
       orderedItems: orderedItems,
+      totalAcquired: _totalAcquired, // Keep unchanged - don't decrement
     );
   }
 
@@ -142,6 +173,7 @@ class Inventory {
       items: _items,
       counts: Map<Item, int>.from(_counts),
       orderedItems: orderedItems,
+      totalAcquired: _totalAcquired, // Keep unchanged
     );
   }
 }

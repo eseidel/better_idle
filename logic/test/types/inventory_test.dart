@@ -105,4 +105,88 @@ void main() {
       expect(sorted.items[0].count, 5);
     });
   });
+
+  group('Inventory.totalAcquired', () {
+    test('hasEverAcquired returns false for never-acquired items', () {
+      final inventory = Inventory.empty(testItems);
+      expect(inventory.hasEverAcquired(normalLogs.id), isFalse);
+    });
+
+    test('hasEverAcquired returns true after adding item', () {
+      var inventory = Inventory.empty(testItems);
+      inventory = inventory.adding(ItemStack(normalLogs, count: 1));
+      expect(inventory.hasEverAcquired(normalLogs.id), isTrue);
+    });
+
+    test('totalAcquiredCount accumulates across multiple adds', () {
+      var inventory = Inventory.empty(testItems);
+      inventory = inventory.adding(ItemStack(normalLogs, count: 5));
+      inventory = inventory.adding(ItemStack(normalLogs, count: 3));
+      expect(inventory.totalAcquiredCount(normalLogs.id), 8);
+    });
+
+    test('removing does not decrement totalAcquired', () {
+      var inventory = Inventory.empty(testItems);
+      inventory = inventory.adding(ItemStack(normalLogs, count: 10));
+      inventory = inventory.removing(ItemStack(normalLogs, count: 7));
+
+      // Current count should be 3
+      expect(inventory.countOfItem(normalLogs), 3);
+      // Total acquired should still be 10
+      expect(inventory.totalAcquiredCount(normalLogs.id), 10);
+      // hasEverAcquired should still be true
+      expect(inventory.hasEverAcquired(normalLogs.id), isTrue);
+    });
+
+    test('removing all items still tracks totalAcquired', () {
+      var inventory = Inventory.empty(testItems);
+      inventory = inventory.adding(ItemStack(normalLogs, count: 5));
+      inventory = inventory.removing(ItemStack(normalLogs, count: 5));
+
+      // Item should be removed from inventory
+      expect(inventory.countOfItem(normalLogs), 0);
+      // But still tracked as ever acquired
+      expect(inventory.hasEverAcquired(normalLogs.id), isTrue);
+      expect(inventory.totalAcquiredCount(normalLogs.id), 5);
+    });
+
+    test('sorting preserves totalAcquired', () {
+      var inventory = Inventory.empty(testItems);
+      inventory = inventory.adding(ItemStack(normalLogs, count: 5));
+      inventory = inventory.adding(ItemStack(oakLogs, count: 3));
+      inventory = inventory.sorted();
+
+      expect(inventory.totalAcquiredCount(normalLogs.id), 5);
+      expect(inventory.totalAcquiredCount(oakLogs.id), 3);
+    });
+
+    test('JSON round-trip preserves totalAcquired', () {
+      var inventory = Inventory.empty(testItems);
+      inventory = inventory.adding(ItemStack(normalLogs, count: 5));
+      inventory = inventory.adding(ItemStack(oakLogs, count: 3));
+
+      final json = inventory.toJson();
+      final restored = Inventory.fromJson(testItems, json);
+
+      expect(restored.totalAcquiredCount(normalLogs.id), 5);
+      expect(restored.totalAcquiredCount(oakLogs.id), 3);
+      expect(restored.hasEverAcquired(normalLogs.id), isTrue);
+      expect(restored.hasEverAcquired(birdNest.id), isFalse);
+    });
+
+    test('fromJson handles missing totalAcquired for backwards compat', () {
+      // Simulate old save format without totalAcquired
+      final oldJson = {
+        'counts': {normalLogs.id.toJson(): 5},
+        'orderedItems': [normalLogs.id.toJson()],
+        // No totalAcquired key
+      };
+
+      final inventory = Inventory.fromJson(testItems, oldJson);
+
+      // Should load without error, totalAcquired starts empty
+      expect(inventory.countOfItem(normalLogs), 5);
+      expect(inventory.hasEverAcquired(normalLogs.id), isFalse);
+    });
+  });
 }
