@@ -15,6 +15,7 @@ import 'package:better_idle/src/screens/mining.dart';
 import 'package:better_idle/src/screens/runecrafting.dart';
 import 'package:better_idle/src/screens/shop.dart';
 import 'package:better_idle/src/screens/smithing.dart';
+import 'package:better_idle/src/screens/statistics.dart';
 import 'package:better_idle/src/screens/summoning.dart';
 import 'package:better_idle/src/screens/thieving.dart';
 import 'package:better_idle/src/screens/township.dart';
@@ -133,6 +134,11 @@ final GoRouter router = GoRouter(
       path: '/debug',
       name: 'debug',
       builder: (context, _) => const DebugPage(),
+    ),
+    GoRoute(
+      path: '/statistics',
+      name: 'statistics',
+      builder: (context, _) => const StatisticsPage(),
     ),
   ],
 );

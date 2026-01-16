@@ -203,6 +203,18 @@ class AppNavigationDrawer extends StatelessWidget {
           const SkillTile(skill: Skill.summoning),
           const SkillTile(skill: Skill.astrology),
           const SkillTile(skill: Skill.altMagic),
+          const _SectionHeader(title: 'Other'),
+          ListTile(
+            dense: true,
+            visualDensity: VisualDensity.compact,
+            leading: const Icon(Icons.bar_chart),
+            title: const Text('Statistics'),
+            selected: currentLocation == '/statistics',
+            onTap: () {
+              Navigator.pop(context);
+              router.goNamed('statistics');
+            },
+          ),
           const Divider(),
           ListTile(
             dense: true,
