@@ -600,22 +600,6 @@ class AssignCookingRecipeAction extends ReduxAction<GlobalState> {
   }
 }
 
-/// Clears a recipe from a cooking area.
-class ClearCookingRecipeAction extends ReduxAction<GlobalState> {
-  ClearCookingRecipeAction({required this.area});
-  final CookingArea area;
-
-  @override
-  GlobalState reduce() {
-    return state.copyWith(
-      cooking: state.cooking.withAreaState(
-        area,
-        const CookingAreaState.empty(),
-      ),
-    );
-  }
-}
-
 /// Starts cooking in a specific area (makes it the active cooking action).
 class StartCookingAction extends ReduxAction<GlobalState> {
   StartCookingAction({required this.area});

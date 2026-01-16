@@ -198,6 +198,62 @@ void main() {
       });
     });
 
+    group('equipStackedItem', () {
+      late Item bronzeArrows;
+      late Item bronzeSword;
+
+      setUpAll(() {
+        bronzeArrows = testItems.byName('Bronze Arrows');
+        bronzeSword = testItems.byName('Bronze Sword');
+      });
+
+      test('throws when slot does not support stacking', () {
+        const equipment = Equipment.empty();
+
+        expect(
+          () =>
+              equipment.equipStackedItem(bronzeSword, EquipmentSlot.weapon, 1),
+          throwsArgumentError,
+        );
+      });
+
+      test('throws when item cannot be equipped in slot', () {
+        const equipment = Equipment.empty();
+
+        // Bronze arrows can only go in quiver, not summon1
+        expect(
+          () => equipment.equipStackedItem(
+            bronzeArrows,
+            EquipmentSlot.summon1,
+            10,
+          ),
+          throwsArgumentError,
+        );
+      });
+    });
+
+    group('unequipStackedItem', () {
+      test('throws when slot does not support stacking', () {
+        final (equipment, _) = const Equipment.empty().equipGear(
+          testItems.byName('Bronze Sword'),
+          EquipmentSlot.weapon,
+        );
+
+        expect(
+          () => equipment.unequipStackedItem(EquipmentSlot.weapon),
+          throwsArgumentError,
+        );
+      });
+
+      test('returns null when slot is empty', () {
+        const equipment = Equipment.empty();
+
+        final result = equipment.unequipStackedItem(EquipmentSlot.quiver);
+
+        expect(result, isNull);
+      });
+    });
+
     group('addToStackedItem', () {
       late Item bronzeArrows;
       late Item ironArrows;

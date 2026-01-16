@@ -821,6 +821,801 @@ void main() {
     });
   });
 
+  group('SelectPotionAction', () {
+    test('selects potion for skill', () {
+      final potion = Item.test(
+        'Bird Nest Potion I',
+        gp: 0,
+        potionCharges: 30,
+        potionAction: Skill.woodcutting.id,
+      );
+      final registries = Registries.test(items: [potion]);
+      var initialState = GlobalState.empty(registries);
+      initialState = initialState.copyWith(
+        inventory: initialState.inventory.adding(ItemStack(potion, count: 1)),
+      );
+      final store = Store<GlobalState>(initialState: initialState);
+
+      expect(store.state.selectedPotions[Skill.woodcutting.id], isNull);
+
+      store.dispatch(SelectPotionAction(Skill.woodcutting.id, potion.id));
+
+      expect(store.state.selectedPotions[Skill.woodcutting.id], potion.id);
+    });
+
+    test('resets charges used when selecting different potion', () {
+      final potion1 = Item.test(
+        'Bird Nest Potion I',
+        gp: 0,
+        potionCharges: 30,
+        potionAction: Skill.woodcutting.id,
+      );
+      final potion2 = Item.test(
+        'Bird Nest Potion II',
+        gp: 0,
+        potionCharges: 30,
+        potionAction: Skill.woodcutting.id,
+      );
+      final registries = Registries.test(items: [potion1, potion2]);
+      var initialState = GlobalState.empty(registries);
+      initialState = initialState.copyWith(
+        inventory: initialState.inventory
+            .adding(ItemStack(potion1, count: 1))
+            .adding(ItemStack(potion2, count: 1)),
+        selectedPotions: {Skill.woodcutting.id: potion1.id},
+        potionChargesUsed: {Skill.woodcutting.id: 10},
+      );
+      final store = Store<GlobalState>(initialState: initialState);
+
+      expect(store.state.potionChargesUsed[Skill.woodcutting.id], 10);
+
+      store.dispatch(SelectPotionAction(Skill.woodcutting.id, potion2.id));
+
+      expect(store.state.selectedPotions[Skill.woodcutting.id], potion2.id);
+      expect(store.state.potionChargesUsed[Skill.woodcutting.id], isNull);
+    });
+
+    test('can select potions for different skills', () {
+      final woodcuttingPotion = Item.test(
+        'Bird Nest Potion I',
+        gp: 0,
+        potionCharges: 30,
+        potionAction: Skill.woodcutting.id,
+      );
+      final fishingPotion = Item.test(
+        'Fishing Potion I',
+        gp: 0,
+        potionCharges: 30,
+        potionAction: Skill.fishing.id,
+      );
+      final registries = Registries.test(
+        items: [woodcuttingPotion, fishingPotion],
+      );
+      var initialState = GlobalState.empty(registries);
+      initialState = initialState.copyWith(
+        inventory: initialState.inventory
+            .adding(ItemStack(woodcuttingPotion, count: 1))
+            .adding(ItemStack(fishingPotion, count: 1)),
+      );
+      final store = Store<GlobalState>(initialState: initialState);
+
+      store.dispatch(
+        SelectPotionAction(Skill.woodcutting.id, woodcuttingPotion.id),
+      );
+      store.dispatch(SelectPotionAction(Skill.fishing.id, fishingPotion.id));
+
+      expect(
+        store.state.selectedPotions[Skill.woodcutting.id],
+        woodcuttingPotion.id,
+      );
+      expect(store.state.selectedPotions[Skill.fishing.id], fishingPotion.id);
+    });
+  });
+
+  group('ClearPotionSelectionAction', () {
+    test('clears potion selection for skill', () {
+      final potion = Item.test(
+        'Bird Nest Potion I',
+        gp: 0,
+        potionCharges: 30,
+        potionAction: Skill.woodcutting.id,
+      );
+      final registries = Registries.test(items: [potion]);
+      var initialState = GlobalState.empty(registries);
+      initialState = initialState.copyWith(
+        inventory: initialState.inventory.adding(ItemStack(potion, count: 1)),
+        selectedPotions: {Skill.woodcutting.id: potion.id},
+      );
+      final store = Store<GlobalState>(initialState: initialState);
+
+      expect(store.state.selectedPotions[Skill.woodcutting.id], potion.id);
+
+      store.dispatch(ClearPotionSelectionAction(Skill.woodcutting.id));
+
+      expect(store.state.selectedPotions[Skill.woodcutting.id], isNull);
+    });
+
+    test('clears charges used when clearing selection', () {
+      final potion = Item.test(
+        'Bird Nest Potion I',
+        gp: 0,
+        potionCharges: 30,
+        potionAction: Skill.woodcutting.id,
+      );
+      final registries = Registries.test(items: [potion]);
+      var initialState = GlobalState.empty(registries);
+      initialState = initialState.copyWith(
+        inventory: initialState.inventory.adding(ItemStack(potion, count: 1)),
+        selectedPotions: {Skill.woodcutting.id: potion.id},
+        potionChargesUsed: {Skill.woodcutting.id: 15},
+      );
+      final store = Store<GlobalState>(initialState: initialState);
+
+      expect(store.state.potionChargesUsed[Skill.woodcutting.id], 15);
+
+      store.dispatch(ClearPotionSelectionAction(Skill.woodcutting.id));
+
+      expect(store.state.potionChargesUsed[Skill.woodcutting.id], isNull);
+    });
+
+    test('does nothing when no potion selected', () {
+      final registries = Registries.test();
+      final initialState = GlobalState.empty(registries);
+      final store = Store<GlobalState>(initialState: initialState);
+
+      expect(store.state.selectedPotions[Skill.woodcutting.id], isNull);
+
+      store.dispatch(ClearPotionSelectionAction(Skill.woodcutting.id));
+
+      expect(store.state.selectedPotions[Skill.woodcutting.id], isNull);
+    });
+
+    test('only clears specified skill, leaving others intact', () {
+      final woodcuttingPotion = Item.test(
+        'Bird Nest Potion I',
+        gp: 0,
+        potionCharges: 30,
+        potionAction: Skill.woodcutting.id,
+      );
+      final fishingPotion = Item.test(
+        'Fishing Potion I',
+        gp: 0,
+        potionCharges: 30,
+        potionAction: Skill.fishing.id,
+      );
+      final registries = Registries.test(
+        items: [woodcuttingPotion, fishingPotion],
+      );
+      var initialState = GlobalState.empty(registries);
+      initialState = initialState.copyWith(
+        inventory: initialState.inventory
+            .adding(ItemStack(woodcuttingPotion, count: 1))
+            .adding(ItemStack(fishingPotion, count: 1)),
+        selectedPotions: {
+          Skill.woodcutting.id: woodcuttingPotion.id,
+          Skill.fishing.id: fishingPotion.id,
+        },
+      );
+      final store = Store<GlobalState>(initialState: initialState);
+
+      store.dispatch(ClearPotionSelectionAction(Skill.woodcutting.id));
+
+      expect(store.state.selectedPotions[Skill.woodcutting.id], isNull);
+      expect(store.state.selectedPotions[Skill.fishing.id], fishingPotion.id);
+    });
+  });
+
+  group('SelectTownshipDeityAction', () {
+    test('selects deity for worship', () {
+      const deityId = MelvorId('melvorF:Aeris');
+
+      final registries = Registries.test(
+        township: const TownshipRegistry(
+          deities: [TownshipDeity(id: deityId, name: 'Aeris')],
+        ),
+      );
+
+      final initialState = GlobalState.empty(registries);
+      final store = Store<GlobalState>(initialState: initialState);
+
+      expect(store.state.township.worshipId, isNull);
+
+      store.dispatch(SelectTownshipDeityAction(deityId: deityId));
+
+      expect(store.state.township.worshipId, deityId);
+    });
+
+    test('changes deity selection', () {
+      const deity1 = MelvorId('melvorF:Aeris');
+      const deity2 = MelvorId('melvorF:Glacia');
+
+      final registries = Registries.test(
+        township: const TownshipRegistry(
+          deities: [
+            TownshipDeity(id: deity1, name: 'Aeris'),
+            TownshipDeity(id: deity2, name: 'Glacia'),
+          ],
+        ),
+      );
+
+      var initialState = GlobalState.empty(registries);
+      initialState = initialState.copyWith(
+        township: initialState.township.selectWorship(deity1),
+      );
+      final store = Store<GlobalState>(initialState: initialState);
+
+      expect(store.state.township.worshipId, deity1);
+
+      store.dispatch(SelectTownshipDeityAction(deityId: deity2));
+
+      expect(store.state.township.worshipId, deity2);
+    });
+
+    test('resets worship points when changing deity', () {
+      const deity1 = MelvorId('melvorF:Aeris');
+      const deity2 = MelvorId('melvorF:Glacia');
+
+      final registries = Registries.test(
+        township: const TownshipRegistry(
+          deities: [
+            TownshipDeity(id: deity1, name: 'Aeris'),
+            TownshipDeity(id: deity2, name: 'Glacia'),
+          ],
+        ),
+      );
+
+      var initialState = GlobalState.empty(registries);
+      initialState = initialState.copyWith(
+        township: initialState.township
+            .selectWorship(deity1)
+            .copyWith(worship: 500),
+      );
+      final store = Store<GlobalState>(initialState: initialState);
+
+      expect(store.state.township.worship, 500);
+
+      store.dispatch(SelectTownshipDeityAction(deityId: deity2));
+
+      // Worship points should be reset when changing deity
+      expect(store.state.township.worship, 0);
+    });
+  });
+
+  group('BuildTownshipBuildingAction', () {
+    test('builds building and deducts GP cost', () {
+      const buildingId = MelvorId('melvorD:Wooden_House');
+      const biomeId = MelvorId('melvorD:Grasslands');
+      final gpId = Currency.gp.id;
+
+      final building = _testBuilding(
+        id: buildingId,
+        name: 'Wooden House',
+        validBiomes: {biomeId},
+        costs: {gpId: 1000},
+        population: 8,
+      );
+
+      final registries = Registries.test(
+        township: TownshipRegistry(
+          buildings: [building],
+          biomes: const [
+            TownshipBiome(id: biomeId, name: 'Grasslands', tier: 1),
+          ],
+        ),
+      );
+
+      var initialState = GlobalState.empty(registries);
+      initialState = initialState.addCurrency(Currency.gp, 1500);
+      final store = Store<GlobalState>(initialState: initialState);
+
+      expect(store.state.gp, 1500);
+      expect(
+        store.state.township
+            .biomeState(biomeId)
+            .buildingState(buildingId)
+            .count,
+        0,
+      );
+
+      store.dispatch(
+        BuildTownshipBuildingAction(biomeId: biomeId, buildingId: buildingId),
+      );
+
+      expect(store.state.gp, 500);
+      expect(
+        store.state.township
+            .biomeState(biomeId)
+            .buildingState(buildingId)
+            .count,
+        1,
+      );
+    });
+
+    test('builds building and deducts township resource cost', () {
+      const buildingId = MelvorId('melvorD:Wooden_House');
+      const biomeId = MelvorId('melvorD:Grasslands');
+      const woodId = MelvorId('melvorF:Wood');
+
+      final building = _testBuilding(
+        id: buildingId,
+        name: 'Wooden House',
+        validBiomes: {biomeId},
+        costs: {woodId: 200},
+      );
+
+      final registries = Registries.test(
+        township: TownshipRegistry(
+          buildings: [building],
+          biomes: const [
+            TownshipBiome(id: biomeId, name: 'Grasslands', tier: 1),
+          ],
+          resources: const [
+            TownshipResource(id: woodId, name: 'Wood', type: 'Raw'),
+          ],
+        ),
+      );
+
+      var initialState = GlobalState.empty(registries);
+      initialState = initialState.copyWith(
+        township: initialState.township.addResource(woodId, 500),
+      );
+      final store = Store<GlobalState>(initialState: initialState);
+
+      expect(store.state.township.resourceAmount(woodId), 500);
+
+      store.dispatch(
+        BuildTownshipBuildingAction(biomeId: biomeId, buildingId: buildingId),
+      );
+
+      expect(store.state.township.resourceAmount(woodId), 300);
+      expect(
+        store.state.township
+            .biomeState(biomeId)
+            .buildingState(buildingId)
+            .count,
+        1,
+      );
+    });
+
+    test('throws when not enough GP', () {
+      const buildingId = MelvorId('melvorD:Wooden_House');
+      const biomeId = MelvorId('melvorD:Grasslands');
+      final gpId = Currency.gp.id;
+
+      final building = _testBuilding(
+        id: buildingId,
+        name: 'Wooden House',
+        validBiomes: {biomeId},
+        costs: {gpId: 1000},
+      );
+
+      final registries = Registries.test(
+        township: TownshipRegistry(
+          buildings: [building],
+          biomes: const [
+            TownshipBiome(id: biomeId, name: 'Grasslands', tier: 1),
+          ],
+        ),
+      );
+
+      var initialState = GlobalState.empty(registries);
+      initialState = initialState.addCurrency(Currency.gp, 500);
+      final store = Store<GlobalState>(initialState: initialState);
+
+      expect(
+        () => store.dispatch(
+          BuildTownshipBuildingAction(biomeId: biomeId, buildingId: buildingId),
+        ),
+        throwsStateError,
+      );
+    });
+
+    test('throws when not enough township resources', () {
+      const buildingId = MelvorId('melvorD:Wooden_House');
+      const biomeId = MelvorId('melvorD:Grasslands');
+      const woodId = MelvorId('melvorF:Wood');
+
+      final building = _testBuilding(
+        id: buildingId,
+        name: 'Wooden House',
+        validBiomes: {biomeId},
+        costs: {woodId: 200},
+      );
+
+      final registries = Registries.test(
+        township: TownshipRegistry(
+          buildings: [building],
+          biomes: const [
+            TownshipBiome(id: biomeId, name: 'Grasslands', tier: 1),
+          ],
+          resources: const [
+            TownshipResource(id: woodId, name: 'Wood', type: 'Raw'),
+          ],
+        ),
+      );
+
+      var initialState = GlobalState.empty(registries);
+      initialState = initialState.copyWith(
+        township: initialState.township.addResource(woodId, 100),
+      );
+      final store = Store<GlobalState>(initialState: initialState);
+
+      expect(
+        () => store.dispatch(
+          BuildTownshipBuildingAction(biomeId: biomeId, buildingId: buildingId),
+        ),
+        throwsStateError,
+      );
+    });
+
+    test('builds multiple buildings incrementally', () {
+      const buildingId = MelvorId('melvorD:Wooden_House');
+      const biomeId = MelvorId('melvorD:Grasslands');
+      final gpId = Currency.gp.id;
+
+      final building = _testBuilding(
+        id: buildingId,
+        name: 'Wooden House',
+        validBiomes: {biomeId},
+        costs: {gpId: 100},
+      );
+
+      final registries = Registries.test(
+        township: TownshipRegistry(
+          buildings: [building],
+          biomes: const [
+            TownshipBiome(id: biomeId, name: 'Grasslands', tier: 1),
+          ],
+        ),
+      );
+
+      var initialState = GlobalState.empty(registries);
+      initialState = initialState.addCurrency(Currency.gp, 500);
+      final store = Store<GlobalState>(initialState: initialState);
+
+      store.dispatch(
+        BuildTownshipBuildingAction(biomeId: biomeId, buildingId: buildingId),
+      );
+      expect(
+        store.state.township
+            .biomeState(biomeId)
+            .buildingState(buildingId)
+            .count,
+        1,
+      );
+
+      store.dispatch(
+        BuildTownshipBuildingAction(biomeId: biomeId, buildingId: buildingId),
+      );
+      expect(
+        store.state.township
+            .biomeState(biomeId)
+            .buildingState(buildingId)
+            .count,
+        2,
+      );
+
+      store.dispatch(
+        BuildTownshipBuildingAction(biomeId: biomeId, buildingId: buildingId),
+      );
+      expect(
+        store.state.township
+            .biomeState(biomeId)
+            .buildingState(buildingId)
+            .count,
+        3,
+      );
+    });
+  });
+
+  group('StartCookingAction', () {
+    CookingAction testCookingAction(String name, CookingArea area) {
+      final productId = MelvorId('melvorD:${name.replaceAll(' ', '_')}');
+      return CookingAction(
+        id: ActionId.test(Skill.cooking, name),
+        name: name,
+        unlockLevel: 1,
+        duration: const Duration(seconds: 3),
+        xp: 10,
+        inputs: const {},
+        outputs: const {},
+        productId: productId,
+        perfectCookId: null,
+        categoryId: area.categoryId,
+        subcategoryId: null,
+        baseQuantity: 1,
+      );
+    }
+
+    test('starts cooking when recipe is assigned', () {
+      final cookingRecipe = testCookingAction('Test Recipe', CookingArea.fire);
+      final registries = Registries.test(actions: [cookingRecipe]);
+      var initialState = GlobalState.empty(registries);
+      // Assign recipe to fire area
+      initialState = initialState.copyWith(
+        cooking: initialState.cooking.withAreaState(
+          CookingArea.fire,
+          CookingAreaState(recipeId: cookingRecipe.id),
+        ),
+      );
+      final store = Store<GlobalState>(initialState: initialState);
+
+      expect(store.state.activeAction, isNull);
+
+      store.dispatch(StartCookingAction(area: CookingArea.fire));
+
+      expect(store.state.activeAction, isNotNull);
+      expect(store.state.activeAction!.id, cookingRecipe.id);
+    });
+
+    test('returns null when no recipe assigned to area', () {
+      final registries = Registries.test();
+      final initialState = GlobalState.empty(registries);
+      final store = Store<GlobalState>(initialState: initialState);
+
+      expect(store.state.activeAction, isNull);
+
+      store.dispatch(StartCookingAction(area: CookingArea.fire));
+
+      // Should remain null since no recipe is assigned
+      expect(store.state.activeAction, isNull);
+    });
+
+    test('does nothing when stunned', () {
+      final cookingRecipe = testCookingAction('Test Recipe', CookingArea.fire);
+      final registries = Registries.test(actions: [cookingRecipe]);
+      var initialState = GlobalState.empty(registries);
+      initialState = initialState.copyWith(
+        cooking: initialState.cooking.withAreaState(
+          CookingArea.fire,
+          CookingAreaState(recipeId: cookingRecipe.id),
+        ),
+        stunned: const StunnedState.fresh().stun(),
+      );
+      final store = Store<GlobalState>(initialState: initialState);
+
+      expect(store.state.isStunned, isTrue);
+
+      store.dispatch(StartCookingAction(area: CookingArea.fire));
+
+      // Should not start cooking when stunned
+      expect(store.state.activeAction, isNull);
+    });
+
+    test('can start cooking in different areas', () {
+      final fireRecipe = testCookingAction('Fire Recipe', CookingArea.fire);
+      final potRecipe = testCookingAction('Pot Recipe', CookingArea.pot);
+      final registries = Registries.test(actions: [fireRecipe, potRecipe]);
+      var initialState = GlobalState.empty(registries);
+      initialState = initialState.copyWith(
+        cooking: initialState.cooking
+            .withAreaState(
+              CookingArea.fire,
+              CookingAreaState(recipeId: fireRecipe.id),
+            )
+            .withAreaState(
+              CookingArea.pot,
+              CookingAreaState(recipeId: potRecipe.id),
+            ),
+      );
+      final store = Store<GlobalState>(initialState: initialState);
+
+      // Start fire cooking
+      store.dispatch(StartCookingAction(area: CookingArea.fire));
+      expect(store.state.activeAction!.id, fireRecipe.id);
+
+      // Switch to pot cooking
+      store.dispatch(StartCookingAction(area: CookingArea.pot));
+      expect(store.state.activeAction!.id, potRecipe.id);
+    });
+  });
+
+  group('AssignCookingRecipeAction', () {
+    CookingAction testCookingAction(String name, CookingArea area) {
+      final productId = MelvorId('melvorD:${name.replaceAll(' ', '_')}');
+      return CookingAction(
+        id: ActionId.test(Skill.cooking, name),
+        name: name,
+        unlockLevel: 1,
+        duration: const Duration(seconds: 3),
+        xp: 10,
+        inputs: const {},
+        outputs: const {},
+        productId: productId,
+        perfectCookId: null,
+        categoryId: area.categoryId,
+        subcategoryId: null,
+        baseQuantity: 1,
+      );
+    }
+
+    test('assigns recipe to cooking area', () {
+      final cookingRecipe = testCookingAction('Test Recipe', CookingArea.fire);
+      final registries = Registries.test(actions: [cookingRecipe]);
+      final initialState = GlobalState.empty(registries);
+      final store = Store<GlobalState>(initialState: initialState);
+
+      expect(store.state.cooking.areaState(CookingArea.fire).recipeId, isNull);
+
+      store.dispatch(
+        AssignCookingRecipeAction(
+          area: CookingArea.fire,
+          recipe: cookingRecipe,
+        ),
+      );
+
+      expect(
+        store.state.cooking.areaState(CookingArea.fire).recipeId,
+        cookingRecipe.id,
+      );
+    });
+
+    test('changes recipe in same area', () {
+      final recipe1 = testCookingAction('Recipe 1', CookingArea.fire);
+      final recipe2 = testCookingAction('Recipe 2', CookingArea.fire);
+      final registries = Registries.test(actions: [recipe1, recipe2]);
+      var initialState = GlobalState.empty(registries);
+      initialState = initialState.copyWith(
+        cooking: initialState.cooking.withAreaState(
+          CookingArea.fire,
+          CookingAreaState(recipeId: recipe1.id),
+        ),
+      );
+      final store = Store<GlobalState>(initialState: initialState);
+
+      expect(
+        store.state.cooking.areaState(CookingArea.fire).recipeId,
+        recipe1.id,
+      );
+
+      store.dispatch(
+        AssignCookingRecipeAction(area: CookingArea.fire, recipe: recipe2),
+      );
+
+      expect(
+        store.state.cooking.areaState(CookingArea.fire).recipeId,
+        recipe2.id,
+      );
+    });
+
+    test('can assign recipes to different areas', () {
+      final fireRecipe = testCookingAction('Fire Recipe', CookingArea.fire);
+      final potRecipe = testCookingAction('Pot Recipe', CookingArea.pot);
+      final registries = Registries.test(actions: [fireRecipe, potRecipe]);
+      final initialState = GlobalState.empty(registries);
+      final store = Store<GlobalState>(initialState: initialState);
+
+      store.dispatch(
+        AssignCookingRecipeAction(area: CookingArea.fire, recipe: fireRecipe),
+      );
+      store.dispatch(
+        AssignCookingRecipeAction(area: CookingArea.pot, recipe: potRecipe),
+      );
+
+      expect(
+        store.state.cooking.areaState(CookingArea.fire).recipeId,
+        fireRecipe.id,
+      );
+      expect(
+        store.state.cooking.areaState(CookingArea.pot).recipeId,
+        potRecipe.id,
+      );
+    });
+  });
+
+  group('SetAttackStyleAction', () {
+    test('sets attack style', () {
+      final registries = Registries.test();
+      final initialState = GlobalState.empty(registries);
+      final store = Store<GlobalState>(initialState: initialState);
+
+      // Default attack style is stab
+      expect(store.state.attackStyle, AttackStyle.stab);
+
+      store.dispatch(SetAttackStyleAction(attackStyle: AttackStyle.slash));
+
+      expect(store.state.attackStyle, AttackStyle.slash);
+    });
+
+    test('changes to block style', () {
+      final registries = Registries.test();
+      var initialState = GlobalState.empty(registries);
+      initialState = initialState.setAttackStyle(AttackStyle.slash);
+      final store = Store<GlobalState>(initialState: initialState);
+
+      expect(store.state.attackStyle, AttackStyle.slash);
+
+      store.dispatch(SetAttackStyleAction(attackStyle: AttackStyle.block));
+
+      expect(store.state.attackStyle, AttackStyle.block);
+    });
+
+    test('can set ranged attack styles', () {
+      final registries = Registries.test();
+      final initialState = GlobalState.empty(registries);
+      final store = Store<GlobalState>(initialState: initialState);
+
+      store.dispatch(SetAttackStyleAction(attackStyle: AttackStyle.accurate));
+      expect(store.state.attackStyle, AttackStyle.accurate);
+
+      store.dispatch(SetAttackStyleAction(attackStyle: AttackStyle.rapid));
+      expect(store.state.attackStyle, AttackStyle.rapid);
+
+      store.dispatch(SetAttackStyleAction(attackStyle: AttackStyle.longRange));
+      expect(store.state.attackStyle, AttackStyle.longRange);
+    });
+
+    test('can set magic attack styles', () {
+      final registries = Registries.test();
+      final initialState = GlobalState.empty(registries);
+      final store = Store<GlobalState>(initialState: initialState);
+
+      store.dispatch(SetAttackStyleAction(attackStyle: AttackStyle.standard));
+      expect(store.state.attackStyle, AttackStyle.standard);
+
+      store.dispatch(SetAttackStyleAction(attackStyle: AttackStyle.defensive));
+      expect(store.state.attackStyle, AttackStyle.defensive);
+    });
+  });
+
+  group('ClearPlotAction', () {
+    test('clears farming plot', () {
+      const plotId = MelvorId('melvorD:Test_Plot');
+      final cropId = ActionId.test(Skill.farming, 'Test_Crop');
+
+      final registries = Registries.test();
+      var initialState = GlobalState.empty(registries);
+      initialState = initialState.copyWith(
+        plotStates: {
+          plotId: PlotState(cropId: cropId, growthTicksRemaining: 100),
+        },
+      );
+      final store = Store<GlobalState>(initialState: initialState);
+
+      expect(store.state.plotStates[plotId], isNotNull);
+
+      store.dispatch(ClearPlotAction(plotId: plotId));
+
+      expect(store.state.plotStates[plotId], isNull);
+    });
+
+    test('does nothing when plot is already empty', () {
+      const plotId = MelvorId('melvorD:Test_Plot');
+
+      final registries = Registries.test();
+      final initialState = GlobalState.empty(registries);
+      final store = Store<GlobalState>(initialState: initialState);
+
+      expect(store.state.plotStates[plotId], isNull);
+
+      store.dispatch(ClearPlotAction(plotId: plotId));
+
+      expect(store.state.plotStates[plotId], isNull);
+    });
+
+    test('clears only specified plot, leaving others intact', () {
+      const plotId1 = MelvorId('melvorD:Plot_1');
+      const plotId2 = MelvorId('melvorD:Plot_2');
+      final cropId = ActionId.test(Skill.farming, 'Test_Crop');
+
+      final registries = Registries.test();
+      var initialState = GlobalState.empty(registries);
+      initialState = initialState.copyWith(
+        plotStates: {
+          plotId1: PlotState(cropId: cropId, growthTicksRemaining: 100),
+          plotId2: PlotState(cropId: cropId, growthTicksRemaining: 200),
+        },
+      );
+      final store = Store<GlobalState>(initialState: initialState);
+
+      store.dispatch(ClearPlotAction(plotId: plotId1));
+
+      expect(store.state.plotStates[plotId1], isNull);
+      expect(store.state.plotStates[plotId2], isNotNull);
+      expect(store.state.plotStates[plotId2]!.growthTicksRemaining, 200);
+    });
+  });
+
   group('ClaimTownshipTaskAction', () {
     test('claims task and grants GP reward', () {
       runScoped(() {
