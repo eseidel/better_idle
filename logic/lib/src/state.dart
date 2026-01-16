@@ -21,8 +21,8 @@ import 'package:logic/src/types/equipment.dart';
 import 'package:logic/src/types/equipment_slot.dart';
 import 'package:logic/src/types/health.dart';
 import 'package:logic/src/types/inventory.dart';
+import 'package:logic/src/types/modifier_provider.dart';
 import 'package:logic/src/types/open_result.dart';
-import 'package:logic/src/types/resolved_modifiers.dart';
 import 'package:logic/src/types/stunned.dart';
 import 'package:logic/src/types/time_away.dart';
 import 'package:meta/meta.dart';
@@ -321,6 +321,8 @@ class GlobalState {
     this.unlockedPlots = const {},
     this.dungeonCompletions = const {},
     this.itemCharges = const {},
+    this.selectedPotions = const {},
+    this.potionChargesUsed = const {},
     this.timeAway,
     this.stunned = const StunnedState.fresh(),
     this.attackStyle = AttackStyle.stab,
@@ -347,6 +349,8 @@ class GlobalState {
         registries: registries,
         dungeonCompletions: const {},
         itemCharges: const {},
+        selectedPotions: const {},
+        potionChargesUsed: const {},
         // Unlock all free starter plots (level 1, 0 GP cost)
         unlockedPlots: registries.farmingPlots.initialPlots(),
         // Initialize township resources with starting amounts
@@ -364,6 +368,8 @@ class GlobalState {
     Set<MelvorId> unlockedPlots = const {},
     Map<MelvorId, int> dungeonCompletions = const {},
     Map<MelvorId, int> itemCharges = const {},
+    Map<MelvorId, MelvorId> selectedPotions = const {},
+    Map<MelvorId, int> potionChargesUsed = const {},
     DateTime? updatedAt,
     int gp = 0,
     Map<Currency, int>? currencies,
@@ -388,6 +394,8 @@ class GlobalState {
       unlockedPlots: unlockedPlots,
       dungeonCompletions: dungeonCompletions,
       itemCharges: itemCharges,
+      selectedPotions: selectedPotions,
+      potionChargesUsed: potionChargesUsed,
       updatedAt: updatedAt ?? DateTime.timestamp(),
       currencies: currenciesMap,
       timeAway: timeAway,
@@ -441,6 +449,8 @@ class GlobalState {
           const {},
       dungeonCompletions = _dungeonCompletionsFromJson(json),
       itemCharges = _itemChargesFromJson(json),
+      selectedPotions = _selectedPotionsFromJson(json),
+      potionChargesUsed = _potionChargesUsedFromJson(json),
       currencies = _currenciesFromJson(json),
       timeAway = TimeAway.maybeFromJson(registries, json['timeAway']),
       shop = ShopState.maybeFromJson(json['shop']) ?? const ShopState.empty(),
@@ -490,6 +500,28 @@ class GlobalState {
     });
   }
 
+  static Map<MelvorId, MelvorId> _selectedPotionsFromJson(
+    Map<String, dynamic> json,
+  ) {
+    final potionsJson = json['selectedPotions'] as Map<String, dynamic>? ?? {};
+    return potionsJson.map((key, value) {
+      return MapEntry(
+        MelvorId.fromJson(key),
+        MelvorId.fromJson(value as String),
+      );
+    });
+  }
+
+  static Map<MelvorId, int> _potionChargesUsedFromJson(
+    Map<String, dynamic> json,
+  ) {
+    final chargesJson =
+        json['potionChargesUsed'] as Map<String, dynamic>? ?? {};
+    return chargesJson.map((key, value) {
+      return MapEntry(MelvorId.fromJson(key), value as int);
+    });
+  }
+
   bool validate() {
     // Confirm that activeAction.id is a valid action.
     final actionId = activeAction?.id;
@@ -519,6 +551,12 @@ class GlobalState {
         (key, value) => MapEntry(key.toJson(), value),
       ),
       'itemCharges': itemCharges.map(
+        (key, value) => MapEntry(key.toJson(), value),
+      ),
+      'selectedPotions': selectedPotions.map(
+        (key, value) => MapEntry(key.toJson(), value.toJson()),
+      ),
+      'potionChargesUsed': potionChargesUsed.map(
         (key, value) => MapEntry(key.toJson(), value),
       ),
       'currencies': currencies.map(
@@ -570,6 +608,17 @@ class GlobalState {
 
   /// Returns the number of charges for an item.
   int itemChargeCount(MelvorId itemId) => itemCharges[itemId] ?? 0;
+
+  /// Selected potion per skill.
+  /// Key is skill MelvorId (e.g. melvorD:Woodcutting), value is potion item
+  /// MelvorId (e.g. melvorF:Bird_Nest_Potion_I). Potions remain in inventory
+  /// and are consumed from there.
+  final Map<MelvorId, MelvorId> selectedPotions;
+
+  /// Charges consumed from current potion per skill. Key is skill MelvorId.
+  /// When this reaches potion.potionCharges, one potion is removed from
+  /// inventory and this resets to 0.
+  final Map<MelvorId, int> potionChargesUsed;
 
   /// Returns the game completion percentage (0.0 to 100.0).
   /// Always returns 0.0 since completion tracking is not yet supported.
@@ -828,190 +877,60 @@ class GlobalState {
   MelvorId? get highestCookingPotId =>
       registries.shop.highestCookingPotId(shop.purchaseCounts);
 
-  /// Resolves all modifiers for a skill action from all sources.
+  /// Creates a ModifierProvider for a skill action.
   ///
-  /// Combines modifiers from:
-  /// - Shop purchases (e.g., axe upgrades for woodcutting)
-  /// - Mastery bonuses (based on current mastery level)
-  /// - Equipped gear (e.g., Fishing Amulet for fishing)
-  /// - (Future: potions, prayers, etc.)
-  ///
-  /// Returns a [ResolvedModifiers] containing all modifier values by name.
-  /// Values are stored as raw numbers from the data (e.g., skillInterval
-  /// is in percentage points like -5, flatSkillInterval is in milliseconds).
-  ///
-  /// For cooking actions, the category (Fire/Furnace/Pot) is used to filter
-  /// modifiers from cooking area upgrades.
-  ResolvedModifiers resolveSkillModifiers(SkillAction action) {
-    return _resolveModifiers(
-      skillId: action.skill.id,
-      skill: action.skill,
-      actionId: action.id,
-      categoryId: action.categoryId,
+  /// Use this when processing skill actions (woodcutting, fishing, etc.)
+  /// where mastery bonuses need to be resolved for the specific action.
+  ModifierProvider createActionModifierProvider(SkillAction action) {
+    return ModifierProvider(
+      registries: registries,
+      equipment: equipment,
+      selectedPotions: selectedPotions,
+      potionChargesUsed: potionChargesUsed,
+      inventory: inventory,
+      summoning: summoning,
+      shopPurchases: shop,
+      actionStateGetter: actionState,
+      activeSynergy: _getActiveSynergy(),
+      currentActionId: action.id,
     );
   }
 
-  /// Resolves global modifiers from shop purchases that are not skill-scoped.
+  /// Creates a ModifierProvider for combat.
   ///
-  /// These include modifiers like autoEat which apply to all combat situations,
-  /// not to specific skills.
-  ResolvedModifiers resolveGlobalModifiers() {
-    return _resolveModifiers();
-  }
-
-  /// Resolves all combat-relevant modifiers from all sources.
-  ///
-  /// This combines:
-  /// - Global shop modifiers (autoEat, etc.)
-  /// - Equipment modifiers (from item.modifiers)
-  /// - Equipment stats (from item.equipmentStats, converted to modifiers)
-  /// - (Future: potions, prayers, etc.)
-  ///
-  /// Used for calculating player combat stats like max hit, accuracy, evasion.
-  ResolvedModifiers resolveCombatModifiers() {
-    var result = _resolveModifiers(
+  /// Filters summoning familiar modifiers by combat type relevance
+  /// (melee familiars only apply during melee combat, etc.).
+  ModifierProvider createCombatModifierProvider() {
+    return ModifierProvider(
+      registries: registries,
+      equipment: equipment,
+      selectedPotions: selectedPotions,
+      potionChargesUsed: potionChargesUsed,
+      inventory: inventory,
+      summoning: summoning,
+      shopPurchases: shop,
+      actionStateGetter: actionState,
+      activeSynergy: _getActiveSynergy(),
       combatTypeSkills: attackStyle.combatType.skills,
     );
-
-    // Combine equipment stats from all equipped items
-    for (final item in equipment.gearSlots.values) {
-      result = result.combine(item.equipmentStats.toModifiers());
-    }
-
-    return result;
   }
 
-  /// Internal shared implementation for modifier resolution.
+  /// Creates a ModifierProvider for global modifiers (auto-eat, etc.).
   ///
-  /// When [skillId] is provided, only modifiers scoped to that skill are
-  /// included. When [skillId] is null, only global (unscoped) modifiers are
-  /// included.
-  ///
-  /// [skill] and [actionId] are needed for skill-scoped resolution to look up
-  /// shop purchases and mastery bonuses.
-  ///
-  /// [categoryId] is used for cooking actions to filter modifiers scoped to
-  /// specific cooking areas (Fire, Furnace, Pot).
-  ///
-  /// [combatTypeSkills] should be provided for combat contexts - familiars
-  /// relevant to these skills (plus universal combat skills) will have their
-  /// modifiers included.
-  ResolvedModifiers _resolveModifiers({
-    MelvorId? skillId,
-    Skill? skill,
-    ActionId? actionId,
-    MelvorId? categoryId,
-    Set<Skill>? combatTypeSkills,
-  }) {
-    final builder = ResolvedModifiersBuilder();
-
-    // --- Shop modifiers ---
-    if (skill != null) {
-      // Skill-scoped: iterate all owned purchases and include modifiers that
-      // apply to this skill/category context.
-      for (final entry in shop.purchaseCounts.entries) {
-        if (entry.value <= 0) continue;
-        final purchase = registries.shop.byId(entry.key);
-        if (purchase == null) continue;
-
-        for (final mod in purchase.contains.modifiers.modifiers) {
-          for (final modEntry in mod.entries) {
-            if (modEntry.appliesToContext(
-              skillId: skillId!,
-              categoryId: categoryId,
-            )) {
-              builder.add(mod.name, modEntry.value);
-            }
-          }
-        }
-      }
-    } else {
-      // Global: iterate all owned purchases, include unscoped modifiers
-      for (final entry in shop.purchaseCounts.entries) {
-        if (entry.value <= 0) continue;
-        final purchase = registries.shop.byId(entry.key);
-        if (purchase == null) continue;
-
-        for (final mod in purchase.contains.modifiers.modifiers) {
-          for (final modEntry in mod.entries) {
-            // Include modifiers without skill scope (global modifiers)
-            if (modEntry.scope == null || modEntry.scope!.skillId == null) {
-              builder.add(mod.name, modEntry.value);
-            }
-          }
-        }
-      }
-    }
-
-    // --- Mastery modifiers (only for skill-scoped resolution) ---
-    if (skillId != null && actionId != null) {
-      final masteryLevel = actionState(actionId).masteryLevel;
-      final skillBonuses = registries.masteryBonuses.forSkill(skillId);
-      if (skillBonuses != null) {
-        for (final bonus in skillBonuses.bonuses) {
-          final count = bonus.countAtLevel(masteryLevel);
-          if (count == 0) continue;
-
-          for (final mod in bonus.modifiers.modifiers) {
-            for (final entry in mod.entries) {
-              if (entry.appliesToSkill(
-                skillId,
-                autoScopeToAction: bonus.autoScopeToAction,
-              )) {
-                builder.add(mod.name, entry.value * count);
-              }
-            }
-          }
-        }
-      }
-    }
-
-    // --- Equipment modifiers ---
-    for (final entry in equipment.gearSlots.entries) {
-      final slot = entry.key;
-      final item = entry.value;
-
-      // For summoning tablets, only include modifiers if the familiar is
-      // relevant to the current skill being performed.
-      if (slot.isSummonSlot && item.isSummonTablet) {
-        final isRelevant = combatTypeSkills != null
-            ? registries.actions.isFamiliarRelevantToCombat(
-                item.id,
-                combatTypeSkills,
-              )
-            : skill != null &&
-                  registries.actions.isFamiliarRelevantToSkill(item.id, skill);
-        if (!isRelevant) continue;
-      }
-
-      for (final mod in item.modifiers.modifiers) {
-        for (final modEntry in mod.entries) {
-          // For skill-scoped: only include if applies to skill
-          // For global: include all (combat gear is typically unscoped)
-          if (skillId == null || modEntry.appliesToSkill(skillId)) {
-            builder.add(mod.name, modEntry.value);
-          }
-        }
-      }
-    }
-
-    // --- Synergy modifiers ---
-    // Apply synergy if both summon slots have tablets equipped and both
-    // familiars have mark level >= 3.
-    final synergy = _getActiveSynergy();
-    if (synergy != null) {
-      for (final mod in synergy.modifiers.modifiers) {
-        for (final modEntry in mod.entries) {
-          // For skill-scoped: only include if applies to skill
-          // For global: include all
-          if (skillId == null || modEntry.appliesToSkill(skillId)) {
-            builder.add(mod.name, modEntry.value);
-          }
-        }
-      }
-    }
-
-    return builder.build();
+  /// Use this when querying modifiers that don't depend on a specific
+  /// action or combat context.
+  ModifierProvider createGlobalModifierProvider() {
+    return ModifierProvider(
+      registries: registries,
+      equipment: equipment,
+      selectedPotions: selectedPotions,
+      potionChargesUsed: potionChargesUsed,
+      inventory: inventory,
+      summoning: summoning,
+      shopPurchases: shop,
+      actionStateGetter: actionState,
+      activeSynergy: _getActiveSynergy(),
+    );
   }
 
   /// Returns the active synergy if both summon slots have tablets equipped,
@@ -1056,13 +975,21 @@ class GlobalState {
     ShopRegistry shopRegistry,
   ) {
     final ticks = action.rollDuration(random);
-    final modifiers = resolveSkillModifiers(action);
+    final modifiers = createActionModifierProvider(action);
 
     // skillInterval is percentage points (e.g., -5 = 5% reduction)
-    final percentPoints = modifiers.skillInterval;
+    final percentPoints = modifiers.skillInterval(
+      skillId: action.skill.id,
+      actionId: action.id.localId,
+    );
 
     // flatSkillInterval is milliseconds, convert to ticks (100ms = 1 tick)
-    final flatTicks = modifiers.flatSkillInterval / 100.0;
+    final flatTicks =
+        modifiers.flatSkillInterval(
+          skillId: action.skill.id,
+          actionId: action.id.localId,
+        ) /
+        100.0;
 
     // Apply: percentage first, then flat adjustment
     final result = ticks * (1.0 + percentPoints / 100.0) + flatTicks;
@@ -1164,13 +1091,21 @@ class GlobalState {
   /// Calculates mean duration with modifiers applied (deterministic).
   int _meanDurationWithModifiers(SkillAction action) {
     final ticks = ticksFromDuration(action.meanDuration);
-    final modifiers = resolveSkillModifiers(action);
+    final modifiers = createActionModifierProvider(action);
 
     // skillInterval is percentage points (e.g., -5 = 5% reduction)
-    final percentPoints = modifiers.skillInterval;
+    final percentPoints = modifiers.skillInterval(
+      skillId: action.skill.id,
+      actionId: action.id.localId,
+    );
 
     // flatSkillInterval is milliseconds, convert to ticks (100ms = 1 tick)
-    final flatTicks = modifiers.flatSkillInterval / 100.0;
+    final flatTicks =
+        modifiers.flatSkillInterval(
+          skillId: action.skill.id,
+          actionId: action.id.localId,
+        ) /
+        100.0;
 
     // Apply: percentage first, then flat adjustment
     final result = ticks * (1.0 + percentPoints / 100.0) + flatTicks;
@@ -1525,9 +1460,10 @@ class GlobalState {
     return task.goals.every((goal) => isTaskGoalMet(taskId, goal));
   }
 
-  /// Claims rewards for a completed task.
+  /// Claims rewards for a completed task, returning new state and changes.
+  /// The changes can be used by the UI to display a toast.
   /// Throws StateError if task is not complete or already claimed.
-  GlobalState claimTaskReward(MelvorId taskId) {
+  (GlobalState, Changes) claimTaskRewardWithChanges(MelvorId taskId) {
     final task = registries.township.taskById(taskId);
 
     if (!isTaskComplete(taskId)) {
@@ -1575,9 +1511,14 @@ class GlobalState {
     // Mark task as completed (all main tasks go to completedMainTasks)
     final newCompleted = Set<MelvorId>.from(township.completedMainTasks)
       ..add(taskId);
-    return state.copyWith(
+    final newState = state.copyWith(
       township: state.township.copyWith(completedMainTasks: newCompleted),
     );
+
+    // Get changes for the UI to display
+    final changes = task.rewardsToChanges(registries.items);
+
+    return (newState, changes);
   }
 
   // ---------------------------------------------------------------------------
@@ -2171,6 +2112,215 @@ class GlobalState {
     return copyWith(plotStates: newPlotStates);
   }
 
+  // =========================================================================
+  // Shop Purchases
+  // =========================================================================
+
+  /// Purchases a shop item, validating all requirements and costs.
+  /// Throws [StateError] if:
+  /// - The purchase ID is unknown
+  /// - The buy limit has been reached
+  /// - Unlock requirements are not met
+  /// - Purchase requirements are not met
+  /// - Not enough inventory space for granted items
+  /// - Not enough currency or items to pay the cost
+  GlobalState purchaseShopItem(MelvorId purchaseId) {
+    final shopRegistry = registries.shop;
+    final purchase = shopRegistry.byId(purchaseId);
+
+    if (purchase == null) {
+      throw StateError('Unknown shop purchase: $purchaseId');
+    }
+
+    // Check buy limit
+    final currentCount = shop.purchaseCount(purchaseId);
+    if (!purchase.isUnlimited && currentCount >= purchase.buyLimit) {
+      throw StateError('Already purchased maximum of ${purchase.name}');
+    }
+
+    // Check unlock requirements
+    for (final req in purchase.unlockRequirements) {
+      if (!req.isMet(this)) {
+        throw StateError('Unlock requirement not met for ${purchase.name}');
+      }
+    }
+
+    // Check purchase requirements
+    for (final req in purchase.purchaseRequirements) {
+      if (!req.isMet(this)) {
+        throw StateError('Purchase requirement not met for ${purchase.name}');
+      }
+    }
+
+    // Check inventory space for granted items before processing
+    final grantedItems = purchase.contains.items;
+    if (grantedItems.isNotEmpty) {
+      final capacity = inventoryCapacity;
+      for (final grantedItem in grantedItems) {
+        final item = registries.items.byId(grantedItem.itemId);
+        if (!inventory.canAdd(item, capacity: capacity)) {
+          throw StateError('Not enough bank space for ${item.name}');
+        }
+      }
+    }
+
+    // Calculate and apply currency costs
+    var newState = this;
+    final currencyCosts = purchase.cost.currencyCosts(
+      bankSlotsPurchased: shop.bankSlotsPurchased,
+    );
+    for (final (currency, amount) in currencyCosts) {
+      final balance = newState.currency(currency);
+      if (balance < amount) {
+        throw StateError(
+          'Not enough ${currency.abbreviation}. '
+          'Need $amount, have $balance',
+        );
+      }
+      newState = newState.addCurrency(currency, -amount);
+    }
+
+    // Check and apply item costs
+    final itemCosts = purchase.cost.items;
+    var newInventory = newState.inventory;
+    for (final itemCost in itemCosts) {
+      final item = registries.items.byId(itemCost.itemId);
+      final count = newInventory.countOfItem(item);
+      if (count < itemCost.quantity) {
+        throw StateError(
+          'Not enough ${item.name}. Need ${itemCost.quantity}, have $count',
+        );
+      }
+      newInventory = newInventory.removing(
+        ItemStack(item, count: itemCost.quantity),
+      );
+    }
+
+    // Add items granted by the purchase
+    for (final grantedItem in purchase.contains.items) {
+      final item = registries.items.byId(grantedItem.itemId);
+      newInventory = newInventory.adding(
+        ItemStack(item, count: grantedItem.quantity),
+      );
+    }
+
+    // Handle itemCharges purchases
+    var newItemCharges = newState.itemCharges;
+    final itemCharges = purchase.contains.itemCharges;
+    if (itemCharges != null) {
+      // Get the item to receive charges
+      final chargeItem = registries.items.byId(itemCharges.itemId);
+
+      // If player doesn't have the item, add it to inventory first
+      if (newInventory.countOfItem(chargeItem) == 0) {
+        newInventory = newInventory.adding(ItemStack(chargeItem, count: 1));
+      }
+
+      // Add charges to the item
+      newItemCharges = Map<MelvorId, int>.from(newItemCharges);
+      newItemCharges[itemCharges.itemId] =
+          (newItemCharges[itemCharges.itemId] ?? 0) + itemCharges.quantity;
+    }
+
+    // Apply purchase
+    return newState.copyWith(
+      inventory: newInventory,
+      itemCharges: newItemCharges,
+      shop: newState.shop.withPurchase(purchaseId),
+    );
+  }
+
+  // =========================================================================
+  // Farming Plot Unlocking
+  // =========================================================================
+
+  /// Unlocks a farming plot, deducting the required costs.
+  /// Returns null if:
+  /// - The plot ID is unknown
+  /// - The player doesn't meet the level requirement
+  /// - The player can't afford the currency costs
+  GlobalState? unlockPlot(MelvorId plotId) {
+    final plot = registries.farmingPlots.byId(plotId);
+    if (plot == null) {
+      return null;
+    }
+
+    // Check level requirement
+    final farmingLevel = skillState(Skill.farming).skillLevel;
+    if (farmingLevel < plot.level) {
+      return null;
+    }
+
+    // Check currency costs
+    for (final cost in plot.currencyCosts.costs) {
+      if (currency(cost.currency) < cost.amount) {
+        return null;
+      }
+    }
+
+    // Deduct costs and unlock plot
+    var newState = this;
+    for (final cost in plot.currencyCosts.costs) {
+      newState = newState.addCurrency(cost.currency, -cost.amount);
+    }
+
+    final newUnlockedPlots = Set<MelvorId>.from(newState.unlockedPlots)
+      ..add(plotId);
+
+    return newState.copyWith(unlockedPlots: newUnlockedPlots);
+  }
+
+  // =========================================================================
+  // Batch Operations
+  // =========================================================================
+
+  /// Sells multiple item stacks at once.
+  GlobalState sellItems(List<ItemStack> stacks) {
+    var newState = this;
+    for (final stack in stacks) {
+      newState = newState.sellItem(stack);
+    }
+    return newState;
+  }
+
+  /// Sorts the inventory by bank sort order.
+  GlobalState sortInventory() {
+    return copyWith(inventory: inventory.sorted(registries.compareBankItems));
+  }
+
+  // =========================================================================
+  // Cooking
+  // =========================================================================
+
+  /// Starts cooking in a specific area.
+  /// Returns null if:
+  /// - The player is stunned
+  /// - No recipe is assigned to the area
+  GlobalState? startCookingInArea(CookingArea area, {required Random random}) {
+    // If stunned, do nothing
+    if (isStunned) {
+      return null;
+    }
+
+    // Get the recipe assigned to this area
+    final areaState = cooking.areaState(area);
+    if (areaState.recipeId == null) {
+      return null; // No recipe assigned
+    }
+
+    // Find the cooking action
+    final recipe = registries.actions
+        .forSkill(Skill.cooking)
+        .whereType<CookingAction>()
+        .firstWhere(
+          (a) => a.id == areaState.recipeId,
+          orElse: () => throw StateError('Recipe not found'),
+        );
+
+    // Start the cooking action
+    return startAction(recipe, random: random);
+  }
+
   GlobalState copyWith({
     Inventory? inventory,
     ActiveAction? activeAction,
@@ -2180,6 +2330,8 @@ class GlobalState {
     Set<MelvorId>? unlockedPlots,
     Map<MelvorId, int>? dungeonCompletions,
     Map<MelvorId, int>? itemCharges,
+    Map<MelvorId, MelvorId>? selectedPotions,
+    Map<MelvorId, int>? potionChargesUsed,
     Map<Currency, int>? currencies,
     TimeAway? timeAway,
     ShopState? shop,
@@ -2201,6 +2353,8 @@ class GlobalState {
       unlockedPlots: unlockedPlots ?? this.unlockedPlots,
       dungeonCompletions: dungeonCompletions ?? this.dungeonCompletions,
       itemCharges: itemCharges ?? this.itemCharges,
+      selectedPotions: selectedPotions ?? this.selectedPotions,
+      potionChargesUsed: potionChargesUsed ?? this.potionChargesUsed,
       updatedAt: DateTime.timestamp(),
       currencies: currencies ?? this.currencies,
       timeAway: timeAway ?? this.timeAway,
@@ -2218,5 +2372,62 @@ class GlobalState {
   /// Sets the player's attack style for combat XP distribution.
   GlobalState setAttackStyle(AttackStyle style) {
     return copyWith(attackStyle: style);
+  }
+
+  // =========================================================================
+  // Potion Selection
+  // =========================================================================
+
+  /// Returns the selected potion for a skill, or null if none selected.
+  Item? selectedPotionForSkill(MelvorId skillId) {
+    final potionId = selectedPotions[skillId];
+    if (potionId == null) return null;
+    return registries.items.byId(potionId);
+  }
+
+  /// Returns the number of charges used on the current potion for a skill.
+  int potionChargesUsedForSkill(MelvorId skillId) {
+    return potionChargesUsed[skillId] ?? 0;
+  }
+
+  /// Selects a potion for a skill. The potion must be in inventory.
+  GlobalState selectPotion(MelvorId skillId, MelvorId potionId) {
+    final newSelectedPotions = Map<MelvorId, MelvorId>.from(selectedPotions)
+      ..[skillId] = potionId;
+    // Reset charges used when selecting a new potion
+    final newChargesUsed = Map<MelvorId, int>.from(potionChargesUsed)
+      ..remove(skillId);
+    return copyWith(
+      selectedPotions: newSelectedPotions,
+      potionChargesUsed: newChargesUsed,
+    );
+  }
+
+  /// Clears the potion selection for a skill.
+  GlobalState clearSelectedPotion(MelvorId skillId) {
+    final newSelectedPotions = Map<MelvorId, MelvorId>.from(selectedPotions)
+      ..remove(skillId);
+    final newChargesUsed = Map<MelvorId, int>.from(potionChargesUsed)
+      ..remove(skillId);
+    return copyWith(
+      selectedPotions: newSelectedPotions,
+      potionChargesUsed: newChargesUsed,
+    );
+  }
+
+  /// Returns the total remaining uses for a potion (charges left on current
+  /// potion plus inventory count times charges per potion).
+  int potionUsesRemaining(MelvorId skillId) {
+    final potionId = selectedPotions[skillId];
+    if (potionId == null) return 0;
+
+    final potion = registries.items.byId(potionId);
+    final chargesPerPotion = potion.potionCharges ?? 1;
+    final chargesUsed = potionChargesUsedForSkill(skillId);
+    final chargesLeft = chargesPerPotion - chargesUsed;
+    final inventoryCount = inventory.countById(potionId);
+
+    // Current potion charges + remaining inventory potions worth of charges
+    return chargesLeft + (inventoryCount - 1) * chargesPerPotion;
   }
 }

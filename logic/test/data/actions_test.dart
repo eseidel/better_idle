@@ -254,7 +254,7 @@ void main() {
       final builder = StateUpdateBuilder(state);
 
       // Create modifiers with 100% doubling chance to guarantee doubling
-      const modifiers = ResolvedModifiers({'skillItemDoublingChance': 100});
+      final modifiers = StubModifierProvider({'skillItemDoublingChance': 100});
 
       // Use a fixed seed random - the doubling check uses random.nextDouble()
       // With 100% chance, any random value will trigger doubling
@@ -280,7 +280,7 @@ void main() {
       final builder = StateUpdateBuilder(state);
 
       // No doubling chance
-      const modifiers = ResolvedModifiers.empty;
+      final modifiers = StubModifierProvider();
 
       final random = Random(42);
 

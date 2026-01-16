@@ -30,7 +30,7 @@ class XpBadgesRow extends StatelessWidget {
     final perAction = xpPerAction(
       context.state,
       action,
-      context.state.resolveSkillModifiers(action),
+      context.state.createActionModifierProvider(action),
     );
     final spacing = inradius * 8 / TextBadgeCell.defaultInradius;
     return Row(

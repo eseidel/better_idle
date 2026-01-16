@@ -9,8 +9,37 @@ import 'package:logic/src/types/drop.dart';
 import 'package:logic/src/types/equipment_slot.dart';
 import 'package:logic/src/types/inventory.dart';
 import 'package:logic/src/types/modifier.dart';
-import 'package:logic/src/types/resolved_modifiers.dart';
 import 'package:meta/meta.dart';
+
+/// Equipment stat modifiers that can be queried via
+/// [EquipmentStats.getAsModifier].
+enum EquipmentStatModifier {
+  equipmentAttackSpeed('attackSpeed'),
+  flatStabAttackBonus('stabAttackBonus'),
+  flatSlashAttackBonus('slashAttackBonus'),
+  flatBlockAttackBonus('blockAttackBonus'),
+  flatMeleeStrengthBonus('meleeStrengthBonus'),
+  flatRangedStrengthBonus('rangedStrengthBonus'),
+  flatRangedAttackBonus('rangedAttackBonus'),
+  flatMagicAttackBonus('magicAttackBonus'),
+  magicDamageBonus('magicDamageBonus'),
+  flatMeleeDefenceBonus('meleeDefenceBonus'),
+  flatRangedDefenceBonus('rangedDefenceBonus'),
+  flatMagicDefenceBonus('magicDefenceBonus'),
+  flatResistance('damageReduction');
+
+  const EquipmentStatModifier(this.statKey);
+
+  /// The JSON key used in Melvor equipment stats.
+  final String statKey;
+
+  /// Lookup by modifier name string. Returns null if not an equipment stat.
+  static EquipmentStatModifier? tryFromName(String name) => _byName[name];
+
+  static final Map<String, EquipmentStatModifier> _byName = {
+    for (final v in values) v.name: v,
+  };
+}
 
 /// Combat stats provided by equipment items.
 /// Parsed from the `equipmentStats` array in Melvor JSON.
@@ -37,33 +66,12 @@ class EquipmentStats extends Equatable {
 
   final Map<String, int> _values;
 
-  /// Maps equipment stat keys to modifier names.
-  static const _statToModifier = {
-    'attackSpeed': 'equipmentAttackSpeed',
-    'stabAttackBonus': 'flatStabAttackBonus',
-    'slashAttackBonus': 'flatSlashAttackBonus',
-    'blockAttackBonus': 'flatBlockAttackBonus',
-    'meleeStrengthBonus': 'flatMeleeStrengthBonus',
-    'rangedStrengthBonus': 'flatRangedStrengthBonus',
-    'rangedAttackBonus': 'flatRangedAttackBonus',
-    'magicAttackBonus': 'flatMagicAttackBonus',
-    'magicDamageBonus': 'magicDamageBonus',
-    'meleeDefenceBonus': 'flatMeleeDefenceBonus',
-    'rangedDefenceBonus': 'flatRangedDefenceBonus',
-    'magicDefenceBonus': 'flatMagicDefenceBonus',
-    'damageReduction': 'flatResistance',
-  };
-
-  /// Converts equipment stats to resolved modifiers for combat calculations.
-  ResolvedModifiers toModifiers() {
-    final result = <String, num>{};
-    for (final entry in _values.entries) {
-      final modifierName = _statToModifier[entry.key];
-      if (modifierName != null && entry.value != 0) {
-        result[modifierName] = entry.value;
-      }
-    }
-    return ResolvedModifiers(result);
+  /// Gets an equipment stat value by modifier.
+  /// Returns null if this stat doesn't exist or is zero.
+  int? getAsModifier(EquipmentStatModifier modifier) {
+    final value = _values[modifier.statKey];
+    if (value == null || value == 0) return null;
+    return value;
   }
 
   @override
@@ -156,6 +164,9 @@ class Item extends Equatable {
     this.equipmentStats = EquipmentStats.empty,
     this.attackType,
     this.equipRequirements = const [],
+    this.potionCharges,
+    this.potionTier,
+    this.potionAction,
   });
 
   /// Creates a simple test item with minimal required fields.
@@ -169,6 +180,9 @@ class Item extends Equatable {
     this.harvestBonus,
     this.attackType,
     this.equipRequirements = const [],
+    this.potionCharges,
+    this.potionTier,
+    this.potionAction,
   }) : id = MelvorId('melvorD:${name.replaceAll(' ', '_')}'),
        itemType = 'Item',
        sellsFor = gp,
@@ -249,6 +263,17 @@ class Item extends Equatable {
         .whereType<ShopRequirement>()
         .toList();
 
+    // Parse potion-specific fields (only for Potion itemType).
+    final isPotion = json['itemType'] == 'Potion';
+    final potionAction = isPotion && json['action'] != null
+        ? MelvorId.fromJsonWithNamespace(
+            json['action'] as String,
+            defaultNamespace: namespace,
+          )
+        : null;
+    final potionCharges = isPotion ? json['charges'] as int? : null;
+    final potionTier = isPotion ? json['tier'] as int? : null;
+
     return Item(
       id: id,
       name: json['name'] as String,
@@ -269,6 +294,9 @@ class Item extends Equatable {
           ? AttackType.fromJson(json['attackType'] as String)
           : null,
       equipRequirements: equipRequirements,
+      potionCharges: potionCharges,
+      potionTier: potionTier,
+      potionAction: potionAction,
     );
   }
 
@@ -328,6 +356,17 @@ class Item extends Equatable {
   /// Empty list means no requirements.
   final List<ShopRequirement> equipRequirements;
 
+  /// Number of charges per potion. Null for non-potion items.
+  /// Each charge is consumed on a skill action before the potion is depleted.
+  final int? potionCharges;
+
+  /// Potion tier (0-3 for tiers I-IV). Null for non-potion items.
+  final int? potionTier;
+
+  /// The skill/action this potion applies to (e.g., "melvorD:Woodcutting").
+  /// Null for non-potion items.
+  final MelvorId? potionAction;
+
   /// Whether this item can be consumed for healing.
   bool get isConsumable => healsFor != null;
 
@@ -340,6 +379,9 @@ class Item extends Equatable {
   /// Whether this item is a summoning tablet (familiar).
   /// Tablets are equipped in summon slots and track charge counts.
   bool get isSummonTablet => type == 'Familiar';
+
+  /// Whether this item is a potion.
+  bool get isPotion => itemType == 'Potion';
 
   /// Returns true if this item can be equipped in the given slot.
   bool canEquipInSlot(EquipmentSlot slot) => validSlots.contains(slot);
@@ -372,6 +414,9 @@ class Item extends Equatable {
     equipmentStats,
     attackType,
     equipRequirements,
+    potionCharges,
+    potionTier,
+    potionAction,
   ];
 }
 

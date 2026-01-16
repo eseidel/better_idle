@@ -88,8 +88,8 @@ class SetRecipeAction extends ReduxAction<GlobalState> {
 
 /// Advances the game by a specified number of ticks and returns the changes.
 /// Unlike UpdateActivityProgressAction, this does not show toasts.
-class AdvanceTicksAction extends ReduxAction<GlobalState> {
-  AdvanceTicksAction({required this.ticks});
+class DebugAdvanceTicksAction extends ReduxAction<GlobalState> {
+  DebugAdvanceTicksAction({required this.ticks});
   final Tick ticks;
 
   /// The time away that occurred during this advancement.
@@ -154,11 +154,7 @@ class SellMultipleItemsAction extends ReduxAction<GlobalState> {
 
   @override
   GlobalState reduce() {
-    var newState = state;
-    for (final stack in stacks) {
-      newState = newState.sellItem(stack);
-    }
-    return newState;
+    return state.sellItems(stacks);
   }
 }
 
@@ -169,127 +165,7 @@ class PurchaseShopItemAction extends ReduxAction<GlobalState> {
 
   @override
   GlobalState reduce() {
-    final shopRegistry = state.registries.shop;
-    final purchase = shopRegistry.byId(purchaseId);
-
-    if (purchase == null) {
-      throw Exception('Unknown shop purchase: $purchaseId');
-    }
-
-    // Check buy limit
-    final currentCount = state.shop.purchaseCount(purchaseId);
-    if (!purchase.isUnlimited && currentCount >= purchase.buyLimit) {
-      throw Exception('Already purchased maximum of ${purchase.name}');
-    }
-
-    // Check unlock requirements
-    for (final req in purchase.unlockRequirements) {
-      if (req is ShopPurchaseRequirement) {
-        if (state.shop.purchaseCount(req.purchaseId) < req.count) {
-          throw Exception('Must own prerequisite purchase first');
-        }
-      } else if (req is DungeonCompletionRequirement) {
-        if (state.dungeonCompletionCount(req.dungeonId) < req.count) {
-          throw Exception(
-            'Must complete dungeon ${req.dungeonId.name} '
-            '${req.count} time(s)',
-          );
-        }
-      }
-    }
-
-    // Check purchase requirements (skill levels and dungeon completions)
-    for (final req in purchase.purchaseRequirements) {
-      if (req is SkillLevelRequirement) {
-        final skillLevel = state.skillState(req.skill).skillLevel;
-        if (skillLevel < req.level) {
-          throw Exception('Requires ${req.skill.name} level ${req.level}');
-        }
-      } else if (req is DungeonCompletionRequirement) {
-        if (state.dungeonCompletionCount(req.dungeonId) < req.count) {
-          throw Exception(
-            'Must complete dungeon ${req.dungeonId.name} '
-            '${req.count} time(s)',
-          );
-        }
-      }
-    }
-
-    // Check inventory space for granted items before processing
-    final grantedItems = purchase.contains.items;
-    if (grantedItems.isNotEmpty) {
-      final capacity = state.inventoryCapacity;
-      for (final grantedItem in grantedItems) {
-        final item = state.registries.items.byId(grantedItem.itemId);
-        if (!state.inventory.canAdd(item, capacity: capacity)) {
-          throw Exception('Not enough bank space for ${item.name}');
-        }
-      }
-    }
-
-    // Calculate and apply currency costs
-    var newState = state;
-    final currencyCosts = purchase.cost.currencyCosts(
-      bankSlotsPurchased: state.shop.bankSlotsPurchased,
-    );
-    for (final (currency, amount) in currencyCosts) {
-      final balance = newState.currency(currency);
-      if (balance < amount) {
-        throw Exception(
-          'Not enough ${currency.abbreviation}. Need $amount, have $balance',
-        );
-      }
-      newState = newState.addCurrency(currency, -amount);
-    }
-
-    // Check and apply item costs
-    final itemCosts = purchase.cost.items;
-    var newInventory = newState.inventory;
-    for (final itemCost in itemCosts) {
-      final item = state.registries.items.byId(itemCost.itemId);
-      final count = newInventory.countOfItem(item);
-      if (count < itemCost.quantity) {
-        throw Exception(
-          'Not enough ${item.name}. Need ${itemCost.quantity}, have $count',
-        );
-      }
-      newInventory = newInventory.removing(
-        ItemStack(item, count: itemCost.quantity),
-      );
-    }
-
-    // Add items granted by the purchase
-    for (final grantedItem in purchase.contains.items) {
-      final item = state.registries.items.byId(grantedItem.itemId);
-      newInventory = newInventory.adding(
-        ItemStack(item, count: grantedItem.quantity),
-      );
-    }
-
-    // Handle itemCharges purchases
-    var newItemCharges = newState.itemCharges;
-    final itemCharges = purchase.contains.itemCharges;
-    if (itemCharges != null) {
-      // Get the item to receive charges
-      final chargeItem = state.registries.items.byId(itemCharges.itemId);
-
-      // If player doesn't have the item, add it to inventory first
-      if (newInventory.countOfItem(chargeItem) == 0) {
-        newInventory = newInventory.adding(ItemStack(chargeItem, count: 1));
-      }
-
-      // Add charges to the item
-      newItemCharges = Map<MelvorId, int>.from(newItemCharges);
-      newItemCharges[itemCharges.itemId] =
-          (newItemCharges[itemCharges.itemId] ?? 0) + itemCharges.quantity;
-    }
-
-    // Apply purchase
-    return newState.copyWith(
-      inventory: newInventory,
-      itemCharges: newItemCharges,
-      shop: newState.shop.withPurchase(purchaseId),
-    );
+    return state.purchaseShopItem(purchaseId);
   }
 }
 
@@ -389,9 +265,7 @@ class OpenItemAction extends ReduxAction<GlobalState> {
 class SortInventoryAction extends ReduxAction<GlobalState> {
   @override
   GlobalState reduce() {
-    return state.copyWith(
-      inventory: state.inventory.sorted(state.registries.compareBankItems),
-    );
+    return state.sortInventory();
   }
 }
 
@@ -527,34 +401,7 @@ class UnlockPlotAction extends ReduxAction<GlobalState> {
 
   @override
   GlobalState? reduce() {
-    final plot = state.registries.farmingPlots.byId(plotId);
-    if (plot == null) {
-      return null;
-    }
-
-    // Check level requirement
-    final farmingLevel = state.skillState(Skill.farming).skillLevel;
-    if (farmingLevel < plot.level) {
-      return null;
-    }
-
-    // Check currency costs
-    for (final cost in plot.currencyCosts.costs) {
-      if (state.currency(cost.currency) < cost.amount) {
-        return null;
-      }
-    }
-
-    // Deduct costs and unlock plot
-    var newState = state;
-    for (final cost in plot.currencyCosts.costs) {
-      newState = newState.addCurrency(cost.currency, -cost.amount);
-    }
-
-    final newUnlockedPlots = Set<MelvorId>.from(newState.unlockedPlots)
-      ..add(plotId);
-
-    return newState.copyWith(unlockedPlots: newUnlockedPlots);
+    return state.unlockPlot(plotId);
   }
 }
 
@@ -600,22 +447,6 @@ class AssignCookingRecipeAction extends ReduxAction<GlobalState> {
   }
 }
 
-/// Clears a recipe from a cooking area.
-class ClearCookingRecipeAction extends ReduxAction<GlobalState> {
-  ClearCookingRecipeAction({required this.area});
-  final CookingArea area;
-
-  @override
-  GlobalState reduce() {
-    return state.copyWith(
-      cooking: state.cooking.withAreaState(
-        area,
-        const CookingAreaState.empty(),
-      ),
-    );
-  }
-}
-
 /// Starts cooking in a specific area (makes it the active cooking action).
 class StartCookingAction extends ReduxAction<GlobalState> {
   StartCookingAction({required this.area});
@@ -623,29 +454,8 @@ class StartCookingAction extends ReduxAction<GlobalState> {
 
   @override
   GlobalState? reduce() {
-    // If stunned, do nothing
-    if (state.isStunned) {
-      return null;
-    }
-
-    // Get the recipe assigned to this area
-    final areaState = state.cooking.areaState(area);
-    if (areaState.recipeId == null) {
-      return null; // No recipe assigned
-    }
-
-    // Find the cooking action
-    final recipe = state.registries.actions
-        .forSkill(Skill.cooking)
-        .whereType<CookingAction>()
-        .firstWhere(
-          (a) => a.id == areaState.recipeId,
-          orElse: () => throw Exception('Recipe not found'),
-        );
-
-    // Start the cooking action (this will set up progress in the area)
     final random = Random();
-    return state.startAction(recipe, random: random);
+    return state.startCookingInArea(area, random: random);
   }
 }
 
@@ -709,11 +519,9 @@ class ClaimTownshipTaskAction extends ReduxAction<GlobalState> {
 
   @override
   GlobalState reduce() {
-    final task = state.registries.township.taskById(taskId);
-    final newState = state.claimTaskReward(taskId);
+    final (newState, changes) = state.claimTaskRewardWithChanges(taskId);
 
     // Show toast with rewards
-    final changes = task.rewardsToChanges(state.registries.items);
     if (!changes.isEmpty) {
       toastService.showToast(changes);
     }
@@ -731,5 +539,32 @@ class HealTownshipAction extends ReduxAction<GlobalState> {
   @override
   GlobalState reduce() {
     return state.copyWith(township: state.township.healWith(resource, amount));
+  }
+}
+
+// ============================================================================
+// Potion Actions
+// ============================================================================
+
+/// Selects a potion to use for a specific skill.
+class SelectPotionAction extends ReduxAction<GlobalState> {
+  SelectPotionAction(this.skillId, this.potionId);
+  final MelvorId skillId;
+  final MelvorId potionId;
+
+  @override
+  GlobalState reduce() {
+    return state.selectPotion(skillId, potionId);
+  }
+}
+
+/// Clears the selected potion for a specific skill.
+class ClearPotionSelectionAction extends ReduxAction<GlobalState> {
+  ClearPotionSelectionAction(this.skillId);
+  final MelvorId skillId;
+
+  @override
+  GlobalState reduce() {
+    return state.clearSelectedPotion(skillId);
   }
 }

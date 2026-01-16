@@ -28,7 +28,6 @@ import 'package:logic/src/solver/analysis/wait_for.dart';
 import 'package:logic/src/solver/core/value_model.dart';
 import 'package:logic/src/state.dart';
 import 'package:logic/src/tick.dart';
-import 'package:logic/src/types/drop.dart';
 import 'package:logic/src/types/stunned.dart';
 import 'package:meta/meta.dart';
 
@@ -327,7 +326,8 @@ Rates estimateRatesForAction(GlobalState state, ActionId actionId) {
 /// Returns a map of item name -> expected count per action.
 /// Uses allDropsForAction which includes action outputs (via rewardsAtLevel),
 /// skill-level drops, and global drops.
-/// Applies skillItemDoublingChance from resolved modifiers.
+/// Applies skillItemDoublingChance and other modifiers (e.g.,
+/// randomProductChance for SkillDrops).
 Map<MelvorId, double> _computeItemFlowsPerAction(
   GlobalState state,
   SkillAction action,
@@ -342,14 +342,20 @@ Map<MelvorId, double> _computeItemFlowsPerAction(
     selection,
   );
 
-  // Get doubling chance from modifiers
-  final modifiers = state.resolveSkillModifiers(action);
-  final doublingChance = (modifiers.skillItemDoublingChance / 100.0).clamp(
-    0.0,
-    1.0,
-  );
+  // Get modifiers for rate calculations
+  final modifiers = state.createActionModifierProvider(action);
+  final doublingChance = action.doublingChance(modifiers);
+  final multiplier = 1.0 + doublingChance;
 
-  return expectedItemsForDrops(dropsForAction, doublingChance: doublingChance);
+  // Compute expected items using base drop rates
+  // TODO(future): Account for randomProductChance modifiers for more accuracy
+  final result = <MelvorId, double>{};
+  for (final drop in dropsForAction) {
+    for (final entry in drop.expectedItems.entries) {
+      result[entry.key] = (result[entry.key] ?? 0) + entry.value * multiplier;
+    }
+  }
+  return result;
 }
 
 /// Estimates expected rates (flows) for the current state.

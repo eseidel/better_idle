@@ -4,7 +4,6 @@ import 'package:logic/src/data/currency.dart';
 import 'package:logic/src/data/melvor_id.dart';
 import 'package:logic/src/data/registries.dart';
 import 'package:logic/src/json.dart';
-import 'package:logic/src/types/drop.dart';
 import 'package:logic/src/types/inventory.dart';
 
 /// Reason why an action stopped during time away processing.
@@ -85,6 +84,7 @@ class TimeAway {
     final recipeSelection = recipeIndex != null
         ? SelectedRecipe(index: recipeIndex)
         : const NoSelectedRecipe();
+
     return TimeAway(
       registries: registries,
       startTime: DateTime.fromMillisecondsSinceEpoch(json['startTime'] as int),
@@ -218,14 +218,16 @@ class TimeAway {
     // Calculate expected items per hour for each drop
     // Items per hour = (expected items per action) * (3600 / mean duration)
     final actionsPerHour = 3600.0 / meanDurationSeconds;
+    final multiplier = 1.0 + doublingChance;
     final result = <MelvorId, double>{};
 
-    final expectedItems = expectedItemsForDrops(
-      allDrops,
-      doublingChance: doublingChance,
-    );
-    for (final entry in expectedItems.entries) {
-      result[entry.key] = entry.value * actionsPerHour;
+    // Compute expected items using base drop rates
+    // TODO(future): Account for randomProductChance modifiers for more accuracy
+    for (final drop in allDrops) {
+      for (final entry in drop.expectedItems.entries) {
+        final value = entry.value * multiplier * actionsPerHour;
+        result[entry.key] = (result[entry.key] ?? 0) + value;
+      }
     }
 
     return result;
