@@ -35,6 +35,10 @@ Map<MelvorId, double> expectedItemsForDrops(
 }
 
 /// A single item drop with an optional activation rate.
+///
+/// This is separate from [RareDrop] because they correspond to different JSON
+/// structures in the Melvor data: simple drops have a numeric `chance` field,
+/// while rare drops have a complex `chance` object with scaling parameters.
 @immutable
 class Drop extends Droppable {
   /// Creates a drop from a MelvorId.
@@ -88,6 +92,148 @@ class DropChance extends Droppable {
   Map<MelvorId, double> get expectedItems {
     final childItems = child.expectedItems;
     return childItems.map((key, value) => MapEntry(key, value * rate));
+  }
+}
+
+/// Calculates drop chance based on player progress.
+///
+/// Different implementations handle fixed chances vs scaling with level/mastery.
+@immutable
+sealed class DropChanceCalculator {
+  const DropChanceCalculator();
+
+  /// Calculates the effective drop chance given player context.
+  double calculate({int skillLevel = 1, int totalMastery = 0});
+
+  /// Returns a representative chance for estimation purposes.
+  /// Uses mid-game defaults (level 50, 5000 mastery).
+  double get estimatedChance => calculate(skillLevel: 50, totalMastery: 5000);
+}
+
+/// Fixed drop chance that doesn't scale with player progress.
+@immutable
+class FixedChance extends DropChanceCalculator {
+  const FixedChance(this.chance);
+
+  final double chance;
+
+  @override
+  double calculate({int skillLevel = 1, int totalMastery = 0}) => chance;
+
+  @override
+  double get estimatedChance => chance;
+}
+
+/// Drop chance that scales with skill level.
+@immutable
+class LevelScalingChance extends DropChanceCalculator {
+  const LevelScalingChance({
+    required this.baseChance,
+    required this.maxChance,
+    required this.scalingFactor,
+  });
+
+  final double baseChance;
+  final double maxChance;
+  final double scalingFactor;
+
+  @override
+  double calculate({int skillLevel = 1, int totalMastery = 0}) {
+    final scaled = baseChance + (skillLevel * scalingFactor);
+    return scaled.clamp(0.0, maxChance);
+  }
+}
+
+/// Drop chance that scales with total mastery in the skill.
+@immutable
+class MasteryScalingChance extends DropChanceCalculator {
+  const MasteryScalingChance({
+    required this.baseChance,
+    required this.maxChance,
+    required this.scalingFactor,
+  });
+
+  final double baseChance;
+  final double maxChance;
+  final double scalingFactor;
+
+  @override
+  double calculate({int skillLevel = 1, int totalMastery = 0}) {
+    final scaled = baseChance + (totalMastery * scalingFactor);
+    return scaled.clamp(0.0, maxChance);
+  }
+}
+
+/// A rare drop with dynamic chance based on skill level or mastery.
+///
+/// Rare drops have complex chance calculations that depend on the player's
+/// progress. The chance is calculated at roll time based on the provided
+/// skill level and total mastery.
+///
+/// This is separate from [Drop] because they correspond to different JSON
+/// structures in the Melvor data: rare drops have a complex `chance` object
+/// with type and scaling parameters, while simple drops have a numeric chance.
+@immutable
+class RareDrop extends Droppable {
+  const RareDrop({
+    required this.itemId,
+    required this.chance,
+    this.count = 1,
+    this.requiredItemId,
+  });
+
+  final MelvorId itemId;
+
+  /// How the drop chance is calculated.
+  final DropChanceCalculator chance;
+
+  /// Number of items dropped.
+  final int count;
+
+  /// Item that must have been found for this drop to be available.
+  final MelvorId? requiredItemId;
+
+  @override
+  Map<MelvorId, double> get expectedItems {
+    // Use mid-game estimate for expected items calculation
+    return {itemId: count * chance.estimatedChance};
+  }
+
+  @override
+  ItemStack? roll(ItemRegistry items, Random random) {
+    // Note: This uses default chance. For proper rolling, use rollWithContext.
+    final rate = chance.calculate();
+    if (random.nextDouble() >= rate) {
+      return null;
+    }
+    final item = items.byId(itemId);
+    return ItemStack(item, count: count);
+  }
+
+  /// Rolls the drop with skill level and mastery context.
+  ///
+  /// Returns null if the roll fails or if requirements aren't met.
+  ItemStack? rollWithContext(
+    ItemRegistry items,
+    Random random, {
+    required int skillLevel,
+    required int totalMastery,
+    required bool hasRequiredItem,
+  }) {
+    // Check requirements
+    if (requiredItemId != null && !hasRequiredItem) {
+      return null;
+    }
+
+    final rate = chance.calculate(
+      skillLevel: skillLevel,
+      totalMastery: totalMastery,
+    );
+    if (random.nextDouble() >= rate) {
+      return null;
+    }
+    final item = items.byId(itemId);
+    return ItemStack(item, count: count);
   }
 }
 

@@ -1,5 +1,6 @@
 import 'package:logic/src/data/items.dart';
 import 'package:logic/src/data/melvor_id.dart';
+import 'package:meta/meta.dart';
 
 class ItemStack {
   const ItemStack(this.item, {required this.count});
@@ -35,6 +36,7 @@ class Inventory {
       _counts = const {},
       _orderedItems = const [];
 
+  @visibleForTesting
   Inventory.fromItems(ItemRegistry items, List<ItemStack> stacks)
     : _items = items,
       _counts = {},

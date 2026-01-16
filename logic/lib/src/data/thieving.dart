@@ -13,6 +13,10 @@ const thievingDuration = Duration(seconds: 3);
 /// Drop rate for area unique drops (e.g., Crate of Basic Supplies).
 const double areaUniqueDropRate = 1 / 500;
 
+/// Drop rate for NPC-specific unique drops (e.g., Lumberjack's Top).
+// TODO(eseidel): Confirm this rate from Melvor wiki or game source.
+const double npcUniqueDropRate = 1 / 500;
+
 /// Chance that a thieving loot table drops something (vs nothing).
 const double lootTableDropChance = 0.75;
 
@@ -98,15 +102,16 @@ List<Droppable> _thievingRewards(
 ) {
   final thievingAction = action as ThievingAction;
   final areaDrops = thievingAction.area.uniqueDrops;
+  final npcUniqueDrop = thievingAction.uniqueDrop;
   final actionDropTable = thievingAction.dropTable;
   if (actionDropTable != null) {
-    return [actionDropTable, ...areaDrops];
+    return [actionDropTable, ...areaDrops, ?npcUniqueDrop];
   }
   assert(
     thievingAction.outputs.isEmpty,
     'ThievingAction ${thievingAction.name} has outputs but no drop table.',
   );
-  return [...areaDrops];
+  return [...areaDrops, ?npcUniqueDrop];
 }
 
 /// Thieving action with success/fail mechanics.
@@ -125,6 +130,7 @@ class ThievingAction extends SkillAction {
     required this.area,
     super.outputs = const {},
     this.dropTable,
+    this.uniqueDrop,
     this.media,
   }) : super(
          skill: Skill.thieving,
@@ -170,6 +176,18 @@ class ThievingAction extends SkillAction {
         ? maxHitRaw * 10
         : ((maxHitRaw as double) * 10).round();
 
+    // Parse NPC-specific unique drop (e.g., Lumberjack's Top).
+    Drop? uniqueDrop;
+    final uniqueDropJson = json['uniqueDrop'] as Map<String, dynamic>?;
+    if (uniqueDropJson != null) {
+      final itemId = MelvorId.fromJsonWithNamespace(
+        uniqueDropJson['id'] as String,
+        defaultNamespace: namespace,
+      );
+      final quantity = uniqueDropJson['quantity'] as int? ?? 1;
+      uniqueDrop = Drop(itemId, count: quantity, rate: npcUniqueDropRate);
+    }
+
     final localId = MelvorId.fromJsonWithNamespace(
       json['id'] as String,
       defaultNamespace: namespace,
@@ -184,6 +202,7 @@ class ThievingAction extends SkillAction {
       maxGold: maxGold,
       area: area,
       dropTable: dropTable,
+      uniqueDrop: uniqueDrop,
       media: json['media'] as String?,
     );
   }
@@ -202,6 +221,9 @@ class ThievingAction extends SkillAction {
 
   /// The drop table for this NPC.
   final Droppable? dropTable;
+
+  /// The NPC-specific unique drop (e.g., Lumberjack's Top).
+  final Drop? uniqueDrop;
 
   /// The media path for the NPC icon.
   final String? media;

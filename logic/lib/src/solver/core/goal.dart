@@ -148,11 +148,30 @@ class ReachGpGoal extends Goal {
 
   @override
   double progressPerTick(GlobalState state, Rates rates) {
-    // For GP goals, progress = direct GP + value of items produced
+    // For GP goals, progress = direct GP + value of items produced.
+    //
+    // Use floor-corrected rates to match what advanceExpected actually
+    // produces. advanceExpected floors item counts, so rare high-value drops
+    // (e.g., Circlet of Rhaelyx at 750k GP) would otherwise cause massive
+    // overestimation of GP income.
+    //
+    // Threshold: 1000 ticks (~1.6 minutes real time). Items that take longer
+    // than this to produce 1 of are excluded from short-term estimates.
+    const maxTicksPerItem = 1000;
+
     var value = rates.directGpPerTick;
     for (final entry in rates.itemFlowsPerTick.entries) {
+      final flowRate = entry.value;
+      if (flowRate <= 0) continue;
+
+      final ticksPerItem = 1.0 / flowRate;
+      if (ticksPerItem > maxTicksPerItem) {
+        // Skip rare items - they won't contribute reliably in short term
+        continue;
+      }
+
       final item = state.registries.items.byId(entry.key);
-      value += entry.value * item.sellsFor;
+      value += flowRate * item.sellsFor;
     }
     return value;
   }

@@ -1110,8 +1110,10 @@ void main() {
       final plan = Plan(
         steps: [
           InteractionStep(SwitchActivity(manAction.id)),
-          // Wait for a very high GP goal - will take many iterations and deaths
-          const WaitStep(50000, WaitForGoal(ReachGpGoal(5000))),
+          // Wait for high GP goal - Bobby's Pocket (4000 GP) can drop early,
+          // so use 50000 GP to ensure enough time for deaths to occur.
+          // Deaths typically happen every ~1500 ticks at level 1.
+          const WaitStep(50000, WaitForGoal(ReachGpGoal(50000))),
         ],
         totalTicks: 50000,
         interactionCount: 1,

@@ -273,9 +273,9 @@ void main() {
       state = state.startAction(normalTree, random: random);
 
       // Consume enough ticks to drop at least one Bird Nest
-      // With rate 0.005, we expect ~0.5 drops per 100 actions
+      // With rate 0.005, we expect ~5 drops per 1000 actions
       final builder = StateUpdateBuilder(state);
-      consumeTicks(builder, 3000, random: random); // 100 completions
+      consumeTicks(builder, 30000, random: random); // 1000 completions
       state = builder.build();
 
       // Verify action-level drop (Normal Logs) is present
@@ -284,14 +284,15 @@ void main() {
       final normalLogsCount = items
           .firstWhere((i) => i.item == normalLogs)
           .count;
-      // We should have 100 logs because the mastery level is 0.
-      expect(normalLogsCount, 100);
+      // Should have at least 1000 logs (may be slightly more due to bonuses).
+      expect(normalLogsCount, greaterThanOrEqualTo(1000));
 
-      // Verify skill-level drop (Bird Nest) dropped
+      // Verify skill-level drop (Bird Nest) dropped at least once
+      // (count depends on random sequence which varies with drop list size)
       final birdNestCount = state.inventory.items
           .where((i) => i.item == birdNest)
           .fold(0, (sum, item) => sum + item.count);
-      expect(birdNestCount, 1);
+      expect(birdNestCount, greaterThanOrEqualTo(1));
     });
 
     test(

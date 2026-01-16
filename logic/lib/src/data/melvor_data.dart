@@ -1276,6 +1276,65 @@ Map<Skill, List<Droppable>> parseSkillDrops(
           drops.add(Drop(itemId, rate: chancePercent / 100));
         }
       }
+
+      // Parse rareDrops (e.g., Gold Topaz Ring, Circlet of Rhaelyx)
+      // These have complex chance calculations based on level or mastery.
+      final rareDropsJson = data['rareDrops'] as List<dynamic>?;
+      if (rareDropsJson != null) {
+        for (final rareDrop in rareDropsJson) {
+          final rareDropMap = rareDrop as Map<String, dynamic>;
+          final itemId = MelvorId.fromJsonWithNamespace(
+            rareDropMap['itemID'] as String,
+            defaultNamespace: namespace,
+          );
+          final quantity = rareDropMap['quantity'] as int? ?? 1;
+
+          // Parse chance object
+          final chanceJson = rareDropMap['chance'] as Map<String, dynamic>;
+          final chanceType = chanceJson['type'] as String;
+
+          // Parse requirements (optional)
+          MelvorId? requiredItemId;
+          final requirements = rareDropMap['requirements'] as List<dynamic>?;
+          if (requirements != null && requirements.isNotEmpty) {
+            for (final req in requirements) {
+              final reqMap = req as Map<String, dynamic>;
+              if (reqMap['type'] == 'ItemFound') {
+                requiredItemId = MelvorId.fromJsonWithNamespace(
+                  reqMap['itemID'] as String,
+                  defaultNamespace: namespace,
+                );
+                break;
+              }
+            }
+          }
+
+          // Create DropChanceCalculator based on chance type
+          final calculator = switch (chanceType) {
+            'Fixed' => FixedChance((chanceJson['chance'] as num).toDouble()),
+            'LevelScaling' => LevelScalingChance(
+              baseChance: (chanceJson['baseChance'] as num).toDouble(),
+              maxChance: (chanceJson['maxChance'] as num).toDouble(),
+              scalingFactor: (chanceJson['scalingFactor'] as num).toDouble(),
+            ),
+            'TotalMasteryScaling' => MasteryScalingChance(
+              baseChance: (chanceJson['baseChance'] as num).toDouble(),
+              maxChance: (chanceJson['maxChance'] as num).toDouble(),
+              scalingFactor: (chanceJson['scalingFactor'] as num).toDouble(),
+            ),
+            _ => throw ArgumentError('Unknown chance type: $chanceType'),
+          };
+
+          drops.add(
+            RareDrop(
+              itemId: itemId,
+              chance: calculator,
+              count: quantity,
+              requiredItemId: requiredItemId,
+            ),
+          );
+        }
+      }
     }
 
     if (drops.isNotEmpty) {
