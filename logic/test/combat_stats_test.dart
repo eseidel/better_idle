@@ -179,7 +179,9 @@ void main() {
     test('weapon attack speed affects player attack speed', () {
       // Bronze Sword has 2400ms attack speed
       expect(
-        bronzeSword.equipmentStats.getAsModifier('equipmentAttackSpeed'),
+        bronzeSword.equipmentStats.getAsModifier(
+          EquipmentStatModifier.equipmentAttackSpeed,
+        ),
         2400,
       );
 
@@ -205,7 +207,9 @@ void main() {
     test('weapon strength bonus affects max hit', () {
       // Bronze Sword has meleeStrengthBonus in equipmentStats
       expect(
-        bronzeSword.equipmentStats.getAsModifier('flatMeleeStrengthBonus'),
+        bronzeSword.equipmentStats.getAsModifier(
+          EquipmentStatModifier.flatMeleeStrengthBonus,
+        ),
         greaterThan(0),
       );
 
@@ -230,7 +234,9 @@ void main() {
     test('weapon attack bonus affects accuracy', () {
       // Bronze Sword has stabAttackBonus in equipmentStats
       expect(
-        bronzeSword.equipmentStats.getAsModifier('flatStabAttackBonus'),
+        bronzeSword.equipmentStats.getAsModifier(
+          EquipmentStatModifier.flatStabAttackBonus,
+        ),
         greaterThan(0),
       );
 
@@ -255,7 +261,9 @@ void main() {
     test('armor defence bonus affects evasion', () {
       // Bronze Helmet has meleeDefenceBonus in equipmentStats
       expect(
-        bronzeHelmet.equipmentStats.getAsModifier('flatMeleeDefenceBonus'),
+        bronzeHelmet.equipmentStats.getAsModifier(
+          EquipmentStatModifier.flatMeleeDefenceBonus,
+        ),
         greaterThan(0),
       );
 

@@ -11,6 +11,36 @@ import 'package:logic/src/types/inventory.dart';
 import 'package:logic/src/types/modifier.dart';
 import 'package:meta/meta.dart';
 
+/// Equipment stat modifiers that can be queried via
+/// [EquipmentStats.getAsModifier].
+enum EquipmentStatModifier {
+  equipmentAttackSpeed('attackSpeed'),
+  flatStabAttackBonus('stabAttackBonus'),
+  flatSlashAttackBonus('slashAttackBonus'),
+  flatBlockAttackBonus('blockAttackBonus'),
+  flatMeleeStrengthBonus('meleeStrengthBonus'),
+  flatRangedStrengthBonus('rangedStrengthBonus'),
+  flatRangedAttackBonus('rangedAttackBonus'),
+  flatMagicAttackBonus('magicAttackBonus'),
+  magicDamageBonus('magicDamageBonus'),
+  flatMeleeDefenceBonus('meleeDefenceBonus'),
+  flatRangedDefenceBonus('rangedDefenceBonus'),
+  flatMagicDefenceBonus('magicDefenceBonus'),
+  flatResistance('damageReduction');
+
+  const EquipmentStatModifier(this.statKey);
+
+  /// The JSON key used in Melvor equipment stats.
+  final String statKey;
+
+  /// Lookup by modifier name string. Returns null if not an equipment stat.
+  static EquipmentStatModifier? tryFromName(String name) => _byName[name];
+
+  static final Map<String, EquipmentStatModifier> _byName = {
+    for (final v in values) v.name: v,
+  };
+}
+
 /// Combat stats provided by equipment items.
 /// Parsed from the `equipmentStats` array in Melvor JSON.
 ///
@@ -36,34 +66,10 @@ class EquipmentStats extends Equatable {
 
   final Map<String, int> _values;
 
-  /// Maps equipment stat keys to modifier names.
-  static const _statToModifier = {
-    'attackSpeed': 'equipmentAttackSpeed',
-    'stabAttackBonus': 'flatStabAttackBonus',
-    'slashAttackBonus': 'flatSlashAttackBonus',
-    'blockAttackBonus': 'flatBlockAttackBonus',
-    'meleeStrengthBonus': 'flatMeleeStrengthBonus',
-    'rangedStrengthBonus': 'flatRangedStrengthBonus',
-    'rangedAttackBonus': 'flatRangedAttackBonus',
-    'magicAttackBonus': 'flatMagicAttackBonus',
-    'magicDamageBonus': 'magicDamageBonus',
-    'meleeDefenceBonus': 'flatMeleeDefenceBonus',
-    'rangedDefenceBonus': 'flatRangedDefenceBonus',
-    'magicDefenceBonus': 'flatMagicDefenceBonus',
-    'damageReduction': 'flatResistance',
-  };
-
-  /// Maps modifier names back to equipment stat keys.
-  static final Map<String, String> _modifierToStat = {
-    for (final entry in _statToModifier.entries) entry.value: entry.key,
-  };
-
-  /// Gets an equipment stat value by modifier name.
+  /// Gets an equipment stat value by modifier.
   /// Returns null if this stat doesn't exist or is zero.
-  int? getAsModifier(String modifierName) {
-    final statKey = _modifierToStat[modifierName];
-    if (statKey == null) return null;
-    final value = _values[statKey];
+  int? getAsModifier(EquipmentStatModifier modifier) {
+    final value = _values[modifier.statKey];
     if (value == null || value == 0) return null;
     return value;
   }

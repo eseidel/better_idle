@@ -194,9 +194,12 @@ class ModifierProvider with ModifierAccessors {
 
       // Equipment stats (attackSpeed, meleeStrengthBonus, etc.)
       // These are converted to modifier names for uniform access.
-      final statValue = item.equipmentStats.getAsModifier(name);
-      if (statValue != null) {
-        total += statValue;
+      final statModifier = EquipmentStatModifier.tryFromName(name);
+      if (statModifier != null) {
+        final statValue = item.equipmentStats.getAsModifier(statModifier);
+        if (statValue != null) {
+          total += statValue;
+        }
       }
     }
 

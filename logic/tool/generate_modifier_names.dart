@@ -7,6 +7,7 @@
 import 'dart:io';
 
 import 'package:logic/src/data/cache.dart';
+import 'package:logic/src/data/items.dart' show EquipmentStatModifier;
 
 /// Convert snake_case to CamelCase.
 String camelFromSnake(String snake) {
@@ -244,22 +245,10 @@ void collectModifierScopesFromMap(
 }
 
 /// Custom modifier names for equipment stats.
-/// These are mapped from equipmentStats keys in EquipmentStats._statToModifier.
+/// Derived from [EquipmentStatModifier] enum values.
 /// They don't appear in Melvor JSON but are used for uniform modifier access.
-const customEquipmentStatModifiers = [
-  'equipmentAttackSpeed',
-  'flatStabAttackBonus',
-  'flatSlashAttackBonus',
-  'flatBlockAttackBonus',
-  'flatMeleeStrengthBonus',
-  'flatRangedStrengthBonus',
-  'flatRangedAttackBonus',
-  'flatMagicAttackBonus',
-  'flatMeleeDefenceBonus',
-  'flatRangedDefenceBonus',
-  'flatMagicDefenceBonus',
-  'flatResistance',
-];
+final List<String> customEquipmentStatModifiers =
+    EquipmentStatModifier.values.map((e) => e.name).toList();
 
 /// Generates the Dart file content with modifier accessor mixin.
 String generateDartFile(Map<String, ModifierScopeInfo> scopes) {
