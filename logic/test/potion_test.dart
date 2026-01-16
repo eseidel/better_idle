@@ -254,9 +254,7 @@ void main() {
       ).selectPotion(Skill.woodcutting.id, birdNestPotionI.id);
 
       final action = normalTree as SkillAction;
-      final modifiers = state.createModifierProvider(
-        currentActionId: action.id,
-      );
+      final modifiers = state.createActionModifierProvider(action);
       // Bird Nest Potion I gives +5% randomProductChance for bird nest item
       expect(
         modifiers.randomProductChance(
@@ -277,9 +275,7 @@ void main() {
 
       // Should not throw when resolving modifiers with potion
       final action = normalTree as SkillAction;
-      final modifiers = state.createModifierProvider(
-        currentActionId: action.id,
-      );
+      final modifiers = state.createActionModifierProvider(action);
       expect(modifiers, isNotNull);
     });
 
@@ -293,9 +289,7 @@ void main() {
 
       // Modifiers should still resolve without error
       final action = normalTree as SkillAction;
-      final modifiers = state.createModifierProvider(
-        currentActionId: action.id,
-      );
+      final modifiers = state.createActionModifierProvider(action);
       expect(modifiers, isNotNull);
     });
   });
@@ -337,8 +331,8 @@ void main() {
 
         // With potion
         final builderWith = StateUpdateBuilder(stateWithPotion);
-        final modifiersWith = stateWithPotion.createModifierProvider(
-          currentActionId: (normalTree as SkillAction).id,
+        final modifiersWith = stateWithPotion.createActionModifierProvider(
+          normalTree as SkillAction,
         );
         rollAndCollectDrops(
           builderWith,
@@ -352,9 +346,8 @@ void main() {
         // Without potion (use same seed for fair comparison)
         final randomWithout = Random(i);
         final builderWithout = StateUpdateBuilder(stateWithoutPotion);
-        final modifiersWithout = stateWithoutPotion.createModifierProvider(
-          currentActionId: (normalTree as SkillAction).id,
-        );
+        final modifiersWithout = stateWithoutPotion
+            .createActionModifierProvider(normalTree as SkillAction);
         rollAndCollectDrops(
           builderWithout,
           normalTree as SkillAction,

@@ -25,9 +25,7 @@ void main() {
       final registries = Registries.test();
       final action = createFakeAction(skill: Skill.woodcutting);
       final state = GlobalState.test(registries);
-      final modifiers = state.createModifierProvider(
-        currentActionId: action.id,
-      );
+      final modifiers = state.createActionModifierProvider(action);
 
       expect(modifiers.skillInterval(skillId: action.skill.id), 0);
       expect(modifiers.flatSkillInterval(skillId: action.skill.id), 0);
@@ -66,8 +64,8 @@ void main() {
         registries,
         actionStates: {action.id: ActionState(masteryXp: startXpForLevel(98))},
       );
-      final modifiersLevel98 = stateLevel98.createModifierProvider(
-        currentActionId: action.id,
+      final modifiersLevel98 = stateLevel98.createActionModifierProvider(
+        action,
       );
       expect(modifiersLevel98.flatSkillInterval(skillId: action.skill.id), 0);
 
@@ -76,8 +74,8 @@ void main() {
         registries,
         actionStates: {action.id: ActionState(masteryXp: startXpForLevel(99))},
       );
-      final modifiersLevel99 = stateLevel99.createModifierProvider(
-        currentActionId: action.id,
+      final modifiersLevel99 = stateLevel99.createActionModifierProvider(
+        action,
       );
       expect(
         modifiersLevel99.flatSkillInterval(skillId: action.skill.id),
@@ -124,9 +122,7 @@ void main() {
             firemakingAction.id: ActionState(masteryXp: startXpForLevel(99)),
           },
         );
-        final modifiers = state.createModifierProvider(
-          currentActionId: firemakingAction.id,
-        );
+        final modifiers = state.createActionModifierProvider(firemakingAction);
         expect(modifiers.masteryXP(skillId: firemakingAction.skill.id), 0.25);
       },
     );
@@ -170,7 +166,7 @@ void main() {
       );
       expect(
         stateLevel5
-            .createModifierProvider(currentActionId: action.id)
+            .createActionModifierProvider(action)
             .skillItemDoublingChance(skillId: skillId),
         0,
       );
@@ -182,7 +178,7 @@ void main() {
       );
       expect(
         stateLevel10
-            .createModifierProvider(currentActionId: action.id)
+            .createActionModifierProvider(action)
             .skillItemDoublingChance(skillId: skillId),
         5,
       );
@@ -194,7 +190,7 @@ void main() {
       );
       expect(
         stateLevel50
-            .createModifierProvider(currentActionId: action.id)
+            .createActionModifierProvider(action)
             .skillItemDoublingChance(skillId: skillId),
         25,
       );
@@ -206,7 +202,7 @@ void main() {
       );
       expect(
         stateLevel90
-            .createModifierProvider(currentActionId: action.id)
+            .createActionModifierProvider(action)
             .skillItemDoublingChance(skillId: skillId),
         45,
       );
@@ -218,7 +214,7 @@ void main() {
       );
       expect(
         stateLevel99
-            .createModifierProvider(currentActionId: action.id)
+            .createActionModifierProvider(action)
             .skillItemDoublingChance(skillId: skillId),
         45,
       );
@@ -260,7 +256,7 @@ void main() {
       final stateNoPurchase = GlobalState.test(registries);
       expect(
         stateNoPurchase
-            .createModifierProvider(currentActionId: action.id)
+            .createActionModifierProvider(action)
             .skillInterval(skillId: skillId),
         0,
       );
@@ -272,7 +268,7 @@ void main() {
       );
       expect(
         stateWithPurchase
-            .createModifierProvider(currentActionId: action.id)
+            .createActionModifierProvider(action)
             .skillInterval(skillId: skillId),
         -5,
       );
@@ -322,8 +318,8 @@ void main() {
       );
 
       // Both the woodcutting-scoped (-5) and global (-2) entries should apply
-      final modifiers = stateWithPurchase.createModifierProvider(
-        currentActionId: woodcuttingAction.id,
+      final modifiers = stateWithPurchase.createActionModifierProvider(
+        woodcuttingAction,
       );
       expect(modifiers.skillInterval(skillId: woodcuttingAction.skill.id), -7);
     });
@@ -396,9 +392,7 @@ void main() {
         actionStates: {action.id: ActionState(masteryXp: startXpForLevel(50))},
       );
 
-      final modifiers = state.createModifierProvider(
-        currentActionId: action.id,
-      );
+      final modifiers = state.createActionModifierProvider(action);
 
       // Shop (-5) + Mastery (-3) = -8
       expect(modifiers.skillInterval(skillId: skillId), -8);
@@ -442,9 +436,7 @@ void main() {
       );
 
       // The fishing-scoped modifier should NOT apply to woodcutting
-      final modifiers = state.createModifierProvider(
-        currentActionId: woodcuttingAction.id,
-      );
+      final modifiers = state.createActionModifierProvider(woodcuttingAction);
       expect(modifiers.skillInterval(skillId: woodcuttingAction.skill.id), 0);
     });
   });
@@ -504,8 +496,8 @@ void main() {
           firemakingAction.id: ActionState(masteryXp: startXpForLevel(1)),
         },
       );
-      final modifiersLevel1 = stateLevel1.createModifierProvider(
-        currentActionId: firemakingAction.id,
+      final modifiersLevel1 = stateLevel1.createActionModifierProvider(
+        firemakingAction,
       );
       expect(
         modifiersLevel1.skillInterval(skillId: skillId),
@@ -519,8 +511,8 @@ void main() {
           firemakingAction.id: ActionState(masteryXp: startXpForLevel(50)),
         },
       );
-      final modifiersLevel50 = stateLevel50.createModifierProvider(
-        currentActionId: firemakingAction.id,
+      final modifiersLevel50 = stateLevel50.createActionModifierProvider(
+        firemakingAction,
       );
       expect(
         modifiersLevel50.skillInterval(skillId: skillId),
@@ -534,8 +526,8 @@ void main() {
           firemakingAction.id: ActionState(masteryXp: startXpForLevel(99)),
         },
       );
-      final modifiersLevel99 = stateLevel99.createModifierProvider(
-        currentActionId: firemakingAction.id,
+      final modifiersLevel99 = stateLevel99.createActionModifierProvider(
+        firemakingAction,
       );
       expect(
         modifiersLevel99.skillInterval(skillId: skillId),
@@ -703,9 +695,7 @@ void main() {
       final state = GlobalState.test(registries);
 
       // Without modifier, XP should be base value
-      final modifiersNoMod = state.createModifierProvider(
-        currentActionId: action.id,
-      );
+      final modifiersNoMod = state.createActionModifierProvider(action);
       final xpNoMod = xpPerAction(state, action, modifiersNoMod);
       expect(xpNoMod.xp, 100);
 
@@ -742,8 +732,8 @@ void main() {
         registriesWithShop,
         shop: ShopState(purchaseCounts: {shopPurchaseId: 1}),
       );
-      final modifiersWithMod = stateWithMod.createModifierProvider(
-        currentActionId: action.id,
+      final modifiersWithMod = stateWithMod.createActionModifierProvider(
+        action,
       );
       final xpWithMod = xpPerAction(stateWithMod, action, modifiersWithMod);
       expect(xpWithMod.xp, 120); // 100 * 1.20 = 120
@@ -792,9 +782,7 @@ void main() {
       final state = GlobalState.test(registries, equipment: equipment);
 
       // Resolve modifiers for firemaking action
-      final modifiers = state.createModifierProvider(
-        currentActionId: firemakingAction.id,
-      );
+      final modifiers = state.createActionModifierProvider(firemakingAction);
       expect(modifiers.skillXP(skillId: firemakingAction.skill.id), -10);
 
       // XP should be reduced
@@ -842,9 +830,7 @@ void main() {
       final state = GlobalState.test(registries, equipment: equipment);
 
       // Resolve modifiers for woodcutting (should NOT be affected)
-      final modifiers = state.createModifierProvider(
-        currentActionId: woodcuttingAction.id,
-      );
+      final modifiers = state.createActionModifierProvider(woodcuttingAction);
       // No skillXP modifier for woodcutting
       expect(modifiers.skillXP(skillId: woodcuttingAction.skill.id), 0);
     });
@@ -891,9 +877,7 @@ void main() {
       final state = GlobalState.test(registries, equipment: equipment);
 
       // Resolve modifiers for firemaking action
-      final modifiers = state.createModifierProvider(
-        currentActionId: firemakingAction.id,
-      );
+      final modifiers = state.createActionModifierProvider(firemakingAction);
       expect(modifiers.currencyGain(skillId: firemakingAction.skill.id), 20);
     });
 
@@ -941,9 +925,7 @@ void main() {
         final state = GlobalState.test(registries, equipment: equipment);
 
         // Resolve modifiers for woodcutting (should NOT be affected)
-        final modifiers = state.createModifierProvider(
-          currentActionId: woodcuttingAction.id,
-        );
+        final modifiers = state.createActionModifierProvider(woodcuttingAction);
         // No currencyGain for woodcutting
         expect(modifiers.currencyGain(skillId: woodcuttingAction.skill.id), 0);
       },

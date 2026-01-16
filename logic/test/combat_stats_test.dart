@@ -159,7 +159,7 @@ void main() {
   group('createModifierProvider for combat', () {
     test('returns zero modifiers with no equipment or shop purchases', () {
       final state = GlobalState.test(testRegistries);
-      final modifiers = state.createModifierProvider();
+      final modifiers = state.createCombatModifierProvider();
 
       // With no equipment or purchases, should have zero for combat modifiers
       expect(modifiers.lifesteal, 0);

@@ -877,17 +877,11 @@ class GlobalState {
   MelvorId? get highestCookingPotId =>
       registries.shop.highestCookingPotId(shop.purchaseCounts);
 
-  /// Creates a ModifierProvider for on-demand modifier resolution.
+  /// Creates a ModifierProvider for a skill action.
   ///
-  /// Preserves full scope information and resolves modifiers lazily when
-  /// queried with specific context (skillId, actionId, itemId, etc.).
-  ///
-  /// Use this when you need to query modifiers with different scope contexts,
-  /// such as checking randomProductChance for specific item drops.
-  ModifierProvider createModifierProvider({
-    ActionId? currentActionId,
-    Set<Skill>? combatTypeSkills,
-  }) {
+  /// Use this when processing skill actions (woodcutting, fishing, etc.)
+  /// where mastery bonuses need to be resolved for the specific action.
+  ModifierProvider createActionModifierProvider(SkillAction action) {
     return ModifierProvider(
       registries: registries,
       equipment: equipment,
@@ -898,8 +892,44 @@ class GlobalState {
       shopPurchases: shop,
       actionStateGetter: actionState,
       activeSynergy: _getActiveSynergy(),
-      combatTypeSkills: combatTypeSkills,
-      currentActionId: currentActionId,
+      currentActionId: action.id,
+    );
+  }
+
+  /// Creates a ModifierProvider for combat.
+  ///
+  /// Filters summoning familiar modifiers by combat type relevance
+  /// (melee familiars only apply during melee combat, etc.).
+  ModifierProvider createCombatModifierProvider() {
+    return ModifierProvider(
+      registries: registries,
+      equipment: equipment,
+      selectedPotions: selectedPotions,
+      potionChargesUsed: potionChargesUsed,
+      inventory: inventory,
+      summoning: summoning,
+      shopPurchases: shop,
+      actionStateGetter: actionState,
+      activeSynergy: _getActiveSynergy(),
+      combatTypeSkills: attackStyle.combatType.skills,
+    );
+  }
+
+  /// Creates a ModifierProvider for global modifiers (auto-eat, etc.).
+  ///
+  /// Use this when querying modifiers that don't depend on a specific
+  /// action or combat context.
+  ModifierProvider createGlobalModifierProvider() {
+    return ModifierProvider(
+      registries: registries,
+      equipment: equipment,
+      selectedPotions: selectedPotions,
+      potionChargesUsed: potionChargesUsed,
+      inventory: inventory,
+      summoning: summoning,
+      shopPurchases: shop,
+      actionStateGetter: actionState,
+      activeSynergy: _getActiveSynergy(),
     );
   }
 
@@ -945,7 +975,7 @@ class GlobalState {
     ShopRegistry shopRegistry,
   ) {
     final ticks = action.rollDuration(random);
-    final modifiers = createModifierProvider(currentActionId: action.id);
+    final modifiers = createActionModifierProvider(action);
 
     // skillInterval is percentage points (e.g., -5 = 5% reduction)
     final percentPoints = modifiers.skillInterval(skillId: action.skill.id);
@@ -1054,7 +1084,7 @@ class GlobalState {
   /// Calculates mean duration with modifiers applied (deterministic).
   int _meanDurationWithModifiers(SkillAction action) {
     final ticks = ticksFromDuration(action.meanDuration);
-    final modifiers = createModifierProvider(currentActionId: action.id);
+    final modifiers = createActionModifierProvider(action);
 
     // skillInterval is percentage points (e.g., -5 = 5% reduction)
     final percentPoints = modifiers.skillInterval(skillId: action.skill.id);

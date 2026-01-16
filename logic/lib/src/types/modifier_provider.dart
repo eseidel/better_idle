@@ -18,7 +18,7 @@ import 'package:logic/src/types/modifier_names.dart';
 ///
 /// Usage:
 /// ```dart
-/// final provider = state.createModifierProvider();
+/// final provider = state.createActionModifierProvider(action);
 /// final bonus = provider.randomProductChance(
 ///   skillId: woodcuttingId,
 ///   itemId: birdNestId,

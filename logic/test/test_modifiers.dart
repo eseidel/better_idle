@@ -2,7 +2,7 @@
 ///
 /// This provides backward compatibility for tests that were written against
 /// the old ResolvedModifiers API. New tests should use ModifierProvider
-/// directly via state.createModifierProvider().
+/// directly via state.createActionModifierProvider(action).
 library;
 
 import 'package:logic/logic.dart';

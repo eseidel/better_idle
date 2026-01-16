@@ -343,7 +343,7 @@ Map<MelvorId, double> _computeItemFlowsPerAction(
   );
 
   // Get modifiers for rate calculations
-  final modifiers = state.createModifierProvider(currentActionId: action.id);
+  final modifiers = state.createActionModifierProvider(action);
   final doublingChance =
       (modifiers.skillItemDoublingChance(skillId: action.skill.id) / 100.0)
           .clamp(0.0, 1.0);

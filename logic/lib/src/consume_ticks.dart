@@ -870,7 +870,7 @@ class StateUpdateBuilder {
     final maxCharges = potion.potionCharges ?? 1;
 
     // Check charge preservation chance
-    final modifiers = _state.createModifierProvider(currentActionId: action.id);
+    final modifiers = _state.createActionModifierProvider(action);
     final preserveChance = modifiers.potionChargePreservationChance;
     if (preserveChance > 0 && random.nextDouble() * 100 < preserveChance) {
       return; // Charge preserved, don't consume
@@ -1102,9 +1102,7 @@ bool completeThievingAction(
 ) {
   final thievingLevel = builder.state.skillState(Skill.thieving).skillLevel;
   final actionMasteryLevel = builder.currentMasteryLevel(action);
-  final modifierProvider = builder.state.createModifierProvider(
-    currentActionId: action.id,
-  );
+  final modifierProvider = builder.state.createActionModifierProvider(action);
   final thievingStealth = modifierProvider.thievingStealth();
   final success = action.rollSuccess(
     random,
@@ -1143,7 +1141,7 @@ bool completeThievingAction(
     builder.damagePlayer(damage);
 
     // Try auto-eat after taking damage
-    final modifiers = builder.state.createModifierProvider();
+    final modifiers = builder.state.createGlobalModifierProvider();
     builder.tryAutoEat(modifiers);
 
     // Check if player died (after auto-eat attempt)
@@ -1178,9 +1176,7 @@ void completeCookingAction(
   final actionState = builder.state.actionState(action.id);
   final selection = actionState.recipeSelection(action);
   final masteryLevel = builder.currentMasteryLevel(action);
-  final modifiers = builder.state.createModifierProvider(
-    currentActionId: action.id,
-  );
+  final modifiers = builder.state.createActionModifierProvider(action);
 
   // Calculate success chance: 70% base + 0.6% per mastery level (capped at 50)
   // Total possible from mastery: 70% + 30% = 100% at level 50
@@ -1317,9 +1313,7 @@ bool completeAction(
   }
 
   // Roll drops with doubling applied (using recipe for output multiplier)
-  final modifierProvider = builder.state.createModifierProvider(
-    currentActionId: action.id,
-  );
+  final modifierProvider = builder.state.createActionModifierProvider(action);
   var canRepeatAction = rollAndCollectDrops(
     builder,
     action,
@@ -1725,7 +1719,7 @@ enum ForegroundResult {
     );
 
     // Try auto-eat after attack (whether hit or miss, player may need healing)
-    final modifiers = builder.state.createModifierProvider();
+    final modifiers = builder.state.createGlobalModifierProvider();
     builder.tryAutoEat(modifiers);
   }
 
@@ -1957,9 +1951,7 @@ ConsumeTicksStopReason consumeTicksUntil(
   var doublingChance = 0.0;
   RecipeSelection recipeSelection = const NoSelectedRecipe();
   if (action is SkillAction) {
-    final modifierProvider = state.createModifierProvider(
-      currentActionId: action.id,
-    );
+    final modifierProvider = state.createActionModifierProvider(action);
     doublingChance =
         (modifierProvider.skillItemDoublingChance(skillId: action.skill.id) /
                 100.0)

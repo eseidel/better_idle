@@ -157,9 +157,7 @@ class PlayerCombatStats extends Stats {
   /// Computes player stats from current game state.
   factory PlayerCombatStats.fromState(GlobalState state) {
     // Create modifier provider for combat-relevant modifiers
-    final bonuses = state.createModifierProvider(
-      combatTypeSkills: state.attackStyle.combatType.skills,
-    );
+    final bonuses = state.createCombatModifierProvider();
     final attackStyle = state.attackStyle;
 
     // Get skill levels
