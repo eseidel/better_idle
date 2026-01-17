@@ -3,6 +3,12 @@ library;
 
 // Core types
 export 'src/action_state.dart';
+// Activity (new model)
+export 'src/activity/active_activity.dart';
+export 'src/activity/activity_conversion.dart';
+export 'src/activity/combat_context.dart';
+export 'src/activity/mastery_state.dart';
+export 'src/activity/mining_persistent_state.dart';
 export 'src/combat_stats.dart';
 export 'src/consume_ticks.dart';
 export 'src/cooking_state.dart';

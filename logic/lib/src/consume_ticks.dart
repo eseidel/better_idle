@@ -1828,20 +1828,39 @@ enum ForegroundResult {
   return (ForegroundResult.continued, ticksConsumed);
 }
 
-/// Dispatches foreground processing based on action type.
+/// Dispatches foreground processing based on activity type.
+///
+/// Uses pattern matching on [ActiveActivity] sealed class for type-safe
+/// dispatch. The [action] parameter is still needed for accessing action
+/// properties during processing.
 (ForegroundResult, Tick) _processForegroundAction(
   StateUpdateBuilder builder,
   Action action,
   Tick ticksAvailable,
   Random random,
 ) {
-  if (action is CombatAction) {
-    return _processCombatForeground(builder, action, ticksAvailable, random);
-  } else if (action is SkillAction) {
-    return _processSkillForeground(builder, action, ticksAvailable, random);
-  } else {
-    throw StateError('Unknown action type: ${action.runtimeType}');
-  }
+  final activity = builder.state.activeActivity;
+
+  // Pattern match on the sealed ActiveActivity class
+  return switch (activity) {
+    SkillActivity() when action is SkillAction => _processSkillForeground(
+      builder,
+      action,
+      ticksAvailable,
+      random,
+    ),
+    CombatActivity() when action is CombatAction => _processCombatForeground(
+      builder,
+      action,
+      ticksAvailable,
+      random,
+    ),
+    // Fallback for mismatched state (shouldn't happen in normal operation)
+    _ => throw StateError(
+      'Activity/action type mismatch: '
+      'activity=${activity.runtimeType}, action=${action.runtimeType}',
+    ),
+  };
 }
 
 /// Condition function that determines when to stop consuming ticks.
