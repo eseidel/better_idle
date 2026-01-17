@@ -1,6 +1,8 @@
 import 'dart:math';
 
 import 'package:logic/src/action_state.dart';
+import 'package:logic/src/activity/active_activity.dart';
+import 'package:logic/src/activity/activity_conversion.dart';
 import 'package:logic/src/combat_stats.dart';
 import 'package:logic/src/cooking_state.dart';
 import 'package:logic/src/data/action_id.dart';
@@ -536,7 +538,9 @@ class GlobalState {
     return {
       'updatedAt': updatedAt.toIso8601String(),
       'inventory': inventory.toJson(),
+      // Write both old and new formats during transition
       'activeAction': activeAction?.toJson(),
+      'activeActivity': activeActivity?.toJson(),
       'skillStates': skillStates.map(
         (key, value) => MapEntry(key.name, value.toJson()),
       ),
@@ -580,8 +584,20 @@ class GlobalState {
   /// The inventory of items.
   final Inventory inventory;
 
-  /// The active action.
+  /// The active action (legacy format, use [activeActivity] for new code).
   final ActiveAction? activeAction;
+
+  /// The active activity in the new format.
+  ///
+  /// This is computed from [activeAction] and [actionStates] during the
+  /// transition period. Once migration is complete, this will become the
+  /// primary stored field.
+  ActiveActivity? get activeActivity => convertToActivity(
+    activeAction,
+    actionStates,
+    registries.actions,
+    registries.dungeons,
+  );
 
   /// The accumulated skill states.
   final Map<Skill, SkillState> skillStates;
