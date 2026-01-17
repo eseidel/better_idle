@@ -1359,17 +1359,21 @@ Map<Skill, List<Droppable>> parseSkillDrops(
           }
 
           // Create DropChanceCalculator based on chance type
+          // Note: Melvor stores these chances as percentages (0.001 = 0.1%),
+          // so divide by 100 to get actual probabilities.
+          double chance(String key) =>
+              (chanceJson[key] as num).toDouble() / 100;
           final calculator = switch (chanceType) {
-            'Fixed' => FixedChance((chanceJson['chance'] as num).toDouble()),
+            'Fixed' => FixedChance(chance('chance')),
             'LevelScaling' => LevelScalingChance(
-              baseChance: (chanceJson['baseChance'] as num).toDouble(),
-              maxChance: (chanceJson['maxChance'] as num).toDouble(),
-              scalingFactor: (chanceJson['scalingFactor'] as num).toDouble(),
+              baseChance: chance('baseChance'),
+              maxChance: chance('maxChance'),
+              scalingFactor: chance('scalingFactor'),
             ),
             'TotalMasteryScaling' => MasteryScalingChance(
-              baseChance: (chanceJson['baseChance'] as num).toDouble(),
-              maxChance: (chanceJson['maxChance'] as num).toDouble(),
-              scalingFactor: (chanceJson['scalingFactor'] as num).toDouble(),
+              baseChance: chance('baseChance'),
+              maxChance: chance('maxChance'),
+              scalingFactor: chance('scalingFactor'),
             ),
             _ => throw ArgumentError('Unknown chance type: $chanceType'),
           };
