@@ -391,4 +391,49 @@ void main() {
       expect(stateOakRemoved.inventory.hasEverAcquired(oakLogsId), isTrue);
     });
   });
+
+  group('MasteryScalingChance', () {
+    test('Circlet of Rhaelyx has correct drop rates from wiki', () {
+      // Wiki: https://wiki.melvoridle.com/w/Circlet_of_Rhaelyx
+      // Base rate: 1/10,000,000 per action
+      // Max rate: 1/100,000 at 24,750 total mastery
+      // Scaling: improves by 1/2,500,000,000 per mastery level
+      const circlet = MasteryScalingChance(
+        baseChance: 1e-7, // 1/10,000,000
+        maxChance: 1e-5, // 1/100,000
+        scalingFactor: 4e-10, // 1/2,500,000,000
+      );
+
+      // At 0 mastery, should be base rate
+      expect(circlet.calculate(), closeTo(1e-7, 1e-10));
+
+      // At max mastery (24,750), should be max rate
+      expect(circlet.calculate(totalMastery: 24750), closeTo(1e-5, 1e-8));
+
+      // At mid mastery, should be between base and max
+      final midChance = circlet.calculate(totalMastery: 12000);
+      expect(midChance, greaterThan(1e-7));
+      expect(midChance, lessThan(1e-5));
+
+      // Beyond max mastery should still cap at max
+      expect(circlet.calculate(totalMastery: 50000), closeTo(1e-5, 1e-8));
+    });
+
+    test('woodcutting skill drops include Circlet with correct rates', () {
+      const circletId = MelvorId('melvorD:Circlet_of_Rhaelyx');
+
+      final drops = testDrops.forSkill(Skill.woodcutting);
+      final circletDrop = drops.whereType<RareDrop>().firstWhere(
+        (d) => d.itemId == circletId,
+      );
+
+      expect(circletDrop.chance, isA<MasteryScalingChance>());
+      final chance = circletDrop.chance as MasteryScalingChance;
+
+      // Verify the parsed values match expected (after /100 conversion)
+      expect(chance.baseChance, closeTo(1e-7, 1e-10));
+      expect(chance.maxChance, closeTo(1e-5, 1e-8));
+      expect(chance.scalingFactor, closeTo(4e-10, 1e-13));
+    });
+  });
 }
