@@ -319,9 +319,22 @@ class _PlayerStatsCard extends StatelessWidget {
             ),
             const SizedBox(height: 16),
             // Equipment slots section
-            const Text(
-              'Equipment',
-              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+            Row(
+              children: [
+                const Text(
+                  'Equipment',
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                ),
+                const Spacer(),
+                TextButton.icon(
+                  onPressed: () => showDialog<void>(
+                    context: context,
+                    builder: (_) => const EquipmentGridDialog(),
+                  ),
+                  icon: const Icon(Icons.grid_view, size: 16),
+                  label: const Text('View Grid'),
+                ),
+              ],
             ),
             const SizedBox(height: 8),
             const EquipmentSlotsCompact(),

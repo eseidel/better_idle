@@ -7,6 +7,7 @@ import 'package:logic/src/data/shop.dart';
 import 'package:logic/src/data/summoning_synergy.dart';
 import 'package:logic/src/data/township.dart';
 import 'package:logic/src/types/drop.dart';
+import 'package:logic/src/types/equipment_slot.dart';
 import 'package:logic/src/types/mastery.dart';
 import 'package:logic/src/types/mastery_unlock.dart';
 import 'package:meta/meta.dart';
@@ -35,6 +36,7 @@ class MelvorData {
     final combatAreas = <CombatArea>[];
     final dungeons = <Dungeon>[];
     final bankSortEntries = <DisplayOrderEntry>[];
+    final equipmentSlots = <EquipmentSlotDef>[];
 
     // Step 1: Collect items and skill data entries (preserving namespace)
     for (final json in dataFiles) {
@@ -79,9 +81,52 @@ class MelvorData {
           ),
         );
       }
+
+      // Collect equipment slots (merging demo base with full game patches).
+      final slotsJson = data['equipmentSlots'] as List<dynamic>? ?? [];
+      for (final slotJson in slotsJson) {
+        final slotMap = slotJson as Map<String, dynamic>;
+        final slotId = slotMap['id'] as String;
+
+        // Check if this is a patch (has add/remove in requirements).
+        // Patches reference existing slots by namespaced ID.
+        if (slotId.contains(':')) {
+          // This is a patch - find and update the existing slot.
+          final existingIndex = equipmentSlots.indexWhere(
+            (s) => s.id.toJson() == slotId,
+          );
+          if (existingIndex >= 0) {
+            // Re-parse with merged data. The fromJson handles the patch format.
+            final existing = equipmentSlots[existingIndex];
+            // Create a merged JSON with base slot data + patch requirements.
+            final mergedJson = <String, dynamic>{
+              'id': existing.name,
+              'allowQuantity': existing.allowQuantity,
+              'emptyMedia': existing.emptyMedia,
+              'emptyName': existing.emptyName,
+              'providesEquipStats': existing.providesEquipStats,
+              'gridPosition': {
+                'col': existing.gridPosition.col,
+                'row': existing.gridPosition.row,
+              },
+              'requirements': slotMap['requirements'],
+            };
+            equipmentSlots[existingIndex] = EquipmentSlotDef.fromJson(
+              mergedJson,
+              namespace: namespace,
+            );
+          }
+        } else {
+          // This is a new slot definition.
+          equipmentSlots.add(
+            EquipmentSlotDef.fromJson(slotMap, namespace: namespace),
+          );
+        }
+      }
     }
 
     _items = ItemRegistry(items);
+    _equipmentSlots = EquipmentSlotRegistry(equipmentSlots);
 
     // Compute bank sort order
     final bankSortOrder = computeDisplayOrder(bankSortEntries);
@@ -212,6 +257,7 @@ class MelvorData {
   late final ItemRegistry _items;
   late final ActionRegistry _actions;
   late final ShopRegistry _shop;
+  late final EquipmentSlotRegistry _equipmentSlots;
   late final Map<MelvorId, int> _bankSortIndex;
   late final CookingCategoryRegistry _cookingCategories;
   late final FishingAreaRegistry _fishingAreas;
@@ -236,6 +282,9 @@ class MelvorData {
 
   /// Returns the item registry.
   ItemRegistry get items => _items;
+
+  /// Returns the equipment slots registry.
+  EquipmentSlotRegistry get equipmentSlots => _equipmentSlots;
 
   ActionRegistry get actions => _actions;
 

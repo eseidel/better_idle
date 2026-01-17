@@ -3,7 +3,11 @@ import 'dart:math';
 import 'package:logic/logic.dart';
 import 'package:test/test.dart';
 
+import '../test_helper.dart';
+
 void main() {
+  setUpAll(loadTestRegistries);
+
   group('ModifierProvider', () {
     // Create fake IDs for testing
     const fakeLocalId = 'FakeAction';

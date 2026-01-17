@@ -44,5 +44,10 @@ Future<void> loadTestRegistries() async {
 ItemRegistry get testItems => testRegistries.items;
 ActionRegistry get testActions => testRegistries.actions;
 DropsRegistry get testDrops => testRegistries.drops;
+EquipmentSlotRegistry get testSlots => testRegistries.equipmentSlots;
 FishingAreaRegistry get testFishingAreas => testRegistries.fishingAreas;
 MasteryBonusRegistry get testMasteryBonuses => testRegistries.masteryBonuses;
+
+/// Get the index of an equipment slot in the enum. Used for death penalty tests
+/// that need to mock a specific slot being rolled.
+int slotIndex(EquipmentSlot slot) => EquipmentSlot.values.indexOf(slot);

@@ -7,6 +7,7 @@ import 'package:logic/src/data/melvor_id.dart';
 import 'package:logic/src/data/shop.dart';
 import 'package:logic/src/data/summoning_synergy.dart';
 import 'package:logic/src/data/township.dart';
+import 'package:logic/src/types/equipment_slot.dart';
 import 'package:logic/src/types/mastery.dart';
 import 'package:logic/src/types/mastery_unlock.dart';
 import 'package:meta/meta.dart';
@@ -17,6 +18,7 @@ class Registries {
     this.items,
     this.actions,
     this.drops,
+    this.equipmentSlots,
     this.cookingCategories,
     this.fishingAreas,
     this.smithingCategories,
@@ -54,6 +56,7 @@ class Registries {
       ItemRegistry(items),
       ActionRegistry(actions),
       DropsRegistry({}),
+      const EquipmentSlotRegistry.empty(),
       CookingCategoryRegistry(const []),
       FishingAreaRegistry(const []),
       SmithingCategoryRegistry(const []),
@@ -81,6 +84,7 @@ class Registries {
   final ItemRegistry items;
   final ActionRegistry actions;
   final DropsRegistry drops;
+  final EquipmentSlotRegistry equipmentSlots;
   final CookingCategoryRegistry cookingCategories;
   final FishingAreaRegistry fishingAreas;
   final SmithingCategoryRegistry smithingCategories;
@@ -143,6 +147,7 @@ Future<Registries> loadRegistriesFromCache(Cache cache) async {
     melvorData.items,
     melvorData.actions,
     melvorData.drops,
+    melvorData.equipmentSlots,
     melvorData.cookingCategories,
     melvorData.fishingAreas,
     melvorData.smithingCategories,

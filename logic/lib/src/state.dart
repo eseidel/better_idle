@@ -602,6 +602,15 @@ class GlobalState {
   int dungeonCompletionCount(MelvorId dungeonId) =>
       dungeonCompletions[dungeonId] ?? 0;
 
+  /// Returns true if the given equipment slot is unlocked.
+  /// Most slots are always unlocked. The Passive slot requires completing
+  /// the "Into the Mist" dungeon.
+  bool isSlotUnlocked(EquipmentSlot slot) {
+    final slotDef = registries.equipmentSlots[slot];
+    if (slotDef == null || !slotDef.requiresUnlock) return true;
+    return dungeonCompletionCount(slotDef.unlockDungeonId!) >= 1;
+  }
+
   /// Map of item ID to number of charges for items with charge mechanics.
   /// Used for items like Thieving Gloves that have consumable charges.
   final Map<MelvorId, int> itemCharges;
@@ -1754,8 +1763,11 @@ class GlobalState {
     if (!item.canEquipInSlot(slot)) {
       throw StateError(
         'Cannot equip ${item.name} in $slot slot. '
-        'Valid slots: ${item.validSlots}',
+        'Valid slots: ${item.validSlots.map((s) => s.jsonName).join(', ')}',
       );
+    }
+    if (!isSlotUnlocked(slot)) {
+      throw StateError('Cannot equip in $slot: slot is locked');
     }
     if (!canEquipGear(item)) {
       throw StateError('Cannot equip ${item.name}: requirements not met');

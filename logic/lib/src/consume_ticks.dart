@@ -821,7 +821,8 @@ class StateUpdateBuilder {
     var equipment = _state.equipment;
 
     // Check each summon slot
-    for (final slot in [EquipmentSlot.summon1, EquipmentSlot.summon2]) {
+    const summonSlots = [EquipmentSlot.summon1, EquipmentSlot.summon2];
+    for (final slot in summonSlots) {
       final tablet = equipment.gearInSlot(slot);
       if (tablet == null) continue;
 

@@ -159,7 +159,7 @@ class Item extends Equatable {
     this.harvestBonus,
     this.dropTable,
     this.media,
-    this.validSlots = const [],
+    this.validSlots = const <EquipmentSlot>[],
     this.modifiers = const ModifierDataSet([]),
     this.equipmentStats = EquipmentStats.empty,
     this.attackType,
@@ -191,7 +191,7 @@ class Item extends Equatable {
        description = null,
        dropTable = null,
        media = null,
-       validSlots = const [],
+       validSlots = const <EquipmentSlot>[],
        modifiers = const ModifierDataSet([]),
        equipmentStats = EquipmentStats.empty;
 
@@ -227,13 +227,13 @@ class Item extends Equatable {
     // Parse media path, stripping query params (e.g., "?2").
     final media = (json['media'] as String?)?.split('?').first;
 
-    // Parse valid equipment slots.
+    // Parse valid equipment slots from JSON slot names.
     final validSlotsJson = json['validSlots'] as List<dynamic>?;
     final validSlots =
         validSlotsJson
             ?.map((s) => EquipmentSlot.fromJson(s as String))
             .toList() ??
-        const [];
+        const <EquipmentSlot>[];
 
     // Normalize ID to always have namespace (items in JSON may lack it).
     final id = MelvorId.fromJsonWithNamespace(

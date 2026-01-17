@@ -742,6 +742,8 @@ class _EquipGearSection extends StatelessWidget {
   Widget build(BuildContext context) {
     final state = context.state;
     final equipment = state.equipment;
+
+    // Get valid slots from the item
     final validSlots = item.validSlots;
 
     // Find which slot this item is currently equipped in (if any)
@@ -757,20 +759,23 @@ class _EquipGearSection extends StatelessWidget {
     final unmetRequirements = state.unmetEquipRequirements(item);
     final canEquip = unmetRequirements.isEmpty;
 
+    final slots = state.registries.equipmentSlots;
+    String slotName(EquipmentSlot s) => slots[s]?.emptyName ?? s.jsonName;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text('Equip Gear', style: Theme.of(context).textTheme.titleMedium),
         const SizedBox(height: 8),
         Text(
-          'Valid slots: ${validSlots.map((s) => s.displayName).join(', ')}',
+          'Valid slots: ${validSlots.map(slotName).join(', ')}',
           style: Theme.of(context).textTheme.bodyMedium,
         ),
         if (currentlyEquippedSlot != null)
           Padding(
             padding: const EdgeInsets.only(top: 4),
             child: Text(
-              'Currently equipped in: ${currentlyEquippedSlot.displayName}',
+              'Currently equipped in: ${slotName(currentlyEquippedSlot)}',
               style: TextStyle(color: Style.textColorInfo),
             ),
           ),
@@ -810,16 +815,18 @@ class _EquipSlotButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final slotDef = context.state.registries.equipmentSlots[slot];
+    final slotName = slotDef?.emptyName ?? slot.jsonName;
     final currentItem = equipment.gearInSlot(slot);
     final isAlreadyEquipped = currentItem == item;
 
     String buttonText;
     if (isAlreadyEquipped) {
-      buttonText = '${slot.displayName} (Already equipped)';
+      buttonText = '$slotName (Already equipped)';
     } else if (currentItem != null) {
-      buttonText = '${slot.displayName} (Swap with ${currentItem.name})';
+      buttonText = '$slotName (Swap with ${currentItem.name})';
     } else {
-      buttonText = 'Equip in ${slot.displayName}';
+      buttonText = 'Equip in $slotName';
     }
 
     // Disable if already equipped OR requirements not met

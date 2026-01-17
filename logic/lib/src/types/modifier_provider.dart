@@ -194,11 +194,16 @@ class ModifierProvider with ModifierAccessors {
 
       // Equipment stats (attackSpeed, meleeStrengthBonus, etc.)
       // These are converted to modifier names for uniform access.
-      final statModifier = EquipmentStatModifier.tryFromName(name);
-      if (statModifier != null) {
-        final statValue = item.equipmentStats.getAsModifier(statModifier);
-        if (statValue != null) {
-          total += statValue;
+      // Skip for slots that don't provide equipment stats (e.g., Passive slot).
+      final slotDef = registries.equipmentSlots[slot];
+      final providesStats = slotDef?.providesEquipStats ?? true;
+      if (providesStats) {
+        final statModifier = EquipmentStatModifier.tryFromName(name);
+        if (statModifier != null) {
+          final statValue = item.equipmentStats.getAsModifier(statModifier);
+          if (statValue != null) {
+            total += statValue;
+          }
         }
       }
     }

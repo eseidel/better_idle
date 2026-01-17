@@ -124,8 +124,9 @@ void main() {
 
       test('returns wasLucky=true when rolled slot is empty', () {
         const equipment = Equipment.empty();
-        // Roll slot 0 (weapon), which is empty
-        final rng = FakeRandom([0]);
+        // Roll the weapon slot, which is empty
+        final weaponIndex = slotIndex(EquipmentSlot.weapon);
+        final rng = FakeRandom([weaponIndex]);
         final result = equipment.applyDeathPenalty(rng);
 
         expect(result.wasLucky, isTrue);
@@ -141,8 +142,9 @@ void main() {
           EquipmentSlot.weapon,
         );
 
-        // Roll slot 0 (weapon)
-        final rng = FakeRandom([0]);
+        // Roll the weapon slot
+        final weaponIndex = slotIndex(EquipmentSlot.weapon);
+        final rng = FakeRandom([weaponIndex]);
         final result = equipment.applyDeathPenalty(rng);
 
         expect(result.wasLucky, isFalse);
@@ -164,8 +166,9 @@ void main() {
           EquipmentSlot.helmet,
         );
 
-        // Roll slot 2 (helmet)
-        final rng = FakeRandom([2]);
+        // Roll the helmet slot
+        final helmetIndex = slotIndex(EquipmentSlot.helmet);
+        final rng = FakeRandom([helmetIndex]);
         final result = equipment.applyDeathPenalty(rng);
 
         expect(result.wasLucky, isFalse);
@@ -187,8 +190,9 @@ void main() {
         );
         equipment = updatedEquipment;
 
-        // Roll weapon slot (0)
-        final rng = FakeRandom([0]);
+        // Roll the weapon slot
+        final weaponIndex = slotIndex(EquipmentSlot.weapon);
+        final rng = FakeRandom([weaponIndex]);
         final result = equipment.applyDeathPenalty(rng);
 
         // Sword lost, but food remains

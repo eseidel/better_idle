@@ -170,7 +170,7 @@ class Death extends ReplanBoundary {
     if (lostItem != null) {
       parts.add('lost ${lostItem!.item.name}');
     } else if (slotRolled != null) {
-      parts.add('lucky (empty ${slotRolled!.name})');
+      parts.add('lucky (empty $slotRolled)');
     }
     if (actionId != null) {
       parts.add('during ${actionId!.localId.name}');

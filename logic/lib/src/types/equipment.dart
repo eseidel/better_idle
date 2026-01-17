@@ -240,7 +240,7 @@ class Equipment {
     if (!item.canEquipInSlot(slot)) {
       throw ArgumentError(
         'Cannot equip ${item.name} in $slot slot. '
-        'Valid slots: ${item.validSlots}',
+        'Valid slots: ${item.validSlots.map((s) => s.jsonName).join(', ')}',
       );
     }
 
@@ -272,9 +272,9 @@ class Equipment {
   /// - For ammo (quiver) or summons, the entire stack is lost
   DeathPenaltyResult applyDeathPenalty(Random random) {
     // Roll a random equipment slot (excluding food slots)
-    const slots = EquipmentSlot.values;
-    final slotIndex = random.nextInt(slots.length);
-    final slot = slots[slotIndex];
+    const allSlots = EquipmentSlot.values;
+    final slotIndex = random.nextInt(allSlots.length);
+    final slot = allSlots[slotIndex];
 
     // Check if there's an item in this slot
     final item = gearSlots[slot];
@@ -323,7 +323,7 @@ class Equipment {
     if (!item.canEquipInSlot(slot)) {
       throw ArgumentError(
         'Cannot equip ${item.name} in $slot slot. '
-        'Valid slots: ${item.validSlots}',
+        'Valid slots: ${item.validSlots.map((s) => s.jsonName).join(', ')}',
       );
     }
 
@@ -410,7 +410,7 @@ class Equipment {
     if (!item.canEquipInSlot(slot)) {
       throw ArgumentError(
         'Cannot equip ${item.name} in $slot slot. '
-        'Valid slots: ${item.validSlots}',
+        'Valid slots: ${item.validSlots.map((s) => s.jsonName).join(', ')}',
       );
     }
 

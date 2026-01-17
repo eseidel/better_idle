@@ -595,6 +595,7 @@ class _EquippedFamiliarsSection extends StatelessWidget {
   Widget build(BuildContext context) {
     final state = context.state;
     final equipment = state.equipment;
+
     final summon1 = equipment.gearInSlot(EquipmentSlot.summon1);
     final summon2 = equipment.gearInSlot(EquipmentSlot.summon2);
 
