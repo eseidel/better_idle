@@ -39,14 +39,31 @@ class CombatPage extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            // Select Combat Area button
-            ElevatedButton.icon(
-              onPressed: () => showDialog<void>(
-                context: context,
-                builder: (_) => const CombatAreaSelectionDialog(),
-              ),
-              icon: const Icon(Icons.map),
-              label: const Text('Select Combat Area'),
+            // Select Combat Area and Dungeon buttons
+            Row(
+              children: [
+                Expanded(
+                  child: ElevatedButton.icon(
+                    onPressed: () => showDialog<void>(
+                      context: context,
+                      builder: (_) => const CombatAreaSelectionDialog(),
+                    ),
+                    icon: const Icon(Icons.map),
+                    label: const Text('Combat Area'),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: ElevatedButton.icon(
+                    onPressed: () => showDialog<void>(
+                      context: context,
+                      builder: (_) => const DungeonSelectionDialog(),
+                    ),
+                    icon: const Icon(Icons.castle),
+                    label: const Text('Dungeon'),
+                  ),
+                ),
+              ],
             ),
             const SizedBox(height: 16),
 
@@ -69,6 +86,12 @@ class CombatPage extends StatelessWidget {
 
             // Active combat section
             if (activeMonster != null) ...[
+              // Dungeon progress indicator
+              if (combatState?.isInDungeon ?? false)
+                _DungeonProgressCard(
+                  dungeonId: combatState!.dungeonId!,
+                  currentMonsterIndex: combatState.dungeonMonsterIndex ?? 0,
+                ),
               _MonsterCard(
                 action: activeMonster,
                 combatState: combatState,
@@ -133,6 +156,157 @@ class CombatAreaSelectionDialog extends StatelessWidget {
           child: const Text('Close'),
         ),
       ],
+    );
+  }
+}
+
+class DungeonSelectionDialog extends StatelessWidget {
+  const DungeonSelectionDialog({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final state = context.state;
+    final dungeons = state.registries.dungeons.all;
+
+    // Check if currently in a dungeon
+    final activeAction = state.activeAction;
+    MelvorId? activeDungeonId;
+    if (activeAction != null) {
+      final actionState = state.actionState(activeAction.id);
+      activeDungeonId = actionState.combat?.dungeonId;
+    }
+
+    return AlertDialog(
+      title: const Text('Select Dungeon'),
+      content: SizedBox(
+        width: double.maxFinite,
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              for (final dungeon in dungeons)
+                _DungeonTile(
+                  dungeon: dungeon,
+                  isActive: activeDungeonId == dungeon.id,
+                  isStunned: state.isStunned,
+                  completionCount: state.dungeonCompletions[dungeon.id] ?? 0,
+                ),
+            ],
+          ),
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('Close'),
+        ),
+      ],
+    );
+  }
+}
+
+class _DungeonTile extends StatelessWidget {
+  const _DungeonTile({
+    required this.dungeon,
+    required this.isActive,
+    required this.isStunned,
+    required this.completionCount,
+  });
+
+  final Dungeon dungeon;
+  final bool isActive;
+  final bool isStunned;
+  final int completionCount;
+
+  @override
+  Widget build(BuildContext context) {
+    final state = context.state;
+    final actions = state.registries.actions;
+    final monsters = dungeon.monsterIds.map(actions.combatWithId).toList();
+
+    return Card(
+      color: isActive ? Style.activeColorLight : null,
+      child: ListTile(
+        leading: dungeon.media != null
+            ? CachedImage(assetPath: dungeon.media, size: 40)
+            : const Icon(Icons.castle),
+        title: Text(dungeon.name),
+        subtitle: Text(
+          '${monsters.length} monsters • Completed: $completionCount',
+        ),
+        trailing: isActive
+            ? const Icon(Icons.flash_on, color: Style.activeColor)
+            : ElevatedButton(
+                onPressed: isStunned
+                    ? null
+                    : () {
+                        context.dispatch(StartDungeonAction(dungeon: dungeon));
+                        Navigator.of(context).pop();
+                      },
+                child: const Text('Enter'),
+              ),
+      ),
+    );
+  }
+}
+
+class _DungeonProgressCard extends StatelessWidget {
+  const _DungeonProgressCard({
+    required this.dungeonId,
+    required this.currentMonsterIndex,
+  });
+
+  final MelvorId dungeonId;
+  final int currentMonsterIndex;
+
+  @override
+  Widget build(BuildContext context) {
+    final state = context.state;
+    final dungeon = state.registries.dungeons.byId(dungeonId);
+    if (dungeon == null) return const SizedBox.shrink();
+
+    final totalMonsters = dungeon.monsterIds.length;
+    final progress = (currentMonsterIndex + 1) / totalMonsters;
+
+    return Card(
+      color: Style.activeColorLight,
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                const Icon(Icons.castle, size: 20),
+                const SizedBox(width: 8),
+                Text(
+                  dungeon.name,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 16,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            LinearProgressIndicator(
+              value: progress,
+              backgroundColor: Colors.grey[300],
+              valueColor: const AlwaysStoppedAnimation<Color>(
+                Style.activeColor,
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              'Monster ${currentMonsterIndex + 1} of $totalMonsters',
+              style: const TextStyle(
+                color: Style.textColorSecondary,
+                fontSize: 12,
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

@@ -202,6 +202,22 @@ class StopCombatAction extends ReduxAction<GlobalState> {
   }
 }
 
+/// Starts a dungeon run, fighting monsters in order.
+class StartDungeonAction extends ReduxAction<GlobalState> {
+  StartDungeonAction({required this.dungeon});
+  final Dungeon dungeon;
+
+  @override
+  GlobalState? reduce() {
+    // If stunned, do nothing (UI should prevent this, but be safe)
+    if (state.isStunned) {
+      return null;
+    }
+    // Start the dungeon
+    return state.startDungeon(dungeon);
+  }
+}
+
 /// Equips food from inventory to an equipment slot.
 class EquipFoodAction extends ReduxAction<GlobalState> {
   EquipFoodAction({required this.item, required this.count});

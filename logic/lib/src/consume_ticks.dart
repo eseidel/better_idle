@@ -504,6 +504,19 @@ class StateUpdateBuilder {
     );
   }
 
+  /// Switches to a new action during dungeon progression.
+  /// Unlike setActionProgress, this allows changing to a different action ID.
+  void switchToAction(Action action, {required int remainingTicks}) {
+    final totalTicks = remainingTicks;
+    _state = _state.copyWith(
+      activeAction: ActiveAction(
+        id: action.id,
+        remainingTicks: remainingTicks,
+        totalTicks: totalTicks,
+      ),
+    );
+  }
+
   int currentMasteryLevel(Action action) {
     return levelForXp(_state.actionState(action.id).masteryXp);
   }
@@ -797,6 +810,14 @@ class StateUpdateBuilder {
       summoning: _state.summoning.withMarks(familiarId, 1),
     );
     // Marks are not tracked in changes for now.
+  }
+
+  /// Increments the dungeon completion count for a dungeon.
+  void incrementDungeonCompletion(MelvorId dungeonId) {
+    final currentCount = _state.dungeonCompletions[dungeonId] ?? 0;
+    final newCompletions = Map<MelvorId, int>.from(_state.dungeonCompletions)
+      ..[dungeonId] = currentCount + 1;
+    _state = _state.copyWith(dungeonCompletions: newCompletions);
   }
 
   /// Records that a tablet was crafted for a familiar.
@@ -1566,7 +1587,7 @@ enum ForegroundResult {
   final spawnTicks = currentCombat.spawnTicksRemaining;
   if (spawnTicks != null) {
     if (remainingTicks >= spawnTicks) {
-      // Monster spawns
+      // Monster spawns - preserve dungeon info if in a dungeon
       final pStats = computePlayerStats(builder.state);
       final playerAttackTicks = secondsToTicks(pStats.attackSpeed);
       final monsterAttackTicks = secondsToTicks(action.stats.attackSpeed);
@@ -1576,6 +1597,8 @@ enum ForegroundResult {
         monsterHp: action.maxHp,
         playerAttackTicksRemaining: playerAttackTicks,
         monsterAttackTicksRemaining: monsterAttackTicks,
+        dungeonId: currentCombat.dungeonId,
+        dungeonMonsterIndex: currentCombat.dungeonMonsterIndex,
       );
       builder.updateCombatState(activeAction.id, currentCombat);
       return (ForegroundResult.continued, spawnTicks);
@@ -1689,7 +1712,47 @@ enum ForegroundResult {
     // Track monster kill for task progress
     builder.trackMonsterKill(action.id.localId);
 
-    // Reset monster attack timer to full duration for when it spawns
+    // Handle dungeon progression
+    final dungeonId = currentCombat.dungeonId;
+    if (dungeonId != null) {
+      final dungeon = builder.registries.dungeons.byId(dungeonId)!;
+      final currentIndex = currentCombat.dungeonMonsterIndex ?? 0;
+      final nextIndex = currentIndex + 1;
+
+      // Determine next monster index (loop back to 0 after last monster)
+      final isLastMonster = nextIndex >= dungeon.monsterIds.length;
+      final actualNextIndex = isLastMonster ? 0 : nextIndex;
+
+      // If last monster was killed, increment completion count
+      if (isLastMonster) {
+        builder.incrementDungeonCompletion(dungeonId);
+      }
+
+      // Spawn the next monster (or first monster if looping)
+      final nextMonsterId = dungeon.monsterIds[actualNextIndex];
+      final nextMonster = builder.registries.actions.combatWithId(
+        nextMonsterId,
+      );
+      final fullMonsterAttackTicks = ticksFromDuration(
+        Duration(milliseconds: (nextMonster.stats.attackSpeed * 1000).round()),
+      );
+      currentCombat = CombatActionState(
+        monsterId: nextMonster.id,
+        monsterHp: 0,
+        playerAttackTicksRemaining: resetPlayerTicks,
+        monsterAttackTicksRemaining: fullMonsterAttackTicks,
+        spawnTicksRemaining: ticksFromDuration(monsterSpawnDuration),
+        dungeonId: dungeonId,
+        dungeonMonsterIndex: actualNextIndex,
+      );
+      // Update to the next monster's action and its combat state
+      builder
+        ..switchToAction(nextMonster, remainingTicks: resetPlayerTicks)
+        ..updateCombatState(nextMonster.id, currentCombat);
+      return (ForegroundResult.continued, ticksConsumed);
+    }
+
+    // Regular combat - respawn the same monster
     final fullMonsterAttackTicks = ticksFromDuration(
       Duration(milliseconds: (action.stats.attackSpeed * 1000).round()),
     );

@@ -1097,6 +1097,58 @@ class GlobalState {
     }
   }
 
+  /// Starts a dungeon run, fighting monsters in order.
+  ///
+  /// The first monster in the dungeon is automatically selected.
+  /// After each kill, the next monster in the dungeon will spawn.
+  /// When the last monster is killed, the dungeon is completed.
+  GlobalState startDungeon(Dungeon dungeon) {
+    if (isStunned) {
+      throw const StunnedException('Cannot start dungeon while stunned');
+    }
+    if (dungeon.monsterIds.isEmpty) {
+      throw ArgumentError('Dungeon has no monsters: ${dungeon.id}');
+    }
+
+    // Reset cooking progress if switching from cooking
+    var updatedCooking = cooking;
+    final currentActionId = activeAction?.id;
+    final isSwitchingFromCooking = currentActionId?.skillId == Skill.cooking.id;
+    if (isSwitchingFromCooking) {
+      updatedCooking = cooking.withAllProgressCleared();
+    }
+
+    // Get the first monster in the dungeon
+    final firstMonsterId = dungeon.monsterIds.first;
+    final firstMonster = registries.actions.combatWithId(firstMonsterId);
+    final actionId = firstMonster.id;
+
+    final pStats = computePlayerStats(this);
+    final totalTicks = ticksFromDuration(
+      Duration(milliseconds: (pStats.attackSpeed * 1000).round()),
+    );
+
+    // Initialize combat state for dungeon mode
+    final combatState = CombatActionState.startDungeon(
+      firstMonster,
+      pStats,
+      dungeon.id,
+    );
+    final newActionStates = Map<ActionId, ActionState>.from(actionStates);
+    final existingState = actionState(actionId);
+    newActionStates[actionId] = existingState.copyWith(combat: combatState);
+
+    return copyWith(
+      activeAction: ActiveAction(
+        id: actionId,
+        remainingTicks: totalTicks,
+        totalTicks: totalTicks,
+      ),
+      actionStates: newActionStates,
+      cooking: updatedCooking,
+    );
+  }
+
   /// Calculates mean duration with modifiers applied (deterministic).
   int _meanDurationWithModifiers(SkillAction action) {
     final ticks = ticksFromDuration(action.meanDuration);

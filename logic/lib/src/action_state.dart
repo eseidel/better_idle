@@ -2,6 +2,7 @@ import 'dart:math';
 
 import 'package:logic/src/data/action_id.dart';
 import 'package:logic/src/data/actions.dart';
+import 'package:logic/src/data/melvor_id.dart';
 import 'package:logic/src/data/xp.dart';
 import 'package:logic/src/tick.dart';
 import 'package:meta/meta.dart';
@@ -89,6 +90,8 @@ class CombatActionState {
     required this.playerAttackTicksRemaining,
     required this.monsterAttackTicksRemaining,
     this.spawnTicksRemaining,
+    this.dungeonId,
+    this.dungeonMonsterIndex,
   });
 
   /// Start a new combat against a monster, beginning with a spawn timer.
@@ -104,6 +107,25 @@ class CombatActionState {
     );
   }
 
+  /// Start a new dungeon run, fighting monsters in order.
+  factory CombatActionState.startDungeon(
+    CombatAction firstMonster,
+    Stats playerStats,
+    MelvorId dungeonId,
+  ) {
+    final playerAttackTicks = secondsToTicks(playerStats.attackSpeed);
+    final monsterAttackTicks = secondsToTicks(firstMonster.stats.attackSpeed);
+    return CombatActionState(
+      monsterId: firstMonster.id,
+      monsterHp: 0,
+      playerAttackTicksRemaining: playerAttackTicks,
+      monsterAttackTicksRemaining: monsterAttackTicks,
+      spawnTicksRemaining: ticksFromDuration(monsterSpawnDuration),
+      dungeonId: dungeonId,
+      dungeonMonsterIndex: 0,
+    );
+  }
+
   factory CombatActionState.fromJson(Map<String, dynamic> json) {
     return CombatActionState(
       monsterId: ActionId.fromJson(json['monsterId'] as String),
@@ -111,6 +133,10 @@ class CombatActionState {
       playerAttackTicksRemaining: json['playerAttackTicksRemaining'] as int,
       monsterAttackTicksRemaining: json['monsterAttackTicksRemaining'] as int,
       spawnTicksRemaining: json['spawnTicksRemaining'] as int?,
+      dungeonId: json['dungeonId'] != null
+          ? MelvorId.fromJson(json['dungeonId'] as String)
+          : null,
+      dungeonMonsterIndex: json['dungeonMonsterIndex'] as int?,
     );
   }
 
@@ -128,7 +154,16 @@ class CombatActionState {
   final int monsterAttackTicksRemaining;
   final int? spawnTicksRemaining;
 
+  /// The dungeon ID if fighting in a dungeon (null for regular combat).
+  final MelvorId? dungeonId;
+
+  /// Current monster index in the dungeon (0-based). Null for regular combat.
+  final int? dungeonMonsterIndex;
+
   bool get isSpawning => spawnTicksRemaining != null;
+
+  /// Returns true if currently in a dungeon run.
+  bool get isInDungeon => dungeonId != null;
 
   CombatActionState copyWith({
     ActionId? monsterId,
@@ -136,6 +171,8 @@ class CombatActionState {
     int? playerAttackTicksRemaining,
     int? monsterAttackTicksRemaining,
     int? spawnTicksRemaining,
+    MelvorId? dungeonId,
+    int? dungeonMonsterIndex,
   }) {
     return CombatActionState(
       monsterId: monsterId ?? this.monsterId,
@@ -145,6 +182,8 @@ class CombatActionState {
       monsterAttackTicksRemaining:
           monsterAttackTicksRemaining ?? this.monsterAttackTicksRemaining,
       spawnTicksRemaining: spawnTicksRemaining ?? this.spawnTicksRemaining,
+      dungeonId: dungeonId ?? this.dungeonId,
+      dungeonMonsterIndex: dungeonMonsterIndex ?? this.dungeonMonsterIndex,
     );
   }
 
@@ -155,6 +194,9 @@ class CombatActionState {
       'playerAttackTicksRemaining': playerAttackTicksRemaining,
       'monsterAttackTicksRemaining': monsterAttackTicksRemaining,
       'spawnTicksRemaining': spawnTicksRemaining,
+      if (dungeonId != null) 'dungeonId': dungeonId!.toJson(),
+      if (dungeonMonsterIndex != null)
+        'dungeonMonsterIndex': dungeonMonsterIndex,
     };
   }
 }

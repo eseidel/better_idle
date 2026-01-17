@@ -1929,4 +1929,138 @@ void main() {
       expect(bonesCount, 0);
     });
   });
+
+  group('dungeon combat', () {
+    late Dungeon chickenCoopDungeon;
+    late Item bones;
+
+    setUpAll(() {
+      chickenCoopDungeon = testRegistries.dungeons.byId(
+        MelvorId.fromJson('melvorD:Chicken_Coop'),
+      )!;
+      bones = testItems.byName('Bones');
+    });
+
+    test('startDungeon initializes combat state with dungeon info', () {
+      const highSkill = SkillState(xp: 1000000, masteryPoolXp: 0);
+      var state = GlobalState.test(
+        testRegistries,
+        skillStates: const {
+          Skill.hitpoints: highSkill,
+          Skill.attack: highSkill,
+          Skill.strength: highSkill,
+          Skill.defence: highSkill,
+        },
+      );
+
+      state = state.startDungeon(chickenCoopDungeon);
+
+      // Should have an active action
+      expect(state.activeAction, isNotNull);
+
+      // Combat state should have dungeon info
+      final combatState = state.actionState(state.activeAction!.id).combat;
+      expect(combatState, isNotNull);
+      expect(combatState!.dungeonId, chickenCoopDungeon.id);
+      expect(combatState.dungeonMonsterIndex, 0);
+      expect(combatState.isInDungeon, isTrue);
+    });
+
+    test('dungeon progresses through monsters in order', () {
+      const highSkill = SkillState(xp: 1000000, masteryPoolXp: 0);
+      var state = GlobalState.test(
+        testRegistries,
+        skillStates: const {
+          Skill.hitpoints: highSkill,
+          Skill.attack: highSkill,
+          Skill.strength: highSkill,
+          Skill.defence: highSkill,
+        },
+      );
+
+      state = state.startDungeon(chickenCoopDungeon);
+      final random = Random(42);
+
+      // First monster should be at index 0
+      final combatState = state.actionState(state.activeAction!.id).combat!;
+      expect(combatState.dungeonMonsterIndex, 0);
+
+      // Process enough ticks to kill a couple chickens
+      // Each chicken is weak and dies quickly with high stats
+      final builder = StateUpdateBuilder(state);
+      consumeTicks(builder, 300, random: random);
+      state = builder.build();
+
+      // Should have killed monsters (bones collected indicates kills)
+      final bonesCount = state.inventory.countById(bones.id);
+      expect(bonesCount, greaterThan(0), reason: 'Should have killed monsters');
+    });
+
+    test('dungeon completion increments completion count and loops', () {
+      const highSkill = SkillState(xp: 1000000, masteryPoolXp: 0);
+      var state = GlobalState.test(
+        testRegistries,
+        skillStates: const {
+          Skill.hitpoints: highSkill,
+          Skill.attack: highSkill,
+          Skill.strength: highSkill,
+          Skill.defence: highSkill,
+        },
+      );
+
+      // Initial completion count should be 0
+      expect(state.dungeonCompletions[chickenCoopDungeon.id] ?? 0, 0);
+
+      state = state.startDungeon(chickenCoopDungeon);
+      final random = Random(42);
+
+      // Process enough ticks to complete the entire dungeon multiple times
+      // Chicken coop has 6 chickens, each takes ~30 ticks spawn + ~24 ticks
+      // to kill with high stats. 10000 ticks should complete multiple runs.
+      final builder = StateUpdateBuilder(state);
+      consumeTicks(builder, 10000, random: random);
+      state = builder.build();
+
+      // Should have completed the dungeon at least once
+      final completions = state.dungeonCompletions[chickenCoopDungeon.id] ?? 0;
+      expect(completions, greaterThanOrEqualTo(1));
+
+      // Dungeon should still be running (loops back to first monster)
+      expect(state.activeAction, isNotNull);
+      expect(builder.stopReason, ActionStopReason.stillRunning);
+
+      // Should still be in the dungeon
+      final combatState = state.actionState(state.activeAction!.id).combat;
+      expect(combatState?.isInDungeon, isTrue);
+      expect(combatState?.dungeonId, chickenCoopDungeon.id);
+    });
+
+    test('dungeon drops loot from each monster killed', () {
+      const highSkill = SkillState(xp: 1000000, masteryPoolXp: 0);
+      var state = GlobalState.test(
+        testRegistries,
+        skillStates: const {
+          Skill.hitpoints: highSkill,
+          Skill.attack: highSkill,
+          Skill.strength: highSkill,
+          Skill.defence: highSkill,
+        },
+      );
+
+      state = state.startDungeon(chickenCoopDungeon);
+      final random = Random(42);
+
+      final builder = StateUpdateBuilder(state);
+      consumeTicks(builder, 10000, random: random);
+      state = builder.build();
+
+      // Should have collected bones from each chicken killed
+      final bonesCount = state.inventory.countById(bones.id);
+      // Chicken coop has 6 chickens, so we should have ~6 bones
+      expect(bonesCount, greaterThanOrEqualTo(6));
+
+      // GP should have been collected
+      expect(builder.changes.currenciesGained[Currency.gp], greaterThan(0));
+    });
+  });
 }
