@@ -127,7 +127,7 @@ class _SelectedObstacleDisplay extends StatelessWidget {
   Widget build(BuildContext context) {
     final state = context.state;
     final actionState = state.actionState(obstacle.id);
-    final isActive = state.activeAction?.id == obstacle.id;
+    final isActive = state.isActionActive(obstacle);
     final canStart = state.canStartAction(obstacle);
     final canToggle = canStart || isActive;
 
@@ -255,7 +255,7 @@ class _AgilityProgressBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final state = context.state;
-    final isActive = state.activeAction?.id == obstacle.id;
+    final isActive = state.isActionActive(obstacle);
 
     double progress;
     Color barColor;

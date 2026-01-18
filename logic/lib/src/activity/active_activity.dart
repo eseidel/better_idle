@@ -6,7 +6,7 @@ import 'package:meta/meta.dart';
 
 /// Base class for tracking the currently active activity.
 ///
-/// This replaces the old [ActiveAction] class with a more type-safe model:
+/// This replaces the old `ActiveAction` class with a more type-safe model:
 /// - [SkillActivity] for skill-based actions (woodcutting, mining, etc.)
 /// - [CombatActivity] for combat (monsters, dungeons)
 ///

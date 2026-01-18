@@ -504,17 +504,38 @@ class StateUpdateBuilder {
     );
   }
 
-  /// Switches to a new action during dungeon progression.
+  /// Switches to a new combat action during dungeon progression.
   /// Unlike setActionProgress, this allows changing to a different action ID.
+  ///
+  /// This preserves the dungeon context from the current activity while
+  /// switching to the new monster.
   void switchToAction(Action action, {required int remainingTicks}) {
     final totalTicks = remainingTicks;
-    _state = _state.copyWith(
-      activeAction: ActiveAction(
-        id: action.id,
-        remainingTicks: remainingTicks,
-        totalTicks: totalTicks,
-      ),
-    );
+    final currentActivity = _state.activeActivity;
+
+    // If we're in a dungeon, preserve the dungeon context
+    if (currentActivity is CombatActivity &&
+        currentActivity.context is DungeonCombatContext) {
+      // The new activity will have the updated monster index set by the caller
+      // via updateCombatState, so we just update progressTicks/totalTicks here
+      _state = _state.copyWith(
+        activeActivity: currentActivity.copyWith(
+          progressTicks: totalTicks - remainingTicks,
+          totalTicks: totalTicks,
+        ),
+      );
+    } else {
+      // Fallback to legacy approach for non-dungeon combat.
+      _state = _state.copyWith(
+        // Using deprecated activeAction until all combat code is migrated.
+        // ignore: deprecated_member_use_from_same_package
+        activeAction: ActiveAction(
+          id: action.id,
+          remainingTicks: remainingTicks,
+          totalTicks: totalTicks,
+        ),
+      );
+    }
   }
 
   int currentMasteryLevel(Action action) {
@@ -703,9 +724,48 @@ class StateUpdateBuilder {
   }
 
   /// Updates the combat state for an action.
+  ///
+  /// This updates both the legacy `actionStates[...].combat` and the new
+  /// `activeActivity` (when it's a `CombatActivity`) to keep them in sync.
   void updateCombatState(ActionId actionId, CombatActionState newCombat) {
+    // Update legacy actionStates
     final actionState = _state.actionState(actionId);
     updateActionState(actionId, actionState.copyWith(combat: newCombat));
+
+    // Also update activeActivity if it's a CombatActivity
+    final activity = _state.activeActivity;
+    if (activity is CombatActivity) {
+      final newProgress = CombatProgressState(
+        monsterHp: newCombat.monsterHp,
+        playerAttackTicksRemaining: newCombat.playerAttackTicksRemaining,
+        monsterAttackTicksRemaining: newCombat.monsterAttackTicksRemaining,
+        spawnTicksRemaining: newCombat.spawnTicksRemaining,
+      );
+
+      // Update context if dungeon monster index changed
+      var newContext = activity.context;
+      if (newCombat.dungeonId != null) {
+        // In a dungeon - update the context with new monster index
+        final currentContext = activity.context;
+        if (currentContext is DungeonCombatContext) {
+          newContext = DungeonCombatContext(
+            dungeonId: newCombat.dungeonId!,
+            currentMonsterIndex: newCombat.dungeonMonsterIndex ?? 0,
+            monsterIds: currentContext.monsterIds,
+          );
+        }
+      } else if (actionId.localId != activity.context.currentMonsterId) {
+        // Monster changed (shouldn't happen in normal combat, but handle it)
+        newContext = MonsterCombatContext(monsterId: actionId.localId);
+      }
+
+      _state = _state.copyWith(
+        activeActivity: activity.copyWith(
+          context: newContext,
+          progress: newProgress,
+        ),
+      );
+    }
   }
 
   /// Depletes a mining node and starts its respawn timer.
@@ -714,12 +774,11 @@ class StateUpdateBuilder {
     MiningAction action,
     int totalHpLost,
   ) {
-    final actionState = _state.actionState(actionId);
     final newMining = MiningState(
       totalHpLost: totalHpLost,
       respawnTicksRemaining: action.respawnTicks,
     );
-    updateActionState(actionId, actionState.copyWith(mining: newMining));
+    updateMiningState(actionId, newMining);
   }
 
   /// Damages a mining node and starts HP regeneration if needed.
@@ -732,13 +791,30 @@ class StateUpdateBuilder {
           ? ticksPer1Hp
           : currentMining.hpRegenTicksRemaining,
     );
-    updateActionState(actionId, actionState.copyWith(mining: newMining));
+    updateMiningState(actionId, newMining);
   }
 
   /// Updates the mining state for an action.
+  ///
+  /// This updates both the legacy `actionStates[...].mining` and the new
+  /// `miningState` to keep them in sync.
   void updateMiningState(ActionId actionId, MiningState newMining) {
+    // Update legacy actionStates
     final actionState = _state.actionState(actionId);
     updateActionState(actionId, actionState.copyWith(mining: newMining));
+
+    // Also update the new miningState
+    final newRockState = MiningRockState(
+      totalHpLost: newMining.totalHpLost,
+      respawnTicksRemaining: newMining.respawnTicksRemaining,
+      hpRegenTicksRemaining: newMining.hpRegenTicksRemaining,
+    );
+    _state = _state.copyWith(
+      miningState: _state.miningState.withRockState(
+        actionId.localId,
+        newRockState,
+      ),
+    );
   }
 
   /// Attempts auto-eat if player has the modifier and HP is below threshold.

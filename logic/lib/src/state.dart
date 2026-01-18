@@ -2,7 +2,8 @@ import 'dart:math';
 
 import 'package:logic/src/action_state.dart';
 import 'package:logic/src/activity/active_activity.dart';
-import 'package:logic/src/activity/activity_conversion.dart';
+import 'package:logic/src/activity/combat_context.dart';
+import 'package:logic/src/activity/mining_persistent_state.dart';
 import 'package:logic/src/combat_stats.dart';
 import 'package:logic/src/cooking_state.dart';
 import 'package:logic/src/data/action_id.dart';
@@ -28,6 +29,108 @@ import 'package:logic/src/types/open_result.dart';
 import 'package:logic/src/types/stunned.dart';
 import 'package:logic/src/types/time_away.dart';
 import 'package:meta/meta.dart';
+
+// ============================================================================
+// Activity Conversion Utilities (private, for backward compatibility)
+// ============================================================================
+
+/// Converts old [ActiveAction] + [ActionState] to new [ActiveActivity].
+///
+/// This is used during the transition period to support both formats.
+/// Returns null if [activeAction] is null.
+ActiveActivity? _convertToActivity(
+  ActiveAction? activeAction,
+  Map<ActionId, ActionState> actionStates,
+  ActionRegistry actions,
+  DungeonRegistry dungeons,
+) {
+  if (activeAction == null) return null;
+
+  final actionId = activeAction.id;
+  final action = actions.byId(actionId);
+  final actionState = actionStates[actionId];
+
+  if (action is SkillAction) {
+    return SkillActivity(
+      skill: action.skill,
+      actionId: actionId.localId,
+      progressTicks: activeAction.progressTicks,
+      totalTicks: activeAction.totalTicks,
+      selectedRecipeIndex: actionState?.selectedRecipeIndex,
+    );
+  } else if (action is CombatAction) {
+    final combatState = actionState?.combat;
+    if (combatState == null) {
+      // Combat without combat state shouldn't happen, but handle gracefully
+      return CombatActivity(
+        context: MonsterCombatContext(monsterId: actionId.localId),
+        progress: CombatProgressState(
+          monsterHp: 0,
+          playerAttackTicksRemaining: activeAction.remainingTicks,
+          monsterAttackTicksRemaining: activeAction.remainingTicks,
+        ),
+        progressTicks: activeAction.progressTicks,
+        totalTicks: activeAction.totalTicks,
+      );
+    }
+
+    // Build combat context based on whether we're in a dungeon
+    final CombatContext context;
+    if (combatState.dungeonId != null) {
+      final dungeon = dungeons.byId(combatState.dungeonId!);
+      if (dungeon != null) {
+        context = DungeonCombatContext(
+          dungeonId: combatState.dungeonId!,
+          currentMonsterIndex: combatState.dungeonMonsterIndex ?? 0,
+          monsterIds: dungeon.monsterIds,
+        );
+      } else {
+        // Dungeon not found, fall back to monster context
+        context = MonsterCombatContext(
+          monsterId: combatState.monsterId.localId,
+        );
+      }
+    } else {
+      context = MonsterCombatContext(monsterId: combatState.monsterId.localId);
+    }
+
+    return CombatActivity(
+      context: context,
+      progress: CombatProgressState(
+        monsterHp: combatState.monsterHp,
+        playerAttackTicksRemaining: combatState.playerAttackTicksRemaining,
+        monsterAttackTicksRemaining: combatState.monsterAttackTicksRemaining,
+        spawnTicksRemaining: combatState.spawnTicksRemaining,
+      ),
+      progressTicks: activeAction.progressTicks,
+      totalTicks: activeAction.totalTicks,
+    );
+  }
+
+  throw StateError('Unknown action type: ${action.runtimeType}');
+}
+
+/// Converts new [ActiveActivity] back to old [ActiveAction].
+///
+/// This is used during the transition period for backward compatibility.
+ActiveAction? _convertToActiveAction(ActiveActivity? activity) {
+  if (activity == null) return null;
+
+  final ActionId actionId;
+  if (activity is SkillActivity) {
+    actionId = ActionId(activity.skill.id, activity.actionId);
+  } else if (activity is CombatActivity) {
+    actionId = ActionId(Skill.combat.id, activity.context.currentMonsterId);
+  } else {
+    throw StateError('Unknown activity type: ${activity.runtimeType}');
+  }
+
+  return ActiveAction(
+    id: actionId,
+    remainingTicks: activity.remainingTicks,
+    totalTicks: activity.totalTicks,
+  );
+}
 
 /// The type of combat the player is using.
 ///
@@ -310,7 +413,7 @@ const int initialBankSlots = 20;
 class GlobalState {
   const GlobalState({
     required this.inventory,
-    required this.activeAction,
+    required this.activeActivity,
     required this.skillStates,
     required this.actionStates,
     required this.updatedAt,
@@ -319,6 +422,7 @@ class GlobalState {
     required this.health,
     required this.equipment,
     required this.registries,
+    this.miningState = const MiningPersistentState.empty(),
     this.plotStates = const {},
     this.unlockedPlots = const {},
     this.dungeonCompletions = const {},
@@ -336,7 +440,7 @@ class GlobalState {
   GlobalState.empty(Registries registries)
     : this(
         inventory: Inventory.empty(registries.items),
-        activeAction: null,
+        activeActivity: null,
         // Start with level 10 Hitpoints (1154 XP) for 100 HP
         skillStates: const {
           Skill.hitpoints: SkillState(xp: 1154, masteryPoolXp: 0),
@@ -363,7 +467,8 @@ class GlobalState {
   factory GlobalState.test(
     Registries registries, {
     Inventory? inventory,
-    ActiveAction? activeAction,
+    ActiveActivity? activeActivity,
+    @Deprecated('Use activeActivity instead') ActiveAction? activeAction,
     Map<Skill, SkillState> skillStates = const {},
     Map<ActionId, ActionState> actionStates = const {},
     Map<MelvorId, PlotState> plotStates = const {},
@@ -386,10 +491,22 @@ class GlobalState {
   }) {
     // Support both gp parameter (for existing tests) and currencies map
     final currenciesMap = currencies ?? (gp > 0 ? {Currency.gp: gp} : const {});
+
+    // Handle legacy activeAction parameter
+    var resolvedActivity = activeActivity;
+    if (resolvedActivity == null && activeAction != null) {
+      resolvedActivity = _convertToActivity(
+        activeAction,
+        actionStates,
+        registries.actions,
+        registries.dungeons,
+      );
+    }
+
     return GlobalState(
       registries: registries,
       inventory: inventory ?? Inventory.empty(registries.items),
-      activeAction: activeAction,
+      activeActivity: resolvedActivity,
       skillStates: skillStates,
       actionStates: actionStates,
       plotStates: plotStates,
@@ -417,7 +534,8 @@ class GlobalState {
         registries.items,
         json['inventory'] as Map<String, dynamic>,
       ),
-      activeAction = ActiveAction.maybeFromJson(json['activeAction']),
+      // Read new format first, fall back to old format for backward compat
+      activeActivity = _parseActiveActivity(json, registries),
       skillStates =
           maybeMap(
             json['skillStates'],
@@ -434,6 +552,7 @@ class GlobalState {
                 ActionState.fromJson(value as Map<String, dynamic>),
           ) ??
           const {},
+      miningState = _parseMiningState(json),
       plotStates =
           maybeMap(
             json['plotStates'],
@@ -476,6 +595,40 @@ class GlobalState {
       township =
           TownshipState.maybeFromJson(registries.township, json['township']) ??
           TownshipState.initial(registries.township);
+
+  /// Parses activeActivity from JSON, with fallback to old activeAction format.
+  static ActiveActivity? _parseActiveActivity(
+    Map<String, dynamic> json,
+    Registries registries,
+  ) {
+    // Try new format first
+    final activityJson = json['activeActivity'] as Map<String, dynamic>?;
+    if (activityJson != null) {
+      return ActiveActivity.fromJson(activityJson);
+    }
+
+    // Fall back to old format
+    final actionJson = json['activeAction'] as Map<String, dynamic>?;
+    if (actionJson == null) return null;
+
+    // Parse old activeAction and actionStates to convert
+    final activeAction = ActiveAction.fromJson(actionJson);
+    final actionStatesJson =
+        json['actionStates'] as Map<String, dynamic>? ?? {};
+    final actionStates = actionStatesJson.map(
+      (key, value) => MapEntry(
+        ActionId.fromJson(key),
+        ActionState.fromJson(value as Map<String, dynamic>),
+      ),
+    );
+
+    return _convertToActivity(
+      activeAction,
+      actionStates,
+      registries.actions,
+      registries.dungeons,
+    );
+  }
 
   static Map<Currency, int> _currenciesFromJson(Map<String, dynamic> json) {
     final currenciesJson = json['currencies'] as Map<String, dynamic>? ?? {};
@@ -524,6 +677,35 @@ class GlobalState {
     });
   }
 
+  /// Parses mining state from JSON, with fallback to extracting from
+  /// actionStates for migration.
+  static MiningPersistentState _parseMiningState(Map<String, dynamic> json) {
+    // Try new format first
+    final miningJson = json['miningState'] as Map<String, dynamic>?;
+    if (miningJson != null) {
+      return MiningPersistentState.fromJson(miningJson);
+    }
+
+    // Fall back to extracting from actionStates for migration
+    final actionStatesJson =
+        json['actionStates'] as Map<String, dynamic>? ?? {};
+    final rockStates = <MelvorId, MiningRockState>{};
+
+    for (final entry in actionStatesJson.entries) {
+      final actionId = ActionId.fromJson(entry.key);
+      // Only extract mining state from mining skill actions
+      if (actionId.skillId != Skill.mining.id) continue;
+
+      final stateJson = entry.value as Map<String, dynamic>;
+      final miningJson = stateJson['mining'] as Map<String, dynamic>?;
+      if (miningJson != null) {
+        rockStates[actionId.localId] = MiningRockState.fromJson(miningJson);
+      }
+    }
+
+    return MiningPersistentState(rockStates: rockStates);
+  }
+
   bool validate() {
     // Confirm that activeAction.id is a valid action.
     final actionId = activeAction?.id;
@@ -547,6 +729,7 @@ class GlobalState {
       'actionStates': actionStates.map(
         (key, value) => MapEntry(key.toJson(), value.toJson()),
       ),
+      'miningState': miningState.toJson(),
       'plotStates': plotStates.map(
         (key, value) => MapEntry(key.toJson(), value.toJson()),
       ),
@@ -584,26 +767,32 @@ class GlobalState {
   /// The inventory of items.
   final Inventory inventory;
 
-  /// The active action (legacy format, use [activeActivity] for new code).
-  final ActiveAction? activeAction;
+  /// The active activity (primary stored field).
+  final ActiveActivity? activeActivity;
 
-  /// The active activity in the new format.
+  /// The active action (legacy format, computed from [activeActivity]).
   ///
-  /// This is computed from [activeAction] and [actionStates] during the
-  /// transition period. Once migration is complete, this will become the
-  /// primary stored field.
-  ActiveActivity? get activeActivity => convertToActivity(
-    activeAction,
-    actionStates,
-    registries.actions,
-    registries.dungeons,
-  );
+  /// This is computed for backward compatibility during the transition period.
+  /// New code should use [activeActivity] directly.
+  ActiveAction? get activeAction => _convertToActiveAction(activeActivity);
+
+  /// Returns the ActionId of the currently active action, or null if none.
+  ///
+  /// This provides a unified way to check the current action regardless of
+  /// whether you're using the old [activeAction] or new [activeActivity] model.
+  ActionId? get currentActionId => activeAction?.id;
+
+  /// Returns true if the given action is currently active.
+  bool isActionActive(Action action) => activeAction?.id == action.id;
 
   /// The accumulated skill states.
   final Map<Skill, SkillState> skillStates;
 
   /// The accumulated action states.
   final Map<ActionId, ActionState> actionStates;
+
+  /// Persistent mining rock state (HP, respawn timers).
+  final MiningPersistentState miningState;
 
   /// The farming plot states (plot ID -> plot state).
   final Map<MelvorId, PlotState> plotStates;
@@ -755,13 +944,11 @@ class GlobalState {
 
   /// Whether combat is currently paused (e.g., waiting for monster respawn).
   bool get isCombatPaused {
-    final active = activeAction;
-    if (active == null) return false;
-    final state = actionStates[active.id];
-    if (state == null) return false;
-    final combat = state.combat;
-    if (combat == null) return false;
-    return combat.isSpawning;
+    final activity = activeActivity;
+    if (activity is CombatActivity) {
+      return activity.progress.isSpawning;
+    }
+    return false;
   }
 
   int get inventoryCapacity => shop.bankSlotsPurchased + initialBankSlots;
@@ -1080,10 +1267,12 @@ class GlobalState {
       }
       totalTicks = skillDuration(action);
       return copyWith(
-        activeAction: ActiveAction(
-          id: actionId,
-          remainingTicks: totalTicks,
+        activeActivity: SkillActivity(
+          skill: action.skill,
+          actionId: actionId.localId,
+          progressTicks: 0,
           totalTicks: totalTicks,
+          selectedRecipeIndex: actionStateVal.selectedRecipeIndex,
         ),
         cooking: updatedCooking,
       );
@@ -1100,9 +1289,16 @@ class GlobalState {
       final existingState = actionState(actionId);
       newActionStates[actionId] = existingState.copyWith(combat: combatState);
       return copyWith(
-        activeAction: ActiveAction(
-          id: actionId,
-          remainingTicks: totalTicks,
+        activeActivity: CombatActivity(
+          context: MonsterCombatContext(monsterId: action.id.localId),
+          progress: CombatProgressState(
+            monsterHp: combatState.monsterHp,
+            playerAttackTicksRemaining: combatState.playerAttackTicksRemaining,
+            monsterAttackTicksRemaining:
+                combatState.monsterAttackTicksRemaining,
+            spawnTicksRemaining: combatState.spawnTicksRemaining,
+          ),
+          progressTicks: 0,
           totalTicks: totalTicks,
         ),
         actionStates: newActionStates,
@@ -1155,9 +1351,19 @@ class GlobalState {
     newActionStates[actionId] = existingState.copyWith(combat: combatState);
 
     return copyWith(
-      activeAction: ActiveAction(
-        id: actionId,
-        remainingTicks: totalTicks,
+      activeActivity: CombatActivity(
+        context: DungeonCombatContext(
+          dungeonId: dungeon.id,
+          currentMonsterIndex: 0,
+          monsterIds: dungeon.monsterIds,
+        ),
+        progress: CombatProgressState(
+          monsterHp: combatState.monsterHp,
+          playerAttackTicksRemaining: combatState.playerAttackTicksRemaining,
+          monsterAttackTicksRemaining: combatState.monsterAttackTicksRemaining,
+          spawnTicksRemaining: combatState.spawnTicksRemaining,
+        ),
+        progressTicks: 0,
         totalTicks: totalTicks,
       ),
       actionStates: newActionStates,
@@ -1210,7 +1416,7 @@ class GlobalState {
       registries: registries,
       inventory: inventory,
       shop: shop,
-      activeAction: null,
+      activeActivity: null,
       skillStates: skillStates,
       actionStates: actionStates,
       plotStates: plotStates,
@@ -1234,7 +1440,7 @@ class GlobalState {
     return GlobalState(
       registries: registries,
       inventory: inventory,
-      activeAction: activeAction,
+      activeActivity: activeActivity,
       skillStates: skillStates,
       actionStates: actionStates,
       plotStates: plotStates,
@@ -1274,14 +1480,18 @@ class GlobalState {
     ActionId actionId, {
     required int remainingTicks,
   }) {
-    final activeAction = this.activeAction;
-    if (activeAction == null || activeAction.id != actionId) {
+    final activity = activeActivity;
+    final activeActionVal = activeAction;
+    if (activeActionVal == null || activeActionVal.id != actionId) {
       throw Exception('Active action is not $actionId');
     }
-    final newActiveAction = activeAction.copyWith(
-      remainingTicks: remainingTicks,
-    );
-    return copyWith(activeAction: newActiveAction);
+    if (activity == null) {
+      throw Exception('No active activity');
+    }
+    // Calculate new progress ticks from remaining ticks
+    final newProgressTicks = activity.totalTicks - remainingTicks;
+    final newActivity = activity.withProgress(progressTicks: newProgressTicks);
+    return copyWith(activeActivity: newActivity);
   }
 
   GlobalState addSkillXp(Skill skill, int amount) {
@@ -2401,11 +2611,18 @@ class GlobalState {
     return startAction(recipe, random: random);
   }
 
+  /// Creates a copy of this state with the given fields replaced.
+  ///
+  /// Supports both [activeActivity] (new format) and [activeAction] (legacy).
+  /// If [activeAction] is provided, it will be converted to [activeActivity].
+  /// If both are provided, [activeActivity] takes precedence.
   GlobalState copyWith({
     Inventory? inventory,
-    ActiveAction? activeAction,
+    ActiveActivity? activeActivity,
+    @Deprecated('Use activeActivity instead') ActiveAction? activeAction,
     Map<Skill, SkillState>? skillStates,
     Map<ActionId, ActionState>? actionStates,
+    MiningPersistentState? miningState,
     Map<MelvorId, PlotState>? plotStates,
     Set<MelvorId>? unlockedPlots,
     Map<MelvorId, int>? dungeonCompletions,
@@ -2423,12 +2640,25 @@ class GlobalState {
     SummoningState? summoning,
     TownshipState? township,
   }) {
+    // Handle legacy activeAction parameter
+    var resolvedActivity = activeActivity;
+    if (resolvedActivity == null && activeAction != null) {
+      // Convert legacy ActiveAction to ActiveActivity
+      resolvedActivity = _convertToActivity(
+        activeAction,
+        actionStates ?? this.actionStates,
+        registries.actions,
+        registries.dungeons,
+      );
+    }
+
     return GlobalState(
       registries: registries,
       inventory: inventory ?? this.inventory,
-      activeAction: activeAction ?? this.activeAction,
+      activeActivity: resolvedActivity ?? this.activeActivity,
       skillStates: skillStates ?? this.skillStates,
       actionStates: actionStates ?? this.actionStates,
+      miningState: miningState ?? this.miningState,
       plotStates: plotStates ?? this.plotStates,
       unlockedPlots: unlockedPlots ?? this.unlockedPlots,
       dungeonCompletions: dungeonCompletions ?? this.dungeonCompletions,

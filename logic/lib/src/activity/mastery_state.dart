@@ -4,7 +4,7 @@ import 'package:meta/meta.dart';
 /// Per-action mastery tracking state.
 ///
 /// This is the new replacement for the mastery-related fields in
-/// the old [ActionState] class. It only contains mastery XP and
+/// the old `ActionState` class. It only contains mastery XP and
 /// cumulative time tracking, not combat/mining state or recipe selection.
 ///
 /// Mastery is tracked per-action (e.g., each specific woodcutting action

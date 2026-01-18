@@ -1853,73 +1853,55 @@ void main() {
       expect(state.isCombatPaused, false);
     });
 
-    test('returns false when active action has no action state', () {
+    test('returns false when active action is skill action', () {
       final state = GlobalState.test(
         testRegistries,
-        activeAction: ActiveAction(
-          id: normalTree.id,
-          remainingTicks: 15,
+        activeActivity: SkillActivity(
+          skill: Skill.woodcutting,
+          actionId: normalTree.id.localId,
+          progressTicks: 15,
           totalTicks: 30,
         ),
-      );
-      expect(state.isCombatPaused, false);
-    });
-
-    test('returns false when action state has no combat state', () {
-      final state = GlobalState.test(
-        testRegistries,
-        activeAction: ActiveAction(
-          id: normalTree.id,
-          remainingTicks: 15,
-          totalTicks: 30,
-        ),
-        actionStates: {normalTree.id: const ActionState(masteryXp: 100)},
       );
       expect(state.isCombatPaused, false);
     });
 
     test('returns false when combat is not spawning', () {
-      final combatActionId = ActionId.test(Skill.combat, 'Cow');
-      final combatState = CombatActionState(
-        monsterId: combatActionId,
-        monsterHp: 50,
-        playerAttackTicksRemaining: 24,
-        monsterAttackTicksRemaining: 28,
-        // spawnTicksRemaining is null - not spawning
-      );
+      // Use a fake monster ID - CombatActivity doesn't require registry lookup
+      const monsterId = MelvorId('melvorD:Cow');
       final state = GlobalState.test(
         testRegistries,
-        activeAction: ActiveAction(
-          id: combatActionId,
-          remainingTicks: 0,
-          totalTicks: 0,
+        activeActivity: const CombatActivity(
+          context: MonsterCombatContext(monsterId: monsterId),
+          progress: CombatProgressState(
+            monsterHp: 50,
+            playerAttackTicksRemaining: 24,
+            monsterAttackTicksRemaining: 28,
+            // spawnTicksRemaining is null - not spawning
+          ),
+          progressTicks: 0,
+          totalTicks: 24,
         ),
-        actionStates: {
-          combatActionId: ActionState(masteryXp: 0, combat: combatState),
-        },
       );
       expect(state.isCombatPaused, false);
     });
 
     test('returns true when combat is spawning', () {
-      final combatActionId = ActionId.test(Skill.combat, 'Cow');
-      final combatState = CombatActionState(
-        monsterId: combatActionId,
-        monsterHp: 0,
-        playerAttackTicksRemaining: 24,
-        monsterAttackTicksRemaining: 28,
-        spawnTicksRemaining: 30, // Monster is spawning
-      );
+      // Use a fake monster ID - CombatActivity doesn't require registry lookup
+      const monsterId = MelvorId('melvorD:Cow');
       final state = GlobalState.test(
         testRegistries,
-        activeAction: ActiveAction(
-          id: combatActionId,
-          remainingTicks: 0,
-          totalTicks: 0,
+        activeActivity: const CombatActivity(
+          context: MonsterCombatContext(monsterId: monsterId),
+          progress: CombatProgressState(
+            monsterHp: 0,
+            playerAttackTicksRemaining: 24,
+            monsterAttackTicksRemaining: 28,
+            spawnTicksRemaining: 30, // Monster is spawning
+          ),
+          progressTicks: 0,
+          totalTicks: 24,
         ),
-        actionStates: {
-          combatActionId: ActionState(masteryXp: 0, combat: combatState),
-        },
       );
       expect(state.isCombatPaused, true);
     });
@@ -2156,9 +2138,10 @@ void main() {
     test('returns true when active action has valid ID', () {
       final state = GlobalState.test(
         testRegistries,
-        activeAction: ActiveAction(
-          id: normalTree.id,
-          remainingTicks: 15,
+        activeActivity: SkillActivity(
+          skill: Skill.woodcutting,
+          actionId: normalTree.id.localId,
+          progressTicks: 15,
           totalTicks: 30,
         ),
       );
@@ -2166,12 +2149,14 @@ void main() {
     });
 
     test('throws when active action ID is not in registry', () {
-      final invalidActionId = ActionId.test(Skill.woodcutting, 'NonExistent');
+      // Use activeActivity directly to bypass conversion validation
+      const invalidId = MelvorId('melvorD:NonExistent');
       final state = GlobalState.test(
         testRegistries,
-        activeAction: ActiveAction(
-          id: invalidActionId,
-          remainingTicks: 15,
+        activeActivity: const SkillActivity(
+          skill: Skill.woodcutting,
+          actionId: invalidId,
+          progressTicks: 15,
           totalTicks: 30,
         ),
       );

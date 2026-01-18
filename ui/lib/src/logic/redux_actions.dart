@@ -65,7 +65,7 @@ class ToggleActionAction extends ReduxAction<GlobalState> {
       return null;
     }
     // If the action is already running, stop it
-    if (state.activeAction?.id == action.id) {
+    if (state.isActionActive(action)) {
       return state.clearAction();
     }
     // Otherwise, start this action (stops any other active action).
@@ -181,7 +181,7 @@ class StartCombatAction extends ReduxAction<GlobalState> {
       return null;
     }
     // If already in combat with this monster, do nothing
-    if (state.activeAction?.id == combatAction.id) {
+    if (state.isActionActive(combatAction)) {
       return null;
     }
     // Start the combat action (this stops any other active action)

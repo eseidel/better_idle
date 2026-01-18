@@ -610,9 +610,10 @@ void main() {
       final state = GlobalState(
         registries: testRegistries,
         inventory: baseState.inventory,
-        activeAction: ActiveAction(
-          id: manAction.id,
-          remainingTicks: 30,
+        activeActivity: SkillActivity(
+          skill: Skill.thieving,
+          actionId: manAction.id.localId,
+          progressTicks: 0,
           totalTicks: 30,
         ),
         skillStates: baseState.skillStates,

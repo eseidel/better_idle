@@ -115,9 +115,10 @@ void main() {
     test('clearAction throws StunnedException when stunned', () {
       final state = GlobalState.test(
         testRegistries,
-        activeAction: ActiveAction(
-          id: ActionId.test(Skill.woodcutting, 'Normal Tree'),
-          remainingTicks: 10,
+        activeActivity: SkillActivity(
+          skill: Skill.woodcutting,
+          actionId: normalTree.id.localId,
+          progressTicks: 20,
           totalTicks: 30,
         ),
         stunned: const StunnedState.fresh().stun(),
@@ -136,9 +137,10 @@ void main() {
     test('clearAction works when not stunned', () {
       final state = GlobalState.test(
         testRegistries,
-        activeAction: ActiveAction(
-          id: ActionId.test(Skill.woodcutting, 'Normal Tree'),
-          remainingTicks: 10,
+        activeActivity: SkillActivity(
+          skill: Skill.woodcutting,
+          actionId: normalTree.id.localId,
+          progressTicks: 20,
           totalTicks: 30,
         ),
       );

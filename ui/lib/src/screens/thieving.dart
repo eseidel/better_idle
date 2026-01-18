@@ -127,7 +127,7 @@ class _SelectedActionDisplay extends StatelessWidget {
   Widget build(BuildContext context) {
     final state = context.state;
     final actionState = state.actionState(action.id);
-    final isActive = state.activeAction?.id == action.id;
+    final isActive = state.isActionActive(action);
     final canStart = state.canStartAction(action);
     final isStunned = state.isStunned;
     final canToggle = (canStart || isActive) && !isStunned;
@@ -275,7 +275,7 @@ class _ThievingProgressBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final state = context.state;
-    final isActive = state.activeAction?.id == action.id;
+    final isActive = state.isActionActive(action);
     final isStunned = state.isStunned;
 
     // Calculate progress and styling
