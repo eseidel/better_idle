@@ -257,7 +257,7 @@ List<ActionRateSummary> _computeRateSummaries(GlobalState state) {
   for (final skill in Skill.values) {
     final skillLevel = state.skillState(skill).skillLevel;
 
-    for (final action in registries.actions.forSkill(skill)) {
+    for (final action in registries.actionsForSkill(skill)) {
       final isUnlocked = skillLevel >= action.unlockLevel;
 
       // Check if action has inputs (structural, not availability)
@@ -507,7 +507,7 @@ List<ActionSummary> buildActionSummaries(GlobalState state) {
   for (final skill in Skill.values) {
     final skillLevel = state.skillState(skill).skillLevel;
 
-    for (final action in registries.actions.forSkill(skill)) {
+    for (final action in registries.actionsForSkill(skill)) {
       final isUnlocked = skillLevel >= action.unlockLevel;
 
       // Check if action has inputs and whether they are available

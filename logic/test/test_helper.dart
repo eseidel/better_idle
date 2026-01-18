@@ -45,7 +45,7 @@ ItemRegistry get testItems => testRegistries.items;
 ActionRegistry get testActions => testRegistries.actions;
 DropsRegistry get testDrops => testRegistries.drops;
 EquipmentSlotRegistry get testSlots => testRegistries.equipmentSlots;
-FishingAreaRegistry get testFishingAreas => testRegistries.fishingAreas;
+List<FishingArea> get testFishingAreas => testRegistries.fishingAreas;
 MasteryBonusRegistry get testMasteryBonuses => testRegistries.masteryBonuses;
 
 /// Get the index of an equipment slot in the enum. Used for death penalty tests

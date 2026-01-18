@@ -120,21 +120,34 @@ class FishingAction extends SkillAction {
   final String media;
 }
 
-/// Registry for fishing areas.
+/// Unified registry for all fishing-related data.
 @immutable
-class FishingAreaRegistry {
-  FishingAreaRegistry(List<FishingArea> areas) : _areas = areas {
-    _byId = {for (final area in _areas) area.id: area};
+class FishingRegistry {
+  FishingRegistry({
+    required List<FishingAction> actions,
+    required List<FishingArea> areas,
+  }) : _actions = actions,
+       _areas = areas {
+    _byId = {for (final a in _actions) a.id.localId: a};
+    _areaById = {for (final area in _areas) area.id: area};
   }
 
+  final List<FishingAction> _actions;
   final List<FishingArea> _areas;
-  late final Map<MelvorId, FishingArea> _byId;
+  late final Map<MelvorId, FishingAction> _byId;
+  late final Map<MelvorId, FishingArea> _areaById;
 
-  /// Returns all fishing areas.
-  List<FishingArea> get all => _areas;
+  /// All fishing actions.
+  List<FishingAction> get actions => _actions;
+
+  /// All fishing areas.
+  List<FishingArea> get areas => _areas;
+
+  /// Look up a fishing action by its local ID.
+  FishingAction? byId(MelvorId localId) => _byId[localId];
 
   /// Returns a fishing area by ID, or null if not found.
-  FishingArea? byId(MelvorId id) => _byId[id];
+  FishingArea? areaById(MelvorId id) => _areaById[id];
 
   /// Returns fishing area containing the given fish ID, or null if not found.
   FishingArea? areaForFish(MelvorId fishId) {

@@ -166,7 +166,7 @@ class _AreaStatusCard extends StatelessWidget {
 
   /// Returns the cooking category for this area.
   CookingCategory? _getCategory(GlobalState state) {
-    return state.registries.cookingCategories.byId(area.categoryId);
+    return state.registries.cooking.categoryById(area.categoryId);
   }
 
   /// Returns true if this cooking area is available to use.

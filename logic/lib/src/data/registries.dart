@@ -14,26 +14,26 @@ import 'package:meta/meta.dart';
 
 @immutable
 class Registries {
-  const Registries(
+  Registries(
     this.items,
     this.actions,
     this.drops,
     this.equipmentSlots,
-    this.cookingCategories,
-    this.fishingAreas,
-    this.smithingCategories,
-    this.fletchingCategories,
-    this.craftingCategories,
-    this.herbloreCategories,
-    this.runecraftingCategories,
-    this.thievingAreas,
+    this._cookingCategories,
+    this._fishingAreas,
+    this._smithingCategories,
+    this._fletchingCategories,
+    this._craftingCategories,
+    this._herbloreCategories,
+    this._runecraftingCategories,
+    this._thievingAreas,
     this.combatAreas,
     this.dungeons,
-    this.agilityCourses,
-    this.agilityPillars,
-    this.farmingCrops,
-    this.farmingCategories,
-    this.farmingPlots,
+    this._agilityCourses,
+    this._agilityPillars,
+    this._farmingCrops,
+    this._farmingCategories,
+    this._farmingPlots,
     this.shop,
     this.masteryBonuses,
     this.masteryUnlocks,
@@ -57,21 +57,21 @@ class Registries {
       ActionRegistry(actions),
       DropsRegistry({}),
       const EquipmentSlotRegistry.empty(),
-      CookingCategoryRegistry(const []),
-      FishingAreaRegistry(const []),
-      SmithingCategoryRegistry(const []),
-      FletchingCategoryRegistry(const []),
-      CraftingCategoryRegistry(const []),
-      HerbloreCategoryRegistry(const []),
-      RunecraftingCategoryRegistry(const []),
-      const ThievingAreaRegistry([]),
+      const <CookingCategory>[],
+      const [],
+      const <SmithingCategory>[],
+      const <FletchingCategory>[],
+      const <CraftingCategory>[],
+      const <HerbloreCategory>[],
+      const <RunecraftingCategory>[],
+      const [],
       CombatAreaRegistry(const []),
       DungeonRegistry(const []),
-      AgilityCourseRegistry([]),
-      AgilityPillarRegistry([]),
-      FarmingCropRegistry([]),
-      FarmingCategoryRegistry(const []),
-      FarmingPlotRegistry([]),
+      const [],
+      const [],
+      const <FarmingCrop>[],
+      const <FarmingCategory>[],
+      const <FarmingPlot>[],
       shop ?? ShopRegistry(const [], const []),
       masteryBonuses ?? MasteryBonusRegistry([]),
       masteryUnlocks ?? MasteryUnlockRegistry(const []),
@@ -85,27 +85,169 @@ class Registries {
   final ActionRegistry actions;
   final DropsRegistry drops;
   final EquipmentSlotRegistry equipmentSlots;
-  final CookingCategoryRegistry cookingCategories;
-  final FishingAreaRegistry fishingAreas;
-  final SmithingCategoryRegistry smithingCategories;
-  final FletchingCategoryRegistry fletchingCategories;
-  final CraftingCategoryRegistry craftingCategories;
-  final HerbloreCategoryRegistry herbloreCategories;
-  final RunecraftingCategoryRegistry runecraftingCategories;
-  final ThievingAreaRegistry thievingAreas;
+  final List<CookingCategory> _cookingCategories;
+  final List<FishingArea> _fishingAreas;
+  final List<SmithingCategory> _smithingCategories;
+
+  /// Returns all smithing categories.
+  List<SmithingCategory> get smithingCategories => _smithingCategories;
+
+  /// Returns all cooking categories.
+  List<CookingCategory> get cookingCategories => _cookingCategories;
+
+  /// Returns all fishing areas.
+  List<FishingArea> get fishingAreas => _fishingAreas;
+  final List<FletchingCategory> _fletchingCategories;
+  final List<CraftingCategory> _craftingCategories;
+  final List<HerbloreCategory> _herbloreCategories;
+  final List<RunecraftingCategory> _runecraftingCategories;
+  final List<ThievingArea> _thievingAreas;
+
+  /// Returns all fletching categories.
+  List<FletchingCategory> get fletchingCategories => _fletchingCategories;
+
+  /// Returns all crafting categories.
+  List<CraftingCategory> get craftingCategories => _craftingCategories;
+
+  /// Returns all herblore categories.
+  List<HerbloreCategory> get herbloreCategories => _herbloreCategories;
+
+  /// Returns all runecrafting categories.
+  List<RunecraftingCategory> get runecraftingCategories =>
+      _runecraftingCategories;
   final CombatAreaRegistry combatAreas;
+
+  /// Returns all thieving areas.
+  List<ThievingArea> get thievingAreas => _thievingAreas;
   final DungeonRegistry dungeons;
-  final AgilityCourseRegistry agilityCourses;
-  final AgilityPillarRegistry agilityPillars;
-  final FarmingCropRegistry farmingCrops;
-  final FarmingCategoryRegistry farmingCategories;
-  final FarmingPlotRegistry farmingPlots;
+  final List<AgilityCourse> _agilityCourses;
+  final List<AgilityPillar> _agilityPillars;
+  final List<FarmingCrop> _farmingCrops;
+  final List<FarmingCategory> _farmingCategories;
+  final List<FarmingPlot> _farmingPlots;
+
+  /// Returns all agility courses.
+  List<AgilityCourse> get agilityCourses => _agilityCourses;
+
+  /// Returns all agility pillars.
+  List<AgilityPillar> get agilityPillars => _agilityPillars;
+
+  /// Returns all farming crops.
+  List<FarmingCrop> get farmingCrops => _farmingCrops;
+
+  /// Returns all farming categories.
+  List<FarmingCategory> get farmingCategories => _farmingCategories;
+
+  /// Returns all farming plots.
+  List<FarmingPlot> get farmingPlots => _farmingPlots;
   final ShopRegistry shop;
   final MasteryBonusRegistry masteryBonuses;
   final MasteryUnlockRegistry masteryUnlocks;
   final SummoningSynergyRegistry summoningSynergies;
   final TownshipRegistry township;
   final Map<MelvorId, int> _bankSortIndex;
+
+  /// Woodcutting skill registry.
+  late final WoodcuttingRegistry woodcutting = WoodcuttingRegistry(
+    actions.forSkill(Skill.woodcutting).cast<WoodcuttingTree>().toList(),
+  ).withCache();
+
+  /// Mining skill registry.
+  late final MiningRegistry mining = MiningRegistry(
+    actions.forSkill(Skill.mining).cast<MiningAction>().toList(),
+  ).withCache();
+
+  /// Firemaking skill registry.
+  late final FiremakingRegistry firemaking = FiremakingRegistry(
+    actions.forSkill(Skill.firemaking).cast<FiremakingAction>().toList(),
+  ).withCache();
+
+  /// Combat registry (monsters, areas, dungeons).
+  late final CombatRegistry combat = CombatRegistry(
+    monsters: actions.all.whereType<CombatAction>().toList(),
+    areas: combatAreas,
+    dungeons: dungeons,
+  );
+
+  /// Fishing skill registry.
+  late final FishingRegistry fishing = FishingRegistry(
+    actions: actions.forSkill(Skill.fishing).cast<FishingAction>().toList(),
+    areas: fishingAreas,
+  );
+
+  /// Cooking skill registry.
+  late final CookingRegistry cooking = CookingRegistry(
+    actions: actions.forSkill(Skill.cooking).cast<CookingAction>().toList(),
+    categories: cookingCategories,
+  );
+
+  /// Smithing skill registry.
+  late final SmithingRegistry smithing = SmithingRegistry(
+    actions: actions.forSkill(Skill.smithing).cast<SmithingAction>().toList(),
+    categories: smithingCategories,
+  );
+
+  /// Fletching skill registry.
+  late final FletchingRegistry fletching = FletchingRegistry(
+    actions: actions.forSkill(Skill.fletching).cast<FletchingAction>().toList(),
+    categories: fletchingCategories,
+  );
+
+  /// Crafting skill registry.
+  late final CraftingRegistry crafting = CraftingRegistry(
+    actions: actions.forSkill(Skill.crafting).cast<CraftingAction>().toList(),
+    categories: craftingCategories,
+  );
+
+  /// Herblore skill registry.
+  late final HerbloreRegistry herblore = HerbloreRegistry(
+    actions: actions.forSkill(Skill.herblore).cast<HerbloreAction>().toList(),
+    categories: herbloreCategories,
+  );
+
+  /// Runecrafting skill registry.
+  late final RunecraftingRegistry runecrafting = RunecraftingRegistry(
+    actions: actions
+        .forSkill(Skill.runecrafting)
+        .cast<RunecraftingAction>()
+        .toList(),
+    categories: runecraftingCategories,
+  );
+
+  /// Thieving skill registry.
+  late final ThievingRegistry thieving = ThievingRegistry(
+    actions: actions.forSkill(Skill.thieving).cast<ThievingAction>().toList(),
+    areas: thievingAreas,
+  );
+
+  /// Agility skill registry.
+  late final AgilityRegistry agility = AgilityRegistry(
+    obstacles: actions.forSkill(Skill.agility).cast<AgilityObstacle>().toList(),
+    courses: agilityCourses,
+    pillars: agilityPillars,
+  );
+
+  /// Farming skill registry.
+  late final FarmingRegistry farming = FarmingRegistry(
+    crops: farmingCrops,
+    categories: farmingCategories,
+    plots: farmingPlots,
+  );
+
+  /// Summoning skill registry.
+  late final SummoningRegistry summoning = SummoningRegistry(
+    actions.forSkill(Skill.summoning).cast<SummoningAction>().toList(),
+  );
+
+  /// Returns all skill actions for a given skill.
+  ///
+  /// This method provides a unified way to get actions for any skill.
+  /// Uses the global action registry for now to support test fixtures
+  /// that may use generic SkillAction instances rather than skill-specific
+  /// subclasses like WoodcuttingTree.
+  List<SkillAction> actionsForSkill(Skill skill) {
+    return actions.forSkill(skill).toList();
+  }
 
   /// Comparator for sorting items according to bank sort order.
   /// Items in sort order come before items not in sort order.

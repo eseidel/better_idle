@@ -31,14 +31,13 @@ class _RunecraftingPageState extends State<RunecraftingPage> {
         .toList();
     final skillState = context.state.skillState(skill);
     final skillLevel = skillState.skillLevel;
-    final categories = registries.runecraftingCategories;
 
     // Group actions by category
     final actionsByCategory =
         <RunecraftingCategory, List<RunecraftingAction>>{};
     for (final action in actions) {
       final category = action.categoryId != null
-          ? categories.byId(action.categoryId!)
+          ? registries.runecrafting.categoryById(action.categoryId!)
           : null;
       if (category != null) {
         actionsByCategory.putIfAbsent(category, () => []).add(action);

@@ -601,16 +601,15 @@ class _ShopItemRow extends StatelessWidget {
         } else if (req is DungeonCompletionRequirement) {
           // Look up dungeon from registry
           final dungeon = dungeonRegistry.byId(req.dungeonId);
-          final dungeonName =
-              dungeon?.name ?? req.dungeonId.name.replaceAll('_', ' ');
+          final dungeonName = dungeon.name;
           final completionText = req.count == 1 ? 'once' : '${req.count} times';
 
           return Row(
             mainAxisSize: MainAxisSize.min,
             children: [
               Text('Complete ', style: TextStyle(color: color, fontSize: 12)),
-              if (dungeon?.media != null) ...[
-                CachedImage(assetPath: dungeon!.media, size: 14),
+              if (dungeon.media != null) ...[
+                CachedImage(assetPath: dungeon.media, size: 14),
                 const SizedBox(width: 4),
               ],
               Text(

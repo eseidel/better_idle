@@ -33,24 +33,6 @@ class FletchingCategory {
   final String media;
 }
 
-/// Registry for fletching categories.
-@immutable
-class FletchingCategoryRegistry {
-  FletchingCategoryRegistry(List<FletchingCategory> categories)
-    : _categories = categories {
-    _byId = {for (final category in _categories) category.id: category};
-  }
-
-  final List<FletchingCategory> _categories;
-  late final Map<MelvorId, FletchingCategory> _byId;
-
-  /// Returns all fletching categories.
-  List<FletchingCategory> get all => _categories;
-
-  /// Returns a fletching category by ID, or null if not found.
-  FletchingCategory? byId(MelvorId id) => _byId[id];
-}
-
 /// A fletching action parsed from Melvor data.
 ///
 /// Fletching actions consume logs/materials and produce arrows, bows, etc.
@@ -139,4 +121,34 @@ class FletchingAction extends SkillAction {
   /// The category ID (e.g., "melvorF:Arrows", "melvorF:Shortbows").
   @override
   final MelvorId? categoryId;
+}
+
+/// Unified registry for all fletching-related data.
+@immutable
+class FletchingRegistry {
+  FletchingRegistry({
+    required List<FletchingAction> actions,
+    required List<FletchingCategory> categories,
+  }) : _actions = actions,
+       _categories = categories {
+    _byId = {for (final a in _actions) a.id.localId: a};
+    _categoryById = {for (final c in _categories) c.id: c};
+  }
+
+  final List<FletchingAction> _actions;
+  final List<FletchingCategory> _categories;
+  late final Map<MelvorId, FletchingAction> _byId;
+  late final Map<MelvorId, FletchingCategory> _categoryById;
+
+  /// All fletching actions.
+  List<FletchingAction> get actions => _actions;
+
+  /// All fletching categories.
+  List<FletchingCategory> get categories => _categories;
+
+  /// Look up a fletching action by its local ID.
+  FletchingAction? byId(MelvorId localId) => _byId[localId];
+
+  /// Returns a fletching category by ID, or null if not found.
+  FletchingCategory? categoryById(MelvorId id) => _categoryById[id];
 }

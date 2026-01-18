@@ -76,9 +76,10 @@ void main() {
       var initialState = GlobalState.empty(registries);
       // Start with the action already active
       initialState = initialState.copyWith(
-        activeAction: ActiveAction(
-          id: testAction.id,
-          remainingTicks: 30,
+        activeActivity: SkillActivity(
+          skill: testAction.skill,
+          actionId: testAction.id.localId,
+          progressTicks: 0,
           totalTicks: 30,
         ),
       );
@@ -113,9 +114,10 @@ void main() {
       var initialState = GlobalState.empty(registries);
       // Start with action1 active
       initialState = initialState.copyWith(
-        activeAction: ActiveAction(
-          id: action1.id,
-          remainingTicks: 30,
+        activeActivity: SkillActivity(
+          skill: action1.skill,
+          actionId: action1.id.localId,
+          progressTicks: 0,
           totalTicks: 30,
         ),
       );
@@ -167,9 +169,10 @@ void main() {
       var initialState = GlobalState.empty(registries);
       // Start with action active AND stunned
       initialState = initialState.copyWith(
-        activeAction: ActiveAction(
-          id: testAction.id,
-          remainingTicks: 30,
+        activeActivity: SkillActivity(
+          skill: testAction.skill,
+          actionId: testAction.id.localId,
+          progressTicks: 0,
           totalTicks: 30,
         ),
         stunned: const StunnedState.fresh().stun(),

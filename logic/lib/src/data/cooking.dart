@@ -63,24 +63,6 @@ class CookingCategory {
   String toString() => name;
 }
 
-/// Registry for cooking categories.
-@immutable
-class CookingCategoryRegistry {
-  CookingCategoryRegistry(List<CookingCategory> categories)
-    : _categories = categories {
-    _byId = {for (final category in _categories) category.id: category};
-  }
-
-  final List<CookingCategory> _categories;
-  late final Map<MelvorId, CookingCategory> _byId;
-
-  /// Returns all cooking categories.
-  List<CookingCategory> get all => _categories;
-
-  /// Returns a cooking category by ID, or null if not found.
-  CookingCategory? byId(MelvorId id) => _byId[id];
-}
-
 /// A cooking action parsed from Melvor data.
 ///
 /// Cooking actions consume raw food and produce cooked food.
@@ -190,4 +172,34 @@ class CookingAction extends SkillAction {
   bool isInCategory(String categoryLocalId) {
     return categoryId?.localId == categoryLocalId;
   }
+}
+
+/// Unified registry for all cooking-related data.
+@immutable
+class CookingRegistry {
+  CookingRegistry({
+    required List<CookingAction> actions,
+    required List<CookingCategory> categories,
+  }) : _actions = actions,
+       _categories = categories {
+    _byId = {for (final a in _actions) a.id.localId: a};
+    _categoryById = {for (final c in _categories) c.id: c};
+  }
+
+  final List<CookingAction> _actions;
+  final List<CookingCategory> _categories;
+  late final Map<MelvorId, CookingAction> _byId;
+  late final Map<MelvorId, CookingCategory> _categoryById;
+
+  /// All cooking actions.
+  List<CookingAction> get actions => _actions;
+
+  /// All cooking categories.
+  List<CookingCategory> get categories => _categories;
+
+  /// Look up a cooking action by its local ID.
+  CookingAction? byId(MelvorId localId) => _byId[localId];
+
+  /// Returns a cooking category by ID, or null if not found.
+  CookingCategory? categoryById(MelvorId id) => _categoryById[id];
 }

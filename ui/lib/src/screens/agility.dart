@@ -51,7 +51,7 @@ class _AgilityPageState extends State<AgilityPage> {
     final selectedObstacle = _selectedObstacle ?? obstacles.firstOrNull;
 
     // Get course info for level requirements
-    final course = registries.agilityCourses.forRealm(
+    final course = registries.agility.courseForRealm(
       const MelvorId('melvorD:Melvor'),
     );
 

@@ -58,7 +58,7 @@ List<SwitchActivity> _availableActivitySwitches(GlobalState state) {
   for (final skill in Skill.values) {
     final skillLevel = state.skillState(skill).skillLevel;
 
-    for (final action in registries.actions.forSkill(skill)) {
+    for (final action in registries.actionsForSkill(skill)) {
       // Skip if this is the current action
       if (action.id == currentActionId) continue;
 

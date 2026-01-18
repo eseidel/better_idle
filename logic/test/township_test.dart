@@ -3761,9 +3761,13 @@ void main() {
         );
 
         final items = ItemRegistry(const []);
-        final actions = ActionRegistry([]);
+        final combat = CombatRegistry(
+          monsters: const [],
+          areas: CombatAreaRegistry(const []),
+          dungeons: DungeonRegistry(const []),
+        );
 
-        expect(goal.displayName(items, actions), 'Woodcutting XP');
+        expect(goal.displayName(items, combat), 'Woodcutting XP');
       });
 
       test('returns item name for items goals', () {
@@ -3783,9 +3787,13 @@ void main() {
         );
 
         final items = ItemRegistry(const [item]);
-        final actions = ActionRegistry([]);
+        final combat = CombatRegistry(
+          monsters: const [],
+          areas: CombatAreaRegistry(const []),
+          dungeons: DungeonRegistry(const []),
+        );
 
-        expect(goal.displayName(items, actions), 'Oak Logs');
+        expect(goal.displayName(items, combat), 'Oak Logs');
       });
 
       test('returns monster name for monsters goals', () {
@@ -3816,9 +3824,13 @@ void main() {
         );
 
         final items = ItemRegistry(const []);
-        final actions = ActionRegistry([monster]);
+        final combat = CombatRegistry(
+          monsters: [monster],
+          areas: CombatAreaRegistry(const []),
+          dungeons: DungeonRegistry(const []),
+        );
 
-        expect(goal.displayName(items, actions), 'Golbin');
+        expect(goal.displayName(items, combat), 'Golbin');
       });
     });
 
@@ -3831,9 +3843,13 @@ void main() {
         );
 
         final items = ItemRegistry(const []);
-        final actions = ActionRegistry([]);
+        final combat = CombatRegistry(
+          monsters: const [],
+          areas: CombatAreaRegistry(const []),
+          dungeons: DungeonRegistry(const []),
+        );
 
-        expect(goal.asset(items, actions), Skill.woodcutting.assetPath);
+        expect(goal.asset(items, combat), Skill.woodcutting.assetPath);
       });
 
       test('returns item media for items goals', () {
@@ -3853,9 +3869,13 @@ void main() {
         );
 
         final items = ItemRegistry(const [item]);
-        final actions = ActionRegistry([]);
+        final combat = CombatRegistry(
+          monsters: const [],
+          areas: CombatAreaRegistry(const []),
+          dungeons: DungeonRegistry(const []),
+        );
 
-        expect(goal.asset(items, actions), 'assets/media/bank/logs_oak.png');
+        expect(goal.asset(items, combat), 'assets/media/bank/logs_oak.png');
       });
 
       test('returns monster media for monsters goals', () {
@@ -3886,9 +3906,13 @@ void main() {
         );
 
         final items = ItemRegistry(const []);
-        final actions = ActionRegistry([monster]);
+        final combat = CombatRegistry(
+          monsters: [monster],
+          areas: CombatAreaRegistry(const []),
+          dungeons: DungeonRegistry(const []),
+        );
 
-        expect(goal.asset(items, actions), 'assets/media/monsters/golbin.png');
+        expect(goal.asset(items, combat), 'assets/media/monsters/golbin.png');
       });
     });
   });

@@ -606,11 +606,11 @@ class TaskGoal {
   /// For skill XP goals, returns the skill name + " XP".
   /// For item goals, returns the item name.
   /// For monster goals, returns the monster name.
-  String displayName(ItemRegistry items, ActionRegistry actions) =>
+  String displayName(ItemRegistry items, CombatRegistry combat) =>
       switch (type) {
         TaskGoalType.skillXP => '${id.localId} XP',
         TaskGoalType.items => items.byId(id).name,
-        TaskGoalType.monsters => actions.combatWithId(id).name,
+        TaskGoalType.monsters => combat.monsterById(id).name,
       };
 
   /// Returns the asset path for this goal's icon.
@@ -618,10 +618,10 @@ class TaskGoal {
   /// For skill XP goals, returns the skill icon path.
   /// For item goals, returns the item's media path.
   /// For monster goals, returns the monster's media path.
-  String asset(ItemRegistry items, ActionRegistry actions) => switch (type) {
+  String asset(ItemRegistry items, CombatRegistry combat) => switch (type) {
     TaskGoalType.skillXP => Skill.fromId(id).assetPath,
     TaskGoalType.items => items.byId(id).media!,
-    TaskGoalType.monsters => actions.combatWithId(id).media!,
+    TaskGoalType.monsters => combat.monsterById(id).media!,
   };
 }
 

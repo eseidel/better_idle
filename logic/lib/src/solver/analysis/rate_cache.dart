@@ -85,7 +85,7 @@ class RateCache {
     final registries = state.registries;
     final skillLevel = state.skillState(targetSkill).skillLevel;
 
-    for (final action in registries.actions.forSkill(targetSkill)) {
+    for (final action in registries.actionsForSkill(targetSkill)) {
       // Only consider unlocked actions
       if (skillLevel < action.unlockLevel) continue;
 
@@ -135,7 +135,7 @@ class RateCache {
       for (final skill in Skill.values) {
         final producerSkillLevel = state.skillState(skill).skillLevel;
 
-        for (final producer in registries.actions.forSkill(skill)) {
+        for (final producer in registries.actionsForSkill(skill)) {
           // Only non-consuming, unlocked producers
           if (producer.inputs.isNotEmpty) continue;
           if (producerSkillLevel < producer.unlockLevel) continue;
@@ -209,7 +209,7 @@ class RateCache {
 
       final skillLevel = state.skillState(skill).skillLevel;
 
-      for (final action in registries.actions.forSkill(skill)) {
+      for (final action in registries.actionsForSkill(skill)) {
         // Only consider unlocked actions
         if (skillLevel < action.unlockLevel) continue;
 
@@ -362,7 +362,7 @@ class RateCache {
     for (final skill in Skill.values) {
       final producerSkillLevel = state.skillState(skill).skillLevel;
 
-      for (final producer in registries.actions.forSkill(skill)) {
+      for (final producer in registries.actionsForSkill(skill)) {
         // Only non-consuming, unlocked producers
         if (producer.inputs.isNotEmpty) continue;
         if (producerSkillLevel < producer.unlockLevel) continue;

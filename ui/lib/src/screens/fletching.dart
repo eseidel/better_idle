@@ -31,13 +31,12 @@ class _FletchingPageState extends State<FletchingPage> {
         .toList();
     final skillState = context.state.skillState(skill);
     final skillLevel = skillState.skillLevel;
-    final categories = registries.fletchingCategories;
 
     // Group actions by category
     final actionsByCategory = <FletchingCategory, List<FletchingAction>>{};
     for (final action in actions) {
       final category = action.categoryId != null
-          ? categories.byId(action.categoryId!)
+          ? registries.fletching.categoryById(action.categoryId!)
           : null;
       if (category != null) {
         actionsByCategory.putIfAbsent(category, () => []).add(action);

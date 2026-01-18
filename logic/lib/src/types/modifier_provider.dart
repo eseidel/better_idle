@@ -174,12 +174,15 @@ class ModifierProvider with ModifierAccessors {
       // For summoning tablets, only include if familiar is relevant
       if (slot.isSummonSlot && item.isSummonTablet) {
         final isRelevant = combatTypeSkills != null
-            ? registries.actions.isFamiliarRelevantToCombat(
+            ? registries.summoning.isFamiliarRelevantToCombat(
                 item.id,
                 combatTypeSkills!,
               )
             : skill != null &&
-                  registries.actions.isFamiliarRelevantToSkill(item.id, skill);
+                  registries.summoning.isFamiliarRelevantToSkill(
+                    item.id,
+                    skill,
+                  );
         if (!isRelevant) continue;
       }
 

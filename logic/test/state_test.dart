@@ -35,10 +35,10 @@ void main() {
 
   test('GlobalState toJson/fromJson round-trip', () {
     // Get farming data for plot state testing
-    final crops = testRegistries.farmingCrops.all;
+    final crops = testRegistries.farmingCrops;
     final levelOneCrops = crops.where((c) => c.level == 1).toList();
     final crop = levelOneCrops.first;
-    final initialPlots = testRegistries.farmingPlots.initialPlots().toList();
+    final initialPlots = testRegistries.farming.initialPlots().toList();
     final plotId1 = initialPlots[0];
     // Get a second plot if available, otherwise use a test plot id
     final plotId2 = initialPlots.length > 1
@@ -1529,14 +1529,14 @@ void main() {
 
     setUpAll(() {
       // Get a level-1 crop for testing
-      final crops = testRegistries.farmingCrops.all;
+      final crops = testRegistries.farmingCrops;
       final levelOneCrops = crops.where((c) => c.level == 1).toList();
       crop = levelOneCrops.first;
       seed = testItems.byId(crop.seedId);
       product = testItems.byId(crop.productId);
 
       // Get an unlocked plot
-      final initialPlots = testRegistries.farmingPlots.initialPlots();
+      final initialPlots = testRegistries.farming.initialPlots();
       plotId = initialPlots.first;
     });
 
@@ -1659,7 +1659,7 @@ void main() {
       state = state.plantCrop(plotId, crop);
 
       // Check if this crop's category gives XP on plant or harvest
-      final category = testRegistries.farmingCategories.byId(crop.categoryId);
+      final category = testRegistries.farming.categoryById(crop.categoryId);
       final xpOnPlant = category?.giveXPOnPlant ?? false;
 
       // Get XP after planting
@@ -1773,10 +1773,10 @@ void main() {
 
     test('returns true when farming plot is growing', () {
       // Get farming data
-      final crops = testRegistries.farmingCrops.all;
+      final crops = testRegistries.farmingCrops;
       final levelOneCrops = crops.where((c) => c.level == 1).toList();
       final crop = levelOneCrops.first;
-      final plotId = testRegistries.farmingPlots.initialPlots().first;
+      final plotId = testRegistries.farming.initialPlots().first;
 
       final state = GlobalState.test(
         testRegistries,
@@ -1790,10 +1790,10 @@ void main() {
 
     test('returns false when farming plot is ready to harvest', () {
       // Get farming data
-      final crops = testRegistries.farmingCrops.all;
+      final crops = testRegistries.farmingCrops;
       final levelOneCrops = crops.where((c) => c.level == 1).toList();
       final crop = levelOneCrops.first;
-      final plotId = testRegistries.farmingPlots.initialPlots().first;
+      final plotId = testRegistries.farming.initialPlots().first;
 
       final state = GlobalState.test(
         testRegistries,
@@ -1825,10 +1825,10 @@ void main() {
 
     test('returns true with multiple growing plots', () {
       // Get farming data
-      final crops = testRegistries.farmingCrops.all;
+      final crops = testRegistries.farmingCrops;
       final levelOneCrops = crops.where((c) => c.level == 1).toList();
       final crop = levelOneCrops.first;
-      final initialPlots = testRegistries.farmingPlots.initialPlots().toList();
+      final initialPlots = testRegistries.farming.initialPlots().toList();
       final plotId1 = initialPlots[0];
       final plotId2 = initialPlots.length > 1
           ? initialPlots[1]

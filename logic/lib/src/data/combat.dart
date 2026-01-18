@@ -427,6 +427,47 @@ class DungeonRegistry {
   /// Returns all dungeons.
   List<Dungeon> get all => _dungeons;
 
-  /// Returns a dungeon by ID, or null if not found.
-  Dungeon? byId(MelvorId id) => _byId[id];
+  /// Returns a dungeon by ID.
+  /// Throws [StateError] if the dungeon is not found.
+  Dungeon byId(MelvorId id) {
+    final dungeon = _byId[id];
+    if (dungeon == null) {
+      throw StateError('Missing dungeon with id: $id');
+    }
+    return dungeon;
+  }
+}
+
+/// Unified registry for all combat-related data.
+@immutable
+class CombatRegistry {
+  CombatRegistry({
+    required List<CombatAction> monsters,
+    required this.areas,
+    required this.dungeons,
+  }) : _monsters = monsters {
+    _byId = {for (final m in _monsters) m.id.localId: m};
+  }
+
+  final List<CombatAction> _monsters;
+  late final Map<MelvorId, CombatAction> _byId;
+
+  /// All combat areas.
+  final CombatAreaRegistry areas;
+
+  /// All dungeons.
+  final DungeonRegistry dungeons;
+
+  /// All monsters.
+  List<CombatAction> get monsters => _monsters;
+
+  /// Look up a monster by its local ID.
+  /// Throws [StateError] if the monster is not found.
+  CombatAction monsterById(MelvorId localId) {
+    final monster = _byId[localId];
+    if (monster == null) {
+      throw StateError('Missing monster with id: $localId');
+    }
+    return monster;
+  }
 }

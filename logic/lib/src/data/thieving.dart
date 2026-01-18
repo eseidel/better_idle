@@ -75,26 +75,6 @@ class ThievingArea {
   final List<Drop> uniqueDrops;
 }
 
-/// Registry for thieving areas.
-@immutable
-class ThievingAreaRegistry {
-  const ThievingAreaRegistry(List<ThievingArea> areas) : _areas = areas;
-
-  final List<ThievingArea> _areas;
-
-  /// Returns the thieving area containing the given NPC ID.
-  ///
-  /// Throws [StateError] if the NPC is not found in any area.
-  ThievingArea areaForNpc(MelvorId npcId) {
-    for (final area in _areas) {
-      if (area.npcIds.contains(npcId)) {
-        return area;
-      }
-    }
-    throw StateError('Thieving NPC $npcId has no area');
-  }
-}
-
 // TODO(eseidel): roll this into defaultRewards?
 List<Droppable> _thievingRewards(
   SkillAction action,
@@ -284,4 +264,41 @@ int calculateStealth(
 /// Returns a value between 0.0 and 1.0.
 double thievingSuccessChance(int stealth, int perception) {
   return ((100 + stealth) / (100 + perception)).clamp(0.0, 1.0);
+}
+
+/// Unified registry for all thieving-related data.
+@immutable
+class ThievingRegistry {
+  ThievingRegistry({
+    required List<ThievingAction> actions,
+    required List<ThievingArea> areas,
+  }) : _actions = actions,
+       _areas = areas {
+    _byId = {for (final a in _actions) a.id.localId: a};
+  }
+
+  final List<ThievingAction> _actions;
+  final List<ThievingArea> _areas;
+  late final Map<MelvorId, ThievingAction> _byId;
+
+  /// All thieving actions (NPCs).
+  List<ThievingAction> get actions => _actions;
+
+  /// All thieving areas.
+  List<ThievingArea> get areas => _areas;
+
+  /// Look up a thieving action by its local ID.
+  ThievingAction? byId(MelvorId localId) => _byId[localId];
+
+  /// Returns the thieving area containing the given NPC ID.
+  ///
+  /// Throws [StateError] if the NPC is not found in any area.
+  ThievingArea areaForNpc(MelvorId npcId) {
+    for (final area in _areas) {
+      if (area.npcIds.contains(npcId)) {
+        return area;
+      }
+    }
+    throw StateError('Thieving NPC $npcId has no area');
+  }
 }

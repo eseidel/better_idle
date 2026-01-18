@@ -237,17 +237,38 @@ class AgilityPillar {
   final CurrencyCosts currencyCosts;
 }
 
-/// Registry for agility courses.
-class AgilityCourseRegistry {
-  AgilityCourseRegistry(List<AgilityCourse> courses) : _courses = courses;
+/// Unified registry for all agility-related data.
+@immutable
+class AgilityRegistry {
+  AgilityRegistry({
+    required List<AgilityObstacle> obstacles,
+    required List<AgilityCourse> courses,
+    required List<AgilityPillar> pillars,
+  }) : _obstacles = obstacles,
+       _courses = courses,
+       _pillars = pillars {
+    _byId = {for (final o in _obstacles) o.id.localId: o};
+  }
 
+  final List<AgilityObstacle> _obstacles;
   final List<AgilityCourse> _courses;
+  final List<AgilityPillar> _pillars;
+  late final Map<MelvorId, AgilityObstacle> _byId;
 
-  /// Returns all courses.
-  List<AgilityCourse> get all => _courses;
+  /// All agility obstacle actions.
+  List<AgilityObstacle> get obstacles => _obstacles;
+
+  /// All agility courses.
+  List<AgilityCourse> get courses => _courses;
+
+  /// All agility pillars.
+  List<AgilityPillar> get pillars => _pillars;
+
+  /// Look up an agility obstacle by its local ID.
+  AgilityObstacle? byId(MelvorId localId) => _byId[localId];
 
   /// Returns the course for a given realm, or null if not found.
-  AgilityCourse? forRealm(MelvorId realm) {
+  AgilityCourse? courseForRealm(MelvorId realm) {
     for (final course in _courses) {
       if (course.realm == realm) {
         return course;
@@ -255,19 +276,9 @@ class AgilityCourseRegistry {
     }
     return null;
   }
-}
-
-/// Registry for agility pillars.
-class AgilityPillarRegistry {
-  AgilityPillarRegistry(List<AgilityPillar> pillars) : _pillars = pillars;
-
-  final List<AgilityPillar> _pillars;
-
-  /// Returns all pillars.
-  List<AgilityPillar> get all => _pillars;
 
   /// Returns pillars for a given slot.
-  List<AgilityPillar> forSlot(int slot) {
+  List<AgilityPillar> pillarsForSlot(int slot) {
     return _pillars.where((p) => p.slot == slot).toList();
   }
 }

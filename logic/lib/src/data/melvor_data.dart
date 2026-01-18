@@ -132,97 +132,66 @@ class MelvorData {
     final bankSortOrder = computeDisplayOrder(bankSortEntries);
     _bankSortIndex = buildDisplayOrderIndex(bankSortOrder);
 
-    // Step 2: Parse each skill (null-safe, returns empty on missing)
-    final actions = <Action>[
-      ...parseWoodcutting(skillDataById['melvorD:Woodcutting']),
-      ...parseMining(skillDataById['melvorD:Mining']),
-      ...parseFiremaking(skillDataById['melvorD:Firemaking']),
-    ];
+    // Step 2: Parse each skill into specialized registries
+    _woodcutting = parseWoodcutting(skillDataById['melvorD:Woodcutting']);
+    _mining = parseMining(skillDataById['melvorD:Mining']);
+    _firemaking = parseFiremaking(skillDataById['melvorD:Firemaking']);
+    _cooking = parseCooking(skillDataById['melvorD:Cooking']);
+    _fishing = parseFishing(skillDataById['melvorD:Fishing']);
+    _smithing = parseSmithing(skillDataById['melvorD:Smithing']);
+    _farming = parseFarming(skillDataById['melvorD:Farming']);
+    _fletching = parseFletching(skillDataById['melvorD:Fletching']);
+    _crafting = parseCrafting(skillDataById['melvorD:Crafting']);
+    _herblore = parseHerblore(skillDataById['melvorD:Herblore']);
+    _runecrafting = parseRunecrafting(skillDataById['melvorD:Runecrafting']);
+    _thieving = parseThieving(skillDataById['melvorD:Thieving']);
+    _agility = parseAgility(skillDataById['melvorD:Agility']);
+    _summoning = parseSummoning(skillDataById['melvorD:Summoning']);
+    _astrology = parseAstrology(skillDataById['melvorD:Astrology']);
+    _altMagic = parseAltMagic(skillDataById['melvorD:Magic']);
 
-    final (cookingActions, cookingCategories) = parseCooking(
-      skillDataById['melvorD:Cooking'],
-    );
-    actions.addAll(cookingActions);
-    _cookingCategories = cookingCategories;
-
-    final (fishingActions, fishingAreas) = parseFishing(
-      skillDataById['melvorD:Fishing'],
-    );
-    actions.addAll(fishingActions);
-    _fishingAreas = fishingAreas;
-
-    final (smithingActions, smithingCategories) = parseSmithing(
-      skillDataById['melvorD:Smithing'],
-    );
-    actions.addAll(smithingActions);
-    _smithingCategories = smithingCategories;
-
-    final (farmingCrops, farmingCategories, farmingPlots) = parseFarming(
-      skillDataById['melvorD:Farming'],
-    );
-    actions.addAll(farmingCrops);
-    _farmingCrops = FarmingCropRegistry(farmingCrops);
-    _farmingCategories = farmingCategories;
-    _farmingPlots = farmingPlots;
-
-    final (fletchingActions, fletchingCategories) = parseFletching(
-      skillDataById['melvorD:Fletching'],
-    );
-    actions.addAll(fletchingActions);
-    _fletchingCategories = fletchingCategories;
-
-    final (craftingActions, craftingCategories) = parseCrafting(
-      skillDataById['melvorD:Crafting'],
-    );
-    actions.addAll(craftingActions);
-    _craftingCategories = craftingCategories;
-
-    final (herbloreActions, herbloreCategories) = parseHerblore(
-      skillDataById['melvorD:Herblore'],
-    );
-    actions.addAll(herbloreActions);
-    _herbloreCategories = herbloreCategories;
-
-    final (runecraftingActions, runecraftingCategories) = parseRunecrafting(
-      skillDataById['melvorD:Runecrafting'],
-    );
-    actions.addAll(runecraftingActions);
-    _runecraftingCategories = runecraftingCategories;
-
+    // Parse combat (monsters, areas, dungeons)
+    final monsters = <CombatAction>[];
     for (final json in dataFiles) {
       final namespace = json['namespace'] as String;
-      actions.addAll(parseCombatActions(json, namespace: namespace));
+      monsters.addAll(parseCombatActions(json, namespace: namespace));
     }
-
-    final (thievingActions, thievingAreas) = parseThieving(
-      skillDataById['melvorD:Thieving'],
+    _combatAreas = CombatAreaRegistry(combatAreas);
+    _dungeons = DungeonRegistry(dungeons);
+    _combat = CombatRegistry(
+      monsters: monsters,
+      areas: _combatAreas,
+      dungeons: _dungeons,
     );
-    actions.addAll(thievingActions);
-    _thievingAreas = thievingAreas;
 
-    final (agilityActions, agilityCourses, agilityPillars) = parseAgility(
-      skillDataById['melvorD:Agility'],
+    // Build ActionRegistry as a shim over specialized registries
+    _actions = ActionRegistry.fromRegistries(
+      woodcutting: _woodcutting,
+      mining: _mining,
+      firemaking: _firemaking,
+      cooking: _cooking,
+      fishing: _fishing,
+      smithing: _smithing,
+      farming: _farming,
+      fletching: _fletching,
+      crafting: _crafting,
+      herblore: _herblore,
+      runecrafting: _runecrafting,
+      thieving: _thieving,
+      agility: _agility,
+      summoning: _summoning,
+      astrology: _astrology,
+      altMagic: _altMagic,
+      combat: _combat,
     );
-    actions.addAll(agilityActions);
-    _agilityCourses = agilityCourses;
-    _agilityPillars = agilityPillars;
-
-    actions
-      ..addAll(parseSummoning(skillDataById['melvorD:Summoning']))
-      ..addAll(parseAstrology(skillDataById['melvorD:Astrology']))
-      ..addAll(parseAltMagic(skillDataById['melvorD:Magic']));
-
-    _actions = ActionRegistry(actions);
 
     // Parse summoning synergies
     _summoningSynergies = parseSummoningSynergies(
       skillDataById['melvorD:Summoning'],
     );
-    _combatAreas = CombatAreaRegistry(combatAreas);
-    _dungeons = DungeonRegistry(dungeons);
 
     // Parse shop data (pass cooking categories for upgrade chain building)
-    _shop = parseShop(dataFiles, cookingCategories: _cookingCategories);
+    _shop = parseShop(dataFiles, cookingCategories: _cooking.categories);
 
     // Parse mastery bonuses for all skills
     _masteryBonuses = parseMasteryBonuses(skillDataById);
@@ -255,25 +224,35 @@ class MelvorData {
   }
 
   late final ItemRegistry _items;
-  late final ActionRegistry _actions;
-  late final ShopRegistry _shop;
   late final EquipmentSlotRegistry _equipmentSlots;
   late final Map<MelvorId, int> _bankSortIndex;
-  late final CookingCategoryRegistry _cookingCategories;
-  late final FishingAreaRegistry _fishingAreas;
-  late final SmithingCategoryRegistry _smithingCategories;
-  late final FarmingCropRegistry _farmingCrops;
-  late final FarmingCategoryRegistry _farmingCategories;
-  late final FarmingPlotRegistry _farmingPlots;
-  late final FletchingCategoryRegistry _fletchingCategories;
-  late final CraftingCategoryRegistry _craftingCategories;
-  late final HerbloreCategoryRegistry _herbloreCategories;
-  late final RunecraftingCategoryRegistry _runecraftingCategories;
-  late final ThievingAreaRegistry _thievingAreas;
+
+  // Specialized skill registries (primary storage)
+  late final WoodcuttingRegistry _woodcutting;
+  late final MiningRegistry _mining;
+  late final FiremakingRegistry _firemaking;
+  late final CookingRegistry _cooking;
+  late final FishingRegistry _fishing;
+  late final SmithingRegistry _smithing;
+  late final FarmingRegistry _farming;
+  late final FletchingRegistry _fletching;
+  late final CraftingRegistry _crafting;
+  late final HerbloreRegistry _herblore;
+  late final RunecraftingRegistry _runecrafting;
+  late final ThievingRegistry _thieving;
+  late final AgilityRegistry _agility;
+  late final SummoningRegistry _summoning;
+  late final AstrologyRegistry _astrology;
+  late final AltMagicRegistry _altMagic;
+  late final CombatRegistry _combat;
+
+  // ActionRegistry shim (aggregates from specialized registries)
+  late final ActionRegistry _actions;
+
+  // Other registries
   late final CombatAreaRegistry _combatAreas;
   late final DungeonRegistry _dungeons;
-  late final AgilityCourseRegistry _agilityCourses;
-  late final AgilityPillarRegistry _agilityPillars;
+  late final ShopRegistry _shop;
   late final MasteryBonusRegistry _masteryBonuses;
   late final MasteryUnlockRegistry _masteryUnlocks;
   late final SummoningSynergyRegistry _summoningSynergies;
@@ -286,49 +265,52 @@ class MelvorData {
   /// Returns the equipment slots registry.
   EquipmentSlotRegistry get equipmentSlots => _equipmentSlots;
 
+  /// Returns the action registry (shim over specialized registries).
   ActionRegistry get actions => _actions;
 
-  CookingCategoryRegistry get cookingCategories => _cookingCategories;
+  // Specialized skill registries
+  WoodcuttingRegistry get woodcutting => _woodcutting;
+  MiningRegistry get mining => _mining;
+  FiremakingRegistry get firemaking => _firemaking;
+  CookingRegistry get cooking => _cooking;
+  FishingRegistry get fishing => _fishing;
+  SmithingRegistry get smithing => _smithing;
+  FarmingRegistry get farming => _farming;
+  FletchingRegistry get fletching => _fletching;
+  CraftingRegistry get crafting => _crafting;
+  HerbloreRegistry get herblore => _herblore;
+  RunecraftingRegistry get runecrafting => _runecrafting;
+  ThievingRegistry get thieving => _thieving;
+  AgilityRegistry get agility => _agility;
+  SummoningRegistry get summoning => _summoning;
+  AstrologyRegistry get astrology => _astrology;
+  AltMagicRegistry get altMagic => _altMagic;
+  CombatRegistry get combat => _combat;
 
-  FishingAreaRegistry get fishingAreas => _fishingAreas;
-
-  SmithingCategoryRegistry get smithingCategories => _smithingCategories;
-
-  FarmingCropRegistry get farmingCrops => _farmingCrops;
-
-  FarmingCategoryRegistry get farmingCategories => _farmingCategories;
-
-  FarmingPlotRegistry get farmingPlots => _farmingPlots;
-
-  FletchingCategoryRegistry get fletchingCategories => _fletchingCategories;
-
-  CraftingCategoryRegistry get craftingCategories => _craftingCategories;
-
-  HerbloreCategoryRegistry get herbloreCategories => _herbloreCategories;
-
-  RunecraftingCategoryRegistry get runecraftingCategories =>
-      _runecraftingCategories;
-
-  ThievingAreaRegistry get thievingAreas => _thievingAreas;
-
+  // Legacy getters for backward compatibility
+  // (delegate to specialized registries)
+  List<CookingCategory> get cookingCategories => _cooking.categories;
+  List<FishingArea> get fishingAreas => _fishing.areas;
+  List<SmithingCategory> get smithingCategories => _smithing.categories;
+  List<FarmingCrop> get farmingCrops => _farming.crops;
+  List<FarmingCategory> get farmingCategories => _farming.categories;
+  List<FarmingPlot> get farmingPlots => _farming.plots;
+  List<FletchingCategory> get fletchingCategories => _fletching.categories;
+  List<CraftingCategory> get craftingCategories => _crafting.categories;
+  List<HerbloreCategory> get herbloreCategories => _herblore.categories;
+  List<RunecraftingCategory> get runecraftingCategories =>
+      _runecrafting.categories;
+  List<ThievingArea> get thievingAreas => _thieving.areas;
   CombatAreaRegistry get combatAreas => _combatAreas;
-
   DungeonRegistry get dungeons => _dungeons;
-
-  AgilityCourseRegistry get agilityCourses => _agilityCourses;
-
-  AgilityPillarRegistry get agilityPillars => _agilityPillars;
+  List<AgilityCourse> get agilityCourses => _agility.courses;
+  List<AgilityPillar> get agilityPillars => _agility.pillars;
 
   ShopRegistry get shop => _shop;
-
   MasteryBonusRegistry get masteryBonuses => _masteryBonuses;
-
   MasteryUnlockRegistry get masteryUnlocks => _masteryUnlocks;
-
   SummoningSynergyRegistry get summoningSynergies => _summoningSynergies;
-
   TownshipRegistry get township => _township;
-
   DropsRegistry get drops => _drops;
 
   /// Returns the bank sort index map for passing to Registries.
@@ -354,9 +336,9 @@ class MelvorData {
   }
 }
 
-/// Parses all woodcutting data. Returns actions list.
-List<WoodcuttingTree> parseWoodcutting(List<SkillDataEntry>? entries) {
-  if (entries == null) return [];
+/// Parses all woodcutting data. Returns WoodcuttingRegistry.
+WoodcuttingRegistry parseWoodcutting(List<SkillDataEntry>? entries) {
+  if (entries == null) return const WoodcuttingRegistry([]);
 
   final actions = <WoodcuttingTree>[];
   for (final entry in entries) {
@@ -372,12 +354,12 @@ List<WoodcuttingTree> parseWoodcutting(List<SkillDataEntry>? entries) {
       );
     }
   }
-  return actions;
+  return WoodcuttingRegistry(actions).withCache();
 }
 
-/// Parses all mining data. Returns actions list.
-List<MiningAction> parseMining(List<SkillDataEntry>? entries) {
-  if (entries == null) return [];
+/// Parses all mining data. Returns MiningRegistry.
+MiningRegistry parseMining(List<SkillDataEntry>? entries) {
+  if (entries == null) return const MiningRegistry([]);
 
   final actions = <MiningAction>[];
   for (final entry in entries) {
@@ -393,15 +375,13 @@ List<MiningAction> parseMining(List<SkillDataEntry>? entries) {
       );
     }
   }
-  return actions;
+  return MiningRegistry(actions).withCache();
 }
 
-/// Parses all fishing data. Returns (actions, areasRegistry).
-(List<FishingAction>, FishingAreaRegistry) parseFishing(
-  List<SkillDataEntry>? entries,
-) {
+/// Parses all fishing data. Returns FishingRegistry.
+FishingRegistry parseFishing(List<SkillDataEntry>? entries) {
   if (entries == null) {
-    return ([], FishingAreaRegistry(const []));
+    return FishingRegistry(actions: const [], areas: const []);
   }
 
   final actions = <FishingAction>[];
@@ -433,15 +413,13 @@ List<MiningAction> parseMining(List<SkillDataEntry>? entries) {
     }
   }
 
-  return (actions, FishingAreaRegistry(areas));
+  return FishingRegistry(actions: actions, areas: areas);
 }
 
-/// Parses all cooking data. Returns (actions, categoriesRegistry).
-(List<CookingAction>, CookingCategoryRegistry) parseCooking(
-  List<SkillDataEntry>? entries,
-) {
+/// Parses all cooking data. Returns CookingRegistry.
+CookingRegistry parseCooking(List<SkillDataEntry>? entries) {
   if (entries == null) {
-    return ([], CookingCategoryRegistry(const []));
+    return CookingRegistry(actions: const [], categories: const []);
   }
 
   final actions = <CookingAction>[];
@@ -472,12 +450,12 @@ List<MiningAction> parseMining(List<SkillDataEntry>? entries) {
       );
     }
   }
-  return (actions, CookingCategoryRegistry(categories));
+  return CookingRegistry(actions: actions, categories: categories);
 }
 
-/// Parses all firemaking data. Returns actions list.
-List<FiremakingAction> parseFiremaking(List<SkillDataEntry>? entries) {
-  if (entries == null) return [];
+/// Parses all firemaking data. Returns FiremakingRegistry.
+FiremakingRegistry parseFiremaking(List<SkillDataEntry>? entries) {
+  if (entries == null) return const FiremakingRegistry([]);
 
   final actions = <FiremakingAction>[];
   for (final entry in entries) {
@@ -493,15 +471,13 @@ List<FiremakingAction> parseFiremaking(List<SkillDataEntry>? entries) {
       );
     }
   }
-  return actions;
+  return FiremakingRegistry(actions).withCache();
 }
 
-/// Parses all smithing data. Returns (actions, categoriesRegistry).
-(List<SmithingAction>, SmithingCategoryRegistry) parseSmithing(
-  List<SkillDataEntry>? entries,
-) {
+/// Parses all smithing data. Returns SmithingRegistry.
+SmithingRegistry parseSmithing(List<SkillDataEntry>? entries) {
   if (entries == null) {
-    return ([], SmithingCategoryRegistry(const []));
+    return SmithingRegistry(actions: const [], categories: const []);
   }
 
   final actions = <SmithingAction>[];
@@ -533,15 +509,17 @@ List<FiremakingAction> parseFiremaking(List<SkillDataEntry>? entries) {
     }
   }
 
-  return (actions, SmithingCategoryRegistry(categories));
+  return SmithingRegistry(actions: actions, categories: categories);
 }
 
-/// Parses all farming data. Returns (crops, categoriesRegistry, plotsRegistry).
-(List<FarmingCrop>, FarmingCategoryRegistry, FarmingPlotRegistry) parseFarming(
-  List<SkillDataEntry>? entries,
-) {
+/// Parses all farming data. Returns FarmingRegistry.
+FarmingRegistry parseFarming(List<SkillDataEntry>? entries) {
   if (entries == null) {
-    return ([], FarmingCategoryRegistry(const []), FarmingPlotRegistry([]));
+    return FarmingRegistry(
+      crops: const [],
+      categories: const [],
+      plots: const [],
+    );
   }
 
   final crops = <FarmingCrop>[];
@@ -586,19 +564,13 @@ List<FiremakingAction> parseFiremaking(List<SkillDataEntry>? entries) {
     }
   }
 
-  return (
-    crops,
-    FarmingCategoryRegistry(categories),
-    FarmingPlotRegistry(plots),
-  );
+  return FarmingRegistry(crops: crops, categories: categories, plots: plots);
 }
 
-/// Parses all fletching data. Returns (actions, categoriesRegistry).
-(List<FletchingAction>, FletchingCategoryRegistry) parseFletching(
-  List<SkillDataEntry>? entries,
-) {
+/// Parses all fletching data. Returns FletchingRegistry.
+FletchingRegistry parseFletching(List<SkillDataEntry>? entries) {
   if (entries == null) {
-    return ([], FletchingCategoryRegistry(const []));
+    return FletchingRegistry(actions: const [], categories: const []);
   }
 
   final actions = <FletchingAction>[];
@@ -630,15 +602,13 @@ List<FiremakingAction> parseFiremaking(List<SkillDataEntry>? entries) {
     }
   }
 
-  return (actions, FletchingCategoryRegistry(categories));
+  return FletchingRegistry(actions: actions, categories: categories);
 }
 
-/// Parses all crafting data. Returns (actions, categoriesRegistry).
-(List<CraftingAction>, CraftingCategoryRegistry) parseCrafting(
-  List<SkillDataEntry>? entries,
-) {
+/// Parses all crafting data. Returns CraftingRegistry.
+CraftingRegistry parseCrafting(List<SkillDataEntry>? entries) {
   if (entries == null) {
-    return ([], CraftingCategoryRegistry(const []));
+    return CraftingRegistry(actions: const [], categories: const []);
   }
 
   final actions = <CraftingAction>[];
@@ -670,15 +640,13 @@ List<FiremakingAction> parseFiremaking(List<SkillDataEntry>? entries) {
     }
   }
 
-  return (actions, CraftingCategoryRegistry(categories));
+  return CraftingRegistry(actions: actions, categories: categories);
 }
 
-/// Parses all herblore data. Returns (actions, categoriesRegistry).
-(List<HerbloreAction>, HerbloreCategoryRegistry) parseHerblore(
-  List<SkillDataEntry>? entries,
-) {
+/// Parses all herblore data. Returns HerbloreRegistry.
+HerbloreRegistry parseHerblore(List<SkillDataEntry>? entries) {
   if (entries == null) {
-    return ([], HerbloreCategoryRegistry(const []));
+    return HerbloreRegistry(actions: const [], categories: const []);
   }
 
   final actions = <HerbloreAction>[];
@@ -710,15 +678,13 @@ List<FiremakingAction> parseFiremaking(List<SkillDataEntry>? entries) {
     }
   }
 
-  return (actions, HerbloreCategoryRegistry(categories));
+  return HerbloreRegistry(actions: actions, categories: categories);
 }
 
-/// Parses all runecrafting data. Returns (actions, categoriesRegistry).
-(List<RunecraftingAction>, RunecraftingCategoryRegistry) parseRunecrafting(
-  List<SkillDataEntry>? entries,
-) {
+/// Parses all runecrafting data. Returns RunecraftingRegistry.
+RunecraftingRegistry parseRunecrafting(List<SkillDataEntry>? entries) {
   if (entries == null) {
-    return ([], RunecraftingCategoryRegistry(const []));
+    return RunecraftingRegistry(actions: const [], categories: const []);
   }
 
   final actions = <RunecraftingAction>[];
@@ -750,16 +716,13 @@ List<FiremakingAction> parseFiremaking(List<SkillDataEntry>? entries) {
     }
   }
 
-  return (actions, RunecraftingCategoryRegistry(categories));
+  return RunecraftingRegistry(actions: actions, categories: categories);
 }
 
-/// Parses all thieving data. Builds areas registry internally.
-/// Returns (actions, areasRegistry).
-(List<ThievingAction>, ThievingAreaRegistry) parseThieving(
-  List<SkillDataEntry>? entries,
-) {
+/// Parses all thieving data. Returns ThievingRegistry.
+ThievingRegistry parseThieving(List<SkillDataEntry>? entries) {
   if (entries == null) {
-    return ([], const ThievingAreaRegistry([]));
+    return ThievingRegistry(actions: const [], areas: const []);
   }
 
   // First pass: collect areas
@@ -778,8 +741,15 @@ List<FiremakingAction> parseFiremaking(List<SkillDataEntry>? entries) {
     }
   }
 
-  // Build registry so we can look up areas for NPCs
-  final areasRegistry = ThievingAreaRegistry(areas);
+  // Helper to find area for NPC
+  ThievingArea areaForNpc(MelvorId npcId) {
+    for (final area in areas) {
+      if (area.npcIds.contains(npcId)) {
+        return area;
+      }
+    }
+    throw StateError('Thieving NPC $npcId has no area');
+  }
 
   // Second pass: parse NPCs (need area lookup)
   final actions = <ThievingAction>[];
@@ -796,14 +766,14 @@ List<FiremakingAction> parseFiremaking(List<SkillDataEntry>? entries) {
           return ThievingAction.fromJson(
             npcMap,
             namespace: entry.namespace,
-            area: areasRegistry.areaForNpc(npcId),
+            area: areaForNpc(npcId),
           );
         }),
       );
     }
   }
 
-  return (actions, areasRegistry);
+  return ThievingRegistry(actions: actions, areas: areas);
 }
 
 List<CombatAction> parseCombatActions(
@@ -862,7 +832,7 @@ List<Dungeon> parseDungeons(
 /// Parses all shop data from multiple data files.
 ShopRegistry parseShop(
   List<Map<String, dynamic>> dataFiles, {
-  CookingCategoryRegistry? cookingCategories,
+  List<CookingCategory>? cookingCategories,
 }) {
   final purchases = <ShopPurchase>[];
   final categories = <ShopCategory>[];
@@ -955,11 +925,14 @@ MasteryUnlockRegistry parseMasteryUnlocks(
   return MasteryUnlockRegistry(skillUnlocks);
 }
 
-/// Parses all agility data (obstacles, courses, pillars).
-(List<AgilityObstacle>, AgilityCourseRegistry, AgilityPillarRegistry)
-parseAgility(List<SkillDataEntry>? entries) {
+/// Parses all agility data. Returns AgilityRegistry.
+AgilityRegistry parseAgility(List<SkillDataEntry>? entries) {
   if (entries == null) {
-    return ([], AgilityCourseRegistry([]), AgilityPillarRegistry([]));
+    return AgilityRegistry(
+      obstacles: const [],
+      courses: const [],
+      pillars: const [],
+    );
   }
 
   final obstacles = <AgilityObstacle>[];
@@ -1007,16 +980,16 @@ parseAgility(List<SkillDataEntry>? entries) {
     }
   }
 
-  return (
-    obstacles,
-    AgilityCourseRegistry(courses),
-    AgilityPillarRegistry(pillars),
+  return AgilityRegistry(
+    obstacles: obstacles,
+    courses: courses,
+    pillars: pillars,
   );
 }
 
-/// Parses all summoning data. Returns actions list.
-List<SummoningAction> parseSummoning(List<SkillDataEntry>? entries) {
-  if (entries == null) return [];
+/// Parses all summoning data. Returns SummoningRegistry.
+SummoningRegistry parseSummoning(List<SkillDataEntry>? entries) {
+  if (entries == null) return SummoningRegistry(const []);
 
   final actions = <SummoningAction>[];
   for (final entry in entries) {
@@ -1032,12 +1005,12 @@ List<SummoningAction> parseSummoning(List<SkillDataEntry>? entries) {
       );
     }
   }
-  return actions;
+  return SummoningRegistry(actions);
 }
 
-/// Parses all astrology data. Returns actions list.
-List<AstrologyAction> parseAstrology(List<SkillDataEntry>? entries) {
-  if (entries == null) return [];
+/// Parses all astrology data. Returns AstrologyRegistry.
+AstrologyRegistry parseAstrology(List<SkillDataEntry>? entries) {
+  if (entries == null) return const AstrologyRegistry([]);
 
   final actions = <AstrologyAction>[];
   for (final entry in entries) {
@@ -1053,12 +1026,12 @@ List<AstrologyAction> parseAstrology(List<SkillDataEntry>? entries) {
       );
     }
   }
-  return actions;
+  return AstrologyRegistry(actions).withCache();
 }
 
-/// Parses all alt magic data. Returns actions list.
-List<AltMagicAction> parseAltMagic(List<SkillDataEntry>? entries) {
-  if (entries == null) return [];
+/// Parses all alt magic data. Returns AltMagicRegistry.
+AltMagicRegistry parseAltMagic(List<SkillDataEntry>? entries) {
+  if (entries == null) return const AltMagicRegistry([]);
 
   final actions = <AltMagicAction>[];
   for (final entry in entries) {
@@ -1074,7 +1047,7 @@ List<AltMagicAction> parseAltMagic(List<SkillDataEntry>? entries) {
       );
     }
   }
-  return actions;
+  return AltMagicRegistry(actions).withCache();
 }
 
 /// Parses all township data. Returns TownshipRegistry.

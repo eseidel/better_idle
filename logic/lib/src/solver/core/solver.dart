@@ -167,7 +167,7 @@ class _BucketKey extends Equatable {
     // Collect all possible input item IDs for consuming skills
     final inputItemIds = <MelvorId>{};
     for (final skill in consumingSkills) {
-      for (final action in registries.actions.forSkill(skill)) {
+      for (final action in registries.actionsForSkill(skill)) {
         inputItemIds.addAll(action.inputs.keys);
       }
     }

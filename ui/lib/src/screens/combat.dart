@@ -221,8 +221,8 @@ class _DungeonTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final state = context.state;
-    final actions = state.registries.actions;
-    final monsters = dungeon.monsterIds.map(actions.combatWithId).toList();
+    final combat = state.registries.combat;
+    final monsters = dungeon.monsterIds.map(combat.monsterById).toList();
 
     return Card(
       color: isActive ? Style.activeColorLight : null,
@@ -263,7 +263,6 @@ class _DungeonProgressCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final state = context.state;
     final dungeon = state.registries.dungeons.byId(dungeonId);
-    if (dungeon == null) return const SizedBox.shrink();
 
     final totalMonsters = dungeon.monsterIds.length;
     final progress = (currentMonsterIndex + 1) / totalMonsters;
@@ -326,8 +325,8 @@ class _CombatAreaTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final state = context.state;
     // Resolve monster IDs to actual CombatAction objects
-    final actions = state.registries.actions;
-    final monsters = area.monsterIds.map(actions.combatWithId).toList();
+    final combat = state.registries.combat;
+    final monsters = area.monsterIds.map(combat.monsterById).toList();
 
     // Check if any monster in this area is being fought
     final activeId = activeMonster?.id;

@@ -2,11 +2,24 @@ import 'dart:math';
 
 import 'package:logic/src/action_state.dart';
 import 'package:logic/src/data/action_id.dart';
+import 'package:logic/src/data/agility.dart';
+import 'package:logic/src/data/alt_magic.dart';
+import 'package:logic/src/data/astrology.dart';
 import 'package:logic/src/data/combat.dart';
+import 'package:logic/src/data/cooking.dart';
+import 'package:logic/src/data/crafting.dart';
+import 'package:logic/src/data/farming.dart';
+import 'package:logic/src/data/firemaking.dart';
+import 'package:logic/src/data/fishing.dart';
+import 'package:logic/src/data/fletching.dart';
+import 'package:logic/src/data/herblore.dart';
 import 'package:logic/src/data/melvor_id.dart';
 import 'package:logic/src/data/mining.dart';
+import 'package:logic/src/data/runecrafting.dart';
+import 'package:logic/src/data/smithing.dart';
 import 'package:logic/src/data/summoning.dart';
 import 'package:logic/src/data/thieving.dart';
+import 'package:logic/src/data/woodcutting.dart';
 import 'package:logic/src/tick.dart';
 import 'package:logic/src/types/drop.dart';
 import 'package:logic/src/types/modifier_names.dart';
@@ -357,6 +370,52 @@ class ActionRegistry {
     }
   }
 
+  /// Creates an ActionRegistry as a shim over specialized skill registries.
+  ///
+  /// This aggregates actions from all specialized registries into a single
+  /// flat list, maintaining backward compatibility while allowing the
+  /// specialized registries to be the primary storage.
+  factory ActionRegistry.fromRegistries({
+    required WoodcuttingRegistry woodcutting,
+    required MiningRegistry mining,
+    required FiremakingRegistry firemaking,
+    required CookingRegistry cooking,
+    required FishingRegistry fishing,
+    required SmithingRegistry smithing,
+    required FarmingRegistry farming,
+    required FletchingRegistry fletching,
+    required CraftingRegistry crafting,
+    required HerbloreRegistry herblore,
+    required RunecraftingRegistry runecrafting,
+    required ThievingRegistry thieving,
+    required AgilityRegistry agility,
+    required SummoningRegistry summoning,
+    required AstrologyRegistry astrology,
+    required AltMagicRegistry altMagic,
+    required CombatRegistry combat,
+  }) {
+    final all = <Action>[
+      ...woodcutting.actions,
+      ...mining.actions,
+      ...firemaking.actions,
+      ...cooking.actions,
+      ...fishing.actions,
+      ...smithing.actions,
+      ...farming.crops,
+      ...fletching.actions,
+      ...crafting.actions,
+      ...herblore.actions,
+      ...runecrafting.actions,
+      ...thieving.actions,
+      ...agility.obstacles,
+      ...summoning.actions,
+      ...astrology.actions,
+      ...altMagic.actions,
+      ...combat.monsters,
+    ];
+    return ActionRegistry(all);
+  }
+
   final List<Action> all;
   late final Map<ActionId, Action> _byId;
   late final Map<MelvorId, Map<String, Action>> _bySkillAndNameMap;
@@ -393,9 +452,6 @@ class ActionRegistry {
     return action;
   }
 
-  CombatAction combatWithId(MelvorId id) =>
-      _byId[ActionId(Skill.combat.id, id)]! as CombatAction;
-
   @visibleForTesting
   SkillAction woodcutting(String name) =>
       _bySkillAndName(Skill.woodcutting, name) as SkillAction;
@@ -423,63 +479,6 @@ class ActionRegistry {
   @visibleForTesting
   SkillAction smithing(String name) =>
       _bySkillAndName(Skill.smithing, name) as SkillAction;
-
-  /// Returns all summoning familiars that can have marks discovered while
-  /// performing actions in the given skill.
-  Iterable<SummoningAction> summoningFamiliarsForSkill(Skill skill) {
-    return forSkill(Skill.summoning).whereType<SummoningAction>().where(
-      (action) => action.markSkillIds.contains(skill.id),
-    );
-  }
-
-  /// Finds the SummoningAction that produces a tablet with the given ID.
-  /// Returns null if no matching action is found.
-  SummoningAction? summoningActionForTablet(MelvorId tabletId) {
-    for (final action in forSkill(Skill.summoning)) {
-      if (action is SummoningAction && action.productId == tabletId) {
-        return action;
-      }
-    }
-    return null;
-  }
-
-  /// Returns true if the familiar (tablet) is relevant to the given skill.
-  ///
-  /// A familiar is relevant if the skill is in its markSkillIds.
-  bool isFamiliarRelevantToSkill(MelvorId tabletId, Skill skill) {
-    final action = summoningActionForTablet(tabletId);
-    if (action == null) return false;
-    return action.markSkillIds.contains(skill.id);
-  }
-
-  /// Returns true if the familiar (tablet) is relevant to combat with the
-  /// given combat type skills.
-  ///
-  /// [combatTypeSkills] should be the skills specific to the combat type
-  /// (e.g., Attack/Strength for melee, Ranged for ranged, Magic for magic).
-  ///
-  /// A familiar is combat-relevant if any of its markSkillIds matches:
-  /// - The combat type's specific skills
-  /// - Universal combat skills (Defence, Hitpoints, Prayer, Slayer)
-  bool isFamiliarRelevantToCombat(
-    MelvorId tabletId,
-    Set<Skill> combatTypeSkills,
-  ) {
-    final action = summoningActionForTablet(tabletId);
-    if (action == null) return false;
-
-    // Check universal combat skills first
-    for (final skill in Skill.universalCombatSkills) {
-      if (action.markSkillIds.contains(skill.id)) return true;
-    }
-
-    // Check combat type specific skills
-    for (final skill in combatTypeSkills) {
-      if (action.markSkillIds.contains(skill.id)) return true;
-    }
-
-    return false;
-  }
 }
 
 class DropsRegistry {

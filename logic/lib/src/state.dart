@@ -78,18 +78,11 @@ ActiveActivity? _convertToActivity(
     final CombatContext context;
     if (combatState.dungeonId != null) {
       final dungeon = dungeons.byId(combatState.dungeonId!);
-      if (dungeon != null) {
-        context = DungeonCombatContext(
-          dungeonId: combatState.dungeonId!,
-          currentMonsterIndex: combatState.dungeonMonsterIndex ?? 0,
-          monsterIds: dungeon.monsterIds,
-        );
-      } else {
-        // Dungeon not found, fall back to monster context
-        context = MonsterCombatContext(
-          monsterId: combatState.monsterId.localId,
-        );
-      }
+      context = DungeonCombatContext(
+        dungeonId: combatState.dungeonId!,
+        currentMonsterIndex: combatState.dungeonMonsterIndex ?? 0,
+        monsterIds: dungeon.monsterIds,
+      );
     } else {
       context = MonsterCombatContext(monsterId: combatState.monsterId.localId);
     }
@@ -458,7 +451,7 @@ class GlobalState {
         selectedPotions: const {},
         potionChargesUsed: const {},
         // Unlock all free starter plots (level 1, 0 GP cost)
-        unlockedPlots: registries.farmingPlots.initialPlots(),
+        unlockedPlots: registries.farming.initialPlots(),
         // Initialize township resources with starting amounts
         township: TownshipState.initial(registries.township),
       );
@@ -1135,8 +1128,8 @@ class GlobalState {
     if (!tablet1.isSummonTablet || !tablet2.isSummonTablet) return null;
 
     // Get the summoning actions for each tablet
-    final action1 = registries.actions.summoningActionForTablet(tablet1.id);
-    final action2 = registries.actions.summoningActionForTablet(tablet2.id);
+    final action1 = registries.summoning.actionForTablet(tablet1.id);
+    final action2 = registries.summoning.actionForTablet(tablet2.id);
     if (action1 == null || action2 == null) return null;
 
     // Both familiars must have mark level >= 3
@@ -1303,7 +1296,7 @@ class GlobalState {
 
     // Get the first monster in the dungeon
     final firstMonsterId = dungeon.monsterIds.first;
-    final firstMonster = registries.actions.combatWithId(firstMonsterId);
+    final firstMonster = registries.combat.monsterById(firstMonsterId);
     final actionId = firstMonster.id;
 
     final pStats = computePlayerStats(this);
@@ -2221,7 +2214,7 @@ class GlobalState {
     newPlotStates[plotId] = newPlotState;
 
     // Award XP if category says to give XP on plant
-    final category = registries.farmingCategories.byId(crop.categoryId);
+    final category = registries.farming.categoryById(crop.categoryId);
     var newState = copyWith(inventory: newInventory, plotStates: newPlotStates);
 
     if (category?.giveXPOnPlant ?? false) {
@@ -2290,12 +2283,12 @@ class GlobalState {
     }
 
     // Get crop and category
-    final crop = registries.farmingCrops.byId(cropId);
+    final crop = registries.farming.cropById(cropId);
     if (crop == null) {
       throw StateError('Crop $cropId not found');
     }
 
-    final category = registries.farmingCategories.byId(crop.categoryId);
+    final category = registries.farming.categoryById(crop.categoryId);
     if (category == null) {
       throw StateError('Category ${crop.categoryId} not found');
     }
@@ -2501,7 +2494,7 @@ class GlobalState {
   /// - The player doesn't meet the level requirement
   /// - The player can't afford the currency costs
   GlobalState? unlockPlot(MelvorId plotId) {
-    final plot = registries.farmingPlots.byId(plotId);
+    final plot = registries.farming.plotById(plotId);
     if (plot == null) {
       return null;
     }

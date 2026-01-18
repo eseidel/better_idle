@@ -39,7 +39,7 @@ class _FishingPageState extends State<FishingPage> {
         .toList();
 
     // Get all fishing areas from registries.
-    final fishingAreas = registries.fishingAreas.all;
+    final fishingAreas = registries.fishingAreas;
 
     // Default to first unlocked action if none selected.
     final unlockedActions = fishingActions

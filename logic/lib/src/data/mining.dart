@@ -106,3 +106,30 @@ class MiningAction extends SkillAction {
     return 1.0 - (remaining / respawnTicks);
   }
 }
+
+/// Registry for mining skill data.
+@immutable
+class MiningRegistry {
+  const MiningRegistry(this.actions) : _byId = null;
+
+  const MiningRegistry._withCache(this.actions, this._byId);
+
+  /// All mining rock actions.
+  final List<MiningAction> actions;
+
+  final Map<MelvorId, MiningAction>? _byId;
+
+  Map<MelvorId, MiningAction> get _actionMap {
+    if (_byId != null) return _byId;
+    return {for (final a in actions) a.id.localId: a};
+  }
+
+  /// Look up a mining action by its local ID.
+  MiningAction? byId(MelvorId localId) => _actionMap[localId];
+
+  /// Create a cached version for faster lookups.
+  MiningRegistry withCache() {
+    if (_byId != null) return this;
+    return MiningRegistry._withCache(actions, _actionMap);
+  }
+}

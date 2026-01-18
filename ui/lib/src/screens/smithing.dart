@@ -31,13 +31,12 @@ class _SmithingPageState extends State<SmithingPage> {
         .toList();
     final skillState = context.state.skillState(skill);
     final skillLevel = skillState.skillLevel;
-    final categories = registries.smithingCategories;
 
     // Group actions by category
     final actionsByCategory = <SmithingCategory, List<SmithingAction>>{};
     for (final action in actions) {
       final category = action.categoryId != null
-          ? categories.byId(action.categoryId!)
+          ? registries.smithing.categoryById(action.categoryId!)
           : null;
       if (category != null) {
         actionsByCategory.putIfAbsent(category, () => []).add(action);

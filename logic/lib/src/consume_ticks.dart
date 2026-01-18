@@ -936,7 +936,7 @@ class StateUpdateBuilder {
   /// Returns true if the familiar is relevant to the given action.
   bool _isFamiliarRelevantToAction(MelvorId tabletId, Action action) {
     if (action is SkillAction) {
-      return registries.actions.isFamiliarRelevantToSkill(
+      return registries.summoning.isFamiliarRelevantToSkill(
         tabletId,
         action.skill,
       );
@@ -945,7 +945,7 @@ class StateUpdateBuilder {
     if (action is CombatAction) {
       // Use the player's current combat type to determine relevance
       final combatTypeSkills = _state.attackStyle.combatType.skills;
-      return registries.actions.isFamiliarRelevantToCombat(
+      return registries.summoning.isFamiliarRelevantToCombat(
         tabletId,
         combatTypeSkills,
       );
@@ -1376,7 +1376,7 @@ void _rollMarkDiscovery(
   final registries = builder.registries;
 
   // Get familiars that can be discovered in this skill
-  final familiars = registries.actions.summoningFamiliarsForSkill(action.skill);
+  final familiars = registries.summoning.familiarsForSkill(action.skill);
   if (familiars.isEmpty) return;
 
   // Get player's summoning level
@@ -1791,7 +1791,7 @@ enum ForegroundResult {
     // Handle dungeon progression
     final dungeonId = currentCombat.dungeonId;
     if (dungeonId != null) {
-      final dungeon = builder.registries.dungeons.byId(dungeonId)!;
+      final dungeon = builder.registries.dungeons.byId(dungeonId);
       final currentIndex = currentCombat.dungeonMonsterIndex ?? 0;
       final nextIndex = currentIndex + 1;
 
@@ -1806,9 +1806,7 @@ enum ForegroundResult {
 
       // Spawn the next monster (or first monster if looping)
       final nextMonsterId = dungeon.monsterIds[actualNextIndex];
-      final nextMonster = builder.registries.actions.combatWithId(
-        nextMonsterId,
-      );
+      final nextMonster = builder.registries.combat.monsterById(nextMonsterId);
       final fullMonsterAttackTicks = ticksFromDuration(
         Duration(milliseconds: (nextMonster.stats.attackSpeed * 1000).round()),
       );

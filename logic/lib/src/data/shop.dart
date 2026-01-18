@@ -544,15 +544,15 @@ class ShopRegistry {
   ShopRegistry(
     this._purchases,
     this._categories, {
-    CookingCategoryRegistry? cookingCategories,
-  }) : _cookingCategoryRegistry = cookingCategories {
+    List<CookingCategory>? cookingCategories,
+  }) : _cookingCategories = cookingCategories {
     _byId = {for (final p in _purchases) p.id.toJson(): p};
     _buildUpgradeChains();
   }
 
   final List<ShopPurchase> _purchases;
   final List<ShopCategory> _categories;
-  final CookingCategoryRegistry? _cookingCategoryRegistry;
+  final List<CookingCategory>? _cookingCategories;
   late final Map<String, ShopPurchase> _byId;
 
   /// Ordered upgrade chains keyed by skill (for skillInterval upgrades).
@@ -618,15 +618,15 @@ class ShopRegistry {
     _cookingUpgradeChains = _buildCookingChainsFromCategories();
   }
 
-  /// Builds cooking upgrade chains from the cooking category registry.
+  /// Builds cooking upgrade chains from the cooking categories.
   /// The category data contains shopUpgradeIDs in order from highest to lowest,
   /// so we reverse them to get lowest to highest tier order.
   Map<MelvorId, List<MelvorId>> _buildCookingChainsFromCategories() {
     final cookingChains = <MelvorId, List<MelvorId>>{};
-    final categories = _cookingCategoryRegistry;
+    final categories = _cookingCategories;
     if (categories == null) return cookingChains;
 
-    for (final category in categories.all) {
+    for (final category in categories) {
       if (category.shopUpgradeIds.isNotEmpty) {
         // Reverse: data is highest-to-lowest, we want lowest-to-highest
         cookingChains[category.id] = category.shopUpgradeIds.reversed.toList();

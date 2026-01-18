@@ -62,3 +62,30 @@ class FiremakingAction extends SkillAction {
   /// XP bonus percentage when bonfire is active.
   final int bonfireXPBonus;
 }
+
+/// Registry for firemaking skill data.
+@immutable
+class FiremakingRegistry {
+  const FiremakingRegistry(this.actions) : _byId = null;
+
+  const FiremakingRegistry._withCache(this.actions, this._byId);
+
+  /// All firemaking actions.
+  final List<FiremakingAction> actions;
+
+  final Map<MelvorId, FiremakingAction>? _byId;
+
+  Map<MelvorId, FiremakingAction> get _actionMap {
+    if (_byId != null) return _byId;
+    return {for (final a in actions) a.id.localId: a};
+  }
+
+  /// Look up a firemaking action by its local ID.
+  FiremakingAction? byId(MelvorId localId) => _actionMap[localId];
+
+  /// Create a cached version for faster lookups.
+  FiremakingRegistry withCache() {
+    if (_byId != null) return this;
+    return FiremakingRegistry._withCache(actions, _actionMap);
+  }
+}

@@ -1256,7 +1256,7 @@ void main() {
   group('farming background growth', () {
     test('farming plots grow while doing other actions', () {
       // Get a level-1 farming crop and an unlocked plot
-      final crops = testRegistries.farmingCrops.all;
+      final crops = testRegistries.farmingCrops;
       final allotmentCrops = crops.where((c) => c.level == 1).toList();
       expect(allotmentCrops, isNotEmpty, reason: 'Should have level 1 crops');
 
@@ -1264,7 +1264,7 @@ void main() {
       final seed = testItems.byId(crop.seedId);
 
       // Get an unlocked plot from initial plots
-      final initialPlots = testRegistries.farmingPlots.initialPlots();
+      final initialPlots = testRegistries.farming.initialPlots();
       expect(initialPlots, isNotEmpty, reason: 'Should have initial plots');
       final plotId = initialPlots.first;
 
@@ -1319,13 +1319,13 @@ void main() {
 
     test('farming plots grow with no foreground action', () {
       // Get a level-1 farming crop and an unlocked plot
-      final crops = testRegistries.farmingCrops.all;
+      final crops = testRegistries.farmingCrops;
       final allotmentCrops = crops.where((c) => c.level == 1).toList();
       final crop = allotmentCrops.first;
       final seed = testItems.byId(crop.seedId);
 
       // Get an unlocked plot
-      final initialPlots = testRegistries.farmingPlots.initialPlots();
+      final initialPlots = testRegistries.farming.initialPlots();
       final plotId = initialPlots.first;
 
       // Create state with seed in inventory
@@ -1357,8 +1357,8 @@ void main() {
       // Get all available plots for the Allotment category
       // (initial plots are level 1, no cost, and category Allotment)
       const allotmentCategoryId = MelvorId('melvorD:Allotment');
-      final allotmentPlots = testRegistries.farmingPlots
-          .forCategory(allotmentCategoryId)
+      final allotmentPlots = testRegistries.farming
+          .plotsForCategory(allotmentCategoryId)
           .where((p) => p.level == 1 && p.currencyCosts.isEmpty)
           .toList();
 
@@ -1373,7 +1373,7 @@ void main() {
       final plotId2 = allotmentPlots[1].id;
 
       // Get a level-1 crop
-      final crops = testRegistries.farmingCrops.all;
+      final crops = testRegistries.farmingCrops;
       final levelOneCrops = crops.where((c) => c.level == 1).toList();
       expect(levelOneCrops, isNotEmpty);
 
@@ -1410,14 +1410,14 @@ void main() {
 
     test('harvesting a ready crop yields product and clears plot', () {
       // Get a level-1 farming crop and an unlocked plot
-      final crops = testRegistries.farmingCrops.all;
+      final crops = testRegistries.farmingCrops;
       final allotmentCrops = crops.where((c) => c.level == 1).toList();
       final crop = allotmentCrops.first;
       final seed = testItems.byId(crop.seedId);
       final product = testItems.byId(crop.productId);
 
       // Get an unlocked plot
-      final initialPlots = testRegistries.farmingPlots.initialPlots();
+      final initialPlots = testRegistries.farming.initialPlots();
       final plotId = initialPlots.first;
 
       // Create state with seed in inventory
@@ -1461,13 +1461,13 @@ void main() {
 
     test('farming growth continues across multiple tick cycles', () {
       // Get a level-1 farming crop and an unlocked plot
-      final crops = testRegistries.farmingCrops.all;
+      final crops = testRegistries.farmingCrops;
       final allotmentCrops = crops.where((c) => c.level == 1).toList();
       final crop = allotmentCrops.first;
       final seed = testItems.byId(crop.seedId);
 
       // Get an unlocked plot
-      final initialPlots = testRegistries.farmingPlots.initialPlots();
+      final initialPlots = testRegistries.farming.initialPlots();
       final plotId = initialPlots.first;
 
       // Create state with seed in inventory
@@ -1937,7 +1937,7 @@ void main() {
     setUpAll(() {
       chickenCoopDungeon = testRegistries.dungeons.byId(
         MelvorId.fromJson('melvorD:Chicken_Coop'),
-      )!;
+      );
       bones = testItems.byName('Bones');
     });
 

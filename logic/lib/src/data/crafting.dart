@@ -33,24 +33,6 @@ class CraftingCategory {
   final String media;
 }
 
-/// Registry for crafting categories.
-@immutable
-class CraftingCategoryRegistry {
-  CraftingCategoryRegistry(List<CraftingCategory> categories)
-    : _categories = categories {
-    _byId = {for (final category in _categories) category.id: category};
-  }
-
-  final List<CraftingCategory> _categories;
-  late final Map<MelvorId, CraftingCategory> _byId;
-
-  /// Returns all crafting categories.
-  List<CraftingCategory> get all => _categories;
-
-  /// Returns a crafting category by ID, or null if not found.
-  CraftingCategory? byId(MelvorId id) => _byId[id];
-}
-
 /// A crafting action parsed from Melvor data.
 ///
 /// Crafting actions consume materials and produce items like leather armor,
@@ -123,4 +105,34 @@ class CraftingAction extends SkillAction {
   /// The category ID (e.g., "melvorD:Leather", "melvorD:Dragonhide").
   @override
   final MelvorId? categoryId;
+}
+
+/// Unified registry for all crafting-related data.
+@immutable
+class CraftingRegistry {
+  CraftingRegistry({
+    required List<CraftingAction> actions,
+    required List<CraftingCategory> categories,
+  }) : _actions = actions,
+       _categories = categories {
+    _byId = {for (final a in _actions) a.id.localId: a};
+    _categoryById = {for (final c in _categories) c.id: c};
+  }
+
+  final List<CraftingAction> _actions;
+  final List<CraftingCategory> _categories;
+  late final Map<MelvorId, CraftingAction> _byId;
+  late final Map<MelvorId, CraftingCategory> _categoryById;
+
+  /// All crafting actions.
+  List<CraftingAction> get actions => _actions;
+
+  /// All crafting categories.
+  List<CraftingCategory> get categories => _categories;
+
+  /// Look up a crafting action by its local ID.
+  CraftingAction? byId(MelvorId localId) => _byId[localId];
+
+  /// Returns a crafting category by ID, or null if not found.
+  CraftingCategory? categoryById(MelvorId id) => _categoryById[id];
 }

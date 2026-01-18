@@ -31,13 +31,12 @@ class _CraftingPageState extends State<CraftingPage> {
         .toList();
     final skillState = context.state.skillState(skill);
     final skillLevel = skillState.skillLevel;
-    final categories = registries.craftingCategories;
 
     // Group actions by category
     final actionsByCategory = <CraftingCategory, List<CraftingAction>>{};
     for (final action in actions) {
       final category = action.categoryId != null
-          ? categories.byId(action.categoryId!)
+          ? registries.crafting.categoryById(action.categoryId!)
           : null;
       if (category != null) {
         actionsByCategory.putIfAbsent(category, () => []).add(action);

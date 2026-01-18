@@ -6,6 +6,14 @@ import 'package:logic/src/data/melvor_id.dart';
 /// This is necessary to uniquely identify an action, since action names
 /// are unique within a skill, but not across skills and skills themselves
 /// are namespaced (but also themselves unique without a namespace).
+///
+/// ActionId does NOT include alternative recipe selection. Some actions
+/// (like Bronze Bar in Smithing) have multiple recipe variants that use
+/// different inputs. The recipe selection is stored separately in
+/// `SkillActivity.selectedRecipeIndex` because:
+/// 1. Mastery XP is shared across all recipe variants of the same action
+/// 2. Recipe selection is transient activity state, not a permanent property
+/// 3. The action's outputs and XP rewards are the same regardless of recipe
 class ActionId extends Equatable {
   const ActionId(this.skillId, this.localId);
 

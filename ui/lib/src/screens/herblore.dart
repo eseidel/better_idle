@@ -31,13 +31,12 @@ class _HerblorePageState extends State<HerblorePage> {
         .toList();
     final skillState = context.state.skillState(skill);
     final skillLevel = skillState.skillLevel;
-    final categories = registries.herbloreCategories;
 
     // Group actions by category
     final actionsByCategory = <HerbloreCategory, List<HerbloreAction>>{};
     for (final action in actions) {
       final category = action.categoryId != null
-          ? categories.byId(action.categoryId!)
+          ? registries.herblore.categoryById(action.categoryId!)
           : null;
       if (category != null) {
         actionsByCategory.putIfAbsent(category, () => []).add(action);
