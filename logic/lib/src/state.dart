@@ -535,7 +535,7 @@ class GlobalState {
         json['inventory'] as Map<String, dynamic>,
       ),
       // Read new format first, fall back to old format for backward compat
-      activeActivity = _parseActiveActivity(json, registries),
+      activeActivity = _parseActiveActivity(json),
       skillStates =
           maybeMap(
             json['skillStates'],
@@ -596,38 +596,11 @@ class GlobalState {
           TownshipState.maybeFromJson(registries.township, json['township']) ??
           TownshipState.initial(registries.township);
 
-  /// Parses activeActivity from JSON, with fallback to old activeAction format.
-  static ActiveActivity? _parseActiveActivity(
-    Map<String, dynamic> json,
-    Registries registries,
-  ) {
-    // Try new format first
+  /// Parses activeActivity from JSON.
+  static ActiveActivity? _parseActiveActivity(Map<String, dynamic> json) {
     final activityJson = json['activeActivity'] as Map<String, dynamic>?;
-    if (activityJson != null) {
-      return ActiveActivity.fromJson(activityJson);
-    }
-
-    // Fall back to old format
-    final actionJson = json['activeAction'] as Map<String, dynamic>?;
-    if (actionJson == null) return null;
-
-    // Parse old activeAction and actionStates to convert
-    final activeAction = ActiveAction.fromJson(actionJson);
-    final actionStatesJson =
-        json['actionStates'] as Map<String, dynamic>? ?? {};
-    final actionStates = actionStatesJson.map(
-      (key, value) => MapEntry(
-        ActionId.fromJson(key),
-        ActionState.fromJson(value as Map<String, dynamic>),
-      ),
-    );
-
-    return _convertToActivity(
-      activeAction,
-      actionStates,
-      registries.actions,
-      registries.dungeons,
-    );
+    if (activityJson == null) return null;
+    return ActiveActivity.fromJson(activityJson);
   }
 
   static Map<Currency, int> _currenciesFromJson(Map<String, dynamic> json) {
@@ -720,8 +693,6 @@ class GlobalState {
     return {
       'updatedAt': updatedAt.toIso8601String(),
       'inventory': inventory.toJson(),
-      // Write both old and new formats during transition
-      'activeAction': activeAction?.toJson(),
       'activeActivity': activeActivity?.toJson(),
       'skillStates': skillStates.map(
         (key, value) => MapEntry(key.name, value.toJson()),
