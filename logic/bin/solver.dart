@@ -386,7 +386,7 @@ void _printPlan(SolvedPlan solvedPlan, SolverConfig config) {
     'Plan (compressed ${plan.steps.length} '
     '-> ${compressed.steps.length} steps):',
   );
-  print(compressed.prettyPrint(actions: config.registries.actions));
+  print(compressed.prettyPrint(actions: config.registries));
   print('Total ticks: ${compressed.totalTicks}');
   print('Interaction count: ${compressed.interactionCount}');
 }
@@ -416,7 +416,7 @@ void _printSkillDurations(
   // Aggregate by skill
   final skillDurations = <Skill, Tick>{};
   for (final entry in actionDurations.entries) {
-    final action = registries.actions.byId(entry.key);
+    final action = registries.actionById(entry.key);
     skillDurations[action.skill] =
         (skillDurations[action.skill] ?? 0) + entry.value;
   }
@@ -441,7 +441,7 @@ void _printSkillDurations(
       ..sort((a, b) => b.value.compareTo(a.value));
 
     for (final entry in sortedActions) {
-      final action = registries.actions.byId(entry.key);
+      final action = registries.actionById(entry.key);
       final timeStr = durationStringWithTicks(entry.value);
       print('  ${action.name} (${action.skill.name}): $timeStr');
     }
@@ -563,7 +563,7 @@ void _printSegmentSummaries(
 
   // Print full plan (compact format)
   final plan = Plan.fromSegments(segments);
-  print(plan.prettyPrintCompact(actions: config.registries.actions));
+  print(plan.prettyPrintCompact(actions: config.registries));
 }
 
 void _printFailure(SolverFailed result, SolverConfig config) {
@@ -1118,7 +1118,7 @@ String _formatSegmentSummary(
             switchCount++;
             // Use the first switch as primary action
             if (primaryAction == null) {
-              final action = registries.actions.byId(actionId);
+              final action = registries.actionById(actionId);
               final skill = action.skill.name.toLowerCase();
               primaryAction = '${action.name} ($skill)';
             }
@@ -1132,7 +1132,7 @@ String _formatSegmentSummary(
           case TrainSkillUntil(:final skill, :final actionId):
             if (primaryAction == null) {
               if (actionId != null) {
-                final action = registries.actions.byId(actionId);
+                final action = registries.actionById(actionId);
                 final skillLower = skill.name.toLowerCase();
                 primaryAction = '${action.name} ($skillLower)';
               } else {
@@ -1527,7 +1527,7 @@ void _printNewlyEligibleActions(
   // Find actions that unlock at upperLevel
   final newlyUnlocked = <String>[];
 
-  for (final action in registries.actions.forSkill(skill)) {
+  for (final action in registries.actionsForSkill(skill)) {
     if (action.unlockLevel > lowerLevel && action.unlockLevel <= upperLevel) {
       newlyUnlocked.add('${action.name} (unlocks at ${action.unlockLevel})');
     }

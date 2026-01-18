@@ -75,14 +75,14 @@ String describeStep(
   return switch (step) {
     InteractionStep(:final interaction) => switch (interaction) {
       SwitchActivity(:final actionId) =>
-        'Switch to ${registries.actions.byId(actionId).name}',
+        'Switch to ${registries.actionById(actionId).name}',
       BuyShopItem(:final purchaseId) => 'Buy ${purchaseId.name}',
       SellItems(:final policy) => _formatSellPolicy(policy),
     },
     WaitStep(:final deltaTicks, :final waitFor, :final expectedAction) => () {
       final actionToUse = expectedAction ?? currentAction;
       final actionName = actionToUse != null
-          ? registries.actions.byId(actionToUse).name
+          ? registries.actionById(actionToUse).name
           : null;
       final prefix = actionName ?? 'Wait';
       return '$prefix $deltaTicks ticks -> ${waitFor.shortDescription}';

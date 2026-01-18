@@ -2,7 +2,7 @@
 ///
 /// Extracts meaningful milestones from game data for use by the meta planner.
 /// For v1, we extract:
-/// - Action unlock levels from ActionRegistry
+/// - Action unlock levels from Registries
 /// - Fixed breakpoints per skill (10, 25, 50, 75, 99)
 ///
 /// ## Design Notes
@@ -49,7 +49,7 @@ class MilestoneExtractor {
     final effectiveMaxLevel = maxLevel ?? 99;
     final milestoneLevels = <int, String?>{};
 
-    // 1. Action unlock levels from ActionRegistry
+    // 1. Action unlock levels from Registries
     for (final action in registries.actionsForSkill(skill)) {
       final unlockLevel = action.unlockLevel;
       if (unlockLevel > 1 && unlockLevel <= effectiveMaxLevel) {
@@ -126,8 +126,8 @@ class MilestoneExtractor {
 
   /// Get actions that unlock at a specific level for a skill.
   List<SkillAction> actionsUnlockedAtLevel(Skill skill, int level) {
-    return registries.actions
-        .forSkill(skill)
+    return registries
+        .actionsForSkill(skill)
         .where((a) => a.unlockLevel == level)
         .toList();
   }

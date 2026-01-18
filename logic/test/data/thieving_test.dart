@@ -27,7 +27,7 @@ void main() {
 
   setUpAll(() async {
     await loadTestRegistries();
-    manAction = testActions.thieving('Man');
+    manAction = testRegistries.thievingAction('Man');
   });
 
   group('Thieving drops', () {
@@ -47,8 +47,8 @@ void main() {
   group('Area drops', () {
     const crateId = MelvorId('melvorF:Crate_Of_Basic_Supplies');
     test('Golbin Village area drops include Crate of Basic Supplies', () {
-      final golbin = testActions.thieving('Golbin');
-      final golbinChief = testActions.thieving('Golbin Chief');
+      final golbin = testRegistries.thievingAction('Golbin');
+      final golbinChief = testRegistries.thievingAction('Golbin Chief');
 
       // Both actions should be in Golbin Village
       // ThievingActions store their area directly
@@ -77,7 +77,7 @@ void main() {
     });
 
     test('Crate Of Basic Supplies has correct rate (1/500)', () {
-      final golbinAction = testActions.thieving('Golbin');
+      final golbinAction = testRegistries.thievingAction('Golbin');
       final drops = testDrops.allDropsForAction(
         golbinAction,
         const NoSelectedRecipe(),
@@ -107,7 +107,7 @@ void main() {
     late DropTable golbinDropTable;
 
     setUp(() {
-      golbinAction = testActions.thieving('Golbin');
+      golbinAction = testRegistries.thievingAction('Golbin');
       golbinDropChance = golbinAction.dropTable! as DropChance;
       golbinDropTable = golbinDropChance.child as DropTable;
     });

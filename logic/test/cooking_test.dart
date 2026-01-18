@@ -12,12 +12,11 @@ void main() {
 
   setUpAll(() async {
     await loadTestRegistries();
-    final actions = testActions;
     final items = testItems;
 
     // Find a cooking action - Shrimp is a basic Fire cooking recipe
-    shrimpRecipe = actions
-        .forSkill(Skill.cooking)
+    shrimpRecipe = testRegistries
+        .actionsForSkill(Skill.cooking)
         .whereType<CookingAction>()
         .firstWhere((a) => a.name == 'Shrimp');
 
@@ -233,7 +232,7 @@ void main() {
         expect(state.cooking.fireArea.progressTicksRemaining, 50);
 
         // Switch to a non-cooking action (woodcutting)
-        final woodcutting = testActions.woodcutting('Normal Tree');
+        final woodcutting = testRegistries.woodcuttingAction('Normal Tree');
         state = state.startAction(woodcutting, random: random);
 
         // Cooking progress should be reset (but recipe still assigned)
@@ -248,10 +247,9 @@ void main() {
       var state = GlobalState.empty(testRegistries);
 
       // Find a Furnace cooking action
-      final furnaceRecipe = testActions
-          .forSkill(Skill.cooking)
-          .whereType<CookingAction>()
-          .firstWhere((a) => a.isInCategory('Furnace'));
+      final furnaceRecipe = testRegistries.cooking.actions.firstWhere(
+        (a) => a.isInCategory('Furnace'),
+      );
 
       // Set up Fire cooking area with progress
       final fireState = CookingAreaState(
@@ -339,10 +337,9 @@ void main() {
   group('Cooking category-scoped modifiers', () {
     test('resolveSkillModifiers includes category-scoped shop modifiers', () {
       // Find a Furnace recipe to test with
-      final furnaceRecipe = testActions
-          .forSkill(Skill.cooking)
-          .whereType<CookingAction>()
-          .firstWhere((a) => a.isInCategory('Furnace'));
+      final furnaceRecipe = testRegistries.cooking.actions.firstWhere(
+        (a) => a.isInCategory('Furnace'),
+      );
 
       // Find the Basic Furnace shop upgrade (has perfectCookChance for Furnace)
       final basicFurnace = testRegistries.shop.all.firstWhere(
@@ -396,10 +393,9 @@ void main() {
         var state = GlobalState.empty(testRegistries);
 
         // Find a Furnace cooking action
-        final furnaceRecipe = testActions
-            .forSkill(Skill.cooking)
-            .whereType<CookingAction>()
-            .firstWhere((a) => a.isInCategory('Furnace'));
+        final furnaceRecipe = testRegistries.cooking.actions.firstWhere(
+          (a) => a.isInCategory('Furnace'),
+        );
 
         // Get the inputs for furnace recipe
         final furnaceInput = testItems.byId(furnaceRecipe.inputs.keys.first);
@@ -446,10 +442,9 @@ void main() {
       var state = GlobalState.empty(testRegistries);
 
       // Find a Furnace cooking action
-      final furnaceRecipe = testActions
-          .forSkill(Skill.cooking)
-          .whereType<CookingAction>()
-          .firstWhere((a) => a.isInCategory('Furnace'));
+      final furnaceRecipe = testRegistries.cooking.actions.firstWhere(
+        (a) => a.isInCategory('Furnace'),
+      );
 
       // Get the inputs for furnace recipe
       final furnaceInput = testItems.byId(furnaceRecipe.inputs.keys.first);
@@ -521,7 +516,7 @@ void main() {
       state = state.startAction(shrimpRecipe, random: random);
 
       // Now switch to a non-cooking action (woodcutting)
-      final woodcutting = testActions.woodcutting('Normal Tree');
+      final woodcutting = testRegistries.woodcuttingAction('Normal Tree');
       state = state.startAction(woodcutting, random: random);
 
       // Passive cooking progress should have been cleared when switching away

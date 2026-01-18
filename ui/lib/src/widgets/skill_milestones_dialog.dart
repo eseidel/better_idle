@@ -52,7 +52,7 @@ class SkillMilestonesDialog extends StatelessWidget {
     final currentLevel = levelForXp(skillState.xp);
 
     // Get all skill actions for this skill, sorted by unlock level.
-    final actions = state.registries.actions.forSkill(skill).toList()
+    final actions = state.registries.actionsForSkill(skill).toList()
       ..sort((a, b) => a.unlockLevel.compareTo(b.unlockLevel));
 
     return AlertDialog(

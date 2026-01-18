@@ -164,27 +164,6 @@ class MelvorData {
       dungeons: _dungeons,
     );
 
-    // Build ActionRegistry as a shim over specialized registries
-    _actions = ActionRegistry.fromRegistries(
-      woodcutting: _woodcutting,
-      mining: _mining,
-      firemaking: _firemaking,
-      cooking: _cooking,
-      fishing: _fishing,
-      smithing: _smithing,
-      farming: _farming,
-      fletching: _fletching,
-      crafting: _crafting,
-      herblore: _herblore,
-      runecrafting: _runecrafting,
-      thieving: _thieving,
-      agility: _agility,
-      summoning: _summoning,
-      astrology: _astrology,
-      altMagic: _altMagic,
-      combat: _combat,
-    );
-
     // Parse summoning synergies
     _summoningSynergies = parseSummoningSynergies(
       skillDataById['melvorD:Summoning'],
@@ -246,9 +225,6 @@ class MelvorData {
   late final AltMagicRegistry _altMagic;
   late final CombatRegistry _combat;
 
-  // ActionRegistry shim (aggregates from specialized registries)
-  late final ActionRegistry _actions;
-
   // Other registries
   late final CombatAreaRegistry _combatAreas;
   late final DungeonRegistry _dungeons;
@@ -264,9 +240,6 @@ class MelvorData {
 
   /// Returns the equipment slots registry.
   EquipmentSlotRegistry get equipmentSlots => _equipmentSlots;
-
-  /// Returns the action registry (shim over specialized registries).
-  ActionRegistry get actions => _actions;
 
   // Specialized skill registries
   WoodcuttingRegistry get woodcutting => _woodcutting;
@@ -315,6 +288,24 @@ class MelvorData {
 
   /// Returns the bank sort index map for passing to Registries.
   Map<MelvorId, int> get bankSortIndex => _bankSortIndex;
+
+  // Action lists for passing to Registries constructor
+  List<WoodcuttingTree> get woodcuttingActions => _woodcutting.actions;
+  List<MiningAction> get miningActions => _mining.actions;
+  List<FiremakingAction> get firemakingActions => _firemaking.actions;
+  List<FishingAction> get fishingActions => _fishing.actions;
+  List<CookingAction> get cookingActions => _cooking.actions;
+  List<SmithingAction> get smithingActions => _smithing.actions;
+  List<FletchingAction> get fletchingActions => _fletching.actions;
+  List<CraftingAction> get craftingActions => _crafting.actions;
+  List<HerbloreAction> get herbloreActions => _herblore.actions;
+  List<RunecraftingAction> get runecraftingActions => _runecrafting.actions;
+  List<ThievingAction> get thievingActions => _thieving.actions;
+  List<AgilityObstacle> get agilityObstacles => _agility.obstacles;
+  List<SummoningAction> get summoningActions => _summoning.actions;
+  List<AstrologyAction> get astrologyActions => _astrology.actions;
+  List<AltMagicAction> get altMagicActions => _altMagic.actions;
+  List<CombatAction> get combatActions => _combat.monsters;
 
   /// Returns the sort index for an item, or null if not in sort order.
   int? bankSortIndexOf(MelvorId id) => _bankSortIndex[id];

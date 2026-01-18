@@ -205,7 +205,7 @@ void main() {
       // The important thing is that fishing activities are present and ranked
       // by their XP rate.
       final fishingActivities = candidates.switchToActivities
-          .where((id) => testActions.byId(id).skill == Skill.fishing)
+          .where((id) => testRegistries.actionById(id).skill == Skill.fishing)
           .toList();
       expect(fishingActivities, isNotEmpty);
     });
@@ -231,7 +231,7 @@ void main() {
 
       // Only woodcutting activities should be watched
       for (final actionId in candidates.watch.lockedActivityIds) {
-        final action = testActions.byId(actionId);
+        final action = testRegistries.actionById(actionId);
         expect(action.skill, Skill.woodcutting);
       }
     });
@@ -543,7 +543,7 @@ void main() {
 
       // Should include both woodcutting and firemaking activities
       final skills = candidates.switchToActivities
-          .map((id) => testActions.byId(id).skill)
+          .map((id) => testRegistries.actionById(id).skill)
           .toSet();
 
       // At minimum, woodcutting should be present (firemaking may need inputs)
@@ -561,7 +561,7 @@ void main() {
 
       // Should only watch activities for goal skills
       for (final actionId in candidates.watch.lockedActivityIds) {
-        final action = testActions.byId(actionId);
+        final action = testRegistries.actionById(actionId);
         expect(
           goal.isSkillRelevant(action.skill),
           isTrue,

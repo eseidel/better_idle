@@ -83,7 +83,7 @@ ConsumeUntilResult consumeUntil(
   }
 
   final originalActivityId = state.activeAction?.id;
-  final actionRegistry = state.registries.actions;
+  final registries = state.registries;
   var totalTicksElapsed = 0;
   var deathCount = 0;
 
@@ -155,16 +155,12 @@ ConsumeUntilResult consumeUntil(
       // For skill goals with consuming actions, switch to producer to gather
       // inputs.
       if (waitFor is WaitForSkillXp && originalActivityId != null) {
-        final currentAction = actionRegistry.byId(originalActivityId);
+        final currentAction = registries.actionById(originalActivityId);
 
         // Check if this is a consuming action (has inputs)
         if (currentAction is SkillAction && currentAction.inputs.isNotEmpty) {
           // Find producers for the inputs this action needs
-          final producers = findProducersFor(
-            state,
-            currentAction,
-            actionRegistry,
-          );
+          final producers = findProducersFor(state, currentAction, registries);
 
           if (producers.isNotEmpty) {
             final producer = producers.first;
@@ -209,7 +205,7 @@ ConsumeUntilResult consumeUntil(
       // Cannot adapt - return with the boundary that caused the stop
       final inputItemId = originalActivityId != null
           ? () {
-              final action = actionRegistry.byId(originalActivityId);
+              final action = registries.actionById(originalActivityId);
               if (action is SkillAction && action.inputs.isNotEmpty) {
                 return action.inputs.keys.first;
               }

@@ -10,18 +10,12 @@ void main() {
 
   group('MiningAction', () {
     test('mining actions are loaded from JSON', () {
-      final miningActions = testActions
-          .forSkill(Skill.mining)
-          .whereType<MiningAction>()
-          .toList();
+      final miningActions = testRegistries.mining.actions;
       expect(miningActions, isNotEmpty);
     });
 
     test('mining actions have valid properties', () {
-      final miningActions = testActions
-          .forSkill(Skill.mining)
-          .whereType<MiningAction>()
-          .toList();
+      final miningActions = testRegistries.mining.actions;
 
       for (final action in miningActions) {
         expect(action.name, isNotEmpty);
@@ -33,10 +27,7 @@ void main() {
     });
 
     test('mining actions belong to mining skill', () {
-      final miningActions = testActions
-          .forSkill(Skill.mining)
-          .whereType<MiningAction>()
-          .toList();
+      final miningActions = testRegistries.mining.actions;
 
       for (final action in miningActions) {
         expect(action.skill, equals(Skill.mining));
@@ -48,10 +39,7 @@ void main() {
     late MiningAction miningAction;
 
     setUp(() {
-      final miningActions = testActions
-          .forSkill(Skill.mining)
-          .whereType<MiningAction>()
-          .toList();
+      final miningActions = testRegistries.mining.actions;
       expect(miningActions, isNotEmpty);
       miningAction = miningActions.first;
     });
@@ -123,10 +111,7 @@ void main() {
     late MiningAction miningAction;
 
     setUp(() {
-      final miningActions = testActions
-          .forSkill(Skill.mining)
-          .whereType<MiningAction>()
-          .toList();
+      final miningActions = testRegistries.mining.actions;
       miningAction = miningActions.first;
     });
 
@@ -147,10 +132,7 @@ void main() {
 
   group('MiningAction.respawnTicks', () {
     test('respawnTicks matches respawnTime', () {
-      final miningActions = testActions
-          .forSkill(Skill.mining)
-          .whereType<MiningAction>()
-          .toList();
+      final miningActions = testRegistries.mining.actions;
 
       for (final action in miningActions) {
         final expectedTicks = ticksFromDuration(action.respawnTime);

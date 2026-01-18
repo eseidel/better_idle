@@ -26,7 +26,7 @@ int playerTotalMasteryForSkill(GlobalState state, Skill skill) {
 /// Returns the amount of mastery XP gained per action.
 int masteryXpPerAction(GlobalState state, SkillAction action) {
   return calculateMasteryXpPerAction(
-    actions: state.registries.actions,
+    registries: state.registries,
     action: action,
     unlockedActions: state.unlockedActionsCount(action.skill),
     playerTotalMasteryForSkill: playerTotalMasteryForSkill(state, action.skill),
@@ -249,14 +249,14 @@ List<BackgroundTickConsumer> _getBackgroundActions(
   ActionId? activeActionId,
 }) {
   final backgrounds = <BackgroundTickConsumer>[];
-  final actions = state.registries.actions;
+  final registries = state.registries;
 
   for (final entry in state.actionStates.entries) {
     final actionId = entry.key;
     final actionState = entry.value;
 
     // Check if this is a mining action with background work
-    final action = actions.byId(actionId);
+    final action = registries.actionById(actionId);
     if (action is MiningAction) {
       final mining = actionState.mining ?? const MiningState.empty();
 
@@ -424,8 +424,8 @@ void _applyPassiveCookingTicks(
   // Passive cooking only runs when the active action is a CookingAction
   if (activeActionId == null) return;
 
-  final actions = builder.state.registries.actions;
-  final activeAction = actions.byId(activeActionId);
+  final registries = builder.state.registries;
+  final activeAction = registries.actionById(activeActionId);
 
   // If not cooking, passive cooking doesn't run
   if (activeAction is! CookingAction) return;
@@ -442,7 +442,7 @@ void _applyPassiveCookingTicks(
     if (!areaState.isActive || areaState.recipeId == null) continue;
 
     final recipeId = areaState.recipeId!;
-    final action = actions.byId(recipeId);
+    final action = registries.actionById(recipeId);
     if (action is! CookingAction) continue;
 
     // Check if we have inputs to cook
@@ -614,8 +614,12 @@ class StateUpdateBuilder {
     }
   }
 
-  /// Tracks a monster kill for task progress.
+  /// Tracks a monster kill for task progress and welcome back dialog.
   void trackMonsterKill(MelvorId monsterId) {
+    // Track for welcome back dialog
+    _changes = _changes.recordingMonsterKill(monsterId);
+
+    // Track for township task progress
     final township = _state.township;
     final completedTasks = township.completedMainTasks;
 
@@ -864,8 +868,10 @@ class StateUpdateBuilder {
       final newEquipment = _state.equipment.consumeSelectedFood();
       if (newEquipment == null) break;
 
-      // Track the consumption in changes
-      _changes = _changes.removing(ItemStack(food.item, count: 1));
+      // Track the consumption in changes (both inventory change and food eaten)
+      _changes = _changes
+          .removing(ItemStack(food.item, count: 1))
+          .recordingFoodEaten(food.item.id, 1);
 
       // Apply the heal
       _state = _state.copyWith(
@@ -885,7 +891,8 @@ class StateUpdateBuilder {
     _state = _state.copyWith(
       summoning: _state.summoning.withMarks(familiarId, 1),
     );
-    // Marks are not tracked in changes for now.
+    // Track for welcome back dialog
+    _changes = _changes.recordingMarkFound(familiarId);
   }
 
   /// Increments the dungeon completion count for a dungeon.
@@ -894,6 +901,8 @@ class StateUpdateBuilder {
     final newCompletions = Map<MelvorId, int>.from(_state.dungeonCompletions)
       ..[dungeonId] = currentCount + 1;
     _state = _state.copyWith(dungeonCompletions: newCompletions);
+    // Track for welcome back dialog
+    _changes = _changes.recordingDungeonCompletion(dungeonId);
   }
 
   /// Records that a tablet was crafted for a familiar.
@@ -926,6 +935,9 @@ class StateUpdateBuilder {
       // Check if this familiar is relevant to the current action
       final isRelevant = _isFamiliarRelevantToAction(tablet.id, action);
       if (!isRelevant) continue;
+
+      // Track tablet usage for welcome back dialog
+      _changes = _changes.recordingTabletUsed(tablet.id, 1);
 
       equipment = equipment.consumeSummonCharges(slot, 1);
     }
@@ -983,6 +995,9 @@ class StateUpdateBuilder {
       final newInventory = _state.inventory.removing(potionStack);
       final newChargesUsed = Map<MelvorId, int>.from(_state.potionChargesUsed)
         ..remove(skillId);
+
+      // Track potion usage for welcome back dialog
+      _changes = _changes.recordingPotionUsed(potionId);
 
       // Check if we still have potions in inventory
       final remainingCount = newInventory.countOfItem(potion);
@@ -1085,7 +1100,7 @@ class StateUpdateBuilder {
 
     // 7. Passive cooking timers (only when actively cooking)
     if (activeAction != null) {
-      final action = registries.actions.byId(activeAction.id);
+      final action = registries.actionById(activeAction.id);
       if (action is CookingAction) {
         final activeCookingArea = CookingArea.fromCategoryId(action.categoryId);
         for (final (area, areaState) in _state.cooking.allAreas) {
@@ -1984,7 +1999,7 @@ ConsumeTicksStopReason _consumeTicksCore(
 
     if (activeAction != null) {
       // Process foreground action until next "event"
-      final action = registries.actions.byId(activeAction.id);
+      final action = registries.actionById(activeAction.id);
       final (foregroundResult, ticksUsed) = _processForegroundAction(
         builder,
         action,
@@ -2119,7 +2134,7 @@ ConsumeTicksStopReason consumeTicksUntil(
   // For TimeAway, we only need the action for predictions.
   // Combat actions return empty predictions anyway, so null is fine.
   final action = activeAction != null
-      ? registries.actions.byId(activeAction.id)
+      ? registries.actionById(activeAction.id)
       : null;
   // Convert stoppedAtTick to Duration if action stopped
   final stoppedAfter = builder.stoppedAtTick != null

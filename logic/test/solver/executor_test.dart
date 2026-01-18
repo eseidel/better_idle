@@ -92,7 +92,7 @@ void main() {
 
       // Start woodcutting
       state = state.startAction(
-        testActions.woodcutting('Normal Tree'),
+        testRegistries.woodcuttingAction('Normal Tree'),
         random: Random(42),
       );
 
@@ -151,7 +151,7 @@ void main() {
 
       // Start woodcutting
       state = state.startAction(
-        testActions.woodcutting('Normal Tree'),
+        testRegistries.woodcuttingAction('Normal Tree'),
         random: Random(42),
       );
 
@@ -196,8 +196,10 @@ void main() {
       // but producerByInputItem maps Bronze Bar to smelting which needs ores
       // Since we have no ores, the producer should fail
       final bronzeBarId = testItems.byName('Bronze Bar').id;
-      final smeltBronzeBarId = testActions.smithing('Bronze Bar').id;
-      final smithBronzeDaggerId = testActions.smithing('Bronze Dagger').id;
+      final smeltBronzeBarId = testRegistries.smithingAction('Bronze Bar').id;
+      final smithBronzeDaggerId = testRegistries
+          .smithingAction('Bronze Dagger')
+          .id;
 
       final macro = TrainConsumingSkillUntil(
         Skill.smithing,
@@ -228,8 +230,10 @@ void main() {
 
       // Create a macro with a specific producer that can't run
       final bronzeBarId = testItems.byName('Bronze Bar').id;
-      final smeltBronzeBarId = testActions.smithing('Bronze Bar').id;
-      final smithBronzeDaggerId = testActions.smithing('Bronze Dagger').id;
+      final smeltBronzeBarId = testRegistries.smithingAction('Bronze Bar').id;
+      final smithBronzeDaggerId = testRegistries
+          .smithingAction('Bronze Dagger')
+          .id;
 
       final macro = TrainConsumingSkillUntil(
         Skill.smithing,
@@ -285,7 +289,9 @@ void main() {
 
     test('fails fast when bufferTarget missing', () {
       final state = GlobalState.empty(testRegistries);
-      final smithBronzeDaggerId = testActions.smithing('Bronze Dagger').id;
+      final smithBronzeDaggerId = testRegistries
+          .smithingAction('Bronze Dagger')
+          .id;
 
       // Macro without bufferTarget
       final macro = TrainConsumingSkillUntil(
@@ -311,7 +317,9 @@ void main() {
 
     test('fails fast when producerByInputItem missing', () {
       final state = GlobalState.empty(testRegistries);
-      final smithBronzeDaggerId = testActions.smithing('Bronze Dagger').id;
+      final smithBronzeDaggerId = testRegistries
+          .smithingAction('Bronze Dagger')
+          .id;
 
       // Macro without producerByInputItem
       final macro = TrainConsumingSkillUntil(
@@ -348,8 +356,8 @@ void main() {
       // When InventoryThreshold is satisfied, needsInventoryRecovery = true
       // and the executor should sell and continue.
 
-      final wcAction = testActions.woodcutting('Normal Tree');
-      final burnAction = testActions.firemaking('Burn Normal Logs');
+      final wcAction = testRegistries.woodcuttingAction('Normal Tree');
+      final burnAction = testRegistries.firemakingAction('Burn Normal Logs');
       final normalLogsId = testItems.byName('Normal Logs').id;
 
       // Build inventory near 90% threshold (18/20 slots)
@@ -406,8 +414,8 @@ void main() {
         // Start with empty inventory, let production fill it
         // This tests that the coupled loop handles inventory pressure
         // during extended execution
-        final wcAction = testActions.woodcutting('Normal Tree');
-        final burnAction = testActions.firemaking('Burn Normal Logs');
+        final wcAction = testRegistries.woodcuttingAction('Normal Tree');
+        final burnAction = testRegistries.firemakingAction('Burn Normal Logs');
         final normalLogsId = testItems.byName('Normal Logs').id;
 
         final state = GlobalState.empty(testRegistries);
@@ -457,8 +465,8 @@ void main() {
       () {
         // Test that when inventory threshold is hit and no sell policy
         // is provided, we get NoProgressPossible
-        final wcAction = testActions.woodcutting('Normal Tree');
-        final burnAction = testActions.firemaking('Burn Normal Logs');
+        final wcAction = testRegistries.woodcuttingAction('Normal Tree');
+        final burnAction = testRegistries.firemakingAction('Burn Normal Logs');
         final normalLogsId = testItems.byName('Normal Logs').id;
 
         // Fill inventory to 19/20 slots (95%) - above threshold
@@ -573,7 +581,7 @@ void main() {
 
     test('InputsDepleted triggers replan (no alternate producer)', () {
       final state = GlobalState.empty(testRegistries);
-      final action = testActions.smithing('Bronze Dagger');
+      final action = testRegistries.smithingAction('Bronze Dagger');
 
       final result = handleBoundary(
         state,
@@ -627,7 +635,7 @@ void main() {
 
       // Create death boundary indicating we lost the weapon
       final deathBoundary = Death(
-        actionId: testActions.combat('Chicken').id,
+        actionId: testRegistries.combatAction('Chicken').id,
         lostItem: ItemStack(bronzeSword, count: 1),
         slotRolled: EquipmentSlot.weapon,
       );
@@ -658,7 +666,7 @@ void main() {
 
       // Create death boundary indicating we lost a weapon we don't have spare
       final deathBoundary = Death(
-        actionId: testActions.combat('Chicken').id,
+        actionId: testRegistries.combatAction('Chicken').id,
         lostItem: ItemStack(bronzeSword, count: 1),
         slotRolled: EquipmentSlot.weapon,
       );
@@ -682,7 +690,7 @@ void main() {
       final state = GlobalState.empty(testRegistries);
 
       final deathBoundary = Death(
-        actionId: testActions.combat('Chicken').id,
+        actionId: testRegistries.combatAction('Chicken').id,
         lostItem: ItemStack(bronzeSword, count: 1),
         slotRolled: EquipmentSlot.weapon,
       );
@@ -704,7 +712,7 @@ void main() {
     });
 
     test('Death restarts activity after successful recovery', () {
-      final combatAction = testActions.combat('Chicken');
+      final combatAction = testRegistries.combatAction('Chicken');
       var state = GlobalState.empty(testRegistries);
       state = state.startAction(combatAction, random: Random(42));
 
@@ -805,7 +813,7 @@ void main() {
 
     test('UnexpectedUnlock triggers replan', () {
       final state = GlobalState.empty(testRegistries);
-      final actionId = testActions.woodcutting('Oak Tree').id;
+      final actionId = testRegistries.woodcuttingAction('Oak Tree').id;
 
       final result = handleBoundary(
         state,
@@ -861,7 +869,7 @@ void main() {
 
     test('ActionUnavailable triggers replan', () {
       final state = GlobalState.empty(testRegistries);
-      final actionId = testActions.woodcutting('Oak Tree').id;
+      final actionId = testRegistries.woodcuttingAction('Oak Tree').id;
 
       final result = handleBoundary(
         state,
@@ -973,7 +981,7 @@ void main() {
   group('Death boundary structure', () {
     test('Death boundary describe includes action and lost item', () {
       final bronzeSword = testItems.byName('Bronze Sword');
-      final thievingAction = testActions.thieving('Man');
+      final thievingAction = testRegistries.thievingAction('Man');
 
       final death = Death(
         actionId: thievingAction.id,
@@ -988,7 +996,7 @@ void main() {
     });
 
     test('Death boundary wasLucky is true when slot empty', () {
-      final thievingAction = testActions.thieving('Man');
+      final thievingAction = testRegistries.thievingAction('Man');
 
       final death = Death(
         actionId: thievingAction.id,
@@ -1001,7 +1009,7 @@ void main() {
     });
 
     test('Death boundary with actionId only', () {
-      final thievingAction = testActions.thieving('Man');
+      final thievingAction = testRegistries.thievingAction('Man');
 
       final death = Death(actionId: thievingAction.id);
 
@@ -1143,7 +1151,7 @@ void main() {
       ]);
       var state = GlobalState.test(testRegistries, inventory: inventory);
       state = state.startAction(
-        testActions.woodcutting('Normal Tree'),
+        testRegistries.woodcuttingAction('Normal Tree'),
         random: Random(42),
       );
 

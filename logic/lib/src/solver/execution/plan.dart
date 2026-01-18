@@ -24,6 +24,7 @@ import 'package:equatable/equatable.dart';
 import 'package:logic/src/data/action_id.dart';
 import 'package:logic/src/data/actions.dart';
 import 'package:logic/src/data/melvor_id.dart';
+import 'package:logic/src/data/registries.dart';
 import 'package:logic/src/solver/analysis/replan_boundary.dart';
 import 'package:logic/src/solver/analysis/unlock_boundaries.dart';
 import 'package:logic/src/solver/analysis/wait_for.dart';
@@ -196,7 +197,7 @@ class WaitStep extends PlanStep {
     if (expectedAction != null &&
         waitState.activeAction?.id != expectedAction) {
       // Check if we can start the expected action (inputs available)
-      final action = state.registries.actions.byId(expectedAction!);
+      final action = state.registries.actionById(expectedAction!);
       if (state.canStartAction(action)) {
         try {
           waitState = applyInteraction(
@@ -790,7 +791,7 @@ class Plan {
   }
 
   /// Pretty-prints the plan for debugging.
-  String prettyPrint({int maxSteps = 30, ActionRegistry? actions}) {
+  String prettyPrint({int maxSteps = 30, Registries? actions}) {
     final buffer = StringBuffer()
       ..writeln('=== Plan ===')
       ..writeln('Total ticks: $totalTicks (${_formatDuration(totalDuration)})')
@@ -827,13 +828,13 @@ class Plan {
 
   String _formatStep(
     PlanStep step,
-    ActionRegistry? actions,
+    Registries? actions,
     ActionId? currentAction,
   ) {
     return switch (step) {
       InteractionStep(:final interaction) => switch (interaction) {
         SwitchActivity(:final actionId) => () {
-          final action = actions?.byId(actionId);
+          final action = actions?.actionById(actionId);
           final actionName = action?.name ?? actionId.toString();
           final skillName = action?.skill.name.toLowerCase() ?? '';
           return skillName.isNotEmpty
@@ -848,7 +849,7 @@ class Plan {
         // Use expectedAction if available, otherwise fall back to currentAction
         final actionToUse = expectedAction ?? currentAction;
         final actionName = actionToUse != null
-            ? actions?.byId(actionToUse).name ?? actionToUse.toString()
+            ? actions?.actionById(actionToUse).name ?? actionToUse.toString()
             : null;
         final prefix = actionName != null ? '$actionName ' : 'Wait ';
         return '$prefix$duration -> ${waitFor.shortDescription}';
@@ -908,7 +909,7 @@ class Plan {
   String prettyPrintCompact({
     int firstSteps = 25,
     int lastSteps = 10,
-    ActionRegistry? actions,
+    Registries? actions,
   }) {
     final buffer = StringBuffer()
       ..writeln('=== Plan ===')
@@ -962,7 +963,7 @@ class Plan {
   }
 
   /// Groups consecutive similar steps for compact display.
-  List<_StepGroup> _groupSteps(ActionRegistry? actions) {
+  List<_StepGroup> _groupSteps(Registries? actions) {
     final groups = <_StepGroup>[];
     if (steps.isEmpty) return groups;
 
@@ -1014,15 +1015,16 @@ class _StepGroup {
     this.skill,
   });
 
-  factory _StepGroup.from(PlanStep step, ActionRegistry? actions) {
+  factory _StepGroup.from(PlanStep step, Registries? actions) {
     return switch (step) {
       InteractionStep(:final interaction) => switch (interaction) {
         SwitchActivity(:final actionId) => _StepGroup._(
-          description: actions?.byId(actionId).name ?? actionId.toString(),
+          description:
+              actions?.actionById(actionId).name ?? actionId.toString(),
           totalTicks: 0,
           stepCount: 1,
           actionId: actionId,
-          skill: actions?.byId(actionId).skill,
+          skill: actions?.actionById(actionId).skill,
         ),
         BuyShopItem(:final purchaseId) => _StepGroup._(
           description: 'Buy ${purchaseId.name}',
@@ -1045,7 +1047,7 @@ class _StepGroup {
         stepCount: 1,
         actionId: expectedAction,
         skill: expectedAction != null
-            ? actions?.byId(expectedAction).skill
+            ? actions?.actionById(expectedAction).skill
             : null,
       ),
       MacroStep(:final macro, :final deltaTicks) => switch (macro) {

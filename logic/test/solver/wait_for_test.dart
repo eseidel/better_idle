@@ -220,7 +220,7 @@ void main() {
 
   group('WaitForMasteryXp', () {
     test('isSatisfied returns true when mastery XP meets target', () {
-      final action = testActions.woodcutting('Normal Tree');
+      final action = testRegistries.woodcuttingAction('Normal Tree');
       final state = GlobalState.test(
         testRegistries,
         actionStates: {action.id: const ActionState(masteryXp: 100)},
@@ -231,7 +231,7 @@ void main() {
     });
 
     test('isSatisfied returns false when mastery XP is below target', () {
-      final action = testActions.woodcutting('Normal Tree');
+      final action = testRegistries.woodcuttingAction('Normal Tree');
       final state = GlobalState.empty(testRegistries);
       final waitFor = WaitForMasteryXp(action.id, 100);
 
@@ -239,7 +239,7 @@ void main() {
     });
 
     test('estimateTicks returns 0 when already satisfied', () {
-      final action = testActions.woodcutting('Normal Tree');
+      final action = testRegistries.woodcuttingAction('Normal Tree');
       final state = GlobalState.test(
         testRegistries,
         actionStates: {action.id: const ActionState(masteryXp: 100)},
@@ -250,7 +250,7 @@ void main() {
     });
 
     test('estimateTicks returns infTicks when no mastery rate', () {
-      final action = testActions.woodcutting('Normal Tree');
+      final action = testRegistries.woodcuttingAction('Normal Tree');
       final state = GlobalState.empty(testRegistries);
       final waitFor = WaitForMasteryXp(action.id, 100);
 
@@ -258,7 +258,7 @@ void main() {
     });
 
     test('estimateTicks calculates correctly with mastery rate', () {
-      final action = testActions.woodcutting('Normal Tree');
+      final action = testRegistries.woodcuttingAction('Normal Tree');
       final state = GlobalState.empty(testRegistries);
       final waitFor = WaitForMasteryXp(action.id, 100);
       const rates = Rates(
@@ -274,19 +274,19 @@ void main() {
     });
 
     test('describe returns formatted string', () {
-      final action = testActions.woodcutting('Normal Tree');
+      final action = testRegistries.woodcuttingAction('Normal Tree');
       final waitFor = WaitForMasteryXp(action.id, 100);
       expect(waitFor.describe(), contains('mastery XP >= 100'));
     });
 
     test('shortDescription returns Mastery +1', () {
-      final action = testActions.woodcutting('Normal Tree');
+      final action = testRegistries.woodcuttingAction('Normal Tree');
       final waitFor = WaitForMasteryXp(action.id, 100);
       expect(waitFor.shortDescription, 'Mastery +1');
     });
 
     test('progress returns current mastery XP', () {
-      final action = testActions.woodcutting('Normal Tree');
+      final action = testRegistries.woodcuttingAction('Normal Tree');
       final state = GlobalState.test(
         testRegistries,
         actionStates: {action.id: const ActionState(masteryXp: 75)},
@@ -297,7 +297,7 @@ void main() {
     });
 
     test('progress returns 0 for empty action state', () {
-      final action = testActions.woodcutting('Normal Tree');
+      final action = testRegistries.woodcuttingAction('Normal Tree');
       final state = GlobalState.empty(testRegistries);
       final waitFor = WaitForMasteryXp(action.id, 100);
 
@@ -504,7 +504,7 @@ void main() {
         ItemStack(logs, count: 10),
       ]);
       final state = GlobalState.test(testRegistries, inventory: inventory);
-      final action = testActions.firemaking('Burn Normal Logs');
+      final action = testRegistries.firemakingAction('Burn Normal Logs');
       final waitFor = WaitForInputsDepleted(action.id);
 
       expect(waitFor.isSatisfied(state), isFalse);
@@ -512,7 +512,7 @@ void main() {
 
     test('isSatisfied returns true when no inputs', () {
       final state = GlobalState.empty(testRegistries);
-      final action = testActions.firemaking('Burn Normal Logs');
+      final action = testRegistries.firemakingAction('Burn Normal Logs');
       final waitFor = WaitForInputsDepleted(action.id);
 
       expect(waitFor.isSatisfied(state), isTrue);
@@ -520,7 +520,7 @@ void main() {
 
     test('estimateTicks returns infTicks for non-consuming action', () {
       final state = GlobalState.empty(testRegistries);
-      final action = testActions.woodcutting('Normal Tree');
+      final action = testRegistries.woodcuttingAction('Normal Tree');
       final waitFor = WaitForInputsDepleted(action.id);
 
       // Woodcutting has no inputs, so returns infTicks
@@ -533,7 +533,7 @@ void main() {
         ItemStack(logs, count: 30),
       ]);
       final state = GlobalState.test(testRegistries, inventory: inventory);
-      final action = testActions.firemaking('Burn Normal Logs');
+      final action = testRegistries.firemakingAction('Burn Normal Logs');
       final waitFor = WaitForInputsDepleted(action.id);
 
       // Should calculate ticks based on logs / consumption rate
@@ -543,14 +543,14 @@ void main() {
     });
 
     test('describe returns formatted string', () {
-      final action = testActions.firemaking('Burn Normal Logs');
+      final action = testRegistries.firemakingAction('Burn Normal Logs');
       final waitFor = WaitForInputsDepleted(action.id);
 
       expect(waitFor.describe(), contains('inputs depleted'));
     });
 
     test('shortDescription returns Inputs depleted', () {
-      final action = testActions.firemaking('Burn Normal Logs');
+      final action = testRegistries.firemakingAction('Burn Normal Logs');
       final waitFor = WaitForInputsDepleted(action.id);
 
       expect(waitFor.shortDescription, 'Inputs depleted');
@@ -562,7 +562,7 @@ void main() {
         ItemStack(logs, count: 10),
       ]);
       final state = GlobalState.test(testRegistries, inventory: inventory);
-      final action = testActions.firemaking('Burn Normal Logs');
+      final action = testRegistries.firemakingAction('Burn Normal Logs');
       final waitFor = WaitForInputsDepleted(action.id);
 
       expect(waitFor.progress(state), 0);
@@ -576,7 +576,7 @@ void main() {
         ItemStack(logs, count: 10),
       ]);
       final state = GlobalState.test(testRegistries, inventory: inventory);
-      final action = testActions.firemaking('Burn Normal Logs');
+      final action = testRegistries.firemakingAction('Burn Normal Logs');
       final waitFor = WaitForInputsAvailable(action.id);
 
       expect(waitFor.isSatisfied(state), isTrue);
@@ -584,7 +584,7 @@ void main() {
 
     test('isSatisfied returns false when no inputs', () {
       final state = GlobalState.empty(testRegistries);
-      final action = testActions.firemaking('Burn Normal Logs');
+      final action = testRegistries.firemakingAction('Burn Normal Logs');
       final waitFor = WaitForInputsAvailable(action.id);
 
       expect(waitFor.isSatisfied(state), isFalse);
@@ -596,7 +596,7 @@ void main() {
         ItemStack(logs, count: 10),
       ]);
       final state = GlobalState.test(testRegistries, inventory: inventory);
-      final action = testActions.firemaking('Burn Normal Logs');
+      final action = testRegistries.firemakingAction('Burn Normal Logs');
       final waitFor = WaitForInputsAvailable(action.id);
 
       expect(waitFor.estimateTicks(state, Rates.empty), 0);
@@ -604,7 +604,7 @@ void main() {
 
     test('estimateTicks returns infTicks when not satisfied', () {
       final state = GlobalState.empty(testRegistries);
-      final action = testActions.firemaking('Burn Normal Logs');
+      final action = testRegistries.firemakingAction('Burn Normal Logs');
       final waitFor = WaitForInputsAvailable(action.id);
 
       // Returns infTicks as a conservative fallback
@@ -612,14 +612,14 @@ void main() {
     });
 
     test('describe returns formatted string', () {
-      final action = testActions.firemaking('Burn Normal Logs');
+      final action = testRegistries.firemakingAction('Burn Normal Logs');
       final waitFor = WaitForInputsAvailable(action.id);
 
       expect(waitFor.describe(), contains('inputs available'));
     });
 
     test('shortDescription returns Inputs available', () {
-      final action = testActions.firemaking('Burn Normal Logs');
+      final action = testRegistries.firemakingAction('Burn Normal Logs');
       final waitFor = WaitForInputsAvailable(action.id);
 
       expect(waitFor.shortDescription, 'Inputs available');
@@ -627,7 +627,7 @@ void main() {
 
     test('progress returns 0 (binary condition)', () {
       final state = GlobalState.empty(testRegistries);
-      final action = testActions.firemaking('Burn Normal Logs');
+      final action = testRegistries.firemakingAction('Burn Normal Logs');
       final waitFor = WaitForInputsAvailable(action.id);
 
       expect(waitFor.progress(state), 0);
@@ -751,7 +751,7 @@ void main() {
         ItemStack(logs, count: 10),
       ]);
       final state = GlobalState.test(testRegistries, inventory: inventory);
-      final action = testActions.firemaking('Burn Normal Logs');
+      final action = testRegistries.firemakingAction('Burn Normal Logs');
       final waitFor = WaitForSufficientInputs(action.id, 5);
 
       expect(waitFor.isSatisfied(state), isTrue);
@@ -763,7 +763,7 @@ void main() {
         ItemStack(logs, count: 2),
       ]);
       final state = GlobalState.test(testRegistries, inventory: inventory);
-      final action = testActions.firemaking('Burn Normal Logs');
+      final action = testRegistries.firemakingAction('Burn Normal Logs');
       final waitFor = WaitForSufficientInputs(action.id, 10);
 
       expect(waitFor.isSatisfied(state), isFalse);
@@ -772,7 +772,7 @@ void main() {
     test('isSatisfied returns false for non-skill action', () {
       final state = GlobalState.empty(testRegistries);
       // Use a combat action ID which is not a SkillAction
-      final combatAction = testRegistries.actions.all
+      final combatAction = testRegistries.allActions
           .whereType<CombatAction>()
           .first;
       final waitFor = WaitForSufficientInputs(combatAction.id, 5);
@@ -786,7 +786,7 @@ void main() {
         ItemStack(logs, count: 10),
       ]);
       final state = GlobalState.test(testRegistries, inventory: inventory);
-      final action = testActions.firemaking('Burn Normal Logs');
+      final action = testRegistries.firemakingAction('Burn Normal Logs');
       final waitFor = WaitForSufficientInputs(action.id, 5);
 
       expect(waitFor.estimateTicks(state, Rates.empty), 0);
@@ -794,7 +794,7 @@ void main() {
 
     test('estimateTicks returns infTicks for non-skill action', () {
       final state = GlobalState.empty(testRegistries);
-      final combatAction = testRegistries.actions.all
+      final combatAction = testRegistries.allActions
           .whereType<CombatAction>()
           .first;
       final waitFor = WaitForSufficientInputs(combatAction.id, 5);
@@ -803,14 +803,14 @@ void main() {
     });
 
     test('describe returns formatted string', () {
-      final action = testActions.firemaking('Burn Normal Logs');
+      final action = testRegistries.firemakingAction('Burn Normal Logs');
       final waitFor = WaitForSufficientInputs(action.id, 10);
 
       expect(waitFor.describe(), contains('sufficient inputs (10)'));
     });
 
     test('shortDescription returns Sufficient inputs', () {
-      final action = testActions.firemaking('Burn Normal Logs');
+      final action = testRegistries.firemakingAction('Burn Normal Logs');
       final waitFor = WaitForSufficientInputs(action.id, 10);
 
       expect(waitFor.shortDescription, 'Sufficient inputs');
@@ -822,7 +822,7 @@ void main() {
         ItemStack(logs, count: 7),
       ]);
       final state = GlobalState.test(testRegistries, inventory: inventory);
-      final action = testActions.firemaking('Burn Normal Logs');
+      final action = testRegistries.firemakingAction('Burn Normal Logs');
       final waitFor = WaitForSufficientInputs(action.id, 10);
 
       expect(waitFor.progress(state), 7);
@@ -830,7 +830,7 @@ void main() {
 
     test('progress returns 0 for non-skill action', () {
       final state = GlobalState.empty(testRegistries);
-      final combatAction = testRegistries.actions.all
+      final combatAction = testRegistries.allActions
           .whereType<CombatAction>()
           .first;
       final waitFor = WaitForSufficientInputs(combatAction.id, 5);
@@ -840,7 +840,7 @@ void main() {
 
     test('progress returns 0 for action with no inputs', () {
       final state = GlobalState.empty(testRegistries);
-      final action = testActions.woodcutting('Normal Tree');
+      final action = testRegistries.woodcuttingAction('Normal Tree');
       final waitFor = WaitForSufficientInputs(action.id, 5);
 
       expect(waitFor.progress(state), 0);
@@ -989,7 +989,7 @@ void main() {
     });
 
     test('WaitForMasteryXp equality', () {
-      final action = testActions.woodcutting('Normal Tree');
+      final action = testRegistries.woodcuttingAction('Normal Tree');
       final a = WaitForMasteryXp(action.id, 100);
       final b = WaitForMasteryXp(action.id, 100);
       final c = WaitForMasteryXp(action.id, 200);
@@ -1017,7 +1017,7 @@ void main() {
   group('WaitFor with real game state', () {
     test('estimateTicks works with estimateRates for woodcutting', () {
       var state = GlobalState.empty(testRegistries);
-      final action = testActions.woodcutting('Normal Tree');
+      final action = testRegistries.woodcuttingAction('Normal Tree');
       state = state.startAction(action, random: Random(42));
 
       final rates = estimateRates(state);
@@ -1030,7 +1030,7 @@ void main() {
 
     test('estimateTicks works with estimateRates for thieving', () {
       var state = GlobalState.empty(testRegistries);
-      final action = testActions.thieving('Man');
+      final action = testRegistries.thievingAction('Man');
       state = state.startAction(action, random: Random(42));
 
       final rates = estimateRates(state);

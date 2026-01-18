@@ -68,7 +68,7 @@ bool _isRateModelable(GlobalState state) {
   final activeAction = state.activeAction;
   if (activeAction == null) return false;
 
-  final action = state.registries.actions.byId(activeAction.id);
+  final action = state.registries.actionById(activeAction.id);
 
   // Only skill actions (non-combat) are rate-modelable
   if (action is! SkillAction) return false;

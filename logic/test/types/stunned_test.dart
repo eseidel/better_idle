@@ -84,7 +84,7 @@ void main() {
     late SkillAction normalTree;
 
     setUpAll(() {
-      normalTree = testActions.woodcutting('Normal Tree');
+      normalTree = testRegistries.woodcuttingAction('Normal Tree');
     });
 
     test('isStunned returns false when not stunned', () {

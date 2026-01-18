@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:logic/src/data/action_id.dart';
 import 'package:logic/src/data/actions.dart';
 import 'package:logic/src/data/cache.dart';
 import 'package:logic/src/data/melvor_data.dart';
@@ -16,7 +17,6 @@ import 'package:meta/meta.dart';
 class Registries {
   Registries(
     this.items,
-    this.actions,
     this.drops,
     this.equipmentSlots,
     this._cookingCategories,
@@ -40,7 +40,23 @@ class Registries {
     this.summoningSynergies,
     this.township,
     this._bankSortIndex,
-  );
+    this._woodcuttingActions,
+    this._miningActions,
+    this._firemakingActions,
+    this._fishingActions,
+    this._cookingActions,
+    this._smithingActions,
+    this._fletchingActions,
+    this._craftingActions,
+    this._herbloreActions,
+    this._runecraftingActions,
+    this._thievingActions,
+    this._agilityObstacles,
+    this._summoningActions,
+    this._astrologyActions,
+    this._altMagicActions,
+    this._combatActions,
+  ) : _testActions = null;
 
   factory Registries.test({
     List<Item> items = const [],
@@ -52,9 +68,11 @@ class Registries {
     TownshipRegistry? township,
     Map<MelvorId, int>? bankSortIndex,
   }) {
-    return Registries(
+    // For tests, we store actions in a separate list that overrides
+    // the allActions getter. This allows tests to use generic SkillAction
+    // instances without needing skill-specific subclasses.
+    return Registries._test(
       ItemRegistry(items),
-      ActionRegistry(actions),
       DropsRegistry({}),
       const EquipmentSlotRegistry.empty(),
       const <CookingCategory>[],
@@ -78,11 +96,55 @@ class Registries {
       summoningSynergies ?? const SummoningSynergyRegistry([]),
       township ?? const TownshipRegistry.empty(),
       bankSortIndex ?? {},
+      actions,
     );
   }
 
+  /// Internal constructor for test fixtures that stores actions directly.
+  Registries._test(
+    this.items,
+    this.drops,
+    this.equipmentSlots,
+    this._cookingCategories,
+    this._fishingAreas,
+    this._smithingCategories,
+    this._fletchingCategories,
+    this._craftingCategories,
+    this._herbloreCategories,
+    this._runecraftingCategories,
+    this._thievingAreas,
+    this.combatAreas,
+    this.dungeons,
+    this._agilityCourses,
+    this._agilityPillars,
+    this._farmingCrops,
+    this._farmingCategories,
+    this._farmingPlots,
+    this.shop,
+    this.masteryBonuses,
+    this.masteryUnlocks,
+    this.summoningSynergies,
+    this.township,
+    this._bankSortIndex,
+    this._testActions,
+  ) : _woodcuttingActions = const [],
+      _miningActions = const [],
+      _firemakingActions = const [],
+      _fishingActions = const [],
+      _cookingActions = const [],
+      _smithingActions = const [],
+      _fletchingActions = const [],
+      _craftingActions = const [],
+      _herbloreActions = const [],
+      _runecraftingActions = const [],
+      _thievingActions = const [],
+      _agilityObstacles = const [],
+      _summoningActions = const [],
+      _astrologyActions = const [],
+      _altMagicActions = const [],
+      _combatActions = const [];
+
   final ItemRegistry items;
-  final ActionRegistry actions;
   final DropsRegistry drops;
   final EquipmentSlotRegistry equipmentSlots;
   final List<CookingCategory> _cookingCategories;
@@ -147,82 +209,99 @@ class Registries {
   final TownshipRegistry township;
   final Map<MelvorId, int> _bankSortIndex;
 
+  // Action lists passed from constructor (used to build specialized registries)
+  final List<WoodcuttingTree> _woodcuttingActions;
+  final List<MiningAction> _miningActions;
+  final List<FiremakingAction> _firemakingActions;
+  final List<FishingAction> _fishingActions;
+  final List<CookingAction> _cookingActions;
+  final List<SmithingAction> _smithingActions;
+  final List<FletchingAction> _fletchingActions;
+  final List<CraftingAction> _craftingActions;
+  final List<HerbloreAction> _herbloreActions;
+  final List<RunecraftingAction> _runecraftingActions;
+  final List<ThievingAction> _thievingActions;
+  final List<AgilityObstacle> _agilityObstacles;
+  final List<SummoningAction> _summoningActions;
+  final List<AstrologyAction> _astrologyActions;
+  final List<AltMagicAction> _altMagicActions;
+  final List<CombatAction> _combatActions;
+
+  // For test fixtures: stores generic actions directly instead of using
+  // specialized registries. Null for production registries.
+  final List<Action>? _testActions;
+
   /// Woodcutting skill registry.
   late final WoodcuttingRegistry woodcutting = WoodcuttingRegistry(
-    actions.forSkill(Skill.woodcutting).cast<WoodcuttingTree>().toList(),
+    _woodcuttingActions,
   ).withCache();
 
   /// Mining skill registry.
-  late final MiningRegistry mining = MiningRegistry(
-    actions.forSkill(Skill.mining).cast<MiningAction>().toList(),
-  ).withCache();
+  late final MiningRegistry mining = MiningRegistry(_miningActions).withCache();
 
   /// Firemaking skill registry.
   late final FiremakingRegistry firemaking = FiremakingRegistry(
-    actions.forSkill(Skill.firemaking).cast<FiremakingAction>().toList(),
+    _firemakingActions,
   ).withCache();
 
   /// Combat registry (monsters, areas, dungeons).
   late final CombatRegistry combat = CombatRegistry(
-    monsters: actions.all.whereType<CombatAction>().toList(),
+    monsters: _combatActions,
     areas: combatAreas,
     dungeons: dungeons,
   );
 
   /// Fishing skill registry.
   late final FishingRegistry fishing = FishingRegistry(
-    actions: actions.forSkill(Skill.fishing).cast<FishingAction>().toList(),
+    actions: _fishingActions,
     areas: fishingAreas,
   );
 
   /// Cooking skill registry.
   late final CookingRegistry cooking = CookingRegistry(
-    actions: actions.forSkill(Skill.cooking).cast<CookingAction>().toList(),
+    actions: _cookingActions,
     categories: cookingCategories,
   );
 
   /// Smithing skill registry.
   late final SmithingRegistry smithing = SmithingRegistry(
-    actions: actions.forSkill(Skill.smithing).cast<SmithingAction>().toList(),
+    actions: _smithingActions,
     categories: smithingCategories,
   );
 
   /// Fletching skill registry.
   late final FletchingRegistry fletching = FletchingRegistry(
-    actions: actions.forSkill(Skill.fletching).cast<FletchingAction>().toList(),
+    actions: _fletchingActions,
     categories: fletchingCategories,
   );
 
   /// Crafting skill registry.
   late final CraftingRegistry crafting = CraftingRegistry(
-    actions: actions.forSkill(Skill.crafting).cast<CraftingAction>().toList(),
+    actions: _craftingActions,
     categories: craftingCategories,
   );
 
   /// Herblore skill registry.
   late final HerbloreRegistry herblore = HerbloreRegistry(
-    actions: actions.forSkill(Skill.herblore).cast<HerbloreAction>().toList(),
+    actions: _herbloreActions,
     categories: herbloreCategories,
   );
 
   /// Runecrafting skill registry.
   late final RunecraftingRegistry runecrafting = RunecraftingRegistry(
-    actions: actions
-        .forSkill(Skill.runecrafting)
-        .cast<RunecraftingAction>()
-        .toList(),
+    actions: _runecraftingActions,
     categories: runecraftingCategories,
   );
 
   /// Thieving skill registry.
   late final ThievingRegistry thieving = ThievingRegistry(
-    actions: actions.forSkill(Skill.thieving).cast<ThievingAction>().toList(),
+    actions: _thievingActions,
     areas: thievingAreas,
   );
 
   /// Agility skill registry.
   late final AgilityRegistry agility = AgilityRegistry(
-    obstacles: actions.forSkill(Skill.agility).cast<AgilityObstacle>().toList(),
+    obstacles: _agilityObstacles,
     courses: agilityCourses,
     pillars: agilityPillars,
   );
@@ -235,18 +314,64 @@ class Registries {
   );
 
   /// Summoning skill registry.
-  late final SummoningRegistry summoning = SummoningRegistry(
-    actions.forSkill(Skill.summoning).cast<SummoningAction>().toList(),
-  );
+  late final SummoningRegistry summoning = SummoningRegistry(_summoningActions);
+
+  /// Astrology skill registry.
+  late final AstrologyRegistry astrology = AstrologyRegistry(
+    _astrologyActions,
+  ).withCache();
+
+  /// Alt Magic skill registry.
+  late final AltMagicRegistry altMagic = AltMagicRegistry(
+    _altMagicActions,
+  ).withCache();
+
+  /// Returns all actions across all skill registries.
+  /// For test fixtures, returns the directly-stored test actions instead.
+  late final List<Action> allActions =
+      _testActions ??
+      [
+        ...woodcutting.actions,
+        ...mining.actions,
+        ...firemaking.actions,
+        ...fishing.actions,
+        ...cooking.actions,
+        ...smithing.actions,
+        ...fletching.actions,
+        ...crafting.actions,
+        ...herblore.actions,
+        ...runecrafting.actions,
+        ...thieving.actions,
+        ...agility.obstacles,
+        ...farming.crops,
+        ...summoning.actions,
+        ...astrology.actions,
+        ...altMagic.actions,
+        ...combat.monsters,
+      ];
+
+  /// Map from ActionId to Action for quick lookup.
+  late final Map<ActionId, Action> _actionById = {
+    for (final action in allActions) action.id: action,
+  };
+
+  /// Returns an action by its ActionId.
+  ///
+  /// Throws StateError if the action is not found.
+  Action actionById(ActionId id) {
+    final action = _actionById[id];
+    if (action == null) {
+      throw StateError('Missing action with id: $id');
+    }
+    return action;
+  }
 
   /// Returns all skill actions for a given skill.
-  ///
-  /// This method provides a unified way to get actions for any skill.
-  /// Uses the global action registry for now to support test fixtures
-  /// that may use generic SkillAction instances rather than skill-specific
-  /// subclasses like WoodcuttingTree.
   List<SkillAction> actionsForSkill(Skill skill) {
-    return actions.forSkill(skill).toList();
+    return allActions
+        .whereType<SkillAction>()
+        .where((action) => action.skill == skill)
+        .toList();
   }
 
   /// Comparator for sorting items according to bank sort order.
@@ -264,6 +389,54 @@ class Registries {
 
     return indexA.compareTo(indexB);
   }
+
+  // Test helper methods for looking up actions by name.
+  // These are used in tests to avoid needing to construct ActionIds.
+
+  Action _bySkillAndName(Skill skill, String name) {
+    final matches = allActions.where(
+      (action) => action.id.skillId == skill.id && action.name == name,
+    );
+    if (matches.isEmpty) {
+      final available = allActions
+          .where((a) => a.id.skillId == skill.id)
+          .map((a) => a.name)
+          .join(', ');
+      throw StateError(
+        'Missing action with skill: $skill and name: $name. '
+        'Available: $available',
+      );
+    }
+    return matches.first;
+  }
+
+  @visibleForTesting
+  SkillAction woodcuttingAction(String name) =>
+      _bySkillAndName(Skill.woodcutting, name) as SkillAction;
+
+  @visibleForTesting
+  MiningAction miningAction(String name) =>
+      _bySkillAndName(Skill.mining, name) as MiningAction;
+
+  @visibleForTesting
+  SkillAction firemakingAction(String name) =>
+      _bySkillAndName(Skill.firemaking, name) as SkillAction;
+
+  @visibleForTesting
+  SkillAction fishingAction(String name) =>
+      _bySkillAndName(Skill.fishing, name) as SkillAction;
+
+  @visibleForTesting
+  CombatAction combatAction(String name) =>
+      _bySkillAndName(Skill.combat, name) as CombatAction;
+
+  @visibleForTesting
+  ThievingAction thievingAction(String name) =>
+      _bySkillAndName(Skill.thieving, name) as ThievingAction;
+
+  @visibleForTesting
+  SkillAction smithingAction(String name) =>
+      _bySkillAndName(Skill.smithing, name) as SkillAction;
 }
 
 /// Ensures the registries are initialized.
@@ -287,7 +460,6 @@ Future<Registries> loadRegistriesFromCache(Cache cache) async {
   final melvorData = await MelvorData.loadFromCache(cache);
   return Registries(
     melvorData.items,
-    melvorData.actions,
     melvorData.drops,
     melvorData.equipmentSlots,
     melvorData.cookingCategories,
@@ -311,5 +483,21 @@ Future<Registries> loadRegistriesFromCache(Cache cache) async {
     melvorData.summoningSynergies,
     melvorData.township,
     melvorData.bankSortIndex,
+    melvorData.woodcuttingActions,
+    melvorData.miningActions,
+    melvorData.firemakingActions,
+    melvorData.fishingActions,
+    melvorData.cookingActions,
+    melvorData.smithingActions,
+    melvorData.fletchingActions,
+    melvorData.craftingActions,
+    melvorData.herbloreActions,
+    melvorData.runecraftingActions,
+    melvorData.thievingActions,
+    melvorData.agilityObstacles,
+    melvorData.summoningActions,
+    melvorData.astrologyActions,
+    melvorData.altMagicActions,
+    melvorData.combatActions,
   );
 }

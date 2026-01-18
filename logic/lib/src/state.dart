@@ -41,13 +41,12 @@ import 'package:meta/meta.dart';
 ActiveActivity? _convertToActivity(
   ActiveAction? activeAction,
   Map<ActionId, ActionState> actionStates,
-  ActionRegistry actions,
-  DungeonRegistry dungeons,
+  Registries registries,
 ) {
   if (activeAction == null) return null;
 
   final actionId = activeAction.id;
-  final action = actions.byId(actionId);
+  final action = registries.actionById(actionId);
   final actionState = actionStates[actionId];
 
   if (action is SkillAction) {
@@ -77,7 +76,7 @@ ActiveActivity? _convertToActivity(
     // Build combat context based on whether we're in a dungeon
     final CombatContext context;
     if (combatState.dungeonId != null) {
-      final dungeon = dungeons.byId(combatState.dungeonId!);
+      final dungeon = registries.dungeons.byId(combatState.dungeonId!);
       context = DungeonCombatContext(
         dungeonId: combatState.dungeonId!,
         currentMonsterIndex: combatState.dungeonMonsterIndex ?? 0,
@@ -491,8 +490,7 @@ class GlobalState {
       resolvedActivity = _convertToActivity(
         activeAction,
         actionStates,
-        registries.actions,
-        registries.dungeons,
+        registries,
       );
     }
 
@@ -677,7 +675,7 @@ class GlobalState {
     final actionId = activeAction?.id;
     if (actionId != null) {
       // This will throw a StateError if the action is missing.
-      registries.actions.byId(actionId);
+      registries.actionById(actionId);
     }
     return true;
   }
@@ -971,7 +969,7 @@ class GlobalState {
     if (actionId == null) {
       return null;
     }
-    return registries.actions.byId(actionId).skill;
+    return registries.actionById(actionId).skill;
   }
 
   /// Returns the number of unique item types (slots) used in inventory.
@@ -2563,8 +2561,8 @@ class GlobalState {
     }
 
     // Find the cooking action
-    final recipe = registries.actions
-        .forSkill(Skill.cooking)
+    final recipe = registries
+        .actionsForSkill(Skill.cooking)
         .whereType<CookingAction>()
         .firstWhere(
           (a) => a.id == areaState.recipeId,
@@ -2611,8 +2609,7 @@ class GlobalState {
       resolvedActivity = _convertToActivity(
         activeAction,
         actionStates ?? this.actionStates,
-        registries.actions,
-        registries.dungeons,
+        registries,
       );
     }
 

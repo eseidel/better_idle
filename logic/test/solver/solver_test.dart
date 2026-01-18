@@ -33,7 +33,7 @@ void main() {
   group('applyInteraction', () {
     test('SwitchActivity switches to a new activity', () {
       final state = GlobalState.empty(testRegistries);
-      final action = testActions.woodcutting('Normal Tree');
+      final action = testRegistries.woodcuttingAction('Normal Tree');
       final interaction = SwitchActivity(action.id);
 
       final newState = applyInteraction(state, interaction, random: Random(0));
@@ -44,10 +44,10 @@ void main() {
     test('SwitchActivity clears existing action first', () {
       var state = GlobalState.empty(testRegistries);
       state = state.startAction(
-        testActions.fishing('Raw Shrimp'),
+        testRegistries.fishingAction('Raw Shrimp'),
         random: Random(0),
       );
-      final action = testActions.woodcutting('Normal Tree');
+      final action = testRegistries.woodcuttingAction('Normal Tree');
       final interaction = SwitchActivity(action.id);
 
       final newState = applyInteraction(state, interaction, random: Random(0));
@@ -119,7 +119,7 @@ void main() {
   group('advanceDeterministic', () {
     test('advances state by specified ticks', () {
       var state = GlobalState.empty(testRegistries);
-      final action = testActions.woodcutting('Normal Tree');
+      final action = testRegistries.woodcuttingAction('Normal Tree');
       state = state.startAction(action, random: Random(0));
       final initialItems = state.inventory.items.length;
 
@@ -135,7 +135,7 @@ void main() {
 
     test('is deterministic', () {
       var state = GlobalState.empty(testRegistries);
-      final action = testActions.woodcutting('Normal Tree');
+      final action = testRegistries.woodcuttingAction('Normal Tree');
       state = state.startAction(action, random: Random(0));
 
       final result1 = advanceDeterministic(state, 100);
@@ -151,7 +151,7 @@ void main() {
 
     test('returns same state when deltaTicks is 0', () {
       var state = GlobalState.empty(testRegistries);
-      final action = testActions.woodcutting('Normal Tree');
+      final action = testRegistries.woodcuttingAction('Normal Tree');
       state = state.startAction(action, random: Random(0));
 
       final result = advanceDeterministic(state, 0);
@@ -193,7 +193,7 @@ void main() {
     test('finds a plan to reach goal with single activity', () {
       var state = GlobalState.empty(testRegistries);
       // Start with an activity already running
-      final action = testActions.woodcutting('Normal Tree');
+      final action = testRegistries.woodcuttingAction('Normal Tree');
       state = state.startAction(action, random: Random(0));
 
       // Small goal that should be reachable
@@ -224,7 +224,7 @@ void main() {
     test('plan may include buying upgrade when it improves time-to-goal', () {
       // Start with enough money for Iron Axe and activity running
       var state = GlobalState.test(testRegistries, gp: 50);
-      final action = testActions.woodcutting('Normal Tree');
+      final action = testRegistries.woodcuttingAction('Normal Tree');
       state = state.startAction(action, random: Random(0));
 
       // Moderate goal - may or may not benefit from upgrade
@@ -252,7 +252,7 @@ void main() {
 
     test('produces deterministic results', () {
       var state = GlobalState.empty(testRegistries);
-      final action = testActions.woodcutting('Normal Tree');
+      final action = testRegistries.woodcuttingAction('Normal Tree');
       state = state.startAction(action, random: Random(0));
 
       final result1 = solveToCredits(state, 50);
@@ -299,7 +299,7 @@ void main() {
   group('Plan', () {
     test('prettyPrint outputs plan summary', () {
       const testGoal = ReachGpGoal(100);
-      final normalTreeAction = testActions.woodcutting('Normal Tree');
+      final normalTreeAction = testRegistries.woodcuttingAction('Normal Tree');
       final plan = Plan(
         steps: [
           InteractionStep(SwitchActivity(normalTreeAction.id)),
@@ -342,8 +342,8 @@ void main() {
     });
 
     test('fromSegments stitches segments with markers', () {
-      final normalTreeAction = testActions.woodcutting('Normal Tree');
-      final oakTreeAction = testActions.woodcutting('Oak Tree');
+      final normalTreeAction = testRegistries.woodcuttingAction('Normal Tree');
+      final oakTreeAction = testRegistries.woodcuttingAction('Oak Tree');
 
       final segment1 = Segment(
         steps: [
@@ -412,7 +412,7 @@ void main() {
     });
 
     test('fromSegments handles single segment', () {
-      final normalTreeAction = testActions.woodcutting('Normal Tree');
+      final normalTreeAction = testRegistries.woodcuttingAction('Normal Tree');
 
       final segment = Segment(
         steps: [
@@ -463,7 +463,7 @@ void main() {
   group('thieving death modeling', () {
     test('estimateRates returns hpLossPerTick for thieving', () {
       var state = GlobalState.empty(testRegistries);
-      final action = testActions.thieving('Man'); // Thieving action
+      final action = testRegistries.thievingAction('Man'); // Thieving action
       state = state.startAction(action, random: Random(0));
 
       final rates = estimateRates(state);
@@ -475,7 +475,7 @@ void main() {
 
     test('estimateRates returns zero hpLossPerTick for non-thieving', () {
       var state = GlobalState.empty(testRegistries);
-      final action = testActions.woodcutting('Normal Tree');
+      final action = testRegistries.woodcuttingAction('Normal Tree');
       state = state.startAction(action, random: Random(0));
 
       final rates = estimateRates(state);
@@ -485,7 +485,7 @@ void main() {
 
     test('ticksUntilDeath returns positive value for thieving', () {
       var state = GlobalState.empty(testRegistries);
-      final action = testActions.thieving('Man');
+      final action = testRegistries.thievingAction('Man');
       state = state.startAction(action, random: Random(0));
 
       final rates = estimateRates(state);
@@ -498,7 +498,7 @@ void main() {
 
     test('ticksUntilDeath returns null for non-thieving', () {
       var state = GlobalState.empty(testRegistries);
-      final action = testActions.woodcutting('Normal Tree');
+      final action = testRegistries.woodcuttingAction('Normal Tree');
       state = state.startAction(action, random: Random(0));
 
       final rates = estimateRates(state);
@@ -510,7 +510,7 @@ void main() {
     test('advanceDeterministic uses continuous model for thieving', () {
       // Create state with low HP thieving
       var state = GlobalState.empty(testRegistries);
-      final action = testActions.thieving('Man');
+      final action = testRegistries.thievingAction('Man');
       state = state.startAction(action, random: Random(0));
 
       // Damage the player to have only 2 HP left
@@ -534,7 +534,7 @@ void main() {
       'advanceDeterministic tracks expected deaths proportional to time',
       () {
         var state = GlobalState.empty(testRegistries);
-        final action = testActions.thieving('Man');
+        final action = testRegistries.thievingAction('Man');
         state = state.startAction(action, random: Random(0));
 
         final rates = estimateRates(state);
@@ -553,7 +553,7 @@ void main() {
 
     test('nextDecisionDelta returns positive delta for thieving', () {
       var state = GlobalState.empty(testRegistries);
-      final action = testActions.thieving('Man');
+      final action = testRegistries.thievingAction('Man');
       state = state.startAction(action, random: Random(0));
 
       // Damage player to have only 5 HP left
@@ -576,7 +576,7 @@ void main() {
   group('skill and mastery level timing', () {
     test('ticksUntilNextSkillLevel returns positive value when gaining XP', () {
       var state = GlobalState.empty(testRegistries);
-      final action = testActions.woodcutting('Normal Tree');
+      final action = testRegistries.woodcuttingAction('Normal Tree');
       state = state.startAction(action, random: Random(0));
 
       final rates = estimateRates(state);
@@ -601,7 +601,7 @@ void main() {
       'ticksUntilNextMasteryLevel returns positive value for active action',
       () {
         var state = GlobalState.empty(testRegistries);
-        final action = testActions.woodcutting('Normal Tree');
+        final action = testRegistries.woodcuttingAction('Normal Tree');
         state = state.startAction(action, random: Random(0));
 
         final rates = estimateRates(state);
@@ -624,7 +624,7 @@ void main() {
 
     test('nextDecisionDelta includes skill unlock timing', () {
       var state = GlobalState.empty(testRegistries);
-      final action = testActions.woodcutting('Normal Tree');
+      final action = testRegistries.woodcuttingAction('Normal Tree');
       state = state.startAction(action, random: Random(0));
 
       const goal = ReachGpGoal(100000); // High goal
@@ -642,7 +642,7 @@ void main() {
 
     test('nextDecisionDelta includes mastery level timing for thieving', () {
       var state = GlobalState.empty(testRegistries);
-      final action = testActions.thieving('Man');
+      final action = testRegistries.thievingAction('Man');
       state = state.startAction(action, random: Random(0));
 
       const goal = ReachGpGoal(100000); // High goal
@@ -668,7 +668,7 @@ void main() {
 
     test('estimateRates includes mastery XP rate', () {
       var state = GlobalState.empty(testRegistries);
-      final action = testActions.woodcutting('Normal Tree');
+      final action = testRegistries.woodcuttingAction('Normal Tree');
       state = state.startAction(action, random: Random(0));
 
       final rates = estimateRates(state);
@@ -679,7 +679,7 @@ void main() {
 
     test('estimateRates includes mastery XP rate for thieving', () {
       var state = GlobalState.empty(testRegistries);
-      final action = testActions.thieving('Man');
+      final action = testRegistries.thievingAction('Man');
       state = state.startAction(action, random: Random(0));
 
       final rates = estimateRates(state);
@@ -690,7 +690,7 @@ void main() {
 
     test('deathCycleAdjustedRates reduces rates for hazardous activities', () {
       var state = GlobalState.empty(testRegistries);
-      final action = testActions.thieving('Man');
+      final action = testRegistries.thievingAction('Man');
       state = state.startAction(action, random: Random(0));
 
       final rawRates = estimateRates(state);
@@ -707,7 +707,7 @@ void main() {
 
     test('deathCycleAdjustedRates returns original for non-hazardous', () {
       var state = GlobalState.empty(testRegistries);
-      final action = testActions.woodcutting('Normal Tree');
+      final action = testRegistries.woodcuttingAction('Normal Tree');
       state = state.startAction(action, random: Random(0));
 
       final rawRates = estimateRates(state);
@@ -721,7 +721,7 @@ void main() {
     test('expected deaths roughly matches simulated deaths for thieving', () {
       // Setup: known thieving state
       var state = GlobalState.empty(testRegistries);
-      final action = testActions.thieving('Man');
+      final action = testRegistries.thievingAction('Man');
       state = state.startAction(action, random: Random(42));
 
       // Get expected death rate from model
@@ -783,7 +783,7 @@ void main() {
       // Verify that action outputs (like Normal Logs from Normal Tree) are
       // included in itemFlowsPerTick via allDropsForAction, not double-counted.
       var state = GlobalState.empty(testRegistries);
-      final action = testActions.woodcutting('Normal Tree');
+      final action = testRegistries.woodcuttingAction('Normal Tree');
       state = state.startAction(action, random: Random(0));
 
       final rates = estimateRates(state);
@@ -811,7 +811,7 @@ void main() {
       // Verify that skill-level drops are included in itemFlowsPerTick
       // Woodcutting has Bird Nest as a skill-level drop (0.5% rate)
       var state = GlobalState.empty(testRegistries);
-      final action = testActions.woodcutting('Normal Tree');
+      final action = testRegistries.woodcuttingAction('Normal Tree');
       state = state.startAction(action, random: Random(0));
 
       final rates = estimateRates(state);
@@ -838,7 +838,7 @@ void main() {
       // Thieving has Bobby's Pocket as a skill-level drop (1/120 rate, 4000 GP)
       // This should appear in itemFlowsPerTick and affect valuePerTick
       var state = GlobalState.empty(testRegistries);
-      final action = testActions.thieving('Man');
+      final action = testRegistries.thievingAction('Man');
       state = state.startAction(action, random: Random(0));
 
       final rates = estimateRates(state);
@@ -900,7 +900,7 @@ void main() {
     test('reaches woodcutting XP goal in reasonable time', () {
       // Setup: start woodcutting Normal Tree
       var state = GlobalState.empty(testRegistries);
-      final action = testActions.woodcutting('Normal Tree');
+      final action = testRegistries.woodcuttingAction('Normal Tree');
       state = state.startAction(action, random: Random(42));
 
       // Normal Tree: 3 seconds (30 ticks), 10 XP per action
@@ -933,7 +933,9 @@ void main() {
       );
 
       // Start firemaking (a consuming action that needs logs)
-      final firemakingAction = testActions.firemaking('Burn Normal Logs');
+      final firemakingAction = testRegistries.firemakingAction(
+        'Burn Normal Logs',
+      );
       final runningState = state.startAction(
         firemakingAction,
         random: Random(42),
@@ -986,7 +988,9 @@ void main() {
       );
 
       // Start firemaking (a consuming action that needs logs)
-      final firemakingAction = testActions.firemaking('Burn Normal Logs');
+      final firemakingAction = testRegistries.firemakingAction(
+        'Burn Normal Logs',
+      );
       final runningState = state.startAction(
         firemakingAction,
         random: Random(42),
@@ -1029,7 +1033,7 @@ void main() {
     test('returns NoProgressPossible when action does not progress goal', () {
       // Start woodcutting but wait for fishing XP - no progress possible
       var state = GlobalState.empty(testRegistries);
-      final woodcuttingAction = testActions.woodcutting('Normal Tree');
+      final woodcuttingAction = testRegistries.woodcuttingAction('Normal Tree');
       state = state.startAction(woodcuttingAction, random: Random(42));
 
       // Wait for fishing XP, which woodcutting will never provide
@@ -1077,7 +1081,7 @@ void main() {
 
     test('executes plan with switch activity step', () {
       final state = GlobalState.empty(testRegistries);
-      final normalTreeAction = testActions.woodcutting('Normal Tree');
+      final normalTreeAction = testRegistries.woodcuttingAction('Normal Tree');
       final plan = Plan(
         steps: [
           InteractionStep(SwitchActivity(normalTreeAction.id)),
@@ -1106,7 +1110,7 @@ void main() {
     test('tracks deaths during thieving execution', () {
       // Create a plan that does thieving for a long time (will cause deaths)
       final state = GlobalState.empty(testRegistries);
-      final manAction = testActions.thieving('Man');
+      final manAction = testRegistries.thievingAction('Man');
       final plan = Plan(
         steps: [
           InteractionStep(SwitchActivity(manAction.id)),
@@ -1134,7 +1138,7 @@ void main() {
 
     test('reports planned vs actual ticks correctly', () {
       final state = GlobalState.empty(testRegistries);
-      final normalTreeAction = testActions.woodcutting('Normal Tree');
+      final normalTreeAction = testRegistries.woodcuttingAction('Normal Tree');
       final plan = Plan(
         steps: [
           InteractionStep(SwitchActivity(normalTreeAction.id)),
@@ -1396,8 +1400,8 @@ void main() {
     });
 
     test('does not merge waits separated by interaction', () {
-      final normalTreeAction = testActions.woodcutting('Normal Tree');
-      final oakTreeAction = testActions.woodcutting('Oak Tree');
+      final normalTreeAction = testRegistries.woodcuttingAction('Normal Tree');
+      final oakTreeAction = testRegistries.woodcuttingAction('Oak Tree');
       final plan = Plan(
         steps: [
           InteractionStep(SwitchActivity(normalTreeAction.id)),
@@ -1417,7 +1421,7 @@ void main() {
     });
 
     test('removes no-op switch to same activity', () {
-      final normalTreeAction = testActions.woodcutting('Normal Tree');
+      final normalTreeAction = testRegistries.woodcuttingAction('Normal Tree');
       final plan = Plan(
         steps: [
           InteractionStep(SwitchActivity(normalTreeAction.id)),
@@ -1442,7 +1446,7 @@ void main() {
     });
 
     test('keeps SellItems and BuyShopItem interactions', () {
-      final normalTreeAction = testActions.woodcutting('Normal Tree');
+      final normalTreeAction = testRegistries.woodcuttingAction('Normal Tree');
       const ironAxeId = MelvorId('melvorD:Iron_Axe');
       final plan = Plan(
         steps: [
@@ -2107,7 +2111,7 @@ void main() {
       );
 
       // Start woodcutting to earn GP toward the upgrade
-      final normalTreeAction = testActions.woodcutting('Normal Tree');
+      final normalTreeAction = testRegistries.woodcuttingAction('Normal Tree');
       state = state.startAction(normalTreeAction, random: Random(42));
 
       // Create a goal and segment config that watches for upgrade affordability
@@ -2171,7 +2175,7 @@ void main() {
     test('detects goal reached boundary during segment execution', () {
       // Setup: Start close to a skill level goal
       var state = GlobalState.empty(testRegistries);
-      final normalTreeAction = testActions.woodcutting('Normal Tree');
+      final normalTreeAction = testRegistries.woodcuttingAction('Normal Tree');
       state = state.startAction(normalTreeAction, random: Random(42));
 
       // Goal: reach level 2 woodcutting (very achievable quickly)
@@ -2218,7 +2222,7 @@ void main() {
     test('uses expected boundary when no early boundary detected', () {
       // Setup: A segment where no material boundary is hit during execution
       var state = GlobalState.empty(testRegistries);
-      final normalTreeAction = testActions.woodcutting('Normal Tree');
+      final normalTreeAction = testRegistries.woodcuttingAction('Normal Tree');
       state = state.startAction(normalTreeAction, random: Random(42));
 
       // Goal: reach level 99 (won't be reached in 30 ticks)
@@ -2276,7 +2280,7 @@ void main() {
       );
 
       // Start woodcutting
-      final normalTreeAction = testActions.woodcutting('Normal Tree');
+      final normalTreeAction = testRegistries.woodcuttingAction('Normal Tree');
       state = state.startAction(normalTreeAction, random: Random(42));
 
       // Goal with upgrade watching enabled
@@ -2337,7 +2341,9 @@ void main() {
       final context = SegmentContext.build(state, goal, config);
 
       // Create an InputsDepleted ReplanBoundary
-      final firemakingAction = testActions.firemaking('Burn Normal Logs');
+      final firemakingAction = testRegistries.firemakingAction(
+        'Burn Normal Logs',
+      );
       final replanBoundary = InputsDepleted(
         actionId: firemakingAction.id,
         missingItemId: const MelvorId('melvorD:Normal_Logs'),
@@ -2818,7 +2824,7 @@ void main() {
       );
 
       // Start woodcutting
-      final normalTreeAction = testActions.woodcutting('Normal Tree');
+      final normalTreeAction = testRegistries.woodcuttingAction('Normal Tree');
       state = state.startAction(normalTreeAction, random: Random(42));
 
       // Create WatchSet that watches for Iron Axe affordability
@@ -2861,7 +2867,7 @@ void main() {
       );
 
       // Start woodcutting
-      final normalTreeAction = testActions.woodcutting('Normal Tree');
+      final normalTreeAction = testRegistries.woodcuttingAction('Normal Tree');
       state = state.startAction(normalTreeAction, random: Random(42));
 
       // Create WatchSet that watches for Iron Axe affordability
@@ -2907,7 +2913,7 @@ void main() {
       var state = GlobalState.empty(testRegistries);
 
       // Start woodcutting
-      final normalTreeAction = testActions.woodcutting('Normal Tree');
+      final normalTreeAction = testRegistries.woodcuttingAction('Normal Tree');
       state = state.startAction(normalTreeAction, random: Random(42));
 
       // Create WatchSet with upgrade watching disabled
@@ -2944,7 +2950,7 @@ void main() {
       var state = GlobalState.empty(testRegistries);
 
       // Start woodcutting
-      final normalTreeAction = testActions.woodcutting('Normal Tree');
+      final normalTreeAction = testRegistries.woodcuttingAction('Normal Tree');
       state = state.startAction(normalTreeAction, random: Random(42));
 
       // Create WatchSet with a very easy goal (level 2)
@@ -2981,7 +2987,7 @@ void main() {
       var state = GlobalState.empty(testRegistries);
 
       // Start woodcutting
-      final normalTreeAction = testActions.woodcutting('Normal Tree');
+      final normalTreeAction = testRegistries.woodcuttingAction('Normal Tree');
       state = state.startAction(normalTreeAction, random: Random(42));
 
       // Create WatchSet with unlock boundary watching enabled (default)
@@ -3014,7 +3020,7 @@ void main() {
       // For now, we verify death count is returned (0 for non-combat)
       var state = GlobalState.empty(testRegistries);
 
-      final normalTreeAction = testActions.woodcutting('Normal Tree');
+      final normalTreeAction = testRegistries.woodcuttingAction('Normal Tree');
       state = state.startAction(normalTreeAction, random: Random(42));
 
       const goal = ReachSkillLevelGoal(Skill.woodcutting, 99);
@@ -3614,7 +3620,7 @@ void main() {
     test('explains ProduceItem expansion', () {
       final state = GlobalState.empty(testRegistries);
       const goal = ReachSkillLevelGoal(Skill.woodcutting, 10);
-      final normalTree = testActions.woodcutting('Normal Tree');
+      final normalTree = testRegistries.woodcuttingAction('Normal Tree');
       final macro = ProduceItem(
         itemId: const MelvorId('melvorD:Normal_Logs'),
         minTotal: 10,
@@ -3696,7 +3702,7 @@ void main() {
     test('includes provenance in format output', () {
       final state = GlobalState.empty(testRegistries);
       const goal = ReachSkillLevelGoal(Skill.woodcutting, 10);
-      final action = testActions.woodcutting('Oak Tree');
+      final action = testRegistries.woodcuttingAction('Oak Tree');
       final macro = TrainSkillUntil(
         Skill.woodcutting,
         const StopAtNextBoundary(Skill.woodcutting),

@@ -11,8 +11,8 @@ void main() {
 
   setUpAll(() async {
     await loadTestRegistries();
-    normalTree = testActions.woodcutting('Normal Tree');
-    copperMining = testActions.mining('Copper');
+    normalTree = testRegistries.woodcuttingAction('Normal Tree');
+    copperMining = testRegistries.miningAction('Copper');
   });
 
   group('SkillAction', () {
@@ -61,7 +61,7 @@ void main() {
 
   group('CombatRegistry', () {
     test('monsterById returns CombatAction for valid monster ID', () {
-      final chicken = testActions.combat('Chicken');
+      final chicken = testRegistries.combatAction('Chicken');
       final monsterId = chicken.id.localId;
 
       final result = testRegistries.combat.monsterById(monsterId);

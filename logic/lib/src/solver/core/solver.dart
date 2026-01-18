@@ -34,6 +34,7 @@ import 'package:collection/collection.dart';
 import 'package:equatable/equatable.dart';
 import 'package:logic/src/data/actions.dart';
 import 'package:logic/src/data/melvor_id.dart';
+import 'package:logic/src/data/registries.dart';
 import 'package:logic/src/solver/analysis/estimate_rates.dart';
 import 'package:logic/src/solver/analysis/next_decision_delta.dart';
 import 'package:logic/src/solver/analysis/rate_cache.dart';
@@ -571,14 +572,14 @@ class _SolverContext {
 List<SkillAction> findProducersFor(
   GlobalState state,
   SkillAction consumingAction,
-  ActionRegistry actionRegistry,
+  Registries registries,
 ) {
   final producers = <SkillAction>[];
 
   // For each input item the consumer needs
   for (final inputItemId in consumingAction.inputs.keys) {
     // Find all actions that output this item
-    for (final action in actionRegistry.all) {
+    for (final action in registries.allActions) {
       if (action is! SkillAction) continue;
       if (!action.outputs.containsKey(inputItemId)) continue;
 
@@ -715,7 +716,7 @@ MacroPlanExplanation explainMacroPlan(
         steps.add('No unlocked action found');
       } else {
         steps.add('Best consuming action: $bestAction');
-        final action = registries.actions.byId(bestAction);
+        final action = registries.actionById(bestAction);
         if (action is SkillAction && action.inputs.isNotEmpty) {
           steps.add('Inputs required: ${action.inputs}');
           for (final input in action.inputs.entries) {

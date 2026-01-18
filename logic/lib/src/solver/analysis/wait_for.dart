@@ -24,7 +24,7 @@ import 'package:meta/meta.dart';
 int? _checkImmediateBoundary(GlobalState state) {
   final active = state.activeAction;
   if (active != null) {
-    final action = state.registries.actions.byId(active.id);
+    final action = state.registries.actionById(active.id);
     if (!state.canStartAction(action)) {
       return 0; // Immediate stop - can't make progress
     }
@@ -475,7 +475,7 @@ class WaitForInputsDepleted extends WaitFor {
 
   @override
   bool isSatisfied(GlobalState state) {
-    final action = state.registries.actions.byId(actionId);
+    final action = state.registries.actionById(actionId);
     // Inputs are depleted when we can no longer start the action
     return !state.canStartAction(action);
   }
@@ -486,7 +486,7 @@ class WaitForInputsDepleted extends WaitFor {
   @override
   int estimateTicks(GlobalState state, Rates rates) {
     final registries = state.registries;
-    final action = registries.actions.byId(actionId);
+    final action = registries.actionById(actionId);
     if (action is! SkillAction) return infTicks;
 
     final actionStateVal = state.actionState(action.id);
@@ -543,7 +543,7 @@ class WaitForInputsAvailable extends WaitFor {
 
   @override
   bool isSatisfied(GlobalState state) {
-    final action = state.registries.actions.byId(actionId);
+    final action = state.registries.actionById(actionId);
     // Inputs are available when we can start the action
     return state.canStartAction(action);
   }
@@ -738,7 +738,7 @@ class WaitForSufficientInputs extends WaitFor {
   @override
   bool isSatisfied(GlobalState state) {
     final registries = state.registries;
-    final action = registries.actions.byId(actionId);
+    final action = registries.actionById(actionId);
     if (action is! SkillAction) return false;
 
     // Get the inputs needed for this action
@@ -764,7 +764,7 @@ class WaitForSufficientInputs extends WaitFor {
   @override
   int progress(GlobalState state) {
     final registries = state.registries;
-    final action = registries.actions.byId(actionId);
+    final action = registries.actionById(actionId);
     if (action is! SkillAction) return 0;
 
     final actionStateVal = state.actionState(action.id);
@@ -788,7 +788,7 @@ class WaitForSufficientInputs extends WaitFor {
     if (isSatisfied(state)) return 0;
 
     final registries = state.registries;
-    final action = registries.actions.byId(actionId);
+    final action = registries.actionById(actionId);
     if (action is! SkillAction) return infTicks;
 
     final boundary = _checkImmediateBoundary(state);

@@ -65,18 +65,12 @@ void main() {
 
   group('FishingAction', () {
     test('fishing actions are loaded from JSON', () {
-      final fishingActions = testActions
-          .forSkill(Skill.fishing)
-          .whereType<FishingAction>()
-          .toList();
+      final fishingActions = testRegistries.fishing.actions;
       expect(fishingActions, isNotEmpty);
     });
 
     test('fishing actions have valid properties', () {
-      final fishingActions = testActions
-          .forSkill(Skill.fishing)
-          .whereType<FishingAction>()
-          .toList();
+      final fishingActions = testRegistries.fishing.actions;
 
       for (final action in fishingActions) {
         expect(action.name, isNotEmpty);
@@ -92,10 +86,7 @@ void main() {
     });
 
     test('fishing actions belong to fishing skill', () {
-      final fishingActions = testActions
-          .forSkill(Skill.fishing)
-          .whereType<FishingAction>()
-          .toList();
+      final fishingActions = testRegistries.fishing.actions;
 
       for (final action in fishingActions) {
         expect(action.skill, equals(Skill.fishing));

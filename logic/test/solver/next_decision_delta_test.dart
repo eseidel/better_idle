@@ -28,7 +28,7 @@ void main() {
 
     test('returns positive rates for active skill action', () {
       var state = GlobalState.empty(testRegistries);
-      final action = testActions.woodcutting('Normal Tree');
+      final action = testRegistries.woodcuttingAction('Normal Tree');
       state = state.startAction(action, random: Random(0));
 
       final rates = estimateRates(state);
@@ -39,7 +39,7 @@ void main() {
 
     test('applies upgrade modifiers to rates', () {
       var stateNoUpgrade = GlobalState.empty(testRegistries);
-      final action = testActions.woodcutting('Normal Tree');
+      final action = testRegistries.woodcuttingAction('Normal Tree');
       stateNoUpgrade = stateNoUpgrade.startAction(action, random: Random(0));
 
       const ironAxeId = MelvorId('melvorD:Iron_Axe');
@@ -74,7 +74,7 @@ void main() {
           ItemStack(testItems.byName('Normal Logs'), count: 100),
         ]),
       );
-      final burnAction = testActions.firemaking('Burn Normal Logs');
+      final burnAction = testRegistries.firemakingAction('Burn Normal Logs');
       state = state.startAction(burnAction, random: Random(0));
 
       final rates = estimateRates(state);
@@ -146,7 +146,7 @@ void main() {
     test('returns ticks until upgrade affordable', () {
       // Start with action active but no money
       var state = GlobalState.empty(testRegistries);
-      final action = testActions.mining('Copper');
+      final action = testRegistries.miningAction('Copper');
       state = state.startAction(action, random: Random(0));
 
       const goal = ReachGpGoal(10000);
@@ -165,7 +165,7 @@ void main() {
     test('returns ticks until goal reached when close to goal', () {
       // Start with action and some money close to goal
       var state = GlobalState.test(testRegistries, gp: 90);
-      final action = testActions.mining('Copper');
+      final action = testRegistries.miningAction('Copper');
       state = state.startAction(action, random: Random(0));
 
       const goal = ReachGpGoal(100); // Only need 10 more GP
@@ -194,7 +194,7 @@ void main() {
     test('computes unlock delta for watched activities', () {
       // Start at level 1 fishing
       var state = GlobalState.empty(testRegistries);
-      final action = testActions.fishing('Raw Shrimp');
+      final action = testRegistries.fishingAction('Raw Shrimp');
       state = state.startAction(action, random: Random(0));
 
       const goal = ReachGpGoal(100000);
@@ -212,7 +212,7 @@ void main() {
 
     test('is deterministic', () {
       var state = GlobalState.test(testRegistries, gp: 10);
-      final action = testActions.woodcutting('Normal Tree');
+      final action = testRegistries.woodcuttingAction('Normal Tree');
       state = state.startAction(action, random: Random(0));
 
       const goal = ReachGpGoal(1000);
@@ -233,7 +233,7 @@ void main() {
           ItemStack(testItems.byName('Normal Logs'), count: 10),
         ]),
       );
-      final burnAction = testActions.firemaking('Burn Normal Logs');
+      final burnAction = testRegistries.firemakingAction('Burn Normal Logs');
       state = state.startAction(burnAction, random: Random(0));
 
       // Use a skill goal for firemaking to ensure consuming action is relevant
@@ -268,7 +268,7 @@ void main() {
             ItemStack(testItems.byName('Normal Logs'), count: 1),
           ]),
         );
-        final chopAction = testActions.woodcutting('Normal Tree');
+        final chopAction = testRegistries.woodcuttingAction('Normal Tree');
         state = state.startAction(chopAction, random: Random(0));
 
         // Firemaking level 5 requires more logs than we have
@@ -276,7 +276,9 @@ void main() {
         final candidates = enumerateCandidates(state, goal);
 
         // Verify firemaking is in the consuming activities watch list
-        final burnActionId = testActions.firemaking('Burn Normal Logs').id;
+        final burnActionId = testRegistries
+            .firemakingAction('Burn Normal Logs')
+            .id;
         expect(candidates.watch.consumingActivityIds, contains(burnActionId));
 
         final result = nextDecisionDelta(state, goal, candidates);
@@ -308,7 +310,7 @@ void main() {
           ItemStack(testItems.byName('Maple Logs'), count: 1),
         ]),
       );
-      final chopAction = testActions.woodcutting('Normal Tree');
+      final chopAction = testRegistries.woodcuttingAction('Normal Tree');
       state = state.startAction(chopAction, random: Random(0));
 
       // Use a goal and setup that watches inventory
@@ -382,7 +384,7 @@ void main() {
       // Verify inventory is full
       expect(state.inventoryRemaining, 0);
 
-      final chopAction = testActions.woodcutting('Normal Tree');
+      final chopAction = testRegistries.woodcuttingAction('Normal Tree');
       state = state.startAction(chopAction, random: Random(0));
 
       const goal = ReachGpGoal(100000);

@@ -24,7 +24,7 @@ class CombatPage extends StatelessWidget {
     CombatAction? activeMonster;
     CombatActionState? combatState;
     if (activeAction != null) {
-      final action = state.registries.actions.byId(activeAction.id);
+      final action = state.registries.actionById(activeAction.id);
       if (action is CombatAction) {
         activeMonster = action;
         combatState = state.actionState(activeMonster.id).combat;
@@ -126,7 +126,7 @@ class CombatAreaSelectionDialog extends StatelessWidget {
     final activeAction = state.activeAction;
     CombatAction? activeMonster;
     if (activeAction != null) {
-      final action = state.registries.actions.byId(activeAction.id);
+      final action = state.registries.actionById(activeAction.id);
       if (action is CombatAction) {
         activeMonster = action;
       }

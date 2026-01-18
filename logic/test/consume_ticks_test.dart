@@ -26,13 +26,12 @@ void main() {
 
   setUpAll(() async {
     await loadTestRegistries();
-    final actions = testActions;
 
-    normalTree = actions.woodcutting('Normal Tree');
-    oakTree = actions.woodcutting('Oak Tree');
-    burnNormalLogs = actions.firemaking('Burn Normal Logs');
-    runeEssence = actions.mining('Rune Essence');
-    copper = actions.mining('Copper');
+    normalTree = testRegistries.woodcuttingAction('Normal Tree');
+    oakTree = testRegistries.woodcuttingAction('Oak Tree');
+    burnNormalLogs = testRegistries.firemakingAction('Burn Normal Logs');
+    runeEssence = testRegistries.miningAction('Rune Essence');
+    copper = testRegistries.miningAction('Copper');
 
     final items = testItems;
     normalLogs = items.byName('Normal Logs');
@@ -1118,7 +1117,7 @@ void main() {
 
     test('combat action processes ticks with monster name as action name', () {
       // Get the Plant combat action
-      final plantAction = testActions.combat('Plant');
+      final plantAction = testRegistries.combatAction('Plant');
       final random = Random(0);
       // Start combat
       var state = GlobalState.empty(testRegistries);
@@ -1142,7 +1141,7 @@ void main() {
     });
 
     test('combat action with mining background heals node', () {
-      final plantAction = testActions.combat('Plant');
+      final plantAction = testRegistries.combatAction('Plant');
       final random = Random(0);
       // Start with damaged mining node
       var state = GlobalState.test(
@@ -1225,7 +1224,7 @@ void main() {
     });
 
     test('completes activity and adds toast', () {
-      final normalTree = testActions.woodcutting('Normal Tree');
+      final normalTree = testRegistries.woodcuttingAction('Normal Tree');
       var state = GlobalState.empty(testRegistries);
       final random = Random(0);
 
@@ -1520,7 +1519,7 @@ void main() {
 
       // Start woodcutting Normal Tree (30 ticks per action, 10 XP each)
       state = state.startAction(
-        testActions.woodcutting('Normal Tree'),
+        testRegistries.woodcuttingAction('Normal Tree'),
         random: random,
       );
 
@@ -1539,7 +1538,7 @@ void main() {
 
       // Start woodcutting Normal Tree (30 ticks per action, 10 XP each)
       state = state.startAction(
-        testActions.woodcutting('Normal Tree'),
+        testRegistries.woodcuttingAction('Normal Tree'),
         random: random,
       );
 
@@ -1570,7 +1569,7 @@ void main() {
 
     setUpAll(() {
       shrimp = testItems.byName('Shrimp');
-      plantAction = testActions.combat('Plant');
+      plantAction = testRegistries.combatAction('Plant');
     });
 
     test('tryAutoEat does nothing when no auto-eat modifiers', () {
@@ -1789,7 +1788,7 @@ void main() {
     late Item rawChicken;
 
     setUpAll(() {
-      chickenAction = testActions.combat('Chicken');
+      chickenAction = testRegistries.combatAction('Chicken');
       bones = testItems.byName('Bones');
       feathers = testItems.byName('Feathers');
       rawChicken = testItems.byName('Raw Chicken');
@@ -1904,7 +1903,7 @@ void main() {
 
     test('monster without bones does not drop bones', () {
       // Plant has no bones
-      final plantAction = testActions.combat('Plant');
+      final plantAction = testRegistries.combatAction('Plant');
       expect(plantAction.bones, isNull);
 
       const highSkill = SkillState(xp: 1000000, masteryPoolXp: 0);

@@ -109,7 +109,7 @@ class ActionSummary {
   ///
   /// Requires registries to look up the action's outputs.
   double outputPerTickForItem(Registries registries, MelvorId itemId) {
-    final action = registries.actions.byId(actionId);
+    final action = registries.actionById(actionId);
     if (action is! SkillAction) return 0;
     final outputQty = action.outputs[itemId] ?? 0;
     return expectedTicks > 0 ? outputQty / expectedTicks : 0;
@@ -345,7 +345,7 @@ List<ActionRateSummary> _computeRateSummaries(GlobalState state) {
 /// Checks if an action can start now (has required inputs).
 /// Called per-state, NOT cached.
 bool _canStartNow(GlobalState state, ActionId actionId) {
-  final action = state.registries.actions.byId(actionId);
+  final action = state.registries.actionById(actionId);
   if (action is! SkillAction) return true;
 
   final selection = state.actionState(actionId).recipeSelection(action);
@@ -982,8 +982,8 @@ List<ActionId> _findProducersForActionByRate(
   GlobalState state,
   ActionId actionId,
 ) {
-  final actionRegistry = state.registries.actions;
-  final action = actionRegistry.byId(actionId);
+  final registries = state.registries;
+  final action = registries.actionById(actionId);
   if (action is! SkillAction) return [];
 
   final selection = state.actionState(actionId).recipeSelection(action);
@@ -997,7 +997,7 @@ List<ActionId> _findProducersForActionByRate(
       if (!s.isUnlocked) continue;
       if (s.hasInputs) continue; // Only non-consuming producers
 
-      final producerAction = actionRegistry.byId(s.actionId);
+      final producerAction = registries.actionById(s.actionId);
       if (producerAction is! SkillAction) continue;
 
       if (producerAction.outputs.containsKey(inputItemId)) {
@@ -1026,7 +1026,7 @@ List<ActionSummary> _findProducersForItem(
     if (!summary.isUnlocked) continue;
     if (summary.hasInputs) continue; // Don't chain consuming actions
 
-    final action = registries.actions.byId(summary.actionId);
+    final action = registries.actionById(summary.actionId);
     if (action is! SkillAction) continue;
 
     // Check if this action produces the item we need
@@ -1165,7 +1165,7 @@ class ProducerResolver {
     ProducerPlan? bestPlan;
 
     for (final candidate in candidates) {
-      final producerAction = _state.registries.actions.byId(candidate.actionId);
+      final producerAction = _state.registries.actionById(candidate.actionId);
       if (producerAction is! SkillAction) continue;
 
       final outputsPerAction = producerAction.outputs[itemId] ?? 1;
@@ -1237,7 +1237,7 @@ class ProducerResolver {
   }
 
   bool _producesItem(ActionId actionId, MelvorId itemId) {
-    final action = _state.registries.actions.byId(actionId);
+    final action = _state.registries.actionById(actionId);
     if (action is! SkillAction) return false;
     return action.outputs.containsKey(itemId);
   }
@@ -1446,7 +1446,7 @@ class _BundleSortContext {
     // Apply soft logistics penalty when inventory is tight (>60% full)
     // Penalize actions that produce many distinct outputs (more selling churn)
     if (inventoryPressure > _inventoryPressureThreshold) {
-      final action = registries.actions.byId(bundle.consumer.actionId);
+      final action = registries.actionById(bundle.consumer.actionId);
       if (action is SkillAction) {
         final distinctOutputs = action.outputs.length;
         rate *= 1 - (distinctOutputs * _penaltyPerOutput * inventoryPressure);
@@ -1524,7 +1524,7 @@ _ConsumingSkillResult _selectConsumingSkillCandidatesWithStats(
 
   for (final consumerSummary in consumerActions) {
     final consumerAction =
-        registries.actions.byId(consumerSummary.actionId) as SkillAction;
+        registries.actionById(consumerSummary.actionId) as SkillAction;
 
     // Resolve ALL inputs - store full ProducerPlan, not just primary producer
     final inputPlans = <MelvorId, ProducerPlan>{};

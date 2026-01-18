@@ -29,8 +29,8 @@ void main() {
     bronzeSword = testItems.byName('Bronze Sword');
     bronzeHelmet = testItems.byName('Bronze Helmet');
     bronzeShield = testItems.byName('Bronze Shield');
-    normalTree = testActions.woodcutting('Normal Tree');
-    oakTree = testActions.woodcutting('Oak Tree');
+    normalTree = testRegistries.woodcuttingAction('Normal Tree');
+    oakTree = testRegistries.woodcuttingAction('Oak Tree');
   });
 
   test('GlobalState toJson/fromJson round-trip', () {
@@ -553,7 +553,7 @@ void main() {
 
   group('rollDurationWithModifiers', () {
     test('woodcutting mastery 99 applies 0.2s flat reduction', () {
-      final normalTree = testActions.woodcutting('Normal Tree');
+      final normalTree = testRegistries.woodcuttingAction('Normal Tree');
       // Normal Tree has 3 second duration = 30 ticks
       expect(normalTree.minDuration, const Duration(seconds: 3));
 
@@ -598,7 +598,7 @@ void main() {
     });
 
     test('shop upgrade applies percentage reduction to woodcutting', () {
-      final normalTree = testActions.woodcutting('Normal Tree');
+      final normalTree = testRegistries.woodcuttingAction('Normal Tree');
       // Normal Tree has 3 second fixed duration = 30 ticks
       expect(normalTree.minDuration, const Duration(seconds: 3));
       expect(normalTree.maxDuration, const Duration(seconds: 3));
@@ -632,7 +632,7 @@ void main() {
     });
 
     test('shop upgrade applies percentage reduction to fishing', () {
-      final shrimp = testActions.fishing('Raw Shrimp');
+      final shrimp = testRegistries.fishingAction('Raw Shrimp');
       // Raw Shrimp has variable duration (4-8 seconds)
       expect(shrimp.minDuration, const Duration(seconds: 4));
       expect(shrimp.maxDuration, const Duration(seconds: 8));
@@ -670,7 +670,7 @@ void main() {
     });
 
     test('shop upgrade applies percentage reduction to mining', () {
-      final copper = testActions.mining('Copper');
+      final copper = testRegistries.miningAction('Copper');
       // Copper has 3 second duration = 30 ticks
       expect(copper.minDuration, const Duration(seconds: 3));
 
@@ -1257,10 +1257,7 @@ void main() {
 
     setUpAll(() {
       // Get a summoning tablet from the registry
-      final summoningAction = testActions
-          .forSkill(Skill.summoning)
-          .whereType<SummoningAction>()
-          .first;
+      final summoningAction = testRegistries.summoning.actions.first;
       tablet = testItems.byId(summoningAction.productId);
     });
 
@@ -1283,10 +1280,7 @@ void main() {
 
     test('swaps summoning tablets and returns previous stack to inventory', () {
       // Get a second tablet type
-      final summoningActions = testActions
-          .forSkill(Skill.summoning)
-          .whereType<SummoningAction>()
-          .toList();
+      final summoningActions = testRegistries.summoning.actions;
       // Skip first action to get a different tablet
       final tablet2 = testItems.byId(summoningActions[1].productId);
 
@@ -1322,10 +1316,7 @@ void main() {
 
     setUpAll(() {
       // Get a summoning tablet from the registry
-      final summoningAction = testActions
-          .forSkill(Skill.summoning)
-          .whereType<SummoningAction>()
-          .first;
+      final summoningAction = testRegistries.summoning.actions.first;
       tablet = testItems.byId(summoningAction.productId);
     });
 

@@ -16,7 +16,7 @@ void main() {
     birdNestPotionI = testItems.byName('Bird Nest Potion I');
     birdNestPotionII = testItems.byName('Bird Nest Potion II');
     normalLogs = testItems.byName('Normal Logs');
-    normalTree = testActions.woodcutting('Normal Tree');
+    normalTree = testRegistries.woodcuttingAction('Normal Tree');
   });
 
   group('Item potion properties', () {

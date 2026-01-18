@@ -213,7 +213,7 @@ int? ticksUntilNextMasteryLevel(GlobalState state, Rates rates) {
 /// active action differs (e.g., computing consuming skill rates when
 /// the producer action is active).
 Rates estimateRatesForAction(GlobalState state, ActionId actionId) {
-  final action = state.registries.actions.byId(actionId);
+  final action = state.registries.actionById(actionId);
 
   // Only skill actions have predictable rates
   if (action is! SkillAction) {
@@ -371,7 +371,7 @@ Rates estimateRates(GlobalState state) {
     return Rates.empty;
   }
 
-  final action = state.registries.actions.byId(activeAction.id);
+  final action = state.registries.actionById(activeAction.id);
 
   // Only skill actions have predictable rates
   if (action is! SkillAction) {
@@ -519,7 +519,7 @@ ActionId? findBestActionByRate(
   double bestRate = 0;
 
   for (final actionId in actionIds) {
-    final action = registries.actions.byId(actionId);
+    final action = registries.actionById(actionId);
 
     // Filter by skill if specified
     if (skill != null) {

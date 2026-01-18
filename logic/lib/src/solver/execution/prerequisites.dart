@@ -52,7 +52,7 @@ ActionId? findProducerActionForItem(GlobalState state, MelvorId item) {
   int skillLevel(Skill skill) => state.skillState(skill).skillLevel;
 
   // Find all actions that produce this item
-  final producers = state.registries.actions.all
+  final producers = state.registries.allActions
       .whereType<SkillAction>()
       .where((action) => action.outputs.containsKey(item))
       .where((action) => action.unlockLevel <= skillLevel(action.skill));
@@ -81,7 +81,7 @@ ActionId? findProducerActionForItem(GlobalState state, MelvorId item) {
 ///
 /// Returns null if no action produces this item at all.
 SkillAction? findAnyProducerForItem(GlobalState state, MelvorId item) {
-  return state.registries.actions.all
+  return state.registries.allActions
       .whereType<SkillAction>()
       .where((action) => action.outputs.containsKey(item))
       .firstOrNull;
@@ -113,7 +113,7 @@ EnsureExecResult ensureExecutable(
   }
 
   final registries = state.registries;
-  final action = registries.actions.byId(actionId);
+  final action = registries.actionById(actionId);
   if (action is! SkillAction) return const ExecReady();
 
   final macros = <MacroCandidate>[];
@@ -191,7 +191,7 @@ EnsureExecResult ensureExecutable(
 /// For consuming actions, this also checks that we can produce the inputs.
 ActionId? findBestActionForSkill(GlobalState state, Skill skill, Goal goal) {
   final skillLevel = state.skillState(skill).skillLevel;
-  final actions = state.registries.actions.all
+  final actions = state.registries.allActions
       .whereType<SkillAction>()
       .where((action) => action.skill == skill)
       .where((action) => action.unlockLevel <= skillLevel);

@@ -114,20 +114,20 @@ void main() {
     });
 
     test('formats SwitchActivity step with action registry', () {
-      final action = testActions.woodcutting('Normal Tree');
+      final action = testRegistries.woodcuttingAction('Normal Tree');
       final plan = Plan(
         steps: [InteractionStep(SwitchActivity(action.id))],
         totalTicks: 0,
         interactionCount: 1,
       );
 
-      final output = plan.prettyPrint(actions: testActions);
+      final output = plan.prettyPrint(actions: testRegistries);
 
       expect(output, contains('Switch to Normal Tree (woodcutting)'));
     });
 
     test('formats SwitchActivity step without action registry', () {
-      final action = testActions.woodcutting('Normal Tree');
+      final action = testRegistries.woodcuttingAction('Normal Tree');
       final plan = Plan(
         steps: [InteractionStep(SwitchActivity(action.id))],
         totalTicks: 0,
@@ -201,7 +201,7 @@ void main() {
     });
 
     test('formats WaitStep with expected action', () {
-      final action = testActions.woodcutting('Oak Tree');
+      final action = testRegistries.woodcuttingAction('Oak Tree');
       final plan = Plan(
         steps: [
           WaitStep(
@@ -214,7 +214,7 @@ void main() {
         interactionCount: 0,
       );
 
-      final output = plan.prettyPrint(actions: testActions);
+      final output = plan.prettyPrint(actions: testRegistries);
 
       expect(output, contains('Oak Tree'));
     });
@@ -368,7 +368,7 @@ void main() {
     });
 
     test('round trips plan with InteractionSteps', () {
-      final action = testActions.woodcutting('Normal Tree');
+      final action = testRegistries.woodcuttingAction('Normal Tree');
       final plan = Plan(
         steps: [
           InteractionStep(SwitchActivity(action.id)),
@@ -430,7 +430,7 @@ void main() {
     });
 
     test('round trips plan with WaitSteps', () {
-      final action = testActions.woodcutting('Oak Tree');
+      final action = testRegistries.woodcuttingAction('Oak Tree');
       final plan = Plan(
         steps: [
           const WaitStep(6000, WaitForSkillXp(Skill.woodcutting, 1000)),
@@ -531,7 +531,7 @@ void main() {
     test(
       'round trips plan with WaitForInputsDepleted and WaitForInputsAvailable',
       () {
-        final action = testActions.firemaking('Burn Normal Logs');
+        final action = testRegistries.firemakingAction('Burn Normal Logs');
         final plan = Plan(
           steps: [
             WaitStep(1000, WaitForInputsDepleted(action.id)),
@@ -597,7 +597,7 @@ void main() {
     );
 
     test('round trips plan with WaitForSufficientInputs', () {
-      final action = testActions.firemaking('Burn Normal Logs');
+      final action = testRegistries.firemakingAction('Burn Normal Logs');
       final plan = Plan(
         steps: [WaitStep(1000, WaitForSufficientInputs(action.id, 100))],
         totalTicks: 1000,
@@ -754,10 +754,12 @@ void main() {
               Skill.firemaking,
               const StopAtNextBoundary(Skill.firemaking),
               watchedStops: const [StopWhenInputsDepleted()],
-              consumeActionId: testActions.firemaking('Burn Normal Logs').id,
+              consumeActionId: testRegistries
+                  .firemakingAction('Burn Normal Logs')
+                  .id,
               producerByInputItem: {
-                const MelvorId('melvorD:Normal_Logs'): testActions
-                    .woodcutting('Normal Tree')
+                const MelvorId('melvorD:Normal_Logs'): testRegistries
+                    .woodcuttingAction('Normal Tree')
                     .id,
               },
               bufferTarget: 20,
@@ -786,12 +788,12 @@ void main() {
       expect(macro.watchedStops[0], isA<StopWhenInputsDepleted>());
       expect(
         macro.consumeActionId,
-        testActions.firemaking('Burn Normal Logs').id,
+        testRegistries.firemakingAction('Burn Normal Logs').id,
       );
       expect(macro.producerByInputItem, isNotNull);
       expect(
         macro.producerByInputItem![const MelvorId('melvorD:Normal_Logs')],
-        testActions.woodcutting('Normal Tree').id,
+        testRegistries.woodcuttingAction('Normal Tree').id,
       );
       expect(macro.bufferTarget, 20);
       expect(macro.sellPolicySpec, isA<ReserveConsumingInputsSpec>());
@@ -799,7 +801,7 @@ void main() {
     });
 
     test('round trips plan with segment markers', () {
-      final action = testActions.woodcutting('Normal Tree');
+      final action = testRegistries.woodcuttingAction('Normal Tree');
       final plan = Plan(
         steps: [
           InteractionStep(SwitchActivity(action.id)),
@@ -843,7 +845,7 @@ void main() {
     });
 
     test('round trips plan with all segment boundary types', () {
-      final action = testActions.firemaking('Burn Normal Logs');
+      final action = testRegistries.firemakingAction('Burn Normal Logs');
       // Build plan with all boundary types in order
       final plan = Plan(
         steps: const [],
@@ -942,8 +944,8 @@ void main() {
     });
 
     test('round trips complex plan with mixed step types', () {
-      final wcAction = testActions.woodcutting('Normal Tree');
-      final fmAction = testActions.firemaking('Burn Normal Logs');
+      final wcAction = testRegistries.woodcuttingAction('Normal Tree');
+      final fmAction = testRegistries.firemakingAction('Burn Normal Logs');
 
       final plan = Plan(
         steps: [
@@ -1044,20 +1046,20 @@ void main() {
     });
 
     test('formats SwitchActivity step', () {
-      final action = testActions.woodcutting('Normal Tree');
+      final action = testRegistries.woodcuttingAction('Normal Tree');
       final plan = Plan(
         steps: [InteractionStep(SwitchActivity(action.id))],
         totalTicks: 0,
         interactionCount: 1,
       );
 
-      final output = plan.prettyPrintCompact(actions: testActions);
+      final output = plan.prettyPrintCompact(actions: testRegistries);
 
       expect(output, contains('Switch to Normal Tree'));
     });
 
     test('formats WaitStep with duration', () {
-      final action = testActions.woodcutting('Normal Tree');
+      final action = testRegistries.woodcuttingAction('Normal Tree');
       final plan = Plan(
         steps: [
           InteractionStep(SwitchActivity(action.id)),
@@ -1071,13 +1073,13 @@ void main() {
         interactionCount: 1,
       );
 
-      final output = plan.prettyPrintCompact(actions: testActions);
+      final output = plan.prettyPrintCompact(actions: testRegistries);
 
       expect(output, contains('10m 0s'));
     });
 
     test('merges consecutive WaitSteps with same skill', () {
-      final action = testActions.woodcutting('Normal Tree');
+      final action = testRegistries.woodcuttingAction('Normal Tree');
       final plan = Plan(
         steps: [
           InteractionStep(SwitchActivity(action.id)),
@@ -1101,7 +1103,7 @@ void main() {
         interactionCount: 1,
       );
 
-      final output = plan.prettyPrintCompact(actions: testActions);
+      final output = plan.prettyPrintCompact(actions: testRegistries);
 
       // Should show merged duration and count (switch + 3 waits = 4 merged)
       expect(output, contains('15m 0s'));
@@ -1109,8 +1111,8 @@ void main() {
     });
 
     test('groups steps by skill separately', () {
-      final wcAction = testActions.woodcutting('Normal Tree');
-      final fishAction = testActions.fishing('Raw Shrimp');
+      final wcAction = testRegistries.woodcuttingAction('Normal Tree');
+      final fishAction = testRegistries.fishingAction('Raw Shrimp');
       final plan = Plan(
         steps: [
           InteractionStep(SwitchActivity(wcAction.id)),
@@ -1130,7 +1132,7 @@ void main() {
         interactionCount: 2,
       );
 
-      final output = plan.prettyPrintCompact(actions: testActions);
+      final output = plan.prettyPrintCompact(actions: testRegistries);
 
       // Should have two separate groups (one for each skill)
       expect(output, contains('Normal Tree'));

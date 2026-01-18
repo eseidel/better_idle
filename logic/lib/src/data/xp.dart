@@ -1,6 +1,7 @@
 import 'dart:math';
 
 import 'package:logic/src/data/actions.dart';
+import 'package:logic/src/data/registries.dart';
 
 // Generated with tool/xp_table.dart
 // From https://wiki.melvoridle.com/w/Experience_Table
@@ -200,14 +201,14 @@ XpProgress xpProgressForXp(int xp) {
 /// Calculates the amount of mastery XP gained per action from raw values.
 /// Derived from https://wiki.melvoridle.com/w/Mastery.
 int calculateMasteryXpPerAction({
-  required ActionRegistry actions,
+  required Registries registries,
   required SkillAction action,
   required int unlockedActions,
   required int playerTotalMasteryForSkill,
   required int itemMasteryLevel,
   required double bonus, // e.g. 0.1 for +10%
 }) {
-  final actionsForSkill = actions.forSkill(action.skill);
+  final actionsForSkill = registries.actionsForSkill(action.skill);
   final totalItemsInSkill = actionsForSkill.length;
   final actionTime = actionTimeForMastery(action);
   final totalMasteryForSkill = totalItemsInSkill * maxMasteryXp;

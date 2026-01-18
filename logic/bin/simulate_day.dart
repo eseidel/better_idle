@@ -172,8 +172,8 @@ void printFinalState(GlobalState state) {
 
 // It's not valid to look up an action by name, since there are duplicates
 // e.g. Golbin thieving and combat.  But this is good enough for this script.
-Action? actionByName(ActionRegistry actions, String name) {
-  return actions.all.firstWhereOrNull((a) => a.name == name);
+Action? actionByName(Registries registries, String name) {
+  return registries.allActions.firstWhereOrNull((a) => a.name == name);
 }
 
 void main(List<String> args) async {
@@ -183,13 +183,13 @@ void main(List<String> args) async {
   final registries = await loadRegistries();
 
   // Look up the action
-  final action = actionByName(registries.actions, actionName);
+  final action = actionByName(registries, actionName);
   if (action == null) {
     print('Error: Unknown action "$actionName"');
     print('');
     print('Available actions by skill:');
     for (final skill in Skill.values) {
-      final actions = registries.actions.forSkill(skill).toList();
+      final actions = registries.actionsForSkill(skill).toList();
       if (actions.isNotEmpty) {
         print('  ${skill.name}:');
         for (final a in actions) {

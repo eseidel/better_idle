@@ -79,7 +79,7 @@ void main() {
         const goal = ReachSkillLevelGoal(Skill.woodcutting, 50);
 
         final state1 = GlobalState.empty(testRegistries);
-        final normalTree = testActions.woodcutting('Normal Tree');
+        final normalTree = testRegistries.woodcuttingAction('Normal Tree');
         final state2 = state1.copyWith(
           activeActivity: SkillActivity(
             skill: Skill.woodcutting,
@@ -396,8 +396,8 @@ void main() {
       final cache = CandidateCache();
       const goal = ReachSkillLevelGoal(Skill.woodcutting, 50);
 
-      final normalTree = testActions.woodcutting('Normal Tree');
-      final oakTree = testActions.woodcutting('Oak Tree');
+      final normalTree = testRegistries.woodcuttingAction('Normal Tree');
+      final oakTree = testRegistries.woodcuttingAction('Oak Tree');
 
       // State without active action
       final stateNoAction = GlobalState.empty(testRegistries);
@@ -443,8 +443,8 @@ void main() {
       final cache = CandidateCache();
       const goal = ReachSkillLevelGoal(Skill.woodcutting, 50);
 
-      final normalTree = testActions.woodcutting('Normal Tree');
-      final oakTree = testActions.woodcutting('Oak Tree');
+      final normalTree = testRegistries.woodcuttingAction('Normal Tree');
+      final oakTree = testRegistries.woodcuttingAction('Oak Tree');
 
       // Create candidates that include both actions
       final candidatesWithBoth = Candidates(

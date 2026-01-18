@@ -117,7 +117,7 @@ class _CookingAreaCardState extends State<_CookingAreaCard> {
     final activeActionState = state.activeAction;
     CookingAction? activeCookingAction;
     if (activeActionState != null) {
-      final action = state.registries.actions.byId(activeActionState.id);
+      final action = state.registries.actionById(activeActionState.id);
       if (action is CookingAction) {
         activeCookingAction = action;
       }

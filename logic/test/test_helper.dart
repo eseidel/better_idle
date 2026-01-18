@@ -42,7 +42,6 @@ Future<void> loadTestRegistries() async {
 
 /// Shorthand accessors for test registries.
 ItemRegistry get testItems => testRegistries.items;
-ActionRegistry get testActions => testRegistries.actions;
 DropsRegistry get testDrops => testRegistries.drops;
 EquipmentSlotRegistry get testSlots => testRegistries.equipmentSlots;
 List<FishingArea> get testFishingAreas => testRegistries.fishingAreas;
