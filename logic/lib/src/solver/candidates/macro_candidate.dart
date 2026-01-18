@@ -7,6 +7,7 @@ library;
 import 'dart:math';
 
 import 'package:equatable/equatable.dart';
+import 'package:logic/src/activity/active_activity.dart';
 import 'package:logic/src/data/action_id.dart';
 import 'package:logic/src/data/actions.dart';
 import 'package:logic/src/data/melvor_id.dart';
@@ -1488,9 +1489,10 @@ class TrainConsumingSkillUntil extends MacroCandidate {
                 )
               : state.skillState(skill),
       },
-      activeAction: ActiveAction(
-        id: producerAction,
-        remainingTicks: ticksFromDuration(produceAction_.meanDuration),
+      activeActivity: SkillActivity(
+        skill: produceAction_.skill,
+        actionId: producerAction.localId,
+        progressTicks: 0,
         totalTicks: ticksFromDuration(produceAction_.meanDuration),
       ),
     );

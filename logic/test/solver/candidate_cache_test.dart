@@ -81,9 +81,10 @@ void main() {
         final state1 = GlobalState.empty(testRegistries);
         final normalTree = testActions.woodcutting('Normal Tree');
         final state2 = state1.copyWith(
-          activeAction: ActiveAction(
-            id: normalTree.id,
-            remainingTicks: 10,
+          activeActivity: SkillActivity(
+            skill: Skill.woodcutting,
+            actionId: normalTree.id.localId,
+            progressTicks: 0,
             totalTicks: 10,
           ),
         );
@@ -417,9 +418,10 @@ void main() {
 
       // Now query with active action set to normalTree
       final stateWithAction = stateNoAction.copyWith(
-        activeAction: ActiveAction(
-          id: normalTree.id,
-          remainingTicks: 10,
+        activeActivity: SkillActivity(
+          skill: Skill.woodcutting,
+          actionId: normalTree.id.localId,
+          progressTicks: 0,
           totalTicks: 10,
         ),
       );
@@ -456,18 +458,20 @@ void main() {
 
       // State with normalTree active
       final state1 = GlobalState.empty(testRegistries).copyWith(
-        activeAction: ActiveAction(
-          id: normalTree.id,
-          remainingTicks: 10,
+        activeActivity: SkillActivity(
+          skill: Skill.woodcutting,
+          actionId: normalTree.id.localId,
+          progressTicks: 0,
           totalTicks: 10,
         ),
       );
 
       // State with oakTree active (same capability key)
       final state2 = GlobalState.empty(testRegistries).copyWith(
-        activeAction: ActiveAction(
-          id: oakTree.id,
-          remainingTicks: 10,
+        activeActivity: SkillActivity(
+          skill: Skill.woodcutting,
+          actionId: oakTree.id.localId,
+          progressTicks: 0,
           totalTicks: 10,
         ),
       );

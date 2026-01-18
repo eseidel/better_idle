@@ -52,9 +52,10 @@ void main() {
         ItemStack(normalLogs, count: 5),
         ItemStack(oakLogs, count: 3),
       ]),
-      activeAction: ActiveAction(
-        id: normalTree.id,
-        remainingTicks: 15,
+      activeActivity: SkillActivity(
+        skill: Skill.woodcutting,
+        actionId: normalTree.id.localId,
+        progressTicks: 15,
         totalTicks: 30,
       ),
       skillStates: const {
@@ -149,9 +150,10 @@ void main() {
       inventory: Inventory.fromItems(testItems, [
         ItemStack(normalLogs, count: 5),
       ]),
-      activeAction: ActiveAction(
-        id: normalTree.id,
-        remainingTicks: 15,
+      activeActivity: SkillActivity(
+        skill: Skill.woodcutting,
+        actionId: normalTree.id.localId,
+        progressTicks: 15,
         totalTicks: 30,
       ),
       skillStates: const {
@@ -175,9 +177,10 @@ void main() {
       inventory: Inventory.fromItems(testItems, [
         ItemStack(normalLogs, count: 5),
       ]),
-      activeAction: ActiveAction(
-        id: normalTree.id,
-        remainingTicks: 15,
+      activeActivity: SkillActivity(
+        skill: Skill.woodcutting,
+        actionId: normalTree.id.localId,
+        progressTicks: 15,
         totalTicks: 30,
       ),
       skillStates: const {
