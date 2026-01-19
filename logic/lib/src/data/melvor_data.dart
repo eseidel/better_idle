@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:logic/src/data/actions.dart';
 import 'package:logic/src/data/cache.dart';
 import 'package:logic/src/data/melvor_id.dart';
+import 'package:logic/src/data/registries.dart';
 import 'package:logic/src/data/shop.dart';
 import 'package:logic/src/data/summoning_synergy.dart';
 import 'package:logic/src/data/township.dart';
@@ -289,26 +290,40 @@ class MelvorData {
   /// Returns the bank sort index map for passing to Registries.
   Map<MelvorId, int> get bankSortIndex => _bankSortIndex;
 
-  // Action lists for passing to Registries constructor
-  List<WoodcuttingTree> get woodcuttingActions => _woodcutting.actions;
-  List<MiningAction> get miningActions => _mining.actions;
-  List<FiremakingAction> get firemakingActions => _firemaking.actions;
-  List<FishingAction> get fishingActions => _fishing.actions;
-  List<CookingAction> get cookingActions => _cooking.actions;
-  List<SmithingAction> get smithingActions => _smithing.actions;
-  List<FletchingAction> get fletchingActions => _fletching.actions;
-  List<CraftingAction> get craftingActions => _crafting.actions;
-  List<HerbloreAction> get herbloreActions => _herblore.actions;
-  List<RunecraftingAction> get runecraftingActions => _runecrafting.actions;
-  List<ThievingAction> get thievingActions => _thieving.actions;
-  List<AgilityObstacle> get agilityObstacles => _agility.obstacles;
-  List<SummoningAction> get summoningActions => _summoning.actions;
-  List<AstrologyAction> get astrologyActions => _astrology.actions;
-  List<AltMagicAction> get altMagicActions => _altMagic.actions;
-  List<CombatAction> get combatActions => _combat.monsters;
-
   /// Returns the sort index for an item, or null if not in sort order.
   int? bankSortIndexOf(MelvorId id) => _bankSortIndex[id];
+
+  /// Creates a Registries instance from this MelvorData.
+  Registries toRegistries() {
+    return Registries(
+      items: _items,
+      drops: _drops,
+      equipmentSlots: _equipmentSlots,
+      woodcutting: _woodcutting,
+      mining: _mining,
+      firemaking: _firemaking,
+      fishing: _fishing,
+      cooking: _cooking,
+      smithing: _smithing,
+      fletching: _fletching,
+      crafting: _crafting,
+      herblore: _herblore,
+      runecrafting: _runecrafting,
+      thieving: _thieving,
+      agility: _agility,
+      farming: _farming,
+      summoning: _summoning,
+      astrology: _astrology,
+      altMagic: _altMagic,
+      combat: _combat,
+      shop: _shop,
+      masteryBonuses: _masteryBonuses,
+      masteryUnlocks: _masteryUnlocks,
+      summoningSynergies: _summoningSynergies,
+      township: _township,
+      bankSortIndex: _bankSortIndex,
+    );
+  }
 
   /// Comparator for sorting item IDs according to bank sort order.
   /// Items in sort order come before items not in sort order.

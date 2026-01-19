@@ -100,22 +100,6 @@ class SkillActivity extends ActiveActivity {
     );
   }
 
-  SkillActivity copyWith({
-    Skill? skill,
-    MelvorId? actionId,
-    Tick? progressTicks,
-    Tick? totalTicks,
-    int? selectedRecipeIndex,
-  }) {
-    return SkillActivity(
-      skill: skill ?? this.skill,
-      actionId: actionId ?? this.actionId,
-      progressTicks: progressTicks ?? this.progressTicks,
-      totalTicks: totalTicks ?? this.totalTicks,
-      selectedRecipeIndex: selectedRecipeIndex ?? this.selectedRecipeIndex,
-    );
-  }
-
   @override
   Map<String, dynamic> toJson() {
     return {

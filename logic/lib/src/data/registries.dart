@@ -15,48 +15,35 @@ import 'package:meta/meta.dart';
 
 @immutable
 class Registries {
-  Registries(
-    this.items,
-    this.drops,
-    this.equipmentSlots,
-    this._cookingCategories,
-    this._fishingAreas,
-    this._smithingCategories,
-    this._fletchingCategories,
-    this._craftingCategories,
-    this._herbloreCategories,
-    this._runecraftingCategories,
-    this._thievingAreas,
-    this.combatAreas,
-    this.dungeons,
-    this._agilityCourses,
-    this._agilityPillars,
-    this._farmingCrops,
-    this._farmingCategories,
-    this._farmingPlots,
-    this.shop,
-    this.masteryBonuses,
-    this.masteryUnlocks,
-    this.summoningSynergies,
-    this.township,
-    this._bankSortIndex,
-    this._woodcuttingActions,
-    this._miningActions,
-    this._firemakingActions,
-    this._fishingActions,
-    this._cookingActions,
-    this._smithingActions,
-    this._fletchingActions,
-    this._craftingActions,
-    this._herbloreActions,
-    this._runecraftingActions,
-    this._thievingActions,
-    this._agilityObstacles,
-    this._summoningActions,
-    this._astrologyActions,
-    this._altMagicActions,
-    this._combatActions,
-  ) : _testActions = null;
+  Registries({
+    required this.items,
+    required this.drops,
+    required this.equipmentSlots,
+    required this.woodcutting,
+    required this.mining,
+    required this.firemaking,
+    required this.fishing,
+    required this.cooking,
+    required this.smithing,
+    required this.fletching,
+    required this.crafting,
+    required this.herblore,
+    required this.runecrafting,
+    required this.thieving,
+    required this.agility,
+    required this.farming,
+    required this.summoning,
+    required this.astrology,
+    required this.altMagic,
+    required this.combat,
+    required this.shop,
+    required this.masteryBonuses,
+    required this.masteryUnlocks,
+    required this.summoningSynergies,
+    required this.township,
+    required Map<MelvorId, int> bankSortIndex,
+  }) : _bankSortIndex = bankSortIndex,
+       _testActions = null;
 
   factory Registries.test({
     List<Item> items = const [],
@@ -72,136 +59,70 @@ class Registries {
     // the allActions getter. This allows tests to use generic SkillAction
     // instances without needing skill-specific subclasses.
     return Registries._test(
-      ItemRegistry(items),
-      DropsRegistry({}),
-      const EquipmentSlotRegistry.empty(),
-      const <CookingCategory>[],
-      const [],
-      const <SmithingCategory>[],
-      const <FletchingCategory>[],
-      const <CraftingCategory>[],
-      const <HerbloreCategory>[],
-      const <RunecraftingCategory>[],
-      const [],
-      CombatAreaRegistry(const []),
-      DungeonRegistry(const []),
-      const [],
-      const [],
-      const <FarmingCrop>[],
-      const <FarmingCategory>[],
-      const <FarmingPlot>[],
-      shop ?? ShopRegistry(const [], const []),
-      masteryBonuses ?? MasteryBonusRegistry([]),
-      masteryUnlocks ?? MasteryUnlockRegistry(const []),
-      summoningSynergies ?? const SummoningSynergyRegistry([]),
-      township ?? const TownshipRegistry.empty(),
-      bankSortIndex ?? {},
-      actions,
+      items: ItemRegistry(items),
+      drops: DropsRegistry({}),
+      equipmentSlots: const EquipmentSlotRegistry.empty(),
+      shop: shop ?? ShopRegistry(const [], const []),
+      masteryBonuses: masteryBonuses ?? MasteryBonusRegistry([]),
+      masteryUnlocks: masteryUnlocks ?? MasteryUnlockRegistry(const []),
+      summoningSynergies:
+          summoningSynergies ?? const SummoningSynergyRegistry([]),
+      township: township ?? const TownshipRegistry.empty(),
+      bankSortIndex: bankSortIndex ?? {},
+      testActions: actions,
     );
   }
 
   /// Internal constructor for test fixtures that stores actions directly.
-  Registries._test(
-    this.items,
-    this.drops,
-    this.equipmentSlots,
-    this._cookingCategories,
-    this._fishingAreas,
-    this._smithingCategories,
-    this._fletchingCategories,
-    this._craftingCategories,
-    this._herbloreCategories,
-    this._runecraftingCategories,
-    this._thievingAreas,
-    this.combatAreas,
-    this.dungeons,
-    this._agilityCourses,
-    this._agilityPillars,
-    this._farmingCrops,
-    this._farmingCategories,
-    this._farmingPlots,
-    this.shop,
-    this.masteryBonuses,
-    this.masteryUnlocks,
-    this.summoningSynergies,
-    this.township,
-    this._bankSortIndex,
-    this._testActions,
-  ) : _woodcuttingActions = const [],
-      _miningActions = const [],
-      _firemakingActions = const [],
-      _fishingActions = const [],
-      _cookingActions = const [],
-      _smithingActions = const [],
-      _fletchingActions = const [],
-      _craftingActions = const [],
-      _herbloreActions = const [],
-      _runecraftingActions = const [],
-      _thievingActions = const [],
-      _agilityObstacles = const [],
-      _summoningActions = const [],
-      _astrologyActions = const [],
-      _altMagicActions = const [],
-      _combatActions = const [];
+  Registries._test({
+    required this.items,
+    required this.drops,
+    required this.equipmentSlots,
+    required this.shop,
+    required this.masteryBonuses,
+    required this.masteryUnlocks,
+    required this.summoningSynergies,
+    required this.township,
+    required Map<MelvorId, int> bankSortIndex,
+    required List<Action> testActions,
+  }) : _bankSortIndex = bankSortIndex,
+       _testActions = testActions,
+       woodcutting = const WoodcuttingRegistry([]),
+       mining = const MiningRegistry([]),
+       firemaking = const FiremakingRegistry([]),
+       fishing = FishingRegistry(actions: const [], areas: const []),
+       cooking = CookingRegistry(actions: const [], categories: const []),
+       smithing = SmithingRegistry(actions: const [], categories: const []),
+       fletching = FletchingRegistry(actions: const [], categories: const []),
+       crafting = CraftingRegistry(actions: const [], categories: const []),
+       herblore = HerbloreRegistry(actions: const [], categories: const []),
+       runecrafting = RunecraftingRegistry(
+         actions: const [],
+         categories: const [],
+       ),
+       thieving = ThievingRegistry(actions: const [], areas: const []),
+       agility = AgilityRegistry(
+         obstacles: const [],
+         courses: const [],
+         pillars: const [],
+       ),
+       farming = FarmingRegistry(
+         crops: const [],
+         categories: const [],
+         plots: const [],
+       ),
+       summoning = SummoningRegistry(const []),
+       astrology = const AstrologyRegistry([]),
+       altMagic = const AltMagicRegistry([]),
+       combat = CombatRegistry(
+         monsters: const [],
+         areas: CombatAreaRegistry(const []),
+         dungeons: DungeonRegistry(const []),
+       );
 
   final ItemRegistry items;
   final DropsRegistry drops;
   final EquipmentSlotRegistry equipmentSlots;
-  final List<CookingCategory> _cookingCategories;
-  final List<FishingArea> _fishingAreas;
-  final List<SmithingCategory> _smithingCategories;
-
-  /// Returns all smithing categories.
-  List<SmithingCategory> get smithingCategories => _smithingCategories;
-
-  /// Returns all cooking categories.
-  List<CookingCategory> get cookingCategories => _cookingCategories;
-
-  /// Returns all fishing areas.
-  List<FishingArea> get fishingAreas => _fishingAreas;
-  final List<FletchingCategory> _fletchingCategories;
-  final List<CraftingCategory> _craftingCategories;
-  final List<HerbloreCategory> _herbloreCategories;
-  final List<RunecraftingCategory> _runecraftingCategories;
-  final List<ThievingArea> _thievingAreas;
-
-  /// Returns all fletching categories.
-  List<FletchingCategory> get fletchingCategories => _fletchingCategories;
-
-  /// Returns all crafting categories.
-  List<CraftingCategory> get craftingCategories => _craftingCategories;
-
-  /// Returns all herblore categories.
-  List<HerbloreCategory> get herbloreCategories => _herbloreCategories;
-
-  /// Returns all runecrafting categories.
-  List<RunecraftingCategory> get runecraftingCategories =>
-      _runecraftingCategories;
-  final CombatAreaRegistry combatAreas;
-
-  /// Returns all thieving areas.
-  List<ThievingArea> get thievingAreas => _thievingAreas;
-  final DungeonRegistry dungeons;
-  final List<AgilityCourse> _agilityCourses;
-  final List<AgilityPillar> _agilityPillars;
-  final List<FarmingCrop> _farmingCrops;
-  final List<FarmingCategory> _farmingCategories;
-  final List<FarmingPlot> _farmingPlots;
-
-  /// Returns all agility courses.
-  List<AgilityCourse> get agilityCourses => _agilityCourses;
-
-  /// Returns all agility pillars.
-  List<AgilityPillar> get agilityPillars => _agilityPillars;
-
-  /// Returns all farming crops.
-  List<FarmingCrop> get farmingCrops => _farmingCrops;
-
-  /// Returns all farming categories.
-  List<FarmingCategory> get farmingCategories => _farmingCategories;
-
-  /// Returns all farming plots.
-  List<FarmingPlot> get farmingPlots => _farmingPlots;
   final ShopRegistry shop;
   final MasteryBonusRegistry masteryBonuses;
   final MasteryUnlockRegistry masteryUnlocks;
@@ -209,122 +130,36 @@ class Registries {
   final TownshipRegistry township;
   final Map<MelvorId, int> _bankSortIndex;
 
-  // Action lists passed from constructor (used to build specialized registries)
-  final List<WoodcuttingTree> _woodcuttingActions;
-  final List<MiningAction> _miningActions;
-  final List<FiremakingAction> _firemakingActions;
-  final List<FishingAction> _fishingActions;
-  final List<CookingAction> _cookingActions;
-  final List<SmithingAction> _smithingActions;
-  final List<FletchingAction> _fletchingActions;
-  final List<CraftingAction> _craftingActions;
-  final List<HerbloreAction> _herbloreActions;
-  final List<RunecraftingAction> _runecraftingActions;
-  final List<ThievingAction> _thievingActions;
-  final List<AgilityObstacle> _agilityObstacles;
-  final List<SummoningAction> _summoningActions;
-  final List<AstrologyAction> _astrologyActions;
-  final List<AltMagicAction> _altMagicActions;
-  final List<CombatAction> _combatActions;
+  // Skill registries
+  final WoodcuttingRegistry woodcutting;
+  final MiningRegistry mining;
+  final FiremakingRegistry firemaking;
+  final FishingRegistry fishing;
+  final CookingRegistry cooking;
+  final SmithingRegistry smithing;
+  final FletchingRegistry fletching;
+  final CraftingRegistry crafting;
+  final HerbloreRegistry herblore;
+  final RunecraftingRegistry runecrafting;
+  final ThievingRegistry thieving;
+  final AgilityRegistry agility;
+  final FarmingRegistry farming;
+  final SummoningRegistry summoning;
+  final AstrologyRegistry astrology;
+  final AltMagicRegistry altMagic;
+  final CombatRegistry combat;
+
+  // Convenience getters that delegate to specialized registries.
+  List<FishingArea> get fishingAreas => fishing.areas;
+  List<FarmingCrop> get farmingCrops => farming.crops;
+  List<FarmingCategory> get farmingCategories => farming.categories;
+  List<FarmingPlot> get farmingPlots => farming.plots;
+  CombatAreaRegistry get combatAreas => combat.areas;
+  DungeonRegistry get dungeons => combat.dungeons;
 
   // For test fixtures: stores generic actions directly instead of using
   // specialized registries. Null for production registries.
   final List<Action>? _testActions;
-
-  /// Woodcutting skill registry.
-  late final WoodcuttingRegistry woodcutting = WoodcuttingRegistry(
-    _woodcuttingActions,
-  ).withCache();
-
-  /// Mining skill registry.
-  late final MiningRegistry mining = MiningRegistry(_miningActions).withCache();
-
-  /// Firemaking skill registry.
-  late final FiremakingRegistry firemaking = FiremakingRegistry(
-    _firemakingActions,
-  ).withCache();
-
-  /// Combat registry (monsters, areas, dungeons).
-  late final CombatRegistry combat = CombatRegistry(
-    monsters: _combatActions,
-    areas: combatAreas,
-    dungeons: dungeons,
-  );
-
-  /// Fishing skill registry.
-  late final FishingRegistry fishing = FishingRegistry(
-    actions: _fishingActions,
-    areas: fishingAreas,
-  );
-
-  /// Cooking skill registry.
-  late final CookingRegistry cooking = CookingRegistry(
-    actions: _cookingActions,
-    categories: cookingCategories,
-  );
-
-  /// Smithing skill registry.
-  late final SmithingRegistry smithing = SmithingRegistry(
-    actions: _smithingActions,
-    categories: smithingCategories,
-  );
-
-  /// Fletching skill registry.
-  late final FletchingRegistry fletching = FletchingRegistry(
-    actions: _fletchingActions,
-    categories: fletchingCategories,
-  );
-
-  /// Crafting skill registry.
-  late final CraftingRegistry crafting = CraftingRegistry(
-    actions: _craftingActions,
-    categories: craftingCategories,
-  );
-
-  /// Herblore skill registry.
-  late final HerbloreRegistry herblore = HerbloreRegistry(
-    actions: _herbloreActions,
-    categories: herbloreCategories,
-  );
-
-  /// Runecrafting skill registry.
-  late final RunecraftingRegistry runecrafting = RunecraftingRegistry(
-    actions: _runecraftingActions,
-    categories: runecraftingCategories,
-  );
-
-  /// Thieving skill registry.
-  late final ThievingRegistry thieving = ThievingRegistry(
-    actions: _thievingActions,
-    areas: thievingAreas,
-  );
-
-  /// Agility skill registry.
-  late final AgilityRegistry agility = AgilityRegistry(
-    obstacles: _agilityObstacles,
-    courses: agilityCourses,
-    pillars: agilityPillars,
-  );
-
-  /// Farming skill registry.
-  late final FarmingRegistry farming = FarmingRegistry(
-    crops: farmingCrops,
-    categories: farmingCategories,
-    plots: farmingPlots,
-  );
-
-  /// Summoning skill registry.
-  late final SummoningRegistry summoning = SummoningRegistry(_summoningActions);
-
-  /// Astrology skill registry.
-  late final AstrologyRegistry astrology = AstrologyRegistry(
-    _astrologyActions,
-  ).withCache();
-
-  /// Alt Magic skill registry.
-  late final AltMagicRegistry altMagic = AltMagicRegistry(
-    _altMagicActions,
-  ).withCache();
 
   /// Returns all actions across all skill registries.
   /// For test fixtures, returns the directly-stored test actions instead.
@@ -458,46 +293,5 @@ Future<Registries> loadRegistries({Directory? cacheDir}) async {
 /// (e.g., for both loading registries and caching images).
 Future<Registries> loadRegistriesFromCache(Cache cache) async {
   final melvorData = await MelvorData.loadFromCache(cache);
-  return Registries(
-    melvorData.items,
-    melvorData.drops,
-    melvorData.equipmentSlots,
-    melvorData.cookingCategories,
-    melvorData.fishingAreas,
-    melvorData.smithingCategories,
-    melvorData.fletchingCategories,
-    melvorData.craftingCategories,
-    melvorData.herbloreCategories,
-    melvorData.runecraftingCategories,
-    melvorData.thievingAreas,
-    melvorData.combatAreas,
-    melvorData.dungeons,
-    melvorData.agilityCourses,
-    melvorData.agilityPillars,
-    melvorData.farmingCrops,
-    melvorData.farmingCategories,
-    melvorData.farmingPlots,
-    melvorData.shop,
-    melvorData.masteryBonuses,
-    melvorData.masteryUnlocks,
-    melvorData.summoningSynergies,
-    melvorData.township,
-    melvorData.bankSortIndex,
-    melvorData.woodcuttingActions,
-    melvorData.miningActions,
-    melvorData.firemakingActions,
-    melvorData.fishingActions,
-    melvorData.cookingActions,
-    melvorData.smithingActions,
-    melvorData.fletchingActions,
-    melvorData.craftingActions,
-    melvorData.herbloreActions,
-    melvorData.runecraftingActions,
-    melvorData.thievingActions,
-    melvorData.agilityObstacles,
-    melvorData.summoningActions,
-    melvorData.astrologyActions,
-    melvorData.altMagicActions,
-    melvorData.combatActions,
-  );
+  return melvorData.toRegistries();
 }
