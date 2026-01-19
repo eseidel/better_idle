@@ -2,7 +2,6 @@ import 'package:better_idle/src/logic/redux_actions.dart';
 import 'package:better_idle/src/widgets/cached_image.dart';
 import 'package:better_idle/src/widgets/context_extensions.dart';
 import 'package:better_idle/src/widgets/game_scaffold.dart';
-import 'package:better_idle/src/widgets/input_items_row.dart';
 import 'package:better_idle/src/widgets/item_image.dart';
 import 'package:better_idle/src/widgets/mastery_pool.dart';
 import 'package:better_idle/src/widgets/mastery_unlocks_dialog.dart';
@@ -94,7 +93,6 @@ class _SummoningPageState extends State<SummoningPage>
         children: [
           SkillProgress(xp: skillState.xp),
           MasteryPoolProgress(xp: skillState.masteryPoolXp),
-          const _EquippedFamiliarsSection(),
           const Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
@@ -144,46 +142,19 @@ class _MarksTab extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Group actions by tier
-    final tier1 = actions.where((a) => a.tier == 1).toList();
-    final tier2 = actions.where((a) => a.tier == 2).toList();
-    final tier3 = actions.where((a) => a.tier == 3).toList();
-
-    return ListView(
+    return SingleChildScrollView(
       padding: const EdgeInsets.all(16),
-      children: [
-        if (tier1.isNotEmpty) ...[
-          const _TierHeader(tier: 1),
-          _buildMarkGrid(context, tier1),
-        ],
-        if (tier2.isNotEmpty) ...[
-          const SizedBox(height: 16),
-          const _TierHeader(tier: 2),
-          _buildMarkGrid(context, tier2),
-        ],
-        if (tier3.isNotEmpty) ...[
-          const SizedBox(height: 16),
-          const _TierHeader(tier: 3),
-          _buildMarkGrid(context, tier3),
-        ],
-      ],
-    );
-  }
-
-  Widget _buildMarkGrid(
-    BuildContext context,
-    List<SummoningAction> tierActions,
-  ) {
-    return Wrap(
-      spacing: 8,
-      runSpacing: 8,
-      children: tierActions.map((action) {
-        return _MarkCard(
-          action: action,
-          skillLevel: skillLevel,
-          onCreateTablets: () => onCreateTablets(action),
-        );
-      }).toList(),
+      child: Wrap(
+        spacing: 8,
+        runSpacing: 8,
+        children: actions.map((action) {
+          return _MarkCard(
+            action: action,
+            skillLevel: skillLevel,
+            onCreateTablets: () => onCreateTablets(action),
+          );
+        }).toList(),
+      ),
     );
   }
 }
@@ -210,11 +181,28 @@ class _MarkCard extends StatelessWidget {
 
     final state = context.state;
     final summoningState = state.summoning;
+    final isDiscovered = summoningState.isDiscovered(action.productId);
+
+    // Show simplified card for undiscovered marks
+    if (!isDiscovered) {
+      return _UndiscoveredMarkCard(action: action);
+    }
+
+    final hasCrafted = summoningState.hasCrafted(action.productId);
+
+    // Show card prompting to create first tablet
+    if (!hasCrafted) {
+      return _NeedFirstCraftCard(
+        action: action,
+        onCreateTablets: onCreateTablets,
+      );
+    }
+
     final marks = summoningState.marksFor(action.productId);
     final markLevel = summoningState.markLevel(action.productId);
-    final canCraft = summoningState.canCraftTablet(action.productId);
-    final isDiscovered = summoningState.isDiscovered(action.productId);
     final maxMarkLevel = markLevelThresholds.length;
+    final isMaxLevel = markLevel >= maxMarkLevel;
+    final familiarItem = state.registries.items.byId(action.productId);
 
     // Calculate progress to next mark level
     final nextThreshold = markLevel < markLevelThresholds.length
@@ -225,14 +213,13 @@ class _MarkCard extends StatelessWidget {
         : 0;
     final progressInLevel = marks - prevThreshold;
     final levelRange = nextThreshold - prevThreshold;
-    final progress = markLevel >= markLevelThresholds.length
+    final progress = isMaxLevel
         ? 1.0
         : (progressInLevel / levelRange).clamp(0.0, 1.0);
 
     return SizedBox(
       width: 160,
       child: Card(
-        color: canCraft ? null : Style.cellBackgroundColorLocked,
         child: Padding(
           padding: const EdgeInsets.all(12),
           child: Column(
@@ -242,70 +229,38 @@ class _MarkCard extends StatelessWidget {
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                 decoration: BoxDecoration(
-                  color: isDiscovered
-                      ? Colors.amber.withAlpha(50)
-                      : Style.containerBackgroundLight,
+                  color: Colors.amber.withAlpha(50),
                   borderRadius: BorderRadius.circular(4),
                 ),
                 child: Text(
-                  isDiscovered ? 'Mark Level $markLevel' : 'Not Discovered',
-                  style: TextStyle(
+                  isMaxLevel ? 'Max Level' : 'Mark Level $markLevel',
+                  style: const TextStyle(
                     fontSize: 12,
                     fontWeight: FontWeight.bold,
-                    color: isDiscovered
-                        ? Colors.amber
-                        : Style.textColorSecondary,
+                    color: Colors.amber,
                   ),
                 ),
               ),
               const SizedBox(height: 8),
               // "Mark of the" label
-              Text(
-                isDiscovered ? 'Mark of the' : 'Unknown Mark',
-                style: const TextStyle(
-                  fontSize: 10,
-                  color: Style.textColorSecondary,
-                ),
+              const Text(
+                'Mark of the',
+                style: TextStyle(fontSize: 10, color: Style.textColorSecondary),
               ),
-              // Familiar name (hidden if not discovered)
-              if (isDiscovered)
-                Text(
-                  action.name,
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.bold,
-                  ),
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                )
-              else
-                const Text(
-                  '???',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.bold,
-                    color: Style.textColorSecondary,
-                  ),
+              // Familiar name
+              Text(
+                familiarItem.name,
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.bold,
                 ),
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+              ),
               const SizedBox(height: 8),
-              // Mark image (show ? if not discovered)
-              if (!isDiscovered)
-                Container(
-                  width: 48,
-                  height: 48,
-                  decoration: BoxDecoration(
-                    color: Style.containerBackgroundLight,
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: const Icon(
-                    Icons.help_outline,
-                    size: 32,
-                    color: Style.textColorSecondary,
-                  ),
-                )
-              else if (action.markMedia != null)
+              // Mark image
+              if (action.markMedia != null)
                 CachedImage(assetPath: action.markMedia, size: 48)
               else
                 Container(
@@ -318,44 +273,180 @@ class _MarkCard extends StatelessWidget {
                   child: const Icon(Icons.star, size: 32, color: Colors.amber),
                 ),
               const SizedBox(height: 8),
-              // Progress bar
-              SizedBox(
-                height: 8,
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(4),
-                  child: LinearProgressIndicator(
-                    value: progress,
-                    backgroundColor: Style.progressBackgroundColor,
-                    valueColor: AlwaysStoppedAnimation<Color>(
-                      isDiscovered ? Colors.amber : Style.textColorSecondary,
+              // Progress (only show if not max level)
+              if (!isMaxLevel) ...[
+                SizedBox(
+                  height: 8,
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(4),
+                    child: LinearProgressIndicator(
+                      value: progress,
+                      backgroundColor: Style.progressBackgroundColor,
+                      valueColor: const AlwaysStoppedAnimation<Color>(
+                        Colors.amber,
+                      ),
                     ),
                   ),
                 ),
-              ),
-              const SizedBox(height: 4),
-              // Progress text
-              Text(
-                markLevel >= maxMarkLevel
-                    ? 'MAX ($marks marks)'
-                    : '$marks / $nextThreshold',
-                style: const TextStyle(fontSize: 10),
-              ),
-              const SizedBox(height: 8),
-              // Discovered in section
-              const Text(
-                'Discovered In:',
-                style: TextStyle(fontSize: 10, color: Style.textColorSecondary),
-              ),
-              const SizedBox(height: 4),
+                const SizedBox(height: 4),
+                Text(
+                  '$marks / $nextThreshold',
+                  style: const TextStyle(fontSize: 10),
+                ),
+                const SizedBox(height: 8),
+              ],
+              // Discovery skills (just icons, no label)
               _MarkDiscoverySkillsRow(skillIds: action.markSkillIds),
               const SizedBox(height: 12),
               // Create Tablets button
               SizedBox(
                 width: double.infinity,
                 child: ElevatedButton(
-                  onPressed: canCraft ? onCreateTablets : null,
+                  onPressed: onCreateTablets,
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: canCraft ? Style.successColor : null,
+                    backgroundColor: Style.successColor,
+                    padding: const EdgeInsets.symmetric(vertical: 8),
+                  ),
+                  child: const Text(
+                    'Create Tablets',
+                    style: TextStyle(fontSize: 12, color: Colors.white),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// A simplified card for undiscovered marks showing just the essentials.
+class _UndiscoveredMarkCard extends StatelessWidget {
+  const _UndiscoveredMarkCard({required this.action});
+
+  final SummoningAction action;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: 160,
+      child: Card(
+        color: Style.cellBackgroundColorLocked,
+        child: Padding(
+          padding: const EdgeInsets.all(12),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text(
+                'Not Discovered',
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.bold,
+                  color: Style.textColorSecondary,
+                ),
+              ),
+              const SizedBox(height: 16),
+              Container(
+                width: 48,
+                height: 48,
+                decoration: BoxDecoration(
+                  color: Style.containerBackgroundLight,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: const Icon(
+                  Icons.help_outline,
+                  size: 32,
+                  color: Style.textColorSecondary,
+                ),
+              ),
+              const SizedBox(height: 16),
+              const Text(
+                'Discovered In:',
+                style: TextStyle(fontSize: 10, color: Style.textColorSecondary),
+              ),
+              const SizedBox(height: 4),
+              _MarkDiscoverySkillsRow(skillIds: action.markSkillIds),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// A card for familiars that have been discovered but need first tablet craft.
+class _NeedFirstCraftCard extends StatelessWidget {
+  const _NeedFirstCraftCard({
+    required this.action,
+    required this.onCreateTablets,
+  });
+
+  final SummoningAction action;
+  final VoidCallback onCreateTablets;
+
+  @override
+  Widget build(BuildContext context) {
+    final state = context.state;
+    final familiarItem = state.registries.items.byId(action.productId);
+
+    return SizedBox(
+      width: 160,
+      child: Card(
+        child: Padding(
+          padding: const EdgeInsets.all(12),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // "Mark of the" label
+              const Text(
+                'Mark of the',
+                style: TextStyle(fontSize: 10, color: Style.textColorSecondary),
+              ),
+              // Familiar name
+              Text(
+                familiarItem.name,
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.bold,
+                ),
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+              ),
+              const SizedBox(height: 8),
+              // Mark image
+              if (action.markMedia != null)
+                CachedImage(assetPath: action.markMedia, size: 48)
+              else
+                Container(
+                  width: 48,
+                  height: 48,
+                  decoration: BoxDecoration(
+                    color: Style.containerBackgroundLight,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: const Icon(Icons.star, size: 32, color: Colors.amber),
+                ),
+              const SizedBox(height: 12),
+              // Instruction text
+              const Text(
+                'Create 1st tablet to find more marks',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: 11,
+                  fontStyle: FontStyle.italic,
+                  color: Style.textColorSecondary,
+                ),
+              ),
+              const SizedBox(height: 12),
+              // Create Tablets button
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: onCreateTablets,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Style.successColor,
                     padding: const EdgeInsets.symmetric(vertical: 8),
                   ),
                   child: const Text(
@@ -627,150 +718,6 @@ class _MarkDiscoverySkillsRow extends StatelessWidget {
   }
 }
 
-/// Displays currently equipped familiars and active synergy.
-class _EquippedFamiliarsSection extends StatelessWidget {
-  const _EquippedFamiliarsSection();
-
-  @override
-  Widget build(BuildContext context) {
-    final state = context.state;
-    final equipment = state.equipment;
-
-    final summon1 = equipment.gearInSlot(EquipmentSlot.summon1);
-    final summon2 = equipment.gearInSlot(EquipmentSlot.summon2);
-
-    // Don't show section if nothing equipped
-    if (summon1 == null && summon2 == null) {
-      return const SizedBox.shrink();
-    }
-
-    final synergy = state.getActiveSynergy();
-    final summon1Count = equipment.summonCountInSlot(EquipmentSlot.summon1);
-    final summon2Count = equipment.summonCountInSlot(EquipmentSlot.summon2);
-
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: synergy != null
-            ? Colors.purple.withAlpha(30)
-            : Style.containerBackgroundLight,
-        border: Border.all(
-          color: synergy != null ? Colors.purple : Style.cellBorderColor,
-        ),
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: Column(
-        children: [
-          const Text(
-            'Equipped Familiars',
-            style: TextStyle(fontWeight: FontWeight.bold),
-          ),
-          const SizedBox(height: 8),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-            children: [
-              _EquippedFamiliarCell(
-                slot: EquipmentSlot.summon1,
-                item: summon1,
-                count: summon1Count,
-              ),
-              if (synergy != null)
-                const Icon(Icons.link, color: Colors.purple)
-              else
-                const Icon(Icons.add, color: Style.textColorSecondary),
-              _EquippedFamiliarCell(
-                slot: EquipmentSlot.summon2,
-                item: summon2,
-                count: summon2Count,
-              ),
-            ],
-          ),
-          if (synergy != null) ...[
-            const SizedBox(height: 8),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-              decoration: BoxDecoration(
-                color: Colors.purple.withAlpha(50),
-                borderRadius: BorderRadius.circular(4),
-              ),
-              child: const Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(Icons.auto_awesome, size: 16, color: Colors.purple),
-                  SizedBox(width: 4),
-                  Text(
-                    'Synergy Active',
-                    style: TextStyle(
-                      color: Colors.purple,
-                      fontWeight: FontWeight.bold,
-                      fontSize: 12,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ],
-      ),
-    );
-  }
-}
-
-/// Displays a single equipped familiar slot.
-class _EquippedFamiliarCell extends StatelessWidget {
-  const _EquippedFamiliarCell({
-    required this.slot,
-    required this.item,
-    required this.count,
-  });
-
-  final EquipmentSlot slot;
-  final Item? item;
-  final int count;
-
-  @override
-  Widget build(BuildContext context) {
-    if (item == null) {
-      return Container(
-        width: 48,
-        height: 48,
-        decoration: BoxDecoration(
-          color: Style.containerBackgroundEmpty,
-          border: Border.all(color: Style.iconColorDefault),
-          borderRadius: BorderRadius.circular(8),
-        ),
-        child: const Center(
-          child: Icon(Icons.add, color: Style.textColorSecondary),
-        ),
-      );
-    }
-
-    return Column(
-      children: [
-        Container(
-          width: 48,
-          height: 48,
-          decoration: BoxDecoration(
-            color: Style.containerBackgroundFilled,
-            border: Border.all(color: Style.cellBorderColorSuccess),
-            borderRadius: BorderRadius.circular(8),
-          ),
-          child: Padding(
-            padding: const EdgeInsets.all(4),
-            child: ItemImage(item: item!),
-          ),
-        ),
-        const SizedBox(height: 4),
-        Text(
-          '$count charges',
-          style: const TextStyle(fontSize: 10, color: Style.textColorSecondary),
-        ),
-      ],
-    );
-  }
-}
-
 class _ActionList extends StatelessWidget {
   const _ActionList({
     required this.actions,
@@ -822,8 +769,6 @@ class _ActionList extends StatelessWidget {
     return tierActions.map((action) {
       final isSelected = action.name == selectedAction.name;
       final isUnlocked = skillLevel >= action.unlockLevel;
-      final marks = summoningState.marksFor(action.productId);
-      final markLevel = summoningState.markLevel(action.productId);
       final canCraft = summoningState.canCraftTablet(action.productId);
 
       if (!isUnlocked) {
@@ -875,27 +820,17 @@ class _ActionList extends StatelessWidget {
             ],
           ),
           title: Text(
-            isDiscovered ? action.name : '???',
+            isDiscovered ? productItem.name : '???',
             style: TextStyle(
               color: isDiscovered ? null : Style.textColorSecondary,
             ),
           ),
-          subtitle: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              _MarkProgressRow(
-                marks: marks,
-                markLevel: markLevel,
-                markMedia: action.markMedia,
-                isDiscovered: isDiscovered,
-              ),
-              if (canCraft)
-                InputItemsRow(
-                  items: action.inputs,
+          subtitle: canCraft
+              ? _RecipesDisplay(
+                  action: action,
                   onItemTap: (item) => _onShardTap(context, item),
-                ),
-            ],
-          ),
+                )
+              : _MarkDiscoverySkillsRow(skillIds: action.markSkillIds),
           trailing: isSelected
               ? const Icon(Icons.check_circle, color: Style.selectedColor)
               : null,
@@ -930,6 +865,76 @@ class _TierHeader extends StatelessWidget {
         style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
       ),
     );
+  }
+}
+
+/// Displays the selected recipe for a summoning familiar in the list.
+class _RecipesDisplay extends StatelessWidget {
+  const _RecipesDisplay({required this.action, this.onItemTap});
+
+  final SummoningAction action;
+  final void Function(Item item)? onItemTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final state = context.state;
+    final actionState = state.actionState(action.id);
+    final selection = actionState.recipeSelection(action);
+
+    // Get the selected recipe inputs
+    final inputs = action.inputsForRecipe(selection);
+    final hasMultipleRecipes = action.hasAlternativeRecipes;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Padding(
+          padding: const EdgeInsets.only(top: 4),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              for (final (index, entry) in inputs.entries.indexed) ...[
+                if (index > 0) const SizedBox(width: 6),
+                _buildItemCell(
+                  context,
+                  state.registries.items.byId(entry.key),
+                  entry.value,
+                ),
+              ],
+            ],
+          ),
+        ),
+        if (hasMultipleRecipes)
+          const Padding(
+            padding: EdgeInsets.only(top: 2),
+            child: Text(
+              '(multiple recipes)',
+              style: TextStyle(
+                fontSize: 10,
+                fontStyle: FontStyle.italic,
+                color: Style.textColorSecondary,
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+
+  Widget _buildItemCell(BuildContext context, Item item, int count) {
+    final content = Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        ItemImage(item: item, size: 16),
+        const SizedBox(width: 2),
+        Text('$count', style: const TextStyle(fontSize: 12)),
+      ],
+    );
+
+    if (onItemTap != null) {
+      return GestureDetector(onTap: () => onItemTap!(item), child: content);
+    }
+    return content;
   }
 }
 

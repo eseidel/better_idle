@@ -224,11 +224,12 @@ class WelcomeBackDialog extends StatelessWidget {
                 final potion = registries.items.byId(potionId);
                 final rate = _perHour(count, duration);
                 final rateText = rate != null
-                    ? ' (-${_perHourString(rate)})'
+                    ? ' (${_perHourString(rate)})'
                     : '';
-                return Padding(
-                  padding: const EdgeInsets.only(left: 16, bottom: 4),
-                  child: Text('Used $count ${potion.name}$rateText'),
+                return ItemChangeRow(
+                  item: potion,
+                  count: -count,
+                  suffix: rateText,
                 );
               }),
             ],
@@ -240,10 +241,7 @@ class WelcomeBackDialog extends StatelessWidget {
                 final tabletId = entry.key;
                 final count = entry.value;
                 final tablet = registries.items.byId(tabletId);
-                return Padding(
-                  padding: const EdgeInsets.only(left: 16, bottom: 4),
-                  child: Text('Used $count ${tablet.name}'),
-                );
+                return ItemChangeRow(item: tablet, count: -count);
               }),
             ],
 
@@ -258,9 +256,10 @@ class WelcomeBackDialog extends StatelessWidget {
                 final rateText = rate != null
                     ? ' (${_perHourString(rate)})'
                     : '';
-                return Padding(
-                  padding: const EdgeInsets.only(left: 16, bottom: 4),
-                  child: Text('Ate $count ${food.name}$rateText'),
+                return ItemChangeRow(
+                  item: food,
+                  count: -count,
+                  suffix: rateText,
                 );
               }),
             ],
