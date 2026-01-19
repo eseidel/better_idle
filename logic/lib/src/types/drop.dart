@@ -201,13 +201,11 @@ class RareDrop extends Droppable {
 
   @override
   ItemStack? roll(ItemRegistry items, Random random) {
-    // Note: This uses default chance. For proper rolling, use rollWithContext.
-    final rate = chance.calculate();
-    if (random.nextDouble() >= rate) {
-      return null;
-    }
-    final item = items.byId(itemId);
-    return ItemStack(item, count: count);
+    // RareDrop requires context (skill level, mastery) for correct drop rates.
+    // Use rollWithContext() or handle RareDrop specially at call sites.
+    throw UnimplementedError(
+      'RareDrop.roll() requires context. Use rollWithContext() instead.',
+    );
   }
 
   /// Rolls the drop with skill level and mastery context.
