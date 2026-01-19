@@ -326,6 +326,7 @@ class GlobalState {
     ActiveActivity? activeActivity,
     Map<Skill, SkillState> skillStates = const {},
     Map<ActionId, ActionState> actionStates = const {},
+    MiningPersistentState miningState = const MiningPersistentState.empty(),
     Map<MelvorId, PlotState> plotStates = const {},
     Set<MelvorId> unlockedPlots = const {},
     Map<MelvorId, int> dungeonCompletions = const {},
@@ -353,6 +354,7 @@ class GlobalState {
       activeActivity: activeActivity,
       skillStates: skillStates,
       actionStates: actionStates,
+      miningState: miningState,
       plotStates: plotStates,
       unlockedPlots: unlockedPlots,
       dungeonCompletions: dungeonCompletions,
@@ -494,33 +496,13 @@ class GlobalState {
     });
   }
 
-  /// Parses mining state from JSON, with fallback to extracting from
-  /// actionStates for migration.
+  /// Parses mining state from JSON.
   static MiningPersistentState _parseMiningState(Map<String, dynamic> json) {
-    // Try new format first
     final miningJson = json['miningState'] as Map<String, dynamic>?;
     if (miningJson != null) {
       return MiningPersistentState.fromJson(miningJson);
     }
-
-    // Fall back to extracting from actionStates for migration
-    final actionStatesJson =
-        json['actionStates'] as Map<String, dynamic>? ?? {};
-    final rockStates = <MelvorId, MiningRockState>{};
-
-    for (final entry in actionStatesJson.entries) {
-      final actionId = ActionId.fromJson(entry.key);
-      // Only extract mining state from mining skill actions
-      if (actionId.skillId != Skill.mining.id) continue;
-
-      final stateJson = entry.value as Map<String, dynamic>;
-      final miningJson = stateJson['mining'] as Map<String, dynamic>?;
-      if (miningJson != null) {
-        rockStates[actionId.localId] = MiningRockState.fromJson(miningJson);
-      }
-    }
-
-    return MiningPersistentState(rockStates: rockStates);
+    return const MiningPersistentState.empty();
   }
 
   bool validate() {
@@ -788,10 +770,7 @@ class GlobalState {
     }
 
     // Check mining node timers
-    for (final actionState in actionStates.values) {
-      final mining = actionState.mining;
-      if (mining == null) continue;
-
+    for (final mining in miningState.rockStates.values) {
       // Check for active respawn timer
       if (mining.respawnTicksRemaining != null &&
           mining.respawnTicksRemaining! > 0) {
@@ -858,8 +837,8 @@ class GlobalState {
 
       // Check if mining node is depleted
       if (action is MiningAction) {
-        final miningState = actionStateVal.mining ?? const MiningState.empty();
-        if (miningState.isDepleted) {
+        final rockState = miningState.rockState(action.id.localId);
+        if (rockState.isDepleted) {
           return false; // Can't mine depleted node
         }
       }

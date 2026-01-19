@@ -45,42 +45,35 @@ void main() {
     });
 
     test('returns null when not respawning', () {
-      const actionState = ActionState(masteryXp: 0);
-      final progress = miningAction.respawnProgress(actionState);
+      const miningState = MiningState.empty();
+      final progress = miningAction.respawnProgress(miningState);
       expect(progress, isNull);
     });
 
     test('returns null when mining state has no respawn ticks', () {
-      const actionState = ActionState(masteryXp: 0, mining: MiningState());
-      final progress = miningAction.respawnProgress(actionState);
+      const miningState = MiningState();
+      final progress = miningAction.respawnProgress(miningState);
       expect(progress, isNull);
     });
 
     test('returns 0.0 at start of respawn', () {
-      final actionState = ActionState(
-        masteryXp: 0,
-        mining: MiningState(respawnTicksRemaining: miningAction.respawnTicks),
+      final miningState = MiningState(
+        respawnTicksRemaining: miningAction.respawnTicks,
       );
-      final progress = miningAction.respawnProgress(actionState);
+      final progress = miningAction.respawnProgress(miningState);
       expect(progress, equals(0.0));
     });
 
     test('returns 1.0 when respawn complete', () {
-      const actionState = ActionState(
-        masteryXp: 0,
-        mining: MiningState(respawnTicksRemaining: 0),
-      );
-      final progress = miningAction.respawnProgress(actionState);
+      const miningState = MiningState(respawnTicksRemaining: 0);
+      final progress = miningAction.respawnProgress(miningState);
       expect(progress, equals(1.0));
     });
 
     test('returns 0.5 at halfway through respawn', () {
       final halfwayTicks = miningAction.respawnTicks ~/ 2;
-      final actionState = ActionState(
-        masteryXp: 0,
-        mining: MiningState(respawnTicksRemaining: halfwayTicks),
-      );
-      final progress = miningAction.respawnProgress(actionState);
+      final miningState = MiningState(respawnTicksRemaining: halfwayTicks);
+      final progress = miningAction.respawnProgress(miningState);
       expect(progress, closeTo(0.5, 0.01));
     });
 
@@ -88,20 +81,14 @@ void main() {
       final respawnTicks = miningAction.respawnTicks;
 
       // 25% complete (75% remaining)
-      final quarter = ActionState(
-        masteryXp: 0,
-        mining: MiningState(
-          respawnTicksRemaining: (respawnTicks * 0.75).round(),
-        ),
+      final quarter = MiningState(
+        respawnTicksRemaining: (respawnTicks * 0.75).round(),
       );
       expect(miningAction.respawnProgress(quarter), closeTo(0.25, 0.1));
 
       // 75% complete (25% remaining)
-      final threeQuarter = ActionState(
-        masteryXp: 0,
-        mining: MiningState(
-          respawnTicksRemaining: (respawnTicks * 0.25).round(),
-        ),
+      final threeQuarter = MiningState(
+        respawnTicksRemaining: (respawnTicks * 0.25).round(),
       );
       expect(miningAction.respawnProgress(threeQuarter), closeTo(0.75, 0.1));
     });

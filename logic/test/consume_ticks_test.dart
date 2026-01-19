@@ -704,15 +704,14 @@ void main() {
       // so that the next completion will deplete it
       var state = GlobalState.test(
         testRegistries,
-        actionStates: {
-          copper.id: const ActionState(
-            masteryXp: 0,
-            mining: MiningState(
+        miningState: MiningPersistentState(
+          rockStates: {
+            copper.id.localId: const MiningState(
               totalHpLost: 5,
               hpRegenTicksRemaining: 100, // Full countdown until next heal
             ),
-          ),
-        },
+          },
+        ),
       );
       final random = Random(0);
       state = state.startAction(copper, random: random);
@@ -728,8 +727,7 @@ void main() {
 
       // Verify we got 1 copper and node is depleted
       expect(state.inventory.countOfItem(copperOre), 1);
-      final miningState =
-          state.actionState(copper.id).mining ?? const MiningState.empty();
+      final miningState = state.miningState.rockState(copper.id.localId);
       expect(miningState.isDepleted, true);
 
       // Critical: Action should still be active even though node is depleted
@@ -743,11 +741,7 @@ void main() {
       state = builder.build();
 
       // Still depleted, still active
-      expect(
-        (state.actionState(copper.id).mining ?? const MiningState.empty())
-            .isDepleted,
-        true,
-      );
+      expect(state.miningState.rockState(copper.id.localId).isDepleted, true);
       expect(state.activeActivity, isNotNull);
       expect(state.inventory.countOfItem(copperOre), 1); // No new copper yet
 
@@ -756,11 +750,7 @@ void main() {
       consumeTicks(builder, 20, random: random);
       state = builder.build();
 
-      expect(
-        (state.actionState(copper.id).mining ?? const MiningState.empty())
-            .isDepleted,
-        true,
-      );
+      expect(state.miningState.rockState(copper.id.localId).isDepleted, true);
       expect(state.activeActivity, isNotNull);
 
       // Final 20 ticks - respawn completes (10 ticks) + 10 ticks toward next
@@ -769,11 +759,7 @@ void main() {
       state = builder.build();
 
       // Node should no longer be depleted
-      expect(
-        (state.actionState(copper.id).mining ?? const MiningState.empty())
-            .isDepleted,
-        false,
-      );
+      expect(state.miningState.rockState(copper.id.localId).isDepleted, false);
       // Action should still be running
       expect(state.activeActivity, isNotNull);
       expect(state.currentActionId, copper.id);
@@ -808,24 +794,20 @@ void main() {
       // - Rune Essence node damaged (3 HP lost) and healing
       var state = GlobalState.test(
         testRegistries,
-        actionStates: {
-          // Copper: depleted, mid-respawn with 30 ticks remaining
-          copper.id: const ActionState(
-            masteryXp: 0,
-            mining: MiningState(
+        miningState: MiningPersistentState(
+          rockStates: {
+            // Copper: depleted, mid-respawn with 30 ticks remaining
+            copper.id.localId: const MiningState(
               totalHpLost: 6, // Fully depleted (6 HP lost = 0 HP remaining)
               respawnTicksRemaining: 30, // 30 ticks until respawn (3 seconds)
             ),
-          ),
-          // Rune Essence: damaged but not depleted, healing
-          runeEssence.id: const ActionState(
-            masteryXp: 0,
-            mining: MiningState(
+            // Rune Essence: damaged but not depleted, healing
+            runeEssence.id.localId: const MiningState(
               totalHpLost: 3, // 3 HP lost, 3 HP remaining (out of 6)
               hpRegenTicksRemaining: 50, // 50 ticks until next heal
             ),
-          ),
-        },
+          },
+        ),
       );
       final random = Random(0);
 
@@ -861,8 +843,7 @@ void main() {
         reason: 'No logs yet - woodcutting not complete',
       );
 
-      final copperMiningPhase1 =
-          state.actionState(copper.id).mining ?? const MiningState.empty();
+      final copperMiningPhase1 = state.miningState.rockState(copper.id.localId);
       expect(
         copperMiningPhase1.isDepleted,
         true,
@@ -874,8 +855,9 @@ void main() {
         reason: 'Copper should have 10 ticks remaining until respawn',
       );
 
-      final runeMiningPhase1 =
-          state.actionState(runeEssence.id).mining ?? const MiningState.empty();
+      final runeMiningPhase1 = state.miningState.rockState(
+        runeEssence.id.localId,
+      );
       expect(
         runeMiningPhase1.totalHpLost,
         3,
@@ -905,8 +887,7 @@ void main() {
         reason: 'Should have 1 log from first woodcutting completion',
       );
 
-      final copperMiningPhase2 =
-          state.actionState(copper.id).mining ?? const MiningState.empty();
+      final copperMiningPhase2 = state.miningState.rockState(copper.id.localId);
       expect(
         copperMiningPhase2.isDepleted,
         false,
@@ -918,8 +899,9 @@ void main() {
         reason: 'Copper should be at full HP after respawn',
       );
 
-      final runeMiningPhase2 =
-          state.actionState(runeEssence.id).mining ?? const MiningState.empty();
+      final runeMiningPhase2 = state.miningState.rockState(
+        runeEssence.id.localId,
+      );
       expect(
         runeMiningPhase2.totalHpLost,
         2,
@@ -948,8 +930,7 @@ void main() {
         reason: 'Should have 5 logs total (1 + 1 partial + 3 full)',
       );
 
-      final copperMiningPhase3 =
-          state.actionState(copper.id).mining ?? const MiningState.empty();
+      final copperMiningPhase3 = state.miningState.rockState(copper.id.localId);
       expect(
         copperMiningPhase3.isDepleted,
         false,
@@ -957,8 +938,9 @@ void main() {
       );
       expect(copperMiningPhase3.totalHpLost, 0);
 
-      final runeMiningPhase3 =
-          state.actionState(runeEssence.id).mining ?? const MiningState.empty();
+      final runeMiningPhase3 = state.miningState.rockState(
+        runeEssence.id.localId,
+      );
       expect(
         runeMiningPhase3.totalHpLost,
         1,
@@ -979,8 +961,9 @@ void main() {
         reason: 'Should have 8 logs total',
       );
 
-      final runeMiningPhase4 =
-          state.actionState(runeEssence.id).mining ?? const MiningState.empty();
+      final runeMiningPhase4 = state.miningState.rockState(
+        runeEssence.id.localId,
+      );
       expect(
         runeMiningPhase4.totalHpLost,
         0,
@@ -1004,15 +987,14 @@ void main() {
       // Start with a damaged mining node but no active action
       var state = GlobalState.test(
         testRegistries,
-        actionStates: {
-          copper.id: const ActionState(
-            masteryXp: 0,
-            mining: MiningState(
+        miningState: MiningPersistentState(
+          rockStates: {
+            copper.id.localId: const MiningState(
               totalHpLost: 3, // 3 HP lost
               hpRegenTicksRemaining: 50, // 50 ticks until next heal
             ),
-          ),
-        },
+          },
+        ),
       );
       final random = Random(0);
       // Verify no active action
@@ -1024,8 +1006,7 @@ void main() {
       state = builder.build();
 
       // Verify node healed (should have healed once at tick 50)
-      final miningState =
-          state.actionState(copper.id).mining ?? const MiningState.empty();
+      final miningState = state.miningState.rockState(copper.id.localId);
       expect(
         miningState.totalHpLost,
         2,
@@ -1043,20 +1024,19 @@ void main() {
       // Start with a depleted mining node but no active action
       var state = GlobalState.test(
         testRegistries,
-        actionStates: {
-          copper.id: const ActionState(
-            masteryXp: 0,
-            mining: MiningState(
+        miningState: MiningPersistentState(
+          rockStates: {
+            copper.id.localId: const MiningState(
               totalHpLost: 6,
               respawnTicksRemaining: 30, // 30 ticks until respawn
             ),
-          ),
-        },
+          },
+        ),
       );
       final random = Random(0);
       // Verify no active action and node is depleted
       expect(state.activeActivity, isNull);
-      expect(state.actionState(copper.id).mining?.isDepleted, true);
+      expect(state.miningState.rockState(copper.id.localId).isDepleted, true);
 
       // Process enough ticks to respawn
       final builder = StateUpdateBuilder(state);
@@ -1064,8 +1044,7 @@ void main() {
       state = builder.build();
 
       // Verify node respawned
-      final miningState =
-          state.actionState(copper.id).mining ?? const MiningState.empty();
+      final miningState = state.miningState.rockState(copper.id.localId);
       expect(
         miningState.isDepleted,
         false,
@@ -1082,16 +1061,18 @@ void main() {
       // Start with two damaged mining nodes
       var state = GlobalState.test(
         testRegistries,
-        actionStates: {
-          copper.id: const ActionState(
-            masteryXp: 0,
-            mining: MiningState(totalHpLost: 2, hpRegenTicksRemaining: 50),
-          ),
-          runeEssence.id: const ActionState(
-            masteryXp: 0,
-            mining: MiningState(totalHpLost: 3, hpRegenTicksRemaining: 80),
-          ),
-        },
+        miningState: MiningPersistentState(
+          rockStates: {
+            copper.id.localId: const MiningState(
+              totalHpLost: 2,
+              hpRegenTicksRemaining: 50,
+            ),
+            runeEssence.id.localId: const MiningState(
+              totalHpLost: 3,
+              hpRegenTicksRemaining: 80,
+            ),
+          },
+        ),
       );
       final random = Random(0);
       // Do woodcutting while both heal
@@ -1106,10 +1087,8 @@ void main() {
       expect(state.inventory.countOfItem(normalLogs), 6);
 
       // Verify both nodes healed
-      final copperMining =
-          state.actionState(copper.id).mining ?? const MiningState.empty();
-      final runeMining =
-          state.actionState(runeEssence.id).mining ?? const MiningState.empty();
+      final copperMining = state.miningState.rockState(copper.id.localId);
+      final runeMining = state.miningState.rockState(runeEssence.id.localId);
 
       expect(copperMining.totalHpLost, 0);
       expect(runeMining.totalHpLost, 1);
@@ -1146,12 +1125,14 @@ void main() {
       // Start with damaged mining node
       var state = GlobalState.test(
         testRegistries,
-        actionStates: {
-          copper.id: const ActionState(
-            masteryXp: 0,
-            mining: MiningState(totalHpLost: 2, hpRegenTicksRemaining: 50),
-          ),
-        },
+        miningState: MiningPersistentState(
+          rockStates: {
+            copper.id.localId: const MiningState(
+              totalHpLost: 2,
+              hpRegenTicksRemaining: 50,
+            ),
+          },
+        ),
       );
 
       // Start combat
@@ -1163,8 +1144,7 @@ void main() {
       state = builder.build();
 
       // Verify mining node healed during combat
-      final copperMining =
-          state.actionState(copper.id).mining ?? const MiningState.empty();
+      final copperMining = state.miningState.rockState(copper.id.localId);
       expect(copperMining.totalHpLost, 0);
     });
 
@@ -1183,15 +1163,14 @@ void main() {
 
       var state = GlobalState.test(
         testRegistries,
-        actionStates: {
-          copper.id: const ActionState(
-            masteryXp: 0,
-            mining: MiningState(
+        miningState: MiningPersistentState(
+          rockStates: {
+            copper.id.localId: const MiningState(
               totalHpLost: 1,
               hpRegenTicksRemaining: 30, // Heal completes at tick 30
             ),
-          ),
-        },
+          },
+        ),
       );
       final random = Random(0);
 
@@ -1210,8 +1189,7 @@ void main() {
       // - Heal completes at tick 30, reducing 1 HP lost to 0
       // - Mining hit then adds 1 HP lost
       // Net effect: still 1 HP lost
-      final miningState =
-          state.actionState(copper.id).mining ?? const MiningState.empty();
+      final miningState = state.miningState.rockState(copper.id.localId);
       expect(
         miningState.totalHpLost,
         1,

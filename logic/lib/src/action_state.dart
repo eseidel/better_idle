@@ -1,82 +1,9 @@
-import 'dart:math';
-
 import 'package:logic/src/data/action_id.dart';
 import 'package:logic/src/data/actions.dart';
 import 'package:logic/src/data/melvor_id.dart';
 import 'package:logic/src/data/xp.dart';
 import 'package:logic/src/tick.dart';
 import 'package:meta/meta.dart';
-
-/// Mining-specific state for rock HP and respawn.
-@immutable
-class MiningState {
-  const MiningState({
-    this.totalHpLost = 0,
-    this.respawnTicksRemaining,
-    this.hpRegenTicksRemaining = 0,
-  });
-
-  const MiningState.empty() : this();
-
-  factory MiningState.fromJson(Map<String, dynamic> json) {
-    return MiningState(
-      totalHpLost: json['totalHpLost'] as int? ?? 0,
-      respawnTicksRemaining: json['respawnTicksRemaining'] as int?,
-      hpRegenTicksRemaining: json['hpRegenTicksRemaining'] as int? ?? 0,
-    );
-  }
-
-  /// Deserializes a [MiningState] from a dynamic JSON value.
-  /// Returns null if [json] is null.
-  static MiningState? maybeFromJson(dynamic json) {
-    if (json == null) return null;
-    return MiningState.fromJson(json as Map<String, dynamic>);
-  }
-
-  /// Gets the current HP of a mining node.
-  int currentHp(MiningAction action, int masteryXp) {
-    final masteryLevel = levelForXp(masteryXp);
-    final maxHp = action.maxHpForMasteryLevel(masteryLevel);
-    return max(0, maxHp - totalHpLost);
-  }
-
-  /// How much HP this mining node has lost.
-  final int totalHpLost;
-
-  /// How many ticks until this mining node respawns if depleted.
-  final Tick? respawnTicksRemaining; // Null if not depleted
-
-  /// How many ticks until this mining node regens 1 HP.
-  final Tick hpRegenTicksRemaining; // Ticks until next HP regen
-
-  /// Returns true if the node is currently depleted and not yet respawned.
-  bool get isDepleted {
-    final respawnTicks = respawnTicksRemaining;
-    return respawnTicks != null && respawnTicks > 0;
-  }
-
-  MiningState copyWith({
-    int? totalHpLost,
-    Tick? respawnTicksRemaining,
-    Tick? hpRegenTicksRemaining,
-  }) {
-    return MiningState(
-      totalHpLost: totalHpLost ?? this.totalHpLost,
-      respawnTicksRemaining:
-          respawnTicksRemaining ?? this.respawnTicksRemaining,
-      hpRegenTicksRemaining:
-          hpRegenTicksRemaining ?? this.hpRegenTicksRemaining,
-    );
-  }
-
-  Map<String, dynamic> toJson() {
-    return {
-      'totalHpLost': totalHpLost,
-      'respawnTicksRemaining': respawnTicksRemaining,
-      'hpRegenTicksRemaining': hpRegenTicksRemaining,
-    };
-  }
-}
 
 /// Spawn time for monsters.
 const Duration monsterSpawnDuration = Duration(seconds: 3);
@@ -225,7 +152,6 @@ class ActionState {
   const ActionState({
     required this.masteryXp,
     this.cumulativeTicks = 0,
-    this.mining,
     this.combat,
     this.selectedRecipeIndex,
   });
@@ -236,7 +162,6 @@ class ActionState {
     return ActionState(
       masteryXp: json['masteryXp'] as int,
       cumulativeTicks: json['cumulativeTicks'] as int? ?? 0,
-      mining: MiningState.maybeFromJson(json['mining']),
       combat: CombatActionState.maybeFromJson(json['combat']),
       selectedRecipeIndex: json['selectedRecipeIndex'] as int?,
     );
@@ -247,9 +172,6 @@ class ActionState {
 
   /// Cumulative ticks spent performing this action.
   final int cumulativeTicks;
-
-  /// Mining-specific state (null for non-mining actions).
-  final MiningState? mining;
 
   /// Combat-specific state (null for non-combat actions).
   final CombatActionState? combat;
@@ -282,14 +204,12 @@ class ActionState {
   ActionState copyWith({
     int? masteryXp,
     int? cumulativeTicks,
-    MiningState? mining,
     CombatActionState? combat,
     int? selectedRecipeIndex,
   }) {
     return ActionState(
       masteryXp: masteryXp ?? this.masteryXp,
       cumulativeTicks: cumulativeTicks ?? this.cumulativeTicks,
-      mining: mining ?? this.mining,
       combat: combat ?? this.combat,
       selectedRecipeIndex: selectedRecipeIndex ?? this.selectedRecipeIndex,
     );
@@ -299,7 +219,6 @@ class ActionState {
     return {
       'masteryXp': masteryXp,
       'cumulativeTicks': cumulativeTicks,
-      if (mining != null) 'mining': mining!.toJson(),
       if (combat != null) 'combat': combat!.toJson(),
       if (selectedRecipeIndex != null)
         'selectedRecipeIndex': selectedRecipeIndex,

@@ -249,29 +249,23 @@ List<BackgroundTickConsumer> _getBackgroundActions(
   ActionId? activeActionId,
 }) {
   final backgrounds = <BackgroundTickConsumer>[];
-  final registries = state.registries;
 
-  for (final entry in state.actionStates.entries) {
-    final actionId = entry.key;
-    final actionState = entry.value;
+  for (final entry in state.miningState.rockStates.entries) {
+    final localId = entry.key;
+    final mining = entry.value;
+    final actionId = ActionId(Skill.mining.id, localId);
 
-    // Check if this is a mining action with background work
-    final action = registries.actionById(actionId);
-    if (action is MiningAction) {
-      final mining = actionState.mining ?? const MiningState.empty();
-
-      // For the active action, only include if it needs healing (not respawn)
-      // because foreground handles respawn synchronously
-      if (actionId == activeActionId) {
-        if (!mining.isDepleted && mining.totalHpLost > 0) {
-          backgrounds.add(MiningBackgroundAction(actionId, mining));
-        }
-      } else {
-        // Non-active actions: include all background work (healing + respawn)
-        final bgAction = MiningBackgroundAction(actionId, mining);
-        if (bgAction.isActive) {
-          backgrounds.add(bgAction);
-        }
+    // For the active action, only include if it needs healing (not respawn)
+    // because foreground handles respawn synchronously
+    if (actionId == activeActionId) {
+      if (!mining.isDepleted && mining.totalHpLost > 0) {
+        backgrounds.add(MiningBackgroundAction(actionId, mining));
+      }
+    } else {
+      // Non-active actions: include all background work (healing + respawn)
+      final bgAction = MiningBackgroundAction(actionId, mining);
+      if (bgAction.isActive) {
+        backgrounds.add(bgAction);
       }
     }
   }
@@ -311,9 +305,9 @@ void _applyBackgroundTicks(
   for (final bg in backgrounds) {
     // Re-read the current mining state from builder to get any updates
     // that the foreground action may have made
-    final currentActionState = builder.state.actionState(bg.actionId);
-    final currentMining =
-        currentActionState.mining ?? const MiningState.empty();
+    final currentMining = builder.state.miningState.rockState(
+      bg.actionId.localId,
+    );
 
     // For the active action, only apply healing (not respawn)
     // because foreground handles respawn synchronously
@@ -792,8 +786,7 @@ class StateUpdateBuilder {
 
   /// Damages a mining node and starts HP regeneration if needed.
   void damageResourceNode(ActionId actionId, int totalHpLost) {
-    final actionState = _state.actionState(actionId);
-    final currentMining = actionState.mining ?? const MiningState.empty();
+    final currentMining = _state.miningState.rockState(actionId.localId);
     final newMining = currentMining.copyWith(
       totalHpLost: totalHpLost,
       hpRegenTicksRemaining: currentMining.hpRegenTicksRemaining == 0
@@ -804,24 +797,11 @@ class StateUpdateBuilder {
   }
 
   /// Updates the mining state for an action.
-  ///
-  /// This updates both the legacy `actionStates[...].mining` and the new
-  /// `miningState` to keep them in sync.
   void updateMiningState(ActionId actionId, MiningState newMining) {
-    // Update legacy actionStates
-    final actionState = _state.actionState(actionId);
-    updateActionState(actionId, actionState.copyWith(mining: newMining));
-
-    // Also update the new miningState
-    final newRockState = MiningRockState(
-      totalHpLost: newMining.totalHpLost,
-      respawnTicksRemaining: newMining.respawnTicksRemaining,
-      hpRegenTicksRemaining: newMining.hpRegenTicksRemaining,
-    );
     _state = _state.copyWith(
       miningState: _state.miningState.withRockState(
         actionId.localId,
-        newRockState,
+        newMining,
       ),
     );
   }
@@ -1077,11 +1057,7 @@ class StateUpdateBuilder {
     }
 
     // 4. Mining node timers (all nodes, not just active)
-    for (final entry in _state.actionStates.entries) {
-      final actionState = entry.value;
-      final mining = actionState.mining;
-      if (mining == null) continue;
-
+    for (final mining in _state.miningState.rockStates.values) {
       // Respawn timer
       updateMin(mining.respawnTicksRemaining);
 
@@ -1483,7 +1459,7 @@ bool completeAction(
   // Handle resource depletion for mining
   if (action is MiningAction) {
     final actionState = builder.state.actionState(action.id);
-    final miningState = actionState.mining ?? const MiningState.empty();
+    final miningState = builder.state.miningState.rockState(action.id.localId);
 
     // Increment damage
     final newTotalHpLost = miningState.totalHpLost + 1;
@@ -1558,9 +1534,7 @@ enum ForegroundResult {
 
   // For mining, handle respawn waiting (blocking foreground behavior)
   if (action is MiningAction) {
-    final miningState =
-        builder.state.actionState(action.id).mining ??
-        const MiningState.empty();
+    final miningState = builder.state.miningState.rockState(action.id.localId);
 
     if (miningState.isDepleted) {
       // Wait for respawn - this is foreground blocking behavior
@@ -1631,9 +1605,9 @@ enum ForegroundResult {
 
     // For mining, check if node just depleted
     if (action is MiningAction && !canRepeat) {
-      final miningState =
-          builder.state.actionState(action.id).mining ??
-          const MiningState.empty();
+      final miningState = builder.state.miningState.rockState(
+        action.id.localId,
+      );
       if (miningState.isDepleted) {
         // Node depleted - next iteration will handle respawn
         return (ForegroundResult.continued, ticksToApply);

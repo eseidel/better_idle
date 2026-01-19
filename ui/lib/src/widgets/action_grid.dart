@@ -303,7 +303,7 @@ class MiningActionCell extends StatelessWidget {
     final isStunned = state.isStunned;
 
     final masteryLevel = levelForXp(actionState.masteryXp);
-    final miningState = actionState.mining ?? const MiningState.empty();
+    final miningState = state.miningState.rockState(action.id.localId);
     final maxHp = action.maxHpForMasteryLevel(masteryLevel);
     final currentHp = miningState.currentHp(action, actionState.masteryXp);
 

@@ -20,9 +20,9 @@ class MiningPersistentState {
 
   factory MiningPersistentState.fromJson(Map<String, dynamic> json) {
     final rockStatesJson = json['rockStates'] as Map<String, dynamic>? ?? {};
-    final rockStates = <MelvorId, MiningRockState>{};
+    final rockStates = <MelvorId, MiningState>{};
     for (final entry in rockStatesJson.entries) {
-      rockStates[MelvorId.fromJson(entry.key)] = MiningRockState.fromJson(
+      rockStates[MelvorId.fromJson(entry.key)] = MiningState.fromJson(
         entry.value as Map<String, dynamic>,
       );
     }
@@ -30,18 +30,15 @@ class MiningPersistentState {
   }
 
   /// State for each mining rock, keyed by action ID (local part).
-  final Map<MelvorId, MiningRockState> rockStates;
+  final Map<MelvorId, MiningState> rockStates;
 
   /// Gets the state for a specific rock, or creates empty state if not found.
-  MiningRockState rockState(MelvorId actionId) {
-    return rockStates[actionId] ?? const MiningRockState.empty();
+  MiningState rockState(MelvorId actionId) {
+    return rockStates[actionId] ?? const MiningState.empty();
   }
 
   /// Returns a copy with updated state for a specific rock.
-  MiningPersistentState withRockState(
-    MelvorId actionId,
-    MiningRockState state,
-  ) {
+  MiningPersistentState withRockState(MelvorId actionId, MiningState state) {
     return MiningPersistentState(rockStates: {...rockStates, actionId: state});
   }
 
@@ -56,17 +53,17 @@ class MiningPersistentState {
 
 /// State for a single mining rock (HP and respawn/regen timers).
 @immutable
-class MiningRockState {
-  const MiningRockState({
+class MiningState {
+  const MiningState({
     this.totalHpLost = 0,
     this.respawnTicksRemaining,
     this.hpRegenTicksRemaining = 0,
   });
 
-  const MiningRockState.empty() : this();
+  const MiningState.empty() : this();
 
-  factory MiningRockState.fromJson(Map<String, dynamic> json) {
-    return MiningRockState(
+  factory MiningState.fromJson(Map<String, dynamic> json) {
+    return MiningState(
       totalHpLost: json['totalHpLost'] as int? ?? 0,
       respawnTicksRemaining: json['respawnTicksRemaining'] as int?,
       hpRegenTicksRemaining: json['hpRegenTicksRemaining'] as int? ?? 0,
@@ -96,12 +93,12 @@ class MiningRockState {
     return respawnTicks != null && respawnTicks > 0;
   }
 
-  MiningRockState copyWith({
+  MiningState copyWith({
     int? totalHpLost,
     Tick? respawnTicksRemaining,
     Tick? hpRegenTicksRemaining,
   }) {
-    return MiningRockState(
+    return MiningState(
       totalHpLost: totalHpLost ?? this.totalHpLost,
       respawnTicksRemaining:
           respawnTicksRemaining ?? this.respawnTicksRemaining,

@@ -1,4 +1,4 @@
-import 'package:logic/src/action_state.dart';
+import 'package:logic/src/activity/mining_persistent_state.dart';
 import 'package:logic/src/data/action_id.dart';
 import 'package:logic/src/data/actions.dart';
 import 'package:logic/src/data/melvor_id.dart';
@@ -100,8 +100,8 @@ class MiningAction extends SkillAction {
 
   /// Returns progress (0.0 to 1.0) toward respawn completion, or null if
   /// not respawning.
-  double? respawnProgress(ActionState actionState) {
-    final remaining = actionState.mining?.respawnTicksRemaining;
+  double? respawnProgress(MiningState miningState) {
+    final remaining = miningState.respawnTicksRemaining;
     if (remaining == null) return null;
     return 1.0 - (remaining / respawnTicks);
   }
