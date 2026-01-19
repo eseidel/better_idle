@@ -50,3 +50,45 @@ MasteryBonusRegistry get testMasteryBonuses => testRegistries.masteryBonuses;
 /// Get the index of an equipment slot in the enum. Used for death penalty tests
 /// that need to mock a specific slot being rolled.
 int slotIndex(EquipmentSlot slot) => EquipmentSlot.values.indexOf(slot);
+
+/// Extension providing convenience methods for looking up actions by name.
+/// These avoid needing to construct ActionIds in tests.
+extension RegistriesTestHelpers on Registries {
+  Action _bySkillAndName(Skill skill, String name) {
+    final matches = allActions.where(
+      (action) => action.id.skillId == skill.id && action.name == name,
+    );
+    if (matches.isEmpty) {
+      final available = allActions
+          .where((a) => a.id.skillId == skill.id)
+          .map((a) => a.name)
+          .join(', ');
+      throw StateError(
+        'Missing action with skill: $skill and name: $name. '
+        'Available: $available',
+      );
+    }
+    return matches.first;
+  }
+
+  SkillAction woodcuttingAction(String name) =>
+      _bySkillAndName(Skill.woodcutting, name) as SkillAction;
+
+  MiningAction miningAction(String name) =>
+      _bySkillAndName(Skill.mining, name) as MiningAction;
+
+  SkillAction firemakingAction(String name) =>
+      _bySkillAndName(Skill.firemaking, name) as SkillAction;
+
+  SkillAction fishingAction(String name) =>
+      _bySkillAndName(Skill.fishing, name) as SkillAction;
+
+  CombatAction combatAction(String name) =>
+      _bySkillAndName(Skill.combat, name) as CombatAction;
+
+  ThievingAction thievingAction(String name) =>
+      _bySkillAndName(Skill.thieving, name) as ThievingAction;
+
+  SkillAction smithingAction(String name) =>
+      _bySkillAndName(Skill.smithing, name) as SkillAction;
+}

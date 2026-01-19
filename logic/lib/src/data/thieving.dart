@@ -289,16 +289,4 @@ class ThievingRegistry {
 
   /// Look up a thieving action by its local ID.
   ThievingAction? byId(MelvorId localId) => _byId[localId];
-
-  /// Returns the thieving area containing the given NPC ID.
-  ///
-  /// Throws [StateError] if the NPC is not found in any area.
-  ThievingArea areaForNpc(MelvorId npcId) {
-    for (final area in _areas) {
-      if (area.npcIds.contains(npcId)) {
-        return area;
-      }
-    }
-    throw StateError('Thieving NPC $npcId has no area');
-  }
 }

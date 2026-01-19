@@ -224,54 +224,6 @@ class Registries {
   /// Comparator for sorting items according to bank sort order.
   int compareBankItems(Item a, Item b) =>
       compareByIndex(_bankSortIndex, a.id, b.id);
-
-  // Test helper methods for looking up actions by name.
-  // These are used in tests to avoid needing to construct ActionIds.
-
-  Action _bySkillAndName(Skill skill, String name) {
-    final matches = allActions.where(
-      (action) => action.id.skillId == skill.id && action.name == name,
-    );
-    if (matches.isEmpty) {
-      final available = allActions
-          .where((a) => a.id.skillId == skill.id)
-          .map((a) => a.name)
-          .join(', ');
-      throw StateError(
-        'Missing action with skill: $skill and name: $name. '
-        'Available: $available',
-      );
-    }
-    return matches.first;
-  }
-
-  @visibleForTesting
-  SkillAction woodcuttingAction(String name) =>
-      _bySkillAndName(Skill.woodcutting, name) as SkillAction;
-
-  @visibleForTesting
-  MiningAction miningAction(String name) =>
-      _bySkillAndName(Skill.mining, name) as MiningAction;
-
-  @visibleForTesting
-  SkillAction firemakingAction(String name) =>
-      _bySkillAndName(Skill.firemaking, name) as SkillAction;
-
-  @visibleForTesting
-  SkillAction fishingAction(String name) =>
-      _bySkillAndName(Skill.fishing, name) as SkillAction;
-
-  @visibleForTesting
-  CombatAction combatAction(String name) =>
-      _bySkillAndName(Skill.combat, name) as CombatAction;
-
-  @visibleForTesting
-  ThievingAction thievingAction(String name) =>
-      _bySkillAndName(Skill.thieving, name) as ThievingAction;
-
-  @visibleForTesting
-  SkillAction smithingAction(String name) =>
-      _bySkillAndName(Skill.smithing, name) as SkillAction;
 }
 
 /// Ensures the registries are initialized.

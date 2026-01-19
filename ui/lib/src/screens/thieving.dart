@@ -39,11 +39,10 @@ class _ThievingPageState extends State<ThievingPage> {
     // Default to first action if none selected
     final selectedAction = _selectedAction ?? thievingActions.first;
 
-    // Group actions by area using the ThievingAreaRegistry
+    // Group actions by area (each action already stores its area reference)
     final actionsByArea = <ThievingArea, List<ThievingAction>>{};
     for (final action in thievingActions) {
-      final area = registries.thieving.areaForNpc(action.id.localId);
-      actionsByArea.putIfAbsent(area, () => []).add(action);
+      actionsByArea.putIfAbsent(action.area, () => []).add(action);
     }
 
     return Scaffold(
