@@ -236,63 +236,6 @@ class MelvorData {
   late final TownshipRegistry _township;
   late final DropsRegistry _drops;
 
-  /// Returns the item registry.
-  ItemRegistry get items => _items;
-
-  /// Returns the equipment slots registry.
-  EquipmentSlotRegistry get equipmentSlots => _equipmentSlots;
-
-  // Specialized skill registries
-  WoodcuttingRegistry get woodcutting => _woodcutting;
-  MiningRegistry get mining => _mining;
-  FiremakingRegistry get firemaking => _firemaking;
-  CookingRegistry get cooking => _cooking;
-  FishingRegistry get fishing => _fishing;
-  SmithingRegistry get smithing => _smithing;
-  FarmingRegistry get farming => _farming;
-  FletchingRegistry get fletching => _fletching;
-  CraftingRegistry get crafting => _crafting;
-  HerbloreRegistry get herblore => _herblore;
-  RunecraftingRegistry get runecrafting => _runecrafting;
-  ThievingRegistry get thieving => _thieving;
-  AgilityRegistry get agility => _agility;
-  SummoningRegistry get summoning => _summoning;
-  AstrologyRegistry get astrology => _astrology;
-  AltMagicRegistry get altMagic => _altMagic;
-  CombatRegistry get combat => _combat;
-
-  // Legacy getters for backward compatibility
-  // (delegate to specialized registries)
-  List<CookingCategory> get cookingCategories => _cooking.categories;
-  List<FishingArea> get fishingAreas => _fishing.areas;
-  List<SmithingCategory> get smithingCategories => _smithing.categories;
-  List<FarmingCrop> get farmingCrops => _farming.crops;
-  List<FarmingCategory> get farmingCategories => _farming.categories;
-  List<FarmingPlot> get farmingPlots => _farming.plots;
-  List<FletchingCategory> get fletchingCategories => _fletching.categories;
-  List<CraftingCategory> get craftingCategories => _crafting.categories;
-  List<HerbloreCategory> get herbloreCategories => _herblore.categories;
-  List<RunecraftingCategory> get runecraftingCategories =>
-      _runecrafting.categories;
-  List<ThievingArea> get thievingAreas => _thieving.areas;
-  CombatAreaRegistry get combatAreas => _combatAreas;
-  DungeonRegistry get dungeons => _dungeons;
-  List<AgilityCourse> get agilityCourses => _agility.courses;
-  List<AgilityPillar> get agilityPillars => _agility.pillars;
-
-  ShopRegistry get shop => _shop;
-  MasteryBonusRegistry get masteryBonuses => _masteryBonuses;
-  MasteryUnlockRegistry get masteryUnlocks => _masteryUnlocks;
-  SummoningSynergyRegistry get summoningSynergies => _summoningSynergies;
-  TownshipRegistry get township => _township;
-  DropsRegistry get drops => _drops;
-
-  /// Returns the bank sort index map for passing to Registries.
-  Map<MelvorId, int> get bankSortIndex => _bankSortIndex;
-
-  /// Returns the sort index for an item, or null if not in sort order.
-  int? bankSortIndexOf(MelvorId id) => _bankSortIndex[id];
-
   /// Creates a Registries instance from this MelvorData.
   Registries toRegistries() {
     return Registries(
@@ -323,22 +266,6 @@ class MelvorData {
       township: _township,
       bankSortIndex: _bankSortIndex,
     );
-  }
-
-  /// Comparator for sorting item IDs according to bank sort order.
-  /// Items in sort order come before items not in sort order.
-  /// Items not in sort order maintain stable relative ordering.
-  int compareBankItems(MelvorId a, MelvorId b) {
-    final indexA = _bankSortIndex[a];
-    final indexB = _bankSortIndex[b];
-
-    // Both not in sort order - maintain original order (return 0)
-    if (indexA == null && indexB == null) return 0;
-    // Items in sort order come before items not in sort order
-    if (indexA == null) return 1;
-    if (indexB == null) return -1;
-
-    return indexA.compareTo(indexB);
   }
 }
 

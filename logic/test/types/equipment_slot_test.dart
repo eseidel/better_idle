@@ -137,8 +137,11 @@ void main() {
     });
 
     group('id parsing', () {
-      test('parses namespaced id (from patch)', () {
-        // Patches use full namespaced IDs
+      test('parses namespaced id and ignores namespace parameter', () {
+        // When MelvorData merges a patch, it passes the existing slot's
+        // namespaced ID (e.g., 'melvorD:Passive') in the merged JSON.
+        // The fromJson should use MelvorId.fromJson for these, ignoring the
+        // namespace parameter entirely.
         final json = <String, dynamic>{
           'id': 'melvorD:Passive',
           'allowQuantity': false,
@@ -148,9 +151,12 @@ void main() {
           'gridPosition': {'col': 1, 'row': 0},
         };
 
+        // Pass a different namespace to verify it's ignored
         final slot = EquipmentSlotDef.fromJson(json, namespace: 'melvorFull');
 
-        // Should use the namespaced ID from JSON, not the passed namespace
+        // Should use melvorD from the ID, not melvorFull from parameter
+        expect(slot.id.namespace, 'melvorD');
+        expect(slot.id.localId, 'Passive');
         expect(slot.id.toJson(), 'melvorD:Passive');
         expect(slot.slot, EquipmentSlot.passive);
       });
