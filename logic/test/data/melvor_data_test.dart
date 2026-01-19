@@ -9,6 +9,15 @@ Map<String, dynamic> _createDemoData() {
   return {
     'namespace': 'melvorD',
     'data': {
+      // Minimal randomGems for DropsRegistry
+      'randomGems': [
+        {
+          'itemID': 'melvorD:Topaz',
+          'minQuantity': 1,
+          'maxQuantity': 1,
+          'weight': 1,
+        },
+      ],
       // All 19 equipment slots must be defined for the registry to validate
       'equipmentSlots': [
         {

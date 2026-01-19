@@ -3,6 +3,7 @@ import 'dart:math';
 import 'package:logic/src/action_state.dart';
 import 'package:logic/src/data/action_id.dart';
 import 'package:logic/src/data/melvor_id.dart';
+import 'package:logic/src/data/mining.dart';
 import 'package:logic/src/tick.dart';
 import 'package:logic/src/types/drop.dart';
 import 'package:logic/src/types/modifier_names.dart';
@@ -341,9 +342,12 @@ class SkillAction extends Action {
 }
 
 class DropsRegistry {
-  DropsRegistry(this._skillDrops);
+  DropsRegistry(this._skillDrops, {required this.miningGems});
 
   final Map<Skill, List<Droppable>> _skillDrops;
+
+  /// The gem drop for mining (only applies to rocks with giveGems: true).
+  final Droppable miningGems;
 
   /// Returns all skill-level drops for a given skill.
   List<Droppable> forSkill(Skill skill) {
@@ -363,7 +367,7 @@ class DropsRegistry {
     return [
       ...action.rewardsForSelection(selection),
       ...forSkill(action.skill), // Skill-level drops (may include DropTables)
-      // Missing global drops.
+      if (action is MiningAction && action.giveGems) miningGems,
     ];
   }
 }

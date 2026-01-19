@@ -8,6 +8,7 @@ import 'package:logic/src/data/melvor_id.dart';
 import 'package:logic/src/data/shop.dart';
 import 'package:logic/src/data/summoning_synergy.dart';
 import 'package:logic/src/data/township.dart';
+import 'package:logic/src/types/drop.dart';
 import 'package:logic/src/types/equipment_slot.dart';
 import 'package:logic/src/types/mastery.dart';
 import 'package:logic/src/types/mastery_unlock.dart';
@@ -72,7 +73,10 @@ class Registries {
     // instances without needing skill-specific subclasses.
     return Registries._test(
       items: ItemRegistry(items),
-      drops: DropsRegistry({}),
+      drops: DropsRegistry(
+        {},
+        miningGems: const Drop(MelvorId('test:Gem'), rate: 0),
+      ),
       equipmentSlots: const EquipmentSlotRegistry.empty(),
       shop: shop ?? ShopRegistry(const [], const []),
       masteryBonuses: masteryBonuses ?? MasteryBonusRegistry([]),

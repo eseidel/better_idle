@@ -82,7 +82,7 @@ void main() {
   });
 
   group('allDropsForAction', () {
-    test('mining actions include gem drops from miningGemTable', () {
+    test('ore mining actions include gem drops (giveGems: true)', () {
       final drops = testDrops.allDropsForAction(
         copperMining,
         const NoSelectedRecipe(),
@@ -95,7 +95,7 @@ void main() {
       expect(
         hasGemTable,
         isTrue,
-        reason: 'Mining actions should include gem drop table',
+        reason: 'Ore mining actions should include gem drop table',
       );
 
       // Verify gems appear in expectedItems
@@ -113,7 +113,49 @@ void main() {
       expect(
         hasAnyGem,
         isTrue,
-        reason: 'Mining drops should include gems from miningGemTable',
+        reason: 'Ore mining drops should include gems from miningGemTable',
+      );
+    });
+
+    test('essence mining does not include gem drops (giveGems: false)', () {
+      final runeEssence = testRegistries.miningAction('Rune Essence');
+
+      // Verify the action has giveGems: false
+      expect(
+        runeEssence.giveGems,
+        isFalse,
+        reason: 'Rune Essence should have giveGems: false',
+      );
+
+      final drops = testDrops.allDropsForAction(
+        runeEssence,
+        const NoSelectedRecipe(),
+      );
+
+      // Check that no gem drop table is included
+      final hasGemTable = drops.any(
+        (d) => d is DropChance && d.child is DropTable,
+      );
+      expect(
+        hasGemTable,
+        isFalse,
+        reason: 'Essence mining should NOT include gem drop table',
+      );
+
+      // Verify no gems appear in expectedItems
+      final allExpectedItems = expectedItemsForDrops(drops);
+      final gemIds = [
+        const MelvorId('melvorD:Topaz'),
+        const MelvorId('melvorD:Sapphire'),
+        const MelvorId('melvorD:Ruby'),
+        const MelvorId('melvorD:Emerald'),
+        const MelvorId('melvorD:Diamond'),
+      ];
+      final hasAnyGem = gemIds.any(allExpectedItems.containsKey);
+      expect(
+        hasAnyGem,
+        isFalse,
+        reason: 'Essence mining drops should NOT include any gems',
       );
     });
   });

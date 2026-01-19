@@ -1155,9 +1155,8 @@ DropTable? parseRandomGems(List<Map<String, dynamic>> dataFiles) {
 /// Parses all skill-level drops from multiple JSON sources.
 /// Returns a map from Skill to list of Droppable items.
 Map<Skill, List<Droppable>> parseSkillDrops(
-  Map<String, List<SkillDataEntry>> skillDataById, {
-  required DropTable? randomGems,
-}) {
+  Map<String, List<SkillDataEntry>> skillDataById,
+) {
   final result = <Skill, List<Droppable>>{};
 
   for (final entry in skillDataById.entries) {
@@ -1301,14 +1300,9 @@ Map<Skill, List<Droppable>> parseSkillDrops(
     }
   }
 
-  // Add mining gems from the global randomGems table
-  // Wrapped in DropChance with 1% trigger rate
-  if (randomGems != null) {
-    result[Skill.mining] = [
-      ...result[Skill.mining] ?? [],
-      DropChance(randomGems, rate: 0.01),
-    ];
-  }
+  // Note: Mining gems are NOT added here as a skill-level drop.
+  // They are handled separately in DropsRegistry and only applied to
+  // rocks with giveGems: true (ores give gems, essence does not).
 
   return result;
 }
@@ -1319,6 +1313,14 @@ DropsRegistry buildDropsRegistry(
   List<Map<String, dynamic>> dataFiles,
 ) {
   final randomGems = parseRandomGems(dataFiles);
-  final skillDrops = parseSkillDrops(skillDataById, randomGems: randomGems);
-  return DropsRegistry(skillDrops);
+  if (randomGems == null) {
+    throw StateError('randomGems data missing from game data');
+  }
+  final skillDrops = parseSkillDrops(skillDataById);
+
+  // Mining gems: 1% chance to roll the gem table, only for rocks with
+  // giveGems: true (ores give gems, essence does not).
+  final miningGems = DropChance(randomGems, rate: 0.01);
+
+  return DropsRegistry(skillDrops, miningGems: miningGems);
 }
