@@ -82,7 +82,7 @@ ConsumeUntilResult consumeUntil(
     );
   }
 
-  final originalActivityId = state.activeAction?.id;
+  final originalActivityId = state.currentActionId;
   final registries = state.registries;
   var totalTicksElapsed = 0;
   var deathCount = 0;

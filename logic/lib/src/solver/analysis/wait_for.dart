@@ -22,9 +22,9 @@ import 'package:meta/meta.dart';
 /// Returns null if no immediate boundary exists and normal estimation can
 /// proceed.
 int? _checkImmediateBoundary(GlobalState state) {
-  final active = state.activeAction;
-  if (active != null) {
-    final action = state.registries.actionById(active.id);
+  final activeActionId = state.currentActionId;
+  if (activeActionId != null) {
+    final action = state.registries.actionById(activeActionId);
     if (!state.canStartAction(action)) {
       return 0; // Immediate stop - can't make progress
     }
@@ -92,7 +92,7 @@ sealed class WaitFor extends Equatable {
   ///
   /// Subclasses that track inventory items should check for immediate
   /// boundaries before computing the normal estimate:
-  /// 1. If `state.activeAction` exists but `!state.canStartAction(action)`,
+  /// 1. If `state.currentActionId` exists but `!state.canStartAction(action)`,
   ///    return 0 (action can't make progress).
   /// 2. If `state.inventoryRemaining <= 0`, return 0 (inventory full).
   /// 3. If `rates.itemTypesPerTick > 0`, cap by time to inventory full.

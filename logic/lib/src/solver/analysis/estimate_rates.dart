@@ -366,12 +366,12 @@ Map<MelvorId, double> _computeItemFlowsPerAction(
 /// Note: This function reports **flows** without assuming any valuation
 /// policy. Use a [ValueModel] to convert flows into a scalar value.
 Rates estimateRates(GlobalState state) {
-  final activeAction = state.activeAction;
-  if (activeAction == null) {
+  final activeActionId = state.currentActionId;
+  if (activeActionId == null) {
     return Rates.empty;
   }
 
-  final action = state.registries.actionById(activeAction.id);
+  final action = state.registries.actionById(activeActionId);
 
   // Only skill actions have predictable rates
   if (action is! SkillAction) {

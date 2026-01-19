@@ -130,8 +130,8 @@ void main() {
       final state = GlobalState.test(testRegistries);
       final random = Random(0);
       final newState = state.startAction(normalTree, random: random);
-      expect(newState.activeAction, isNotNull);
-      expect(newState.activeAction!.id, normalTree.id);
+      expect(newState.activeActivity, isNotNull);
+      expect(newState.currentActionId, normalTree.id);
     });
 
     test('clearAction works when not stunned', () {
@@ -145,7 +145,7 @@ void main() {
         ),
       );
       final newState = state.clearAction();
-      expect(newState.activeAction, isNull);
+      expect(newState.activeActivity, isNull);
     });
 
     test('shouldTick returns true when stunned', () {

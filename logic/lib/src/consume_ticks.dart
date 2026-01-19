@@ -425,13 +425,15 @@ void _applyPassiveCookingTicks(
   if (activeActionId == null) return;
 
   final registries = builder.state.registries;
-  final activeAction = registries.actionById(activeActionId);
+  final currentAction = registries.actionById(activeActionId);
 
   // If not cooking, passive cooking doesn't run
-  if (activeAction is! CookingAction) return;
+  if (currentAction is! CookingAction) return;
 
   final cookingState = builder.state.cooking;
-  final activeCookingArea = CookingArea.fromCategoryId(activeAction.categoryId);
+  final activeCookingArea = CookingArea.fromCategoryId(
+    currentAction.categoryId,
+  );
 
   // Process each non-active cooking area
   for (final (area, areaState) in cookingState.allAreas) {
@@ -498,7 +500,7 @@ class StateUpdateBuilder {
   }
 
   void setActionProgress(Action action, {required int remainingTicks}) {
-    _state = _state.updateActiveAction(
+    _state = _state.updateActiveActivity(
       action.id,
       remainingTicks: remainingTicks,
     );
@@ -525,13 +527,16 @@ class StateUpdateBuilder {
         ),
       );
     } else {
-      // Fallback to legacy approach for non-dungeon combat.
+      // Non-dungeon combat - create a new CombatActivity
       _state = _state.copyWith(
-        // Using deprecated activeAction until all combat code is migrated.
-        // ignore: deprecated_member_use_from_same_package
-        activeAction: ActiveAction(
-          id: action.id,
-          remainingTicks: remainingTicks,
+        activeActivity: CombatActivity(
+          context: MonsterCombatContext(monsterId: action.id.localId),
+          progress: const CombatProgressState(
+            monsterHp: 0, // Will be set by caller via updateCombatState
+            playerAttackTicksRemaining: 0,
+            monsterAttackTicksRemaining: 0,
+          ),
+          progressTicks: totalTicks - remainingTicks,
           totalTicks: totalTicks,
         ),
       );
@@ -1045,12 +1050,13 @@ class StateUpdateBuilder {
     }
 
     // 1. Foreground action completion
-    final activeAction = _state.activeAction;
-    if (activeAction != null) {
-      updateMin(activeAction.remainingTicks);
+    final activeActivity = _state.activeActivity;
+    final activeActionId = _state.currentActionId;
+    if (activeActivity != null) {
+      updateMin(activeActivity.remainingTicks);
 
       // Combat timers (if in combat)
-      final combatState = _state.actionState(activeAction.id).combat;
+      final combatState = _state.actionState(activeActionId!).combat;
       if (combatState != null) {
         updateMin(combatState.spawnTicksRemaining);
         if (!combatState.isSpawning) {
@@ -1099,8 +1105,8 @@ class StateUpdateBuilder {
     }
 
     // 7. Passive cooking timers (only when actively cooking)
-    if (activeAction != null) {
-      final action = registries.actionById(activeAction.id);
+    if (activeActionId != null) {
+      final action = registries.actionById(activeActionId);
       if (action is CookingAction) {
         final activeCookingArea = CookingArea.fromCategoryId(action.categoryId);
         for (final (area, areaState) in _state.cooking.allAreas) {
@@ -1523,8 +1529,8 @@ enum ForegroundResult {
   Tick ticksAvailable,
   Random random,
 ) {
-  var currentAction = builder.state.activeAction;
-  if (currentAction == null) {
+  var currentActivity = builder.state.activeActivity;
+  if (currentActivity == null) {
     return (ForegroundResult.stopped, 0);
   }
 
@@ -1542,12 +1548,12 @@ enum ForegroundResult {
   // If action completed (remainingTicks=0), stun just cleared - restart it.
   // This happens when an action (e.g., thieving) completed but was stunned,
   // leaving it at remainingTicks=0 until stun cleared.
-  if (currentAction.remainingTicks == 0) {
+  if (currentActivity.remainingTicks == 0) {
     builder.restartCurrentAction(action, random: random);
-    currentAction = builder.state.activeAction;
+    currentActivity = builder.state.activeActivity;
   }
-  if (currentAction == null) {
-    throw StateError('Active action is null');
+  if (currentActivity == null) {
+    throw StateError('Active activity is null');
   }
 
   // For mining, handle respawn waiting (blocking foreground behavior)
@@ -1573,8 +1579,8 @@ enum ForegroundResult {
   }
 
   // Process action progress
-  final ticksToApply = min(ticksAvailable, currentAction.remainingTicks);
-  final newRemainingTicks = currentAction.remainingTicks - ticksToApply;
+  final ticksToApply = min(ticksAvailable, currentActivity.remainingTicks);
+  final newRemainingTicks = currentActivity.remainingTicks - ticksToApply;
   builder
     ..setActionProgress(action, remainingTicks: newRemainingTicks)
     ..addActionTicks(action.id, ticksToApply);
@@ -1660,12 +1666,12 @@ enum ForegroundResult {
   Tick ticksAvailable,
   Random random,
 ) {
-  final activeAction = builder.state.activeAction;
-  if (activeAction == null) {
+  final activeActionId = builder.state.currentActionId;
+  if (activeActionId == null) {
     return (ForegroundResult.stopped, 0);
   }
 
-  final combatState = builder.state.actionState(activeAction.id).combat;
+  final combatState = builder.state.actionState(activeActionId).combat;
   if (combatState == null) {
     return (ForegroundResult.stopped, 0);
   }
@@ -1691,14 +1697,14 @@ enum ForegroundResult {
         dungeonId: currentCombat.dungeonId,
         dungeonMonsterIndex: currentCombat.dungeonMonsterIndex,
       );
-      builder.updateCombatState(activeAction.id, currentCombat);
+      builder.updateCombatState(activeActionId, currentCombat);
       return (ForegroundResult.continued, spawnTicks);
     } else {
       // Still waiting for spawn
       currentCombat = currentCombat.copyWith(
         spawnTicksRemaining: spawnTicks - remainingTicks,
       );
-      builder.updateCombatState(activeAction.id, currentCombat);
+      builder.updateCombatState(activeActionId, currentCombat);
       return (ForegroundResult.continued, remainingTicks);
     }
   }
@@ -1714,7 +1720,7 @@ enum ForegroundResult {
       playerAttackTicksRemaining: playerTicks - remainingTicks,
       monsterAttackTicksRemaining: monsterTicks - remainingTicks,
     );
-    builder.updateCombatState(activeAction.id, currentCombat);
+    builder.updateCombatState(activeActionId, currentCombat);
     return (ForegroundResult.continued, remainingTicks);
   }
 
@@ -1722,7 +1728,7 @@ enum ForegroundResult {
   final ticksConsumed = nextEventTicks;
   final newPlayerTicks = playerTicks - nextEventTicks;
   final newMonsterTicks = monsterTicks - nextEventTicks;
-  builder.addActionTicks(activeAction.id, ticksConsumed);
+  builder.addActionTicks(activeActionId, ticksConsumed);
 
   // Process player attack if ready
   var monsterHp = currentCombat.monsterHp;
@@ -1851,7 +1857,7 @@ enum ForegroundResult {
       monsterAttackTicksRemaining: fullMonsterAttackTicks,
       spawnTicksRemaining: ticksFromDuration(monsterSpawnDuration),
     );
-    builder.updateCombatState(activeAction.id, currentCombat);
+    builder.updateCombatState(activeActionId, currentCombat);
     return (ForegroundResult.continued, ticksConsumed);
   }
 
@@ -1913,7 +1919,7 @@ enum ForegroundResult {
     playerAttackTicksRemaining: resetPlayerTicks,
     monsterAttackTicksRemaining: resetMonsterTicks,
   );
-  builder.updateCombatState(activeAction.id, currentCombat);
+  builder.updateCombatState(activeActionId, currentCombat);
   return (ForegroundResult.continued, ticksConsumed);
 }
 
@@ -1982,14 +1988,14 @@ ConsumeTicksStopReason _consumeTicksCore(
       return ConsumeTicksStopReason.conditionSatisfied;
     }
 
-    final activeAction = builder.state.activeAction;
+    final activeActionId = builder.state.currentActionId;
 
     // 1. Compute current background actions (may change each iteration)
     // Pass active action name so we can exclude respawn handling for it
     // (foreground handles respawn synchronously for the active action)
     final backgroundActions = _getBackgroundActions(
       builder.state,
-      activeActionId: activeAction?.id,
+      activeActionId: activeActionId,
     );
 
     // 2. Determine how many ticks to process this iteration
@@ -1997,9 +2003,9 @@ ConsumeTicksStopReason _consumeTicksCore(
 
     var skipStunCountdown = false;
 
-    if (activeAction != null) {
+    if (activeActionId != null) {
       // Process foreground action until next "event"
-      final action = registries.actionById(activeAction.id);
+      final action = registries.actionById(activeActionId);
       final (foregroundResult, ticksUsed) = _processForegroundAction(
         builder,
         action,
@@ -2035,7 +2041,7 @@ ConsumeTicksStopReason _consumeTicksCore(
       backgroundActions,
       ticksThisIteration,
       random,
-      activeActionId: activeAction?.id,
+      activeActionId: activeActionId,
       skipStunCountdown: skipStunCountdown,
     );
 
@@ -2045,7 +2051,7 @@ ConsumeTicksStopReason _consumeTicksCore(
     // If no foreground action, no mining background actions, and player is
     // fully healed, we're done
     final hasPlayerHpRegen = !builder.state.health.isFullHealth;
-    if (activeAction == null &&
+    if (activeActionId == null &&
         backgroundActions.isEmpty &&
         !hasPlayerHpRegen) {
       return ConsumeTicksStopReason.noProgressPossible;
@@ -2130,11 +2136,11 @@ ConsumeTicksStopReason consumeTicksUntil(
       );
 
   // Build TimeAway with action details if there was an active action
-  final activeAction = state.activeAction;
+  final activeActionId = state.currentActionId;
   // For TimeAway, we only need the action for predictions.
   // Combat actions return empty predictions anyway, so null is fine.
-  final action = activeAction != null
-      ? registries.actionById(activeAction.id)
+  final action = activeActionId != null
+      ? registries.actionById(activeActionId)
       : null;
   // Convert stoppedAtTick to Duration if action stopped
   final stoppedAfter = builder.stoppedAtTick != null

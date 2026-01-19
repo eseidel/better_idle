@@ -734,7 +734,7 @@ void main() {
 
       expect(result.outcome, equals(RecoveryOutcome.recoveredRetry));
       // Activity should be restarted
-      expect(result.state.activeAction?.id, equals(combatAction.id));
+      expect(result.state.currentActionId, equals(combatAction.id));
     });
 
     test('WaitConditionSatisfied signals completion', () {

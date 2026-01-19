@@ -98,7 +98,7 @@ class _BucketKey extends Equatable {
   /// Only tracks skills, HP, mastery, and inventory relevant to the goal.
   factory _BucketKey.fromState(GlobalState state, Goal goal) {
     // Track active action - needed to distinguish states
-    final actionId = state.activeAction?.id;
+    final actionId = state.currentActionId;
     final activityName = actionId != null ? actionId.localId.name : 'none';
 
     // Build skill levels map for only goal-relevant skills
@@ -508,7 +508,7 @@ class _SolverContext {
   buffer.write('gb:$goldBucket|');
 
   // Active action (always tracked for state deduplication)
-  final actionId = state.activeAction?.id;
+  final actionId = state.currentActionId;
   buffer.write('act:${actionId ?? 'none'}|');
 
   // HP bucket - only if goal tracks HP (thieving)

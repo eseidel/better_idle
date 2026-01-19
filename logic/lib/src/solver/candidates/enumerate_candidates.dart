@@ -844,7 +844,7 @@ Candidates enumerateCandidates(
   }
 
   // Per-state filter: exclude current action
-  final currentActionId = state.activeAction?.id;
+  final currentActionId = state.currentActionId;
   if (currentActionId != null) {
     candidateSet.remove(currentActionId);
   }
@@ -902,7 +902,7 @@ Candidates enumerateCandidates(
   // Build list of candidate activity IDs (current + switchTo)
   final candidateActivityIds = <ActionId>[
     ...switchToActivities,
-    if (state.activeAction != null) state.activeAction!.id,
+    ?state.currentActionId,
   ];
 
   // Find the best current rate among all unlocked activities using ranking fn
@@ -1497,7 +1497,7 @@ _ConsumingSkillResult _selectConsumingSkillCandidatesWithStats(
   bool collectStats = false,
 }) {
   final registries = state.registries;
-  final currentActionId = state.activeAction?.id;
+  final currentActionId = state.currentActionId;
 
   // Find all unlocked consumer actions for this consuming skill
   // NOTE: We include the current action to support stickiness - we want to
@@ -1645,7 +1645,7 @@ List<ActionId> _selectUnlockedActivitiesByRanking(
   int count,
   double Function(ActionSummary) rankingFn,
 ) {
-  final currentActionId = state.activeAction?.id;
+  final currentActionId = state.currentActionId;
 
   // Filter to unlocked actions with non-negative ranking, excluding current
   // action. Include zero-ranked actions to support producer skills for

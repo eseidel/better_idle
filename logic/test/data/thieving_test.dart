@@ -438,8 +438,8 @@ void main() {
       // Should NOT be stunned
       expect(newState.isStunned, isFalse);
       // Action should still be active (restarted)
-      expect(newState.activeAction, isNotNull);
-      expect(newState.activeAction!.id, manAction.id);
+      expect(newState.activeActivity, isNotNull);
+      expect(newState.currentActionId, manAction.id);
     });
   });
 
@@ -542,7 +542,7 @@ void main() {
         // Health should be reset
         expect(newState.health.lostHp, 0);
         // Action should be stopped (player died)
-        expect(newState.activeAction, isNull);
+        expect(newState.activeActivity, isNull);
       },
     );
   });
@@ -576,10 +576,10 @@ void main() {
       // Should be stunned
       expect(newState.isStunned, isTrue);
       // Action should still be active (not stopped)
-      expect(newState.activeAction, isNotNull);
-      expect(newState.activeAction!.id, manAction.id);
+      expect(newState.activeActivity, isNotNull);
+      expect(newState.currentActionId, manAction.id);
       // Action timer stays at 0 (completed but waiting for stun to clear)
-      expect(newState.activeAction!.remainingTicks, 0);
+      expect(newState.activeActivity!.remainingTicks, 0);
 
       // Process 15 ticks (half the stun duration)
       final builder2 = StateUpdateBuilder(newState);
@@ -590,7 +590,7 @@ void main() {
       expect(newState.isStunned, isTrue);
       expect(newState.stunned.ticksRemaining, 15);
       // Action timer still at 0 (waiting for stun)
-      expect(newState.activeAction!.remainingTicks, 0);
+      expect(newState.activeActivity!.remainingTicks, 0);
     });
 
     test('thieving continues after stun wears off', () {
@@ -640,7 +640,7 @@ void main() {
       // Stun should be cleared
       expect(newState.isStunned, isFalse);
       // Action should still be active (restarted after stun)
-      expect(newState.activeAction, isNotNull);
+      expect(newState.activeActivity, isNotNull);
 
       // Now process more ticks to complete the action
       final builder2 = StateUpdateBuilder(newState);

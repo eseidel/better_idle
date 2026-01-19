@@ -134,7 +134,7 @@ NextDecisionResult nextDecisionDelta(
   }
 
   // Compute the "intended action" - the action that best advances the goal.
-  // This may differ from state.activeAction (e.g., after a consuming skill
+  // This may differ from state.currentActionId (e.g., after a consuming skill
   // macro ends with producer active, the intent is still the consuming skill).
   final intendedActionId = _computeIntendedAction(state, goal, candidates);
 
@@ -260,7 +260,7 @@ NextDecisionResult nextDecisionDelta(
 
 /// Computes the "intended action" - the action that best advances the goal.
 ///
-/// This may differ from state.activeAction. For example, after a consuming
+/// This may differ from state.currentActionId. For example, after a consuming
 /// skill macro ends with producer active, the intent is still the consuming
 /// skill (firemaking), not the producer (woodcutting).
 ///
@@ -270,7 +270,7 @@ ActionId? _computeIntendedAction(
   Goal goal,
   Candidates candidates,
 ) {
-  final activeActionId = state.activeAction?.id;
+  final activeActionId = state.currentActionId;
 
   // For single skill goals, find the best action for that skill
   if (goal is ReachSkillLevelGoal) {
@@ -382,7 +382,7 @@ _DeltaCandidate? _deltaUntilGoalWithWaitFor(
   if (progressRate <= 0) return null;
   if (goal.isSatisfied(state)) return null;
 
-  final actionId = state.activeAction?.id;
+  final actionId = state.currentActionId;
   if (actionId == null) return null;
 
   final registries = state.registries;
@@ -548,7 +548,7 @@ _DeltaCandidate? _deltaUntilNextSkillLevel(
   Candidates candidates,
 ) {
   // Find which skill is being trained
-  final actionId = state.activeAction?.id;
+  final actionId = state.currentActionId;
   if (actionId == null) return null;
 
   final registries = state.registries;

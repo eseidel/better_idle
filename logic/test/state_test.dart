@@ -105,8 +105,8 @@ void main() {
     expect(items[1].item, oakLogs);
     expect(items[1].count, 3);
 
-    expect(loaded.activeAction?.id, normalTree.id);
-    expect(loaded.activeAction?.progressTicks, 15);
+    expect(loaded.currentActionId, normalTree.id);
+    expect(loaded.activeActivity?.progressTicks, 15);
 
     expect(loaded.skillStates.length, 1);
     expect(loaded.skillStates[Skill.woodcutting]?.xp, 100);
@@ -167,7 +167,7 @@ void main() {
     final clearedState = stateWithAction.clearAction();
 
     // Verify activeAction is null
-    expect(clearedState.activeAction, isNull);
+    expect(clearedState.activeActivity, isNull);
   });
 
   test('GlobalState clearTimeAway clears timeAway', () {

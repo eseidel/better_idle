@@ -194,8 +194,7 @@ class WaitStep extends PlanStep {
   }) {
     var waitState = state;
     // Switch to expected action if specified and not already active
-    if (expectedAction != null &&
-        waitState.activeAction?.id != expectedAction) {
+    if (expectedAction != null && waitState.currentActionId != expectedAction) {
       // Check if we can start the expected action (inputs available)
       final action = state.registries.actionById(expectedAction!);
       if (state.canStartAction(action)) {

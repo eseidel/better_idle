@@ -307,7 +307,7 @@ class TrainSkillUntil extends MacroCandidate {
 
     // Switch to that action (if not already on it)
     var currentState = state;
-    if (state.activeAction?.id != bestAction) {
+    if (state.currentActionId != bestAction) {
       currentState = applyInteractionDeterministic(
         state,
         SwitchActivity(bestAction),
@@ -393,7 +393,7 @@ class TrainSkillUntil extends MacroCandidate {
 
     // Switch to action if needed
     var state = context.state;
-    if (actionToUse != null && state.activeAction?.id != actionToUse) {
+    if (actionToUse != null && state.currentActionId != actionToUse) {
       state = applyInteraction(
         state,
         SwitchActivity(actionToUse),
@@ -574,7 +574,7 @@ class AcquireItem extends MacroCandidate {
     }
 
     // Switch to producer action if needed
-    if (state.activeAction?.id != producer) {
+    if (state.currentActionId != producer) {
       state = applyInteraction(
         state,
         SwitchActivity(producer),
@@ -866,7 +866,7 @@ class EnsureStock extends MacroCandidate {
       }
 
       // Switch to producer action if needed
-      if (state.activeAction?.id != producer) {
+      if (state.currentActionId != producer) {
         try {
           state = applyInteraction(
             state,
@@ -1014,7 +1014,7 @@ class ProduceItem extends MacroCandidate {
     var totalDeaths = 0;
 
     // Switch to the producer action specified in the macro
-    if (state.activeAction?.id != actionId) {
+    if (state.currentActionId != actionId) {
       try {
         state = applyInteraction(
           state,
@@ -1776,7 +1776,7 @@ class StopWhenInputsDepleted extends MacroStopRule {
   @override
   WaitFor toWaitFor(GlobalState state, Map<Skill, SkillBoundaries> boundaries) {
     // Use the currently active action, which may have changed since planning
-    final activeActionId = state.activeAction?.id;
+    final activeActionId = state.currentActionId;
     if (activeActionId == null) {
       // No active action - this should never happen during macro execution
       // but return a no-op condition as fallback

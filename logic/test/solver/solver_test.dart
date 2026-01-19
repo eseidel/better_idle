@@ -38,7 +38,7 @@ void main() {
 
       final newState = applyInteraction(state, interaction, random: Random(0));
 
-      expect(newState.activeAction?.id, action.id);
+      expect(newState.currentActionId, action.id);
     });
 
     test('SwitchActivity clears existing action first', () {
@@ -52,7 +52,7 @@ void main() {
 
       final newState = applyInteraction(state, interaction, random: Random(0));
 
-      expect(newState.activeAction?.id, action.id);
+      expect(newState.currentActionId, action.id);
     });
 
     test('BuyShopItem purchases an upgrade', () {
@@ -157,8 +157,8 @@ void main() {
       final result = advanceDeterministic(state, 0);
 
       expect(
-        result.state.activeAction?.remainingTicks,
-        state.activeAction?.remainingTicks,
+        result.state.activeActivity?.remainingTicks,
+        state.activeActivity?.remainingTicks,
       );
     });
   });
@@ -524,8 +524,8 @@ void main() {
       final result = advanceDeterministic(state, ticksToDeath! + 1000);
 
       // Activity should continue (continuous model doesn't stop on death)
-      expect(result.state.activeAction, isNotNull);
-      expect(result.state.activeAction!.id, action.id);
+      expect(result.state.activeActivity, isNotNull);
+      expect(result.state.currentActionId, action.id);
       // Deaths should be tracked based on how many cycles occurred
       expect(result.deaths, greaterThan(0));
     });
@@ -544,8 +544,8 @@ void main() {
         final result = advanceDeterministic(state, ticksToDeath * 5);
 
         // Activity should still be running (continuous model)
-        expect(result.state.activeAction, isNotNull);
-        expect(result.state.activeAction!.id, action.id);
+        expect(result.state.activeActivity, isNotNull);
+        expect(result.state.currentActionId, action.id);
         // Should track approximately 5 deaths
         expect(result.deaths, equals(5));
       },
@@ -744,7 +744,7 @@ void main() {
         ticksElapsed += 1000;
 
         // Restart activity if it was stopped by death
-        if (simState.activeAction == null) {
+        if (simState.activeActivity == null) {
           simState = simState.startAction(action, random: random);
         }
       }

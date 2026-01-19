@@ -50,7 +50,7 @@ bool _canSell(GlobalState state) {
 /// Returns SwitchActivity interactions for all unlocked actions
 /// that are not the current action.
 List<SwitchActivity> _availableActivitySwitches(GlobalState state) {
-  final currentActionId = state.activeAction?.id;
+  final currentActionId = state.currentActionId;
   final switches = <SwitchActivity>[];
   final registries = state.registries;
 

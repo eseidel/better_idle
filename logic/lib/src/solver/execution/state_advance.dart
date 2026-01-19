@@ -65,10 +65,10 @@ typedef AdvanceResult = ({GlobalState state, int deaths});
 /// Checks if an activity can be modeled with expected-value rates.
 /// Returns true for non-combat skill activities (including consuming actions).
 bool _isRateModelable(GlobalState state) {
-  final activeAction = state.activeAction;
-  if (activeAction == null) return false;
+  final activeActionId = state.currentActionId;
+  if (activeActionId == null) return false;
 
-  final action = state.registries.actionById(activeAction.id);
+  final action = state.registries.actionById(activeActionId);
 
   // Only skill actions (non-combat) are rate-modelable
   if (action is! SkillAction) return false;

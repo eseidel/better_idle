@@ -23,7 +23,7 @@
 /// ## Filtering
 ///
 /// The cached `Candidates` is a **superset**. When retrieved, we filter:
-/// - `switchToActivities`: remove current `activeActionId`
+/// - `switchToActivities`: remove current `currentActionId`
 ///
 /// This ensures high cache hit rates while maintaining correctness.
 library;
@@ -71,7 +71,7 @@ class CandidateCache {
     // Compute with cleared active action to get the full superset.
     // enumerateCandidates excludes the active action, so we need to clear it
     // to cache the full set of candidates.
-    final stateForCompute = state.activeAction != null
+    final stateForCompute = state.activeActivity != null
         ? state.clearAction()
         : state;
     final result = computeForState(stateForCompute);
@@ -84,7 +84,7 @@ class CandidateCache {
   ///
   /// Removes the current active action from switchToActivities.
   Candidates _filterCandidates(Candidates candidates, GlobalState state) {
-    final activeActionId = state.activeAction?.id;
+    final activeActionId = state.currentActionId;
 
     // Fast path: no active action, no filtering needed
     if (activeActionId == null) {

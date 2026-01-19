@@ -1037,7 +1037,7 @@ void main() {
           );
 
           // Execution should have switched to woodcutting action
-          expect(result.state.activeAction, isNotNull);
+          expect(result.state.activeActivity, isNotNull);
           // And produced logs
           final logsCount = result.state.inventory.countOfItem(
             testItems.byName('Normal Logs'),
@@ -1320,7 +1320,7 @@ void main() {
           );
 
           // Should have switched to woodcutting and produced logs
-          expect(result.state.activeAction, isNotNull);
+          expect(result.state.activeActivity, isNotNull);
           final logsCount = result.state.inventory.countOfItem(
             testItems.byName('Normal Logs'),
           );
@@ -1865,7 +1865,7 @@ void main() {
           );
 
           // Should have switched to mining and produced ore
-          expect(result.state.activeAction?.id, miningAction.id);
+          expect(result.state.currentActionId, miningAction.id);
           final oreCount = result.state.inventory.countOfItem(
             testItems.byName('Copper Ore'),
           );
@@ -1897,7 +1897,7 @@ void main() {
           );
 
           // Should have switched to tin mining specifically
-          expect(result.state.activeAction?.id, miningAction.id);
+          expect(result.state.currentActionId, miningAction.id);
           final oreCount = result.state.inventory.countOfItem(
             testItems.byName('Tin Ore'),
           );

@@ -100,7 +100,7 @@ GlobalState _applySwitchActivity(
 
   // Clear current action if any (and not stunned)
   var newState = state;
-  if (state.activeAction != null && !state.isStunned) {
+  if (state.activeActivity != null && !state.isStunned) {
     newState = state.clearAction();
   }
 
@@ -117,7 +117,7 @@ GlobalState _applySwitchActivityDeterministic(
 
   // Clear current action if any (and not stunned)
   var newState = state;
-  if (state.activeAction != null && !state.isStunned) {
+  if (state.activeActivity != null && !state.isStunned) {
     newState = state.clearAction();
   }
 
