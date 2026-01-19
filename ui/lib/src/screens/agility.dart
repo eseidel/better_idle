@@ -28,13 +28,12 @@ class _AgilityPageState extends State<AgilityPage> {
     final registries = context.state.registries;
 
     // Get all agility obstacles from the registry, sorted by category then name
-    final obstacles =
-        registries.agility.obstacles.toList()
-          ..sort((AgilityObstacle a, AgilityObstacle b) {
-            final catCompare = a.category.compareTo(b.category);
-            if (catCompare != 0) return catCompare;
-            return a.name.compareTo(b.name);
-          });
+    final obstacles = registries.agility.obstacles.toList()
+      ..sort((AgilityObstacle a, AgilityObstacle b) {
+        final catCompare = a.category.compareTo(b.category);
+        if (catCompare != 0) return catCompare;
+        return a.name.compareTo(b.name);
+      });
 
     // Group obstacles by category
     final obstaclesByCategory = <int, List<AgilityObstacle>>{};

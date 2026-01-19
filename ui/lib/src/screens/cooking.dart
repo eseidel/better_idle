@@ -86,8 +86,10 @@ class _CookingAreaCardState extends State<_CookingAreaCard> {
         state.registries.cooking.actions
             .where((a) => a.categoryId?.localId == area.name.capitalize())
             .toList()
-          ..sort((CookingAction a, CookingAction b) =>
-              a.unlockLevel.compareTo(b.unlockLevel));
+          ..sort(
+            (CookingAction a, CookingAction b) =>
+                a.unlockLevel.compareTo(b.unlockLevel),
+          );
 
     // Get unlocked recipes
     final unlockedRecipes = recipes
