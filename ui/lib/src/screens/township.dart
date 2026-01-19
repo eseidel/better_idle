@@ -1,6 +1,6 @@
 import 'package:better_idle/src/logic/redux_actions.dart';
 import 'package:better_idle/src/widgets/cached_image.dart';
-import 'package:better_idle/src/widgets/navigation_drawer.dart';
+import 'package:better_idle/src/widgets/game_scaffold.dart';
 import 'package:better_idle/src/widgets/skill_progress.dart';
 import 'package:better_idle/src/widgets/style.dart';
 import 'package:flutter/material.dart';
@@ -37,29 +37,26 @@ class _TownshipPageState extends State<TownshipPage> {
   Widget build(BuildContext context) {
     return DefaultTabController(
       length: 2,
-      child: Scaffold(
-        appBar: AppBar(
-          title: const Text('Township'),
-          bottom: const TabBar(
-            tabs: [
-              Tab(
-                icon: CachedImage(
-                  assetPath: 'assets/media/skills/township/menu_town.png',
-                  size: 24,
-                ),
-                text: 'Town',
+      child: GameScaffold(
+        title: const Text('Township'),
+        bottom: const TabBar(
+          tabs: [
+            Tab(
+              icon: CachedImage(
+                assetPath: 'assets/media/skills/township/menu_town.png',
+                size: 24,
               ),
-              Tab(
-                icon: CachedImage(
-                  assetPath: 'assets/media/skills/township/menu_tasks.png',
-                  size: 24,
-                ),
-                text: 'Tasks',
+              text: 'Town',
+            ),
+            Tab(
+              icon: CachedImage(
+                assetPath: 'assets/media/skills/township/menu_tasks.png',
+                size: 24,
               ),
-            ],
-          ),
+              text: 'Tasks',
+            ),
+          ],
         ),
-        drawer: const AppNavigationDrawer(),
         body: StoreConnector<GlobalState, TownshipViewModel>(
           converter: (store) => TownshipViewModel(store.state),
           builder: (context, viewModel) {

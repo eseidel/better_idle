@@ -1,11 +1,11 @@
 import 'package:better_idle/src/logic/redux_actions.dart';
 import 'package:better_idle/src/widgets/cached_image.dart';
 import 'package:better_idle/src/widgets/context_extensions.dart';
+import 'package:better_idle/src/widgets/game_scaffold.dart';
 import 'package:better_idle/src/widgets/input_items_row.dart';
 import 'package:better_idle/src/widgets/item_image.dart';
 import 'package:better_idle/src/widgets/mastery_pool.dart';
 import 'package:better_idle/src/widgets/mastery_unlocks_dialog.dart';
-import 'package:better_idle/src/widgets/navigation_drawer.dart';
 import 'package:better_idle/src/widgets/shard_purchase_dialog.dart';
 import 'package:better_idle/src/widgets/skill_action_display.dart';
 import 'package:better_idle/src/widgets/skill_image.dart';
@@ -69,30 +69,27 @@ class _SummoningPageState extends State<SummoningPage>
         _selectedAction ??
         (unlockedActions.isNotEmpty ? unlockedActions.first : actions.first);
 
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Summoning'),
-        bottom: TabBar(
-          controller: _tabController,
-          tabs: const [
-            Tab(
-              icon: CachedImage(
-                assetPath: 'assets/media/skills/summoning/mark_4_256.png',
-                size: 24,
-              ),
-              text: 'Marks',
+    return GameScaffold(
+      title: const Text('Summoning'),
+      bottom: TabBar(
+        controller: _tabController,
+        tabs: const [
+          Tab(
+            icon: CachedImage(
+              assetPath: 'assets/media/skills/summoning/mark_4_256.png',
+              size: 24,
             ),
-            Tab(
-              icon: CachedImage(
-                assetPath: 'assets/media/skills/summoning/summoning.png',
-                size: 24,
-              ),
-              text: 'Tablets',
+            text: 'Marks',
+          ),
+          Tab(
+            icon: CachedImage(
+              assetPath: 'assets/media/skills/summoning/summoning.png',
+              size: 24,
             ),
-          ],
-        ),
+            text: 'Tablets',
+          ),
+        ],
       ),
-      drawer: const AppNavigationDrawer(),
       body: Column(
         children: [
           SkillProgress(xp: skillState.xp),
@@ -216,6 +213,7 @@ class _MarkCard extends StatelessWidget {
     final marks = summoningState.marksFor(action.productId);
     final markLevel = summoningState.markLevel(action.productId);
     final canCraft = summoningState.canCraftTablet(action.productId);
+    final isDiscovered = summoningState.isDiscovered(action.productId);
     final maxMarkLevel = markLevelThresholds.length;
 
     // Calculate progress to next mark level
@@ -244,40 +242,70 @@ class _MarkCard extends StatelessWidget {
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                 decoration: BoxDecoration(
-                  color: marks > 0
+                  color: isDiscovered
                       ? Colors.amber.withAlpha(50)
                       : Style.containerBackgroundLight,
                   borderRadius: BorderRadius.circular(4),
                 ),
                 child: Text(
-                  'Mark Level $markLevel',
+                  isDiscovered ? 'Mark Level $markLevel' : 'Not Discovered',
                   style: TextStyle(
                     fontSize: 12,
                     fontWeight: FontWeight.bold,
-                    color: marks > 0 ? Colors.amber : Style.textColorSecondary,
+                    color: isDiscovered
+                        ? Colors.amber
+                        : Style.textColorSecondary,
                   ),
                 ),
               ),
               const SizedBox(height: 8),
               // "Mark of the" label
-              const Text(
-                'Mark of the',
-                style: TextStyle(fontSize: 10, color: Style.textColorSecondary),
-              ),
-              // Familiar name
               Text(
-                action.name,
-                textAlign: TextAlign.center,
+                isDiscovered ? 'Mark of the' : 'Unknown Mark',
                 style: const TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.bold,
+                  fontSize: 10,
+                  color: Style.textColorSecondary,
                 ),
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
               ),
+              // Familiar name (hidden if not discovered)
+              if (isDiscovered)
+                Text(
+                  action.name,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.bold,
+                  ),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                )
+              else
+                const Text(
+                  '???',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.bold,
+                    color: Style.textColorSecondary,
+                  ),
+                ),
               const SizedBox(height: 8),
-              // Mark image
-              if (action.markMedia != null)
+              // Mark image (show ? if not discovered)
+              if (!isDiscovered)
+                Container(
+                  width: 48,
+                  height: 48,
+                  decoration: BoxDecoration(
+                    color: Style.containerBackgroundLight,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: const Icon(
+                    Icons.help_outline,
+                    size: 32,
+                    color: Style.textColorSecondary,
+                  ),
+                )
+              else if (action.markMedia != null)
                 CachedImage(assetPath: action.markMedia, size: 48)
               else
                 Container(
@@ -299,7 +327,7 @@ class _MarkCard extends StatelessWidget {
                     value: progress,
                     backgroundColor: Style.progressBackgroundColor,
                     valueColor: AlwaysStoppedAnimation<Color>(
-                      marks == 0 ? Style.textColorSecondary : Colors.amber,
+                      isDiscovered ? Colors.amber : Style.textColorSecondary,
                     ),
                   ),
                 ),
@@ -510,8 +538,6 @@ class _SummoningActionDisplay extends StatelessWidget {
     int marks,
     int markLevel,
   ) {
-    final productItem = context.state.registries.items.byId(action.productId);
-
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -522,18 +548,35 @@ class _SummoningActionDisplay extends StatelessWidget {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          ItemImage(item: productItem, size: 48),
+          Container(
+            width: 48,
+            height: 48,
+            decoration: BoxDecoration(
+              color: Style.containerBackgroundLight,
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: const Icon(
+              Icons.help_outline,
+              size: 32,
+              color: Style.textColorSecondary,
+            ),
+          ),
           const SizedBox(height: 8),
-          Text(
-            action.name,
+          const Text(
+            '???',
             textAlign: TextAlign.center,
-            style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+            style: TextStyle(
+              fontSize: 20,
+              fontWeight: FontWeight.bold,
+              color: Style.textColorSecondary,
+            ),
           ),
           const SizedBox(height: 16),
           _MarkProgressRow(
             marks: marks,
             markLevel: markLevel,
             markMedia: action.markMedia,
+            isDiscovered: false,
           ),
           const SizedBox(height: 16),
           const Icon(
@@ -807,31 +850,35 @@ class _ActionList extends StatelessWidget {
       }
 
       final productItem = state.registries.items.byId(action.productId);
+      final isDiscovered = summoningState.isDiscovered(action.productId);
       return Card(
         color: isSelected ? Style.selectedColorLight : null,
         child: ListTile(
           leading: Stack(
             children: [
-              ItemImage(item: productItem),
-              if (!canCraft)
-                Positioned.fill(
-                  child: Container(
-                    decoration: BoxDecoration(
-                      color: Colors.black.withAlpha(150),
-                      borderRadius: BorderRadius.circular(4),
-                    ),
-                    child: const Icon(
-                      Icons.help_outline,
-                      color: Style.textColorSecondary,
-                      size: 20,
-                    ),
+              if (isDiscovered)
+                ItemImage(item: productItem)
+              else
+                Container(
+                  width: 40,
+                  height: 40,
+                  decoration: BoxDecoration(
+                    color: Style.containerBackgroundLight,
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                  child: const Icon(
+                    Icons.help_outline,
+                    color: Style.textColorSecondary,
+                    size: 24,
                   ),
                 ),
             ],
           ),
           title: Text(
-            action.name,
-            style: TextStyle(color: canCraft ? null : Style.textColorSecondary),
+            isDiscovered ? action.name : '???',
+            style: TextStyle(
+              color: isDiscovered ? null : Style.textColorSecondary,
+            ),
           ),
           subtitle: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -840,6 +887,7 @@ class _ActionList extends StatelessWidget {
                 marks: marks,
                 markLevel: markLevel,
                 markMedia: action.markMedia,
+                isDiscovered: isDiscovered,
               ),
               if (canCraft)
                 InputItemsRow(
@@ -891,11 +939,13 @@ class _MarkProgressRow extends StatelessWidget {
     required this.marks,
     required this.markLevel,
     this.markMedia,
+    this.isDiscovered = true,
   });
 
   final int marks;
   final int markLevel;
   final String? markMedia;
+  final bool isDiscovered;
 
   @override
   Widget build(BuildContext context) {
@@ -914,7 +964,13 @@ class _MarkProgressRow extends StatelessWidget {
 
     return Row(
       children: [
-        if (markMedia != null)
+        if (!isDiscovered)
+          const Icon(
+            Icons.help_outline,
+            size: 16,
+            color: Style.textColorSecondary,
+          )
+        else if (markMedia != null)
           CachedImage(assetPath: markMedia, size: 16)
         else
           const Icon(Icons.star, size: 16, color: Colors.amber),
@@ -930,7 +986,7 @@ class _MarkProgressRow extends StatelessWidget {
                 value: progress,
                 backgroundColor: Style.progressBackgroundColor,
                 valueColor: AlwaysStoppedAnimation<Color>(
-                  marks == 0 ? Style.textColorSecondary : Colors.amber,
+                  isDiscovered ? Colors.amber : Style.textColorSecondary,
                 ),
               ),
             ),

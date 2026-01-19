@@ -1,9 +1,9 @@
 import 'package:better_idle/src/logic/redux_actions.dart';
 import 'package:better_idle/src/widgets/categorized_action_list.dart';
 import 'package:better_idle/src/widgets/context_extensions.dart';
+import 'package:better_idle/src/widgets/game_scaffold.dart';
 import 'package:better_idle/src/widgets/mastery_pool.dart';
 import 'package:better_idle/src/widgets/mastery_unlocks_dialog.dart';
-import 'package:better_idle/src/widgets/navigation_drawer.dart';
 import 'package:better_idle/src/widgets/production_action_display.dart';
 import 'package:better_idle/src/widgets/skill_milestones_dialog.dart';
 import 'package:better_idle/src/widgets/skill_progress.dart';
@@ -48,9 +48,8 @@ class _SmithingPageState extends State<SmithingPage> {
         _selectedAction ??
         (unlockedActions.isNotEmpty ? unlockedActions.first : null);
 
-    return Scaffold(
-      appBar: AppBar(title: const Text('Smithing')),
-      drawer: const AppNavigationDrawer(),
+    return GameScaffold(
+      title: const Text('Smithing'),
       body: Column(
         children: [
           SkillProgress(xp: skillState.xp),

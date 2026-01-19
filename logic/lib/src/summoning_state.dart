@@ -92,6 +92,10 @@ class SummoningState {
   /// (i.e., has at least 1 mark).
   bool canCraftTablet(MelvorId familiarId) => marksFor(familiarId) >= 1;
 
+  /// Returns true if the player has discovered this familiar (found at least
+  /// 1 mark). Used to determine if the mark image/name should be revealed.
+  bool isDiscovered(MelvorId familiarId) => marksFor(familiarId) >= 1;
+
   /// Returns true if the player has crafted at least one tablet for this
   /// familiar.
   bool hasCrafted(MelvorId familiarId) => hasCraftedTablet.contains(familiarId);

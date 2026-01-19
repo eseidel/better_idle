@@ -1,7 +1,7 @@
 import 'package:better_idle/src/logic/redux_actions.dart';
 import 'package:better_idle/src/widgets/context_extensions.dart';
+import 'package:better_idle/src/widgets/game_scaffold.dart';
 import 'package:better_idle/src/widgets/item_catalog_grid.dart';
-import 'package:better_idle/src/widgets/navigation_drawer.dart';
 import 'package:better_idle/src/widgets/welcome_back_dialog.dart';
 import 'package:flutter/material.dart';
 import 'package:logic/logic.dart';
@@ -13,17 +13,14 @@ class DebugPage extends StatelessWidget {
   Widget build(BuildContext context) {
     return DefaultTabController(
       length: 2,
-      child: Scaffold(
-        appBar: AppBar(
-          title: const Text('Debug'),
-          bottom: const TabBar(
-            tabs: [
-              Tab(text: 'Actions'),
-              Tab(text: 'Items'),
-            ],
-          ),
+      child: GameScaffold(
+        title: const Text('Debug'),
+        bottom: const TabBar(
+          tabs: [
+            Tab(text: 'Actions'),
+            Tab(text: 'Items'),
+          ],
         ),
-        drawer: const AppNavigationDrawer(),
         body: TabBarView(
           children: [
             _DebugActionsTab(

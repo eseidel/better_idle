@@ -4,11 +4,11 @@ import 'package:better_idle/src/widgets/context_extensions.dart';
 import 'package:better_idle/src/widgets/count_badge_cell.dart';
 import 'package:better_idle/src/widgets/double_chance_badge_cell.dart';
 import 'package:better_idle/src/widgets/duration_badge_cell.dart';
+import 'package:better_idle/src/widgets/game_scaffold.dart';
 import 'package:better_idle/src/widgets/item_count_badge_cell.dart';
 import 'package:better_idle/src/widgets/item_image.dart';
 import 'package:better_idle/src/widgets/mastery_pool.dart';
 import 'package:better_idle/src/widgets/mastery_unlocks_dialog.dart';
-import 'package:better_idle/src/widgets/navigation_drawer.dart';
 import 'package:better_idle/src/widgets/recycle_chance_badge_cell.dart';
 import 'package:better_idle/src/widgets/skill_image.dart';
 import 'package:better_idle/src/widgets/skill_milestones_dialog.dart';
@@ -27,9 +27,8 @@ class CookingPage extends StatelessWidget {
     final state = context.state;
     final skillState = state.skillState(skill);
 
-    return Scaffold(
-      appBar: AppBar(title: const Text('Cooking')),
-      drawer: const AppNavigationDrawer(),
+    return GameScaffold(
+      title: const Text('Cooking'),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16),
         child: Column(

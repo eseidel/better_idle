@@ -3,6 +3,7 @@ import 'package:better_idle/src/services/toast_service.dart';
 import 'package:better_idle/src/widgets/cached_image.dart';
 import 'package:better_idle/src/widgets/context_extensions.dart';
 import 'package:better_idle/src/widgets/count_badge_cell.dart';
+import 'package:better_idle/src/widgets/game_app_bar.dart';
 import 'package:better_idle/src/widgets/item_image.dart';
 import 'package:better_idle/src/widgets/navigation_drawer.dart';
 import 'package:better_idle/src/widgets/open_result_dialog.dart';
@@ -138,7 +139,7 @@ class _BankPageState extends State<BankPage> {
                   ),
                 ],
               )
-            : AppBar(title: const Text('Bank')),
+            : GameAppBar(title: const Text('Bank')),
         drawer: _isSelectionMode ? null : const AppNavigationDrawer(),
         endDrawer: !_isSelectionMode && _selectedStack != null
             ? ItemDetailsDrawer(stack: _selectedStack!)

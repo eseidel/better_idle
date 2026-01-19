@@ -904,12 +904,30 @@ class StateUpdateBuilder {
   /// Only consumes charges if the equipped familiar is relevant to the skill
   /// being performed (i.e., the skill is in the familiar's markSkillIds).
   ///
-  /// For non-combat skills: 1 charge per action.
-  /// For combat: 1 charge per attack (2 during synergies - not implemented).
+  /// Grants Summoning XP when tablets are consumed using the formula:
+  /// XP = (Action Time × Tablet Level × 10) / (Tablet Level + 10)
+  /// where Tablet Level is the summoning level required to create the tablet.
   ///
   // TODO(eseidel): Add charge preservation modifier support.
+  void consumeSummonChargesForSkill(SkillAction action) {
+    final actionTimeSeconds = action.meanDuration.inMilliseconds / 1000.0;
+    _consumeSummonChargesInternal(action, actionTimeSeconds);
+  }
+
+  /// Consumes charges from equipped summoning tablets relevant to combat.
+  ///
+  /// [attackSpeedSeconds] is the player's attack speed, used for XP calc.
+  ///
   // TODO(eseidel): Increase to 2 charges for combat when synergy is active.
-  void consumeSummonCharges(Action action) {
+  // TODO(eseidel): Familiars may attack on their own 3s timer, not player's.
+  void consumeSummonChargesForCombat(
+    CombatAction action, {
+    required double attackSpeedSeconds,
+  }) {
+    _consumeSummonChargesInternal(action, attackSpeedSeconds);
+  }
+
+  void _consumeSummonChargesInternal(Action action, double actionTimeSeconds) {
     var equipment = _state.equipment;
 
     // Check each summon slot
@@ -924,6 +942,15 @@ class StateUpdateBuilder {
 
       // Track tablet usage for welcome back dialog
       _changes = _changes.recordingTabletUsed(tablet.id, 1);
+
+      // Grant Summoning XP for using the tablet.
+      // Formula: (Action Time × Tablet Level × 10) / (Tablet Level + 10)
+      final summoningAction = registries.summoning.actionForTablet(tablet.id);
+      if (summoningAction != null) {
+        final tabletLevel = summoningAction.unlockLevel;
+        final xp = (actionTimeSeconds * tabletLevel * 10) / (tabletLevel + 10);
+        addSkillXp(Skill.summoning, xp.round());
+      }
 
       equipment = equipment.consumeSummonCharges(slot, 1);
     }
@@ -1445,7 +1472,7 @@ bool completeAction(
     ..addSkillXp(action.skill, perAction.xp)
     ..addActionMasteryXp(action.id, perAction.masteryXp)
     ..addSkillMasteryXp(action.skill, perAction.masteryPoolXp)
-    ..consumeSummonCharges(action)
+    ..consumeSummonChargesForSkill(action)
     ..consumePotionCharge(action, random);
 
   // Roll for summoning mark discovery
@@ -1709,11 +1736,14 @@ enum ForegroundResult {
   var monsterHp = currentCombat.monsterHp;
   var resetPlayerTicks = newPlayerTicks;
   if (newPlayerTicks <= 0) {
-    // Consume summoning tablet charges (1 per attack, for relevant familiars)
-    builder.consumeSummonCharges(action);
-
     final pStats = computePlayerStats(builder.state);
     final mStats = MonsterCombatStats.fromAction(action);
+
+    // Consume summoning tablet charges (1 per attack, for relevant familiars)
+    builder.consumeSummonChargesForCombat(
+      action,
+      attackSpeedSeconds: pStats.attackSpeed,
+    );
 
     // Get combat triangle modifiers based on player vs monster combat types
     final playerCombatType = builder.state.attackStyle.combatType;

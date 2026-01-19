@@ -1,5 +1,5 @@
 import 'package:better_idle/src/logic/redux_actions.dart';
-import 'package:better_idle/src/widgets/navigation_drawer.dart';
+import 'package:better_idle/src/widgets/game_scaffold.dart';
 import 'package:better_idle/src/widgets/style.dart';
 import 'package:flutter/material.dart';
 import 'package:logic/logic.dart';
@@ -9,9 +9,8 @@ class StatisticsPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text('Statistics')),
-      drawer: const AppNavigationDrawer(),
+    return GameScaffold(
+      title: const Text('Statistics'),
       body: StoreConnector<GlobalState, _StatisticsViewModel>(
         converter: (store) => _StatisticsViewModel(store.state),
         builder: (context, viewModel) {

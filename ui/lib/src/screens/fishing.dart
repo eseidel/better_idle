@@ -1,9 +1,9 @@
 import 'package:better_idle/src/logic/redux_actions.dart';
 import 'package:better_idle/src/widgets/context_extensions.dart';
+import 'package:better_idle/src/widgets/game_scaffold.dart';
 import 'package:better_idle/src/widgets/item_image.dart';
 import 'package:better_idle/src/widgets/mastery_pool.dart';
 import 'package:better_idle/src/widgets/mastery_unlocks_dialog.dart';
-import 'package:better_idle/src/widgets/navigation_drawer.dart';
 import 'package:better_idle/src/widgets/potion_selector.dart';
 import 'package:better_idle/src/widgets/skill_action_display.dart';
 import 'package:better_idle/src/widgets/skill_image.dart';
@@ -63,9 +63,8 @@ class _FishingPageState extends State<FishingPage> {
       }
     }
 
-    return Scaffold(
-      appBar: AppBar(title: const Text('Fishing')),
-      drawer: const AppNavigationDrawer(),
+    return GameScaffold(
+      title: const Text('Fishing'),
       body: Column(
         children: [
           SkillProgress(xp: skillState.xp),

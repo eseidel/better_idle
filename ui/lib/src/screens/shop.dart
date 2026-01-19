@@ -1,7 +1,7 @@
 import 'package:better_idle/src/logic/redux_actions.dart';
 import 'package:better_idle/src/widgets/cached_image.dart';
 import 'package:better_idle/src/widgets/cost_row.dart';
-import 'package:better_idle/src/widgets/navigation_drawer.dart';
+import 'package:better_idle/src/widgets/game_scaffold.dart';
 import 'package:better_idle/src/widgets/style.dart';
 import 'package:flutter/material.dart';
 import 'package:logic/logic.dart';
@@ -18,9 +18,8 @@ class _ShopPageState extends State<ShopPage> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text('Shop')),
-      drawer: const AppNavigationDrawer(),
+    return GameScaffold(
+      title: const Text('Shop'),
       body: StoreConnector<GlobalState, ShopViewModel>(
         converter: (store) => ShopViewModel(store.state),
         builder: (context, viewModel) {

@@ -2,6 +2,7 @@ import 'package:better_idle/src/logic/redux_actions.dart';
 import 'package:better_idle/src/services/toast_service.dart';
 import 'package:better_idle/src/widgets/context_extensions.dart';
 import 'package:better_idle/src/widgets/item_image.dart';
+import 'package:better_idle/src/widgets/quantity_dialog.dart';
 import 'package:flutter/material.dart';
 import 'package:logic/logic.dart';
 
@@ -43,7 +44,7 @@ class _ItemTile extends StatelessWidget {
         borderRadius: BorderRadius.circular(4),
         child: InkWell(
           borderRadius: BorderRadius.circular(4),
-          onTap: () {
+          onTap: () async {
             final state = context.state;
             if (!state.inventory.canAdd(
               item,
@@ -52,8 +53,10 @@ class _ItemTile extends StatelessWidget {
               toastService.showError('Inventory full');
               return;
             }
-            context.dispatch(DebugAddItemAction(item: item));
-            final stack = ItemStack(item, count: 1);
+            final quantity = await showQuantityDialog(context, item);
+            if (quantity == null || !context.mounted) return;
+            context.dispatch(DebugAddItemAction(item: item, count: quantity));
+            final stack = ItemStack(item, count: quantity);
             toastService.showToast(const Changes.empty().adding(stack));
           },
           child: Padding(

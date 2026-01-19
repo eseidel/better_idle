@@ -1,8 +1,8 @@
 import 'package:better_idle/src/widgets/action_grid.dart';
 import 'package:better_idle/src/widgets/context_extensions.dart';
+import 'package:better_idle/src/widgets/game_scaffold.dart';
 import 'package:better_idle/src/widgets/mastery_pool.dart';
 import 'package:better_idle/src/widgets/mastery_unlocks_dialog.dart';
-import 'package:better_idle/src/widgets/navigation_drawer.dart';
 import 'package:better_idle/src/widgets/potion_selector.dart';
 import 'package:better_idle/src/widgets/skill_milestones_dialog.dart';
 import 'package:better_idle/src/widgets/skill_progress.dart';
@@ -31,9 +31,8 @@ class SimpleSkillPage extends StatelessWidget {
     final actions = context.state.registries.actionsForSkill(skill).toList();
     final skillState = context.state.skillState(skill);
 
-    return Scaffold(
-      appBar: AppBar(title: Text(skillName)),
-      drawer: const AppNavigationDrawer(),
+    return GameScaffold(
+      title: Text(skillName),
       body: Column(
         children: [
           SkillProgress(xp: skillState.xp),

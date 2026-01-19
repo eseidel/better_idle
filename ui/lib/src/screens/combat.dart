@@ -3,9 +3,9 @@ import 'package:better_idle/src/widgets/attack_style_selector.dart';
 import 'package:better_idle/src/widgets/cached_image.dart';
 import 'package:better_idle/src/widgets/context_extensions.dart';
 import 'package:better_idle/src/widgets/equipment_slots.dart';
+import 'package:better_idle/src/widgets/game_scaffold.dart';
 import 'package:better_idle/src/widgets/hp_bar.dart';
 import 'package:better_idle/src/widgets/monster_drops_dialog.dart';
-import 'package:better_idle/src/widgets/navigation_drawer.dart';
 import 'package:better_idle/src/widgets/skill_image.dart';
 import 'package:better_idle/src/widgets/skills.dart';
 import 'package:better_idle/src/widgets/style.dart';
@@ -31,9 +31,8 @@ class CombatPage extends StatelessWidget {
       }
     }
 
-    return Scaffold(
-      appBar: AppBar(title: const Text('Combat')),
-      drawer: const AppNavigationDrawer(),
+    return GameScaffold(
+      title: const Text('Combat'),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16),
         child: Column(

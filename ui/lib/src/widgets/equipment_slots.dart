@@ -281,39 +281,66 @@ class _GridSlotCell extends StatelessWidget {
   Widget build(BuildContext context) {
     final state = context.state;
     final isLocked = !state.isSlotUnlocked(slotDef.slot);
+    final canUnequip = item != null && !isLocked;
 
-    return Tooltip(
-      message: isLocked
-          ? '${slotDef.emptyName} (Locked)'
-          : (item?.name ?? '${slotDef.emptyName} (Empty)'),
-      child: Container(
-        width: size,
-        height: size,
-        decoration: BoxDecoration(
-          color: item != null
-              ? Style.containerBackgroundFilled
-              : Style.containerBackgroundEmpty,
-          border: Border.all(
-            color: isLocked
-                ? Style.textColorSecondary
-                : item != null
-                ? Style.cellBorderColorSuccess
-                : Style.iconColorDefault,
+    return GestureDetector(
+      onTap: canUnequip ? () => _showUnequipDialog(context) : null,
+      child: Tooltip(
+        message: isLocked
+            ? '${slotDef.emptyName} (Locked)'
+            : (item?.name ?? '${slotDef.emptyName} (Empty)'),
+        child: Container(
+          width: size,
+          height: size,
+          decoration: BoxDecoration(
+            color: item != null
+                ? Style.containerBackgroundFilled
+                : Style.containerBackgroundEmpty,
+            border: Border.all(
+              color: isLocked
+                  ? Style.textColorSecondary
+                  : item != null
+                  ? Style.cellBorderColorSuccess
+                  : Style.iconColorDefault,
+            ),
+            borderRadius: BorderRadius.circular(4),
           ),
-          borderRadius: BorderRadius.circular(4),
+          child: isLocked
+              ? const Icon(
+                  Icons.lock_outline,
+                  size: 20,
+                  color: Style.textColorSecondary,
+                )
+              : item != null
+              ? Padding(
+                  padding: const EdgeInsets.all(4),
+                  child: ItemImage(item: item!, size: size - 8),
+                )
+              : CachedImage(assetPath: slotDef.emptyMedia, size: size - 8),
         ),
-        child: isLocked
-            ? const Icon(
-                Icons.lock_outline,
-                size: 20,
-                color: Style.textColorSecondary,
-              )
-            : item != null
-            ? Padding(
-                padding: const EdgeInsets.all(4),
-                child: ItemImage(item: item!, size: size - 8),
-              )
-            : CachedImage(assetPath: slotDef.emptyMedia, size: size - 8),
+      ),
+    );
+  }
+
+  void _showUnequipDialog(BuildContext context) {
+    showDialog<void>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text(item!.name),
+        content: const Text('Unequip this item?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () {
+              context.dispatch(UnequipGearAction(slot: slotDef.slot));
+              Navigator.of(dialogContext).pop();
+            },
+            child: const Text('Unequip'),
+          ),
+        ],
       ),
     );
   }

@@ -1,10 +1,10 @@
 import 'package:better_idle/src/logic/redux_actions.dart';
 import 'package:better_idle/src/widgets/context_extensions.dart';
 import 'package:better_idle/src/widgets/cost_row.dart';
+import 'package:better_idle/src/widgets/game_scaffold.dart';
 import 'package:better_idle/src/widgets/item_image.dart';
 import 'package:better_idle/src/widgets/mastery_pool.dart';
 import 'package:better_idle/src/widgets/mastery_unlocks_dialog.dart';
-import 'package:better_idle/src/widgets/navigation_drawer.dart';
 import 'package:better_idle/src/widgets/skill_image.dart';
 import 'package:better_idle/src/widgets/skill_milestones_dialog.dart';
 import 'package:better_idle/src/widgets/skill_progress.dart';
@@ -30,9 +30,8 @@ class FarmingPage extends StatelessWidget {
       }
     }
 
-    return Scaffold(
-      appBar: AppBar(title: const Text('Farming')),
-      drawer: const AppNavigationDrawer(),
+    return GameScaffold(
+      title: const Text('Farming'),
       body: Column(
         children: [
           SkillProgress(xp: skillState.xp),

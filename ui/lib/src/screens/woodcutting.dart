@@ -1,10 +1,10 @@
 import 'package:better_idle/src/logic/redux_actions.dart';
 import 'package:better_idle/src/widgets/cached_image.dart';
 import 'package:better_idle/src/widgets/context_extensions.dart';
+import 'package:better_idle/src/widgets/game_scaffold.dart';
 import 'package:better_idle/src/widgets/item_image.dart';
 import 'package:better_idle/src/widgets/mastery_pool.dart';
 import 'package:better_idle/src/widgets/mastery_unlocks_dialog.dart';
-import 'package:better_idle/src/widgets/navigation_drawer.dart';
 import 'package:better_idle/src/widgets/potion_selector.dart';
 import 'package:better_idle/src/widgets/production_action_display.dart';
 import 'package:better_idle/src/widgets/skill_image.dart';
@@ -40,9 +40,8 @@ class _WoodcuttingPageState extends State<WoodcuttingPage> {
         _selectedAction ??
         (unlockedActions.isNotEmpty ? unlockedActions.first : null);
 
-    return Scaffold(
-      appBar: AppBar(title: const Text('Woodcutting')),
-      drawer: const AppNavigationDrawer(),
+    return GameScaffold(
+      title: const Text('Woodcutting'),
       body: Column(
         children: [
           SkillProgress(xp: skillState.xp),

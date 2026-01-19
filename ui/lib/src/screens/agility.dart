@@ -1,8 +1,8 @@
 import 'package:better_idle/src/logic/redux_actions.dart';
 import 'package:better_idle/src/widgets/context_extensions.dart';
+import 'package:better_idle/src/widgets/game_scaffold.dart';
 import 'package:better_idle/src/widgets/mastery_pool.dart';
 import 'package:better_idle/src/widgets/mastery_unlocks_dialog.dart';
-import 'package:better_idle/src/widgets/navigation_drawer.dart';
 import 'package:better_idle/src/widgets/skill_milestones_dialog.dart';
 import 'package:better_idle/src/widgets/skill_progress.dart';
 import 'package:better_idle/src/widgets/style.dart';
@@ -51,9 +51,8 @@ class _AgilityPageState extends State<AgilityPage> {
       const MelvorId('melvorD:Melvor'),
     );
 
-    return Scaffold(
-      appBar: AppBar(title: const Text('Agility')),
-      drawer: const AppNavigationDrawer(),
+    return GameScaffold(
+      title: const Text('Agility'),
       body: Column(
         children: [
           SkillProgress(xp: skillState.xp),

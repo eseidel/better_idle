@@ -1,10 +1,10 @@
 import 'package:better_idle/src/logic/redux_actions.dart';
 import 'package:better_idle/src/widgets/cached_image.dart';
 import 'package:better_idle/src/widgets/context_extensions.dart';
+import 'package:better_idle/src/widgets/game_scaffold.dart';
 import 'package:better_idle/src/widgets/hp_bar.dart';
 import 'package:better_idle/src/widgets/mastery_pool.dart';
 import 'package:better_idle/src/widgets/mastery_unlocks_dialog.dart';
-import 'package:better_idle/src/widgets/navigation_drawer.dart';
 import 'package:better_idle/src/widgets/skill_image.dart';
 import 'package:better_idle/src/widgets/skill_milestones_dialog.dart';
 import 'package:better_idle/src/widgets/skill_progress.dart';
@@ -45,9 +45,8 @@ class _ThievingPageState extends State<ThievingPage> {
       actionsByArea.putIfAbsent(action.area, () => []).add(action);
     }
 
-    return Scaffold(
-      appBar: AppBar(title: const Text('Thieving')),
-      drawer: const AppNavigationDrawer(),
+    return GameScaffold(
+      title: const Text('Thieving'),
       body: Column(
         children: [
           SkillProgress(xp: skillState.xp),
