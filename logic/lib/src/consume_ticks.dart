@@ -751,15 +751,16 @@ class StateUpdateBuilder {
         // In a dungeon - update the context with new monster index
         final currentContext = activity.context;
         if (currentContext is DungeonCombatContext) {
-          newContext = DungeonCombatContext(
-            dungeonId: newCombat.dungeonId!,
+          newContext = currentContext.copyWith(
             currentMonsterIndex: newCombat.dungeonMonsterIndex ?? 0,
-            monsterIds: currentContext.monsterIds,
           );
         }
       } else if (actionId.localId != activity.context.currentMonsterId) {
-        // Monster changed (shouldn't happen in normal combat, but handle it)
-        newContext = MonsterCombatContext(monsterId: actionId.localId);
+        throw StateError(
+          'Monster ID changed unexpectedly during combat: '
+          'expected ${activity.context.currentMonsterId}, '
+          'got ${actionId.localId}',
+        );
       }
 
       _state = _state.copyWith(
@@ -1784,23 +1785,20 @@ enum ForegroundResult {
     builder.trackMonsterKill(action.id.localId);
 
     // Handle dungeon progression
-    final dungeonId = currentCombat.dungeonId;
-    if (dungeonId != null) {
-      final dungeon = builder.registries.dungeons.byId(dungeonId);
-      final currentIndex = currentCombat.dungeonMonsterIndex ?? 0;
-      final nextIndex = currentIndex + 1;
-
-      // Determine next monster index (loop back to 0 after last monster)
-      final isLastMonster = nextIndex >= dungeon.monsterIds.length;
-      final actualNextIndex = isLastMonster ? 0 : nextIndex;
-
+    final dungeonContext = switch (builder.state.activeActivity) {
+      CombatActivity(:final context) when context is DungeonCombatContext =>
+        context,
+      _ => null,
+    };
+    if (dungeonContext != null) {
       // If last monster was killed, increment completion count
-      if (isLastMonster) {
-        builder.incrementDungeonCompletion(dungeonId);
+      if (dungeonContext.isLastMonster) {
+        builder.incrementDungeonCompletion(dungeonContext.dungeonId);
       }
 
-      // Spawn the next monster (or first monster if looping)
-      final nextMonsterId = dungeon.monsterIds[actualNextIndex];
+      // Advance to the next monster (wraps to 0 after last)
+      final nextContext = dungeonContext.advanceToNextMonster();
+      final nextMonsterId = nextContext.currentMonsterId;
       final nextMonster = builder.registries.combat.monsterById(nextMonsterId);
       final fullMonsterAttackTicks = ticksFromDuration(
         Duration(milliseconds: (nextMonster.stats.attackSpeed * 1000).round()),
@@ -1811,8 +1809,8 @@ enum ForegroundResult {
         playerAttackTicksRemaining: resetPlayerTicks,
         monsterAttackTicksRemaining: fullMonsterAttackTicks,
         spawnTicksRemaining: ticksFromDuration(monsterSpawnDuration),
-        dungeonId: dungeonId,
-        dungeonMonsterIndex: actualNextIndex,
+        dungeonId: nextContext.dungeonId,
+        dungeonMonsterIndex: nextContext.currentMonsterIndex,
       );
       // Update to the next monster's action and its combat state
       builder
