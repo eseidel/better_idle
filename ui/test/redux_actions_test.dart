@@ -55,12 +55,12 @@ void main() {
       final initialState = GlobalState.empty(registries);
       final store = Store<GlobalState>(initialState: initialState);
 
-      expect(store.state.activeAction, isNull);
+      expect(store.state.activeActivity, isNull);
 
       store.dispatch(ToggleActionAction(action: testAction));
 
-      expect(store.state.activeAction, isNotNull);
-      expect(store.state.activeAction!.id, testAction.id);
+      expect(store.state.activeActivity, isNotNull);
+      expect(store.state.currentActionId, testAction.id);
     });
 
     test('stops action when same action is active', () {
@@ -85,12 +85,12 @@ void main() {
       );
       final store = Store<GlobalState>(initialState: initialState);
 
-      expect(store.state.activeAction, isNotNull);
-      expect(store.state.activeAction!.id, testAction.id);
+      expect(store.state.activeActivity, isNotNull);
+      expect(store.state.currentActionId, testAction.id);
 
       store.dispatch(ToggleActionAction(action: testAction));
 
-      expect(store.state.activeAction, isNull);
+      expect(store.state.activeActivity, isNull);
     });
 
     test('switches to new action when different action is active', () {
@@ -123,12 +123,12 @@ void main() {
       );
       final store = Store<GlobalState>(initialState: initialState);
 
-      expect(store.state.activeAction!.id, action1.id);
+      expect(store.state.currentActionId, action1.id);
 
       store.dispatch(ToggleActionAction(action: action2));
 
-      expect(store.state.activeAction, isNotNull);
-      expect(store.state.activeAction!.id, action2.id);
+      expect(store.state.activeActivity, isNotNull);
+      expect(store.state.currentActionId, action2.id);
     });
 
     test('does nothing when stunned', () {
@@ -147,13 +147,13 @@ void main() {
       );
       final store = Store<GlobalState>(initialState: initialState);
 
-      expect(store.state.activeAction, isNull);
+      expect(store.state.activeActivity, isNull);
       expect(store.state.isStunned, isTrue);
 
       store.dispatch(ToggleActionAction(action: testAction));
 
       // Action should not have started because player is stunned
-      expect(store.state.activeAction, isNull);
+      expect(store.state.activeActivity, isNull);
     });
 
     test('cannot stop action when stunned', () {
@@ -179,14 +179,14 @@ void main() {
       );
       final store = Store<GlobalState>(initialState: initialState);
 
-      expect(store.state.activeAction, isNotNull);
+      expect(store.state.activeActivity, isNotNull);
       expect(store.state.isStunned, isTrue);
 
       store.dispatch(ToggleActionAction(action: testAction));
 
       // Action should still be active because player is stunned
-      expect(store.state.activeAction, isNotNull);
-      expect(store.state.activeAction!.id, testAction.id);
+      expect(store.state.activeActivity, isNotNull);
+      expect(store.state.currentActionId, testAction.id);
     });
   });
 
@@ -1340,12 +1340,12 @@ void main() {
       );
       final store = Store<GlobalState>(initialState: initialState);
 
-      expect(store.state.activeAction, isNull);
+      expect(store.state.activeActivity, isNull);
 
       store.dispatch(StartCookingAction(area: CookingArea.fire));
 
-      expect(store.state.activeAction, isNotNull);
-      expect(store.state.activeAction!.id, cookingRecipe.id);
+      expect(store.state.activeActivity, isNotNull);
+      expect(store.state.currentActionId, cookingRecipe.id);
     });
 
     test('returns null when no recipe assigned to area', () {
@@ -1353,12 +1353,12 @@ void main() {
       final initialState = GlobalState.empty(registries);
       final store = Store<GlobalState>(initialState: initialState);
 
-      expect(store.state.activeAction, isNull);
+      expect(store.state.activeActivity, isNull);
 
       store.dispatch(StartCookingAction(area: CookingArea.fire));
 
       // Should remain null since no recipe is assigned
-      expect(store.state.activeAction, isNull);
+      expect(store.state.activeActivity, isNull);
     });
 
     test('does nothing when stunned', () {
@@ -1379,7 +1379,7 @@ void main() {
       store.dispatch(StartCookingAction(area: CookingArea.fire));
 
       // Should not start cooking when stunned
-      expect(store.state.activeAction, isNull);
+      expect(store.state.activeActivity, isNull);
     });
 
     test('can start cooking in different areas', () {
@@ -1401,11 +1401,11 @@ void main() {
       final store = Store<GlobalState>(initialState: initialState)
         // Start fire cooking
         ..dispatch(StartCookingAction(area: CookingArea.fire));
-      expect(store.state.activeAction!.id, fireRecipe.id);
+      expect(store.state.currentActionId, fireRecipe.id);
 
       // Switch to pot cooking
       store.dispatch(StartCookingAction(area: CookingArea.pot));
-      expect(store.state.activeAction!.id, potRecipe.id);
+      expect(store.state.currentActionId, potRecipe.id);
     });
   });
 

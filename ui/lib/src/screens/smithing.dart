@@ -25,10 +25,7 @@ class _SmithingPageState extends State<SmithingPage> {
   Widget build(BuildContext context) {
     const skill = Skill.smithing;
     final registries = context.state.registries;
-    final actions = registries.actions
-        .forSkill(skill)
-        .whereType<SmithingAction>()
-        .toList();
+    final actions = registries.smithing.actions;
     final skillState = context.state.skillState(skill);
     final skillLevel = skillState.skillLevel;
 
@@ -45,7 +42,7 @@ class _SmithingPageState extends State<SmithingPage> {
 
     // Default to first unlocked action if none selected
     final unlockedActions = actions
-        .where((a) => skillLevel >= a.unlockLevel)
+        .where((SmithingAction a) => skillLevel >= a.unlockLevel)
         .toList();
     final selectedAction =
         _selectedAction ??

@@ -191,7 +191,7 @@ class ActionProgressBar extends StatelessWidget {
 
     return TweenedProgressIndicator(
       progress: isRunning
-          ? state.activeAction!.toProgressAt(state.updatedAt)
+          ? state.activeActivity!.toProgressAt(state.updatedAt)
           : ProgressAt.zero(state.updatedAt),
       animate: isRunning && isPlayerActive && !disableWhenDepleted,
       height: height,

@@ -20,11 +20,11 @@ class CombatPage extends StatelessWidget {
     final state = context.state;
 
     // Get the currently active combat action (if any)
-    final activeAction = state.activeAction;
+    final activeActionId = state.currentActionId;
     CombatAction? activeMonster;
     CombatActionState? combatState;
-    if (activeAction != null) {
-      final action = state.registries.actionById(activeAction.id);
+    if (activeActionId != null) {
+      final action = state.registries.actionById(activeActionId);
       if (action is CombatAction) {
         activeMonster = action;
         combatState = state.actionState(activeMonster.id).combat;
@@ -123,10 +123,10 @@ class CombatAreaSelectionDialog extends StatelessWidget {
     final areas = state.registries.combatAreas.all;
 
     // Get the currently active combat action (if any)
-    final activeAction = state.activeAction;
+    final activeActionId = state.currentActionId;
     CombatAction? activeMonster;
-    if (activeAction != null) {
-      final action = state.registries.actionById(activeAction.id);
+    if (activeActionId != null) {
+      final action = state.registries.actionById(activeActionId);
       if (action is CombatAction) {
         activeMonster = action;
       }
@@ -169,10 +169,10 @@ class DungeonSelectionDialog extends StatelessWidget {
     final dungeons = state.registries.dungeons.all;
 
     // Check if currently in a dungeon
-    final activeAction = state.activeAction;
+    final activeActionId = state.currentActionId;
     MelvorId? activeDungeonId;
-    if (activeAction != null) {
-      final actionState = state.actionState(activeAction.id);
+    if (activeActionId != null) {
+      final actionState = state.actionState(activeActionId);
       activeDungeonId = actionState.combat?.dungeonId;
     }
 

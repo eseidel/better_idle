@@ -29,11 +29,8 @@ class _AgilityPageState extends State<AgilityPage> {
 
     // Get all agility obstacles from the registry, sorted by category then name
     final obstacles =
-        registries.actions
-            .forSkill(Skill.agility)
-            .whereType<AgilityObstacle>()
-            .toList()
-          ..sort((a, b) {
+        registries.agility.obstacles.toList()
+          ..sort((AgilityObstacle a, AgilityObstacle b) {
             final catCompare = a.category.compareTo(b.category);
             if (catCompare != 0) return catCompare;
             return a.name.compareTo(b.name);

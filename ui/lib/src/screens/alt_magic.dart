@@ -27,16 +27,13 @@ class _AltMagicPageState extends State<AltMagicPage> {
   Widget build(BuildContext context) {
     const skill = Skill.altMagic;
     final state = context.state;
-    final actions = state.registries.actions
-        .forSkill(skill)
-        .whereType<AltMagicAction>()
-        .toList();
+    final actions = state.registries.altMagic.actions;
     final skillState = state.skillState(skill);
     final skillLevel = skillState.skillLevel;
 
     // Default to first unlocked action if none selected
     final unlockedActions = actions
-        .where((a) => skillLevel >= a.unlockLevel)
+        .where((AltMagicAction a) => skillLevel >= a.unlockLevel)
         .toList();
     final selectedAction =
         _selectedAction ??

@@ -28,16 +28,13 @@ class _WoodcuttingPageState extends State<WoodcuttingPage> {
   Widget build(BuildContext context) {
     const skill = Skill.woodcutting;
     final registries = context.state.registries;
-    final actions = registries.actions
-        .forSkill(skill)
-        .whereType<WoodcuttingTree>()
-        .toList();
+    final actions = registries.woodcutting.actions;
     final skillState = context.state.skillState(skill);
     final skillLevel = skillState.skillLevel;
 
     // Default to first unlocked action if none selected
     final unlockedActions = actions
-        .where((a) => skillLevel >= a.unlockLevel)
+        .where((WoodcuttingTree a) => skillLevel >= a.unlockLevel)
         .toList();
     final selectedAction =
         _selectedAction ??

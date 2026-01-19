@@ -34,10 +34,7 @@ class _ThievingPageState extends State<ThievingPage> {
     final registries = context.state.registries;
 
     // Get all thieving actions from the registry
-    final thievingActions = registries.actions
-        .forSkill(Skill.thieving)
-        .whereType<ThievingAction>()
-        .toList();
+    final thievingActions = registries.thieving.actions;
 
     // Default to first action if none selected
     final selectedAction = _selectedAction ?? thievingActions.first;

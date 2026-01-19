@@ -83,16 +83,15 @@ class _CookingAreaCardState extends State<_CookingAreaCard> {
 
     // Get recipes for this area, sorted by level
     final recipes =
-        state.registries.actions
-            .forSkill(Skill.cooking)
-            .whereType<CookingAction>()
+        state.registries.cooking.actions
             .where((a) => a.categoryId?.localId == area.name.capitalize())
             .toList()
-          ..sort((a, b) => a.unlockLevel.compareTo(b.unlockLevel));
+          ..sort((CookingAction a, CookingAction b) =>
+              a.unlockLevel.compareTo(b.unlockLevel));
 
     // Get unlocked recipes
     final unlockedRecipes = recipes
-        .where((r) => skillLevel >= r.unlockLevel)
+        .where((CookingAction r) => skillLevel >= r.unlockLevel)
         .toList();
 
     // Auto-select the first unlocked recipe if none is selected
@@ -108,16 +107,16 @@ class _CookingAreaCardState extends State<_CookingAreaCard> {
     // Get the currently assigned recipe
     final assignedRecipe = areaState.recipeId != null
         ? recipes.firstWhere(
-            (r) => r.id == areaState.recipeId,
+            (CookingAction r) => r.id == areaState.recipeId,
             orElse: () => recipes.first,
           )
         : null;
 
     // Check if this area is actively cooking
-    final activeActionState = state.activeAction;
+    final activeActionId = state.currentActionId;
     CookingAction? activeCookingAction;
-    if (activeActionState != null) {
-      final action = state.registries.actionById(activeActionState.id);
+    if (activeActionId != null) {
+      final action = state.registries.actionById(activeActionId);
       if (action is CookingAction) {
         activeCookingAction = action;
       }

@@ -25,10 +25,7 @@ class _HerblorePageState extends State<HerblorePage> {
   Widget build(BuildContext context) {
     const skill = Skill.herblore;
     final registries = context.state.registries;
-    final actions = registries.actions
-        .forSkill(skill)
-        .whereType<HerbloreAction>()
-        .toList();
+    final actions = registries.herblore.actions;
     final skillState = context.state.skillState(skill);
     final skillLevel = skillState.skillLevel;
 
@@ -45,7 +42,7 @@ class _HerblorePageState extends State<HerblorePage> {
 
     // Default to first unlocked action if none selected
     final unlockedActions = actions
-        .where((a) => skillLevel >= a.unlockLevel)
+        .where((HerbloreAction a) => skillLevel >= a.unlockLevel)
         .toList();
     final selectedAction =
         _selectedAction ??
