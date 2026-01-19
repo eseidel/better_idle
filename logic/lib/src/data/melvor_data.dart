@@ -101,7 +101,7 @@ class MelvorData {
             final existing = equipmentSlots[existingIndex];
             // Create a merged JSON with base slot data + patch requirements.
             final mergedJson = <String, dynamic>{
-              'id': existing.name,
+              'id': existing.id.toJson(),
               'allowQuantity': existing.allowQuantity,
               'emptyMedia': existing.emptyMedia,
               'emptyName': existing.emptyName,
