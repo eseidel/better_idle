@@ -50,31 +50,7 @@ class WelcomeBackDialog extends StatelessWidget {
             ),
             const SizedBox(height: 16),
 
-            // Level changes
-            if (changes.skillLevelChanges.isNotEmpty) ...[
-              ...changes.skillLevelChanges.entries.map((entry) {
-                final skill = entry.key;
-                final levelChange = entry.value;
-                final levelsGained = levelChange.levelsGained;
-                final range =
-                    '${levelChange.startLevel}->${levelChange.endLevel}';
-                final levelText = levelsGained > 1
-                    ? 'gained $levelsGained levels $range'
-                    : 'level up $range';
-                return Padding(
-                  padding: const EdgeInsets.only(left: 16, bottom: 4),
-                  child: Text(
-                    '${skill.name} $levelText!',
-                    style: const TextStyle(
-                      fontWeight: FontWeight.bold,
-                      color: Style.successColor,
-                    ),
-                  ),
-                );
-              }),
-            ],
-
-            // XP gained
+            // 1. XP gained (including per hour estimates)
             if (changes.skillXpChanges.isNotEmpty) ...[
               ...changes.skillXpChanges.entries.map((entry) {
                 final xpGained = entry.value;
@@ -106,7 +82,31 @@ class WelcomeBackDialog extends StatelessWidget {
               }),
             ],
 
-            // Monsters killed
+            // Level changes (shown after XP for emphasis)
+            if (changes.skillLevelChanges.isNotEmpty) ...[
+              ...changes.skillLevelChanges.entries.map((entry) {
+                final skill = entry.key;
+                final levelChange = entry.value;
+                final levelsGained = levelChange.levelsGained;
+                final range =
+                    '${levelChange.startLevel}->${levelChange.endLevel}';
+                final levelText = levelsGained > 1
+                    ? 'gained $levelsGained levels $range'
+                    : 'level up $range';
+                return Padding(
+                  padding: const EdgeInsets.only(left: 16, bottom: 4),
+                  child: Text(
+                    '${skill.name} $levelText!',
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      color: Style.successColor,
+                    ),
+                  ),
+                );
+              }),
+            ],
+
+            // 2. # of NPCs killed (with per hour estimates), by type
             if (changes.monstersKilled.isNotEmpty) ...[
               const SizedBox(height: 8),
               ...changes.monstersKilled.entries.map((entry) {
@@ -124,7 +124,7 @@ class WelcomeBackDialog extends StatelessWidget {
               }),
             ],
 
-            // Dungeon completions
+            // 3. Dungeon completions (with per hour estimates)
             if (changes.dungeonsCompleted.isNotEmpty) ...[
               const SizedBox(height: 8),
               ...changes.dungeonsCompleted.entries.map((entry) {
@@ -145,7 +145,7 @@ class WelcomeBackDialog extends StatelessWidget {
               }),
             ],
 
-            // Marks found (no per-hour)
+            // 4. Marks found (no per-hour estimate)
             if (changes.marksFound.isNotEmpty) ...[
               const SizedBox(height: 8),
               ...changes.marksFound.entries.map((entry) {
@@ -164,8 +164,9 @@ class WelcomeBackDialog extends StatelessWidget {
               }),
             ],
 
-            // Items gained (excluding food eaten, potions used, tablets used)
+            // 5. Items gained, by type (with per hour estimate)
             if (changes.inventoryChanges.isNotEmpty) ...[
+              const SizedBox(height: 8),
               ...changes.inventoryChanges.entries.map((entry) {
                 final itemId = entry.key;
                 final itemCount = entry.value;
@@ -176,10 +177,10 @@ class WelcomeBackDialog extends StatelessWidget {
                 final String prediction;
                 if (itemCount > 0 && gainedPerHour != null) {
                   prediction =
-                      ' (${approximateCountString(gainedPerHour.round())} / hr)';
+                      ' (${approximateCountString(gainedPerHour.round())}/hr)';
                 } else if (itemCount < 0 && consumedPerHour != null) {
                   prediction =
-                      ' (${approximateCountString(consumedPerHour.round())} / hr)';
+                      ' (${approximateCountString(consumedPerHour.round())}/hr)';
                 } else {
                   prediction = '';
                 }
@@ -192,7 +193,7 @@ class WelcomeBackDialog extends StatelessWidget {
               }),
             ],
 
-            // Currencies earned
+            // 6. Currencies earned (by type)
             if (changes.currenciesGained.isNotEmpty) ...[
               const SizedBox(height: 8),
               ...changes.currenciesGained.entries.map((entry) {
@@ -214,7 +215,7 @@ class WelcomeBackDialog extends StatelessWidget {
               }),
             ],
 
-            // Potions used
+            // 7. Potions used (-Y per hour)
             if (changes.potionsUsed.isNotEmpty) ...[
               const SizedBox(height: 8),
               ...changes.potionsUsed.entries.map((entry) {
@@ -232,7 +233,7 @@ class WelcomeBackDialog extends StatelessWidget {
               }),
             ],
 
-            // Summoning tablets used (no per-hour)
+            // 8. Summoning tablets used, by type (no per hour)
             if (changes.tabletsUsed.isNotEmpty) ...[
               const SizedBox(height: 8),
               ...changes.tabletsUsed.entries.map((entry) {
@@ -241,12 +242,12 @@ class WelcomeBackDialog extends StatelessWidget {
                 final tablet = registries.items.byId(tabletId);
                 return Padding(
                   padding: const EdgeInsets.only(left: 16, bottom: 4),
-                  child: Text('Used $count ${tablet.name} charges'),
+                  child: Text('Used $count ${tablet.name}'),
                 );
               }),
             ],
 
-            // Food eaten
+            // 9. Food eaten, by type (per hour estimate)
             if (changes.foodEaten.isNotEmpty) ...[
               const SizedBox(height: 8),
               ...changes.foodEaten.entries.map((entry) {
