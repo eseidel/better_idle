@@ -162,7 +162,7 @@ at execution time (not a fixed action ID).
 StopWhenInputsDepleted()  // Parameterless
 ```
 
-Converts to: `WaitForInputsDepleted(state.activeAction.id)`
+Converts to: `WaitForInputsDepleted(state.currentActionId)`
 
 ## Macro Expansion Process
 

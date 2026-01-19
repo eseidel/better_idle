@@ -144,7 +144,7 @@ void main() {
   group('MonsterCombatStats', () {
     test('fromAction computes stats from monster levels', () {
       // Find a combat action (monster)
-      final monster = testRegistries.actions.all
+      final monster = testRegistries.allActions
           .whereType<CombatAction>()
           .firstWhere((CombatAction a) => a.name == 'Plant');
 

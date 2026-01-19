@@ -33,24 +33,6 @@ class HerbloreCategory {
   final String media;
 }
 
-/// Registry for herblore categories.
-@immutable
-class HerbloreCategoryRegistry {
-  HerbloreCategoryRegistry(List<HerbloreCategory> categories)
-    : _categories = categories {
-    _byId = {for (final category in _categories) category.id: category};
-  }
-
-  final List<HerbloreCategory> _categories;
-  late final Map<MelvorId, HerbloreCategory> _byId;
-
-  /// Returns all herblore categories.
-  List<HerbloreCategory> get all => _categories;
-
-  /// Returns a herblore category by ID, or null if not found.
-  HerbloreCategory? byId(MelvorId id) => _byId[id];
-}
-
 /// A herblore action parsed from Melvor data.
 ///
 /// Herblore actions consume herbs and secondary ingredients to produce potions.
@@ -131,4 +113,34 @@ class HerbloreAction extends SkillAction {
   /// The category ID (e.g., "melvorF:CombatPotions", "melvorF:SkillPotions").
   @override
   final MelvorId? categoryId;
+}
+
+/// Unified registry for all herblore-related data.
+@immutable
+class HerbloreRegistry {
+  HerbloreRegistry({
+    required List<HerbloreAction> actions,
+    required List<HerbloreCategory> categories,
+  }) : _actions = actions,
+       _categories = categories {
+    _byId = {for (final a in _actions) a.id.localId: a};
+    _categoryById = {for (final c in _categories) c.id: c};
+  }
+
+  final List<HerbloreAction> _actions;
+  final List<HerbloreCategory> _categories;
+  late final Map<MelvorId, HerbloreAction> _byId;
+  late final Map<MelvorId, HerbloreCategory> _categoryById;
+
+  /// All herblore actions.
+  List<HerbloreAction> get actions => _actions;
+
+  /// All herblore categories.
+  List<HerbloreCategory> get categories => _categories;
+
+  /// Look up a herblore action by its local ID.
+  HerbloreAction? byId(MelvorId localId) => _byId[localId];
+
+  /// Returns a herblore category by ID, or null if not found.
+  HerbloreCategory? categoryById(MelvorId id) => _categoryById[id];
 }

@@ -425,8 +425,8 @@ class _GoalChip extends StatelessWidget {
     final current = viewModel.getGoalProgress(task.id, goal);
     final isMet = current >= goal.quantity;
     final registries = viewModel.registries;
-    final goalName = goal.displayName(registries.items, registries.actions);
-    final goalAsset = goal.asset(registries.items, registries.actions);
+    final goalName = goal.displayName(registries.items, registries.combat);
+    final goalAsset = goal.asset(registries.items, registries.combat);
 
     final progress = _formatProgress(current, goal.quantity);
     final verb = switch (goal.type) {

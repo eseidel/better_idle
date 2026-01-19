@@ -34,19 +34,15 @@ class _ThievingPageState extends State<ThievingPage> {
     final registries = context.state.registries;
 
     // Get all thieving actions from the registry
-    final thievingActions = registries.actions
-        .forSkill(Skill.thieving)
-        .whereType<ThievingAction>()
-        .toList();
+    final thievingActions = registries.thieving.actions;
 
     // Default to first action if none selected
     final selectedAction = _selectedAction ?? thievingActions.first;
 
-    // Group actions by area using the ThievingAreaRegistry
+    // Group actions by area (each action already stores its area reference)
     final actionsByArea = <ThievingArea, List<ThievingAction>>{};
     for (final action in thievingActions) {
-      final area = registries.thievingAreas.areaForNpc(action.id.localId);
-      actionsByArea.putIfAbsent(area, () => []).add(action);
+      actionsByArea.putIfAbsent(action.area, () => []).add(action);
     }
 
     return Scaffold(
@@ -127,7 +123,7 @@ class _SelectedActionDisplay extends StatelessWidget {
   Widget build(BuildContext context) {
     final state = context.state;
     final actionState = state.actionState(action.id);
-    final isActive = state.activeAction?.id == action.id;
+    final isActive = state.isActionActive(action);
     final canStart = state.canStartAction(action);
     final isStunned = state.isStunned;
     final canToggle = (canStart || isActive) && !isStunned;
@@ -275,7 +271,7 @@ class _ThievingProgressBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final state = context.state;
-    final isActive = state.activeAction?.id == action.id;
+    final isActive = state.isActionActive(action);
     final isStunned = state.isStunned;
 
     // Calculate progress and styling

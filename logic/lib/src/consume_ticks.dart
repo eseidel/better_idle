@@ -26,7 +26,7 @@ int playerTotalMasteryForSkill(GlobalState state, Skill skill) {
 /// Returns the amount of mastery XP gained per action.
 int masteryXpPerAction(GlobalState state, SkillAction action) {
   return calculateMasteryXpPerAction(
-    actions: state.registries.actions,
+    registries: state.registries,
     action: action,
     unlockedActions: state.unlockedActionsCount(action.skill),
     playerTotalMasteryForSkill: playerTotalMasteryForSkill(state, action.skill),
@@ -249,29 +249,23 @@ List<BackgroundTickConsumer> _getBackgroundActions(
   ActionId? activeActionId,
 }) {
   final backgrounds = <BackgroundTickConsumer>[];
-  final actions = state.registries.actions;
 
-  for (final entry in state.actionStates.entries) {
-    final actionId = entry.key;
-    final actionState = entry.value;
+  for (final entry in state.miningState.rockStates.entries) {
+    final localId = entry.key;
+    final mining = entry.value;
+    final actionId = ActionId(Skill.mining.id, localId);
 
-    // Check if this is a mining action with background work
-    final action = actions.byId(actionId);
-    if (action is MiningAction) {
-      final mining = actionState.mining ?? const MiningState.empty();
-
-      // For the active action, only include if it needs healing (not respawn)
-      // because foreground handles respawn synchronously
-      if (actionId == activeActionId) {
-        if (!mining.isDepleted && mining.totalHpLost > 0) {
-          backgrounds.add(MiningBackgroundAction(actionId, mining));
-        }
-      } else {
-        // Non-active actions: include all background work (healing + respawn)
-        final bgAction = MiningBackgroundAction(actionId, mining);
-        if (bgAction.isActive) {
-          backgrounds.add(bgAction);
-        }
+    // For the active action, only include if it needs healing (not respawn)
+    // because foreground handles respawn synchronously
+    if (actionId == activeActionId) {
+      if (!mining.isDepleted && mining.totalHpLost > 0) {
+        backgrounds.add(MiningBackgroundAction(actionId, mining));
+      }
+    } else {
+      // Non-active actions: include all background work (healing + respawn)
+      final bgAction = MiningBackgroundAction(actionId, mining);
+      if (bgAction.isActive) {
+        backgrounds.add(bgAction);
       }
     }
   }
@@ -311,9 +305,9 @@ void _applyBackgroundTicks(
   for (final bg in backgrounds) {
     // Re-read the current mining state from builder to get any updates
     // that the foreground action may have made
-    final currentActionState = builder.state.actionState(bg.actionId);
-    final currentMining =
-        currentActionState.mining ?? const MiningState.empty();
+    final currentMining = builder.state.miningState.rockState(
+      bg.actionId.localId,
+    );
 
     // For the active action, only apply healing (not respawn)
     // because foreground handles respawn synchronously
@@ -424,14 +418,16 @@ void _applyPassiveCookingTicks(
   // Passive cooking only runs when the active action is a CookingAction
   if (activeActionId == null) return;
 
-  final actions = builder.state.registries.actions;
-  final activeAction = actions.byId(activeActionId);
+  final registries = builder.state.registries;
+  final currentAction = registries.actionById(activeActionId);
 
   // If not cooking, passive cooking doesn't run
-  if (activeAction is! CookingAction) return;
+  if (currentAction is! CookingAction) return;
 
   final cookingState = builder.state.cooking;
-  final activeCookingArea = CookingArea.fromCategoryId(activeAction.categoryId);
+  final activeCookingArea = CookingArea.fromCategoryId(
+    currentAction.categoryId,
+  );
 
   // Process each non-active cooking area
   for (final (area, areaState) in cookingState.allAreas) {
@@ -442,7 +438,7 @@ void _applyPassiveCookingTicks(
     if (!areaState.isActive || areaState.recipeId == null) continue;
 
     final recipeId = areaState.recipeId!;
-    final action = actions.byId(recipeId);
+    final action = registries.actionById(recipeId);
     if (action is! CookingAction) continue;
 
     // Check if we have inputs to cook
@@ -498,10 +494,47 @@ class StateUpdateBuilder {
   }
 
   void setActionProgress(Action action, {required int remainingTicks}) {
-    _state = _state.updateActiveAction(
+    _state = _state.updateActiveActivity(
       action.id,
       remainingTicks: remainingTicks,
     );
+  }
+
+  /// Switches to a new combat action during dungeon progression.
+  /// Unlike setActionProgress, this allows changing to a different action ID.
+  ///
+  /// This preserves the dungeon context from the current activity while
+  /// switching to the new monster.
+  void switchToAction(Action action, {required int remainingTicks}) {
+    final totalTicks = remainingTicks;
+    final currentActivity = _state.activeActivity;
+
+    // If we're in a dungeon, preserve the dungeon context
+    if (currentActivity is CombatActivity &&
+        currentActivity.context is DungeonCombatContext) {
+      // The new activity will have the updated monster index set by the caller
+      // via updateCombatState, so we just update progressTicks/totalTicks here
+      _state = _state.copyWith(
+        activeActivity: currentActivity.copyWith(
+          progressTicks: totalTicks - remainingTicks,
+          totalTicks: totalTicks,
+        ),
+      );
+    } else {
+      // Non-dungeon combat - create a new CombatActivity
+      _state = _state.copyWith(
+        activeActivity: CombatActivity(
+          context: MonsterCombatContext(monsterId: action.id.localId),
+          progress: const CombatProgressState(
+            monsterHp: 0, // Will be set by caller via updateCombatState
+            playerAttackTicksRemaining: 0,
+            monsterAttackTicksRemaining: 0,
+          ),
+          progressTicks: totalTicks - remainingTicks,
+          totalTicks: totalTicks,
+        ),
+      );
+    }
   }
 
   int currentMasteryLevel(Action action) {
@@ -580,8 +613,12 @@ class StateUpdateBuilder {
     }
   }
 
-  /// Tracks a monster kill for task progress.
+  /// Tracks a monster kill for task progress and welcome back dialog.
   void trackMonsterKill(MelvorId monsterId) {
+    // Track for welcome back dialog
+    _changes = _changes.recordingMonsterKill(monsterId);
+
+    // Track for township task progress
     final township = _state.township;
     final completedTasks = township.completedMainTasks;
 
@@ -690,9 +727,49 @@ class StateUpdateBuilder {
   }
 
   /// Updates the combat state for an action.
+  ///
+  /// This updates both the legacy `actionStates[...].combat` and the new
+  /// `activeActivity` (when it's a `CombatActivity`) to keep them in sync.
   void updateCombatState(ActionId actionId, CombatActionState newCombat) {
+    // Update legacy actionStates
     final actionState = _state.actionState(actionId);
     updateActionState(actionId, actionState.copyWith(combat: newCombat));
+
+    // Also update activeActivity if it's a CombatActivity
+    final activity = _state.activeActivity;
+    if (activity is CombatActivity) {
+      final newProgress = CombatProgressState(
+        monsterHp: newCombat.monsterHp,
+        playerAttackTicksRemaining: newCombat.playerAttackTicksRemaining,
+        monsterAttackTicksRemaining: newCombat.monsterAttackTicksRemaining,
+        spawnTicksRemaining: newCombat.spawnTicksRemaining,
+      );
+
+      // Update context if dungeon monster index changed
+      var newContext = activity.context;
+      if (newCombat.dungeonId != null) {
+        // In a dungeon - update the context with new monster index
+        final currentContext = activity.context;
+        if (currentContext is DungeonCombatContext) {
+          newContext = currentContext.copyWith(
+            currentMonsterIndex: newCombat.dungeonMonsterIndex ?? 0,
+          );
+        }
+      } else if (actionId.localId != activity.context.currentMonsterId) {
+        throw StateError(
+          'Monster ID changed unexpectedly during combat: '
+          'expected ${activity.context.currentMonsterId}, '
+          'got ${actionId.localId}',
+        );
+      }
+
+      _state = _state.copyWith(
+        activeActivity: activity.copyWith(
+          context: newContext,
+          progress: newProgress,
+        ),
+      );
+    }
   }
 
   /// Depletes a mining node and starts its respawn timer.
@@ -701,31 +778,33 @@ class StateUpdateBuilder {
     MiningAction action,
     int totalHpLost,
   ) {
-    final actionState = _state.actionState(actionId);
     final newMining = MiningState(
       totalHpLost: totalHpLost,
       respawnTicksRemaining: action.respawnTicks,
     );
-    updateActionState(actionId, actionState.copyWith(mining: newMining));
+    updateMiningState(actionId, newMining);
   }
 
   /// Damages a mining node and starts HP regeneration if needed.
   void damageResourceNode(ActionId actionId, int totalHpLost) {
-    final actionState = _state.actionState(actionId);
-    final currentMining = actionState.mining ?? const MiningState.empty();
+    final currentMining = _state.miningState.rockState(actionId.localId);
     final newMining = currentMining.copyWith(
       totalHpLost: totalHpLost,
       hpRegenTicksRemaining: currentMining.hpRegenTicksRemaining == 0
           ? ticksPer1Hp
           : currentMining.hpRegenTicksRemaining,
     );
-    updateActionState(actionId, actionState.copyWith(mining: newMining));
+    updateMiningState(actionId, newMining);
   }
 
   /// Updates the mining state for an action.
   void updateMiningState(ActionId actionId, MiningState newMining) {
-    final actionState = _state.actionState(actionId);
-    updateActionState(actionId, actionState.copyWith(mining: newMining));
+    _state = _state.copyWith(
+      miningState: _state.miningState.withRockState(
+        actionId.localId,
+        newMining,
+      ),
+    );
   }
 
   /// Attempts auto-eat if player has the modifier and HP is below threshold.
@@ -775,8 +854,10 @@ class StateUpdateBuilder {
       final newEquipment = _state.equipment.consumeSelectedFood();
       if (newEquipment == null) break;
 
-      // Track the consumption in changes
-      _changes = _changes.removing(ItemStack(food.item, count: 1));
+      // Track the consumption in changes (both inventory change and food eaten)
+      _changes = _changes
+          .removing(ItemStack(food.item, count: 1))
+          .recordingFoodEaten(food.item.id, 1);
 
       // Apply the heal
       _state = _state.copyWith(
@@ -796,7 +877,18 @@ class StateUpdateBuilder {
     _state = _state.copyWith(
       summoning: _state.summoning.withMarks(familiarId, 1),
     );
-    // Marks are not tracked in changes for now.
+    // Track for welcome back dialog
+    _changes = _changes.recordingMarkFound(familiarId);
+  }
+
+  /// Increments the dungeon completion count for a dungeon.
+  void incrementDungeonCompletion(MelvorId dungeonId) {
+    final currentCount = _state.dungeonCompletions[dungeonId] ?? 0;
+    final newCompletions = Map<MelvorId, int>.from(_state.dungeonCompletions)
+      ..[dungeonId] = currentCount + 1;
+    _state = _state.copyWith(dungeonCompletions: newCompletions);
+    // Track for welcome back dialog
+    _changes = _changes.recordingDungeonCompletion(dungeonId);
   }
 
   /// Records that a tablet was crafted for a familiar.
@@ -830,6 +922,9 @@ class StateUpdateBuilder {
       final isRelevant = _isFamiliarRelevantToAction(tablet.id, action);
       if (!isRelevant) continue;
 
+      // Track tablet usage for welcome back dialog
+      _changes = _changes.recordingTabletUsed(tablet.id, 1);
+
       equipment = equipment.consumeSummonCharges(slot, 1);
     }
 
@@ -839,7 +934,7 @@ class StateUpdateBuilder {
   /// Returns true if the familiar is relevant to the given action.
   bool _isFamiliarRelevantToAction(MelvorId tabletId, Action action) {
     if (action is SkillAction) {
-      return registries.actions.isFamiliarRelevantToSkill(
+      return registries.summoning.isFamiliarRelevantToSkill(
         tabletId,
         action.skill,
       );
@@ -848,7 +943,7 @@ class StateUpdateBuilder {
     if (action is CombatAction) {
       // Use the player's current combat type to determine relevance
       final combatTypeSkills = _state.attackStyle.combatType.skills;
-      return registries.actions.isFamiliarRelevantToCombat(
+      return registries.summoning.isFamiliarRelevantToCombat(
         tabletId,
         combatTypeSkills,
       );
@@ -886,6 +981,9 @@ class StateUpdateBuilder {
       final newInventory = _state.inventory.removing(potionStack);
       final newChargesUsed = Map<MelvorId, int>.from(_state.potionChargesUsed)
         ..remove(skillId);
+
+      // Track potion usage for welcome back dialog
+      _changes = _changes.recordingPotionUsed(potionId);
 
       // Check if we still have potions in inventory
       final remainingCount = newInventory.countOfItem(potion);
@@ -933,12 +1031,13 @@ class StateUpdateBuilder {
     }
 
     // 1. Foreground action completion
-    final activeAction = _state.activeAction;
-    if (activeAction != null) {
-      updateMin(activeAction.remainingTicks);
+    final activeActivity = _state.activeActivity;
+    final activeActionId = _state.currentActionId;
+    if (activeActivity != null) {
+      updateMin(activeActivity.remainingTicks);
 
       // Combat timers (if in combat)
-      final combatState = _state.actionState(activeAction.id).combat;
+      final combatState = _state.actionState(activeActionId!).combat;
       if (combatState != null) {
         updateMin(combatState.spawnTicksRemaining);
         if (!combatState.isSpawning) {
@@ -959,11 +1058,7 @@ class StateUpdateBuilder {
     }
 
     // 4. Mining node timers (all nodes, not just active)
-    for (final entry in _state.actionStates.entries) {
-      final actionState = entry.value;
-      final mining = actionState.mining;
-      if (mining == null) continue;
-
+    for (final mining in _state.miningState.rockStates.values) {
       // Respawn timer
       updateMin(mining.respawnTicksRemaining);
 
@@ -987,8 +1082,8 @@ class StateUpdateBuilder {
     }
 
     // 7. Passive cooking timers (only when actively cooking)
-    if (activeAction != null) {
-      final action = registries.actions.byId(activeAction.id);
+    if (activeActionId != null) {
+      final action = registries.actionById(activeActionId);
       if (action is CookingAction) {
         final activeCookingArea = CookingArea.fromCategoryId(action.categoryId);
         for (final (area, areaState) in _state.cooking.allAreas) {
@@ -1279,7 +1374,7 @@ void _rollMarkDiscovery(
   final registries = builder.registries;
 
   // Get familiars that can be discovered in this skill
-  final familiars = registries.actions.summoningFamiliarsForSkill(action.skill);
+  final familiars = registries.summoning.familiarsForSkill(action.skill);
   if (familiars.isEmpty) return;
 
   // Get player's summoning level
@@ -1365,7 +1460,7 @@ bool completeAction(
   // Handle resource depletion for mining
   if (action is MiningAction) {
     final actionState = builder.state.actionState(action.id);
-    final miningState = actionState.mining ?? const MiningState.empty();
+    final miningState = builder.state.miningState.rockState(action.id.localId);
 
     // Increment damage
     final newTotalHpLost = miningState.totalHpLost + 1;
@@ -1411,8 +1506,8 @@ enum ForegroundResult {
   Tick ticksAvailable,
   Random random,
 ) {
-  var currentAction = builder.state.activeAction;
-  if (currentAction == null) {
+  var currentActivity = builder.state.activeActivity;
+  if (currentActivity == null) {
     return (ForegroundResult.stopped, 0);
   }
 
@@ -1430,19 +1525,17 @@ enum ForegroundResult {
   // If action completed (remainingTicks=0), stun just cleared - restart it.
   // This happens when an action (e.g., thieving) completed but was stunned,
   // leaving it at remainingTicks=0 until stun cleared.
-  if (currentAction.remainingTicks == 0) {
+  if (currentActivity.remainingTicks == 0) {
     builder.restartCurrentAction(action, random: random);
-    currentAction = builder.state.activeAction;
+    currentActivity = builder.state.activeActivity;
   }
-  if (currentAction == null) {
-    throw StateError('Active action is null');
+  if (currentActivity == null) {
+    throw StateError('Active activity is null');
   }
 
   // For mining, handle respawn waiting (blocking foreground behavior)
   if (action is MiningAction) {
-    final miningState =
-        builder.state.actionState(action.id).mining ??
-        const MiningState.empty();
+    final miningState = builder.state.miningState.rockState(action.id.localId);
 
     if (miningState.isDepleted) {
       // Wait for respawn - this is foreground blocking behavior
@@ -1461,8 +1554,8 @@ enum ForegroundResult {
   }
 
   // Process action progress
-  final ticksToApply = min(ticksAvailable, currentAction.remainingTicks);
-  final newRemainingTicks = currentAction.remainingTicks - ticksToApply;
+  final ticksToApply = min(ticksAvailable, currentActivity.remainingTicks);
+  final newRemainingTicks = currentActivity.remainingTicks - ticksToApply;
   builder
     ..setActionProgress(action, remainingTicks: newRemainingTicks)
     ..addActionTicks(action.id, ticksToApply);
@@ -1513,9 +1606,9 @@ enum ForegroundResult {
 
     // For mining, check if node just depleted
     if (action is MiningAction && !canRepeat) {
-      final miningState =
-          builder.state.actionState(action.id).mining ??
-          const MiningState.empty();
+      final miningState = builder.state.miningState.rockState(
+        action.id.localId,
+      );
       if (miningState.isDepleted) {
         // Node depleted - next iteration will handle respawn
         return (ForegroundResult.continued, ticksToApply);
@@ -1548,12 +1641,12 @@ enum ForegroundResult {
   Tick ticksAvailable,
   Random random,
 ) {
-  final activeAction = builder.state.activeAction;
-  if (activeAction == null) {
+  final activeActionId = builder.state.currentActionId;
+  if (activeActionId == null) {
     return (ForegroundResult.stopped, 0);
   }
 
-  final combatState = builder.state.actionState(activeAction.id).combat;
+  final combatState = builder.state.actionState(activeActionId).combat;
   if (combatState == null) {
     return (ForegroundResult.stopped, 0);
   }
@@ -1566,7 +1659,7 @@ enum ForegroundResult {
   final spawnTicks = currentCombat.spawnTicksRemaining;
   if (spawnTicks != null) {
     if (remainingTicks >= spawnTicks) {
-      // Monster spawns
+      // Monster spawns - preserve dungeon info if in a dungeon
       final pStats = computePlayerStats(builder.state);
       final playerAttackTicks = secondsToTicks(pStats.attackSpeed);
       final monsterAttackTicks = secondsToTicks(action.stats.attackSpeed);
@@ -1576,15 +1669,17 @@ enum ForegroundResult {
         monsterHp: action.maxHp,
         playerAttackTicksRemaining: playerAttackTicks,
         monsterAttackTicksRemaining: monsterAttackTicks,
+        dungeonId: currentCombat.dungeonId,
+        dungeonMonsterIndex: currentCombat.dungeonMonsterIndex,
       );
-      builder.updateCombatState(activeAction.id, currentCombat);
+      builder.updateCombatState(activeActionId, currentCombat);
       return (ForegroundResult.continued, spawnTicks);
     } else {
       // Still waiting for spawn
       currentCombat = currentCombat.copyWith(
         spawnTicksRemaining: spawnTicks - remainingTicks,
       );
-      builder.updateCombatState(activeAction.id, currentCombat);
+      builder.updateCombatState(activeActionId, currentCombat);
       return (ForegroundResult.continued, remainingTicks);
     }
   }
@@ -1600,7 +1695,7 @@ enum ForegroundResult {
       playerAttackTicksRemaining: playerTicks - remainingTicks,
       monsterAttackTicksRemaining: monsterTicks - remainingTicks,
     );
-    builder.updateCombatState(activeAction.id, currentCombat);
+    builder.updateCombatState(activeActionId, currentCombat);
     return (ForegroundResult.continued, remainingTicks);
   }
 
@@ -1608,7 +1703,7 @@ enum ForegroundResult {
   final ticksConsumed = nextEventTicks;
   final newPlayerTicks = playerTicks - nextEventTicks;
   final newMonsterTicks = monsterTicks - nextEventTicks;
-  builder.addActionTicks(activeAction.id, ticksConsumed);
+  builder.addActionTicks(activeActionId, ticksConsumed);
 
   // Process player attack if ready
   var monsterHp = currentCombat.monsterHp;
@@ -1689,7 +1784,42 @@ enum ForegroundResult {
     // Track monster kill for task progress
     builder.trackMonsterKill(action.id.localId);
 
-    // Reset monster attack timer to full duration for when it spawns
+    // Handle dungeon progression
+    final dungeonContext = switch (builder.state.activeActivity) {
+      CombatActivity(:final context) when context is DungeonCombatContext =>
+        context,
+      _ => null,
+    };
+    if (dungeonContext != null) {
+      // If last monster was killed, increment completion count
+      if (dungeonContext.isLastMonster) {
+        builder.incrementDungeonCompletion(dungeonContext.dungeonId);
+      }
+
+      // Advance to the next monster (wraps to 0 after last)
+      final nextContext = dungeonContext.advanceToNextMonster();
+      final nextMonsterId = nextContext.currentMonsterId;
+      final nextMonster = builder.registries.combat.monsterById(nextMonsterId);
+      final fullMonsterAttackTicks = ticksFromDuration(
+        Duration(milliseconds: (nextMonster.stats.attackSpeed * 1000).round()),
+      );
+      currentCombat = CombatActionState(
+        monsterId: nextMonster.id,
+        monsterHp: 0,
+        playerAttackTicksRemaining: resetPlayerTicks,
+        monsterAttackTicksRemaining: fullMonsterAttackTicks,
+        spawnTicksRemaining: ticksFromDuration(monsterSpawnDuration),
+        dungeonId: nextContext.dungeonId,
+        dungeonMonsterIndex: nextContext.currentMonsterIndex,
+      );
+      // Update to the next monster's action and its combat state
+      builder
+        ..switchToAction(nextMonster, remainingTicks: resetPlayerTicks)
+        ..updateCombatState(nextMonster.id, currentCombat);
+      return (ForegroundResult.continued, ticksConsumed);
+    }
+
+    // Regular combat - respawn the same monster
     final fullMonsterAttackTicks = ticksFromDuration(
       Duration(milliseconds: (action.stats.attackSpeed * 1000).round()),
     );
@@ -1699,7 +1829,7 @@ enum ForegroundResult {
       monsterAttackTicksRemaining: fullMonsterAttackTicks,
       spawnTicksRemaining: ticksFromDuration(monsterSpawnDuration),
     );
-    builder.updateCombatState(activeAction.id, currentCombat);
+    builder.updateCombatState(activeActionId, currentCombat);
     return (ForegroundResult.continued, ticksConsumed);
   }
 
@@ -1761,24 +1891,43 @@ enum ForegroundResult {
     playerAttackTicksRemaining: resetPlayerTicks,
     monsterAttackTicksRemaining: resetMonsterTicks,
   );
-  builder.updateCombatState(activeAction.id, currentCombat);
+  builder.updateCombatState(activeActionId, currentCombat);
   return (ForegroundResult.continued, ticksConsumed);
 }
 
-/// Dispatches foreground processing based on action type.
+/// Dispatches foreground processing based on activity type.
+///
+/// Uses pattern matching on [ActiveActivity] sealed class for type-safe
+/// dispatch. The [action] parameter is still needed for accessing action
+/// properties during processing.
 (ForegroundResult, Tick) _processForegroundAction(
   StateUpdateBuilder builder,
   Action action,
   Tick ticksAvailable,
   Random random,
 ) {
-  if (action is CombatAction) {
-    return _processCombatForeground(builder, action, ticksAvailable, random);
-  } else if (action is SkillAction) {
-    return _processSkillForeground(builder, action, ticksAvailable, random);
-  } else {
-    throw StateError('Unknown action type: ${action.runtimeType}');
-  }
+  final activity = builder.state.activeActivity;
+
+  // Pattern match on the sealed ActiveActivity class
+  return switch (activity) {
+    SkillActivity() when action is SkillAction => _processSkillForeground(
+      builder,
+      action,
+      ticksAvailable,
+      random,
+    ),
+    CombatActivity() when action is CombatAction => _processCombatForeground(
+      builder,
+      action,
+      ticksAvailable,
+      random,
+    ),
+    // Fallback for mismatched state (shouldn't happen in normal operation)
+    _ => throw StateError(
+      'Activity/action type mismatch: '
+      'activity=${activity.runtimeType}, action=${action.runtimeType}',
+    ),
+  };
 }
 
 /// Condition function that determines when to stop consuming ticks.
@@ -1811,14 +1960,14 @@ ConsumeTicksStopReason _consumeTicksCore(
       return ConsumeTicksStopReason.conditionSatisfied;
     }
 
-    final activeAction = builder.state.activeAction;
+    final activeActionId = builder.state.currentActionId;
 
     // 1. Compute current background actions (may change each iteration)
     // Pass active action name so we can exclude respawn handling for it
     // (foreground handles respawn synchronously for the active action)
     final backgroundActions = _getBackgroundActions(
       builder.state,
-      activeActionId: activeAction?.id,
+      activeActionId: activeActionId,
     );
 
     // 2. Determine how many ticks to process this iteration
@@ -1826,9 +1975,9 @@ ConsumeTicksStopReason _consumeTicksCore(
 
     var skipStunCountdown = false;
 
-    if (activeAction != null) {
+    if (activeActionId != null) {
       // Process foreground action until next "event"
-      final action = registries.actions.byId(activeAction.id);
+      final action = registries.actionById(activeActionId);
       final (foregroundResult, ticksUsed) = _processForegroundAction(
         builder,
         action,
@@ -1864,7 +2013,7 @@ ConsumeTicksStopReason _consumeTicksCore(
       backgroundActions,
       ticksThisIteration,
       random,
-      activeActionId: activeAction?.id,
+      activeActionId: activeActionId,
       skipStunCountdown: skipStunCountdown,
     );
 
@@ -1874,7 +2023,7 @@ ConsumeTicksStopReason _consumeTicksCore(
     // If no foreground action, no mining background actions, and player is
     // fully healed, we're done
     final hasPlayerHpRegen = !builder.state.health.isFullHealth;
-    if (activeAction == null &&
+    if (activeActionId == null &&
         backgroundActions.isEmpty &&
         !hasPlayerHpRegen) {
       return ConsumeTicksStopReason.noProgressPossible;
@@ -1959,11 +2108,11 @@ ConsumeTicksStopReason consumeTicksUntil(
       );
 
   // Build TimeAway with action details if there was an active action
-  final activeAction = state.activeAction;
+  final activeActionId = state.currentActionId;
   // For TimeAway, we only need the action for predictions.
   // Combat actions return empty predictions anyway, so null is fine.
-  final action = activeAction != null
-      ? registries.actions.byId(activeAction.id)
+  final action = activeActionId != null
+      ? registries.actionById(activeActionId)
       : null;
   // Convert stoppedAtTick to Duration if action stopped
   final stoppedAfter = builder.stoppedAtTick != null

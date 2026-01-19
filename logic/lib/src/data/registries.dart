@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:logic/src/data/action_id.dart';
 import 'package:logic/src/data/actions.dart';
 import 'package:logic/src/data/cache.dart';
 import 'package:logic/src/data/melvor_data.dart';
@@ -12,35 +13,49 @@ import 'package:logic/src/types/mastery.dart';
 import 'package:logic/src/types/mastery_unlock.dart';
 import 'package:meta/meta.dart';
 
+/// Compares two values by their index in a sort map.
+/// Items in the map come before items not in it.
+/// Items not in the map maintain stable relative ordering (returns 0).
+int compareByIndex<K>(Map<K, int> sortIndex, K a, K b) {
+  final indexA = sortIndex[a];
+  final indexB = sortIndex[b];
+  if (indexA == null && indexB == null) return 0;
+  if (indexA == null) return 1;
+  if (indexB == null) return -1;
+  return indexA.compareTo(indexB);
+}
+
 @immutable
 class Registries {
-  const Registries(
-    this.items,
-    this.actions,
-    this.drops,
-    this.equipmentSlots,
-    this.cookingCategories,
-    this.fishingAreas,
-    this.smithingCategories,
-    this.fletchingCategories,
-    this.craftingCategories,
-    this.herbloreCategories,
-    this.runecraftingCategories,
-    this.thievingAreas,
-    this.combatAreas,
-    this.dungeons,
-    this.agilityCourses,
-    this.agilityPillars,
-    this.farmingCrops,
-    this.farmingCategories,
-    this.farmingPlots,
-    this.shop,
-    this.masteryBonuses,
-    this.masteryUnlocks,
-    this.summoningSynergies,
-    this.township,
-    this._bankSortIndex,
-  );
+  Registries({
+    required this.items,
+    required this.drops,
+    required this.equipmentSlots,
+    required this.woodcutting,
+    required this.mining,
+    required this.firemaking,
+    required this.fishing,
+    required this.cooking,
+    required this.smithing,
+    required this.fletching,
+    required this.crafting,
+    required this.herblore,
+    required this.runecrafting,
+    required this.thieving,
+    required this.agility,
+    required this.farming,
+    required this.summoning,
+    required this.astrology,
+    required this.altMagic,
+    required this.combat,
+    required this.shop,
+    required this.masteryBonuses,
+    required this.masteryUnlocks,
+    required this.summoningSynergies,
+    required this.township,
+    required Map<MelvorId, int> bankSortIndex,
+  }) : _bankSortIndex = bankSortIndex,
+       _testActions = null;
 
   factory Registries.test({
     List<Item> items = const [],
@@ -52,54 +67,74 @@ class Registries {
     TownshipRegistry? township,
     Map<MelvorId, int>? bankSortIndex,
   }) {
-    return Registries(
-      ItemRegistry(items),
-      ActionRegistry(actions),
-      DropsRegistry({}),
-      const EquipmentSlotRegistry.empty(),
-      CookingCategoryRegistry(const []),
-      FishingAreaRegistry(const []),
-      SmithingCategoryRegistry(const []),
-      FletchingCategoryRegistry(const []),
-      CraftingCategoryRegistry(const []),
-      HerbloreCategoryRegistry(const []),
-      RunecraftingCategoryRegistry(const []),
-      const ThievingAreaRegistry([]),
-      CombatAreaRegistry(const []),
-      DungeonRegistry(const []),
-      AgilityCourseRegistry([]),
-      AgilityPillarRegistry([]),
-      FarmingCropRegistry([]),
-      FarmingCategoryRegistry(const []),
-      FarmingPlotRegistry([]),
-      shop ?? ShopRegistry(const [], const []),
-      masteryBonuses ?? MasteryBonusRegistry([]),
-      masteryUnlocks ?? MasteryUnlockRegistry(const []),
-      summoningSynergies ?? const SummoningSynergyRegistry([]),
-      township ?? const TownshipRegistry.empty(),
-      bankSortIndex ?? {},
+    // For tests, we store actions in a separate list that overrides
+    // the allActions getter. This allows tests to use generic SkillAction
+    // instances without needing skill-specific subclasses.
+    return Registries._test(
+      items: ItemRegistry(items),
+      drops: DropsRegistry({}),
+      equipmentSlots: const EquipmentSlotRegistry.empty(),
+      shop: shop ?? ShopRegistry(const [], const []),
+      masteryBonuses: masteryBonuses ?? MasteryBonusRegistry([]),
+      masteryUnlocks: masteryUnlocks ?? MasteryUnlockRegistry(const []),
+      summoningSynergies:
+          summoningSynergies ?? const SummoningSynergyRegistry([]),
+      township: township ?? const TownshipRegistry.empty(),
+      bankSortIndex: bankSortIndex ?? {},
+      testActions: actions,
     );
   }
 
+  /// Internal constructor for test fixtures that stores actions directly.
+  Registries._test({
+    required this.items,
+    required this.drops,
+    required this.equipmentSlots,
+    required this.shop,
+    required this.masteryBonuses,
+    required this.masteryUnlocks,
+    required this.summoningSynergies,
+    required this.township,
+    required Map<MelvorId, int> bankSortIndex,
+    required List<Action> testActions,
+  }) : _bankSortIndex = bankSortIndex,
+       _testActions = testActions,
+       woodcutting = const WoodcuttingRegistry([]),
+       mining = const MiningRegistry([]),
+       firemaking = const FiremakingRegistry([]),
+       fishing = FishingRegistry(actions: const [], areas: const []),
+       cooking = CookingRegistry(actions: const [], categories: const []),
+       smithing = SmithingRegistry(actions: const [], categories: const []),
+       fletching = FletchingRegistry(actions: const [], categories: const []),
+       crafting = CraftingRegistry(actions: const [], categories: const []),
+       herblore = HerbloreRegistry(actions: const [], categories: const []),
+       runecrafting = RunecraftingRegistry(
+         actions: const [],
+         categories: const [],
+       ),
+       thieving = ThievingRegistry(actions: const [], areas: const []),
+       agility = AgilityRegistry(
+         obstacles: const [],
+         courses: const [],
+         pillars: const [],
+       ),
+       farming = FarmingRegistry(
+         crops: const [],
+         categories: const [],
+         plots: const [],
+       ),
+       summoning = SummoningRegistry(const []),
+       astrology = const AstrologyRegistry([]),
+       altMagic = const AltMagicRegistry([]),
+       combat = CombatRegistry(
+         monsters: const [],
+         areas: CombatAreaRegistry(const []),
+         dungeons: DungeonRegistry(const []),
+       );
+
   final ItemRegistry items;
-  final ActionRegistry actions;
   final DropsRegistry drops;
   final EquipmentSlotRegistry equipmentSlots;
-  final CookingCategoryRegistry cookingCategories;
-  final FishingAreaRegistry fishingAreas;
-  final SmithingCategoryRegistry smithingCategories;
-  final FletchingCategoryRegistry fletchingCategories;
-  final CraftingCategoryRegistry craftingCategories;
-  final HerbloreCategoryRegistry herbloreCategories;
-  final RunecraftingCategoryRegistry runecraftingCategories;
-  final ThievingAreaRegistry thievingAreas;
-  final CombatAreaRegistry combatAreas;
-  final DungeonRegistry dungeons;
-  final AgilityCourseRegistry agilityCourses;
-  final AgilityPillarRegistry agilityPillars;
-  final FarmingCropRegistry farmingCrops;
-  final FarmingCategoryRegistry farmingCategories;
-  final FarmingPlotRegistry farmingPlots;
   final ShopRegistry shop;
   final MasteryBonusRegistry masteryBonuses;
   final MasteryUnlockRegistry masteryUnlocks;
@@ -107,21 +142,88 @@ class Registries {
   final TownshipRegistry township;
   final Map<MelvorId, int> _bankSortIndex;
 
-  /// Comparator for sorting items according to bank sort order.
-  /// Items in sort order come before items not in sort order.
-  /// Items not in sort order maintain stable relative ordering.
-  int compareBankItems(Item a, Item b) {
-    final indexA = _bankSortIndex[a.id];
-    final indexB = _bankSortIndex[b.id];
+  // Skill registries
+  final WoodcuttingRegistry woodcutting;
+  final MiningRegistry mining;
+  final FiremakingRegistry firemaking;
+  final FishingRegistry fishing;
+  final CookingRegistry cooking;
+  final SmithingRegistry smithing;
+  final FletchingRegistry fletching;
+  final CraftingRegistry crafting;
+  final HerbloreRegistry herblore;
+  final RunecraftingRegistry runecrafting;
+  final ThievingRegistry thieving;
+  final AgilityRegistry agility;
+  final FarmingRegistry farming;
+  final SummoningRegistry summoning;
+  final AstrologyRegistry astrology;
+  final AltMagicRegistry altMagic;
+  final CombatRegistry combat;
 
-    // Both not in sort order - maintain original order (return 0)
-    if (indexA == null && indexB == null) return 0;
-    // Items in sort order come before items not in sort order
-    if (indexA == null) return 1;
-    if (indexB == null) return -1;
+  // Convenience getters that delegate to specialized registries.
+  List<FishingArea> get fishingAreas => fishing.areas;
+  List<FarmingCrop> get farmingCrops => farming.crops;
+  List<FarmingCategory> get farmingCategories => farming.categories;
+  List<FarmingPlot> get farmingPlots => farming.plots;
+  CombatAreaRegistry get combatAreas => combat.areas;
+  DungeonRegistry get dungeons => combat.dungeons;
 
-    return indexA.compareTo(indexB);
+  // For test fixtures: stores generic actions directly instead of using
+  // specialized registries. Null for production registries.
+  final List<Action>? _testActions;
+
+  /// Returns all actions across all skill registries.
+  /// For test fixtures, returns the directly-stored test actions instead.
+  late final List<Action> allActions =
+      _testActions ??
+      [
+        ...woodcutting.actions,
+        ...mining.actions,
+        ...firemaking.actions,
+        ...fishing.actions,
+        ...cooking.actions,
+        ...smithing.actions,
+        ...fletching.actions,
+        ...crafting.actions,
+        ...herblore.actions,
+        ...runecrafting.actions,
+        ...thieving.actions,
+        ...agility.obstacles,
+        ...farming.crops,
+        ...summoning.actions,
+        ...astrology.actions,
+        ...altMagic.actions,
+        ...combat.monsters,
+      ];
+
+  /// Map from ActionId to Action for quick lookup.
+  late final Map<ActionId, Action> _actionById = {
+    for (final action in allActions) action.id: action,
+  };
+
+  /// Returns an action by its ActionId.
+  ///
+  /// Throws StateError if the action is not found.
+  Action actionById(ActionId id) {
+    final action = _actionById[id];
+    if (action == null) {
+      throw StateError('Missing action with id: $id');
+    }
+    return action;
   }
+
+  /// Returns all skill actions for a given skill.
+  List<SkillAction> actionsForSkill(Skill skill) {
+    return allActions
+        .whereType<SkillAction>()
+        .where((action) => action.skill == skill)
+        .toList();
+  }
+
+  /// Comparator for sorting items according to bank sort order.
+  int compareBankItems(Item a, Item b) =>
+      compareByIndex(_bankSortIndex, a.id, b.id);
 }
 
 /// Ensures the registries are initialized.
@@ -143,31 +245,5 @@ Future<Registries> loadRegistries({Directory? cacheDir}) async {
 /// (e.g., for both loading registries and caching images).
 Future<Registries> loadRegistriesFromCache(Cache cache) async {
   final melvorData = await MelvorData.loadFromCache(cache);
-  return Registries(
-    melvorData.items,
-    melvorData.actions,
-    melvorData.drops,
-    melvorData.equipmentSlots,
-    melvorData.cookingCategories,
-    melvorData.fishingAreas,
-    melvorData.smithingCategories,
-    melvorData.fletchingCategories,
-    melvorData.craftingCategories,
-    melvorData.herbloreCategories,
-    melvorData.runecraftingCategories,
-    melvorData.thievingAreas,
-    melvorData.combatAreas,
-    melvorData.dungeons,
-    melvorData.agilityCourses,
-    melvorData.agilityPillars,
-    melvorData.farmingCrops,
-    melvorData.farmingCategories,
-    melvorData.farmingPlots,
-    melvorData.shop,
-    melvorData.masteryBonuses,
-    melvorData.masteryUnlocks,
-    melvorData.summoningSynergies,
-    melvorData.township,
-    melvorData.bankSortIndex,
-  );
+  return melvorData.toRegistries();
 }

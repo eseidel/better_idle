@@ -265,7 +265,7 @@ class WatchSet {
 
   /// Checks if an unlocked action is in our watch set.
   bool _isWatchedUnlock(ActionId actionId) {
-    final action = registries.actions.byId(actionId);
+    final action = registries.actionById(actionId);
     if (action is! SkillAction) return false;
     return watchedSkills.contains(action.skill);
   }
@@ -277,7 +277,7 @@ class WatchSet {
 
   /// Converts an UnexpectedUnlock to an UnlockBoundary.
   SegmentBoundary _toUnlockBoundary(ActionId actionId) {
-    final action = registries.actions.byId(actionId);
+    final action = registries.actionById(actionId);
     if (action is SkillAction) {
       return UnlockBoundary(action.skill, action.unlockLevel, action.name);
     }
@@ -287,7 +287,7 @@ class WatchSet {
   /// Describes what gets unlocked at a given skill level.
   String _describeUnlock(Skill skill, int level) {
     final unlocks = <String>[];
-    for (final action in registries.actions.all) {
+    for (final action in registries.allActions) {
       if (action is SkillAction &&
           action.skill == skill &&
           action.unlockLevel == level) {

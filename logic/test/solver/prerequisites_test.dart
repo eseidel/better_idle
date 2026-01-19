@@ -15,7 +15,7 @@ void main() {
     test('returns ExecReady for action with no prerequisites', () {
       // Woodcutting Normal Tree requires no inputs and level 1
       final state = GlobalState.empty(testRegistries);
-      final normalTree = testActions.woodcutting('Normal Tree');
+      final normalTree = testRegistries.woodcuttingAction('Normal Tree');
       const goal = ReachSkillLevelGoal(Skill.woodcutting, 10);
 
       final result = ensureExecutable(state, normalTree.id, goal);
@@ -26,7 +26,7 @@ void main() {
     test('returns ExecNeedsMacros when action requires higher skill level', () {
       // Oak Tree requires level 15 woodcutting
       final state = GlobalState.empty(testRegistries);
-      final oakTree = testActions.woodcutting('Oak Tree');
+      final oakTree = testRegistries.woodcuttingAction('Oak Tree');
       const goal = ReachSkillLevelGoal(Skill.woodcutting, 20);
 
       final result = ensureExecutable(state, oakTree.id, goal);
@@ -49,7 +49,7 @@ void main() {
       // At level 1, we can't smelt Steel Bars, so ensureExecutable should
       // return macros to train Smithing to unlock Steel Bar production.
       final state = GlobalState.empty(testRegistries);
-      final steelDagger = testActions.smithing('Steel Dagger');
+      final steelDagger = testRegistries.smithingAction('Steel Dagger');
       const goal = ReachSkillLevelGoal(Skill.smithing, 50);
 
       // Verify that Steel Dagger requires Steel Bar
@@ -57,7 +57,7 @@ void main() {
       expect(steelDagger.inputs.containsKey(steelBarId), isTrue);
 
       // Verify that Steel Bar producer (Smelt Steel Bar) is locked at level 1
-      final smeltSteelBar = testActions.smithing('Steel Bar');
+      final smeltSteelBar = testRegistries.smithingAction('Steel Bar');
       expect(smeltSteelBar.unlockLevel, greaterThan(1));
 
       final result = ensureExecutable(state, steelDagger.id, goal);
@@ -83,7 +83,7 @@ void main() {
         ItemStack(bronzeBar, count: 10),
       ]);
       final state = GlobalState.test(testRegistries, inventory: inventory);
-      final bronzeDagger = testActions.smithing('Bronze Dagger');
+      final bronzeDagger = testRegistries.smithingAction('Bronze Dagger');
       const goal = ReachSkillLevelGoal(Skill.smithing, 10);
 
       final result = ensureExecutable(state, bronzeDagger.id, goal);
@@ -94,7 +94,7 @@ void main() {
 
     test('handles depth limit by returning ExecUnknown', () {
       final state = GlobalState.empty(testRegistries);
-      final bronzeDagger = testActions.smithing('Bronze Dagger');
+      final bronzeDagger = testRegistries.smithingAction('Bronze Dagger');
       const goal = ReachSkillLevelGoal(Skill.smithing, 10);
 
       // Force a very low depth limit

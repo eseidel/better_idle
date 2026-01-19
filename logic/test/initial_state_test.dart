@@ -11,7 +11,7 @@ void main() {
       final state = GlobalState.empty(testRegistries);
 
       // Check that plots with level 1 and no cost are unlocked
-      final freePlots = testRegistries.farmingPlots.all
+      final freePlots = testRegistries.farmingPlots
           .where((plot) => plot.level == 1 && plot.currencyCosts.isEmpty)
           .toList();
 
@@ -36,7 +36,7 @@ void main() {
       final state = GlobalState.empty(testRegistries);
 
       // Check that plots that cost currency are locked
-      final paidPlots = testRegistries.farmingPlots.all
+      final paidPlots = testRegistries.farmingPlots
           .where((plot) => plot.currencyCosts.isNotEmpty)
           .toList();
 
@@ -53,7 +53,7 @@ void main() {
       final state = GlobalState.empty(testRegistries);
 
       // Check that plots requiring higher levels are locked
-      final highLevelPlots = testRegistries.farmingPlots.all
+      final highLevelPlots = testRegistries.farmingPlots
           .where((plot) => plot.level > 1)
           .toList();
 

@@ -11,8 +11,8 @@ void main() {
 
   setUpAll(() async {
     await loadTestRegistries();
-    normalTree = testActions.woodcutting('Normal Tree');
-    copperMining = testActions.mining('Copper');
+    normalTree = testRegistries.woodcuttingAction('Normal Tree');
+    copperMining = testRegistries.miningAction('Copper');
   });
 
   group('SkillAction', () {
@@ -59,24 +59,24 @@ void main() {
     });
   });
 
-  group('ActionRegistry', () {
-    test('combatWithId returns CombatAction for valid monster ID', () {
-      final chicken = testActions.combat('Chicken');
+  group('CombatRegistry', () {
+    test('monsterById returns CombatAction for valid monster ID', () {
+      final chicken = testRegistries.combatAction('Chicken');
       final monsterId = chicken.id.localId;
 
-      final result = testActions.combatWithId(monsterId);
+      final result = testRegistries.combat.monsterById(monsterId);
 
       expect(result, isA<CombatAction>());
       expect(result.name, 'Chicken');
       expect(result.id, chicken.id);
     });
 
-    test('combatWithId throws for invalid monster ID', () {
+    test('monsterById throws for invalid monster ID', () {
       const invalidId = MelvorId('melvorD:NonExistentMonster');
 
       expect(
-        () => testActions.combatWithId(invalidId),
-        throwsA(isA<TypeError>()),
+        () => testRegistries.combat.monsterById(invalidId),
+        throwsA(isA<StateError>()),
       );
     });
   });

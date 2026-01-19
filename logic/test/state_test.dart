@@ -29,16 +29,16 @@ void main() {
     bronzeSword = testItems.byName('Bronze Sword');
     bronzeHelmet = testItems.byName('Bronze Helmet');
     bronzeShield = testItems.byName('Bronze Shield');
-    normalTree = testActions.woodcutting('Normal Tree');
-    oakTree = testActions.woodcutting('Oak Tree');
+    normalTree = testRegistries.woodcuttingAction('Normal Tree');
+    oakTree = testRegistries.woodcuttingAction('Oak Tree');
   });
 
   test('GlobalState toJson/fromJson round-trip', () {
     // Get farming data for plot state testing
-    final crops = testRegistries.farmingCrops.all;
+    final crops = testRegistries.farmingCrops;
     final levelOneCrops = crops.where((c) => c.level == 1).toList();
     final crop = levelOneCrops.first;
-    final initialPlots = testRegistries.farmingPlots.initialPlots().toList();
+    final initialPlots = testRegistries.farming.initialPlots().toList();
     final plotId1 = initialPlots[0];
     // Get a second plot if available, otherwise use a test plot id
     final plotId2 = initialPlots.length > 1
@@ -52,9 +52,10 @@ void main() {
         ItemStack(normalLogs, count: 5),
         ItemStack(oakLogs, count: 3),
       ]),
-      activeAction: ActiveAction(
-        id: normalTree.id,
-        remainingTicks: 15,
+      activeActivity: SkillActivity(
+        skill: Skill.woodcutting,
+        actionId: normalTree.id.localId,
+        progressTicks: 15,
         totalTicks: 30,
       ),
       skillStates: const {
@@ -104,8 +105,8 @@ void main() {
     expect(items[1].item, oakLogs);
     expect(items[1].count, 3);
 
-    expect(loaded.activeAction?.id, normalTree.id);
-    expect(loaded.activeAction?.progressTicks, 15);
+    expect(loaded.currentActionId, normalTree.id);
+    expect(loaded.activeActivity?.progressTicks, 15);
 
     expect(loaded.skillStates.length, 1);
     expect(loaded.skillStates[Skill.woodcutting]?.xp, 100);
@@ -149,9 +150,10 @@ void main() {
       inventory: Inventory.fromItems(testItems, [
         ItemStack(normalLogs, count: 5),
       ]),
-      activeAction: ActiveAction(
-        id: normalTree.id,
-        remainingTicks: 15,
+      activeActivity: SkillActivity(
+        skill: Skill.woodcutting,
+        actionId: normalTree.id.localId,
+        progressTicks: 15,
         totalTicks: 30,
       ),
       skillStates: const {
@@ -165,7 +167,7 @@ void main() {
     final clearedState = stateWithAction.clearAction();
 
     // Verify activeAction is null
-    expect(clearedState.activeAction, isNull);
+    expect(clearedState.activeActivity, isNull);
   });
 
   test('GlobalState clearTimeAway clears timeAway', () {
@@ -175,9 +177,10 @@ void main() {
       inventory: Inventory.fromItems(testItems, [
         ItemStack(normalLogs, count: 5),
       ]),
-      activeAction: ActiveAction(
-        id: normalTree.id,
-        remainingTicks: 15,
+      activeActivity: SkillActivity(
+        skill: Skill.woodcutting,
+        actionId: normalTree.id.localId,
+        progressTicks: 15,
         totalTicks: 30,
       ),
       skillStates: const {
@@ -550,7 +553,7 @@ void main() {
 
   group('rollDurationWithModifiers', () {
     test('woodcutting mastery 99 applies 0.2s flat reduction', () {
-      final normalTree = testActions.woodcutting('Normal Tree');
+      final normalTree = testRegistries.woodcuttingAction('Normal Tree');
       // Normal Tree has 3 second duration = 30 ticks
       expect(normalTree.minDuration, const Duration(seconds: 3));
 
@@ -595,7 +598,7 @@ void main() {
     });
 
     test('shop upgrade applies percentage reduction to woodcutting', () {
-      final normalTree = testActions.woodcutting('Normal Tree');
+      final normalTree = testRegistries.woodcuttingAction('Normal Tree');
       // Normal Tree has 3 second fixed duration = 30 ticks
       expect(normalTree.minDuration, const Duration(seconds: 3));
       expect(normalTree.maxDuration, const Duration(seconds: 3));
@@ -629,7 +632,7 @@ void main() {
     });
 
     test('shop upgrade applies percentage reduction to fishing', () {
-      final shrimp = testActions.fishing('Raw Shrimp');
+      final shrimp = testRegistries.fishingAction('Raw Shrimp');
       // Raw Shrimp has variable duration (4-8 seconds)
       expect(shrimp.minDuration, const Duration(seconds: 4));
       expect(shrimp.maxDuration, const Duration(seconds: 8));
@@ -667,7 +670,7 @@ void main() {
     });
 
     test('shop upgrade applies percentage reduction to mining', () {
-      final copper = testActions.mining('Copper');
+      final copper = testRegistries.miningAction('Copper');
       // Copper has 3 second duration = 30 ticks
       expect(copper.minDuration, const Duration(seconds: 3));
 
@@ -1254,10 +1257,7 @@ void main() {
 
     setUpAll(() {
       // Get a summoning tablet from the registry
-      final summoningAction = testActions
-          .forSkill(Skill.summoning)
-          .whereType<SummoningAction>()
-          .first;
+      final summoningAction = testRegistries.summoning.actions.first;
       tablet = testItems.byId(summoningAction.productId);
     });
 
@@ -1280,10 +1280,7 @@ void main() {
 
     test('swaps summoning tablets and returns previous stack to inventory', () {
       // Get a second tablet type
-      final summoningActions = testActions
-          .forSkill(Skill.summoning)
-          .whereType<SummoningAction>()
-          .toList();
+      final summoningActions = testRegistries.summoning.actions;
       // Skip first action to get a different tablet
       final tablet2 = testItems.byId(summoningActions[1].productId);
 
@@ -1319,10 +1316,7 @@ void main() {
 
     setUpAll(() {
       // Get a summoning tablet from the registry
-      final summoningAction = testActions
-          .forSkill(Skill.summoning)
-          .whereType<SummoningAction>()
-          .first;
+      final summoningAction = testRegistries.summoning.actions.first;
       tablet = testItems.byId(summoningAction.productId);
     });
 
@@ -1526,14 +1520,14 @@ void main() {
 
     setUpAll(() {
       // Get a level-1 crop for testing
-      final crops = testRegistries.farmingCrops.all;
+      final crops = testRegistries.farmingCrops;
       final levelOneCrops = crops.where((c) => c.level == 1).toList();
       crop = levelOneCrops.first;
       seed = testItems.byId(crop.seedId);
       product = testItems.byId(crop.productId);
 
       // Get an unlocked plot
-      final initialPlots = testRegistries.farmingPlots.initialPlots();
+      final initialPlots = testRegistries.farming.initialPlots();
       plotId = initialPlots.first;
     });
 
@@ -1656,7 +1650,7 @@ void main() {
       state = state.plantCrop(plotId, crop);
 
       // Check if this crop's category gives XP on plant or harvest
-      final category = testRegistries.farmingCategories.byId(crop.categoryId);
+      final category = testRegistries.farming.categoryById(crop.categoryId);
       final xpOnPlant = category?.giveXPOnPlant ?? false;
 
       // Get XP after planting
@@ -1770,10 +1764,10 @@ void main() {
 
     test('returns true when farming plot is growing', () {
       // Get farming data
-      final crops = testRegistries.farmingCrops.all;
+      final crops = testRegistries.farmingCrops;
       final levelOneCrops = crops.where((c) => c.level == 1).toList();
       final crop = levelOneCrops.first;
-      final plotId = testRegistries.farmingPlots.initialPlots().first;
+      final plotId = testRegistries.farming.initialPlots().first;
 
       final state = GlobalState.test(
         testRegistries,
@@ -1787,10 +1781,10 @@ void main() {
 
     test('returns false when farming plot is ready to harvest', () {
       // Get farming data
-      final crops = testRegistries.farmingCrops.all;
+      final crops = testRegistries.farmingCrops;
       final levelOneCrops = crops.where((c) => c.level == 1).toList();
       final crop = levelOneCrops.first;
-      final plotId = testRegistries.farmingPlots.initialPlots().first;
+      final plotId = testRegistries.farming.initialPlots().first;
 
       final state = GlobalState.test(
         testRegistries,
@@ -1822,10 +1816,10 @@ void main() {
 
     test('returns true with multiple growing plots', () {
       // Get farming data
-      final crops = testRegistries.farmingCrops.all;
+      final crops = testRegistries.farmingCrops;
       final levelOneCrops = crops.where((c) => c.level == 1).toList();
       final crop = levelOneCrops.first;
-      final initialPlots = testRegistries.farmingPlots.initialPlots().toList();
+      final initialPlots = testRegistries.farming.initialPlots().toList();
       final plotId1 = initialPlots[0];
       final plotId2 = initialPlots.length > 1
           ? initialPlots[1]
@@ -1853,73 +1847,55 @@ void main() {
       expect(state.isCombatPaused, false);
     });
 
-    test('returns false when active action has no action state', () {
+    test('returns false when active action is skill action', () {
       final state = GlobalState.test(
         testRegistries,
-        activeAction: ActiveAction(
-          id: normalTree.id,
-          remainingTicks: 15,
+        activeActivity: SkillActivity(
+          skill: Skill.woodcutting,
+          actionId: normalTree.id.localId,
+          progressTicks: 15,
           totalTicks: 30,
         ),
-      );
-      expect(state.isCombatPaused, false);
-    });
-
-    test('returns false when action state has no combat state', () {
-      final state = GlobalState.test(
-        testRegistries,
-        activeAction: ActiveAction(
-          id: normalTree.id,
-          remainingTicks: 15,
-          totalTicks: 30,
-        ),
-        actionStates: {normalTree.id: const ActionState(masteryXp: 100)},
       );
       expect(state.isCombatPaused, false);
     });
 
     test('returns false when combat is not spawning', () {
-      final combatActionId = ActionId.test(Skill.combat, 'Cow');
-      final combatState = CombatActionState(
-        monsterId: combatActionId,
-        monsterHp: 50,
-        playerAttackTicksRemaining: 24,
-        monsterAttackTicksRemaining: 28,
-        // spawnTicksRemaining is null - not spawning
-      );
+      // Use a fake monster ID - CombatActivity doesn't require registry lookup
+      const monsterId = MelvorId('melvorD:Cow');
       final state = GlobalState.test(
         testRegistries,
-        activeAction: ActiveAction(
-          id: combatActionId,
-          remainingTicks: 0,
-          totalTicks: 0,
+        activeActivity: const CombatActivity(
+          context: MonsterCombatContext(monsterId: monsterId),
+          progress: CombatProgressState(
+            monsterHp: 50,
+            playerAttackTicksRemaining: 24,
+            monsterAttackTicksRemaining: 28,
+            // spawnTicksRemaining is null - not spawning
+          ),
+          progressTicks: 0,
+          totalTicks: 24,
         ),
-        actionStates: {
-          combatActionId: ActionState(masteryXp: 0, combat: combatState),
-        },
       );
       expect(state.isCombatPaused, false);
     });
 
     test('returns true when combat is spawning', () {
-      final combatActionId = ActionId.test(Skill.combat, 'Cow');
-      final combatState = CombatActionState(
-        monsterId: combatActionId,
-        monsterHp: 0,
-        playerAttackTicksRemaining: 24,
-        monsterAttackTicksRemaining: 28,
-        spawnTicksRemaining: 30, // Monster is spawning
-      );
+      // Use a fake monster ID - CombatActivity doesn't require registry lookup
+      const monsterId = MelvorId('melvorD:Cow');
       final state = GlobalState.test(
         testRegistries,
-        activeAction: ActiveAction(
-          id: combatActionId,
-          remainingTicks: 0,
-          totalTicks: 0,
+        activeActivity: const CombatActivity(
+          context: MonsterCombatContext(monsterId: monsterId),
+          progress: CombatProgressState(
+            monsterHp: 0,
+            playerAttackTicksRemaining: 24,
+            monsterAttackTicksRemaining: 28,
+            spawnTicksRemaining: 30, // Monster is spawning
+          ),
+          progressTicks: 0,
+          totalTicks: 24,
         ),
-        actionStates: {
-          combatActionId: ActionState(masteryXp: 0, combat: combatState),
-        },
       );
       expect(state.isCombatPaused, true);
     });
@@ -2156,9 +2132,10 @@ void main() {
     test('returns true when active action has valid ID', () {
       final state = GlobalState.test(
         testRegistries,
-        activeAction: ActiveAction(
-          id: normalTree.id,
-          remainingTicks: 15,
+        activeActivity: SkillActivity(
+          skill: Skill.woodcutting,
+          actionId: normalTree.id.localId,
+          progressTicks: 15,
           totalTicks: 30,
         ),
       );
@@ -2166,12 +2143,14 @@ void main() {
     });
 
     test('throws when active action ID is not in registry', () {
-      final invalidActionId = ActionId.test(Skill.woodcutting, 'NonExistent');
+      // Use activeActivity directly to bypass conversion validation
+      const invalidId = MelvorId('melvorD:NonExistent');
       final state = GlobalState.test(
         testRegistries,
-        activeAction: ActiveAction(
-          id: invalidActionId,
-          remainingTicks: 15,
+        activeActivity: const SkillActivity(
+          skill: Skill.woodcutting,
+          actionId: invalidId,
+          progressTicks: 15,
           totalTicks: 30,
         ),
       );

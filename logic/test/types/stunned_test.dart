@@ -84,7 +84,7 @@ void main() {
     late SkillAction normalTree;
 
     setUpAll(() {
-      normalTree = testActions.woodcutting('Normal Tree');
+      normalTree = testRegistries.woodcuttingAction('Normal Tree');
     });
 
     test('isStunned returns false when not stunned', () {
@@ -115,9 +115,10 @@ void main() {
     test('clearAction throws StunnedException when stunned', () {
       final state = GlobalState.test(
         testRegistries,
-        activeAction: ActiveAction(
-          id: ActionId.test(Skill.woodcutting, 'Normal Tree'),
-          remainingTicks: 10,
+        activeActivity: SkillActivity(
+          skill: Skill.woodcutting,
+          actionId: normalTree.id.localId,
+          progressTicks: 20,
           totalTicks: 30,
         ),
         stunned: const StunnedState.fresh().stun(),
@@ -129,21 +130,22 @@ void main() {
       final state = GlobalState.test(testRegistries);
       final random = Random(0);
       final newState = state.startAction(normalTree, random: random);
-      expect(newState.activeAction, isNotNull);
-      expect(newState.activeAction!.id, normalTree.id);
+      expect(newState.activeActivity, isNotNull);
+      expect(newState.currentActionId, normalTree.id);
     });
 
     test('clearAction works when not stunned', () {
       final state = GlobalState.test(
         testRegistries,
-        activeAction: ActiveAction(
-          id: ActionId.test(Skill.woodcutting, 'Normal Tree'),
-          remainingTicks: 10,
+        activeActivity: SkillActivity(
+          skill: Skill.woodcutting,
+          actionId: normalTree.id.localId,
+          progressTicks: 20,
           totalTicks: 30,
         ),
       );
       final newState = state.clearAction();
-      expect(newState.activeAction, isNull);
+      expect(newState.activeActivity, isNull);
     });
 
     test('shouldTick returns true when stunned', () {

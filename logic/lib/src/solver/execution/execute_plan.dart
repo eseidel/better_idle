@@ -59,7 +59,7 @@ int _estimateTicksAtExecution(GlobalState state, PlanStep step) {
 
     case WaitStep(:final waitFor, :final expectedAction):
       // Get rates for the action that will be running
-      final actionId = expectedAction ?? state.activeAction?.id;
+      final actionId = expectedAction ?? state.currentActionId;
       if (actionId == null) return 0;
       return estimateTicksForActionWait(state, actionId, waitFor);
 
@@ -549,5 +549,5 @@ int computeStateHash(GlobalState state) {
   for (final skill in Skill.values) {
     hash ^= state.skillState(skill).xp.hashCode;
   }
-  return hash ^ (state.activeAction?.id.hashCode ?? 0);
+  return hash ^ (state.currentActionId.hashCode);
 }

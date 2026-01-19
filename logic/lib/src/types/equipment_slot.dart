@@ -188,9 +188,6 @@ class EquipmentSlotDef extends Equatable {
   /// Currently only used for the Passive slot (requires "Into the Mist").
   final MelvorId? unlockDungeonId;
 
-  /// Short name for this slot (e.g., "Weapon", "Helmet").
-  String get name => id.localId;
-
   /// Returns true if this slot requires dungeon completion to unlock.
   bool get requiresUnlock => unlockDungeonId != null;
 
@@ -198,7 +195,7 @@ class EquipmentSlotDef extends Equatable {
   List<Object?> get props => [slot];
 
   @override
-  String toString() => 'EquipmentSlotDef($name)';
+  String toString() => 'EquipmentSlotDef($id)';
 }
 
 /// Grid position for equipment slot UI layout.

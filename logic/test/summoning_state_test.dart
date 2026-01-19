@@ -278,10 +278,7 @@ void main() {
     setUpAll(() async {
       await loadTestRegistries();
       // Get a summoning action from the registry
-      summoningAction = testActions
-          .forSkill(Skill.summoning)
-          .whereType<SummoningAction>()
-          .first;
+      summoningAction = testRegistries.summoning.actions.first;
     });
 
     test('canStartAction returns false without marks', () {
@@ -336,10 +333,7 @@ void main() {
     setUpAll(() async {
       await loadTestRegistries();
       // Get a summoning action and its product (tablet)
-      summoningAction = testActions
-          .forSkill(Skill.summoning)
-          .whereType<SummoningAction>()
-          .first;
+      summoningAction = testRegistries.summoning.actions.first;
       tablet = testItems.byId(summoningAction.productId);
     });
 
@@ -531,17 +525,13 @@ void main() {
     setUpAll(() async {
       await loadTestRegistries();
       // Get the Ent summoning tablet (relevant to Woodcutting)
-      final entAction = testActions
-          .forSkill(Skill.summoning)
-          .whereType<SummoningAction>()
-          .firstWhere((a) => a.markSkillIds.contains(Skill.woodcutting.id));
+      final entAction = testRegistries.summoning.actions.firstWhere(
+        (a) => a.markSkillIds.contains(Skill.woodcutting.id),
+      );
       entTablet = testItems.byId(entAction.productId);
 
       // Get a woodcutting action for testing
-      woodcuttingAction = testActions
-          .forSkill(Skill.woodcutting)
-          .whereType<SkillAction>()
-          .first;
+      woodcuttingAction = testRegistries.woodcutting.actions.first;
     });
 
     test('skill action consumes 1 charge from equipped tablets', () {
@@ -654,12 +644,81 @@ void main() {
       );
     });
 
+    test('combat action consumes charges from relevant familiar', () {
+      // Get a combat familiar (Wolf - relevant to melee via Attack skill)
+      final wolfAction = testRegistries.summoning.actions.firstWhere(
+        (a) =>
+            a.name.contains('Wolf') && a.markSkillIds.contains(Skill.attack.id),
+      );
+      final wolfTablet = testItems.byId(wolfAction.productId);
+
+      // Set up state with Wolf tablet equipped
+      const equipment = Equipment.empty();
+      final (equippedEquipment, _) = equipment.equipSummonTablet(
+        wolfTablet,
+        EquipmentSlot.summon1,
+        10,
+      );
+
+      // Get a weak monster for combat
+      final combatAction = testRegistries.combatAction('Plant');
+
+      // Give player enough health to survive combat
+      final state = GlobalState.test(
+        testRegistries,
+        equipment: equippedEquipment,
+      ).startAction(combatAction, random: Random(42));
+
+      // Run enough ticks for player to attack (default attack speed is ~2.4s)
+      final builder = StateUpdateBuilder(state);
+      consumeTicks(builder, 100, random: Random(42));
+      final newState = builder.build();
+
+      // Wolf tablet should have consumed charges during combat
+      // (charges consumed on each player attack)
+      expect(
+        newState.equipment.summonCountInSlot(EquipmentSlot.summon1),
+        lessThan(10),
+      );
+    });
+
+    test('combat action does not consume charges from irrelevant familiar', () {
+      // Ent is a woodcutting familiar - not relevant to combat
+      final entAction = testRegistries.summoning.actions.firstWhere(
+        (a) => a.markSkillIds.contains(Skill.woodcutting.id),
+      );
+      final entTablet = testItems.byId(entAction.productId);
+
+      // Set up state with Ent tablet equipped
+      const equipment = Equipment.empty();
+      final (equippedEquipment, _) = equipment.equipSummonTablet(
+        entTablet,
+        EquipmentSlot.summon1,
+        10,
+      );
+
+      // Get a weak monster for combat
+      final combatAction = testRegistries.combatAction('Plant');
+
+      final state = GlobalState.test(
+        testRegistries,
+        equipment: equippedEquipment,
+      ).startAction(combatAction, random: Random(42));
+
+      // Run enough ticks for player to attack multiple times
+      final builder = StateUpdateBuilder(state);
+      consumeTicks(builder, 100, random: Random(42));
+      final newState = builder.build();
+
+      // Ent tablet should NOT have consumed charges during combat
+      expect(newState.equipment.summonCountInSlot(EquipmentSlot.summon1), 10);
+    });
+
     test('irrelevant familiar does not consume charges', () {
       // Get a combat familiar (Golbin Thief - relevant to Attack/Strength/Defence)
-      final combatAction = testActions
-          .forSkill(Skill.summoning)
-          .whereType<SummoningAction>()
-          .firstWhere((a) => a.markSkillIds.contains(Skill.attack.id));
+      final combatAction = testRegistries.summoning.actions.firstWhere(
+        (a) => a.markSkillIds.contains(Skill.attack.id),
+      );
       final combatTablet = testItems.byId(combatAction.productId);
 
       // Set up state with combat tablet equipped
@@ -701,17 +760,13 @@ void main() {
     setUpAll(() async {
       await loadTestRegistries();
       // Get the Ent summoning tablet (relevant to Woodcutting)
-      final entAction = testActions
-          .forSkill(Skill.summoning)
-          .whereType<SummoningAction>()
-          .firstWhere((a) => a.markSkillIds.contains(Skill.woodcutting.id));
+      final entAction = testRegistries.summoning.actions.firstWhere(
+        (a) => a.markSkillIds.contains(Skill.woodcutting.id),
+      );
       entTablet = testItems.byId(entAction.productId);
 
       // Get a woodcutting action for testing
-      woodcuttingAction = testActions
-          .forSkill(Skill.woodcutting)
-          .whereType<SkillAction>()
-          .first;
+      woodcuttingAction = testRegistries.woodcutting.actions.first;
     });
 
     test('relevant familiar modifiers are included in skill modifiers', () {
@@ -742,10 +797,9 @@ void main() {
 
     test('irrelevant familiar modifiers are NOT included', () {
       // Get a combat familiar (Golbin Thief - relevant to Attack/Strength/Defence)
-      final combatAction = testActions
-          .forSkill(Skill.summoning)
-          .whereType<SummoningAction>()
-          .firstWhere((a) => a.markSkillIds.contains(Skill.attack.id));
+      final combatAction = testRegistries.summoning.actions.firstWhere(
+        (a) => a.markSkillIds.contains(Skill.attack.id),
+      );
       final combatTablet = testItems.byId(combatAction.productId);
 
       // Set up state with combat tablet equipped
@@ -776,14 +830,10 @@ void main() {
 
     test('combat familiar modifiers are included in combat modifiers', () {
       // Get a combat familiar with combat modifiers (e.g., Wolf with lifesteal)
-      final wolfAction = testActions
-          .forSkill(Skill.summoning)
-          .whereType<SummoningAction>()
-          .firstWhere(
-            (a) =>
-                a.name.contains('Wolf') &&
-                a.markSkillIds.contains(Skill.attack.id),
-          );
+      final wolfAction = testRegistries.summoning.actions.firstWhere(
+        (a) =>
+            a.name.contains('Wolf') && a.markSkillIds.contains(Skill.attack.id),
+      );
       final wolfTablet = testItems.byId(wolfAction.productId);
 
       // Set up state with Wolf tablet equipped
@@ -832,10 +882,9 @@ void main() {
 
     test('melee familiar applies when using melee attack style', () {
       // Minotaur is a melee familiar (Strength skill)
-      final minotaurAction = testActions
-          .forSkill(Skill.summoning)
-          .whereType<SummoningAction>()
-          .firstWhere((a) => a.name.contains('Minotaur'));
+      final minotaurAction = testRegistries.summoning.actions.firstWhere(
+        (a) => a.name.contains('Minotaur'),
+      );
       final minotaurTablet = testItems.byId(minotaurAction.productId);
 
       const equipment = Equipment.empty();
@@ -860,10 +909,9 @@ void main() {
 
     test('melee familiar does NOT apply when using ranged attack style', () {
       // Minotaur is a melee familiar (Strength skill)
-      final minotaurAction = testActions
-          .forSkill(Skill.summoning)
-          .whereType<SummoningAction>()
-          .firstWhere((a) => a.name.contains('Minotaur'));
+      final minotaurAction = testRegistries.summoning.actions.firstWhere(
+        (a) => a.name.contains('Minotaur'),
+      );
       final minotaurTablet = testItems.byId(minotaurAction.productId);
 
       const equipment = Equipment.empty();
@@ -889,10 +937,9 @@ void main() {
 
     test('ranged familiar applies when using ranged attack style', () {
       // Centaur is a ranged familiar
-      final centaurAction = testActions
-          .forSkill(Skill.summoning)
-          .whereType<SummoningAction>()
-          .firstWhere((a) => a.name.contains('Centaur'));
+      final centaurAction = testRegistries.summoning.actions.firstWhere(
+        (a) => a.name.contains('Centaur'),
+      );
       final centaurTablet = testItems.byId(centaurAction.productId);
 
       const equipment = Equipment.empty();
@@ -917,10 +964,9 @@ void main() {
 
     test('defence familiar applies to all combat types', () {
       // Yak is a Defence familiar - applies to all combat
-      final yakAction = testActions
-          .forSkill(Skill.summoning)
-          .whereType<SummoningAction>()
-          .firstWhere((a) => a.name.contains('Yak'));
+      final yakAction = testRegistries.summoning.actions.firstWhere(
+        (a) => a.name.contains('Yak'),
+      );
       final yakTablet = testItems.byId(yakAction.productId);
 
       const equipment = Equipment.empty();
@@ -964,14 +1010,12 @@ void main() {
     setUpAll(() async {
       await loadTestRegistries();
       // Get Golbin Thief and Occultist familiars (they have a synergy)
-      golbinThiefAction = testActions
-          .forSkill(Skill.summoning)
-          .whereType<SummoningAction>()
-          .firstWhere((a) => a.name.contains('Golbin Thief'));
-      occultistAction = testActions
-          .forSkill(Skill.summoning)
-          .whereType<SummoningAction>()
-          .firstWhere((a) => a.name.contains('Occultist'));
+      golbinThiefAction = testRegistries.summoning.actions.firstWhere(
+        (a) => a.name.contains('Golbin Thief'),
+      );
+      occultistAction = testRegistries.summoning.actions.firstWhere(
+        (a) => a.name.contains('Occultist'),
+      );
 
       golbinThiefTablet = testItems.byId(golbinThiefAction.productId);
       occultistTablet = testItems.byId(occultistAction.productId);

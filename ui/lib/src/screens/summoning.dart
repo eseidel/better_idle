@@ -50,15 +50,12 @@ class _SummoningPageState extends State<SummoningPage>
   Widget build(BuildContext context) {
     const skill = Skill.summoning;
     final state = context.state;
-    final actions = state.registries.actions
-        .forSkill(skill)
-        .cast<SummoningAction>()
-        .toList();
+    final actions = state.registries.summoning.actions.toList();
     final skillState = state.skillState(skill);
     final skillLevel = skillState.skillLevel;
 
     // Sort by level, then by tier
-    actions.sort((a, b) {
+    actions.sort((SummoningAction a, SummoningAction b) {
       final tierCompare = a.tier.compareTo(b.tier);
       if (tierCompare != 0) return tierCompare;
       return a.unlockLevel.compareTo(b.unlockLevel);
@@ -66,7 +63,7 @@ class _SummoningPageState extends State<SummoningPage>
 
     // Default to first unlocked action if none selected
     final unlockedActions = actions
-        .where((a) => skillLevel >= a.unlockLevel)
+        .where((SummoningAction a) => skillLevel >= a.unlockLevel)
         .toList();
     final selectedAction =
         _selectedAction ??

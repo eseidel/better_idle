@@ -10,7 +10,7 @@ void main() {
 
   setUpAll(() async {
     await loadTestRegistries();
-    cow = testActions.combat('Cow');
+    cow = testRegistries.combatAction('Cow');
   });
 
   group('Combat Spawn Delay', () {

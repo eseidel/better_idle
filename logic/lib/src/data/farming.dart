@@ -65,24 +65,6 @@ class FarmingCategory {
   String toString() => name;
 }
 
-/// Registry for farming categories.
-@immutable
-class FarmingCategoryRegistry {
-  FarmingCategoryRegistry(List<FarmingCategory> categories)
-    : _categories = categories {
-    _byId = {for (final category in _categories) category.id: category};
-  }
-
-  final List<FarmingCategory> _categories;
-  late final Map<MelvorId, FarmingCategory> _byId;
-
-  /// Returns all farming categories.
-  List<FarmingCategory> get all => _categories;
-
-  /// Returns a farming category by ID, or null if not found.
-  FarmingCategory? byId(MelvorId id) => _byId[id];
-}
-
 /// A farming plot definition parsed from Melvor data.
 @immutable
 class FarmingPlot {
@@ -120,36 +102,6 @@ class FarmingPlot {
 
   @override
   String toString() => 'FarmingPlot($id)';
-}
-
-/// Registry for farming plots.
-class FarmingPlotRegistry {
-  FarmingPlotRegistry(List<FarmingPlot> plots) : _plots = plots {
-    _byId = {for (final plot in _plots) plot.id: plot};
-  }
-
-  final List<FarmingPlot> _plots;
-  late final Map<MelvorId, FarmingPlot> _byId;
-
-  /// Returns all farming plots.
-  List<FarmingPlot> get all => _plots;
-
-  /// Returns a farming plot by ID, or null if not found.
-  FarmingPlot? byId(MelvorId id) => _byId[id];
-
-  /// Returns all plots for a given category.
-  List<FarmingPlot> forCategory(MelvorId categoryId) {
-    return _plots.where((plot) => plot.categoryId == categoryId).toList();
-  }
-
-  /// Returns the set of plot IDs that should be unlocked initially.
-  /// These are plots with level 1 and no cost (free starter plots).
-  Set<MelvorId> initialPlots() {
-    return {
-      for (final plot in _plots)
-        if (plot.level == 1 && plot.currencyCosts.isEmpty) plot.id,
-    };
-  }
 }
 
 /// A farming crop parsed from Melvor data.
@@ -230,23 +182,60 @@ class FarmingCrop extends Action {
   String toString() => 'FarmingCrop($name)';
 }
 
-/// Registry for farming crops.
-class FarmingCropRegistry {
-  FarmingCropRegistry(List<FarmingCrop> crops) : _crops = crops {
-    _byId = {for (final crop in _crops) crop.id: crop};
+/// Unified registry for all farming-related data.
+@immutable
+class FarmingRegistry {
+  FarmingRegistry({
+    required List<FarmingCrop> crops,
+    required List<FarmingCategory> categories,
+    required List<FarmingPlot> plots,
+  }) : _crops = crops,
+       _categories = categories,
+       _plots = plots {
+    _cropById = {for (final crop in _crops) crop.id: crop};
+    _categoryById = {for (final cat in _categories) cat.id: cat};
+    _plotById = {for (final plot in _plots) plot.id: plot};
   }
 
   final List<FarmingCrop> _crops;
-  late final Map<ActionId, FarmingCrop> _byId;
+  final List<FarmingCategory> _categories;
+  final List<FarmingPlot> _plots;
+  late final Map<ActionId, FarmingCrop> _cropById;
+  late final Map<MelvorId, FarmingCategory> _categoryById;
+  late final Map<MelvorId, FarmingPlot> _plotById;
 
-  /// Returns all farming crops.
-  List<FarmingCrop> get all => _crops;
+  /// All farming crops.
+  List<FarmingCrop> get crops => _crops;
+
+  /// All farming categories.
+  List<FarmingCategory> get categories => _categories;
+
+  /// All farming plots.
+  List<FarmingPlot> get plots => _plots;
 
   /// Returns a farming crop by ID, or null if not found.
-  FarmingCrop? byId(ActionId id) => _byId[id];
+  FarmingCrop? cropById(ActionId id) => _cropById[id];
+
+  /// Returns a farming category by ID, or null if not found.
+  FarmingCategory? categoryById(MelvorId id) => _categoryById[id];
+
+  /// Returns a farming plot by ID, or null if not found.
+  FarmingPlot? plotById(MelvorId id) => _plotById[id];
 
   /// Returns all crops for a given category.
-  List<FarmingCrop> forCategory(MelvorId categoryId) {
-    return _crops.where((crop) => crop.categoryId == categoryId).toList();
+  List<FarmingCrop> cropsForCategory(MelvorId categoryId) =>
+      _crops.where((crop) => crop.categoryId == categoryId).toList();
+
+  /// Returns all plots for a given category.
+  List<FarmingPlot> plotsForCategory(MelvorId categoryId) =>
+      _plots.where((plot) => plot.categoryId == categoryId).toList();
+
+  /// Returns the set of plot IDs that should be unlocked initially.
+  /// These are plots with level 1 and no cost (free starter plots).
+  Set<MelvorId> initialPlots() {
+    return {
+      for (final plot in _plots)
+        if (plot.level == 1 && plot.currencyCosts.isEmpty) plot.id,
+    };
   }
 }

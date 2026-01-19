@@ -231,46 +231,49 @@ void main() {
     });
   });
 
-  group('ActiveActionProgressAt extension', () {
-    test('toProgressAt converts ActiveAction correctly', () {
-      final action = ActiveAction(
-        id: ActionId.test(Skill.woodcutting, 'test_action'),
-        remainingTicks: 6,
+  group('ActiveActivityProgressAt extension', () {
+    test('toProgressAt converts SkillActivity correctly', () {
+      const activity = SkillActivity(
+        skill: Skill.woodcutting,
+        actionId: MelvorId('test_action'),
+        progressTicks: 4,
         totalTicks: 10,
       );
       final time = DateTime(2024, 1, 1, 12);
 
-      final progressAt = action.toProgressAt(time);
+      final progressAt = activity.toProgressAt(time);
 
       expect(progressAt.lastUpdateTime, time);
-      expect(progressAt.progressTicks, 4); // totalTicks - remainingTicks
+      expect(progressAt.progressTicks, 4);
       expect(progressAt.totalTicks, 10);
       expect(progressAt.isAdvancing, true);
     });
 
-    test('toProgressAt handles action at start', () {
-      final action = ActiveAction(
-        id: ActionId.test(Skill.woodcutting, 'test_action'),
-        remainingTicks: 10,
+    test('toProgressAt handles activity at start', () {
+      const activity = SkillActivity(
+        skill: Skill.woodcutting,
+        actionId: MelvorId('test_action'),
+        progressTicks: 0,
         totalTicks: 10,
       );
       final time = DateTime.timestamp();
 
-      final progressAt = action.toProgressAt(time);
+      final progressAt = activity.toProgressAt(time);
 
       expect(progressAt.progressTicks, 0);
       expect(progressAt.progress, 0.0);
     });
 
-    test('toProgressAt handles action near completion', () {
-      final action = ActiveAction(
-        id: ActionId.test(Skill.woodcutting, 'test_action'),
-        remainingTicks: 1,
+    test('toProgressAt handles activity near completion', () {
+      const activity = SkillActivity(
+        skill: Skill.woodcutting,
+        actionId: MelvorId('test_action'),
+        progressTicks: 9,
         totalTicks: 10,
       );
       final time = DateTime.timestamp();
 
-      final progressAt = action.toProgressAt(time);
+      final progressAt = activity.toProgressAt(time);
 
       expect(progressAt.progressTicks, 9);
       expect(progressAt.progress, 0.9);

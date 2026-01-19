@@ -54,3 +54,30 @@ class WoodcuttingTree extends SkillAction {
   /// Duration in seconds.
   int get durationSeconds => minDuration.inSeconds;
 }
+
+/// Registry for woodcutting skill data.
+@immutable
+class WoodcuttingRegistry {
+  const WoodcuttingRegistry(this.actions) : _byId = null;
+
+  const WoodcuttingRegistry._withCache(this.actions, this._byId);
+
+  /// All woodcutting tree actions.
+  final List<WoodcuttingTree> actions;
+
+  final Map<MelvorId, WoodcuttingTree>? _byId;
+
+  Map<MelvorId, WoodcuttingTree> get _actionMap {
+    if (_byId != null) return _byId;
+    return {for (final a in actions) a.id.localId: a};
+  }
+
+  /// Look up a woodcutting action by its local ID.
+  WoodcuttingTree? byId(MelvorId localId) => _actionMap[localId];
+
+  /// Create a cached version for faster lookups.
+  WoodcuttingRegistry withCache() {
+    if (_byId != null) return this;
+    return WoodcuttingRegistry._withCache(actions, _actionMap);
+  }
+}

@@ -140,7 +140,7 @@ void main() {
 
   setUpAll(() async {
     await loadTestRegistries();
-    normalTree = testActions.woodcutting('Normal Tree');
+    normalTree = testRegistries.woodcuttingAction('Normal Tree');
   });
 
   test('TimeAway duration does not update on mergeChanges', () {
@@ -258,7 +258,7 @@ void main() {
     });
 
     test('returns empty map for combat action', () {
-      final plantAction = testActions.combat('Plant');
+      final plantAction = testRegistries.combatAction('Plant');
       final timeAway = TimeAway.test(testRegistries, activeAction: plantAction);
       expect(timeAway.itemsConsumedPerHour, isEmpty);
     });
@@ -273,7 +273,9 @@ void main() {
       // "Burn Normal Logs" takes 2 seconds and consumes 1 Normal Logs
       // Actions per hour = 3600 / 2 = 1800
       // Items consumed per hour = 1 * 1800 = 1800
-      final burnNormalLogs = testActions.firemaking('Burn Normal Logs');
+      final burnNormalLogs = testRegistries.firemakingAction(
+        'Burn Normal Logs',
+      );
       final timeAway = TimeAway.test(
         testRegistries,
         activeAction: burnNormalLogs,
@@ -294,7 +296,7 @@ void main() {
     });
 
     test('returns empty map for combat action', () {
-      final plantAction = testActions.combat('Plant');
+      final plantAction = testRegistries.combatAction('Plant');
       final timeAway = TimeAway.test(testRegistries, activeAction: plantAction);
       expect(timeAway.itemsGainedPerHour, isEmpty);
     });

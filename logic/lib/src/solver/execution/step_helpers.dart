@@ -503,7 +503,7 @@ ChainProductionResult produceChainBottomUp(
 
     // Calculate how many we need for producing bufferTarget of the parent
     final parentAction =
-        currentState.registries.actions.byId(chain.actionId) as SkillAction;
+        currentState.registries.actionById(chain.actionId) as SkillAction;
     final inputsPerAction = parentAction.inputs[child.itemId] ?? 1;
     final outputsPerAction = parentAction.outputs[chain.itemId] ?? 1;
     final actionsNeeded = (bufferTarget / outputsPerAction).ceil();
@@ -748,7 +748,7 @@ StepResult executeCoupledLoop(
     );
   }
 
-  final consumeAction = state.registries.actions.byId(consumeActionId);
+  final consumeAction = state.registries.actionById(consumeActionId);
   if (consumeAction is! SkillAction || consumeAction.inputs.isEmpty) {
     return StepResult(
       state: state,

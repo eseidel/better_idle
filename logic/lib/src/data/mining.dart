@@ -1,4 +1,4 @@
-import 'package:logic/src/action_state.dart';
+import 'package:logic/src/activity/mining_persistent_state.dart';
 import 'package:logic/src/data/action_id.dart';
 import 'package:logic/src/data/actions.dart';
 import 'package:logic/src/data/melvor_id.dart';
@@ -100,9 +100,36 @@ class MiningAction extends SkillAction {
 
   /// Returns progress (0.0 to 1.0) toward respawn completion, or null if
   /// not respawning.
-  double? respawnProgress(ActionState actionState) {
-    final remaining = actionState.mining?.respawnTicksRemaining;
+  double? respawnProgress(MiningState miningState) {
+    final remaining = miningState.respawnTicksRemaining;
     if (remaining == null) return null;
     return 1.0 - (remaining / respawnTicks);
+  }
+}
+
+/// Registry for mining skill data.
+@immutable
+class MiningRegistry {
+  const MiningRegistry(this.actions) : _byId = null;
+
+  const MiningRegistry._withCache(this.actions, this._byId);
+
+  /// All mining rock actions.
+  final List<MiningAction> actions;
+
+  final Map<MelvorId, MiningAction>? _byId;
+
+  Map<MelvorId, MiningAction> get _actionMap {
+    if (_byId != null) return _byId;
+    return {for (final a in actions) a.id.localId: a};
+  }
+
+  /// Look up a mining action by its local ID.
+  MiningAction? byId(MelvorId localId) => _actionMap[localId];
+
+  /// Create a cached version for faster lookups.
+  MiningRegistry withCache() {
+    if (_byId != null) return this;
+    return MiningRegistry._withCache(actions, _actionMap);
   }
 }

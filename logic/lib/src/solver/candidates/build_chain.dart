@@ -364,7 +364,7 @@ _ProducerSearchResult _findBestProducer(
   int skillLevel(Skill skill) => state.skillState(skill).skillLevel;
 
   // Find all actions that produce this item
-  final allProducers = state.registries.actions.all
+  final allProducers = state.registries.allActions
       .whereType<SkillAction>()
       .where((action) => action.outputs.containsKey(itemId))
       .toList();

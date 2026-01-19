@@ -1,4 +1,4 @@
-import 'package:logic/src/state.dart';
+import 'package:logic/src/activity/active_activity.dart';
 import 'package:meta/meta.dart';
 
 /// Represents progress at a specific point in time.
@@ -69,13 +69,13 @@ class ProgressAt {
   }
 }
 
-/// Extension methods for converting ActiveAction to ProgressAt.
-extension ActiveActionProgressAt on ActiveAction {
-  /// Converts this ActiveAction to a ProgressAt for progress estimation.
+/// Extension methods for converting ActiveActivity to ProgressAt.
+extension ActiveActivityProgressAt on ActiveActivity {
+  /// Converts this ActiveActivity to a ProgressAt for progress estimation.
   ProgressAt toProgressAt(DateTime lastUpdateTime) {
     return ProgressAt(
       lastUpdateTime: lastUpdateTime,
-      progressTicks: totalTicks - remainingTicks,
+      progressTicks: progressTicks,
       totalTicks: totalTicks,
     );
   }

@@ -33,17 +33,14 @@ class _FishingPageState extends State<FishingPage> {
     final registries = context.state.registries;
 
     // Get all fishing actions from registries.
-    final fishingActions = registries.actions
-        .forSkill(skill)
-        .whereType<FishingAction>()
-        .toList();
+    final fishingActions = registries.fishing.actions;
 
     // Get all fishing areas from registries.
-    final fishingAreas = registries.fishingAreas.all;
+    final fishingAreas = registries.fishingAreas;
 
     // Default to first unlocked action if none selected.
     final unlockedActions = fishingActions
-        .where((a) => skillLevel >= a.unlockLevel)
+        .where((FishingAction a) => skillLevel >= a.unlockLevel)
         .toList();
     final selectedAction =
         _selectedAction ??

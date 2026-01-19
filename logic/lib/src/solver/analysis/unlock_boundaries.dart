@@ -63,7 +63,7 @@ class SkillBoundaries {
 /// Computes unlock boundaries for all skills given registries.
 ///
 /// For each skill, collects:
-/// - Action unlock levels from ActionRegistry
+/// - Action unlock levels from Registries
 /// - Shop upgrade skill level requirements (future extension)
 /// - Major mastery thresholds (future extension)
 ///
@@ -77,7 +77,7 @@ Map<Skill, SkillBoundaries> computeUnlockBoundaries(Registries registries) {
   }
 
   // Collect action unlock levels
-  for (final action in registries.actions.all) {
+  for (final action in registries.allActions) {
     if (action is! SkillAction) continue;
 
     final skill = action.skill;

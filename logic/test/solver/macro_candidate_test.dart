@@ -399,7 +399,7 @@ void main() {
 
     group('SkillPrereqProvenance', () {
       test('describe includes skill, level, and action', () {
-        final miningAction = testActions.mining('Iron');
+        final miningAction = testRegistries.miningAction('Iron');
         final provenance = SkillPrereqProvenance(
           requiredSkill: Skill.mining,
           requiredLevel: 15,
@@ -412,7 +412,7 @@ void main() {
       });
 
       test('stores required skill correctly', () {
-        final action = testActions.woodcutting('Oak Tree');
+        final action = testRegistries.woodcuttingAction('Oak Tree');
         final provenance = SkillPrereqProvenance(
           requiredSkill: Skill.woodcutting,
           requiredLevel: 10,
@@ -427,7 +427,7 @@ void main() {
 
     group('InputPrereqProvenance', () {
       test('describe includes action, item, and quantity', () {
-        final action = testActions.smithing('Bronze Dagger');
+        final action = testRegistries.smithingAction('Bronze Dagger');
         const bronzeBar = MelvorId('melvorD:Bronze_Bar');
         final provenance = InputPrereqProvenance(
           forAction: action.id,
@@ -441,7 +441,7 @@ void main() {
       });
 
       test('stores values correctly', () {
-        final action = testActions.smithing('Iron Dagger');
+        final action = testRegistries.smithingAction('Iron Dagger');
         const ironBar = MelvorId('melvorD:Iron_Bar');
         final provenance = InputPrereqProvenance(
           forAction: action.id,
@@ -562,7 +562,7 @@ void main() {
       });
 
       test('stores actionId when specified', () {
-        final action = testActions.woodcutting('Normal Tree');
+        final action = testRegistries.woodcuttingAction('Normal Tree');
         final macro = TrainSkillUntil(
           Skill.woodcutting,
           const StopAtNextBoundary(Skill.woodcutting),
@@ -744,7 +744,7 @@ void main() {
       });
 
       test('stores provenance', () {
-        final action = testActions.firemaking('Burn Oak Logs');
+        final action = testRegistries.firemakingAction('Burn Oak Logs');
         final macro = AcquireItem(
           const MelvorId('melvorD:Oak_Logs'),
           100,
@@ -1037,7 +1037,7 @@ void main() {
           );
 
           // Execution should have switched to woodcutting action
-          expect(result.state.activeAction, isNotNull);
+          expect(result.state.activeActivity, isNotNull);
           // And produced logs
           final logsCount = result.state.inventory.countOfItem(
             testItems.byName('Normal Logs'),
@@ -1077,7 +1077,9 @@ void main() {
         test('executes with existing active action', () {
           // Start already doing woodcutting
           var state = GlobalState.empty(testRegistries);
-          final woodcuttingAction = testActions.woodcutting('Normal Tree');
+          final woodcuttingAction = testRegistries.woodcuttingAction(
+            'Normal Tree',
+          );
           state = state.startAction(woodcuttingAction, random: Random(0));
 
           const macro = AcquireItem(MelvorId('melvorD:Normal_Logs'), 3);
@@ -1318,7 +1320,7 @@ void main() {
           );
 
           // Should have switched to woodcutting and produced logs
-          expect(result.state.activeAction, isNotNull);
+          expect(result.state.activeActivity, isNotNull);
           final logsCount = result.state.inventory.countOfItem(
             testItems.byName('Normal Logs'),
           );
@@ -1643,7 +1645,7 @@ void main() {
 
     group('ProduceItem', () {
       test('stores item, minTotal, actionId, and estimatedTicks', () {
-        final miningAction = testActions.mining('Copper');
+        final miningAction = testRegistries.miningAction('Copper');
         final macro = ProduceItem(
           itemId: const MelvorId('melvorD:Copper_Ore'),
           minTotal: 100,
@@ -1658,7 +1660,7 @@ void main() {
       });
 
       test('stores provenance', () {
-        final miningAction = testActions.mining('Copper');
+        final miningAction = testRegistries.miningAction('Copper');
         final macro = ProduceItem(
           itemId: const MelvorId('melvorD:Copper_Ore'),
           minTotal: 100,
@@ -1676,7 +1678,7 @@ void main() {
 
       group('dedupeKey', () {
         test('identical macros produce same dedupeKey', () {
-          final miningAction = testActions.mining('Copper');
+          final miningAction = testRegistries.miningAction('Copper');
           final macro1 = ProduceItem(
             itemId: const MelvorId('melvorD:Copper_Ore'),
             minTotal: 100,
@@ -1694,8 +1696,8 @@ void main() {
         });
 
         test('macros with different items produce different dedupeKeys', () {
-          final copperAction = testActions.mining('Copper');
-          final tinAction = testActions.mining('Tin');
+          final copperAction = testRegistries.miningAction('Copper');
+          final tinAction = testRegistries.miningAction('Tin');
           final macro1 = ProduceItem(
             itemId: const MelvorId('melvorD:Copper_Ore'),
             minTotal: 100,
@@ -1713,7 +1715,7 @@ void main() {
         });
 
         test('macros with different minTotal produce different dedupeKeys', () {
-          final miningAction = testActions.mining('Copper');
+          final miningAction = testRegistries.miningAction('Copper');
           final macro1 = ProduceItem(
             itemId: const MelvorId('melvorD:Copper_Ore'),
             minTotal: 100,
@@ -1734,7 +1736,7 @@ void main() {
       group('execute', () {
         test('produces items until minTotal is reached', () {
           final state = GlobalState.empty(testRegistries);
-          final miningAction = testActions.mining('Copper');
+          final miningAction = testRegistries.miningAction('Copper');
           final macro = ProduceItem(
             itemId: const MelvorId('melvorD:Copper_Ore'),
             minTotal: 10,
@@ -1771,7 +1773,7 @@ void main() {
             ItemStack(copperOre, count: 20),
           ]);
           final state = GlobalState.test(testRegistries, inventory: inventory);
-          final miningAction = testActions.mining('Copper');
+          final miningAction = testRegistries.miningAction('Copper');
           final macro = ProduceItem(
             itemId: const MelvorId('melvorD:Copper_Ore'),
             minTotal: 10,
@@ -1805,7 +1807,7 @@ void main() {
             ItemStack(copperOre, count: 5),
           ]);
           final state = GlobalState.test(testRegistries, inventory: inventory);
-          final miningAction = testActions.mining('Copper');
+          final miningAction = testRegistries.miningAction('Copper');
           final macro = ProduceItem(
             itemId: const MelvorId('melvorD:Copper_Ore'),
             minTotal: 15,
@@ -1836,10 +1838,12 @@ void main() {
         test('switches to specified action when not already active', () {
           // Start with a different action active
           var state = GlobalState.empty(testRegistries);
-          final woodcuttingAction = testActions.woodcutting('Normal Tree');
+          final woodcuttingAction = testRegistries.woodcuttingAction(
+            'Normal Tree',
+          );
           state = state.startAction(woodcuttingAction, random: Random(0));
 
-          final miningAction = testActions.mining('Copper');
+          final miningAction = testRegistries.miningAction('Copper');
           final macro = ProduceItem(
             itemId: const MelvorId('melvorD:Copper_Ore'),
             minTotal: 5,
@@ -1861,7 +1865,7 @@ void main() {
           );
 
           // Should have switched to mining and produced ore
-          expect(result.state.activeAction?.id, miningAction.id);
+          expect(result.state.currentActionId, miningAction.id);
           final oreCount = result.state.inventory.countOfItem(
             testItems.byName('Copper Ore'),
           );
@@ -1871,7 +1875,7 @@ void main() {
         test('uses the specific actionId from macro, not a lookup', () {
           // ProduceItem should use its explicit actionId, not find a producer
           final state = GlobalState.empty(testRegistries);
-          final miningAction = testActions.mining('Tin');
+          final miningAction = testRegistries.miningAction('Tin');
           final macro = ProduceItem(
             itemId: const MelvorId('melvorD:Tin_Ore'),
             minTotal: 5,
@@ -1893,7 +1897,7 @@ void main() {
           );
 
           // Should have switched to tin mining specifically
-          expect(result.state.activeAction?.id, miningAction.id);
+          expect(result.state.currentActionId, miningAction.id);
           final oreCount = result.state.inventory.countOfItem(
             testItems.byName('Tin Ore'),
           );
@@ -1927,7 +1931,7 @@ void main() {
           final inventory = Inventory.fromItems(testItems, items);
 
           final state = GlobalState.test(testRegistries, inventory: inventory);
-          final miningAction = testActions.mining('Copper');
+          final miningAction = testRegistries.miningAction('Copper');
           // Target more than current so it needs to produce more
           final macro = ProduceItem(
             itemId: const MelvorId('melvorD:Copper_Ore'),
@@ -1990,7 +1994,7 @@ void main() {
           final inventory = Inventory.fromItems(testItems, items);
 
           final state = GlobalState.test(testRegistries, inventory: inventory);
-          final miningAction = testActions.mining('Copper');
+          final miningAction = testRegistries.miningAction('Copper');
           final macro = ProduceItem(
             itemId: const MelvorId('melvorD:Copper_Ore'),
             minTotal: 5,
@@ -2236,7 +2240,7 @@ void main() {
 
   group('MacroCandidate JSON serialization', () {
     test('TrainSkillUntil round-trips through JSON', () {
-      final action = testActions.woodcutting('Normal Tree');
+      final action = testRegistries.woodcuttingAction('Normal Tree');
       final original = TrainSkillUntil(
         Skill.woodcutting,
         const StopAtNextBoundary(Skill.woodcutting),
@@ -2303,8 +2307,8 @@ void main() {
     });
 
     test('TrainConsumingSkillUntil round-trips through JSON', () {
-      final consumeAction = testActions.firemaking('Burn Normal Logs');
-      final producerAction = testActions.woodcutting('Normal Tree');
+      final consumeAction = testRegistries.firemakingAction('Burn Normal Logs');
+      final producerAction = testRegistries.woodcuttingAction('Normal Tree');
       const logsId = MelvorId('melvorD:Normal_Logs');
 
       final original = TrainConsumingSkillUntil(
@@ -2341,10 +2345,10 @@ void main() {
         const tinOreId = MelvorId('melvorD:Tin_Ore');
         const bronzeBarId = MelvorId('melvorD:Bronze_Bar');
 
-        final copperMining = testActions.mining('Copper');
-        final tinMining = testActions.mining('Tin');
-        final bronzeSmelting = testActions.smithing('Bronze Bar');
-        final bronzeDagger = testActions.smithing('Bronze Dagger');
+        final copperMining = testRegistries.miningAction('Copper');
+        final tinMining = testRegistries.miningAction('Tin');
+        final bronzeSmelting = testRegistries.smithingAction('Bronze Bar');
+        final bronzeDagger = testRegistries.smithingAction('Bronze Dagger');
 
         final inputChain = PlannedChain(
           itemId: bronzeBarId,
@@ -2610,7 +2614,7 @@ void main() {
           ItemStack(logs, count: 10),
         ]);
         var state = GlobalState.test(testRegistries, inventory: inventory);
-        final action = testActions.firemaking('Burn Normal Logs');
+        final action = testRegistries.firemakingAction('Burn Normal Logs');
         state = state.startAction(action, random: Random(0));
 
         const stopRule = StopWhenInputsDepleted();

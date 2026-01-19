@@ -272,7 +272,7 @@ Set<MelvorId> _computeKeepItemsForSkills(
   final registries = state.registries;
 
   for (final skill in consumingSkills) {
-    for (final action in registries.actions.forSkill(skill)) {
+    for (final action in registries.actionsForSkill(skill)) {
       // Check if action is unlocked
       final skillLevel = state.skillState(skill).skillLevel;
       if (action.unlockLevel > skillLevel) continue;

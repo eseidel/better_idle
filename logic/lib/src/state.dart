@@ -1,6 +1,9 @@
 import 'dart:math';
 
 import 'package:logic/src/action_state.dart';
+import 'package:logic/src/activity/active_activity.dart';
+import 'package:logic/src/activity/combat_context.dart';
+import 'package:logic/src/activity/mining_persistent_state.dart';
 import 'package:logic/src/combat_stats.dart';
 import 'package:logic/src/cooking_state.dart';
 import 'package:logic/src/data/action_id.dart';
@@ -148,48 +151,6 @@ enum AttackStyle {
   bool get isMagic => combatType == CombatType.magic;
 }
 
-@immutable
-class ActiveAction {
-  const ActiveAction({
-    required this.id,
-    required this.remainingTicks,
-    required this.totalTicks,
-  });
-
-  factory ActiveAction.fromJson(Map<String, dynamic> json) {
-    return ActiveAction(
-      id: ActionId.fromJson(json['id'] as String),
-      remainingTicks: json['remainingTicks'] as int,
-      totalTicks: json['totalTicks'] as int,
-    );
-  }
-
-  static ActiveAction? maybeFromJson(dynamic json) {
-    if (json == null) return null;
-    return ActiveAction.fromJson(json as Map<String, dynamic>);
-  }
-
-  final ActionId id;
-  final int remainingTicks;
-  final int totalTicks;
-
-  int get progressTicks => totalTicks - remainingTicks;
-
-  ActiveAction copyWith({ActionId? id, int? remainingTicks, int? totalTicks}) {
-    return ActiveAction(
-      id: id ?? this.id,
-      remainingTicks: remainingTicks ?? this.remainingTicks,
-      totalTicks: totalTicks ?? this.totalTicks,
-    );
-  }
-
-  Map<String, dynamic> toJson() => {
-    'id': id.toJson(),
-    'remainingTicks': remainingTicks,
-    'totalTicks': totalTicks,
-  };
-}
-
 /// Per-skill serialized state.
 @immutable
 class SkillState {
@@ -308,7 +269,7 @@ const int initialBankSlots = 20;
 class GlobalState {
   const GlobalState({
     required this.inventory,
-    required this.activeAction,
+    required this.activeActivity,
     required this.skillStates,
     required this.actionStates,
     required this.updatedAt,
@@ -317,6 +278,7 @@ class GlobalState {
     required this.health,
     required this.equipment,
     required this.registries,
+    this.miningState = const MiningPersistentState.empty(),
     this.plotStates = const {},
     this.unlockedPlots = const {},
     this.dungeonCompletions = const {},
@@ -334,7 +296,7 @@ class GlobalState {
   GlobalState.empty(Registries registries)
     : this(
         inventory: Inventory.empty(registries.items),
-        activeAction: null,
+        activeActivity: null,
         // Start with level 10 Hitpoints (1154 XP) for 100 HP
         skillStates: const {
           Skill.hitpoints: SkillState(xp: 1154, masteryPoolXp: 0),
@@ -352,7 +314,7 @@ class GlobalState {
         selectedPotions: const {},
         potionChargesUsed: const {},
         // Unlock all free starter plots (level 1, 0 GP cost)
-        unlockedPlots: registries.farmingPlots.initialPlots(),
+        unlockedPlots: registries.farming.initialPlots(),
         // Initialize township resources with starting amounts
         township: TownshipState.initial(registries.township),
       );
@@ -361,9 +323,10 @@ class GlobalState {
   factory GlobalState.test(
     Registries registries, {
     Inventory? inventory,
-    ActiveAction? activeAction,
+    ActiveActivity? activeActivity,
     Map<Skill, SkillState> skillStates = const {},
     Map<ActionId, ActionState> actionStates = const {},
+    MiningPersistentState miningState = const MiningPersistentState.empty(),
     Map<MelvorId, PlotState> plotStates = const {},
     Set<MelvorId> unlockedPlots = const {},
     Map<MelvorId, int> dungeonCompletions = const {},
@@ -384,12 +347,14 @@ class GlobalState {
   }) {
     // Support both gp parameter (for existing tests) and currencies map
     final currenciesMap = currencies ?? (gp > 0 ? {Currency.gp: gp} : const {});
+
     return GlobalState(
       registries: registries,
       inventory: inventory ?? Inventory.empty(registries.items),
-      activeAction: activeAction,
+      activeActivity: activeActivity,
       skillStates: skillStates,
       actionStates: actionStates,
+      miningState: miningState,
       plotStates: plotStates,
       unlockedPlots: unlockedPlots,
       dungeonCompletions: dungeonCompletions,
@@ -415,7 +380,8 @@ class GlobalState {
         registries.items,
         json['inventory'] as Map<String, dynamic>,
       ),
-      activeAction = ActiveAction.maybeFromJson(json['activeAction']),
+      // Read new format first, fall back to old format for backward compat
+      activeActivity = _parseActiveActivity(json),
       skillStates =
           maybeMap(
             json['skillStates'],
@@ -432,6 +398,7 @@ class GlobalState {
                 ActionState.fromJson(value as Map<String, dynamic>),
           ) ??
           const {},
+      miningState = _parseMiningState(json),
       plotStates =
           maybeMap(
             json['plotStates'],
@@ -474,6 +441,13 @@ class GlobalState {
       township =
           TownshipState.maybeFromJson(registries.township, json['township']) ??
           TownshipState.initial(registries.township);
+
+  /// Parses activeActivity from JSON.
+  static ActiveActivity? _parseActiveActivity(Map<String, dynamic> json) {
+    final activityJson = json['activeActivity'] as Map<String, dynamic>?;
+    if (activityJson == null) return null;
+    return ActiveActivity.fromJson(activityJson);
+  }
 
   static Map<Currency, int> _currenciesFromJson(Map<String, dynamic> json) {
     final currenciesJson = json['currencies'] as Map<String, dynamic>? ?? {};
@@ -522,12 +496,21 @@ class GlobalState {
     });
   }
 
+  /// Parses mining state from JSON.
+  static MiningPersistentState _parseMiningState(Map<String, dynamic> json) {
+    final miningJson = json['miningState'] as Map<String, dynamic>?;
+    if (miningJson != null) {
+      return MiningPersistentState.fromJson(miningJson);
+    }
+    return const MiningPersistentState.empty();
+  }
+
   bool validate() {
-    // Confirm that activeAction.id is a valid action.
-    final actionId = activeAction?.id;
+    // Confirm that the active action id is a valid action.
+    final actionId = currentActionId;
     if (actionId != null) {
       // This will throw a StateError if the action is missing.
-      registries.actions.byId(actionId);
+      registries.actionById(actionId);
     }
     return true;
   }
@@ -536,13 +519,14 @@ class GlobalState {
     return {
       'updatedAt': updatedAt.toIso8601String(),
       'inventory': inventory.toJson(),
-      'activeAction': activeAction?.toJson(),
+      'activeActivity': activeActivity?.toJson(),
       'skillStates': skillStates.map(
         (key, value) => MapEntry(key.name, value.toJson()),
       ),
       'actionStates': actionStates.map(
         (key, value) => MapEntry(key.toJson(), value.toJson()),
       ),
+      'miningState': miningState.toJson(),
       'plotStates': plotStates.map(
         (key, value) => MapEntry(key.toJson(), value.toJson()),
       ),
@@ -580,14 +564,36 @@ class GlobalState {
   /// The inventory of items.
   final Inventory inventory;
 
-  /// The active action.
-  final ActiveAction? activeAction;
+  /// The active activity (primary stored field).
+  final ActiveActivity? activeActivity;
+
+  /// Returns the ActionId of the currently active action, or null if none.
+  ActionId? get currentActionId {
+    final activity = activeActivity;
+    if (activity == null) return null;
+    return switch (activity) {
+      SkillActivity(:final skill, :final actionId) => ActionId(
+        skill.id,
+        actionId,
+      ),
+      CombatActivity(:final context) => ActionId(
+        Skill.combat.id,
+        context.currentMonsterId,
+      ),
+    };
+  }
+
+  /// Returns true if the given action is currently active.
+  bool isActionActive(Action action) => currentActionId == action.id;
 
   /// The accumulated skill states.
   final Map<Skill, SkillState> skillStates;
 
   /// The accumulated action states.
   final Map<ActionId, ActionState> actionStates;
+
+  /// Persistent mining rock state (HP, respawn timers).
+  final MiningPersistentState miningState;
 
   /// The farming plot states (plot ID -> plot state).
   final Map<MelvorId, PlotState> plotStates;
@@ -739,18 +745,16 @@ class GlobalState {
 
   /// Whether combat is currently paused (e.g., waiting for monster respawn).
   bool get isCombatPaused {
-    final active = activeAction;
-    if (active == null) return false;
-    final state = actionStates[active.id];
-    if (state == null) return false;
-    final combat = state.combat;
-    if (combat == null) return false;
-    return combat.isSpawning;
+    final activity = activeActivity;
+    if (activity is CombatActivity) {
+      return activity.progress.isSpawning;
+    }
+    return false;
   }
 
   int get inventoryCapacity => shop.bankSlotsPurchased + initialBankSlots;
 
-  bool get isActive => activeAction != null;
+  bool get isActive => activeActivity != null;
 
   /// Returns true if there are any active background timers
   /// (mining respawn/regen, player HP regen, stunned countdown).
@@ -766,10 +770,7 @@ class GlobalState {
     }
 
     // Check mining node timers
-    for (final actionState in actionStates.values) {
-      final mining = actionState.mining;
-      if (mining == null) continue;
-
+    for (final mining in miningState.rockStates.values) {
       // Check for active respawn timer
       if (mining.respawnTicksRemaining != null &&
           mining.respawnTicksRemaining! > 0) {
@@ -800,11 +801,12 @@ class GlobalState {
   bool get shouldTick => isActive || hasActiveBackgroundTimers;
 
   Skill? activeSkill() {
-    final actionId = activeAction?.id;
-    if (actionId == null) {
-      return null;
-    }
-    return registries.actions.byId(actionId).skill;
+    final activity = activeActivity;
+    return switch (activity) {
+      null => null,
+      SkillActivity(:final skill) => skill,
+      CombatActivity() => Skill.combat,
+    };
   }
 
   /// Returns the number of unique item types (slots) used in inventory.
@@ -835,8 +837,8 @@ class GlobalState {
 
       // Check if mining node is depleted
       if (action is MiningAction) {
-        final miningState = actionStateVal.mining ?? const MiningState.empty();
-        if (miningState.isDepleted) {
+        final rockState = miningState.rockState(action.id.localId);
+        if (rockState.isDepleted) {
           return false; // Can't mine depleted node
         }
       }
@@ -961,8 +963,8 @@ class GlobalState {
     if (!tablet1.isSummonTablet || !tablet2.isSummonTablet) return null;
 
     // Get the summoning actions for each tablet
-    final action1 = registries.actions.summoningActionForTablet(tablet1.id);
-    final action2 = registries.actions.summoningActionForTablet(tablet2.id);
+    final action1 = registries.summoning.actionForTablet(tablet1.id);
+    final action2 = registries.summoning.actionForTablet(tablet2.id);
     if (action1 == null || action2 == null) return null;
 
     // Both familiars must have mark level >= 3
@@ -1036,8 +1038,8 @@ class GlobalState {
     // Use skill ID directly to avoid looking up actions that may not exist
     // (e.g., in test scenarios with ActionId.test()).
     var updatedCooking = cooking;
-    final currentActionId = activeAction?.id;
-    final isSwitchingFromCooking = currentActionId?.skillId == Skill.cooking.id;
+    final activeActionId = currentActionId;
+    final isSwitchingFromCooking = activeActionId?.skillId == Skill.cooking.id;
     final isSwitchingToCooking = action is CookingAction;
     if (isSwitchingFromCooking && !isSwitchingToCooking) {
       updatedCooking = cooking.withAllProgressCleared();
@@ -1064,10 +1066,12 @@ class GlobalState {
       }
       totalTicks = skillDuration(action);
       return copyWith(
-        activeAction: ActiveAction(
-          id: actionId,
-          remainingTicks: totalTicks,
+        activeActivity: SkillActivity(
+          skill: action.skill,
+          actionId: actionId.localId,
+          progressTicks: 0,
           totalTicks: totalTicks,
+          selectedRecipeIndex: actionStateVal.selectedRecipeIndex,
         ),
         cooking: updatedCooking,
       );
@@ -1084,9 +1088,16 @@ class GlobalState {
       final existingState = actionState(actionId);
       newActionStates[actionId] = existingState.copyWith(combat: combatState);
       return copyWith(
-        activeAction: ActiveAction(
-          id: actionId,
-          remainingTicks: totalTicks,
+        activeActivity: CombatActivity(
+          context: MonsterCombatContext(monsterId: action.id.localId),
+          progress: CombatProgressState(
+            monsterHp: combatState.monsterHp,
+            playerAttackTicksRemaining: combatState.playerAttackTicksRemaining,
+            monsterAttackTicksRemaining:
+                combatState.monsterAttackTicksRemaining,
+            spawnTicksRemaining: combatState.spawnTicksRemaining,
+          ),
+          progressTicks: 0,
           totalTicks: totalTicks,
         ),
         actionStates: newActionStates,
@@ -1095,6 +1106,68 @@ class GlobalState {
     } else {
       throw Exception('Unknown action type: ${action.runtimeType}');
     }
+  }
+
+  /// Starts a dungeon run, fighting monsters in order.
+  ///
+  /// The first monster in the dungeon is automatically selected.
+  /// After each kill, the next monster in the dungeon will spawn.
+  /// When the last monster is killed, the dungeon is completed.
+  GlobalState startDungeon(Dungeon dungeon) {
+    if (isStunned) {
+      throw const StunnedException('Cannot start dungeon while stunned');
+    }
+    if (dungeon.monsterIds.isEmpty) {
+      throw ArgumentError('Dungeon has no monsters: ${dungeon.id}');
+    }
+
+    // Reset cooking progress if switching from cooking
+    var updatedCooking = cooking;
+    final activeActionId = currentActionId;
+    final isSwitchingFromCooking = activeActionId?.skillId == Skill.cooking.id;
+    if (isSwitchingFromCooking) {
+      updatedCooking = cooking.withAllProgressCleared();
+    }
+
+    // Get the first monster in the dungeon
+    final firstMonsterId = dungeon.monsterIds.first;
+    final firstMonster = registries.combat.monsterById(firstMonsterId);
+    final actionId = firstMonster.id;
+
+    final pStats = computePlayerStats(this);
+    final totalTicks = ticksFromDuration(
+      Duration(milliseconds: (pStats.attackSpeed * 1000).round()),
+    );
+
+    // Initialize combat state for dungeon mode
+    final combatState = CombatActionState.startDungeon(
+      firstMonster,
+      pStats,
+      dungeon.id,
+    );
+    final newActionStates = Map<ActionId, ActionState>.from(actionStates);
+    final existingState = actionState(actionId);
+    newActionStates[actionId] = existingState.copyWith(combat: combatState);
+
+    return copyWith(
+      activeActivity: CombatActivity(
+        context: DungeonCombatContext(
+          dungeonId: dungeon.id,
+          currentMonsterIndex: 0,
+          monsterIds: dungeon.monsterIds,
+        ),
+        progress: CombatProgressState(
+          monsterHp: combatState.monsterHp,
+          playerAttackTicksRemaining: combatState.playerAttackTicksRemaining,
+          monsterAttackTicksRemaining: combatState.monsterAttackTicksRemaining,
+          spawnTicksRemaining: combatState.spawnTicksRemaining,
+        ),
+        progressTicks: 0,
+        totalTicks: totalTicks,
+      ),
+      actionStates: newActionStates,
+      cooking: updatedCooking,
+    );
   }
 
   /// Calculates mean duration with modifiers applied (deterministic).
@@ -1132,8 +1205,8 @@ class GlobalState {
     // Check the skill ID directly to avoid looking up actions that may not
     // exist (e.g., in test scenarios with ActionId.test()).
     var updatedCooking = cooking;
-    final currentActionId = activeAction?.id;
-    if (currentActionId?.skillId == Skill.cooking.id) {
+    final activeActionId = currentActionId;
+    if (activeActionId?.skillId == Skill.cooking.id) {
       updatedCooking = cooking.withAllProgressCleared();
     }
 
@@ -1142,7 +1215,7 @@ class GlobalState {
       registries: registries,
       inventory: inventory,
       shop: shop,
-      activeAction: null,
+      activeActivity: null,
       skillStates: skillStates,
       actionStates: actionStates,
       plotStates: plotStates,
@@ -1166,7 +1239,7 @@ class GlobalState {
     return GlobalState(
       registries: registries,
       inventory: inventory,
-      activeAction: activeAction,
+      activeActivity: activeActivity,
       skillStates: skillStates,
       actionStates: actionStates,
       plotStates: plotStates,
@@ -1195,25 +1268,25 @@ class GlobalState {
       actionStates[action] ?? const ActionState.empty();
 
   int activeProgress(Action action) {
-    final active = activeAction;
-    if (active == null || active.id != action.id) {
+    final activity = activeActivity;
+    if (activity == null || currentActionId != action.id) {
       return 0;
     }
-    return active.progressTicks;
+    return activity.progressTicks;
   }
 
-  GlobalState updateActiveAction(
+  GlobalState updateActiveActivity(
     ActionId actionId, {
     required int remainingTicks,
   }) {
-    final activeAction = this.activeAction;
-    if (activeAction == null || activeAction.id != actionId) {
+    final activity = activeActivity;
+    if (activity == null || currentActionId != actionId) {
       throw Exception('Active action is not $actionId');
     }
-    final newActiveAction = activeAction.copyWith(
-      remainingTicks: remainingTicks,
-    );
-    return copyWith(activeAction: newActiveAction);
+    // Calculate new progress ticks from remaining ticks
+    final newProgressTicks = activity.totalTicks - remainingTicks;
+    final newActivity = activity.withProgress(progressTicks: newProgressTicks);
+    return copyWith(activeActivity: newActivity);
   }
 
   GlobalState addSkillXp(Skill skill, int amount) {
@@ -1972,7 +2045,7 @@ class GlobalState {
     newPlotStates[plotId] = newPlotState;
 
     // Award XP if category says to give XP on plant
-    final category = registries.farmingCategories.byId(crop.categoryId);
+    final category = registries.farming.categoryById(crop.categoryId);
     var newState = copyWith(inventory: newInventory, plotStates: newPlotStates);
 
     if (category?.giveXPOnPlant ?? false) {
@@ -2041,12 +2114,12 @@ class GlobalState {
     }
 
     // Get crop and category
-    final crop = registries.farmingCrops.byId(cropId);
+    final crop = registries.farming.cropById(cropId);
     if (crop == null) {
       throw StateError('Crop $cropId not found');
     }
 
-    final category = registries.farmingCategories.byId(crop.categoryId);
+    final category = registries.farming.categoryById(crop.categoryId);
     if (category == null) {
       throw StateError('Category ${crop.categoryId} not found');
     }
@@ -2252,7 +2325,7 @@ class GlobalState {
   /// - The player doesn't meet the level requirement
   /// - The player can't afford the currency costs
   GlobalState? unlockPlot(MelvorId plotId) {
-    final plot = registries.farmingPlots.byId(plotId);
+    final plot = registries.farming.plotById(plotId);
     if (plot == null) {
       return null;
     }
@@ -2321,8 +2394,8 @@ class GlobalState {
     }
 
     // Find the cooking action
-    final recipe = registries.actions
-        .forSkill(Skill.cooking)
+    final recipe = registries
+        .actionsForSkill(Skill.cooking)
         .whereType<CookingAction>()
         .firstWhere(
           (a) => a.id == areaState.recipeId,
@@ -2333,11 +2406,13 @@ class GlobalState {
     return startAction(recipe, random: random);
   }
 
+  /// Creates a copy of this state with the given fields replaced.
   GlobalState copyWith({
     Inventory? inventory,
-    ActiveAction? activeAction,
+    ActiveActivity? activeActivity,
     Map<Skill, SkillState>? skillStates,
     Map<ActionId, ActionState>? actionStates,
+    MiningPersistentState? miningState,
     Map<MelvorId, PlotState>? plotStates,
     Set<MelvorId>? unlockedPlots,
     Map<MelvorId, int>? dungeonCompletions,
@@ -2358,9 +2433,10 @@ class GlobalState {
     return GlobalState(
       registries: registries,
       inventory: inventory ?? this.inventory,
-      activeAction: activeAction ?? this.activeAction,
+      activeActivity: activeActivity ?? this.activeActivity,
       skillStates: skillStates ?? this.skillStates,
       actionStates: actionStates ?? this.actionStates,
+      miningState: miningState ?? this.miningState,
       plotStates: plotStates ?? this.plotStates,
       unlockedPlots: unlockedPlots ?? this.unlockedPlots,
       dungeonCompletions: dungeonCompletions ?? this.dungeonCompletions,

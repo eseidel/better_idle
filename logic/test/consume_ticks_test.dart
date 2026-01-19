@@ -26,13 +26,12 @@ void main() {
 
   setUpAll(() async {
     await loadTestRegistries();
-    final actions = testActions;
 
-    normalTree = actions.woodcutting('Normal Tree');
-    oakTree = actions.woodcutting('Oak Tree');
-    burnNormalLogs = actions.firemaking('Burn Normal Logs');
-    runeEssence = actions.mining('Rune Essence');
-    copper = actions.mining('Copper');
+    normalTree = testRegistries.woodcuttingAction('Normal Tree');
+    oakTree = testRegistries.woodcuttingAction('Oak Tree');
+    burnNormalLogs = testRegistries.firemakingAction('Burn Normal Logs');
+    runeEssence = testRegistries.miningAction('Rune Essence');
+    copper = testRegistries.miningAction('Copper');
 
     final items = testItems;
     normalLogs = items.byName('Normal Logs');
@@ -61,8 +60,8 @@ void main() {
       state = builder.build();
 
       // Verify activity progress reset to 0 (ready for next completion)
-      expect(state.activeAction?.progressTicks, 0);
-      expect(state.activeAction?.id, normalTree.id);
+      expect(state.activeActivity?.progressTicks, 0);
+      expect(state.currentActionId, normalTree.id);
 
       // Verify 1 item in inventory
       final items = state.inventory.items;
@@ -93,8 +92,8 @@ void main() {
       state = builder.build();
 
       // Verify activity progress reset to 0 (ready for next completion)
-      expect(state.activeAction?.progressTicks, 0);
-      expect(state.activeAction?.id, normalTree.id);
+      expect(state.activeActivity?.progressTicks, 0);
+      expect(state.currentActionId, normalTree.id);
 
       // Verify 5 items in inventory
       final items = state.inventory.items;
@@ -124,8 +123,8 @@ void main() {
       state = builder.build();
 
       // Verify activity progress is at 15 (halfway)
-      expect(state.activeAction?.progressTicks, 15);
-      expect(state.activeAction?.id, normalTree.id);
+      expect(state.activeActivity?.progressTicks, 15);
+      expect(state.currentActionId, normalTree.id);
 
       // Verify no items in inventory
       expect(state.inventory.items.length, 0);
@@ -146,8 +145,8 @@ void main() {
       state = builder.build();
 
       // Verify activity progress is at 15 (halfway through second completion)
-      expect(state.activeAction?.progressTicks, 15);
-      expect(state.activeAction?.id, normalTree.id);
+      expect(state.activeActivity?.progressTicks, 15);
+      expect(state.currentActionId, normalTree.id);
 
       // Verify 1 item in inventory (only first completion counted)
       final items = state.inventory.items;
@@ -172,8 +171,8 @@ void main() {
       state = builder.build();
 
       // Verify activity progress reset to 0
-      expect(state.activeAction?.progressTicks, 0);
-      expect(state.activeAction?.id, oakTree.id);
+      expect(state.activeActivity?.progressTicks, 0);
+      expect(state.currentActionId, oakTree.id);
 
       // Verify 2 items in inventory
       final items = state.inventory.items;
@@ -194,7 +193,7 @@ void main() {
       state = builder.build();
 
       // Verify state unchanged
-      expect(state.activeAction, null);
+      expect(state.activeActivity, null);
       expect(state.inventory.items.length, 0);
       expect(state.skillState(Skill.woodcutting).xp, 0);
     });
@@ -211,7 +210,7 @@ void main() {
       state = builder.build();
 
       // Verify no progress, no rewards, no XP
-      expect(state.activeAction?.progressTicks, 0);
+      expect(state.activeActivity?.progressTicks, 0);
       expect(state.inventory.items.length, 0);
       expect(state.skillState(normalTree.skill).xp, 0);
     });
@@ -359,8 +358,8 @@ void main() {
         state = builder.build();
 
         // Verify activity progress reset to 0 (ready for next completion)
-        expect(state.activeAction?.progressTicks, 0);
-        expect(state.activeAction?.id, burnNormalLogs.id);
+        expect(state.activeActivity?.progressTicks, 0);
+        expect(state.currentActionId, burnNormalLogs.id);
 
         // Verify 1 Normal Log was consumed (5 - 1 = 4 remaining)
         expect(state.inventory.countOfItem(normalLogs), 4);
@@ -441,7 +440,7 @@ void main() {
       state = builder.build();
 
       // Verify action was cleared (can't continue without inputs)
-      expect(state.activeAction, null);
+      expect(state.activeActivity, null);
 
       // Verify all logs were consumed (0 remaining)
       expect(state.inventory.countOfItem(normalLogs), 0);
@@ -487,7 +486,7 @@ void main() {
       // Start woodcutting Normal Tree (outputs Normal Logs - new item)
       // Action CAN start even with full inventory
       state = state.startAction(normalTree, random: random);
-      expect(state.activeAction, isNotNull);
+      expect(state.activeActivity, isNotNull);
 
       // Complete one action - the output should be dropped
       final builder = StateUpdateBuilder(state);
@@ -496,7 +495,7 @@ void main() {
 
       // Action should have stopped after first completion
       // because items were dropped
-      expect(state.activeAction, isNull);
+      expect(state.activeActivity, isNull);
 
       // No Normal Logs should have been added to inventory
       expect(state.inventory.countOfItem(normalLogs), 0);
@@ -537,7 +536,7 @@ void main() {
 
       // Verify we got 3 more Normal Logs (5 + 3 = 8 total)
       expect(state.inventory.countOfItem(normalLogs), 8);
-      expect(state.activeAction, isNotNull); // Action should still be active
+      expect(state.activeActivity, isNotNull); // Action should still be active
 
       // Verify changes tracked the 3 Normal Logs added
       expect(builder.changes.inventoryChanges.counts[normalLogs.id], 3);
@@ -565,7 +564,7 @@ void main() {
       );
 
       // Verify action stopped after first completion (items were dropped)
-      expect(newState.activeAction, isNull);
+      expect(newState.activeActivity, isNull);
 
       // Verify TimeAway has the dropped items
       expect(timeAway.changes.droppedItems.counts[normalLogs.id], 1);
@@ -685,8 +684,8 @@ void main() {
       expect(runeEssenceCount, 18, reason: 'Should mine 18 over 10s');
 
       // Verify action is still running
-      expect(state.activeAction, isNotNull);
-      expect(state.activeAction!.id, runeEssence.id);
+      expect(state.activeActivity, isNotNull);
+      expect(state.currentActionId, runeEssence.id);
     });
 
     test('mining action resumes after respawn across multiple tick cycles', () {
@@ -705,15 +704,14 @@ void main() {
       // so that the next completion will deplete it
       var state = GlobalState.test(
         testRegistries,
-        actionStates: {
-          copper.id: const ActionState(
-            masteryXp: 0,
-            mining: MiningState(
+        miningState: MiningPersistentState(
+          rockStates: {
+            copper.id.localId: const MiningState(
               totalHpLost: 5,
               hpRegenTicksRemaining: 100, // Full countdown until next heal
             ),
-          ),
-        },
+          },
+        ),
       );
       final random = Random(0);
       state = state.startAction(copper, random: random);
@@ -729,13 +727,12 @@ void main() {
 
       // Verify we got 1 copper and node is depleted
       expect(state.inventory.countOfItem(copperOre), 1);
-      final miningState =
-          state.actionState(copper.id).mining ?? const MiningState.empty();
+      final miningState = state.miningState.rockState(copper.id.localId);
       expect(miningState.isDepleted, true);
 
       // Critical: Action should still be active even though node is depleted
-      expect(state.activeAction, isNotNull);
-      expect(state.activeAction!.id, copper.id);
+      expect(state.activeActivity, isNotNull);
+      expect(state.currentActionId, copper.id);
 
       // Now simulate a few more tick cycles while node is respawning
       // Respawn takes 50 ticks, let's do 20 ticks at a time
@@ -744,12 +741,8 @@ void main() {
       state = builder.build();
 
       // Still depleted, still active
-      expect(
-        (state.actionState(copper.id).mining ?? const MiningState.empty())
-            .isDepleted,
-        true,
-      );
-      expect(state.activeAction, isNotNull);
+      expect(state.miningState.rockState(copper.id.localId).isDepleted, true);
+      expect(state.activeActivity, isNotNull);
       expect(state.inventory.countOfItem(copperOre), 1); // No new copper yet
 
       // Another 20 ticks (40 total, still 10 ticks to go)
@@ -757,12 +750,8 @@ void main() {
       consumeTicks(builder, 20, random: random);
       state = builder.build();
 
-      expect(
-        (state.actionState(copper.id).mining ?? const MiningState.empty())
-            .isDepleted,
-        true,
-      );
-      expect(state.activeAction, isNotNull);
+      expect(state.miningState.rockState(copper.id.localId).isDepleted, true);
+      expect(state.activeActivity, isNotNull);
 
       // Final 20 ticks - respawn completes (10 ticks) + 10 ticks toward next
       builder = StateUpdateBuilder(state);
@@ -770,14 +759,10 @@ void main() {
       state = builder.build();
 
       // Node should no longer be depleted
-      expect(
-        (state.actionState(copper.id).mining ?? const MiningState.empty())
-            .isDepleted,
-        false,
-      );
+      expect(state.miningState.rockState(copper.id.localId).isDepleted, false);
       // Action should still be running
-      expect(state.activeAction, isNotNull);
-      expect(state.activeAction!.id, copper.id);
+      expect(state.activeActivity, isNotNull);
+      expect(state.currentActionId, copper.id);
 
       // Complete another mining action (need 30 more ticks since action
       // restarted when respawn completed, but we only have 10 ticks of
@@ -792,7 +777,7 @@ void main() {
 
       // Should have 2 copper now (1 before + 1 after respawn)
       expect(state.inventory.countOfItem(copperOre), 2);
-      expect(state.activeAction, isNotNull);
+      expect(state.activeActivity, isNotNull);
     });
 
     test('concurrent systems: woodcutting while mining nodes heal/respawn', () {
@@ -809,24 +794,20 @@ void main() {
       // - Rune Essence node damaged (3 HP lost) and healing
       var state = GlobalState.test(
         testRegistries,
-        actionStates: {
-          // Copper: depleted, mid-respawn with 30 ticks remaining
-          copper.id: const ActionState(
-            masteryXp: 0,
-            mining: MiningState(
+        miningState: MiningPersistentState(
+          rockStates: {
+            // Copper: depleted, mid-respawn with 30 ticks remaining
+            copper.id.localId: const MiningState(
               totalHpLost: 6, // Fully depleted (6 HP lost = 0 HP remaining)
               respawnTicksRemaining: 30, // 30 ticks until respawn (3 seconds)
             ),
-          ),
-          // Rune Essence: damaged but not depleted, healing
-          runeEssence.id: const ActionState(
-            masteryXp: 0,
-            mining: MiningState(
+            // Rune Essence: damaged but not depleted, healing
+            runeEssence.id.localId: const MiningState(
               totalHpLost: 3, // 3 HP lost, 3 HP remaining (out of 6)
               hpRegenTicksRemaining: 50, // 50 ticks until next heal
             ),
-          ),
-        },
+          },
+        ),
       );
       final random = Random(0);
 
@@ -847,12 +828,12 @@ void main() {
       state = applyTicks(state, 20);
 
       expect(
-        state.activeAction?.id,
+        state.currentActionId,
         normalTree.id,
         reason: 'Active action should still be woodcutting',
       );
       expect(
-        state.activeAction?.progressTicks,
+        state.activeActivity?.progressTicks,
         20,
         reason: 'Should have 20 ticks progress toward woodcutting',
       );
@@ -862,8 +843,7 @@ void main() {
         reason: 'No logs yet - woodcutting not complete',
       );
 
-      final copperMiningPhase1 =
-          state.actionState(copper.id).mining ?? const MiningState.empty();
+      final copperMiningPhase1 = state.miningState.rockState(copper.id.localId);
       expect(
         copperMiningPhase1.isDepleted,
         true,
@@ -875,8 +855,9 @@ void main() {
         reason: 'Copper should have 10 ticks remaining until respawn',
       );
 
-      final runeMiningPhase1 =
-          state.actionState(runeEssence.id).mining ?? const MiningState.empty();
+      final runeMiningPhase1 = state.miningState.rockState(
+        runeEssence.id.localId,
+      );
       expect(
         runeMiningPhase1.totalHpLost,
         3,
@@ -896,7 +877,7 @@ void main() {
       state = applyTicks(state, 30);
 
       expect(
-        state.activeAction?.id,
+        state.currentActionId,
         normalTree.id,
         reason: 'Active action should still be woodcutting',
       );
@@ -906,8 +887,7 @@ void main() {
         reason: 'Should have 1 log from first woodcutting completion',
       );
 
-      final copperMiningPhase2 =
-          state.actionState(copper.id).mining ?? const MiningState.empty();
+      final copperMiningPhase2 = state.miningState.rockState(copper.id.localId);
       expect(
         copperMiningPhase2.isDepleted,
         false,
@@ -919,8 +899,9 @@ void main() {
         reason: 'Copper should be at full HP after respawn',
       );
 
-      final runeMiningPhase2 =
-          state.actionState(runeEssence.id).mining ?? const MiningState.empty();
+      final runeMiningPhase2 = state.miningState.rockState(
+        runeEssence.id.localId,
+      );
       expect(
         runeMiningPhase2.totalHpLost,
         2,
@@ -942,15 +923,14 @@ void main() {
       // - Rune Essence: heals 1 more HP at tick 100, HP 2->1 lost
       state = applyTicks(state, 100);
 
-      expect(state.activeAction?.id, normalTree.id);
+      expect(state.currentActionId, normalTree.id);
       expect(
         state.inventory.countOfItem(normalLogs),
         5,
         reason: 'Should have 5 logs total (1 + 1 partial + 3 full)',
       );
 
-      final copperMiningPhase3 =
-          state.actionState(copper.id).mining ?? const MiningState.empty();
+      final copperMiningPhase3 = state.miningState.rockState(copper.id.localId);
       expect(
         copperMiningPhase3.isDepleted,
         false,
@@ -958,8 +938,9 @@ void main() {
       );
       expect(copperMiningPhase3.totalHpLost, 0);
 
-      final runeMiningPhase3 =
-          state.actionState(runeEssence.id).mining ?? const MiningState.empty();
+      final runeMiningPhase3 = state.miningState.rockState(
+        runeEssence.id.localId,
+      );
       expect(
         runeMiningPhase3.totalHpLost,
         1,
@@ -980,8 +961,9 @@ void main() {
         reason: 'Should have 8 logs total',
       );
 
-      final runeMiningPhase4 =
-          state.actionState(runeEssence.id).mining ?? const MiningState.empty();
+      final runeMiningPhase4 = state.miningState.rockState(
+        runeEssence.id.localId,
+      );
       expect(
         runeMiningPhase4.totalHpLost,
         0,
@@ -995,7 +977,7 @@ void main() {
 
       // Verify the active action stayed woodcutting throughout
       expect(
-        state.activeAction?.id,
+        state.currentActionId,
         normalTree.id,
         reason: 'Woodcutting should still be the active action',
       );
@@ -1005,19 +987,18 @@ void main() {
       // Start with a damaged mining node but no active action
       var state = GlobalState.test(
         testRegistries,
-        actionStates: {
-          copper.id: const ActionState(
-            masteryXp: 0,
-            mining: MiningState(
+        miningState: MiningPersistentState(
+          rockStates: {
+            copper.id.localId: const MiningState(
               totalHpLost: 3, // 3 HP lost
               hpRegenTicksRemaining: 50, // 50 ticks until next heal
             ),
-          ),
-        },
+          },
+        ),
       );
       final random = Random(0);
       // Verify no active action
-      expect(state.activeAction, isNull);
+      expect(state.activeActivity, isNull);
 
       // Process 60 ticks (enough for 1 heal at tick 50, partial progress)
       final builder = StateUpdateBuilder(state);
@@ -1025,8 +1006,7 @@ void main() {
       state = builder.build();
 
       // Verify node healed (should have healed once at tick 50)
-      final miningState =
-          state.actionState(copper.id).mining ?? const MiningState.empty();
+      final miningState = state.miningState.rockState(copper.id.localId);
       expect(
         miningState.totalHpLost,
         2,
@@ -1044,20 +1024,19 @@ void main() {
       // Start with a depleted mining node but no active action
       var state = GlobalState.test(
         testRegistries,
-        actionStates: {
-          copper.id: const ActionState(
-            masteryXp: 0,
-            mining: MiningState(
+        miningState: MiningPersistentState(
+          rockStates: {
+            copper.id.localId: const MiningState(
               totalHpLost: 6,
               respawnTicksRemaining: 30, // 30 ticks until respawn
             ),
-          ),
-        },
+          },
+        ),
       );
       final random = Random(0);
       // Verify no active action and node is depleted
-      expect(state.activeAction, isNull);
-      expect(state.actionState(copper.id).mining?.isDepleted, true);
+      expect(state.activeActivity, isNull);
+      expect(state.miningState.rockState(copper.id.localId).isDepleted, true);
 
       // Process enough ticks to respawn
       final builder = StateUpdateBuilder(state);
@@ -1065,8 +1044,7 @@ void main() {
       state = builder.build();
 
       // Verify node respawned
-      final miningState =
-          state.actionState(copper.id).mining ?? const MiningState.empty();
+      final miningState = state.miningState.rockState(copper.id.localId);
       expect(
         miningState.isDepleted,
         false,
@@ -1083,16 +1061,18 @@ void main() {
       // Start with two damaged mining nodes
       var state = GlobalState.test(
         testRegistries,
-        actionStates: {
-          copper.id: const ActionState(
-            masteryXp: 0,
-            mining: MiningState(totalHpLost: 2, hpRegenTicksRemaining: 50),
-          ),
-          runeEssence.id: const ActionState(
-            masteryXp: 0,
-            mining: MiningState(totalHpLost: 3, hpRegenTicksRemaining: 80),
-          ),
-        },
+        miningState: MiningPersistentState(
+          rockStates: {
+            copper.id.localId: const MiningState(
+              totalHpLost: 2,
+              hpRegenTicksRemaining: 50,
+            ),
+            runeEssence.id.localId: const MiningState(
+              totalHpLost: 3,
+              hpRegenTicksRemaining: 80,
+            ),
+          },
+        ),
       );
       final random = Random(0);
       // Do woodcutting while both heal
@@ -1107,10 +1087,8 @@ void main() {
       expect(state.inventory.countOfItem(normalLogs), 6);
 
       // Verify both nodes healed
-      final copperMining =
-          state.actionState(copper.id).mining ?? const MiningState.empty();
-      final runeMining =
-          state.actionState(runeEssence.id).mining ?? const MiningState.empty();
+      final copperMining = state.miningState.rockState(copper.id.localId);
+      final runeMining = state.miningState.rockState(runeEssence.id.localId);
 
       expect(copperMining.totalHpLost, 0);
       expect(runeMining.totalHpLost, 1);
@@ -1118,14 +1096,14 @@ void main() {
 
     test('combat action processes ticks with monster name as action name', () {
       // Get the Plant combat action
-      final plantAction = testActions.combat('Plant');
+      final plantAction = testRegistries.combatAction('Plant');
       final random = Random(0);
       // Start combat
       var state = GlobalState.empty(testRegistries);
       state = state.startAction(plantAction, random: random);
 
       // Verify the active action name is "Plant", not "Combat"
-      expect(state.activeAction?.id, plantAction.id);
+      expect(state.currentActionId, plantAction.id);
 
       // Verify combat state is stored under "Plant"
       final actionState = state.actionState(plantAction.id);
@@ -1138,21 +1116,23 @@ void main() {
       state = builder.build();
 
       // Combat should still be active (player shouldn't have died in 100 ticks)
-      expect(state.activeAction?.id, plantAction.id);
+      expect(state.currentActionId, plantAction.id);
     });
 
     test('combat action with mining background heals node', () {
-      final plantAction = testActions.combat('Plant');
+      final plantAction = testRegistries.combatAction('Plant');
       final random = Random(0);
       // Start with damaged mining node
       var state = GlobalState.test(
         testRegistries,
-        actionStates: {
-          copper.id: const ActionState(
-            masteryXp: 0,
-            mining: MiningState(totalHpLost: 2, hpRegenTicksRemaining: 50),
-          ),
-        },
+        miningState: MiningPersistentState(
+          rockStates: {
+            copper.id.localId: const MiningState(
+              totalHpLost: 2,
+              hpRegenTicksRemaining: 50,
+            ),
+          },
+        ),
       );
 
       // Start combat
@@ -1164,8 +1144,7 @@ void main() {
       state = builder.build();
 
       // Verify mining node healed during combat
-      final copperMining =
-          state.actionState(copper.id).mining ?? const MiningState.empty();
+      final copperMining = state.miningState.rockState(copper.id.localId);
       expect(copperMining.totalHpLost, 0);
     });
 
@@ -1184,15 +1163,14 @@ void main() {
 
       var state = GlobalState.test(
         testRegistries,
-        actionStates: {
-          copper.id: const ActionState(
-            masteryXp: 0,
-            mining: MiningState(
+        miningState: MiningPersistentState(
+          rockStates: {
+            copper.id.localId: const MiningState(
               totalHpLost: 1,
               hpRegenTicksRemaining: 30, // Heal completes at tick 30
             ),
-          ),
-        },
+          },
+        ),
       );
       final random = Random(0);
 
@@ -1211,8 +1189,7 @@ void main() {
       // - Heal completes at tick 30, reducing 1 HP lost to 0
       // - Mining hit then adds 1 HP lost
       // Net effect: still 1 HP lost
-      final miningState =
-          state.actionState(copper.id).mining ?? const MiningState.empty();
+      final miningState = state.miningState.rockState(copper.id.localId);
       expect(
         miningState.totalHpLost,
         1,
@@ -1220,12 +1197,12 @@ void main() {
       );
 
       // Verify action is still running
-      expect(state.activeAction, isNotNull);
-      expect(state.activeAction!.id, copper.id);
+      expect(state.activeActivity, isNotNull);
+      expect(state.currentActionId, copper.id);
     });
 
     test('completes activity and adds toast', () {
-      final normalTree = testActions.woodcutting('Normal Tree');
+      final normalTree = testRegistries.woodcuttingAction('Normal Tree');
       var state = GlobalState.empty(testRegistries);
       final random = Random(0);
 
@@ -1240,7 +1217,7 @@ void main() {
       state = builder.build();
 
       // Verify activity completed (progress resets on completion)
-      expect(state.activeAction?.progressTicks, 0);
+      expect(state.activeActivity?.progressTicks, 0);
 
       // Verify rewards
       final items = state.inventory.items;
@@ -1256,7 +1233,7 @@ void main() {
   group('farming background growth', () {
     test('farming plots grow while doing other actions', () {
       // Get a level-1 farming crop and an unlocked plot
-      final crops = testRegistries.farmingCrops.all;
+      final crops = testRegistries.farmingCrops;
       final allotmentCrops = crops.where((c) => c.level == 1).toList();
       expect(allotmentCrops, isNotEmpty, reason: 'Should have level 1 crops');
 
@@ -1264,7 +1241,7 @@ void main() {
       final seed = testItems.byId(crop.seedId);
 
       // Get an unlocked plot from initial plots
-      final initialPlots = testRegistries.farmingPlots.initialPlots();
+      final initialPlots = testRegistries.farming.initialPlots();
       expect(initialPlots, isNotEmpty, reason: 'Should have initial plots');
       final plotId = initialPlots.first;
 
@@ -1319,13 +1296,13 @@ void main() {
 
     test('farming plots grow with no foreground action', () {
       // Get a level-1 farming crop and an unlocked plot
-      final crops = testRegistries.farmingCrops.all;
+      final crops = testRegistries.farmingCrops;
       final allotmentCrops = crops.where((c) => c.level == 1).toList();
       final crop = allotmentCrops.first;
       final seed = testItems.byId(crop.seedId);
 
       // Get an unlocked plot
-      final initialPlots = testRegistries.farmingPlots.initialPlots();
+      final initialPlots = testRegistries.farming.initialPlots();
       final plotId = initialPlots.first;
 
       // Create state with seed in inventory
@@ -1341,7 +1318,7 @@ void main() {
       state = state.plantCrop(plotId, crop);
 
       // No foreground action - just consume ticks
-      expect(state.activeAction, isNull);
+      expect(state.activeActivity, isNull);
 
       // Consume enough ticks for crop to finish
       final builder = StateUpdateBuilder(state);
@@ -1357,8 +1334,8 @@ void main() {
       // Get all available plots for the Allotment category
       // (initial plots are level 1, no cost, and category Allotment)
       const allotmentCategoryId = MelvorId('melvorD:Allotment');
-      final allotmentPlots = testRegistries.farmingPlots
-          .forCategory(allotmentCategoryId)
+      final allotmentPlots = testRegistries.farming
+          .plotsForCategory(allotmentCategoryId)
           .where((p) => p.level == 1 && p.currencyCosts.isEmpty)
           .toList();
 
@@ -1373,7 +1350,7 @@ void main() {
       final plotId2 = allotmentPlots[1].id;
 
       // Get a level-1 crop
-      final crops = testRegistries.farmingCrops.all;
+      final crops = testRegistries.farmingCrops;
       final levelOneCrops = crops.where((c) => c.level == 1).toList();
       expect(levelOneCrops, isNotEmpty);
 
@@ -1410,14 +1387,14 @@ void main() {
 
     test('harvesting a ready crop yields product and clears plot', () {
       // Get a level-1 farming crop and an unlocked plot
-      final crops = testRegistries.farmingCrops.all;
+      final crops = testRegistries.farmingCrops;
       final allotmentCrops = crops.where((c) => c.level == 1).toList();
       final crop = allotmentCrops.first;
       final seed = testItems.byId(crop.seedId);
       final product = testItems.byId(crop.productId);
 
       // Get an unlocked plot
-      final initialPlots = testRegistries.farmingPlots.initialPlots();
+      final initialPlots = testRegistries.farming.initialPlots();
       final plotId = initialPlots.first;
 
       // Create state with seed in inventory
@@ -1461,13 +1438,13 @@ void main() {
 
     test('farming growth continues across multiple tick cycles', () {
       // Get a level-1 farming crop and an unlocked plot
-      final crops = testRegistries.farmingCrops.all;
+      final crops = testRegistries.farmingCrops;
       final allotmentCrops = crops.where((c) => c.level == 1).toList();
       final crop = allotmentCrops.first;
       final seed = testItems.byId(crop.seedId);
 
       // Get an unlocked plot
-      final initialPlots = testRegistries.farmingPlots.initialPlots();
+      final initialPlots = testRegistries.farming.initialPlots();
       final plotId = initialPlots.first;
 
       // Create state with seed in inventory
@@ -1520,7 +1497,7 @@ void main() {
 
       // Start woodcutting Normal Tree (30 ticks per action, 10 XP each)
       state = state.startAction(
-        testActions.woodcutting('Normal Tree'),
+        testRegistries.woodcuttingAction('Normal Tree'),
         random: random,
       );
 
@@ -1539,7 +1516,7 @@ void main() {
 
       // Start woodcutting Normal Tree (30 ticks per action, 10 XP each)
       state = state.startAction(
-        testActions.woodcutting('Normal Tree'),
+        testRegistries.woodcuttingAction('Normal Tree'),
         random: random,
       );
 
@@ -1570,7 +1547,7 @@ void main() {
 
     setUpAll(() {
       shrimp = testItems.byName('Shrimp');
-      plantAction = testActions.combat('Plant');
+      plantAction = testRegistries.combatAction('Plant');
     });
 
     test('tryAutoEat does nothing when no auto-eat modifiers', () {
@@ -1738,7 +1715,7 @@ void main() {
       // Combat should be ongoing
       // Food count may or may not have changed depending on damage taken
       // This test verifies no crashes occur during combat with food equipped
-      expect(builder.state.activeAction?.id, plantAction.id);
+      expect(builder.state.currentActionId, plantAction.id);
     });
 
     test('createModifierProvider returns zero when no purchases', () {
@@ -1789,7 +1766,7 @@ void main() {
     late Item rawChicken;
 
     setUpAll(() {
-      chickenAction = testActions.combat('Chicken');
+      chickenAction = testRegistries.combatAction('Chicken');
       bones = testItems.byName('Bones');
       feathers = testItems.byName('Feathers');
       rawChicken = testItems.byName('Raw Chicken');
@@ -1904,7 +1881,7 @@ void main() {
 
     test('monster without bones does not drop bones', () {
       // Plant has no bones
-      final plantAction = testActions.combat('Plant');
+      final plantAction = testRegistries.combatAction('Plant');
       expect(plantAction.bones, isNull);
 
       const highSkill = SkillState(xp: 1000000, masteryPoolXp: 0);
@@ -1927,6 +1904,140 @@ void main() {
       // Should not have any bones
       final bonesCount = state.inventory.countById(bones.id);
       expect(bonesCount, 0);
+    });
+  });
+
+  group('dungeon combat', () {
+    late Dungeon chickenCoopDungeon;
+    late Item bones;
+
+    setUpAll(() {
+      chickenCoopDungeon = testRegistries.dungeons.byId(
+        MelvorId.fromJson('melvorD:Chicken_Coop'),
+      );
+      bones = testItems.byName('Bones');
+    });
+
+    test('startDungeon initializes combat state with dungeon info', () {
+      const highSkill = SkillState(xp: 1000000, masteryPoolXp: 0);
+      var state = GlobalState.test(
+        testRegistries,
+        skillStates: const {
+          Skill.hitpoints: highSkill,
+          Skill.attack: highSkill,
+          Skill.strength: highSkill,
+          Skill.defence: highSkill,
+        },
+      );
+
+      state = state.startDungeon(chickenCoopDungeon);
+
+      // Should have an active action
+      expect(state.activeActivity, isNotNull);
+
+      // Combat state should have dungeon info
+      final combatState = state.actionState(state.currentActionId!).combat;
+      expect(combatState, isNotNull);
+      expect(combatState!.dungeonId, chickenCoopDungeon.id);
+      expect(combatState.dungeonMonsterIndex, 0);
+      expect(combatState.isInDungeon, isTrue);
+    });
+
+    test('dungeon progresses through monsters in order', () {
+      const highSkill = SkillState(xp: 1000000, masteryPoolXp: 0);
+      var state = GlobalState.test(
+        testRegistries,
+        skillStates: const {
+          Skill.hitpoints: highSkill,
+          Skill.attack: highSkill,
+          Skill.strength: highSkill,
+          Skill.defence: highSkill,
+        },
+      );
+
+      state = state.startDungeon(chickenCoopDungeon);
+      final random = Random(42);
+
+      // First monster should be at index 0
+      final combatState = state.actionState(state.currentActionId!).combat!;
+      expect(combatState.dungeonMonsterIndex, 0);
+
+      // Process enough ticks to kill a couple chickens
+      // Each chicken is weak and dies quickly with high stats
+      final builder = StateUpdateBuilder(state);
+      consumeTicks(builder, 300, random: random);
+      state = builder.build();
+
+      // Should have killed monsters (bones collected indicates kills)
+      final bonesCount = state.inventory.countById(bones.id);
+      expect(bonesCount, greaterThan(0), reason: 'Should have killed monsters');
+    });
+
+    test('dungeon completion increments completion count and loops', () {
+      const highSkill = SkillState(xp: 1000000, masteryPoolXp: 0);
+      var state = GlobalState.test(
+        testRegistries,
+        skillStates: const {
+          Skill.hitpoints: highSkill,
+          Skill.attack: highSkill,
+          Skill.strength: highSkill,
+          Skill.defence: highSkill,
+        },
+      );
+
+      // Initial completion count should be 0
+      expect(state.dungeonCompletions[chickenCoopDungeon.id] ?? 0, 0);
+
+      state = state.startDungeon(chickenCoopDungeon);
+      final random = Random(42);
+
+      // Process enough ticks to complete the entire dungeon multiple times
+      // Chicken coop has 6 chickens, each takes ~30 ticks spawn + ~24 ticks
+      // to kill with high stats. 10000 ticks should complete multiple runs.
+      final builder = StateUpdateBuilder(state);
+      consumeTicks(builder, 10000, random: random);
+      state = builder.build();
+
+      // Should have completed the dungeon at least once
+      final completions = state.dungeonCompletions[chickenCoopDungeon.id] ?? 0;
+      expect(completions, greaterThanOrEqualTo(1));
+
+      // Dungeon should still be running (loops back to first monster)
+      expect(state.activeActivity, isNotNull);
+      expect(builder.stopReason, ActionStopReason.stillRunning);
+
+      // Should still be in the dungeon
+      final combatState = state.actionState(state.currentActionId!).combat;
+      expect(combatState?.isInDungeon, isTrue);
+      expect(combatState?.dungeonId, chickenCoopDungeon.id);
+    });
+
+    test('dungeon drops loot from each monster killed', () {
+      const highSkill = SkillState(xp: 1000000, masteryPoolXp: 0);
+      var state = GlobalState.test(
+        testRegistries,
+        skillStates: const {
+          Skill.hitpoints: highSkill,
+          Skill.attack: highSkill,
+          Skill.strength: highSkill,
+          Skill.defence: highSkill,
+        },
+      );
+
+      state = state.startDungeon(chickenCoopDungeon);
+      final random = Random(42);
+
+      final builder = StateUpdateBuilder(state);
+      consumeTicks(builder, 10000, random: random);
+      state = builder.build();
+
+      // Should have collected bones from each chicken killed
+      final bonesCount = state.inventory.countById(bones.id);
+      // Chicken coop has 6 chickens, so we should have ~6 bones
+      expect(bonesCount, greaterThanOrEqualTo(6));
+
+      // GP should have been collected
+      expect(builder.changes.currenciesGained[Currency.gp], greaterThan(0));
     });
   });
 }

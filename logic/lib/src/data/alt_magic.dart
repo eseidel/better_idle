@@ -83,3 +83,30 @@ class AltMagicAction extends SkillAction {
   /// The type of special cost (e.g., "AnyItem", "BarIngredientsWithCoal").
   final String? specialCostType;
 }
+
+/// Registry for alt magic skill data.
+@immutable
+class AltMagicRegistry {
+  const AltMagicRegistry(this.actions) : _byId = null;
+
+  const AltMagicRegistry._withCache(this.actions, this._byId);
+
+  /// All alt magic spell actions.
+  final List<AltMagicAction> actions;
+
+  final Map<MelvorId, AltMagicAction>? _byId;
+
+  Map<MelvorId, AltMagicAction> get _actionMap {
+    if (_byId != null) return _byId;
+    return {for (final a in actions) a.id.localId: a};
+  }
+
+  /// Look up an alt magic action by its local ID.
+  AltMagicAction? byId(MelvorId localId) => _actionMap[localId];
+
+  /// Create a cached version for faster lookups.
+  AltMagicRegistry withCache() {
+    if (_byId != null) return this;
+    return AltMagicRegistry._withCache(actions, _actionMap);
+  }
+}

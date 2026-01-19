@@ -50,7 +50,7 @@ bool _canSell(GlobalState state) {
 /// Returns SwitchActivity interactions for all unlocked actions
 /// that are not the current action.
 List<SwitchActivity> _availableActivitySwitches(GlobalState state) {
-  final currentActionId = state.activeAction?.id;
+  final currentActionId = state.currentActionId;
   final switches = <SwitchActivity>[];
   final registries = state.registries;
 
@@ -58,7 +58,7 @@ List<SwitchActivity> _availableActivitySwitches(GlobalState state) {
   for (final skill in Skill.values) {
     final skillLevel = state.skillState(skill).skillLevel;
 
-    for (final action in registries.actions.forSkill(skill)) {
+    for (final action in registries.actionsForSkill(skill)) {
       // Skip if this is the current action
       if (action.id == currentActionId) continue;
 

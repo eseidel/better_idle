@@ -1,6 +1,7 @@
 import 'package:logic/src/data/actions.dart';
 import 'package:logic/src/data/currency.dart';
 import 'package:logic/src/data/melvor_id.dart';
+import 'package:logic/src/data/registries.dart' show compareByIndex;
 import 'package:logic/src/types/inventory.dart';
 import 'package:logic/src/types/time_away.dart';
 import 'package:meta/meta.dart';
@@ -606,11 +607,11 @@ class TaskGoal {
   /// For skill XP goals, returns the skill name + " XP".
   /// For item goals, returns the item name.
   /// For monster goals, returns the monster name.
-  String displayName(ItemRegistry items, ActionRegistry actions) =>
+  String displayName(ItemRegistry items, CombatRegistry combat) =>
       switch (type) {
         TaskGoalType.skillXP => '${id.localId} XP',
         TaskGoalType.items => items.byId(id).name,
-        TaskGoalType.monsters => actions.combatWithId(id).name,
+        TaskGoalType.monsters => combat.monsterById(id).name,
       };
 
   /// Returns the asset path for this goal's icon.
@@ -618,10 +619,10 @@ class TaskGoal {
   /// For skill XP goals, returns the skill icon path.
   /// For item goals, returns the item's media path.
   /// For monster goals, returns the monster's media path.
-  String asset(ItemRegistry items, ActionRegistry actions) => switch (type) {
+  String asset(ItemRegistry items, CombatRegistry combat) => switch (type) {
     TaskGoalType.skillXP => Skill.fromId(id).assetPath,
     TaskGoalType.items => items.byId(id).media!,
-    TaskGoalType.monsters => actions.combatWithId(id).media!,
+    TaskGoalType.monsters => combat.monsterById(id).media!,
   };
 }
 
@@ -962,20 +963,8 @@ class TownshipRegistry {
   }
 
   /// Comparator for sorting building IDs according to display order.
-  /// Buildings in sort order come before buildings not in sort order.
-  /// Buildings not in sort order maintain stable relative ordering.
-  int compareBuildings(MelvorId a, MelvorId b) {
-    final indexA = buildingSortIndex[a];
-    final indexB = buildingSortIndex[b];
-
-    // Both not in sort order - maintain original order (return 0)
-    if (indexA == null && indexB == null) return 0;
-    // Buildings in sort order come before buildings not in sort order
-    if (indexA == null) return 1;
-    if (indexB == null) return -1;
-
-    return indexA.compareTo(indexB);
-  }
+  int compareBuildings(MelvorId a, MelvorId b) =>
+      compareByIndex(buildingSortIndex, a, b);
 
   // ---------------------------------------------------------------------------
   // Biome lookups

@@ -25,19 +25,15 @@ class _FletchingPageState extends State<FletchingPage> {
   Widget build(BuildContext context) {
     const skill = Skill.fletching;
     final registries = context.state.registries;
-    final actions = registries.actions
-        .forSkill(skill)
-        .whereType<FletchingAction>()
-        .toList();
+    final actions = registries.fletching.actions;
     final skillState = context.state.skillState(skill);
     final skillLevel = skillState.skillLevel;
-    final categories = registries.fletchingCategories;
 
     // Group actions by category
     final actionsByCategory = <FletchingCategory, List<FletchingAction>>{};
     for (final action in actions) {
       final category = action.categoryId != null
-          ? categories.byId(action.categoryId!)
+          ? registries.fletching.categoryById(action.categoryId!)
           : null;
       if (category != null) {
         actionsByCategory.putIfAbsent(category, () => []).add(action);
@@ -46,7 +42,7 @@ class _FletchingPageState extends State<FletchingPage> {
 
     // Default to first unlocked action if none selected
     final unlockedActions = actions
-        .where((a) => skillLevel >= a.unlockLevel)
+        .where((FletchingAction a) => skillLevel >= a.unlockLevel)
         .toList();
     final selectedAction =
         _selectedAction ??

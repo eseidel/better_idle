@@ -52,3 +52,30 @@ class AstrologyAction extends SkillAction {
   /// The skill IDs that this constellation provides modifiers for.
   final List<MelvorId> skillIds;
 }
+
+/// Registry for astrology skill data.
+@immutable
+class AstrologyRegistry {
+  const AstrologyRegistry(this.actions) : _byId = null;
+
+  const AstrologyRegistry._withCache(this.actions, this._byId);
+
+  /// All astrology constellation actions.
+  final List<AstrologyAction> actions;
+
+  final Map<MelvorId, AstrologyAction>? _byId;
+
+  Map<MelvorId, AstrologyAction> get _actionMap {
+    if (_byId != null) return _byId;
+    return {for (final a in actions) a.id.localId: a};
+  }
+
+  /// Look up an astrology action by its local ID.
+  AstrologyAction? byId(MelvorId localId) => _actionMap[localId];
+
+  /// Create a cached version for faster lookups.
+  AstrologyRegistry withCache() {
+    if (_byId != null) return this;
+    return AstrologyRegistry._withCache(actions, _actionMap);
+  }
+}

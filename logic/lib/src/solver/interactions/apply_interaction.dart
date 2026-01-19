@@ -96,11 +96,11 @@ GlobalState _applySwitchActivity(
   ActionId actionId,
   Random random,
 ) {
-  final action = state.registries.actions.byId(actionId);
+  final action = state.registries.actionById(actionId);
 
   // Clear current action if any (and not stunned)
   var newState = state;
-  if (state.activeAction != null && !state.isStunned) {
+  if (state.activeActivity != null && !state.isStunned) {
     newState = state.clearAction();
   }
 
@@ -113,11 +113,11 @@ GlobalState _applySwitchActivityDeterministic(
   GlobalState state,
   ActionId actionId,
 ) {
-  final action = state.registries.actions.byId(actionId);
+  final action = state.registries.actionById(actionId);
 
   // Clear current action if any (and not stunned)
   var newState = state;
-  if (state.activeAction != null && !state.isStunned) {
+  if (state.activeActivity != null && !state.isStunned) {
     newState = state.clearAction();
   }
 

@@ -67,7 +67,7 @@ class TimeAway {
     // predictions which return empty for combat anyway.
     SkillAction? action;
     if (actionId != null) {
-      final lookedUp = registries.actions.byId(actionId);
+      final lookedUp = registries.actionById(actionId);
       if (lookedUp is SkillAction) {
         action = lookedUp;
       }
@@ -489,6 +489,12 @@ class Changes {
     this.currenciesGained = const {},
     this.lostOnDeath = const Counts<MelvorId>.empty(),
     this.deathCount = 0,
+    this.monstersKilled = const Counts<MelvorId>.empty(),
+    this.dungeonsCompleted = const Counts<MelvorId>.empty(),
+    this.marksFound = const Counts<MelvorId>.empty(),
+    this.potionsUsed = const Counts<MelvorId>.empty(),
+    this.tabletsUsed = const Counts<MelvorId>.empty(),
+    this.foodEaten = const Counts<MelvorId>.empty(),
   });
   // We don't bother tracking mastery XP changes since they're not displayed
   // in the welcome back dialog.
@@ -502,6 +508,12 @@ class Changes {
         currenciesGained: const {},
         lostOnDeath: const Counts<MelvorId>.empty(),
         deathCount: 0,
+        monstersKilled: const Counts<MelvorId>.empty(),
+        dungeonsCompleted: const Counts<MelvorId>.empty(),
+        marksFound: const Counts<MelvorId>.empty(),
+        potionsUsed: const Counts<MelvorId>.empty(),
+        tabletsUsed: const Counts<MelvorId>.empty(),
+        foodEaten: const Counts<MelvorId>.empty(),
       );
 
   factory Changes.fromJson(Map<String, dynamic> json) {
@@ -523,6 +535,24 @@ class Changes {
         json['lostOnDeath'] as Map<String, dynamic>? ?? {},
       ),
       deathCount: json['deathCount'] as int? ?? 0,
+      monstersKilled: Counts<MelvorId>.fromJson(
+        json['monstersKilled'] as Map<String, dynamic>? ?? {},
+      ),
+      dungeonsCompleted: Counts<MelvorId>.fromJson(
+        json['dungeonsCompleted'] as Map<String, dynamic>? ?? {},
+      ),
+      marksFound: Counts<MelvorId>.fromJson(
+        json['marksFound'] as Map<String, dynamic>? ?? {},
+      ),
+      potionsUsed: Counts<MelvorId>.fromJson(
+        json['potionsUsed'] as Map<String, dynamic>? ?? {},
+      ),
+      tabletsUsed: Counts<MelvorId>.fromJson(
+        json['tabletsUsed'] as Map<String, dynamic>? ?? {},
+      ),
+      foodEaten: Counts<MelvorId>.fromJson(
+        json['foodEaten'] as Map<String, dynamic>? ?? {},
+      ),
     );
   }
 
@@ -542,6 +572,24 @@ class Changes {
   final Map<Currency, int> currenciesGained;
   final Counts<MelvorId> lostOnDeath;
   final int deathCount;
+
+  /// Monsters killed during the time away, keyed by monster ID.
+  final Counts<MelvorId> monstersKilled;
+
+  /// Dungeons completed during the time away, keyed by dungeon ID.
+  final Counts<MelvorId> dungeonsCompleted;
+
+  /// Summoning marks found during the time away, keyed by familiar ID.
+  final Counts<MelvorId> marksFound;
+
+  /// Potions used during the time away, keyed by potion ID.
+  final Counts<MelvorId> potionsUsed;
+
+  /// Summoning tablets used during the time away, keyed by tablet ID.
+  final Counts<MelvorId> tabletsUsed;
+
+  /// Food eaten during the time away, keyed by food item ID.
+  final Counts<MelvorId> foodEaten;
 
   /// Helper to merge two currency maps.
   static Map<Currency, int> _mergeCurrencies(
@@ -567,6 +615,12 @@ class Changes {
       ),
       lostOnDeath: lostOnDeath.add(other.lostOnDeath),
       deathCount: deathCount + other.deathCount,
+      monstersKilled: monstersKilled.add(other.monstersKilled),
+      dungeonsCompleted: dungeonsCompleted.add(other.dungeonsCompleted),
+      marksFound: marksFound.add(other.marksFound),
+      potionsUsed: potionsUsed.add(other.potionsUsed),
+      tabletsUsed: tabletsUsed.add(other.tabletsUsed),
+      foodEaten: foodEaten.add(other.foodEaten),
     );
   }
 
@@ -577,109 +631,125 @@ class Changes {
       skillLevelChanges.isEmpty &&
       currenciesGained.isEmpty &&
       lostOnDeath.isEmpty &&
-      deathCount == 0;
+      deathCount == 0 &&
+      monstersKilled.isEmpty &&
+      dungeonsCompleted.isEmpty &&
+      marksFound.isEmpty &&
+      potionsUsed.isEmpty &&
+      tabletsUsed.isEmpty &&
+      foodEaten.isEmpty;
+
+  Changes copyWith({
+    Counts<MelvorId>? inventoryChanges,
+    Counts<Skill>? skillXpChanges,
+    Counts<MelvorId>? droppedItems,
+    LevelChanges? skillLevelChanges,
+    Map<Currency, int>? currenciesGained,
+    Counts<MelvorId>? lostOnDeath,
+    int? deathCount,
+    Counts<MelvorId>? monstersKilled,
+    Counts<MelvorId>? dungeonsCompleted,
+    Counts<MelvorId>? marksFound,
+    Counts<MelvorId>? potionsUsed,
+    Counts<MelvorId>? tabletsUsed,
+    Counts<MelvorId>? foodEaten,
+  }) {
+    return Changes(
+      inventoryChanges: inventoryChanges ?? this.inventoryChanges,
+      skillXpChanges: skillXpChanges ?? this.skillXpChanges,
+      droppedItems: droppedItems ?? this.droppedItems,
+      skillLevelChanges: skillLevelChanges ?? this.skillLevelChanges,
+      currenciesGained: currenciesGained ?? this.currenciesGained,
+      lostOnDeath: lostOnDeath ?? this.lostOnDeath,
+      deathCount: deathCount ?? this.deathCount,
+      monstersKilled: monstersKilled ?? this.monstersKilled,
+      dungeonsCompleted: dungeonsCompleted ?? this.dungeonsCompleted,
+      marksFound: marksFound ?? this.marksFound,
+      potionsUsed: potionsUsed ?? this.potionsUsed,
+      tabletsUsed: tabletsUsed ?? this.tabletsUsed,
+      foodEaten: foodEaten ?? this.foodEaten,
+    );
+  }
 
   Changes adding(ItemStack stack) {
-    return Changes(
+    return copyWith(
       inventoryChanges: inventoryChanges.addCount(stack.item.id, stack.count),
-      skillXpChanges: skillXpChanges,
-      droppedItems: droppedItems,
-      skillLevelChanges: skillLevelChanges,
-      currenciesGained: currenciesGained,
-      lostOnDeath: lostOnDeath,
-      deathCount: deathCount,
     );
   }
 
   Changes removing(ItemStack stack) {
-    return Changes(
+    return copyWith(
       inventoryChanges: inventoryChanges.addCount(stack.item.id, -stack.count),
-      skillXpChanges: skillXpChanges,
-      droppedItems: droppedItems,
-      skillLevelChanges: skillLevelChanges,
-      currenciesGained: currenciesGained,
-      lostOnDeath: lostOnDeath,
-      deathCount: deathCount,
     );
   }
 
   Changes dropping(ItemStack stack) {
-    return Changes(
-      inventoryChanges: inventoryChanges,
-      skillXpChanges: skillXpChanges,
+    return copyWith(
       droppedItems: droppedItems.addCount(stack.item.id, stack.count),
-      skillLevelChanges: skillLevelChanges,
-      currenciesGained: currenciesGained,
-      lostOnDeath: lostOnDeath,
-      deathCount: deathCount,
     );
   }
 
   Changes addingSkillXp(Skill skill, int amount) {
-    return Changes(
-      inventoryChanges: inventoryChanges,
-      skillXpChanges: skillXpChanges.addCount(skill, amount),
-      droppedItems: droppedItems,
-      skillLevelChanges: skillLevelChanges,
-      currenciesGained: currenciesGained,
-      lostOnDeath: lostOnDeath,
-      deathCount: deathCount,
-    );
+    return copyWith(skillXpChanges: skillXpChanges.addCount(skill, amount));
   }
 
   Changes addingSkillLevel(Skill skill, int startLevel, int endLevel) {
-    return Changes(
-      inventoryChanges: inventoryChanges,
-      skillXpChanges: skillXpChanges,
-      droppedItems: droppedItems,
+    return copyWith(
       skillLevelChanges: skillLevelChanges.addLevelChange(
         skill,
         LevelChange(startLevel: startLevel, endLevel: endLevel),
       ),
-      currenciesGained: currenciesGained,
-      lostOnDeath: lostOnDeath,
-      deathCount: deathCount,
     );
   }
 
   Changes addingCurrency(Currency currency, int amount) {
     final newCurrencies = Map<Currency, int>.from(currenciesGained);
     newCurrencies[currency] = (newCurrencies[currency] ?? 0) + amount;
-    return Changes(
-      inventoryChanges: inventoryChanges,
-      skillXpChanges: skillXpChanges,
-      droppedItems: droppedItems,
-      skillLevelChanges: skillLevelChanges,
-      currenciesGained: newCurrencies,
-      lostOnDeath: lostOnDeath,
-      deathCount: deathCount,
-    );
+    return copyWith(currenciesGained: newCurrencies);
   }
 
   /// Tracks an item lost due to death penalty.
   Changes losingOnDeath(ItemStack stack) {
-    return Changes(
-      inventoryChanges: inventoryChanges,
-      skillXpChanges: skillXpChanges,
-      droppedItems: droppedItems,
-      skillLevelChanges: skillLevelChanges,
-      currenciesGained: currenciesGained,
+    return copyWith(
       lostOnDeath: lostOnDeath.addCount(stack.item.id, stack.count),
-      deathCount: deathCount,
     );
   }
 
   /// Records a death occurrence (increments death count).
   Changes recordingDeath() {
-    return Changes(
-      inventoryChanges: inventoryChanges,
-      skillXpChanges: skillXpChanges,
-      droppedItems: droppedItems,
-      skillLevelChanges: skillLevelChanges,
-      currenciesGained: currenciesGained,
-      lostOnDeath: lostOnDeath,
-      deathCount: deathCount + 1,
+    return copyWith(deathCount: deathCount + 1);
+  }
+
+  /// Records a monster kill.
+  Changes recordingMonsterKill(MelvorId monsterId) {
+    return copyWith(monstersKilled: monstersKilled.addCount(monsterId, 1));
+  }
+
+  /// Records a dungeon completion.
+  Changes recordingDungeonCompletion(MelvorId dungeonId) {
+    return copyWith(
+      dungeonsCompleted: dungeonsCompleted.addCount(dungeonId, 1),
     );
+  }
+
+  /// Records a summoning mark found.
+  Changes recordingMarkFound(MelvorId familiarId) {
+    return copyWith(marksFound: marksFound.addCount(familiarId, 1));
+  }
+
+  /// Records a potion being used (one potion consumed from inventory).
+  Changes recordingPotionUsed(MelvorId potionId) {
+    return copyWith(potionsUsed: potionsUsed.addCount(potionId, 1));
+  }
+
+  /// Records a summoning tablet being consumed.
+  Changes recordingTabletUsed(MelvorId tabletId, int count) {
+    return copyWith(tabletsUsed: tabletsUsed.addCount(tabletId, count));
+  }
+
+  /// Records food being eaten.
+  Changes recordingFoodEaten(MelvorId foodId, int count) {
+    return copyWith(foodEaten: foodEaten.addCount(foodId, count));
   }
 
   Map<String, dynamic> toJson() {
@@ -693,6 +763,12 @@ class Changes {
       ),
       'lostOnDeath': lostOnDeath.toJson(),
       'deathCount': deathCount,
+      'monstersKilled': monstersKilled.toJson(),
+      'dungeonsCompleted': dungeonsCompleted.toJson(),
+      'marksFound': marksFound.toJson(),
+      'potionsUsed': potionsUsed.toJson(),
+      'tabletsUsed': tabletsUsed.toJson(),
+      'foodEaten': foodEaten.toJson(),
     };
   }
 }

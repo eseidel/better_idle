@@ -212,7 +212,7 @@ class MacroPlanContext {
       final producerId = prereqs.findProducerActionForItem(s, itemId);
       if (producerId == null) return;
 
-      final producerAction = s.registries.actions.byId(producerId);
+      final producerAction = s.registries.actionById(producerId);
       if (producerAction is! SkillAction) return;
 
       // For mining actions, add potential gem slots (conservative estimate)

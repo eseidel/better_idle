@@ -26,7 +26,6 @@ void main() {
         expect(restored.combat!.playerAttackTicksRemaining, 24);
         expect(restored.combat!.monsterAttackTicksRemaining, 30);
         expect(restored.combat!.spawnTicksRemaining, isNull);
-        expect(restored.mining, isNull);
       });
 
       test(
@@ -65,7 +64,6 @@ void main() {
 
         expect(restored.masteryXp, 0);
         expect(restored.combat, isNull);
-        expect(restored.mining, isNull);
       });
 
       test('round-trips ActionState with only masteryXp', () {
@@ -76,7 +74,6 @@ void main() {
 
         expect(restored.masteryXp, 500);
         expect(restored.combat, isNull);
-        expect(restored.mining, isNull);
       });
     });
   });

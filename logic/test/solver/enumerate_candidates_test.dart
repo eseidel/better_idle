@@ -15,7 +15,8 @@ import '../test_helper.dart';
 const _defaultGoal = ReachGpGoal(1000000);
 
 /// Helper to get action display name from actionId.
-String actionName(ActionId actionId) => testActions.byId(actionId).name;
+String actionName(ActionId actionId) =>
+    testRegistries.actionById(actionId).name;
 
 void main() {
   setUpAll(() async {
@@ -156,7 +157,7 @@ void main() {
         // The ordering may not be strictly by gold rate because producers for
         // consuming actions are added alongside those actions.
         final actionNames = candidates.switchToActivities
-            .map((id) => testActions.byId(id).name)
+            .map((id) => testRegistries.actionById(id).name)
             .toList();
         expect(actionNames, contains('Man')); // Thieving is always included
       },
@@ -304,7 +305,7 @@ void main() {
     test('thieving Man gold/tick unaffected by tool levels', () {
       // Start with Man activity
       var state = GlobalState.empty(testRegistries);
-      final manAction = testActions.thieving('Man');
+      final manAction = testRegistries.thievingAction('Man');
       state = state.startAction(manAction, random: Random(0));
 
       // Get baseline rate with no upgrades
@@ -462,7 +463,8 @@ void main() {
 
       // Copper mining has no inputs, so ticksPerUnit = expectedTicks/output
       final copperAction =
-          testActions.byId(copperPlan!.primaryProducer.actionId) as SkillAction;
+          testRegistries.actionById(copperPlan!.primaryProducer.actionId)
+              as SkillAction;
       final copperOutputs = copperAction.outputs[copperOreId] ?? 1;
       expect(
         copperPlan.ticksPerUnit,
@@ -640,7 +642,7 @@ void main() {
         if (s.hasInputs) return false;
 
         // Check if this action produces Raw Shrimp
-        final action = testActions.byId(s.actionId);
+        final action = testRegistries.actionById(s.actionId);
         if (action is! SkillAction) return false;
         return action.outputs.containsKey(rawShrimpId);
       }).toList();
@@ -680,7 +682,7 @@ void main() {
 
       // Should include both firemaking actions and woodcutting producers
       final actionNames = candidates.switchToActivities
-          .map((id) => testActions.byId(id).name)
+          .map((id) => testRegistries.actionById(id).name)
           .toList();
 
       // Should have firemaking actions
@@ -718,7 +720,7 @@ void main() {
 
       // Should include mining actions for ore production
       final actionNames = candidates.switchToActivities
-          .map((id) => testActions.byId(id).name)
+          .map((id) => testRegistries.actionById(id).name)
           .toList();
 
       // Should have mining producers for the ores needed by smithing

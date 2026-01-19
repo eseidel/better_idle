@@ -33,24 +33,6 @@ class RunecraftingCategory {
   final String media;
 }
 
-/// Registry for runecrafting categories.
-@immutable
-class RunecraftingCategoryRegistry {
-  RunecraftingCategoryRegistry(List<RunecraftingCategory> categories)
-    : _categories = categories {
-    _byId = {for (final category in _categories) category.id: category};
-  }
-
-  final List<RunecraftingCategory> _categories;
-  late final Map<MelvorId, RunecraftingCategory> _byId;
-
-  /// Returns all runecrafting categories.
-  List<RunecraftingCategory> get all => _categories;
-
-  /// Returns a runecrafting category by ID, or null if not found.
-  RunecraftingCategory? byId(MelvorId id) => _byId[id];
-}
-
 /// A runecrafting action parsed from Melvor data.
 ///
 /// Runecrafting actions consume rune essence and produce runes, staves,
@@ -123,4 +105,34 @@ class RunecraftingAction extends SkillAction {
   /// The category ID ("melvorF:StandardRunes", "melvorF:CombinationRunes").
   @override
   final MelvorId? categoryId;
+}
+
+/// Unified registry for all runecrafting-related data.
+@immutable
+class RunecraftingRegistry {
+  RunecraftingRegistry({
+    required List<RunecraftingAction> actions,
+    required List<RunecraftingCategory> categories,
+  }) : _actions = actions,
+       _categories = categories {
+    _byId = {for (final a in _actions) a.id.localId: a};
+    _categoryById = {for (final c in _categories) c.id: c};
+  }
+
+  final List<RunecraftingAction> _actions;
+  final List<RunecraftingCategory> _categories;
+  late final Map<MelvorId, RunecraftingAction> _byId;
+  late final Map<MelvorId, RunecraftingCategory> _categoryById;
+
+  /// All runecrafting actions.
+  List<RunecraftingAction> get actions => _actions;
+
+  /// All runecrafting categories.
+  List<RunecraftingCategory> get categories => _categories;
+
+  /// Look up a runecrafting action by its local ID.
+  RunecraftingAction? byId(MelvorId localId) => _byId[localId];
+
+  /// Returns a runecrafting category by ID, or null if not found.
+  RunecraftingCategory? categoryById(MelvorId id) => _categoryById[id];
 }

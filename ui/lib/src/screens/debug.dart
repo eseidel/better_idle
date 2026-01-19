@@ -42,7 +42,7 @@ class DebugPage extends StatelessWidget {
     final now = DateTime.now();
     // Use Oak Tree action to demonstrate predictions
     final oakTreeId = ActionId.test(Skill.woodcutting, 'Oak Tree');
-    final oakTreeAction = registries.actions.byId(oakTreeId);
+    final oakTreeAction = registries.actionById(oakTreeId);
     return TimeAway(
       registries: registries,
       startTime: now.subtract(const Duration(hours: 2, minutes: 30)),

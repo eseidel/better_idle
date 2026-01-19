@@ -36,24 +36,6 @@ class SmithingCategory {
   String toString() => name;
 }
 
-/// Registry for smithing categories.
-@immutable
-class SmithingCategoryRegistry {
-  SmithingCategoryRegistry(List<SmithingCategory> categories)
-    : _categories = categories {
-    _byId = {for (final category in _categories) category.id: category};
-  }
-
-  final List<SmithingCategory> _categories;
-  late final Map<MelvorId, SmithingCategory> _byId;
-
-  /// Returns all smithing categories.
-  List<SmithingCategory> get all => _categories;
-
-  /// Returns a smithing category by ID, or null if not found.
-  SmithingCategory? byId(MelvorId id) => _byId[id];
-}
-
 /// A smithing action parsed from Melvor data.
 ///
 /// Smithing actions consume ore/bars and produce equipment or bars.
@@ -125,4 +107,34 @@ class SmithingAction extends SkillAction {
   /// The category ID (e.g., "melvorD:Bars", "melvorD:Weapons").
   @override
   final MelvorId? categoryId;
+}
+
+/// Unified registry for all smithing-related data.
+@immutable
+class SmithingRegistry {
+  SmithingRegistry({
+    required List<SmithingAction> actions,
+    required List<SmithingCategory> categories,
+  }) : _actions = actions,
+       _categories = categories {
+    _byId = {for (final a in _actions) a.id.localId: a};
+    _categoryById = {for (final c in _categories) c.id: c};
+  }
+
+  final List<SmithingAction> _actions;
+  final List<SmithingCategory> _categories;
+  late final Map<MelvorId, SmithingAction> _byId;
+  late final Map<MelvorId, SmithingCategory> _categoryById;
+
+  /// All smithing actions.
+  List<SmithingAction> get actions => _actions;
+
+  /// All smithing categories.
+  List<SmithingCategory> get categories => _categories;
+
+  /// Look up a smithing action by its local ID.
+  SmithingAction? byId(MelvorId localId) => _byId[localId];
+
+  /// Returns a smithing category by ID, or null if not found.
+  SmithingCategory? categoryById(MelvorId id) => _categoryById[id];
 }

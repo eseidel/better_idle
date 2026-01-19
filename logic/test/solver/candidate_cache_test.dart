@@ -79,11 +79,12 @@ void main() {
         const goal = ReachSkillLevelGoal(Skill.woodcutting, 50);
 
         final state1 = GlobalState.empty(testRegistries);
-        final normalTree = testActions.woodcutting('Normal Tree');
+        final normalTree = testRegistries.woodcuttingAction('Normal Tree');
         final state2 = state1.copyWith(
-          activeAction: ActiveAction(
-            id: normalTree.id,
-            remainingTicks: 10,
+          activeActivity: SkillActivity(
+            skill: Skill.woodcutting,
+            actionId: normalTree.id.localId,
+            progressTicks: 0,
             totalTicks: 10,
           ),
         );
@@ -395,8 +396,8 @@ void main() {
       final cache = CandidateCache();
       const goal = ReachSkillLevelGoal(Skill.woodcutting, 50);
 
-      final normalTree = testActions.woodcutting('Normal Tree');
-      final oakTree = testActions.woodcutting('Oak Tree');
+      final normalTree = testRegistries.woodcuttingAction('Normal Tree');
+      final oakTree = testRegistries.woodcuttingAction('Oak Tree');
 
       // State without active action
       final stateNoAction = GlobalState.empty(testRegistries);
@@ -417,9 +418,10 @@ void main() {
 
       // Now query with active action set to normalTree
       final stateWithAction = stateNoAction.copyWith(
-        activeAction: ActiveAction(
-          id: normalTree.id,
-          remainingTicks: 10,
+        activeActivity: SkillActivity(
+          skill: Skill.woodcutting,
+          actionId: normalTree.id.localId,
+          progressTicks: 0,
           totalTicks: 10,
         ),
       );
@@ -441,8 +443,8 @@ void main() {
       final cache = CandidateCache();
       const goal = ReachSkillLevelGoal(Skill.woodcutting, 50);
 
-      final normalTree = testActions.woodcutting('Normal Tree');
-      final oakTree = testActions.woodcutting('Oak Tree');
+      final normalTree = testRegistries.woodcuttingAction('Normal Tree');
+      final oakTree = testRegistries.woodcuttingAction('Oak Tree');
 
       // Create candidates that include both actions
       final candidatesWithBoth = Candidates(
@@ -456,18 +458,20 @@ void main() {
 
       // State with normalTree active
       final state1 = GlobalState.empty(testRegistries).copyWith(
-        activeAction: ActiveAction(
-          id: normalTree.id,
-          remainingTicks: 10,
+        activeActivity: SkillActivity(
+          skill: Skill.woodcutting,
+          actionId: normalTree.id.localId,
+          progressTicks: 0,
           totalTicks: 10,
         ),
       );
 
       // State with oakTree active (same capability key)
       final state2 = GlobalState.empty(testRegistries).copyWith(
-        activeAction: ActiveAction(
-          id: oakTree.id,
-          remainingTicks: 10,
+        activeActivity: SkillActivity(
+          skill: Skill.woodcutting,
+          actionId: oakTree.id.localId,
+          progressTicks: 0,
           totalTicks: 10,
         ),
       );

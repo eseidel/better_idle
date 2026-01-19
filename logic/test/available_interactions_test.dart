@@ -23,7 +23,8 @@ void main() {
       final sells = interactions.whereType<SellItems>().toList();
 
       // Helper to get action name from actionId
-      String actionName(SwitchActivity s) => testActions.byId(s.actionId).name;
+      String actionName(SwitchActivity s) =>
+          testRegistries.actionById(s.actionId).name;
 
       // Should have level 1 activities: Normal Tree, Raw Shrimp,
       // Rune Essence, Copper, Tin, Man, plus 3 Agility slot 0 obstacles,
@@ -54,7 +55,7 @@ void main() {
 
     test('active action is excluded from switches', () {
       var state = GlobalState.test(testRegistries, gp: 500);
-      final action = testActions.woodcutting('Normal Tree');
+      final action = testRegistries.woodcuttingAction('Normal Tree');
       final random = Random(0);
       state = state.startAction(action, random: random);
 
@@ -62,7 +63,8 @@ void main() {
       final switches = interactions.whereType<SwitchActivity>().toList();
 
       // Helper to get action name from actionId
-      String actionName(SwitchActivity s) => testActions.byId(s.actionId).name;
+      String actionName(SwitchActivity s) =>
+          testRegistries.actionById(s.actionId).name;
 
       // Normal Tree should not be in the list since it's active
       expect(switches.map(actionName), isNot(contains('Normal Tree')));
@@ -85,7 +87,8 @@ void main() {
       final switches = interactions.whereType<SwitchActivity>().toList();
 
       // Helper to get action name from actionId
-      String actionName(SwitchActivity s) => testActions.byId(s.actionId).name;
+      String actionName(SwitchActivity s) =>
+          testRegistries.actionById(s.actionId).name;
 
       // Should have more activities unlocked at level 25
       expect(switches.map(actionName), contains('Oak Tree'));

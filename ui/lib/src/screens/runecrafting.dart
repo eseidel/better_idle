@@ -25,20 +25,16 @@ class _RunecraftingPageState extends State<RunecraftingPage> {
   Widget build(BuildContext context) {
     const skill = Skill.runecrafting;
     final registries = context.state.registries;
-    final actions = registries.actions
-        .forSkill(skill)
-        .whereType<RunecraftingAction>()
-        .toList();
+    final actions = registries.runecrafting.actions;
     final skillState = context.state.skillState(skill);
     final skillLevel = skillState.skillLevel;
-    final categories = registries.runecraftingCategories;
 
     // Group actions by category
     final actionsByCategory =
         <RunecraftingCategory, List<RunecraftingAction>>{};
     for (final action in actions) {
       final category = action.categoryId != null
-          ? categories.byId(action.categoryId!)
+          ? registries.runecrafting.categoryById(action.categoryId!)
           : null;
       if (category != null) {
         actionsByCategory.putIfAbsent(category, () => []).add(action);
@@ -47,7 +43,7 @@ class _RunecraftingPageState extends State<RunecraftingPage> {
 
     // Default to first unlocked action if none selected
     final unlockedActions = actions
-        .where((a) => skillLevel >= a.unlockLevel)
+        .where((RunecraftingAction a) => skillLevel >= a.unlockLevel)
         .toList();
     final selectedAction =
         _selectedAction ??

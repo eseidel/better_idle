@@ -25,19 +25,15 @@ class _CraftingPageState extends State<CraftingPage> {
   Widget build(BuildContext context) {
     const skill = Skill.crafting;
     final registries = context.state.registries;
-    final actions = registries.actions
-        .forSkill(skill)
-        .whereType<CraftingAction>()
-        .toList();
+    final actions = registries.crafting.actions;
     final skillState = context.state.skillState(skill);
     final skillLevel = skillState.skillLevel;
-    final categories = registries.craftingCategories;
 
     // Group actions by category
     final actionsByCategory = <CraftingCategory, List<CraftingAction>>{};
     for (final action in actions) {
       final category = action.categoryId != null
-          ? categories.byId(action.categoryId!)
+          ? registries.crafting.categoryById(action.categoryId!)
           : null;
       if (category != null) {
         actionsByCategory.putIfAbsent(category, () => []).add(action);
@@ -46,7 +42,7 @@ class _CraftingPageState extends State<CraftingPage> {
 
     // Default to first unlocked action if none selected
     final unlockedActions = actions
-        .where((a) => skillLevel >= a.unlockLevel)
+        .where((CraftingAction a) => skillLevel >= a.unlockLevel)
         .toList();
     final selectedAction =
         _selectedAction ??

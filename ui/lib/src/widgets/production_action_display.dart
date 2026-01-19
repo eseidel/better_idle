@@ -91,7 +91,7 @@ class ProductionActionDisplay extends StatelessWidget {
   Widget _buildUnlocked(BuildContext context) {
     final state = context.state;
     final actionState = state.actionState(action.id);
-    final isActive = state.activeAction?.id == action.id;
+    final isActive = state.isActionActive(action);
     final canStart = state.canStartAction(action);
 
     final inputs = action.inputs;

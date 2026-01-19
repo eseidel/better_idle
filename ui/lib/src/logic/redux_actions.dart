@@ -65,7 +65,7 @@ class ToggleActionAction extends ReduxAction<GlobalState> {
       return null;
     }
     // If the action is already running, stop it
-    if (state.activeAction?.id == action.id) {
+    if (state.isActionActive(action)) {
       return state.clearAction();
     }
     // Otherwise, start this action (stops any other active action).
@@ -181,7 +181,7 @@ class StartCombatAction extends ReduxAction<GlobalState> {
       return null;
     }
     // If already in combat with this monster, do nothing
-    if (state.activeAction?.id == combatAction.id) {
+    if (state.isActionActive(combatAction)) {
       return null;
     }
     // Start the combat action (this stops any other active action)
@@ -199,6 +199,22 @@ class StopCombatAction extends ReduxAction<GlobalState> {
       return null;
     }
     return state.clearAction();
+  }
+}
+
+/// Starts a dungeon run, fighting monsters in order.
+class StartDungeonAction extends ReduxAction<GlobalState> {
+  StartDungeonAction({required this.dungeon});
+  final Dungeon dungeon;
+
+  @override
+  GlobalState? reduce() {
+    // If stunned, do nothing (UI should prevent this, but be safe)
+    if (state.isStunned) {
+      return null;
+    }
+    // Start the dungeon
+    return state.startDungeon(dungeon);
   }
 }
 

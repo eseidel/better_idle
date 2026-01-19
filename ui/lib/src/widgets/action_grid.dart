@@ -185,14 +185,14 @@ class ActionProgressBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final activeAction = context.state.activeAction;
-    final isRunning = activeAction?.id == action.id;
-    final isPlayerActive = context.state.isPlayerActive;
+    final state = context.state;
+    final isRunning = state.isActionActive(action);
+    final isPlayerActive = state.isPlayerActive;
 
     return TweenedProgressIndicator(
       progress: isRunning
-          ? activeAction!.toProgressAt(context.state.updatedAt)
-          : ProgressAt.zero(context.state.updatedAt),
+          ? state.activeActivity!.toProgressAt(state.updatedAt)
+          : ProgressAt.zero(state.updatedAt),
       animate: isRunning && isPlayerActive && !disableWhenDepleted,
       height: height,
     );
@@ -229,12 +229,13 @@ class WoodcuttingActionCell extends StatelessWidget {
   }
 
   Widget _buildUnlocked(BuildContext context) {
+    final state = context.state;
     final labelStyle = Theme.of(
       context,
     ).textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.bold);
-    final canStart = context.state.canStartAction(action);
-    final isRunning = context.state.activeAction?.id == action.id;
-    final isStunned = context.state.isStunned;
+    final canStart = state.canStartAction(action);
+    final isRunning = state.isActionActive(action);
+    final isStunned = state.isStunned;
     final canToggle = (canStart || isRunning) && !isStunned;
 
     return UnlockedActionCell(
@@ -292,16 +293,17 @@ class MiningActionCell extends StatelessWidget {
   }
 
   Widget _buildUnlocked(BuildContext context) {
+    final state = context.state;
     final labelStyle = Theme.of(
       context,
     ).textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.bold);
-    final actionState = context.state.actionState(action.id);
-    final canStart = context.state.canStartAction(action);
-    final isRunning = context.state.activeAction?.id == action.id;
-    final isStunned = context.state.isStunned;
+    final actionState = state.actionState(action.id);
+    final canStart = state.canStartAction(action);
+    final isRunning = state.isActionActive(action);
+    final isStunned = state.isStunned;
 
     final masteryLevel = levelForXp(actionState.masteryXp);
-    final miningState = actionState.mining ?? const MiningState.empty();
+    final miningState = state.miningState.rockState(action.id.localId);
     final maxHp = action.maxHpForMasteryLevel(masteryLevel);
     final currentHp = miningState.currentHp(action, actionState.masteryXp);
 
@@ -419,13 +421,14 @@ class ActionCell extends StatelessWidget {
   }
 
   Widget _buildUnlocked(BuildContext context) {
+    final state = context.state;
     final labelStyle = Theme.of(
       context,
     ).textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.bold);
-    final actionState = context.state.actionState(action.id);
-    final canStart = context.state.canStartAction(action);
-    final isRunning = context.state.activeAction?.id == action.id;
-    final isStunned = context.state.isStunned;
+    final actionState = state.actionState(action.id);
+    final canStart = state.canStartAction(action);
+    final isRunning = state.isActionActive(action);
+    final isStunned = state.isStunned;
     final canToggle = (canStart || isRunning) && !isStunned;
 
     return UnlockedActionCell(

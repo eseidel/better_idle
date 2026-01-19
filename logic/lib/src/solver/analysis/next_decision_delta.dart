@@ -134,7 +134,7 @@ NextDecisionResult nextDecisionDelta(
   }
 
   // Compute the "intended action" - the action that best advances the goal.
-  // This may differ from state.activeAction (e.g., after a consuming skill
+  // This may differ from state.currentActionId (e.g., after a consuming skill
   // macro ends with producer active, the intent is still the consuming skill).
   final intendedActionId = _computeIntendedAction(state, goal, candidates);
 
@@ -260,7 +260,7 @@ NextDecisionResult nextDecisionDelta(
 
 /// Computes the "intended action" - the action that best advances the goal.
 ///
-/// This may differ from state.activeAction. For example, after a consuming
+/// This may differ from state.currentActionId. For example, after a consuming
 /// skill macro ends with producer active, the intent is still the consuming
 /// skill (firemaking), not the producer (woodcutting).
 ///
@@ -270,7 +270,7 @@ ActionId? _computeIntendedAction(
   Goal goal,
   Candidates candidates,
 ) {
-  final activeActionId = state.activeAction?.id;
+  final activeActionId = state.currentActionId;
 
   // For single skill goals, find the best action for that skill
   if (goal is ReachSkillLevelGoal) {
@@ -287,7 +287,7 @@ ActionId? _computeIntendedAction(
 
     // If active action is for the goal skill and can continue, it's the intent
     if (activeActionId != null) {
-      final activeAction = state.registries.actions.byId(activeActionId);
+      final activeAction = state.registries.actionById(activeActionId);
       if (activeAction is SkillAction && activeAction.skill == targetSkill) {
         // Verify we can still run this action
         if (state.canStartAction(activeAction)) {
@@ -305,7 +305,7 @@ ActionId? _computeIntendedAction(
   if (goal is MultiSkillGoal) {
     // First check if active action is for an unsatisfied subgoal and can run
     if (activeActionId != null) {
-      final activeAction = state.registries.actions.byId(activeActionId);
+      final activeAction = state.registries.actionById(activeActionId);
       if (activeAction is SkillAction && state.canStartAction(activeAction)) {
         final activeSkill = activeAction.skill;
         // Skip consuming skills - let macro handle action selection
@@ -382,11 +382,11 @@ _DeltaCandidate? _deltaUntilGoalWithWaitFor(
   if (progressRate <= 0) return null;
   if (goal.isSatisfied(state)) return null;
 
-  final actionId = state.activeAction?.id;
+  final actionId = state.currentActionId;
   if (actionId == null) return null;
 
   final registries = state.registries;
-  final action = registries.actions.byId(actionId);
+  final action = registries.actionById(actionId);
   if (action is! SkillAction) return null;
 
   final activeSkill = action.skill;
@@ -495,9 +495,9 @@ _DeltaCandidate? _deltaUntilActivityUnlocks(
   String? minActivityName;
   Skill? minSkill;
   int? minTargetXp;
-  final actionRegistry = state.registries.actions;
+  final registries = state.registries;
   for (final activityId in candidates.watch.lockedActivityIds) {
-    final action = actionRegistry.byId(activityId);
+    final action = registries.actionById(activityId);
     if (action is! SkillAction) continue;
     final skill = action.skill;
     final requiredLevel = action.unlockLevel;
@@ -548,11 +548,11 @@ _DeltaCandidate? _deltaUntilNextSkillLevel(
   Candidates candidates,
 ) {
   // Find which skill is being trained
-  final actionId = state.activeAction?.id;
+  final actionId = state.currentActionId;
   if (actionId == null) return null;
 
   final registries = state.registries;
-  final action = registries.actions.byId(actionId);
+  final action = registries.actionById(actionId);
   if (action is! SkillAction) return null;
 
   final skill = action.skill;
@@ -565,7 +565,7 @@ _DeltaCandidate? _deltaUntilNextSkillLevel(
   // Find the next unlock level for any locked activity of this skill
   int? nextUnlockLevel;
   for (final lockedId in candidates.watch.lockedActivityIds) {
-    final lockedAction = registries.actions.byId(lockedId);
+    final lockedAction = registries.actionById(lockedId);
     if (lockedAction is! SkillAction) continue;
     if (lockedAction.skill != skill) continue;
 
@@ -614,7 +614,7 @@ _DeltaCandidate? _deltaUntilNextMasteryLevel(
   if (rates.masteryXpPerTick <= 0 || rates.actionId == null) return null;
 
   final actionId = rates.actionId!;
-  final action = state.registries.actions.byId(actionId);
+  final action = state.registries.actionById(actionId);
 
   // Only track mastery for thieving - it directly affects success rate.
   // For other skills, mastery bonuses are minor and don't warrant replanning.
@@ -678,7 +678,7 @@ _DeltaCandidate? _deltaUntilInputsAvailable(
   int? limitingItemTarget;
 
   for (final consumingActionId in candidates.watch.consumingActivityIds) {
-    final action = registries.actions.byId(consumingActionId);
+    final action = registries.actionById(consumingActionId);
     if (action is! SkillAction) continue;
 
     // Get the inputs needed for this action
@@ -823,7 +823,7 @@ _DeltaCandidate? _deltaUntilSufficientInputsForGoal(
   int? bestInputsNeeded;
 
   for (final consumingActionId in candidates.watch.consumingActivityIds) {
-    final action = registries.actions.byId(consumingActionId);
+    final action = registries.actionById(consumingActionId);
     if (action is! SkillAction) continue;
 
     // Only consider actions that train the goal skill

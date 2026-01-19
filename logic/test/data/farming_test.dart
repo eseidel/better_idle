@@ -87,23 +87,23 @@ void main() {
 
     setUpAll(() {
       // Get an allotment crop (level 1 for easier testing)
-      allotmentCategory = testRegistries.farmingCategories.all.firstWhere(
+      allotmentCategory = testRegistries.farmingCategories.firstWhere(
         (c) => c.name == 'Allotments',
       );
-      allotmentCrop = testRegistries.farmingCrops
-          .forCategory(allotmentCategory.id)
+      allotmentCrop = testRegistries.farming
+          .cropsForCategory(allotmentCategory.id)
           .firstWhere((c) => c.level == 1);
 
       // Get a tree crop (trees start at level 15, so get the lowest level one)
-      treeCategory = testRegistries.farmingCategories.all.firstWhere(
+      treeCategory = testRegistries.farmingCategories.firstWhere(
         (c) => c.name == 'Trees',
       );
-      final treeCrops = testRegistries.farmingCrops.forCategory(treeCategory.id)
+      final treeCrops = testRegistries.farming.cropsForCategory(treeCategory.id)
         ..sort((a, b) => a.level.compareTo(b.level));
       treeCrop = treeCrops.first;
 
       // Get an unlocked plot
-      plotId = testRegistries.farmingPlots.initialPlots().first;
+      plotId = testRegistries.farming.initialPlots().first;
     });
 
     test('allotment category has correct flags', () {
@@ -227,13 +227,13 @@ void main() {
     late MelvorId plotId;
 
     setUpAll(() {
-      final allotmentCategory = testRegistries.farmingCategories.all.firstWhere(
+      final allotmentCategory = testRegistries.farmingCategories.firstWhere(
         (c) => c.name == 'Allotments',
       );
-      allotmentCrop = testRegistries.farmingCrops
-          .forCategory(allotmentCategory.id)
+      allotmentCrop = testRegistries.farming
+          .cropsForCategory(allotmentCategory.id)
           .firstWhere((c) => c.level == 1);
-      plotId = testRegistries.farmingPlots.initialPlots().first;
+      plotId = testRegistries.farming.initialPlots().first;
     });
 
     test('harvest fails ~50% of the time with no compost', () {
@@ -354,13 +354,13 @@ void main() {
     late MelvorId plotId;
 
     setUpAll(() {
-      allotmentCategory = testRegistries.farmingCategories.all.firstWhere(
+      allotmentCategory = testRegistries.farmingCategories.firstWhere(
         (c) => c.name == 'Allotments',
       );
-      allotmentCrop = testRegistries.farmingCrops
-          .forCategory(allotmentCategory.id)
+      allotmentCrop = testRegistries.farming
+          .cropsForCategory(allotmentCategory.id)
           .firstWhere((c) => c.level == 1);
-      plotId = testRegistries.farmingPlots.initialPlots().first;
+      plotId = testRegistries.farming.initialPlots().first;
     });
 
     test('harvest bonus increases quantity by percentage', () {
@@ -456,13 +456,13 @@ void main() {
     late MelvorId plotId;
 
     setUpAll(() {
-      final allotmentCategory = testRegistries.farmingCategories.all.firstWhere(
+      final allotmentCategory = testRegistries.farmingCategories.firstWhere(
         (c) => c.name == 'Allotments',
       );
-      allotmentCrop = testRegistries.farmingCrops
-          .forCategory(allotmentCategory.id)
+      allotmentCrop = testRegistries.farming
+          .cropsForCategory(allotmentCategory.id)
           .firstWhere((c) => c.level == 1);
-      plotId = testRegistries.farmingPlots.initialPlots().first;
+      plotId = testRegistries.farming.initialPlots().first;
     });
 
     test('clearPlot clears both seeds and compost', () {

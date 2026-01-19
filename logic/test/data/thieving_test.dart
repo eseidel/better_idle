@@ -27,7 +27,7 @@ void main() {
 
   setUpAll(() async {
     await loadTestRegistries();
-    manAction = testActions.thieving('Man');
+    manAction = testRegistries.thievingAction('Man');
   });
 
   group('Thieving drops', () {
@@ -47,8 +47,8 @@ void main() {
   group('Area drops', () {
     const crateId = MelvorId('melvorF:Crate_Of_Basic_Supplies');
     test('Golbin Village area drops include Crate of Basic Supplies', () {
-      final golbin = testActions.thieving('Golbin');
-      final golbinChief = testActions.thieving('Golbin Chief');
+      final golbin = testRegistries.thievingAction('Golbin');
+      final golbinChief = testRegistries.thievingAction('Golbin Chief');
 
       // Both actions should be in Golbin Village
       // ThievingActions store their area directly
@@ -77,7 +77,7 @@ void main() {
     });
 
     test('Crate Of Basic Supplies has correct rate (1/500)', () {
-      final golbinAction = testActions.thieving('Golbin');
+      final golbinAction = testRegistries.thievingAction('Golbin');
       final drops = testDrops.allDropsForAction(
         golbinAction,
         const NoSelectedRecipe(),
@@ -107,7 +107,7 @@ void main() {
     late DropTable golbinDropTable;
 
     setUp(() {
-      golbinAction = testActions.thieving('Golbin');
+      golbinAction = testRegistries.thievingAction('Golbin');
       golbinDropChance = golbinAction.dropTable! as DropChance;
       golbinDropTable = golbinDropChance.child as DropTable;
     });
@@ -438,8 +438,8 @@ void main() {
       // Should NOT be stunned
       expect(newState.isStunned, isFalse);
       // Action should still be active (restarted)
-      expect(newState.activeAction, isNotNull);
-      expect(newState.activeAction!.id, manAction.id);
+      expect(newState.activeActivity, isNotNull);
+      expect(newState.currentActionId, manAction.id);
     });
   });
 
@@ -542,7 +542,7 @@ void main() {
         // Health should be reset
         expect(newState.health.lostHp, 0);
         // Action should be stopped (player died)
-        expect(newState.activeAction, isNull);
+        expect(newState.activeActivity, isNull);
       },
     );
   });
@@ -576,10 +576,10 @@ void main() {
       // Should be stunned
       expect(newState.isStunned, isTrue);
       // Action should still be active (not stopped)
-      expect(newState.activeAction, isNotNull);
-      expect(newState.activeAction!.id, manAction.id);
+      expect(newState.activeActivity, isNotNull);
+      expect(newState.currentActionId, manAction.id);
       // Action timer stays at 0 (completed but waiting for stun to clear)
-      expect(newState.activeAction!.remainingTicks, 0);
+      expect(newState.activeActivity!.remainingTicks, 0);
 
       // Process 15 ticks (half the stun duration)
       final builder2 = StateUpdateBuilder(newState);
@@ -590,7 +590,7 @@ void main() {
       expect(newState.isStunned, isTrue);
       expect(newState.stunned.ticksRemaining, 15);
       // Action timer still at 0 (waiting for stun)
-      expect(newState.activeAction!.remainingTicks, 0);
+      expect(newState.activeActivity!.remainingTicks, 0);
     });
 
     test('thieving continues after stun wears off', () {
@@ -610,9 +610,10 @@ void main() {
       final state = GlobalState(
         registries: testRegistries,
         inventory: baseState.inventory,
-        activeAction: ActiveAction(
-          id: manAction.id,
-          remainingTicks: 30,
+        activeActivity: SkillActivity(
+          skill: Skill.thieving,
+          actionId: manAction.id.localId,
+          progressTicks: 0,
           totalTicks: 30,
         ),
         skillStates: baseState.skillStates,
@@ -639,7 +640,7 @@ void main() {
       // Stun should be cleared
       expect(newState.isStunned, isFalse);
       // Action should still be active (restarted after stun)
-      expect(newState.activeAction, isNotNull);
+      expect(newState.activeActivity, isNotNull);
 
       // Now process more ticks to complete the action
       final builder2 = StateUpdateBuilder(newState);

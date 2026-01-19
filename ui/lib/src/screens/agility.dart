@@ -28,16 +28,12 @@ class _AgilityPageState extends State<AgilityPage> {
     final registries = context.state.registries;
 
     // Get all agility obstacles from the registry, sorted by category then name
-    final obstacles =
-        registries.actions
-            .forSkill(Skill.agility)
-            .whereType<AgilityObstacle>()
-            .toList()
-          ..sort((a, b) {
-            final catCompare = a.category.compareTo(b.category);
-            if (catCompare != 0) return catCompare;
-            return a.name.compareTo(b.name);
-          });
+    final obstacles = registries.agility.obstacles.toList()
+      ..sort((AgilityObstacle a, AgilityObstacle b) {
+        final catCompare = a.category.compareTo(b.category);
+        if (catCompare != 0) return catCompare;
+        return a.name.compareTo(b.name);
+      });
 
     // Group obstacles by category
     final obstaclesByCategory = <int, List<AgilityObstacle>>{};
@@ -51,7 +47,7 @@ class _AgilityPageState extends State<AgilityPage> {
     final selectedObstacle = _selectedObstacle ?? obstacles.firstOrNull;
 
     // Get course info for level requirements
-    final course = registries.agilityCourses.forRealm(
+    final course = registries.agility.courseForRealm(
       const MelvorId('melvorD:Melvor'),
     );
 
@@ -127,7 +123,7 @@ class _SelectedObstacleDisplay extends StatelessWidget {
   Widget build(BuildContext context) {
     final state = context.state;
     final actionState = state.actionState(obstacle.id);
-    final isActive = state.activeAction?.id == obstacle.id;
+    final isActive = state.isActionActive(obstacle);
     final canStart = state.canStartAction(obstacle);
     final canToggle = canStart || isActive;
 
@@ -255,7 +251,7 @@ class _AgilityProgressBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final state = context.state;
-    final isActive = state.activeAction?.id == obstacle.id;
+    final isActive = state.isActionActive(obstacle);
 
     double progress;
     Color barColor;

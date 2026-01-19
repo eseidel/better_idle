@@ -23,8 +23,8 @@ class FarmingPage extends StatelessWidget {
 
     // Group plots by category
     final plotsByCategory = <FarmingCategory, List<FarmingPlot>>{};
-    for (final plot in registries.farmingPlots.all) {
-      final category = registries.farmingCategories.byId(plot.categoryId);
+    for (final plot in registries.farmingPlots) {
+      final category = registries.farming.categoryById(plot.categoryId);
       if (category != null) {
         plotsByCategory.putIfAbsent(category, () => []).add(plot);
       }
@@ -417,7 +417,7 @@ class _GrowingPlotContent extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final state = context.state;
-    final crop = state.registries.farmingCrops.byId(plotState.cropId!);
+    final crop = state.registries.farming.cropById(plotState.cropId!);
 
     if (crop == null) {
       return const Text('Unknown crop');
@@ -473,7 +473,7 @@ class _ReadyPlotContent extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final state = context.state;
-    final crop = state.registries.farmingCrops.byId(plotState.cropId!);
+    final crop = state.registries.farming.cropById(plotState.cropId!);
 
     if (crop == null) {
       return const Text('Unknown crop');
@@ -574,7 +574,7 @@ class _CropSelectionDialogState extends State<_CropSelectionDialog> {
     final farmingLevel = widget.state.skillState(Skill.farming).skillLevel;
 
     // Get all crops for this plot's category
-    final allCrops = registries.farmingCrops.forCategory(widget.category.id);
+    final allCrops = registries.farming.cropsForCategory(widget.category.id);
 
     // Filter to crops the player can plant (has level and seeds)
     final availableCrops = allCrops.where((crop) {

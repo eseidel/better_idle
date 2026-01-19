@@ -8,50 +8,50 @@ void main() {
     await loadTestRegistries();
   });
 
-  group('FishingAreaRegistry', () {
+  group('FishingRegistry areas', () {
     test('has fishing areas loaded', () {
-      final areas = testRegistries.fishingAreas.all;
+      final areas = testRegistries.fishing.areas;
       expect(areas, isNotEmpty);
     });
 
-    test('byId returns correct area', () {
-      final areas = testRegistries.fishingAreas.all;
+    test('areaById returns correct area', () {
+      final areas = testRegistries.fishing.areas;
       expect(areas, isNotEmpty);
 
       final firstArea = areas.first;
-      final foundArea = testRegistries.fishingAreas.byId(firstArea.id);
+      final foundArea = testRegistries.fishing.areaById(firstArea.id);
       expect(foundArea, isNotNull);
       expect(foundArea!.id, equals(firstArea.id));
       expect(foundArea.name, equals(firstArea.name));
     });
 
-    test('byId returns null for unknown id', () {
+    test('areaById returns null for unknown id', () {
       const unknownId = MelvorId('test:Unknown_Area');
-      final area = testRegistries.fishingAreas.byId(unknownId);
+      final area = testRegistries.fishing.areaById(unknownId);
       expect(area, isNull);
     });
 
     test('areaForFish returns correct area', () {
-      final areas = testRegistries.fishingAreas.all;
+      final areas = testRegistries.fishing.areas;
       expect(areas, isNotEmpty);
 
       // Find an area with fish
       final areaWithFish = areas.firstWhere((a) => a.fishIDs.isNotEmpty);
       final fishId = areaWithFish.fishIDs.first;
 
-      final foundArea = testRegistries.fishingAreas.areaForFish(fishId);
+      final foundArea = testRegistries.fishing.areaForFish(fishId);
       expect(foundArea, isNotNull);
       expect(foundArea!.id, equals(areaWithFish.id));
     });
 
     test('areaForFish returns null for unknown fish id', () {
       const unknownFishId = MelvorId('test:Unknown_Fish');
-      final area = testRegistries.fishingAreas.areaForFish(unknownFishId);
+      final area = testRegistries.fishing.areaForFish(unknownFishId);
       expect(area, isNull);
     });
 
     test('areas have valid fish chances', () {
-      final areas = testRegistries.fishingAreas.all;
+      final areas = testRegistries.fishing.areas;
       for (final area in areas) {
         expect(area.fishChance, greaterThanOrEqualTo(0));
         expect(area.fishChance, lessThanOrEqualTo(1));
@@ -65,18 +65,12 @@ void main() {
 
   group('FishingAction', () {
     test('fishing actions are loaded from JSON', () {
-      final fishingActions = testActions
-          .forSkill(Skill.fishing)
-          .whereType<FishingAction>()
-          .toList();
+      final fishingActions = testRegistries.fishing.actions;
       expect(fishingActions, isNotEmpty);
     });
 
     test('fishing actions have valid properties', () {
-      final fishingActions = testActions
-          .forSkill(Skill.fishing)
-          .whereType<FishingAction>()
-          .toList();
+      final fishingActions = testRegistries.fishing.actions;
 
       for (final action in fishingActions) {
         expect(action.name, isNotEmpty);
@@ -92,10 +86,7 @@ void main() {
     });
 
     test('fishing actions belong to fishing skill', () {
-      final fishingActions = testActions
-          .forSkill(Skill.fishing)
-          .whereType<FishingAction>()
-          .toList();
+      final fishingActions = testRegistries.fishing.actions;
 
       for (final action in fishingActions) {
         expect(action.skill, equals(Skill.fishing));
@@ -105,14 +96,14 @@ void main() {
 
   group('FishingArea', () {
     test('areas have non-empty names', () {
-      final areas = testRegistries.fishingAreas.all;
+      final areas = testRegistries.fishing.areas;
       for (final area in areas) {
         expect(area.name, isNotEmpty);
       }
     });
 
     test('areas have fish IDs', () {
-      final areas = testRegistries.fishingAreas.all;
+      final areas = testRegistries.fishing.areas;
       // At least some areas should have fish
       final areasWithFish = areas.where((a) => a.fishIDs.isNotEmpty);
       expect(areasWithFish, isNotEmpty);
