@@ -1,6 +1,7 @@
 import 'package:logic/src/data/actions.dart';
 import 'package:logic/src/data/currency.dart';
 import 'package:logic/src/data/melvor_id.dart';
+import 'package:logic/src/data/registries.dart' show compareByIndex;
 import 'package:logic/src/types/inventory.dart';
 import 'package:logic/src/types/time_away.dart';
 import 'package:meta/meta.dart';
@@ -962,20 +963,8 @@ class TownshipRegistry {
   }
 
   /// Comparator for sorting building IDs according to display order.
-  /// Buildings in sort order come before buildings not in sort order.
-  /// Buildings not in sort order maintain stable relative ordering.
-  int compareBuildings(MelvorId a, MelvorId b) {
-    final indexA = buildingSortIndex[a];
-    final indexB = buildingSortIndex[b];
-
-    // Both not in sort order - maintain original order (return 0)
-    if (indexA == null && indexB == null) return 0;
-    // Buildings in sort order come before buildings not in sort order
-    if (indexA == null) return 1;
-    if (indexB == null) return -1;
-
-    return indexA.compareTo(indexB);
-  }
+  int compareBuildings(MelvorId a, MelvorId b) =>
+      compareByIndex(buildingSortIndex, a, b);
 
   // ---------------------------------------------------------------------------
   // Biome lookups

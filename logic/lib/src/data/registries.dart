@@ -13,6 +13,18 @@ import 'package:logic/src/types/mastery.dart';
 import 'package:logic/src/types/mastery_unlock.dart';
 import 'package:meta/meta.dart';
 
+/// Compares two values by their index in a sort map.
+/// Items in the map come before items not in it.
+/// Items not in the map maintain stable relative ordering (returns 0).
+int compareByIndex<K>(Map<K, int> sortIndex, K a, K b) {
+  final indexA = sortIndex[a];
+  final indexB = sortIndex[b];
+  if (indexA == null && indexB == null) return 0;
+  if (indexA == null) return 1;
+  if (indexB == null) return -1;
+  return indexA.compareTo(indexB);
+}
+
 @immutable
 class Registries {
   Registries({
@@ -210,20 +222,8 @@ class Registries {
   }
 
   /// Comparator for sorting items according to bank sort order.
-  /// Items in sort order come before items not in sort order.
-  /// Items not in sort order maintain stable relative ordering.
-  int compareBankItems(Item a, Item b) {
-    final indexA = _bankSortIndex[a.id];
-    final indexB = _bankSortIndex[b.id];
-
-    // Both not in sort order - maintain original order (return 0)
-    if (indexA == null && indexB == null) return 0;
-    // Items in sort order come before items not in sort order
-    if (indexA == null) return 1;
-    if (indexB == null) return -1;
-
-    return indexA.compareTo(indexB);
-  }
+  int compareBankItems(Item a, Item b) =>
+      compareByIndex(_bankSortIndex, a.id, b.id);
 
   // Test helper methods for looking up actions by name.
   // These are used in tests to avoid needing to construct ActionIds.

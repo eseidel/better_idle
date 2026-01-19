@@ -644,6 +644,76 @@ void main() {
       );
     });
 
+    test('combat action consumes charges from relevant familiar', () {
+      // Get a combat familiar (Wolf - relevant to melee via Attack skill)
+      final wolfAction = testRegistries.summoning.actions.firstWhere(
+        (a) =>
+            a.name.contains('Wolf') && a.markSkillIds.contains(Skill.attack.id),
+      );
+      final wolfTablet = testItems.byId(wolfAction.productId);
+
+      // Set up state with Wolf tablet equipped
+      const equipment = Equipment.empty();
+      final (equippedEquipment, _) = equipment.equipSummonTablet(
+        wolfTablet,
+        EquipmentSlot.summon1,
+        10,
+      );
+
+      // Get a weak monster for combat
+      final combatAction = testRegistries.combatAction('Plant');
+
+      // Give player enough health to survive combat
+      final state = GlobalState.test(
+        testRegistries,
+        equipment: equippedEquipment,
+      ).startAction(combatAction, random: Random(42));
+
+      // Run enough ticks for player to attack (default attack speed is ~2.4s)
+      final builder = StateUpdateBuilder(state);
+      consumeTicks(builder, 100, random: Random(42));
+      final newState = builder.build();
+
+      // Wolf tablet should have consumed charges during combat
+      // (charges consumed on each player attack)
+      expect(
+        newState.equipment.summonCountInSlot(EquipmentSlot.summon1),
+        lessThan(10),
+      );
+    });
+
+    test('combat action does not consume charges from irrelevant familiar', () {
+      // Ent is a woodcutting familiar - not relevant to combat
+      final entAction = testRegistries.summoning.actions.firstWhere(
+        (a) => a.markSkillIds.contains(Skill.woodcutting.id),
+      );
+      final entTablet = testItems.byId(entAction.productId);
+
+      // Set up state with Ent tablet equipped
+      const equipment = Equipment.empty();
+      final (equippedEquipment, _) = equipment.equipSummonTablet(
+        entTablet,
+        EquipmentSlot.summon1,
+        10,
+      );
+
+      // Get a weak monster for combat
+      final combatAction = testRegistries.combatAction('Plant');
+
+      final state = GlobalState.test(
+        testRegistries,
+        equipment: equippedEquipment,
+      ).startAction(combatAction, random: Random(42));
+
+      // Run enough ticks for player to attack multiple times
+      final builder = StateUpdateBuilder(state);
+      consumeTicks(builder, 100, random: Random(42));
+      final newState = builder.build();
+
+      // Ent tablet should NOT have consumed charges during combat
+      expect(newState.equipment.summonCountInSlot(EquipmentSlot.summon1), 10);
+    });
+
     test('irrelevant familiar does not consume charges', () {
       // Get a combat familiar (Golbin Thief - relevant to Attack/Strength/Defence)
       final combatAction = testRegistries.summoning.actions.firstWhere(
