@@ -127,4 +127,44 @@ void main() {
       }
     });
   });
+
+  group('MiningState.fromJson', () {
+    test('parses all fields', () {
+      final json = {
+        'totalHpLost': 3,
+        'respawnTicksRemaining': 50,
+        'hpRegenTicksRemaining': 10,
+      };
+      final state = MiningState.fromJson(json);
+      expect(state.totalHpLost, equals(3));
+      expect(state.respawnTicksRemaining, equals(50));
+      expect(state.hpRegenTicksRemaining, equals(10));
+    });
+
+    test('uses defaults for missing fields', () {
+      final state = MiningState.fromJson(const {});
+      expect(state.totalHpLost, equals(0));
+      expect(state.respawnTicksRemaining, isNull);
+      expect(state.hpRegenTicksRemaining, equals(0));
+    });
+
+    test('roundtrips through toJson', () {
+      const original = MiningState(
+        totalHpLost: 7,
+        respawnTicksRemaining: 100,
+        hpRegenTicksRemaining: 25,
+      );
+      final json = original.toJson();
+      final restored = MiningState.fromJson(json);
+      expect(restored.totalHpLost, equals(original.totalHpLost));
+      expect(
+        restored.respawnTicksRemaining,
+        equals(original.respawnTicksRemaining),
+      );
+      expect(
+        restored.hpRegenTicksRemaining,
+        equals(original.hpRegenTicksRemaining),
+      );
+    });
+  });
 }
