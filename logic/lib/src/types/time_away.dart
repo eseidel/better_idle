@@ -40,9 +40,17 @@ class LevelChange {
     return {'startLevel': startLevel, 'endLevel': endLevel};
   }
 
+  /// Merges two level changes, returning the combined range.
+  ///
+  /// This is order-independent: `a.merge(b)` equals `b.merge(a)`.
+  /// This is important because TimeAway merges may happen in either
+  /// chronological order (newer.maybeMergeInto(older) in redux_actions.dart).
   LevelChange merge(LevelChange other) {
-    // When merging level changes, take the earliest start and latest end
-    return LevelChange(startLevel: startLevel, endLevel: other.endLevel);
+    final mergedStart = startLevel < other.startLevel
+        ? startLevel
+        : other.startLevel;
+    final mergedEnd = endLevel > other.endLevel ? endLevel : other.endLevel;
+    return LevelChange(startLevel: mergedStart, endLevel: mergedEnd);
   }
 }
 

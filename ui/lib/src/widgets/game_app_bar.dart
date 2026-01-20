@@ -1,4 +1,5 @@
 import 'package:better_idle/src/widgets/equipment_slots.dart';
+import 'package:better_idle/src/widgets/potion_button.dart';
 import 'package:flutter/material.dart';
 
 /// An AppBar that includes global game actions (equipment, etc.) in trailing.
@@ -37,7 +38,10 @@ class GameAppBar extends AppBar {
     super.forceMaterialTransparency,
     super.clipBehavior,
     List<Widget>? actions,
-  }) : super(title: title, actions: [...?actions, const _EquipmentButton()]);
+  }) : super(
+         title: title,
+         actions: [...?actions, const PotionButton(), const _EquipmentButton()],
+       );
 }
 
 class _EquipmentButton extends StatelessWidget {

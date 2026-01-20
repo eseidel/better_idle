@@ -4,6 +4,43 @@ import 'package:test/test.dart';
 import '../test_helper.dart';
 
 void main() {
+  group('LevelChange', () {
+    test('merge is order-independent', () {
+      // Earlier change: level 54 -> 55
+      const earlier = LevelChange(startLevel: 54, endLevel: 55);
+      // Later change: level 55 -> 56
+      const later = LevelChange(startLevel: 55, endLevel: 56);
+
+      // Both orders should produce the same result: 54 -> 56
+      final mergeEarlierFirst = earlier.merge(later);
+      final mergeLaterFirst = later.merge(earlier);
+
+      expect(mergeEarlierFirst.startLevel, 54);
+      expect(mergeEarlierFirst.endLevel, 56);
+      expect(mergeLaterFirst.startLevel, 54);
+      expect(mergeLaterFirst.endLevel, 56);
+    });
+
+    test('merge handles non-contiguous level ranges', () {
+      // Player leveled 10 -> 15, then 20 -> 25 (skipped some in between)
+      const first = LevelChange(startLevel: 10, endLevel: 15);
+      const second = LevelChange(startLevel: 20, endLevel: 25);
+
+      // Merge should take min start (10) and max end (25)
+      final merged = first.merge(second);
+      expect(merged.startLevel, 10);
+      expect(merged.endLevel, 25);
+    });
+
+    test('merge with identical ranges returns same range', () {
+      const change = LevelChange(startLevel: 50, endLevel: 55);
+
+      final merged = change.merge(change);
+      expect(merged.startLevel, 50);
+      expect(merged.endLevel, 55);
+    });
+  });
+
   group('Changes', () {
     group('merge', () {
       test('merges empty changes', () {

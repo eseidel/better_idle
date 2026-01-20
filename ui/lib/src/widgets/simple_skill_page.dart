@@ -3,7 +3,6 @@ import 'package:better_idle/src/widgets/context_extensions.dart';
 import 'package:better_idle/src/widgets/game_scaffold.dart';
 import 'package:better_idle/src/widgets/mastery_pool.dart';
 import 'package:better_idle/src/widgets/mastery_unlocks_dialog.dart';
-import 'package:better_idle/src/widgets/potion_selector.dart';
 import 'package:better_idle/src/widgets/skill_milestones_dialog.dart';
 import 'package:better_idle/src/widgets/skill_progress.dart';
 import 'package:flutter/material.dart' hide Action;
@@ -42,8 +41,6 @@ class SimpleSkillPage extends StatelessWidget {
             children: [
               MasteryUnlocksButton(skill: skill),
               SkillMilestonesButton(skill: skill),
-              const SizedBox(width: 8),
-              PotionSelector(skill: skill),
             ],
           ),
           Expanded(
