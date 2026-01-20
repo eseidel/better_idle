@@ -64,7 +64,7 @@ class _FiremakingPageState extends State<FiremakingPage> {
         child: Column(
           children: [
             SkillProgress(xp: skillState.xp),
-            MasteryPoolProgress(xp: skillState.masteryPoolXp),
+            const MasteryPoolProgress(skill: skill),
             const Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [

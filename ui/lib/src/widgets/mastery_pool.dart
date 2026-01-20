@@ -1,17 +1,25 @@
 import 'package:better_idle/src/widgets/cached_image.dart';
+import 'package:better_idle/src/widgets/context_extensions.dart';
+import 'package:better_idle/src/widgets/mastery_pool_checkpoints_dialog.dart';
 import 'package:flutter/material.dart';
 import 'package:logic/logic.dart';
 
+/// Shows progress toward filling the mastery pool for a skill.
+///
+/// The mastery pool fills as you gain mastery XP on any action within the
+/// skill. Progress is shown as a percentage of the total pool capacity.
 class MasteryPoolProgress extends StatelessWidget {
-  const MasteryPoolProgress({required this.xp, super.key});
-  final int xp;
+  const MasteryPoolProgress({required this.skill, super.key});
+
+  final Skill skill;
+
   @override
   Widget build(BuildContext context) {
-    final xpProgress = xpProgressForXp(xp);
-    final currentXp = xp - xpProgress.lastLevelXp;
-    final nextLevelXpNeeded = xpProgress.nextLevelXp != null
-        ? xpProgress.nextLevelXp! - xpProgress.lastLevelXp
-        : null;
+    final state = context.state;
+    final skillState = state.skillState(skill);
+    final currentXp = skillState.masteryPoolXp;
+    final maxXp = maxMasteryPoolXpForSkill(state.registries, skill);
+    final progress = maxXp > 0 ? (currentXp / maxXp).clamp(0.0, 1.0) : 0.0;
 
     return Padding(
       padding: const EdgeInsets.all(16),
@@ -19,28 +27,31 @@ class MasteryPoolProgress extends StatelessWidget {
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           const CachedImage(
-            assetPath: 'assets/media/main/mastery_header.png',
+            assetPath: 'assets/media/main/mastery_pool.png',
             size: 24,
           ),
           const SizedBox(width: 8),
           Expanded(
             child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                LinearProgressIndicator(value: xpProgress.progress),
+                LinearProgressIndicator(value: progress),
                 const SizedBox(height: 8),
-                if (nextLevelXpNeeded != null)
-                  Text(
-                    '${preciseNumberString(currentXp)} / ${preciseNumberString(nextLevelXpNeeded)} '
-                    '(${percentToString(xpProgress.progress)} XP',
-                    style: Theme.of(context).textTheme.bodyMedium,
-                  )
-                else
-                  Text(
-                    'Level ${xpProgress.level} (Max)',
-                    style: Theme.of(context).textTheme.bodyMedium,
-                  ),
+                Text(
+                  '${preciseNumberString(currentXp)} / ${preciseNumberString(maxXp)} '
+                  '(${percentToString(progress)})',
+                  style: Theme.of(context).textTheme.bodyMedium,
+                ),
               ],
             ),
+          ),
+          const SizedBox(width: 8),
+          TextButton(
+            onPressed: () => showDialog<void>(
+              context: context,
+              builder: (context) => MasteryPoolCheckpointsDialog(skill: skill),
+            ),
+            child: const Text('View Checkpoints'),
           ),
         ],
       ),

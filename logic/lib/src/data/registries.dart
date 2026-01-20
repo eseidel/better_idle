@@ -11,6 +11,7 @@ import 'package:logic/src/data/township.dart';
 import 'package:logic/src/types/drop.dart';
 import 'package:logic/src/types/equipment_slot.dart';
 import 'package:logic/src/types/mastery.dart';
+import 'package:logic/src/types/mastery_pool_bonus.dart';
 import 'package:logic/src/types/mastery_unlock.dart';
 import 'package:meta/meta.dart';
 
@@ -52,6 +53,7 @@ class Registries {
     required this.shop,
     required this.masteryBonuses,
     required this.masteryUnlocks,
+    required this.masteryPoolBonuses,
     required this.summoningSynergies,
     required this.township,
     required Map<MelvorId, int> bankSortIndex,
@@ -81,6 +83,7 @@ class Registries {
       shop: shop ?? ShopRegistry(const [], const []),
       masteryBonuses: masteryBonuses ?? MasteryBonusRegistry([]),
       masteryUnlocks: masteryUnlocks ?? MasteryUnlockRegistry(const []),
+      masteryPoolBonuses: MasteryPoolBonusRegistry(const []),
       summoningSynergies:
           summoningSynergies ?? const SummoningSynergyRegistry([]),
       township: township ?? const TownshipRegistry.empty(),
@@ -97,6 +100,7 @@ class Registries {
     required this.shop,
     required this.masteryBonuses,
     required this.masteryUnlocks,
+    required this.masteryPoolBonuses,
     required this.summoningSynergies,
     required this.township,
     required Map<MelvorId, int> bankSortIndex,
@@ -142,6 +146,7 @@ class Registries {
   final ShopRegistry shop;
   final MasteryBonusRegistry masteryBonuses;
   final MasteryUnlockRegistry masteryUnlocks;
+  final MasteryPoolBonusRegistry masteryPoolBonuses;
   final SummoningSynergyRegistry summoningSynergies;
   final TownshipRegistry township;
   final Map<MelvorId, int> _bankSortIndex;

@@ -53,7 +53,7 @@ class _SmithingPageState extends State<SmithingPage> {
       body: Column(
         children: [
           SkillProgress(xp: skillState.xp),
-          MasteryPoolProgress(xp: skillState.masteryPoolXp),
+          const MasteryPoolProgress(skill: skill),
           const Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [

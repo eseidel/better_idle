@@ -53,7 +53,7 @@ class _HerblorePageState extends State<HerblorePage> {
       body: Column(
         children: [
           SkillProgress(xp: skillState.xp),
-          MasteryPoolProgress(xp: skillState.masteryPoolXp),
+          const MasteryPoolProgress(skill: skill),
           const Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [

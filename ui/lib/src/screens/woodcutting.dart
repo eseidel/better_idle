@@ -44,7 +44,7 @@ class _WoodcuttingPageState extends State<WoodcuttingPage> {
       body: Column(
         children: [
           SkillProgress(xp: skillState.xp),
-          MasteryPoolProgress(xp: skillState.masteryPoolXp),
+          const MasteryPoolProgress(skill: skill),
           const Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [

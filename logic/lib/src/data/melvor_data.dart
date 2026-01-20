@@ -10,6 +10,7 @@ import 'package:logic/src/data/township.dart';
 import 'package:logic/src/types/drop.dart';
 import 'package:logic/src/types/equipment_slot.dart';
 import 'package:logic/src/types/mastery.dart';
+import 'package:logic/src/types/mastery_pool_bonus.dart';
 import 'package:logic/src/types/mastery_unlock.dart';
 import 'package:meta/meta.dart';
 
@@ -179,6 +180,9 @@ class MelvorData {
     // Parse mastery unlocks (display-only descriptions) for all skills
     _masteryUnlocks = parseMasteryUnlocks(skillDataById);
 
+    // Parse mastery pool bonuses (checkpoints) for all skills
+    _masteryPoolBonuses = parseAllMasteryPoolBonuses(skillDataById);
+
     // Parse township data
     _township = parseTownship(skillDataById['melvorD:Township']);
 
@@ -232,6 +236,7 @@ class MelvorData {
   late final ShopRegistry _shop;
   late final MasteryBonusRegistry _masteryBonuses;
   late final MasteryUnlockRegistry _masteryUnlocks;
+  late final MasteryPoolBonusRegistry _masteryPoolBonuses;
   late final SummoningSynergyRegistry _summoningSynergies;
   late final TownshipRegistry _township;
   late final DropsRegistry _drops;
@@ -262,6 +267,7 @@ class MelvorData {
       shop: _shop,
       masteryBonuses: _masteryBonuses,
       masteryUnlocks: _masteryUnlocks,
+      masteryPoolBonuses: _masteryPoolBonuses,
       summoningSynergies: _summoningSynergies,
       township: _township,
       bankSortIndex: _bankSortIndex,
@@ -856,6 +862,35 @@ MasteryUnlockRegistry parseMasteryUnlocks(
   }
 
   return MasteryUnlockRegistry(skillUnlocks);
+}
+
+/// Parses mastery pool bonuses (checkpoints) for all skills.
+MasteryPoolBonusRegistry parseAllMasteryPoolBonuses(
+  Map<String, List<SkillDataEntry>> skillDataById,
+) {
+  final skillBonuses = <SkillMasteryPoolBonuses>[];
+
+  for (final entry in skillDataById.entries) {
+    final skillId = MelvorId.fromJson(entry.key);
+    final bonuses = <MasteryPoolBonus>[];
+
+    // Collect bonuses from all data entries for this skill
+    for (final dataEntry in entry.value) {
+      bonuses.addAll(
+        parseMasteryPoolBonuses(dataEntry.data, namespace: dataEntry.namespace),
+      );
+    }
+
+    if (bonuses.isNotEmpty) {
+      // Sort by percent ascending
+      bonuses.sort((a, b) => a.percent.compareTo(b.percent));
+      skillBonuses.add(
+        SkillMasteryPoolBonuses(skillId: skillId, bonuses: bonuses),
+      );
+    }
+  }
+
+  return MasteryPoolBonusRegistry(skillBonuses);
 }
 
 /// Parses all agility data. Returns AgilityRegistry.

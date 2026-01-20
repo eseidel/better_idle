@@ -54,7 +54,7 @@ class _RunecraftingPageState extends State<RunecraftingPage> {
       body: Column(
         children: [
           SkillProgress(xp: skillState.xp),
-          MasteryPoolProgress(xp: skillState.masteryPoolXp),
+          const MasteryPoolProgress(skill: skill),
           const Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [

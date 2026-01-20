@@ -35,7 +35,7 @@ class FarmingPage extends StatelessWidget {
       body: Column(
         children: [
           SkillProgress(xp: skillState.xp),
-          MasteryPoolProgress(xp: skillState.masteryPoolXp),
+          const MasteryPoolProgress(skill: skill),
           const Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [

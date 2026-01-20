@@ -133,11 +133,11 @@ final int maxLevel = _xpTable.length;
 // Each action stops accumulating mastery xp at level 99.
 final int maxMasteryXp = _xpTable[99];
 
-// Maximum mastery pool xp is different per-skill, but not yet sure how
-// it's calculated.
-int maxMasteryPoolXpForSkill(Skill skill) {
-  // TODO(eseidel): Implement this.
-  return maxMasteryXp;
+/// Maximum mastery pool XP for a skill is 500,000 multiplied by the total
+/// number of actions in that skill.
+int maxMasteryPoolXpForSkill(Registries registries, Skill skill) {
+  final actionCount = registries.actionsForSkill(skill).length;
+  return actionCount * 500000;
 }
 
 class XpProgress {

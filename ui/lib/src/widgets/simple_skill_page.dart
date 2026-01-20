@@ -35,7 +35,7 @@ class SimpleSkillPage extends StatelessWidget {
       body: Column(
         children: [
           SkillProgress(xp: skillState.xp),
-          MasteryPoolProgress(xp: skillState.masteryPoolXp),
+          MasteryPoolProgress(skill: skill),
           Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [

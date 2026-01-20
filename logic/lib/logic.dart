@@ -43,6 +43,7 @@ export 'src/types/equipment_slot.dart';
 export 'src/types/health.dart';
 export 'src/types/inventory.dart';
 export 'src/types/mastery.dart';
+export 'src/types/mastery_pool_bonus.dart';
 export 'src/types/mastery_unlock.dart';
 export 'src/types/modifier.dart';
 export 'src/types/modifier_names.dart';
