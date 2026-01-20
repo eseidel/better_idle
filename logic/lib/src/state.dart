@@ -4,6 +4,7 @@ import 'package:logic/src/action_state.dart';
 import 'package:logic/src/activity/active_activity.dart';
 import 'package:logic/src/activity/combat_context.dart';
 import 'package:logic/src/activity/mining_persistent_state.dart';
+import 'package:logic/src/bonfire_state.dart';
 import 'package:logic/src/combat_stats.dart';
 import 'package:logic/src/cooking_state.dart';
 import 'package:logic/src/data/action_id.dart';
@@ -291,6 +292,7 @@ class GlobalState {
     this.cooking = const CookingState.empty(),
     this.summoning = const SummoningState.empty(),
     this.township = const TownshipState.empty(),
+    this.bonfire = const BonfireState.empty(),
   });
 
   GlobalState.empty(Registries registries)
@@ -344,6 +346,7 @@ class GlobalState {
     AttackStyle attackStyle = AttackStyle.stab,
     SummoningState summoning = const SummoningState.empty(),
     TownshipState? township,
+    BonfireState bonfire = const BonfireState.empty(),
   }) {
     // Support both gp parameter (for existing tests) and currencies map
     final currenciesMap = currencies ?? (gp > 0 ? {Currency.gp: gp} : const {});
@@ -371,6 +374,7 @@ class GlobalState {
       attackStyle: attackStyle,
       summoning: summoning,
       township: township ?? TownshipState.initial(registries.township),
+      bonfire: bonfire,
     );
   }
 
@@ -440,7 +444,10 @@ class GlobalState {
           const SummoningState.empty(),
       township =
           TownshipState.maybeFromJson(registries.township, json['township']) ??
-          TownshipState.initial(registries.township);
+          TownshipState.initial(registries.township),
+      bonfire =
+          BonfireState.maybeFromJson(json['bonfire']) ??
+          const BonfireState.empty();
 
   /// Parses activeActivity from JSON.
   static ActiveActivity? _parseActiveActivity(Map<String, dynamic> json) {
@@ -555,6 +562,7 @@ class GlobalState {
       'cooking': cooking.toJson(),
       'summoning': summoning.toJson(),
       'township': township.toJson(),
+      'bonfire': bonfire.toJson(),
     };
   }
 
@@ -669,6 +677,9 @@ class GlobalState {
 
   /// The township state (town management skill).
   final TownshipState township;
+
+  /// The bonfire state (active bonfire for firemaking XP bonus).
+  final BonfireState bonfire;
 
   /// The player's health state.
   final HealthState health;
@@ -791,6 +802,11 @@ class GlobalState {
 
     // Township timers are active once a deity is chosen
     if (township.worshipId != null) {
+      return true;
+    }
+
+    // Check bonfire timer
+    if (bonfire.isActive) {
       return true;
     }
 
@@ -1231,6 +1247,7 @@ class GlobalState {
       cooking: updatedCooking,
       summoning: summoning,
       township: township,
+      bonfire: bonfire,
     );
   }
 
@@ -1255,6 +1272,7 @@ class GlobalState {
       attackStyle: attackStyle,
       summoning: summoning,
       township: township,
+      bonfire: bonfire,
     );
   }
 
@@ -2429,6 +2447,7 @@ class GlobalState {
     CookingState? cooking,
     SummoningState? summoning,
     TownshipState? township,
+    BonfireState? bonfire,
   }) {
     return GlobalState(
       registries: registries,
@@ -2454,12 +2473,56 @@ class GlobalState {
       cooking: cooking ?? this.cooking,
       summoning: summoning ?? this.summoning,
       township: township ?? this.township,
+      bonfire: bonfire ?? this.bonfire,
     );
   }
 
   /// Sets the player's attack style for combat XP distribution.
   GlobalState setAttackStyle(AttackStyle style) {
     return copyWith(attackStyle: style);
+  }
+
+  // =========================================================================
+  // Bonfire
+  // =========================================================================
+
+  /// Starts a bonfire from a firemaking action.
+  ///
+  /// Consumes 10 logs from inventory and starts the bonfire timer.
+  /// The bonfire provides an XP bonus to firemaking while active.
+  static const int bonfireLogCost = 10;
+
+  GlobalState startBonfire(FiremakingAction action) {
+    // Check that we have enough logs
+    final logItem = registries.items.byId(action.logId);
+    final logCount = inventory.countOfItem(logItem);
+    if (logCount < bonfireLogCost) {
+      throw Exception(
+        'Cannot start bonfire: need $bonfireLogCost ${action.logId.name}, '
+        'have $logCount',
+      );
+    }
+
+    // Consume logs
+    final newInventory = inventory.removing(
+      ItemStack(logItem, count: bonfireLogCost),
+    );
+
+    // Start the bonfire
+    final bonfireTicks = ticksFromDuration(action.bonfireInterval);
+    final newBonfire = BonfireState(
+      actionId: action.id,
+      ticksRemaining: bonfireTicks,
+      totalTicks: bonfireTicks,
+      xpBonus: action.bonfireXPBonus,
+    );
+
+    return copyWith(inventory: newInventory, bonfire: newBonfire);
+  }
+
+  /// Stops the current bonfire, clearing the timer.
+  GlobalState stopBonfire() {
+    return copyWith(bonfire: const BonfireState.empty());
   }
 
   // =========================================================================

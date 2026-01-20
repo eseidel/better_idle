@@ -12,10 +12,14 @@ import 'package:logic/logic.dart';
 /// updates at 10Hz.
 ///
 /// When [animate] is false, it displays a static empty progress bar.
+///
+/// When [countdown] is true, the progress is inverted to show remaining time
+/// (bar starts full and drains to empty).
 class TweenedProgressIndicator extends StatefulWidget {
   const TweenedProgressIndicator({
     required this.progress,
     required this.animate,
+    this.countdown = false,
     this.height = 8.0,
     this.borderRadius,
     this.backgroundColor,
@@ -29,6 +33,9 @@ class TweenedProgressIndicator extends StatefulWidget {
 
   /// Whether to animate the progress bar
   final bool animate;
+
+  /// Whether to show countdown mode (bar drains from full to empty)
+  final bool countdown;
 
   /// Height of the progress bar
   final double height;
@@ -74,12 +81,19 @@ class _TweenedProgressIndicatorState extends State<TweenedProgressIndicator>
 
   /// Calculate the estimated current progress based on elapsed time
   double _calculateEstimatedProgress() {
-    if (!widget.animate) return 0;
+    if (!widget.animate) return widget.countdown ? 1.0 : 0.0;
 
-    return widget.progress.estimateProgressAt(
+    var progress = widget.progress.estimateProgressAt(
       DateTime.timestamp(),
       tickDuration: widget.tickDuration,
     );
+
+    // In countdown mode, invert the progress (remaining = 1 - consumed)
+    if (widget.countdown) {
+      progress = 1.0 - progress;
+    }
+
+    return progress.clamp(0.0, 1.0);
   }
 
   @override
@@ -91,7 +105,10 @@ class _TweenedProgressIndicatorState extends State<TweenedProgressIndicator>
     // isAdvancing is false.
 
     if (!widget.animate) {
-      final progress = widget.progress.progress;
+      var progress = widget.progress.progress;
+      if (widget.countdown) {
+        progress = 1.0 - progress;
+      }
       return ClipRRect(
         borderRadius: widget.borderRadius ?? BorderRadius.circular(4),
         child: SizedBox(

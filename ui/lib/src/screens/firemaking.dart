@@ -14,6 +14,7 @@ import 'package:better_idle/src/widgets/skill_image.dart';
 import 'package:better_idle/src/widgets/skill_milestones_dialog.dart';
 import 'package:better_idle/src/widgets/skill_progress.dart';
 import 'package:better_idle/src/widgets/style.dart';
+import 'package:better_idle/src/widgets/tweened_progress_indicator.dart';
 import 'package:better_idle/src/widgets/xp_badges_row.dart';
 import 'package:flutter/material.dart' hide Action;
 import 'package:logic/logic.dart';
@@ -72,21 +73,32 @@ class _FiremakingPageState extends State<FiremakingPage> {
               ],
             ),
             const SizedBox(height: 16),
-            ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 500),
-              child: _FiremakingDisplay(
-                action: selectedAction,
-                skillLevel: skillLevel,
-                actions: sortedActions,
-                onSelectLog: () {
-                  _showLogSelectionDialog(
-                    context: context,
-                    actions: sortedActions,
-                    selectedAction: selectedAction,
+            Wrap(
+              spacing: 16,
+              runSpacing: 16,
+              alignment: WrapAlignment.center,
+              children: [
+                ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 500),
+                  child: _FiremakingDisplay(
+                    action: selectedAction,
                     skillLevel: skillLevel,
-                  );
-                },
-              ),
+                    actions: sortedActions,
+                    onSelectLog: () {
+                      _showLogSelectionDialog(
+                        context: context,
+                        actions: sortedActions,
+                        selectedAction: selectedAction,
+                        skillLevel: skillLevel,
+                      );
+                    },
+                  ),
+                ),
+                ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 500),
+                  child: _BonfireCard(action: selectedAction),
+                ),
+              ],
             ),
           ],
         ),
@@ -355,22 +367,41 @@ class _FiremakingDisplay extends StatelessWidget {
   }
 
   Widget _buildButtonRow(BuildContext context, bool isActive, bool canStart) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.center,
+    final state = context.state;
+
+    return Column(
       children: [
-        ElevatedButton(
-          onPressed: canStart || isActive
-              ? () {
-                  context.dispatch(ToggleActionAction(action: action));
-                }
-              : null,
-          style: ElevatedButton.styleFrom(
-            backgroundColor: isActive ? Style.activeColor : null,
-          ),
-          child: Text(isActive ? 'Stop' : 'Burn'),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            ElevatedButton(
+              onPressed: canStart || isActive
+                  ? () {
+                      context.dispatch(ToggleActionAction(action: action));
+                    }
+                  : null,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: isActive ? Style.activeColor : null,
+              ),
+              child: Text(isActive ? 'Stop' : 'Burn'),
+            ),
+            const SizedBox(width: 16),
+            DurationBadgeCell(seconds: action.minDuration.inSeconds),
+          ],
         ),
-        const SizedBox(width: 16),
-        DurationBadgeCell(seconds: action.minDuration.inSeconds),
+        if (isActive) ...[
+          const SizedBox(height: 12),
+          TweenedProgressIndicator(
+            progress: ProgressAt(
+              lastUpdateTime: state.updatedAt,
+              progressTicks: state.activeProgress(action),
+              totalTicks: ticksFromDuration(action.minDuration),
+            ),
+            animate: true,
+            backgroundColor: Style.containerBackgroundLight,
+            color: Style.activeColor,
+          ),
+        ],
       ],
     );
   }
@@ -615,7 +646,162 @@ class _DropBadge extends StatelessWidget {
     return TextBadgeCell(
       backgroundColor: Style.xpBadgeBackgroundColor,
       text: percent,
-      child: Center(child: ItemImage(item: item, size: iconSize)),
+      child: Center(
+        child: ItemImage(item: item, size: iconSize),
+      ),
+    );
+  }
+}
+
+/// Card displaying bonfire status and controls.
+class _BonfireCard extends StatelessWidget {
+  const _BonfireCard({required this.action});
+
+  final FiremakingAction action;
+
+  @override
+  Widget build(BuildContext context) {
+    final state = context.state;
+    final bonfire = state.bonfire;
+    final isActive = bonfire.isActive;
+
+    // Check if firemaking is currently active (bonfire only ticks when burning)
+    final currentAction = state.currentActionId != null
+        ? state.registries.actionById(state.currentActionId!)
+        : null;
+    final isFiremakingActive = currentAction is FiremakingAction;
+
+    // Get the log item for the selected action
+    final logItem = state.registries.items.byId(action.logId);
+    final logCount = state.inventory.countOfItem(logItem);
+
+    // Determine the bonfire image path
+    final bonfireImage = isActive
+        ? 'assets/media/skills/firemaking/bonfire_active.png'
+        : 'assets/media/skills/firemaking/bonfire_inactive.png';
+
+    // Get the bonfire action info (either currently active or selected)
+    final bonfireActionId = bonfire.actionId;
+    FiremakingAction? activeBonfireAction;
+    if (bonfireActionId != null) {
+      activeBonfireAction =
+          state.registries.actionById(bonfireActionId) as FiremakingAction?;
+    }
+
+    // Display info based on active bonfire or selected action
+    final displayAction = activeBonfireAction ?? action;
+    final displayLogItem = state.registries.items.byId(displayAction.logId);
+    final displayLogCount = state.inventory.countOfItem(displayLogItem);
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: isActive
+            ? Style.activeColorLight
+            : Style.containerBackgroundLight,
+        border: Border.all(
+          color: isActive ? Style.activeColor : Style.iconColorDefault,
+          width: isActive ? 2 : 1,
+        ),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          // Header row with bonfire image
+          Row(
+            children: [
+              CachedImage(assetPath: bonfireImage, size: 64),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Bonfire Status: ${displayLogItem.name}',
+                      style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      '${preciseNumberString(displayLogCount)} in Bank',
+                      style: const TextStyle(color: Style.textColorSecondary),
+                    ),
+                    const SizedBox(height: 4),
+                    _BonfireXpBonusText(
+                      xpBonus: isActive
+                          ? bonfire.xpBonus
+                          : displayAction.bonfireXPBonus,
+                      isActive: isActive,
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          // Button row
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              ElevatedButton(
+                onPressed: isActive
+                    ? () => context.dispatch(StopBonfireAction())
+                    : (logCount >= GlobalState.bonfireLogCost
+                          ? () => context.dispatch(StartBonfireAction(action))
+                          : null),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: isActive ? Style.activeColor : null,
+                ),
+                child: Text(isActive ? 'Stop Bonfire' : 'Start Bonfire'),
+              ),
+              const SizedBox(width: 16),
+              DurationBadgeCell(
+                seconds: isActive
+                    ? bonfire.remainingDuration.inSeconds
+                    : action.bonfireInterval.inSeconds,
+              ),
+            ],
+          ),
+          // Progress bar when bonfire is active (countdown style).
+          // Only animates when firemaking is also active (pauses otherwise).
+          if (isActive) ...[
+            const SizedBox(height: 12),
+            TweenedProgressIndicator(
+              progress: ProgressAt(
+                lastUpdateTime: state.updatedAt,
+                progressTicks: bonfire.totalTicks - bonfire.ticksRemaining,
+                totalTicks: bonfire.totalTicks,
+                isAdvancing: isFiremakingActive,
+              ),
+              animate: isFiremakingActive,
+              countdown: true,
+              backgroundColor: Style.containerBackgroundLight,
+              color: Style.activeColor,
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _BonfireXpBonusText extends StatelessWidget {
+  const _BonfireXpBonusText({required this.xpBonus, required this.isActive});
+
+  final int xpBonus;
+  final bool isActive;
+
+  @override
+  Widget build(BuildContext context) {
+    return Text(
+      'Firemaking Skill XP Bonus: $xpBonus%',
+      style: TextStyle(
+        color: isActive ? Style.successColor : null,
+        fontWeight: isActive ? FontWeight.bold : null,
+      ),
     );
   }
 }

@@ -7,6 +7,7 @@ export 'src/action_state.dart';
 export 'src/activity/active_activity.dart';
 export 'src/activity/combat_context.dart';
 export 'src/activity/mining_persistent_state.dart';
+export 'src/bonfire_state.dart';
 export 'src/combat_stats.dart';
 export 'src/consume_ticks.dart';
 export 'src/cooking_state.dart';

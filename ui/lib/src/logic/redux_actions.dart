@@ -584,3 +584,28 @@ class ClearPotionSelectionAction extends ReduxAction<GlobalState> {
     return state.clearSelectedPotion(skillId);
   }
 }
+
+/// Starts a bonfire from a firemaking action.
+class StartBonfireAction extends ReduxAction<GlobalState> {
+  StartBonfireAction(this.action);
+  final FiremakingAction action;
+
+  @override
+  GlobalState? reduce() {
+    // Check that we have enough logs
+    final logItem = state.registries.items.byId(action.logId);
+    final logCount = state.inventory.countOfItem(logItem);
+    if (logCount < GlobalState.bonfireLogCost) {
+      return null; // Can't start without enough logs
+    }
+    return state.startBonfire(action);
+  }
+}
+
+/// Stops the current bonfire.
+class StopBonfireAction extends ReduxAction<GlobalState> {
+  @override
+  GlobalState reduce() {
+    return state.stopBonfire();
+  }
+}

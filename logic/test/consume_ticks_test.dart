@@ -2040,4 +2040,236 @@ void main() {
       expect(builder.changes.currenciesGained[Currency.gp], greaterThan(0));
     });
   });
+
+  group('bonfire', () {
+    test('bonfire auto-restarts when it burns out if logs available', () {
+      final random = Random(0);
+      final burnAction =
+          testRegistries.firemakingAction('Burn Normal Logs')
+              as FiremakingAction;
+
+      // Start with enough logs for multiple bonfires
+      var state = GlobalState.empty(testRegistries);
+      state = state.copyWith(
+        inventory: Inventory.fromItems(testItems, [
+          ItemStack(normalLogs, count: 100),
+        ]),
+      );
+
+      // Start the firemaking action
+      state = state.startAction(burnAction, random: random);
+
+      // Start the bonfire (consumes 10 logs)
+      state = state.startBonfire(burnAction);
+      expect(state.bonfire.isActive, true);
+      expect(state.inventory.countOfItem(normalLogs), 90); // 100 - 10
+
+      // Calculate ticks for bonfire to burn out
+      final bonfireTicks = ticksFromDuration(burnAction.bonfireInterval);
+
+      // Advance time to just before bonfire burns out
+      var builder = StateUpdateBuilder(state);
+      consumeTicks(builder, bonfireTicks - 1, random: random);
+      state = builder.build();
+
+      // Bonfire should still be active
+      expect(state.bonfire.isActive, true);
+      expect(state.bonfire.ticksRemaining, 1);
+
+      // Advance one more tick - bonfire should burn out and auto-restart
+      builder = StateUpdateBuilder(state);
+      consumeTicks(builder, 1, random: random);
+      state = builder.build();
+
+      // Bonfire should have auto-restarted
+      expect(state.bonfire.isActive, true);
+      expect(state.bonfire.ticksRemaining, bonfireTicks);
+      // Should have consumed another 10 logs for bonfire restart
+      final logsUsed = 100 - state.inventory.countOfItem(normalLogs);
+      // Logs: 10 (initial bonfire) + firemaking completions + 10 (restart)
+      expect(logsUsed, greaterThanOrEqualTo(20));
+    });
+
+    test('bonfire stops when no logs available for restart', () {
+      final random = Random(0);
+      final burnAction =
+          testRegistries.firemakingAction('Burn Normal Logs')
+              as FiremakingAction;
+
+      // Bonfire lasts 200 ticks, firemaking takes 20 ticks per completion.
+      // We need enough logs for firemaking to keep running until bonfire
+      // burns out: 200 / 20 = 10 completions + 1 extra for the next action,
+      // but NOT enough for bonfire restart (which needs 10 logs).
+      // So: 10 (bonfire) + 11 (firemaking to cover bonfire duration) = 21 logs
+      // After bonfire burns out, we'll have 0 logs (can't restart).
+      var state = GlobalState.empty(testRegistries);
+      state = state.copyWith(
+        inventory: Inventory.fromItems(testItems, [
+          ItemStack(normalLogs, count: 21),
+        ]),
+      );
+
+      // Start the firemaking action
+      state = state.startAction(burnAction, random: random);
+
+      // Start the bonfire (consumes 10 logs, leaving 11)
+      state = state.startBonfire(burnAction);
+      expect(state.bonfire.isActive, true);
+      expect(state.inventory.countOfItem(normalLogs), 11);
+
+      // Calculate ticks for bonfire to burn out (200 ticks)
+      final bonfireTicks = ticksFromDuration(burnAction.bonfireInterval);
+
+      // Advance time to burn out bonfire
+      final builder = StateUpdateBuilder(state);
+      consumeTicks(builder, bonfireTicks, random: random);
+      state = builder.build();
+
+      // Bonfire should have burned out and NOT restarted (only 1 log left,
+      // need 10 for restart)
+      expect(state.bonfire.isActive, false);
+      expect(state.inventory.countOfItem(normalLogs), lessThan(10));
+    });
+
+    test('bonfire only ticks down when firemaking is active', () {
+      final random = Random(0);
+      final burnAction =
+          testRegistries.firemakingAction('Burn Normal Logs')
+              as FiremakingAction;
+
+      // Start with logs
+      var state = GlobalState.empty(testRegistries);
+      state = state.copyWith(
+        inventory: Inventory.fromItems(testItems, [
+          ItemStack(normalLogs, count: 100),
+        ]),
+      );
+
+      // Start the firemaking action
+      state = state.startAction(burnAction, random: random);
+
+      // Start the bonfire
+      state = state.startBonfire(burnAction);
+      final initialTicks = state.bonfire.ticksRemaining;
+
+      // Advance time
+      var builder = StateUpdateBuilder(state);
+      consumeTicks(builder, 100, random: random);
+      state = builder.build();
+
+      // Bonfire should have counted down
+      expect(state.bonfire.ticksRemaining, lessThan(initialTicks));
+      final ticksAfterActive = state.bonfire.ticksRemaining;
+
+      // Stop the firemaking action
+      state = state.clearAction();
+
+      // Advance time with no active action
+      builder = StateUpdateBuilder(state);
+      consumeTicks(builder, 100, random: random);
+      state = builder.build();
+
+      // Bonfire ticks should NOT have changed (paused)
+      expect(state.bonfire.ticksRemaining, ticksAfterActive);
+      expect(state.bonfire.isActive, true); // Still active, just paused
+    });
+
+    test('bonfire applies XP bonus to firemaking actions', () {
+      final random = Random(0);
+      final burnAction =
+          testRegistries.firemakingAction('Burn Normal Logs')
+              as FiremakingAction;
+
+      // Start with logs
+      var state = GlobalState.empty(testRegistries);
+      state = state.copyWith(
+        inventory: Inventory.fromItems(testItems, [
+          ItemStack(normalLogs, count: 100),
+        ]),
+      );
+
+      // Start the firemaking action WITHOUT bonfire
+      state = state.startAction(burnAction, random: random);
+
+      // Complete one action (20 ticks for normal logs)
+      var builder = StateUpdateBuilder(state);
+      consumeTicks(builder, 20, random: random);
+      state = builder.build();
+
+      // Record XP gained without bonfire
+      final xpWithoutBonfire = state.skillState(Skill.firemaking).xp;
+      expect(xpWithoutBonfire, burnAction.xp); // Base XP
+
+      // Start the bonfire (5% bonus for normal logs)
+      state = state.startBonfire(burnAction);
+      expect(state.bonfire.isActive, true);
+      expect(state.bonfire.xpBonus, burnAction.bonfireXPBonus);
+
+      // Complete another action with bonfire active
+      builder = StateUpdateBuilder(state);
+      consumeTicks(builder, 20, random: random);
+      state = builder.build();
+
+      // Calculate expected XP with bonus
+      final expectedXpWithBonus =
+          (burnAction.xp * (1.0 + burnAction.bonfireXPBonus / 100.0)).round();
+      final totalXp = state.skillState(Skill.firemaking).xp;
+      final xpFromSecondAction = totalXp - xpWithoutBonfire;
+
+      // Verify bonfire XP bonus was applied
+      expect(xpFromSecondAction, expectedXpWithBonus);
+      expect(xpFromSecondAction, greaterThan(burnAction.xp));
+    });
+
+    test('bonfire XP bonus uses bonfire log type, not main fire log type', () {
+      final random = Random(0);
+      final burnNormal =
+          testRegistries.firemakingAction('Burn Normal Logs')
+              as FiremakingAction;
+      final burnOak =
+          testRegistries.firemakingAction('Burn Oak Logs') as FiremakingAction;
+
+      // Verify that oak has a higher bonus than normal
+      expect(burnOak.bonfireXPBonus, greaterThan(burnNormal.bonfireXPBonus));
+
+      // Start with both types of logs
+      var state = GlobalState.empty(testRegistries);
+      state = state.copyWith(
+        inventory: Inventory.fromItems(testItems, [
+          ItemStack(normalLogs, count: 100),
+          ItemStack(oakLogs, count: 100),
+        ]),
+      );
+
+      // Start burning NORMAL logs (main fire)
+      state = state.startAction(burnNormal, random: random);
+
+      // Start bonfire with OAK logs (higher bonus)
+      state = state.startBonfire(burnOak);
+      expect(state.bonfire.isActive, true);
+      expect(state.bonfire.xpBonus, burnOak.bonfireXPBonus); // Oak bonus (10%)
+      // Not normal bonus (5%)
+      expect(state.bonfire.xpBonus, isNot(burnNormal.bonfireXPBonus));
+
+      // Complete one normal log burn action (20 ticks for normal logs)
+      final normalTicks = ticksFromDuration(burnNormal.meanDuration);
+      final builder = StateUpdateBuilder(state);
+      consumeTicks(builder, normalTicks, random: random);
+      state = builder.build();
+
+      // Calculate expected XP: normal log XP with OAK bonfire bonus
+      final expectedXp =
+          (burnNormal.xp * (1.0 + burnOak.bonfireXPBonus / 100.0)).round();
+      final actualXp = state.skillState(Skill.firemaking).xp;
+
+      // If the bonus came from normal logs (5%), XP would be:
+      final wrongXp =
+          (burnNormal.xp * (1.0 + burnNormal.bonfireXPBonus / 100.0)).round();
+
+      // Verify XP matches oak bonfire bonus, not normal bonfire bonus
+      expect(actualXp, expectedXp);
+      expect(actualXp, isNot(wrongXp));
+      expect(actualXp, greaterThan(wrongXp)); // Oak bonus > normal bonus
+    });
+  });
 }

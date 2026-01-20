@@ -343,6 +343,25 @@ void _applyBackgroundTicks(
 
   // Apply township background processing (seasons and town updates)
   _applyTownshipTicks(builder, ticks, random);
+
+  // Apply bonfire countdown only when firemaking is active
+  // (bonfire pauses when firemaking stops, resumes when it starts again)
+  if (builder.state.bonfire.isActive && activeActionId != null) {
+    final action = builder.registries.actionById(activeActionId);
+    if (action is FiremakingAction) {
+      final bonfire = builder.state.bonfire;
+      final newBonfire = bonfire.consumeTicks(ticks);
+      builder.setBonfire(newBonfire);
+
+      // Auto-restart bonfire if it burned out and we have logs
+      if (newBonfire.isEmpty) {
+        final bonfireAction =
+            builder.registries.actionById(bonfire.actionId!)
+                as FiremakingAction;
+        builder.restartBonfire(bonfireAction);
+      }
+    }
+  }
 }
 
 /// Applies ticks to Township: season countdown and hourly town updates.
@@ -696,6 +715,33 @@ class StateUpdateBuilder {
 
   void setTownship(TownshipState township) {
     _state = _state.copyWith(township: township);
+  }
+
+  void setBonfire(BonfireState bonfire) {
+    _state = _state.copyWith(bonfire: bonfire);
+  }
+
+  /// Restarts the current bonfire by consuming logs and resetting the timer.
+  /// Returns true if restart was successful, false if not enough logs.
+  bool restartBonfire(FiremakingAction bonfireAction) {
+    final logItem = registries.items.byId(bonfireAction.logId);
+    final logCount = _state.inventory.countOfItem(logItem);
+    if (logCount < GlobalState.bonfireLogCost) return false;
+
+    // Consume logs and reset bonfire timer
+    final bonfireTicks = ticksFromDuration(bonfireAction.bonfireInterval);
+    _state = _state.copyWith(
+      inventory: _state.inventory.removing(
+        ItemStack(logItem, count: GlobalState.bonfireLogCost),
+      ),
+      bonfire: BonfireState(
+        actionId: bonfireAction.id,
+        ticksRemaining: bonfireTicks,
+        totalTicks: bonfireTicks,
+        xpBonus: bonfireAction.bonfireXPBonus,
+      ),
+    );
+    return true;
   }
 
   void damagePlayer(int damage) {
@@ -1146,7 +1192,13 @@ XpPerAction xpPerAction(
   ModifierAccessors modifiers,
 ) {
   // Apply skillXP modifier (percentage points, e.g., -10 = 10% reduction)
-  final xpModifier = modifiers.skillXP(skillId: action.skill.id);
+  var xpModifier = modifiers.skillXP(skillId: action.skill.id);
+
+  // Apply bonfire XP bonus for firemaking actions
+  if (action.skill == Skill.firemaking && state.bonfire.isActive) {
+    xpModifier += state.bonfire.xpBonus;
+  }
+
   final baseXp = action.xp;
   final adjustedXp = (baseXp * (1.0 + xpModifier / 100.0)).round().clamp(
     1,
