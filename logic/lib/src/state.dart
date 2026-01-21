@@ -173,6 +173,15 @@ class SkillState {
   /// Can be spent to gain mastery levels for actions within this skill.
   final int masteryPoolXp;
 
+  /// Returns the mastery pool percentage (0-100) for this skill.
+  ///
+  /// Requires registries to calculate max pool XP (based on action count).
+  double masteryPoolPercent(Registries registries, Skill skill) {
+    final maxPoolXp = maxMasteryPoolXpForSkill(registries, skill);
+    if (maxPoolXp <= 0) return 0;
+    return (masteryPoolXp / maxPoolXp) * 100;
+  }
+
   SkillState copyWith({int? xp, int? masteryPoolXp}) {
     return SkillState(
       xp: xp ?? this.xp,
@@ -918,6 +927,7 @@ class GlobalState {
       summoning: summoning,
       shopPurchases: shop,
       actionStateGetter: actionState,
+      skillStateGetter: skillState,
       activeSynergy: _getActiveSynergy(),
       currentActionId: action.id,
     );
@@ -937,6 +947,7 @@ class GlobalState {
       summoning: summoning,
       shopPurchases: shop,
       actionStateGetter: actionState,
+      skillStateGetter: skillState,
       activeSynergy: _getActiveSynergy(),
       combatTypeSkills: attackStyle.combatType.skills,
     );
@@ -956,6 +967,7 @@ class GlobalState {
       summoning: summoning,
       shopPurchases: shop,
       actionStateGetter: actionState,
+      skillStateGetter: skillState,
       activeSynergy: _getActiveSynergy(),
     );
   }

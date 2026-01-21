@@ -66,6 +66,7 @@ class Registries {
     ShopRegistry? shop,
     MasteryBonusRegistry? masteryBonuses,
     MasteryUnlockRegistry? masteryUnlocks,
+    MasteryPoolBonusRegistry? masteryPoolBonuses,
     SummoningSynergyRegistry? summoningSynergies,
     TownshipRegistry? township,
     Map<MelvorId, int>? bankSortIndex,
@@ -83,7 +84,8 @@ class Registries {
       shop: shop ?? ShopRegistry(const [], const []),
       masteryBonuses: masteryBonuses ?? MasteryBonusRegistry([]),
       masteryUnlocks: masteryUnlocks ?? MasteryUnlockRegistry(const []),
-      masteryPoolBonuses: MasteryPoolBonusRegistry(const []),
+      masteryPoolBonuses:
+          masteryPoolBonuses ?? MasteryPoolBonusRegistry(const []),
       summoningSynergies:
           summoningSynergies ?? const SummoningSynergyRegistry([]),
       township: township ?? const TownshipRegistry.empty(),

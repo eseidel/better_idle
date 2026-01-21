@@ -1019,6 +1019,317 @@ void main() {
     );
   });
 
+  group('mastery pool checkpoint bonuses', () {
+    // Helper to create a test action for a skill
+    SkillAction createTestAction({required Skill skill, String? localId}) {
+      return SkillAction(
+        id: ActionId(skill.id, MelvorId('test:${localId ?? 'TestAction'}')),
+        skill: skill,
+        name: 'Test Action',
+        duration: const Duration(seconds: 3),
+        xp: 10,
+        unlockLevel: 1,
+      );
+    }
+
+    test('mastery pool checkpoint bonus applies when threshold is reached', () {
+      // Create a mastery pool bonus at 10% with +5 skillXP
+      final poolBonus = MasteryPoolBonus(
+        percent: 10,
+        modifiers: ModifierDataSet([
+          ModifierData(
+            name: 'skillXP',
+            entries: [
+              ModifierEntry(
+                value: 5, // +5% XP
+                scope: ModifierScope(skillId: Skill.firemaking.id),
+              ),
+            ],
+          ),
+        ]),
+      );
+
+      final action = createTestAction(skill: Skill.firemaking);
+
+      final registries = Registries.test(
+        actions: [action],
+        masteryPoolBonuses: MasteryPoolBonusRegistry([
+          SkillMasteryPoolBonuses(
+            skillId: Skill.firemaking.id,
+            bonuses: [poolBonus],
+          ),
+        ]),
+      );
+
+      // With 0% pool, bonus should NOT apply
+      final state0Percent = GlobalState.test(
+        registries,
+        skillStates: const {
+          Skill.firemaking: SkillState(xp: 1000, masteryPoolXp: 0),
+        },
+      );
+      final modifiers0 = state0Percent.createActionModifierProvider(action);
+      expect(modifiers0.skillXP(skillId: action.skill.id), 0);
+
+      // With 10% pool, bonus SHOULD apply
+      // (max pool = 1 action * 500000 = 500000)
+      // 10% of 500000 = 50000
+      final state10Percent = GlobalState.test(
+        registries,
+        skillStates: const {
+          Skill.firemaking: SkillState(xp: 1000, masteryPoolXp: 50000),
+        },
+      );
+      final modifiers10 = state10Percent.createActionModifierProvider(action);
+      expect(modifiers10.skillXP(skillId: action.skill.id), 5);
+    });
+
+    test('multiple mastery pool checkpoints stack when all thresholds met', () {
+      // Create multiple pool bonuses at different thresholds
+      final poolBonuses = [
+        MasteryPoolBonus(
+          percent: 10,
+          modifiers: ModifierDataSet([
+            ModifierData(
+              name: 'skillXP',
+              entries: [
+                ModifierEntry(
+                  value: 5,
+                  scope: ModifierScope(skillId: Skill.fishing.id),
+                ),
+              ],
+            ),
+          ]),
+        ),
+        MasteryPoolBonus(
+          percent: 25,
+          modifiers: ModifierDataSet([
+            ModifierData(
+              name: 'skillXP',
+              entries: [
+                ModifierEntry(
+                  value: 3,
+                  scope: ModifierScope(skillId: Skill.fishing.id),
+                ),
+              ],
+            ),
+          ]),
+        ),
+        MasteryPoolBonus(
+          percent: 50,
+          modifiers: ModifierDataSet([
+            ModifierData(
+              name: 'skillXP',
+              entries: [
+                ModifierEntry(
+                  value: 7,
+                  scope: ModifierScope(skillId: Skill.fishing.id),
+                ),
+              ],
+            ),
+          ]),
+        ),
+      ];
+
+      final action = createTestAction(skill: Skill.fishing);
+
+      final registries = Registries.test(
+        actions: [action],
+        masteryPoolBonuses: MasteryPoolBonusRegistry([
+          SkillMasteryPoolBonuses(
+            skillId: Skill.fishing.id,
+            bonuses: poolBonuses,
+          ),
+        ]),
+      );
+
+      // At 50%, all three bonuses (10%, 25%, 50%) should apply: 5 + 3 + 7 = 15
+      // Max pool = 500000, so 50% = 250000
+      final state50Percent = GlobalState.test(
+        registries,
+        skillStates: const {
+          Skill.fishing: SkillState(xp: 1000, masteryPoolXp: 250000),
+        },
+      );
+      final modifiers50 = state50Percent.createActionModifierProvider(action);
+      expect(modifiers50.skillXP(skillId: action.skill.id), 15);
+
+      // At 20%, only the 10% bonus should apply: 5
+      // 20% of 500000 = 100000
+      final state20Percent = GlobalState.test(
+        registries,
+        skillStates: const {
+          Skill.fishing: SkillState(xp: 1000, masteryPoolXp: 100000),
+        },
+      );
+      final modifiers20 = state20Percent.createActionModifierProvider(action);
+      expect(modifiers20.skillXP(skillId: action.skill.id), 5);
+    });
+
+    test('mastery pool bonus scoped to different skill does not apply', () {
+      // Create a pool bonus scoped to firemaking
+      final poolBonus = MasteryPoolBonus(
+        percent: 10,
+        modifiers: ModifierDataSet([
+          ModifierData(
+            name: 'skillXP',
+            entries: [
+              ModifierEntry(
+                value: 5,
+                scope: ModifierScope(skillId: Skill.firemaking.id),
+              ),
+            ],
+          ),
+        ]),
+      );
+
+      final woodcuttingAction = createTestAction(
+        skill: Skill.woodcutting,
+        localId: 'WoodcuttingAction',
+      );
+      final firemakingAction = createTestAction(
+        skill: Skill.firemaking,
+        localId: 'FiremakingAction',
+      );
+
+      final registries = Registries.test(
+        actions: [woodcuttingAction, firemakingAction],
+        masteryPoolBonuses: MasteryPoolBonusRegistry([
+          // Bonus is in firemaking's pool bonuses
+          SkillMasteryPoolBonuses(
+            skillId: Skill.firemaking.id,
+            bonuses: [poolBonus],
+          ),
+        ]),
+      );
+
+      // With 100% firemaking pool
+      final state = GlobalState.test(
+        registries,
+        skillStates: const {
+          Skill.firemaking: SkillState(xp: 1000, masteryPoolXp: 500000),
+          Skill.woodcutting: SkillState(xp: 1000, masteryPoolXp: 500000),
+        },
+      );
+
+      // The bonus should apply to firemaking
+      final firemakingModifiers = state.createActionModifierProvider(
+        firemakingAction,
+      );
+      expect(firemakingModifiers.skillXP(skillId: Skill.firemaking.id), 5);
+
+      // But NOT to woodcutting (different skill)
+      final woodcuttingModifiers = state.createActionModifierProvider(
+        woodcuttingAction,
+      );
+      expect(woodcuttingModifiers.skillXP(skillId: Skill.woodcutting.id), 0);
+    });
+
+    test('mastery pool bonus combines with other modifier sources', () {
+      // Create a pool bonus
+      final poolBonus = MasteryPoolBonus(
+        percent: 10,
+        modifiers: ModifierDataSet([
+          ModifierData(
+            name: 'skillXP',
+            entries: [
+              ModifierEntry(
+                value: 5,
+                scope: ModifierScope(skillId: Skill.firemaking.id),
+              ),
+            ],
+          ),
+        ]),
+      );
+
+      // Create a shop purchase with skillXP modifier
+      const shopPurchaseId = MelvorId('test:XpBoost');
+      final shopPurchase = ShopPurchase(
+        id: shopPurchaseId,
+        name: 'XP Boost',
+        category: const MelvorId('test:TestCategory'),
+        cost: const ShopCost(currencies: [], items: []),
+        unlockRequirements: const [],
+        purchaseRequirements: const [],
+        contains: ShopContents(
+          modifiers: ModifierDataSet([
+            ModifierData(
+              name: 'skillXP',
+              entries: [
+                ModifierEntry(
+                  value: 10,
+                  scope: ModifierScope(skillId: Skill.firemaking.id),
+                ),
+              ],
+            ),
+          ]),
+        ),
+        buyLimit: 1,
+      );
+
+      final action = createTestAction(skill: Skill.firemaking);
+
+      final registries = Registries.test(
+        actions: [action],
+        shop: ShopRegistry([shopPurchase], const []),
+        masteryPoolBonuses: MasteryPoolBonusRegistry([
+          SkillMasteryPoolBonuses(
+            skillId: Skill.firemaking.id,
+            bonuses: [poolBonus],
+          ),
+        ]),
+      );
+
+      // With both shop purchase and pool bonus active
+      final state = GlobalState.test(
+        registries,
+        shop: ShopState(purchaseCounts: {shopPurchaseId: 1}),
+        skillStates: const {
+          Skill.firemaking: SkillState(xp: 1000, masteryPoolXp: 500000),
+        },
+      );
+
+      final modifiers = state.createActionModifierProvider(action);
+      // Shop (+10) + Pool (+5) = +15
+      expect(modifiers.skillXP(skillId: action.skill.id), 15);
+    });
+
+    test('global mastery pool bonus (no scope) applies', () {
+      // Create a pool bonus with no skill scope (applies globally)
+      const poolBonus = MasteryPoolBonus(
+        percent: 10,
+        modifiers: ModifierDataSet([
+          ModifierData(
+            name: 'skillXP',
+            entries: [ModifierEntry(value: 3)], // No scope = global
+          ),
+        ]),
+      );
+
+      final action = createTestAction(skill: Skill.firemaking);
+
+      final registries = Registries.test(
+        actions: [action],
+        masteryPoolBonuses: MasteryPoolBonusRegistry([
+          SkillMasteryPoolBonuses(
+            skillId: Skill.firemaking.id,
+            bonuses: const [poolBonus],
+          ),
+        ]),
+      );
+
+      final state = GlobalState.test(
+        registries,
+        skillStates: const {
+          Skill.firemaking: SkillState(xp: 1000, masteryPoolXp: 500000),
+        },
+      );
+
+      final modifiers = state.createActionModifierProvider(action);
+      expect(modifiers.skillXP(skillId: action.skill.id), 3);
+    });
+  });
+
   group('equipment modifiers', () {
     test('equipped item modifiers are applied to action duration', () {
       // Create a fishing amulet with -15% skillInterval for fishing

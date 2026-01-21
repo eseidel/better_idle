@@ -81,6 +81,7 @@ class ModifierProvider with ModifierAccessors {
     required this.shopPurchases,
     required this.actionStateGetter,
     required this.activeSynergy,
+    required this.skillStateGetter,
     this.combatTypeSkills,
     this.currentActionId,
   });
@@ -94,6 +95,10 @@ class ModifierProvider with ModifierAccessors {
   final ShopState shopPurchases;
   final ActionState Function(ActionId) actionStateGetter;
   final SummoningSynergy? activeSynergy;
+
+  /// Returns the SkillState for a given skill.
+  /// Used to look up mastery pool XP for mastery pool checkpoint bonuses.
+  final SkillState Function(Skill) skillStateGetter;
 
   /// For combat: the set of combat skills being used (attack, strength, etc.)
   /// Used to filter summoning familiar relevance.
@@ -158,6 +163,31 @@ class ModifierProvider with ModifierAccessors {
                 autoScopeToAction: bonus.autoScopeToAction,
               )) {
                 total += entry.value * count;
+              }
+            }
+          }
+        }
+      }
+    }
+
+    // --- Mastery pool checkpoint bonuses ---
+    // These are skill-wide bonuses that activate when the mastery pool
+    // reaches certain percentage thresholds (10%, 25%, 50%, 95%).
+    if (skillId != null) {
+      final skill = Skill.fromId(skillId);
+      final poolBonuses = registries.masteryPoolBonuses.forSkill(skillId);
+      if (poolBonuses != null) {
+        final skillState = skillStateGetter(skill);
+        final poolPercent = skillState.masteryPoolPercent(registries, skill);
+
+        for (final bonus in poolBonuses.bonuses) {
+          if (!bonus.isActiveAt(poolPercent)) continue;
+
+          for (final mod in bonus.modifiers.modifiers) {
+            if (mod.name != name) continue;
+            for (final entry in mod.entries) {
+              if (scope.matches(entry.scope)) {
+                total += entry.value;
               }
             }
           }
