@@ -202,7 +202,8 @@ class ConsumesOn extends Equatable {
         .toList();
 
     // Parse successful flag if present (for ThievingAction)
-    final successful = json['succesful'] as bool?; // Note: typo in Melvor data
+    // cspell:ignore-next-line succesful - typo in Melvor data
+    final successful = json['succesful'] as bool?;
 
     return ConsumesOn(
       type: type,

@@ -148,7 +148,7 @@ void main() {
       expect(state.hpRegenTicksRemaining, equals(0));
     });
 
-    test('roundtrips through toJson', () {
+    test('round-trips through toJson', () {
       const original = MiningState(
         totalHpLost: 7,
         respawnTicksRemaining: 100,

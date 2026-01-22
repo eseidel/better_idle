@@ -221,7 +221,7 @@ void main() {
       expect(ConditionContext.empty.evaluate(condition), isFalse);
     });
 
-    test('CombatType condition evaluates attack type matchups', () {
+    test('CombatType condition evaluates attack type match-ups', () {
       const condition = CombatTypeCondition(
         character: ConditionCharacter.player,
         thisAttackType: CombatType.melee,

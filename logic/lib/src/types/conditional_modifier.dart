@@ -7,7 +7,7 @@
 // ## Condition Types
 //
 // - **DamageType**: Applies when player is using a specific damage type
-// - **CombatType**: Applies based on attack type matchups (melee vs ranged)
+// - **CombatType**: Applies based on attack type match-ups (melee vs ranged)
 // - **ItemCharge**: Applies when an equipped item has charges remaining
 // - **Hitpoints**: Applies based on player/enemy HP threshold
 // - **CombatEffectGroup**: Applies when affected by certain effects
@@ -153,7 +153,7 @@ class DamageTypeCondition extends ModifierCondition {
   List<Object?> get props => [character, damageType];
 }
 
-/// Condition that checks attack type matchups (melee vs ranged, etc.).
+/// Condition that checks attack type match-ups (melee vs ranged, etc.).
 ///
 /// Example: Gold Sapphire Necklace provides +1 resistance when using melee
 /// against ranged enemies.
@@ -415,6 +415,7 @@ class EveryCondition extends ModifierCondition {
 
 /// Condition that requires ANY nested condition to be true (logical OR).
 ///
+// cspell:ignore-next-line frostburn - Melvor game term
 /// Example: Bonuses when affected by slow OR frostburn OR burn effects.
 @immutable
 class SomeCondition extends ModifierCondition {
