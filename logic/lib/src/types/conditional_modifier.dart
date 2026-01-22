@@ -34,7 +34,6 @@
 // ]
 // ```
 
-import 'package:equatable/equatable.dart';
 import 'package:logic/src/data/melvor_id.dart';
 import 'package:logic/src/state.dart' show CombatType;
 import 'package:logic/src/types/modifier.dart';
@@ -90,7 +89,7 @@ enum ComparisonOperator {
 /// Conditions are evaluated at runtime to determine if a conditional modifier
 /// should be active.
 @immutable
-sealed class ModifierCondition extends Equatable {
+sealed class ModifierCondition {
   const ModifierCondition();
 
   /// Parse a condition from JSON.
@@ -148,9 +147,6 @@ class DamageTypeCondition extends ModifierCondition {
 
   /// The damage type that must be used.
   final MelvorId damageType;
-
-  @override
-  List<Object?> get props => [character, damageType];
 }
 
 /// Condition that checks attack type match-ups (melee vs ranged, etc.).
@@ -194,9 +190,6 @@ class CombatTypeCondition extends ModifierCondition {
   /// The attack type the target must be using.
   /// Null means 'any' - matches all attack types.
   final CombatType? targetAttackType;
-
-  @override
-  List<Object?> get props => [character, thisAttackType, targetAttackType];
 }
 
 /// Condition that checks if an item has charges remaining.
@@ -232,9 +225,6 @@ class ItemChargeCondition extends ModifierCondition {
 
   /// The value to compare against.
   final int value;
-
-  @override
-  List<Object?> get props => [itemId, operator, value];
 }
 
 /// Condition that checks if an item exists in the bank with a certain count.
@@ -270,9 +260,6 @@ class BankItemCondition extends ModifierCondition {
 
   /// The value to compare the bank count against.
   final int value;
-
-  @override
-  List<Object?> get props => [itemId, operator, value];
 }
 
 /// Condition that checks if hitpoints are above/below a threshold.
@@ -307,9 +294,6 @@ class HitpointsCondition extends ModifierCondition {
 
   /// The HP percentage threshold (0-100).
   final int value;
-
-  @override
-  List<Object?> get props => [character, operator, value];
 }
 
 /// Condition that checks if affected by a combat effect group.
@@ -340,9 +324,6 @@ class CombatEffectGroupCondition extends ModifierCondition {
 
   /// The effect group ID (e.g., "melvorD:PoisonDOT", "melvorD:BurnDOT").
   final MelvorId groupId;
-
-  @override
-  List<Object?> get props => [character, groupId];
 }
 
 /// Condition that checks if fighting the assigned slayer task.
@@ -351,9 +332,6 @@ class CombatEffectGroupCondition extends ModifierCondition {
 @immutable
 class FightingSlayerTaskCondition extends ModifierCondition {
   const FightingSlayerTaskCondition();
-
-  @override
-  List<Object?> get props => [];
 }
 
 /// Condition that checks if a specific potion is being used.
@@ -377,9 +355,6 @@ class PotionUsedCondition extends ModifierCondition {
 
   /// The potion recipe ID that must be active.
   final MelvorId recipeId;
-
-  @override
-  List<Object?> get props => [recipeId];
 }
 
 /// Condition that requires ALL nested conditions to be true (logical AND).
@@ -408,9 +383,6 @@ class EveryCondition extends ModifierCondition {
 
   /// The conditions that must all be true.
   final List<ModifierCondition> conditions;
-
-  @override
-  List<Object?> get props => [conditions];
 }
 
 /// Condition that requires ANY nested condition to be true (logical OR).
@@ -439,14 +411,11 @@ class SomeCondition extends ModifierCondition {
 
   /// The conditions where at least one must be true.
   final List<ModifierCondition> conditions;
-
-  @override
-  List<Object?> get props => [conditions];
 }
 
 /// A modifier that only applies when its condition is met.
 @immutable
-class ConditionalModifier extends Equatable {
+class ConditionalModifier {
   const ConditionalModifier({
     required this.condition,
     required this.modifiers,
@@ -494,13 +463,4 @@ class ConditionalModifier extends Equatable {
 
   /// Localization key for the condition description.
   final String? descriptionLang;
-
-  @override
-  @override
-  List<Object?> get props => [
-    condition,
-    modifiers,
-    enemyModifiers,
-    descriptionLang,
-  ];
 }

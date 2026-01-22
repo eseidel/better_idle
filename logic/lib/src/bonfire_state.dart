@@ -62,10 +62,6 @@ class BonfireState {
   /// Returns true if no bonfire is active.
   bool get isEmpty => !isActive;
 
-  /// Returns the progress as a fraction (0.0 to 1.0).
-  double get progress =>
-      totalTicks > 0 ? (totalTicks - ticksRemaining) / totalTicks : 0.0;
-
   /// Returns the remaining duration as a Duration.
   Duration get remainingDuration => durationFromTicks(ticksRemaining);
 
