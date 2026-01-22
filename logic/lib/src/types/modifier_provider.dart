@@ -6,6 +6,7 @@ import 'package:logic/src/data/registries.dart';
 import 'package:logic/src/data/summoning_synergy.dart';
 import 'package:logic/src/state.dart';
 import 'package:logic/src/summoning_state.dart';
+import 'package:logic/src/types/conditional_modifier.dart';
 import 'package:logic/src/types/equipment.dart';
 import 'package:logic/src/types/inventory.dart';
 import 'package:logic/src/types/modifier.dart';
@@ -57,6 +58,127 @@ class _ScopeContext {
   }
 }
 
+/// Context for evaluating conditional modifier conditions.
+///
+/// This holds the combat/game state needed to evaluate whether a conditional
+/// modifier's condition is met. Fields are optional - if a condition requires
+/// state that isn't provided, the condition evaluates to false.
+class ConditionContext {
+  const ConditionContext({
+    this.playerAttackType,
+    this.enemyAttackType,
+    this.playerDamageType,
+    this.playerHpPercent,
+    this.enemyHpPercent,
+    this.itemCharges = const {},
+    this.bankItemCounts = const {},
+    this.activePotionRecipes = const {},
+    this.activeEffectGroups = const {},
+    this.isFightingSlayerTask = false,
+  });
+
+  /// Empty context - all conditions will fail except those that don't need
+  /// any state.
+  static const empty = ConditionContext();
+
+  /// The player's current attack type.
+  final CombatType? playerAttackType;
+
+  /// The enemy's current attack type.
+  final CombatType? enemyAttackType;
+
+  /// The player's current damage type (e.g., "melvorD:Normal").
+  final MelvorId? playerDamageType;
+
+  /// The player's current HP as a percentage (0-100).
+  final int? playerHpPercent;
+
+  /// The enemy's current HP as a percentage (0-100).
+  final int? enemyHpPercent;
+
+  /// Map of item ID to current charge count for equipped items.
+  final Map<MelvorId, int> itemCharges;
+
+  /// Map of item ID to count in the bank.
+  final Map<MelvorId, int> bankItemCounts;
+
+  /// Set of active potion recipe IDs.
+  final Set<MelvorId> activePotionRecipes;
+
+  /// Set of active combat effect group IDs on player/enemy.
+  /// Keys are like "Player:melvorD:PoisonDOT" or "Enemy:melvorD:BurnDOT".
+  final Set<String> activeEffectGroups;
+
+  /// Whether the player is currently fighting their slayer task monster.
+  final bool isFightingSlayerTask;
+
+  /// Evaluates whether a condition is met given this context.
+  bool evaluate(ModifierCondition condition) {
+    return switch (condition) {
+      final DamageTypeCondition c => _evaluateDamageType(c),
+      final CombatTypeCondition c => _evaluateCombatType(c),
+      final ItemChargeCondition c => _evaluateItemCharge(c),
+      final BankItemCondition c => _evaluateBankItem(c),
+      final HitpointsCondition c => _evaluateHitpoints(c),
+      final CombatEffectGroupCondition c => _evaluateEffectGroup(c),
+      FightingSlayerTaskCondition() => isFightingSlayerTask,
+      final PotionUsedCondition c => activePotionRecipes.contains(c.recipeId),
+      final EveryCondition c => c.conditions.every(evaluate),
+      final SomeCondition c => c.conditions.any(evaluate),
+    };
+  }
+
+  bool _evaluateDamageType(DamageTypeCondition c) {
+    if (c.character == ConditionCharacter.player) {
+      return playerDamageType == c.damageType;
+    }
+    // Enemy damage type not yet tracked
+    return false;
+  }
+
+  bool _evaluateCombatType(CombatTypeCondition c) {
+    final thisType = c.character == ConditionCharacter.player
+        ? playerAttackType
+        : enemyAttackType;
+    final targetType = c.character == ConditionCharacter.player
+        ? enemyAttackType
+        : playerAttackType;
+
+    if (thisType == null || targetType == null) return false;
+
+    // null in condition means 'any' - matches all types
+    final thisMatches =
+        c.thisAttackType == null || c.thisAttackType == thisType;
+    final targetMatches =
+        c.targetAttackType == null || c.targetAttackType == targetType;
+
+    return thisMatches && targetMatches;
+  }
+
+  bool _evaluateItemCharge(ItemChargeCondition c) {
+    final charges = itemCharges[c.itemId] ?? 0;
+    return c.operator.evaluate(charges, c.value);
+  }
+
+  bool _evaluateBankItem(BankItemCondition c) {
+    final count = bankItemCounts[c.itemId] ?? 0;
+    return c.operator.evaluate(count, c.value);
+  }
+
+  bool _evaluateHitpoints(HitpointsCondition c) {
+    final hp = c.character == ConditionCharacter.player
+        ? playerHpPercent
+        : enemyHpPercent;
+    if (hp == null) return false;
+    return c.operator.evaluate(hp, c.value);
+  }
+
+  bool _evaluateEffectGroup(CombatEffectGroupCondition c) {
+    final key = '${c.character.name}:${c.groupId.toJson()}';
+    return activeEffectGroups.contains(key);
+  }
+}
+
 /// Resolves modifier values on-demand with full context.
 ///
 /// Created fresh for each query context - holds references to sources but
@@ -84,6 +206,7 @@ class ModifierProvider with ModifierAccessors {
     required this.skillStateGetter,
     this.combatTypeSkills,
     this.currentActionId,
+    this.conditionContext = ConditionContext.empty,
   });
 
   final Registries registries;
@@ -108,6 +231,10 @@ class ModifierProvider with ModifierAccessors {
   /// This is separate from the actionId scope parameter because mastery
   /// lookups need the full ActionId, not just the local MelvorId.
   final ActionId? currentActionId;
+
+  /// Context for evaluating conditional modifiers (combat state, HP, etc.).
+  /// Defaults to empty context where all conditions evaluate to false.
+  final ConditionContext conditionContext;
 
   /// Internal method to get a modifier value by name and scope.
   /// Walks all modifier sources and sums matching entries.
@@ -236,6 +363,20 @@ class ModifierProvider with ModifierAccessors {
           final statValue = item.equipmentStats.getAsModifier(statModifier);
           if (statValue != null) {
             total += statValue;
+          }
+        }
+      }
+
+      // Conditional modifiers - only apply if condition is met
+      for (final condMod in item.conditionalModifiers) {
+        if (!conditionContext.evaluate(condMod.condition)) continue;
+
+        for (final mod in condMod.modifiers.modifiers) {
+          if (mod.name != name) continue;
+          for (final modEntry in mod.entries) {
+            if (scope.matches(modEntry.scope)) {
+              total += modEntry.value;
+            }
           }
         }
       }

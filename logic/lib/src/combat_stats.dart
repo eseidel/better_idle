@@ -2,6 +2,7 @@ import 'dart:math';
 
 import 'package:logic/src/data/actions.dart';
 import 'package:logic/src/state.dart';
+import 'package:logic/src/types/modifier_provider.dart';
 import 'package:meta/meta.dart';
 
 /// Combat triangle modifiers for a specific matchup.
@@ -157,7 +158,10 @@ class PlayerCombatStats extends Stats {
   /// Computes player stats from current game state.
   factory PlayerCombatStats.fromState(GlobalState state) {
     // Create modifier provider for combat-relevant modifiers
-    final bonuses = state.createCombatModifierProvider();
+    // TODO(eseidel): Pass real condition context for combat modifiers.
+    final bonuses = state.createCombatModifierProvider(
+      conditionContext: ConditionContext.empty,
+    );
     final attackStyle = state.attackStyle;
 
     // Get skill levels

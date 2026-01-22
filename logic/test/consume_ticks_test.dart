@@ -1720,7 +1720,9 @@ void main() {
 
     test('createModifierProvider returns zero when no purchases', () {
       final state = GlobalState.empty(testRegistries);
-      final modifiers = state.createGlobalModifierProvider();
+      final modifiers = state.createGlobalModifierProvider(
+        conditionContext: ConditionContext.empty,
+      );
 
       expect(modifiers.autoEatThreshold, 0);
       expect(modifiers.autoEatEfficiency, 0);

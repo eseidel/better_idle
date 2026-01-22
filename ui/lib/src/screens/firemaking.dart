@@ -497,7 +497,10 @@ class _LogCard extends StatelessWidget {
     final perAction = xpPerAction(
       state,
       action,
-      state.createActionModifierProvider(action),
+      state.createActionModifierProvider(
+        action,
+        conditionContext: ConditionContext.empty,
+      ),
     );
     final durationSeconds = action.minDuration.inSeconds;
 

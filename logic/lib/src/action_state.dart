@@ -5,8 +5,24 @@ import 'package:logic/src/data/xp.dart';
 import 'package:logic/src/tick.dart';
 import 'package:meta/meta.dart';
 
-/// Spawn time for monsters.
+/// Base spawn time for monsters (3 seconds).
 const Duration monsterSpawnDuration = Duration(seconds: 3);
+
+/// Minimum monster spawn time (0.25 seconds = 250ms).
+/// Even with maximum modifiers, spawn time cannot go below this.
+const int minMonsterSpawnTicks = 3; // 0.25 seconds at 100ms/tick rounded up
+
+/// Calculates the monster spawn ticks after applying modifiers.
+///
+/// [flatModifierMs] is the flatMonsterRespawnInterval modifier in milliseconds
+/// (negative values reduce spawn time, e.g., -200 means -0.2s).
+Tick calculateMonsterSpawnTicks(int flatModifierMs) {
+  final baseMs = monsterSpawnDuration.inMilliseconds;
+  final modifiedMs = baseMs + flatModifierMs;
+  // Convert to ticks (100ms per tick), clamping to minimum
+  final ticks = (modifiedMs / 100).ceil();
+  return ticks.clamp(minMonsterSpawnTicks, 1000); // Max ~100 seconds
+}
 
 /// Combat-specific state for fighting a monster.
 @immutable
@@ -22,7 +38,14 @@ class CombatActionState {
   });
 
   /// Start a new combat against a monster, beginning with a spawn timer.
-  factory CombatActionState.start(CombatAction action, Stats playerStats) {
+  ///
+  /// [spawnTicks] is the number of ticks until the monster spawns,
+  /// calculated using [calculateMonsterSpawnTicks] with modifiers.
+  factory CombatActionState.start(
+    CombatAction action,
+    Stats playerStats, {
+    required Tick spawnTicks,
+  }) {
     final playerAttackTicks = secondsToTicks(playerStats.attackSpeed);
     final monsterAttackTicks = secondsToTicks(action.stats.attackSpeed);
     return CombatActionState(
@@ -30,16 +53,20 @@ class CombatActionState {
       monsterHp: 0,
       playerAttackTicksRemaining: playerAttackTicks,
       monsterAttackTicksRemaining: monsterAttackTicks,
-      spawnTicksRemaining: ticksFromDuration(monsterSpawnDuration),
+      spawnTicksRemaining: spawnTicks,
     );
   }
 
   /// Start a new dungeon run, fighting monsters in order.
+  ///
+  /// [spawnTicks] is the number of ticks until the first monster spawns,
+  /// calculated using [calculateMonsterSpawnTicks] with modifiers.
   factory CombatActionState.startDungeon(
     CombatAction firstMonster,
     Stats playerStats,
-    MelvorId dungeonId,
-  ) {
+    MelvorId dungeonId, {
+    required Tick spawnTicks,
+  }) {
     final playerAttackTicks = secondsToTicks(playerStats.attackSpeed);
     final monsterAttackTicks = secondsToTicks(firstMonster.stats.attackSpeed);
     return CombatActionState(
@@ -47,7 +74,7 @@ class CombatActionState {
       monsterHp: 0,
       playerAttackTicksRemaining: playerAttackTicks,
       monsterAttackTicksRemaining: monsterAttackTicks,
-      spawnTicksRemaining: ticksFromDuration(monsterSpawnDuration),
+      spawnTicksRemaining: spawnTicks,
       dungeonId: dungeonId,
       dungeonMonsterIndex: 0,
     );
