@@ -79,21 +79,6 @@ class LootState {
   /// Returns all stacks for collection.
   List<ItemStack> get allStacks => List.from(stacks);
 
-  /// Removes specific stacks by indices.
-  LootState removeAtIndices(List<int> indices) {
-    final newStacks = List<ItemStack>.from(stacks);
-    // Remove in reverse order to preserve indices
-    (List<int>.from(
-      indices,
-    )..sort((a, b) => b.compareTo(a))).forEach(newStacks.removeAt);
-    return LootState(stacks: newStacks);
-  }
-
-  /// Returns a new LootState with the given stacks remaining.
-  LootState withStacks(List<ItemStack> remaining) {
-    return LootState(stacks: remaining);
-  }
-
   Map<String, dynamic> toJson() {
     if (isEmpty) {
       return {};

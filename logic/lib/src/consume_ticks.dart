@@ -623,7 +623,7 @@ class StateUpdateBuilder {
     }
 
     // Update loot with remaining items
-    _state = _state.copyWith(loot: _state.loot.withStacks(remainingStacks));
+    _state = _state.copyWith(loot: LootState(stacks: remainingStacks));
   }
 
   void addSkillXp(Skill skill, int amount) {
