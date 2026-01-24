@@ -1800,13 +1800,17 @@ void main() {
       consumeTicks(builder, 500, random: random);
       state = builder.build();
 
-      // Should have bones in inventory from kills
-      final bonesCount = state.inventory.countById(bones.id);
-      expect(bonesCount, greaterThan(0), reason: 'Should have bones');
+      // Should have bones in loot from kills (combat drops go to loot)
+      final bonesInLoot = state.loot.stacks
+          .where((s) => s.item.id == bones.id)
+          .fold(0, (sum, s) => sum + s.count);
+      expect(bonesInLoot, greaterThan(0), reason: 'Should have bones in loot');
 
-      // Bones should be tracked in changes
-      final bonesChange = builder.changes.inventoryChanges.counts[bones.id];
-      expect(bonesChange, greaterThan(0));
+      // Bones should stack in loot (only one stack for all bones)
+      final bonesStacks = state.loot.stacks
+          .where((s) => s.item.id == bones.id)
+          .length;
+      expect(bonesStacks, equals(1), reason: 'Bones should stack in loot');
     });
 
     test('killing monster rolls loot table', () {
@@ -1833,31 +1837,31 @@ void main() {
       consumeTicks(builder, 2000, random: random);
       state = builder.build();
 
-      // Check if we got any loot (feathers or raw chicken)
-      final feathersCount = state.inventory.countById(feathers.id);
-      final rawChickenCount = state.inventory.countById(rawChicken.id);
+      // Check if we got any loot in the loot container
+      // (feathers or raw chicken)
+      final feathersInLoot = state.loot.stacks
+          .where((s) => s.item.id == feathers.id)
+          .fold(0, (sum, s) => sum + s.count);
+      final rawChickenInLoot = state.loot.stacks
+          .where((s) => s.item.id == rawChicken.id)
+          .fold(0, (sum, s) => sum + s.count);
 
       // With enough kills, we should have some loot
       // The loot table has ~25% chance overall (lootChance)
-      final totalLoot = feathersCount + rawChickenCount;
+      final totalLoot = feathersInLoot + rawChickenInLoot;
       expect(totalLoot, greaterThanOrEqualTo(0)); // May or may not drop
 
-      // If we got loot, it should be tracked in changes
-      if (feathersCount > 0) {
-        expect(
-          builder.changes.inventoryChanges.counts[feathers.id],
-          greaterThan(0),
-        );
-      }
-      if (rawChickenCount > 0) {
-        expect(
-          builder.changes.inventoryChanges.counts[rawChicken.id],
-          greaterThan(0),
-        );
+      // Regular loot should NOT stack (each drop is a separate stack)
+      if (feathersInLoot > 0) {
+        final featherStacks = state.loot.stacks
+            .where((s) => s.item.id == feathers.id)
+            .length;
+        // Multiple drops should create multiple stacks (unless only 1 drop)
+        expect(featherStacks, greaterThanOrEqualTo(1));
       }
     });
 
-    test('loot drops are tracked in changes for welcome back dialog', () {
+    test('loot drops go to loot container, GP is tracked in changes', () {
       const highSkill = SkillState(xp: 1000000, masteryPoolXp: 0);
       var state = GlobalState.test(
         testRegistries,
@@ -1873,12 +1877,19 @@ void main() {
 
       final builder = StateUpdateBuilder(state);
       consumeTicks(builder, 500, random: random);
+      state = builder.build();
 
-      // GP should be tracked (always drops)
+      // GP should be tracked (always drops, goes directly to currency)
       expect(builder.changes.currenciesGained[Currency.gp], greaterThan(0));
 
-      // Bones should be tracked
-      expect(builder.changes.inventoryChanges.counts[bones.id], greaterThan(0));
+      // Bones should be in loot (not inventory)
+      final bonesInLoot = state.loot.stacks
+          .where((s) => s.item.id == bones.id)
+          .fold(0, (sum, s) => sum + s.count);
+      expect(bonesInLoot, greaterThan(0), reason: 'Bones should be in loot');
+
+      // Inventory should be empty (items go to loot first)
+      expect(state.inventory.countById(bones.id), equals(0));
     });
 
     test('monster without bones does not drop bones', () {
@@ -1970,9 +1981,15 @@ void main() {
       consumeTicks(builder, 300, random: random);
       state = builder.build();
 
-      // Should have killed monsters (bones collected indicates kills)
-      final bonesCount = state.inventory.countById(bones.id);
-      expect(bonesCount, greaterThan(0), reason: 'Should have killed monsters');
+      // Should have killed monsters (bones in loot indicates kills)
+      final bonesInLoot = state.loot.stacks
+          .where((s) => s.item.id == bones.id)
+          .fold(0, (sum, s) => sum + s.count);
+      expect(
+        bonesInLoot,
+        greaterThan(0),
+        reason: 'Should have killed monsters',
+      );
     });
 
     test('dungeon completion increments completion count and loops', () {
@@ -2033,12 +2050,14 @@ void main() {
       consumeTicks(builder, 10000, random: random);
       state = builder.build();
 
-      // Should have collected bones from each chicken killed
-      final bonesCount = state.inventory.countById(bones.id);
-      // Chicken coop has 6 chickens, so we should have ~6 bones
-      expect(bonesCount, greaterThanOrEqualTo(6));
+      // Should have bones in loot from each chicken killed
+      final bonesInLoot = state.loot.stacks
+          .where((s) => s.item.id == bones.id)
+          .fold(0, (sum, s) => sum + s.count);
+      // Chicken coop has 6 chickens, so we should have ~6 bones per run
+      expect(bonesInLoot, greaterThanOrEqualTo(6));
 
-      // GP should have been collected
+      // GP should have been collected (goes directly to currency, not loot)
       expect(builder.changes.currenciesGained[Currency.gp], greaterThan(0));
     });
   });

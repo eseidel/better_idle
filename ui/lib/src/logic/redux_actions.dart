@@ -202,6 +202,20 @@ class StopCombatAction extends ReduxAction<GlobalState> {
   }
 }
 
+/// Collects all loot from the loot container to inventory.
+/// Items that don't fit stay in loot.
+class CollectAllLootAction extends ReduxAction<GlobalState> {
+  @override
+  GlobalState? reduce() {
+    if (state.loot.isEmpty) {
+      return null;
+    }
+    final builder = StateUpdateBuilder(state);
+    builder.collectAllLoot();
+    return builder.build();
+  }
+}
+
 /// Starts a dungeon run, fighting monsters in order.
 class StartDungeonAction extends ReduxAction<GlobalState> {
   StartDungeonAction({required this.dungeon});

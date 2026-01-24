@@ -5,6 +5,7 @@ import 'package:better_idle/src/widgets/context_extensions.dart';
 import 'package:better_idle/src/widgets/equipment_slots.dart';
 import 'package:better_idle/src/widgets/game_scaffold.dart';
 import 'package:better_idle/src/widgets/hp_bar.dart';
+import 'package:better_idle/src/widgets/item_image.dart';
 import 'package:better_idle/src/widgets/monster_drops_dialog.dart';
 import 'package:better_idle/src/widgets/skill_image.dart';
 import 'package:better_idle/src/widgets/skills.dart';
@@ -108,10 +109,95 @@ class CombatPage extends StatelessWidget {
                   onPressed: () => context.dispatch(StopCombatAction()),
                   child: const Text('Run Away'),
                 ),
+              const SizedBox(height: 16),
+            ],
+
+            // Loot container (shown when there's loot)
+            if (state.hasLoot) ...[
+              _LootContainerCard(loot: state.loot),
               const SizedBox(height: 24),
             ],
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _LootContainerCard extends StatelessWidget {
+  const _LootContainerCard({required this.loot});
+
+  final LootState loot;
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                const Icon(Icons.inventory_2, size: 20),
+                const SizedBox(width: 8),
+                Text(
+                  'Loot (${loot.stackCount}/$maxLootStacks)',
+                  style: const TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const Spacer(),
+                ElevatedButton.icon(
+                  onPressed: () => context.dispatch(CollectAllLootAction()),
+                  icon: const Icon(Icons.download, size: 18),
+                  label: const Text('Loot All'),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            // Display loot items in a wrap
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                for (final stack in loot.stacks) _LootItemTile(stack: stack),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _LootItemTile extends StatelessWidget {
+  const _LootItemTile({required this.stack});
+
+  final ItemStack stack;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 60,
+      height: 70,
+      decoration: BoxDecoration(
+        color: Style.containerBackgroundFilled,
+        borderRadius: BorderRadius.circular(4),
+        border: Border.all(color: Style.iconColorDefault),
+      ),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          ItemImage(item: stack.item),
+          const SizedBox(height: 2),
+          Text(
+            '${stack.count}',
+            style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+            overflow: TextOverflow.ellipsis,
+          ),
+        ],
       ),
     );
   }
