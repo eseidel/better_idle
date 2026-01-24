@@ -5,6 +5,7 @@ import 'package:logic/src/data/melvor_id.dart';
 import 'package:logic/src/data/registries.dart';
 import 'package:logic/src/json.dart';
 import 'package:logic/src/types/inventory.dart';
+import 'package:logic/src/types/loot_state.dart';
 
 /// Reason why an action stopped during time away processing.
 enum ActionStopReason {
@@ -67,6 +68,7 @@ class TimeAway {
     this.stopReason = ActionStopReason.stillRunning,
     this.stoppedAfter,
     this.doublingChance = 0.0,
+    this.pendingLoot = const LootState.empty(),
   });
 
   factory TimeAway.fromJson(Registries registries, Map<String, dynamic> json) {
@@ -110,6 +112,9 @@ class TimeAway {
       stoppedAfter: stoppedAfterMs != null
           ? Duration(milliseconds: stoppedAfterMs)
           : null,
+      pendingLoot:
+          LootState.maybeFromJson(registries.items, json['pendingLoot']) ??
+          const LootState.empty(),
     );
   }
 
@@ -125,6 +130,7 @@ class TimeAway {
     ActionStopReason? stopReason,
     Duration? stoppedAfter,
     double? doublingChance,
+    LootState? pendingLoot,
   }) {
     return TimeAway(
       registries: registries,
@@ -138,6 +144,7 @@ class TimeAway {
       stopReason: stopReason ?? ActionStopReason.stillRunning,
       stoppedAfter: stoppedAfter,
       doublingChance: doublingChance ?? 0.0,
+      pendingLoot: pendingLoot ?? const LootState.empty(),
     );
   }
 
@@ -172,6 +179,9 @@ class TimeAway {
 
   /// The item doubling chance (0.0-1.0) from skillItemDoublingChance modifier.
   final double doublingChance;
+
+  /// Loot pending collection when the player returns.
+  final LootState pendingLoot;
 
   Duration get duration => endTime.difference(startTime);
 
@@ -284,6 +294,7 @@ class TimeAway {
     ActionStopReason? stopReason,
     Duration? stoppedAfter,
     double? doublingChance,
+    LootState? pendingLoot,
   }) {
     return TimeAway(
       registries: registries,
@@ -297,6 +308,7 @@ class TimeAway {
       stopReason: stopReason ?? this.stopReason,
       stoppedAfter: stoppedAfter ?? this.stoppedAfter,
       doublingChance: doublingChance ?? this.doublingChance,
+      pendingLoot: pendingLoot ?? this.pendingLoot,
     );
   }
 
@@ -340,6 +352,10 @@ class TimeAway {
     final mergedRecipeSelection = recipeSelection is SelectedRecipe
         ? recipeSelection
         : other.recipeSelection;
+    // Prefer the most recent pending loot (from this)
+    final mergedPendingLoot = pendingLoot.isNotEmpty
+        ? pendingLoot
+        : other.pendingLoot;
     return TimeAway(
       registries: registries,
       startTime: mergedStartTime,
@@ -352,6 +368,7 @@ class TimeAway {
       stopReason: mergedStopReason,
       stoppedAfter: mergedStoppedAfter,
       doublingChance: mergedDoublingChance,
+      pendingLoot: mergedPendingLoot,
     );
   }
 
@@ -369,6 +386,7 @@ class TimeAway {
       'changes': changes.toJson(),
       'stopReason': stopReason.name,
       'stoppedAfterMs': stoppedAfter?.inMilliseconds,
+      'pendingLoot': pendingLoot.isNotEmpty ? pendingLoot.toJson() : null,
     };
   }
 }
@@ -503,6 +521,7 @@ class Changes {
     this.potionsUsed = const Counts<MelvorId>.empty(),
     this.tabletsUsed = const Counts<MelvorId>.empty(),
     this.foodEaten = const Counts<MelvorId>.empty(),
+    this.lostFromLoot = const Counts<MelvorId>.empty(),
   });
   // We don't bother tracking mastery XP changes since they're not displayed
   // in the welcome back dialog.
@@ -522,6 +541,7 @@ class Changes {
         potionsUsed: const Counts<MelvorId>.empty(),
         tabletsUsed: const Counts<MelvorId>.empty(),
         foodEaten: const Counts<MelvorId>.empty(),
+        lostFromLoot: const Counts<MelvorId>.empty(),
       );
 
   factory Changes.fromJson(Map<String, dynamic> json) {
@@ -561,6 +581,9 @@ class Changes {
       foodEaten: Counts<MelvorId>.fromJson(
         json['foodEaten'] as Map<String, dynamic>? ?? {},
       ),
+      lostFromLoot: Counts<MelvorId>.fromJson(
+        json['lostFromLoot'] as Map<String, dynamic>? ?? {},
+      ),
     );
   }
 
@@ -599,6 +622,9 @@ class Changes {
   /// Food eaten during the time away, keyed by food item ID.
   final Counts<MelvorId> foodEaten;
 
+  /// Items lost due to loot container overflow (FIFO eviction).
+  final Counts<MelvorId> lostFromLoot;
+
   /// Helper to merge two currency maps.
   static Map<Currency, int> _mergeCurrencies(
     Map<Currency, int> a,
@@ -629,6 +655,7 @@ class Changes {
       potionsUsed: potionsUsed.add(other.potionsUsed),
       tabletsUsed: tabletsUsed.add(other.tabletsUsed),
       foodEaten: foodEaten.add(other.foodEaten),
+      lostFromLoot: lostFromLoot.add(other.lostFromLoot),
     );
   }
 
@@ -645,7 +672,8 @@ class Changes {
       marksFound.isEmpty &&
       potionsUsed.isEmpty &&
       tabletsUsed.isEmpty &&
-      foodEaten.isEmpty;
+      foodEaten.isEmpty &&
+      lostFromLoot.isEmpty;
 
   Changes copyWith({
     Counts<MelvorId>? inventoryChanges,
@@ -661,6 +689,7 @@ class Changes {
     Counts<MelvorId>? potionsUsed,
     Counts<MelvorId>? tabletsUsed,
     Counts<MelvorId>? foodEaten,
+    Counts<MelvorId>? lostFromLoot,
   }) {
     return Changes(
       inventoryChanges: inventoryChanges ?? this.inventoryChanges,
@@ -676,6 +705,7 @@ class Changes {
       potionsUsed: potionsUsed ?? this.potionsUsed,
       tabletsUsed: tabletsUsed ?? this.tabletsUsed,
       foodEaten: foodEaten ?? this.foodEaten,
+      lostFromLoot: lostFromLoot ?? this.lostFromLoot,
     );
   }
 
@@ -760,6 +790,13 @@ class Changes {
     return copyWith(foodEaten: foodEaten.addCount(foodId, count));
   }
 
+  /// Records items lost due to loot container overflow.
+  Changes losingFromLoot(ItemStack stack) {
+    return copyWith(
+      lostFromLoot: lostFromLoot.addCount(stack.item.id, stack.count),
+    );
+  }
+
   Map<String, dynamic> toJson() {
     return {
       'inventoryChanges': inventoryChanges.toJson(),
@@ -777,6 +814,7 @@ class Changes {
       'potionsUsed': potionsUsed.toJson(),
       'tabletsUsed': tabletsUsed.toJson(),
       'foodEaten': foodEaten.toJson(),
+      'lostFromLoot': lostFromLoot.toJson(),
     };
   }
 }

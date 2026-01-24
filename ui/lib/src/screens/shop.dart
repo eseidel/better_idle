@@ -213,8 +213,13 @@ class _ShopPageState extends State<ShopPage> {
   /// - <br> tags (line breaks)
   /// - <span class="text-warning"> tags (highlighted text in orange)
   InlineSpan _parseDescription(String description, {ShopPurchase? purchase}) {
-    // First, substitute template variables like ${qty1}, ${qty2}, etc.
+    // First, substitute template variables like ${qty}, ${qty1}, ${qty2}, etc.
     var processedDescription = description;
+
+    // TODO(eseidel): Consider adding a quantity selector.
+    // Replace ${qty} with 1 (we always purchase quantity 1, no qty selector)
+    processedDescription = processedDescription.replaceAll(r'${qty}', '1');
+
     if (purchase != null && purchase.contains.items.isNotEmpty) {
       for (var i = 0; i < purchase.contains.items.length; i++) {
         final quantity = purchase.contains.items[i].quantity;

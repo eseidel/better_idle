@@ -588,6 +588,44 @@ class StateUpdateBuilder {
     _changes = _changes.removing(stack);
   }
 
+  /// Adds an item to the loot container.
+  /// Items lost due to overflow are tracked in Changes.
+  void addToLoot(ItemStack stack, {required bool isBones}) {
+    final (newLoot, lostItems) = _state.loot.addItem(stack, isBones: isBones);
+    _state = _state.copyWith(loot: newLoot);
+
+    // Track any lost items due to overflow
+    for (final lost in lostItems) {
+      _changes = _changes.losingFromLoot(lost);
+    }
+  }
+
+  /// Collects all loot to inventory.
+  /// Items that don't fit stay in loot (don't disturb stacks).
+  void collectAllLoot() {
+    final stacks = _state.loot.allStacks;
+    final remainingStacks = <ItemStack>[];
+
+    for (final stack in stacks) {
+      final canAdd = _state.inventory.canAdd(
+        stack.item,
+        capacity: _state.inventoryCapacity,
+      );
+
+      if (canAdd) {
+        // Add to inventory
+        _state = _state.copyWith(inventory: _state.inventory.adding(stack));
+        _changes = _changes.adding(stack);
+      } else {
+        // Can't fit - keep in loot
+        remainingStacks.add(stack);
+      }
+    }
+
+    // Update loot with remaining items
+    _state = _state.copyWith(loot: LootState(stacks: remainingStacks));
+  }
+
   void addSkillXp(Skill skill, int amount) {
     final oldLevel = _state.skillState(skill).skillLevel;
 
@@ -1906,19 +1944,19 @@ enum ForegroundResult {
     final gpDrop = action.rollGpDrop(random);
     builder.addCurrency(Currency.gp, gpDrop);
 
-    // Drop bones if the monster has them
+    // Drop bones if the monster has them (bones stack in loot)
     final bones = action.bones;
     if (bones != null) {
       final item = builder.registries.items.byId(bones.itemId);
-      builder.addInventory(ItemStack(item, count: bones.quantity));
+      builder.addToLoot(ItemStack(item, count: bones.quantity), isBones: true);
     }
 
-    // Roll loot table if present
+    // Roll loot table if present (regular loot does NOT stack)
     final lootTable = action.lootTable;
     if (lootTable != null) {
       final loot = lootTable.roll(builder.registries.items, random);
       if (loot != null) {
-        builder.addInventory(loot);
+        builder.addToLoot(loot, isBones: false);
       }
     }
 
@@ -2309,6 +2347,7 @@ ConsumeTicksStopReason consumeTicksUntil(
     stopReason: builder.stopReason,
     stoppedAfter: stoppedAfter,
     doublingChance: doublingChance,
+    pendingLoot: builder.state.loot,
   );
   return (timeAway, builder.build());
 }

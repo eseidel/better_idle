@@ -25,6 +25,7 @@ import 'package:logic/src/types/equipment.dart';
 import 'package:logic/src/types/equipment_slot.dart';
 import 'package:logic/src/types/health.dart';
 import 'package:logic/src/types/inventory.dart';
+import 'package:logic/src/types/loot_state.dart';
 import 'package:logic/src/types/modifier_provider.dart';
 import 'package:logic/src/types/open_result.dart';
 import 'package:logic/src/types/stunned.dart';
@@ -302,6 +303,7 @@ class GlobalState {
     this.summoning = const SummoningState.empty(),
     this.township = const TownshipState.empty(),
     this.bonfire = const BonfireState.empty(),
+    this.loot = const LootState.empty(),
   });
 
   GlobalState.empty(Registries registries)
@@ -356,6 +358,7 @@ class GlobalState {
     SummoningState summoning = const SummoningState.empty(),
     TownshipState? township,
     BonfireState bonfire = const BonfireState.empty(),
+    LootState loot = const LootState.empty(),
   }) {
     // Support both gp parameter (for existing tests) and currencies map
     final currenciesMap = currencies ?? (gp > 0 ? {Currency.gp: gp} : const {});
@@ -384,6 +387,7 @@ class GlobalState {
       summoning: summoning,
       township: township ?? TownshipState.initial(registries.township),
       bonfire: bonfire,
+      loot: loot,
     );
   }
 
@@ -456,7 +460,10 @@ class GlobalState {
           TownshipState.initial(registries.township),
       bonfire =
           BonfireState.maybeFromJson(json['bonfire']) ??
-          const BonfireState.empty();
+          const BonfireState.empty(),
+      loot =
+          LootState.maybeFromJson(registries.items, json['loot']) ??
+          const LootState.empty();
 
   /// Parses activeActivity from JSON.
   static ActiveActivity? _parseActiveActivity(Map<String, dynamic> json) {
@@ -572,6 +579,7 @@ class GlobalState {
       'summoning': summoning.toJson(),
       'township': township.toJson(),
       'bonfire': bonfire.toJson(),
+      'loot': loot.toJson(),
     };
   }
 
@@ -689,6 +697,9 @@ class GlobalState {
 
   /// The bonfire state (active bonfire for firemaking XP bonus).
   final BonfireState bonfire;
+
+  /// The combat loot container (items dropped but not yet collected).
+  final LootState loot;
 
   /// The player's health state.
   final HealthState health;
@@ -842,6 +853,9 @@ class GlobalState {
 
   /// Returns true if the inventory is at capacity (no more slots available).
   bool get isInventoryFull => inventoryUsed >= inventoryCapacity;
+
+  /// Returns true if there is loot waiting to be collected.
+  bool get hasLoot => loot.isNotEmpty;
 
   /// Returns true if all required inputs for the action are available.
   bool canStartAction(Action action) {
@@ -1286,53 +1300,49 @@ class GlobalState {
       updatedCooking = cooking.withAllProgressCleared();
     }
 
-    // This can't be copyWith since null means no-update.
-    return GlobalState(
-      registries: registries,
-      inventory: inventory,
-      shop: shop,
-      activeActivity: null,
-      skillStates: skillStates,
-      actionStates: actionStates,
-      plotStates: plotStates,
-      unlockedPlots: unlockedPlots,
-      dungeonCompletions: dungeonCompletions,
-      itemCharges: itemCharges,
-      updatedAt: DateTime.timestamp(),
-      currencies: currencies,
-      health: health,
-      equipment: equipment,
-      stunned: stunned,
-      attackStyle: attackStyle,
+    return _copyWithNullable(
+      clearActiveActivity: true,
       cooking: updatedCooking,
-      summoning: summoning,
-      township: township,
-      bonfire: bonfire,
     );
   }
 
   GlobalState clearTimeAway() {
-    // This can't be copyWith since null means no-update.
+    return _copyWithNullable(clearTimeAway: true);
+  }
+
+  /// Like [copyWith] but allows explicitly setting fields to null.
+  /// Fields not specified retain their current values.
+  GlobalState _copyWithNullable({
+    CookingState? cooking,
+    bool clearActiveActivity = false,
+    bool clearTimeAway = false,
+  }) {
     return GlobalState(
       registries: registries,
       inventory: inventory,
-      activeActivity: activeActivity,
+      activeActivity: clearActiveActivity ? null : activeActivity,
       skillStates: skillStates,
       actionStates: actionStates,
+      miningState: miningState,
       plotStates: plotStates,
       unlockedPlots: unlockedPlots,
       dungeonCompletions: dungeonCompletions,
       itemCharges: itemCharges,
+      selectedPotions: selectedPotions,
+      potionChargesUsed: potionChargesUsed,
       updatedAt: DateTime.timestamp(),
       currencies: currencies,
+      timeAway: clearTimeAway ? null : timeAway,
       shop: shop,
       health: health,
       equipment: equipment,
       stunned: stunned,
       attackStyle: attackStyle,
+      cooking: cooking ?? this.cooking,
       summoning: summoning,
       township: township,
       bonfire: bonfire,
+      loot: loot,
     );
   }
 
@@ -2508,6 +2518,7 @@ class GlobalState {
     SummoningState? summoning,
     TownshipState? township,
     BonfireState? bonfire,
+    LootState? loot,
   }) {
     return GlobalState(
       registries: registries,
@@ -2534,6 +2545,7 @@ class GlobalState {
       summoning: summoning ?? this.summoning,
       township: township ?? this.township,
       bonfire: bonfire ?? this.bonfire,
+      loot: loot ?? this.loot,
     );
   }
 
