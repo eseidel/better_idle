@@ -360,6 +360,40 @@ class DestroyAgilityObstacleAction extends ReduxAction<GlobalState> {
   }
 }
 
+/// Starts running the agility course.
+/// Completes obstacles in sequence, looping when the course ends.
+class StartAgilityCourseAction extends ReduxAction<GlobalState> {
+  @override
+  GlobalState? reduce() {
+    // If stunned, do nothing
+    if (state.isStunned) {
+      return null;
+    }
+    // If course is already running, do nothing
+    if (state.activeActivity is AgilityActivity) {
+      return null;
+    }
+    // Start the course
+    final random = Random();
+    return state.startAgilityCourse(random: random);
+  }
+}
+
+/// Stops running the agility course.
+class StopAgilityCourseAction extends ReduxAction<GlobalState> {
+  @override
+  GlobalState? reduce() {
+    // If not running agility course, do nothing
+    if (state.activeActivity is! AgilityActivity) {
+      return null;
+    }
+    // Stop and reset progress
+    return state.clearAction().copyWith(
+      agility: state.agility.withProgressReset(),
+    );
+  }
+}
+
 // Debug actions
 
 /// Fills inventory with random items (one of each type not already present).

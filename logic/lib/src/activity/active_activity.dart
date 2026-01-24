@@ -1,4 +1,5 @@
 import 'package:logic/src/activity/combat_context.dart';
+import 'package:logic/src/data/action_id.dart';
 import 'package:logic/src/data/actions.dart';
 import 'package:logic/src/data/melvor_id.dart';
 import 'package:logic/src/tick.dart';
@@ -9,6 +10,7 @@ import 'package:meta/meta.dart';
 /// Provides a type-safe model:
 /// - [SkillActivity] for skill-based actions (woodcutting, mining, etc.)
 /// - [CombatActivity] for combat (monsters, dungeons)
+/// - [AgilityActivity] for running an agility course (sequence of obstacles)
 ///
 /// The key insight is that switching between skills is a top-level state
 /// change, while switching within a skill (e.g., different recipes, different
@@ -40,6 +42,7 @@ sealed class ActiveActivity {
     return switch (type) {
       'skill' => SkillActivity.fromJson(json),
       'combat' => CombatActivity.fromJson(json),
+      'agility' => AgilityActivity.fromJson(json),
       _ => throw ArgumentError('Unknown activity type: $type'),
     };
   }
@@ -238,6 +241,94 @@ class CombatProgressState {
       'monsterAttackTicksRemaining': monsterAttackTicksRemaining,
       if (spawnTicksRemaining != null)
         'spawnTicksRemaining': spawnTicksRemaining,
+    };
+  }
+}
+
+/// Activity state for running an agility course.
+///
+/// This represents actively running through a sequence of obstacles.
+/// Like dungeons, the course loops through obstacles in order.
+/// XP and GP are awarded after each obstacle completes.
+@immutable
+class AgilityActivity extends ActiveActivity {
+  const AgilityActivity({
+    required this.obstacleIds,
+    required this.currentObstacleIndex,
+    required super.progressTicks,
+    required super.totalTicks,
+  });
+
+  factory AgilityActivity.fromJson(Map<String, dynamic> json) {
+    return AgilityActivity(
+      obstacleIds: (json['obstacleIds'] as List<dynamic>)
+          .map((e) => ActionId.fromJson(e as String))
+          .toList(),
+      currentObstacleIndex: json['currentObstacleIndex'] as int,
+      progressTicks: json['progressTicks'] as int,
+      totalTicks: json['totalTicks'] as int,
+    );
+  }
+
+  /// The list of obstacle ActionIds in the course, in slot order.
+  final List<ActionId> obstacleIds;
+
+  /// The current obstacle index (0-based).
+  final int currentObstacleIndex;
+
+  /// Returns the ActionId of the current obstacle.
+  ActionId get currentObstacleId => obstacleIds[currentObstacleIndex];
+
+  /// Returns true if currently on the last obstacle in the course.
+  bool get isLastObstacle => currentObstacleIndex == obstacleIds.length - 1;
+
+  /// Returns the total number of obstacles in the course.
+  int get obstacleCount => obstacleIds.length;
+
+  /// Returns a new activity with the obstacle index advanced by one.
+  /// Wraps around to 0 if at the end (for course restart).
+  AgilityActivity advanceToNextObstacle({required int newTotalTicks}) {
+    final nextIndex = (currentObstacleIndex + 1) % obstacleIds.length;
+    return AgilityActivity(
+      obstacleIds: obstacleIds,
+      currentObstacleIndex: nextIndex,
+      progressTicks: 0,
+      totalTicks: newTotalTicks,
+    );
+  }
+
+  @override
+  AgilityActivity withProgress({required Tick progressTicks}) {
+    return AgilityActivity(
+      obstacleIds: obstacleIds,
+      currentObstacleIndex: currentObstacleIndex,
+      progressTicks: progressTicks,
+      totalTicks: totalTicks,
+    );
+  }
+
+  AgilityActivity copyWith({
+    List<ActionId>? obstacleIds,
+    int? currentObstacleIndex,
+    Tick? progressTicks,
+    Tick? totalTicks,
+  }) {
+    return AgilityActivity(
+      obstacleIds: obstacleIds ?? this.obstacleIds,
+      currentObstacleIndex: currentObstacleIndex ?? this.currentObstacleIndex,
+      progressTicks: progressTicks ?? this.progressTicks,
+      totalTicks: totalTicks ?? this.totalTicks,
+    );
+  }
+
+  @override
+  Map<String, dynamic> toJson() {
+    return {
+      'type': 'agility',
+      'obstacleIds': obstacleIds.map((e) => e.toJson()).toList(),
+      'currentObstacleIndex': currentObstacleIndex,
+      'progressTicks': progressTicks,
+      'totalTicks': totalTicks,
     };
   }
 }

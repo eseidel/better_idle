@@ -611,6 +611,7 @@ class GlobalState {
         Skill.combat.id,
         context.currentMonsterId,
       ),
+      AgilityActivity(:final currentObstacleId) => currentObstacleId,
     };
   }
 
@@ -851,6 +852,7 @@ class GlobalState {
       null => null,
       SkillActivity(:final skill) => skill,
       CombatActivity() => Skill.combat,
+      AgilityActivity() => Skill.agility,
     };
   }
 
@@ -1265,6 +1267,56 @@ class GlobalState {
         totalTicks: totalTicks,
       ),
       actionStates: newActionStates,
+      cooking: updatedCooking,
+    );
+  }
+
+  /// Starts running an agility course, completing obstacles in sequence.
+  ///
+  /// The first built obstacle starts immediately. After each obstacle
+  /// completes, the next one starts automatically. When the last obstacle
+  /// completes, the course restarts from the first obstacle.
+  ///
+  /// Returns null if no obstacles are built in the course.
+  GlobalState? startAgilityCourse({required Random random}) {
+    if (isStunned) {
+      throw const StunnedException('Cannot start course while stunned');
+    }
+
+    // Get the list of built obstacles in slot order
+    final obstacleIds = agility.builtObstacles;
+    if (obstacleIds.isEmpty) {
+      return null;
+    }
+
+    // Reset cooking progress if switching from cooking
+    var updatedCooking = cooking;
+    final activeActionId = currentActionId;
+    final isSwitchingFromCooking = activeActionId?.skillId == Skill.cooking.id;
+    if (isSwitchingFromCooking) {
+      updatedCooking = cooking.withAllProgressCleared();
+    }
+
+    // Get the first obstacle
+    final firstObstacleId = obstacleIds.first;
+    final firstObstacle = registries.agility.byId(firstObstacleId.localId)!;
+    final totalTicks = rollDurationWithModifiers(
+      firstObstacle,
+      random,
+      registries.shop,
+    );
+
+    // Reset course progress to start
+    final updatedAgility = agility.withProgressReset();
+
+    return copyWith(
+      activeActivity: AgilityActivity(
+        obstacleIds: obstacleIds,
+        currentObstacleIndex: 0,
+        progressTicks: 0,
+        totalTicks: totalTicks,
+      ),
+      agility: updatedAgility,
       cooking: updatedCooking,
     );
   }

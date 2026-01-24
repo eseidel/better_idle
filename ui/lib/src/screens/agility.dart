@@ -180,20 +180,7 @@ class _CourseSummaryHeader extends StatelessWidget {
                 icon: const Icon(Icons.list_alt, size: 18),
                 label: const Text('View Global Modifiers'),
               ),
-              ElevatedButton.icon(
-                onPressed: hasBuiltObstacles
-                    ? () {
-                        // TODO(eseidel): Implement course start/stop.
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text('Course running not yet implemented'),
-                          ),
-                        );
-                      }
-                    : null,
-                icon: const Icon(Icons.play_arrow, size: 18),
-                label: const Text('Start Course'),
-              ),
+              _CourseActionButton(hasBuiltObstacles: hasBuiltObstacles),
             ],
           ),
         ],
@@ -206,6 +193,40 @@ class _CourseSummaryHeader extends StatelessWidget {
       context: context,
       builder: (dialogContext) =>
           _GlobalModifiersDialog(builtObstacles: builtObstacles),
+    );
+  }
+}
+
+/// Button to start/stop the agility course.
+class _CourseActionButton extends StatelessWidget {
+  const _CourseActionButton({required this.hasBuiltObstacles});
+
+  final bool hasBuiltObstacles;
+
+  @override
+  Widget build(BuildContext context) {
+    final state = context.state;
+    final isRunning = state.activeActivity is AgilityActivity;
+
+    if (isRunning) {
+      return ElevatedButton.icon(
+        onPressed: () {
+          context.dispatch(StopAgilityCourseAction());
+        },
+        style: ElevatedButton.styleFrom(backgroundColor: Colors.red.shade700),
+        icon: const Icon(Icons.stop, size: 18),
+        label: const Text('Stop Course'),
+      );
+    }
+
+    return ElevatedButton.icon(
+      onPressed: hasBuiltObstacles
+          ? () {
+              context.dispatch(StartAgilityCourseAction());
+            }
+          : null,
+      icon: const Icon(Icons.play_arrow, size: 18),
+      label: const Text('Start Course'),
     );
   }
 }

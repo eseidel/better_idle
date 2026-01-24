@@ -975,6 +975,16 @@ class StateUpdateBuilder {
     _changes = _changes.recordingDungeonCompletion(dungeonId);
   }
 
+  /// Updates the agility state.
+  void setAgility(AgilityState agility) {
+    _state = _state.copyWith(agility: agility);
+  }
+
+  /// Updates the active agility activity to the next obstacle.
+  void advanceAgilityObstacle(AgilityActivity newActivity) {
+    _state = _state.copyWith(activeActivity: newActivity);
+  }
+
   /// Records that a tablet was crafted for a familiar.
   /// This unblocks further mark discovery for that familiar.
   void markTabletCrafted(MelvorId familiarId) {
@@ -2097,6 +2107,92 @@ enum ForegroundResult {
   return (ForegroundResult.continued, ticksConsumed);
 }
 
+/// Processes one iteration of an AgilityActivity foreground.
+/// Returns how many ticks were consumed and whether to continue.
+(ForegroundResult, Tick) _processAgilityForeground(
+  StateUpdateBuilder builder,
+  AgilityObstacle obstacle,
+  AgilityActivity activity,
+  Tick ticksAvailable,
+  Random random,
+) {
+  // Process obstacle progress
+  final ticksToApply = min(ticksAvailable, activity.remainingTicks);
+  final newRemainingTicks = activity.remainingTicks - ticksToApply;
+
+  // Update progress
+  final updatedActivity = activity.copyWith(
+    progressTicks: activity.progressTicks + ticksToApply,
+  );
+  builder
+    .._state = builder._state.copyWith(activeActivity: updatedActivity)
+    ..addActionTicks(obstacle.id, ticksToApply);
+
+  if (newRemainingTicks <= 0) {
+    // Obstacle completed - award XP, mastery, and currency
+    final modifiers = builder.state.createActionModifierProvider(
+      obstacle,
+      conditionContext: ConditionContext.empty,
+    );
+    final perAction = xpPerAction(builder.state, obstacle, modifiers);
+
+    builder
+      ..addSkillXp(Skill.agility, perAction.xp)
+      ..addActionMasteryXp(obstacle.id, perAction.masteryXp)
+      ..addSkillMasteryXp(Skill.agility, perAction.masteryPoolXp);
+
+    // Award currency rewards (e.g., GP from obstacle)
+    for (final reward in obstacle.currencyRewards) {
+      final currencyGainMod = modifiers.currencyGain(
+        skillId: Skill.agility.id,
+        actionId: obstacle.id.localId,
+      );
+      final adjustedAmount = (reward.amount * (1.0 + currencyGainMod / 100.0))
+          .round();
+      builder.addCurrency(reward.currency, adjustedAmount);
+    }
+
+    // Roll for summoning mark discovery
+    _rollMarkDiscovery(builder, obstacle, random);
+
+    // Advance to next obstacle
+    final nextIndex =
+        (activity.currentObstacleIndex + 1) % activity.obstacleCount;
+    final nextObstacleId = activity.obstacleIds[nextIndex];
+    final nextObstacle = builder.registries.agility.byId(
+      nextObstacleId.localId,
+    );
+    if (nextObstacle == null) {
+      // Obstacle no longer exists (was destroyed) - stop course
+      builder.stopAction(ActionStopReason.outOfInputs);
+      return (ForegroundResult.stopped, ticksToApply);
+    }
+
+    // Roll duration for next obstacle with modifiers
+    final nextTotalTicks = builder.state.rollDurationWithModifiers(
+      nextObstacle,
+      random,
+      builder.registries.shop,
+    );
+
+    // Update agility state to track current obstacle index
+    builder.setAgility(
+      builder.state.agility.copyWith(currentObstacleIndex: nextIndex),
+    );
+
+    // Advance activity to next obstacle
+    final newActivity = activity.advanceToNextObstacle(
+      newTotalTicks: nextTotalTicks,
+    );
+    builder.advanceAgilityObstacle(newActivity);
+
+    return (ForegroundResult.continued, ticksToApply);
+  }
+
+  // Obstacle still in progress
+  return (ForegroundResult.continued, ticksToApply);
+}
+
 /// Dispatches foreground processing based on activity type.
 ///
 /// Uses pattern matching on [ActiveActivity] sealed class for type-safe
@@ -2124,6 +2220,14 @@ enum ForegroundResult {
       ticksAvailable,
       random,
     ),
+    AgilityActivity() when action is AgilityObstacle =>
+      _processAgilityForeground(
+        builder,
+        action,
+        activity,
+        ticksAvailable,
+        random,
+      ),
     // Fallback for mismatched state (shouldn't happen in normal operation)
     _ => throw StateError(
       'Activity/action type mismatch: '
