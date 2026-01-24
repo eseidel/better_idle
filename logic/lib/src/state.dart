@@ -1300,53 +1300,49 @@ class GlobalState {
       updatedCooking = cooking.withAllProgressCleared();
     }
 
-    // This can't be copyWith since null means no-update.
-    return GlobalState(
-      registries: registries,
-      inventory: inventory,
-      shop: shop,
-      activeActivity: null,
-      skillStates: skillStates,
-      actionStates: actionStates,
-      plotStates: plotStates,
-      unlockedPlots: unlockedPlots,
-      dungeonCompletions: dungeonCompletions,
-      itemCharges: itemCharges,
-      updatedAt: DateTime.timestamp(),
-      currencies: currencies,
-      health: health,
-      equipment: equipment,
-      stunned: stunned,
-      attackStyle: attackStyle,
+    return _copyWithNullable(
+      clearActiveActivity: true,
       cooking: updatedCooking,
-      summoning: summoning,
-      township: township,
-      bonfire: bonfire,
     );
   }
 
   GlobalState clearTimeAway() {
-    // This can't be copyWith since null means no-update.
+    return _copyWithNullable(clearTimeAway: true);
+  }
+
+  /// Like [copyWith] but allows explicitly setting fields to null.
+  /// Fields not specified retain their current values.
+  GlobalState _copyWithNullable({
+    CookingState? cooking,
+    bool clearActiveActivity = false,
+    bool clearTimeAway = false,
+  }) {
     return GlobalState(
       registries: registries,
       inventory: inventory,
-      activeActivity: activeActivity,
+      activeActivity: clearActiveActivity ? null : activeActivity,
       skillStates: skillStates,
       actionStates: actionStates,
+      miningState: miningState,
       plotStates: plotStates,
       unlockedPlots: unlockedPlots,
       dungeonCompletions: dungeonCompletions,
       itemCharges: itemCharges,
+      selectedPotions: selectedPotions,
+      potionChargesUsed: potionChargesUsed,
       updatedAt: DateTime.timestamp(),
       currencies: currencies,
+      timeAway: clearTimeAway ? null : timeAway,
       shop: shop,
       health: health,
       equipment: equipment,
       stunned: stunned,
       attackStyle: attackStyle,
+      cooking: cooking ?? this.cooking,
       summoning: summoning,
       township: township,
       bonfire: bonfire,
+      loot: loot,
     );
   }
 
