@@ -12,6 +12,7 @@ import 'package:logic/src/types/equipment_slot.dart';
 import 'package:logic/src/types/mastery.dart';
 import 'package:logic/src/types/mastery_pool_bonus.dart';
 import 'package:logic/src/types/mastery_unlock.dart';
+import 'package:logic/src/types/modifier_metadata.dart';
 import 'package:meta/meta.dart';
 
 /// A skill data entry from a single data file, with its namespace preserved.
@@ -188,6 +189,9 @@ class MelvorData {
 
     // Parse skill drops from all sources
     _drops = buildDropsRegistry(skillDataById, dataFiles);
+
+    // Parse modifier metadata (display format definitions)
+    _modifierMetadata = parseModifierMetadata(dataFiles);
   }
 
   /// Loads MelvorData from the cache, fetching from CDN if needed.
@@ -240,6 +244,7 @@ class MelvorData {
   late final SummoningSynergyRegistry _summoningSynergies;
   late final TownshipRegistry _township;
   late final DropsRegistry _drops;
+  late final ModifierMetadataRegistry _modifierMetadata;
 
   /// Creates a Registries instance from this MelvorData.
   Registries toRegistries() {
@@ -271,6 +276,7 @@ class MelvorData {
       summoningSynergies: _summoningSynergies,
       township: _township,
       bankSortIndex: _bankSortIndex,
+      modifierMetadata: _modifierMetadata,
     );
   }
 }
@@ -1358,4 +1364,27 @@ DropsRegistry buildDropsRegistry(
   final miningGems = DropChance(randomGems, rate: 0.01);
 
   return DropsRegistry(skillDrops, miningGems: miningGems);
+}
+
+/// Parses modifier metadata (display format definitions) from data files.
+ModifierMetadataRegistry parseModifierMetadata(
+  List<Map<String, dynamic>> dataFiles,
+) {
+  final modifiers = <ModifierMetadata>[];
+
+  for (final json in dataFiles) {
+    final data = json['data'] as Map<String, dynamic>?;
+    if (data == null) continue;
+
+    final modifiersJson = data['modifiers'] as List<dynamic>?;
+    if (modifiersJson == null) continue;
+
+    for (final modifierJson in modifiersJson) {
+      modifiers.add(
+        ModifierMetadata.fromJson(modifierJson as Map<String, dynamic>),
+      );
+    }
+  }
+
+  return ModifierMetadataRegistry(modifiers);
 }

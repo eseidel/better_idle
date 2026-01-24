@@ -51,6 +51,17 @@ enum Currency {
     }
     throw ArgumentError('Unknown currency ID: $idString');
   }
+
+  /// Look up a currency by its [MelvorId].
+  /// Throws if not found.
+  static Currency fromId(MelvorId id) {
+    for (final currency in Currency.values) {
+      if (currency.id == id) {
+        return currency;
+      }
+    }
+    throw ArgumentError('Unknown currency ID: $id');
+  }
 }
 
 /// A stack of currency with an amount.

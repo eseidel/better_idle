@@ -2,6 +2,7 @@ import 'package:logic/src/data/action_id.dart';
 import 'package:logic/src/data/actions.dart';
 import 'package:logic/src/data/currency.dart';
 import 'package:logic/src/data/melvor_id.dart';
+import 'package:logic/src/types/modifier.dart';
 import 'package:meta/meta.dart';
 
 /// An agility obstacle that can be built in a course slot.
@@ -20,6 +21,7 @@ class AgilityObstacle extends SkillAction {
     this.media,
     this.currencyCosts = CurrencyCosts.empty,
     this.currencyRewards = const [],
+    this.modifiers = const ModifierDataSet([]),
     super.inputs = const {},
   }) : super(skill: Skill.agility, outputs: const {});
 
@@ -56,6 +58,12 @@ class AgilityObstacle extends SkillAction {
       throw ArgumentError('itemRewards are not supported: $itemRewards');
     }
 
+    // Parse modifiers (passive bonuses while obstacle is built)
+    final modifiersJson = json['modifiers'] as Map<String, dynamic>?;
+    final modifiers = modifiersJson != null
+        ? ModifierDataSet.fromJson(modifiersJson, namespace: namespace)
+        : const ModifierDataSet([]);
+
     final localId = MelvorId.fromJsonWithNamespace(
       json['id'] as String,
       defaultNamespace: namespace,
@@ -89,6 +97,7 @@ class AgilityObstacle extends SkillAction {
       inputs: inputs,
       currencyCosts: currencyCosts,
       currencyRewards: currencyRewards,
+      modifiers: modifiers,
     );
   }
 
@@ -103,6 +112,10 @@ class AgilityObstacle extends SkillAction {
 
   /// Currency rewards for completing this obstacle.
   final List<CurrencyStack> currencyRewards;
+
+  /// Passive modifiers applied while this obstacle is built in a course.
+  /// These can be positive or negative bonuses that affect the game globally.
+  final ModifierDataSet modifiers;
 }
 
 /// An agility course configuration.

@@ -139,3 +139,22 @@ String signedPercentToString(double value) {
   }
   return percentToString(value);
 }
+
+/// Formats a modifier name from camelCase to readable format.
+///
+/// Examples:
+/// - "skillXP" → "Skill XP"
+/// - "currencyGain" → "Currency Gain"
+/// - "masteryXP" → "Mastery XP"
+String formatModifierName(String name) {
+  final result = StringBuffer();
+  for (var i = 0; i < name.length; i++) {
+    final char = name[i];
+    // Add space before uppercase letters (but not at the start)
+    if (i > 0 && char.toUpperCase() == char && char.toLowerCase() != char) {
+      result.write(' ');
+    }
+    result.write(i == 0 ? char.toUpperCase() : char);
+  }
+  return result.toString();
+}

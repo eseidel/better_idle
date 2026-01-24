@@ -13,6 +13,7 @@ import 'package:logic/src/types/equipment_slot.dart';
 import 'package:logic/src/types/mastery.dart';
 import 'package:logic/src/types/mastery_pool_bonus.dart';
 import 'package:logic/src/types/mastery_unlock.dart';
+import 'package:logic/src/types/modifier_metadata.dart';
 import 'package:meta/meta.dart';
 
 /// Compares two values by their index in a sort map.
@@ -56,6 +57,7 @@ class Registries {
     required this.masteryPoolBonuses,
     required this.summoningSynergies,
     required this.township,
+    required this.modifierMetadata,
     required Map<MelvorId, int> bankSortIndex,
   }) : _bankSortIndex = bankSortIndex,
        _testActions = null;
@@ -69,6 +71,7 @@ class Registries {
     MasteryPoolBonusRegistry? masteryPoolBonuses,
     SummoningSynergyRegistry? summoningSynergies,
     TownshipRegistry? township,
+    AgilityRegistry? agility,
     Map<MelvorId, int>? bankSortIndex,
   }) {
     // For tests, we store actions in a separate list that overrides
@@ -89,6 +92,14 @@ class Registries {
       summoningSynergies:
           summoningSynergies ?? const SummoningSynergyRegistry([]),
       township: township ?? const TownshipRegistry.empty(),
+      agility:
+          agility ??
+          AgilityRegistry(
+            obstacles: const [],
+            courses: const [],
+            pillars: const [],
+          ),
+      modifierMetadata: const ModifierMetadataRegistry.empty(),
       bankSortIndex: bankSortIndex ?? {},
       testActions: actions,
     );
@@ -105,6 +116,8 @@ class Registries {
     required this.masteryPoolBonuses,
     required this.summoningSynergies,
     required this.township,
+    required this.agility,
+    required this.modifierMetadata,
     required Map<MelvorId, int> bankSortIndex,
     required List<Action> testActions,
   }) : _bankSortIndex = bankSortIndex,
@@ -123,11 +136,6 @@ class Registries {
          categories: const [],
        ),
        thieving = ThievingRegistry(actions: const [], areas: const []),
-       agility = AgilityRegistry(
-         obstacles: const [],
-         courses: const [],
-         pillars: const [],
-       ),
        farming = FarmingRegistry(
          crops: const [],
          categories: const [],
@@ -151,6 +159,7 @@ class Registries {
   final MasteryPoolBonusRegistry masteryPoolBonuses;
   final SummoningSynergyRegistry summoningSynergies;
   final TownshipRegistry township;
+  final ModifierMetadataRegistry modifierMetadata;
   final Map<MelvorId, int> _bankSortIndex;
 
   // Skill registries
