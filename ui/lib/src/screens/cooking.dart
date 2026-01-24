@@ -1,6 +1,7 @@
 import 'package:better_idle/src/logic/redux_actions.dart';
 import 'package:better_idle/src/widgets/cached_image.dart';
 import 'package:better_idle/src/widgets/context_extensions.dart';
+import 'package:better_idle/src/widgets/cost_row.dart';
 import 'package:better_idle/src/widgets/count_badge_cell.dart';
 import 'package:better_idle/src/widgets/double_chance_badge_cell.dart';
 import 'package:better_idle/src/widgets/duration_badge_cell.dart';
@@ -223,6 +224,11 @@ class _AreaStatusCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final state = context.state;
 
+    // If equipment is not available, show a prompt to purchase it
+    if (!_isAreaAvailable(state)) {
+      return _buildUnavailableCard(context, state);
+    }
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -235,6 +241,130 @@ class _AreaStatusCard extends StatelessWidget {
         else
           _buildEmptyRecipeCard(context),
       ],
+    );
+  }
+
+  /// Returns the first unpurchased equipment upgrade for this area.
+  ShopPurchase? _getNextPurchase(GlobalState state) {
+    final chain = switch (area) {
+      CookingArea.fire => state.registries.shop.cookingFireChain,
+      CookingArea.furnace => state.registries.shop.cookingFurnaceChain,
+      CookingArea.pot => state.registries.shop.cookingPotChain,
+    };
+    for (final id in chain) {
+      if ((state.shop.purchaseCounts[id] ?? 0) == 0) {
+        return state.registries.shop.byId(id);
+      }
+    }
+    return null;
+  }
+
+  Widget _buildUnavailableCard(BuildContext context, GlobalState state) {
+    final purchase = _getNextPurchase(state);
+    if (purchase == null) {
+      // All equipment purchased but still not available - shouldn't happen
+      return const SizedBox.shrink();
+    }
+
+    final currencyCosts = purchase.cost.currencyCosts(
+      bankSlotsPurchased: state.shop.bankSlotsPurchased,
+    );
+    final itemCosts = purchase.cost.items.map((cost) {
+      final item = state.registries.items.byId(cost.itemId);
+      final canAffordItem = state.inventory.countOfItem(item) >= cost.quantity;
+      return (item, cost.quantity, canAffordItem);
+    }).toList();
+
+    final canAffordCurrency = currencyCosts.every(
+      (cost) => state.currency(cost.$1) >= cost.$2,
+    );
+    final canAffordItems = itemCosts.every((cost) => cost.$3);
+    final canAfford = canAffordCurrency && canAffordItems;
+
+    return Card(
+      color: Style.cellBackgroundColorLocked,
+      child: InkWell(
+        onTap: canAfford
+            ? () => _showPurchaseDialog(context, state, purchase)
+            : null,
+        borderRadius: BorderRadius.circular(12),
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            children: [
+              if (purchase.media != null)
+                CachedImage(assetPath: purchase.media, size: 64)
+              else
+                CachedImage(
+                  assetPath: _getCookingAreaIconPath(state),
+                  size: 64,
+                ),
+              const SizedBox(height: 16),
+              Text(
+                purchase.name,
+                style: Theme.of(context).textTheme.titleLarge,
+              ),
+              const SizedBox(height: 8),
+              CostRow(currencyCosts: currencyCosts, itemCosts: itemCosts),
+              const SizedBox(height: 12),
+              Text(
+                canAfford ? 'Tap to purchase' : 'Cannot afford',
+                style: TextStyle(
+                  color: canAfford
+                      ? Style.selectedColor
+                      : Style.textColorSecondary,
+                  fontStyle: canAfford ? FontStyle.normal : FontStyle.italic,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _showPurchaseDialog(
+    BuildContext context,
+    GlobalState state,
+    ShopPurchase purchase,
+  ) {
+    final currencyCosts = purchase.cost.currencyCosts(
+      bankSlotsPurchased: state.shop.bankSlotsPurchased,
+    );
+    final itemCosts = purchase.cost.items.map((cost) {
+      final item = state.registries.items.byId(cost.itemId);
+      return (item, cost.quantity, true);
+    }).toList();
+
+    showDialog<void>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text('Purchase ${purchase.name}?'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (purchase.media != null)
+              CachedImage(assetPath: purchase.media, size: 64),
+            const SizedBox(height: 16),
+            const Text('Cost:'),
+            const SizedBox(height: 8),
+            CostRow(currencyCosts: currencyCosts, itemCosts: itemCosts),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () {
+              context.dispatch(PurchaseShopItemAction(purchaseId: purchase.id));
+              Navigator.of(dialogContext).pop();
+            },
+            child: const Text('Purchase'),
+          ),
+        ],
+      ),
     );
   }
 
