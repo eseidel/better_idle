@@ -1057,24 +1057,26 @@ class _GlobalModifiersDialog extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final registry = context.state.registries.modifierMetadata;
-    // Combine all modifiers from built obstacles
-    final positiveModifiers = <String, num>{};
-    final negativeModifiers = <String, num>{};
+
+    // Combine modifiers, keyed by (name, scope) to preserve scope info
+    final combinedModifiers = <_ModifierKey, num>{};
 
     for (final obstacle in builtObstacles) {
       for (final mod in obstacle.modifiers.modifiers) {
         for (final entry in mod.entries) {
-          final key = mod.name;
-          if (entry.value >= 0) {
-            positiveModifiers[key] =
-                (positiveModifiers[key] ?? 0) + entry.value;
-          } else {
-            negativeModifiers[key] =
-                (negativeModifiers[key] ?? 0) + entry.value;
-          }
+          final key = _ModifierKey(mod.name, entry.scope);
+          combinedModifiers[key] = (combinedModifiers[key] ?? 0) + entry.value;
         }
       }
     }
+
+    // Split into positive and negative
+    final positiveModifiers = combinedModifiers.entries
+        .where((e) => e.value >= 0)
+        .toList();
+    final negativeModifiers = combinedModifiers.entries
+        .where((e) => e.value < 0)
+        .toList();
 
     return AlertDialog(
       title: const Text('Active Course Modifiers'),
@@ -1093,15 +1095,21 @@ class _GlobalModifiersDialog extends StatelessWidget {
                     color: Style.successColor,
                   ),
                 ),
-                ...positiveModifiers.entries.map(
-                  (e) => Padding(
+                ...positiveModifiers.map((e) {
+                  final text = _formatWithScope(
+                    registry,
+                    e.key.name,
+                    e.value,
+                    e.key.scope,
+                  );
+                  return Padding(
                     padding: const EdgeInsets.only(left: 8, top: 4),
                     child: Text(
-                      registry.formatDescription(name: e.key, value: e.value),
+                      text,
                       style: const TextStyle(color: Style.successColor),
                     ),
-                  ),
-                ),
+                  );
+                }),
                 const SizedBox(height: 12),
               ],
               if (negativeModifiers.isNotEmpty) ...[
@@ -1112,15 +1120,21 @@ class _GlobalModifiersDialog extends StatelessWidget {
                     color: Style.errorColor,
                   ),
                 ),
-                ...negativeModifiers.entries.map(
-                  (e) => Padding(
+                ...negativeModifiers.map((e) {
+                  final text = _formatWithScope(
+                    registry,
+                    e.key.name,
+                    e.value,
+                    e.key.scope,
+                  );
+                  return Padding(
                     padding: const EdgeInsets.only(left: 8, top: 4),
                     child: Text(
-                      registry.formatDescription(name: e.key, value: e.value),
+                      text,
                       style: const TextStyle(color: Style.errorColor),
                     ),
-                  ),
-                ),
+                  );
+                }),
               ],
               if (positiveModifiers.isEmpty && negativeModifiers.isEmpty)
                 const Text(
@@ -1139,6 +1153,49 @@ class _GlobalModifiersDialog extends StatelessWidget {
       ],
     );
   }
+
+  /// Formats a modifier with scope information extracted.
+  String _formatWithScope(
+    ModifierMetadataRegistry registry,
+    String name,
+    num value,
+    ModifierScope? scope,
+  ) {
+    String? skillName;
+    String? currencyName;
+
+    if (scope != null) {
+      if (scope.skillId != null) {
+        skillName = Skill.fromId(scope.skillId!).name;
+      }
+      if (scope.currencyId != null) {
+        currencyName = Currency.fromId(scope.currencyId!).name;
+      }
+    }
+
+    return registry.formatDescription(
+      name: name,
+      value: value,
+      skillName: skillName,
+      currencyName: currencyName,
+    );
+  }
+}
+
+/// Key for combining modifiers by name and scope.
+@immutable
+class _ModifierKey {
+  const _ModifierKey(this.name, this.scope);
+
+  final String name;
+  final ModifierScope? scope;
+
+  @override
+  bool operator ==(Object other) =>
+      other is _ModifierKey && other.name == name && other.scope == scope;
+
+  @override
+  int get hashCode => Object.hash(name, scope);
 }
 
 /// Formats a single modifier entry for display.
@@ -1156,21 +1213,11 @@ String _formatModifierEntry(
 
   final scope = entry.scope;
   if (scope != null) {
-    // Look up skill name if present
     if (scope.skillId != null) {
-      try {
-        skillName = Skill.fromId(scope.skillId!).name;
-      } on ArgumentError {
-        // Unknown skill ID, leave as null
-      }
+      skillName = Skill.fromId(scope.skillId!).name;
     }
-    // Look up currency name if present
     if (scope.currencyId != null) {
-      try {
-        currencyName = Currency.fromIdString(scope.currencyId!.fullId).name;
-      } on ArgumentError {
-        // Unknown currency ID, leave as null
-      }
+      currencyName = Currency.fromId(scope.currencyId!).name;
     }
   }
 
