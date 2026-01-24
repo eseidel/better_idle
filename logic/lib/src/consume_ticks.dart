@@ -2121,7 +2121,7 @@ enum ForegroundResult {
   final newRemainingTicks = activity.remainingTicks - ticksToApply;
 
   // Update progress
-  final updatedActivity = activity.copyWith(
+  final updatedActivity = activity.withProgress(
     progressTicks: activity.progressTicks + ticksToApply,
   );
   builder
