@@ -1,7 +1,6 @@
 import 'package:equatable/equatable.dart';
-import 'package:meta/meta.dart';
-
 import 'package:logic/src/strings.dart';
+import 'package:meta/meta.dart';
 
 /// A single description template for a modifier value.
 ///
@@ -437,20 +436,6 @@ class ModifierMetadataRegistry {
     }
     // Most modifiers are percentages
     return '$sign$absValue% $formattedName$context';
-  }
-
-  /// Formats a modifier name from camelCase to readable format.
-  String _formatModifierName(String name) {
-    final result = StringBuffer();
-    for (var i = 0; i < name.length; i++) {
-      final char = name[i];
-      // Add space before uppercase letters (but not at the start)
-      if (i > 0 && char.toUpperCase() == char && char.toLowerCase() != char) {
-        result.write(' ');
-      }
-      result.write(i == 0 ? char.toUpperCase() : char);
-    }
-    return result.toString();
   }
 }
 

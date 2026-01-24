@@ -154,28 +154,21 @@ class AgilityState {
     );
   }
 
-  /// Returns a copy with the specified slot updated.
-  AgilityState withSlotState(int slotIndex, AgilitySlotState state) {
-    final newSlots = Map<int, AgilitySlotState>.from(slots);
-    if (state.isEmpty && state.purchaseCount == 0) {
-      newSlots.remove(slotIndex);
-    } else {
-      newSlots[slotIndex] = state;
-    }
-    return copyWith(slots: newSlots);
-  }
-
   /// Returns a copy with an obstacle built in the specified slot.
   AgilityState withObstacle(int slotIndex, ActionId obstacleId) {
     final currentSlot = slotState(slotIndex);
-    return withSlotState(slotIndex, currentSlot.withObstacle(obstacleId));
+    final newSlots = Map<int, AgilitySlotState>.from(slots);
+    newSlots[slotIndex] = currentSlot.withObstacle(obstacleId);
+    return copyWith(slots: newSlots);
   }
 
   /// Returns a copy with the obstacle in the specified slot destroyed.
   AgilityState withObstacleDestroyed(int slotIndex) {
     final currentSlot = slotState(slotIndex);
     if (currentSlot.isEmpty) return this;
-    return withSlotState(slotIndex, currentSlot.destroyed());
+    final newSlots = Map<int, AgilitySlotState>.from(slots);
+    newSlots[slotIndex] = currentSlot.destroyed();
+    return copyWith(slots: newSlots);
   }
 
   /// Returns a copy with progress reset to the beginning.

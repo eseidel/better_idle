@@ -92,7 +92,8 @@ class Registries {
       summoningSynergies:
           summoningSynergies ?? const SummoningSynergyRegistry([]),
       township: township ?? const TownshipRegistry.empty(),
-      agility: agility ??
+      agility:
+          agility ??
           AgilityRegistry(
             obstacles: const [],
             courses: const [],

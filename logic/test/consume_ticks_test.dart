@@ -2440,7 +2440,7 @@ void main() {
     test('buildAgilityObstacle deducts item costs', () {
       // Create test items
       final testItem = Item.test('Test Plank', gp: 10);
-      const testItemId = MelvorId('test:Test_Plank');
+      final testItemId = testItem.id;
 
       // Create an obstacle with item costs
       final obstacle = AgilityObstacle(
@@ -2485,7 +2485,7 @@ void main() {
     test('buildAgilityObstacle throws when insufficient items', () {
       // Create test items
       final testItem = Item.test('Test Plank', gp: 10);
-      const testItemId = MelvorId('test:Test_Plank');
+      final testItemId = testItem.id;
 
       // Create an obstacle with item costs
       final obstacle = AgilityObstacle(

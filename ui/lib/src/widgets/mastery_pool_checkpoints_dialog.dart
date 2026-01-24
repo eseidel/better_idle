@@ -171,7 +171,6 @@ class _MasteryPoolCheckpointsTable extends StatelessWidget {
     }
     return '+$totalValue $name';
   }
-
 }
 
 /// A button that opens the mastery pool checkpoints dialog for a skill.
