@@ -1025,6 +1025,45 @@ class StateUpdateBuilder {
     return false;
   }
 
+  /// Consumes one item from the consumable slot if it has a matching
+  /// [ConsumesOnType].
+  ///
+  /// Consumables are equipped in the [EquipmentSlot.consumable] slot and
+  /// are consumed when their trigger event occurs (e.g., PlayerAttack).
+  ///
+  /// [attackType] is only used for PlayerAttack/EnemyAttack to filter by
+  /// melee/ranged/magic.
+  void consumeConsumable(ConsumesOnType triggerType, {CombatType? attackType}) {
+    final consumable = _state.equipment.gearInSlot(EquipmentSlot.consumable);
+    if (consumable == null) return;
+
+    // Check if this consumable should be consumed on this trigger
+    final shouldConsume = consumable.consumesOn.any((c) {
+      if (c.type != triggerType) return false;
+
+      // For PlayerAttack/EnemyAttack, check attack type filter
+      if (triggerType == ConsumesOnType.playerAttack ||
+          triggerType == ConsumesOnType.enemyAttack) {
+        if (c.attackTypes != null && attackType != null) {
+          return c.attackTypes!.contains(attackType);
+        }
+        // No filter or no attack type specified - consume for all attacks
+        return c.attackTypes == null;
+      }
+
+      return true;
+    });
+
+    if (!shouldConsume) return;
+
+    // Consume one from the stack
+    final equipment = _state.equipment.consumeStackSlotCharges(
+      EquipmentSlot.consumable,
+      1,
+    );
+    _state = _state.copyWith(equipment: equipment);
+  }
+
   /// Consumes one charge from the selected potion for the skill.
   ///
   /// When charges reach the potion's max charges, consumes one potion from
@@ -1039,7 +1078,10 @@ class StateUpdateBuilder {
     final maxCharges = potion.potionCharges ?? 1;
 
     // Check charge preservation chance
-    final modifiers = _state.createActionModifierProvider(action);
+    final modifiers = _state.createActionModifierProvider(
+      action,
+      conditionContext: ConditionContext.empty,
+    );
     final preserveChance = modifiers.potionChargePreservationChance;
     if (preserveChance > 0 && random.nextDouble() * 100 < preserveChance) {
       return; // Charge preserved, don't consume
@@ -1292,7 +1334,10 @@ bool completeThievingAction(
 ) {
   final thievingLevel = builder.state.skillState(Skill.thieving).skillLevel;
   final actionMasteryLevel = builder.currentMasteryLevel(action);
-  final modifierProvider = builder.state.createActionModifierProvider(action);
+  final modifierProvider = builder.state.createActionModifierProvider(
+    action,
+    conditionContext: ConditionContext.empty,
+  );
   final thievingStealth = modifierProvider.thievingStealth(
     actionId: action.id.localId,
   );
@@ -1334,7 +1379,9 @@ bool completeThievingAction(
     builder.damagePlayer(damage);
 
     // Try auto-eat after taking damage
-    final modifiers = builder.state.createGlobalModifierProvider();
+    final modifiers = builder.state.createGlobalModifierProvider(
+      conditionContext: ConditionContext.empty,
+    );
     builder.tryAutoEat(modifiers);
 
     // Check if player died (after auto-eat attempt)
@@ -1369,7 +1416,10 @@ void completeCookingAction(
   final actionState = builder.state.actionState(action.id);
   final selection = actionState.recipeSelection(action);
   final masteryLevel = builder.currentMasteryLevel(action);
-  final modifiers = builder.state.createActionModifierProvider(action);
+  final modifiers = builder.state.createActionModifierProvider(
+    action,
+    conditionContext: ConditionContext.empty,
+  );
 
   // Calculate success chance: 70% base + 0.6% per mastery level (capped at 50)
   // Total possible from mastery: 70% + 30% = 100% at level 50
@@ -1509,7 +1559,10 @@ bool completeAction(
   }
 
   // Roll drops with doubling applied (using recipe for output multiplier)
-  final modifierProvider = builder.state.createActionModifierProvider(action);
+  final modifierProvider = builder.state.createActionModifierProvider(
+    action,
+    conditionContext: ConditionContext.empty,
+  );
   var canRepeatAction = rollAndCollectDrops(
     builder,
     action,
@@ -1797,8 +1850,14 @@ enum ForegroundResult {
       attackSpeedSeconds: pStats.attackSpeed,
     );
 
-    // Get combat triangle modifiers based on player vs monster combat types
+    // Consume consumable if equipped with PlayerAttack trigger
     final playerCombatType = builder.state.attackStyle.combatType;
+    builder.consumeConsumable(
+      ConsumesOnType.playerAttack,
+      attackType: playerCombatType,
+    );
+
+    // Get combat triangle modifiers based on player vs monster combat types
     final triangleModifiers = CombatTriangle.getModifiers(
       playerCombatType,
       action.attackType,
@@ -1885,12 +1944,19 @@ enum ForegroundResult {
       final fullMonsterAttackTicks = ticksFromDuration(
         Duration(milliseconds: (nextMonster.stats.attackSpeed * 1000).round()),
       );
+      // Calculate spawn ticks with modifiers (e.g., Monster Hunter Scroll)
+      final modifiers = builder.state.createCombatModifierProvider(
+        conditionContext: ConditionContext.empty,
+      );
+      final spawnTicks = calculateMonsterSpawnTicks(
+        modifiers.flatMonsterRespawnInterval,
+      );
       currentCombat = CombatActionState(
         monsterId: nextMonster.id,
         monsterHp: 0,
         playerAttackTicksRemaining: resetPlayerTicks,
         monsterAttackTicksRemaining: fullMonsterAttackTicks,
-        spawnTicksRemaining: ticksFromDuration(monsterSpawnDuration),
+        spawnTicksRemaining: spawnTicks,
         dungeonId: nextContext.dungeonId,
         dungeonMonsterIndex: nextContext.currentMonsterIndex,
       );
@@ -1905,11 +1971,18 @@ enum ForegroundResult {
     final fullMonsterAttackTicks = ticksFromDuration(
       Duration(milliseconds: (action.stats.attackSpeed * 1000).round()),
     );
+    // Calculate spawn ticks with modifiers (e.g., Monster Hunter Scroll)
+    final modifiers = builder.state.createCombatModifierProvider(
+      conditionContext: ConditionContext.empty,
+    );
+    final respawnTicks = calculateMonsterSpawnTicks(
+      modifiers.flatMonsterRespawnInterval,
+    );
     currentCombat = currentCombat.copyWith(
       monsterHp: 0,
       playerAttackTicksRemaining: resetPlayerTicks,
       monsterAttackTicksRemaining: fullMonsterAttackTicks,
-      spawnTicksRemaining: ticksFromDuration(monsterSpawnDuration),
+      spawnTicksRemaining: respawnTicks,
     );
     builder.updateCombatState(activeActionId, currentCombat);
     return (ForegroundResult.continued, ticksConsumed);
@@ -1920,6 +1993,13 @@ enum ForegroundResult {
   if (newMonsterTicks <= 0) {
     final mStats = MonsterCombatStats.fromAction(action);
     final pStats = computePlayerStats(builder.state);
+
+    // Consume consumable if equipped with EnemyAttack trigger
+    // Monster attack type is the same as its combat type
+    builder.consumeConsumable(
+      ConsumesOnType.enemyAttack,
+      attackType: action.attackType.combatType,
+    );
 
     // Get combat triangle modifiers for damage reduction calculation
     final playerCombatType = builder.state.attackStyle.combatType;
@@ -1953,7 +2033,9 @@ enum ForegroundResult {
     );
 
     // Try auto-eat after attack (whether hit or miss, player may need healing)
-    final modifiers = builder.state.createGlobalModifierProvider();
+    final modifiers = builder.state.createGlobalModifierProvider(
+      conditionContext: ConditionContext.empty,
+    );
     builder.tryAutoEat(modifiers);
   }
 
@@ -2204,7 +2286,10 @@ ConsumeTicksStopReason consumeTicksUntil(
   var doublingChance = 0.0;
   RecipeSelection recipeSelection = const NoSelectedRecipe();
   if (action is SkillAction) {
-    final modifierProvider = state.createActionModifierProvider(action);
+    final modifierProvider = state.createActionModifierProvider(
+      action,
+      conditionContext: ConditionContext.empty,
+    );
     doublingChance = action.doublingChance(modifierProvider);
     final actionState = state.actionState(action.id);
     recipeSelection = actionState.recipeSelection(action);

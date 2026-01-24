@@ -784,7 +784,10 @@ void main() {
       );
 
       // Resolve modifiers for woodcutting action
-      final modifiers = state.createActionModifierProvider(woodcuttingAction);
+      final modifiers = state.createActionModifierProvider(
+        woodcuttingAction,
+        conditionContext: ConditionContext.empty,
+      );
 
       // Ent provides additionalPrimaryProductChance of 10
       expect(
@@ -816,7 +819,10 @@ void main() {
       );
 
       // Resolve modifiers for woodcutting action
-      final modifiers = state.createActionModifierProvider(woodcuttingAction);
+      final modifiers = state.createActionModifierProvider(
+        woodcuttingAction,
+        conditionContext: ConditionContext.empty,
+      );
 
       // Combat familiar should NOT contribute to woodcutting
       // (Golbin Thief has flatCurrencyGainOnEnemyHit, not relevant here)
@@ -850,7 +856,9 @@ void main() {
       );
 
       // Resolve combat modifiers
-      final modifiers = state.createCombatModifierProvider();
+      final modifiers = state.createCombatModifierProvider(
+        conditionContext: ConditionContext.empty,
+      );
 
       // Wolf provides lifesteal of 2
       expect(modifiers.lifesteal, 2);
@@ -871,7 +879,9 @@ void main() {
       );
 
       // Resolve combat modifiers
-      final modifiers = state.createCombatModifierProvider();
+      final modifiers = state.createCombatModifierProvider(
+        conditionContext: ConditionContext.empty,
+      );
 
       // Ent's additionalPrimaryProductChance should NOT apply to combat
       expect(
@@ -900,7 +910,9 @@ void main() {
         equipment: equippedEquipment,
       );
 
-      final modifiers = state.createCombatModifierProvider();
+      final modifiers = state.createCombatModifierProvider(
+        conditionContext: ConditionContext.empty,
+      );
 
       // Minotaur provides meleeMaxHit and meleeAccuracyRating
       expect(modifiers.meleeMaxHit, 3);
@@ -928,7 +940,9 @@ void main() {
         attackStyle: AttackStyle.accurate, // Ranged style
       );
 
-      final modifiers = state.createCombatModifierProvider();
+      final modifiers = state.createCombatModifierProvider(
+        conditionContext: ConditionContext.empty,
+      );
 
       // Minotaur should NOT apply to ranged combat
       expect(modifiers.meleeMaxHit, 0);
@@ -955,7 +969,9 @@ void main() {
         attackStyle: AttackStyle.accurate, // Ranged style
       );
 
-      final modifiers = state.createCombatModifierProvider();
+      final modifiers = state.createCombatModifierProvider(
+        conditionContext: ConditionContext.empty,
+      );
 
       // Centaur provides rangedMaxHit and rangedAccuracyRating
       expect(modifiers.rangedMaxHit, 3);
@@ -981,7 +997,14 @@ void main() {
         testRegistries,
         equipment: equippedEquipment,
       );
-      expect(meleeState.createCombatModifierProvider().flatResistance, 1);
+      expect(
+        meleeState
+            .createCombatModifierProvider(
+              conditionContext: ConditionContext.empty,
+            )
+            .flatResistance,
+        1,
+      );
 
       // Test with ranged
       final rangedState = GlobalState.test(
@@ -989,7 +1012,14 @@ void main() {
         equipment: equippedEquipment,
         attackStyle: AttackStyle.accurate,
       );
-      expect(rangedState.createCombatModifierProvider().flatResistance, 1);
+      expect(
+        rangedState
+            .createCombatModifierProvider(
+              conditionContext: ConditionContext.empty,
+            )
+            .flatResistance,
+        1,
+      );
 
       // Test with magic
       final magicState = GlobalState.test(
@@ -997,7 +1027,14 @@ void main() {
         equipment: equippedEquipment,
         attackStyle: AttackStyle.standard,
       );
-      expect(magicState.createCombatModifierProvider().flatResistance, 1);
+      expect(
+        magicState
+            .createCombatModifierProvider(
+              conditionContext: ConditionContext.empty,
+            )
+            .flatResistance,
+        1,
+      );
     });
   });
 
@@ -1129,7 +1166,9 @@ void main() {
       expect(state.getActiveSynergy(), isNotNull);
 
       // Resolve combat modifiers - synergy modifiers should be included
-      final modifiers = state.createCombatModifierProvider();
+      final modifiers = state.createCombatModifierProvider(
+        conditionContext: ConditionContext.empty,
+      );
 
       // The Golbin Thief + Occultist synergy provides
       // currencyGainOnMonsterKillBasedOnEvasion which should be in modifiers

@@ -173,6 +173,15 @@ class SkillState {
   /// Can be spent to gain mastery levels for actions within this skill.
   final int masteryPoolXp;
 
+  /// Returns the mastery pool percentage (0-100) for this skill.
+  ///
+  /// Requires registries to calculate max pool XP (based on action count).
+  double masteryPoolPercent(Registries registries, Skill skill) {
+    final maxPoolXp = maxMasteryPoolXpForSkill(registries, skill);
+    if (maxPoolXp <= 0) return 0;
+    return (masteryPoolXp / maxPoolXp) * 100;
+  }
+
   SkillState copyWith({int? xp, int? masteryPoolXp}) {
     return SkillState(
       xp: xp ?? this.xp,
@@ -908,7 +917,14 @@ class GlobalState {
   ///
   /// Use this when processing skill actions (woodcutting, fishing, etc.)
   /// where mastery bonuses need to be resolved for the specific action.
-  ModifierProvider createActionModifierProvider(SkillAction action) {
+  ///
+  /// [conditionContext] is required - pass [ConditionContext.empty] if no
+  /// conditional modifiers need to be evaluated, or a populated context
+  /// for combat/HP-based conditions.
+  ModifierProvider createActionModifierProvider(
+    SkillAction action, {
+    required ConditionContext conditionContext,
+  }) {
     return ModifierProvider(
       registries: registries,
       equipment: equipment,
@@ -918,8 +934,10 @@ class GlobalState {
       summoning: summoning,
       shopPurchases: shop,
       actionStateGetter: actionState,
+      skillStateGetter: skillState,
       activeSynergy: _getActiveSynergy(),
       currentActionId: action.id,
+      conditionContext: conditionContext,
     );
   }
 
@@ -927,7 +945,13 @@ class GlobalState {
   ///
   /// Filters summoning familiar modifiers by combat type relevance
   /// (melee familiars only apply during melee combat, etc.).
-  ModifierProvider createCombatModifierProvider() {
+  ///
+  /// [conditionContext] is required - pass [ConditionContext.empty] if no
+  /// conditional modifiers need to be evaluated, or a populated context
+  /// for combat/HP-based conditions.
+  ModifierProvider createCombatModifierProvider({
+    required ConditionContext conditionContext,
+  }) {
     return ModifierProvider(
       registries: registries,
       equipment: equipment,
@@ -937,8 +961,10 @@ class GlobalState {
       summoning: summoning,
       shopPurchases: shop,
       actionStateGetter: actionState,
+      skillStateGetter: skillState,
       activeSynergy: _getActiveSynergy(),
       combatTypeSkills: attackStyle.combatType.skills,
+      conditionContext: conditionContext,
     );
   }
 
@@ -946,7 +972,13 @@ class GlobalState {
   ///
   /// Use this when querying modifiers that don't depend on a specific
   /// action or combat context.
-  ModifierProvider createGlobalModifierProvider() {
+  ///
+  /// [conditionContext] is required - pass [ConditionContext.empty] if no
+  /// conditional modifiers need to be evaluated, or a populated context
+  /// for combat/HP-based conditions.
+  ModifierProvider createGlobalModifierProvider({
+    required ConditionContext conditionContext,
+  }) {
     return ModifierProvider(
       registries: registries,
       equipment: equipment,
@@ -956,7 +988,9 @@ class GlobalState {
       summoning: summoning,
       shopPurchases: shop,
       actionStateGetter: actionState,
+      skillStateGetter: skillState,
       activeSynergy: _getActiveSynergy(),
+      conditionContext: conditionContext,
     );
   }
 
@@ -1002,7 +1036,10 @@ class GlobalState {
     ShopRegistry shopRegistry,
   ) {
     final ticks = action.rollDuration(random);
-    final modifiers = createActionModifierProvider(action);
+    final modifiers = createActionModifierProvider(
+      action,
+      conditionContext: ConditionContext.empty,
+    );
 
     // skillInterval is percentage points (e.g., -5 = 5% reduction)
     final percentPoints = modifiers.skillInterval(
@@ -1098,8 +1135,19 @@ class GlobalState {
       totalTicks = ticksFromDuration(
         Duration(milliseconds: (pStats.attackSpeed * 1000).round()),
       );
+      // Calculate spawn ticks with modifiers (e.g., Monster Hunter Scroll)
+      final modifiers = createCombatModifierProvider(
+        conditionContext: ConditionContext.empty,
+      );
+      final spawnTicks = calculateMonsterSpawnTicks(
+        modifiers.flatMonsterRespawnInterval,
+      );
       // Initialize combat state with the combat action, starting with respawn
-      final combatState = CombatActionState.start(action, pStats);
+      final combatState = CombatActionState.start(
+        action,
+        pStats,
+        spawnTicks: spawnTicks,
+      );
       final newActionStates = Map<ActionId, ActionState>.from(actionStates);
       final existingState = actionState(actionId);
       newActionStates[actionId] = existingState.copyWith(combat: combatState);
@@ -1155,11 +1203,20 @@ class GlobalState {
       Duration(milliseconds: (pStats.attackSpeed * 1000).round()),
     );
 
+    // Calculate spawn ticks with modifiers (e.g., Monster Hunter Scroll)
+    final modifiers = createCombatModifierProvider(
+      conditionContext: ConditionContext.empty,
+    );
+    final spawnTicks = calculateMonsterSpawnTicks(
+      modifiers.flatMonsterRespawnInterval,
+    );
+
     // Initialize combat state for dungeon mode
     final combatState = CombatActionState.startDungeon(
       firstMonster,
       pStats,
       dungeon.id,
+      spawnTicks: spawnTicks,
     );
     final newActionStates = Map<ActionId, ActionState>.from(actionStates);
     final existingState = actionState(actionId);
@@ -1189,7 +1246,10 @@ class GlobalState {
   /// Calculates mean duration with modifiers applied (deterministic).
   int _meanDurationWithModifiers(SkillAction action) {
     final ticks = ticksFromDuration(action.meanDuration);
-    final modifiers = createActionModifierProvider(action);
+    final modifiers = createActionModifierProvider(
+      action,
+      conditionContext: ConditionContext.empty,
+    );
 
     // skillInterval is percentage points (e.g., -5 = 5% reduction)
     final percentPoints = modifiers.skillInterval(

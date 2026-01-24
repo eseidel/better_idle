@@ -459,13 +459,22 @@ class Equipment {
     if (!slot.isSummonSlot) {
       throw ArgumentError('$slot is not a summon slot');
     }
+    return consumeStackSlotCharges(slot, amount);
+  }
+
+  /// Consumes charges from any stack slot (summon, quiver, consumable).
+  /// Returns updated equipment. If charges reach 0, the item is unequipped.
+  Equipment consumeStackSlotCharges(EquipmentSlot slot, int amount) {
+    if (!slot.isStackSlot) {
+      throw ArgumentError('$slot is not a stack slot');
+    }
 
     final currentCount = summonCounts[slot] ?? 0;
     if (currentCount <= 0) return this;
 
     final newCount = currentCount - amount;
     if (newCount <= 0) {
-      // Charges depleted - unequip the tablet
+      // Charges depleted - unequip the item
       final newGearSlots = Map<EquipmentSlot, Item>.from(gearSlots)
         ..remove(slot);
       final newSummonCounts = Map<EquipmentSlot, int>.from(summonCounts)

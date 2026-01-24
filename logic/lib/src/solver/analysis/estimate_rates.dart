@@ -28,6 +28,7 @@ import 'package:logic/src/solver/analysis/wait_for.dart';
 import 'package:logic/src/solver/core/value_model.dart';
 import 'package:logic/src/state.dart';
 import 'package:logic/src/tick.dart';
+import 'package:logic/src/types/modifier_provider.dart';
 import 'package:logic/src/types/stunned.dart';
 import 'package:meta/meta.dart';
 
@@ -343,7 +344,10 @@ Map<MelvorId, double> _computeItemFlowsPerAction(
   );
 
   // Get modifiers for rate calculations
-  final modifiers = state.createActionModifierProvider(action);
+  final modifiers = state.createActionModifierProvider(
+    action,
+    conditionContext: ConditionContext.empty,
+  );
   final doublingChance = action.doublingChance(modifiers);
   final multiplier = 1.0 + doublingChance;
 

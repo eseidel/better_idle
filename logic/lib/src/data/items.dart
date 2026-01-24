@@ -1,10 +1,13 @@
-// cspell:words summoningMaxhit
+// cspell:words summoningMaxhit succesful
 import 'dart:math';
 
 import 'package:equatable/equatable.dart';
 import 'package:logic/src/data/combat.dart' show AttackType;
 import 'package:logic/src/data/melvor_id.dart';
 import 'package:logic/src/data/shop.dart' show ShopRequirement;
+import 'package:logic/src/json.dart';
+import 'package:logic/src/state.dart' show CombatType;
+import 'package:logic/src/types/conditional_modifier.dart';
 import 'package:logic/src/types/drop.dart';
 import 'package:logic/src/types/equipment_slot.dart';
 import 'package:logic/src/types/inventory.dart';
@@ -143,6 +146,87 @@ class DropTableEntry extends Equatable {
   List<Object?> get props => [itemID, minQuantity, maxQuantity, weight];
 }
 
+/// Types of events that can trigger consumable consumption.
+enum ConsumesOnType {
+  playerAttack('PlayerAttack'),
+  enemyAttack('EnemyAttack'),
+  fishingAction('FishingAction'),
+  runeConsumption('RuneConsumption'),
+  prayerPointConsumption('PrayerPointConsumption'),
+  thievingAction('ThievingAction'),
+  farmingPlantAction('FarmingPlantAction'),
+  farmingHarvestAction('FarmingHarvestAction'),
+  runecraftingAction('RunecraftingAction'),
+  potionUsed('PotionUsed'),
+  potionChargeUsed('PotionChargeUsed'),
+  woodcuttingAction('WoodcuttingAction'),
+  miningAction('MiningAction'),
+  herbloreAction('HerbloreAction'),
+  craftingAction('CraftingAction'),
+  firemakingAction('FiremakingAction'),
+  cookingAction('CookingAction'),
+  smithingAction('SmithingAction'),
+  fletchingAction('FletchingAction'),
+  agilityAction('AgilityAction'),
+  summoningAction('SummoningAction'),
+  astrologyAction('AstrologyAction');
+
+  const ConsumesOnType(this.jsonName);
+
+  /// The JSON name used in Melvor data files.
+  final String jsonName;
+
+  /// Lookup map for efficient fromJson conversion.
+  static final Map<String, ConsumesOnType> _byJsonName = {
+    for (final type in values) type.jsonName: type,
+  };
+
+  /// Parses a ConsumesOnType from JSON, returns null for unknown types.
+  static ConsumesOnType? fromJson(String type) => _byJsonName[type];
+}
+
+/// Defines when a consumable item is consumed.
+@immutable
+class ConsumesOn extends Equatable {
+  const ConsumesOn({required this.type, this.attackTypes, this.successful});
+
+  factory ConsumesOn.fromJson(Map<String, dynamic> json) {
+    final typeString = json['type'] as String;
+    final type = ConsumesOnType.fromJson(typeString);
+
+    // Parse attack types if present (for PlayerAttack/EnemyAttack)
+    final attackTypesJson = json['attackTypes'] as List<dynamic>?;
+    final attackTypes = attackTypesJson
+        ?.cast<String>()
+        .map(CombatType.fromJson)
+        .toList();
+
+    // Parse successful flag if present (for ThievingAction)
+    // Note: 'succesful' is a typo in Melvor data that we must match.
+    final successful = json['succesful'] as bool?;
+
+    return ConsumesOn(
+      type: type,
+      attackTypes: attackTypes,
+      successful: successful,
+    );
+  }
+
+  /// The type of event that triggers consumption.
+  /// Null if the type is unknown/unsupported.
+  final ConsumesOnType? type;
+
+  /// For PlayerAttack/EnemyAttack: which attack types trigger consumption.
+  /// Null means all attack types.
+  final List<CombatType>? attackTypes;
+
+  /// For ThievingAction: whether only successful actions trigger consumption.
+  final bool? successful;
+
+  @override
+  List<Object?> get props => [type, attackTypes, successful];
+}
+
 /// An item loaded from the Melvor game data.
 @immutable
 class Item extends Equatable {
@@ -161,12 +245,14 @@ class Item extends Equatable {
     this.media,
     this.validSlots = const <EquipmentSlot>[],
     this.modifiers = const ModifierDataSet([]),
+    this.conditionalModifiers = const <ConditionalModifier>[],
     this.equipmentStats = EquipmentStats.empty,
     this.attackType,
     this.equipRequirements = const [],
     this.potionCharges,
     this.potionTier,
     this.potionAction,
+    this.consumesOn = const [],
   });
 
   /// Creates a simple test item with minimal required fields.
@@ -183,6 +269,7 @@ class Item extends Equatable {
     this.potionCharges,
     this.potionTier,
     this.potionAction,
+    this.consumesOn = const [],
   }) : id = MelvorId('melvorD:${name.replaceAll(' ', '_')}'),
        itemType = 'Item',
        sellsFor = gp,
@@ -193,6 +280,7 @@ class Item extends Equatable {
        media = null,
        validSlots = const <EquipmentSlot>[],
        modifiers = const ModifierDataSet([]),
+       conditionalModifiers = const <ConditionalModifier>[],
        equipmentStats = EquipmentStats.empty;
 
   /// Creates an Item from a JSON map.
@@ -274,6 +362,19 @@ class Item extends Equatable {
     final potionCharges = isPotion ? json['charges'] as int? : null;
     final potionTier = isPotion ? json['tier'] as int? : null;
 
+    // Parse consumesOn for consumable equipment.
+    final consumesOn =
+        maybeList<ConsumesOn>(json['consumesOn'], ConsumesOn.fromJson) ??
+        const [];
+
+    // Parse conditionalModifiers if present.
+    final conditionalModifiers =
+        maybeList<ConditionalModifier>(
+          json['conditionalModifiers'],
+          (e) => ConditionalModifier.fromJson(e, namespace: namespace),
+        ) ??
+        const <ConditionalModifier>[];
+
     return Item(
       id: id,
       name: json['name'] as String,
@@ -289,6 +390,7 @@ class Item extends Equatable {
       validSlots: validSlots,
       description: json['customDescription'] as String?,
       modifiers: modifiers,
+      conditionalModifiers: conditionalModifiers,
       equipmentStats: equipmentStats,
       attackType: json['attackType'] != null
           ? AttackType.fromJson(json['attackType'] as String)
@@ -297,6 +399,7 @@ class Item extends Equatable {
       potionCharges: potionCharges,
       potionTier: potionTier,
       potionAction: potionAction,
+      consumesOn: consumesOn,
     );
   }
 
@@ -344,6 +447,10 @@ class Item extends Equatable {
   /// Empty set means no modifiers.
   final ModifierDataSet modifiers;
 
+  /// Conditional modifiers that apply only when certain conditions are met.
+  /// For example, extra defense when fighting specific enemy types.
+  final List<ConditionalModifier> conditionalModifiers;
+
   /// Combat stats provided by this equipment item.
   /// Contains attack bonuses, strength bonuses, defence bonuses, etc.
   final EquipmentStats equipmentStats;
@@ -366,6 +473,10 @@ class Item extends Equatable {
   /// The skill/action this potion applies to (e.g., "melvorD:Woodcutting").
   /// Null for non-potion items.
   final MelvorId? potionAction;
+
+  /// Events that trigger consumption of this item when equipped.
+  /// Empty list means the item is not consumed on use.
+  final List<ConsumesOn> consumesOn;
 
   /// Whether this item can be consumed for healing.
   bool get isConsumable => healsFor != null;
@@ -411,12 +522,14 @@ class Item extends Equatable {
     validSlots,
     description,
     modifiers,
+    conditionalModifiers,
     equipmentStats,
     attackType,
     equipRequirements,
     potionCharges,
     potionTier,
     potionAction,
+    consumesOn,
   ];
 }
 
