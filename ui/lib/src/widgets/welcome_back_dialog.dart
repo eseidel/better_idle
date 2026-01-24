@@ -366,7 +366,7 @@ class WelcomeBackDialog extends StatelessWidget {
                       ItemImage(item: item, size: 16),
                       const SizedBox(width: 4),
                       const Flexible(
-                        child: Text('but your lootbox was full :('),
+                        child: Text('but your loot box was full :('),
                       ),
                     ],
                   ),
