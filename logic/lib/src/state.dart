@@ -4,6 +4,7 @@ import 'package:logic/src/action_state.dart';
 import 'package:logic/src/activity/active_activity.dart';
 import 'package:logic/src/activity/combat_context.dart';
 import 'package:logic/src/activity/mining_persistent_state.dart';
+import 'package:logic/src/agility_state.dart';
 import 'package:logic/src/bonfire_state.dart';
 import 'package:logic/src/combat_stats.dart';
 import 'package:logic/src/cooking_state.dart';
@@ -299,6 +300,7 @@ class GlobalState {
     this.timeAway,
     this.stunned = const StunnedState.fresh(),
     this.attackStyle = AttackStyle.stab,
+    this.agility = const AgilityState.empty(),
     this.cooking = const CookingState.empty(),
     this.summoning = const SummoningState.empty(),
     this.township = const TownshipState.empty(),
@@ -449,6 +451,9 @@ class GlobalState {
       attackStyle = json['attackStyle'] != null
           ? AttackStyle.fromJson(json['attackStyle'] as String)
           : AttackStyle.stab,
+      agility =
+          AgilityState.maybeFromJson(json['agility']) ??
+          const AgilityState.empty(),
       cooking =
           CookingState.maybeFromJson(json['cooking']) ??
           const CookingState.empty(),
@@ -575,6 +580,7 @@ class GlobalState {
       'equipment': equipment.toJson(),
       'stunned': stunned.toJson(),
       'attackStyle': attackStyle.toJson(),
+      'agility': agility.toJson(),
       'cooking': cooking.toJson(),
       'summoning': summoning.toJson(),
       'township': township.toJson(),
@@ -685,6 +691,9 @@ class GlobalState {
 
   /// The shop state.
   final ShopState shop;
+
+  /// The agility state (tracks built obstacles in course slots).
+  final AgilityState agility;
 
   /// The cooking state (tracks all 3 cooking areas).
   final CookingState cooking;
@@ -950,6 +959,7 @@ class GlobalState {
       actionStateGetter: actionState,
       skillStateGetter: skillState,
       activeSynergy: _getActiveSynergy(),
+      agility: agility,
       currentActionId: action.id,
       conditionContext: conditionContext,
     );
@@ -977,6 +987,7 @@ class GlobalState {
       actionStateGetter: actionState,
       skillStateGetter: skillState,
       activeSynergy: _getActiveSynergy(),
+      agility: agility,
       combatTypeSkills: attackStyle.combatType.skills,
       conditionContext: conditionContext,
     );
@@ -1004,6 +1015,7 @@ class GlobalState {
       actionStateGetter: actionState,
       skillStateGetter: skillState,
       activeSynergy: _getActiveSynergy(),
+      agility: agility,
       conditionContext: conditionContext,
     );
   }
@@ -1313,6 +1325,7 @@ class GlobalState {
   /// Like [copyWith] but allows explicitly setting fields to null.
   /// Fields not specified retain their current values.
   GlobalState _copyWithNullable({
+    AgilityState? agility,
     CookingState? cooking,
     bool clearActiveActivity = false,
     bool clearTimeAway = false,
@@ -1338,6 +1351,7 @@ class GlobalState {
       equipment: equipment,
       stunned: stunned,
       attackStyle: attackStyle,
+      agility: agility ?? this.agility,
       cooking: cooking ?? this.cooking,
       summoning: summoning,
       township: township,
@@ -2494,6 +2508,63 @@ class GlobalState {
     return startAction(recipe, random: random);
   }
 
+  /// Builds an obstacle in the specified agility course slot.
+  ///
+  /// Deducts the build costs (GP and items) and adds the obstacle to the slot.
+  /// Increments the slot's purchase count for cost discount tracking.
+  GlobalState buildAgilityObstacle(int slot, ActionId obstacleId) {
+    final obstacle = registries.agility.byId(obstacleId.localId);
+    if (obstacle == null) {
+      throw StateError('Unknown agility obstacle: $obstacleId');
+    }
+
+    // Get current slot state for discount calculation
+    final slotState = agility.slotState(slot);
+    final discount = slotState.costDiscount;
+
+    // Check and deduct GP cost
+    var newState = this;
+    final gpCost = obstacle.currencyCosts.gpCost;
+    if (gpCost > 0) {
+      final discountedGp = (gpCost * (1 - discount)).round();
+      final balance = currency(Currency.gp);
+      if (balance < discountedGp) {
+        throw StateError('Not enough GP. Need $discountedGp, have $balance');
+      }
+      newState = newState.addCurrency(Currency.gp, -discountedGp);
+    }
+
+    // Check and deduct item costs
+    for (final entry in obstacle.inputs.entries) {
+      final discountedQty = (entry.value * (1 - discount)).ceil();
+      final available = newState.inventory.countById(entry.key);
+      if (available < discountedQty) {
+        final item = registries.items.byId(entry.key);
+        throw StateError(
+          'Not enough ${item.name}. Need $discountedQty, have $available',
+        );
+      }
+      final item = registries.items.byId(entry.key);
+      newState = newState.copyWith(
+        inventory: newState.inventory.removing(
+          ItemStack(item, count: discountedQty),
+        ),
+      );
+    }
+
+    // Update agility state with the new obstacle
+    final newAgility = newState.agility.withObstacle(slot, obstacleId);
+    return newState.copyWith(agility: newAgility);
+  }
+
+  /// Destroys the obstacle in the specified agility course slot.
+  ///
+  /// Does not refund any resources. Keeps purchase count for discount tracking.
+  GlobalState destroyAgilityObstacle(int slot) {
+    final newAgility = agility.withObstacleDestroyed(slot);
+    return copyWith(agility: newAgility);
+  }
+
   /// Creates a copy of this state with the given fields replaced.
   GlobalState copyWith({
     Inventory? inventory,
@@ -2514,6 +2585,7 @@ class GlobalState {
     Equipment? equipment,
     StunnedState? stunned,
     AttackStyle? attackStyle,
+    AgilityState? agility,
     CookingState? cooking,
     SummoningState? summoning,
     TownshipState? township,
@@ -2541,6 +2613,7 @@ class GlobalState {
       equipment: equipment ?? this.equipment,
       stunned: stunned ?? this.stunned,
       attackStyle: attackStyle ?? this.attackStyle,
+      agility: agility ?? this.agility,
       cooking: cooking ?? this.cooking,
       summoning: summoning ?? this.summoning,
       township: township ?? this.township,

@@ -1,4 +1,5 @@
 import 'package:logic/src/action_state.dart';
+import 'package:logic/src/agility_state.dart';
 import 'package:logic/src/data/action_id.dart';
 import 'package:logic/src/data/actions.dart';
 import 'package:logic/src/data/melvor_id.dart';
@@ -204,6 +205,7 @@ class ModifierProvider with ModifierAccessors {
     required this.actionStateGetter,
     required this.activeSynergy,
     required this.skillStateGetter,
+    required this.agility,
     this.combatTypeSkills,
     this.currentActionId,
     this.conditionContext = ConditionContext.empty,
@@ -218,6 +220,9 @@ class ModifierProvider with ModifierAccessors {
   final ShopState shopPurchases;
   final ActionState Function(ActionId) actionStateGetter;
   final SummoningSynergy? activeSynergy;
+
+  /// Agility course state - obstacles built provide passive modifiers.
+  final AgilityState agility;
 
   /// Returns the SkillState for a given skill.
   /// Used to look up mastery pool XP for mastery pool checkpoint bonuses.
@@ -409,6 +414,25 @@ class ModifierProvider with ModifierAccessors {
                 total += modEntry.value;
               }
             }
+          }
+        }
+      }
+    }
+
+    // --- Agility obstacle modifiers ---
+    // Built obstacles provide passive modifiers while in the course.
+    for (final slotState in agility.slots.values) {
+      final obstacleId = slotState.obstacleId;
+      if (obstacleId == null) continue;
+
+      final obstacle = registries.agility.byId(obstacleId.localId);
+      if (obstacle == null) continue;
+
+      for (final mod in obstacle.modifiers.modifiers) {
+        if (mod.name != name) continue;
+        for (final modEntry in mod.entries) {
+          if (scope.matches(modEntry.scope)) {
+            total += modEntry.value;
           }
         }
       }

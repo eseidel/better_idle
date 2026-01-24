@@ -337,6 +337,29 @@ class UnequipGearAction extends ReduxAction<GlobalState> {
   }
 }
 
+/// Builds an agility obstacle in a course slot.
+class BuildAgilityObstacleAction extends ReduxAction<GlobalState> {
+  BuildAgilityObstacleAction({required this.slot, required this.obstacleId});
+  final int slot;
+  final ActionId obstacleId;
+
+  @override
+  GlobalState reduce() {
+    return state.buildAgilityObstacle(slot, obstacleId);
+  }
+}
+
+/// Destroys the agility obstacle in a course slot.
+class DestroyAgilityObstacleAction extends ReduxAction<GlobalState> {
+  DestroyAgilityObstacleAction({required this.slot});
+  final int slot;
+
+  @override
+  GlobalState reduce() {
+    return state.destroyAgilityObstacle(slot);
+  }
+}
+
 // Debug actions
 
 /// Fills inventory with random items (one of each type not already present).
