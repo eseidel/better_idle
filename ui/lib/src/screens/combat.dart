@@ -1,16 +1,16 @@
-import 'package:better_idle/src/logic/redux_actions.dart';
-import 'package:better_idle/src/widgets/attack_style_selector.dart';
-import 'package:better_idle/src/widgets/cached_image.dart';
-import 'package:better_idle/src/widgets/context_extensions.dart';
-import 'package:better_idle/src/widgets/game_scaffold.dart';
-import 'package:better_idle/src/widgets/hp_bar.dart';
-import 'package:better_idle/src/widgets/item_image.dart';
-import 'package:better_idle/src/widgets/monster_drops_dialog.dart';
-import 'package:better_idle/src/widgets/skill_image.dart';
-import 'package:better_idle/src/widgets/skills.dart';
-import 'package:better_idle/src/widgets/style.dart';
 import 'package:flutter/material.dart';
 import 'package:logic/logic.dart';
+import 'package:ui/src/logic/redux_actions.dart';
+import 'package:ui/src/widgets/attack_style_selector.dart';
+import 'package:ui/src/widgets/cached_image.dart';
+import 'package:ui/src/widgets/context_extensions.dart';
+import 'package:ui/src/widgets/game_scaffold.dart';
+import 'package:ui/src/widgets/hp_bar.dart';
+import 'package:ui/src/widgets/item_image.dart';
+import 'package:ui/src/widgets/monster_drops_dialog.dart';
+import 'package:ui/src/widgets/skill_image.dart';
+import 'package:ui/src/widgets/skills.dart';
+import 'package:ui/src/widgets/style.dart';
 
 class CombatPage extends StatelessWidget {
   const CombatPage({super.key});

@@ -1,10 +1,10 @@
-import 'package:better_idle/src/widgets/context_extensions.dart';
-import 'package:better_idle/src/widgets/count_badge_cell.dart';
-import 'package:better_idle/src/widgets/mastery_pool_xp_badge_cell.dart';
-import 'package:better_idle/src/widgets/mastery_xp_badge_cell.dart';
-import 'package:better_idle/src/widgets/xp_badge_cell.dart';
 import 'package:flutter/material.dart';
 import 'package:logic/logic.dart';
+import 'package:ui/src/widgets/context_extensions.dart';
+import 'package:ui/src/widgets/count_badge_cell.dart';
+import 'package:ui/src/widgets/mastery_pool_xp_badge_cell.dart';
+import 'package:ui/src/widgets/mastery_xp_badge_cell.dart';
+import 'package:ui/src/widgets/xp_badge_cell.dart';
 
 /// A row of XP badge cells showing skill XP, mastery XP, and mastery pool XP.
 ///

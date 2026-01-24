@@ -1,6 +1,6 @@
-import 'package:better_idle/src/widgets/style.dart';
 import 'package:flutter/material.dart';
 import 'package:logic/logic.dart';
+import 'package:ui/src/widgets/style.dart';
 
 /// A dialog shown after opening one or more openable items.
 /// Displays how many were opened and the combined drops received.

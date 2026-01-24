@@ -1,6 +1,6 @@
-import 'package:better_idle/src/widgets/cached_image.dart';
 import 'package:flutter/material.dart';
 import 'package:logic/logic.dart';
+import 'package:ui/src/widgets/cached_image.dart';
 
 /// A widget that displays an item's icon image with loading and fallback.
 ///

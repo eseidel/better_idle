@@ -1,18 +1,18 @@
 import 'dart:async';
 
 import 'package:async_redux/local_persist.dart';
-import 'package:better_idle/src/logic/game_loop.dart';
-import 'package:better_idle/src/logic/redux_actions.dart';
-import 'package:better_idle/src/services/image_cache_service.dart';
-import 'package:better_idle/src/services/logger.dart';
-import 'package:better_idle/src/services/toast_service.dart';
-import 'package:better_idle/src/widgets/router.dart';
-import 'package:better_idle/src/widgets/toast_overlay.dart';
-import 'package:better_idle/src/widgets/welcome_back_dialog.dart';
 import 'package:flutter/material.dart';
 import 'package:logic/logic.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:scoped_deps/scoped_deps.dart';
+import 'package:ui/src/logic/game_loop.dart';
+import 'package:ui/src/logic/redux_actions.dart';
+import 'package:ui/src/services/image_cache_service.dart';
+import 'package:ui/src/services/logger.dart';
+import 'package:ui/src/services/toast_service.dart';
+import 'package:ui/src/widgets/router.dart';
+import 'package:ui/src/widgets/toast_overlay.dart';
+import 'package:ui/src/widgets/welcome_back_dialog.dart';
 
 void main() {
   runScoped(() => runApp(const MyApp()), values: {loggerRef, toastServiceRef});

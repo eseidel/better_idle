@@ -1,14 +1,14 @@
 import 'dart:math' as math;
 
-import 'package:better_idle/src/logic/redux_actions.dart';
-import 'package:better_idle/src/widgets/cached_image.dart';
-import 'package:better_idle/src/widgets/context_extensions.dart';
-import 'package:better_idle/src/widgets/cost_row.dart';
-import 'package:better_idle/src/widgets/item_image.dart';
-import 'package:better_idle/src/widgets/style.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:logic/logic.dart';
+import 'package:ui/src/logic/redux_actions.dart';
+import 'package:ui/src/widgets/cached_image.dart';
+import 'package:ui/src/widgets/context_extensions.dart';
+import 'package:ui/src/widgets/cost_row.dart';
+import 'package:ui/src/widgets/item_image.dart';
+import 'package:ui/src/widgets/style.dart';
 
 /// A dialog that shows available shop purchases for a specific item.
 ///

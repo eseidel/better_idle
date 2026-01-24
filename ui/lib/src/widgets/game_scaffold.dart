@@ -1,7 +1,7 @@
-import 'package:better_idle/src/widgets/game_app_bar.dart';
-import 'package:better_idle/src/widgets/navigation_drawer.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:ui/src/widgets/game_app_bar.dart';
+import 'package:ui/src/widgets/navigation_drawer.dart';
 
 /// A Scaffold with GameAppBar and AppNavigationDrawer built in.
 ///

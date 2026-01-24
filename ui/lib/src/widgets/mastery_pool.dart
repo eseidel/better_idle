@@ -1,8 +1,8 @@
-import 'package:better_idle/src/widgets/cached_image.dart';
-import 'package:better_idle/src/widgets/context_extensions.dart';
-import 'package:better_idle/src/widgets/mastery_pool_checkpoints_dialog.dart';
 import 'package:flutter/material.dart';
 import 'package:logic/logic.dart';
+import 'package:ui/src/widgets/cached_image.dart';
+import 'package:ui/src/widgets/context_extensions.dart';
+import 'package:ui/src/widgets/mastery_pool_checkpoints_dialog.dart';
 
 /// Shows progress toward filling the mastery pool for a skill.
 ///

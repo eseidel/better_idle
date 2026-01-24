@@ -1,12 +1,12 @@
-import 'package:better_idle/src/widgets/action_grid.dart';
-import 'package:better_idle/src/widgets/context_extensions.dart';
-import 'package:better_idle/src/widgets/game_scaffold.dart';
-import 'package:better_idle/src/widgets/mastery_pool.dart';
-import 'package:better_idle/src/widgets/mastery_unlocks_dialog.dart';
-import 'package:better_idle/src/widgets/skill_milestones_dialog.dart';
-import 'package:better_idle/src/widgets/skill_progress.dart';
 import 'package:flutter/material.dart' hide Action;
 import 'package:logic/logic.dart';
+import 'package:ui/src/widgets/action_grid.dart';
+import 'package:ui/src/widgets/context_extensions.dart';
+import 'package:ui/src/widgets/game_scaffold.dart';
+import 'package:ui/src/widgets/mastery_pool.dart';
+import 'package:ui/src/widgets/mastery_unlocks_dialog.dart';
+import 'package:ui/src/widgets/skill_milestones_dialog.dart';
+import 'package:ui/src/widgets/skill_progress.dart';
 
 /// A simple skill page that displays actions in a grid layout.
 ///

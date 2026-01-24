@@ -1,6 +1,6 @@
-import 'package:better_idle/src/widgets/style.dart';
 import 'package:flutter/material.dart';
 import 'package:logic/logic.dart';
+import 'package:ui/src/widgets/style.dart';
 
 /// A bordered cell with rounded corners and an optional text badge.
 ///

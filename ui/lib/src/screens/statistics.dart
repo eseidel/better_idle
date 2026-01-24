@@ -1,8 +1,8 @@
-import 'package:better_idle/src/logic/redux_actions.dart';
-import 'package:better_idle/src/widgets/game_scaffold.dart';
-import 'package:better_idle/src/widgets/style.dart';
 import 'package:flutter/material.dart';
 import 'package:logic/logic.dart';
+import 'package:ui/src/logic/redux_actions.dart';
+import 'package:ui/src/widgets/game_scaffold.dart';
+import 'package:ui/src/widgets/style.dart';
 
 class StatisticsPage extends StatelessWidget {
   const StatisticsPage({super.key});

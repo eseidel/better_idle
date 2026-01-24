@@ -1,8 +1,8 @@
-import 'package:better_idle/src/widgets/context_extensions.dart';
-import 'package:better_idle/src/widgets/style.dart';
-import 'package:better_idle/src/widgets/tweened_progress_indicator.dart';
 import 'package:flutter/material.dart';
 import 'package:logic/logic.dart';
+import 'package:ui/src/widgets/context_extensions.dart';
+import 'package:ui/src/widgets/style.dart';
+import 'package:ui/src/widgets/tweened_progress_indicator.dart';
 
 /// A horizontal progress bar for displaying HP (health points).
 ///

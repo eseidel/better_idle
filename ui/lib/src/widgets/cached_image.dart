@@ -1,8 +1,8 @@
 import 'dart:io';
 
-import 'package:better_idle/src/services/image_cache_service.dart';
-import 'package:better_idle/src/widgets/style.dart';
 import 'package:flutter/material.dart';
+import 'package:ui/src/services/image_cache_service.dart';
+import 'package:ui/src/widgets/style.dart';
 
 /// A widget that displays an image from the Melvor CDN with caching.
 ///

@@ -1,8 +1,8 @@
-import 'package:better_idle/src/widgets/context_extensions.dart';
-import 'package:better_idle/src/widgets/item_image.dart';
-import 'package:better_idle/src/widgets/style.dart';
 import 'package:flutter/material.dart';
 import 'package:logic/logic.dart';
+import 'package:ui/src/widgets/context_extensions.dart';
+import 'package:ui/src/widgets/item_image.dart';
+import 'package:ui/src/widgets/style.dart';
 
 /// Compact inline display of input items with icons and counts.
 /// Shows: [item1 icon] 15 [item2 icon] 10

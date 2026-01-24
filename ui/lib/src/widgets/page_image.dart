@@ -1,6 +1,6 @@
-import 'package:better_idle/src/widgets/cached_image.dart';
-import 'package:better_idle/src/widgets/style.dart';
 import 'package:flutter/material.dart';
+import 'package:ui/src/widgets/cached_image.dart';
+import 'package:ui/src/widgets/style.dart';
 
 /// A widget that displays a page header image with loading and fallback.
 ///

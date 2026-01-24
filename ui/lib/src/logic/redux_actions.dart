@@ -1,8 +1,8 @@
 import 'dart:math';
 
 import 'package:async_redux/async_redux.dart';
-import 'package:better_idle/src/services/toast_service.dart';
 import 'package:logic/logic.dart';
+import 'package:ui/src/services/toast_service.dart';
 
 export 'package:async_redux/async_redux.dart';
 

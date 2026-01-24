@@ -1,13 +1,13 @@
-import 'package:better_idle/src/widgets/cached_image.dart';
-import 'package:better_idle/src/widgets/context_extensions.dart';
-import 'package:better_idle/src/widgets/page_image.dart';
-import 'package:better_idle/src/widgets/router.dart';
-import 'package:better_idle/src/widgets/skill_image.dart';
-import 'package:better_idle/src/widgets/skills.dart';
-import 'package:better_idle/src/widgets/style.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:logic/logic.dart';
+import 'package:ui/src/widgets/cached_image.dart';
+import 'package:ui/src/widgets/context_extensions.dart';
+import 'package:ui/src/widgets/page_image.dart';
+import 'package:ui/src/widgets/router.dart';
+import 'package:ui/src/widgets/skill_image.dart';
+import 'package:ui/src/widgets/skills.dart';
+import 'package:ui/src/widgets/style.dart';
 
 class _SectionHeader extends StatelessWidget {
   const _SectionHeader({required this.title, this.trailing});

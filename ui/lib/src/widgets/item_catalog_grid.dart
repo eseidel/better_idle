@@ -1,10 +1,10 @@
-import 'package:better_idle/src/logic/redux_actions.dart';
-import 'package:better_idle/src/services/toast_service.dart';
-import 'package:better_idle/src/widgets/context_extensions.dart';
-import 'package:better_idle/src/widgets/item_image.dart';
-import 'package:better_idle/src/widgets/quantity_dialog.dart';
 import 'package:flutter/material.dart';
 import 'package:logic/logic.dart';
+import 'package:ui/src/logic/redux_actions.dart';
+import 'package:ui/src/services/toast_service.dart';
+import 'package:ui/src/widgets/context_extensions.dart';
+import 'package:ui/src/widgets/item_image.dart';
+import 'package:ui/src/widgets/quantity_dialog.dart';
 
 /// A grid widget that displays all items in the game.
 /// Clicking an item adds it to the player's inventory.

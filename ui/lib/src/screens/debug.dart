@@ -1,10 +1,10 @@
-import 'package:better_idle/src/logic/redux_actions.dart';
-import 'package:better_idle/src/widgets/context_extensions.dart';
-import 'package:better_idle/src/widgets/game_scaffold.dart';
-import 'package:better_idle/src/widgets/item_catalog_grid.dart';
-import 'package:better_idle/src/widgets/welcome_back_dialog.dart';
 import 'package:flutter/material.dart';
 import 'package:logic/logic.dart';
+import 'package:ui/src/logic/redux_actions.dart';
+import 'package:ui/src/widgets/context_extensions.dart';
+import 'package:ui/src/widgets/game_scaffold.dart';
+import 'package:ui/src/widgets/item_catalog_grid.dart';
+import 'package:ui/src/widgets/welcome_back_dialog.dart';
 
 class DebugPage extends StatelessWidget {
   const DebugPage({super.key});

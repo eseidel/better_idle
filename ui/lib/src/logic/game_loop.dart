@@ -1,8 +1,8 @@
 import 'dart:async';
 
-import 'package:better_idle/src/logic/redux_actions.dart';
 import 'package:flutter/foundation.dart';
 import 'package:logic/logic.dart';
+import 'package:ui/src/logic/redux_actions.dart';
 
 /// Event-driven game loop using one-off timers.
 ///

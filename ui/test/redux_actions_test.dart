@@ -1,8 +1,8 @@
-import 'package:better_idle/src/logic/redux_actions.dart';
-import 'package:better_idle/src/services/toast_service.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:logic/logic.dart';
 import 'package:scoped_deps/scoped_deps.dart';
+import 'package:ui/src/logic/redux_actions.dart';
+import 'package:ui/src/services/toast_service.dart';
 
 /// Helper to create a test building with biome-specific data.
 TownshipBuilding _testBuilding({

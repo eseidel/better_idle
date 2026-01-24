@@ -1,10 +1,10 @@
-import 'package:better_idle/src/logic/redux_actions.dart';
-import 'package:better_idle/src/widgets/cached_image.dart';
-import 'package:better_idle/src/widgets/cost_row.dart';
-import 'package:better_idle/src/widgets/game_scaffold.dart';
-import 'package:better_idle/src/widgets/style.dart';
 import 'package:flutter/material.dart';
 import 'package:logic/logic.dart';
+import 'package:ui/src/logic/redux_actions.dart';
+import 'package:ui/src/widgets/cached_image.dart';
+import 'package:ui/src/widgets/cost_row.dart';
+import 'package:ui/src/widgets/game_scaffold.dart';
+import 'package:ui/src/widgets/style.dart';
 
 class ShopPage extends StatefulWidget {
   const ShopPage({super.key});

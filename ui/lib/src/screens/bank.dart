@@ -1,16 +1,16 @@
-import 'package:better_idle/src/logic/redux_actions.dart';
-import 'package:better_idle/src/services/toast_service.dart';
-import 'package:better_idle/src/widgets/cached_image.dart';
-import 'package:better_idle/src/widgets/context_extensions.dart';
-import 'package:better_idle/src/widgets/count_badge_cell.dart';
-import 'package:better_idle/src/widgets/game_app_bar.dart';
-import 'package:better_idle/src/widgets/item_image.dart';
-import 'package:better_idle/src/widgets/navigation_drawer.dart';
-import 'package:better_idle/src/widgets/open_result_dialog.dart';
-import 'package:better_idle/src/widgets/style.dart';
 import 'package:collection/collection.dart';
 import 'package:flutter/material.dart';
 import 'package:logic/logic.dart';
+import 'package:ui/src/logic/redux_actions.dart';
+import 'package:ui/src/services/toast_service.dart';
+import 'package:ui/src/widgets/cached_image.dart';
+import 'package:ui/src/widgets/context_extensions.dart';
+import 'package:ui/src/widgets/count_badge_cell.dart';
+import 'package:ui/src/widgets/game_app_bar.dart';
+import 'package:ui/src/widgets/item_image.dart';
+import 'package:ui/src/widgets/navigation_drawer.dart';
+import 'package:ui/src/widgets/open_result_dialog.dart';
+import 'package:ui/src/widgets/style.dart';
 
 class BankPage extends StatefulWidget {
   const BankPage({super.key});

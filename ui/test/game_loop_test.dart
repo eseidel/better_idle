@@ -1,10 +1,10 @@
 import 'dart:math';
 
 import 'package:async_redux/async_redux.dart';
-import 'package:better_idle/src/logic/game_loop.dart';
 import 'package:fake_async/fake_async.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:logic/logic.dart';
+import 'package:ui/src/logic/game_loop.dart';
 
 /// A simple test action for making shouldTick return true.
 const _testAction = SkillAction(

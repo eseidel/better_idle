@@ -1,11 +1,11 @@
-import 'package:better_idle/src/widgets/cached_image.dart';
-import 'package:better_idle/src/widgets/context_extensions.dart';
-import 'package:better_idle/src/widgets/input_items_row.dart';
-import 'package:better_idle/src/widgets/item_image.dart';
-import 'package:better_idle/src/widgets/skill_image.dart';
-import 'package:better_idle/src/widgets/style.dart';
 import 'package:flutter/material.dart';
 import 'package:logic/logic.dart';
+import 'package:ui/src/widgets/cached_image.dart';
+import 'package:ui/src/widgets/context_extensions.dart';
+import 'package:ui/src/widgets/input_items_row.dart';
+import 'package:ui/src/widgets/item_image.dart';
+import 'package:ui/src/widgets/skill_image.dart';
+import 'package:ui/src/widgets/style.dart';
 
 /// A generic widget for displaying skill actions grouped by category.
 ///

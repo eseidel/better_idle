@@ -1,14 +1,14 @@
 import 'dart:async';
 
-import 'package:better_idle/src/services/toast_service.dart';
-import 'package:better_idle/src/widgets/cached_image.dart';
-import 'package:better_idle/src/widgets/context_extensions.dart';
-import 'package:better_idle/src/widgets/item_image.dart';
-import 'package:better_idle/src/widgets/skill_image.dart';
-import 'package:better_idle/src/widgets/style.dart';
-import 'package:better_idle/src/widgets/you_died_dialog.dart';
 import 'package:flutter/material.dart';
 import 'package:logic/logic.dart';
+import 'package:ui/src/services/toast_service.dart';
+import 'package:ui/src/widgets/cached_image.dart';
+import 'package:ui/src/widgets/context_extensions.dart';
+import 'package:ui/src/widgets/item_image.dart';
+import 'package:ui/src/widgets/skill_image.dart';
+import 'package:ui/src/widgets/style.dart';
+import 'package:ui/src/widgets/you_died_dialog.dart';
 
 class ToastOverlay extends StatefulWidget {
   const ToastOverlay({required this.child, required this.service, super.key});

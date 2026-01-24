@@ -1,7 +1,7 @@
-import 'package:better_idle/src/widgets/item_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:logic/logic.dart';
+import 'package:ui/src/widgets/item_image.dart';
 
 /// A dialog that lets the user select a quantity.
 ///

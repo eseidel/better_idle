@@ -1,7 +1,7 @@
-import 'package:better_idle/src/widgets/item_image.dart';
-import 'package:better_idle/src/widgets/style.dart';
 import 'package:flutter/material.dart';
 import 'package:logic/logic.dart';
+import 'package:ui/src/widgets/item_image.dart';
+import 'package:ui/src/widgets/style.dart';
 
 /// A dialog shown when the player dies.
 /// Displays the death penalty result (what was lost or if they were lucky).

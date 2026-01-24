@@ -1,9 +1,9 @@
-import 'package:better_idle/src/widgets/cached_image.dart';
-import 'package:better_idle/src/widgets/context_extensions.dart';
-import 'package:better_idle/src/widgets/item_image.dart';
-import 'package:better_idle/src/widgets/style.dart';
 import 'package:flutter/material.dart';
 import 'package:logic/logic.dart';
+import 'package:ui/src/widgets/cached_image.dart';
+import 'package:ui/src/widgets/context_extensions.dart';
+import 'package:ui/src/widgets/item_image.dart';
+import 'package:ui/src/widgets/style.dart';
 
 /// A dialog that displays the drops for a combat monster.
 class MonsterDropsDialog extends StatelessWidget {

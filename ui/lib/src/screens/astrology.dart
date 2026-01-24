@@ -1,6 +1,6 @@
-import 'package:better_idle/src/widgets/simple_skill_page.dart';
 import 'package:flutter/material.dart' hide Action;
 import 'package:logic/logic.dart';
+import 'package:ui/src/widgets/simple_skill_page.dart';
 
 class AstrologyPage extends StatelessWidget {
   const AstrologyPage({super.key});

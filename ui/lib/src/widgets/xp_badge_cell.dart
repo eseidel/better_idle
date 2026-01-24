@@ -1,7 +1,7 @@
-import 'package:better_idle/src/widgets/cached_image.dart';
-import 'package:better_idle/src/widgets/count_badge_cell.dart';
-import 'package:better_idle/src/widgets/style.dart';
 import 'package:flutter/material.dart';
+import 'package:ui/src/widgets/cached_image.dart';
+import 'package:ui/src/widgets/count_badge_cell.dart';
+import 'package:ui/src/widgets/style.dart';
 
 /// A small square widget displaying an XP icon with an xp count badge.
 ///

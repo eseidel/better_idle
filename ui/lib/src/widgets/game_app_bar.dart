@@ -1,6 +1,6 @@
-import 'package:better_idle/src/widgets/equipment_slots.dart';
-import 'package:better_idle/src/widgets/potion_button.dart';
 import 'package:flutter/material.dart';
+import 'package:ui/src/widgets/equipment_slots.dart';
+import 'package:ui/src/widgets/potion_button.dart';
 
 /// An AppBar that includes global game actions (equipment, etc.) in trailing.
 ///

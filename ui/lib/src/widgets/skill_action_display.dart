@@ -1,16 +1,16 @@
-import 'package:better_idle/src/logic/redux_actions.dart';
-import 'package:better_idle/src/widgets/cached_image.dart';
-import 'package:better_idle/src/widgets/context_extensions.dart';
-import 'package:better_idle/src/widgets/count_badge_cell.dart';
-import 'package:better_idle/src/widgets/double_chance_badge_cell.dart';
-import 'package:better_idle/src/widgets/item_count_badge_cell.dart';
-import 'package:better_idle/src/widgets/mastery_pool.dart';
-import 'package:better_idle/src/widgets/recycle_chance_badge_cell.dart';
-import 'package:better_idle/src/widgets/skill_image.dart';
-import 'package:better_idle/src/widgets/style.dart';
-import 'package:better_idle/src/widgets/xp_badges_row.dart';
 import 'package:flutter/material.dart' hide Action;
 import 'package:logic/logic.dart';
+import 'package:ui/src/logic/redux_actions.dart';
+import 'package:ui/src/widgets/cached_image.dart';
+import 'package:ui/src/widgets/context_extensions.dart';
+import 'package:ui/src/widgets/count_badge_cell.dart';
+import 'package:ui/src/widgets/double_chance_badge_cell.dart';
+import 'package:ui/src/widgets/item_count_badge_cell.dart';
+import 'package:ui/src/widgets/mastery_pool.dart';
+import 'package:ui/src/widgets/recycle_chance_badge_cell.dart';
+import 'package:ui/src/widgets/skill_image.dart';
+import 'package:ui/src/widgets/style.dart';
+import 'package:ui/src/widgets/xp_badges_row.dart';
 
 /// Configuration for badge display in the action display.
 enum BadgeStyle {
