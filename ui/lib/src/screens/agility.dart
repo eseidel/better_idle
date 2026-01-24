@@ -483,9 +483,25 @@ class _ObstacleSlotCard extends StatelessWidget {
     final skillLevel = levelForXp(skillState.xp);
     final isUnlocked = skillLevel >= slotLevel;
 
+    // Check if this obstacle is currently being run
+    final activity = state.activeActivity;
+    final isCurrentObstacle =
+        obstacle != null &&
+        activity is AgilityActivity &&
+        activity.currentObstacleId == obstacle!.id;
+
     return Card(
       margin: const EdgeInsets.only(bottom: 8),
       color: isUnlocked ? null : Style.thievingNpcUnlockedColor,
+      shape: isCurrentObstacle
+          ? RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+              side: BorderSide(
+                color: Style.progressForegroundColorSuccess,
+                width: 2,
+              ),
+            )
+          : null,
       child: Padding(
         padding: const EdgeInsets.all(12),
         child: obstacle != null
@@ -522,6 +538,12 @@ class _FilledSlotContent extends StatelessWidget {
     final actionState = state.actionState(obstacle.id);
     final durationSec = obstacle.minDuration.inMilliseconds / 1000;
 
+    // Check if this obstacle is currently being run
+    final activity = state.activeActivity;
+    final isCurrentObstacle =
+        activity is AgilityActivity &&
+        activity.currentObstacleId == obstacle.id;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -532,12 +554,29 @@ class _FilledSlotContent extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    'Slot ${slot + 1}: ${obstacle.name}',
-                    style: const TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 16,
-                    ),
+                  Row(
+                    children: [
+                      if (isCurrentObstacle) ...[
+                        Icon(
+                          Icons.directions_run,
+                          size: 18,
+                          color: Style.progressForegroundColorSuccess,
+                        ),
+                        const SizedBox(width: 4),
+                      ],
+                      Expanded(
+                        child: Text(
+                          'Slot ${slot + 1}: ${obstacle.name}',
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 16,
+                            color: isCurrentObstacle
+                                ? Style.progressForegroundColorSuccess
+                                : null,
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                   Text(
                     '${durationSec.toStringAsFixed(2)}s',
