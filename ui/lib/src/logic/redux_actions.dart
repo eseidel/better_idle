@@ -210,8 +210,7 @@ class CollectAllLootAction extends ReduxAction<GlobalState> {
     if (state.loot.isEmpty) {
       return null;
     }
-    final builder = StateUpdateBuilder(state);
-    builder.collectAllLoot();
+    final builder = StateUpdateBuilder(state)..collectAllLoot();
     return builder.build();
   }
 }
