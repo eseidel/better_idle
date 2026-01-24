@@ -71,6 +71,7 @@ class Registries {
     MasteryPoolBonusRegistry? masteryPoolBonuses,
     SummoningSynergyRegistry? summoningSynergies,
     TownshipRegistry? township,
+    AgilityRegistry? agility,
     Map<MelvorId, int>? bankSortIndex,
   }) {
     // For tests, we store actions in a separate list that overrides
@@ -91,6 +92,12 @@ class Registries {
       summoningSynergies:
           summoningSynergies ?? const SummoningSynergyRegistry([]),
       township: township ?? const TownshipRegistry.empty(),
+      agility: agility ??
+          AgilityRegistry(
+            obstacles: const [],
+            courses: const [],
+            pillars: const [],
+          ),
       modifierMetadata: const ModifierMetadataRegistry.empty(),
       bankSortIndex: bankSortIndex ?? {},
       testActions: actions,
@@ -108,6 +115,7 @@ class Registries {
     required this.masteryPoolBonuses,
     required this.summoningSynergies,
     required this.township,
+    required this.agility,
     required this.modifierMetadata,
     required Map<MelvorId, int> bankSortIndex,
     required List<Action> testActions,
@@ -127,11 +135,6 @@ class Registries {
          categories: const [],
        ),
        thieving = ThievingRegistry(actions: const [], areas: const []),
-       agility = AgilityRegistry(
-         obstacles: const [],
-         courses: const [],
-         pillars: const [],
-       ),
        farming = FarmingRegistry(
          crops: const [],
          categories: const [],

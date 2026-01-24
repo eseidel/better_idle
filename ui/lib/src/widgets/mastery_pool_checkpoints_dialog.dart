@@ -151,7 +151,7 @@ class _MasteryPoolCheckpointsTable extends StatelessWidget {
   }
 
   String _formatModifierData(ModifierData mod) {
-    final name = _formatModifierName(mod.name);
+    final name = formatModifierName(mod.name);
 
     // Sum up all entry values for this modifier
     final totalValue = mod.entries.fold<num>(0, (sum, e) => sum + e.value);
@@ -172,18 +172,6 @@ class _MasteryPoolCheckpointsTable extends StatelessWidget {
     return '+$totalValue $name';
   }
 
-  String _formatModifierName(String name) {
-    // Convert camelCase to readable format
-    final result = StringBuffer();
-    for (var i = 0; i < name.length; i++) {
-      final char = name[i];
-      if (i > 0 && char.toUpperCase() == char && char.toLowerCase() != char) {
-        result.write(' ');
-      }
-      result.write(i == 0 ? char.toUpperCase() : char);
-    }
-    return result.toString();
-  }
 }
 
 /// A button that opens the mastery pool checkpoints dialog for a skill.

@@ -139,5 +139,58 @@ void main() {
         throwsA(isA<ArgumentError>()),
       );
     });
+
+    test('AgilityActivity round-trip', () {
+      const obstacleIds = [
+        ActionId(MelvorId('melvorD:Agility'), MelvorId('melvorD:Rope_Swing')),
+        ActionId(MelvorId('melvorD:Agility'), MelvorId('melvorD:Pipe_Balance')),
+        ActionId(MelvorId('melvorD:Agility'), MelvorId('melvorD:Rooftop_Run')),
+      ];
+
+      const activity = AgilityActivity(
+        obstacleIds: obstacleIds,
+        currentObstacleIndex: 1,
+        progressTicks: 15,
+        totalTicks: 40,
+      );
+
+      final json = activity.toJson();
+      final restored = ActiveActivity.fromJson(json);
+
+      expect(restored, isA<AgilityActivity>());
+      final agility = restored as AgilityActivity;
+      expect(agility.obstacleIds.length, 3);
+      expect(agility.obstacleIds[0], obstacleIds[0]);
+      expect(agility.obstacleIds[1], obstacleIds[1]);
+      expect(agility.obstacleIds[2], obstacleIds[2]);
+      expect(agility.currentObstacleIndex, 1);
+      expect(agility.progressTicks, 15);
+      expect(agility.totalTicks, 40);
+      expect(agility.currentObstacleId, obstacleIds[1]);
+      expect(agility.isLastObstacle, isFalse);
+      expect(agility.obstacleCount, 3);
+    });
+
+    test('AgilityActivity round-trip at last obstacle', () {
+      const obstacleIds = [
+        ActionId(MelvorId('melvorD:Agility'), MelvorId('melvorD:Rope_Swing')),
+        ActionId(MelvorId('melvorD:Agility'), MelvorId('melvorD:Pipe_Balance')),
+      ];
+
+      const activity = AgilityActivity(
+        obstacleIds: obstacleIds,
+        currentObstacleIndex: 1,
+        progressTicks: 5,
+        totalTicks: 20,
+      );
+
+      final json = activity.toJson();
+      final restored = ActiveActivity.fromJson(json);
+
+      expect(restored, isA<AgilityActivity>());
+      final agility = restored as AgilityActivity;
+      expect(agility.isLastObstacle, isTrue);
+      expect(agility.currentObstacleId, obstacleIds[1]);
+    });
   });
 }

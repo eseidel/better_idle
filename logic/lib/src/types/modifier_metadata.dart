@@ -1,6 +1,8 @@
 import 'package:equatable/equatable.dart';
 import 'package:meta/meta.dart';
 
+import 'package:logic/src/strings.dart';
+
 /// A single description template for a modifier value.
 ///
 /// Each description has conditions (`above`/`below`) that determine when
@@ -416,7 +418,7 @@ class ModifierMetadataRegistry {
   }) {
     final sign = value >= 0 ? '+' : '';
     final absValue = value.abs();
-    final formattedName = _formatModifierName(name);
+    final formattedName = formatModifierName(name);
 
     // Add context if available
     var context = '';

@@ -2436,5 +2436,161 @@ void main() {
       final result = state.startAgilityCourse(random: random);
       expect(result, isNull);
     });
+
+    test('buildAgilityObstacle deducts item costs', () {
+      // Create test items
+      final testItem = Item.test('Test Plank', gp: 10);
+      const testItemId = MelvorId('test:Test_Plank');
+
+      // Create an obstacle with item costs
+      final obstacle = AgilityObstacle(
+        id: ActionId.test(Skill.agility, 'Test_Obstacle'),
+        name: 'Test Obstacle',
+        unlockLevel: 1,
+        xp: 10,
+        duration: const Duration(seconds: 4),
+        category: 0,
+        inputs: {testItemId: 5}, // Requires 5 test planks
+      );
+
+      // Create registries with custom agility
+      final registries = Registries.test(
+        items: [testItem],
+        agility: AgilityRegistry(
+          obstacles: [obstacle],
+          courses: const [],
+          pillars: const [],
+        ),
+      );
+
+      // Create state with items in inventory
+      var state = GlobalState.test(registries);
+      state = state.copyWith(
+        inventory: state.inventory.adding(ItemStack(testItem, count: 10)),
+      );
+
+      // Verify initial inventory
+      expect(state.inventory.countById(testItemId), 10);
+
+      // Build the obstacle
+      state = state.buildAgilityObstacle(0, obstacle.id);
+
+      // Verify obstacle was built
+      expect(state.agility.hasObstacle(0), true);
+
+      // Verify item costs were deducted
+      expect(state.inventory.countById(testItemId), 5);
+    });
+
+    test('buildAgilityObstacle throws when insufficient items', () {
+      // Create test items
+      final testItem = Item.test('Test Plank', gp: 10);
+      const testItemId = MelvorId('test:Test_Plank');
+
+      // Create an obstacle with item costs
+      final obstacle = AgilityObstacle(
+        id: ActionId.test(Skill.agility, 'Test_Obstacle'),
+        name: 'Test Obstacle',
+        unlockLevel: 1,
+        xp: 10,
+        duration: const Duration(seconds: 4),
+        category: 0,
+        inputs: {testItemId: 5}, // Requires 5 test planks
+      );
+
+      // Create registries with custom agility
+      final registries = Registries.test(
+        items: [testItem],
+        agility: AgilityRegistry(
+          obstacles: [obstacle],
+          courses: const [],
+          pillars: const [],
+        ),
+      );
+
+      // Create state with insufficient items
+      var state = GlobalState.test(registries);
+      state = state.copyWith(
+        inventory: state.inventory.adding(ItemStack(testItem, count: 2)),
+      );
+
+      // Attempt to build should throw
+      expect(
+        () => state.buildAgilityObstacle(0, obstacle.id),
+        throwsStateError,
+      );
+    });
+
+    test('destroyAgilityObstacle removes built obstacle', () {
+      var state = GlobalState.empty(testRegistries);
+
+      // Get a category 0 obstacle
+      final obstacle = testRegistries.agility.obstacles.firstWhere(
+        (o) => o.category == 0,
+      );
+
+      // Give enough GP to build the obstacle
+      if (obstacle.currencyCosts.gpCost > 0) {
+        state = state.addCurrency(Currency.gp, obstacle.currencyCosts.gpCost);
+      }
+
+      // Build the obstacle
+      state = state.buildAgilityObstacle(0, obstacle.id);
+      expect(state.agility.hasObstacle(0), true);
+
+      // Destroy the obstacle
+      state = state.destroyAgilityObstacle(0);
+
+      // Verify obstacle was removed
+      expect(state.agility.hasObstacle(0), false);
+    });
+
+    test('destroyAgilityObstacle does not refund costs', () {
+      var state = GlobalState.empty(testRegistries);
+
+      // Get a category 0 obstacle with GP cost
+      final obstacle = testRegistries.agility.obstacles.firstWhere(
+        (o) => o.category == 0 && o.currencyCosts.gpCost > 0,
+      );
+
+      final gpCost = obstacle.currencyCosts.gpCost;
+      state = state.addCurrency(Currency.gp, gpCost);
+
+      // Build the obstacle (GP is deducted)
+      state = state.buildAgilityObstacle(0, obstacle.id);
+      expect(state.currency(Currency.gp), 0);
+
+      // Destroy the obstacle
+      state = state.destroyAgilityObstacle(0);
+
+      // Verify GP was not refunded
+      expect(state.currency(Currency.gp), 0);
+    });
+
+    test('destroyAgilityObstacle stops active agility course', () {
+      var state = GlobalState.empty(testRegistries);
+      final random = Random(0);
+
+      // Get a category 0 obstacle
+      final obstacle = testRegistries.agility.obstacles.firstWhere(
+        (o) => o.category == 0,
+      );
+
+      // Give enough GP to build the obstacle
+      if (obstacle.currencyCosts.gpCost > 0) {
+        state = state.addCurrency(Currency.gp, obstacle.currencyCosts.gpCost);
+      }
+
+      // Build the obstacle and start the course
+      state = state.buildAgilityObstacle(0, obstacle.id);
+      state = state.startAgilityCourse(random: random)!;
+      expect(state.activeActivity, isA<AgilityActivity>());
+
+      // Destroy the obstacle
+      state = state.destroyAgilityObstacle(0);
+
+      // Verify course was stopped
+      expect(state.activeActivity, isNull);
+    });
   });
 }
