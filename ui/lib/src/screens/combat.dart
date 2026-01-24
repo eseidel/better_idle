@@ -83,6 +83,10 @@ class CombatPage extends StatelessWidget {
             const AttackStyleSelector(),
             const SizedBox(height: 16),
 
+            // Player combat stats card
+            _PlayerCombatStatsCard(activeMonster: activeMonster),
+            const SizedBox(height: 16),
+
             // Active combat section
             if (activeMonster != null) ...[
               // Dungeon progress indicator
@@ -580,6 +584,157 @@ class _FoodSlotsRow extends StatelessWidget {
           ),
         );
       }),
+    );
+  }
+}
+
+class _PlayerCombatStatsCard extends StatelessWidget {
+  const _PlayerCombatStatsCard({this.activeMonster});
+
+  final CombatAction? activeMonster;
+
+  @override
+  Widget build(BuildContext context) {
+    final state = context.state;
+    final playerStats = computePlayerStats(state);
+    final attackStyle = state.attackStyle;
+    final combatType = attackStyle.combatType;
+
+    // Get modifiers for crit and lifesteal
+    final modifiers = state.createCombatModifierProvider(
+      conditionContext: ConditionContext.empty,
+    );
+
+    // Calculate crit chance based on combat type
+    final critChance = switch (combatType) {
+      CombatType.melee => modifiers.meleeCritChance,
+      CombatType.ranged => modifiers.rangedCritChance,
+      CombatType.magic => modifiers.magicCritChance,
+    };
+
+    // Calculate lifesteal based on combat type
+    final lifesteal =
+        modifiers.lifesteal +
+        switch (combatType) {
+          CombatType.melee => modifiers.meleeLifesteal,
+          CombatType.ranged => modifiers.rangedLifesteal,
+          CombatType.magic => modifiers.magicLifesteal,
+        };
+
+    // Calculate hit chance if there's an active monster
+    double? hitChance;
+    if (activeMonster != null) {
+      final monsterStats = MonsterCombatStats.fromAction(activeMonster!);
+      // Player attacks against the monster's evasion for player's combat type
+      final monsterEvasion = switch (combatType) {
+        CombatType.melee => monsterStats.meleeEvasion,
+        CombatType.ranged => monsterStats.rangedEvasion,
+        CombatType.magic => monsterStats.magicEvasion,
+      };
+      hitChance = CombatCalculator.calculateHitChance(
+        playerStats.accuracy,
+        monsterEvasion,
+      );
+    }
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Combat Stats',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 12),
+            _StatRow(
+              icon: CachedImage(assetPath: combatType.assetPath, size: 16),
+              label: 'Damage Type',
+              value:
+                  combatType.name[0].toUpperCase() +
+                  combatType.name.substring(1),
+            ),
+            _StatRow(label: 'Minimum Hit', value: '${playerStats.minHit}'),
+            _StatRow(label: 'Maximum Hit', value: '${playerStats.maxHit}'),
+            _StatRow(
+              label: 'Chance to Hit',
+              value: hitChance != null
+                  ? '${(hitChance * 100).toStringAsFixed(1)}%'
+                  : '-',
+            ),
+            _StatRow(
+              label: 'Accuracy Rating',
+              value: '${playerStats.accuracy}',
+            ),
+            _StatRow(label: 'Crit Chance', value: '$critChance%'),
+            const _StatRow(label: 'Crit Multiplier', value: '150%'),
+            _StatRow(label: 'Lifesteal', value: '$lifesteal%'),
+            _StatRow(
+              label: 'Damage Reduction',
+              value:
+                  '${(playerStats.damageReduction * 100).toStringAsFixed(1)}%',
+            ),
+            const Divider(),
+            _StatRow(
+              icon: const CachedImage(
+                assetPath: 'assets/media/skills/combat/attack.png',
+                size: 16,
+              ),
+              label: 'Melee Evasion',
+              value: '${playerStats.meleeEvasion}',
+            ),
+            _StatRow(
+              icon: const CachedImage(
+                assetPath: 'assets/media/skills/ranged/ranged.png',
+                size: 16,
+              ),
+              label: 'Ranged Evasion',
+              value: '${playerStats.rangedEvasion}',
+            ),
+            _StatRow(
+              icon: const CachedImage(
+                assetPath: 'assets/media/skills/magic/magic.png',
+                size: 16,
+              ),
+              label: 'Magic Evasion',
+              value: '${playerStats.magicEvasion}',
+            ),
+            _StatRow(
+              icon: const SkillImage(skill: Skill.prayer, size: 16),
+              label: 'Prayer Points',
+              value: '${state.prayerPoints}',
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _StatRow extends StatelessWidget {
+  const _StatRow({required this.label, required this.value, this.icon});
+
+  final Widget? icon;
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 2),
+      child: Row(
+        children: [
+          if (icon != null) ...[icon!, const SizedBox(width: 6)],
+          Expanded(
+            child: Text(
+              label,
+              style: const TextStyle(color: Style.textColorSecondary),
+            ),
+          ),
+          Text(value, style: const TextStyle(fontWeight: FontWeight.w500)),
+        ],
+      ),
     );
   }
 }

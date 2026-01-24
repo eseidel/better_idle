@@ -24,3 +24,12 @@ extension AttackTypeExtensions on AttackType {
     AttackType.random => 'assets/media/skills/combat/combat.png',
   };
 }
+
+extension CombatTypeExtensions on CombatType {
+  /// Returns the asset path for this combat type icon.
+  String get assetPath => switch (this) {
+    CombatType.melee => 'assets/media/skills/combat/attack.png',
+    CombatType.ranged => 'assets/media/skills/ranged/ranged.png',
+    CombatType.magic => 'assets/media/skills/magic/magic.png',
+  };
+}
