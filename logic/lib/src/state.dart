@@ -2560,22 +2560,36 @@ class GlobalState {
     return startAction(recipe, random: random);
   }
 
+  /// Stops the agility course if it is currently running.
+  /// Returns this state unchanged if the course is not running.
+  GlobalState _stopAgilityIfActive() {
+    if (activeActivity is! AgilityActivity) {
+      return this;
+    }
+    return _copyWithNullable(
+      clearActiveActivity: true,
+      agility: agility.withProgressReset(),
+    );
+  }
+
   /// Builds an obstacle in the specified agility course slot.
   ///
   /// Deducts the build costs (GP and items) and adds the obstacle to the slot.
   /// Increments the slot's purchase count for cost discount tracking.
+  /// Stops the agility course if it is currently running.
   GlobalState buildAgilityObstacle(int slot, ActionId obstacleId) {
     final obstacle = registries.agility.byId(obstacleId.localId);
     if (obstacle == null) {
       throw StateError('Unknown agility obstacle: $obstacleId');
     }
 
+    var newState = _stopAgilityIfActive();
+
     // Get current slot state for discount calculation
-    final slotState = agility.slotState(slot);
+    final slotState = newState.agility.slotState(slot);
     final discount = slotState.costDiscount;
 
     // Check and deduct GP cost
-    var newState = this;
     final gpCost = obstacle.currencyCosts.gpCost;
     if (gpCost > 0) {
       final discountedGp = (gpCost * (1 - discount)).round();
@@ -2612,9 +2626,11 @@ class GlobalState {
   /// Destroys the obstacle in the specified agility course slot.
   ///
   /// Does not refund any resources. Keeps purchase count for discount tracking.
+  /// Stops the agility course if it is currently running.
   GlobalState destroyAgilityObstacle(int slot) {
-    final newAgility = agility.withObstacleDestroyed(slot);
-    return copyWith(agility: newAgility);
+    final newState = _stopAgilityIfActive();
+    final newAgility = newState.agility.withObstacleDestroyed(slot);
+    return newState.copyWith(agility: newAgility);
   }
 
   /// Creates a copy of this state with the given fields replaced.
