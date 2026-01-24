@@ -836,102 +836,226 @@ class _MonsterCard extends StatelessWidget {
   final CombatActionState? combatState;
   final bool isInCombat;
 
+  static String _formatPercent(double value) =>
+      '${(value * 100).toStringAsFixed(1)}%';
+
   @override
   Widget build(BuildContext context) {
-    final currentHp = combatState?.monsterHp ?? action.maxHp;
     final isSpawning = combatState?.isSpawning ?? false;
 
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+        child: isSpawning ? _buildSpawning() : _buildActive(context),
+      ),
+    );
+  }
+
+  Widget _buildSpawning() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
           children: [
-            Center(
-              child: action.media != null
-                  ? CachedImage(assetPath: action.media, size: 80)
-                  : const Icon(Icons.bug_report, size: 80),
+            Text(
+              action.name,
+              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
             ),
-            const SizedBox(height: 8),
-            Row(
+            const SizedBox(width: 8),
+            Text(
+              'Lvl ${action.combatLevel}',
+              style: TextStyle(color: Style.levelTextColor),
+            ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        const Padding(
+          padding: EdgeInsets.symmetric(vertical: 16),
+          child: Center(
+            child: Column(
               children: [
+                CircularProgressIndicator(),
+                SizedBox(height: 8),
                 Text(
-                  action.name,
-                  style: const TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
+                  'Monster spawning...',
+                  style: TextStyle(
+                    fontStyle: FontStyle.italic,
+                    color: Style.textColorSecondary,
                   ),
-                ),
-                const SizedBox(width: 8),
-                Text(
-                  'Lvl ${action.combatLevel}',
-                  style: TextStyle(color: Style.levelTextColor),
                 ),
               ],
             ),
-            const SizedBox(height: 8),
-            if (isSpawning)
-              const Padding(
-                padding: EdgeInsets.symmetric(vertical: 16),
-                child: Center(
-                  child: Column(
-                    children: [
-                      CircularProgressIndicator(),
-                      SizedBox(height: 8),
-                      Text(
-                        'Monster spawning...',
-                        style: TextStyle(
-                          fontStyle: FontStyle.italic,
-                          color: Style.textColorSecondary,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              )
-            else ...[
-              HpBar(
-                currentHp: currentHp,
-                maxHp: action.maxHp,
-                color: Style.monsterHpBarColor,
-              ),
-              Text('HP: $currentHp / ${action.maxHp}'),
-              const SizedBox(height: 8),
-              AttackBar(
-                ticksRemaining: combatState?.monsterAttackTicksRemaining,
-                totalTicks: isInCombat
-                    ? ticksFromDuration(
-                        Duration(
-                          milliseconds: (action.stats.attackSpeed * 1000)
-                              .round(),
-                        ),
-                      )
-                    : null,
-                animate: context.state.isMonsterActive,
-              ),
-              const SizedBox(height: 8),
-              Text('Attack Speed: ${action.stats.attackSpeed}s'),
-              Text('Max Hit: ${action.stats.maxHit}'),
-              Text('GP Drop: ${action.minGpDrop}-${action.maxGpDrop}'),
-              if (isInCombat)
-                const Padding(
-                  padding: EdgeInsets.only(top: 8),
-                  child: Row(
-                    children: [
-                      SizedBox(
-                        width: 16,
-                        height: 16,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      ),
-                      SizedBox(width: 8),
-                      Text('Fighting...'),
-                    ],
-                  ),
-                ),
-            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildActive(BuildContext context) {
+    final state = context.state;
+    final currentHp = combatState?.monsterHp ?? action.maxHp;
+    final monsterStats = MonsterCombatStats.fromAction(action);
+    final playerStats = computePlayerStats(state);
+
+    // Calculate monster's hit chance against player
+    final monsterHitChance = CombatCalculator.monsterHitChance(
+      monsterStats,
+      playerStats,
+      action.attackType,
+    );
+
+    final attackType = action.attackType;
+    final attackTypeName =
+        attackType.name[0].toUpperCase() + attackType.name.substring(1);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Center(
+          child: action.media != null
+              ? CachedImage(assetPath: action.media, size: 80)
+              : const Icon(Icons.bug_report, size: 80),
+        ),
+        const SizedBox(height: 8),
+        Row(
+          children: [
+            Text(
+              action.name,
+              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(width: 8),
+            Text(
+              'Lvl ${action.combatLevel}',
+              style: TextStyle(color: Style.levelTextColor),
+            ),
           ],
         ),
-      ),
+        const SizedBox(height: 8),
+        HpBar(
+          currentHp: currentHp,
+          maxHp: action.maxHp,
+          color: Style.monsterHpBarColor,
+        ),
+        Text('HP: $currentHp / ${action.maxHp}'),
+        const SizedBox(height: 8),
+        AttackBar(
+          ticksRemaining: combatState?.monsterAttackTicksRemaining,
+          totalTicks: isInCombat
+              ? ticksFromDuration(
+                  Duration(
+                    milliseconds: (action.stats.attackSpeed * 1000).round(),
+                  ),
+                )
+              : null,
+          animate: state.isMonsterActive,
+        ),
+        const SizedBox(height: 12),
+        // Offensive Stats
+        Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            border: Border.all(color: Style.iconColorDefault),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Offensive Stats',
+                style: TextStyle(fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 8),
+              _StatRow(
+                icon: CachedImage(assetPath: attackType.assetPath, size: 16),
+                label: 'Damage Type',
+                value: attackTypeName,
+              ),
+              _StatRow(label: 'Minimum Hit', value: '${action.stats.minHit}'),
+              _StatRow(label: 'Maximum Hit', value: '${action.stats.maxHit}'),
+              _StatRow(
+                label: 'Chance to Hit',
+                value: '${(monsterHitChance * 100).toStringAsFixed(1)}%',
+              ),
+              _StatRow(
+                label: 'Accuracy Rating',
+                value: '${monsterStats.accuracy}',
+              ),
+              _StatRow(
+                label: 'Attack Speed',
+                value: '${action.stats.attackSpeed}s',
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 8),
+        // Defensive Stats
+        Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            border: Border.all(color: Style.iconColorDefault),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Defensive Stats',
+                style: TextStyle(fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 8),
+              _StatRow(
+                icon: const CachedImage(
+                  assetPath: 'assets/media/skills/combat/attack.png',
+                  size: 16,
+                ),
+                label: 'Melee Evasion',
+                value: '${monsterStats.meleeEvasion}',
+              ),
+              _StatRow(
+                icon: const CachedImage(
+                  assetPath: 'assets/media/skills/ranged/ranged.png',
+                  size: 16,
+                ),
+                label: 'Ranged Evasion',
+                value: '${monsterStats.rangedEvasion}',
+              ),
+              _StatRow(
+                icon: const CachedImage(
+                  assetPath: 'assets/media/skills/magic/magic.png',
+                  size: 16,
+                ),
+                label: 'Magic Evasion',
+                value: '${monsterStats.magicEvasion}',
+              ),
+              _StatRow(
+                icon: const Icon(Icons.shield, size: 16),
+                label: 'Damage Reduction',
+                value: _formatPercent(monsterStats.damageReduction),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 8),
+        Text(
+          'GP Drop: ${action.minGpDrop}-${action.maxGpDrop}',
+          style: const TextStyle(color: Style.textColorSecondary),
+        ),
+        if (isInCombat)
+          const Padding(
+            padding: EdgeInsets.only(top: 8),
+            child: Row(
+              children: [
+                SizedBox(
+                  width: 16,
+                  height: 16,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                ),
+                SizedBox(width: 8),
+                Text('Fighting...'),
+              ],
+            ),
+          ),
+      ],
     );
   }
 }

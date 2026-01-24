@@ -5,6 +5,7 @@ import 'package:logic/src/data/melvor_id.dart';
 import 'package:logic/src/data/registries.dart';
 import 'package:logic/src/json.dart';
 import 'package:logic/src/types/inventory.dart';
+import 'package:logic/src/types/loot_state.dart';
 
 /// Reason why an action stopped during time away processing.
 enum ActionStopReason {
@@ -67,6 +68,7 @@ class TimeAway {
     this.stopReason = ActionStopReason.stillRunning,
     this.stoppedAfter,
     this.doublingChance = 0.0,
+    this.pendingLoot = const LootState.empty(),
   });
 
   factory TimeAway.fromJson(Registries registries, Map<String, dynamic> json) {
@@ -110,6 +112,9 @@ class TimeAway {
       stoppedAfter: stoppedAfterMs != null
           ? Duration(milliseconds: stoppedAfterMs)
           : null,
+      pendingLoot:
+          LootState.maybeFromJson(registries.items, json['pendingLoot']) ??
+          const LootState.empty(),
     );
   }
 
@@ -125,6 +130,7 @@ class TimeAway {
     ActionStopReason? stopReason,
     Duration? stoppedAfter,
     double? doublingChance,
+    LootState? pendingLoot,
   }) {
     return TimeAway(
       registries: registries,
@@ -138,6 +144,7 @@ class TimeAway {
       stopReason: stopReason ?? ActionStopReason.stillRunning,
       stoppedAfter: stoppedAfter,
       doublingChance: doublingChance ?? 0.0,
+      pendingLoot: pendingLoot ?? const LootState.empty(),
     );
   }
 
@@ -172,6 +179,9 @@ class TimeAway {
 
   /// The item doubling chance (0.0-1.0) from skillItemDoublingChance modifier.
   final double doublingChance;
+
+  /// Loot pending collection when the player returns.
+  final LootState pendingLoot;
 
   Duration get duration => endTime.difference(startTime);
 
@@ -284,6 +294,7 @@ class TimeAway {
     ActionStopReason? stopReason,
     Duration? stoppedAfter,
     double? doublingChance,
+    LootState? pendingLoot,
   }) {
     return TimeAway(
       registries: registries,
@@ -297,6 +308,7 @@ class TimeAway {
       stopReason: stopReason ?? this.stopReason,
       stoppedAfter: stoppedAfter ?? this.stoppedAfter,
       doublingChance: doublingChance ?? this.doublingChance,
+      pendingLoot: pendingLoot ?? this.pendingLoot,
     );
   }
 
@@ -340,6 +352,10 @@ class TimeAway {
     final mergedRecipeSelection = recipeSelection is SelectedRecipe
         ? recipeSelection
         : other.recipeSelection;
+    // Prefer the most recent pending loot (from this)
+    final mergedPendingLoot = pendingLoot.isNotEmpty
+        ? pendingLoot
+        : other.pendingLoot;
     return TimeAway(
       registries: registries,
       startTime: mergedStartTime,
@@ -352,6 +368,7 @@ class TimeAway {
       stopReason: mergedStopReason,
       stoppedAfter: mergedStoppedAfter,
       doublingChance: mergedDoublingChance,
+      pendingLoot: mergedPendingLoot,
     );
   }
 
@@ -369,6 +386,7 @@ class TimeAway {
       'changes': changes.toJson(),
       'stopReason': stopReason.name,
       'stoppedAfterMs': stoppedAfter?.inMilliseconds,
+      'pendingLoot': pendingLoot.isNotEmpty ? pendingLoot.toJson() : null,
     };
   }
 }

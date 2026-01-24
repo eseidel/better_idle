@@ -2347,6 +2347,7 @@ ConsumeTicksStopReason consumeTicksUntil(
     stopReason: builder.stopReason,
     stoppedAfter: stoppedAfter,
     doublingChance: doublingChance,
+    pendingLoot: builder.state.loot,
   );
   return (timeAway, builder.build());
 }

@@ -1,4 +1,6 @@
+import 'package:better_idle/src/widgets/cached_image.dart';
 import 'package:better_idle/src/widgets/item_change_row.dart';
+import 'package:better_idle/src/widgets/item_image.dart';
 import 'package:better_idle/src/widgets/skill_image.dart';
 import 'package:better_idle/src/widgets/style.dart';
 import 'package:flutter/material.dart';
@@ -58,7 +60,7 @@ class WelcomeBackDialog extends StatelessWidget {
                 final xpPerHour = timeAway.predictedXpPerHour[skill];
                 final xpText = signedCountString(xpGained);
                 final prediction = xpPerHour != null
-                    ? ' (${approximateCountString(xpPerHour)} xp/hr)'
+                    ? ' (${approximateCountString(xpPerHour)}/hr)'
                     : '';
 
                 final xpColor = xpGained > 0
@@ -67,16 +69,15 @@ class WelcomeBackDialog extends StatelessWidget {
 
                 return Padding(
                   padding: const EdgeInsets.only(left: 16, bottom: 4),
-                  child: Text.rich(
-                    TextSpan(
-                      children: [
-                        TextSpan(
-                          text: xpText,
-                          style: TextStyle(color: xpColor),
-                        ),
-                        TextSpan(text: ' ${skill.name} xp$prediction'),
-                      ],
-                    ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(xpText, style: TextStyle(color: xpColor)),
+                      const SizedBox(width: 4),
+                      SkillImage(skill: skill, size: 16),
+                      const SizedBox(width: 4),
+                      Flexible(child: Text('xp$prediction')),
+                    ],
                   ),
                 );
               }),
@@ -90,17 +91,35 @@ class WelcomeBackDialog extends StatelessWidget {
                 final levelsGained = levelChange.levelsGained;
                 final range =
                     '${levelChange.startLevel}->${levelChange.endLevel}';
-                final levelText = levelsGained > 1
-                    ? 'gained $levelsGained levels $range'
-                    : 'level up $range';
                 return Padding(
                   padding: const EdgeInsets.only(left: 16, bottom: 4),
-                  child: Text(
-                    '${skill.name} $levelText!',
-                    style: const TextStyle(
-                      fontWeight: FontWeight.bold,
-                      color: Style.successColor,
-                    ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      SkillImage(skill: skill, size: 16),
+                      const SizedBox(width: 4),
+                      if (levelsGained > 1) ...[
+                        const Text('gained '),
+                        Text(
+                          '$levelsGained',
+                          style: const TextStyle(
+                            fontWeight: FontWeight.bold,
+                            color: Style.successColor,
+                          ),
+                        ),
+                        Text(' levels $range!'),
+                      ] else ...[
+                        const Text('level up '),
+                        Text(
+                          range,
+                          style: const TextStyle(
+                            fontWeight: FontWeight.bold,
+                            color: Style.successColor,
+                          ),
+                        ),
+                        const Text('!'),
+                      ],
+                    ],
                   ),
                 );
               }),
@@ -119,7 +138,21 @@ class WelcomeBackDialog extends StatelessWidget {
                     : '';
                 return Padding(
                   padding: const EdgeInsets.only(left: 16, bottom: 4),
-                  child: Text('Killed $count ${monster.name}$rateText'),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Text('Killed '),
+                      Text(
+                        '$count',
+                        style: const TextStyle(color: Style.successColor),
+                      ),
+                      const SizedBox(width: 4),
+                      if (monster.media != null)
+                        CachedImage(assetPath: monster.media, size: 16),
+                      const SizedBox(width: 4),
+                      Flexible(child: Text('${monster.name}$rateText')),
+                    ],
+                  ),
                 );
               }),
             ],
@@ -204,12 +237,21 @@ class WelcomeBackDialog extends StatelessWidget {
                     ? ' (${_perHourString(rate)})'
                     : '';
                 final abbrev = currency.abbreviation;
-                final amountStr = approximateCountString(amount);
+                final amountStr = signedCountString(amount);
                 return Padding(
                   padding: const EdgeInsets.only(left: 16, bottom: 4),
-                  child: Text(
-                    'Earned $amountStr $abbrev$rateText',
-                    style: const TextStyle(color: Style.successColor),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        amountStr,
+                        style: const TextStyle(color: Style.successColor),
+                      ),
+                      const SizedBox(width: 4),
+                      CachedImage(assetPath: currency.assetPath, size: 16),
+                      const SizedBox(width: 4),
+                      Flexible(child: Text('$abbrev$rateText')),
+                    ],
                   ),
                 );
               }),
@@ -260,6 +302,74 @@ class WelcomeBackDialog extends StatelessWidget {
                   item: food,
                   count: -count,
                   suffix: rateText,
+                );
+              }),
+            ],
+
+            // 10. Pending loot to collect (aggregated by item type)
+            if (timeAway.pendingLoot.isNotEmpty) ...[
+              const SizedBox(height: 8),
+              // Aggregate stacks by item type
+              ...() {
+                final totals = <MelvorId, (Item, int)>{};
+                for (final stack in timeAway.pendingLoot.stacks) {
+                  final existing = totals[stack.item.id];
+                  if (existing != null) {
+                    totals[stack.item.id] = (
+                      stack.item,
+                      existing.$2 + stack.count,
+                    );
+                  } else {
+                    totals[stack.item.id] = (stack.item, stack.count);
+                  }
+                }
+                return totals.values.map((entry) {
+                  final (item, count) = entry;
+                  return Padding(
+                    padding: const EdgeInsets.only(left: 16, bottom: 4),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Text('You have '),
+                        Text(
+                          '$count',
+                          style: const TextStyle(color: Style.successColor),
+                        ),
+                        const SizedBox(width: 4),
+                        ItemImage(item: item, size: 16),
+                        const SizedBox(width: 4),
+                        Flexible(child: Text('${item.name} to loot')),
+                      ],
+                    ),
+                  );
+                });
+              }(),
+            ],
+
+            // 11. Items lost from loot overflow
+            if (changes.lostFromLoot.isNotEmpty) ...[
+              const SizedBox(height: 16),
+              ...changes.lostFromLoot.entries.map((entry) {
+                final item = registries.items.byId(entry.key);
+                final count = entry.value;
+                return Padding(
+                  padding: const EdgeInsets.only(left: 16, bottom: 4),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Text('You looted '),
+                      Text(
+                        '$count',
+                        style: const TextStyle(color: Style.warningColor),
+                      ),
+                      const SizedBox(width: 4),
+                      ItemImage(item: item, size: 16),
+                      const SizedBox(width: 4),
+                      const Flexible(
+                        child: Text('but your lootbox was full :('),
+                      ),
+                    ],
+                  ),
                 );
               }),
             ],
