@@ -606,6 +606,12 @@ class _MonsterCard extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            Center(
+              child: action.media != null
+                  ? CachedImage(assetPath: action.media, size: 80)
+                  : const Icon(Icons.bug_report, size: 80),
+            ),
+            const SizedBox(height: 8),
             Row(
               children: [
                 Text(
