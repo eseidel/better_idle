@@ -597,8 +597,9 @@ class _FilledSlotContent extends StatelessWidget {
           ...obstacle.modifiers.modifiers.expand((mod) {
             return mod.entries.map((entry) {
               final isPositive = entry.value >= 0;
+              final registry = state.registries.modifierMetadata;
               return Text(
-                _formatModifierEntry(mod, entry),
+                _formatModifierEntry(registry, mod, entry),
                 style: TextStyle(
                   color: isPositive ? Style.successColor : Style.errorColor,
                 ),
@@ -930,10 +931,11 @@ class _ObstacleSelectionTile extends StatelessWidget {
               ...modifiers.expand((mod) {
                 return mod.entries.map((entry) {
                   final isPositive = entry.value >= 0;
+                  final registry = state.registries.modifierMetadata;
                   return Padding(
                     padding: const EdgeInsets.only(left: 8),
                     child: Text(
-                      _formatModifierEntry(mod, entry),
+                      _formatModifierEntry(registry, mod, entry),
                       style: TextStyle(
                         color: isPositive
                             ? Style.successColor
@@ -1054,6 +1056,7 @@ class _GlobalModifiersDialog extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final registry = context.state.registries.modifierMetadata;
     // Combine all modifiers from built obstacles
     final positiveModifiers = <String, num>{};
     final negativeModifiers = <String, num>{};
@@ -1094,7 +1097,7 @@ class _GlobalModifiersDialog extends StatelessWidget {
                   (e) => Padding(
                     padding: const EdgeInsets.only(left: 8, top: 4),
                     child: Text(
-                      formatModifierDescription(name: e.key, value: e.value),
+                      registry.formatDescription(name: e.key, value: e.value),
                       style: const TextStyle(color: Style.successColor),
                     ),
                   ),
@@ -1113,7 +1116,7 @@ class _GlobalModifiersDialog extends StatelessWidget {
                   (e) => Padding(
                     padding: const EdgeInsets.only(left: 8, top: 4),
                     child: Text(
-                      formatModifierDescription(name: e.key, value: e.value),
+                      registry.formatDescription(name: e.key, value: e.value),
                       style: const TextStyle(color: Style.errorColor),
                     ),
                   ),
@@ -1142,7 +1145,11 @@ class _GlobalModifiersDialog extends StatelessWidget {
 ///
 /// Takes a modifier and one of its entries and formats it using the scope
 /// information to produce a human-readable description.
-String _formatModifierEntry(ModifierData mod, ModifierEntry entry) {
+String _formatModifierEntry(
+  ModifierMetadataRegistry registry,
+  ModifierData mod,
+  ModifierEntry entry,
+) {
   // Extract scope information
   String? skillName;
   String? currencyName;
@@ -1167,7 +1174,7 @@ String _formatModifierEntry(ModifierData mod, ModifierEntry entry) {
     }
   }
 
-  return formatModifierDescription(
+  return registry.formatDescription(
     name: mod.name,
     value: entry.value,
     skillName: skillName,

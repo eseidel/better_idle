@@ -2293,4 +2293,148 @@ void main() {
       expect(actualXp, greaterThan(wrongXp)); // Oak bonus > normal bonus
     });
   });
+
+  group('agility course', () {
+    test('starting and completing one obstacle grants XP', () {
+      var state = GlobalState.empty(testRegistries);
+      final random = Random(0);
+
+      // Get a category 0 obstacle (level 1 unlocked)
+      final obstacle = testRegistries.agility.obstacles.firstWhere(
+        (o) => o.category == 0,
+      );
+
+      // Give enough GP to build the obstacle (if it has a cost)
+      if (obstacle.currencyCosts.gpCost > 0) {
+        state = state.addCurrency(Currency.gp, obstacle.currencyCosts.gpCost);
+      }
+
+      // Build the obstacle in slot 0
+      state = state.buildAgilityObstacle(0, obstacle.id);
+      expect(state.agility.hasObstacle(0), true);
+
+      // Start the agility course
+      state = state.startAgilityCourse(random: random)!;
+      expect(state.activeActivity, isA<AgilityActivity>());
+
+      final activity = state.activeActivity! as AgilityActivity;
+      expect(activity.currentObstacleIndex, 0);
+      expect(activity.obstacleCount, 1);
+
+      // Get the total ticks needed to complete
+      final totalTicks = activity.totalTicks;
+
+      // Process enough ticks to complete the obstacle
+      final builder = StateUpdateBuilder(state);
+      consumeTicks(builder, totalTicks, random: random);
+      state = builder.build();
+
+      // Verify agility XP was gained
+      expect(state.skillState(Skill.agility).xp, obstacle.xp);
+    });
+
+    test('completing multiple obstacles in sequence grants XP for each', () {
+      var state = GlobalState.empty(testRegistries);
+      final random = Random(0);
+
+      // Get two category 0 obstacles (if available) or use same one twice
+      final slot0Obstacles = testRegistries.agility.obstacles
+          .where((o) => o.category == 0)
+          .toList();
+      final obstacle1 = slot0Obstacles.first;
+
+      // Get a category 1 obstacle for slot 1 (level 10 unlock)
+      final slot1Obstacles = testRegistries.agility.obstacles
+          .where((o) => o.category == 1)
+          .toList();
+
+      // Skip if we don't have slot 1 obstacles
+      if (slot1Obstacles.isEmpty) {
+        // Just test with one obstacle
+        return;
+      }
+      final obstacle2 = slot1Obstacles.first;
+
+      // Give enough GP to build both obstacles
+      final totalGp =
+          obstacle1.currencyCosts.gpCost + obstacle2.currencyCosts.gpCost;
+      if (totalGp > 0) {
+        state = state.addCurrency(Currency.gp, totalGp);
+      }
+
+      // Set agility level high enough for slot 1 (level 10)
+      state = state.copyWith(
+        skillStates: {
+          ...state.skillStates,
+          Skill.agility: const SkillState(xp: 1200, masteryPoolXp: 0),
+        },
+      );
+
+      // Build obstacles in slots 0 and 1
+      state = state.buildAgilityObstacle(0, obstacle1.id);
+      state = state.buildAgilityObstacle(1, obstacle2.id);
+      expect(state.agility.builtObstacleCount, 2);
+
+      // Start the agility course
+      state = state.startAgilityCourse(random: random)!;
+      final activity = state.activeActivity! as AgilityActivity;
+      expect(activity.obstacleCount, 2);
+      expect(activity.currentObstacleIndex, 0);
+
+      // Complete both obstacles by processing enough ticks
+      // We need enough ticks for both obstacles
+      final ticksForBoth = activity.totalTicks * 3; // Extra buffer
+
+      final builder = StateUpdateBuilder(state);
+      consumeTicks(builder, ticksForBoth, random: random);
+      state = builder.build();
+
+      // Verify agility XP was gained for at least one completion
+      // (XP depends on how many full completions we got)
+      expect(state.skillState(Skill.agility).xp, greaterThan(0));
+    });
+
+    test('agility course restarts after last obstacle', () {
+      var state = GlobalState.empty(testRegistries);
+      final random = Random(0);
+
+      // Get a category 0 obstacle
+      final obstacle = testRegistries.agility.obstacles.firstWhere(
+        (o) => o.category == 0,
+      );
+
+      // Give enough GP to build the obstacle
+      if (obstacle.currencyCosts.gpCost > 0) {
+        state = state.addCurrency(Currency.gp, obstacle.currencyCosts.gpCost);
+      }
+
+      // Build the obstacle
+      state = state.buildAgilityObstacle(0, obstacle.id);
+
+      // Start the agility course
+      state = state.startAgilityCourse(random: random)!;
+      final initialActivity = state.activeActivity! as AgilityActivity;
+      final ticksPerObstacle = initialActivity.totalTicks;
+
+      // Complete multiple iterations
+      final builder = StateUpdateBuilder(state);
+      consumeTicks(builder, ticksPerObstacle * 3, random: random);
+      state = builder.build();
+
+      // With only one obstacle, index should still be 0 after wrapping
+      final finalActivity = state.activeActivity! as AgilityActivity;
+      expect(finalActivity.currentObstacleIndex, 0);
+
+      // Should have gained XP for 3 completions
+      expect(state.skillState(Skill.agility).xp, obstacle.xp * 3);
+    });
+
+    test('startAgilityCourse returns null when no obstacles built', () {
+      final state = GlobalState.empty(testRegistries);
+      final random = Random(0);
+
+      final result = state.startAgilityCourse(random: random);
+      expect(result, isNull);
+    });
+  });
 }

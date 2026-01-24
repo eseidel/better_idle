@@ -250,6 +250,17 @@ class CombatProgressState {
 /// This represents actively running through a sequence of obstacles.
 /// Like dungeons, the course loops through obstacles in order.
 /// XP and GP are awarded after each obstacle completes.
+///
+/// This is separate from [SkillActivity] because agility courses are
+/// fundamentally different from other skills:
+/// - [SkillActivity] repeats a single action over and over (e.g., chop Oak
+///   trees repeatedly). All iterations have the same duration and rewards.
+/// - [AgilityActivity] progresses through a sequence of *different* actions
+///   (obstacles), each with its own duration and rewards. It tracks which
+///   obstacle in the sequence is currently being performed.
+///
+/// This pattern is similar to how dungeons work in combat - you fight through
+/// a sequence of different monsters rather than the same one repeatedly.
 @immutable
 class AgilityActivity extends ActiveActivity {
   const AgilityActivity({

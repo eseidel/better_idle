@@ -48,6 +48,7 @@ export 'src/types/mastery.dart';
 export 'src/types/mastery_pool_bonus.dart';
 export 'src/types/mastery_unlock.dart';
 export 'src/types/modifier.dart';
+export 'src/types/modifier_metadata.dart';
 export 'src/types/modifier_names.dart';
 export 'src/types/modifier_provider.dart';
 export 'src/types/open_result.dart';
