@@ -17,9 +17,14 @@ ignorePaths:
   - "*.xcassets/**"
   - "android/app/src/main/java/io/flutter/plugins/GeneratedPluginRegistrant.java"
   - "ios/Runner/GeneratedPluginRegistrant.m"
-  - "macos/Pods"
+  - "**/Pods/**"
+  - "**/Flutter/**"
+  - "logic/doc/proposals/**"
+  - "logic/doc/solver/**"
+  - "logic/*.json"
 words:
   - adamant
+  - appiconset
   - adamantite
   - APPL
   - aeris
@@ -41,6 +46,7 @@ words:
   - eseidel
   - firemaking
   - fluttercommunity
+  - frostburn
   - glacia
   - gloop
   - golbin

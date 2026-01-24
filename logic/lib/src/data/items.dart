@@ -1,4 +1,4 @@
-// cspell:words summoningMaxhit
+// cspell:words summoningMaxhit succesful
 import 'dart:math';
 
 import 'package:equatable/equatable.dart';
@@ -202,7 +202,7 @@ class ConsumesOn extends Equatable {
         .toList();
 
     // Parse successful flag if present (for ThievingAction)
-    // cspell:ignore-next-line succesful - typo in Melvor data
+    // Note: 'succesful' is a typo in Melvor data that we must match.
     final successful = json['succesful'] as bool?;
 
     return ConsumesOn(

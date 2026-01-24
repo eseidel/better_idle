@@ -387,7 +387,6 @@ class EveryCondition extends ModifierCondition {
 
 /// Condition that requires ANY nested condition to be true (logical OR).
 ///
-// cspell:ignore-next-line frostburn - Melvor game term
 /// Example: Bonuses when affected by slow OR frostburn OR burn effects.
 @immutable
 class SomeCondition extends ModifierCondition {
