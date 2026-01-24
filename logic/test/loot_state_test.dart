@@ -194,8 +194,7 @@ void main() {
         ),
       );
 
-      final builder = StateUpdateBuilder(state);
-      builder.collectAllLoot();
+      final builder = StateUpdateBuilder(state)..collectAllLoot();
       final result = builder.build();
 
       // Loot should be empty
@@ -247,8 +246,7 @@ void main() {
         ),
       );
 
-      final builder = StateUpdateBuilder(state);
-      builder.collectAllLoot();
+      final builder = StateUpdateBuilder(state)..collectAllLoot();
       final result = builder.build();
 
       // Loot should still have the items
@@ -297,8 +295,7 @@ void main() {
         ),
       );
 
-      final builder = StateUpdateBuilder(state);
-      builder.collectAllLoot();
+      final builder = StateUpdateBuilder(state)..collectAllLoot();
       final result = builder.build();
 
       // First item should be collected, second should remain
@@ -310,8 +307,7 @@ void main() {
     test('collects empty loot without error', () {
       final state = GlobalState.test(testRegistries);
 
-      final builder = StateUpdateBuilder(state);
-      builder.collectAllLoot();
+      final builder = StateUpdateBuilder(state)..collectAllLoot();
       final result = builder.build();
 
       expect(result.loot.isEmpty, true);
@@ -332,8 +328,8 @@ void main() {
         loot: LootState(stacks: stacks),
       );
 
-      final builder = StateUpdateBuilder(state);
-      builder.addToLoot(ItemStack(feathers, count: 10), isBones: false);
+      final builder = StateUpdateBuilder(state)
+        ..addToLoot(ItemStack(feathers, count: 10), isBones: false);
 
       // The oldest item should be lost and tracked in Changes
       expect(builder.changes.lostFromLoot.counts[rawChicken.id], 1);
@@ -350,8 +346,8 @@ void main() {
         loot: LootState(stacks: [ItemStack(bones, count: 1)]),
       );
 
-      final builder = StateUpdateBuilder(state);
-      builder.addToLoot(ItemStack(feathers, count: 5), isBones: false);
+      final builder = StateUpdateBuilder(state)
+        ..addToLoot(ItemStack(feathers, count: 5), isBones: false);
 
       // No items should be lost
       expect(builder.changes.lostFromLoot.isEmpty, true);
@@ -372,11 +368,10 @@ void main() {
         loot: LootState(stacks: stacks),
       );
 
-      final builder = StateUpdateBuilder(state);
-
-      // Add two items, causing two evictions
-      builder.addToLoot(ItemStack(feathers, count: 10), isBones: false);
-      builder.addToLoot(ItemStack(bones, count: 5), isBones: false);
+      final builder = StateUpdateBuilder(state)
+        // Add two items, causing two evictions
+        ..addToLoot(ItemStack(feathers, count: 10), isBones: false)
+        ..addToLoot(ItemStack(bones, count: 5), isBones: false);
 
       // First eviction: rawChicken count 1
       // Second eviction: rawChicken count 2

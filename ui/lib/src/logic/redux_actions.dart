@@ -262,6 +262,22 @@ class SelectFoodSlotAction extends ReduxAction<GlobalState> {
   }
 }
 
+/// Unequips food from an equipment slot back to inventory.
+class UnequipFoodAction extends ReduxAction<GlobalState> {
+  UnequipFoodAction({required this.slotIndex});
+  final int slotIndex;
+
+  @override
+  GlobalState? reduce() {
+    final food = state.equipment.foodSlots[slotIndex];
+    if (food == null) return null;
+    if (!state.inventory.canAdd(food.item, capacity: state.inventoryCapacity)) {
+      return null;
+    }
+    return state.unequipFood(slotIndex);
+  }
+}
+
 /// Opens openable items and receives the drops.
 class OpenItemAction extends ReduxAction<GlobalState> {
   OpenItemAction({

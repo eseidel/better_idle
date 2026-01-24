@@ -2,7 +2,6 @@ import 'package:better_idle/src/logic/redux_actions.dart';
 import 'package:better_idle/src/widgets/attack_style_selector.dart';
 import 'package:better_idle/src/widgets/cached_image.dart';
 import 'package:better_idle/src/widgets/context_extensions.dart';
-import 'package:better_idle/src/widgets/equipment_slots.dart';
 import 'package:better_idle/src/widgets/game_scaffold.dart';
 import 'package:better_idle/src/widgets/hp_bar.dart';
 import 'package:better_idle/src/widgets/item_image.dart';
@@ -554,52 +553,9 @@ class _PlayerStatsCard extends StatelessWidget {
               totalTicks: totalAttackTicks,
               animate: animateAttack,
             ),
-            const SizedBox(height: 16),
-            // Food slots section
-            const Text(
-              'Food',
-              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 8),
-            _FoodSlotsRow(equipment: equipment),
-            const SizedBox(height: 8),
-            // Eat button
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton.icon(
-                onPressed: canEat
-                    ? () => context.dispatch(EatFoodAction())
-                    : null,
-                icon: const Icon(Icons.restaurant),
-                label: Text(
-                  selectedFood != null
-                      ? 'Eat ${selectedFood.item.name} '
-                            '(+${selectedFood.item.healsFor} HP)'
-                      : 'No food selected',
-                ),
-              ),
-            ),
-            const SizedBox(height: 16),
-            // Equipment slots section
-            Row(
-              children: [
-                const Text(
-                  'Equipment',
-                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                ),
-                const Spacer(),
-                TextButton.icon(
-                  onPressed: () => showDialog<void>(
-                    context: context,
-                    builder: (_) => const EquipmentGridDialog(),
-                  ),
-                  icon: const Icon(Icons.grid_view, size: 16),
-                  label: const Text('View Grid'),
-                ),
-              ],
-            ),
-            const SizedBox(height: 8),
-            const EquipmentSlotsCompact(),
+            const SizedBox(height: 12),
+            // Compact food selector
+            _CompactFoodSelector(equipment: equipment, canEat: canEat),
           ],
         ),
       ),
@@ -607,69 +563,143 @@ class _PlayerStatsCard extends StatelessWidget {
   }
 }
 
-class _FoodSlotsRow extends StatelessWidget {
-  const _FoodSlotsRow({required this.equipment});
+class _CompactFoodSelector extends StatelessWidget {
+  const _CompactFoodSelector({required this.equipment, required this.canEat});
 
   final Equipment equipment;
+  final bool canEat;
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-      children: List.generate(foodSlotCount, (index) {
-        final stack = equipment.foodSlots[index];
-        final isSelected = equipment.selectedFoodSlot == index;
+    final selectedSlot = equipment.selectedFoodSlot;
+    final selectedFood = equipment.selectedFood;
 
-        return GestureDetector(
-          onTap: () => context.dispatch(SelectFoodSlotAction(slotIndex: index)),
+    // Find previous/next slots with food for navigation
+    int? findPrevSlot() {
+      for (var i = selectedSlot - 1; i >= 0; i--) {
+        if (equipment.foodSlots[i] != null) return i;
+      }
+      // Wrap around
+      for (var i = foodSlotCount - 1; i > selectedSlot; i--) {
+        if (equipment.foodSlots[i] != null) return i;
+      }
+      return null;
+    }
+
+    int? findNextSlot() {
+      for (var i = selectedSlot + 1; i < foodSlotCount; i++) {
+        if (equipment.foodSlots[i] != null) return i;
+      }
+      // Wrap around
+      for (var i = 0; i < selectedSlot; i++) {
+        if (equipment.foodSlots[i] != null) return i;
+      }
+      return null;
+    }
+
+    final prevSlot = findPrevSlot();
+    final nextSlot = findNextSlot();
+    final hasMultipleFood = prevSlot != null && prevSlot != selectedSlot;
+
+    return Row(
+      children: [
+        // Left arrow
+        IconButton(
+          icon: const Icon(Icons.chevron_left, size: 20),
+          onPressed: hasMultipleFood
+              ? () =>
+                    context.dispatch(SelectFoodSlotAction(slotIndex: prevSlot))
+              : null,
+          visualDensity: VisualDensity.compact,
+          padding: EdgeInsets.zero,
+          constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+        ),
+        // Food display
+        Expanded(
           child: Container(
-            width: 70,
-            height: 70,
+            height: 36,
+            padding: const EdgeInsets.symmetric(horizontal: 8),
             decoration: BoxDecoration(
-              color: stack != null
+              color: selectedFood != null
                   ? Style.containerBackgroundFilled
                   : Style.containerBackgroundEmpty,
-              border: Border.all(
-                color: isSelected
-                    ? Style.selectedColor
-                    : Style.iconColorDefault,
-                width: isSelected ? 3 : 1,
-              ),
-              borderRadius: BorderRadius.circular(8),
+              borderRadius: BorderRadius.circular(4),
+              border: Border.all(color: Style.iconColorDefault),
             ),
-            child: stack != null
-                ? Column(
+            child: selectedFood != null
+                ? Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Text(
-                        stack.item.name,
-                        style: const TextStyle(fontSize: 10),
-                        textAlign: TextAlign.center,
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
+                      ItemImage(item: selectedFood.item, size: 24),
+                      const SizedBox(width: 6),
+                      Flexible(
+                        child: Text(
+                          selectedFood.item.name,
+                          style: const TextStyle(fontSize: 13),
+                          overflow: TextOverflow.ellipsis,
+                        ),
                       ),
-                      const SizedBox(height: 2),
+                      const SizedBox(width: 4),
                       Text(
-                        approximateCountString(stack.count),
+                        'x${approximateCountString(selectedFood.count)}',
                         style: const TextStyle(
                           fontSize: 12,
                           fontWeight: FontWeight.bold,
+                          color: Style.textColorSecondary,
+                        ),
+                      ),
+                      const SizedBox(width: 4),
+                      GestureDetector(
+                        onTap: () => context.dispatch(
+                          UnequipFoodAction(slotIndex: selectedSlot),
+                        ),
+                        child: const Icon(
+                          Icons.close,
+                          size: 16,
+                          color: Style.textColorSecondary,
                         ),
                       ),
                     ],
                   )
                 : const Center(
                     child: Text(
-                      'Empty',
+                      'No food equipped',
                       style: TextStyle(
-                        fontSize: 10,
+                        fontSize: 12,
                         color: Style.textColorSecondary,
                       ),
                     ),
                   ),
           ),
-        );
-      }),
+        ),
+        // Right arrow
+        IconButton(
+          icon: const Icon(Icons.chevron_right, size: 20),
+          onPressed: hasMultipleFood
+              ? () =>
+                    context.dispatch(SelectFoodSlotAction(slotIndex: nextSlot!))
+              : null,
+          visualDensity: VisualDensity.compact,
+          padding: EdgeInsets.zero,
+          constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+        ),
+        const SizedBox(width: 4),
+        // Eat button
+        SizedBox(
+          height: 36,
+          child: ElevatedButton(
+            onPressed: canEat ? () => context.dispatch(EatFoodAction()) : null,
+            style: ElevatedButton.styleFrom(
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+            ),
+            child: Text(
+              selectedFood != null
+                  ? 'Eat +${selectedFood.item.healsFor}'
+                  : 'Eat',
+            ),
+          ),
+        ),
+      ],
     );
   }
 }

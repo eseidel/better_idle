@@ -244,7 +244,7 @@ class _AreaStatusCard extends StatelessWidget {
     );
   }
 
-  /// Returns the first unpurchased equipment upgrade for this area.
+  /// Returns the first un-purchased equipment upgrade for this area.
   ShopPurchase? _getNextPurchase(GlobalState state) {
     final chain = switch (area) {
       CookingArea.fire => state.registries.shop.cookingFireChain,
