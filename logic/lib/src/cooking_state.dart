@@ -72,9 +72,6 @@ class CookingAreaState {
     return CookingAreaState(recipeId: recipeId ?? this.recipeId);
   }
 
-  /// Creates a copy with recipe cleared.
-  CookingAreaState cleared() => const CookingAreaState.empty();
-
   Map<String, dynamic> toJson() {
     return {if (recipeId != null) 'recipeId': recipeId!.toJson()};
   }
