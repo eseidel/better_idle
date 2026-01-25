@@ -434,53 +434,52 @@ void _applyPassiveCookingTicks(
   ActionId? activeActionId,
   Random random,
 ) {
-  // Passive cooking only runs when the active action is a CookingAction
-  if (activeActionId == null) return;
+  // Passive cooking only runs when active activity is CookingActivity
+  final activity = builder.state.activeActivity;
+  if (activity is! CookingActivity) return;
 
   final registries = builder.state.registries;
-  final currentAction = registries.actionById(activeActionId);
 
-  // If not cooking, passive cooking doesn't run
-  if (currentAction is! CookingAction) return;
+  // Process each non-active cooking area from CookingActivity.areaProgress
+  for (final entry in activity.areaProgress.entries) {
+    final area = entry.key;
+    final progress = entry.value;
 
-  final cookingState = builder.state.cooking;
-  final activeCookingArea = CookingArea.fromCategoryId(
-    currentAction.categoryId,
-  );
-
-  // Process each non-active cooking area
-  for (final (area, areaState) in cookingState.allAreas) {
     // Skip the active cooking area (handled by foreground)
-    if (area == activeCookingArea) continue;
+    if (area == activity.activeArea) continue;
 
-    // Skip areas without a recipe or not actively cooking
-    if (!areaState.isActive || areaState.recipeId == null) continue;
-
-    final recipeId = areaState.recipeId!;
-    final action = registries.actionById(recipeId);
+    final action = registries.actionById(progress.recipeId);
     if (action is! CookingAction) continue;
 
     // Check if we have inputs to cook
     if (!builder.state.canStartAction(action)) continue;
 
     final recipeDuration = ticksFromDuration(action.maxDuration);
-    final passiveProcessor = PassiveCookingTickProcessor(
-      area: area,
-      areaState: areaState,
-      recipeDuration: recipeDuration,
-    );
 
-    if (!passiveProcessor.isActive) continue;
+    // Passive cooking is 5x slower: effective ticks = ticks / 5
+    final effectiveTicks = ticks ~/ passiveCookingMultiplier;
+    if (effectiveTicks <= 0) continue;
 
-    final result = passiveProcessor.applyTicks(ticks);
+    final remaining = progress.ticksRemaining;
 
-    if (result.completed) {
+    if (effectiveTicks >= remaining) {
       // Cook completed - produce output (no XP/mastery/bonuses)
       completeCookingAction(builder, action, random, isPassive: true);
-    }
 
-    // Update the cooking area state
-    builder.updateCookingAreaState(area, result.newState);
+      // Reset progress for next cook
+      final newProgress = CookingAreaProgress(
+        recipeId: progress.recipeId,
+        ticksRemaining: recipeDuration,
+        totalTicks: recipeDuration,
+      );
+      builder.updateCookingActivityProgress(area, newProgress);
+    } else {
+      // Still cooking - decrement countdown
+      final newProgress = progress.copyWith(
+        ticksRemaining: remaining - effectiveTicks,
+      );
+      builder.updateCookingActivityProgress(area, newProgress);
+    }
   }
 }
 
@@ -561,7 +560,22 @@ class StateUpdateBuilder {
   }
 
   void restartCurrentAction(Action action, {required Random random}) {
-    // This shouldn't be able to start a *new* action, only restart the current.
+    final activity = _state.activeActivity;
+    if (activity != null && action is SkillAction) {
+      // Use the activity's restarted method to preserve internal state
+      // (e.g., CookingActivity preserves passive area progress)
+      final newTotalTicks = _state.rollDurationWithModifiers(
+        action,
+        random,
+        registries.shop,
+      );
+      _state = _state.copyWith(
+        activeActivity: activity.restarted(newTotalTicks: newTotalTicks),
+      );
+      return;
+    }
+
+    // For combat or when there's no activity, restart via startAction.
     _state = _state.startAction(action, random: random);
   }
 
@@ -736,6 +750,18 @@ class StateUpdateBuilder {
   void updateCookingAreaState(CookingArea area, CookingAreaState newState) {
     final cooking = _state.cooking.withAreaState(area, newState);
     _state = _state.copyWith(cooking: cooking);
+  }
+
+  /// Updates progress for a specific cooking area in the active
+  /// [CookingActivity].
+  void updateCookingActivityProgress(
+    CookingArea area,
+    CookingAreaProgress newProgress,
+  ) {
+    final activity = _state.activeActivity;
+    if (activity is! CookingActivity) return;
+    final newActivity = activity.withAreaProgress(area, newProgress);
+    _state = _state.copyWith(activeActivity: newActivity);
   }
 
   void addCurrency(Currency currency, int amount) {
@@ -1245,22 +1271,19 @@ class StateUpdateBuilder {
     }
 
     // 7. Passive cooking timers (only when actively cooking)
-    if (activeActionId != null) {
-      final action = registries.actionById(activeActionId);
-      if (action is CookingAction) {
-        final activeCookingArea = CookingArea.fromCategoryId(action.categoryId);
-        for (final (area, areaState) in _state.cooking.allAreas) {
-          // Skip active area (handled by foreground)
-          if (area == activeCookingArea) continue;
+    final activity = _state.activeActivity;
+    if (activity is CookingActivity) {
+      for (final entry in activity.areaProgress.entries) {
+        final area = entry.key;
+        final progress = entry.value;
 
-          // Check for passive cooking progress
-          if (areaState.isActive) {
-            final effectiveTicks = areaState.progressTicksRemaining;
-            if (effectiveTicks != null && effectiveTicks > 0) {
-              // Passive cooking runs at 5x slower rate
-              updateMin(effectiveTicks * passiveCookingMultiplier);
-            }
-          }
+        // Skip active area (handled by foreground)
+        if (area == activity.activeArea) continue;
+
+        // Check for passive cooking progress
+        if (progress.ticksRemaining > 0) {
+          // Passive cooking runs at 5x slower rate
+          updateMin(progress.ticksRemaining * passiveCookingMultiplier);
         }
       }
     }
@@ -2175,12 +2198,7 @@ enum ForegroundResult {
       builder.registries.shop,
     );
 
-    // Update agility state to track current obstacle index
-    builder.setAgility(
-      builder.state.agility.copyWith(currentObstacleIndex: nextIndex),
-    );
-
-    // Advance activity to next obstacle
+    // Advance activity to next obstacle (index is tracked in AgilityActivity)
     final newActivity = activity.advanceToNextObstacle(
       newTotalTicks: nextTotalTicks,
     );
@@ -2209,6 +2227,14 @@ enum ForegroundResult {
   // Pattern match on the sealed ActiveActivity class
   return switch (activity) {
     SkillActivity() when action is SkillAction => _processSkillForeground(
+      builder,
+      action,
+      ticksAvailable,
+      random,
+    ),
+    // CookingActivity uses the same processing as SkillActivity
+    // (CookingAction extends SkillAction)
+    CookingActivity() when action is CookingAction => _processSkillForeground(
       builder,
       action,
       ticksAvailable,

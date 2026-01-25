@@ -1,6 +1,7 @@
+import 'package:logic/logic.dart' show CookingActivity;
+import 'package:logic/src/activity/active_activity.dart' show CookingActivity;
 import 'package:logic/src/data/action_id.dart';
 import 'package:logic/src/data/melvor_id.dart';
-import 'package:logic/src/tick.dart';
 import 'package:meta/meta.dart';
 
 /// The three cooking areas in Melvor Idle.
@@ -32,25 +33,23 @@ enum CookingArea {
 
 /// State for a single cooking area (Fire, Furnace, or Pot).
 ///
-/// Each area can have a recipe assigned and tracks its progress independently.
-/// When cooking is active, one area is "active" (full rewards) and others are
-/// "passive" (cook at 5x slower rate, no XP/mastery/bonuses).
+/// Stores only persistent configuration (recipe assignment).
+/// Active cooking progress is tracked in [CookingActivity], not here.
+///
+/// When cooking is active, progress for all areas is in
+/// [CookingActivity.areaProgress]. When switching away from cooking,
+/// the [CookingActivity] is replaced and progress is lost, but recipe
+/// assignments here are preserved.
 @immutable
 class CookingAreaState {
-  const CookingAreaState({
-    this.recipeId,
-    this.progressTicksRemaining,
-    this.totalTicks,
-  });
+  const CookingAreaState({this.recipeId});
 
   const CookingAreaState.empty() : this();
 
   factory CookingAreaState.fromJson(Map<String, dynamic> json) {
-    return CookingAreaState(
-      recipeId: ActionId.maybeFromJson(json['recipeId']),
-      progressTicksRemaining: json['progressTicksRemaining'] as Tick?,
-      totalTicks: json['totalTicks'] as Tick?,
-    );
+    // Note: progressTicksRemaining and totalTicks are legacy fields,
+    // now stored in CookingActivity.areaProgress instead.
+    return CookingAreaState(recipeId: ActionId.maybeFromJson(json['recipeId']));
   }
 
   /// Deserializes a [CookingAreaState] from a dynamic JSON value.
@@ -63,47 +62,18 @@ class CookingAreaState {
   /// The cooking recipe assigned to this area (null if no recipe assigned).
   final ActionId? recipeId;
 
-  /// Ticks remaining until current cook completes (countdown pattern).
-  /// Null if no recipe is actively being cooked.
-  final Tick? progressTicksRemaining;
-
-  /// Total ticks for the current recipe (used for progress bar display).
-  final Tick? totalTicks;
-
   /// Returns true if no recipe is assigned to this area.
   bool get isEmpty => recipeId == null;
 
-  /// Returns true if a recipe is assigned and actively cooking.
-  bool get isActive => recipeId != null && progressTicksRemaining != null;
+  /// Returns true if a recipe is assigned to this area.
+  bool get hasRecipe => recipeId != null;
 
-  CookingAreaState copyWith({
-    ActionId? recipeId,
-    Tick? progressTicksRemaining,
-    Tick? totalTicks,
-  }) {
-    return CookingAreaState(
-      recipeId: recipeId ?? this.recipeId,
-      progressTicksRemaining:
-          progressTicksRemaining ?? this.progressTicksRemaining,
-      totalTicks: totalTicks ?? this.totalTicks,
-    );
+  CookingAreaState copyWith({ActionId? recipeId}) {
+    return CookingAreaState(recipeId: recipeId ?? this.recipeId);
   }
-
-  /// Creates a copy with progress cleared (recipe still assigned).
-  CookingAreaState withProgressCleared() {
-    return CookingAreaState(recipeId: recipeId);
-  }
-
-  /// Creates a copy with recipe and progress cleared.
-  CookingAreaState cleared() => const CookingAreaState.empty();
 
   Map<String, dynamic> toJson() {
-    return {
-      if (recipeId != null) 'recipeId': recipeId!.toJson(),
-      if (progressTicksRemaining != null)
-        'progressTicksRemaining': progressTicksRemaining,
-      if (totalTicks != null) 'totalTicks': totalTicks,
-    };
+    return {if (recipeId != null) 'recipeId': recipeId!.toJson()};
   }
 }
 
@@ -164,9 +134,9 @@ class CookingState {
     (CookingArea.pot, potArea),
   ];
 
-  /// Returns true if any cooking area has an active recipe.
-  bool get hasActiveRecipe =>
-      fireArea.isActive || furnaceArea.isActive || potArea.isActive;
+  /// Returns true if any cooking area has a recipe assigned.
+  bool get hasAnyRecipe =>
+      fireArea.hasRecipe || furnaceArea.hasRecipe || potArea.hasRecipe;
 
   CookingState copyWith({
     CookingAreaState? fireArea,
@@ -187,17 +157,6 @@ class CookingState {
       CookingArea.furnace => copyWith(furnaceArea: state),
       CookingArea.pot => copyWith(potArea: state),
     };
-  }
-
-  /// Returns a copy with progress cleared on all areas (recipes still
-  /// assigned). Called when the player switches away from cooking to another
-  /// skill.
-  CookingState withAllProgressCleared() {
-    return CookingState(
-      fireArea: fireArea.withProgressCleared(),
-      furnaceArea: furnaceArea.withProgressCleared(),
-      potArea: potArea.withProgressCleared(),
-    );
   }
 
   Map<String, dynamic> toJson() {

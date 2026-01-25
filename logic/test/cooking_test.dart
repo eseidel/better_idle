@@ -25,21 +25,17 @@ void main() {
   });
 
   group('CookingState', () {
-    test('empty state has no active areas', () {
+    test('empty state has no recipes', () {
       const state = CookingState.empty();
       expect(state.fireArea.isEmpty, isTrue);
       expect(state.furnaceArea.isEmpty, isTrue);
       expect(state.potArea.isEmpty, isTrue);
-      expect(state.hasActiveRecipe, isFalse);
+      expect(state.hasAnyRecipe, isFalse);
     });
 
     test('withAreaState updates the correct area', () {
       const state = CookingState.empty();
-      final areaState = CookingAreaState(
-        recipeId: shrimpRecipe.id,
-        progressTicksRemaining: 100,
-        totalTicks: 100,
-      );
+      final areaState = CookingAreaState(recipeId: shrimpRecipe.id);
 
       final updated = state.withAreaState(CookingArea.fire, areaState);
       expect(updated.fireArea.recipeId, shrimpRecipe.id);
@@ -48,11 +44,7 @@ void main() {
     });
 
     test('toJson/fromJson round-trip', () {
-      final areaState = CookingAreaState(
-        recipeId: shrimpRecipe.id,
-        progressTicksRemaining: 50,
-        totalTicks: 100,
-      );
+      final areaState = CookingAreaState(recipeId: shrimpRecipe.id);
       final state = const CookingState.empty().withAreaState(
         CookingArea.fire,
         areaState,
@@ -62,8 +54,6 @@ void main() {
       final restored = CookingState.fromJson(json);
 
       expect(restored.fireArea.recipeId, shrimpRecipe.id);
-      expect(restored.fireArea.progressTicksRemaining, 50);
-      expect(restored.fireArea.totalTicks, 100);
     });
   });
 
@@ -205,44 +195,68 @@ void main() {
     });
   });
 
-  group('Cooking state reset', () {
-    test(
-      'switching from cooking to non-cooking resets all cooking progress',
-      () {
-        final random = Random(42);
-        var state = GlobalState.empty(testRegistries);
+  group('CookingActivity', () {
+    test('startAction creates CookingActivity with area progress', () {
+      final random = Random(42);
+      var state = GlobalState.empty(testRegistries);
 
-        // Set up cooking area with progress
-        final areaState = CookingAreaState(
-          recipeId: shrimpRecipe.id,
-          progressTicksRemaining: 50,
-          totalTicks: 100,
-        );
-        state = state.copyWith(
-          cooking: state.cooking.withAreaState(CookingArea.fire, areaState),
-        );
+      // Assign recipe to Fire area
+      state = state.copyWith(
+        cooking: state.cooking.withAreaState(
+          CookingArea.fire,
+          CookingAreaState(recipeId: shrimpRecipe.id),
+        ),
+        inventory: state.inventory.adding(ItemStack(rawShrimp, count: 10)),
+      );
 
-        // Start cooking action to be able to switch from it
-        state = state.copyWith(
-          inventory: state.inventory.adding(ItemStack(rawShrimp, count: 10)),
-        );
-        state = state.startAction(shrimpRecipe, random: random);
+      // Start cooking action
+      state = state.startAction(shrimpRecipe, random: random);
 
-        // Verify cooking progress is set
-        expect(state.cooking.fireArea.progressTicksRemaining, 50);
+      // Verify CookingActivity was created
+      final activity = state.activeActivity;
+      expect(activity, isA<CookingActivity>());
 
-        // Switch to a non-cooking action (woodcutting)
-        final woodcutting = testRegistries.woodcuttingAction('Normal Tree');
-        state = state.startAction(woodcutting, random: random);
+      final cookingActivity = activity! as CookingActivity;
+      expect(cookingActivity.activeArea, CookingArea.fire);
+      expect(cookingActivity.activeRecipeId, shrimpRecipe.id);
 
-        // Cooking progress should be reset (but recipe still assigned)
-        expect(state.cooking.fireArea.recipeId, shrimpRecipe.id);
-        expect(state.cooking.fireArea.progressTicksRemaining, isNull);
-        expect(state.cooking.fireArea.totalTicks, isNull);
-      },
-    );
+      // Should have progress for Fire area
+      final fireProgress = cookingActivity.progressForArea(CookingArea.fire);
+      expect(fireProgress, isNotNull);
+      expect(fireProgress!.recipeId, shrimpRecipe.id);
+      expect(fireProgress.ticksRemaining, greaterThan(0));
+    });
 
-    test('switching between cooking actions preserves cooking progress', () {
+    test('switching from cooking to non-cooking clears activity', () {
+      final random = Random(42);
+      var state = GlobalState.empty(testRegistries);
+
+      // Set up cooking area with recipe
+      state = state.copyWith(
+        cooking: state.cooking.withAreaState(
+          CookingArea.fire,
+          CookingAreaState(recipeId: shrimpRecipe.id),
+        ),
+        inventory: state.inventory.adding(ItemStack(rawShrimp, count: 10)),
+      );
+
+      // Start cooking action
+      state = state.startAction(shrimpRecipe, random: random);
+
+      // Verify CookingActivity is active
+      expect(state.activeActivity, isA<CookingActivity>());
+
+      // Switch to a non-cooking action (woodcutting)
+      final woodcutting = testRegistries.woodcuttingAction('Normal Tree');
+      state = state.startAction(woodcutting, random: random);
+
+      // Activity should now be SkillActivity, not CookingActivity
+      expect(state.activeActivity, isA<SkillActivity>());
+      // Recipe assignment should still be preserved
+      expect(state.cooking.fireArea.recipeId, shrimpRecipe.id);
+    });
+
+    test('switching between cooking areas preserves other area progress', () {
       final random = Random(42);
       var state = GlobalState.empty(testRegistries);
 
@@ -251,86 +265,67 @@ void main() {
         (a) => a.isInCategory('Furnace'),
       );
 
-      // Set up Fire cooking area with progress
-      final fireState = CookingAreaState(
-        recipeId: shrimpRecipe.id,
-        progressTicksRemaining: 50,
-        totalTicks: 100,
-      );
+      // Get the inputs for furnace recipe
+      final furnaceInput = testItems.byId(furnaceRecipe.inputs.keys.first);
+
+      // Set up both Fire and Furnace areas with recipes
       state = state.copyWith(
-        cooking: state.cooking.withAreaState(CookingArea.fire, fireState),
+        cooking: state.cooking
+            .withAreaState(
+              CookingArea.fire,
+              CookingAreaState(recipeId: shrimpRecipe.id),
+            )
+            .withAreaState(
+              CookingArea.furnace,
+              CookingAreaState(recipeId: furnaceRecipe.id),
+            ),
         inventory: state.inventory
             .adding(ItemStack(rawShrimp, count: 10))
-            .adding(
-              ItemStack(
-                testItems.byId(furnaceRecipe.inputs.keys.first),
-                count: 10,
-              ),
-            ),
+            .adding(ItemStack(furnaceInput, count: 10)),
       );
 
       // Start cooking on Fire
       state = state.startAction(shrimpRecipe, random: random);
 
-      // Verify Fire cooking progress is set
-      expect(state.cooking.fireArea.progressTicksRemaining, 50);
+      // Verify both areas have progress in the CookingActivity
+      var activity = state.activeActivity! as CookingActivity;
+      expect(activity.areaProgress.length, 2);
+      expect(activity.progressForArea(CookingArea.fire), isNotNull);
+      expect(activity.progressForArea(CookingArea.furnace), isNotNull);
 
-      // Switch to a different cooking action (Furnace)
+      // Switch to Furnace cooking
       state = state.startAction(furnaceRecipe, random: random);
 
-      // Fire cooking progress should still be preserved
-      expect(state.cooking.fireArea.recipeId, shrimpRecipe.id);
-      expect(state.cooking.fireArea.progressTicksRemaining, 50);
-      expect(state.cooking.fireArea.totalTicks, 100);
+      // Both areas should still have progress (switching within cooking)
+      activity = state.activeActivity! as CookingActivity;
+      expect(activity.activeArea, CookingArea.furnace);
+      expect(activity.areaProgress.length, 2);
     });
 
-    test('clearAction resets cooking progress when cooking was active', () {
+    test('clearAction removes CookingActivity', () {
       final random = Random(42);
       var state = GlobalState.empty(testRegistries);
 
-      // Set up cooking area with progress
-      final areaState = CookingAreaState(
-        recipeId: shrimpRecipe.id,
-        progressTicksRemaining: 50,
-        totalTicks: 100,
-      );
+      // Set up cooking area with recipe
       state = state.copyWith(
-        cooking: state.cooking.withAreaState(CookingArea.fire, areaState),
+        cooking: state.cooking.withAreaState(
+          CookingArea.fire,
+          CookingAreaState(recipeId: shrimpRecipe.id),
+        ),
         inventory: state.inventory.adding(ItemStack(rawShrimp, count: 10)),
       );
 
       // Start cooking action
       state = state.startAction(shrimpRecipe, random: random);
-
-      // Verify cooking progress is set
-      expect(state.cooking.fireArea.progressTicksRemaining, 50);
+      expect(state.activeActivity, isA<CookingActivity>());
 
       // Clear action
       state = state.clearAction();
 
-      // Cooking progress should be reset (but recipe still assigned)
+      // No activity should be active
+      expect(state.activeActivity, isNull);
+      // Recipe assignment should still be preserved
       expect(state.cooking.fireArea.recipeId, shrimpRecipe.id);
-      expect(state.cooking.fireArea.progressTicksRemaining, isNull);
-    });
-
-    test('withAllProgressCleared clears progress but preserves recipes', () {
-      final areaState = CookingAreaState(
-        recipeId: shrimpRecipe.id,
-        progressTicksRemaining: 50,
-        totalTicks: 100,
-      );
-      final state = const CookingState.empty().withAreaState(
-        CookingArea.fire,
-        areaState,
-      );
-
-      final cleared = state.withAllProgressCleared();
-
-      // Recipe should be preserved
-      expect(cleared.fireArea.recipeId, shrimpRecipe.id);
-      // Progress should be cleared
-      expect(cleared.fireArea.progressTicksRemaining, isNull);
-      expect(cleared.fireArea.totalTicks, isNull);
     });
   });
 
@@ -413,22 +408,27 @@ void main() {
               .adding(ItemStack(furnaceInput, count: 100)),
         );
 
-        // Set up the Fire area as passive with a recipe
-        final recipeDuration = ticksFromDuration(shrimpRecipe.maxDuration);
-        final fireAreaState = CookingAreaState(
-          recipeId: shrimpRecipe.id,
-          progressTicksRemaining: recipeDuration,
-          totalTicks: recipeDuration,
-        );
+        // Set up both areas with recipes
         state = state.copyWith(
-          cooking: state.cooking.withAreaState(CookingArea.fire, fireAreaState),
+          cooking: state.cooking
+              .withAreaState(
+                CookingArea.fire,
+                CookingAreaState(recipeId: shrimpRecipe.id),
+              )
+              .withAreaState(
+                CookingArea.furnace,
+                CookingAreaState(recipeId: furnaceRecipe.id),
+              ),
         );
 
         // Start actively cooking in Furnace area
         state = state.startAction(furnaceRecipe, random: random);
 
-        // Get the initial passive progress
-        final initialProgress = state.cooking.fireArea.progressTicksRemaining!;
+        // Get the initial passive progress for Fire area
+        var activity = state.activeActivity! as CookingActivity;
+        final initialProgress = activity
+            .progressForArea(CookingArea.fire)!
+            .ticksRemaining;
 
         // Consume 50 ticks (passive cooking is 5x slower)
         final builder = StateUpdateBuilder(state);
@@ -436,7 +436,10 @@ void main() {
         state = builder.build();
 
         // Verify passive cooking area made progress
-        final newProgress = state.cooking.fireArea.progressTicksRemaining!;
+        activity = state.activeActivity! as CookingActivity;
+        final newProgress = activity
+            .progressForArea(CookingArea.fire)!
+            .ticksRemaining;
         expect(newProgress, lessThan(initialProgress));
         // Passive cooking is 5x slower, so 50 ticks = 10 effective progress
         expect(newProgress, initialProgress - 10);
@@ -462,15 +465,17 @@ void main() {
             .adding(ItemStack(furnaceInput, count: 100)),
       );
 
-      // Set up Fire area as passive with recipe almost complete
-      // Passive cooking is 5x slower, so we need 5x the remaining ticks
-      final fireAreaState = CookingAreaState(
-        recipeId: shrimpRecipe.id,
-        progressTicksRemaining: 5, // 5 effective ticks remaining
-        totalTicks: ticksFromDuration(shrimpRecipe.maxDuration),
-      );
+      // Set up both areas with recipes
       state = state.copyWith(
-        cooking: state.cooking.withAreaState(CookingArea.fire, fireAreaState),
+        cooking: state.cooking
+            .withAreaState(
+              CookingArea.fire,
+              CookingAreaState(recipeId: shrimpRecipe.id),
+            )
+            .withAreaState(
+              CookingArea.furnace,
+              CookingAreaState(recipeId: furnaceRecipe.id),
+            ),
       );
 
       // Record initial inventory state
@@ -479,22 +484,25 @@ void main() {
       // Start actively cooking in Furnace area
       state = state.startAction(furnaceRecipe, random: random);
 
-      // Consume 25 ticks (5 effective ticks at 5x multiplier = completes)
+      // Get Fire area progress and calculate ticks needed to complete
+      final activity = state.activeActivity! as CookingActivity;
+      final fireProgress = activity.progressForArea(CookingArea.fire)!;
+      // Need 5x the remaining ticks for passive cooking
+      final ticksNeeded = fireProgress.ticksRemaining * 5;
+
+      // Consume enough ticks to complete passive cook
       final builder = StateUpdateBuilder(state);
-      consumeTicks(builder, 25, random: random);
+      consumeTicks(builder, ticksNeeded, random: random);
       state = builder.build();
 
       // Passive cooking should have consumed raw shrimp (if successful roll)
-      // and produced cooked shrimp (unless failed)
       final finalRawShrimp = state.inventory.countOfItem(rawShrimp);
       expect(finalRawShrimp, lessThan(initialRawShrimp));
 
       // Passive cooking grants NO XP
       // Only the active furnace cooking should contribute XP
-      // (We check that passive cooking completed by verifying input consumed)
       final cookingXp = state.skillState(Skill.cooking).xp;
       // Any XP should only come from active cooking, not passive
-      // Passive completion doesn't grant XP, so if we got XP it's from active
       expect(cookingXp, greaterThanOrEqualTo(0));
     });
 
@@ -507,26 +515,30 @@ void main() {
         inventory: state.inventory.adding(ItemStack(rawShrimp, count: 100)),
       );
 
-      // Set up Fire area with a recipe and progress
-      final recipeDuration = ticksFromDuration(shrimpRecipe.maxDuration);
-      final fireAreaState = CookingAreaState(
-        recipeId: shrimpRecipe.id,
-        progressTicksRemaining: recipeDuration,
-        totalTicks: recipeDuration,
-      );
+      // Set up Fire area with a recipe
       state = state.copyWith(
-        cooking: state.cooking.withAreaState(CookingArea.fire, fireAreaState),
+        cooking: state.cooking.withAreaState(
+          CookingArea.fire,
+          CookingAreaState(recipeId: shrimpRecipe.id),
+        ),
       );
 
-      // First start cooking (to set up the "from cooking" context)
-      state = state.startAction(shrimpRecipe, random: random);
-
-      // Now switch to a non-cooking action (woodcutting)
+      // Start a non-cooking action (woodcutting) - no CookingActivity created
       final woodcutting = testRegistries.woodcuttingAction('Normal Tree');
       state = state.startAction(woodcutting, random: random);
 
-      // Passive cooking progress should have been cleared when switching away
-      expect(state.cooking.fireArea.progressTicksRemaining, isNull);
+      // Should be a SkillActivity, not CookingActivity
+      expect(state.activeActivity, isA<SkillActivity>());
+      expect(state.activeActivity, isNot(isA<CookingActivity>()));
+
+      // Consume some ticks
+      final builder = StateUpdateBuilder(state);
+      consumeTicks(builder, 50, random: random);
+      state = builder.build();
+
+      // No passive cooking should have occurred
+      // (The activity is still SkillActivity, no cooking progress tracked)
+      expect(state.activeActivity, isA<SkillActivity>());
     });
   });
 }

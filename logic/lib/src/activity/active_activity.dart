@@ -1,4 +1,5 @@
 import 'package:logic/src/activity/combat_context.dart';
+import 'package:logic/src/cooking_state.dart';
 import 'package:logic/src/data/action_id.dart';
 import 'package:logic/src/data/actions.dart';
 import 'package:logic/src/data/melvor_id.dart';
@@ -9,6 +10,7 @@ import 'package:meta/meta.dart';
 ///
 /// Provides a type-safe model:
 /// - [SkillActivity] for skill-based actions (woodcutting, mining, etc.)
+/// - [CookingActivity] for cooking (multi-area progress tracking)
 /// - [CombatActivity] for combat (monsters, dungeons)
 /// - [AgilityActivity] for running an agility course (sequence of obstacles)
 ///
@@ -33,6 +35,16 @@ sealed class ActiveActivity {
   /// Creates a copy with updated progress.
   ActiveActivity withProgress({required Tick progressTicks});
 
+  /// Creates a restarted activity with progress reset but internal state
+  /// preserved. Used when an action completes and needs to restart.
+  ///
+  /// Each activity type decides what state to preserve vs reset:
+  /// - [SkillActivity]: Just resets progress
+  /// - [CookingActivity]: Resets progress but preserves area progress
+  /// - [CombatActivity]: Resets progress
+  /// - [AgilityActivity]: Should not be restarted (uses advanceToNextObstacle)
+  ActiveActivity restarted({required Tick newTotalTicks});
+
   /// Serializes the activity to JSON.
   Map<String, dynamic> toJson();
 
@@ -41,6 +53,7 @@ sealed class ActiveActivity {
     final type = json['type'] as String;
     return switch (type) {
       'skill' => SkillActivity.fromJson(json),
+      'cooking' => CookingActivity.fromJson(json),
       'combat' => CombatActivity.fromJson(json),
       'agility' => AgilityActivity.fromJson(json),
       _ => throw ArgumentError('Unknown activity type: $type'),
@@ -104,6 +117,17 @@ class SkillActivity extends ActiveActivity {
   }
 
   @override
+  SkillActivity restarted({required Tick newTotalTicks}) {
+    return SkillActivity(
+      skill: skill,
+      actionId: actionId,
+      progressTicks: 0,
+      totalTicks: newTotalTicks,
+      selectedRecipeIndex: selectedRecipeIndex,
+    );
+  }
+
+  @override
   Map<String, dynamic> toJson() {
     return {
       'type': 'skill',
@@ -113,6 +137,197 @@ class SkillActivity extends ActiveActivity {
       'totalTicks': totalTicks,
       if (selectedRecipeIndex != null)
         'selectedRecipeIndex': selectedRecipeIndex,
+    };
+  }
+}
+
+/// Activity state for cooking with multi-area progress tracking.
+///
+/// Unlike [SkillActivity], cooking tracks progress for ALL three cooking areas:
+/// - One "active" area with full XP/bonuses
+/// - Other "passive" areas cooking at 5x slower rate (no XP/mastery)
+///
+/// This is separate from [SkillActivity] because:
+/// - Cooking has parallel progress across multiple areas
+/// - Progress for all areas must persist during a cooking session
+/// - All area progress is automatically cleared when switching away
+///   (the [CookingActivity] is replaced, taking all progress with it)
+@immutable
+class CookingActivity extends ActiveActivity {
+  const CookingActivity({
+    required this.activeArea,
+    required this.activeRecipeId,
+    required this.areaProgress,
+    required super.progressTicks,
+    required super.totalTicks,
+    this.selectedRecipeIndex,
+  });
+
+  factory CookingActivity.fromJson(Map<String, dynamic> json) {
+    final areaProgressJson =
+        json['areaProgress'] as Map<String, dynamic>? ?? {};
+    final areaProgress = <CookingArea, CookingAreaProgress>{};
+    for (final entry in areaProgressJson.entries) {
+      final area = CookingArea.values.firstWhere((a) => a.name == entry.key);
+      areaProgress[area] = CookingAreaProgress.fromJson(
+        entry.value as Map<String, dynamic>,
+      );
+    }
+    return CookingActivity(
+      activeArea: CookingArea.values.firstWhere(
+        (a) => a.name == json['activeArea'],
+      ),
+      activeRecipeId: ActionId.fromJson(json['activeRecipeId'] as String),
+      areaProgress: areaProgress,
+      progressTicks: json['progressTicks'] as int,
+      totalTicks: json['totalTicks'] as int,
+      selectedRecipeIndex: json['selectedRecipeIndex'] as int?,
+    );
+  }
+
+  /// The active cooking area (Fire, Furnace, or Pot).
+  final CookingArea activeArea;
+
+  /// The recipe being actively cooked (in the active area).
+  final ActionId activeRecipeId;
+
+  /// Progress state for each cooking area that has a recipe assigned.
+  /// Only includes areas with recipes; empty areas are not tracked.
+  final Map<CookingArea, CookingAreaProgress> areaProgress;
+
+  /// Selected recipe index for actions with alternative costs.
+  final int? selectedRecipeIndex;
+
+  /// Returns progress for a specific area, or null if not active.
+  CookingAreaProgress? progressForArea(CookingArea area) => areaProgress[area];
+
+  @override
+  CookingActivity withProgress({required Tick progressTicks}) {
+    return CookingActivity(
+      activeArea: activeArea,
+      activeRecipeId: activeRecipeId,
+      areaProgress: areaProgress,
+      progressTicks: progressTicks,
+      totalTicks: totalTicks,
+      selectedRecipeIndex: selectedRecipeIndex,
+    );
+  }
+
+  @override
+  CookingActivity restarted({required Tick newTotalTicks}) {
+    // Preserve areaProgress so passive cooking areas keep their progress
+    return CookingActivity(
+      activeArea: activeArea,
+      activeRecipeId: activeRecipeId,
+      areaProgress: areaProgress,
+      progressTicks: 0,
+      totalTicks: newTotalTicks,
+      selectedRecipeIndex: selectedRecipeIndex,
+    );
+  }
+
+  /// Returns a copy with updated progress for a specific area.
+  CookingActivity withAreaProgress(
+    CookingArea area,
+    CookingAreaProgress progress,
+  ) {
+    final newProgress = Map<CookingArea, CookingAreaProgress>.from(areaProgress)
+      ..[area] = progress;
+    return CookingActivity(
+      activeArea: activeArea,
+      activeRecipeId: activeRecipeId,
+      areaProgress: newProgress,
+      progressTicks: progressTicks,
+      totalTicks: totalTicks,
+      selectedRecipeIndex: selectedRecipeIndex,
+    );
+  }
+
+  CookingActivity copyWith({
+    CookingArea? activeArea,
+    ActionId? activeRecipeId,
+    Map<CookingArea, CookingAreaProgress>? areaProgress,
+    Tick? progressTicks,
+    Tick? totalTicks,
+    int? selectedRecipeIndex,
+  }) {
+    return CookingActivity(
+      activeArea: activeArea ?? this.activeArea,
+      activeRecipeId: activeRecipeId ?? this.activeRecipeId,
+      areaProgress: areaProgress ?? this.areaProgress,
+      progressTicks: progressTicks ?? this.progressTicks,
+      totalTicks: totalTicks ?? this.totalTicks,
+      selectedRecipeIndex: selectedRecipeIndex ?? this.selectedRecipeIndex,
+    );
+  }
+
+  @override
+  Map<String, dynamic> toJson() {
+    final areaProgressJson = <String, dynamic>{};
+    for (final entry in areaProgress.entries) {
+      areaProgressJson[entry.key.name] = entry.value.toJson();
+    }
+    return {
+      'type': 'cooking',
+      'activeArea': activeArea.name,
+      'activeRecipeId': activeRecipeId.toJson(),
+      'areaProgress': areaProgressJson,
+      'progressTicks': progressTicks,
+      'totalTicks': totalTicks,
+      if (selectedRecipeIndex != null)
+        'selectedRecipeIndex': selectedRecipeIndex,
+    };
+  }
+}
+
+/// Progress state for a single cooking area during active cooking.
+///
+/// Tracks the countdown timer for the current recipe being cooked in this area.
+@immutable
+class CookingAreaProgress {
+  const CookingAreaProgress({
+    required this.recipeId,
+    required this.ticksRemaining,
+    required this.totalTicks,
+  });
+
+  factory CookingAreaProgress.fromJson(Map<String, dynamic> json) {
+    return CookingAreaProgress(
+      recipeId: ActionId.fromJson(json['recipeId'] as String),
+      ticksRemaining: json['ticksRemaining'] as int,
+      totalTicks: json['totalTicks'] as int,
+    );
+  }
+
+  /// The recipe being cooked in this area.
+  final ActionId recipeId;
+
+  /// Ticks remaining until this cook completes (countdown).
+  final Tick ticksRemaining;
+
+  /// Total ticks for the recipe (for progress bar display).
+  final Tick totalTicks;
+
+  /// Returns the completed fraction (0.0 to 1.0).
+  double get completedFraction => 1.0 - (ticksRemaining / totalTicks);
+
+  CookingAreaProgress copyWith({
+    ActionId? recipeId,
+    Tick? ticksRemaining,
+    Tick? totalTicks,
+  }) {
+    return CookingAreaProgress(
+      recipeId: recipeId ?? this.recipeId,
+      ticksRemaining: ticksRemaining ?? this.ticksRemaining,
+      totalTicks: totalTicks ?? this.totalTicks,
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'recipeId': recipeId.toJson(),
+      'ticksRemaining': ticksRemaining,
+      'totalTicks': totalTicks,
     };
   }
 }
@@ -155,6 +370,16 @@ class CombatActivity extends ActiveActivity {
       progress: progress,
       progressTicks: progressTicks,
       totalTicks: totalTicks,
+    );
+  }
+
+  @override
+  CombatActivity restarted({required Tick newTotalTicks}) {
+    return CombatActivity(
+      context: context,
+      progress: progress,
+      progressTicks: 0,
+      totalTicks: newTotalTicks,
     );
   }
 
@@ -315,6 +540,18 @@ class AgilityActivity extends ActiveActivity {
       currentObstacleIndex: currentObstacleIndex,
       progressTicks: progressTicks,
       totalTicks: totalTicks,
+    );
+  }
+
+  @override
+  AgilityActivity restarted({required Tick newTotalTicks}) {
+    // For agility, restart means reset progress on the current obstacle.
+    // Use advanceToNextObstacle for course progression.
+    return AgilityActivity(
+      obstacleIds: obstacleIds,
+      currentObstacleIndex: currentObstacleIndex,
+      progressTicks: 0,
+      totalTicks: newTotalTicks,
     );
   }
 

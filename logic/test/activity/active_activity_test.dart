@@ -192,5 +192,131 @@ void main() {
       expect(agility.isLastObstacle, isTrue);
       expect(agility.currentObstacleId, obstacleIds[1]);
     });
+
+    test('CookingActivity round-trip with area progress', () {
+      const shrimpRecipeId = ActionId(
+        MelvorId('melvorD:Cooking'),
+        MelvorId('melvorD:Shrimp'),
+      );
+      const beefRecipeId = ActionId(
+        MelvorId('melvorD:Cooking'),
+        MelvorId('melvorD:Beef'),
+      );
+
+      const activity = CookingActivity(
+        activeArea: CookingArea.fire,
+        activeRecipeId: shrimpRecipeId,
+        areaProgress: {
+          CookingArea.fire: CookingAreaProgress(
+            recipeId: shrimpRecipeId,
+            ticksRemaining: 15,
+            totalTicks: 30,
+          ),
+          CookingArea.pot: CookingAreaProgress(
+            recipeId: beefRecipeId,
+            ticksRemaining: 100,
+            totalTicks: 150,
+          ),
+        },
+        progressTicks: 10,
+        totalTicks: 30,
+        selectedRecipeIndex: 1,
+      );
+
+      final json = activity.toJson();
+      final restored = ActiveActivity.fromJson(json);
+
+      expect(restored, isA<CookingActivity>());
+      final cooking = restored as CookingActivity;
+      expect(cooking.activeArea, CookingArea.fire);
+      expect(cooking.activeRecipeId, shrimpRecipeId);
+      expect(cooking.progressTicks, 10);
+      expect(cooking.totalTicks, 30);
+      expect(cooking.selectedRecipeIndex, 1);
+
+      // Check area progress
+      expect(cooking.areaProgress.length, 2);
+
+      final fireProgress = cooking.progressForArea(CookingArea.fire);
+      expect(fireProgress, isNotNull);
+      expect(fireProgress!.recipeId, shrimpRecipeId);
+      expect(fireProgress.ticksRemaining, 15);
+      expect(fireProgress.totalTicks, 30);
+
+      final potProgress = cooking.progressForArea(CookingArea.pot);
+      expect(potProgress, isNotNull);
+      expect(potProgress!.recipeId, beefRecipeId);
+      expect(potProgress.ticksRemaining, 100);
+      expect(potProgress.totalTicks, 150);
+
+      expect(cooking.progressForArea(CookingArea.furnace), isNull);
+    });
+
+    test('CookingActivity round-trip with empty area progress', () {
+      const shrimpRecipeId = ActionId(
+        MelvorId('melvorD:Cooking'),
+        MelvorId('melvorD:Shrimp'),
+      );
+
+      const activity = CookingActivity(
+        activeArea: CookingArea.furnace,
+        activeRecipeId: shrimpRecipeId,
+        areaProgress: {},
+        progressTicks: 5,
+        totalTicks: 20,
+      );
+
+      final json = activity.toJson();
+      final restored = ActiveActivity.fromJson(json);
+
+      expect(restored, isA<CookingActivity>());
+      final cooking = restored as CookingActivity;
+      expect(cooking.activeArea, CookingArea.furnace);
+      expect(cooking.activeRecipeId, shrimpRecipeId);
+      expect(cooking.areaProgress, isEmpty);
+      expect(cooking.selectedRecipeIndex, isNull);
+    });
+
+    test('CookingActivity round-trip without selectedRecipeIndex', () {
+      const shrimpRecipeId = ActionId(
+        MelvorId('melvorD:Cooking'),
+        MelvorId('melvorD:Shrimp'),
+      );
+
+      const activity = CookingActivity(
+        activeArea: CookingArea.pot,
+        activeRecipeId: shrimpRecipeId,
+        areaProgress: {
+          CookingArea.pot: CookingAreaProgress(
+            recipeId: shrimpRecipeId,
+            ticksRemaining: 25,
+            totalTicks: 50,
+          ),
+        },
+        progressTicks: 0,
+        totalTicks: 50,
+      );
+
+      final json = activity.toJson();
+      final restored = ActiveActivity.fromJson(json);
+
+      expect(restored, isA<CookingActivity>());
+      final cooking = restored as CookingActivity;
+      expect(cooking.selectedRecipeIndex, isNull);
+      expect(cooking.progressTicks, 0);
+    });
+
+    test('CookingAreaProgress completedFraction', () {
+      const progress = CookingAreaProgress(
+        recipeId: ActionId(
+          MelvorId('melvorD:Cooking'),
+          MelvorId('melvorD:Shrimp'),
+        ),
+        ticksRemaining: 25,
+        totalTicks: 100,
+      );
+
+      expect(progress.completedFraction, 0.75);
+    });
   });
 }
