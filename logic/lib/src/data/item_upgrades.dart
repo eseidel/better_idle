@@ -83,7 +83,6 @@ class ItemUpgrade {
 
   /// Whether this is a downgrade operation.
   final bool isDowngrade;
-
 }
 
 /// Registry of all item upgrades.
