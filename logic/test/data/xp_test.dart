@@ -265,5 +265,49 @@ void main() {
       expect(xpWith50PercentBonus, greaterThan(xpNoBonus));
       expect(xpWith50PercentBonus, closeTo(xpNoBonus * 1.5, 1));
     });
+
+    test('realistic scenario: one action trained high, others at level 1', () {
+      // Simulates: trained Normal Logs to mastery 86, now trying Magic Logs
+      // at mastery level 1, with 8 logs unlocked (level 79 firemaking)
+      final action = testRegistries.firemakingAction('Burn Magic Logs');
+      final actionsInSkill =
+          testRegistries.actionsForSkill(Skill.firemaking).length;
+
+      // One action at level 86, rest at level 1
+      // playerTotalMasteryLevel = 86 + (actionsInSkill - 1) * 1
+      final playerTotalMasteryLevel = 86 + (actionsInSkill - 1);
+
+      final xp = calculateMasteryXpPerAction(
+        registries: testRegistries,
+        action: action,
+        unlockedActions: 8, // Level 79 unlocks 8 of 9 logs
+        playerTotalMasteryLevel: playerTotalMasteryLevel,
+        itemMasteryLevel: 1, // Magic logs just started
+        bonus: 0,
+      );
+
+      // With 9 actions, playerTotalMasteryLevel = 94:
+      // masteryPortion = 8 × (94 / 891) = 0.84
+      // itemPortion = 1 × (9 / 10) = 0.9
+      // baseValue = 1.74
+      // result = 1.74 × 6 × 0.5 = 5.22 ≈ 5
+      expect(xp, inInclusiveRange(4, 6));
+
+      // Compare to having all actions at average level (94/9 ≈ 10.4)
+      final xpWithEvenMastery = calculateMasteryXpPerAction(
+        registries: testRegistries,
+        action: action,
+        unlockedActions: 8,
+        playerTotalMasteryLevel: playerTotalMasteryLevel,
+        itemMasteryLevel: 10, // If this action were also ~10
+        bonus: 0,
+      );
+
+      // With itemMasteryLevel = 10:
+      // itemPortion = 10 × 0.9 = 9
+      // baseValue = 9.84
+      // result = 9.84 × 6 × 0.5 = 29.5 ≈ 29
+      expect(xpWithEvenMastery, greaterThan(xp * 3));
+    });
   });
 }

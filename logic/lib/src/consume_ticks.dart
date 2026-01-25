@@ -10,15 +10,13 @@ final int ticksPer1Hp = ticksFromDuration(const Duration(seconds: 10));
 
 /// Returns the sum of all mastery levels for all actions in a skill.
 /// Used in the mastery XP formula which operates on levels (1-99), not XP.
+/// All actions default to level 1 even if untrained.
 int playerTotalMasteryLevelForSkill(GlobalState state, Skill skill) {
   var total = 0;
-  for (final entry in state.actionStates.entries) {
-    final actionId = entry.key;
-    final actionState = entry.value;
-    if (actionId.skillId != skill.id) {
-      continue;
-    }
-    total += actionState.masteryLevel;
+  for (final action in state.registries.actionsForSkill(skill)) {
+    // state.actionState returns ActionState.empty() for untrained actions,
+    // which has masteryXp=0, giving masteryLevel=1 (levelForXp(0) == 1).
+    total += state.actionState(action.id).masteryLevel;
   }
   return total;
 }

@@ -1458,8 +1458,14 @@ class GlobalState {
   SkillState skillState(Skill skill) =>
       skillStates[skill] ?? const SkillState.empty();
 
-  // TODO(eseidel): Implement this.
-  int unlockedActionsCount(Skill skill) => 1;
+  /// Returns the number of actions unlocked for a skill based on skill level.
+  int unlockedActionsCount(Skill skill) {
+    final level = skillState(skill).skillLevel;
+    return registries
+        .actionsForSkill(skill)
+        .where((action) => action.unlockLevel <= level)
+        .length;
+  }
 
   ActionState actionState(ActionId action) =>
       actionStates[action] ?? const ActionState.empty();
