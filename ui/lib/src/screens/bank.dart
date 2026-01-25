@@ -431,6 +431,11 @@ class _ItemDetailsDrawerState extends State<ItemDetailsDrawer> {
                   ),
                 ],
               ),
+              // Show item modifiers if any
+              if (itemData.modifiers.modifiers.isNotEmpty) ...[
+                const SizedBox(height: 8),
+                _ItemModifiersDisplay(item: itemData),
+              ],
               const SizedBox(height: 24),
               Text(
                 'Gold Value:',
@@ -1371,5 +1376,68 @@ class _UpgradeSectionState extends State<_UpgradeSection> {
         ...costs,
       ],
     );
+  }
+}
+
+/// Displays an item's modifiers as formatted text.
+class _ItemModifiersDisplay extends StatelessWidget {
+  const _ItemModifiersDisplay({required this.item});
+
+  final Item item;
+
+  @override
+  Widget build(BuildContext context) {
+    final registry = context.state.registries.modifierMetadata;
+    final descriptions = _formatModifiers(item, registry);
+
+    if (descriptions.isEmpty) return const SizedBox.shrink();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        for (final desc in descriptions)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 2),
+            child: Text(
+              desc,
+              style: Theme.of(
+                context,
+              ).textTheme.bodySmall?.copyWith(color: Style.textColorSuccess),
+            ),
+          ),
+      ],
+    );
+  }
+
+  List<String> _formatModifiers(Item item, ModifierMetadataRegistry registry) {
+    final descriptions = <String>[];
+
+    for (final mod in item.modifiers.modifiers) {
+      for (final entry in mod.entries) {
+        // Extract scope information for formatting
+        String? skillName;
+        String? currencyName;
+        final scope = entry.scope;
+        if (scope != null) {
+          if (scope.skillId != null) {
+            skillName = Skill.fromId(scope.skillId!).name;
+          }
+          if (scope.currencyId != null) {
+            currencyName = Currency.fromId(scope.currencyId!).name;
+          }
+        }
+
+        descriptions.add(
+          registry.formatDescription(
+            name: mod.name,
+            value: entry.value,
+            skillName: skillName,
+            currencyName: currencyName,
+          ),
+        );
+      }
+    }
+
+    return descriptions;
   }
 }
