@@ -127,7 +127,6 @@ void main() {
     test('empty state has expected defaults', () {
       const state = AgilityState.empty();
       expect(state.slots, isEmpty);
-      expect(state.currentObstacleIndex, 0);
       expect(state.isEmpty, true);
       expect(state.hasAnyObstacle, false);
       expect(state.builtObstacleCount, 0);
@@ -248,42 +247,8 @@ void main() {
       expect(identical(state, newState), true);
     });
 
-    test('withProgressReset resets currentObstacleIndex', () {
-      final state = AgilityState(
-        slots: {0: AgilitySlotState(obstacleId: testObstacle1)},
-        currentObstacleIndex: 5,
-      );
-      final newState = state.withProgressReset();
-
-      expect(newState.currentObstacleIndex, 0);
-    });
-
-    test('withNextObstacle advances and wraps', () {
-      final state = AgilityState(
-        slots: {
-          0: AgilitySlotState(obstacleId: testObstacle1),
-          1: AgilitySlotState(obstacleId: testObstacle2),
-          2: AgilitySlotState(obstacleId: testObstacle3),
-        },
-      );
-
-      final state1 = state.withNextObstacle();
-      expect(state1.currentObstacleIndex, 1);
-
-      final state2 = state1.withNextObstacle();
-      expect(state2.currentObstacleIndex, 2);
-
-      // Wraps back to 0
-      final state3 = state2.withNextObstacle();
-      expect(state3.currentObstacleIndex, 0);
-    });
-
-    test('withNextObstacle returns same state when no obstacles', () {
-      const state = AgilityState.empty();
-      final newState = state.withNextObstacle();
-
-      expect(identical(state, newState), true);
-    });
+    // Note: currentObstacleIndex tests removed - progress is now tracked
+    // in AgilityActivity, not AgilityState.
 
     group('JSON serialization', () {
       test('empty state round-trips correctly', () {
@@ -293,7 +258,6 @@ void main() {
 
         expect(loaded.isEmpty, true);
         expect(loaded.slots, isEmpty);
-        expect(loaded.currentObstacleIndex, 0);
       });
 
       test('state with slots round-trips correctly', () {
@@ -302,7 +266,6 @@ void main() {
             0: AgilitySlotState(obstacleId: testObstacle1, purchaseCount: 2),
             2: AgilitySlotState(obstacleId: testObstacle2, purchaseCount: 5),
           },
-          currentObstacleIndex: 1,
         );
         final json = original.toJson();
         final loaded = AgilityState.fromJson(json);
@@ -312,7 +275,6 @@ void main() {
         expect(loaded.slotState(0).purchaseCount, 2);
         expect(loaded.slotState(2).obstacleId, testObstacle2);
         expect(loaded.slotState(2).purchaseCount, 5);
-        expect(loaded.currentObstacleIndex, 1);
       });
 
       test('state with empty slots (purchaseCount only) round-trips', () {
@@ -334,23 +296,6 @@ void main() {
         const state = AgilityState.empty();
         final json = state.toJson();
         expect(json, isEmpty);
-      });
-
-      test('toJson omits currentObstacleIndex when 0', () {
-        final state = AgilityState(
-          slots: {0: AgilitySlotState(obstacleId: testObstacle1)},
-        );
-        final json = state.toJson();
-        expect(json.containsKey('currentObstacleIndex'), false);
-      });
-
-      test('toJson includes currentObstacleIndex when non-zero', () {
-        final state = AgilityState(
-          slots: {0: AgilitySlotState(obstacleId: testObstacle1)},
-          currentObstacleIndex: 2,
-        );
-        final json = state.toJson();
-        expect(json['currentObstacleIndex'], 2);
       });
 
       test('toJson omits slots with empty state', () {
@@ -383,24 +328,23 @@ void main() {
         final loaded = AgilityState.fromJson(json);
 
         expect(loaded.slots, isEmpty);
-        expect(loaded.currentObstacleIndex, 0);
       });
 
-      test('fromJson handles slots with string keys', () {
-        // JSON maps always have string keys
+      test('fromJson ignores legacy currentObstacleIndex', () {
+        // Legacy JSON may have currentObstacleIndex, which should be ignored
         final json = <String, dynamic>{
           'slots': {
             '0': {'obstacleId': testObstacle1.toJson(), 'purchaseCount': 1},
             '3': {'obstacleId': testObstacle2.toJson(), 'purchaseCount': 4},
           },
-          'currentObstacleIndex': 1,
+          'currentObstacleIndex': 1, // Legacy field, should be ignored
         };
         final loaded = AgilityState.fromJson(json);
 
         expect(loaded.slots.length, 2);
         expect(loaded.slots[0]?.obstacleId, testObstacle1);
         expect(loaded.slots[3]?.obstacleId, testObstacle2);
-        expect(loaded.currentObstacleIndex, 1);
+        // currentObstacleIndex is now in AgilityActivity, not AgilityState
       });
     });
   });

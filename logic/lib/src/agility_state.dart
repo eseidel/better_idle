@@ -1,3 +1,5 @@
+import 'package:logic/logic.dart' show AgilityActivity;
+import 'package:logic/src/activity/active_activity.dart' show AgilityActivity;
 import 'package:logic/src/data/action_id.dart';
 import 'package:meta/meta.dart';
 
@@ -69,9 +71,12 @@ class AgilitySlotState {
 /// Each slot can have one obstacle built. Building costs resources and
 /// unlocks the obstacle's passive modifiers. Running the course completes
 /// all built obstacles in sequence.
+///
+/// Note: Current obstacle index during a run is tracked in [AgilityActivity],
+/// not here. This class only stores persistent configuration (built obstacles).
 @immutable
 class AgilityState {
-  const AgilityState({this.slots = const {}, this.currentObstacleIndex = 0});
+  const AgilityState({this.slots = const {}});
 
   const AgilityState.empty() : this();
 
@@ -84,10 +89,7 @@ class AgilityState {
         entry.value as Map<String, dynamic>,
       );
     }
-    return AgilityState(
-      slots: slots,
-      currentObstacleIndex: json['currentObstacleIndex'] as int? ?? 0,
-    );
+    return AgilityState(slots: slots);
   }
 
   /// Deserializes an [AgilityState] from a dynamic JSON value.
@@ -99,10 +101,6 @@ class AgilityState {
 
   /// State for each obstacle slot, keyed by slot index (0-9 for standard).
   final Map<int, AgilitySlotState> slots;
-
-  /// Index of the obstacle currently being run (0-based).
-  /// Reset to 0 when course stops or restarts.
-  final int currentObstacleIndex;
 
   /// Returns the state for a specific slot.
   AgilitySlotState slotState(int slotIndex) {
@@ -144,14 +142,8 @@ class AgilityState {
   /// Returns true if at least one obstacle is built.
   bool get hasAnyObstacle => builtObstacleCount > 0;
 
-  AgilityState copyWith({
-    Map<int, AgilitySlotState>? slots,
-    int? currentObstacleIndex,
-  }) {
-    return AgilityState(
-      slots: slots ?? this.slots,
-      currentObstacleIndex: currentObstacleIndex ?? this.currentObstacleIndex,
-    );
+  AgilityState copyWith({Map<int, AgilitySlotState>? slots}) {
+    return AgilityState(slots: slots ?? this.slots);
   }
 
   /// Returns a copy with an obstacle built in the specified slot.
@@ -171,20 +163,6 @@ class AgilityState {
     return copyWith(slots: newSlots);
   }
 
-  /// Returns a copy with progress reset to the beginning.
-  AgilityState withProgressReset() {
-    return copyWith(currentObstacleIndex: 0);
-  }
-
-  /// Returns a copy with progress moved to the next obstacle.
-  /// Wraps to 0 if at the end of the course.
-  AgilityState withNextObstacle() {
-    final count = builtObstacleCount;
-    if (count == 0) return this;
-    final nextIndex = (currentObstacleIndex + 1) % count;
-    return copyWith(currentObstacleIndex: nextIndex);
-  }
-
   Map<String, dynamic> toJson() {
     final slotsJson = <String, dynamic>{};
     for (final entry in slots.entries) {
@@ -193,10 +171,6 @@ class AgilityState {
         slotsJson[entry.key.toString()] = slotJson;
       }
     }
-    return {
-      if (slotsJson.isNotEmpty) 'slots': slotsJson,
-      if (currentObstacleIndex != 0)
-        'currentObstacleIndex': currentObstacleIndex,
-    };
+    return {if (slotsJson.isNotEmpty) 'slots': slotsJson};
   }
 }

@@ -387,10 +387,8 @@ class StopAgilityCourseAction extends ReduxAction<GlobalState> {
     if (state.activeActivity is! AgilityActivity) {
       return null;
     }
-    // Stop and reset progress
-    return state.clearAction().copyWith(
-      agility: state.agility.withProgressReset(),
-    );
+    // Progress is tracked in AgilityActivity, cleared by clearAction()
+    return state.clearAction();
   }
 }
 

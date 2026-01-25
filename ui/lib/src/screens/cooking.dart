@@ -127,9 +127,12 @@ class _CookingAreaCardState extends State<_CookingAreaCard> {
         activeCookingAction != null &&
         activeCookingAction.categoryId?.localId == area.name.capitalize();
 
-    // Check if this area is passively cooking
+    // Check if this area is passively cooking (has progress in CookingActivity)
+    final activity = state.activeActivity;
     final isPassivelyCooking =
-        !isActivelyCooking && areaState.isActive && activeCookingAction != null;
+        !isActivelyCooking &&
+        activity is CookingActivity &&
+        activity.progressForArea(area) != null;
 
     return ConstrainedBox(
       constraints: const BoxConstraints(maxWidth: _CookingAreaCard.maxWidth),

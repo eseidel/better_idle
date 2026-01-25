@@ -607,6 +607,7 @@ class GlobalState {
         skill.id,
         actionId,
       ),
+      CookingActivity(:final activeRecipeId) => activeRecipeId,
       CombatActivity(:final context) => ActionId(
         Skill.combat.id,
         context.currentMonsterId,
@@ -851,6 +852,7 @@ class GlobalState {
     return switch (activity) {
       null => null,
       SkillActivity(:final skill) => skill,
+      CookingActivity() => Skill.cooking,
       CombatActivity() => Skill.combat,
       AgilityActivity() => Skill.agility,
     };
@@ -1090,6 +1092,25 @@ class GlobalState {
     return result.round().clamp(1, double.maxFinite.toInt());
   }
 
+  /// Cleans up state when leaving the current activity.
+  ///
+  /// This is the single point of control for all activity transition cleanup.
+  /// Called before starting any new activity to ensure proper state cleanup.
+  ///
+  /// With [CookingActivity], cooking progress is stored in the activity itself,
+  /// so it's automatically cleared when the activity is replaced.
+  /// Recipe assignments remain in [CookingState] and are preserved.
+  GlobalState _prepareForActivitySwitch({required bool stayingInCooking}) {
+    // Currently a no-op. With CookingActivity, progress is stored in the
+    // activity itself. When we switch away, the CookingActivity is replaced
+    // and progress is automatically lost. No explicit cleanup needed.
+    //
+    // This method exists as the central point for future activity-specific
+    // cleanup if needed.
+    // ignore: avoid_returning_this
+    return this;
+  }
+
   GlobalState startAction(Action action, {required Random random}) {
     return _startActionImpl(
       action,
@@ -1114,30 +1135,74 @@ class GlobalState {
       throw const StunnedException('Cannot start action while stunned');
     }
 
-    // Check if we're switching away from cooking to a non-cooking action.
-    // If so, reset all cooking area progress (recipes remain assigned).
-    // Use skill ID directly to avoid looking up actions that may not exist
-    // (e.g., in test scenarios with ActionId.test()).
-    var updatedCooking = cooking;
-    final activeActionId = currentActionId;
-    final isSwitchingFromCooking = activeActionId?.skillId == Skill.cooking.id;
-    final isSwitchingToCooking = action is CookingAction;
-    if (isSwitchingFromCooking && !isSwitchingToCooking) {
-      updatedCooking = cooking.withAllProgressCleared();
-    }
+    // Prepare state for activity switch (handles cooking cleanup, etc.)
+    final stayingInCooking = action is CookingAction;
+    final prepared = _prepareForActivitySwitch(
+      stayingInCooking: stayingInCooking,
+    );
 
     final actionId = action.id;
     int totalTicks;
 
-    if (action is SkillAction) {
-      final actionStateVal = actionState(actionId);
+    if (action is CookingAction) {
+      // Cooking uses CookingActivity for multi-area progress tracking
+      final actionStateVal = prepared.actionState(actionId);
+      final selection = actionStateVal.recipeSelection(action);
+      final inputs = action.inputsForRecipe(selection);
+
+      // Validate that all required items are available
+      for (final requirement in inputs.entries) {
+        final item = registries.items.byId(requirement.key);
+        final itemCount = prepared.inventory.countOfItem(item);
+        if (itemCount < requirement.value) {
+          throw Exception(
+            'Cannot start ${action.name}: Need ${requirement.value} '
+            '${requirement.key.name}, but only have $itemCount',
+          );
+        }
+      }
+
+      totalTicks = skillDuration(action);
+      final activeArea = CookingArea.fromCategoryId(action.categoryId)!;
+
+      // Build area progress from CookingState recipe assignments.
+      // Each area with a recipe gets initialized with full countdown.
+      final areaProgress = <CookingArea, CookingAreaProgress>{};
+      for (final (area, areaState) in prepared.cooking.allAreas) {
+        final recipeId = areaState.recipeId;
+        if (recipeId == null) continue;
+
+        // Get duration for this area's recipe
+        final recipe = registries.cooking.byId(recipeId.localId);
+        if (recipe == null) continue;
+        final areaTicks = skillDuration(recipe);
+
+        areaProgress[area] = CookingAreaProgress(
+          recipeId: recipeId,
+          ticksRemaining: areaTicks,
+          totalTicks: areaTicks,
+        );
+      }
+
+      return prepared.copyWith(
+        activeActivity: CookingActivity(
+          activeArea: activeArea,
+          activeRecipeId: actionId,
+          areaProgress: areaProgress,
+          progressTicks: 0,
+          totalTicks: totalTicks,
+          selectedRecipeIndex: actionStateVal.selectedRecipeIndex,
+        ),
+      );
+    } else if (action is SkillAction) {
+      final actionStateVal = prepared.actionState(actionId);
       final selection = actionStateVal.recipeSelection(action);
       final inputs = action.inputsForRecipe(selection);
 
       // Validate that all required items are available for skill actions
       for (final requirement in inputs.entries) {
         final item = registries.items.byId(requirement.key);
-        final itemCount = inventory.countOfItem(item);
+        final itemCount = prepared.inventory.countOfItem(item);
         if (itemCount < requirement.value) {
           throw Exception(
             'Cannot start ${action.name}: Need ${requirement.value} '
@@ -1146,7 +1211,7 @@ class GlobalState {
         }
       }
       totalTicks = skillDuration(action);
-      return copyWith(
+      return prepared.copyWith(
         activeActivity: SkillActivity(
           skill: action.skill,
           actionId: actionId.localId,
@@ -1154,17 +1219,16 @@ class GlobalState {
           totalTicks: totalTicks,
           selectedRecipeIndex: actionStateVal.selectedRecipeIndex,
         ),
-        cooking: updatedCooking,
       );
     } else if (action is CombatAction) {
       // Combat actions don't have inputs or duration-based completion.
       // The tick represents the time until the first player attack.
-      final pStats = computePlayerStats(this);
+      final pStats = computePlayerStats(prepared);
       totalTicks = ticksFromDuration(
         Duration(milliseconds: (pStats.attackSpeed * 1000).round()),
       );
       // Calculate spawn ticks with modifiers (e.g., Monster Hunter Scroll)
-      final modifiers = createCombatModifierProvider(
+      final modifiers = prepared.createCombatModifierProvider(
         conditionContext: ConditionContext.empty,
       );
       final spawnTicks = calculateMonsterSpawnTicks(
@@ -1176,10 +1240,12 @@ class GlobalState {
         pStats,
         spawnTicks: spawnTicks,
       );
-      final newActionStates = Map<ActionId, ActionState>.from(actionStates);
-      final existingState = actionState(actionId);
+      final newActionStates = Map<ActionId, ActionState>.from(
+        prepared.actionStates,
+      );
+      final existingState = prepared.actionState(actionId);
       newActionStates[actionId] = existingState.copyWith(combat: combatState);
-      return copyWith(
+      return prepared.copyWith(
         activeActivity: CombatActivity(
           context: MonsterCombatContext(monsterId: action.id.localId),
           progress: CombatProgressState(
@@ -1193,7 +1259,6 @@ class GlobalState {
           totalTicks: totalTicks,
         ),
         actionStates: newActionStates,
-        cooking: updatedCooking,
       );
     } else {
       throw Exception('Unknown action type: ${action.runtimeType}');
@@ -1213,26 +1278,21 @@ class GlobalState {
       throw ArgumentError('Dungeon has no monsters: ${dungeon.id}');
     }
 
-    // Reset cooking progress if switching from cooking
-    var updatedCooking = cooking;
-    final activeActionId = currentActionId;
-    final isSwitchingFromCooking = activeActionId?.skillId == Skill.cooking.id;
-    if (isSwitchingFromCooking) {
-      updatedCooking = cooking.withAllProgressCleared();
-    }
+    // Prepare state for activity switch (handles cooking cleanup, etc.)
+    final prepared = _prepareForActivitySwitch(stayingInCooking: false);
 
     // Get the first monster in the dungeon
     final firstMonsterId = dungeon.monsterIds.first;
     final firstMonster = registries.combat.monsterById(firstMonsterId);
     final actionId = firstMonster.id;
 
-    final pStats = computePlayerStats(this);
+    final pStats = computePlayerStats(prepared);
     final totalTicks = ticksFromDuration(
       Duration(milliseconds: (pStats.attackSpeed * 1000).round()),
     );
 
     // Calculate spawn ticks with modifiers (e.g., Monster Hunter Scroll)
-    final modifiers = createCombatModifierProvider(
+    final modifiers = prepared.createCombatModifierProvider(
       conditionContext: ConditionContext.empty,
     );
     final spawnTicks = calculateMonsterSpawnTicks(
@@ -1246,11 +1306,13 @@ class GlobalState {
       dungeon.id,
       spawnTicks: spawnTicks,
     );
-    final newActionStates = Map<ActionId, ActionState>.from(actionStates);
-    final existingState = actionState(actionId);
+    final newActionStates = Map<ActionId, ActionState>.from(
+      prepared.actionStates,
+    );
+    final existingState = prepared.actionState(actionId);
     newActionStates[actionId] = existingState.copyWith(combat: combatState);
 
-    return copyWith(
+    return prepared.copyWith(
       activeActivity: CombatActivity(
         context: DungeonCombatContext(
           dungeonId: dungeon.id,
@@ -1267,7 +1329,6 @@ class GlobalState {
         totalTicks: totalTicks,
       ),
       actionStates: newActionStates,
-      cooking: updatedCooking,
     );
   }
 
@@ -1289,13 +1350,8 @@ class GlobalState {
       return null;
     }
 
-    // Reset cooking progress if switching from cooking
-    var updatedCooking = cooking;
-    final activeActionId = currentActionId;
-    final isSwitchingFromCooking = activeActionId?.skillId == Skill.cooking.id;
-    if (isSwitchingFromCooking) {
-      updatedCooking = cooking.withAllProgressCleared();
-    }
+    // Prepare state for activity switch (handles cooking cleanup, etc.)
+    final prepared = _prepareForActivitySwitch(stayingInCooking: false);
 
     // Get the first obstacle
     final firstObstacleId = obstacleIds.first;
@@ -1306,18 +1362,13 @@ class GlobalState {
       registries.shop,
     );
 
-    // Reset course progress to start
-    final updatedAgility = agility.withProgressReset();
-
-    return copyWith(
+    return prepared.copyWith(
       activeActivity: AgilityActivity(
         obstacleIds: obstacleIds,
         currentObstacleIndex: 0,
         progressTicks: 0,
         totalTicks: totalTicks,
       ),
-      agility: updatedAgility,
-      cooking: updatedCooking,
     );
   }
 
@@ -1355,19 +1406,10 @@ class GlobalState {
       throw const StunnedException('Cannot stop action while stunned');
     }
 
-    // If we're clearing a cooking action, reset all cooking area progress.
-    // Check the skill ID directly to avoid looking up actions that may not
-    // exist (e.g., in test scenarios with ActionId.test()).
-    var updatedCooking = cooking;
-    final activeActionId = currentActionId;
-    if (activeActionId?.skillId == Skill.cooking.id) {
-      updatedCooking = cooking.withAllProgressCleared();
-    }
+    // Prepare state for activity switch (handles cooking cleanup, etc.)
+    final prepared = _prepareForActivitySwitch(stayingInCooking: false);
 
-    return _copyWithNullable(
-      clearActiveActivity: true,
-      cooking: updatedCooking,
-    );
+    return prepared._copyWithNullable(clearActiveActivity: true);
   }
 
   GlobalState clearTimeAway() {
@@ -2566,10 +2608,9 @@ class GlobalState {
     if (activeActivity is! AgilityActivity) {
       return this;
     }
-    return _copyWithNullable(
-      clearActiveActivity: true,
-      agility: agility.withProgressReset(),
-    );
+    // Progress is tracked in AgilityActivity, which is cleared here.
+    // No need to update AgilityState.
+    return _copyWithNullable(clearActiveActivity: true);
   }
 
   /// Builds an obstacle in the specified agility course slot.
