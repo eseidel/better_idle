@@ -2157,4 +2157,154 @@ void main() {
       expect(state.validate, throwsStateError);
     });
   });
+
+  group('GlobalState.upgradeItem', () {
+    test('upgrades potion from tier I to tier II', () {
+      // Find a potion upgrade (3x tier I -> 1x tier II)
+      final potionI = testItems.byName('Melee Accuracy Potion I');
+      final potionII = testItems.byName('Melee Accuracy Potion II');
+
+      final upgrades = testRegistries.itemUpgrades.upgradesForItem(potionI.id);
+      expect(upgrades, isNotEmpty);
+      final upgrade = upgrades.first;
+      expect(upgrade.upgradedItemId, potionII.id);
+
+      // Create state with enough potions to upgrade
+      final state = GlobalState.test(
+        testRegistries,
+        inventory: Inventory.fromItems(testItems, [
+          ItemStack(potionI, count: 9), // Enough for 3 upgrades
+        ]),
+      );
+
+      // Upgrade 2 times (uses 6 tier I potions, produces 2 tier II)
+      final newState = state.upgradeItem(upgrade, 2);
+      expect(newState, isNotNull);
+      expect(newState!.inventory.countOfItem(potionI), 3); // 9 - 6 = 3
+      expect(newState.inventory.countOfItem(potionII), 2);
+    });
+
+    test('returns null when not enough input items', () {
+      final potionI = testItems.byName('Melee Accuracy Potion I');
+      final upgrades = testRegistries.itemUpgrades.upgradesForItem(potionI.id);
+      final upgrade = upgrades.first;
+
+      // Create state with only 2 potions (need 3 for 1 upgrade)
+      final state = GlobalState.test(
+        testRegistries,
+        inventory: Inventory.fromItems(testItems, [
+          ItemStack(potionI, count: 2),
+        ]),
+      );
+
+      final newState = state.upgradeItem(upgrade, 1);
+      expect(newState, isNull);
+    });
+
+    test('deducts GP cost when upgrade requires currency', () {
+      // Find an upgrade that has GP cost
+      final upgradesWithGp = testRegistries.itemUpgrades.all
+          .where((u) => u.currencyCosts.gpCost > 0)
+          .toList();
+
+      if (upgradesWithGp.isEmpty) {
+        // Skip if no GP upgrades in test data
+        return;
+      }
+
+      final upgrade = upgradesWithGp.first;
+      final gpCost = upgrade.currencyCosts.gpCost;
+
+      // Create inventory with all required items
+      final itemStacks = <ItemStack>[];
+      for (final cost in upgrade.itemCosts) {
+        final item = testItems.byId(cost.itemId);
+        itemStacks.add(ItemStack(item, count: cost.quantity));
+      }
+
+      final state = GlobalState.test(
+        testRegistries,
+        inventory: Inventory.fromItems(testItems, itemStacks),
+        gp: gpCost + 100, // Enough GP plus extra
+      );
+
+      final newState = state.upgradeItem(upgrade, 1);
+      expect(newState, isNotNull);
+      expect(newState!.gp, 100); // Should have deducted gpCost
+    });
+
+    test('returns null when not enough GP', () {
+      final upgradesWithGp = testRegistries.itemUpgrades.all
+          .where((u) => u.currencyCosts.gpCost > 0)
+          .toList();
+
+      if (upgradesWithGp.isEmpty) {
+        return;
+      }
+
+      final upgrade = upgradesWithGp.first;
+      final gpCost = upgrade.currencyCosts.gpCost;
+
+      // Create inventory with all required items
+      final itemStacks = <ItemStack>[];
+      for (final cost in upgrade.itemCosts) {
+        final item = testItems.byId(cost.itemId);
+        itemStacks.add(ItemStack(item, count: cost.quantity));
+      }
+
+      final state = GlobalState.test(
+        testRegistries,
+        inventory: Inventory.fromItems(testItems, itemStacks),
+        gp: gpCost - 1, // Not enough GP
+      );
+
+      final newState = state.upgradeItem(upgrade, 1);
+      expect(newState, isNull);
+    });
+
+    test('maxAffordableUpgrades returns correct count', () {
+      final potionI = testItems.byName('Melee Accuracy Potion I');
+      final upgrades = testRegistries.itemUpgrades.upgradesForItem(potionI.id);
+      final upgrade = upgrades.first;
+
+      // With 10 potions and 3 required per upgrade, max is 3
+      final state = GlobalState.test(
+        testRegistries,
+        inventory: Inventory.fromItems(testItems, [
+          ItemStack(potionI, count: 10),
+        ]),
+      );
+
+      expect(state.maxAffordableUpgrades(upgrade), 3);
+    });
+
+    test('maxAffordableUpgrades limited by GP', () {
+      final upgradesWithGp = testRegistries.itemUpgrades.all
+          .where((u) => u.currencyCosts.gpCost > 0)
+          .toList();
+
+      if (upgradesWithGp.isEmpty) {
+        return;
+      }
+
+      final upgrade = upgradesWithGp.first;
+      final gpCost = upgrade.currencyCosts.gpCost;
+
+      // Create inventory with enough items for 10 upgrades
+      final itemStacks = <ItemStack>[];
+      for (final cost in upgrade.itemCosts) {
+        final item = testItems.byId(cost.itemId);
+        itemStacks.add(ItemStack(item, count: cost.quantity * 10));
+      }
+
+      // Have enough items for 10 upgrades but only GP for 2
+      final state = GlobalState.test(
+        testRegistries,
+        inventory: Inventory.fromItems(testItems, itemStacks),
+        gp: gpCost * 2 + gpCost ~/ 2, // Enough for 2.5 upgrades
+      );
+
+      expect(state.maxAffordableUpgrades(upgrade), 2);
+    });
+  });
 }

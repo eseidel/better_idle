@@ -8,9 +8,24 @@ import 'package:meta/meta.dart';
 /// Ticks required to regenerate 1 HP (10 seconds = 100 ticks).
 final int ticksPer1Hp = ticksFromDuration(const Duration(seconds: 10));
 
-// playerTotalMasteryForSkill is presumably a sum of all mastery xp
-// for all actions in this skill?
-int playerTotalMasteryForSkill(GlobalState state, Skill skill) {
+/// Returns the sum of all mastery levels for all actions in a skill.
+/// Used in the mastery XP formula which operates on levels (1-99), not XP.
+int playerTotalMasteryLevelForSkill(GlobalState state, Skill skill) {
+  var total = 0;
+  for (final entry in state.actionStates.entries) {
+    final actionId = entry.key;
+    final actionState = entry.value;
+    if (actionId.skillId != skill.id) {
+      continue;
+    }
+    total += actionState.masteryLevel;
+  }
+  return total;
+}
+
+/// Returns the sum of all mastery XP for all actions in a skill.
+/// Used for rare drop scaling which uses XP values (potentially millions).
+int playerTotalMasteryXpForSkill(GlobalState state, Skill skill) {
   var total = 0;
   for (final entry in state.actionStates.entries) {
     final actionId = entry.key;
@@ -29,7 +44,10 @@ int masteryXpPerAction(GlobalState state, SkillAction action) {
     registries: state.registries,
     action: action,
     unlockedActions: state.unlockedActionsCount(action.skill),
-    playerTotalMasteryForSkill: playerTotalMasteryForSkill(state, action.skill),
+    playerTotalMasteryLevel: playerTotalMasteryLevelForSkill(
+      state,
+      action.skill,
+    ),
     itemMasteryLevel: state.actionState(action.id).masteryLevel,
     bonus: 0,
   );
@@ -1360,7 +1378,7 @@ bool rollAndCollectDrops(
     } else if (drop is RareDrop) {
       // Use rollWithContext for RareDrops to check requiredItemId
       final skillLevel = builder.state.skillState(action.skill).skillLevel;
-      final totalMastery = playerTotalMasteryForSkill(
+      final totalMastery = playerTotalMasteryXpForSkill(
         builder.state,
         action.skill,
       );
