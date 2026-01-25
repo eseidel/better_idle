@@ -49,10 +49,15 @@ class SummoningAction extends SkillAction {
       shardInputs[itemId] = quantity;
     }
 
+    // Parse tier for non-shard item cost calculation.
+    final tier = json['tier'] as int? ?? 1;
+
     // Parse nonShardItemCosts as alternative recipes.
-    // Each non-shard item becomes an alternative recipe with shards + 1 item.
+    // Each non-shard item becomes an alternative recipe with shards + item.
+    // Non-shard item quantity = tier * 6 (per Melvor Idle mechanics).
     final nonShardItems = json['nonShardItemCosts'] as List<dynamic>? ?? [];
     List<AlternativeRecipe>? alternativeRecipes;
+    final nonShardQuantity = tier * 6;
 
     if (nonShardItems.isNotEmpty) {
       alternativeRecipes = nonShardItems.map((itemIdJson) {
@@ -61,7 +66,7 @@ class SummoningAction extends SkillAction {
           defaultNamespace: namespace,
         );
         return AlternativeRecipe(
-          inputs: {...shardInputs, itemId: 1},
+          inputs: {...shardInputs, itemId: nonShardQuantity},
           quantityMultiplier: 1,
         );
       }).toList();
@@ -98,7 +103,7 @@ class SummoningAction extends SkillAction {
       outputs: {productId: baseQuantity},
       alternativeRecipes: alternativeRecipes,
       productId: productId,
-      tier: json['tier'] as int? ?? 1,
+      tier: tier,
       markMedia: json['markMedia'] as String?,
       markSkillIds: markSkillIds,
     );

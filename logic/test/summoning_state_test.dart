@@ -6,6 +6,107 @@ import 'package:test/test.dart';
 import 'test_helper.dart';
 
 void main() {
+  group('SummoningAction.fromJson', () {
+    test('non-shard item quantity is tier * 6 for tier 1', () {
+      final json = {
+        'id': 'TestFamiliar',
+        'level': 1,
+        'productID': 'melvorF:Test_Familiar',
+        'baseQuantity': 25,
+        'baseExperience': 5,
+        'itemCosts': [
+          {'id': 'melvorF:Summoning_Shard_Green', 'quantity': 6},
+        ],
+        'nonShardItemCosts': ['melvorD:Normal_Logs', 'melvorD:Oak_Logs'],
+        'tier': 1,
+        'skillIDs': ['melvorD:Woodcutting'],
+      };
+
+      final action = SummoningAction.fromJson(json, namespace: 'melvorF');
+
+      // Tier 1 should have non-shard quantity of 6
+      expect(action.alternativeRecipes, isNotNull);
+      expect(action.alternativeRecipes!.length, 2);
+
+      // Check first alternative has correct quantity
+      final firstRecipe = action.alternativeRecipes!.first;
+      const logsId = MelvorId('melvorD:Normal_Logs');
+      expect(firstRecipe.inputs[logsId], 6);
+    });
+
+    test('non-shard item quantity is tier * 6 for tier 2', () {
+      final json = {
+        'id': 'TestFamiliar2',
+        'level': 45,
+        'productID': 'melvorF:Test_Familiar_2',
+        'baseQuantity': 25,
+        'baseExperience': 25,
+        'itemCosts': [
+          {'id': 'melvorF:Summoning_Shard_Blue', 'quantity': 10},
+        ],
+        'nonShardItemCosts': ['melvorD:Mithril_Bar'],
+        'tier': 2,
+        'skillIDs': ['melvorD:Smithing'],
+      };
+
+      final action = SummoningAction.fromJson(json, namespace: 'melvorF');
+
+      // Tier 2 should have non-shard quantity of 12
+      expect(action.alternativeRecipes, isNotNull);
+      final recipe = action.alternativeRecipes!.first;
+      const barId = MelvorId('melvorD:Mithril_Bar');
+      expect(recipe.inputs[barId], 12);
+    });
+
+    test('non-shard item quantity is tier * 6 for tier 3', () {
+      final json = {
+        'id': 'TestFamiliar3',
+        'level': 85,
+        'productID': 'melvorF:Test_Familiar_3',
+        'baseQuantity': 25,
+        'baseExperience': 50,
+        'itemCosts': [
+          {'id': 'melvorF:Summoning_Shard_Red', 'quantity': 14},
+        ],
+        'nonShardItemCosts': ['melvorD:Dragon_Bar'],
+        'tier': 3,
+        'skillIDs': ['melvorD:Smithing'],
+      };
+
+      final action = SummoningAction.fromJson(json, namespace: 'melvorF');
+
+      // Tier 3 should have non-shard quantity of 18
+      expect(action.alternativeRecipes, isNotNull);
+      final recipe = action.alternativeRecipes!.first;
+      const barId = MelvorId('melvorD:Dragon_Bar');
+      expect(recipe.inputs[barId], 18);
+    });
+
+    test('default tier is 1 when not specified', () {
+      final json = {
+        'id': 'TestFamiliar',
+        'level': 1,
+        'productID': 'melvorF:Test_Familiar',
+        'baseQuantity': 25,
+        'baseExperience': 5,
+        'itemCosts': [
+          {'id': 'melvorF:Summoning_Shard_Green', 'quantity': 6},
+        ],
+        'nonShardItemCosts': ['melvorD:Normal_Logs'],
+        // No tier specified
+        'skillIDs': ['melvorD:Woodcutting'],
+      };
+
+      final action = SummoningAction.fromJson(json, namespace: 'melvorF');
+
+      // Default tier 1 should have non-shard quantity of 6
+      final recipe = action.alternativeRecipes!.first;
+      const logsId = MelvorId('melvorD:Normal_Logs');
+      expect(recipe.inputs[logsId], 6);
+      expect(action.tier, 1);
+    });
+  });
+
   group('markLevelForCount', () {
     test('returns 0 for no marks', () {
       expect(markLevelForCount(0), 0);

@@ -605,11 +605,6 @@ class _SummoningActionDisplay extends StatelessWidget {
       buttonText: 'Create',
       onStart: onStart,
       onInputItemTap: (item) => _onShardTap(context, item),
-      additionalContent: _MarkProgressRow(
-        marks: marks,
-        markLevel: markLevel,
-        markMedia: action.markMedia,
-      ),
     );
   }
 
