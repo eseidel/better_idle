@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:logic/src/data/action_id.dart';
 import 'package:logic/src/data/actions.dart';
 import 'package:logic/src/data/cache.dart';
+import 'package:logic/src/data/item_upgrades.dart';
 import 'package:logic/src/data/melvor_data.dart';
 import 'package:logic/src/data/melvor_id.dart';
 import 'package:logic/src/data/shop.dart';
@@ -58,6 +59,7 @@ class Registries {
     required this.summoningSynergies,
     required this.township,
     required this.modifierMetadata,
+    required this.itemUpgrades,
     required Map<MelvorId, int> bankSortIndex,
   }) : _bankSortIndex = bankSortIndex,
        _testActions = null;
@@ -144,6 +146,7 @@ class Registries {
        summoning = SummoningRegistry(const []),
        astrology = const AstrologyRegistry([]),
        altMagic = const AltMagicRegistry([]),
+       itemUpgrades = ItemUpgradeRegistry.empty,
        combat = CombatRegistry(
          monsters: const [],
          areas: CombatAreaRegistry(const []),
@@ -160,6 +163,7 @@ class Registries {
   final SummoningSynergyRegistry summoningSynergies;
   final TownshipRegistry township;
   final ModifierMetadataRegistry modifierMetadata;
+  final ItemUpgradeRegistry itemUpgrades;
   final Map<MelvorId, int> _bankSortIndex;
 
   // Skill registries
