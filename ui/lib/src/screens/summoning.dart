@@ -6,8 +6,8 @@ import 'package:ui/src/widgets/context_extensions.dart';
 import 'package:ui/src/widgets/game_scaffold.dart';
 import 'package:ui/src/widgets/item_image.dart';
 import 'package:ui/src/widgets/mastery_pool.dart';
+import 'package:ui/src/widgets/production_action_display.dart';
 import 'package:ui/src/widgets/shard_purchase_dialog.dart';
-import 'package:ui/src/widgets/skill_action_display.dart';
 import 'package:ui/src/widgets/skill_image.dart';
 import 'package:ui/src/widgets/skill_overflow_menu.dart';
 import 'package:ui/src/widgets/skill_progress.dart';
@@ -564,7 +564,9 @@ class _TabletsTab extends StatelessWidget {
   }
 }
 
-/// Custom action display for Summoning that shows mark requirements.
+/// Custom action display for Summoning that shows tablet creation interface.
+/// Uses ProductionActionDisplay for the main layout, with special handling
+/// for undiscovered marks.
 class _SummoningActionDisplay extends StatelessWidget {
   const _SummoningActionDisplay({
     required this.action,
@@ -589,16 +591,58 @@ class _SummoningActionDisplay extends StatelessWidget {
       return _buildNeedMarksDisplay(context, action, marks, markLevel);
     }
 
-    // Otherwise show the normal skill action display
-    return SkillActionDisplay(
+    // Get product item and format its modifiers for effect text
+    final productItem = state.registries.items.byId(action.productId);
+    final effectText = _formatItemModifiers(
+      productItem,
+      state.registries.modifierMetadata,
+    );
+
+    return ProductionActionDisplay(
       action: action,
+      productId: action.productId,
       skill: Skill.summoning,
       skillLevel: skillLevel,
       headerText: 'Create',
       buttonText: 'Create',
+      showRecycleBadge: true,
+      effectText: effectText,
       onStart: onStart,
       onInputItemTap: (item) => _onShardTap(context, item),
     );
+  }
+
+  /// Formats an item's modifiers into a readable description string.
+  String? _formatItemModifiers(Item item, ModifierMetadataRegistry registry) {
+    if (item.modifiers.modifiers.isEmpty) return null;
+
+    final descriptions = <String>[];
+    for (final mod in item.modifiers.modifiers) {
+      for (final entry in mod.entries) {
+        // Extract scope information for formatting
+        String? skillName;
+        String? currencyName;
+        final scope = entry.scope;
+        if (scope != null) {
+          if (scope.skillId != null) {
+            skillName = Skill.fromId(scope.skillId!).name;
+          }
+          if (scope.currencyId != null) {
+            currencyName = Currency.fromId(scope.currencyId!).name;
+          }
+        }
+
+        descriptions.add(
+          registry.formatDescription(
+            name: mod.name,
+            value: entry.value,
+            skillName: skillName,
+            currencyName: currencyName,
+          ),
+        );
+      }
+    }
+    return descriptions.isNotEmpty ? descriptions.join(', ') : null;
   }
 
   void _onShardTap(BuildContext context, Item item) {
