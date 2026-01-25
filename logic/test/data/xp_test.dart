@@ -197,12 +197,12 @@ void main() {
           .actionsForSkill(Skill.firemaking)
           .length;
 
-      // If totalMasteryForSkill incorrectly used XP (~53 million for firemaking),
+      // totalMasteryForSkill incorrectly used XP (~53 million for firemaking),
       // mastery portion would be nearly 0 even with high total mastery levels.
-      // With the correct formula (totalItems × 99), mastery portion is significant.
+      // The correct formula (totalItems × 99), mastery portion is significant.
 
-      // All actions at level 99 means playerTotalMasteryLevel = actionsInSkill × 99
-      // This equals totalMasteryForSkill, so masteryPortion = unlockedActions × 1
+      // All actions level 99, playerTotalMasteryLevel = actionsInSkill × 99
+      // Equals totalMasteryForSkill, so masteryPortion = unlockedActions × 1
       final xpWithMaxMastery = calculateMasteryXpPerAction(
         registries: testRegistries,
         action: action,
@@ -270,8 +270,9 @@ void main() {
       // Simulates: trained Normal Logs to mastery 86, now trying Magic Logs
       // at mastery level 1, with 8 logs unlocked (level 79 firemaking)
       final action = testRegistries.firemakingAction('Burn Magic Logs');
-      final actionsInSkill =
-          testRegistries.actionsForSkill(Skill.firemaking).length;
+      final actionsInSkill = testRegistries
+          .actionsForSkill(Skill.firemaking)
+          .length;
 
       // One action at level 86, rest at level 1
       // playerTotalMasteryLevel = 86 + (actionsInSkill - 1) * 1

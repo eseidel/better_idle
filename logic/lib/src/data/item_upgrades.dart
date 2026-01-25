@@ -1,4 +1,3 @@
-import 'package:equatable/equatable.dart';
 import 'package:logic/src/data/actions.dart';
 import 'package:logic/src/data/currency.dart';
 import 'package:logic/src/data/melvor_id.dart';
@@ -7,7 +6,7 @@ import 'package:meta/meta.dart';
 
 /// An item upgrade recipe.
 @immutable
-class ItemUpgrade extends Equatable {
+class ItemUpgrade {
   const ItemUpgrade({
     required this.upgradedItemId,
     required this.itemCosts,
@@ -85,55 +84,27 @@ class ItemUpgrade extends Equatable {
   /// Whether this is a downgrade operation.
   final bool isDowngrade;
 
-  @override
-  List<Object?> get props => [
-    upgradedItemId,
-    itemCosts,
-    currencyCosts,
-    rootItemIds,
-    isDowngrade,
-  ];
 }
 
 /// Registry of all item upgrades.
 @immutable
 class ItemUpgradeRegistry {
-  const ItemUpgradeRegistry(this._upgrades)
-    : _byUpgradedIdCache = null,
-      _upgradesForItemCache = null;
+  const ItemUpgradeRegistry(this._upgrades);
 
   /// Creates an empty registry for tests.
   static const empty = ItemUpgradeRegistry([]);
 
   final List<ItemUpgrade> _upgrades;
-  final Map<MelvorId, ItemUpgrade>? _byUpgradedIdCache;
-  final Map<MelvorId, List<ItemUpgrade>>? _upgradesForItemCache;
-
-  Map<MelvorId, ItemUpgrade> get _byUpgradedId {
-    if (_byUpgradedIdCache != null) return _byUpgradedIdCache;
-    return {for (final upgrade in _upgrades) upgrade.upgradedItemId: upgrade};
-  }
-
-  Map<MelvorId, List<ItemUpgrade>> get _upgradesForItem {
-    if (_upgradesForItemCache != null) return _upgradesForItemCache;
-    final byInput = <MelvorId, List<ItemUpgrade>>{};
-    for (final upgrade in _upgrades) {
-      for (final cost in upgrade.itemCosts) {
-        byInput.putIfAbsent(cost.itemId, () => []).add(upgrade);
-      }
-    }
-    return byInput;
-  }
 
   /// All upgrades in the registry.
   List<ItemUpgrade> get all => _upgrades;
 
-  /// Gets an upgrade by its result item ID.
-  ItemUpgrade? byUpgradedId(MelvorId id) => _byUpgradedId[id];
-
   /// Gets all upgrades that use a given item as input.
-  List<ItemUpgrade> upgradesForItem(MelvorId itemId) =>
-      _upgradesForItem[itemId] ?? const [];
+  List<ItemUpgrade> upgradesForItem(MelvorId itemId) {
+    return _upgrades
+        .where((u) => u.itemCosts.any((c) => c.itemId == itemId))
+        .toList();
+  }
 }
 
 /// Parses item upgrades from data files.
