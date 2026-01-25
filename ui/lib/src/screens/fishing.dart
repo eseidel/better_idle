@@ -6,10 +6,9 @@ import 'package:ui/src/widgets/context_extensions.dart';
 import 'package:ui/src/widgets/game_scaffold.dart';
 import 'package:ui/src/widgets/item_image.dart';
 import 'package:ui/src/widgets/mastery_pool.dart';
-import 'package:ui/src/widgets/mastery_unlocks_dialog.dart';
 import 'package:ui/src/widgets/skill_action_display.dart';
 import 'package:ui/src/widgets/skill_image.dart';
-import 'package:ui/src/widgets/skill_milestones_dialog.dart';
+import 'package:ui/src/widgets/skill_overflow_menu.dart';
 import 'package:ui/src/widgets/skill_progress.dart';
 import 'package:ui/src/widgets/style.dart';
 
@@ -64,17 +63,11 @@ class _FishingPageState extends State<FishingPage> {
 
     return GameScaffold(
       title: const Text('Fishing'),
+      actions: const [SkillOverflowMenu(skill: skill)],
       body: Column(
         children: [
           SkillProgress(xp: skillState.xp),
           const MasteryPoolProgress(skill: skill),
-          const Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              MasteryUnlocksButton(skill: skill),
-              SkillMilestonesButton(skill: skill),
-            ],
-          ),
           Expanded(
             child: SingleChildScrollView(
               padding: const EdgeInsets.all(16),

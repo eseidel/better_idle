@@ -4,8 +4,7 @@ import 'package:ui/src/widgets/action_grid.dart';
 import 'package:ui/src/widgets/context_extensions.dart';
 import 'package:ui/src/widgets/game_scaffold.dart';
 import 'package:ui/src/widgets/mastery_pool.dart';
-import 'package:ui/src/widgets/mastery_unlocks_dialog.dart';
-import 'package:ui/src/widgets/skill_milestones_dialog.dart';
+import 'package:ui/src/widgets/skill_overflow_menu.dart';
 import 'package:ui/src/widgets/skill_progress.dart';
 
 /// A simple skill page that displays actions in a grid layout.
@@ -32,17 +31,11 @@ class SimpleSkillPage extends StatelessWidget {
 
     return GameScaffold(
       title: Text(skillName),
+      actions: [SkillOverflowMenu(skill: skill)],
       body: Column(
         children: [
           SkillProgress(xp: skillState.xp),
           MasteryPoolProgress(skill: skill),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              MasteryUnlocksButton(skill: skill),
-              SkillMilestonesButton(skill: skill),
-            ],
-          ),
           Expanded(
             child: ActionGrid(actions: actions, cellSize: cellSize),
           ),

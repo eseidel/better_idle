@@ -11,10 +11,9 @@ import 'package:ui/src/widgets/game_scaffold.dart';
 import 'package:ui/src/widgets/item_count_badge_cell.dart';
 import 'package:ui/src/widgets/item_image.dart';
 import 'package:ui/src/widgets/mastery_pool.dart';
-import 'package:ui/src/widgets/mastery_unlocks_dialog.dart';
 import 'package:ui/src/widgets/recycle_chance_badge_cell.dart';
 import 'package:ui/src/widgets/skill_image.dart';
-import 'package:ui/src/widgets/skill_milestones_dialog.dart';
+import 'package:ui/src/widgets/skill_overflow_menu.dart';
 import 'package:ui/src/widgets/skill_progress.dart';
 import 'package:ui/src/widgets/style.dart';
 import 'package:ui/src/widgets/xp_badges_row.dart';
@@ -30,19 +29,13 @@ class CookingPage extends StatelessWidget {
 
     return GameScaffold(
       title: const Text('Cooking'),
+      actions: const [SkillOverflowMenu(skill: skill)],
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16),
         child: Column(
           children: [
             SkillProgress(xp: skillState.xp),
             const MasteryPoolProgress(skill: skill),
-            const Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                MasteryUnlocksButton(skill: skill),
-                SkillMilestonesButton(skill: skill),
-              ],
-            ),
             const SizedBox(height: 16),
             const Wrap(
               spacing: 16,

@@ -5,9 +5,8 @@ import 'package:ui/src/widgets/categorized_action_list.dart';
 import 'package:ui/src/widgets/context_extensions.dart';
 import 'package:ui/src/widgets/game_scaffold.dart';
 import 'package:ui/src/widgets/mastery_pool.dart';
-import 'package:ui/src/widgets/mastery_unlocks_dialog.dart';
 import 'package:ui/src/widgets/production_action_display.dart';
-import 'package:ui/src/widgets/skill_milestones_dialog.dart';
+import 'package:ui/src/widgets/skill_overflow_menu.dart';
 import 'package:ui/src/widgets/skill_progress.dart';
 
 class CraftingPage extends StatefulWidget {
@@ -50,17 +49,11 @@ class _CraftingPageState extends State<CraftingPage> {
 
     return GameScaffold(
       title: const Text('Crafting'),
+      actions: const [SkillOverflowMenu(skill: skill)],
       body: Column(
         children: [
           SkillProgress(xp: skillState.xp),
           const MasteryPoolProgress(skill: skill),
-          const Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              MasteryUnlocksButton(skill: skill),
-              SkillMilestonesButton(skill: skill),
-            ],
-          ),
           Expanded(
             child: SingleChildScrollView(
               padding: const EdgeInsets.all(16),
