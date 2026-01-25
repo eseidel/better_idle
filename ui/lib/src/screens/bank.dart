@@ -517,6 +517,15 @@ class _ItemDetailsDrawerState extends State<ItemDetailsDrawer> {
                 const SizedBox(height: 16),
                 _OpenItemSection(item: itemData, maxCount: maxCount),
               ],
+              // Show Upgrade button if upgrades available
+              if (context.state.registries.itemUpgrades
+                  .upgradesForItem(itemData.id)
+                  .isNotEmpty) ...[
+                const SizedBox(height: 32),
+                const Divider(),
+                const SizedBox(height: 16),
+                _UpgradeSection(item: itemData),
+              ],
             ],
           ),
         ),
@@ -1143,6 +1152,223 @@ class _SellConfirmationDialog extends StatelessWidget {
           onPressed: () => Navigator.of(context).pop(true),
           child: const Text('Confirm Sell'),
         ),
+      ],
+    );
+  }
+}
+
+class _UpgradeSection extends StatefulWidget {
+  const _UpgradeSection({required this.item});
+
+  final Item item;
+
+  @override
+  State<_UpgradeSection> createState() => _UpgradeSectionState();
+}
+
+class _UpgradeSectionState extends State<_UpgradeSection> {
+  ItemUpgrade? _selectedUpgrade;
+  double _upgradeCount = 1;
+
+  @override
+  Widget build(BuildContext context) {
+    final state = context.state;
+    final upgrades = state.registries.itemUpgrades.upgradesForItem(
+      widget.item.id,
+    );
+
+    if (upgrades.isEmpty) return const SizedBox.shrink();
+
+    // If only one upgrade, auto-select it
+    final upgrade =
+        _selectedUpgrade ?? (upgrades.length == 1 ? upgrades.first : null);
+
+    // Show upgrade picker if multiple upgrades available and none selected
+    if (upgrade == null && upgrades.length > 1) {
+      return _buildUpgradePicker(context, upgrades);
+    }
+
+    if (upgrade == null) return const SizedBox.shrink();
+
+    final maxAffordable = state.maxAffordableUpgrades(upgrade);
+    final upgradeCountInt = _upgradeCount.round().clamp(0, maxAffordable);
+    final outputItem = state.registries.items.byId(upgrade.upgradedItemId);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text('Upgrade Item', style: Theme.of(context).textTheme.titleMedium),
+        const SizedBox(height: 8),
+        // Show what we're upgrading to
+        Row(
+          children: [
+            ItemImage(item: outputItem),
+            const SizedBox(width: 8),
+            Expanded(child: Text(outputItem.name)),
+          ],
+        ),
+        const SizedBox(height: 8),
+        // Show costs
+        _buildCostDisplay(context, upgrade, upgradeCountInt),
+        const SizedBox(height: 16),
+        // Quantity slider (only if max > 1)
+        if (maxAffordable > 1) ...[
+          Text(
+            'Quantity: ${approximateCountString(upgradeCountInt)}',
+            style: Theme.of(context).textTheme.bodyMedium,
+          ),
+          const SizedBox(height: 8),
+          Slider(
+            value: _upgradeCount.clamp(1, maxAffordable.toDouble()),
+            min: 1,
+            max: maxAffordable.toDouble(),
+            divisions: maxAffordable > 1 ? maxAffordable - 1 : null,
+            label: preciseNumberString(upgradeCountInt),
+            onChanged: (v) => setState(() => _upgradeCount = v),
+          ),
+          const SizedBox(height: 16),
+        ],
+        // Upgrade button
+        SizedBox(
+          width: double.infinity,
+          child: ElevatedButton(
+            onPressed: maxAffordable > 0
+                ? () {
+                    context.dispatch(
+                      UpgradeItemAction(
+                        upgrade: upgrade,
+                        count: upgradeCountInt,
+                      ),
+                    );
+                    Navigator.of(context).pop();
+                  }
+                : null,
+            child: Text(
+              upgradeCountInt > 1
+                  ? 'Upgrade x${approximateCountString(upgradeCountInt)}'
+                  : 'Upgrade',
+            ),
+          ),
+        ),
+        // Show if multiple upgrades available
+        if (upgrades.length > 1) ...[
+          const SizedBox(height: 8),
+          TextButton(
+            onPressed: () => setState(() => _selectedUpgrade = null),
+            child: const Text('Choose different upgrade'),
+          ),
+        ],
+      ],
+    );
+  }
+
+  Widget _buildUpgradePicker(BuildContext context, List<ItemUpgrade> upgrades) {
+    final state = context.state;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text('Upgrade Item', style: Theme.of(context).textTheme.titleMedium),
+        const SizedBox(height: 8),
+        Text(
+          'Choose an upgrade:',
+          style: Theme.of(context).textTheme.bodyMedium,
+        ),
+        const SizedBox(height: 8),
+        ...upgrades.map((upgrade) {
+          final outputItem = state.registries.items.byId(
+            upgrade.upgradedItemId,
+          );
+          final maxAffordable = state.maxAffordableUpgrades(upgrade);
+          return ListTile(
+            leading: ItemImage(item: outputItem),
+            title: Text(outputItem.name),
+            subtitle: Text(
+              maxAffordable > 0
+                  ? 'Can make: ${approximateCountString(maxAffordable)}'
+                  : 'Cannot afford',
+            ),
+            enabled: maxAffordable > 0,
+            onTap: () => setState(() {
+              _selectedUpgrade = upgrade;
+              _upgradeCount = 1;
+            }),
+          );
+        }),
+      ],
+    );
+  }
+
+  Widget _buildCostDisplay(
+    BuildContext context,
+    ItemUpgrade upgrade,
+    int count,
+  ) {
+    final state = context.state;
+    final costs = <Widget>[];
+
+    // Item costs
+    for (final cost in upgrade.itemCosts) {
+      final item = state.registries.items.byId(cost.itemId);
+      final required = cost.quantity * count;
+      final available = state.inventory.countById(cost.itemId);
+      final canAfford = available >= required;
+
+      costs.add(
+        Row(
+          children: [
+            ItemImage(item: item, size: 24),
+            const SizedBox(width: 8),
+            Text(
+              '${approximateCountString(required)} ${item.name}',
+              style: TextStyle(
+                color: canAfford ? null : Theme.of(context).colorScheme.error,
+              ),
+            ),
+            const SizedBox(width: 4),
+            Text(
+              '(have ${approximateCountString(available)})',
+              style: Theme.of(
+                context,
+              ).textTheme.bodySmall?.copyWith(color: Style.textColorMuted),
+            ),
+          ],
+        ),
+      );
+    }
+
+    // Currency costs
+    final gpCost = upgrade.currencyCosts.gpCost * count;
+    if (gpCost > 0) {
+      final canAfford = state.gp >= gpCost;
+      costs.add(
+        Row(
+          children: [
+            CachedImage(assetPath: Currency.gp.assetPath, size: 24),
+            const SizedBox(width: 8),
+            Text(
+              '${approximateCreditString(gpCost)} GP',
+              style: TextStyle(
+                color: canAfford ? null : Theme.of(context).colorScheme.error,
+              ),
+            ),
+            const SizedBox(width: 4),
+            Text(
+              '(have ${approximateCreditString(state.gp)})',
+              style: Theme.of(
+                context,
+              ).textTheme.bodySmall?.copyWith(color: Style.textColorMuted),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text('Cost:', style: Theme.of(context).textTheme.titleSmall),
+        const SizedBox(height: 4),
+        ...costs,
       ],
     );
   }
