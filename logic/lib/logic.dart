@@ -20,6 +20,7 @@ export 'src/data/combat.dart';
 export 'src/data/currency.dart';
 export 'src/data/farming.dart';
 export 'src/data/fishing.dart';
+export 'src/data/item_upgrades.dart';
 export 'src/data/items.dart';
 export 'src/data/melvor_data.dart';
 export 'src/data/melvor_id.dart';

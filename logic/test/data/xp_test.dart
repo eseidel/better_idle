@@ -1,7 +1,12 @@
 import 'package:logic/logic.dart';
 import 'package:test/test.dart';
 
+import '../test_helper.dart';
+
 void main() {
+  setUpAll(() async {
+    await loadTestRegistries();
+  });
   group('levelForXp', () {
     test('returns 1 for 0 XP', () {
       expect(levelForXp(0), 1);
@@ -142,6 +147,168 @@ void main() {
       // At max XP, we might be at max level, so nextLevelXp might not exist
       // But progress should still be valid
       expect(progress.progress, greaterThanOrEqualTo(0.0));
+    });
+  });
+
+  group('calculateMasteryXpPerAction', () {
+    test('uses mastery levels not XP in formula', () {
+      // Get a firemaking action (Burn Magic Logs has 10 second duration)
+      final action = testRegistries.firemakingAction('Burn Magic Logs');
+      final actionsInSkill = testRegistries
+          .actionsForSkill(Skill.firemaking)
+          .length;
+
+      // The formula is:
+      // [(unlockedActions × playerTotalMasteryLevel / totalMasteryForSkill) +
+      //  (itemMasteryLevel × totalItemsInSkill / 10)] × actionTime × 0.5
+
+      // With mastery level 1 for the item, minimal total mastery:
+      // itemPortion = 1 × (actionsInSkill / 10)
+      // For firemaking, actionTime = 10 × 0.6 = 6 seconds
+      // result ≈ itemPortion × 6 × 0.5 = itemPortion × 3
+
+      final xpAtLevel1 = calculateMasteryXpPerAction(
+        registries: testRegistries,
+        action: action,
+        unlockedActions: actionsInSkill,
+        playerTotalMasteryLevel: actionsInSkill, // All actions at level 1
+        itemMasteryLevel: 1,
+        bonus: 0,
+      );
+
+      // At mastery level 50, itemPortion is 50× larger
+      final xpAtLevel50 = calculateMasteryXpPerAction(
+        registries: testRegistries,
+        action: action,
+        unlockedActions: actionsInSkill,
+        playerTotalMasteryLevel: actionsInSkill * 50, // All actions at level 50
+        itemMasteryLevel: 50,
+        bonus: 0,
+      );
+
+      // The XP at level 50 should be much higher than at level 1
+      // (roughly 50× higher for the itemPortion alone)
+      expect(xpAtLevel50, greaterThan(xpAtLevel1 * 10));
+    });
+
+    test('totalMasteryForSkill uses 99 not maxMasteryXp', () {
+      final action = testRegistries.firemakingAction('Burn Magic Logs');
+      final actionsInSkill = testRegistries
+          .actionsForSkill(Skill.firemaking)
+          .length;
+
+      // totalMasteryForSkill incorrectly used XP (~53 million for firemaking),
+      // mastery portion would be nearly 0 even with high total mastery levels.
+      // The correct formula (totalItems × 99), mastery portion is significant.
+
+      // All actions level 99, playerTotalMasteryLevel = actionsInSkill × 99
+      // Equals totalMasteryForSkill, so masteryPortion = unlockedActions × 1
+      final xpWithMaxMastery = calculateMasteryXpPerAction(
+        registries: testRegistries,
+        action: action,
+        unlockedActions: actionsInSkill,
+        playerTotalMasteryLevel: actionsInSkill * 99, // All at level 99
+        itemMasteryLevel: 99,
+        bonus: 0,
+      );
+
+      // For firemaking with ~9 actions, action time = 6 seconds:
+      // masteryPortion = 9 × (9×99 / 9×99) = 9
+      // itemPortion = 99 × (9 / 10) = 89.1
+      // baseValue = 98.1
+      // result = 98.1 × 6 × 0.5 = 294.3 ≈ 294
+
+      // The result should be substantial (>100 XP), not tiny like if we used XP
+      expect(xpWithMaxMastery, greaterThan(100));
+    });
+
+    test('returns at least 1 XP', () {
+      final action = testRegistries.firemakingAction('Burn Normal Logs');
+
+      final xp = calculateMasteryXpPerAction(
+        registries: testRegistries,
+        action: action,
+        unlockedActions: 1,
+        playerTotalMasteryLevel: 1,
+        itemMasteryLevel: 1,
+        bonus: 0,
+      );
+
+      expect(xp, greaterThanOrEqualTo(1));
+    });
+
+    test('bonus increases XP', () {
+      final action = testRegistries.firemakingAction('Burn Magic Logs');
+      final actionsInSkill = testRegistries
+          .actionsForSkill(Skill.firemaking)
+          .length;
+
+      final xpNoBonus = calculateMasteryXpPerAction(
+        registries: testRegistries,
+        action: action,
+        unlockedActions: actionsInSkill,
+        playerTotalMasteryLevel: actionsInSkill * 50,
+        itemMasteryLevel: 50,
+        bonus: 0,
+      );
+
+      final xpWith50PercentBonus = calculateMasteryXpPerAction(
+        registries: testRegistries,
+        action: action,
+        unlockedActions: actionsInSkill,
+        playerTotalMasteryLevel: actionsInSkill * 50,
+        itemMasteryLevel: 50,
+        bonus: 0.5, // 50% bonus
+      );
+
+      // With 50% bonus, XP should be 1.5× higher
+      expect(xpWith50PercentBonus, greaterThan(xpNoBonus));
+      expect(xpWith50PercentBonus, closeTo(xpNoBonus * 1.5, 1));
+    });
+
+    test('realistic scenario: one action trained high, others at level 1', () {
+      // Simulates: trained Normal Logs to mastery 86, now trying Magic Logs
+      // at mastery level 1, with 8 logs unlocked (level 79 firemaking)
+      final action = testRegistries.firemakingAction('Burn Magic Logs');
+      final actionsInSkill = testRegistries
+          .actionsForSkill(Skill.firemaking)
+          .length;
+
+      // One action at level 86, rest at level 1
+      // playerTotalMasteryLevel = 86 + (actionsInSkill - 1) * 1
+      final playerTotalMasteryLevel = 86 + (actionsInSkill - 1);
+
+      final xp = calculateMasteryXpPerAction(
+        registries: testRegistries,
+        action: action,
+        unlockedActions: 8, // Level 79 unlocks 8 of 9 logs
+        playerTotalMasteryLevel: playerTotalMasteryLevel,
+        itemMasteryLevel: 1, // Magic logs just started
+        bonus: 0,
+      );
+
+      // With 9 actions, playerTotalMasteryLevel = 94:
+      // masteryPortion = 8 × (94 / 891) = 0.84
+      // itemPortion = 1 × (9 / 10) = 0.9
+      // baseValue = 1.74
+      // result = 1.74 × 6 × 0.5 = 5.22 ≈ 5
+      expect(xp, inInclusiveRange(4, 6));
+
+      // Compare to having all actions at average level (94/9 ≈ 10.4)
+      final xpWithEvenMastery = calculateMasteryXpPerAction(
+        registries: testRegistries,
+        action: action,
+        unlockedActions: 8,
+        playerTotalMasteryLevel: playerTotalMasteryLevel,
+        itemMasteryLevel: 10, // If this action were also ~10
+        bonus: 0,
+      );
+
+      // With itemMasteryLevel = 10:
+      // itemPortion = 10 × 0.9 = 9
+      // baseValue = 9.84
+      // result = 9.84 × 6 × 0.5 = 29.5 ≈ 29
+      expect(xpWithEvenMastery, greaterThan(xp * 3));
     });
   });
 }

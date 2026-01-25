@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:logic/src/data/actions.dart';
 import 'package:logic/src/data/cache.dart';
+import 'package:logic/src/data/item_upgrades.dart';
 import 'package:logic/src/data/melvor_id.dart';
 import 'package:logic/src/data/registries.dart';
 import 'package:logic/src/data/shop.dart';
@@ -192,6 +193,9 @@ class MelvorData {
 
     // Parse modifier metadata (display format definitions)
     _modifierMetadata = parseModifierMetadata(dataFiles);
+
+    // Parse item upgrades (including generated potion upgrades)
+    _itemUpgrades = parseItemUpgrades(dataFiles, _items);
   }
 
   /// Loads MelvorData from the cache, fetching from CDN if needed.
@@ -245,6 +249,7 @@ class MelvorData {
   late final TownshipRegistry _township;
   late final DropsRegistry _drops;
   late final ModifierMetadataRegistry _modifierMetadata;
+  late final ItemUpgradeRegistry _itemUpgrades;
 
   /// Creates a Registries instance from this MelvorData.
   Registries toRegistries() {
@@ -277,6 +282,7 @@ class MelvorData {
       township: _township,
       bankSortIndex: _bankSortIndex,
       modifierMetadata: _modifierMetadata,
+      itemUpgrades: _itemUpgrades,
     );
   }
 }

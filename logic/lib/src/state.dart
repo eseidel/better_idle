@@ -11,6 +11,7 @@ import 'package:logic/src/cooking_state.dart';
 import 'package:logic/src/data/action_id.dart';
 import 'package:logic/src/data/actions.dart';
 import 'package:logic/src/data/currency.dart';
+import 'package:logic/src/data/item_upgrades.dart';
 import 'package:logic/src/data/melvor_id.dart';
 import 'package:logic/src/data/registries.dart';
 import 'package:logic/src/data/shop.dart';
@@ -1457,8 +1458,14 @@ class GlobalState {
   SkillState skillState(Skill skill) =>
       skillStates[skill] ?? const SkillState.empty();
 
-  // TODO(eseidel): Implement this.
-  int unlockedActionsCount(Skill skill) => 1;
+  /// Returns the number of actions unlocked for a skill based on skill level.
+  int unlockedActionsCount(Skill skill) {
+    final level = skillState(skill).skillLevel;
+    return registries
+        .actionsForSkill(skill)
+        .where((action) => action.unlockLevel <= level)
+        .length;
+  }
 
   ActionState actionState(ActionId action) =>
       actionStates[action] ?? const ActionState.empty();
@@ -2562,6 +2569,60 @@ class GlobalState {
       newState = newState.sellItem(stack);
     }
     return newState;
+  }
+
+  /// Upgrades items using an upgrade recipe.
+  /// Returns null if requirements not met (insufficient items/currency).
+  GlobalState? upgradeItem(ItemUpgrade upgrade, int count) {
+    // Check we have all required items
+    for (final cost in upgrade.itemCosts) {
+      final required = cost.quantity * count;
+      if (inventory.countById(cost.itemId) < required) return null;
+    }
+
+    // Check we have currency
+    final gpCost = upgrade.currencyCosts.gpCost * count;
+    if (gp < gpCost) return null;
+
+    // Remove input items
+    var newInventory = inventory;
+    for (final cost in upgrade.itemCosts) {
+      final item = registries.items.byId(cost.itemId);
+      newInventory = newInventory.removing(
+        ItemStack(item, count: cost.quantity * count),
+      );
+    }
+
+    // Remove currency
+    var newState = copyWith(inventory: newInventory);
+    if (gpCost > 0) {
+      newState = newState.addCurrency(Currency.gp, -gpCost);
+    }
+
+    // Add output item
+    final outputItem = registries.items.byId(upgrade.upgradedItemId);
+    return newState.copyWith(
+      inventory: newState.inventory.adding(ItemStack(outputItem, count: count)),
+    );
+  }
+
+  /// Calculates max upgrades affordable for a given upgrade.
+  int maxAffordableUpgrades(ItemUpgrade upgrade) {
+    var maxCount = 999999;
+
+    // Check item costs
+    for (final cost in upgrade.itemCosts) {
+      final available = inventory.countById(cost.itemId);
+      maxCount = min(maxCount, available ~/ cost.quantity);
+    }
+
+    // Check currency costs
+    final gpCost = upgrade.currencyCosts.gpCost;
+    if (gpCost > 0) {
+      maxCount = min(maxCount, gp ~/ gpCost);
+    }
+
+    return maxCount;
   }
 
   /// Sorts the inventory by bank sort order.

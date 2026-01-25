@@ -158,6 +158,18 @@ class SellMultipleItemsAction extends ReduxAction<GlobalState> {
   }
 }
 
+/// Upgrades items using an upgrade recipe.
+class UpgradeItemAction extends ReduxAction<GlobalState> {
+  UpgradeItemAction({required this.upgrade, required this.count});
+  final ItemUpgrade upgrade;
+  final int count;
+
+  @override
+  GlobalState? reduce() {
+    return state.upgradeItem(upgrade, count);
+  }
+}
+
 /// Purchases a shop item (skill upgrade or other purchase).
 class PurchaseShopItemAction extends ReduxAction<GlobalState> {
   PurchaseShopItemAction({required this.purchaseId});
