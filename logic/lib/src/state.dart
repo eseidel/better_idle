@@ -981,6 +981,7 @@ class GlobalState {
       skillStateGetter: skillState,
       activeSynergy: _getActiveSynergy(),
       agility: agility,
+      astrology: astrology,
       currentActionId: action.id,
       conditionContext: conditionContext,
     );
@@ -1009,6 +1010,7 @@ class GlobalState {
       skillStateGetter: skillState,
       activeSynergy: _getActiveSynergy(),
       agility: agility,
+      astrology: astrology,
       combatTypeSkills: attackStyle.combatType.skills,
       conditionContext: conditionContext,
     );
@@ -1037,6 +1039,7 @@ class GlobalState {
       skillStateGetter: skillState,
       activeSynergy: _getActiveSynergy(),
       agility: agility,
+      astrology: astrology,
       conditionContext: conditionContext,
     );
   }

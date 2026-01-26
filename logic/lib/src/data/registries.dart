@@ -74,6 +74,7 @@ class Registries {
     SummoningSynergyRegistry? summoningSynergies,
     TownshipRegistry? township,
     AgilityRegistry? agility,
+    AstrologyRegistry? astrology,
     Map<MelvorId, int>? bankSortIndex,
   }) {
     // For tests, we store actions in a separate list that overrides
@@ -101,6 +102,7 @@ class Registries {
             courses: const [],
             pillars: const [],
           ),
+      astrology: astrology ?? const AstrologyRegistry([]),
       modifierMetadata: const ModifierMetadataRegistry.empty(),
       bankSortIndex: bankSortIndex ?? {},
       testActions: actions,
@@ -119,6 +121,7 @@ class Registries {
     required this.summoningSynergies,
     required this.township,
     required this.agility,
+    required this.astrology,
     required this.modifierMetadata,
     required Map<MelvorId, int> bankSortIndex,
     required List<Action> testActions,
@@ -144,7 +147,6 @@ class Registries {
          plots: const [],
        ),
        summoning = SummoningRegistry(const []),
-       astrology = const AstrologyRegistry([]),
        altMagic = const AltMagicRegistry([]),
        itemUpgrades = ItemUpgradeRegistry.empty,
        combat = CombatRegistry(

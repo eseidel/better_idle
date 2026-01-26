@@ -1,6 +1,7 @@
 import 'package:logic/src/data/astrology.dart';
 import 'package:logic/src/data/melvor_id.dart';
 import 'package:logic/src/json.dart';
+import 'package:logic/src/types/modifier.dart';
 import 'package:meta/meta.dart';
 
 /// Tracks purchased modifier levels for a single constellation.
@@ -42,6 +43,24 @@ class ConstellationModifierState {
         : uniqueLevels;
     if (index >= levels.length) return 0;
     return levels[index];
+  }
+
+  /// Yields all active modifier effects for a constellation.
+  ///
+  /// Each modifier that applies to multiple skills yields one entry per skill.
+  Iterable<ModifierData> activeModifiers(AstrologyAction constellation) sync* {
+    for (var i = 0; i < constellation.standardModifiers.length; i++) {
+      final level = levelFor(AstrologyModifierType.standard, i);
+      if (level > 0) {
+        yield constellation.standardModifiers[i].toModifierData(level);
+      }
+    }
+    for (var i = 0; i < constellation.uniqueModifiers.length; i++) {
+      final level = levelFor(AstrologyModifierType.unique, i);
+      if (level > 0) {
+        yield constellation.uniqueModifiers[i].toModifierData(level);
+      }
+    }
   }
 
   /// Create a copy with an incremented level for the specified modifier.

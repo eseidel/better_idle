@@ -1,5 +1,6 @@
 import 'package:logic/src/action_state.dart';
 import 'package:logic/src/agility_state.dart';
+import 'package:logic/src/astrology_state.dart';
 import 'package:logic/src/data/action_id.dart';
 import 'package:logic/src/data/actions.dart';
 import 'package:logic/src/data/melvor_id.dart';
@@ -206,6 +207,7 @@ class ModifierProvider with ModifierAccessors {
     required this.activeSynergy,
     required this.skillStateGetter,
     required this.agility,
+    required this.astrology,
     this.combatTypeSkills,
     this.currentActionId,
     this.conditionContext = ConditionContext.empty,
@@ -223,6 +225,9 @@ class ModifierProvider with ModifierAccessors {
 
   /// Agility course state - obstacles built provide passive modifiers.
   final AgilityState agility;
+
+  /// Astrology state - purchased constellation modifiers.
+  final AstrologyState astrology;
 
   /// Returns the SkillState for a given skill.
   /// Used to look up mastery pool XP for mastery pool checkpoint bonuses.
@@ -433,6 +438,25 @@ class ModifierProvider with ModifierAccessors {
         for (final modEntry in mod.entries) {
           if (scope.matches(modEntry.scope)) {
             total += modEntry.value;
+          }
+        }
+      }
+    }
+
+    // --- Astrology modifiers ---
+    // Purchased constellation modifiers provide skill-specific bonuses.
+    for (final entry in astrology.constellationStates.entries) {
+      final constellationId = entry.key;
+      final modState = entry.value;
+
+      final constellation = registries.astrology.byId(constellationId);
+      if (constellation == null) continue;
+
+      for (final mod in modState.activeModifiers(constellation)) {
+        if (mod.name != name) continue;
+        for (final entry in mod.entries) {
+          if (scope.matches(entry.scope)) {
+            total += entry.value;
           }
         }
       }

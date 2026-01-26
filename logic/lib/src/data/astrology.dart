@@ -1,6 +1,7 @@
 import 'package:logic/src/data/action_id.dart';
 import 'package:logic/src/data/actions.dart';
 import 'package:logic/src/data/melvor_id.dart';
+import 'package:logic/src/types/modifier.dart';
 import 'package:logic/src/types/modifier_metadata.dart';
 import 'package:meta/meta.dart';
 
@@ -116,6 +117,28 @@ class AstrologyModifier {
   int? costForLevel(int currentLevel) {
     if (currentLevel >= maxCount) return null;
     return costs[currentLevel];
+  }
+
+  /// Converts this modifier at the given level to a ModifierData.
+  ///
+  /// Creates one entry per skill, or a single global entry if no skills.
+  ModifierData toModifierData(int level) {
+    if (skills.isEmpty) {
+      return ModifierData(
+        name: modifierKey,
+        entries: [ModifierEntry(value: level)],
+      );
+    }
+    return ModifierData(
+      name: modifierKey,
+      entries: [
+        for (final skillId in skills)
+          ModifierEntry(
+            value: level,
+            scope: ModifierScope(skillId: skillId),
+          ),
+      ],
+    );
   }
 }
 
