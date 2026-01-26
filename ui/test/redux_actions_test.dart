@@ -1853,4 +1853,335 @@ void main() {
       }, values: {toastServiceRef});
     });
   });
+
+  group('PurchaseAstrologyModifierAction', () {
+    // Create a test astrology action with modifiers
+    AstrologyAction testConstellation() {
+      const constellationId = MelvorId('melvorF:Test_Constellation');
+      return AstrologyAction(
+        id: ActionId(Skill.astrology.id, constellationId),
+        name: 'Test Constellation',
+        unlockLevel: 1,
+        xp: 10,
+        media: 'test.png',
+        skillIds: [Skill.woodcutting.id],
+        standardModifiers: const [
+          AstrologyModifier(
+            type: AstrologyModifierType.standard,
+            modifierKey: 'skillXP',
+            skills: [MelvorId('melvorD:Woodcutting')],
+            maxCount: 5,
+            costs: [10, 20, 30, 40, 50],
+            unlockMasteryLevel: 1,
+          ),
+        ],
+        uniqueModifiers: const [
+          AstrologyModifier(
+            type: AstrologyModifierType.unique,
+            modifierKey: 'masteryXP',
+            skills: [MelvorId('melvorD:Woodcutting')],
+            maxCount: 3,
+            costs: [5, 10, 15],
+            unlockMasteryLevel: 1,
+          ),
+        ],
+      );
+    }
+
+    test('successfully purchases standard modifier', () {
+      final constellation = testConstellation();
+      const stardust = Item(
+        id: MelvorId('melvorF:Stardust'),
+        name: 'Stardust',
+        itemType: 'Item',
+        sellsFor: 0,
+      );
+
+      final registries = Registries.test(
+        items: const [stardust],
+        astrology: AstrologyRegistry([constellation]),
+        actions: [constellation],
+      );
+      var initialState = GlobalState.empty(registries);
+      initialState = initialState.copyWith(
+        inventory: initialState.inventory.adding(
+          const ItemStack(stardust, count: 100),
+        ),
+      );
+      final store = Store<GlobalState>(initialState: initialState);
+
+      expect(
+        store.state.astrology
+            .stateFor(constellation.id.localId)
+            .levelFor(AstrologyModifierType.standard, 0),
+        0,
+      );
+
+      store.dispatch(
+        PurchaseAstrologyModifierAction(
+          constellationId: constellation.id.localId,
+          modifierType: AstrologyModifierType.standard,
+          modifierIndex: 0,
+        ),
+      );
+
+      expect(
+        store.state.astrology
+            .stateFor(constellation.id.localId)
+            .levelFor(AstrologyModifierType.standard, 0),
+        1,
+      );
+      // Cost was 10 stardust
+      expect(store.state.inventory.countOfItem(stardust), 90);
+    });
+
+    test('successfully purchases unique modifier', () {
+      final constellation = testConstellation();
+      const goldenStardust = Item(
+        id: MelvorId('melvorF:Golden_Stardust'),
+        name: 'Golden Stardust',
+        itemType: 'Item',
+        sellsFor: 0,
+      );
+
+      final registries = Registries.test(
+        items: const [goldenStardust],
+        astrology: AstrologyRegistry([constellation]),
+        actions: [constellation],
+      );
+      var initialState = GlobalState.empty(registries);
+      initialState = initialState.copyWith(
+        inventory: initialState.inventory.adding(
+          const ItemStack(goldenStardust, count: 50),
+        ),
+      );
+      final store = Store<GlobalState>(initialState: initialState)
+        ..dispatch(
+          PurchaseAstrologyModifierAction(
+            constellationId: constellation.id.localId,
+            modifierType: AstrologyModifierType.unique,
+            modifierIndex: 0,
+          ),
+        );
+
+      expect(
+        store.state.astrology
+            .stateFor(constellation.id.localId)
+            .levelFor(AstrologyModifierType.unique, 0),
+        1,
+      );
+      // Cost was 5 golden stardust
+      expect(store.state.inventory.countOfItem(goldenStardust), 45);
+    });
+
+    test('returns null when not enough currency', () {
+      final constellation = testConstellation();
+      const stardust = Item(
+        id: MelvorId('melvorF:Stardust'),
+        name: 'Stardust',
+        itemType: 'Item',
+        sellsFor: 0,
+      );
+
+      final registries = Registries.test(
+        items: const [stardust],
+        astrology: AstrologyRegistry([constellation]),
+        actions: [constellation],
+      );
+      var initialState = GlobalState.empty(registries);
+      // Only add 5 stardust, but cost is 10
+      initialState = initialState.copyWith(
+        inventory: initialState.inventory.adding(
+          const ItemStack(stardust, count: 5),
+        ),
+      );
+      final store = Store<GlobalState>(initialState: initialState)
+        ..dispatch(
+          PurchaseAstrologyModifierAction(
+            constellationId: constellation.id.localId,
+            modifierType: AstrologyModifierType.standard,
+            modifierIndex: 0,
+          ),
+        );
+
+      // State should be unchanged
+      expect(
+        store.state.astrology
+            .stateFor(constellation.id.localId)
+            .levelFor(AstrologyModifierType.standard, 0),
+        0,
+      );
+      expect(store.state.inventory.countOfItem(stardust), 5);
+    });
+
+    test('returns null when already at max level', () {
+      final constellation = testConstellation();
+      const stardust = Item(
+        id: MelvorId('melvorF:Stardust'),
+        name: 'Stardust',
+        itemType: 'Item',
+        sellsFor: 0,
+      );
+
+      final registries = Registries.test(
+        items: const [stardust],
+        astrology: AstrologyRegistry([constellation]),
+        actions: [constellation],
+      );
+      var initialState = GlobalState.empty(registries);
+      initialState = initialState.copyWith(
+        inventory: initialState.inventory.adding(
+          const ItemStack(stardust, count: 1000),
+        ),
+        astrology: AstrologyState(
+          constellationStates: {
+            constellation.id.localId: const ConstellationModifierState(
+              standardLevels: [5], // maxCount is 5
+            ),
+          },
+        ),
+      );
+      final store = Store<GlobalState>(initialState: initialState)
+        ..dispatch(
+          PurchaseAstrologyModifierAction(
+            constellationId: constellation.id.localId,
+            modifierType: AstrologyModifierType.standard,
+            modifierIndex: 0,
+          ),
+        );
+
+      // State should be unchanged - still at max level
+      expect(
+        store.state.astrology
+            .stateFor(constellation.id.localId)
+            .levelFor(AstrologyModifierType.standard, 0),
+        5,
+      );
+      // No currency deducted
+      expect(store.state.inventory.countOfItem(stardust), 1000);
+    });
+
+    test('returns null when constellation not found', () {
+      const stardust = Item(
+        id: MelvorId('melvorF:Stardust'),
+        name: 'Stardust',
+        itemType: 'Item',
+        sellsFor: 0,
+      );
+
+      final registries = Registries.test(
+        items: const [stardust],
+        astrology: const AstrologyRegistry([]), // Empty astrology registry
+      );
+      var initialState = GlobalState.empty(registries);
+      initialState = initialState.copyWith(
+        inventory: initialState.inventory.adding(
+          const ItemStack(stardust, count: 100),
+        ),
+      );
+      final store = Store<GlobalState>(initialState: initialState)
+        ..dispatch(
+          PurchaseAstrologyModifierAction(
+            constellationId: const MelvorId('melvorF:NonExistent'),
+            modifierType: AstrologyModifierType.standard,
+            modifierIndex: 0,
+          ),
+        );
+
+      // State should be unchanged
+      expect(store.state.inventory.countOfItem(stardust), 100);
+    });
+
+    test('returns null when modifier index is invalid', () {
+      final constellation = testConstellation();
+      const stardust = Item(
+        id: MelvorId('melvorF:Stardust'),
+        name: 'Stardust',
+        itemType: 'Item',
+        sellsFor: 0,
+      );
+
+      final registries = Registries.test(
+        items: const [stardust],
+        astrology: AstrologyRegistry([constellation]),
+        actions: [constellation],
+      );
+      var initialState = GlobalState.empty(registries);
+      initialState = initialState.copyWith(
+        inventory: initialState.inventory.adding(
+          const ItemStack(stardust, count: 100),
+        ),
+      );
+      final store = Store<GlobalState>(initialState: initialState)
+        ..dispatch(
+          PurchaseAstrologyModifierAction(
+            constellationId: constellation.id.localId,
+            modifierType: AstrologyModifierType.standard,
+            modifierIndex: 999, // Invalid index
+          ),
+        );
+
+      // State should be unchanged
+      expect(store.state.inventory.countOfItem(stardust), 100);
+    });
+
+    test('deducts increasing cost with level', () {
+      final constellation = testConstellation();
+      const stardust = Item(
+        id: MelvorId('melvorF:Stardust'),
+        name: 'Stardust',
+        itemType: 'Item',
+        sellsFor: 0,
+      );
+
+      final registries = Registries.test(
+        items: const [stardust],
+        astrology: AstrologyRegistry([constellation]),
+        actions: [constellation],
+      );
+      var initialState = GlobalState.empty(registries);
+      // Costs are [10, 20, 30, 40, 50], total = 150
+      initialState = initialState.copyWith(
+        inventory: initialState.inventory.adding(
+          const ItemStack(stardust, count: 150),
+        ),
+      );
+      final store = Store<GlobalState>(initialState: initialState)
+        ..dispatch(
+          PurchaseAstrologyModifierAction(
+            constellationId: constellation.id.localId,
+            modifierType: AstrologyModifierType.standard,
+            modifierIndex: 0,
+          ),
+        );
+      expect(store.state.inventory.countOfItem(stardust), 140);
+
+      // Purchase level 2 (cost 20)
+      store.dispatch(
+        PurchaseAstrologyModifierAction(
+          constellationId: constellation.id.localId,
+          modifierType: AstrologyModifierType.standard,
+          modifierIndex: 0,
+        ),
+      );
+      expect(store.state.inventory.countOfItem(stardust), 120);
+
+      // Purchase level 3 (cost 30)
+      store.dispatch(
+        PurchaseAstrologyModifierAction(
+          constellationId: constellation.id.localId,
+          modifierType: AstrologyModifierType.standard,
+          modifierIndex: 0,
+        ),
+      );
+      expect(store.state.inventory.countOfItem(stardust), 90);
+
+      expect(
+        store.state.astrology
+            .stateFor(constellation.id.localId)
+            .levelFor(AstrologyModifierType.standard, 0),
+        3,
+      );
+    });
+  });
 }

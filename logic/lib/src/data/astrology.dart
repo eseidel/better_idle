@@ -220,12 +220,6 @@ class AstrologyAction extends SkillAction {
 
   /// Unique modifiers that can be purchased with golden stardust.
   final List<AstrologyModifier> uniqueModifiers;
-
-  /// All modifiers (standard + unique) for this constellation.
-  List<AstrologyModifier> get allModifiers => [
-    ...standardModifiers,
-    ...uniqueModifiers,
-  ];
 }
 
 /// Registry for astrology skill data.
