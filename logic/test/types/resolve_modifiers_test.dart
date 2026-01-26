@@ -1593,7 +1593,7 @@ void main() {
     test('purchased astrology modifier applies to matching skill', () {
       // Create a constellation that affects woodcutting
       final constellation = AstrologyAction(
-        id: ActionId(Skill.astrology.id, const MelvorId('test:TestConstell')),
+        id: ActionId(Skill.astrology.id, const MelvorId('test:Test')),
         name: 'Test Constellation',
         unlockLevel: 1,
         xp: 10,
