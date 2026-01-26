@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart' hide Action;
+import 'package:go_router/go_router.dart';
 import 'package:logic/logic.dart';
 import 'package:ui/src/logic/redux_actions.dart';
+import 'package:ui/src/widgets/action_grid.dart';
 import 'package:ui/src/widgets/cached_image.dart';
 import 'package:ui/src/widgets/context_extensions.dart';
 import 'package:ui/src/widgets/count_badge_cell.dart';
@@ -37,7 +39,20 @@ class ConstellationDetailPage extends StatelessWidget {
     final skillDrops = state.registries.drops.forSkill(Skill.astrology);
 
     return GameScaffold(
-      title: Text(action.name),
+      title: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          GestureDetector(
+            onTap: () => context.go('/astrology'),
+            child: Text(
+              'Astrology',
+              style: TextStyle(color: Theme.of(context).colorScheme.primary),
+            ),
+          ),
+          const Text(' > '),
+          Flexible(child: Text(action.name, overflow: TextOverflow.ellipsis)),
+        ],
+      ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16),
         child: Column(
@@ -50,6 +65,8 @@ class ConstellationDetailPage extends StatelessWidget {
               canToggle: canToggle,
               isRunning: isRunning,
             ),
+            const SizedBox(height: 8),
+            ActionProgressBar(action: action),
             const SizedBox(height: 8),
             MasteryProgressCell(masteryXp: actionState.masteryXp),
             const SizedBox(height: 24),
@@ -203,6 +220,10 @@ class _ModifierShop extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    if (action.standardModifiers.isEmpty && action.uniqueModifiers.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(16),
@@ -214,28 +235,17 @@ class _ModifierShop extends StatelessWidget {
               style: Theme.of(context).textTheme.titleMedium,
             ),
             const SizedBox(height: 12),
-            if (action.standardModifiers.isNotEmpty) ...[
-              _ModifierSection(
-                title: 'Standard Modifiers (Stardust)',
-                modifiers: action.standardModifiers,
-                constellationId: action.id.localId,
-              ),
-              const SizedBox(height: 16),
-            ],
-            if (action.uniqueModifiers.isNotEmpty)
-              _ModifierSection(
-                title: 'Unique Modifiers (Golden Stardust)',
-                modifiers: action.uniqueModifiers,
-                constellationId: action.id.localId,
-              ),
-            if (action.standardModifiers.isEmpty &&
-                action.uniqueModifiers.isEmpty)
-              Center(
-                child: Text(
-                  'No modifiers available for this constellation',
-                  style: TextStyle(color: Style.textColorMuted),
-                ),
-              ),
+            _ModifierSection(
+              modifiers: action.standardModifiers,
+              constellationId: action.id.localId,
+            ),
+            if (action.standardModifiers.isNotEmpty &&
+                action.uniqueModifiers.isNotEmpty)
+              const SizedBox(height: 8),
+            _ModifierSection(
+              modifiers: action.uniqueModifiers,
+              constellationId: action.id.localId,
+            ),
           ],
         ),
       ),
@@ -245,12 +255,10 @@ class _ModifierShop extends StatelessWidget {
 
 class _ModifierSection extends StatelessWidget {
   const _ModifierSection({
-    required this.title,
     required this.modifiers,
     required this.constellationId,
   });
 
-  final String title;
   final List<AstrologyModifier> modifiers;
   final MelvorId constellationId;
 
@@ -258,23 +266,13 @@ class _ModifierSection extends StatelessWidget {
   Widget build(BuildContext context) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          title,
-          style: Theme.of(context).textTheme.bodySmall?.copyWith(
-            color: Style.textColorMuted,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-        const SizedBox(height: 8),
-        ...modifiers.asMap().entries.map((entry) {
-          return _ModifierRow(
-            modifier: entry.value,
-            modifierIndex: entry.key,
-            constellationId: constellationId,
-          );
-        }),
-      ],
+      children: modifiers.asMap().entries.map((entry) {
+        return _ModifierRow(
+          modifier: entry.value,
+          modifierIndex: entry.key,
+          constellationId: constellationId,
+        );
+      }).toList(),
     );
   }
 }
@@ -417,11 +415,7 @@ class _ModifierRow extends StatelessWidget {
                   modifier.formatIncrementDescription(
                     state.registries.modifierMetadata,
                   ),
-                  style: TextStyle(
-                    color: Style.textColorMuted,
-                    fontSize: 12,
-                    fontStyle: FontStyle.italic,
-                  ),
+                  style: TextStyle(color: Style.textColorMuted, fontSize: 12),
                 ),
               ],
             ),
