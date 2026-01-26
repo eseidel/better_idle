@@ -32,21 +32,19 @@ void main() {
       expect(result, '+15% Currency Gain (GP)');
     });
 
-    test('fallback handles negative values with absValue', () {
+    test('fallback handles negative values with sign', () {
       const registry = ModifierMetadataRegistry.empty();
-      // Fallback uses absValue and empty sign for negative, so -5 becomes "5%"
       final result = registry.formatDescription(name: 'bonusXp', value: -5);
-      expect(result, '5% Bonus Xp');
+      expect(result, '-5% Bonus Xp');
     });
 
     test('fallback handles interval modifiers with ms suffix', () {
       const registry = ModifierMetadataRegistry.empty();
-      // Fallback uses absValue for negative values
       final result = registry.formatDescription(
         name: 'skillInterval',
         value: -100,
       );
-      expect(result, '100ms Skill Interval');
+      expect(result, '-100ms Skill Interval');
     });
 
     test('fallback handles flat modifiers without percent', () {

@@ -96,21 +96,39 @@ class AstrologyModifier {
   /// Mastery level required to unlock this modifier.
   final int unlockMasteryLevel;
 
-  /// Returns a human-readable description of this modifier using the registry.
+  /// Returns human-readable descriptions of this modifier using the registry.
   ///
-  /// For modifiers that affect specific skills, this will include the skill
-  /// names in the description.
-  String formatDescription(ModifierMetadataRegistry registry) {
-    // Build skill names list for context
-    final skillNames = skills.map((id) => Skill.fromId(id).name).toList();
+  /// For modifiers that affect specific skills, this returns one description
+  /// per skill rather than combining them.
+  ///
+  /// Shows the current total effect (e.g., "+3% Woodcutting Skill XP").
+  List<String> formatDescriptionLines(
+    ModifierMetadataRegistry registry, {
+    required int currentLevel,
+  }) {
+    if (skills.isEmpty) {
+      return [
+        registry.formatDescription(name: modifierKey, value: currentLevel),
+      ];
+    }
 
-    // Use registry to format the description with proper templates
-    // Value is 1 since astrology modifiers increment by 1 per level
-    return registry.formatDescription(
-      name: modifierKey,
-      value: 1,
-      skillName: skillNames.isNotEmpty ? skillNames.join(', ') : null,
-    );
+    // Return one line per skill
+    return skills.map((skillId) {
+      final skillName = Skill.fromId(skillId).name;
+      return registry.formatDescription(
+        name: modifierKey,
+        value: currentLevel,
+        skillName: skillName,
+      );
+    }).toList();
+  }
+
+  /// Returns a description of the per-level increment.
+  ///
+  /// Example: "(+1% per level)"
+  String formatIncrementDescription(ModifierMetadataRegistry registry) {
+    final valueStr = registry.formatValue(name: modifierKey, value: 1);
+    return '($valueStr per level)';
   }
 
   /// Returns the cost for the next purchase, or null if maxed out.

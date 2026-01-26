@@ -371,6 +371,11 @@ class ModifierMetadataRegistry {
           final absValue = effectiveValue.abs();
           result = result.replaceAll(r'${value}', absValue.toString());
 
+          // Clean up zero values: "-0" or "+0" should just be "0"
+          if (effectiveValue == 0) {
+            result = result.replaceAll('-0', '0').replaceAll('+0', '0');
+          }
+
           if (skillName != null) {
             result = result.replaceAll(r'${skillName}', skillName);
           }
@@ -408,6 +413,28 @@ class ModifierMetadataRegistry {
     );
   }
 
+  /// Formats just the value portion of a modifier (e.g., "+1%", "+100ms").
+  ///
+  /// Useful for showing the per-level increment without the full description.
+  String formatValue({required String name, required num value}) {
+    final sign = value > 0
+        ? '+'
+        : value < 0
+        ? '-'
+        : '';
+    final absValue = value.abs();
+
+    // Determine appropriate format based on modifier name patterns
+    if (name.contains('Interval') || name.contains('interval')) {
+      return '$sign${absValue}ms';
+    }
+    if (name.startsWith('flat')) {
+      return '$sign$absValue';
+    }
+    // Most modifiers are percentages
+    return '$sign$absValue%';
+  }
+
   /// Generic fallback formatting based on modifier name patterns.
   String _formatFallback({
     required String name,
@@ -415,8 +442,7 @@ class ModifierMetadataRegistry {
     String? skillName,
     String? currencyName,
   }) {
-    final sign = value >= 0 ? '+' : '';
-    final absValue = value.abs();
+    final valueStr = formatValue(name: name, value: value);
     final formattedName = formatModifierName(name);
 
     // Add context if available
@@ -427,15 +453,7 @@ class ModifierMetadataRegistry {
       context = ' ($currencyName)';
     }
 
-    // Determine appropriate format based on modifier name patterns
-    if (name.contains('Interval') || name.contains('interval')) {
-      return '$sign${absValue}ms $formattedName$context';
-    }
-    if (name.startsWith('flat')) {
-      return '$sign$absValue $formattedName$context';
-    }
-    // Most modifiers are percentages
-    return '$sign$absValue% $formattedName$context';
+    return '$valueStr $formattedName$context';
   }
 }
 

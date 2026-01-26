@@ -3,8 +3,8 @@ import 'package:logic/src/types/modifier_metadata.dart';
 import 'package:test/test.dart';
 
 void main() {
-  group('AstrologyModifier.formatDescription', () {
-    test('formats with skill names from registry', () {
+  group('AstrologyModifier.formatDescriptionLines', () {
+    test('shows current total at different levels', () {
       final registry = ModifierMetadataRegistry(const [
         ModifierMetadata(
           id: 'skillXP',
@@ -31,11 +31,20 @@ void main() {
         unlockMasteryLevel: 1,
       );
 
-      final result = modifier.formatDescription(registry);
-      expect(result, '+1% Woodcutting Skill XP');
+      expect(modifier.formatDescriptionLines(registry, currentLevel: 0), [
+        '0% Woodcutting Skill XP',
+      ]);
+
+      expect(modifier.formatDescriptionLines(registry, currentLevel: 3), [
+        '+3% Woodcutting Skill XP',
+      ]);
+
+      expect(modifier.formatDescriptionLines(registry, currentLevel: 5), [
+        '+5% Woodcutting Skill XP',
+      ]);
     });
 
-    test('formats with multiple skill names joined', () {
+    test('formats multiple skills as separate lines', () {
       final registry = ModifierMetadataRegistry(const [
         ModifierMetadata(
           id: 'skillXP',
@@ -62,8 +71,10 @@ void main() {
         unlockMasteryLevel: 1,
       );
 
-      final result = modifier.formatDescription(registry);
-      expect(result, '+1% Woodcutting, Fishing Skill XP');
+      expect(modifier.formatDescriptionLines(registry, currentLevel: 2), [
+        '+2% Woodcutting Skill XP',
+        '+2% Fishing Skill XP',
+      ]);
     });
 
     test('formats without skill name when skills list is empty', () {
@@ -90,11 +101,44 @@ void main() {
         unlockMasteryLevel: 1,
       );
 
-      final result = modifier.formatDescription(registry);
-      expect(result, '+1% Global XP');
+      expect(modifier.formatDescriptionLines(registry, currentLevel: 1), [
+        '+1% Global XP',
+      ]);
+    });
+  });
+
+  group('AstrologyModifier.formatIncrementDescription', () {
+    test('extracts increment from template', () {
+      final registry = ModifierMetadataRegistry(const [
+        ModifierMetadata(
+          id: 'skillXP',
+          allowedScopes: [
+            ModifierScopeDefinition(
+              scopes: {'skill'},
+              descriptions: [
+                ModifierDescription(
+                  text: r'+${value}% ${skillName} Skill XP',
+                  lang: '',
+                ),
+              ],
+            ),
+          ],
+        ),
+      ]);
+
+      final modifier = AstrologyModifier(
+        type: AstrologyModifierType.standard,
+        modifierKey: 'skillXP',
+        skills: [Skill.woodcutting.id],
+        maxCount: 5,
+        costs: const [1, 2, 3, 4, 5],
+        unlockMasteryLevel: 1,
+      );
+
+      expect(modifier.formatIncrementDescription(registry), '(+1% per level)');
     });
 
-    test('uses fallback formatting for unknown modifier', () {
+    test('uses fallback for unknown modifier', () {
       const registry = ModifierMetadataRegistry.empty();
 
       const modifier = AstrologyModifier(
@@ -106,28 +150,8 @@ void main() {
         unlockMasteryLevel: 1,
       );
 
-      final result = modifier.formatDescription(registry);
-      expect(result, '+1% Unknown Modifier');
+      expect(modifier.formatIncrementDescription(registry), '(+1% per level)');
     });
-
-    test(
-      'uses fallback formatting with skill context for unknown modifier',
-      () {
-        const registry = ModifierMetadataRegistry.empty();
-
-        final modifier = AstrologyModifier(
-          type: AstrologyModifierType.standard,
-          modifierKey: 'bonusXp',
-          skills: [Skill.mining.id],
-          maxCount: 2,
-          costs: const [5, 10],
-          unlockMasteryLevel: 1,
-        );
-
-        final result = modifier.formatDescription(registry);
-        expect(result, '+1% Bonus Xp (Mining)');
-      },
-    );
   });
 
   group('AstrologyModifier.costForLevel', () {

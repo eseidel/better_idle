@@ -365,51 +365,66 @@ class _ModifierRow extends StatelessWidget {
                     ],
                   )
                 else
-                  Text(
-                    modifier.formatDescription(
-                      state.registries.modifierMetadata,
-                    ),
-                  ),
+                  ...modifier
+                      .formatDescriptionLines(
+                        state.registries.modifierMetadata,
+                        currentLevel: currentLevel,
+                      )
+                      .map(Text.new),
                 const SizedBox(height: 4),
                 _LevelIndicator(current: currentLevel, max: modifier.maxCount),
               ],
             ),
           ),
-          if (!isMaxed && !masteryLocked) ...[
-            Row(
-              mainAxisSize: MainAxisSize.min,
+          if (!isMaxed && !masteryLocked)
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.end,
               children: [
-                ItemImage(item: currencyItem, size: 20),
-                const SizedBox(width: 4),
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    ItemImage(item: currencyItem, size: 20),
+                    const SizedBox(width: 4),
+                    Text(
+                      '$cost',
+                      style: TextStyle(
+                        color: canPurchase ? null : Colors.red,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    SizedBox(
+                      width: 60,
+                      child: ElevatedButton(
+                        onPressed: canPurchase
+                            ? () => context.dispatch(
+                                PurchaseAstrologyModifierAction(
+                                  constellationId: constellationId,
+                                  modifierType: modifier.type,
+                                  modifierIndex: modifierIndex,
+                                ),
+                              )
+                            : null,
+                        style: ElevatedButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(horizontal: 8),
+                        ),
+                        child: const Text('Buy'),
+                      ),
+                    ),
+                  ],
+                ),
                 Text(
-                  '$cost',
+                  modifier.formatIncrementDescription(
+                    state.registries.modifierMetadata,
+                  ),
                   style: TextStyle(
-                    color: canPurchase ? null : Colors.red,
-                    fontWeight: FontWeight.bold,
+                    color: Style.textColorMuted,
+                    fontSize: 12,
+                    fontStyle: FontStyle.italic,
                   ),
                 ),
               ],
             ),
-            const SizedBox(width: 8),
-            SizedBox(
-              width: 60,
-              child: ElevatedButton(
-                onPressed: canPurchase
-                    ? () => context.dispatch(
-                        PurchaseAstrologyModifierAction(
-                          constellationId: constellationId,
-                          modifierType: modifier.type,
-                          modifierIndex: modifierIndex,
-                        ),
-                      )
-                    : null,
-                style: ElevatedButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(horizontal: 8),
-                ),
-                child: const Text('Buy'),
-              ),
-            ),
-          ],
           if (isMaxed)
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
