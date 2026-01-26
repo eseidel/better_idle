@@ -215,6 +215,17 @@ class AppNavigationDrawer extends StatelessWidget {
               router.goNamed('statistics');
             },
           ),
+          ListTile(
+            dense: true,
+            visualDensity: VisualDensity.compact,
+            leading: const Icon(Icons.save),
+            title: const Text('Save Slots'),
+            selected: currentLocation == '/save_slots',
+            onTap: () {
+              Navigator.pop(context);
+              router.goNamed('save_slots');
+            },
+          ),
           const Divider(),
           ListTile(
             dense: true,
