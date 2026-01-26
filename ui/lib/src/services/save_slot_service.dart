@@ -69,7 +69,7 @@ const int saveSlotCount = 3;
 class SaveSlotService {
   SaveSlotService._();
 
-  static final LocalPersist _metaPersist = LocalPersist('better_idle_meta');
+  static final LocalPersist _metaPersist = LocalPersist('melvor_meta');
 
   /// Load save slot metadata.
   static Future<SaveSlotMeta> loadMeta() async {
@@ -104,7 +104,7 @@ class SaveSlotService {
 
     if (oldData != null) {
       // Migrate to slot 0
-      final slot0Persist = LocalPersist('better_idle_slot_0');
+      final slot0Persist = LocalPersist('melvor_slot_0');
       await slot0Persist.saveJson(oldData);
 
       // Create meta with slot 0 active
@@ -125,7 +125,7 @@ class SaveSlotService {
 
   /// Delete a specific slot's data.
   static Future<void> deleteSlot(int slot) async {
-    final slotPersist = LocalPersist('better_idle_slot_$slot');
+    final slotPersist = LocalPersist('melvor_slot_$slot');
     await slotPersist.delete();
 
     // Update meta

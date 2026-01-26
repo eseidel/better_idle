@@ -158,3 +158,16 @@ String formatModifierName(String name) {
   }
   return result.toString();
 }
+
+/// Formats a DateTime as a human-readable "time ago" string.
+///
+/// Examples: "Just now", "5 minutes ago", "2 hours ago", "3 days ago"
+String timeAgo(DateTime dateTime, {DateTime? now}) {
+  now ??= DateTime.timestamp();
+  final diff = now.difference(dateTime);
+
+  if (diff.inSeconds < 60) {
+    return 'Just now';
+  }
+  return '${approximateDuration(diff)} ago';
+}

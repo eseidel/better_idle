@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:logic/logic.dart';
 import 'package:ui/src/services/save_slot_service.dart';
 import 'package:ui/src/widgets/game_scaffold.dart';
 
@@ -73,29 +74,6 @@ class _SaveSlotsPageState extends State<SaveSlotsPage> {
     }
   }
 
-  String _formatLastPlayed(DateTime? lastPlayed) {
-    if (lastPlayed == null) return '';
-
-    final now = DateTime.timestamp();
-    final diff = now.difference(lastPlayed);
-
-    if (diff.inMinutes < 1) {
-      return 'Just now';
-    } else if (diff.inHours < 1) {
-      final mins = diff.inMinutes;
-      return '$mins ${mins == 1 ? 'minute' : 'minutes'} ago';
-    } else if (diff.inDays < 1) {
-      final hours = diff.inHours;
-      return '$hours ${hours == 1 ? 'hour' : 'hours'} ago';
-    } else if (diff.inDays < 30) {
-      final days = diff.inDays;
-      return '$days ${days == 1 ? 'day' : 'days'} ago';
-    } else {
-      final months = diff.inDays ~/ 30;
-      return '$months ${months == 1 ? 'month' : 'months'} ago';
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     return GameScaffold(
@@ -120,8 +98,9 @@ class _SaveSlotsPageState extends State<SaveSlotsPage> {
           slotIndex: index,
           isEmpty: isEmpty,
           isActive: isActive,
-          lastPlayed: slotInfo?.lastPlayed,
-          lastPlayedFormatted: _formatLastPlayed(slotInfo?.lastPlayed),
+          lastPlayedFormatted: slotInfo?.lastPlayed != null
+              ? timeAgo(slotInfo!.lastPlayed!)
+              : '',
           onTap: () => _selectSlot(index),
           onDelete: isEmpty ? null : () => _deleteSlot(index),
         );
@@ -135,7 +114,6 @@ class _SaveSlotCard extends StatelessWidget {
     required this.slotIndex,
     required this.isEmpty,
     required this.isActive,
-    required this.lastPlayed,
     required this.lastPlayedFormatted,
     required this.onTap,
     this.onDelete,
@@ -144,7 +122,6 @@ class _SaveSlotCard extends StatelessWidget {
   final int slotIndex;
   final bool isEmpty;
   final bool isActive;
-  final DateTime? lastPlayed;
   final String lastPlayedFormatted;
   final VoidCallback onTap;
   final VoidCallback? onDelete;

@@ -25,7 +25,7 @@ class MyPersistor extends Persistor<GlobalState> {
   final Registries registries;
   final int activeSlot;
 
-  LocalPersist get _persist => LocalPersist('better_idle_slot_$activeSlot');
+  LocalPersist get _persist => LocalPersist('melvor_slot_$activeSlot');
 
   @override
   Future<GlobalState> readState() async {
