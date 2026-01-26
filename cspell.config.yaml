@@ -37,6 +37,7 @@ words:
   - cooldown
   - craftable
   - cupertino
+  - Deedree
   - dedup
   - dedupe
   - defence # Consider removing and forcing all our code to use Defense.
@@ -55,6 +56,7 @@ words:
   - hitpoint
   - hitpoints
   - inradius
+  - Iridan
   - lifesteal
   - melvor
   - mithril

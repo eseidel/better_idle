@@ -5,6 +5,7 @@ import 'package:logic/src/activity/active_activity.dart';
 import 'package:logic/src/activity/combat_context.dart';
 import 'package:logic/src/activity/mining_persistent_state.dart';
 import 'package:logic/src/agility_state.dart';
+import 'package:logic/src/astrology_state.dart';
 import 'package:logic/src/bonfire_state.dart';
 import 'package:logic/src/combat_stats.dart';
 import 'package:logic/src/cooking_state.dart';
@@ -307,6 +308,7 @@ class GlobalState {
     this.township = const TownshipState.empty(),
     this.bonfire = const BonfireState.empty(),
     this.loot = const LootState.empty(),
+    this.astrology = const AstrologyState.empty(),
   });
 
   GlobalState.empty(Registries registries)
@@ -362,6 +364,7 @@ class GlobalState {
     TownshipState? township,
     BonfireState bonfire = const BonfireState.empty(),
     LootState loot = const LootState.empty(),
+    AstrologyState astrology = const AstrologyState.empty(),
   }) {
     // Support both gp parameter (for existing tests) and currencies map
     final currenciesMap = currencies ?? (gp > 0 ? {Currency.gp: gp} : const {});
@@ -391,6 +394,7 @@ class GlobalState {
       township: township ?? TownshipState.initial(registries.township),
       bonfire: bonfire,
       loot: loot,
+      astrology: astrology,
     );
   }
 
@@ -469,7 +473,9 @@ class GlobalState {
           const BonfireState.empty(),
       loot =
           LootState.maybeFromJson(registries.items, json['loot']) ??
-          const LootState.empty();
+          const LootState.empty(),
+      astrology =
+          _astrologyFromJson(json['astrology']) ?? const AstrologyState.empty();
 
   /// Parses activeActivity from JSON.
   static ActiveActivity? _parseActiveActivity(Map<String, dynamic> json) {
@@ -534,6 +540,12 @@ class GlobalState {
     return const MiningPersistentState.empty();
   }
 
+  /// Parses astrology state from JSON.
+  static AstrologyState? _astrologyFromJson(dynamic json) {
+    if (json == null) return null;
+    return AstrologyState.fromJson(json as Map<String, dynamic>);
+  }
+
   bool validate() {
     // Confirm that the active action id is a valid action.
     final actionId = currentActionId;
@@ -587,6 +599,7 @@ class GlobalState {
       'township': township.toJson(),
       'bonfire': bonfire.toJson(),
       'loot': loot.toJson(),
+      'astrology': astrology.toJson(),
     };
   }
 
@@ -712,6 +725,9 @@ class GlobalState {
 
   /// The combat loot container (items dropped but not yet collected).
   final LootState loot;
+
+  /// The astrology modifier purchase state.
+  final AstrologyState astrology;
 
   /// The player's health state.
   final HealthState health;
@@ -965,6 +981,7 @@ class GlobalState {
       skillStateGetter: skillState,
       activeSynergy: _getActiveSynergy(),
       agility: agility,
+      astrology: astrology,
       currentActionId: action.id,
       conditionContext: conditionContext,
     );
@@ -993,6 +1010,7 @@ class GlobalState {
       skillStateGetter: skillState,
       activeSynergy: _getActiveSynergy(),
       agility: agility,
+      astrology: astrology,
       combatTypeSkills: attackStyle.combatType.skills,
       conditionContext: conditionContext,
     );
@@ -1021,6 +1039,7 @@ class GlobalState {
       skillStateGetter: skillState,
       activeSynergy: _getActiveSynergy(),
       agility: agility,
+      astrology: astrology,
       conditionContext: conditionContext,
     );
   }
@@ -2761,6 +2780,7 @@ class GlobalState {
     TownshipState? township,
     BonfireState? bonfire,
     LootState? loot,
+    AstrologyState? astrology,
   }) {
     return GlobalState(
       registries: registries,
@@ -2789,12 +2809,116 @@ class GlobalState {
       township: township ?? this.township,
       bonfire: bonfire ?? this.bonfire,
       loot: loot ?? this.loot,
+      astrology: astrology ?? this.astrology,
     );
   }
 
   /// Sets the player's attack style for combat XP distribution.
   GlobalState setAttackStyle(AttackStyle style) {
     return copyWith(attackStyle: style);
+  }
+
+  // =========================================================================
+  // Astrology
+  // =========================================================================
+
+  /// Purchases one level of an astrology modifier for a constellation.
+  ///
+  /// Consumes stardust (for standard) or golden stardust (for unique) from
+  /// inventory and increments the modifier level.
+  ///
+  /// Returns the new state, or throws if insufficient currency.
+  GlobalState purchaseAstrologyModifier({
+    required MelvorId constellationId,
+    required AstrologyModifierType modifierType,
+    required int modifierIndex,
+  }) {
+    // Get the constellation and modifier
+    final constellation = registries.astrology.byId(constellationId);
+    if (constellation == null) {
+      throw StateError('Constellation not found: $constellationId');
+    }
+
+    final modifiers = modifierType == AstrologyModifierType.standard
+        ? constellation.standardModifiers
+        : constellation.uniqueModifiers;
+
+    if (modifierIndex >= modifiers.length) {
+      throw StateError('Invalid modifier index: $modifierIndex');
+    }
+
+    final modifier = modifiers[modifierIndex];
+
+    // Get current level and check if maxed
+    final currentState = astrology.stateFor(constellationId);
+    final currentLevel = currentState.levelFor(modifierType, modifierIndex);
+
+    if (currentLevel >= modifier.maxCount) {
+      throw StateError('Modifier already at max level');
+    }
+
+    // Get the cost and check inventory
+    final cost = modifier.costs[currentLevel];
+    final currencyItem = registries.items.byId(modifierType.currencyItemId);
+    final currencyCount = inventory.countOfItem(currencyItem);
+
+    if (currencyCount < cost) {
+      throw StateError(
+        'Insufficient ${currencyItem.name}: have $currencyCount, need $cost',
+      );
+    }
+
+    // Deduct the currency
+    final newInventory = inventory.removing(
+      ItemStack(currencyItem, count: cost),
+    );
+
+    // Increment the modifier level
+    final newConstellationState = currentState.withIncrementedLevel(
+      modifierType,
+      modifierIndex,
+    );
+    final newAstrology = astrology.withConstellationState(
+      constellationId,
+      newConstellationState,
+    );
+
+    return copyWith(inventory: newInventory, astrology: newAstrology);
+  }
+
+  /// Returns true if the player can purchase the specified modifier.
+  bool canPurchaseAstrologyModifier({
+    required MelvorId constellationId,
+    required AstrologyModifierType modifierType,
+    required int modifierIndex,
+  }) {
+    final constellation = registries.astrology.byId(constellationId);
+    if (constellation == null) return false;
+
+    final modifiers = modifierType == AstrologyModifierType.standard
+        ? constellation.standardModifiers
+        : constellation.uniqueModifiers;
+
+    if (modifierIndex >= modifiers.length) return false;
+
+    final modifier = modifiers[modifierIndex];
+    final currentState = astrology.stateFor(constellationId);
+    final currentLevel = currentState.levelFor(modifierType, modifierIndex);
+
+    // Check if maxed
+    if (currentLevel >= modifier.maxCount) return false;
+
+    // Check mastery level requirement
+    final actionState = this.actionState(constellation.id);
+    final masteryLevel = actionState.masteryLevel;
+    if (masteryLevel < modifier.unlockMasteryLevel) return false;
+
+    // Check currency
+    final cost = modifier.costs[currentLevel];
+    final currencyItem = registries.items.byId(modifierType.currencyItemId);
+    final currencyCount = inventory.countOfItem(currencyItem);
+
+    return currencyCount >= cost;
   }
 
   // =========================================================================

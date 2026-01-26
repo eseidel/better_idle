@@ -8,6 +8,7 @@ export 'src/activity/active_activity.dart';
 export 'src/activity/combat_context.dart';
 export 'src/activity/mining_persistent_state.dart';
 export 'src/agility_state.dart';
+export 'src/astrology_state.dart';
 export 'src/bonfire_state.dart';
 export 'src/combat_stats.dart';
 export 'src/consume_ticks.dart';
@@ -15,6 +16,7 @@ export 'src/cooking_state.dart';
 export 'src/data/action_id.dart';
 // Data
 export 'src/data/actions.dart';
+export 'src/data/astrology.dart';
 export 'src/data/cache.dart';
 export 'src/data/combat.dart';
 export 'src/data/currency.dart';

@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:logic/logic.dart';
 import 'package:ui/src/screens/agility.dart';
 import 'package:ui/src/screens/alt_magic.dart';
 import 'package:ui/src/screens/astrology.dart';
 import 'package:ui/src/screens/bank.dart';
 import 'package:ui/src/screens/combat.dart';
+import 'package:ui/src/screens/constellation_detail.dart';
 import 'package:ui/src/screens/cooking.dart';
 import 'package:ui/src/screens/crafting.dart';
 import 'package:ui/src/screens/debug.dart';
@@ -119,6 +121,17 @@ final GoRouter router = GoRouter(
       path: '/astrology',
       name: 'astrology',
       builder: (context, _) => const AstrologyPage(),
+      routes: [
+        GoRoute(
+          path: ':constellationId',
+          name: 'constellation',
+          builder: (context, state) {
+            final id = state.pathParameters['constellationId']!;
+            final melvorId = MelvorId.fromJson(id);
+            return ConstellationDetailPage(constellationId: melvorId);
+          },
+        ),
+      ],
     ),
     GoRoute(
       path: '/alt_magic',

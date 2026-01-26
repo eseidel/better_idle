@@ -1588,4 +1588,186 @@ void main() {
       expect(ticksWoodcutting, 30); // No reduction
     });
   });
+
+  group('astrology modifiers', () {
+    test('purchased astrology modifier applies to matching skill', () {
+      // Create a constellation that affects woodcutting
+      final constellation = AstrologyAction(
+        id: ActionId(Skill.astrology.id, const MelvorId('test:Test')),
+        name: 'Test Constellation',
+        unlockLevel: 1,
+        xp: 10,
+        media: 'test.png',
+        skillIds: [Skill.woodcutting.id],
+        standardModifiers: [
+          AstrologyModifier(
+            type: AstrologyModifierType.standard,
+            modifierKey: 'skillXP',
+            skills: [Skill.woodcutting.id],
+            maxCount: 5,
+            costs: const [10, 20, 30, 40, 50],
+            unlockMasteryLevel: 1,
+          ),
+        ],
+        uniqueModifiers: const [],
+      );
+
+      final registries = Registries.test(
+        astrology: AstrologyRegistry([constellation]),
+      );
+
+      // Create a woodcutting action to test with
+      final action = SkillAction(
+        id: ActionId(Skill.woodcutting.id, const MelvorId('test:TestTree')),
+        skill: Skill.woodcutting,
+        name: 'Test Tree',
+        duration: const Duration(seconds: 3),
+        xp: 10,
+        unlockLevel: 1,
+      );
+
+      // State with no purchases - should have no bonus
+      final stateNoPurchase = GlobalState.test(registries);
+      final modifiersNoPurchase = stateNoPurchase.createActionModifierProvider(
+        action,
+        conditionContext: ConditionContext.empty,
+      );
+      expect(modifiersNoPurchase.skillXP(skillId: Skill.woodcutting.id), 0);
+
+      // State with level 3 purchase - should have +3 bonus
+      final stateWithPurchase = GlobalState.test(
+        registries,
+        astrology: AstrologyState(
+          constellationStates: {
+            constellation.id.localId: const ConstellationModifierState(
+              standardLevels: [3], // Level 3 of first modifier
+            ),
+          },
+        ),
+      );
+      final modifiersWithPurchase = stateWithPurchase
+          .createActionModifierProvider(
+            action,
+            conditionContext: ConditionContext.empty,
+          );
+      expect(modifiersWithPurchase.skillXP(skillId: Skill.woodcutting.id), 3);
+
+      // Fishing should not be affected
+      expect(modifiersWithPurchase.skillXP(skillId: Skill.fishing.id), 0);
+    });
+
+    test('global astrology modifier applies to all skills', () {
+      // Create a constellation with a global modifier (no skills)
+      final constellation = AstrologyAction(
+        id: ActionId(Skill.astrology.id, const MelvorId('test:GlobalConst')),
+        name: 'Global Constellation',
+        unlockLevel: 1,
+        xp: 10,
+        media: 'test.png',
+        skillIds: const [],
+        standardModifiers: const [
+          AstrologyModifier(
+            type: AstrologyModifierType.standard,
+            modifierKey: 'skillXP',
+            skills: [], // Global - applies to all skills
+            maxCount: 3,
+            costs: [100, 200, 300],
+            unlockMasteryLevel: 1,
+          ),
+        ],
+        uniqueModifiers: const [],
+      );
+
+      final registries = Registries.test(
+        astrology: AstrologyRegistry([constellation]),
+      );
+
+      final action = SkillAction(
+        id: ActionId(Skill.fishing.id, const MelvorId('test:TestFish')),
+        skill: Skill.fishing,
+        name: 'Test Fish',
+        duration: const Duration(seconds: 3),
+        xp: 10,
+        unlockLevel: 1,
+      );
+
+      final state = GlobalState.test(
+        registries,
+        astrology: AstrologyState(
+          constellationStates: {
+            constellation.id.localId: const ConstellationModifierState(
+              standardLevels: [2],
+            ),
+          },
+        ),
+      );
+
+      final modifiers = state.createActionModifierProvider(
+        action,
+        conditionContext: ConditionContext.empty,
+      );
+
+      // Global modifier should apply to any skill
+      expect(modifiers.skillXP(skillId: Skill.fishing.id), 2);
+      expect(modifiers.skillXP(skillId: Skill.woodcutting.id), 2);
+    });
+
+    test('multiple skills in one modifier apply separately', () {
+      // Create a constellation that affects both woodcutting and farming
+      final constellation = AstrologyAction(
+        id: ActionId(Skill.astrology.id, const MelvorId('test:DualConst')),
+        name: 'Dual Constellation',
+        unlockLevel: 1,
+        xp: 10,
+        media: 'test.png',
+        skillIds: [Skill.woodcutting.id, Skill.farming.id],
+        standardModifiers: [
+          AstrologyModifier(
+            type: AstrologyModifierType.standard,
+            modifierKey: 'skillXP',
+            skills: [Skill.woodcutting.id, Skill.farming.id],
+            maxCount: 5,
+            costs: const [10, 20, 30, 40, 50],
+            unlockMasteryLevel: 1,
+          ),
+        ],
+        uniqueModifiers: const [],
+      );
+
+      final registries = Registries.test(
+        astrology: AstrologyRegistry([constellation]),
+      );
+
+      final action = SkillAction(
+        id: ActionId(Skill.woodcutting.id, const MelvorId('test:TestTree')),
+        skill: Skill.woodcutting,
+        name: 'Test Tree',
+        duration: const Duration(seconds: 3),
+        xp: 10,
+        unlockLevel: 1,
+      );
+
+      final state = GlobalState.test(
+        registries,
+        astrology: AstrologyState(
+          constellationStates: {
+            constellation.id.localId: const ConstellationModifierState(
+              standardLevels: [4],
+            ),
+          },
+        ),
+      );
+
+      final modifiers = state.createActionModifierProvider(
+        action,
+        conditionContext: ConditionContext.empty,
+      );
+
+      // Both woodcutting and farming should get the bonus
+      expect(modifiers.skillXP(skillId: Skill.woodcutting.id), 4);
+      expect(modifiers.skillXP(skillId: Skill.farming.id), 4);
+      // Fishing should not
+      expect(modifiers.skillXP(skillId: Skill.fishing.id), 0);
+    });
+  });
 }
