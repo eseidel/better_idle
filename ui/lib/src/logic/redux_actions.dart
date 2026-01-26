@@ -705,3 +705,36 @@ class StopBonfireAction extends ReduxAction<GlobalState> {
     return state.stopBonfire();
   }
 }
+
+// ============================================================================
+// Astrology Actions
+// ============================================================================
+
+/// Purchases one level of an astrology modifier for a constellation.
+class PurchaseAstrologyModifierAction extends ReduxAction<GlobalState> {
+  PurchaseAstrologyModifierAction({
+    required this.constellationId,
+    required this.modifierType,
+    required this.modifierIndex,
+  });
+
+  final MelvorId constellationId;
+  final AstrologyModifierType modifierType;
+  final int modifierIndex;
+
+  @override
+  GlobalState? reduce() {
+    if (!state.canPurchaseAstrologyModifier(
+      constellationId: constellationId,
+      modifierType: modifierType,
+      modifierIndex: modifierIndex,
+    )) {
+      return null;
+    }
+    return state.purchaseAstrologyModifier(
+      constellationId: constellationId,
+      modifierType: modifierType,
+      modifierIndex: modifierIndex,
+    );
+  }
+}

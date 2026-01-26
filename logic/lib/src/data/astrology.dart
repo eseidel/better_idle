@@ -1,10 +1,123 @@
 import 'package:logic/src/data/action_id.dart';
 import 'package:logic/src/data/actions.dart';
 import 'package:logic/src/data/melvor_id.dart';
+import 'package:logic/src/types/modifier_metadata.dart';
 import 'package:meta/meta.dart';
 
 /// The base interval for studying constellations (3 seconds).
 const _astrologyStudyDuration = Duration(seconds: 3);
+
+/// Type of astrology modifier (standard uses stardust, unique uses golden).
+enum AstrologyModifierType {
+  standard,
+  unique;
+
+  /// The item ID for the currency used to buy this modifier type.
+  MelvorId get currencyItemId => switch (this) {
+    AstrologyModifierType.standard => const MelvorId('melvorF:Stardust'),
+    AstrologyModifierType.unique => const MelvorId('melvorF:Golden_Stardust'),
+  };
+}
+
+/// A single modifier that can be purchased multiple times on a constellation.
+@immutable
+class AstrologyModifier {
+  const AstrologyModifier({
+    required this.type,
+    required this.modifierKey,
+    required this.skills,
+    required this.maxCount,
+    required this.costs,
+    required this.unlockMasteryLevel,
+  });
+
+  factory AstrologyModifier.fromJson(
+    Map<String, dynamic> json,
+    AstrologyModifierType type,
+  ) {
+    // Parse the modifier key and affected skills
+    final modifiers = json['modifiers'] as Map<String, dynamic>;
+    final modifierKey = modifiers.keys.first;
+    final modifierValue = modifiers[modifierKey];
+
+    // Extract skill IDs from the modifier values (if it's a list)
+    // Some modifiers have simple int values instead of skill-specific lists
+    final skills = <MelvorId>[];
+    if (modifierValue is List) {
+      for (final value in modifierValue) {
+        final valueMap = value as Map<String, dynamic>;
+        if (valueMap.containsKey('skillID')) {
+          skills.add(MelvorId.fromJson(valueMap['skillID'] as String));
+        }
+      }
+    }
+
+    // Parse costs
+    final costsJson = json['costs'] as List<dynamic>;
+    final costs = costsJson.map((c) => c as int).toList();
+
+    // Parse unlock requirements (mastery level)
+    var unlockMasteryLevel = 1;
+    final requirements = json['unlockRequirements'] as List<dynamic>?;
+    if (requirements != null && requirements.isNotEmpty) {
+      final req = requirements[0] as Map<String, dynamic>;
+      if (req['type'] == 'MasteryLevel') {
+        unlockMasteryLevel = req['level'] as int;
+      }
+    }
+
+    return AstrologyModifier(
+      type: type,
+      modifierKey: modifierKey,
+      skills: skills,
+      maxCount: json['maxCount'] as int,
+      costs: costs,
+      unlockMasteryLevel: unlockMasteryLevel,
+    );
+  }
+
+  /// Whether this is a standard or unique modifier.
+  final AstrologyModifierType type;
+
+  /// The modifier key (e.g., 'skillXP', 'masteryXP',
+  /// 'skillItemDoublingChance').
+  final String modifierKey;
+
+  /// The skills this modifier affects.
+  final List<MelvorId> skills;
+
+  /// Maximum number of times this modifier can be purchased.
+  final int maxCount;
+
+  /// Cost for each purchase level (length == maxCount).
+  final List<int> costs;
+
+  /// Mastery level required to unlock this modifier.
+  final int unlockMasteryLevel;
+
+  /// Returns a human-readable description of this modifier using the registry.
+  ///
+  /// For modifiers that affect specific skills, this will include the skill
+  /// names in the description.
+  String formatDescription(ModifierMetadataRegistry registry) {
+    // Build skill names list for context
+    final skillNames = skills.map((id) => Skill.fromId(id).name).toList();
+
+    // Use registry to format the description with proper templates
+    // Value is 1 since astrology modifiers increment by 1 per level
+    return registry.formatDescription(
+      name: modifierKey,
+      value: 1,
+      skillName: skillNames.isNotEmpty ? skillNames.join(', ') : null,
+    );
+  }
+
+  /// Returns the cost for the next purchase, or null if maxed out.
+  int? costForLevel(int currentLevel) {
+    if (currentLevel >= maxCount) return null;
+    return costs[currentLevel];
+  }
+}
 
 /// An astrology constellation action parsed from Melvor data.
 ///
@@ -19,6 +132,8 @@ class AstrologyAction extends SkillAction {
     required super.xp,
     required this.media,
     required this.skillIds,
+    required this.standardModifiers,
+    required this.uniqueModifiers,
   }) : super(skill: Skill.astrology, duration: _astrologyStudyDuration);
 
   factory AstrologyAction.fromJson(
@@ -36,6 +151,29 @@ class AstrologyAction extends SkillAction {
         .map((s) => MelvorId.fromJson(s as String))
         .toList();
 
+    // Parse standard modifiers (use stardust)
+    final standardModifiersJson =
+        json['standardModifiers'] as List<dynamic>? ?? [];
+    final standardModifiers = standardModifiersJson
+        .map(
+          (m) => AstrologyModifier.fromJson(
+            m as Map<String, dynamic>,
+            AstrologyModifierType.standard,
+          ),
+        )
+        .toList();
+
+    // Parse unique modifiers (use golden stardust)
+    final uniqueModifiersJson = json['uniqueModifiers'] as List<dynamic>? ?? [];
+    final uniqueModifiers = uniqueModifiersJson
+        .map(
+          (m) => AstrologyModifier.fromJson(
+            m as Map<String, dynamic>,
+            AstrologyModifierType.unique,
+          ),
+        )
+        .toList();
+
     return AstrologyAction(
       id: ActionId(Skill.astrology.id, localId),
       name: json['name'] as String,
@@ -43,6 +181,8 @@ class AstrologyAction extends SkillAction {
       xp: json['baseExperience'] as int,
       media: json['media'] as String,
       skillIds: skillIds,
+      standardModifiers: standardModifiers,
+      uniqueModifiers: uniqueModifiers,
     );
   }
 
@@ -51,6 +191,18 @@ class AstrologyAction extends SkillAction {
 
   /// The skill IDs that this constellation provides modifiers for.
   final List<MelvorId> skillIds;
+
+  /// Standard modifiers that can be purchased with stardust.
+  final List<AstrologyModifier> standardModifiers;
+
+  /// Unique modifiers that can be purchased with golden stardust.
+  final List<AstrologyModifier> uniqueModifiers;
+
+  /// All modifiers (standard + unique) for this constellation.
+  List<AstrologyModifier> get allModifiers => [
+    ...standardModifiers,
+    ...uniqueModifiers,
+  ];
 }
 
 /// Registry for astrology skill data.

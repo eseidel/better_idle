@@ -6,6 +6,7 @@ import 'package:ui/src/widgets/context_extensions.dart';
 import 'package:ui/src/widgets/count_badge_cell.dart';
 import 'package:ui/src/widgets/duration_badge_cell.dart';
 import 'package:ui/src/widgets/game_scaffold.dart';
+import 'package:ui/src/widgets/item_count_badge_cell.dart';
 import 'package:ui/src/widgets/item_image.dart';
 import 'package:ui/src/widgets/mastery_pool.dart';
 import 'package:ui/src/widgets/skill_image.dart';
@@ -163,6 +164,13 @@ class _StardustInventory extends StatelessWidget {
   Widget build(BuildContext context) {
     final state = context.state;
 
+    // Build a map of stardust item IDs to inventory counts
+    final stardustItems = <MelvorId, int>{};
+    for (final drop in skillDrops.whereType<Drop>()) {
+      final item = state.registries.items.byId(drop.itemId);
+      stardustItems[drop.itemId] = state.inventory.countOfItem(item);
+    }
+
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(16),
@@ -176,23 +184,9 @@ class _StardustInventory extends StatelessWidget {
             const SizedBox(height: 12),
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-              children: skillDrops.whereType<Drop>().map((drop) {
-                final item = state.registries.items.byId(drop.itemId);
-                final count = state.inventory.countOfItem(item);
-                return Column(
-                  children: [
-                    ItemImage(item: item),
-                    const SizedBox(height: 4),
-                    Text(
-                      '$count',
-                      style: Theme.of(context).textTheme.titleMedium,
-                    ),
-                    Text(
-                      item.name,
-                      style: Theme.of(context).textTheme.bodySmall,
-                    ),
-                  ],
-                );
+              children: stardustItems.entries.map((entry) {
+                final item = state.registries.items.byId(entry.key);
+                return ItemCountBadgeCell(item: item, count: entry.value);
               }).toList(),
             ),
           ],
@@ -209,11 +203,6 @@ class _ModifierShop extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final affectedSkills = action.skillIds
-        .where((MelvorId id) => Skill.values.any((s) => s.id == id))
-        .map((MelvorId id) => Skill.fromId(id).name)
-        .join(' and ');
-
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(16),
@@ -225,25 +214,252 @@ class _ModifierShop extends StatelessWidget {
               style: Theme.of(context).textTheme.titleMedium,
             ),
             const SizedBox(height: 12),
-            Container(
-              padding: const EdgeInsets.all(24),
-              decoration: BoxDecoration(
-                color: Style.cellBackgroundColor,
-                borderRadius: BorderRadius.circular(8),
+            if (action.standardModifiers.isNotEmpty) ...[
+              _ModifierSection(
+                title: 'Standard Modifiers (Stardust)',
+                modifiers: action.standardModifiers,
+                constellationId: action.id.localId,
               ),
-              child: Center(
+              const SizedBox(height: 16),
+            ],
+            if (action.uniqueModifiers.isNotEmpty)
+              _ModifierSection(
+                title: 'Unique Modifiers (Golden Stardust)',
+                modifiers: action.uniqueModifiers,
+                constellationId: action.id.localId,
+              ),
+            if (action.standardModifiers.isEmpty &&
+                action.uniqueModifiers.isEmpty)
+              Center(
                 child: Text(
-                  'Modifier shop coming soon\n\n'
-                  'Spend stardust to unlock bonuses\n'
-                  'for $affectedSkills',
-                  textAlign: TextAlign.center,
+                  'No modifiers available for this constellation',
                   style: TextStyle(color: Style.textColorMuted),
                 ),
               ),
-            ),
           ],
         ),
       ),
+    );
+  }
+}
+
+class _ModifierSection extends StatelessWidget {
+  const _ModifierSection({
+    required this.title,
+    required this.modifiers,
+    required this.constellationId,
+  });
+
+  final String title;
+  final List<AstrologyModifier> modifiers;
+  final MelvorId constellationId;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          title,
+          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+            color: Style.textColorMuted,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        const SizedBox(height: 8),
+        ...modifiers.asMap().entries.map((entry) {
+          return _ModifierRow(
+            modifier: entry.value,
+            modifierIndex: entry.key,
+            constellationId: constellationId,
+          );
+        }),
+      ],
+    );
+  }
+}
+
+class _ModifierRow extends StatelessWidget {
+  const _ModifierRow({
+    required this.modifier,
+    required this.modifierIndex,
+    required this.constellationId,
+  });
+
+  final AstrologyModifier modifier;
+  final int modifierIndex;
+  final MelvorId constellationId;
+
+  @override
+  Widget build(BuildContext context) {
+    final state = context.state;
+    final constellationState = state.astrology.stateFor(constellationId);
+    final currentLevel = constellationState.levelFor(
+      modifier.type,
+      modifierIndex,
+    );
+    final isMaxed = currentLevel >= modifier.maxCount;
+    final cost = modifier.costForLevel(currentLevel);
+
+    // Check mastery requirement
+    final constellation = state.registries.astrology.byId(constellationId);
+    final masteryLevel = constellation != null
+        ? state.actionState(constellation.id).masteryLevel
+        : 0;
+    final masteryLocked = masteryLevel < modifier.unlockMasteryLevel;
+
+    final canPurchase = state.canPurchaseAstrologyModifier(
+      constellationId: constellationId,
+      modifierType: modifier.type,
+      modifierIndex: modifierIndex,
+    );
+
+    // Get currency item for display
+    final currencyItem = state.registries.items.byId(
+      modifier.type.currencyItemId,
+    );
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Style.cellBackgroundColor,
+        borderRadius: BorderRadius.circular(8),
+        border: masteryLocked
+            ? Border.all(color: Colors.grey.withValues(alpha: 0.3))
+            : null,
+      ),
+      child: Row(
+        children: [
+          CachedImage(
+            assetPath: modifier.type == AstrologyModifierType.standard
+                ? 'assets/media/skills/astrology/star_standard.png'
+                : 'assets/media/skills/astrology/star_unique.png',
+            size: 24,
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                if (masteryLocked && constellation != null)
+                  Row(
+                    children: [
+                      Text(
+                        'Requires ',
+                        style: TextStyle(color: Style.textColorMuted),
+                      ),
+                      const CachedImage(
+                        assetPath: 'assets/media/main/mastery_header.png',
+                        size: 16,
+                      ),
+                      Text(
+                        ' Mastery Level ${modifier.unlockMasteryLevel} for ',
+                        style: TextStyle(color: Style.textColorMuted),
+                      ),
+                      CachedImage(assetPath: constellation.media, size: 16),
+                      Text(
+                        ' ${constellation.name}',
+                        style: TextStyle(color: Style.textColorMuted),
+                      ),
+                    ],
+                  )
+                else
+                  Text(
+                    modifier.formatDescription(
+                      state.registries.modifierMetadata,
+                    ),
+                  ),
+                const SizedBox(height: 4),
+                _LevelIndicator(current: currentLevel, max: modifier.maxCount),
+              ],
+            ),
+          ),
+          if (!isMaxed && !masteryLocked) ...[
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                ItemImage(item: currencyItem, size: 20),
+                const SizedBox(width: 4),
+                Text(
+                  '$cost',
+                  style: TextStyle(
+                    color: canPurchase ? null : Colors.red,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(width: 8),
+            SizedBox(
+              width: 60,
+              child: ElevatedButton(
+                onPressed: canPurchase
+                    ? () => context.dispatch(
+                        PurchaseAstrologyModifierAction(
+                          constellationId: constellationId,
+                          modifierType: modifier.type,
+                          modifierIndex: modifierIndex,
+                        ),
+                      )
+                    : null,
+                style: ElevatedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(horizontal: 8),
+                ),
+                child: const Text('Buy'),
+              ),
+            ),
+          ],
+          if (isMaxed)
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              decoration: BoxDecoration(
+                color: Colors.green.withValues(alpha: 0.2),
+                borderRadius: BorderRadius.circular(4),
+              ),
+              child: const Text(
+                'MAX',
+                style: TextStyle(
+                  color: Colors.green,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _LevelIndicator extends StatelessWidget {
+  const _LevelIndicator({required this.current, required this.max});
+
+  final int current;
+  final int max;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: List.generate(max, (index) {
+        final isFilled = index < current;
+        return Container(
+          width: 12,
+          height: 12,
+          margin: const EdgeInsets.only(right: 2),
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            color: isFilled
+                ? Style.activeColor
+                : Colors.grey.withValues(alpha: 0.3),
+            border: Border.all(
+              color: isFilled
+                  ? Style.activeColor
+                  : Colors.grey.withValues(alpha: 0.5),
+            ),
+          ),
+        );
+      }),
     );
   }
 }
