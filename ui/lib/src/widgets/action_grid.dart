@@ -1,11 +1,14 @@
 import 'package:flutter/material.dart' hide Action;
+import 'package:go_router/go_router.dart';
 import 'package:logic/logic.dart';
 import 'package:ui/src/logic/redux_actions.dart';
 import 'package:ui/src/widgets/cached_image.dart';
 import 'package:ui/src/widgets/context_extensions.dart';
 import 'package:ui/src/widgets/count_badge_cell.dart';
 import 'package:ui/src/widgets/duration_badge_cell.dart';
+import 'package:ui/src/widgets/item_image.dart';
 import 'package:ui/src/widgets/mastery_pool.dart';
+import 'package:ui/src/widgets/skill_image.dart';
 import 'package:ui/src/widgets/style.dart';
 import 'package:ui/src/widgets/tweened_progress_indicator.dart';
 import 'package:ui/src/widgets/xp_badges_row.dart';
@@ -43,6 +46,10 @@ class ActionGrid extends StatelessWidget {
                     actionState: actionState,
                   ),
                   MiningAction() => MiningActionCell(
+                    action: action,
+                    actionState: actionState,
+                  ),
+                  AstrologyAction() => AstrologyActionCell(
                     action: action,
                     actionState: actionState,
                   ),
@@ -373,6 +380,101 @@ class MiningActionCell extends StatelessWidget {
             disableWhenDepleted: isDepleted,
           ),
           const SizedBox(height: 8),
+          MasteryProgressCell(masteryXp: actionState.masteryXp),
+        ],
+      ),
+    );
+  }
+}
+
+class AstrologyActionCell extends StatelessWidget {
+  const AstrologyActionCell({
+    required this.action,
+    required this.actionState,
+    super.key,
+  });
+
+  final AstrologyAction action;
+  final ActionState actionState;
+
+  @override
+  Widget build(BuildContext context) {
+    final skillState = context.state.skillState(action.skill);
+    final skillLevel = levelForXp(skillState.xp);
+    final isUnlocked = skillLevel >= action.unlockLevel;
+
+    if (!isUnlocked) {
+      return LockedActionCell(
+        unlockLevel: action.unlockLevel,
+        imageAsset: action.media,
+      );
+    }
+    return _buildUnlocked(context);
+  }
+
+  Widget _buildUnlocked(BuildContext context) {
+    final state = context.state;
+    final labelStyle = Theme.of(
+      context,
+    ).textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.bold);
+    final actionState = state.actionState(action.id);
+    final isRunning = state.isActionActive(action);
+
+    // Get skill drops for astrology (stardust, golden stardust, etc.)
+    final skillDrops = state.registries.drops.forSkill(Skill.astrology);
+
+    return UnlockedActionCell(
+      action: action,
+      hasBorder: false,
+      onTap: () => context.go('/astrology/${action.id.localId}'),
+      child: Column(
+        children: [
+          const StunnedIndicator(),
+          Text(action.name, style: labelStyle),
+          const SizedBox(height: 4),
+          CachedImage(assetPath: action.media, size: 48),
+          const SizedBox(height: 4),
+          // Show affected skills
+          if (action.skillIds.isNotEmpty)
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: action.skillIds
+                  .where((id) => Skill.values.any((s) => s.id == id))
+                  .map((skillId) {
+                    final skill = Skill.fromId(skillId);
+                    return Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 2),
+                      child: SkillImage(skill: skill, size: 20),
+                    );
+                  })
+                  .toList(),
+            ),
+          const SizedBox(height: 4),
+          // Show XP badges and duration
+          XpBadgesRow(
+            action: action,
+            inradius: TextBadgeCell.smallInradius,
+            trailing: DurationBadgeCell(
+              seconds: action.minDuration.inSeconds,
+              inradius: TextBadgeCell.smallInradius,
+            ),
+          ),
+          const SizedBox(height: 4),
+          // Show potential drops
+          if (skillDrops.isNotEmpty)
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: skillDrops.whereType<Drop>().map((drop) {
+                final item = state.registries.items.byId(drop.itemId);
+                return Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 2),
+                  child: ItemImage(item: item, size: 20),
+                );
+              }).toList(),
+            ),
+          const Spacer(),
+          if (isRunning) ActionProgressBar(action: action),
+          const SizedBox(height: 4),
           MasteryProgressCell(masteryXp: actionState.masteryXp),
         ],
       ),

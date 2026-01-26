@@ -10,7 +10,7 @@ class AstrologyPage extends StatelessWidget {
     return const SimpleSkillPage(
       skill: Skill.astrology,
       skillName: 'Astrology',
-      cellSize: Size(300, 220),
+      cellSize: Size(300, 235),
     );
   }
 }

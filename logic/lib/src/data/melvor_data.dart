@@ -1278,6 +1278,22 @@ Map<Skill, List<Droppable>> parseSkillDrops(
         }
       }
 
+      // Parse baseRandomItemChances (e.g., Astrology's Stardust).
+      // Chance is in %, e.g., 5 means 5% = 0.05
+      final baseRandomItemChances =
+          data['baseRandomItemChances'] as List<dynamic>?;
+      if (baseRandomItemChances != null) {
+        for (final item in baseRandomItemChances) {
+          final itemMap = item as Map<String, dynamic>;
+          final itemId = MelvorId.fromJsonWithNamespace(
+            itemMap['itemID'] as String,
+            defaultNamespace: namespace,
+          );
+          final chancePercent = (itemMap['chance'] as num).toDouble();
+          drops.add(Drop(itemId, rate: chancePercent / 100));
+        }
+      }
+
       // Parse rareDrops (e.g., Gold Topaz Ring, Circlet of Rhaelyx)
       // These have complex chance calculations based on level or mastery.
       final rareDropsJson = data['rareDrops'] as List<dynamic>?;
