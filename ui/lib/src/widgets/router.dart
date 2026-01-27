@@ -17,6 +17,7 @@ import 'package:ui/src/screens/fletching.dart';
 import 'package:ui/src/screens/herblore.dart';
 import 'package:ui/src/screens/mining.dart';
 import 'package:ui/src/screens/runecrafting.dart';
+import 'package:ui/src/screens/save_slots.dart';
 import 'package:ui/src/screens/shop.dart';
 import 'package:ui/src/screens/smithing.dart';
 import 'package:ui/src/screens/statistics.dart';
@@ -152,6 +153,11 @@ final GoRouter router = GoRouter(
       path: '/statistics',
       name: 'statistics',
       builder: (context, _) => const StatisticsPage(),
+    ),
+    GoRoute(
+      path: '/save_slots',
+      name: 'save_slots',
+      builder: (context, _) => const SaveSlotsPage(),
     ),
   ],
 );

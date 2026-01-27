@@ -9,6 +9,7 @@ import 'package:ui/src/logic/game_loop.dart';
 import 'package:ui/src/logic/redux_actions.dart';
 import 'package:ui/src/services/image_cache_service.dart';
 import 'package:ui/src/services/logger.dart';
+import 'package:ui/src/services/save_slot_service.dart';
 import 'package:ui/src/services/toast_service.dart';
 import 'package:ui/src/widgets/router.dart';
 import 'package:ui/src/widgets/toast_overlay.dart';
@@ -19,11 +20,13 @@ void main() {
 }
 
 class MyPersistor extends Persistor<GlobalState> {
-  MyPersistor(this.registries);
+  MyPersistor(this.registries, {required this.activeSlot});
 
   final Registries registries;
+  final int activeSlot;
 
-  final LocalPersist _persist = LocalPersist('better_idle');
+  LocalPersist get _persist => LocalPersist('melvor_slot_$activeSlot');
+
   @override
   Future<GlobalState> readState() async {
     try {
@@ -49,6 +52,15 @@ class MyPersistor extends Persistor<GlobalState> {
     required GlobalState newState,
   }) async {
     await _persist.saveJson(newState);
+
+    // Update slot metadata with last played time
+    final meta = await SaveSlotService.loadMeta();
+    final newSlots = Map<int, SlotInfo>.from(meta.slots);
+    newSlots[activeSlot] = SlotInfo(
+      isEmpty: false,
+      lastPlayed: DateTime.timestamp(),
+    );
+    await SaveSlotService.saveMeta(meta.copyWith(slots: newSlots));
   }
 
   @override
@@ -308,30 +320,101 @@ class _GameApp extends StatefulWidget {
 }
 
 class _GameAppState extends State<_GameApp> {
-  late final MyPersistor _persistor;
+  MyPersistor? _persistor;
   bool _isInitialized = false;
-  late final Store<GlobalState> _store;
-  late final GameLoop _gameLoop;
+  Store<GlobalState>? _store;
+  GameLoop? _gameLoop;
+  int _activeSlot = 0;
 
   @override
   void initState() {
     super.initState();
-    _persistor = MyPersistor(widget.registries);
-    _persistor.readState().then((initialState) {
-      setState(() {
-        _store = Store<GlobalState>(
-          initialState: initialState,
-          persistor: _persistor,
-        );
-        _gameLoop = GameLoop(_store);
-        _isInitialized = true;
-      });
+    _initializeWithSlot();
+  }
+
+  Future<void> _initializeWithSlot() async {
+    // Run migration first (only does work on first launch after update)
+    await SaveSlotService.migrateIfNeeded();
+
+    // Load meta to get active slot
+    final meta = await SaveSlotService.loadMeta();
+    _activeSlot = meta.activeSlot;
+
+    _persistor = MyPersistor(widget.registries, activeSlot: _activeSlot);
+    final initialState = await _persistor!.readState();
+
+    setState(() {
+      _store = Store<GlobalState>(
+        initialState: initialState,
+        persistor: _persistor,
+      );
+      _gameLoop = GameLoop(_store!);
+      _isInitialized = true;
     });
   }
 
+  /// Switch to a different save slot. This rebuilds the entire game state.
+  Future<void> switchSlot(int newSlot) async {
+    if (newSlot == _activeSlot) return;
+
+    // Persist current state before switching
+    _store?.persistAndPausePersistor();
+
+    // Dispose current game loop
+    _gameLoop?.dispose();
+
+    setState(() {
+      _isInitialized = false;
+    });
+
+    // Update meta with new active slot
+    final meta = await SaveSlotService.loadMeta();
+    await SaveSlotService.saveMeta(meta.copyWith(activeSlot: newSlot));
+
+    _activeSlot = newSlot;
+    _persistor = MyPersistor(widget.registries, activeSlot: newSlot);
+    final newState = await _persistor!.readState();
+
+    setState(() {
+      _store = Store<GlobalState>(
+        initialState: newState,
+        persistor: _persistor,
+      );
+      _gameLoop = GameLoop(_store!);
+      _isInitialized = true;
+    });
+  }
+
+  /// Delete a save slot and reset it to empty state.
+  Future<void> deleteSlot(int slot) async {
+    await SaveSlotService.deleteSlot(slot);
+
+    // If deleting the active slot, reset to empty state
+    if (slot == _activeSlot) {
+      _gameLoop?.dispose();
+      setState(() {
+        _isInitialized = false;
+      });
+
+      final newState = GlobalState.empty(widget.registries);
+      _persistor = MyPersistor(widget.registries, activeSlot: _activeSlot);
+
+      setState(() {
+        _store = Store<GlobalState>(
+          initialState: newState,
+          persistor: _persistor,
+        );
+        _gameLoop = GameLoop(_store!);
+        _isInitialized = true;
+      });
+    }
+  }
+
+  int get activeSlot => _activeSlot;
+
   @override
   void dispose() {
-    _gameLoop.dispose();
+    _gameLoop?.dispose();
     super.dispose();
   }
 
@@ -340,21 +423,26 @@ class _GameAppState extends State<_GameApp> {
     if (!_isInitialized) {
       return const SizedBox.shrink();
     }
-    return StoreProvider<GlobalState>(
-      store: _store,
-      child: _AppLifecycleManager(
-        store: _store,
-        gameLoop: _gameLoop,
-        child: MaterialApp.router(
-          routerConfig: router,
-          themeMode: ThemeMode.dark,
-          darkTheme: ThemeData.dark(),
-          builder: (context, child) {
-            return ToastOverlay(
-              service: toastService,
-              child: child ?? const SizedBox.shrink(),
-            );
-          },
+    return SaveSlotManager(
+      activeSlot: _activeSlot,
+      switchSlot: switchSlot,
+      deleteSlot: deleteSlot,
+      child: StoreProvider<GlobalState>(
+        store: _store!,
+        child: _AppLifecycleManager(
+          store: _store!,
+          gameLoop: _gameLoop!,
+          child: MaterialApp.router(
+            routerConfig: router,
+            themeMode: ThemeMode.dark,
+            darkTheme: ThemeData.dark(),
+            builder: (context, child) {
+              return ToastOverlay(
+                service: toastService,
+                child: child ?? const SizedBox.shrink(),
+              );
+            },
+          ),
         ),
       ),
     );
