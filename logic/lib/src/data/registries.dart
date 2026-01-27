@@ -7,6 +7,7 @@ import 'package:logic/src/data/item_upgrades.dart';
 import 'package:logic/src/data/melvor_data.dart';
 import 'package:logic/src/data/melvor_id.dart';
 import 'package:logic/src/data/shop.dart';
+import 'package:logic/src/data/slayer.dart';
 import 'package:logic/src/data/summoning_synergy.dart';
 import 'package:logic/src/data/township.dart';
 import 'package:logic/src/types/drop.dart';
@@ -60,6 +61,7 @@ class Registries {
     required this.township,
     required this.modifierMetadata,
     required this.itemUpgrades,
+    required this.slayer,
     required Map<MelvorId, int> bankSortIndex,
   }) : _bankSortIndex = bankSortIndex,
        _testActions = null;
@@ -104,6 +106,10 @@ class Registries {
           ),
       astrology: astrology ?? const AstrologyRegistry([]),
       modifierMetadata: const ModifierMetadataRegistry.empty(),
+      slayer: SlayerRegistry(
+        taskCategories: SlayerTaskCategoryRegistry(const []),
+        areas: SlayerAreaRegistry(const []),
+      ),
       bankSortIndex: bankSortIndex ?? {},
       testActions: actions,
     );
@@ -123,6 +129,7 @@ class Registries {
     required this.agility,
     required this.astrology,
     required this.modifierMetadata,
+    required this.slayer,
     required Map<MelvorId, int> bankSortIndex,
     required List<Action> testActions,
   }) : _bankSortIndex = bankSortIndex,
@@ -166,6 +173,7 @@ class Registries {
   final TownshipRegistry township;
   final ModifierMetadataRegistry modifierMetadata;
   final ItemUpgradeRegistry itemUpgrades;
+  final SlayerRegistry slayer;
   final Map<MelvorId, int> _bankSortIndex;
 
   // Skill registries

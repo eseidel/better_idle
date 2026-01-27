@@ -6,6 +6,7 @@ import 'package:logic/src/data/item_upgrades.dart';
 import 'package:logic/src/data/melvor_id.dart';
 import 'package:logic/src/data/registries.dart';
 import 'package:logic/src/data/shop.dart';
+import 'package:logic/src/data/slayer.dart';
 import 'package:logic/src/data/summoning_synergy.dart';
 import 'package:logic/src/data/township.dart';
 import 'package:logic/src/types/drop.dart';
@@ -39,6 +40,8 @@ class MelvorData {
     final skillDataById = <String, List<SkillDataEntry>>{};
     final combatAreas = <CombatArea>[];
     final dungeons = <Dungeon>[];
+    final slayerAreas = <SlayerArea>[];
+    final slayerTaskCategories = <SlayerTaskCategory>[];
     final bankSortEntries = <DisplayOrderEntry>[];
     final equipmentSlots = <EquipmentSlotDef>[];
 
@@ -74,6 +77,14 @@ class MelvorData {
 
       // Dungeons (not skill-based)
       dungeons.addAll(parseDungeons(json, namespace: namespace));
+
+      // Slayer areas (not skill-based, at data root)
+      slayerAreas.addAll(parseSlayerAreas(json, namespace: namespace));
+
+      // Slayer task categories (at data root)
+      slayerTaskCategories.addAll(
+        parseSlayerTaskCategories(json, namespace: namespace),
+      );
 
       // Collect bank sort order entries
       final sortOrder = data['bankSortOrder'] as List<dynamic>? ?? [];
@@ -168,6 +179,12 @@ class MelvorData {
       dungeons: _dungeons,
     );
 
+    // Build slayer registry
+    _slayer = SlayerRegistry(
+      taskCategories: SlayerTaskCategoryRegistry(slayerTaskCategories),
+      areas: SlayerAreaRegistry(slayerAreas),
+    );
+
     // Parse summoning synergies
     _summoningSynergies = parseSummoningSynergies(
       skillDataById['melvorD:Summoning'],
@@ -250,6 +267,7 @@ class MelvorData {
   late final DropsRegistry _drops;
   late final ModifierMetadataRegistry _modifierMetadata;
   late final ItemUpgradeRegistry _itemUpgrades;
+  late final SlayerRegistry _slayer;
 
   /// Creates a Registries instance from this MelvorData.
   Registries toRegistries() {
@@ -283,6 +301,7 @@ class MelvorData {
       bankSortIndex: _bankSortIndex,
       modifierMetadata: _modifierMetadata,
       itemUpgrades: _itemUpgrades,
+      slayer: _slayer,
     );
   }
 }
@@ -1409,4 +1428,40 @@ ModifierMetadataRegistry parseModifierMetadata(
   }
 
   return ModifierMetadataRegistry(modifiers);
+}
+
+/// Parses slayer areas from a data file.
+List<SlayerArea> parseSlayerAreas(
+  Map<String, dynamic> json, {
+  required String namespace,
+}) {
+  final data = json['data'] as Map<String, dynamic>?;
+  if (data == null) {
+    return [];
+  }
+
+  final areas = data['slayerAreas'] as List<dynamic>? ?? [];
+  return areas
+      .map((areaJson) => areaJson as Map<String, dynamic>)
+      .map((areaJson) => SlayerArea.fromJson(areaJson, namespace: namespace))
+      .toList();
+}
+
+/// Parses slayer task categories from a data file.
+List<SlayerTaskCategory> parseSlayerTaskCategories(
+  Map<String, dynamic> json, {
+  required String namespace,
+}) {
+  final data = json['data'] as Map<String, dynamic>?;
+  if (data == null) {
+    return [];
+  }
+
+  final categories = data['slayerTaskCategories'] as List<dynamic>? ?? [];
+  return categories
+      .map((catJson) => catJson as Map<String, dynamic>)
+      .map(
+        (catJson) => SlayerTaskCategory.fromJson(catJson, namespace: namespace),
+      )
+      .toList();
 }

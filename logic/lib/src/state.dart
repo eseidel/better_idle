@@ -16,6 +16,7 @@ import 'package:logic/src/data/item_upgrades.dart';
 import 'package:logic/src/data/melvor_id.dart';
 import 'package:logic/src/data/registries.dart';
 import 'package:logic/src/data/shop.dart';
+import 'package:logic/src/data/slayer.dart';
 import 'package:logic/src/data/summoning_synergy.dart';
 import 'package:logic/src/data/township.dart';
 import 'package:logic/src/data/xp.dart';
@@ -296,6 +297,7 @@ class GlobalState {
     this.plotStates = const {},
     this.unlockedPlots = const {},
     this.dungeonCompletions = const {},
+    this.slayerTaskCompletions = const {},
     this.itemCharges = const {},
     this.selectedPotions = const {},
     this.potionChargesUsed = const {},
@@ -348,6 +350,7 @@ class GlobalState {
     Map<MelvorId, PlotState> plotStates = const {},
     Set<MelvorId> unlockedPlots = const {},
     Map<MelvorId, int> dungeonCompletions = const {},
+    Map<MelvorId, int> slayerTaskCompletions = const {},
     Map<MelvorId, int> itemCharges = const {},
     Map<MelvorId, MelvorId> selectedPotions = const {},
     Map<MelvorId, int> potionChargesUsed = const {},
@@ -379,6 +382,7 @@ class GlobalState {
       plotStates: plotStates,
       unlockedPlots: unlockedPlots,
       dungeonCompletions: dungeonCompletions,
+      slayerTaskCompletions: slayerTaskCompletions,
       itemCharges: itemCharges,
       selectedPotions: selectedPotions,
       potionChargesUsed: potionChargesUsed,
@@ -439,6 +443,7 @@ class GlobalState {
               .toSet() ??
           const {},
       dungeonCompletions = _dungeonCompletionsFromJson(json),
+      slayerTaskCompletions = _slayerTaskCompletionsFromJson(json),
       itemCharges = _itemChargesFromJson(json),
       selectedPotions = _selectedPotionsFromJson(json),
       potionChargesUsed = _potionChargesUsedFromJson(json),
@@ -497,6 +502,16 @@ class GlobalState {
   ) {
     final completionsJson =
         json['dungeonCompletions'] as Map<String, dynamic>? ?? {};
+    return completionsJson.map((key, value) {
+      return MapEntry(MelvorId.fromJson(key), value as int);
+    });
+  }
+
+  static Map<MelvorId, int> _slayerTaskCompletionsFromJson(
+    Map<String, dynamic> json,
+  ) {
+    final completionsJson =
+        json['slayerTaskCompletions'] as Map<String, dynamic>? ?? {};
     return completionsJson.map((key, value) {
       return MapEntry(MelvorId.fromJson(key), value as int);
     });
@@ -573,6 +588,9 @@ class GlobalState {
       ),
       'unlockedPlots': unlockedPlots.map((e) => e.toJson()).toList(),
       'dungeonCompletions': dungeonCompletions.map(
+        (key, value) => MapEntry(key.toJson(), value),
+      ),
+      'slayerTaskCompletions': slayerTaskCompletions.map(
         (key, value) => MapEntry(key.toJson(), value),
       ),
       'itemCharges': itemCharges.map(
@@ -655,6 +673,9 @@ class GlobalState {
   int dungeonCompletionCount(MelvorId dungeonId) =>
       dungeonCompletions[dungeonId] ?? 0;
 
+  /// Map of slayer task category ID to number of completions.
+  final Map<MelvorId, int> slayerTaskCompletions;
+
   /// Returns true if the given equipment slot is unlocked.
   /// Most slots are always unlocked. The Passive slot requires completing
   /// the "Into the Mist" dungeon.
@@ -686,9 +707,21 @@ class GlobalState {
   /// Always returns 0.0 since completion tracking is not yet supported.
   double get completionPercent => 0;
 
-  /// Returns how many Slayer tasks have been completed in a category.
-  /// Always returns 0 since Slayer task tracking is not yet supported.
-  int completedSlayerTaskCount(MelvorId category) => 0;
+  /// Returns how many Slayer tasks have been completed in a category or higher.
+  /// Checks all categories at or above the given category tier.
+  int completedSlayerTaskCount(MelvorId category) {
+    var count = slayerTaskCompletions[category] ?? 0;
+    // Also count tasks from higher tiers
+    // In Melvor, completing higher tier tasks counts toward lower tier counts
+    final categories = registries.slayer.taskCategories.all;
+    final categoryIndex = categories.indexWhere((c) => c.id == category);
+    if (categoryIndex >= 0) {
+      for (var i = categoryIndex + 1; i < categories.length; i++) {
+        count += slayerTaskCompletions[categories[i].id] ?? 0;
+      }
+    }
+    return count;
+  }
 
   /// The player's currencies (GP, Slayer Coins, etc.).
   final Map<Currency, int> currencies;
@@ -1338,6 +1371,117 @@ class GlobalState {
           dungeonId: dungeon.id,
           currentMonsterIndex: 0,
           monsterIds: dungeon.monsterIds,
+        ),
+        progress: CombatProgressState(
+          monsterHp: combatState.monsterHp,
+          playerAttackTicksRemaining: combatState.playerAttackTicksRemaining,
+          monsterAttackTicksRemaining: combatState.monsterAttackTicksRemaining,
+          spawnTicksRemaining: combatState.spawnTicksRemaining,
+        ),
+        progressTicks: 0,
+        totalTicks: totalTicks,
+      ),
+      actionStates: newActionStates,
+    );
+  }
+
+  /// Starts a slayer task for the given category.
+  ///
+  /// This rolls a random monster based on the category's selection criteria
+  /// and a random number of kills required.
+  GlobalState startSlayerTask({
+    required SlayerTaskCategory category,
+    required Random random,
+  }) {
+    if (isStunned) {
+      throw const StunnedException('Cannot start slayer task while stunned');
+    }
+
+    // Check slayer level requirement
+    final slayerLevel = skillState(Skill.slayer).skillLevel;
+    if (slayerLevel < category.level) {
+      throw ArgumentError(
+        'Slayer level ${category.level} required for ${category.name} tasks',
+      );
+    }
+
+    // Check currency cost
+    for (final cost in category.rollCost) {
+      if (currency(cost.currency) < cost.quantity) {
+        throw ArgumentError(
+          'Not enough ${cost.currency.abbreviation} to roll slayer task',
+        );
+      }
+    }
+
+    // Find eligible monsters based on selection criteria
+    final selection = category.monsterSelection;
+    final eligibleMonsters = <CombatAction>[];
+
+    if (selection is CombatLevelSelection) {
+      for (final monster in registries.combat.monsters) {
+        if (monster.combatLevel >= selection.minLevel &&
+            monster.combatLevel <= selection.maxLevel &&
+            monster.canSlayer) {
+          eligibleMonsters.add(monster);
+        }
+      }
+    }
+
+    if (eligibleMonsters.isEmpty) {
+      throw StateError('No eligible monsters for ${category.name} slayer task');
+    }
+
+    // Pick a random monster
+    final monster = eligibleMonsters[random.nextInt(eligibleMonsters.length)];
+
+    // Calculate kills required (base length +/- some variance)
+    final baseKills = category.baseTaskLength;
+    final variance = (baseKills * 0.2).toInt().clamp(1, 100);
+    final killsRequired =
+        baseKills + random.nextInt(variance * 2 + 1) - variance;
+
+    // Deduct currency cost
+    var prepared = _prepareForActivitySwitch(stayingInCooking: false);
+    final newCurrencies = Map<Currency, int>.from(prepared.currencies);
+    for (final cost in category.rollCost) {
+      newCurrencies[cost.currency] =
+          (newCurrencies[cost.currency] ?? 0) - cost.quantity;
+    }
+    prepared = prepared.copyWith(currencies: newCurrencies);
+
+    // Start combat with the slayer task context
+    final pStats = computePlayerStats(prepared);
+    final totalTicks = ticksFromDuration(
+      Duration(milliseconds: (pStats.attackSpeed * 1000).round()),
+    );
+
+    final modifiers = prepared.createCombatModifierProvider(
+      conditionContext: ConditionContext.empty,
+    );
+    final spawnTicks = calculateMonsterSpawnTicks(
+      modifiers.flatMonsterRespawnInterval,
+    );
+
+    final combatState = CombatActionState.start(
+      monster,
+      pStats,
+      spawnTicks: spawnTicks,
+    );
+
+    final newActionStates = Map<ActionId, ActionState>.from(
+      prepared.actionStates,
+    );
+    final existingState = prepared.actionState(monster.id);
+    newActionStates[monster.id] = existingState.copyWith(combat: combatState);
+
+    return prepared.copyWith(
+      activeActivity: CombatActivity(
+        context: SlayerTaskContext(
+          categoryId: category.id,
+          monsterId: monster.id.localId,
+          killsRequired: killsRequired,
+          killsCompleted: 0,
         ),
         progress: CombatProgressState(
           monsterHp: combatState.monsterHp,
@@ -2764,6 +2908,7 @@ class GlobalState {
     Map<MelvorId, PlotState>? plotStates,
     Set<MelvorId>? unlockedPlots,
     Map<MelvorId, int>? dungeonCompletions,
+    Map<MelvorId, int>? slayerTaskCompletions,
     Map<MelvorId, int>? itemCharges,
     Map<MelvorId, MelvorId>? selectedPotions,
     Map<MelvorId, int>? potionChargesUsed,
@@ -2792,6 +2937,8 @@ class GlobalState {
       plotStates: plotStates ?? this.plotStates,
       unlockedPlots: unlockedPlots ?? this.unlockedPlots,
       dungeonCompletions: dungeonCompletions ?? this.dungeonCompletions,
+      slayerTaskCompletions:
+          slayerTaskCompletions ?? this.slayerTaskCompletions,
       itemCharges: itemCharges ?? this.itemCharges,
       selectedPotions: selectedPotions ?? this.selectedPotions,
       potionChargesUsed: potionChargesUsed ?? this.potionChargesUsed,

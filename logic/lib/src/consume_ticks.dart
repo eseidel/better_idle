@@ -1017,6 +1017,14 @@ class StateUpdateBuilder {
     _changes = _changes.recordingDungeonCompletion(dungeonId);
   }
 
+  /// Increments the completion count for a slayer task category.
+  void incrementSlayerTaskCompletion(MelvorId categoryId) {
+    final currentCount = _state.slayerTaskCompletions[categoryId] ?? 0;
+    final newCompletions = Map<MelvorId, int>.from(_state.slayerTaskCompletions)
+      ..[categoryId] = currentCount + 1;
+    _state = _state.copyWith(slayerTaskCompletions: newCompletions);
+  }
+
   /// Updates the agility state.
   void setAgility(AgilityState agility) {
     _state = _state.copyWith(agility: agility);
@@ -1024,6 +1032,11 @@ class StateUpdateBuilder {
 
   /// Updates the active agility activity to the next obstacle.
   void advanceAgilityObstacle(AgilityActivity newActivity) {
+    _state = _state.copyWith(activeActivity: newActivity);
+  }
+
+  /// Updates the active activity (e.g., for updating slayer task context).
+  void updateActivity(ActiveActivity newActivity) {
     _state = _state.copyWith(activeActivity: newActivity);
   }
 
@@ -2052,6 +2065,73 @@ enum ForegroundResult {
         ..switchToAction(nextMonster, remainingTicks: resetPlayerTicks)
         ..updateCombatState(nextMonster.id, currentCombat);
       return (ForegroundResult.continued, ticksConsumed);
+    }
+
+    // Handle slayer task progression
+    final slayerContext = switch (builder.state.activeActivity) {
+      CombatActivity(:final context) when context is SlayerTaskContext =>
+        context,
+      _ => null,
+    };
+    if (slayerContext != null) {
+      // Record the kill
+      final updatedContext = slayerContext.recordKill();
+
+      if (updatedContext.isComplete) {
+        // Task completed! Grant rewards
+        final category = builder.registries.slayer.taskCategories.byId(
+          updatedContext.categoryId,
+        );
+        if (category != null) {
+          // Grant slayer XP based on monster HP (simplified formula)
+          // Melvor grants XP per kill, we give bonus XP on completion
+          final slayerXp = action.maxHp * updatedContext.killsRequired ~/ 5;
+          builder.addSkillXp(Skill.slayer, slayerXp);
+
+          // Grant slayer coins based on HP and reward percent
+          for (final reward in category.currencyRewards) {
+            // Slayer coins = percent% of total HP killed
+            final totalHp = action.maxHp * updatedContext.killsRequired;
+            final coins = (totalHp * reward.percent) ~/ 100;
+            builder.addCurrency(reward.currency, coins);
+          }
+
+          // Increment task completion count
+          builder.incrementSlayerTaskCompletion(category.id);
+        }
+
+        // Stop combat - task is done, player needs to select new task
+        builder.updateCombatState(
+          activeActionId,
+          currentCombat.copyWith(monsterHp: 0, spawnTicksRemaining: 0),
+        );
+        return (ForegroundResult.stopped, ticksConsumed);
+      } else {
+        // Continue with the same monster for the slayer task
+        final fullMonsterAttackTicks = ticksFromDuration(
+          Duration(milliseconds: (action.stats.attackSpeed * 1000).round()),
+        );
+        final modifiers = builder.state.createCombatModifierProvider(
+          conditionContext: ConditionContext.empty,
+        );
+        final respawnTicks = calculateMonsterSpawnTicks(
+          modifiers.flatMonsterRespawnInterval,
+        );
+
+        // Update the combat activity with the new context
+        final currentActivity = builder.state.activeActivity! as CombatActivity;
+        final newActivity = currentActivity.copyWith(context: updatedContext);
+        builder.updateActivity(newActivity);
+
+        currentCombat = currentCombat.copyWith(
+          monsterHp: 0,
+          playerAttackTicksRemaining: resetPlayerTicks,
+          monsterAttackTicksRemaining: fullMonsterAttackTicks,
+          spawnTicksRemaining: respawnTicks,
+        );
+        builder.updateCombatState(activeActionId, currentCombat);
+        return (ForegroundResult.continued, ticksConsumed);
+      }
     }
 
     // Regular combat - respawn the same monster
