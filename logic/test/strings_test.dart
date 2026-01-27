@@ -235,4 +235,81 @@ void main() {
       expect(percentValueToString(-5.5), '-6%');
     });
   });
+
+  group('timeAgo', () {
+    test('returns "Just now" for less than 60 seconds', () {
+      final now = DateTime(2024, 1, 15, 12);
+      expect(timeAgo(now, now: now), 'Just now');
+      expect(
+        timeAgo(now.subtract(const Duration(seconds: 1)), now: now),
+        'Just now',
+      );
+      expect(
+        timeAgo(now.subtract(const Duration(seconds: 59)), now: now),
+        'Just now',
+      );
+    });
+
+    test('returns minutes ago', () {
+      final now = DateTime(2024, 1, 15, 12);
+      expect(
+        timeAgo(now.subtract(const Duration(minutes: 1)), now: now),
+        '1 minute ago',
+      );
+      expect(
+        timeAgo(now.subtract(const Duration(minutes: 5)), now: now),
+        '5 minutes ago',
+      );
+      expect(
+        timeAgo(now.subtract(const Duration(minutes: 59)), now: now),
+        '59 minutes ago',
+      );
+    });
+
+    test('returns hours ago', () {
+      final now = DateTime(2024, 1, 15, 12);
+      expect(
+        timeAgo(now.subtract(const Duration(hours: 1)), now: now),
+        '1 hour ago',
+      );
+      expect(
+        timeAgo(now.subtract(const Duration(hours: 5)), now: now),
+        '5 hours ago',
+      );
+      expect(
+        timeAgo(now.subtract(const Duration(hours: 23)), now: now),
+        '23 hours ago',
+      );
+    });
+
+    test('returns days ago', () {
+      final now = DateTime(2024, 1, 15, 12);
+      expect(
+        timeAgo(now.subtract(const Duration(days: 1)), now: now),
+        '1 day ago',
+      );
+      expect(
+        timeAgo(now.subtract(const Duration(days: 5)), now: now),
+        '5 days ago',
+      );
+      expect(
+        timeAgo(now.subtract(const Duration(days: 30)), now: now),
+        '30 days ago',
+      );
+    });
+
+    test('rounds to nearest unit', () {
+      final now = DateTime(2024, 1, 15, 12);
+      // 1 hour 30 minutes should round to 2 hours
+      expect(
+        timeAgo(now.subtract(const Duration(hours: 1, minutes: 30)), now: now),
+        '2 hours ago',
+      );
+      // 1 day 12 hours should round to 2 days
+      expect(
+        timeAgo(now.subtract(const Duration(days: 1, hours: 12)), now: now),
+        '2 days ago',
+      );
+    });
+  });
 }
