@@ -23,7 +23,6 @@ class SummoningPage extends StatefulWidget {
 class _SummoningPageState extends State<SummoningPage>
     with SingleTickerProviderStateMixin {
   late TabController _tabController;
-  SummoningAction? _selectedAction;
 
   @override
   void initState() {
@@ -37,10 +36,16 @@ class _SummoningPageState extends State<SummoningPage>
     super.dispose();
   }
 
-  void _navigateToTabletForAction(SummoningAction action) {
-    setState(() {
-      _selectedAction = action;
-    });
+  void _navigateToTabletForAction(
+    BuildContext context,
+    SummoningAction action,
+  ) {
+    context.dispatch(
+      SetSelectedSkillAction(
+        skill: Skill.summoning,
+        actionId: action.id.localId,
+      ),
+    );
     _tabController.animateTo(1); // Switch to Tablets tab
   }
 
@@ -63,8 +68,20 @@ class _SummoningPageState extends State<SummoningPage>
     final unlockedActions = actions
         .where((SummoningAction a) => skillLevel >= a.unlockLevel)
         .toList();
+
+    // Try to restore the last selected action from persisted state
+    final savedActionId = state.selectedSkillAction(skill);
+    SummoningAction? savedAction;
+    if (savedActionId != null) {
+      savedAction = actions.cast<SummoningAction?>().firstWhere(
+        (a) => a?.id.localId == savedActionId,
+        orElse: () => null,
+      );
+    }
+
+    // Use saved action if available, otherwise default to first unlocked action
     final selectedAction =
-        _selectedAction ??
+        savedAction ??
         (unlockedActions.isNotEmpty ? unlockedActions.first : actions.first);
 
     return GameScaffold(
@@ -100,16 +117,20 @@ class _SummoningPageState extends State<SummoningPage>
                 _MarksTab(
                   actions: actions,
                   skillLevel: skillLevel,
-                  onCreateTablets: _navigateToTabletForAction,
+                  onCreateTablets: (action) =>
+                      _navigateToTabletForAction(context, action),
                 ),
                 _TabletsTab(
                   actions: actions,
                   selectedAction: selectedAction,
                   skillLevel: skillLevel,
                   onSelectAction: (action) {
-                    setState(() {
-                      _selectedAction = action;
-                    });
+                    context.dispatch(
+                      SetSelectedSkillAction(
+                        skill: skill,
+                        actionId: action.id.localId,
+                      ),
+                    );
                   },
                 ),
               ],

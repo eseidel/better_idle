@@ -12,30 +12,36 @@ import 'package:ui/src/widgets/skill_overflow_menu.dart';
 import 'package:ui/src/widgets/skill_progress.dart';
 import 'package:ui/src/widgets/style.dart';
 
-class WoodcuttingPage extends StatefulWidget {
+class WoodcuttingPage extends StatelessWidget {
   const WoodcuttingPage({super.key});
-
-  @override
-  State<WoodcuttingPage> createState() => _WoodcuttingPageState();
-}
-
-class _WoodcuttingPageState extends State<WoodcuttingPage> {
-  WoodcuttingTree? _selectedAction;
 
   @override
   Widget build(BuildContext context) {
     const skill = Skill.woodcutting;
-    final registries = context.state.registries;
+    final state = context.state;
+    final registries = state.registries;
     final actions = registries.woodcutting.actions;
-    final skillState = context.state.skillState(skill);
+    final skillState = state.skillState(skill);
     final skillLevel = skillState.skillLevel;
 
     // Default to first unlocked action if none selected
     final unlockedActions = actions
         .where((WoodcuttingTree a) => skillLevel >= a.unlockLevel)
         .toList();
+
+    // Try to restore the last selected action from persisted state
+    final savedActionId = state.selectedSkillAction(skill);
+    WoodcuttingTree? savedAction;
+    if (savedActionId != null) {
+      savedAction = actions.cast<WoodcuttingTree?>().firstWhere(
+        (a) => a?.id.localId == savedActionId,
+        orElse: () => null,
+      );
+    }
+
+    // Use saved action if available, otherwise default to first unlocked action
     final selectedAction =
-        _selectedAction ??
+        savedAction ??
         (unlockedActions.isNotEmpty ? unlockedActions.first : null);
 
     return GameScaffold(
@@ -71,9 +77,12 @@ class _WoodcuttingPageState extends State<WoodcuttingPage> {
                     selectedAction: selectedAction,
                     skillLevel: skillLevel,
                     onSelect: (action) {
-                      setState(() {
-                        _selectedAction = action;
-                      });
+                      context.dispatch(
+                        SetSelectedSkillAction(
+                          skill: skill,
+                          actionId: action.id.localId,
+                        ),
+                      );
                     },
                   ),
                 ],
