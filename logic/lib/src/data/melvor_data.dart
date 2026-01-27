@@ -335,22 +335,75 @@ FishingRegistry parseFishing(List<SkillDataEntry>? entries) {
     return FishingRegistry(actions: const [], areas: const []);
   }
 
-  final actions = <FishingAction>[];
-  final areas = <FishingArea>[];
+  // First pass: collect junk items and special items to build drop tables.
+  final junkItemIDs = <MelvorId>[];
+  final specialItemsByRealm = <MelvorId, List<DropTableEntry>>{};
 
   for (final entry in entries) {
-    final fish = entry.data['fish'] as List<dynamic>?;
-    if (fish != null) {
-      actions.addAll(
-        fish.map(
-          (json) => FishingAction.fromJson(
-            json as Map<String, dynamic>,
-            namespace: entry.namespace,
+    // Parse junk items (simple list of IDs with equal weight).
+    final junkJson = entry.data['junkItemIDs'] as List<dynamic>?;
+    if (junkJson != null) {
+      junkItemIDs.addAll(
+        junkJson.map(
+          (id) => MelvorId.fromJsonWithNamespace(
+            id as String,
+            defaultNamespace: entry.namespace,
           ),
         ),
       );
     }
 
+    // Parse special items (weighted drop tables per realm).
+    final specialJson = entry.data['specialItems'] as List<dynamic>?;
+    if (specialJson != null) {
+      for (final special in specialJson) {
+        final specialMap = special as Map<String, dynamic>;
+        final realmId = MelvorId.fromJsonWithNamespace(
+          specialMap['realmID'] as String,
+          defaultNamespace: entry.namespace,
+        );
+        final drops = specialMap['drops'] as List<dynamic>? ?? [];
+        final entries = drops
+            .map(
+              (drop) => DropTableEntry.fromThievingJson(
+                drop as Map<String, dynamic>,
+                namespace: entry.namespace,
+              ),
+            )
+            .toList();
+        specialItemsByRealm[realmId] = entries;
+      }
+    }
+  }
+
+  // Build junk drop table (equal weight for all items).
+  DropTable? junkDropTable;
+  if (junkItemIDs.isNotEmpty) {
+    final junkEntries = junkItemIDs
+        .map(
+          (id) => DropTableEntry(
+            itemID: id,
+            minQuantity: 1,
+            maxQuantity: 1,
+            weight: 1,
+          ),
+        )
+        .toList();
+    junkDropTable = DropTable(junkEntries);
+  }
+
+  // Build special drop table for Melvor realm (the default realm).
+  // TODO(eseidel): Support per-realm special items when areas have realm info.
+  const melvorRealm = MelvorId('melvorD:Melvor');
+  DropTable? specialDropTable;
+  final melvorSpecialItems = specialItemsByRealm[melvorRealm];
+  if (melvorSpecialItems != null && melvorSpecialItems.isNotEmpty) {
+    specialDropTable = DropTable(melvorSpecialItems);
+  }
+
+  // Second pass: parse areas with drop tables.
+  final areas = <FishingArea>[];
+  for (final entry in entries) {
     final areasJson = entry.data['areas'] as List<dynamic>?;
     if (areasJson != null) {
       areas.addAll(
@@ -358,8 +411,42 @@ FishingRegistry parseFishing(List<SkillDataEntry>? entries) {
           (json) => FishingArea.fromJson(
             json as Map<String, dynamic>,
             namespace: entry.namespace,
+            junkDropTable: junkDropTable,
+            specialDropTable: specialDropTable,
           ),
         ),
+      );
+    }
+  }
+
+  // Helper to find area for fish.
+  FishingArea areaForFish(MelvorId fishId) {
+    for (final area in areas) {
+      if (area.fishIDs.contains(fishId)) {
+        return area;
+      }
+    }
+    throw StateError('Fish $fishId has no area');
+  }
+
+  // Third pass: parse fish actions with area lookup.
+  final actions = <FishingAction>[];
+  for (final entry in entries) {
+    final fish = entry.data['fish'] as List<dynamic>?;
+    if (fish != null) {
+      actions.addAll(
+        fish.map((json) {
+          final fishMap = json as Map<String, dynamic>;
+          final productId = MelvorId.fromJsonWithNamespace(
+            fishMap['productId'] as String,
+            defaultNamespace: entry.namespace,
+          );
+          return FishingAction.fromJson(
+            fishMap,
+            namespace: entry.namespace,
+            area: areaForFish(productId),
+          );
+        }),
       );
     }
   }

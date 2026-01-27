@@ -108,5 +108,103 @@ void main() {
       final areasWithFish = areas.where((a) => a.fishIDs.isNotEmpty);
       expect(areasWithFish, isNotEmpty);
     });
+
+    test('areas have junk drop table when junkChance > 0', () {
+      final areas = testRegistries.fishing.areas;
+      for (final area in areas) {
+        if (area.junkChance > 0) {
+          expect(
+            area.junkDropTable,
+            isNotNull,
+            reason: '${area.name} has junkChance but no junkDropTable',
+          );
+        }
+      }
+    });
+
+    test('areas have special drop table when specialChance > 0', () {
+      final areas = testRegistries.fishing.areas;
+      for (final area in areas) {
+        if (area.specialChance > 0) {
+          expect(
+            area.specialDropTable,
+            isNotNull,
+            reason: '${area.name} has specialChance but no specialDropTable',
+          );
+        }
+      }
+    });
+
+    test('junk drop table has 8 items', () {
+      final areas = testRegistries.fishing.areas;
+      final areaWithJunk = areas.firstWhere((a) => a.junkChance > 0);
+      final junkTable = areaWithJunk.junkDropTable!;
+      expect(junkTable.entries.length, equals(8));
+    });
+
+    test('special drop table has gems and rare items', () {
+      final areas = testRegistries.fishing.areas;
+      final areaWithSpecial = areas.firstWhere((a) => a.specialChance > 0);
+      final specialTable = areaWithSpecial.specialDropTable!;
+      expect(specialTable.entries.length, greaterThan(0));
+
+      // Check for expected special items (names are human-readable)
+      final itemNames = specialTable.entries.map((e) => e.itemID.name).toSet();
+      expect(itemNames.contains('Topaz'), isTrue);
+      expect(itemNames.contains('Sapphire'), isTrue);
+      expect(itemNames.contains('Treasure Chest'), isTrue);
+    });
+  });
+
+  group('FishingAction with area drops', () {
+    test('fishing actions have area reference', () {
+      final actions = testRegistries.fishing.actions;
+      for (final action in actions) {
+        expect(action.area, isNotNull);
+        expect(action.area.fishIDs.contains(action.productId), isTrue);
+      }
+    });
+
+    test('fishing action rewards include junk/special drops', () {
+      final actions = testRegistries.fishing.actions;
+      // Find an action in an area with both junk and special chances
+      final actionWithDrops = actions.firstWhere(
+        (a) => a.area.junkChance > 0 && a.area.specialChance > 0,
+      );
+
+      final rewards = actionWithDrops.rewardsForSelection(
+        const NoSelectedRecipe(),
+      );
+
+      // Should have fish output + junk drop + special drop
+      expect(rewards.length, equals(3));
+
+      // First reward should be the fish
+      expect(rewards[0], isA<Drop>());
+
+      // Second and third should be DropChance wrapping drop tables
+      expect(rewards[1], isA<DropChance>());
+      expect(rewards[2], isA<DropChance>());
+    });
+
+    test('area without junk has only fish and maybe special', () {
+      final actions = testRegistries.fishing.actions;
+      // Find an action in an area with no junk chance
+      final actionNoJunk = actions.firstWhere(
+        (a) => a.area.junkChance == 0,
+        orElse: () => throw StateError('No area without junk found'),
+      );
+
+      final rewards = actionNoJunk.rewardsForSelection(
+        const NoSelectedRecipe(),
+      );
+
+      // Should have fish output + possibly special
+      if (actionNoJunk.area.specialChance > 0) {
+        expect(rewards.length, equals(2));
+      } else {
+        expect(rewards.length, equals(1));
+      }
+    });
   });
 }
