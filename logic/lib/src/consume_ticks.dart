@@ -1407,6 +1407,25 @@ bool rollAndCollectDrops(
       }
     }
   }
+
+  // Roll mastery token drop (separate from other drops, not affected by
+  // doubling chance). Mastery tokens drop from non-combat skills only.
+  final masteryTokenDrop = registries.drops.masteryTokenForSkill(action.skill);
+  if (masteryTokenDrop != null) {
+    final unlockedActions = builder.state.unlockedActionsCount(action.skill);
+    final tokenStack = masteryTokenDrop.rollWithContext(
+      registries.items,
+      random,
+      unlockedActions: unlockedActions,
+    );
+    if (tokenStack != null) {
+      final success = builder.addInventory(tokenStack);
+      if (!success) {
+        allItemsAdded = false;
+      }
+    }
+  }
+
   return allItemsAdded;
 }
 
