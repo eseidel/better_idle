@@ -1,5 +1,6 @@
 import 'package:logic/src/data/currency.dart';
 import 'package:logic/src/data/melvor_id.dart';
+import 'package:logic/src/json.dart';
 import 'package:meta/meta.dart';
 
 /// Monster selection criteria for a slayer task category.
@@ -67,10 +68,8 @@ class SlayerTaskCategory {
     Map<String, dynamic> json, {
     required String namespace,
   }) {
-    final rewardsJson = json['currencyRewards'] as List<dynamic>? ?? [];
-    final rewards = rewardsJson
-        .map((e) => CurrencyReward.fromJson(e as Map<String, dynamic>))
-        .toList();
+    final rewards =
+        maybeList(json['currencyRewards'], CurrencyReward.fromJson) ?? [];
 
     final selectionJson = json['monsterSelection'] as Map<String, dynamic>;
 
