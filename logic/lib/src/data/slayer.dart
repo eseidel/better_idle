@@ -32,24 +32,6 @@ class CombatLevelSelection extends MonsterSelection {
   final int maxLevel;
 }
 
-/// A currency cost (Slayer Coins typically).
-@immutable
-class SlayerCurrencyCost {
-  const SlayerCurrencyCost({required this.currency, required this.quantity});
-
-  factory SlayerCurrencyCost.fromJson(Map<String, dynamic> json) {
-    final currencyId = MelvorId.fromJson(json['id'] as String);
-    final currency = Currency.fromId(currencyId);
-    return SlayerCurrencyCost(
-      currency: currency,
-      quantity: json['quantity'] as int,
-    );
-  }
-
-  final Currency currency;
-  final int quantity;
-}
-
 /// A currency reward as a percentage of monster HP.
 @immutable
 class CurrencyReward {
@@ -85,16 +67,6 @@ class SlayerTaskCategory {
     Map<String, dynamic> json, {
     required String namespace,
   }) {
-    final rollCostJson = json['rollCost'] as List<dynamic>? ?? [];
-    final rollCost = rollCostJson
-        .map((e) => SlayerCurrencyCost.fromJson(e as Map<String, dynamic>))
-        .toList();
-
-    final extensionCostJson = json['extensionCost'] as List<dynamic>? ?? [];
-    final extensionCost = extensionCostJson
-        .map((e) => SlayerCurrencyCost.fromJson(e as Map<String, dynamic>))
-        .toList();
-
     final rewardsJson = json['currencyRewards'] as List<dynamic>? ?? [];
     final rewards = rewardsJson
         .map((e) => CurrencyReward.fromJson(e as Map<String, dynamic>))
@@ -111,8 +83,10 @@ class SlayerTaskCategory {
       ),
       name: json['name'] as String,
       level: json['level'] as int,
-      rollCost: rollCost,
-      extensionCost: extensionCost,
+      rollCost: CurrencyCosts.fromJson(json['rollCost'] as List<dynamic>?),
+      extensionCost: CurrencyCosts.fromJson(
+        json['extensionCost'] as List<dynamic>?,
+      ),
       extensionMultiplier: json['extensionMultiplier'] as int,
       currencyRewards: rewards,
       monsterSelection: MonsterSelection.fromJson(selectionJson),
@@ -126,8 +100,8 @@ class SlayerTaskCategory {
   final MelvorId id;
   final String name;
   final int level;
-  final List<SlayerCurrencyCost> rollCost;
-  final List<SlayerCurrencyCost> extensionCost;
+  final CurrencyCosts rollCost;
+  final CurrencyCosts extensionCost;
   final int extensionMultiplier;
   final List<CurrencyReward> currencyRewards;
   final MonsterSelection monsterSelection;

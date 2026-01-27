@@ -1406,8 +1406,8 @@ class GlobalState {
     }
 
     // Check currency cost
-    for (final cost in category.rollCost) {
-      if (currency(cost.currency) < cost.quantity) {
+    for (final cost in category.rollCost.costs) {
+      if (currency(cost.currency) < cost.amount) {
         throw ArgumentError(
           'Not enough ${cost.currency.abbreviation} to roll slayer task',
         );
@@ -1444,9 +1444,9 @@ class GlobalState {
     // Deduct currency cost
     var prepared = _prepareForActivitySwitch(stayingInCooking: false);
     final newCurrencies = Map<Currency, int>.from(prepared.currencies);
-    for (final cost in category.rollCost) {
+    for (final cost in category.rollCost.costs) {
       newCurrencies[cost.currency] =
-          (newCurrencies[cost.currency] ?? 0) - cost.quantity;
+          (newCurrencies[cost.currency] ?? 0) - cost.amount;
     }
     prepared = prepared.copyWith(currencies: newCurrencies);
 

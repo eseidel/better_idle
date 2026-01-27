@@ -1217,8 +1217,8 @@ class _SlayerTaskCategoryTile extends StatelessWidget {
 
     // Check if player can afford the task
     var canAfford = true;
-    for (final cost in category.rollCost) {
-      if (state.currency(cost.currency) < cost.quantity) {
+    for (final cost in category.rollCost.costs) {
+      if (state.currency(cost.currency) < cost.amount) {
         canAfford = false;
         break;
       }
@@ -1228,8 +1228,8 @@ class _SlayerTaskCategoryTile extends StatelessWidget {
 
     // Build cost string
     final costParts = <String>[];
-    for (final cost in category.rollCost) {
-      costParts.add('${cost.quantity} ${cost.currency.abbreviation}');
+    for (final cost in category.rollCost.costs) {
+      costParts.add('${cost.amount} ${cost.currency.abbreviation}');
     }
     final costString = costParts.isEmpty ? 'Free' : costParts.join(', ');
 
