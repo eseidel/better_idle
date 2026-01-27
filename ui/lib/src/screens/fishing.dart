@@ -20,15 +20,15 @@ class FishingPage extends StatefulWidget {
 }
 
 class _FishingPageState extends State<FishingPage> {
-  FishingAction? _selectedAction;
   final Set<String> _collapsedAreas = {};
 
   @override
   Widget build(BuildContext context) {
     const skill = Skill.fishing;
-    final skillState = context.state.skillState(skill);
+    final state = context.state;
+    final skillState = state.skillState(skill);
     final skillLevel = levelForXp(skillState.xp);
-    final registries = context.state.registries;
+    final registries = state.registries;
 
     // Get all fishing actions from registries.
     final fishingActions = registries.fishing.actions;
@@ -40,8 +40,20 @@ class _FishingPageState extends State<FishingPage> {
     final unlockedActions = fishingActions
         .where((FishingAction a) => skillLevel >= a.unlockLevel)
         .toList();
+
+    // Try to restore the last selected action from persisted state
+    final savedActionId = state.selectedSkillAction(skill);
+    FishingAction? savedAction;
+    if (savedActionId != null) {
+      savedAction = fishingActions.cast<FishingAction?>().firstWhere(
+        (a) => a?.id.localId == savedActionId,
+        orElse: () => null,
+      );
+    }
+
+    // Use saved action if available, otherwise default to first unlocked action
     final selectedAction =
-        _selectedAction ??
+        savedAction ??
         (unlockedActions.isNotEmpty ? unlockedActions.first : null);
 
     // Group actions by area.
@@ -112,9 +124,12 @@ class _FishingPageState extends State<FishingPage> {
                     skillLevel: skillLevel,
                     collapsedAreas: _collapsedAreas,
                     onSelect: (action) {
-                      setState(() {
-                        _selectedAction = action;
-                      });
+                      context.dispatch(
+                        SetSelectedSkillAction(
+                          skill: skill,
+                          actionId: action.id.localId,
+                        ),
+                      );
                     },
                     onToggleArea: (areaName) {
                       setState(() {

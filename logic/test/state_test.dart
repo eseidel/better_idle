@@ -2307,4 +2307,96 @@ void main() {
       expect(state.maxAffordableUpgrades(upgrade), 2);
     });
   });
+
+  group('selectedSkillActions', () {
+    test('selectedSkillAction returns null when no action is selected', () {
+      final state = GlobalState.test(testRegistries);
+
+      expect(state.selectedSkillAction(Skill.woodcutting), isNull);
+      expect(state.selectedSkillAction(Skill.firemaking), isNull);
+    });
+
+    test('setSelectedSkillAction stores action ID for skill', () {
+      final state = GlobalState.test(testRegistries);
+      final actionId = const MelvorId('melvorD:Normal_Tree');
+
+      final newState = state.setSelectedSkillAction(
+        Skill.woodcutting,
+        actionId,
+      );
+
+      expect(newState.selectedSkillAction(Skill.woodcutting), actionId);
+      // Other skills should still be null
+      expect(newState.selectedSkillAction(Skill.firemaking), isNull);
+    });
+
+    test('setSelectedSkillAction can update existing selection', () {
+      final state = GlobalState.test(testRegistries);
+      final normalTree = const MelvorId('melvorD:Normal_Tree');
+      final oakTree = const MelvorId('melvorD:Oak_Tree');
+
+      // Set initial selection
+      final state1 = state.setSelectedSkillAction(
+        Skill.woodcutting,
+        normalTree,
+      );
+      expect(state1.selectedSkillAction(Skill.woodcutting), normalTree);
+
+      // Update to a different action
+      final state2 = state1.setSelectedSkillAction(Skill.woodcutting, oakTree);
+      expect(state2.selectedSkillAction(Skill.woodcutting), oakTree);
+    });
+
+    test('setSelectedSkillAction preserves selections for other skills', () {
+      final state = GlobalState.test(testRegistries);
+      final normalTree = const MelvorId('melvorD:Normal_Tree');
+      final normalLogs = const MelvorId('melvorD:Normal_Logs');
+
+      // Set selections for two different skills
+      final state1 = state.setSelectedSkillAction(
+        Skill.woodcutting,
+        normalTree,
+      );
+      final state2 = state1.setSelectedSkillAction(
+        Skill.firemaking,
+        normalLogs,
+      );
+
+      // Both should be preserved
+      expect(state2.selectedSkillAction(Skill.woodcutting), normalTree);
+      expect(state2.selectedSkillAction(Skill.firemaking), normalLogs);
+    });
+
+    test('selectedSkillActions round-trips through JSON', () {
+      final normalTree = const MelvorId('melvorD:Normal_Tree');
+      final normalLogs = const MelvorId('melvorD:Normal_Logs');
+
+      final state = GlobalState.test(
+        testRegistries,
+        selectedSkillActions: {
+          Skill.woodcutting: normalTree,
+          Skill.firemaking: normalLogs,
+        },
+      );
+
+      // Convert to JSON and back
+      final json = state.toJson();
+      final loaded = GlobalState.fromJson(testRegistries, json);
+
+      expect(loaded.selectedSkillAction(Skill.woodcutting), normalTree);
+      expect(loaded.selectedSkillAction(Skill.firemaking), normalLogs);
+      expect(loaded.selectedSkillAction(Skill.fishing), isNull);
+    });
+
+    test('empty selectedSkillActions round-trips through JSON', () {
+      final state = GlobalState.test(testRegistries);
+
+      // Convert to JSON and back
+      final json = state.toJson();
+      final loaded = GlobalState.fromJson(testRegistries, json);
+
+      expect(loaded.selectedSkillActions, isEmpty);
+      expect(loaded.selectedSkillAction(Skill.woodcutting), isNull);
+    });
+  });
 }

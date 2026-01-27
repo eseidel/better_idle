@@ -12,15 +12,8 @@ import 'package:ui/src/widgets/skill_overflow_menu.dart';
 import 'package:ui/src/widgets/skill_progress.dart';
 import 'package:ui/src/widgets/style.dart';
 
-class AltMagicPage extends StatefulWidget {
+class AltMagicPage extends StatelessWidget {
   const AltMagicPage({super.key});
-
-  @override
-  State<AltMagicPage> createState() => _AltMagicPageState();
-}
-
-class _AltMagicPageState extends State<AltMagicPage> {
-  SkillAction? _selectedAction;
 
   @override
   Widget build(BuildContext context) {
@@ -34,8 +27,20 @@ class _AltMagicPageState extends State<AltMagicPage> {
     final unlockedActions = actions
         .where((AltMagicAction a) => skillLevel >= a.unlockLevel)
         .toList();
+
+    // Try to restore the last selected action from persisted state
+    final savedActionId = state.selectedSkillAction(skill);
+    SkillAction? savedAction;
+    if (savedActionId != null) {
+      savedAction = actions.cast<SkillAction?>().firstWhere(
+        (a) => a?.id.localId == savedActionId,
+        orElse: () => null,
+      );
+    }
+
+    // Use saved action if available, otherwise default to first unlocked action
     final selectedAction =
-        _selectedAction ??
+        savedAction ??
         (unlockedActions.isNotEmpty ? unlockedActions.first : actions.first);
 
     return GameScaffold(
@@ -68,9 +73,12 @@ class _AltMagicPageState extends State<AltMagicPage> {
                     selectedAction: selectedAction,
                     skillLevel: skillLevel,
                     onSelect: (action) {
-                      setState(() {
-                        _selectedAction = action;
-                      });
+                      context.dispatch(
+                        SetSelectedSkillAction(
+                          skill: skill,
+                          actionId: action.id.localId,
+                        ),
+                      );
                     },
                   ),
                 ],
