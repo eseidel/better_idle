@@ -24,6 +24,7 @@ import 'package:logic/src/plot_state.dart';
 import 'package:logic/src/summoning_state.dart';
 import 'package:logic/src/tick.dart';
 import 'package:logic/src/township_state.dart';
+import 'package:logic/src/types/drop.dart' show MasteryTokenDrop;
 import 'package:logic/src/types/equipment.dart';
 import 'package:logic/src/types/equipment_slot.dart';
 import 'package:logic/src/types/health.dart';
@@ -1554,6 +1555,68 @@ class GlobalState {
       Currency.gp,
       stack.sellsFor,
     ).copyWith(inventory: newInventory);
+  }
+
+  /// Claims a mastery token for a skill, adding 0.1% of max mastery pool XP.
+  ///
+  /// Removes one mastery token from inventory and adds 0.1% of the skill's
+  /// max mastery pool XP to the mastery pool.
+  ///
+  /// Throws StateError if:
+  /// - The skill doesn't have mastery tokens (combat skills, Township, etc.)
+  /// - Player doesn't have the mastery token in inventory
+  GlobalState claimMasteryToken(Skill skill) {
+    if (!MasteryTokenDrop.skillHasMasteryToken(skill)) {
+      throw StateError('Skill $skill does not have mastery tokens');
+    }
+
+    final tokenId = MasteryTokenDrop(skill: skill).itemId;
+    final token = registries.items.byId(tokenId);
+    final tokenCount = inventory.countOfItem(token);
+
+    if (tokenCount < 1) {
+      throw StateError('No mastery tokens for ${skill.name} in inventory');
+    }
+
+    // Calculate 0.1% of max mastery pool XP (min 1)
+    final maxPoolXp = maxMasteryPoolXpForSkill(registries, skill);
+    final xpToAdd = (maxPoolXp * 0.001).round().clamp(1, maxPoolXp);
+
+    // Remove token from inventory
+    final newInventory = inventory.removing(ItemStack(token, count: 1));
+
+    // Add mastery pool XP
+    return copyWith(inventory: newInventory).addSkillMasteryXp(skill, xpToAdd);
+  }
+
+  /// Claims all mastery tokens for a skill at once.
+  ///
+  /// Returns the new state after claiming all tokens, or this state if
+  /// there are no tokens to claim.
+  GlobalState claimAllMasteryTokens(Skill skill) {
+    if (!MasteryTokenDrop.skillHasMasteryToken(skill)) {
+      return this;
+    }
+
+    final tokenId = MasteryTokenDrop(skill: skill).itemId;
+    final token = registries.items.byId(tokenId);
+    final tokenCount = inventory.countOfItem(token);
+
+    if (tokenCount < 1) {
+      return this;
+    }
+
+    // Calculate 0.1% of max mastery pool XP per token
+    final maxPoolXp = maxMasteryPoolXpForSkill(registries, skill);
+    final xpPerToken = (maxPoolXp * 0.001).round().clamp(1, maxPoolXp);
+    final totalXp = xpPerToken * tokenCount;
+
+    // Remove all tokens from inventory
+    final tokenStack = ItemStack(token, count: tokenCount);
+    final newInventory = inventory.removing(tokenStack);
+
+    // Add mastery pool XP
+    return copyWith(inventory: newInventory).addSkillMasteryXp(skill, totalXp);
   }
 
   /// Adds an amount of a specific currency.

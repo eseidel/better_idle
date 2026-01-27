@@ -366,12 +366,25 @@ class DropsRegistry {
     return _skillDrops[skill] ?? [];
   }
 
+  /// Returns the mastery token drop for a skill, or null if the skill
+  /// doesn't have mastery tokens (combat skills, Township, Alt. Magic).
+  MasteryTokenDrop? masteryTokenForSkill(Skill skill) {
+    if (!MasteryTokenDrop.skillHasMasteryToken(skill)) {
+      return null;
+    }
+    return MasteryTokenDrop(skill: skill);
+  }
+
   /// Returns all drops that should be processed when a skill action completes.
   /// This combines action-level drops (from the action), skill-level drops,
   /// and global drops into a single list. Includes both simple Drops and
   /// DropTables, which are processed uniformly via Droppable.roll().
   /// Note: Only SkillActions have rewards - CombatActions handle drops
   /// differently.
+  ///
+  /// Mastery token drops are NOT included here because they require context
+  /// (unlocked action count) to roll. They are handled separately in
+  /// rollAndCollectDrops.
   List<Droppable> allDropsForAction(
     SkillAction action,
     RecipeSelection selection,

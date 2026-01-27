@@ -1,5 +1,6 @@
 import 'dart:math';
 
+import 'package:logic/src/data/actions.dart' show Skill;
 import 'package:logic/src/data/items.dart';
 import 'package:logic/src/data/melvor_id.dart';
 import 'package:logic/src/types/inventory.dart';
@@ -232,6 +233,96 @@ class RareDrop extends Droppable {
     }
     final item = items.byId(itemId);
     return ItemStack(item, count: count);
+  }
+}
+
+/// A mastery token drop with dynamic chance based on unlocked actions.
+///
+/// The drop chance formula is: 1 / (18500 / unlockedActions)
+/// This means more unlocked actions = higher chance to drop.
+/// For example, with 155 actions unlocked: 1/119 chance (~0.84%).
+@immutable
+class MasteryTokenDrop extends Droppable {
+  const MasteryTokenDrop({required this.skill});
+
+  /// The skill this mastery token is for.
+  final Skill skill;
+
+  /// Skills that have mastery tokens in the demo/base game (melvorD namespace).
+  static const Set<Skill> _demoSkills = {
+    Skill.woodcutting,
+    Skill.fishing,
+    Skill.firemaking,
+    Skill.cooking,
+    Skill.mining,
+    Skill.smithing,
+    Skill.farming,
+  };
+
+  /// Skills that do NOT have mastery tokens at all.
+  static const Set<Skill> _noTokenSkills = {
+    Skill.town, // Township
+    Skill.altMagic, // Alt. Magic
+  };
+
+  /// Returns true if this skill has a mastery token.
+  static bool skillHasMasteryToken(Skill skill) {
+    return !skill.isCombatSkill &&
+        skill != Skill.combat &&
+        !_noTokenSkills.contains(skill);
+  }
+
+  /// The mastery token item ID for this skill.
+  /// Uses melvorD namespace for demo skills, melvorF for full game skills.
+  MelvorId get itemId {
+    final namespace = _demoSkills.contains(skill) ? 'melvorD' : 'melvorF';
+    return MelvorId('$namespace:Mastery_Token_${skill.name}');
+  }
+
+  /// The base denominator used in the drop rate formula.
+  /// Drop chance = 1 / (baseDenominator / unlockedActions)
+  static const int baseDenominator = 18500;
+
+  /// Calculates the drop chance based on number of unlocked actions.
+  ///
+  /// Formula: unlockedActions / baseDenominator
+  /// With 155 actions: 155/18500 ≈ 0.84%
+  double dropChance(int unlockedActions) {
+    if (unlockedActions <= 0) return 0;
+    return unlockedActions / baseDenominator;
+  }
+
+  @override
+  Map<MelvorId, double> get expectedItems {
+    // Use a mid-game estimate of ~50 unlocked actions for expected value
+    const estimatedUnlockedActions = 50;
+    return {itemId: dropChance(estimatedUnlockedActions)};
+  }
+
+  @override
+  ItemStack? roll(ItemRegistry items, Random random) {
+    // MasteryTokenDrop requires context (unlocked action count).
+    // Use rollWithContext() instead.
+    throw UnimplementedError(
+      'MasteryTokenDrop.roll() requires context. '
+      'Use rollWithContext() instead.',
+    );
+  }
+
+  /// Rolls the drop with the number of unlocked actions.
+  ///
+  /// Returns the mastery token if the roll succeeds, null otherwise.
+  ItemStack? rollWithContext(
+    ItemRegistry items,
+    Random random, {
+    required int unlockedActions,
+  }) {
+    final rate = dropChance(unlockedActions);
+    if (rate <= 0 || random.nextDouble() >= rate) {
+      return null;
+    }
+    final item = items.byId(itemId);
+    return ItemStack(item, count: 1);
   }
 }
 
