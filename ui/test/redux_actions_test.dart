@@ -2184,4 +2184,96 @@ void main() {
       );
     });
   });
+
+  group('SetSelectedSkillAction', () {
+    test('sets selected action for skill', () {
+      final registries = Registries.test();
+      final initialState = GlobalState.empty(registries);
+      final store = Store<GlobalState>(initialState: initialState);
+
+      expect(store.state.selectedSkillAction(Skill.woodcutting), isNull);
+
+      const actionId = MelvorId('melvorD:Normal_Tree');
+      store.dispatch(
+        SetSelectedSkillAction(skill: Skill.woodcutting, actionId: actionId),
+      );
+
+      expect(store.state.selectedSkillAction(Skill.woodcutting), actionId);
+    });
+
+    test('updates existing selection for same skill', () {
+      final registries = Registries.test();
+      const normalTree = MelvorId('melvorD:Normal_Tree');
+      const oakTree = MelvorId('melvorD:Oak_Tree');
+
+      var initialState = GlobalState.empty(registries);
+      initialState = initialState.setSelectedSkillAction(
+        Skill.woodcutting,
+        normalTree,
+      );
+      final store = Store<GlobalState>(initialState: initialState);
+
+      expect(store.state.selectedSkillAction(Skill.woodcutting), normalTree);
+
+      store.dispatch(
+        SetSelectedSkillAction(skill: Skill.woodcutting, actionId: oakTree),
+      );
+
+      expect(store.state.selectedSkillAction(Skill.woodcutting), oakTree);
+    });
+
+    test('preserves selections for other skills', () {
+      final registries = Registries.test();
+      const normalTree = MelvorId('melvorD:Normal_Tree');
+      const shrimp = MelvorId('melvorD:Shrimp');
+
+      var initialState = GlobalState.empty(registries);
+      initialState = initialState.setSelectedSkillAction(
+        Skill.woodcutting,
+        normalTree,
+      );
+      final store = Store<GlobalState>(initialState: initialState);
+
+      store.dispatch(
+        SetSelectedSkillAction(skill: Skill.fishing, actionId: shrimp),
+      );
+
+      // Both selections should be preserved
+      expect(store.state.selectedSkillAction(Skill.woodcutting), normalTree);
+      expect(store.state.selectedSkillAction(Skill.fishing), shrimp);
+    });
+
+    test('can set selection for multiple skills', () {
+      final registries = Registries.test();
+      final initialState = GlobalState.empty(registries);
+      final store = Store<GlobalState>(initialState: initialState);
+
+      const normalTree = MelvorId('melvorD:Normal_Tree');
+      const normalLogs = MelvorId('melvorD:Normal_Logs');
+      const shrimp = MelvorId('melvorD:Shrimp');
+      const man = MelvorId('melvorD:Man');
+
+      store
+        ..dispatch(
+          SetSelectedSkillAction(
+            skill: Skill.woodcutting,
+            actionId: normalTree,
+          ),
+        )
+        ..dispatch(
+          SetSelectedSkillAction(skill: Skill.firemaking, actionId: normalLogs),
+        )
+        ..dispatch(
+          SetSelectedSkillAction(skill: Skill.fishing, actionId: shrimp),
+        )
+        ..dispatch(
+          SetSelectedSkillAction(skill: Skill.thieving, actionId: man),
+        );
+
+      expect(store.state.selectedSkillAction(Skill.woodcutting), normalTree);
+      expect(store.state.selectedSkillAction(Skill.firemaking), normalLogs);
+      expect(store.state.selectedSkillAction(Skill.fishing), shrimp);
+      expect(store.state.selectedSkillAction(Skill.thieving), man);
+    });
+  });
 }
