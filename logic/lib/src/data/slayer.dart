@@ -153,7 +153,15 @@ sealed class SlayerAreaRequirement {
         json,
         namespace: namespace,
       ),
-      _ => UnknownSlayerRequirement(type),
+      'DungeonCompletion' => SlayerDungeonRequirement.fromJson(
+        json,
+        namespace: namespace,
+      ),
+      'ShopPurchase' => SlayerShopPurchaseRequirement.fromJson(
+        json,
+        namespace: namespace,
+      ),
+      _ => throw ArgumentError('Unknown slayer area requirement type: $type'),
     };
   }
 }
@@ -190,12 +198,54 @@ class SlayerItemRequirement extends SlayerAreaRequirement {
   final MelvorId itemId;
 }
 
-/// Unknown requirement type (for forward compatibility).
+/// Requires completing a dungeon a certain number of times.
 @immutable
-class UnknownSlayerRequirement extends SlayerAreaRequirement {
-  const UnknownSlayerRequirement(this.type);
+class SlayerDungeonRequirement extends SlayerAreaRequirement {
+  const SlayerDungeonRequirement({
+    required this.dungeonId,
+    required this.count,
+  });
 
-  final String type;
+  factory SlayerDungeonRequirement.fromJson(
+    Map<String, dynamic> json, {
+    required String namespace,
+  }) {
+    return SlayerDungeonRequirement(
+      dungeonId: MelvorId.fromJsonWithNamespace(
+        json['dungeonID'] as String,
+        defaultNamespace: namespace,
+      ),
+      count: json['count'] as int,
+    );
+  }
+
+  final MelvorId dungeonId;
+  final int count;
+}
+
+/// Requires purchasing a shop item.
+@immutable
+class SlayerShopPurchaseRequirement extends SlayerAreaRequirement {
+  const SlayerShopPurchaseRequirement({
+    required this.purchaseId,
+    required this.count,
+  });
+
+  factory SlayerShopPurchaseRequirement.fromJson(
+    Map<String, dynamic> json, {
+    required String namespace,
+  }) {
+    return SlayerShopPurchaseRequirement(
+      purchaseId: MelvorId.fromJsonWithNamespace(
+        json['purchaseID'] as String,
+        defaultNamespace: namespace,
+      ),
+      count: json['count'] as int,
+    );
+  }
+
+  final MelvorId purchaseId;
+  final int count;
 }
 
 /// A slayer area containing monsters that require slayer level/items.
