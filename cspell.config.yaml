@@ -22,6 +22,11 @@ ignorePaths:
   - "logic/doc/proposals/**"
   - "logic/doc/solver/**"
   - "logic/*.json"
+  - "*.cmake"
+  - "CMakeLists.txt"
+  - "ui/windows/runner/Runner.rc"
+  - "ui/windows/runner/*.cpp"
+  - "ui/windows/runner/*.h"
 words:
   - adamant
   - appiconset
