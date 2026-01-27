@@ -28,6 +28,7 @@ export 'src/data/melvor_data.dart';
 export 'src/data/melvor_id.dart';
 export 'src/data/registries.dart';
 export 'src/data/shop.dart';
+export 'src/data/slayer.dart';
 export 'src/data/summoning.dart';
 export 'src/data/summoning_synergy.dart';
 export 'src/data/township.dart';

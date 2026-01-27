@@ -243,6 +243,23 @@ class StartDungeonAction extends ReduxAction<GlobalState> {
   }
 }
 
+/// Starts a slayer task for the given category.
+class StartSlayerTaskAction extends ReduxAction<GlobalState> {
+  StartSlayerTaskAction({required this.category});
+  final SlayerTaskCategory category;
+
+  @override
+  GlobalState? reduce() {
+    // If stunned, do nothing (UI should prevent this, but be safe)
+    if (state.isStunned) {
+      return null;
+    }
+    // Start the slayer task
+    final random = Random();
+    return state.startSlayerTask(category: category, random: random);
+  }
+}
+
 /// Equips food from inventory to an equipment slot.
 class EquipFoodAction extends ReduxAction<GlobalState> {
   EquipFoodAction({required this.item, required this.count});
