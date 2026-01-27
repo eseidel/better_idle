@@ -86,6 +86,18 @@ class SetRecipeAction extends ReduxAction<GlobalState> {
   }
 }
 
+/// Sets the last selected action for a skill screen.
+class SetSelectedSkillAction extends ReduxAction<GlobalState> {
+  SetSelectedSkillAction({required this.skill, required this.actionId});
+  final Skill skill;
+  final MelvorId actionId;
+
+  @override
+  GlobalState reduce() {
+    return state.setSelectedSkillAction(skill, actionId);
+  }
+}
+
 /// Advances the game by a specified number of ticks and returns the changes.
 /// Unlike UpdateActivityProgressAction, this does not show toasts.
 class DebugAdvanceTicksAction extends ReduxAction<GlobalState> {

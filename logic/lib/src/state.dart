@@ -309,6 +309,7 @@ class GlobalState {
     this.bonfire = const BonfireState.empty(),
     this.loot = const LootState.empty(),
     this.astrology = const AstrologyState.empty(),
+    this.selectedSkillActions = const {},
   });
 
   GlobalState.empty(Registries registries)
@@ -335,6 +336,7 @@ class GlobalState {
         unlockedPlots: registries.farming.initialPlots(),
         // Initialize township resources with starting amounts
         township: TownshipState.initial(registries.township),
+        selectedSkillActions: const {},
       );
 
   @visibleForTesting
@@ -365,6 +367,7 @@ class GlobalState {
     BonfireState bonfire = const BonfireState.empty(),
     LootState loot = const LootState.empty(),
     AstrologyState astrology = const AstrologyState.empty(),
+    Map<Skill, MelvorId> selectedSkillActions = const {},
   }) {
     // Support both gp parameter (for existing tests) and currencies map
     final currenciesMap = currencies ?? (gp > 0 ? {Currency.gp: gp} : const {});
@@ -395,6 +398,7 @@ class GlobalState {
       bonfire: bonfire,
       loot: loot,
       astrology: astrology,
+      selectedSkillActions: selectedSkillActions,
     );
   }
 
@@ -475,7 +479,8 @@ class GlobalState {
           LootState.maybeFromJson(registries.items, json['loot']) ??
           const LootState.empty(),
       astrology =
-          _astrologyFromJson(json['astrology']) ?? const AstrologyState.empty();
+          _astrologyFromJson(json['astrology']) ?? const AstrologyState.empty(),
+      selectedSkillActions = _selectedSkillActionsFromJson(json);
 
   /// Parses activeActivity from JSON.
   static ActiveActivity? _parseActiveActivity(Map<String, dynamic> json) {
@@ -546,6 +551,16 @@ class GlobalState {
     return AstrologyState.fromJson(json as Map<String, dynamic>);
   }
 
+  static Map<Skill, MelvorId> _selectedSkillActionsFromJson(
+    Map<String, dynamic> json,
+  ) {
+    final actionsJson =
+        json['selectedSkillActions'] as Map<String, dynamic>? ?? {};
+    return actionsJson.map((key, value) {
+      return MapEntry(Skill.fromName(key), MelvorId.fromJson(value as String));
+    });
+  }
+
   bool validate() {
     // Confirm that the active action id is a valid action.
     final actionId = currentActionId;
@@ -600,6 +615,9 @@ class GlobalState {
       'bonfire': bonfire.toJson(),
       'loot': loot.toJson(),
       'astrology': astrology.toJson(),
+      'selectedSkillActions': selectedSkillActions.map(
+        (key, value) => MapEntry(key.name, value.toJson()),
+      ),
     };
   }
 
@@ -728,6 +746,11 @@ class GlobalState {
 
   /// The astrology modifier purchase state.
   final AstrologyState astrology;
+
+  /// The last selected action per skill for UI navigation.
+  /// Used to remember which action (e.g., which log type in firemaking) the
+  /// player was viewing when they navigate away and back to a skill screen.
+  final Map<Skill, MelvorId> selectedSkillActions;
 
   /// The player's health state.
   final HealthState health;
@@ -2781,6 +2804,7 @@ class GlobalState {
     BonfireState? bonfire,
     LootState? loot,
     AstrologyState? astrology,
+    Map<Skill, MelvorId>? selectedSkillActions,
   }) {
     return GlobalState(
       registries: registries,
@@ -2810,6 +2834,7 @@ class GlobalState {
       bonfire: bonfire ?? this.bonfire,
       loot: loot ?? this.loot,
       astrology: astrology ?? this.astrology,
+      selectedSkillActions: selectedSkillActions ?? this.selectedSkillActions,
     );
   }
 
@@ -2817,6 +2842,18 @@ class GlobalState {
   GlobalState setAttackStyle(AttackStyle style) {
     return copyWith(attackStyle: style);
   }
+
+  /// Sets the last selected action for a skill.
+  ///
+  /// Used to remember which action the player was viewing in a skill screen.
+  GlobalState setSelectedSkillAction(Skill skill, MelvorId actionId) {
+    final newSelectedActions = Map<Skill, MelvorId>.from(selectedSkillActions);
+    newSelectedActions[skill] = actionId;
+    return copyWith(selectedSkillActions: newSelectedActions);
+  }
+
+  /// Gets the last selected action ID for a skill, or null if none.
+  MelvorId? selectedSkillAction(Skill skill) => selectedSkillActions[skill];
 
   // =========================================================================
   // Astrology
