@@ -335,73 +335,7 @@ FishingRegistry parseFishing(List<SkillDataEntry>? entries) {
     return FishingRegistry(actions: const [], areas: const []);
   }
 
-  // First pass: collect junk items and special items to build drop tables.
-  final junkItemIDs = <MelvorId>[];
-  final specialItemsByRealm = <MelvorId, List<DropTableEntry>>{};
-
-  for (final entry in entries) {
-    // Parse junk items (simple list of IDs with equal weight).
-    final junkJson = entry.data['junkItemIDs'] as List<dynamic>?;
-    if (junkJson != null) {
-      junkItemIDs.addAll(
-        junkJson.map(
-          (id) => MelvorId.fromJsonWithNamespace(
-            id as String,
-            defaultNamespace: entry.namespace,
-          ),
-        ),
-      );
-    }
-
-    // Parse special items (weighted drop tables per realm).
-    final specialJson = entry.data['specialItems'] as List<dynamic>?;
-    if (specialJson != null) {
-      for (final special in specialJson) {
-        final specialMap = special as Map<String, dynamic>;
-        final realmId = MelvorId.fromJsonWithNamespace(
-          specialMap['realmID'] as String,
-          defaultNamespace: entry.namespace,
-        );
-        final drops = specialMap['drops'] as List<dynamic>? ?? [];
-        final entries = drops
-            .map(
-              (drop) => DropTableEntry.fromThievingJson(
-                drop as Map<String, dynamic>,
-                namespace: entry.namespace,
-              ),
-            )
-            .toList();
-        specialItemsByRealm[realmId] = entries;
-      }
-    }
-  }
-
-  // Build junk drop table (equal weight for all items).
-  DropTable? junkDropTable;
-  if (junkItemIDs.isNotEmpty) {
-    final junkEntries = junkItemIDs
-        .map(
-          (id) => DropTableEntry(
-            itemID: id,
-            minQuantity: 1,
-            maxQuantity: 1,
-            weight: 1,
-          ),
-        )
-        .toList();
-    junkDropTable = DropTable(junkEntries);
-  }
-
-  // Build special drop table for Melvor realm (the default realm).
-  // TODO(eseidel): Support per-realm special items when areas have realm info.
-  const melvorRealm = MelvorId('melvorD:Melvor');
-  DropTable? specialDropTable;
-  final melvorSpecialItems = specialItemsByRealm[melvorRealm];
-  if (melvorSpecialItems != null && melvorSpecialItems.isNotEmpty) {
-    specialDropTable = DropTable(melvorSpecialItems);
-  }
-
-  // Second pass: parse areas with drop tables.
+  // First pass: parse areas.
   final areas = <FishingArea>[];
   for (final entry in entries) {
     final areasJson = entry.data['areas'] as List<dynamic>?;
@@ -411,8 +345,6 @@ FishingRegistry parseFishing(List<SkillDataEntry>? entries) {
           (json) => FishingArea.fromJson(
             json as Map<String, dynamic>,
             namespace: entry.namespace,
-            junkDropTable: junkDropTable,
-            specialDropTable: specialDropTable,
           ),
         ),
       );
@@ -429,7 +361,7 @@ FishingRegistry parseFishing(List<SkillDataEntry>? entries) {
     throw StateError('Fish $fishId has no area');
   }
 
-  // Third pass: parse fish actions with area lookup.
+  // Second pass: parse fish actions with area lookup.
   final actions = <FishingAction>[];
   for (final entry in entries) {
     final fish = entry.data['fish'] as List<dynamic>?;
@@ -452,6 +384,77 @@ FishingRegistry parseFishing(List<SkillDataEntry>? entries) {
   }
 
   return FishingRegistry(actions: actions, areas: areas);
+}
+
+/// Parses fishing junk item IDs and builds a drop table.
+DropTable? parseFishingJunk(List<SkillDataEntry>? entries) {
+  if (entries == null) return null;
+
+  final junkItemIDs = <MelvorId>[];
+  for (final entry in entries) {
+    final junkJson = entry.data['junkItemIDs'] as List<dynamic>?;
+    if (junkJson != null) {
+      junkItemIDs.addAll(
+        junkJson.map(
+          (id) => MelvorId.fromJsonWithNamespace(
+            id as String,
+            defaultNamespace: entry.namespace,
+          ),
+        ),
+      );
+    }
+  }
+
+  if (junkItemIDs.isEmpty) return null;
+
+  // Build junk drop table (equal weight for all items).
+  final junkEntries = junkItemIDs
+      .map(
+        (id) => DropTableEntry(
+          itemID: id,
+          minQuantity: 1,
+          maxQuantity: 1,
+          weight: 1,
+        ),
+      )
+      .toList();
+  return DropTable(junkEntries);
+}
+
+/// Parses fishing special items and builds a drop table for Melvor realm.
+DropTable? parseFishingSpecial(List<SkillDataEntry>? entries) {
+  if (entries == null) return null;
+
+  final specialItemsByRealm = <MelvorId, List<DropTableEntry>>{};
+  for (final entry in entries) {
+    final specialJson = entry.data['specialItems'] as List<dynamic>?;
+    if (specialJson != null) {
+      for (final special in specialJson) {
+        final specialMap = special as Map<String, dynamic>;
+        final realmId = MelvorId.fromJsonWithNamespace(
+          specialMap['realmID'] as String,
+          defaultNamespace: entry.namespace,
+        );
+        final drops = specialMap['drops'] as List<dynamic>? ?? [];
+        final tableEntries = drops
+            .map(
+              (drop) => DropTableEntry.fromThievingJson(
+                drop as Map<String, dynamic>,
+                namespace: entry.namespace,
+              ),
+            )
+            .toList();
+        specialItemsByRealm[realmId] = tableEntries;
+      }
+    }
+  }
+
+  // Build special drop table for Melvor realm (the default realm).
+  // TODO(eseidel): Support per-realm special items when areas have realm info.
+  const melvorRealm = MelvorId('melvorD:Melvor');
+  final melvorSpecialItems = specialItemsByRealm[melvorRealm];
+  if (melvorSpecialItems == null || melvorSpecialItems.isEmpty) return null;
+  return DropTable(melvorSpecialItems);
 }
 
 /// Parses all cooking data. Returns CookingRegistry.
@@ -1472,7 +1475,17 @@ DropsRegistry buildDropsRegistry(
   // giveGems: true (ores give gems, essence does not).
   final miningGems = DropChance(randomGems, rate: 0.01);
 
-  return DropsRegistry(skillDrops, miningGems: miningGems);
+  // Fishing junk and special drop tables (shared across all areas).
+  final fishingEntries = skillDataById['melvorD:Fishing'];
+  final fishingJunk = parseFishingJunk(fishingEntries);
+  final fishingSpecial = parseFishingSpecial(fishingEntries);
+
+  return DropsRegistry(
+    skillDrops,
+    miningGems: miningGems,
+    fishingJunk: fishingJunk,
+    fishingSpecial: fishingSpecial,
+  );
 }
 
 /// Parses modifier metadata (display format definitions) from data files.

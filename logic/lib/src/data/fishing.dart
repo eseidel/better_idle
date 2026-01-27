@@ -1,7 +1,6 @@
 import 'package:logic/src/data/action_id.dart';
 import 'package:logic/src/data/actions.dart';
 import 'package:logic/src/data/melvor_id.dart';
-import 'package:logic/src/types/drop.dart';
 import 'package:meta/meta.dart';
 
 /// A fishing area parsed from Melvor data.
@@ -16,15 +15,11 @@ class FishingArea {
     required this.fishIDs,
     this.requiredItemID,
     this.isSecret = false,
-    this.junkDropTable,
-    this.specialDropTable,
   });
 
   factory FishingArea.fromJson(
     Map<String, dynamic> json, {
     required String namespace,
-    required DropTable? junkDropTable,
-    required DropTable? specialDropTable,
   }) {
     final fishIDs = (json['fishIDs'] as List<dynamic>)
         .map(
@@ -54,8 +49,6 @@ class FishingArea {
             )
           : null,
       isSecret: json['isSecret'] as bool? ?? false,
-      junkDropTable: junkDropTable,
-      specialDropTable: specialDropTable,
     );
   }
 
@@ -67,44 +60,6 @@ class FishingArea {
   final List<MelvorId> fishIDs;
   final MelvorId? requiredItemID;
   final bool isSecret;
-
-  /// Drop table for junk items (equal weight for all junk items).
-  final DropTable? junkDropTable;
-
-  /// Drop table for special items (gems, treasure, etc).
-  final DropTable? specialDropTable;
-}
-
-/// Returns the drops for a fishing action, including area-based junk/special.
-///
-/// When fishing completes, the player rolls:
-/// 1. Fish (normal output) - at area.fishChance rate
-/// 2. Junk item - at area.junkChance rate
-/// 3. Special item - at area.specialChance rate
-///
-/// The fish/junk/special chances are mutually exclusive in Melvor (they sum
-/// to 100%), so we model this by always giving the fish output and adding
-/// junk/special as separate drop chances that replace the fish when rolled.
-List<Droppable> _fishingRewards(SkillAction action, RecipeSelection selection) {
-  final fishingAction = action as FishingAction;
-  final area = fishingAction.area;
-
-  // Start with the default fish output.
-  final rewards = <Droppable>[...defaultRewards(action, selection)];
-
-  // Add junk drop table with area's junk chance.
-  // Junk replaces fish when rolled, but we model this as additional drops
-  // since the chances are already balanced (fish + junk + special = 100%).
-  if (area.junkDropTable != null && area.junkChance > 0) {
-    rewards.add(DropChance(area.junkDropTable!, rate: area.junkChance));
-  }
-
-  // Add special drop table with area's special chance.
-  if (area.specialDropTable != null && area.specialChance > 0) {
-    rewards.add(DropChance(area.specialDropTable!, rate: area.specialChance));
-  }
-
-  return rewards;
 }
 
 /// A fishing action parsed from Melvor data.
@@ -122,7 +77,7 @@ class FishingAction extends SkillAction {
     required this.strengthXP,
     required this.media,
     required this.area,
-  }) : super.ranged(skill: Skill.fishing, rewardsAtLevel: _fishingRewards);
+  }) : super.ranged(skill: Skill.fishing);
 
   factory FishingAction.fromJson(
     Map<String, dynamic> json, {

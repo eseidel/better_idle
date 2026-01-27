@@ -2,6 +2,7 @@ import 'dart:math';
 
 import 'package:logic/src/action_state.dart';
 import 'package:logic/src/data/action_id.dart';
+import 'package:logic/src/data/fishing.dart';
 import 'package:logic/src/data/melvor_id.dart';
 import 'package:logic/src/data/mining.dart';
 import 'package:logic/src/tick.dart';
@@ -342,12 +343,23 @@ class SkillAction extends Action {
 }
 
 class DropsRegistry {
-  DropsRegistry(this._skillDrops, {required this.miningGems});
+  DropsRegistry(
+    this._skillDrops, {
+    required this.miningGems,
+    this.fishingJunk,
+    this.fishingSpecial,
+  });
 
   final Map<Skill, List<Droppable>> _skillDrops;
 
   /// The gem drop for mining (only applies to rocks with giveGems: true).
   final Droppable miningGems;
+
+  /// The junk drop table for fishing (shared across all areas).
+  final DropTable? fishingJunk;
+
+  /// The special drop table for fishing (shared across all areas).
+  final DropTable? fishingSpecial;
 
   /// Returns all skill-level drops for a given skill.
   List<Droppable> forSkill(Skill skill) {
@@ -368,6 +380,19 @@ class DropsRegistry {
       ...action.rewardsForSelection(selection),
       ...forSkill(action.skill), // Skill-level drops (may include DropTables)
       if (action is MiningAction && action.giveGems) miningGems,
+      // Fishing junk/special drops based on area's chances.
+      if (action is FishingAction) ..._fishingDrops(action),
+    ];
+  }
+
+  /// Returns fishing junk/special drops for the given action's area.
+  List<Droppable> _fishingDrops(FishingAction action) {
+    final area = action.area;
+    return [
+      if (fishingJunk != null && area.junkChance > 0)
+        DropChance(fishingJunk!, rate: area.junkChance),
+      if (fishingSpecial != null && area.specialChance > 0)
+        DropChance(fishingSpecial!, rate: area.specialChance),
     ];
   }
 }
