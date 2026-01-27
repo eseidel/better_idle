@@ -76,11 +76,13 @@ class FishingAction extends SkillAction {
     required this.productId,
     required this.strengthXP,
     required this.media,
+    required this.area,
   }) : super.ranged(skill: Skill.fishing);
 
   factory FishingAction.fromJson(
     Map<String, dynamic> json, {
     required String namespace,
+    required FishingArea area,
   }) {
     final productId = MelvorId.fromJsonWithNamespace(
       json['productId'] as String,
@@ -107,6 +109,7 @@ class FishingAction extends SkillAction {
       productId: productId,
       strengthXP: json['strengthXP'] as int? ?? 0,
       media: json['media'] as String? ?? '',
+      area: area,
     );
   }
 
@@ -118,6 +121,9 @@ class FishingAction extends SkillAction {
 
   /// The media path for the fish icon.
   final String media;
+
+  /// The fishing area this action belongs to.
+  final FishingArea area;
 }
 
 /// Unified registry for all fishing-related data.

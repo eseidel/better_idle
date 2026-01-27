@@ -109,4 +109,80 @@ void main() {
       expect(areasWithFish, isNotEmpty);
     });
   });
+
+  group('Fishing junk/special drops', () {
+    test('DropsRegistry has fishing junk table', () {
+      expect(testDrops.fishingJunk, isNotNull);
+      expect(testDrops.fishingJunk!.entries.length, equals(8));
+    });
+
+    test('DropsRegistry has fishing special table', () {
+      expect(testDrops.fishingSpecial, isNotNull);
+      expect(testDrops.fishingSpecial!.entries.length, greaterThan(0));
+
+      // Check for expected special items (names are human-readable)
+      final itemNames = testDrops.fishingSpecial!.entries
+          .map((e) => e.itemID.name)
+          .toSet();
+      expect(itemNames.contains('Topaz'), isTrue);
+      expect(itemNames.contains('Sapphire'), isTrue);
+      expect(itemNames.contains('Treasure Chest'), isTrue);
+    });
+
+    test('fishing actions have area reference', () {
+      final actions = testRegistries.fishing.actions;
+      for (final action in actions) {
+        expect(action.area, isNotNull);
+        expect(action.area.fishIDs.contains(action.productId), isTrue);
+      }
+    });
+
+    test('allDropsForAction includes junk/special for fishing', () {
+      final actions = testRegistries.fishing.actions;
+      // Find an action in an area with both junk and special chances
+      final actionWithDrops = actions.firstWhere(
+        (a) => a.area.junkChance > 0 && a.area.specialChance > 0,
+      );
+
+      final drops = testDrops.allDropsForAction(
+        actionWithDrops,
+        const NoSelectedRecipe(),
+      );
+
+      // Should include at least the fish output, junk drop, and special drop
+      // (may also include skill-level rare drops like rings)
+      expect(drops.length, greaterThanOrEqualTo(3));
+
+      // First drop should be the fish
+      expect(drops[0], isA<Drop>());
+
+      // Last two should be DropChance wrapping junk/special tables
+      final dropChances = drops.whereType<DropChance>().toList();
+      expect(dropChances.length, equals(2));
+    });
+
+    test('allDropsForAction excludes junk when area has 0% junk chance', () {
+      final actions = testRegistries.fishing.actions;
+      // Find an action in an area with no junk chance
+      final actionNoJunk = actions.firstWhere(
+        (a) => a.area.junkChance == 0,
+        orElse: () => throw StateError('No area without junk found'),
+      );
+
+      final drops = testDrops.allDropsForAction(
+        actionNoJunk,
+        const NoSelectedRecipe(),
+      );
+
+      // Count DropChance instances (junk/special wrappers)
+      final dropChances = drops.whereType<DropChance>().toList();
+
+      // Should have 0 or 1 DropChance (special only if specialChance > 0)
+      if (actionNoJunk.area.specialChance > 0) {
+        expect(dropChances.length, equals(1));
+      } else {
+        expect(dropChances.length, equals(0));
+      }
+    });
+  });
 }
