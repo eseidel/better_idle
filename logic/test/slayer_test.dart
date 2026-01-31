@@ -20,11 +20,16 @@ void main() {
 
   SlayerTaskCategory easyCategory() {
     final categories = testRegistries.slayer.taskCategories.all;
-    // Easy is the first/lowest level category.
     return categories.firstWhere(
       (c) => c.name == 'Easy',
       orElse: () => categories.first,
     );
+  }
+
+  /// Returns a category that has a non-empty roll cost (Normal: 2000 SC).
+  SlayerTaskCategory paidCategory() {
+    final categories = testRegistries.slayer.taskCategories.all;
+    return categories.firstWhere((c) => c.rollCost.costs.isNotEmpty);
   }
 
   group('SlayerTaskContext serialization', () {
@@ -96,7 +101,7 @@ void main() {
     );
 
     test('startSlayerTask deducts roll cost', () {
-      final category = easyCategory();
+      final category = paidCategory();
       final initialCurrencies = <Currency, int>{
         for (final cost in category.rollCost.costs)
           cost.currency: cost.amount * 5,
@@ -118,7 +123,8 @@ void main() {
     });
 
     test('startSlayerTask throws when slayer level is too low', () {
-      final category = easyCategory();
+      final category = paidCategory();
+      // Give enough currency but no slayer level.
       final state = GlobalState.test(
         testRegistries,
         currencies: {
@@ -128,18 +134,15 @@ void main() {
       );
       final random = Random(42);
 
-      if (category.level > 1) {
-        expect(
-          () => state.startSlayerTask(category: category, random: random),
-          throwsArgumentError,
-        );
-      }
+      expect(
+        () => state.startSlayerTask(category: category, random: random),
+        throwsArgumentError,
+      );
     });
 
     test('startSlayerTask throws when currency is insufficient', () {
-      final category = easyCategory();
-      if (category.rollCost.costs.isEmpty) return;
-
+      final category = paidCategory();
+      // Give slayer level but no currency.
       final state = GlobalState.test(
         testRegistries,
         skillStates: highCombatSkills,
