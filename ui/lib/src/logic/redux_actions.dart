@@ -255,6 +255,19 @@ class StartDungeonAction extends ReduxAction<GlobalState> {
   }
 }
 
+class StartStrongholdAction extends ReduxAction<GlobalState> {
+  StartStrongholdAction({required this.stronghold});
+  final Stronghold stronghold;
+
+  @override
+  GlobalState? reduce() {
+    if (state.isStunned) {
+      return null;
+    }
+    return state.startStronghold(stronghold);
+  }
+}
+
 /// Starts a slayer task for the given category.
 class StartSlayerTaskAction extends ReduxAction<GlobalState> {
   StartSlayerTaskAction({required this.category});

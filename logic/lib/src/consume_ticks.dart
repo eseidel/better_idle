@@ -545,7 +545,7 @@ class StateUpdateBuilder {
 
     // If we're in a dungeon, preserve the dungeon context
     if (currentActivity is CombatActivity &&
-        currentActivity.context is DungeonCombatContext) {
+        currentActivity.context is SequenceCombatContext) {
       // The new activity will have the updated monster index set by the caller
       // via updateCombatState, so we just update progressTicks/totalTicks here
       _state = _state.copyWith(
@@ -876,7 +876,7 @@ class StateUpdateBuilder {
       if (newCombat.dungeonId != null) {
         // In a dungeon - update the context with new monster index
         final currentContext = activity.context;
-        if (currentContext is DungeonCombatContext) {
+        if (currentContext is SequenceCombatContext) {
           newContext = currentContext.copyWith(
             currentMonsterIndex: newCombat.dungeonMonsterIndex ?? 0,
           );
@@ -1015,6 +1015,15 @@ class StateUpdateBuilder {
     _state = _state.copyWith(dungeonCompletions: newCompletions);
     // Track for welcome back dialog
     _changes = _changes.recordingDungeonCompletion(dungeonId);
+  }
+
+  /// Increments the stronghold completion count for a stronghold.
+  void incrementStrongholdCompletion(MelvorId strongholdId) {
+    final currentCount = _state.strongholdCompletions[strongholdId] ?? 0;
+    final newCompletions = Map<MelvorId, int>.from(_state.strongholdCompletions)
+      ..[strongholdId] = currentCount + 1;
+    _state = _state.copyWith(strongholdCompletions: newCompletions);
+    _changes = _changes.recordingStrongholdCompletion(strongholdId);
   }
 
   /// Increments the completion count for a slayer task category.
@@ -2044,20 +2053,25 @@ enum ForegroundResult {
     // Track monster kill for task progress
     builder.trackMonsterKill(action.id.localId);
 
-    // Handle dungeon progression
-    final dungeonContext = switch (builder.state.activeActivity) {
-      CombatActivity(:final context) when context is DungeonCombatContext =>
+    // Handle dungeon/stronghold sequence progression
+    final seqContext = switch (builder.state.activeActivity) {
+      CombatActivity(:final context) when context is SequenceCombatContext =>
         context,
       _ => null,
     };
-    if (dungeonContext != null) {
+    if (seqContext != null) {
       // If last monster was killed, increment completion count
-      if (dungeonContext.isLastMonster) {
-        builder.incrementDungeonCompletion(dungeonContext.dungeonId);
+      if (seqContext.isLastMonster) {
+        switch (seqContext.sequenceType) {
+          case SequenceType.dungeon:
+            builder.incrementDungeonCompletion(seqContext.sequenceId);
+          case SequenceType.stronghold:
+            builder.incrementStrongholdCompletion(seqContext.sequenceId);
+        }
       }
 
       // Advance to the next monster (wraps to 0 after last)
-      final nextContext = dungeonContext.advanceToNextMonster();
+      final nextContext = seqContext.advanceToNextMonster();
       final nextMonsterId = nextContext.currentMonsterId;
       final nextMonster = builder.registries.combat.monsterById(nextMonsterId);
       final fullMonsterAttackTicks = ticksFromDuration(
@@ -2076,7 +2090,7 @@ enum ForegroundResult {
         playerAttackTicksRemaining: resetPlayerTicks,
         monsterAttackTicksRemaining: fullMonsterAttackTicks,
         spawnTicksRemaining: spawnTicks,
-        dungeonId: nextContext.dungeonId,
+        dungeonId: nextContext.sequenceId,
         dungeonMonsterIndex: nextContext.currentMonsterIndex,
       );
       // Update to the next monster's action and its combat state

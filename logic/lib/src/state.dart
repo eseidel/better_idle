@@ -298,6 +298,7 @@ class GlobalState {
     this.plotStates = const {},
     this.unlockedPlots = const {},
     this.dungeonCompletions = const {},
+    this.strongholdCompletions = const {},
     this.slayerTaskCompletions = const {},
     this.itemCharges = const {},
     this.selectedPotions = const {},
@@ -332,6 +333,7 @@ class GlobalState {
         equipment: const Equipment.empty(),
         registries: registries,
         dungeonCompletions: const {},
+        strongholdCompletions: const {},
         itemCharges: const {},
         selectedPotions: const {},
         potionChargesUsed: const {},
@@ -353,6 +355,7 @@ class GlobalState {
     Map<MelvorId, PlotState> plotStates = const {},
     Set<MelvorId> unlockedPlots = const {},
     Map<MelvorId, int> dungeonCompletions = const {},
+    Map<MelvorId, int> strongholdCompletions = const {},
     Map<MelvorId, int> slayerTaskCompletions = const {},
     Map<MelvorId, int> itemCharges = const {},
     Map<MelvorId, MelvorId> selectedPotions = const {},
@@ -386,6 +389,7 @@ class GlobalState {
       plotStates: plotStates,
       unlockedPlots: unlockedPlots,
       dungeonCompletions: dungeonCompletions,
+      strongholdCompletions: strongholdCompletions,
       slayerTaskCompletions: slayerTaskCompletions,
       itemCharges: itemCharges,
       selectedPotions: selectedPotions,
@@ -448,6 +452,7 @@ class GlobalState {
               .toSet() ??
           const {},
       dungeonCompletions = _dungeonCompletionsFromJson(json),
+      strongholdCompletions = _strongholdCompletionsFromJson(json),
       slayerTaskCompletions = _slayerTaskCompletionsFromJson(json),
       itemCharges = _itemChargesFromJson(json),
       selectedPotions = _selectedPotionsFromJson(json),
@@ -508,6 +513,16 @@ class GlobalState {
   ) {
     final completionsJson =
         json['dungeonCompletions'] as Map<String, dynamic>? ?? {};
+    return completionsJson.map((key, value) {
+      return MapEntry(MelvorId.fromJson(key), value as int);
+    });
+  }
+
+  static Map<MelvorId, int> _strongholdCompletionsFromJson(
+    Map<String, dynamic> json,
+  ) {
+    final completionsJson =
+        json['strongholdCompletions'] as Map<String, dynamic>? ?? {};
     return completionsJson.map((key, value) {
       return MapEntry(MelvorId.fromJson(key), value as int);
     });
@@ -606,6 +621,9 @@ class GlobalState {
       'dungeonCompletions': dungeonCompletions.map(
         (key, value) => MapEntry(key.toJson(), value),
       ),
+      'strongholdCompletions': strongholdCompletions.map(
+        (key, value) => MapEntry(key.toJson(), value),
+      ),
       'slayerTaskCompletions': slayerTaskCompletions.map(
         (key, value) => MapEntry(key.toJson(), value),
       ),
@@ -691,6 +709,13 @@ class GlobalState {
   /// Returns how many times a dungeon has been completed.
   int dungeonCompletionCount(MelvorId dungeonId) =>
       dungeonCompletions[dungeonId] ?? 0;
+
+  /// Map of stronghold ID to number of completions.
+  final Map<MelvorId, int> strongholdCompletions;
+
+  /// Returns how many times a stronghold has been completed.
+  int strongholdCompletionCount(MelvorId strongholdId) =>
+      strongholdCompletions[strongholdId] ?? 0;
 
   /// Map of slayer task category ID to number of completions.
   final Map<MelvorId, int> slayerTaskCompletions;
@@ -1391,10 +1416,70 @@ class GlobalState {
 
     return prepared.copyWith(
       activeActivity: CombatActivity(
-        context: DungeonCombatContext(
-          dungeonId: dungeon.id,
+        context: SequenceCombatContext(
+          sequenceType: SequenceType.dungeon,
+          sequenceId: dungeon.id,
           currentMonsterIndex: 0,
           monsterIds: dungeon.monsterIds,
+        ),
+        progress: CombatProgressState(
+          monsterHp: combatState.monsterHp,
+          playerAttackTicksRemaining: combatState.playerAttackTicksRemaining,
+          monsterAttackTicksRemaining: combatState.monsterAttackTicksRemaining,
+          spawnTicksRemaining: combatState.spawnTicksRemaining,
+        ),
+        progressTicks: 0,
+        totalTicks: totalTicks,
+      ),
+      actionStates: newActionStates,
+    );
+  }
+
+  GlobalState startStronghold(Stronghold stronghold) {
+    if (isStunned) {
+      throw const StunnedException('Cannot start stronghold while stunned');
+    }
+    if (stronghold.monsterIds.isEmpty) {
+      throw ArgumentError('Stronghold has no monsters: ${stronghold.id}');
+    }
+
+    final prepared = _prepareForActivitySwitch(stayingInCooking: false);
+
+    final firstMonsterId = stronghold.monsterIds.first;
+    final firstMonster = registries.combat.monsterById(firstMonsterId);
+    final actionId = firstMonster.id;
+
+    final pStats = computePlayerStats(prepared);
+    final totalTicks = ticksFromDuration(
+      Duration(milliseconds: (pStats.attackSpeed * 1000).round()),
+    );
+
+    final modifiers = prepared.createCombatModifierProvider(
+      conditionContext: ConditionContext.empty,
+    );
+    final spawnTicks = calculateMonsterSpawnTicks(
+      modifiers.flatMonsterRespawnInterval,
+    );
+
+    final combatState = CombatActionState.startDungeon(
+      firstMonster,
+      pStats,
+      stronghold.id,
+      spawnTicks: spawnTicks,
+    );
+    final newActionStates = Map<ActionId, ActionState>.from(
+      prepared.actionStates,
+    );
+    final existingState = prepared.actionState(actionId);
+    newActionStates[actionId] = existingState.copyWith(combat: combatState);
+
+    return prepared.copyWith(
+      activeActivity: CombatActivity(
+        context: SequenceCombatContext(
+          sequenceType: SequenceType.stronghold,
+          sequenceId: stronghold.id,
+          currentMonsterIndex: 0,
+          monsterIds: stronghold.monsterIds,
         ),
         progress: CombatProgressState(
           monsterHp: combatState.monsterHp,
@@ -2995,6 +3080,7 @@ class GlobalState {
     Map<MelvorId, PlotState>? plotStates,
     Set<MelvorId>? unlockedPlots,
     Map<MelvorId, int>? dungeonCompletions,
+    Map<MelvorId, int>? strongholdCompletions,
     Map<MelvorId, int>? slayerTaskCompletions,
     Map<MelvorId, int>? itemCharges,
     Map<MelvorId, MelvorId>? selectedPotions,
@@ -3025,6 +3111,8 @@ class GlobalState {
       plotStates: plotStates ?? this.plotStates,
       unlockedPlots: unlockedPlots ?? this.unlockedPlots,
       dungeonCompletions: dungeonCompletions ?? this.dungeonCompletions,
+      strongholdCompletions:
+          strongholdCompletions ?? this.strongholdCompletions,
       slayerTaskCompletions:
           slayerTaskCompletions ?? this.slayerTaskCompletions,
       itemCharges: itemCharges ?? this.itemCharges,

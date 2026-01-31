@@ -41,6 +41,7 @@ class MelvorData {
     final skillDataById = <String, List<SkillDataEntry>>{};
     final combatAreas = <CombatArea>[];
     final dungeons = <Dungeon>[];
+    final strongholds = <Stronghold>[];
     final slayerAreas = <SlayerArea>[];
     final slayerTaskCategories = <SlayerTaskCategory>[];
     final bankSortEntries = <DisplayOrderEntry>[];
@@ -78,6 +79,9 @@ class MelvorData {
 
       // Dungeons (not skill-based)
       dungeons.addAll(parseDungeons(json, namespace: namespace));
+
+      // Strongholds (not skill-based)
+      strongholds.addAll(parseStrongholds(json, namespace: namespace));
 
       // Slayer areas (not skill-based, at data root)
       slayerAreas.addAll(parseSlayerAreas(json, namespace: namespace));
@@ -174,10 +178,12 @@ class MelvorData {
     }
     _combatAreas = CombatAreaRegistry(combatAreas);
     _dungeons = DungeonRegistry(dungeons);
+    _strongholds = StrongholdRegistry(strongholds);
     _combat = CombatRegistry(
       monsters: monsters,
       areas: _combatAreas,
       dungeons: _dungeons,
+      strongholds: _strongholds,
     );
 
     // Build slayer registry
@@ -259,6 +265,7 @@ class MelvorData {
   // Other registries
   late final CombatAreaRegistry _combatAreas;
   late final DungeonRegistry _dungeons;
+  late final StrongholdRegistry _strongholds;
   late final ShopRegistry _shop;
   late final MasteryBonusRegistry _masteryBonuses;
   late final MasteryUnlockRegistry _masteryUnlocks;
@@ -887,6 +894,22 @@ List<Dungeon> parseDungeons(
   return dungeons
       .map((dungeonJson) => dungeonJson as Map<String, dynamic>)
       .map((dungeonJson) => Dungeon.fromJson(dungeonJson, namespace: namespace))
+      .toList();
+}
+
+List<Stronghold> parseStrongholds(
+  Map<String, dynamic> json, {
+  required String namespace,
+}) {
+  final data = json['data'] as Map<String, dynamic>?;
+  if (data == null) {
+    return [];
+  }
+
+  final strongholds = data['strongholds'] as List<dynamic>? ?? [];
+  return strongholds
+      .map((json) => json as Map<String, dynamic>)
+      .map((json) => Stronghold.fromJson(json, namespace: namespace))
       .toList();
 }
 

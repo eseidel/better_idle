@@ -168,6 +168,7 @@ class Registries {
              monsters: const [],
              areas: CombatAreaRegistry(const []),
              dungeons: DungeonRegistry(const []),
+             strongholds: StrongholdRegistry(const []),
            );
 
   final ItemRegistry items;
@@ -210,6 +211,7 @@ class Registries {
   List<FarmingPlot> get farmingPlots => farming.plots;
   CombatAreaRegistry get combatAreas => combat.areas;
   DungeonRegistry get dungeons => combat.dungeons;
+  StrongholdRegistry get strongholds => combat.strongholds;
 
   // For test fixtures: stores generic actions directly instead of using
   // specialized registries. Null for production registries.

@@ -53,7 +53,7 @@ void main() {
       expect(combat.progress.isSpawning, isTrue);
     });
 
-    test('CombatActivity with DungeonCombatContext', () {
+    test('CombatActivity with SequenceCombatContext (dungeon)', () {
       final monsterIds = [
         const MelvorId('melvorD:Goblin'),
         const MelvorId('melvorD:Orc'),
@@ -61,8 +61,9 @@ void main() {
       ];
 
       final activity = CombatActivity(
-        context: DungeonCombatContext(
-          dungeonId: const MelvorId('melvorD:Chicken_Coop'),
+        context: SequenceCombatContext(
+          sequenceType: SequenceType.dungeon,
+          sequenceId: const MelvorId('melvorD:Chicken_Coop'),
           currentMonsterIndex: 1,
           monsterIds: monsterIds,
         ),
@@ -82,9 +83,10 @@ void main() {
       final combat = restored as CombatActivity;
       expect(combat.progressTicks, 8);
       expect(combat.totalTicks, 25);
-      expect(combat.context, isA<DungeonCombatContext>());
-      final context = combat.context as DungeonCombatContext;
-      expect(context.dungeonId, const MelvorId('melvorD:Chicken_Coop'));
+      expect(combat.context, isA<SequenceCombatContext>());
+      final context = combat.context as SequenceCombatContext;
+      expect(context.sequenceType, SequenceType.dungeon);
+      expect(context.sequenceId, const MelvorId('melvorD:Chicken_Coop'));
       expect(context.currentMonsterIndex, 1);
       expect(context.monsterIds, monsterIds);
       expect(context.currentMonsterId, const MelvorId('melvorD:Orc'));

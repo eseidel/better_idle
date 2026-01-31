@@ -65,13 +65,30 @@ class CombatPage extends StatelessWidget {
               ],
             ),
             const SizedBox(height: 8),
-            ElevatedButton.icon(
-              onPressed: () => showDialog<void>(
-                context: context,
-                builder: (_) => const SlayerTaskSelectionDialog(),
-              ),
-              icon: const Icon(Icons.assignment),
-              label: const Text('Slayer Task'),
+            Row(
+              children: [
+                Expanded(
+                  child: ElevatedButton.icon(
+                    onPressed: () => showDialog<void>(
+                      context: context,
+                      builder: (_) => const StrongholdSelectionDialog(),
+                    ),
+                    icon: const Icon(Icons.shield),
+                    label: const Text('Stronghold'),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: ElevatedButton.icon(
+                    onPressed: () => showDialog<void>(
+                      context: context,
+                      builder: (_) => const SlayerTaskSelectionDialog(),
+                    ),
+                    icon: const Icon(Icons.assignment),
+                    label: const Text('Slayer Task'),
+                  ),
+                ),
+              ],
             ),
             const SizedBox(height: 16),
 
@@ -103,6 +120,14 @@ class CombatPage extends StatelessWidget {
                 _DungeonProgressCard(
                   dungeonId: combatState!.dungeonId!,
                   currentMonsterIndex: combatState.dungeonMonsterIndex ?? 0,
+                ),
+              // Stronghold progress indicator
+              if (state.activeActivity case CombatActivity(:final context)
+                  when context is SequenceCombatContext &&
+                      context.sequenceType == SequenceType.stronghold)
+                _StrongholdProgressCard(
+                  strongholdId: context.sequenceId,
+                  currentMonsterIndex: context.currentMonsterIndex,
                 ),
               // Slayer task progress indicator
               if (state.activeActivity case CombatActivity(
@@ -400,6 +425,160 @@ class _DungeonProgressCard extends StatelessWidget {
             const SizedBox(height: 4),
             Text(
               'Monster ${currentMonsterIndex + 1} of $totalMonsters',
+              style: const TextStyle(
+                color: Style.textColorSecondary,
+                fontSize: 12,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class StrongholdSelectionDialog extends StatelessWidget {
+  const StrongholdSelectionDialog({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final state = context.state;
+    final strongholds = state.registries.strongholds.all;
+
+    MelvorId? activeStrongholdId;
+    if (state.activeActivity case CombatActivity(:final context)
+        when context is SequenceCombatContext &&
+            context.sequenceType == SequenceType.stronghold) {
+      activeStrongholdId = context.sequenceId;
+    }
+
+    return AlertDialog(
+      title: const Text('Select Stronghold'),
+      content: SizedBox(
+        width: double.maxFinite,
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              for (final stronghold in strongholds)
+                _StrongholdTile(
+                  stronghold: stronghold,
+                  isActive: activeStrongholdId == stronghold.id,
+                  isStunned: state.isStunned,
+                  completionCount:
+                      state.strongholdCompletions[stronghold.id] ?? 0,
+                ),
+            ],
+          ),
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('Close'),
+        ),
+      ],
+    );
+  }
+}
+
+class _StrongholdTile extends StatelessWidget {
+  const _StrongholdTile({
+    required this.stronghold,
+    required this.isActive,
+    required this.isStunned,
+    required this.completionCount,
+  });
+
+  final Stronghold stronghold;
+  final bool isActive;
+  final bool isStunned;
+  final int completionCount;
+
+  @override
+  Widget build(BuildContext context) {
+    final state = context.state;
+    final combat = state.registries.combat;
+    final monsters = stronghold.monsterIds.map(combat.monsterById).toList();
+
+    return Card(
+      color: isActive ? Style.activeColorLight : null,
+      child: ListTile(
+        leading: stronghold.media != null
+            ? CachedImage(assetPath: stronghold.media, size: 40)
+            : const Icon(Icons.shield),
+        title: Text(stronghold.name),
+        subtitle: Text(
+          '${monsters.length} monsters'
+          ' • Completed: $completionCount',
+        ),
+        trailing: isActive
+            ? const Icon(Icons.flash_on, color: Style.activeColor)
+            : ElevatedButton(
+                onPressed: isStunned
+                    ? null
+                    : () {
+                        context.dispatch(
+                          StartStrongholdAction(stronghold: stronghold),
+                        );
+                        Navigator.of(context).pop();
+                      },
+                child: const Text('Enter'),
+              ),
+      ),
+    );
+  }
+}
+
+class _StrongholdProgressCard extends StatelessWidget {
+  const _StrongholdProgressCard({
+    required this.strongholdId,
+    required this.currentMonsterIndex,
+  });
+
+  final MelvorId strongholdId;
+  final int currentMonsterIndex;
+
+  @override
+  Widget build(BuildContext context) {
+    final state = context.state;
+    final stronghold = state.registries.strongholds.byId(strongholdId);
+
+    final totalMonsters = stronghold.monsterIds.length;
+    final progress = (currentMonsterIndex + 1) / totalMonsters;
+
+    return Card(
+      color: Style.activeColorLight,
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                const Icon(Icons.shield, size: 20),
+                const SizedBox(width: 8),
+                Text(
+                  stronghold.name,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 16,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            LinearProgressIndicator(
+              value: progress,
+              backgroundColor: Colors.grey[300],
+              valueColor: const AlwaysStoppedAnimation<Color>(
+                Style.activeColor,
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              'Monster ${currentMonsterIndex + 1}'
+              ' of $totalMonsters',
               style: const TextStyle(
                 color: Style.textColorSecondary,
                 fontSize: 12,

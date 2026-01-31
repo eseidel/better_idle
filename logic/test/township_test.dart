@@ -3765,6 +3765,7 @@ void main() {
           monsters: const [],
           areas: CombatAreaRegistry(const []),
           dungeons: DungeonRegistry(const []),
+          strongholds: StrongholdRegistry(const []),
         );
 
         expect(goal.displayName(items, combat), 'Woodcutting XP');
@@ -3791,6 +3792,7 @@ void main() {
           monsters: const [],
           areas: CombatAreaRegistry(const []),
           dungeons: DungeonRegistry(const []),
+          strongholds: StrongholdRegistry(const []),
         );
 
         expect(goal.displayName(items, combat), 'Oak Logs');
@@ -3828,6 +3830,7 @@ void main() {
           monsters: [monster],
           areas: CombatAreaRegistry(const []),
           dungeons: DungeonRegistry(const []),
+          strongholds: StrongholdRegistry(const []),
         );
 
         expect(goal.displayName(items, combat), 'Golbin');
@@ -3847,6 +3850,7 @@ void main() {
           monsters: const [],
           areas: CombatAreaRegistry(const []),
           dungeons: DungeonRegistry(const []),
+          strongholds: StrongholdRegistry(const []),
         );
 
         expect(goal.asset(items, combat), Skill.woodcutting.assetPath);
@@ -3873,6 +3877,7 @@ void main() {
           monsters: const [],
           areas: CombatAreaRegistry(const []),
           dungeons: DungeonRegistry(const []),
+          strongholds: StrongholdRegistry(const []),
         );
 
         expect(goal.asset(items, combat), 'assets/media/bank/logs_oak.png');
@@ -3910,6 +3915,7 @@ void main() {
           monsters: [monster],
           areas: CombatAreaRegistry(const []),
           dungeons: DungeonRegistry(const []),
+          strongholds: StrongholdRegistry(const []),
         );
 
         expect(goal.asset(items, combat), 'assets/media/monsters/golbin.png');
