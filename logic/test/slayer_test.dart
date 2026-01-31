@@ -33,7 +33,7 @@ void main() {
   }
 
   group('SlayerTaskContext serialization', () {
-    test('roundtrips through toJson/fromJson', () {
+    test('round-trips through toJson/fromJson', () {
       const context = SlayerTaskContext(
         categoryId: MelvorId('melvorF:SlayerEasy'),
         monsterId: MelvorId('melvorD:Chicken'),

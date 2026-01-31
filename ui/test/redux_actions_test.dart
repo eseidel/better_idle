@@ -1873,7 +1873,6 @@ void main() {
         lootChance: 0,
         minGpDrop: 0,
         maxGpDrop: 0,
-        canSlayer: true,
       );
     }
 
@@ -1885,7 +1884,7 @@ void main() {
         rollCost: CurrencyCosts.fromJson(const [
           {'id': 'melvorD:SlayerCoins', 'quantity': 100},
         ]),
-        extensionCost: const CurrencyCosts([]),
+        extensionCost: CurrencyCosts.empty,
         extensionMultiplier: 1,
         currencyRewards: const [],
         monsterSelection: const CombatLevelSelection(
@@ -1947,9 +1946,8 @@ void main() {
           .addCurrency(Currency.slayerCoins, 500)
           .copyWith(stunned: const StunnedState.fresh().stun());
 
-      final store = Store<GlobalState>(initialState: initialState);
-
-      store.dispatch(StartSlayerTaskAction(category: category));
+      final store = Store<GlobalState>(initialState: initialState)
+        ..dispatch(StartSlayerTaskAction(category: category));
 
       expect(store.state.activeActivity, isNull);
       // Currency should not be deducted.
