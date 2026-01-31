@@ -2232,11 +2232,10 @@ void main() {
         Skill.woodcutting,
         normalTree,
       );
-      final store = Store<GlobalState>(initialState: initialState);
-
-      store.dispatch(
-        SetSelectedSkillAction(skill: Skill.fishing, actionId: shrimp),
-      );
+      final store = Store<GlobalState>(initialState: initialState)
+        ..dispatch(
+          SetSelectedSkillAction(skill: Skill.fishing, actionId: shrimp),
+        );
 
       // Both selections should be preserved
       expect(store.state.selectedSkillAction(Skill.woodcutting), normalTree);
