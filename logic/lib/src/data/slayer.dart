@@ -313,16 +313,6 @@ class SlayerArea {
   final String? media;
   final SlayerAreaEffect? areaEffect;
   final String? areaEffectDescription;
-
-  /// Returns the minimum slayer level required to enter this area.
-  int get requiredSlayerLevel {
-    for (final req in entryRequirements) {
-      if (req is SlayerLevelRequirement) {
-        return req.level;
-      }
-    }
-    return 1;
-  }
 }
 
 /// Registry for slayer task categories.
