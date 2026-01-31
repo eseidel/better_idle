@@ -20,6 +20,9 @@ enum ActionStopReason {
 
   /// Player died during combat or thieving.
   playerDied,
+
+  /// Slayer task was completed.
+  slayerTaskComplete,
 }
 
 class LevelChange {

@@ -2101,10 +2101,7 @@ enum ForegroundResult {
         }
 
         // Stop combat - task is done, player needs to select new task
-        builder.updateCombatState(
-          activeActionId,
-          currentCombat.copyWith(monsterHp: 0, spawnTicksRemaining: 0),
-        );
+        builder.stopAction(ActionStopReason.slayerTaskComplete);
         return (ForegroundResult.stopped, ticksConsumed);
       } else {
         // Continue with the same monster for the slayer task

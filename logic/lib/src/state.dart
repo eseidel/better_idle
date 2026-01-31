@@ -1615,6 +1615,7 @@ class GlobalState {
       township: township,
       bonfire: bonfire,
       loot: loot,
+      slayerTaskCompletions: slayerTaskCompletions,
     );
   }
 
