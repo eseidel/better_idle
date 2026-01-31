@@ -439,6 +439,8 @@ class DungeonRegistry {
 }
 
 /// A stronghold (similar structure to dungeon).
+/// Kept as a separate class from [Dungeon] because strongholds have tiers
+/// which will be added when we get there.
 @immutable
 class Stronghold {
   const Stronghold({
