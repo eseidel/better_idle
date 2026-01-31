@@ -4,6 +4,7 @@ import 'package:logic/src/data/actions.dart';
 import 'package:logic/src/data/cache.dart';
 import 'package:logic/src/data/item_upgrades.dart';
 import 'package:logic/src/data/melvor_id.dart';
+import 'package:logic/src/json.dart';
 import 'package:logic/src/data/registries.dart';
 import 'package:logic/src/data/shop.dart';
 import 'package:logic/src/data/slayer.dart';
@@ -1440,11 +1441,11 @@ List<SlayerArea> parseSlayerAreas(
     return [];
   }
 
-  final areas = data['slayerAreas'] as List<dynamic>? ?? [];
-  return areas
-      .map((areaJson) => areaJson as Map<String, dynamic>)
-      .map((areaJson) => SlayerArea.fromJson(areaJson, namespace: namespace))
-      .toList();
+  return maybeList(
+        data['slayerAreas'],
+        (json) => SlayerArea.fromJson(json, namespace: namespace),
+      ) ??
+      [];
 }
 
 /// Parses slayer task categories from a data file.
@@ -1457,11 +1458,9 @@ List<SlayerTaskCategory> parseSlayerTaskCategories(
     return [];
   }
 
-  final categories = data['slayerTaskCategories'] as List<dynamic>? ?? [];
-  return categories
-      .map((catJson) => catJson as Map<String, dynamic>)
-      .map(
-        (catJson) => SlayerTaskCategory.fromJson(catJson, namespace: namespace),
-      )
-      .toList();
+  return maybeList(
+        data['slayerTaskCategories'],
+        (json) => SlayerTaskCategory.fromJson(json, namespace: namespace),
+      ) ??
+      [];
 }

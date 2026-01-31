@@ -277,15 +277,12 @@ class SlayerArea {
     final difficultyRaw = json['difficulty'] as List<dynamic>? ?? [];
     final difficulty = difficultyRaw.map((e) => e as int).toList();
 
-    final requirementsJson = json['entryRequirements'] as List<dynamic>? ?? [];
-    final requirements = requirementsJson
-        .map(
-          (e) => SlayerAreaRequirement.fromJson(
-            e as Map<String, dynamic>,
-            namespace: namespace,
-          ),
-        )
-        .toList();
+    final requirements =
+        maybeList(
+          json['entryRequirements'],
+          (e) => SlayerAreaRequirement.fromJson(e, namespace: namespace),
+        ) ??
+        [];
 
     SlayerAreaEffect? areaEffect;
     final areaEffectJson = json['areaEffect'] as Map<String, dynamic>?;
