@@ -114,6 +114,7 @@ void printTimeAway(TimeAway timeAway) {
       ActionStopReason.outOfInputs => 'Ran out of input items',
       ActionStopReason.inventoryFull => 'Inventory full',
       ActionStopReason.playerDied => 'Player died',
+      ActionStopReason.slayerTaskComplete => 'Slayer task complete',
     };
     final stoppedAfter = timeAway.stoppedAfter;
     final whenText = stoppedAfter != null
