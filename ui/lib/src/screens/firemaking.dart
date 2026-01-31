@@ -18,15 +18,8 @@ import 'package:ui/src/widgets/style.dart';
 import 'package:ui/src/widgets/tweened_progress_indicator.dart';
 import 'package:ui/src/widgets/xp_badges_row.dart';
 
-class FiremakingPage extends StatefulWidget {
+class FiremakingPage extends StatelessWidget {
   const FiremakingPage({super.key});
-
-  @override
-  State<FiremakingPage> createState() => _FiremakingPageState();
-}
-
-class _FiremakingPageState extends State<FiremakingPage> {
-  FiremakingAction? _selectedAction;
 
   @override
   Widget build(BuildContext context) {
@@ -49,9 +42,19 @@ class _FiremakingPageState extends State<FiremakingPage> {
         .where((FiremakingAction a) => skillLevel >= a.unlockLevel)
         .toList();
 
-    // Default to first unlocked action if none selected
+    // Try to restore the last selected action from persisted state
+    final savedActionId = state.selectedSkillAction(skill);
+    FiremakingAction? savedAction;
+    if (savedActionId != null) {
+      savedAction = sortedActions.cast<FiremakingAction?>().firstWhere(
+        (a) => a?.id.localId == savedActionId,
+        orElse: () => null,
+      );
+    }
+
+    // Use saved action if available, otherwise default to first unlocked action
     final selectedAction =
-        _selectedAction ??
+        savedAction ??
         (unlockedActions.isNotEmpty
             ? unlockedActions.first
             : sortedActions.first);
@@ -113,20 +116,25 @@ class _FiremakingPageState extends State<FiremakingPage> {
         skillLevel: skillLevel,
       ),
     );
-    if (result != null && mounted) {
+    if (result != null && context.mounted) {
+      // Persist the selection
+      context.dispatch(
+        SetSelectedSkillAction(
+          skill: Skill.firemaking,
+          actionId: result.id.localId,
+        ),
+      );
+
       // If we're currently burning a different log, stop that action
-      final state = this.context.state;
+      final state = context.state;
       final currentActionId = state.currentActionId;
       if (currentActionId != null && currentActionId != result.id) {
         final currentAction = state.registries.actionById(currentActionId);
         if (currentAction is FiremakingAction) {
           // Stop the current firemaking action
-          this.context.dispatch(StopCombatAction());
+          context.dispatch(StopCombatAction());
         }
       }
-      setState(() {
-        _selectedAction = result;
-      });
     }
   }
 }

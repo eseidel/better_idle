@@ -21,22 +21,32 @@ class ThievingPage extends StatefulWidget {
 }
 
 class _ThievingPageState extends State<ThievingPage> {
-  ThievingAction? _selectedAction;
   final Set<String> _collapsedAreas = {};
 
   @override
   Widget build(BuildContext context) {
     const skill = Skill.thieving;
-    final skillState = context.state.skillState(skill);
-    final playerHp = context.state.playerHp;
-    final maxPlayerHp = context.state.maxPlayerHp;
-    final registries = context.state.registries;
+    final state = context.state;
+    final skillState = state.skillState(skill);
+    final playerHp = state.playerHp;
+    final maxPlayerHp = state.maxPlayerHp;
+    final registries = state.registries;
 
     // Get all thieving actions from the registry
     final thievingActions = registries.thieving.actions;
 
-    // Default to first action if none selected
-    final selectedAction = _selectedAction ?? thievingActions.first;
+    // Try to restore the last selected action from persisted state
+    final savedActionId = state.selectedSkillAction(skill);
+    ThievingAction? savedAction;
+    if (savedActionId != null) {
+      savedAction = thievingActions.cast<ThievingAction?>().firstWhere(
+        (a) => a?.id.localId == savedActionId,
+        orElse: () => null,
+      );
+    }
+
+    // Use saved action if available, otherwise default to first action
+    final selectedAction = savedAction ?? thievingActions.first;
 
     // Group actions by area (each action already stores its area reference)
     final actionsByArea = <ThievingArea, List<ThievingAction>>{};
@@ -81,9 +91,12 @@ class _ThievingPageState extends State<ThievingPage> {
                     selectedAction: selectedAction,
                     collapsedAreas: _collapsedAreas,
                     onSelect: (action) {
-                      setState(() {
-                        _selectedAction = action;
-                      });
+                      context.dispatch(
+                        SetSelectedSkillAction(
+                          skill: skill,
+                          actionId: action.id.localId,
+                        ),
+                      );
                     },
                     onToggleArea: (areaName) {
                       setState(() {
