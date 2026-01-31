@@ -1854,6 +1854,107 @@ void main() {
     });
   });
 
+  group('StartSlayerTaskAction', () {
+    CombatAction testMonster({int combatLevel = 10}) {
+      // Create a weak monster with a combat level in the desired range.
+      return CombatAction(
+        id: ActionId.test(Skill.combat, 'Slayer Monster'),
+        name: 'Slayer Monster',
+        levels: const MonsterLevels(
+          hitpoints: 10,
+          attack: 1,
+          strength: 1,
+          defense: 1,
+          ranged: 1,
+          magic: 1,
+        ),
+        attackType: AttackType.melee,
+        attackSpeed: 2.4,
+        lootChance: 0,
+        minGpDrop: 0,
+        maxGpDrop: 0,
+      );
+    }
+
+    SlayerTaskCategory testCategory() {
+      return SlayerTaskCategory(
+        id: const MelvorId('melvorF:SlayerEasy'),
+        name: 'Easy',
+        level: 1,
+        rollCost: CurrencyCosts.fromJson(const [
+          {'id': 'melvorD:SlayerCoins', 'quantity': 100},
+        ]),
+        extensionCost: CurrencyCosts.empty,
+        extensionMultiplier: 1,
+        currencyRewards: const [],
+        monsterSelection: const CombatLevelSelection(
+          minLevel: 1,
+          maxLevel: 100,
+        ),
+        baseTaskLength: 5,
+      );
+    }
+
+    test('starts slayer task and deducts cost', () {
+      final monster = testMonster();
+      final category = testCategory();
+      final registries = Registries.test(
+        actions: [monster],
+        combat: CombatRegistry(
+          monsters: [monster],
+          areas: CombatAreaRegistry(const []),
+          dungeons: DungeonRegistry(const []),
+        ),
+        slayer: SlayerRegistry(
+          taskCategories: SlayerTaskCategoryRegistry([category]),
+          areas: SlayerAreaRegistry(const []),
+        ),
+      );
+      var initialState = GlobalState.empty(registries);
+      initialState = initialState.addCurrency(Currency.slayerCoins, 500);
+
+      final store = Store<GlobalState>(initialState: initialState);
+
+      expect(store.state.activeActivity, isNull);
+      expect(store.state.currency(Currency.slayerCoins), 500);
+
+      store.dispatch(StartSlayerTaskAction(category: category));
+
+      expect(store.state.activeActivity, isA<CombatActivity>());
+      final activity = store.state.activeActivity! as CombatActivity;
+      expect(activity.context, isA<SlayerTaskContext>());
+      expect(store.state.currency(Currency.slayerCoins), 400);
+    });
+
+    test('does nothing when stunned', () {
+      final monster = testMonster();
+      final category = testCategory();
+      final registries = Registries.test(
+        actions: [monster],
+        combat: CombatRegistry(
+          monsters: [monster],
+          areas: CombatAreaRegistry(const []),
+          dungeons: DungeonRegistry(const []),
+        ),
+        slayer: SlayerRegistry(
+          taskCategories: SlayerTaskCategoryRegistry([category]),
+          areas: SlayerAreaRegistry(const []),
+        ),
+      );
+      var initialState = GlobalState.empty(registries);
+      initialState = initialState
+          .addCurrency(Currency.slayerCoins, 500)
+          .copyWith(stunned: const StunnedState.fresh().stun());
+
+      final store = Store<GlobalState>(initialState: initialState)
+        ..dispatch(StartSlayerTaskAction(category: category));
+
+      expect(store.state.activeActivity, isNull);
+      // Currency should not be deducted.
+      expect(store.state.currency(Currency.slayerCoins), 500);
+    });
+  });
+
   group('PurchaseAstrologyModifierAction', () {
     // Create a test astrology action with modifiers
     AstrologyAction testConstellation() {

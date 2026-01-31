@@ -257,5 +257,6 @@ ReplanBoundary boundaryFromStopReason(
           ? InputsDepleted(actionId: actionId, missingItemId: missingItemId)
           : const NoProgressPossible(reason: 'Out of inputs'),
     ActionStopReason.inventoryFull => const InventoryFull(),
+    ActionStopReason.slayerTaskComplete => const WaitConditionSatisfied(),
   };
 }

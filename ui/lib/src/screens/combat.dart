@@ -38,7 +38,7 @@ class CombatPage extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            // Select Combat Area and Dungeon buttons
+            // Select Combat Area, Dungeon, and Slayer Task buttons
             Row(
               children: [
                 Expanded(
@@ -63,6 +63,15 @@ class CombatPage extends StatelessWidget {
                   ),
                 ),
               ],
+            ),
+            const SizedBox(height: 8),
+            ElevatedButton.icon(
+              onPressed: () => showDialog<void>(
+                context: context,
+                builder: (_) => const SlayerTaskSelectionDialog(),
+              ),
+              icon: const Icon(Icons.assignment),
+              label: const Text('Slayer Task'),
             ),
             const SizedBox(height: 16),
 
@@ -95,6 +104,11 @@ class CombatPage extends StatelessWidget {
                   dungeonId: combatState!.dungeonId!,
                   currentMonsterIndex: combatState.dungeonMonsterIndex ?? 0,
                 ),
+              // Slayer task progress indicator
+              if (state.activeActivity case CombatActivity(
+                :final context,
+              ) when context is SlayerTaskContext)
+                _SlayerTaskProgressCard(taskContext: context),
               _MonsterCard(
                 action: activeMonster,
                 combatState: combatState,
@@ -1086,6 +1100,166 @@ class _MonsterCard extends StatelessWidget {
             ),
           ),
       ],
+    );
+  }
+}
+
+class _SlayerTaskProgressCard extends StatelessWidget {
+  const _SlayerTaskProgressCard({required this.taskContext});
+
+  final SlayerTaskContext taskContext;
+
+  @override
+  Widget build(BuildContext context) {
+    final state = context.state;
+    final category = state.registries.slayer.taskCategories.byId(
+      taskContext.categoryId,
+    );
+
+    final progress = taskContext.killsCompleted / taskContext.killsRequired;
+
+    return Card(
+      color: Style.activeColorLight,
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                const Icon(Icons.assignment, size: 20),
+                const SizedBox(width: 8),
+                Text(
+                  'Slayer Task: ${category?.name ?? 'Unknown'}',
+                  style: const TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 16,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            LinearProgressIndicator(
+              value: progress,
+              backgroundColor: Colors.grey[300],
+              valueColor: const AlwaysStoppedAnimation<Color>(
+                Style.activeColor,
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              'Kills: ${taskContext.killsCompleted} / '
+              '${taskContext.killsRequired}',
+              style: const TextStyle(
+                color: Style.textColorSecondary,
+                fontSize: 12,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class SlayerTaskSelectionDialog extends StatelessWidget {
+  const SlayerTaskSelectionDialog({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final state = context.state;
+    final categories = state.registries.slayer.taskCategories.all;
+    final slayerLevel = state.skillState(Skill.slayer).skillLevel;
+
+    return AlertDialog(
+      title: const Text('Select Slayer Task'),
+      content: SizedBox(
+        width: double.maxFinite,
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              for (final category in categories)
+                _SlayerTaskCategoryTile(
+                  category: category,
+                  slayerLevel: slayerLevel,
+                  isStunned: state.isStunned,
+                ),
+            ],
+          ),
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('Close'),
+        ),
+      ],
+    );
+  }
+}
+
+class _SlayerTaskCategoryTile extends StatelessWidget {
+  const _SlayerTaskCategoryTile({
+    required this.category,
+    required this.slayerLevel,
+    required this.isStunned,
+  });
+
+  final SlayerTaskCategory category;
+  final int slayerLevel;
+  final bool isStunned;
+
+  @override
+  Widget build(BuildContext context) {
+    final state = context.state;
+    final isUnlocked = slayerLevel >= category.level;
+
+    // Check if player can afford the task
+    var canAfford = true;
+    for (final cost in category.rollCost.costs) {
+      if (state.currency(cost.currency) < cost.amount) {
+        canAfford = false;
+        break;
+      }
+    }
+
+    final canStart = isUnlocked && canAfford && !isStunned;
+
+    // Build cost string
+    final costParts = <String>[];
+    for (final cost in category.rollCost.costs) {
+      costParts.add('${cost.amount} ${cost.currency.abbreviation}');
+    }
+    final costString = costParts.isEmpty ? 'Free' : costParts.join(', ');
+
+    return Card(
+      child: ListTile(
+        leading: const Icon(Icons.assignment),
+        title: Text(category.name),
+        subtitle: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Level ${category.level} • ~${category.baseTaskLength} kills'),
+            Text(
+              'Cost: $costString',
+              style: TextStyle(color: canAfford ? null : Colors.red),
+            ),
+          ],
+        ),
+        trailing: canStart
+            ? ElevatedButton(
+                onPressed: () {
+                  context.dispatch(StartSlayerTaskAction(category: category));
+                  Navigator.of(context).pop();
+                },
+                child: const Text('Start'),
+              )
+            : Text(
+                !isUnlocked ? 'Lvl ${category.level}' : 'Not enough',
+                style: const TextStyle(color: Style.textColorSecondary),
+              ),
+      ),
     );
   }
 }
