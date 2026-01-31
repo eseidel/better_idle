@@ -27,6 +27,48 @@ void main() {
     );
   }
 
+  group('SlayerTaskContext serialization', () {
+    test('roundtrips through toJson/fromJson', () {
+      const context = SlayerTaskContext(
+        categoryId: MelvorId('melvorF:SlayerEasy'),
+        monsterId: MelvorId('melvorD:Chicken'),
+        killsRequired: 25,
+        killsCompleted: 10,
+      );
+      final json = context.toJson();
+      final restored = CombatContext.fromJson(json) as SlayerTaskContext;
+
+      expect(restored.categoryId, context.categoryId);
+      expect(restored.monsterId, context.monsterId);
+      expect(restored.killsRequired, context.killsRequired);
+      expect(restored.killsCompleted, context.killsCompleted);
+    });
+
+    test('toJson includes correct type tag', () {
+      const context = SlayerTaskContext(
+        categoryId: MelvorId('melvorF:SlayerEasy'),
+        monsterId: MelvorId('melvorD:Chicken'),
+        killsRequired: 5,
+        killsCompleted: 0,
+      );
+      final json = context.toJson();
+      expect(json['type'], 'slayerTask');
+    });
+
+    test('preserves zero killsCompleted', () {
+      const context = SlayerTaskContext(
+        categoryId: MelvorId('melvorF:SlayerHard'),
+        monsterId: MelvorId('melvorD:Dragon'),
+        killsRequired: 50,
+        killsCompleted: 0,
+      );
+      final json = context.toJson();
+      final restored = SlayerTaskContext.fromJson(json);
+      expect(restored.killsCompleted, 0);
+      expect(restored.killsRequired, 50);
+    });
+  });
+
   group('slayer tasks', () {
     test(
       'startSlayerTask creates a combat activity with SlayerTaskContext',
