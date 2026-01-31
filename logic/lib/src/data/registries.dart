@@ -77,6 +77,8 @@ class Registries {
     TownshipRegistry? township,
     AgilityRegistry? agility,
     AstrologyRegistry? astrology,
+    SlayerRegistry? slayer,
+    CombatRegistry? combat,
     Map<MelvorId, int>? bankSortIndex,
   }) {
     // For tests, we store actions in a separate list that overrides
@@ -106,12 +108,15 @@ class Registries {
           ),
       astrology: astrology ?? const AstrologyRegistry([]),
       modifierMetadata: const ModifierMetadataRegistry.empty(),
-      slayer: SlayerRegistry(
-        taskCategories: SlayerTaskCategoryRegistry(const []),
-        areas: SlayerAreaRegistry(const []),
-      ),
+      slayer:
+          slayer ??
+          SlayerRegistry(
+            taskCategories: SlayerTaskCategoryRegistry(const []),
+            areas: SlayerAreaRegistry(const []),
+          ),
       bankSortIndex: bankSortIndex ?? {},
       testActions: actions,
+      combat: combat,
     );
   }
 
@@ -132,6 +137,7 @@ class Registries {
     required this.slayer,
     required Map<MelvorId, int> bankSortIndex,
     required List<Action> testActions,
+    CombatRegistry? combat,
   }) : _bankSortIndex = bankSortIndex,
        _testActions = testActions,
        woodcutting = const WoodcuttingRegistry([]),
@@ -156,11 +162,13 @@ class Registries {
        summoning = SummoningRegistry(const []),
        altMagic = const AltMagicRegistry([]),
        itemUpgrades = ItemUpgradeRegistry.empty,
-       combat = CombatRegistry(
-         monsters: const [],
-         areas: CombatAreaRegistry(const []),
-         dungeons: DungeonRegistry(const []),
-       );
+       combat =
+           combat ??
+           CombatRegistry(
+             monsters: const [],
+             areas: CombatAreaRegistry(const []),
+             dungeons: DungeonRegistry(const []),
+           );
 
   final ItemRegistry items;
   final DropsRegistry drops;
