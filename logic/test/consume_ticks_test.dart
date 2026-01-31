@@ -2062,6 +2062,79 @@ void main() {
     });
   });
 
+  group('stronghold combat', () {
+    late Stronghold undeadStronghold;
+
+    setUpAll(() {
+      undeadStronghold = testRegistries.strongholds.byId(
+        MelvorId.fromJson('melvorF:StrongholdOfTheUndead'),
+      );
+    });
+
+    test('startStronghold initializes combat state with stronghold info', () {
+      const highSkill = SkillState(xp: 1000000, masteryPoolXp: 0);
+      var state = GlobalState.test(
+        testRegistries,
+        skillStates: const {
+          Skill.hitpoints: highSkill,
+          Skill.attack: highSkill,
+          Skill.strength: highSkill,
+          Skill.defence: highSkill,
+        },
+      );
+
+      state = state.startStronghold(undeadStronghold);
+
+      expect(state.activeActivity, isNotNull);
+
+      final activity = state.activeActivity! as CombatActivity;
+      final context = activity.context as SequenceCombatContext;
+      expect(context.sequenceType, SequenceType.stronghold);
+      expect(context.sequenceId, undeadStronghold.id);
+      expect(context.currentMonsterIndex, 0);
+      expect(context.monsterIds, undeadStronghold.monsterIds);
+    });
+
+    test('stronghold progresses through monsters in order', () {
+      const highSkill = SkillState(xp: 1000000, masteryPoolXp: 0);
+      var state = GlobalState.test(
+        testRegistries,
+        skillStates: const {
+          Skill.hitpoints: highSkill,
+          Skill.attack: highSkill,
+          Skill.strength: highSkill,
+          Skill.defence: highSkill,
+        },
+      );
+
+      state = state.startStronghold(undeadStronghold);
+      final random = Random(42);
+
+      final activity = state.activeActivity! as CombatActivity;
+      final context = activity.context as SequenceCombatContext;
+      expect(context.currentMonsterIndex, 0);
+
+      // Process enough ticks to kill some monsters.
+      final builder = StateUpdateBuilder(state);
+      consumeTicks(builder, 300, random: random);
+      state = builder.build();
+
+      // Should have killed monsters (bones in loot indicates kills).
+      final bonesInLoot = state.loot.stacks
+          .where((s) => s.item.name == 'Bones')
+          .fold(0, (sum, s) => sum + s.count);
+      expect(
+        bonesInLoot,
+        greaterThan(0),
+        reason: 'Should have killed monsters',
+      );
+    });
+
+    // TODO(eseidel): Add stronghold completion test once auto-eat is
+    // implemented. Strongholds have 47-72 monsters, and the cumulative
+    // damage kills the player without food/healing.
+  });
+
   group('bonfire', () {
     test('bonfire auto-restarts when it burns out if logs available', () {
       final random = Random(0);
