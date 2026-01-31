@@ -36,15 +36,12 @@ is written in a different language than the mods.
 
 ### To Fix
 
-- Fix Firemaking to put log selection behind a pop-up.
 - Fix fishing regions to drop junk/specials.
-- Gems should not drop for rune essence.
 - Recipes with multiple inputs should show last selection in list views.
 - Get rid of Icon usage.
-- Change GameLoop to use timers rather than spinning hot.
-- Improve combat ui (e.g. stats display)
 - Improve equipment UI
 - scrolling jumps around when scrolling township
+- magic dust should stack in loot as well as/instead of bones?
 
 ### To Implement
 - more Thieving drops.
@@ -52,7 +49,6 @@ is written in a different language than the mods.
 - mastery rewards (and UI) for all actions.
 - mastery pool checkpoints.
 - mastery tokens.
-- Astrology UI (including store)
 - Alt. Magic
 - potions
 - Dungeons
