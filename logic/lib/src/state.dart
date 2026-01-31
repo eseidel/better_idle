@@ -1368,85 +1368,34 @@ class GlobalState {
   }
 
   /// Starts a dungeon run, fighting monsters in order.
-  ///
-  /// The first monster in the dungeon is automatically selected.
-  /// After each kill, the next monster in the dungeon will spawn.
-  /// When the last monster is killed, the dungeon is completed.
-  GlobalState startDungeon(Dungeon dungeon) {
+  GlobalState startDungeon(Dungeon dungeon) => _startSequence(
+    type: SequenceType.dungeon,
+    id: dungeon.id,
+    monsterIds: dungeon.monsterIds,
+  );
+
+  /// Starts a stronghold run, fighting monsters in order.
+  GlobalState startStronghold(Stronghold stronghold) => _startSequence(
+    type: SequenceType.stronghold,
+    id: stronghold.id,
+    monsterIds: stronghold.monsterIds,
+  );
+
+  GlobalState _startSequence({
+    required SequenceType type,
+    required MelvorId id,
+    required List<MelvorId> monsterIds,
+  }) {
     if (isStunned) {
-      throw const StunnedException('Cannot start dungeon while stunned');
+      throw StunnedException('Cannot start ${type.name} while stunned');
     }
-    if (dungeon.monsterIds.isEmpty) {
-      throw ArgumentError('Dungeon has no monsters: ${dungeon.id}');
-    }
-
-    // Prepare state for activity switch (handles cooking cleanup, etc.)
-    final prepared = _prepareForActivitySwitch(stayingInCooking: false);
-
-    // Get the first monster in the dungeon
-    final firstMonsterId = dungeon.monsterIds.first;
-    final firstMonster = registries.combat.monsterById(firstMonsterId);
-    final actionId = firstMonster.id;
-
-    final pStats = computePlayerStats(prepared);
-    final totalTicks = ticksFromDuration(
-      Duration(milliseconds: (pStats.attackSpeed * 1000).round()),
-    );
-
-    // Calculate spawn ticks with modifiers (e.g., Monster Hunter Scroll)
-    final modifiers = prepared.createCombatModifierProvider(
-      conditionContext: ConditionContext.empty,
-    );
-    final spawnTicks = calculateMonsterSpawnTicks(
-      modifiers.flatMonsterRespawnInterval,
-    );
-
-    // Initialize combat state for dungeon mode
-    final combatState = CombatActionState.startDungeon(
-      firstMonster,
-      pStats,
-      dungeon.id,
-      spawnTicks: spawnTicks,
-    );
-    final newActionStates = Map<ActionId, ActionState>.from(
-      prepared.actionStates,
-    );
-    final existingState = prepared.actionState(actionId);
-    newActionStates[actionId] = existingState.copyWith(combat: combatState);
-
-    return prepared.copyWith(
-      activeActivity: CombatActivity(
-        context: SequenceCombatContext(
-          sequenceType: SequenceType.dungeon,
-          sequenceId: dungeon.id,
-          currentMonsterIndex: 0,
-          monsterIds: dungeon.monsterIds,
-        ),
-        progress: CombatProgressState(
-          monsterHp: combatState.monsterHp,
-          playerAttackTicksRemaining: combatState.playerAttackTicksRemaining,
-          monsterAttackTicksRemaining: combatState.monsterAttackTicksRemaining,
-          spawnTicksRemaining: combatState.spawnTicksRemaining,
-        ),
-        progressTicks: 0,
-        totalTicks: totalTicks,
-      ),
-      actionStates: newActionStates,
-    );
-  }
-
-  GlobalState startStronghold(Stronghold stronghold) {
-    if (isStunned) {
-      throw const StunnedException('Cannot start stronghold while stunned');
-    }
-    if (stronghold.monsterIds.isEmpty) {
-      throw ArgumentError('Stronghold has no monsters: ${stronghold.id}');
+    if (monsterIds.isEmpty) {
+      throw ArgumentError('${type.name} has no monsters: $id');
     }
 
     final prepared = _prepareForActivitySwitch(stayingInCooking: false);
 
-    final firstMonsterId = stronghold.monsterIds.first;
-    final firstMonster = registries.combat.monsterById(firstMonsterId);
+    final firstMonster = registries.combat.monsterById(monsterIds.first);
     final actionId = firstMonster.id;
 
     final pStats = computePlayerStats(prepared);
@@ -1464,7 +1413,7 @@ class GlobalState {
     final combatState = CombatActionState.startDungeon(
       firstMonster,
       pStats,
-      stronghold.id,
+      id,
       spawnTicks: spawnTicks,
     );
     final newActionStates = Map<ActionId, ActionState>.from(
@@ -1476,10 +1425,10 @@ class GlobalState {
     return prepared.copyWith(
       activeActivity: CombatActivity(
         context: SequenceCombatContext(
-          sequenceType: SequenceType.stronghold,
-          sequenceId: stronghold.id,
+          sequenceType: type,
+          sequenceId: id,
           currentMonsterIndex: 0,
-          monsterIds: stronghold.monsterIds,
+          monsterIds: monsterIds,
         ),
         progress: CombatProgressState(
           monsterHp: combatState.monsterHp,

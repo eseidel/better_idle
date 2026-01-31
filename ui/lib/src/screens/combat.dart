@@ -115,19 +115,27 @@ class CombatPage extends StatelessWidget {
 
             // Active combat section
             if (activeMonster != null) ...[
-              // Dungeon progress indicator
-              if (combatState?.isInDungeon ?? false)
-                _DungeonProgressCard(
-                  dungeonId: combatState!.dungeonId!,
-                  currentMonsterIndex: combatState.dungeonMonsterIndex ?? 0,
-                ),
-              // Stronghold progress indicator
-              if (state.activeActivity case CombatActivity(:final context)
-                  when context is SequenceCombatContext &&
-                      context.sequenceType == SequenceType.stronghold)
-                _StrongholdProgressCard(
-                  strongholdId: context.sequenceId,
+              // Sequence (dungeon/stronghold) progress indicator
+              if (state.activeActivity case CombatActivity(
+                :final context,
+              ) when context is SequenceCombatContext)
+                _SequenceProgressCard(
+                  name: switch (context.sequenceType) {
+                    SequenceType.dungeon =>
+                      state.registries.combat.dungeons
+                          .byId(context.sequenceId)
+                          .name,
+                    SequenceType.stronghold =>
+                      state.registries.combat.strongholds
+                          .byId(context.sequenceId)
+                          .name,
+                  },
+                  icon: switch (context.sequenceType) {
+                    SequenceType.dungeon => Icons.castle,
+                    SequenceType.stronghold => Icons.shield,
+                  },
                   currentMonsterIndex: context.currentMonsterIndex,
+                  totalMonsters: context.monsterIds.length,
                 ),
               // Slayer task progress indicator
               if (state.activeActivity case CombatActivity(
@@ -303,136 +311,23 @@ class DungeonSelectionDialog extends StatelessWidget {
       activeDungeonId = actionState.combat?.dungeonId;
     }
 
-    return AlertDialog(
-      title: const Text('Select Dungeon'),
-      content: SizedBox(
-        width: double.maxFinite,
-        child: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              for (final dungeon in dungeons)
-                _DungeonTile(
-                  dungeon: dungeon,
-                  isActive: activeDungeonId == dungeon.id,
-                  isStunned: state.isStunned,
-                  completionCount: state.dungeonCompletions[dungeon.id] ?? 0,
-                ),
-            ],
+    return _SequenceSelectionDialog(
+      title: 'Select Dungeon',
+      entries: [
+        for (final dungeon in dungeons)
+          _SequenceEntry(
+            id: dungeon.id,
+            name: dungeon.name,
+            monsterIds: dungeon.monsterIds,
+            media: dungeon.media,
+            icon: Icons.castle,
+            isActive: activeDungeonId == dungeon.id,
+            completionCount: state.dungeonCompletions[dungeon.id] ?? 0,
+            onEnter: () =>
+                context.dispatch(StartDungeonAction(dungeon: dungeon)),
           ),
-        ),
-      ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.of(context).pop(),
-          child: const Text('Close'),
-        ),
       ],
-    );
-  }
-}
-
-class _DungeonTile extends StatelessWidget {
-  const _DungeonTile({
-    required this.dungeon,
-    required this.isActive,
-    required this.isStunned,
-    required this.completionCount,
-  });
-
-  final Dungeon dungeon;
-  final bool isActive;
-  final bool isStunned;
-  final int completionCount;
-
-  @override
-  Widget build(BuildContext context) {
-    final state = context.state;
-    final combat = state.registries.combat;
-    final monsters = dungeon.monsterIds.map(combat.monsterById).toList();
-
-    return Card(
-      color: isActive ? Style.activeColorLight : null,
-      child: ListTile(
-        leading: dungeon.media != null
-            ? CachedImage(assetPath: dungeon.media, size: 40)
-            : const Icon(Icons.castle),
-        title: Text(dungeon.name),
-        subtitle: Text(
-          '${monsters.length} monsters • Completed: $completionCount',
-        ),
-        trailing: isActive
-            ? const Icon(Icons.flash_on, color: Style.activeColor)
-            : ElevatedButton(
-                onPressed: isStunned
-                    ? null
-                    : () {
-                        context.dispatch(StartDungeonAction(dungeon: dungeon));
-                        Navigator.of(context).pop();
-                      },
-                child: const Text('Enter'),
-              ),
-      ),
-    );
-  }
-}
-
-class _DungeonProgressCard extends StatelessWidget {
-  const _DungeonProgressCard({
-    required this.dungeonId,
-    required this.currentMonsterIndex,
-  });
-
-  final MelvorId dungeonId;
-  final int currentMonsterIndex;
-
-  @override
-  Widget build(BuildContext context) {
-    final state = context.state;
-    final dungeon = state.registries.dungeons.byId(dungeonId);
-
-    final totalMonsters = dungeon.monsterIds.length;
-    final progress = (currentMonsterIndex + 1) / totalMonsters;
-
-    return Card(
-      color: Style.activeColorLight,
-      child: Padding(
-        padding: const EdgeInsets.all(12),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                const Icon(Icons.castle, size: 20),
-                const SizedBox(width: 8),
-                Text(
-                  dungeon.name,
-                  style: const TextStyle(
-                    fontWeight: FontWeight.bold,
-                    fontSize: 16,
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 8),
-            LinearProgressIndicator(
-              value: progress,
-              backgroundColor: Colors.grey[300],
-              valueColor: const AlwaysStoppedAnimation<Color>(
-                Style.activeColor,
-              ),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              'Monster ${currentMonsterIndex + 1} of $totalMonsters',
-              style: const TextStyle(
-                color: Style.textColorSecondary,
-                fontSize: 12,
-              ),
-            ),
-          ],
-        ),
-      ),
+      isStunned: state.isStunned,
     );
   }
 }
@@ -452,22 +347,73 @@ class StrongholdSelectionDialog extends StatelessWidget {
       activeStrongholdId = context.sequenceId;
     }
 
+    return _SequenceSelectionDialog(
+      title: 'Select Stronghold',
+      entries: [
+        for (final stronghold in strongholds)
+          _SequenceEntry(
+            id: stronghold.id,
+            name: stronghold.name,
+            monsterIds: stronghold.monsterIds,
+            media: stronghold.media,
+            icon: Icons.shield,
+            isActive: activeStrongholdId == stronghold.id,
+            completionCount: state.strongholdCompletions[stronghold.id] ?? 0,
+            onEnter: () =>
+                context.dispatch(StartStrongholdAction(stronghold: stronghold)),
+          ),
+      ],
+      isStunned: state.isStunned,
+    );
+  }
+}
+
+@immutable
+class _SequenceEntry {
+  const _SequenceEntry({
+    required this.id,
+    required this.name,
+    required this.monsterIds,
+    required this.icon,
+    required this.isActive,
+    required this.completionCount,
+    required this.onEnter,
+    this.media,
+  });
+
+  final MelvorId id;
+  final String name;
+  final List<MelvorId> monsterIds;
+  final String? media;
+  final IconData icon;
+  final bool isActive;
+  final int completionCount;
+  final VoidCallback onEnter;
+}
+
+class _SequenceSelectionDialog extends StatelessWidget {
+  const _SequenceSelectionDialog({
+    required this.title,
+    required this.entries,
+    required this.isStunned,
+  });
+
+  final String title;
+  final List<_SequenceEntry> entries;
+  final bool isStunned;
+
+  @override
+  Widget build(BuildContext context) {
     return AlertDialog(
-      title: const Text('Select Stronghold'),
+      title: Text(title),
       content: SizedBox(
         width: double.maxFinite,
         child: SingleChildScrollView(
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              for (final stronghold in strongholds)
-                _StrongholdTile(
-                  stronghold: stronghold,
-                  isActive: activeStrongholdId == stronghold.id,
-                  isStunned: state.isStunned,
-                  completionCount:
-                      state.strongholdCompletions[stronghold.id] ?? 0,
-                ),
+              for (final entry in entries)
+                _SequenceTile(entry: entry, isStunned: isStunned),
             ],
           ),
         ),
@@ -482,45 +428,37 @@ class StrongholdSelectionDialog extends StatelessWidget {
   }
 }
 
-class _StrongholdTile extends StatelessWidget {
-  const _StrongholdTile({
-    required this.stronghold,
-    required this.isActive,
-    required this.isStunned,
-    required this.completionCount,
-  });
+class _SequenceTile extends StatelessWidget {
+  const _SequenceTile({required this.entry, required this.isStunned});
 
-  final Stronghold stronghold;
-  final bool isActive;
+  final _SequenceEntry entry;
   final bool isStunned;
-  final int completionCount;
 
   @override
   Widget build(BuildContext context) {
-    final state = context.state;
-    final combat = state.registries.combat;
-    final monsters = stronghold.monsterIds.map(combat.monsterById).toList();
+    final combat = context.state.registries.combat;
+    final monsterCount = entry.monsterIds
+        .map(combat.monsterById)
+        .toList()
+        .length;
 
     return Card(
-      color: isActive ? Style.activeColorLight : null,
+      color: entry.isActive ? Style.activeColorLight : null,
       child: ListTile(
-        leading: stronghold.media != null
-            ? CachedImage(assetPath: stronghold.media, size: 40)
-            : const Icon(Icons.shield),
-        title: Text(stronghold.name),
+        leading: entry.media != null
+            ? CachedImage(assetPath: entry.media, size: 40)
+            : Icon(entry.icon),
+        title: Text(entry.name),
         subtitle: Text(
-          '${monsters.length} monsters'
-          ' • Completed: $completionCount',
+          '$monsterCount monsters • Completed: ${entry.completionCount}',
         ),
-        trailing: isActive
+        trailing: entry.isActive
             ? const Icon(Icons.flash_on, color: Style.activeColor)
             : ElevatedButton(
                 onPressed: isStunned
                     ? null
                     : () {
-                        context.dispatch(
-                          StartStrongholdAction(stronghold: stronghold),
-                        );
+                        entry.onEnter();
                         Navigator.of(context).pop();
                       },
                 child: const Text('Enter'),
@@ -530,21 +468,21 @@ class _StrongholdTile extends StatelessWidget {
   }
 }
 
-class _StrongholdProgressCard extends StatelessWidget {
-  const _StrongholdProgressCard({
-    required this.strongholdId,
+class _SequenceProgressCard extends StatelessWidget {
+  const _SequenceProgressCard({
+    required this.name,
+    required this.icon,
     required this.currentMonsterIndex,
+    required this.totalMonsters,
   });
 
-  final MelvorId strongholdId;
+  final String name;
+  final IconData icon;
   final int currentMonsterIndex;
+  final int totalMonsters;
 
   @override
   Widget build(BuildContext context) {
-    final state = context.state;
-    final stronghold = state.registries.strongholds.byId(strongholdId);
-
-    final totalMonsters = stronghold.monsterIds.length;
     final progress = (currentMonsterIndex + 1) / totalMonsters;
 
     return Card(
@@ -556,10 +494,10 @@ class _StrongholdProgressCard extends StatelessWidget {
           children: [
             Row(
               children: [
-                const Icon(Icons.shield, size: 20),
+                Icon(icon, size: 20),
                 const SizedBox(width: 8),
                 Text(
-                  stronghold.name,
+                  name,
                   style: const TextStyle(
                     fontWeight: FontWeight.bold,
                     fontSize: 16,
@@ -577,8 +515,7 @@ class _StrongholdProgressCard extends StatelessWidget {
             ),
             const SizedBox(height: 4),
             Text(
-              'Monster ${currentMonsterIndex + 1}'
-              ' of $totalMonsters',
+              'Monster ${currentMonsterIndex + 1} of $totalMonsters',
               style: const TextStyle(
                 color: Style.textColorSecondary,
                 fontSize: 12,

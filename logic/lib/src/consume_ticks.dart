@@ -1007,23 +1007,22 @@ class StateUpdateBuilder {
     _changes = _changes.recordingMarkFound(familiarId);
   }
 
-  /// Increments the dungeon completion count for a dungeon.
-  void incrementDungeonCompletion(MelvorId dungeonId) {
-    final currentCount = _state.dungeonCompletions[dungeonId] ?? 0;
-    final newCompletions = Map<MelvorId, int>.from(_state.dungeonCompletions)
-      ..[dungeonId] = currentCount + 1;
-    _state = _state.copyWith(dungeonCompletions: newCompletions);
-    // Track for welcome back dialog
-    _changes = _changes.recordingDungeonCompletion(dungeonId);
-  }
-
-  /// Increments the stronghold completion count for a stronghold.
-  void incrementStrongholdCompletion(MelvorId strongholdId) {
-    final currentCount = _state.strongholdCompletions[strongholdId] ?? 0;
-    final newCompletions = Map<MelvorId, int>.from(_state.strongholdCompletions)
-      ..[strongholdId] = currentCount + 1;
-    _state = _state.copyWith(strongholdCompletions: newCompletions);
-    _changes = _changes.recordingStrongholdCompletion(strongholdId);
+  /// Increments the completion count for a dungeon or stronghold.
+  void incrementSequenceCompletion(SequenceType type, MelvorId sequenceId) {
+    switch (type) {
+      case SequenceType.dungeon:
+        final current = _state.dungeonCompletions[sequenceId] ?? 0;
+        final updated = Map<MelvorId, int>.from(_state.dungeonCompletions)
+          ..[sequenceId] = current + 1;
+        _state = _state.copyWith(dungeonCompletions: updated);
+        _changes = _changes.recordingDungeonCompletion(sequenceId);
+      case SequenceType.stronghold:
+        final current = _state.strongholdCompletions[sequenceId] ?? 0;
+        final updated = Map<MelvorId, int>.from(_state.strongholdCompletions)
+          ..[sequenceId] = current + 1;
+        _state = _state.copyWith(strongholdCompletions: updated);
+        _changes = _changes.recordingStrongholdCompletion(sequenceId);
+    }
   }
 
   /// Increments the completion count for a slayer task category.
@@ -2062,12 +2061,10 @@ enum ForegroundResult {
     if (seqContext != null) {
       // If last monster was killed, increment completion count
       if (seqContext.isLastMonster) {
-        switch (seqContext.sequenceType) {
-          case SequenceType.dungeon:
-            builder.incrementDungeonCompletion(seqContext.sequenceId);
-          case SequenceType.stronghold:
-            builder.incrementStrongholdCompletion(seqContext.sequenceId);
-        }
+        builder.incrementSequenceCompletion(
+          seqContext.sequenceType,
+          seqContext.sequenceId,
+        );
       }
 
       // Advance to the next monster (wraps to 0 after last)
