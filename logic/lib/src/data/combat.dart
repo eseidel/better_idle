@@ -438,6 +438,79 @@ class DungeonRegistry {
   }
 }
 
+/// A stronghold (similar structure to dungeon).
+/// Kept as a separate class from [Dungeon] because strongholds have tiers
+/// which will be added when we get there.
+@immutable
+class Stronghold {
+  const Stronghold({
+    required this.id,
+    required this.name,
+    required this.monsterIds,
+    this.difficulty = const [],
+    this.media,
+  });
+
+  factory Stronghold.fromJson(
+    Map<String, dynamic> json, {
+    required String namespace,
+  }) {
+    final monsterIds = (json['monsterIDs'] as List<dynamic>)
+        .map(
+          (id) => MelvorId.fromJsonWithNamespace(
+            id as String,
+            defaultNamespace: namespace,
+          ),
+        )
+        .toList();
+
+    final difficultyRaw = json['difficulty'] as List<dynamic>? ?? [];
+    final difficulty = difficultyRaw.map((e) => e as int).toList();
+
+    return Stronghold(
+      id: MelvorId.fromJsonWithNamespace(
+        json['id'] as String,
+        defaultNamespace: namespace,
+      ),
+      name: json['name'] as String,
+      monsterIds: monsterIds,
+      difficulty: difficulty,
+      media: json['media'] as String?,
+    );
+  }
+
+  final MelvorId id;
+  final String name;
+  final List<MelvorId> monsterIds;
+  final List<int> difficulty;
+  final String? media;
+}
+
+/// Registry for strongholds.
+@immutable
+class StrongholdRegistry {
+  StrongholdRegistry(List<Stronghold> strongholds)
+    : _strongholds = strongholds {
+    _byId = {for (final stronghold in _strongholds) stronghold.id: stronghold};
+  }
+
+  final List<Stronghold> _strongholds;
+  late final Map<MelvorId, Stronghold> _byId;
+
+  /// Returns all strongholds.
+  List<Stronghold> get all => _strongholds;
+
+  /// Returns a stronghold by ID.
+  /// Throws [StateError] if the stronghold is not found.
+  Stronghold byId(MelvorId id) {
+    final stronghold = _byId[id];
+    if (stronghold == null) {
+      throw StateError('Missing stronghold with id: $id');
+    }
+    return stronghold;
+  }
+}
+
 /// Unified registry for all combat-related data.
 @immutable
 class CombatRegistry {
@@ -445,6 +518,7 @@ class CombatRegistry {
     required List<CombatAction> monsters,
     required this.areas,
     required this.dungeons,
+    required this.strongholds,
   }) : _monsters = monsters {
     _byId = {for (final m in _monsters) m.id.localId: m};
   }
@@ -457,6 +531,9 @@ class CombatRegistry {
 
   /// All dungeons.
   final DungeonRegistry dungeons;
+
+  /// All strongholds.
+  final StrongholdRegistry strongholds;
 
   /// All monsters.
   List<CombatAction> get monsters => _monsters;

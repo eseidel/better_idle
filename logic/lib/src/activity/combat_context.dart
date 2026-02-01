@@ -1,11 +1,14 @@
 import 'package:logic/src/data/melvor_id.dart';
 import 'package:meta/meta.dart';
 
+/// The type of monster sequence being fought.
+enum SequenceType { dungeon, stronghold }
+
 /// Combat context identifying what type of combat we're engaged in.
 ///
 /// This is a sealed class with subtypes for different combat modes:
 /// - [MonsterCombatContext] for fighting a single monster
-/// - [DungeonCombatContext] for progressing through a dungeon
+/// - [SequenceCombatContext] for progressing through a dungeon or stronghold
 /// - [SlayerTaskContext] for working on a slayer task
 @immutable
 sealed class CombatContext {
@@ -22,7 +25,7 @@ sealed class CombatContext {
     final type = json['type'] as String;
     return switch (type) {
       'monster' => MonsterCombatContext.fromJson(json),
-      'dungeon' => DungeonCombatContext.fromJson(json),
+      'dungeon' || 'stronghold' => SequenceCombatContext.fromJson(json),
       'slayerTask' => SlayerTaskContext.fromJson(json),
       _ => throw ArgumentError('Unknown combat context type: $type'),
     };
@@ -52,21 +55,29 @@ class MonsterCombatContext extends CombatContext {
   }
 }
 
-/// Context for fighting through a dungeon.
+/// Context for fighting through a sequence of monsters (dungeon or stronghold).
 ///
-/// A dungeon is a sequence of monsters that must be defeated in order.
-/// The [currentMonsterIndex] tracks progress through the dungeon.
+/// The [currentMonsterIndex] tracks progress through the sequence.
 @immutable
-class DungeonCombatContext extends CombatContext {
-  const DungeonCombatContext({
-    required this.dungeonId,
+class SequenceCombatContext extends CombatContext {
+  const SequenceCombatContext({
+    required this.sequenceType,
+    required this.sequenceId,
     required this.currentMonsterIndex,
     required this.monsterIds,
   });
 
-  factory DungeonCombatContext.fromJson(Map<String, dynamic> json) {
-    return DungeonCombatContext(
-      dungeonId: MelvorId.fromJson(json['dungeonId'] as String),
+  factory SequenceCombatContext.fromJson(Map<String, dynamic> json) {
+    final type = json['type'] as String;
+    final sequenceType = SequenceType.values.byName(type);
+    // The ID field name varies by type for backwards compatibility.
+    final idKey = switch (sequenceType) {
+      SequenceType.dungeon => 'dungeonId',
+      SequenceType.stronghold => 'strongholdId',
+    };
+    return SequenceCombatContext(
+      sequenceType: sequenceType,
+      sequenceId: MelvorId.fromJson(json[idKey] as String),
       currentMonsterIndex: json['currentMonsterIndex'] as int,
       monsterIds: (json['monsterIds'] as List<dynamic>)
           .map((e) => MelvorId.fromJson(e as String))
@@ -74,40 +85,46 @@ class DungeonCombatContext extends CombatContext {
     );
   }
 
-  /// The ID of the dungeon being run.
-  final MelvorId dungeonId;
+  /// Whether this is a dungeon or stronghold.
+  final SequenceType sequenceType;
 
-  /// The current monster index in the dungeon (0-based).
+  /// The ID of the dungeon or stronghold being run.
+  final MelvorId sequenceId;
+
+  /// The current monster index (0-based).
   final int currentMonsterIndex;
 
-  /// The list of monster IDs in this dungeon, in order.
+  /// The list of monster IDs in order.
   /// Stored here to avoid needing registry lookups during tick processing.
   final List<MelvorId> monsterIds;
 
   @override
   MelvorId get currentMonsterId => monsterIds[currentMonsterIndex];
 
-  /// Returns true if currently fighting the last monster in the dungeon.
+  /// Returns true if currently fighting the last monster in the sequence.
   bool get isLastMonster => currentMonsterIndex == monsterIds.length - 1;
 
   /// Returns a new context with the monster index advanced by one.
-  /// Wraps around to 0 if at the end (for dungeon restart).
-  DungeonCombatContext advanceToNextMonster() {
+  /// Wraps around to 0 if at the end (for sequence restart).
+  SequenceCombatContext advanceToNextMonster() {
     final nextIndex = (currentMonsterIndex + 1) % monsterIds.length;
-    return DungeonCombatContext(
-      dungeonId: dungeonId,
+    return SequenceCombatContext(
+      sequenceType: sequenceType,
+      sequenceId: sequenceId,
       currentMonsterIndex: nextIndex,
       monsterIds: monsterIds,
     );
   }
 
-  DungeonCombatContext copyWith({
-    MelvorId? dungeonId,
+  SequenceCombatContext copyWith({
+    SequenceType? sequenceType,
+    MelvorId? sequenceId,
     int? currentMonsterIndex,
     List<MelvorId>? monsterIds,
   }) {
-    return DungeonCombatContext(
-      dungeonId: dungeonId ?? this.dungeonId,
+    return SequenceCombatContext(
+      sequenceType: sequenceType ?? this.sequenceType,
+      sequenceId: sequenceId ?? this.sequenceId,
       currentMonsterIndex: currentMonsterIndex ?? this.currentMonsterIndex,
       monsterIds: monsterIds ?? this.monsterIds,
     );
@@ -115,9 +132,13 @@ class DungeonCombatContext extends CombatContext {
 
   @override
   Map<String, dynamic> toJson() {
+    final idKey = switch (sequenceType) {
+      SequenceType.dungeon => 'dungeonId',
+      SequenceType.stronghold => 'strongholdId',
+    };
     return {
-      'type': 'dungeon',
-      'dungeonId': dungeonId.toJson(),
+      'type': sequenceType.name,
+      idKey: sequenceId.toJson(),
       'currentMonsterIndex': currentMonsterIndex,
       'monsterIds': monsterIds.map((e) => e.toJson()).toList(),
     };

@@ -520,6 +520,7 @@ class Changes {
     this.deathCount = 0,
     this.monstersKilled = const Counts<MelvorId>.empty(),
     this.dungeonsCompleted = const Counts<MelvorId>.empty(),
+    this.strongholdsCompleted = const Counts<MelvorId>.empty(),
     this.marksFound = const Counts<MelvorId>.empty(),
     this.potionsUsed = const Counts<MelvorId>.empty(),
     this.tabletsUsed = const Counts<MelvorId>.empty(),
@@ -540,6 +541,7 @@ class Changes {
         deathCount: 0,
         monstersKilled: const Counts<MelvorId>.empty(),
         dungeonsCompleted: const Counts<MelvorId>.empty(),
+        strongholdsCompleted: const Counts<MelvorId>.empty(),
         marksFound: const Counts<MelvorId>.empty(),
         potionsUsed: const Counts<MelvorId>.empty(),
         tabletsUsed: const Counts<MelvorId>.empty(),
@@ -571,6 +573,9 @@ class Changes {
       ),
       dungeonsCompleted: Counts<MelvorId>.fromJson(
         json['dungeonsCompleted'] as Map<String, dynamic>? ?? {},
+      ),
+      strongholdsCompleted: Counts<MelvorId>.fromJson(
+        json['strongholdsCompleted'] as Map<String, dynamic>? ?? {},
       ),
       marksFound: Counts<MelvorId>.fromJson(
         json['marksFound'] as Map<String, dynamic>? ?? {},
@@ -613,6 +618,9 @@ class Changes {
   /// Dungeons completed during the time away, keyed by dungeon ID.
   final Counts<MelvorId> dungeonsCompleted;
 
+  /// Strongholds completed during the time away, keyed by stronghold ID.
+  final Counts<MelvorId> strongholdsCompleted;
+
   /// Summoning marks found during the time away, keyed by familiar ID.
   final Counts<MelvorId> marksFound;
 
@@ -654,6 +662,9 @@ class Changes {
       deathCount: deathCount + other.deathCount,
       monstersKilled: monstersKilled.add(other.monstersKilled),
       dungeonsCompleted: dungeonsCompleted.add(other.dungeonsCompleted),
+      strongholdsCompleted: strongholdsCompleted.add(
+        other.strongholdsCompleted,
+      ),
       marksFound: marksFound.add(other.marksFound),
       potionsUsed: potionsUsed.add(other.potionsUsed),
       tabletsUsed: tabletsUsed.add(other.tabletsUsed),
@@ -672,6 +683,7 @@ class Changes {
       deathCount == 0 &&
       monstersKilled.isEmpty &&
       dungeonsCompleted.isEmpty &&
+      strongholdsCompleted.isEmpty &&
       marksFound.isEmpty &&
       potionsUsed.isEmpty &&
       tabletsUsed.isEmpty &&
@@ -688,6 +700,7 @@ class Changes {
     int? deathCount,
     Counts<MelvorId>? monstersKilled,
     Counts<MelvorId>? dungeonsCompleted,
+    Counts<MelvorId>? strongholdsCompleted,
     Counts<MelvorId>? marksFound,
     Counts<MelvorId>? potionsUsed,
     Counts<MelvorId>? tabletsUsed,
@@ -704,6 +717,7 @@ class Changes {
       deathCount: deathCount ?? this.deathCount,
       monstersKilled: monstersKilled ?? this.monstersKilled,
       dungeonsCompleted: dungeonsCompleted ?? this.dungeonsCompleted,
+      strongholdsCompleted: strongholdsCompleted ?? this.strongholdsCompleted,
       marksFound: marksFound ?? this.marksFound,
       potionsUsed: potionsUsed ?? this.potionsUsed,
       tabletsUsed: tabletsUsed ?? this.tabletsUsed,
@@ -773,6 +787,13 @@ class Changes {
     );
   }
 
+  /// Records a stronghold completion.
+  Changes recordingStrongholdCompletion(MelvorId strongholdId) {
+    return copyWith(
+      strongholdsCompleted: strongholdsCompleted.addCount(strongholdId, 1),
+    );
+  }
+
   /// Records a summoning mark found.
   Changes recordingMarkFound(MelvorId familiarId) {
     return copyWith(marksFound: marksFound.addCount(familiarId, 1));
@@ -813,6 +834,7 @@ class Changes {
       'deathCount': deathCount,
       'monstersKilled': monstersKilled.toJson(),
       'dungeonsCompleted': dungeonsCompleted.toJson(),
+      'strongholdsCompleted': strongholdsCompleted.toJson(),
       'marksFound': marksFound.toJson(),
       'potionsUsed': potionsUsed.toJson(),
       'tabletsUsed': tabletsUsed.toJson(),

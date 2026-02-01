@@ -2318,7 +2318,7 @@ void main() {
 
     test('setSelectedSkillAction stores action ID for skill', () {
       final state = GlobalState.test(testRegistries);
-      final actionId = const MelvorId('melvorD:Normal_Tree');
+      const actionId = MelvorId('melvorD:Normal_Tree');
 
       final newState = state.setSelectedSkillAction(
         Skill.woodcutting,
@@ -2332,8 +2332,8 @@ void main() {
 
     test('setSelectedSkillAction can update existing selection', () {
       final state = GlobalState.test(testRegistries);
-      final normalTree = const MelvorId('melvorD:Normal_Tree');
-      final oakTree = const MelvorId('melvorD:Oak_Tree');
+      const normalTree = MelvorId('melvorD:Normal_Tree');
+      const oakTree = MelvorId('melvorD:Oak_Tree');
 
       // Set initial selection
       final state1 = state.setSelectedSkillAction(
@@ -2349,8 +2349,8 @@ void main() {
 
     test('setSelectedSkillAction preserves selections for other skills', () {
       final state = GlobalState.test(testRegistries);
-      final normalTree = const MelvorId('melvorD:Normal_Tree');
-      final normalLogs = const MelvorId('melvorD:Normal_Logs');
+      const normalTree = MelvorId('melvorD:Normal_Tree');
+      const normalLogs = MelvorId('melvorD:Normal_Logs');
 
       // Set selections for two different skills
       final state1 = state.setSelectedSkillAction(
@@ -2368,12 +2368,12 @@ void main() {
     });
 
     test('selectedSkillActions round-trips through JSON', () {
-      final normalTree = const MelvorId('melvorD:Normal_Tree');
-      final normalLogs = const MelvorId('melvorD:Normal_Logs');
+      const normalTree = MelvorId('melvorD:Normal_Tree');
+      const normalLogs = MelvorId('melvorD:Normal_Logs');
 
       final state = GlobalState.test(
         testRegistries,
-        selectedSkillActions: {
+        selectedSkillActions: const {
           Skill.woodcutting: normalTree,
           Skill.firemaking: normalLogs,
         },

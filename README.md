@@ -51,8 +51,6 @@ is written in a different language than the mods.
 - mastery tokens.
 - Alt. Magic
 - potions
-- Dungeons
-- Slayer Tasks
 - Statistics tracking
 - township tasks
 - township storage control

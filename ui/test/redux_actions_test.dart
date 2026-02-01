@@ -1904,6 +1904,7 @@ void main() {
           monsters: [monster],
           areas: CombatAreaRegistry(const []),
           dungeons: DungeonRegistry(const []),
+          strongholds: StrongholdRegistry(const []),
         ),
         slayer: SlayerRegistry(
           taskCategories: SlayerTaskCategoryRegistry([category]),
@@ -1935,6 +1936,7 @@ void main() {
           monsters: [monster],
           areas: CombatAreaRegistry(const []),
           dungeons: DungeonRegistry(const []),
+          strongholds: StrongholdRegistry(const []),
         ),
         slayer: SlayerRegistry(
           taskCategories: SlayerTaskCategoryRegistry([category]),
