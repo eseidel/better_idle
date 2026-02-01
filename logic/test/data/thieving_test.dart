@@ -101,6 +101,65 @@ void main() {
     });
   });
 
+  group('NPC unique drops', () {
+    test('Lumberjack has NPC-specific unique drop', () {
+      final lumberjack = testRegistries.thievingAction('Lumberjack');
+      expect(lumberjack.uniqueDrop, isNotNull);
+      expect(
+        lumberjack.uniqueDrop!.itemId,
+        const MelvorId('melvorF:Lumberjacks_Top'),
+      );
+      expect(lumberjack.uniqueDrop!.rate, closeTo(1 / 500, 0.0001));
+    });
+
+    test('Woman has NPC-specific unique drop', () {
+      final woman = testRegistries.thievingAction('Woman');
+      expect(woman.uniqueDrop, isNotNull);
+      expect(
+        woman.uniqueDrop!.itemId,
+        const MelvorId('melvorF:Fine_Coinpurse'),
+      );
+    });
+
+    test('Man does not have NPC-specific unique drop', () {
+      expect(manAction.uniqueDrop, isNull);
+    });
+
+    test('NPC unique drop appears in allDropsForAction', () {
+      final lumberjack = testRegistries.thievingAction('Lumberjack');
+      final drops = testDrops.allDropsForAction(
+        lumberjack,
+        const NoSelectedRecipe(),
+      );
+      final dropIds = drops.whereType<Drop>().map((d) => d.itemId).toList();
+      expect(dropIds, contains(const MelvorId('melvorF:Lumberjacks_Top')));
+    });
+
+    test('all three drop tiers present for Golbin Chief', () {
+      // Golbin Chief has: loot table, area drops, and NPC unique drop.
+      final chief = testRegistries.thievingAction('Golbin Chief');
+
+      // Tier 1: NPC loot table
+      expect(chief.dropTable, isNotNull);
+
+      // Tier 2: Area unique drops (Golbin Village → Crate of Basic Supplies)
+      expect(chief.area.uniqueDrops, isNotEmpty);
+
+      // Tier 3: NPC unique drop (Golbin Mask)
+      expect(chief.uniqueDrop, isNotNull);
+      expect(chief.uniqueDrop!.itemId, const MelvorId('melvorF:Golbin_Mask'));
+
+      // All should appear in allDropsForAction
+      final drops = testDrops.allDropsForAction(
+        chief,
+        const NoSelectedRecipe(),
+      );
+      // loot table (DropChance) + area drop + NPC unique drop +
+      // 3 generalRareItems + 3 rareDrops = 9
+      expect(drops.length, 9);
+    });
+  });
+
   group('Golbin drops', () {
     late ThievingAction golbinAction;
     late DropChance golbinDropChance;
