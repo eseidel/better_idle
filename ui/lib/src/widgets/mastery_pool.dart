@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:logic/logic.dart';
+import 'package:ui/src/logic/redux_actions.dart';
 import 'package:ui/src/widgets/cached_image.dart';
 import 'package:ui/src/widgets/context_extensions.dart';
 import 'package:ui/src/widgets/mastery_pool_checkpoints_dialog.dart';
@@ -61,8 +62,67 @@ class MasteryPoolProgress extends StatelessWidget {
             ),
             child: const Text('Spend XP'),
           ),
+          if (state.claimableMasteryTokenCount(skill) > 0)
+            TextButton(
+              onPressed: () => showDialog<void>(
+                context: context,
+                builder: (context) => _ClaimMasteryTokensDialog(skill: skill),
+              ),
+              child: const Text('Claim Tokens'),
+            ),
         ],
       ),
+    );
+  }
+}
+
+class _ClaimMasteryTokensDialog extends StatelessWidget {
+  const _ClaimMasteryTokensDialog({required this.skill});
+
+  final Skill skill;
+
+  @override
+  Widget build(BuildContext context) {
+    final state = context.state;
+    final claimable = state.claimableMasteryTokenCount(skill);
+    final xpPerToken = state.masteryTokenXpPerClaim(skill);
+    final maxPoolXp = maxMasteryPoolXpForSkill(state.registries, skill);
+    final currentPoolXp = state.skillState(skill).masteryPoolXp;
+
+    return AlertDialog(
+      title: const Text('Claim Mastery Tokens'),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Each token adds ${preciseNumberString(xpPerToken)} XP to the '
+            '${skill.name} mastery pool.',
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Pool: ${preciseNumberString(currentPoolXp)} / '
+            '${preciseNumberString(maxPoolXp)}',
+          ),
+          const SizedBox(height: 8),
+          Text('Claimable tokens: $claimable'),
+        ],
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('Cancel'),
+        ),
+        ElevatedButton(
+          onPressed: claimable > 0
+              ? () {
+                  context.dispatch(ClaimAllMasteryTokensAction(skill: skill));
+                  Navigator.of(context).pop();
+                }
+              : null,
+          child: Text('Claim All ($claimable)'),
+        ),
+      ],
     );
   }
 }
