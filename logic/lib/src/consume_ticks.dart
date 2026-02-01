@@ -962,12 +962,26 @@ class StateUpdateBuilder {
     // Calculate efficiency
     final efficiency = modifiers.autoEatEfficiency;
 
+    final canAutoSwap = modifiers.autoSwapFoodUnlocked > 0;
+
     var foodConsumed = 0;
     var hp = currentHp;
 
     // Eat until we reach target HP or run out of food
     while (hp < targetHp) {
-      final food = _state.equipment.selectedFood;
+      var food = _state.equipment.selectedFood;
+
+      // If current slot is empty, try auto-swap to next non-empty slot.
+      if (food == null && canAutoSwap) {
+        final nextSlot = _state.equipment.nextNonEmptyFoodSlot;
+        if (nextSlot >= 0) {
+          _state = _state.copyWith(
+            equipment: _state.equipment.copyWith(selectedFoodSlot: nextSlot),
+          );
+          food = _state.equipment.selectedFood;
+        }
+      }
+
       if (food == null) break;
 
       final healAmount = food.item.healsFor;
