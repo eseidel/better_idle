@@ -1575,6 +1575,101 @@ class GlobalState {
     );
   }
 
+  /// Checks whether the player meets all requirements for a slayer area.
+  bool meetsSlayerAreaRequirements(SlayerArea area) {
+    return unmetSlayerAreaRequirements(area).isEmpty;
+  }
+
+  /// Returns the list of unmet requirements for entering a slayer area.
+  List<SlayerAreaRequirement> unmetSlayerAreaRequirements(SlayerArea area) {
+    return area.entryRequirements.where((req) {
+      return switch (req) {
+        SlayerLevelRequirement(:final level) =>
+          skillState(Skill.slayer).skillLevel < level,
+        SlayerItemRequirement(:final itemId) => !equipment.gearSlots.values.any(
+          (item) => item.id == itemId,
+        ),
+        SlayerDungeonRequirement(:final dungeonId, :final count) =>
+          (dungeonCompletions[dungeonId] ?? 0) < count,
+        SlayerShopPurchaseRequirement(:final purchaseId, :final count) =>
+          shop.purchaseCount(purchaseId) < count,
+      };
+    }).toList();
+  }
+
+  /// Returns the active slayer area ID if the player is in one, or null.
+  MelvorId? get activeSlayerAreaId {
+    if (activeActivity case CombatActivity(
+      :final context,
+    ) when context is SlayerAreaCombatContext) {
+      return context.slayerAreaId;
+    }
+    return null;
+  }
+
+  /// Starts combat with a monster in a slayer area.
+  GlobalState startSlayerAreaCombat({
+    required SlayerArea area,
+    required CombatAction monster,
+    required Random random,
+  }) {
+    if (isStunned) {
+      throw const StunnedException(
+        'Cannot start slayer area combat while stunned',
+      );
+    }
+    if (!meetsSlayerAreaRequirements(area)) {
+      throw StateError('Cannot enter ${area.name}: requirements not met');
+    }
+    if (!area.monsterIds.contains(monster.id.localId)) {
+      throw ArgumentError('${monster.name} is not in slayer area ${area.name}');
+    }
+
+    final prepared = _prepareForActivitySwitch(stayingInCooking: false);
+
+    final pStats = computePlayerStats(prepared);
+    final totalTicks = ticksFromDuration(
+      Duration(milliseconds: (pStats.attackSpeed * 1000).round()),
+    );
+
+    final modifiers = prepared.createCombatModifierProvider(
+      conditionContext: ConditionContext.empty,
+    );
+    final spawnTicks = calculateMonsterSpawnTicks(
+      modifiers.flatMonsterRespawnInterval,
+    );
+
+    final combatState = CombatActionState.start(
+      monster,
+      pStats,
+      spawnTicks: spawnTicks,
+    );
+
+    final newActionStates = Map<ActionId, ActionState>.from(
+      prepared.actionStates,
+    );
+    final existingState = prepared.actionState(monster.id);
+    newActionStates[monster.id] = existingState.copyWith(combat: combatState);
+
+    return prepared.copyWith(
+      activeActivity: CombatActivity(
+        context: SlayerAreaCombatContext(
+          slayerAreaId: area.id,
+          monsterId: monster.id.localId,
+        ),
+        progress: CombatProgressState(
+          monsterHp: combatState.monsterHp,
+          playerAttackTicksRemaining: combatState.playerAttackTicksRemaining,
+          monsterAttackTicksRemaining: combatState.monsterAttackTicksRemaining,
+          spawnTicksRemaining: combatState.spawnTicksRemaining,
+        ),
+        progressTicks: 0,
+        totalTicks: totalTicks,
+      ),
+      actionStates: newActionStates,
+    );
+  }
+
   /// Starts running an agility course, completing obstacles in sequence.
   ///
   /// The first built obstacle starts immediately. After each obstacle
@@ -2391,6 +2486,21 @@ class GlobalState {
   /// If there was an item in that slot, it's returned to inventory.
   /// Throws StateError if player doesn't have the item, doesn't meet
   /// requirements, or inventory is full when swapping.
+  /// Returns an error message if removing [item] from equipment would violate
+  /// the current slayer area's item requirements, or null if the change is OK.
+  String? slayerAreaGearChangeError(Item item) {
+    final areaId = activeSlayerAreaId;
+    if (areaId == null) return null;
+    final area = registries.slayer.areas.byId(areaId);
+    if (area == null) return null;
+    for (final req in area.entryRequirements) {
+      if (req is SlayerItemRequirement && req.itemId == item.id) {
+        return 'Cannot remove ${item.name}: required by ${area.name}';
+      }
+    }
+    return null;
+  }
+
   GlobalState equipGear(Item item, EquipmentSlot slot) {
     if (!item.isEquippable) {
       throw StateError('Cannot equip ${item.name}: not equippable');

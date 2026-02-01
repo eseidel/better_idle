@@ -285,6 +285,24 @@ class StartSlayerTaskAction extends ReduxAction<GlobalState> {
   }
 }
 
+/// Starts combat with a monster in a slayer area.
+class StartSlayerAreaCombatAction extends ReduxAction<GlobalState> {
+  StartSlayerAreaCombatAction({required this.area, required this.monster});
+  final SlayerArea area;
+  final CombatAction monster;
+
+  @override
+  GlobalState? reduce() {
+    if (state.isStunned) return null;
+    final random = Random();
+    return state.startSlayerAreaCombat(
+      area: area,
+      monster: monster,
+      random: random,
+    );
+  }
+}
+
 /// Equips food from inventory to an equipment slot.
 class EquipFoodAction extends ReduxAction<GlobalState> {
   EquipFoodAction({required this.item, required this.count});
@@ -375,7 +393,16 @@ class EquipGearAction extends ReduxAction<GlobalState> {
   final EquipmentSlot slot;
 
   @override
-  GlobalState reduce() {
+  GlobalState? reduce() {
+    // Check if swapping out a slayer-area-required item.
+    final currentInSlot = state.equipment.gearInSlot(slot);
+    if (currentInSlot != null && currentInSlot != item) {
+      final error = state.slayerAreaGearChangeError(currentInSlot);
+      if (error != null) {
+        toastService.showError(error);
+        return null;
+      }
+    }
     return state.equipGear(item, slot);
   }
 }
@@ -387,6 +414,14 @@ class UnequipGearAction extends ReduxAction<GlobalState> {
 
   @override
   GlobalState? reduce() {
+    final item = state.equipment.gearInSlot(slot);
+    if (item != null) {
+      final error = state.slayerAreaGearChangeError(item);
+      if (error != null) {
+        toastService.showError(error);
+        return null;
+      }
+    }
     return state.unequipGear(slot);
   }
 }

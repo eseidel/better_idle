@@ -27,6 +27,7 @@ sealed class CombatContext {
       'monster' => MonsterCombatContext.fromJson(json),
       'dungeon' || 'stronghold' => SequenceCombatContext.fromJson(json),
       'slayerTask' => SlayerTaskContext.fromJson(json),
+      'slayerArea' => SlayerAreaCombatContext.fromJson(json),
       _ => throw ArgumentError('Unknown combat context type: $type'),
     };
   }
@@ -220,6 +221,43 @@ class SlayerTaskContext extends CombatContext {
       'monsterId': monsterId.toJson(),
       'killsRequired': killsRequired,
       'killsCompleted': killsCompleted,
+    };
+  }
+}
+
+/// Context for fighting a monster within a slayer area.
+///
+/// Tracks which slayer area the player is in so that area requirements
+/// can be enforced (e.g. blocking gear changes that would violate them).
+@immutable
+class SlayerAreaCombatContext extends CombatContext {
+  const SlayerAreaCombatContext({
+    required this.slayerAreaId,
+    required this.monsterId,
+  });
+
+  factory SlayerAreaCombatContext.fromJson(Map<String, dynamic> json) {
+    return SlayerAreaCombatContext(
+      slayerAreaId: MelvorId.fromJson(json['slayerAreaId'] as String),
+      monsterId: MelvorId.fromJson(json['monsterId'] as String),
+    );
+  }
+
+  /// The ID of the slayer area the player is fighting in.
+  final MelvorId slayerAreaId;
+
+  /// The ID of the monster being fought.
+  final MelvorId monsterId;
+
+  @override
+  MelvorId get currentMonsterId => monsterId;
+
+  @override
+  Map<String, dynamic> toJson() {
+    return {
+      'type': 'slayerArea',
+      'slayerAreaId': slayerAreaId.toJson(),
+      'monsterId': monsterId.toJson(),
     };
   }
 }
