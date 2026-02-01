@@ -857,7 +857,7 @@ bool completeAction(
     action,
     conditionContext: ConditionContext.empty,
   );
-  var canRepeatAction = rollAndCollectDrops(
+  final canRepeatAction = rollAndCollectDrops(
     builder,
     action,
     modifierProvider,
@@ -883,24 +883,10 @@ bool completeAction(
     builder.markTabletCrafted(action.productId);
   }
 
-  // Handle resource depletion for mining
+  // Handle resource depletion for mining.
   if (action is MiningAction) {
-    final actionState = builder.state.actionState(action.id);
-    final miningState = builder.state.miningState.rockState(action.id.localId);
-
-    // Increment damage
-    final newTotalHpLost = miningState.totalHpLost + 1;
-    final newMiningState = miningState.copyWith(totalHpLost: newTotalHpLost);
-    final currentHp = newMiningState.currentHp(action, actionState.masteryXp);
-
-    // Check if depleted
-    if (currentHp <= 0) {
-      // Node is depleted - set respawn timer
-      builder.depleteResourceNode(action.id, action, newTotalHpLost);
-      canRepeatAction = false; // Can't continue mining
-    } else {
-      // Still has HP, just update damage and start regen countdown if needed
-      builder.damageResourceNode(action.id, newTotalHpLost);
+    if (!_completeMiningSwing(builder, action)) {
+      return false;
     }
   }
 
@@ -962,7 +948,8 @@ ForegroundResult _completeSkillAction(
   // Generic skill completion (woodcutting, fishing, mining, etc.)
   final canRepeat = completeAction(builder, action, random: random);
 
-  // Mining nodes may deplete - if so, next iteration handles respawn.
+  // Mining nodes may deplete — if so, the mining foreground processor
+  // handles respawn waiting on the next iteration.
   if (action is MiningAction && !canRepeat) {
     final miningState = builder.state.miningState.rockState(action.id.localId);
     if (miningState.isDepleted) {
@@ -1015,26 +1002,6 @@ ForegroundResult _completeSkillAction(
   }
   if (currentActivity == null) {
     throw StateError('Active activity is null');
-  }
-
-  // For mining, handle respawn waiting (blocking foreground behavior)
-  if (action is MiningAction) {
-    final miningState = builder.state.miningState.rockState(action.id.localId);
-
-    if (miningState.isDepleted) {
-      // Wait for respawn - this is foreground blocking behavior
-      final respawnResult = _applyRespawnTicks(miningState, ticksAvailable);
-      builder.updateMiningState(action.id, respawnResult.state);
-
-      if (respawnResult.state.isDepleted) {
-        // Still depleted, consumed all available ticks waiting
-        return (ForegroundResult.continued, ticksAvailable);
-      } else {
-        // Respawn complete, restart action and continue
-        builder.restartCurrentAction(action, random: random);
-        return (ForegroundResult.continued, respawnResult.ticksConsumed);
-      }
-    }
   }
 
   // Process action progress
@@ -1504,6 +1471,79 @@ ForegroundResult _completeSkillAction(
   return (ForegroundResult.continued, ticksToApply);
 }
 
+/// Processes one iteration of a MiningAction foreground.
+/// Handles mining-specific respawn waiting and node depletion, delegating
+/// to the generic skill path for normal swing progress.
+(ForegroundResult, Tick) _processMiningForeground(
+  StateUpdateBuilder builder,
+  MiningAction action,
+  Tick ticksAvailable,
+  Random random,
+) {
+  final currentActivity = builder.state.activeActivity;
+  if (currentActivity == null) {
+    return (ForegroundResult.stopped, 0);
+  }
+
+  // If the node is depleted, wait for respawn before doing anything else.
+  final miningState = builder.state.miningState.rockState(action.id.localId);
+  if (miningState.isDepleted) {
+    final respawnResult = _applyRespawnTicks(miningState, ticksAvailable);
+    builder.updateMiningState(action.id, respawnResult.state);
+
+    if (respawnResult.state.isDepleted) {
+      // Still depleted, consumed all available ticks waiting.
+      return (ForegroundResult.continued, ticksAvailable);
+    }
+    // Respawn complete, restart action and continue.
+    builder.restartCurrentAction(action, random: random);
+    return (ForegroundResult.continued, respawnResult.ticksConsumed);
+  }
+
+  // Delegate normal swing progress to the generic skill processor.
+  // On completion, completeAction is called which does NOT handle
+  // depletion (that was extracted here), so we post-process.
+  final (result, ticks) = _processSkillForeground(
+    builder,
+    action,
+    ticksAvailable,
+    random,
+  );
+
+  // If the action stopped because completeAction returned false
+  // (canRepeat=false means inventory full normally), check if the node
+  // actually just depleted — if so, keep going for respawn next tick.
+  if (result == ForegroundResult.stopped) {
+    final updatedMining = builder.state.miningState.rockState(
+      action.id.localId,
+    );
+    if (updatedMining.isDepleted) {
+      return (ForegroundResult.continued, ticks);
+    }
+  }
+
+  return (result, ticks);
+}
+
+/// Completes mining-specific logic after a swing: increments damage,
+/// checks for depletion, and sets the respawn timer if needed.
+/// Returns true if the node is still alive and mining can repeat.
+bool _completeMiningSwing(StateUpdateBuilder builder, MiningAction action) {
+  final actionState = builder.state.actionState(action.id);
+  final miningState = builder.state.miningState.rockState(action.id.localId);
+
+  final newTotalHpLost = miningState.totalHpLost + 1;
+  final newMiningState = miningState.copyWith(totalHpLost: newTotalHpLost);
+  final currentHp = newMiningState.currentHp(action, actionState.masteryXp);
+
+  if (currentHp <= 0) {
+    builder.depleteResourceNode(action.id, action, newTotalHpLost);
+    return false;
+  }
+  builder.damageResourceNode(action.id, newTotalHpLost);
+  return true;
+}
+
 /// Dispatches foreground processing based on activity type.
 ///
 /// Uses pattern matching on [ActiveActivity] sealed class for type-safe
@@ -1519,6 +1559,12 @@ ForegroundResult _completeSkillAction(
 
   // Pattern match on the sealed ActiveActivity class
   return switch (activity) {
+    SkillActivity() when action is MiningAction => _processMiningForeground(
+      builder,
+      action,
+      ticksAvailable,
+      random,
+    ),
     SkillActivity() when action is SkillAction => _processSkillForeground(
       builder,
       action,
