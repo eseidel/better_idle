@@ -48,5 +48,4 @@ is written in a different language than the mods.
 - mastery rewards (and UI) for all actions.
 - Alt. Magic
 - Statistics tracking
-- township tasks
 - township storage control
