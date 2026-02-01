@@ -303,6 +303,45 @@ void main() {
     });
   });
 
+  group('Active potion recipes in ConditionContext', () {
+    test('modifier provider includes active potion recipe IDs', () {
+      final state = GlobalState.test(
+        testRegistries,
+        inventory: Inventory.fromItems(testItems, [
+          ItemStack(birdNestPotionI, count: 1),
+        ]),
+      ).selectPotion(Skill.woodcutting.id, birdNestPotionI.id);
+
+      final action = normalTree as SkillAction;
+      final modifiers = state.createActionModifierProvider(
+        action,
+        conditionContext: ConditionContext.empty,
+      );
+
+      // The herblore recipe for Bird Nest Potion should be in the
+      // condition context's activePotionRecipes.
+      final recipeId = testRegistries.herblore.recipeIdForPotionItem(
+        birdNestPotionI.id,
+      );
+      expect(recipeId, isNotNull);
+      expect(
+        modifiers.conditionContext.activePotionRecipes,
+        contains(recipeId),
+      );
+    });
+
+    test('no active recipes when no potion selected', () {
+      final state = GlobalState.test(testRegistries);
+      final action = normalTree as SkillAction;
+      final modifiers = state.createActionModifierProvider(
+        action,
+        conditionContext: ConditionContext.empty,
+      );
+
+      expect(modifiers.conditionContext.activePotionRecipes, isEmpty);
+    });
+  });
+
   group('Bird nest potion effect on drops', () {
     late Item birdNest;
 
