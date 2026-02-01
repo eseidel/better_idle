@@ -1929,14 +1929,44 @@ class GlobalState {
     ).copyWith(inventory: newInventory);
   }
 
+  /// Returns the XP added per mastery token claim for [skill] (0.1% of max).
+  int masteryTokenXpPerClaim(Skill skill) {
+    final maxPoolXp = maxMasteryPoolXpForSkill(registries, skill);
+    return (maxPoolXp * 0.001).round().clamp(1, maxPoolXp);
+  }
+
+  /// Returns how many mastery tokens can be claimed without exceeding the pool
+  /// cap, or 0 if the pool is already full or no tokens are held.
+  int claimableMasteryTokenCount(Skill skill) {
+    if (!MasteryTokenDrop.skillHasMasteryToken(skill)) return 0;
+
+    final tokenId = MasteryTokenDrop(skill: skill).itemId;
+    final token = registries.items.byId(tokenId);
+    final held = inventory.countOfItem(token);
+    if (held < 1) return 0;
+
+    final maxPoolXp = maxMasteryPoolXpForSkill(registries, skill);
+    final currentPoolXp = skillState(skill).masteryPoolXp;
+    final remaining = maxPoolXp - currentPoolXp;
+    if (remaining <= 0) return 0;
+
+    final xpPerToken = masteryTokenXpPerClaim(skill);
+    final maxClaimable = remaining ~/ xpPerToken;
+    // Allow at least 1 if there's any remaining room.
+    final claimable = maxClaimable < 1 && remaining > 0 ? 1 : maxClaimable;
+    return claimable.clamp(0, held);
+  }
+
   /// Claims a mastery token for a skill, adding 0.1% of max mastery pool XP.
   ///
   /// Removes one mastery token from inventory and adds 0.1% of the skill's
-  /// max mastery pool XP to the mastery pool.
+  /// max mastery pool XP to the mastery pool. The XP added is capped so the
+  /// pool does not exceed its maximum.
   ///
   /// Throws StateError if:
   /// - The skill doesn't have mastery tokens (combat skills, Township, etc.)
   /// - Player doesn't have the mastery token in inventory
+  /// - Claiming would waste XP (pool is already full)
   GlobalState claimMasteryToken(Skill skill) {
     if (!MasteryTokenDrop.skillHasMasteryToken(skill)) {
       throw StateError('Skill $skill does not have mastery tokens');
@@ -1950,9 +1980,16 @@ class GlobalState {
       throw StateError('No mastery tokens for ${skill.name} in inventory');
     }
 
-    // Calculate 0.1% of max mastery pool XP (min 1)
     final maxPoolXp = maxMasteryPoolXpForSkill(registries, skill);
-    final xpToAdd = (maxPoolXp * 0.001).round().clamp(1, maxPoolXp);
+    final currentPoolXp = skillState(skill).masteryPoolXp;
+    if (currentPoolXp >= maxPoolXp) {
+      throw StateError('Mastery pool for ${skill.name} is already full');
+    }
+
+    // Calculate 0.1% of max mastery pool XP, capped to remaining space.
+    final xpPerToken = masteryTokenXpPerClaim(skill);
+    final remaining = maxPoolXp - currentPoolXp;
+    final xpToAdd = xpPerToken.clamp(1, remaining);
 
     // Remove token from inventory
     final newInventory = inventory.removing(ItemStack(token, count: 1));
@@ -1961,10 +1998,11 @@ class GlobalState {
     return copyWith(inventory: newInventory).addSkillMasteryXp(skill, xpToAdd);
   }
 
-  /// Claims all mastery tokens for a skill at once.
+  /// Claims mastery tokens for a skill, only as many as fit without exceeding
+  /// the pool cap.
   ///
-  /// Returns the new state after claiming all tokens, or this state if
-  /// there are no tokens to claim.
+  /// Returns the new state after claiming tokens, or this state if
+  /// there are no tokens to claim or the pool is full.
   GlobalState claimAllMasteryTokens(Skill skill) {
     if (!MasteryTokenDrop.skillHasMasteryToken(skill)) {
       return this;
@@ -1972,19 +2010,18 @@ class GlobalState {
 
     final tokenId = MasteryTokenDrop(skill: skill).itemId;
     final token = registries.items.byId(tokenId);
-    final tokenCount = inventory.countOfItem(token);
 
-    if (tokenCount < 1) {
-      return this;
-    }
+    final claimable = claimableMasteryTokenCount(skill);
+    if (claimable < 1) return this;
 
-    // Calculate 0.1% of max mastery pool XP per token
     final maxPoolXp = maxMasteryPoolXpForSkill(registries, skill);
-    final xpPerToken = (maxPoolXp * 0.001).round().clamp(1, maxPoolXp);
-    final totalXp = xpPerToken * tokenCount;
+    final currentPoolXp = skillState(skill).masteryPoolXp;
+    final remaining = maxPoolXp - currentPoolXp;
+    final xpPerToken = masteryTokenXpPerClaim(skill);
+    final totalXp = (xpPerToken * claimable).clamp(0, remaining);
 
-    // Remove all tokens from inventory
-    final tokenStack = ItemStack(token, count: tokenCount);
+    // Remove only the claimable tokens from inventory
+    final tokenStack = ItemStack(token, count: claimable);
     final newInventory = inventory.removing(tokenStack);
 
     // Add mastery pool XP

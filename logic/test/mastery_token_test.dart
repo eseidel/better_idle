@@ -135,6 +135,56 @@ void main() {
 
       expect(() => state.claimMasteryToken(Skill.attack), throwsStateError);
     });
+
+    test('throws when pool is already full', () {
+      final maxPoolXp = maxMasteryPoolXpForSkill(
+        testRegistries,
+        Skill.woodcutting,
+      );
+      var state = GlobalState.empty(testRegistries);
+      state = state.copyWith(
+        inventory: state.inventory.adding(
+          ItemStack(woodcuttingToken, count: 1),
+        ),
+        skillStates: {
+          ...state.skillStates,
+          Skill.woodcutting: state
+              .skillState(Skill.woodcutting)
+              .copyWith(masteryPoolXp: maxPoolXp),
+        },
+      );
+
+      expect(
+        () => state.claimMasteryToken(Skill.woodcutting),
+        throwsStateError,
+      );
+    });
+
+    test('caps XP to remaining pool space', () {
+      final maxPoolXp = maxMasteryPoolXpForSkill(
+        testRegistries,
+        Skill.woodcutting,
+      );
+      final xpPerToken = (maxPoolXp * 0.001).round().clamp(1, maxPoolXp);
+      // Fill pool to just 1 XP below max.
+      var state = GlobalState.empty(testRegistries);
+      state = state.copyWith(
+        inventory: state.inventory.adding(
+          ItemStack(woodcuttingToken, count: 1),
+        ),
+        skillStates: {
+          ...state.skillStates,
+          Skill.woodcutting: state
+              .skillState(Skill.woodcutting)
+              .copyWith(masteryPoolXp: maxPoolXp - 1),
+        },
+      );
+
+      final newState = state.claimMasteryToken(Skill.woodcutting);
+      // Should only add 1 XP (remaining), not the full xpPerToken.
+      expect(newState.skillState(Skill.woodcutting).masteryPoolXp, maxPoolXp);
+      expect(1, lessThan(xpPerToken)); // Confirm it was actually capped.
+    });
   });
 
   group('claimAllMasteryTokens', () {
@@ -166,6 +216,62 @@ void main() {
       expect(newState.skillState(Skill.woodcutting).masteryPoolXp, expectedXp);
     });
 
+    test('only claims tokens that fit without exceeding pool cap', () {
+      final maxPoolXp = maxMasteryPoolXpForSkill(
+        testRegistries,
+        Skill.woodcutting,
+      );
+      final xpPerToken = (maxPoolXp * 0.001).round().clamp(1, maxPoolXp);
+
+      // Fill pool so only 2 tokens worth of space remains.
+      final startXp = maxPoolXp - (xpPerToken * 2);
+      var state = GlobalState.empty(testRegistries);
+      state = state.copyWith(
+        inventory: state.inventory.adding(
+          ItemStack(woodcuttingToken, count: 10),
+        ),
+        skillStates: {
+          ...state.skillStates,
+          Skill.woodcutting: state
+              .skillState(Skill.woodcutting)
+              .copyWith(masteryPoolXp: startXp),
+        },
+      );
+
+      final newState = state.claimAllMasteryTokens(Skill.woodcutting);
+
+      // Should only consume 2 tokens.
+      expect(newState.inventory.countOfItem(woodcuttingToken), 8);
+      // Pool should be exactly at start + 2 * xpPerToken.
+      expect(
+        newState.skillState(Skill.woodcutting).masteryPoolXp,
+        startXp + xpPerToken * 2,
+      );
+    });
+
+    test('returns same state when pool is full', () {
+      final maxPoolXp = maxMasteryPoolXpForSkill(
+        testRegistries,
+        Skill.woodcutting,
+      );
+      var state = GlobalState.empty(testRegistries);
+      state = state.copyWith(
+        inventory: state.inventory.adding(
+          ItemStack(woodcuttingToken, count: 5),
+        ),
+        skillStates: {
+          ...state.skillStates,
+          Skill.woodcutting: state
+              .skillState(Skill.woodcutting)
+              .copyWith(masteryPoolXp: maxPoolXp),
+        },
+      );
+
+      final newState = state.claimAllMasteryTokens(Skill.woodcutting);
+      // No tokens should be consumed.
+      expect(newState.inventory.countOfItem(woodcuttingToken), 5);
+    });
+
     test('returns same state if no tokens', () {
       final state = GlobalState.empty(testRegistries);
       final newState = state.claimAllMasteryTokens(Skill.woodcutting);
@@ -176,6 +282,78 @@ void main() {
       final state = GlobalState.empty(testRegistries);
       final newState = state.claimAllMasteryTokens(Skill.attack);
       expect(newState, state);
+    });
+  });
+
+  group('claimableMasteryTokenCount', () {
+    test('returns 0 for combat skills', () {
+      final state = GlobalState.empty(testRegistries);
+      expect(state.claimableMasteryTokenCount(Skill.attack), 0);
+    });
+
+    test('returns 0 when pool is full', () {
+      final maxPoolXp = maxMasteryPoolXpForSkill(
+        testRegistries,
+        Skill.woodcutting,
+      );
+      var state = GlobalState.empty(testRegistries);
+      state = state.copyWith(
+        inventory: state.inventory.adding(
+          ItemStack(woodcuttingToken, count: 5),
+        ),
+        skillStates: {
+          ...state.skillStates,
+          Skill.woodcutting: state
+              .skillState(Skill.woodcutting)
+              .copyWith(masteryPoolXp: maxPoolXp),
+        },
+      );
+      expect(state.claimableMasteryTokenCount(Skill.woodcutting), 0);
+    });
+
+    test('returns limited count when near pool cap', () {
+      final maxPoolXp = maxMasteryPoolXpForSkill(
+        testRegistries,
+        Skill.woodcutting,
+      );
+      final xpPerToken = (maxPoolXp * 0.001).round().clamp(1, maxPoolXp);
+
+      // Space for exactly 3 tokens.
+      final startXp = maxPoolXp - (xpPerToken * 3);
+      var state = GlobalState.empty(testRegistries);
+      state = state.copyWith(
+        inventory: state.inventory.adding(
+          ItemStack(woodcuttingToken, count: 10),
+        ),
+        skillStates: {
+          ...state.skillStates,
+          Skill.woodcutting: state
+              .skillState(Skill.woodcutting)
+              .copyWith(masteryPoolXp: startXp),
+        },
+      );
+      expect(state.claimableMasteryTokenCount(Skill.woodcutting), 3);
+    });
+
+    test('returns 1 when remaining space is less than one token', () {
+      final maxPoolXp = maxMasteryPoolXpForSkill(
+        testRegistries,
+        Skill.woodcutting,
+      );
+      // Fill pool to 1 XP below max.
+      var state = GlobalState.empty(testRegistries);
+      state = state.copyWith(
+        inventory: state.inventory.adding(
+          ItemStack(woodcuttingToken, count: 5),
+        ),
+        skillStates: {
+          ...state.skillStates,
+          Skill.woodcutting: state
+              .skillState(Skill.woodcutting)
+              .copyWith(masteryPoolXp: maxPoolXp - 1),
+        },
+      );
+      expect(state.claimableMasteryTokenCount(Skill.woodcutting), 1);
     });
   });
 
