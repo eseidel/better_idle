@@ -56,36 +56,28 @@ class StateUpdateBuilder {
   ///
   /// This preserves the dungeon context from the current activity while
   /// switching to the new monster.
+  /// Switches to a new monster during dungeon/stronghold progression.
+  ///
+  /// Preserves the sequence context while updating progress ticks.
+  /// Only called during dungeon progression where the activity is always
+  /// a [CombatActivity] with [SequenceCombatContext].
   void switchToAction(Action action, {required int remainingTicks}) {
     final totalTicks = remainingTicks;
     final currentActivity = _state.activeActivity;
 
-    // If we're in a dungeon, preserve the dungeon context
-    if (currentActivity is CombatActivity &&
-        currentActivity.context is SequenceCombatContext) {
-      // The new activity will have the updated monster index set by the caller
-      // via updateCombatState, so we just update progressTicks/totalTicks here
-      _state = _state.copyWith(
-        activeActivity: currentActivity.copyWith(
-          progressTicks: totalTicks - remainingTicks,
-          totalTicks: totalTicks,
-        ),
-      );
-    } else {
-      // Non-dungeon combat - create a new CombatActivity
-      _state = _state.copyWith(
-        activeActivity: CombatActivity(
-          context: MonsterCombatContext(monsterId: action.id.localId),
-          progress: const CombatProgressState(
-            monsterHp: 0, // Will be set by caller via updateCombatState
-            playerAttackTicksRemaining: 0,
-            monsterAttackTicksRemaining: 0,
-          ),
-          progressTicks: totalTicks - remainingTicks,
-          totalTicks: totalTicks,
-        ),
-      );
-    }
+    assert(
+      currentActivity is CombatActivity &&
+          currentActivity.context is SequenceCombatContext,
+      'switchToAction should only be called during dungeon/stronghold combat',
+    );
+
+    final combatActivity = currentActivity! as CombatActivity;
+    _state = _state.copyWith(
+      activeActivity: combatActivity.copyWith(
+        progressTicks: totalTicks - remainingTicks,
+        totalTicks: totalTicks,
+      ),
+    );
   }
 
   int currentMasteryLevel(Action action) {
@@ -278,11 +270,6 @@ class StateUpdateBuilder {
     final newPlotStates = Map<MelvorId, PlotState>.from(_state.plotStates);
     newPlotStates[plotId] = newState;
     _state = _state.copyWith(plotStates: newPlotStates);
-  }
-
-  void updateCookingAreaState(CookingArea area, CookingAreaState newState) {
-    final cooking = _state.cooking.withAreaState(area, newState);
-    _state = _state.copyWith(cooking: cooking);
   }
 
   /// Updates progress for a specific cooking area in the active
@@ -562,11 +549,6 @@ class StateUpdateBuilder {
     final newCompletions = Map<MelvorId, int>.from(_state.slayerTaskCompletions)
       ..[categoryId] = currentCount + 1;
     _state = _state.copyWith(slayerTaskCompletions: newCompletions);
-  }
-
-  /// Updates the agility state.
-  void setAgility(AgilityState agility) {
-    _state = _state.copyWith(agility: agility);
   }
 
   /// Updates the active agility activity to the next obstacle.
