@@ -911,46 +911,61 @@ enum ForegroundResult {
 }
 
 /// Handles skill action completion, dispatching to skill-specific handlers
-/// for thieving (stun/death), cooking (success/fail), and mining (depletion),
-/// with a generic path for all other skills.
+/// via switch expression on action type.
 ForegroundResult _completeSkillAction(
   StateUpdateBuilder builder,
   SkillAction action,
   Random random,
+) => switch (action) {
+  ThievingAction() => _completeThievingForeground(builder, action, random),
+  CookingAction() => _completeCookingForeground(builder, action, random),
+  MiningAction() => _completeMiningAction(builder, action, random),
+  _ => _completeGenericSkillAction(builder, action, random),
+};
+
+ForegroundResult _completeThievingForeground(
+  StateUpdateBuilder builder,
+  ThievingAction action,
+  Random random,
 ) {
-  // Thieving has unique stun/death mechanics on completion.
-  if (action is ThievingAction) {
-    final playerAlive = completeThievingAction(builder, action, random);
-    if (!playerAlive) {
-      builder.stopAction(ActionStopReason.playerDied);
-      return ForegroundResult.stopped;
-    }
-    if (builder.state.isStunned) {
-      // Failed - leave at remainingTicks=0, return justStunned so
-      // background skips stun countdown (ticks were for action completion)
-      return ForegroundResult.justStunned;
-    }
+  final playerAlive = completeThievingAction(builder, action, random);
+  if (!playerAlive) {
+    builder.stopAction(ActionStopReason.playerDied);
+    return ForegroundResult.stopped;
+  }
+  if (builder.state.isStunned) {
+    // Failed - leave at remainingTicks=0, return justStunned so
+    // background skips stun countdown (ticks were for action completion)
+    return ForegroundResult.justStunned;
+  }
+  builder.restartCurrentAction(action, random: random);
+  return ForegroundResult.continued;
+}
+
+ForegroundResult _completeCookingForeground(
+  StateUpdateBuilder builder,
+  CookingAction action,
+  Random random,
+) {
+  completeCookingAction(builder, action, random, isPassive: false);
+  if (builder.state.canStartAction(action)) {
     builder.restartCurrentAction(action, random: random);
     return ForegroundResult.continued;
   }
+  builder.stopAction(ActionStopReason.outOfInputs);
+  return ForegroundResult.stopped;
+}
 
-  // Cooking has success/fail mechanics and passive area processing.
-  if (action is CookingAction) {
-    completeCookingAction(builder, action, random, isPassive: false);
-    if (builder.state.canStartAction(action)) {
-      builder.restartCurrentAction(action, random: random);
-      return ForegroundResult.continued;
-    }
-    builder.stopAction(ActionStopReason.outOfInputs);
-    return ForegroundResult.stopped;
-  }
-
-  // Generic skill completion (woodcutting, fishing, mining, etc.)
+ForegroundResult _completeMiningAction(
+  StateUpdateBuilder builder,
+  MiningAction action,
+  Random random,
+) {
   final canRepeat = completeAction(builder, action, random: random);
 
   // Mining nodes may deplete — if so, the mining foreground processor
   // handles respawn waiting on the next iteration.
-  if (action is MiningAction && !canRepeat) {
+  if (!canRepeat) {
     final miningState = builder.state.miningState.rockState(action.id.localId);
     if (miningState.isDepleted) {
       return ForegroundResult.continued;
@@ -967,6 +982,44 @@ ForegroundResult _completeSkillAction(
       : ActionStopReason.outOfInputs;
   builder.stopAction(stopReason);
   return ForegroundResult.stopped;
+}
+
+ForegroundResult _completeGenericSkillAction(
+  StateUpdateBuilder builder,
+  SkillAction action,
+  Random random,
+) {
+  final canRepeat = completeAction(builder, action, random: random);
+
+  if (canRepeat && builder.state.canStartAction(action)) {
+    builder.restartCurrentAction(action, random: random);
+    return ForegroundResult.continued;
+  }
+
+  final stopReason = !canRepeat
+      ? ActionStopReason.inventoryFull
+      : ActionStopReason.outOfInputs;
+  builder.stopAction(stopReason);
+  return ForegroundResult.stopped;
+}
+
+/// Dispatches skill-specific mid-progress hooks based on action type.
+/// Currently only cooking needs this (for passive cooking area ticks).
+void _applyMidProgressHooks(
+  StateUpdateBuilder builder,
+  SkillAction action,
+  Tick ticksApplied,
+  Random random,
+) {
+  switch (action) {
+    case CookingAction():
+      // Process passive cooking areas continuously (not just at completion).
+      // This ensures passive cooking completes at the right time even if
+      // the passive duration doesn't align with active completion events.
+      _applyPassiveCookingTicks(builder, ticksApplied, action.id, random);
+    default:
+      break;
+  }
 }
 
 /// Processes one iteration of a SkillAction foreground.
@@ -1011,12 +1064,8 @@ ForegroundResult _completeSkillAction(
     ..setActionProgress(action, remainingTicks: newRemainingTicks)
     ..addActionTicks(action.id, ticksToApply);
 
-  // For cooking, process passive cooking areas continuously (not just at
-  // completion). This ensures passive cooking completes at the right time
-  // even if the passive duration doesn't align with active completion events.
-  if (action is CookingAction) {
-    _applyPassiveCookingTicks(builder, ticksToApply, action.id, random);
-  }
+  // Skill-specific mid-progress hooks (e.g., passive cooking ticks).
+  _applyMidProgressHooks(builder, action, ticksToApply, random);
 
   if (newRemainingTicks <= 0) {
     // Action completed - dispatch to skill-specific completion handler
