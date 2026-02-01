@@ -371,8 +371,10 @@ void _applyBackgroundTicks(
 
       // Auto-restart bonfire if it burned out and we have logs
       if (newBonfire.isEmpty) {
-        final bonfireAction = builder.registries.actionById(bonfire.actionId!);
-        if (bonfireAction is FiremakingAction) {
+        final bonfireAction = builder.registries.firemaking.byId(
+          bonfire.actionId!.localId,
+        );
+        if (bonfireAction != null) {
           builder.restartBonfire(bonfireAction);
         }
       }
@@ -512,6 +514,19 @@ class StateUpdateBuilder {
   Registries get registries => _state.registries;
 
   GlobalState get state => _state;
+
+  /// Returns the active activity as a [CombatActivity].
+  /// Throws [StateError] if the active activity is not a [CombatActivity].
+  CombatActivity get combatActivity {
+    final activity = _state.activeActivity;
+    if (activity is! CombatActivity) {
+      throw StateError(
+        'Expected CombatActivity but got ${activity.runtimeType}',
+      );
+    }
+    return activity;
+  }
+
   ActionStopReason get stopReason => _stopReason;
   Tick? get stoppedAtTick => _stoppedAtTick;
   Tick get ticksElapsed => _ticksElapsed;
@@ -2162,13 +2177,9 @@ ForegroundResult _completeSkillAction(
         );
 
         // Update the combat activity with the new context
-        final currentActivity = builder.state.activeActivity;
-        if (currentActivity is! CombatActivity) {
-          throw StateError(
-            'Expected CombatActivity but got ${currentActivity.runtimeType}',
-          );
-        }
-        final newActivity = currentActivity.copyWith(context: updatedContext);
+        final newActivity = builder.combatActivity.copyWith(
+          context: updatedContext,
+        );
         builder.updateActivity(newActivity);
 
         currentCombat = currentCombat.copyWith(
