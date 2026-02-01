@@ -939,8 +939,7 @@ ForegroundResult _completeThievingForeground(
     // background skips stun countdown (ticks were for action completion)
     return ForegroundResult.justStunned;
   }
-  builder.restartCurrentAction(action, random: random);
-  return ForegroundResult.continued;
+  return _restartOrStop(builder, action, true, random);
 }
 
 /// Handles cooking completion with success/fail mechanics.
@@ -950,12 +949,7 @@ ForegroundResult _completeCookingForeground(
   Random random,
 ) {
   completeCookingAction(builder, action, random, isPassive: false);
-  if (builder.state.canStartAction(action)) {
-    builder.restartCurrentAction(action, random: random);
-    return ForegroundResult.continued;
-  }
-  builder.stopAction(ActionStopReason.outOfInputs);
-  return ForegroundResult.stopped;
+  return _restartOrStop(builder, action, true, random);
 }
 
 /// Handles mining completion with node depletion mechanics.
@@ -975,7 +969,7 @@ ForegroundResult _completeMiningAction(
     }
   }
 
-  return _finishOrStop(builder, action, canRepeat, random);
+  return _restartOrStop(builder, action, canRepeat, random);
 }
 
 /// Handles generic skill completion (woodcutting, fishing, etc.).
@@ -985,12 +979,12 @@ ForegroundResult _completeGenericSkillAction(
   Random random,
 ) {
   final canRepeat = completeAction(builder, action, random: random);
-  return _finishOrStop(builder, action, canRepeat, random);
+  return _restartOrStop(builder, action, canRepeat, random);
 }
 
 /// Restarts the action if it can repeat, otherwise stops with the
 /// appropriate reason.
-ForegroundResult _finishOrStop(
+ForegroundResult _restartOrStop(
   StateUpdateBuilder builder,
   SkillAction action,
   bool canRepeat,
