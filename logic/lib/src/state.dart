@@ -1061,7 +1061,7 @@ class GlobalState {
       agility: agility,
       astrology: astrology,
       currentActionId: action.id,
-      conditionContext: conditionContext,
+      conditionContext: _withActivePotions(conditionContext),
     );
   }
 
@@ -1090,7 +1090,7 @@ class GlobalState {
       agility: agility,
       astrology: astrology,
       combatTypeSkills: attackStyle.combatType.skills,
-      conditionContext: conditionContext,
+      conditionContext: _withActivePotions(conditionContext),
     );
   }
 
@@ -1118,7 +1118,32 @@ class GlobalState {
       activeSynergy: _getActiveSynergy(),
       agility: agility,
       astrology: astrology,
-      conditionContext: conditionContext,
+      conditionContext: _withActivePotions(conditionContext),
+    );
+  }
+
+  /// Computes the set of active herblore recipe IDs from selected potions.
+  Set<MelvorId> _activePotionRecipeIds() {
+    final result = <MelvorId>{};
+    for (final potionItemId in selectedPotions.values) {
+      final recipeId = registries.herblore.recipeIdForPotionItem(potionItemId);
+      if (recipeId != null) result.add(recipeId);
+    }
+    return result;
+  }
+
+  /// Merges active potion recipes into a condition context.
+  ConditionContext _withActivePotions(ConditionContext context) {
+    final recipes = _activePotionRecipeIds();
+    if (recipes.isEmpty) return context;
+    return ConditionContext(
+      playerHpPercent: context.playerHpPercent,
+      enemyHpPercent: context.enemyHpPercent,
+      itemCharges: context.itemCharges,
+      bankItemCounts: context.bankItemCounts,
+      activePotionRecipes: recipes,
+      activeEffectGroups: context.activeEffectGroups,
+      isFightingSlayerTask: context.isFightingSlayerTask,
     );
   }
 

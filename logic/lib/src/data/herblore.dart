@@ -125,12 +125,17 @@ class HerbloreRegistry {
        _categories = categories {
     _byId = {for (final a in _actions) a.id.localId: a};
     _categoryById = {for (final c in _categories) c.id: c};
+    _recipeByPotionItemId = {
+      for (final a in _actions)
+        for (final potionId in a.potionIds) potionId: a.id.localId,
+    };
   }
 
   final List<HerbloreAction> _actions;
   final List<HerbloreCategory> _categories;
   late final Map<MelvorId, HerbloreAction> _byId;
   late final Map<MelvorId, HerbloreCategory> _categoryById;
+  late final Map<MelvorId, MelvorId> _recipeByPotionItemId;
 
   /// All herblore actions.
   List<HerbloreAction> get actions => _actions;
@@ -143,4 +148,8 @@ class HerbloreRegistry {
 
   /// Returns a herblore category by ID, or null if not found.
   HerbloreCategory? categoryById(MelvorId id) => _categoryById[id];
+
+  /// Returns the herblore recipe local ID for a potion item ID.
+  MelvorId? recipeIdForPotionItem(MelvorId potionItemId) =>
+      _recipeByPotionItemId[potionItemId];
 }
