@@ -911,52 +911,85 @@ enum ForegroundResult {
 }
 
 /// Handles skill action completion, dispatching to skill-specific handlers
-/// for thieving (stun/death), cooking (success/fail), and mining (depletion),
-/// with a generic path for all other skills.
+/// via switch expression on action type.
 ForegroundResult _completeSkillAction(
   StateUpdateBuilder builder,
   SkillAction action,
   Random random,
-) {
-  // Thieving has unique stun/death mechanics on completion.
-  if (action is ThievingAction) {
-    final playerAlive = completeThievingAction(builder, action, random);
-    if (!playerAlive) {
-      builder.stopAction(ActionStopReason.playerDied);
-      return ForegroundResult.stopped;
-    }
-    if (builder.state.isStunned) {
-      // Failed - leave at remainingTicks=0, return justStunned so
-      // background skips stun countdown (ticks were for action completion)
-      return ForegroundResult.justStunned;
-    }
-    builder.restartCurrentAction(action, random: random);
-    return ForegroundResult.continued;
-  }
+) => switch (action) {
+  ThievingAction() => _completeThievingForeground(builder, action, random),
+  CookingAction() => _completeCookingForeground(builder, action, random),
+  MiningAction() => _completeMiningAction(builder, action, random),
+  _ => _completeGenericSkillAction(builder, action, random),
+};
 
-  // Cooking has success/fail mechanics and passive area processing.
-  if (action is CookingAction) {
-    completeCookingAction(builder, action, random, isPassive: false);
-    if (builder.state.canStartAction(action)) {
-      builder.restartCurrentAction(action, random: random);
-      return ForegroundResult.continued;
-    }
-    builder.stopAction(ActionStopReason.outOfInputs);
+/// Handles thieving completion with unique stun/death mechanics.
+ForegroundResult _completeThievingForeground(
+  StateUpdateBuilder builder,
+  ThievingAction action,
+  Random random,
+) {
+  final playerAlive = completeThievingAction(builder, action, random);
+  if (!playerAlive) {
+    builder.stopAction(ActionStopReason.playerDied);
     return ForegroundResult.stopped;
   }
+  if (builder.state.isStunned) {
+    // Failed - leave at remainingTicks=0, return justStunned so
+    // background skips stun countdown (ticks were for action completion)
+    return ForegroundResult.justStunned;
+  }
+  return _restartOrStop(builder, action, true, random);
+}
 
-  // Generic skill completion (woodcutting, fishing, mining, etc.)
+/// Handles cooking completion with success/fail mechanics.
+ForegroundResult _completeCookingForeground(
+  StateUpdateBuilder builder,
+  CookingAction action,
+  Random random,
+) {
+  completeCookingAction(builder, action, random, isPassive: false);
+  return _restartOrStop(builder, action, true, random);
+}
+
+/// Handles mining completion with node depletion mechanics.
+ForegroundResult _completeMiningAction(
+  StateUpdateBuilder builder,
+  MiningAction action,
+  Random random,
+) {
   final canRepeat = completeAction(builder, action, random: random);
 
   // Mining nodes may deplete — if so, the mining foreground processor
   // handles respawn waiting on the next iteration.
-  if (action is MiningAction && !canRepeat) {
+  if (!canRepeat) {
     final miningState = builder.state.miningState.rockState(action.id.localId);
     if (miningState.isDepleted) {
       return ForegroundResult.continued;
     }
   }
 
+  return _restartOrStop(builder, action, canRepeat, random);
+}
+
+/// Handles generic skill completion (woodcutting, fishing, etc.).
+ForegroundResult _completeGenericSkillAction(
+  StateUpdateBuilder builder,
+  SkillAction action,
+  Random random,
+) {
+  final canRepeat = completeAction(builder, action, random: random);
+  return _restartOrStop(builder, action, canRepeat, random);
+}
+
+/// Restarts the action if it can repeat, otherwise stops with the
+/// appropriate reason.
+ForegroundResult _restartOrStop(
+  StateUpdateBuilder builder,
+  SkillAction action,
+  bool canRepeat,
+  Random random,
+) {
   if (canRepeat && builder.state.canStartAction(action)) {
     builder.restartCurrentAction(action, random: random);
     return ForegroundResult.continued;
