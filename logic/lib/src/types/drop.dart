@@ -265,17 +265,6 @@ class MasteryTokenDrop extends Droppable {
     Skill.altMagic, // Alt. Magic
   };
 
-  /// Returns the skill for a mastery token item ID, or null if not a token.
-  static Skill? skillForTokenId(MelvorId itemId) {
-    final localId = itemId.localId;
-    if (!localId.startsWith('Mastery_Token_')) return null;
-    final skillName = localId.substring('Mastery_Token_'.length);
-    for (final skill in Skill.values) {
-      if (skill.name == skillName) return skill;
-    }
-    return null;
-  }
-
   /// Returns true if this skill has a mastery token.
   static bool skillHasMasteryToken(Skill skill) {
     return !skill.isCombatSkill &&

@@ -2378,4 +2378,108 @@ void main() {
       expect(store.state.selectedSkillAction(Skill.thieving), man);
     });
   });
+
+  group('SpendMasteryPoolAction', () {
+    late Registries registries;
+    late SkillAction normalTree;
+
+    setUpAll(() async {
+      registries = await loadRegistries();
+      normalTree = registries
+          .actionsForSkill(Skill.woodcutting)
+          .firstWhere((a) => a.name == 'Normal Tree');
+    });
+
+    test('spends pool XP to level up action mastery', () {
+      var state = GlobalState.empty(registries);
+      state = state.addSkillMasteryXp(Skill.woodcutting, 100000);
+      final store = Store<GlobalState>(initialState: state);
+
+      final poolBefore = store.state
+          .skillState(Skill.woodcutting)
+          .masteryPoolXp;
+      store.dispatch(
+        SpendMasteryPoolAction(
+          skill: Skill.woodcutting,
+          actionId: normalTree.id,
+        ),
+      );
+
+      expect(
+        store.state.skillState(Skill.woodcutting).masteryPoolXp,
+        poolBefore - 83,
+      );
+      expect(store.state.actionState(normalTree.id).masteryLevel, 2);
+    });
+
+    test('returns null when pool is insufficient', () {
+      var state = GlobalState.empty(registries);
+      state = state.addSkillMasteryXp(Skill.woodcutting, 10);
+      final store = Store<GlobalState>(initialState: state)
+        ..dispatch(
+          SpendMasteryPoolAction(
+            skill: Skill.woodcutting,
+            actionId: normalTree.id,
+          ),
+        );
+
+      // State unchanged — still 10 pool XP, still level 1.
+      expect(store.state.skillState(Skill.woodcutting).masteryPoolXp, 10);
+      expect(store.state.actionState(normalTree.id).masteryLevel, 1);
+    });
+  });
+
+  group('ClaimMasteryTokenAction', () {
+    late Registries registries;
+    late Item woodcuttingToken;
+
+    setUpAll(() async {
+      registries = await loadRegistries();
+      woodcuttingToken = registries.items.byName('Mastery Token (Woodcutting)');
+    });
+
+    test('claims one mastery token', () {
+      var state = GlobalState.empty(registries);
+      state = state.copyWith(
+        inventory: state.inventory.adding(
+          ItemStack(woodcuttingToken, count: 3),
+        ),
+      );
+      final store = Store<GlobalState>(initialState: state)
+        ..dispatch(ClaimMasteryTokenAction(skill: Skill.woodcutting));
+
+      expect(store.state.inventory.countOfItem(woodcuttingToken), 2);
+      expect(
+        store.state.skillState(Skill.woodcutting).masteryPoolXp,
+        greaterThan(0),
+      );
+    });
+  });
+
+  group('ClaimAllMasteryTokensAction', () {
+    late Registries registries;
+    late Item woodcuttingToken;
+
+    setUpAll(() async {
+      registries = await loadRegistries();
+      woodcuttingToken = registries.items.byName('Mastery Token (Woodcutting)');
+    });
+
+    test('claims all mastery tokens at once', () {
+      var state = GlobalState.empty(registries);
+      state = state.copyWith(
+        inventory: state.inventory.adding(
+          ItemStack(woodcuttingToken, count: 5),
+        ),
+      );
+      final store = Store<GlobalState>(initialState: state)
+        ..dispatch(ClaimAllMasteryTokensAction(skill: Skill.woodcutting));
+
+      expect(store.state.inventory.countOfItem(woodcuttingToken), 0);
+      expect(
+        store.state.skillState(Skill.woodcutting).masteryPoolXp,
+        greaterThan(0),
+      );
+    });
+  });
 }

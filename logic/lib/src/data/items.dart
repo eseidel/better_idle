@@ -253,6 +253,7 @@ class Item extends Equatable {
     this.potionTier,
     this.potionAction,
     this.consumesOn = const [],
+    this.masteryTokenSkillId,
   });
 
   /// Creates a simple test item with minimal required fields.
@@ -281,7 +282,8 @@ class Item extends Equatable {
        validSlots = const <EquipmentSlot>[],
        modifiers = const ModifierDataSet([]),
        conditionalModifiers = const <ConditionalModifier>[],
-       equipmentStats = EquipmentStats.empty;
+       equipmentStats = EquipmentStats.empty,
+       masteryTokenSkillId = null;
 
   /// Creates an Item from a JSON map.
   factory Item.fromJson(
@@ -400,6 +402,12 @@ class Item extends Equatable {
       potionTier: potionTier,
       potionAction: potionAction,
       consumesOn: consumesOn,
+      masteryTokenSkillId: json['skill'] != null
+          ? MelvorId.fromJsonWithNamespace(
+              json['skill'] as String,
+              defaultNamespace: namespace,
+            )
+          : null,
     );
   }
 
@@ -426,6 +434,9 @@ class Item extends Equatable {
 
   /// The amount of HP this item heals when consumed. Null if not consumable.
   final int? healsFor;
+
+  /// The skill this mastery token is for. Null if not a mastery token.
+  final MelvorId? masteryTokenSkillId;
 
   /// The compost value for farming (0-50). Null if not compost.
   final int? compostValue;
@@ -530,6 +541,7 @@ class Item extends Equatable {
     potionTier,
     potionAction,
     consumesOn,
+    masteryTokenSkillId,
   ];
 }
 

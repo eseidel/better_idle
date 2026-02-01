@@ -532,7 +532,7 @@ class _ItemDetailsDrawerState extends State<ItemDetailsDrawer> {
                 _UpgradeSection(item: itemData),
               ],
               // Show Claim button for mastery tokens
-              if (itemData.itemType == 'MasteryToken') ...[
+              if (itemData.masteryTokenSkillId != null) ...[
                 const SizedBox(height: 32),
                 const Divider(),
                 const SizedBox(height: 16),
@@ -1177,8 +1177,7 @@ class _ClaimMasteryTokenSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final skill = MasteryTokenDrop.skillForTokenId(item.id);
-    if (skill == null) return const SizedBox.shrink();
+    final skill = Skill.fromId(item.masteryTokenSkillId!);
 
     final state = context.state;
     final maxPoolXp = maxMasteryPoolXpForSkill(state.registries, skill);
