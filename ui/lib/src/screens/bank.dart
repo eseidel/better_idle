@@ -1182,7 +1182,9 @@ class _ClaimMasteryTokenSection extends StatelessWidget {
     final state = context.state;
     final maxPoolXp = maxMasteryPoolXpForSkill(state.registries, skill);
     final currentPoolXp = state.skillState(skill).masteryPoolXp;
-    final xpPerToken = (maxPoolXp * 0.001).round().clamp(1, maxPoolXp);
+    final xpPerToken = state.masteryTokenXpPerClaim(skill);
+    final claimable = state.claimableMasteryTokenCount(skill);
+    final poolFull = currentPoolXp >= maxPoolXp;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -1199,14 +1201,26 @@ class _ClaimMasteryTokenSection extends StatelessWidget {
           ' / ${preciseNumberString(maxPoolXp)})',
           style: Theme.of(context).textTheme.bodyMedium,
         ),
+        if (poolFull)
+          Padding(
+            padding: const EdgeInsets.only(top: 4),
+            child: Text(
+              'Mastery pool is full',
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: Theme.of(context).colorScheme.error,
+              ),
+            ),
+          ),
         const SizedBox(height: 16),
         Row(
           children: [
             Expanded(
               child: ElevatedButton(
-                onPressed: () {
-                  context.dispatch(ClaimMasteryTokenAction(skill: skill));
-                },
+                onPressed: claimable > 0
+                    ? () {
+                        context.dispatch(ClaimMasteryTokenAction(skill: skill));
+                      }
+                    : null,
                 child: const Text('Claim 1'),
               ),
             ),
@@ -1214,10 +1228,14 @@ class _ClaimMasteryTokenSection extends StatelessWidget {
               const SizedBox(width: 8),
               Expanded(
                 child: ElevatedButton(
-                  onPressed: () {
-                    context.dispatch(ClaimAllMasteryTokensAction(skill: skill));
-                  },
-                  child: Text('Claim All ($maxCount)'),
+                  onPressed: claimable > 0
+                      ? () {
+                          context.dispatch(
+                            ClaimAllMasteryTokensAction(skill: skill),
+                          );
+                        }
+                      : null,
+                  child: Text('Claim All ($claimable)'),
                 ),
               ),
             ],
