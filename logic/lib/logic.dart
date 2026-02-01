@@ -36,6 +36,7 @@ export 'src/data/xp.dart';
 export 'src/plot_state.dart';
 export 'src/progress_at.dart';
 export 'src/state.dart';
+export 'src/state_update_builder.dart';
 export 'src/strings.dart';
 export 'src/summoning_state.dart';
 export 'src/tick.dart';
