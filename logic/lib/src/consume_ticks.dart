@@ -1501,28 +1501,9 @@ ForegroundResult _completeSkillAction(
   }
 
   // Delegate normal swing progress to the generic skill processor.
-  // On completion, completeAction is called which does NOT handle
-  // depletion (that was extracted here), so we post-process.
-  final (result, ticks) = _processSkillForeground(
-    builder,
-    action,
-    ticksAvailable,
-    random,
-  );
-
-  // If the action stopped because completeAction returned false
-  // (canRepeat=false means inventory full normally), check if the node
-  // actually just depleted — if so, keep going for respawn next tick.
-  if (result == ForegroundResult.stopped) {
-    final updatedMining = builder.state.miningState.rockState(
-      action.id.localId,
-    );
-    if (updatedMining.isDepleted) {
-      return (ForegroundResult.continued, ticks);
-    }
-  }
-
-  return (result, ticks);
+  // On completion, _completeSkillAction handles the depletion guard
+  // (returning continued so we loop back here for respawn next tick).
+  return _processSkillForeground(builder, action, ticksAvailable, random);
 }
 
 /// Completes mining-specific logic after a swing: increments damage,
