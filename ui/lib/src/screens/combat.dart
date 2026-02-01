@@ -82,12 +82,28 @@ class CombatPage extends StatelessWidget {
                   child: ElevatedButton.icon(
                     onPressed: () => showDialog<void>(
                       context: context,
+                      builder: (_) => const SlayerAreaSelectionDialog(),
+                    ),
+                    icon: const Icon(Icons.dangerous),
+                    label: const Text('Slayer Area'),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                Expanded(
+                  child: ElevatedButton.icon(
+                    onPressed: () => showDialog<void>(
+                      context: context,
                       builder: (_) => const SlayerTaskSelectionDialog(),
                     ),
                     icon: const Icon(Icons.assignment),
                     label: const Text('Slayer Task'),
                   ),
                 ),
+                const Expanded(child: SizedBox()),
               ],
             ),
             const SizedBox(height: 16),
@@ -579,11 +595,15 @@ class _MonsterListTile extends StatelessWidget {
     required this.monster,
     required this.isActive,
     required this.isStunned,
+    this.onFight,
   });
 
   final CombatAction monster;
   final bool isActive;
   final bool isStunned;
+
+  /// Custom fight callback. If null, dispatches [StartCombatAction].
+  final VoidCallback? onFight;
 
   @override
   Widget build(BuildContext context) {
@@ -623,12 +643,13 @@ class _MonsterListTile extends StatelessWidget {
                   ElevatedButton(
                     onPressed: isStunned
                         ? null
-                        : () {
-                            context.dispatch(
-                              StartCombatAction(combatAction: monster),
-                            );
-                            Navigator.of(context).pop(); // Close dialog
-                          },
+                        : onFight ??
+                              () {
+                                context.dispatch(
+                                  StartCombatAction(combatAction: monster),
+                                );
+                                Navigator.of(context).pop();
+                              },
                     child: const Text('Fight'),
                   ),
                 ],
@@ -1275,6 +1296,148 @@ class _SlayerTaskProgressCard extends StatelessWidget {
         ),
       ),
     );
+  }
+}
+
+class SlayerAreaSelectionDialog extends StatelessWidget {
+  const SlayerAreaSelectionDialog({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final state = context.state;
+    final areas = state.registries.slayer.areas.all;
+
+    final activeActionId = state.currentActionId;
+    CombatAction? activeMonster;
+    if (activeActionId != null) {
+      final action = state.registries.actionById(activeActionId);
+      if (action is CombatAction) {
+        activeMonster = action;
+      }
+    }
+
+    return AlertDialog(
+      title: const Text('Select Slayer Area'),
+      content: SizedBox(
+        width: double.maxFinite,
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              for (final area in areas)
+                _SlayerAreaTile(
+                  area: area,
+                  activeMonster: activeMonster,
+                  isStunned: state.isStunned,
+                ),
+            ],
+          ),
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('Close'),
+        ),
+      ],
+    );
+  }
+}
+
+class _SlayerAreaTile extends StatelessWidget {
+  const _SlayerAreaTile({
+    required this.area,
+    required this.activeMonster,
+    required this.isStunned,
+  });
+
+  final SlayerArea area;
+  final CombatAction? activeMonster;
+  final bool isStunned;
+
+  @override
+  Widget build(BuildContext context) {
+    final state = context.state;
+    final combat = state.registries.combat;
+    final monsters = area.monsterIds.map(combat.monsterById).toList();
+    final unmet = state.unmetSlayerAreaRequirements(area);
+    final meetsRequirements = unmet.isEmpty;
+
+    final activeId = activeMonster?.id;
+    final hasActiveMonster =
+        activeId != null && area.monsterIds.contains(activeId.localId);
+
+    return Card(
+      color: hasActiveMonster ? Style.activeColorLight : null,
+      child: ExpansionTile(
+        leading: area.media != null
+            ? CachedImage(assetPath: area.media, size: 40)
+            : const Icon(Icons.dangerous),
+        title: Text(area.name),
+        subtitle: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('${monsters.length} monsters'),
+            if (!meetsRequirements)
+              Text(
+                _requirementText(unmet, state),
+                style: const TextStyle(color: Colors.red, fontSize: 12),
+              ),
+            if (area.areaEffectDescription != null)
+              Text(
+                area.areaEffectDescription!,
+                style: const TextStyle(
+                  fontSize: 12,
+                  color: Style.textColorSecondary,
+                ),
+              ),
+          ],
+        ),
+        initiallyExpanded: hasActiveMonster,
+        children: monsters
+            .map(
+              (monster) => _MonsterListTile(
+                monster: monster,
+                isActive: activeMonster?.id == monster.id,
+                isStunned: isStunned || !meetsRequirements,
+                onFight: meetsRequirements
+                    ? () {
+                        context.dispatch(
+                          StartSlayerAreaCombatAction(
+                            area: area,
+                            monster: monster,
+                          ),
+                        );
+                        Navigator.of(context).pop();
+                      }
+                    : null,
+              ),
+            )
+            .toList(),
+      ),
+    );
+  }
+
+  String _requirementText(
+    List<SlayerAreaRequirement> unmet,
+    GlobalState state,
+  ) {
+    final parts = <String>[];
+    for (final req in unmet) {
+      switch (req) {
+        case SlayerLevelRequirement(:final level):
+          parts.add('Slayer Lv. $level');
+        case SlayerItemRequirement(:final itemId):
+          final item = state.registries.items.byId(itemId);
+          parts.add('Equip ${item.name}');
+        case SlayerDungeonRequirement(:final dungeonId, :final count):
+          final dungeon = state.registries.combat.dungeons.byId(dungeonId);
+          parts.add('Complete ${dungeon.name} x$count');
+        case SlayerShopPurchaseRequirement(:final purchaseId, :final count):
+          parts.add('Shop purchase ${purchaseId.name} x$count');
+      }
+    }
+    return 'Requires: ${parts.join(', ')}';
   }
 }
 
