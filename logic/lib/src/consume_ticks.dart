@@ -974,7 +974,7 @@ class StateUpdateBuilder {
       // If current slot is empty, try auto-swap to next non-empty slot.
       if (food == null && canAutoSwap) {
         final nextSlot = _state.equipment.nextNonEmptyFoodSlot;
-        if (nextSlot >= 0) {
+        if (nextSlot != null) {
           _state = _state.copyWith(
             equipment: _state.equipment.copyWith(selectedFoodSlot: nextSlot),
           );

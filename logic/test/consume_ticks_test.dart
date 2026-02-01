@@ -1834,6 +1834,41 @@ void main() {
       // Lobster untouched.
       expect(builder.state.equipment.foodSlots[1]?.count, 5);
     });
+
+    test('auto-swap stops when all slots are empty', () {
+      // Only one slot has food, other slots empty.
+      final equipment = Equipment(
+        foodSlots: [ItemStack(shrimp, count: 1), null, null],
+        selectedFoodSlot: 0,
+      );
+      final state = GlobalState.test(
+        testRegistries,
+        equipment: equipment,
+        health: const HealthState(lostHp: 90),
+        skillStates: {
+          Skill.hitpoints: SkillState(
+            xp: startXpForLevel(10),
+            masteryPoolXp: 0,
+          ),
+        },
+      );
+      expect(state.maxPlayerHp, 100);
+
+      final builder = StateUpdateBuilder(state);
+      const modifiers = TestModifiers({
+        'autoEatThreshold': 20,
+        'autoEatEfficiency': 100,
+        'autoEatHPLimit': 100,
+        'autoSwapFoodUnlocked': 1,
+      });
+      final consumed = builder.tryAutoEat(modifiers);
+
+      // Eats the 1 shrimp, can't swap (no other food), stops.
+      expect(consumed, 1);
+      // Still on slot 0 (no swap target found).
+      expect(builder.state.equipment.selectedFoodSlot, 0);
+      expect(builder.state.equipment.foodSlots[0], isNull);
+    });
   });
 
   group('combat loot drops', () {

@@ -140,13 +140,13 @@ class Equipment {
 
   /// Returns the index of the next non-empty food slot after
   /// [selectedFoodSlot], wrapping around.
-  /// Returns -1 if all slots are empty.
-  int get nextNonEmptyFoodSlot {
+  /// Returns null if all other slots are empty.
+  int? get nextNonEmptyFoodSlot {
     for (var i = 1; i < foodSlots.length; i++) {
       final index = (selectedFoodSlot + i) % foodSlots.length;
       if (foodSlots[index] != null) return index;
     }
-    return -1;
+    return null;
   }
 
   /// Returns the index of an empty food slot, or -1 if all slots are full.
