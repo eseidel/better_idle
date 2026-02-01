@@ -373,10 +373,8 @@ void _applyBackgroundTicks(
       if (newBonfire.isEmpty) {
         final bonfireAction = builder.registries.firemaking.byId(
           bonfire.actionId!.localId,
-        );
-        if (bonfireAction != null) {
-          builder.restartBonfire(bonfireAction);
-        }
+        )!;
+        builder.restartBonfire(bonfireAction);
       }
     }
   }
