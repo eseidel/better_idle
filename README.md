@@ -36,7 +36,6 @@ is written in a different language than the mods.
 
 ### To Fix
 
-- Fix fishing regions to drop junk/specials.
 - Recipes with multiple inputs should show last selection in list views.
 - Get rid of Icon usage.
 - Improve equipment UI
@@ -47,10 +46,7 @@ is written in a different language than the mods.
 - more Thieving drops.
 - global drops.
 - mastery rewards (and UI) for all actions.
-- mastery pool checkpoints.
-- mastery tokens.
 - Alt. Magic
-- potions
 - Statistics tracking
 - township tasks
 - township storage control
