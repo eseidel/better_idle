@@ -1737,34 +1737,39 @@ bool completeAction(
   // Roll for summoning mark discovery
   _rollMarkDiscovery(builder, action, random);
 
-  // Mark tablet as crafted when completing a summoning action
-  // This unblocks further mark discovery for that familiar
-  if (action is SummoningAction) {
-    builder.markTabletCrafted(action.productId);
-  }
-
-  // Handle resource depletion for mining
-  if (action is MiningAction) {
-    final actionState = builder.state.actionState(action.id);
-    final miningState = builder.state.miningState.rockState(action.id.localId);
-
-    // Increment damage
-    final newTotalHpLost = miningState.totalHpLost + 1;
-    final newMiningState = miningState.copyWith(totalHpLost: newTotalHpLost);
-    final currentHp = newMiningState.currentHp(action, actionState.masteryXp);
-
-    // Check if depleted
-    if (currentHp <= 0) {
-      // Node is depleted - set respawn timer
-      builder.depleteResourceNode(action.id, action, newTotalHpLost);
-      canRepeatAction = false; // Can't continue mining
-    } else {
-      // Still has HP, just update damage and start regen countdown if needed
-      builder.damageResourceNode(action.id, newTotalHpLost);
-    }
+  // Dispatch skill-specific post-completion effects.
+  switch (action) {
+    case SummoningAction():
+      // Mark tablet as crafted to unblock further mark discovery.
+      builder.markTabletCrafted(action.productId);
+    case MiningAction():
+      if (_applyMiningDepletion(builder, action)) {
+        canRepeatAction = false;
+      }
+    default:
+      break;
   }
 
   return canRepeatAction;
+}
+
+/// Applies mining rock depletion after a completed mining action.
+/// Returns true if the rock is now depleted.
+bool _applyMiningDepletion(StateUpdateBuilder builder, MiningAction action) {
+  final actionState = builder.state.actionState(action.id);
+  final miningState = builder.state.miningState.rockState(action.id.localId);
+
+  // Increment damage
+  final newTotalHpLost = miningState.totalHpLost + 1;
+  final newMiningState = miningState.copyWith(totalHpLost: newTotalHpLost);
+  final currentHp = newMiningState.currentHp(action, actionState.masteryXp);
+
+  if (currentHp <= 0) {
+    builder.depleteResourceNode(action.id, action, newTotalHpLost);
+    return true;
+  }
+  builder.damageResourceNode(action.id, newTotalHpLost);
+  return false;
 }
 
 // ============================================================================
@@ -1792,44 +1797,82 @@ ForegroundResult _completeSkillAction(
   SkillAction action,
   Random random,
 ) {
-  // Thieving has unique stun/death mechanics on completion.
-  if (action is ThievingAction) {
-    final playerAlive = completeThievingAction(builder, action, random);
-    if (!playerAlive) {
-      builder.stopAction(ActionStopReason.playerDied);
-      return ForegroundResult.stopped;
-    }
-    if (builder.state.isStunned) {
-      // Failed - leave at remainingTicks=0, return justStunned so
-      // background skips stun countdown (ticks were for action completion)
-      return ForegroundResult.justStunned;
-    }
+  return switch (action) {
+    ThievingAction() => _completeThieving(builder, action, random),
+    CookingAction() => _completeCooking(builder, action, random),
+    MiningAction() => _completeMining(builder, action, random),
+    _ => _completeGenericSkill(builder, action, random),
+  };
+}
+
+ForegroundResult _completeThieving(
+  StateUpdateBuilder builder,
+  ThievingAction action,
+  Random random,
+) {
+  final playerAlive = completeThievingAction(builder, action, random);
+  if (!playerAlive) {
+    builder.stopAction(ActionStopReason.playerDied);
+    return ForegroundResult.stopped;
+  }
+  if (builder.state.isStunned) {
+    // Failed - leave at remainingTicks=0, return justStunned so
+    // background skips stun countdown (ticks were for action completion)
+    return ForegroundResult.justStunned;
+  }
+  builder.restartCurrentAction(action, random: random);
+  return ForegroundResult.continued;
+}
+
+ForegroundResult _completeCooking(
+  StateUpdateBuilder builder,
+  CookingAction action,
+  Random random,
+) {
+  completeCookingAction(builder, action, random, isPassive: false);
+  if (builder.state.canStartAction(action)) {
     builder.restartCurrentAction(action, random: random);
     return ForegroundResult.continued;
   }
+  builder.stopAction(ActionStopReason.outOfInputs);
+  return ForegroundResult.stopped;
+}
 
-  // Cooking has success/fail mechanics and passive area processing.
-  if (action is CookingAction) {
-    completeCookingAction(builder, action, random, isPassive: false);
-    if (builder.state.canStartAction(action)) {
-      builder.restartCurrentAction(action, random: random);
-      return ForegroundResult.continued;
-    }
-    builder.stopAction(ActionStopReason.outOfInputs);
-    return ForegroundResult.stopped;
-  }
-
-  // Generic skill completion (woodcutting, fishing, mining, etc.)
+ForegroundResult _completeMining(
+  StateUpdateBuilder builder,
+  MiningAction action,
+  Random random,
+) {
   final canRepeat = completeAction(builder, action, random: random);
 
   // Mining nodes may deplete - if so, next iteration handles respawn.
-  if (action is MiningAction && !canRepeat) {
+  if (!canRepeat) {
     final miningState = builder.state.miningState.rockState(action.id.localId);
     if (miningState.isDepleted) {
       return ForegroundResult.continued;
     }
   }
 
+  return _restartOrStop(builder, action, random, canRepeat);
+}
+
+ForegroundResult _completeGenericSkill(
+  StateUpdateBuilder builder,
+  SkillAction action,
+  Random random,
+) {
+  final canRepeat = completeAction(builder, action, random: random);
+  return _restartOrStop(builder, action, random, canRepeat);
+}
+
+/// Restarts the action if it can repeat, otherwise stops with an appropriate
+/// reason.
+ForegroundResult _restartOrStop(
+  StateUpdateBuilder builder,
+  SkillAction action,
+  Random random,
+  bool canRepeat,
+) {
   if (canRepeat && builder.state.canStartAction(action)) {
     builder.restartCurrentAction(action, random: random);
     return ForegroundResult.continued;
