@@ -883,11 +883,10 @@ bool completeAction(
     builder.markTabletCrafted(action.productId);
   }
 
-  // Handle resource depletion for mining.
+  // Apply mining swing damage/depletion. Depletion does not short-circuit
+  // here; _processMiningForeground handles the respawn wait.
   if (action is MiningAction) {
-    if (!_completeMiningSwing(builder, action)) {
-      return false;
-    }
+    _completeMiningSwing(builder, action);
   }
 
   return canRepeatAction;
@@ -919,7 +918,6 @@ ForegroundResult _completeSkillAction(
 ) => switch (action) {
   ThievingAction() => _completeThievingForeground(builder, action, random),
   CookingAction() => _completeCookingForeground(builder, action, random),
-  MiningAction() => _completeMiningAction(builder, action, random),
   _ => _completeGenericSkillAction(builder, action, random),
 };
 
@@ -950,26 +948,6 @@ ForegroundResult _completeCookingForeground(
 ) {
   completeCookingAction(builder, action, random, isPassive: false);
   return _restartOrStop(builder, action, true, random);
-}
-
-/// Handles mining completion with node depletion mechanics.
-ForegroundResult _completeMiningAction(
-  StateUpdateBuilder builder,
-  MiningAction action,
-  Random random,
-) {
-  final canRepeat = completeAction(builder, action, random: random);
-
-  // Mining nodes may deplete — if so, the mining foreground processor
-  // handles respawn waiting on the next iteration.
-  if (!canRepeat) {
-    final miningState = builder.state.miningState.rockState(action.id.localId);
-    if (miningState.isDepleted) {
-      return ForegroundResult.continued;
-    }
-  }
-
-  return _restartOrStop(builder, action, canRepeat, random);
 }
 
 /// Handles generic skill completion (woodcutting, fishing, etc.).
@@ -1534,15 +1512,15 @@ ForegroundResult _restartOrStop(
   }
 
   // Delegate normal swing progress to the generic skill processor.
-  // On completion, _completeSkillAction handles the depletion guard
-  // (returning continued so we loop back here for respawn next tick).
+  // If the node depletes, the action restarts normally and the next
+  // iteration handles respawn waiting at the top of this function.
   return _processSkillForeground(builder, action, ticksAvailable, random);
 }
 
-/// Completes mining-specific logic after a swing: increments damage,
-/// checks for depletion, and sets the respawn timer if needed.
-/// Returns true if the node is still alive and mining can repeat.
-bool _completeMiningSwing(StateUpdateBuilder builder, MiningAction action) {
+/// Applies mining swing damage. If the node's HP reaches zero, depletes
+/// it and sets the respawn timer. [_processMiningForeground] handles the
+/// respawn wait on the next iteration.
+void _completeMiningSwing(StateUpdateBuilder builder, MiningAction action) {
   final actionState = builder.state.actionState(action.id);
   final miningState = builder.state.miningState.rockState(action.id.localId);
 
@@ -1552,10 +1530,9 @@ bool _completeMiningSwing(StateUpdateBuilder builder, MiningAction action) {
 
   if (currentHp <= 0) {
     builder.depleteResourceNode(action.id, action, newTotalHpLost);
-    return false;
+    return;
   }
   builder.damageResourceNode(action.id, newTotalHpLost);
-  return true;
 }
 
 /// Dispatches foreground processing based on activity type.
