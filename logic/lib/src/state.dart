@@ -713,10 +713,6 @@ class GlobalState {
   /// Map of stronghold ID to number of completions.
   final Map<MelvorId, int> strongholdCompletions;
 
-  /// Returns how many times a stronghold has been completed.
-  int strongholdCompletionCount(MelvorId strongholdId) =>
-      strongholdCompletions[strongholdId] ?? 0;
-
   /// Map of slayer task category ID to number of completions.
   final Map<MelvorId, int> slayerTaskCompletions;
 
