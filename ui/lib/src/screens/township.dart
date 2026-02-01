@@ -35,37 +35,39 @@ class _TownshipPageState extends State<TownshipPage> {
 
   @override
   Widget build(BuildContext context) {
-    return DefaultTabController(
-      length: 2,
-      child: GameScaffold(
-        title: const Text('Township'),
-        bottom: const TabBar(
-          tabs: [
-            Tab(
-              icon: CachedImage(
-                assetPath: 'assets/media/skills/township/menu_town.png',
-                size: 24,
-              ),
-              text: 'Town',
-            ),
-            Tab(
-              icon: CachedImage(
-                assetPath: 'assets/media/skills/township/menu_tasks.png',
-                size: 24,
-              ),
-              text: 'Tasks',
-            ),
-          ],
-        ),
-        body: StoreConnector<GlobalState, TownshipViewModel>(
-          converter: (store) => TownshipViewModel(store.state),
-          builder: (context, viewModel) {
-            // Show deity selection if no deity chosen yet
-            if (!viewModel.hasSelectedDeity) {
-              return _DeitySelectionView(viewModel: viewModel);
-            }
+    return StoreConnector<GlobalState, TownshipViewModel>(
+      converter: (store) => TownshipViewModel(store.state),
+      builder: (context, viewModel) {
+        if (!viewModel.hasSelectedDeity) {
+          return GameScaffold(
+            title: const Text('Township'),
+            body: _DeitySelectionView(viewModel: viewModel),
+          );
+        }
 
-            return TabBarView(
+        return DefaultTabController(
+          length: 2,
+          child: GameScaffold(
+            title: const Text('Township'),
+            bottom: const TabBar(
+              tabs: [
+                Tab(
+                  icon: CachedImage(
+                    assetPath: 'assets/media/skills/township/menu_town.png',
+                    size: 24,
+                  ),
+                  text: 'Town',
+                ),
+                Tab(
+                  icon: CachedImage(
+                    assetPath: 'assets/media/skills/township/menu_tasks.png',
+                    size: 24,
+                  ),
+                  text: 'Tasks',
+                ),
+              ],
+            ),
+            body: TabBarView(
               children: [
                 _TownView(
                   viewModel: viewModel,
@@ -85,10 +87,10 @@ class _TownshipPageState extends State<TownshipPage> {
                 ),
                 _TasksView(viewModel: viewModel),
               ],
-            );
-          },
-        ),
-      ),
+            ),
+          ),
+        );
+      },
     );
   }
 }
