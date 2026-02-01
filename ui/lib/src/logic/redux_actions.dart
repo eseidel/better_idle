@@ -780,3 +780,37 @@ class PurchaseAstrologyModifierAction extends ReduxAction<GlobalState> {
     );
   }
 }
+
+/// Spends mastery pool XP to raise an action's mastery to the next level.
+class SpendMasteryPoolAction extends ReduxAction<GlobalState> {
+  SpendMasteryPoolAction({required this.skill, required this.actionId});
+  final Skill skill;
+  final ActionId actionId;
+
+  @override
+  GlobalState? reduce() {
+    return state.spendMasteryPoolXp(skill, actionId);
+  }
+}
+
+/// Claims a single mastery token for a skill.
+class ClaimMasteryTokenAction extends ReduxAction<GlobalState> {
+  ClaimMasteryTokenAction({required this.skill});
+  final Skill skill;
+
+  @override
+  GlobalState? reduce() {
+    return state.claimMasteryToken(skill);
+  }
+}
+
+/// Claims all mastery tokens for a skill.
+class ClaimAllMasteryTokensAction extends ReduxAction<GlobalState> {
+  ClaimAllMasteryTokensAction({required this.skill});
+  final Skill skill;
+
+  @override
+  GlobalState? reduce() {
+    return state.claimAllMasteryTokens(skill);
+  }
+}

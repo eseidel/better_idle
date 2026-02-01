@@ -3,6 +3,7 @@ import 'package:logic/logic.dart';
 import 'package:ui/src/widgets/cached_image.dart';
 import 'package:ui/src/widgets/context_extensions.dart';
 import 'package:ui/src/widgets/mastery_pool_checkpoints_dialog.dart';
+import 'package:ui/src/widgets/spend_mastery_dialog.dart';
 
 /// Shows progress toward filling the mastery pool for a skill.
 ///
@@ -52,6 +53,13 @@ class MasteryPoolProgress extends StatelessWidget {
               builder: (context) => MasteryPoolCheckpointsDialog(skill: skill),
             ),
             child: const Text('View Checkpoints'),
+          ),
+          TextButton(
+            onPressed: () => showDialog<void>(
+              context: context,
+              builder: (context) => SpendMasteryDialog(skill: skill),
+            ),
+            child: const Text('Spend XP'),
           ),
         ],
       ),

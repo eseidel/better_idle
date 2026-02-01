@@ -531,6 +531,13 @@ class _ItemDetailsDrawerState extends State<ItemDetailsDrawer> {
                 const SizedBox(height: 16),
                 _UpgradeSection(item: itemData),
               ],
+              // Show Claim button for mastery tokens
+              if (itemData.masteryTokenSkillId != null) ...[
+                const SizedBox(height: 32),
+                const Divider(),
+                const SizedBox(height: 16),
+                _ClaimMasteryTokenSection(item: itemData, maxCount: maxCount),
+              ],
             ],
           ),
         ),
@@ -1156,6 +1163,65 @@ class _SellConfirmationDialog extends StatelessWidget {
         ElevatedButton(
           onPressed: () => Navigator.of(context).pop(true),
           child: const Text('Confirm Sell'),
+        ),
+      ],
+    );
+  }
+}
+
+class _ClaimMasteryTokenSection extends StatelessWidget {
+  const _ClaimMasteryTokenSection({required this.item, required this.maxCount});
+
+  final Item item;
+  final int maxCount;
+
+  @override
+  Widget build(BuildContext context) {
+    final skill = Skill.fromId(item.masteryTokenSkillId!);
+
+    final state = context.state;
+    final maxPoolXp = maxMasteryPoolXpForSkill(state.registries, skill);
+    final currentPoolXp = state.skillState(skill).masteryPoolXp;
+    final xpPerToken = (maxPoolXp * 0.001).round().clamp(1, maxPoolXp);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Claim Mastery Token',
+          style: Theme.of(context).textTheme.titleMedium,
+        ),
+        const SizedBox(height: 8),
+        Text(
+          'Adds ${preciseNumberString(xpPerToken)} XP to '
+          '${skill.name} mastery pool '
+          '(${preciseNumberString(currentPoolXp)}'
+          ' / ${preciseNumberString(maxPoolXp)})',
+          style: Theme.of(context).textTheme.bodyMedium,
+        ),
+        const SizedBox(height: 16),
+        Row(
+          children: [
+            Expanded(
+              child: ElevatedButton(
+                onPressed: () {
+                  context.dispatch(ClaimMasteryTokenAction(skill: skill));
+                },
+                child: const Text('Claim 1'),
+              ),
+            ),
+            if (maxCount > 1) ...[
+              const SizedBox(width: 8),
+              Expanded(
+                child: ElevatedButton(
+                  onPressed: () {
+                    context.dispatch(ClaimAllMasteryTokensAction(skill: skill));
+                  },
+                  child: Text('Claim All ($maxCount)'),
+                ),
+              ),
+            ],
+          ],
         ),
       ],
     );

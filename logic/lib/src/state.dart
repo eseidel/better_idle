@@ -1730,6 +1730,60 @@ class GlobalState {
     return copyWith(skillStates: newSkillStates);
   }
 
+  /// Spends mastery pool XP to raise an action's mastery to the next level.
+  ///
+  /// Returns the new state, or null if insufficient pool XP or already at max.
+  GlobalState? spendMasteryPoolXp(Skill skill, ActionId actionId) {
+    final action = actionState(actionId);
+    final currentLevel = action.masteryLevel;
+    if (currentLevel >= 99) return null;
+
+    final currentXp = action.masteryXp;
+    final nextLevelXp = startXpForLevel(currentLevel + 1);
+    final xpNeeded = nextLevelXp - currentXp;
+    if (xpNeeded <= 0) return null;
+
+    final pool = skillState(skill).masteryPoolXp;
+    if (pool < xpNeeded) return null;
+
+    // Deduct from pool and add to action mastery.
+    return addSkillMasteryXp(
+      skill,
+      -xpNeeded,
+    ).addActionMasteryXp(actionId, xpNeeded);
+  }
+
+  /// Returns the XP cost to raise an action's mastery to the next level,
+  /// or null if already at max mastery (99).
+  int? masteryLevelUpCost(ActionId actionId) {
+    final action = actionState(actionId);
+    final currentLevel = action.masteryLevel;
+    if (currentLevel >= 99) return null;
+    return startXpForLevel(currentLevel + 1) - action.masteryXp;
+  }
+
+  /// Returns which mastery pool checkpoint would be crossed if [xpCost] were
+  /// spent from the pool for [skill]. Returns null if no checkpoint is crossed.
+  int? masteryPoolCheckpointCrossed(Skill skill, int xpCost) {
+    final pool = skillState(skill).masteryPoolXp;
+    final maxPoolXp = maxMasteryPoolXpForSkill(registries, skill);
+    if (maxPoolXp <= 0) return null;
+
+    final currentPercent = (pool / maxPoolXp) * 100;
+    final afterPercent = ((pool - xpCost) / maxPoolXp) * 100;
+
+    final bonuses = registries.masteryPoolBonuses.forSkill(skill.id);
+    if (bonuses == null) return null;
+
+    // Check from highest to lowest checkpoint.
+    for (final bonus in bonuses.bonuses.reversed) {
+      if (currentPercent >= bonus.percent && afterPercent < bonus.percent) {
+        return bonus.percent;
+      }
+    }
+    return null;
+  }
+
   GlobalState addActionMasteryXp(ActionId actionId, int amount) {
     final oldState = actionState(actionId);
     final newState = oldState.copyWith(masteryXp: oldState.masteryXp + amount);
