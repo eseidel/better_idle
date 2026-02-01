@@ -982,14 +982,6 @@ class GlobalState {
         }
       }
 
-      // Check if mining node is depleted
-      if (action is MiningAction) {
-        final rockState = miningState.rockState(action.id.localId);
-        if (rockState.isDepleted) {
-          return false; // Can't mine depleted node
-        }
-      }
-
       // Check if summoning action requires marks
       if (action is SummoningAction) {
         if (!summoning.canCraftTablet(action.productId)) {
