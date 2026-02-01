@@ -2,16 +2,7 @@ import 'package:logic/src/data/melvor_id.dart';
 import 'package:meta/meta.dart';
 
 /// The type of monster sequence being fought.
-enum SequenceType {
-  dungeon,
-  stronghold;
-
-  /// Whether this sequence type tracks completions in dungeon completions.
-  bool get isDungeon => this == SequenceType.dungeon;
-
-  /// Whether this sequence type tracks completions in stronghold completions.
-  bool get isStronghold => this == SequenceType.stronghold;
-}
+enum SequenceType { dungeon, stronghold }
 
 /// Combat context identifying what type of combat we're engaged in.
 ///
