@@ -371,9 +371,9 @@ void _applyBackgroundTicks(
 
       // Auto-restart bonfire if it burned out and we have logs
       if (newBonfire.isEmpty) {
-        final bonfireAction =
-            builder.registries.actionById(bonfire.actionId!)
-                as FiremakingAction;
+        final bonfireAction = builder.registries.firemaking.byId(
+          bonfire.actionId!.localId,
+        )!;
         builder.restartBonfire(bonfireAction);
       }
     }
@@ -512,6 +512,19 @@ class StateUpdateBuilder {
   Registries get registries => _state.registries;
 
   GlobalState get state => _state;
+
+  /// Returns the active activity as a [CombatActivity].
+  /// Throws [StateError] if the active activity is not a [CombatActivity].
+  CombatActivity get combatActivity {
+    final activity = _state.activeActivity;
+    if (activity is! CombatActivity) {
+      throw StateError(
+        'Expected CombatActivity but got ${activity.runtimeType}',
+      );
+    }
+    return activity;
+  }
+
   ActionStopReason get stopReason => _stopReason;
   Tick? get stoppedAtTick => _stoppedAtTick;
   Tick get ticksElapsed => _ticksElapsed;
@@ -1771,6 +1784,64 @@ enum ForegroundResult {
   justStunned,
 }
 
+/// Handles skill action completion, dispatching to skill-specific handlers
+/// for thieving (stun/death), cooking (success/fail), and mining (depletion),
+/// with a generic path for all other skills.
+ForegroundResult _completeSkillAction(
+  StateUpdateBuilder builder,
+  SkillAction action,
+  Random random,
+) {
+  // Thieving has unique stun/death mechanics on completion.
+  if (action is ThievingAction) {
+    final playerAlive = completeThievingAction(builder, action, random);
+    if (!playerAlive) {
+      builder.stopAction(ActionStopReason.playerDied);
+      return ForegroundResult.stopped;
+    }
+    if (builder.state.isStunned) {
+      // Failed - leave at remainingTicks=0, return justStunned so
+      // background skips stun countdown (ticks were for action completion)
+      return ForegroundResult.justStunned;
+    }
+    builder.restartCurrentAction(action, random: random);
+    return ForegroundResult.continued;
+  }
+
+  // Cooking has success/fail mechanics and passive area processing.
+  if (action is CookingAction) {
+    completeCookingAction(builder, action, random, isPassive: false);
+    if (builder.state.canStartAction(action)) {
+      builder.restartCurrentAction(action, random: random);
+      return ForegroundResult.continued;
+    }
+    builder.stopAction(ActionStopReason.outOfInputs);
+    return ForegroundResult.stopped;
+  }
+
+  // Generic skill completion (woodcutting, fishing, mining, etc.)
+  final canRepeat = completeAction(builder, action, random: random);
+
+  // Mining nodes may deplete - if so, next iteration handles respawn.
+  if (action is MiningAction && !canRepeat) {
+    final miningState = builder.state.miningState.rockState(action.id.localId);
+    if (miningState.isDepleted) {
+      return ForegroundResult.continued;
+    }
+  }
+
+  if (canRepeat && builder.state.canStartAction(action)) {
+    builder.restartCurrentAction(action, random: random);
+    return ForegroundResult.continued;
+  }
+
+  final stopReason = !canRepeat
+      ? ActionStopReason.inventoryFull
+      : ActionStopReason.outOfInputs;
+  builder.stopAction(stopReason);
+  return ForegroundResult.stopped;
+}
+
 /// Processes one iteration of a SkillAction foreground.
 /// Returns how many ticks were consumed and whether to continue.
 (ForegroundResult, Tick) _processSkillForeground(
@@ -1841,65 +1912,9 @@ enum ForegroundResult {
   }
 
   if (newRemainingTicks <= 0) {
-    // Action completed - handle differently based on action type
-    if (action is ThievingAction) {
-      final playerAlive = completeThievingAction(builder, action, random);
-      if (playerAlive) {
-        if (builder.state.isStunned) {
-          // Failed - leave at remainingTicks=0, return justStunned so
-          // background skips stun countdown (ticks were for action completion)
-          return (ForegroundResult.justStunned, ticksToApply);
-        } else {
-          // Success - restart action normally
-          builder.restartCurrentAction(action, random: random);
-          return (ForegroundResult.continued, ticksToApply);
-        }
-      } else {
-        // Player died - stop action
-        builder.stopAction(ActionStopReason.playerDied);
-        return (ForegroundResult.stopped, ticksToApply);
-      }
-    }
-
-    // Handle cooking with success/fail mechanics
-    if (action is CookingAction) {
-      completeCookingAction(builder, action, random, isPassive: false);
-      // Passive cooking is processed above (before completion check) so it
-      // runs continuously, not just at active completion events.
-      if (builder.state.canStartAction(action)) {
-        builder.restartCurrentAction(action, random: random);
-        return (ForegroundResult.continued, ticksToApply);
-      } else {
-        builder.stopAction(ActionStopReason.outOfInputs);
-        return (ForegroundResult.stopped, ticksToApply);
-      }
-    }
-
-    final canRepeat = completeAction(builder, action, random: random);
-
-    // For mining, check if node just depleted
-    if (action is MiningAction && !canRepeat) {
-      final miningState = builder.state.miningState.rockState(
-        action.id.localId,
-      );
-      if (miningState.isDepleted) {
-        // Node depleted - next iteration will handle respawn
-        return (ForegroundResult.continued, ticksToApply);
-      }
-    }
-
-    // Restart action if possible, otherwise stop
-    if (canRepeat && builder.state.canStartAction(action)) {
-      builder.restartCurrentAction(action, random: random);
-      return (ForegroundResult.continued, ticksToApply);
-    } else {
-      // Determine stop reason: inventory full (can't repeat) or out of inputs
-      final stopReason = !canRepeat
-          ? ActionStopReason.inventoryFull
-          : ActionStopReason.outOfInputs;
-      builder.stopAction(stopReason);
-      return (ForegroundResult.stopped, ticksToApply);
-    }
+    // Action completed - dispatch to skill-specific completion handler
+    final result = _completeSkillAction(builder, action, random);
+    return (result, ticksToApply);
   }
 
   // Action still in progress
@@ -2160,8 +2175,9 @@ enum ForegroundResult {
         );
 
         // Update the combat activity with the new context
-        final currentActivity = builder.state.activeActivity! as CombatActivity;
-        final newActivity = currentActivity.copyWith(context: updatedContext);
+        final newActivity = builder.combatActivity.copyWith(
+          context: updatedContext,
+        );
         builder.updateActivity(newActivity);
 
         currentCombat = currentCombat.copyWith(
