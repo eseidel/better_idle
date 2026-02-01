@@ -21,3 +21,6 @@ Tick ticksFromDuration(Duration duration) {
 Duration durationFromTicks(Tick ticks) {
   return Duration(milliseconds: ticks * msPerTick);
 }
+
+/// Ticks required to regenerate 1 HP (10 seconds = 100 ticks).
+final int ticksPer1Hp = ticksFromDuration(const Duration(seconds: 10));

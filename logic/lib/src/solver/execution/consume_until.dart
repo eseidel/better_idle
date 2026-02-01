@@ -15,6 +15,7 @@ import 'package:logic/src/solver/analysis/wait_for.dart';
 import 'package:logic/src/solver/core/solver.dart' show findProducersFor;
 import 'package:logic/src/solver/execution/state_advance.dart';
 import 'package:logic/src/state.dart';
+import 'package:logic/src/state_update_builder.dart';
 import 'package:logic/src/tick.dart' show Tick;
 import 'package:logic/src/types/equipment.dart';
 import 'package:logic/src/types/time_away.dart';
