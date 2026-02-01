@@ -792,3 +792,25 @@ class SpendMasteryPoolAction extends ReduxAction<GlobalState> {
     return state.spendMasteryPoolXp(skill, actionId);
   }
 }
+
+/// Claims a single mastery token for a skill.
+class ClaimMasteryTokenAction extends ReduxAction<GlobalState> {
+  ClaimMasteryTokenAction({required this.skill});
+  final Skill skill;
+
+  @override
+  GlobalState? reduce() {
+    return state.claimMasteryToken(skill);
+  }
+}
+
+/// Claims all mastery tokens for a skill.
+class ClaimAllMasteryTokensAction extends ReduxAction<GlobalState> {
+  ClaimAllMasteryTokensAction({required this.skill});
+  final Skill skill;
+
+  @override
+  GlobalState? reduce() {
+    return state.claimAllMasteryTokens(skill);
+  }
+}
