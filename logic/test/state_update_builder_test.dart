@@ -110,7 +110,7 @@ void main() {
       // Start the summoning action.
       state = state.startAction(summoningAction, random: Random(42));
 
-      // Run enough ticks to complete at least one action (5 seconds = 50 ticks).
+      // Run enough to complete at least one action (5 seconds = 50 ticks).
       final builder = StateUpdateBuilder(state);
       consumeTicks(builder, 100, random: Random(42));
       state = builder.build();
