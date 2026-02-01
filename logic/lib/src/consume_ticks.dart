@@ -962,12 +962,32 @@ class StateUpdateBuilder {
     // Calculate efficiency
     final efficiency = modifiers.autoEatEfficiency;
 
+    final canAutoSwap = modifiers.autoSwapFoodUnlocked > 0;
+    final canAutoEquip = modifiers.autoEquipFoodUnlocked > 0;
+
     var foodConsumed = 0;
     var hp = currentHp;
 
     // Eat until we reach target HP or run out of food
     while (hp < targetHp) {
-      final food = _state.equipment.selectedFood;
+      var food = _state.equipment.selectedFood;
+
+      // If current slot is empty, try auto-swap to next non-empty slot.
+      if (food == null && canAutoSwap) {
+        final nextSlot = _state.equipment.nextNonEmptyFoodSlot;
+        if (nextSlot >= 0) {
+          _state = _state.copyWith(
+            equipment: _state.equipment.copyWith(selectedFoodSlot: nextSlot),
+          );
+          food = _state.equipment.selectedFood;
+        }
+      }
+
+      // If still no food, try auto-equip from inventory.
+      if (food == null && canAutoEquip) {
+        food = _tryAutoEquipFood();
+      }
+
       if (food == null) break;
 
       final healAmount = food.item.healsFor;
@@ -996,6 +1016,33 @@ class StateUpdateBuilder {
     }
 
     return foodConsumed;
+  }
+
+  /// Finds the best food in inventory and equips it to the selected slot.
+  /// Returns the equipped food stack, or null if no food found.
+  ItemStack? _tryAutoEquipFood() {
+    final items = _state.inventory.items;
+    // Find the food item with the highest heal value.
+    Item? bestFood;
+    var bestHeal = 0;
+    var bestCount = 0;
+    for (final stack in items) {
+      final heal = stack.item.healsFor;
+      if (heal != null && heal > bestHeal) {
+        bestFood = stack.item;
+        bestHeal = heal;
+        bestCount = stack.count;
+      }
+    }
+    if (bestFood == null) return null;
+
+    final foodStack = ItemStack(bestFood, count: bestCount);
+    // Remove from inventory and equip.
+    _state = _state.copyWith(
+      inventory: _state.inventory.removing(foodStack),
+      equipment: _state.equipment.equipFood(foodStack),
+    );
+    return _state.equipment.selectedFood;
   }
 
   /// Adds a summoning mark for a familiar.

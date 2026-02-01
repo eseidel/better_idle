@@ -1543,10 +1543,12 @@ void main() {
 
   group('auto-eat', () {
     late Item shrimp;
+    late Item lobster;
     late CombatAction plantAction;
 
     setUpAll(() {
       shrimp = testItems.byName('Shrimp');
+      lobster = testItems.byName('Lobster');
       plantAction = testRegistries.combatAction('Plant');
     });
 
@@ -1758,6 +1760,161 @@ void main() {
       expect(shrimpChange, isNotNull);
       expect(shrimpChange, lessThan(0)); // Negative = consumed
       expect(shrimpChange, -consumed);
+    });
+
+    test('auto-swap switches to next slot when current empties', () {
+      // Use HP level 10 (maxHP=100) so shrimp (heals 30) doesn't
+      // fully heal in one bite, forcing a swap when slot 0 empties.
+      final equipment = Equipment(
+        foodSlots: [
+          ItemStack(shrimp, count: 1),
+          ItemStack(lobster, count: 5),
+          null,
+        ],
+        selectedFoodSlot: 0,
+      );
+      final state = GlobalState.test(
+        testRegistries,
+        equipment: equipment,
+        health: const HealthState(lostHp: 90),
+        skillStates: {
+          Skill.hitpoints: SkillState(
+            xp: startXpForLevel(10),
+            masteryPoolXp: 0,
+          ),
+        },
+      );
+      // Verify setup: maxHP=100, playerHP=10.
+      expect(state.maxPlayerHp, 100);
+      expect(state.playerHp, 10);
+
+      final builder = StateUpdateBuilder(state);
+      const modifiers = TestModifiers({
+        'autoEatThreshold': 20,
+        'autoEatEfficiency': 100,
+        'autoEatHPLimit': 100,
+        'autoSwapFoodUnlocked': 1,
+      });
+      final consumed = builder.tryAutoEat(modifiers);
+
+      expect(consumed, greaterThan(1));
+      // Slot 0 should be empty (shrimp consumed).
+      expect(builder.state.equipment.foodSlots[0], isNull);
+      // Selected slot should have swapped to 1 (lobster).
+      expect(builder.state.equipment.selectedFoodSlot, 1);
+    });
+
+    test('auto-swap does nothing without modifier', () {
+      final equipment = Equipment(
+        foodSlots: [
+          ItemStack(shrimp, count: 1),
+          ItemStack(lobster, count: 5),
+          null,
+        ],
+        selectedFoodSlot: 0,
+      );
+      final state = GlobalState.test(
+        testRegistries,
+        equipment: equipment,
+        health: const HealthState(lostHp: 9),
+      );
+
+      final builder = StateUpdateBuilder(state);
+      const modifiers = TestModifiers({
+        'autoEatThreshold': 20,
+        'autoEatEfficiency': 100,
+        'autoEatHPLimit': 100,
+        // No autoSwapFoodUnlocked
+      });
+      final consumed = builder.tryAutoEat(modifiers);
+
+      // Should eat the 1 shrimp then stop (can't swap).
+      expect(consumed, 1);
+      expect(builder.state.equipment.selectedFoodSlot, 0);
+      // Lobster untouched.
+      expect(builder.state.equipment.foodSlots[1]?.count, 5);
+    });
+
+    test('auto-equip pulls food from inventory', () {
+      const equipment = Equipment(
+        foodSlots: [null, null, null],
+        selectedFoodSlot: 0,
+      );
+      final state = GlobalState.test(
+        testRegistries,
+        health: const HealthState(lostHp: 9),
+        inventory: Inventory.fromItems(testItems, [
+          ItemStack(shrimp, count: 10),
+        ]),
+      );
+
+      final builder = StateUpdateBuilder(state);
+      const modifiers = TestModifiers({
+        'autoEatThreshold': 20,
+        'autoEatEfficiency': 100,
+        'autoEatHPLimit': 100,
+        'autoEquipFoodUnlocked': 1,
+      });
+      final consumed = builder.tryAutoEat(modifiers);
+
+      expect(consumed, greaterThan(0));
+      // Food should have been pulled from inventory.
+      expect(builder.state.inventory.countOfItem(shrimp), 0);
+    });
+
+    test('auto-equip does nothing without modifier', () {
+      const equipment = Equipment(
+        foodSlots: [null, null, null],
+        selectedFoodSlot: 0,
+      );
+      final state = GlobalState.test(
+        testRegistries,
+        health: const HealthState(lostHp: 9),
+        inventory: Inventory.fromItems(testItems, [
+          ItemStack(shrimp, count: 10),
+        ]),
+      );
+
+      final builder = StateUpdateBuilder(state);
+      const modifiers = TestModifiers({
+        'autoEatThreshold': 20,
+        'autoEatEfficiency': 100,
+        'autoEatHPLimit': 100,
+        // No autoEquipFoodUnlocked
+      });
+      final consumed = builder.tryAutoEat(modifiers);
+
+      expect(consumed, 0);
+      // Inventory unchanged.
+      expect(builder.state.inventory.countOfItem(shrimp), 10);
+    });
+
+    test('auto-equip picks highest heal food', () {
+      const equipment = Equipment(
+        foodSlots: [null, null, null],
+        selectedFoodSlot: 0,
+      );
+      final state = GlobalState.test(
+        testRegistries,
+        health: const HealthState(lostHp: 9),
+        inventory: Inventory.fromItems(testItems, [
+          ItemStack(shrimp, count: 10),
+          ItemStack(lobster, count: 5),
+        ]),
+      );
+
+      final builder = StateUpdateBuilder(state);
+      const modifiers = TestModifiers({
+        'autoEatThreshold': 20,
+        'autoEatEfficiency': 100,
+        'autoEatHPLimit': 100,
+        'autoEquipFoodUnlocked': 1,
+      });
+      builder.tryAutoEat(modifiers);
+
+      // Should have equipped lobster (higher heal) not shrimp.
+      // Lobster should be consumed from inventory.
+      expect(builder.state.inventory.countOfItem(lobster), 0);
     });
   });
 
