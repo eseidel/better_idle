@@ -402,6 +402,20 @@ class ModifierProvider with ModifierAccessors {
           }
         }
       }
+
+      // Synergy conditional modifiers
+      for (final condMod in activeSynergy!.conditionalModifiers) {
+        if (!conditionContext.evaluate(condMod.condition)) continue;
+
+        for (final mod in condMod.modifiers.modifiers) {
+          if (mod.name != name) continue;
+          for (final modEntry in mod.entries) {
+            if (scope.matches(modEntry.scope)) {
+              total += modEntry.value;
+            }
+          }
+        }
+      }
     }
 
     // --- Potion modifiers ---
