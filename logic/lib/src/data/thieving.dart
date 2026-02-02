@@ -9,13 +9,9 @@ import 'package:meta/meta.dart';
 /// Duration for all thieving actions.
 const thievingDuration = Duration(seconds: 3);
 
-// TODO(eseidel): Confirm these rates from Melvor wiki or game source.
 /// Drop rate for area unique drops (e.g., Crate of Basic Supplies).
+/// Confirmed: 1/500 per the Melvor wiki.
 const double areaUniqueDropRate = 1 / 500;
-
-/// Drop rate for NPC-specific unique drops (e.g., Lumberjack's Top).
-// TODO(eseidel): Confirm this rate from Melvor wiki or game source.
-const double npcUniqueDropRate = 1 / 500;
 
 /// Chance that a thieving loot table drops something (vs nothing).
 const double lootTableDropChance = 0.75;
@@ -156,8 +152,10 @@ class ThievingAction extends SkillAction {
         ? maxHitRaw * 10
         : ((maxHitRaw as double) * 10).round();
 
+    final perception = json['perception'] as int;
+
     // Parse NPC-specific unique drop (e.g., Lumberjack's Top).
-    Drop? uniqueDrop;
+    ThievingUniqueDrop? uniqueDrop;
     final uniqueDropJson = json['uniqueDrop'] as Map<String, dynamic>?;
     if (uniqueDropJson != null) {
       final itemId = MelvorId.fromJsonWithNamespace(
@@ -165,7 +163,11 @@ class ThievingAction extends SkillAction {
         defaultNamespace: namespace,
       );
       final quantity = uniqueDropJson['quantity'] as int? ?? 1;
-      uniqueDrop = Drop(itemId, count: quantity, rate: npcUniqueDropRate);
+      uniqueDrop = ThievingUniqueDrop(
+        itemId: itemId,
+        count: quantity,
+        perception: perception,
+      );
     }
 
     final localId = MelvorId.fromJsonWithNamespace(
@@ -177,7 +179,7 @@ class ThievingAction extends SkillAction {
       name: json['name'] as String,
       unlockLevel: json['level'] as int,
       xp: json['baseExperience'] as int,
-      perception: json['perception'] as int,
+      perception: perception,
       maxHit: maxHit,
       maxGold: maxGold,
       area: area,
@@ -203,7 +205,7 @@ class ThievingAction extends SkillAction {
   final Droppable? dropTable;
 
   /// The NPC-specific unique drop (e.g., Lumberjack's Top).
-  final Drop? uniqueDrop;
+  final ThievingUniqueDrop? uniqueDrop;
 
   /// The media path for the NPC icon.
   final String? media;

@@ -236,6 +236,62 @@ class RareDrop extends Droppable {
   }
 }
 
+/// A thieving NPC unique drop with dynamic chance based on player stealth.
+///
+/// The drop rate formula is: (100 + stealth) / (10000 * perception)
+/// where stealth = 40 + thievingLevel + actionMasteryLevel + stealthBonus.
+@immutable
+class ThievingUniqueDrop extends Droppable {
+  const ThievingUniqueDrop({
+    required this.itemId,
+    required this.perception,
+    this.count = 1,
+  });
+
+  final MelvorId itemId;
+
+  /// NPC perception value used in the drop rate formula.
+  final int perception;
+
+  /// Number of items dropped.
+  final int count;
+
+  /// Calculates the drop chance for a given stealth value.
+  double dropChance(int stealth) {
+    if (perception <= 0) return 0;
+    return (100 + stealth) / (10000 * perception);
+  }
+
+  @override
+  Map<MelvorId, double> get expectedItems {
+    // Mid-game estimate: level 50, mastery 50, no bonus => stealth = 140
+    const estimatedStealth = 140;
+    return {itemId: count * dropChance(estimatedStealth)};
+  }
+
+  @override
+  ItemStack? roll(ItemRegistry items, Random random) {
+    throw UnimplementedError(
+      'ThievingUniqueDrop.roll() requires context. '
+      'Use rollWithContext() instead.',
+    );
+  }
+
+  /// Rolls the drop with the player's current stealth value.
+  ItemStack? rollWithContext(
+    ItemRegistry items,
+    Random random, {
+    required int stealth,
+  }) {
+    final rate = dropChance(stealth);
+    if (rate <= 0 || random.nextDouble() >= rate) {
+      return null;
+    }
+    final item = items.byId(itemId);
+    return ItemStack(item, count: count);
+  }
+}
+
 /// A mastery token drop with dynamic chance based on unlocked actions.
 ///
 /// The drop chance formula is: 1 / (18500 / unlockedActions)

@@ -561,6 +561,24 @@ bool rollAndCollectDrops(
       if (effectiveRate >= 1.0 || random.nextDouble() < effectiveRate) {
         itemStack = drop.toItemStack(registries.items);
       }
+    } else if (drop is ThievingUniqueDrop) {
+      // Compute actual player stealth for accurate NPC unique drop rate.
+      final thievingAction = action as ThievingAction;
+      final thievingLevel = builder.state.skillState(Skill.thieving).skillLevel;
+      final actionMasteryLevel = builder.currentMasteryLevel(thievingAction);
+      final stealthBonus = modifiers.thievingStealth(
+        actionId: thievingAction.id.localId,
+      );
+      final stealth = calculateStealth(
+        thievingLevel,
+        actionMasteryLevel,
+        thievingStealthBonus: stealthBonus,
+      );
+      itemStack = drop.rollWithContext(
+        registries.items,
+        random,
+        stealth: stealth,
+      );
     } else if (drop is RareDrop) {
       // Use rollWithContext for RareDrops to check requiredItemId
       final skillLevel = builder.state.skillState(action.skill).skillLevel;
