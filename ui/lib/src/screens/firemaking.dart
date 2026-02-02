@@ -500,7 +500,7 @@ class _LogCard extends StatelessWidget {
       action,
       state.createActionModifierProvider(
         action,
-        conditionContext: ConditionContext.empty,
+        conditionContext: ConditionContext.empty, // UI display only.
         consumesOnType: null,
       ),
     );

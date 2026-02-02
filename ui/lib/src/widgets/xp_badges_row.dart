@@ -32,7 +32,7 @@ class XpBadgesRow extends StatelessWidget {
       action,
       context.state.createActionModifierProvider(
         action,
-        conditionContext: ConditionContext.empty,
+        conditionContext: ConditionContext.empty, // UI display only.
         consumesOnType: null,
       ),
     );

@@ -156,11 +156,17 @@ class PlayerCombatStats extends Stats {
   });
 
   /// Computes player stats from current game state.
-  factory PlayerCombatStats.fromState(GlobalState state) {
+  ///
+  /// [conditionContext] provides combat state for conditional modifiers
+  /// (e.g. bonus damage when enemy HP < 50%). Pass [ConditionContext.empty]
+  /// when no combat is active.
+  factory PlayerCombatStats.fromState(
+    GlobalState state, {
+    required ConditionContext conditionContext,
+  }) {
     // Create modifier provider for combat-relevant modifiers
-    // TODO(eseidel): Pass real condition context for combat modifiers.
     final bonuses = state.createCombatModifierProvider(
-      conditionContext: ConditionContext.empty,
+      conditionContext: conditionContext,
     );
     final attackStyle = state.attackStyle;
 
@@ -488,8 +494,11 @@ class CombatCalculator {
 ///
 /// This is the main entry point for getting player combat stats.
 /// It replaces the old hardcoded `playerStats()` function.
-PlayerCombatStats computePlayerStats(GlobalState state) {
-  return PlayerCombatStats.fromState(state);
+PlayerCombatStats computePlayerStats(
+  GlobalState state, {
+  required ConditionContext conditionContext,
+}) {
+  return PlayerCombatStats.fromState(state, conditionContext: conditionContext);
 }
 
 /// XP grants from combat damage.

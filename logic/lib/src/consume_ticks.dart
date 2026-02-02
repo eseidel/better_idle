@@ -630,7 +630,7 @@ bool completeThievingAction(
   final actionMasteryLevel = builder.currentMasteryLevel(action);
   final modifierProvider = builder.state.createActionModifierProvider(
     action,
-    conditionContext: ConditionContext.empty,
+    conditionContext: ConditionContext.empty, // Skill action, no combat.
     consumesOnType: null,
   );
   final thievingStealth = modifierProvider.thievingStealth(
@@ -675,7 +675,7 @@ bool completeThievingAction(
 
     // Try auto-eat after taking damage
     final modifiers = builder.state.createGlobalModifierProvider(
-      conditionContext: ConditionContext.empty,
+      conditionContext: ConditionContext.empty, // Auto-eat threshold only.
     );
     builder.tryAutoEat(modifiers);
 
@@ -713,7 +713,7 @@ void completeCookingAction(
   final masteryLevel = builder.currentMasteryLevel(action);
   final modifiers = builder.state.createActionModifierProvider(
     action,
-    conditionContext: ConditionContext.empty,
+    conditionContext: ConditionContext.empty, // Skill action, no combat.
     consumesOnType: null,
   );
 
@@ -857,7 +857,7 @@ bool completeAction(
   // Roll drops with doubling applied (using recipe for output multiplier)
   final modifierProvider = builder.state.createActionModifierProvider(
     action,
-    conditionContext: ConditionContext.empty,
+    conditionContext: ConditionContext.empty, // Skill action, no combat.
     consumesOnType: null,
   );
   final canRepeatAction = rollAndCollectDrops(
@@ -1069,7 +1069,14 @@ ForegroundResult _restartOrStop(
   if (spawnTicks != null) {
     if (remainingTicks >= spawnTicks) {
       // Monster spawns - preserve dungeon info if in a dungeon
-      final pStats = computePlayerStats(builder.state);
+      final context = builder.state.buildCombatConditionContext(
+        enemyAction: action,
+        enemyCurrentHp: action.maxHp,
+      );
+      final pStats = computePlayerStats(
+        builder.state,
+        conditionContext: context,
+      );
       final playerAttackTicks = secondsToTicks(pStats.attackSpeed);
       final monsterAttackTicks = secondsToTicks(action.stats.attackSpeed);
 
@@ -1118,7 +1125,14 @@ ForegroundResult _restartOrStop(
   var monsterHp = currentCombat.monsterHp;
   var resetPlayerTicks = newPlayerTicks;
   if (newPlayerTicks <= 0) {
-    final pStats = computePlayerStats(builder.state);
+    final combatContext = builder.state.buildCombatConditionContext(
+      enemyAction: action,
+      enemyCurrentHp: monsterHp,
+    );
+    final pStats = computePlayerStats(
+      builder.state,
+      conditionContext: combatContext,
+    );
     final mStats = MonsterCombatStats.fromAction(action);
 
     // Consume summoning tablet charges (1 per attack, for relevant familiars)
@@ -1225,8 +1239,12 @@ ForegroundResult _restartOrStop(
         Duration(milliseconds: (nextMonster.stats.attackSpeed * 1000).round()),
       );
       // Calculate spawn ticks with modifiers (e.g., Monster Hunter Scroll)
+      final respawnCtx = builder.state.buildCombatConditionContext(
+        enemyAction: nextMonster,
+        enemyCurrentHp: nextMonster.maxHp,
+      );
       final modifiers = builder.state.createCombatModifierProvider(
-        conditionContext: ConditionContext.empty,
+        conditionContext: respawnCtx,
       );
       final spawnTicks = calculateMonsterSpawnTicks(
         modifiers.flatMonsterRespawnInterval,
@@ -1288,8 +1306,12 @@ ForegroundResult _restartOrStop(
         final fullMonsterAttackTicks = ticksFromDuration(
           Duration(milliseconds: (action.stats.attackSpeed * 1000).round()),
         );
+        final slayerRespawnCtx = builder.state.buildCombatConditionContext(
+          enemyAction: action,
+          enemyCurrentHp: action.maxHp,
+        );
         final modifiers = builder.state.createCombatModifierProvider(
-          conditionContext: ConditionContext.empty,
+          conditionContext: slayerRespawnCtx,
         );
         final respawnTicks = calculateMonsterSpawnTicks(
           modifiers.flatMonsterRespawnInterval,
@@ -1317,8 +1339,12 @@ ForegroundResult _restartOrStop(
       Duration(milliseconds: (action.stats.attackSpeed * 1000).round()),
     );
     // Calculate spawn ticks with modifiers (e.g., Monster Hunter Scroll)
+    final regularRespawnCtx = builder.state.buildCombatConditionContext(
+      enemyAction: action,
+      enemyCurrentHp: action.maxHp,
+    );
     final modifiers = builder.state.createCombatModifierProvider(
-      conditionContext: ConditionContext.empty,
+      conditionContext: regularRespawnCtx,
     );
     final respawnTicks = calculateMonsterSpawnTicks(
       modifiers.flatMonsterRespawnInterval,
@@ -1337,7 +1363,14 @@ ForegroundResult _restartOrStop(
   var resetMonsterTicks = newMonsterTicks;
   if (newMonsterTicks <= 0) {
     final mStats = MonsterCombatStats.fromAction(action);
-    final pStats = computePlayerStats(builder.state);
+    final combatCtx = builder.state.buildCombatConditionContext(
+      enemyAction: action,
+      enemyCurrentHp: monsterHp,
+    );
+    final pStats = computePlayerStats(
+      builder.state,
+      conditionContext: combatCtx,
+    );
 
     // Consume consumable if equipped with EnemyAttack trigger
     // Monster attack type is the same as its combat type
@@ -1379,7 +1412,7 @@ ForegroundResult _restartOrStop(
 
     // Try auto-eat after attack (whether hit or miss, player may need healing)
     final modifiers = builder.state.createGlobalModifierProvider(
-      conditionContext: ConditionContext.empty,
+      conditionContext: ConditionContext.empty, // Auto-eat threshold only.
     );
     builder.tryAutoEat(modifiers);
   }
@@ -1429,7 +1462,7 @@ ForegroundResult _restartOrStop(
     // Obstacle completed - award XP, mastery, and currency
     final modifiers = builder.state.createActionModifierProvider(
       obstacle,
-      conditionContext: ConditionContext.empty,
+      conditionContext: ConditionContext.empty, // Skill action, no combat.
       consumesOnType: null,
     );
     final perAction = xpPerAction(builder.state, obstacle, modifiers);
@@ -1790,7 +1823,7 @@ ConsumeTicksStopReason consumeTicksUntil(
   if (action is SkillAction) {
     final modifierProvider = state.createActionModifierProvider(
       action,
-      conditionContext: ConditionContext.empty,
+      conditionContext: ConditionContext.empty, // Skill action, no combat.
       consumesOnType: null,
     );
     doublingChance = action.doublingChance(modifierProvider);

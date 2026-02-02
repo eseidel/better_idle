@@ -812,7 +812,7 @@ class _RecipeCard extends StatelessWidget {
       recipe,
       state.createActionModifierProvider(
         recipe,
-        conditionContext: ConditionContext.empty,
+        conditionContext: ConditionContext.empty, // UI display only.
         consumesOnType: null,
       ),
     );

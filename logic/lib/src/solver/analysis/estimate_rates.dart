@@ -346,7 +346,7 @@ Map<MelvorId, double> _computeItemFlowsPerAction(
   // Get modifiers for rate calculations
   final modifiers = state.createActionModifierProvider(
     action,
-    conditionContext: ConditionContext.empty,
+    conditionContext: ConditionContext.empty, // Rate estimate, no combat.
     consumesOnType: null,
   );
   final doublingChance = action.doublingChance(modifiers);

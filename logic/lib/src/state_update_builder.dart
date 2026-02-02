@@ -743,7 +743,7 @@ class StateUpdateBuilder {
     // Check charge preservation chance
     final modifiers = _state.createActionModifierProvider(
       action,
-      conditionContext: ConditionContext.empty,
+      conditionContext: ConditionContext.empty, // Skill action, no combat.
       consumesOnType: null,
     );
     final preserveChance = modifiers.potionChargePreservationChance;
