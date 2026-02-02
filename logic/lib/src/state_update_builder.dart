@@ -600,8 +600,6 @@ class StateUpdateBuilder {
     var equipment = _state.equipment;
 
     // Check if an active synergy applies to this action type.
-    // When a synergy triggers, both tablets consume charges regardless of
-    // individual familiar relevance.
     final synergy = _state.getActiveSynergy();
     final consumesOnType = _consumesOnTypeForAction(action);
     final synergyApplies =
@@ -609,31 +607,33 @@ class StateUpdateBuilder {
         consumesOnType != null &&
         synergy.appliesTo(consumesOnType);
 
-    // Check each summon slot
-    const summonSlots = [EquipmentSlot.summon1, EquipmentSlot.summon2];
-    for (final slot in summonSlots) {
+    for (final slot in [EquipmentSlot.summon1, EquipmentSlot.summon2]) {
       final tablet = equipment.gearInSlot(slot);
       if (tablet == null) continue;
 
-      // Consume if this familiar is individually relevant, or if the
-      // synergy applies to this action type.
-      final isRelevant =
-          synergyApplies || _isFamiliarRelevantToAction(tablet.id, action);
-      if (!isRelevant) continue;
+      // Charges consumed per tablet:
+      //  - 1 if the familiar is individually relevant to the action
+      //  - 1 if the synergy applies to this action type
+      // These stack: a relevant familiar with an active synergy consumes 2.
+      var charges = 0;
+      if (_isFamiliarRelevantToAction(tablet.id, action)) charges += 1;
+      if (synergyApplies) charges += 1;
+      if (charges == 0) continue;
 
-      // Track tablet usage for welcome back dialog
-      _changes = _changes.recordingTabletUsed(tablet.id, 1);
+      _changes = _changes.recordingTabletUsed(tablet.id, charges);
 
       // Grant Summoning XP for using the tablet.
+      // XP is earned per charge consumed.
       // Formula: (Action Time × Tablet Level × 10) / (Tablet Level + 10)
       final summoningAction = registries.summoning.actionForTablet(tablet.id);
       if (summoningAction != null) {
         final tabletLevel = summoningAction.unlockLevel;
-        final xp = (actionTimeSeconds * tabletLevel * 10) / (tabletLevel + 10);
-        addSkillXp(Skill.summoning, xp.round());
+        final xpPerCharge =
+            (actionTimeSeconds * tabletLevel * 10) / (tabletLevel + 10);
+        addSkillXp(Skill.summoning, (xpPerCharge * charges).round());
       }
 
-      equipment = equipment.consumeSummonCharges(slot, 1);
+      equipment = equipment.consumeSummonCharges(slot, charges);
     }
 
     _state = _state.copyWith(equipment: equipment);

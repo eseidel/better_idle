@@ -1570,12 +1570,12 @@ void main() {
       final (eq1, _) = equipment.equipSummonTablet(
         entTablet,
         EquipmentSlot.summon1,
-        10,
+        20,
       );
       final (eq2, _) = eq1.equipSummonTablet(
         bearTablet,
         EquipmentSlot.summon2,
-        10,
+        20,
       );
 
       // Activate synergy: mark level >= 3 for both.
@@ -1600,16 +1600,21 @@ void main() {
       consumeTicks(builder, 1000, random: Random(42));
       final newState = builder.build();
 
-      // Both tablets should have consumed charges, even though Bear is not
-      // individually relevant to woodcutting.
-      expect(
-        newState.equipment.summonCountInSlot(EquipmentSlot.summon1),
-        lessThan(10),
+      final entRemaining = newState.equipment.summonCountInSlot(
+        EquipmentSlot.summon1,
       );
-      expect(
-        newState.equipment.summonCountInSlot(EquipmentSlot.summon2),
-        lessThan(10),
+      final bearRemaining = newState.equipment.summonCountInSlot(
+        EquipmentSlot.summon2,
       );
+
+      // Both tablets should have consumed charges.
+      expect(entRemaining, lessThan(20));
+      expect(bearRemaining, lessThan(20));
+
+      // Ent is relevant to woodcutting (base + synergy = 2 per action),
+      // Bear is only consumed for the synergy (1 per action).
+      // So Ent should have consumed more charges than Bear.
+      expect(entRemaining, lessThan(bearRemaining));
     });
 
     test('without synergy, irrelevant tablet does not consume charges', () {
