@@ -813,6 +813,7 @@ class _RecipeCard extends StatelessWidget {
       state.createActionModifierProvider(
         recipe,
         conditionContext: ConditionContext.empty,
+        consumesOnType: null,
       ),
     );
     final durationSeconds = recipe.minDuration.inSeconds;

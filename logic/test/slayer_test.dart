@@ -5,6 +5,13 @@ import 'package:test/test.dart';
 
 import 'test_helper.dart';
 
+/// Finds a slayer area that has a player-targeting area effect.
+SlayerArea _areaWithPlayerEffect(Registries registries) {
+  return registries.slayer.areas.all.firstWhere(
+    (a) => a.areaEffect != null && a.areaEffect!.target == 'Player',
+  );
+}
+
 void main() {
   setUpAll(loadTestRegistries);
 
@@ -290,6 +297,281 @@ void main() {
           reason: 'Should have earned ${reward.currency} reward',
         );
       }
+    });
+  });
+
+  group('slayer area effects', () {
+    test('combat modifier provider includes area effect modifiers', () {
+      final area = _areaWithPlayerEffect(testRegistries);
+      final effect = area.areaEffect!;
+      final monsterId = area.monsterIds.first;
+
+      final state = GlobalState.test(
+        testRegistries,
+        skillStates: highCombatSkills,
+        activeActivity: CombatActivity(
+          context: SlayerAreaCombatContext(
+            slayerAreaId: area.id,
+            monsterId: monsterId,
+          ),
+          progress: const CombatProgressState(
+            monsterHp: 100,
+            playerAttackTicksRemaining: 10,
+            monsterAttackTicksRemaining: 10,
+          ),
+          progressTicks: 0,
+          totalTicks: 10,
+        ),
+      );
+
+      final provider = state.createCombatModifierProvider(
+        conditionContext: ConditionContext.empty,
+      );
+
+      // The area effect should apply its modifier.
+      final modifierName = effect.modifiers.keys.first;
+      final sign = effect.modifiers[modifierName]!;
+      final expected = sign * effect.magnitude;
+
+      // Get the modifier value - it includes area effect contribution.
+      final value = provider.getModifier(modifierName);
+      // The area effect should contribute the expected amount.
+      // Other sources may also contribute, so check that removing the
+      // area effect changes the value by the expected amount.
+      final stateNoArea = state.copyWith(
+        activeActivity: const CombatActivity(
+          context: MonsterCombatContext(monsterId: MelvorId('melvorD:Chicken')),
+          progress: CombatProgressState(
+            monsterHp: 100,
+            playerAttackTicksRemaining: 10,
+            monsterAttackTicksRemaining: 10,
+          ),
+          progressTicks: 0,
+          totalTicks: 10,
+        ),
+      );
+      final providerNoArea = stateNoArea.createCombatModifierProvider(
+        conditionContext: ConditionContext.empty,
+      );
+      final valueNoArea = providerNoArea.getModifier(modifierName);
+
+      expect(value - valueNoArea, expected);
+    });
+
+    test('area effect is not applied for non-slayer-area combat', () {
+      final state = GlobalState.test(
+        testRegistries,
+        skillStates: highCombatSkills,
+        activeActivity: const CombatActivity(
+          context: MonsterCombatContext(monsterId: MelvorId('melvorD:Chicken')),
+          progress: CombatProgressState(
+            monsterHp: 100,
+            playerAttackTicksRemaining: 10,
+            monsterAttackTicksRemaining: 10,
+          ),
+          progressTicks: 0,
+          totalTicks: 10,
+        ),
+      );
+
+      final provider = state.createCombatModifierProvider(
+        conditionContext: ConditionContext.empty,
+      );
+
+      // Penumbra's effect modifier - should not be present.
+      final area = _areaWithPlayerEffect(testRegistries);
+      final modifierName = area.areaEffect!.modifiers.keys.first;
+      final sign = area.areaEffect!.modifiers[modifierName]!;
+
+      // Without area, modifier should not include area effect.
+      // (value should be 0 from area contribution - same as base)
+      final stateInArea = state.copyWith(
+        activeActivity: CombatActivity(
+          context: SlayerAreaCombatContext(
+            slayerAreaId: area.id,
+            monsterId: area.monsterIds.first,
+          ),
+          progress: const CombatProgressState(
+            monsterHp: 100,
+            playerAttackTicksRemaining: 10,
+            monsterAttackTicksRemaining: 10,
+          ),
+          progressTicks: 0,
+          totalTicks: 10,
+        ),
+      );
+      final providerInArea = stateInArea.createCombatModifierProvider(
+        conditionContext: ConditionContext.empty,
+      );
+
+      expect(
+        providerInArea.getModifier(modifierName) -
+            provider.getModifier(modifierName),
+        sign * area.areaEffect!.magnitude,
+      );
+    });
+
+    test('flatSlayerAreaEffectNegation reduces area effect magnitude', () {
+      final area = _areaWithPlayerEffect(testRegistries);
+      final effect = area.areaEffect!;
+
+      // Find a shop item that grants flatSlayerAreaEffectNegation.
+      final shopItem = testRegistries.shop.all.where((p) {
+        return p.contains.modifiers.modifiers.any(
+          (m) => m.name == 'flatSlayerAreaEffectNegation',
+        );
+      });
+
+      // If no shop item provides negation, test with the raw modifier.
+      if (shopItem.isEmpty) {
+        // Just verify magnitude is applied without negation.
+        final state = GlobalState.test(
+          testRegistries,
+          skillStates: highCombatSkills,
+          activeActivity: CombatActivity(
+            context: SlayerAreaCombatContext(
+              slayerAreaId: area.id,
+              monsterId: area.monsterIds.first,
+            ),
+            progress: const CombatProgressState(
+              monsterHp: 100,
+              playerAttackTicksRemaining: 10,
+              monsterAttackTicksRemaining: 10,
+            ),
+            progressTicks: 0,
+            totalTicks: 10,
+          ),
+        );
+        final provider = state.createCombatModifierProvider(
+          conditionContext: ConditionContext.empty,
+        );
+        final modName = effect.modifiers.keys.first;
+        // Provider should include the full area effect.
+        expect(provider.getModifier(modName), isNonZero);
+        return;
+      }
+
+      // Purchase the negation item.
+      final purchase = shopItem.first;
+      final negationValue =
+          purchase.contains.modifiers.modifiers
+                  .firstWhere((m) => m.name == 'flatSlayerAreaEffectNegation')
+                  .entries
+                  .first
+                  .value
+              as int;
+
+      final state = GlobalState.test(
+        testRegistries,
+        skillStates: highCombatSkills,
+        shop: ShopState(purchaseCounts: {purchase.id: 1}),
+        activeActivity: CombatActivity(
+          context: SlayerAreaCombatContext(
+            slayerAreaId: area.id,
+            monsterId: area.monsterIds.first,
+          ),
+          progress: const CombatProgressState(
+            monsterHp: 100,
+            playerAttackTicksRemaining: 10,
+            monsterAttackTicksRemaining: 10,
+          ),
+          progressTicks: 0,
+          totalTicks: 10,
+        ),
+      );
+
+      final provider = state.createCombatModifierProvider(
+        conditionContext: ConditionContext.empty,
+      );
+      final modName = effect.modifiers.keys.first;
+      final sign = effect.modifiers[modName]!;
+
+      // Without the shop purchase, effect would be sign * magnitude.
+      // With negation, it should be sign * max(magnitude - negation, 0).
+      final expectedMagnitude = (effect.magnitude - negationValue).clamp(
+        0,
+        999,
+      );
+
+      final stateNoShop = GlobalState.test(
+        testRegistries,
+        skillStates: highCombatSkills,
+        activeActivity: CombatActivity(
+          context: SlayerAreaCombatContext(
+            slayerAreaId: area.id,
+            monsterId: area.monsterIds.first,
+          ),
+          progress: const CombatProgressState(
+            monsterHp: 100,
+            playerAttackTicksRemaining: 10,
+            monsterAttackTicksRemaining: 10,
+          ),
+          progressTicks: 0,
+          totalTicks: 10,
+        ),
+      );
+      final providerNoShop = stateNoShop.createCombatModifierProvider(
+        conditionContext: ConditionContext.empty,
+      );
+
+      final diff =
+          provider.getModifier(modName) - providerNoShop.getModifier(modName);
+      // The difference should be the reduction in the effect.
+      expect(diff, sign * (expectedMagnitude - effect.magnitude));
+    });
+
+    test('area effect with enemy target is not applied to player', () {
+      // Find an area with enemy-targeting effect.
+      final enemyAreas = testRegistries.slayer.areas.all.where(
+        (a) => a.areaEffect != null && a.areaEffect!.target == 'Enemy',
+      );
+      if (enemyAreas.isEmpty) return; // Skip if no enemy-target areas exist.
+
+      final area = enemyAreas.first;
+      final state = GlobalState.test(
+        testRegistries,
+        skillStates: highCombatSkills,
+        activeActivity: CombatActivity(
+          context: SlayerAreaCombatContext(
+            slayerAreaId: area.id,
+            monsterId: area.monsterIds.first,
+          ),
+          progress: const CombatProgressState(
+            monsterHp: 100,
+            playerAttackTicksRemaining: 10,
+            monsterAttackTicksRemaining: 10,
+          ),
+          progressTicks: 0,
+          totalTicks: 10,
+        ),
+      );
+
+      // Enemy effects should not be in the player's modifier provider.
+      final provider = state.createCombatModifierProvider(
+        conditionContext: ConditionContext.empty,
+      );
+      final stateNoArea = state.copyWith(
+        activeActivity: const CombatActivity(
+          context: MonsterCombatContext(monsterId: MelvorId('melvorD:Chicken')),
+          progress: CombatProgressState(
+            monsterHp: 100,
+            playerAttackTicksRemaining: 10,
+            monsterAttackTicksRemaining: 10,
+          ),
+          progressTicks: 0,
+          totalTicks: 10,
+        ),
+      );
+      final providerNoArea = stateNoArea.createCombatModifierProvider(
+        conditionContext: ConditionContext.empty,
+      );
+
+      // Both should produce the same modifier values since enemy effects
+      // should not affect the player's modifier provider.
+      expect(
+        provider.getModifier('accuracyRating'),
+        providerNoArea.getModifier('accuracyRating'),
+      );
     });
   });
 }

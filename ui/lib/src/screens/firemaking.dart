@@ -501,6 +501,7 @@ class _LogCard extends StatelessWidget {
       state.createActionModifierProvider(
         action,
         conditionContext: ConditionContext.empty,
+        consumesOnType: null,
       ),
     );
     final durationSeconds = action.minDuration.inSeconds;
