@@ -300,6 +300,316 @@ void main() {
     });
   });
 
+  group('SlayerAreaCombatContext serialization', () {
+    test('round-trips through toJson/fromJson', () {
+      const context = SlayerAreaCombatContext(
+        slayerAreaId: MelvorId('melvorD:Lowlands'),
+        monsterId: MelvorId('melvorD:Cow'),
+      );
+      final json = context.toJson();
+      final restored = CombatContext.fromJson(json) as SlayerAreaCombatContext;
+
+      expect(restored.slayerAreaId, context.slayerAreaId);
+      expect(restored.monsterId, context.monsterId);
+    });
+
+    test('toJson includes correct type tag', () {
+      const context = SlayerAreaCombatContext(
+        slayerAreaId: MelvorId('melvorD:Lowlands'),
+        monsterId: MelvorId('melvorD:Cow'),
+      );
+      final json = context.toJson();
+      expect(json['type'], 'slayerArea');
+    });
+
+    test('currentMonsterId returns monsterId', () {
+      const context = SlayerAreaCombatContext(
+        slayerAreaId: MelvorId('melvorD:Lowlands'),
+        monsterId: MelvorId('melvorD:Cow'),
+      );
+      expect(context.currentMonsterId, const MelvorId('melvorD:Cow'));
+    });
+  });
+
+  group('meetsSlayerAreaRequirements', () {
+    test('returns true when all requirements are met', () {
+      // Penumbra requires slayer level 1, which every player meets.
+      final area = testRegistries.slayer.areas.all.firstWhere(
+        (a) => a.entryRequirements.every(
+          (r) => r is SlayerLevelRequirement && r.level <= 1,
+        ),
+      );
+      final state = GlobalState.test(testRegistries);
+      expect(state.meetsSlayerAreaRequirements(area), isTrue);
+    });
+
+    test('returns false when slayer level requirement is unmet', () {
+      final area = testRegistries.slayer.areas.all.firstWhere(
+        (a) => a.entryRequirements.any(
+          (r) => r is SlayerLevelRequirement && r.level > 1,
+        ),
+      );
+      // Level 1 player should not meet higher level requirements.
+      final state = GlobalState.test(testRegistries);
+      expect(state.meetsSlayerAreaRequirements(area), isFalse);
+    });
+
+    test('returns true when slayer level requirement is met', () {
+      final area = testRegistries.slayer.areas.all.firstWhere(
+        (a) => a.entryRequirements.any(
+          (r) => r is SlayerLevelRequirement && r.level > 1,
+        ),
+      );
+      final state = GlobalState.test(
+        testRegistries,
+        skillStates: highCombatSkills,
+      );
+      // High slayer level should meet level requirements (item reqs may
+      // still fail, so check only the level requirement specifically).
+      final levelReqs = state
+          .unmetSlayerAreaRequirements(area)
+          .whereType<SlayerLevelRequirement>();
+      expect(levelReqs, isEmpty);
+    });
+  });
+
+  group('unmetSlayerAreaRequirements', () {
+    test('returns empty list when all requirements are met', () {
+      // Penumbra requires slayer level 1, which every player meets.
+      final area = testRegistries.slayer.areas.all.firstWhere(
+        (a) => a.entryRequirements.every(
+          (r) => r is SlayerLevelRequirement && r.level <= 1,
+        ),
+      );
+      final state = GlobalState.test(testRegistries);
+      expect(state.unmetSlayerAreaRequirements(area), isEmpty);
+    });
+
+    test('returns all unmet requirements for under-leveled player', () {
+      // Find an area requiring a slayer level above 1.
+      final area = testRegistries.slayer.areas.all.firstWhere(
+        (a) => a.entryRequirements.any(
+          (r) => r is SlayerLevelRequirement && r.level > 1,
+        ),
+      );
+      final state = GlobalState.test(testRegistries);
+      final unmet = state.unmetSlayerAreaRequirements(area);
+      expect(unmet, isNotEmpty);
+    });
+
+    test('item requirement is unmet without the item equipped', () {
+      final area = testRegistries.slayer.areas.all.firstWhere(
+        (a) => a.entryRequirements.any((r) => r is SlayerItemRequirement),
+        orElse: () => throw StateError('No area with item requirement'),
+      );
+      final state = GlobalState.test(
+        testRegistries,
+        skillStates: highCombatSkills,
+      );
+      final itemReqs = state
+          .unmetSlayerAreaRequirements(area)
+          .whereType<SlayerItemRequirement>();
+      expect(itemReqs, isNotEmpty);
+    });
+
+    test('item requirement is met when the item is equipped', () {
+      final area = testRegistries.slayer.areas.all.firstWhere(
+        (a) => a.entryRequirements.any((r) => r is SlayerItemRequirement),
+        orElse: () => throw StateError('No area with item requirement'),
+      );
+      final itemReq = area.entryRequirements
+          .whereType<SlayerItemRequirement>()
+          .first;
+      final item = testRegistries.items.byId(itemReq.itemId);
+      final state = GlobalState.test(
+        testRegistries,
+        skillStates: highCombatSkills,
+        equipment: Equipment(
+          foodSlots: const [null, null, null],
+          selectedFoodSlot: 0,
+          gearSlots: {item.validSlots.first: item},
+        ),
+      );
+      final itemReqs = state
+          .unmetSlayerAreaRequirements(area)
+          .whereType<SlayerItemRequirement>();
+      expect(itemReqs, isEmpty);
+    });
+  });
+
+  group('startSlayerAreaCombat', () {
+    /// Finds an area with only a level requirement (no item/dungeon/shop).
+    SlayerArea levelOnlyArea() => testRegistries.slayer.areas.all.firstWhere(
+      (a) =>
+          a.entryRequirements.isNotEmpty &&
+          a.entryRequirements.every((r) => r is SlayerLevelRequirement),
+    );
+
+    CombatAction monsterInArea(SlayerArea area) {
+      final monsterId = area.monsterIds.first;
+      return testRegistries.allActions.whereType<CombatAction>().firstWhere(
+        (a) => a.id.localId == monsterId,
+      );
+    }
+
+    test('creates CombatActivity with SlayerAreaCombatContext', () {
+      final area = levelOnlyArea();
+      final monster = monsterInArea(area);
+      var state = GlobalState.test(
+        testRegistries,
+        skillStates: highCombatSkills,
+      );
+      state = state.startSlayerAreaCombat(
+        area: area,
+        monster: monster,
+        random: Random(42),
+      );
+
+      expect(state.activeActivity, isA<CombatActivity>());
+      final activity = state.activeActivity! as CombatActivity;
+      expect(activity.context, isA<SlayerAreaCombatContext>());
+      final context = activity.context as SlayerAreaCombatContext;
+      expect(context.slayerAreaId, area.id);
+      expect(context.monsterId, monster.id.localId);
+    });
+
+    test('throws StateError when requirements are not met', () {
+      // Find an area requiring a slayer level above 1.
+      final area = testRegistries.slayer.areas.all.firstWhere(
+        (a) => a.entryRequirements.any(
+          (r) => r is SlayerLevelRequirement && r.level > 1,
+        ),
+      );
+      final monsterId = area.monsterIds.first;
+      final monster = testRegistries.allActions
+          .whereType<CombatAction>()
+          .firstWhere((a) => a.id.localId == monsterId);
+      // No skills, so requirements won't be met.
+      final state = GlobalState.test(testRegistries);
+
+      expect(
+        () => state.startSlayerAreaCombat(
+          area: area,
+          monster: monster,
+          random: Random(42),
+        ),
+        throwsStateError,
+      );
+    });
+
+    test('throws ArgumentError when monster is not in area', () {
+      final area = levelOnlyArea();
+      // Find a monster NOT in this area.
+      final otherMonster = testRegistries.allActions
+          .whereType<CombatAction>()
+          .firstWhere((a) => !area.monsterIds.contains(a.id.localId));
+      final state = GlobalState.test(
+        testRegistries,
+        skillStates: highCombatSkills,
+      );
+
+      expect(
+        () => state.startSlayerAreaCombat(
+          area: area,
+          monster: otherMonster,
+          random: Random(42),
+        ),
+        throwsArgumentError,
+      );
+    });
+
+    test('throws StunnedException when player is stunned', () {
+      final area = levelOnlyArea();
+      final monster = monsterInArea(area);
+      final state = GlobalState.test(
+        testRegistries,
+        skillStates: highCombatSkills,
+        stunned: const StunnedState(ticksRemaining: 100),
+      );
+
+      expect(
+        () => state.startSlayerAreaCombat(
+          area: area,
+          monster: monster,
+          random: Random(42),
+        ),
+        throwsA(isA<StunnedException>()),
+      );
+    });
+  });
+
+  group('slayerAreaGearChangeError', () {
+    test('returns null when not in a slayer area', () {
+      final state = GlobalState.test(testRegistries);
+      final item = testRegistries.items.all.first;
+      expect(state.slayerAreaGearChangeError(item), isNull);
+    });
+
+    test('returns null for non-required item in slayer area', () {
+      // Use an area with only level requirements (no item requirements).
+      final area = testRegistries.slayer.areas.all.firstWhere(
+        (a) =>
+            a.entryRequirements.isNotEmpty &&
+            a.entryRequirements.every((r) => r is SlayerLevelRequirement),
+      );
+      final monsterId = area.monsterIds.first;
+      final state = GlobalState.test(
+        testRegistries,
+        skillStates: highCombatSkills,
+        activeActivity: CombatActivity(
+          context: SlayerAreaCombatContext(
+            slayerAreaId: area.id,
+            monsterId: monsterId,
+          ),
+          progress: const CombatProgressState(
+            monsterHp: 100,
+            playerAttackTicksRemaining: 10,
+            monsterAttackTicksRemaining: 10,
+          ),
+          progressTicks: 0,
+          totalTicks: 10,
+        ),
+      );
+      final item = testRegistries.items.all.first;
+      expect(state.slayerAreaGearChangeError(item), isNull);
+    });
+
+    test('returns error message for required item in slayer area', () {
+      final area = testRegistries.slayer.areas.all.firstWhere(
+        (a) => a.entryRequirements.any((r) => r is SlayerItemRequirement),
+        orElse: () => throw StateError('No area with item requirement'),
+      );
+      final itemReq = area.entryRequirements
+          .whereType<SlayerItemRequirement>()
+          .first;
+      final item = testRegistries.items.byId(itemReq.itemId);
+      final monsterId = area.monsterIds.first;
+
+      final state = GlobalState.test(
+        testRegistries,
+        skillStates: highCombatSkills,
+        activeActivity: CombatActivity(
+          context: SlayerAreaCombatContext(
+            slayerAreaId: area.id,
+            monsterId: monsterId,
+          ),
+          progress: const CombatProgressState(
+            monsterHp: 100,
+            playerAttackTicksRemaining: 10,
+            monsterAttackTicksRemaining: 10,
+          ),
+          progressTicks: 0,
+          totalTicks: 10,
+        ),
+      );
+
+      final error = state.slayerAreaGearChangeError(item);
+      expect(error, isNotNull);
+      expect(error, contains(item.name));
+      expect(error, contains(area.name));
+    });
+  });
+
   group('slayer area effects', () {
     test('combat modifier provider includes area effect modifiers', () {
       final area = _areaWithPlayerEffect(testRegistries);
