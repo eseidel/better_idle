@@ -1,0 +1,13 @@
+name: ccov
+description: CLI tool for querying Codecov API coverage data.
+version: 0.0.1
+
+environment:
+  sdk: ^3.10.7
+dependencies:
+  args: ^2.7.0
+  http: ^1.6.0
+
+dev_dependencies:
+  lints: ^6.0.0
+  test: ^1.25.6
