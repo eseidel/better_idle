@@ -588,7 +588,6 @@ class StateUpdateBuilder {
   ///
   /// [attackSpeedSeconds] is the player's attack speed, used for XP calc.
   ///
-  // TODO(eseidel): Increase to 2 charges for combat when synergy is active.
   // TODO(eseidel): Familiars may attack on their own 3s timer, not player's.
   void consumeSummonChargesForCombat(
     CombatAction action, {
@@ -600,14 +599,26 @@ class StateUpdateBuilder {
   void _consumeSummonChargesInternal(Action action, double actionTimeSeconds) {
     var equipment = _state.equipment;
 
+    // Check if an active synergy applies to this action type.
+    // When a synergy triggers, both tablets consume charges regardless of
+    // individual familiar relevance.
+    final synergy = _state.getActiveSynergy();
+    final consumesOnType = _consumesOnTypeForAction(action);
+    final synergyApplies =
+        synergy != null &&
+        consumesOnType != null &&
+        synergy.appliesTo(consumesOnType);
+
     // Check each summon slot
     const summonSlots = [EquipmentSlot.summon1, EquipmentSlot.summon2];
     for (final slot in summonSlots) {
       final tablet = equipment.gearInSlot(slot);
       if (tablet == null) continue;
 
-      // Check if this familiar is relevant to the current action
-      final isRelevant = _isFamiliarRelevantToAction(tablet.id, action);
+      // Consume if this familiar is individually relevant, or if the
+      // synergy applies to this action type.
+      final isRelevant =
+          synergyApplies || _isFamiliarRelevantToAction(tablet.id, action);
       if (!isRelevant) continue;
 
       // Track tablet usage for welcome back dialog
@@ -626,6 +637,34 @@ class StateUpdateBuilder {
     }
 
     _state = _state.copyWith(equipment: equipment);
+  }
+
+  /// Maps an action to its corresponding [ConsumesOnType].
+  ConsumesOnType? _consumesOnTypeForAction(Action action) {
+    if (action is SkillAction) {
+      return switch (action.skill) {
+        Skill.woodcutting => ConsumesOnType.woodcuttingAction,
+        Skill.fishing => ConsumesOnType.fishingAction,
+        Skill.firemaking => ConsumesOnType.firemakingAction,
+        Skill.cooking => ConsumesOnType.cookingAction,
+        Skill.mining => ConsumesOnType.miningAction,
+        Skill.smithing => ConsumesOnType.smithingAction,
+        Skill.thieving => ConsumesOnType.thievingAction,
+        Skill.fletching => ConsumesOnType.fletchingAction,
+        Skill.crafting => ConsumesOnType.craftingAction,
+        Skill.herblore => ConsumesOnType.herbloreAction,
+        Skill.runecrafting => ConsumesOnType.runecraftingAction,
+        Skill.agility => ConsumesOnType.agilityAction,
+        Skill.summoning => ConsumesOnType.summoningAction,
+        Skill.astrology => ConsumesOnType.astrologyAction,
+        Skill.farming => ConsumesOnType.farmingPlantAction,
+        _ => null,
+      };
+    }
+    if (action is CombatAction) {
+      return ConsumesOnType.playerSummonAttack;
+    }
+    return null;
   }
 
   /// Returns true if the familiar is relevant to the given action.

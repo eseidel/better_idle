@@ -1540,4 +1540,121 @@ void main() {
       );
     });
   });
+
+  group('Synergy Charge Consumption', () {
+    late Item entTablet;
+    late Item bearTablet;
+    late SummoningAction entAction;
+    late SummoningAction bearAction;
+    late SkillAction woodcuttingAction;
+
+    setUpAll(() async {
+      await loadTestRegistries();
+      entAction = testRegistries.summoning.actions.firstWhere(
+        (a) => a.markSkillIds.contains(Skill.woodcutting.id),
+      );
+      entTablet = testItems.byId(entAction.productId);
+
+      // Bear is a combat familiar (relevant to Strength).
+      bearAction = testRegistries.summoning.actions.firstWhere(
+        (a) => a.name.contains('Bear'),
+      );
+      bearTablet = testItems.byId(bearAction.productId);
+
+      woodcuttingAction = testRegistries.woodcutting.actions.first;
+    });
+
+    test('synergy consumes charges from both tablets on matching action', () {
+      // Equip Ent (slot1, woodcutting) + Bear (slot2, combat).
+      const equipment = Equipment.empty();
+      final (eq1, _) = equipment.equipSummonTablet(
+        entTablet,
+        EquipmentSlot.summon1,
+        10,
+      );
+      final (eq2, _) = eq1.equipSummonTablet(
+        bearTablet,
+        EquipmentSlot.summon2,
+        10,
+      );
+
+      // Activate synergy: mark level >= 3 for both.
+      final summoningState = const SummoningState.empty()
+          .withMarks(entAction.productId, 16)
+          .withMarks(bearAction.productId, 16);
+
+      var inventory = Inventory.empty(testItems);
+      for (final input in woodcuttingAction.inputs.entries) {
+        final item = testItems.byId(input.key);
+        inventory = inventory.adding(ItemStack(item, count: input.value * 100));
+      }
+
+      final state = GlobalState.test(
+        testRegistries,
+        equipment: eq2,
+        summoning: summoningState,
+        inventory: inventory,
+      ).startAction(woodcuttingAction, random: Random(42));
+
+      final builder = StateUpdateBuilder(state);
+      consumeTicks(builder, 1000, random: Random(42));
+      final newState = builder.build();
+
+      // Both tablets should have consumed charges, even though Bear is not
+      // individually relevant to woodcutting.
+      expect(
+        newState.equipment.summonCountInSlot(EquipmentSlot.summon1),
+        lessThan(10),
+      );
+      expect(
+        newState.equipment.summonCountInSlot(EquipmentSlot.summon2),
+        lessThan(10),
+      );
+    });
+
+    test('without synergy, irrelevant tablet does not consume charges', () {
+      // Equip Ent (slot1) + Bear (slot2) but without mark levels for synergy.
+      const equipment = Equipment.empty();
+      final (eq1, _) = equipment.equipSummonTablet(
+        entTablet,
+        EquipmentSlot.summon1,
+        10,
+      );
+      final (eq2, _) = eq1.equipSummonTablet(
+        bearTablet,
+        EquipmentSlot.summon2,
+        10,
+      );
+
+      // Mark levels too low for synergy (need 16 for level 3).
+      final summoningState = const SummoningState.empty()
+          .withMarks(entAction.productId, 5)
+          .withMarks(bearAction.productId, 5);
+
+      var inventory = Inventory.empty(testItems);
+      for (final input in woodcuttingAction.inputs.entries) {
+        final item = testItems.byId(input.key);
+        inventory = inventory.adding(ItemStack(item, count: input.value * 100));
+      }
+
+      final state = GlobalState.test(
+        testRegistries,
+        equipment: eq2,
+        summoning: summoningState,
+        inventory: inventory,
+      ).startAction(woodcuttingAction, random: Random(42));
+
+      final builder = StateUpdateBuilder(state);
+      consumeTicks(builder, 1000, random: Random(42));
+      final newState = builder.build();
+
+      // Ent is relevant to woodcutting, should consume charges.
+      expect(
+        newState.equipment.summonCountInSlot(EquipmentSlot.summon1),
+        lessThan(10),
+      );
+      // Bear is NOT relevant to woodcutting, should NOT consume charges.
+      expect(newState.equipment.summonCountInSlot(EquipmentSlot.summon2), 10);
+    });
+  });
 }
