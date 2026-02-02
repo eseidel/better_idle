@@ -1296,6 +1296,30 @@ void main() {
       expect(synergy, equals(synergyReverse));
     });
 
+    test('real Ent+Bear synergy has Bird Nest Potion conditional', () {
+      // Ent + Bear synergy in the real Melvor data has a PotionUsedCondition
+      // for Bird Nest Potion that grants flatBaseRandomProductQuantity.
+      const entId = MelvorId('melvorF:Ent');
+      const bearId = MelvorId('melvorF:Bear');
+      final synergy = testRegistries.summoningSynergies.findSynergy(
+        entId,
+        bearId,
+      );
+      expect(synergy, isNotNull, reason: 'Ent+Bear synergy should exist');
+      expect(
+        synergy!.conditionalModifiers,
+        isNotEmpty,
+        reason: 'Should have conditional modifiers',
+      );
+
+      final potionCond = synergy.conditionalModifiers.firstWhere(
+        (c) => c.condition is PotionUsedCondition,
+      );
+      final condition = potionCond.condition as PotionUsedCondition;
+      expect(condition.recipeId, const MelvorId('melvorF:Bird_Nest_Potion'));
+      expect(potionCond.modifiers.modifiers, isNotEmpty);
+    });
+
     test('fromJson parses conditionalModifiers', () {
       final json = {
         'summonIDs': ['melvorF:GolbinThief', 'melvorF:Occultist'],
