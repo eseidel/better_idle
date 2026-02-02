@@ -1,7 +1,16 @@
+import 'dart:math';
+
 import 'package:logic/logic.dart';
 import 'package:test/test.dart';
 
 import 'test_helper.dart';
+
+/// Shorthand for [PlayerCombatStats.fromState] with empty condition context.
+PlayerCombatStats testCombatStats(GlobalState state) =>
+    PlayerCombatStats.fromState(
+      state,
+      conditionContext: ConditionContext.empty,
+    );
 
 void main() {
   setUpAll(loadTestRegistries);
@@ -64,7 +73,7 @@ void main() {
         },
       );
 
-      final stats = PlayerCombatStats.fromState(state);
+      final stats = testCombatStats(state);
 
       // With no equipment, should have base stats
       expect(stats.maxHit, greaterThan(0));
@@ -90,8 +99,8 @@ void main() {
         },
       );
 
-      final lowStats = PlayerCombatStats.fromState(lowStrength);
-      final highStats = PlayerCombatStats.fromState(highStrength);
+      final lowStats = testCombatStats(lowStrength);
+      final highStats = testCombatStats(highStrength);
 
       expect(highStats.maxHit, greaterThan(lowStats.maxHit));
     });
@@ -111,8 +120,8 @@ void main() {
         },
       );
 
-      final lowStats = PlayerCombatStats.fromState(lowAttack);
-      final highStats = PlayerCombatStats.fromState(highAttack);
+      final lowStats = testCombatStats(lowAttack);
+      final highStats = testCombatStats(highAttack);
 
       expect(highStats.accuracy, greaterThan(lowStats.accuracy));
     });
@@ -132,8 +141,8 @@ void main() {
         },
       );
 
-      final lowStats = PlayerCombatStats.fromState(lowDefence);
-      final highStats = PlayerCombatStats.fromState(highDefence);
+      final lowStats = testCombatStats(lowDefence);
+      final highStats = testCombatStats(highDefence);
 
       expect(highStats.meleeEvasion, greaterThan(lowStats.meleeEvasion));
       expect(highStats.rangedEvasion, greaterThan(lowStats.rangedEvasion));
@@ -198,8 +207,8 @@ void main() {
       );
       final stateUnarmed = GlobalState.test(testRegistries);
 
-      final statsWithWeapon = PlayerCombatStats.fromState(stateWithWeapon);
-      final statsUnarmed = PlayerCombatStats.fromState(stateUnarmed);
+      final statsWithWeapon = testCombatStats(stateWithWeapon);
+      final statsUnarmed = testCombatStats(stateUnarmed);
 
       // Unarmed = 4 seconds, Bronze Sword = 2.4 seconds
       expect(statsUnarmed.attackSpeed, 4.0);
@@ -226,8 +235,8 @@ void main() {
       );
       final stateUnarmed = GlobalState.test(testRegistries);
 
-      final statsWithWeapon = PlayerCombatStats.fromState(stateWithWeapon);
-      final statsUnarmed = PlayerCombatStats.fromState(stateUnarmed);
+      final statsWithWeapon = testCombatStats(stateWithWeapon);
+      final statsUnarmed = testCombatStats(stateUnarmed);
 
       // Max hit should be higher with weapon strength bonus
       expect(statsWithWeapon.maxHit, greaterThan(statsUnarmed.maxHit));
@@ -253,8 +262,8 @@ void main() {
       );
       final stateUnarmed = GlobalState.test(testRegistries);
 
-      final statsWithWeapon = PlayerCombatStats.fromState(stateWithWeapon);
-      final statsUnarmed = PlayerCombatStats.fromState(stateUnarmed);
+      final statsWithWeapon = testCombatStats(stateWithWeapon);
+      final statsUnarmed = testCombatStats(stateUnarmed);
 
       // Accuracy should be higher with attack bonus
       expect(statsWithWeapon.accuracy, greaterThan(statsUnarmed.accuracy));
@@ -280,8 +289,8 @@ void main() {
       );
       final stateNaked = GlobalState.test(testRegistries);
 
-      final statsWithArmor = PlayerCombatStats.fromState(stateWithArmor);
-      final statsNaked = PlayerCombatStats.fromState(stateNaked);
+      final statsWithArmor = testCombatStats(stateWithArmor);
+      final statsNaked = testCombatStats(stateNaked);
 
       // Evasion should be higher with defence bonus
       expect(statsWithArmor.meleeEvasion, greaterThan(statsNaked.meleeEvasion));
@@ -311,8 +320,8 @@ void main() {
         equipment: weaponOnly,
       );
 
-      final statsFullGear = PlayerCombatStats.fromState(stateFullGear);
-      final statsWeaponOnly = PlayerCombatStats.fromState(stateWeaponOnly);
+      final statsFullGear = testCombatStats(stateFullGear);
+      final statsWeaponOnly = testCombatStats(stateWeaponOnly);
 
       // With helmet, should have higher evasion
       expect(
@@ -503,8 +512,8 @@ void main() {
         },
       );
 
-      final lowStats = PlayerCombatStats.fromState(lowRanged);
-      final highStats = PlayerCombatStats.fromState(highRanged);
+      final lowStats = testCombatStats(lowRanged);
+      final highStats = testCombatStats(highRanged);
 
       expect(highStats.maxHit, greaterThan(lowStats.maxHit));
     });
@@ -526,8 +535,8 @@ void main() {
         },
       );
 
-      final lowStats = PlayerCombatStats.fromState(lowRanged);
-      final highStats = PlayerCombatStats.fromState(highRanged);
+      final lowStats = testCombatStats(lowRanged);
+      final highStats = testCombatStats(highRanged);
 
       expect(highStats.accuracy, greaterThan(lowStats.accuracy));
     });
@@ -542,8 +551,8 @@ void main() {
         attackStyle: AttackStyle.rapid,
       );
 
-      final accurateStats = PlayerCombatStats.fromState(accurateState);
-      final rapidStats = PlayerCombatStats.fromState(rapidState);
+      final accurateStats = testCombatStats(accurateState);
+      final rapidStats = testCombatStats(rapidState);
 
       // Rapid should be 20% faster (lower attack speed value)
       expect(rapidStats.attackSpeed, lessThan(accurateStats.attackSpeed));
@@ -572,8 +581,8 @@ void main() {
         },
       );
 
-      final rapidStats = PlayerCombatStats.fromState(rapidState);
-      final accurateStats = PlayerCombatStats.fromState(accurateState);
+      final rapidStats = testCombatStats(rapidState);
+      final accurateStats = testCombatStats(accurateState);
 
       // Accurate should have higher accuracy due to +3 effective level
       expect(accurateStats.accuracy, greaterThan(rapidStats.accuracy));
@@ -630,8 +639,8 @@ void main() {
         },
       );
 
-      final lowStats = PlayerCombatStats.fromState(lowMagic);
-      final highStats = PlayerCombatStats.fromState(highMagic);
+      final lowStats = testCombatStats(lowMagic);
+      final highStats = testCombatStats(highMagic);
 
       expect(highStats.maxHit, greaterThan(lowStats.maxHit));
     });
@@ -653,8 +662,8 @@ void main() {
         },
       );
 
-      final lowStats = PlayerCombatStats.fromState(lowMagic);
-      final highStats = PlayerCombatStats.fromState(highMagic);
+      final lowStats = testCombatStats(lowMagic);
+      final highStats = testCombatStats(highMagic);
 
       expect(highStats.accuracy, greaterThan(lowStats.accuracy));
     });
@@ -687,9 +696,9 @@ void main() {
         },
       );
 
-      final statsHighMagic = PlayerCombatStats.fromState(highMagicLowDefence);
-      final statsHighDefence = PlayerCombatStats.fromState(lowMagicHighDefence);
-      final statsBoth = PlayerCombatStats.fromState(highBoth);
+      final statsHighMagic = testCombatStats(highMagicLowDefence);
+      final statsHighDefence = testCombatStats(lowMagicHighDefence);
+      final statsBoth = testCombatStats(highBoth);
 
       // Since magic is 70% weighted, high magic should give better magic
       // evasion than high defence alone
@@ -753,8 +762,8 @@ void main() {
       );
       final stateWithout = GlobalState.test(testRegistries);
 
-      final statsWithItem = PlayerCombatStats.fromState(stateWithItem);
-      final statsWithout = PlayerCombatStats.fromState(stateWithout);
+      final statsWithItem = testCombatStats(stateWithItem);
+      final statsWithout = testCombatStats(stateWithout);
 
       // flatMinHit=20 means +20 min hit
       expect(statsWithItem.minHit, equals(statsWithout.minHit + 20));
@@ -795,10 +804,8 @@ void main() {
         attackStyle: AttackStyle.standard,
       );
 
-      final magicStatsWithItem = PlayerCombatStats.fromState(
-        magicStateWithItem,
-      );
-      final magicStatsWithout = PlayerCombatStats.fromState(magicStateWithout);
+      final magicStatsWithItem = testCombatStats(magicStateWithItem);
+      final magicStatsWithout = testCombatStats(magicStateWithout);
 
       // flatMagicMinHit=15 means +15 min hit for magic
       expect(magicStatsWithItem.minHit, equals(magicStatsWithout.minHit + 15));
@@ -810,10 +817,8 @@ void main() {
       );
       final meleeStateWithout = GlobalState.test(testRegistries);
 
-      final meleeStatsWithItem = PlayerCombatStats.fromState(
-        meleeStateWithItem,
-      );
-      final meleeStatsWithout = PlayerCombatStats.fromState(meleeStateWithout);
+      final meleeStatsWithItem = testCombatStats(meleeStateWithItem);
+      final meleeStatsWithout = testCombatStats(meleeStateWithout);
 
       // Melee should have same minHit with or without the magic-specific
       // modifier
@@ -846,8 +851,8 @@ void main() {
       );
       final stateWithout = GlobalState.test(testRegistries);
 
-      final statsWithItem = PlayerCombatStats.fromState(stateWithItem);
-      final statsWithout = PlayerCombatStats.fromState(stateWithout);
+      final statsWithItem = testCombatStats(stateWithItem);
+      final statsWithout = testCombatStats(stateWithout);
 
       // minHitBasedOnMaxHit=10 means +10% of maxHit added to minHit
       // minHit should be base + 10% of maxHit
@@ -885,7 +890,7 @@ void main() {
         attackStyle: AttackStyle.standard,
       );
 
-      final magicStats = PlayerCombatStats.fromState(magicStateWithItem);
+      final magicStats = testCombatStats(magicStateWithItem);
 
       // minHit should be base + 15% of maxHit
       final expectedMagicMinHit = 1 + (magicStats.maxHit * 15 / 100).floor();
@@ -897,7 +902,7 @@ void main() {
         equipment: equipment,
       );
 
-      final meleeStats = PlayerCombatStats.fromState(meleeStateWithItem);
+      final meleeStats = testCombatStats(meleeStateWithItem);
 
       // minHit should just be base (1) for melee
       expect(meleeStats.minHit, equals(1));
@@ -946,7 +951,7 @@ void main() {
         equipment: equipment,
         attackStyle: AttackStyle.standard,
       );
-      final magicStats = PlayerCombatStats.fromState(magicState);
+      final magicStats = testCombatStats(magicState);
 
       // Expected: 1 + 10 (flatMinHit) + 5 (flatMagicMinHit) + 10% of maxHit
       // (5% minHitBasedOnMaxHit + 5% magicMinHitBasedOnMaxHit = 10%)
@@ -956,7 +961,7 @@ void main() {
 
       // Melee style: only gets generic modifiers
       final meleeState = GlobalState.test(testRegistries, equipment: equipment);
-      final meleeStats = PlayerCombatStats.fromState(meleeState);
+      final meleeStats = testCombatStats(meleeState);
 
       // Expected: 1 + 10 (flatMinHit) + 5% of maxHit (only generic)
       final expectedMeleeMinHit =
@@ -988,7 +993,7 @@ void main() {
       );
 
       final state = GlobalState.test(testRegistries, equipment: equipment);
-      final stats = PlayerCombatStats.fromState(state);
+      final stats = testCombatStats(state);
 
       // minHit should be clamped to maxHit
       expect(stats.minHit, equals(stats.maxHit));
@@ -1232,6 +1237,85 @@ void main() {
         expect(mods.damageModifier, greaterThan(1.0));
         expect(mods.damageReductionModifier, greaterThan(1.0));
       });
+    });
+  });
+
+  group('buildCombatConditionContext', () {
+    test('populates player and enemy fields', () {
+      final monster = testRegistries.combatAction('Plant');
+      final state = GlobalState.test(
+        testRegistries,
+      ).startAction(monster, random: Random(42));
+
+      final context = state.buildCombatConditionContext(
+        enemyAction: monster,
+        enemyCurrentHp: monster.maxHp,
+      );
+
+      expect(context.playerAttackType, state.attackStyle.combatType);
+      expect(context.enemyAttackType, monster.attackType.combatType);
+      expect(context.playerHpPercent, 100);
+      expect(context.enemyHpPercent, 100);
+      expect(context.isFightingSlayerTask, false);
+    });
+
+    test('enemy HP percentage reflects partial HP', () {
+      final monster = testRegistries.combatAction('Plant');
+      final state = GlobalState.test(testRegistries);
+
+      final context = state.buildCombatConditionContext(
+        enemyAction: monster,
+        enemyCurrentHp: monster.maxHp ~/ 2,
+      );
+
+      expect(context.enemyHpPercent, closeTo(50, 1));
+    });
+
+    test('isFightingSlayerTask true for slayer task context', () {
+      final monster = testRegistries.combatAction('Plant');
+      final slayerContext = SlayerTaskContext(
+        categoryId: const MelvorId('melvorD:Easy'),
+        monsterId: monster.id.localId,
+        killsRequired: 10,
+        killsCompleted: 0,
+      );
+      final state = GlobalState.test(
+        testRegistries,
+        activeActivity: CombatActivity(
+          context: slayerContext,
+          progress: CombatProgressState(
+            monsterHp: monster.maxHp,
+            playerAttackTicksRemaining: 24,
+            monsterAttackTicksRemaining: 24,
+          ),
+          progressTicks: 0,
+          totalTicks: 24,
+        ),
+      );
+
+      final context = state.buildCombatConditionContext(
+        enemyAction: monster,
+        enemyCurrentHp: monster.maxHp,
+      );
+
+      expect(context.isFightingSlayerTask, true);
+    });
+
+    test('PlayerCombatStats.fromState accepts conditionContext', () {
+      final state = GlobalState.test(testRegistries);
+      // Should not throw with either empty or populated context.
+      final statsEmpty = testCombatStats(state);
+      final statsWithContext = PlayerCombatStats.fromState(
+        state,
+        conditionContext: const ConditionContext(
+          playerAttackType: CombatType.melee,
+          enemyAttackType: CombatType.melee,
+          playerHpPercent: 100,
+          enemyHpPercent: 50,
+        ),
+      );
+      // Without conditional modifier items, stats should be the same.
+      expect(statsWithContext.maxHit, statsEmpty.maxHit);
     });
   });
 }

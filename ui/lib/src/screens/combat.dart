@@ -116,7 +116,13 @@ class CombatPage extends StatelessWidget {
               animateAttack: state.isPlayerActive,
               attackTicksRemaining: combatState?.playerAttackTicksRemaining,
               totalAttackTicks: activeMonster != null
-                  ? secondsToTicks(computePlayerStats(state).attackSpeed)
+                  ? secondsToTicks(
+                      computePlayerStats(
+                        state,
+                        // UI display only, no live combat state.
+                        conditionContext: ConditionContext.empty,
+                      ).attackSpeed,
+                    )
                   : null,
             ),
             const SizedBox(height: 16),
@@ -863,13 +869,17 @@ class _PlayerCombatStatsCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final state = context.state;
-    final playerStats = computePlayerStats(state);
+    // TODO(eseidel): Pass real ConditionContext from combat state.
+    final playerStats = computePlayerStats(
+      state,
+      conditionContext: ConditionContext.empty, // UI display only.
+    );
     final attackStyle = state.attackStyle;
     final combatType = attackStyle.combatType;
 
     // Get modifiers for crit and lifesteal
     final modifiers = state.createCombatModifierProvider(
-      conditionContext: ConditionContext.empty,
+      conditionContext: ConditionContext.empty, // UI display only.
     );
 
     // Calculate crit chance based on combat type
@@ -1076,7 +1086,10 @@ class _MonsterCard extends StatelessWidget {
     final state = context.state;
     final currentHp = combatState?.monsterHp ?? action.maxHp;
     final monsterStats = MonsterCombatStats.fromAction(action);
-    final playerStats = computePlayerStats(state);
+    final playerStats = computePlayerStats(
+      state,
+      conditionContext: ConditionContext.empty, // UI display only.
+    );
 
     // Calculate monster's hit chance against player
     final monsterHitChance = CombatCalculator.monsterHitChance(

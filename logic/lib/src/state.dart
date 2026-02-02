@@ -1067,6 +1067,32 @@ class GlobalState {
 
   /// Creates a ModifierProvider for combat.
   ///
+  /// Builds a [ConditionContext] for combat using current game state.
+  ///
+  /// [enemyAction] is the monster being fought.
+  /// [enemyCurrentHp] is the monster's current HP (for HP% conditions).
+  ConditionContext buildCombatConditionContext({
+    required CombatAction enemyAction,
+    required int enemyCurrentHp,
+  }) {
+    final maxHp = maxPlayerHp;
+    final playerHpPct = maxHp > 0 ? (playerHp * 100 ~/ maxHp) : 100;
+    final enemyMaxHp = enemyAction.maxHp;
+    final enemyHpPct = enemyMaxHp > 0
+        ? (enemyCurrentHp * 100 ~/ enemyMaxHp)
+        : 100;
+    final activity = activeActivity;
+    final isFightingSlayer =
+        activity is CombatActivity && activity.context is SlayerTaskContext;
+    return ConditionContext(
+      playerAttackType: attackStyle.combatType,
+      enemyAttackType: enemyAction.attackType.combatType,
+      playerHpPercent: playerHpPct,
+      enemyHpPercent: enemyHpPct,
+      isFightingSlayerTask: isFightingSlayer,
+    );
+  }
+
   /// Filters summoning familiar modifiers by combat type relevance
   /// (melee familiars only apply during melee combat, etc.).
   ///
@@ -1245,7 +1271,7 @@ class GlobalState {
     final ticks = action.rollDuration(random);
     final modifiers = createActionModifierProvider(
       action,
-      conditionContext: ConditionContext.empty,
+      conditionContext: ConditionContext.empty, // Skill action, no combat.
       consumesOnType: null,
     );
 
@@ -1401,13 +1427,16 @@ class GlobalState {
     } else if (action is CombatAction) {
       // Combat actions don't have inputs or duration-based completion.
       // The tick represents the time until the first player attack.
-      final pStats = computePlayerStats(prepared);
+      final pStats = computePlayerStats(
+        prepared,
+        conditionContext: ConditionContext.empty, // Combat not yet started.
+      );
       totalTicks = ticksFromDuration(
         Duration(milliseconds: (pStats.attackSpeed * 1000).round()),
       );
       // Calculate spawn ticks with modifiers (e.g., Monster Hunter Scroll)
       final modifiers = prepared.createCombatModifierProvider(
-        conditionContext: ConditionContext.empty,
+        conditionContext: ConditionContext.empty, // Combat not yet started.
       );
       final spawnTicks = calculateMonsterSpawnTicks(
         modifiers.flatMonsterRespawnInterval,
@@ -1474,13 +1503,16 @@ class GlobalState {
     final firstMonster = registries.combat.monsterById(monsterIds.first);
     final actionId = firstMonster.id;
 
-    final pStats = computePlayerStats(prepared);
+    final pStats = computePlayerStats(
+      prepared,
+      conditionContext: ConditionContext.empty, // Combat not yet started.
+    );
     final totalTicks = ticksFromDuration(
       Duration(milliseconds: (pStats.attackSpeed * 1000).round()),
     );
 
     final modifiers = prepared.createCombatModifierProvider(
-      conditionContext: ConditionContext.empty,
+      conditionContext: ConditionContext.empty, // Combat not yet started.
     );
     final spawnTicks = calculateMonsterSpawnTicks(
       modifiers.flatMonsterRespawnInterval,
@@ -1585,13 +1617,16 @@ class GlobalState {
     prepared = prepared.copyWith(currencies: newCurrencies);
 
     // Start combat with the slayer task context
-    final pStats = computePlayerStats(prepared);
+    final pStats = computePlayerStats(
+      prepared,
+      conditionContext: ConditionContext.empty, // Combat not yet started.
+    );
     final totalTicks = ticksFromDuration(
       Duration(milliseconds: (pStats.attackSpeed * 1000).round()),
     );
 
     final modifiers = prepared.createCombatModifierProvider(
-      conditionContext: ConditionContext.empty,
+      conditionContext: ConditionContext.empty, // Combat not yet started.
     );
     final spawnTicks = calculateMonsterSpawnTicks(
       modifiers.flatMonsterRespawnInterval,
@@ -1682,13 +1717,16 @@ class GlobalState {
 
     final prepared = _prepareForActivitySwitch(stayingInCooking: false);
 
-    final pStats = computePlayerStats(prepared);
+    final pStats = computePlayerStats(
+      prepared,
+      conditionContext: ConditionContext.empty, // Combat not yet started.
+    );
     final totalTicks = ticksFromDuration(
       Duration(milliseconds: (pStats.attackSpeed * 1000).round()),
     );
 
     final modifiers = prepared.createCombatModifierProvider(
-      conditionContext: ConditionContext.empty,
+      conditionContext: ConditionContext.empty, // Combat not yet started.
     );
     final spawnTicks = calculateMonsterSpawnTicks(
       modifiers.flatMonsterRespawnInterval,
@@ -1770,7 +1808,7 @@ class GlobalState {
     final ticks = ticksFromDuration(action.meanDuration);
     final modifiers = createActionModifierProvider(
       action,
-      conditionContext: ConditionContext.empty,
+      conditionContext: ConditionContext.empty, // Duration estimate, no combat.
       consumesOnType: null,
     );
 
