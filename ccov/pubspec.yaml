@@ -1,12 +1,9 @@
 name: ccov
-description: A sample command-line application with basic argument parsing.
+description: CLI tool for querying Codecov API coverage data.
 version: 0.0.1
-# repository: https://github.com/my_org/my_repo
 
 environment:
   sdk: ^3.10.7
-
-# Add regular dependencies here.
 dependencies:
   args: ^2.7.0
   http: ^1.6.0
