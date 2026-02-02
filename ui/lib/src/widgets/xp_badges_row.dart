@@ -33,6 +33,7 @@ class XpBadgesRow extends StatelessWidget {
       context.state.createActionModifierProvider(
         action,
         conditionContext: ConditionContext.empty,
+        consumesOnType: null,
       ),
     );
     final spacing = inradius * 8 / TextBadgeCell.defaultInradius;
