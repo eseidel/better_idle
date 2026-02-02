@@ -254,10 +254,7 @@ void main() {
       ).selectPotion(Skill.woodcutting.id, birdNestPotionI.id);
 
       final action = normalTree as SkillAction;
-      final modifiers = state.createActionModifierProvider(
-        action,
-        conditionContext: ConditionContext.empty,
-      );
+      final modifiers = state.testModifiersFor(action);
       // Bird Nest Potion I gives +5% randomProductChance for bird nest item
       expect(
         modifiers.randomProductChance(
@@ -278,10 +275,7 @@ void main() {
 
       // Should not throw when resolving modifiers with potion
       final action = normalTree as SkillAction;
-      final modifiers = state.createActionModifierProvider(
-        action,
-        conditionContext: ConditionContext.empty,
-      );
+      final modifiers = state.testModifiersFor(action);
       expect(modifiers, isNotNull);
     });
 
@@ -295,10 +289,7 @@ void main() {
 
       // Modifiers should still resolve without error
       final action = normalTree as SkillAction;
-      final modifiers = state.createActionModifierProvider(
-        action,
-        conditionContext: ConditionContext.empty,
-      );
+      final modifiers = state.testModifiersFor(action);
       expect(modifiers, isNotNull);
     });
   });
@@ -313,10 +304,7 @@ void main() {
       ).selectPotion(Skill.woodcutting.id, birdNestPotionI.id);
 
       final action = normalTree as SkillAction;
-      final modifiers = state.createActionModifierProvider(
-        action,
-        conditionContext: ConditionContext.empty,
-      );
+      final modifiers = state.testModifiersFor(action);
 
       // The herblore recipe for Bird Nest Potion should be in the
       // condition context's activePotionRecipes.
@@ -333,10 +321,7 @@ void main() {
     test('no active recipes when no potion selected', () {
       final state = GlobalState.test(testRegistries);
       final action = normalTree as SkillAction;
-      final modifiers = state.createActionModifierProvider(
-        action,
-        conditionContext: ConditionContext.empty,
-      );
+      final modifiers = state.testModifiersFor(action);
 
       expect(modifiers.conditionContext.activePotionRecipes, isEmpty);
     });
@@ -379,9 +364,8 @@ void main() {
 
         // With potion
         final builderWith = StateUpdateBuilder(stateWithPotion);
-        final modifiersWith = stateWithPotion.createActionModifierProvider(
+        final modifiersWith = stateWithPotion.testModifiersFor(
           normalTree as SkillAction,
-          conditionContext: ConditionContext.empty,
         );
         rollAndCollectDrops(
           builderWith,
@@ -395,11 +379,9 @@ void main() {
         // Without potion (use same seed for fair comparison)
         final randomWithout = Random(i);
         final builderWithout = StateUpdateBuilder(stateWithoutPotion);
-        final modifiersWithout = stateWithoutPotion
-            .createActionModifierProvider(
-              normalTree as SkillAction,
-              conditionContext: ConditionContext.empty,
-            );
+        final modifiersWithout = stateWithoutPotion.testModifiersFor(
+          normalTree as SkillAction,
+        );
         rollAndCollectDrops(
           builderWithout,
           normalTree as SkillAction,

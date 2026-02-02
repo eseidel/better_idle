@@ -1,3 +1,4 @@
+// cspell:words succesful
 import 'dart:math';
 
 import 'package:logic/logic.dart';
@@ -886,10 +887,7 @@ void main() {
       );
 
       // Resolve modifiers for woodcutting action
-      final modifiers = state.createActionModifierProvider(
-        woodcuttingAction,
-        conditionContext: ConditionContext.empty,
-      );
+      final modifiers = state.testModifiersFor(woodcuttingAction);
 
       // Ent provides additionalPrimaryProductChance of 10
       expect(
@@ -921,10 +919,7 @@ void main() {
       );
 
       // Resolve modifiers for woodcutting action
-      final modifiers = state.createActionModifierProvider(
-        woodcuttingAction,
-        conditionContext: ConditionContext.empty,
-      );
+      final modifiers = state.testModifiersFor(woodcuttingAction);
 
       // Combat familiar should NOT contribute to woodcutting
       // (Golbin Thief has flatCurrencyGainOnEnemyHit, not relevant here)
@@ -1320,6 +1315,49 @@ void main() {
       expect(potionCond.modifiers.modifiers, isNotEmpty);
     });
 
+    test('fromJson parses consumesOn entries', () {
+      final json = {
+        'summonIDs': ['melvorF:Ent', 'melvorF:Bear'],
+        'modifiers': <String, dynamic>{},
+        'consumesOn': [
+          {'type': 'WoodcuttingAction'},
+          {'type': 'PlayerSummonAttack'},
+          {
+            'type': 'ThievingAction',
+            'succesful': true,
+            'npcIDs': ['melvorF:LUMBERJACK'],
+          },
+        ],
+      };
+      final synergy = SummoningSynergy.fromJson(json, namespace: 'melvorF');
+
+      expect(synergy.consumesOn, hasLength(3));
+      expect(synergy.appliesTo(ConsumesOnType.woodcuttingAction), true);
+      expect(synergy.appliesTo(ConsumesOnType.thievingAction), true);
+      expect(synergy.appliesTo(ConsumesOnType.miningAction), false);
+      expect(synergy.appliesTo(ConsumesOnType.playerSummonAttack), true);
+
+      // Verify detailed fields on thieving entry.
+      final thieving = synergy.consumesOn.firstWhere(
+        (e) => e.type == ConsumesOnType.thievingAction,
+      );
+      expect(thieving.successful, true);
+      expect(thieving.npcIds, [const MelvorId('melvorF:LUMBERJACK')]);
+    });
+
+    test('real Ent+Bear synergy consumesOn parsed from data', () {
+      const entId = MelvorId('melvorF:Ent');
+      const bearId = MelvorId('melvorF:Bear');
+      final synergy = testRegistries.summoningSynergies.findSynergy(
+        entId,
+        bearId,
+      );
+      expect(synergy, isNotNull);
+      // Ent+Bear consumesOn includes WoodcuttingAction.
+      expect(synergy!.appliesTo(ConsumesOnType.woodcuttingAction), true);
+      expect(synergy.appliesTo(ConsumesOnType.miningAction), false);
+    });
+
     test('fromJson parses conditionalModifiers', () {
       final json = {
         'summonIDs': ['melvorF:GolbinThief', 'melvorF:Occultist'],
@@ -1389,6 +1427,117 @@ void main() {
         'increasedGPFromMonsters',
       );
       expect(modsMatch.first.modifiers.modifiers.first.entries.first.value, 25);
+    });
+
+    test('combat synergy not active during woodcutting, tablets apply', () {
+      // Golbin Thief + Occultist is a combat synergy. During woodcutting
+      // neither familiar is relevant and the synergy should not activate.
+      // Equip an Ent (relevant to woodcutting) in slot 1 and verify its
+      // individual modifiers still apply when slot 2 has a combat familiar
+      // with no synergy to Ent.
+      final entAction = testRegistries.summoning.actions.firstWhere(
+        (a) => a.markSkillIds.contains(Skill.woodcutting.id),
+      );
+      final entTablet = testItems.byId(entAction.productId);
+
+      const equipment = Equipment.empty();
+      final (equipped1, _) = equipment.equipSummonTablet(
+        entTablet,
+        EquipmentSlot.summon1,
+        10,
+      );
+      final (equipped2, _) = equipped1.equipSummonTablet(
+        golbinThiefTablet,
+        EquipmentSlot.summon2,
+        10,
+      );
+
+      final summoningState = const SummoningState.empty()
+          .withMarks(entAction.productId, 16)
+          .withMarks(golbinThiefAction.productId, 16);
+
+      final state = GlobalState.test(
+        testRegistries,
+        equipment: equipped2,
+        summoning: summoningState,
+      );
+
+      // No synergy between Ent and Golbin Thief.
+      expect(state.getActiveSynergy(), isNull);
+
+      final wcAction = testRegistries.woodcutting.actions.first;
+      final modifiers = state.testModifiersFor(wcAction);
+
+      // Ent's individual modifier applies since no synergy is active.
+      expect(
+        modifiers.additionalPrimaryProductChance(skillId: wcAction.skill.id),
+        10,
+      );
+    });
+
+    test('synergy replaces individual tablets when applicable', () {
+      // When a synergy applies to the current skill, individual tablet
+      // modifiers are replaced by synergy modifiers.
+      final entAction = testRegistries.summoning.actions.firstWhere(
+        (a) => a.markSkillIds.contains(Skill.woodcutting.id),
+      );
+      final entTablet = testItems.byId(entAction.productId);
+
+      // Find a familiar that forms a woodcutting synergy with Ent.
+      SummoningSynergy? wcSynergy;
+      SummoningAction? partnerAction;
+      for (final syn in testRegistries.summoningSynergies.all) {
+        if (!syn.appliesTo(ConsumesOnType.woodcuttingAction)) continue;
+        if (!syn.summonIds.contains(entAction.summonId)) continue;
+        wcSynergy = syn;
+        final partnerId = syn.summonIds.firstWhere(
+          (id) => id != entAction.summonId,
+        );
+        partnerAction = testRegistries.summoning.actions.firstWhere(
+          (a) => a.summonId == partnerId,
+        );
+        break;
+      }
+      // Skip if no woodcutting synergy exists for Ent in test data.
+      if (wcSynergy == null || partnerAction == null) return;
+
+      final partnerTablet = testItems.byId(partnerAction.productId);
+
+      const equipment = Equipment.empty();
+      final (equipped1, _) = equipment.equipSummonTablet(
+        entTablet,
+        EquipmentSlot.summon1,
+        10,
+      );
+      final (equipped2, _) = equipped1.equipSummonTablet(
+        partnerTablet,
+        EquipmentSlot.summon2,
+        10,
+      );
+
+      final summoningState = const SummoningState.empty()
+          .withMarks(entAction.productId, 16)
+          .withMarks(partnerAction.productId, 16);
+
+      final state = GlobalState.test(
+        testRegistries,
+        equipment: equipped2,
+        summoning: summoningState,
+      );
+
+      final wcAction = testRegistries.woodcutting.actions.first;
+      final modifiers = state.createActionModifierProvider(
+        wcAction,
+        conditionContext: ConditionContext.empty,
+        consumesOnType: ConsumesOnType.woodcuttingAction,
+      );
+
+      // With the synergy active for woodcutting, Ent's individual
+      // additionalPrimaryProductChance should NOT apply.
+      expect(
+        modifiers.additionalPrimaryProductChance(skillId: wcAction.skill.id),
+        0,
+      );
     });
   });
 }

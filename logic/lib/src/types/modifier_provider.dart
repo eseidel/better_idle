@@ -338,8 +338,10 @@ class ModifierProvider with ModifierAccessors {
       final slot = entry.key;
       final item = entry.value;
 
-      // For summoning tablets, only include if familiar is relevant
+      // Summoning tablets: when a synergy is active it replaces individual
+      // tablet modifiers. Otherwise only include relevant familiars.
       if (slot.isSummonSlot && item.isSummonTablet) {
+        if (activeSynergy != null) continue;
         final isRelevant = combatTypeSkills != null
             ? registries.summoning.isFamiliarRelevantToCombat(
                 item.id,

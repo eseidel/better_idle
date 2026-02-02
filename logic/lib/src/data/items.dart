@@ -150,6 +150,7 @@ class DropTableEntry extends Equatable {
 enum ConsumesOnType {
   playerAttack('PlayerAttack'),
   enemyAttack('EnemyAttack'),
+  playerSummonAttack('PlayerSummonAttack'),
   fishingAction('FishingAction'),
   runeConsumption('RuneConsumption'),
   prayerPointConsumption('PrayerPointConsumption'),
@@ -175,6 +176,10 @@ enum ConsumesOnType {
 
   /// The JSON name used in Melvor data files.
   final String jsonName;
+
+  /// Whether this is a combat action type.
+  bool get isCombat =>
+      this == playerAttack || this == enemyAttack || this == playerSummonAttack;
 
   /// Lookup map for efficient fromJson conversion.
   static final Map<String, ConsumesOnType> _byJsonName = {

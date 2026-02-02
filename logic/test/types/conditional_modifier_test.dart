@@ -533,10 +533,7 @@ void main() {
 
       // Without condition context, modifier should NOT apply
       final stateNoContext = GlobalState.test(registries, equipment: equipment);
-      final modifiersNoContext = stateNoContext.createActionModifierProvider(
-        action,
-        conditionContext: ConditionContext.empty,
-      );
+      final modifiersNoContext = stateNoContext.testModifiersFor(action);
       expect(modifiersNoContext.attackInterval, 0);
 
       // With matching condition context, modifier SHOULD apply
@@ -550,6 +547,7 @@ void main() {
             conditionContext: const ConditionContext(
               playerDamageType: MelvorId('melvorD:Normal'),
             ),
+            consumesOnType: null,
           );
       expect(modifiersWithContext.attackInterval, -10);
     });
@@ -600,6 +598,7 @@ void main() {
           playerAttackType: CombatType.ranged,
           enemyAttackType: CombatType.melee,
         ),
+        consumesOnType: null,
       );
       expect(modifiersWrongType.maxHit, 0);
 
@@ -610,6 +609,7 @@ void main() {
           playerAttackType: CombatType.melee,
           enemyAttackType: CombatType.ranged,
         ),
+        consumesOnType: null,
       );
       expect(modifiersCorrectType.maxHit, 5);
     });

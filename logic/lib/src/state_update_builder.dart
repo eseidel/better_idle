@@ -705,6 +705,7 @@ class StateUpdateBuilder {
     final modifiers = _state.createActionModifierProvider(
       action,
       conditionContext: ConditionContext.empty,
+      consumesOnType: null,
     );
     final preserveChance = modifiers.potionChargePreservationChance;
     if (preserveChance > 0 && random.nextDouble() * 100 < preserveChance) {

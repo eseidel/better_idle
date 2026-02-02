@@ -347,6 +347,7 @@ Map<MelvorId, double> _computeItemFlowsPerAction(
   final modifiers = state.createActionModifierProvider(
     action,
     conditionContext: ConditionContext.empty,
+    consumesOnType: null,
   );
   final doublingChance = action.doublingChance(modifiers);
   final multiplier = 1.0 + doublingChance;

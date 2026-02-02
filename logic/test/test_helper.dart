@@ -95,3 +95,16 @@ extension RegistriesTestHelpers on Registries {
   AgilityObstacle agilityObstacle(String name) =>
       _bySkillAndName(Skill.agility, name) as AgilityObstacle;
 }
+
+/// Extension providing a short helper for the common test pattern of
+/// creating a ModifierProvider with no condition context or consumesOn.
+extension GlobalStateTestHelpers on GlobalState {
+  /// Creates a ModifierProvider for [action] with empty condition context
+  /// and no consumesOn type (synergies won't activate).
+  ModifierProvider testModifiersFor(SkillAction action) =>
+      createActionModifierProvider(
+        action,
+        conditionContext: ConditionContext.empty,
+        consumesOnType: null,
+      );
+}
