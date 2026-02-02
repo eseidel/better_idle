@@ -126,6 +126,11 @@ class SummoningAction extends SkillAction {
   /// The summon/recipe ID for this familiar (e.g., "melvorF:GolbinThief").
   /// This is used for synergy lookups.
   MelvorId get summonId => id.localId;
+
+  @override
+  void onComplete(PostCompletionHandler handler) {
+    handler.markTabletCrafted(productId);
+  }
 }
 
 /// Unified registry for all summoning-related data.

@@ -105,6 +105,11 @@ class MiningAction extends SkillAction {
     if (remaining == null) return null;
     return 1.0 - (remaining / respawnTicks);
   }
+
+  @override
+  void onComplete(PostCompletionHandler handler) {
+    handler.completeMiningSwing(this);
+  }
 }
 
 /// Registry for mining skill data.

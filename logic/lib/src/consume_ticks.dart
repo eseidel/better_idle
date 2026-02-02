@@ -880,17 +880,9 @@ bool completeAction(
   // Roll for summoning mark discovery
   _rollMarkDiscovery(builder, action, random);
 
-  // Mark tablet as crafted when completing a summoning action
-  // This unblocks further mark discovery for that familiar
-  if (action is SummoningAction) {
-    builder.markTabletCrafted(action.productId);
-  }
-
-  // Apply mining swing damage/depletion. Depletion does not short-circuit
-  // here; _processMiningForeground handles the respawn wait.
-  if (action is MiningAction) {
-    _completeMiningSwing(builder, action);
-  }
+  // Apply type-specific post-completion hooks (e.g., summoning tablet
+  // crafting, mining swing damage) via polymorphic dispatch.
+  action.onComplete(_PostCompletionAdapter(builder));
 
   return canRepeatAction;
 }
@@ -1552,6 +1544,22 @@ ForegroundResult _restartOrStop(
   // If the node depletes, the action restarts normally and the next
   // iteration handles respawn waiting at the top of this function.
   return _processSkillForeground(builder, action, ticksAvailable, random);
+}
+
+/// Adapts [StateUpdateBuilder] to the [PostCompletionHandler] interface,
+/// allowing [SkillAction] subclasses to apply post-completion side effects
+/// without depending on the state mutation layer.
+class _PostCompletionAdapter implements PostCompletionHandler {
+  _PostCompletionAdapter(this._builder);
+  final StateUpdateBuilder _builder;
+
+  @override
+  void markTabletCrafted(MelvorId productId) =>
+      _builder.markTabletCrafted(productId);
+
+  @override
+  void completeMiningSwing(MiningAction action) =>
+      _completeMiningSwing(_builder, action);
 }
 
 /// Applies mining swing damage. If the node's HP reaches zero, depletes

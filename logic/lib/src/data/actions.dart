@@ -340,6 +340,24 @@ class SkillAction extends Action {
             100.0)
         .clamp(0.0, 1.0);
   }
+
+  /// Called after the action completes to apply type-specific side effects.
+  /// Override in subclasses to add post-completion behavior.
+  void onComplete(PostCompletionHandler handler) {}
+}
+
+/// Callback interface for post-completion hooks on [SkillAction] subclasses.
+///
+/// Implemented by the tick processing system to decouple action data classes
+/// from state mutation logic.
+abstract class PostCompletionHandler {
+  /// Records that a summoning tablet has been crafted, unblocking further
+  /// mark discovery for [productId].
+  void markTabletCrafted(MelvorId productId);
+
+  /// Applies mining swing damage to the resource node, potentially depleting
+  /// it and starting a respawn timer.
+  void completeMiningSwing(MiningAction action);
 }
 
 class DropsRegistry {
