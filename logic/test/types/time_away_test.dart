@@ -5,6 +5,15 @@ import '../test_helper.dart';
 
 void main() {
   group('LevelChange', () {
+    test('fromJson and toJson round-trip', () {
+      const original = LevelChange(startLevel: 10, endLevel: 20);
+      final json = original.toJson();
+      final restored = LevelChange.fromJson(json);
+      expect(restored.startLevel, 10);
+      expect(restored.endLevel, 20);
+      expect(restored.levelsGained, 10);
+    });
+
     test('merge is order-independent', () {
       // Earlier change: level 54 -> 55
       const earlier = LevelChange(startLevel: 54, endLevel: 55);
@@ -285,6 +294,230 @@ void main() {
         100,
       );
       expect(loaded.changes.skillXpChanges.counts[Skill.woodcutting], 500);
+    });
+  });
+
+  group('TimeAway.empty', () {
+    test('creates empty time away', () {
+      final empty = TimeAway.empty(testRegistries);
+      expect(empty.activeSkill, isNull);
+      expect(empty.activeAction, isNull);
+      expect(empty.changes.isEmpty, isTrue);
+      expect(empty.masteryLevels, isEmpty);
+      expect(empty.startTime.millisecondsSinceEpoch, 0);
+      expect(empty.endTime.millisecondsSinceEpoch, 0);
+    });
+  });
+
+  group('predictedXpPerHour', () {
+    test('returns empty map when no active action', () {
+      final timeAway = TimeAway.test(testRegistries);
+      expect(timeAway.predictedXpPerHour, isEmpty);
+    });
+
+    test('returns empty map for combat action', () {
+      final plantAction = testRegistries.combatAction('Plant');
+      final timeAway = TimeAway.test(testRegistries, activeAction: plantAction);
+      expect(timeAway.predictedXpPerHour, isEmpty);
+    });
+
+    test('returns correct xp per hour for skill action', () {
+      // Normal Tree: 3 seconds per action, 10 xp per action
+      // XP per hour = 10 * (3600 / 3) = 12000
+      final timeAway = TimeAway.test(testRegistries, activeAction: normalTree);
+      final xpPerHour = timeAway.predictedXpPerHour;
+      expect(xpPerHour[Skill.woodcutting], isNotNull);
+      expect(xpPerHour[Skill.woodcutting]!, greaterThan(0));
+    });
+  });
+
+  group('levelForMastery', () {
+    test('returns 0 for unknown action', () {
+      final timeAway = TimeAway.test(testRegistries);
+      expect(
+        timeAway.levelForMastery(
+          const ActionId(
+            MelvorId('melvorD:Woodcutting'),
+            MelvorId('melvorD:Unknown'),
+          ),
+        ),
+        0,
+      );
+    });
+  });
+
+  group('TimeAway.maybeMergeInto', () {
+    test('returns self when other is null', () {
+      final t = TimeAway.test(testRegistries);
+      expect(t.maybeMergeInto(null), same(t));
+    });
+
+    test('merges mastery levels taking higher values', () {
+      final actionId = normalTree.id;
+      final t1 = TimeAway.test(testRegistries, masteryLevels: {actionId: 5});
+      final t2 = TimeAway.test(testRegistries, masteryLevels: {actionId: 10});
+      final merged = t1.maybeMergeInto(t2);
+      expect(merged.masteryLevels[actionId], 10);
+    });
+
+    test('merges stop reason preferring non-stillRunning', () {
+      final t1 = TimeAway.test(
+        testRegistries,
+        stopReason: ActionStopReason.outOfInputs,
+      );
+      final t2 = TimeAway.test(testRegistries);
+      final merged = t1.maybeMergeInto(t2);
+      expect(merged.stopReason, ActionStopReason.outOfInputs);
+    });
+
+    test('merges stoppedAfter preferring non-null', () {
+      final t1 = TimeAway.test(
+        testRegistries,
+        stoppedAfter: const Duration(seconds: 30),
+      );
+      final t2 = TimeAway.test(testRegistries);
+      final merged = t1.maybeMergeInto(t2);
+      expect(merged.stoppedAfter, const Duration(seconds: 30));
+    });
+
+    test('merges doubling chance taking higher', () {
+      final t1 = TimeAway.test(testRegistries, doublingChance: 0.3);
+      final t2 = TimeAway.test(testRegistries, doublingChance: 0.5);
+      final merged = t1.maybeMergeInto(t2);
+      expect(merged.doublingChance, 0.5);
+    });
+
+    test('merges recipe selection preferring SelectedRecipe', () {
+      final t1 = TimeAway.test(
+        testRegistries,
+        recipeSelection: const SelectedRecipe(index: 2),
+      );
+      final t2 = TimeAway.test(testRegistries);
+      final merged = t1.maybeMergeInto(t2);
+      expect(merged.recipeSelection, isA<SelectedRecipe>());
+    });
+
+    test('merges pending loot preferring non-empty', () {
+      final item = testRegistries.items.byName('Normal Logs');
+      final stack = ItemStack(item, count: 5);
+      final (loot, _) = const LootState.empty().addItem(stack, isBones: false);
+      final t1 = TimeAway.test(testRegistries, pendingLoot: loot);
+      final t2 = TimeAway.test(testRegistries);
+      final merged = t1.maybeMergeInto(t2);
+      expect(merged.pendingLoot.isNotEmpty, isTrue);
+    });
+  });
+
+  group('TimeAway toJson with stop/recipe fields', () {
+    test('serializes stopReason and stoppedAfter', () {
+      final t = TimeAway.test(
+        testRegistries,
+        activeAction: normalTree,
+        activeSkill: Skill.woodcutting,
+        stopReason: ActionStopReason.outOfInputs,
+        stoppedAfter: const Duration(seconds: 45),
+        recipeSelection: const SelectedRecipe(index: 1),
+      );
+      final json = t.toJson();
+      expect(json['stopReason'], 'outOfInputs');
+      expect(json['stoppedAfterMs'], 45000);
+      expect(json['recipeIndex'], 1);
+
+      // Round-trip
+      final restored = TimeAway.fromJson(testRegistries, json);
+      expect(restored.stopReason, ActionStopReason.outOfInputs);
+      expect(restored.stoppedAfter, const Duration(seconds: 45));
+      expect(restored.recipeSelection, isA<SelectedRecipe>());
+    });
+
+    test('fromJson handles unknown stopReason gracefully', () {
+      final json = TimeAway.test(testRegistries).toJson();
+      json['stopReason'] = 'unknownFutureReason';
+      final restored = TimeAway.fromJson(testRegistries, json);
+      expect(restored.stopReason, ActionStopReason.stillRunning);
+    });
+  });
+
+  group('Counts', () {
+    test('entries returns map entries', () {
+      const counts = Counts<Skill>(counts: {Skill.woodcutting: 10});
+      expect(counts.entries.length, 1);
+      expect(counts.isNotEmpty, isTrue);
+    });
+
+    test('toJson and fromJson with MelvorId keys', () {
+      final counts = Counts<MelvorId>(
+        counts: {const MelvorId('melvorD:Normal_Logs'): 5},
+      );
+      final json = counts.toJson();
+      final restored = Counts<MelvorId>.fromJson(json);
+      expect(restored.counts[const MelvorId('melvorD:Normal_Logs')], 5);
+    });
+  });
+
+  group('LevelChanges', () {
+    test('fromJson round-trips', () {
+      final original = LevelChanges(
+        changes: {
+          Skill.woodcutting: const LevelChange(startLevel: 1, endLevel: 5),
+        },
+      );
+      final json = original.toJson();
+      final restored = LevelChanges.fromJson(json);
+      expect(restored.changes[Skill.woodcutting]!.startLevel, 1);
+      expect(restored.changes[Skill.woodcutting]!.endLevel, 5);
+    });
+
+    test('add merges overlapping skills', () {
+      final a = LevelChanges(
+        changes: {
+          Skill.woodcutting: const LevelChange(startLevel: 1, endLevel: 5),
+        },
+      );
+      final b = LevelChanges(
+        changes: {
+          Skill.woodcutting: const LevelChange(startLevel: 3, endLevel: 8),
+        },
+      );
+      final merged = a.add(b);
+      expect(merged.changes[Skill.woodcutting]!.startLevel, 1);
+      expect(merged.changes[Skill.woodcutting]!.endLevel, 8);
+    });
+
+    test('add merges disjoint skills', () {
+      final a = LevelChanges(
+        changes: {
+          Skill.woodcutting: const LevelChange(startLevel: 1, endLevel: 5),
+        },
+      );
+      final b = LevelChanges(
+        changes: {
+          Skill.mining: const LevelChange(startLevel: 10, endLevel: 15),
+        },
+      );
+      final merged = a.add(b);
+      expect(merged.changes[Skill.woodcutting]!.endLevel, 5);
+      expect(merged.changes[Skill.mining]!.startLevel, 10);
+    });
+
+    test('entries and isNotEmpty', () {
+      final lc = LevelChanges(
+        changes: {
+          Skill.woodcutting: const LevelChange(startLevel: 1, endLevel: 2),
+        },
+      );
+      expect(lc.entries.length, 1);
+      expect(lc.isNotEmpty, isTrue);
+    });
+  });
+
+  group('Changes tracking methods', () {
+    test('losingOnDeath tracks lost items', () {
+      final item = testRegistries.items.byName('Normal Logs');
+      final changes = const Changes.empty().losingOnDeath(
+        ItemStack(item, count: 3),
+      );
+      expect(changes.lostOnDeath.counts[item.id], 3);
     });
   });
 

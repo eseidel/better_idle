@@ -308,6 +308,109 @@ void main() {
       expect(cooking.progressTicks, 0);
     });
 
+    test('CookingActivity copyWith', () {
+      const shrimpRecipeId = ActionId(
+        MelvorId('melvorD:Cooking'),
+        MelvorId('melvorD:Shrimp'),
+      );
+      const activity = CookingActivity(
+        activeArea: CookingArea.fire,
+        activeRecipeId: shrimpRecipeId,
+        areaProgress: {},
+        progressTicks: 5,
+        totalTicks: 20,
+      );
+      final updated = activity.copyWith(
+        activeArea: CookingArea.pot,
+        progressTicks: 10,
+        totalTicks: 40,
+        selectedRecipeIndex: 2,
+      );
+      expect(updated.activeArea, CookingArea.pot);
+      expect(updated.progressTicks, 10);
+      expect(updated.totalTicks, 40);
+      expect(updated.selectedRecipeIndex, 2);
+      expect(updated.activeRecipeId, shrimpRecipeId);
+    });
+
+    test('CombatActivity withProgress and restarted', () {
+      const activity = CombatActivity(
+        context: MonsterCombatContext(monsterId: MelvorId('melvorD:Goblin')),
+        progress: CombatProgressState(
+          monsterHp: 50,
+          playerAttackTicksRemaining: 10,
+          monsterAttackTicksRemaining: 15,
+        ),
+        progressTicks: 5,
+        totalTicks: 20,
+      );
+
+      final withProg = activity.withProgress(progressTicks: 12);
+      expect(withProg.progressTicks, 12);
+      expect(withProg.totalTicks, 20);
+      expect(withProg.progress.monsterHp, 50);
+
+      final restarted = activity.restarted(newTotalTicks: 30);
+      expect(restarted.progressTicks, 0);
+      expect(restarted.totalTicks, 30);
+      expect(restarted.progress.monsterHp, 50);
+    });
+
+    test('CombatProgressState copyWith', () {
+      const progress = CombatProgressState(
+        monsterHp: 100,
+        playerAttackTicksRemaining: 20,
+        monsterAttackTicksRemaining: 25,
+      );
+      final updated = progress.copyWith(monsterHp: 80, spawnTicksRemaining: 5);
+      expect(updated.monsterHp, 80);
+      expect(updated.playerAttackTicksRemaining, 20);
+      expect(updated.monsterAttackTicksRemaining, 25);
+      expect(updated.spawnTicksRemaining, 5);
+    });
+
+    test('AgilityActivity restarted and copyWith', () {
+      const obstacleIds = [
+        ActionId(MelvorId('melvorD:Agility'), MelvorId('melvorD:Rope_Swing')),
+        ActionId(MelvorId('melvorD:Agility'), MelvorId('melvorD:Pipe_Balance')),
+      ];
+      const activity = AgilityActivity(
+        obstacleIds: obstacleIds,
+        currentObstacleIndex: 0,
+        progressTicks: 15,
+        totalTicks: 40,
+      );
+
+      final restarted = activity.restarted(newTotalTicks: 50);
+      expect(restarted.progressTicks, 0);
+      expect(restarted.totalTicks, 50);
+      expect(restarted.currentObstacleIndex, 0);
+
+      final copied = activity.copyWith(
+        currentObstacleIndex: 1,
+        progressTicks: 5,
+        totalTicks: 30,
+      );
+      expect(copied.currentObstacleIndex, 1);
+      expect(copied.progressTicks, 5);
+      expect(copied.totalTicks, 30);
+      expect(copied.obstacleIds, obstacleIds);
+    });
+
+    test('CookingAreaProgress copyWith', () {
+      const progress = CookingAreaProgress(
+        recipeId: ActionId(
+          MelvorId('melvorD:Cooking'),
+          MelvorId('melvorD:Shrimp'),
+        ),
+        ticksRemaining: 25,
+        totalTicks: 100,
+      );
+      final updated = progress.copyWith(ticksRemaining: 10);
+      expect(updated.ticksRemaining, 10);
+      expect(updated.totalTicks, 100);
+    });
+
     test('CookingAreaProgress completedFraction', () {
       const progress = CookingAreaProgress(
         recipeId: ActionId(
