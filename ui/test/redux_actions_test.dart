@@ -2482,4 +2482,147 @@ void main() {
       );
     });
   });
+
+  group('QuickEquipAction', () {
+    test('equips food item to food slot', () {
+      runScoped(() {
+        const food = Item(
+          id: MelvorId('melvorD:Shrimp'),
+          name: 'Shrimp',
+          itemType: 'Food',
+          sellsFor: 1,
+          healsFor: 30,
+        );
+        final registries = Registries.test(items: const [food]);
+        var state = GlobalState.empty(registries);
+        state = state.copyWith(
+          inventory: state.inventory.adding(const ItemStack(food, count: 5)),
+        );
+        final store = Store<GlobalState>(initialState: state)
+          ..dispatch(QuickEquipAction(stack: const ItemStack(food, count: 5)));
+
+        // Food should be equipped and removed from inventory.
+        expect(store.state.equipment.foodSlots[0]?.item, food);
+        expect(store.state.equipment.foodSlots[0]?.count, 5);
+        expect(store.state.inventory.countOfItem(food), 0);
+      }, values: {toastServiceRef});
+    });
+
+    test('equips gear item to first valid slot', () {
+      runScoped(() {
+        const sword = Item(
+          id: MelvorId('melvorD:Bronze_Sword'),
+          name: 'Bronze Sword',
+          itemType: 'Weapon',
+          sellsFor: 10,
+          validSlots: [EquipmentSlot.weapon],
+        );
+        final registries = Registries.test(items: const [sword]);
+        var state = GlobalState.empty(registries);
+        state = state.copyWith(
+          inventory: state.inventory.adding(const ItemStack(sword, count: 1)),
+        );
+        final store = Store<GlobalState>(initialState: state)
+          ..dispatch(QuickEquipAction(stack: const ItemStack(sword, count: 1)));
+
+        expect(store.state.equipment.gearInSlot(EquipmentSlot.weapon), sword);
+        expect(store.state.inventory.countOfItem(sword), 0);
+      }, values: {toastServiceRef});
+    });
+
+    test('does nothing for non-equippable item', () {
+      runScoped(() {
+        final logs = Item.test('Oak Logs', gp: 5);
+        final registries = Registries.test(items: [logs]);
+        var state = GlobalState.empty(registries);
+        state = state.copyWith(
+          inventory: state.inventory.adding(ItemStack(logs, count: 10)),
+        );
+        final store = Store<GlobalState>(initialState: state)
+          ..dispatch(QuickEquipAction(stack: ItemStack(logs, count: 10)));
+
+        // Nothing should change.
+        expect(store.state.inventory.countOfItem(logs), 10);
+      }, values: {toastServiceRef});
+    });
+
+    test('shows error when food slots are full', () {
+      runScoped(() {
+        const food1 = Item(
+          id: MelvorId('melvorD:Shrimp'),
+          name: 'Shrimp',
+          itemType: 'Food',
+          sellsFor: 1,
+          healsFor: 30,
+        );
+        const food2 = Item(
+          id: MelvorId('melvorD:Trout'),
+          name: 'Trout',
+          itemType: 'Food',
+          sellsFor: 2,
+          healsFor: 50,
+        );
+        const food3 = Item(
+          id: MelvorId('melvorD:Lobster'),
+          name: 'Lobster',
+          itemType: 'Food',
+          sellsFor: 5,
+          healsFor: 100,
+        );
+        const food4 = Item(
+          id: MelvorId('melvorD:Swordfish'),
+          name: 'Swordfish',
+          itemType: 'Food',
+          sellsFor: 10,
+          healsFor: 150,
+        );
+        final registries = Registries.test(
+          items: const [food1, food2, food3, food4],
+        );
+        var state = GlobalState.empty(registries);
+        // Fill all 3 food slots.
+        state = state.copyWith(
+          inventory: state.inventory
+              .adding(const ItemStack(food1, count: 1))
+              .adding(const ItemStack(food2, count: 1))
+              .adding(const ItemStack(food3, count: 1))
+              .adding(const ItemStack(food4, count: 1)),
+        );
+        state = state.equipFood(const ItemStack(food1, count: 1));
+        state = state.equipFood(const ItemStack(food2, count: 1));
+        state = state.equipFood(const ItemStack(food3, count: 1));
+        final store = Store<GlobalState>(initialState: state)
+          ..dispatch(QuickEquipAction(stack: const ItemStack(food4, count: 1)));
+
+        // food4 should still be in inventory.
+        expect(store.state.inventory.countOfItem(food4), 1);
+      }, values: {toastServiceRef});
+    });
+
+    test('shows error when equip requirements not met', () {
+      runScoped(() {
+        const sword = Item(
+          id: MelvorId('melvorD:Dragon_Sword'),
+          name: 'Dragon Sword',
+          itemType: 'Weapon',
+          sellsFor: 100,
+          validSlots: [EquipmentSlot.weapon],
+          equipRequirements: [
+            SkillLevelRequirement(skill: Skill.attack, level: 60),
+          ],
+        );
+        final registries = Registries.test(items: const [sword]);
+        var state = GlobalState.empty(registries);
+        state = state.copyWith(
+          inventory: state.inventory.adding(const ItemStack(sword, count: 1)),
+        );
+        final store = Store<GlobalState>(initialState: state)
+          ..dispatch(QuickEquipAction(stack: const ItemStack(sword, count: 1)));
+
+        // Should not be equipped.
+        expect(store.state.equipment.gearInSlot(EquipmentSlot.weapon), isNull);
+        expect(store.state.inventory.countOfItem(sword), 1);
+      }, values: {toastServiceRef});
+    });
+  });
 }
