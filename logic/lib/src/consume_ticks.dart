@@ -631,6 +631,7 @@ bool completeThievingAction(
   final modifierProvider = builder.state.createActionModifierProvider(
     action,
     conditionContext: ConditionContext.empty,
+    consumesOnType: null,
   );
   final thievingStealth = modifierProvider.thievingStealth(
     actionId: action.id.localId,
@@ -713,6 +714,7 @@ void completeCookingAction(
   final modifiers = builder.state.createActionModifierProvider(
     action,
     conditionContext: ConditionContext.empty,
+    consumesOnType: null,
   );
 
   // Calculate success chance: 70% base + 0.6% per mastery level (capped at 50)
@@ -856,6 +858,7 @@ bool completeAction(
   final modifierProvider = builder.state.createActionModifierProvider(
     action,
     conditionContext: ConditionContext.empty,
+    consumesOnType: null,
   );
   final canRepeatAction = rollAndCollectDrops(
     builder,
@@ -1427,6 +1430,7 @@ ForegroundResult _restartOrStop(
     final modifiers = builder.state.createActionModifierProvider(
       obstacle,
       conditionContext: ConditionContext.empty,
+      consumesOnType: null,
     );
     final perAction = xpPerAction(builder.state, obstacle, modifiers);
 
@@ -1787,6 +1791,7 @@ ConsumeTicksStopReason consumeTicksUntil(
     final modifierProvider = state.createActionModifierProvider(
       action,
       conditionContext: ConditionContext.empty,
+      consumesOnType: null,
     );
     doublingChance = action.doublingChance(modifierProvider);
     final actionState = state.actionState(action.id);

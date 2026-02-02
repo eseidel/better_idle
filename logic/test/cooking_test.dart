@@ -346,10 +346,7 @@ void main() {
       state = state.copyWith(shop: state.shop.withPurchase(basicFurnace.id));
 
       // Resolve modifiers for a Furnace recipe - should include the upgrade
-      final modifiers = state.createActionModifierProvider(
-        furnaceRecipe,
-        conditionContext: ConditionContext.empty,
-      );
+      final modifiers = state.modifiersFor(furnaceRecipe);
       expect(
         modifiers.perfectCookChance(
           actionId: furnaceRecipe.id.localId,
@@ -370,10 +367,7 @@ void main() {
       state = state.copyWith(shop: state.shop.withPurchase(basicFurnace.id));
 
       // Resolve modifiers for a Fire recipe - should NOT get Furnace bonus
-      final modifiers = state.createActionModifierProvider(
-        shrimpRecipe,
-        conditionContext: ConditionContext.empty,
-      );
+      final modifiers = state.modifiersFor(shrimpRecipe);
       // The perfectCookChance should be 0 (or whatever from other sources)
       // since the Furnace upgrade doesn't apply to Fire
       expect(

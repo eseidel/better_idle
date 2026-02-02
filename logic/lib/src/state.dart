@@ -1038,7 +1038,15 @@ class GlobalState {
   ModifierProvider createActionModifierProvider(
     SkillAction action, {
     required ConditionContext conditionContext,
+    required ConsumesOnType? consumesOnType,
   }) {
+    final synergy = _getActiveSynergy();
+    final applicableSynergy =
+        synergy != null &&
+            consumesOnType != null &&
+            synergy.appliesTo(consumesOnType)
+        ? synergy
+        : null;
     return ModifierProvider(
       registries: registries,
       equipment: equipment,
@@ -1049,7 +1057,7 @@ class GlobalState {
       shopPurchases: shop,
       actionStateGetter: actionState,
       skillStateGetter: skillState,
-      activeSynergy: _getActiveSynergy(),
+      activeSynergy: applicableSynergy,
       agility: agility,
       astrology: astrology,
       currentActionId: action.id,
@@ -1068,6 +1076,12 @@ class GlobalState {
   ModifierProvider createCombatModifierProvider({
     required ConditionContext conditionContext,
   }) {
+    final synergy = _getActiveSynergy();
+    // Synergies with playerSummonAttack consumesOn apply during combat.
+    final applicableSynergy =
+        synergy != null && synergy.appliesTo(ConsumesOnType.playerSummonAttack)
+        ? synergy
+        : null;
     return ModifierProvider(
       registries: registries,
       equipment: equipment,
@@ -1078,7 +1092,7 @@ class GlobalState {
       shopPurchases: shop,
       actionStateGetter: actionState,
       skillStateGetter: skillState,
-      activeSynergy: _getActiveSynergy(),
+      activeSynergy: applicableSynergy,
       agility: agility,
       astrology: astrology,
       combatTypeSkills: attackStyle.combatType.skills,
@@ -1184,6 +1198,7 @@ class GlobalState {
     final modifiers = createActionModifierProvider(
       action,
       conditionContext: ConditionContext.empty,
+      consumesOnType: null,
     );
 
     // skillInterval is percentage points (e.g., -5 = 5% reduction)
@@ -1708,6 +1723,7 @@ class GlobalState {
     final modifiers = createActionModifierProvider(
       action,
       conditionContext: ConditionContext.empty,
+      consumesOnType: null,
     );
 
     // skillInterval is percentage points (e.g., -5 = 5% reduction)
