@@ -5,6 +5,7 @@ import 'package:logic/src/data/action_id.dart';
 import 'package:logic/src/data/actions.dart';
 import 'package:logic/src/data/melvor_id.dart';
 import 'package:logic/src/data/registries.dart';
+import 'package:logic/src/data/slayer.dart';
 import 'package:logic/src/data/summoning_synergy.dart';
 import 'package:logic/src/state.dart';
 import 'package:logic/src/summoning_state.dart';
@@ -211,6 +212,7 @@ class ModifierProvider with ModifierAccessors {
     this.combatTypeSkills,
     this.currentActionId,
     this.conditionContext = ConditionContext.empty,
+    this.slayerAreaEffect,
   });
 
   final Registries registries;
@@ -236,6 +238,10 @@ class ModifierProvider with ModifierAccessors {
   /// For combat: the set of combat skills being used (attack, strength, etc.)
   /// Used to filter summoning familiar relevance.
   final Set<Skill>? combatTypeSkills;
+
+  /// Slayer area effect applied during combat in a slayer area.
+  /// The effect magnitude is already reduced by flatSlayerAreaEffectNegation.
+  final SlayerAreaEffect? slayerAreaEffect;
 
   /// The current action being performed, used for mastery bonus lookups.
   /// This is separate from the actionId scope parameter because mastery
@@ -475,6 +481,15 @@ class ModifierProvider with ModifierAccessors {
             total += entry.value;
           }
         }
+      }
+    }
+
+    // --- Slayer area effect modifiers ---
+    // Applied when fighting in a slayer area with a player-targeting effect.
+    if (slayerAreaEffect != null) {
+      final sign = slayerAreaEffect!.modifiers[name];
+      if (sign != null) {
+        total += sign * slayerAreaEffect!.magnitude;
       }
     }
 

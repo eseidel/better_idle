@@ -1082,6 +1082,10 @@ class GlobalState {
         synergy != null && synergy.appliesTo(ConsumesOnType.playerSummonAttack)
         ? synergy
         : null;
+
+    // Look up slayer area effect if fighting in a slayer area.
+    final areaEffect = _getActiveSlayerAreaEffect();
+
     return ModifierProvider(
       registries: registries,
       equipment: equipment,
@@ -1097,6 +1101,7 @@ class GlobalState {
       astrology: astrology,
       combatTypeSkills: attackStyle.combatType.skills,
       conditionContext: _withActivePotions(conditionContext),
+      slayerAreaEffect: areaEffect,
     );
   }
 
@@ -1184,6 +1189,49 @@ class GlobalState {
     return registries.summoningSynergies.findSynergy(
       action1.summonId,
       action2.summonId,
+    );
+  }
+
+  /// Returns the effective slayer area effect for the current combat, or null.
+  ///
+  /// Only returns player-targeting effects. The magnitude is reduced by
+  /// the player's flatSlayerAreaEffectNegation modifier (clamped to 0).
+  SlayerAreaEffect? _getActiveSlayerAreaEffect() {
+    final activity = activeActivity;
+    if (activity is! CombatActivity) return null;
+    final context = activity.context;
+    if (context is! SlayerAreaCombatContext) return null;
+
+    final area = registries.slayer.areas.byId(context.slayerAreaId);
+    if (area == null) return null;
+
+    final effect = area.areaEffect;
+    if (effect == null || effect.target != 'Player') return null;
+    if (effect.modifiers.isEmpty) return null;
+
+    // Compute negation from equipment/shop/etc (without area effect itself).
+    final baseProvider = ModifierProvider(
+      registries: registries,
+      equipment: equipment,
+      selectedPotions: selectedPotions,
+      potionChargesUsed: potionChargesUsed,
+      inventory: inventory,
+      summoning: summoning,
+      shopPurchases: shop,
+      actionStateGetter: actionState,
+      skillStateGetter: skillState,
+      activeSynergy: null,
+      agility: agility,
+      astrology: astrology,
+    );
+    final negation = baseProvider.flatSlayerAreaEffectNegation;
+    final effectiveMagnitude = (effect.magnitude - negation).clamp(0, 999);
+    if (effectiveMagnitude == 0) return null;
+
+    return SlayerAreaEffect(
+      target: effect.target,
+      modifiers: effect.modifiers,
+      magnitude: effectiveMagnitude,
     );
   }
 
