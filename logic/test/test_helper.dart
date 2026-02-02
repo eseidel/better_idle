@@ -101,7 +101,7 @@ extension RegistriesTestHelpers on Registries {
 extension GlobalStateTestHelpers on GlobalState {
   /// Creates a ModifierProvider for [action] with empty condition context
   /// and no consumesOn type (synergies won't activate).
-  ModifierProvider modifiersFor(SkillAction action) =>
+  ModifierProvider testModifiersFor(SkillAction action) =>
       createActionModifierProvider(
         action,
         conditionContext: ConditionContext.empty,

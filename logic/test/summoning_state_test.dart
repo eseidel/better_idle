@@ -887,7 +887,7 @@ void main() {
       );
 
       // Resolve modifiers for woodcutting action
-      final modifiers = state.modifiersFor(woodcuttingAction);
+      final modifiers = state.testModifiersFor(woodcuttingAction);
 
       // Ent provides additionalPrimaryProductChance of 10
       expect(
@@ -919,7 +919,7 @@ void main() {
       );
 
       // Resolve modifiers for woodcutting action
-      final modifiers = state.modifiersFor(woodcuttingAction);
+      final modifiers = state.testModifiersFor(woodcuttingAction);
 
       // Combat familiar should NOT contribute to woodcutting
       // (Golbin Thief has flatCurrencyGainOnEnemyHit, not relevant here)
@@ -1466,7 +1466,7 @@ void main() {
       expect(state.getActiveSynergy(), isNull);
 
       final wcAction = testRegistries.woodcutting.actions.first;
-      final modifiers = state.modifiersFor(wcAction);
+      final modifiers = state.testModifiersFor(wcAction);
 
       // Ent's individual modifier applies since no synergy is active.
       expect(

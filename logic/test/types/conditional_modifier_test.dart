@@ -533,7 +533,7 @@ void main() {
 
       // Without condition context, modifier should NOT apply
       final stateNoContext = GlobalState.test(registries, equipment: equipment);
-      final modifiersNoContext = stateNoContext.modifiersFor(action);
+      final modifiersNoContext = stateNoContext.testModifiersFor(action);
       expect(modifiersNoContext.attackInterval, 0);
 
       // With matching condition context, modifier SHOULD apply
