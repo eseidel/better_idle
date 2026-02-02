@@ -1,71 +1,31 @@
 Inspired by Melvor Idle, built with Flutter for mobile. Two packages:
 
-- **logic/** - Pure Dart game logic with no Flutter dependencies. Contains state management, actions, skills, items, combat, and tick processing.
-- **ui/** - Flutter app with UI screens, Redux integration, and game loop.
+- **logic/** - Pure Dart game logic, no Flutter dependencies.
+- **ui/** - Flutter app with async_redux state management.
 
-Use `dart test -r failures-only` to reduce `dart test` output.
+## Commands
 
-Use `dart run tool/coverage.dart` from `logic/` to run tests with coverage and get a summary. Add `--check` to fail if coverage is below 90%.
+- `dart test -r failures-only` - run tests (from logic/ or ui/)
+- `dart run tool/coverage.dart` - run tests with coverage summary (from logic/)
+- `dart run tool/coverage.dart --check` - same, fails if below 90%
+- `dart run bin/solver.dart` - run the A* solver CLI (from logic/)
+- `dart format .` and `dart fix --apply .` - run after edits
+- `npx cspell` - spell check, must pass
 
-## Architecture
+## Key Architecture
 
-### Game State Flow
-1. **GlobalState** ([logic/lib/src/state.dart](logic/lib/src/state.dart)) - Immutable state object containing inventory, skills, active action, equipment, health, and shop state. Serialized to JSON for persistence.
+- **GlobalState** (logic/lib/src/state.dart) - immutable state, JSON-serializable
+- **Tick System** (logic/lib/src/tick.dart, consume_ticks.dart) - 100ms ticks, `consumeTicks()` processes actions
+- **Registries** (logic/lib/src/data/registries.dart) - central access to all game data
+- **MelvorId** - strongly-typed IDs (e.g., `melvorD:Oak_Tree`), data cached in `.cache/assets/`
+- **Solver** (logic/lib/src/solver/) - A* path-finding for automated goal-seeking
 
-2. **Actions** - Two types:
-   - `SkillAction` ([logic/lib/src/data/actions.dart](logic/lib/src/data/actions.dart)) - Duration-based actions (woodcutting, fishing, mining, etc.) that consume inputs and produce outputs
-   - `CombatAction` ([logic/lib/src/data/combat.dart](logic/lib/src/data/combat.dart)) - Combat encounters with monsters
+## Testing
 
-3. **Tick System** ([logic/lib/src/tick.dart](logic/lib/src/tick.dart), [logic/lib/src/consume_ticks.dart](logic/lib/src/consume_ticks.dart)) - Game time measured in ticks (100ms each). `consumeTicks()` processes foreground actions and background timers (HP regen, mining respawn) in parallel.
+- `GlobalState.test()` factory for test fixtures with custom registries
+- `test_helper.dart` for common utilities
 
-4. **StateUpdateBuilder** - Accumulates changes during tick processing, tracks inventory changes, XP gains, and level ups for the "welcome back" dialog.
+## Rules
 
-### UI State Management
-- Uses **async_redux** for state management
-- **GameLoop** ([ui/lib/src/logic/game_loop.dart](ui/lib/src/logic/game_loop.dart)) - Flutter Ticker that dispatches `UpdateActivityProgressAction` at 100ms intervals
-- Redux actions in [ui/lib/src/logic/redux_actions.dart](ui/lib/src/logic/redux_actions.dart) wrap logic layer operations
-
-### Key Concepts
-- **Skills** - Combat (Hitpoints, Attack, Strength, Defence, Ranged, Magic, Prayer, Slayer), Woodcutting, Firemaking, Fishing, Cooking, Mining, Smithing, Thieving, Fletching, Crafting, Herblore, Runecrafting, Agility, Summoning, Astrology, Alt Magic; passive: Township, Farming
-- **Mastery** - Per-action XP that unlocks bonuses (e.g., double drops in woodcutting)
-- **Inventory** - Slot-based bank with purchasable expansion
-- **Equipment** - Food slots for healing during combat
-- **Time Away** - Calculates progress while app was in background, shows "welcome back" summary
-
-### Data Registries
-- `Registries` class ([logic/lib/src/data/registries.dart](logic/lib/src/data/registries.dart)) - Central access to all game data registries
-  - `.items` - All items with properties (sell value, heal amount)
-  - `.drops` - Drop tables combining action, skill, and global drops
-  - Skill-specific registries (e.g., `.woodcutting`, `.mining`) for actions
-
-### Solver System
-The `logic/lib/src/solver/` directory contains an A* path-finding solver for automated goal-seeking:
-- `solver.dart` - Main solver entry point
-- `goal.dart` - Goal definitions (e.g., acquire item, reach level)
-- `enumerate_candidates.dart` - Generates possible next actions
-- Uses `estimateRates` and `ValueModel` for heuristic evaluation
-
-Run the solver CLI: `dart run bin/solver.dart`
-
-### Data Loading
-Game data is sourced from Melvor Idle's API and cached locally:
-- `MelvorId` - Strongly-typed IDs (e.g., `melvorD:Woodcutting`, `melvorD:Oak_Tree`)
-- `MelvorData` - Orchestrates fetching and caching game data
-- Data cached in `.cache/assets/` for offline development
-
-### Testing Patterns
-- Use `GlobalState.test()` factory for test fixtures with custom registries
-- `test_helper.dart` provides common test utilities
-- Most comprehensive tests are in `consume_ticks_test.dart` (covers tick processing edge cases)
-
-## Workflow
-
-Run `dart format .` and `dart fix --apply .` upon completion of edits.
-
-Always run `npx cspell` or `cspell` and expect it to pass.
-
-NEVER use cat << EOF for writing content or generating reports; only use the specific Edit or Write tools to modify files"
-
-Always create tools within the `tool` directory of the Dart project so that they can access package: imports.
-
-Never support legacy paths, or legacy file formats unless explicitly requested.
+- Create tools in the `tool` directory so they can use package: imports.
+- Never support legacy paths or formats unless explicitly requested.
