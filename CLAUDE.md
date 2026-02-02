@@ -5,6 +5,8 @@ Inspired by Melvor Idle, built with Flutter for mobile. Two packages:
 
 Use `dart test -r failures-only` to reduce `dart test` output.
 
+Use `dart run tool/coverage.dart` from `logic/` to run tests with coverage and get a summary. Add `--check` to fail if coverage is below 90%.
+
 ## Architecture
 
 ### Game State Flow
