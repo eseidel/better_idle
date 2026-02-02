@@ -1,5 +1,7 @@
 import 'package:logic/src/data/melvor_data.dart' show SkillDataEntry;
 import 'package:logic/src/data/melvor_id.dart';
+import 'package:logic/src/json.dart';
+import 'package:logic/src/types/conditional_modifier.dart';
 import 'package:logic/src/types/modifier.dart';
 import 'package:meta/meta.dart';
 
@@ -10,7 +12,11 @@ import 'package:meta/meta.dart';
 /// familiars to activate the synergy.
 @immutable
 class SummoningSynergy {
-  const SummoningSynergy({required this.summonIds, required this.modifiers});
+  const SummoningSynergy({
+    required this.summonIds,
+    required this.modifiers,
+    this.conditionalModifiers = const [],
+  });
 
   factory SummoningSynergy.fromJson(
     Map<String, dynamic> json, {
@@ -32,7 +38,18 @@ class SummoningSynergy {
       namespace: namespace,
     );
 
-    return SummoningSynergy(summonIds: summonIds, modifiers: modifiers);
+    final conditionalModifiers =
+        maybeList<ConditionalModifier>(
+          json['conditionalModifiers'],
+          (e) => ConditionalModifier.fromJson(e, namespace: namespace),
+        ) ??
+        const <ConditionalModifier>[];
+
+    return SummoningSynergy(
+      summonIds: summonIds,
+      modifiers: modifiers,
+      conditionalModifiers: conditionalModifiers,
+    );
   }
 
   /// The two summon IDs that form this synergy.
@@ -41,6 +58,9 @@ class SummoningSynergy {
 
   /// The modifiers provided when this synergy is active.
   final ModifierDataSet modifiers;
+
+  /// Conditional modifiers that apply when their conditions are met.
+  final List<ConditionalModifier> conditionalModifiers;
 
   /// Returns true if the given pair of summon IDs matches this synergy.
   /// Order doesn't matter - (A, B) matches synergy [A, B] or [B, A].

@@ -1,6 +1,7 @@
 import 'dart:math';
 
 import 'package:logic/logic.dart';
+import 'package:logic/src/types/conditional_modifier.dart';
 import 'package:test/test.dart';
 
 import 'test_helper.dart';
@@ -1293,6 +1294,101 @@ void main() {
 
       // Both should be the same synergy
       expect(synergy, equals(synergyReverse));
+    });
+
+    test('real Ent+Bear synergy has Bird Nest Potion conditional', () {
+      // Ent + Bear synergy in the real Melvor data has a PotionUsedCondition
+      // for Bird Nest Potion that grants flatBaseRandomProductQuantity.
+      const entId = MelvorId('melvorF:Ent');
+      const bearId = MelvorId('melvorF:Bear');
+      final synergy = testRegistries.summoningSynergies.findSynergy(
+        entId,
+        bearId,
+      );
+      expect(synergy, isNotNull, reason: 'Ent+Bear synergy should exist');
+      expect(
+        synergy!.conditionalModifiers,
+        isNotEmpty,
+        reason: 'Should have conditional modifiers',
+      );
+
+      final potionCond = synergy.conditionalModifiers.firstWhere(
+        (c) => c.condition is PotionUsedCondition,
+      );
+      final condition = potionCond.condition as PotionUsedCondition;
+      expect(condition.recipeId, const MelvorId('melvorF:Bird_Nest_Potion'));
+      expect(potionCond.modifiers.modifiers, isNotEmpty);
+    });
+
+    test('fromJson parses conditionalModifiers', () {
+      final json = {
+        'summonIDs': ['melvorF:GolbinThief', 'melvorF:Occultist'],
+        'modifiers': <String, dynamic>{},
+        'conditionalModifiers': [
+          {
+            'condition': {
+              'type': 'PotionUsed',
+              'recipeID': 'melvorF:Bird_Nest_Potion',
+            },
+            'modifiers': {
+              'increasedChanceToPreserveNest': [
+                {'value': 50},
+              ],
+            },
+          },
+        ],
+      };
+
+      final synergy = SummoningSynergy.fromJson(json, namespace: 'melvorF');
+
+      expect(synergy.conditionalModifiers, hasLength(1));
+      final condMod = synergy.conditionalModifiers.first;
+      expect(condMod.condition, isA<PotionUsedCondition>());
+      final condition = condMod.condition as PotionUsedCondition;
+      expect(condition.recipeId, const MelvorId('melvorF:Bird_Nest_Potion'));
+      expect(condMod.modifiers.modifiers, isNotEmpty);
+    });
+
+    test('synergy conditional modifiers apply when condition met', () {
+      const potionRecipeId = MelvorId('melvorF:TestPotion');
+
+      // Create a synergy with a PotionUsed conditional modifier
+      const synergy = SummoningSynergy(
+        summonIds: [
+          MelvorId('melvorF:GolbinThief'),
+          MelvorId('melvorF:Occultist'),
+        ],
+        modifiers: ModifierDataSet([]),
+        conditionalModifiers: [
+          ConditionalModifier(
+            condition: PotionUsedCondition(recipeId: potionRecipeId),
+            modifiers: ModifierDataSet([
+              ModifierData(
+                name: 'increasedGPFromMonsters',
+                entries: [ModifierEntry(value: 25)],
+              ),
+            ]),
+          ),
+        ],
+      );
+
+      // Without matching condition — conditional modifier should not apply
+      final modsNoMatch = synergy.conditionalModifiers
+          .where((c) => ConditionContext.empty.evaluate(c.condition))
+          .toList();
+      expect(modsNoMatch, isEmpty);
+
+      // With matching potion condition
+      final context = ConditionContext(activePotionRecipes: {potionRecipeId});
+      final modsMatch = synergy.conditionalModifiers
+          .where((c) => context.evaluate(c.condition))
+          .toList();
+      expect(modsMatch, hasLength(1));
+      expect(
+        modsMatch.first.modifiers.modifiers.first.name,
+        'increasedGPFromMonsters',
+      );
+      expect(modsMatch.first.modifiers.modifiers.first.entries.first.value, 25);
     });
   });
 }
