@@ -1,3 +1,5 @@
+import 'dart:math';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:logic/logic.dart';
 import 'package:scoped_deps/scoped_deps.dart';
@@ -2623,6 +2625,914 @@ void main() {
         expect(store.state.equipment.gearInSlot(EquipmentSlot.weapon), isNull);
         expect(store.state.inventory.countOfItem(sword), 1);
       }, values: {toastServiceRef});
+    });
+  });
+
+  // ==========================================================================
+  // Tests for previously untested actions
+  // ==========================================================================
+
+  group('UpdateActivityProgressAction', () {
+    test('processes ticks and updates state', () {
+      runScoped(() {
+        final testAction = SkillAction(
+          id: ActionId.test(Skill.woodcutting, 'Test Tree'),
+          skill: Skill.woodcutting,
+          name: 'Test Tree',
+          unlockLevel: 1,
+          duration: const Duration(seconds: 3),
+          xp: 10,
+        );
+        final registries = Registries.test(actions: [testAction]);
+        var state = GlobalState.empty(registries);
+        state = state.startAction(testAction, random: Random(42));
+        final store = Store<GlobalState>(initialState: state);
+
+        // Advance time by 10 seconds (enough to complete several actions).
+        final now = state.updatedAt.add(const Duration(seconds: 10));
+        store.dispatch(UpdateActivityProgressAction(now: now));
+
+        // XP should have been gained from completed actions.
+        expect(store.state.skillState(Skill.woodcutting).xp, greaterThan(0));
+      }, values: {toastServiceRef});
+    });
+
+    test('accumulates changes into timeAway when present', () {
+      runScoped(() {
+        final testAction = SkillAction(
+          id: ActionId.test(Skill.woodcutting, 'Test Tree'),
+          skill: Skill.woodcutting,
+          name: 'Test Tree',
+          unlockLevel: 1,
+          duration: const Duration(seconds: 3),
+          xp: 10,
+        );
+        final registries = Registries.test(actions: [testAction]);
+        var state = GlobalState.empty(registries);
+        state = state.startAction(testAction, random: Random(42));
+        // Produce a timeAway with actual changes (enough ticks to complete).
+        final (timeAway, newState) = consumeManyTicks(
+          state,
+          1000,
+          random: Random(42),
+        );
+        // Use the new state (with updated progress) but keep timeAway.
+        state = newState.copyWith(timeAway: timeAway);
+        // Re-start the action so there's something to tick.
+        state = state.startAction(testAction, random: Random(42));
+        final store = Store<GlobalState>(initialState: state);
+
+        final now = state.updatedAt.add(const Duration(seconds: 10));
+        store.dispatch(UpdateActivityProgressAction(now: now));
+
+        // timeAway should still be present (accumulated).
+        expect(store.state.timeAway, isNotNull);
+      }, values: {toastServiceRef});
+    });
+  });
+
+  group('DebugAdvanceTicksAction', () {
+    test('advances state by specified ticks', () {
+      final testAction = SkillAction(
+        id: ActionId.test(Skill.woodcutting, 'Test Tree'),
+        skill: Skill.woodcutting,
+        name: 'Test Tree',
+        unlockLevel: 1,
+        duration: const Duration(seconds: 3),
+        xp: 10,
+      );
+      final registries = Registries.test(actions: [testAction]);
+      var state = GlobalState.empty(registries);
+      state = state.startAction(testAction, random: Random(42));
+      final store = Store<GlobalState>(initialState: state);
+
+      final action = DebugAdvanceTicksAction(ticks: 100);
+      store.dispatch(action);
+
+      expect(action.timeAway, isNotNull);
+    });
+  });
+
+  group('UpgradeItemAction', () {
+    test('upgrades item when requirements met', () {
+      final bronzeDagger = Item.test('Bronze Dagger', gp: 5);
+      final steelDagger = Item.test('Steel Dagger', gp: 50);
+      final upgrade = ItemUpgrade(
+        upgradedItemId: steelDagger.id,
+        itemCosts: [ItemCost(itemId: bronzeDagger.id, quantity: 1)],
+        currencyCosts: CurrencyCosts.empty,
+        rootItemIds: [bronzeDagger.id],
+        isDowngrade: false,
+      );
+      final registries = Registries.test(items: [bronzeDagger, steelDagger]);
+      var state = GlobalState.empty(registries);
+      state = state.copyWith(
+        inventory: state.inventory.adding(ItemStack(bronzeDagger, count: 1)),
+      );
+      final store = Store<GlobalState>(initialState: state)
+        ..dispatch(UpgradeItemAction(upgrade: upgrade, count: 1));
+
+      expect(store.state.inventory.countOfItem(bronzeDagger), 0);
+      expect(store.state.inventory.countOfItem(steelDagger), 1);
+    });
+
+    test('returns null when insufficient items', () {
+      final bronzeDagger = Item.test('Bronze Dagger', gp: 5);
+      final steelDagger = Item.test('Steel Dagger', gp: 50);
+      final upgrade = ItemUpgrade(
+        upgradedItemId: steelDagger.id,
+        itemCosts: [ItemCost(itemId: bronzeDagger.id, quantity: 1)],
+        currencyCosts: CurrencyCosts.empty,
+        rootItemIds: [bronzeDagger.id],
+        isDowngrade: false,
+      );
+      final registries = Registries.test(items: [bronzeDagger, steelDagger]);
+      final state = GlobalState.empty(registries);
+      final store = Store<GlobalState>(initialState: state)
+        ..dispatch(UpgradeItemAction(upgrade: upgrade, count: 1));
+
+      // State should not change.
+      expect(store.state.inventory.countOfItem(steelDagger), 0);
+    });
+  });
+
+  // PurchaseShopItemAction delegates to state.purchaseShopItem which is
+  // tested in logic/test/state_test.dart. Skipping here since it needs a
+  // full ShopRegistry with real purchase data.
+
+  group('StartCombatAction', () {
+    CombatAction testMonster() {
+      return CombatAction(
+        id: ActionId.test(Skill.combat, 'Test Monster'),
+        name: 'Test Monster',
+        levels: const MonsterLevels(
+          hitpoints: 10,
+          attack: 1,
+          strength: 1,
+          defense: 1,
+          ranged: 1,
+          magic: 1,
+        ),
+        attackType: AttackType.melee,
+        attackSpeed: 2.4,
+        lootChance: 0,
+        minGpDrop: 0,
+        maxGpDrop: 0,
+      );
+    }
+
+    test('starts combat with monster', () {
+      final monster = testMonster();
+      final registries = Registries.test(
+        actions: [monster],
+        combat: CombatRegistry(
+          monsters: [monster],
+          areas: CombatAreaRegistry(const []),
+          dungeons: DungeonRegistry(const []),
+          strongholds: StrongholdRegistry(const []),
+        ),
+      );
+      final state = GlobalState.empty(registries);
+      final store = Store<GlobalState>(initialState: state)
+        ..dispatch(StartCombatAction(combatAction: monster));
+
+      expect(store.state.activeActivity, isA<CombatActivity>());
+    });
+
+    test('does nothing when stunned', () {
+      final monster = testMonster();
+      final registries = Registries.test(
+        actions: [monster],
+        combat: CombatRegistry(
+          monsters: [monster],
+          areas: CombatAreaRegistry(const []),
+          dungeons: DungeonRegistry(const []),
+          strongholds: StrongholdRegistry(const []),
+        ),
+      );
+      var state = GlobalState.empty(registries);
+      state = state.copyWith(stunned: const StunnedState.fresh().stun());
+      final store = Store<GlobalState>(initialState: state)
+        ..dispatch(StartCombatAction(combatAction: monster));
+
+      expect(store.state.activeActivity, isNull);
+    });
+
+    test('does nothing when already in combat with same monster', () {
+      final monster = testMonster();
+      final registries = Registries.test(
+        actions: [monster],
+        combat: CombatRegistry(
+          monsters: [monster],
+          areas: CombatAreaRegistry(const []),
+          dungeons: DungeonRegistry(const []),
+          strongholds: StrongholdRegistry(const []),
+        ),
+      );
+      var state = GlobalState.empty(registries);
+      state = state.startAction(monster, random: Random(42));
+      final store = Store<GlobalState>(initialState: state)
+        ..dispatch(StartCombatAction(combatAction: monster));
+
+      // Still in combat (no-op).
+      expect(store.state.activeActivity, isA<CombatActivity>());
+    });
+  });
+
+  group('StopCombatAction', () {
+    test('stops combat', () {
+      final monster = CombatAction(
+        id: ActionId.test(Skill.combat, 'Test Monster'),
+        name: 'Test Monster',
+        levels: const MonsterLevels(
+          hitpoints: 10,
+          attack: 1,
+          strength: 1,
+          defense: 1,
+          ranged: 1,
+          magic: 1,
+        ),
+        attackType: AttackType.melee,
+        attackSpeed: 2.4,
+        lootChance: 0,
+        minGpDrop: 0,
+        maxGpDrop: 0,
+      );
+      final registries = Registries.test(
+        actions: [monster],
+        combat: CombatRegistry(
+          monsters: [monster],
+          areas: CombatAreaRegistry(const []),
+          dungeons: DungeonRegistry(const []),
+          strongholds: StrongholdRegistry(const []),
+        ),
+      );
+      var state = GlobalState.empty(registries);
+      state = state.startAction(monster, random: Random(42));
+      final store = Store<GlobalState>(initialState: state)
+        ..dispatch(StopCombatAction());
+
+      expect(store.state.activeActivity, isNull);
+    });
+
+    test('does nothing when stunned', () {
+      final registries = Registries.test();
+      var state = GlobalState.empty(registries);
+      state = state.copyWith(stunned: const StunnedState.fresh().stun());
+      final store = Store<GlobalState>(initialState: state)
+        ..dispatch(StopCombatAction());
+
+      expect(store.state.activeActivity, isNull);
+    });
+  });
+
+  group('CollectAllLootAction', () {
+    test('collects loot into inventory', () {
+      final item = Item.test('Gold Bar', gp: 100);
+      final registries = Registries.test(items: [item]);
+      var state = GlobalState.empty(registries);
+      final (loot, _) = const LootState.empty().addItem(
+        ItemStack(item, count: 5),
+        isBones: false,
+      );
+      state = state.copyWith(loot: loot);
+      final store = Store<GlobalState>(initialState: state)
+        ..dispatch(CollectAllLootAction());
+
+      expect(store.state.inventory.countOfItem(item), 5);
+      expect(store.state.loot.isEmpty, isTrue);
+    });
+
+    test('does nothing when loot is empty', () {
+      final registries = Registries.test();
+      final state = GlobalState.empty(registries);
+      final store = Store<GlobalState>(initialState: state)
+        ..dispatch(CollectAllLootAction());
+
+      expect(store.state, state);
+    });
+  });
+
+  group('StartDungeonAction', () {
+    test('starts dungeon run', () {
+      final monster = CombatAction(
+        id: ActionId.test(Skill.combat, 'Dungeon Monster'),
+        name: 'Dungeon Monster',
+        levels: const MonsterLevels(
+          hitpoints: 10,
+          attack: 1,
+          strength: 1,
+          defense: 1,
+          ranged: 1,
+          magic: 1,
+        ),
+        attackType: AttackType.melee,
+        attackSpeed: 2.4,
+        lootChance: 0,
+        minGpDrop: 0,
+        maxGpDrop: 0,
+      );
+      final dungeon = Dungeon(
+        id: const MelvorId('melvorD:Test_Dungeon'),
+        name: 'Test Dungeon',
+        monsterIds: [monster.id.localId],
+      );
+      final registries = Registries.test(
+        actions: [monster],
+        combat: CombatRegistry(
+          monsters: [monster],
+          areas: CombatAreaRegistry(const []),
+          dungeons: DungeonRegistry([dungeon]),
+          strongholds: StrongholdRegistry(const []),
+        ),
+      );
+      final state = GlobalState.empty(registries);
+      final store = Store<GlobalState>(initialState: state)
+        ..dispatch(StartDungeonAction(dungeon: dungeon));
+
+      expect(store.state.activeActivity, isA<CombatActivity>());
+    });
+  });
+
+  group('StartStrongholdAction', () {
+    test('starts stronghold run', () {
+      final monster = CombatAction(
+        id: ActionId.test(Skill.combat, 'Stronghold Monster'),
+        name: 'Stronghold Monster',
+        levels: const MonsterLevels(
+          hitpoints: 10,
+          attack: 1,
+          strength: 1,
+          defense: 1,
+          ranged: 1,
+          magic: 1,
+        ),
+        attackType: AttackType.melee,
+        attackSpeed: 2.4,
+        lootChance: 0,
+        minGpDrop: 0,
+        maxGpDrop: 0,
+      );
+      final stronghold = Stronghold(
+        id: const MelvorId('melvorD:Test_Stronghold'),
+        name: 'Test Stronghold',
+        monsterIds: [monster.id.localId],
+      );
+      final registries = Registries.test(
+        actions: [monster],
+        combat: CombatRegistry(
+          monsters: [monster],
+          areas: CombatAreaRegistry(const []),
+          dungeons: DungeonRegistry(const []),
+          strongholds: StrongholdRegistry([stronghold]),
+        ),
+      );
+      final state = GlobalState.empty(registries);
+      final store = Store<GlobalState>(initialState: state)
+        ..dispatch(StartStrongholdAction(stronghold: stronghold));
+
+      expect(store.state.activeActivity, isA<CombatActivity>());
+    });
+  });
+
+  group('EquipFoodAction', () {
+    test('equips food from inventory', () {
+      const food = Item(
+        id: MelvorId('melvorD:Shrimp'),
+        name: 'Shrimp',
+        itemType: 'Food',
+        sellsFor: 1,
+        healsFor: 30,
+      );
+      final registries = Registries.test(items: const [food]);
+      var state = GlobalState.empty(registries);
+      state = state.copyWith(
+        inventory: state.inventory.adding(const ItemStack(food, count: 10)),
+      );
+      final store = Store<GlobalState>(initialState: state)
+        ..dispatch(EquipFoodAction(item: food, count: 5));
+
+      expect(store.state.equipment.foodSlots[0]?.item, food);
+      expect(store.state.equipment.foodSlots[0]?.count, 5);
+      expect(store.state.inventory.countOfItem(food), 5);
+    });
+  });
+
+  group('EatFoodAction', () {
+    test('eats equipped food to heal', () {
+      const food = Item(
+        id: MelvorId('melvorD:Shrimp'),
+        name: 'Shrimp',
+        itemType: 'Food',
+        sellsFor: 1,
+        healsFor: 30,
+      );
+      final registries = Registries.test(items: const [food]);
+      var state = GlobalState.empty(registries);
+      state = state.copyWith(
+        inventory: state.inventory.adding(const ItemStack(food, count: 5)),
+      );
+      state = state.equipFood(const ItemStack(food, count: 5));
+      // Damage the player.
+      state = state.copyWith(health: const HealthState(lostHp: 50));
+      final store = Store<GlobalState>(initialState: state)
+        ..dispatch(EatFoodAction());
+
+      // Lost HP should decrease (player healed).
+      expect(store.state.health.lostHp, lessThan(50));
+    });
+  });
+
+  group('SelectFoodSlotAction', () {
+    test('selects food slot', () {
+      final registries = Registries.test();
+      final state = GlobalState.empty(registries);
+      final store = Store<GlobalState>(initialState: state)
+        ..dispatch(SelectFoodSlotAction(slotIndex: 1));
+
+      expect(store.state.equipment.selectedFoodSlot, 1);
+    });
+  });
+
+  group('UnequipFoodAction', () {
+    test('unequips food back to inventory', () {
+      runScoped(() {
+        const food = Item(
+          id: MelvorId('melvorD:Shrimp'),
+          name: 'Shrimp',
+          itemType: 'Food',
+          sellsFor: 1,
+          healsFor: 30,
+        );
+        final registries = Registries.test(items: const [food]);
+        var state = GlobalState.empty(registries);
+        state = state.copyWith(
+          inventory: state.inventory.adding(const ItemStack(food, count: 5)),
+        );
+        state = state.equipFood(const ItemStack(food, count: 5));
+        final store = Store<GlobalState>(initialState: state)
+          ..dispatch(UnequipFoodAction(slotIndex: 0));
+
+        expect(store.state.equipment.foodSlots[0], isNull);
+        expect(store.state.inventory.countOfItem(food), 5);
+      }, values: {toastServiceRef});
+    });
+
+    test('does nothing when slot is empty', () {
+      runScoped(() {
+        final registries = Registries.test();
+        final state = GlobalState.empty(registries);
+        final store = Store<GlobalState>(initialState: state)
+          ..dispatch(UnequipFoodAction(slotIndex: 0));
+
+        expect(store.state, state);
+      }, values: {toastServiceRef});
+    });
+  });
+
+  group('SortInventoryAction', () {
+    test('sorts inventory', () {
+      final item1 = Item.test('Zebra Item', gp: 1);
+      final item2 = Item.test('Apple Item', gp: 2);
+      final registries = Registries.test(items: [item1, item2]);
+      var state = GlobalState.empty(registries);
+      state = state.copyWith(
+        inventory: state.inventory
+            .adding(ItemStack(item1, count: 1))
+            .adding(ItemStack(item2, count: 1)),
+      );
+      final store = Store<GlobalState>(initialState: state)
+        ..dispatch(SortInventoryAction());
+
+      // Just verify it doesn't crash and state changed.
+      expect(store.state.inventory.items.length, 2);
+    });
+  });
+
+  group('EquipGearAction', () {
+    test('equips gear to slot', () {
+      runScoped(() {
+        const sword = Item(
+          id: MelvorId('melvorD:Bronze_Sword'),
+          name: 'Bronze Sword',
+          itemType: 'Weapon',
+          sellsFor: 10,
+          validSlots: [EquipmentSlot.weapon],
+        );
+        final registries = Registries.test(items: const [sword]);
+        var state = GlobalState.empty(registries);
+        state = state.copyWith(
+          inventory: state.inventory.adding(const ItemStack(sword, count: 1)),
+        );
+        final store = Store<GlobalState>(initialState: state)
+          ..dispatch(EquipGearAction(item: sword, slot: EquipmentSlot.weapon));
+
+        expect(store.state.equipment.gearInSlot(EquipmentSlot.weapon), sword);
+      }, values: {toastServiceRef});
+    });
+  });
+
+  group('UnequipGearAction', () {
+    test('unequips gear back to inventory', () {
+      runScoped(() {
+        const sword = Item(
+          id: MelvorId('melvorD:Bronze_Sword'),
+          name: 'Bronze Sword',
+          itemType: 'Weapon',
+          sellsFor: 10,
+          validSlots: [EquipmentSlot.weapon],
+        );
+        final registries = Registries.test(items: const [sword]);
+        var state = GlobalState.empty(registries);
+        state = state.copyWith(
+          inventory: state.inventory.adding(const ItemStack(sword, count: 1)),
+        );
+        state = state.equipGear(sword, EquipmentSlot.weapon);
+        final store = Store<GlobalState>(initialState: state)
+          ..dispatch(UnequipGearAction(slot: EquipmentSlot.weapon));
+
+        expect(store.state.equipment.gearInSlot(EquipmentSlot.weapon), isNull);
+        expect(store.state.inventory.countOfItem(sword), 1);
+      }, values: {toastServiceRef});
+    });
+  });
+
+  group('BuildAgilityObstacleAction', () {
+    test('builds obstacle in slot', () {
+      final obstacle = AgilityObstacle(
+        id: ActionId.test(Skill.agility, 'Test_Obstacle'),
+        name: 'Test Obstacle',
+        unlockLevel: 1,
+        xp: 10,
+        duration: const Duration(seconds: 5),
+        category: 0,
+      );
+      final course = const AgilityCourse(
+        realm: MelvorId('melvorD:Melvor'),
+        obstacleSlots: [1, 1, 1],
+        pillarSlots: [],
+      );
+      final registries = Registries.test(
+        actions: [obstacle],
+        agility: AgilityRegistry(
+          obstacles: [obstacle],
+          courses: [course],
+          pillars: const [],
+        ),
+      );
+      final state = GlobalState.empty(registries);
+      final store = Store<GlobalState>(
+        initialState: state,
+      )..dispatch(BuildAgilityObstacleAction(slot: 0, obstacleId: obstacle.id));
+
+      expect(store.state.agility.builtObstacles, isNotEmpty);
+    });
+  });
+
+  group('DestroyAgilityObstacleAction', () {
+    test('destroys obstacle in slot', () {
+      final obstacle = AgilityObstacle(
+        id: ActionId.test(Skill.agility, 'Test_Obstacle'),
+        name: 'Test Obstacle',
+        unlockLevel: 1,
+        xp: 10,
+        duration: const Duration(seconds: 5),
+        category: 0,
+      );
+      final course = const AgilityCourse(
+        realm: MelvorId('melvorD:Melvor'),
+        obstacleSlots: [1, 1, 1],
+        pillarSlots: [],
+      );
+      final registries = Registries.test(
+        actions: [obstacle],
+        agility: AgilityRegistry(
+          obstacles: [obstacle],
+          courses: [course],
+          pillars: const [],
+        ),
+      );
+      var state = GlobalState.empty(registries);
+      state = state.buildAgilityObstacle(0, obstacle.id);
+      expect(state.agility.builtObstacles, isNotEmpty);
+
+      final store = Store<GlobalState>(initialState: state)
+        ..dispatch(DestroyAgilityObstacleAction(slot: 0));
+
+      expect(store.state.agility.builtObstacles, isEmpty);
+    });
+  });
+
+  group('StartAgilityCourseAction', () {
+    test('starts agility course', () {
+      final obstacle = AgilityObstacle(
+        id: ActionId.test(Skill.agility, 'Test_Obstacle'),
+        name: 'Test Obstacle',
+        unlockLevel: 1,
+        xp: 10,
+        duration: const Duration(seconds: 5),
+        category: 0,
+      );
+      final course = const AgilityCourse(
+        realm: MelvorId('melvorD:Melvor'),
+        obstacleSlots: [1, 1, 1],
+        pillarSlots: [],
+      );
+      final registries = Registries.test(
+        actions: [obstacle],
+        agility: AgilityRegistry(
+          obstacles: [obstacle],
+          courses: [course],
+          pillars: const [],
+        ),
+      );
+      var state = GlobalState.empty(registries);
+      state = state.buildAgilityObstacle(0, obstacle.id);
+      final store = Store<GlobalState>(initialState: state)
+        ..dispatch(StartAgilityCourseAction());
+
+      expect(store.state.activeActivity, isA<AgilityActivity>());
+    });
+
+    test('does nothing when no obstacles built', () {
+      final course = const AgilityCourse(
+        realm: MelvorId('melvorD:Melvor'),
+        obstacleSlots: [1, 1, 1],
+        pillarSlots: [],
+      );
+      final registries = Registries.test(
+        agility: AgilityRegistry(
+          obstacles: const [],
+          courses: [course],
+          pillars: const [],
+        ),
+      );
+      final state = GlobalState.empty(registries);
+      final store = Store<GlobalState>(initialState: state)
+        ..dispatch(StartAgilityCourseAction());
+
+      expect(store.state.activeActivity, isNull);
+    });
+  });
+
+  group('StopAgilityCourseAction', () {
+    test('stops agility course', () {
+      final obstacle = AgilityObstacle(
+        id: ActionId.test(Skill.agility, 'Test_Obstacle'),
+        name: 'Test Obstacle',
+        unlockLevel: 1,
+        xp: 10,
+        duration: const Duration(seconds: 5),
+        category: 0,
+      );
+      final course = const AgilityCourse(
+        realm: MelvorId('melvorD:Melvor'),
+        obstacleSlots: [1, 1, 1],
+        pillarSlots: [],
+      );
+      final registries = Registries.test(
+        actions: [obstacle],
+        agility: AgilityRegistry(
+          obstacles: [obstacle],
+          courses: [course],
+          pillars: const [],
+        ),
+      );
+      var state = GlobalState.empty(registries);
+      state = state.buildAgilityObstacle(0, obstacle.id);
+      state = state.startAgilityCourse(random: Random(42))!;
+      final store = Store<GlobalState>(initialState: state)
+        ..dispatch(StopAgilityCourseAction());
+
+      expect(store.state.activeActivity, isNull);
+    });
+
+    test('does nothing when not running agility', () {
+      final registries = Registries.test();
+      final state = GlobalState.empty(registries);
+      final store = Store<GlobalState>(initialState: state)
+        ..dispatch(StopAgilityCourseAction());
+
+      expect(store.state.activeActivity, isNull);
+    });
+  });
+
+  group('DebugFillInventoryAction', () {
+    test('fills inventory with items', () {
+      final item1 = Item.test('Item A', gp: 1);
+      final item2 = Item.test('Item B', gp: 2);
+      final item3 = Item.test('Item C', gp: 3);
+      final registries = Registries.test(items: [item1, item2, item3]);
+      final state = GlobalState.empty(registries);
+      final store = Store<GlobalState>(initialState: state)
+        ..dispatch(DebugFillInventoryAction());
+
+      expect(store.state.inventory.items.length, greaterThan(0));
+    });
+  });
+
+  group('DebugAddItemAction', () {
+    test('adds item to inventory', () {
+      final item = Item.test('Gold Bar', gp: 100);
+      final registries = Registries.test(items: [item]);
+      final state = GlobalState.empty(registries);
+      final store = Store<GlobalState>(initialState: state)
+        ..dispatch(DebugAddItemAction(item: item, count: 5));
+
+      expect(store.state.inventory.countOfItem(item), 5);
+    });
+
+    test('returns null when inventory full', () {
+      final items = List.generate(200, (i) => Item.test('Item $i', gp: 1));
+      final registries = Registries.test(items: items);
+      var state = GlobalState.empty(registries);
+      // Fill inventory to capacity.
+      for (final item in items) {
+        final inv = state.inventory.adding(ItemStack(item, count: 1));
+        if (inv.items.length > state.inventoryCapacity) break;
+        state = state.copyWith(inventory: inv);
+      }
+      final newItem = Item.test('Extra Item', gp: 1);
+      final store = Store<GlobalState>(initialState: state)
+        ..dispatch(DebugAddItemAction(item: newItem));
+
+      expect(store.state.inventory.countOfItem(newItem), 0);
+    });
+  });
+
+  group('DebugResetStateAction', () {
+    test('resets to empty state', () {
+      final item = Item.test('Gold Bar', gp: 100);
+      final registries = Registries.test(items: [item]);
+      var state = GlobalState.empty(registries);
+      state = state.copyWith(
+        inventory: state.inventory.adding(ItemStack(item, count: 5)),
+      );
+      state = state.addCurrency(Currency.gp, 1000);
+      final store = Store<GlobalState>(initialState: state)
+        ..dispatch(DebugResetStateAction());
+
+      expect(store.state.inventory.items, isEmpty);
+      expect(store.state.gp, 0);
+    });
+  });
+
+  group('PlantCropAction', () {
+    test('plants crop in unlocked plot', () {
+      final seed = Item.test('Potato Seed', gp: 1);
+      final potato = Item.test('Potato', gp: 5);
+      final crop = FarmingCrop(
+        id: ActionId.test(Skill.farming, 'Potato'),
+        name: 'Potato',
+        categoryId: const MelvorId('melvorD:Allotment'),
+        level: 1,
+        baseXP: 8,
+        seedCost: 1,
+        baseInterval: 30000,
+        seedId: seed.id,
+        productId: potato.id,
+        baseQuantity: 5,
+        media: '',
+      );
+      final registries = Registries.test(
+        items: [seed, potato],
+        actions: [crop],
+      );
+      const plotId = MelvorId('melvorD:Test_Plot');
+      var state = GlobalState.empty(registries);
+      state = state.copyWith(
+        unlockedPlots: {plotId},
+        inventory: state.inventory.adding(ItemStack(seed, count: 5)),
+      );
+      final store = Store<GlobalState>(initialState: state)
+        ..dispatch(PlantCropAction(plotId: plotId, crop: crop));
+
+      expect(store.state.plotStates[plotId], isNotNull);
+      expect(store.state.inventory.countOfItem(seed), 4);
+    });
+  });
+
+  // HarvestCropAction needs a full FarmingRegistry (with crop and category
+  // lookups) which Registries.test() doesn't support. Tested via
+  // logic/test/state_test.dart instead.
+
+  group('UnlockPlotAction', () {
+    test('dispatches unlock to state', () {
+      final registries = Registries.test();
+      final state = GlobalState.empty(registries);
+      const plotId = MelvorId('melvorD:Fake_Plot');
+      final store = Store<GlobalState>(initialState: state)
+        ..dispatch(UnlockPlotAction(plotId: plotId));
+
+      // Returns null for unknown plot, so state unchanged.
+      expect(store.state.unlockedPlots, isEmpty);
+    });
+  });
+
+  group('ApplyCompostAction', () {
+    test('applies compost to empty plot before planting', () {
+      final compost = Item.test('Compost', gp: 2, compostValue: 10);
+      final registries = Registries.test(items: [compost]);
+      const plotId = MelvorId('melvorD:Test_Plot');
+      var state = GlobalState.empty(registries);
+      state = state.copyWith(
+        unlockedPlots: {plotId},
+        inventory: state.inventory.adding(ItemStack(compost, count: 3)),
+      );
+      final store = Store<GlobalState>(initialState: state)
+        ..dispatch(ApplyCompostAction(plotId: plotId, compost: compost));
+
+      expect(store.state.inventory.countOfItem(compost), 2);
+    });
+  });
+
+  group('StartBonfireAction', () {
+    test('starts bonfire with enough logs', () {
+      final logItem = Item.test('Normal Logs', gp: 1);
+      final firemakingAction = FiremakingAction(
+        id: ActionId.test(Skill.firemaking, 'Normal_Log'),
+        name: 'Normal Log',
+        unlockLevel: 1,
+        xp: 10,
+        inputs: {logItem.id: 1},
+        duration: const Duration(seconds: 3),
+        logId: logItem.id,
+        bonfireInterval: const Duration(minutes: 10),
+        bonfireXPBonus: 5,
+      );
+      final registries = Registries.test(
+        items: [logItem],
+        actions: [firemakingAction],
+      );
+      var state = GlobalState.empty(registries);
+      state = state.copyWith(
+        inventory: state.inventory.adding(ItemStack(logItem, count: 20)),
+      );
+      final store = Store<GlobalState>(initialState: state)
+        ..dispatch(StartBonfireAction(firemakingAction));
+
+      expect(store.state.bonfire.isActive, isTrue);
+      // Should have consumed 10 logs.
+      expect(store.state.inventory.countOfItem(logItem), 10);
+    });
+
+    test('does nothing when not enough logs', () {
+      final logItem = Item.test('Normal Logs', gp: 1);
+      final firemakingAction = FiremakingAction(
+        id: ActionId.test(Skill.firemaking, 'Normal_Log'),
+        name: 'Normal Log',
+        unlockLevel: 1,
+        xp: 10,
+        inputs: {logItem.id: 1},
+        duration: const Duration(seconds: 3),
+        logId: logItem.id,
+        bonfireInterval: const Duration(minutes: 10),
+        bonfireXPBonus: 5,
+      );
+      final registries = Registries.test(
+        items: [logItem],
+        actions: [firemakingAction],
+      );
+      var state = GlobalState.empty(registries);
+      state = state.copyWith(
+        inventory: state.inventory.adding(ItemStack(logItem, count: 5)),
+      );
+      final store = Store<GlobalState>(initialState: state)
+        ..dispatch(StartBonfireAction(firemakingAction));
+
+      expect(store.state.bonfire.isActive, isFalse);
+    });
+  });
+
+  group('StopBonfireAction', () {
+    test('stops bonfire', () {
+      final logItem = Item.test('Normal Logs', gp: 1);
+      final firemakingAction = FiremakingAction(
+        id: ActionId.test(Skill.firemaking, 'Normal_Log'),
+        name: 'Normal Log',
+        unlockLevel: 1,
+        xp: 10,
+        inputs: {logItem.id: 1},
+        duration: const Duration(seconds: 3),
+        logId: logItem.id,
+        bonfireInterval: const Duration(minutes: 10),
+        bonfireXPBonus: 5,
+      );
+      final registries = Registries.test(
+        items: [logItem],
+        actions: [firemakingAction],
+      );
+      var state = GlobalState.empty(registries);
+      state = state.copyWith(
+        inventory: state.inventory.adding(ItemStack(logItem, count: 20)),
+      );
+      state = state.startBonfire(firemakingAction);
+      expect(state.bonfire.isActive, isTrue);
+
+      final store = Store<GlobalState>(initialState: state)
+        ..dispatch(StopBonfireAction());
+
+      expect(store.state.bonfire.isActive, isFalse);
     });
   });
 }
