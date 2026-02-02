@@ -57,6 +57,11 @@ class _BankPageState extends State<BankPage> {
     }
   }
 
+  void _onItemDoubleTap(ItemStack stack) {
+    if (_isSelectionMode) return;
+    context.dispatch(QuickEquipAction(stack: stack));
+  }
+
   void _onItemLongPress(ItemStack stack) {
     if (!_isSelectionMode) {
       setState(() {
@@ -175,6 +180,7 @@ class _BankPageState extends State<BankPage> {
               child: ItemGrid(
                 stacks: context.state.inventory.items,
                 onItemTap: _onItemTap,
+                onItemDoubleTap: _onItemDoubleTap,
                 onItemLongPress: _onItemLongPress,
                 selectedItems: _isSelectionMode ? _selectedItems : null,
               ),
@@ -190,6 +196,7 @@ class ItemGrid extends StatelessWidget {
   const ItemGrid({
     required this.stacks,
     required this.onItemTap,
+    this.onItemDoubleTap,
     this.onItemLongPress,
     this.selectedItems,
     super.key,
@@ -197,6 +204,7 @@ class ItemGrid extends StatelessWidget {
 
   final List<ItemStack> stacks;
   final void Function(ItemStack) onItemTap;
+  final void Function(ItemStack)? onItemDoubleTap;
   final void Function(ItemStack)? onItemLongPress;
   final Set<Item>? selectedItems;
 
@@ -221,6 +229,9 @@ class ItemGrid extends StatelessWidget {
         return StackCell(
           stack: stack,
           onTap: () => onItemTap(stack),
+          onDoubleTap: onItemDoubleTap != null
+              ? () => onItemDoubleTap!(stack)
+              : null,
           onLongPress: onItemLongPress != null
               ? () => onItemLongPress!(stack)
               : null,
@@ -235,6 +246,7 @@ class StackCell extends StatelessWidget {
   const StackCell({
     required this.stack,
     required this.onTap,
+    this.onDoubleTap,
     this.onLongPress,
     this.isSelected = false,
     super.key,
@@ -242,6 +254,7 @@ class StackCell extends StatelessWidget {
 
   final ItemStack stack;
   final VoidCallback onTap;
+  final VoidCallback? onDoubleTap;
   final VoidCallback? onLongPress;
   final bool isSelected;
 
@@ -254,6 +267,7 @@ class StackCell extends StatelessWidget {
       message: stack.item.name,
       preferBelow: false,
       child: GestureDetector(
+        onDoubleTap: onDoubleTap,
         onLongPress: onLongPress,
         child: Stack(
           children: [

@@ -407,6 +407,47 @@ class EquipGearAction extends ReduxAction<GlobalState> {
   }
 }
 
+/// Quick-equips an item from the bank via double-tap.
+/// For food: equips all to food slot. For gear/summons: equips to first valid
+/// slot. Returns error string on failure, null on success.
+class QuickEquipAction extends ReduxAction<GlobalState> {
+  QuickEquipAction({required this.stack});
+  final ItemStack stack;
+
+  @override
+  GlobalState? reduce() {
+    final item = stack.item;
+
+    if (item.isConsumable) {
+      if (!state.equipment.canEquipFood(item)) {
+        toastService.showError('All food slots are full');
+        return null;
+      }
+      return state.equipFood(stack);
+    }
+
+    if (item.isEquippable) {
+      if (state.unmetEquipRequirements(item).isNotEmpty) {
+        toastService.showError('Requirements not met');
+        return null;
+      }
+      final slot = item.validSlots.first;
+      // Check slayer area restriction on the item being swapped out.
+      final currentInSlot = state.equipment.gearInSlot(slot);
+      if (currentInSlot != null && currentInSlot != item) {
+        final error = state.slayerAreaGearChangeError(currentInSlot);
+        if (error != null) {
+          toastService.showError(error);
+          return null;
+        }
+      }
+      return state.equipGear(item, slot);
+    }
+
+    return null;
+  }
+}
+
 /// Unequips gear from an equipment slot back to inventory.
 class UnequipGearAction extends ReduxAction<GlobalState> {
   UnequipGearAction({required this.slot});
