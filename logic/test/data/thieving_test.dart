@@ -109,7 +109,7 @@ void main() {
         lumberjack.uniqueDrop!.itemId,
         const MelvorId('melvorF:Lumberjacks_Top'),
       );
-      expect(lumberjack.uniqueDrop!.rate, closeTo(1 / 500, 0.0001));
+      expect(lumberjack.uniqueDrop!.perception, lumberjack.perception);
     });
 
     test('Woman has NPC-specific unique drop', () {
@@ -131,7 +131,10 @@ void main() {
         lumberjack,
         const NoSelectedRecipe(),
       );
-      final dropIds = drops.whereType<Drop>().map((d) => d.itemId).toList();
+      final dropIds = drops
+          .whereType<ThievingUniqueDrop>()
+          .map((d) => d.itemId)
+          .toList();
       expect(dropIds, contains(const MelvorId('melvorF:Lumberjacks_Top')));
     });
 
@@ -709,6 +712,119 @@ void main() {
       // Base gold = 1 + 49 = 50, +1% from mastery level 1
       // 50 * 1.01 = 50.5 → 51
       expect(newState.gp, 51);
+    });
+  });
+
+  test('thieving tick rolls NPC unique drop with actual stealth', () {
+    // Lumberjack has a unique drop (Lumberjack's Top).
+    final lumberjack = testRegistries.thievingAction('Lumberjack');
+    final random = Random(42);
+    final state = GlobalState.test(
+      testRegistries,
+      skillStates: const {
+        Skill.thieving: SkillState(
+          xp: 9000000, // High level for guaranteed success
+          masteryPoolXp: 0,
+        ),
+        Skill.hitpoints: SkillState(xp: 1154, masteryPoolXp: 0),
+      },
+    ).startAction(lumberjack, random: random);
+
+    // Run many ticks to give the unique drop a chance to roll.
+    // The unique drop is very rare, so use a MockRandom that always succeeds.
+    final rng = MockRandom(); // nextDouble=0.0 => always succeeds
+    final builder = StateUpdateBuilder(state);
+    consumeTicks(builder, 30, random: rng);
+
+    final newState = builder.build();
+    // With MockRandom(0.0), success is guaranteed and the unique drop
+    // should fire. Check that we got the Lumberjack's Top.
+    expect(
+      newState.inventory.hasEverAcquired(
+        const MelvorId('melvorF:Lumberjacks_Top'),
+      ),
+      isTrue,
+    );
+  });
+
+  group('ThievingUniqueDrop', () {
+    test('dropChance matches wiki example', () {
+      // Wiki example: stealth=800, perception=300 => 0.03%
+      const drop = ThievingUniqueDrop(
+        itemId: MelvorId('test:Item'),
+        perception: 300,
+      );
+      expect(drop.dropChance(800), closeTo(0.0003, 0.00001));
+    });
+
+    test('dropChance returns 0 for zero perception', () {
+      const drop = ThievingUniqueDrop(
+        itemId: MelvorId('test:Item'),
+        perception: 0,
+      );
+      expect(drop.dropChance(100), 0);
+    });
+
+    test('dropChance increases with stealth', () {
+      const drop = ThievingUniqueDrop(
+        itemId: MelvorId('test:Item'),
+        perception: 300,
+      );
+      expect(drop.dropChance(800), greaterThan(drop.dropChance(100)));
+    });
+
+    test('expectedItems uses mid-game stealth estimate', () {
+      const drop = ThievingUniqueDrop(
+        itemId: MelvorId('test:Item'),
+        perception: 300,
+      );
+      // estimatedStealth=140: (100+140)/(10000*300) = 240/3000000
+      final expected = drop.expectedItems;
+      expect(
+        expected[const MelvorId('test:Item')],
+        closeTo(240 / 3000000, 0.0000001),
+      );
+    });
+
+    test('rollWithContext returns item when roll succeeds', () {
+      const drop = ThievingUniqueDrop(
+        itemId: MelvorId('melvorF:Lumberjacks_Top'),
+        perception: 480,
+      );
+      // With stealth=800: rate = 900/4800000 = 0.0001875
+      // MockRandom returns 0.0, which is < rate, so drop succeeds.
+      final result = drop.rollWithContext(
+        testRegistries.items,
+        MockRandom(),
+        stealth: 800,
+      );
+      expect(result, isNotNull);
+      expect(result!.item.id, const MelvorId('melvorF:Lumberjacks_Top'));
+    });
+
+    test('rollWithContext returns null when roll fails', () {
+      const drop = ThievingUniqueDrop(
+        itemId: MelvorId('melvorF:Lumberjacks_Top'),
+        perception: 480,
+      );
+      // MockRandom returns 0.5, which is > any reasonable drop rate.
+      final result = drop.rollWithContext(
+        testRegistries.items,
+        MockRandom(nextDoubleValue: 0.5),
+        stealth: 800,
+      );
+      expect(result, isNull);
+    });
+
+    test('roll throws UnimplementedError', () {
+      const drop = ThievingUniqueDrop(
+        itemId: MelvorId('test:Item'),
+        perception: 300,
+      );
+      expect(
+        () => drop.roll(testRegistries.items, MockRandom()),
+        throwsUnimplementedError,
+      );
     });
   });
 }
