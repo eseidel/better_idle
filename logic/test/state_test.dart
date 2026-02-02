@@ -2399,4 +2399,185 @@ void main() {
       expect(loaded.selectedSkillAction(Skill.woodcutting), isNull);
     });
   });
+
+  group('GlobalState.purchaseShopItem', () {
+    late MelvorId bankSlotId;
+    late MelvorId ironAxeId;
+
+    setUp(() {
+      bankSlotId = const MelvorId('melvorD:Extra_Bank_Slot');
+      ironAxeId = const MelvorId('melvorD:Iron_Axe');
+    });
+
+    test('purchases a bank slot and deducts gp', () {
+      final state = GlobalState.test(testRegistries, gp: 1000000);
+      final result = state.purchaseShopItem(bankSlotId);
+      expect(result.shop.purchaseCount(bankSlotId), 1);
+      // Bank slot costs should have been deducted.
+      expect(result.gp, lessThan(1000000));
+    });
+
+    test('can purchase bank slot multiple times (unlimited)', () {
+      final purchase = testRegistries.shop.byId(bankSlotId)!;
+      expect(purchase.isUnlimited, isTrue);
+      var state = GlobalState.test(testRegistries, gp: 10000000);
+      state = state.purchaseShopItem(bankSlotId);
+      state = state.purchaseShopItem(bankSlotId);
+      expect(state.shop.purchaseCount(bankSlotId), 2);
+    });
+
+    test('throws when buy limit reached', () {
+      final purchase = testRegistries.shop.byId(ironAxeId)!;
+      expect(purchase.buyLimit, 1);
+      // Pre-set the purchase count to the limit.
+      var state = GlobalState.test(
+        testRegistries,
+        gp: 10000000,
+        shop: const ShopState.empty().withPurchase(
+          const MelvorId('melvorD:Iron_Axe'),
+        ),
+      );
+      expect(() => state.purchaseShopItem(ironAxeId), throwsStateError);
+    });
+
+    test('throws for unknown purchase id', () {
+      final state = GlobalState.test(testRegistries, gp: 1000);
+      expect(
+        () => state.purchaseShopItem(const MelvorId('melvorD:Fake_Item')),
+        throwsStateError,
+      );
+    });
+
+    test('throws when not enough gp', () {
+      final state = GlobalState.test(testRegistries, gp: 0);
+      expect(() => state.purchaseShopItem(bankSlotId), throwsStateError);
+    });
+
+    test('grants items from purchase', () {
+      // Feathers purchase contains feather items.
+      const feathersId = MelvorId('melvorD:Feathers');
+      final purchase = testRegistries.shop.byId(feathersId)!;
+      expect(purchase.contains.items, isNotEmpty);
+      final gpCost = purchase.cost.gpCost ?? 0;
+      final state = GlobalState.test(testRegistries, gp: gpCost + 1000);
+      final result = state.purchaseShopItem(feathersId);
+      // Should have items in inventory now.
+      final grantedItemId = purchase.contains.items.first.itemId;
+      final item = testRegistries.items.byId(grantedItemId);
+      expect(result.inventory.countOfItem(item), greaterThan(0));
+    });
+
+    test('purchase with item charges grants charges', () {
+      // Cooking Gloves have itemCharges.
+      const glovesId = MelvorId('melvorD:Cooking');
+      final purchase = testRegistries.shop.byId(glovesId)!;
+      expect(purchase.contains.itemCharges, isNotNull);
+      final gpCost = purchase.cost.gpCost ?? 0;
+      final state = GlobalState.test(testRegistries, gp: gpCost + 1000);
+      final result = state.purchaseShopItem(glovesId);
+      final chargeItemId = purchase.contains.itemCharges!.itemId;
+      expect(result.itemCharges[chargeItemId], greaterThan(0));
+    });
+
+    test('throws with unlock requirements not met', () {
+      // Find a purchase with unlock requirements.
+      final purchasesWithReqs = testRegistries.shop.all
+          .where((p) => p.unlockRequirements.isNotEmpty)
+          .toList();
+      if (purchasesWithReqs.isEmpty) return; // Skip if none in test data.
+      final purchase = purchasesWithReqs.first;
+      // Fresh state won't meet requirements.
+      final state = GlobalState.test(testRegistries, gp: 10000000);
+      expect(() => state.purchaseShopItem(purchase.id), throwsStateError);
+    });
+
+    test('throws with purchase requirements not met', () {
+      // Skill upgrades have purchase requirements (must own previous tier).
+      // Steel Axe requires Iron Axe.
+      const steelAxeId = MelvorId('melvorD:Steel_Axe');
+      final purchase = testRegistries.shop.byId(steelAxeId)!;
+      if (purchase.purchaseRequirements.isEmpty) return;
+      final state = GlobalState.test(testRegistries, gp: 10000000);
+      expect(() => state.purchaseShopItem(steelAxeId), throwsStateError);
+    });
+  });
+
+  group('GlobalState.unlockPlot', () {
+    test('unlocks a plot with sufficient level and gp', () {
+      final plots = testRegistries.farming.plots;
+      // Find a plot that requires level > 1 and has costs.
+      final plot = plots.firstWhere(
+        (p) => p.level > 1 && p.currencyCosts.costs.isNotEmpty,
+        orElse: () => plots.first,
+      );
+      final state = GlobalState.test(
+        testRegistries,
+        gp: 10000000,
+        skillStates: {
+          Skill.farming: const SkillState(xp: 100000000, masteryPoolXp: 0),
+        },
+      );
+      final result = state.unlockPlot(plot.id);
+      expect(result, isNotNull);
+      expect(result!.unlockedPlots, contains(plot.id));
+    });
+
+    test('returns null for unknown plot id', () {
+      final state = GlobalState.test(testRegistries, gp: 10000000);
+      final result = state.unlockPlot(const MelvorId('melvorD:Fake_Plot'));
+      expect(result, isNull);
+    });
+
+    test('returns null when level too low', () {
+      final plots = testRegistries.farming.plots;
+      final plot = plots.firstWhere(
+        (p) => p.level > 1,
+        orElse: () => plots.first,
+      );
+      if (plot.level <= 1) return; // Skip if no level-gated plots.
+      final state = GlobalState.test(
+        testRegistries,
+        gp: 10000000,
+        skillStates: {Skill.farming: const SkillState(xp: 0, masteryPoolXp: 0)},
+      );
+      final result = state.unlockPlot(plot.id);
+      expect(result, isNull);
+    });
+
+    test('returns null when cannot afford', () {
+      final plots = testRegistries.farming.plots;
+      final plot = plots.firstWhere(
+        (p) => p.currencyCosts.costs.isNotEmpty,
+        orElse: () => plots.first,
+      );
+      if (plot.currencyCosts.costs.isEmpty) return;
+      final state = GlobalState.test(
+        testRegistries,
+        gp: 0,
+        skillStates: {
+          Skill.farming: const SkillState(xp: 100000000, masteryPoolXp: 0),
+        },
+      );
+      final result = state.unlockPlot(plot.id);
+      expect(result, isNull);
+    });
+
+    test('deducts currency cost on unlock', () {
+      final plots = testRegistries.farming.plots;
+      final plot = plots.firstWhere(
+        (p) => p.currencyCosts.costs.isNotEmpty,
+        orElse: () => plots.first,
+      );
+      if (plot.currencyCosts.costs.isEmpty) return;
+      final state = GlobalState.test(
+        testRegistries,
+        gp: 10000000,
+        skillStates: {
+          Skill.farming: const SkillState(xp: 100000000, masteryPoolXp: 0),
+        },
+      );
+      final result = state.unlockPlot(plot.id)!;
+      expect(result.gp, lessThan(state.gp));
+    });
+  });
 }

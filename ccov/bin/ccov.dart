@@ -23,7 +23,7 @@ Future<void> main(List<String> arguments) async {
       defaultsTo: '20',
       help: 'Max files to show.',
     )
-    ..addOption('exclude', help: 'Exclude files matching this substring.')
+    ..addMultiOption('exclude', help: 'Exclude files matching this substring.')
     ..addOption(
       'path',
       abbr: 'p',
@@ -55,7 +55,7 @@ Future<void> main(List<String> arguments) async {
         await runMisses(
           api,
           limit: int.parse(results.option('limit')!),
-          exclude: results.option('exclude'),
+          excludes: results.multiOption('exclude'),
           pathPrefix: results.option('path'),
         );
       default:
@@ -80,15 +80,17 @@ Future<void> runSummary(CodecovApi api) async {
 Future<void> runMisses(
   CodecovApi api, {
   required int limit,
-  String? exclude,
+  List<String> excludes = const [],
   String? pathPrefix,
 }) async {
   final data = await api.fetchReport();
   var files = (data['files'] as List).cast<Map<String, dynamic>>();
 
-  if (exclude != null) {
+  if (excludes.isNotEmpty) {
     files = files
-        .where((f) => !(f['name'] as String).contains(exclude))
+        .where(
+          (f) => !excludes.any((e) => (f['name'] as String).contains(e)),
+        )
         .toList();
   }
   if (pathPrefix != null) {
