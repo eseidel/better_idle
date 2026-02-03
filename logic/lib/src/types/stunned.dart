@@ -41,10 +41,6 @@ class StunnedState {
   /// Whether the player is currently stunned.
   bool get isStunned => ticksRemaining > 0;
 
-  /// Returns the remaining duration of the stun effect.
-  Duration get remainingDuration =>
-      Duration(milliseconds: ticksRemaining * tickDuration.inMilliseconds);
-
   /// Creates a new stunned state with the full stun duration.
   StunnedState stun() => StunnedState(ticksRemaining: stunnedDurationTicks);
 
@@ -54,10 +50,6 @@ class StunnedState {
     if (!isStunned) return this;
     final newRemaining = (ticksRemaining - ticks).clamp(0, ticksRemaining);
     return StunnedState(ticksRemaining: newRemaining);
-  }
-
-  StunnedState copyWith({Tick? ticksRemaining}) {
-    return StunnedState(ticksRemaining: ticksRemaining ?? this.ticksRemaining);
   }
 
   Map<String, dynamic> toJson() {

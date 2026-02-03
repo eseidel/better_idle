@@ -375,6 +375,88 @@ void main() {
     });
   });
 
+  group('ModifierScope.appliesToContext', () {
+    test('global scope applies to any context', () {
+      const scope = ModifierScope();
+      expect(
+        scope.appliesToContext(skillId: const MelvorId('melvorD:Cooking')),
+        isTrue,
+      );
+    });
+
+    test('matching skill and category applies', () {
+      const scope = ModifierScope(
+        skillId: MelvorId('melvorD:Cooking'),
+        categoryId: MelvorId('melvorD:Fire'),
+      );
+      expect(
+        scope.appliesToContext(
+          skillId: const MelvorId('melvorD:Cooking'),
+          categoryId: const MelvorId('melvorD:Fire'),
+        ),
+        isTrue,
+      );
+    });
+
+    test('mismatched skill does not apply', () {
+      const scope = ModifierScope(skillId: MelvorId('melvorD:Cooking'));
+      expect(
+        scope.appliesToContext(skillId: const MelvorId('melvorD:Fishing')),
+        isFalse,
+      );
+    });
+
+    test('mismatched category does not apply', () {
+      const scope = ModifierScope(
+        skillId: MelvorId('melvorD:Cooking'),
+        categoryId: MelvorId('melvorD:Fire'),
+      );
+      expect(
+        scope.appliesToContext(
+          skillId: const MelvorId('melvorD:Cooking'),
+          categoryId: const MelvorId('melvorD:Furnace'),
+        ),
+        isFalse,
+      );
+    });
+
+    test('autoScopeToAction false makes scope apply globally', () {
+      const scope = ModifierScope(skillId: MelvorId('melvorD:Cooking'));
+      expect(
+        scope.appliesToContext(
+          skillId: const MelvorId('melvorD:Fishing'),
+          autoScopeToAction: false,
+        ),
+        isTrue,
+      );
+    });
+  });
+
+  group('ModifierEntry.appliesToContext', () {
+    test('null scope applies to any context', () {
+      const entry = ModifierEntry(value: 5);
+      expect(
+        entry.appliesToContext(skillId: const MelvorId('melvorD:Cooking')),
+        isTrue,
+      );
+    });
+
+    test('delegates to scope', () {
+      const entry = ModifierEntry(
+        value: 5,
+        scope: ModifierScope(skillId: MelvorId('melvorD:Cooking')),
+      );
+      expect(
+        entry.appliesToContext(skillId: const MelvorId('melvorD:Cooking')),
+        isTrue,
+      );
+      expect(
+        entry.appliesToContext(skillId: const MelvorId('melvorD:Fishing')),
+        isFalse,
+      );
+    });
+  });
+
   group('ModifierData.fromJson', () {
     test('parses scalar value', () {
       final data = ModifierData.fromJson('skillXP', 5, namespace: 'melvorD');
@@ -428,6 +510,29 @@ void main() {
     test('other modifiers are not scaled', () {
       final data = ModifierData.fromJson('skillXP', 5, namespace: 'melvorD');
       expect(data.entries.first.value, 5); // No scaling
+    });
+
+    test('throws FormatException for array entry missing value', () {
+      expect(
+        () => ModifierData.fromJson('skillXP', const [
+          {'skillID': 'melvorD:Woodcutting'},
+        ], namespace: 'melvorD'),
+        throwsA(isA<FormatException>()),
+      );
+    });
+
+    test('throws FormatException for non-object array entry', () {
+      expect(
+        () => ModifierData.fromJson('skillXP', const [5], namespace: 'melvorD'),
+        throwsA(isA<FormatException>()),
+      );
+    });
+
+    test('throws FormatException for unexpected value type', () {
+      expect(
+        () => ModifierData.fromJson('skillXP', 'invalid', namespace: 'melvorD'),
+        throwsA(isA<FormatException>()),
+      );
     });
   });
 
