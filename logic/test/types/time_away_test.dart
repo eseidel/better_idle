@@ -327,7 +327,7 @@ void main() {
       final timeAway = TimeAway.test(testRegistries, activeAction: normalTree);
       final xpPerHour = timeAway.predictedXpPerHour;
       expect(xpPerHour[Skill.woodcutting], isNotNull);
-      expect(xpPerHour[Skill.woodcutting]!, greaterThan(0));
+      expect(xpPerHour[Skill.woodcutting], greaterThan(0));
     });
   });
 
@@ -457,10 +457,8 @@ void main() {
 
   group('LevelChanges', () {
     test('fromJson round-trips', () {
-      final original = LevelChanges(
-        changes: {
-          Skill.woodcutting: const LevelChange(startLevel: 1, endLevel: 5),
-        },
+      const original = LevelChanges(
+        changes: {Skill.woodcutting: LevelChange(startLevel: 1, endLevel: 5)},
       );
       final json = original.toJson();
       final restored = LevelChanges.fromJson(json);
@@ -469,15 +467,11 @@ void main() {
     });
 
     test('add merges overlapping skills', () {
-      final a = LevelChanges(
-        changes: {
-          Skill.woodcutting: const LevelChange(startLevel: 1, endLevel: 5),
-        },
+      const a = LevelChanges(
+        changes: {Skill.woodcutting: LevelChange(startLevel: 1, endLevel: 5)},
       );
-      final b = LevelChanges(
-        changes: {
-          Skill.woodcutting: const LevelChange(startLevel: 3, endLevel: 8),
-        },
+      const b = LevelChanges(
+        changes: {Skill.woodcutting: LevelChange(startLevel: 3, endLevel: 8)},
       );
       final merged = a.add(b);
       expect(merged.changes[Skill.woodcutting]!.startLevel, 1);
@@ -485,15 +479,11 @@ void main() {
     });
 
     test('add merges disjoint skills', () {
-      final a = LevelChanges(
-        changes: {
-          Skill.woodcutting: const LevelChange(startLevel: 1, endLevel: 5),
-        },
+      const a = LevelChanges(
+        changes: {Skill.woodcutting: LevelChange(startLevel: 1, endLevel: 5)},
       );
-      final b = LevelChanges(
-        changes: {
-          Skill.mining: const LevelChange(startLevel: 10, endLevel: 15),
-        },
+      const b = LevelChanges(
+        changes: {Skill.mining: LevelChange(startLevel: 10, endLevel: 15)},
       );
       final merged = a.add(b);
       expect(merged.changes[Skill.woodcutting]!.endLevel, 5);
@@ -501,10 +491,8 @@ void main() {
     });
 
     test('entries and isNotEmpty', () {
-      final lc = LevelChanges(
-        changes: {
-          Skill.woodcutting: const LevelChange(startLevel: 1, endLevel: 2),
-        },
+      const lc = LevelChanges(
+        changes: {Skill.woodcutting: LevelChange(startLevel: 1, endLevel: 2)},
       );
       expect(lc.entries.length, 1);
       expect(lc.isNotEmpty, isTrue);

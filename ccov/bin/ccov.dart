@@ -88,9 +88,7 @@ Future<void> runMisses(
 
   if (excludes.isNotEmpty) {
     files = files
-        .where(
-          (f) => !excludes.any((e) => (f['name'] as String).contains(e)),
-        )
+        .where((f) => !excludes.any((e) => (f['name'] as String).contains(e)))
         .toList();
   }
   if (pathPrefix != null) {
