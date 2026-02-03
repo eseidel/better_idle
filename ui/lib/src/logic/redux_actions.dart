@@ -857,15 +857,26 @@ class PurchaseAstrologyModifierAction extends ReduxAction<GlobalState> {
   }
 }
 
-/// Spends mastery pool XP to raise an action's mastery to the next level.
+/// Spends mastery pool XP to raise an action's mastery level(s).
 class SpendMasteryPoolAction extends ReduxAction<GlobalState> {
-  SpendMasteryPoolAction({required this.skill, required this.actionId});
+  SpendMasteryPoolAction({
+    required this.skill,
+    required this.actionId,
+    this.levels = 1,
+  });
   final Skill skill;
   final ActionId actionId;
+  final int levels;
 
   @override
   GlobalState? reduce() {
-    return state.spendMasteryPoolXp(skill, actionId);
+    var newState = state;
+    for (var i = 0; i < levels; i++) {
+      final updated = newState.spendMasteryPoolXp(skill, actionId);
+      if (updated == null) break; // Max level reached or can't afford
+      newState = updated;
+    }
+    return newState == state ? null : newState;
   }
 }
 

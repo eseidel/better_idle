@@ -1976,6 +1976,17 @@ class GlobalState {
     return startXpForLevel(currentLevel + 1) - action.masteryXp;
   }
 
+  /// Returns the total XP cost to raise an action's mastery by [levels] levels,
+  /// or null if already at max mastery (99).
+  int? masteryLevelUpCostForLevels(ActionId actionId, int levels) {
+    if (levels <= 0) return null;
+    final action = actionState(actionId);
+    final currentLevel = action.masteryLevel;
+    if (currentLevel >= 99) return null;
+    final targetLevel = (currentLevel + levels).clamp(1, 99);
+    return startXpForLevel(targetLevel) - action.masteryXp;
+  }
+
   /// Returns which mastery pool checkpoint would be crossed if [xpCost] were
   /// spent from the pool for [skill]. Returns null if no checkpoint is crossed.
   int? masteryPoolCheckpointCrossed(Skill skill, int xpCost) {
