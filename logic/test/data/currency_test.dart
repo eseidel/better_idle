@@ -104,7 +104,7 @@ void main() {
 
   group('CurrencyCosts', () {
     test('fromJson parses empty list', () {
-      final costs = CurrencyCosts.fromJson([]);
+      final costs = CurrencyCosts.fromJson(const []);
       expect(costs.isEmpty, isTrue);
     });
 
