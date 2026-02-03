@@ -311,4 +311,44 @@ void main() {
       expect(xpWithEvenMastery, greaterThan(xp * 3));
     });
   });
+
+  group('actionTimeForMastery', () {
+    test('woodcutting uses actual action duration', () {
+      final action = testRegistries.woodcuttingAction('Normal Tree');
+      expect(
+        actionTimeForMastery(action),
+        action.maxDuration.inSeconds.toDouble(),
+      );
+    });
+
+    test('fishing uses actual action duration', () {
+      final action = testRegistries.fishingAction('Raw Shrimp');
+      expect(
+        actionTimeForMastery(action),
+        action.maxDuration.inSeconds.toDouble(),
+      );
+    });
+
+    test('smithing uses fixed 1.7 seconds', () {
+      final action = testRegistries.smithingAction('Bronze Dagger');
+      expect(actionTimeForMastery(action), 1.7);
+    });
+
+    test('firemaking uses 60% of burn interval', () {
+      final action = testRegistries.firemakingAction('Burn Normal Logs');
+      expect(actionTimeForMastery(action), action.maxDuration.inSeconds * 0.6);
+    });
+  });
+
+  group('maxMasteryPoolXpForSkill', () {
+    test('returns correct value for woodcutting', () {
+      final actionCount = testRegistries
+          .actionsForSkill(Skill.woodcutting)
+          .length;
+      expect(
+        maxMasteryPoolXpForSkill(testRegistries, Skill.woodcutting),
+        actionCount * 500000,
+      );
+    });
+  });
 }

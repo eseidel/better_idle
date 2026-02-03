@@ -229,5 +229,43 @@ void main() {
     test('maybeFromJson parses valid input', () {
       expect(EquipmentSlot.maybeFromJson('Weapon'), EquipmentSlot.weapon);
     });
+
+    test('isStackSlot returns true for stack slots', () {
+      expect(EquipmentSlot.quiver.isStackSlot, isTrue);
+      expect(EquipmentSlot.summon1.isStackSlot, isTrue);
+      expect(EquipmentSlot.summon2.isStackSlot, isTrue);
+      expect(EquipmentSlot.consumable.isStackSlot, isTrue);
+    });
+
+    test('isStackSlot returns false for non-stack slots', () {
+      expect(EquipmentSlot.weapon.isStackSlot, isFalse);
+      expect(EquipmentSlot.helmet.isStackSlot, isFalse);
+      expect(EquipmentSlot.passive.isStackSlot, isFalse);
+    });
+
+    test('isSummonSlot returns true for summon slots', () {
+      expect(EquipmentSlot.summon1.isSummonSlot, isTrue);
+      expect(EquipmentSlot.summon2.isSummonSlot, isTrue);
+    });
+
+    test('isSummonSlot returns false for non-summon slots', () {
+      expect(EquipmentSlot.weapon.isSummonSlot, isFalse);
+      expect(EquipmentSlot.quiver.isSummonSlot, isFalse);
+    });
+  });
+
+  group('EquipmentSlotDef', () {
+    test('toString returns readable string', () {
+      const def = EquipmentSlotDef(
+        slot: EquipmentSlot.weapon,
+        id: MelvorId('melvorD:Weapon'),
+        allowQuantity: false,
+        emptyName: 'Weapon',
+        emptyMedia: 'test.png',
+        providesEquipStats: true,
+        gridPosition: GridPosition(col: 1, row: 2),
+      );
+      expect(def.toString(), contains('Weapon'));
+    });
   });
 }

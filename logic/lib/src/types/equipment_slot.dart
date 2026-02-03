@@ -46,9 +46,6 @@ enum EquipmentSlot {
   /// Returns true if this slot is for summoning tablets.
   bool get isSummonSlot => this == summon1 || this == summon2;
 
-  /// Returns true if this slot is for the quiver (ammo).
-  bool get isQuiverSlot => this == quiver;
-
   /// Parse from JSON slot name.
   static EquipmentSlot fromJson(String name) {
     for (final slot in values) {
