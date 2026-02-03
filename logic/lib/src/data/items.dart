@@ -510,6 +510,10 @@ class Item extends Equatable {
   /// Whether this item is a potion.
   bool get isPotion => itemType == 'Potion';
 
+  /// Whether this item is readable (e.g., Message in a Bottle).
+  /// Reading certain items unlocks game content.
+  bool get isReadable => itemType == 'Readable';
+
   /// Returns true if this item can be equipped in the given slot.
   bool canEquipInSlot(EquipmentSlot slot) => validSlots.contains(slot);
 

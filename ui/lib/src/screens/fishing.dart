@@ -56,9 +56,13 @@ class _FishingPageState extends State<FishingPage> {
         savedAction ??
         (unlockedActions.isNotEmpty ? unlockedActions.first : null);
 
-    // Group actions by area.
+    // Group actions by area, filtering out areas that are not visible.
     final actionsByArea = <FishingArea, List<FishingAction>>{};
     for (final area in fishingAreas) {
+      // Skip areas that are not visible (secret or require specific items)
+      if (!state.isFishingAreaVisible(area)) {
+        continue;
+      }
       final actionsInArea = <FishingAction>[];
       for (final fishId in area.fishIDs) {
         final action = fishingActions.firstWhereOrNull(
