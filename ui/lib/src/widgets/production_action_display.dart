@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart' hide Action;
 import 'package:logic/logic.dart';
 import 'package:ui/src/logic/redux_actions.dart';
+import 'package:ui/src/widgets/action_grid.dart';
 import 'package:ui/src/widgets/cached_image.dart';
 import 'package:ui/src/widgets/context_extensions.dart';
 import 'package:ui/src/widgets/count_badge_cell.dart';
@@ -24,7 +25,8 @@ import 'package:ui/src/widgets/xp_badges_row.dart';
 /// - Row 3: Recipe selector (if action has alternative recipes)
 /// - Row 4: Two columns - "Requires:" with items | "You Have:" with items
 /// - Row 5: Two columns - "Produces:" with items | "Grants:" with XP badges
-/// - Row 6: Action button with duration badge
+/// - Row 6: Action progress bar (shown when action is active)
+/// - Row 7: Action button with duration badge
 class ProductionActionDisplay extends StatelessWidget {
   const ProductionActionDisplay({
     required this.action,
@@ -156,7 +158,13 @@ class ProductionActionDisplay extends StatelessWidget {
           _buildProducesGrantsRow(context, outputs),
           const SizedBox(height: 16),
 
-          // Row 6: Action button with duration
+          // Row 6: Action progress bar (shown when active)
+          if (isActive) ...[
+            ActionProgressBar(action: action),
+            const SizedBox(height: 12),
+          ],
+
+          // Row 7: Action button with duration
           _buildButtonRow(context, isActive, canStart),
         ],
       ),

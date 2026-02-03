@@ -19,6 +19,7 @@ ignorePaths:
   - "ios/Runner/GeneratedPluginRegistrant.m"
   - "**/Pods/**"
   - "**/Flutter/**"
+  - "logic/coverage/**"
   - "logic/doc/proposals/**"
   - "logic/doc/solver/**"
   - "logic/*.json"

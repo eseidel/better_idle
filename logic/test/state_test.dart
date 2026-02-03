@@ -2430,7 +2430,7 @@ void main() {
       final purchase = testRegistries.shop.byId(ironAxeId)!;
       expect(purchase.buyLimit, 1);
       // Pre-set the purchase count to the limit.
-      var state = GlobalState.test(
+      final state = GlobalState.test(
         testRegistries,
         gp: 10000000,
         shop: const ShopState.empty().withPurchase(
@@ -2449,7 +2449,7 @@ void main() {
     });
 
     test('throws when not enough gp', () {
-      final state = GlobalState.test(testRegistries, gp: 0);
+      final state = GlobalState.test(testRegistries);
       expect(() => state.purchaseShopItem(bankSlotId), throwsStateError);
     });
 
@@ -2513,8 +2513,8 @@ void main() {
       final state = GlobalState.test(
         testRegistries,
         gp: 10000000,
-        skillStates: {
-          Skill.farming: const SkillState(xp: 100000000, masteryPoolXp: 0),
+        skillStates: const {
+          Skill.farming: SkillState(xp: 100000000, masteryPoolXp: 0),
         },
       );
       final result = state.unlockPlot(plot.id);
@@ -2538,7 +2538,7 @@ void main() {
       final state = GlobalState.test(
         testRegistries,
         gp: 10000000,
-        skillStates: {Skill.farming: const SkillState(xp: 0, masteryPoolXp: 0)},
+        skillStates: const {Skill.farming: SkillState(xp: 0, masteryPoolXp: 0)},
       );
       final result = state.unlockPlot(plot.id);
       expect(result, isNull);
@@ -2553,9 +2553,8 @@ void main() {
       if (plot.currencyCosts.costs.isEmpty) return;
       final state = GlobalState.test(
         testRegistries,
-        gp: 0,
-        skillStates: {
-          Skill.farming: const SkillState(xp: 100000000, masteryPoolXp: 0),
+        skillStates: const {
+          Skill.farming: SkillState(xp: 100000000, masteryPoolXp: 0),
         },
       );
       final result = state.unlockPlot(plot.id);
@@ -2572,8 +2571,8 @@ void main() {
       final state = GlobalState.test(
         testRegistries,
         gp: 10000000,
-        skillStates: {
-          Skill.farming: const SkillState(xp: 100000000, masteryPoolXp: 0),
+        skillStates: const {
+          Skill.farming: SkillState(xp: 100000000, masteryPoolXp: 0),
         },
       );
       final result = state.unlockPlot(plot.id)!;

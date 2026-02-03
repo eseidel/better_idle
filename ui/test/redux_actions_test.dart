@@ -3167,7 +3167,7 @@ void main() {
         duration: const Duration(seconds: 5),
         category: 0,
       );
-      final course = const AgilityCourse(
+      const course = AgilityCourse(
         realm: MelvorId('melvorD:Melvor'),
         obstacleSlots: [1, 1, 1],
         pillarSlots: [],
@@ -3176,7 +3176,7 @@ void main() {
         actions: [obstacle],
         agility: AgilityRegistry(
           obstacles: [obstacle],
-          courses: [course],
+          courses: const [course],
           pillars: const [],
         ),
       );
@@ -3199,7 +3199,7 @@ void main() {
         duration: const Duration(seconds: 5),
         category: 0,
       );
-      final course = const AgilityCourse(
+      const course = AgilityCourse(
         realm: MelvorId('melvorD:Melvor'),
         obstacleSlots: [1, 1, 1],
         pillarSlots: [],
@@ -3208,7 +3208,7 @@ void main() {
         actions: [obstacle],
         agility: AgilityRegistry(
           obstacles: [obstacle],
-          courses: [course],
+          courses: const [course],
           pillars: const [],
         ),
       );
@@ -3233,7 +3233,7 @@ void main() {
         duration: const Duration(seconds: 5),
         category: 0,
       );
-      final course = const AgilityCourse(
+      const course = AgilityCourse(
         realm: MelvorId('melvorD:Melvor'),
         obstacleSlots: [1, 1, 1],
         pillarSlots: [],
@@ -3242,7 +3242,7 @@ void main() {
         actions: [obstacle],
         agility: AgilityRegistry(
           obstacles: [obstacle],
-          courses: [course],
+          courses: const [course],
           pillars: const [],
         ),
       );
@@ -3255,7 +3255,7 @@ void main() {
     });
 
     test('does nothing when no obstacles built', () {
-      final course = const AgilityCourse(
+      const course = AgilityCourse(
         realm: MelvorId('melvorD:Melvor'),
         obstacleSlots: [1, 1, 1],
         pillarSlots: [],
@@ -3263,7 +3263,7 @@ void main() {
       final registries = Registries.test(
         agility: AgilityRegistry(
           obstacles: const [],
-          courses: [course],
+          courses: const [course],
           pillars: const [],
         ),
       );
@@ -3285,7 +3285,7 @@ void main() {
         duration: const Duration(seconds: 5),
         category: 0,
       );
-      final course = const AgilityCourse(
+      const course = AgilityCourse(
         realm: MelvorId('melvorD:Melvor'),
         obstacleSlots: [1, 1, 1],
         pillarSlots: [],
@@ -3294,7 +3294,7 @@ void main() {
         actions: [obstacle],
         agility: AgilityRegistry(
           obstacles: [obstacle],
-          courses: [course],
+          courses: const [course],
           pillars: const [],
         ),
       );
