@@ -61,6 +61,54 @@ void main() {
     });
   });
 
+  group('masteryLevelUpCostForLevels', () {
+    test('calculates cost for multiple levels', () {
+      final normalTree = testRegistries.woodcuttingAction('Normal Tree');
+      final state = GlobalState.empty(testRegistries);
+
+      // Action starts at level 1. Cost to level 2 is 83, to level 3 is 174.
+      final cost1 = state.masteryLevelUpCostForLevels(normalTree.id, 1);
+      expect(cost1, 83); // Same as masteryLevelUpCost
+
+      final cost2 = state.masteryLevelUpCostForLevels(normalTree.id, 2);
+      expect(cost2, 174); // XP needed to reach level 3
+
+      final cost5 = state.masteryLevelUpCostForLevels(normalTree.id, 5);
+      expect(cost5, 512); // XP needed to reach level 6
+    });
+
+    test('returns null for zero or negative levels', () {
+      final normalTree = testRegistries.woodcuttingAction('Normal Tree');
+      final state = GlobalState.empty(testRegistries);
+
+      expect(state.masteryLevelUpCostForLevels(normalTree.id, 0), isNull);
+      expect(state.masteryLevelUpCostForLevels(normalTree.id, -1), isNull);
+    });
+
+    test('returns null when already at max mastery', () {
+      final normalTree = testRegistries.woodcuttingAction('Normal Tree');
+      var state = GlobalState.empty(testRegistries);
+
+      // Set action mastery to max (level 99).
+      state = state.addActionMasteryXp(normalTree.id, maxMasteryXp);
+
+      expect(state.masteryLevelUpCostForLevels(normalTree.id, 1), isNull);
+    });
+
+    test('clamps to max level 99', () {
+      final normalTree = testRegistries.woodcuttingAction('Normal Tree');
+      var state = GlobalState.empty(testRegistries);
+
+      // Set action mastery to level 98 (one below max).
+      state = state.addActionMasteryXp(normalTree.id, startXpForLevel(98));
+
+      // Requesting 5 levels should only give cost for 1 level (to 99).
+      final cost = state.masteryLevelUpCostForLevels(normalTree.id, 5);
+      final costFor1 = state.masteryLevelUpCost(normalTree.id);
+      expect(cost, costFor1);
+    });
+  });
+
   group('masteryPoolCheckpointCrossed', () {
     test('detects crossing a checkpoint', () {
       var state = GlobalState.empty(testRegistries);
