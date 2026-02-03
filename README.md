@@ -43,9 +43,6 @@ is written in a different language than the mods.
 - magic dust should stack in loot as well as/instead of bones?
 
 ### To Implement
-- more Thieving drops.
-- global drops.
-- mastery rewards (and UI) for all actions.
 - Alt. Magic
 - Statistics tracking
 - township storage control
