@@ -238,6 +238,11 @@ class Equipment {
   /// Returns the item currently equipped in the given slot, or null if empty.
   Item? gearInSlot(EquipmentSlot slot) => gearSlots[slot];
 
+  /// Returns true if an item with the given ID is currently equipped.
+  bool hasItemEquipped(MelvorId itemId) {
+    return gearSlots.values.any((item) => item.id == itemId);
+  }
+
   /// Returns true if the item can be equipped in the given slot.
   /// An item can be equipped if the slot is empty or will be swapped.
   bool canEquipGear(Item item, EquipmentSlot slot) {

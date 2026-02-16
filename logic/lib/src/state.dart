@@ -306,6 +306,7 @@ class GlobalState {
     this.timeAway,
     this.stunned = const StunnedState.fresh(),
     this.attackStyle = AttackStyle.stab,
+    this.readItems = const <MelvorId>{},
     this.agility = const AgilityState.empty(),
     this.cooking = const CookingState.empty(),
     this.summoning = const SummoningState.empty(),
@@ -375,6 +376,7 @@ class GlobalState {
     LootState loot = const LootState.empty(),
     AstrologyState astrology = const AstrologyState.empty(),
     Map<Skill, MelvorId> selectedSkillActions = const {},
+    Set<MelvorId> readItems = const {},
   }) {
     // Support both gp parameter (for existing tests) and currencies map
     final currenciesMap = currencies ?? (gp > 0 ? {Currency.gp: gp} : const {});
@@ -408,6 +410,7 @@ class GlobalState {
       loot: loot,
       astrology: astrology,
       selectedSkillActions: selectedSkillActions,
+      readItems: readItems,
     );
   }
 
@@ -491,7 +494,8 @@ class GlobalState {
           const LootState.empty(),
       astrology =
           _astrologyFromJson(json['astrology']) ?? const AstrologyState.empty(),
-      selectedSkillActions = _selectedSkillActionsFromJson(json);
+      selectedSkillActions = _selectedSkillActionsFromJson(json),
+      readItems = _readItemsFromJson(json);
 
   /// Parses activeActivity from JSON.
   static ActiveActivity? _parseActiveActivity(Map<String, dynamic> json) {
@@ -592,6 +596,11 @@ class GlobalState {
     });
   }
 
+  static Set<MelvorId> _readItemsFromJson(Map<String, dynamic> json) {
+    final readItemsJson = json['readItems'] as List<dynamic>? ?? [];
+    return readItemsJson.map((e) => MelvorId.fromJson(e as String)).toSet();
+  }
+
   bool validate() {
     // Confirm that the active action id is a valid action.
     final actionId = currentActionId;
@@ -655,6 +664,7 @@ class GlobalState {
       'selectedSkillActions': selectedSkillActions.map(
         (key, value) => MapEntry(key.name, value.toJson()),
       ),
+      'readItems': readItems.map((e) => e.toJson()).toList(),
     };
   }
 
@@ -806,6 +816,10 @@ class GlobalState {
   /// Used to remember which action (e.g., which log type in firemaking) the
   /// player was viewing when they navigate away and back to a skill screen.
   final Map<Skill, MelvorId> selectedSkillActions;
+
+  /// Set of item IDs that have been read (e.g., Message in a Bottle).
+  /// Reading certain items unlocks content like secret fishing areas.
+  final Set<MelvorId> readItems;
 
   /// The player's health state.
   final HealthState health;
@@ -3376,6 +3390,7 @@ class GlobalState {
     LootState? loot,
     AstrologyState? astrology,
     Map<Skill, MelvorId>? selectedSkillActions,
+    Set<MelvorId>? readItems,
   }) {
     return GlobalState(
       registries: registries,
@@ -3410,6 +3425,7 @@ class GlobalState {
       loot: loot ?? this.loot,
       astrology: astrology ?? this.astrology,
       selectedSkillActions: selectedSkillActions ?? this.selectedSkillActions,
+      readItems: readItems ?? this.readItems,
     );
   }
 
@@ -3429,6 +3445,61 @@ class GlobalState {
 
   /// Gets the last selected action ID for a skill, or null if none.
   MelvorId? selectedSkillAction(Skill skill) => selectedSkillActions[skill];
+
+  // =========================================================================
+  // Readable Items
+  // =========================================================================
+
+  /// Returns true if the given item has been read.
+  bool hasReadItem(MelvorId itemId) => readItems.contains(itemId);
+
+  /// The ID of the Message in a Bottle item that unlocks the Secret Area.
+  static const _messageInABottleId = MelvorId('melvorD:Message_In_A_Bottle');
+
+  /// The ID of the Secret Fishing Area.
+  static const _secretFishingAreaId = MelvorId('melvorD:SecretArea');
+
+  /// Reads an item, adding it to the set of read items.
+  /// Returns the new state with the item marked as read.
+  /// Throws if the item is not readable.
+  GlobalState readItem(MelvorId itemId) {
+    final item = registries.items.byId(itemId);
+    if (!item.isReadable) {
+      throw StateError('Item $itemId is not readable');
+    }
+    if (readItems.contains(itemId)) {
+      return this; // Already read
+    }
+    final newReadItems = Set<MelvorId>.from(readItems)..add(itemId);
+    return copyWith(readItems: newReadItems);
+  }
+
+  // =========================================================================
+  // Fishing Area Visibility
+  // =========================================================================
+
+  /// Returns true if a fishing area is visible to the player.
+  ///
+  /// Secret areas require reading the Message in a Bottle.
+  /// Areas with requiredItemID require having that item equipped.
+  bool isFishingAreaVisible(FishingArea area) {
+    // Secret areas require unlocking by reading Message in a Bottle
+    if (area.isSecret) {
+      // The Secret Area is unlocked by reading the Message in a Bottle
+      if (area.id == _secretFishingAreaId) {
+        return hasReadItem(_messageInABottleId);
+      }
+      // Other secret areas would need their own unlock logic
+      return false;
+    }
+
+    // Areas with required items need that item equipped
+    if (area.requiredItemID != null) {
+      return equipment.hasItemEquipped(area.requiredItemID!);
+    }
+
+    return true;
+  }
 
   // =========================================================================
   // Astrology
