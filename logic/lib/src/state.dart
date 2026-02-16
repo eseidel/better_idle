@@ -3453,12 +3453,6 @@ class GlobalState {
   /// Returns true if the given item has been read.
   bool hasReadItem(MelvorId itemId) => readItems.contains(itemId);
 
-  /// The ID of the Message in a Bottle item that unlocks the Secret Area.
-  static const _messageInABottleId = MelvorId('melvorD:Message_In_A_Bottle');
-
-  /// The ID of the Secret Fishing Area.
-  static const _secretFishingAreaId = MelvorId('melvorD:SecretArea');
-
   /// Reads an item, adding it to the set of read items.
   /// Returns the new state with the item marked as read.
   /// Throws if the item is not readable.
@@ -3480,22 +3474,15 @@ class GlobalState {
 
   /// Returns true if a fishing area is visible to the player.
   ///
-  /// Secret areas require reading the Message in a Bottle.
-  /// Areas with requiredItemID require having that item equipped.
+  /// Areas with [FishingArea.unlockedByItemID] require that item to be read.
+  /// Areas with [FishingArea.requiredItemID] require that item equipped.
   bool isFishingAreaVisible(FishingArea area) {
-    // Secret areas require unlocking by reading Message in a Bottle
-    if (area.isSecret) {
-      // The Secret Area is unlocked by reading the Message in a Bottle
-      if (area.id == _secretFishingAreaId) {
-        return hasReadItem(_messageInABottleId);
-      }
-      // Other secret areas would need their own unlock logic
-      return false;
+    if (area.unlockedByItemID != null) {
+      if (!hasReadItem(area.unlockedByItemID!)) return false;
     }
 
-    // Areas with required items need that item equipped
     if (area.requiredItemID != null) {
-      return equipment.hasItemEquipped(area.requiredItemID!);
+      if (!equipment.hasItemEquipped(area.requiredItemID!)) return false;
     }
 
     return true;
