@@ -2,6 +2,7 @@ import 'dart:math';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:logic/logic.dart';
+import 'package:logic/src/data/registries_io.dart';
 import 'package:scoped_deps/scoped_deps.dart';
 import 'package:ui/src/logic/redux_actions.dart';
 import 'package:ui/src/services/toast_service.dart';

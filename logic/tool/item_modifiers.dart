@@ -8,7 +8,7 @@
 import 'dart:convert';
 import 'dart:io';
 
-import 'package:logic/src/data/cache.dart';
+import 'package:logic/src/data/file_cache.dart';
 
 /// Parses modifier_names.dart to get all known modifier names.
 Future<Set<String>> parseKnownModifiers() async {
@@ -136,7 +136,7 @@ void parseItemModifiers(
 }
 
 void main() async {
-  final cache = Cache(cacheDir: defaultCacheDir);
+  final cache = FileCache(cacheDir: defaultCacheDir);
 
   try {
     print('Loading JSON data files...\n');

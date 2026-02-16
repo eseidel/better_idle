@@ -14,6 +14,7 @@ import 'dart:io';
 
 import 'package:args/args.dart';
 import 'package:logic/logic.dart';
+import 'package:logic/src/data/registries_io.dart';
 import 'package:logic/src/solver/meta/meta_goal.dart';
 import 'package:logic/src/solver/meta/meta_planner.dart';
 import 'package:logic/src/solver/meta/milestone.dart';

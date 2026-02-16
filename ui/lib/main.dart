@@ -3,11 +3,11 @@ import 'dart:async';
 import 'package:async_redux/local_persist.dart';
 import 'package:flutter/material.dart';
 import 'package:logic/logic.dart';
-import 'package:path_provider/path_provider.dart';
 import 'package:scoped_deps/scoped_deps.dart';
 import 'package:ui/src/logic/game_loop.dart';
 import 'package:ui/src/logic/redux_actions.dart';
-import 'package:ui/src/services/image_cache_service.dart';
+import 'package:ui/src/services/cache_factory.dart';
+import 'package:ui/src/services/cache_services.dart';
 import 'package:ui/src/services/logger.dart';
 import 'package:ui/src/services/save_slot_service.dart';
 import 'package:ui/src/services/toast_service.dart';
@@ -268,7 +268,7 @@ class MyApp extends StatefulWidget {
 
 class _MyAppState extends State<MyApp> {
   bool _isDataLoaded = false;
-  late final ImageCacheService _imageCacheService;
+  late final CacheServices _cacheServices;
   late final Registries _registries;
 
   @override
@@ -278,10 +278,8 @@ class _MyAppState extends State<MyApp> {
   }
 
   Future<void> _loadData() async {
-    final cacheDir = await getApplicationCacheDirectory();
-    final cache = Cache(cacheDir: cacheDir);
-    _imageCacheService = ImageCacheService(cache);
-    _registries = await loadRegistriesFromCache(cache);
+    _cacheServices = await createCacheServices();
+    _registries = await loadRegistriesFromCache(_cacheServices.cache);
 
     setState(() {
       _isDataLoaded = true;
@@ -290,7 +288,7 @@ class _MyAppState extends State<MyApp> {
 
   @override
   void dispose() {
-    _imageCacheService.dispose();
+    _cacheServices.dispose();
     super.dispose();
   }
 
@@ -303,10 +301,7 @@ class _MyAppState extends State<MyApp> {
         home: const Scaffold(body: Center(child: CircularProgressIndicator())),
       );
     }
-    return ImageCacheServiceProvider(
-      service: _imageCacheService,
-      child: _GameApp(registries: _registries),
-    );
+    return _cacheServices.wrapChild(_GameApp(registries: _registries));
   }
 }
 

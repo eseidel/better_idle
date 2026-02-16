@@ -1,5 +1,3 @@
-import 'dart:io';
-
 import 'package:logic/src/data/action_id.dart';
 import 'package:logic/src/data/actions.dart';
 import 'package:logic/src/data/cache.dart';
@@ -268,19 +266,6 @@ class Registries {
   /// Comparator for sorting items according to bank sort order.
   int compareBankItems(Item a, Item b) =>
       compareByIndex(_bankSortIndex, a.id, b.id);
-}
-
-/// Ensures the registries are initialized.
-///
-/// This should be called during app startup or in setUpAll() for tests.
-/// It's safe to call multiple times; subsequent calls are no-ops.
-Future<Registries> loadRegistries({Directory? cacheDir}) async {
-  final cache = Cache(cacheDir: cacheDir ?? defaultCacheDir);
-  try {
-    return await loadRegistriesFromCache(cache);
-  } finally {
-    cache.close();
-  }
 }
 
 /// Loads registries from an existing cache instance.

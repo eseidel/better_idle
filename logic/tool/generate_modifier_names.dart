@@ -6,7 +6,7 @@
 // ignore_for_file: avoid_print
 import 'dart:io';
 
-import 'package:logic/src/data/cache.dart';
+import 'package:logic/src/data/file_cache.dart';
 import 'package:logic/src/data/items.dart' show EquipmentStatModifier;
 
 /// Convert snake_case to CamelCase.
@@ -111,7 +111,7 @@ class ModifierScopeInfo {
 }
 
 void main() async {
-  final cache = Cache(cacheDir: defaultCacheDir);
+  final cache = FileCache(cacheDir: defaultCacheDir);
 
   try {
     print('Loading JSON data files...');

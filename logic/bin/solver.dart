@@ -13,6 +13,7 @@ import 'dart:math';
 
 import 'package:args/args.dart';
 import 'package:logic/logic.dart';
+import 'package:logic/src/data/registries_io.dart';
 import 'package:logic/src/solver/analysis/replan_boundary.dart';
 import 'package:logic/src/solver/analysis/wait_for.dart';
 import 'package:logic/src/solver/candidates/macro_candidate.dart';

@@ -9,6 +9,7 @@ import 'dart:math';
 
 import 'package:collection/collection.dart';
 import 'package:logic/logic.dart';
+import 'package:logic/src/data/registries_io.dart';
 
 /// Prints TimeAway information to the console in a readable format.
 void printTimeAway(TimeAway timeAway) {

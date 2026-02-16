@@ -2,13 +2,13 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/widgets.dart';
-import 'package:logic/logic.dart';
+import 'package:logic/file_cache.dart';
 
 /// Service for caching and loading item images from the Melvor CDN.
 class ImageCacheService {
   ImageCacheService(this._cache);
 
-  final Cache _cache;
+  final FileCache _cache;
   final Map<String, Future<File?>> _pendingFetches = {};
 
   /// Returns the cached file for an asset path, or null if not yet cached.

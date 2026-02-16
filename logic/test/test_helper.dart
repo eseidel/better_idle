@@ -1,4 +1,5 @@
 import 'package:logic/logic.dart';
+import 'package:logic/src/data/registries_io.dart';
 
 /// Standard registries for tests. Must call [loadTestRegistries] first.
 late Registries testRegistries;

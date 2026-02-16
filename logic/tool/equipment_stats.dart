@@ -8,7 +8,7 @@
 import 'dart:convert';
 import 'dart:io';
 
-import 'package:logic/src/data/cache.dart';
+import 'package:logic/src/data/file_cache.dart';
 
 /// Parses EquipmentStats class to get all known stat keys.
 Future<Set<String>> parseKnownStats() async {
@@ -76,7 +76,7 @@ void parseItemEquipmentStats(
 }
 
 void main() async {
-  final cache = Cache(cacheDir: defaultCacheDir);
+  final cache = FileCache(cacheDir: defaultCacheDir);
 
   try {
     print('Loading JSON data files...\n');
