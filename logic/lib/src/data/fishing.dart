@@ -15,6 +15,7 @@ class FishingArea {
     required this.fishIDs,
     this.requiredItemID,
     this.isSecret = false,
+    this.unlockedByItemID,
   });
 
   factory FishingArea.fromJson(
@@ -32,6 +33,14 @@ class FishingArea {
 
     final requiredItemIDJson = json['requiredItemID'] as String?;
 
+    final isSecret = json['isSecret'] as bool? ?? false;
+
+    // The JSON doesn't encode what unlocks secret areas, so we map it here.
+    // The Secret Area is unlocked by reading Message in a Bottle.
+    final unlockedByItemIDJson =
+        json['unlockedByItemID'] as String? ??
+        (isSecret ? 'melvorD:Message_In_A_Bottle' : null);
+
     return FishingArea(
       id: MelvorId.fromJsonWithNamespace(
         json['id'] as String,
@@ -48,7 +57,13 @@ class FishingArea {
               defaultNamespace: namespace,
             )
           : null,
-      isSecret: json['isSecret'] as bool? ?? false,
+      isSecret: isSecret,
+      unlockedByItemID: unlockedByItemIDJson != null
+          ? MelvorId.fromJsonWithNamespace(
+              unlockedByItemIDJson,
+              defaultNamespace: namespace,
+            )
+          : null,
     );
   }
 
@@ -60,6 +75,9 @@ class FishingArea {
   final List<MelvorId> fishIDs;
   final MelvorId? requiredItemID;
   final bool isSecret;
+
+  /// The readable item that must be read to unlock this area (for secret areas).
+  final MelvorId? unlockedByItemID;
 }
 
 /// A fishing action parsed from Melvor data.

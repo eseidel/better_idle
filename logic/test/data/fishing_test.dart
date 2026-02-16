@@ -273,5 +273,9 @@ void main() {
     test('message in a bottle is a readable item', () {
       expect(messageInABottle.isReadable, isTrue);
     });
+
+    test('secret area has unlockedByItemID set', () {
+      expect(secretArea.unlockedByItemID, messageInABottle.id);
+    });
   });
 }
