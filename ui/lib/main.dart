@@ -1,6 +1,5 @@
 import 'dart:async';
 
-import 'package:async_redux/local_persist.dart';
 import 'package:flutter/material.dart';
 import 'package:logic/logic.dart';
 import 'package:scoped_deps/scoped_deps.dart';
@@ -8,6 +7,7 @@ import 'package:ui/src/logic/game_loop.dart';
 import 'package:ui/src/logic/redux_actions.dart';
 import 'package:ui/src/services/cache_factory.dart';
 import 'package:ui/src/services/cache_services.dart';
+import 'package:ui/src/services/game_persist.dart';
 import 'package:ui/src/services/logger.dart';
 import 'package:ui/src/services/save_slot_service.dart';
 import 'package:ui/src/services/toast_service.dart';
@@ -25,7 +25,7 @@ class MyPersistor extends Persistor<GlobalState> {
   final Registries registries;
   final int activeSlot;
 
-  LocalPersist get _persist => LocalPersist('melvor_slot_$activeSlot');
+  GamePersist get _persist => createGamePersist('melvor_slot_$activeSlot');
 
   @override
   Future<GlobalState> readState() async {

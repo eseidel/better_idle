@@ -1,5 +1,5 @@
-import 'package:async_redux/local_persist.dart';
 import 'package:flutter/material.dart';
+import 'package:ui/src/services/game_persist.dart';
 import 'package:ui/src/services/logger.dart';
 
 /// Metadata about all save slots.
@@ -69,7 +69,7 @@ const int saveSlotCount = 3;
 class SaveSlotService {
   SaveSlotService._();
 
-  static final LocalPersist _metaPersist = LocalPersist('melvor_meta');
+  static final GamePersist _metaPersist = createGamePersist('melvor_meta');
 
   /// Load save slot metadata.
   static Future<SaveSlotMeta> loadMeta() async {
@@ -99,12 +99,12 @@ class SaveSlotService {
     }
 
     // Check for old-style save
-    final oldPersist = LocalPersist('better_idle');
+    final oldPersist = createGamePersist('better_idle');
     final oldData = await oldPersist.loadJson();
 
     if (oldData != null) {
       // Migrate to slot 0
-      final slot0Persist = LocalPersist('melvor_slot_0');
+      final slot0Persist = createGamePersist('melvor_slot_0');
       await slot0Persist.saveJson(oldData);
 
       // Create meta with slot 0 active
@@ -125,7 +125,7 @@ class SaveSlotService {
 
   /// Delete a specific slot's data.
   static Future<void> deleteSlot(int slot) async {
-    final slotPersist = LocalPersist('melvor_slot_$slot');
+    final slotPersist = createGamePersist('melvor_slot_$slot');
     await slotPersist.delete();
 
     // Update meta
