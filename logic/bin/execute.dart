@@ -14,6 +14,7 @@ import 'dart:math';
 
 import 'package:args/args.dart';
 import 'package:logic/logic.dart';
+import 'package:logic/src/data/registries_io.dart';
 import 'package:logic/src/solver/execution/execute_plan.dart';
 import 'package:logic/src/solver/execution/plan.dart';
 import 'package:logic/src/solver/execution/utils.dart';

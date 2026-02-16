@@ -1,9 +1,9 @@
-import 'package:logic/src/data/cache.dart';
+import 'package:logic/src/data/file_cache.dart';
 
 /// Examines what skillData is merged between melvorDemo and melvorFull.
 // ignore_for_file: avoid_print
 void main() async {
-  final cache = Cache(cacheDir: defaultCacheDir);
+  final cache = FileCache(cacheDir: defaultCacheDir);
 
   try {
     print('Loading demo and full data files...\n');

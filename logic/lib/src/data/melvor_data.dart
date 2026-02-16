@@ -1,5 +1,3 @@
-import 'dart:io';
-
 import 'package:logic/src/data/actions.dart';
 import 'package:logic/src/data/cache.dart';
 import 'package:logic/src/data/item_upgrades.dart';
@@ -220,16 +218,6 @@ class MelvorData {
 
     // Parse item upgrades (including generated potion upgrades)
     _itemUpgrades = parseItemUpgrades(dataFiles, _items);
-  }
-
-  /// Loads MelvorData from the cache, fetching from CDN if needed.
-  static Future<MelvorData> load({Directory? cacheDir}) async {
-    final cache = Cache(cacheDir: cacheDir ?? defaultCacheDir);
-    try {
-      return await loadFromCache(cache);
-    } finally {
-      cache.close();
-    }
   }
 
   /// Loads MelvorData from an existing cache instance.

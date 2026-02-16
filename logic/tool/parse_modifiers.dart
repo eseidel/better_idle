@@ -9,7 +9,7 @@
 import 'dart:convert';
 import 'dart:io';
 
-import 'package:logic/src/data/cache.dart';
+import 'package:logic/src/data/file_cache.dart';
 import 'package:logic/src/strings.dart';
 import 'package:logic/src/types/modifier.dart';
 
@@ -198,7 +198,7 @@ void walkJson(
 // ============================================================================
 
 void main() async {
-  final cache = Cache(cacheDir: defaultCacheDir);
+  final cache = FileCache(cacheDir: defaultCacheDir);
 
   try {
     print('Loading JSON data files...\n');
