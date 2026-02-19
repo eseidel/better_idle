@@ -1233,6 +1233,7 @@ class _ClaimMasteryTokenSection extends StatelessWidget {
                 onPressed: claimable > 0
                     ? () {
                         context.dispatch(ClaimMasteryTokenAction(skill: skill));
+                        Navigator.of(context).pop();
                       }
                     : null,
                 child: const Text('Claim 1'),
@@ -1247,6 +1248,7 @@ class _ClaimMasteryTokenSection extends StatelessWidget {
                           context.dispatch(
                             ClaimAllMasteryTokensAction(skill: skill),
                           );
+                          Navigator.of(context).pop();
                         }
                       : null,
                   child: Text('Claim All ($claimable)'),
