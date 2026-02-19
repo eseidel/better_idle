@@ -15,11 +15,36 @@ class ShopPage extends StatefulWidget {
 
 class _ShopPageState extends State<ShopPage> {
   final Set<String> _collapsedCategories = {};
+  bool _showAffordableOnly = false;
+
+  bool _canPurchase(ShopViewModel viewModel, ShopPurchase purchase) {
+    final unmetRequirements = viewModel.unmetRequirements(purchase);
+    if (unmetRequirements.isNotEmpty) return false;
+    final currencyCosts = purchase.cost.currencyCosts(
+      bankSlotsPurchased: viewModel.bankSlotsPurchased,
+    );
+    if (!viewModel.canAffordCosts(currencyCosts)) return false;
+    if (!viewModel.canAffordItemCosts(purchase.cost.items)) return false;
+    return true;
+  }
 
   @override
   Widget build(BuildContext context) {
     return GameScaffold(
       title: const Text('Shop'),
+      actions: [
+        IconButton(
+          icon: Icon(
+            _showAffordableOnly ? Icons.filter_alt : Icons.filter_alt_outlined,
+          ),
+          tooltip: 'Show affordable only',
+          onPressed: () {
+            setState(() {
+              _showAffordableOnly = !_showAffordableOnly;
+            });
+          },
+        ),
+      ],
       body: StoreConnector<GlobalState, ShopViewModel>(
         converter: (store) => ShopViewModel(store.state),
         builder: (context, viewModel) {
@@ -38,7 +63,13 @@ class _ShopPageState extends State<ShopPage> {
 
     for (final entry in purchasesByCategory.entries) {
       final category = entry.key;
-      final purchases = entry.value;
+      var purchases = entry.value;
+
+      if (_showAffordableOnly) {
+        purchases = purchases.where((p) => _canPurchase(viewModel, p)).toList();
+        if (purchases.isEmpty) continue;
+      }
+
       final isCollapsed = _collapsedCategories.contains(category.id.toJson());
 
       // Category header
