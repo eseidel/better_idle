@@ -18,21 +18,6 @@ int playerTotalMasteryLevelForSkill(GlobalState state, Skill skill) {
   return total;
 }
 
-/// Returns the sum of all mastery XP for all actions in a skill.
-/// Used for rare drop scaling which uses XP values (potentially millions).
-int playerTotalMasteryXpForSkill(GlobalState state, Skill skill) {
-  var total = 0;
-  for (final entry in state.actionStates.entries) {
-    final actionId = entry.key;
-    final actionState = entry.value;
-    if (actionId.skillId != skill.id) {
-      continue;
-    }
-    total += actionState.masteryXp;
-  }
-  return total;
-}
-
 /// Returns the amount of mastery XP gained per action.
 int masteryXpPerAction(GlobalState state, SkillAction action) {
   return calculateMasteryXpPerAction(
@@ -582,7 +567,7 @@ bool rollAndCollectDrops(
     } else if (drop is RareDrop) {
       // Use rollWithContext for RareDrops to check requiredItemId
       final skillLevel = builder.state.skillState(action.skill).skillLevel;
-      final totalMastery = playerTotalMasteryXpForSkill(
+      final totalMastery = playerTotalMasteryLevelForSkill(
         builder.state,
         action.skill,
       );
