@@ -477,5 +477,85 @@ void main() {
       expect(chance.maxChance, closeTo(1e-5, 1e-8));
       expect(chance.scalingFactor, closeTo(4e-10, 1e-13));
     });
+
+    test('playerTotalMasteryLevelForSkill returns levels not XP', () {
+      // Set up a woodcutting action with high XP (100,000) but only level 49.
+      // levelForXp(100000) == 49 (from XP table).
+      // If the function incorrectly summed XP, total would be 100,000.
+      // With levels, total = 49 + (N-1)*1 where N is total woodcutting actions
+      // (untrained actions default to level 1).
+      final action = testRegistries.woodcuttingAction('Normal Tree');
+      final state = GlobalState.test(
+        testRegistries,
+        actionStates: {action.id: const ActionState(masteryXp: 100000)},
+      );
+
+      final totalMastery = playerTotalMasteryLevelForSkill(
+        state,
+        Skill.woodcutting,
+      );
+
+      // With 100,000 XP, mastery level is 49.
+      // All other woodcutting actions have 0 XP => level 1 each.
+      final actionCount =
+          testRegistries.actionsForSkill(Skill.woodcutting).length;
+      final expectedTotal = 49 + (actionCount - 1); // 49 + rest at level 1
+
+      expect(totalMastery, expectedTotal);
+      // Crucially, total must be much less than the raw XP value
+      expect(totalMastery, lessThan(1000));
+    });
+
+    test('rollAndCollectDrops uses mastery levels for RareDrop scaling', () {
+      // Regression test: rollAndCollectDrops previously passed raw mastery XP
+      // to RareDrop.rollWithContext, causing the Circlet of Rhaelyx to drop
+      // at max rate (1/100,000) even at low mastery. The fix uses mastery
+      // levels instead.
+      //
+      // Strategy: set up a state with 100,000 mastery XP on one action.
+      // - With XP (100,000): the MasteryScalingChance would immediately max
+      //   out at 1e-5 (1/100,000), giving ~1 drop per 100k rolls.
+      // - With levels (total ~57): the chance stays near the base rate of
+      //   1e-7 (1/10,000,000), giving ~0 drops in 100k rolls.
+      //
+      // Run 100,000 rolls. At max rate we'd expect ~1 drop. At the correct
+      // level-based rate, we'd expect ~0.001 drops (essentially zero).
+      final action = testRegistries.woodcuttingAction('Normal Tree');
+      final state = GlobalState.test(
+        testRegistries,
+        actionStates: {action.id: const ActionState(masteryXp: 100000)},
+      );
+      final modifiers = StubModifierProvider();
+      const circletId = MelvorId('melvorD:Circlet_of_Rhaelyx');
+
+      var circletDrops = 0;
+      const iterations = 100000;
+      // Use a fixed seed for deterministic results
+      final random = Random(12345);
+
+      for (var i = 0; i < iterations; i++) {
+        final builder = StateUpdateBuilder(state);
+        rollAndCollectDrops(
+          builder,
+          action,
+          modifiers,
+          random,
+          const NoSelectedRecipe(),
+        );
+        circletDrops += builder.state.inventory.countById(circletId);
+      }
+
+      // At the correct level-based rate (~6e-8), we'd expect ~0.006 drops
+      // in 100k iterations — effectively zero.
+      // At the old buggy XP-based rate (1e-5 max), we'd expect ~1 drop.
+      expect(
+        circletDrops,
+        0,
+        reason:
+            'Circlet should not drop at low mastery levels. '
+            'If it dropped, the code may be using mastery XP '
+            'instead of levels.',
+      );
+    });
   });
 }
