@@ -497,8 +497,9 @@ void main() {
 
       // With 100,000 XP, mastery level is 49.
       // All other woodcutting actions have 0 XP => level 1 each.
-      final actionCount =
-          testRegistries.actionsForSkill(Skill.woodcutting).length;
+      final actionCount = testRegistries
+          .actionsForSkill(Skill.woodcutting)
+          .length;
       final expectedTotal = 49 + (actionCount - 1); // 49 + rest at level 1
 
       expect(totalMastery, expectedTotal);

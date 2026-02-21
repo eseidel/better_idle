@@ -403,7 +403,12 @@ class AllSkillLevelsRequirement extends ShopRequirement {
 /// A shop category.
 @immutable
 class ShopCategory extends Equatable {
-  const ShopCategory({required this.id, required this.name, this.media});
+  const ShopCategory({
+    required this.id,
+    required this.name,
+    this.media,
+    this.isGolbinRaid = false,
+  });
 
   factory ShopCategory.fromJson(
     Map<String, dynamic> json, {
@@ -416,6 +421,7 @@ class ShopCategory extends Equatable {
       ),
       name: json['name'] as String,
       media: json['media'] as String?,
+      isGolbinRaid: json['isGolbinRaid'] as bool? ?? false,
     );
   }
 
@@ -425,8 +431,11 @@ class ShopCategory extends Equatable {
   /// The asset path for the category icon (e.g., "assets/media/main/...").
   final String? media;
 
+  /// Whether this category is exclusive to Golbin Raid.
+  final bool isGolbinRaid;
+
   @override
-  List<Object?> get props => [id, name, media];
+  List<Object?> get props => [id, name, media, isGolbinRaid];
 }
 
 /// A shop purchase definition.
@@ -655,6 +664,14 @@ class ShopRegistry {
   /// All registered categories.
   List<ShopCategory> get categories => _categories;
 
+  /// Returns the category for a purchase, or null if not found.
+  ShopCategory? categoryFor(ShopPurchase purchase) {
+    for (final c in _categories) {
+      if (c.id == purchase.category) return c;
+    }
+    return null;
+  }
+
   /// Returns the purchase by ID, or null if not found.
   ShopPurchase? byId(MelvorId id) => _byId[id.toJson()];
 
@@ -692,14 +709,22 @@ class ShopRegistry {
   /// Returns all purchases that are visible in the shop.
   ///
   /// A purchase is visible if:
+  /// - Its category is not Golbin Raid exclusive (unless [isGolbinRaid])
   /// - Its unlock requirements are met (owns prerequisite purchases)
   /// - It hasn't reached its buy limit
   ///
   /// Note: Skill level requirements do NOT hide purchases - they should be
   /// shown as disabled with requirements listed.
-  List<ShopPurchase> visiblePurchases(Map<MelvorId, int> purchaseCounts) {
+  List<ShopPurchase> visiblePurchases(
+    Map<MelvorId, int> purchaseCounts, {
+    bool isGolbinRaid = false,
+  }) {
     final result = <ShopPurchase>[];
     for (final purchase in _purchases) {
+      // Hide Golbin Raid purchases unless in a Golbin Raid.
+      final category = categoryFor(purchase);
+      if (category != null && category.isGolbinRaid && !isGolbinRaid) continue;
+
       // Check buy limit
       final owned = purchaseCounts[purchase.id] ?? 0;
       if (!purchase.isUnlimited && owned >= purchase.buyLimit) continue;
