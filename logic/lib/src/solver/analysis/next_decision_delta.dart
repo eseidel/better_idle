@@ -560,7 +560,7 @@ _DeltaCandidate? _deltaUntilNextSkillLevel(
   if (xpRate == null || xpRate <= 0) return null;
 
   final currentXp = state.skillState(skill).xp;
-  final currentLevel = levelForXp(currentXp);
+  final currentLevel = state.skillState(skill).skillLevel;
 
   // Find the next unlock level for any locked activity of this skill
   int? nextUnlockLevel;

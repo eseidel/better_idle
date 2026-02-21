@@ -226,7 +226,8 @@ class ActionState {
   }
 
   /// The mastery level for this action, derived from mastery XP.
-  int get masteryLevel => levelForXp(masteryXp);
+  /// Capped at 99 even if XP exceeds the level 99 threshold.
+  int get masteryLevel => levelForXp(masteryXp).clamp(1, 99);
 
   ActionState copyWith({
     int? masteryXp,

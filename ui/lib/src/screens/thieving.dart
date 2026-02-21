@@ -134,8 +134,8 @@ class _SelectedActionDisplay extends StatelessWidget {
     final canToggle = (canStart || isActive) && !isStunned;
 
     // Calculate stealth and success chance
-    final thievingLevel = levelForXp(state.skillState(Skill.thieving).xp);
-    final masteryLevel = levelForXp(actionState.masteryXp);
+    final thievingLevel = state.skillState(Skill.thieving).skillLevel;
+    final masteryLevel = actionState.masteryLevel;
     final stealth = calculateStealth(thievingLevel, masteryLevel);
     final successChance = ((100 + stealth) / (100 + action.perception)).clamp(
       0.0,
@@ -367,7 +367,7 @@ class _ActionList extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final skillState = context.state.skillState(Skill.thieving);
-    final skillLevel = levelForXp(skillState.xp);
+    final skillLevel = skillState.skillLevel;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -456,10 +456,10 @@ class _ActionList extends StatelessWidget {
                   // Calculate success chance for this action
                   final state = context.state;
                   final actionState = state.actionState(action.id);
-                  final thievingLevel = levelForXp(
-                    state.skillState(Skill.thieving).xp,
-                  );
-                  final masteryLevel = levelForXp(actionState.masteryXp);
+                  final thievingLevel = state
+                      .skillState(Skill.thieving)
+                      .skillLevel;
+                  final masteryLevel = actionState.masteryLevel;
                   final stealth = calculateStealth(thievingLevel, masteryLevel);
                   final successChance = thievingSuccessChance(
                     stealth,

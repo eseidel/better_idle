@@ -92,7 +92,7 @@ class SkillTile extends StatelessWidget {
     final isActiveSkill = activeSkill == skill;
     final isSelected = selected || currentLocation == '/$routeName';
     final skillState = context.state.skillState(skill);
-    final level = levelForXp(skillState.xp);
+    final level = skillState.skillLevel;
 
     const valueStyle = TextStyle(color: Style.currencyValueColor);
     final slayerCoins = context.state.currency(Currency.slayerCoins);

@@ -223,8 +223,7 @@ class WoodcuttingActionCell extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final skillState = context.state.skillState(action.skill);
-    final skillLevel = levelForXp(skillState.xp);
-    final isUnlocked = skillLevel >= action.unlockLevel;
+    final isUnlocked = skillState.skillLevel >= action.unlockLevel;
 
     if (!isUnlocked) {
       return LockedActionCell(
@@ -290,8 +289,7 @@ class MiningActionCell extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final skillState = context.state.skillState(action.skill);
-    final skillLevel = levelForXp(skillState.xp);
-    final isUnlocked = skillLevel >= action.unlockLevel;
+    final isUnlocked = skillState.skillLevel >= action.unlockLevel;
 
     if (!isUnlocked) {
       return LockedActionCell(
@@ -313,9 +311,8 @@ class MiningActionCell extends StatelessWidget {
     final isRunning = state.isActionActive(action);
     final isStunned = state.isStunned;
 
-    final masteryLevel = levelForXp(actionState.masteryXp);
     final miningState = state.miningState.rockState(action.id.localId);
-    final maxHp = action.maxHpForMasteryLevel(masteryLevel);
+    final maxHp = action.maxHpForMasteryLevel(actionState.masteryLevel);
     final currentHp = miningState.currentHp(action, actionState.masteryXp);
 
     Duration? respawnTimeRemaining;
@@ -404,8 +401,7 @@ class AstrologyActionCell extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final skillState = context.state.skillState(action.skill);
-    final skillLevel = levelForXp(skillState.xp);
-    final isUnlocked = skillLevel >= action.unlockLevel;
+    final isUnlocked = skillState.skillLevel >= action.unlockLevel;
 
     if (!isUnlocked) {
       return LockedActionCell(
@@ -501,8 +497,7 @@ class ActionCell extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final skillState = context.state.skillState(action.skill);
-    final skillLevel = levelForXp(skillState.xp);
-    final isUnlocked = skillLevel >= action.unlockLevel;
+    final isUnlocked = skillState.skillLevel >= action.unlockLevel;
 
     if (!isUnlocked) {
       return _buildLocked(context);
