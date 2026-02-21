@@ -256,12 +256,16 @@ class WoodcuttingActionCell extends StatelessWidget {
           const StunnedIndicator(),
           const Text('Cut'),
           Text(action.name, style: labelStyle),
-          Text(
-            '${action.xp} Skill XP / \u{1F551} '
-            '${action.minDuration.inMilliseconds / 1000} seconds',
-            style: Theme.of(context).textTheme.bodySmall,
+          const SizedBox(height: 4),
+          XpBadgesRow(
+            action: action,
+            inradius: TextBadgeCell.smallInradius,
+            trailing: DurationBadgeCell(
+              seconds: action.minDuration.inSeconds,
+              inradius: TextBadgeCell.smallInradius,
+            ),
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 4),
           CachedImage(assetPath: action.media, size: 64),
           const Spacer(),
           ActionProgressBar(action: action),
