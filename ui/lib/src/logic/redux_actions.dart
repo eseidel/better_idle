@@ -922,3 +922,21 @@ class ClaimAllMasteryTokensAction extends ReduxAction<GlobalState> {
     return state.claimAllMasteryTokens(skill);
   }
 }
+
+/// Claims a specific number of mastery tokens for a skill.
+class ClaimMasteryTokensAction extends ReduxAction<GlobalState> {
+  ClaimMasteryTokensAction({required this.skill, required this.count});
+  final Skill skill;
+  final int count;
+
+  @override
+  GlobalState? reduce() {
+    final claimable = state.claimableMasteryTokenCount(skill);
+    final actual = count.clamp(0, claimable);
+    if (actual < count) {
+      toastService.showError('Not enough pool space for all tokens');
+    }
+    if (actual < 1) return null;
+    return state.claimMasteryTokens(skill, actual);
+  }
+}

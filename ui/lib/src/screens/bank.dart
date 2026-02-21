@@ -6,6 +6,7 @@ import 'package:ui/src/services/toast_service.dart';
 import 'package:ui/src/widgets/cached_image.dart';
 import 'package:ui/src/widgets/context_extensions.dart';
 import 'package:ui/src/widgets/count_badge_cell.dart';
+import 'package:ui/src/widgets/currency_display.dart';
 import 'package:ui/src/widgets/game_app_bar.dart';
 import 'package:ui/src/widgets/game_scaffold.dart';
 import 'package:ui/src/widgets/item_image.dart';
@@ -170,7 +171,7 @@ class _BankPageState extends State<BankPage> {
                           : null,
                     ),
                     const SizedBox(width: 16),
-                    Text('Value: ${approximateCreditString(sellValue)} GP'),
+                    CurrencyDisplay(currency: Currency.gp, amount: sellValue),
                     const Spacer(),
                     IconButton(
                       icon: const Icon(Icons.sort),
@@ -460,10 +461,14 @@ class _ItemDetailsDrawerState extends State<ItemDetailsDrawer> {
                 style: Theme.of(context).textTheme.titleMedium,
               ),
               const SizedBox(height: 8),
-              Text(
-                '${approximateCreditString(itemData.sellsFor)} GP',
-                style: Theme.of(context).textTheme.bodyLarge,
-              ),
+              CurrencyDisplay(currency: Currency.gp, amount: itemData.sellsFor),
+              // Show Claim button for mastery tokens
+              if (itemData.masteryTokenSkillId != null) ...[
+                const SizedBox(height: 32),
+                const Divider(),
+                const SizedBox(height: 16),
+                _ClaimMasteryTokenSection(item: itemData, maxCount: maxCount),
+              ],
               const SizedBox(height: 32),
               const Divider(),
               const SizedBox(height: 16),
@@ -506,11 +511,16 @@ class _ItemDetailsDrawerState extends State<ItemDetailsDrawer> {
                 ),
               ),
               const SizedBox(height: 16),
-              Text(
-                'Total Value: ${approximateCreditString(totalGpValue)} GP',
-                style: Theme.of(
-                  context,
-                ).textTheme.bodyLarge?.copyWith(fontWeight: FontWeight.bold),
+              Row(
+                children: [
+                  Text(
+                    'Total Value: ',
+                    style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  CurrencyDisplay(currency: Currency.gp, amount: totalGpValue),
+                ],
               ),
               // Show Equip button for consumable items
               if (itemData.isConsumable) ...[
@@ -548,13 +558,6 @@ class _ItemDetailsDrawerState extends State<ItemDetailsDrawer> {
                 const Divider(),
                 const SizedBox(height: 16),
                 _UpgradeSection(item: itemData),
-              ],
-              // Show Claim button for mastery tokens
-              if (itemData.masteryTokenSkillId != null) ...[
-                const SizedBox(height: 32),
-                const Divider(),
-                const SizedBox(height: 16),
-                _ClaimMasteryTokenSection(item: itemData, maxCount: maxCount),
               ],
             ],
           ),
@@ -1145,9 +1148,9 @@ class _SellConfirmationDialog extends StatelessWidget {
                               ?.copyWith(color: Style.textColorMuted),
                         ),
                         const SizedBox(width: 8),
-                        Text(
-                          '${approximateCreditString(lineTotal)} GP',
-                          style: Theme.of(context).textTheme.bodyMedium,
+                        CurrencyDisplay(
+                          currency: Currency.gp,
+                          amount: lineTotal,
                         ),
                       ],
                     ),
@@ -1161,13 +1164,7 @@ class _SellConfirmationDialog extends StatelessWidget {
               mainAxisAlignment: MainAxisAlignment.end,
               children: [
                 Text('Total: ', style: Theme.of(context).textTheme.titleMedium),
-                Text(
-                  '${approximateCreditString(grandTotal)} GP',
-                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.bold,
-                    color: Style.textColorSuccess,
-                  ),
-                ),
+                CurrencyDisplay(currency: Currency.gp, amount: grandTotal),
               ],
             ),
           ],
@@ -1187,15 +1184,41 @@ class _SellConfirmationDialog extends StatelessWidget {
   }
 }
 
-class _ClaimMasteryTokenSection extends StatelessWidget {
+class _ClaimMasteryTokenSection extends StatefulWidget {
   const _ClaimMasteryTokenSection({required this.item, required this.maxCount});
 
   final Item item;
   final int maxCount;
 
   @override
+  State<_ClaimMasteryTokenSection> createState() =>
+      _ClaimMasteryTokenSectionState();
+}
+
+class _ClaimMasteryTokenSectionState extends State<_ClaimMasteryTokenSection> {
+  double _claimCount = 1;
+
+  @override
+  void initState() {
+    super.initState();
+    _claimCount = widget.maxCount.toDouble();
+  }
+
+  @override
+  void didUpdateWidget(_ClaimMasteryTokenSection oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.maxCount != widget.maxCount) {
+      if (_claimCount > widget.maxCount) {
+        setState(() {
+          _claimCount = widget.maxCount > 0 ? widget.maxCount.toDouble() : 1;
+        });
+      }
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final skill = Skill.fromId(item.masteryTokenSkillId!);
+    final skill = Skill.fromId(widget.item.masteryTokenSkillId!);
 
     final state = context.state;
     final maxPoolXp = maxMasteryPoolXpForSkill(state.registries, skill);
@@ -1203,6 +1226,9 @@ class _ClaimMasteryTokenSection extends StatelessWidget {
     final xpPerToken = state.masteryTokenXpPerClaim(skill);
     final claimable = state.claimableMasteryTokenCount(skill);
     final poolFull = currentPoolXp >= maxPoolXp;
+    final maxClaim = claimable.clamp(1, widget.maxCount);
+    final claimCountInt = _claimCount.round().clamp(1, maxClaim);
+    final totalXp = xpPerToken * claimCountInt;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -1213,7 +1239,7 @@ class _ClaimMasteryTokenSection extends StatelessWidget {
         ),
         const SizedBox(height: 8),
         Text(
-          'Adds ${preciseNumberString(xpPerToken)} XP to '
+          'Adds ${preciseNumberString(xpPerToken)} XP per token to '
           '${skill.name} mastery pool '
           '(${preciseNumberString(currentPoolXp)}'
           ' / ${preciseNumberString(maxPoolXp)})',
@@ -1230,36 +1256,49 @@ class _ClaimMasteryTokenSection extends StatelessWidget {
             ),
           ),
         const SizedBox(height: 16),
-        Row(
-          children: [
-            Expanded(
-              child: ElevatedButton(
-                onPressed: claimable > 0
-                    ? () {
-                        context.dispatch(ClaimMasteryTokenAction(skill: skill));
-                        Navigator.of(context).pop();
-                      }
-                    : null,
-                child: const Text('Claim 1'),
-              ),
-            ),
-            if (maxCount > 1) ...[
-              const SizedBox(width: 8),
-              Expanded(
-                child: ElevatedButton(
-                  onPressed: claimable > 0
-                      ? () {
-                          context.dispatch(
-                            ClaimAllMasteryTokensAction(skill: skill),
-                          );
-                          Navigator.of(context).pop();
-                        }
-                      : null,
-                  child: Text('Claim All ($claimable)'),
-                ),
-              ),
-            ],
-          ],
+        Text(
+          'Quantity: ${approximateCountString(claimCountInt)}',
+          style: Theme.of(context).textTheme.bodyMedium,
+        ),
+        const SizedBox(height: 8),
+        Slider(
+          value: _claimCount.clamp(1, widget.maxCount.toDouble()),
+          min: 1,
+          max: widget.maxCount > 0 ? widget.maxCount.toDouble() : 1.0,
+          divisions: widget.maxCount > 1 ? widget.maxCount - 1 : null,
+          label: preciseNumberString(claimCountInt),
+          onChanged: widget.maxCount > 0
+              ? (value) {
+                  setState(() {
+                    _claimCount = value;
+                  });
+                }
+              : null,
+        ),
+        const SizedBox(height: 16),
+        SizedBox(
+          width: double.infinity,
+          child: ElevatedButton(
+            onPressed: claimable > 0 && claimCountInt > 0
+                ? () {
+                    context.dispatch(
+                      ClaimMasteryTokensAction(
+                        skill: skill,
+                        count: claimCountInt,
+                      ),
+                    );
+                    Navigator.of(context).pop();
+                  }
+                : null,
+            child: const Text('Claim'),
+          ),
+        ),
+        const SizedBox(height: 8),
+        Text(
+          'Total XP: ${preciseNumberString(totalXp)}',
+          style: Theme.of(
+            context,
+          ).textTheme.bodyLarge?.copyWith(fontWeight: FontWeight.bold),
         ),
       ],
     );
@@ -1452,13 +1491,11 @@ class _UpgradeSectionState extends State<_UpgradeSection> {
       costs.add(
         Row(
           children: [
-            CachedImage(assetPath: Currency.gp.assetPath, size: 24),
-            const SizedBox(width: 8),
-            Text(
-              '${approximateCreditString(gpCost)} GP',
-              style: TextStyle(
-                color: canAfford ? null : Theme.of(context).colorScheme.error,
-              ),
+            CurrencyDisplay(
+              currency: Currency.gp,
+              amount: gpCost,
+              canAfford: canAfford,
+              size: 24,
             ),
             const SizedBox(width: 4),
             Text(

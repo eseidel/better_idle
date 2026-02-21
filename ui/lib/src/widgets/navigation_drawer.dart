@@ -78,6 +78,40 @@ class _SectionHeader extends StatelessWidget {
   }
 }
 
+/// A navigation tile for non-skill pages (Bank, Shop, etc.).
+///
+/// This must be a separate widget (not an inline ListTile) so that its
+/// [build] context is below [NavigationMode] in the widget tree. Without
+/// this, [NavigationMode.of] falls back to `true` and calls
+/// [Navigator.pop] on the permanent sidebar, causing a nav stack underflow.
+class _NavTile extends StatelessWidget {
+  const _NavTile({
+    required this.routeName,
+    required this.title,
+    this.leading,
+    this.trailing,
+  });
+
+  final String routeName;
+  final Widget title;
+  final Widget? leading;
+  final Widget? trailing;
+
+  @override
+  Widget build(BuildContext context) {
+    final currentLocation = GoRouterState.of(context).uri.path;
+    return ListTile(
+      dense: true,
+      visualDensity: VisualDensity.compact,
+      leading: leading,
+      title: title,
+      trailing: trailing,
+      selected: currentLocation == '/$routeName',
+      onTap: () => NavigationMode.navigateTo(context, routeName),
+    );
+  }
+}
+
 class SkillTile extends StatelessWidget {
   const SkillTile({required this.skill, super.key, this.selected = false});
 
@@ -147,7 +181,6 @@ class NavigationContent extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final currentLocation = GoRouterState.of(context).uri.path;
     final gp = context.state.gp;
     final state = context.state;
     final inventoryUsed = state.inventoryUsed;
@@ -167,9 +200,8 @@ class NavigationContent extends StatelessWidget {
               style: TextStyle(color: Style.textColorPrimary, fontSize: 24),
             ),
           ),
-          ListTile(
-            dense: true,
-            visualDensity: VisualDensity.compact,
+          _NavTile(
+            routeName: 'shop',
             leading: const PageImage(
               pageId: 'shop',
               fallbackIcon: Icons.shopping_cart,
@@ -186,20 +218,15 @@ class NavigationContent extends StatelessWidget {
                 ),
               ],
             ),
-            selected: currentLocation == '/shop',
-            onTap: () => NavigationMode.navigateTo(context, 'shop'),
           ),
-          ListTile(
-            dense: true,
-            visualDensity: VisualDensity.compact,
+          _NavTile(
+            routeName: 'bank',
             leading: const PageImage(
               pageId: 'bank',
               fallbackIcon: Icons.inventory_2,
             ),
             title: const Text('Bank'),
             trailing: Text('$inventoryUsed / $inventoryCapacity'),
-            selected: currentLocation == '/bank',
-            onTap: () => NavigationMode.navigateTo(context, 'bank'),
           ),
           _SectionHeader(title: 'Combat', trailing: 'Lv. ${state.combatLevel}'),
           const SkillTile(skill: Skill.attack),
@@ -230,30 +257,21 @@ class NavigationContent extends StatelessWidget {
           const SkillTile(skill: Skill.astrology),
           const SkillTile(skill: Skill.altMagic),
           const _SectionHeader(title: 'Other'),
-          ListTile(
-            dense: true,
-            visualDensity: VisualDensity.compact,
-            leading: const Icon(Icons.bar_chart),
-            title: const Text('Statistics'),
-            selected: currentLocation == '/statistics',
-            onTap: () => NavigationMode.navigateTo(context, 'statistics'),
+          const _NavTile(
+            routeName: 'statistics',
+            leading: Icon(Icons.bar_chart),
+            title: Text('Statistics'),
           ),
-          ListTile(
-            dense: true,
-            visualDensity: VisualDensity.compact,
-            leading: const Icon(Icons.save),
-            title: const Text('Save Slots'),
-            selected: currentLocation == '/save_slots',
-            onTap: () => NavigationMode.navigateTo(context, 'save_slots'),
+          const _NavTile(
+            routeName: 'save_slots',
+            leading: Icon(Icons.save),
+            title: Text('Save Slots'),
           ),
           const Divider(),
-          ListTile(
-            dense: true,
-            visualDensity: VisualDensity.compact,
-            leading: const Icon(Icons.bug_report),
-            title: const Text('Debug'),
-            selected: currentLocation == '/debug',
-            onTap: () => NavigationMode.navigateTo(context, 'debug'),
+          const _NavTile(
+            routeName: 'debug',
+            leading: Icon(Icons.bug_report),
+            title: Text('Debug'),
           ),
         ],
       ),

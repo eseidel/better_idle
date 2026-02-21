@@ -2519,6 +2519,55 @@ void main() {
     });
   });
 
+  group('ClaimMasteryTokensAction', () {
+    late Registries registries;
+    late Item woodcuttingToken;
+
+    setUpAll(() async {
+      registries = await loadRegistries();
+      woodcuttingToken = registries.items.byName('Mastery Token (Woodcutting)');
+    });
+
+    test('claims specified number of tokens', () {
+      var state = GlobalState.empty(registries);
+      state = state.copyWith(
+        inventory: state.inventory.adding(
+          ItemStack(woodcuttingToken, count: 10),
+        ),
+      );
+      final store = Store<GlobalState>(
+        initialState: state,
+      )..dispatch(ClaimMasteryTokensAction(skill: Skill.woodcutting, count: 3));
+
+      expect(store.state.inventory.countOfItem(woodcuttingToken), 7);
+      expect(
+        store.state.skillState(Skill.woodcutting).masteryPoolXp,
+        greaterThan(0),
+      );
+    });
+
+    test('clamps to claimable when requesting more than available', () {
+      runScoped(() {
+        var state = GlobalState.empty(registries);
+        state = state.copyWith(
+          inventory: state.inventory.adding(
+            ItemStack(woodcuttingToken, count: 2),
+          ),
+        );
+        final store = Store<GlobalState>(initialState: state)
+          ..dispatch(
+            ClaimMasteryTokensAction(skill: Skill.woodcutting, count: 100),
+          );
+
+        expect(store.state.inventory.countOfItem(woodcuttingToken), 0);
+        expect(
+          store.state.skillState(Skill.woodcutting).masteryPoolXp,
+          greaterThan(0),
+        );
+      }, values: {toastServiceRef});
+    });
+  });
+
   group('QuickEquipAction', () {
     test('equips food item to food slot', () {
       runScoped(() {
