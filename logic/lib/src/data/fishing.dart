@@ -76,7 +76,7 @@ class FishingArea {
   final MelvorId? requiredItemID;
   final bool isSecret;
 
-  /// The readable item that must be read to unlock this area (for secret areas).
+  /// The item that must be read to unlock this area (for secret areas).
   final MelvorId? unlockedByItemID;
 }
 
