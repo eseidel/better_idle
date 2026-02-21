@@ -1268,76 +1268,38 @@ ForegroundResult _restartOrStop(
       return (ForegroundResult.continued, ticksConsumed);
     }
 
-    // Handle slayer task progression
-    final slayerContext = switch (builder.state.activeActivity) {
-      CombatActivity(:final context) when context is SlayerTaskContext =>
-        context,
-      _ => null,
-    };
-    if (slayerContext != null) {
-      // Record the kill
-      final updatedContext = slayerContext.recordKill();
+    // Handle slayer task progression (independent of combat context).
+    // Any kill of the task's monster counts, regardless of area.
+    final currentTask = builder.state.slayerTask;
+    if (currentTask != null && currentTask.monsterId == action.id.localId) {
+      final updatedTask = currentTask.recordKill();
 
-      if (updatedContext.isComplete) {
-        // Task completed! Grant rewards
+      if (updatedTask.isComplete) {
+        // Task completed! Grant rewards.
         final category = builder.registries.slayer.taskCategories.byId(
-          updatedContext.categoryId,
+          updatedTask.categoryId,
         );
         if (category != null) {
-          // Grant slayer XP based on monster HP (simplified formula)
-          // Melvor grants XP per kill, we give bonus XP on completion
-          final slayerXp = action.maxHp * updatedContext.killsRequired ~/ 5;
+          final slayerXp = action.maxHp * updatedTask.killsRequired ~/ 5;
           builder.addSkillXp(Skill.slayer, slayerXp);
 
-          // Grant slayer coins based on HP and reward percent
           for (final reward in category.currencyRewards) {
-            // Slayer coins = percent% of total HP killed
-            final totalHp = action.maxHp * updatedContext.killsRequired;
+            final totalHp = action.maxHp * updatedTask.killsRequired;
             final coins = (totalHp * reward.percent) ~/ 100;
             builder.addCurrency(reward.currency, coins);
           }
 
-          // Increment task completion count
           builder.incrementSlayerTaskCompletion(category.id);
         }
 
-        // Stop combat - task is done, player needs to select new task
-        builder.stopAction(ActionStopReason.slayerTaskComplete);
-        return (ForegroundResult.stopped, ticksConsumed);
+        // Clear the task but keep fighting.
+        builder.clearSlayerTask();
       } else {
-        // Continue with the same monster for the slayer task
-        final fullMonsterAttackTicks = ticksFromDuration(
-          Duration(milliseconds: (action.stats.attackSpeed * 1000).round()),
-        );
-        final slayerRespawnCtx = builder.state.buildCombatConditionContext(
-          enemyAction: action,
-          enemyCurrentHp: action.maxHp,
-        );
-        final modifiers = builder.state.createCombatModifierProvider(
-          conditionContext: slayerRespawnCtx,
-        );
-        final respawnTicks = calculateMonsterSpawnTicks(
-          modifiers.flatMonsterRespawnInterval,
-        );
-
-        // Update the combat activity with the new context
-        final newActivity = builder.combatActivity.copyWith(
-          context: updatedContext,
-        );
-        builder.updateActivity(newActivity);
-
-        currentCombat = currentCombat.copyWith(
-          monsterHp: 0,
-          playerAttackTicksRemaining: resetPlayerTicks,
-          monsterAttackTicksRemaining: fullMonsterAttackTicks,
-          spawnTicksRemaining: respawnTicks,
-        );
-        builder.updateCombatState(activeActionId, currentCombat);
-        return (ForegroundResult.continued, ticksConsumed);
+        builder.updateSlayerTask(updatedTask);
       }
     }
 
-    // Regular combat - respawn the same monster
+    // Respawn the same monster
     final fullMonsterAttackTicks = ticksFromDuration(
       Duration(milliseconds: (action.stats.attackSpeed * 1000).round()),
     );

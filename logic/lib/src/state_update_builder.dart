@@ -543,6 +543,16 @@ class StateUpdateBuilder {
     }
   }
 
+  /// Updates the active slayer task (e.g., recording a kill).
+  void updateSlayerTask(SlayerTask task) {
+    _state = _state.copyWith(slayerTask: task);
+  }
+
+  /// Clears the active slayer task (when completed).
+  void clearSlayerTask() {
+    _state = _state.clearSlayerTask();
+  }
+
   /// Increments the completion count for a slayer task category.
   void incrementSlayerTaskCompletion(MelvorId categoryId) {
     final currentCount = _state.slayerTaskCompletions[categoryId] ?? 0;

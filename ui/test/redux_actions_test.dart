@@ -1926,7 +1926,8 @@ void main() {
 
       expect(store.state.activeActivity, isA<CombatActivity>());
       final activity = store.state.activeActivity! as CombatActivity;
-      expect(activity.context, isA<SlayerTaskContext>());
+      expect(activity.context, isA<MonsterCombatContext>());
+      expect(store.state.slayerTask, isNotNull);
       expect(store.state.currency(Currency.slayerCoins), 400);
     });
 

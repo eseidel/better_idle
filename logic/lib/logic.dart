@@ -57,5 +57,6 @@ export 'src/types/modifier_metadata.dart';
 export 'src/types/modifier_names.dart';
 export 'src/types/modifier_provider.dart';
 export 'src/types/open_result.dart';
+export 'src/types/slayer_task.dart';
 export 'src/types/stunned.dart';
 export 'src/types/time_away.dart';

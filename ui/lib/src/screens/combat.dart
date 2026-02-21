@@ -1251,15 +1251,8 @@ class _SlayerTaskCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final state = context.state;
 
-    // Check if there's an active slayer task.
-    SlayerTaskContext? taskContext;
-    if (state.activeActivity case CombatActivity(
-      :final context,
-    ) when context is SlayerTaskContext) {
-      taskContext = context;
-    }
-
-    final hasTask = taskContext != null;
+    final task = state.slayerTask;
+    final hasTask = task != null;
 
     return Card(
       child: Padding(
@@ -1291,10 +1284,7 @@ class _SlayerTaskCard extends StatelessWidget {
               ],
             ),
             // Task details: only when a task is active.
-            if (hasTask) ...[
-              const Divider(),
-              _SlayerTaskDetails(taskContext: taskContext),
-            ],
+            if (hasTask) ...[const Divider(), _SlayerTaskDetails(task: task)],
           ],
         ),
       ),
@@ -1303,18 +1293,18 @@ class _SlayerTaskCard extends StatelessWidget {
 }
 
 class _SlayerTaskDetails extends StatelessWidget {
-  const _SlayerTaskDetails({required this.taskContext});
+  const _SlayerTaskDetails({required this.task});
 
-  final SlayerTaskContext taskContext;
+  final SlayerTask task;
 
   @override
   Widget build(BuildContext context) {
     final state = context.state;
     final combat = state.registries.combat;
     final category = state.registries.slayer.taskCategories.byId(
-      taskContext.categoryId,
+      task.categoryId,
     );
-    final monster = combat.monsterById(taskContext.monsterId);
+    final monster = combat.monsterById(task.monsterId);
 
     return Row(
       children: [
@@ -1330,7 +1320,7 @@ class _SlayerTaskDetails extends StatelessWidget {
               ),
               const SizedBox(height: 4),
               Text(
-                '${taskContext.killsRemaining} x ${monster.name}',
+                '${task.killsRemaining} x ${monster.name}',
                 style: const TextStyle(color: Style.textColorSecondary),
               ),
             ],
