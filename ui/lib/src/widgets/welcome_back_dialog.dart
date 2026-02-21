@@ -9,27 +9,20 @@ import 'package:ui/src/widgets/style.dart';
 
 /// A dialog shown when returning to the app after being away.
 ///
-/// Has two modes:
-/// - **Immediate**: Pass [timeAway] directly to show results.
-/// - **Async loading**: Pass [progress] and [result] listenables to show a
-///   progress bar while ticks are processed, then transition to results.
+/// Always driven by [ValueListenable] notifiers so the dialog can transition
+/// in-place between loading (progress bar) and results states. When [result]
+/// is non-null, results are shown; otherwise a progress bar is displayed.
 class WelcomeBackDialog extends StatelessWidget {
-  const WelcomeBackDialog({required this.timeAway, super.key})
-    : progress = null,
-      result = null,
-      awayDuration = null;
-
-  const WelcomeBackDialog.loading({
+  const WelcomeBackDialog({
     required this.awayDuration,
-    required ValueListenable<double> this.progress,
-    required ValueListenable<TimeAway?> this.result,
+    required this.progress,
+    required this.result,
     super.key,
-  }) : timeAway = null;
+  });
 
-  final TimeAway? timeAway;
-  final Duration? awayDuration;
-  final ValueListenable<double>? progress;
-  final ValueListenable<TimeAway?>? result;
+  final ValueListenable<Duration> awayDuration;
+  final ValueListenable<double> progress;
+  final ValueListenable<TimeAway?> result;
 
   /// Calculates per-hour rate from total count and duration.
   double? _perHour(int count, Duration duration) {
@@ -44,43 +37,42 @@ class WelcomeBackDialog extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Loading mode: wrap with ValueListenableBuilders
-    if (result != null) {
-      return ValueListenableBuilder<TimeAway?>(
-        valueListenable: result!,
-        builder: (context, resolvedTimeAway, _) {
-          if (resolvedTimeAway != null) {
-            return _buildResults(context, resolvedTimeAway);
-          }
-          // Still loading - show progress bar
-          return ValueListenableBuilder<double>(
-            valueListenable: progress!,
-            builder: (context, progressValue, _) {
-              return AlertDialog(
-                title: const Column(children: [Text('Welcome Back!')]),
-                content: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      'You were away for '
-                      '${approximateDuration(awayDuration!)}.',
-                      style: const TextStyle(fontWeight: FontWeight.bold),
-                    ),
-                    const SizedBox(height: 16),
-                    const Text('Processing...'),
-                    const SizedBox(height: 8),
-                    LinearProgressIndicator(value: progressValue),
-                  ],
-                ),
-              );
-            },
-          );
-        },
-      );
-    }
-
-    // Immediate mode
-    return _buildResults(context, timeAway!);
+    return ValueListenableBuilder<TimeAway?>(
+      valueListenable: result,
+      builder: (context, resolvedTimeAway, _) {
+        if (resolvedTimeAway != null) {
+          return _buildResults(context, resolvedTimeAway);
+        }
+        // Still loading - show progress bar
+        return ValueListenableBuilder<double>(
+          valueListenable: progress,
+          builder: (context, progressValue, _) {
+            return ValueListenableBuilder<Duration>(
+              valueListenable: awayDuration,
+              builder: (context, durationValue, _) {
+                return AlertDialog(
+                  title: const Column(children: [Text('Welcome Back!')]),
+                  content: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        'You were away for '
+                        '${approximateDuration(durationValue)}.',
+                        style: const TextStyle(fontWeight: FontWeight.bold),
+                      ),
+                      const SizedBox(height: 16),
+                      const Text('Processing...'),
+                      const SizedBox(height: 8),
+                      LinearProgressIndicator(value: progressValue),
+                    ],
+                  ),
+                );
+              },
+            );
+          },
+        );
+      },
+    );
   }
 
   Widget _buildResults(BuildContext context, TimeAway timeAway) {

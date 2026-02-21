@@ -115,10 +115,16 @@ class DebugPage extends StatelessWidget {
     final timeAway = _createExampleTimeAway(context.state.registries);
 
     if (context.mounted) {
+      final result = ValueNotifier<TimeAway?>(timeAway);
       await showDialog<void>(
         context: context,
-        builder: (context) => WelcomeBackDialog(timeAway: timeAway),
+        builder: (context) => WelcomeBackDialog(
+          awayDuration: ValueNotifier(timeAway.duration),
+          progress: ValueNotifier(0),
+          result: result,
+        ),
       );
+      result.dispose();
     }
   }
 }
@@ -138,10 +144,17 @@ class _DebugActionsTab extends StatelessWidget {
     context.dispatch(action);
 
     if (context.mounted) {
+      final timeAway = action.timeAway;
+      final result = ValueNotifier<TimeAway?>(timeAway);
       await showDialog<void>(
         context: context,
-        builder: (context) => WelcomeBackDialog(timeAway: action.timeAway),
+        builder: (context) => WelcomeBackDialog(
+          awayDuration: ValueNotifier(timeAway.duration),
+          progress: ValueNotifier(0),
+          result: result,
+        ),
       );
+      result.dispose();
     }
   }
 
