@@ -68,7 +68,6 @@ void main() {
       expect(restored.killsCompleted, 0);
       expect(restored.killsRequired, 50);
     });
-
   });
 
   group('slayer tasks', () {
