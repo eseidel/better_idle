@@ -1,3 +1,5 @@
+import 'dart:math';
+
 import 'package:logic/logic.dart';
 import 'package:test/test.dart';
 
@@ -140,6 +142,123 @@ void main() {
       // Spending 1 XP stays well above 50%, no crossing.
       final crossed = state.masteryPoolCheckpointCrossed(Skill.woodcutting, 1);
       expect(crossed, isNull);
+    });
+  });
+
+  group('spreadMasteryPoolXp', () {
+    test('levels up cheapest actions first', () {
+      var state = GlobalState.empty(testRegistries);
+      state = state.addSkillMasteryXp(Skill.woodcutting, 100000);
+
+      final result = state.spreadMasteryPoolXp(Skill.woodcutting);
+      expect(result, isNotNull);
+      expect(result!.levelsAdded, greaterThan(0));
+      expect(result.xpSpent, greaterThan(0));
+
+      // All actions should have been raised above level 1.
+      final actions = testRegistries.actionsForSkill(Skill.woodcutting);
+      for (final action in actions) {
+        expect(
+          result.state.actionState(action.id).masteryLevel,
+          greaterThan(1),
+        );
+      }
+    });
+
+    test('spreads levels evenly across actions', () {
+      var state = GlobalState.empty(testRegistries);
+      state = state.addSkillMasteryXp(Skill.woodcutting, 5000);
+
+      final result = state.spreadMasteryPoolXp(Skill.woodcutting);
+      expect(result, isNotNull);
+
+      final actions = testRegistries.actionsForSkill(Skill.woodcutting);
+      final levels = actions
+          .map((a) => result!.state.actionState(a.id).masteryLevel)
+          .toList();
+
+      // No action should be more than 1 level ahead of any other.
+      final minLevel = levels.reduce(min);
+      final maxLevel = levels.reduce(max);
+      expect(maxLevel - minLevel, lessThanOrEqualTo(1));
+    });
+
+    test('stops before crossing active checkpoint', () {
+      var state = GlobalState.empty(testRegistries);
+      final maxPoolXp = maxMasteryPoolXpForSkill(
+        testRegistries,
+        Skill.woodcutting,
+      );
+
+      // Set pool to just above 25%.
+      final poolXp = (maxPoolXp * 0.26).toInt();
+      state = state.addSkillMasteryXp(Skill.woodcutting, poolXp);
+
+      final result = state.spreadMasteryPoolXp(Skill.woodcutting);
+      // Pool should remain >= 25%.
+      if (result != null) {
+        final remainingPool = result.state
+            .skillState(Skill.woodcutting)
+            .masteryPoolXp;
+        expect(remainingPool, greaterThanOrEqualTo((maxPoolXp * 0.25).ceil()));
+      }
+    });
+
+    test('returns null when pool is empty', () {
+      final state = GlobalState.empty(testRegistries);
+      final result = state.spreadMasteryPoolXp(Skill.woodcutting);
+      expect(result, isNull);
+    });
+
+    test('returns null when all actions at max', () {
+      var state = GlobalState.empty(testRegistries);
+      state = state.addSkillMasteryXp(Skill.woodcutting, 999999999);
+
+      final actions = testRegistries.actionsForSkill(Skill.woodcutting);
+      for (final action in actions) {
+        state = state.addActionMasteryXp(action.id, maxMasteryXp);
+      }
+
+      final result = state.spreadMasteryPoolXp(Skill.woodcutting);
+      expect(result, isNull);
+    });
+
+    test('spends freely when below all checkpoints', () {
+      var state = GlobalState.empty(testRegistries);
+      final maxPoolXp = maxMasteryPoolXpForSkill(
+        testRegistries,
+        Skill.woodcutting,
+      );
+
+      // Set pool to 5% (below 10% checkpoint).
+      final poolXp = (maxPoolXp * 0.05).toInt();
+      state = state.addSkillMasteryXp(Skill.woodcutting, poolXp);
+
+      final result = state.spreadMasteryPoolXp(Skill.woodcutting);
+      if (result != null) {
+        expect(result.xpSpent, greaterThan(0));
+      }
+    });
+
+    test('accounts for actions with different starting levels', () {
+      final normalTree = testRegistries.woodcuttingAction('Normal Tree');
+      var state = GlobalState.empty(testRegistries);
+
+      // Give one action a head start to level 10.
+      state = state.addActionMasteryXp(normalTree.id, startXpForLevel(10));
+      state = state.addSkillMasteryXp(Skill.woodcutting, 50000);
+
+      final result = state.spreadMasteryPoolXp(Skill.woodcutting);
+      expect(result, isNotNull);
+
+      // Other actions should have caught up (been leveled).
+      final otherActions = testRegistries
+          .actionsForSkill(Skill.woodcutting)
+          .where((a) => a.id != normalTree.id);
+      for (final action in otherActions) {
+        final level = result!.state.actionState(action.id).masteryLevel;
+        expect(level, greaterThan(1));
+      }
     });
   });
 }

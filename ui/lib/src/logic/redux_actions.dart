@@ -888,6 +888,18 @@ class SpendMasteryPoolAction extends ReduxAction<GlobalState> {
   }
 }
 
+/// Spreads mastery pool XP greedily across all actions in a skill.
+class SpreadMasteryPoolAction extends ReduxAction<GlobalState> {
+  SpreadMasteryPoolAction({required this.skill});
+  final Skill skill;
+
+  @override
+  GlobalState? reduce() {
+    final result = state.spreadMasteryPoolXp(skill);
+    return result?.state;
+  }
+}
+
 /// Claims a single mastery token for a skill.
 class ClaimMasteryTokenAction extends ReduxAction<GlobalState> {
   ClaimMasteryTokenAction({required this.skill});

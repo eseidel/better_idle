@@ -159,6 +159,20 @@ enum AttackStyle {
   bool get isMagic => combatType == CombatType.magic;
 }
 
+/// Result of spreading mastery pool XP across actions.
+@immutable
+class SpreadMasteryResult {
+  const SpreadMasteryResult({
+    required this.state,
+    required this.levelsAdded,
+    required this.xpSpent,
+  });
+
+  final GlobalState state;
+  final int levelsAdded;
+  final int xpSpent;
+}
+
 /// Per-skill serialized state.
 @immutable
 class SkillState {
@@ -1984,6 +1998,83 @@ class GlobalState {
     if (currentLevel >= 99) return null;
     final targetLevel = (currentLevel + levels).clamp(1, 99);
     return startXpForLevel(targetLevel) - action.masteryXp;
+  }
+
+  /// Spreads mastery pool XP greedily across actions in [skill], leveling up
+  /// the cheapest action first (lowest mastery level).
+  ///
+  /// Stops when:
+  /// - Pool would drop below the highest currently active checkpoint
+  /// - All actions are at max mastery (99)
+  /// - Pool is exhausted
+  ///
+  /// Returns null if no levels can be added.
+  SpreadMasteryResult? spreadMasteryPoolXp(Skill skill) {
+    final actions = registries.actionsForSkill(skill);
+    if (actions.isEmpty) return null;
+
+    // Determine the floor: highest active checkpoint's XP threshold.
+    final maxPoolXp = maxMasteryPoolXpForSkill(registries, skill);
+    final poolFloor = _masteryPoolFloor(skill, maxPoolXp);
+
+    var current = this;
+    var totalLevelsAdded = 0;
+    var totalXpSpent = 0;
+
+    // Greedy loop: find the cheapest next-level-up and spend on it.
+    while (true) {
+      // Find the action with the cheapest next level-up cost.
+      ActionId? cheapestAction;
+      int? cheapestCost;
+
+      for (final action in actions) {
+        final cost = current.masteryLevelUpCost(action.id);
+        if (cost == null) continue; // Already at 99
+        if (cheapestCost == null || cost < cheapestCost) {
+          cheapestAction = action.id;
+          cheapestCost = cost;
+        }
+      }
+
+      if (cheapestAction == null || cheapestCost == null) break; // All at 99
+
+      final pool = current.skillState(skill).masteryPoolXp;
+      if (pool - cheapestCost < poolFloor) break; // Would cross checkpoint
+
+      final updated = current.spendMasteryPoolXp(skill, cheapestAction);
+      if (updated == null) break;
+
+      current = updated;
+      totalLevelsAdded++;
+      totalXpSpent += cheapestCost;
+    }
+
+    if (totalLevelsAdded == 0) return null;
+    return SpreadMasteryResult(
+      state: current,
+      levelsAdded: totalLevelsAdded,
+      xpSpent: totalXpSpent,
+    );
+  }
+
+  /// Returns the minimum pool XP to maintain (the highest active checkpoint's
+  /// XP threshold). Returns 0 if below all checkpoints.
+  int _masteryPoolFloor(Skill skill, int maxPoolXp) {
+    if (maxPoolXp <= 0) return 0;
+
+    final pool = skillState(skill).masteryPoolXp;
+    final currentPercent = (pool / maxPoolXp) * 100;
+
+    final bonuses = registries.masteryPoolBonuses.forSkill(skill.id);
+    if (bonuses == null) return 0;
+
+    // Find highest active checkpoint.
+    for (final bonus in bonuses.bonuses.reversed) {
+      if (currentPercent >= bonus.percent) {
+        return (maxPoolXp * bonus.percent / 100).ceil();
+      }
+    }
+    return 0;
   }
 
   /// Returns which mastery pool checkpoint would be crossed if [xpCost] were
