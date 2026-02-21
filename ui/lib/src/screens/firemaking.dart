@@ -494,7 +494,7 @@ class _LogCard extends StatelessWidget {
     final state = context.state;
     final logItem = state.registries.items.byId(action.logId);
     final actionState = state.actionState(action.id);
-    final masteryProgress = xpProgressForXp(actionState.masteryXp);
+    final masteryProgress = masteryProgressForXp(actionState.masteryXp);
     final perAction = xpPerAction(
       state,
       action,

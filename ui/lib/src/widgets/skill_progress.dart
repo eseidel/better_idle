@@ -6,7 +6,7 @@ class SkillProgress extends StatelessWidget {
   final int xp;
   @override
   Widget build(BuildContext context) {
-    final xpProgress = xpProgressForXp(xp);
+    final xpProgress = skillProgressForXp(xp);
     final currentXp = xp - xpProgress.lastLevelXp;
     final nextLevelXpNeeded = xpProgress.nextLevelXp != null
         ? xpProgress.nextLevelXp! - xpProgress.lastLevelXp
