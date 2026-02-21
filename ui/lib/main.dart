@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:logic/logic.dart';
 import 'package:scoped_deps/scoped_deps.dart';
@@ -16,6 +17,14 @@ import 'package:ui/src/widgets/toast_overlay.dart';
 import 'package:ui/src/widgets/welcome_back_dialog.dart';
 
 void main() {
+  FlutterError.onError = (details) {
+    FlutterError.presentError(details);
+    logger.err('FlutterError: ${details.exception}\n${details.stack}');
+  };
+  PlatformDispatcher.instance.onError = (error, stack) {
+    logger.err('Unhandled error: $error\n$stack');
+    return true;
+  };
   runScoped(() => runApp(const MyApp()), values: {loggerRef, toastServiceRef});
 }
 
@@ -207,6 +216,7 @@ class _AppLifecycleManagerState extends State<_AppLifecycleManager>
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState lifecycle) {
+    logger.info('Lifecycle: $lifecycle');
     switch (lifecycle) {
       case AppLifecycleState.hidden:
       case AppLifecycleState.paused:
@@ -219,10 +229,16 @@ class _AppLifecycleManagerState extends State<_AppLifecycleManager>
           ProcessLifecycleChangeAction(LifecycleChange.pause),
         );
       case AppLifecycleState.resumed:
+        logger.info(
+          'Resuming: time since update='
+          '${DateTime.timestamp().difference(widget.store.state.updatedAt)}',
+        );
         // Calculate time away and process it
         widget.store.dispatch(ResumeFromPauseAction());
+        logger.info('ResumeFromPauseAction dispatched');
         // Resume game loop from suspension - this re-enables auto-start
         widget.gameLoop.resume();
+        logger.info('GameLoop resumed');
         Future.microtask(_checkAndShowDialog);
         widget.store.dispatch(
           ProcessLifecycleChangeAction(LifecycleChange.resume),
