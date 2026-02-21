@@ -171,37 +171,26 @@ int startXpForLevel(int level) {
   return _xpTable[level - 1];
 }
 
-/// Like [skillProgressForXp] but capped at mastery level 99.
-XpProgress masteryProgressForXp(int xp) {
-  const maxMasteryLevel = 99;
-  final progress = skillProgressForXp(xp);
-  if (progress.level >= maxMasteryLevel) {
-    return XpProgress(
-      level: maxMasteryLevel,
-      progress: 1,
-      lastLevelXp: startXpForLevel(maxMasteryLevel),
-      nextLevelXp: null,
-    );
-  }
-  return progress;
-}
+/// Mastery XP progress, capped at level 99.
+XpProgress masteryProgressForXp(int xp) => _progressForXp(xp, maxLevel: 99);
 
-XpProgress skillProgressForXp(int xp) {
+/// Skill XP progress, uncapped (levels 1 to [maxLevel]).
+XpProgress skillProgressForXp(int xp) => _progressForXp(xp);
+
+XpProgress _progressForXp(int xp, {int? maxLevel}) {
+  final effectiveMaxLevel = maxLevel ?? _xpTable.length;
   final level = levelForXp(xp);
-  final startXp = startXpForLevel(level);
 
-  // Handle max level case - if we're at the last level in the table
-  final maxLevel = _xpTable.length;
-  if (level >= maxLevel) {
-    // At max level, progress is 1.0 (or we could cap it)
+  if (level >= effectiveMaxLevel) {
     return XpProgress(
-      level: maxLevel,
+      level: effectiveMaxLevel,
       progress: 1,
-      lastLevelXp: startXp,
+      lastLevelXp: startXpForLevel(effectiveMaxLevel),
       nextLevelXp: null,
     );
   }
 
+  final startXp = startXpForLevel(level);
   final nextLevelXp = startXpForLevel(level + 1);
   final progress =
       (xp - startXp).toDouble() / (nextLevelXp - startXp).toDouble();
