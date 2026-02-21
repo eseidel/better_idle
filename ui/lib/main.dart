@@ -318,41 +318,49 @@ class _AppLifecycleManagerState extends State<_AppLifecycleManager>
     // Process ticks in chunks, yielding between each.
     // This runs outside the store to avoid blocking the UI — the game loop
     // is suspended so no other ticks can race with this computation.
-    var currentState = widget.store.state;
-    var remaining = totalTicks;
-    TimeAway? mergedTimeAway;
-    final random = Random();
+    try {
+      var currentState = widget.store.state;
+      var remaining = totalTicks;
+      TimeAway? mergedTimeAway;
+      final random = Random();
 
-    while (remaining > 0 && _isProcessingResume) {
-      final chunk = min(remaining, _resumeChunkSize);
-      final (timeAway, newState) = consumeManyTicks(
-        currentState,
-        chunk,
-        endTime: now,
-        random: random,
-      );
-      currentState = newState;
-      mergedTimeAway = timeAway.maybeMergeInto(mergedTimeAway);
-      remaining -= chunk;
-      _welcomeBackState.progress.value = 1 - (remaining / totalTicks);
-      if (remaining > 0) {
-        await Future<void>.delayed(Duration.zero);
+      while (remaining > 0 && _isProcessingResume) {
+        final chunk = min(remaining, _resumeChunkSize);
+        final (timeAway, newState) = consumeManyTicks(
+          currentState,
+          chunk,
+          endTime: now,
+          random: random,
+        );
+        currentState = newState;
+        mergedTimeAway = timeAway.maybeMergeInto(mergedTimeAway);
+        remaining -= chunk;
+        _welcomeBackState.progress.value = 1 - (remaining / totalTicks);
+        if (remaining > 0) {
+          await Future<void>.delayed(Duration.zero);
+        }
       }
+
+      if (!_isProcessingResume) return; // Cancelled (app went to background)
+
+      // Apply the computed state to the store and transition the dialog.
+      // Keep _isProcessingResume true until after dispatch so the onChange
+      // listener doesn't try to show a duplicate dialog.
+      widget.store.dispatch(
+        ResumeFromPauseAction.precomputed(
+          computedState: currentState,
+          computedTimeAway: mergedTimeAway,
+        ),
+      );
+      _welcomeBackState.result.value = widget.store.state.timeAway;
+    } on Object catch (e, stackTrace) {
+      logger.err('Async resume failed: $e\n$stackTrace');
+      // Fall back to synchronous processing so the dialog can show results.
+      widget.store.dispatch(ResumeFromPauseAction());
+      _welcomeBackState.result.value = widget.store.state.timeAway;
+    } finally {
+      _isProcessingResume = false;
     }
-
-    if (!_isProcessingResume) return; // Cancelled (app went to background)
-
-    // Apply the computed state to the store and transition the dialog.
-    // Keep _isProcessingResume true until after dispatch so the onChange
-    // listener doesn't try to show a duplicate dialog.
-    widget.store.dispatch(
-      ResumeFromPauseAction.precomputed(
-        computedState: currentState,
-        computedTimeAway: mergedTimeAway,
-      ),
-    );
-    _welcomeBackState.result.value = widget.store.state.timeAway;
-    _isProcessingResume = false;
 
     // Now safe to resume the game loop and persistor.
     widget.gameLoop.resume();
