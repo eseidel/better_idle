@@ -473,8 +473,7 @@ class _ObstacleSlotCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final state = context.state;
     final skillState = state.skillState(Skill.agility);
-    final skillLevel = levelForXp(skillState.xp);
-    final isUnlocked = skillLevel >= slotLevel;
+    final isUnlocked = skillState.skillLevel >= slotLevel;
 
     // Check if this obstacle is currently being run
     final activity = state.activeActivity;

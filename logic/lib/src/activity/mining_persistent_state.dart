@@ -82,7 +82,7 @@ class MiningState {
 
   /// Gets the current HP of a mining rock.
   int currentHp(MiningAction action, int masteryXp) {
-    final masteryLevel = levelForXp(masteryXp);
+    final masteryLevel = levelForXp(masteryXp).clamp(1, 99);
     final maxHp = action.maxHpForMasteryLevel(masteryLevel);
     return max(0, maxHp - totalHpLost);
   }

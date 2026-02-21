@@ -16,7 +16,7 @@ class SkillMilestonesDialog extends StatelessWidget {
   Widget build(BuildContext context) {
     final state = context.state;
     final skillState = state.skillState(skill);
-    final currentLevel = levelForXp(skillState.xp);
+    final currentLevel = skillState.skillLevel;
 
     // Get all skill actions for this skill, sorted by unlock level.
     final actions = state.registries.actionsForSkill(skill).toList()

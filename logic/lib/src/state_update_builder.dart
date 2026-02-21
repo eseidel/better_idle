@@ -81,7 +81,7 @@ class StateUpdateBuilder {
   }
 
   int currentMasteryLevel(Action action) {
-    return levelForXp(_state.actionState(action.id).masteryXp);
+    return _state.actionState(action.id).masteryLevel;
   }
 
   void restartCurrentAction(Action action, {required Random random}) {

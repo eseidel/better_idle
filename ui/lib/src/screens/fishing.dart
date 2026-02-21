@@ -27,7 +27,7 @@ class _FishingPageState extends State<FishingPage> {
     const skill = Skill.fishing;
     final state = context.state;
     final skillState = state.skillState(skill);
-    final skillLevel = levelForXp(skillState.xp);
+    final skillLevel = skillState.skillLevel;
     final registries = state.registries;
 
     // Get all fishing actions from registries.
