@@ -1412,10 +1412,7 @@ class _SlayerAreaTile extends StatelessWidget {
     return Card(
       color: hasActiveMonster ? Style.activeColorLight : null,
       child: ExpansionTile(
-        leading: CachedImage(
-          assetPath: area.media,
-          size: 40,
-        ),
+        leading: CachedImage(assetPath: area.media, size: 40),
         title: Text(area.name),
         subtitle: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
