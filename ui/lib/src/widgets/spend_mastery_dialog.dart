@@ -60,17 +60,20 @@ class _SpendMasteryDialogState extends State<SpendMasteryDialog> {
                   maxXp: maxPoolXp,
                 ),
                 const SizedBox(height: 12),
-                // Increment selector
-                _IncrementSelector(
-                  selected: _selectedIncrement,
-                  onChanged: (value) {
-                    setState(() {
-                      _selectedIncrement = value;
-                    });
-                  },
+                Row(
+                  children: [
+                    _SpreadButton(skill: widget.skill, state: state),
+                    const Spacer(),
+                    _IncrementSelector(
+                      selected: _selectedIncrement,
+                      onChanged: (value) {
+                        setState(() {
+                          _selectedIncrement = value;
+                        });
+                      },
+                    ),
+                  ],
                 ),
-                const SizedBox(height: 8),
-                _SpreadButton(skill: widget.skill, state: state),
                 const SizedBox(height: 8),
                 Flexible(
                   child: SingleChildScrollView(
