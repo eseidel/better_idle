@@ -135,8 +135,10 @@ class ResumeFromPauseAction extends ReduxAction<GlobalState> {
       random: random,
     );
     stopwatch.stop();
-    logger.info('ResumeFromPause: consumeManyTicks took '
-        '${stopwatch.elapsedMilliseconds}ms');
+    logger.info(
+      'ResumeFromPause: consumeManyTicks took '
+      '${stopwatch.elapsedMilliseconds}ms',
+    );
     final timeAway = newTimeAway.maybeMergeInto(state.timeAway);
     // Set timeAway on state if it has changes - empty timeAway should be null
     return newState.copyWith(

@@ -229,8 +229,10 @@ class _AppLifecycleManagerState extends State<_AppLifecycleManager>
           ProcessLifecycleChangeAction(LifecycleChange.pause),
         );
       case AppLifecycleState.resumed:
-        logger.info('Resuming: time since update='
-            '${DateTime.timestamp().difference(widget.store.state.updatedAt)}');
+        logger.info(
+          'Resuming: time since update='
+          '${DateTime.timestamp().difference(widget.store.state.updatedAt)}',
+        );
         // Calculate time away and process it
         widget.store.dispatch(ResumeFromPauseAction());
         logger.info('ResumeFromPauseAction dispatched');
