@@ -2180,29 +2180,34 @@ class GlobalState {
   ///
   /// Returns the new state after claiming tokens, or this state if
   /// there are no tokens to claim or the pool is full.
-  GlobalState claimAllMasteryTokens(Skill skill) {
+  /// Claims [count] mastery tokens for a skill.
+  GlobalState claimMasteryTokens(Skill skill, int count) {
     if (!MasteryTokenDrop.skillHasMasteryToken(skill)) {
       return this;
     }
 
+    final claimable = claimableMasteryTokenCount(skill);
+    final toClaim = count.clamp(0, claimable);
+    if (toClaim < 1) return this;
+
     final tokenId = MasteryTokenDrop(skill: skill).itemId;
     final token = registries.items.byId(tokenId);
-
-    final claimable = claimableMasteryTokenCount(skill);
-    if (claimable < 1) return this;
 
     final maxPoolXp = maxMasteryPoolXpForSkill(registries, skill);
     final currentPoolXp = skillState(skill).masteryPoolXp;
     final remaining = maxPoolXp - currentPoolXp;
     final xpPerToken = masteryTokenXpPerClaim(skill);
-    final totalXp = (xpPerToken * claimable).clamp(0, remaining);
+    final totalXp = (xpPerToken * toClaim).clamp(0, remaining);
 
-    // Remove only the claimable tokens from inventory
-    final tokenStack = ItemStack(token, count: claimable);
+    final tokenStack = ItemStack(token, count: toClaim);
     final newInventory = inventory.removing(tokenStack);
 
-    // Add mastery pool XP
     return copyWith(inventory: newInventory).addSkillMasteryXp(skill, totalXp);
+  }
+
+  GlobalState claimAllMasteryTokens(Skill skill) {
+    final claimable = claimableMasteryTokenCount(skill);
+    return claimMasteryTokens(skill, claimable);
   }
 
   /// Adds an amount of a specific currency.

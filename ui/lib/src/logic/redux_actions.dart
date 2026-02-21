@@ -922,3 +922,15 @@ class ClaimAllMasteryTokensAction extends ReduxAction<GlobalState> {
     return state.claimAllMasteryTokens(skill);
   }
 }
+
+/// Claims a specific number of mastery tokens for a skill.
+class ClaimMasteryTokensAction extends ReduxAction<GlobalState> {
+  ClaimMasteryTokensAction({required this.skill, required this.count});
+  final Skill skill;
+  final int count;
+
+  @override
+  GlobalState? reduce() {
+    return state.claimMasteryTokens(skill, count);
+  }
+}

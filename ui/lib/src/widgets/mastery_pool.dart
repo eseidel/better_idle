@@ -36,14 +36,6 @@ class MasteryPoolProgress extends StatelessWidget {
         ),
         child: const Text('Spend XP'),
       ),
-      if (state.claimableMasteryTokenCount(skill) > 0)
-        TextButton(
-          onPressed: () => showDialog<void>(
-            context: context,
-            builder: (context) => _ClaimMasteryTokensDialog(skill: skill),
-          ),
-          child: const Text('Claim Tokens'),
-        ),
     ];
 
     final bar = MasteryPoolBar(currentXp: currentXp, maxXp: maxXp);
@@ -73,8 +65,8 @@ class MasteryPoolProgress extends StatelessWidget {
   }
 }
 
-class _ClaimMasteryTokensDialog extends StatelessWidget {
-  const _ClaimMasteryTokensDialog({required this.skill});
+class ClaimMasteryTokensDialog extends StatelessWidget {
+  const ClaimMasteryTokensDialog({required this.skill, super.key});
 
   final Skill skill;
 

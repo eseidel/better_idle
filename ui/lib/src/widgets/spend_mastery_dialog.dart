@@ -63,6 +63,18 @@ class _SpendMasteryDialogState extends State<SpendMasteryDialog> {
                 Row(
                   children: [
                     _SpreadButton(skill: widget.skill, state: state),
+                    if (state.claimableMasteryTokenCount(widget.skill) > 0)
+                      Padding(
+                        padding: const EdgeInsets.only(left: 8),
+                        child: ElevatedButton(
+                          onPressed: () => showDialog<void>(
+                            context: context,
+                            builder: (context) =>
+                                ClaimMasteryTokensDialog(skill: widget.skill),
+                          ),
+                          child: const Text('Claim Tokens'),
+                        ),
+                      ),
                     const Spacer(),
                     _IncrementSelector(
                       selected: _selectedIncrement,
