@@ -338,7 +338,6 @@ class DungeonSelectionDialog extends StatelessWidget {
             name: dungeon.name,
             monsterIds: dungeon.monsterIds,
             media: dungeon.media,
-            fallbackAssetPath: 'assets/media/skills/combat/dungeon.png',
             isActive: activeDungeonId == dungeon.id,
             completionCount: state.dungeonCompletions[dungeon.id] ?? 0,
             onEnter: () =>
@@ -374,7 +373,6 @@ class StrongholdSelectionDialog extends StatelessWidget {
             name: stronghold.name,
             monsterIds: stronghold.monsterIds,
             media: stronghold.media,
-            fallbackAssetPath: 'assets/media/skills/combat/strongholds.png',
             isActive: activeStrongholdId == stronghold.id,
             completionCount: state.strongholdCompletions[stronghold.id] ?? 0,
             onEnter: () =>
@@ -392,7 +390,6 @@ class _SequenceEntry {
     required this.id,
     required this.name,
     required this.monsterIds,
-    required this.fallbackAssetPath,
     required this.isActive,
     required this.completionCount,
     required this.onEnter,
@@ -403,7 +400,6 @@ class _SequenceEntry {
   final String name;
   final List<MelvorId> monsterIds;
   final String? media;
-  final String fallbackAssetPath;
   final bool isActive;
   final int completionCount;
   final VoidCallback onEnter;
@@ -463,10 +459,7 @@ class _SequenceTile extends StatelessWidget {
     return Card(
       color: entry.isActive ? Style.activeColorLight : null,
       child: ListTile(
-        leading: CachedImage(
-          assetPath: entry.media ?? entry.fallbackAssetPath,
-          size: 40,
-        ),
+        leading: CachedImage(assetPath: entry.media, size: 40),
         title: Text(entry.name),
         subtitle: Text(
           '$monsterCount monsters • Completed: ${entry.completionCount}',
@@ -1420,7 +1413,7 @@ class _SlayerAreaTile extends StatelessWidget {
       color: hasActiveMonster ? Style.activeColorLight : null,
       child: ExpansionTile(
         leading: CachedImage(
-          assetPath: area.media ?? 'assets/media/skills/slayer/slayer.png',
+          assetPath: area.media,
           size: 40,
         ),
         title: Text(area.name),
