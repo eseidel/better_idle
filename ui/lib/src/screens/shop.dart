@@ -1,7 +1,11 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:logic/logic.dart';
 import 'package:ui/src/logic/redux_actions.dart';
 import 'package:ui/src/widgets/cached_image.dart';
+import 'package:ui/src/widgets/context_extensions.dart';
 import 'package:ui/src/widgets/cost_row.dart';
 import 'package:ui/src/widgets/game_scaffold.dart';
 import 'package:ui/src/widgets/style.dart';
@@ -176,17 +180,29 @@ class _ShopPageState extends State<ShopPage> {
           unmetRequirements: unmetRequirements,
           dungeonRegistry: viewModel._state.registries.dungeons,
           onTap: canPurchase
-              ? () => _showPurchaseDialog(
-                  context,
-                  name: purchase.name,
-                  costWidget: _buildCostWidget(
-                    currencyCosts,
-                    resolvedItemCosts,
-                  ),
-                  descriptionSpan: descriptionSpan,
-                  createAction: () =>
-                      PurchaseShopItemAction(purchaseId: purchase.id),
-                )
+              ? () {
+                  final remaining = viewModel.remainingPurchases(purchase);
+                  if (remaining > 1) {
+                    _showBulkPurchaseDialog(
+                      context,
+                      viewModel: viewModel,
+                      purchase: purchase,
+                      descriptionSpan: descriptionSpan,
+                    );
+                  } else {
+                    _showPurchaseDialog(
+                      context,
+                      name: purchase.name,
+                      costWidget: _buildCostWidget(
+                        currencyCosts,
+                        resolvedItemCosts,
+                      ),
+                      descriptionSpan: descriptionSpan,
+                      createAction: () =>
+                          PurchaseShopItemAction(purchaseId: purchase.id),
+                    );
+                  }
+                }
               : null,
         ),
       );
@@ -247,8 +263,7 @@ class _ShopPageState extends State<ShopPage> {
     // First, substitute template variables like ${qty}, ${qty1}, ${qty2}, etc.
     var processedDescription = description;
 
-    // TODO(eseidel): Consider adding a quantity selector.
-    // Replace ${qty} with 1 (we always purchase quantity 1, no qty selector)
+    // Replace ${qty} with 1 (description shows per-unit values).
     processedDescription = processedDescription.replaceAll(r'${qty}', '1');
 
     if (purchase != null && purchase.contains.items.isNotEmpty) {
@@ -367,6 +382,37 @@ class _ShopPageState extends State<ShopPage> {
 
     if (parts.isEmpty) return null;
     return TextSpan(text: parts.join(', '));
+  }
+
+  void _showBulkPurchaseDialog(
+    BuildContext context, {
+    required ShopViewModel viewModel,
+    required ShopPurchase purchase,
+    InlineSpan? descriptionSpan,
+  }) {
+    final maxAffordable = viewModel.maxAffordable(purchase);
+
+    showDialog<void>(
+      context: context,
+      builder: (dialogContext) => _BulkPurchaseDialog(
+        purchase: purchase,
+        maxAffordable: maxAffordable,
+        descriptionSpan: descriptionSpan,
+        onConfirm: (int quantity) {
+          try {
+            context.dispatch(
+              PurchaseShopItemAction(purchaseId: purchase.id, count: quantity),
+            );
+            Navigator.of(dialogContext).pop();
+          } on Exception catch (e) {
+            Navigator.of(dialogContext).pop();
+            ScaffoldMessenger.of(
+              context,
+            ).showSnackBar(SnackBar(content: Text(e.toString())));
+          }
+        },
+      ),
+    );
   }
 
   void _showPurchaseDialog(
@@ -530,6 +576,57 @@ class ShopViewModel {
     }
     return result;
   }
+
+  /// Returns how many more times this purchase can be bought.
+  /// Returns a large number for unlimited items.
+  int remainingPurchases(ShopPurchase purchase) {
+    if (purchase.isUnlimited) return 99999;
+    return purchase.buyLimit - _state.shop.purchaseCount(purchase.id);
+  }
+
+  /// Calculate how many times the player can afford this purchase.
+  int maxAffordable(ShopPurchase purchase) {
+    if (purchase.cost.hasDynamicPricing) {
+      return _maxAffordableDynamic(purchase);
+    }
+
+    final currencyCosts = purchase.cost.currencyCosts(
+      bankSlotsPurchased: bankSlotsPurchased,
+    );
+    final itemCosts = purchase.cost.items;
+
+    var max = 99999;
+
+    for (final (currency, amount) in currencyCosts) {
+      if (amount > 0) {
+        max = math.min(max, currencyBalance(currency) ~/ amount);
+      }
+    }
+
+    for (final cost in itemCosts) {
+      if (cost.quantity > 0) {
+        max = math.min(max, itemCount(cost.itemId) ~/ cost.quantity);
+      }
+    }
+
+    return math.min(max, remainingPurchases(purchase)).clamp(0, 99999);
+  }
+
+  /// For dynamic pricing (bank slots), iterate to find max affordable.
+  int _maxAffordableDynamic(ShopPurchase purchase) {
+    var balance = _state.gp;
+    var slots = bankSlotsPurchased;
+    var count = 0;
+    final remaining = remainingPurchases(purchase);
+    while (count < remaining) {
+      final cost = calculateBankSlotCost(slots);
+      if (balance < cost) break;
+      balance -= cost;
+      slots++;
+      count++;
+    }
+    return count;
+  }
 }
 
 class _ShopItemRow extends StatelessWidget {
@@ -687,6 +784,180 @@ class _ShopItemRow extends StatelessWidget {
         // Unknown requirement type, skip it
         return const SizedBox.shrink();
       }).toList(),
+    );
+  }
+}
+
+/// Dialog for purchasing multiple units of a shop item.
+class _BulkPurchaseDialog extends StatefulWidget {
+  const _BulkPurchaseDialog({
+    required this.purchase,
+    required this.maxAffordable,
+    required this.onConfirm,
+    this.descriptionSpan,
+  });
+
+  final ShopPurchase purchase;
+  final int maxAffordable;
+  final void Function(int quantity) onConfirm;
+  final InlineSpan? descriptionSpan;
+
+  @override
+  State<_BulkPurchaseDialog> createState() => _BulkPurchaseDialogState();
+}
+
+class _BulkPurchaseDialogState extends State<_BulkPurchaseDialog> {
+  int _selectedQuantity = 1;
+
+  static const _presets = [1, 10, 100, 1000, 10000];
+
+  List<(Currency, int)> _totalCurrencyCosts() {
+    final state = context.state;
+    final purchase = widget.purchase;
+
+    if (purchase.cost.hasDynamicPricing) {
+      // For dynamic pricing, sum individual costs.
+      final slots = state.shop.bankSlotsPurchased;
+      final total = List.generate(
+        _selectedQuantity,
+        (i) => calculateBankSlotCost(slots + i),
+      ).fold(0, (a, b) => a + b);
+      return [(Currency.gp, total)];
+    }
+
+    final baseCosts = purchase.cost.currencyCosts(
+      bankSlotsPurchased: state.shop.bankSlotsPurchased,
+    );
+    return baseCosts.map((c) => (c.$1, c.$2 * _selectedQuantity)).toList();
+  }
+
+  List<(Item, int, bool)> _totalItemCosts() {
+    final state = context.state;
+    return widget.purchase.cost.items.map((cost) {
+      final item = state.registries.items.byId(cost.itemId);
+      final totalQty = cost.quantity * _selectedQuantity;
+      final canAfford = state.inventory.countOfItem(item) >= totalQty;
+      return (item, totalQty, canAfford);
+    }).toList();
+  }
+
+  String _formatQuantity(int qty) {
+    if (qty >= 1000) return '${qty ~/ 1000}k';
+    return '$qty';
+  }
+
+  void _showCustomQuantityDialog() {
+    final controller = TextEditingController();
+    showDialog<void>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Enter Quantity'),
+        content: TextField(
+          controller: controller,
+          keyboardType: TextInputType.number,
+          inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+          autofocus: true,
+          decoration: InputDecoration(hintText: 'Max: ${widget.maxAffordable}'),
+          onSubmitted: (value) {
+            final qty = int.tryParse(value);
+            if (qty != null && qty > 0 && qty <= widget.maxAffordable) {
+              Navigator.of(dialogContext).pop();
+              setState(() => _selectedQuantity = qty);
+            }
+          },
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () {
+              final qty = int.tryParse(controller.text);
+              if (qty != null && qty > 0 && qty <= widget.maxAffordable) {
+                Navigator.of(dialogContext).pop();
+                setState(() => _selectedQuantity = qty);
+              }
+            },
+            child: const Text('OK'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final availablePresets = _presets
+        .where((q) => q <= widget.maxAffordable)
+        .toList();
+
+    return AlertDialog(
+      title: Text('Purchase ${widget.purchase.name}'),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (widget.descriptionSpan != null) ...[
+            Text.rich(
+              widget.descriptionSpan!,
+              style: const TextStyle(color: Style.successColor),
+            ),
+            const SizedBox(height: 12),
+          ],
+          const Text(
+            'Quantity:',
+            style: TextStyle(fontWeight: FontWeight.bold),
+          ),
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              for (final qty in availablePresets)
+                ChoiceChip(
+                  label: Text(_formatQuantity(qty)),
+                  selected: _selectedQuantity == qty,
+                  onSelected: (_) => setState(() => _selectedQuantity = qty),
+                ),
+              if (widget.maxAffordable > 0 &&
+                  (availablePresets.isEmpty ||
+                      widget.maxAffordable != availablePresets.last))
+                ChoiceChip(
+                  label: Text('Max (${_formatQuantity(widget.maxAffordable)})'),
+                  selected: _selectedQuantity == widget.maxAffordable,
+                  onSelected: (_) =>
+                      setState(() => _selectedQuantity = widget.maxAffordable),
+                ),
+              ActionChip(
+                label: const Text('Custom'),
+                onPressed: _showCustomQuantityDialog,
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          const Text(
+            'Total cost:',
+            style: TextStyle(fontWeight: FontWeight.bold),
+          ),
+          const SizedBox(height: 4),
+          CostRow(
+            currencyCosts: _totalCurrencyCosts(),
+            itemCosts: _totalItemCosts(),
+            showAffordability: false,
+          ),
+        ],
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('Cancel'),
+        ),
+        TextButton(
+          onPressed: () => widget.onConfirm(_selectedQuantity),
+          child: Text('Buy ${_formatQuantity(_selectedQuantity)}'),
+        ),
+      ],
     );
   }
 }
