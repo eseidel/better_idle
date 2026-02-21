@@ -99,11 +99,7 @@ class _AppLifecycleManagerState extends State<_AppLifecycleManager>
   bool _wasTimeAwayNull = true; // Track if timeAway was null in previous state
   late final StreamSubscription<GlobalState> _storeSubscription;
 
-  // Shared notifiers for the welcome-back dialog, allowing in-place
-  // transitions between loading and results states.
-  final _progressNotifier = ValueNotifier<double>(0);
-  final _resultNotifier = ValueNotifier<TimeAway?>(null);
-  final _awayDurationNotifier = ValueNotifier<Duration>(Duration.zero);
+  final _welcomeBackState = WelcomeBackState();
 
   @override
   void initState() {
@@ -165,9 +161,7 @@ class _AppLifecycleManagerState extends State<_AppLifecycleManager>
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _storeSubscription.cancel();
-    _progressNotifier.dispose();
-    _resultNotifier.dispose();
-    _awayDurationNotifier.dispose();
+    _welcomeBackState.dispose();
     super.dispose();
   }
 
@@ -187,7 +181,7 @@ class _AppLifecycleManagerState extends State<_AppLifecycleManager>
   void _showDialogIfNeeded(TimeAway timeAway) {
     // If dialog is already showing, update the result in-place.
     if (_isDialogShowing) {
-      _resultNotifier.value = timeAway;
+      _welcomeBackState.result.value = timeAway;
       return;
     }
 
@@ -210,11 +204,11 @@ class _AppLifecycleManagerState extends State<_AppLifecycleManager>
     // If Navigator can pop, there's already a route (possibly our dialog)
     if (navigator.canPop()) {
       _isDialogShowing = true;
-      _resultNotifier.value = timeAway;
+      _welcomeBackState.result.value = timeAway;
       return;
     }
 
-    _resultNotifier.value = timeAway;
+    _welcomeBackState.result.value = timeAway;
     _isDialogShowing = true;
     _showWelcomeBackDialog(navigatorContext);
   }
@@ -223,16 +217,11 @@ class _AppLifecycleManagerState extends State<_AppLifecycleManager>
     showDialog<void>(
       context: navigatorContext,
       barrierDismissible: false,
-      builder: (context) => WelcomeBackDialog(
-        awayDuration: _awayDurationNotifier,
-        progress: _progressNotifier,
-        result: _resultNotifier,
-      ),
+      builder: (context) => WelcomeBackDialog(state: _welcomeBackState),
     ).then((_) {
       // Dialog dismissed - clear timeAway state and reset tracking
       widget.store.dispatch(DismissWelcomeBackDialogAction());
-      _resultNotifier.value = null;
-      _progressNotifier.value = 0;
+      _welcomeBackState.reset();
       if (mounted) {
         setState(() {
           _isDialogShowing = false;
@@ -304,9 +293,8 @@ class _AppLifecycleManagerState extends State<_AppLifecycleManager>
     _isProcessingResume = true;
 
     // Transition shared notifiers to loading state.
-    _resultNotifier.value = null;
-    _progressNotifier.value = 0;
-    _awayDurationNotifier.value = duration;
+    _welcomeBackState.reset();
+    _welcomeBackState.awayDuration.value = duration;
 
     // Show dialog if not already showing (if already showing, it transitions
     // in-place via the notifiers above).
@@ -346,7 +334,7 @@ class _AppLifecycleManagerState extends State<_AppLifecycleManager>
       currentState = newState;
       mergedTimeAway = timeAway.maybeMergeInto(mergedTimeAway);
       remaining -= chunk;
-      _progressNotifier.value = 1 - (remaining / totalTicks);
+      _welcomeBackState.progress.value = 1 - (remaining / totalTicks);
       if (remaining > 0) {
         await Future<void>.delayed(Duration.zero);
       }
@@ -363,7 +351,7 @@ class _AppLifecycleManagerState extends State<_AppLifecycleManager>
         computedTimeAway: mergedTimeAway,
       ),
     );
-    _resultNotifier.value = widget.store.state.timeAway;
+    _welcomeBackState.result.value = widget.store.state.timeAway;
     _isProcessingResume = false;
 
     // Now safe to resume the game loop and persistor.

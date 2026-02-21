@@ -1,4 +1,3 @@
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:logic/logic.dart';
 import 'package:ui/src/widgets/cached_image.dart';
@@ -7,22 +6,36 @@ import 'package:ui/src/widgets/item_image.dart';
 import 'package:ui/src/widgets/skill_image.dart';
 import 'package:ui/src/widgets/style.dart';
 
+/// Shared state for [WelcomeBackDialog], allowing in-place transitions
+/// between loading (progress bar) and results states.
+class WelcomeBackState {
+  final progress = ValueNotifier<double>(0);
+  final result = ValueNotifier<TimeAway?>(null);
+  final awayDuration = ValueNotifier<Duration>(Duration.zero);
+
+  /// Resets all notifiers to their initial state.
+  void reset() {
+    result.value = null;
+    progress.value = 0;
+  }
+
+  void dispose() {
+    progress.dispose();
+    result.dispose();
+    awayDuration.dispose();
+  }
+}
+
 /// A dialog shown when returning to the app after being away.
 ///
-/// Always driven by [ValueListenable] notifiers so the dialog can transition
-/// in-place between loading (progress bar) and results states. When [result]
-/// is non-null, results are shown; otherwise a progress bar is displayed.
+/// Driven by [WelcomeBackState] notifiers so the dialog can transition
+/// in-place between loading (progress bar) and results states. When
+/// [WelcomeBackState.result] is non-null, results are shown; otherwise a
+/// progress bar is displayed.
 class WelcomeBackDialog extends StatelessWidget {
-  const WelcomeBackDialog({
-    required this.awayDuration,
-    required this.progress,
-    required this.result,
-    super.key,
-  });
+  const WelcomeBackDialog({required this.state, super.key});
 
-  final ValueListenable<Duration> awayDuration;
-  final ValueListenable<double> progress;
-  final ValueListenable<TimeAway?> result;
+  final WelcomeBackState state;
 
   /// Calculates per-hour rate from total count and duration.
   double? _perHour(int count, Duration duration) {
@@ -38,17 +51,17 @@ class WelcomeBackDialog extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return ValueListenableBuilder<TimeAway?>(
-      valueListenable: result,
+      valueListenable: state.result,
       builder: (context, resolvedTimeAway, _) {
         if (resolvedTimeAway != null) {
           return _buildResults(context, resolvedTimeAway);
         }
         // Still loading - show progress bar
         return ValueListenableBuilder<double>(
-          valueListenable: progress,
+          valueListenable: state.progress,
           builder: (context, progressValue, _) {
             return ValueListenableBuilder<Duration>(
-              valueListenable: awayDuration,
+              valueListenable: state.awayDuration,
               builder: (context, durationValue, _) {
                 return AlertDialog(
                   title: const Column(children: [Text('Welcome Back!')]),
