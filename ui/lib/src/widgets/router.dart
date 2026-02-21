@@ -25,6 +25,8 @@ import 'package:ui/src/screens/summoning.dart';
 import 'package:ui/src/screens/thieving.dart';
 import 'package:ui/src/screens/township.dart';
 import 'package:ui/src/screens/woodcutting.dart';
+import 'package:ui/src/widgets/game_scaffold.dart';
+import 'package:ui/src/widgets/navigation_drawer.dart';
 
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
@@ -33,131 +35,165 @@ final GoRouter router = GoRouter(
   initialLocation: '/bank',
   routes: <RouteBase>[
     GoRoute(path: '/', redirect: (context, state) => '/bank'),
-    GoRoute(
-      path: '/bank',
-      name: 'bank',
-      builder: (context, _) => const BankPage(),
-    ),
-    GoRoute(
-      path: '/woodcutting',
-      name: 'woodcutting',
-      builder: (context, _) => const WoodcuttingPage(),
-    ),
-    GoRoute(
-      path: '/firemaking',
-      name: 'firemaking',
-      builder: (context, _) => const FiremakingPage(),
-    ),
-    GoRoute(
-      path: '/fishing',
-      name: 'fishing',
-      builder: (context, _) => const FishingPage(),
-    ),
-    GoRoute(
-      path: '/cooking',
-      name: 'cooking',
-      builder: (context, _) => const CookingPage(),
-    ),
-    GoRoute(
-      path: '/mining',
-      name: 'mining',
-      builder: (context, _) => const MiningPage(),
-    ),
-    GoRoute(
-      path: '/smithing',
-      name: 'smithing',
-      builder: (context, _) => const SmithingPage(),
-    ),
-    GoRoute(
-      path: '/thieving',
-      name: 'thieving',
-      builder: (context, _) => const ThievingPage(),
-    ),
-    GoRoute(
-      path: '/fletching',
-      name: 'fletching',
-      builder: (context, _) => const FletchingPage(),
-    ),
-    GoRoute(
-      path: '/crafting',
-      name: 'crafting',
-      builder: (context, _) => const CraftingPage(),
-    ),
-    GoRoute(
-      path: '/herblore',
-      name: 'herblore',
-      builder: (context, _) => const HerblorePage(),
-    ),
-    GoRoute(
-      path: '/township',
-      name: 'township',
-      builder: (context, _) => const TownshipPage(),
-    ),
-    GoRoute(
-      path: '/farming',
-      name: 'farming',
-      builder: (context, _) => const FarmingPage(),
-    ),
-    GoRoute(
-      path: '/runecrafting',
-      name: 'runecrafting',
-      builder: (context, _) => const RunecraftingPage(),
-    ),
-    GoRoute(
-      path: '/combat',
-      name: 'combat',
-      builder: (context, _) => const CombatPage(),
-    ),
-    GoRoute(
-      path: '/agility',
-      name: 'agility',
-      builder: (context, _) => const AgilityPage(),
-    ),
-    GoRoute(
-      path: '/summoning',
-      name: 'summoning',
-      builder: (context, _) => const SummoningPage(),
-    ),
-    GoRoute(
-      path: '/astrology',
-      name: 'astrology',
-      builder: (context, _) => const AstrologyPage(),
+    ShellRoute(
+      builder: (context, state, child) {
+        return _ResponsiveShell(child: child);
+      },
       routes: [
         GoRoute(
-          path: ':constellationId',
-          name: 'constellation',
-          builder: (context, state) {
-            final id = state.pathParameters['constellationId']!;
-            final melvorId = MelvorId.fromJson(id);
-            return ConstellationDetailPage(constellationId: melvorId);
-          },
+          path: '/bank',
+          name: 'bank',
+          builder: (context, _) => const BankPage(),
+        ),
+        GoRoute(
+          path: '/woodcutting',
+          name: 'woodcutting',
+          builder: (context, _) => const WoodcuttingPage(),
+        ),
+        GoRoute(
+          path: '/firemaking',
+          name: 'firemaking',
+          builder: (context, _) => const FiremakingPage(),
+        ),
+        GoRoute(
+          path: '/fishing',
+          name: 'fishing',
+          builder: (context, _) => const FishingPage(),
+        ),
+        GoRoute(
+          path: '/cooking',
+          name: 'cooking',
+          builder: (context, _) => const CookingPage(),
+        ),
+        GoRoute(
+          path: '/mining',
+          name: 'mining',
+          builder: (context, _) => const MiningPage(),
+        ),
+        GoRoute(
+          path: '/smithing',
+          name: 'smithing',
+          builder: (context, _) => const SmithingPage(),
+        ),
+        GoRoute(
+          path: '/thieving',
+          name: 'thieving',
+          builder: (context, _) => const ThievingPage(),
+        ),
+        GoRoute(
+          path: '/fletching',
+          name: 'fletching',
+          builder: (context, _) => const FletchingPage(),
+        ),
+        GoRoute(
+          path: '/crafting',
+          name: 'crafting',
+          builder: (context, _) => const CraftingPage(),
+        ),
+        GoRoute(
+          path: '/herblore',
+          name: 'herblore',
+          builder: (context, _) => const HerblorePage(),
+        ),
+        GoRoute(
+          path: '/township',
+          name: 'township',
+          builder: (context, _) => const TownshipPage(),
+        ),
+        GoRoute(
+          path: '/farming',
+          name: 'farming',
+          builder: (context, _) => const FarmingPage(),
+        ),
+        GoRoute(
+          path: '/runecrafting',
+          name: 'runecrafting',
+          builder: (context, _) => const RunecraftingPage(),
+        ),
+        GoRoute(
+          path: '/combat',
+          name: 'combat',
+          builder: (context, _) => const CombatPage(),
+        ),
+        GoRoute(
+          path: '/agility',
+          name: 'agility',
+          builder: (context, _) => const AgilityPage(),
+        ),
+        GoRoute(
+          path: '/summoning',
+          name: 'summoning',
+          builder: (context, _) => const SummoningPage(),
+        ),
+        GoRoute(
+          path: '/astrology',
+          name: 'astrology',
+          builder: (context, _) => const AstrologyPage(),
+          routes: [
+            GoRoute(
+              path: ':constellationId',
+              name: 'constellation',
+              builder: (context, state) {
+                final id = state.pathParameters['constellationId']!;
+                final melvorId = MelvorId.fromJson(id);
+                return ConstellationDetailPage(constellationId: melvorId);
+              },
+            ),
+          ],
+        ),
+        GoRoute(
+          path: '/alt_magic',
+          name: 'alt_magic',
+          builder: (context, _) => const AltMagicPage(),
+        ),
+        GoRoute(
+          path: '/shop',
+          name: 'shop',
+          builder: (context, _) => const ShopPage(),
+        ),
+        GoRoute(
+          path: '/debug',
+          name: 'debug',
+          builder: (context, _) => const DebugPage(),
+        ),
+        GoRoute(
+          path: '/statistics',
+          name: 'statistics',
+          builder: (context, _) => const StatisticsPage(),
+        ),
+        GoRoute(
+          path: '/save_slots',
+          name: 'save_slots',
+          builder: (context, _) => const SaveSlotsPage(),
         ),
       ],
     ),
-    GoRoute(
-      path: '/alt_magic',
-      name: 'alt_magic',
-      builder: (context, _) => const AltMagicPage(),
-    ),
-    GoRoute(
-      path: '/shop',
-      name: 'shop',
-      builder: (context, _) => const ShopPage(),
-    ),
-    GoRoute(
-      path: '/debug',
-      name: 'debug',
-      builder: (context, _) => const DebugPage(),
-    ),
-    GoRoute(
-      path: '/statistics',
-      name: 'statistics',
-      builder: (context, _) => const StatisticsPage(),
-    ),
-    GoRoute(
-      path: '/save_slots',
-      name: 'save_slots',
-      builder: (context, _) => const SaveSlotsPage(),
-    ),
   ],
 );
+
+/// Shell widget that shows a persistent sidebar on wide screens.
+///
+/// On narrow screens this is a no-op pass-through; the child pages handle
+/// their own drawer via [GameScaffold] / [AppNavigationDrawer].
+class _ResponsiveShell extends StatelessWidget {
+  const _ResponsiveShell({required this.child});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    final isWide = MediaQuery.sizeOf(context).width >= sidebarBreakpoint;
+    if (!isWide) return child;
+
+    return Row(
+      children: [
+        const SizedBox(
+          width: sidebarWidth,
+          child: Material(child: NavigationContent(isDrawer: false)),
+        ),
+        const VerticalDivider(width: 1),
+        Expanded(child: child),
+      ],
+    );
+  }
+}

@@ -116,43 +116,6 @@ class _BankPageState extends State<BankPage> {
     final inventoryUsed = state.inventoryUsed;
     final inventoryCapacity = state.inventoryCapacity;
     final isWide = MediaQuery.sizeOf(context).width >= sidebarBreakpoint;
-    final showSidebar = isWide && !_isSelectionMode;
-
-    final bankContent = Column(
-      children: [
-        if (!_isSelectionMode)
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            child: Row(
-              children: [
-                Text(
-                  'Space: $inventoryUsed/$inventoryCapacity',
-                  style: inventoryUsed >= inventoryCapacity
-                      ? const TextStyle(color: Style.errorColor)
-                      : null,
-                ),
-                const SizedBox(width: 16),
-                Text('Value: ${approximateCreditString(sellValue)} GP'),
-                const Spacer(),
-                IconButton(
-                  icon: const Icon(Icons.sort),
-                  tooltip: 'Sort inventory',
-                  onPressed: () => context.dispatch(SortInventoryAction()),
-                ),
-              ],
-            ),
-          ),
-        Expanded(
-          child: ItemGrid(
-            stacks: context.state.inventory.items,
-            onItemTap: _onItemTap,
-            onItemDoubleTap: _onItemDoubleTap,
-            onItemLongPress: _onItemLongPress,
-            selectedItems: _isSelectionMode ? _selectedItems : null,
-          ),
-        ),
-      ],
-    );
 
     // Handle back button in selection mode
     return PopScope(
@@ -190,18 +153,44 @@ class _BankPageState extends State<BankPage> {
         endDrawer: !_isSelectionMode && _selectedStack != null
             ? ItemDetailsDrawer(stack: _selectedStack!)
             : null,
-        body: showSidebar
-            ? Row(
-                children: [
-                  const SizedBox(
-                    width: sidebarWidth,
-                    child: Material(child: NavigationContent(isDrawer: false)),
-                  ),
-                  const VerticalDivider(width: 1),
-                  Expanded(child: bankContent),
-                ],
-              )
-            : bankContent,
+        body: Column(
+          children: [
+            if (!_isSelectionMode)
+              Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 8,
+                ),
+                child: Row(
+                  children: [
+                    Text(
+                      'Space: $inventoryUsed/$inventoryCapacity',
+                      style: inventoryUsed >= inventoryCapacity
+                          ? const TextStyle(color: Style.errorColor)
+                          : null,
+                    ),
+                    const SizedBox(width: 16),
+                    Text('Value: ${approximateCreditString(sellValue)} GP'),
+                    const Spacer(),
+                    IconButton(
+                      icon: const Icon(Icons.sort),
+                      tooltip: 'Sort inventory',
+                      onPressed: () => context.dispatch(SortInventoryAction()),
+                    ),
+                  ],
+                ),
+              ),
+            Expanded(
+              child: ItemGrid(
+                stacks: context.state.inventory.items,
+                onItemTap: _onItemTap,
+                onItemDoubleTap: _onItemDoubleTap,
+                onItemLongPress: _onItemLongPress,
+                selectedItems: _isSelectionMode ? _selectedItems : null,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

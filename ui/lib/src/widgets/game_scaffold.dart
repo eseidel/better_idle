@@ -14,8 +14,8 @@ const double sidebarWidth = 304;
 /// Use this instead of [Scaffold] to automatically include the game's
 /// standard app bar (with equipment button) and navigation drawer.
 ///
-/// On wide screens (>= [sidebarBreakpoint]), the navigation is shown as a
-/// permanent sidebar instead of a drawer.
+/// On wide screens the persistent sidebar is provided by the router shell,
+/// so the drawer is omitted.
 class GameScaffold extends StatelessWidget {
   const GameScaffold({
     required this.title,
@@ -86,23 +86,10 @@ class GameScaffold extends StatelessWidget {
   Widget build(BuildContext context) {
     final isWide = MediaQuery.sizeOf(context).width >= sidebarBreakpoint;
 
-    final scaffoldBody = isWide
-        ? Row(
-            children: [
-              const SizedBox(
-                width: sidebarWidth,
-                child: Material(child: NavigationContent(isDrawer: false)),
-              ),
-              const VerticalDivider(width: 1),
-              Expanded(child: body),
-            ],
-          )
-        : body;
-
     return Scaffold(
       appBar: GameAppBar(title: title, actions: actions, bottom: bottom),
       drawer: isWide ? null : const AppNavigationDrawer(),
-      body: scaffoldBody,
+      body: body,
       floatingActionButton: floatingActionButton,
       floatingActionButtonLocation: floatingActionButtonLocation,
       floatingActionButtonAnimator: floatingActionButtonAnimator,
