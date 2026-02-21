@@ -7,63 +7,29 @@ import 'package:ui/src/widgets/item_image.dart';
 import 'package:ui/src/widgets/skill_image.dart';
 import 'package:ui/src/widgets/style.dart';
 
-/// Dialog shown during resume processing that transitions to results.
-///
-/// Shows a progress bar while ticks are being processed, then displays
-/// the full [WelcomeBackDialog] when results are available.
-class ResumeProgressDialog extends StatelessWidget {
-  const ResumeProgressDialog({
-    required this.awayDuration,
-    required this.progress,
-    required this.result,
-    super.key,
-  });
-
-  final Duration awayDuration;
-  final ValueListenable<double> progress;
-  final ValueListenable<TimeAway?> result;
-
-  @override
-  Widget build(BuildContext context) {
-    return ValueListenableBuilder<TimeAway?>(
-      valueListenable: result,
-      builder: (context, timeAway, _) {
-        if (timeAway != null) {
-          return WelcomeBackDialog(timeAway: timeAway);
-        }
-        return ValueListenableBuilder<double>(
-          valueListenable: progress,
-          builder: (context, progressValue, _) {
-            return AlertDialog(
-              title: const Text('Welcome Back!'),
-              content: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    'You were away for '
-                    '${approximateDuration(awayDuration)}.',
-                    style: const TextStyle(fontWeight: FontWeight.bold),
-                  ),
-                  const SizedBox(height: 16),
-                  const Text('Processing...'),
-                  const SizedBox(height: 8),
-                  LinearProgressIndicator(value: progressValue),
-                ],
-              ),
-            );
-          },
-        );
-      },
-    );
-  }
-}
-
 /// A dialog shown when returning to the app after being away.
-/// Displays the changes (inventory and XP) that occurred while away.
+///
+/// Has two modes:
+/// - **Immediate**: Pass [timeAway] directly to show results.
+/// - **Async loading**: Pass [progress] and [result] listenables to show a
+///   progress bar while ticks are processed, then transition to results.
 class WelcomeBackDialog extends StatelessWidget {
-  const WelcomeBackDialog({required this.timeAway, super.key});
+  const WelcomeBackDialog({required this.timeAway, super.key})
+    : progress = null,
+      result = null,
+      awayDuration = null;
 
-  final TimeAway timeAway;
+  const WelcomeBackDialog.loading({
+    required this.awayDuration,
+    required ValueListenable<double> this.progress,
+    required ValueListenable<TimeAway?> this.result,
+    super.key,
+  }) : timeAway = null;
+
+  final TimeAway? timeAway;
+  final Duration? awayDuration;
+  final ValueListenable<double>? progress;
+  final ValueListenable<TimeAway?>? result;
 
   /// Calculates per-hour rate from total count and duration.
   double? _perHour(int count, Duration duration) {
@@ -78,6 +44,46 @@ class WelcomeBackDialog extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Loading mode: wrap with ValueListenableBuilders
+    if (result != null) {
+      return ValueListenableBuilder<TimeAway?>(
+        valueListenable: result!,
+        builder: (context, resolvedTimeAway, _) {
+          if (resolvedTimeAway != null) {
+            return _buildResults(context, resolvedTimeAway);
+          }
+          // Still loading - show progress bar
+          return ValueListenableBuilder<double>(
+            valueListenable: progress!,
+            builder: (context, progressValue, _) {
+              return AlertDialog(
+                title: const Column(children: [Text('Welcome Back!')]),
+                content: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      'You were away for '
+                      '${approximateDuration(awayDuration!)}.',
+                      style: const TextStyle(fontWeight: FontWeight.bold),
+                    ),
+                    const SizedBox(height: 16),
+                    const Text('Processing...'),
+                    const SizedBox(height: 8),
+                    LinearProgressIndicator(value: progressValue),
+                  ],
+                ),
+              );
+            },
+          );
+        },
+      );
+    }
+
+    // Immediate mode
+    return _buildResults(context, timeAway!);
+  }
+
+  Widget _buildResults(BuildContext context, TimeAway timeAway) {
     final activeSkill = timeAway.activeSkill;
     final duration = timeAway.duration;
     final changes = timeAway.changes;

@@ -294,7 +294,7 @@ class _AppLifecycleManagerState extends State<_AppLifecycleManager>
       showDialog<void>(
         context: navigatorContext,
         barrierDismissible: false,
-        builder: (context) => ResumeProgressDialog(
+        builder: (context) => WelcomeBackDialog.loading(
           awayDuration: duration,
           progress: progressNotifier,
           result: resultNotifier,
