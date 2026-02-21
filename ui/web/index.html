@@ -35,6 +35,21 @@
   <link rel="manifest" href="manifest.json">
 </head>
 <body>
+  <script>
+    // Diagnostic: detect WebGL context loss/restoration (white screen debugging)
+    function watchWebGLContext() {
+      var canvas = document.querySelector('canvas');
+      if (!canvas) { setTimeout(watchWebGLContext, 500); return; }
+      canvas.addEventListener('webglcontextlost', function(e) {
+        console.warn('[WebGL] Context LOST at', new Date().toISOString());
+      });
+      canvas.addEventListener('webglcontextrestored', function(e) {
+        console.warn('[WebGL] Context RESTORED at', new Date().toISOString());
+      });
+      console.log('[WebGL] Context loss listener attached to canvas');
+    }
+    watchWebGLContext();
+  </script>
   <script src="flutter_bootstrap.js" async></script>
 </body>
 </html>
