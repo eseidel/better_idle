@@ -6,6 +6,7 @@ import 'package:ui/src/widgets/context_extensions.dart';
 import 'package:ui/src/widgets/game_scaffold.dart';
 import 'package:ui/src/widgets/hp_bar.dart';
 import 'package:ui/src/widgets/mastery_pool.dart';
+import 'package:ui/src/widgets/skill_fab.dart';
 import 'package:ui/src/widgets/skill_image.dart';
 import 'package:ui/src/widgets/skill_overflow_menu.dart';
 import 'package:ui/src/widgets/skill_progress.dart';
@@ -57,6 +58,7 @@ class _ThievingPageState extends State<ThievingPage> {
     return GameScaffold(
       title: const Text('Thieving'),
       actions: const [SkillOverflowMenu(skill: skill)],
+      floatingActionButton: const SkillFab(skill: skill),
       body: Column(
         children: [
           SkillProgress(xp: skillState.xp),

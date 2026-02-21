@@ -5,6 +5,7 @@ import 'package:ui/src/widgets/cached_image.dart';
 import 'package:ui/src/widgets/context_extensions.dart';
 import 'package:ui/src/widgets/game_scaffold.dart';
 import 'package:ui/src/widgets/mastery_pool.dart';
+import 'package:ui/src/widgets/skill_fab.dart';
 import 'package:ui/src/widgets/skill_overflow_menu.dart';
 import 'package:ui/src/widgets/skill_progress.dart';
 import 'package:ui/src/widgets/style.dart';
@@ -67,6 +68,7 @@ class AgilityPage extends StatelessWidget {
     return GameScaffold(
       title: const Text('Agility'),
       actions: const [SkillOverflowMenu(skill: skill)],
+      floatingActionButton: const SkillFab(skill: skill),
       body: Column(
         children: [
           SkillProgress(xp: skillState.xp),
