@@ -21,8 +21,6 @@ class MasteryPoolProgress extends StatelessWidget {
     final skillState = state.skillState(skill);
     final currentXp = skillState.masteryPoolXp;
     final maxXp = maxMasteryPoolXpForSkill(state.registries, skill);
-    final progress = maxXp > 0 ? (currentXp / maxXp).clamp(0.0, 1.0) : 0.0;
-
     final buttons = [
       TextButton(
         onPressed: () => showDialog<void>(
@@ -48,29 +46,7 @@ class MasteryPoolProgress extends StatelessWidget {
         ),
     ];
 
-    final bar = Row(
-      children: [
-        const CachedImage(
-          assetPath: 'assets/media/main/mastery_pool.png',
-          size: 24,
-        ),
-        const SizedBox(width: 8),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              LinearProgressIndicator(value: progress),
-              const SizedBox(height: 8),
-              Text(
-                '${preciseNumberString(currentXp)} / ${preciseNumberString(maxXp)} '
-                '(${percentToString(progress)})',
-                style: Theme.of(context).textTheme.bodyMedium,
-              ),
-            ],
-          ),
-        ),
-      ],
-    );
+    final bar = MasteryPoolBar(currentXp: currentXp, maxXp: maxXp);
 
     return Padding(
       padding: const EdgeInsets.all(16),
@@ -142,6 +118,51 @@ class _ClaimMasteryTokensDialog extends StatelessWidget {
                 }
               : null,
           child: Text('Claim All ($claimable)'),
+        ),
+      ],
+    );
+  }
+}
+
+class MasteryPoolBar extends StatelessWidget {
+  const MasteryPoolBar({
+    required this.currentXp,
+    required this.maxXp,
+    super.key,
+  });
+
+  final int currentXp;
+  final int maxXp;
+
+  @override
+  Widget build(BuildContext context) {
+    final progress = maxXp > 0
+        ? (currentXp / maxXp).clamp(0.0, 1.0)
+        : 0.0;
+    return Row(
+      children: [
+        const CachedImage(
+          assetPath: 'assets/media/main/mastery_pool.png',
+          size: 24,
+        ),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              ClipRRect(
+                borderRadius: BorderRadius.circular(2),
+                child: LinearProgressIndicator(value: progress),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                '${preciseNumberString(currentXp)}'
+                ' / ${preciseNumberString(maxXp)}'
+                ' (${percentToString(progress)})',
+                style: Theme.of(context).textTheme.bodySmall,
+              ),
+            ],
+          ),
         ),
       ],
     );

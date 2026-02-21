@@ -3,6 +3,7 @@ import 'package:logic/logic.dart';
 import 'package:ui/src/logic/redux_actions.dart';
 import 'package:ui/src/widgets/action_image.dart';
 import 'package:ui/src/widgets/cached_image.dart';
+import 'package:ui/src/widgets/mastery_pool.dart';
 import 'package:ui/src/widgets/skill_image.dart';
 import 'package:ui/src/widgets/style.dart';
 
@@ -55,11 +56,10 @@ class _SpendMasteryDialogState extends State<SpendMasteryDialog> {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                // Pool summary
-                Text(
-                  'Pool: ${preciseNumberString(skillState.masteryPoolXp)}'
-                  ' / ${preciseNumberString(maxPoolXp)}',
-                  style: Theme.of(context).textTheme.bodyMedium,
+                // Pool progress bar
+                MasteryPoolBar(
+                  currentXp: skillState.masteryPoolXp,
+                  maxXp: maxPoolXp,
                 ),
                 const SizedBox(height: 12),
                 // Increment selector
