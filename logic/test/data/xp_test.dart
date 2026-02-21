@@ -68,9 +68,9 @@ void main() {
     });
   });
 
-  group('xpProgressForXp', () {
+  group('skillProgressForXp', () {
     test('returns correct progress for 0 XP (level 1)', () {
-      final progress = xpProgressForXp(0);
+      final progress = skillProgressForXp(0);
       expect(progress.level, 1);
       expect(progress.lastLevelXp, 0);
       expect(progress.nextLevelXp, 83);
@@ -80,7 +80,7 @@ void main() {
     });
 
     test('returns correct progress for XP at start of level 2', () {
-      final progress = xpProgressForXp(83);
+      final progress = skillProgressForXp(83);
       expect(progress.level, 2);
       expect(progress.lastLevelXp, 83);
       expect(progress.nextLevelXp, 174);
@@ -90,7 +90,7 @@ void main() {
     });
 
     test('returns correct progress for XP in middle of level 1', () {
-      final progress = xpProgressForXp(41);
+      final progress = skillProgressForXp(41);
       expect(progress.level, 1);
       expect(progress.lastLevelXp, 0);
       expect(progress.nextLevelXp, 83);
@@ -100,7 +100,7 @@ void main() {
     });
 
     test('returns correct progress for XP in middle of level 2', () {
-      final progress = xpProgressForXp(128);
+      final progress = skillProgressForXp(128);
       expect(progress.level, 2);
       expect(progress.lastLevelXp, 83);
       expect(progress.nextLevelXp, 174);
@@ -111,7 +111,7 @@ void main() {
     });
 
     test('returns correct progress for XP at start of level 3', () {
-      final progress = xpProgressForXp(174);
+      final progress = skillProgressForXp(174);
       expect(progress.level, 3);
       expect(progress.lastLevelXp, 174);
       expect(progress.nextLevelXp, 276);
@@ -122,7 +122,7 @@ void main() {
 
     test('progress is never negative', () {
       for (var xp = 0; xp < 100000; xp += 100) {
-        final progress = xpProgressForXp(xp);
+        final progress = skillProgressForXp(xp);
         expect(
           progress.progress,
           greaterThanOrEqualTo(0.0),
@@ -143,7 +143,7 @@ void main() {
     test('progress is 1.0 at max level (or close to next level)', () {
       // Test at the last level in the table
       const maxXpInTable = 104273167;
-      final progress = xpProgressForXp(maxXpInTable);
+      final progress = skillProgressForXp(maxXpInTable);
       // At max XP, we might be at max level, so nextLevelXp might not exist
       // But progress should still be valid
       expect(progress.progress, greaterThanOrEqualTo(0.0));
