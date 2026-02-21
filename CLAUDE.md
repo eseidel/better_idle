@@ -9,7 +9,7 @@ Inspired by Melvor Idle, built with Flutter for mobile. Two packages:
 - `dart run tool/coverage.dart` - run tests with coverage summary (from logic/)
 - `dart run tool/coverage.dart --check` - same, fails if below 90%
 - `dart run bin/solver.dart` - run the A* solver CLI (from logic/)
-- `dart format .` and `dart fix --apply .` - run from within each package (logic/ and ui/) to pick up analysis_options.yaml
+- `dart format .` and `dart fix --apply .` - run from repo root or within each package
 - `npx cspell` - spell check, must pass
 
 ## Key Architecture
