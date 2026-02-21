@@ -4,6 +4,7 @@ import 'package:ui/src/logic/redux_actions.dart';
 import 'package:ui/src/widgets/attack_style_selector.dart';
 import 'package:ui/src/widgets/cached_image.dart';
 import 'package:ui/src/widgets/context_extensions.dart';
+import 'package:ui/src/widgets/currency_display.dart';
 import 'package:ui/src/widgets/game_scaffold.dart';
 import 'package:ui/src/widgets/hp_bar.dart';
 import 'package:ui/src/widgets/item_image.dart';
@@ -47,7 +48,10 @@ class CombatPage extends StatelessWidget {
                       context: context,
                       builder: (_) => const CombatAreaSelectionDialog(),
                     ),
-                    icon: const Icon(Icons.map),
+                    icon: const CachedImage(
+                      assetPath: 'assets/media/skills/combat/combat.png',
+                      size: 20,
+                    ),
                     label: const Text('Combat Area'),
                   ),
                 ),
@@ -58,7 +62,10 @@ class CombatPage extends StatelessWidget {
                       context: context,
                       builder: (_) => const DungeonSelectionDialog(),
                     ),
-                    icon: const Icon(Icons.castle),
+                    icon: const CachedImage(
+                      assetPath: 'assets/media/skills/combat/dungeon.png',
+                      size: 20,
+                    ),
                     label: const Text('Dungeon'),
                   ),
                 ),
@@ -73,7 +80,10 @@ class CombatPage extends StatelessWidget {
                       context: context,
                       builder: (_) => const StrongholdSelectionDialog(),
                     ),
-                    icon: const Icon(Icons.shield),
+                    icon: const CachedImage(
+                      assetPath: 'assets/media/skills/combat/strongholds.png',
+                      size: 20,
+                    ),
                     label: const Text('Stronghold'),
                   ),
                 ),
@@ -84,28 +94,17 @@ class CombatPage extends StatelessWidget {
                       context: context,
                       builder: (_) => const SlayerAreaSelectionDialog(),
                     ),
-                    icon: const Icon(Icons.dangerous),
+                    icon: const CachedImage(
+                      assetPath: 'assets/media/skills/slayer/slayer.png',
+                      size: 20,
+                    ),
                     label: const Text('Slayer Area'),
                   ),
                 ),
               ],
             ),
             const SizedBox(height: 8),
-            Row(
-              children: [
-                Expanded(
-                  child: ElevatedButton.icon(
-                    onPressed: () => showDialog<void>(
-                      context: context,
-                      builder: (_) => const SlayerTaskSelectionDialog(),
-                    ),
-                    icon: const Icon(Icons.assignment),
-                    label: const Text('Slayer Task'),
-                  ),
-                ),
-                const Expanded(child: SizedBox()),
-              ],
-            ),
+            const _SlayerTaskCard(),
             const SizedBox(height: 16),
 
             // Player stats card with food
@@ -152,18 +151,15 @@ class CombatPage extends StatelessWidget {
                           .byId(context.sequenceId)
                           .name,
                   },
-                  icon: switch (context.sequenceType) {
-                    SequenceType.dungeon => Icons.castle,
-                    SequenceType.stronghold => Icons.shield,
+                  assetPath: switch (context.sequenceType) {
+                    SequenceType.dungeon =>
+                      'assets/media/skills/combat/dungeon.png',
+                    SequenceType.stronghold =>
+                      'assets/media/skills/combat/strongholds.png',
                   },
                   currentMonsterIndex: context.currentMonsterIndex,
                   totalMonsters: context.monsterIds.length,
                 ),
-              // Slayer task progress indicator
-              if (state.activeActivity case CombatActivity(
-                :final context,
-              ) when context is SlayerTaskContext)
-                _SlayerTaskProgressCard(taskContext: context),
               _MonsterCard(
                 action: activeMonster,
                 combatState: combatState,
@@ -342,7 +338,6 @@ class DungeonSelectionDialog extends StatelessWidget {
             name: dungeon.name,
             monsterIds: dungeon.monsterIds,
             media: dungeon.media,
-            icon: Icons.castle,
             isActive: activeDungeonId == dungeon.id,
             completionCount: state.dungeonCompletions[dungeon.id] ?? 0,
             onEnter: () =>
@@ -378,7 +373,6 @@ class StrongholdSelectionDialog extends StatelessWidget {
             name: stronghold.name,
             monsterIds: stronghold.monsterIds,
             media: stronghold.media,
-            icon: Icons.shield,
             isActive: activeStrongholdId == stronghold.id,
             completionCount: state.strongholdCompletions[stronghold.id] ?? 0,
             onEnter: () =>
@@ -396,7 +390,6 @@ class _SequenceEntry {
     required this.id,
     required this.name,
     required this.monsterIds,
-    required this.icon,
     required this.isActive,
     required this.completionCount,
     required this.onEnter,
@@ -407,7 +400,6 @@ class _SequenceEntry {
   final String name;
   final List<MelvorId> monsterIds;
   final String? media;
-  final IconData icon;
   final bool isActive;
   final int completionCount;
   final VoidCallback onEnter;
@@ -467,9 +459,7 @@ class _SequenceTile extends StatelessWidget {
     return Card(
       color: entry.isActive ? Style.activeColorLight : null,
       child: ListTile(
-        leading: entry.media != null
-            ? CachedImage(assetPath: entry.media, size: 40)
-            : Icon(entry.icon),
+        leading: CachedImage(assetPath: entry.media, size: 40),
         title: Text(entry.name),
         subtitle: Text(
           '$monsterCount monsters • Completed: ${entry.completionCount}',
@@ -493,13 +483,13 @@ class _SequenceTile extends StatelessWidget {
 class _SequenceProgressCard extends StatelessWidget {
   const _SequenceProgressCard({
     required this.name,
-    required this.icon,
+    required this.assetPath,
     required this.currentMonsterIndex,
     required this.totalMonsters,
   });
 
   final String name;
-  final IconData icon;
+  final String assetPath;
   final int currentMonsterIndex;
   final int totalMonsters;
 
@@ -516,7 +506,7 @@ class _SequenceProgressCard extends StatelessWidget {
           children: [
             Row(
               children: [
-                Icon(icon, size: 20),
+                CachedImage(assetPath: assetPath, size: 20),
                 const SizedBox(width: 8),
                 Text(
                   name,
@@ -1254,60 +1244,99 @@ class _MonsterCard extends StatelessWidget {
   }
 }
 
-class _SlayerTaskProgressCard extends StatelessWidget {
-  const _SlayerTaskProgressCard({required this.taskContext});
+class _SlayerTaskCard extends StatelessWidget {
+  const _SlayerTaskCard();
+
+  @override
+  Widget build(BuildContext context) {
+    final state = context.state;
+
+    // Check if there's an active slayer task.
+    SlayerTaskContext? taskContext;
+    if (state.activeActivity case CombatActivity(
+      :final context,
+    ) when context is SlayerTaskContext) {
+      taskContext = context;
+    }
+
+    final hasTask = taskContext != null;
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Header: always visible.
+            Row(
+              children: [
+                const CachedImage(
+                  assetPath: 'assets/media/skills/slayer/slayer.png',
+                  size: 24,
+                ),
+                const SizedBox(width: 8),
+                const Expanded(
+                  child: Text(
+                    'Slayer Task',
+                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                  ),
+                ),
+                ElevatedButton(
+                  onPressed: () => showDialog<void>(
+                    context: context,
+                    builder: (_) => const SlayerTaskSelectionDialog(),
+                  ),
+                  child: const Text('New Task'),
+                ),
+              ],
+            ),
+            // Task details: only when a task is active.
+            if (hasTask) ...[
+              const Divider(),
+              _SlayerTaskDetails(taskContext: taskContext),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _SlayerTaskDetails extends StatelessWidget {
+  const _SlayerTaskDetails({required this.taskContext});
 
   final SlayerTaskContext taskContext;
 
   @override
   Widget build(BuildContext context) {
     final state = context.state;
+    final combat = state.registries.combat;
     final category = state.registries.slayer.taskCategories.byId(
       taskContext.categoryId,
     );
+    final monster = combat.monsterById(taskContext.monsterId);
 
-    final progress = taskContext.killsCompleted / taskContext.killsRequired;
-
-    return Card(
-      color: Style.activeColorLight,
-      child: Padding(
-        padding: const EdgeInsets.all(12),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                const Icon(Icons.assignment, size: 20),
-                const SizedBox(width: 8),
-                Text(
-                  'Slayer Task: ${category?.name ?? 'Unknown'}',
-                  style: const TextStyle(
-                    fontWeight: FontWeight.bold,
-                    fontSize: 16,
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 8),
-            LinearProgressIndicator(
-              value: progress,
-              backgroundColor: Colors.grey[300],
-              valueColor: const AlwaysStoppedAnimation<Color>(
-                Style.activeColor,
+    return Row(
+      children: [
+        CachedImage(assetPath: monster.media, size: 48),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                category?.name ?? 'Unknown',
+                style: const TextStyle(fontWeight: FontWeight.bold),
               ),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              'Kills: ${taskContext.killsCompleted} / '
-              '${taskContext.killsRequired}',
-              style: const TextStyle(
-                color: Style.textColorSecondary,
-                fontSize: 12,
+              const SizedBox(height: 4),
+              Text(
+                '${taskContext.killsRemaining} x ${monster.name}',
+                style: const TextStyle(color: Style.textColorSecondary),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
-      ),
+      ],
     );
   }
 }
@@ -1383,9 +1412,7 @@ class _SlayerAreaTile extends StatelessWidget {
     return Card(
       color: hasActiveMonster ? Style.activeColorLight : null,
       child: ExpansionTile(
-        leading: area.media != null
-            ? CachedImage(assetPath: area.media, size: 40)
-            : const Icon(Icons.dangerous),
+        leading: CachedImage(assetPath: area.media, size: 40),
         title: Text(area.name),
         subtitle: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -1507,50 +1534,59 @@ class _SlayerTaskCategoryTile extends StatelessWidget {
     final state = context.state;
     final isUnlocked = slayerLevel >= category.level;
 
-    // Check if player can afford the task
+    // Check affordability per currency for color-coding.
+    final canAffordMap = <Currency, bool>{};
     var canAfford = true;
     for (final cost in category.rollCost.costs) {
-      if (state.currency(cost.currency) < cost.amount) {
-        canAfford = false;
-        break;
-      }
+      final affordable = state.currency(cost.currency) >= cost.amount;
+      canAffordMap[cost.currency] = affordable;
+      if (!affordable) canAfford = false;
     }
 
     final canStart = isUnlocked && canAfford && !isStunned;
 
-    // Build cost string
-    final costParts = <String>[];
-    for (final cost in category.rollCost.costs) {
-      costParts.add('${cost.amount} ${cost.currency.abbreviation}');
-    }
-    final costString = costParts.isEmpty ? 'Free' : costParts.join(', ');
+    // Combat level range from monster selection.
+    final levelRange = switch (category.monsterSelection) {
+      CombatLevelSelection(:final minLevel, :final maxLevel) =>
+        '$minLevel - $maxLevel',
+    };
 
     return Card(
-      child: ListTile(
-        leading: const Icon(Icons.assignment),
-        title: Text(category.name),
-        subtitle: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('Level ${category.level} • ~${category.baseTaskLength} kills'),
-            Text(
-              'Cost: $costString',
-              style: TextStyle(color: canAfford ? null : Colors.red),
-            ),
-          ],
-        ),
-        trailing: canStart
-            ? ElevatedButton(
-                onPressed: () {
-                  context.dispatch(StartSlayerTaskAction(category: category));
-                  Navigator.of(context).pop();
-                },
-                child: const Text('Start'),
-              )
-            : Text(
-                !isUnlocked ? 'Lvl ${category.level}' : 'Not enough',
-                style: const TextStyle(color: Style.textColorSecondary),
+      child: InkWell(
+        onTap: canStart
+            ? () {
+                context.dispatch(StartSlayerTaskAction(category: category));
+                Navigator.of(context).pop();
+              }
+            : null,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          child: Row(
+            children: [
+              Expanded(
+                child: Text(
+                  category.name,
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    color: isUnlocked ? null : Style.textColorSecondary,
+                  ),
+                ),
               ),
+              const CachedImage(
+                assetPath: 'assets/media/skills/combat/combat.png',
+                size: 16,
+              ),
+              const SizedBox(width: 4),
+              Text(levelRange),
+              const SizedBox(width: 12),
+              CurrencyListDisplay.fromCosts(
+                category.rollCost,
+                canAfford: canAffordMap,
+                emptyText: 'Free',
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }

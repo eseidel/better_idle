@@ -106,7 +106,13 @@ class CurrencyListDisplay extends StatelessWidget {
   Widget build(BuildContext context) {
     if (stacks.isEmpty) {
       if (emptyText != null) {
-        return Text(emptyText!);
+        return Text(
+          emptyText!,
+          style: const TextStyle(
+            color: Style.successColor,
+            fontWeight: FontWeight.bold,
+          ),
+        );
       }
       return const SizedBox.shrink();
     }
