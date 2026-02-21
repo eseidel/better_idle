@@ -3,10 +3,19 @@ import 'package:flutter/material.dart';
 import 'package:ui/src/widgets/game_app_bar.dart';
 import 'package:ui/src/widgets/navigation_drawer.dart';
 
+/// Width breakpoint above which the navigation sidebar is permanently visible.
+const double sidebarBreakpoint = 840;
+
+/// Width of the permanent navigation sidebar.
+const double sidebarWidth = 304;
+
 /// A Scaffold with GameAppBar and AppNavigationDrawer built in.
 ///
 /// Use this instead of [Scaffold] to automatically include the game's
 /// standard app bar (with equipment button) and navigation drawer.
+///
+/// On wide screens (>= [sidebarBreakpoint]), the navigation is shown as a
+/// permanent sidebar instead of a drawer.
 class GameScaffold extends StatelessWidget {
   const GameScaffold({
     required this.title,
@@ -75,33 +84,53 @@ class GameScaffold extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: GameAppBar(title: title, actions: actions, bottom: bottom),
-      drawer: const AppNavigationDrawer(),
-      body: body,
-      floatingActionButton: floatingActionButton,
-      floatingActionButtonLocation: floatingActionButtonLocation,
-      floatingActionButtonAnimator: floatingActionButtonAnimator,
-      persistentFooterButtons: persistentFooterButtons,
-      persistentFooterAlignment:
-          persistentFooterAlignment ?? AlignmentDirectional.centerEnd,
-      endDrawer: endDrawer,
-      endDrawerEnableOpenDragGesture: endDrawerEnableOpenDragGesture ?? true,
-      bottomNavigationBar: bottomNavigationBar,
-      bottomSheet: bottomSheet,
-      backgroundColor: backgroundColor,
-      resizeToAvoidBottomInset: resizeToAvoidBottomInset,
-      primary: primary ?? true,
-      drawerDragStartBehavior:
-          drawerDragStartBehavior ?? DragStartBehavior.start,
-      extendBody: extendBody ?? false,
-      extendBodyBehindAppBar: extendBodyBehindAppBar ?? false,
-      drawerScrimColor: drawerScrimColor,
-      drawerEdgeDragWidth: drawerEdgeDragWidth,
-      drawerEnableOpenDragGesture: drawerEnableOpenDragGesture ?? true,
-      onDrawerChanged: onDrawerChanged,
-      onEndDrawerChanged: onEndDrawerChanged,
-      restorationId: restorationId,
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final isWide = constraints.maxWidth >= sidebarBreakpoint;
+
+        final scaffoldBody = isWide
+            ? Row(
+                children: [
+                  const SizedBox(
+                    width: sidebarWidth,
+                    child: Material(child: NavigationContent(isDrawer: false)),
+                  ),
+                  const VerticalDivider(width: 1),
+                  Expanded(child: body),
+                ],
+              )
+            : body;
+
+        return Scaffold(
+          appBar: GameAppBar(title: title, actions: actions, bottom: bottom),
+          drawer: isWide ? null : const AppNavigationDrawer(),
+          body: scaffoldBody,
+          floatingActionButton: floatingActionButton,
+          floatingActionButtonLocation: floatingActionButtonLocation,
+          floatingActionButtonAnimator: floatingActionButtonAnimator,
+          persistentFooterButtons: persistentFooterButtons,
+          persistentFooterAlignment:
+              persistentFooterAlignment ?? AlignmentDirectional.centerEnd,
+          endDrawer: endDrawer,
+          endDrawerEnableOpenDragGesture:
+              endDrawerEnableOpenDragGesture ?? true,
+          bottomNavigationBar: bottomNavigationBar,
+          bottomSheet: bottomSheet,
+          backgroundColor: backgroundColor,
+          resizeToAvoidBottomInset: resizeToAvoidBottomInset,
+          primary: primary ?? true,
+          drawerDragStartBehavior:
+              drawerDragStartBehavior ?? DragStartBehavior.start,
+          extendBody: extendBody ?? false,
+          extendBodyBehindAppBar: extendBodyBehindAppBar ?? false,
+          drawerScrimColor: drawerScrimColor,
+          drawerEdgeDragWidth: drawerEdgeDragWidth,
+          drawerEnableOpenDragGesture: drawerEnableOpenDragGesture ?? true,
+          onDrawerChanged: onDrawerChanged,
+          onEndDrawerChanged: onEndDrawerChanged,
+          restorationId: restorationId,
+        );
+      },
     );
   }
 }
