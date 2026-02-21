@@ -806,7 +806,7 @@ class _RecipeCard extends StatelessWidget {
     final productItem = state.registries.items.byId(recipe.productId);
     final healsFor = productItem.healsFor;
     final actionState = state.actionState(recipe.id);
-    final masteryProgress = xpProgressForXp(actionState.masteryXp);
+    final masteryProgress = masteryProgressForXp(actionState.masteryXp);
     final perAction = xpPerAction(
       state,
       recipe,

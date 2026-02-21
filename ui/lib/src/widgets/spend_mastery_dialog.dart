@@ -139,14 +139,16 @@ class _ActionMasteryRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final actionState = state.actionState(action.id);
     final masteryXp = actionState.masteryXp;
-    final progress = xpProgressForXp(masteryXp);
-    final currentLevel = progress.level;
+    final progress = masteryProgressForXp(masteryXp);
+    final currentLevel = actionState.masteryLevel;
 
     // Calculate actual levels we can add (might be less than increment if near
     // max level 99)
     const maxMasteryLevel = 99;
-    final levelsUntilMax =
-        (maxMasteryLevel - currentLevel).clamp(0, maxMasteryLevel);
+    final levelsUntilMax = (maxMasteryLevel - currentLevel).clamp(
+      0,
+      maxMasteryLevel,
+    );
     final actualLevels = increment.clamp(0, levelsUntilMax);
     final isMaxLevel = currentLevel >= maxMasteryLevel;
 

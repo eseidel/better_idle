@@ -171,6 +171,21 @@ int startXpForLevel(int level) {
   return _xpTable[level - 1];
 }
 
+/// Like [xpProgressForXp] but capped at mastery level 99.
+XpProgress masteryProgressForXp(int xp) {
+  const maxMasteryLevel = 99;
+  final progress = xpProgressForXp(xp);
+  if (progress.level >= maxMasteryLevel) {
+    return XpProgress(
+      level: maxMasteryLevel,
+      progress: 1,
+      lastLevelXp: startXpForLevel(maxMasteryLevel),
+      nextLevelXp: null,
+    );
+  }
+  return progress;
+}
+
 XpProgress xpProgressForXp(int xp) {
   final level = levelForXp(xp);
   final startXp = startXpForLevel(level);

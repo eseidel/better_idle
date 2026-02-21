@@ -88,10 +88,7 @@ class MasteryPoolProgress extends StatelessWidget {
           return Column(
             children: [
               bar,
-              Row(
-                mainAxisAlignment: MainAxisAlignment.end,
-                children: buttons,
-              ),
+              Row(mainAxisAlignment: MainAxisAlignment.end, children: buttons),
             ],
           );
         },
@@ -157,7 +154,7 @@ class MasteryProgressCell extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final progress = xpProgressForXp(masteryXp);
+    final progress = masteryProgressForXp(masteryXp);
     return Row(
       children: [
         const CachedImage(
