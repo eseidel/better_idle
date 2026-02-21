@@ -2170,8 +2170,9 @@ class GlobalState {
     final newInventory = inventory.removing(ItemStack(token, count: 1));
 
     // Add mastery pool XP
-    return copyWith(inventory: newInventory)
-        .addSkillMasteryXp(skill, xpPerToken);
+    return copyWith(
+      inventory: newInventory,
+    ).addSkillMasteryXp(skill, xpPerToken);
   }
 
   /// Claims mastery tokens for a skill, only as many as fit without exceeding

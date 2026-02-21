@@ -2535,10 +2535,9 @@ void main() {
           ItemStack(woodcuttingToken, count: 10),
         ),
       );
-      final store = Store<GlobalState>(initialState: state)
-        ..dispatch(
-          ClaimMasteryTokensAction(skill: Skill.woodcutting, count: 3),
-        );
+      final store = Store<GlobalState>(
+        initialState: state,
+      )..dispatch(ClaimMasteryTokensAction(skill: Skill.woodcutting, count: 3));
 
       expect(store.state.inventory.countOfItem(woodcuttingToken), 7);
       expect(
