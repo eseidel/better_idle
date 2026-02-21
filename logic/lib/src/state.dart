@@ -33,6 +33,7 @@ import 'package:logic/src/types/inventory.dart';
 import 'package:logic/src/types/loot_state.dart';
 import 'package:logic/src/types/modifier_provider.dart';
 import 'package:logic/src/types/open_result.dart';
+import 'package:logic/src/types/slayer_task.dart';
 import 'package:logic/src/types/stunned.dart';
 import 'package:logic/src/types/time_away.dart';
 import 'package:meta/meta.dart';
@@ -300,6 +301,7 @@ class GlobalState {
     this.dungeonCompletions = const {},
     this.strongholdCompletions = const {},
     this.slayerTaskCompletions = const {},
+    this.slayerTask,
     this.itemCharges = const {},
     this.selectedPotions = const {},
     this.potionChargesUsed = const {},
@@ -358,6 +360,7 @@ class GlobalState {
     Map<MelvorId, int> dungeonCompletions = const {},
     Map<MelvorId, int> strongholdCompletions = const {},
     Map<MelvorId, int> slayerTaskCompletions = const {},
+    SlayerTask? slayerTask,
     Map<MelvorId, int> itemCharges = const {},
     Map<MelvorId, MelvorId> selectedPotions = const {},
     Map<MelvorId, int> potionChargesUsed = const {},
@@ -393,6 +396,7 @@ class GlobalState {
       dungeonCompletions: dungeonCompletions,
       strongholdCompletions: strongholdCompletions,
       slayerTaskCompletions: slayerTaskCompletions,
+      slayerTask: slayerTask,
       itemCharges: itemCharges,
       selectedPotions: selectedPotions,
       potionChargesUsed: potionChargesUsed,
@@ -457,6 +461,7 @@ class GlobalState {
       dungeonCompletions = _dungeonCompletionsFromJson(json),
       strongholdCompletions = _strongholdCompletionsFromJson(json),
       slayerTaskCompletions = _slayerTaskCompletionsFromJson(json),
+      slayerTask = _slayerTaskFromJson(json),
       itemCharges = _itemChargesFromJson(json),
       selectedPotions = _selectedPotionsFromJson(json),
       potionChargesUsed = _potionChargesUsedFromJson(json),
@@ -540,6 +545,12 @@ class GlobalState {
     return completionsJson.map((key, value) {
       return MapEntry(MelvorId.fromJson(key), value as int);
     });
+  }
+
+  static SlayerTask? _slayerTaskFromJson(Map<String, dynamic> json) {
+    final taskJson = json['slayerTask'] as Map<String, dynamic>?;
+    if (taskJson != null) return SlayerTask.fromJson(taskJson);
+    return null;
   }
 
   static Map<MelvorId, int> _itemChargesFromJson(Map<String, dynamic> json) {
@@ -636,6 +647,7 @@ class GlobalState {
       'slayerTaskCompletions': slayerTaskCompletions.map(
         (key, value) => MapEntry(key.toJson(), value),
       ),
+      'slayerTask': slayerTask?.toJson(),
       'itemCharges': itemCharges.map(
         (key, value) => MapEntry(key.toJson(), value),
       ),
@@ -725,6 +737,10 @@ class GlobalState {
 
   /// Map of slayer task category ID to number of completions.
   final Map<MelvorId, int> slayerTaskCompletions;
+
+  /// The active slayer task, or null if no task is assigned.
+  /// Persists independently of the current combat activity.
+  final SlayerTask? slayerTask;
 
   /// Returns true if the given equipment slot is unlocked.
   /// Most slots are always unlocked. The Passive slot requires completing
@@ -1097,7 +1113,9 @@ class GlobalState {
         : 100;
     final activity = activeActivity;
     final isFightingSlayer =
-        activity is CombatActivity && activity.context is SlayerTaskContext;
+        slayerTask != null &&
+        activity is CombatActivity &&
+        activity.context.currentMonsterId == slayerTask!.monsterId;
     return ConditionContext(
       playerAttackType: attackStyle.combatType,
       enemyAttackType: enemyAction.attackType.combatType,
@@ -1622,60 +1640,20 @@ class GlobalState {
         baseKills + random.nextInt(variance * 2 + 1) - variance;
 
     // Deduct currency cost
-    var prepared = _prepareForActivitySwitch(stayingInCooking: false);
-    final newCurrencies = Map<Currency, int>.from(prepared.currencies);
+    final newCurrencies = Map<Currency, int>.from(currencies);
     for (final cost in category.rollCost.costs) {
       newCurrencies[cost.currency] =
           (newCurrencies[cost.currency] ?? 0) - cost.amount;
     }
-    prepared = prepared.copyWith(currencies: newCurrencies);
 
-    // Start combat with the slayer task context
-    final pStats = computePlayerStats(
-      prepared,
-      conditionContext: ConditionContext.empty, // Combat not yet started.
-    );
-    final totalTicks = ticksFromDuration(
-      Duration(milliseconds: (pStats.attackSpeed * 1000).round()),
-    );
-
-    final modifiers = prepared.createCombatModifierProvider(
-      conditionContext: ConditionContext.empty, // Combat not yet started.
-    );
-    final spawnTicks = calculateMonsterSpawnTicks(
-      modifiers.flatMonsterRespawnInterval,
-    );
-
-    final combatState = CombatActionState.start(
-      monster,
-      pStats,
-      spawnTicks: spawnTicks,
-    );
-
-    final newActionStates = Map<ActionId, ActionState>.from(
-      prepared.actionStates,
-    );
-    final existingState = prepared.actionState(monster.id);
-    newActionStates[monster.id] = existingState.copyWith(combat: combatState);
-
-    return prepared.copyWith(
-      activeActivity: CombatActivity(
-        context: SlayerTaskContext(
-          categoryId: category.id,
-          monsterId: monster.id.localId,
-          killsRequired: killsRequired,
-          killsCompleted: 0,
-        ),
-        progress: CombatProgressState(
-          monsterHp: combatState.monsterHp,
-          playerAttackTicksRemaining: combatState.playerAttackTicksRemaining,
-          monsterAttackTicksRemaining: combatState.monsterAttackTicksRemaining,
-          spawnTicksRemaining: combatState.spawnTicksRemaining,
-        ),
-        progressTicks: 0,
-        totalTicks: totalTicks,
+    return copyWith(
+      slayerTask: SlayerTask(
+        categoryId: category.id,
+        monsterId: monster.id.localId,
+        killsRequired: killsRequired,
+        killsCompleted: 0,
       ),
-      actionStates: newActionStates,
+      currencies: newCurrencies,
     );
   }
 
@@ -1869,6 +1847,7 @@ class GlobalState {
     CookingState? cooking,
     bool clearActiveActivity = false,
     bool clearTimeAway = false,
+    bool clearSlayerTask = false,
   }) {
     return GlobalState(
       registries: registries,
@@ -1898,7 +1877,13 @@ class GlobalState {
       bonfire: bonfire,
       loot: loot,
       slayerTaskCompletions: slayerTaskCompletions,
+      slayerTask: clearSlayerTask ? null : slayerTask,
     );
+  }
+
+  /// Clears the active slayer task.
+  GlobalState clearSlayerTask() {
+    return _copyWithNullable(clearSlayerTask: true);
   }
 
   SkillState skillState(Skill skill) =>
@@ -3372,6 +3357,7 @@ class GlobalState {
     Map<MelvorId, int>? dungeonCompletions,
     Map<MelvorId, int>? strongholdCompletions,
     Map<MelvorId, int>? slayerTaskCompletions,
+    SlayerTask? slayerTask,
     Map<MelvorId, int>? itemCharges,
     Map<MelvorId, MelvorId>? selectedPotions,
     Map<MelvorId, int>? potionChargesUsed,
@@ -3406,6 +3392,7 @@ class GlobalState {
           strongholdCompletions ?? this.strongholdCompletions,
       slayerTaskCompletions:
           slayerTaskCompletions ?? this.slayerTaskCompletions,
+      slayerTask: slayerTask ?? this.slayerTask,
       itemCharges: itemCharges ?? this.itemCharges,
       selectedPotions: selectedPotions ?? this.selectedPotions,
       potionChargesUsed: potionChargesUsed ?? this.potionChargesUsed,

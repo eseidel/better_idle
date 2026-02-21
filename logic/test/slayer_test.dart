@@ -39,73 +39,60 @@ void main() {
     return categories.firstWhere((c) => c.rollCost.costs.isNotEmpty);
   }
 
-  group('SlayerTaskContext serialization', () {
+  group('SlayerTask serialization', () {
     test('round-trips through toJson/fromJson', () {
-      const context = SlayerTaskContext(
+      const task = SlayerTask(
         categoryId: MelvorId('melvorF:SlayerEasy'),
         monsterId: MelvorId('melvorD:Chicken'),
         killsRequired: 25,
         killsCompleted: 10,
       );
-      final json = context.toJson();
-      final restored = CombatContext.fromJson(json) as SlayerTaskContext;
+      final json = task.toJson();
+      final restored = SlayerTask.fromJson(json);
 
-      expect(restored.categoryId, context.categoryId);
-      expect(restored.monsterId, context.monsterId);
-      expect(restored.killsRequired, context.killsRequired);
-      expect(restored.killsCompleted, context.killsCompleted);
-    });
-
-    test('toJson includes correct type tag', () {
-      const context = SlayerTaskContext(
-        categoryId: MelvorId('melvorF:SlayerEasy'),
-        monsterId: MelvorId('melvorD:Chicken'),
-        killsRequired: 5,
-        killsCompleted: 0,
-      );
-      final json = context.toJson();
-      expect(json['type'], 'slayerTask');
+      expect(restored.categoryId, task.categoryId);
+      expect(restored.monsterId, task.monsterId);
+      expect(restored.killsRequired, task.killsRequired);
+      expect(restored.killsCompleted, task.killsCompleted);
     });
 
     test('preserves zero killsCompleted', () {
-      const context = SlayerTaskContext(
+      const task = SlayerTask(
         categoryId: MelvorId('melvorF:SlayerHard'),
         monsterId: MelvorId('melvorD:Dragon'),
         killsRequired: 50,
         killsCompleted: 0,
       );
-      final json = context.toJson();
-      final restored = SlayerTaskContext.fromJson(json);
+      final json = task.toJson();
+      final restored = SlayerTask.fromJson(json);
       expect(restored.killsCompleted, 0);
       expect(restored.killsRequired, 50);
     });
   });
 
   group('slayer tasks', () {
-    test(
-      'startSlayerTask creates a combat activity with SlayerTaskContext',
-      () {
-        final category = easyCategory();
-        var state = GlobalState.test(
-          testRegistries,
-          skillStates: highCombatSkills,
-          currencies: {
-            for (final cost in category.rollCost.costs)
-              cost.currency: cost.amount * 10,
-          },
-        );
-        final random = Random(42);
-        state = state.startSlayerTask(category: category, random: random);
+    test('startSlayerTask sets slayerTask without starting combat', () {
+      final category = easyCategory();
+      var state = GlobalState.test(
+        testRegistries,
+        skillStates: highCombatSkills,
+        currencies: {
+          for (final cost in category.rollCost.costs)
+            cost.currency: cost.amount * 10,
+        },
+      );
+      final random = Random(42);
+      state = state.startSlayerTask(category: category, random: random);
 
-        expect(state.activeActivity, isA<CombatActivity>());
-        final activity = state.activeActivity! as CombatActivity;
-        expect(activity.context, isA<SlayerTaskContext>());
-        final context = activity.context as SlayerTaskContext;
-        expect(context.categoryId, category.id);
-        expect(context.killsRequired, greaterThan(0));
-        expect(context.killsCompleted, 0);
-      },
-    );
+      // Slayer task is set.
+      expect(state.slayerTask, isNotNull);
+      expect(state.slayerTask!.categoryId, category.id);
+      expect(state.slayerTask!.killsRequired, greaterThan(0));
+      expect(state.slayerTask!.killsCompleted, 0);
+
+      // No combat started.
+      expect(state.activeActivity, isNull);
+    });
 
     test('startSlayerTask deducts roll cost', () {
       final category = paidCategory();
@@ -163,7 +150,7 @@ void main() {
     });
 
     test(
-      'completing slayer combat grants slayer XP and increments completions',
+      'completing slayer task grants slayer XP and increments completions',
       () {
         final category = easyCategory();
         var state = GlobalState.test(
@@ -177,30 +164,36 @@ void main() {
         final random = Random(42);
         state = state.startSlayerTask(category: category, random: random);
 
-        final activity = state.activeActivity! as CombatActivity;
-        final context = activity.context as SlayerTaskContext;
+        // Start fighting the task's monster.
+        final monster = testRegistries.combat.monsterById(
+          state.slayerTask!.monsterId,
+        );
+        state = state.startAction(monster, random: random);
 
         // Record initial slayer XP.
         final initialSlayerXp = state.skillState(Skill.slayer).xp;
         expect(state.slayerTaskCompletions[category.id] ?? 0, 0);
 
         // Override killsRequired to a small number for test speed.
-        // The real value can be 50+, each kill needs ~30+ ticks.
         const testKills = 3;
         state = state.copyWith(
-          activeActivity: (state.activeActivity! as CombatActivity).copyWith(
-            context: context.copyWith(killsRequired: testKills),
-          ),
+          slayerTask: state.slayerTask!.copyWith(killsRequired: testKills),
         );
 
-        // Process ticks in a loop to complete all kills.
+        // Process ticks until the task completes.
         var totalTicks = 0;
-        while (state.activeActivity != null && totalTicks < 50000) {
+        while (state.slayerTask != null && totalTicks < 50000) {
           final builder = StateUpdateBuilder(state);
           consumeTicks(builder, 1000, random: random);
           state = builder.build();
           totalTicks += 1000;
         }
+
+        // Task should be cleared after completion.
+        expect(state.slayerTask, isNull);
+
+        // Combat should continue (player keeps fighting).
+        expect(state.activeActivity, isNotNull);
 
         // Should have gained slayer XP.
         expect(state.skillState(Skill.slayer).xp, greaterThan(initialSlayerXp));
@@ -210,7 +203,7 @@ void main() {
       },
     );
 
-    test('slayer combat continues between kills within a task', () {
+    test('slayer task tracks kills between monster deaths', () {
       final category = easyCategory();
       var state = GlobalState.test(
         testRegistries,
@@ -220,32 +213,62 @@ void main() {
             cost.currency: cost.amount * 10,
         },
       );
-      // Use a fixed seed for a task requiring multiple kills.
       final random = Random(99);
       state = state.startSlayerTask(category: category, random: random);
 
-      final activity = state.activeActivity! as CombatActivity;
-      final context = activity.context as SlayerTaskContext;
+      // Start fighting the task's monster.
+      final monster = testRegistries.combat.monsterById(
+        state.slayerTask!.monsterId,
+      );
+      state = state.startAction(monster, random: random);
 
       // Only process enough ticks for one kill (not enough for all).
-      if (context.killsRequired > 1) {
+      if (state.slayerTask!.killsRequired > 1) {
         final builder = StateUpdateBuilder(state);
         consumeTicks(builder, 200, random: random);
         state = builder.build();
 
-        // Should still be in combat with an updated slayer context.
-        if (state.activeActivity != null) {
-          final updatedActivity = state.activeActivity! as CombatActivity;
-          final updatedContext = updatedActivity.context as SlayerTaskContext;
-          expect(updatedContext.categoryId, category.id);
-          // Should have at least one kill recorded but task not yet complete.
-          expect(updatedContext.killsCompleted, greaterThanOrEqualTo(0));
+        // Should still have the slayer task with progress.
+        if (state.slayerTask != null) {
+          expect(state.slayerTask!.categoryId, category.id);
+          expect(state.slayerTask!.killsCompleted, greaterThanOrEqualTo(0));
           expect(
-            updatedContext.killsCompleted,
-            lessThan(updatedContext.killsRequired),
+            state.slayerTask!.killsCompleted,
+            lessThan(state.slayerTask!.killsRequired),
           );
         }
       }
+    });
+
+    test('slayer task persists when switching combat areas', () {
+      final category = easyCategory();
+      var state = GlobalState.test(
+        testRegistries,
+        skillStates: highCombatSkills,
+        currencies: {
+          for (final cost in category.rollCost.costs)
+            cost.currency: cost.amount * 10,
+        },
+      );
+      final random = Random(42);
+      state = state.startSlayerTask(category: category, random: random);
+
+      final task = state.slayerTask!;
+
+      // Switch to a different monster.
+      final differentMonster = testRegistries.combat.monsters.firstWhere(
+        (m) => m.id.localId != task.monsterId,
+      );
+      state = state.startAction(differentMonster, random: random);
+
+      // Slayer task should still be active.
+      expect(state.slayerTask, isNotNull);
+      expect(state.slayerTask!.categoryId, task.categoryId);
+      expect(state.slayerTask!.monsterId, task.monsterId);
+
+      // But combat is now with the different monster.
+      final activity = state.activeActivity! as CombatActivity;
+      expect(activity.context.currentMonsterId, differentMonster.id.localId);
     });
 
     test('slayer task rewards currency based on category currencyRewards', () {
@@ -263,26 +286,27 @@ void main() {
       final random = Random(42);
       state = state.startSlayerTask(category: category, random: random);
 
+      // Start fighting the task's monster.
+      final monster = testRegistries.combat.monsterById(
+        state.slayerTask!.monsterId,
+      );
+      state = state.startAction(monster, random: random);
+
       // Track initial currency for rewards.
       final rewardCurrencyAmounts = <Currency, int>{
         for (final reward in category.currencyRewards)
           reward.currency: state.currency(reward.currency),
       };
 
-      final activity = state.activeActivity! as CombatActivity;
-      final context = activity.context as SlayerTaskContext;
-
       // Override to small number for test speed.
       const testKills = 3;
       state = state.copyWith(
-        activeActivity: activity.copyWith(
-          context: context.copyWith(killsRequired: testKills),
-        ),
+        slayerTask: state.slayerTask!.copyWith(killsRequired: testKills),
       );
 
       // Complete the full task.
       var totalTicks = 0;
-      while (state.activeActivity != null && totalTicks < 50000) {
+      while (state.slayerTask != null && totalTicks < 50000) {
         final builder = StateUpdateBuilder(state);
         consumeTicks(builder, 1000, random: random);
         state = builder.build();

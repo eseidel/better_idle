@@ -1271,18 +1271,18 @@ void main() {
       expect(context.enemyHpPercent, closeTo(50, 1));
     });
 
-    test('isFightingSlayerTask true for slayer task context', () {
+    test('isFightingSlayerTask true when fighting slayer task monster', () {
       final monster = testRegistries.combatAction('Plant');
-      final slayerContext = SlayerTaskContext(
-        categoryId: const MelvorId('melvorD:Easy'),
-        monsterId: monster.id.localId,
-        killsRequired: 10,
-        killsCompleted: 0,
-      );
       final state = GlobalState.test(
         testRegistries,
+        slayerTask: SlayerTask(
+          categoryId: const MelvorId('melvorD:Easy'),
+          monsterId: monster.id.localId,
+          killsRequired: 10,
+          killsCompleted: 0,
+        ),
         activeActivity: CombatActivity(
-          context: slayerContext,
+          context: MonsterCombatContext(monsterId: monster.id.localId),
           progress: CombatProgressState(
             monsterHp: monster.maxHp,
             playerAttackTicksRemaining: 24,
