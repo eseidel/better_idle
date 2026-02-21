@@ -6,6 +6,7 @@ import 'package:ui/src/widgets/context_extensions.dart';
 import 'package:ui/src/widgets/game_scaffold.dart';
 import 'package:ui/src/widgets/mastery_pool.dart';
 import 'package:ui/src/widgets/production_action_display.dart';
+import 'package:ui/src/widgets/skill_fab.dart';
 import 'package:ui/src/widgets/skill_overflow_menu.dart';
 import 'package:ui/src/widgets/skill_progress.dart';
 
@@ -50,6 +51,7 @@ class _CraftingPageState extends State<CraftingPage> {
     return GameScaffold(
       title: const Text('Crafting'),
       actions: const [SkillOverflowMenu(skill: skill)],
+      floatingActionButton: const SkillFab(skill: skill),
       body: Column(
         children: [
           SkillProgress(xp: skillState.xp),

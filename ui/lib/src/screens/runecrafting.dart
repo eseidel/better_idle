@@ -8,6 +8,7 @@ import 'package:ui/src/widgets/input_items_row.dart';
 import 'package:ui/src/widgets/item_image.dart';
 import 'package:ui/src/widgets/mastery_pool.dart';
 import 'package:ui/src/widgets/production_action_display.dart';
+import 'package:ui/src/widgets/skill_fab.dart';
 import 'package:ui/src/widgets/skill_image.dart';
 import 'package:ui/src/widgets/skill_overflow_menu.dart';
 import 'package:ui/src/widgets/skill_progress.dart';
@@ -80,6 +81,7 @@ class _RunecraftingPageState extends State<RunecraftingPage>
     return GameScaffold(
       title: const Text('Runecrafting'),
       actions: const [SkillOverflowMenu(skill: skill)],
+      floatingActionButton: const SkillFab(skill: skill),
       body: Column(
         children: [
           SkillProgress(xp: skillState.xp),

@@ -517,6 +517,19 @@ class Item extends Equatable {
   /// Returns true if this item can be equipped in the given slot.
   bool canEquipInSlot(EquipmentSlot slot) => validSlots.contains(slot);
 
+  /// Whether any of this item's modifiers are relevant to [skillId].
+  ///
+  /// Returns true if any modifier entry applies to the skill (including
+  /// global/unscoped modifiers that apply to all skills).
+  bool hasModifiersForSkill(MelvorId skillId) {
+    for (final mod in modifiers.modifiers) {
+      for (final entry in mod.entries) {
+        if (entry.appliesToSkill(skillId)) return true;
+      }
+    }
+    return false;
+  }
+
   /// Opens this item once and returns the resulting drop.
   /// Throws if the item is not openable.
   ItemStack open(ItemRegistry items, Random random) {

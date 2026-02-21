@@ -12,6 +12,7 @@ import 'package:ui/src/widgets/item_count_badge_cell.dart';
 import 'package:ui/src/widgets/item_image.dart';
 import 'package:ui/src/widgets/mastery_pool.dart';
 import 'package:ui/src/widgets/recycle_chance_badge_cell.dart';
+import 'package:ui/src/widgets/skill_fab.dart';
 import 'package:ui/src/widgets/skill_image.dart';
 import 'package:ui/src/widgets/skill_overflow_menu.dart';
 import 'package:ui/src/widgets/skill_progress.dart';
@@ -30,6 +31,7 @@ class CookingPage extends StatelessWidget {
     return GameScaffold(
       title: const Text('Cooking'),
       actions: const [SkillOverflowMenu(skill: skill)],
+      floatingActionButton: const SkillFab(skill: skill),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16),
         child: Column(
