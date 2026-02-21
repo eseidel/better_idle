@@ -31,11 +31,8 @@ import 'package:ui/src/widgets/navigation_drawer.dart';
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
 /// Shorthand for a simple named route with a const page widget.
-GoRoute _route(String name, Widget page) => GoRoute(
-      path: '/$name',
-      name: name,
-      builder: (context, _) => page,
-    );
+GoRoute _route(String name, Widget page) =>
+    GoRoute(path: '/$name', name: name, builder: (context, _) => page);
 
 final GoRouter router = GoRouter(
   navigatorKey: navigatorKey,
