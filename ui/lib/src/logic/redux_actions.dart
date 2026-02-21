@@ -890,12 +890,16 @@ class SpendMasteryPoolAction extends ReduxAction<GlobalState> {
 
 /// Spreads mastery pool XP greedily across all actions in a skill.
 class SpreadMasteryPoolAction extends ReduxAction<GlobalState> {
-  SpreadMasteryPoolAction({required this.skill});
+  SpreadMasteryPoolAction({required this.skill, this.floorPercent = 0});
   final Skill skill;
+  final int floorPercent;
 
   @override
   GlobalState? reduce() {
-    final result = state.spreadMasteryPoolXp(skill);
+    final result = state.spreadMasteryPoolXp(
+      skill,
+      floorPercent: floorPercent,
+    );
     return result?.state;
   }
 }

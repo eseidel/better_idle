@@ -194,12 +194,14 @@ void main() {
       final poolXp = (maxPoolXp * 0.26).toInt();
       state = state.addSkillMasteryXp(Skill.woodcutting, poolXp);
 
-      final result = state.spreadMasteryPoolXp(Skill.woodcutting);
+      final result = state.spreadMasteryPoolXp(
+        Skill.woodcutting,
+        floorPercent: 25,
+      );
       // Pool should remain >= 25%.
       if (result != null) {
-        final remainingPool = result.state
-            .skillState(Skill.woodcutting)
-            .masteryPoolXp;
+        final remainingPool =
+            result.state.skillState(Skill.woodcutting).masteryPoolXp;
         expect(remainingPool, greaterThanOrEqualTo((maxPoolXp * 0.25).ceil()));
       }
     });

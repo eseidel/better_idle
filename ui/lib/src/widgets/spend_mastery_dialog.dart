@@ -343,39 +343,63 @@ class _SpreadButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final preview = state.spreadMasteryPoolXp(skill);
+    // Check if any spread is possible at all (spend all mode).
+    final anySpread = state.spreadMasteryPoolXp(skill);
     return ElevatedButton(
-      onPressed: preview != null
-          ? () => _confirmSpread(context, preview)
-          : null,
+      onPressed: anySpread != null ? () => _showSpreadOptions(context) : null,
       child: const Text('Spread'),
     );
   }
 
-  void _confirmSpread(BuildContext context, SpreadMasteryResult preview) {
-    showDialog<bool>(
+  void _showSpreadOptions(BuildContext context) {
+    // Build preview for each checkpoint floor (from data) + "spend all".
+    final bonuses = state.registries.masteryPoolBonuses.forSkill(skill.id);
+    final checkpoints = [
+      if (bonuses != null)
+        for (final b in bonuses.bonuses.reversed) b.percent,
+      0,
+    ];
+    final options = <({int floor, SpreadMasteryResult preview})>[];
+    for (final floor in checkpoints) {
+      final preview = state.spreadMasteryPoolXp(skill, floorPercent: floor);
+      if (preview != null) {
+        options.add((floor: floor, preview: preview));
+      }
+    }
+    if (options.isEmpty) return;
+
+    showDialog<int>(
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('Spread Mastery'),
-        content: Text(
-          'Add ${preview.levelsAdded} total mastery levels '
-          'across actions, spending '
-          '${preciseNumberString(preview.xpSpent)} pool XP.',
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            for (final option in options)
+              ListTile(
+                title: Text(
+                  option.floor > 0 ? 'Spend to ${option.floor}%' : 'Spend all',
+                ),
+                subtitle: Text(
+                  '+${option.preview.levelsAdded} levels, '
+                  '${preciseNumberString(option.preview.xpSpent)} XP',
+                ),
+                onTap: () => Navigator.of(ctx).pop(option.floor),
+              ),
+          ],
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.of(ctx).pop(false),
+            onPressed: () => Navigator.of(ctx).pop(),
             child: const Text('Cancel'),
-          ),
-          ElevatedButton(
-            onPressed: () => Navigator.of(ctx).pop(true),
-            child: const Text('Spread'),
           ),
         ],
       ),
-    ).then((confirmed) {
-      if ((confirmed ?? false) && context.mounted) {
-        context.dispatch(SpreadMasteryPoolAction(skill: skill));
+    ).then((floor) {
+      if (floor != null && context.mounted) {
+        context.dispatch(
+          SpreadMasteryPoolAction(skill: skill, floorPercent: floor),
+        );
       }
     });
   }
