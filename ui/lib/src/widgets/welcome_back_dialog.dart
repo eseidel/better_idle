@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:logic/logic.dart';
 import 'package:ui/src/widgets/cached_image.dart';
@@ -5,6 +6,57 @@ import 'package:ui/src/widgets/item_change_row.dart';
 import 'package:ui/src/widgets/item_image.dart';
 import 'package:ui/src/widgets/skill_image.dart';
 import 'package:ui/src/widgets/style.dart';
+
+/// Dialog shown during resume processing that transitions to results.
+///
+/// Shows a progress bar while ticks are being processed, then displays
+/// the full [WelcomeBackDialog] when results are available.
+class ResumeProgressDialog extends StatelessWidget {
+  const ResumeProgressDialog({
+    required this.awayDuration,
+    required this.progress,
+    required this.result,
+    super.key,
+  });
+
+  final Duration awayDuration;
+  final ValueListenable<double> progress;
+  final ValueListenable<TimeAway?> result;
+
+  @override
+  Widget build(BuildContext context) {
+    return ValueListenableBuilder<TimeAway?>(
+      valueListenable: result,
+      builder: (context, timeAway, _) {
+        if (timeAway != null) {
+          return WelcomeBackDialog(timeAway: timeAway);
+        }
+        return ValueListenableBuilder<double>(
+          valueListenable: progress,
+          builder: (context, progressValue, _) {
+            return AlertDialog(
+              title: const Text('Welcome Back!'),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    'You were away for '
+                    '${approximateDuration(awayDuration)}.',
+                    style: const TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 16),
+                  const Text('Processing...'),
+                  const SizedBox(height: 8),
+                  LinearProgressIndicator(value: progressValue),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+}
 
 /// A dialog shown when returning to the app after being away.
 /// Displays the changes (inventory and XP) that occurred while away.
