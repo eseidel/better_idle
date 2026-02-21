@@ -25,9 +25,9 @@ class CostRow extends StatelessWidget {
     this.showAffordability = true,
     this.spacing = 12,
     this.iconSize = 16,
-  })  : currencyCosts = resolved.currencyCosts,
-        canAffordCosts = resolved.canAffordCurrencyMap,
-        itemCosts = resolved.itemCosts;
+  }) : currencyCosts = resolved.currencyCosts,
+       canAffordCosts = resolved.canAffordCurrencyMap,
+       itemCosts = resolved.itemCosts;
 
   /// List of (currency, amount) pairs.
   final List<(Currency, int)> currencyCosts;

@@ -296,8 +296,9 @@ class _AreaStatusCard extends StatelessWidget {
                   color: resolved.canAfford
                       ? Style.selectedColor
                       : Style.textColorSecondary,
-                  fontStyle:
-                      resolved.canAfford ? FontStyle.normal : FontStyle.italic,
+                  fontStyle: resolved.canAfford
+                      ? FontStyle.normal
+                      : FontStyle.italic,
                 ),
               ),
             ],

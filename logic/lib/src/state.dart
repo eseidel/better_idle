@@ -3116,7 +3116,8 @@ class GlobalState {
       return (item, cost.quantity, canAfford);
     }).toList();
     return ResolvedShopCost(
-      canAfford: canAffordCurrencyMap.values.every((v) => v) &&
+      canAfford:
+          canAffordCurrencyMap.values.every((v) => v) &&
           itemCosts.every((c) => c.$3),
       currencyCosts: currencyCosts,
       canAffordCurrencyMap: canAffordCurrencyMap,
