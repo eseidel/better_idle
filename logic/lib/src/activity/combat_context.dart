@@ -26,11 +26,6 @@ sealed class CombatContext {
     return switch (type) {
       'monster' => MonsterCombatContext.fromJson(json),
       'dungeon' || 'stronghold' => SequenceCombatContext.fromJson(json),
-      // Migration: old saves stored slayer tasks as a combat context.
-      // Now they are a separate GlobalState field; treat as regular combat.
-      'slayerTask' => MonsterCombatContext(
-        monsterId: MelvorId.fromJson(json['monsterId'] as String),
-      ),
       'slayerArea' => SlayerAreaCombatContext.fromJson(json),
       _ => throw ArgumentError('Unknown combat context type: $type'),
     };

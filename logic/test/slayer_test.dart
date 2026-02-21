@@ -69,19 +69,6 @@ void main() {
       expect(restored.killsRequired, 50);
     });
 
-    test('old SlayerTaskContext JSON migrates to MonsterCombatContext', () {
-      // Old format stored slayer tasks as a CombatContext type.
-      final json = {
-        'type': 'slayerTask',
-        'categoryId': 'melvorF:SlayerEasy',
-        'monsterId': 'melvorD:Chicken',
-        'killsRequired': 25,
-        'killsCompleted': 10,
-      };
-      final context = CombatContext.fromJson(json);
-      expect(context, isA<MonsterCombatContext>());
-      expect(context.currentMonsterId, const MelvorId('melvorD:Chicken'));
-    });
   });
 
   group('slayer tasks', () {

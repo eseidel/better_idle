@@ -547,18 +547,10 @@ class GlobalState {
     });
   }
 
-  /// Parses slayerTask from JSON, with migration from old format where the
-  /// task was embedded in the combat activity context.
   static SlayerTask? _slayerTaskFromJson(Map<String, dynamic> json) {
     final taskJson = json['slayerTask'] as Map<String, dynamic>?;
     if (taskJson != null) return SlayerTask.fromJson(taskJson);
-    // Migrate from old format: task was stored as SlayerTaskContext in
-    // the active combat activity.
-    final activityJson = json['activeActivity'] as Map<String, dynamic>?;
-    if (activityJson == null || activityJson['type'] != 'combat') return null;
-    final contextJson = activityJson['context'] as Map<String, dynamic>?;
-    if (contextJson == null || contextJson['type'] != 'slayerTask') return null;
-    return SlayerTask.fromJson(contextJson);
+    return null;
   }
 
   static Map<MelvorId, int> _itemChargesFromJson(Map<String, dynamic> json) {
