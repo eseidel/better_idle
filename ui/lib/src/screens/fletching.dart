@@ -20,6 +20,13 @@ class FletchingPage extends StatefulWidget {
 class _FletchingPageState extends State<FletchingPage> {
   FletchingAction? _selectedAction;
   final Set<MelvorId> _collapsedCategories = {};
+  final ScrollController _scrollController = ScrollController();
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -58,6 +65,7 @@ class _FletchingPageState extends State<FletchingPage> {
           const MasteryPoolProgress(skill: skill),
           Expanded(
             child: SingleChildScrollView(
+              controller: _scrollController,
               padding: const EdgeInsets.all(16),
               child: Column(
                 children: [
@@ -86,6 +94,11 @@ class _FletchingPageState extends State<FletchingPage> {
                       setState(() {
                         _selectedAction = action;
                       });
+                      _scrollController.animateTo(
+                        0,
+                        duration: const Duration(milliseconds: 300),
+                        curve: Curves.easeOut,
+                      );
                     },
                     onToggleCategory: (category) {
                       setState(() {
