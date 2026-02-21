@@ -28,9 +28,7 @@ class _SpendMasteryDialogState extends State<SpendMasteryDialog> {
       builder: (context, state) {
         final actions = state.registries
             .actionsForSkill(widget.skill)
-            .where(
-              (a) => state.actionState(a.id).masteryLevel < 99,
-            )
+            .where((a) => state.actionState(a.id).masteryLevel < 99)
             .toList();
         final skillState = state.skillState(widget.skill);
         final maxPoolXp = maxMasteryPoolXpForSkill(
@@ -91,6 +89,7 @@ class _SpendMasteryDialogState extends State<SpendMasteryDialog> {
             ),
           ),
           actions: [
+            _SpreadButton(skill: widget.skill, state: state),
             TextButton(
               onPressed: () => Navigator.of(context).pop(),
               child: const Text('Close'),
@@ -330,12 +329,55 @@ class _SpendButton extends StatelessWidget {
         foregroundColor: Colors.white,
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
         minimumSize: Size.zero,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(8),
-        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
       ),
       child: Text('+$levels'),
     );
+  }
+}
+
+class _SpreadButton extends StatelessWidget {
+  const _SpreadButton({required this.skill, required this.state});
+  final Skill skill;
+  final GlobalState state;
+
+  @override
+  Widget build(BuildContext context) {
+    final preview = state.spreadMasteryPoolXp(skill);
+    return ElevatedButton(
+      onPressed: preview != null
+          ? () => _confirmSpread(context, preview)
+          : null,
+      child: const Text('Spread'),
+    );
+  }
+
+  void _confirmSpread(BuildContext context, SpreadMasteryResult preview) {
+    showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Spread Mastery'),
+        content: Text(
+          'Add ${preview.levelsAdded} total mastery levels '
+          'across actions, spending '
+          '${preciseNumberString(preview.xpSpent)} pool XP.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: const Text('Spread'),
+          ),
+        ],
+      ),
+    ).then((confirmed) {
+      if ((confirmed ?? false) && context.mounted) {
+        context.dispatch(SpreadMasteryPoolAction(skill: skill));
+      }
+    });
   }
 }
 

@@ -136,9 +136,7 @@ class MasteryPoolBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final progress = maxXp > 0
-        ? (currentXp / maxXp).clamp(0.0, 1.0)
-        : 0.0;
+    final progress = maxXp > 0 ? (currentXp / maxXp).clamp(0.0, 1.0) : 0.0;
     return Row(
       children: [
         const CachedImage(

@@ -2431,6 +2431,40 @@ void main() {
     });
   });
 
+  group('SpreadMasteryPoolAction', () {
+    late Registries registries;
+
+    setUpAll(() async {
+      registries = await loadRegistries();
+    });
+
+    test('spreads pool XP across actions', () {
+      var state = GlobalState.empty(registries);
+      state = state.addSkillMasteryXp(Skill.woodcutting, 100000);
+      final store = Store<GlobalState>(initialState: state)
+        ..dispatch(SpreadMasteryPoolAction(skill: Skill.woodcutting));
+
+      // Pool should have decreased.
+      expect(
+        store.state.skillState(Skill.woodcutting).masteryPoolXp,
+        lessThan(100000),
+      );
+      // All actions should have been leveled above 1.
+      final actions = registries.actionsForSkill(Skill.woodcutting);
+      for (final action in actions) {
+        expect(store.state.actionState(action.id).masteryLevel, greaterThan(1));
+      }
+    });
+
+    test('no-op when pool is empty', () {
+      final state = GlobalState.empty(registries);
+      final store = Store<GlobalState>(initialState: state)
+        ..dispatch(SpreadMasteryPoolAction(skill: Skill.woodcutting));
+
+      expect(store.state.skillState(Skill.woodcutting).masteryPoolXp, 0);
+    });
+  });
+
   group('ClaimMasteryTokenAction', () {
     late Registries registries;
     late Item woodcuttingToken;
