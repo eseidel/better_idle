@@ -49,6 +49,9 @@ class GameLoop {
   /// Used during app lifecycle transitions to prevent background execution.
   bool _isSuspended = false;
 
+  /// Whether the game loop is currently suspended.
+  bool get isSuspended => _isSuspended;
+
   // Drift detection fields (debug builds only)
   Tick? _lastPredictedTicks;
   DateTime? _lastDispatchTime;
