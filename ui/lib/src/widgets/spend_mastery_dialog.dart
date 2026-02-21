@@ -3,6 +3,7 @@ import 'package:logic/logic.dart';
 import 'package:ui/src/logic/redux_actions.dart';
 import 'package:ui/src/widgets/action_image.dart';
 import 'package:ui/src/widgets/cached_image.dart';
+import 'package:ui/src/widgets/mastery_pool.dart';
 import 'package:ui/src/widgets/skill_image.dart';
 import 'package:ui/src/widgets/style.dart';
 
@@ -25,7 +26,12 @@ class _SpendMasteryDialogState extends State<SpendMasteryDialog> {
     return StoreConnector<GlobalState, GlobalState>(
       converter: (store) => store.state,
       builder: (context, state) {
-        final actions = state.registries.actionsForSkill(widget.skill);
+        final actions = state.registries
+            .actionsForSkill(widget.skill)
+            .where(
+              (a) => state.actionState(a.id).masteryLevel < 99,
+            )
+            .toList();
         final skillState = state.skillState(widget.skill);
         final maxPoolXp = maxMasteryPoolXpForSkill(
           state.registries,
@@ -50,11 +56,10 @@ class _SpendMasteryDialogState extends State<SpendMasteryDialog> {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                // Pool summary
-                Text(
-                  'Pool: ${preciseNumberString(skillState.masteryPoolXp)}'
-                  ' / ${preciseNumberString(maxPoolXp)}',
-                  style: Theme.of(context).textTheme.bodyMedium,
+                // Pool progress bar
+                MasteryPoolBar(
+                  currentXp: skillState.masteryPoolXp,
+                  maxXp: maxPoolXp,
                 ),
                 const SizedBox(height: 12),
                 // Increment selector
@@ -219,8 +224,9 @@ class _ActionMasteryRow extends StatelessWidget {
                     const SizedBox(width: 8),
                     if (!isMaxLevel)
                       Text(
-                        '${preciseNumberString(xpToNextLevel)} XP to level '
-                        '${currentLevel + 1}',
+                        '${preciseNumberString(totalCost ?? xpToNextLevel)}'
+                        ' XP for +$actualLevels'
+                        ' level${actualLevels == 1 ? '' : 's'}',
                         style: Theme.of(context).textTheme.bodySmall?.copyWith(
                           color: Style.textColorSecondary,
                         ),
@@ -241,24 +247,13 @@ class _ActionMasteryRow extends StatelessWidget {
           if (isMaxLevel || actualLevels == 0)
             const SizedBox(width: 80) // Placeholder for alignment
           else
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.end,
-              children: [
-                _SpendButton(
-                  skill: skill,
-                  action: action,
-                  levels: actualLevels,
-                  buttonColor: buttonColor,
-                  canAfford: canAfford,
-                  crossedCheckpoint: crossedCheckpoint,
-                ),
-                Text(
-                  '+$actualLevels (${preciseNumberString(totalCost!)} XP)',
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: canAfford ? null : Style.textColorSecondary,
-                  ),
-                ),
-              ],
+            _SpendButton(
+              skill: skill,
+              action: action,
+              levels: actualLevels,
+              buttonColor: buttonColor,
+              canAfford: canAfford,
+              crossedCheckpoint: crossedCheckpoint,
             ),
         ],
       ),
@@ -328,13 +323,18 @@ class _SpendButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return IconButton(
-      icon: Icon(Icons.add_circle, color: buttonColor),
+    return ElevatedButton(
       onPressed: canAfford ? () => _spend(context) : null,
-      tooltip: canAfford
-          ? 'Add $levels mastery level(s)'
-          : 'Insufficient pool XP',
-      iconSize: 28,
+      style: ElevatedButton.styleFrom(
+        backgroundColor: canAfford ? buttonColor : Style.textColorSecondary,
+        foregroundColor: Colors.white,
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+        minimumSize: Size.zero,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(8),
+        ),
+      ),
+      child: Text('+$levels'),
     );
   }
 }
