@@ -84,53 +84,48 @@ class GameScaffold extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final isWide = constraints.maxWidth >= sidebarBreakpoint;
+    final isWide = MediaQuery.sizeOf(context).width >= sidebarBreakpoint;
 
-        final scaffoldBody = isWide
-            ? Row(
-                children: [
-                  const SizedBox(
-                    width: sidebarWidth,
-                    child: Material(child: NavigationContent(isDrawer: false)),
-                  ),
-                  const VerticalDivider(width: 1),
-                  Expanded(child: body),
-                ],
-              )
-            : body;
+    final scaffoldBody = isWide
+        ? Row(
+            children: [
+              const SizedBox(
+                width: sidebarWidth,
+                child: Material(child: NavigationContent(isDrawer: false)),
+              ),
+              const VerticalDivider(width: 1),
+              Expanded(child: body),
+            ],
+          )
+        : body;
 
-        return Scaffold(
-          appBar: GameAppBar(title: title, actions: actions, bottom: bottom),
-          drawer: isWide ? null : const AppNavigationDrawer(),
-          body: scaffoldBody,
-          floatingActionButton: floatingActionButton,
-          floatingActionButtonLocation: floatingActionButtonLocation,
-          floatingActionButtonAnimator: floatingActionButtonAnimator,
-          persistentFooterButtons: persistentFooterButtons,
-          persistentFooterAlignment:
-              persistentFooterAlignment ?? AlignmentDirectional.centerEnd,
-          endDrawer: endDrawer,
-          endDrawerEnableOpenDragGesture:
-              endDrawerEnableOpenDragGesture ?? true,
-          bottomNavigationBar: bottomNavigationBar,
-          bottomSheet: bottomSheet,
-          backgroundColor: backgroundColor,
-          resizeToAvoidBottomInset: resizeToAvoidBottomInset,
-          primary: primary ?? true,
-          drawerDragStartBehavior:
-              drawerDragStartBehavior ?? DragStartBehavior.start,
-          extendBody: extendBody ?? false,
-          extendBodyBehindAppBar: extendBodyBehindAppBar ?? false,
-          drawerScrimColor: drawerScrimColor,
-          drawerEdgeDragWidth: drawerEdgeDragWidth,
-          drawerEnableOpenDragGesture: drawerEnableOpenDragGesture ?? true,
-          onDrawerChanged: onDrawerChanged,
-          onEndDrawerChanged: onEndDrawerChanged,
-          restorationId: restorationId,
-        );
-      },
+    return Scaffold(
+      appBar: GameAppBar(title: title, actions: actions, bottom: bottom),
+      drawer: isWide ? null : const AppNavigationDrawer(),
+      body: scaffoldBody,
+      floatingActionButton: floatingActionButton,
+      floatingActionButtonLocation: floatingActionButtonLocation,
+      floatingActionButtonAnimator: floatingActionButtonAnimator,
+      persistentFooterButtons: persistentFooterButtons,
+      persistentFooterAlignment:
+          persistentFooterAlignment ?? AlignmentDirectional.centerEnd,
+      endDrawer: endDrawer,
+      endDrawerEnableOpenDragGesture: endDrawerEnableOpenDragGesture ?? true,
+      bottomNavigationBar: bottomNavigationBar,
+      bottomSheet: bottomSheet,
+      backgroundColor: backgroundColor,
+      resizeToAvoidBottomInset: resizeToAvoidBottomInset,
+      primary: primary ?? true,
+      drawerDragStartBehavior:
+          drawerDragStartBehavior ?? DragStartBehavior.start,
+      extendBody: extendBody ?? false,
+      extendBodyBehindAppBar: extendBodyBehindAppBar ?? false,
+      drawerScrimColor: drawerScrimColor,
+      drawerEdgeDragWidth: drawerEdgeDragWidth,
+      drawerEnableOpenDragGesture: drawerEnableOpenDragGesture ?? true,
+      onDrawerChanged: onDrawerChanged,
+      onEndDrawerChanged: onEndDrawerChanged,
+      restorationId: restorationId,
     );
   }
 }
