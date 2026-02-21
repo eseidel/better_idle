@@ -104,6 +104,8 @@ words:
   - unequip
   - unequips
   - unlockable
+  - webglcontextlost
+  - webglcontextrestored
   - xcassets
   - xcconfig
   - xcodeproj
