@@ -39,13 +39,17 @@ class ItemCountBadgeCell extends StatelessWidget {
     // Icon size is roughly 60% of the inradius
     final iconSize = inradius * 0.6;
 
-    return CountBadgeCell(
-      inradius: inradius,
-      backgroundColor: Style.xpBadgeBackgroundColor,
-      borderColor: borderColor,
-      count: count,
-      child: Center(
-        child: ItemImage(item: item, size: iconSize),
+    return Tooltip(
+      message: item.name,
+      preferBelow: false,
+      child: CountBadgeCell(
+        inradius: inradius,
+        backgroundColor: Style.xpBadgeBackgroundColor,
+        borderColor: borderColor,
+        count: count,
+        child: Center(
+          child: ItemImage(item: item, size: iconSize),
+        ),
       ),
     );
   }
