@@ -34,6 +34,8 @@ class _SpendMasteryDialogState extends State<SpendMasteryDialog> {
           state.registries,
           widget.skill,
         );
+        final heldTokens = state.heldMasteryTokenCount(widget.skill);
+        final claimableTokens = state.claimableMasteryTokenCount(widget.skill);
 
         return AlertDialog(
           constraints: const BoxConstraints(maxWidth: 600),
@@ -57,25 +59,18 @@ class _SpendMasteryDialogState extends State<SpendMasteryDialog> {
                     Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        if (state.heldMasteryTokenCount(widget.skill) > 0)
+                        if (heldTokens > 0)
                           Padding(
                             padding: const EdgeInsets.only(right: 8),
                             child: ElevatedButton(
-                              onPressed:
-                                  state.claimableMasteryTokenCount(
-                                        widget.skill,
-                                      ) >
-                                      0
+                              onPressed: claimableTokens > 0
                                   ? () => context.dispatch(
                                       ClaimAllMasteryTokensAction(
                                         skill: widget.skill,
                                       ),
                                     )
                                   : null,
-                              child: Text(
-                                'Claim Tokens '
-                                '(${state.heldMasteryTokenCount(widget.skill)})',
-                              ),
+                              child: Text('Claim Tokens ($heldTokens)'),
                             ),
                           ),
                         _SpreadButton(skill: widget.skill, state: state),
