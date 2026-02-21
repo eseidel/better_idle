@@ -1306,6 +1306,8 @@ class _SlayerTaskDetails extends StatelessWidget {
     );
     final monster = combat.monsterById(task.monsterId);
 
+    final isFighting = state.isActionActive(monster);
+
     return Row(
       children: [
         CachedImage(assetPath: monster.media, size: 48),
@@ -1325,6 +1327,13 @@ class _SlayerTaskDetails extends StatelessWidget {
               ),
             ],
           ),
+        ),
+        ElevatedButton(
+          onPressed: isFighting
+              ? null
+              : () =>
+                    context.dispatch(StartCombatAction(combatAction: monster)),
+          child: const Text('Fight'),
         ),
       ],
     );

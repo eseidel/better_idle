@@ -1640,61 +1640,20 @@ class GlobalState {
         baseKills + random.nextInt(variance * 2 + 1) - variance;
 
     // Deduct currency cost
-    var prepared = _prepareForActivitySwitch(stayingInCooking: false);
-    final newCurrencies = Map<Currency, int>.from(prepared.currencies);
+    final newCurrencies = Map<Currency, int>.from(currencies);
     for (final cost in category.rollCost.costs) {
       newCurrencies[cost.currency] =
           (newCurrencies[cost.currency] ?? 0) - cost.amount;
     }
-    prepared = prepared.copyWith(currencies: newCurrencies);
 
-    // Start combat with the slayer task context
-    final pStats = computePlayerStats(
-      prepared,
-      conditionContext: ConditionContext.empty, // Combat not yet started.
-    );
-    final totalTicks = ticksFromDuration(
-      Duration(milliseconds: (pStats.attackSpeed * 1000).round()),
-    );
-
-    final modifiers = prepared.createCombatModifierProvider(
-      conditionContext: ConditionContext.empty, // Combat not yet started.
-    );
-    final spawnTicks = calculateMonsterSpawnTicks(
-      modifiers.flatMonsterRespawnInterval,
-    );
-
-    final combatState = CombatActionState.start(
-      monster,
-      pStats,
-      spawnTicks: spawnTicks,
-    );
-
-    final newActionStates = Map<ActionId, ActionState>.from(
-      prepared.actionStates,
-    );
-    final existingState = prepared.actionState(monster.id);
-    newActionStates[monster.id] = existingState.copyWith(combat: combatState);
-
-    return prepared.copyWith(
+    return copyWith(
       slayerTask: SlayerTask(
         categoryId: category.id,
         monsterId: monster.id.localId,
         killsRequired: killsRequired,
         killsCompleted: 0,
       ),
-      activeActivity: CombatActivity(
-        context: MonsterCombatContext(monsterId: monster.id.localId),
-        progress: CombatProgressState(
-          monsterHp: combatState.monsterHp,
-          playerAttackTicksRemaining: combatState.playerAttackTicksRemaining,
-          monsterAttackTicksRemaining: combatState.monsterAttackTicksRemaining,
-          spawnTicksRemaining: combatState.spawnTicksRemaining,
-        ),
-        progressTicks: 0,
-        totalTicks: totalTicks,
-      ),
-      actionStates: newActionStates,
+      currencies: newCurrencies,
     );
   }
 

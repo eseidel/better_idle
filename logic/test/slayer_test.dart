@@ -71,7 +71,7 @@ void main() {
   });
 
   group('slayer tasks', () {
-    test('startSlayerTask sets slayerTask and starts combat', () {
+    test('startSlayerTask sets slayerTask without starting combat', () {
       final category = easyCategory();
       var state = GlobalState.test(
         testRegistries,
@@ -84,17 +84,14 @@ void main() {
       final random = Random(42);
       state = state.startSlayerTask(category: category, random: random);
 
-      // Slayer task is set independently.
+      // Slayer task is set.
       expect(state.slayerTask, isNotNull);
       expect(state.slayerTask!.categoryId, category.id);
       expect(state.slayerTask!.killsRequired, greaterThan(0));
       expect(state.slayerTask!.killsCompleted, 0);
 
-      // Combat activity uses MonsterCombatContext.
-      expect(state.activeActivity, isA<CombatActivity>());
-      final activity = state.activeActivity! as CombatActivity;
-      expect(activity.context, isA<MonsterCombatContext>());
-      expect(activity.context.currentMonsterId, state.slayerTask!.monsterId);
+      // No combat started.
+      expect(state.activeActivity, isNull);
     });
 
     test('startSlayerTask deducts roll cost', () {
@@ -167,6 +164,12 @@ void main() {
         final random = Random(42);
         state = state.startSlayerTask(category: category, random: random);
 
+        // Start fighting the task's monster.
+        final monster = testRegistries.combat.monsterById(
+          state.slayerTask!.monsterId,
+        );
+        state = state.startAction(monster, random: random);
+
         // Record initial slayer XP.
         final initialSlayerXp = state.skillState(Skill.slayer).xp;
         expect(state.slayerTaskCompletions[category.id] ?? 0, 0);
@@ -212,6 +215,12 @@ void main() {
       );
       final random = Random(99);
       state = state.startSlayerTask(category: category, random: random);
+
+      // Start fighting the task's monster.
+      final monster = testRegistries.combat.monsterById(
+        state.slayerTask!.monsterId,
+      );
+      state = state.startAction(monster, random: random);
 
       // Only process enough ticks for one kill (not enough for all).
       if (state.slayerTask!.killsRequired > 1) {
@@ -276,6 +285,12 @@ void main() {
       );
       final random = Random(42);
       state = state.startSlayerTask(category: category, random: random);
+
+      // Start fighting the task's monster.
+      final monster = testRegistries.combat.monsterById(
+        state.slayerTask!.monsterId,
+      );
+      state = state.startAction(monster, random: random);
 
       // Track initial currency for rewards.
       final rewardCurrencyAmounts = <Currency, int>{
