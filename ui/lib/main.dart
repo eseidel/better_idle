@@ -271,6 +271,14 @@ class _AppLifecycleManagerState extends State<_AppLifecycleManager>
     Tick totalTicks,
     DateTime now,
   ) async {
+    // The game loop must stay suspended for the entire async processing.
+    // It was suspended when the app went to background, and we must not
+    // resume it until we've applied the computed state — otherwise the
+    // loop could process ticks that get overwritten.
+    assert(
+      widget.gameLoop.isSuspended,
+      'Game loop must be suspended during async resume',
+    );
     _isProcessingResume = true;
 
     final progressNotifier = ValueNotifier<double>(0);
@@ -311,7 +319,9 @@ class _AppLifecycleManagerState extends State<_AppLifecycleManager>
       }),
     );
 
-    // Process ticks in chunks, yielding between each
+    // Process ticks in chunks, yielding between each.
+    // This runs outside the store to avoid blocking the UI — the game loop
+    // is suspended so no other ticks can race with this computation.
     var currentState = widget.store.state;
     var remaining = totalTicks;
     TimeAway? mergedTimeAway;
@@ -335,19 +345,20 @@ class _AppLifecycleManagerState extends State<_AppLifecycleManager>
     }
 
     if (!_isProcessingResume) return; // Cancelled (app went to background)
+
+    // Apply the computed state to the store and transition the dialog.
+    // Keep _isProcessingResume true until after dispatch so the onChange
+    // listener doesn't try to show a duplicate dialog.
+    widget.store.dispatch(
+      ResumeFromPauseAction.precomputed(
+        computedState: currentState,
+        computedTimeAway: mergedTimeAway,
+      ),
+    );
+    resultNotifier.value = widget.store.state.timeAway;
     _isProcessingResume = false;
 
-    // Apply final state to the store
-    final timeAway = mergedTimeAway!.maybeMergeInto(currentState.timeAway);
-    final finalState = currentState.copyWith(
-      timeAway: timeAway.changes.isEmpty ? null : timeAway,
-    );
-    widget.store.dispatch(ApplyResumeResultAction(finalState));
-
-    // Transition dialog to show results
-    resultNotifier.value = widget.store.state.timeAway;
-
-    // Resume game loop and persistor
+    // Now safe to resume the game loop and persistor.
     widget.gameLoop.resume();
     widget.store.dispatch(ProcessLifecycleChangeAction(LifecycleChange.resume));
   }

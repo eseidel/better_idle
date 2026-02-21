@@ -119,43 +119,62 @@ class DebugAdvanceTicksAction extends ReduxAction<GlobalState> {
 
 /// Calculates time away from pause and processes it,
 /// merging with existing timeAway if present.
+///
+/// Two modes:
+/// - **Synchronous** (default constructor): computes ticks inline for short
+///   absences.
+/// - **Pre-computed** ([ResumeFromPauseAction.precomputed]): applies
+///   externally-computed state from chunked async processing. Used for long
+///   absences where ticks are processed in chunks with yields to keep the
+///   UI responsive.
 class ResumeFromPauseAction extends ReduxAction<GlobalState> {
+  ResumeFromPauseAction() : _precomputed = null;
+
+  /// Apply pre-computed results from async chunked processing.
+  /// The game loop must be suspended while this runs.
+  ResumeFromPauseAction.precomputed({
+    required GlobalState computedState,
+    required TimeAway? computedTimeAway,
+  }) : _precomputed = (computedState, computedTimeAway);
+
+  final (GlobalState, TimeAway?)? _precomputed;
+
   @override
   GlobalState reduce() {
-    final now = DateTime.timestamp();
-    final duration = now.difference(state.updatedAt);
-    final ticks = ticksFromDuration(duration);
-    logger.info('ResumeFromPause: away=$duration, ticks=$ticks');
-    final random = Random();
-    final stopwatch = Stopwatch()..start();
-    final (newTimeAway, newState) = consumeManyTicks(
-      state,
-      ticks,
-      endTime: now,
-      random: random,
-    );
-    stopwatch.stop();
-    logger.info(
-      'ResumeFromPause: consumeManyTicks took '
-      '${stopwatch.elapsedMilliseconds}ms',
-    );
-    final timeAway = newTimeAway.maybeMergeInto(state.timeAway);
+    final GlobalState newState;
+    final TimeAway? newTimeAway;
+
+    if (_precomputed case (final preState, final preTimeAway)?) {
+      newState = preState;
+      newTimeAway = preTimeAway;
+    } else {
+      final now = DateTime.timestamp();
+      final duration = now.difference(state.updatedAt);
+      final ticks = ticksFromDuration(duration);
+      logger.info('ResumeFromPause: away=$duration, ticks=$ticks');
+      final random = Random();
+      final stopwatch = Stopwatch()..start();
+      final (timeAway, computedState) = consumeManyTicks(
+        state,
+        ticks,
+        endTime: now,
+        random: random,
+      );
+      stopwatch.stop();
+      logger.info(
+        'ResumeFromPause: consumeManyTicks took '
+        '${stopwatch.elapsedMilliseconds}ms',
+      );
+      newState = computedState;
+      newTimeAway = timeAway;
+    }
+
+    final timeAway = newTimeAway?.maybeMergeInto(state.timeAway);
     // Set timeAway on state if it has changes - empty timeAway should be null
     return newState.copyWith(
-      timeAway: timeAway.changes.isEmpty ? null : timeAway,
+      timeAway: timeAway != null && !timeAway.changes.isEmpty ? timeAway : null,
     );
   }
-}
-
-/// Applies a pre-computed resume state to the store.
-/// Used by the chunked async resume processing to set the final state
-/// after all ticks have been processed outside the store.
-class ApplyResumeResultAction extends ReduxAction<GlobalState> {
-  ApplyResumeResultAction(this.newState);
-  final GlobalState newState;
-
-  @override
-  GlobalState reduce() => newState;
 }
 
 /// Clears the welcome back dialog by removing timeAway from state.

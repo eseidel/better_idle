@@ -5,6 +5,7 @@ import 'package:logic/logic.dart';
 import 'package:logic/src/data/registries_io.dart';
 import 'package:scoped_deps/scoped_deps.dart';
 import 'package:ui/src/logic/redux_actions.dart';
+import 'package:ui/src/services/logger.dart';
 import 'package:ui/src/services/toast_service.dart';
 
 /// Helper to create a test building with biome-specific data.
@@ -3652,6 +3653,163 @@ void main() {
         ..dispatch(StopBonfireAction());
 
       expect(store.state.bonfire.isActive, isFalse);
+    });
+  });
+
+  group('ResumeFromPauseAction', () {
+    test('sync path processes ticks and sets timeAway', () {
+      // The sync path computes ticks from updatedAt to now, so we set
+      // updatedAt in the past to simulate being away.
+      // Note: copyWith() always resets updatedAt to now, so we must use
+      // GlobalState.test() with activeActivity pre-set.
+      runScoped(() {
+        final testAction = SkillAction(
+          id: ActionId.test(Skill.woodcutting, 'Test Tree'),
+          skill: Skill.woodcutting,
+          name: 'Test Tree',
+          unlockLevel: 1,
+          duration: const Duration(seconds: 3),
+          xp: 10,
+        );
+        final registries = Registries.test(actions: [testAction]);
+        final initialState = GlobalState.test(
+          registries,
+          activeActivity: SkillActivity(
+            skill: Skill.woodcutting,
+            actionId: testAction.id.localId,
+            progressTicks: 0,
+            totalTicks: 30,
+          ),
+          // Set updatedAt 10 seconds ago so ResumeFromPause has ticks
+          // to process.
+          updatedAt: DateTime.timestamp().subtract(const Duration(seconds: 10)),
+        );
+
+        final store = Store<GlobalState>(initialState: initialState)
+          ..dispatch(ResumeFromPauseAction());
+
+        // Should have processed ticks and set timeAway with XP changes.
+        final timeAway = store.state.timeAway;
+        expect(timeAway, isNotNull);
+        expect(timeAway!.changes.skillXpChanges.counts, isNotEmpty);
+        expect(timeAway.activeSkill, Skill.woodcutting);
+      }, values: {loggerRef});
+    });
+
+    test('sync path with no time elapsed returns state with no timeAway', () {
+      runScoped(() {
+        final registries = Registries.test();
+        final initialState = GlobalState.empty(registries);
+        // updatedAt is now, so no ticks to process.
+
+        final store = Store<GlobalState>(initialState: initialState)
+          ..dispatch(ResumeFromPauseAction());
+
+        // No activity was running, no time passed — timeAway should be null.
+        expect(store.state.timeAway, isNull);
+      }, values: {loggerRef});
+    });
+
+    test('precomputed path applies state and merges timeAway', () {
+      // The precomputed path is used by async resume: ticks are computed
+      // externally in chunks, then applied via this action. The game loop
+      // must be suspended while this runs (asserted in _processResumeAsync).
+      runScoped(() {
+        final testAction = SkillAction(
+          id: ActionId.test(Skill.woodcutting, 'Test Tree'),
+          skill: Skill.woodcutting,
+          name: 'Test Tree',
+          unlockLevel: 1,
+          duration: const Duration(seconds: 3),
+          xp: 10,
+        );
+        final registries = Registries.test(actions: [testAction]);
+        final random = Random(42);
+        var initialState = GlobalState.empty(registries);
+        initialState = initialState.startAction(testAction, random: random);
+
+        // Simulate external computation (as _processResumeAsync does).
+        final (computedTimeAway, computedState) = consumeManyTicks(
+          initialState,
+          100,
+          random: random,
+        );
+
+        // Apply via the precomputed constructor.
+        final store = Store<GlobalState>(initialState: initialState)
+          ..dispatch(
+            ResumeFromPauseAction.precomputed(
+              computedState: computedState,
+              computedTimeAway: computedTimeAway,
+            ),
+          );
+
+        // State should reflect the computed result.
+        expect(store.state.timeAway, isNotNull);
+        expect(store.state.timeAway!.changes.skillXpChanges.counts, isNotEmpty);
+        // The computed state's non-timeAway fields should be applied.
+        expect(
+          store.state.skillState(Skill.woodcutting).xp,
+          computedState.skillState(Skill.woodcutting).xp,
+        );
+      }, values: {loggerRef});
+    });
+
+    test('precomputed path merges with existing timeAway on store', () {
+      // If the store already has timeAway (e.g. from a previous partial
+      // resume), the precomputed result should merge into it.
+      runScoped(() {
+        final testAction = SkillAction(
+          id: ActionId.test(Skill.woodcutting, 'Test Tree'),
+          skill: Skill.woodcutting,
+          name: 'Test Tree',
+          unlockLevel: 1,
+          duration: const Duration(seconds: 3),
+          xp: 10,
+        );
+        final registries = Registries.test(actions: [testAction]);
+        final random = Random(42);
+        var storeState = GlobalState.empty(registries);
+        storeState = storeState.startAction(testAction, random: random);
+
+        // First chunk: compute some ticks.
+        final (chunk1TimeAway, chunk1State) = consumeManyTicks(
+          storeState,
+          50,
+          random: random,
+        );
+
+        // Put the first chunk's timeAway on the store state to simulate
+        // a previous partial application.
+        storeState = storeState.copyWith(timeAway: chunk1TimeAway);
+
+        // Second chunk: compute more ticks from chunk1's output state.
+        final (chunk2TimeAway, chunk2State) = consumeManyTicks(
+          chunk1State,
+          50,
+          random: random,
+        );
+
+        // Apply the second chunk via precomputed. The action should merge
+        // chunk2TimeAway into the existing chunk1TimeAway on the store.
+        final store = Store<GlobalState>(initialState: storeState)
+          ..dispatch(
+            ResumeFromPauseAction.precomputed(
+              computedState: chunk2State,
+              computedTimeAway: chunk2TimeAway,
+            ),
+          );
+
+        final merged = store.state.timeAway;
+        expect(merged, isNotNull);
+        // Merged XP should be >= each individual chunk's XP.
+        final mergedXp =
+            merged!.changes.skillXpChanges.counts[Skill.woodcutting] ?? 0;
+        final chunk1Xp =
+            chunk1TimeAway.changes.skillXpChanges.counts[Skill.woodcutting] ??
+            0;
+        expect(mergedXp, greaterThanOrEqualTo(chunk1Xp));
+      }, values: {loggerRef});
     });
   });
 }
