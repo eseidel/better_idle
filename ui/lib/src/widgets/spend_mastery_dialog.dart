@@ -380,10 +380,7 @@ class _SpreadButton extends StatelessWidget {
                 title: Text(
                   option.floor > 0 ? 'Spend to ${option.floor}%' : 'Spend all',
                 ),
-                subtitle: Text(
-                  '+${option.preview.levelsAdded} levels, '
-                  '${preciseNumberString(option.preview.xpSpent)} XP',
-                ),
+                subtitle: Text('+${option.preview.levelsAdded} levels'),
                 onTap: () => Navigator.of(ctx).pop(option.floor),
               ),
           ],
