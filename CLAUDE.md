@@ -10,6 +10,7 @@ Inspired by Melvor Idle, built with Flutter for mobile. Two packages:
 - `dart run tool/coverage.dart --check` - same, fails if below 90%
 - `dart run bin/solver.dart` - run the A* solver CLI (from logic/)
 - `dart format .` and `dart fix --apply .` - run from repo root
+- `dart analyze --fatal-infos` - CI treats infos as errors (e.g. line length)
 - `npx cspell` - spell check, must pass
 
 ## Key Architecture

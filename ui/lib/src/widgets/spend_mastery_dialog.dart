@@ -4,7 +4,6 @@ import 'package:ui/src/logic/redux_actions.dart';
 import 'package:ui/src/widgets/action_image.dart';
 import 'package:ui/src/widgets/cached_image.dart';
 import 'package:ui/src/widgets/mastery_pool.dart';
-import 'package:ui/src/widgets/skill_image.dart';
 import 'package:ui/src/widgets/style.dart';
 
 /// A dialog that lets the player spend mastery pool XP to level up action
@@ -35,20 +34,12 @@ class _SpendMasteryDialogState extends State<SpendMasteryDialog> {
           state.registries,
           widget.skill,
         );
+        final heldTokens = state.heldMasteryTokenCount(widget.skill);
+        final claimableTokens = state.claimableMasteryTokenCount(widget.skill);
 
         return AlertDialog(
-          title: Row(
-            children: [
-              const CachedImage(
-                assetPath: 'assets/media/main/mastery_pool.png',
-                size: 28,
-              ),
-              const SizedBox(width: 8),
-              SkillImage(skill: widget.skill, size: 28),
-              const SizedBox(width: 8),
-              Expanded(child: Text('Spend ${widget.skill.name} Mastery')),
-            ],
-          ),
+          constraints: const BoxConstraints(maxWidth: 600),
+          title: const Text('Spend Mastery XP'),
           content: SizedBox(
             width: double.maxFinite,
             child: Column(
@@ -60,22 +51,31 @@ class _SpendMasteryDialogState extends State<SpendMasteryDialog> {
                   maxXp: maxPoolXp,
                 ),
                 const SizedBox(height: 12),
-                Row(
+                OverflowBar(
+                  spacing: 8,
+                  overflowSpacing: 8,
+                  overflowAlignment: OverflowBarAlignment.center,
                   children: [
-                    _SpreadButton(skill: widget.skill, state: state),
-                    if (state.claimableMasteryTokenCount(widget.skill) > 0)
-                      Padding(
-                        padding: const EdgeInsets.only(left: 8),
-                        child: ElevatedButton(
-                          onPressed: () => showDialog<void>(
-                            context: context,
-                            builder: (context) =>
-                                ClaimMasteryTokensDialog(skill: widget.skill),
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        if (heldTokens > 0)
+                          Padding(
+                            padding: const EdgeInsets.only(right: 8),
+                            child: ElevatedButton(
+                              onPressed: claimableTokens > 0
+                                  ? () => context.dispatch(
+                                      ClaimAllMasteryTokensAction(
+                                        skill: widget.skill,
+                                      ),
+                                    )
+                                  : null,
+                              child: Text('Claim Tokens ($heldTokens)'),
+                            ),
                           ),
-                          child: const Text('Claim Tokens'),
-                        ),
-                      ),
-                    const Spacer(),
+                        _SpreadButton(skill: widget.skill, state: state),
+                      ],
+                    ),
                     _IncrementSelector(
                       selected: _selectedIncrement,
                       onChanged: (value) {
@@ -202,75 +202,78 @@ class _ActionMasteryRow extends StatelessWidget {
 
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 8),
-      child: Row(
-        children: [
-          ActionImage(action: action),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  action.name,
-                  style: const TextStyle(fontWeight: FontWeight.w500),
-                ),
-                const SizedBox(height: 4),
-                // Progress bar showing progress to next level only
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(2),
-                  child: LinearProgressIndicator(
-                    value: isMaxLevel ? 1.0 : progress.progress,
-                    backgroundColor: Style.progressBackgroundColor,
+      child: IntrinsicHeight(
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Center(child: ActionImage(action: action)),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    action.name,
+                    style: const TextStyle(fontWeight: FontWeight.w500),
                   ),
-                ),
-                const SizedBox(height: 4),
-                // Level display and XP to next level
-                Row(
-                  children: [
-                    const CachedImage(
-                      assetPath: 'assets/media/main/mastery_header.png',
-                      size: 14,
+                  const SizedBox(height: 4),
+                  // Progress bar showing progress to next level only
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(2),
+                    child: LinearProgressIndicator(
+                      value: isMaxLevel ? 1.0 : progress.progress,
+                      backgroundColor: Style.progressBackgroundColor,
                     ),
-                    const SizedBox(width: 4),
-                    Text(
-                      'Level $currentLevel',
-                      style: Theme.of(context).textTheme.bodySmall,
-                    ),
-                    const SizedBox(width: 8),
-                    if (!isMaxLevel)
-                      Text(
-                        '${preciseNumberString(totalCost ?? xpToNextLevel)}'
-                        ' XP for +$actualLevels'
-                        ' level${actualLevels == 1 ? '' : 's'}',
-                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: Style.textColorSecondary,
-                        ),
-                      )
-                    else
-                      Text(
-                        'MAX',
-                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: Style.textColorSecondary,
-                        ),
+                  ),
+                  const SizedBox(height: 4),
+                  // Level display and XP to next level
+                  Row(
+                    children: [
+                      const CachedImage(
+                        assetPath: 'assets/media/main/mastery_header.png',
+                        size: 14,
                       ),
-                  ],
+                      const SizedBox(width: 4),
+                      Text(
+                        'Level $currentLevel',
+                        style: Theme.of(context).textTheme.bodySmall,
+                      ),
+                      const Spacer(),
+                      if (!isMaxLevel)
+                        Text(
+                          '${preciseNumberString(totalCost ?? xpToNextLevel)}'
+                          ' XP for +$actualLevels'
+                          ' level${actualLevels == 1 ? '' : 's'}',
+                          style: Theme.of(context).textTheme.bodySmall
+                              ?.copyWith(color: Style.textColorSecondary),
+                        )
+                      else
+                        Text(
+                          'MAX',
+                          style: Theme.of(context).textTheme.bodySmall
+                              ?.copyWith(color: Style.textColorSecondary),
+                        ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 8),
+            if (isMaxLevel || actualLevels == 0)
+              const SizedBox(width: 80) // Placeholder for alignment
+            else
+              Center(
+                child: _SpendButton(
+                  skill: skill,
+                  action: action,
+                  levels: actualLevels,
+                  buttonColor: buttonColor,
+                  canAfford: canAfford,
+                  crossedCheckpoint: crossedCheckpoint,
                 ),
-              ],
-            ),
-          ),
-          const SizedBox(width: 8),
-          if (isMaxLevel || actualLevels == 0)
-            const SizedBox(width: 80) // Placeholder for alignment
-          else
-            _SpendButton(
-              skill: skill,
-              action: action,
-              levels: actualLevels,
-              buttonColor: buttonColor,
-              canAfford: canAfford,
-              crossedCheckpoint: crossedCheckpoint,
-            ),
-        ],
+              ),
+          ],
+        ),
       ),
     );
   }
@@ -343,8 +346,9 @@ class _SpendButton extends StatelessWidget {
       style: ElevatedButton.styleFrom(
         backgroundColor: canAfford ? buttonColor : Style.textColorSecondary,
         foregroundColor: Colors.white,
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-        minimumSize: Size.zero,
+        padding: EdgeInsets.zero,
+        minimumSize: const Size(40, 40),
+        fixedSize: const Size(40, 40),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
       ),
       child: Text('+$levels'),

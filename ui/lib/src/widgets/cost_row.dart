@@ -17,6 +17,18 @@ class CostRow extends StatelessWidget {
     this.iconSize = 16,
   });
 
+  /// Creates a [CostRow] from a [ResolvedShopCost].
+  CostRow.fromResolved(
+    ResolvedShopCost resolved, {
+    super.key,
+    this.emptyText = 'Free',
+    this.showAffordability = true,
+    this.spacing = 12,
+    this.iconSize = 16,
+  }) : currencyCosts = resolved.currencyCosts,
+       canAffordCosts = resolved.canAffordCurrencyMap,
+       itemCosts = resolved.itemCosts;
+
   /// List of (currency, amount) pairs.
   final List<(Currency, int)> currencyCosts;
 

@@ -406,6 +406,28 @@ void main() {
     });
   });
 
+  group('heldMasteryTokenCount', () {
+    test('returns 0 when no tokens in inventory', () {
+      final state = GlobalState.empty(testRegistries);
+      expect(state.heldMasteryTokenCount(Skill.woodcutting), 0);
+    });
+
+    test('returns count of tokens in inventory', () {
+      var state = GlobalState.empty(testRegistries);
+      state = state.copyWith(
+        inventory: state.inventory.adding(
+          ItemStack(woodcuttingToken, count: 7),
+        ),
+      );
+      expect(state.heldMasteryTokenCount(Skill.woodcutting), 7);
+    });
+
+    test('returns 0 for combat skills', () {
+      final state = GlobalState.empty(testRegistries);
+      expect(state.heldMasteryTokenCount(Skill.attack), 0);
+    });
+  });
+
   group('claimableMasteryTokenCount', () {
     test('returns 0 for combat skills', () {
       final state = GlobalState.empty(testRegistries);

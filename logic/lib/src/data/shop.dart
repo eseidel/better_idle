@@ -117,6 +117,29 @@ class ShopCost extends Equatable {
   List<Object?> get props => [currencies, items];
 }
 
+/// Resolved cost information for a [ShopPurchase] with per-part
+/// affordability. Returned by [GlobalState.resolveShopCost].
+class ResolvedShopCost {
+  const ResolvedShopCost({
+    required this.canAfford,
+    required this.currencyCosts,
+    required this.canAffordCurrencyMap,
+    required this.itemCosts,
+  });
+
+  /// Whether the player can afford all costs.
+  final bool canAfford;
+
+  /// Currency costs as (Currency, amount) pairs.
+  final List<(Currency, int)> currencyCosts;
+
+  /// Per-currency affordability.
+  final Map<Currency, bool> canAffordCurrencyMap;
+
+  /// Item costs as (Item, quantity, canAfford) tuples.
+  final List<(Item, int, bool)> itemCosts;
+}
+
 /// What a shop purchase contains/grants.
 @immutable
 class ShopContents extends Equatable {
