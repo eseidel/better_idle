@@ -298,6 +298,9 @@ class _AppLifecycleManagerState extends State<_AppLifecycleManager>
 
     // Show dialog if not already showing (if already showing, it transitions
     // in-place via the notifiers above).
+    logger.info(
+      'Async resume: ticks=$totalTicks, dialogShowing=$_isDialogShowing',
+    );
     if (!_isDialogShowing) {
       final navigatorContext = navigatorKey.currentContext;
       if (navigatorContext == null) {
@@ -341,18 +344,29 @@ class _AppLifecycleManagerState extends State<_AppLifecycleManager>
         }
       }
 
-      if (!_isProcessingResume) return; // Cancelled (app went to background)
+      if (!_isProcessingResume) {
+        logger.info('Async resume cancelled (app went to background)');
+        return;
+      }
 
       // Apply the computed state to the store and transition the dialog.
       // Keep _isProcessingResume true until after dispatch so the onChange
       // listener doesn't try to show a duplicate dialog.
+      final hasChanges =
+          mergedTimeAway != null && !mergedTimeAway.changes.isEmpty;
+      logger.info('Async resume done: hasChanges=$hasChanges');
       widget.store.dispatch(
         ResumeFromPauseAction.precomputed(
           computedState: currentState,
           computedTimeAway: mergedTimeAway,
         ),
       );
-      _welcomeBackState.result.value = widget.store.state.timeAway;
+      final storeTimeAway = widget.store.state.timeAway;
+      logger.info(
+        'Async resume dispatched: '
+        'storeTimeAway=${storeTimeAway != null ? "present" : "null"}',
+      );
+      _welcomeBackState.result.value = storeTimeAway;
     } on Object catch (e, stackTrace) {
       logger.err('Async resume failed: $e\n$stackTrace');
       // Fall back to synchronous processing so the dialog can show results.
