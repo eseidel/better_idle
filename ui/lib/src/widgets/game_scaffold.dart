@@ -3,10 +3,19 @@ import 'package:flutter/material.dart';
 import 'package:ui/src/widgets/game_app_bar.dart';
 import 'package:ui/src/widgets/navigation_drawer.dart';
 
+/// Width breakpoint above which the navigation sidebar is permanently visible.
+const double sidebarBreakpoint = 840;
+
+/// Width of the permanent navigation sidebar.
+const double sidebarWidth = 304;
+
 /// A Scaffold with GameAppBar and AppNavigationDrawer built in.
 ///
 /// Use this instead of [Scaffold] to automatically include the game's
 /// standard app bar (with equipment button) and navigation drawer.
+///
+/// On wide screens the persistent sidebar is provided by the router shell,
+/// so the drawer is omitted.
 class GameScaffold extends StatelessWidget {
   const GameScaffold({
     required this.title,
@@ -75,9 +84,11 @@ class GameScaffold extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isWide = MediaQuery.sizeOf(context).width >= sidebarBreakpoint;
+
     return Scaffold(
       appBar: GameAppBar(title: title, actions: actions, bottom: bottom),
-      drawer: const AppNavigationDrawer(),
+      drawer: isWide ? null : const AppNavigationDrawer(),
       body: body,
       floatingActionButton: floatingActionButton,
       floatingActionButtonLocation: floatingActionButtonLocation,

@@ -7,6 +7,7 @@ import 'package:ui/src/widgets/cached_image.dart';
 import 'package:ui/src/widgets/context_extensions.dart';
 import 'package:ui/src/widgets/count_badge_cell.dart';
 import 'package:ui/src/widgets/game_app_bar.dart';
+import 'package:ui/src/widgets/game_scaffold.dart';
 import 'package:ui/src/widgets/item_image.dart';
 import 'package:ui/src/widgets/navigation_drawer.dart';
 import 'package:ui/src/widgets/open_result_dialog.dart';
@@ -114,6 +115,7 @@ class _BankPageState extends State<BankPage> {
     final state = context.state;
     final inventoryUsed = state.inventoryUsed;
     final inventoryCapacity = state.inventoryCapacity;
+    final isWide = MediaQuery.sizeOf(context).width >= sidebarBreakpoint;
 
     // Handle back button in selection mode
     return PopScope(
@@ -145,7 +147,9 @@ class _BankPageState extends State<BankPage> {
                 ],
               )
             : GameAppBar(title: const Text('Bank')),
-        drawer: _isSelectionMode ? null : const AppNavigationDrawer(),
+        drawer: !isWide && !_isSelectionMode
+            ? const AppNavigationDrawer()
+            : null,
         endDrawer: !_isSelectionMode && _selectedStack != null
             ? ItemDetailsDrawer(stack: _selectedStack!)
             : null,

@@ -9,6 +9,38 @@ import 'package:ui/src/widgets/skill_image.dart';
 import 'package:ui/src/widgets/skills.dart';
 import 'package:ui/src/widgets/style.dart';
 
+/// Provides the navigation display mode to descendant widgets.
+///
+/// When [isDrawer] is true, navigation items call [Navigator.pop] before
+/// routing (to close the drawer overlay). When false (permanent sidebar),
+/// they navigate directly.
+class NavigationMode extends InheritedWidget {
+  const NavigationMode({
+    required this.isDrawer,
+    required super.child,
+    super.key,
+  });
+
+  final bool isDrawer;
+
+  static bool of(BuildContext context) {
+    return context
+            .dependOnInheritedWidgetOfExactType<NavigationMode>()
+            ?.isDrawer ??
+        true;
+  }
+
+  /// Closes the drawer (if open) and navigates to the named route.
+  static void navigateTo(BuildContext context, String routeName) {
+    if (of(context)) Navigator.pop(context);
+    router.goNamed(routeName);
+  }
+
+  @override
+  bool updateShouldNotify(NavigationMode oldWidget) =>
+      isDrawer != oldWidget.isDrawer;
+}
+
 class _SectionHeader extends StatelessWidget {
   const _SectionHeader({required this.title, this.trailing});
 
@@ -101,18 +133,17 @@ class SkillTile extends StatelessWidget {
       trailing: Text('$level / $maxLevel'),
       selected: isSelected,
       tileColor: isActiveSkill && !isSelected ? Style.activeColorLight : null,
-      onTap: () {
-        Navigator.pop(context);
-        router.goNamed(routeName);
-      },
+      onTap: () => NavigationMode.navigateTo(context, routeName),
     );
   }
 }
 
-/// A navigation drawer that provides navigation to different screens.
-class AppNavigationDrawer extends StatelessWidget {
-  /// Constructs an [AppNavigationDrawer]
-  const AppNavigationDrawer({super.key});
+/// The navigation list content, usable both inside a [Drawer] and as a
+/// permanent sidebar.
+class NavigationContent extends StatelessWidget {
+  const NavigationContent({super.key, this.isDrawer = true});
+
+  final bool isDrawer;
 
   @override
   Widget build(BuildContext context) {
@@ -122,13 +153,14 @@ class AppNavigationDrawer extends StatelessWidget {
     final inventoryUsed = state.inventoryUsed;
     final inventoryCapacity = state.inventoryCapacity;
 
-    return Drawer(
+    return NavigationMode(
+      isDrawer: isDrawer,
       child: ListView(
         padding: EdgeInsets.zero,
         children: <Widget>[
           Container(
             width: double.infinity,
-            padding: const EdgeInsets.fromLTRB(16, 48, 16, 16),
+            padding: EdgeInsets.fromLTRB(16, isDrawer ? 48 : 16, 16, 16),
             color: Style.drawerHeaderColor,
             child: const Text(
               'Better Idle',
@@ -155,10 +187,7 @@ class AppNavigationDrawer extends StatelessWidget {
               ],
             ),
             selected: currentLocation == '/shop',
-            onTap: () {
-              Navigator.pop(context);
-              router.goNamed('shop');
-            },
+            onTap: () => NavigationMode.navigateTo(context, 'shop'),
           ),
           ListTile(
             dense: true,
@@ -170,10 +199,7 @@ class AppNavigationDrawer extends StatelessWidget {
             title: const Text('Bank'),
             trailing: Text('$inventoryUsed / $inventoryCapacity'),
             selected: currentLocation == '/bank',
-            onTap: () {
-              Navigator.pop(context);
-              router.goNamed('bank');
-            },
+            onTap: () => NavigationMode.navigateTo(context, 'bank'),
           ),
           _SectionHeader(title: 'Combat', trailing: 'Lv. ${state.combatLevel}'),
           const SkillTile(skill: Skill.attack),
@@ -210,10 +236,7 @@ class AppNavigationDrawer extends StatelessWidget {
             leading: const Icon(Icons.bar_chart),
             title: const Text('Statistics'),
             selected: currentLocation == '/statistics',
-            onTap: () {
-              Navigator.pop(context);
-              router.goNamed('statistics');
-            },
+            onTap: () => NavigationMode.navigateTo(context, 'statistics'),
           ),
           ListTile(
             dense: true,
@@ -221,10 +244,7 @@ class AppNavigationDrawer extends StatelessWidget {
             leading: const Icon(Icons.save),
             title: const Text('Save Slots'),
             selected: currentLocation == '/save_slots',
-            onTap: () {
-              Navigator.pop(context);
-              router.goNamed('save_slots');
-            },
+            onTap: () => NavigationMode.navigateTo(context, 'save_slots'),
           ),
           const Divider(),
           ListTile(
@@ -233,13 +253,21 @@ class AppNavigationDrawer extends StatelessWidget {
             leading: const Icon(Icons.bug_report),
             title: const Text('Debug'),
             selected: currentLocation == '/debug',
-            onTap: () {
-              Navigator.pop(context);
-              router.goNamed('debug');
-            },
+            onTap: () => NavigationMode.navigateTo(context, 'debug'),
           ),
         ],
       ),
     );
+  }
+}
+
+/// A navigation drawer that provides navigation to different screens.
+class AppNavigationDrawer extends StatelessWidget {
+  /// Constructs an [AppNavigationDrawer]
+  const AppNavigationDrawer({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return const Drawer(child: NavigationContent());
   }
 }
