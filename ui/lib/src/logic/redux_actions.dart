@@ -2,6 +2,7 @@ import 'dart:math';
 
 import 'package:async_redux/async_redux.dart';
 import 'package:logic/logic.dart';
+import 'package:ui/src/services/logger.dart';
 import 'package:ui/src/services/toast_service.dart';
 
 export 'package:async_redux/async_redux.dart';
@@ -124,13 +125,18 @@ class ResumeFromPauseAction extends ReduxAction<GlobalState> {
     final now = DateTime.timestamp();
     final duration = now.difference(state.updatedAt);
     final ticks = ticksFromDuration(duration);
+    logger.info('ResumeFromPause: away=$duration, ticks=$ticks');
     final random = Random();
+    final stopwatch = Stopwatch()..start();
     final (newTimeAway, newState) = consumeManyTicks(
       state,
       ticks,
       endTime: now,
       random: random,
     );
+    stopwatch.stop();
+    logger.info('ResumeFromPause: consumeManyTicks took '
+        '${stopwatch.elapsedMilliseconds}ms');
     final timeAway = newTimeAway.maybeMergeInto(state.timeAway);
     // Set timeAway on state if it has changes - empty timeAway should be null
     return newState.copyWith(
