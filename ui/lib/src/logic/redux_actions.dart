@@ -192,12 +192,17 @@ class UpgradeItemAction extends ReduxAction<GlobalState> {
 
 /// Purchases a shop item (skill upgrade or other purchase).
 class PurchaseShopItemAction extends ReduxAction<GlobalState> {
-  PurchaseShopItemAction({required this.purchaseId});
+  PurchaseShopItemAction({required this.purchaseId, this.count = 1});
   final MelvorId purchaseId;
+  final int count;
 
   @override
   GlobalState reduce() {
-    return state.purchaseShopItem(purchaseId);
+    var newState = state;
+    for (var i = 0; i < count; i++) {
+      newState = newState.purchaseShopItem(purchaseId);
+    }
+    return newState;
   }
 }
 

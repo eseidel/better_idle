@@ -82,8 +82,9 @@ class ShopCost extends Equatable {
     return null;
   }
 
-  /// Returns true if this purchase uses the bank slot pricing formula.
-  bool get _usesBankSlotPricing {
+  /// Returns true if this purchase uses dynamic pricing (e.g., bank slots)
+  /// where cost changes after each purchase.
+  bool get hasDynamicPricing {
     return currencies.any(
       (c) => c.currency == Currency.gp && c.type == CostType.bankSlot,
     );
@@ -105,7 +106,7 @@ class ShopCost extends Equatable {
   /// For purchases with dynamic bank slot pricing, calculates the cost
   /// based on [bankSlotsPurchased]. For fixed pricing, returns the fixed costs.
   List<(Currency, int)> currencyCosts({required int bankSlotsPurchased}) {
-    if (_usesBankSlotPricing) {
+    if (hasDynamicPricing) {
       final cost = calculateBankSlotCost(bankSlotsPurchased);
       return [(Currency.gp, cost)];
     }

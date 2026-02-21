@@ -394,12 +394,12 @@ class _QuantityButtons extends StatelessWidget {
           TextButton(
             onPressed: () {
               try {
-                // Execute purchase multiple times
-                for (var i = 0; i < quantity; i++) {
-                  context.dispatch(
-                    PurchaseShopItemAction(purchaseId: purchase.id),
-                  );
-                }
+                context.dispatch(
+                  PurchaseShopItemAction(
+                    purchaseId: purchase.id,
+                    count: quantity,
+                  ),
+                );
                 Navigator.of(dialogContext).pop();
                 Navigator.of(context).pop();
               } on Exception catch (e) {
