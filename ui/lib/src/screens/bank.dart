@@ -33,6 +33,8 @@ class _BankPageState extends State<BankPage> {
   bool _isSelectionMode = false;
   final Set<Item> _selectedItems = {};
 
+  bool get _isWide => MediaQuery.sizeOf(context).width >= sidebarBreakpoint;
+
   void _onItemTap(ItemStack stack) {
     if (_isSelectionMode) {
       // Toggle selection
@@ -47,12 +49,16 @@ class _BankPageState extends State<BankPage> {
           _selectedItems.add(stack.item);
         }
       });
-    } else {
-      // Normal single-select mode - open drawer
+    } else if (_isWide) {
+      // Widescreen: select inline
       setState(() {
         _selectedStack = stack;
       });
-      // Use WidgetsBinding to ensure the drawer is built before opening
+    } else {
+      // Narrow: open drawer
+      setState(() {
+        _selectedStack = stack;
+      });
       WidgetsBinding.instance.addPostFrameCallback((_) {
         _scaffoldKey.currentState?.openEndDrawer();
       });
@@ -110,13 +116,55 @@ class _BankPageState extends State<BankPage> {
     }
   }
 
+  void _clearSelection() {
+    setState(() {
+      _selectedStack = null;
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     final sellValue = totalSellValue(context.state.inventory);
     final state = context.state;
     final inventoryUsed = state.inventoryUsed;
     final inventoryCapacity = state.inventoryCapacity;
-    final isWide = MediaQuery.sizeOf(context).width >= sidebarBreakpoint;
+    final isWide = _isWide;
+
+    final gridColumn = Column(
+      children: [
+        if (!_isSelectionMode)
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            child: Row(
+              children: [
+                Text(
+                  'Space: $inventoryUsed/$inventoryCapacity',
+                  style: inventoryUsed >= inventoryCapacity
+                      ? const TextStyle(color: Style.errorColor)
+                      : null,
+                ),
+                const SizedBox(width: 16),
+                CurrencyDisplay(currency: Currency.gp, amount: sellValue),
+                const Spacer(),
+                IconButton(
+                  icon: const Icon(Icons.sort),
+                  tooltip: 'Sort inventory',
+                  onPressed: () => context.dispatch(SortInventoryAction()),
+                ),
+              ],
+            ),
+          ),
+        Expanded(
+          child: ItemGrid(
+            stacks: context.state.inventory.items,
+            onItemTap: _onItemTap,
+            onItemDoubleTap: _onItemDoubleTap,
+            onItemLongPress: _onItemLongPress,
+            selectedItems: _isSelectionMode ? _selectedItems : null,
+          ),
+        ),
+      ],
+    );
 
     // Handle back button in selection mode
     return PopScope(
@@ -151,47 +199,28 @@ class _BankPageState extends State<BankPage> {
         drawer: !isWide && !_isSelectionMode
             ? const AppNavigationDrawer()
             : null,
-        endDrawer: !_isSelectionMode && _selectedStack != null
+        endDrawer: !isWide && !_isSelectionMode && _selectedStack != null
             ? ItemDetailsDrawer(stack: _selectedStack!)
             : null,
-        body: Column(
-          children: [
-            if (!_isSelectionMode)
-              Padding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 8,
-                ),
-                child: Row(
-                  children: [
-                    Text(
-                      'Space: $inventoryUsed/$inventoryCapacity',
-                      style: inventoryUsed >= inventoryCapacity
-                          ? const TextStyle(color: Style.errorColor)
-                          : null,
-                    ),
-                    const SizedBox(width: 16),
-                    CurrencyDisplay(currency: Currency.gp, amount: sellValue),
-                    const Spacer(),
-                    IconButton(
-                      icon: const Icon(Icons.sort),
-                      tooltip: 'Sort inventory',
-                      onPressed: () => context.dispatch(SortInventoryAction()),
-                    ),
-                  ],
-                ),
-              ),
-            Expanded(
-              child: ItemGrid(
-                stacks: context.state.inventory.items,
-                onItemTap: _onItemTap,
-                onItemDoubleTap: _onItemDoubleTap,
-                onItemLongPress: _onItemLongPress,
-                selectedItems: _isSelectionMode ? _selectedItems : null,
-              ),
-            ),
-          ],
-        ),
+        body: isWide
+            ? Row(
+                children: [
+                  Expanded(child: gridColumn),
+                  const VerticalDivider(width: 1),
+                  SizedBox(
+                    width: sidebarWidth,
+                    child: _selectedStack != null
+                        ? _ItemDetailsContent(
+                            stack: _selectedStack!,
+                            onClose: _clearSelection,
+                          )
+                        : const Center(
+                            child: Text('Select an item to view details'),
+                          ),
+                  ),
+                ],
+              )
+            : gridColumn,
       ),
     );
   }
@@ -310,16 +339,33 @@ class StackCell extends StatelessWidget {
   }
 }
 
-class ItemDetailsDrawer extends StatefulWidget {
+class ItemDetailsDrawer extends StatelessWidget {
   const ItemDetailsDrawer({required this.stack, super.key});
 
   final ItemStack stack;
 
   @override
-  State<ItemDetailsDrawer> createState() => _ItemDetailsDrawerState();
+  Widget build(BuildContext context) {
+    return Drawer(
+      child: _ItemDetailsContent(
+        stack: stack,
+        onClose: () => Navigator.of(context).pop(),
+      ),
+    );
+  }
 }
 
-class _ItemDetailsDrawerState extends State<ItemDetailsDrawer> {
+class _ItemDetailsContent extends StatefulWidget {
+  const _ItemDetailsContent({required this.stack, required this.onClose});
+
+  final ItemStack stack;
+  final VoidCallback onClose;
+
+  @override
+  State<_ItemDetailsContent> createState() => _ItemDetailsContentState();
+}
+
+class _ItemDetailsContentState extends State<_ItemDetailsContent> {
   double _sellCount = 0;
   int _lastKnownMaxCount = 0;
 
@@ -338,7 +384,7 @@ class _ItemDetailsDrawerState extends State<ItemDetailsDrawer> {
   }
 
   @override
-  void didUpdateWidget(ItemDetailsDrawer oldWidget) {
+  void didUpdateWidget(_ItemDetailsContent oldWidget) {
     super.didUpdateWidget(oldWidget);
 
     // If the item prop changed, reset sell count to the new item's count
@@ -405,8 +451,6 @@ class _ItemDetailsDrawerState extends State<ItemDetailsDrawer> {
     );
 
     if (currentItem == null) {
-      // If we don't have the item in the inventory, don't show the drawer.
-      // Could also throw an exception since this should never happen.
       return const SizedBox.shrink();
     }
 
@@ -416,151 +460,162 @@ class _ItemDetailsDrawerState extends State<ItemDetailsDrawer> {
     final sellCountInt = _sellCount.round();
     final totalGpValue = itemData.sellsFor * sellCountInt;
 
-    return Drawer(
-      child: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  const Text(
-                    'Item Details',
-                    style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
-                  ),
-                  IconButton(
-                    icon: const Icon(Icons.close),
-                    onPressed: () => Navigator.of(context).pop(),
-                  ),
-                ],
-              ),
-              const Divider(),
-              const SizedBox(height: 16),
-              Row(
-                children: [
-                  ItemImage(item: widget.stack.item, size: 48),
-                  const SizedBox(width: 16),
-                  Expanded(
-                    child: Text(
-                      widget.stack.item.name,
-                      style: Theme.of(context).textTheme.headlineSmall,
-                    ),
-                  ),
-                ],
-              ),
-              // Show item modifiers if any
-              if (itemData.modifiers.modifiers.isNotEmpty) ...[
-                const SizedBox(height: 8),
-                _ItemModifiersDisplay(item: itemData),
+    return SafeArea(
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const Text(
+                  'Item Details',
+                  style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.close),
+                  onPressed: widget.onClose,
+                ),
               ],
-              const SizedBox(height: 24),
-              Text(
-                'Gold Value:',
-                style: Theme.of(context).textTheme.titleMedium,
-              ),
+            ),
+            const Divider(),
+            const SizedBox(height: 16),
+            Row(
+              children: [
+                ItemImage(item: widget.stack.item, size: 48),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Text(
+                    widget.stack.item.name,
+                    style: Theme.of(context).textTheme.headlineSmall,
+                  ),
+                ),
+              ],
+            ),
+            // Show item modifiers if any
+            if (itemData.modifiers.modifiers.isNotEmpty) ...[
               const SizedBox(height: 8),
-              CurrencyDisplay(currency: Currency.gp, amount: itemData.sellsFor),
-              // Show Claim button for mastery tokens
-              if (itemData.masteryTokenSkillId != null) ...[
-                const SizedBox(height: 32),
-                const Divider(),
-                const SizedBox(height: 16),
-                _ClaimMasteryTokenSection(item: itemData, maxCount: maxCount),
-              ],
+              _ItemModifiersDisplay(item: itemData),
+            ],
+            const SizedBox(height: 24),
+            Text('Gold Value:', style: Theme.of(context).textTheme.titleMedium),
+            const SizedBox(height: 8),
+            CurrencyDisplay(currency: Currency.gp, amount: itemData.sellsFor),
+            // Show Claim button for mastery tokens
+            if (itemData.masteryTokenSkillId != null) ...[
               const SizedBox(height: 32),
               const Divider(),
               const SizedBox(height: 16),
-              Text('Sell Item', style: Theme.of(context).textTheme.titleMedium),
-              const SizedBox(height: 16),
-              Text(
-                'Quantity: ${approximateCountString(sellCountInt)}',
-                style: Theme.of(context).textTheme.bodyMedium,
+              _ClaimMasteryTokenSection(
+                item: itemData,
+                maxCount: maxCount,
+                onClose: widget.onClose,
               ),
-              const SizedBox(height: 8),
-              Slider(
-                value: _sellCount,
-                max: maxCount > 0 ? maxCount.toDouble() : 1.0,
-                divisions: maxCount > 0 ? maxCount : null,
-                label: preciseNumberString(sellCountInt),
-                onChanged: maxCount > 0
-                    ? (value) {
-                        setState(() {
-                          _sellCount = value;
-                        });
+            ],
+            const SizedBox(height: 32),
+            const Divider(),
+            const SizedBox(height: 16),
+            Text('Sell Item', style: Theme.of(context).textTheme.titleMedium),
+            const SizedBox(height: 16),
+            Text(
+              'Quantity: ${approximateCountString(sellCountInt)}',
+              style: Theme.of(context).textTheme.bodyMedium,
+            ),
+            const SizedBox(height: 8),
+            Slider(
+              value: _sellCount,
+              max: maxCount > 0 ? maxCount.toDouble() : 1.0,
+              divisions: maxCount > 0 ? maxCount : null,
+              label: preciseNumberString(sellCountInt),
+              onChanged: maxCount > 0
+                  ? (value) {
+                      setState(() {
+                        _sellCount = value;
+                      });
+                    }
+                  : null,
+            ),
+            const SizedBox(height: 16),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                onPressed: sellCountInt > 0
+                    ? () {
+                        context.dispatch(
+                          SellItemAction(
+                            item: widget.stack.item,
+                            count: sellCountInt,
+                          ),
+                        );
+                        widget.onClose();
                       }
                     : null,
+                child: const Text('Sell'),
               ),
-              const SizedBox(height: 16),
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton(
-                  onPressed: sellCountInt > 0
-                      ? () {
-                          context.dispatch(
-                            SellItemAction(
-                              item: widget.stack.item,
-                              count: sellCountInt,
-                            ),
-                          );
-                          Navigator.of(context).pop();
-                        }
-                      : null,
-                  child: const Text('Sell'),
+            ),
+            const SizedBox(height: 16),
+            Row(
+              children: [
+                Text(
+                  'Total Value: ',
+                  style: Theme.of(
+                    context,
+                  ).textTheme.bodyLarge?.copyWith(fontWeight: FontWeight.bold),
                 ),
-              ),
+                CurrencyDisplay(currency: Currency.gp, amount: totalGpValue),
+              ],
+            ),
+            // Show Equip button for consumable items
+            if (itemData.isConsumable) ...[
+              const SizedBox(height: 32),
+              const Divider(),
               const SizedBox(height: 16),
-              Row(
-                children: [
-                  Text(
-                    'Total Value: ',
-                    style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  CurrencyDisplay(currency: Currency.gp, amount: totalGpValue),
-                ],
+              _EquipFoodSection(
+                item: itemData,
+                maxCount: maxCount,
+                onClose: widget.onClose,
               ),
-              // Show Equip button for consumable items
-              if (itemData.isConsumable) ...[
-                const SizedBox(height: 32),
-                const Divider(),
-                const SizedBox(height: 16),
-                _EquipFoodSection(item: itemData, maxCount: maxCount),
-              ],
-              // Show Equip button for summoning tablets
-              if (itemData.isSummonTablet) ...[
-                const SizedBox(height: 32),
-                const Divider(),
-                const SizedBox(height: 16),
-                _EquipSummonSection(item: itemData, maxCount: maxCount),
-              ]
-              // Show Equip button for other gear items
-              else if (itemData.isEquippable) ...[
-                const SizedBox(height: 32),
-                const Divider(),
-                const SizedBox(height: 16),
-                _EquipGearSection(item: itemData),
-              ],
-              // Show Open button for openable items
-              if (itemData.isOpenable) ...[
-                const SizedBox(height: 32),
-                const Divider(),
-                const SizedBox(height: 16),
-                _OpenItemSection(item: itemData, maxCount: maxCount),
-              ],
-              // Show Upgrade button if upgrades available
-              if (context.state.registries.itemUpgrades
-                  .upgradesForItem(itemData.id)
-                  .isNotEmpty) ...[
-                const SizedBox(height: 32),
-                const Divider(),
-                const SizedBox(height: 16),
-                _UpgradeSection(item: itemData),
-              ],
             ],
-          ),
+            // Show Equip button for summoning tablets
+            if (itemData.isSummonTablet) ...[
+              const SizedBox(height: 32),
+              const Divider(),
+              const SizedBox(height: 16),
+              _EquipSummonSection(
+                item: itemData,
+                maxCount: maxCount,
+                onClose: widget.onClose,
+              ),
+            ]
+            // Show Equip button for other gear items
+            else if (itemData.isEquippable) ...[
+              const SizedBox(height: 32),
+              const Divider(),
+              const SizedBox(height: 16),
+              _EquipGearSection(item: itemData, onClose: widget.onClose),
+            ],
+            // Show Open button for openable items
+            if (itemData.isOpenable) ...[
+              const SizedBox(height: 32),
+              const Divider(),
+              const SizedBox(height: 16),
+              _OpenItemSection(
+                item: itemData,
+                maxCount: maxCount,
+                onClose: widget.onClose,
+              ),
+            ],
+            // Show Upgrade button if upgrades available
+            if (context.state.registries.itemUpgrades
+                .upgradesForItem(itemData.id)
+                .isNotEmpty) ...[
+              const SizedBox(height: 32),
+              const Divider(),
+              const SizedBox(height: 16),
+              _UpgradeSection(item: itemData, onClose: widget.onClose),
+            ],
+          ],
         ),
       ),
     );
@@ -568,10 +623,15 @@ class _ItemDetailsDrawerState extends State<ItemDetailsDrawer> {
 }
 
 class _EquipFoodSection extends StatefulWidget {
-  const _EquipFoodSection({required this.item, required this.maxCount});
+  const _EquipFoodSection({
+    required this.item,
+    required this.maxCount,
+    required this.onClose,
+  });
 
   final Item item;
   final int maxCount;
+  final VoidCallback onClose;
 
   @override
   State<_EquipFoodSection> createState() => _EquipFoodSectionState();
@@ -654,7 +714,7 @@ class _EquipFoodSectionState extends State<_EquipFoodSection> {
                     context.dispatch(
                       EquipFoodAction(item: widget.item, count: equipCountInt),
                     );
-                    Navigator.of(context).pop();
+                    widget.onClose();
                   }
                 : null,
             child: Text(existingSlot >= 0 ? 'Add to Equipped' : 'Equip'),
@@ -674,10 +734,15 @@ class _EquipFoodSectionState extends State<_EquipFoodSection> {
 }
 
 class _OpenItemSection extends StatefulWidget {
-  const _OpenItemSection({required this.item, required this.maxCount});
+  const _OpenItemSection({
+    required this.item,
+    required this.maxCount,
+    required this.onClose,
+  });
 
   final Item item;
   final int maxCount;
+  final VoidCallback onClose;
 
   @override
   State<_OpenItemSection> createState() => _OpenItemSectionState();
@@ -748,8 +813,7 @@ class _OpenItemSectionState extends State<_OpenItemSection> {
                   item: widget.item,
                   count: openCountInt,
                   onResult: (result) {
-                    // Close the drawer first
-                    Navigator.of(context).pop();
+                    widget.onClose();
 
                     if (result.hasDrops) {
                       // Show dialog with results
@@ -777,9 +841,10 @@ class _OpenItemSectionState extends State<_OpenItemSection> {
 }
 
 class _EquipGearSection extends StatelessWidget {
-  const _EquipGearSection({required this.item});
+  const _EquipGearSection({required this.item, required this.onClose});
 
   final Item item;
+  final VoidCallback onClose;
 
   @override
   Widget build(BuildContext context) {
@@ -835,6 +900,7 @@ class _EquipGearSection extends StatelessWidget {
             slot: slot,
             equipment: equipment,
             canEquip: canEquip,
+            onClose: onClose,
           ),
           const SizedBox(height: 8),
         ],
@@ -849,12 +915,14 @@ class _EquipSlotButton extends StatelessWidget {
     required this.slot,
     required this.equipment,
     required this.canEquip,
+    required this.onClose,
   });
 
   final Item item;
   final EquipmentSlot slot;
   final Equipment equipment;
   final bool canEquip;
+  final VoidCallback onClose;
 
   @override
   Widget build(BuildContext context) {
@@ -882,7 +950,7 @@ class _EquipSlotButton extends StatelessWidget {
             ? null
             : () {
                 context.dispatch(EquipGearAction(item: item, slot: slot));
-                Navigator.of(context).pop();
+                onClose();
               },
         child: Text(buttonText),
       ),
@@ -891,10 +959,15 @@ class _EquipSlotButton extends StatelessWidget {
 }
 
 class _EquipSummonSection extends StatelessWidget {
-  const _EquipSummonSection({required this.item, required this.maxCount});
+  const _EquipSummonSection({
+    required this.item,
+    required this.maxCount,
+    required this.onClose,
+  });
 
   final Item item;
   final int maxCount;
+  final VoidCallback onClose;
 
   @override
   Widget build(BuildContext context) {
@@ -936,6 +1009,7 @@ class _EquipSummonSection extends StatelessWidget {
           equippedCount: summon1Count,
           itemToEquip: item,
           canEquip: canEquip,
+          onClose: onClose,
         ),
         const SizedBox(height: 8),
         _SummonSlotRow(
@@ -945,6 +1019,7 @@ class _EquipSummonSection extends StatelessWidget {
           equippedCount: summon2Count,
           itemToEquip: item,
           canEquip: canEquip,
+          onClose: onClose,
         ),
       ],
     );
@@ -959,6 +1034,7 @@ class _SummonSlotRow extends StatelessWidget {
     required this.equippedCount,
     required this.itemToEquip,
     required this.canEquip,
+    required this.onClose,
   });
 
   final String slotName;
@@ -967,6 +1043,7 @@ class _SummonSlotRow extends StatelessWidget {
   final int equippedCount;
   final Item itemToEquip;
   final bool canEquip;
+  final VoidCallback onClose;
 
   @override
   Widget build(BuildContext context) {
@@ -987,7 +1064,7 @@ class _SummonSlotRow extends StatelessWidget {
     onPressed = canEquip
         ? () {
             context.dispatch(EquipGearAction(item: itemToEquip, slot: slot));
-            Navigator.of(context).pop();
+            onClose();
           }
         : null;
 
@@ -1185,10 +1262,15 @@ class _SellConfirmationDialog extends StatelessWidget {
 }
 
 class _ClaimMasteryTokenSection extends StatefulWidget {
-  const _ClaimMasteryTokenSection({required this.item, required this.maxCount});
+  const _ClaimMasteryTokenSection({
+    required this.item,
+    required this.maxCount,
+    required this.onClose,
+  });
 
   final Item item;
   final int maxCount;
+  final VoidCallback onClose;
 
   @override
   State<_ClaimMasteryTokenSection> createState() =>
@@ -1287,7 +1369,7 @@ class _ClaimMasteryTokenSectionState extends State<_ClaimMasteryTokenSection> {
                         count: claimCountInt,
                       ),
                     );
-                    Navigator.of(context).pop();
+                    widget.onClose();
                   }
                 : null,
             child: const Text('Claim'),
@@ -1306,9 +1388,10 @@ class _ClaimMasteryTokenSectionState extends State<_ClaimMasteryTokenSection> {
 }
 
 class _UpgradeSection extends StatefulWidget {
-  const _UpgradeSection({required this.item});
+  const _UpgradeSection({required this.item, required this.onClose});
 
   final Item item;
+  final VoidCallback onClose;
 
   @override
   State<_UpgradeSection> createState() => _UpgradeSectionState();
@@ -1388,7 +1471,7 @@ class _UpgradeSectionState extends State<_UpgradeSection> {
                         count: upgradeCountInt,
                       ),
                     );
-                    Navigator.of(context).pop();
+                    widget.onClose();
                   }
                 : null,
             child: Text(
