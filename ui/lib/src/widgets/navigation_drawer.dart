@@ -30,6 +30,12 @@ class NavigationMode extends InheritedWidget {
         true;
   }
 
+  /// Closes the drawer (if open) and navigates to the named route.
+  static void navigateTo(BuildContext context, String routeName) {
+    if (of(context)) Navigator.pop(context);
+    router.goNamed(routeName);
+  }
+
   @override
   bool updateShouldNotify(NavigationMode oldWidget) =>
       isDrawer != oldWidget.isDrawer;
@@ -127,10 +133,7 @@ class SkillTile extends StatelessWidget {
       trailing: Text('$level / $maxLevel'),
       selected: isSelected,
       tileColor: isActiveSkill && !isSelected ? Style.activeColorLight : null,
-      onTap: () {
-        if (NavigationMode.of(context)) Navigator.pop(context);
-        router.goNamed(routeName);
-      },
+      onTap: () => NavigationMode.navigateTo(context, routeName),
     );
   }
 }
@@ -184,10 +187,7 @@ class NavigationContent extends StatelessWidget {
               ],
             ),
             selected: currentLocation == '/shop',
-            onTap: () {
-              if (isDrawer) Navigator.pop(context);
-              router.goNamed('shop');
-            },
+            onTap: () => NavigationMode.navigateTo(context, 'shop'),
           ),
           ListTile(
             dense: true,
@@ -199,10 +199,7 @@ class NavigationContent extends StatelessWidget {
             title: const Text('Bank'),
             trailing: Text('$inventoryUsed / $inventoryCapacity'),
             selected: currentLocation == '/bank',
-            onTap: () {
-              if (isDrawer) Navigator.pop(context);
-              router.goNamed('bank');
-            },
+            onTap: () => NavigationMode.navigateTo(context, 'bank'),
           ),
           _SectionHeader(title: 'Combat', trailing: 'Lv. ${state.combatLevel}'),
           const SkillTile(skill: Skill.attack),
@@ -239,10 +236,7 @@ class NavigationContent extends StatelessWidget {
             leading: const Icon(Icons.bar_chart),
             title: const Text('Statistics'),
             selected: currentLocation == '/statistics',
-            onTap: () {
-              if (isDrawer) Navigator.pop(context);
-              router.goNamed('statistics');
-            },
+            onTap: () => NavigationMode.navigateTo(context, 'statistics'),
           ),
           ListTile(
             dense: true,
@@ -250,10 +244,7 @@ class NavigationContent extends StatelessWidget {
             leading: const Icon(Icons.save),
             title: const Text('Save Slots'),
             selected: currentLocation == '/save_slots',
-            onTap: () {
-              if (isDrawer) Navigator.pop(context);
-              router.goNamed('save_slots');
-            },
+            onTap: () => NavigationMode.navigateTo(context, 'save_slots'),
           ),
           const Divider(),
           ListTile(
@@ -262,10 +253,7 @@ class NavigationContent extends StatelessWidget {
             leading: const Icon(Icons.bug_report),
             title: const Text('Debug'),
             selected: currentLocation == '/debug',
-            onTap: () {
-              if (isDrawer) Navigator.pop(context);
-              router.goNamed('debug');
-            },
+            onTap: () => NavigationMode.navigateTo(context, 'debug'),
           ),
         ],
       ),

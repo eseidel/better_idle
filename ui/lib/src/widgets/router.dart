@@ -30,6 +30,13 @@ import 'package:ui/src/widgets/navigation_drawer.dart';
 
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
+/// Shorthand for a simple named route with a const page widget.
+GoRoute _route(String name, Widget page) => GoRoute(
+      path: '/$name',
+      name: name,
+      builder: (context, _) => page,
+    );
+
 final GoRouter router = GoRouter(
   navigatorKey: navigatorKey,
   initialLocation: '/bank',
@@ -40,91 +47,23 @@ final GoRouter router = GoRouter(
         return _ResponsiveShell(child: child);
       },
       routes: [
-        GoRoute(
-          path: '/bank',
-          name: 'bank',
-          builder: (context, _) => const BankPage(),
-        ),
-        GoRoute(
-          path: '/woodcutting',
-          name: 'woodcutting',
-          builder: (context, _) => const WoodcuttingPage(),
-        ),
-        GoRoute(
-          path: '/firemaking',
-          name: 'firemaking',
-          builder: (context, _) => const FiremakingPage(),
-        ),
-        GoRoute(
-          path: '/fishing',
-          name: 'fishing',
-          builder: (context, _) => const FishingPage(),
-        ),
-        GoRoute(
-          path: '/cooking',
-          name: 'cooking',
-          builder: (context, _) => const CookingPage(),
-        ),
-        GoRoute(
-          path: '/mining',
-          name: 'mining',
-          builder: (context, _) => const MiningPage(),
-        ),
-        GoRoute(
-          path: '/smithing',
-          name: 'smithing',
-          builder: (context, _) => const SmithingPage(),
-        ),
-        GoRoute(
-          path: '/thieving',
-          name: 'thieving',
-          builder: (context, _) => const ThievingPage(),
-        ),
-        GoRoute(
-          path: '/fletching',
-          name: 'fletching',
-          builder: (context, _) => const FletchingPage(),
-        ),
-        GoRoute(
-          path: '/crafting',
-          name: 'crafting',
-          builder: (context, _) => const CraftingPage(),
-        ),
-        GoRoute(
-          path: '/herblore',
-          name: 'herblore',
-          builder: (context, _) => const HerblorePage(),
-        ),
-        GoRoute(
-          path: '/township',
-          name: 'township',
-          builder: (context, _) => const TownshipPage(),
-        ),
-        GoRoute(
-          path: '/farming',
-          name: 'farming',
-          builder: (context, _) => const FarmingPage(),
-        ),
-        GoRoute(
-          path: '/runecrafting',
-          name: 'runecrafting',
-          builder: (context, _) => const RunecraftingPage(),
-        ),
-        GoRoute(
-          path: '/combat',
-          name: 'combat',
-          builder: (context, _) => const CombatPage(),
-        ),
-        GoRoute(
-          path: '/agility',
-          name: 'agility',
-          builder: (context, _) => const AgilityPage(),
-        ),
-        GoRoute(
-          path: '/summoning',
-          name: 'summoning',
-          builder: (context, _) => const SummoningPage(),
-        ),
+        _route('bank', const BankPage()),
+        _route('woodcutting', const WoodcuttingPage()),
+        _route('firemaking', const FiremakingPage()),
+        _route('fishing', const FishingPage()),
+        _route('cooking', const CookingPage()),
+        _route('mining', const MiningPage()),
+        _route('smithing', const SmithingPage()),
+        _route('thieving', const ThievingPage()),
+        _route('fletching', const FletchingPage()),
+        _route('crafting', const CraftingPage()),
+        _route('herblore', const HerblorePage()),
+        _route('township', const TownshipPage()),
+        _route('farming', const FarmingPage()),
+        _route('runecrafting', const RunecraftingPage()),
+        _route('combat', const CombatPage()),
+        _route('agility', const AgilityPage()),
+        _route('summoning', const SummoningPage()),
         GoRoute(
           path: '/astrology',
           name: 'astrology',
@@ -141,31 +80,11 @@ final GoRouter router = GoRouter(
             ),
           ],
         ),
-        GoRoute(
-          path: '/alt_magic',
-          name: 'alt_magic',
-          builder: (context, _) => const AltMagicPage(),
-        ),
-        GoRoute(
-          path: '/shop',
-          name: 'shop',
-          builder: (context, _) => const ShopPage(),
-        ),
-        GoRoute(
-          path: '/debug',
-          name: 'debug',
-          builder: (context, _) => const DebugPage(),
-        ),
-        GoRoute(
-          path: '/statistics',
-          name: 'statistics',
-          builder: (context, _) => const StatisticsPage(),
-        ),
-        GoRoute(
-          path: '/save_slots',
-          name: 'save_slots',
-          builder: (context, _) => const SaveSlotsPage(),
-        ),
+        _route('alt_magic', const AltMagicPage()),
+        _route('shop', const ShopPage()),
+        _route('debug', const DebugPage()),
+        _route('statistics', const StatisticsPage()),
+        _route('save_slots', const SaveSlotsPage()),
       ],
     ),
   ],
