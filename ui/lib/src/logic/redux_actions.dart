@@ -896,10 +896,7 @@ class SpreadMasteryPoolAction extends ReduxAction<GlobalState> {
 
   @override
   GlobalState? reduce() {
-    final result = state.spreadMasteryPoolXp(
-      skill,
-      floorPercent: floorPercent,
-    );
+    final result = state.spreadMasteryPoolXp(skill, floorPercent: floorPercent);
     return result?.state;
   }
 }

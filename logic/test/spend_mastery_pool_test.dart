@@ -200,8 +200,9 @@ void main() {
       );
       // Pool should remain >= 25%.
       if (result != null) {
-        final remainingPool =
-            result.state.skillState(Skill.woodcutting).masteryPoolXp;
+        final remainingPool = result.state
+            .skillState(Skill.woodcutting)
+            .masteryPoolXp;
         expect(remainingPool, greaterThanOrEqualTo((maxPoolXp * 0.25).ceil()));
       }
     });
