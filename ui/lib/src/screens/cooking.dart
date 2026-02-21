@@ -271,11 +271,13 @@ class _AreaStatusCard extends StatelessWidget {
       return (item, cost.quantity, canAffordItem);
     }).toList();
 
-    final canAffordCurrency = currencyCosts.every(
-      (cost) => state.currency(cost.$1) >= cost.$2,
-    );
-    final canAffordItems = itemCosts.every((cost) => cost.$3);
-    final canAfford = canAffordCurrency && canAffordItems;
+    final canAffordCurrencyMap = <Currency, bool>{
+      for (final (currency, amount) in currencyCosts)
+        currency: state.currency(currency) >= amount,
+    };
+    final canAfford =
+        canAffordCurrencyMap.values.every((v) => v) &&
+        itemCosts.every((cost) => cost.$3);
 
     return Card(
       color: Style.cellBackgroundColorLocked,
@@ -301,7 +303,11 @@ class _AreaStatusCard extends StatelessWidget {
                 style: Theme.of(context).textTheme.titleLarge,
               ),
               const SizedBox(height: 8),
-              CostRow(currencyCosts: currencyCosts, itemCosts: itemCosts),
+              CostRow(
+                currencyCosts: currencyCosts,
+                canAffordCosts: canAffordCurrencyMap,
+                itemCosts: itemCosts,
+              ),
               const SizedBox(height: 12),
               Text(
                 canAfford ? 'Tap to purchase' : 'Cannot afford',
@@ -329,8 +335,13 @@ class _AreaStatusCard extends StatelessWidget {
     );
     final itemCosts = purchase.cost.items.map((cost) {
       final item = state.registries.items.byId(cost.itemId);
-      return (item, cost.quantity, true);
+      final canAffordItem = state.inventory.countOfItem(item) >= cost.quantity;
+      return (item, cost.quantity, canAffordItem);
     }).toList();
+    final canAffordCurrencyMap = <Currency, bool>{
+      for (final (currency, amount) in currencyCosts)
+        currency: state.currency(currency) >= amount,
+    };
 
     showDialog<void>(
       context: context,
@@ -344,7 +355,11 @@ class _AreaStatusCard extends StatelessWidget {
             const SizedBox(height: 16),
             const Text('Cost:'),
             const SizedBox(height: 8),
-            CostRow(currencyCosts: currencyCosts, itemCosts: itemCosts),
+            CostRow(
+              currencyCosts: currencyCosts,
+              canAffordCosts: canAffordCurrencyMap,
+              itemCosts: itemCosts,
+            ),
           ],
         ),
         actions: [

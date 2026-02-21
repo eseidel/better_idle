@@ -193,9 +193,12 @@ class _ShopPageState extends State<ShopPage> {
                     _showPurchaseDialog(
                       context,
                       name: purchase.name,
-                      costWidget: _buildCostWidget(
-                        currencyCosts,
-                        resolvedItemCosts,
+                      costWidget: CostRow(
+                        currencyCosts: currencyCosts,
+                        canAffordCosts: viewModel.canAffordEachCost(
+                          currencyCosts,
+                        ),
+                        itemCosts: resolvedItemCosts,
                       ),
                       descriptionSpan: descriptionSpan,
                       createAction: () =>
@@ -209,50 +212,6 @@ class _ShopPageState extends State<ShopPage> {
     }
 
     return rows;
-  }
-
-  Widget _buildCostWidget(
-    List<(Currency, int)> currencyCosts,
-    List<(Item, int, bool)> itemCosts,
-  ) {
-    final widgets = <Widget>[];
-
-    // Add currency costs
-    for (final (currency, amount) in currencyCosts) {
-      widgets.add(
-        Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            CachedImage(assetPath: currency.assetPath, size: 16),
-            const SizedBox(width: 4),
-            Text(approximateCreditString(amount)),
-          ],
-        ),
-      );
-    }
-
-    // Add item costs
-    for (final (item, quantity, _) in itemCosts) {
-      widgets.add(
-        Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            if (item.media != null)
-              CachedImage(assetPath: item.media, size: 16)
-            else
-              const Icon(Icons.inventory_2, size: 16),
-            const SizedBox(width: 4),
-            Text('$quantity'),
-          ],
-        ),
-      );
-    }
-
-    return Wrap(
-      spacing: 8,
-      crossAxisAlignment: WrapCrossAlignment.center,
-      children: widgets,
-    );
   }
 
   /// Parses simple HTML in description text and converts to TextSpan.

@@ -2112,6 +2112,14 @@ class GlobalState {
     return (maxPoolXp * 0.001).round().clamp(1, maxPoolXp);
   }
 
+  /// Returns how many mastery tokens are held in inventory for [skill].
+  int heldMasteryTokenCount(Skill skill) {
+    if (!MasteryTokenDrop.skillHasMasteryToken(skill)) return 0;
+    final tokenId = MasteryTokenDrop(skill: skill).itemId;
+    final token = registries.items.byId(tokenId);
+    return inventory.countOfItem(token);
+  }
+
   /// Returns how many mastery tokens can be claimed without exceeding the pool
   /// cap, or 0 if the pool is already full or no tokens are held.
   int claimableMasteryTokenCount(Skill skill) {
