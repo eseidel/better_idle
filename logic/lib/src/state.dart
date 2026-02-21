@@ -2129,9 +2129,7 @@ class GlobalState {
 
     final xpPerToken = masteryTokenXpPerClaim(skill);
     final maxClaimable = remaining ~/ xpPerToken;
-    // Allow at least 1 if there's any remaining room.
-    final claimable = maxClaimable < 1 && remaining > 0 ? 1 : maxClaimable;
-    return claimable.clamp(0, held);
+    return maxClaimable.clamp(0, held);
   }
 
   /// Claims a mastery token for a skill, adding 0.1% of max mastery pool XP.
@@ -2143,7 +2141,7 @@ class GlobalState {
   /// Throws StateError if:
   /// - The skill doesn't have mastery tokens (combat skills, Township, etc.)
   /// - Player doesn't have the mastery token in inventory
-  /// - Claiming would waste XP (pool is already full)
+  /// - Claiming would waste XP (pool full or not enough room for full token)
   GlobalState claimMasteryToken(Skill skill) {
     if (!MasteryTokenDrop.skillHasMasteryToken(skill)) {
       throw StateError('Skill $skill does not have mastery tokens');
@@ -2159,20 +2157,21 @@ class GlobalState {
 
     final maxPoolXp = maxMasteryPoolXpForSkill(registries, skill);
     final currentPoolXp = skillState(skill).masteryPoolXp;
-    if (currentPoolXp >= maxPoolXp) {
-      throw StateError('Mastery pool for ${skill.name} is already full');
-    }
-
-    // Calculate 0.1% of max mastery pool XP, capped to remaining space.
-    final xpPerToken = masteryTokenXpPerClaim(skill);
     final remaining = maxPoolXp - currentPoolXp;
-    final xpToAdd = xpPerToken.clamp(1, remaining);
+    final xpPerToken = masteryTokenXpPerClaim(skill);
+
+    if (remaining < xpPerToken) {
+      throw StateError(
+        'Not enough pool space to absorb full token for ${skill.name}',
+      );
+    }
 
     // Remove token from inventory
     final newInventory = inventory.removing(ItemStack(token, count: 1));
 
     // Add mastery pool XP
-    return copyWith(inventory: newInventory).addSkillMasteryXp(skill, xpToAdd);
+    return copyWith(inventory: newInventory)
+        .addSkillMasteryXp(skill, xpPerToken);
   }
 
   /// Claims mastery tokens for a skill, only as many as fit without exceeding

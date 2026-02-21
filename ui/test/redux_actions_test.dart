@@ -2548,22 +2548,24 @@ void main() {
     });
 
     test('clamps to claimable when requesting more than available', () {
-      var state = GlobalState.empty(registries);
-      state = state.copyWith(
-        inventory: state.inventory.adding(
-          ItemStack(woodcuttingToken, count: 2),
-        ),
-      );
-      final store = Store<GlobalState>(initialState: state)
-        ..dispatch(
-          ClaimMasteryTokensAction(skill: Skill.woodcutting, count: 100),
+      runScoped(() {
+        var state = GlobalState.empty(registries);
+        state = state.copyWith(
+          inventory: state.inventory.adding(
+            ItemStack(woodcuttingToken, count: 2),
+          ),
         );
+        final store = Store<GlobalState>(initialState: state)
+          ..dispatch(
+            ClaimMasteryTokensAction(skill: Skill.woodcutting, count: 100),
+          );
 
-      expect(store.state.inventory.countOfItem(woodcuttingToken), 0);
-      expect(
-        store.state.skillState(Skill.woodcutting).masteryPoolXp,
-        greaterThan(0),
-      );
+        expect(store.state.inventory.countOfItem(woodcuttingToken), 0);
+        expect(
+          store.state.skillState(Skill.woodcutting).masteryPoolXp,
+          greaterThan(0),
+        );
+      }, values: {toastServiceRef});
     });
   });
 
