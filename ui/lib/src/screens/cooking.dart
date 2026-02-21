@@ -262,27 +262,12 @@ class _AreaStatusCard extends StatelessWidget {
       return const SizedBox.shrink();
     }
 
-    final currencyCosts = purchase.cost.currencyCosts(
-      bankSlotsPurchased: state.shop.bankSlotsPurchased,
-    );
-    final itemCosts = purchase.cost.items.map((cost) {
-      final item = state.registries.items.byId(cost.itemId);
-      final canAffordItem = state.inventory.countOfItem(item) >= cost.quantity;
-      return (item, cost.quantity, canAffordItem);
-    }).toList();
-
-    final canAffordCurrencyMap = <Currency, bool>{
-      for (final (currency, amount) in currencyCosts)
-        currency: state.currency(currency) >= amount,
-    };
-    final canAfford =
-        canAffordCurrencyMap.values.every((v) => v) &&
-        itemCosts.every((cost) => cost.$3);
+    final resolved = state.resolveShopCost(purchase);
 
     return Card(
       color: Style.cellBackgroundColorLocked,
       child: InkWell(
-        onTap: canAfford
+        onTap: resolved.canAfford
             ? () => _showPurchaseDialog(context, state, purchase)
             : null,
         borderRadius: BorderRadius.circular(12),
@@ -303,19 +288,16 @@ class _AreaStatusCard extends StatelessWidget {
                 style: Theme.of(context).textTheme.titleLarge,
               ),
               const SizedBox(height: 8),
-              CostRow(
-                currencyCosts: currencyCosts,
-                canAffordCosts: canAffordCurrencyMap,
-                itemCosts: itemCosts,
-              ),
+              CostRow.fromResolved(resolved),
               const SizedBox(height: 12),
               Text(
-                canAfford ? 'Tap to purchase' : 'Cannot afford',
+                resolved.canAfford ? 'Tap to purchase' : 'Cannot afford',
                 style: TextStyle(
-                  color: canAfford
+                  color: resolved.canAfford
                       ? Style.selectedColor
                       : Style.textColorSecondary,
-                  fontStyle: canAfford ? FontStyle.normal : FontStyle.italic,
+                  fontStyle:
+                      resolved.canAfford ? FontStyle.normal : FontStyle.italic,
                 ),
               ),
             ],
@@ -330,18 +312,7 @@ class _AreaStatusCard extends StatelessWidget {
     GlobalState state,
     ShopPurchase purchase,
   ) {
-    final currencyCosts = purchase.cost.currencyCosts(
-      bankSlotsPurchased: state.shop.bankSlotsPurchased,
-    );
-    final itemCosts = purchase.cost.items.map((cost) {
-      final item = state.registries.items.byId(cost.itemId);
-      final canAffordItem = state.inventory.countOfItem(item) >= cost.quantity;
-      return (item, cost.quantity, canAffordItem);
-    }).toList();
-    final canAffordCurrencyMap = <Currency, bool>{
-      for (final (currency, amount) in currencyCosts)
-        currency: state.currency(currency) >= amount,
-    };
+    final resolved = state.resolveShopCost(purchase);
 
     showDialog<void>(
       context: context,
@@ -355,11 +326,7 @@ class _AreaStatusCard extends StatelessWidget {
             const SizedBox(height: 16),
             const Text('Cost:'),
             const SizedBox(height: 8),
-            CostRow(
-              currencyCosts: currencyCosts,
-              canAffordCosts: canAffordCurrencyMap,
-              itemCosts: itemCosts,
-            ),
+            CostRow.fromResolved(resolved),
           ],
         ),
         actions: [

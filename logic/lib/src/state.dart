@@ -3100,6 +3100,35 @@ class GlobalState {
   // Shop Purchases
   // =========================================================================
 
+  /// Resolves a [ShopPurchase] cost into per-part affordability data for
+  /// display. Also provides an overall [ResolvedShopCost.canAfford] check.
+  ResolvedShopCost resolveShopCost(ShopPurchase purchase) {
+    final currencyCosts = purchase.cost.currencyCosts(
+      bankSlotsPurchased: shop.bankSlotsPurchased,
+    );
+    final canAffordCurrencyMap = <Currency, bool>{
+      for (final (curr, amount) in currencyCosts)
+        curr: currency(curr) >= amount,
+    };
+    final itemCosts = purchase.cost.items.map((cost) {
+      final item = registries.items.byId(cost.itemId);
+      final canAfford = inventory.countOfItem(item) >= cost.quantity;
+      return (item, cost.quantity, canAfford);
+    }).toList();
+    return ResolvedShopCost(
+      canAfford: canAffordCurrencyMap.values.every((v) => v) &&
+          itemCosts.every((c) => c.$3),
+      currencyCosts: currencyCosts,
+      canAffordCurrencyMap: canAffordCurrencyMap,
+      itemCosts: itemCosts,
+    );
+  }
+
+  /// Returns true if the player can afford the currency and item costs of a
+  /// shop purchase.
+  bool canAffordShopPurchase(ShopPurchase purchase) =>
+      resolveShopCost(purchase).canAfford;
+
   /// Purchases a shop item, validating all requirements and costs.
   /// Throws [StateError] if:
   /// - The purchase ID is unknown

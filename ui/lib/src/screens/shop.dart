@@ -24,12 +24,7 @@ class _ShopPageState extends State<ShopPage> {
   bool _canPurchase(ShopViewModel viewModel, ShopPurchase purchase) {
     final unmetRequirements = viewModel.unmetRequirements(purchase);
     if (unmetRequirements.isNotEmpty) return false;
-    final currencyCosts = purchase.cost.currencyCosts(
-      bankSlotsPurchased: viewModel.bankSlotsPurchased,
-    );
-    if (!viewModel.canAffordCosts(currencyCosts)) return false;
-    if (!viewModel.canAffordItemCosts(purchase.cost.items)) return false;
-    return true;
+    return viewModel._state.canAffordShopPurchase(purchase);
   }
 
   @override
@@ -148,34 +143,17 @@ class _ShopPageState extends State<ShopPage> {
       final unmetRequirements = viewModel.unmetRequirements(purchase);
       final meetsAllReqs = unmetRequirements.isEmpty;
 
-      // Get all costs (handles both fixed and bank slot pricing)
-      final currencyCosts = purchase.cost.currencyCosts(
-        bankSlotsPurchased: viewModel.bankSlotsPurchased,
-      );
-      final itemCosts = purchase.cost.items;
-
-      // Check if player can afford all currencies and items
-      final canAffordCurrency = viewModel.canAffordCosts(currencyCosts);
-      final canAffordItems = viewModel.canAffordItemCosts(itemCosts);
-      final canPurchase = meetsAllReqs && canAffordCurrency && canAffordItems;
+      final resolved = viewModel._state.resolveShopCost(purchase);
+      final canPurchase = meetsAllReqs && resolved.canAfford;
 
       // Build description from purchase
       final descriptionSpan = _buildDescriptionSpan(purchase, viewModel);
-
-      // Resolve item costs to (Item, quantity, canAfford) tuples
-      final resolvedItemCosts = itemCosts.map((cost) {
-        final item = viewModel.itemById(cost.itemId);
-        final canAfford = viewModel.itemCount(cost.itemId) >= cost.quantity;
-        return (item, cost.quantity, canAfford);
-      }).toList();
 
       rows.add(
         _ShopItemRow(
           media: purchase.media,
           name: purchase.name,
-          currencyCosts: currencyCosts,
-          canAffordCosts: viewModel.canAffordEachCost(currencyCosts),
-          itemCosts: resolvedItemCosts,
+          resolvedCost: resolved,
           descriptionSpan: descriptionSpan,
           unmetRequirements: unmetRequirements,
           dungeonRegistry: viewModel._state.registries.dungeons,
@@ -193,13 +171,7 @@ class _ShopPageState extends State<ShopPage> {
                     _showPurchaseDialog(
                       context,
                       name: purchase.name,
-                      costWidget: CostRow(
-                        currencyCosts: currencyCosts,
-                        canAffordCosts: viewModel.canAffordEachCost(
-                          currencyCosts,
-                        ),
-                        itemCosts: resolvedItemCosts,
-                      ),
+                      costWidget: CostRow.fromResolved(resolved),
                       descriptionSpan: descriptionSpan,
                       createAction: () =>
                           PurchaseShopItemAction(purchaseId: purchase.id),
@@ -489,25 +461,6 @@ class ShopViewModel {
   /// Returns the player's balance for a currency.
   int currencyBalance(Currency currency) => _state.currency(currency);
 
-  /// Returns true if the player can afford all the given currency costs.
-  bool canAffordCosts(List<(Currency, int)> costs) {
-    for (final (currency, amount) in costs) {
-      if (currencyBalance(currency) < amount) {
-        return false;
-      }
-    }
-    return true;
-  }
-
-  /// Returns a map of currency to whether the player can afford that cost.
-  Map<Currency, bool> canAffordEachCost(List<(Currency, int)> costs) {
-    final result = <Currency, bool>{};
-    for (final (currency, amount) in costs) {
-      result[currency] = currencyBalance(currency) >= amount;
-    }
-    return result;
-  }
-
   /// Returns an item by its MelvorId.
   Item itemById(MelvorId id) => _state.registries.items.byId(id);
 
@@ -515,25 +468,6 @@ class ShopViewModel {
   int itemCount(MelvorId itemId) {
     final item = _state.registries.items.byId(itemId);
     return _state.inventory.countOfItem(item);
-  }
-
-  /// Returns true if the player can afford all the given item costs.
-  bool canAffordItemCosts(List<ItemCost> costs) {
-    for (final cost in costs) {
-      if (itemCount(cost.itemId) < cost.quantity) {
-        return false;
-      }
-    }
-    return true;
-  }
-
-  /// Returns a map of itemId to whether the player can afford that cost.
-  Map<MelvorId, bool> canAffordEachItemCost(List<ItemCost> costs) {
-    final result = <MelvorId, bool>{};
-    for (final cost in costs) {
-      result[cost.itemId] = itemCount(cost.itemId) >= cost.quantity;
-    }
-    return result;
   }
 
   /// Returns how many more times this purchase can be bought.
@@ -591,9 +525,7 @@ class ShopViewModel {
 class _ShopItemRow extends StatelessWidget {
   const _ShopItemRow({
     required this.name,
-    required this.currencyCosts,
-    required this.canAffordCosts,
-    required this.itemCosts,
+    required this.resolvedCost,
     required this.dungeonRegistry,
     this.onTap,
     this.media,
@@ -606,14 +538,8 @@ class _ShopItemRow extends StatelessWidget {
 
   final String name;
 
-  /// List of (currency, amount) pairs for this purchase.
-  final List<(Currency, int)> currencyCosts;
-
-  /// Map of currency to whether the player can afford that cost.
-  final Map<Currency, bool> canAffordCosts;
-
-  /// List of item costs for this purchase, with resolved item data.
-  final List<(Item, int, bool)> itemCosts; // (item, quantity, canAfford)
+  /// Resolved cost with per-part affordability for display.
+  final ResolvedShopCost resolvedCost;
 
   /// Called when tapped. Null if the item cannot be purchased.
   final VoidCallback? onTap;
@@ -657,11 +583,7 @@ class _ShopItemRow extends StatelessWidget {
                     _buildRequirementsRow(),
                   ],
                   const SizedBox(height: 4),
-                  CostRow(
-                    currencyCosts: currencyCosts,
-                    canAffordCosts: canAffordCosts,
-                    itemCosts: itemCosts,
-                  ),
+                  CostRow.fromResolved(resolvedCost),
                 ],
               ),
             ),
