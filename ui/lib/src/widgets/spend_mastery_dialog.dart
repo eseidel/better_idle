@@ -351,7 +351,7 @@ class _SpreadButton extends StatelessWidget {
     final anySpread = state.spreadMasteryPoolXp(skill);
     return ElevatedButton(
       onPressed: anySpread != null ? () => _showSpreadOptions(context) : null,
-      child: const Text('Spread'),
+      child: const Text('Distribute'),
     );
   }
 
@@ -375,10 +375,17 @@ class _SpreadButton extends StatelessWidget {
     showDialog<int>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Spread Mastery'),
+        title: const Text('Distribute Mastery'),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
+            Text(
+              'Spend pool XP on the lowest-level actions first. '
+              'Raising total mastery increases XP gained on '
+              'every action.',
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
+            const SizedBox(height: 8),
             for (final option in options)
               ListTile(
                 title: Text(
