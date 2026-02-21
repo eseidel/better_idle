@@ -2003,19 +2003,21 @@ class GlobalState {
   /// Spreads mastery pool XP greedily across actions in [skill], leveling up
   /// the cheapest action first (lowest mastery level).
   ///
-  /// Stops when:
-  /// - Pool would drop below the highest currently active checkpoint
-  /// - All actions are at max mastery (99)
-  /// - Pool is exhausted
+  /// [floorPercent] is the minimum pool percentage to maintain (e.g. 95, 50,
+  /// 25, 10). Use 0 to spend all available pool XP.
   ///
   /// Returns null if no levels can be added.
-  SpreadMasteryResult? spreadMasteryPoolXp(Skill skill) {
+  SpreadMasteryResult? spreadMasteryPoolXp(
+    Skill skill, {
+    int floorPercent = 0,
+  }) {
     final actions = registries.actionsForSkill(skill);
     if (actions.isEmpty) return null;
 
-    // Determine the floor: highest active checkpoint's XP threshold.
     final maxPoolXp = maxMasteryPoolXpForSkill(registries, skill);
-    final poolFloor = _masteryPoolFloor(skill, maxPoolXp);
+    final poolFloor = maxPoolXp > 0 && floorPercent > 0
+        ? (maxPoolXp * floorPercent / 100).ceil()
+        : 0;
 
     var current = this;
     var totalLevelsAdded = 0;
@@ -2055,26 +2057,6 @@ class GlobalState {
       levelsAdded: totalLevelsAdded,
       xpSpent: totalXpSpent,
     );
-  }
-
-  /// Returns the minimum pool XP to maintain (the highest active checkpoint's
-  /// XP threshold). Returns 0 if below all checkpoints.
-  int _masteryPoolFloor(Skill skill, int maxPoolXp) {
-    if (maxPoolXp <= 0) return 0;
-
-    final pool = skillState(skill).masteryPoolXp;
-    final currentPercent = (pool / maxPoolXp) * 100;
-
-    final bonuses = registries.masteryPoolBonuses.forSkill(skill.id);
-    if (bonuses == null) return 0;
-
-    // Find highest active checkpoint.
-    for (final bonus in bonuses.bonuses.reversed) {
-      if (currentPercent >= bonus.percent) {
-        return (maxPoolXp * bonus.percent / 100).ceil();
-      }
-    }
-    return 0;
   }
 
   /// Returns which mastery pool checkpoint would be crossed if [xpCost] were
