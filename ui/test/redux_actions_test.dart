@@ -2756,9 +2756,45 @@ void main() {
     });
   });
 
-  // PurchaseShopItemAction delegates to state.purchaseShopItem which is
-  // tested in logic/test/state_test.dart. Skipping here since it needs a
-  // full ShopRegistry with real purchase data.
+  group('PurchaseShopItemAction', () {
+    late Registries registries;
+    const bankSlotId = MelvorId('melvorD:Extra_Bank_Slot');
+
+    setUpAll(() async {
+      registries = await loadRegistries();
+    });
+
+    test('purchases bank slot and deducts gp', () {
+      final state = GlobalState.test(registries, gp: 1000000);
+      final store = Store<GlobalState>(initialState: state)
+        ..dispatch(PurchaseShopItemAction(purchaseId: bankSlotId));
+
+      expect(store.state.shop.purchaseCount(bankSlotId), 1);
+      expect(store.state.gp, lessThan(1000000));
+    });
+
+    test('throws for unknown purchase id', () {
+      final state = GlobalState.test(registries, gp: 1000);
+      final store = Store<GlobalState>(initialState: state);
+      expect(
+        () => store.dispatch(
+          PurchaseShopItemAction(
+            purchaseId: const MelvorId('melvorD:Fake_Item'),
+          ),
+        ),
+        throwsA(isA<Object>()),
+      );
+    });
+
+    test('throws when not enough gp', () {
+      final state = GlobalState.test(registries);
+      final store = Store<GlobalState>(initialState: state);
+      expect(
+        () => store.dispatch(PurchaseShopItemAction(purchaseId: bankSlotId)),
+        throwsA(isA<Object>()),
+      );
+    });
+  });
 
   group('StartCombatAction', () {
     CombatAction testMonster() {
