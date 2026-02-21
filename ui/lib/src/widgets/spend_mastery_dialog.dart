@@ -69,7 +69,9 @@ class _SpendMasteryDialogState extends State<SpendMasteryDialog> {
                     });
                   },
                 ),
-                const SizedBox(height: 16),
+                const SizedBox(height: 8),
+                _SpreadButton(skill: widget.skill, state: state),
+                const SizedBox(height: 8),
                 Flexible(
                   child: SingleChildScrollView(
                     child: Column(
@@ -89,7 +91,6 @@ class _SpendMasteryDialogState extends State<SpendMasteryDialog> {
             ),
           ),
           actions: [
-            _SpreadButton(skill: widget.skill, state: state),
             TextButton(
               onPressed: () => Navigator.of(context).pop(),
               child: const Text('Close'),
