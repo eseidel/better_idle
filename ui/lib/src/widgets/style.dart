@@ -34,8 +34,8 @@ class Style {
   static Color buttonBackgroundDisabled = Colors.grey.shade300;
 
   // Progress bar colors
-  static Color progressBackgroundColor = Colors.grey.shade300;
-  static Color progressForegroundColor = Colors.blue;
+  static Color progressBackgroundColor = Colors.grey.shade700;
+  static Color progressForegroundColor = Colors.lightBlue;
   static Color progressForegroundColorSuccess = Colors.green;
   static Color progressForegroundColorWarning = Colors.orange;
   static Color progressForegroundColorError = Colors.red;
