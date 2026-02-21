@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' show Random, min;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -94,6 +95,7 @@ class _AppLifecycleManager extends StatefulWidget {
 class _AppLifecycleManagerState extends State<_AppLifecycleManager>
     with WidgetsBindingObserver {
   bool _isDialogShowing = false;
+  bool _isProcessingResume = false;
   bool _wasTimeAwayNull = true; // Track if timeAway was null in previous state
   late final StreamSubscription<GlobalState> _storeSubscription;
 
@@ -130,11 +132,14 @@ class _AppLifecycleManagerState extends State<_AppLifecycleManager>
         final currentTimeAway = state.timeAway;
         final isTimeAwayNull = currentTimeAway == null;
 
-        // Only show dialog if timeAway transitioned from null to non-null
+        // Only show dialog if timeAway transitioned from null to non-null.
+        // Skip if async resume processing is in progress (it manages its
+        // own dialog).
         if (_wasTimeAwayNull && !isTimeAwayNull) {
           _wasTimeAwayNull = false;
-          // currentTimeAway is non-null here because !isTimeAwayNull
-          if (!currentTimeAway.changes.isEmpty && !_isDialogShowing) {
+          if (!_isProcessingResume &&
+              !currentTimeAway.changes.isEmpty &&
+              !_isDialogShowing) {
             _checkAndShowDialog();
           }
         } else if (!_wasTimeAwayNull && isTimeAwayNull) {
@@ -214,6 +219,13 @@ class _AppLifecycleManagerState extends State<_AppLifecycleManager>
     });
   }
 
+  /// Threshold in ticks above which we use async chunked processing
+  /// with a progress dialog (~5 minutes of game time).
+  static const _asyncResumeThreshold = 3000;
+
+  /// Number of ticks to process per chunk during async resume.
+  static const _resumeChunkSize = 1000;
+
   @override
   void didChangeAppLifecycleState(AppLifecycleState lifecycle) {
     logger.info('Lifecycle: $lifecycle');
@@ -224,31 +236,120 @@ class _AppLifecycleManagerState extends State<_AppLifecycleManager>
         // Suspend game loop - must handle hidden for iOS which sends
         // inactive → hidden → paused when backgrounding.
         // suspend() prevents auto-restart from state change listeners.
+        _isProcessingResume = false; // Cancel any in-progress async resume
         widget.gameLoop.suspend();
         widget.store.dispatch(
           ProcessLifecycleChangeAction(LifecycleChange.pause),
         );
       case AppLifecycleState.resumed:
-        logger.info(
-          'Resuming: time since update='
-          '${DateTime.timestamp().difference(widget.store.state.updatedAt)}',
-        );
-        // Calculate time away and process it
-        widget.store.dispatch(ResumeFromPauseAction());
-        logger.info('ResumeFromPauseAction dispatched');
-        // Resume game loop from suspension - this re-enables auto-start
-        widget.gameLoop.resume();
-        logger.info('GameLoop resumed');
-        Future.microtask(_checkAndShowDialog);
-        widget.store.dispatch(
-          ProcessLifecycleChangeAction(LifecycleChange.resume),
-        );
+        final now = DateTime.timestamp();
+        final duration = now.difference(widget.store.state.updatedAt);
+        final totalTicks = ticksFromDuration(duration);
+        logger.info('Resuming: time since update=$duration, ticks=$totalTicks');
+
+        if (totalTicks > _asyncResumeThreshold) {
+          _processResumeAsync(duration, totalTicks, now);
+        } else {
+          // Short absence - process synchronously
+          widget.store.dispatch(ResumeFromPauseAction());
+          widget.gameLoop.resume();
+          Future.microtask(_checkAndShowDialog);
+          widget.store.dispatch(
+            ProcessLifecycleChangeAction(LifecycleChange.resume),
+          );
+        }
       case AppLifecycleState.inactive:
         // Just resume, don't process time away (app might be transitioning)
         widget.store.dispatch(
           ProcessLifecycleChangeAction(LifecycleChange.resume),
         );
     }
+  }
+
+  Future<void> _processResumeAsync(
+    Duration duration,
+    Tick totalTicks,
+    DateTime now,
+  ) async {
+    _isProcessingResume = true;
+
+    final progressNotifier = ValueNotifier<double>(0);
+    final resultNotifier = ValueNotifier<TimeAway?>(null);
+
+    // Show progress dialog immediately
+    final navigatorContext = navigatorKey.currentContext;
+    if (navigatorContext == null) {
+      _isProcessingResume = false;
+      // Fall back to synchronous processing
+      widget.store.dispatch(ResumeFromPauseAction());
+      widget.gameLoop.resume();
+      widget.store.dispatch(
+        ProcessLifecycleChangeAction(LifecycleChange.resume),
+      );
+      return;
+    }
+
+    _isDialogShowing = true;
+    unawaited(
+      showDialog<void>(
+        context: navigatorContext,
+        barrierDismissible: false,
+        builder: (context) => WelcomeBackDialog.loading(
+          awayDuration: duration,
+          progress: progressNotifier,
+          result: resultNotifier,
+        ),
+      ).then((_) {
+        widget.store.dispatch(DismissWelcomeBackDialogAction());
+        if (mounted) {
+          setState(() {
+            _isDialogShowing = false;
+          });
+        }
+        progressNotifier.dispose();
+        resultNotifier.dispose();
+      }),
+    );
+
+    // Process ticks in chunks, yielding between each
+    var currentState = widget.store.state;
+    var remaining = totalTicks;
+    TimeAway? mergedTimeAway;
+    final random = Random();
+
+    while (remaining > 0 && _isProcessingResume) {
+      final chunk = min(remaining, _resumeChunkSize);
+      final (timeAway, newState) = consumeManyTicks(
+        currentState,
+        chunk,
+        endTime: now,
+        random: random,
+      );
+      currentState = newState;
+      mergedTimeAway = timeAway.maybeMergeInto(mergedTimeAway);
+      remaining -= chunk;
+      progressNotifier.value = 1 - (remaining / totalTicks);
+      if (remaining > 0) {
+        await Future<void>.delayed(Duration.zero);
+      }
+    }
+
+    if (!_isProcessingResume) return; // Cancelled (app went to background)
+    _isProcessingResume = false;
+
+    // Apply final state to the store
+    final timeAway = mergedTimeAway!.maybeMergeInto(currentState.timeAway);
+    final finalState = currentState.copyWith(
+      timeAway: timeAway.changes.isEmpty ? null : timeAway,
+    );
+    widget.store.dispatch(ApplyResumeResultAction(finalState));
+
+    // Transition dialog to show results
+    resultNotifier.value = widget.store.state.timeAway;
+
+    // Resume game loop and persistor
+    widget.gameLoop.resume();
+    widget.store.dispatch(ProcessLifecycleChangeAction(LifecycleChange.resume));
   }
 
   @override

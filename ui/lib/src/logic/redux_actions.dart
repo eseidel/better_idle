@@ -147,6 +147,17 @@ class ResumeFromPauseAction extends ReduxAction<GlobalState> {
   }
 }
 
+/// Applies a pre-computed resume state to the store.
+/// Used by the chunked async resume processing to set the final state
+/// after all ticks have been processed outside the store.
+class ApplyResumeResultAction extends ReduxAction<GlobalState> {
+  ApplyResumeResultAction(this.newState);
+  final GlobalState newState;
+
+  @override
+  GlobalState reduce() => newState;
+}
+
 /// Clears the welcome back dialog by removing timeAway from state.
 class DismissWelcomeBackDialogAction extends ReduxAction<GlobalState> {
   @override
