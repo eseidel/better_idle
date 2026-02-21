@@ -23,54 +23,78 @@ class MasteryPoolProgress extends StatelessWidget {
     final maxXp = maxMasteryPoolXpForSkill(state.registries, skill);
     final progress = maxXp > 0 ? (currentXp / maxXp).clamp(0.0, 1.0) : 0.0;
 
+    final buttons = [
+      TextButton(
+        onPressed: () => showDialog<void>(
+          context: context,
+          builder: (context) => MasteryPoolCheckpointsDialog(skill: skill),
+        ),
+        child: const Text('View Checkpoints'),
+      ),
+      TextButton(
+        onPressed: () => showDialog<void>(
+          context: context,
+          builder: (context) => SpendMasteryDialog(skill: skill),
+        ),
+        child: const Text('Spend XP'),
+      ),
+      if (state.claimableMasteryTokenCount(skill) > 0)
+        TextButton(
+          onPressed: () => showDialog<void>(
+            context: context,
+            builder: (context) => _ClaimMasteryTokensDialog(skill: skill),
+          ),
+          child: const Text('Claim Tokens'),
+        ),
+    ];
+
+    final bar = Row(
+      children: [
+        const CachedImage(
+          assetPath: 'assets/media/main/mastery_pool.png',
+          size: 24,
+        ),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              LinearProgressIndicator(value: progress),
+              const SizedBox(height: 8),
+              Text(
+                '${preciseNumberString(currentXp)} / ${preciseNumberString(maxXp)} '
+                '(${percentToString(progress)})',
+                style: Theme.of(context).textTheme.bodyMedium,
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+
     return Padding(
       padding: const EdgeInsets.all(16),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          const CachedImage(
-            assetPath: 'assets/media/main/mastery_pool.png',
-            size: 24,
-          ),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          if (constraints.maxWidth >= 500) {
+            return Row(
               children: [
-                LinearProgressIndicator(value: progress),
-                const SizedBox(height: 8),
-                Text(
-                  '${preciseNumberString(currentXp)} / ${preciseNumberString(maxXp)} '
-                  '(${percentToString(progress)})',
-                  style: Theme.of(context).textTheme.bodyMedium,
-                ),
+                Expanded(child: bar),
+                const SizedBox(width: 8),
+                ...buttons,
               ],
-            ),
-          ),
-          const SizedBox(width: 8),
-          TextButton(
-            onPressed: () => showDialog<void>(
-              context: context,
-              builder: (context) => MasteryPoolCheckpointsDialog(skill: skill),
-            ),
-            child: const Text('View Checkpoints'),
-          ),
-          TextButton(
-            onPressed: () => showDialog<void>(
-              context: context,
-              builder: (context) => SpendMasteryDialog(skill: skill),
-            ),
-            child: const Text('Spend XP'),
-          ),
-          if (state.claimableMasteryTokenCount(skill) > 0)
-            TextButton(
-              onPressed: () => showDialog<void>(
-                context: context,
-                builder: (context) => _ClaimMasteryTokensDialog(skill: skill),
+            );
+          }
+          return Column(
+            children: [
+              bar,
+              Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: buttons,
               ),
-              child: const Text('Claim Tokens'),
-            ),
-        ],
+            ],
+          );
+        },
       ),
     );
   }

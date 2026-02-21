@@ -145,7 +145,8 @@ class _ActionMasteryRow extends StatelessWidget {
     // Calculate actual levels we can add (might be less than increment if near
     // max level 99)
     const maxMasteryLevel = 99;
-    final levelsUntilMax = maxMasteryLevel - currentLevel;
+    final levelsUntilMax =
+        (maxMasteryLevel - currentLevel).clamp(0, maxMasteryLevel);
     final actualLevels = increment.clamp(0, levelsUntilMax);
     final isMaxLevel = currentLevel >= maxMasteryLevel;
 
