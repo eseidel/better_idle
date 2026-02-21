@@ -285,6 +285,128 @@ void main() {
     });
   });
 
+  group('claimMasteryTokens', () {
+    test('claims exact count of tokens', () {
+      var state = GlobalState.empty(testRegistries);
+      state = state.copyWith(
+        inventory: state.inventory.adding(
+          ItemStack(woodcuttingToken, count: 10),
+        ),
+      );
+
+      final maxPoolXp = maxMasteryPoolXpForSkill(
+        testRegistries,
+        Skill.woodcutting,
+      );
+      final xpPerToken = (maxPoolXp * 0.001).round().clamp(1, maxPoolXp);
+
+      final newState = state.claimMasteryTokens(Skill.woodcutting, 3);
+
+      expect(newState.inventory.countOfItem(woodcuttingToken), 7);
+      expect(
+        newState.skillState(Skill.woodcutting).masteryPoolXp,
+        xpPerToken * 3,
+      );
+    });
+
+    test('clamps count to claimable amount', () {
+      final maxPoolXp = maxMasteryPoolXpForSkill(
+        testRegistries,
+        Skill.woodcutting,
+      );
+      final xpPerToken = (maxPoolXp * 0.001).round().clamp(1, maxPoolXp);
+
+      // Space for only 2 tokens.
+      final startXp = maxPoolXp - (xpPerToken * 2);
+      var state = GlobalState.empty(testRegistries);
+      state = state.copyWith(
+        inventory: state.inventory.adding(
+          ItemStack(woodcuttingToken, count: 10),
+        ),
+        skillStates: {
+          ...state.skillStates,
+          Skill.woodcutting: state
+              .skillState(Skill.woodcutting)
+              .copyWith(masteryPoolXp: startXp),
+        },
+      );
+
+      // Request 5, but only 2 fit.
+      final newState = state.claimMasteryTokens(Skill.woodcutting, 5);
+
+      expect(newState.inventory.countOfItem(woodcuttingToken), 8);
+      expect(
+        newState.skillState(Skill.woodcutting).masteryPoolXp,
+        startXp + xpPerToken * 2,
+      );
+    });
+
+    test('clamps count to held tokens', () {
+      var state = GlobalState.empty(testRegistries);
+      state = state.copyWith(
+        inventory: state.inventory.adding(
+          ItemStack(woodcuttingToken, count: 3),
+        ),
+      );
+
+      final maxPoolXp = maxMasteryPoolXpForSkill(
+        testRegistries,
+        Skill.woodcutting,
+      );
+      final xpPerToken = (maxPoolXp * 0.001).round().clamp(1, maxPoolXp);
+
+      // Request 10, but only have 3.
+      final newState = state.claimMasteryTokens(Skill.woodcutting, 10);
+
+      expect(newState.inventory.countOfItem(woodcuttingToken), 0);
+      expect(
+        newState.skillState(Skill.woodcutting).masteryPoolXp,
+        xpPerToken * 3,
+      );
+    });
+
+    test('returns same state when count is 0', () {
+      var state = GlobalState.empty(testRegistries);
+      state = state.copyWith(
+        inventory: state.inventory.adding(
+          ItemStack(woodcuttingToken, count: 5),
+        ),
+      );
+
+      final newState = state.claimMasteryTokens(Skill.woodcutting, 0);
+      expect(newState.inventory.countOfItem(woodcuttingToken), 5);
+      expect(newState.skillState(Skill.woodcutting).masteryPoolXp, 0);
+    });
+
+    test('returns same state for combat skills', () {
+      final state = GlobalState.empty(testRegistries);
+      final newState = state.claimMasteryTokens(Skill.attack, 5);
+      expect(newState, state);
+    });
+
+    test('returns same state when pool is full', () {
+      final maxPoolXp = maxMasteryPoolXpForSkill(
+        testRegistries,
+        Skill.woodcutting,
+      );
+      var state = GlobalState.empty(testRegistries);
+      state = state.copyWith(
+        inventory: state.inventory.adding(
+          ItemStack(woodcuttingToken, count: 5),
+        ),
+        skillStates: {
+          ...state.skillStates,
+          Skill.woodcutting: state
+              .skillState(Skill.woodcutting)
+              .copyWith(masteryPoolXp: maxPoolXp),
+        },
+      );
+
+      final newState = state.claimMasteryTokens(Skill.woodcutting, 3);
+      expect(newState.inventory.countOfItem(woodcuttingToken), 5);
+    });
+  });
+
   group('claimableMasteryTokenCount', () {
     test('returns 0 for combat skills', () {
       final state = GlobalState.empty(testRegistries);
