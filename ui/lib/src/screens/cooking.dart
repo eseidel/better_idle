@@ -579,24 +579,26 @@ class _AreaStatusCard extends StatelessWidget {
 
             // Passive cooking progress bar
             if (isPassivelyCooking) ...[
-              Builder(builder: (context) {
-                final activity = state.activeActivity! as CookingActivity;
-                final areaProgress = activity.progressForArea(area)!;
-                final done =
-                    areaProgress.totalTicks - areaProgress.ticksRemaining;
-                return TweenedProgressIndicator(
-                  progress: ProgressAt(
-                    lastUpdateTime: state.updatedAt,
-                    progressTicks: done,
-                    totalTicks: areaProgress.totalTicks,
-                  ),
-                  animate: true,
-                  // Passive cooking runs at 1/5 speed.
-                  tickDuration: const Duration(milliseconds: 500),
-                  backgroundColor: Style.progressBackgroundColor,
-                  color: Style.selectedColor,
-                );
-              }),
+              Builder(
+                builder: (context) {
+                  final activity = state.activeActivity! as CookingActivity;
+                  final areaProgress = activity.progressForArea(area)!;
+                  final done =
+                      areaProgress.totalTicks - areaProgress.ticksRemaining;
+                  return TweenedProgressIndicator(
+                    progress: ProgressAt(
+                      lastUpdateTime: state.updatedAt,
+                      progressTicks: done,
+                      totalTicks: areaProgress.totalTicks,
+                    ),
+                    animate: true,
+                    // Passive cooking runs at 1/5 speed.
+                    tickDuration: const Duration(milliseconds: 500),
+                    backgroundColor: Style.progressBackgroundColor,
+                    color: Style.selectedColor,
+                  );
+                },
+              ),
               const SizedBox(height: 16),
             ],
 
