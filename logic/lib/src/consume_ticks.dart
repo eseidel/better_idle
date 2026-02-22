@@ -18,6 +18,18 @@ int playerTotalMasteryLevelForSkill(GlobalState state, Skill skill) {
   return total;
 }
 
+/// Returns the percentage increase in the global mastery XP multiplier
+/// from adding [levelsAdded] total mastery levels to a skill.
+double masteryXpGlobalPercentIncrease(
+  GlobalState state,
+  Skill skill,
+  int levelsAdded,
+) {
+  final currentTotal = playerTotalMasteryLevelForSkill(state, skill);
+  if (currentTotal == 0) return 0;
+  return levelsAdded / currentTotal * 100;
+}
+
 /// Returns the amount of mastery XP gained per action.
 int masteryXpPerAction(GlobalState state, SkillAction action) {
   return calculateMasteryXpPerAction(

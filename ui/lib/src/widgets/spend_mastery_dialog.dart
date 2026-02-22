@@ -200,6 +200,12 @@ class _ActionMasteryRow extends StatelessWidget {
         ? progress.nextLevelXp! - masteryXp
         : 0;
 
+    final globalPctIncrease = masteryXpGlobalPercentIncrease(
+      state,
+      skill,
+      actualLevels,
+    ).toStringAsFixed(1);
+
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 8),
       child: IntrinsicHeight(
@@ -243,7 +249,8 @@ class _ActionMasteryRow extends StatelessWidget {
                         Text(
                           '${preciseNumberString(totalCost ?? xpToNextLevel)}'
                           ' XP for +$actualLevels'
-                          ' level${actualLevels == 1 ? '' : 's'}',
+                          ' level${actualLevels == 1 ? '' : 's'}'
+                          ' (+$globalPctIncrease%)',
                           style: Theme.of(context).textTheme.bodySmall
                               ?.copyWith(color: Style.textColorSecondary),
                         )
@@ -407,7 +414,17 @@ class _SpreadButton extends StatelessWidget {
                 title: Text(
                   option.floor > 0 ? 'Spend to ${option.floor}%' : 'Spend all',
                 ),
-                subtitle: Text('+${option.preview.levelsAdded} levels'),
+                subtitle: () {
+                  final pct = masteryXpGlobalPercentIncrease(
+                    state,
+                    skill,
+                    option.preview.levelsAdded,
+                  ).toStringAsFixed(1);
+                  return Text(
+                    '+${option.preview.levelsAdded}'
+                    ' levels (+$pct%)',
+                  );
+                }(),
                 onTap: () => Navigator.of(ctx).pop(option.floor),
               ),
           ],
