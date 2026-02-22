@@ -1308,8 +1308,8 @@ class _ClaimMasteryTokenSectionState extends State<_ClaimMasteryTokenSection> {
     final xpPerToken = state.masteryTokenXpPerClaim(skill);
     final claimable = state.claimableMasteryTokenCount(skill);
     final poolFull = currentPoolXp >= maxPoolXp;
-    final maxClaim = claimable.clamp(1, widget.maxCount);
-    final claimCountInt = _claimCount.round().clamp(1, maxClaim);
+    final maxClaim = claimable.clamp(0, widget.maxCount);
+    final claimCountInt = _claimCount.round().clamp(0, maxClaim);
     final totalXp = xpPerToken * claimCountInt;
 
     return Column(
@@ -1344,10 +1344,9 @@ class _ClaimMasteryTokenSectionState extends State<_ClaimMasteryTokenSection> {
         ),
         const SizedBox(height: 8),
         Slider(
-          value: _claimCount.clamp(1, widget.maxCount.toDouble()),
-          min: 1,
+          value: _claimCount,
           max: widget.maxCount > 0 ? widget.maxCount.toDouble() : 1.0,
-          divisions: widget.maxCount > 1 ? widget.maxCount - 1 : null,
+          divisions: widget.maxCount > 0 ? widget.maxCount : null,
           label: preciseNumberString(claimCountInt),
           onChanged: widget.maxCount > 0
               ? (value) {
