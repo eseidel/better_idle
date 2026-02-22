@@ -500,6 +500,68 @@ void main() {
       expect(cookingXp, greaterThanOrEqualTo(0));
     });
 
+    test('passive progress carries over excess ticks on completion', () {
+      final random = Random(42);
+      var state = GlobalState.empty(testRegistries);
+
+      // Find a Furnace cooking action
+      final furnaceRecipe = testRegistries.cooking.actions.firstWhere(
+        (a) => a.isInCategory('Furnace'),
+      );
+      final furnaceInput = testItems.byId(furnaceRecipe.inputs.keys.first);
+
+      state = state.copyWith(
+        inventory: state.inventory
+            .adding(ItemStack(rawShrimp, count: 100))
+            .adding(ItemStack(furnaceInput, count: 100)),
+        cooking: state.cooking
+            .withAreaState(
+              CookingArea.fire,
+              CookingAreaState(recipeId: shrimpRecipe.id),
+            )
+            .withAreaState(
+              CookingArea.furnace,
+              CookingAreaState(recipeId: furnaceRecipe.id),
+            ),
+      );
+
+      state = state.startAction(furnaceRecipe, random: random);
+
+      final activity0 = state.activeActivity! as CookingActivity;
+      final fireProgress0 = activity0.progressForArea(CookingArea.fire)!;
+      final passiveTotal = fireProgress0.totalTicks;
+      final activeDuration = activity0.totalTicks;
+      final effectivePerCycle = activeDuration ~/ 5;
+
+      // Process several active cook cycles and track passive progress.
+      // Excess ticks after passive completion should carry over, so
+      // passiveDone should decrease smoothly rather than oscillating.
+      var prevDone = 0;
+      var completionsSeen = 0;
+      for (var cycle = 0; cycle < 10; cycle++) {
+        final builder = StateUpdateBuilder(state);
+        consumeTicks(builder, activeDuration, random: random);
+        state = builder.build();
+
+        final a = state.activeActivity! as CookingActivity;
+        final fireProgress = a.progressForArea(CookingArea.fire)!;
+        final passiveDone = passiveTotal - fireProgress.ticksRemaining;
+
+        if (passiveDone < prevDone) {
+          // Progress wrapped around = a completion happened
+          completionsSeen++;
+        }
+        prevDone = passiveDone;
+      }
+
+      // With effectivePerCycle=16 and passiveTotal=20, excess ticks carry
+      // over: done values are 16, 12, 8, 4, 0, 16, 12, 8, 4, 0
+      // Total effective = 16*10 = 160 ticks / 20 per cook = 8 completions.
+      expect(effectivePerCycle, 16);
+      expect(passiveTotal, 20);
+      expect(completionsSeen, 8);
+    });
+
     test('passive cooking does not run when active action is not cooking', () {
       final random = Random(42);
       var state = GlobalState.empty(testRegistries);
