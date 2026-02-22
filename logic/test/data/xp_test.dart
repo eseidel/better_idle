@@ -312,6 +312,44 @@ void main() {
     });
   });
 
+  group('masteryXpGlobalPercentIncrease', () {
+    test('returns percentage based on levels added vs current total', () {
+      final actions = testRegistries.actionsForSkill(Skill.firemaking);
+      // All actions at level 1: total = actionsCount × 1
+      final state = GlobalState.test(testRegistries);
+      final pct = masteryXpGlobalPercentIncrease(
+        state,
+        Skill.firemaking,
+        actions.length, // add one level per action
+      );
+      // Adding N levels when total is N means 100% increase.
+      expect(pct, closeTo(100.0, 0.01));
+    });
+
+    test('returns smaller percentage when total mastery is high', () {
+      final actions = testRegistries.actionsForSkill(Skill.firemaking);
+      // Set all actions to mastery level 50 (XP = startXpForLevel(50)).
+      final actionStates = {
+        for (final a in actions)
+          a.id: ActionState(masteryXp: startXpForLevel(50)),
+      };
+      final state = GlobalState.test(
+        testRegistries,
+        actionStates: actionStates,
+      );
+      final total = actions.length * 50;
+      final pct = masteryXpGlobalPercentIncrease(state, Skill.firemaking, 1);
+      // 1 / total × 100
+      expect(pct, closeTo(1 / total * 100, 0.01));
+    });
+
+    test('returns 0 when levelsAdded is 0', () {
+      final state = GlobalState.test(testRegistries);
+      final pct = masteryXpGlobalPercentIncrease(state, Skill.firemaking, 0);
+      expect(pct, 0.0);
+    });
+  });
+
   group('actionTimeForMastery', () {
     test('woodcutting uses actual action duration', () {
       final action = testRegistries.woodcuttingAction('Normal Tree');
