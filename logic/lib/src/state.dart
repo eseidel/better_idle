@@ -3119,6 +3119,10 @@ class GlobalState {
       final canAfford = inventory.countOfItem(item) >= cost.quantity;
       return (item, cost.quantity, canAfford);
     }).toList();
+    final unmetRequirements = [
+      ...purchase.unlockRequirements,
+      ...purchase.purchaseRequirements,
+    ].where((req) => !req.isMet(this)).toList();
     return ResolvedShopCost(
       canAfford:
           canAffordCurrencyMap.values.every((v) => v) &&
@@ -3126,13 +3130,9 @@ class GlobalState {
       currencyCosts: currencyCosts,
       canAffordCurrencyMap: canAffordCurrencyMap,
       itemCosts: itemCosts,
+      unmetRequirements: unmetRequirements,
     );
   }
-
-  /// Returns true if the player can afford the currency and item costs of a
-  /// shop purchase.
-  bool canAffordShopPurchase(ShopPurchase purchase) =>
-      resolveShopCost(purchase).canAfford;
 
   /// Purchases a shop item, validating all requirements and costs.
   /// Throws [StateError] if:

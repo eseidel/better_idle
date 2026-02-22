@@ -125,6 +125,7 @@ class ResolvedShopCost {
     required this.currencyCosts,
     required this.canAffordCurrencyMap,
     required this.itemCosts,
+    this.unmetRequirements = const [],
   });
 
   /// Whether the player can afford all costs.
@@ -138,6 +139,12 @@ class ResolvedShopCost {
 
   /// Item costs as (Item, quantity, canAfford) tuples.
   final List<(Item, int, bool)> itemCosts;
+
+  /// Requirements not yet met (skill levels, prior purchases, etc.).
+  final List<ShopRequirement> unmetRequirements;
+
+  /// Whether the player can purchase: can afford and all requirements met.
+  bool get canPurchase => canAfford && unmetRequirements.isEmpty;
 }
 
 /// What a shop purchase contains/grants.

@@ -22,9 +22,7 @@ class _ShopPageState extends State<ShopPage> {
   bool _showAffordableOnly = false;
 
   bool _canPurchase(ShopViewModel viewModel, ShopPurchase purchase) {
-    final unmetRequirements = viewModel.unmetRequirements(purchase);
-    if (unmetRequirements.isNotEmpty) return false;
-    return viewModel._state.canAffordShopPurchase(purchase);
+    return viewModel._state.resolveShopCost(purchase).canPurchase;
   }
 
   @override
@@ -140,11 +138,7 @@ class _ShopPageState extends State<ShopPage> {
     final rows = <Widget>[];
 
     for (final purchase in purchases) {
-      final unmetRequirements = viewModel.unmetRequirements(purchase);
-      final meetsAllReqs = unmetRequirements.isEmpty;
-
       final resolved = viewModel._state.resolveShopCost(purchase);
-      final canPurchase = meetsAllReqs && resolved.canAfford;
 
       // Build description from purchase
       final descriptionSpan = _buildDescriptionSpan(purchase, viewModel);
@@ -155,9 +149,9 @@ class _ShopPageState extends State<ShopPage> {
           name: purchase.name,
           resolvedCost: resolved,
           descriptionSpan: descriptionSpan,
-          unmetRequirements: unmetRequirements,
+          unmetRequirements: resolved.unmetRequirements,
           dungeonRegistry: viewModel._state.registries.dungeons,
-          onTap: canPurchase
+          onTap: resolved.canPurchase
               ? () {
                   final remaining = viewModel.remainingPurchases(purchase);
                   if (remaining > 1) {
@@ -434,25 +428,6 @@ class ShopViewModel {
     }
 
     return result;
-  }
-
-  /// Get all requirements that the player doesn't meet.
-  List<ShopRequirement> unmetRequirements(ShopPurchase purchase) {
-    final unmet = <ShopRequirement>[];
-
-    // Check all unlock and purchase requirements
-    final allReqs = [
-      ...purchase.unlockRequirements,
-      ...purchase.purchaseRequirements,
-    ];
-
-    for (final req in allReqs) {
-      if (!req.isMet(_state)) {
-        unmet.add(req);
-      }
-    }
-
-    return unmet;
   }
 
   /// Get the player's skill level for a skill.
