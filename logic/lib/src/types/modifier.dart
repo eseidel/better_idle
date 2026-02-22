@@ -290,7 +290,12 @@ class ModifierData extends Equatable {
 
   /// Modifiers that need to be scaled by 10 during parsing.
   /// These are stored at 1/10 scale in the data (e.g., flatMinHit=1 means +10).
-  static const _scale10Modifiers = {'flatMinHit', 'flatMagicMinHit'};
+  static const _scale10Modifiers = {
+    'flatMinHit',
+    'flatMagicMinHit',
+    'flatMaxHit',
+    'flatMagicMaxHit',
+  };
 
   /// The modifier name/key (e.g., "skillXP", "skillInterval").
   final String name;
