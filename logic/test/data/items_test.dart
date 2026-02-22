@@ -12,10 +12,12 @@ void main() {
 
   group('EquipmentStatModifier', () {
     test('offensive and defensive are mutually exclusive and exhaustive', () {
-      final offensive =
-          EquipmentStatModifier.values.where((m) => m.isOffensive).toSet();
-      final defensive =
-          EquipmentStatModifier.values.where((m) => !m.isOffensive).toSet();
+      final offensive = EquipmentStatModifier.values
+          .where((m) => m.isOffensive)
+          .toSet();
+      final defensive = EquipmentStatModifier.values
+          .where((m) => !m.isOffensive)
+          .toSet();
       expect(offensive.intersection(defensive), isEmpty);
       expect(
         offensive.length + defensive.length,
@@ -32,10 +34,7 @@ void main() {
 
     test('expected defensive stats', () {
       expect(EquipmentStatModifier.flatMeleeDefenceBonus.isOffensive, isFalse);
-      expect(
-        EquipmentStatModifier.flatRangedDefenceBonus.isOffensive,
-        isFalse,
-      );
+      expect(EquipmentStatModifier.flatRangedDefenceBonus.isOffensive, isFalse);
       expect(EquipmentStatModifier.flatMagicDefenceBonus.isOffensive, isFalse);
       expect(EquipmentStatModifier.flatResistance.isOffensive, isFalse);
     });
