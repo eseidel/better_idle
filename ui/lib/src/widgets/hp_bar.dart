@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:logic/logic.dart';
+import 'package:ui/src/widgets/cached_image.dart';
 import 'package:ui/src/widgets/context_extensions.dart';
 import 'package:ui/src/widgets/style.dart';
 import 'package:ui/src/widgets/tweened_progress_indicator.dart';
@@ -45,6 +46,63 @@ class HpBar extends StatelessWidget {
           ),
         ),
       ),
+    );
+  }
+}
+
+/// Displays the player's HP bar with text and optional autoEat indicator.
+///
+/// Shows: HP bar, "currentHp/maxHp [hp icon]", and when autoEat is active,
+/// "[autoeat icon] thresholdHp" on the right.
+class PlayerHpDisplay extends StatelessWidget {
+  const PlayerHpDisplay({
+    required this.currentHp,
+    required this.maxHp,
+    this.autoEatThresholdPercent,
+    super.key,
+  });
+
+  final int currentHp;
+  final int maxHp;
+
+  /// AutoEat threshold percentage (0-100). If 0 or null, autoEat is not shown.
+  final int? autoEatThresholdPercent;
+
+  @override
+  Widget build(BuildContext context) {
+    final threshold = autoEatThresholdPercent;
+    final hasAutoEat = threshold != null && threshold > 0;
+    final thresholdHp = hasAutoEat ? (maxHp * threshold / 100).ceil() : 0;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        HpBar(
+          currentHp: currentHp,
+          maxHp: maxHp,
+          color: Style.playerHpBarColor,
+        ),
+        const SizedBox(height: 4),
+        Row(
+          children: [
+            Text('$currentHp/$maxHp'),
+            const SizedBox(width: 4),
+            const CachedImage(
+              assetPath: 'assets/media/skills/hitpoints/hitpoints.png',
+              size: 16,
+            ),
+            if (hasAutoEat) ...[
+              const Spacer(),
+              const CachedImage(
+                assetPath: 'assets/media/shop/autoeat.png',
+                size: 16,
+              ),
+              const SizedBox(width: 4),
+              Text('$thresholdHp'),
+            ],
+          ],
+        ),
+      ],
     );
   }
 }
