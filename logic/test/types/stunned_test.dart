@@ -166,11 +166,38 @@ void main() {
   });
 
   group('Stunned countdown via tick processing', () {
-    test('stunned state decreases over ticks', () {
-      final state = GlobalState.test(
+    // Stun countdown is owned by the foreground (it blocks the foreground
+    // action), so these tests require an active thieving action to process.
+    GlobalState stunnedWithAction() {
+      final action = testRegistries.thievingAction('Man');
+      final base = GlobalState.test(
         testRegistries,
         stunned: const StunnedState.fresh().stun(),
       );
+      // Build state with an active action at remainingTicks=0
+      // (action completed, waiting for stun to clear).
+      return GlobalState(
+        registries: testRegistries,
+        inventory: base.inventory,
+        activeActivity: SkillActivity(
+          skill: Skill.thieving,
+          actionId: action.id.localId,
+          progressTicks: 30,
+          totalTicks: 30,
+        ),
+        skillStates: base.skillStates,
+        actionStates: base.actionStates,
+        updatedAt: base.updatedAt,
+        currencies: base.currencies,
+        shop: base.shop,
+        health: base.health,
+        equipment: base.equipment,
+        stunned: base.stunned,
+      );
+    }
+
+    test('stunned state decreases over ticks', () {
+      final state = stunnedWithAction();
       final builder = StateUpdateBuilder(state);
 
       // Process 10 ticks (1 second)
@@ -183,10 +210,7 @@ void main() {
     });
 
     test('stunned state clears after full duration', () {
-      final state = GlobalState.test(
-        testRegistries,
-        stunned: const StunnedState.fresh().stun(),
-      );
+      final state = stunnedWithAction();
       final builder = StateUpdateBuilder(state);
 
       // Process all stun ticks (3 seconds = 30 ticks)
@@ -199,10 +223,7 @@ void main() {
     });
 
     test('stunned clears after exactly 3 seconds of ticks', () {
-      final state = GlobalState.test(
-        testRegistries,
-        stunned: const StunnedState.fresh().stun(),
-      );
+      final state = stunnedWithAction();
       final builder = StateUpdateBuilder(state);
 
       // Process exactly 30 ticks (3 seconds)

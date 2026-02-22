@@ -713,6 +713,56 @@ void main() {
       // 50 * 1.01 = 50.5 → 51
       expect(newState.gp, 51);
     });
+
+    test('action restarts immediately when stun clears exactly at '
+        'tick boundary', () {
+      // This tests the scenario where the game loop fires with exactly
+      // stunTicksRemaining ticks, which is the normal case (event-driven
+      // scheduling). Previously, the action would not restart until the
+      // NEXT game loop tick, causing a visible gap after the stun animation.
+      final baseState = GlobalState.test(
+        testRegistries,
+        skillStates: const {
+          Skill.hitpoints: SkillState(xp: 1154, masteryPoolXp: 0),
+        },
+        stunned: const StunnedState.fresh().stun(), // 30 ticks of stun
+      );
+      // Set up with remainingTicks=0 (action completed, waiting for stun)
+      final state = GlobalState(
+        registries: testRegistries,
+        inventory: baseState.inventory,
+        activeActivity: SkillActivity(
+          skill: Skill.thieving,
+          actionId: manAction.id.localId,
+          progressTicks: 30,
+          totalTicks: 30,
+        ),
+        skillStates: baseState.skillStates,
+        actionStates: baseState.actionStates,
+        updatedAt: baseState.updatedAt,
+        currencies: baseState.currencies,
+        shop: baseState.shop,
+        health: baseState.health,
+        equipment: baseState.equipment,
+        stunned: baseState.stunned,
+      );
+
+      expect(state.isStunned, isTrue);
+      expect(state.activeActivity!.remainingTicks, 0);
+
+      final builder = StateUpdateBuilder(state);
+      final rng = MockRandom();
+
+      // Process exactly 30 ticks - the stun duration.
+      consumeTicks(builder, 30, random: rng);
+
+      final newState = builder.build();
+      expect(newState.isStunned, isFalse);
+      expect(newState.activeActivity, isNotNull);
+      // The action should be restarted with fresh remaining ticks,
+      // NOT stuck at remainingTicks=0.
+      expect(newState.activeActivity!.remainingTicks, greaterThan(0));
+    });
   });
 
   test('thieving tick rolls NPC unique drop with actual stealth', () {
