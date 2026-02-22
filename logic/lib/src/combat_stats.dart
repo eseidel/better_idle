@@ -503,29 +503,33 @@ PlayerCombatStats computePlayerStats(
 
 /// XP grants from combat damage.
 ///
-/// Hitpoints XP is always granted: 1.33 XP per damage.
+/// Damage values in this game use Melvor's internal scale (10x displayed).
+/// The XP multipliers below are Melvor's wiki rates divided by 10 to account
+/// for this: wiki says 1.33 HP XP per displayed damage → 0.133 per internal,
+/// wiki says 4 combat XP per displayed damage → 0.4 per internal.
+///
+/// Hitpoints XP is always granted: 0.133 XP per damage.
 /// Combat style XP depends on the selected [AttackStyle]:
 ///
 /// Melee styles:
-/// - Stab: 4 XP per damage to Attack
-/// - Slash: 4 XP per damage to Strength
-/// - Block: 4 XP per damage to Defence
-/// - Controlled: ~1.33 XP per damage to Attack, Strength, and Defence each
+/// - Stab: 0.4 XP per damage to Attack
+/// - Slash: 0.4 XP per damage to Strength
+/// - Block: 0.4 XP per damage to Defence
 ///
 /// Ranged styles:
-/// - Accurate: 4 XP per damage to Ranged
-/// - Rapid: 4 XP per damage to Ranged
-/// - Longrange: 2 XP per damage to Ranged and Defence each
+/// - Accurate: 0.4 XP per damage to Ranged
+/// - Rapid: 0.4 XP per damage to Ranged
+/// - Longrange: 0.2 XP per damage to Ranged and Defence each
 @immutable
 class CombatXpGrant {
   const CombatXpGrant(this.xpGrants);
 
   /// Creates XP grants based on damage dealt and attack style.
   ///
-  /// Uses Melvor Idle formulas:
-  /// - Hitpoints: 1.33 XP per damage
-  /// - Single skill style: 4 XP per damage
-  /// - Hybrid style: 2 XP per damage per skill
+  /// Uses Melvor Idle formulas (adjusted for internal 10x damage scale):
+  /// - Hitpoints: 0.133 XP per damage
+  /// - Single skill style: 0.4 XP per damage
+  /// - Hybrid style: 0.2 XP per damage per skill
   ///
   /// Minimum 1 XP is granted per skill when any damage is dealt.
   factory CombatXpGrant.fromDamage(int damage, AttackStyle style) {
@@ -533,11 +537,11 @@ class CombatXpGrant {
       return const CombatXpGrant({});
     }
     // Minimum 1 XP per skill when damage is dealt
-    final hitpointsXp = max(1, (damage * 1.33).floor());
-    // Single skill: 4 XP per damage
-    final singleSkillXp = max(1, damage * 4);
-    // Hybrid: 2 XP per damage per skill
-    final hybridXp = max(1, damage * 2);
+    final hitpointsXp = (damage * 0.133).floor().clamp(1, damage);
+    // Single skill: 0.4 XP per damage (Melvor wiki: 4 per displayed damage)
+    final singleSkillXp = (damage * 0.4).floor().clamp(1, damage);
+    // Hybrid: 0.2 XP per damage per skill
+    final hybridXp = (damage * 0.2).floor().clamp(1, damage);
 
     return switch (style) {
       // Melee styles
