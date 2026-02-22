@@ -380,6 +380,12 @@ class _AppLifecycleManagerState extends State<_AppLifecycleManager>
         'storeTimeAway=${storeTimeAway != null ? "present" : "null"}',
       );
       _welcomeBackState.result.value = storeTimeAway;
+      // If no changes occurred, dismiss the dialog since there's nothing
+      // to show. The pop triggers the .then() callback which resets
+      // _isDialogShowing and dispatches DismissWelcomeBackDialogAction.
+      if (storeTimeAway == null && _isDialogShowing) {
+        navigatorKey.currentState?.pop();
+      }
     } on Object catch (e, stackTrace) {
       logger.err('Async resume failed: $e\n$stackTrace');
       // Fall back to synchronous processing so the dialog can show results.
