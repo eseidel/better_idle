@@ -18,15 +18,17 @@ import 'package:ui/src/widgets/toast_overlay.dart';
 import 'package:ui/src/widgets/welcome_back_dialog.dart';
 
 void main() {
-  FlutterError.onError = (details) {
-    FlutterError.presentError(details);
-    logger.err('FlutterError: ${details.exception}\n${details.stack}');
-  };
-  PlatformDispatcher.instance.onError = (error, stack) {
-    logger.err('Unhandled error: $error\n$stack');
-    return true;
-  };
-  runScoped(() => runApp(const MyApp()), values: {loggerRef, toastServiceRef});
+  runScoped(() {
+    FlutterError.onError = (details) {
+      FlutterError.presentError(details);
+      logger.err('FlutterError: ${details.exception}\n${details.stack}');
+    };
+    PlatformDispatcher.instance.onError = (error, stack) {
+      logger.err('Unhandled error: $error\n$stack');
+      return true;
+    };
+    runApp(const MyApp());
+  }, values: {loggerRef, toastServiceRef});
 }
 
 class MyPersistor extends Persistor<GlobalState> {
@@ -99,11 +101,16 @@ class _AppLifecycleManagerState extends State<_AppLifecycleManager>
   bool _wasTimeAwayNull = true; // Track if timeAway was null in previous state
   late final StreamSubscription<GlobalState> _storeSubscription;
 
+  // Capture the scoped zone so lifecycle callbacks (which the engine
+  // dispatches in the root zone) can access scoped refs like logger.
+  late final Zone _scopedZone;
+
   final _welcomeBackState = WelcomeBackState();
 
   @override
   void initState() {
     super.initState();
+    _scopedZone = Zone.current;
     WidgetsBinding.instance.addObserver(this);
     // Check if we should process time away on first launch (app restart)
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -239,6 +246,12 @@ class _AppLifecycleManagerState extends State<_AppLifecycleManager>
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState lifecycle) {
+    // The engine dispatches lifecycle callbacks in the root zone, but we
+    // need access to scoped refs (e.g. logger). Run in the captured zone.
+    _scopedZone.run(() => _handleLifecycleChange(lifecycle));
+  }
+
+  void _handleLifecycleChange(AppLifecycleState lifecycle) {
     logger.info('Lifecycle: $lifecycle');
     switch (lifecycle) {
       case AppLifecycleState.hidden:
