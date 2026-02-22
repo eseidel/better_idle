@@ -75,8 +75,9 @@ class PlayerHpDisplay extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final thresholdHp =
-        showAutoEat ? (maxHp * autoEatThresholdPercent / 100).ceil() : 0;
+    final thresholdHp = showAutoEat
+        ? (maxHp * autoEatThresholdPercent / 100).ceil()
+        : 0;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,

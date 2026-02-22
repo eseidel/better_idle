@@ -1073,8 +1073,7 @@ class GlobalState {
 
   /// Returns true if the player has purchased Auto Eat from the shop.
   /// Tier II and III require Tier I, so checking Tier I is sufficient.
-  bool get hasAutoEat =>
-      shop.owns(const MelvorId('melvorD:Auto_Eat_Tier_I'));
+  bool get hasAutoEat => shop.owns(const MelvorId('melvorD:Auto_Eat_Tier_I'));
 
   /// Creates a ModifierProvider for a skill action.
   ///
