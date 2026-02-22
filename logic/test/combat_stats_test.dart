@@ -393,6 +393,13 @@ void main() {
       expect(grant.xpGrants[Skill.hitpoints], equals(1));
       expect(grant.xpGrants[Skill.attack], equals(1));
     });
+
+    test('matches live Melvor: 10 damage → 4 attack XP, 1 HP XP', () {
+      // Verified against live Melvor Idle (level 1 attack, stab style).
+      final grant = CombatXpGrant.fromDamage(10, AttackStyle.stab);
+      expect(grant.xpGrants[Skill.attack], equals(4));
+      expect(grant.xpGrants[Skill.hitpoints], equals(1));
+    });
   });
 
   group('AttackStyle', () {

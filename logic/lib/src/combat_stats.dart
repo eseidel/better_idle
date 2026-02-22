@@ -503,10 +503,10 @@ PlayerCombatStats computePlayerStats(
 
 /// XP grants from combat damage.
 ///
-/// Damage values in this game use Melvor's internal scale (10x displayed).
-/// The XP multipliers below are Melvor's wiki rates divided by 10 to account
-/// for this: wiki says 1.33 HP XP per displayed damage → 0.133 per internal,
-/// wiki says 4 combat XP per displayed damage → 0.4 per internal.
+/// Melvor's source divides wiki XP rates by numberMultiplier (10):
+///   HP: 1.33 / 10 = 0.133,  Combat: 4 / 10 = 0.4,  Hybrid: 2 / 10 = 0.2
+///
+/// Verified against live Melvor: 10 damage → 4 attack XP, 1 HP XP.
 ///
 /// Hitpoints XP is always granted: 0.133 XP per damage.
 /// Combat style XP depends on the selected [AttackStyle]:
@@ -526,7 +526,7 @@ class CombatXpGrant {
 
   /// Creates XP grants based on damage dealt and attack style.
   ///
-  /// Uses Melvor Idle formulas (adjusted for internal 10x damage scale):
+  /// Uses Melvor Idle formulas (wiki rates / numberMultiplier):
   /// - Hitpoints: 0.133 XP per damage
   /// - Single skill style: 0.4 XP per damage
   /// - Hybrid style: 0.2 XP per damage per skill
@@ -538,7 +538,7 @@ class CombatXpGrant {
     }
     // Minimum 1 XP per skill when damage is dealt
     final hitpointsXp = (damage * 0.133).floor().clamp(1, damage);
-    // Single skill: 0.4 XP per damage (Melvor wiki: 4 per displayed damage)
+    // Single skill: 0.4 XP per damage
     final singleSkillXp = (damage * 0.4).floor().clamp(1, damage);
     // Hybrid: 0.2 XP per damage per skill
     final hybridXp = (damage * 0.2).floor().clamp(1, damage);
