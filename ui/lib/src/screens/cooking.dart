@@ -291,18 +291,13 @@ class _AreaStatusCard extends StatelessWidget {
               ),
               const SizedBox(height: 8),
               if (resolved.unmetRequirements.isNotEmpty) ...[
-                _buildUnmetRequirements(
-                  context,
-                  resolved.unmetRequirements,
-                ),
+                _buildUnmetRequirements(context, resolved.unmetRequirements),
                 const SizedBox(height: 8),
               ],
               CostRow.fromResolved(resolved),
               const SizedBox(height: 12),
               Text(
-                resolved.canPurchase
-                    ? 'Tap to purchase'
-                    : 'Cannot afford',
+                resolved.canPurchase ? 'Tap to purchase' : 'Cannot afford',
                 style: TextStyle(
                   color: resolved.canPurchase
                       ? Style.selectedColor
@@ -330,10 +325,7 @@ class _AreaStatusCard extends StatelessWidget {
           return Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Text(
-                'Requires ',
-                style: TextStyle(color: color, fontSize: 12),
-              ),
+              Text('Requires ', style: TextStyle(color: color, fontSize: 12)),
               SkillImage(skill: req.skill, size: 14),
               const SizedBox(width: 4),
               Text(
