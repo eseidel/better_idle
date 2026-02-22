@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:logic/logic.dart';
+import 'package:ui/src/widgets/cached_image.dart';
 import 'package:ui/src/widgets/context_extensions.dart';
 import 'package:ui/src/widgets/style.dart';
 import 'package:ui/src/widgets/tweened_progress_indicator.dart';
@@ -45,6 +46,68 @@ class HpBar extends StatelessWidget {
           ),
         ),
       ),
+    );
+  }
+}
+
+/// Displays the player's HP bar with text and optional autoEat indicator.
+///
+/// Shows: HP bar, "currentHp/maxHp [hp icon]", and when autoEat is active,
+/// "[autoeat icon] thresholdHp" on the right.
+class PlayerHpDisplay extends StatelessWidget {
+  const PlayerHpDisplay({
+    required this.currentHp,
+    required this.maxHp,
+    this.showAutoEat = false,
+    this.autoEatThresholdPercent = 0,
+    super.key,
+  });
+
+  final int currentHp;
+  final int maxHp;
+
+  /// Whether autoEat has been purchased from the shop.
+  final bool showAutoEat;
+
+  /// AutoEat threshold percentage (0-100). Only used when [showAutoEat] is
+  /// true.
+  final int autoEatThresholdPercent;
+
+  @override
+  Widget build(BuildContext context) {
+    final thresholdHp = showAutoEat
+        ? (maxHp * autoEatThresholdPercent / 100).ceil()
+        : 0;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        HpBar(
+          currentHp: currentHp,
+          maxHp: maxHp,
+          color: Style.playerHpBarColor,
+        ),
+        const SizedBox(height: 4),
+        Row(
+          children: [
+            Text('$currentHp/$maxHp'),
+            const SizedBox(width: 4),
+            const CachedImage(
+              assetPath: 'assets/media/skills/hitpoints/hitpoints.png',
+              size: 16,
+            ),
+            if (showAutoEat) ...[
+              const Spacer(),
+              const CachedImage(
+                assetPath: 'assets/media/shop/autoeat.png',
+                size: 16,
+              ),
+              const SizedBox(width: 4),
+              Text('$thresholdHp'),
+            ],
+          ],
+        ),
+      ],
     );
   }
 }

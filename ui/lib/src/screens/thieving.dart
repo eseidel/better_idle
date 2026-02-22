@@ -65,13 +65,15 @@ class _ThievingPageState extends State<ThievingPage> {
           const MasteryPoolProgress(skill: skill),
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                HpBar(currentHp: playerHp, maxHp: maxPlayerHp),
-                const SizedBox(height: 4),
-                Text('HP: $playerHp / $maxPlayerHp'),
-              ],
+            child: PlayerHpDisplay(
+              currentHp: playerHp,
+              maxHp: maxPlayerHp,
+              showAutoEat: state.hasAutoEat,
+              autoEatThresholdPercent: state
+                  .createCombatModifierProvider(
+                    conditionContext: ConditionContext.empty,
+                  )
+                  .autoEatThreshold,
             ),
           ),
           Expanded(

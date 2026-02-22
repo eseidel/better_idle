@@ -5,7 +5,8 @@ Inspired by Melvor Idle, built with Flutter for mobile. Two packages:
 
 ## Commands
 
-- `dart test -r failures-only` - run tests (from logic/ or ui/)
+- `dart test -r failures-only` - run tests (from logic/)
+- `flutter test -r failures-only` - run tests (from ui/)
 - `dart run tool/coverage.dart` - run tests with coverage summary (from logic/)
 - `dart run tool/coverage.dart --check` - same, fails if below 90%
 - `dart run bin/solver.dart` - run the A* solver CLI (from logic/)
