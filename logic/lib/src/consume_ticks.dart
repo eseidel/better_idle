@@ -466,26 +466,28 @@ void _applyPassiveCookingTicks(
     final effectiveTicks = ticks ~/ passiveCookingMultiplier;
     if (effectiveTicks <= 0) continue;
 
-    final remaining = progress.ticksRemaining;
+    // Apply effective ticks, looping to handle multiple completions and
+    // carrying over excess ticks rather than discarding them.
+    var ticksLeft = effectiveTicks;
+    var currentRemaining = progress.ticksRemaining;
 
-    if (effectiveTicks >= remaining) {
+    while (ticksLeft >= currentRemaining) {
+      ticksLeft -= currentRemaining;
       // Cook completed - produce output (no XP/mastery/bonuses)
       completeCookingAction(builder, action, random, isPassive: true);
+      currentRemaining = recipeDuration;
 
-      // Reset progress for next cook
-      final newProgress = CookingAreaProgress(
-        recipeId: progress.recipeId,
-        ticksRemaining: recipeDuration,
-        totalTicks: recipeDuration,
-      );
-      builder.updateCookingActivityProgress(area, newProgress);
-    } else {
-      // Still cooking - decrement countdown
-      final newProgress = progress.copyWith(
-        ticksRemaining: remaining - effectiveTicks,
-      );
-      builder.updateCookingActivityProgress(area, newProgress);
+      // Re-check inputs for the next cook
+      if (!builder.state.canStartAction(action)) break;
     }
+
+    // Apply any leftover ticks to the current cook
+    final newProgress = CookingAreaProgress(
+      recipeId: progress.recipeId,
+      ticksRemaining: currentRemaining - ticksLeft,
+      totalTicks: recipeDuration,
+    );
+    builder.updateCookingActivityProgress(area, newProgress);
   }
 }
 

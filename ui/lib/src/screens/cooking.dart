@@ -17,6 +17,7 @@ import 'package:ui/src/widgets/skill_image.dart';
 import 'package:ui/src/widgets/skill_overflow_menu.dart';
 import 'package:ui/src/widgets/skill_progress.dart';
 import 'package:ui/src/widgets/style.dart';
+import 'package:ui/src/widgets/tweened_progress_indicator.dart';
 import 'package:ui/src/widgets/xp_badges_row.dart';
 
 class CookingPage extends StatelessWidget {
@@ -560,6 +561,44 @@ class _AreaStatusCard extends StatelessWidget {
               ],
             ),
             const SizedBox(height: 16),
+
+            // Active cooking progress bar
+            if (isActivelyCooking) ...[
+              TweenedProgressIndicator(
+                progress: ProgressAt(
+                  lastUpdateTime: state.updatedAt,
+                  progressTicks: state.activeProgress(recipe),
+                  totalTicks: ticksFromDuration(recipe.minDuration),
+                ),
+                animate: true,
+                backgroundColor: Style.progressBackgroundColor,
+                color: Style.successColor,
+              ),
+              const SizedBox(height: 16),
+            ],
+
+            // Passive cooking progress bar
+            if (isPassivelyCooking) ...[
+              Builder(builder: (context) {
+                final activity = state.activeActivity! as CookingActivity;
+                final areaProgress = activity.progressForArea(area)!;
+                final done =
+                    areaProgress.totalTicks - areaProgress.ticksRemaining;
+                return TweenedProgressIndicator(
+                  progress: ProgressAt(
+                    lastUpdateTime: state.updatedAt,
+                    progressTicks: done,
+                    totalTicks: areaProgress.totalTicks,
+                  ),
+                  animate: true,
+                  // Passive cooking runs at 1/5 speed.
+                  tickDuration: const Duration(milliseconds: 500),
+                  backgroundColor: Style.progressBackgroundColor,
+                  color: Style.selectedColor,
+                );
+              }),
+              const SizedBox(height: 16),
+            ],
 
             // Active Cook / Passive Cook buttons
             Row(
