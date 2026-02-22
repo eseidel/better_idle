@@ -6,6 +6,7 @@ import 'package:ui/src/services/toast_service.dart';
 import 'package:ui/src/widgets/cached_image.dart';
 import 'package:ui/src/widgets/context_extensions.dart';
 import 'package:ui/src/widgets/item_image.dart';
+import 'package:ui/src/widgets/router.dart' show navigatorKey;
 import 'package:ui/src/widgets/skill_image.dart';
 import 'package:ui/src/widgets/style.dart';
 import 'package:ui/src/widgets/you_died_dialog.dart';
@@ -58,13 +59,17 @@ class _ToastOverlayState extends State<ToastOverlay>
 
   void _showDeathDialog(Counts<MelvorId> lostOnDeath) {
     if (_isDeathDialogShowing) return;
+    // ToastOverlay sits above the Navigator (in MaterialApp.builder),
+    // so we must use navigatorKey to get a context below the Navigator.
+    final navContext = navigatorKey.currentContext;
+    if (navContext == null) return;
     _isDeathDialogShowing = true;
 
     showDialog<void>(
-      context: context,
+      context: navContext,
       builder: (context) => YouDiedDialog(
         lostOnDeath: lostOnDeath,
-        registries: this.context.state.registries,
+        registries: navContext.state.registries,
       ),
     ).then((_) {
       if (mounted) {
