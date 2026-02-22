@@ -269,7 +269,7 @@ class _AreaStatusCard extends StatelessWidget {
     return Card(
       color: Style.cellBackgroundColorLocked,
       child: InkWell(
-        onTap: resolved.canAfford
+        onTap: resolved.canPurchase
             ? () => _showPurchaseDialog(context, state, purchase)
             : null,
         borderRadius: BorderRadius.circular(12),
@@ -290,15 +290,24 @@ class _AreaStatusCard extends StatelessWidget {
                 style: Theme.of(context).textTheme.titleLarge,
               ),
               const SizedBox(height: 8),
+              if (resolved.unmetRequirements.isNotEmpty) ...[
+                _buildUnmetRequirements(
+                  context,
+                  resolved.unmetRequirements,
+                ),
+                const SizedBox(height: 8),
+              ],
               CostRow.fromResolved(resolved),
               const SizedBox(height: 12),
               Text(
-                resolved.canAfford ? 'Tap to purchase' : 'Cannot afford',
+                resolved.canPurchase
+                    ? 'Tap to purchase'
+                    : 'Cannot afford',
                 style: TextStyle(
-                  color: resolved.canAfford
+                  color: resolved.canPurchase
                       ? Style.selectedColor
                       : Style.textColorSecondary,
-                  fontStyle: resolved.canAfford
+                  fontStyle: resolved.canPurchase
                       ? FontStyle.normal
                       : FontStyle.italic,
                 ),
@@ -307,6 +316,35 @@ class _AreaStatusCard extends StatelessWidget {
           ),
         ),
       ),
+    );
+  }
+
+  Widget _buildUnmetRequirements(
+    BuildContext context,
+    List<ShopRequirement> unmetReqs,
+  ) {
+    final color = Style.unmetRequirementColor;
+    return Column(
+      children: unmetReqs.map((req) {
+        if (req is SkillLevelRequirement) {
+          return Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                'Requires ',
+                style: TextStyle(color: color, fontSize: 12),
+              ),
+              SkillImage(skill: req.skill, size: 14),
+              const SizedBox(width: 4),
+              Text(
+                'Level ${req.level}',
+                style: TextStyle(color: color, fontSize: 12),
+              ),
+            ],
+          );
+        }
+        return const SizedBox.shrink();
+      }).toList(),
     );
   }
 
