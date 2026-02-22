@@ -502,16 +502,22 @@ void main() {
 
     test('flatMaxHit is scaled by 10 during parsing', () {
       // In the raw data, flatMaxHit=2.5 means +25 max hit (Fury I aurora)
-      final data =
-          ModifierData.fromJson('flatMaxHit', 2.5, namespace: 'melvorD');
+      final data = ModifierData.fromJson(
+        'flatMaxHit',
+        2.5,
+        namespace: 'melvorD',
+      );
       expect(data.name, 'flatMaxHit');
       expect(data.entries.first.value, 25); // 2.5 * 10
     });
 
     test('flatMagicMaxHit is scaled by 10 during parsing', () {
       // In the raw data, flatMagicMaxHit=40 means +400 (Cloudburst Staff)
-      final data =
-          ModifierData.fromJson('flatMagicMaxHit', 40, namespace: 'melvorD');
+      final data = ModifierData.fromJson(
+        'flatMagicMaxHit',
+        40,
+        namespace: 'melvorD',
+      );
       expect(data.name, 'flatMagicMaxHit');
       expect(data.entries.first.value, 400); // 40 * 10
     });
