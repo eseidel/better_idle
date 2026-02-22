@@ -338,10 +338,10 @@ void main() {
       // Use 100 damage for clearer numbers
       final grant = CombatXpGrant.fromDamage(100, AttackStyle.stab);
 
-      // Hitpoints: floor(100 * 0.133) = 13
-      expect(grant.xpGrants[Skill.hitpoints], equals(13));
-      // Attack: floor(100 * 0.04) = 4
-      expect(grant.xpGrants[Skill.attack], equals(4));
+      // Hitpoints: floor(100 * 1.33) = 133
+      expect(grant.xpGrants[Skill.hitpoints], equals(133));
+      // Attack: 100 * 4 = 400
+      expect(grant.xpGrants[Skill.attack], equals(400));
       // No Strength or Defence XP
       expect(grant.xpGrants[Skill.strength], isNull);
       expect(grant.xpGrants[Skill.defence], isNull);
@@ -350,10 +350,10 @@ void main() {
     test('slash style grants Strength XP and Hitpoints XP', () {
       final grant = CombatXpGrant.fromDamage(100, AttackStyle.slash);
 
-      // Hitpoints: floor(100 * 0.133) = 13
-      expect(grant.xpGrants[Skill.hitpoints], equals(13));
-      // Strength: floor(100 * 0.04) = 4
-      expect(grant.xpGrants[Skill.strength], equals(4));
+      // Hitpoints: floor(100 * 1.33) = 133
+      expect(grant.xpGrants[Skill.hitpoints], equals(133));
+      // Strength: 100 * 4 = 400
+      expect(grant.xpGrants[Skill.strength], equals(400));
       // No Attack or Defence XP
       expect(grant.xpGrants[Skill.attack], isNull);
       expect(grant.xpGrants[Skill.defence], isNull);
@@ -362,10 +362,10 @@ void main() {
     test('block style grants Defence XP and Hitpoints XP', () {
       final grant = CombatXpGrant.fromDamage(100, AttackStyle.block);
 
-      // Hitpoints: floor(100 * 0.133) = 13
-      expect(grant.xpGrants[Skill.hitpoints], equals(13));
-      // Defence: floor(100 * 0.04) = 4
-      expect(grant.xpGrants[Skill.defence], equals(4));
+      // Hitpoints: floor(100 * 1.33) = 133
+      expect(grant.xpGrants[Skill.hitpoints], equals(133));
+      // Defence: 100 * 4 = 400
+      expect(grant.xpGrants[Skill.defence], equals(400));
       // No Attack or Strength XP
       expect(grant.xpGrants[Skill.attack], isNull);
       expect(grant.xpGrants[Skill.strength], isNull);
@@ -373,8 +373,8 @@ void main() {
 
     test('totalXp returns sum of all XP grants', () {
       final grant = CombatXpGrant.fromDamage(100, AttackStyle.stab);
-      // Hitpoints: 13, Attack: 4, total = 17
-      expect(grant.totalXp, equals(17));
+      // Hitpoints: 133, Attack: 400, total = 533
+      expect(grant.totalXp, equals(533));
     });
 
     test('isEmpty returns false when XP is granted', () {
@@ -387,11 +387,11 @@ void main() {
       expect(grant.xpGrants, isEmpty);
     });
 
-    test('low damage grants minimum 1 XP per skill', () {
-      // 1 damage would give floor(1 * 0.04) = 0, but minimum is 1
+    test('low damage grants correct XP per skill', () {
+      // 1 damage: Hitpoints floor(1 * 1.33) = 1, Attack 1 * 4 = 4
       final grant = CombatXpGrant.fromDamage(1, AttackStyle.stab);
       expect(grant.xpGrants[Skill.hitpoints], equals(1));
-      expect(grant.xpGrants[Skill.attack], equals(1));
+      expect(grant.xpGrants[Skill.attack], equals(4));
     });
   });
 
@@ -463,10 +463,10 @@ void main() {
     test('accurate style grants Ranged XP and Hitpoints XP', () {
       final grant = CombatXpGrant.fromDamage(100, AttackStyle.accurate);
 
-      // Hitpoints: floor(100 * 0.133) = 13
-      expect(grant.xpGrants[Skill.hitpoints], equals(13));
-      // Ranged: floor(100 * 0.04) = 4
-      expect(grant.xpGrants[Skill.ranged], equals(4));
+      // Hitpoints: floor(100 * 1.33) = 133
+      expect(grant.xpGrants[Skill.hitpoints], equals(133));
+      // Ranged: 100 * 4 = 400
+      expect(grant.xpGrants[Skill.ranged], equals(400));
       // No melee XP
       expect(grant.xpGrants[Skill.attack], isNull);
       expect(grant.xpGrants[Skill.strength], isNull);
@@ -476,18 +476,18 @@ void main() {
     test('rapid style grants Ranged XP and Hitpoints XP', () {
       final grant = CombatXpGrant.fromDamage(100, AttackStyle.rapid);
 
-      expect(grant.xpGrants[Skill.hitpoints], equals(13));
-      expect(grant.xpGrants[Skill.ranged], equals(4));
+      expect(grant.xpGrants[Skill.hitpoints], equals(133));
+      expect(grant.xpGrants[Skill.ranged], equals(400));
     });
 
     test('longRange style splits XP between Ranged and Defence', () {
       final grant = CombatXpGrant.fromDamage(100, AttackStyle.longRange);
 
-      // Hitpoints: floor(100 * 0.133) = 13
-      expect(grant.xpGrants[Skill.hitpoints], equals(13));
-      // Each skill: floor(100 * 0.02) = 2
-      expect(grant.xpGrants[Skill.ranged], equals(2));
-      expect(grant.xpGrants[Skill.defence], equals(2));
+      // Hitpoints: floor(100 * 1.33) = 133
+      expect(grant.xpGrants[Skill.hitpoints], equals(133));
+      // Each skill: 100 * 2 = 200
+      expect(grant.xpGrants[Skill.ranged], equals(200));
+      expect(grant.xpGrants[Skill.defence], equals(200));
       // No attack/strength XP
       expect(grant.xpGrants[Skill.attack], isNull);
       expect(grant.xpGrants[Skill.strength], isNull);
@@ -595,10 +595,10 @@ void main() {
     test('standard style grants Magic XP and Hitpoints XP', () {
       final grant = CombatXpGrant.fromDamage(100, AttackStyle.standard);
 
-      // Hitpoints: floor(100 * 0.133) = 13
-      expect(grant.xpGrants[Skill.hitpoints], equals(13));
-      // Magic: floor(100 * 0.04) = 4
-      expect(grant.xpGrants[Skill.magic], equals(4));
+      // Hitpoints: floor(100 * 1.33) = 133
+      expect(grant.xpGrants[Skill.hitpoints], equals(133));
+      // Magic: 100 * 4 = 400
+      expect(grant.xpGrants[Skill.magic], equals(400));
       // No melee or ranged XP
       expect(grant.xpGrants[Skill.attack], isNull);
       expect(grant.xpGrants[Skill.strength], isNull);
@@ -609,11 +609,11 @@ void main() {
     test('defensive style splits XP between Magic and Defence', () {
       final grant = CombatXpGrant.fromDamage(100, AttackStyle.defensive);
 
-      // Hitpoints: floor(100 * 0.133) = 13
-      expect(grant.xpGrants[Skill.hitpoints], equals(13));
-      // Each skill: floor(100 * 0.02) = 2
-      expect(grant.xpGrants[Skill.magic], equals(2));
-      expect(grant.xpGrants[Skill.defence], equals(2));
+      // Hitpoints: floor(100 * 1.33) = 133
+      expect(grant.xpGrants[Skill.hitpoints], equals(133));
+      // Each skill: 100 * 2 = 200
+      expect(grant.xpGrants[Skill.magic], equals(200));
+      expect(grant.xpGrants[Skill.defence], equals(200));
       // No attack/strength/ranged XP
       expect(grant.xpGrants[Skill.attack], isNull);
       expect(grant.xpGrants[Skill.strength], isNull);
