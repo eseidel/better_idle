@@ -10,6 +10,43 @@ void main() {
     await loadTestRegistries();
   });
 
+  group('EquipmentStatModifier', () {
+    test('offensive and defensive are mutually exclusive and exhaustive', () {
+      final offensive =
+          EquipmentStatModifier.values.where((m) => m.isOffensive).toSet();
+      final defensive =
+          EquipmentStatModifier.values.where((m) => !m.isOffensive).toSet();
+      expect(offensive.intersection(defensive), isEmpty);
+      expect(
+        offensive.length + defensive.length,
+        EquipmentStatModifier.values.length,
+      );
+    });
+
+    test('expected offensive stats', () {
+      expect(EquipmentStatModifier.equipmentAttackSpeed.isOffensive, isTrue);
+      expect(EquipmentStatModifier.flatStabAttackBonus.isOffensive, isTrue);
+      expect(EquipmentStatModifier.flatMeleeStrengthBonus.isOffensive, isTrue);
+      expect(EquipmentStatModifier.magicDamageBonus.isOffensive, isTrue);
+    });
+
+    test('expected defensive stats', () {
+      expect(EquipmentStatModifier.flatMeleeDefenceBonus.isOffensive, isFalse);
+      expect(
+        EquipmentStatModifier.flatRangedDefenceBonus.isOffensive,
+        isFalse,
+      );
+      expect(EquipmentStatModifier.flatMagicDefenceBonus.isOffensive, isFalse);
+      expect(EquipmentStatModifier.flatResistance.isOffensive, isFalse);
+    });
+
+    test('all values have a non-empty displayName', () {
+      for (final modifier in EquipmentStatModifier.values) {
+        expect(modifier.displayName, isNotEmpty, reason: modifier.name);
+      }
+    });
+  });
+
   group('Item', () {
     test('open throws StateError when not openable', () {
       final item = Item.test('Test Item', gp: 10);
