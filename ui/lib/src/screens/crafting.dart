@@ -20,6 +20,13 @@ class CraftingPage extends StatefulWidget {
 class _CraftingPageState extends State<CraftingPage> {
   CraftingAction? _selectedAction;
   final Set<MelvorId> _collapsedCategories = {};
+  final ScrollController _scrollController = ScrollController();
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -58,6 +65,7 @@ class _CraftingPageState extends State<CraftingPage> {
           const MasteryPoolProgress(skill: skill),
           Expanded(
             child: SingleChildScrollView(
+              controller: _scrollController,
               padding: const EdgeInsets.all(16),
               child: Column(
                 children: [
@@ -86,6 +94,11 @@ class _CraftingPageState extends State<CraftingPage> {
                       setState(() {
                         _selectedAction = action;
                       });
+                      _scrollController.animateTo(
+                        0,
+                        duration: const Duration(milliseconds: 300),
+                        curve: Curves.easeOut,
+                      );
                     },
                     onToggleCategory: (category) {
                       setState(() {
