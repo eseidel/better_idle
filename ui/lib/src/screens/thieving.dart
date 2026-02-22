@@ -68,6 +68,7 @@ class _ThievingPageState extends State<ThievingPage> {
             child: PlayerHpDisplay(
               currentHp: playerHp,
               maxHp: maxPlayerHp,
+              showAutoEat: state.hasAutoEat,
               autoEatThresholdPercent: state
                   .createCombatModifierProvider(
                     conditionContext: ConditionContext.empty,

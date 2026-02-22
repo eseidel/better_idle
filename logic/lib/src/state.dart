@@ -1071,6 +1071,12 @@ class GlobalState {
   MelvorId? get highestCookingPotId =>
       registries.shop.highestCookingPotId(shop.purchaseCounts);
 
+  /// Returns true if the player owns any Auto Eat tier from the shop.
+  bool get hasAutoEat =>
+      shop.owns(const MelvorId('melvorD:Auto_Eat_Tier_I')) ||
+      shop.owns(const MelvorId('melvorD:Auto_Eat_Tier_II')) ||
+      shop.owns(const MelvorId('melvorD:Auto_Eat_Tier_III'));
+
   /// Creates a ModifierProvider for a skill action.
   ///
   /// Use this when processing skill actions (woodcutting, fishing, etc.)

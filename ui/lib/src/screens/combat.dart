@@ -123,6 +123,7 @@ class CombatPage extends StatelessWidget {
                       ).attackSpeed,
                     )
                   : null,
+              showAutoEat: state.hasAutoEat,
               autoEatThresholdPercent: state
                   .createCombatModifierProvider(
                     conditionContext: ConditionContext.empty,
@@ -668,7 +669,8 @@ class _PlayerStatsCard extends StatelessWidget {
     required this.animateAttack,
     this.attackTicksRemaining,
     this.totalAttackTicks,
-    this.autoEatThresholdPercent,
+    this.showAutoEat = false,
+    this.autoEatThresholdPercent = 0,
   });
 
   final int playerHp;
@@ -677,7 +679,8 @@ class _PlayerStatsCard extends StatelessWidget {
   final int? attackTicksRemaining;
   final int? totalAttackTicks;
   final bool animateAttack;
-  final int? autoEatThresholdPercent;
+  final bool showAutoEat;
+  final int autoEatThresholdPercent;
 
   @override
   Widget build(BuildContext context) {
@@ -698,6 +701,7 @@ class _PlayerStatsCard extends StatelessWidget {
             PlayerHpDisplay(
               currentHp: playerHp,
               maxHp: maxPlayerHp,
+              showAutoEat: showAutoEat,
               autoEatThresholdPercent: autoEatThresholdPercent,
             ),
             const SizedBox(height: 8),

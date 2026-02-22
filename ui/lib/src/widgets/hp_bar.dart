@@ -58,21 +58,25 @@ class PlayerHpDisplay extends StatelessWidget {
   const PlayerHpDisplay({
     required this.currentHp,
     required this.maxHp,
-    this.autoEatThresholdPercent,
+    this.showAutoEat = false,
+    this.autoEatThresholdPercent = 0,
     super.key,
   });
 
   final int currentHp;
   final int maxHp;
 
-  /// AutoEat threshold percentage (0-100). If 0 or null, autoEat is not shown.
-  final int? autoEatThresholdPercent;
+  /// Whether autoEat has been purchased from the shop.
+  final bool showAutoEat;
+
+  /// AutoEat threshold percentage (0-100). Only used when [showAutoEat] is
+  /// true.
+  final int autoEatThresholdPercent;
 
   @override
   Widget build(BuildContext context) {
-    final threshold = autoEatThresholdPercent;
-    final hasAutoEat = threshold != null && threshold > 0;
-    final thresholdHp = hasAutoEat ? (maxHp * threshold / 100).ceil() : 0;
+    final thresholdHp =
+        showAutoEat ? (maxHp * autoEatThresholdPercent / 100).ceil() : 0;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -91,7 +95,7 @@ class PlayerHpDisplay extends StatelessWidget {
               assetPath: 'assets/media/skills/hitpoints/hitpoints.png',
               size: 16,
             ),
-            if (hasAutoEat) ...[
+            if (showAutoEat) ...[
               const Spacer(),
               const CachedImage(
                 assetPath: 'assets/media/shop/autoeat.png',
