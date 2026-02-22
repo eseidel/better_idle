@@ -17,24 +17,37 @@ import 'package:meta/meta.dart';
 /// Equipment stat modifiers that can be queried via
 /// [EquipmentStats.getAsModifier].
 enum EquipmentStatModifier {
-  equipmentAttackSpeed('attackSpeed'),
-  flatStabAttackBonus('stabAttackBonus'),
-  flatSlashAttackBonus('slashAttackBonus'),
-  flatBlockAttackBonus('blockAttackBonus'),
-  flatMeleeStrengthBonus('meleeStrengthBonus'),
-  flatRangedStrengthBonus('rangedStrengthBonus'),
-  flatRangedAttackBonus('rangedAttackBonus'),
-  flatMagicAttackBonus('magicAttackBonus'),
-  magicDamageBonus('magicDamageBonus'),
-  flatMeleeDefenceBonus('meleeDefenceBonus'),
-  flatRangedDefenceBonus('rangedDefenceBonus'),
-  flatMagicDefenceBonus('magicDefenceBonus'),
-  flatResistance('damageReduction');
+  equipmentAttackSpeed('attackSpeed', 'Attack Speed'),
+  flatStabAttackBonus('stabAttackBonus', 'Stab Bonus'),
+  flatSlashAttackBonus('slashAttackBonus', 'Slash Bonus'),
+  flatBlockAttackBonus('blockAttackBonus', 'Block Bonus'),
+  flatMeleeStrengthBonus('meleeStrengthBonus', 'Melee Strength'),
+  flatRangedStrengthBonus('rangedStrengthBonus', 'Ranged Strength'),
+  flatRangedAttackBonus('rangedAttackBonus', 'Ranged Bonus'),
+  flatMagicAttackBonus('magicAttackBonus', 'Magic Bonus'),
+  magicDamageBonus('magicDamageBonus', 'Magic Damage'),
+  flatMeleeDefenceBonus('meleeDefenceBonus', 'Melee Defence'),
+  flatRangedDefenceBonus('rangedDefenceBonus', 'Ranged Defence'),
+  flatMagicDefenceBonus('magicDefenceBonus', 'Magic Defence'),
+  flatResistance('damageReduction', 'Resistance');
 
-  const EquipmentStatModifier(this.statKey);
+  const EquipmentStatModifier(this.statKey, this.displayName);
 
   /// The JSON key used in Melvor equipment stats.
   final String statKey;
+
+  /// Human-readable display name for this stat.
+  final String displayName;
+
+  static const Set<EquipmentStatModifier> _defensiveStats = {
+    flatMeleeDefenceBonus,
+    flatRangedDefenceBonus,
+    flatMagicDefenceBonus,
+    flatResistance,
+  };
+
+  /// Whether this is an offensive stat.
+  bool get isOffensive => !_defensiveStats.contains(this);
 
   /// Lookup by modifier name string. Returns null if not an equipment stat.
   static EquipmentStatModifier? tryFromName(String name) => _byName[name];

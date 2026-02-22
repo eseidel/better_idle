@@ -7,6 +7,7 @@ import 'package:ui/src/widgets/cached_image.dart';
 import 'package:ui/src/widgets/context_extensions.dart';
 import 'package:ui/src/widgets/count_badge_cell.dart';
 import 'package:ui/src/widgets/currency_display.dart';
+import 'package:ui/src/widgets/equipment_stats_dialog.dart';
 import 'package:ui/src/widgets/game_app_bar.dart';
 import 'package:ui/src/widgets/game_scaffold.dart';
 import 'package:ui/src/widgets/item_image.dart';
@@ -497,6 +498,16 @@ class _ItemDetailsContentState extends State<_ItemDetailsContent> {
             if (itemData.modifiers.modifiers.isNotEmpty) ...[
               const SizedBox(height: 8),
               _ItemModifiersDisplay(item: itemData),
+            ],
+            if (itemData.isEquippable) ...[
+              const SizedBox(height: 8),
+              SizedBox(
+                width: double.infinity,
+                child: OutlinedButton(
+                  onPressed: () => showEquipmentStatsDialog(context, itemData),
+                  child: const Text('Show Item Stats'),
+                ),
+              ),
             ],
             const SizedBox(height: 24),
             Text('Gold Value:', style: Theme.of(context).textTheme.titleMedium),
