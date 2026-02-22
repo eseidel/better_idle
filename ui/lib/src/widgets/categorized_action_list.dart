@@ -76,12 +76,42 @@ class CategorizedActionList<C, A extends SkillAction> extends StatelessWidget {
             categoryId(category),
           );
 
+          // Split actions into unlocked and locked.
+          final unlockedActions = <A>[];
+          final lockedActions = <A>[];
+          for (final action in actions) {
+            final isUnlocked =
+                skillLevel == null || skillLevel! >= action.unlockLevel;
+            if (isUnlocked) {
+              unlockedActions.add(action);
+            } else {
+              lockedActions.add(action);
+            }
+          }
+
+          // Find the next locked action (lowest unlock level).
+          A? nextLocked;
+          if (lockedActions.isNotEmpty && skill != null) {
+            nextLocked = lockedActions.reduce(
+              (a, b) => a.unlockLevel <= b.unlockLevel ? a : b,
+            );
+          }
+
+          final isFullyLocked = unlockedActions.isEmpty;
+
+          // Build the visible action list: all unlocked + at most one locked.
+          final visibleActions = [
+            ...unlockedActions,
+            if (nextLocked != null && !isFullyLocked) nextLocked,
+          ];
+
           return Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              // Category header with collapse toggle
+              // Category header
               InkWell(
-                onTap: () => onToggleCategory(category),
+                onTap:
+                    isFullyLocked ? null : () => onToggleCategory(category),
                 child: Container(
                   padding: const EdgeInsets.symmetric(
                     horizontal: 12,
@@ -93,27 +123,52 @@ class CategorizedActionList<C, A extends SkillAction> extends StatelessWidget {
                   ),
                   child: Row(
                     children: [
-                      Icon(
-                        isCollapsed ? Icons.arrow_right : Icons.arrow_drop_down,
+                      if (!isFullyLocked)
+                        Icon(
+                          isCollapsed
+                              ? Icons.arrow_right
+                              : Icons.arrow_drop_down,
+                          size: 24,
+                        ),
+                      if (isFullyLocked)
+                        const Icon(
+                          Icons.lock,
+                          size: 20,
+                          color: Style.textColorSecondary,
+                        ),
+                      const SizedBox(width: 8),
+                      CachedImage(
+                        assetPath: categoryMedia(category),
                         size: 24,
                       ),
                       const SizedBox(width: 8),
-                      CachedImage(assetPath: categoryMedia(category), size: 24),
-                      const SizedBox(width: 8),
                       Text(
                         categoryName(category),
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontWeight: FontWeight.bold,
                           fontSize: 14,
+                          color: isFullyLocked
+                              ? Style.textColorSecondary
+                              : null,
                         ),
                       ),
+                      if (isFullyLocked && nextLocked != null) ...[
+                        const Spacer(),
+                        Text(
+                          'Level ${nextLocked.unlockLevel}',
+                          style: const TextStyle(
+                            color: Style.textColorSecondary,
+                            fontSize: 12,
+                          ),
+                        ),
+                      ],
                     ],
                   ),
                 ),
               ),
-              // Actions list (if not collapsed)
-              if (!isCollapsed)
-                ...actions.map((action) {
+              // Actions list (if not collapsed and not fully locked)
+              if (!isCollapsed && !isFullyLocked)
+                ...visibleActions.map((action) {
                   final isSelected = action.id == selectedAction?.id;
                   final isUnlocked =
                       skillLevel == null || skillLevel! >= action.unlockLevel;
@@ -135,7 +190,9 @@ class CategorizedActionList<C, A extends SkillAction> extends StatelessWidget {
                           children: [
                             const Text(
                               'Unlocked at ',
-                              style: TextStyle(color: Style.textColorSecondary),
+                              style: TextStyle(
+                                color: Style.textColorSecondary,
+                              ),
                             ),
                             SkillImage(skill: skill!, size: 14),
                             Text(
