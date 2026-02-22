@@ -110,8 +110,7 @@ class CategorizedActionList<C, A extends SkillAction> extends StatelessWidget {
             children: [
               // Category header
               InkWell(
-                onTap:
-                    isFullyLocked ? null : () => onToggleCategory(category),
+                onTap: isFullyLocked ? null : () => onToggleCategory(category),
                 child: Container(
                   padding: const EdgeInsets.symmetric(
                     horizontal: 12,
@@ -137,10 +136,7 @@ class CategorizedActionList<C, A extends SkillAction> extends StatelessWidget {
                           color: Style.textColorSecondary,
                         ),
                       const SizedBox(width: 8),
-                      CachedImage(
-                        assetPath: categoryMedia(category),
-                        size: 24,
-                      ),
+                      CachedImage(assetPath: categoryMedia(category), size: 24),
                       const SizedBox(width: 8),
                       Text(
                         categoryName(category),
@@ -190,9 +186,7 @@ class CategorizedActionList<C, A extends SkillAction> extends StatelessWidget {
                           children: [
                             const Text(
                               'Unlocked at ',
-                              style: TextStyle(
-                                color: Style.textColorSecondary,
-                              ),
+                              style: TextStyle(color: Style.textColorSecondary),
                             ),
                             SkillImage(skill: skill!, size: 14),
                             Text(
