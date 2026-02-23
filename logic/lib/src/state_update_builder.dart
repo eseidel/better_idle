@@ -543,6 +543,18 @@ class StateUpdateBuilder {
     }
   }
 
+  /// Rolls for a pet drop on dungeon completion.
+  void rollDungeonPet(MelvorId dungeonId, Random random) {
+    final dungeon = registries.combat.dungeons.byId(dungeonId);
+    final pet = dungeon.pet;
+    if (pet == null) return;
+    if (_state.unlockedPets.contains(pet.petId)) return;
+    if (random.nextInt(pet.weight) != 0) return;
+    final updated = {..._state.unlockedPets, pet.petId};
+    _state = _state.copyWith(unlockedPets: updated);
+    _changes = _changes.recordingPetUnlocked(pet.petId);
+  }
+
   /// Updates the active slayer task (e.g., recording a kill).
   void updateSlayerTask(SlayerTask task) {
     _state = _state.copyWith(slayerTask: task);

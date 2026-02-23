@@ -312,6 +312,7 @@ class GlobalState {
     this.miningState = const MiningPersistentState.empty(),
     this.plotStates = const {},
     this.unlockedPlots = const {},
+    this.unlockedPets = const {},
     this.dungeonCompletions = const {},
     this.strongholdCompletions = const {},
     this.slayerTaskCompletions = const {},
@@ -371,6 +372,7 @@ class GlobalState {
     MiningPersistentState miningState = const MiningPersistentState.empty(),
     Map<MelvorId, PlotState> plotStates = const {},
     Set<MelvorId> unlockedPlots = const {},
+    Set<MelvorId> unlockedPets = const {},
     Map<MelvorId, int> dungeonCompletions = const {},
     Map<MelvorId, int> strongholdCompletions = const {},
     Map<MelvorId, int> slayerTaskCompletions = const {},
@@ -407,6 +409,7 @@ class GlobalState {
       miningState: miningState,
       plotStates: plotStates,
       unlockedPlots: unlockedPlots,
+      unlockedPets: unlockedPets,
       dungeonCompletions: dungeonCompletions,
       strongholdCompletions: strongholdCompletions,
       slayerTaskCompletions: slayerTaskCompletions,
@@ -469,6 +472,11 @@ class GlobalState {
           const {},
       unlockedPlots =
           (json['unlockedPlots'] as List<dynamic>?)
+              ?.map((e) => MelvorId.fromJson(e as String))
+              .toSet() ??
+          const {},
+      unlockedPets =
+          (json['unlockedPets'] as List<dynamic>?)
               ?.map((e) => MelvorId.fromJson(e as String))
               .toSet() ??
           const {},
@@ -652,6 +660,7 @@ class GlobalState {
         (key, value) => MapEntry(key.toJson(), value.toJson()),
       ),
       'unlockedPlots': unlockedPlots.map((e) => e.toJson()).toList(),
+      'unlockedPets': unlockedPets.map((e) => e.toJson()).toList(),
       'dungeonCompletions': dungeonCompletions.map(
         (key, value) => MapEntry(key.toJson(), value),
       ),
@@ -738,6 +747,9 @@ class GlobalState {
 
   /// The set of unlocked farming plots.
   final Set<MelvorId> unlockedPlots;
+
+  /// The set of unlocked pets (from dungeon completions).
+  final Set<MelvorId> unlockedPets;
 
   /// Map of dungeon ID to number of completions.
   final Map<MelvorId, int> dungeonCompletions;
@@ -1876,6 +1888,7 @@ class GlobalState {
       miningState: miningState,
       plotStates: plotStates,
       unlockedPlots: unlockedPlots,
+      unlockedPets: unlockedPets,
       dungeonCompletions: dungeonCompletions,
       itemCharges: itemCharges,
       selectedPotions: selectedPotions,
@@ -3474,6 +3487,7 @@ class GlobalState {
     MiningPersistentState? miningState,
     Map<MelvorId, PlotState>? plotStates,
     Set<MelvorId>? unlockedPlots,
+    Set<MelvorId>? unlockedPets,
     Map<MelvorId, int>? dungeonCompletions,
     Map<MelvorId, int>? strongholdCompletions,
     Map<MelvorId, int>? slayerTaskCompletions,
@@ -3507,6 +3521,7 @@ class GlobalState {
       miningState: miningState ?? this.miningState,
       plotStates: plotStates ?? this.plotStates,
       unlockedPlots: unlockedPlots ?? this.unlockedPlots,
+      unlockedPets: unlockedPets ?? this.unlockedPets,
       dungeonCompletions: dungeonCompletions ?? this.dungeonCompletions,
       strongholdCompletions:
           strongholdCompletions ?? this.strongholdCompletions,

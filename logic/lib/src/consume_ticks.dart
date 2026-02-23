@@ -1272,6 +1272,9 @@ ForegroundResult _restartOrStop(
           seqContext.sequenceType,
           seqContext.sequenceId,
         );
+        if (seqContext.sequenceType == SequenceType.dungeon) {
+          builder.rollDungeonPet(seqContext.sequenceId, random);
+        }
       }
 
       // Advance to the next monster (wraps to 0 after last)

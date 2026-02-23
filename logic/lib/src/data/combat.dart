@@ -368,6 +368,15 @@ class CombatAreaRegistry {
   CombatArea? byId(MelvorId id) => _byId[id];
 }
 
+/// A pet drop from completing a dungeon.
+@immutable
+class DungeonPetDrop {
+  const DungeonPetDrop({required this.petId, required this.weight});
+
+  final MelvorId petId;
+  final int weight;
+}
+
 /// A dungeon (similar structure to combat area).
 @immutable
 class Dungeon {
@@ -377,6 +386,7 @@ class Dungeon {
     required this.monsterIds,
     this.difficulty = const [],
     this.media,
+    this.pet,
   });
 
   factory Dungeon.fromJson(
@@ -395,6 +405,17 @@ class Dungeon {
     final difficultyRaw = json['difficulty'] as List<dynamic>? ?? [];
     final difficulty = difficultyRaw.map((e) => e as int).toList();
 
+    final petJson = json['pet'] as Map<String, dynamic>?;
+    final pet = petJson != null
+        ? DungeonPetDrop(
+            petId: MelvorId.fromJsonWithNamespace(
+              petJson['petID'] as String,
+              defaultNamespace: namespace,
+            ),
+            weight: petJson['weight'] as int,
+          )
+        : null;
+
     return Dungeon(
       id: MelvorId.fromJsonWithNamespace(
         json['id'] as String,
@@ -404,6 +425,7 @@ class Dungeon {
       monsterIds: monsterIds,
       difficulty: difficulty,
       media: json['media'] as String?,
+      pet: pet,
     );
   }
 
@@ -412,6 +434,7 @@ class Dungeon {
   final List<MelvorId> monsterIds;
   final List<int> difficulty;
   final String? media;
+  final DungeonPetDrop? pet;
 }
 
 /// Registry for dungeons.
