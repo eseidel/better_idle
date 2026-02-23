@@ -385,6 +385,8 @@ class Dungeon {
     required this.name,
     required this.monsterIds,
     this.difficulty = const [],
+    this.rewardItemIds = const [],
+    this.dropBones = true,
     this.media,
     this.pet,
   });
@@ -405,6 +407,16 @@ class Dungeon {
     final difficultyRaw = json['difficulty'] as List<dynamic>? ?? [];
     final difficulty = difficultyRaw.map((e) => e as int).toList();
 
+    final rewardItemIdsRaw = json['rewardItemIDs'] as List<dynamic>? ?? [];
+    final rewardItemIds = rewardItemIdsRaw
+        .map(
+          (id) => MelvorId.fromJsonWithNamespace(
+            id as String,
+            defaultNamespace: namespace,
+          ),
+        )
+        .toList();
+
     final petJson = json['pet'] as Map<String, dynamic>?;
     final pet = petJson != null
         ? DungeonPetDrop(
@@ -424,6 +436,8 @@ class Dungeon {
       name: json['name'] as String,
       monsterIds: monsterIds,
       difficulty: difficulty,
+      rewardItemIds: rewardItemIds,
+      dropBones: json['dropBones'] as bool? ?? true,
       media: json['media'] as String?,
       pet: pet,
     );
@@ -433,6 +447,13 @@ class Dungeon {
   final String name;
   final List<MelvorId> monsterIds;
   final List<int> difficulty;
+
+  /// Items rewarded on dungeon completion (e.g. chests, scrolls).
+  final List<MelvorId> rewardItemIds;
+
+  /// Whether monsters in this dungeon drop bones.
+  final bool dropBones;
+
   final String? media;
   final DungeonPetDrop? pet;
 }

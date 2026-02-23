@@ -2091,12 +2091,9 @@ void main() {
       consumeTicks(builder, 300, random: random);
       state = builder.build();
 
-      // Should have killed monsters (bones in loot indicates kills)
-      final bonesInLoot = state.loot.stacks
-          .where((s) => s.item.id == bones.id)
-          .fold(0, (sum, s) => sum + s.count);
+      // GP gained indicates monsters were killed
       expect(
-        bonesInLoot,
+        builder.changes.currenciesGained[Currency.gp],
         greaterThan(0),
         reason: 'Should have killed monsters',
       );
@@ -2141,7 +2138,7 @@ void main() {
       expect(combatState?.dungeonId, chickenCoopDungeon.id);
     });
 
-    test('dungeon drops loot from each monster killed', () {
+    test('dungeon monsters do not drop personal loot tables', () {
       const highSkill = SkillState(xp: 1000000, masteryPoolXp: 0);
       var state = GlobalState.test(
         testRegistries,
@@ -2160,14 +2157,28 @@ void main() {
       consumeTicks(builder, 10000, random: random);
       state = builder.build();
 
-      // Should have bones in loot from each chicken killed
+      final completions = state.dungeonCompletions[chickenCoopDungeon.id] ?? 0;
+      expect(completions, greaterThanOrEqualTo(1));
+
+      // Chicken Coop has dropBones: false — no bones should drop.
       final bonesInLoot = state.loot.stacks
           .where((s) => s.item.id == bones.id)
           .fold(0, (sum, s) => sum + s.count);
-      // Chicken coop has 6 chickens, so we should have ~6 bones per run
-      expect(bonesInLoot, greaterThanOrEqualTo(6));
+      expect(bonesInLoot, 0, reason: 'dropBones is false');
 
-      // GP should have been collected (goes directly to currency, not loot)
+      // Dungeon monsters should not drop their personal loot tables.
+      // Only the dungeon reward items (Egg_Chest) should appear in loot.
+      final eggChest = testItems.byName('Egg Chest');
+      final rewardCount = state.loot.stacks
+          .where((s) => s.item.id == eggChest.id)
+          .fold(0, (sum, s) => sum + s.count);
+      expect(
+        rewardCount,
+        completions,
+        reason: 'Should get one Egg Chest per dungeon completion',
+      );
+
+      // GP still drops from individual monsters.
       expect(builder.changes.currenciesGained[Currency.gp], greaterThan(0));
     });
 
