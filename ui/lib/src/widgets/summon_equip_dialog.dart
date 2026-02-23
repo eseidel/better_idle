@@ -82,7 +82,8 @@ class SummonEquipDialog extends StatelessWidget {
       if (a1 == null || a2 == null) continue;
 
       // At least one familiar must be relevant to this skill.
-      final relevant = a1.markSkillIds.contains(skill.id) ||
+      final relevant =
+          a1.markSkillIds.contains(skill.id) ||
           a2.markSkillIds.contains(skill.id);
       if (!relevant) continue;
 
@@ -93,10 +94,12 @@ class SummonEquipDialog extends StatelessWidget {
       // Player must have both tablets (in inventory or equipped).
       final t1 = state.registries.items.byId(a1.productId);
       final t2 = state.registries.items.byId(a2.productId);
-      final has1 = state.inventory.countOfItem(t1) > 0 ||
+      final has1 =
+          state.inventory.countOfItem(t1) > 0 ||
           equipment.gearInSlot(EquipmentSlot.summon1)?.id == t1.id ||
           equipment.gearInSlot(EquipmentSlot.summon2)?.id == t1.id;
-      final has2 = state.inventory.countOfItem(t2) > 0 ||
+      final has2 =
+          state.inventory.countOfItem(t2) > 0 ||
           equipment.gearInSlot(EquipmentSlot.summon1)?.id == t2.id ||
           equipment.gearInSlot(EquipmentSlot.summon2)?.id == t2.id;
       if (!has1 || !has2) continue;
@@ -154,10 +157,7 @@ class SummonEquipDialog extends StatelessWidget {
                       ),
                     ),
                     for (final es in equippableSynergies)
-                      _SynergyCard(
-                        equippableSynergy: es,
-                        skill: skill,
-                      ),
+                      _SynergyCard(equippableSynergy: es, skill: skill),
                   ],
                   if (individualTablets.isNotEmpty)
                     _IndividualTabletSection(
@@ -179,10 +179,7 @@ class SummonEquipDialog extends StatelessWidget {
 
 /// Card displaying a synergy pair with effects and an equip button.
 class _SynergyCard extends StatelessWidget {
-  const _SynergyCard({
-    required this.equippableSynergy,
-    required this.skill,
-  });
+  const _SynergyCard({required this.equippableSynergy, required this.skill});
 
   final _EquippableSynergy equippableSynergy;
   final Skill skill;
@@ -198,7 +195,8 @@ class _SynergyCard extends StatelessWidget {
 
     // Check if this synergy is already active.
     final activeSynergy = state.getActiveSynergy();
-    final isActive = activeSynergy != null &&
+    final isActive =
+        activeSynergy != null &&
         activeSynergy.matches(es.action1.summonId, es.action2.summonId);
 
     return Card(
@@ -293,10 +291,7 @@ class _SynergyCard extends StatelessWidget {
 
 /// Section listing individual skill-relevant tablets.
 class _IndividualTabletSection extends StatelessWidget {
-  const _IndividualTabletSection({
-    required this.tablets,
-    required this.skill,
-  });
+  const _IndividualTabletSection({required this.tablets, required this.skill});
 
   final List<Item> tablets;
   final Skill skill;
@@ -318,10 +313,7 @@ class _IndividualTabletSection extends StatelessWidget {
 ///
 /// Equips to the first available summon slot (prefers empty, then slot 1).
 class _IndividualTabletTile extends StatelessWidget {
-  const _IndividualTabletTile({
-    required this.item,
-    required this.skill,
-  });
+  const _IndividualTabletTile({required this.item, required this.skill});
 
   final Item item;
   final Skill skill;
@@ -339,8 +331,9 @@ class _IndividualTabletTile extends StatelessWidget {
 
     // Pick the best slot: prefer empty, fall back to slot 1.
     final slot1Empty = equipment.gearInSlot(EquipmentSlot.summon1) == null;
-    final targetSlot =
-        slot1Empty ? EquipmentSlot.summon1 : EquipmentSlot.summon2;
+    final targetSlot = slot1Empty
+        ? EquipmentSlot.summon1
+        : EquipmentSlot.summon2;
 
     return ListTile(
       dense: true,
@@ -361,15 +354,13 @@ class _IndividualTabletTile extends StatelessWidget {
       trailing: isEquipped
           ? const Icon(Icons.check, size: 20)
           : unmetReqs.isEmpty
-              ? OutlinedButton(
-                  onPressed: () {
-                    context.dispatch(
-                      EquipGearAction(item: item, slot: targetSlot),
-                    );
-                  },
-                  child: const Text('Equip'),
-                )
-              : null,
+          ? OutlinedButton(
+              onPressed: () {
+                context.dispatch(EquipGearAction(item: item, slot: targetSlot));
+              },
+              child: const Text('Equip'),
+            )
+          : null,
     );
   }
 }
