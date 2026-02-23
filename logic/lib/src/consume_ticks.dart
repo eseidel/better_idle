@@ -1286,7 +1286,7 @@ ForegroundResult _restartOrStop(
         if (dungeon != null) {
           for (final rewardId in dungeon.rewardItemIds) {
             final rewardItem = builder.registries.items.byId(rewardId);
-            builder.addToLoot(ItemStack(rewardItem, count: 1), isBones: false);
+            builder.addInventory(ItemStack(rewardItem, count: 1));
           }
           builder.rollDungeonPet(seqContext.sequenceId, random);
         }

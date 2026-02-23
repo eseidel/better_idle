@@ -2167,13 +2167,10 @@ void main() {
       expect(bonesInLoot, 0, reason: 'dropBones is false');
 
       // Dungeon monsters should not drop their personal loot tables.
-      // Only the dungeon reward items (Egg_Chest) should appear in loot.
+      // Dungeon reward items (Egg_Chest) go straight to inventory.
       final eggChest = testItems.byName('Egg Chest');
-      final rewardCount = state.loot.stacks
-          .where((s) => s.item.id == eggChest.id)
-          .fold(0, (sum, s) => sum + s.count);
       expect(
-        rewardCount,
+        state.inventory.countOfItem(eggChest),
         completions,
         reason: 'Should get one Egg Chest per dungeon completion',
       );
