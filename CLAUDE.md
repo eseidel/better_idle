@@ -31,3 +31,4 @@ Inspired by Melvor Idle, built with Flutter for mobile. Two packages:
 
 - Create tools in the `tool` directory so they can use package: imports.
 - Never support legacy paths or formats unless explicitly requested.
+- Run `dart format .` from the repo root before committing. CI enforces formatting.
