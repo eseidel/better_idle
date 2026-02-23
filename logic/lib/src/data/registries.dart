@@ -4,6 +4,7 @@ import 'package:logic/src/data/cache.dart';
 import 'package:logic/src/data/item_upgrades.dart';
 import 'package:logic/src/data/melvor_data.dart';
 import 'package:logic/src/data/melvor_id.dart';
+import 'package:logic/src/data/pets.dart';
 import 'package:logic/src/data/shop.dart';
 import 'package:logic/src/data/slayer.dart';
 import 'package:logic/src/data/summoning_synergy.dart';
@@ -60,6 +61,7 @@ class Registries {
     required this.modifierMetadata,
     required this.itemUpgrades,
     required this.slayer,
+    required this.pets,
     required Map<MelvorId, int> bankSortIndex,
   }) : _bankSortIndex = bankSortIndex,
        _testActions = null;
@@ -136,7 +138,8 @@ class Registries {
     required Map<MelvorId, int> bankSortIndex,
     required List<Action> testActions,
     CombatRegistry? combat,
-  }) : _bankSortIndex = bankSortIndex,
+  }) : pets = const PetRegistry.empty(),
+       _bankSortIndex = bankSortIndex,
        _testActions = testActions,
        woodcutting = const WoodcuttingRegistry([]),
        mining = const MiningRegistry([]),
@@ -201,6 +204,7 @@ class Registries {
   final AstrologyRegistry astrology;
   final AltMagicRegistry altMagic;
   final CombatRegistry combat;
+  final PetRegistry pets;
 
   // Convenience getters that delegate to specialized registries.
   List<FishingArea> get fishingAreas => fishing.areas;

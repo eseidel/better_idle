@@ -2,6 +2,7 @@ import 'package:logic/src/data/actions.dart';
 import 'package:logic/src/data/cache.dart';
 import 'package:logic/src/data/item_upgrades.dart';
 import 'package:logic/src/data/melvor_id.dart';
+import 'package:logic/src/data/pets.dart';
 import 'package:logic/src/data/registries.dart';
 import 'package:logic/src/data/shop.dart';
 import 'package:logic/src/data/slayer.dart';
@@ -218,6 +219,9 @@ class MelvorData {
 
     // Parse item upgrades (including generated potion upgrades)
     _itemUpgrades = parseItemUpgrades(dataFiles, _items);
+
+    // Parse pets (at data root, not skill-based)
+    _pets = parsePets(dataFiles);
   }
 
   /// Loads MelvorData from an existing cache instance.
@@ -264,6 +268,7 @@ class MelvorData {
   late final ModifierMetadataRegistry _modifierMetadata;
   late final ItemUpgradeRegistry _itemUpgrades;
   late final SlayerRegistry _slayer;
+  late final PetRegistry _pets;
 
   /// Creates a Registries instance from this MelvorData.
   Registries toRegistries() {
@@ -298,6 +303,7 @@ class MelvorData {
       modifierMetadata: _modifierMetadata,
       itemUpgrades: _itemUpgrades,
       slayer: _slayer,
+      pets: _pets,
     );
   }
 }
@@ -1572,4 +1578,24 @@ List<SlayerTaskCategory> parseSlayerTaskCategories(
         (json) => SlayerTaskCategory.fromJson(json, namespace: namespace),
       ) ??
       [];
+}
+
+/// Parses all pet data from multiple data files.
+PetRegistry parsePets(List<Map<String, dynamic>> dataFiles) {
+  final pets = <Pet>[];
+
+  for (final json in dataFiles) {
+    final namespace = json['namespace'] as String;
+    final data = json['data'] as Map<String, dynamic>?;
+    if (data == null) continue;
+
+    final petsJson = data['pets'] as List<dynamic>? ?? [];
+    for (final petJson in petsJson) {
+      pets.add(
+        Pet.fromJson(petJson as Map<String, dynamic>, namespace: namespace),
+      );
+    }
+  }
+
+  return PetRegistry(pets);
 }

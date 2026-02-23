@@ -16,6 +16,7 @@ import 'package:ui/src/screens/fishing.dart';
 import 'package:ui/src/screens/fletching.dart';
 import 'package:ui/src/screens/herblore.dart';
 import 'package:ui/src/screens/mining.dart';
+import 'package:ui/src/screens/pets_log.dart';
 import 'package:ui/src/screens/runecrafting.dart';
 import 'package:ui/src/screens/save_slots.dart';
 import 'package:ui/src/screens/shop.dart';
@@ -81,6 +82,7 @@ final GoRouter router = GoRouter(
         _route('shop', const ShopPage()),
         _route('debug', const DebugPage()),
         _route('statistics', const StatisticsPage()),
+        _route('pets_log', const PetsLogPage()),
         _route('save_slots', const SaveSlotsPage()),
       ],
     ),
