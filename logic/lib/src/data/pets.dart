@@ -1,4 +1,5 @@
 import 'package:logic/src/data/melvor_id.dart';
+import 'package:logic/src/types/modifier.dart';
 import 'package:meta/meta.dart';
 
 /// A pet that can be found/unlocked during gameplay.
@@ -9,9 +10,11 @@ class Pet {
     required this.name,
     required this.media,
     required this.ignoreCompletion,
+    required this.modifiers,
   });
 
   factory Pet.fromJson(Map<String, dynamic> json, {required String namespace}) {
+    final modifiersJson = json['modifiers'] as Map<String, dynamic>? ?? {};
     return Pet(
       id: MelvorId.fromJsonWithNamespace(
         json['id'] as String,
@@ -20,6 +23,7 @@ class Pet {
       name: json['name'] as String,
       media: json['media'] as String?,
       ignoreCompletion: json['ignoreCompletion'] as bool? ?? false,
+      modifiers: ModifierDataSet.fromJson(modifiersJson, namespace: namespace),
     );
   }
 
@@ -27,6 +31,9 @@ class Pet {
   final String name;
   final String? media;
   final bool ignoreCompletion;
+
+  /// Modifiers provided when this pet is unlocked.
+  final ModifierDataSet modifiers;
 }
 
 /// Registry of all pets in the game.

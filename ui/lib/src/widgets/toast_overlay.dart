@@ -6,6 +6,7 @@ import 'package:ui/src/services/toast_service.dart';
 import 'package:ui/src/widgets/cached_image.dart';
 import 'package:ui/src/widgets/context_extensions.dart';
 import 'package:ui/src/widgets/item_image.dart';
+import 'package:ui/src/widgets/pet_found_dialog.dart';
 import 'package:ui/src/widgets/router.dart' show navigatorKey;
 import 'package:ui/src/widgets/skill_image.dart';
 import 'package:ui/src/widgets/style.dart';
@@ -31,7 +32,10 @@ class _ToastOverlayState extends State<ToastOverlay>
   StreamSubscription<Changes>? _toastSubscription;
   StreamSubscription<String>? _errorSubscription;
   StreamSubscription<Counts<MelvorId>>? _deathSubscription;
+  StreamSubscription<MelvorId>? _petSubscription;
   bool _isDeathDialogShowing = false;
+  bool _isPetDialogShowing = false;
+  final _petQueue = <MelvorId>[];
 
   @override
   void initState() {
@@ -45,6 +49,9 @@ class _ToastOverlayState extends State<ToastOverlay>
     _toastSubscription = widget.service.toastStream.listen(_showToast);
     _errorSubscription = widget.service.errorStream.listen(_showError);
     _deathSubscription = widget.service.deathStream.listen(_showDeathDialog);
+    _petSubscription = widget.service.petUnlockedStream.listen(
+      _showPetFoundDialog,
+    );
   }
 
   @override
@@ -52,6 +59,7 @@ class _ToastOverlayState extends State<ToastOverlay>
     _toastSubscription?.cancel();
     _errorSubscription?.cancel();
     _deathSubscription?.cancel();
+    _petSubscription?.cancel();
     _controller.dispose();
     _hideTimer?.cancel();
     super.dispose();
@@ -74,6 +82,35 @@ class _ToastOverlayState extends State<ToastOverlay>
     ).then((_) {
       if (mounted) {
         _isDeathDialogShowing = false;
+      }
+    });
+  }
+
+  void _showPetFoundDialog(MelvorId petId) {
+    _petQueue.add(petId);
+    _showNextPetDialog();
+  }
+
+  void _showNextPetDialog() {
+    if (_isPetDialogShowing || _petQueue.isEmpty) return;
+    final navContext = navigatorKey.currentContext;
+    if (navContext == null) return;
+    _isPetDialogShowing = true;
+
+    final petId = _petQueue.removeAt(0);
+    final registries = navContext.state.registries;
+    final pet = registries.pets.byId(petId);
+
+    showDialog<void>(
+      context: navContext,
+      builder: (context) => PetFoundDialog(
+        pet: pet,
+        modifierMetadata: registries.modifierMetadata,
+      ),
+    ).then((_) {
+      if (mounted) {
+        _isPetDialogShowing = false;
+        _showNextPetDialog();
       }
     });
   }

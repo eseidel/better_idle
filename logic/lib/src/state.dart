@@ -1121,6 +1121,7 @@ class GlobalState {
       activeSynergy: applicableSynergy,
       agility: agility,
       astrology: astrology,
+      unlockedPetIds: unlockedPets,
       currentActionId: action.id,
       conditionContext: _withActivePotions(conditionContext),
     );
@@ -1188,6 +1189,7 @@ class GlobalState {
       activeSynergy: applicableSynergy,
       agility: agility,
       astrology: astrology,
+      unlockedPetIds: unlockedPets,
       combatTypeSkills: attackStyle.combatType.skills,
       conditionContext: _withActivePotions(conditionContext),
       slayerAreaEffect: areaEffect,
@@ -1218,6 +1220,7 @@ class GlobalState {
       activeSynergy: _getActiveSynergy(),
       agility: agility,
       astrology: astrology,
+      unlockedPetIds: unlockedPets,
       conditionContext: _withActivePotions(conditionContext),
     );
   }
