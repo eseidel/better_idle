@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:logic/logic.dart';
+import 'package:ui/src/widgets/context_extensions.dart';
 import 'package:ui/src/widgets/equipment_slots.dart';
 import 'package:ui/src/widgets/expandable_fab.dart';
 import 'package:ui/src/widgets/quick_equip_dialog.dart';
+import 'package:ui/src/widgets/summon_equip_dialog.dart';
 
 /// An expandable FAB for skill pages with Quick Equip and Equipment
 /// actions.
@@ -13,22 +15,27 @@ class SkillFab extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ExpandableFab(
-      actions: [
-        ExpandableFabAction(
-          icon: Icons.grid_view,
-          label: 'Equipment',
-          onPressed: () => showDialog<void>(
-            context: context,
-            builder: (_) => const EquipmentGridDialog(),
-          ),
+    final actions = [
+      ExpandableFabAction(
+        icon: Icons.grid_view,
+        label: 'Equipment',
+        onPressed: () => showDialog<void>(
+          context: context,
+          builder: (_) => const EquipmentGridDialog(),
         ),
+      ),
+      ExpandableFabAction(
+        icon: Icons.shield,
+        label: 'Quick Equip',
+        onPressed: () => showQuickEquipDialog(context, skill),
+      ),
+      if (hasSummonContent(context.state, skill))
         ExpandableFabAction(
-          icon: Icons.shield,
-          label: 'Quick Equip',
-          onPressed: () => showQuickEquipDialog(context, skill),
+          icon: Icons.auto_awesome,
+          label: 'Summons',
+          onPressed: () => showSummonEquipDialog(context, skill),
         ),
-      ],
-    );
+    ];
+    return ExpandableFab(actions: actions);
   }
 }
