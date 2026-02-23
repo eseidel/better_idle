@@ -270,9 +270,9 @@ class NavigationContent extends StatelessWidget {
           const ExpansionTile(
             dense: true,
             visualDensity: VisualDensity.compact,
-            leading: const Icon(Icons.menu_book, size: 24),
-            title: const Text('Completion Log'),
-            children: const [
+            leading: Icon(Icons.menu_book, size: 24),
+            title: Text('Completion Log'),
+            children: [
               _NavTile(
                 routeName: 'pets_log',
                 leading: Icon(Icons.pets),
