@@ -26,6 +26,7 @@ export 'src/data/item_upgrades.dart';
 export 'src/data/items.dart';
 export 'src/data/melvor_data.dart';
 export 'src/data/melvor_id.dart';
+export 'src/data/pets.dart';
 export 'src/data/registries.dart';
 export 'src/data/shop.dart';
 export 'src/data/slayer.dart';

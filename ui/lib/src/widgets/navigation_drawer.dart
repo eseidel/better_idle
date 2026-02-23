@@ -267,6 +267,19 @@ class NavigationContent extends StatelessWidget {
             leading: Icon(Icons.save),
             title: Text('Save Slots'),
           ),
+          ExpansionTile(
+            dense: true,
+            visualDensity: VisualDensity.compact,
+            leading: const Icon(Icons.menu_book, size: 24),
+            title: const Text('Completion Log'),
+            children: const [
+              _NavTile(
+                routeName: 'pets_log',
+                leading: Icon(Icons.pets),
+                title: Text('Pets'),
+              ),
+            ],
+          ),
           const Divider(),
           const _NavTile(
             routeName: 'debug',
