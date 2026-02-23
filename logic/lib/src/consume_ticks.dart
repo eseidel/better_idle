@@ -1237,22 +1237,37 @@ ForegroundResult _restartOrStop(
 
   // Check if monster died
   if (monsterHp <= 0) {
+    // Detect dungeon/stronghold context early — it affects drop behavior.
+    final seqContext = switch (builder.state.activeActivity) {
+      CombatActivity(:final context) when context is SequenceCombatContext =>
+        context,
+      _ => null,
+    };
+    final isDungeon = seqContext?.sequenceType == SequenceType.dungeon;
+    final dungeon = isDungeon
+        ? builder.registries.dungeons.byId(seqContext!.sequenceId)
+        : null;
+
     final gpDrop = action.rollGpDrop(random);
     builder.addCurrency(Currency.gp, gpDrop);
 
-    // Drop bones if the monster has them (bones stack in loot)
+    // Drop bones if the monster has them (bones stack in loot).
+    // In dungeons, bones only drop when the dungeon's dropBones flag is true.
     final bones = action.bones;
-    if (bones != null) {
+    if (bones != null && (dungeon?.dropBones ?? true)) {
       final item = builder.registries.items.byId(bones.itemId);
       builder.addToLoot(ItemStack(item, count: bones.quantity), isBones: true);
     }
 
-    // Roll loot table if present (regular loot does NOT stack)
-    final lootTable = action.lootTable;
-    if (lootTable != null) {
-      final loot = lootTable.roll(builder.registries.items, random);
-      if (loot != null) {
-        builder.addToLoot(loot, isBones: false);
+    // Roll loot table if present (regular loot does NOT stack).
+    // Dungeon monsters never drop their personal loot tables.
+    if (!isDungeon) {
+      final lootTable = action.lootTable;
+      if (lootTable != null) {
+        final loot = lootTable.roll(builder.registries.items, random);
+        if (loot != null) {
+          builder.addToLoot(loot, isBones: false);
+        }
       }
     }
 
@@ -1260,18 +1275,20 @@ ForegroundResult _restartOrStop(
     builder.trackMonsterKill(action.id.localId);
 
     // Handle dungeon/stronghold sequence progression
-    final seqContext = switch (builder.state.activeActivity) {
-      CombatActivity(:final context) when context is SequenceCombatContext =>
-        context,
-      _ => null,
-    };
     if (seqContext != null) {
       // If last monster was killed, increment completion count
+      // and grant dungeon reward items.
       if (seqContext.isLastMonster) {
         builder.incrementSequenceCompletion(
           seqContext.sequenceType,
           seqContext.sequenceId,
         );
+        if (dungeon != null) {
+          for (final rewardId in dungeon.rewardItemIds) {
+            final rewardItem = builder.registries.items.byId(rewardId);
+            builder.addToLoot(ItemStack(rewardItem, count: 1), isBones: false);
+          }
+        }
       }
 
       // Advance to the next monster (wraps to 0 after last)
