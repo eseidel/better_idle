@@ -16,6 +16,9 @@ class ToastService {
   final _petUnlockedController = StreamController<MelvorId>.broadcast();
   Stream<MelvorId> get petUnlockedStream => _petUnlockedController.stream;
 
+  final _skillMilestoneController = StreamController<Skill>.broadcast();
+  Stream<Skill> get skillMilestoneStream => _skillMilestoneController.stream;
+
   void showToast(Changes changes) {
     _toastController.add(changes);
   }
@@ -30,6 +33,10 @@ class ToastService {
 
   void showPetUnlocked(MelvorId petId) {
     _petUnlockedController.add(petId);
+  }
+
+  void showSkillMilestone(Skill skill) {
+    _skillMilestoneController.add(skill);
   }
 }
 

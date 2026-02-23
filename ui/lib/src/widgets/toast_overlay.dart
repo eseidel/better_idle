@@ -9,6 +9,7 @@ import 'package:ui/src/widgets/item_image.dart';
 import 'package:ui/src/widgets/pet_found_dialog.dart';
 import 'package:ui/src/widgets/router.dart' show navigatorKey;
 import 'package:ui/src/widgets/skill_image.dart';
+import 'package:ui/src/widgets/skill_milestone_dialog.dart';
 import 'package:ui/src/widgets/style.dart';
 import 'package:ui/src/widgets/you_died_dialog.dart';
 
@@ -33,9 +34,12 @@ class _ToastOverlayState extends State<ToastOverlay>
   StreamSubscription<String>? _errorSubscription;
   StreamSubscription<Counts<MelvorId>>? _deathSubscription;
   StreamSubscription<MelvorId>? _petSubscription;
+  StreamSubscription<Skill>? _skillMilestoneSubscription;
   bool _isDeathDialogShowing = false;
   bool _isPetDialogShowing = false;
   final _petQueue = <MelvorId>[];
+  bool _isSkillMilestoneDialogShowing = false;
+  final _skillMilestoneQueue = <Skill>[];
 
   @override
   void initState() {
@@ -52,6 +56,9 @@ class _ToastOverlayState extends State<ToastOverlay>
     _petSubscription = widget.service.petUnlockedStream.listen(
       _showPetFoundDialog,
     );
+    _skillMilestoneSubscription = widget.service.skillMilestoneStream.listen(
+      _showSkillMilestoneDialog,
+    );
   }
 
   @override
@@ -60,6 +67,7 @@ class _ToastOverlayState extends State<ToastOverlay>
     _errorSubscription?.cancel();
     _deathSubscription?.cancel();
     _petSubscription?.cancel();
+    _skillMilestoneSubscription?.cancel();
     _controller.dispose();
     _hideTimer?.cancel();
     super.dispose();
@@ -111,6 +119,30 @@ class _ToastOverlayState extends State<ToastOverlay>
       if (mounted) {
         _isPetDialogShowing = false;
         _showNextPetDialog();
+      }
+    });
+  }
+
+  void _showSkillMilestoneDialog(Skill skill) {
+    _skillMilestoneQueue.add(skill);
+    _showNextSkillMilestoneDialog();
+  }
+
+  void _showNextSkillMilestoneDialog() {
+    if (_isSkillMilestoneDialogShowing || _skillMilestoneQueue.isEmpty) return;
+    final navContext = navigatorKey.currentContext;
+    if (navContext == null) return;
+    _isSkillMilestoneDialogShowing = true;
+
+    final skill = _skillMilestoneQueue.removeAt(0);
+
+    showDialog<void>(
+      context: navContext,
+      builder: (context) => SkillMilestoneDialog(skill: skill),
+    ).then((_) {
+      if (mounted) {
+        _isSkillMilestoneDialogShowing = false;
+        _showNextSkillMilestoneDialog();
       }
     });
   }
