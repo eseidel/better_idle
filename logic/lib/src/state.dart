@@ -324,7 +324,6 @@ class GlobalState {
     this.stunned = const StunnedState.fresh(),
     this.attackStyle = AttackStyle.stab,
     this.readItems = const <MelvorId>{},
-    this.unlockedPets = const <MelvorId>{},
     this.agility = const AgilityState.empty(),
     this.cooking = const CookingState.empty(),
     this.summoning = const SummoningState.empty(),
@@ -397,7 +396,6 @@ class GlobalState {
     AstrologyState astrology = const AstrologyState.empty(),
     Map<Skill, MelvorId> selectedSkillActions = const {},
     Set<MelvorId> readItems = const {},
-    Set<MelvorId> unlockedPets = const {},
   }) {
     // Support both gp parameter (for existing tests) and currencies map
     final currenciesMap = currencies ?? (gp > 0 ? {Currency.gp: gp} : const {});
@@ -434,7 +432,6 @@ class GlobalState {
       astrology: astrology,
       selectedSkillActions: selectedSkillActions,
       readItems: readItems,
-      unlockedPets: unlockedPets,
     );
   }
 
@@ -475,11 +472,6 @@ class GlobalState {
           const {},
       unlockedPlots =
           (json['unlockedPlots'] as List<dynamic>?)
-              ?.map((e) => MelvorId.fromJson(e as String))
-              .toSet() ??
-          const {},
-      unlockedPets =
-          (json['unlockedPets'] as List<dynamic>?)
               ?.map((e) => MelvorId.fromJson(e as String))
               .toSet() ??
           const {},
@@ -709,7 +701,6 @@ class GlobalState {
         (key, value) => MapEntry(key.name, value.toJson()),
       ),
       'readItems': readItems.map((e) => e.toJson()).toList(),
-      'unlockedPets': unlockedPets.map((e) => e.toJson()).toList(),
     };
   }
 
@@ -872,9 +863,6 @@ class GlobalState {
   /// Set of item IDs that have been read (e.g., Message in a Bottle).
   /// Reading certain items unlocks content like secret fishing areas.
   final Set<MelvorId> readItems;
-
-  /// Set of pet IDs that the player has unlocked.
-  final Set<MelvorId> unlockedPets;
 
   /// The player's health state.
   final HealthState health;
@@ -3524,7 +3512,6 @@ class GlobalState {
     AstrologyState? astrology,
     Map<Skill, MelvorId>? selectedSkillActions,
     Set<MelvorId>? readItems,
-    Set<MelvorId>? unlockedPets,
   }) {
     return GlobalState(
       registries: registries,
@@ -3562,7 +3549,6 @@ class GlobalState {
       astrology: astrology ?? this.astrology,
       selectedSkillActions: selectedSkillActions ?? this.selectedSkillActions,
       readItems: readItems ?? this.readItems,
-      unlockedPets: unlockedPets ?? this.unlockedPets,
     );
   }
 
