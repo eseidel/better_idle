@@ -526,6 +526,7 @@ class Changes {
     this.tabletsUsed = const Counts<MelvorId>.empty(),
     this.foodEaten = const Counts<MelvorId>.empty(),
     this.lostFromLoot = const Counts<MelvorId>.empty(),
+    this.petsUnlocked = const {},
   });
   // We don't bother tracking mastery XP changes since they're not displayed
   // in the welcome back dialog.
@@ -547,6 +548,7 @@ class Changes {
         tabletsUsed: const Counts<MelvorId>.empty(),
         foodEaten: const Counts<MelvorId>.empty(),
         lostFromLoot: const Counts<MelvorId>.empty(),
+        petsUnlocked: const {},
       );
 
   factory Changes.fromJson(Map<String, dynamic> json) {
@@ -592,6 +594,11 @@ class Changes {
       lostFromLoot: Counts<MelvorId>.fromJson(
         json['lostFromLoot'] as Map<String, dynamic>? ?? {},
       ),
+      petsUnlocked:
+          (json['petsUnlocked'] as List<dynamic>?)
+              ?.map((e) => MelvorId.fromJson(e as String))
+              .toSet() ??
+          const {},
     );
   }
 
@@ -636,6 +643,9 @@ class Changes {
   /// Items lost due to loot container overflow (FIFO eviction).
   final Counts<MelvorId> lostFromLoot;
 
+  /// Pets unlocked during this time period.
+  final Set<MelvorId> petsUnlocked;
+
   /// Helper to merge two currency maps.
   static Map<Currency, int> _mergeCurrencies(
     Map<Currency, int> a,
@@ -670,6 +680,7 @@ class Changes {
       tabletsUsed: tabletsUsed.add(other.tabletsUsed),
       foodEaten: foodEaten.add(other.foodEaten),
       lostFromLoot: lostFromLoot.add(other.lostFromLoot),
+      petsUnlocked: {...petsUnlocked, ...other.petsUnlocked},
     );
   }
 
@@ -688,7 +699,8 @@ class Changes {
       potionsUsed.isEmpty &&
       tabletsUsed.isEmpty &&
       foodEaten.isEmpty &&
-      lostFromLoot.isEmpty;
+      lostFromLoot.isEmpty &&
+      petsUnlocked.isEmpty;
 
   Changes copyWith({
     Counts<MelvorId>? inventoryChanges,
@@ -706,6 +718,7 @@ class Changes {
     Counts<MelvorId>? tabletsUsed,
     Counts<MelvorId>? foodEaten,
     Counts<MelvorId>? lostFromLoot,
+    Set<MelvorId>? petsUnlocked,
   }) {
     return Changes(
       inventoryChanges: inventoryChanges ?? this.inventoryChanges,
@@ -723,6 +736,7 @@ class Changes {
       tabletsUsed: tabletsUsed ?? this.tabletsUsed,
       foodEaten: foodEaten ?? this.foodEaten,
       lostFromLoot: lostFromLoot ?? this.lostFromLoot,
+      petsUnlocked: petsUnlocked ?? this.petsUnlocked,
     );
   }
 
@@ -821,6 +835,11 @@ class Changes {
     );
   }
 
+  /// Records a pet being unlocked.
+  Changes recordingPetUnlocked(MelvorId petId) {
+    return copyWith(petsUnlocked: {...petsUnlocked, petId});
+  }
+
   Map<String, dynamic> toJson() {
     return {
       'inventoryChanges': inventoryChanges.toJson(),
@@ -840,6 +859,7 @@ class Changes {
       'tabletsUsed': tabletsUsed.toJson(),
       'foodEaten': foodEaten.toJson(),
       'lostFromLoot': lostFromLoot.toJson(),
+      'petsUnlocked': petsUnlocked.map((e) => e.toJson()).toList(),
     };
   }
 }

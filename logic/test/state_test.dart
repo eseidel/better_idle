@@ -2400,6 +2400,15 @@ void main() {
     });
   });
 
+  test('unlockedPets round-trips through JSON', () {
+    final petId = MelvorId.fromJson('melvorF:Aquarias');
+    final state = GlobalState.test(testRegistries, unlockedPets: {petId});
+
+    final json = state.toJson();
+    final loaded = GlobalState.fromJson(testRegistries, json);
+    expect(loaded.unlockedPets, {petId});
+  });
+
   group('GlobalState.purchaseShopItem', () {
     late MelvorId bankSlotId;
     late MelvorId ironAxeId;
