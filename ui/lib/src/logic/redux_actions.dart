@@ -51,6 +51,9 @@ class UpdateActivityProgressAction extends ReduxAction<GlobalState> {
         toastService.showDeath(changes.lostOnDeath);
       }
 
+      // Show pet found dialog for each newly unlocked pet
+      changes.petsUnlocked.forEach(toastService.showPetUnlocked);
+
       return newState;
     }
   }

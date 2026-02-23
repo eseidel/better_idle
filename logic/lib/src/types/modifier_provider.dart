@@ -209,6 +209,7 @@ class ModifierProvider with ModifierAccessors {
     required this.skillStateGetter,
     required this.agility,
     required this.astrology,
+    this.unlockedPetIds = const {},
     this.combatTypeSkills,
     this.currentActionId,
     this.conditionContext = ConditionContext.empty,
@@ -234,6 +235,9 @@ class ModifierProvider with ModifierAccessors {
   /// Returns the SkillState for a given skill.
   /// Used to look up mastery pool XP for mastery pool checkpoint bonuses.
   final SkillState Function(Skill) skillStateGetter;
+
+  /// IDs of unlocked pets whose modifiers should be included.
+  final Set<MelvorId> unlockedPetIds;
 
   /// For combat: the set of combat skills being used (attack, strength, etc.)
   /// Used to filter summoning familiar relevance.
@@ -479,6 +483,20 @@ class ModifierProvider with ModifierAccessors {
         for (final entry in mod.entries) {
           if (scope.matches(entry.scope)) {
             total += entry.value;
+          }
+        }
+      }
+    }
+
+    // --- Pet modifiers ---
+    // Unlocked pets provide passive modifiers.
+    for (final petId in unlockedPetIds) {
+      final pet = registries.pets.byId(petId);
+      for (final mod in pet.modifiers.modifiers) {
+        if (mod.name != name) continue;
+        for (final modEntry in mod.entries) {
+          if (scope.matches(modEntry.scope)) {
+            total += modEntry.value;
           }
         }
       }

@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:logic/logic.dart';
 import 'package:ui/src/logic/redux_actions.dart';
 import 'package:ui/src/widgets/cached_image.dart';
+import 'package:ui/src/widgets/context_extensions.dart';
 import 'package:ui/src/widgets/game_scaffold.dart';
+import 'package:ui/src/widgets/pet_found_dialog.dart';
 import 'package:ui/src/widgets/style.dart';
 
 class PetsLogPage extends StatelessWidget {
@@ -93,22 +95,36 @@ class _PetCell extends StatelessWidget {
   Widget build(BuildContext context) {
     return Tooltip(
       message: found ? pet.name : '???',
-      child: Container(
-        width: _size,
-        height: _size,
-        decoration: BoxDecoration(
-          color: Style.cellBackgroundColor,
-          borderRadius: BorderRadius.circular(4),
-        ),
-        child: found
-            ? CachedImage(assetPath: pet.media, size: _size)
-            : const Center(
-                child: Icon(
-                  Icons.help_outline,
-                  size: _size * 0.6,
-                  color: Style.iconColorDefault,
+      child: GestureDetector(
+        onTap: found
+            ? () {
+                final registries = context.state.registries;
+                showDialog<void>(
+                  context: context,
+                  builder: (_) => PetFoundDialog(
+                    pet: pet,
+                    modifierMetadata: registries.modifierMetadata,
+                  ),
+                );
+              }
+            : null,
+        child: Container(
+          width: _size,
+          height: _size,
+          decoration: BoxDecoration(
+            color: Style.cellBackgroundColor,
+            borderRadius: BorderRadius.circular(4),
+          ),
+          child: found
+              ? CachedImage(assetPath: pet.media, size: _size)
+              : const Center(
+                  child: Icon(
+                    Icons.help_outline,
+                    size: _size * 0.6,
+                    color: Style.iconColorDefault,
+                  ),
                 ),
-              ),
+        ),
       ),
     );
   }

@@ -13,6 +13,9 @@ class ToastService {
   final _deathController = StreamController<Counts<MelvorId>>.broadcast();
   Stream<Counts<MelvorId>> get deathStream => _deathController.stream;
 
+  final _petUnlockedController = StreamController<MelvorId>.broadcast();
+  Stream<MelvorId> get petUnlockedStream => _petUnlockedController.stream;
+
   void showToast(Changes changes) {
     _toastController.add(changes);
   }
@@ -23,6 +26,10 @@ class ToastService {
 
   void showDeath(Counts<MelvorId> lostOnDeath) {
     _deathController.add(lostOnDeath);
+  }
+
+  void showPetUnlocked(MelvorId petId) {
+    _petUnlockedController.add(petId);
   }
 }
 
