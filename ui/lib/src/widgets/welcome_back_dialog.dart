@@ -261,32 +261,37 @@ class WelcomeBackDialog extends StatelessWidget {
             ],
 
             // 5. Items gained, by type (with per hour estimate)
+            // Exclude items already shown in foodEaten (section 9) to
+            // avoid duplicate rows.
             if (changes.inventoryChanges.isNotEmpty) ...[
               const SizedBox(height: 8),
-              ...changes.inventoryChanges.entries.map((entry) {
-                final itemId = entry.key;
-                final itemCount = entry.value;
-                final item = registries.items.byId(itemId);
-                final gainedPerHour = timeAway.itemsGainedPerHour[itemId];
-                final consumedPerHour = timeAway.itemsConsumedPerHour[itemId];
+              ...changes.inventoryChanges.entries
+                  .where((e) => !changes.foodEaten.counts.containsKey(e.key))
+                  .map((entry) {
+                    final itemId = entry.key;
+                    final itemCount = entry.value;
+                    final item = registries.items.byId(itemId);
+                    final gainedPerHour = timeAway.itemsGainedPerHour[itemId];
+                    final consumedPerHour =
+                        timeAway.itemsConsumedPerHour[itemId];
 
-                final String prediction;
-                if (itemCount > 0 && gainedPerHour != null) {
-                  prediction =
-                      ' (${approximateCountString(gainedPerHour.round())}/hr)';
-                } else if (itemCount < 0 && consumedPerHour != null) {
-                  prediction =
-                      ' (${approximateCountString(consumedPerHour.round())}/hr)';
-                } else {
-                  prediction = '';
-                }
+                    final String prediction;
+                    if (itemCount > 0 && gainedPerHour != null) {
+                      prediction =
+                          ' (${approximateCountString(gainedPerHour.round())}/hr)';
+                    } else if (itemCount < 0 && consumedPerHour != null) {
+                      prediction =
+                          ' (${approximateCountString(consumedPerHour.round())}/hr)';
+                    } else {
+                      prediction = '';
+                    }
 
-                return ItemChangeRow(
-                  item: item,
-                  count: itemCount,
-                  suffix: prediction,
-                );
-              }),
+                    return ItemChangeRow(
+                      item: item,
+                      count: itemCount,
+                      suffix: prediction,
+                    );
+                  }),
             ],
 
             // 6. Currencies earned (by type)
