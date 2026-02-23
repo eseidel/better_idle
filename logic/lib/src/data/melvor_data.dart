@@ -844,8 +844,6 @@ List<CombatAction> parseCombatActions(
   final monsters = data['monsters'] as List<dynamic>? ?? [];
   return monsters
       .map((monsterJson) => monsterJson as Map<String, dynamic>)
-      // Filter out monsters with empty names (like RandomITM).
-      .where((m) => (m['name'] as String?)?.isNotEmpty ?? false)
       .map(
         (monsterJson) =>
             CombatAction.fromJson(monsterJson, namespace: namespace),
