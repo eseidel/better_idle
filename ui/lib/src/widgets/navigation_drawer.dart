@@ -267,7 +267,7 @@ class NavigationContent extends StatelessWidget {
             leading: Icon(Icons.save),
             title: Text('Save Slots'),
           ),
-          ExpansionTile(
+          const ExpansionTile(
             dense: true,
             visualDensity: VisualDensity.compact,
             leading: const Icon(Icons.menu_book, size: 24),

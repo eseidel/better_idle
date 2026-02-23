@@ -102,7 +102,7 @@ class _PetCell extends StatelessWidget {
         ),
         child: found
             ? CachedImage(assetPath: pet.media, size: _size)
-            : Center(
+            : const Center(
                 child: Icon(
                   Icons.help_outline,
                   size: _size * 0.6,
