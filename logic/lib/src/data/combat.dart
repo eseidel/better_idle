@@ -214,10 +214,7 @@ class CombatAction extends Action {
     );
     return CombatAction(
       id: ActionId(Skill.combat.id, localId),
-      name: switch (json['name'] as String) {
-        '' => '?',
-        final n => n,
-      },
+      name: json['name'] as String,
       levels: levels,
       attackType: AttackType.fromJson(json['attackType'] as String),
       attackSpeed: attackSpeed,
