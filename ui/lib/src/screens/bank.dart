@@ -581,10 +581,7 @@ class _ItemDetailsContentState extends State<_ItemDetailsContent> {
             const SizedBox(height: 16),
             Row(
               children: [
-                Text(
-                  '0',
-                  style: Theme.of(context).textTheme.bodySmall,
-                ),
+                Text('0', style: Theme.of(context).textTheme.bodySmall),
                 Expanded(
                   child: Slider(
                     value: _sellCount,
