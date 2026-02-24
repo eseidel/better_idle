@@ -242,7 +242,8 @@ class _AppLifecycleManagerState extends State<_AppLifecycleManager>
   static const _asyncResumeThreshold = 3000;
 
   /// Number of ticks to process per chunk during async resume.
-  static const _resumeChunkSize = 1000;
+  /// 36000 ticks = 1 hour of game time.
+  static const _resumeChunkSize = 36000;
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState lifecycle) {
