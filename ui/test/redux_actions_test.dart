@@ -2741,6 +2741,72 @@ void main() {
       }, values: {toastServiceRef});
     });
 
+    test('fires skill milestone when crossing level 99', () async {
+      await runScoped(() async {
+        final testAction = SkillAction(
+          id: ActionId.test(Skill.woodcutting, 'Test Tree'),
+          skill: Skill.woodcutting,
+          name: 'Test Tree',
+          unlockLevel: 1,
+          duration: const Duration(seconds: 1),
+          xp: 100,
+        );
+        final registries = Registries.test(actions: [testAction]);
+        var state = GlobalState.empty(registries);
+        // Set XP to just below level 99 (startXpForLevel(99) = 13,034,431).
+        state = state.addSkillXp(Skill.woodcutting, 13034430);
+        expect(state.skillState(Skill.woodcutting).skillLevel, 98);
+        state = state.startAction(testAction, random: Random(42));
+
+        final milestones = <Skill>[];
+        toastService.skillMilestoneStream.listen(milestones.add);
+
+        final store = Store<GlobalState>(initialState: state);
+        final now = state.updatedAt.add(const Duration(seconds: 5));
+        store.dispatch(UpdateActivityProgressAction(now: now));
+
+        // Allow async stream events to be delivered.
+        await Future<void>.delayed(Duration.zero);
+
+        expect(
+          store.state.skillState(Skill.woodcutting).skillLevel,
+          greaterThanOrEqualTo(99),
+        );
+        expect(milestones, contains(Skill.woodcutting));
+      }, values: {toastServiceRef});
+    });
+
+    test('does not fire skill milestone when already past 99', () async {
+      await runScoped(() async {
+        final testAction = SkillAction(
+          id: ActionId.test(Skill.woodcutting, 'Test Tree'),
+          skill: Skill.woodcutting,
+          name: 'Test Tree',
+          unlockLevel: 1,
+          duration: const Duration(seconds: 1),
+          xp: 100,
+        );
+        final registries = Registries.test(actions: [testAction]);
+        var state = GlobalState.empty(registries);
+        // Set XP to level 99 already (startXpForLevel(99) = 13,034,431).
+        state = state.addSkillXp(Skill.woodcutting, 13034431);
+        expect(state.skillState(Skill.woodcutting).skillLevel, 99);
+        state = state.startAction(testAction, random: Random(42));
+
+        final milestones = <Skill>[];
+        toastService.skillMilestoneStream.listen(milestones.add);
+
+        final store = Store<GlobalState>(initialState: state);
+        final now = state.updatedAt.add(const Duration(seconds: 5));
+        store.dispatch(UpdateActivityProgressAction(now: now));
+
+        // Allow async stream events to be delivered.
+        await Future<void>.delayed(Duration.zero);
+
+        expect(milestones, isEmpty);
+      }, values: {toastServiceRef});
+    });
+
     test('accumulates changes into timeAway when present', () {
       runScoped(() {
         final testAction = SkillAction(

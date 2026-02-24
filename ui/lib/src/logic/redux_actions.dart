@@ -54,6 +54,14 @@ class UpdateActivityProgressAction extends ReduxAction<GlobalState> {
       // Show pet found dialog for each newly unlocked pet
       changes.petsUnlocked.forEach(toastService.showPetUnlocked);
 
+      // Show level 99 milestone dialog for skills that crossed 99
+      for (final entry in changes.skillLevelChanges.entries) {
+        final levelChange = entry.value;
+        if (levelChange.startLevel < 99 && levelChange.endLevel >= 99) {
+          toastService.showSkillMilestone(entry.key);
+        }
+      }
+
       return newState;
     }
   }
