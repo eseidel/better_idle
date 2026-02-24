@@ -2351,6 +2351,14 @@ class GlobalState {
       return 'Requires Township level $levelRequired';
     }
 
+    // Check maxUpgrades limit (per-biome cap)
+    if (building.maxUpgrades > 0) {
+      final biomeCount = township.buildingState(biomeId, buildingId).count;
+      if (biomeCount >= building.maxUpgrades) {
+        return '${building.name} at max (${building.maxUpgrades})';
+      }
+    }
+
     // Check resource costs (including GP) with deity modifier applied
     final costs = township.buildingCostsWithModifier(biomeData.costs);
     for (final entry in costs.entries) {

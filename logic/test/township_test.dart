@@ -16,6 +16,8 @@ TownshipBuilding testBuilding({
   Map<MelvorId, double> production = const {},
   Map<MelvorId, int> costs = const {},
   bool canDegrade = true,
+  int maxUpgrades = 0,
+  MelvorId? upgradesFrom,
 }) {
   final biomeData = <MelvorId, BuildingBiomeData>{};
   for (final biomeId in validBiomes) {
@@ -36,6 +38,8 @@ TownshipBuilding testBuilding({
     biomeData: biomeData,
     validBiomes: validBiomes,
     canDegrade: canDegrade,
+    maxUpgrades: maxUpgrades,
+    upgradesFrom: upgradesFrom,
   );
 }
 
@@ -4387,6 +4391,123 @@ void main() {
           'assets/media/township/statues.png',
         );
       });
+    });
+
+    group('upgradesTo', () {
+      test('computed correctly from upgradesFrom', () {
+        const biomeId = MelvorId('melvorD:Grasslands');
+        const shelterBId = MelvorId('melvorD:Basic_Shelter');
+        const hutBId = MelvorId('melvorD:Wooden_Hut');
+        const houseBId = MelvorId('melvorD:House');
+
+        final shelter = testBuilding(
+          id: shelterBId,
+          name: 'Basic Shelter',
+          validBiomes: {biomeId},
+          maxUpgrades: 8,
+        );
+        final hut = testBuilding(
+          id: hutBId,
+          name: 'Wooden Hut',
+          validBiomes: {biomeId},
+          maxUpgrades: 8,
+          upgradesFrom: shelterBId,
+        );
+        final house = testBuilding(
+          id: houseBId,
+          name: 'House',
+          validBiomes: {biomeId},
+          maxUpgrades: 8,
+          upgradesFrom: hutBId,
+        );
+
+        final registry = TownshipRegistry(
+          buildings: [shelter, hut, house],
+          upgradesTo: {shelterBId: hutBId, hutBId: houseBId},
+        );
+
+        expect(registry.upgradesTo[shelterBId], hutBId);
+        expect(registry.upgradesTo[hutBId], houseBId);
+        expect(registry.upgradesTo[houseBId], isNull);
+      });
+    });
+  });
+
+  group('canBuildTownshipBuilding', () {
+    test('maxUpgrades enforcement rejects builds at limit', () {
+      const biomeId = MelvorId('melvorD:Grasslands');
+      const buildingId = MelvorId('melvorD:Test_Building');
+
+      final building = testBuilding(
+        id: buildingId,
+        name: 'Test Building',
+        validBiomes: {biomeId},
+        maxUpgrades: 3,
+      );
+
+      final registry = TownshipRegistry(
+        buildings: [building],
+        biomes: const [TownshipBiome(id: biomeId, name: 'Grasslands', tier: 1)],
+      );
+
+      final state = GlobalState.test(
+        Registries.test(township: registry),
+        township: TownshipState(
+          registry: registry,
+          biomes: {
+            biomeId: BiomeState(
+              buildings: {buildingId: const BuildingState(count: 3)},
+            ),
+          },
+        ),
+      );
+
+      final error = state.canBuildTownshipBuilding(biomeId, buildingId);
+      expect(error, contains('at max'));
+      expect(error, contains('3'));
+    });
+
+    test('maxUpgrades is per-biome, not global', () {
+      const biomeId1 = MelvorId('melvorD:Grasslands');
+      const biomeId2 = MelvorId('melvorD:Forest');
+      const buildingId = MelvorId('melvorD:Test_Building');
+
+      final building = testBuilding(
+        id: buildingId,
+        name: 'Test Building',
+        validBiomes: {biomeId1, biomeId2},
+        maxUpgrades: 5,
+      );
+
+      final registry = TownshipRegistry(
+        buildings: [building],
+        biomes: const [
+          TownshipBiome(id: biomeId1, name: 'Grasslands', tier: 1),
+          TownshipBiome(id: biomeId2, name: 'Forest', tier: 1),
+        ],
+      );
+
+      final state = GlobalState.test(
+        Registries.test(township: registry),
+        township: TownshipState(
+          registry: registry,
+          biomes: {
+            biomeId1: BiomeState(
+              buildings: {buildingId: const BuildingState(count: 5)},
+            ),
+            biomeId2: BiomeState(
+              buildings: {buildingId: const BuildingState(count: 2)},
+            ),
+          },
+        ),
+      );
+
+      // Biome 1 is at max (5/5), biome 2 is not (2/5).
+      expect(
+        state.canBuildTownshipBuilding(biomeId1, buildingId),
+        contains('at max'),
+      );
+      expect(state.canBuildTownshipBuilding(biomeId2, buildingId), isNull);
     });
   });
 }

@@ -909,6 +909,7 @@ class TownshipRegistry {
     this.seasons = const [],
     this.tasks = const [],
     this.buildingSortIndex = const {},
+    this.upgradesTo = const {},
   });
 
   // TODO(eseidel): copyWith could end up with an empty registry.
@@ -924,6 +925,10 @@ class TownshipRegistry {
 
   /// Maps building ID to its display order index.
   final Map<MelvorId, int> buildingSortIndex;
+
+  /// Maps a building ID to the building that upgrades from it.
+  /// Inverse of [TownshipBuilding.upgradesFrom].
+  final Map<MelvorId, MelvorId> upgradesTo;
 
   // ---------------------------------------------------------------------------
   // Building lookups
