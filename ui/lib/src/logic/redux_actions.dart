@@ -256,6 +256,19 @@ class UpgradeItemAction extends ReduxAction<GlobalState> {
   }
 }
 
+/// Upgrades all potions maximally, cascading from lowest to highest tier.
+class UpgradeAllPotionsAction extends ReduxAction<GlobalState> {
+  UpgradeAllPotionsAction({required this.onResult});
+  final void Function(PotionUpgradeResult) onResult;
+
+  @override
+  GlobalState reduce() {
+    final (newState, result) = state.upgradeAllPotions();
+    onResult(result);
+    return newState;
+  }
+}
+
 /// Purchases a shop item (skill upgrade or other purchase).
 class PurchaseShopItemAction extends ReduxAction<GlobalState> {
   PurchaseShopItemAction({required this.purchaseId, this.count = 1});

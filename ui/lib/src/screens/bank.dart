@@ -148,6 +148,26 @@ class _BankPageState extends State<BankPage> {
                 const SizedBox(width: 16),
                 CurrencyDisplay(currency: Currency.gp, amount: sellValue),
                 const Spacer(),
+                if (state.canUpgradeAllPotions)
+                  IconButton(
+                    icon: const Icon(Icons.science),
+                    tooltip: 'Upgrade all potions',
+                    onPressed: () {
+                      context.dispatch(
+                        UpgradeAllPotionsAction(
+                          onResult: (result) {
+                            final message = result.hasUpgrades
+                                ? 'Upgraded ${result.totalUpgradesMade}'
+                                      ' potions'
+                                : 'No potions to upgrade';
+                            ScaffoldMessenger.of(
+                              context,
+                            ).showSnackBar(SnackBar(content: Text(message)));
+                          },
+                        ),
+                      );
+                    },
+                  ),
                 IconButton(
                   icon: const Icon(Icons.sort),
                   tooltip: 'Sort inventory',
