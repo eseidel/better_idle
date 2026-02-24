@@ -566,8 +566,40 @@ class TownshipViewModel {
 
   List<TownshipBuilding> buildingsForBiome(MelvorId biomeId) {
     final registry = township.registry;
-    return registry.buildingsForBiome(biomeId)
+    final all = registry.buildingsForBiome(biomeId)
       ..sort((a, b) => registry.compareBuildings(a.id, b.id));
+
+    // Filter upgrade chains: show only the active building in each chain.
+    return all.where((building) {
+      // If this building upgrades from another, only show it when the
+      // predecessor is at max upgrades.
+      if (building.upgradesFrom != null) {
+        final predecessor = registry.buildingById(building.upgradesFrom!);
+        if (predecessor != null && predecessor.maxUpgrades > 0) {
+          final totalCount = township.totalBuildingCount(predecessor.id);
+          if (totalCount < predecessor.maxUpgrades) {
+            return false; // Predecessor still active, hide this upgrade.
+          }
+        }
+      }
+
+      // If this building is at max AND has a successor valid for this biome,
+      // hide it so the successor takes over.
+      if (building.maxUpgrades > 0) {
+        final totalCount = township.totalBuildingCount(building.id);
+        if (totalCount >= building.maxUpgrades) {
+          final successorId = registry.upgradesTo[building.id];
+          if (successorId != null) {
+            final successor = registry.buildingById(successorId);
+            if (successor != null && successor.canBuildInBiome(biomeId)) {
+              return false;
+            }
+          }
+        }
+      }
+
+      return true;
+    }).toList();
   }
 
   String? canBuild(MelvorId biomeId, MelvorId buildingId) {
@@ -1384,6 +1416,9 @@ class _BuildingCard extends StatelessWidget {
         ? viewModel.canAffordRepair(biomeId, building.id)
         : viewModel.canBuild(biomeId, building.id) == null;
 
+    final totalCount = township.totalBuildingCount(building.id);
+    final maxUpgrades = building.maxUpgrades;
+
     return SizedBox(
       width: 140,
       child: Card(
@@ -1395,11 +1430,22 @@ class _BuildingCard extends StatelessWidget {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                // Building image
-                if (displayMedia != null)
-                  CachedImage(assetPath: displayMedia, size: 48)
-                else
-                  const Icon(Icons.home, size: 48),
+                // Header row: building image + tier indicator
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Building image
+                    Expanded(
+                      child: Center(
+                        child: displayMedia != null
+                            ? CachedImage(assetPath: displayMedia, size: 48)
+                            : const Icon(Icons.home, size: 48),
+                      ),
+                    ),
+                    // Tier indicator (segmented bar)
+                    _TierIndicator(tier: building.tier),
+                  ],
+                ),
                 const SizedBox(height: 4),
                 // Building name
                 Text(
@@ -1416,8 +1462,15 @@ class _BuildingCard extends StatelessWidget {
                   overflow: TextOverflow.ellipsis,
                 ),
                 const SizedBox(height: 2),
-                // Count and efficiency display
-                if (buildingState.count > 0)
+                // Count progress bar
+                if (maxUpgrades > 0) ...[
+                  _BuildCountBar(
+                    count: totalCount,
+                    max: maxUpgrades,
+                    needsRepair: needsRepair,
+                    efficiencyStr: efficiencyStr,
+                  ),
+                ] else if (buildingState.count > 0)
                   Text(
                     needsRepair
                         ? '${buildingState.count} built ($efficiencyStr)'
@@ -1439,28 +1492,6 @@ class _BuildingCard extends StatelessWidget {
                 // Benefits section (hide when repairing)
                 if (!needsRepair) _buildBenefitsSection(context),
                 if (!needsRepair) const SizedBox(height: 4),
-                // Action button (Repair or Build)
-                SizedBox(
-                  width: double.infinity,
-                  height: 28,
-                  child: ElevatedButton(
-                    onPressed: canPerformAction
-                        ? () => needsRepair
-                              ? _repairBuilding(context)
-                              : _buildBuilding(context)
-                        : null,
-                    style: ElevatedButton.styleFrom(
-                      padding: EdgeInsets.zero,
-                      backgroundColor: canPerformAction
-                          ? (needsRepair ? Colors.orange : Style.successColor)
-                          : Colors.grey,
-                    ),
-                    child: Text(
-                      needsRepair ? 'Repair' : 'Build',
-                      style: const TextStyle(fontSize: 11, color: Colors.white),
-                    ),
-                  ),
-                ),
               ],
             ),
           ),
@@ -1641,30 +1672,6 @@ class _BuildingCard extends StatelessWidget {
     );
   }
 
-  void _buildBuilding(BuildContext context) {
-    try {
-      context.dispatch(
-        BuildTownshipBuildingAction(biomeId: biomeId, buildingId: building.id),
-      );
-    } on Exception catch (e) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text(e.toString())));
-    }
-  }
-
-  void _repairBuilding(BuildContext context) {
-    try {
-      context.dispatch(
-        RepairTownshipBuildingAction(biomeId: biomeId, buildingId: building.id),
-      );
-    } on Exception catch (e) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text(e.toString())));
-    }
-  }
-
   void _showBuildDialog(BuildContext context) {
     showDialog<void>(
       context: context,
@@ -1673,6 +1680,75 @@ class _BuildingCard extends StatelessWidget {
         biomeId: biomeId,
         building: building,
       ),
+    );
+  }
+}
+
+/// Segmented tier indicator shown in the top-right of a building card.
+class _TierIndicator extends StatelessWidget {
+  const _TierIndicator({required this.tier});
+
+  final int tier;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        for (var i = tier; i >= 1; i--)
+          Container(
+            width: 6,
+            height: 6,
+            margin: const EdgeInsets.only(bottom: 1),
+            decoration: BoxDecoration(
+              color: Style.successColor,
+              borderRadius: BorderRadius.circular(1),
+            ),
+          ),
+      ],
+    );
+  }
+}
+
+/// Progress bar showing count/max for a building with optional efficiency.
+class _BuildCountBar extends StatelessWidget {
+  const _BuildCountBar({
+    required this.count,
+    required this.max,
+    required this.needsRepair,
+    required this.efficiencyStr,
+  });
+
+  final int count;
+  final int max;
+  final bool needsRepair;
+  final String efficiencyStr;
+
+  @override
+  Widget build(BuildContext context) {
+    final progress = max > 0 ? (count / max).clamp(0.0, 1.0) : 0.0;
+    final label = needsRepair ? '$count/$max ($efficiencyStr)' : '$count/$max';
+    final barColor = needsRepair
+        ? Style.unmetRequirementColor
+        : Style.successColor;
+    final textColor = needsRepair
+        ? Style.unmetRequirementColor
+        : Style.textColorSecondary;
+
+    return Column(
+      children: [
+        Text(label, style: TextStyle(fontSize: 10, color: textColor)),
+        const SizedBox(height: 2),
+        ClipRRect(
+          borderRadius: BorderRadius.circular(2),
+          child: LinearProgressIndicator(
+            value: progress,
+            minHeight: 4,
+            backgroundColor: Style.progressBackgroundColor,
+            color: barColor,
+          ),
+        ),
+      ],
     );
   }
 }
@@ -1712,7 +1788,25 @@ class _BuildingPurchaseDialog extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            if (buildingState.count > 0) ...[
+            if (building.maxUpgrades > 0) ...[
+              Builder(
+                builder: (context) {
+                  final totalCount = township.totalBuildingCount(building.id);
+                  final effStr = percentValueToString(buildingState.efficiency);
+                  final label = needsRepair
+                      ? 'Built: $totalCount/${building.maxUpgrades} '
+                            '($effStr efficiency)'
+                      : 'Built: $totalCount/${building.maxUpgrades}';
+                  return Text(
+                    label,
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: needsRepair ? Style.unmetRequirementColor : null,
+                    ),
+                  );
+                },
+              ),
+              const SizedBox(height: 12),
+            ] else if (buildingState.count > 0) ...[
               Text(
                 'Currently: ${buildingState.count} built '
                 '(${percentValueToString(buildingState.efficiency)} '

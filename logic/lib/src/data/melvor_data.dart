@@ -1294,6 +1294,14 @@ TownshipRegistry parseTownship(List<SkillDataEntry>? entries) {
   final buildingDisplayOrder = computeDisplayOrder(buildingDisplayOrderEntries);
   final buildingSortIndex = buildDisplayOrderIndex(buildingDisplayOrder);
 
+  // Compute upgradesTo by inverting upgradesFrom links.
+  final upgradesTo = <MelvorId, MelvorId>{};
+  for (final building in buildings) {
+    if (building.upgradesFrom != null) {
+      upgradesTo[building.upgradesFrom!] = building.id;
+    }
+  }
+
   return TownshipRegistry(
     buildings: buildings,
     biomes: biomes,
@@ -1303,6 +1311,7 @@ TownshipRegistry parseTownship(List<SkillDataEntry>? entries) {
     seasons: seasons,
     tasks: tasks,
     buildingSortIndex: buildingSortIndex,
+    upgradesTo: upgradesTo,
   );
 }
 
