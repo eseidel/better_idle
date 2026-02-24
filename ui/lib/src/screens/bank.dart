@@ -524,28 +524,84 @@ class _ItemDetailsContentState extends State<_ItemDetailsContent> {
                 onClose: widget.onClose,
               ),
             ],
+            // Show Open button for openable items
+            if (itemData.isOpenable) ...[
+              const SizedBox(height: 32),
+              const Divider(),
+              const SizedBox(height: 16),
+              _OpenItemSection(
+                item: itemData,
+                maxCount: maxCount,
+                onClose: widget.onClose,
+              ),
+            ],
+            // Show Equip button for consumable items
+            if (itemData.isConsumable) ...[
+              const SizedBox(height: 32),
+              const Divider(),
+              const SizedBox(height: 16),
+              _EquipFoodSection(
+                item: itemData,
+                maxCount: maxCount,
+                onClose: widget.onClose,
+              ),
+            ],
+            // Show Equip button for summoning tablets
+            if (itemData.isSummonTablet) ...[
+              const SizedBox(height: 32),
+              const Divider(),
+              const SizedBox(height: 16),
+              _EquipSummonSection(
+                item: itemData,
+                maxCount: maxCount,
+                onClose: widget.onClose,
+              ),
+            ]
+            // Show Equip button for other gear items
+            else if (itemData.isEquippable) ...[
+              const SizedBox(height: 32),
+              const Divider(),
+              const SizedBox(height: 16),
+              _EquipGearSection(item: itemData, onClose: widget.onClose),
+            ],
+            // Show Upgrade button if upgrades available
+            if (context.state.registries.itemUpgrades
+                .upgradesForItem(itemData.id)
+                .isNotEmpty) ...[
+              const SizedBox(height: 32),
+              const Divider(),
+              const SizedBox(height: 16),
+              _UpgradeSection(item: itemData, onClose: widget.onClose),
+            ],
+            // Sell is always last
             const SizedBox(height: 32),
             const Divider(),
             const SizedBox(height: 16),
             Text('Sell Item', style: Theme.of(context).textTheme.titleMedium),
             const SizedBox(height: 16),
-            Text(
-              'Quantity: ${approximateCountString(sellCountInt)}',
-              style: Theme.of(context).textTheme.bodyMedium,
-            ),
-            const SizedBox(height: 8),
-            Slider(
-              value: _sellCount,
-              max: maxCount > 0 ? maxCount.toDouble() : 1.0,
-              divisions: maxCount > 0 ? maxCount : null,
-              label: preciseNumberString(sellCountInt),
-              onChanged: maxCount > 0
-                  ? (value) {
-                      setState(() {
-                        _sellCount = value;
-                      });
-                    }
-                  : null,
+            Row(
+              children: [
+                Text('0', style: Theme.of(context).textTheme.bodySmall),
+                Expanded(
+                  child: Slider(
+                    value: _sellCount,
+                    max: maxCount > 0 ? maxCount.toDouble() : 1.0,
+                    divisions: maxCount > 0 ? maxCount : null,
+                    label: preciseNumberString(sellCountInt),
+                    onChanged: maxCount > 0
+                        ? (value) {
+                            setState(() {
+                              _sellCount = value;
+                            });
+                          }
+                        : null,
+                  ),
+                ),
+                Text(
+                  approximateCountString(maxCount),
+                  style: Theme.of(context).textTheme.bodySmall,
+                ),
+              ],
             ),
             const SizedBox(height: 16),
             SizedBox(
@@ -577,55 +633,6 @@ class _ItemDetailsContentState extends State<_ItemDetailsContent> {
                 CurrencyDisplay(currency: Currency.gp, amount: totalGpValue),
               ],
             ),
-            // Show Equip button for consumable items
-            if (itemData.isConsumable) ...[
-              const SizedBox(height: 32),
-              const Divider(),
-              const SizedBox(height: 16),
-              _EquipFoodSection(
-                item: itemData,
-                maxCount: maxCount,
-                onClose: widget.onClose,
-              ),
-            ],
-            // Show Equip button for summoning tablets
-            if (itemData.isSummonTablet) ...[
-              const SizedBox(height: 32),
-              const Divider(),
-              const SizedBox(height: 16),
-              _EquipSummonSection(
-                item: itemData,
-                maxCount: maxCount,
-                onClose: widget.onClose,
-              ),
-            ]
-            // Show Equip button for other gear items
-            else if (itemData.isEquippable) ...[
-              const SizedBox(height: 32),
-              const Divider(),
-              const SizedBox(height: 16),
-              _EquipGearSection(item: itemData, onClose: widget.onClose),
-            ],
-            // Show Open button for openable items
-            if (itemData.isOpenable) ...[
-              const SizedBox(height: 32),
-              const Divider(),
-              const SizedBox(height: 16),
-              _OpenItemSection(
-                item: itemData,
-                maxCount: maxCount,
-                onClose: widget.onClose,
-              ),
-            ],
-            // Show Upgrade button if upgrades available
-            if (context.state.registries.itemUpgrades
-                .upgradesForItem(itemData.id)
-                .isNotEmpty) ...[
-              const SizedBox(height: 32),
-              const Divider(),
-              const SizedBox(height: 16),
-              _UpgradeSection(item: itemData, onClose: widget.onClose),
-            ],
           ],
         ),
       ),
@@ -780,6 +787,42 @@ class _OpenItemSectionState extends State<_OpenItemSection> {
     }
   }
 
+  void _showContentsDialog(BuildContext context) {
+    final dropTable = widget.item.dropTable!;
+    final items = context.state.registries.items;
+    showDialog<void>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('${widget.item.name} Contents'),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              for (final entry in dropTable.entries)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 4),
+                  child: Text(
+                    entry.minQuantity == entry.maxQuantity
+                        ? '${entry.maxQuantity}x '
+                              '${items.byId(entry.itemID).name}'
+                        : 'Up to ${entry.maxQuantity}x '
+                              '${items.byId(entry.itemID).name}',
+                  ),
+                ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('OK'),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final openCountInt = _openCount.round().clamp(1, widget.maxCount);
@@ -789,11 +832,11 @@ class _OpenItemSectionState extends State<_OpenItemSection> {
       children: [
         Text('Open Item', style: Theme.of(context).textTheme.titleMedium),
         const SizedBox(height: 8),
-        Text(
-          'Open to receive a random drop',
-          style: Theme.of(context).textTheme.bodyMedium,
+        TextButton(
+          onPressed: () => _showContentsDialog(context),
+          child: const Text('View Possible Contents'),
         ),
-        const SizedBox(height: 16),
+        const SizedBox(height: 8),
         Text(
           'Quantity: ${approximateCountString(openCountInt)}',
           style: Theme.of(context).textTheme.bodyMedium,
