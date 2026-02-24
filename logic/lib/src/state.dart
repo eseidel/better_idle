@@ -3205,6 +3205,86 @@ class GlobalState {
     return (newState.clearPlot(plotId), changes);
   }
 
+  /// Harvests all ready crops in a category.
+  /// Returns null if can't afford 2,000 GP or no plots are ready.
+  (GlobalState, Changes)? harvestAllCrops(MelvorId categoryId, Random random) {
+    const gpCost = 2000;
+    if (gp < gpCost) return null;
+
+    final plots = registries.farming.plotsForCategory(categoryId);
+    final readyPlotIds = plots
+        .where(
+          (plot) =>
+              unlockedPlots.contains(plot.id) &&
+              (plotStates[plot.id]?.isReadyToHarvest ?? false),
+        )
+        .map((plot) => plot.id)
+        .toList();
+
+    if (readyPlotIds.isEmpty) return null;
+
+    var state = addCurrency(Currency.gp, -gpCost);
+    var changes = const Changes.empty();
+
+    for (final plotId in readyPlotIds) {
+      final (newState, plotChanges) = state.harvestCrop(plotId, random);
+      state = newState;
+      changes = changes.merge(plotChanges);
+    }
+
+    return (state, changes);
+  }
+
+  /// Plants a crop in all empty plots of a category.
+  /// Returns null if can't afford GP cost or no empty plots exist.
+  /// GP cost is 5,000 base + 2,000 if compost is selected.
+  /// Stops planting if seeds or compost run out.
+  GlobalState? plantAllCrops(
+    MelvorId categoryId,
+    FarmingCrop crop,
+    Item? compost,
+    int compostCount,
+  ) {
+    final gpCost = 5000 + (compost != null ? 2000 : 0);
+    if (gp < gpCost) return null;
+
+    final plots = registries.farming.plotsForCategory(categoryId);
+    final emptyPlotIds = plots
+        .where(
+          (plot) =>
+              unlockedPlots.contains(plot.id) &&
+              (plotStates[plot.id]?.isEmpty ?? true),
+        )
+        .map((plot) => plot.id)
+        .toList();
+
+    if (emptyPlotIds.isEmpty) return null;
+
+    var state = addCurrency(Currency.gp, -gpCost);
+
+    for (final plotId in emptyPlotIds) {
+      // Apply compost if selected and available
+      if (compost != null) {
+        var applied = 0;
+        for (var i = 0; i < compostCount; i++) {
+          if (state.inventory.countOfItem(compost) < 1) break;
+          state = state.applyCompost(plotId, compost);
+          applied++;
+        }
+        if (applied == 0 && compostCount > 0) {
+          // No compost left, skip compost for remaining plots
+        }
+      }
+
+      // Plant crop if seeds are available
+      final seed = state.registries.items.byId(crop.seedId);
+      if (state.inventory.countOfItem(seed) < crop.seedCost) break;
+      state = state.plantCrop(plotId, crop);
+    }
+
+    return state;
+  }
+
   /// Clears a farming plot, destroying any growing crop and compost.
   GlobalState clearPlot(MelvorId plotId) {
     final newPlotStates = Map<MelvorId, PlotState>.from(plotStates)

@@ -531,4 +531,353 @@ void main() {
       expect(state.plotStates[plotId], isNull);
     });
   });
+
+  group('harvestAllCrops', () {
+    late FarmingCrop allotmentCrop;
+    late FarmingCategory allotmentCategory;
+    late List<FarmingPlot> allotmentPlots;
+
+    setUpAll(() {
+      allotmentCategory = testRegistries.farmingCategories.firstWhere(
+        (c) => c.name == 'Allotments',
+      );
+      allotmentCrop = testRegistries.farming
+          .cropsForCategory(allotmentCategory.id)
+          .firstWhere((c) => c.level == 1);
+      // Use all allotment plots (we'll manually unlock them in tests)
+      allotmentPlots = testRegistries.farming.plotsForCategory(
+        allotmentCategory.id,
+      );
+    });
+
+    /// Creates a state with all allotment plots unlocked.
+    GlobalState stateWithUnlockedPlots({int gp = 5000}) {
+      final base = GlobalState.empty(testRegistries);
+      return base.copyWith(
+        currencies: {Currency.gp: gp},
+        unlockedPlots: {
+          ...base.unlockedPlots,
+          ...{for (final p in allotmentPlots) p.id},
+        },
+      );
+    }
+
+    test('harvests all ready plots and deducts GP', () {
+      final random = Random(42);
+      final plotId1 = allotmentPlots[0].id;
+      final plotId2 = allotmentPlots[1].id;
+
+      var state = stateWithUnlockedPlots();
+      state = state.copyWith(
+        plotStates: {
+          plotId1: PlotState(
+            cropId: allotmentCrop.id,
+            growthTicksRemaining: 0,
+            compostItems: [testCompost(compostValue: 50)],
+          ),
+          plotId2: PlotState(
+            cropId: allotmentCrop.id,
+            growthTicksRemaining: 0,
+            compostItems: [testCompost(compostValue: 50)],
+          ),
+        },
+      );
+
+      final result = state.harvestAllCrops(allotmentCategory.id, random);
+      expect(result, isNotNull);
+
+      final (newState, changes) = result!;
+      // GP deducted
+      expect(newState.gp, 3000);
+      // Both plots cleared
+      expect(newState.plotStates[plotId1], isNull);
+      expect(newState.plotStates[plotId2], isNull);
+      // Got products
+      final product = testRegistries.items.byId(allotmentCrop.productId);
+      expect(newState.inventory.countOfItem(product), greaterThan(0));
+      // Changes are not empty
+      expect(changes.isEmpty, isFalse);
+    });
+
+    test('returns null when cannot afford GP', () {
+      final random = Random(42);
+      final plotId = allotmentPlots[0].id;
+
+      var state = stateWithUnlockedPlots(gp: 1999);
+      state = state.copyWith(
+        plotStates: {
+          plotId: PlotState(cropId: allotmentCrop.id, growthTicksRemaining: 0),
+        },
+      );
+
+      final result = state.harvestAllCrops(allotmentCategory.id, random);
+      expect(result, isNull);
+    });
+
+    test('returns null when no plots are ready', () {
+      final random = Random(42);
+      final plotId = allotmentPlots[0].id;
+
+      var state = stateWithUnlockedPlots();
+      state = state.copyWith(
+        plotStates: {
+          // Growing, not ready
+          plotId: PlotState(
+            cropId: allotmentCrop.id,
+            growthTicksRemaining: 100,
+          ),
+        },
+      );
+
+      final result = state.harvestAllCrops(allotmentCategory.id, random);
+      expect(result, isNull);
+    });
+
+    test('only harvests plots in the specified category', () {
+      final random = Random(42);
+      final allotmentPlotId = allotmentPlots[0].id;
+
+      // Get a tree category plot
+      final treeCategory = testRegistries.farmingCategories.firstWhere(
+        (c) => c.name == 'Trees',
+      );
+      final treePlots = testRegistries.farming.plotsForCategory(
+        treeCategory.id,
+      );
+      final treePlotId = treePlots.first.id;
+
+      final treeCrops = testRegistries.farming.cropsForCategory(treeCategory.id)
+        ..sort((a, b) => a.level.compareTo(b.level));
+      final treeCrop = treeCrops.first;
+
+      var state = stateWithUnlockedPlots();
+      state = state.copyWith(
+        unlockedPlots: {...state.unlockedPlots, treePlotId},
+        plotStates: {
+          allotmentPlotId: PlotState(
+            cropId: allotmentCrop.id,
+            growthTicksRemaining: 0,
+            compostItems: [testCompost(compostValue: 50)],
+          ),
+          treePlotId: PlotState(
+            cropId: treeCrop.id,
+            growthTicksRemaining: 0,
+            compostItems: [testCompost(compostValue: 50)],
+          ),
+        },
+      );
+
+      // Harvest only allotments
+      final result = state.harvestAllCrops(allotmentCategory.id, random);
+      expect(result, isNotNull);
+
+      final (newState, _) = result!;
+      // Allotment plot cleared
+      expect(newState.plotStates[allotmentPlotId], isNull);
+      // Tree plot still ready
+      expect(newState.plotStates[treePlotId]?.isReadyToHarvest, isTrue);
+    });
+  });
+
+  group('plantAllCrops', () {
+    late FarmingCrop allotmentCrop;
+    late FarmingCategory allotmentCategory;
+    late List<FarmingPlot> allotmentPlots;
+
+    setUpAll(() {
+      allotmentCategory = testRegistries.farmingCategories.firstWhere(
+        (c) => c.name == 'Allotments',
+      );
+      allotmentCrop = testRegistries.farming
+          .cropsForCategory(allotmentCategory.id)
+          .firstWhere((c) => c.level == 1);
+      allotmentPlots = testRegistries.farming.plotsForCategory(
+        allotmentCategory.id,
+      );
+    });
+
+    /// Creates a state with all allotment plots unlocked.
+    GlobalState stateWithUnlockedPlots({int gp = 10000}) {
+      final base = GlobalState.empty(testRegistries);
+      return base.copyWith(
+        currencies: {Currency.gp: gp},
+        unlockedPlots: {
+          ...base.unlockedPlots,
+          ...{for (final p in allotmentPlots) p.id},
+        },
+      );
+    }
+
+    test('plants in all empty plots and deducts GP', () {
+      final seed = testRegistries.items.byId(allotmentCrop.seedId);
+
+      var state = stateWithUnlockedPlots();
+      state = state.copyWith(
+        inventory: Inventory.fromItems(testItems, [
+          ItemStack(seed, count: allotmentCrop.seedCost * 20),
+        ]),
+      );
+
+      final result = state.plantAllCrops(
+        allotmentCategory.id,
+        allotmentCrop,
+        null,
+        0,
+      );
+      expect(result, isNotNull);
+
+      final newState = result!;
+      // GP deducted (5000 base, no compost)
+      expect(newState.gp, 5000);
+
+      // All allotment plots should have crops
+      for (final plot in allotmentPlots) {
+        final ps = newState.plotStates[plot.id];
+        expect(ps, isNotNull, reason: 'Plot ${plot.id} should have a crop');
+        expect(ps!.isGrowing, isTrue);
+        expect(ps.cropId, allotmentCrop.id);
+      }
+    });
+
+    test('returns null when cannot afford GP', () {
+      final seed = testRegistries.items.byId(allotmentCrop.seedId);
+
+      var state = stateWithUnlockedPlots(gp: 4999);
+      state = state.copyWith(
+        inventory: Inventory.fromItems(testItems, [
+          ItemStack(seed, count: allotmentCrop.seedCost * 10),
+        ]),
+      );
+
+      final result = state.plantAllCrops(
+        allotmentCategory.id,
+        allotmentCrop,
+        null,
+        0,
+      );
+      expect(result, isNull);
+    });
+
+    test('returns null when no empty plots', () {
+      var state = stateWithUnlockedPlots();
+      state = state.copyWith(
+        plotStates: {
+          // Fill all plots with growing crops
+          for (final plot in allotmentPlots)
+            plot.id: PlotState(
+              cropId: allotmentCrop.id,
+              growthTicksRemaining: 100,
+            ),
+        },
+      );
+
+      final result = state.plantAllCrops(
+        allotmentCategory.id,
+        allotmentCrop,
+        null,
+        0,
+      );
+      expect(result, isNull);
+    });
+
+    test('stops planting when seeds run out', () {
+      final seed = testRegistries.items.byId(allotmentCrop.seedId);
+
+      // Only enough seeds for 1 plot
+      var state = stateWithUnlockedPlots();
+      state = state.copyWith(
+        inventory: Inventory.fromItems(testItems, [
+          ItemStack(seed, count: allotmentCrop.seedCost),
+        ]),
+      );
+
+      final result = state.plantAllCrops(
+        allotmentCategory.id,
+        allotmentCrop,
+        null,
+        0,
+      );
+      expect(result, isNotNull);
+
+      final newState = result!;
+      // Only one plot should be planted
+      final plantedCount = allotmentPlots.where((plot) {
+        final ps = newState.plotStates[plot.id];
+        return ps != null && ps.isGrowing;
+      }).length;
+      expect(plantedCount, 1);
+    });
+
+    test('plants with compost and deducts extra GP', () {
+      final seed = testRegistries.items.byId(allotmentCrop.seedId);
+      final compost = Item.test('Compost', gp: 50, compostValue: 10);
+
+      var state = stateWithUnlockedPlots();
+      state = state.copyWith(
+        inventory: Inventory.fromItems(testItems, [
+          ItemStack(seed, count: allotmentCrop.seedCost * 20),
+          ItemStack(compost, count: 100),
+        ]),
+      );
+
+      final result = state.plantAllCrops(
+        allotmentCategory.id,
+        allotmentCrop,
+        compost,
+        5,
+      );
+      expect(result, isNotNull);
+
+      final newState = result!;
+      // GP deducted (5000 + 2000 for compost = 7000)
+      expect(newState.gp, 10000 - 7000);
+
+      // All initial allotment plots should have crops with compost
+      for (final plot in allotmentPlots) {
+        final ps = newState.plotStates[plot.id];
+        expect(ps, isNotNull);
+        expect(ps!.isGrowing, isTrue);
+        expect(ps.compostApplied, 50); // 5 x 10
+      }
+    });
+
+    test('skips compost when it runs out but still plants', () {
+      final seed = testRegistries.items.byId(allotmentCrop.seedId);
+      final compost = Item.test('Compost', gp: 50, compostValue: 10);
+
+      // Only enough compost for 1 plot (5 per plot)
+      var state = stateWithUnlockedPlots();
+      state = state.copyWith(
+        inventory: Inventory.fromItems(testItems, [
+          ItemStack(seed, count: allotmentCrop.seedCost * 20),
+          ItemStack(compost, count: 5),
+        ]),
+      );
+
+      final result = state.plantAllCrops(
+        allotmentCategory.id,
+        allotmentCrop,
+        compost,
+        5,
+      );
+      expect(result, isNotNull);
+
+      final newState = result!;
+      // Count plots with and without compost
+      var withCompost = 0;
+      var withoutCompost = 0;
+      for (final plot in allotmentPlots) {
+        final ps = newState.plotStates[plot.id];
+        if (ps != null && ps.isGrowing) {
+          if (ps.compostApplied > 0) {
+            withCompost++;
+          } else {
+            withoutCompost++;
+          }
+        }
+      }
+      expect(withCompost, 1);
+      expect(withoutCompost, greaterThan(0));
+    });
+  });
 }
