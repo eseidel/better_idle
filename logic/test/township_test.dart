@@ -4467,7 +4467,7 @@ void main() {
       expect(error, contains('3'));
     });
 
-    test('maxUpgrades counts across biomes', () {
+    test('maxUpgrades is per-biome, not global', () {
       const biomeId1 = MelvorId('melvorD:Grasslands');
       const biomeId2 = MelvorId('melvorD:Forest');
       const buildingId = MelvorId('melvorD:Test_Building');
@@ -4493,7 +4493,7 @@ void main() {
           registry: registry,
           biomes: {
             biomeId1: BiomeState(
-              buildings: {buildingId: const BuildingState(count: 3)},
+              buildings: {buildingId: const BuildingState(count: 5)},
             ),
             biomeId2: BiomeState(
               buildings: {buildingId: const BuildingState(count: 2)},
@@ -4502,9 +4502,12 @@ void main() {
         ),
       );
 
-      // Total count = 3 + 2 = 5, at max (5).
-      final error = state.canBuildTownshipBuilding(biomeId1, buildingId);
-      expect(error, contains('at max'));
+      // Biome 1 is at max (5/5), biome 2 is not (2/5).
+      expect(
+        state.canBuildTownshipBuilding(biomeId1, buildingId),
+        contains('at max'),
+      );
+      expect(state.canBuildTownshipBuilding(biomeId2, buildingId), isNull);
     });
   });
 }

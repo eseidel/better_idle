@@ -570,24 +570,25 @@ class TownshipViewModel {
       ..sort((a, b) => registry.compareBuildings(a.id, b.id));
 
     // Filter upgrade chains: show only the active building in each chain.
+    // Uses per-biome counts since maxUpgrades is a per-biome cap.
     return all.where((building) {
       // If this building upgrades from another, only show it when the
-      // predecessor is at max upgrades.
+      // predecessor is at max upgrades in this biome.
       if (building.upgradesFrom != null) {
         final predecessor = registry.buildingById(building.upgradesFrom!);
         if (predecessor != null && predecessor.maxUpgrades > 0) {
-          final totalCount = township.totalBuildingCount(predecessor.id);
-          if (totalCount < predecessor.maxUpgrades) {
+          final count = township.buildingState(biomeId, predecessor.id).count;
+          if (count < predecessor.maxUpgrades) {
             return false; // Predecessor still active, hide this upgrade.
           }
         }
       }
 
-      // If this building is at max AND has a successor valid for this biome,
-      // hide it so the successor takes over.
+      // If this building is at max in this biome AND has a successor valid
+      // for this biome, hide it so the successor takes over.
       if (building.maxUpgrades > 0) {
-        final totalCount = township.totalBuildingCount(building.id);
-        if (totalCount >= building.maxUpgrades) {
+        final count = township.buildingState(biomeId, building.id).count;
+        if (count >= building.maxUpgrades) {
           final successorId = registry.upgradesTo[building.id];
           if (successorId != null) {
             final successor = registry.buildingById(successorId);
@@ -1416,7 +1417,7 @@ class _BuildingCard extends StatelessWidget {
         ? viewModel.canAffordRepair(biomeId, building.id)
         : viewModel.canBuild(biomeId, building.id) == null;
 
-    final totalCount = township.totalBuildingCount(building.id);
+    final biomeCount = buildingState.count;
     final maxUpgrades = building.maxUpgrades;
 
     return SizedBox(
@@ -1465,7 +1466,7 @@ class _BuildingCard extends StatelessWidget {
                 // Count progress bar
                 if (maxUpgrades > 0) ...[
                   _BuildCountBar(
-                    count: totalCount,
+                    count: biomeCount,
                     max: maxUpgrades,
                     needsRepair: needsRepair,
                     efficiencyStr: efficiencyStr,
@@ -1791,12 +1792,12 @@ class _BuildingPurchaseDialog extends StatelessWidget {
             if (building.maxUpgrades > 0) ...[
               Builder(
                 builder: (context) {
-                  final totalCount = township.totalBuildingCount(building.id);
+                  final biomeCount = buildingState.count;
                   final effStr = percentValueToString(buildingState.efficiency);
                   final label = needsRepair
-                      ? 'Built: $totalCount/${building.maxUpgrades} '
+                      ? 'Built: $biomeCount/${building.maxUpgrades} '
                             '($effStr efficiency)'
-                      : 'Built: $totalCount/${building.maxUpgrades}';
+                      : 'Built: $biomeCount/${building.maxUpgrades}';
                   return Text(
                     label,
                     style: Theme.of(context).textTheme.bodySmall?.copyWith(

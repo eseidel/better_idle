@@ -2350,10 +2350,10 @@ class GlobalState {
       return 'Requires Township level $levelRequired';
     }
 
-    // Check maxUpgrades limit (total count across all biomes)
+    // Check maxUpgrades limit (per-biome cap)
     if (building.maxUpgrades > 0) {
-      final totalCount = township.totalBuildingCount(buildingId);
-      if (totalCount >= building.maxUpgrades) {
+      final biomeCount = township.buildingState(biomeId, buildingId).count;
+      if (biomeCount >= building.maxUpgrades) {
         return '${building.name} at max (${building.maxUpgrades})';
       }
     }
