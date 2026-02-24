@@ -744,6 +744,46 @@ class ClearPlotAction extends ReduxAction<GlobalState> {
   }
 }
 
+/// Harvests all ready crops in a category (costs 2,000 GP).
+class HarvestAllCropsAction extends ReduxAction<GlobalState> {
+  HarvestAllCropsAction({required this.categoryId});
+  final MelvorId categoryId;
+
+  @override
+  GlobalState? reduce() {
+    final random = Random();
+    final result = state.harvestAllCrops(categoryId, random);
+    if (result == null) return null;
+
+    final (newState, changes) = result;
+    if (!changes.isEmpty) {
+      toastService.showToast(changes);
+    }
+
+    return newState;
+  }
+}
+
+/// Plants a crop in all empty plots of a category (costs 5,000+ GP).
+class PlantAllCropsAction extends ReduxAction<GlobalState> {
+  PlantAllCropsAction({
+    required this.categoryId,
+    required this.crop,
+    this.compost,
+    this.compostCount = 0,
+  });
+
+  final MelvorId categoryId;
+  final FarmingCrop crop;
+  final Item? compost;
+  final int compostCount;
+
+  @override
+  GlobalState? reduce() {
+    return state.plantAllCrops(categoryId, crop, compost, compostCount);
+  }
+}
+
 /// Sets the player's attack style for combat XP distribution.
 class SetAttackStyleAction extends ReduxAction<GlobalState> {
   SetAttackStyleAction({required this.attackStyle});

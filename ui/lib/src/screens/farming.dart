@@ -96,14 +96,55 @@ class _CategorySection extends StatelessWidget {
       if (lockedWithoutLevel.isNotEmpty) lockedWithoutLevel.first,
     ]..sort((a, b) => a.level.compareTo(b.level));
 
+    // Count ready and empty plots for bulk action buttons
+    final readyCount = unlockedPlots.where((plot) {
+      final ps = state.plotStates[plot.id];
+      return ps != null && ps.isReadyToHarvest;
+    }).length;
+    final emptyCount = unlockedPlots.where((plot) {
+      final ps = state.plotStates[plot.id];
+      return ps == null || ps.isEmpty;
+    }).length;
+
+    final canAffordHarvest = state.gp >= 2000;
+    final canAffordPlant = state.gp >= 5000;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Padding(
           padding: const EdgeInsets.symmetric(vertical: 8),
-          child: Text(
-            category.name,
-            style: Theme.of(context).textTheme.titleLarge,
+          child: Row(
+            children: [
+              Text(
+                category.name,
+                style: Theme.of(context).textTheme.titleLarge,
+              ),
+              const Spacer(),
+              FilledButton.tonal(
+                onPressed: readyCount > 0 && canAffordHarvest
+                    ? () => context.dispatch(
+                        HarvestAllCropsAction(categoryId: category.id),
+                      )
+                    : null,
+                child: Text('Harvest All ($readyCount)'),
+              ),
+              const SizedBox(width: 8),
+              FilledButton.tonal(
+                onPressed: emptyCount > 0 && canAffordPlant
+                    ? () => showDialog<void>(
+                        context: context,
+                        builder: (dialogContext) => _PlantAllDialog(
+                          category: category,
+                          state: state,
+                          emptyCount: emptyCount,
+                          outerContext: context,
+                        ),
+                      )
+                    : null,
+                child: Text('Plant All ($emptyCount)'),
+              ),
+            ],
           ),
         ),
         Wrap(
@@ -508,6 +549,28 @@ class _CompostOption {
   int get harvestBonus => (item?.harvestBonus ?? 0) * count;
 }
 
+List<_CompostOption> _getCompostOptions(GlobalState state) {
+  final registries = state.registries;
+  final inventory = state.inventory;
+  final options = <_CompostOption>[
+    const _CompostOption(item: null, count: 0, available: 0),
+  ];
+
+  for (final item in registries.items.all) {
+    final compostValue = item.compostValue;
+    if (compostValue == null || compostValue == 0) continue;
+
+    final available = inventory.countOfItem(item);
+    if (compostValue <= 10) {
+      options.add(_CompostOption(item: item, count: 5, available: available));
+    } else {
+      options.add(_CompostOption(item: item, count: 1, available: available));
+    }
+  }
+
+  return options;
+}
+
 /// Dialog for selecting a crop to plant with optional compost.
 class _CropSelectionDialog extends StatefulWidget {
   const _CropSelectionDialog({
@@ -528,32 +591,6 @@ class _CropSelectionDialog extends StatefulWidget {
 
 class _CropSelectionDialogState extends State<_CropSelectionDialog> {
   int _selectedCompostIndex = 0;
-
-  List<_CompostOption> _getCompostOptions() {
-    final registries = widget.state.registries;
-    final inventory = widget.state.inventory;
-    final options = <_CompostOption>[
-      const _CompostOption(item: null, count: 0, available: 0),
-    ];
-
-    // Find compost items in registry
-    for (final item in registries.items.all) {
-      final compostValue = item.compostValue;
-      if (compostValue == null || compostValue == 0) continue;
-
-      final available = inventory.countOfItem(item);
-
-      // Regular compost (10%): offer 5x to get 50% success boost
-      // Weird Gloop (50%): offer 1x to get 50% success boost
-      if (compostValue <= 10) {
-        options.add(_CompostOption(item: item, count: 5, available: available));
-      } else {
-        options.add(_CompostOption(item: item, count: 1, available: available));
-      }
-    }
-
-    return options;
-  }
 
   int _getSuccessChance(int compostValue) {
     // Base success chance is 50%, compost adds to it
@@ -578,7 +615,7 @@ class _CropSelectionDialogState extends State<_CropSelectionDialog> {
       return seedCount >= crop.seedCost;
     }).toList()..sort((a, b) => a.level.compareTo(b.level));
 
-    final compostOptions = _getCompostOptions();
+    final compostOptions = _getCompostOptions(widget.state);
     final selectedCompost = compostOptions[_selectedCompostIndex];
     final compostValue =
         (selectedCompost.item?.compostValue ?? 0) * selectedCompost.count;
@@ -701,6 +738,198 @@ class _CropSelectionDialogState extends State<_CropSelectionDialog> {
     // Then plant the crop
     outerContext.dispatch(PlantCropAction(plotId: widget.plot.id, crop: crop));
 
+    Navigator.of(context).pop();
+  }
+}
+
+/// Dialog for selecting a crop to plant in all empty plots.
+class _PlantAllDialog extends StatefulWidget {
+  const _PlantAllDialog({
+    required this.category,
+    required this.state,
+    required this.emptyCount,
+    required this.outerContext,
+  });
+
+  final FarmingCategory category;
+  final GlobalState state;
+  final int emptyCount;
+  final BuildContext outerContext;
+
+  @override
+  State<_PlantAllDialog> createState() => _PlantAllDialogState();
+}
+
+class _PlantAllDialogState extends State<_PlantAllDialog> {
+  int _selectedCompostIndex = 0;
+
+  int _getSuccessChance(int compostValue) {
+    return (50 + compostValue).clamp(0, 100);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final registries = widget.state.registries;
+    final farmingLevel = widget.state.skillState(Skill.farming).skillLevel;
+
+    final allCrops = registries.farming.cropsForCategory(widget.category.id);
+    final availableCrops = allCrops.where((crop) {
+      if (crop.level > farmingLevel) return false;
+      final seed = registries.items.byId(crop.seedId);
+      final seedCount = widget.state.inventory.countOfItem(seed);
+      return seedCount >= crop.seedCost;
+    }).toList()..sort((a, b) => a.level.compareTo(b.level));
+
+    final compostOptions = _getCompostOptions(widget.state);
+    final selectedCompost = compostOptions[_selectedCompostIndex];
+    final compostValue =
+        (selectedCompost.item?.compostValue ?? 0) * selectedCompost.count;
+    final successChance = _getSuccessChance(compostValue);
+
+    final gpCost = 5000 + (selectedCompost.item != null ? 2000 : 0);
+    final canAfford = widget.state.gp >= gpCost;
+    final gpColor = canAfford ? Style.successColor : Style.errorColor;
+
+    // Total compost needed for all empty plots
+    final totalCompostNeeded = selectedCompost.count * widget.emptyCount;
+
+    return AlertDialog(
+      title: const Text('Plant All'),
+      content: SizedBox(
+        width: double.maxFinite,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // GP cost
+            Row(
+              children: [
+                const Text('Cost: '),
+                Text(
+                  '${gpCost}gp',
+                  style: TextStyle(color: gpColor, fontWeight: FontWeight.bold),
+                ),
+                Text(
+                  ' (have ${widget.state.gp})',
+                  style: const TextStyle(color: Style.textColorSecondary),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            // Compost selection
+            if (compostOptions.length > 1) ...[
+              const Text('Compost:'),
+              const SizedBox(height: 4),
+              SegmentedButton<int>(
+                segments: [
+                  for (var i = 0; i < compostOptions.length; i++)
+                    ButtonSegment(
+                      value: i,
+                      label: _buildCompostLabel(compostOptions[i]),
+                    ),
+                ],
+                selected: {_selectedCompostIndex},
+                onSelectionChanged: (selected) {
+                  setState(() => _selectedCompostIndex = selected.first);
+                },
+              ),
+              const SizedBox(height: 8),
+              Text('Success chance: $successChance%'),
+              if (selectedCompost.harvestBonus > 0)
+                Text('Harvest bonus: +${selectedCompost.harvestBonus}%'),
+              if (selectedCompost.item != null) ...[
+                Text(
+                  'Need $totalCompostNeeded ${selectedCompost.item!.name} '
+                  '(have ${selectedCompost.available})',
+                  style: TextStyle(
+                    color: selectedCompost.available >= totalCompostNeeded
+                        ? null
+                        : Style.errorColor,
+                  ),
+                ),
+              ],
+              const Divider(),
+            ],
+            // Crop list
+            Flexible(
+              child: availableCrops.isEmpty
+                  ? const Text(
+                      'No crops available. You need seeds and the required '
+                      'farming level to plant crops.',
+                    )
+                  : ListView.builder(
+                      shrinkWrap: true,
+                      itemCount: availableCrops.length,
+                      itemBuilder: (context, index) {
+                        final crop = availableCrops[index];
+                        final seed = registries.items.byId(crop.seedId);
+                        final product = registries.items.byId(crop.productId);
+                        final seedCount = widget.state.inventory.countOfItem(
+                          seed,
+                        );
+                        final totalSeedsNeeded =
+                            crop.seedCost * widget.emptyCount;
+                        final plotsPlantable = seedCount ~/ crop.seedCost;
+
+                        return ListTile(
+                          leading: ItemImage(item: product, size: 40),
+                          title: Text(product.name),
+                          subtitle: Text(
+                            'Level ${crop.level} · '
+                            '${crop.seedCost} seeds each · '
+                            'need $totalSeedsNeeded '
+                            '(have $seedCount, '
+                            'enough for $plotsPlantable)',
+                          ),
+                          enabled: canAfford,
+                          onTap: canAfford
+                              ? () => _plantAll(crop, selectedCompost)
+                              : null,
+                        );
+                      },
+                    ),
+            ),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('Cancel'),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildCompostLabel(_CompostOption option) {
+    if (option.item == null) {
+      return const Text('None', style: TextStyle(fontSize: 12));
+    }
+
+    final countColor = option.hasEnough ? null : Style.errorColor;
+
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(
+          '${option.count}',
+          style: TextStyle(fontSize: 12, color: countColor),
+        ),
+        const SizedBox(width: 4),
+        ItemImage(item: option.item!, size: 16),
+      ],
+    );
+  }
+
+  void _plantAll(FarmingCrop crop, _CompostOption compostOption) {
+    widget.outerContext.dispatch(
+      PlantAllCropsAction(
+        categoryId: widget.category.id,
+        crop: crop,
+        compost: compostOption.item,
+        compostCount: compostOption.count,
+      ),
+    );
     Navigator.of(context).pop();
   }
 }
