@@ -917,8 +917,8 @@ class _EquipGearSection extends StatelessWidget {
     final state = context.state;
     final equipment = state.equipment;
 
-    // Get valid slots from the item
-    final validSlots = item.validSlots;
+    // Get valid slots from the item, excluding locked slots.
+    final validSlots = item.validSlots.where(state.isSlotUnlocked).toList();
 
     // Find which slot this item is currently equipped in (if any)
     EquipmentSlot? currentlyEquippedSlot;
