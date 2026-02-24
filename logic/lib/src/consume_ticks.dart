@@ -969,7 +969,115 @@ ForegroundResult _completeGenericSkillAction(
   Random random,
 ) {
   final canRepeat = completeAction(builder, action, random: random);
+
+  // Multi-tree woodcutting: also complete the secondary tree
+  final activity = builder.state.activeActivity;
+  if (canRepeat &&
+      activity is SkillActivity &&
+      activity.secondaryActionId != null &&
+      action.skill == Skill.woodcutting) {
+    _completeSecondaryWoodcutting(builder, activity, action, random);
+  }
+
   return _restartOrStop(builder, action, canRepeat, random);
+}
+
+/// Completes the secondary tree in multi-tree woodcutting.
+///
+/// The secondary (faster) tree's output is scaled by M_Action, computed as
+/// floor(primaryMeanTicks / secondaryMeanTicks). XP and mastery are also
+/// scaled by this multiplier.
+void _completeSecondaryWoodcutting(
+  StateUpdateBuilder builder,
+  SkillActivity activity,
+  SkillAction primaryAction,
+  Random random,
+) {
+  final secondaryActionId = ActionId(
+    activity.skill.id,
+    activity.secondaryActionId!,
+  );
+  final secondaryAction = builder.registries.actionById(secondaryActionId);
+  if (secondaryAction is! SkillAction) return;
+
+  // Compute M_Action = floor(primaryMeanTicks / secondaryMeanTicks)
+  final primaryMeanTicks = builder.state.meanDurationWithModifiers(
+    primaryAction,
+  );
+  final secondaryMeanTicks = builder.state.meanDurationWithModifiers(
+    secondaryAction,
+  );
+  final mAction = primaryMeanTicks ~/ secondaryMeanTicks;
+  if (mAction <= 0) return;
+
+  // Roll drops for the secondary tree, applying M_Action to log count.
+  // Handles all drop types (Drop, RareDrop, etc.) correctly.
+  final modifiers = builder.state.createActionModifierProvider(
+    secondaryAction,
+    conditionContext: ConditionContext.empty,
+    consumesOnType: null,
+  );
+  final actionState = builder.state.actionState(secondaryAction.id);
+  final selection = actionState.recipeSelection(secondaryAction);
+  final doublingChance = secondaryAction.doublingChance(modifiers);
+
+  for (final drop in builder.registries.drops.allDropsForAction(
+    secondaryAction,
+    selection,
+  )) {
+    ItemStack? itemStack;
+    if (drop is Drop) {
+      final modifierBonus = modifiers.randomProductChance(
+        itemId: drop.itemId,
+        skillId: secondaryAction.skill.id,
+      );
+      final effectiveRate = (drop.rate + modifierBonus / 100.0).clamp(0.0, 1.0);
+      if (effectiveRate >= 1.0 || random.nextDouble() < effectiveRate) {
+        itemStack = drop.toItemStack(builder.registries.items);
+      }
+    } else if (drop is RareDrop) {
+      final skillLevel = builder.state
+          .skillState(secondaryAction.skill)
+          .skillLevel;
+      final totalMastery = playerTotalMasteryLevelForSkill(
+        builder.state,
+        secondaryAction.skill,
+      );
+      final hasRequiredItem =
+          drop.requiredItemId == null ||
+          builder.state.inventory.hasEverAcquired(drop.requiredItemId!);
+      itemStack = drop.rollWithContext(
+        builder.registries.items,
+        random,
+        skillLevel: skillLevel,
+        totalMastery: totalMastery,
+        hasRequiredItem: hasRequiredItem,
+      );
+    } else {
+      itemStack = drop.roll(builder.registries.items, random);
+    }
+    if (itemStack != null) {
+      // Scale output count by M_Action
+      var count = itemStack.count * mAction;
+      if (doublingChance > 0 && random.nextDouble() < doublingChance) {
+        count *= 2;
+      }
+      builder.addInventory(ItemStack(itemStack.item, count: count));
+    }
+  }
+
+  // Grant scaled XP and mastery
+  final perAction = xpPerAction(builder.state, secondaryAction, modifiers);
+  builder
+    ..addSkillXp(secondaryAction.skill, perAction.xp * mAction)
+    ..addActionMasteryXp(secondaryAction.id, perAction.masteryXp * mAction)
+    ..addSkillMasteryXp(
+      secondaryAction.skill,
+      perAction.masteryPoolXp * mAction,
+    );
+
+  // Roll for summoning mark discovery on secondary tree
+  _rollMarkDiscovery(builder, secondaryAction, random);
 }
 
 /// Restarts the action if it can repeat, otherwise stops with the

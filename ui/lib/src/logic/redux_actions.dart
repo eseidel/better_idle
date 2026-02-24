@@ -76,9 +76,34 @@ class ToggleActionAction extends ReduxAction<GlobalState> {
     if (state.isStunned) {
       return null;
     }
-    // If the action is already running, stop it
+    // If the action is already running (primary or secondary), stop it
     if (state.isActionActive(action)) {
       return state.clearAction();
+    }
+    // Multi-tree woodcutting: if already cutting one tree and clicking a
+    // different tree, check if the player has the Multi-Tree upgrade.
+    if (action is WoodcuttingTree) {
+      final activity = state.activeActivity;
+      if (activity is SkillActivity &&
+          activity.skill == Skill.woodcutting &&
+          activity.secondaryActionId == null) {
+        final modifiers = state.createGlobalModifierProvider(
+          conditionContext: ConditionContext.empty,
+        );
+        if (modifiers.treeCutLimit >= 1) {
+          final currentTree = state.registries.woodcutting.byId(
+            activity.actionId,
+          );
+          if (currentTree != null) {
+            final random = Random();
+            return state.startMultiTreeWoodcutting(
+              currentTree,
+              action as WoodcuttingTree,
+              random: random,
+            );
+          }
+        }
+      }
     }
     // Otherwise, start this action (stops any other active action).
     final random = Random();
