@@ -13,6 +13,7 @@ import 'package:ui/src/widgets/game_scaffold.dart';
 import 'package:ui/src/widgets/item_image.dart';
 import 'package:ui/src/widgets/navigation_drawer.dart';
 import 'package:ui/src/widgets/open_result_dialog.dart';
+import 'package:ui/src/widgets/openable_contents_dialog.dart';
 import 'package:ui/src/widgets/style.dart';
 
 class BankPage extends StatefulWidget {
@@ -799,42 +800,6 @@ class _OpenItemSectionState extends State<_OpenItemSection> {
     }
   }
 
-  void _showContentsDialog(BuildContext context) {
-    final dropTable = widget.item.dropTable!;
-    final items = context.state.registries.items;
-    showDialog<void>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text('${widget.item.name} Contents'),
-        content: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              for (final entry in dropTable.entries)
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 4),
-                  child: Text(
-                    entry.minQuantity == entry.maxQuantity
-                        ? '${entry.maxQuantity}x '
-                              '${items.byId(entry.itemID).name}'
-                        : 'Up to ${entry.maxQuantity}x '
-                              '${items.byId(entry.itemID).name}',
-                  ),
-                ),
-            ],
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: const Text('OK'),
-          ),
-        ],
-      ),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     final openCountInt = _openCount.round().clamp(1, widget.maxCount);
@@ -845,8 +810,8 @@ class _OpenItemSectionState extends State<_OpenItemSection> {
         Text('Open Item', style: Theme.of(context).textTheme.titleMedium),
         const SizedBox(height: 8),
         TextButton(
-          onPressed: () => _showContentsDialog(context),
-          child: const Text('View Possible Contents'),
+          onPressed: () => showOpenableContentsDialog(context, widget.item),
+          child: const Text('View Contents'),
         ),
         const SizedBox(height: 8),
         Text(
