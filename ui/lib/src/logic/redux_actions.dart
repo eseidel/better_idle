@@ -712,7 +712,13 @@ class HarvestCropAction extends ReduxAction<GlobalState> {
   @override
   GlobalState reduce() {
     final random = Random();
-    return state.harvestCrop(plotId, random);
+    final (newState, changes) = state.harvestCrop(plotId, random);
+
+    if (!changes.isEmpty) {
+      toastService.showToast(changes);
+    }
+
+    return newState;
   }
 }
 

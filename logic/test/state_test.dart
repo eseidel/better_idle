@@ -1618,7 +1618,7 @@ void main() {
       expect(state.plotStates[plotId]!.isReadyToHarvest, true);
 
       // Harvest (note: 50% success rate with no compost, may fail)
-      state = state.harvestCrop(plotId, random);
+      (state, _) = state.harvestCrop(plotId, random);
 
       // Plot should be cleared regardless of success/failure
       final plotStateAfterFirstHarvest = state.plotStates[plotId];
@@ -1664,7 +1664,7 @@ void main() {
       state = state.copyWith(plotStates: {plotId: readyPlotState});
 
       // Harvest (note: 50% success rate, but we check XP regardless)
-      state = state.harvestCrop(plotId, random);
+      (state, _) = state.harvestCrop(plotId, random);
 
       // Verify XP was awarded (either on plant or harvest, depending)
       final xpAfterHarvest = state.skillState(Skill.farming).xp;
@@ -1727,7 +1727,7 @@ void main() {
       state = state.copyWith(plotStates: {plotId: readyPlotState});
 
       // Harvest without harvest bonus
-      state = state.harvestCrop(plotId, Random(42));
+      (state, _) = state.harvestCrop(plotId, Random(42));
       final harvestWithoutBonus = state.inventory.countOfItem(product);
 
       // Reset inventory for second harvest
@@ -1748,7 +1748,7 @@ void main() {
       state = state.copyWith(plotStates: {plotId: readyPlotState});
 
       // Harvest with harvest bonus
-      state = state.harvestCrop(plotId, Random(42));
+      (state, _) = state.harvestCrop(plotId, Random(42));
       final harvestWithBonus = state.inventory.countOfItem(product);
 
       // With 50% harvest bonus, should get more product

@@ -1418,7 +1418,7 @@ void main() {
       expect(state.plotStates[plotId]!.isReadyToHarvest, true);
 
       // Harvest the crop
-      state = state.harvestCrop(plotId, random);
+      (state, _) = state.harvestCrop(plotId, random);
 
       // Verify product was added to inventory
       expect(state.inventory.countOfItem(product), greaterThan(0));
