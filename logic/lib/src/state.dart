@@ -3094,8 +3094,8 @@ class GlobalState {
     return copyWith(inventory: newInventory, plotStates: newPlotStates);
   }
 
-  /// Harvests a ready crop from a plot.
-  GlobalState harvestCrop(MelvorId plotId, Random random) {
+  /// Harvests a ready crop from a plot, returning both new state and changes.
+  (GlobalState, Changes) harvestCrop(MelvorId plotId, Random random) {
     // Validate plot has a ready crop
     final plotState = plotStates[plotId];
     if (plotState == null || !plotState.isReadyToHarvest) {
@@ -3129,7 +3129,7 @@ class GlobalState {
     if (!succeeded) {
       final newPlotStates = Map<MelvorId, PlotState>.from(plotStates)
         ..remove(plotId);
-      return copyWith(plotStates: newPlotStates);
+      return (copyWith(plotStates: newPlotStates), const Changes.empty());
     }
 
     // Calculate harvest quantity
@@ -3145,6 +3145,11 @@ class GlobalState {
 
     // Add harvested items to inventory
     var newInventory = inventory.adding(ItemStack(product, count: quantity));
+
+    // Track changes for toast
+    var changes = const Changes.empty().adding(
+      ItemStack(product, count: quantity),
+    );
 
     // Roll for seed return if category allows
     if (category.returnSeeds) {
@@ -3163,6 +3168,7 @@ class GlobalState {
         newInventory = newInventory.adding(
           ItemStack(seed, count: seedsReturned),
         );
+        changes = changes.adding(ItemStack(seed, count: seedsReturned));
       }
     }
 
@@ -3175,13 +3181,20 @@ class GlobalState {
     final xpAmount = category.scaleXPWithQuantity
         ? crop.baseXP * quantity
         : crop.baseXP;
+    final oldLevel = skillState(Skill.farming).skillLevel;
     newState = newState.addSkillXp(Skill.farming, xpAmount);
+    final newLevel = newState.skillState(Skill.farming).skillLevel;
+
+    changes = changes.addingSkillXp(Skill.farming, xpAmount);
+    if (newLevel > oldLevel) {
+      changes = changes.addingSkillLevel(Skill.farming, oldLevel, newLevel);
+    }
 
     // Award mastery XP
     final masteryXpAmount = crop.baseXP ~/ category.masteryXPDivider;
     newState = newState.addActionMasteryXp(cropId, masteryXpAmount);
 
-    return newState.clearPlot(plotId);
+    return (newState.clearPlot(plotId), changes);
   }
 
   /// Clears a farming plot, destroying any growing crop and compost.

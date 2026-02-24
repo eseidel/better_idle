@@ -181,7 +181,7 @@ void main() {
       state = state.copyWith(plotStates: {plotId: readyPlotState});
 
       final xpBefore = state.skillState(Skill.farming).xp;
-      state = state.harvestCrop(plotId, random);
+      (state, _) = state.harvestCrop(plotId, random);
       final xpAfter = state.skillState(Skill.farming).xp;
 
       // Tree harvest should give exactly baseXP (not scaled)
@@ -210,7 +210,7 @@ void main() {
       state = state.copyWith(plotStates: {plotId: readyPlotState});
 
       final xpBeforeHarvest = state.skillState(Skill.farming).xp;
-      state = state.harvestCrop(plotId, random);
+      (state, _) = state.harvestCrop(plotId, random);
       final xpAfterHarvest = state.skillState(Skill.farming).xp;
 
       // Determine how many items were harvested
@@ -263,7 +263,7 @@ void main() {
         state = state.copyWith(plotStates: {plotId: readyPlotState});
 
         final product = testRegistries.items.byId(allotmentCrop.productId);
-        state = state.harvestCrop(plotId, random);
+        (state, _) = state.harvestCrop(plotId, random);
 
         if (state.inventory.countOfItem(product) > 0) {
           successCount++;
@@ -300,7 +300,7 @@ void main() {
       state = state.copyWith(plotStates: {plotId: readyPlotState});
 
       final product = testRegistries.items.byId(allotmentCrop.productId);
-      state = state.harvestCrop(plotId, random);
+      (state, _) = state.harvestCrop(plotId, random);
 
       // With 100% success, we should always get the product
       expect(state.inventory.countOfItem(product), greaterThan(0));
@@ -339,7 +339,7 @@ void main() {
       state = state.copyWith(plotStates: {plotId: readyPlotState});
 
       final product = testRegistries.items.byId(allotmentCrop.productId);
-      state = state.harvestCrop(plotId, random);
+      (state, _) = state.harvestCrop(plotId, random);
 
       // With a failing seed at 50% chance, we should get no product
       expect(state.inventory.countOfItem(product), 0);
@@ -386,7 +386,7 @@ void main() {
       );
 
       final product = testRegistries.items.byId(allotmentCrop.productId);
-      stateWithout = stateWithout.harvestCrop(plotId, Random(42));
+      (stateWithout, _) = stateWithout.harvestCrop(plotId, Random(42));
       final quantityWithout = stateWithout.inventory.countOfItem(product);
 
       // Now harvest with 50% harvest bonus (large enough to see the difference)
@@ -406,7 +406,7 @@ void main() {
       );
       stateWith = stateWith.copyWith(plotStates: {plotId: plotStateWith});
 
-      stateWith = stateWith.harvestCrop(plotId, Random(42));
+      (stateWith, _) = stateWith.harvestCrop(plotId, Random(42));
       final quantityWith = stateWith.inventory.countOfItem(product);
 
       // Calculate expected values
