@@ -19,6 +19,7 @@ class ItemCountBadgeCell extends StatelessWidget {
     required this.item,
     required this.count,
     this.hasEnough,
+    this.showShopBadge = false,
     this.inradius = TextBadgeCell.defaultInradius,
     super.key,
   });
@@ -26,6 +27,7 @@ class ItemCountBadgeCell extends StatelessWidget {
   final Item item;
   final int count;
   final bool? hasEnough;
+  final bool showShopBadge;
   final double inradius;
 
   @override
@@ -42,14 +44,28 @@ class ItemCountBadgeCell extends StatelessWidget {
     return Tooltip(
       message: item.name,
       preferBelow: false,
-      child: CountBadgeCell(
-        inradius: inradius,
-        backgroundColor: Style.xpBadgeBackgroundColor,
-        borderColor: borderColor,
-        count: count,
-        child: Center(
-          child: ItemImage(item: item, size: iconSize),
-        ),
+      child: Stack(
+        children: [
+          CountBadgeCell(
+            inradius: inradius,
+            backgroundColor: Style.xpBadgeBackgroundColor,
+            borderColor: borderColor,
+            count: count,
+            child: Center(
+              child: ItemImage(item: item, size: iconSize),
+            ),
+          ),
+          if (showShopBadge)
+            const Positioned(
+              top: 1,
+              left: 1,
+              child: Icon(
+                Icons.shopping_cart,
+                size: 14,
+                color: Style.badgeTextColor,
+              ),
+            ),
+        ],
       ),
     );
   }
