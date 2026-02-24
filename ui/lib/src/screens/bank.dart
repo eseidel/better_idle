@@ -608,14 +608,26 @@ class _ItemDetailsContentState extends State<_ItemDetailsContent> {
               width: double.infinity,
               child: ElevatedButton(
                 onPressed: sellCountInt > 0
-                    ? () {
-                        context.dispatch(
-                          SellItemAction(
-                            item: widget.stack.item,
-                            count: sellCountInt,
-                          ),
+                    ? () async {
+                        final stack = ItemStack(
+                          widget.stack.item,
+                          count: sellCountInt,
                         );
-                        widget.onClose();
+                        final confirmed = await showDialog<bool>(
+                          context: context,
+                          builder: (dialogContext) =>
+                              _SellConfirmationDialog(stacks: [stack]),
+                        );
+                        if (!context.mounted) return;
+                        if (confirmed ?? false) {
+                          context.dispatch(
+                            SellItemAction(
+                              item: widget.stack.item,
+                              count: sellCountInt,
+                            ),
+                          );
+                          widget.onClose();
+                        }
                       }
                     : null,
                 child: const Text('Sell'),
