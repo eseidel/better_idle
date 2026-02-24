@@ -731,8 +731,26 @@ class GlobalState {
     };
   }
 
-  /// Returns true if the given action is currently active.
-  bool isActionActive(Action action) => currentActionId == action.id;
+  /// Returns true if the given action is currently active (primary or
+  /// secondary in multi-tree woodcutting).
+  bool isActionActive(Action action) {
+    if (currentActionId == action.id) return true;
+    final activity = activeActivity;
+    if (activity is SkillActivity && activity.secondaryActionId != null) {
+      return ActionId(activity.skill.id, activity.secondaryActionId!) ==
+          action.id;
+    }
+    return false;
+  }
+
+  /// Returns the secondary woodcutting action ID, if multi-tree is active.
+  ActionId? get secondaryWoodcuttingActionId {
+    final activity = activeActivity;
+    if (activity is SkillActivity && activity.secondaryActionId != null) {
+      return ActionId(activity.skill.id, activity.secondaryActionId!);
+    }
+    return null;
+  }
 
   /// The accumulated skill states.
   final Map<Skill, SkillState> skillStates;
@@ -1389,12 +1407,63 @@ class GlobalState {
     );
   }
 
+  /// Starts multi-tree woodcutting, cutting two trees simultaneously.
+  ///
+  /// The slower tree becomes the primary (sets the timer), the faster tree
+  /// becomes the secondary (its output is scaled by M_Action multiplier).
+  GlobalState startMultiTreeWoodcutting(
+    WoodcuttingTree tree1,
+    WoodcuttingTree tree2, {
+    required Random random,
+  }) {
+    if (isStunned) {
+      throw const StunnedException('Cannot start action while stunned');
+    }
+
+    final prepared = _prepareForActivitySwitch(stayingInCooking: false);
+
+    final ticks1 = prepared.rollDurationWithModifiers(
+      tree1,
+      random,
+      registries.shop,
+    );
+    final ticks2 = prepared.rollDurationWithModifiers(
+      tree2,
+      random,
+      registries.shop,
+    );
+
+    // Primary tree is the slower one (sets the timer)
+    final WoodcuttingTree primary;
+    final WoodcuttingTree secondary;
+    final int totalTicks;
+    if (ticks1 >= ticks2) {
+      primary = tree1;
+      secondary = tree2;
+      totalTicks = ticks1;
+    } else {
+      primary = tree2;
+      secondary = tree1;
+      totalTicks = ticks2;
+    }
+
+    return prepared.copyWith(
+      activeActivity: SkillActivity(
+        skill: Skill.woodcutting,
+        actionId: primary.id.localId,
+        progressTicks: 0,
+        totalTicks: totalTicks,
+        secondaryActionId: secondary.id.localId,
+      ),
+    );
+  }
+
   /// Starts an action using deterministic mean duration (no randomness).
   ///
   /// Used during planning/solver to get consistent state projections.
   /// For actual gameplay execution, use [startAction] instead.
   GlobalState startActionDeterministic(Action action) {
-    return _startActionImpl(action, skillDuration: _meanDurationWithModifiers);
+    return _startActionImpl(action, skillDuration: meanDurationWithModifiers);
   }
 
   GlobalState _startActionImpl(
@@ -1830,7 +1899,7 @@ class GlobalState {
   }
 
   /// Calculates mean duration with modifiers applied (deterministic).
-  int _meanDurationWithModifiers(SkillAction action) {
+  int meanDurationWithModifiers(SkillAction action) {
     final ticks = ticksFromDuration(action.meanDuration);
     final modifiers = createActionModifierProvider(
       action,
@@ -1938,10 +2007,14 @@ class GlobalState {
 
   int activeProgress(Action action) {
     final activity = activeActivity;
-    if (activity == null || currentActionId != action.id) {
-      return 0;
+    if (activity == null) return 0;
+    // Primary action match
+    if (currentActionId == action.id) return activity.progressTicks;
+    // Secondary action in multi-tree shares the same progress bar
+    if (secondaryWoodcuttingActionId == action.id) {
+      return activity.progressTicks;
     }
-    return activity.progressTicks;
+    return 0;
   }
 
   GlobalState updateActiveActivity(

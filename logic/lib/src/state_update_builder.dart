@@ -87,6 +87,32 @@ class StateUpdateBuilder {
   void restartCurrentAction(Action action, {required Random random}) {
     final activity = _state.activeActivity;
     if (activity != null && action is SkillAction) {
+      // For multi-tree woodcutting, roll both durations and use max
+      if (activity is SkillActivity && activity.secondaryActionId != null) {
+        final secondaryActionId = ActionId(
+          activity.skill.id,
+          activity.secondaryActionId!,
+        );
+        final secondaryAction = registries.actionById(secondaryActionId);
+        if (secondaryAction is SkillAction) {
+          final primaryTicks = _state.rollDurationWithModifiers(
+            action,
+            random,
+            registries.shop,
+          );
+          final secondaryTicks = _state.rollDurationWithModifiers(
+            secondaryAction,
+            random,
+            registries.shop,
+          );
+          final newTotalTicks = max(primaryTicks, secondaryTicks);
+          _state = _state.copyWith(
+            activeActivity: activity.restarted(newTotalTicks: newTotalTicks),
+          );
+          return;
+        }
+      }
+
       // Use the activity's restarted method to preserve internal state
       // (e.g., CookingActivity preserves passive area progress)
       final newTotalTicks = _state.rollDurationWithModifiers(

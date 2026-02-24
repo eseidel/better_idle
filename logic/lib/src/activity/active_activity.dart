@@ -83,6 +83,7 @@ class SkillActivity extends ActiveActivity {
     required super.progressTicks,
     required super.totalTicks,
     this.selectedRecipeIndex,
+    this.secondaryActionId,
   });
 
   factory SkillActivity.fromJson(Map<String, dynamic> json) {
@@ -92,6 +93,9 @@ class SkillActivity extends ActiveActivity {
       progressTicks: json['progressTicks'] as int,
       totalTicks: json['totalTicks'] as int,
       selectedRecipeIndex: json['selectedRecipeIndex'] as int?,
+      secondaryActionId: json['secondaryActionId'] != null
+          ? MelvorId.fromJson(json['secondaryActionId'] as String)
+          : null,
     );
   }
 
@@ -105,6 +109,30 @@ class SkillActivity extends ActiveActivity {
   /// Null if the action has no alternatives or the default is selected.
   final int? selectedRecipeIndex;
 
+  /// Secondary action for multi-tree woodcutting.
+  /// When set, both the primary and secondary trees are cut each cycle.
+  /// The primary tree (actionId) is the slower tree that sets the timer.
+  /// The secondary tree produces logs scaled by M_Action multiplier.
+  final MelvorId? secondaryActionId;
+
+  SkillActivity copyWith({
+    Skill? skill,
+    MelvorId? actionId,
+    Tick? progressTicks,
+    Tick? totalTicks,
+    int? selectedRecipeIndex,
+    MelvorId? secondaryActionId,
+  }) {
+    return SkillActivity(
+      skill: skill ?? this.skill,
+      actionId: actionId ?? this.actionId,
+      progressTicks: progressTicks ?? this.progressTicks,
+      totalTicks: totalTicks ?? this.totalTicks,
+      selectedRecipeIndex: selectedRecipeIndex ?? this.selectedRecipeIndex,
+      secondaryActionId: secondaryActionId ?? this.secondaryActionId,
+    );
+  }
+
   @override
   SkillActivity withProgress({required Tick progressTicks}) {
     return SkillActivity(
@@ -113,6 +141,7 @@ class SkillActivity extends ActiveActivity {
       progressTicks: progressTicks,
       totalTicks: totalTicks,
       selectedRecipeIndex: selectedRecipeIndex,
+      secondaryActionId: secondaryActionId,
     );
   }
 
@@ -124,6 +153,7 @@ class SkillActivity extends ActiveActivity {
       progressTicks: 0,
       totalTicks: newTotalTicks,
       selectedRecipeIndex: selectedRecipeIndex,
+      secondaryActionId: secondaryActionId,
     );
   }
 
@@ -137,6 +167,8 @@ class SkillActivity extends ActiveActivity {
       'totalTicks': totalTicks,
       if (selectedRecipeIndex != null)
         'selectedRecipeIndex': selectedRecipeIndex,
+      if (secondaryActionId != null)
+        'secondaryActionId': secondaryActionId!.toJson(),
     };
   }
 }
