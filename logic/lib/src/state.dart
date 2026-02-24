@@ -33,6 +33,7 @@ import 'package:logic/src/types/inventory.dart';
 import 'package:logic/src/types/loot_state.dart';
 import 'package:logic/src/types/modifier_provider.dart';
 import 'package:logic/src/types/open_result.dart';
+import 'package:logic/src/types/potion_upgrade_result.dart';
 import 'package:logic/src/types/slayer_task.dart';
 import 'package:logic/src/types/stunned.dart';
 import 'package:logic/src/types/time_away.dart';
@@ -3443,6 +3444,94 @@ class GlobalState {
     }
 
     return maxCount;
+  }
+
+  /// Returns potion upgrades sorted by input tier ascending (bottom-up).
+  List<ItemUpgrade> get _potionUpgrades {
+    // Sort by input potion tier ascending so lower tiers upgrade first.
+    return registries.itemUpgrades.all.where((upgrade) {
+      if (upgrade.itemCosts.isEmpty) return false;
+      final inputItem = registries.items.byId(upgrade.itemCosts.first.itemId);
+      return inputItem.isPotion;
+    }).toList()..sort((a, b) {
+      final tierA =
+          registries.items.byId(a.itemCosts.first.itemId).potionTier ?? 0;
+      final tierB =
+          registries.items.byId(b.itemCosts.first.itemId).potionTier ?? 0;
+      return tierA.compareTo(tierB);
+    });
+  }
+
+  /// Whether the output item can be added when inventory is full.
+  ///
+  /// Returns true if:
+  /// - Output item already exists in inventory (stacks), or
+  /// - Input is fully consumed at [count], freeing its slot.
+  bool _canPlaceUpgradeOutput(ItemUpgrade upgrade, int count) {
+    final outputItem = registries.items.byId(upgrade.upgradedItemId);
+    if (inventory.canAdd(outputItem, capacity: inventoryCapacity)) {
+      return true;
+    }
+    // Inventory is full and output is a new item.
+    // Only allow if input is fully consumed (frees its slot).
+    final inputCost = upgrade.itemCosts.first;
+    final available = inventory.countById(inputCost.itemId);
+    return inputCost.quantity * count >= available;
+  }
+
+  /// Whether any potion upgrade can be performed.
+  bool get canUpgradeAllPotions {
+    for (final upgrade in _potionUpgrades) {
+      final count = maxAffordableUpgrades(upgrade);
+      if (count <= 0) continue;
+      if (!_canPlaceUpgradeOutput(upgrade, count)) {
+        // Check if fully consuming input would work.
+        final inputCost = upgrade.itemCosts.first;
+        final available = inventory.countById(inputCost.itemId);
+        final fullConsumeCount = available ~/ inputCost.quantity;
+        if (fullConsumeCount <= 0) continue;
+        if (!_canPlaceUpgradeOutput(upgrade, fullConsumeCount)) continue;
+      }
+      return true;
+    }
+    return false;
+  }
+
+  /// Upgrades all potions maximally, cascading from lowest to highest tier.
+  (GlobalState, PotionUpgradeResult) upgradeAllPotions() {
+    var state = this;
+    var totalUpgrades = 0;
+    var madeProgress = true;
+
+    while (madeProgress) {
+      madeProgress = false;
+      for (final upgrade in state._potionUpgrades) {
+        var count = state.maxAffordableUpgrades(upgrade);
+        if (count <= 0) continue;
+
+        // Slot constraint: if output is new and inventory is full,
+        // only allow if input is fully consumed (frees its slot).
+        if (!state._canPlaceUpgradeOutput(upgrade, count)) {
+          final inputCost = upgrade.itemCosts.first;
+          final available = state.inventory.countById(inputCost.itemId);
+          final fullConsumeCount = available ~/ inputCost.quantity;
+          if (fullConsumeCount <= 0) continue;
+          if (!state._canPlaceUpgradeOutput(upgrade, fullConsumeCount)) {
+            continue;
+          }
+          count = fullConsumeCount;
+        }
+
+        final newState = state.upgradeItem(upgrade, count);
+        if (newState != null) {
+          state = newState;
+          totalUpgrades += count;
+          madeProgress = true;
+        }
+      }
+    }
+
+    return (state, PotionUpgradeResult(totalUpgradesMade: totalUpgrades));
   }
 
   /// Sorts the inventory by bank sort order.
