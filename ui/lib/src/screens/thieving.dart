@@ -11,6 +11,7 @@ import 'package:ui/src/widgets/skill_image.dart';
 import 'package:ui/src/widgets/skill_overflow_menu.dart';
 import 'package:ui/src/widgets/skill_progress.dart';
 import 'package:ui/src/widgets/style.dart';
+import 'package:ui/src/widgets/thieving_drops_dialog.dart';
 import 'package:ui/src/widgets/tweened_progress_indicator.dart';
 import 'package:ui/src/widgets/xp_badges_row.dart';
 
@@ -259,12 +260,28 @@ class _SelectedActionDisplay extends StatelessWidget {
           _ThievingProgressBar(action: action),
           const SizedBox(height: 16),
 
-          ElevatedButton(
-            onPressed: canToggle ? onStart : null,
-            style: ElevatedButton.styleFrom(
-              backgroundColor: isActive ? Style.activeColor : null,
-            ),
-            child: Text(isActive ? 'Stop' : 'Pickpocket'),
+          Row(
+            children: [
+              Expanded(
+                child: OutlinedButton(
+                  onPressed: () => showDialog<void>(
+                    context: context,
+                    builder: (_) => ThievingDropsDialog(action: action),
+                  ),
+                  child: const Text('Drops'),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: ElevatedButton(
+                  onPressed: canToggle ? onStart : null,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: isActive ? Style.activeColor : null,
+                  ),
+                  child: Text(isActive ? 'Stop' : 'Pickpocket'),
+                ),
+              ),
+            ],
           ),
         ],
       ),
