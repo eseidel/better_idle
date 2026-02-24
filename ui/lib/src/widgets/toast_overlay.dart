@@ -324,7 +324,7 @@ class _ToastOverlayState extends State<ToastOverlay>
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            CachedImage(assetPath: Currency.gp.assetPath, size: 20),
+            CachedImage(assetPath: currency.assetPath, size: 20),
             const SizedBox(width: 8),
             Text(
               signedCountString(amount),
