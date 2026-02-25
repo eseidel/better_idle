@@ -38,6 +38,7 @@ class ProductionActionDisplay extends StatelessWidget {
     required this.showRecycleBadge,
     this.skillLevel,
     this.effectText,
+    this.showInputShopBadge = false,
     this.onInputItemTap,
     super.key,
   });
@@ -53,6 +54,9 @@ class ProductionActionDisplay extends StatelessWidget {
 
   /// Optional effect text shown below the action name (e.g., for summoning).
   final String? effectText;
+
+  /// Whether to show shop badge icons on input items that are purchasable.
+  final bool showInputShopBadge;
 
   /// Optional callback when an input item is tapped
   /// (e.g., for purchase dialog).
@@ -260,6 +264,7 @@ class ProductionActionDisplay extends StatelessWidget {
               else
                 ItemCountBadgesRow.required(
                   items: inputs,
+                  showShopBadge: showInputShopBadge,
                   onItemTap: onInputItemTap,
                 ),
             ],
@@ -284,6 +289,7 @@ class ProductionActionDisplay extends StatelessWidget {
               else
                 ItemCountBadgesRow.inventory(
                   items: inputs,
+                  showShopBadge: showInputShopBadge,
                   onItemTap: onInputItemTap,
                 ),
             ],

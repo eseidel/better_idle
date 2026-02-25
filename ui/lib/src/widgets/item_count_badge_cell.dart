@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:logic/logic.dart';
+import 'package:ui/src/widgets/cached_image.dart';
 import 'package:ui/src/widgets/context_extensions.dart';
 import 'package:ui/src/widgets/count_badge_cell.dart';
 import 'package:ui/src/widgets/item_image.dart';
@@ -59,10 +60,9 @@ class ItemCountBadgeCell extends StatelessWidget {
             const Positioned(
               top: 1,
               left: 1,
-              child: Icon(
-                Icons.shopping_cart,
+              child: CachedImage(
+                assetPath: 'assets/media/main/shop_header.png',
                 size: 14,
-                color: Style.badgeTextColor,
               ),
             ),
         ],
@@ -80,6 +80,7 @@ class ItemCountBadgesRow extends StatelessWidget {
   const ItemCountBadgesRow._({
     required this.items,
     required this.showInventory,
+    this.showShopBadge = false,
     this.onItemTap,
     super.key,
   });
@@ -87,11 +88,13 @@ class ItemCountBadgesRow extends StatelessWidget {
   /// Creates a row showing required item counts (no inventory comparison).
   const ItemCountBadgesRow.required({
     required Map<MelvorId, int> items,
+    bool showShopBadge = false,
     void Function(Item item)? onItemTap,
     Key? key,
   }) : this._(
          items: items,
          showInventory: false,
+         showShopBadge: showShopBadge,
          onItemTap: onItemTap,
          key: key,
        );
@@ -99,17 +102,20 @@ class ItemCountBadgesRow extends StatelessWidget {
   /// Creates a row showing inventory counts with color-coded borders.
   const ItemCountBadgesRow.inventory({
     required Map<MelvorId, int> items,
+    bool showShopBadge = false,
     void Function(Item item)? onItemTap,
     Key? key,
   }) : this._(
          items: items,
          showInventory: true,
+         showShopBadge: showShopBadge,
          onItemTap: onItemTap,
          key: key,
        );
 
   final Map<MelvorId, int> items;
   final bool showInventory;
+  final bool showShopBadge;
 
   /// Optional callback when an item is tapped.
   final void Function(Item item)? onItemTap;
@@ -132,6 +138,10 @@ class ItemCountBadgesRow extends StatelessWidget {
         final item = state.registries.items.byId(entry.key);
         final requiredCount = entry.value;
 
+        final itemHasShopBadge =
+            showShopBadge &&
+            state.registries.shop.purchasesContainingItem(item.id).isNotEmpty;
+
         Widget cell;
         if (showInventory) {
           final inventoryCount = state.inventory.countOfItem(item);
@@ -140,9 +150,14 @@ class ItemCountBadgesRow extends StatelessWidget {
             item: item,
             count: inventoryCount,
             hasEnough: hasEnough,
+            showShopBadge: itemHasShopBadge,
           );
         } else {
-          cell = ItemCountBadgeCell(item: item, count: requiredCount);
+          cell = ItemCountBadgeCell(
+            item: item,
+            count: requiredCount,
+            showShopBadge: itemHasShopBadge,
+          );
         }
 
         if (onItemTap != null) {

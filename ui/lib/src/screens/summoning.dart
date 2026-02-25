@@ -630,6 +630,7 @@ class _SummoningActionDisplay extends StatelessWidget {
       buttonText: 'Create',
       showRecycleBadge: true,
       effectText: effectText,
+      showInputShopBadge: true,
       onStart: onStart,
       onInputItemTap: (item) => _onShardTap(context, item),
     );

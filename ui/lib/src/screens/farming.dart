@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart' hide Action;
-import 'package:go_router/go_router.dart';
 import 'package:logic/logic.dart';
 import 'package:ui/src/logic/redux_actions.dart';
 import 'package:ui/src/widgets/context_extensions.dart';
@@ -8,6 +7,7 @@ import 'package:ui/src/widgets/game_scaffold.dart';
 import 'package:ui/src/widgets/item_count_badge_cell.dart';
 import 'package:ui/src/widgets/item_image.dart';
 import 'package:ui/src/widgets/mastery_pool.dart';
+import 'package:ui/src/widgets/shard_purchase_dialog.dart';
 import 'package:ui/src/widgets/skill_fab.dart';
 import 'package:ui/src/widgets/skill_image.dart';
 import 'package:ui/src/widgets/skill_overflow_menu.dart';
@@ -81,7 +81,14 @@ class _CompostIndicators extends StatelessWidget {
         children: [
           for (final item in compostItems)
             GestureDetector(
-              onTap: () => context.go('/shop'),
+              onTap: () {
+                final purchases = registries.shop.purchasesContainingItem(
+                  item.id,
+                );
+                if (purchases.isNotEmpty) {
+                  showShardPurchaseDialog(context, item);
+                }
+              },
               child: ItemCountBadgeCell(
                 item: item,
                 count: state.inventory.countOfItem(item),
