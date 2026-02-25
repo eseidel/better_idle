@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart' hide Action;
+import 'package:go_router/go_router.dart';
 import 'package:logic/logic.dart';
 import 'package:ui/src/logic/redux_actions.dart';
 import 'package:ui/src/widgets/context_extensions.dart';
 import 'package:ui/src/widgets/cost_row.dart';
 import 'package:ui/src/widgets/game_scaffold.dart';
+import 'package:ui/src/widgets/item_count_badge_cell.dart';
 import 'package:ui/src/widgets/item_image.dart';
 import 'package:ui/src/widgets/mastery_pool.dart';
 import 'package:ui/src/widgets/skill_fab.dart';
@@ -38,6 +40,7 @@ class FarmingPage extends StatelessWidget {
         children: [
           SkillProgress(xp: skillState.xp),
           const MasteryPoolProgress(skill: skill),
+          _CompostIndicators(registries: registries),
           Expanded(
             child: SingleChildScrollView(
               padding: const EdgeInsets.all(16),
@@ -50,6 +53,41 @@ class FarmingPage extends StatelessWidget {
               ),
             ),
           ),
+        ],
+      ),
+    );
+  }
+}
+
+class _CompostIndicators extends StatelessWidget {
+  const _CompostIndicators({required this.registries});
+
+  final Registries registries;
+
+  @override
+  Widget build(BuildContext context) {
+    final state = context.state;
+    final compostItems = registries.items.all
+        .where((item) => item.compostValue != null && item.compostValue != 0)
+        .toList();
+
+    if (compostItems.isEmpty) return const SizedBox.shrink();
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      child: Wrap(
+        spacing: 8,
+        runSpacing: 8,
+        children: [
+          for (final item in compostItems)
+            GestureDetector(
+              onTap: () => context.go('/shop'),
+              child: ItemCountBadgeCell(
+                item: item,
+                count: state.inventory.countOfItem(item),
+                showShopBadge: true,
+              ),
+            ),
         ],
       ),
     );
