@@ -39,8 +39,7 @@ class MelvorId {
 
   @override
   bool operator ==(Object other) =>
-      identical(this, other) ||
-      other is MelvorId && fullId == other.fullId;
+      identical(this, other) || other is MelvorId && fullId == other.fullId;
 
   @override
   int get hashCode => fullId.hashCode;

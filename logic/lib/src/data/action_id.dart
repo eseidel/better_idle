@@ -39,9 +39,7 @@ class ActionId {
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
-      other is ActionId &&
-          skillId == other.skillId &&
-          localId == other.localId;
+      other is ActionId && skillId == other.skillId && localId == other.localId;
 
   @override
   int get hashCode => Object.hash(skillId, localId);

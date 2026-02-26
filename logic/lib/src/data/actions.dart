@@ -38,37 +38,37 @@ export 'woodcutting.dart';
 /// of actions that can be performed by the player.
 enum Skill {
   // Combat skills
-  combat('Combat'),
-  hitpoints('Hitpoints'),
-  attack('Attack'),
-  strength('Strength'),
-  defence('Defence'),
-  ranged('Ranged'),
-  magic('Magic'),
-  prayer('Prayer'),
-  slayer('Slayer'),
+  combat('Combat', MelvorId('melvorD:Combat')),
+  hitpoints('Hitpoints', MelvorId('melvorD:Hitpoints')),
+  attack('Attack', MelvorId('melvorD:Attack')),
+  strength('Strength', MelvorId('melvorD:Strength')),
+  defence('Defence', MelvorId('melvorD:Defence')),
+  ranged('Ranged', MelvorId('melvorD:Ranged')),
+  magic('Magic', MelvorId('melvorD:Magic')),
+  prayer('Prayer', MelvorId('melvorD:Prayer')),
+  slayer('Slayer', MelvorId('melvorD:Slayer')),
   // Passive skills
-  town('Township'),
-  farming('Farming'),
+  town('Township', MelvorId('melvorD:Township')),
+  farming('Farming', MelvorId('melvorD:Farming')),
 
   // Other skills
-  woodcutting('Woodcutting'),
-  firemaking('Firemaking'),
-  fishing('Fishing'),
-  cooking('Cooking'),
-  mining('Mining'),
-  smithing('Smithing'),
-  thieving('Thieving'),
-  fletching('Fletching'),
-  crafting('Crafting'),
-  herblore('Herblore'),
-  runecrafting('Runecrafting'),
-  agility('Agility'),
-  summoning('Summoning'),
-  astrology('Astrology'),
-  altMagic('Alt. Magic');
+  woodcutting('Woodcutting', MelvorId('melvorD:Woodcutting')),
+  firemaking('Firemaking', MelvorId('melvorD:Firemaking')),
+  fishing('Fishing', MelvorId('melvorD:Fishing')),
+  cooking('Cooking', MelvorId('melvorD:Cooking')),
+  mining('Mining', MelvorId('melvorD:Mining')),
+  smithing('Smithing', MelvorId('melvorD:Smithing')),
+  thieving('Thieving', MelvorId('melvorD:Thieving')),
+  fletching('Fletching', MelvorId('melvorD:Fletching')),
+  crafting('Crafting', MelvorId('melvorD:Crafting')),
+  herblore('Herblore', MelvorId('melvorD:Herblore')),
+  runecrafting('Runecrafting', MelvorId('melvorD:Runecrafting')),
+  agility('Agility', MelvorId('melvorD:Agility')),
+  summoning('Summoning', MelvorId('melvorD:Summoning')),
+  astrology('Astrology', MelvorId('melvorD:Astrology')),
+  altMagic('Alt. Magic', MelvorId('melvorD:AltMagic'));
 
-  const Skill(this.name);
+  const Skill(this.name, this.id);
 
   /// Returns the skill for the given name (e.g., "Woodcutting").
   /// Used for deserializing saved game state. Throws if not recognized.
@@ -85,17 +85,12 @@ enum Skill {
 
   final String name;
 
+  /// The Melvor ID for this skill (e.g., melvorD:Woodcutting).
+  final MelvorId id;
+
   static final Map<String, Skill> _byFullId = {
     for (final skill in values) skill.id.fullId: skill,
   };
-
-  static final Map<Skill, MelvorId> _ids = {
-    for (final skill in values) skill: MelvorId('melvorD:${skill.name}'),
-  };
-
-  /// The Melvor ID for this skill (e.g., melvorD:Woodcutting).
-  /// All skills use the melvorD namespace (e.g., melvorD:Woodcutting).
-  MelvorId get id => _ids[this]!;
 
   /// Skills that have actions requiring inputs (consuming skills).
   /// For solver: these skills need inventory tracking to properly plan
