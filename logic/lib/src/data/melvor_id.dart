@@ -1,8 +1,7 @@
-import 'package:equatable/equatable.dart';
 import 'package:meta/meta.dart';
 
 @immutable
-class MelvorId extends Equatable {
+class MelvorId {
   const MelvorId(this.fullId);
 
   /// Creates a MelvorId from a JSON string, adding namespace if missing.
@@ -39,7 +38,11 @@ class MelvorId extends Equatable {
   String get name => localId.replaceAll('_', ' ');
 
   @override
-  List<Object?> get props => [fullId];
+  bool operator ==(Object other) =>
+      identical(this, other) || other is MelvorId && fullId == other.fullId;
+
+  @override
+  int get hashCode => fullId.hashCode;
 
   @override
   String toString() => fullId;

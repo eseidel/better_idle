@@ -120,4 +120,7 @@ void main(List<String> args) async {
     'Woodcutting level: '
     '${finalState.skillState(Skill.woodcutting).skillLevel}',
   );
+
+  // --observe keeps the VM service alive; force exit after profiling.
+  if (profile) exit(0);
 }
