@@ -1,6 +1,6 @@
-import 'package:equatable/equatable.dart';
 import 'package:logic/src/data/actions.dart';
 import 'package:logic/src/data/melvor_id.dart';
+import 'package:meta/meta.dart';
 
 /// ActionId has two parts, the skill id and the action name.
 /// This is necessary to uniquely identify an action, since action names
@@ -14,7 +14,8 @@ import 'package:logic/src/data/melvor_id.dart';
 /// 1. Mastery XP is shared across all recipe variants of the same action
 /// 2. Recipe selection is transient activity state, not a permanent property
 /// 3. The action's outputs and XP rewards are the same regardless of recipe
-class ActionId extends Equatable {
+@immutable
+class ActionId {
   const ActionId(this.skillId, this.localId);
 
   factory ActionId.test(Skill skill, String localName) =>
@@ -36,7 +37,14 @@ class ActionId extends Equatable {
   }
 
   @override
-  List<Object?> get props => [skillId, localId];
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is ActionId &&
+          skillId == other.skillId &&
+          localId == other.localId;
+
+  @override
+  int get hashCode => Object.hash(skillId, localId);
 
   @override
   String toString() => '${skillId.fullId}/$localId';
