@@ -247,7 +247,7 @@ class ConsumesOn extends Equatable {
 
 /// An item loaded from the Melvor game data.
 @immutable
-class Item extends Equatable {
+class Item {
   const Item({
     required this.id,
     required this.name,
@@ -552,32 +552,15 @@ class Item extends Equatable {
     return dropTable!.roll(items, random);
   }
 
+  // Items are immutable singletons from the registry, so identity by id is
+  // sufficient and avoids the cost of Equatable's props list allocation
+  // (Item had 20+ fields in props, used as map keys in Inventory).
   @override
-  List<Object?> get props => [
-    id,
-    name,
-    itemType,
-    sellsFor,
-    category,
-    type,
-    healsFor,
-    compostValue,
-    harvestBonus,
-    dropTable,
-    media,
-    validSlots,
-    description,
-    modifiers,
-    conditionalModifiers,
-    equipmentStats,
-    attackType,
-    equipRequirements,
-    potionCharges,
-    potionTier,
-    potionAction,
-    consumesOn,
-    masteryTokenSkillId,
-  ];
+  bool operator ==(Object other) =>
+      identical(this, other) || other is Item && id == other.id;
+
+  @override
+  int get hashCode => id.hashCode;
 }
 
 @immutable
