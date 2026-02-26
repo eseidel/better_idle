@@ -114,6 +114,11 @@ class MasteryProgressCell extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final progress = masteryProgressForXp(masteryXp);
+    final isMaxLevel = progress.nextLevelXp == null;
+    final progressLabel = isMaxLevel
+        ? 'Max Level'
+        : '${preciseNumberString(masteryXp)} / '
+              '${preciseNumberString(progress.nextLevelXp!)}';
     return Row(
       children: [
         const CachedImage(
@@ -127,8 +132,7 @@ class MasteryProgressCell extends StatelessWidget {
           child: Column(
             children: [
               Text(
-                '${preciseNumberString(masteryXp)} / '
-                '${preciseNumberString(progress.nextLevelXp ?? 0)}',
+                progressLabel,
                 overflow: TextOverflow.ellipsis,
                 style: Theme.of(context).textTheme.bodySmall,
               ),
