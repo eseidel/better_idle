@@ -154,14 +154,21 @@ class XpProgress {
 }
 
 int levelForXp(int xp) {
-  // Find the last index where _xpTable[index] <= xp
-  // This represents the level the player has reached
-  for (var i = _xpTable.length - 1; i >= 0; i--) {
-    if (_xpTable[i] <= xp) {
-      return i + 1;
+  // Binary search for the last index where _xpTable[index] <= xp.
+  var lo = 0;
+  var hi = _xpTable.length;
+  while (lo < hi) {
+    final mid = (lo + hi) >>> 1;
+    if (_xpTable[mid] <= xp) {
+      lo = mid + 1;
+    } else {
+      hi = mid;
     }
   }
-  throw StateError('XP is less than all values in table');
+  // lo is now the first index where _xpTable[lo] > xp, so lo-1 is the
+  // last index where _xpTable[index] <= xp. Levels are 1-based.
+  if (lo == 0) throw StateError('XP is less than all values in table');
+  return lo;
 }
 
 int startXpForLevel(int level) {
