@@ -79,17 +79,23 @@ enum Skill {
   /// Returns the skill for the given ID.
   /// Throws if the skill is not recognized.
   factory Skill.fromId(MelvorId id) {
-    return values.firstWhere(
-      (e) => e.id == id,
-      orElse: () => throw ArgumentError('Unknown skill ID: $id'),
-    );
+    return _byFullId[id.fullId] ??
+        (throw ArgumentError('Unknown skill ID: $id'));
   }
 
   final String name;
 
+  static final Map<String, Skill> _byFullId = {
+    for (final skill in values) skill.id.fullId: skill,
+  };
+
+  static final Map<Skill, MelvorId> _ids = {
+    for (final skill in values) skill: MelvorId('melvorD:${skill.name}'),
+  };
+
   /// The Melvor ID for this skill (e.g., melvorD:Woodcutting).
   /// All skills use the melvorD namespace (e.g., melvorD:Woodcutting).
-  MelvorId get id => MelvorId('melvorD:$name');
+  MelvorId get id => _ids[this]!;
 
   /// Skills that have actions requiring inputs (consuming skills).
   /// For solver: these skills need inventory tracking to properly plan
