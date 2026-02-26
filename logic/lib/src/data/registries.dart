@@ -259,12 +259,20 @@ class Registries {
     return action;
   }
 
+  /// Map from Skill to list of SkillActions for that skill (cached).
+  late final Map<Skill, List<SkillAction>> _actionsForSkill = () {
+    final map = <Skill, List<SkillAction>>{};
+    for (final action in allActions) {
+      if (action is SkillAction) {
+        (map[action.skill] ??= []).add(action);
+      }
+    }
+    return map;
+  }();
+
   /// Returns all skill actions for a given skill.
   List<SkillAction> actionsForSkill(Skill skill) {
-    return allActions
-        .whereType<SkillAction>()
-        .where((action) => action.skill == skill)
-        .toList();
+    return _actionsForSkill[skill] ?? const [];
   }
 
   /// Comparator for sorting items according to bank sort order.
