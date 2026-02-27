@@ -42,8 +42,10 @@ class _FishingPageState extends State<FishingPage> {
         .where((FishingAction a) => skillLevel >= a.unlockLevel)
         .toList();
 
-    // Try to restore the last selected action from persisted state
-    final savedActionId = state.selectedSkillAction(skill);
+    // Try to restore the last selected action from persisted state,
+    // falling back to the currently active action if none saved.
+    final savedActionId =
+        state.selectedSkillAction(skill) ?? state.currentActionId?.localId;
     FishingAction? savedAction;
     if (savedActionId != null) {
       savedAction = fishingActions.cast<FishingAction?>().firstWhere(

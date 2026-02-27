@@ -70,8 +70,10 @@ class _SummoningPageState extends State<SummoningPage>
         .where((SummoningAction a) => skillLevel >= a.unlockLevel)
         .toList();
 
-    // Try to restore the last selected action from persisted state
-    final savedActionId = state.selectedSkillAction(skill);
+    // Try to restore the last selected action from persisted state,
+    // falling back to the currently active action if none saved.
+    final savedActionId =
+        state.selectedSkillAction(skill) ?? state.currentActionId?.localId;
     SummoningAction? savedAction;
     if (savedActionId != null) {
       savedAction = actions.cast<SummoningAction?>().firstWhere(
