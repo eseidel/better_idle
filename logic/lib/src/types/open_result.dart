@@ -1,3 +1,4 @@
+import 'package:logic/src/data/items.dart';
 import 'package:logic/src/types/inventory.dart';
 import 'package:meta/meta.dart';
 
@@ -14,8 +15,8 @@ class OpenResult {
   final int openedCount;
 
   /// The combined drops from all opened items.
-  /// Maps item name to total count received.
-  final Map<String, int> drops;
+  /// Maps item to total count received.
+  final Map<Item, int> drops;
 
   /// Error message if opening stopped early (e.g., 'Inventory full').
   /// Null if all requested items were opened successfully.
@@ -26,8 +27,8 @@ class OpenResult {
 
   /// Adds a drop to the result, returning a new OpenResult.
   OpenResult addDrop(ItemStack drop) {
-    final newDrops = Map<String, int>.from(drops);
-    newDrops[drop.item.name] = (newDrops[drop.item.name] ?? 0) + drop.count;
+    final newDrops = Map<Item, int>.from(drops);
+    newDrops[drop.item] = (newDrops[drop.item] ?? 0) + drop.count;
     return OpenResult(
       openedCount: openedCount + 1,
       drops: newDrops,
