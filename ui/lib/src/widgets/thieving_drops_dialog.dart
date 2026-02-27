@@ -14,6 +14,7 @@ class ThievingDropsDialog extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final items = context.state.registries.items;
+    final inventory = context.state.inventory;
 
     return AlertDialog(
       title: Row(
@@ -62,14 +63,21 @@ class ThievingDropsDialog extends StatelessWidget {
             ),
             const SizedBox(height: 8),
             if (action.uniqueDrop != null)
-              _DropRow(
-                prefix: '${action.uniqueDrop!.count} x',
-                icon: ItemImage(
-                  item: items.byId(action.uniqueDrop!.itemId),
-                  size: 20,
-                ),
-                name: items.byId(action.uniqueDrop!.itemId).name,
-              )
+              if (inventory.hasEverAcquired(action.uniqueDrop!.itemId))
+                _DropRow(
+                  prefix: '${action.uniqueDrop!.count} x',
+                  icon: ItemImage(
+                    item: items.byId(action.uniqueDrop!.itemId),
+                    size: 20,
+                  ),
+                  name: items.byId(action.uniqueDrop!.itemId).name,
+                )
+              else
+                _DropRow(
+                  prefix: '${action.uniqueDrop!.count} x',
+                  icon: const Icon(Icons.question_mark, size: 20),
+                  name: '???',
+                )
             else
               const Text(
                 'None',
@@ -85,11 +93,20 @@ class ThievingDropsDialog extends StatelessWidget {
             const SizedBox(height: 8),
             if (action.area.uniqueDrops.isNotEmpty)
               ...action.area.uniqueDrops.map(
-                (drop) => _DropRow(
-                  prefix: '${drop.count} x',
-                  icon: ItemImage(item: items.byId(drop.itemId), size: 20),
-                  name: items.byId(drop.itemId).name,
-                ),
+                (drop) => inventory.hasEverAcquired(drop.itemId)
+                    ? _DropRow(
+                        prefix: '${drop.count} x',
+                        icon: ItemImage(
+                          item: items.byId(drop.itemId),
+                          size: 20,
+                        ),
+                        name: items.byId(drop.itemId).name,
+                      )
+                    : _DropRow(
+                        prefix: '${drop.count} x',
+                        icon: const Icon(Icons.question_mark, size: 20),
+                        name: '???',
+                      ),
               )
             else
               const Text(
