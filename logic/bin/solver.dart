@@ -90,6 +90,12 @@ final _parser = ArgParser()
     help:
         'Write the plan to a JSON file (e.g., plan.json). '
         'Implies --no-execute unless -v is also specified.',
+  )
+  ..addFlag(
+    'help',
+    abbr: 'h',
+    help: 'Show usage information',
+    negatable: false,
   );
 
 // ---------------------------------------------------------------------------
@@ -160,6 +166,13 @@ class SolvedPlan {
 
 void main(List<String> args) async {
   final results = _parser.parse(args);
+
+  if (results['help'] as bool) {
+    print('Usage: dart run bin/solver.dart [options] [goal_credits]');
+    print('');
+    print(_parser.usage);
+    return;
+  }
 
   final registries = await loadRegistries();
 

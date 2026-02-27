@@ -733,6 +733,40 @@ void main() {
           expect(macro1.dedupeKey, isNot(equals(macro2.dedupeKey)));
         });
       });
+
+      group('plan', () {
+        MacroPlanContext makeContext(GlobalState state, {Goal? goal}) {
+          return MacroPlanContext(
+            state: state,
+            goal: goal ?? const ReachSkillLevelGoal(Skill.woodcutting, 10),
+            boundaries: const {},
+          );
+        }
+
+        test(
+          'returns MacroCannotPlan when best action needs missing inputs',
+          () {
+            // Smithing is a consuming skill - Bronze Dagger needs Bronze Bar.
+            // With no bars in inventory, plan() should return MacroCannotPlan
+            // instead of crashing.
+            final state = GlobalState.empty(testRegistries);
+            final context = makeContext(
+              state,
+              goal: const ReachSkillLevelGoal(Skill.smithing, 10),
+            );
+            const macro = TrainSkillUntil(
+              Skill.smithing,
+              StopAtNextBoundary(Skill.smithing),
+            );
+
+            final result = macro.plan(context);
+
+            expect(result, isA<MacroCannotPlan>());
+            final cannotPlan = result as MacroCannotPlan;
+            expect(cannotPlan.reason, contains('missing inputs'));
+          },
+        );
+      });
     });
 
     group('AcquireItem', () {
