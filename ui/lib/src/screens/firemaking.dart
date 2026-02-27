@@ -43,8 +43,10 @@ class FiremakingPage extends StatelessWidget {
         .where((FiremakingAction a) => skillLevel >= a.unlockLevel)
         .toList();
 
-    // Try to restore the last selected action from persisted state
-    final savedActionId = state.selectedSkillAction(skill);
+    // Try to restore the last selected action from persisted state,
+    // falling back to the currently active action if none saved.
+    final savedActionId =
+        state.selectedSkillAction(skill) ?? state.currentActionId?.localId;
     FiremakingAction? savedAction;
     if (savedActionId != null) {
       savedAction = sortedActions.cast<FiremakingAction?>().firstWhere(

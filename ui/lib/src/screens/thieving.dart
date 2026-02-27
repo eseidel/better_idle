@@ -37,8 +37,10 @@ class _ThievingPageState extends State<ThievingPage> {
     // Get all thieving actions from the registry
     final thievingActions = registries.thieving.actions;
 
-    // Try to restore the last selected action from persisted state
-    final savedActionId = state.selectedSkillAction(skill);
+    // Try to restore the last selected action from persisted state,
+    // falling back to the currently active action if none saved.
+    final savedActionId =
+        state.selectedSkillAction(skill) ?? state.currentActionId?.localId;
     ThievingAction? savedAction;
     if (savedActionId != null) {
       savedAction = thievingActions.cast<ThievingAction?>().firstWhere(
