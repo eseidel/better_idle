@@ -305,6 +305,14 @@ class TrainSkillUntil extends MacroCandidate {
       return MacroCannotPlan('No unlocked action for ${skill.name}');
     }
 
+    // Check if the action can actually be started (has required inputs).
+    final action = state.registries.actionById(bestAction);
+    if (!state.canStartAction(action)) {
+      return MacroCannotPlan(
+        'Cannot start ${action.name} for ${skill.name}: missing inputs',
+      );
+    }
+
     // Switch to that action (if not already on it)
     var currentState = state;
     if (state.currentActionId != bestAction) {
