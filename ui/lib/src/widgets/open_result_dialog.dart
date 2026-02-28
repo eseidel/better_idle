@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:logic/logic.dart';
+import 'package:ui/src/widgets/item_count_row.dart';
 import 'package:ui/src/widgets/style.dart';
 
 /// A dialog shown after opening one or more openable items.
@@ -36,17 +37,13 @@ class OpenResultDialog extends StatelessWidget {
             const SizedBox(height: 16),
             const Text('Received:'),
             const SizedBox(height: 8),
-            ...result.drops.entries.map((entry) {
-              final itemName = entry.key;
-              final count = entry.value;
-              return Padding(
-                padding: const EdgeInsets.only(left: 16, bottom: 4),
-                child: Text(
-                  '${approximateCountString(count)} $itemName',
-                  style: const TextStyle(color: Style.successColor),
-                ),
-              );
-            }),
+            ...result.drops.entries.map(
+              (entry) => ItemCountRow(
+                item: entry.key,
+                count: entry.value,
+                countColor: Style.successColor,
+              ),
+            ),
             if (result.error != null) ...[
               const SizedBox(height: 16),
               Text(

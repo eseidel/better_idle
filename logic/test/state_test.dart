@@ -742,21 +742,11 @@ void main() {
 
       // Got exactly one type of drop (feathers or raw chicken)
       expect(result.drops.length, 1);
-      final dropName = result.drops.keys.first;
-      expect(dropName == 'Feathers' || dropName == 'Raw Chicken', isTrue);
+      final dropItem = result.drops.keys.first;
+      expect(dropItem == feathers || dropItem == rawChicken, isTrue);
 
       // The drop is in inventory
-      if (dropName == 'Feathers') {
-        expect(
-          newState.inventory.countOfItem(feathers),
-          result.drops[dropName],
-        );
-      } else {
-        expect(
-          newState.inventory.countOfItem(rawChicken),
-          result.drops[dropName],
-        );
-      }
+      expect(newState.inventory.countOfItem(dropItem), result.drops[dropItem]);
     });
 
     test('opens multiple items and combines drops', () {
@@ -786,8 +776,8 @@ void main() {
       expect(result.drops.isNotEmpty, isTrue);
 
       // Total drops in result match inventory
-      final feathersInResult = result.drops['Feathers'] ?? 0;
-      final chickenInResult = result.drops['Raw Chicken'] ?? 0;
+      final feathersInResult = result.drops[feathers] ?? 0;
+      final chickenInResult = result.drops[rawChicken] ?? 0;
       expect(newState.inventory.countOfItem(feathers), feathersInResult);
       expect(newState.inventory.countOfItem(rawChicken), chickenInResult);
     });
