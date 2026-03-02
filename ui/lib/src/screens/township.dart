@@ -688,10 +688,8 @@ class _DeitySelectionView extends StatelessWidget {
           )
         else
           ...deities.map(
-            (TownshipDeity deity) => _DeityCard(
-              deity: deity,
-              registry: viewModel.township.registry,
-            ),
+            (TownshipDeity deity) =>
+                _DeityCard(deity: deity, registry: viewModel.township.registry),
           ),
       ],
     );
