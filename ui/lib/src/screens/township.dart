@@ -658,7 +658,7 @@ class _DeitySelectionView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final deities = viewModel.township.registry.deities;
+    final deities = viewModel.township.registry.visibleDeities;
 
     return ListView(
       padding: const EdgeInsets.all(16),
@@ -687,19 +687,27 @@ class _DeitySelectionView extends StatelessWidget {
             ),
           )
         else
-          ...deities.map((TownshipDeity deity) => _DeityCard(deity: deity)),
+          ...deities.map(
+            (TownshipDeity deity) =>
+                _DeityCard(deity: deity, registry: viewModel.township.registry),
+          ),
       ],
     );
   }
 }
 
 class _DeityCard extends StatelessWidget {
-  const _DeityCard({required this.deity});
+  const _DeityCard({required this.deity, required this.registry});
 
   final TownshipDeity deity;
+  final TownshipRegistry registry;
 
   @override
   Widget build(BuildContext context) {
+    final benefits = deity.describeModifiers(
+      (id) => registry.biomeById(id)?.name ?? id.localId,
+    );
+    final theme = Theme.of(context);
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
       child: InkWell(
@@ -712,14 +720,27 @@ class _DeityCard extends StatelessWidget {
             children: [
               Text(
                 deity.name,
-                style: Theme.of(
-                  context,
-                ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
+                style: theme.textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.bold,
+                ),
               ),
+              if (benefits.isNotEmpty) ...[
+                const SizedBox(height: 8),
+                for (final line in benefits)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 2),
+                    child: Text(
+                      line,
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: theme.colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                  ),
+              ],
               const SizedBox(height: 8),
               Text(
                 'Tap to select this deity and begin your township.',
-                style: Theme.of(context).textTheme.bodySmall,
+                style: theme.textTheme.bodySmall,
               ),
             ],
           ),

@@ -462,6 +462,47 @@ class TownshipDeity {
     return total;
   }
 
+  /// Returns human-readable descriptions of this deity's benefits.
+  /// [biomeName] resolves a biome ID to its display name.
+  List<String> describeModifiers(String Function(MelvorId) biomeName) {
+    final lines = <String>[];
+    for (final mod in baseModifiers.buildingProduction) {
+      final sign = mod.value > 0 ? '+' : '';
+      lines.add(
+        '$sign${mod.value.toInt()}% production in ${biomeName(mod.biomeId)}',
+      );
+    }
+    if (baseModifiers.buildingCost != 0) {
+      final sign = baseModifiers.buildingCost > 0 ? '+' : '';
+      lines.add('$sign${baseModifiers.buildingCost.toInt()}% building cost');
+    }
+    for (
+      var i = 0;
+      i < checkpoints.length && i < checkpointThresholds.length;
+      i++
+    ) {
+      final cp = checkpoints[i];
+      final threshold = checkpointThresholds[i].toInt();
+      if (cp.isEmpty) continue;
+      for (final mod in cp.buildingProduction) {
+        final sign = mod.value > 0 ? '+' : '';
+        lines.add(
+          'At $threshold%: '
+          '$sign${mod.value.toInt()}% production in '
+          '${biomeName(mod.biomeId)}',
+        );
+      }
+      if (cp.buildingCost != 0) {
+        final sign = cp.buildingCost > 0 ? '+' : '';
+        lines.add(
+          'At $threshold%: '
+          '$sign${cp.buildingCost.toInt()}% building cost',
+        );
+      }
+    }
+    return lines;
+  }
+
   /// Returns the total building cost modifier at the given worship %.
   /// Includes base modifiers plus all unlocked checkpoint bonuses.
   double buildingCostModifier(double worshipPercent) {

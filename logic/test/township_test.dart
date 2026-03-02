@@ -4510,4 +4510,72 @@ void main() {
       expect(state.canBuildTownshipBuilding(biomeId2, buildingId), isNull);
     });
   });
+
+  group('TownshipDeity.describeModifiers', () {
+    const mountainId = MelvorId('melvorD:Mountains');
+    const forestId = MelvorId('melvorD:Forest');
+
+    String biomeName(MelvorId id) => switch (id) {
+      MelvorId(fullId: 'melvorD:Mountains') => 'Mountains',
+      MelvorId(fullId: 'melvorD:Forest') => 'Forest',
+      _ => id.localId,
+    };
+
+    test('describes base production modifiers', () {
+      const deity = TownshipDeity(
+        id: MelvorId('melvorD:TestDeity'),
+        name: 'Test',
+        baseModifiers: DeityModifiers(
+          buildingProduction: [
+            BiomeProductionModifier(biomeId: mountainId, value: 25),
+            BiomeProductionModifier(biomeId: forestId, value: -50),
+          ],
+        ),
+      );
+      expect(deity.describeModifiers(biomeName), [
+        '+25% production in Mountains',
+        '-50% production in Forest',
+      ]);
+    });
+
+    test('describes base building cost modifier', () {
+      const deity = TownshipDeity(
+        id: MelvorId('melvorD:TestDeity'),
+        name: 'Test',
+        baseModifiers: DeityModifiers(buildingCost: -15),
+      );
+      expect(deity.describeModifiers(biomeName), ['-15% building cost']);
+    });
+
+    test('describes checkpoint modifiers with thresholds', () {
+      const deity = TownshipDeity(
+        id: MelvorId('melvorD:TestDeity'),
+        name: 'Test',
+        checkpoints: [
+          // 5% checkpoint - production bonus
+          DeityModifiers(
+            buildingProduction: [
+              BiomeProductionModifier(biomeId: mountainId, value: 10),
+            ],
+          ),
+          // 25% checkpoint - empty (skipped)
+          DeityModifiers(),
+          // 50% checkpoint - building cost
+          DeityModifiers(buildingCost: -20),
+        ],
+      );
+      expect(deity.describeModifiers(biomeName), [
+        'At 5%: +10% production in Mountains',
+        'At 50%: -20% building cost',
+      ]);
+    });
+
+    test('returns empty list for deity with no modifiers', () {
+      const deity = TownshipDeity(
+        id: MelvorId('melvorD:TestDeity'),
+        name: 'Test',
+      );
+      expect(deity.describeModifiers(biomeName), isEmpty);
+    });
+  });
 }
