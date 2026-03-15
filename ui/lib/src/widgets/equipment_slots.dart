@@ -162,14 +162,8 @@ class _CompactSlotCell extends StatelessWidget {
         width: 40,
         height: 40,
         decoration: BoxDecoration(
-          color: item != null
-              ? Style.containerBackgroundFilled
-              : Style.containerBackgroundEmpty,
-          border: Border.all(
-            color: item != null
-                ? Style.cellBorderColorSuccess
-                : Style.iconColorDefault,
-          ),
+          color: Style.containerBackgroundEmpty,
+          border: Border.all(color: Style.cellBorderColor),
           borderRadius: BorderRadius.circular(4),
         ),
         child: item != null
@@ -293,15 +287,11 @@ class _GridSlotCell extends StatelessWidget {
           width: size,
           height: size,
           decoration: BoxDecoration(
-            color: item != null
-                ? Style.containerBackgroundFilled
-                : Style.containerBackgroundEmpty,
+            color: Style.containerBackgroundEmpty,
             border: Border.all(
               color: isLocked
                   ? Style.textColorSecondary
-                  : item != null
-                  ? Style.cellBorderColorSuccess
-                  : Style.iconColorDefault,
+                  : Style.cellBorderColor,
             ),
             borderRadius: BorderRadius.circular(4),
           ),
