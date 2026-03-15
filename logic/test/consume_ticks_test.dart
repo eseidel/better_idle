@@ -2193,26 +2193,26 @@ void main() {
 
       test('rollDungeonPet unlocks pet on successful roll', () {
         var state = GlobalState.test(testRegistries);
-        final builder = StateUpdateBuilder(state);
-        // Weight=1 means nextInt(1)==0 always succeeds.
-        builder.rollDungeonPet(dungeonWithPet.id, Random(0));
+        final builder = StateUpdateBuilder(state)
+          // Weight=1 means nextInt(1)==0 always succeeds.
+          ..rollDungeonPet(dungeonWithPet.id, Random(0));
         state = builder.state;
         expect(state.unlockedPets, contains(petId));
         expect(builder.changes.petsUnlocked, contains(petId));
       });
 
       test('rollDungeonPet skips already-owned pet', () {
-        var state = GlobalState.test(testRegistries, unlockedPets: {petId});
-        final builder = StateUpdateBuilder(state);
-        builder.rollDungeonPet(dungeonWithPet.id, Random(0));
+        final state = GlobalState.test(testRegistries, unlockedPets: {petId});
+        final builder = StateUpdateBuilder(state)
+          ..rollDungeonPet(dungeonWithPet.id, Random(0));
         // Should not re-record the pet.
         expect(builder.changes.petsUnlocked, isEmpty);
       });
 
       test('rollDungeonPet does nothing for dungeon without pet', () {
-        var state = GlobalState.test(testRegistries);
-        final builder = StateUpdateBuilder(state);
-        builder.rollDungeonPet(chickenCoopDungeon.id, Random(0));
+        final state = GlobalState.test(testRegistries);
+        final builder = StateUpdateBuilder(state)
+          ..rollDungeonPet(chickenCoopDungeon.id, Random(0));
         expect(builder.state.unlockedPets, isEmpty);
         expect(builder.changes.petsUnlocked, isEmpty);
       });

@@ -142,6 +142,7 @@ GlobalState _applyBuyShopItem(GlobalState state, MelvorId purchaseId) {
   // Calculate cost (solver only handles GP costs)
   final currencyCosts = purchase.cost.currencyCosts(
     bankSlotsPurchased: state.shop.bankSlotsPurchased,
+    hasMerchantsPermit: state.hasMerchantsPermit,
   );
   // Extract GP cost (solver only processes GP-only purchases)
   final gpCost = currencyCosts

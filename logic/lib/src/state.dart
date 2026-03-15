@@ -3301,6 +3301,7 @@ class GlobalState {
   ResolvedShopCost resolveShopCost(ShopPurchase purchase) {
     final currencyCosts = purchase.cost.currencyCosts(
       bankSlotsPurchased: shop.bankSlotsPurchased,
+      hasMerchantsPermit: hasMerchantsPermit,
     );
     final canAffordCurrencyMap = <Currency, bool>{
       for (final (curr, amount) in currencyCosts)
@@ -3378,6 +3379,7 @@ class GlobalState {
     var newState = this;
     final currencyCosts = purchase.cost.currencyCosts(
       bankSlotsPurchased: shop.bankSlotsPurchased,
+      hasMerchantsPermit: hasMerchantsPermit,
     );
     for (final (currency, amount) in currencyCosts) {
       final balance = newState.currency(currency);
@@ -3841,6 +3843,11 @@ class GlobalState {
 
   /// Returns true if the given item has been read.
   bool hasReadItem(MelvorId itemId) => readItems.contains(itemId);
+
+  /// Returns true if the Merchant's Permit has been read, granting a 10%
+  /// discount on Glove-type shop purchases.
+  bool get hasMerchantsPermit =>
+      hasReadItem(const MelvorId('melvorF:Merchants_Permit'));
 
   /// Reads an item, adding it to the set of read items.
   /// Returns the new state with the item marked as read.

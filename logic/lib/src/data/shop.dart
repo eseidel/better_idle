@@ -72,16 +72,6 @@ class ShopCost extends Equatable {
   final List<CurrencyCost> currencies;
   final List<ItemCost> items;
 
-  /// Returns the GP cost if this is a fixed-price GP purchase, null otherwise.
-  int? get gpCost {
-    for (final c in currencies) {
-      if (c.currency == Currency.gp && c.type == CostType.fixed) {
-        return c.fixedCost;
-      }
-    }
-    return null;
-  }
-
   /// Returns true if this purchase uses dynamic pricing (e.g., bank slots)
   /// where cost changes after each purchase.
   bool get hasDynamicPricing {
@@ -90,27 +80,40 @@ class ShopCost extends Equatable {
     );
   }
 
-  /// Returns all fixed currency costs as a list of (Currency, amount) pairs.
-  List<(Currency, int)> get _fixedCurrencyCosts {
-    final result = <(Currency, int)>[];
-    for (final c in currencies) {
-      if (c.type == CostType.fixed && c.fixedCost != null) {
-        result.add((c.currency, c.fixedCost!));
-      }
-    }
-    return result;
-  }
-
   /// Returns all currency costs as a list of (Currency, amount) pairs.
   ///
   /// For purchases with dynamic bank slot pricing, calculates the cost
   /// based on [bankSlotsPurchased]. For fixed pricing, returns the fixed costs.
-  List<(Currency, int)> currencyCosts({required int bankSlotsPurchased}) {
+  /// When [hasMerchantsPermit] is true, glove-type costs are discounted 10%.
+  List<(Currency, int)> currencyCosts({
+    required int bankSlotsPurchased,
+    required bool hasMerchantsPermit,
+  }) {
     if (hasDynamicPricing) {
       final cost = calculateBankSlotCost(bankSlotsPurchased);
       return [(Currency.gp, cost)];
     }
-    return _fixedCurrencyCosts;
+    final result = <(Currency, int)>[];
+    for (final c in currencies) {
+      switch (c.type) {
+        case CostType.fixed:
+        case CostType.linear:
+          if (c.fixedCost != null) {
+            result.add((c.currency, c.fixedCost!));
+          }
+        case CostType.glove:
+          if (c.fixedCost != null) {
+            var cost = c.fixedCost!;
+            if (hasMerchantsPermit) {
+              cost = (cost * 0.9).floor();
+            }
+            result.add((c.currency, cost));
+          }
+        case CostType.bankSlot:
+          break; // Handled above via hasDynamicPricing
+      }
+    }
+    return result;
   }
 
   @override
@@ -817,11 +820,6 @@ class ShopRegistry {
       }
     }
     return requirements;
-  }
-
-  /// Returns the GP cost for a purchase, or null if it uses special pricing.
-  int? gpCost(ShopPurchase purchase) {
-    return purchase.cost.gpCost;
   }
 
   /// Returns the duration modifier for a purchase as a multiplier.

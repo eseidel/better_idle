@@ -27,6 +27,7 @@ library;
 
 import 'package:logic/src/data/action_id.dart';
 import 'package:logic/src/data/actions.dart';
+import 'package:logic/src/data/currency.dart';
 import 'package:logic/src/data/melvor_id.dart';
 import 'package:logic/src/data/registries.dart';
 import 'package:logic/src/data/xp.dart';
@@ -726,6 +727,7 @@ List<MacroCandidate> _augmentMacrosWithUpgradeStops(
       // Compute cost
       final currencyCosts = purchase.cost.currencyCosts(
         bankSlotsPurchased: state.shop.bankSlotsPurchased,
+        hasMerchantsPermit: state.hasMerchantsPermit,
       );
       final gpCost = currencyCosts.isEmpty ? 0 : currencyCosts.first.$2;
       if (gpCost <= 0) continue;
@@ -1846,9 +1848,13 @@ _UpgradeResult _selectUpgradeCandidates(
     if (newRate < bestCurrentRate) continue;
 
     // Payback time = cost / gain per tick
-    final cost = shopRegistry.gpCost(purchase);
-    if (cost == null) continue; // Skip upgrades with special pricing
-    final paybackTicks = cost / gain;
+    final costs = purchase.cost.currencyCosts(
+      bankSlotsPurchased: state.shop.bankSlotsPurchased,
+      hasMerchantsPermit: state.hasMerchantsPermit,
+    );
+    // TODO: Support non-GP purchases (e.g. slayer coins, item costs).
+    if (costs.length != 1 || costs.first.$1 != Currency.gp) continue;
+    final paybackTicks = costs.first.$2 / gain;
     candidates.add((purchase.id, paybackTicks));
   }
 

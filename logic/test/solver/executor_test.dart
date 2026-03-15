@@ -1051,16 +1051,16 @@ void main() {
         random: Random(42),
         onStepComplete:
             ({
-              required int stepIndex,
-              required PlanStep step,
-              required int plannedTicks,
-              required int estimatedTicksAtExecution,
-              required int actualTicks,
-              required int cumulativeActualTicks,
-              required int cumulativePlannedTicks,
-              required GlobalState stateAfter,
-              required GlobalState stateBefore,
-              required ReplanBoundary? boundary,
+              required stepIndex,
+              required step,
+              required plannedTicks,
+              required estimatedTicksAtExecution,
+              required actualTicks,
+              required cumulativeActualTicks,
+              required cumulativePlannedTicks,
+              required stateAfter,
+              required stateBefore,
+              required boundary,
             }) {
               stepRecords.add((
                 stepIndex: stepIndex,
@@ -1124,16 +1124,16 @@ void main() {
         random: Random(42),
         onStepComplete:
             ({
-              required int stepIndex,
-              required PlanStep step,
-              required int plannedTicks,
-              required int estimatedTicksAtExecution,
-              required int actualTicks,
-              required int cumulativeActualTicks,
-              required int cumulativePlannedTicks,
-              required GlobalState stateAfter,
-              required GlobalState stateBefore,
-              required ReplanBoundary? boundary,
+              required stepIndex,
+              required step,
+              required plannedTicks,
+              required estimatedTicksAtExecution,
+              required actualTicks,
+              required cumulativeActualTicks,
+              required cumulativePlannedTicks,
+              required stateAfter,
+              required stateBefore,
+              required boundary,
             }) {
               receivedSteps.add(step);
             },
@@ -1187,16 +1187,16 @@ void main() {
         random: Random(42),
         onStepComplete:
             ({
-              required int stepIndex,
-              required PlanStep step,
-              required int plannedTicks,
-              required int estimatedTicksAtExecution,
-              required int actualTicks,
-              required int cumulativeActualTicks,
-              required int cumulativePlannedTicks,
-              required GlobalState stateAfter,
-              required GlobalState stateBefore,
-              required ReplanBoundary? boundary,
+              required stepIndex,
+              required step,
+              required plannedTicks,
+              required estimatedTicksAtExecution,
+              required actualTicks,
+              required cumulativeActualTicks,
+              required cumulativePlannedTicks,
+              required stateAfter,
+              required stateBefore,
+              required boundary,
             }) {
               lastBoundary = boundary;
             },
@@ -1254,16 +1254,16 @@ void main() {
         random: Random(42),
         onStepComplete:
             ({
-              required int stepIndex,
-              required PlanStep step,
-              required int plannedTicks,
-              required int estimatedTicksAtExecution,
-              required int actualTicks,
-              required int cumulativeActualTicks,
-              required int cumulativePlannedTicks,
-              required GlobalState stateAfter,
-              required GlobalState stateBefore,
-              required ReplanBoundary? boundary,
+              required stepIndex,
+              required step,
+              required plannedTicks,
+              required estimatedTicksAtExecution,
+              required actualTicks,
+              required cumulativeActualTicks,
+              required cumulativePlannedTicks,
+              required stateAfter,
+              required stateBefore,
+              required boundary,
             }) {
               reportedPlannedTicks = plannedTicks;
               reportedActualTicks = actualTicks;
