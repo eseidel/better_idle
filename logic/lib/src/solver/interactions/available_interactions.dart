@@ -95,6 +95,7 @@ List<BuyShopItem> _availableShopPurchases(GlobalState state) {
     // Check affordability - skip purchases without GP cost (item costs, etc.)
     final currencyCosts = purchase.cost.currencyCosts(
       bankSlotsPurchased: state.shop.bankSlotsPurchased,
+      hasMerchantsPermit: state.hasMerchantsPermit,
     );
     // Solver only considers pure GP purchases
     if (currencyCosts.length != 1) continue;

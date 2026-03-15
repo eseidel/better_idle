@@ -726,6 +726,7 @@ List<MacroCandidate> _augmentMacrosWithUpgradeStops(
       // Compute cost
       final currencyCosts = purchase.cost.currencyCosts(
         bankSlotsPurchased: state.shop.bankSlotsPurchased,
+        hasMerchantsPermit: state.hasMerchantsPermit,
       );
       final gpCost = currencyCosts.isEmpty ? 0 : currencyCosts.first.$2;
       if (gpCost <= 0) continue;

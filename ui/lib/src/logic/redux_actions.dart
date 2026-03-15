@@ -442,6 +442,17 @@ class UnequipFoodAction extends ReduxAction<GlobalState> {
   }
 }
 
+/// Reads a readable item, marking it as read.
+class ReadItemAction extends ReduxAction<GlobalState> {
+  ReadItemAction({required this.itemId});
+  final MelvorId itemId;
+
+  @override
+  GlobalState? reduce() {
+    return state.readItem(itemId);
+  }
+}
+
 /// Opens openable items and receives the drops.
 class OpenItemAction extends ReduxAction<GlobalState> {
   OpenItemAction({

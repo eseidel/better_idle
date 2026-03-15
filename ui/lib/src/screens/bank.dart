@@ -556,6 +556,13 @@ class _ItemDetailsContentState extends State<_ItemDetailsContent> {
                 onClose: widget.onClose,
               ),
             ],
+            // Show Read button for readable items
+            if (itemData.isReadable) ...[
+              const SizedBox(height: 32),
+              const Divider(),
+              const SizedBox(height: 16),
+              _ReadItemSection(item: itemData),
+            ],
             // Show Equip button for consumable items
             if (itemData.isConsumable) ...[
               const SizedBox(height: 32),
@@ -779,6 +786,43 @@ class _EquipFoodSectionState extends State<_EquipFoodSection> {
               style: TextStyle(color: Style.textColorError, fontSize: 12),
             ),
           ),
+      ],
+    );
+  }
+}
+
+class _ReadItemSection extends StatelessWidget {
+  const _ReadItemSection({required this.item});
+
+  final Item item;
+
+  @override
+  Widget build(BuildContext context) {
+    final alreadyRead = context.state.hasReadItem(item.id);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text('Read Item', style: Theme.of(context).textTheme.titleMedium),
+        if (item.description != null) ...[
+          const SizedBox(height: 8),
+          Text(
+            item.description!,
+            style: Theme.of(context).textTheme.bodyMedium,
+          ),
+        ],
+        const SizedBox(height: 16),
+        SizedBox(
+          width: double.infinity,
+          child: ElevatedButton(
+            onPressed: alreadyRead
+                ? null
+                : () {
+                    context.dispatch(ReadItemAction(itemId: item.id));
+                  },
+            child: Text(alreadyRead ? 'Already Read' : 'Read'),
+          ),
+        ),
       ],
     );
   }

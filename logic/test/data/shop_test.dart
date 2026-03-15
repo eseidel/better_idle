@@ -98,7 +98,10 @@ void main() {
         items: [],
       );
 
-      final costs = cost.currencyCosts(bankSlotsPurchased: 0);
+      final costs = cost.currencyCosts(
+        bankSlotsPurchased: 0,
+        hasMerchantsPermit: false,
+      );
       expect(costs.length, 2);
       expect(costs[0], (Currency.gp, 1000));
       expect(costs[1], (Currency.slayerCoins, 50));
@@ -113,13 +116,19 @@ void main() {
       );
 
       // First bank slot cost
-      final costs0 = cost.currencyCosts(bankSlotsPurchased: 0);
+      final costs0 = cost.currencyCosts(
+        bankSlotsPurchased: 0,
+        hasMerchantsPermit: false,
+      );
       expect(costs0.length, 1);
       expect(costs0[0].$1, Currency.gp);
       expect(costs0[0].$2, calculateBankSlotCost(0));
 
       // After purchasing some slots, the cost increases
-      final costs5 = cost.currencyCosts(bankSlotsPurchased: 5);
+      final costs5 = cost.currencyCosts(
+        bankSlotsPurchased: 5,
+        hasMerchantsPermit: false,
+      );
       expect(costs5.length, 1);
       expect(costs5[0].$1, Currency.gp);
       expect(costs5[0].$2, calculateBankSlotCost(5));
@@ -540,7 +549,10 @@ void main() {
       final glovesItem = testRegistries.items.byId(itemCharges.itemId);
 
       // Start with empty state and enough GP
-      final costs = glovesPurchase.cost.currencyCosts(bankSlotsPurchased: 0);
+      final costs = glovesPurchase.cost.currencyCosts(
+        bankSlotsPurchased: 0,
+        hasMerchantsPermit: false,
+      );
       final gpCost = costs.firstWhere((c) => c.$1 == Currency.gp).$2;
 
       final state = GlobalState.test(testRegistries, gp: gpCost);
@@ -583,7 +595,10 @@ void main() {
       final itemCharges = glovesPurchase.contains.itemCharges!;
       final glovesItem = testRegistries.items.byId(itemCharges.itemId);
 
-      final costs = glovesPurchase.cost.currencyCosts(bankSlotsPurchased: 0);
+      final costs = glovesPurchase.cost.currencyCosts(
+        bankSlotsPurchased: 0,
+        hasMerchantsPermit: false,
+      );
       final gpCost = costs.firstWhere((c) => c.$1 == Currency.gp).$2;
 
       // Start with state already having gloves and some charges
@@ -631,7 +646,10 @@ void main() {
       final itemCharges = glovesPurchase.contains.itemCharges!;
       final glovesItem = testRegistries.items.byId(itemCharges.itemId);
 
-      final costs = glovesPurchase.cost.currencyCosts(bankSlotsPurchased: 0);
+      final costs = glovesPurchase.cost.currencyCosts(
+        bankSlotsPurchased: 0,
+        hasMerchantsPermit: false,
+      );
       final gpCost = costs.firstWhere((c) => c.$1 == Currency.gp).$2;
 
       // Start with gloves and charges

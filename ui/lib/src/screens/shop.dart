@@ -460,6 +460,7 @@ class ShopViewModel {
 
     final currencyCosts = purchase.cost.currencyCosts(
       bankSlotsPurchased: bankSlotsPurchased,
+      hasMerchantsPermit: _state.hasMerchantsPermit,
     );
     final itemCosts = purchase.cost.items;
 
@@ -683,6 +684,7 @@ class _BulkPurchaseDialogState extends State<_BulkPurchaseDialog> {
 
     final baseCosts = purchase.cost.currencyCosts(
       bankSlotsPurchased: state.shop.bankSlotsPurchased,
+      hasMerchantsPermit: state.hasMerchantsPermit,
     );
     return baseCosts.map((c) => (c.$1, c.$2 * _selectedQuantity)).toList();
   }

@@ -85,6 +85,7 @@ class _PurchaseOption extends StatelessWidget {
   int _calculateMaxAffordable(GlobalState state) {
     final currencyCosts = purchase.cost.currencyCosts(
       bankSlotsPurchased: state.shop.bankSlotsPurchased,
+      hasMerchantsPermit: state.hasMerchantsPermit,
     );
     final itemCosts = purchase.cost.items;
 
@@ -124,6 +125,7 @@ class _PurchaseOption extends StatelessWidget {
     // Get base currency costs (for 1 purchase)
     final baseCurrencyCosts = purchase.cost.currencyCosts(
       bankSlotsPurchased: state.shop.bankSlotsPurchased,
+      hasMerchantsPermit: state.hasMerchantsPermit,
     );
 
     // Check purchase requirements (skill levels, etc.)
@@ -351,6 +353,7 @@ class _QuantityButtons extends StatelessWidget {
     // Calculate costs for the quantity
     final baseCurrencyCosts = purchase.cost.currencyCosts(
       bankSlotsPurchased: state.shop.bankSlotsPurchased,
+      hasMerchantsPermit: state.hasMerchantsPermit,
     );
     final currencyCosts = baseCurrencyCosts
         .map((c) => (c.$1, c.$2 * quantity))

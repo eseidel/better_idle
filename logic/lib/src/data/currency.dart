@@ -89,6 +89,12 @@ enum CostType {
 
   /// Dynamic cost based on bank slot formula.
   bankSlot,
+
+  /// Glove purchase cost, discounted 10% when Merchant's Permit is read.
+  glove,
+
+  /// Linear scaling cost (used by Golbin Raid purchases).
+  linear,
 }
 
 /// A currency cost for a shop purchase.
@@ -104,8 +110,21 @@ class CurrencyCost extends Equatable {
     final currencyId = json['currency'] as String;
     final currency = Currency.fromIdString(currencyId);
     final typeStr = json['type'] as String;
-    final type = typeStr == 'BankSlot' ? CostType.bankSlot : CostType.fixed;
-    final fixedCost = json['cost'] as int?;
+    final CostType type;
+    switch (typeStr) {
+      case 'Fixed':
+        type = CostType.fixed;
+      case 'BankSlot':
+        type = CostType.bankSlot;
+      case 'Glove':
+        type = CostType.glove;
+      case 'Linear':
+        type = CostType.linear;
+      default:
+        throw ArgumentError('Unknown cost type: $typeStr');
+    }
+    // 'cost' for Fixed/Glove, 'initial' for Linear.
+    final fixedCost = json['cost'] as int? ?? json['initial'] as int?;
     return CurrencyCost(currency: currency, type: type, fixedCost: fixedCost);
   }
 
