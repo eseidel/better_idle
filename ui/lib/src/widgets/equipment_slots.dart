@@ -194,7 +194,7 @@ class EquipmentGridDialog extends StatelessWidget {
   Widget build(BuildContext context) {
     return AlertDialog(
       title: const Text('Equipment'),
-      content: const EquipmentGrid(),
+      content: const Center(widthFactor: 1, child: EquipmentGrid()),
       actions: [
         TextButton(
           onPressed: () => Navigator.of(context).pop(),
