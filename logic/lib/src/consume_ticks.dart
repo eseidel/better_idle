@@ -1359,12 +1359,27 @@ ForegroundResult _restartOrStop(
     final gpDrop = action.rollGpDrop(random);
     builder.addCurrency(Currency.gp, gpDrop);
 
+    // Check if the player has the Amulet of Looting equipped.
+    // When active, drops go directly to inventory instead of loot.
+    // If inventory is full, items fall back to the loot container.
+    final combatModifiers = builder.state.createCombatModifierProvider(
+      conditionContext: ConditionContext.empty,
+    );
+    final hasAutoLooting = combatModifiers.autoLooting > 0;
+
     // Drop bones if the monster has them (bones stack in loot).
     // In dungeons, bones only drop when the dungeon's dropBones flag is true.
     final bones = action.bones;
     if (bones != null && (dungeon?.dropBones ?? true)) {
       final item = builder.registries.items.byId(bones.itemId);
-      builder.addToLoot(ItemStack(item, count: bones.quantity), isBones: true);
+      final stack = ItemStack(item, count: bones.quantity);
+      if (hasAutoLooting) {
+        if (!builder.tryAddToInventory(stack)) {
+          builder.addToLoot(stack, isBones: true);
+        }
+      } else {
+        builder.addToLoot(stack, isBones: true);
+      }
     }
 
     // Roll loot table if present (regular loot does NOT stack).
@@ -1374,7 +1389,13 @@ ForegroundResult _restartOrStop(
       if (lootTable != null) {
         final loot = lootTable.roll(builder.registries.items, random);
         if (loot != null) {
-          builder.addToLoot(loot, isBones: false);
+          if (hasAutoLooting) {
+            if (!builder.tryAddToInventory(loot)) {
+              builder.addToLoot(loot, isBones: false);
+            }
+          } else {
+            builder.addToLoot(loot, isBones: false);
+          }
         }
       }
     }
