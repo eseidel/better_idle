@@ -175,7 +175,10 @@ class WatchSet {
       for (final upgradeId in upgradePurchaseIds) {
         final purchase = registries.shop.byId(upgradeId);
         if (purchase != null) {
-          final gpCost = purchase.cost.baseGpCost;
+          final gpCost = purchase.cost.gpCost(
+            bankSlotsPurchased: state.shop.bankSlotsPurchased,
+            hasMerchantsPermit: state.hasMerchantsPermit,
+          );
           if (gpCost != null && effectiveGp >= gpCost) {
             return UpgradeAffordableBoundary(upgradeId, purchase.name);
           }

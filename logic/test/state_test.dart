@@ -2457,7 +2457,12 @@ void main() {
       const feathersId = MelvorId('melvorD:Feathers');
       final purchase = testRegistries.shop.byId(feathersId)!;
       expect(purchase.contains.items, isNotEmpty);
-      final gpCost = purchase.cost.baseGpCost ?? 0;
+      final gpCost =
+          purchase.cost.gpCost(
+            bankSlotsPurchased: 0,
+            hasMerchantsPermit: false,
+          ) ??
+          0;
       final state = GlobalState.test(testRegistries, gp: gpCost + 1000);
       final result = state.purchaseShopItem(feathersId);
       // Should have items in inventory now.
@@ -2471,7 +2476,12 @@ void main() {
       const glovesId = MelvorId('melvorD:Cooking');
       final purchase = testRegistries.shop.byId(glovesId)!;
       expect(purchase.contains.itemCharges, isNotNull);
-      final gpCost = purchase.cost.baseGpCost ?? 0;
+      final gpCost =
+          purchase.cost.gpCost(
+            bankSlotsPurchased: 0,
+            hasMerchantsPermit: false,
+          ) ??
+          0;
       final state = GlobalState.test(testRegistries, gp: gpCost + 1000);
       final result = state.purchaseShopItem(glovesId);
       final chargeItemId = purchase.contains.itemCharges!.itemId;

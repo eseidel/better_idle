@@ -72,18 +72,6 @@ class ShopCost extends Equatable {
   final List<CurrencyCost> currencies;
   final List<ItemCost> items;
 
-  /// Returns the base GP cost if this is a fixed-price GP purchase,
-  /// null otherwise. Does not include Merchant's Permit discount for gloves.
-  int? get baseGpCost {
-    for (final c in currencies) {
-      if (c.currency == Currency.gp &&
-          (c.type == CostType.fixed || c.type == CostType.glove)) {
-        return c.fixedCost;
-      }
-    }
-    return null;
-  }
-
   /// Returns true if this purchase uses dynamic pricing (e.g., bank slots)
   /// where cost changes after each purchase.
   bool get hasDynamicPricing {
@@ -126,6 +114,24 @@ class ShopCost extends Equatable {
       }
     }
     return result;
+  }
+
+  /// Returns the GP cost for this purchase, or null if it has no GP cost.
+  ///
+  /// This is a convenience over [currencyCosts] that extracts just the GP
+  /// amount. For dynamic pricing, calculates based on [bankSlotsPurchased].
+  /// When [hasMerchantsPermit] is true, glove-type costs are discounted 10%.
+  int? gpCost({
+    required int bankSlotsPurchased,
+    required bool hasMerchantsPermit,
+  }) {
+    for (final (currency, amount) in currencyCosts(
+      bankSlotsPurchased: bankSlotsPurchased,
+      hasMerchantsPermit: hasMerchantsPermit,
+    )) {
+      if (currency == Currency.gp) return amount;
+    }
+    return null;
   }
 
   @override
@@ -832,12 +838,6 @@ class ShopRegistry {
       }
     }
     return requirements;
-  }
-
-  /// Returns the base GP cost for a purchase, or null if it uses special
-  /// pricing. Does not include Merchant's Permit discount.
-  int? baseGpCost(ShopPurchase purchase) {
-    return purchase.cost.baseGpCost;
   }
 
   /// Returns the duration modifier for a purchase as a multiplier.
