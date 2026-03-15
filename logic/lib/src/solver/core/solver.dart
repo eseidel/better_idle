@@ -1629,7 +1629,7 @@ GlobalState executeUpgradeRecovery(
     bankSlotsPurchased: state.shop.bankSlotsPurchased,
     hasMerchantsPermit: state.hasMerchantsPermit,
   );
-  // Solver only handles pure GP purchases.
+  // TODO: Support non-GP purchases (e.g. slayer coins, item costs).
   assert(
     purchaseCosts != null &&
         purchaseCosts.length == 1 &&

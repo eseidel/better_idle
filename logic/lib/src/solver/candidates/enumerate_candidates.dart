@@ -1852,7 +1852,7 @@ _UpgradeResult _selectUpgradeCandidates(
       bankSlotsPurchased: state.shop.bankSlotsPurchased,
       hasMerchantsPermit: state.hasMerchantsPermit,
     );
-    // Solver only considers pure GP purchases.
+    // TODO: Support non-GP purchases (e.g. slayer coins, item costs).
     if (costs.length != 1 || costs.first.$1 != Currency.gp) continue;
     final paybackTicks = costs.first.$2 / gain;
     candidates.add((purchase.id, paybackTicks));
