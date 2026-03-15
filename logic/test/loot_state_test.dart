@@ -379,4 +379,92 @@ void main() {
       expect(builder.changes.lostFromLoot.counts[rawChicken.id], 3);
     });
   });
+
+  group('StateUpdateBuilder.tryAddToInventory', () {
+    test('adds item to inventory when space is available', () {
+      final state = GlobalState.test(testRegistries);
+
+      final builder = StateUpdateBuilder(state);
+      final result = builder.tryAddToInventory(ItemStack(bones, count: 3));
+
+      expect(result, true);
+      expect(builder.build().inventory.countOfItem(bones), 3);
+      expect(builder.changes.inventoryChanges.counts[bones.id], 3);
+    });
+
+    test('returns false when inventory is full', () {
+      // Fill all 20 inventory slots.
+      var inv = Inventory.empty(testItems);
+      final fillers = [
+        testItems.byName('Normal Logs'),
+        testItems.byName('Oak Logs'),
+        testItems.byName('Willow Logs'),
+        testItems.byName('Teak Logs'),
+        testItems.byName('Maple Logs'),
+        testItems.byName('Mahogany Logs'),
+        testItems.byName('Yew Logs'),
+        testItems.byName('Magic Logs'),
+        testItems.byName('Redwood Logs'),
+        testItems.byName('Raw Shrimp'),
+        testItems.byName('Raw Sardine'),
+        testItems.byName('Raw Herring'),
+        testItems.byName('Raw Trout'),
+        testItems.byName('Raw Salmon'),
+        testItems.byName('Raw Lobster'),
+        testItems.byName('Raw Swordfish'),
+        testItems.byName('Raw Crab'),
+        testItems.byName('Raw Shark'),
+        testItems.byName('Raw Cave Fish'),
+        testItems.byName('Raw Manta Ray'),
+      ];
+      for (final item in fillers) {
+        inv = inv.adding(ItemStack(item, count: 1));
+      }
+
+      final state = GlobalState.test(testRegistries, inventory: inv);
+      final builder = StateUpdateBuilder(state);
+      final result = builder.tryAddToInventory(ItemStack(bones, count: 1));
+
+      expect(result, false);
+      // Should NOT track as dropped (unlike addInventory).
+      expect(builder.changes.droppedItems.isEmpty, true);
+    });
+
+    test('stacks with existing item even when inventory is full', () {
+      // Fill inventory but include bones already.
+      var inv = Inventory.empty(testItems);
+      inv = inv.adding(ItemStack(bones, count: 2));
+      final fillers = [
+        testItems.byName('Normal Logs'),
+        testItems.byName('Oak Logs'),
+        testItems.byName('Willow Logs'),
+        testItems.byName('Teak Logs'),
+        testItems.byName('Maple Logs'),
+        testItems.byName('Mahogany Logs'),
+        testItems.byName('Yew Logs'),
+        testItems.byName('Magic Logs'),
+        testItems.byName('Redwood Logs'),
+        testItems.byName('Raw Shrimp'),
+        testItems.byName('Raw Sardine'),
+        testItems.byName('Raw Herring'),
+        testItems.byName('Raw Trout'),
+        testItems.byName('Raw Salmon'),
+        testItems.byName('Raw Lobster'),
+        testItems.byName('Raw Swordfish'),
+        testItems.byName('Raw Crab'),
+        testItems.byName('Raw Shark'),
+        testItems.byName('Raw Cave Fish'),
+      ];
+      for (final item in fillers) {
+        inv = inv.adding(ItemStack(item, count: 1));
+      }
+
+      final state = GlobalState.test(testRegistries, inventory: inv);
+      final builder = StateUpdateBuilder(state);
+      final result = builder.tryAddToInventory(ItemStack(bones, count: 3));
+
+      expect(result, true);
+      expect(builder.build().inventory.countOfItem(bones), 5);
+    });
+  });
 }

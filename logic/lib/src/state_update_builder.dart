@@ -153,6 +153,20 @@ class StateUpdateBuilder {
     _changes = _changes.removing(stack);
   }
 
+  /// Tries to add an item directly to inventory (for auto-looting).
+  /// Returns true if successful, false if inventory can't hold it.
+  /// Unlike [addInventory], does NOT track the item as dropped on failure.
+  bool tryAddToInventory(ItemStack stack) {
+    final canAdd = _state.inventory.canAdd(
+      stack.item,
+      capacity: _state.inventoryCapacity,
+    );
+    if (!canAdd) return false;
+    _state = _state.copyWith(inventory: _state.inventory.adding(stack));
+    _changes = _changes.adding(stack);
+    return true;
+  }
+
   /// Adds an item to the loot container.
   /// Items lost due to overflow are tracked in Changes.
   void addToLoot(ItemStack stack, {required bool isBones}) {
