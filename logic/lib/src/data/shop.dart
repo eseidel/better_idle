@@ -74,7 +74,7 @@ class ShopCost extends Equatable {
 
   /// Returns the base GP cost if this is a fixed-price GP purchase,
   /// null otherwise. Does not include Merchant's Permit discount for gloves.
-  int? get gpCost {
+  int? get baseGpCost {
     for (final c in currencies) {
       if (c.currency == Currency.gp &&
           (c.type == CostType.fixed || c.type == CostType.glove)) {
@@ -834,9 +834,10 @@ class ShopRegistry {
     return requirements;
   }
 
-  /// Returns the GP cost for a purchase, or null if it uses special pricing.
-  int? gpCost(ShopPurchase purchase) {
-    return purchase.cost.gpCost;
+  /// Returns the base GP cost for a purchase, or null if it uses special
+  /// pricing. Does not include Merchant's Permit discount.
+  int? baseGpCost(ShopPurchase purchase) {
+    return purchase.cost.baseGpCost;
   }
 
   /// Returns the duration modifier for a purchase as a multiplier.

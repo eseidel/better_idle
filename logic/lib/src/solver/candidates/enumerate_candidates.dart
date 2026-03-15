@@ -1847,7 +1847,7 @@ _UpgradeResult _selectUpgradeCandidates(
     if (newRate < bestCurrentRate) continue;
 
     // Payback time = cost / gain per tick
-    final cost = shopRegistry.gpCost(purchase);
+    final cost = shopRegistry.baseGpCost(purchase);
     if (cost == null) continue; // Skip upgrades with special pricing
     final paybackTicks = cost / gain;
     candidates.add((purchase.id, paybackTicks));

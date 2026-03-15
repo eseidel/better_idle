@@ -107,7 +107,7 @@ NextDecisionResult nextDecisionDelta(
   for (final purchaseId in candidates.buyUpgrades) {
     final purchase = shopRegistry.byId(purchaseId);
     if (purchase == null) continue;
-    final cost = purchase.cost.gpCost;
+    final cost = purchase.cost.baseGpCost;
     if (cost != null && state.gp >= cost) {
       return NextDecisionResult(
         deltaTicks: 0,
@@ -454,7 +454,7 @@ _DeltaCandidate? _deltaUntilUpgradeAffordable(
     final purchase = shopRegistry.byId(purchaseId);
     if (purchase == null) continue;
 
-    final cost = purchase.cost.gpCost;
+    final cost = purchase.cost.baseGpCost;
     if (cost == null) continue; // Skip special pricing
 
     // Create the WaitFor and use its estimateTicks for consistency

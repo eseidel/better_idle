@@ -1624,7 +1624,7 @@ GlobalState executeUpgradeRecovery(
 
   // Get purchase cost
   final purchase = currentState.registries.shop.byId(purchaseId);
-  final gpCost = purchase?.cost.gpCost ?? 0;
+  final gpCost = purchase?.cost.baseGpCost ?? 0;
 
   // Verify the boundary was triggered correctly
   final credits = effectiveCredits(currentState, sellPolicy);

@@ -135,7 +135,7 @@ void main() {
       expect(costs5[0].$2, greaterThan(costs0[0].$2));
     });
 
-    test('gpCost returns GP cost for fixed pricing', () {
+    test('baseGpCost returns GP cost for fixed pricing', () {
       const cost = ShopCost(
         currencies: [
           CurrencyCost(
@@ -147,10 +147,10 @@ void main() {
         items: [],
       );
 
-      expect(cost.gpCost, 5000);
+      expect(cost.baseGpCost, 5000);
     });
 
-    test('gpCost returns null for bank slot pricing', () {
+    test('baseGpCost returns null for bank slot pricing', () {
       const cost = ShopCost(
         currencies: [
           CurrencyCost(currency: Currency.gp, type: CostType.bankSlot),
@@ -158,7 +158,7 @@ void main() {
         items: [],
       );
 
-      expect(cost.gpCost, isNull);
+      expect(cost.baseGpCost, isNull);
     });
 
     test('equality works correctly', () {
