@@ -2202,7 +2202,7 @@ void main() {
       });
 
       test('rollDungeonPet skips already-owned pet', () {
-        var state = GlobalState.test(testRegistries, unlockedPets: {petId});
+        final state = GlobalState.test(testRegistries, unlockedPets: {petId});
         final builder = StateUpdateBuilder(state);
         builder.rollDungeonPet(dungeonWithPet.id, Random(0));
         // Should not re-record the pet.
@@ -2210,7 +2210,7 @@ void main() {
       });
 
       test('rollDungeonPet does nothing for dungeon without pet', () {
-        var state = GlobalState.test(testRegistries);
+        final state = GlobalState.test(testRegistries);
         final builder = StateUpdateBuilder(state);
         builder.rollDungeonPet(chickenCoopDungeon.id, Random(0));
         expect(builder.state.unlockedPets, isEmpty);

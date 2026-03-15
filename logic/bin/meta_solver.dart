@@ -137,7 +137,7 @@ void main(List<String> args) async {
       ..sort((a, b) => a.name.compareTo(b.name));
     for (final skill in sortedSkills) {
       final nodes = graph.forSkill(skill);
-      final levels = nodes.map((MilestoneNode n) {
+      final levels = nodes.map((n) {
         final m = n.milestone as SkillLevelMilestone;
         return m.level;
       }).toList()..sort();

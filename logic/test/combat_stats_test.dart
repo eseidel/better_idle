@@ -155,7 +155,7 @@ void main() {
       // Find a combat action (monster)
       final monster = testRegistries.allActions
           .whereType<CombatAction>()
-          .firstWhere((CombatAction a) => a.name == 'Plant');
+          .firstWhere((a) => a.name == 'Plant');
 
       final stats = MonsterCombatStats.fromAction(monster);
 
