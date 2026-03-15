@@ -33,6 +33,7 @@ import 'dart:math';
 import 'package:collection/collection.dart';
 import 'package:equatable/equatable.dart';
 import 'package:logic/src/data/actions.dart';
+import 'package:logic/src/data/currency.dart';
 import 'package:logic/src/data/melvor_id.dart';
 import 'package:logic/src/data/registries.dart';
 import 'package:logic/src/solver/analysis/estimate_rates.dart';
@@ -1624,12 +1625,20 @@ GlobalState executeUpgradeRecovery(
 
   // Get purchase cost
   final purchase = currentState.registries.shop.byId(purchaseId);
-  final gpCost =
-      purchase?.cost.gpCost(
-        bankSlotsPurchased: state.shop.bankSlotsPurchased,
-        hasMerchantsPermit: state.hasMerchantsPermit,
-      ) ??
-      0;
+  final purchaseCosts = purchase?.cost.currencyCosts(
+    bankSlotsPurchased: state.shop.bankSlotsPurchased,
+    hasMerchantsPermit: state.hasMerchantsPermit,
+  );
+  // Solver only handles pure GP purchases.
+  assert(
+    purchaseCosts != null &&
+        purchaseCosts.length == 1 &&
+        purchaseCosts.first.$1 == Currency.gp,
+    'executeUpgradeRecovery called for non-GP purchase: $purchaseId',
+  );
+  final gpCost = purchaseCosts != null && purchaseCosts.isNotEmpty
+      ? purchaseCosts.first.$2
+      : 0;
 
   // Verify the boundary was triggered correctly
   final credits = effectiveCredits(currentState, sellPolicy);

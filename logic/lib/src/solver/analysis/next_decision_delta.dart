@@ -24,6 +24,7 @@ library;
 
 import 'package:logic/src/data/action_id.dart';
 import 'package:logic/src/data/actions.dart';
+import 'package:logic/src/data/currency.dart';
 import 'package:logic/src/data/melvor_id.dart';
 import 'package:logic/src/data/xp.dart';
 import 'package:logic/src/solver/analysis/estimate_rates.dart';
@@ -107,11 +108,14 @@ NextDecisionResult nextDecisionDelta(
   for (final purchaseId in candidates.buyUpgrades) {
     final purchase = shopRegistry.byId(purchaseId);
     if (purchase == null) continue;
-    final cost = purchase.cost.gpCost(
+    final costs = purchase.cost.currencyCosts(
       bankSlotsPurchased: state.shop.bankSlotsPurchased,
       hasMerchantsPermit: state.hasMerchantsPermit,
     );
-    if (cost != null && state.gp >= cost) {
+    // Solver only considers pure GP purchases.
+    if (costs.length != 1 || costs.first.$1 != Currency.gp) continue;
+    final cost = costs.first.$2;
+    if (state.gp >= cost) {
       return NextDecisionResult(
         deltaTicks: 0,
         waitFor: WaitForEffectiveCredits(
@@ -457,11 +461,13 @@ _DeltaCandidate? _deltaUntilUpgradeAffordable(
     final purchase = shopRegistry.byId(purchaseId);
     if (purchase == null) continue;
 
-    final cost = purchase.cost.gpCost(
+    final costs = purchase.cost.currencyCosts(
       bankSlotsPurchased: state.shop.bankSlotsPurchased,
       hasMerchantsPermit: state.hasMerchantsPermit,
     );
-    if (cost == null) continue; // Skip special pricing
+    // Solver only considers pure GP purchases.
+    if (costs.length != 1 || costs.first.$1 != Currency.gp) continue;
+    final cost = costs.first.$2;
 
     // Create the WaitFor and use its estimateTicks for consistency
     final waitFor = WaitForEffectiveCredits(

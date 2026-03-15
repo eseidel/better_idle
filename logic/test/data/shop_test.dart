@@ -135,42 +135,6 @@ void main() {
       expect(costs5[0].$2, greaterThan(costs0[0].$2));
     });
 
-    test('gpCost returns GP cost for fixed pricing', () {
-      const cost = ShopCost(
-        currencies: [
-          CurrencyCost(
-            currency: Currency.gp,
-            type: CostType.fixed,
-            fixedCost: 5000,
-          ),
-        ],
-        items: [],
-      );
-
-      expect(
-        cost.gpCost(bankSlotsPurchased: 0, hasMerchantsPermit: false),
-        5000,
-      );
-    });
-
-    test('gpCost returns null for non-GP costs', () {
-      const cost = ShopCost(
-        currencies: [
-          CurrencyCost(
-            currency: Currency.slayerCoins,
-            type: CostType.fixed,
-            fixedCost: 100,
-          ),
-        ],
-        items: [],
-      );
-
-      expect(
-        cost.gpCost(bankSlotsPurchased: 0, hasMerchantsPermit: false),
-        isNull,
-      );
-    });
-
     test('equality works correctly', () {
       const cost1 = ShopCost(
         currencies: [

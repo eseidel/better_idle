@@ -116,24 +116,6 @@ class ShopCost extends Equatable {
     return result;
   }
 
-  /// Returns the GP cost for this purchase, or null if it has no GP cost.
-  ///
-  /// This is a convenience over [currencyCosts] that extracts just the GP
-  /// amount. For dynamic pricing, calculates based on [bankSlotsPurchased].
-  /// When [hasMerchantsPermit] is true, glove-type costs are discounted 10%.
-  int? gpCost({
-    required int bankSlotsPurchased,
-    required bool hasMerchantsPermit,
-  }) {
-    for (final (currency, amount) in currencyCosts(
-      bankSlotsPurchased: bankSlotsPurchased,
-      hasMerchantsPermit: hasMerchantsPermit,
-    )) {
-      if (currency == Currency.gp) return amount;
-    }
-    return null;
-  }
-
   @override
   List<Object?> get props => [currencies, items];
 }

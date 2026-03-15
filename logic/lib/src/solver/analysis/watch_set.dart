@@ -21,6 +21,7 @@ library;
 
 import 'package:logic/src/data/action_id.dart';
 import 'package:logic/src/data/actions.dart';
+import 'package:logic/src/data/currency.dart';
 import 'package:logic/src/data/melvor_id.dart';
 import 'package:logic/src/data/registries.dart';
 import 'package:logic/src/solver/analysis/replan_boundary.dart';
@@ -175,11 +176,16 @@ class WatchSet {
       for (final upgradeId in upgradePurchaseIds) {
         final purchase = registries.shop.byId(upgradeId);
         if (purchase != null) {
-          final gpCost = purchase.cost.gpCost(
+          final costs = purchase.cost.currencyCosts(
             bankSlotsPurchased: state.shop.bankSlotsPurchased,
             hasMerchantsPermit: state.hasMerchantsPermit,
           );
-          if (gpCost != null && effectiveGp >= gpCost) {
+          // Solver only considers pure GP purchases.
+          if (costs.length != 1 || costs.first.$1 != Currency.gp) {
+            continue;
+          }
+          final gpCost = costs.first.$2;
+          if (effectiveGp >= gpCost) {
             return UpgradeAffordableBoundary(upgradeId, purchase.name);
           }
         }

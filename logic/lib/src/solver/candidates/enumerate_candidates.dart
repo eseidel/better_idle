@@ -27,6 +27,7 @@ library;
 
 import 'package:logic/src/data/action_id.dart';
 import 'package:logic/src/data/actions.dart';
+import 'package:logic/src/data/currency.dart';
 import 'package:logic/src/data/melvor_id.dart';
 import 'package:logic/src/data/registries.dart';
 import 'package:logic/src/data/xp.dart';
@@ -1847,12 +1848,13 @@ _UpgradeResult _selectUpgradeCandidates(
     if (newRate < bestCurrentRate) continue;
 
     // Payback time = cost / gain per tick
-    final cost = purchase.cost.gpCost(
+    final costs = purchase.cost.currencyCosts(
       bankSlotsPurchased: state.shop.bankSlotsPurchased,
       hasMerchantsPermit: state.hasMerchantsPermit,
     );
-    if (cost == null) continue; // Skip upgrades with special pricing
-    final paybackTicks = cost / gain;
+    // Solver only considers pure GP purchases.
+    if (costs.length != 1 || costs.first.$1 != Currency.gp) continue;
+    final paybackTicks = costs.first.$2 / gain;
     candidates.add((purchase.id, paybackTicks));
   }
 
