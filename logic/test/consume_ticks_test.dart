@@ -2028,6 +2028,156 @@ void main() {
       final bonesCount = state.inventory.countById(bones.id);
       expect(bonesCount, 0);
     });
+
+    test('auto-looting sends bones directly to inventory', () {
+      final amuletOfLooting = testItems.byName('Amulet of Looting');
+      final equipment = Equipment(
+        foodSlots: const [null, null, null],
+        selectedFoodSlot: 0,
+        gearSlots: {EquipmentSlot.amulet: amuletOfLooting},
+      );
+
+      const highSkill = SkillState(xp: 1000000, masteryPoolXp: 0);
+      var state = GlobalState.test(
+        testRegistries,
+        equipment: equipment,
+        skillStates: const {
+          Skill.hitpoints: highSkill,
+          Skill.attack: highSkill,
+          Skill.strength: highSkill,
+          Skill.defence: highSkill,
+        },
+      );
+      final random = Random(42);
+      state = state.startAction(chickenAction, random: random);
+
+      final builder = StateUpdateBuilder(state);
+      consumeTicks(builder, 500, random: random);
+      state = builder.build();
+
+      // Bones should be in inventory, not loot.
+      expect(
+        state.inventory.countById(bones.id),
+        greaterThan(0),
+        reason: 'Bones should be in inventory with auto-looting',
+      );
+      final bonesInLoot = state.loot.stacks
+          .where((s) => s.item.id == bones.id)
+          .fold(0, (sum, s) => sum + s.count);
+      expect(bonesInLoot, equals(0), reason: 'Bones should not be in loot');
+    });
+
+    test('auto-looting sends loot table drops to inventory', () {
+      final amuletOfLooting = testItems.byName('Amulet of Looting');
+      final equipment = Equipment(
+        foodSlots: const [null, null, null],
+        selectedFoodSlot: 0,
+        gearSlots: {EquipmentSlot.amulet: amuletOfLooting},
+      );
+
+      const highSkill = SkillState(xp: 1000000, masteryPoolXp: 0);
+      var state = GlobalState.test(
+        testRegistries,
+        equipment: equipment,
+        skillStates: const {
+          Skill.hitpoints: highSkill,
+          Skill.attack: highSkill,
+          Skill.strength: highSkill,
+          Skill.defence: highSkill,
+        },
+      );
+      // Use a seed that gives loot drops.
+      final random = Random(123);
+      state = state.startAction(chickenAction, random: random);
+
+      final builder = StateUpdateBuilder(state);
+      consumeTicks(builder, 2000, random: random);
+      state = builder.build();
+
+      // Loot table items (feathers/raw chicken) should be in inventory.
+      final feathersInInv = state.inventory.countById(feathers.id);
+      final rawChickenInInv = state.inventory.countById(rawChicken.id);
+      final totalInInventory = feathersInInv + rawChickenInInv;
+      expect(
+        totalInInventory,
+        greaterThan(0),
+        reason: 'Loot table drops should be in inventory with auto-looting',
+      );
+
+      // Loot container should be empty (everything went to inventory).
+      expect(state.loot.isEmpty, isTrue, reason: 'Loot should be empty');
+    });
+
+    test('auto-looting falls back to loot when inventory is full', () {
+      final amuletOfLooting = testItems.byName('Amulet of Looting');
+      final equipment = Equipment(
+        foodSlots: const [null, null, null],
+        selectedFoodSlot: 0,
+        gearSlots: {EquipmentSlot.amulet: amuletOfLooting},
+      );
+
+      // Fill all 20 inventory slots with different items.
+      var inv = Inventory.empty(testItems);
+      final fillers = [
+        testItems.byName('Normal Logs'),
+        testItems.byName('Oak Logs'),
+        testItems.byName('Willow Logs'),
+        testItems.byName('Teak Logs'),
+        testItems.byName('Maple Logs'),
+        testItems.byName('Mahogany Logs'),
+        testItems.byName('Yew Logs'),
+        testItems.byName('Magic Logs'),
+        testItems.byName('Redwood Logs'),
+        testItems.byName('Raw Shrimp'),
+        testItems.byName('Raw Sardine'),
+        testItems.byName('Raw Herring'),
+        testItems.byName('Raw Trout'),
+        testItems.byName('Raw Salmon'),
+        testItems.byName('Raw Lobster'),
+        testItems.byName('Raw Swordfish'),
+        testItems.byName('Raw Crab'),
+        testItems.byName('Raw Shark'),
+        testItems.byName('Raw Cave Fish'),
+        testItems.byName('Raw Manta Ray'),
+      ];
+      for (final item in fillers) {
+        inv = inv.adding(ItemStack(item, count: 1));
+      }
+
+      const highSkill = SkillState(xp: 1000000, masteryPoolXp: 0);
+      var state = GlobalState.test(
+        testRegistries,
+        equipment: equipment,
+        inventory: inv,
+        skillStates: const {
+          Skill.hitpoints: highSkill,
+          Skill.attack: highSkill,
+          Skill.strength: highSkill,
+          Skill.defence: highSkill,
+        },
+      );
+      final random = Random(42);
+      state = state.startAction(chickenAction, random: random);
+
+      final builder = StateUpdateBuilder(state);
+      consumeTicks(builder, 500, random: random);
+      state = builder.build();
+
+      // Inventory is full with new item types, so bones go to loot.
+      expect(
+        state.inventory.countById(bones.id),
+        equals(0),
+        reason: 'New items should not fit in full inventory',
+      );
+      final bonesInLoot = state.loot.stacks
+          .where((s) => s.item.id == bones.id)
+          .fold(0, (sum, s) => sum + s.count);
+      expect(
+        bonesInLoot,
+        greaterThan(0),
+        reason: 'Bones should fall back to loot when inventory is full',
+      );
+    });
   });
 
   group('dungeon combat', () {
