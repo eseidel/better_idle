@@ -3821,11 +3821,11 @@ void main() {
       }, values: {loggerRef});
     });
 
-    test('chunked processing merges all changes across partial resumes', () {
-      // Simulates the scenario where async resume is cancelled multiple
-      // times (user leaves and returns repeatedly). Each partial resume
-      // processes some ticks, and the accumulated TimeAway should contain
-      // all changes — equivalent to processing everything at once.
+    test('partial resume with updatedAt preserves unprocessed ticks', () {
+      // Simulates: user away 15s (150 ticks), we process 50 ticks then
+      // cancel. updatedAt should advance by only 5s (50 ticks), so on
+      // the next resume the remaining 100 ticks (+ any new time) are
+      // still available.
       runScoped(() {
         final testAction = SkillAction(
           id: ActionId.test(Skill.woodcutting, 'Test Tree'),
@@ -3836,46 +3836,87 @@ void main() {
           xp: 10,
         );
         final registries = Registries.test(actions: [testAction]);
+        final random = Random(42);
 
-        // Process all 150 ticks at once as the baseline.
+        // Use a fixed start time so we can verify updatedAt precisely.
+        final t0 = DateTime.utc(2026, 1, 1);
+        final state = GlobalState.test(
+          registries,
+          activeActivity: SkillActivity(
+            skill: Skill.woodcutting,
+            actionId: testAction.id.localId,
+            progressTicks: 0,
+            totalTicks: 30,
+          ),
+          updatedAt: t0,
+        );
+        final store = Store<GlobalState>(initialState: state);
+
+        // Process 50 of 150 ticks, then "cancel" by committing with
+        // an updatedAt that reflects only the processed ticks.
+        final (ta1, s1) = consumeManyTicks(store.state, 50, random: random);
+        final partialUpdatedAt = t0.add(durationFromTicks(50));
+        store.dispatch(
+          ResumeFromPauseAction.precomputed(
+            computedState: s1,
+            computedTimeAway: ta1,
+            updatedAt: partialUpdatedAt,
+          ),
+        );
+
+        // updatedAt should be t0 + 5s, NOT DateTime.now().
+        expect(store.state.updatedAt, partialUpdatedAt);
+        // Partial timeAway should be present with some XP.
+        expect(store.state.timeAway, isNotNull);
+        final xpAfterPartial =
+            store.state.timeAway!.changes.skillXpChanges.counts[Skill
+                .woodcutting] ??
+            0;
+        expect(xpAfterPartial, greaterThan(0));
+
+        // Now "resume" again — process remaining 100 ticks from the
+        // partial state. This is what happens when the user returns.
+        final (ta2, s2) = consumeManyTicks(store.state, 100, random: random);
+        store.dispatch(
+          ResumeFromPauseAction.precomputed(
+            computedState: s2,
+            computedTimeAway: ta2,
+          ),
+        );
+
+        // TimeAway should have merged both resumes.
+        expect(store.state.timeAway, isNotNull);
+        final xpAfterFull =
+            store.state.timeAway!.changes.skillXpChanges.counts[Skill
+                .woodcutting] ??
+            0;
+        expect(xpAfterFull, greaterThan(xpAfterPartial));
+
+        // Verify this matches processing all 150 ticks at once.
         final baseRandom = Random(42);
-        var baseState = GlobalState.empty(registries);
-        baseState = baseState.startAction(testAction, random: baseRandom);
-        final (baselineTimeAway, baselineState) = consumeManyTicks(
+        final baseState = GlobalState.test(
+          registries,
+          activeActivity: SkillActivity(
+            skill: Skill.woodcutting,
+            actionId: testAction.id.localId,
+            progressTicks: 0,
+            totalTicks: 30,
+          ),
+          updatedAt: t0,
+        );
+        final (baseTimeAway, baseResult) = consumeManyTicks(
           baseState,
           150,
           random: baseRandom,
         );
+        final baseXp =
+            baseTimeAway.changes.skillXpChanges.counts[Skill.woodcutting] ?? 0;
 
-        // Now process the same 150 ticks in 3 chunks of 50, merging
-        // TimeAway as _processResumeAsync does.
-        final chunkRandom = Random(42);
-        var chunkState = GlobalState.empty(registries);
-        chunkState = chunkState.startAction(testAction, random: chunkRandom);
-        TimeAway? mergedTimeAway;
-
-        for (var i = 0; i < 3; i++) {
-          final (timeAway, newState) = consumeManyTicks(
-            chunkState,
-            50,
-            random: chunkRandom,
-          );
-          chunkState = newState;
-          mergedTimeAway = timeAway.maybeMergeInto(mergedTimeAway);
-        }
-
-        // The merged result should match the baseline.
-        expect(mergedTimeAway, isNotNull);
-        final mergedXp =
-            mergedTimeAway!.changes.skillXpChanges.counts[Skill.woodcutting]!;
-        final baselineXp =
-            baselineTimeAway.changes.skillXpChanges.counts[Skill.woodcutting]!;
-        expect(mergedXp, baselineXp);
-
-        // Final game state should also match.
+        // XP and game state should match processing all ticks at once.
+        expect(xpAfterFull, baseXp);
         expect(
-          chunkState.skillState(Skill.woodcutting).xp,
-          baselineState.skillState(Skill.woodcutting).xp,
+          store.state.skillState(Skill.woodcutting).xp,
+          baseResult.skillState(Skill.woodcutting).xp,
         );
       }, values: {loggerRef});
     });

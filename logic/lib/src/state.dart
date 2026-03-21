@@ -3778,6 +3778,7 @@ class GlobalState {
     AstrologyState? astrology,
     Map<Skill, MelvorId>? selectedSkillActions,
     Set<MelvorId>? readItems,
+    DateTime? updatedAt,
   }) {
     return GlobalState(
       registries: registries,
@@ -3798,7 +3799,7 @@ class GlobalState {
       itemCharges: itemCharges ?? this.itemCharges,
       selectedPotions: selectedPotions ?? this.selectedPotions,
       potionChargesUsed: potionChargesUsed ?? this.potionChargesUsed,
-      updatedAt: DateTime.timestamp(),
+      updatedAt: updatedAt ?? DateTime.timestamp(),
       currencies: currencies ?? this.currencies,
       timeAway: timeAway ?? this.timeAway,
       shop: shop ?? this.shop,

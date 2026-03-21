@@ -99,10 +99,6 @@ class _AppLifecycleManagerState extends State<_AppLifecycleManager>
   bool _isDialogShowing = false;
   bool _isProcessingResume = false;
   bool _wasTimeAwayNull = true; // Track if timeAway was null in previous state
-
-  // Saved state from a cancelled async resume so we can continue where
-  // we left off instead of reprocessing from scratch.
-  _PartialResume? _partialResume;
   late final StreamSubscription<GlobalState> _storeSubscription;
 
   // Capture the scoped zone so lifecycle callbacks (which the engine
@@ -309,12 +305,8 @@ class _AppLifecycleManagerState extends State<_AppLifecycleManager>
     );
     _isProcessingResume = true;
 
-    // Transition shared notifiers to loading state. Always update away
-    // duration to the full span (which grows if the user leaves again).
-    // Only reset progress when starting fresh (not continuing a partial).
-    if (_partialResume == null) {
-      _welcomeBackState.reset();
-    }
+    // Transition shared notifiers to loading state.
+    _welcomeBackState.reset();
     _welcomeBackState.awayDuration.value = duration;
 
     // Show dialog if not already showing (if already showing, it transitions
@@ -343,19 +335,10 @@ class _AppLifecycleManagerState extends State<_AppLifecycleManager>
     // This runs outside the store to avoid blocking the UI — the game loop
     // is suspended so no other ticks can race with this computation.
     try {
-      // Continue from saved partial progress if available, otherwise start
-      // fresh from the store state. Since the store's updatedAt hasn't
-      // changed, totalTicks (now - updatedAt) includes ALL time — original
-      // absence plus any additional time spent away during the partial.
-      // Subtract already-processed ticks to get the correct remaining count.
-      final partial = _partialResume;
-      var currentState = partial?.state ?? widget.store.state;
-      var remaining = partial != null
-          ? totalTicks - partial.ticksProcessed
-          : totalTicks;
-      var mergedTimeAway = partial?.timeAway;
-      final random = partial?.random ?? Random();
-      _partialResume = null;
+      var currentState = widget.store.state;
+      var remaining = totalTicks;
+      TimeAway? mergedTimeAway;
+      final random = Random();
 
       while (remaining > 0 && _isProcessingResume) {
         final chunk = min(remaining, _resumeChunkSize);
@@ -374,36 +357,35 @@ class _AppLifecycleManagerState extends State<_AppLifecycleManager>
         }
       }
 
-      if (!_isProcessingResume) {
-        // Cancelled — save partial progress so the next resume continues
-        // where we left off. The store is NOT updated, so updatedAt stays
-        // at the original value and no ticks are lost.
-        final processed = totalTicks - remaining;
-        logger.info(
-          'Async resume cancelled (app went to background), '
-          'saving partial state ($remaining ticks remaining)',
-        );
-        _partialResume = _PartialResume(
-          state: currentState,
-          timeAway: mergedTimeAway,
-          ticksProcessed: processed,
-          random: random,
-        );
-        return;
-      }
-
-      // Apply the computed state to the store and transition the dialog.
-      // Keep _isProcessingResume true until after dispatch so the onChange
-      // listener doesn't try to show a duplicate dialog.
+      final wasCancelled = !_isProcessingResume;
+      final processed = totalTicks - remaining;
       final hasChanges =
           mergedTimeAway != null && !mergedTimeAway.changes.isEmpty;
-      logger.info('Async resume done: hasChanges=$hasChanges');
+      logger.info(
+        'Async resume ${wasCancelled ? "cancelled" : "done"}: '
+        'hasChanges=$hasChanges, processed=$processed, remaining=$remaining',
+      );
+
+      // Compute the correct updatedAt. For partial resumes, advance
+      // updatedAt by only the ticks actually processed (not to "now"),
+      // so the next resume picks up the remaining ticks.
+      final updatedAt = wasCancelled
+          ? widget.store.state.updatedAt.add(durationFromTicks(processed))
+          : null; // null → copyWith defaults to DateTime.timestamp()
       widget.store.dispatch(
         ResumeFromPauseAction.precomputed(
           computedState: currentState,
           computedTimeAway: mergedTimeAway,
+          updatedAt: updatedAt,
         ),
       );
+
+      if (wasCancelled) {
+        // Cancelled — state is committed with partial updatedAt, so
+        // the next resume processes the remaining + any new ticks.
+        return;
+      }
+
       final storeTimeAway = widget.store.state.timeAway;
       logger.info(
         'Async resume dispatched: '
@@ -418,7 +400,6 @@ class _AppLifecycleManagerState extends State<_AppLifecycleManager>
       }
     } on Object catch (e, stackTrace) {
       logger.err('Async resume failed: $e\n$stackTrace');
-      _partialResume = null;
       // Fall back to synchronous processing so the dialog can show results.
       widget.store.dispatch(ResumeFromPauseAction());
       _welcomeBackState.result.value = widget.store.state.timeAway;
@@ -433,30 +414,6 @@ class _AppLifecycleManagerState extends State<_AppLifecycleManager>
 
   @override
   Widget build(BuildContext context) => widget.child;
-}
-
-/// Saved intermediate state from a cancelled async resume.
-class _PartialResume {
-  _PartialResume({
-    required this.state,
-    required this.timeAway,
-    required this.ticksProcessed,
-    required this.random,
-  });
-
-  /// The computed game state after processing [ticksProcessed] ticks.
-  final GlobalState state;
-
-  /// Accumulated changes so far (merged across all processed chunks).
-  final TimeAway? timeAway;
-
-  /// How many ticks have been processed so far. On the next resume,
-  /// remaining = totalTicks - ticksProcessed (where totalTicks is
-  /// recalculated from updatedAt, which hasn't changed).
-  final Tick ticksProcessed;
-
-  /// The Random instance to continue the deterministic sequence.
-  final Random random;
 }
 
 enum LifecycleChange { resume, pause }
