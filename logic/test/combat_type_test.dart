@@ -154,4 +154,31 @@ void main() {
       });
     });
   });
+
+  group('CombatRegistry.test', () {
+    test('creates registry with empty sub-registries', () {
+      final monster = CombatAction(
+        id: ActionId.test(Skill.combat, 'Test Monster'),
+        name: 'Test Monster',
+        levels: const MonsterLevels(
+          hitpoints: 10,
+          attack: 1,
+          strength: 1,
+          defense: 1,
+          ranged: 1,
+          magic: 1,
+        ),
+        attackType: AttackType.melee,
+        attackSpeed: 2.4,
+        lootChance: 0,
+        minGpDrop: 0,
+        maxGpDrop: 0,
+      );
+      final registry = CombatRegistry.test([monster]);
+      expect(registry.monsters, hasLength(1));
+      expect(registry.areas.all, isEmpty);
+      expect(registry.dungeons.all, isEmpty);
+      expect(registry.strongholds.all, isEmpty);
+    });
+  });
 }
