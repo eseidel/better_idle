@@ -3598,10 +3598,6 @@ void main() {
     });
   });
 
-  // HarvestCropAction needs a full FarmingRegistry (with crop and category
-  // lookups) which Registries.test() doesn't support. Tested via
-  // logic/test/state_test.dart instead.
-
   group('UnlockPlotAction', () {
     test('dispatches unlock to state', () {
       final registries = Registries.test();
@@ -3977,6 +3973,421 @@ void main() {
             0;
         expect(mergedXp, greaterThanOrEqualTo(chunk1Xp));
       }, values: {loggerRef});
+    });
+  });
+
+  group('UpgradeAllPotionsAction', () {
+    test('upgrades potions and calls callback', () {
+      final potionT1 = Item.test(
+        'Melee Accuracy I',
+        gp: 10,
+        potionCharges: 20,
+        potionTier: 0,
+        potionAction: const MelvorId('melvorD:Melee_Accuracy'),
+      );
+      final potionT2 = Item.test(
+        'Melee Accuracy II',
+        gp: 50,
+        potionCharges: 30,
+        potionTier: 1,
+        potionAction: const MelvorId('melvorD:Melee_Accuracy'),
+      );
+      final upgrade = ItemUpgrade(
+        upgradedItemId: potionT2.id,
+        itemCosts: [ItemCost(itemId: potionT1.id, quantity: 3)],
+        currencyCosts: CurrencyCosts.empty,
+        rootItemIds: [potionT1.id],
+        isDowngrade: false,
+      );
+      final registries = Registries.test(
+        items: [potionT1, potionT2],
+        itemUpgrades: ItemUpgradeRegistry([upgrade]),
+      );
+      var state = GlobalState.empty(registries);
+      state = state.copyWith(
+        inventory: state.inventory.adding(ItemStack(potionT1, count: 6)),
+      );
+      PotionUpgradeResult? callbackResult;
+      final store = Store<GlobalState>(initialState: state)
+        ..dispatch(
+          UpgradeAllPotionsAction(
+            onResult: (result) => callbackResult = result,
+          ),
+        );
+
+      expect(callbackResult, isNotNull);
+      expect(callbackResult!.totalUpgradesMade, 2);
+      expect(store.state.inventory.countOfItem(potionT1), 0);
+      expect(store.state.inventory.countOfItem(potionT2), 2);
+    });
+
+    test('returns zero upgrades when no potions available', () {
+      final registries = Registries.test();
+      final state = GlobalState.empty(registries);
+      PotionUpgradeResult? callbackResult;
+      final store = Store<GlobalState>(initialState: state)
+        ..dispatch(
+          UpgradeAllPotionsAction(
+            onResult: (result) => callbackResult = result,
+          ),
+        );
+
+      expect(callbackResult, isNotNull);
+      expect(callbackResult!.totalUpgradesMade, 0);
+      expect(store.state, state);
+    });
+  });
+
+  group('StartSlayerAreaCombatAction', () {
+    CombatAction testMonster() {
+      return CombatAction(
+        id: ActionId.test(Skill.combat, 'Slayer Monster'),
+        name: 'Slayer Monster',
+        levels: const MonsterLevels(
+          hitpoints: 10,
+          attack: 1,
+          strength: 1,
+          defense: 1,
+          ranged: 1,
+          magic: 1,
+        ),
+        attackType: AttackType.melee,
+        attackSpeed: 2.4,
+        lootChance: 0,
+        minGpDrop: 0,
+        maxGpDrop: 0,
+      );
+    }
+
+    test('starts combat in slayer area', () {
+      final monster = testMonster();
+      final area = SlayerArea(
+        id: const MelvorId('melvorF:TestArea'),
+        name: 'Test Area',
+        monsterIds: [monster.id.localId],
+        difficulty: const [1, 2],
+        entryRequirements: const [],
+      );
+      final registries = Registries.test(
+        actions: [monster],
+        combat: CombatRegistry(
+          monsters: [monster],
+          areas: CombatAreaRegistry(const []),
+          dungeons: DungeonRegistry(const []),
+          strongholds: StrongholdRegistry(const []),
+        ),
+        slayer: SlayerRegistry(
+          taskCategories: SlayerTaskCategoryRegistry(const []),
+          areas: SlayerAreaRegistry([area]),
+        ),
+      );
+      final state = GlobalState.empty(registries);
+      final store = Store<GlobalState>(initialState: state)
+        ..dispatch(StartSlayerAreaCombatAction(area: area, monster: monster));
+
+      expect(store.state.activeActivity, isA<CombatActivity>());
+    });
+
+    test('does nothing when stunned', () {
+      final monster = testMonster();
+      final area = SlayerArea(
+        id: const MelvorId('melvorF:TestArea'),
+        name: 'Test Area',
+        monsterIds: [monster.id.localId],
+        difficulty: const [1, 2],
+        entryRequirements: const [],
+      );
+      final registries = Registries.test(
+        actions: [monster],
+        combat: CombatRegistry(
+          monsters: [monster],
+          areas: CombatAreaRegistry(const []),
+          dungeons: DungeonRegistry(const []),
+          strongholds: StrongholdRegistry(const []),
+        ),
+        slayer: SlayerRegistry(
+          taskCategories: SlayerTaskCategoryRegistry(const []),
+          areas: SlayerAreaRegistry([area]),
+        ),
+      );
+      var state = GlobalState.empty(registries);
+      state = state.copyWith(stunned: const StunnedState.fresh().stun());
+      final store = Store<GlobalState>(initialState: state)
+        ..dispatch(StartSlayerAreaCombatAction(area: area, monster: monster));
+
+      expect(store.state.activeActivity, isNull);
+    });
+  });
+
+  group('OpenItemAction', () {
+    test('opens item and calls callback with result', () {
+      final reward = Item.test('Gold Bar', gp: 100);
+      final chest = Item.test(
+        'Treasure Chest',
+        gp: 10,
+        dropTable: DropTable([
+          DropTableEntry(
+            itemID: reward.id,
+            minQuantity: 1,
+            maxQuantity: 1,
+            weight: 1,
+          ),
+        ]),
+      );
+      final registries = Registries.test(items: [chest, reward]);
+      var state = GlobalState.empty(registries);
+      state = state.copyWith(
+        inventory: state.inventory.adding(ItemStack(chest, count: 3)),
+      );
+      OpenResult? callbackResult;
+      final store = Store<GlobalState>(initialState: state)
+        ..dispatch(
+          OpenItemAction(
+            item: chest,
+            count: 2,
+            onResult: (result) => callbackResult = result,
+          ),
+        );
+
+      expect(callbackResult, isNotNull);
+      expect(callbackResult!.openedCount, 2);
+      expect(store.state.inventory.countOfItem(chest), 1);
+      expect(store.state.inventory.countOfItem(reward), greaterThan(0));
+    });
+  });
+
+  group('HarvestCropAction', () {
+    test('harvests crop and shows toast', () {
+      runScoped(() {
+        final seed = Item.test('Potato Seed', gp: 1);
+        final potato = Item.test('Potato', gp: 5);
+        const categoryId = MelvorId('melvorD:Allotment');
+        final crop = FarmingCrop(
+          id: ActionId.test(Skill.farming, 'Potato'),
+          name: 'Potato',
+          categoryId: categoryId,
+          level: 1,
+          baseXP: 8,
+          seedCost: 1,
+          baseInterval: 30000,
+          seedId: seed.id,
+          productId: potato.id,
+          baseQuantity: 5,
+          media: '',
+        );
+        const plotId = MelvorId('melvorD:Test_Plot');
+        final registries = Registries.test(
+          items: [seed, potato],
+          actions: [crop],
+          farming: FarmingRegistry(
+            crops: [crop],
+            categories: [
+              FarmingCategory(
+                id: categoryId,
+                name: 'Allotment',
+                returnSeeds: true,
+                scaleXPWithQuantity: true,
+                harvestMultiplier: 1,
+                masteryXPDivider: 1,
+                giveXPOnPlant: false,
+                description: '',
+                seedNotice: '',
+              ),
+            ],
+            plots: [FarmingPlot(id: plotId, categoryId: categoryId, level: 1)],
+          ),
+        );
+        var state = GlobalState.empty(registries);
+        state = state.copyWith(
+          unlockedPlots: {plotId},
+          inventory: state.inventory.adding(ItemStack(seed, count: 5)),
+        );
+        // Plant the crop, then mark as ready.
+        state = state.plantCrop(plotId, crop);
+        final plot = state.plotStates[plotId]!;
+        state = state.copyWith(
+          plotStates: {
+            ...state.plotStates,
+            plotId: plot.copyWith(growthTicksRemaining: 0),
+          },
+        );
+
+        final store = Store<GlobalState>(initialState: state)
+          ..dispatch(HarvestCropAction(plotId: plotId));
+
+        // Plot should be cleared after harvest (regardless of success).
+        expect(store.state.plotStates[plotId]?.cropId, isNull);
+      }, values: {toastServiceRef});
+    });
+  });
+
+  group('HarvestAllCropsAction', () {
+    test('harvests all ready crops and deducts GP', () {
+      runScoped(() {
+        final seed = Item.test('Potato Seed', gp: 1);
+        final potato = Item.test('Potato', gp: 5);
+        const categoryId = MelvorId('melvorD:Allotment');
+        final crop = FarmingCrop(
+          id: ActionId.test(Skill.farming, 'Potato'),
+          name: 'Potato',
+          categoryId: categoryId,
+          level: 1,
+          baseXP: 8,
+          seedCost: 1,
+          baseInterval: 30000,
+          seedId: seed.id,
+          productId: potato.id,
+          baseQuantity: 5,
+          media: '',
+        );
+        const plotId = MelvorId('melvorD:Test_Plot');
+        final registries = Registries.test(
+          items: [seed, potato],
+          actions: [crop],
+          farming: FarmingRegistry(
+            crops: [crop],
+            categories: [
+              FarmingCategory(
+                id: categoryId,
+                name: 'Allotment',
+                returnSeeds: true,
+                scaleXPWithQuantity: true,
+                harvestMultiplier: 1,
+                masteryXPDivider: 1,
+                giveXPOnPlant: false,
+                description: '',
+                seedNotice: '',
+              ),
+            ],
+            plots: [FarmingPlot(id: plotId, categoryId: categoryId, level: 1)],
+          ),
+        );
+        var state = GlobalState.empty(registries);
+        state = state.copyWith(
+          unlockedPlots: {plotId},
+          inventory: state.inventory.adding(ItemStack(seed, count: 5)),
+        );
+        state = state.addCurrency(Currency.gp, 5000);
+        // Plant, then mark as ready.
+        state = state.plantCrop(plotId, crop);
+        final plot = state.plotStates[plotId]!;
+        state = state.copyWith(
+          plotStates: {
+            ...state.plotStates,
+            plotId: plot.copyWith(growthTicksRemaining: 0),
+          },
+        );
+
+        final store = Store<GlobalState>(initialState: state)
+          ..dispatch(HarvestAllCropsAction(categoryId: categoryId));
+
+        expect(store.state.gp, 3000); // 5000 - 2000 cost
+        // Plot should be cleared (crop harvested regardless of random success).
+        expect(store.state.plotStates[plotId]?.cropId, isNull);
+      }, values: {toastServiceRef});
+    });
+
+    test('returns null when not enough GP', () {
+      runScoped(() {
+        final registries = Registries.test();
+        final state = GlobalState.empty(registries);
+        final store = Store<GlobalState>(initialState: state)
+          ..dispatch(
+            HarvestAllCropsAction(
+              categoryId: const MelvorId('melvorD:Allotment'),
+            ),
+          );
+
+        expect(store.state.gp, 0);
+      }, values: {toastServiceRef});
+    });
+  });
+
+  group('PlantAllCropsAction', () {
+    test('plants crops in all empty plots', () {
+      final seed = Item.test('Potato Seed', gp: 1);
+      final potato = Item.test('Potato', gp: 5);
+      const categoryId = MelvorId('melvorD:Allotment');
+      final crop = FarmingCrop(
+        id: ActionId.test(Skill.farming, 'Potato'),
+        name: 'Potato',
+        categoryId: categoryId,
+        level: 1,
+        baseXP: 8,
+        seedCost: 1,
+        baseInterval: 30000,
+        seedId: seed.id,
+        productId: potato.id,
+        baseQuantity: 5,
+        media: '',
+      );
+      const plotId = MelvorId('melvorD:Test_Plot');
+      final registries = Registries.test(
+        items: [seed, potato],
+        actions: [crop],
+        farming: FarmingRegistry(
+          crops: [crop],
+          categories: [
+            FarmingCategory(
+              id: categoryId,
+              name: 'Allotment',
+              returnSeeds: true,
+              scaleXPWithQuantity: true,
+              harvestMultiplier: 1,
+              masteryXPDivider: 1,
+              giveXPOnPlant: false,
+              description: '',
+              seedNotice: '',
+            ),
+          ],
+          plots: [FarmingPlot(id: plotId, categoryId: categoryId, level: 1)],
+        ),
+      );
+      var state = GlobalState.empty(registries);
+      state = state.copyWith(
+        unlockedPlots: {plotId},
+        inventory: state.inventory.adding(ItemStack(seed, count: 10)),
+      );
+      state = state.addCurrency(Currency.gp, 10000);
+
+      final store = Store<GlobalState>(initialState: state)
+        ..dispatch(PlantAllCropsAction(categoryId: categoryId, crop: crop));
+
+      expect(store.state.gp, 5000); // 10000 - 5000 cost
+      expect(store.state.plotStates[plotId], isNotNull);
+      expect(store.state.plotStates[plotId]!.isEmpty, isFalse);
+    });
+
+    test('returns null when not enough GP', () {
+      final seed = Item.test('Potato Seed', gp: 1);
+      final potato = Item.test('Potato', gp: 5);
+      final crop = FarmingCrop(
+        id: ActionId.test(Skill.farming, 'Potato'),
+        name: 'Potato',
+        categoryId: const MelvorId('melvorD:Allotment'),
+        level: 1,
+        baseXP: 8,
+        seedCost: 1,
+        baseInterval: 30000,
+        seedId: seed.id,
+        productId: potato.id,
+        baseQuantity: 5,
+        media: '',
+      );
+      final registries = Registries.test(
+        items: [seed, potato],
+        actions: [crop],
+      );
+      final state = GlobalState.empty(registries);
+      final store = Store<GlobalState>(initialState: state)
+        ..dispatch(
+          PlantAllCropsAction(
+            categoryId: const MelvorId('melvorD:Allotment'),
+            crop: crop,
+          ),
+        );
+
+      expect(store.state.gp, 0);
     });
   });
 }

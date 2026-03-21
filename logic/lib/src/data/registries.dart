@@ -79,6 +79,8 @@ class Registries {
     AstrologyRegistry? astrology,
     SlayerRegistry? slayer,
     CombatRegistry? combat,
+    FarmingRegistry? farming,
+    ItemUpgradeRegistry? itemUpgrades,
     Map<MelvorId, int>? bankSortIndex,
   }) {
     // For tests, we store actions in a separate list that overrides
@@ -117,6 +119,8 @@ class Registries {
       bankSortIndex: bankSortIndex ?? {},
       testActions: actions,
       combat: combat,
+      farming: farming,
+      itemUpgrades: itemUpgrades,
     );
   }
 
@@ -138,6 +142,8 @@ class Registries {
     required Map<MelvorId, int> bankSortIndex,
     required List<Action> testActions,
     CombatRegistry? combat,
+    FarmingRegistry? farming,
+    ItemUpgradeRegistry? itemUpgrades,
   }) : pets = const PetRegistry.empty(),
        _bankSortIndex = bankSortIndex,
        _testActions = testActions,
@@ -155,14 +161,16 @@ class Registries {
          categories: const [],
        ),
        thieving = ThievingRegistry(actions: const [], areas: const []),
-       farming = FarmingRegistry(
-         crops: const [],
-         categories: const [],
-         plots: const [],
-       ),
+       farming =
+           farming ??
+           FarmingRegistry(
+             crops: const [],
+             categories: const [],
+             plots: const [],
+           ),
        summoning = SummoningRegistry(const []),
        altMagic = const AltMagicRegistry([]),
-       itemUpgrades = ItemUpgradeRegistry.empty,
+       itemUpgrades = itemUpgrades ?? ItemUpgradeRegistry.empty,
        combat =
            combat ??
            CombatRegistry(
