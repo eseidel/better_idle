@@ -4130,8 +4130,8 @@ void main() {
             crops: [crop],
             categories: const [FarmingCategory.test(id: categoryId)],
             plots: const [
-            FarmingPlot(id: plotId, categoryId: categoryId, level: 1),
-          ],
+              FarmingPlot(id: plotId, categoryId: categoryId, level: 1),
+            ],
           ),
         );
         var state = GlobalState.empty(registries);
@@ -4181,8 +4181,8 @@ void main() {
             crops: [crop],
             categories: const [FarmingCategory.test(id: categoryId)],
             plots: const [
-            FarmingPlot(id: plotId, categoryId: categoryId, level: 1),
-          ],
+              FarmingPlot(id: plotId, categoryId: categoryId, level: 1),
+            ],
           ),
         );
         var state = GlobalState.empty(registries);
