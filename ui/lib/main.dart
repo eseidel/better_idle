@@ -357,9 +357,12 @@ class _AppLifecycleManagerState extends State<_AppLifecycleManager>
         }
       }
 
-      if (!_isProcessingResume) {
-        logger.info('Async resume cancelled (app went to background)');
-        return;
+      final wasCancelled = !_isProcessingResume;
+      if (wasCancelled) {
+        logger.info(
+          'Async resume cancelled (app went to background), '
+          'applying partial state ($remaining ticks remaining)',
+        );
       }
 
       // Apply the computed state to the store and transition the dialog.
@@ -374,6 +377,14 @@ class _AppLifecycleManagerState extends State<_AppLifecycleManager>
           computedTimeAway: mergedTimeAway,
         ),
       );
+
+      // If cancelled, return without touching the dialog — the partial
+      // timeAway stays in state so the next resume merges new changes into
+      // it, giving the user a complete picture when processing finishes.
+      if (wasCancelled) {
+        return;
+      }
+
       final storeTimeAway = widget.store.state.timeAway;
       logger.info(
         'Async resume dispatched: '
