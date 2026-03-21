@@ -158,6 +158,20 @@ enum AttackStyle {
 
   /// Returns true if this is a magic attack style.
   bool get isMagic => combatType == CombatType.magic;
+
+  /// Returns the primary skill trained by this attack style.
+  ///
+  /// For hybrid styles (longRange, defensive) that train two skills,
+  /// returns the offensive skill (Ranged or Magic) rather than Defence.
+  Skill get primarySkill {
+    return switch (this) {
+      stab => Skill.attack,
+      slash => Skill.strength,
+      block => Skill.defence,
+      accurate || rapid || longRange => Skill.ranged,
+      standard || defensive => Skill.magic,
+    };
+  }
 }
 
 /// Result of spreading mastery pool XP across actions.
@@ -1024,7 +1038,7 @@ class GlobalState {
       null => null,
       SkillActivity(:final skill) => skill,
       CookingActivity() => Skill.cooking,
-      CombatActivity() => Skill.combat,
+      CombatActivity() => attackStyle.primarySkill,
       AgilityActivity() => Skill.agility,
     };
   }
