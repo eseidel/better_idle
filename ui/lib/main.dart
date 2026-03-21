@@ -357,23 +357,35 @@ class _AppLifecycleManagerState extends State<_AppLifecycleManager>
         }
       }
 
-      if (!_isProcessingResume) {
-        logger.info('Async resume cancelled (app went to background)');
-        return;
-      }
-
-      // Apply the computed state to the store and transition the dialog.
-      // Keep _isProcessingResume true until after dispatch so the onChange
-      // listener doesn't try to show a duplicate dialog.
+      final wasCancelled = !_isProcessingResume;
+      final processed = totalTicks - remaining;
       final hasChanges =
           mergedTimeAway != null && !mergedTimeAway.changes.isEmpty;
-      logger.info('Async resume done: hasChanges=$hasChanges');
+      logger.info(
+        'Async resume ${wasCancelled ? "cancelled" : "done"}: '
+        'hasChanges=$hasChanges, processed=$processed, remaining=$remaining',
+      );
+
+      // Compute the correct updatedAt. For partial resumes, advance
+      // updatedAt by only the ticks actually processed (not to "now"),
+      // so the next resume picks up the remaining ticks.
+      final updatedAt = wasCancelled
+          ? widget.store.state.updatedAt.add(durationFromTicks(processed))
+          : null; // null → copyWith defaults to DateTime.timestamp()
       widget.store.dispatch(
         ResumeFromPauseAction.precomputed(
           computedState: currentState,
           computedTimeAway: mergedTimeAway,
+          updatedAt: updatedAt,
         ),
       );
+
+      if (wasCancelled) {
+        // Cancelled — state is committed with partial updatedAt, so
+        // the next resume processes the remaining + any new ticks.
+        return;
+      }
+
       final storeTimeAway = widget.store.state.timeAway;
       logger.info(
         'Async resume dispatched: '

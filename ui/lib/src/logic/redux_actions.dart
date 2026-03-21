@@ -164,16 +164,22 @@ class DebugAdvanceTicksAction extends ReduxAction<GlobalState> {
 ///   absences where ticks are processed in chunks with yields to keep the
 ///   UI responsive.
 class ResumeFromPauseAction extends ReduxAction<GlobalState> {
-  ResumeFromPauseAction() : _precomputed = null;
+  ResumeFromPauseAction() : _precomputed = null, _updatedAt = null;
 
   /// Apply pre-computed results from async chunked processing.
   /// The game loop must be suspended while this runs.
+  /// If [updatedAt] is provided, it overrides the default DateTime.timestamp()
+  /// in copyWith — use this for partial resumes so updatedAt reflects only
+  /// the ticks actually processed (not "now").
   ResumeFromPauseAction.precomputed({
     required GlobalState computedState,
     required TimeAway? computedTimeAway,
-  }) : _precomputed = (computedState, computedTimeAway);
+    DateTime? updatedAt,
+  }) : _precomputed = (computedState, computedTimeAway),
+       _updatedAt = updatedAt;
 
   final (GlobalState, TimeAway?)? _precomputed;
+  final DateTime? _updatedAt;
 
   @override
   GlobalState reduce() {
@@ -209,6 +215,7 @@ class ResumeFromPauseAction extends ReduxAction<GlobalState> {
     // Set timeAway on state if it has changes - empty timeAway should be null
     return newState.copyWith(
       timeAway: timeAway != null && !timeAway.changes.isEmpty ? timeAway : null,
+      updatedAt: _updatedAt,
     );
   }
 }
