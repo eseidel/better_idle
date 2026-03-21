@@ -1904,12 +1904,7 @@ void main() {
       final category = testCategory();
       final registries = Registries.test(
         actions: [monster],
-        combat: CombatRegistry(
-          monsters: [monster],
-          areas: CombatAreaRegistry(const []),
-          dungeons: DungeonRegistry(const []),
-          strongholds: StrongholdRegistry(const []),
-        ),
+        combat: CombatRegistry.test([monster]),
         slayer: SlayerRegistry(
           taskCategories: SlayerTaskCategoryRegistry([category]),
           areas: SlayerAreaRegistry(const []),
@@ -1935,12 +1930,7 @@ void main() {
       final category = testCategory();
       final registries = Registries.test(
         actions: [monster],
-        combat: CombatRegistry(
-          monsters: [monster],
-          areas: CombatAreaRegistry(const []),
-          dungeons: DungeonRegistry(const []),
-          strongholds: StrongholdRegistry(const []),
-        ),
+        combat: CombatRegistry.test([monster]),
         slayer: SlayerRegistry(
           taskCategories: SlayerTaskCategoryRegistry([category]),
           areas: SlayerAreaRegistry(const []),
@@ -2971,12 +2961,7 @@ void main() {
       final monster = testMonster();
       final registries = Registries.test(
         actions: [monster],
-        combat: CombatRegistry(
-          monsters: [monster],
-          areas: CombatAreaRegistry(const []),
-          dungeons: DungeonRegistry(const []),
-          strongholds: StrongholdRegistry(const []),
-        ),
+        combat: CombatRegistry.test([monster]),
       );
       final state = GlobalState.empty(registries);
       final store = Store<GlobalState>(initialState: state)
@@ -2989,12 +2974,7 @@ void main() {
       final monster = testMonster();
       final registries = Registries.test(
         actions: [monster],
-        combat: CombatRegistry(
-          monsters: [monster],
-          areas: CombatAreaRegistry(const []),
-          dungeons: DungeonRegistry(const []),
-          strongholds: StrongholdRegistry(const []),
-        ),
+        combat: CombatRegistry.test([monster]),
       );
       var state = GlobalState.empty(registries);
       state = state.copyWith(stunned: const StunnedState.fresh().stun());
@@ -3008,12 +2988,7 @@ void main() {
       final monster = testMonster();
       final registries = Registries.test(
         actions: [monster],
-        combat: CombatRegistry(
-          monsters: [monster],
-          areas: CombatAreaRegistry(const []),
-          dungeons: DungeonRegistry(const []),
-          strongholds: StrongholdRegistry(const []),
-        ),
+        combat: CombatRegistry.test([monster]),
       );
       var state = GlobalState.empty(registries);
       state = state.startAction(monster, random: Random(42));
@@ -3046,12 +3021,7 @@ void main() {
       );
       final registries = Registries.test(
         actions: [monster],
-        combat: CombatRegistry(
-          monsters: [monster],
-          areas: CombatAreaRegistry(const []),
-          dungeons: DungeonRegistry(const []),
-          strongholds: StrongholdRegistry(const []),
-        ),
+        combat: CombatRegistry.test([monster]),
       );
       var state = GlobalState.empty(registries);
       state = state.startAction(monster, random: Random(42));
@@ -3567,18 +3537,11 @@ void main() {
     test('plants crop in unlocked plot', () {
       final seed = Item.test('Potato Seed', gp: 1);
       final potato = Item.test('Potato', gp: 5);
-      final crop = FarmingCrop(
-        id: ActionId.test(Skill.farming, 'Potato'),
+      final crop = FarmingCrop.test(
         name: 'Potato',
         categoryId: const MelvorId('melvorD:Allotment'),
-        level: 1,
-        baseXP: 8,
-        seedCost: 1,
-        baseInterval: 30000,
         seedId: seed.id,
         productId: potato.id,
-        baseQuantity: 5,
-        media: '',
       );
       final registries = Registries.test(
         items: [seed, potato],
@@ -4070,12 +4033,7 @@ void main() {
       );
       final registries = Registries.test(
         actions: [monster],
-        combat: CombatRegistry(
-          monsters: [monster],
-          areas: CombatAreaRegistry(const []),
-          dungeons: DungeonRegistry(const []),
-          strongholds: StrongholdRegistry(const []),
-        ),
+        combat: CombatRegistry.test([monster]),
         slayer: SlayerRegistry(
           taskCategories: SlayerTaskCategoryRegistry(const []),
           areas: SlayerAreaRegistry([area]),
@@ -4099,12 +4057,7 @@ void main() {
       );
       final registries = Registries.test(
         actions: [monster],
-        combat: CombatRegistry(
-          monsters: [monster],
-          areas: CombatAreaRegistry(const []),
-          dungeons: DungeonRegistry(const []),
-          strongholds: StrongholdRegistry(const []),
-        ),
+        combat: CombatRegistry.test([monster]),
         slayer: SlayerRegistry(
           taskCategories: SlayerTaskCategoryRegistry(const []),
           areas: SlayerAreaRegistry([area]),
@@ -4146,6 +4099,7 @@ void main() {
             item: chest,
             count: 2,
             onResult: (result) => callbackResult = result,
+            random: Random(42),
           ),
         );
 
@@ -4162,18 +4116,11 @@ void main() {
         final seed = Item.test('Potato Seed', gp: 1);
         final potato = Item.test('Potato', gp: 5);
         const categoryId = MelvorId('melvorD:Allotment');
-        final crop = FarmingCrop(
-          id: ActionId.test(Skill.farming, 'Potato'),
+        final crop = FarmingCrop.test(
           name: 'Potato',
           categoryId: categoryId,
-          level: 1,
-          baseXP: 8,
-          seedCost: 1,
-          baseInterval: 30000,
           seedId: seed.id,
           productId: potato.id,
-          baseQuantity: 5,
-          media: '',
         );
         const plotId = MelvorId('melvorD:Test_Plot');
         final registries = Registries.test(
@@ -4181,20 +4128,10 @@ void main() {
           actions: [crop],
           farming: FarmingRegistry(
             crops: [crop],
-            categories: [
-              FarmingCategory(
-                id: categoryId,
-                name: 'Allotment',
-                returnSeeds: true,
-                scaleXPWithQuantity: true,
-                harvestMultiplier: 1,
-                masteryXPDivider: 1,
-                giveXPOnPlant: false,
-                description: '',
-                seedNotice: '',
-              ),
-            ],
-            plots: [FarmingPlot(id: plotId, categoryId: categoryId, level: 1)],
+            categories: const [FarmingCategory.test(id: categoryId)],
+            plots: const [
+            FarmingPlot(id: plotId, categoryId: categoryId, level: 1),
+          ],
           ),
         );
         var state = GlobalState.empty(registries);
@@ -4212,11 +4149,14 @@ void main() {
           },
         );
 
+        // Seed 42 produces a successful harvest (random < 0.5).
         final store = Store<GlobalState>(initialState: state)
-          ..dispatch(HarvestCropAction(plotId: plotId));
+          ..dispatch(HarvestCropAction(plotId: plotId, random: Random(42)));
 
-        // Plot should be cleared after harvest (regardless of success).
+        // Plot should be cleared after harvest.
         expect(store.state.plotStates[plotId]?.cropId, isNull);
+        // Should have gained potatoes.
+        expect(store.state.inventory.countOfItem(potato), greaterThan(0));
       }, values: {toastServiceRef});
     });
   });
@@ -4227,18 +4167,11 @@ void main() {
         final seed = Item.test('Potato Seed', gp: 1);
         final potato = Item.test('Potato', gp: 5);
         const categoryId = MelvorId('melvorD:Allotment');
-        final crop = FarmingCrop(
-          id: ActionId.test(Skill.farming, 'Potato'),
+        final crop = FarmingCrop.test(
           name: 'Potato',
           categoryId: categoryId,
-          level: 1,
-          baseXP: 8,
-          seedCost: 1,
-          baseInterval: 30000,
           seedId: seed.id,
           productId: potato.id,
-          baseQuantity: 5,
-          media: '',
         );
         const plotId = MelvorId('melvorD:Test_Plot');
         final registries = Registries.test(
@@ -4246,20 +4179,10 @@ void main() {
           actions: [crop],
           farming: FarmingRegistry(
             crops: [crop],
-            categories: [
-              FarmingCategory(
-                id: categoryId,
-                name: 'Allotment',
-                returnSeeds: true,
-                scaleXPWithQuantity: true,
-                harvestMultiplier: 1,
-                masteryXPDivider: 1,
-                giveXPOnPlant: false,
-                description: '',
-                seedNotice: '',
-              ),
-            ],
-            plots: [FarmingPlot(id: plotId, categoryId: categoryId, level: 1)],
+            categories: const [FarmingCategory.test(id: categoryId)],
+            plots: const [
+            FarmingPlot(id: plotId, categoryId: categoryId, level: 1),
+          ],
           ),
         );
         var state = GlobalState.empty(registries);
@@ -4279,11 +4202,13 @@ void main() {
         );
 
         final store = Store<GlobalState>(initialState: state)
-          ..dispatch(HarvestAllCropsAction(categoryId: categoryId));
+          ..dispatch(
+            HarvestAllCropsAction(categoryId: categoryId, random: Random(42)),
+          );
 
         expect(store.state.gp, 3000); // 5000 - 2000 cost
-        // Plot should be cleared (crop harvested regardless of random success).
         expect(store.state.plotStates[plotId]?.cropId, isNull);
+        expect(store.state.inventory.countOfItem(potato), greaterThan(0));
       }, values: {toastServiceRef});
     });
 
@@ -4308,18 +4233,11 @@ void main() {
       final seed = Item.test('Potato Seed', gp: 1);
       final potato = Item.test('Potato', gp: 5);
       const categoryId = MelvorId('melvorD:Allotment');
-      final crop = FarmingCrop(
-        id: ActionId.test(Skill.farming, 'Potato'),
+      final crop = FarmingCrop.test(
         name: 'Potato',
         categoryId: categoryId,
-        level: 1,
-        baseXP: 8,
-        seedCost: 1,
-        baseInterval: 30000,
         seedId: seed.id,
         productId: potato.id,
-        baseQuantity: 5,
-        media: '',
       );
       const plotId = MelvorId('melvorD:Test_Plot');
       final registries = Registries.test(
@@ -4327,20 +4245,10 @@ void main() {
         actions: [crop],
         farming: FarmingRegistry(
           crops: [crop],
-          categories: [
-            FarmingCategory(
-              id: categoryId,
-              name: 'Allotment',
-              returnSeeds: true,
-              scaleXPWithQuantity: true,
-              harvestMultiplier: 1,
-              masteryXPDivider: 1,
-              giveXPOnPlant: false,
-              description: '',
-              seedNotice: '',
-            ),
+          categories: const [FarmingCategory.test(id: categoryId)],
+          plots: const [
+            FarmingPlot(id: plotId, categoryId: categoryId, level: 1),
           ],
-          plots: [FarmingPlot(id: plotId, categoryId: categoryId, level: 1)],
         ),
       );
       var state = GlobalState.empty(registries);
@@ -4361,18 +4269,11 @@ void main() {
     test('returns null when not enough GP', () {
       final seed = Item.test('Potato Seed', gp: 1);
       final potato = Item.test('Potato', gp: 5);
-      final crop = FarmingCrop(
-        id: ActionId.test(Skill.farming, 'Potato'),
+      final crop = FarmingCrop.test(
         name: 'Potato',
         categoryId: const MelvorId('melvorD:Allotment'),
-        level: 1,
-        baseXP: 8,
-        seedCost: 1,
-        baseInterval: 30000,
         seedId: seed.id,
         productId: potato.id,
-        baseQuantity: 5,
-        media: '',
       );
       final registries = Registries.test(
         items: [seed, potato],

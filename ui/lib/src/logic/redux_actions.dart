@@ -8,8 +8,10 @@ import 'package:ui/src/services/toast_service.dart';
 export 'package:async_redux/async_redux.dart';
 
 class UpdateActivityProgressAction extends ReduxAction<GlobalState> {
-  UpdateActivityProgressAction({required this.now});
+  UpdateActivityProgressAction({required this.now, Random? random})
+    : random = random ?? Random();
   final DateTime now;
+  final Random random;
 
   /// Set by reduce() - ticks until next scheduled event.
   /// Used by GameLoop to schedule the next wake time.
@@ -19,7 +21,6 @@ class UpdateActivityProgressAction extends ReduxAction<GlobalState> {
   GlobalState reduce() {
     final ticks = ticksFromDuration(now.difference(state.updatedAt));
     final builder = StateUpdateBuilder(state);
-    final random = Random();
     ticksUntilNextEvent = consumeTicks(builder, ticks, random: random);
 
     final changes = builder.changes;
@@ -68,8 +69,10 @@ class UpdateActivityProgressAction extends ReduxAction<GlobalState> {
 }
 
 class ToggleActionAction extends ReduxAction<GlobalState> {
-  ToggleActionAction({required this.action});
+  ToggleActionAction({required this.action, Random? random})
+    : random = random ?? Random();
   final Action action;
+  final Random random;
   @override
   GlobalState? reduce() {
     // If stunned, do nothing (UI should prevent this, but be safe)
@@ -95,7 +98,6 @@ class ToggleActionAction extends ReduxAction<GlobalState> {
             activity.actionId,
           );
           if (currentTree != null) {
-            final random = Random();
             return state.startMultiTreeWoodcutting(
               currentTree,
               action as WoodcuttingTree,
@@ -106,7 +108,6 @@ class ToggleActionAction extends ReduxAction<GlobalState> {
       }
     }
     // Otherwise, start this action (stops any other active action).
-    final random = Random();
     return state.startAction(action, random: random);
   }
 }
@@ -138,15 +139,16 @@ class SetSelectedSkillAction extends ReduxAction<GlobalState> {
 /// Advances the game by a specified number of ticks and returns the changes.
 /// Unlike UpdateActivityProgressAction, this does not show toasts.
 class DebugAdvanceTicksAction extends ReduxAction<GlobalState> {
-  DebugAdvanceTicksAction({required this.ticks});
+  DebugAdvanceTicksAction({required this.ticks, Random? random})
+    : random = random ?? Random();
   final Tick ticks;
+  final Random random;
 
   /// The time away that occurred during this advancement.
   late TimeAway timeAway;
 
   @override
   GlobalState reduce() {
-    final random = Random();
     final (timeAway, newState) = consumeManyTicks(state, ticks, random: random);
     this.timeAway = timeAway;
     return newState;
@@ -164,7 +166,10 @@ class DebugAdvanceTicksAction extends ReduxAction<GlobalState> {
 ///   absences where ticks are processed in chunks with yields to keep the
 ///   UI responsive.
 class ResumeFromPauseAction extends ReduxAction<GlobalState> {
-  ResumeFromPauseAction() : _precomputed = null, _updatedAt = null;
+  ResumeFromPauseAction({Random? random})
+    : random = random ?? Random(),
+      _precomputed = null,
+      _updatedAt = null;
 
   /// Apply pre-computed results from async chunked processing.
   /// The game loop must be suspended while this runs.
@@ -175,9 +180,11 @@ class ResumeFromPauseAction extends ReduxAction<GlobalState> {
     required GlobalState computedState,
     required TimeAway? computedTimeAway,
     DateTime? updatedAt,
-  }) : _precomputed = (computedState, computedTimeAway),
+  }) : random = Random(),
+       _precomputed = (computedState, computedTimeAway),
        _updatedAt = updatedAt;
 
+  final Random random;
   final (GlobalState, TimeAway?)? _precomputed;
   final DateTime? _updatedAt;
 
@@ -194,7 +201,6 @@ class ResumeFromPauseAction extends ReduxAction<GlobalState> {
       final duration = now.difference(state.updatedAt);
       final ticks = ticksFromDuration(duration);
       logger.info('ResumeFromPause: away=$duration, ticks=$ticks');
-      final random = Random();
       final stopwatch = Stopwatch()..start();
       final (timeAway, computedState) = consumeManyTicks(
         state,
@@ -294,8 +300,10 @@ class PurchaseShopItemAction extends ReduxAction<GlobalState> {
 
 /// Starts combat with a monster using the action system.
 class StartCombatAction extends ReduxAction<GlobalState> {
-  StartCombatAction({required this.combatAction});
+  StartCombatAction({required this.combatAction, Random? random})
+    : random = random ?? Random();
   final CombatAction combatAction;
+  final Random random;
 
   @override
   GlobalState? reduce() {
@@ -308,7 +316,6 @@ class StartCombatAction extends ReduxAction<GlobalState> {
       return null;
     }
     // Start the combat action (this stops any other active action)
-    final random = Random();
     return state.startAction(combatAction, random: random);
   }
 }
@@ -369,8 +376,10 @@ class StartStrongholdAction extends ReduxAction<GlobalState> {
 
 /// Starts a slayer task for the given category.
 class StartSlayerTaskAction extends ReduxAction<GlobalState> {
-  StartSlayerTaskAction({required this.category});
+  StartSlayerTaskAction({required this.category, Random? random})
+    : random = random ?? Random();
   final SlayerTaskCategory category;
+  final Random random;
 
   @override
   GlobalState? reduce() {
@@ -379,21 +388,24 @@ class StartSlayerTaskAction extends ReduxAction<GlobalState> {
       return null;
     }
     // Start the slayer task
-    final random = Random();
     return state.startSlayerTask(category: category, random: random);
   }
 }
 
 /// Starts combat with a monster in a slayer area.
 class StartSlayerAreaCombatAction extends ReduxAction<GlobalState> {
-  StartSlayerAreaCombatAction({required this.area, required this.monster});
+  StartSlayerAreaCombatAction({
+    required this.area,
+    required this.monster,
+    Random? random,
+  }) : random = random ?? Random();
   final SlayerArea area;
   final CombatAction monster;
+  final Random random;
 
   @override
   GlobalState? reduce() {
     if (state.isStunned) return null;
-    final random = Random();
     return state.startSlayerAreaCombat(
       area: area,
       monster: monster,
@@ -466,14 +478,15 @@ class OpenItemAction extends ReduxAction<GlobalState> {
     required this.item,
     required this.count,
     required this.onResult,
-  });
+    Random? random,
+  }) : random = random ?? Random();
   final Item item;
   final int count;
   final void Function(OpenResult) onResult;
+  final Random random;
 
   @override
   GlobalState? reduce() {
-    final random = Random();
     final (newState, result) = state.openItems(
       item,
       count: count,
@@ -603,6 +616,9 @@ class DestroyAgilityObstacleAction extends ReduxAction<GlobalState> {
 /// Starts running the agility course.
 /// Completes obstacles in sequence, looping when the course ends.
 class StartAgilityCourseAction extends ReduxAction<GlobalState> {
+  StartAgilityCourseAction({Random? random}) : random = random ?? Random();
+  final Random random;
+
   @override
   GlobalState? reduce() {
     // If stunned, do nothing
@@ -614,7 +630,6 @@ class StartAgilityCourseAction extends ReduxAction<GlobalState> {
       return null;
     }
     // Start the course
-    final random = Random();
     return state.startAgilityCourse(random: random);
   }
 }
@@ -724,12 +739,13 @@ class ApplyCompostAction extends ReduxAction<GlobalState> {
 
 /// Harvests a ready crop from a plot.
 class HarvestCropAction extends ReduxAction<GlobalState> {
-  HarvestCropAction({required this.plotId});
+  HarvestCropAction({required this.plotId, Random? random})
+    : random = random ?? Random();
   final MelvorId plotId;
+  final Random random;
 
   @override
   GlobalState reduce() {
-    final random = Random();
     final (newState, changes) = state.harvestCrop(plotId, random);
 
     if (!changes.isEmpty) {
@@ -764,12 +780,13 @@ class ClearPlotAction extends ReduxAction<GlobalState> {
 
 /// Harvests all ready crops in a category (costs 2,000 GP).
 class HarvestAllCropsAction extends ReduxAction<GlobalState> {
-  HarvestAllCropsAction({required this.categoryId});
+  HarvestAllCropsAction({required this.categoryId, Random? random})
+    : random = random ?? Random();
   final MelvorId categoryId;
+  final Random random;
 
   @override
   GlobalState? reduce() {
-    final random = Random();
     final result = state.harvestAllCrops(categoryId, random);
     if (result == null) return null;
 
@@ -835,12 +852,13 @@ class AssignCookingRecipeAction extends ReduxAction<GlobalState> {
 
 /// Starts cooking in a specific area (makes it the active cooking action).
 class StartCookingAction extends ReduxAction<GlobalState> {
-  StartCookingAction({required this.area});
+  StartCookingAction({required this.area, Random? random})
+    : random = random ?? Random();
   final CookingArea area;
+  final Random random;
 
   @override
   GlobalState? reduce() {
-    final random = Random();
     return state.startCookingInArea(area, random: random);
   }
 }

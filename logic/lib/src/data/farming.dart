@@ -20,6 +20,19 @@ class FarmingCategory {
     required this.seedNotice,
   });
 
+  /// Creates a test category with sensible defaults.
+  const FarmingCategory.test({
+    required this.id,
+    this.name = 'Test Category',
+    this.returnSeeds = true,
+    this.scaleXPWithQuantity = true,
+    this.harvestMultiplier = 1,
+    this.masteryXPDivider = 1,
+    this.giveXPOnPlant = false,
+    this.description = '',
+    this.seedNotice = '',
+  });
+
   factory FarmingCategory.fromJson(
     Map<String, dynamic> json, {
     required String namespace,
@@ -124,6 +137,26 @@ class FarmingCrop extends Action {
     required this.baseQuantity,
     required this.media,
   }) : super(skill: Skill.farming);
+
+  /// Creates a test crop with sensible defaults.
+  FarmingCrop.test({
+    required String name,
+    required MelvorId categoryId,
+    required MelvorId seedId,
+    required MelvorId productId,
+  }) : this(
+         id: ActionId.test(Skill.farming, name),
+         name: name,
+         categoryId: categoryId,
+         level: 1,
+         baseXP: 8,
+         seedCost: 1,
+         baseInterval: 30000,
+         seedId: seedId,
+         productId: productId,
+         baseQuantity: 5,
+         media: '',
+       );
 
   factory FarmingCrop.fromJson(
     Map<String, dynamic> json, {

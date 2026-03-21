@@ -567,6 +567,15 @@ class CombatRegistry {
     _byId = {for (final m in _monsters) m.id.localId: m};
   }
 
+  /// Creates a test registry with the given monsters and empty sub-registries.
+  CombatRegistry.test(List<CombatAction> monsters)
+    : this(
+        monsters: monsters,
+        areas: CombatAreaRegistry(const []),
+        dungeons: DungeonRegistry(const []),
+        strongholds: StrongholdRegistry(const []),
+      );
+
   final List<CombatAction> _monsters;
   late final Map<MelvorId, CombatAction> _byId;
 
