@@ -3839,7 +3839,7 @@ void main() {
         final random = Random(42);
 
         // Use a fixed start time so we can verify updatedAt precisely.
-        final t0 = DateTime.utc(2026, 1, 1);
+        final t0 = DateTime.utc(2026);
         final state = GlobalState.test(
           registries,
           activeActivity: SkillActivity(
