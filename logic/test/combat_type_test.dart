@@ -125,6 +125,19 @@ void main() {
         expect(styles, isNot(contains(AttackStyle.longRange)));
       });
 
+      test('primarySkill returns expected skill for each style', () {
+        expect(AttackStyle.stab.primarySkill, Skill.attack);
+        expect(AttackStyle.slash.primarySkill, Skill.strength);
+        expect(AttackStyle.block.primarySkill, Skill.defence);
+        expect(AttackStyle.accurate.primarySkill, Skill.ranged);
+        expect(AttackStyle.rapid.primarySkill, Skill.ranged);
+        expect(AttackStyle.longRange.primarySkill, Skill.ranged);
+        expect(AttackStyle.standard.primarySkill, Skill.magic);
+        expect(AttackStyle.defensive.primarySkill, Skill.magic);
+      });
+    });
+
+    group('AttackStyle.primarySkill coverage', () {
       test('all attack styles are covered by exactly one combat type', () {
         final allStyles = <AttackStyle>{};
         for (final type in CombatType.values) {

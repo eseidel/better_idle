@@ -1891,6 +1891,32 @@ void main() {
     });
   });
 
+  group('activeSkill', () {
+    test('returns attackStyle.primarySkill during combat', () {
+      const monsterId = MelvorId('melvorD:Cow');
+      final state = GlobalState.test(
+        testRegistries,
+        activeActivity: const CombatActivity(
+          context: MonsterCombatContext(monsterId: monsterId),
+          progress: CombatProgressState(
+            monsterHp: 50,
+            playerAttackTicksRemaining: 24,
+            monsterAttackTicksRemaining: 28,
+          ),
+          progressTicks: 0,
+          totalTicks: 24,
+        ),
+        attackStyle: AttackStyle.slash,
+      );
+      expect(state.activeSkill(), Skill.strength);
+    });
+
+    test('returns null when no activity', () {
+      final state = GlobalState.test(testRegistries);
+      expect(state.activeSkill(), isNull);
+    });
+  });
+
   group('Equipment gear slots serialization', () {
     test('toJson/fromJson round-trip with gear equipped', () {
       final equipment = Equipment(
