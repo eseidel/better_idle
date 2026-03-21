@@ -2,6 +2,7 @@ import 'package:flutter/material.dart' hide Action;
 import 'package:logic/logic.dart';
 import 'package:ui/src/logic/redux_actions.dart';
 import 'package:ui/src/widgets/cached_image.dart';
+import 'package:ui/src/widgets/compact_food_selector.dart';
 import 'package:ui/src/widgets/context_extensions.dart';
 import 'package:ui/src/widgets/game_scaffold.dart';
 import 'package:ui/src/widgets/hp_bar.dart';
@@ -66,15 +67,26 @@ class _ThievingPageState extends State<ThievingPage> {
           const MasteryPoolProgress(skill: skill),
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            child: PlayerHpDisplay(
-              currentHp: playerHp,
-              maxHp: maxPlayerHp,
-              showAutoEat: state.hasAutoEat,
-              autoEatThresholdPercent: state
-                  .createCombatModifierProvider(
-                    conditionContext: ConditionContext.empty,
-                  )
-                  .autoEatThreshold,
+            child: Column(
+              children: [
+                PlayerHpDisplay(
+                  currentHp: playerHp,
+                  maxHp: maxPlayerHp,
+                  showAutoEat: state.hasAutoEat,
+                  autoEatThresholdPercent: state
+                      .createCombatModifierProvider(
+                        conditionContext: ConditionContext.empty,
+                      )
+                      .autoEatThreshold,
+                ),
+                const SizedBox(height: 8),
+                CompactFoodSelector(
+                  equipment: state.equipment,
+                  canEat:
+                      state.equipment.selectedFood != null &&
+                      playerHp < maxPlayerHp,
+                ),
+              ],
             ),
           ),
           Expanded(
