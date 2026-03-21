@@ -125,6 +125,19 @@ void main() {
         expect(styles, isNot(contains(AttackStyle.longRange)));
       });
 
+      test('primarySkill returns expected skill for each style', () {
+        expect(AttackStyle.stab.primarySkill, Skill.attack);
+        expect(AttackStyle.slash.primarySkill, Skill.strength);
+        expect(AttackStyle.block.primarySkill, Skill.defence);
+        expect(AttackStyle.accurate.primarySkill, Skill.ranged);
+        expect(AttackStyle.rapid.primarySkill, Skill.ranged);
+        expect(AttackStyle.longRange.primarySkill, Skill.ranged);
+        expect(AttackStyle.standard.primarySkill, Skill.magic);
+        expect(AttackStyle.defensive.primarySkill, Skill.magic);
+      });
+    });
+
+    group('AttackStyle.primarySkill coverage', () {
       test('all attack styles are covered by exactly one combat type', () {
         final allStyles = <AttackStyle>{};
         for (final type in CombatType.values) {
@@ -139,6 +152,33 @@ void main() {
         }
         expect(allStyles, equals(AttackStyle.values.toSet()));
       });
+    });
+  });
+
+  group('CombatRegistry.test', () {
+    test('creates registry with empty sub-registries', () {
+      final monster = CombatAction(
+        id: ActionId.test(Skill.combat, 'Test Monster'),
+        name: 'Test Monster',
+        levels: const MonsterLevels(
+          hitpoints: 10,
+          attack: 1,
+          strength: 1,
+          defense: 1,
+          ranged: 1,
+          magic: 1,
+        ),
+        attackType: AttackType.melee,
+        attackSpeed: 2.4,
+        lootChance: 0,
+        minGpDrop: 0,
+        maxGpDrop: 0,
+      );
+      final registry = CombatRegistry.test([monster]);
+      expect(registry.monsters, hasLength(1));
+      expect(registry.areas.all, isEmpty);
+      expect(registry.dungeons.all, isEmpty);
+      expect(registry.strongholds.all, isEmpty);
     });
   });
 }

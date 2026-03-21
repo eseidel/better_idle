@@ -143,18 +143,6 @@ class _AttackStyleChip extends StatelessWidget {
 }
 
 extension on AttackStyle {
-  /// Returns the primary skill that gains XP from this attack style.
-  Skill get primarySkill => switch (this) {
-    AttackStyle.stab => Skill.attack,
-    AttackStyle.slash => Skill.strength,
-    AttackStyle.block => Skill.defence,
-    AttackStyle.accurate => Skill.ranged,
-    AttackStyle.rapid => Skill.ranged,
-    AttackStyle.longRange => Skill.ranged,
-    AttackStyle.standard => Skill.magic,
-    AttackStyle.defensive => Skill.magic,
-  };
-
   /// Returns a user-friendly display name.
   String get displayName => switch (this) {
     AttackStyle.stab => 'Stab',
