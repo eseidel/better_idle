@@ -371,7 +371,7 @@ class _AppLifecycleManagerState extends State<_AppLifecycleManager>
       // so the next resume picks up the remaining ticks.
       final updatedAt = wasCancelled
           ? widget.store.state.updatedAt.add(durationFromTicks(processed))
-          : null; // null → copyWith defaults to DateTime.timestamp()
+          : DateTime.timestamp();
       widget.store.dispatch(
         ResumeFromPauseAction.precomputed(
           computedState: currentState,
