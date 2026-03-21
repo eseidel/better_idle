@@ -3821,6 +3821,65 @@ void main() {
       }, values: {loggerRef});
     });
 
+    test('chunked processing merges all changes across partial resumes', () {
+      // Simulates the scenario where async resume is cancelled multiple
+      // times (user leaves and returns repeatedly). Each partial resume
+      // processes some ticks, and the accumulated TimeAway should contain
+      // all changes — equivalent to processing everything at once.
+      runScoped(() {
+        final testAction = SkillAction(
+          id: ActionId.test(Skill.woodcutting, 'Test Tree'),
+          skill: Skill.woodcutting,
+          name: 'Test Tree',
+          unlockLevel: 1,
+          duration: const Duration(seconds: 3),
+          xp: 10,
+        );
+        final registries = Registries.test(actions: [testAction]);
+
+        // Process all 150 ticks at once as the baseline.
+        final baseRandom = Random(42);
+        var baseState = GlobalState.empty(registries);
+        baseState = baseState.startAction(testAction, random: baseRandom);
+        final (baselineTimeAway, baselineState) = consumeManyTicks(
+          baseState,
+          150,
+          random: baseRandom,
+        );
+
+        // Now process the same 150 ticks in 3 chunks of 50, merging
+        // TimeAway as _processResumeAsync does.
+        final chunkRandom = Random(42);
+        var chunkState = GlobalState.empty(registries);
+        chunkState = chunkState.startAction(testAction, random: chunkRandom);
+        TimeAway? mergedTimeAway;
+
+        for (var i = 0; i < 3; i++) {
+          final (timeAway, newState) = consumeManyTicks(
+            chunkState,
+            50,
+            random: chunkRandom,
+          );
+          chunkState = newState;
+          mergedTimeAway = timeAway.maybeMergeInto(mergedTimeAway);
+        }
+
+        // The merged result should match the baseline.
+        expect(mergedTimeAway, isNotNull);
+        final mergedXp =
+            mergedTimeAway!.changes.skillXpChanges.counts[Skill.woodcutting]!;
+        final baselineXp =
+            baselineTimeAway.changes.skillXpChanges.counts[Skill.woodcutting]!;
+        expect(mergedXp, baselineXp);
+
+        // Final game state should also match.
+        expect(
+          chunkState.skillState(Skill.woodcutting).xp,
+          baselineState.skillState(Skill.woodcutting).xp,
+        );
+      }, values: {loggerRef});
+    });
+
     test('precomputed path merges with existing timeAway on store', () {
       // If the store already has timeAway (e.g. from a previous partial
       // resume), the precomputed result should merge into it.
