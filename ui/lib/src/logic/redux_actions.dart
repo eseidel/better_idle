@@ -168,14 +168,13 @@ class ResumeFromPauseAction extends ReduxAction<GlobalState> {
 
   /// Apply pre-computed results from async chunked processing.
   /// The game loop must be suspended while this runs.
-  /// [updatedAt] controls the resulting state's updatedAt — use the
-  /// processing end time for full resumes, or
-  /// `original + durationFromTicks(processed)` for partial resumes so
-  /// unprocessed ticks aren't lost.
+  /// If [updatedAt] is provided, it overrides the default DateTime.timestamp()
+  /// in copyWith — use this for partial resumes so updatedAt reflects only
+  /// the ticks actually processed (not "now").
   ResumeFromPauseAction.precomputed({
     required GlobalState computedState,
     required TimeAway? computedTimeAway,
-    required DateTime updatedAt,
+    DateTime? updatedAt,
   }) : _precomputed = (computedState, computedTimeAway),
        _updatedAt = updatedAt;
 

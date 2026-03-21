@@ -3807,7 +3807,6 @@ void main() {
             ResumeFromPauseAction.precomputed(
               computedState: computedState,
               computedTimeAway: computedTimeAway,
-              updatedAt: DateTime.timestamp(),
             ),
           );
 
@@ -3965,7 +3964,6 @@ void main() {
             ResumeFromPauseAction.precomputed(
               computedState: chunk2State,
               computedTimeAway: chunk2TimeAway,
-              updatedAt: DateTime.timestamp(),
             ),
           );
 
