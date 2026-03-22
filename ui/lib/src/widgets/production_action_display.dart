@@ -114,7 +114,16 @@ class ProductionActionDisplay extends StatelessWidget {
 
     // Use recipe-specific inputs/outputs when action has alternatives
     final inputs = action.inputsForRecipe(selection);
-    final outputs = action.outputsForRecipe(selection);
+    final baseOutputs = action.outputsForRecipe(selection);
+    // When productId differs from the action's base (e.g., herblore mastery
+    // tier), substitute the correct product in the outputs map.
+    final outputs = baseOutputs.containsKey(productId)
+        ? baseOutputs
+        : baseOutputs.map(
+            (key, value) => key == action.outputs.keys.first
+                ? MapEntry(productId, value)
+                : MapEntry(key, value),
+          );
 
     // Get product for the icon
     final productItem = state.registries.items.byId(productId);

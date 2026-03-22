@@ -37,7 +37,7 @@ class HerbloreCategory {
 ///
 /// Herblore actions consume herbs and secondary ingredients to produce potions.
 /// Each recipe can produce multiple tiers of potions (I, II, III, IV) based on
-/// mastery level, but for simplicity we produce the first tier by default.
+/// mastery level. Use [productIdForMasteryLevel] to get the correct output.
 @immutable
 class HerbloreAction extends SkillAction {
   const HerbloreAction({
@@ -113,6 +113,26 @@ class HerbloreAction extends SkillAction {
   /// The category ID (e.g., "melvorF:CombatPotions", "melvorF:SkillPotions").
   @override
   final MelvorId? categoryId;
+
+  /// Returns the potion tier index (0-3) for the given mastery level.
+  ///
+  /// Melvor Idle mastery thresholds:
+  /// - Tier I (0): mastery level 1+
+  /// - Tier II (1): mastery level 20+
+  /// - Tier III (2): mastery level 50+
+  /// - Tier IV (3): mastery level 90+
+  static int tierForMasteryLevel(int masteryLevel) {
+    if (masteryLevel >= 90) return 3;
+    if (masteryLevel >= 50) return 2;
+    if (masteryLevel >= 20) return 1;
+    return 0;
+  }
+
+  /// Returns the potion ID to produce at the given mastery level.
+  MelvorId productIdForMasteryLevel(int masteryLevel) {
+    final tier = tierForMasteryLevel(masteryLevel);
+    return potionIds[tier.clamp(0, potionIds.length - 1)];
+  }
 }
 
 /// Unified registry for all herblore-related data.

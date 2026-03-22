@@ -71,7 +71,9 @@ class _HerblorePageState extends State<HerblorePage> {
                 children: [
                   ProductionActionDisplay(
                     action: selectedAction!,
-                    productId: selectedAction.productId,
+                    productId: selectedAction.productIdForMasteryLevel(
+                      context.state.actionState(selectedAction.id).masteryLevel,
+                    ),
                     skill: Skill.herblore,
                     headerText: 'Brew',
                     buttonText: 'Brew',
@@ -113,7 +115,9 @@ class _HerblorePageState extends State<HerblorePage> {
                     categoryId: (c) => c.id,
                     categoryName: (c) => c.name,
                     categoryMedia: (c) => c.media,
-                    actionProductId: (a) => a.productId,
+                    actionProductId: (a) => a.productIdForMasteryLevel(
+                      context.state.actionState(a.id).masteryLevel,
+                    ),
                   ),
                 ],
               ),
