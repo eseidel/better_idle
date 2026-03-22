@@ -138,6 +138,11 @@ class HerbloreAction extends SkillAction {
     final tierIndex = tierIndexForMasteryLevel(masteryLevel);
     return potionIds[tierIndex.clamp(0, potionIds.length - 1)];
   }
+
+  /// Returns the outputs map for the given mastery level.
+  Map<MelvorId, int> outputsForMasteryLevel(int masteryLevel) {
+    return {productIdForMasteryLevel(masteryLevel): 1};
+  }
 }
 
 /// Unified registry for all herblore-related data.
