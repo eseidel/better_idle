@@ -1455,32 +1455,56 @@ ForegroundResult _restartOrStop(
       return (ForegroundResult.continued, ticksConsumed);
     }
 
-    // Handle slayer task progression (independent of combat context).
-    // Any kill of the task's monster counts, regardless of area.
+    // Determine if we're in a slayer area.
+    final isInSlayerArea = switch (builder.state.activeActivity) {
+      CombatActivity(:final context) when context is SlayerAreaCombatContext =>
+        true,
+      _ => false,
+    };
+
+    // Handle slayer task progression and per-kill rewards.
     final currentTask = builder.state.slayerTask;
-    if (currentTask != null && currentTask.monsterId == action.id.localId) {
+    final isOnTask =
+        currentTask != null && currentTask.monsterId == action.id.localId;
+
+    // Grant slayer XP and SC per kill (wiki formula):
+    //   On-task, in slayer area: 15% XP, 10% SC
+    //   On-task, outside area:   10% XP, 10% SC
+    //   Off-task, in slayer area: 5% XP,  0% SC
+    //   Off-task, outside area:   0% XP,  0% SC
+    if (isOnTask || isInSlayerArea) {
+      final xpPercent = (isOnTask ? 10 : 0) + (isInSlayerArea ? 5 : 0);
+      final slayerXp = action.maxHp * xpPercent ~/ 100;
+      builder.addSkillXp(Skill.slayer, slayerXp);
+    }
+    if (isOnTask) {
+      // SC = 10% of monster max HP per on-task kill.
+      final sc = action.maxHp * 10 ~/ 100;
+      builder.addCurrency(Currency.slayerCoins, sc);
+    }
+
+    // Track kill count and handle task completion.
+    if (isOnTask) {
       final updatedTask = currentTask.recordKill();
 
       if (updatedTask.isComplete) {
-        // Task completed! Grant rewards.
-        final category = builder.registries.slayer.taskCategories.byId(
+        final category = builder.registries.slayer.categoryById(
           updatedTask.categoryId,
         );
-        if (category != null) {
-          final slayerXp = action.maxHp * updatedTask.killsRequired ~/ 5;
-          builder.addSkillXp(Skill.slayer, slayerXp);
+        builder.incrementSlayerTaskCompletion(category.id);
 
-          for (final reward in category.currencyRewards) {
-            final totalHp = action.maxHp * updatedTask.killsRequired;
-            final coins = (totalHp * reward.percent) ~/ 100;
-            builder.addCurrency(reward.currency, coins);
-          }
-
-          builder.incrementSlayerTaskCompletion(category.id);
+        // Auto Slayer shop upgrade: auto-roll a new task (free).
+        final taskModifiers = builder.state.createCombatModifierProvider(
+          conditionContext: ConditionContext.empty,
+        );
+        if (taskModifiers.autoSlayerUnlocked > 0) {
+          // Switch to the new task's monster. Return early to avoid
+          // the respawn-timer update below for the old monster.
+          builder.autoRollSlayerTask(category: category, random: random);
+          return (ForegroundResult.continued, ticksConsumed);
+        } else {
+          builder.clearSlayerTask();
         }
-
-        // Clear the task but keep fighting.
-        builder.clearSlayerTask();
       } else {
         builder.updateSlayerTask(updatedTask);
       }

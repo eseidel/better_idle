@@ -1197,9 +1197,7 @@ class _SlayerTaskDetails extends StatelessWidget {
   Widget build(BuildContext context) {
     final state = context.state;
     final combat = state.registries.combat;
-    final category = state.registries.slayer.taskCategories.byId(
-      task.categoryId,
-    );
+    final category = state.registries.slayer.categoryById(task.categoryId);
     final monster = combat.monsterById(task.monsterId);
 
     final isFighting = state.isActionActive(monster);
@@ -1213,7 +1211,7 @@ class _SlayerTaskDetails extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                category?.name ?? 'Unknown',
+                category.name,
                 style: const TextStyle(fontWeight: FontWeight.bold),
               ),
               const SizedBox(height: 4),

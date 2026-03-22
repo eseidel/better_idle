@@ -189,7 +189,7 @@ void main() {
           totalTicks += 1000;
         }
 
-        // Task should be cleared after completion.
+        // Task should be cleared after completion (no Auto Slayer).
         expect(state.slayerTask, isNull);
 
         // Combat should continue (player keeps fighting).
@@ -202,6 +202,75 @@ void main() {
         expect(state.slayerTaskCompletions[category.id], 1);
       },
     );
+
+    test('Auto Slayer: completing task auto-rolls a new task for free', () {
+      final category = easyCategory();
+
+      // Find the Auto Slayer shop purchase.
+      final autoSlayerPurchase = testRegistries.shop.all.firstWhere(
+        (p) => p.contains.modifiers.modifiers.any(
+          (m) => m.name == 'autoSlayerUnlocked',
+        ),
+      );
+
+      var state = GlobalState.test(
+        testRegistries,
+        skillStates: highCombatSkills,
+        currencies: {
+          for (final cost in category.rollCost.costs)
+            cost.currency: cost.amount * 10,
+        },
+        shop: ShopState(purchaseCounts: {autoSlayerPurchase.id: 1}),
+      );
+      final random = Random(42);
+      state = state.startSlayerTask(category: category, random: random);
+
+      // Start fighting the task's monster.
+      final monster = testRegistries.combat.monsterById(
+        state.slayerTask!.monsterId,
+      );
+      state = state.startAction(monster, random: random);
+
+      // Record currency after the initial (paid) roll.
+      final currenciesAfterRoll = <Currency, int>{
+        for (final c in Currency.values) c: state.currency(c),
+      };
+
+      // Override killsRequired to a small number for test speed.
+      const testKills = 3;
+      state = state.copyWith(
+        slayerTask: state.slayerTask!.copyWith(killsRequired: testKills),
+      );
+
+      // Process ticks until the first task completes.
+      var totalTicks = 0;
+      while ((state.slayerTaskCompletions[category.id] ?? 0) == 0 &&
+          totalTicks < 50000) {
+        final builder = StateUpdateBuilder(state);
+        consumeTicks(builder, 1000, random: random);
+        state = builder.build();
+        totalTicks += 1000;
+      }
+
+      // A new task should have been auto-rolled (not null).
+      expect(state.slayerTask, isNotNull);
+      expect(state.slayerTask!.categoryId, category.id);
+
+      // Combat should continue.
+      expect(state.activeActivity, isNotNull);
+
+      // Should have incremented task completion count at least once.
+      expect(state.slayerTaskCompletions[category.id], greaterThanOrEqualTo(1));
+
+      // Auto-roll should NOT charge the roll cost.
+      for (final cost in category.rollCost.costs) {
+        expect(
+          state.currency(cost.currency),
+          greaterThanOrEqualTo(currenciesAfterRoll[cost.currency]!),
+          reason: 'Auto-roll should not charge roll cost',
+        );
+      }
+    });
 
     test('slayer task tracks kills between monster deaths', () {
       final category = easyCategory();
@@ -271,10 +340,8 @@ void main() {
       expect(activity.context.currentMonsterId, differentMonster.id.localId);
     });
 
-    test('slayer task rewards currency based on category currencyRewards', () {
+    test('on-task kills grant SC per kill (10% of monster HP)', () {
       final category = easyCategory();
-      if (category.currencyRewards.isEmpty) return;
-
       var state = GlobalState.test(
         testRegistries,
         skillStates: highCombatSkills,
@@ -286,17 +353,12 @@ void main() {
       final random = Random(42);
       state = state.startSlayerTask(category: category, random: random);
 
-      // Start fighting the task's monster.
       final monster = testRegistries.combat.monsterById(
         state.slayerTask!.monsterId,
       );
       state = state.startAction(monster, random: random);
 
-      // Track initial currency for rewards.
-      final rewardCurrencyAmounts = <Currency, int>{
-        for (final reward in category.currencyRewards)
-          reward.currency: state.currency(reward.currency),
-      };
+      final initialSc = state.currency(Currency.slayerCoins);
 
       // Override to small number for test speed.
       const testKills = 3;
@@ -313,14 +375,216 @@ void main() {
         totalTicks += 1000;
       }
 
-      // Each reward currency should have increased.
-      for (final reward in category.currencyRewards) {
-        expect(
-          state.currency(reward.currency),
-          greaterThan(rewardCurrencyAmounts[reward.currency]!),
-          reason: 'Should have earned ${reward.currency} reward',
-        );
+      // SC should have increased by 10% of monster HP per kill.
+      // May have earned extra kills after task cleared (off-task = 0 SC).
+      final expectedSc = monster.maxHp * 10 ~/ 100 * testKills;
+      expect(
+        state.currency(Currency.slayerCoins) - initialSc,
+        greaterThanOrEqualTo(expectedSc),
+      );
+    });
+
+    test('off-task kills do not grant SC', () {
+      // No slayer task active — kill a monster and verify no SC earned.
+      var state = GlobalState.test(
+        testRegistries,
+        skillStates: highCombatSkills,
+      );
+      final random = Random(42);
+      final monster = testRegistries.combat.monsters.first;
+      state = state.startAction(monster, random: random);
+
+      final initialSc = state.currency(Currency.slayerCoins);
+
+      var totalTicks = 0;
+      while (totalTicks < 5000) {
+        final builder = StateUpdateBuilder(state);
+        consumeTicks(builder, 1000, random: random);
+        state = builder.build();
+        totalTicks += 1000;
       }
+
+      expect(state.currency(Currency.slayerCoins), initialSc);
+    });
+
+    test(
+      'on-task kills grant 10% slayer XP per kill (outside slayer area)',
+      () {
+        final category = easyCategory();
+        var state = GlobalState.test(
+          testRegistries,
+          skillStates: highCombatSkills,
+          currencies: {
+            for (final cost in category.rollCost.costs)
+              cost.currency: cost.amount * 10,
+          },
+        );
+        final random = Random(42);
+        state = state.startSlayerTask(category: category, random: random);
+
+        final monster = testRegistries.combat.monsterById(
+          state.slayerTask!.monsterId,
+        );
+        state = state.startAction(monster, random: random);
+
+        final initialXp = state.skillState(Skill.slayer).xp;
+
+        const testKills = 3;
+        state = state.copyWith(
+          slayerTask: state.slayerTask!.copyWith(killsRequired: testKills),
+        );
+
+        // Complete the task.
+        var totalTicks = 0;
+        while (state.slayerTask != null && totalTicks < 50000) {
+          final builder = StateUpdateBuilder(state);
+          consumeTicks(builder, 1000, random: random);
+          state = builder.build();
+          totalTicks += 1000;
+        }
+
+        // XP should be at least 10% of HP * kills (may be more from
+        // continued off-task fighting if in a slayer area, but we're not).
+        final expectedXp = monster.maxHp * 10 ~/ 100 * testKills;
+        expect(
+          state.skillState(Skill.slayer).xp - initialXp,
+          greaterThanOrEqualTo(expectedXp),
+        );
+      },
+    );
+
+    test('off-task kills in slayer area grant 5% slayer XP, 0 SC', () {
+      // Find a slayer area with only level requirements we can meet.
+      final area = testRegistries.slayer.areas.all.firstWhere(
+        (a) =>
+            a.entryRequirements.isNotEmpty &&
+            a.entryRequirements.every((r) => r is SlayerLevelRequirement),
+      );
+      final monsterId = area.monsterIds.first;
+      final monster = testRegistries.allActions
+          .whereType<CombatAction>()
+          .firstWhere((a) => a.id.localId == monsterId);
+
+      // No slayer task — fighting in a slayer area off-task.
+      var state = GlobalState.test(
+        testRegistries,
+        skillStates: highCombatSkills,
+      );
+      state = state.startSlayerAreaCombat(
+        area: area,
+        monster: monster,
+        random: Random(42),
+      );
+
+      final initialXp = state.skillState(Skill.slayer).xp;
+      final initialSc = state.currency(Currency.slayerCoins);
+      final random = Random(42);
+
+      var totalTicks = 0;
+      while (totalTicks < 10000) {
+        final builder = StateUpdateBuilder(state);
+        consumeTicks(builder, 1000, random: random);
+        state = builder.build();
+        totalTicks += 1000;
+      }
+
+      // Should have gained slayer XP (5% of HP per kill).
+      expect(state.skillState(Skill.slayer).xp, greaterThan(initialXp));
+
+      // Should NOT have gained SC (off-task).
+      expect(state.currency(Currency.slayerCoins), initialSc);
+    });
+
+    test('on-task kills in slayer area grant 15% XP and 10% SC', () {
+      // Find a slayer area with only level requirements we can meet.
+      final area = testRegistries.slayer.areas.all.firstWhere(
+        (a) =>
+            a.entryRequirements.isNotEmpty &&
+            a.entryRequirements.every((r) => r is SlayerLevelRequirement),
+      );
+      final monsterId = area.monsterIds.first;
+      final monster = testRegistries.allActions
+          .whereType<CombatAction>()
+          .firstWhere((a) => a.id.localId == monsterId);
+
+      final category = easyCategory();
+      var state = GlobalState.test(
+        testRegistries,
+        skillStates: highCombatSkills,
+        currencies: {
+          for (final cost in category.rollCost.costs)
+            cost.currency: cost.amount * 10,
+        },
+      );
+
+      // Manually set a slayer task targeting this area's monster.
+      state = state.copyWith(
+        slayerTask: SlayerTask(
+          categoryId: category.id,
+          monsterId: monster.id.localId,
+          killsRequired: 3,
+          killsCompleted: 0,
+        ),
+      );
+
+      // Fight in the slayer area (on-task + in area).
+      state = state.startSlayerAreaCombat(
+        area: area,
+        monster: monster,
+        random: Random(42),
+      );
+
+      final initialXp = state.skillState(Skill.slayer).xp;
+      final initialSc = state.currency(Currency.slayerCoins);
+      final random = Random(42);
+
+      // Process until task completes.
+      var totalTicks = 0;
+      while (state.slayerTask != null && totalTicks < 50000) {
+        final builder = StateUpdateBuilder(state);
+        consumeTicks(builder, 1000, random: random);
+        state = builder.build();
+        totalTicks += 1000;
+      }
+
+      // XP should be at least 15% of HP * 3 kills.
+      final expectedXp = monster.maxHp * 15 ~/ 100 * 3;
+      expect(
+        state.skillState(Skill.slayer).xp - initialXp,
+        greaterThanOrEqualTo(expectedXp),
+      );
+
+      // SC should be at least 10% of HP * 3 kills.
+      final expectedSc = monster.maxHp * 10 ~/ 100 * 3;
+      expect(
+        state.currency(Currency.slayerCoins) - initialSc,
+        greaterThanOrEqualTo(expectedSc),
+      );
+    });
+
+    test('off-task kills outside slayer area grant 0 XP and 0 SC', () {
+      // No slayer task, fighting a regular monster (not in slayer area).
+      var state = GlobalState.test(
+        testRegistries,
+        skillStates: highCombatSkills,
+      );
+      final random = Random(42);
+      final monster = testRegistries.combat.monsters.first;
+      state = state.startAction(monster, random: random);
+
+      final initialXp = state.skillState(Skill.slayer).xp;
+      final initialSc = state.currency(Currency.slayerCoins);
+
+      var totalTicks = 0;
+      while (totalTicks < 5000) {
+        final builder = StateUpdateBuilder(state);
+        consumeTicks(builder, 1000, random: random);
+        state = builder.build();
+        totalTicks += 1000;
+      }
+
+      expect(state.skillState(Skill.slayer).xp, initialXp);
+      expect(state.currency(Currency.slayerCoins), initialSc);
     });
   });
 
