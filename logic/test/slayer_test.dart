@@ -406,6 +406,119 @@ void main() {
 
       expect(state.currency(Currency.slayerCoins), initialSc);
     });
+
+    test(
+      'on-task kills grant 10% slayer XP per kill (outside slayer area)',
+      () {
+        final category = easyCategory();
+        var state = GlobalState.test(
+          testRegistries,
+          skillStates: highCombatSkills,
+          currencies: {
+            for (final cost in category.rollCost.costs)
+              cost.currency: cost.amount * 10,
+          },
+        );
+        final random = Random(42);
+        state = state.startSlayerTask(category: category, random: random);
+
+        final monster = testRegistries.combat.monsterById(
+          state.slayerTask!.monsterId,
+        );
+        state = state.startAction(monster, random: random);
+
+        final initialXp = state.skillState(Skill.slayer).xp;
+
+        const testKills = 3;
+        state = state.copyWith(
+          slayerTask: state.slayerTask!.copyWith(killsRequired: testKills),
+        );
+
+        // Complete the task.
+        var totalTicks = 0;
+        while (state.slayerTask != null && totalTicks < 50000) {
+          final builder = StateUpdateBuilder(state);
+          consumeTicks(builder, 1000, random: random);
+          state = builder.build();
+          totalTicks += 1000;
+        }
+
+        // XP should be at least 10% of HP * kills (may be more from
+        // continued off-task fighting if in a slayer area, but we're not).
+        final expectedXp = monster.maxHp * 10 ~/ 100 * testKills;
+        expect(
+          state.skillState(Skill.slayer).xp - initialXp,
+          greaterThanOrEqualTo(expectedXp),
+        );
+      },
+    );
+
+    test('off-task kills in slayer area grant 5% slayer XP, 0 SC', () {
+      // Find a slayer area with only level requirements we can meet.
+      final area = testRegistries.slayer.areas.all.firstWhere(
+        (a) =>
+            a.entryRequirements.isNotEmpty &&
+            a.entryRequirements.every((r) => r is SlayerLevelRequirement),
+      );
+      final monsterId = area.monsterIds.first;
+      final monster = testRegistries.allActions
+          .whereType<CombatAction>()
+          .firstWhere((a) => a.id.localId == monsterId);
+
+      // No slayer task — fighting in a slayer area off-task.
+      var state = GlobalState.test(
+        testRegistries,
+        skillStates: highCombatSkills,
+      );
+      state = state.startSlayerAreaCombat(
+        area: area,
+        monster: monster,
+        random: Random(42),
+      );
+
+      final initialXp = state.skillState(Skill.slayer).xp;
+      final initialSc = state.currency(Currency.slayerCoins);
+      final random = Random(42);
+
+      var totalTicks = 0;
+      while (totalTicks < 10000) {
+        final builder = StateUpdateBuilder(state);
+        consumeTicks(builder, 1000, random: random);
+        state = builder.build();
+        totalTicks += 1000;
+      }
+
+      // Should have gained slayer XP (5% of HP per kill).
+      expect(state.skillState(Skill.slayer).xp, greaterThan(initialXp));
+
+      // Should NOT have gained SC (off-task).
+      expect(state.currency(Currency.slayerCoins), initialSc);
+    });
+
+    test('off-task kills outside slayer area grant 0 XP and 0 SC', () {
+      // No slayer task, fighting a regular monster (not in slayer area).
+      var state = GlobalState.test(
+        testRegistries,
+        skillStates: highCombatSkills,
+      );
+      final random = Random(42);
+      final monster = testRegistries.combat.monsters.first;
+      state = state.startAction(monster, random: random);
+
+      final initialXp = state.skillState(Skill.slayer).xp;
+      final initialSc = state.currency(Currency.slayerCoins);
+
+      var totalTicks = 0;
+      while (totalTicks < 5000) {
+        final builder = StateUpdateBuilder(state);
+        consumeTicks(builder, 1000, random: random);
+        state = builder.build();
+        totalTicks += 1000;
+      }
+
+      expect(state.skillState(Skill.slayer).xp, initialXp);
+      expect(state.currency(Currency.slayerCoins), initialSc);
+    });
   });
 
   group('SlayerAreaCombatContext serialization', () {
