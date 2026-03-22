@@ -88,7 +88,8 @@ class TieredDrop extends Droppable {
 
   @override
   Map<MelvorId, double> get expectedItems {
-    // Use the first tier for estimation (conservative default).
+    // TODO(eseidel): This should use the mastery-based tier, not always tier I.
+    // The welcome-back dialog will show the wrong potion when mastery is high.
     return {itemIds.first: count.toDouble()};
   }
 
