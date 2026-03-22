@@ -1466,32 +1466,30 @@ ForegroundResult _restartOrStop(
         final category = builder.registries.slayer.taskCategories.byId(
           updatedTask.categoryId,
         );
-        if (category != null) {
-          final slayerXp = action.maxHp * updatedTask.killsRequired ~/ 5;
-          builder.addSkillXp(Skill.slayer, slayerXp);
+        assert(category != null, 'Slayer task category not found: '
+            '${updatedTask.categoryId}');
 
-          for (final reward in category.currencyRewards) {
-            final totalHp = action.maxHp * updatedTask.killsRequired;
-            final coins = (totalHp * reward.percent) ~/ 100;
-            builder.addCurrency(reward.currency, coins);
-          }
+        final slayerXp = action.maxHp * updatedTask.killsRequired ~/ 5;
+        builder.addSkillXp(Skill.slayer, slayerXp);
 
-          builder.incrementSlayerTaskCompletion(category.id);
+        for (final reward in category!.currencyRewards) {
+          final totalHp = action.maxHp * updatedTask.killsRequired;
+          final coins = (totalHp * reward.percent) ~/ 100;
+          builder.addCurrency(reward.currency, coins);
+        }
 
-          // Auto Slayer shop upgrade: auto-roll a new task (free).
-          final taskModifiers = builder.state.createCombatModifierProvider(
-            conditionContext: ConditionContext.empty,
-          );
-          if (taskModifiers.autoSlayerUnlocked > 0) {
-            // Switch to the new task's monster. Return early to avoid
-            // the respawn-timer update below for the old monster.
-            builder.autoRollSlayerTask(category: category, random: random);
-            return (ForegroundResult.continued, ticksConsumed);
-          } else {
-            builder.clearSlayerTask();
-          }
+        builder.incrementSlayerTaskCompletion(category.id);
+
+        // Auto Slayer shop upgrade: auto-roll a new task (free).
+        final taskModifiers = builder.state.createCombatModifierProvider(
+          conditionContext: ConditionContext.empty,
+        );
+        if (taskModifiers.autoSlayerUnlocked > 0) {
+          // Switch to the new task's monster. Return early to avoid
+          // the respawn-timer update below for the old monster.
+          builder.autoRollSlayerTask(category: category, random: random);
+          return (ForegroundResult.continued, ticksConsumed);
         } else {
-          // Category not found; just clear the task.
           builder.clearSlayerTask();
         }
       } else {
