@@ -1483,7 +1483,8 @@ ForegroundResult _restartOrStop(
             conditionContext: ConditionContext.empty,
           );
           if (taskModifiers.autoSlayerUnlocked > 0) {
-            // startAction sets up fresh combat state; skip old-monster respawn.
+            // Switch to the new task's monster. Return early to avoid
+            // the respawn-timer update below for the old monster.
             builder.autoRollSlayerTask(category: category, random: random);
             return (ForegroundResult.continued, ticksConsumed);
           } else {
