@@ -1466,13 +1466,11 @@ ForegroundResult _restartOrStop(
         final category = builder.registries.slayer.taskCategories.byId(
           updatedTask.categoryId,
         );
-        assert(category != null, 'Slayer task category not found: '
-            '${updatedTask.categoryId}');
 
         final slayerXp = action.maxHp * updatedTask.killsRequired ~/ 5;
         builder.addSkillXp(Skill.slayer, slayerXp);
 
-        for (final reward in category!.currencyRewards) {
+        for (final reward in category.currencyRewards) {
           final totalHp = action.maxHp * updatedTask.killsRequired;
           final coins = (totalHp * reward.percent) ~/ 100;
           builder.addCurrency(reward.currency, coins);

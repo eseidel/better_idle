@@ -329,8 +329,14 @@ class SlayerTaskCategoryRegistry {
   /// Returns all task categories.
   List<SlayerTaskCategory> get all => _categories;
 
-  /// Returns a category by ID.
-  SlayerTaskCategory? byId(MelvorId id) => _byId[id];
+  /// Returns a category by ID, or throws if not found.
+  SlayerTaskCategory byId(MelvorId id) {
+    final category = _byId[id];
+    if (category == null) {
+      throw StateError('Slayer task category not found: $id');
+    }
+    return category;
+  }
 }
 
 /// Registry for slayer areas.
