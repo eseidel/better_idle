@@ -340,10 +340,8 @@ void main() {
       expect(activity.context.currentMonsterId, differentMonster.id.localId);
     });
 
-    test('slayer task rewards currency based on category currencyRewards', () {
+    test('on-task kills grant SC per kill (10% of monster HP)', () {
       final category = easyCategory();
-      if (category.currencyRewards.isEmpty) return;
-
       var state = GlobalState.test(
         testRegistries,
         skillStates: highCombatSkills,
@@ -355,17 +353,12 @@ void main() {
       final random = Random(42);
       state = state.startSlayerTask(category: category, random: random);
 
-      // Start fighting the task's monster.
       final monster = testRegistries.combat.monsterById(
         state.slayerTask!.monsterId,
       );
       state = state.startAction(monster, random: random);
 
-      // Track initial currency for rewards.
-      final rewardCurrencyAmounts = <Currency, int>{
-        for (final reward in category.currencyRewards)
-          reward.currency: state.currency(reward.currency),
-      };
+      final initialSc = state.currency(Currency.slayerCoins);
 
       // Override to small number for test speed.
       const testKills = 3;
@@ -382,14 +375,36 @@ void main() {
         totalTicks += 1000;
       }
 
-      // Each reward currency should have increased.
-      for (final reward in category.currencyRewards) {
-        expect(
-          state.currency(reward.currency),
-          greaterThan(rewardCurrencyAmounts[reward.currency]!),
-          reason: 'Should have earned ${reward.currency} reward',
-        );
+      // SC should have increased by 10% of monster HP per kill.
+      // May have earned extra kills after task cleared (off-task = 0 SC).
+      final expectedSc = monster.maxHp * 10 ~/ 100 * testKills;
+      expect(
+        state.currency(Currency.slayerCoins) - initialSc,
+        greaterThanOrEqualTo(expectedSc),
+      );
+    });
+
+    test('off-task kills do not grant SC', () {
+      // No slayer task active — kill a monster and verify no SC earned.
+      var state = GlobalState.test(
+        testRegistries,
+        skillStates: highCombatSkills,
+      );
+      final random = Random(42);
+      final monster = testRegistries.combat.monsters.first;
+      state = state.startAction(monster, random: random);
+
+      final initialSc = state.currency(Currency.slayerCoins);
+
+      var totalTicks = 0;
+      while (totalTicks < 5000) {
+        final builder = StateUpdateBuilder(state);
+        consumeTicks(builder, 1000, random: random);
+        state = builder.build();
+        totalTicks += 1000;
       }
+
+      expect(state.currency(Currency.slayerCoins), initialSc);
     });
   });
 
