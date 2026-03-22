@@ -1441,81 +1441,110 @@ class _BuildingCard extends StatelessWidget {
     final biomeCount = buildingState.count;
     final maxUpgrades = building.maxUpgrades;
 
+    final actionLabel = needsRepair ? 'Repair' : 'Build';
+
     return SizedBox(
       width: 140,
       child: Card(
         clipBehavior: Clip.antiAlias,
-        child: InkWell(
-          onTap: () => _showBuildDialog(context),
-          child: Padding(
-            padding: const EdgeInsets.all(8),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                // Header row: building image + tier indicator
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // Building image
-                    Expanded(
-                      child: Center(
-                        child: displayMedia != null
-                            ? CachedImage(assetPath: displayMedia, size: 48)
-                            : const Icon(Icons.home, size: 48),
-                      ),
+        child: Padding(
+          padding: const EdgeInsets.all(8),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Header row: building image + tier indicator
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Building image
+                  Expanded(
+                    child: Center(
+                      child: displayMedia != null
+                          ? CachedImage(assetPath: displayMedia, size: 48)
+                          : const Icon(Icons.home, size: 48),
                     ),
-                    // Tier indicator (segmented bar)
-                    _TierIndicator(tier: building.tier),
-                  ],
+                  ),
+                  // Tier indicator (segmented bar)
+                  _TierIndicator(tier: building.tier),
+                ],
+              ),
+              const SizedBox(height: 4),
+              // Building name
+              Text(
+                displayName,
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w500,
+                  color: canPerformAction
+                      ? Style.textColorPrimary
+                      : Style.textColorMuted,
                 ),
-                const SizedBox(height: 4),
-                // Building name
+                textAlign: TextAlign.center,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+              ),
+              const SizedBox(height: 2),
+              // Count progress bar
+              if (maxUpgrades > 0) ...[
+                _BuildCountBar(
+                  count: biomeCount,
+                  max: maxUpgrades,
+                  needsRepair: needsRepair,
+                  efficiencyStr: efficiencyStr,
+                ),
+              ] else if (buildingState.count > 0)
                 Text(
-                  displayName,
+                  needsRepair
+                      ? '${buildingState.count} built ($efficiencyStr)'
+                      : '${buildingState.count} built',
                   style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w500,
-                    color: canPerformAction
-                        ? Style.textColorPrimary
-                        : Style.textColorMuted,
+                    fontSize: 10,
+                    color: needsRepair
+                        ? Style.unmetRequirementColor
+                        : Style.textColorSecondary,
                   ),
-                  textAlign: TextAlign.center,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
                 ),
-                const SizedBox(height: 2),
-                // Count progress bar
-                if (maxUpgrades > 0) ...[
-                  _BuildCountBar(
-                    count: biomeCount,
-                    max: maxUpgrades,
-                    needsRepair: needsRepair,
-                    efficiencyStr: efficiencyStr,
+              const SizedBox(height: 4),
+              // Costs section (repair costs if needs repair)
+              if (needsRepair)
+                _buildRepairCostsSection(context)
+              else
+                _buildCostsSection(context),
+              const SizedBox(height: 4),
+              // Benefits section (hide when repairing)
+              if (!needsRepair) _buildBenefitsSection(context),
+              if (!needsRepair) const SizedBox(height: 4),
+              // Build/Repair button
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: canPerformAction
+                      ? () {
+                          if (needsRepair) {
+                            context.dispatch(
+                              RepairTownshipBuildingAction(
+                                biomeId: biomeId,
+                                buildingId: building.id,
+                              ),
+                            );
+                          } else {
+                            context.dispatch(
+                              BuildTownshipBuildingAction(
+                                biomeId: biomeId,
+                                buildingId: building.id,
+                              ),
+                            );
+                          }
+                        }
+                      : null,
+                  style: ElevatedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 4),
+                    textStyle: const TextStyle(fontSize: 12),
                   ),
-                ] else if (buildingState.count > 0)
-                  Text(
-                    needsRepair
-                        ? '${buildingState.count} built ($efficiencyStr)'
-                        : '${buildingState.count} built',
-                    style: TextStyle(
-                      fontSize: 10,
-                      color: needsRepair
-                          ? Style.unmetRequirementColor
-                          : Style.textColorSecondary,
-                    ),
-                  ),
-                const SizedBox(height: 4),
-                // Costs section (repair costs if needs repair)
-                if (needsRepair)
-                  _buildRepairCostsSection(context)
-                else
-                  _buildCostsSection(context),
-                const SizedBox(height: 4),
-                // Benefits section (hide when repairing)
-                if (!needsRepair) _buildBenefitsSection(context),
-                if (!needsRepair) const SizedBox(height: 4),
-              ],
-            ),
+                  child: Text(actionLabel),
+                ),
+              ),
+            ],
           ),
         ),
       ),
@@ -1693,17 +1722,6 @@ class _BuildingCard extends StatelessWidget {
       children: costWidgets,
     );
   }
-
-  void _showBuildDialog(BuildContext context) {
-    showDialog<void>(
-      context: context,
-      builder: (dialogContext) => _BuildingPurchaseDialog(
-        viewModel: viewModel,
-        biomeId: biomeId,
-        building: building,
-      ),
-    );
-  }
 }
 
 /// Segmented tier indicator shown in the top-right of a building card.
@@ -1771,326 +1789,6 @@ class _BuildCountBar extends StatelessWidget {
           ),
         ),
       ],
-    );
-  }
-}
-
-class _BuildingPurchaseDialog extends StatelessWidget {
-  const _BuildingPurchaseDialog({
-    required this.viewModel,
-    required this.biomeId,
-    required this.building,
-  });
-
-  final TownshipViewModel viewModel;
-  final MelvorId biomeId;
-  final TownshipBuilding building;
-
-  @override
-  Widget build(BuildContext context) {
-    final township = viewModel.township;
-    final buildingState = township.buildingState(biomeId, building.id);
-    final needsRepair = township.buildingNeedsRepair(biomeId, building.id);
-
-    // Resolve statue building name based on selected deity
-    final registry = township.registry;
-    final deity = township.selectedDeity;
-    final displayName = registry.buildingDisplayName(building, deity);
-
-    final canPerformAction = needsRepair
-        ? viewModel.canAffordRepair(biomeId, building.id)
-        : viewModel.canBuild(biomeId, building.id) == null;
-
-    final actionLabel = needsRepair ? 'Repair' : 'Build';
-
-    return AlertDialog(
-      title: Text('$actionLabel $displayName'),
-      content: SingleChildScrollView(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            if (building.maxUpgrades > 0) ...[
-              Builder(
-                builder: (context) {
-                  final biomeCount = buildingState.count;
-                  final effStr = percentValueToString(buildingState.efficiency);
-                  final label = needsRepair
-                      ? 'Built: $biomeCount/${building.maxUpgrades} '
-                            '($effStr efficiency)'
-                      : 'Built: $biomeCount/${building.maxUpgrades}';
-                  return Text(
-                    label,
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: needsRepair ? Style.unmetRequirementColor : null,
-                    ),
-                  );
-                },
-              ),
-              const SizedBox(height: 12),
-            ] else if (buildingState.count > 0) ...[
-              Text(
-                'Currently: ${buildingState.count} built '
-                '(${percentValueToString(buildingState.efficiency)} '
-                'efficiency)',
-                style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: needsRepair ? Style.unmetRequirementColor : null,
-                ),
-              ),
-              const SizedBox(height: 12),
-            ],
-            Text(
-              needsRepair ? 'Repair Costs' : 'Costs',
-              style: Theme.of(context).textTheme.titleSmall,
-            ),
-            const SizedBox(height: 4),
-            if (needsRepair)
-              _buildRepairCosts(context)
-            else
-              _buildCosts(context),
-            const SizedBox(height: 12),
-            if (!needsRepair && building.tier > 1) ...[
-              Text(
-                'Requirements',
-                style: Theme.of(context).textTheme.titleSmall,
-              ),
-              const SizedBox(height: 4),
-              _buildRequirements(context),
-              const SizedBox(height: 12),
-            ],
-            if (!needsRepair) ...[
-              Text('Bonuses', style: Theme.of(context).textTheme.titleSmall),
-              const SizedBox(height: 4),
-              _buildBonuses(context),
-            ],
-          ],
-        ),
-      ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.of(context).pop(),
-          child: const Text('Cancel'),
-        ),
-        TextButton(
-          onPressed: canPerformAction
-              ? () {
-                  try {
-                    if (needsRepair) {
-                      context.dispatch(
-                        RepairTownshipBuildingAction(
-                          biomeId: biomeId,
-                          buildingId: building.id,
-                        ),
-                      );
-                    } else {
-                      context.dispatch(
-                        BuildTownshipBuildingAction(
-                          biomeId: biomeId,
-                          buildingId: building.id,
-                        ),
-                      );
-                    }
-                    Navigator.of(context).pop();
-                  } on Exception catch (e) {
-                    Navigator.of(context).pop();
-                    ScaffoldMessenger.of(
-                      context,
-                    ).showSnackBar(SnackBar(content: Text(e.toString())));
-                  }
-                }
-              : null,
-          child: Text(actionLabel),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildRepairCosts(BuildContext context) {
-    final township = viewModel.township;
-    final repairCosts = township.repairCosts(biomeId, building.id);
-    if (repairCosts.isEmpty) {
-      return const Text('Free', style: TextStyle(color: Style.successColor));
-    }
-
-    final costs = <Widget>[];
-
-    for (final entry in repairCosts.entries) {
-      final resourceId = entry.key;
-      final amount = entry.value;
-
-      if (Currency.isGpId(resourceId)) {
-        final canAfford = viewModel.canAffordGp(amount);
-        costs.add(
-          Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              CachedImage(assetPath: Currency.gp.assetPath, size: 16),
-              const SizedBox(width: 4),
-              Text(
-                approximateCreditString(amount),
-                style: TextStyle(
-                  color: canAfford ? Style.successColor : Style.errorColor,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ],
-          ),
-        );
-      } else {
-        final resource = township.registry.resourceById(resourceId);
-        final canAfford = viewModel.canAffordResource(resourceId, amount);
-        costs.add(
-          Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text('${resource.name}: ', style: const TextStyle(fontSize: 13)),
-              Text(
-                approximateCreditString(amount),
-                style: TextStyle(
-                  color: canAfford ? Style.successColor : Style.errorColor,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ],
-          ),
-        );
-      }
-    }
-
-    return Wrap(spacing: 12, runSpacing: 4, children: costs);
-  }
-
-  Widget _buildCosts(BuildContext context) {
-    final biomeData = building.dataForBiome(biomeId);
-    if (biomeData == null) {
-      return const Text(
-        'No cost data',
-        style: TextStyle(color: Style.errorColor),
-      );
-    }
-
-    final registry = viewModel.township.registry;
-    final costs = <Widget>[];
-
-    // All costs including GP (GP has localId 'GP')
-    for (final entry in biomeData.costs.entries) {
-      final resourceId = entry.key;
-      final amount = entry.value;
-
-      if (Currency.isGpId(resourceId)) {
-        // GP cost
-        final canAfford = viewModel.canAffordGp(amount);
-        costs.add(
-          Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              CachedImage(assetPath: Currency.gp.assetPath, size: 16),
-              const SizedBox(width: 4),
-              Text(
-                approximateCreditString(amount),
-                style: TextStyle(
-                  color: canAfford ? Style.successColor : Style.errorColor,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ],
-          ),
-        );
-      } else {
-        // Resource cost
-        final resource = registry.resourceById(resourceId);
-        final canAfford = viewModel.canAffordResource(resourceId, amount);
-        costs.add(
-          Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text('${resource.name}: ', style: const TextStyle(fontSize: 13)),
-              Text(
-                approximateCreditString(amount),
-                style: TextStyle(
-                  color: canAfford ? Style.successColor : Style.errorColor,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ],
-          ),
-        );
-      }
-    }
-
-    if (costs.isEmpty) {
-      return const Text('Free', style: TextStyle(color: Style.successColor));
-    }
-
-    return Wrap(spacing: 12, runSpacing: 4, children: costs);
-  }
-
-  Widget _buildRequirements(BuildContext context) {
-    final reqs = <Widget>[];
-
-    // Level requirement based on tier
-    final levelRequired = TownshipRegistry.tierToLevel(building.tier);
-    if (levelRequired > 1) {
-      final met = viewModel.townshipLevel >= levelRequired;
-      reqs.add(
-        Text(
-          'Township Lv. $levelRequired',
-          style: TextStyle(
-            color: met ? Style.successColor : Style.unmetRequirementColor,
-          ),
-        ),
-      );
-    }
-
-    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: reqs);
-  }
-
-  Widget _buildBonuses(BuildContext context) {
-    final biomeData = building.dataForBiome(biomeId);
-    if (biomeData == null) {
-      return const Text('No bonus data');
-    }
-
-    final bonuses = <String>[];
-
-    if (biomeData.population > 0) {
-      bonuses.add('+${biomeData.population} Population');
-    }
-    if (biomeData.happiness != 0) {
-      final sign = biomeData.happiness > 0 ? '+' : '';
-      bonuses.add(
-        '$sign${percentValueToString(biomeData.happiness)} Happiness',
-      );
-    }
-    if (biomeData.education != 0) {
-      final sign = biomeData.education > 0 ? '+' : '';
-      bonuses.add(
-        '$sign${percentValueToString(biomeData.education)} Education',
-      );
-    }
-    if (biomeData.storage > 0) {
-      bonuses.add('+${biomeData.storage} Storage');
-    }
-
-    // Production
-    if (biomeData.production.isNotEmpty) {
-      final registry = viewModel.township.registry;
-      for (final entry in biomeData.production.entries) {
-        final resource = registry.resourceById(entry.key);
-        bonuses.add('Produces ${entry.value} ${resource.name}/hr');
-      }
-    }
-
-    if (bonuses.isEmpty) {
-      return const Text(
-        'No bonuses',
-        style: TextStyle(color: Style.textColorSecondary),
-      );
-    }
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: bonuses.map(Text.new).toList(),
     );
   }
 }
