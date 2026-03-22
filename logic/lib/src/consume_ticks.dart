@@ -540,22 +540,16 @@ bool rollAndCollectDrops(
 
   final doublingChance = action.doublingChance(modifiers);
 
-  // For herblore, determine the correct potion tier based on mastery level.
-  final herbloreOverrideId = action is HerbloreAction
-      ? action.productIdForMasteryLevel(builder.currentMasteryLevel(action))
-      : null;
-
-  for (final rawDrop in registries.drops.allDropsForAction(action, selection)) {
+  for (final drop in registries.drops.allDropsForAction(action, selection)) {
     ItemStack? itemStack;
 
-    if (rawDrop is Drop) {
-      // For herblore, substitute the correct potion tier.
-      final drop =
-          herbloreOverrideId != null &&
-              rawDrop.itemId == (action as HerbloreAction).productId
-          ? Drop(herbloreOverrideId, count: rawDrop.count, rate: rawDrop.rate)
-          : rawDrop;
-
+    if (drop is TieredDrop) {
+      // Mastery-tiered drops (herblore potions): select item by mastery level.
+      final tierIndex = HerbloreAction.tierIndexForMasteryLevel(
+        builder.currentMasteryLevel(action),
+      );
+      itemStack = drop.rollWithContext(registries.items, tierIndex: tierIndex);
+    } else if (drop is Drop) {
       // For simple drops, apply randomProductChance modifier
       // The modifier is scoped by itemId and skillId in Melvor data
       final modifierBonus = modifiers.randomProductChance(
@@ -568,7 +562,7 @@ bool rollAndCollectDrops(
       if (effectiveRate >= 1.0 || random.nextDouble() < effectiveRate) {
         itemStack = drop.toItemStack(registries.items);
       }
-    } else if (rawDrop is ThievingUniqueDrop) {
+    } else if (drop is ThievingUniqueDrop) {
       // Compute actual player stealth for accurate NPC unique drop rate.
       final thievingAction = action as ThievingAction;
       final thievingLevel = builder.state.skillState(Skill.thieving).skillLevel;
@@ -581,12 +575,12 @@ bool rollAndCollectDrops(
         actionMasteryLevel,
         thievingStealthBonus: stealthBonus,
       );
-      itemStack = rawDrop.rollWithContext(
+      itemStack = drop.rollWithContext(
         registries.items,
         random,
         stealth: stealth,
       );
-    } else if (rawDrop is RareDrop) {
+    } else if (drop is RareDrop) {
       // Use rollWithContext for RareDrops to check requiredItemId
       final skillLevel = builder.state.skillState(action.skill).skillLevel;
       final totalMastery = playerTotalMasteryLevelForSkill(
@@ -594,10 +588,10 @@ bool rollAndCollectDrops(
         action.skill,
       );
       final hasRequiredItem =
-          rawDrop.requiredItemId == null ||
-          builder.state.inventory.hasEverAcquired(rawDrop.requiredItemId!);
+          drop.requiredItemId == null ||
+          builder.state.inventory.hasEverAcquired(drop.requiredItemId!);
 
-      itemStack = rawDrop.rollWithContext(
+      itemStack = drop.rollWithContext(
         registries.items,
         random,
         skillLevel: skillLevel,
@@ -606,7 +600,7 @@ bool rollAndCollectDrops(
       );
     } else {
       // For other Droppable types (DropTable, DropChance), use base roll
-      itemStack = rawDrop.roll(registries.items, random);
+      itemStack = drop.roll(registries.items, random);
     }
 
     if (itemStack != null) {

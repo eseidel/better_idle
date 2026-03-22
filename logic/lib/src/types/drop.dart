@@ -71,6 +71,41 @@ class Drop extends Droppable {
   }
 }
 
+/// A drop whose item depends on the action's mastery level.
+///
+/// Used for herblore potions where mastery thresholds determine the potion
+/// tier produced (I at 1+, II at 20+, III at 50+, IV at 90+).
+/// Follows the same context-dependent pattern as [ThievingUniqueDrop] and
+/// [RareDrop].
+@immutable
+class TieredDrop extends Droppable {
+  const TieredDrop(this.itemIds, {this.count = 1});
+
+  /// Item IDs ordered by tier (index 0 = lowest tier).
+  final List<MelvorId> itemIds;
+
+  final int count;
+
+  @override
+  Map<MelvorId, double> get expectedItems {
+    // Use the first tier for estimation (conservative default).
+    return {itemIds.first: count.toDouble()};
+  }
+
+  @override
+  ItemStack? roll(ItemRegistry items, Random random) {
+    throw UnimplementedError(
+      'TieredDrop.roll() requires context. Use rollWithContext() instead.',
+    );
+  }
+
+  /// Rolls the drop using the tier index to select the correct item.
+  ItemStack rollWithContext(ItemRegistry items, {required int tierIndex}) {
+    final id = itemIds[tierIndex.clamp(0, itemIds.length - 1)];
+    return ItemStack(items.byId(id), count: count);
+  }
+}
+
 /// A conditional drop that wraps any Droppable with a probability gate.
 @immutable
 class DropChance extends Droppable {

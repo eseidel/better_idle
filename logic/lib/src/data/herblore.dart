@@ -1,6 +1,7 @@
 import 'package:logic/src/data/action_id.dart';
 import 'package:logic/src/data/actions.dart';
 import 'package:logic/src/data/melvor_id.dart';
+import 'package:logic/src/types/drop.dart';
 import 'package:meta/meta.dart';
 
 const _herbloreDuration = Duration(seconds: 2);
@@ -40,7 +41,7 @@ class HerbloreCategory {
 /// mastery level. Use [productIdForMasteryLevel] to get the correct output.
 @immutable
 class HerbloreAction extends SkillAction {
-  const HerbloreAction({
+  HerbloreAction({
     required super.id,
     required super.name,
     required super.unlockLevel,
@@ -50,7 +51,11 @@ class HerbloreAction extends SkillAction {
     required this.productId,
     required this.potionIds,
     required this.categoryId,
-  }) : super(skill: Skill.herblore, duration: _herbloreDuration);
+  }) : super(
+         skill: Skill.herblore,
+         duration: _herbloreDuration,
+         rewardsAtLevel: (action, selection) => [TieredDrop(potionIds)],
+       );
 
   factory HerbloreAction.fromJson(
     Map<String, dynamic> json, {
