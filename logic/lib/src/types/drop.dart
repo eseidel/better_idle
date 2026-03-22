@@ -1,6 +1,6 @@
 import 'dart:math';
 
-import 'package:logic/src/data/actions.dart' show Skill;
+import 'package:logic/src/data/actions.dart' show HerbloreAction, Skill;
 import 'package:logic/src/data/items.dart';
 import 'package:logic/src/data/melvor_id.dart';
 import 'package:logic/src/types/inventory.dart';
@@ -100,8 +100,9 @@ class TieredDrop extends Droppable {
     );
   }
 
-  /// Rolls the drop using the tier index to select the correct item.
-  ItemStack rollWithContext(ItemRegistry items, {required int tierIndex}) {
+  /// Rolls the drop, selecting the correct item for the given mastery level.
+  ItemStack rollWithContext(ItemRegistry items, {required int masteryLevel}) {
+    final tierIndex = HerbloreAction.tierIndexForMasteryLevel(masteryLevel);
     final id = itemIds[tierIndex.clamp(0, itemIds.length - 1)];
     return ItemStack(items.byId(id), count: count);
   }

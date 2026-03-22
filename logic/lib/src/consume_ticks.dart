@@ -545,10 +545,10 @@ bool rollAndCollectDrops(
 
     if (drop is TieredDrop) {
       // Mastery-tiered drops (herblore potions): select item by mastery level.
-      final tierIndex = HerbloreAction.tierIndexForMasteryLevel(
-        builder.currentMasteryLevel(action),
+      itemStack = drop.rollWithContext(
+        registries.items,
+        masteryLevel: builder.currentMasteryLevel(action),
       );
-      itemStack = drop.rollWithContext(registries.items, tierIndex: tierIndex);
     } else if (drop is Drop) {
       // For simple drops, apply randomProductChance modifier
       // The modifier is scoped by itemId and skillId in Melvor data
