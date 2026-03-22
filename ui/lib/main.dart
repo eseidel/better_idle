@@ -474,7 +474,11 @@ class _MyAppState extends State<MyApp> {
     if (!_isDataLoaded) {
       return MaterialApp(
         themeMode: ThemeMode.dark,
-        darkTheme: ThemeData.dark(),
+        darkTheme: ThemeData.dark().copyWith(
+          dialogTheme: const DialogThemeData(
+            constraints: BoxConstraints(maxWidth: 560),
+          ),
+        ),
         home: const Scaffold(body: Center(child: CircularProgressIndicator())),
       );
     }
@@ -607,7 +611,11 @@ class _GameAppState extends State<_GameApp> {
           child: MaterialApp.router(
             routerConfig: router,
             themeMode: ThemeMode.dark,
-            darkTheme: ThemeData.dark(),
+            darkTheme: ThemeData.dark().copyWith(
+              dialogTheme: const DialogThemeData(
+                constraints: BoxConstraints(maxWidth: 560),
+              ),
+            ),
             builder: (context, child) {
               return ToastOverlay(
                 service: toastService,
