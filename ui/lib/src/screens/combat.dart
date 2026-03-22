@@ -1325,7 +1325,7 @@ class _SlayerTaskDetails extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                category?.name ?? 'Unknown',
+                category.name,
                 style: const TextStyle(fontWeight: FontWeight.bold),
               ),
               const SizedBox(height: 4),
