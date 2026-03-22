@@ -363,4 +363,7 @@ class SlayerRegistry {
 
   final SlayerTaskCategoryRegistry taskCategories;
   final SlayerAreaRegistry areas;
+
+  /// Returns a task category by ID, or throws if not found.
+  SlayerTaskCategory categoryById(MelvorId id) => taskCategories.byId(id);
 }

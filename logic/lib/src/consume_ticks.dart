@@ -1463,7 +1463,7 @@ ForegroundResult _restartOrStop(
 
       if (updatedTask.isComplete) {
         // Task completed! Grant rewards.
-        final category = builder.registries.slayer.taskCategories.byId(
+        final category = builder.registries.slayer.categoryById(
           updatedTask.categoryId,
         );
 
