@@ -125,11 +125,22 @@ class SkillTile extends StatelessWidget {
     final activeSkill = context.state.activeSkill();
     final isActiveSkill = activeSkill == skill;
     final isSelected = selected || currentLocation == '/$routeName';
-    final skillState = context.state.skillState(skill);
+    final state = context.state;
+    final skillState = state.skillState(skill);
     final level = skillState.skillLevel;
 
     const valueStyle = TextStyle(color: Style.currencyValueColor);
-    final slayerCoins = context.state.currency(Currency.slayerCoins);
+    final slayerCoins = state.currency(Currency.slayerCoins);
+
+    // Count farming plots ready to harvest.
+    var harvestReady = 0;
+    if (skill == Skill.farming) {
+      for (final plotId in state.unlockedPlots) {
+        final ps = state.plotStates[plotId];
+        if (ps != null && ps.isReadyToHarvest) harvestReady++;
+      }
+    }
+
     final titleWidget = switch (skill) {
       Skill.hitpoints => Text.rich(
         TextSpan(
@@ -155,6 +166,17 @@ class SkillTile extends StatelessWidget {
           const SizedBox(width: 2),
           Text(approximateCreditString(slayerCoins), style: valueStyle),
         ],
+      ),
+      Skill.farming when harvestReady > 0 => Text.rich(
+        TextSpan(
+          children: [
+            TextSpan(text: skill.name),
+            TextSpan(
+              text: ' ($harvestReady)',
+              style: const TextStyle(color: Colors.green),
+            ),
+          ],
+        ),
       ),
       _ => Text(skill.name),
     };
