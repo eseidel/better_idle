@@ -2342,12 +2342,11 @@ void main() {
       });
 
       test('rollDungeonPet unlocks pet on successful roll', () {
-        var state = GlobalState.test(testRegistries);
+        final state = GlobalState.test(testRegistries);
         final builder = StateUpdateBuilder(state)
           // Weight=1 means nextInt(1)==0 always succeeds.
           ..rollDungeonPet(dungeonWithPet.id, Random(0));
-        state = builder.state;
-        expect(state.unlockedPets, contains(petId));
+        expect(builder.state.unlockedPets, contains(petId));
         expect(builder.changes.petsUnlocked, contains(petId));
       });
 
